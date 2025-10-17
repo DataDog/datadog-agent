@@ -8,16 +8,15 @@ package agentimpl
 import (
 	"encoding/json"
 	"fmt"
-	"math/rand"
 	"net/http"
 	"time"
 
 	remotecfg "github.com/DataDog/datadog-agent/cmd/trace-agent/config/remote"
-	"github.com/DataDog/datadog-agent/comp/api/authtoken"
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	"github.com/DataDog/datadog-agent/comp/trace/config"
-	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
 	rc "github.com/DataDog/datadog-agent/pkg/config/remote/client"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
 	tracecfg "github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
@@ -26,7 +25,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/coredump"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/profiling"
-	"github.com/DataDog/datadog-agent/pkg/version"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
 )
@@ -34,7 +32,7 @@ import (
 // runAgentSidekicks is the entrypoint for running non-components that run along the agent.
 func runAgentSidekicks(ag component) error {
 	// Configure the Trace Agent Debug server to use the IPC certificate
-	ag.Agent.DebugServer.SetTLSConfig(ag.at.GetTLSServerConfig())
+	ag.Agent.DebugServer.SetTLSConfig(ag.ipc.GetTLSServerConfig())
 
 	tracecfg := ag.config.Object()
 	err := info.InitInfo(tracecfg) // for expvar & -info option
@@ -48,10 +46,8 @@ func runAgentSidekicks(ag component) error {
 		log.Warnf("Can't setup core dumps: %v, core dumps might not be available after a crash", err)
 	}
 
-	rand.Seed(time.Now().UTC().UnixNano())
-
-	if pkgconfigsetup.IsRemoteConfigEnabled(pkgconfigsetup.Datadog()) {
-		cf, err := newConfigFetcher(ag.at)
+	if configUtils.IsRemoteConfigEnabled(pkgconfigsetup.Datadog()) {
+		cf, err := newConfigFetcher(ag.ipc)
 		if err != nil {
 			ag.telemetryCollector.SendStartupError(telemetry.CantCreateRCCLient, err)
 			return fmt.Errorf("could not instantiate the tracer remote config client: %v", err)
@@ -81,26 +77,25 @@ func runAgentSidekicks(ag component) error {
 		},
 	})
 
-	if secrets, ok := ag.secrets.Get(); ok {
-		// Adding a route to trigger a secrets refresh from the CLI.
-		// TODO - components: the secrets comp already export a route but it requires the API component which is not
-		// used by the trace agent. This should be removed once the trace-agent is fully componentize.
-		ag.Agent.DebugServer.AddRoute("/secret/refresh", http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-			if apiutil.Validate(w, req) != nil {
-				return
-			}
-
-			res, err := secrets.Refresh()
-			if err != nil {
-				log.Errorf("error while refresing secrets: %s", err)
-				w.Header().Set("Content-Type", "application/json")
-				body, _ := json.Marshal(map[string]string{"error": err.Error()})
-				http.Error(w, string(body), http.StatusInternalServerError)
-				return
-			}
-			w.Write([]byte(res))
-		}))
-	}
+	// Adding a route to trigger a secrets refresh from the CLI.
+	// TODO - components: the secrets comp already export a route but it requires the API component which is not
+	// used by the trace agent. This should be removed once the trace-agent is fully componentize.
+	ag.Agent.DebugServer.AddRoute("/secret/refresh",
+		// Adding IPC middleware to the secrets refresh endpoint to check validity of auth token Header.
+		ag.ipc.HTTPMiddleware(
+			http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				res, err := ag.secrets.Refresh()
+				if err != nil {
+					log.Errorf("error while refresing secrets: %s", err)
+					w.Header().Set("Content-Type", "application/json")
+					body, _ := json.Marshal(map[string]string{"error": err.Error()})
+					http.Error(w, string(body), http.StatusInternalServerError)
+					return
+				}
+				w.Write([]byte(res))
+			}),
+		),
+	)
 
 	log.Infof("Trace agent running on host %s", tracecfg.Hostname)
 	if pcfg := profilingConfig(tracecfg, ag.params.DisableInternalProfiling); pcfg != nil {
@@ -138,7 +133,7 @@ func profilingConfig(tracecfg *tracecfg.AgentConfig, disableInternalProfiling bo
 		endpoint = fmt.Sprintf(profiling.ProfilingURLTemplate, tracecfg.Site)
 	}
 	tags := pkgconfigsetup.Datadog().GetStringSlice("internal_profiling.extra_tags")
-	tags = append(tags, fmt.Sprintf("version:%s", version.AgentVersion))
+	tags = profiling.GetBaseProfilingTags(tags)
 	return &profiling.Settings{
 		ProfilingURL: endpoint,
 
@@ -157,12 +152,12 @@ func profilingConfig(tracecfg *tracecfg.AgentConfig, disableInternalProfiling bo
 	}
 }
 
-func newConfigFetcher(at authtoken.Component) (rc.ConfigFetcher, error) {
+func newConfigFetcher(ipc ipc.Component) (rc.ConfigFetcher, error) {
 	ipcAddress, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
 	if err != nil {
 		return nil, err
 	}
 
 	// Auth tokens are handled by the rcClient
-	return rc.NewAgentGRPCConfigFetcher(ipcAddress, pkgconfigsetup.GetIPCPort(), at.Get, at.GetTLSClientConfig)
+	return rc.NewAgentGRPCConfigFetcher(ipcAddress, pkgconfigsetup.GetIPCPort(), ipc.GetAuthToken(), ipc.GetTLSClientConfig()) // TODO IPC: GRPC client will be provided by the IPC component
 }

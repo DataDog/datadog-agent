@@ -9,9 +9,33 @@
 package probes
 
 import (
+	"fmt"
+	"slices"
+
 	manager "github.com/DataDog/ebpf-manager"
+	"github.com/cilium/ebpf"
+	"github.com/cilium/ebpf/asm"
 	"golang.org/x/sys/unix"
 )
+
+const (
+	// TCActOk will terminate the packet processing pipeline and allows the packet to proceed
+	TCActOk = 0
+	// TCActShot will terminate the packet processing pipeline and drop the packet
+	TCActShot = 2
+	// TCActUnspec will continue packet processing
+	TCActUnspec = -1
+)
+
+// ProgAllowedToTCActShot programs allowed to use shot tc act
+var ProgAllowedToTCActShot = []string{
+	tailCallClassifierFnc("raw_packet_drop_action_cb"),
+}
+
+// IsProgAllowedToTCActShot checks if the program is allowed to use shot tc act
+func IsProgAllowedToTCActShot(prog string) bool {
+	return slices.Contains(ProgAllowedToTCActShot, prog)
+}
 
 // GetTCProbes returns the list of TCProbes
 func GetTCProbes(withNetworkIngress bool, withRawPacket bool) []*manager.Probe {
@@ -69,18 +93,19 @@ func GetTCProbes(withNetworkIngress bool, withRawPacket bool) []*manager.Probe {
 // GetRawPacketTCProgramFunctions returns the raw packet functions
 func GetRawPacketTCProgramFunctions() []string {
 	return []string{
-		"classifier_raw_packet",
-		"classifier_raw_packet_sender",
+		//tailCallClassifierFnc("raw_packet"),
+		tailCallClassifierFnc("raw_packet_sender"),
+		tailCallClassifierFnc("raw_packet_drop_action_cb"),
 	}
 }
 
 // GetAllTCProgramFunctions returns the list of TC classifier sections
 func GetAllTCProgramFunctions() []string {
 	output := []string{
-		"classifier_dns_request_parser",
-		"classifier_dns_response",
-		"classifier_dns_request",
-		"classifier_imds_request",
+		tailCallClassifierFnc("dns_request_parser"),
+		tailCallClassifierFnc("dns_response"),
+		tailCallClassifierFnc("dns_request"),
+		tailCallClassifierFnc("imds_request"),
 	}
 
 	output = append(output, GetRawPacketTCProgramFunctions()...)
@@ -106,28 +131,28 @@ func getTCTailCallRoutes(withRawPacket bool) []manager.TailCallRoute {
 			ProgArrayName: "classifier_router",
 			Key:           TCDNSRequestKey,
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFFuncName: "classifier_dns_request",
+				EBPFFuncName: tailCallClassifierFnc("dns_request"),
 			},
 		},
 		{
 			ProgArrayName: "classifier_router",
 			Key:           TCDNSRequestParserKey,
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFFuncName: "classifier_dns_request_parser",
+				EBPFFuncName: tailCallClassifierFnc("dns_request_parser"),
 			},
 		},
 		{
 			ProgArrayName: "classifier_router",
 			Key:           TCIMDSRequestParserKey,
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFFuncName: "classifier_imds_request",
+				EBPFFuncName: tailCallClassifierFnc("imds_request"),
 			},
 		},
 		{
 			ProgArrayName: "classifier_router",
 			Key:           TCDNSResponseKey,
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFFuncName: "classifier_dns_response",
+				EBPFFuncName: tailCallClassifierFnc("dns_response"),
 			},
 		},
 	}
@@ -135,12 +160,58 @@ func getTCTailCallRoutes(withRawPacket bool) []manager.TailCallRoute {
 	if withRawPacket {
 		tcr = append(tcr, manager.TailCallRoute{
 			ProgArrayName: "raw_packet_classifier_router",
-			Key:           TCRawPacketParserSenderKey,
+			Key:           TCRawPacketSenderKey,
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFFuncName: "classifier_raw_packet_sender",
+				EBPFFuncName: tailCallClassifierFnc("raw_packet_sender"),
+			},
+		})
+
+		tcr = append(tcr, manager.TailCallRoute{
+			ProgArrayName: "raw_packet_classifier_router",
+			Key:           TCRawPacketDropActionShotKey,
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: tailCallClassifierFnc("raw_packet_drop_action_cb"),
 			},
 		})
 	}
 
 	return tcr
+}
+
+// CheckUnspecReturnCode checks if the return code is TC_ACT_UNSPEC
+func CheckUnspecReturnCode(progSpecs map[string]*ebpf.ProgramSpec) error {
+	for _, progSpec := range progSpecs {
+		if progSpec.Type == ebpf.SchedCLS {
+			if IsProgAllowedToTCActShot(progSpec.Name) {
+				continue
+			}
+
+			r0 := int32(255)
+
+			for _, inst := range progSpec.Instructions {
+				class := inst.OpCode.Class()
+				if class.IsJump() {
+					if inst.OpCode.JumpOp() == asm.Exit {
+						if r0 != TCActUnspec {
+							return fmt.Errorf("program %s is not using the TC_ACT_UNSPEC return %d, %v", progSpec.Name, r0, progSpec.Instructions)
+						}
+					}
+				} else {
+					op := inst.OpCode
+					switch op {
+					case asm.Mov.Op(asm.ImmSource),
+						asm.LoadImmOp(asm.DWord),
+						asm.LoadImmOp(asm.Word),
+						asm.LoadImmOp(asm.Half),
+						asm.LoadImmOp(asm.Byte):
+						if inst.Dst == asm.R0 {
+							r0 = int32(inst.Constant)
+						}
+					}
+				}
+			}
+		}
+	}
+
+	return nil
 }

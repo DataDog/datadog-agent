@@ -12,6 +12,7 @@ import (
 	"encoding/json"
 	"expvar"
 	"io"
+	"sort"
 
 	"github.com/DataDog/datadog-agent/comp/core/status"
 )
@@ -27,28 +28,100 @@ func GetStatusInfo() map[string]interface{} {
 
 // PopulateStatus populates stats with collector information
 func PopulateStatus(stats map[string]interface{}) {
-	runnerStatsJSON := []byte(expvar.Get("runner").String())
-	runnerStats := make(map[string]interface{})
-	json.Unmarshal(runnerStatsJSON, &runnerStats) //nolint:errcheck
-	stats["runnerStats"] = runnerStats
+	runnerVar := expvar.Get("runner")
+	if runnerVar != nil {
+		runnerStatsJSON := []byte(runnerVar.String())
+		runnerStats := make(map[string]interface{})
+		_ = json.Unmarshal(runnerStatsJSON, &runnerStats)
+		stats["runnerStats"] = runnerStats
+
+		// Extract worker utilization data if available
+		if workersData, ok := runnerStats["Workers"]; ok {
+			workerStats := workersData.(map[string]interface{})
+
+			// Calculate average utilization and sort workers by utilization
+			if instancesData, ok := workerStats["Instances"]; ok {
+				instances := instancesData.(map[string]interface{})
+				totalUtilization := 0.0
+				workerCount := 0
+
+				// Create a slice to hold worker data for sorting
+				type workerInfo struct {
+					Name        string
+					Utilization float64
+					Data        map[string]interface{}
+				}
+				var workers []workerInfo
+
+				// Tally up utilization and populate the workers slice
+				for workerName, workerData := range instances {
+					if worker, ok := workerData.(map[string]interface{}); ok {
+						if util, ok := worker["Utilization"].(float64); ok {
+							totalUtilization += util
+							workerCount++
+							workers = append(workers, workerInfo{
+								Name:        workerName,
+								Utilization: util,
+								Data:        worker,
+							})
+						}
+					}
+				}
+
+				if workerCount > 0 {
+					avgUtilization := totalUtilization / float64(workerCount)
+					workerStats["AverageUtilization"] = avgUtilization
+
+					// Sort workers by utilization in descending order
+					sort.Slice(workers, func(i, j int) bool {
+						return workers[i].Utilization > workers[j].Utilization
+					})
+
+					// Keep only top 25 workers
+					maxWorkers := 25
+					if len(workers) > maxWorkers {
+						workers = workers[:maxWorkers]
+					}
+
+					// Create a slice of top workers to preserve sorted order
+					topWorkers := make([]struct {
+						Name        string
+						Utilization float64
+					}, 0, len(workers))
+					for _, worker := range workers {
+						topWorkers = append(topWorkers, struct {
+							Name        string
+							Utilization float64
+						}{
+							Name:        worker.Name,
+							Utilization: worker.Utilization,
+						})
+					}
+					workerStats["TopWorkers"] = topWorkers
+				}
+			}
+
+			stats["workerStats"] = workerStats
+		}
+	}
 
 	if expvar.Get("autoconfig") != nil {
 		autoConfigStatsJSON := []byte(expvar.Get("autoconfig").String())
 		autoConfigStats := make(map[string]interface{})
-		json.Unmarshal(autoConfigStatsJSON, &autoConfigStats) //nolint:errcheck
+		_ = json.Unmarshal(autoConfigStatsJSON, &autoConfigStats)
 		stats["autoConfigStats"] = autoConfigStats
 	}
 
 	checkSchedulerStatsJSON := []byte(expvar.Get("CheckScheduler").String())
 	checkSchedulerStats := make(map[string]interface{})
-	json.Unmarshal(checkSchedulerStatsJSON, &checkSchedulerStats) //nolint:errcheck
+	_ = json.Unmarshal(checkSchedulerStatsJSON, &checkSchedulerStats)
 	stats["checkSchedulerStats"] = checkSchedulerStats
 
 	pyLoaderData := expvar.Get("pyLoader")
 	if pyLoaderData != nil {
 		pyLoaderStatsJSON := []byte(pyLoaderData.String())
 		pyLoaderStats := make(map[string]interface{})
-		json.Unmarshal(pyLoaderStatsJSON, &pyLoaderStats) //nolint:errcheck
+		_ = json.Unmarshal(pyLoaderStatsJSON, &pyLoaderStats)
 		stats["pyLoaderStats"] = pyLoaderStats
 	} else {
 		stats["pyLoaderStats"] = nil
@@ -58,7 +131,7 @@ func PopulateStatus(stats map[string]interface{}) {
 	if pythonInitData != nil {
 		pythonInitJSON := []byte(pythonInitData.String())
 		pythonInit := make(map[string]interface{})
-		json.Unmarshal(pythonInitJSON, &pythonInit) //nolint:errcheck
+		_ = json.Unmarshal(pythonInitJSON, &pythonInit)
 		stats["pythonInit"] = pythonInit
 	} else {
 		stats["pythonInit"] = nil
@@ -68,7 +141,7 @@ func PopulateStatus(stats map[string]interface{}) {
 	var inventoriesStats map[string]interface{}
 	if inventories != nil {
 		inventoriesStatsJSON := []byte(inventories.String())
-		json.Unmarshal(inventoriesStatsJSON, &inventoriesStats) //nolint:errcheck
+		_ = json.Unmarshal(inventoriesStatsJSON, &inventoriesStats)
 	}
 
 	checkMetadata := map[string]map[string]string{}

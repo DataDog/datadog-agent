@@ -13,7 +13,7 @@ import (
 )
 
 // Config specifies the configuration of an instance
-// of Traceroute
+// of Traceroute, on the system-probe side
 type Config struct {
 	// TODO: add common configuration
 	// Destination Hostname
@@ -33,4 +33,16 @@ type Config struct {
 	// Protocol is the protocol to use
 	// for traceroute, default is UDP
 	Protocol payload.Protocol
+	// TCPMethod is the method used to run a TCP traceroute.
+	TCPMethod payload.TCPMethod
+	// TCPSynParisTracerouteMode makes TCP SYN act like paris traceroute (fixed packet ID, randomized seq)
+	TCPSynParisTracerouteMode bool
+	// ReverseDNS enrich IPs with reverse DNS
+	ReverseDNS bool
+	// TracerouteQueries is the number of traceroute queries to perform
+	TracerouteQueries int
+	// E2eQueries is the number of end-to-end queries to perform
+	E2eQueries int
+	// DisableWindowsDriver disables the use of Windows driver for traceroute
+	DisableWindowsDriver bool
 }

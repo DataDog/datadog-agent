@@ -28,7 +28,7 @@ func resetWorkloadMetricStore() {
 	loadstore.WorkloadMetricStoreOnce = sync.Once{}
 }
 
-func newPodEvent(ns, deployment, podName string, containerNames []string) workloadmeta.Event {
+func newFakeWLMPodEvent(ns, deployment, podName string, containerNames []string) workloadmeta.Event {
 	containers := []workloadmeta.OrchestratorContainer{}
 	for _, c := range containerNames {
 		containers = append(containers, workloadmeta.OrchestratorContainer{
@@ -60,8 +60,8 @@ func newPodEvent(ns, deployment, podName string, containerNames []string) worklo
 	}
 }
 
-func newAutoscaler() model.PodAutoscalerInternal {
-	return model.FakePodAutoscalerInternal{
+func newAutoscaler(fallbackEnabled bool) model.PodAutoscalerInternal {
+	pai := model.FakePodAutoscalerInternal{
 		Namespace: "default",
 		Name:      "autoscaler1",
 		Spec: &datadoghq.DatadogPodAutoscalerSpec{
@@ -83,7 +83,20 @@ func newAutoscaler() model.PodAutoscalerInternal {
 				},
 			},
 		},
-	}.Build()
+	}
+
+	if fallbackEnabled {
+		pai.Spec.Fallback = &datadoghq.DatadogFallbackPolicy{
+			Horizontal: datadoghq.DatadogPodAutoscalerHorizontalFallbackPolicy{
+				Enabled: true,
+				Triggers: datadoghq.HorizontalFallbackTriggers{
+					StaleRecommendationThresholdSeconds: 60,
+				},
+			},
+		}
+	}
+
+	return pai.Build()
 }
 
 func newEntity(metricName, ns, deployment, podName, containerName string) *loadstore.Entity {

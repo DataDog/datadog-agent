@@ -9,12 +9,16 @@
 package selinux
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os/exec"
 	"path/filepath"
+	"strings"
 
 	gopsutilhost "github.com/shirou/gopsutil/v4/host"
+
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 )
 
 const manualInstallTemplate = `To be able to run system-probe on your host, please install or update the selinux-policy-targeted and
@@ -27,7 +31,12 @@ Then run the following commands, or reinstall datadog-agent:
 `
 
 // SetAgentPermissions sets the SELinux permissions for the agent if the OS requires it.
-func SetAgentPermissions(configPath, installPath string) error {
+func SetAgentPermissions(ctx context.Context, configPath, installPath string) (err error) {
+	span, _ := telemetry.StartSpanFromContext(ctx, "selinux_set_agent_permissions")
+	defer func() {
+		span.Finish(err)
+	}()
+
 	shouldSet, err := isSELinuxSupported()
 	if err != nil {
 		return fmt.Errorf("error checking if SELinux is supported: %w", err)
@@ -93,7 +102,7 @@ func isSELinuxSupported() (bool, error) {
 	if err != nil {
 		return false, fmt.Errorf("error getting platform information: %w", err)
 	}
-	return (family == "rhel" && version[0:1] == "7") && isInstalled("semodule"), nil
+	return (family == "rhel" && strings.HasPrefix(version, "7") && isInstalled("semodule")), nil
 }
 
 func isInstalled(program string) bool {

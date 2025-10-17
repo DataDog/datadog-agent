@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"strings"
 
+	"go.uber.org/atomic"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	listersv1 "k8s.io/client-go/listers/core/v1"
@@ -20,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/utils"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/types"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -35,14 +37,14 @@ const (
 // KubeServiceConfigProvider implements the ConfigProvider interface for the apiserver.
 type KubeServiceConfigProvider struct {
 	lister         listersv1.ServiceLister
-	upToDate       bool
-	configErrors   map[string]ErrorMsgSet
+	upToDate       *atomic.Bool
+	configErrors   map[string]types.ErrorMsgSet
 	telemetryStore *telemetry.Store
 }
 
 // NewKubeServiceConfigProvider returns a new ConfigProvider connected to apiserver.
 // Connectivity is not checked at this stage to allow for retries, Collect will do it.
-func NewKubeServiceConfigProvider(_ *pkgconfigsetup.ConfigurationProviders, telemetryStore *telemetry.Store) (ConfigProvider, error) {
+func NewKubeServiceConfigProvider(_ *pkgconfigsetup.ConfigurationProviders, telemetryStore *telemetry.Store) (types.ConfigProvider, error) {
 	// Using GetAPIClient() (no retry)
 	ac, err := apiserver.GetAPIClient()
 	if err != nil {
@@ -56,8 +58,9 @@ func NewKubeServiceConfigProvider(_ *pkgconfigsetup.ConfigurationProviders, tele
 
 	p := &KubeServiceConfigProvider{
 		lister:         servicesInformer.Lister(),
-		configErrors:   make(map[string]ErrorMsgSet),
+		configErrors:   make(map[string]types.ErrorMsgSet),
 		telemetryStore: telemetryStore,
+		upToDate:       atomic.NewBool(false),
 	}
 
 	if _, err := servicesInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
@@ -84,29 +87,25 @@ func (k *KubeServiceConfigProvider) String() string {
 }
 
 // Collect retrieves services from the apiserver, builds Config objects and returns them
-//
-//nolint:revive // TODO(CINT) Fix revive linter
-func (k *KubeServiceConfigProvider) Collect(ctx context.Context) ([]integration.Config, error) {
+func (k *KubeServiceConfigProvider) Collect(_ context.Context) ([]integration.Config, error) {
 	services, err := k.lister.List(labels.Everything())
 	if err != nil {
 		return nil, err
 	}
-	k.upToDate = true
+	k.upToDate.Store(true)
 
 	return k.parseServiceAnnotations(services, pkgconfigsetup.Datadog())
 }
 
 // IsUpToDate allows to cache configs as long as no changes are detected in the apiserver
-//
-//nolint:revive // TODO(CINT) Fix revive linter
-func (k *KubeServiceConfigProvider) IsUpToDate(ctx context.Context) (bool, error) {
-	return k.upToDate, nil
+func (k *KubeServiceConfigProvider) IsUpToDate(_ context.Context) (bool, error) {
+	return k.upToDate.Load(), nil
 }
 
 func (k *KubeServiceConfigProvider) invalidate(obj interface{}) {
 	if obj != nil {
 		log.Trace("Invalidating configs on new/deleted service")
-		k.upToDate = false
+		k.upToDate.Store(false)
 	}
 }
 
@@ -122,7 +121,7 @@ func (k *KubeServiceConfigProvider) invalidateIfChanged(old, obj interface{}) {
 	castedOld, ok := old.(*v1.Service)
 	if !ok {
 		log.Errorf("Expected a *v1.Service type, got: %T", old)
-		k.upToDate = false
+		k.upToDate.Store(false)
 		return
 	}
 	// Quick exit if resversion did not change
@@ -132,7 +131,7 @@ func (k *KubeServiceConfigProvider) invalidateIfChanged(old, obj interface{}) {
 	// Compare annotations
 	if valuesDiffer(castedObj.Annotations, castedOld.Annotations, kubeServiceAnnotationPrefix) {
 		log.Trace("Invalidating configs on service change")
-		k.upToDate = false
+		k.upToDate.Store(false)
 		return
 	}
 }
@@ -178,7 +177,7 @@ func (k *KubeServiceConfigProvider) parseServiceAnnotations(services []*v1.Servi
 		setServiceIDs[serviceID] = struct{}{}
 		svcConf, errors := utils.ExtractTemplatesFromAnnotations(serviceID, svc.Annotations, kubeServiceID)
 		if len(errors) > 0 {
-			errMsgSet := make(ErrorMsgSet)
+			errMsgSet := make(types.ErrorMsgSet)
 			for _, err := range errors {
 				log.Errorf("Cannot parse service template for service %s/%s: %s", svc.Namespace, svc.Name, err)
 				errMsgSet[err.Error()] = struct{}{}
@@ -225,6 +224,6 @@ func (k *KubeServiceConfigProvider) cleanErrorsOfDeletedServices(setCurrentServi
 }
 
 // GetConfigErrors returns a map of configuration errors for each Kubernetes service
-func (k *KubeServiceConfigProvider) GetConfigErrors() map[string]ErrorMsgSet {
+func (k *KubeServiceConfigProvider) GetConfigErrors() map[string]types.ErrorMsgSet {
 	return k.configErrors
 }

@@ -200,7 +200,7 @@ func SetCheckMetadata(checkID, name, value *C.char) {
 func WritePersistentCache(key, value *C.char) {
 	keyName := C.GoString(key)
 	val := C.GoString(value)
-	persistentcache.Write(keyName, val) //nolint:errcheck
+	_ = persistentcache.Write(keyName, val)
 }
 
 // ReadPersistentCache retrieves a value for one check instance
@@ -331,6 +331,10 @@ type sqlConfig struct {
 	// By default, JSON paths are treated as literals and are obfuscated to ?, e.g. "data::jsonb -> 'name'" -> "data::jsonb -> ?".
 	// This option is only valid when ObfuscationMode is "normalize_only" or "obfuscate_and_normalize".
 	KeepJSONPath bool `json:"keep_json_path" yaml:"keep_json_path"`
+
+	// ReplaceBindParameter specifies whether to replace SQL bind parameters such as @P1 with ?.
+	// By default, bind parameters are not replaced.
+	ReplaceBindParameter bool `json:"replace_bind_parameter"`
 }
 
 // ObfuscateSQL obfuscates & normalizes the provided SQL query, writing the error into errResult if the operation
@@ -366,7 +370,7 @@ func ObfuscateSQL(rawQuery, opts *C.char, errResult **C.char) *C.char {
 		KeepTrailingSemicolon:         sqlOpts.KeepTrailingSemicolon,
 		KeepIdentifierQuotation:       sqlOpts.KeepIdentifierQuotation,
 		KeepJSONPath:                  sqlOpts.KeepJSONPath,
-	})
+	}, optStr)
 	if err != nil {
 		// memory will be freed by caller
 		*errResult = TrackedCString(err.Error())

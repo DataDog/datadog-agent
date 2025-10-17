@@ -10,7 +10,7 @@ on:
 permissions: {}
 jobs:
   save-pr:
-    if: github.event.pull_request.user.login == 'dependabot[bot]' || github.event.pull_request.user.login == 'renovate[bot]'
+    if: github.event.pull_request.user.login == 'dependabot[bot]' || github.event.pull_request.user.login == 'renovate[bot]' ||  github.event.pull_request.user.login == 'mend[bot]'
     runs-on: ubuntu-latest
     steps:
       - name: Save PR number for later execution
@@ -24,24 +24,22 @@ jobs:
           path: pr/
 
   add_reviewers:
-    if: github.event.pull_request.user.login == 'dependabot[bot]' || github.event.pull_request.user.login == 'renovate[bot]'
+    if: github.event.pull_request.user.login == 'dependabot[bot]' || github.event.pull_request.user.login == 'renovate[bot]' ||  github.event.pull_request.user.login == 'mend[bot]'
     runs-on: ubuntu-latest
+    permissions:
+      id-token: write # This is required for getting the required OIDC token from GitHub
     steps:
-      - uses: actions/create-github-app-token@d72941d797fd3113feb6b93fd0dec494b13a2547 # v1.12.0
-        id: app-token
+      - uses: DataDog/dd-octo-sts-action@acaa02eee7e3bb0839e4272dacb37b8f3b58ba80 # v1.0.3
+        id: octo-sts
         with:
-          app-id: ${{ vars.DD_GITHUB_TOKEN_GENERATOR_APP_ID }}
-          private-key: ${{ secrets.DD_GITHUB_TOKEN_GENERATOR_PRIVATE_KEY }}
+          scope: DataDog/datadog-agent
+          policy: self.add-reviewer-bot-pr.review-pr
 
       - name: Checkout repository
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           persist-credentials: false
-
-      - name: Setup python
-        uses: actions/setup-python@8d9ed9ac5c53483de85588cdf95a591a75ab9f55 # v5.5.0
-        with:
-          python-version-file: .python-version
+          token: ${{ steps.octo-sts.outputs.token }}
 
       - name: Install dda
         uses: ./.github/actions/install-dda
@@ -51,5 +49,5 @@ jobs:
       - name: Add reviewers
         env:
           PR_NUMBER: ${{ github.event.pull_request.number }}
-          GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
+          GITHUB_TOKEN: ${{ steps.octo-sts.outputs.token }}
         run: dda inv -- -e issue.add-reviewers -p $PR_NUMBER

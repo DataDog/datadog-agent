@@ -1,18 +1,20 @@
 from __future__ import annotations
 
 import json
-import os
 import sys
 import tempfile
+from functools import cached_property
 from pathlib import Path
 from typing import TYPE_CHECKING, cast
 
 import yaml
 from invoke.context import Context
+from invoke.exceptions import CommandTimedOut
 from invoke.runners import Result
 
 from tasks.kernel_matrix_testing.tool import Exit, info, warn
 from tasks.libs.ciproviders.gitlab_api import ReferenceTag
+from tasks.libs.common.utils import get_repo_root
 from tasks.libs.types.arch import ARCH_AMD64, ARCH_ARM64, Arch
 
 if TYPE_CHECKING:
@@ -20,11 +22,7 @@ if TYPE_CHECKING:
 
 
 CONTAINER_AGENT_PATH = "/tmp/datadog-agent"
-
-DOCKER_BASE_IMAGES = {
-    "x64": "registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-17-x64",
-    "arm64": "registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-23-arm64",
-}
+MARKER_IMAGE_PREPARED = "/tmp/kmt-image-prepared"
 
 APT_URIS = {"amd64": "http://archive.ubuntu.com/ubuntu/", "arm64": "http://ports.ubuntu.com/ubuntu-ports/"}
 
@@ -36,7 +34,7 @@ def get_build_image_suffix_and_version() -> tuple[str, str]:
         ci_config = yaml.safe_load(f)
 
     ci_vars = ci_config['variables']
-    return ci_vars['DATADOG_AGENT_BUILDIMAGES_SUFFIX'], ci_vars['DATADOG_AGENT_BUILDIMAGES']
+    return ci_vars['CI_IMAGE_LINUX_SUFFIX'], ci_vars['CI_IMAGE_LINUX']
 
 
 def get_docker_image_name(ctx: Context, container: str) -> str:
@@ -58,10 +56,14 @@ class CompilerImage:
         return f"kmt-compiler-{self.arch.name}"
 
     @property
-    def image(self):
+    def expected_image_name(self):
         suffix, version = get_build_image_suffix_and_version()
 
-        return f"{DOCKER_BASE_IMAGES[self.arch.ci_arch]}{suffix}:{version}"
+        return f"registry.ddbuild.io/ci/datadog-agent-buildimages/linux{suffix}:{version}"
+
+    @property
+    def running_image_name(self):
+        return get_docker_image_name(self.ctx, self.name)
 
     def _check_container_exists(self, allow_stopped=False):
         if self.ctx.config.run["dry"]:
@@ -82,6 +84,46 @@ class CompilerImage:
     def is_loaded(self):
         return self._check_container_exists(allow_stopped=True)
 
+    @cached_property
+    def compiler_user(self):
+        # Get the user name from the uid in the container
+        result = self.exec(f"getent passwd {self.host_uid}", user="root")
+        if result is not None and result.ok:
+            return result.stdout.rstrip().split(":")[0]
+
+        raise ValueError(f"Failed to get compiler user for uid {self.host_uid}")
+
+    @cached_property
+    def host_uid(self):
+        return cast('Result', self.ctx.run("id -u")).stdout.rstrip()
+
+    @cached_property
+    def host_gid(self):
+        return cast('Result', self.ctx.run("id -g")).stdout.rstrip()
+
+    def ensure_compiler_user_created(self):
+        # If the compiler user already exists, we don't need to do anything. Note that this might
+        # happen even if we have just booted the container, if the UID of the host user is
+        # the same as the UID for an already existing user in the container
+        uid_exists = self.exec(f"getent passwd {self.host_uid}", user="root", allow_fail=True)
+        if uid_exists is not None and uid_exists.ok:
+            info(f"[*] Compiler user {self.compiler_user} already created")
+            return
+
+        compiler_username = "compiler"
+
+        if self.host_uid == "0":
+            # If we're starting the compiler as root, we won't be able to create the compiler user
+            # and we will get weird failures later on, as the user 'compiler' won't exist in the container
+            raise ValueError("Cannot start compiler as root, we need to run as a non-root user")
+
+        # Now create the compiler user with same UID and GID as the current user
+        self.exec(f"getent group {self.host_gid} || groupadd -f -g {self.host_gid} {compiler_username}", user="root")
+        self.exec(
+            f"getent passwd {self.host_uid} || useradd -m -u {self.host_uid} -g {self.host_gid} {compiler_username}",
+            user="root",
+        )
+
     def ensure_running(self):
         if not self.is_running:
             info(f"[*] Compiler for {self.arch} not running, starting it...")
@@ -94,33 +136,55 @@ class CompilerImage:
         if not self.is_loaded:
             return  # Nothing to do if the container is not loaded
 
-        image_used = get_docker_image_name(self.ctx, self.name)
-        if image_used != self.image:
-            warn(f"[!] Running compiler image {image_used} is different from the expected {self.image}, will restart")
+        image_used = self.running_image_name
+        if image_used != self.expected_image_name:
+            warn(
+                f"[!] Running compiler image {image_used} is different from the expected {self.expected_image_name}, will restart"
+            )
             self.start()
+
+    def ensure_in_git_repo(self):
+        # The compiler requires a .git directory to be present and valid, so if we're running in a git worktree
+        # we'll get failures as it cannot find the root .git directory.
+        repo_root = get_repo_root()
+        git_dir = repo_root / ".git"
+        if not git_dir.exists():
+            raise Exit(
+                f"[-] .git directory not found in {repo_root}, this command needs to be run from a git repository"
+            )
+        elif not git_dir.is_dir():
+            raise Exit(f"[-] .git directory is not a directory in {repo_root}, git worktrees are not supported")
 
     def exec(
         self,
         cmd: str,
-        user="compiler",
-        verbose=True,
+        user: str = "compiler",
         run_dir: PathOrStr | None = None,
         allow_fail=False,
         force_color=True,
-    ):
+    ) -> Result:
         if run_dir:
             cmd = f"cd {run_dir} && {cmd}"
 
+        # Replace the user with the real compiler username, as it might be named
+        # differently in the container
+        if user == "compiler":
+            user = self.compiler_user
+
         self.ensure_running()
+        self.ensure_in_git_repo()
         color_env = "-e FORCE_COLOR=1"
         if not force_color:
             color_env = ""
 
         # Set FORCE_COLOR=1 so that termcolor works in the container
-        return self.ctx.run(
-            f"docker exec -u {user} -i {color_env} {self.name} bash -l -c \"{cmd}\"",
-            hide=(not verbose),
-            warn=allow_fail,
+        return cast(
+            Result,
+            self.ctx.run(
+                f"docker exec -u {user} -i {color_env} {self.name} bash -l -c \"{cmd}\"",
+                hide=not self.ctx.config.run["echo"],
+                warn=allow_fail,
+            ),
         )
 
     def stop(self) -> Result:
@@ -131,19 +195,31 @@ class CompilerImage:
         if self.is_loaded:
             self.stop()
 
+        self.ensure_in_git_repo()
+
         # Check if the image exists
-        res = self.ctx.run(f"docker image inspect {self.image}", hide=True, warn=True)
+        res = self.ctx.run(f"docker image inspect {self.expected_image_name}", hide=True, warn=True)
         if res is None or not res.ok:
-            info(f"[!] Image {self.image} not found, pulling...")
-            self.ctx.run(f"docker pull {self.image}")
+            info(f"[!] Image {self.expected_image_name} not found, pulling (timeout: 7m)...")
+
+            pull_cmd = f"docker pull {self.expected_image_name}"
+
+            try:
+                # It might be waiting for authentication or some other
+                # interactive error, so better to raise an error and notify the user
+                self.ctx.run(pull_cmd, timeout=60 * 5)
+            except CommandTimedOut as e:
+                raise ValueError(
+                    f"Timed out pulling image {self.expected_image_name}, try running {pull_cmd} manually"
+                ) from e
 
         platform = ""
         if self.arch != Arch.local():
             platform = f"--platform linux/{self.arch.go_arch}"
         res = self.ctx.run(
             f"docker run {platform} -d --restart always --name {self.name} "
-            f"--mount type=bind,source={os.getcwd()},target={CONTAINER_AGENT_PATH} "
-            f"{self.image} sleep \"infinity\"",
+            f"--mount type=bind,source={get_repo_root()},target={CONTAINER_AGENT_PATH} "
+            f"{self.expected_image_name} sleep \"infinity\"",
             warn=True,
         )
         if res is None or not res.ok:
@@ -151,22 +227,16 @@ class CompilerImage:
 
         # Due to permissions issues, we do not want to compile with the root user in the Docker image. We create a user
         # inside there with the same UID and GID as the current user
-        uid = cast('Result', self.ctx.run("id -u")).stdout.rstrip()
-        gid = cast('Result', self.ctx.run("id -g")).stdout.rstrip()
-
-        if uid == 0:
-            # If we're starting the compiler as root, we won't be able to create the compiler user
-            # and we will get weird failures later on, as the user 'compiler' won't exist in the container
-            raise ValueError("Cannot start compiler as root, we need to run as a non-root user")
-
-        # Now create the compiler user with same UID and GID as the current user
-        self.exec(f"getent group {gid} || groupadd -f -g {gid} compiler", user="root")
-        self.exec(f"getent passwd {uid} || useradd -m -u {uid} -g {gid} compiler", user="root")
+        self.ensure_compiler_user_created()
 
         if sys.platform != "darwin":  # No need to change permissions in MacOS
             self.exec(
-                f"chown {uid}:{gid} {CONTAINER_AGENT_PATH} && chown -R {uid}:{gid} {CONTAINER_AGENT_PATH}", user="root"
+                f"chown {self.host_uid}:{self.host_gid} {CONTAINER_AGENT_PATH} && chown -R {self.host_uid}:{self.host_gid} {CONTAINER_AGENT_PATH}",
+                user="root",
             )
+
+        # We need to make the /go directory writable by the compiler user
+        self.exec("chmod -R a+rw /go", user="root")
 
         cross_arch = ARCH_ARM64 if self.arch == ARCH_AMD64 else ARCH_AMD64
         self.exec("chmod a+rx /root", user="root")  # Some binaries will be in /root and need to be readable
@@ -204,26 +274,45 @@ class CompilerImage:
         )
 
         self.exec("apt-get install -y --no-install-recommends sudo", user="root")
-        self.exec("usermod -aG sudo compiler && echo 'compiler ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers", user="root")
-        self.exec(f"cp /root/.bashrc /home/compiler/.bashrc && chown {uid}:{gid} /home/compiler/.bashrc", user="root")
-        self.exec("mkdir ~/.cargo && touch ~/.cargo/env", user="compiler")
-        self.exec("dda self telemetry disable", user="compiler", force_color=False)
-        self.exec(f"install -d -m 0777 -o {uid} -g {uid} /go", user="root")
         self.exec(
-            f"echo export DD_CC=/opt/toolchains/{self.arch.gcc_arch}/bin/{self.arch.gcc_arch}-unknown-linux-gnu-gcc >> /home/compiler/.bashrc",
-            user="compiler",
+            f"usermod -aG sudo {self.compiler_user} && echo '{self.compiler_user} ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers",
+            user="root",
         )
         self.exec(
-            f"echo export DD_CXX=/opt/toolchains/{self.arch.gcc_arch}/bin/{self.arch.gcc_arch}-unknown-linux-gnu-g++ >> /home/compiler/.bashrc",
-            user="compiler",
+            f"cp /root/.bashrc /home/{self.compiler_user}/.bashrc && chown {self.host_uid}:{self.host_gid} /home/{self.compiler_user}/.bashrc",
+            user="root",
+        )
+        self.exec("mkdir ~/.cargo && touch ~/.cargo/env", user=self.compiler_user)
+        self.exec("dda self telemetry disable", user=self.compiler_user, force_color=False)
+        self.exec(f"install -d -m 0777 -o {self.host_uid} -g {self.host_gid} /go", user="root")
+        self.exec(
+            f"echo export DD_CC=/opt/toolchains/{self.arch.gcc_arch}/bin/{self.arch.gcc_arch}-unknown-linux-gnu-gcc >> /home/{self.compiler_user}/.bashrc",
+            user=self.compiler_user,
         )
         self.exec(
-            f"echo export DD_CC_CROSS=/opt/toolchains/{cross_arch.gcc_arch}/bin/{cross_arch.gcc_arch}-unknown-linux-gnu-gcc >> /home/compiler/.bashrc",
-            user="compiler",
+            f"echo export DD_CXX=/opt/toolchains/{self.arch.gcc_arch}/bin/{self.arch.gcc_arch}-unknown-linux-gnu-g++ >> /home/{self.compiler_user}/.bashrc",
+            user=self.compiler_user,
         )
         self.exec(
-            f"echo export DD_CXX_CROSS=/opt/toolchains/{cross_arch.gcc_arch}/bin/{cross_arch.gcc_arch}-unknown-linux-gnu-g++ >> /home/compiler/.bashrc",
-            user="compiler",
+            f"echo export DD_CC_CROSS=/opt/toolchains/{cross_arch.gcc_arch}/bin/{cross_arch.gcc_arch}-unknown-linux-gnu-gcc >> /home/{self.compiler_user}/.bashrc",
+            user=self.compiler_user,
+        )
+        self.exec(
+            f"echo export DD_CXX_CROSS=/opt/toolchains/{cross_arch.gcc_arch}/bin/{cross_arch.gcc_arch}-unknown-linux-gnu-g++ >> /home/{self.compiler_user}/.bashrc",
+            user=self.compiler_user,
+        )
+
+        self.exec(f"touch {MARKER_IMAGE_PREPARED}", user=self.compiler_user)
+
+        info(
+            f"[*] Compiler image {self.name} for {self.arch} started, image {self.expected_image_name}, compiler user '{self.compiler_user}'"
+        )
+
+    @property
+    def is_ready(self):
+        return (
+            self.is_running
+            and self.exec(f"test -f {MARKER_IMAGE_PREPARED}", user=self.compiler_user, allow_fail=True).ok
         )
 
 

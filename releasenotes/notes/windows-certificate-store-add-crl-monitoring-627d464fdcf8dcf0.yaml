@@ -1,0 +1,5 @@
+---
+features:
+  - |
+    Windows: Add CRL monitoring to the Windows Certificate Store integration.
+

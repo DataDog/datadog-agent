@@ -20,7 +20,66 @@ var (
 	_ easyjson.Marshaler
 )
 
-func easyjson7cab6e30DecodeGithubComDataDogDatadogAgentPkgSecurityProbe(in *jlexer.Lexer, out *HashActionReport) {
+func easyjson7cab6e30DecodeGithubComDataDogDatadogAgentPkgSecurityProbe(in *jlexer.Lexer, out *RawPacketActionReport) {
+	isTopLevel := in.IsStart()
+	if in.IsNull() {
+		if isTopLevel {
+			in.Consumed()
+		}
+		in.Skip()
+		return
+	}
+	in.Delim('{')
+	for !in.IsDelim('}') {
+		key := in.UnsafeFieldName(false)
+		in.WantColon()
+		if in.IsNull() {
+			in.Skip()
+			in.WantComma()
+			continue
+		}
+		switch key {
+		case "filter":
+			out.Filter = string(in.String())
+		case "policy":
+			out.Policy = string(in.String())
+		default:
+			in.SkipRecursive()
+		}
+		in.WantComma()
+	}
+	in.Delim('}')
+	if isTopLevel {
+		in.Consumed()
+	}
+}
+func easyjson7cab6e30EncodeGithubComDataDogDatadogAgentPkgSecurityProbe(out *jwriter.Writer, in RawPacketActionReport) {
+	out.RawByte('{')
+	first := true
+	_ = first
+	{
+		const prefix string = ",\"filter\":"
+		out.RawString(prefix[1:])
+		out.String(string(in.Filter))
+	}
+	{
+		const prefix string = ",\"policy\":"
+		out.RawString(prefix)
+		out.String(string(in.Policy))
+	}
+	out.RawByte('}')
+}
+
+// MarshalEasyJSON supports easyjson.Marshaler interface
+func (v RawPacketActionReport) MarshalEasyJSON(w *jwriter.Writer) {
+	easyjson7cab6e30EncodeGithubComDataDogDatadogAgentPkgSecurityProbe(w, v)
+}
+
+// UnmarshalEasyJSON supports easyjson.Unmarshaler interface
+func (v *RawPacketActionReport) UnmarshalEasyJSON(l *jlexer.Lexer) {
+	easyjson7cab6e30DecodeGithubComDataDogDatadogAgentPkgSecurityProbe(l, v)
+}
+func easyjson7cab6e30DecodeGithubComDataDogDatadogAgentPkgSecurityProbe1(in *jlexer.Lexer, out *HashActionReport) {
 	isTopLevel := in.IsStart()
 	if in.IsNull() {
 		if isTopLevel {
@@ -57,7 +116,7 @@ func easyjson7cab6e30DecodeGithubComDataDogDatadogAgentPkgSecurityProbe(in *jlex
 		in.Consumed()
 	}
 }
-func easyjson7cab6e30EncodeGithubComDataDogDatadogAgentPkgSecurityProbe(out *jwriter.Writer, in HashActionReport) {
+func easyjson7cab6e30EncodeGithubComDataDogDatadogAgentPkgSecurityProbe1(out *jwriter.Writer, in HashActionReport) {
 	out.RawByte('{')
 	first := true
 	_ = first
@@ -86,10 +145,10 @@ func easyjson7cab6e30EncodeGithubComDataDogDatadogAgentPkgSecurityProbe(out *jwr
 
 // MarshalEasyJSON supports easyjson.Marshaler interface
 func (v HashActionReport) MarshalEasyJSON(w *jwriter.Writer) {
-	easyjson7cab6e30EncodeGithubComDataDogDatadogAgentPkgSecurityProbe(w, v)
+	easyjson7cab6e30EncodeGithubComDataDogDatadogAgentPkgSecurityProbe1(w, v)
 }
 
 // UnmarshalEasyJSON supports easyjson.Unmarshaler interface
 func (v *HashActionReport) UnmarshalEasyJSON(l *jlexer.Lexer) {
-	easyjson7cab6e30DecodeGithubComDataDogDatadogAgentPkgSecurityProbe(l, v)
+	easyjson7cab6e30DecodeGithubComDataDogDatadogAgentPkgSecurityProbe1(l, v)
 }

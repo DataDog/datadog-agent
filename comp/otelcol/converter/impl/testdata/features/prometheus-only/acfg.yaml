@@ -1,0 +1,4 @@
+otelcollector:
+  converter:
+    enabled: true
+    features: ["prometheus"]

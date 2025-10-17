@@ -37,6 +37,10 @@ datadog:
     containerCollectUsingFiles: false
 agents:
   containers:
+    traceAgent:
+      env:
+        - name: DD_APM_FEATURES
+          value: 'disable_operation_and_resource_name_logic_v2'
     agent:
       env:
         - name: DD_OTLP_CONFIG_METRICS_RESOURCE_ATTRIBUTES_AS_TAGS
@@ -47,7 +51,7 @@ agents:
 }
 
 var otlpIngestParams = utils.IAParams{
-	InfraAttributes: false,
+	InfraAttributes: true,
 }
 
 func (s *otlpIngestTestSuite) SetupSuite() {

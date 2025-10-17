@@ -5,22 +5,26 @@
 
 //go:build kubelet || docker
 
+// Package container provides container-related log tailers
 package container
 
 import (
 	"context"
 	"fmt"
-	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
-	"github.com/DataDog/datadog-agent/pkg/logs/internal/framer"
-	"github.com/DataDog/datadog-agent/pkg/logs/internal/parsers/dockerstream"
-	status "github.com/DataDog/datadog-agent/pkg/logs/status/utils"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
-	"github.com/docker/docker/api/types/container"
 	"io"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/docker/docker/api/types/container"
+
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/def"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/framer"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/parsers/dockerstream"
+	status "github.com/DataDog/datadog-agent/pkg/logs/status/utils"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder"
@@ -96,6 +100,9 @@ type Tailer struct {
 	// reader is the io.Reader reading chunks of log data from the Docker API.
 	reader *safeReader
 
+	// registry records the progress of the tailer
+	registry auditor.Registry
+
 	// readerCancelFunc is the context cancellation function for the ongoing
 	// docker-API reader.  Calling this function will cancel any pending Read
 	// calls, which will return context.Canceled
@@ -103,11 +110,34 @@ type Tailer struct {
 
 	lastSince string
 	mutex     sync.Mutex
+
+	messageForwarder messageForwarder
+}
+
+type messageForwarder interface {
+	forward()
+}
+
+type kubeletMessageForwarder struct {
+	tailer *Tailer
+}
+
+type dockerMessageForwarder struct {
+	tailer *Tailer
 }
 
 // NewAPITailer returns a new Tailer that streams logs by querying the Kubelet's API
-func NewAPITailer(client kubelet.KubeUtilInterface, containerID, containerName, podName, podNamespace string, source *sources.LogSource, outputChan chan *message.Message, erroredContainerID chan string, readTimeout time.Duration, tagger tagger.Component) *Tailer {
-	return &Tailer{
+func NewAPITailer(
+	client kubelet.KubeUtilInterface,
+	containerID, containerName, podName, podNamespace string,
+	source *sources.LogSource,
+	outputChan chan *message.Message,
+	erroredContainerID chan string,
+	readTimeout time.Duration,
+	tagger tagger.Component,
+	registry auditor.Registry,
+) *Tailer {
+	tailer := &Tailer{
 		ContainerID:        containerID,
 		outputChan:         outputChan,
 		decoder:            decoder.NewDecoderWithFraming(sources.NewReplaceableSource(source), dockerstream.New(containerID), framer.DockerStream, nil, status.NewInfoRegistry()),
@@ -120,12 +150,25 @@ func NewAPITailer(client kubelet.KubeUtilInterface, containerID, containerName, 
 		done:               make(chan struct{}, 1),
 		erroredContainerID: erroredContainerID,
 		reader:             newSafeReader(),
+		registry:           registry,
 	}
+
+	tailer.messageForwarder = &kubeletMessageForwarder{tailer: tailer}
+	return tailer
 }
 
 // NewDockerTailer returns a new Tailer that streams logs by connecting directly to the Docker socket
-func NewDockerTailer(cli DockerContainerLogInterface, containerID string, source *sources.LogSource, outputChan chan *message.Message, erroredContainerID chan string, readTimeout time.Duration, tagger tagger.Component) *Tailer {
-	return &Tailer{
+func NewDockerTailer(
+	cli DockerContainerLogInterface,
+	containerID string,
+	source *sources.LogSource,
+	outputChan chan *message.Message,
+	erroredContainerID chan string,
+	readTimeout time.Duration,
+	tagger tagger.Component,
+	registry auditor.Registry,
+) *Tailer {
+	tailer := &Tailer{
 		ContainerID:        containerID,
 		outputChan:         outputChan,
 		decoder:            decoder.NewDecoderWithFraming(sources.NewReplaceableSource(source), dockerstream.New(containerID), framer.DockerStream, nil, status.NewInfoRegistry()),
@@ -138,7 +181,11 @@ func NewDockerTailer(cli DockerContainerLogInterface, containerID string, source
 		done:               make(chan struct{}, 1),
 		erroredContainerID: erroredContainerID,
 		reader:             newSafeReader(),
+		registry:           registry,
 	}
+
+	tailer.messageForwarder = &dockerMessageForwarder{tailer: tailer}
+	return tailer
 }
 
 // Identifier returns a string that uniquely identifies a source
@@ -150,6 +197,8 @@ func (t *Tailer) Identifier() string {
 // this call blocks until the decoder is completely flushed
 func (t *Tailer) Stop() {
 	log.Infof("Stop tailing container: %v", t.ContainerID)
+
+	t.registry.SetTailed(t.Identifier(), false)
 
 	// signal the readForever component to stop
 	t.stop <- struct{}{}
@@ -175,6 +224,7 @@ func (t *Tailer) Stop() {
 // start from oldest log otherwise
 func (t *Tailer) Start(since time.Time) error {
 	log.Debugf("Start tailing container: %v", t.ContainerID)
+	t.registry.SetTailed(t.Identifier(), true)
 	return t.tail(since.Format(config.DateFormat))
 }
 
@@ -237,7 +287,7 @@ func (t *Tailer) tail(since string) error {
 	// - readForever, which reads data from the docker API and passes it to..
 	// - the decoder, which runs in its own goroutine(s) and passes messages to..
 	// - forwardMessage, which writes messages to t.outputChan.
-	go t.forwardMessages()
+	go t.messageForwarder.forward()
 	t.decoder.Start()
 	go t.readForever()
 
@@ -250,6 +300,7 @@ func (t *Tailer) readForever() {
 	// close the decoder's input channel when this function returns, causing it to
 	// flush and close its output channel
 	defer t.decoder.Stop()
+
 	for {
 		select {
 		case <-t.stop:
@@ -335,30 +386,88 @@ func (t *Tailer) read(buffer []byte, timeout time.Duration) (int, error) {
 	return n, err
 }
 
-// forwardMessages forwards decoded messages to the next pipeline,
+// buildMessage builds a new log message.Message, enriching it with tags and metadata
+func buildMessage(tailer *Tailer, output *message.Message) *message.Message {
+	origin := message.NewOrigin(tailer.Source)
+	origin.Offset = output.ParsingExtra.Timestamp
+	tailer.setLastSince(output.ParsingExtra.Timestamp)
+	origin.Identifier = tailer.Identifier()
+
+	var tags []string
+	tags = append(tags, output.ParsingExtra.Tags...)
+	tags = append(tags, tailer.tagProvider.GetTags()...)
+	origin.SetTags(tags)
+
+	// XXX(remy): is it OK recreating a message here?
+	// Preserve ParsingExtra information from decoder output (including IsTruncated flag)
+	return message.NewMessageWithParsingExtra(output.GetContent(), origin, output.Status, output.IngestionTimestamp, output.ParsingExtra)
+}
+
+// forward forwards decoded messages to the next pipeline,
 // adding a bit of meta information
 // Note: For docker container logs, we ask for the timestamp
 // to store the time of the last processed line, it's part of the ParsingExtra
 // struct of the message.Message.
 // As a result, we need to remove this timestamp from the log
 // message before forwarding it
-func (t *Tailer) forwardMessages() {
+func (d *dockerMessageForwarder) forward() {
 	defer func() {
 		// the decoder has successfully been flushed
-		t.done <- struct{}{}
+		d.tailer.done <- struct{}{}
 	}()
-	for output := range t.decoder.OutputChan {
+	for output := range d.tailer.decoder.OutputChan {
 		if len(output.GetContent()) > 0 {
-			origin := message.NewOrigin(t.Source)
-			origin.Offset = output.ParsingExtra.Timestamp
-			t.setLastSince(output.ParsingExtra.Timestamp)
-			origin.Identifier = t.Identifier()
-			tags := []string{}
-			tags = append(tags, output.ParsingExtra.Tags...)
-			tags = append(tags, t.tagProvider.GetTags()...)
-			origin.SetTags(tags)
-			// XXX(remy): is it OK recreating a message here?
-			t.outputChan <- message.NewMessage(output.GetContent(), origin, output.Status, output.IngestionTimestamp)
+			msg := buildMessage(d.tailer, output)
+			d.tailer.outputChan <- msg
+		}
+	}
+}
+
+/*
+Example Kubelet Log Timeline
+
+10:30:45.000Z  |*........| 10:30:46.000Z
+                ↑
+            Log arrives at 10:30:45.100Z
+            Agent stores: lastSince = 10:30:45.100Z
+
+10:30:45.000Z  |*........| 10:30:46.000Z
+                         ↑
+            Connection is reset at 10:30:46.000Z
+
+10:30:45.000Z  |*........| 10:30:46.000Z
+                 ↑
+            Agent queries logs from:
+            lastSince + 1 nanosecond = 10:30:45.100000001Z
+
+10:30:45.000Z  |*........| 10:30:46.000Z
+               ↑
+            Kubelet truncates query to 10:30:45.000Z
+            (drops nanoseconds, doesn't support sub-second granularity)
+
+            RESULT: Original log returned as duplicate
+*/
+
+// forward (kubelet) functions the same as the dockerMessageForwarder.forward
+// but it includes an additional timestamp check to drop logs that have already been processed
+func (k *kubeletMessageForwarder) forward() {
+	defer func() {
+		// the decoder has successfully been flushed
+		k.tailer.done <- struct{}{}
+	}()
+	for output := range k.tailer.decoder.OutputChan {
+		if len(output.GetContent()) > 0 {
+			// Because the kubelet API does not support sub-second granularity we run the risk of logging duplicates
+			// we check the timestamp to drop logs that have already been processed
+			logTime, _ := time.Parse(time.RFC3339Nano, output.ParsingExtra.Timestamp)
+			if logTime.Before(k.tailer.getLastSince()) {
+				log.Debugf("Skipping log to avoid duplicates, %s has already been processed",
+					output.ParsingExtra.Timestamp)
+				continue
+			}
+
+			msg := buildMessage(k.tailer, output)
+			k.tailer.outputChan <- msg
 		}
 	}
 }

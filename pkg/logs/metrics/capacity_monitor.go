@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package metrics provides telemetry metrics for the logs agent
 package metrics
 
 import (
@@ -44,6 +45,9 @@ func newCapacityMonitorWithTick(name, instance string, tickChan <-chan time.Time
 
 // AddIngress records the ingress of a payload
 func (i *CapacityMonitor) AddIngress(pl MeasurablePayload) {
+	if i == nil {
+		return
+	}
 	i.Lock()
 	defer i.Unlock()
 	i.ingress += pl.Count()
@@ -53,6 +57,9 @@ func (i *CapacityMonitor) AddIngress(pl MeasurablePayload) {
 
 // AddEgress records the egress of a payload
 func (i *CapacityMonitor) AddEgress(pl MeasurablePayload) {
+	if i == nil {
+		return
+	}
 	i.Lock()
 	defer i.Unlock()
 	i.egress += pl.Count()
@@ -62,6 +69,9 @@ func (i *CapacityMonitor) AddEgress(pl MeasurablePayload) {
 }
 
 func (i *CapacityMonitor) sample() {
+	if i == nil {
+		return
+	}
 	select {
 	case <-i.tickChan:
 		i.avgItems = ewma(float64(i.ingress-i.egress), i.avgItems)
@@ -76,6 +86,9 @@ func ewma(newValue float64, oldValue float64) float64 {
 }
 
 func (i *CapacityMonitor) report() {
+	if i == nil {
+		return
+	}
 	TlmUtilizationItems.Set(i.avgItems, i.name, i.instance)
 	TlmUtilizationBytes.Set(i.avgBytes, i.name, i.instance)
 }

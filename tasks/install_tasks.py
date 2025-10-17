@@ -22,11 +22,11 @@ TOOL_LIST = [
     'gotest.tools/gotestsum',
     'github.com/vektra/mockery/v2',
     'github.com/wadey/gocovmerge',
+    'github.com/uber-go/gopatch',
 ]
 
 TOOL_LIST_PROTO = [
     'github.com/favadi/protoc-go-inject-tag',
-    'github.com/grpc-ecosystem/grpc-gateway/v2/protoc-gen-grpc-gateway',
     'github.com/golang/protobuf/protoc-gen-go',
     'github.com/golang/mock/mockgen',
     'github.com/planetscale/vtprotobuf/cmd/protoc-gen-go-vtproto',

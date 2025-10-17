@@ -14,15 +14,16 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
 
 func TestValidateTokenMiddleware(t *testing.T) {
 	mockConfig := configmock.New(t)
 	mockConfig.SetWithoutSource("cluster_agent.auth_token", "abc123")
-	util.InitDCAAuthToken(pkgconfigsetup.Datadog())
+	util.InitDCAAuthToken(mockConfig)
+	ipcComp := ipcmock.New(t)
 
 	tests := []struct {
 		path, authToken    string
@@ -73,7 +74,7 @@ func TestValidateTokenMiddleware(t *testing.T) {
 				w.WriteHeader(http.StatusOK)
 			}
 
-			handler := validateToken(http.HandlerFunc(nopHandler))
+			handler := validateToken(ipcComp)(http.HandlerFunc(nopHandler))
 
 			handler.ServeHTTP(rr, req)
 

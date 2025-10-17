@@ -8,7 +8,7 @@
   variables:
     TARGETS: ./tests/agent-platform/install-script
     TEAM: agent-delivery
-    EXTRA_PARAMS: --osversion $E2E_OSVERS --platform $E2E_PLATFORM --cws-supported-osversion $E2E_CWS_SUPPORTED_OSVERS --arch $E2E_ARCH --flavor $FLAVOR --no-verbose
+    EXTRA_PARAMS: --cws-supported-osdescriptors $E2E_CWS_SUPPORTED_DESCRIPTORS --flavor $FLAVOR --osdescriptors $E2E_DESCRIPTORS
     E2E_LOGS_PROCESSING_TEST_DEPTH: 2 # We use a single test suite and run all the platforms test as subtest
 
 .new-e2e_step_by_step:
@@ -16,15 +16,26 @@
   variables:
     TARGETS: ./tests/agent-platform/step-by-step
     TEAM: agent-delivery
-    EXTRA_PARAMS: --osversion $E2E_OSVERS --platform $E2E_PLATFORM --cws-supported-osversion $E2E_CWS_SUPPORTED_OSVERS --arch $E2E_ARCH --flavor $FLAVOR
+    EXTRA_PARAMS: --cws-supported-osdescriptors $E2E_CWS_SUPPORTED_DESCRIPTORS --flavor $FLAVOR --osdescriptors $E2E_DESCRIPTORS
     E2E_LOGS_PROCESSING_TEST_DEPTH: 2 # We use a single test suite and run all the platforms test as subtest
+
+.new-e2e_ddot:
+  stage: e2e_install_packages
+  variables:
+    TARGETS: ./tests/agent-platform/ddot
+    TEAM: agent-delivery
+    EXTRA_PARAMS: --osdescriptors $E2E_DESCRIPTORS
+    E2E_LOGS_PROCESSING_TEST_DEPTH: 2 # We use a single test suite and run all the platforms test as subtest
+  needs:
+    - !reference [.needs_new_e2e_template]
+    - deploy_ddot_oci
 
 .new-e2e_script_upgrade7:
   stage: e2e_install_packages
   variables:
     TARGETS: ./tests/agent-platform/upgrade
     TEAM: agent-delivery
-    EXTRA_PARAMS: --osversion $E2E_OSVERS --platform $E2E_PLATFORM --arch $E2E_ARCH --flavor $FLAVOR
+    EXTRA_PARAMS: --flavor $FLAVOR --osdescriptors $E2E_DESCRIPTORS
     E2E_LOGS_PROCESSING_TEST_DEPTH: 2 # We use a single test suite and run all the platforms test as subtest
   parallel:
     matrix:
@@ -39,7 +50,7 @@
   variables:
     TARGETS: ./tests/agent-platform/persisting-integrations
     TEAM: agent-delivery
-    EXTRA_PARAMS: --osversion $E2E_OSVERS --platform $E2E_PLATFORM --arch $E2E_ARCH --flavor $FLAVOR
+    EXTRA_PARAMS: --flavor $FLAVOR --osdescriptors $E2E_DESCRIPTORS
     E2E_LOGS_PROCESSING_TEST_DEPTH: 2 # We use a single test suite and run all the platforms test as subtest
   script:
     - DATADOG_AGENT_API_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $INSTALL_SCRIPT_API_KEY_ORG2 token) || exit $?; export DATADOG_AGENT_API_KEY
@@ -50,7 +61,7 @@
   variables:
     TARGETS: ./tests/agent-platform/rpm
     TEAM: agent-delivery
-    EXTRA_PARAMS: --osversion $E2E_OSVERS --platform $E2E_PLATFORM --arch $E2E_ARCH
+    EXTRA_PARAMS: --osdescriptors $E2E_DESCRIPTORS
     E2E_LOGS_PROCESSING_TEST_DEPTH: 2 # We use a single test suite and run all the platforms test as subtest
   script:
     - DATADOG_AGENT_API_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $INSTALL_SCRIPT_API_KEY_ORG2 token) || exit $?; export DATADOG_AGENT_API_KEY

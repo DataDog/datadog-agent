@@ -7,11 +7,5 @@
 // the GPU integration
 package gpu
 
-// CheckName defines the name of the
-// GPU check
+// CheckName defines the name of the GPU check
 const CheckName = "gpu"
-
-// CheckConfig holds the configuration for the GPU check
-type CheckConfig struct {
-	NVMLLibraryPath string `yaml:"nvml_library_path"`
-}

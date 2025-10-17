@@ -21,10 +21,13 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	secretsmock "github.com/DataDog/datadog-agent/comp/core/secrets/mock"
 	nooptagger "github.com/DataDog/datadog-agent/comp/core/tagger/impl-noop"
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 )
@@ -37,29 +40,30 @@ func TestMain(m *testing.M) {
 }
 
 func TestStartDoesNotBlock(t *testing.T) {
-	if os.Getenv("CI") == "true" && runtime.GOOS == "darwin" && runtime.GOARCH == "amd64" {
+	if os.Getenv("CI") == "true" && runtime.GOOS == "darwin" {
 		t.Skip("TestStartDoesNotBlock is known to fail on the macOS Gitlab runners because of the already running Agent")
 	}
-	pkgconfigsetup.LoadWithoutSecret(pkgconfigsetup.Datadog(), nil)
+	mockConfig := configmock.New(t)
+	pkgconfigsetup.LoadDatadog(mockConfig, secretsmock.New(t), nil)
 	metricAgent := &ServerlessMetricAgent{
 		SketchesBucketOffset: time.Second * 10,
 		Tagger:               nooptagger.NewComponent(),
 	}
 	defer metricAgent.Stop()
-	metricAgent.Start(10*time.Second, &MetricConfig{}, &MetricDogStatsD{})
+	metricAgent.Start(10*time.Second, &MetricConfig{}, &MetricDogStatsD{}, false)
 	assert.NotNil(t, metricAgent.Demux)
 	assert.True(t, metricAgent.IsReady())
 }
 
 type ValidMetricConfigMocked struct{}
 
-func (m *ValidMetricConfigMocked) GetMultipleEndpoints() (map[string][]string, error) {
-	return map[string][]string{"http://localhost:8888": {"value"}}, nil
+func (m *ValidMetricConfigMocked) GetMultipleEndpoints() (map[string][]utils.APIKeys, error) {
+	return map[string][]utils.APIKeys{"http://localhost:8888": {utils.NewAPIKeys("api_key", "value")}}, nil
 }
 
 type InvalidMetricConfigMocked struct{}
 
-func (m *InvalidMetricConfigMocked) GetMultipleEndpoints() (map[string][]string, error) {
+func (m *InvalidMetricConfigMocked) GetMultipleEndpoints() (map[string][]utils.APIKeys, error) {
 	return nil, fmt.Errorf("error")
 }
 
@@ -69,7 +73,7 @@ func TestStartInvalidConfig(t *testing.T) {
 		Tagger:               nooptagger.NewComponent(),
 	}
 	defer metricAgent.Stop()
-	metricAgent.Start(1*time.Second, &InvalidMetricConfigMocked{}, &MetricDogStatsD{})
+	metricAgent.Start(1*time.Second, &InvalidMetricConfigMocked{}, &MetricDogStatsD{}, false)
 	assert.False(t, metricAgent.IsReady())
 }
 
@@ -87,15 +91,14 @@ func TestStartInvalidDogStatsD(t *testing.T) {
 		Tagger:               nooptagger.NewComponent(),
 	}
 	defer metricAgent.Stop()
-	metricAgent.Start(1*time.Second, &MetricConfig{}, &MetricDogStatsDMocked{})
+	metricAgent.Start(1*time.Second, &MetricConfig{}, &MetricDogStatsDMocked{}, false)
 	assert.False(t, metricAgent.IsReady())
 }
 
 func TestStartWithProxy(t *testing.T) {
 	t.SkipNow()
-	originalValues := pkgconfigsetup.Datadog().GetStringSlice(statsDMetricBlocklistKey)
-	defer pkgconfigsetup.Datadog().SetWithoutSource(statsDMetricBlocklistKey, originalValues)
-	pkgconfigsetup.Datadog().SetWithoutSource(statsDMetricBlocklistKey, []string{})
+	mockConfig := configmock.New(t)
+	mockConfig.SetWithoutSource(statsDMetricBlocklistKey, []string{})
 
 	t.Setenv(proxyEnabledEnvVar, "true")
 
@@ -104,19 +107,19 @@ func TestStartWithProxy(t *testing.T) {
 		Tagger:               nooptagger.NewComponent(),
 	}
 	defer metricAgent.Stop()
-	metricAgent.Start(10*time.Second, &MetricConfig{}, &MetricDogStatsD{})
+	metricAgent.Start(10*time.Second, &MetricConfig{}, &MetricDogStatsD{}, false)
 
 	expected := []string{
 		invocationsMetric,
 		ErrorsMetric,
 	}
 
-	setValues := pkgconfigsetup.Datadog().GetStringSlice(statsDMetricBlocklistKey)
+	setValues := mockConfig.GetStringSlice(statsDMetricBlocklistKey)
 	assert.Equal(t, expected, setValues)
 }
 
 func TestRaceFlushVersusAddSample(t *testing.T) {
-	if os.Getenv("CI") == "true" && runtime.GOOS == "darwin" && runtime.GOARCH == "amd64" {
+	if os.Getenv("CI") == "true" && runtime.GOOS == "darwin" {
 		t.Skip("TestRaceFlushVersusAddSample is known to fail on the macOS Gitlab runners because of the already running Agent")
 	}
 	metricAgent := &ServerlessMetricAgent{
@@ -124,7 +127,7 @@ func TestRaceFlushVersusAddSample(t *testing.T) {
 		Tagger:               nooptagger.NewComponent(),
 	}
 	defer metricAgent.Stop()
-	metricAgent.Start(10*time.Second, &ValidMetricConfigMocked{}, &MetricDogStatsD{})
+	metricAgent.Start(10*time.Second, &ValidMetricConfigMocked{}, &MetricDogStatsD{}, false)
 
 	assert.NotNil(t, metricAgent.Demux)
 
@@ -212,17 +215,19 @@ func getAvailableUDPPort() (int, error) {
 }
 
 func TestRaceFlushVersusParsePacket(t *testing.T) {
+	mockConfig := configmock.New(t)
 	port, err := getAvailableUDPPort()
 	require.NoError(t, err)
-	pkgconfigsetup.Datadog().SetDefault("dogstatsd_port", port)
+	mockConfig.SetDefault("dogstatsd_port", port)
 
-	demux := aggregator.InitAndStartServerlessDemultiplexer(nil, time.Second*1000, nooptagger.NewComponent())
+	demux, err := aggregator.InitAndStartServerlessDemultiplexer(nil, time.Second*1000, nooptagger.NewComponent(), false)
+	require.NoError(t, err, "cannot start Demultiplexer")
 
 	s, err := dogstatsdServer.NewServerlessServer(demux)
 	require.NoError(t, err, "cannot start DSD")
 	defer s.Stop()
 
-	url := fmt.Sprintf("127.0.0.1:%d", pkgconfigsetup.Datadog().GetInt("dogstatsd_port"))
+	url := fmt.Sprintf("127.0.0.1:%d", mockConfig.GetInt("dogstatsd_port"))
 	conn, err := net.Dial("udp", url)
 	require.NoError(t, err, "cannot connect to DSD socket")
 	defer conn.Close()

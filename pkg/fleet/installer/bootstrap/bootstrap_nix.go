@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
+	installerErrors "github.com/DataDog/datadog-agent/pkg/fleet/installer/errors"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/exec"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/oci"
 )
@@ -33,7 +34,10 @@ func install(ctx context.Context, env *env.Env, url string, experiment bool) err
 	defer os.RemoveAll(tmpDir)
 	cmd, err := downloadInstaller(ctx, env, url, tmpDir)
 	if err != nil {
-		return err
+		return installerErrors.Wrap(
+			installerErrors.ErrDownloadFailed,
+			err,
+		)
 	}
 	if experiment {
 		return cmd.InstallExperiment(ctx, url)
@@ -46,7 +50,10 @@ func downloadInstaller(ctx context.Context, env *env.Env, url string, tmpDir str
 	downloader := oci.NewDownloader(env, env.HTTPClient())
 	downloadedPackage, err := downloader.Download(ctx, url)
 	if err != nil {
-		return nil, fmt.Errorf("failed to download installer package: %w", err)
+		return nil, installerErrors.Wrap(
+			installerErrors.ErrDownloadFailed,
+			fmt.Errorf("could not download package: %w", err),
+		)
 	}
 	if downloadedPackage.Name != AgentPackage {
 		return getLocalInstaller(env)

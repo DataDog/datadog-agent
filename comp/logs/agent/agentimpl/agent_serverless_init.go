@@ -15,7 +15,6 @@ import (
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
-	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/logs/launchers"
@@ -23,8 +22,8 @@ import (
 	filelauncher "github.com/DataDog/datadog-agent/pkg/logs/launchers/file"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/schedulers"
+	"github.com/DataDog/datadog-agent/pkg/logs/types"
 	"github.com/DataDog/datadog-agent/pkg/serverless/streamlogs"
-	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
@@ -39,17 +38,25 @@ func (a *logAgent) SetupPipeline(
 	processingRules []*config.ProcessingRule,
 	wmeta option.Option[workloadmeta.Component],
 	_ integrations.Component,
+	fingerprintConfig types.FingerprintConfig,
 ) {
-	health := health.RegisterLiveness("logs-agent")
-
-	diagnosticMessageReceiver := diagnostic.NewBufferedMessageReceiver(streamlogs.Formatter{}, nil)
-
-	// setup the a null auditor, not tracking data in any registry
-	a.auditor = auditor.NewNullAuditor()
+	diagnosticMessageReceiver := diagnostic.NewBufferedMessageReceiver(streamlogs.Formatter{}, a.hostname)
 	destinationsCtx := client.NewDestinationsContext()
 
 	// setup the pipeline provider that provides pairs of processor and sender
-	pipelineProvider := pipeline.NewServerlessProvider(a.config.GetInt("logs_config.pipelines"), a.auditor, diagnosticMessageReceiver, processingRules, a.endpoints, destinationsCtx, NewStatusProvider(), a.hostname, a.config, a.compression)
+	pipelineProvider := pipeline.NewProvider(
+		a.config.GetInt("logs_config.pipelines"),
+		a.auditor,
+		diagnosticMessageReceiver,
+		processingRules, a.endpoints,
+		destinationsCtx,
+		NewStatusProvider(),
+		a.hostname,
+		a.config,
+		a.compression,
+		true, // disable distributed sending for serverless
+		true, // serverless
+	)
 
 	lnchrs := launchers.NewLaunchers(a.sources, pipelineProvider, a.auditor, a.tracker)
 	lnchrs.AddLauncher(channel.NewLauncher())
@@ -65,12 +72,12 @@ func (a *logAgent) SetupPipeline(
 		fileScanPeriod,
 		fileWildcardSelectionMode,
 		a.flarecontroller,
-		a.tagger))
+		a.tagger,
+		fingerprintConfig))
 	a.schedulers = schedulers.NewSchedulers(a.sources, a.services)
 	a.destinationsCtx = destinationsCtx
 	a.pipelineProvider = pipelineProvider
 	a.launchers = lnchrs
-	a.health = health
 	a.diagnosticMessageReceiver = diagnosticMessageReceiver
 }
 
@@ -80,7 +87,7 @@ func buildEndpoints(coreConfig model.Reader) (*config.Endpoints, error) {
 	if err != nil {
 		return nil, err
 	}
-	if env.IsServerless() {
+	if env.IsLambda() {
 		// in AWS Lambda, we never want the batch strategy to flush with a tick
 		config.BatchWait = 365 * 24 * time.Hour
 	}

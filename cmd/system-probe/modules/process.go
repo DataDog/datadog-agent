@@ -8,14 +8,12 @@
 package modules
 
 import (
-	"errors"
 	"io"
 	"net/http"
 	"os"
 	"path/filepath"
+	"sync/atomic"
 	"time"
-
-	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/process/encoding"
 	reqEncoding "github.com/DataDog/datadog-agent/pkg/process/encoding/request"
@@ -26,11 +24,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// ErrProcessUnsupported is an error type indicating that the process module is not support in the running environment
-var ErrProcessUnsupported = errors.New("process module unsupported")
+func init() { registerModule(Process) }
 
 // Process is a module that fetches process level data
-var Process = module.Factory{
+var Process = &module.Factory{
 	Name:             config.ProcessModule,
 	ConfigNamespaces: []string{},
 	Fn: func(_ *sysconfigtypes.Config, _ module.FactoryDependencies) (module.Module, error) {
@@ -39,8 +36,7 @@ var Process = module.Factory{
 		// we disable returning zero values for stats to reduce parsing work on process-agent side
 		p := procutil.NewProcessProbe(procutil.WithReturnZeroPermStats(false))
 		return &process{
-			probe:     p,
-			lastCheck: atomic.NewInt64(0),
+			probe: p,
 		}, nil
 	},
 	NeedsEBPF: func() bool {
@@ -51,8 +47,9 @@ var Process = module.Factory{
 var _ module.Module = &process{}
 
 type process struct {
-	probe     procutil.Probe
-	lastCheck *atomic.Int64
+	probe           procutil.Probe
+	lastCheck       atomic.Int64
+	statsRunCounter atomic.Uint64
 }
 
 // GetStats returns stats for the module
@@ -64,32 +61,45 @@ func (t *process) GetStats() map[string]interface{} {
 
 // Register registers endpoints for the module to expose data
 func (t *process) Register(httpMux *module.Router) error {
-	runCounter := atomic.NewUint64(0)
-	httpMux.HandleFunc("/stats", func(w http.ResponseWriter, req *http.Request) {
-		start := time.Now()
-		t.lastCheck.Store(start.Unix())
-		pids, err := getPids(req)
-		if err != nil {
-			log.Errorf("Unable to get PIDs from request: %s", err)
-			w.WriteHeader(http.StatusBadRequest)
-		}
-
-		stats, err := t.probe.StatsWithPermByPID(pids)
-		if err != nil {
-			log.Errorf("unable to retrieve process stats: %s", err)
-			w.WriteHeader(http.StatusInternalServerError)
-			return
-		}
-
-		contentType := req.Header.Get("Accept")
-		marshaler := encoding.GetMarshaler(contentType)
-		writeStats(w, marshaler, stats)
-
-		count := runCounter.Inc()
-		logProcTracerRequests(count, len(stats), start)
-	}).Methods("POST")
-
+	httpMux.HandleFunc("/stats", t.statsHandler).Methods("POST")
+	httpMux.HandleFunc("/service", t.serviceHandler).Methods("POST")
+	httpMux.HandleFunc("/network", t.networkHandler).Methods("POST")
 	return nil
+}
+
+// statsHandler handles requests for process IO stats
+func (t *process) statsHandler(w http.ResponseWriter, req *http.Request) {
+	start := time.Now()
+	t.lastCheck.Store(start.Unix())
+	pids, err := getPids(req)
+	if err != nil {
+		log.Errorf("Unable to get PIDs from request: %s", err)
+		w.WriteHeader(http.StatusBadRequest)
+	}
+
+	stats, err := t.probe.StatsWithPermByPID(pids)
+	if err != nil {
+		log.Errorf("unable to retrieve process stats: %s", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	contentType := req.Header.Get("Accept")
+	marshaler := encoding.GetMarshaler(contentType)
+	writeStats(w, marshaler, stats)
+
+	count := t.statsRunCounter.Add(1)
+	logProcTracerRequests(count, len(stats), start)
+}
+
+// serviceHandler handles requests for service information for given processes
+func (t *process) serviceHandler(_ http.ResponseWriter, _ *http.Request) {
+	// TODO: Add implementation for this handler
+}
+
+// networkHandler handles requests for network stats for given processes
+func (t *process) networkHandler(_ http.ResponseWriter, _ *http.Request) {
+	// TODO: Add implementation for this handler
 }
 
 // Close cleans up the underlying probe object

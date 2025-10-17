@@ -3,41 +3,53 @@
 name: Report Merged PR
 
 on:
-  pull_request:
+  push:
     branches:
       - main
-    types: [closed]
 
 permissions: {}
 
-env:
-  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-  DD_API_KEY: ${{ secrets.REPORT_MERGED_PR_DD_API_KEY }}
-
 jobs:
-  if_merged:
-    if: github.event.pull_request.merged == true
+  report_merged_pr:
     runs-on: ubuntu-latest
+    environment:
+      name: main
     steps:
       - name: Checkout repository
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           persist-credentials: false
 
-      - name: Setup Python3
-        uses: actions/setup-python@8d9ed9ac5c53483de85588cdf95a591a75ab9f55 # v5.5.0
-        with:
-          python-version-file: .python-version
-          cache: "pip"
-          cache-dependency-path: '.dda/version'
-
       - name: Install dda
         uses: ./.github/actions/install-dda
         with:
           features: legacy-tasks
 
+      - name: Extract PR number from commit message
+        id: extract_pr
+        run: |
+          # Get the last commit message from the push to main
+          COMMIT_MESSAGE="$(git log -1 --pretty=format:"%s")"
+          echo "Last commit message: $COMMIT_MESSAGE"
+
+          # Extract PR number from format "(#1234)" in commit message
+          PR_NUMBER="$(echo "$COMMIT_MESSAGE" | grep -oE '\(#[0-9]+\)' | grep -oE '[0-9]+' | tail -n 1)"
+
+          # If no PR number found in commit message, exit with error
+          if [ -z "$PR_NUMBER" ]; then
+            echo "Error: No PR number found in commit message format (#{number})"
+            echo "Commit message was: $COMMIT_MESSAGE"
+            exit 1
+          else
+            echo "Extracted PR number from commit message: $PR_NUMBER"
+          fi
+
+          echo "pr_number=$PR_NUMBER" >> $GITHUB_OUTPUT
+
       - name: Send merge event to Datadog
         env:
-          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_NUMBER: ${{ steps.extract_pr.outputs.pr_number }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DD_API_KEY: ${{ secrets.REPORT_MERGED_PR_DD_API_KEY }}
         run: |
           dda inv -- -e github.pr-merge-dd-event-sender -p "$PR_NUMBER"

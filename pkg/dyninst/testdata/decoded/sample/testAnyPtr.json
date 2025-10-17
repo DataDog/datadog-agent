@@ -1,0 +1,475 @@
+[
+  {
+    "service": "sample",
+    "ddsource": "dd_debugger",
+    "logger": {
+      "name": "",
+      "method": "main.testAnyPtr",
+      "version": 0,
+      "thread_id": "[goid]",
+      "thread_name": ""
+    },
+    "debugger": {
+      "snapshot": {
+        "id": "[id]",
+        "timestamp": "[ts]",
+        "language": "go",
+        "stack": [
+          {
+            "function": "main.testAnyPtr",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/interfaces.go",
+            "lineNumber": 65
+          },
+          {
+            "function": "main.executeInterfaceFuncs",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/interfaces.go",
+            "lineNumber": 107
+          },
+          {
+            "function": "main.main",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
+            "lineNumber": 49
+          },
+          {
+            "function": "runtime.main",
+            "fileName": "runtime/proc.go",
+            "lineNumber": "[lineNumber]"
+          },
+          {
+            "function": "runtime.goexit",
+            "fileName": "runtime/asm_[arch].s",
+            "lineNumber": "[lineNumber]"
+          }
+        ],
+        "probe": {
+          "id": "testAnyPtr",
+          "location": {
+            "method": "main.testAnyPtr"
+          }
+        },
+        "captures": {
+          "entry": {
+            "arguments": {
+              "a": {
+                "type": "*interface {}",
+                "isNull": true
+              }
+            }
+          },
+          "return": {
+            "locals": {
+              "~r0": {
+                "type": "string",
+                "value": "<nil>"
+              }
+            }
+          }
+        }
+      }
+    },
+    "timestamp": "[ts]",
+    "duration": "[duration]"
+  },
+  {
+    "service": "sample",
+    "ddsource": "dd_debugger",
+    "logger": {
+      "name": "",
+      "method": "main.testAnyPtr",
+      "version": 0,
+      "thread_id": "[goid]",
+      "thread_name": ""
+    },
+    "debugger": {
+      "snapshot": {
+        "id": "[id]",
+        "timestamp": "[ts]",
+        "language": "go",
+        "stack": [
+          {
+            "function": "main.testAnyPtr",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/interfaces.go",
+            "lineNumber": 65
+          },
+          {
+            "function": "main.executeInterfaceFuncs",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/interfaces.go",
+            "lineNumber": 108
+          },
+          {
+            "function": "main.main",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
+            "lineNumber": 49
+          },
+          {
+            "function": "runtime.main",
+            "fileName": "runtime/proc.go",
+            "lineNumber": "[lineNumber]"
+          },
+          {
+            "function": "runtime.goexit",
+            "fileName": "runtime/asm_[arch].s",
+            "lineNumber": "[lineNumber]"
+          }
+        ],
+        "probe": {
+          "id": "testAnyPtr",
+          "location": {
+            "method": "main.testAnyPtr"
+          }
+        },
+        "captures": {
+          "entry": {
+            "arguments": {
+              "a": {
+                "type": "*interface {}",
+                "address": "[addr]",
+                "fields": {
+                  "data": {
+                    "isNull": true
+                  }
+                }
+              }
+            }
+          },
+          "return": {
+            "locals": {
+              "~r0": {
+                "type": "string",
+                "value": "0x[addr]"
+              }
+            }
+          }
+        }
+      }
+    },
+    "timestamp": "[ts]",
+    "duration": "[duration]"
+  },
+  {
+    "service": "sample",
+    "ddsource": "dd_debugger",
+    "logger": {
+      "name": "",
+      "method": "main.testAnyPtr",
+      "version": 0,
+      "thread_id": "[goid]",
+      "thread_name": ""
+    },
+    "debugger": {
+      "snapshot": {
+        "id": "[id]",
+        "timestamp": "[ts]",
+        "language": "go",
+        "stack": [
+          {
+            "function": "main.testAnyPtr",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/interfaces.go",
+            "lineNumber": 65
+          },
+          {
+            "function": "main.executeInterfaceFuncs",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/interfaces.go",
+            "lineNumber": 109
+          },
+          {
+            "function": "main.main",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
+            "lineNumber": 49
+          },
+          {
+            "function": "runtime.main",
+            "fileName": "runtime/proc.go",
+            "lineNumber": "[lineNumber]"
+          },
+          {
+            "function": "runtime.goexit",
+            "fileName": "runtime/asm_[arch].s",
+            "lineNumber": "[lineNumber]"
+          }
+        ],
+        "probe": {
+          "id": "testAnyPtr",
+          "location": {
+            "method": "main.testAnyPtr"
+          }
+        },
+        "captures": {
+          "entry": {
+            "arguments": {
+              "a": {
+                "type": "*interface {}",
+                "address": "[addr]",
+                "fields": {
+                  "data": {
+                    "type": "*int",
+                    "isNull": true
+                  }
+                }
+              }
+            }
+          },
+          "return": {
+            "locals": {
+              "~r0": {
+                "type": "string",
+                "value": "0x[addr]"
+              }
+            }
+          }
+        }
+      }
+    },
+    "timestamp": "[ts]",
+    "duration": "[duration]"
+  },
+  {
+    "service": "sample",
+    "ddsource": "dd_debugger",
+    "logger": {
+      "name": "",
+      "method": "main.testAnyPtr",
+      "version": 0,
+      "thread_id": "[goid]",
+      "thread_name": ""
+    },
+    "debugger": {
+      "snapshot": {
+        "id": "[id]",
+        "timestamp": "[ts]",
+        "language": "go",
+        "stack": [
+          {
+            "function": "main.testAnyPtr",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/interfaces.go",
+            "lineNumber": 65
+          },
+          {
+            "function": "main.executeInterfaceFuncs",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/interfaces.go",
+            "lineNumber": 110
+          },
+          {
+            "function": "main.main",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
+            "lineNumber": 49
+          },
+          {
+            "function": "runtime.main",
+            "fileName": "runtime/proc.go",
+            "lineNumber": "[lineNumber]"
+          },
+          {
+            "function": "runtime.goexit",
+            "fileName": "runtime/asm_[arch].s",
+            "lineNumber": "[lineNumber]"
+          }
+        ],
+        "probe": {
+          "id": "testAnyPtr",
+          "location": {
+            "method": "main.testAnyPtr"
+          }
+        },
+        "captures": {
+          "entry": {
+            "arguments": {
+              "a": {
+                "type": "*interface {}",
+                "address": "[addr]",
+                "fields": {
+                  "data": {
+                    "type": "int",
+                    "value": "1"
+                  }
+                }
+              }
+            }
+          },
+          "return": {
+            "locals": {
+              "~r0": {
+                "type": "string",
+                "value": "0x[addr]"
+              }
+            }
+          }
+        }
+      }
+    },
+    "timestamp": "[ts]",
+    "duration": "[duration]"
+  },
+  {
+    "service": "sample",
+    "ddsource": "dd_debugger",
+    "logger": {
+      "name": "",
+      "method": "main.testAnyPtr",
+      "version": 0,
+      "thread_id": "[goid]",
+      "thread_name": ""
+    },
+    "debugger": {
+      "snapshot": {
+        "id": "[id]",
+        "timestamp": "[ts]",
+        "language": "go",
+        "stack": [
+          {
+            "function": "main.testAnyPtr",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/interfaces.go",
+            "lineNumber": 65
+          },
+          {
+            "function": "main.executeInterfaceFuncs",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/interfaces.go",
+            "lineNumber": 111
+          },
+          {
+            "function": "main.main",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
+            "lineNumber": 49
+          },
+          {
+            "function": "runtime.main",
+            "fileName": "runtime/proc.go",
+            "lineNumber": "[lineNumber]"
+          },
+          {
+            "function": "runtime.goexit",
+            "fileName": "runtime/asm_[arch].s",
+            "lineNumber": "[lineNumber]"
+          }
+        ],
+        "probe": {
+          "id": "testAnyPtr",
+          "location": {
+            "method": "main.testAnyPtr"
+          }
+        },
+        "captures": {
+          "entry": {
+            "arguments": {
+              "a": {
+                "type": "*interface {}",
+                "address": "[addr]",
+                "fields": {
+                  "data": {
+                    "type": "*interface {}",
+                    "address": "[addr]",
+                    "fields": {
+                      "data": {
+                        "type": "int",
+                        "value": "1"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "return": {
+            "locals": {
+              "~r0": {
+                "type": "string",
+                "value": "0x[addr]"
+              }
+            }
+          }
+        }
+      }
+    },
+    "timestamp": "[ts]",
+    "duration": "[duration]"
+  },
+  {
+    "service": "sample",
+    "ddsource": "dd_debugger",
+    "logger": {
+      "name": "",
+      "method": "main.testAnyPtr",
+      "version": 0,
+      "thread_id": "[goid]",
+      "thread_name": ""
+    },
+    "debugger": {
+      "snapshot": {
+        "id": "[id]",
+        "timestamp": "[ts]",
+        "language": "go",
+        "stack": [
+          {
+            "function": "main.testAnyPtr",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/interfaces.go",
+            "lineNumber": 65
+          },
+          {
+            "function": "main.executeInterfaceFuncs",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/interfaces.go",
+            "lineNumber": 112
+          },
+          {
+            "function": "main.main",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
+            "lineNumber": 49
+          },
+          {
+            "function": "runtime.main",
+            "fileName": "runtime/proc.go",
+            "lineNumber": "[lineNumber]"
+          },
+          {
+            "function": "runtime.goexit",
+            "fileName": "runtime/asm_[arch].s",
+            "lineNumber": "[lineNumber]"
+          }
+        ],
+        "probe": {
+          "id": "testAnyPtr",
+          "location": {
+            "method": "main.testAnyPtr"
+          }
+        },
+        "captures": {
+          "entry": {
+            "arguments": {
+              "a": {
+                "type": "*interface {}",
+                "address": "[addr]",
+                "fields": {
+                  "data": {
+                    "type": "*interface {}",
+                    "address": "[addr]",
+                    "fields": {
+                      "data": {
+                        "type": "*interface {}",
+                        "address": "[addr]",
+                        "fields": {
+                          "data": {
+                            "type": "int",
+                            "value": "1"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "return": {
+            "locals": {
+              "~r0": {
+                "type": "string",
+                "value": "0x[addr]"
+              }
+            }
+          }
+        }
+      }
+    },
+    "timestamp": "[ts]",
+    "duration": "[duration]"
+  }
+]

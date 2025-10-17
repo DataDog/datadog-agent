@@ -18,12 +18,11 @@ import (
 	"github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline"
 	compression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
-	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/client/http"
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
-	"github.com/DataDog/datadog-agent/pkg/status/health"
+	"github.com/DataDog/datadog-agent/pkg/logs/sender"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 
@@ -42,25 +41,25 @@ const (
 type Dependencies struct {
 	fx.In
 
-	Lc          fx.Lifecycle
-	Log         log.Component
-	Config      configComponent.Component
-	Hostname    hostnameinterface.Component
-	Compression compression.Component
+	Lc           fx.Lifecycle
+	Log          log.Component
+	Config       configComponent.Component
+	Hostname     hostnameinterface.Component
+	Compression  compression.Component
+	IntakeOrigin config.IntakeOrigin
 }
 
 // Agent represents the data pipeline that collects, decodes, processes and sends logs to the backend.
 type Agent struct {
-	log         log.Component
-	config      pkgconfigmodel.Reader
-	hostname    hostnameinterface.Component
-	compression compression.Component
+	log          log.Component
+	config       pkgconfigmodel.Reader
+	hostname     hostnameinterface.Component
+	compression  compression.Component
+	intakeOrigin config.IntakeOrigin
 
 	endpoints        *config.Endpoints
-	auditor          auditor.Auditor
 	destinationsCtx  *client.DestinationsContext
 	pipelineProvider pipeline.Provider
-	health           *health.Handle
 }
 
 // NewLogsAgentComponent returns a new instance of Agent as a Component
@@ -80,10 +79,11 @@ func NewLogsAgent(deps Dependencies) logsagentpipeline.LogsAgent {
 		}
 
 		logsAgent := &Agent{
-			log:         deps.Log,
-			config:      deps.Config,
-			hostname:    deps.Hostname,
-			compression: deps.Compression,
+			log:          deps.Log,
+			config:       deps.Config,
+			hostname:     deps.Hostname,
+			compression:  deps.Compression,
+			intakeOrigin: deps.IntakeOrigin,
 		}
 		if deps.Lc != nil {
 			deps.Lc.Append(fx.Hook{
@@ -104,7 +104,7 @@ func (a *Agent) Start(context.Context) error {
 	a.log.Debug("Starting logs-agent...")
 
 	// setup the server config
-	endpoints, err := buildEndpoints(a.config, a.log)
+	endpoints, err := buildEndpoints(a.config, a.log, a.intakeOrigin)
 
 	if err != nil {
 		message := fmt.Sprintf("Invalid endpoints: %v", err)
@@ -146,7 +146,6 @@ func (a *Agent) setupAgent() error {
 func (a *Agent) startPipeline() {
 	starter := startstop.NewStarter(
 		a.destinationsCtx,
-		a.auditor,
 		a.pipelineProvider,
 	)
 	starter.Start()
@@ -158,7 +157,6 @@ func (a *Agent) Stop(context.Context) error {
 
 	stopper := startstop.NewSerialStopper(
 		a.pipelineProvider,
-		a.auditor,
 		a.destinationsCtx,
 	)
 
@@ -204,32 +202,36 @@ func (a *Agent) GetPipelineProvider() pipeline.Provider {
 func (a *Agent) SetupPipeline(
 	processingRules []*config.ProcessingRule,
 ) {
-	health := health.RegisterLiveness("logs-agent")
-
-	// setup the auditor
-	// We pass the health handle to the auditor because it's the end of the pipeline and the most
-	// critical part. Arguably it could also be plugged to the destination.
-	auditorTTL := time.Duration(a.config.GetInt("logs_config.auditor_ttl")) * time.Hour
-	auditor := auditor.New(a.config.GetString("logs_config.run_path"), auditor.DefaultRegistryFilename, auditorTTL, health)
 	destinationsCtx := client.NewDestinationsContext()
 
 	// setup the pipeline provider that provides pairs of processor and sender
-	pipelineProvider := pipeline.NewProvider(a.config.GetInt("logs_config.pipelines"), auditor, &diagnostic.NoopMessageReceiver{}, processingRules, a.endpoints, destinationsCtx, NewStatusProvider(), a.hostname, a.config, a.compression)
+	pipelineProvider := pipeline.NewProvider(
+		a.config.GetInt("logs_config.pipelines"),
+		&sender.NoopSink{},
+		&diagnostic.NoopMessageReceiver{},
+		processingRules,
+		a.endpoints,
+		destinationsCtx,
+		NewStatusProvider(),
+		a.hostname,
+		a.config,
+		a.compression,
+		a.config.GetBool("logs_config.disable_distributed_senders"),
+		false, // serverless
+	)
 
-	a.auditor = auditor
 	a.destinationsCtx = destinationsCtx
 	a.pipelineProvider = pipelineProvider
-	a.health = health
 }
 
 // buildEndpoints builds endpoints for the logs agent
-func buildEndpoints(coreConfig pkgconfigmodel.Reader, log log.Component) (*config.Endpoints, error) {
+func buildEndpoints(coreConfig pkgconfigmodel.Reader, log log.Component, intakeOrigin config.IntakeOrigin) (*config.Endpoints, error) {
 	httpConnectivity := config.HTTPConnectivityFailure
-	if endpoints, err := config.BuildHTTPEndpoints(coreConfig, intakeTrackType, config.AgentJSONIntakeProtocol, config.DefaultIntakeOrigin); err == nil {
+	if endpoints, err := config.BuildHTTPEndpoints(coreConfig, intakeTrackType, config.AgentJSONIntakeProtocol, intakeOrigin); err == nil {
 		httpConnectivity = http.CheckConnectivity(endpoints.Main, coreConfig)
 		if !httpConnectivity {
 			log.Warn("Error while validating API key")
 		}
 	}
-	return config.BuildEndpoints(coreConfig, httpConnectivity, intakeTrackType, config.AgentJSONIntakeProtocol, config.DefaultIntakeOrigin)
+	return config.BuildEndpoints(coreConfig, httpConnectivity, intakeTrackType, config.AgentJSONIntakeProtocol, intakeOrigin)
 }

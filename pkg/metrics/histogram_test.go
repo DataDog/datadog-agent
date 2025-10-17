@@ -8,7 +8,6 @@ package metrics
 import (
 	"math/rand"
 	"testing"
-	"time"
 
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/stretchr/testify/assert"
@@ -16,11 +15,11 @@ import (
 )
 
 func TestHistogramConf(t *testing.T) {
-	assert.Equal(t, []int{95, 96, 28, 57, 58}, parsePercentiles([]string{"0.95", "0.96", "0.28", "0.57", "0.58"}))
+	assert.Equal(t, []int{95, 96, 28, 57, 58}, ParsePercentiles([]string{"0.95", "0.96", "0.28", "0.57", "0.58"}))
 }
 
 func TestHistogramConfError(t *testing.T) {
-	assert.Equal(t, []int{95, 22}, parsePercentiles([]string{"0.95", "test", "0.12test", "0.22", "200", "-50"}))
+	assert.Equal(t, []int{95, 22}, ParsePercentiles([]string{"0.95", "test", "0.12test", "0.22", "200", "-50"}))
 }
 
 func TestConfigureDefault(t *testing.T) {
@@ -129,9 +128,6 @@ func TestCustomHistogramSampling(t *testing.T) {
 }
 
 func shuffle(slice []float64) {
-	t := time.Now()
-	rand.Seed(int64(t.Nanosecond()))
-
 	for i := len(slice) - 1; i > 0; i-- {
 		j := rand.Intn(i)
 		slice[i], slice[j] = slice[j], slice[i]

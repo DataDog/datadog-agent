@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/model"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	le "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection/metrics"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	workqueuetelemetry "github.com/DataDog/datadog-agent/pkg/util/workqueue/telemetry"
 )
 
@@ -31,7 +32,6 @@ const (
 var (
 	autoscalingQueueMetricsProvider = workqueuetelemetry.NewQueueMetricsProvider()
 	commonOpts                      = telemetry.Options{NoDoubleUnderscoreSep: true}
-	validRecommendationSources      = []datadoghqcommon.DatadogPodAutoscalerValueSource{datadoghqcommon.DatadogPodAutoscalerAutoscalingValueSource, datadoghqcommon.DatadogPodAutoscalerLocalValueSource}
 
 	// telemetryHorizontalScaleActions tracks the number of horizontal scaling attempts
 	telemetryHorizontalScaleActions = telemetry.NewCounterWithOpts(
@@ -100,6 +100,15 @@ var (
 		"Tracks whether local fallback recommendations are being used",
 		commonOpts,
 	)
+
+	// telemetryMetricsForDeletion contains all gauge metrics that need to be cleaned up when deleting pod autoscaler telemetry
+	telemetryMetricsForDeletion = []telemetry.Gauge{
+		telemetryHorizontalScaleAppliedRecommendations,
+		telemetryHorizontalScaleReceivedRecommendations,
+		telemetryVerticalScaleReceivedRecommendationsLimits,
+		telemetryVerticalScaleReceivedRecommendationsRequests,
+		autoscalingStatusConditions,
+	}
 )
 
 func trackPodAutoscalerStatus(podAutoscaler *datadoghq.DatadogPodAutoscaler) {
@@ -109,6 +118,19 @@ func trackPodAutoscalerStatus(podAutoscaler *datadoghq.DatadogPodAutoscaler) {
 		} else {
 			autoscalingStatusConditions.Set(0.0, podAutoscaler.Namespace, podAutoscaler.Name, string(condition.Type), le.JoinLeaderValue)
 		}
+	}
+}
+
+func deletePodAutoscalerTelemetry(ns, autoscalerName string) {
+	log.Debugf("Deleting pod autoscaler telemetry for %s/%s", ns, autoscalerName)
+	tags := map[string]string{
+		"namespace":        ns,
+		"autoscaler_name":  autoscalerName,
+		le.JoinLeaderLabel: le.JoinLeaderValue,
+	}
+
+	for _, metric := range telemetryMetricsForDeletion {
+		metric.DeletePartialMatch(tags)
 	}
 }
 
@@ -137,15 +159,14 @@ func setHorizontalScaleAppliedRecommendations(toReplicas float64, ns, targetName
 }
 
 func unsetHorizontalScaleAppliedRecommendations(ns, targetName, autoscalerName string) {
-	for _, source := range validRecommendationSources {
-		telemetryHorizontalScaleAppliedRecommendations.Delete(
-			ns,
-			targetName,
-			autoscalerName,
-			string(source),
-			le.JoinLeaderValue,
-		)
+	tags := map[string]string{
+		"namespace":        ns,
+		"target_name":      targetName,
+		"autoscaler_name":  autoscalerName,
+		le.JoinLeaderLabel: le.JoinLeaderValue,
 	}
+
+	telemetryHorizontalScaleAppliedRecommendations.DeletePartialMatch(tags)
 }
 
 func startLocalTelemetry(ctx context.Context, sender sender.Sender, tags []string) {

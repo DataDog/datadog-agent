@@ -31,6 +31,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	metricsserializer "github.com/DataDog/datadog-agent/pkg/serializer/internal/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
+	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/util/compression"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
@@ -140,11 +141,6 @@ func (p *testPayload) MarshalSplitCompress(bufferContext *marshaler.BufferContex
 }
 
 //nolint:revive // TODO(AML) Fix revive linter
-func (p *testPayload) SplitPayload(int) ([]marshaler.AbstractMarshaler, error) {
-	return []marshaler.AbstractMarshaler{}, nil
-}
-
-//nolint:revive // TODO(AML) Fix revive linter
 func (p *testPayload) WriteHeader(stream *jsoniter.Stream) error {
 	_, err := stream.Write(jsonHeader)
 	return err
@@ -175,11 +171,6 @@ func (p *testErrorPayload) MarshalJSON() ([]byte, error) { return nil, fmt.Error
 
 //nolint:revive // TODO(AML) Fix revive linter
 func (p *testErrorPayload) Marshal() ([]byte, error) { return nil, fmt.Errorf("some error") }
-
-//nolint:revive // TODO(AML) Fix revive linter
-func (p *testErrorPayload) SplitPayload(int) ([]marshaler.AbstractMarshaler, error) {
-	return []marshaler.AbstractMarshaler{}, fmt.Errorf("some error")
-}
 
 func (p *testErrorPayload) WriteHeader(stream *jsoniter.Stream) error {
 	_, err := stream.Write(jsonHeader)
@@ -227,6 +218,7 @@ func doPayloadsMatch(payloads transaction.BytesPayloads, prefix string, s *Seria
 			if strings.HasPrefix(string(payload), prefix) {
 				return true
 			}
+			fmt.Printf("Payload:  %q\nExpected: %q\n", string(payload), prefix)
 		}
 	}
 	return false
@@ -253,7 +245,7 @@ func createProtoscopeMatcher(protoscopeDef string, s *Serializer) interface{} {
 	})
 }
 
-func TestSendV1Events(t *testing.T) {
+func TestSendV1EventsNew(t *testing.T) {
 	tests := map[string]struct {
 		kind string
 	}{
@@ -263,59 +255,39 @@ func TestSendV1Events(t *testing.T) {
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			mockConfig := configmock.New(t)
-			mockConfig.SetWithoutSource("enable_events_stream_payload_serialization", false)
 			mockConfig.SetWithoutSource("serializer_compressor_kind", tc.kind)
 			f := &forwarder.MockedForwarder{}
 
 			compressor := metricscompressionimpl.NewCompressorReq(metricscompressionimpl.Requires{Cfg: mockConfig}).Comp
 			s := NewSerializer(f, nil, compressor, mockConfig, logmock.New(t), "testhost")
-			matcher := createJSONPayloadMatcher(`{"apiKey":"","events":{},"internalHostname"`, s)
+			matcher := createJSONPayloadMatcher(`{"apiKey":"","events":{"api":[{"msg_title":"","msg_text":"","timestamp":0,"host":""}]},"internalHostname"`, s)
 			f.On("SubmitV1Intake", matcher, s.jsonExtraHeadersWithCompression).Return(nil).Times(1)
 
-			err := s.SendEvents([]*event.Event{})
+			err := s.SendEvents([]*event.Event{{}})
 			require.Nil(t, err)
 			f.AssertExpectations(t)
 		})
 	}
 }
 
-func TestSendV1EventsCreateMarshalersBySourceType(t *testing.T) {
-
+func TestSendV1EventsNewNoEmpty(t *testing.T) {
 	tests := map[string]struct {
 		kind string
 	}{
 		"zlib": {kind: compression.ZlibKind},
 		"zstd": {kind: compression.ZstdKind},
 	}
-
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			mockConfig := configmock.New(t)
-			mockConfig.SetWithoutSource("enable_events_stream_payload_serialization", true)
 			mockConfig.SetWithoutSource("serializer_compressor_kind", tc.kind)
 			f := &forwarder.MockedForwarder{}
 
 			compressor := metricscompressionimpl.NewCompressorReq(metricscompressionimpl.Requires{Cfg: mockConfig}).Comp
 			s := NewSerializer(f, nil, compressor, mockConfig, logmock.New(t), "testhost")
-
-			events := event.Events{&event.Event{SourceTypeName: "source1"}, &event.Event{SourceTypeName: "source2"}, &event.Event{SourceTypeName: "source3"}}
-			payloadsCountMatcher := func(payloadCount int) interface{} {
-				return mock.MatchedBy(func(payloads transaction.BytesPayloads) bool {
-					return len(payloads) == payloadCount
-				})
-			}
-
-			f.On("SubmitV1Intake", payloadsCountMatcher(1), s.jsonExtraHeadersWithCompression).Return(nil)
-			err := s.SendEvents(events)
-			assert.NoError(t, err)
-			f.AssertExpectations(t)
-
-			mockConfig.SetWithoutSource("serializer_max_payload_size", 20)
-
-			f.On("SubmitV1Intake", payloadsCountMatcher(3), s.jsonExtraHeadersWithCompression).Return(nil)
-			err = s.SendEvents(events)
-			assert.NoError(t, err)
-			f.AssertExpectations(t)
+			err := s.SendEvents([]*event.Event{})
+			require.Nil(t, err)
+			f.AssertNotCalled(t, "SubmitV1Events")
 		})
 	}
 }
@@ -332,7 +304,6 @@ func TestSendV1ServiceChecks(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			f := &forwarder.MockedForwarder{}
 			mockConfig := configmock.New(t)
-			mockConfig.SetWithoutSource("enable_service_checks_stream_payload_serialization", false)
 			mockConfig.SetWithoutSource("serializer_compressor_kind", tc.kind)
 
 			compressor := metricscompressionimpl.NewCompressorReq(metricscompressionimpl.Requires{Cfg: mockConfig}).Comp
@@ -359,17 +330,34 @@ func TestSendV1Series(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			f := &forwarder.MockedForwarder{}
 			mockConfig := configmock.New(t)
-			mockConfig.SetWithoutSource("enable_stream_payload_serialization", false)
 			mockConfig.SetWithoutSource("use_v2_api.series", false)
 			mockConfig.SetWithoutSource("serializer_compressor_kind", tc.kind)
 
 			compressor := metricscompressionimpl.NewCompressorReq(metricscompressionimpl.Requires{Cfg: mockConfig}).Comp
 			s := NewSerializer(f, nil, compressor, mockConfig, logmock.New(t), "testhost")
-			matcher := createJSONPayloadMatcher(`{"series":[]}`, s)
+			matcher := createJSONPayloadMatcher(
+				`{"series":[{"metric":"foo","points":[[1759241515,3.14],[1759241525,2.71]],`+
+					`"tags":["bar","baz"],"host":"localhost","device":"sda","type":"gauge",`+
+					`"interval":10,"source_type_name":"System"}]}`, s)
 
 			f.On("SubmitV1Series", matcher, s.jsonExtraHeadersWithCompression).Return(nil).Times(1)
 
-			err := s.SendIterableSeries(metricsserializer.CreateSerieSource(metrics.Series{}))
+			err := s.SendIterableSeries(metricsserializer.CreateSerieSource(metrics.Series{&metrics.Serie{
+				Name:   "foo",
+				MType:  metrics.APIGaugeType,
+				Device: "sda",
+				Tags: tagset.NewCompositeTags(
+					[]string{"bar"},
+					[]string{"baz", "dd.internal.resource:ook:eek"},
+				),
+				Points: []metrics.Point{
+					{Ts: 1759241515, Value: 3.14},
+					{Ts: 1759241525, Value: 2.71},
+				},
+				Host:           "localhost",
+				SourceTypeName: "System",
+				Interval:       10,
+			}}))
 			require.Nil(t, err)
 			f.AssertExpectations(t)
 		})
@@ -394,13 +382,36 @@ func TestSendSeries(t *testing.T) {
 			compressor := metricscompressionimpl.NewCompressorReq(metricscompressionimpl.Requires{Cfg: mockConfig}).Comp
 			s := NewSerializer(f, nil, compressor, mockConfig, logmock.New(t), "testhost")
 			matcher := createProtoscopeMatcher(`1: {
-		1: { 1: {"host"} }
+		1: { 1: {"host"} 2: {"localhost"} }
+        1: { 1: {"device"} 2: {"sda"} }
+        1: { 1: {"ook" } 2: {"eek"} }
+        2: {"foo"}
+        3: {"bar"} 3:{"baz"}
 		5: 3
+        7: {"System"}
+        8: 10
+        4: { 2: 1759241515 1: 3.14 }
+        4: { 2: 1759241525 1: 2.71 }
 		9: { 1: { 4: 10 }}
 	  }`, s)
 			f.On("SubmitSeries", matcher, s.protobufExtraHeadersWithCompression).Return(nil).Times(1)
 
-			err := s.SendIterableSeries(metricsserializer.CreateSerieSource(metrics.Series{&metrics.Serie{}}))
+			err := s.SendIterableSeries(metricsserializer.CreateSerieSource(metrics.Series{&metrics.Serie{
+				Name:   "foo",
+				MType:  metrics.APIGaugeType,
+				Device: "sda",
+				Tags: tagset.NewCompositeTags(
+					[]string{"bar"},
+					[]string{"baz", "dd.internal.resource:ook:eek"},
+				),
+				Points: []metrics.Point{
+					{Ts: 1759241515, Value: 3.14},
+					{Ts: 1759241525, Value: 2.71},
+				},
+				Host:           "localhost",
+				SourceTypeName: "System",
+				Interval:       10,
+			}}))
 			require.Nil(t, err)
 			f.AssertExpectations(t)
 		})

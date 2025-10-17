@@ -19,7 +19,7 @@ type Event interface {
 	Init()
 	// GetType returns the Type of the Event
 	GetType() EventType
-	// GetFieldEventType returns the Event Field Metadata for the given Field
+	// GetFieldMetadata returns the Event Field Metadata for the given Field
 	GetFieldMetadata(field Field) (EventType, reflect.Kind, string, error)
 	// SetFieldValue sets the value of the given Field
 	SetFieldValue(field Field, value interface{}) error
@@ -29,7 +29,8 @@ type Event interface {
 	GetTags() []string
 }
 
-func eventTypeFromFields(model Model, state *State) (EventType, error) {
+// EventTypeFromState return the event type from state
+func EventTypeFromState(model Model, state *State) (EventType, error) {
 	var eventType EventType
 
 	// if there are no fields, we can't determine the event type

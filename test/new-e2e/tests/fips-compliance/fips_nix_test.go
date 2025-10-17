@@ -13,12 +13,13 @@ import (
 
 	"testing"
 
-	fakeintakeclient "github.com/DataDog/datadog-agent/test/fakeintake/client"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
 	"github.com/DataDog/test-infra-definitions/components/os"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	fakeintakeclient "github.com/DataDog/datadog-agent/test/fakeintake/client"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
@@ -68,10 +69,10 @@ instances: [{}]
 func (v *LinuxFIPSComplianceSuite) TestFIPSDefaultConfig() {
 	_, err := v.Env().RemoteHost.Execute("sudo GOFIPS=0 datadog-agent status")
 	require.NotNil(v.T(), err)
-	assert.Contains(v.T(), err.Error(), "the 'requirefips' build tag is enabled, but it conflicts with the detected env variable GOFIPS=0 which would disable FIPS mode")
+	assert.Contains(v.T(), err.Error(), "the 'requirefips' build tag is enabled, but it conflicts with the environment variable GOFIPS=0 which would disable FIPS mode")
 
 	status := v.Env().RemoteHost.MustExecute("sudo datadog-agent status")
-	assert.NotContains(v.T(), status, "can't enable FIPS mode for OpenSSL")
+	assert.NotContains(v.T(), status, "FIPS mode requested (requirefips tag set) but not available in OpenSSL")
 	assert.Contains(v.T(), status, "Status date")
 	assert.Contains(v.T(), status, "FIPS Mode: enabled")
 }
@@ -82,7 +83,7 @@ func (v *LinuxFIPSComplianceSuite) TestFIPSNoFIPSProvider() {
 
 	status, err := v.Env().RemoteHost.Execute("sudo datadog-agent status")
 	require.NotNil(v.T(), err)
-	assert.Contains(v.T(), err.Error(), "can't enable FIPS mode for OpenSSL")
+	assert.Contains(v.T(), err.Error(), "FIPS mode requested (requirefips tag set) but not available in OpenSSL")
 	assert.NotContains(v.T(), status, "Status date")
 
 	v.Env().RemoteHost.MustExecute("sudo mv /opt/datadog-agent/embedded/ssl/openssl.cnf.tmp /opt/datadog-agent/embedded/ssl/openssl.cnf")
@@ -93,7 +94,7 @@ func (v *LinuxFIPSComplianceSuite) TestFIPSEnabledNoOpenSSLConfig() {
 
 	status, err := v.Env().RemoteHost.Execute("sudo datadog-agent status")
 	require.NotNil(v.T(), err)
-	assert.Contains(v.T(), err.Error(), "can't enable FIPS mode for OpenSSL")
+	assert.Contains(v.T(), err.Error(), "FIPS mode requested (requirefips tag set) but not available in OpenSSL")
 	assert.NotContains(v.T(), status, "Status date")
 
 	v.Env().RemoteHost.MustExecute("sudo mv /opt/datadog-agent/embedded/ssl/openssl.cnf.tmp /opt/datadog-agent/embedded/ssl/openssl.cnf")
@@ -138,15 +139,22 @@ func (v *LinuxFIPSComplianceSuite) TestFIPSEnabledLoadedOPENSSLLibs() {
 	var pid string
 	var err error
 
+	// wake up the trace-agent
+	// NB: the endpoint is no-op
+	v.Env().RemoteHost.NewHTTPClient().Get("http://localhost:8126/services")
+
 	for _, agentPath := range paths {
-		v.T().Logf("Checking loaded libraries for %v", agentPath)
-		v.EventuallyWithT(func(collect *assert.CollectT) {
-			pid, err = v.Env().RemoteHost.Host.Execute(fmt.Sprintf("pidof %v", agentPath))
-			require.NoError(collect, err)
-			pid = strings.TrimSpace(pid)
-			require.NotEmpty(collect, pid)
-		}, time.Second*10, time.Second)
-		loadedLibs := v.Env().RemoteHost.Host.MustExecute(fmt.Sprintf("sudo cat /proc/%s/maps", pid))
-		assert.Contains(v.T(), loadedLibs, "/opt/datadog-agent/embedded/lib/ossl-modules/fips.so")
+		v.T().Run(agentPath, func(t *testing.T) {
+			t.Logf("Checking loaded libraries for %v", agentPath)
+			require.EventuallyWithT(t, func(collect *assert.CollectT) {
+				pid, err = v.Env().RemoteHost.Host.Execute(fmt.Sprintf("pidof %v", agentPath))
+				require.NoError(collect, err)
+				pid = strings.TrimSpace(pid)
+				require.NotEmpty(collect, pid)
+			}, time.Second*10, time.Second)
+			loadedLibs, err := v.Env().RemoteHost.Host.Execute(fmt.Sprintf("sudo cat /proc/%s/maps", pid))
+			require.NoError(t, err)
+			assert.Contains(t, loadedLibs, "/opt/datadog-agent/embedded/lib/ossl-modules/fips.so")
+		})
 	}
 }

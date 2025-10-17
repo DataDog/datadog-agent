@@ -14,19 +14,21 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/atomic"
 
 	gzip "github.com/DataDog/datadog-agent/comp/trace/compression/impl-gzip"
 	"github.com/DataDog/datadog-agent/pkg/obfuscate"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
+	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace/idx"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/trace/testutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
-	"github.com/DataDog/datadog-go/v5/statsd"
+	"github.com/DataDog/datadog-agent/pkg/trace/traceutil/normalize"
 )
 
 func newTestSpan() *pb.Span {
@@ -52,6 +54,51 @@ func newTestSpan() *pb.Span {
 			{TraceID: uint64(3), TraceIDHigh: uint64(2), SpanID: uint64(1), Attributes: map[string]string{"link.name": "name"}, Tracestate: "", Flags: uint32(0)},
 		},
 	}
+}
+
+// GetTestSpan returns a Span with different fields set
+func newTestSpanV1(strings *idx.StringTable) *idx.InternalSpan {
+	return idx.NewInternalSpan(strings, &idx.Span{
+		SpanID:      rand.Uint64(),
+		ParentID:    1111,
+		ServiceRef:  strings.Add("django"),
+		NameRef:     strings.Add("django.controller"),
+		ResourceRef: strings.Add("GET /some/raclette"),
+		Start:       1448466874000000000,
+		Duration:    10000000,
+		Attributes: map[uint32]*idx.AnyValue{
+			strings.Add("user"): {
+				Value: &idx.AnyValue_StringValueRef{
+					StringValueRef: strings.Add("leo"),
+				},
+			},
+			strings.Add("pool"): {
+				Value: &idx.AnyValue_StringValueRef{
+					StringValueRef: strings.Add("fondue"),
+				},
+			},
+			strings.Add("cheese_weight"): {
+				Value: &idx.AnyValue_DoubleValue{
+					DoubleValue: 100000.0,
+				},
+			},
+		},
+		Links: []*idx.SpanLink{
+			{
+				TraceID: []byte{42},
+				SpanID:  1,
+				Attributes: map[uint32]*idx.AnyValue{
+					strings.Add("link.name"): {
+						Value: &idx.AnyValue_StringValueRef{
+							StringValueRef: strings.Add("name"),
+						},
+					},
+				},
+				TracestateRef: 0,
+				Flags:         0,
+			},
+		},
+	})
 }
 
 func newTagStats() *info.TagStats {
@@ -98,7 +145,7 @@ func TestNormalizeEmptyServiceNoLang(t *testing.T) {
 	s.Meta[peerServiceKey] = ""
 	s.Meta[baseServiceKey] = ""
 	assert.NoError(t, a.normalize(ts, s))
-	assert.Equal(t, traceutil.DefaultServiceName, s.Service)
+	assert.Equal(t, normalize.DefaultServiceName, s.Service)
 	assert.Equal(t, "", s.Meta[peerServiceKey]) // no fallback on peer service tag
 	assert.Equal(t, "", s.Meta[baseServiceKey]) // no fallback on base service tag
 	assert.Equal(t, tsMalformed(&info.SpansMalformed{ServiceEmpty: *atomic.NewInt64(1)}), ts)
@@ -129,9 +176,9 @@ func TestNormalizeLongService(t *testing.T) {
 	s.Meta[peerServiceKey] = strings.Repeat("BRIE", 100)
 	s.Meta[baseServiceKey] = strings.Repeat("ROQUEFORT", 100)
 	assert.NoError(t, a.normalize(ts, s))
-	assert.Equal(t, s.Service, s.Service[:traceutil.MaxServiceLen])
-	assert.Equal(t, s.Meta[peerServiceKey], s.Meta[peerServiceKey][:traceutil.MaxServiceLen])
-	assert.Equal(t, s.Meta[baseServiceKey], s.Meta[baseServiceKey][:traceutil.MaxServiceLen])
+	assert.Equal(t, s.Service, s.Service[:normalize.MaxServiceLen])
+	assert.Equal(t, s.Meta[peerServiceKey], s.Meta[peerServiceKey][:normalize.MaxServiceLen])
+	assert.Equal(t, s.Meta[baseServiceKey], s.Meta[baseServiceKey][:normalize.MaxServiceLen])
 	assert.Equal(t, tsMalformed(&info.SpansMalformed{
 		ServiceTruncate:     *atomic.NewInt64(1),
 		PeerServiceTruncate: *atomic.NewInt64(1),
@@ -155,7 +202,7 @@ func TestNormalizeEmptyName(t *testing.T) {
 	s := newTestSpan()
 	s.Name = ""
 	assert.NoError(t, a.normalize(ts, s))
-	assert.Equal(t, s.Name, traceutil.DefaultSpanName)
+	assert.Equal(t, s.Name, normalize.DefaultSpanName)
 	assert.Equal(t, tsMalformed(&info.SpansMalformed{SpanNameEmpty: *atomic.NewInt64(1)}), ts)
 }
 
@@ -167,13 +214,13 @@ func TestNormalizeSpanLinkName(t *testing.T) {
 	emptyLinkNameSpan := newTestSpan()
 	emptyLinkNameSpan.SpanLinks[0].Attributes["link.name"] = ""
 	assert.NoError(t, a.normalize(ts, emptyLinkNameSpan))
-	assert.Equal(t, emptyLinkNameSpan.SpanLinks[0].Attributes["link.name"], traceutil.DefaultSpanName)
+	assert.Equal(t, emptyLinkNameSpan.SpanLinks[0].Attributes["link.name"], normalize.DefaultSpanName)
 
 	// Normalize a span that contains an invalid link name
 	invalidLinkNameSpan := newTestSpan()
 	invalidLinkNameSpan.SpanLinks[0].Attributes["link.name"] = "!@#$%^&*()_+"
 	assert.NoError(t, a.normalize(ts, invalidLinkNameSpan))
-	assert.Equal(t, invalidLinkNameSpan.SpanLinks[0].Attributes["link.name"], traceutil.DefaultSpanName)
+	assert.Equal(t, invalidLinkNameSpan.SpanLinks[0].Attributes["link.name"], normalize.DefaultSpanName)
 
 	// Normalize a span that contains a valid link name
 	validLinkNameSpan := newTestSpan()
@@ -188,7 +235,7 @@ func TestNormalizeLongName(t *testing.T) {
 	s := newTestSpan()
 	s.Name = strings.Repeat("CAMEMBERT", 100)
 	assert.NoError(t, a.normalize(ts, s))
-	assert.Equal(t, s.Name, s.Name[:traceutil.MaxNameLen])
+	assert.Equal(t, s.Name, s.Name[:normalize.MaxNameLen])
 	assert.Equal(t, tsMalformed(&info.SpansMalformed{SpanNameTruncate: *atomic.NewInt64(1)}), ts)
 }
 
@@ -198,7 +245,7 @@ func TestNormalizeNameNoAlphanumeric(t *testing.T) {
 	s := newTestSpan()
 	s.Name = "/"
 	assert.NoError(t, a.normalize(ts, s))
-	assert.Equal(t, s.Name, traceutil.DefaultSpanName)
+	assert.Equal(t, s.Name, normalize.DefaultSpanName)
 	assert.Equal(t, tsMalformed(&info.SpansMalformed{SpanNameInvalid: *atomic.NewInt64(1)}), ts)
 }
 
@@ -643,4 +690,281 @@ func TestLexerNormalization(t *testing.T) {
 	}
 	agnt.obfuscateSpan(span)
 	assert.Equal(t, "SELECT * FROM u.users", span.Resource)
+}
+
+func TestNormalizeServicePassThruV1(t *testing.T) {
+	a := &Agent{conf: config.New()}
+	ts := newTagStats()
+	s := newTestSpanV1(idx.NewStringTable())
+	s.SetService("foo")
+	s.SetStringAttribute(peerServiceKey, "foo")
+	s.SetStringAttribute(baseServiceKey, "bar")
+	before := s.Service()
+	assert.NoError(t, a.normalizeV1(ts, s))
+	assert.Equal(t, before, s.Service())
+	peerSvc, _ := s.GetAttributeAsString(peerServiceKey)
+	baseSvc, _ := s.GetAttributeAsString(baseServiceKey)
+	assert.Equal(t, "foo", peerSvc)
+	assert.Equal(t, "bar", baseSvc)
+	assert.Equal(t, newTagStats(), ts)
+}
+
+func TestNormalizeEmptyServiceNoLangV1(t *testing.T) {
+	a := &Agent{conf: config.New()}
+	ts := newTagStats()
+	s := newTestSpanV1(idx.NewStringTable())
+	s.SetService("")
+	s.SetStringAttribute(peerServiceKey, "")
+	s.SetStringAttribute(baseServiceKey, "")
+	assert.NoError(t, a.normalizeV1(ts, s))
+	assert.Equal(t, normalize.DefaultServiceName, s.Service())
+	peerSvc, _ := s.GetAttributeAsString(peerServiceKey)
+	baseSvc, _ := s.GetAttributeAsString(baseServiceKey)
+	assert.Equal(t, "", peerSvc) // no fallback on peer service tag
+	assert.Equal(t, "", baseSvc) // no fallback on base service tag
+	assert.Equal(t, tsMalformed(&info.SpansMalformed{ServiceEmpty: *atomic.NewInt64(1)}), ts)
+}
+
+func TestNormalizeEmptyServiceWithLangV1(t *testing.T) {
+	a := &Agent{conf: config.New()}
+	ts := newTagStats()
+	s := newTestSpanV1(idx.NewStringTable())
+	s.SetService("")
+	ts.Lang = "java"
+	s.SetStringAttribute(peerServiceKey, "")
+	s.SetStringAttribute(baseServiceKey, "")
+	assert.NoError(t, a.normalizeV1(ts, s))
+	assert.Equal(t, s.Service(), fmt.Sprintf("unnamed-%s-service", ts.Lang))
+	peerSvc, _ := s.GetAttributeAsString(peerServiceKey)
+	baseSvc, _ := s.GetAttributeAsString(baseServiceKey)
+	assert.Equal(t, "", peerSvc) // no fallback on peer service tag
+	assert.Equal(t, "", baseSvc) // no fallback on base service tag
+	tsExpected := tsMalformed(&info.SpansMalformed{ServiceEmpty: *atomic.NewInt64(1)})
+	tsExpected.Lang = ts.Lang
+	assert.Equal(t, tsExpected, ts)
+}
+
+func TestNormalizeLongServiceV1(t *testing.T) {
+	a := &Agent{conf: config.New()}
+	ts := newTagStats()
+	s := newTestSpanV1(idx.NewStringTable())
+	s.SetService(strings.Repeat("CAMEMBERT", 100))
+	s.SetStringAttribute(peerServiceKey, strings.Repeat("BRIE", 100))
+	s.SetStringAttribute(baseServiceKey, strings.Repeat("ROQUEFORT", 100))
+	assert.NoError(t, a.normalizeV1(ts, s))
+	assert.Equal(t, s.Service(), s.Service()[:normalize.MaxServiceLen])
+	peerSvc, _ := s.GetAttributeAsString(peerServiceKey)
+	baseSvc, _ := s.GetAttributeAsString(baseServiceKey)
+	assert.Equal(t, peerSvc, peerSvc[:normalize.MaxServiceLen])
+	assert.Equal(t, baseSvc, baseSvc[:normalize.MaxServiceLen])
+	assert.Equal(t, tsMalformed(&info.SpansMalformed{
+		ServiceTruncate:     *atomic.NewInt64(1),
+		PeerServiceTruncate: *atomic.NewInt64(1),
+		BaseServiceTruncate: *atomic.NewInt64(1),
+	}), ts)
+}
+
+func TestNormalizeNamePassThruV1(t *testing.T) {
+	a := &Agent{conf: config.New()}
+	ts := newTagStats()
+	s := newTestSpanV1(idx.NewStringTable())
+	before := s.Name()
+	assert.NoError(t, a.normalizeV1(ts, s))
+	assert.Equal(t, before, s.Name())
+	assert.Equal(t, newTagStats(), ts)
+}
+
+func TestNormalizeEmptyNameV1(t *testing.T) {
+	a := &Agent{conf: config.New()}
+	ts := newTagStats()
+	s := newTestSpanV1(idx.NewStringTable())
+	s.SetName("")
+	assert.NoError(t, a.normalizeV1(ts, s))
+	assert.Equal(t, s.Name(), normalize.DefaultSpanName)
+	assert.Equal(t, tsMalformed(&info.SpansMalformed{SpanNameEmpty: *atomic.NewInt64(1)}), ts)
+}
+
+func TestNormalizeLongNameV1(t *testing.T) {
+	a := &Agent{conf: config.New()}
+	ts := newTagStats()
+	s := newTestSpanV1(idx.NewStringTable())
+	s.SetName(strings.Repeat("CAMEMBERT", 100))
+	assert.NoError(t, a.normalizeV1(ts, s))
+	assert.Equal(t, s.Name(), s.Name()[:normalize.MaxNameLen])
+	assert.Equal(t, tsMalformed(&info.SpansMalformed{SpanNameTruncate: *atomic.NewInt64(1)}), ts)
+}
+
+func TestNormalizeNameNoAlphanumericV1(t *testing.T) {
+	a := &Agent{conf: config.New()}
+	ts := newTagStats()
+	s := newTestSpanV1(idx.NewStringTable())
+	s.SetName("/")
+	assert.NoError(t, a.normalizeV1(ts, s))
+	assert.Equal(t, s.Name(), normalize.DefaultSpanName)
+	assert.Equal(t, tsMalformed(&info.SpansMalformed{SpanNameInvalid: *atomic.NewInt64(1)}), ts)
+}
+
+func TestNormalizeResourcePassThruV1(t *testing.T) {
+	a := &Agent{conf: config.New()}
+	ts := newTagStats()
+	s := newTestSpanV1(idx.NewStringTable())
+	before := s.Resource()
+	assert.NoError(t, a.normalizeV1(ts, s))
+	assert.Equal(t, before, s.Resource())
+	assert.Equal(t, newTagStats(), ts)
+}
+
+func TestNormalizeEmptyResourceV1(t *testing.T) {
+	a := &Agent{conf: config.New()}
+	ts := newTagStats()
+	s := newTestSpanV1(idx.NewStringTable())
+	s.SetResource("")
+	assert.NoError(t, a.normalizeV1(ts, s))
+	assert.Equal(t, s.Resource(), s.Name())
+	assert.Equal(t, tsMalformed(&info.SpansMalformed{ResourceEmpty: *atomic.NewInt64(1)}), ts)
+}
+
+func TestNormalizeNoSpanIDV1(t *testing.T) {
+	a := &Agent{conf: config.New()}
+	ts := newTagStats()
+	s := newTestSpanV1(idx.NewStringTable())
+	s.SetSpanID(0)
+	assert.Error(t, a.normalizeV1(ts, s))
+	assert.Equal(t, tsDropped(&info.TracesDropped{SpanIDZero: *atomic.NewInt64(1)}), ts)
+}
+
+func TestNormalizeStartV1(t *testing.T) {
+	a := &Agent{conf: config.New()}
+	t.Run("pass-through", func(t *testing.T) {
+		ts := newTagStats()
+		s := newTestSpanV1(idx.NewStringTable())
+		before := s.Start()
+		assert.NoError(t, a.normalizeV1(ts, s))
+		assert.Equal(t, before, s.Start())
+		assert.Equal(t, newTagStats(), ts)
+	})
+
+	t.Run("too-small", func(t *testing.T) {
+		ts := newTagStats()
+		s := newTestSpanV1(idx.NewStringTable())
+		s.SetStart(42)
+		minStart := time.Now().UnixNano() - int64(s.Duration())
+		assert.NoError(t, a.normalizeV1(ts, s))
+		assert.True(t, s.Start() >= uint64(minStart))
+		assert.True(t, s.Start() <= uint64(time.Now().UnixNano())-s.Duration())
+		assert.Equal(t, tsMalformed(&info.SpansMalformed{InvalidStartDate: *atomic.NewInt64(1)}), ts)
+	})
+
+	t.Run("too-small-with-large-duration", func(t *testing.T) {
+		ts := newTagStats()
+		s := newTestSpanV1(idx.NewStringTable())
+		s.SetStart(42)
+		s.SetDuration(uint64(time.Now().UnixNano() * 2))
+		minStart := time.Now().UnixNano()
+		assert.NoError(t, a.normalizeV1(ts, s))
+		assert.Equal(t, tsMalformed(&info.SpansMalformed{InvalidStartDate: *atomic.NewInt64(1)}), ts)
+		assert.True(t, s.Start() >= uint64(minStart), "start should have been reset to current time")
+		assert.True(t, s.Start() <= uint64(time.Now().UnixNano()), "start should have been reset to current time")
+	})
+}
+
+func TestNormalizeDurationPassThruV1(t *testing.T) {
+	a := &Agent{conf: config.New()}
+	ts := newTagStats()
+	s := newTestSpanV1(idx.NewStringTable())
+	before := s.Duration()
+	assert.NoError(t, a.normalizeV1(ts, s))
+	assert.Equal(t, before, s.Duration())
+	assert.Equal(t, newTagStats(), ts)
+}
+
+func TestNormalizeEmptyDurationV1(t *testing.T) {
+	a := &Agent{conf: config.New()}
+	ts := newTagStats()
+	s := newTestSpanV1(idx.NewStringTable())
+	s.SetDuration(0)
+	assert.NoError(t, a.normalizeV1(ts, s))
+	assert.EqualValues(t, s.Duration(), 0)
+	assert.Equal(t, newTagStats(), ts)
+}
+
+func TestNormalizeLargeDurationV1(t *testing.T) {
+	a := &Agent{conf: config.New()}
+	ts := newTagStats()
+	s := newTestSpanV1(idx.NewStringTable())
+	s.SetDuration(uint64(math.MaxInt64))
+	assert.NoError(t, a.normalizeV1(ts, s))
+	assert.EqualValues(t, s.Duration(), 0)
+	assert.Equal(t, tsMalformed(&info.SpansMalformed{InvalidDuration: *atomic.NewInt64(1)}), ts)
+}
+
+func TestNormalizeTypePassThruV1(t *testing.T) {
+	a := &Agent{conf: config.New()}
+	ts := newTagStats()
+	s := newTestSpanV1(idx.NewStringTable())
+	before := s.Type()
+	assert.NoError(t, a.normalizeV1(ts, s))
+	assert.Equal(t, before, s.Type())
+	assert.Equal(t, newTagStats(), ts)
+}
+
+func TestNormalizeTypeTooLongV1(t *testing.T) {
+	a := &Agent{conf: config.New()}
+	ts := newTagStats()
+	s := newTestSpanV1(idx.NewStringTable())
+	s.SetType(strings.Repeat("sql", 1000))
+	assert.NoError(t, a.normalizeV1(ts, s))
+	assert.Equal(t, tsMalformed(&info.SpansMalformed{TypeTruncate: *atomic.NewInt64(1)}), ts)
+}
+
+func TestNormalizeServiceTagV1(t *testing.T) {
+	a := &Agent{conf: config.New()}
+	ts := newTagStats()
+	s := newTestSpanV1(idx.NewStringTable())
+	s.SetService("retargeting(api-Staging ")
+	s.SetStringAttribute(peerServiceKey, "retargeting(api-Peer ")
+	s.SetStringAttribute(baseServiceKey, "retargeting(api-Base ")
+	assert.NoError(t, a.normalizeV1(ts, s))
+	assert.Equal(t, "retargeting_api-staging", s.Service())
+	peerSvc, _ := s.GetAttributeAsString(peerServiceKey)
+	baseSvc, _ := s.GetAttributeAsString(baseServiceKey)
+	assert.Equal(t, "retargeting_api-peer", peerSvc)
+	assert.Equal(t, "retargeting_api-base", baseSvc)
+	assert.Equal(t, newTagStats(), ts)
+}
+
+func TestNormalizeEnvV1(t *testing.T) {
+	a := &Agent{conf: config.New()}
+	ts := newTagStats()
+	s := newTestSpanV1(idx.NewStringTable())
+	s.SetEnv("123DEVELOPMENT")
+	assert.NoError(t, a.normalizeV1(ts, s))
+	assert.Equal(t, "123development", s.Env())
+	assert.Equal(t, newTagStats(), ts)
+}
+
+func TestNormalizeSpanLinkNameV1(t *testing.T) {
+	a := &Agent{conf: config.New()}
+	ts := newTagStats()
+
+	// Normalize a span that contains an empty link name
+	emptyLinkNameSpan := newTestSpanV1(idx.NewStringTable())
+	emptyLinkNameSpan.Links()[0].SetStringAttribute("link.name", "")
+	assert.NoError(t, a.normalizeV1(ts, emptyLinkNameSpan))
+	linkName, _ := emptyLinkNameSpan.Links()[0].GetAttributeAsString("link.name")
+	assert.Equal(t, linkName, normalize.DefaultSpanName)
+
+	// Normalize a span that contains an invalid link name
+	invalidLinkNameSpan := newTestSpanV1(idx.NewStringTable())
+	invalidLinkNameSpan.Links()[0].SetStringAttribute("link.name", "!@#$%^&*()_+")
+	assert.NoError(t, a.normalizeV1(ts, invalidLinkNameSpan))
+	linkName, _ = invalidLinkNameSpan.Links()[0].GetAttributeAsString("link.name")
+	assert.Equal(t, linkName, normalize.DefaultSpanName)
+
+	// Normalize a span that contains a valid link name
+	validLinkNameSpan := newTestSpanV1(idx.NewStringTable())
+	validLinkNameSpan.Links()[0].SetStringAttribute("link.name", "valid_name")
+	assert.NoError(t, a.normalizeV1(ts, validLinkNameSpan))
+	linkName, _ = validLinkNameSpan.Links()[0].GetAttributeAsString("link.name")
+	assert.Equal(t, linkName, "valid_name")
 }

@@ -31,7 +31,7 @@ type suite struct {
 	hostname string
 	rootDir  string
 
-	dockerClient docker.CommonAPIClient
+	dockerClient docker.APIClient
 	auditClient  compliance.LinuxAuditClient
 	kubeClient   dynamic.Interface
 
@@ -67,7 +67,7 @@ func (s *suite) WithHostname(hostname string) *suite {
 	return s
 }
 
-func (s *suite) WithDockerClient(cl docker.CommonAPIClient) *suite {
+func (s *suite) WithDockerClient(cl docker.APIClient) *suite {
 	s.dockerClient = cl
 	return s
 }
@@ -110,12 +110,10 @@ func (s *suite) Run() {
 				options.LinuxAuditProvider = func(context.Context) (compliance.LinuxAuditClient, error) { return s.auditClient, nil }
 			}
 			if s.dockerClient != nil {
-				options.DockerProvider = func(context.Context) (docker.CommonAPIClient, error) { return s.dockerClient, nil }
+				options.DockerProvider = func(context.Context) (docker.APIClient, error) { return s.dockerClient, nil }
 			}
 			if s.kubeClient != nil {
-				options.KubernetesProvider = func(context.Context) (dynamic.Interface, compliance.KubernetesGroupsAndResourcesProvider, error) {
-					return s.kubeClient, nil, nil
-				}
+				options.KubernetesProvider = providerFromK8sClient(s.kubeClient)
 			}
 			c.run(t, options)
 		})
@@ -185,6 +183,19 @@ func (c *assertedRule) WithRego(rego string, args ...any) *assertedRule {
 func (c *assertedRule) AssertPassedEvent(f func(t *testing.T, evt *compliance.CheckEvent)) *assertedRule {
 	c.asserts = append(c.asserts, func(t *testing.T, evt *compliance.CheckEvent) {
 		if assert.Equal(t, compliance.CheckPassed, evt.Result) {
+			if f != nil {
+				f(t, evt)
+			}
+		} else {
+			t.Logf("received unexpected %q event : %v", evt.Result, evt)
+		}
+	})
+	return c
+}
+
+func (c *assertedRule) AssertSkippedEvent(f func(t *testing.T, evt *compliance.CheckEvent)) *assertedRule {
+	c.asserts = append(c.asserts, func(t *testing.T, evt *compliance.CheckEvent) {
+		if assert.Equal(t, compliance.CheckSkipped, evt.Result) {
 			if f != nil {
 				f(t, evt)
 			}

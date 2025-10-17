@@ -5,13 +5,14 @@
 
 //go:build kubelet || docker
 
+// Package tailers provides tailers for API logs
 package tailers
 
 import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
-	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
+	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/def"
 )
 
 // isEOFCorruptedOffset return true if the offset doesn't contain a

@@ -77,11 +77,6 @@ func (c *mockimpl) GetChecks() []check.Check {
 	return nil
 }
 
-// GetAllInstanceIDs returns the ID's of all instances of a check
-func (c *mockimpl) GetAllInstanceIDs(_ string) []checkid.ID {
-	return nil
-}
-
 // ReloadAllCheckInstances completely restarts a check with a new configuration
 func (c *mockimpl) ReloadAllCheckInstances(_ string, _ []check.Check) ([]checkid.ID, error) {
 	return []checkid.ID{checkid.ID("")}, nil

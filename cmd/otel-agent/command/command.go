@@ -19,6 +19,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/DataDog/datadog-agent/cmd/otel-agent/subcommands"
+	"github.com/DataDog/datadog-agent/cmd/otel-agent/subcommands/controlsvc"
 	"github.com/DataDog/datadog-agent/cmd/otel-agent/subcommands/run"
 	"github.com/DataDog/datadog-agent/cmd/otel-agent/subcommands/status"
 	"github.com/DataDog/datadog-agent/pkg/cli/subcommands/version"
@@ -30,6 +31,11 @@ const (
 	loggerName = "OTELCOL"
 )
 
+var (
+	// BYOC indicates whether the otel agent was built via byoc
+	BYOC string
+)
+
 // MakeRootCommand is the root command for the otel-agent
 // Please note that the otel-agent can be launched directly
 // by the root command, unlike other agents that are managed
@@ -38,6 +44,7 @@ func MakeRootCommand() *cobra.Command {
 	globalParams := subcommands.GlobalParams{
 		ConfigName: "datadog-otel",
 		LoggerName: loggerName,
+		BYOC:       strings.EqualFold(BYOC, "true"),
 	}
 
 	return makeCommands(&globalParams)
@@ -52,6 +59,9 @@ func makeCommands(globalParams *subcommands.GlobalParams) *cobra.Command {
 		version.MakeCommand("otel-agent"),
 		status.MakeCommand(globalConfGetter),
 	}
+
+	// Add Windows service control commands (noop on non-Windows via stub)
+	commands = append(commands, controlsvc.Commands(globalParams)...)
 
 	otelAgentCmd := *commands[0] // root cmd is `run()`; indexed at 0
 	otelAgentCmd.Use = "otel-agent [command]"

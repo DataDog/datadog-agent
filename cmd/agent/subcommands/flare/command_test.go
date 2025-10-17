@@ -7,7 +7,6 @@ package flare
 
 import (
 	"maps"
-	"net"
 	"net/http/httptest"
 	"net/url"
 	"runtime"
@@ -19,16 +18,17 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	"github.com/DataDog/datadog-agent/comp/core"
-	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
+	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
 	profiler "github.com/DataDog/datadog-agent/comp/core/profiler/def"
 	profilerfx "github.com/DataDog/datadog-agent/comp/core/profiler/fx"
 	profilermock "github.com/DataDog/datadog-agent/comp/core/profiler/mock"
-	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/settings/settingsimpl"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/system-probe/api/server/testutil"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -37,20 +37,19 @@ type commandTestSuite struct {
 	sysprobeSocketPath string
 	tcpServer          *httptest.Server
 	tcpTLSServer       *httptest.Server
-	unixServer         *httptest.Server
 	systemProbeServer  *httptest.Server
 }
 
 func (c *commandTestSuite) SetupSuite() {
 	t := c.T()
-	c.sysprobeSocketPath = sysprobeSocketPath(t)
+	c.sysprobeSocketPath = testutil.SystemProbeSocketPath(t, "flare")
 }
 
 // startTestServers starts test servers from a clean state to ensure no cache responses are used.
 // This should be called by each test that requires them.
 func (c *commandTestSuite) startTestServers() {
 	t := c.T()
-	c.tcpServer, c.tcpTLSServer, c.unixServer, c.systemProbeServer = c.getPprofTestServer()
+	c.tcpServer, c.tcpTLSServer, c.systemProbeServer = c.getPprofTestServer()
 
 	t.Cleanup(func() {
 		if c.tcpServer != nil {
@@ -61,10 +60,6 @@ func (c *commandTestSuite) startTestServers() {
 			c.tcpTLSServer.Close()
 			c.tcpTLSServer = nil
 		}
-		if c.unixServer != nil {
-			c.unixServer.Close()
-			c.unixServer = nil
-		}
 		if c.systemProbeServer != nil {
 			c.systemProbeServer.Close()
 			c.systemProbeServer = nil
@@ -72,27 +67,22 @@ func (c *commandTestSuite) startTestServers() {
 	})
 }
 
-func (c *commandTestSuite) getPprofTestServer() (tcpServer *httptest.Server, tcpTLSServer *httptest.Server, unixServer *httptest.Server, sysProbeServer *httptest.Server) {
+func (c *commandTestSuite) getPprofTestServer() (tcpServer *httptest.Server, tcpTLSServer *httptest.Server, sysProbeServer *httptest.Server) {
 	var err error
-	t := c.T()
+
+	mockIPC := ipcmock.New(c.T())
 
 	handler := profilermock.NewMockHandler()
 	tcpServer = httptest.NewServer(handler)
-	tcpTLSServer = httptest.NewTLSServer(handler)
-	if runtime.GOOS == "linux" {
-		unixServer = httptest.NewUnstartedServer(handler)
-		unixServer.Listener, err = net.Listen("unix", c.sysprobeSocketPath)
-		require.NoError(t, err, "could not create listener for unix socket on %s", c.sysprobeSocketPath)
-		unixServer.Start()
-	}
+	tcpTLSServer = mockIPC.NewMockServer(handler)
 
-	sysProbeServer, err = NewSystemProbeTestServer(handler)
+	sysProbeServer, err = testutil.NewSystemProbeTestServer(handler, c.sysprobeSocketPath)
 	require.NoError(c.T(), err, "could not restart system probe server")
 	if sysProbeServer != nil {
 		sysProbeServer.Start()
 	}
 
-	return tcpServer, tcpTLSServer, unixServer, sysProbeServer
+	return tcpServer, tcpTLSServer, sysProbeServer
 }
 
 type deps struct {
@@ -105,18 +95,17 @@ func TestCommandTestSuite(t *testing.T) {
 	suite.Run(t, &commandTestSuite{})
 }
 
-func getProfiler(t testing.TB, mockConfig model.Config, mockSysProbeConfig model.Config) profiler.Component {
+func getProfiler(t testing.TB, mockSysProbeConfig model.Config) profiler.Component {
 	deps := fxutil.Test[deps](
 		t,
 		core.MockBundle(),
-		fx.Replace(configComponent.MockParams{
-			Overrides: mockConfig.AllSettings(),
-		}),
 		fx.Replace(sysprobeconfigimpl.MockParams{
 			Overrides: mockSysProbeConfig.AllSettings(),
 		}),
 		settingsimpl.MockModule(),
 		profilerfx.Module(),
+		fx.Provide(func() ipc.Component { return ipcmock.New(t) }),
+		fx.Provide(func(ipcomp ipc.Component) ipc.HTTPClient { return ipcomp.GetClient() }),
 	)
 
 	return deps.Profiler
@@ -149,7 +138,7 @@ func (c *commandTestSuite) TestReadProfileData() {
 		mockSysProbeConfig.SetWithoutSource("network_config.enabled", true)
 	}
 
-	profiler := getProfiler(t, mockConfig, mockSysProbeConfig)
+	profiler := getProfiler(t, mockSysProbeConfig)
 	data, err := profiler.ReadProfileData(10, func(string, ...interface{}) error { return nil })
 	require.NoError(t, err)
 
@@ -213,11 +202,13 @@ func (c *commandTestSuite) TestReadProfileDataNoTraceAgent() {
 	mockConfig.SetWithoutSource("security_agent.expvar_port", port)
 
 	mockSysProbeConfig := configmock.NewSystemProbe(t)
-	mockSysProbeConfig.SetWithoutSource("system_probe_config.enabled", true)
-	mockSysProbeConfig.SetWithoutSource("system_probe_config.sysprobe_socket", c.sysprobeSocketPath)
-	mockSysProbeConfig.SetWithoutSource("network_config.enabled", true)
+	if runtime.GOOS != "darwin" {
+		mockSysProbeConfig.SetWithoutSource("system_probe_config.enabled", true)
+		mockSysProbeConfig.SetWithoutSource("system_probe_config.sysprobe_socket", c.sysprobeSocketPath)
+		mockSysProbeConfig.SetWithoutSource("network_config.enabled", true)
+	}
 
-	profiler := getProfiler(t, mockConfig, mockSysProbeConfig)
+	profiler := getProfiler(t, mockSysProbeConfig)
 	data, err := profiler.ReadProfileData(10, func(string, ...interface{}) error { return nil })
 	require.Error(t, err)
 	require.Regexp(t, "^* error collecting trace agent profile: ", err.Error())
@@ -276,7 +267,7 @@ func (c *commandTestSuite) TestReadProfileDataErrors() {
 	mockSysProbeConfig := configmock.NewSystemProbe(t)
 	InjectConnectionFailures(mockSysProbeConfig, mockConfig)
 
-	profiler := getProfiler(t, mockConfig, mockSysProbeConfig)
+	profiler := getProfiler(t, mockSysProbeConfig)
 	data, err := profiler.ReadProfileData(10, func(string, ...interface{}) error { return nil })
 
 	require.Error(t, err)
@@ -290,8 +281,7 @@ func (c *commandTestSuite) TestCommand() {
 		Commands(&command.GlobalParams{}),
 		[]string{"flare", "1234"},
 		makeFlare,
-		func(cliParams *cliParams, _ core.BundleParams, secretParams secrets.Params) {
+		func(cliParams *cliParams, _ core.BundleParams) {
 			require.Equal(t, []string{"1234"}, cliParams.args)
-			require.Equal(t, true, secretParams.Enabled)
 		})
 }

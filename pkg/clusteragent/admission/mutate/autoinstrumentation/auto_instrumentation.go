@@ -26,7 +26,6 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
 	mutatecommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -96,6 +95,11 @@ func (w *Webhook) Resources() map[string][]string {
 	return w.resources
 }
 
+// Timeout returns the timeout for the webhook
+func (w *Webhook) Timeout() int32 {
+	return 0
+}
+
 // Operations returns the operations on the resources specified for which
 // the webhook should be invoked
 func (w *Webhook) Operations() []admissionregistrationv1.OperationType {
@@ -130,34 +134,14 @@ func initContainerName(lang language) string {
 	return fmt.Sprintf("datadog-lib-%s-init", lang)
 }
 
-func injectApmTelemetryConfig(pod *corev1.Pod) {
-	// inject DD_INSTRUMENTATION_INSTALL_TIME with current Unix time
-	instrumentationInstallTime := os.Getenv(instrumentationInstallTimeEnvVarName)
-	if instrumentationInstallTime == "" {
-		instrumentationInstallTime = common.ClusterAgentStartTime
-	}
-	instrumentationInstallTimeEnvVar := corev1.EnvVar{
-		Name:  instrumentationInstallTimeEnvVarName,
-		Value: instrumentationInstallTime,
-	}
-	_ = mutatecommon.InjectEnv(pod, instrumentationInstallTimeEnvVar)
-
-	// inject DD_INSTRUMENTATION_INSTALL_ID with UUID created during the Agent install time
-	instrumentationInstallIDEnvVar := corev1.EnvVar{
-		Name:  instrumentationInstallIDEnvVarName,
-		Value: os.Getenv(instrumentationInstallIDEnvVarName),
-	}
-	_ = mutatecommon.InjectEnv(pod, instrumentationInstallIDEnvVar)
-}
-
 type libInfoLanguageDetection struct {
 	libs             []libInfo
 	injectionEnabled bool
 }
 
-func (l *libInfoLanguageDetection) containerMutator(v version) containerMutator {
+func (l *libInfoLanguageDetection) containerMutator() containerMutator {
 	return containerMutatorFunc(func(c *corev1.Container) error {
-		if !v.usesInjector() || l == nil {
+		if l == nil {
 			return nil
 		}
 
@@ -242,15 +226,38 @@ func (s libInfoSource) isFromLanguageDetection() bool {
 	return s == libInfoSourceSingleStepLangaugeDetection
 }
 
-func (s libInfoSource) mutatePod(pod *corev1.Pod) error {
-	_ = mutatecommon.InjectEnv(pod, corev1.EnvVar{
-		Name:  instrumentationInstallTypeEnvVarName,
-		Value: s.injectionType(),
-	})
+func (s libInfoSource) instrumentationInstallTime() string {
+	instrumentationInstallTime := os.Getenv(instrumentationInstallTimeEnvVarName)
+	if instrumentationInstallTime == "" {
+		instrumentationInstallTime = common.ClusterAgentStartTime
+	}
 
-	injectApmTelemetryConfig(pod)
+	return instrumentationInstallTime
+}
 
-	return nil
+// containerMutator creates a containerMutator for
+// telemetry environment variables pertaining to:
+//
+// - installation_time
+// - install_id
+// - injection_type
+func (s libInfoSource) containerMutator() containerMutator {
+	return containerMutators{
+		// inject DD_INSTRUMENTATION_INSTALL_TIME with current Unix time
+		envVarMutator(corev1.EnvVar{
+			Name:  instrumentationInstallTimeEnvVarName,
+			Value: s.instrumentationInstallTime(),
+		}),
+		// inject DD_INSTRUMENTATION_INSTALL_ID with UUID created during the Agent install time
+		envVarMutator(corev1.EnvVar{
+			Name:  instrumentationInstallIDEnvVarName,
+			Value: os.Getenv(instrumentationInstallIDEnvVarName),
+		}),
+		envVarMutator(corev1.EnvVar{
+			Name:  instrumentationInstallTypeEnvVarName,
+			Value: s.injectionType(),
+		}),
+	}
 }
 
 type extractedPodLibInfo struct {
@@ -427,29 +434,6 @@ func initContainerResourceRequirements(pod *corev1.Pod, conf initResourceRequire
 		decision.message = insufficientResourcesMessage
 	}
 	return requirements, decision
-}
-
-// Returns the name of Kubernetes resource that owns the pod
-func getServiceNameFromPod(pod *corev1.Pod) (string, error) {
-	ownerReferences := pod.ObjectMeta.OwnerReferences
-	if len(ownerReferences) != 1 {
-		return "", fmt.Errorf("pod should be owned by one resource; current owners: %v+", ownerReferences)
-	}
-
-	switch owner := ownerReferences[0]; owner.Kind {
-	case "StatefulSet":
-		fallthrough
-	case "Job":
-		fallthrough
-	case "CronJob":
-		fallthrough
-	case "DaemonSet":
-		return owner.Name, nil
-	case "ReplicaSet":
-		return kubernetes.ParseDeploymentForReplicaSet(owner.Name), nil
-	}
-
-	return "", nil
 }
 
 func containsInitContainer(pod *corev1.Pod, initContainerName string) bool {

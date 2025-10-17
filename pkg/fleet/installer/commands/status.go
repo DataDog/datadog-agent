@@ -9,16 +9,18 @@ import (
 	"bytes"
 	_ "embed"
 	"encoding/json"
-	"errors"
 	"fmt"
-	"html/template"
 	"os"
 	"os/exec"
+	"path/filepath"
 
-	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
-	"github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
+
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/ssi"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
+	template "github.com/DataDog/datadog-agent/pkg/template/html"
+	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 func statusCommand() *cobra.Command {
@@ -54,17 +56,10 @@ var functions = template.FuncMap{
 }
 
 type statusResponse struct {
-	Version            string                      `json:"version"`
-	Packages           *repository.PackageStates   `json:"packages"`
-	ApmInjectionStatus apmInjectionStatus          `json:"apm_injection_status"`
-	RemoteConfigState  []*remoteConfigPackageState `json:"remote_config_state"`
-}
-
-// apmInjectionStatus contains the instrumentation status of the APM injection.
-type apmInjectionStatus struct {
-	HostInstrumented   bool `json:"host_instrumented"`
-	DockerInstalled    bool `json:"docker_installed"`
-	DockerInstrumented bool `json:"docker_instrumented"`
+	Version            string                       `json:"version"`
+	Packages           *repository.PackageStates    `json:"packages"`
+	ApmInjectionStatus ssi.APMInstrumentationStatus `json:"apm_injection_status"`
+	RemoteConfigState  []*remoteConfigPackageState  `json:"remote_config_state"`
 }
 
 func status(debug bool, jsonOutput bool) error {
@@ -79,7 +74,7 @@ func status(debug bool, jsonOutput bool) error {
 		return fmt.Errorf("error getting package states: %w", err)
 	}
 
-	apmSSIStatus, err := getAPMInjectionStatus()
+	apmSSIStatus, err := ssi.GetInstrumentationStatus()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error getting APM injection status: %s", err.Error())
 	}
@@ -114,41 +109,6 @@ func status(debug bool, jsonOutput bool) error {
 	return nil
 }
 
-func getAPMInjectionStatus() (status apmInjectionStatus, err error) {
-	// Host is instrumented if the ld.so.preload file contains the apm injector
-	ldPreloadContent, err := os.ReadFile("/etc/ld.so.preload")
-	if err != nil && !errors.Is(err, os.ErrNotExist) {
-		return status, fmt.Errorf("could not read /etc/ld.so.preload: %w", err)
-	}
-	if bytes.Contains(ldPreloadContent, []byte("/opt/datadog-packages/datadog-apm-inject/stable/inject")) {
-		status.HostInstrumented = true
-	}
-
-	// Docker is installed if the docker binary is in the PATH
-	_, err = exec.LookPath("docker")
-	if err != nil && errors.Is(err, exec.ErrNotFound) {
-		return status, nil
-	} else if err != nil {
-		return status, fmt.Errorf("could not check if docker is installed: %w", err)
-	}
-	status.DockerInstalled = true
-
-	// Docker is instrumented if there is the injector runtime in its configuration
-	// We're not retrieving the default runtime from the docker daemon as we are not
-	// root
-	dockerConfigContent, err := os.ReadFile("/etc/docker/daemon.json")
-	if err != nil && !errors.Is(err, os.ErrNotExist) {
-		return status, fmt.Errorf("could not read /etc/docker/daemon.json: %w", err)
-	} else if errors.Is(err, os.ErrNotExist) {
-		return status, nil
-	}
-	if bytes.Contains(dockerConfigContent, []byte("/opt/datadog-packages/datadog-apm-inject/stable/inject")) {
-		status.DockerInstrumented = true
-	}
-
-	return status, nil
-}
-
 // remoteConfigState is the response to the daemon status route.
 // It is technically a json-encoded protobuf message but importing
 // the protos in the installer binary is too heavy.
@@ -180,18 +140,20 @@ func getRCStatus() (remoteConfigState, error) {
 	var response remoteConfigState
 
 	// The simplest thing here is to call ourselves with the daemon command
-	installerBinary, err := os.Executable()
+	ourselves, err := os.Executable()
 	if err != nil {
-		return response, fmt.Errorf("could not get installer binary path: %w", err)
+		return response, fmt.Errorf("error getting executable path: %w", err)
 	}
+	installerBinary := filepath.Join(ourselves, "../../bin/agent/agent")
 	stdout := new(bytes.Buffer)
 	stderr := new(bytes.Buffer)
 	cmd := exec.Command(installerBinary, "daemon", "rc-status")
+	cmd.Env = append(os.Environ(), "DD_BUNDLED_AGENT=installer")
 	cmd.Stdout = stdout
 	cmd.Stderr = stderr
 	err = cmd.Run()
 	if err != nil {
-		return response, fmt.Errorf("error running \"datadog-installer daemon rc-status\" (is the daemon running?): %s", stderr.String())
+		return response, fmt.Errorf("error getting RC status (is the daemon running?): %s", stderr.String())
 	}
 
 	err = json.Unmarshal(stdout.Bytes(), &response)

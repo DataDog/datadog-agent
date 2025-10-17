@@ -56,7 +56,7 @@ func (l *testLogger) Errorf(format string, params ...interface{}) {
 
 var trace bool
 
-func newVM(t *testing.T) *baloum.VM {
+func loadColSpec(t *testing.T) *ebpf.CollectionSpec {
 	useSyscallWrapper, err := secebpf.IsSyscallWrapperRequired()
 	if err != nil {
 		t.Fatal(err)
@@ -72,6 +72,12 @@ func newVM(t *testing.T) *baloum.VM {
 	if err != nil {
 		t.Fatal(err)
 	}
+
+	return spec
+}
+
+func newVM(t *testing.T) *baloum.VM {
+	spec := loadColSpec(t)
 
 	var now time.Time
 

@@ -3,10 +3,11 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//nolint:revive // TODO(AML) Fix revive linter
+// Package fileprovider provides file source provisioning for log launchers
 package fileprovider
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -15,6 +16,7 @@ import (
 	"strings"
 	"time"
 
+	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/def"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/logs/status"
 	tailer "github.com/DataDog/datadog-agent/pkg/logs/tailers/file"
@@ -128,17 +130,23 @@ func (w *wildcardFileCounter) setTotal(src *sources.LogSource, total int) {
 	w.counts[src] = matchCnt
 }
 
-func (p *FileProvider) addFilesToTailList(validatePodContainerID bool, inputFiles, filesToTail []*tailer.File, w *wildcardFileCounter) []*tailer.File {
+func (p *FileProvider) addFilesToTailList(validatePodContainerID bool, inputFiles, filesToTail []*tailer.File, w *wildcardFileCounter, registry auditor.Registry) []*tailer.File {
 	// Add each file one by one up to the limit
-	for j := 0; j < len(inputFiles) && len(filesToTail) < p.filesLimit; j++ {
-		file := inputFiles[j]
-		if ShouldIgnore(validatePodContainerID, file) {
-			continue
-		}
-		filesToTail = append(filesToTail, file)
-		src := file.Source.UnderlyingSource()
-		if config.ContainsWildcard(src.Config.Path) {
-			w.incrementTracked(src)
+	for _, file := range inputFiles {
+		// Unlike other tailers, there is a hard cap on the number of file tailers that can be concurrently active.
+		// This means that we can't rely on the tailers themselves to keep the registry entries alive, and we need to
+		// manually keep each valid file alive here.
+		registry.KeepAlive(file.Identifier())
+
+		if len(filesToTail) < p.filesLimit {
+			if ShouldIgnore(validatePodContainerID, file) {
+				continue
+			}
+			filesToTail = append(filesToTail, file)
+			src := file.Source.UnderlyingSource()
+			if config.ContainsWildcard(src.Config.Path) {
+				w.incrementTracked(src)
+			}
 		}
 	}
 
@@ -146,7 +154,8 @@ func (p *FileProvider) addFilesToTailList(validatePodContainerID bool, inputFile
 		status.AddGlobalWarning(
 			openFilesLimitWarningType,
 			fmt.Sprintf(
-				"The limit on the maximum number of files in use (%d) has been reached. Increase this limit (thanks to the attribute logs_config.open_files_limit in datadog.yaml) or decrease the number of tailed file.",
+				"The limit on the maximum number of files in use (%d) has been reached. If you aren't tailing the files you want to be tailing, increase this limit ("+
+					"logs_config.open_files_limit in datadog.yaml), decrease the number of files you are tailing, or alter the logs_config.file_wildcard_selection_mode setting to by_modification_time.",
 				p.filesLimit,
 			),
 		)
@@ -159,7 +168,7 @@ func (p *FileProvider) addFilesToTailList(validatePodContainerID bool, inputFile
 // FilesToTail returns all the Files matching paths in sources,
 // it cannot return more than filesLimit Files.
 // Files are collected according to the fileProvider's wildcardOrder and selectionMode
-func (p *FileProvider) FilesToTail(validatePodContainerID bool, inputSources []*sources.LogSource) []*tailer.File {
+func (p *FileProvider) FilesToTail(ctx context.Context, validatePodContainerID bool, inputSources []*sources.LogSource, registry auditor.Registry) []*tailer.File {
 	var filesToTail []*tailer.File
 	shouldLogErrors := p.shouldLogErrors
 	p.shouldLogErrors = false // Let's log errors on first run only
@@ -169,13 +178,18 @@ func (p *FileProvider) FilesToTail(validatePodContainerID bool, inputSources []*
 		wildcardSources := make([]*sources.LogSource, 0, len(inputSources))
 
 		// First pass - collect all wildcard sources and add files for non-wildcard sources
-		for i := 0; i < len(inputSources); i++ {
-			source := inputSources[i]
-			isWildcardSource := config.ContainsWildcard(source.Config.Path)
-			if isWildcardSource {
-				wildcardSources = append(wildcardSources, source)
-				continue
-			} else { //nolint:revive // TODO(AML) Fix revive linter
+		for _, inputSource := range inputSources {
+			select {
+			case <-ctx.Done():
+				log.Debugf("FileProvider context cancelled, not collecting files.")
+				return nil
+			default:
+				source := inputSource
+				isWildcardSource := config.ContainsWildcard(source.Config.Path)
+				if isWildcardSource {
+					wildcardSources = append(wildcardSources, source)
+					continue
+				}
 				files, err := p.CollectFiles(source)
 				if err != nil {
 					source.Status.Error(err)
@@ -184,40 +198,51 @@ func (p *FileProvider) FilesToTail(validatePodContainerID bool, inputSources []*
 					}
 					continue
 				}
-				filesToTail = p.addFilesToTailList(validatePodContainerID, files, filesToTail, &wildcardFileCounter)
+				filesToTail = p.addFilesToTailList(validatePodContainerID, files, filesToTail, &wildcardFileCounter, registry)
 			}
 		}
 
 		// Second pass, resolve all wildcards and add them to one big list
 		wildcardFiles := make([]*tailer.File, 0, p.filesLimit)
 		for _, source := range wildcardSources {
-			files, err := p.filesMatchingSource(source)
-			wildcardFileCounter.setTotal(source, len(files))
-			if err != nil {
-				continue
+			select {
+			case <-ctx.Done():
+				log.Debugf("FileProvider context cancelled, not collecting files.")
+				return nil
+			default:
+				files, err := p.filesMatchingSource(source)
+				wildcardFileCounter.setTotal(source, len(files))
+				if err != nil {
+					continue
+				}
+				wildcardFiles = append(wildcardFiles, files...)
 			}
-			wildcardFiles = append(wildcardFiles, files...)
 		}
 
 		p.applyOrdering(wildcardFiles)
-		filesToTail = p.addFilesToTailList(validatePodContainerID, wildcardFiles, filesToTail, &wildcardFileCounter)
+		filesToTail = p.addFilesToTailList(validatePodContainerID, wildcardFiles, filesToTail, &wildcardFileCounter, registry)
 	} else if p.selectionMode == greedySelection {
 		// Consume all sources one-by-one, fitting as many as possible into 'filesToTail'
 		for _, source := range inputSources {
-			isWildcardSource := config.ContainsWildcard(source.Config.Path)
-			files, err := p.CollectFiles(source)
-			if isWildcardSource {
-				wildcardFileCounter.setTotal(source, len(files))
-			}
-			if err != nil {
-				source.Status.Error(err)
-				if shouldLogErrors {
-					log.Warnf("Could not collect files: %v", err)
+			select {
+			case <-ctx.Done():
+				log.Debugf("FileProvider context cancelled, not collecting files.")
+				return nil
+			default:
+				isWildcardSource := config.ContainsWildcard(source.Config.Path)
+				files, err := p.CollectFiles(source)
+				if isWildcardSource {
+					wildcardFileCounter.setTotal(source, len(files))
 				}
-				continue
+				if err != nil {
+					source.Status.Error(err)
+					if shouldLogErrors {
+						log.Warnf("Could not collect files: %v", err)
+					}
+					continue
+				}
+				filesToTail = p.addFilesToTailList(validatePodContainerID, files, filesToTail, &wildcardFileCounter, registry)
 			}
-
-			filesToTail = p.addFilesToTailList(validatePodContainerID, files, filesToTail, &wildcardFileCounter)
 		}
 	} else {
 		log.Errorf("Invalid file selection mode '%v', no files selected.", p.selectionMode)

@@ -18,7 +18,7 @@ type RemoteWindowsRegistryKeyAssertions struct {
 
 // WithValueEqual verifies the value of a registry key matches what's expected.
 func (r *RemoteWindowsRegistryKeyAssertions) WithValueEqual(value, expected string) *RemoteWindowsRegistryKeyAssertions {
-	r.suite.T().Helper()
+	r.context.T().Helper()
 	actual, err := common.GetRegistryValue(r.remoteHost, r.keyPath, value)
 	r.require.NoError(err, "could not get registry value")
 	r.require.Equal(expected, actual, "registry value should be equal")

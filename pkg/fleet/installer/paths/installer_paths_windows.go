@@ -11,6 +11,7 @@ package paths
 import (
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"slices"
@@ -21,6 +22,7 @@ import (
 	"golang.org/x/sys/windows"
 	"golang.org/x/sys/windows/registry"
 
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -31,8 +33,10 @@ var (
 
 var (
 	// DatadogDataDir is the path to the Datadog data directory, by default C:\\ProgramData\\Datadog.
+	// This is configurable via the DD_APPLICATIONDATADIRECTORY environment variable.
 	DatadogDataDir string
 	// DatadogProgramFilesDir Datadog Program Files directory
+	// This is configurable via the DD_PROJECTLOCATION environment variable.
 	DatadogProgramFilesDir string
 	// DatadogInstallerData is the path to the Datadog Installer data directory, by default C:\\ProgramData\\Datadog\\Installer.
 	DatadogInstallerData string
@@ -40,6 +44,8 @@ var (
 	PackagesPath string
 	// ConfigsPath is the path to the Fleet-managed configuration directory
 	ConfigsPath string
+	// AgentConfigDir is the path to the agent configuration directory.
+	AgentConfigDir string
 	// RootTmpDir is the temporary path where the bootstrapper will be extracted to.
 	RootTmpDir string
 	// DefaultUserConfigsDir is the default Agent configuration directory
@@ -50,16 +56,78 @@ var (
 	RunPath string
 )
 
+// securityInfo holds the security information extracted from a security
+// descriptor for use in Windows API calls such as SetNamedSecurityInfo.
+type securityInfo struct {
+	Flags windows.SECURITY_INFORMATION
+	Owner *windows.SID
+	Group *windows.SID
+	DACL  *windows.ACL
+	SACL  *windows.ACL
+}
+
 func init() {
-	DatadogDataDir, _ = getProgramDataDirForProduct("Datadog Agent")
+	// Fetch environment variables, the paths are configurable.
+	// setup and experiment subcommands will respect the paths configured in the environment.
+	// This is important for experiments, as running the MSI may remove the registry keys.
+	// The daemon should expect to only read the paths from the registry, but there's no way to
+	// differentiate the two runtime environments here.
+	env := env.FromEnv()
+
+	// OS paths
+	DefaultUserConfigsDir, _ = windows.KnownFolderPath(windows.FOLDERID_ProgramData, 0)
+
+	// Data directory
+	if env.MsiParams.ApplicationDataDirectory != "" {
+		DatadogDataDir = env.MsiParams.ApplicationDataDirectory
+	} else {
+		DatadogDataDir, _ = getProgramDataDirForProduct("Datadog Agent")
+	}
+	AgentConfigDir = DatadogDataDir
 	DatadogInstallerData = filepath.Join(DatadogDataDir, "Installer")
 	PackagesPath = filepath.Join(DatadogInstallerData, "packages")
-	ConfigsPath = filepath.Join(DatadogInstallerData, "configs")
+	ConfigsPath = filepath.Join(DatadogInstallerData, "managed")
 	RootTmpDir = filepath.Join(DatadogInstallerData, "tmp")
-	DatadogProgramFilesDir, _ = getProgramFilesDirForProduct("Datadog Agent")
-	StableInstallerPath = filepath.Join(DatadogProgramFilesDir, "bin", "datadog-installer.exe")
-	DefaultUserConfigsDir, _ = windows.KnownFolderPath(windows.FOLDERID_ProgramData, 0)
 	RunPath = filepath.Join(PackagesPath, "run")
+
+	// Install directory
+	if env.MsiParams.ProjectLocation != "" {
+		DatadogProgramFilesDir = env.MsiParams.ProjectLocation
+	} else {
+		DatadogProgramFilesDir, _ = getProgramFilesDirForProduct("Datadog Agent")
+	}
+	StableInstallerPath = filepath.Join(DatadogProgramFilesDir, "bin", "datadog-installer.exe")
+}
+
+// createDirIfNotExists creates a directory if it doesn't exist.
+// Returns an error if the path exists but is not a directory, or if creation fails.
+//
+// Function behaves similarly to os.MkdirAll, but does not create parent directories.
+func createDirIfNotExists(path string) error {
+	// Check if directory exists first
+	info, err := os.Stat(path)
+	if err == nil {
+		// Path exists, verify it's a directory
+		if !info.IsDir() {
+			return &fs.PathError{
+				Op:   "mkdir",
+				Path: path,
+				Err:  syscall.ENOTDIR,
+			}
+		}
+		return nil
+	}
+	if !errors.Is(err, fs.ErrNotExist) {
+		// Some other error occurred while checking
+		return fmt.Errorf("failed to check if directory %s exists: %w", path, err)
+	}
+
+	// Directory doesn't exist, try to create it
+	err = os.Mkdir(path, 0)
+	if err != nil {
+		return fmt.Errorf("failed to create directory %s: %w", path, err)
+	}
+	return nil
 }
 
 // EnsureInstallerDataDir creates/updates the root directory for the installer data and sets permissions
@@ -67,8 +135,6 @@ func init() {
 //
 // bootstrap runs before the MSI, so it must create the directory with the correct permissions.
 func EnsureInstallerDataDir() error {
-	targetDir := DatadogInstallerData
-
 	// Desired permissions:
 	// - OWNER: Administrators
 	// - GROUP: Administrators
@@ -85,7 +151,7 @@ func EnsureInstallerDataDir() error {
 
 	// check if DatadogDataDir exists
 	_, err := os.Stat(DatadogDataDir)
-	if errors.Is(err, os.ErrNotExist) {
+	if errors.Is(err, fs.ErrNotExist) {
 		// DatadogDataDir does not exist, so we need to create it
 		// probably means the MSI has yet to run
 		// we'll create the directory with the restricted permissions
@@ -97,10 +163,51 @@ func EnsureInstallerDataDir() error {
 	}
 
 	return winio.RunWithPrivileges(privilegesRequired, func() error {
-		return secureCreateDirectory(targetDir, sddl)
+		// Create root path: `C:\ProgramData\Datadog\Installer`
+		err := secureCreateDirectory(DatadogInstallerData, sddl)
+		if err != nil {
+			return fmt.Errorf("failed to create DatadogInstallerData: %w", err)
+		}
+
+		// The root directory now exists with the correct permissions
+		// we still need to ensure the subdirectories have the correct permissions.
+
+		// Create subdirectories that inherit permissions from the parent
+		if err := createDirIfNotExists(RootTmpDir); err != nil {
+			return err
+		}
+		err = resetPermissionsForTree(RootTmpDir)
+		if err != nil {
+			return fmt.Errorf("failed to reset permissions for RootTmpDir: %w", err)
+		}
+
+		// Create subdirectories that have different permissions (global read)
+		// PackagesPath should only contain files from public OCI packages
+		if err := createDirIfNotExists(PackagesPath); err != nil {
+			return err
+		}
+		err = SetRepositoryPermissions(PackagesPath)
+		if err != nil {
+			return fmt.Errorf("failed to create PackagesPath: %w", err)
+		}
+		// ConfigsPath has generated configuration files but will not contain secrets.
+		// To support options that are secrets, we will need to fetch them from a secret store.
+		if err := createDirIfNotExists(ConfigsPath); err != nil {
+			return err
+		}
+		err = SetRepositoryPermissions(ConfigsPath)
+		if err != nil {
+			return fmt.Errorf("failed to create ConfigsPath: %w", err)
+		}
+
+		return nil
 	})
 }
 
+// secureCreateDirectory creates a directory with the specified SDDL string.
+//
+// If the directory already exists and it is owned by Administrators or SYSTEM, the permissions
+// are set to the expected state. If the directory is owned by an unknown party, an error is returned.
 func secureCreateDirectory(path string, sddl string) error {
 	// Try to create the directory with the desired permissions.
 	// We avoid TOCTOU issues because CreateDirectory fails if the directory already exists.
@@ -132,11 +239,13 @@ func secureCreateDirectory(path string, sddl string) error {
 		return err
 	}
 
-	// The owner is Administrators or SYSTEM, so we can be resonably sure the directory and its
+	// The owner is Administrators or SYSTEM, so we can be reasonably sure the directory and its
 	// original permissions were created by an Administrator. If the Administrator created
 	// the directory insecurely, we'll reset the permissions here, but we can't account
-	// for damage that might have already been done.
-	err = treeResetNamedSecurityInfoWithSDDL(path, sddl)
+	// for created/changed files in the tree during that time. The caller may opt to reset the
+	// permissions recursively, but this is not done here as we have paths that have children
+	// with different permissions.
+	err = setNamedSecurityInfoWithSDDL(path, sddl)
 	if err != nil {
 		return err
 	}
@@ -217,6 +326,14 @@ func createDirectoryWithSDDL(path string, sddl string) error {
 	return nil
 }
 
+func setNamedSecurityInfoWithSDDL(root string, sddl string) error {
+	sd, err := windows.SecurityDescriptorFromString(sddl)
+	if err != nil {
+		return err
+	}
+	return setNamedSecurityInfoFromSecurityDescriptor(root, sd)
+}
+
 func treeResetNamedSecurityInfoWithSDDL(root string, sddl string) error {
 	sd, err := windows.SecurityDescriptorFromString(sddl)
 	if err != nil {
@@ -225,24 +342,24 @@ func treeResetNamedSecurityInfoWithSDDL(root string, sddl string) error {
 	return treeResetNamedSecurityInfoFromSecurityDescriptor(root, sd)
 }
 
-func treeResetNamedSecurityInfoFromSecurityDescriptor(root string, sd *windows.SECURITY_DESCRIPTOR) error {
+func getSecurityInfoFromSecurityDescriptor(sd *windows.SECURITY_DESCRIPTOR) (*securityInfo, error) {
 	var flags windows.SECURITY_INFORMATION
 	control, _, err := sd.Control()
 	if err != nil {
-		return err
+		return nil, err
 	}
 	flags |= securityInformationFromControlFlags(control)
 
 	owner, _, err := sd.Owner()
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if owner != nil {
 		flags |= windows.OWNER_SECURITY_INFORMATION
 	}
 	group, _, err := sd.Group()
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if group != nil {
 		flags |= windows.GROUP_SECURITY_INFORMATION
@@ -250,7 +367,7 @@ func treeResetNamedSecurityInfoFromSecurityDescriptor(root string, sd *windows.S
 	dacl, _, err := sd.DACL()
 	if err != nil {
 		if err != windows.ERROR_OBJECT_NOT_FOUND {
-			return err
+			return nil, err
 		}
 	} else {
 		flags |= windows.DACL_SECURITY_INFORMATION
@@ -258,19 +375,41 @@ func treeResetNamedSecurityInfoFromSecurityDescriptor(root string, sd *windows.S
 	sacl, _, err := sd.SACL()
 	if err != nil {
 		if err != windows.ERROR_OBJECT_NOT_FOUND {
-			return err
+			return nil, err
 		}
 	} else {
 		flags |= windows.SACL_SECURITY_INFORMATION
 	}
+	return &securityInfo{
+		Flags: flags,
+		Owner: owner,
+		Group: group,
+		DACL:  dacl,
+		SACL:  sacl,
+	}, nil
+}
+
+func setNamedSecurityInfoFromSecurityDescriptor(root string, sd *windows.SECURITY_DESCRIPTOR) error {
+	info, err := getSecurityInfoFromSecurityDescriptor(sd)
+	if err != nil {
+		return err
+	}
+	return windows.SetNamedSecurityInfo(root, windows.SE_FILE_OBJECT, info.Flags, info.Owner, info.Group, info.DACL, info.SACL)
+}
+
+func treeResetNamedSecurityInfoFromSecurityDescriptor(root string, sd *windows.SECURITY_DESCRIPTOR) error {
+	info, err := getSecurityInfoFromSecurityDescriptor(sd)
+	if err != nil {
+		return err
+	}
 	err = TreeResetNamedSecurityInfo(
 		root,
 		windows.SE_FILE_OBJECT,
-		flags,
-		owner,
-		group,
-		dacl,
-		sacl,
+		info.Flags,
+		info.Owner,
+		info.Group,
+		info.DACL,
+		info.SACL,
 		// Set to false to remove explicit ACEs from the subtree
 		false)
 	if err != nil {
@@ -409,4 +548,19 @@ func SetRepositoryPermissions(path string) error {
 // https://learn.microsoft.com/en-us/windows/win32/msi/administrative-installation
 func GetAdminInstallerBinaryPath(path string) string {
 	return filepath.Join(path, "ProgramFiles64Folder", "Datadog", "Datadog Agent", "bin", "datadog-installer.exe")
+}
+
+// resetPermissionsForTree sets the owner/group to Administrators, enables inheritance, and removes all explicit ACEs.
+func resetPermissionsForTree(path string) error {
+	// set owner/group to Administrators
+	admins, err := windows.CreateWellKnownSid(windows.WinBuiltinAdministratorsSid)
+	if err != nil {
+		return err
+	}
+	// set owner, group, and disable protection (enable inheritance) on the DACL
+	var flags windows.SECURITY_INFORMATION
+	flags |= windows.OWNER_SECURITY_INFORMATION
+	flags |= windows.GROUP_SECURITY_INFORMATION
+	flags |= windows.UNPROTECTED_DACL_SECURITY_INFORMATION
+	return TreeResetNamedSecurityInfo(path, windows.SE_FILE_OBJECT, flags, admins, admins, nil, nil, false)
 }

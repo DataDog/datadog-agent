@@ -17,9 +17,11 @@ import (
 	"go.uber.org/fx"
 
 	configComp "github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
@@ -130,16 +132,17 @@ func TestProcessAgentComponentOnLinux(t *testing.T) {
 				runnerimpl.Module(),
 				hostinfoimpl.MockModule(),
 				submitterimpl.MockModule(),
-				taggerfxmock.MockModule(),
 				statsd.MockModule(),
 				fx.Provide(func(t testing.TB) log.Component { return logmock.New(t) }),
-				configComp.MockModule(),
+				fx.Provide(func(t testing.TB) tagger.Component { return taggerfxmock.SetupFakeTagger(t) }),
 				sysprobeconfigimpl.MockModule(),
 				Module(),
-
-				fx.Replace(configComp.MockParams{Overrides: map[string]interface{}{
-					"process_config.run_in_core_agent.enabled": tc.runInCoreAgentConfig,
-				}}),
+				hostnameimpl.MockModule(),
+				fx.Provide(func() configComp.Component {
+					return configComp.NewMockWithOverrides(t, map[string]interface{}{
+						"process_config.run_in_core_agent.enabled": tc.runInCoreAgentConfig,
+					})
+				}),
 			}
 
 			if tc.checksEnabled {
@@ -196,16 +199,18 @@ func TestStatusProvider(t *testing.T) {
 				runnerimpl.Module(),
 				hostinfoimpl.MockModule(),
 				submitterimpl.MockModule(),
-				taggerfxmock.MockModule(),
 				statsd.MockModule(),
 				Module(),
-				fx.Replace(configComp.MockParams{Overrides: map[string]interface{}{
-					"process_config.run_in_core_agent.enabled": true,
-				}}),
 				processcheckimpl.MockModule(),
 				fx.Provide(func(t testing.TB) log.Component { return logmock.New(t) }),
-				configComp.MockModule(),
+				fx.Provide(func(t testing.TB) tagger.Component { return taggerfxmock.SetupFakeTagger(t) }),
+				fx.Provide(func() configComp.Component {
+					return configComp.NewMockWithOverrides(t, map[string]interface{}{
+						"process_config.run_in_core_agent.enabled": true,
+					})
+				}),
 				sysprobeconfigimpl.MockModule(),
+				hostnameimpl.MockModule(),
 				fx.Provide(func() func(c *checkMocks.Check) {
 					return func(c *checkMocks.Check) {
 						c.On("Init", mock.Anything, mock.Anything, mock.AnythingOfType("bool")).Return(nil).Maybe()
@@ -243,17 +248,19 @@ func TestTelemetryCoreAgent(t *testing.T) {
 		runnerimpl.Module(),
 		hostinfoimpl.MockModule(),
 		submitterimpl.MockModule(),
-		taggerfxmock.MockModule(),
 		statsd.MockModule(),
 		Module(),
-		fx.Replace(configComp.MockParams{Overrides: map[string]interface{}{
-			"process_config.run_in_core_agent.enabled": true,
-			"telemetry.enabled":                        true,
-		}}),
 		processcheckimpl.MockModule(),
 		fx.Provide(func(t testing.TB) log.Component { return logmock.New(t) }),
-		configComp.MockModule(),
+		fx.Provide(func(t testing.TB) tagger.Component { return taggerfxmock.SetupFakeTagger(t) }),
+		fx.Provide(func() configComp.Component {
+			return configComp.NewMockWithOverrides(t, map[string]interface{}{
+				"process_config.run_in_core_agent.enabled": true,
+				"telemetry.enabled":                        true,
+			})
+		}),
 		sysprobeconfigimpl.MockModule(),
+		hostnameimpl.MockModule(),
 		fx.Provide(func() func(c *checkMocks.Check) {
 			return func(c *checkMocks.Check) {
 				c.On("Init", mock.Anything, mock.Anything, mock.AnythingOfType("bool")).Return(nil).Maybe()

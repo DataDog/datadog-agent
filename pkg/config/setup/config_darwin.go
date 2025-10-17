@@ -5,6 +5,10 @@
 
 package setup
 
+import (
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+)
+
 const (
 	defaultConfdPath            = "/opt/datadog-agent/etc/conf.d"
 	defaultAdditionalChecksPath = "/opt/datadog-agent/etc/checks.d"
@@ -18,6 +22,8 @@ const (
 	DefaultProcessAgentLogFile = "/opt/datadog-agent/logs/process-agent.log"
 	// DefaultOTelAgentLogFile is the default otel-agent log file
 	DefaultOTelAgentLogFile = "/opt/datadog-agent/logs/otel-agent.log"
+	// DefaultHostProfilerLogFile is the default host-profiler log file
+	DefaultHostProfilerLogFile = "/opt/datadog-agent/logs/host-profiler.log"
 	// DefaultSystemProbeAddress is the default unix socket path to be used for connecting to the system probe
 	DefaultSystemProbeAddress = "/opt/datadog-agent/run/sysprobe.sock"
 	// defaultEventMonitorAddress is the default unix socket path to be used for connecting to the event monitor
@@ -29,6 +35,8 @@ const (
 	InstallPath = "/opt/datadog-agent"
 	// defaultStatsdSocket is the default Unix Domain Socket path on which statsd will listen
 	defaultStatsdSocket = ""
+	// defaultReceiverSocket is the default Unix Domain Socket path on which Trace agent will listen
+	defaultReceiverSocket = ""
 	//DefaultStreamlogsLogFile points to the stream logs log file that will be used if not configured
 	DefaultStreamlogsLogFile = "/opt/datadog-agent/logs/streamlogs_info/streamlogs.log"
 )
@@ -36,4 +44,8 @@ const (
 // called by init in config.go, to ensure any os-specific config is done
 // in time
 func osinit() {
+}
+
+// FleetConfigOverride is a no-op on Darwin
+func FleetConfigOverride(_ pkgconfigmodel.Config) {
 }

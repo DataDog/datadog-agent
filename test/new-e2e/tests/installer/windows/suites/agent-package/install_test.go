@@ -7,8 +7,9 @@
 package agenttests
 
 import (
-	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows/consts"
 	"path/filepath"
+
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows/consts"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	winawshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host/windows"
@@ -25,10 +26,7 @@ type testAgentInstallSuite struct {
 // TestAgentInstalls tests the usage of the Datadog installer to install the Datadog Agent package.
 func TestAgentInstalls(t *testing.T) {
 	e2e.Run(t, &testAgentInstallSuite{},
-		e2e.WithProvisioner(
-			winawshost.ProvisionerNoAgentNoFakeIntake(
-				winawshost.WithInstaller(),
-			)))
+		e2e.WithProvisioner(winawshost.ProvisionerNoAgentNoFakeIntake()))
 }
 
 // TestInstallAgentPackage tests installing and uninstalling the Datadog Agent using the Datadog installer.
@@ -36,6 +34,15 @@ func (s *testAgentInstallSuite) TestInstallAgentPackage() {
 	s.Run("Install", func() {
 		s.installAgent()
 		s.Run("Uninstall", s.removeAgentPackage)
+	})
+}
+
+// TestSetupScriptInstallInfo tests that the Fleet Automation setup script correctly writes install_info with the setup script tool.
+func (s *testAgentInstallSuite) TestSetupScriptInstallInfo() {
+	s.Run("Install via setup script", func() {
+		s.installAgentViaSetupScript()
+		s.Run("Verify install_info", s.verifySetupScriptInstallInfo)
+		s.Run("Uninstall", s.uninstallAgentWithMSI)
 	})
 }
 
@@ -48,6 +55,30 @@ func (s *testAgentInstallSuite) installAgent() {
 	// Assert
 	s.Require().NoErrorf(err, "failed to install the Datadog Agent package: %s", output)
 	s.Require().Host(s.Env().RemoteHost).HasARunningDatadogAgentService()
+}
+
+func (s *testAgentInstallSuite) installAgentViaSetupScript() {
+	installExe := installerwindows.NewDatadogInstallExe(s.Env().RemoteHost)
+
+	// Act - This calls the same path as Fleet Automation setup script: installer.exe setup --flavor default
+	output, err := installExe.Run()
+
+	// Assert
+	s.Require().NoErrorf(err, "failed to install via setup script: %s", output)
+	s.Require().Host(s.Env().RemoteHost).HasARunningDatadogAgentService()
+}
+
+func (s *testAgentInstallSuite) verifySetupScriptInstallInfo() {
+	// Arrange
+	installInfoPath := "C:\\ProgramData\\Datadog\\install_info"
+
+	// Act
+	installInfoContent, err := s.Env().RemoteHost.ReadFile(installInfoPath)
+
+	// Assert
+	s.Require().NoError(err, "should be able to read install_info file")
+	s.Require().Contains(string(installInfoContent), "tool: installer",
+		"install_info should contain the setup script installation method")
 }
 
 func (s *testAgentInstallSuite) removeAgentPackage() {

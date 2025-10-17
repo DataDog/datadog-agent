@@ -3,14 +3,13 @@ from __future__ import annotations
 import base64
 import json
 import os
-import platform
 import re
-import subprocess
 from collections.abc import Iterable
 from datetime import datetime, timedelta
 from functools import lru_cache
 
 import requests
+from invoke import Context
 
 from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.constants import GITHUB_REPO_NAME
@@ -19,7 +18,15 @@ from tasks.libs.common.user_interactions import yes_no_question
 
 try:
     import semver
-    from github import Auth, Github, GithubException, GithubIntegration, GithubObject, PullRequest
+    from github import (
+        Auth,
+        Github,
+        GithubException,
+        GithubIntegration,
+        GithubObject,
+        InputGitTreeElement,
+        PullRequest,
+    )
     from github.NamedUser import NamedUser
 except ImportError:
     # PyGithub isn't available on some build images, ignore it for now
@@ -64,11 +71,11 @@ class GithubAPI:
             "https://api.github.com/graphql",
             headers=headers,
             json={"query": query},
+            timeout=10,
         )
         if res.status_code == 200:
             return res.json()
-        else:
-            raise RuntimeError(f"Failed to query Github: {res.text}")
+        raise RuntimeError(f"Failed to query Github: {res.text}")
 
     def get_branch(self, branch_name):
         """
@@ -215,7 +222,7 @@ class GithubAPI:
             protection_url = f"{self.repo.url}/branches/{branch_name}/protection"
             headers = {
                 "Accept": "application/vnd.github+json",
-                "Authorization": f"Bearer {os.environ['GITHUB_TOKEN']}",
+                "Authorization": f"Bearer {self._auth.token}",
                 "X-GitHub-Api-Version": "2022-11-28",
             }
             payload = self.protection_to_payload(current_protection.raw_data)
@@ -329,7 +336,7 @@ class GithubAPI:
             "Accept": "application/vnd.github.v3+json",
         }
         # Retrying this request if needed is handled by the caller
-        with requests.get(url, headers=headers, stream=True) as r:
+        with requests.get(url, headers=headers, stream=True, timeout=10) as r:
             r.raise_for_status()
             zip_target_path = os.path.join(destination_dir, f"{destination_file}.zip")
             with open(zip_target_path, "wb") as f:
@@ -486,55 +493,67 @@ class GithubAPI:
         organization = self._repository.organization
         return (user.company and 'datadog' in user.company.casefold()) or organization.has_in_members(user)
 
+    def commit_and_push_signed(self, branch_name: str, commit_message: str, tree: dict[str, dict[str, str]]):
+        # Create a commit from the given tree, see details in https://github.com/orgs/community/discussions/50055
+        base_tree = self._repository.get_git_tree(tree['base_tree'])
+        git_tree = self._repository.create_git_tree(
+            [InputGitTreeElement(**blob) for blob in tree['tree']], base_tree=base_tree
+        )
+        commit = self._repository.create_git_commit(
+            commit_message,
+            git_tree,
+            [self._repository.get_git_commit(tree['base_tree'])],
+        )
+        # The update ref API endpoint is not available in PyGithub, so we need to use the raw API
+        data = {"sha": commit.sha, "force": False}
+        headers = {"Authorization": "Bearer " + self._auth.token, "Content-Type": "application/json"}
+        res = requests.patch(
+            url=f"{self._repository.url}/git/refs/heads/{branch_name}", json=data, headers=headers, timeout=10
+        )
+        if res.status_code == 200:
+            return res.json()
+        raise Exit(f"Failed to update the reference {branch_name} with commit {commit.sha}: {res.text}")
+
     def _chose_auth(self, public_repo):
         """
         Attempt to find a working authentication, in order:
-            - Personal access token through GITHUB_TOKEN environment variable
-            - An app token through the GITHUB_APP_ID & GITHUB_KEY_B64 environment
-              variables (can also use GITHUB_INSTALLATION_ID to save a request)
-            - A token from macOS keychain
-            - A fake login user/password to reach public repositories
+            - Locally:
+              - Short lived token generated locally
+            - On CI:
+              - GITHUB_TOKEN environment variable
+              - A fake login user/password to reach public repositories
+              - An app token through the GITHUB_APP_ID & GITHUB_KEY_B64 environment
+                variables (can also use GITHUB_INSTALLATION_ID to save a request).
+                This is required for Gitlab CI.
         """
+        from tasks.libs.common.utils import running_in_ci
+
+        if not running_in_ci():
+            return Auth.Token(generate_local_github_token(Context()))
         if "GITHUB_TOKEN" in os.environ:
             return Auth.Token(os.environ["GITHUB_TOKEN"])
-        if "GITHUB_APP_ID" in os.environ and "GITHUB_KEY_B64" in os.environ:
-            appAuth = Auth.AppAuth(
-                os.environ['GITHUB_APP_ID'], base64.b64decode(os.environ['GITHUB_KEY_B64']).decode('ascii')
-            )
-            installation_id = os.environ.get('GITHUB_INSTALLATION_ID', None)
-            if installation_id is None:
-                # Even if we don't know the installation id, there's an API endpoint to
-                # retrieve it, given the other credentials (app id + key).
-                integration = GithubIntegration(auth=appAuth)
-                installations = integration.get_installations()
-                if len(installations) == 0:
-                    raise Exit(message='No usable installation found', code=1)
-                installation_id = installations[0]
-            return appAuth.get_installation_auth(int(installation_id))
         if public_repo:
             return Auth.Login("user", "password")
-        if platform.system() == "Darwin":
-            try:
-                output = (
-                    subprocess.check_output(
-                        ['security', 'find-generic-password', '-a', os.environ["USER"], '-s', 'GITHUB_TOKEN', '-w']
-                    )
-                    .decode()
-                    .strip()
-                )
 
-                if output:
-                    return Auth.Token(output)
-            except subprocess.CalledProcessError:
-                print("GITHUB_TOKEN not found in keychain...")
-                pass
-        raise Exit(
-            message="Please create a 'repo' access token at "
-            "https://github.com/settings/tokens and "
-            "add it as GITHUB_TOKEN in your keychain "
-            "or export it from your .bashrc or equivalent.",
-            code=1,
+        if "GITHUB_APP_ID" not in os.environ or "GITHUB_KEY_B64" not in os.environ:
+            raise Exit(
+                message="For private repositories on CI, you need to set the GITHUB_APP_ID and GITHUB_KEY_B64 environment variables",
+                code=1,
+            )
+
+        appAuth = Auth.AppAuth(
+            os.environ['GITHUB_APP_ID'], base64.b64decode(os.environ['GITHUB_KEY_B64']).decode('ascii')
         )
+        installation_id = os.environ.get('GITHUB_INSTALLATION_ID', None)
+        if installation_id is None:
+            # Even if we don't know the installation id, there's an API endpoint to
+            # retrieve it, given the other credentials (app id + key).
+            integration = GithubIntegration(auth=appAuth)
+            installations = integration.get_installations()
+            if installations.totalCount == 0:
+                raise Exit(message='No usable installation found', code=1)
+            installation_id = installations[0].id
+        return appAuth.get_installation_auth(int(installation_id))
 
     @staticmethod
     def get_token_from_app(app_id_env='GITHUB_APP_ID', pkey_env='GITHUB_KEY_B64'):
@@ -666,7 +685,7 @@ def get_github_teams(users):
 def query_teams(login):
     query = get_user_query(login)
     headers = {"Authorization": f"Bearer {os.environ['GITHUB_TOKEN']}", "Content-Type": "application/json"}
-    response = requests.post("https://api.github.com/graphql", headers=headers, data=query)
+    response = requests.post("https://api.github.com/graphql", headers=headers, data=query, timeout=10)
     data = response.json()
     teams = []
     try:
@@ -744,7 +763,7 @@ Make sure that milestone is open before trying again.""",
     return updated_pr.html_url
 
 
-def create_release_pr(title, base_branch, target_branch, version, changelog_pr=False, milestone=None):
+def create_release_pr(title, base_branch, target_branch, version, changelog_pr=False, milestone=None, labels=()):
     if milestone:
         milestone_name = milestone
     else:
@@ -754,6 +773,7 @@ def create_release_pr(title, base_branch, target_branch, version, changelog_pr=F
 
     labels = [
         "team/agent-delivery",
+        *labels,
     ]
     if changelog_pr:
         labels.append(f"backport/{get_default_branch()}")
@@ -765,3 +785,29 @@ def ask_review_actor(pr):
     for event in pr.get_issue_events():
         if event.event == "labeled" and event.label.name == "ask-review":
             return event.actor.name or event.actor.login
+
+
+def generate_local_github_token(ctx):
+    """
+    Generates a github token locally.
+    """
+
+    try:
+        token = ctx.run('ddtool auth github token', hide=True).stdout.strip()
+
+        assert token.startswith('gh') and ' ' not in token, (
+            "`ddtool auth github token` returned an invalid token, "
+            "it might be due to ddtool outdated. "
+            "Please run `brew update && brew upgrade ddtool`."
+        )
+
+        return token
+    except AssertionError:
+        # No retry on asserts
+        raise
+    except Exception:
+        # Try to login and then get a token
+        ctx.run('ddtool auth github login')
+        token = ctx.run('ddtool auth github token', hide=True).stdout.strip()
+
+        return token

@@ -8,6 +8,7 @@ package collector
 
 import (
 	"context"
+	"crypto/tls"
 	"time"
 
 	"github.com/benbjohnson/clock"
@@ -26,7 +27,7 @@ const (
 )
 
 // NewProcessCollector creates a new process collector.
-func NewProcessCollector(coreConfig, sysProbeConfig pkgconfigmodel.Reader) *Collector {
+func NewProcessCollector(coreConfig, sysProbeConfig pkgconfigmodel.Reader, grpcServerTLSConfig *tls.Config) *Collector {
 	wlmExtractor := workloadmetaExtractor.NewWorkloadMetaExtractor(sysProbeConfig)
 
 	processData := checks.NewProcessData(coreConfig)
@@ -35,7 +36,7 @@ func NewProcessCollector(coreConfig, sysProbeConfig pkgconfigmodel.Reader) *Coll
 	return &Collector{
 		ddConfig:        coreConfig,
 		wlmExtractor:    wlmExtractor,
-		grpcServer:      workloadmetaExtractor.NewGRPCServer(coreConfig, wlmExtractor),
+		grpcServer:      workloadmetaExtractor.NewGRPCServer(coreConfig, wlmExtractor, grpcServerTLSConfig),
 		processData:     processData,
 		collectionClock: clock.New(),
 		pidToCid:        make(map[int]string),

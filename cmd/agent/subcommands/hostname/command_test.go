@@ -14,11 +14,10 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
-	authtokenmock "github.com/DataDog/datadog-agent/comp/api/authtoken/mock"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
-	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -28,9 +27,7 @@ func TestCommand(t *testing.T) {
 		Commands(&command.GlobalParams{}),
 		[]string{"hostname"},
 		printHostname,
-		func(_ *cliParams, _ core.BundleParams, secretParams secrets.Params) {
-			require.Equal(t, false, secretParams.Enabled)
-		})
+		func(_ *cliParams, _ core.BundleParams) {})
 }
 
 func hostnameHandler(hostname string) http.Handler {
@@ -84,7 +81,7 @@ func TestGetHostname(t *testing.T) {
 				forceLocal:   tc.forceLocal,
 			}
 
-			authComp := authtokenmock.New(t)
+			authComp := ipcmock.New(t)
 			server := authComp.NewMockServer(hostnameHandler(tc.remoteHostname))
 
 			serverURL, err := url.Parse(server.URL)
@@ -95,7 +92,7 @@ func TestGetHostname(t *testing.T) {
 			config.Set("cmd_host", serverURL.Hostname(), model.SourceFile)
 			config.Set("cmd_port", serverURL.Port(), model.SourceFile)
 
-			hname, err := getHostname(config, cliParams)
+			hname, err := getHostname(cliParams, authComp.GetClient())
 			require.NoError(t, err)
 
 			expectedHostname := localHostname

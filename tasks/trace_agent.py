@@ -6,6 +6,7 @@ from invoke import task
 from tasks.build_tags import filter_incompatible_tags, get_build_tags, get_default_build_tags
 from tasks.flavor import AgentFlavor
 from tasks.gointegrationtest import TRACE_AGENT_IT_CONF, containerized_integration_tests
+from tasks.libs.common.go import go_build
 from tasks.libs.common.utils import REPO_PATH, bin_name, get_build_flags
 from tasks.windows_resources import build_messagetable, build_rc, versioninfo_vars
 
@@ -21,7 +22,6 @@ def build(
     build_exclude=None,
     flavor=AgentFlavor.base.name,
     install_path=None,
-    major_version='7',
     go_mod="readonly",
 ):
     """
@@ -29,19 +29,16 @@ def build(
     """
 
     flavor = AgentFlavor[flavor]
-    if flavor.is_ot():
-        flavor = AgentFlavor.base
 
     ldflags, gcflags, env = get_build_flags(
         ctx,
         install_path=install_path,
-        major_version=major_version,
     )
 
     # generate windows resources
     if sys.platform == 'win32':
         build_messagetable(ctx)
-        vars = versioninfo_vars(ctx, major_version=major_version)
+        vars = versioninfo_vars(ctx)
         build_rc(
             ctx,
             "cmd/trace-agent/windows/resources/trace-agent.rc",
@@ -60,19 +57,25 @@ def build(
     build_exclude = [] if build_exclude is None else build_exclude.split(",")
 
     build_tags = get_build_tags(build_include, build_exclude)
-
-    race_opt = "-race" if race else ""
-    build_type = "-a" if rebuild else ""
-    go_build_tags = " ".join(build_tags)
     agent_bin = os.path.join(BIN_PATH, bin_name("trace-agent"))
-    cmd = f"go build -mod={go_mod} {race_opt} {build_type} -tags \"{go_build_tags}\" "
-    cmd += f"-o {agent_bin} -gcflags=\"{gcflags}\" -ldflags=\"{ldflags}\" {REPO_PATH}/cmd/trace-agent"
 
     # go generate only works if you are in the module the target file is in, so we
     # need to move into the pkg/trace module.
     with ctx.cd("./pkg/trace"):
         ctx.run(f"go generate -mod={go_mod} {REPO_PATH}/pkg/trace/info", env=env)
-    ctx.run(cmd, env=env)
+    go_build(
+        ctx,
+        f"{REPO_PATH}/cmd/trace-agent",
+        mod=go_mod,
+        race=race,
+        rebuild=rebuild,
+        build_tags=build_tags,
+        bin_path=agent_bin,
+        ldflags=ldflags,
+        gcflags=gcflags,
+        env=env,
+        coverage=os.getenv("E2E_COVERAGE_PIPELINE") == "true",
+    )
 
 
 @task

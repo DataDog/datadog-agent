@@ -15,6 +15,7 @@ from tasks.github_tasks import (
     extract_test_qa_description,
     pr_merge_dd_event_sender,
 )
+from tasks.libs.pipeline.notifications import DEFAULT_SLACK_CHANNEL
 from tasks.libs.types.types import PermissionCheck
 
 
@@ -508,7 +509,7 @@ class TestCheckPermissions(unittest.TestCase):
             {'type': 'section', 'text': {'type': 'mrkdwn', 'text': 'Admins:\n - <http://zorro|zorro>\n'}},
         ]
         client_mock.chat_postMessage.assert_called_once_with(
-            channel="agent-devx-ops",
+            channel=DEFAULT_SLACK_CHANNEL,
             blocks=blocks,
             text=''.join(b['text']['text'] for b in blocks),
         )
@@ -517,10 +518,12 @@ class TestCheckPermissions(unittest.TestCase):
     @patch('slack_sdk.WebClient', autospec=True)
     @patch("tasks.libs.ciproviders.github_api.GithubAPI", autospec=True)
     def test_empty_team(self, gh_mock, web_mock):
-        gh_api, team_a, client_mock = MagicMock(), MagicMock(), MagicMock()
+        gh_api, team_a, team_b, client_mock = MagicMock(), MagicMock(), MagicMock(), MagicMock()
+        team_b.get_members.return_value = []
         team_a.slug = "secret-agent"
         team_a.html_url = "http://secret-agent"
         team_a.members_count = 0
+        gh_api.get_team.return_value = team_b
         gh_api.find_teams.return_value = [team_a]
         gh_mock.return_value = gh_api
         web_mock.return_value = client_mock
@@ -550,7 +553,7 @@ class TestCheckPermissions(unittest.TestCase):
             },
         ]
         client_mock.chat_postMessage.assert_called_once_with(
-            channel="agent-devx-ops",
+            channel=DEFAULT_SLACK_CHANNEL,
             blocks=blocks,
             text=''.join(b['text']['text'] for b in blocks),
         )
@@ -608,7 +611,7 @@ class TestCheckPermissions(unittest.TestCase):
             },
         ]
         client_mock.chat_postMessage.assert_called_once_with(
-            channel="agent-devx-ops",
+            channel=DEFAULT_SLACK_CHANNEL,
             blocks=blocks,
             text=''.join(b['text']['text'] for b in blocks),
         )
@@ -662,7 +665,7 @@ class TestCheckPermissions(unittest.TestCase):
             },
         ]
         client_mock.chat_postMessage.assert_called_once_with(
-            channel="agent-devx-ops",
+            channel=DEFAULT_SLACK_CHANNEL,
             blocks=blocks,
             text=''.join(b['text']['text'] for b in blocks),
         )

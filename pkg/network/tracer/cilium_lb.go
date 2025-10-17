@@ -13,6 +13,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"os"
 	"sync"
 	"time"
 	"unsafe"
@@ -27,6 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/netlink"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -106,28 +108,19 @@ type ciliumLoadBalancerConntracker struct {
 
 func newCiliumLoadBalancerConntracker(cfg *config.Config) (netlink.Conntracker, error) {
 	if !cfg.EnableCiliumLBConntracker {
-		return netlink.NewNoOpConntracker(), nil
+		log.Info("cilium conntracker disabled")
+		return nil, nil
 	}
 
-	ctTCP, err := ebpf.LoadPinnedMap("/sys/fs/bpf/tc/globals/cilium_ct4_global", &ebpf.LoadPinOptions{
-		ReadOnly: true,
-	})
+	ctTCP, ctUDP, backends, err := loadMaps()
 	if err != nil {
-		return nil, fmt.Errorf("error loading pinned ct TCP map: %w", err)
-	}
+		// special case where we couldn't find at least one map
+		if os.IsNotExist(err) {
+			log.Info("not loading cilium conntracker since cilium maps are not present")
+			return nil, nil
+		}
 
-	ctUDP, err := ebpf.LoadPinnedMap("/sys/fs/bpf/tc/globals/cilium_ct_any4_global", &ebpf.LoadPinOptions{
-		ReadOnly: true,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("error loading pinned ct UDP map: %w", err)
-	}
-
-	backends, err := ebpf.LoadPinnedMap("/sys/fs/bpf/tc/globals/cilium_lb4_backends_v3", &ebpf.LoadPinOptions{
-		ReadOnly: true,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("error loading pinned backends map: %w", err)
+		return nil, err
 	}
 
 	clb := &ciliumLoadBalancerConntracker{
@@ -158,7 +151,52 @@ func newCiliumLoadBalancerConntracker(cfg *config.Config) (netlink.Conntracker, 
 		}
 	}()
 
+	log.Info("cilium conntracker initialized")
 	return clb, nil
+}
+
+func loadMaps() (ctTCP, ctUDP, backends *ebpf.Map, err error) {
+	defer func() {
+		if err != nil {
+			ctTCP.Close()
+			ctUDP.Close()
+			backends.Close()
+		}
+	}()
+
+	ctTCP, err = loadMap(kernel.HostSys("/fs/bpf/tc/globals/cilium_ct4_global"))
+	if ctTCP == nil {
+		return nil, nil, nil, err
+	}
+
+	ctUDP, err = loadMap(kernel.HostSys("/fs/bpf/tc/globals/cilium_ct_any4_global"))
+	if ctUDP == nil {
+		return nil, nil, nil, err
+	}
+
+	backends, err = loadMap(kernel.HostSys("/fs/bpf/tc/globals/cilium_lb4_backends_v3"))
+	if backends == nil {
+		return nil, nil, nil, err
+	}
+
+	return ctTCP, ctUDP, backends, nil
+}
+
+func loadMap(path string) (m *ebpf.Map, err error) {
+	// check if the path exists first, since the errors returned
+	// from LoadPinnedMap are not consistent if it doesn't
+	if _, err = os.Stat(path); err != nil {
+		return nil, err
+	}
+
+	m, err = ebpf.LoadPinnedMap(path, &ebpf.LoadPinOptions{
+		ReadOnly: true,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("error loading pinned cilium map at %s: %w", path, err)
+	}
+
+	return m, nil
 }
 
 func ntohs(n uint16) uint16 {
@@ -290,6 +328,7 @@ func (clb *ciliumLoadBalancerConntracker) Close() {
 		clb.stop <- struct{}{}
 		<-clb.stop
 		clb.ctTCP.Map().Close()
+		clb.ctUDP.Map().Close()
 		clb.backends.Map().Close()
 	})
 }

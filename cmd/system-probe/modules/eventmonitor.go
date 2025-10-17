@@ -19,13 +19,14 @@ import (
 	secconfig "github.com/DataDog/datadog-agent/pkg/security/config"
 	secmodule "github.com/DataDog/datadog-agent/pkg/security/module"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
+	"github.com/DataDog/datadog-agent/pkg/system-probe/config"
 	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 var eventMonitorModuleConfigNamespaces = []string{"event_monitoring_config", "runtime_security_config"}
 
-func createEventMonitorModule(_ *sysconfigtypes.Config, deps module.FactoryDependencies) (module.Module, error) {
+func createEventMonitorModule(sysconfig *sysconfigtypes.Config, deps module.FactoryDependencies) (module.Module, error) {
 	emconfig := emconfig.NewConfig()
 
 	secconfig, err := secconfig.NewConfig()
@@ -47,18 +48,19 @@ func createEventMonitorModule(_ *sysconfigtypes.Config, deps module.FactoryDepen
 		secmodule.DisableRuntimeSecurity(secconfig)
 	}
 
-	evm, err := eventmonitor.NewEventMonitor(emconfig, secconfig, opts)
+	evm, err := eventmonitor.NewEventMonitor(emconfig, secconfig, deps.Ipc, opts)
 	if err != nil {
 		log.Errorf("error initializing event monitoring module: %v", err)
 		return nil, module.ErrNotEnabled
 	}
 
 	if secconfig.RuntimeSecurity.IsRuntimeEnabled() {
-		cws, err := secmodule.NewCWSConsumer(evm, secconfig.RuntimeSecurity, deps.WMeta, secmoduleOpts, deps.Compression)
+		cws, err := secmodule.NewCWSConsumer(evm, secconfig.RuntimeSecurity, deps.WMeta, secmoduleOpts, deps.Compression, deps.Ipc)
 		if err != nil {
 			return nil, err
 		}
 		evm.RegisterEventConsumer(cws)
+		evm.SetCWSStatusProvider(cws)
 		log.Info("event monitoring cws consumer initialized")
 	}
 
@@ -96,6 +98,13 @@ func createEventMonitorModule(_ *sysconfigtypes.Config, deps module.FactoryDepen
 		err := createGPUProcessEventConsumer(evm)
 		if err != nil {
 			return nil, fmt.Errorf("cannot create event consumer for GPU: %w", err)
+		}
+	}
+
+	if sysconfig.ModuleIsEnabled(config.DynamicInstrumentationModule) {
+		err := createGoDIProcessEventConsumer(evm)
+		if err != nil {
+			return nil, fmt.Errorf("cannot create event consumer for dynamic instrumentation: %w", err)
 		}
 	}
 

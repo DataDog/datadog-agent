@@ -20,12 +20,9 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logfx "github.com/DataDog/datadog-agent/comp/core/log/fx"
 	"github.com/DataDog/datadog-agent/comp/core/pid/pidimpl"
-	"github.com/DataDog/datadog-agent/comp/core/secrets"
-	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 // team: agent-runtimes
@@ -39,11 +36,9 @@ func Bundle() fxutil.BundleOptions {
 		fx.Provide(func(params BundleParams) log.Params { return params.LogParams }),
 		logfx.Module(),
 		fx.Provide(func(params BundleParams) sysprobeconfigimpl.Params { return params.SysprobeConfigParams }),
-		secretsimpl.Module(),
-		fx.Provide(func(params BundleParams) secrets.Params { return params.SecretParams }),
-		fx.Provide(func(secrets secrets.Component) option.Option[secrets.Component] { return option.New(secrets) }),
 		sysprobeconfigimpl.Module(),
 		telemetryimpl.Module(),
 		hostnameimpl.Module(),
-		pidimpl.Module()) // You must supply pidimpl.NewParams in order to use it
+		pidimpl.Module(), // You must supply pidimpl.NewParams in order to use it
+	)
 }

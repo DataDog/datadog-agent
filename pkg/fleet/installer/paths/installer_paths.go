@@ -19,12 +19,16 @@ const (
 	RootTmpDir = "/opt/datadog-packages/tmp"
 	// DefaultUserConfigsDir is the default Agent configuration directory.
 	DefaultUserConfigsDir = "/etc"
+	// AgentConfigDir is the path to the agent configuration directory.
+	AgentConfigDir = "/etc/datadog-agent"
 	// StableInstallerPath is the path to the stable installer binary.
 	StableInstallerPath = "/opt/datadog-packages/datadog-installer/stable/bin/installer/installer"
 	// ExperimentInstallerPath is the path to the experiment installer binary.
 	ExperimentInstallerPath = "/opt/datadog-packages/datadog-installer/experiment/bin/installer/installer"
 	// RunPath is the default run path
 	RunPath = "/opt/datadog-packages/run"
+	// DatadogDataDir is the path to the Datadog data directory.
+	DatadogDataDir = "/etc/datadog-agent"
 )
 
 // EnsureInstallerDataDir ensures that permissions are set correctly on the installer data directory.

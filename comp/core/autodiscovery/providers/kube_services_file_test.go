@@ -58,7 +58,7 @@ func TestToKubernetesServiceChecks(t *testing.T) {
 				{
 					Name:                  "check",
 					Instances:             []integration.Data{integration.Data("foo: bar")},
-					AdvancedADIdentifiers: []integration.AdvancedADIdentifier{{KubeEndpoints: kubeNsName("svc-ns", "svc-name")}},
+					AdvancedADIdentifiers: []integration.AdvancedADIdentifier{{KubeEndpoints: kubeEndpointIdentifier("svc-ns", "svc-name", "")}},
 				},
 			},
 			want: []integration.Config{},
@@ -71,7 +71,7 @@ func TestToKubernetesServiceChecks(t *testing.T) {
 					Instances: []integration.Data{integration.Data("foo: bar")},
 					AdvancedADIdentifiers: []integration.AdvancedADIdentifier{{
 						KubeService:   kubeNsName("svc-ns", "svc-name"),
-						KubeEndpoints: kubeNsName("svc-ns", "svc-name"),
+						KubeEndpoints: kubeEndpointIdentifier("svc-ns", "svc-name", ""),
 					}},
 				},
 			},

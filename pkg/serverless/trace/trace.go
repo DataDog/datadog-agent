@@ -10,24 +10,28 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
 
 	"github.com/DataDog/datadog-agent/cmd/serverless-init/cloudservice"
 	remotecfg "github.com/DataDog/datadog-agent/cmd/trace-agent/config/remote"
-	authtokennoneimpl "github.com/DataDog/datadog-agent/comp/api/authtoken/noneimpl"
 	compcorecfg "github.com/DataDog/datadog-agent/comp/core/config"
+	authtokennoneimpl "github.com/DataDog/datadog-agent/comp/core/ipc/impl-none"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	zstd "github.com/DataDog/datadog-agent/comp/trace/compression/impl-zstd"
 	comptracecfg "github.com/DataDog/datadog-agent/comp/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	remoteconfig "github.com/DataDog/datadog-agent/pkg/config/remote/service"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
+	serverlessmodifier "github.com/DataDog/datadog-agent/pkg/serverless/trace/modifier"
 	"github.com/DataDog/datadog-agent/pkg/trace/agent"
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
+	"github.com/DataDog/datadog-agent/pkg/trace/stats"
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/trace/timing"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -70,6 +74,9 @@ const dnsAddressMetaKey = "dns.address"
 // lambdaRuntimeUrlPrefix is the first part of a URL for a call to the Lambda runtime API. The value may be replaced if `AWS_LAMBDA_RUNTIME_API` is set.
 var lambdaRuntimeURLPrefix = "http://127.0.0.1:9001"
 
+// disableTraceStatsEnvVar is the environment variable to disable trace stats computation in serverless-init
+const disableTraceStatsEnvVar = "DD_SERVERLESS_INIT_DISABLE_TRACE_STATS"
+
 // lambdaExtensionURLPrefix is the first part of a URL for a call from the Datadog Lambda Library to the Lambda Extension
 const lambdaExtensionURLPrefix = "http://127.0.0.1:8124"
 
@@ -93,17 +100,19 @@ func (l *LoadConfig) Load() (*config.AgentConfig, error) {
 	if err != nil {
 		return nil, err
 	}
-	return comptracecfg.LoadConfigFile(l.Path, c, l.Tagger, authtokennoneimpl.NewNoopAuthToken())
+
+	return comptracecfg.LoadConfigFile(l.Path, c, l.Tagger, authtokennoneimpl.NewNoopIPC().Comp)
 }
 
 // StartServerlessTraceAgentArgs are the arguments for the StartServerlessTraceAgent method
 type StartServerlessTraceAgentArgs struct {
-	Enabled               bool
-	LoadConfig            Load
-	LambdaSpanChan        chan<- *pb.Span
-	ColdStartSpanID       uint64
-	AzureContainerAppTags string
-	RCService             *remoteconfig.CoreAgentService
+	Enabled             bool
+	LoadConfig          Load
+	LambdaSpanChan      chan<- *pb.Span
+	ColdStartSpanID     uint64
+	AzureServerlessTags string
+	FunctionTags        string
+	RCService           *remoteconfig.CoreAgentService
 }
 
 // Start starts the agent
@@ -126,13 +135,21 @@ func StartServerlessTraceAgent(args StartServerlessTraceAgentArgs) ServerlessTra
 			context, cancel := context.WithCancel(context.Background())
 			tc.Hostname = ""
 			tc.SynchronousFlushing = true
-			tc.AzureContainerAppTags = args.AzureContainerAppTags
+			tc.AzureServerlessTags = args.AzureServerlessTags
 			ta := agent.NewAgent(context, tc, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, zstd.NewComponent())
+
+			// Check if trace stats should be disabled for serverless
+			if disabled, _ := strconv.ParseBool(os.Getenv(disableTraceStatsEnvVar)); disabled {
+				log.Debug("Trace stats computation disabled for serverless via DD_SERVERLESS_INIT_DISABLE_TRACE_STATS")
+				ta.Concentrator = &noopConcentrator{}
+			}
+
 			ta.SpanModifier = &spanModifier{
 				coldStartSpanId: args.ColdStartSpanID,
 				lambdaSpanChan:  args.LambdaSpanChan,
 				ddOrigin:        getDDOrigin(),
 			}
+			ta.TracerPayloadModifier = serverlessmodifier.NewTracerPayloadModifier(args.FunctionTags)
 
 			ta.DiscardSpan = filterSpanFromLambdaLibraryOrRuntime
 			startTraceAgentConfigEndpoint(args.RCService, tc)
@@ -149,7 +166,7 @@ func StartServerlessTraceAgent(args StartServerlessTraceAgentArgs) ServerlessTra
 }
 
 func startTraceAgentConfigEndpoint(rcService *remoteconfig.CoreAgentService, tc *config.AgentConfig) {
-	if pkgconfigsetup.IsRemoteConfigEnabled(pkgconfigsetup.Datadog()) && rcService != nil {
+	if configUtils.IsRemoteConfigEnabled(pkgconfigsetup.Datadog()) && rcService != nil {
 		statsdNoopClient := &statsd.NoOpClient{}
 		api.AttachEndpoint(api.Endpoint{
 			Pattern: "/v0.7/config",
@@ -277,6 +294,14 @@ func getDDOrigin() string {
 	}
 	return origin
 }
+
+// noopConcentrator is a no-op implementation of agent.Concentrator interface
+type noopConcentrator struct{}
+
+func (c noopConcentrator) Start()              {}
+func (c noopConcentrator) Stop()               {}
+func (c noopConcentrator) Add(stats.Input)     {}
+func (c noopConcentrator) AddV1(stats.InputV1) {}
 
 type noopTraceAgent struct{}
 

@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"path"
+	"slices"
 	"strconv"
 	"sync"
 	"time"
@@ -20,9 +21,13 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/gpu/config/consts"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
+	"github.com/DataDog/datadog-agent/pkg/status/health"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const fatbinFileCacheCleanupInterval = 5 * time.Minute
+
+const kernelCacheConsumerHealthName = "gpu-consumer-kernel-cache"
 
 // kernelKey is a key to identify a kernel in the cache.
 type kernelKey struct {
@@ -76,8 +81,8 @@ type KernelCache struct {
 	// pidMaps is a map of process ID to its memory maps. Only accessed in the processRequests goroutine, so we don't need to lock it
 	pidMaps map[int][]*procfs.ProcMap
 
-	// smVersionSet is a set of SM versions that we support, to avoid loading fatbins for unsupported versions
-	smVersionSet map[uint32]struct{}
+	// smVersionSet gets the set of SM versions that we support, to avoid loading fatbins for unsupported versions
+	smVersionSet func() (map[uint32]struct{}, error)
 
 	// procRoot is the root directory for process information
 	procRoot string
@@ -116,7 +121,7 @@ func newKernelCacheTelemetry(tm telemetry.Component) *kernelCacheTelemetry {
 }
 
 // NewKernelCache creates a new kernel cache with background processing
-func NewKernelCache(procRoot string, smVersionSet map[uint32]struct{}, tm telemetry.Component, queueSize int) (*KernelCache, error) {
+func NewKernelCache(procRoot string, smVersionSet func() (map[uint32]struct{}, error), tm telemetry.Component, queueSize int) (*KernelCache, error) {
 	kc := &KernelCache{
 		cache:        make(map[kernelKey]*KernelData),
 		cudaSymbols:  make(map[symbolFileIdentifier]*symbolsEntry),
@@ -170,7 +175,12 @@ func (kc *KernelCache) getCudaSymbols(path string) (*symbolsEntry, error) {
 		return data, nil
 	}
 
-	data, err := GetSymbols(path, kc.smVersionSet)
+	smVersionSet, err := kc.smVersionSet()
+	if err != nil {
+		return nil, fmt.Errorf("error getting sm version set: %w", err)
+	}
+
+	data, err := GetSymbols(path, smVersionSet)
 	if err != nil {
 		kc.telemetry.readErrors.Inc()
 		return nil, fmt.Errorf("error getting file data: %w", err)
@@ -277,6 +287,14 @@ func (kc *KernelCache) processRequests() {
 	fatbinCleanup := time.NewTicker(fatbinFileCacheCleanupInterval)
 	defer fatbinCleanup.Stop()
 
+	handle := health.RegisterLiveness(kernelCacheConsumerHealthName)
+	defer func() {
+		err := handle.Deregister()
+		if err != nil {
+			log.Errorf("error de-registering health check: %s", err)
+		}
+	}()
+
 	for {
 		select {
 		case key := <-kc.requests:
@@ -300,6 +318,8 @@ func (kc *KernelCache) processRequests() {
 			kc.telemetry.activePIDs.Set(float64(len(kc.pidMaps)))
 		case <-fatbinCleanup.C:
 			kc.CleanOld()
+		case <-handle.C:
+			continue
 		case <-kc.done:
 			return
 		}
@@ -359,4 +379,20 @@ func (kc *KernelCache) CleanOld() {
 	}
 
 	kc.telemetry.symbolCacheSize.Set(float64(len(kc.cudaSymbols)))
+}
+
+// GetStats returns stats for the kernel cache instance. Supports being called on a nil instance.
+func (kc *KernelCache) GetStats() map[string]interface{} {
+	if kc == nil {
+		return map[string]interface{}{
+			"active": false,
+		}
+	}
+
+	healthStatus := health.GetLive()
+
+	return map[string]interface{}{
+		"active":                true,
+		"kernel_reader_healthy": slices.Contains(healthStatus.Healthy, kernelCacheConsumerHealthName),
+	}
 }

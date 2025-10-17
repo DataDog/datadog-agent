@@ -3,8 +3,8 @@ include:
   - .gitlab/common/container_publish_job_templates.yml
 
 .deploy_packages_oci:
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/gitlab_agent_deploy$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
-  tags: ["arch:amd64"]
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/gitlab_agent_deploy$CI_IMAGE_GITLAB_AGENT_DEPLOY_SUFFIX:$CI_IMAGE_GITLAB_AGENT_DEPLOY
+  tags: ["arch:amd64", "specific:true"]
   stage: deploy_packages
   rules:
     - !reference [.on_deploy]
@@ -30,13 +30,6 @@ include:
     - datadog-package replicate-s3 registry.ddbuild.io/ci/remote-updates/${OCI_PRODUCT}:pipeline-${CI_PIPELINE_ID} us-east-1 ${INSTALLER_TESTING_S3_BUCKET} ${S3_PACKAGE} ${VERSION_NO_PIPELINE}
     - datadog-package replicate-s3 registry.ddbuild.io/ci/remote-updates/${OCI_PRODUCT}:pipeline-${CI_PIPELINE_ID} us-east-1 ${INSTALLER_TESTING_S3_BUCKET} ${S3_PACKAGE} ${CI_COMMIT_SHA}
     - datadog-package replicate-s3 registry.ddbuild.io/ci/remote-updates/${OCI_PRODUCT}:pipeline-${CI_PIPELINE_ID} us-east-1 ${INSTALLER_TESTING_S3_BUCKET} ${S3_PACKAGE} pipeline-${CI_PIPELINE_ID}
-    # necessary for ddstaging until we deprecate `-dev` packaging
-    - datadog-package replicate-s3 registry.ddbuild.io/ci/remote-updates/${OCI_PRODUCT}:pipeline-${CI_PIPELINE_ID} us-east-1 ${INSTALLER_TESTING_S3_BUCKET} ${S3_STAGING_PACKAGE} ${VERSION}
-    - datadog-package replicate-s3 registry.ddbuild.io/ci/remote-updates/${OCI_PRODUCT}:pipeline-${CI_PIPELINE_ID} us-east-1 ${INSTALLER_TESTING_S3_BUCKET} ${S3_PACKAGE} ${VERSION_NO_PIPELINE}
-    - datadog-package replicate-s3 registry.ddbuild.io/ci/remote-updates/${OCI_PRODUCT}:pipeline-${CI_PIPELINE_ID} us-east-1 ${INSTALLER_TESTING_S3_BUCKET} ${S3_STAGING_PACKAGE} ${CI_COMMIT_SHA}
-    - datadog-package replicate-s3 registry.ddbuild.io/ci/remote-updates/${OCI_PRODUCT}:pipeline-${CI_PIPELINE_ID} us-east-1 ${INSTALLER_TESTING_S3_BUCKET} ${S3_STAGING_PACKAGE} pipeline-${CI_PIPELINE_ID}
-  variables:
-    MAJOR_VERSION: 7
 
 deploy_agent_oci:
   extends: ".deploy_packages_oci"
@@ -44,7 +37,6 @@ deploy_agent_oci:
   variables:
     OCI_PRODUCT: "datadog-agent"
     S3_PACKAGE: "agent-package"
-    S3_STAGING_PACKAGE: "agent-package-dev"
 
 deploy_installer_oci:
   extends: ".deploy_packages_oci"
@@ -52,4 +44,10 @@ deploy_installer_oci:
   variables:
     OCI_PRODUCT: "datadog-installer"
     S3_PACKAGE: "installer-package"
-    S3_STAGING_PACKAGE: "installer-package-dev"
+
+deploy_ddot_oci:
+  extends: ".deploy_packages_oci"
+  needs: [ "ddot_oci", "go_tools_deps" ]
+  variables:
+    OCI_PRODUCT: "datadog-agent-ddot"
+    S3_PACKAGE: "ddot-package"

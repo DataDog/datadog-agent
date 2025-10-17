@@ -3,8 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux || windows
-
 package modules
 
 import (
@@ -14,10 +12,10 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+	"sync/atomic"
 	"time"
 
 	"github.com/gorilla/mux"
-	"go.uber.org/atomic"
 	"google.golang.org/grpc"
 
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
@@ -27,6 +25,8 @@ import (
 	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+func init() { registerModule(Traceroute) }
 
 type traceroute struct {
 	runner *runner.Runner
@@ -54,16 +54,24 @@ func (t *traceroute) GetStats() map[string]interface{} {
 }
 
 func (t *traceroute) Register(httpMux *module.Router) error {
-	var runCounter = atomic.NewUint64(0)
+	// Start platform-specific driver (Windows only, no-op on other platforms)
+	driverError := startPlatformDriver()
+
+	var runCounter atomic.Uint64
 
 	// TODO: what other config should be passed as part of this request?
 	httpMux.HandleFunc("/traceroute/{host}", func(w http.ResponseWriter, req *http.Request) {
 		start := time.Now()
-		id := getClientID(req)
 		cfg, err := parseParams(req)
 		if err != nil {
 			log.Errorf("invalid params for host: %s: %s", cfg.DestHostname, err)
 			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+
+		if driverError != nil && !cfg.DisableWindowsDriver {
+			log.Errorf("failed to start platform driver: %s", driverError)
+			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
 
@@ -86,8 +94,9 @@ func (t *traceroute) Register(httpMux *module.Router) error {
 			log.Errorf("unable to write traceroute response: %s", err)
 		}
 
-		runCount := runCounter.Inc()
-		logTracerouteRequests(cfg, id, runCount, start)
+		runCount := runCounter.Add(1)
+
+		logTracerouteRequests(req.URL, runCount, start)
 	})
 
 	return nil
@@ -97,16 +106,20 @@ func (t *traceroute) RegisterGRPC(_ grpc.ServiceRegistrar) error {
 	return nil
 }
 
-func (t *traceroute) Close() {}
+func (t *traceroute) Close() {
+	err := stopPlatformDriver()
+	if err != nil {
+		log.Errorf("failed to stop platform driver: %s", err)
+	}
+}
 
-func logTracerouteRequests(cfg tracerouteutil.Config, client string, runCount uint64, start time.Time) {
-	args := []interface{}{cfg.DestHostname, client, cfg.DestPort, cfg.MaxTTL, cfg.Timeout, cfg.Protocol, runCount, time.Since(start)}
-	msg := "Got request on /traceroute/%s?client_id=%s&port=%d&maxTTL=%d&timeout=%d&protocol=%s (count: %d): retrieved traceroute in %s"
+func logTracerouteRequests(url *url.URL, runCount uint64, start time.Time) {
+	msg := fmt.Sprintf("Got request on %s?%s (count: %d): retrieved traceroute in %s", url.RawPath, url.RawQuery, runCount, time.Since(start))
 	switch {
 	case runCount <= 5, runCount%200 == 0:
-		log.Infof(msg, args...)
+		log.Info(msg)
 	default:
-		log.Debugf(msg, args...)
+		log.Debug(msg)
 	}
 }
 
@@ -129,13 +142,31 @@ func parseParams(req *http.Request) (tracerouteutil.Config, error) {
 		return tracerouteutil.Config{}, fmt.Errorf("invalid timeout: %s", err)
 	}
 	protocol := query.Get("protocol")
+	tcpMethod := query.Get("tcp_method")
+	tcpSynParisTracerouteMode := query.Get("tcp_syn_paris_traceroute_mode")
+	disableWindowsDriver := query.Get("disable_windows_driver")
+	reverseDNS := query.Get("reverse_dns")
+	tracerouteQueries, err := parseUint(query, "traceroute_queries", 32)
+	if err != nil {
+		return tracerouteutil.Config{}, fmt.Errorf("invalid traceroute_queries: %s", err)
+	}
+	e2eQueries, err := parseUint(query, "e2e_queries", 32)
+	if err != nil {
+		return tracerouteutil.Config{}, fmt.Errorf("invalid e2e_queries: %s", err)
+	}
 
 	return tracerouteutil.Config{
-		DestHostname: host,
-		DestPort:     uint16(port),
-		MaxTTL:       uint8(maxTTL),
-		Timeout:      time.Duration(timeout),
-		Protocol:     payload.Protocol(protocol),
+		DestHostname:              host,
+		DestPort:                  uint16(port),
+		MaxTTL:                    uint8(maxTTL),
+		Timeout:                   time.Duration(timeout),
+		Protocol:                  payload.Protocol(protocol),
+		TCPMethod:                 payload.TCPMethod(tcpMethod),
+		TCPSynParisTracerouteMode: tcpSynParisTracerouteMode == "true",
+		DisableWindowsDriver:      disableWindowsDriver == "true",
+		ReverseDNS:                reverseDNS == "true",
+		TracerouteQueries:         int(tracerouteQueries),
+		E2eQueries:                int(e2eQueries),
 	}, nil
 }
 

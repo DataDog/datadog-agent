@@ -69,6 +69,7 @@ type EnvOpts struct {
 	RunAgent              bool
 	APIKey                string
 	AgentVersion          string
+	SetupGDB              bool
 }
 
 // TestEnv represents options for a particular test environment
@@ -220,6 +221,7 @@ func NewTestEnv(name, x86InstanceType, armInstanceType string, opts *EnvOpts) (*
 		"microvm:arm64AmiID":                     auto.ConfigValue{Value: opts.ArmAmiID},
 		"microvm:localWorkingDir":                auto.ConfigValue{Value: customAMILocalWorkingDir},
 		"microvm:remoteWorkingDir":               auto.ConfigValue{Value: customAMIRemoteWorkingDir},
+		"microvm:setupGDB":                       auto.ConfigValue{Value: strconv.FormatBool(opts.SetupGDB)},
 		"ddagent:deploy":                         auto.ConfigValue{Value: strconv.FormatBool(opts.RunAgent)},
 		"ddagent:apiKey":                         auto.ConfigValue{Value: apiKey, Secret: true},
 	}

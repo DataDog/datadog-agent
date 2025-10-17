@@ -9,13 +9,15 @@ import (
 	"context"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/testutil"
+
 	"github.com/stretchr/testify/assert"
 	"go.opentelemetry.io/collector/consumer/consumertest"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/pmetric"
 	"go.opentelemetry.io/collector/processor/processortest"
-	conventions "go.opentelemetry.io/collector/semconv/v1.21.0"
-	conventions22 "go.opentelemetry.io/collector/semconv/v1.22.0"
+	conventions "go.opentelemetry.io/otel/semconv/v1.21.0"
+	conventions22 "go.opentelemetry.io/otel/semconv/v1.22.0"
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 )
@@ -101,6 +103,67 @@ var (
 				},
 			},
 		},
+		{
+			name: "detect container.id from PID",
+			inMetrics: testResourceMetrics([]metricWithResource{
+				{
+					metricNames: inMetricNames,
+					resourceAttributes: map[string]any{
+						"process.pid": int64(12345),
+					},
+				},
+			}),
+			outResourceAttributes: []map[string]any{
+				{
+					"global":       "tag",
+					"process.pid":  int64(12345),
+					"container.id": "test",
+					"container":    "id",
+				},
+			},
+		},
+		{
+			name: "detect container.id from cgroup inode",
+			inMetrics: testResourceMetrics([]metricWithResource{
+				{
+					metricNames: inMetricNames,
+					resourceAttributes: map[string]any{
+						"datadog.container.cgroup_inode": int64(12345),
+					},
+				},
+			}),
+			outResourceAttributes: []map[string]any{
+				{
+					"global":                         "tag",
+					"datadog.container.cgroup_inode": int64(12345),
+					"container.id":                   "test",
+					"container":                      "id",
+				},
+			},
+		},
+		{
+			name: "detect container.id from pod UID + container name",
+			inMetrics: testResourceMetrics([]metricWithResource{
+				{
+					metricNames: inMetricNames,
+					resourceAttributes: map[string]any{
+						"k8s.pod.uid":               "01234567-89ab-cdef-0123-456789abcdef",
+						"k8s.container.name":        "mycontainer",
+						"datadog.container.is_init": true,
+					},
+				},
+			}),
+			outResourceAttributes: []map[string]any{
+				{
+					"global":                    "tag",
+					"k8s.pod.uid":               "01234567-89ab-cdef-0123-456789abcdef",
+					"k8s.container.name":        "mycontainer",
+					"datadog.container.is_init": true,
+					"container.id":              "test",
+					"container":                 "id",
+				},
+			},
+		},
 	}
 )
 
@@ -125,13 +188,15 @@ func TestInfraAttributesMetricProcessor(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			next := new(consumertest.MetricsSink)
 			cfg := &Config{
-				Metrics:     MetricInfraAttributes{},
 				Cardinality: types.LowCardinality,
 			}
-			tc := newTestTaggerClient()
-			tc.tagMap["container_id://test"] = []string{"container:id"}
-			tc.tagMap["deployment://namespace/deployment"] = []string{"deployment:name"}
-			tc.tagMap[types.NewEntityID("internal", "global-entity-id").String()] = []string{"global:tag"}
+			tc := testutil.NewTestTaggerClient()
+			tc.TagMap["container_id://test"] = []string{"container:id"}
+			tc.TagMap["deployment://namespace/deployment"] = []string{"deployment:name"}
+			tc.TagMap[types.NewEntityID("internal", "global-entity-id").String()] = []string{"global:tag"}
+			tc.ContainerIDMap["pid:12345"] = "test"
+			tc.ContainerIDMap["inode:12345"] = "test"
+			tc.ContainerIDMap["pod:01234567-89ab-cdef-0123-456789abcdef,name:mycontainer,init:true"] = "test"
 
 			factory := NewFactoryForAgent(tc, func(_ context.Context) (string, error) {
 				return "test-host", nil
@@ -180,8 +245,8 @@ func TestEntityIDsFromAttributes(t *testing.T) {
 			attrs: func() pcommon.Map {
 				attributes := pcommon.NewMap()
 				attributes.FromRaw(map[string]interface{}{
-					conventions.AttributeContainerID: "container_id_goes_here",
-					conventions.AttributeK8SPodUID:   "k8s_pod_uid_goes_here",
+					string(conventions.ContainerIDKey): "container_id_goes_here",
+					string(conventions.K8SPodUIDKey):   "k8s_pod_uid_goes_here",
 				})
 				return attributes
 			}(),
@@ -192,7 +257,7 @@ func TestEntityIDsFromAttributes(t *testing.T) {
 			attrs: func() pcommon.Map {
 				attributes := pcommon.NewMap()
 				attributes.FromRaw(map[string]interface{}{
-					conventions22.AttributeOciManifestDigest: "docker.io/foo@sha256:sha_goes_here",
+					string(conventions22.OciManifestDigestKey): "docker.io/foo@sha256:sha_goes_here",
 				})
 				return attributes
 			}(),
@@ -203,7 +268,7 @@ func TestEntityIDsFromAttributes(t *testing.T) {
 			attrs: func() pcommon.Map {
 				attributes := pcommon.NewMap()
 				attributes.FromRaw(map[string]interface{}{
-					conventions.AttributeAWSECSTaskARN: "ecs_task_arn_goes_here",
+					string(conventions.AWSECSTaskARNKey): "ecs_task_arn_goes_here",
 				})
 				return attributes
 			}(),
@@ -214,7 +279,7 @@ func TestEntityIDsFromAttributes(t *testing.T) {
 			attrs: func() pcommon.Map {
 				attributes := pcommon.NewMap()
 				attributes.FromRaw(map[string]interface{}{
-					conventions.AttributeK8SDeploymentName: "k8s_deployment_name_goes_here",
+					string(conventions.K8SDeploymentNameKey): "k8s_deployment_name_goes_here",
 				})
 				return attributes
 			}(),
@@ -225,8 +290,8 @@ func TestEntityIDsFromAttributes(t *testing.T) {
 			attrs: func() pcommon.Map {
 				attributes := pcommon.NewMap()
 				attributes.FromRaw(map[string]interface{}{
-					conventions.AttributeK8SDeploymentName: "k8s_deployment_name_goes_here",
-					conventions.AttributeK8SNamespaceName:  "k8s_namespace_goes_here",
+					string(conventions.K8SDeploymentNameKey): "k8s_deployment_name_goes_here",
+					string(conventions.K8SNamespaceNameKey):  "k8s_namespace_goes_here",
 				})
 				return attributes
 			}(),
@@ -237,7 +302,7 @@ func TestEntityIDsFromAttributes(t *testing.T) {
 			attrs: func() pcommon.Map {
 				attributes := pcommon.NewMap()
 				attributes.FromRaw(map[string]interface{}{
-					conventions.AttributeK8SNamespaceName: "k8s_namespace_goes_here",
+					string(conventions.K8SNamespaceNameKey): "k8s_namespace_goes_here",
 				})
 				return attributes
 			}(),
@@ -248,7 +313,7 @@ func TestEntityIDsFromAttributes(t *testing.T) {
 			attrs: func() pcommon.Map {
 				attributes := pcommon.NewMap()
 				attributes.FromRaw(map[string]interface{}{
-					conventions.AttributeK8SNodeName: "k8s_node_name_goes_here",
+					string(conventions.K8SNodeNameKey): "k8s_node_name_goes_here",
 				})
 				return attributes
 			}(),
@@ -259,7 +324,7 @@ func TestEntityIDsFromAttributes(t *testing.T) {
 			attrs: func() pcommon.Map {
 				attributes := pcommon.NewMap()
 				attributes.FromRaw(map[string]interface{}{
-					conventions.AttributeProcessPID: "process_pid_goes_here",
+					string(conventions.ProcessPIDKey): "process_pid_goes_here",
 				})
 				return attributes
 			}(),

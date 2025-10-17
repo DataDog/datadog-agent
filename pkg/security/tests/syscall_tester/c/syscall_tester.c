@@ -14,15 +14,18 @@
 #include <sys/stat.h>
 #include <sys/fsuid.h>
 #include <sys/mman.h>
+#include <sys/prctl.h>
 #include <fcntl.h>
 #include <pthread.h>
 #include <signal.h>
 #include <errno.h>
 #include <arpa/inet.h>
 #include <linux/un.h>
+#include <linux/prctl.h>
 #include <err.h>
 #include <limits.h>
 #include <sys/time.h>
+#include <sys/resource.h>
 
 #define RPC_CMD 0xdeadc001
 #define REGISTER_SPAN_TLS_OP 6
@@ -194,6 +197,70 @@ int ptrace_attach() {
         ptrace(PTRACE_ATTACH, child, 0, NULL);
         wait(NULL);
         sleep(3); // sleep here to let the agent resolve the pid namespace on procfs
+    }
+    return EXIT_SUCCESS;
+}
+
+int setrlimit_nofile() {
+    struct rlimit rlim;
+    rlim.rlim_cur = 1024;  // soft limit
+    rlim.rlim_max = 2048;  // hard limit
+
+    if (setrlimit(RLIMIT_NOFILE, &rlim) < 0) {
+        perror("setrlimit RLIMIT_NOFILE");
+        return EXIT_FAILURE;
+    }
+    return EXIT_SUCCESS;
+}
+
+int setrlimit_nproc() {
+    struct rlimit rlim;
+    rlim.rlim_cur = 512;   // soft limit
+    rlim.rlim_max = 1024;  // hard limit
+
+    if (setrlimit(RLIMIT_NPROC, &rlim) < 0) {
+        perror("setrlimit RLIMIT_NPROC");
+        return EXIT_FAILURE;
+    }
+    return EXIT_SUCCESS;
+}
+
+int prlimit64_stack(void) {
+    struct rlimit64 rlim;
+    rlim.rlim_cur = 1024;
+    rlim.rlim_max = 2048;
+
+    pid_t dummy_pid = fork();
+    if (dummy_pid < 0) {
+        perror("fork");
+        return EXIT_FAILURE;
+    }
+
+    if (dummy_pid == 0) {
+        sleep(30);
+        return EXIT_SUCCESS;
+    }
+
+    if (prlimit64(dummy_pid, RLIMIT_STACK, &rlim, NULL) < 0) {
+        perror("prlimit64 RLIMIT_STACK");
+        kill(dummy_pid, SIGTERM);
+        waitpid(dummy_pid, NULL, 0);
+        return EXIT_FAILURE;
+    }
+
+    kill(dummy_pid, SIGTERM);
+    waitpid(dummy_pid, NULL, 0);
+    return EXIT_SUCCESS;
+}
+
+int setrlimit_core() {
+    struct rlimit rlim;
+    rlim.rlim_cur = 0;      // no core dumps
+    rlim.rlim_max = 0;      // no core dumps
+
+    if (setrlimit(RLIMIT_CORE, &rlim) < 0) {
+        perror("setrlimit RLIMIT_CORE");
+        return EXIT_FAILURE;
     }
     return EXIT_SUCCESS;
 }
@@ -695,10 +762,11 @@ int test_bind(int argc, char** argv) {
 
 int test_connect_af_inet(int argc, char** argv) {
 
-    if (argc != 3) {
+    if (argc != 4) {
         fprintf(stderr, "%s: please specify a valid command:\n", __FUNCTION__);
         fprintf(stderr, "Arg1: an option for the addr in the list: any, custom_ip\n");
         fprintf(stderr, "Arg2: an option for the protocol in the list: tcp, udp\n");
+        fprintf(stderr, "Arg3: the port number to connect to\n");
         return EXIT_FAILURE;
     }
 
@@ -734,7 +802,7 @@ int test_connect_af_inet(int argc, char** argv) {
         return EXIT_FAILURE;
     }
 
-    addr.sin_port = htons(4242);
+    addr.sin_port = htons(atoi(argv[3]));
 
     if (connect(s, (struct sockaddr*)&addr, sizeof(addr)) < 0) {
         close(s);
@@ -748,10 +816,11 @@ int test_connect_af_inet(int argc, char** argv) {
 
 int test_connect_af_inet6(int argc, char** argv) {
 
-    if (argc != 3) {
+    if (argc != 4) {
         fprintf(stderr, "%s: please specify a valid command:\n", __FUNCTION__);
         fprintf(stderr, "Arg1: an option for the addr in the list: any, custom_ip\n");
         fprintf(stderr, "Arg2: an option for the protocol in the list: tcp, udp\n");
+        fprintf(stderr, "Arg3: the port number to connect to\n");
         return EXIT_FAILURE;
     }
 
@@ -782,7 +851,7 @@ int test_connect_af_inet6(int argc, char** argv) {
         return EXIT_FAILURE;
     }
 
-    addr.sin6_port = htons(4242);
+    addr.sin6_port = htons(atoi(argv[3]));
     if (connect(s, (struct sockaddr*)&addr, sizeof(addr)) < 0) {
         close(s);
         perror("Failed to connect to port");
@@ -792,6 +861,54 @@ int test_connect_af_inet6(int argc, char** argv) {
     close(s);
     return EXIT_SUCCESS;
 }
+
+int test_connect_af_unix(int argc, char** argv) {
+    if (argc != 4) {
+        fprintf(stderr, "%s: please specify a valid command:\n", __FUNCTION__);
+        fprintf(stderr, "Arg1: the path of the UNIX socket to connect to\n");
+        fprintf(stderr, "Arg2: an option for the protocol in the list: tcp, udp\n");
+        fprintf(stderr, "Note: the UNIX socket must be created before running this command so the port does not matter\n");
+        return EXIT_FAILURE;
+    }
+
+    char *proto = argv[2];
+    int s;
+    if (!strcmp(proto, "tcp")) {
+        s = socket(AF_UNIX, SOCK_STREAM, 0);
+    } else if (!strcmp(proto, "udp")) {
+        s = socket(AF_UNIX, SOCK_DGRAM, 0);
+    } else {
+        fprintf(stderr, "Please specify an option in the list: tcp, udp\n");
+        return EXIT_FAILURE;
+    }
+
+    if (s < 0) {
+        perror("socket");
+        return EXIT_FAILURE;
+    }
+
+    char *socket_path = argv[1];
+    struct sockaddr_un addr;
+    memset(&addr, 0, sizeof(addr));
+    addr.sun_family = AF_UNIX;
+
+    if (strlen(socket_path) >= sizeof(addr.sun_path)) {
+        close(s);
+        fprintf(stderr, "Path too long for AF_UNIX socket\n");
+        return EXIT_FAILURE;
+    }
+    strncpy(addr.sun_path, socket_path, sizeof(addr.sun_path) - 1);
+
+    if (connect(s, (struct sockaddr*)&addr, sizeof(addr)) < 0) {
+        close(s);
+        perror("Failed to connect to AF_UNIX socket");
+        return EXIT_FAILURE;
+    }
+
+    close(s);
+    return EXIT_SUCCESS;
+}
+
 
 int test_connect(int argc, char** argv) {
     if (argc <= 1) {
@@ -804,6 +921,8 @@ int test_connect(int argc, char** argv) {
         return test_connect_af_inet(argc - 1, argv + 1);
     } else if  (!strcmp(addr_family, "AF_INET6")) {
         return test_connect_af_inet6(argc - 1, argv + 1);
+    } else if (!strcmp(addr_family, "AF_UNIX")) {
+        return test_connect_af_unix(argc - 1, argv + 1);
     }
     fprintf(stderr, "Specified %s addr_type is not a valid one, try: AF_INET or AF_INET6 \n", addr_family);
     return EXIT_FAILURE;
@@ -1230,6 +1349,343 @@ int test_link(int argc, char **argv) {
 
     return EXIT_SUCCESS;
 }
+int test_bind_and_listen(int argc, char **argv) {
+    if (argc != 3) {
+        fprintf(stderr, "%s: please pass a port and a protocol (tcp/udp)\n", __FUNCTION__);
+        return EXIT_FAILURE;
+    }
+    int port = atoi(argv[1]);
+    if (port <= 0 || port > 65535) {
+        fprintf(stderr, "Invalid port: %s\n", argv[1]);
+        return EXIT_FAILURE;
+    }
+
+    int sock_type = 0;
+    const char *proto_str = argv[2];
+    if (strcmp(proto_str, "tcp") == 0) {
+        sock_type = SOCK_STREAM;
+    } else if (strcmp(proto_str, "udp") == 0) {
+        sock_type = SOCK_DGRAM;
+    } else {
+        fprintf(stderr, "Invalid protocol: %s. Use 'tcp' or 'udp'.\n", proto_str);
+        return EXIT_FAILURE;
+    }
+
+    int s = socket(AF_INET, sock_type, 0);
+    if (s < 0) {
+        perror("socket");
+        return EXIT_FAILURE;
+    }
+
+    int opt = 1;
+
+    // REUSEADDR and REUSEPORT for the listening socket
+    if (setsockopt(s, SOL_SOCKET, SO_REUSEPORT, &opt, sizeof(opt)) < 0) {
+        perror("setsockopt SO_REUSEPORT");
+        close(s);
+        exit(EXIT_FAILURE);
+    }
+    if (setsockopt(s, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) < 0) {
+        perror("setsockopt SO_REUSEADDR");
+        close(s);
+        exit(EXIT_FAILURE);
+    }
+
+    struct sockaddr_in addr;
+    memset(&addr, 0, sizeof(addr));
+    addr.sin_family = AF_INET;
+    addr.sin_addr.s_addr = htonl(INADDR_ANY);
+    addr.sin_port = htons(port);
+
+    if (bind(s, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
+        perror("bind");
+        close(s);
+        return EXIT_FAILURE;
+    }
+    printf("PID: %d\n", getpid());
+    fflush(stdout);  // Send Pid to GO and syncrhonize with it
+
+    // If TCP, listen for incoming connections
+    if (sock_type == SOCK_STREAM) {
+        printf("Listening on port %d for TCP connections...\n", port);
+        fflush(stdout);  // Send Pid to GO and syncrhonize with it
+
+        if (listen(s, 10) < 0) {
+            perror("listen");
+            close(s);
+            return EXIT_FAILURE;
+        }
+
+        // Accept one connection and read data
+        int conn = accept(s, NULL, NULL);
+        if (conn < 0) {
+            perror("accept");
+            close(s);
+            return EXIT_FAILURE;
+        }
+
+        char buf[64];
+        ssize_t r = read(conn, buf, sizeof(buf) - 1);
+        if (r > 0) {
+            buf[r] = '\0';
+            printf("TCP received: %s\n", buf);
+        }
+        close(conn);
+
+    // If UDP, just wait for a message
+    } else {
+        printf("Waiting on port %d for UDP connections...\n", port);
+        fflush(stdout);  // Send Pid to GO and syncrhonize with it
+
+        // Receive one message via UDP
+        char buf[64];
+        struct sockaddr_in src_addr;
+        socklen_t src_len = sizeof(src_addr);
+        ssize_t r = recvfrom(s, buf, sizeof(buf) - 1, 0,
+                             (struct sockaddr *)&src_addr, &src_len);
+        if (r > 0) {
+            buf[r] = '\0';
+            printf("UDP received: %s\n", buf);
+        }
+    }
+    close(s);
+    printf("Closing socket...\n");
+    fflush(stdout);
+    return EXIT_SUCCESS;
+}
+
+int test_connect_and_send(int argc, char **argv) {
+    // Check arguments
+    // port to send, protocol, listen port, client port
+    if (argc != 5) {
+        fprintf(stderr, "%s: please pass a port and a protocol (tcp/udp)\n", __FUNCTION__);
+        return EXIT_FAILURE;
+    }
+    int port = atoi(argv[1]);
+    if (port <= 0 || port > 65535) {
+        fprintf(stderr, "Invalid port: %s\n", argv[1]);
+        return EXIT_FAILURE;
+    }
+    int client_port = atoi(argv[4]);
+    if (client_port <= 0 || client_port > 65535) {
+        fprintf(stderr, "Invalid client port: %s\n", argv[4]);
+        return EXIT_FAILURE;
+    }
+
+    // Port where the client will listen for incoming messages
+    int listen_port = atoi(argv[3]);
+    if (listen_port <= 0 || listen_port > 65535) {
+        fprintf(stderr, "Invalid listen port: %s\n", argv[3]);
+        return EXIT_FAILURE;
+    }
+    int sock_type = 0;
+    const char *proto_str = argv[2];
+    if (strcmp(proto_str, "tcp") == 0) {
+        sock_type = SOCK_STREAM;
+    } else if (strcmp(proto_str, "udp") == 0) {
+        sock_type = SOCK_DGRAM;
+    } else {
+        fprintf(stderr, "Invalid protocol: %s. Use 'tcp' or 'udp'.\n", proto_str);
+        return EXIT_FAILURE;
+    }
+    // Create a socket for the client to send a message to the server
+    int s = socket(AF_INET, sock_type, 0);
+    if (s < 0) {
+        perror("socket");
+        return EXIT_FAILURE;
+    }
+    // Client Socket to send a message to the server
+    struct sockaddr_in server_addr = {
+        .sin_family = AF_INET,
+        .sin_port = htons(port),
+        .sin_addr.s_addr = htonl(INADDR_LOOPBACK),
+    };
+    struct sockaddr_in client_addr = {
+        .sin_family = AF_INET,
+        .sin_port = htons(client_port),  // Use the specified client port
+        .sin_addr.s_addr = htonl(INADDR_LOOPBACK),
+    };
+    // Setup RESUSEPORT to allow multiple clients to bind to the same port
+    int opt = 1;
+    if (setsockopt(s, SOL_SOCKET, SO_REUSEPORT, &opt, sizeof(opt)) < 0) {
+        perror("setsockopt SO_REUSEPORT");
+        close(s);
+        return EXIT_FAILURE;
+    }
+    //Setup REUSEADDR to allow multiple clients to bind to the same port
+    if (setsockopt(s, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) < 0) {
+        perror("setsockopt SO_REUSEADDR");
+        close(s);
+        return EXIT_FAILURE;
+    }
+    // Bind the socket to force the port
+    if (bind(s, (struct sockaddr *)&client_addr, sizeof(client_addr)) < 0) {
+        perror("bind");
+        close(s);
+        return EXIT_FAILURE;
+    }
+
+    printf("PID: %d\n", getpid());
+    fflush(stdout);  // Send Pid to GO and synchronize with it
+
+    // Setup socket for communication with GO
+    int s_listen = socket(AF_INET, sock_type, 0);
+    if (s_listen < 0) {
+        close(s);
+        exit(EXIT_FAILURE);
+    }
+    // REUSEPORT and REUSEADDR for the listening socket
+    if (setsockopt(s_listen, SOL_SOCKET, SO_REUSEPORT, &opt, sizeof(opt)) < 0) {
+        perror("setsockopt SO_REUSEPORT (s_listen)");
+        close(s_listen);
+        close(s);
+        exit(EXIT_FAILURE);
+    }
+    if (setsockopt(s_listen, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) < 0) {
+        perror("setsockopt SO_REUSEADDR (s_listen)");
+        close(s_listen);
+        close(s);
+        exit(EXIT_FAILURE);
+    }
+    struct sockaddr_in listen_addr = {
+        .sin_family = AF_INET,
+        .sin_port = htons(listen_port),
+        .sin_addr.s_addr = htonl(INADDR_LOOPBACK),
+    };
+    if (bind(s_listen, (struct sockaddr *)&listen_addr, sizeof(listen_addr)) < 0) {
+        perror("bind (server)");
+        close(s_listen);
+        close(s);
+        exit(EXIT_FAILURE);
+    }
+
+
+    // --- TCP ---
+    if (sock_type == SOCK_STREAM) {
+        if (connect(s, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0) {
+            perror("connect (client)");
+            exit(EXIT_FAILURE);
+        }
+        const char *msg = "Hello from TCP client!";
+        if (send(s, msg, strlen(msg), 0) < 0) {
+            perror("send (client)");
+            exit(EXIT_FAILURE);
+        }
+
+        if (listen(s_listen, 1) < 0) {
+            perror("listen");
+            exit(EXIT_FAILURE);
+        }
+
+        printf("Listening on port %d\n", listen_port);
+
+        int conn = accept(s_listen, NULL, NULL);
+        if (conn < 0) {
+            perror("accept");
+            close(s_listen);
+            close(s);
+            exit(EXIT_FAILURE);
+        }
+
+        char buf[1024];
+        ssize_t len_udp = recv(conn, buf, sizeof(buf) - 1, 0);
+        if (len_udp < 0) {
+            perror("recv (server)");
+            close(conn);
+            close(s_listen);
+            close(s);
+            exit(EXIT_FAILURE);
+        }
+
+        // Close the socket
+        close(conn);
+        close(s);
+        close(s_listen);
+        printf("Closing TCP socket...\n");
+        fflush(stdout);
+
+
+    // --- UDP ---
+    } else {
+        const char *msg = "Hello from UDP client!";
+        ssize_t sent = sendto(s, msg, strlen(msg), 0,
+                                (struct sockaddr *)&server_addr, sizeof(server_addr));
+        if (sent < 0) {
+            perror("sendto");
+            close(s);
+            close(s_listen);
+            return EXIT_FAILURE;
+        }
+
+        // Now wait before closing the socket
+        printf("Waiting on port %d\n", listen_port);
+        fflush(stdout);  // Send Pid to GO and synchronize with it
+
+        // Receive one message via UDP
+        char buf[64];
+        struct sockaddr_in src_addr;
+        socklen_t src_len = sizeof(src_addr);
+        ssize_t r = recvfrom(s_listen, buf, sizeof(buf) - 1, 0,
+                             (struct sockaddr *)&src_addr, &src_len);
+        // Close the socket
+        close(s);
+        close(s_listen);
+        printf("Closing UDP socket...\n");
+        fflush(stdout);
+    }
+    return EXIT_SUCCESS;
+}
+
+int test_chroot(int argc, char **argv) {
+    if (argc != 2) {
+        fprintf(stderr, "Please specify a directory to change root to\n");
+        return EXIT_FAILURE;
+    }
+
+    const char *new_root = argv[1];
+
+    if (chroot(new_root)) {
+        perror("chroot");
+        return EXIT_FAILURE;
+    }
+
+    return EXIT_SUCCESS;
+}
+
+int test_acct(int argc, char **argv) {
+    int err = acct(NULL);
+    if (err) {
+        perror("acct");
+    }
+    return err;
+}
+
+int test_pause(int argc, char **argv) {
+    if (argc != 1) {
+        fprintf(stderr, "Usage: %s\n", argv[0]);
+        return EXIT_FAILURE;
+    }
+
+    pause();
+
+    return EXIT_SUCCESS;
+}
+
+int test_prctl_setname(int argc, char **argv) {
+    if (argc != 2) {
+        fprintf(stderr, "Please specify a name to set\n");
+        return EXIT_FAILURE;
+    }
+
+    const char *name = argv[1];
+
+    if (prctl(PR_SET_NAME, name, 0, 0, 0) < 0) {
+        perror("prctl(PR_SET_NAME)");
+        return EXIT_FAILURE;
+    }
+
+    return EXIT_SUCCESS;
+}
 
 int main(int argc, char **argv) {
     setbuf(stdout, NULL);
@@ -1262,6 +1718,14 @@ int main(int argc, char **argv) {
             exit_code = ptrace_traceme();
         } else if (strcmp(cmd, "ptrace-attach") == 0) {
             exit_code = ptrace_attach();
+        } else if (strcmp(cmd, "setrlimit-nofile") == 0) {
+            exit_code = setrlimit_nofile();
+        } else if (strcmp(cmd, "setrlimit-nproc") == 0) {
+            exit_code = setrlimit_nproc();
+        } else if (strcmp(cmd, "prlimit64-stack") == 0) {
+            exit_code = prlimit64_stack();
+        } else if (strcmp(cmd, "setrlimit-core") == 0) {
+            exit_code = setrlimit_core();
         } else if (strcmp(cmd, "span-open") == 0) {
             exit_code = span_open(sub_argc, sub_argv);
         } else if (strcmp(cmd, "pipe-chown") == 0) {
@@ -1285,7 +1749,7 @@ int main(int argc, char **argv) {
         } else if (strcmp(cmd, "connect") == 0) {
             exit_code = test_connect(sub_argc, sub_argv);
         } else if (strcmp(cmd, "fork") == 0) {
-            return test_forkexec(sub_argc, sub_argv);
+            exit_code = test_forkexec(sub_argc, sub_argv);
         } else if (strcmp(cmd, "set-signal-handler") == 0) {
             exit_code = test_set_signal_handler(sub_argc, sub_argv);
         } else if (strcmp(cmd, "wait-signal") == 0) {
@@ -1319,14 +1783,25 @@ int main(int argc, char **argv) {
         } else if (strcmp(cmd, "chown") == 0) {
             exit_code = test_chown(sub_argc, sub_argv);
         } else if (strcmp(cmd, "rename") == 0) {
-            return test_rename(sub_argc, sub_argv);
+            exit_code = test_rename(sub_argc, sub_argv);
         } else if (strcmp(cmd, "utimes") == 0) {
-            return test_utimes(sub_argc, sub_argv);
+            exit_code = test_utimes(sub_argc, sub_argv);
         } else if (strcmp(cmd, "link") == 0) {
-            return test_link(sub_argc, sub_argv);
-        }
-        else {
-            fprintf(stderr, "Unknown command `%s`\n", cmd);
+            exit_code = test_link(sub_argc, sub_argv);
+        } else if (strcmp(cmd, "bind-and-listen") == 0) {
+            exit_code = test_bind_and_listen(sub_argc, sub_argv);
+        } else if (strcmp(cmd, "connect-and-send") == 0) {
+            exit_code = test_connect_and_send(sub_argc, sub_argv);
+        } else if (strcmp(cmd, "chroot") == 0) {
+            exit_code = test_chroot(sub_argc, sub_argv);
+        } else if (strcmp(cmd, "acct") == 0) {
+            exit_code = test_acct(sub_argc, sub_argv);
+        } else if (strcmp(cmd, "pause") == 0) {
+            exit_code = test_pause(sub_argc, sub_argv);
+        } else if (strcmp(cmd, "prctl-setname") == 0) {
+            exit_code = test_prctl_setname(sub_argc, sub_argv);
+        } else {
+            fprintf(stderr, "Unknown command: %s\n", cmd);
             exit_code = EXIT_FAILURE;
         }
 

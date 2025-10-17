@@ -20,7 +20,7 @@ import (
 // StartRCService creates a service for reading config from the remote configuration backend
 func StartRCService(functionARN string) *remoteconfig.CoreAgentService {
 	config := pkgconfigsetup.Datadog()
-	if pkgconfigsetup.IsRemoteConfigEnabled(config) {
+	if configUtils.IsRemoteConfigEnabled(config) {
 		config.Set("run_path", "/tmp/datadog-agent", model.SourceAgentRuntime)
 		apiKey := config.GetString("api_key")
 		if config.IsSet("remote_configuration.api_key") {
@@ -42,6 +42,9 @@ func StartRCService(functionARN string) *remoteconfig.CoreAgentService {
 
 		if config.IsSet("remote_configuration.refresh_interval") {
 			options = append(options, remoteconfig.WithRefreshInterval(config.GetDuration("remote_configuration.refresh_interval"), "remote_configuration.refresh_interval"))
+		}
+		if config.IsConfigured("remote_configuration.org_status_refresh_interval") {
+			options = append(options, remoteconfig.WithOrgStatusRefreshInterval(config.GetDuration("remote_configuration.org_status_refresh_interval"), "remote_configuration.org_status_refresh_interval"))
 		}
 		if config.IsSet("remote_configuration.max_backoff_interval") {
 			options = append(options, remoteconfig.WithMaxBackoffInterval(config.GetDuration("remote_configuration.max_backoff_interval"), "remote_configuration.max_backoff_interval"))

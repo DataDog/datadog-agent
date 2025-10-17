@@ -8,6 +8,7 @@ from invoke.exceptions import Exit
 
 from tasks.build_tags import filter_incompatible_tags, get_build_tags, get_default_build_tags
 from tasks.flavor import AgentFlavor
+from tasks.libs.common.go import go_build
 from tasks.libs.common.utils import REPO_PATH, bin_name, get_build_flags
 from tasks.system_probe import copy_ebpf_and_related_files
 from tasks.windows_resources import build_messagetable, build_rc, versioninfo_vars
@@ -25,7 +26,6 @@ def build(
     install_path=None,
     flavor=AgentFlavor.base.name,
     rebuild=False,
-    major_version='7',
     go_mod="readonly",
 ):
     """
@@ -33,19 +33,16 @@ def build(
     """
 
     flavor = AgentFlavor[flavor]
-    if flavor.is_ot():
-        flavor = AgentFlavor.base
 
     ldflags, gcflags, env = get_build_flags(
         ctx,
         install_path=install_path,
-        major_version=major_version,
     )
 
     # generate windows resources
     if sys.platform == 'win32':
         build_messagetable(ctx)
-        vars = versioninfo_vars(ctx, major_version=major_version)
+        vars = versioninfo_vars(ctx)
         build_rc(
             ctx,
             "cmd/process-agent/windows_resources/process-agent.rc",
@@ -72,21 +69,19 @@ def build(
         os.remove(BIN_PATH)
 
     # TODO static option
-    cmd = 'go build -mod={go_mod} {race_opt} {build_type} -tags "{go_build_tags}" '
-    cmd += '-o {agent_bin} -gcflags="{gcflags}" -ldflags="{ldflags}" {REPO_PATH}/cmd/process-agent'
-
-    args = {
-        "go_mod": go_mod,
-        "race_opt": "-race" if race else "",
-        "build_type": "-a" if rebuild else "",
-        "go_build_tags": " ".join(build_tags),
-        "agent_bin": BIN_PATH,
-        "gcflags": gcflags,
-        "ldflags": ldflags,
-        "REPO_PATH": REPO_PATH,
-    }
-
-    ctx.run(cmd.format(**args), env=env)
+    go_build(
+        ctx,
+        f"{REPO_PATH}/cmd/process-agent",
+        mod=go_mod,
+        race=race,
+        rebuild=rebuild,
+        gcflags=gcflags,
+        ldflags=ldflags,
+        build_tags=build_tags,
+        bin_path=BIN_PATH,
+        env=env,
+        coverage=os.getenv("E2E_COVERAGE_PIPELINE") == "true",
+    )
 
 
 class TempDir:

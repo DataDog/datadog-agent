@@ -11,9 +11,12 @@ import (
 
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
@@ -61,7 +64,7 @@ func runParseMetricBenchmark(b *testing.B, multipleValues bool) {
 					continue
 				}
 
-				benchSamples = enrichMetricSample(samples, parsed, "", 0, "", conf)
+				benchSamples = enrichMetricSample(samples, parsed, "", 0, "", conf, nil)
 			}
 		})
 	}
@@ -82,6 +85,12 @@ type ServerDeps struct {
 	Telemetry telemetry.Component
 }
 
-func newServerDeps(t testing.TB, options ...fx.Option) ServerDeps {
-	return fxutil.Test[ServerDeps](t, core.MockBundle(), workloadmetafxmock.MockModule(workloadmeta.NewParams()), fx.Options(options...))
+func newServerDeps(t testing.TB) ServerDeps {
+	return fxutil.Test[ServerDeps](t,
+		fx.Provide(func(t testing.TB) log.Component { return logmock.New(t) }),
+		fx.Provide(func(t testing.TB) config.Component { return config.NewMock(t) }),
+		telemetryimpl.MockModule(),
+		hostnameimpl.MockModule(),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+	)
 }

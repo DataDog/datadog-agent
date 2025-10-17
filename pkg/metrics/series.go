@@ -62,6 +62,23 @@ type Serie struct {
 	Source         MetricSource         `json:"-"` // This is only used by api V2
 }
 
+// GetName returns the name of the Serie
+func (serie *Serie) GetName() string {
+	return serie.Name
+}
+
+// Metadata holds metadata about the metric
+type Metadata struct {
+	Origin Origin `json:"origin,omitempty"`
+}
+
+// Origin holds the metric origins metadata
+type Origin struct {
+	OriginProduct       int32 `json:"origin_product,omitempty"`
+	OriginSubProduct    int32 `json:"origin_sub_product,omitempty"`
+	OriginProductDetail int32 `json:"origin_product_detail,omitempty"`
+}
+
 // SeriesAPIV2Enum returns the enumeration value for MetricPayload.MetricType in
 // https://github.com/DataDog/agent-payload/blob/master/proto/metrics/agent_payload.proto
 func (a APIMetricType) SeriesAPIV2Enum() int32 {

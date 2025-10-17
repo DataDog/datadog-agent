@@ -9,12 +9,13 @@
 package selftests
 
 import (
+	"context"
 	"fmt"
 	"os/exec"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 )
 
 // ChmodSelfTest defines a chmod self test
@@ -36,15 +37,14 @@ func (o *ChmodSelfTest) GetRuleDefinition() *rules.RuleDefinition {
 }
 
 // GenerateEvent generate an event
-func (o *ChmodSelfTest) GenerateEvent() error {
+func (o *ChmodSelfTest) GenerateEvent(ctx context.Context) error {
 	o.isSuccess = false
 
 	// we need to use chmod (or any other external program) as our PID is discarded by probes
 	// so the events would not be generated
-	cmd := exec.Command("chmod", "777", o.filename)
+	cmd := exec.CommandContext(ctx, "chmod", "777", o.filename)
 	if err := cmd.Run(); err != nil {
-		log.Debugf("error running chmod: %v", err)
-		return err
+		return fmt.Errorf("error running chmod: %w", err)
 	}
 
 	return nil
@@ -52,7 +52,20 @@ func (o *ChmodSelfTest) GenerateEvent() error {
 
 // HandleEvent handles self test events
 func (o *ChmodSelfTest) HandleEvent(event selfTestEvent) {
-	o.isSuccess = event.RuleID == o.ruleID
+	if event.Event == nil ||
+		event.Event.BaseEventSerializer == nil ||
+		event.Event.BaseEventSerializer.FileEventSerializer == nil {
+		seclog.Errorf("Chmod SelfTest event received with nil Event or File fields")
+		o.isSuccess = false
+		return
+	}
+
+	// debug logs
+	if event.RuleID == o.ruleID && o.filename != event.Event.BaseEventSerializer.FileEventSerializer.Path {
+		seclog.Errorf("Chmod SelfTest event received with different filepaths: %s VS %s", o.filename, event.Event.BaseEventSerializer.FileEventSerializer.Path)
+	}
+
+	o.isSuccess = event.RuleID == o.ruleID && o.filename == event.Event.BaseEventSerializer.FileEventSerializer.Path
 }
 
 // IsSuccess return the state of the test

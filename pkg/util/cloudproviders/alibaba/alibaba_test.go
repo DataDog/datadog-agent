@@ -15,7 +15,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 )
 
 func TestGetHostname(t *testing.T) {
@@ -38,6 +38,7 @@ func TestGetHostname(t *testing.T) {
 }
 
 func TestGetNTPHosts(t *testing.T) {
+	cfg := configmock.New(t)
 	ctx := context.Background()
 	expectedHosts := []string{
 		"ntp.aliyun.com", "ntp1.aliyun.com", "ntp2.aliyun.com", "ntp3.aliyun.com",
@@ -51,7 +52,7 @@ func TestGetNTPHosts(t *testing.T) {
 	defer ts.Close()
 
 	metadataURL = ts.URL
-	pkgconfigsetup.Datadog().SetWithoutSource("cloud_provider_metadata", []string{"alibaba"})
+	cfg.SetWithoutSource("cloud_provider_metadata", []string{"alibaba"})
 	actualHosts := GetNTPHosts(ctx)
 
 	assert.Equal(t, expectedHosts, actualHosts)

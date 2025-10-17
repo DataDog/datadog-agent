@@ -8,7 +8,7 @@ default_stages:
 
 repos:
 - repo: https://github.com/astral-sh/ruff-pre-commit
-  rev: v0.11.4
+  rev: v0.12.2
   hooks:
     - id: ruff
       args: [ --fix ]
@@ -45,7 +45,7 @@ repos:
       - id: end-of-file-fixer
         files: release.json
 - repo: https://github.com/rhysd/actionlint
-  rev: v1.7.7
+  rev: v1.7.8
   hooks:
     - id: actionlint
       args: [ "-ignore", "shellcheck" ]
@@ -90,6 +90,15 @@ repos:
       files: (\.go|^go\.mod|^go\.sum)$
       pass_filenames: false
       stages: [pre-push]
+    - id: go-mod-replace
+      name: go-mod-replace
+      description: check that all go.mod files contain replace directives from modules.yml
+      entry: bash -c 'GOTOOLCHAIN=go$(cat .go-version) dda inv modules.check-all-replace'
+      language: system
+      require_serial: true
+      files: (\.go|^go\.mod$|^go\.sum$|^modules\.yml$)
+      pass_filenames: false
+      stages: [pre-push]
     - id: go-test
       name: go-test
       description: run go test on modified packages
@@ -118,21 +127,13 @@ repos:
       pass_filenames: false
     - id: gitlab-configuration
       name: gitlab-configuration
-      description: test the gitlab configuration on main
-      entry: 'dda inv linter.gitlab-ci -t main'
+      description: Lint and test GitLab CI configuration files
+      entry: "dda inv linter.full-gitlab-ci -t main --pre-push-linters --fail-fast"
       language: system
       require_serial: true
       files: .*gitlab.*\.yml$
       pass_filenames: false
       stages: [pre-push]
-    - id: gitlab-lint-jobs-codeowners
-      name: gitlab-lint-jobs-codeowners
-      description: lint the gitlab configuration to verify jobs codeowners
-      entry: 'dda inv linter.gitlab-ci-jobs-codeowners'
-      language: system
-      require_serial: true
-      files: .*gitlab.*\.yml$
-      pass_filenames: false
     - id: update-go
       name: update-go
       description: test formatting of files will allow go update
@@ -152,7 +153,7 @@ repos:
       entry: 'dda inv protobuf.generate --pre-commit'
       language: system
       pass_filenames: false
-      files: (.*go\.mod|modules\.yml|.*gomodules\.py|.*modules\.py|.*.proto|.protoc-version)$
+      files: (.*go\.mod|modules\.yml|.*gomodules\.py|.*modules\.py|.*.proto|.protoc-version|.*protobuf\.py)$
     - id: experiment-systemd-units
       name: validate-experiment-systemd-units
       description: Validate that the generated systemd experimrent units are up to date

@@ -10,6 +10,7 @@ package kafka
 
 import (
 	"context"
+	"fmt"
 	"net"
 	"time"
 
@@ -63,5 +64,47 @@ func (c *Client) CreateTopic(topicName string) error {
 	ctxTimeout, cancel := context.WithTimeout(context.Background(), defaultTimeout)
 	defer cancel()
 	_, err := adminClient.CreateTopics(ctxTimeout, 2, 1, nil, topicName)
-	return err
+	if err != nil {
+		return err
+	}
+
+	if err := c.waitForLeaders(topicName); err != nil {
+		return err
+	}
+
+	c.Client.ForceMetadataRefresh()
+
+	// Block until metadata is fetched
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	return c.Client.Ping(ctx)
+}
+
+func (c *Client) waitForLeaders(topicName string) error {
+	admin := kadm.NewClient(c.Client)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	for {
+		meta, err := admin.Metadata(ctx, topicName)
+		if err != nil {
+			return err
+		}
+		topicMeta, ok := meta.Topics[topicName]
+		if !ok {
+			return fmt.Errorf("topic %s not found", topicName)
+		}
+		allReady := true
+		for _, p := range topicMeta.Partitions {
+			if p.Leader == -1 {
+				allReady = false
+				break
+			}
+		}
+		if allReady {
+			return nil
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
 }

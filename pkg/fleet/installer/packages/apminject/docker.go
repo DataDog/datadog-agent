@@ -152,7 +152,7 @@ func (a *InjectorInstaller) verifyDockerRuntime(ctx context.Context) (err error)
 	maxRetries := 10
 	for i := 0; i < maxRetries; i++ {
 		if i > 0 {
-			time.Sleep(time.Second)
+			time.Sleep(2 * time.Second)
 		}
 		cmd := exec.CommandContext(ctx, "docker", "system", "info", "--format", "{{ .DefaultRuntime }}")
 		var outb bytes.Buffer
@@ -164,17 +164,17 @@ func (a *InjectorInstaller) verifyDockerRuntime(ctx context.Context) (err error)
 			} else {
 				log.Warn("failed to verify docker runtime: ", err)
 			}
-			// Reload Docker daemon again in case the signal was lost
-			if reloadErr := reloadDockerConfig(ctx); reloadErr != nil {
-				log.Warn("failed to reload docker daemon: ", reloadErr)
-			}
 		}
-		if strings.TrimSpace(outb.String()) == "dd-shim" {
+		currentRuntime = strings.TrimSpace(outb.String())
+		if currentRuntime == "dd-shim" {
 			span.SetTag("retries", i)
 			span.SetTag("docker_runtime", "dd-shim")
 			return nil
 		}
-		currentRuntime = strings.TrimSpace(outb.String())
+		// Reload Docker daemon again in case the signal was lost
+		if reloadErr := reloadDockerConfig(ctx); reloadErr != nil {
+			log.Warn("failed to reload docker daemon: ", reloadErr)
+		}
 	}
 	span.SetTag("retries", maxRetries)
 	span.SetTag("docker_runtime", currentRuntime)
@@ -237,6 +237,18 @@ func isDockerInstalled(ctx context.Context) bool {
 
 // isDockerActive checks if docker is started on the system
 func isDockerActive(ctx context.Context) bool {
-	cmd := exec.CommandContext(ctx, "pidof", "dockerd")
-	return cmd.Run() == nil
+	processes, err := process.Processes()
+	if err != nil {
+		return false // Don't pollute with warning logs
+	}
+	for _, process := range processes {
+		name, err := process.NameWithContext(ctx)
+		if err != nil {
+			continue // Don't pollute with warning logs
+		}
+		if name == "dockerd" {
+			return true
+		}
+	}
+	return false
 }

@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build (linux && linux_bpf) || (windows && npm)
+
 package encoding
 
 import (
@@ -13,11 +15,10 @@ import (
 	"sort"
 	"testing"
 
+	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/golang/protobuf/proto"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	model "github.com/DataDog/agent-payload/v5/process"
 
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -27,7 +28,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/encoding/unmarshal"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
-	"github.com/DataDog/datadog-agent/pkg/network/protocols/kafka"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/tls"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
@@ -144,7 +144,7 @@ func getExpectedConnections(encodedWithQueryType bool, httpOutBlob []byte) *mode
 			NpmEnabled: false,
 			UsmEnabled: false,
 		},
-		Tags: network.GetStaticTags(tagOpenSSL | tagTLS),
+		Tags: tls.GetStaticTags(tagOpenSSL | tagTLS),
 	}
 	// fixup Protocol stack as on windows or macos
 	// we don't have tags mechanism inserting TLS protocol on protocol stack
@@ -262,16 +262,18 @@ func TestSerialization(t *testing.T) {
 		DNS: map[util.Address][]dns.Hostname{
 			util.AddressFromString("172.217.12.145"): {dns.ToHostname("golang.org")},
 		},
-		HTTP: map[http.Key]*http.RequestStats{
-			http.NewKey(
-				util.AddressFromString("20.1.1.1"),
-				util.AddressFromString("20.1.1.1"),
-				40000,
-				80,
-				[]byte("/testpath"),
-				true,
-				http.MethodGet,
-			): httpReqStats,
+		USMData: network.USMProtocolsData{
+			HTTP: map[http.Key]*http.RequestStats{
+				http.NewKey(
+					util.AddressFromString("20.1.1.1"),
+					util.AddressFromString("20.1.1.1"),
+					40000,
+					80,
+					[]byte("/testpath"),
+					true,
+					http.MethodGet,
+				): httpReqStats,
+			},
 		},
 	}
 
@@ -292,7 +294,7 @@ func TestSerialization(t *testing.T) {
 		 * getExpectedConnections()
 		 */
 		in.BufferedData.Conns[0].IPTranslation = nil
-		in.HTTP = map[http.Key]*http.RequestStats{
+		in.USMData.HTTP = map[http.Key]*http.RequestStats{
 			http.NewKey(
 				util.AddressFromString("10.1.1.1"),
 				util.AddressFromString("10.2.2.2"),
@@ -510,16 +512,18 @@ func TestHTTPSerializationWithLocalhostTraffic(t *testing.T) {
 				}},
 			},
 		},
-		HTTP: map[http.Key]*http.RequestStats{
-			http.NewKey(
-				localhost,
-				localhost,
-				clientPort,
-				serverPort,
-				[]byte("/testpath"),
-				true,
-				http.MethodGet,
-			): httpReqStats,
+		USMData: network.USMProtocolsData{
+			HTTP: map[http.Key]*http.RequestStats{
+				http.NewKey(
+					localhost,
+					localhost,
+					clientPort,
+					serverPort,
+					[]byte("/testpath"),
+					true,
+					http.MethodGet,
+				): httpReqStats,
+			},
 		},
 	}
 	if runtime.GOOS == "windows" {
@@ -539,7 +543,7 @@ func TestHTTPSerializationWithLocalhostTraffic(t *testing.T) {
 			http.MethodGet,
 		)
 
-		in.HTTP[httpKeyWin] = httpReqStats
+		in.USMData.HTTP[httpKeyWin] = httpReqStats
 	}
 
 	httpOut := &model.HTTPAggregations{
@@ -590,7 +594,7 @@ func TestHTTPSerializationWithLocalhostTraffic(t *testing.T) {
 func assertConnsEqual(t *testing.T, expected, actual *model.Connections) {
 	require.Equal(t, len(expected.Conns), len(actual.Conns), "expected both model.Connections to have the same number of connections")
 
-	for i := 0; i < len(actual.Conns); i++ {
+	for i := range actual.Conns {
 		expectedRawHTTP := expected.Conns[i].HttpAggregations
 		actualRawHTTP := actual.Conns[i].HttpAggregations
 
@@ -614,137 +618,6 @@ func assertConnsEqual(t *testing.T, expected, actual *model.Connections) {
 
 	assert.Equal(t, expected, actual)
 
-}
-
-func assertConnsEqualHTTP2(t *testing.T, expected, actual *model.Connections) {
-	require.Equal(t, len(expected.Conns), len(actual.Conns), "expected both model.Connections to have the same number of connections")
-
-	for i := 0; i < len(actual.Conns); i++ {
-		expectedRawHTTP2 := expected.Conns[i].Http2Aggregations
-		actualRawHTTP2 := actual.Conns[i].Http2Aggregations
-
-		if len(expectedRawHTTP2) == 0 && len(actualRawHTTP2) != 0 {
-			t.Fatalf("expected connection %d to have no HTTP2, but got %v", i, actualRawHTTP2)
-		}
-		if len(expectedRawHTTP2) != 0 && len(actualRawHTTP2) == 0 {
-			t.Fatalf("expected connection %d to have HTTP2 data, but got none", i)
-		}
-
-		// the expected HTTPAggregations are encoded with  gogoproto, and the actual HTTPAggregations are encoded with gostreamer.
-		// thus they will not be byte-for-byte equal.
-		// the workaround is to check for protobuf equality, and then set actual.Conns[i] == expected.Conns[i]
-		// so actual.Conns and expected.Conns can be compared.
-		var expectedHTTP2, actualHTTP2 model.HTTP2Aggregations
-		require.NoError(t, proto.Unmarshal(expectedRawHTTP2, &expectedHTTP2))
-		require.NoError(t, proto.Unmarshal(actualRawHTTP2, &actualHTTP2))
-		require.Equalf(t, expectedHTTP2, actualHTTP2, "HTTP2 connection %d was not equal", i)
-		actual.Conns[i].Http2Aggregations = expected.Conns[i].Http2Aggregations
-	}
-
-	assert.Equal(t, expected, actual)
-
-}
-
-func TestHTTP2SerializationWithLocalhostTraffic(t *testing.T) {
-	var (
-		clientPort = uint16(52800)
-		serverPort = uint16(8080)
-		localhost  = util.AddressFromString("127.0.0.1")
-	)
-
-	http2ReqStats := http.NewRequestStats()
-	in := &network.Connections{
-		BufferedData: network.BufferedData{
-			Conns: []network.ConnectionStats{
-				{ConnectionTuple: network.ConnectionTuple{
-					Source: localhost,
-					Dest:   localhost,
-					SPort:  clientPort,
-					DPort:  serverPort,
-				}},
-				{ConnectionTuple: network.ConnectionTuple{
-					Source: localhost,
-					Dest:   localhost,
-					SPort:  serverPort,
-					DPort:  clientPort,
-				}},
-			},
-		},
-		HTTP2: map[http.Key]*http.RequestStats{
-			http.NewKey(
-				localhost,
-				localhost,
-				clientPort,
-				serverPort,
-				[]byte("/testpath"),
-				true,
-				http.MethodPost,
-			): http2ReqStats,
-		},
-	}
-	if runtime.GOOS == "windows" {
-		/*
-		 * on Windows, there are separate http transactions for
-		 * each side of the connection.  And they're kept separate,
-		 * and keyed separately.  Address this condition until the
-		 * platforms are resynced
-		 */
-		httpKeyWin := http.NewKey(
-			localhost,
-			localhost,
-			serverPort,
-			clientPort,
-			[]byte("/testpath"),
-			true,
-			http.MethodPost,
-		)
-
-		in.HTTP2[httpKeyWin] = http2ReqStats
-	}
-
-	http2Out := &model.HTTP2Aggregations{
-		EndpointAggregations: []*model.HTTPStats{
-			{
-				Path:              "/testpath",
-				Method:            model.HTTPMethod_Post,
-				FullPath:          true,
-				StatsByStatusCode: make(map[int32]*model.HTTPStats_Data),
-			},
-		},
-	}
-
-	http2OutBlob, err := proto.Marshal(http2Out)
-	require.NoError(t, err)
-
-	out := &model.Connections{
-		Conns: []*model.Connection{
-			{
-				Laddr:             &model.Addr{Ip: "127.0.0.1", Port: int32(clientPort)},
-				Raddr:             &model.Addr{Ip: "127.0.0.1", Port: int32(serverPort)},
-				Http2Aggregations: http2OutBlob,
-				RouteIdx:          -1,
-				Protocol:          marshal.FormatProtocolStack(protocols.Stack{}, 0),
-			},
-			{
-				Laddr:             &model.Addr{Ip: "127.0.0.1", Port: int32(serverPort)},
-				Raddr:             &model.Addr{Ip: "127.0.0.1", Port: int32(clientPort)},
-				Http2Aggregations: http2OutBlob,
-				RouteIdx:          -1,
-				Protocol:          marshal.FormatProtocolStack(protocols.Stack{}, 0),
-			},
-		},
-		AgentConfiguration: &model.AgentConfiguration{
-			NpmEnabled: false,
-			UsmEnabled: false,
-		},
-	}
-	blobWriter := getBlobWriter(t, assert.New(t), in, "application/protobuf")
-
-	unmarshaler := unmarshal.GetUnmarshaler("application/protobuf")
-	result, err := unmarshaler.Unmarshal(blobWriter.Bytes())
-	require.NoError(t, err)
-
-	assertConnsEqualHTTP2(t, out, result)
 }
 
 func TestPooledObjectGarbageRegression(t *testing.T) {
@@ -798,7 +671,7 @@ func TestPooledObjectGarbageRegression(t *testing.T) {
 				Content:  http.Interner.GetString(fmt.Sprintf("/path-%d", i)),
 				FullPath: true,
 			}
-			in.HTTP = map[http.Key]*http.RequestStats{httpKey: {}}
+			in.USMData.HTTP = map[http.Key]*http.RequestStats{httpKey: {}}
 			out := encodeAndDecodeHTTP(in)
 
 			require.NotNil(t, out)
@@ -806,177 +679,9 @@ func TestPooledObjectGarbageRegression(t *testing.T) {
 			require.Equal(t, httpKey.Path.Content.Get(), out.EndpointAggregations[0].Path)
 		} else {
 			// No HTTP data in this payload, so we should never get HTTP data back after the serialization
-			in.HTTP = nil
+			in.USMData.HTTP = nil
 			out := encodeAndDecodeHTTP(in)
 			require.Nil(t, out, "expected a nil object, but got garbage")
 		}
 	}
-}
-
-func TestPooledHTTP2ObjectGarbageRegression(t *testing.T) {
-	// This test ensures that no garbage data is accidentally
-	// left on pooled Connection objects used during serialization
-	httpKey := http.NewKey(
-		util.AddressFromString("10.0.15.1"),
-		util.AddressFromString("172.217.10.45"),
-		60000,
-		8080,
-		nil,
-		true,
-		http.MethodGet,
-	)
-
-	in := &network.Connections{
-		BufferedData: network.BufferedData{
-			Conns: []network.ConnectionStats{
-				{ConnectionTuple: network.ConnectionTuple{
-					Source: util.AddressFromString("10.0.15.1"),
-					SPort:  uint16(60000),
-					Dest:   util.AddressFromString("172.217.10.45"),
-					DPort:  uint16(8080),
-				}},
-			},
-		},
-	}
-
-	encodeAndDecodeHTTP2 := func(*network.Connections) *model.HTTP2Aggregations {
-		blobWriter := getBlobWriter(t, assert.New(t), in, "application/protobuf")
-
-		unmarshaler := unmarshal.GetUnmarshaler("application/protobuf")
-		result, err := unmarshaler.Unmarshal(blobWriter.Bytes())
-		require.NoError(t, err)
-
-		http2Blob := result.Conns[0].Http2Aggregations
-		if http2Blob == nil {
-			return nil
-		}
-
-		http2Out := new(model.HTTP2Aggregations)
-		err = proto.Unmarshal(http2Blob, http2Out)
-		require.NoError(t, err)
-		return http2Out
-	}
-
-	// Let's alternate between payloads with and without HTTP2 data
-	for i := 0; i < 1000; i++ {
-		if (i % 2) == 0 {
-			httpKey.Path = http.Path{
-				Content:  http.Interner.GetString(fmt.Sprintf("/path-%d", i)),
-				FullPath: true,
-			}
-			in.HTTP2 = map[http.Key]*http.RequestStats{httpKey: {}}
-			out := encodeAndDecodeHTTP2(in)
-
-			require.NotNil(t, out)
-			require.Len(t, out.EndpointAggregations, 1)
-			require.Equal(t, httpKey.Path.Content.Get(), out.EndpointAggregations[0].Path)
-		} else {
-			// No HTTP2 data in this payload, so we should never get HTTP2 data back after the serialization
-			in.HTTP2 = nil
-			out := encodeAndDecodeHTTP2(in)
-			require.Nil(t, out, "expected a nil object, but got garbage")
-		}
-	}
-}
-
-func TestKafkaSerializationWithLocalhostTraffic(t *testing.T) {
-	if runtime.GOOS != "linux" {
-		t.Skip("the feature is only supported on linux.")
-	}
-	var (
-		clientPort = uint16(52800)
-		serverPort = uint16(8080)
-		localhost  = util.AddressFromString("127.0.0.1")
-	)
-
-	connections := []network.ConnectionStats{
-		{ConnectionTuple: network.ConnectionTuple{
-			Source: localhost,
-			SPort:  clientPort,
-			Dest:   localhost,
-			DPort:  serverPort,
-			Pid:    1,
-		}},
-		{ConnectionTuple: network.ConnectionTuple{
-			Source: localhost,
-			SPort:  serverPort,
-			Dest:   localhost,
-			DPort:  clientPort,
-			Pid:    2,
-		}},
-	}
-
-	const topicName = "TopicName"
-	const apiVersion2 = 1
-	kafkaKey := kafka.NewKey(
-		localhost,
-		localhost,
-		clientPort,
-		serverPort,
-		topicName,
-		kafka.FetchAPIKey,
-		apiVersion2,
-	)
-
-	in := &network.Connections{
-		BufferedData: network.BufferedData{
-			Conns: connections,
-		},
-		Kafka: map[kafka.Key]*kafka.RequestStats{
-			kafkaKey: {
-				ErrorCodeToStat: map[int32]*kafka.RequestStat{0: {Count: 10, FirstLatencySample: 5}},
-			},
-		},
-	}
-
-	kafkaOut := &model.DataStreamsAggregations{
-		KafkaAggregations: []*model.KafkaAggregation{
-			{
-				Header: &model.KafkaRequestHeader{
-					RequestType:    kafka.FetchAPIKey,
-					RequestVersion: apiVersion2,
-				},
-				Topic: topicName,
-				StatsByErrorCode: map[int32]*model.KafkaStats{
-					0: {Count: 10, FirstLatencySample: 5},
-				},
-			},
-		},
-	}
-
-	kafkaOutBlob, err := proto.Marshal(kafkaOut)
-	require.NoError(t, err)
-
-	out := &model.Connections{
-		Conns: []*model.Connection{
-			{
-				Laddr:                   &model.Addr{Ip: "127.0.0.1", Port: int32(clientPort)},
-				Raddr:                   &model.Addr{Ip: "127.0.0.1", Port: int32(serverPort)},
-				DataStreamsAggregations: kafkaOutBlob,
-				RouteIdx:                -1,
-				Protocol:                marshal.FormatProtocolStack(protocols.Stack{}, 0),
-				Pid:                     1,
-			},
-			{
-				Laddr:                   &model.Addr{Ip: "127.0.0.1", Port: int32(serverPort)},
-				Raddr:                   &model.Addr{Ip: "127.0.0.1", Port: int32(clientPort)},
-				DataStreamsAggregations: kafkaOutBlob,
-				RouteIdx:                -1,
-				Protocol:                marshal.FormatProtocolStack(protocols.Stack{}, 0),
-				Pid:                     2,
-			},
-		},
-		AgentConfiguration: &model.AgentConfiguration{
-			NpmEnabled: false,
-			UsmEnabled: false,
-		},
-	}
-
-	blobWriter := getBlobWriter(t, assert.New(t), in, "application/protobuf")
-
-	unmarshaler := unmarshal.GetUnmarshaler("application/protobuf")
-	result, err := unmarshaler.Unmarshal(blobWriter.Bytes())
-	require.NoError(t, err)
-
-	require.Equal(t, out, result)
 }

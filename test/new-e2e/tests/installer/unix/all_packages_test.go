@@ -18,7 +18,6 @@ import (
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
@@ -50,9 +49,9 @@ var (
 		e2eos.Suse15,
 	}
 	packagesTestsWithSkippedFlavors = []packageTestsWithSkippedFlavors{
-		{t: testInstaller},
 		{t: testAgent},
-		{t: testApmInjectAgent, skippedFlavors: []e2eos.Descriptor{e2eos.CentOS7, e2eos.RedHat9, e2eos.FedoraDefault, e2eos.Suse15}, skippedInstallationMethods: []InstallMethodOption{InstallMethodAnsible}},
+		{t: testDDOT, skippedInstallationMethods: []InstallMethodOption{InstallMethodAnsible}},
+		{t: testApmInjectAgent, skippedFlavors: []e2eos.Descriptor{e2eos.CentOS7, e2eos.RedHat9, e2eos.FedoraDefault, e2eos.AmazonLinux2}, skippedInstallationMethods: []InstallMethodOption{InstallMethodAnsible}},
 		{t: testUpgradeScenario},
 	}
 )
@@ -76,8 +75,6 @@ func shouldSkipInstallMethod(methods []InstallMethodOption, method InstallMethod
 }
 
 func TestPackages(t *testing.T) {
-	// INCIDENT(35594): This will match rate limits. Please remove me once this is fixed
-	flake.MarkOnLogRegex(t, "error: read \"\\.pulumi/meta.yaml\":.*429")
 	if _, ok := os.LookupEnv("E2E_PIPELINE_ID"); !ok {
 		t.Log("E2E_PIPELINE_ID env var is not set, this test requires this variable to be set to work")
 		t.FailNow()
@@ -135,11 +132,12 @@ type packageBaseSuite struct {
 	e2e.BaseSuite[environments.Host]
 	host *host.Host
 
-	opts          []awshost.ProvisionerOption
-	pkg           string
-	arch          e2eos.Architecture
-	os            e2eos.Descriptor
-	installMethod InstallMethodOption
+	opts                 []awshost.ProvisionerOption
+	pkg                  string
+	arch                 e2eos.Architecture
+	os                   e2eos.Descriptor
+	installMethod        InstallMethodOption
+	pipelineAgentVersion string
 }
 
 func newPackageSuite(pkg string, os e2eos.Descriptor, arch e2eos.Architecture, method InstallMethodOption, opts ...awshost.ProvisionerOption) packageBaseSuite {
@@ -165,10 +163,22 @@ func (s *packageBaseSuite) SetupSuite() {
 	// SetupSuite needs to defer s.CleanupOnSetupFailure() if what comes after BaseSuite.SetupSuite() can fail.
 	defer s.CleanupOnSetupFailure()
 
+	s.pipelineAgentVersion = PipelineAgentVersion(s.T())
 	s.setupFakeIntake()
-	s.host = host.New(s.T(), s.Env().RemoteHost, s.os, s.arch)
+	s.host = host.New(s.T, s.Env().RemoteHost, s.os, s.arch)
 	s.disableUnattendedUpgrades()
 	s.updateCurlOnUbuntu()
+	s.updatePythonOnSuse()
+}
+
+func (s *packageBaseSuite) updatePythonOnSuse() {
+	// Suse15 comes with Python3.6 by default which is too old for injection
+	if s.os.Flavor != e2eos.Suse {
+		return
+	}
+	s.host.Run("sudo zypper --non-interactive ar http://download.opensuse.org/distribution/leap/15.5/repo/oss/ oss || true")
+	s.host.Run("sudo zypper --non-interactive --gpg-auto-import-keys in python311")
+	s.host.Run("sudo ln -sf /usr/bin/python3.11 /usr/bin/python3")
 }
 
 func (s *packageBaseSuite) disableUnattendedUpgrades() {
@@ -190,12 +200,12 @@ func (s *packageBaseSuite) updateCurlOnUbuntu() {
 func (s *packageBaseSuite) RunInstallScriptProdOci(params ...string) error {
 	env := map[string]string{}
 	installScriptPackageManagerEnv(env, s.arch)
-	_, err := s.Env().RemoteHost.Execute(fmt.Sprintf(`%s bash -c "$(curl -L https://install.datadoghq.com/scripts/install_script_agent7.sh)"`, strings.Join(params, " ")), client.WithEnvVariables(env))
+	_, err := s.Env().RemoteHost.Execute(fmt.Sprintf(`%s bash -c "$(curl -L https://storage.googleapis.com/updater-dev/install_script_agent7_test_ci.sh)"`, strings.Join(params, " ")), client.WithEnvVariables(env))
 	return err
 }
 
 func (s *packageBaseSuite) RunInstallScriptWithError(params ...string) error {
-	_, err := s.Env().RemoteHost.Execute(fmt.Sprintf(`%s bash -c "$(curl -L https://install.datadoghq.com/scripts/install_script_agent7.sh)"`, strings.Join(params, " ")), client.WithEnvVariables(InstallScriptEnv(s.arch)))
+	_, err := s.Env().RemoteHost.Execute(fmt.Sprintf(`%s bash -c "$(curl -L https://storage.googleapis.com/updater-dev/install_script_agent7_test_ci.sh)"`, strings.Join(params, " ")), client.WithEnvVariables(InstallScriptEnv(s.arch)))
 	return err
 }
 
@@ -207,13 +217,19 @@ func (s *packageBaseSuite) RunInstallScript(params ...string) {
 			s.Env().RemoteHost.MustExecute("sudo systemctl daemon-reexec")
 		}
 		err := s.RunInstallScriptWithError(params...)
-		require.NoErrorf(s.T(), err, "installer not properly installed. logs: \n%s\n%s", s.Env().RemoteHost.MustExecute("cat /tmp/datadog-installer-stdout.log"), s.Env().RemoteHost.MustExecute("cat /tmp/datadog-installer-stderr.log"))
+		require.NoErrorf(s.T(), err, "installer not properly installed. logs: \n%s\n%s", s.Env().RemoteHost.MustExecute("cat /tmp/datadog-installer-stdout.log || true"), s.Env().RemoteHost.MustExecute("cat /tmp/datadog-installer-stderr.log || true"))
 	case InstallMethodAnsible:
 		// Install ansible then install the agent
 		var ansiblePrefix string
 		for i := 0; i < 3; i++ {
+			var err error
 			ansiblePrefix = s.installAnsible(s.os)
-			_, err := s.Env().RemoteHost.Execute(fmt.Sprintf("%sansible-galaxy collection install -vvv datadog.dd", ansiblePrefix))
+			if (s.os.Flavor == e2eos.AmazonLinux && s.os.Version == e2eos.AmazonLinux2.Version) ||
+				(s.os.Flavor == e2eos.CentOS && s.os.Version == e2eos.CentOS7.Version) {
+				s.T().Skip("Ansible doesn't install support Python2 anymore")
+			} else {
+				_, err = s.Env().RemoteHost.Execute(fmt.Sprintf("%sansible-galaxy collection install -vvv datadog.dd", ansiblePrefix))
+			}
 			if err == nil {
 				break
 			}
@@ -242,22 +258,22 @@ func envForceInstall(pkg string) string {
 	return "DD_INSTALLER_DEFAULT_PKG_INSTALL_" + strings.ToUpper(strings.ReplaceAll(pkg, "-", "_")) + "=true"
 }
 
-func envForceNoInstall(pkg string) string {
-	return "DD_INSTALLER_DEFAULT_PKG_INSTALL_" + strings.ToUpper(strings.ReplaceAll(pkg, "-", "_")) + "=false"
-}
-
 func envForceVersion(pkg, version string) string {
 	return "DD_INSTALLER_DEFAULT_PKG_VERSION_" + strings.ToUpper(strings.ReplaceAll(pkg, "-", "_")) + "=" + version
 }
 
 func (s *packageBaseSuite) Purge() {
 	// Reset the systemctl failed counter, best effort as they may not be loaded
-	for _, service := range []string{agentUnit, agentUnitXP, traceUnit, traceUnitXP, processUnit, processUnitXP, probeUnit, probeUnitXP, securityUnit, securityUnitXP} {
+	for _, service := range []string{agentUnit, agentUnitXP, traceUnit, traceUnitXP, processUnit, processUnitXP, probeUnit, probeUnitXP, securityUnit, securityUnitXP, ddotUnit, ddotUnitXP} {
 		s.Env().RemoteHost.Execute(fmt.Sprintf("sudo systemctl reset-failed %s", service))
 	}
 
-	s.Env().RemoteHost.MustExecute("sudo apt-get remove -y --purge datadog-installer || sudo yum remove -y datadog-installer || sudo zypper remove -y datadog-installer")
-	s.Env().RemoteHost.MustExecute("sudo rm -rf /etc/datadog-agent")
+	// Unfortunately no guarantee that the datadog-installer symlink exists
+	s.Env().RemoteHost.Execute("sudo datadog-installer purge")
+	s.Env().RemoteHost.Execute("sudo /opt/datadog-packages/datadog-installer/stable/bin/installer/installer purge")
+	s.Env().RemoteHost.Execute("sudo /opt/datadog-packages/datadog-agent/stable/embedded/bin/installer purge")
+	s.Env().RemoteHost.Execute("sudo apt-get remove -y --purge datadog-installer datadog-agent|| sudo yum remove -y datadog-installer datadog-agent || sudo zypper remove -y datadog-installer datadog-agent")
+	s.Env().RemoteHost.Execute("sudo rm -rf /etc/datadog-agent")
 }
 
 // setupFakeIntake sets up the fake intake for the agent and trace agent.
@@ -331,6 +347,13 @@ func (s *packageBaseSuite) writeAnsiblePlaybook(env map[string]string, params ..
     datadog_site: "datadoghq.com"
 `
 
+	aptDefaultKeysOverrideTemplate := `
+    datadog_apt_default_keys:
+      # XXX key name must be kept in sync with "datadog_apt_key_current_name" in the role
+      - key: "DATADOG_APT_KEY_CURRENT"
+        value: https://%s/DATADOG_APT_KEY_CURRENT.public
+`
+
 	defaultRepoEnv := map[string]string{
 		// APT
 		"TESTING_APT_KEY":          "/usr/share/keyrings/datadog-archive-keyring.gpg",
@@ -367,6 +390,16 @@ func (s *packageBaseSuite) writeAnsiblePlaybook(env map[string]string, params ..
 		case "TESTING_APT_REPO_VERSION", "TESTING_APT_URL", "TESTING_APT_KEY", "TESTING_YUM_URL", "TESTING_YUM_VERSION_PATH":
 			defaultRepoEnv[key] = value
 			environments = append(environments, fmt.Sprintf("%s: %s", key, value))
+		case "DD_INSTALLER_DEFAULT_PKG_VERSION_DATADOG_INSTALLER":
+			playbookStringSuffix += fmt.Sprintf("    datadog_installer_version: %s\n", value)
+			environments = append(environments, fmt.Sprintf("%s: \"%s\"", key, value))
+		case "DD_INSTALLER_DEFAULT_PKG_VERSION_DATADOG_APM_INJECT":
+			playbookStringSuffix += fmt.Sprintf("    datadog_apm_inject_version: %s\n", value)
+			environments = append(environments, fmt.Sprintf("%s: \"%s\"", key, value))
+		case "TESTING_KEYS_URL":
+			playbookStringSuffix += fmt.Sprintf(aptDefaultKeysOverrideTemplate, value)
+			playbookStringSuffix += fmt.Sprintf("    datadog_yum_gpgkey_current: https://%s/DATADOG_RPM_KEY_CURRENT.public\n", value)
+			playbookStringSuffix += fmt.Sprintf("    datadog_zypper_gpgkey_current: https://%s/DATADOG_RPM_KEY_CURRENT.public\n", value)
 		default:
 			environments = append(environments, fmt.Sprintf("%s: \"%s\"", key, value))
 		}

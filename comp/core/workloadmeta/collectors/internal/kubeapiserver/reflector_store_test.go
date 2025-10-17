@@ -33,6 +33,7 @@ var timeout = 10 * time.Second
 var interval = 50 * time.Millisecond
 
 func Test_AddDelete_Deployment(t *testing.T) {
+	t.Parallel()
 	workloadmetaComponent := mockedWorkloadmeta(t)
 
 	deploymentStore := newDeploymentReflectorStore(workloadmetaComponent, workloadmetaComponent.GetConfig())
@@ -66,6 +67,7 @@ func Test_AddDelete_Deployment(t *testing.T) {
 }
 
 func Test_AddDelete_Pod(t *testing.T) {
+	t.Parallel()
 	workloadmetaComponent := mockedWorkloadmeta(t)
 
 	podStore := newPodReflectorStore(workloadmetaComponent, workloadmetaComponent.GetConfig())
@@ -100,6 +102,7 @@ func Test_AddDelete_Pod(t *testing.T) {
 }
 
 func Test_AddDelete_PartialObjectMetadata(t *testing.T) {
+	t.Parallel()
 	workloadmetaComponent := mockedWorkloadmeta(t)
 
 	gvr := schema.GroupVersionResource{
@@ -151,6 +154,7 @@ func Test_AddDelete_PartialObjectMetadata(t *testing.T) {
 // caused a panic in workloadmeta filters like the one used in this test
 // (workloadmeta.IsNodeMetadata).
 func TestReplace(t *testing.T) {
+	t.Parallel()
 	gvr := schema.GroupVersionResource{
 		Group:    "",
 		Version:  "v1",

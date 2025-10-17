@@ -15,7 +15,7 @@ import (
 	model "github.com/DataDog/agent-payload/v5/process"
 
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
-	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/tls"
 )
 
 func TestFormatTLSProtocols(t *testing.T) {
@@ -28,7 +28,7 @@ func TestFormatTLSProtocols(t *testing.T) {
 		{
 			name:       "GnuTLS - unknown protocol",
 			protocol:   protocols.Stack{Application: protocols.Unknown},
-			staticTags: http.TLS | http.GnuTLS,
+			staticTags: tls.TLS | tls.GnuTLS,
 			want: &model.ProtocolStack{
 				Stack: []model.ProtocolType{
 					model.ProtocolType_protocolTLS,
@@ -38,7 +38,7 @@ func TestFormatTLSProtocols(t *testing.T) {
 		{
 			name:       "OpenSSL - HTTP protocol",
 			protocol:   protocols.Stack{Application: protocols.HTTP},
-			staticTags: http.TLS | http.OpenSSL,
+			staticTags: tls.TLS | tls.OpenSSL,
 			want: &model.ProtocolStack{
 				Stack: []model.ProtocolType{
 					model.ProtocolType_protocolTLS,
@@ -49,7 +49,7 @@ func TestFormatTLSProtocols(t *testing.T) {
 		{
 			name:       "GoTLS - MySQL protocol",
 			protocol:   protocols.Stack{Application: protocols.MySQL},
-			staticTags: http.TLS | http.Go,
+			staticTags: tls.TLS | tls.Go,
 			want: &model.ProtocolStack{
 				Stack: []model.ProtocolType{
 					model.ProtocolType_protocolTLS,

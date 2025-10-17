@@ -6,6 +6,4 @@ apm_config:
       - "default"
     lib_versions:
       python: "default"
-    version: "v2"
     injector_image_tag: "foo"
-

@@ -13,13 +13,14 @@ import (
 	"go.opentelemetry.io/collector/component/componenttest"
 	"go.opentelemetry.io/otel/sdk/metric"
 
+	"github.com/DataDog/datadog-go/v5/statsd"
+
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/metricsclient"
+	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	traceconfig "github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/testutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/timing"
-	"github.com/DataDog/datadog-go/v5/statsd"
-	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
 )
 
 func setupMetricClient(t *testing.T) (*metric.ManualReader, statsd.ClientInterface, timing.Reporter) {
@@ -63,7 +64,6 @@ func testTraceAgent(enableReceiveResourceSpansV2 bool, t *testing.T) {
 	if !enableReceiveResourceSpansV2 {
 		cfg.Features["disable_receive_resource_spans_v2"] = struct{}{}
 	}
-	cfg.Features["enable_operation_and_resource_name_logic_v2"] = struct{}{}
 	out := make(chan *pb.StatsPayload, 10)
 	ctx := context.Background()
 	_, metricClient, timingReporter := setupMetricClient(t)

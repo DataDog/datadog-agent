@@ -21,16 +21,17 @@ import (
 
 	"github.com/hashicorp/golang-lru/v2/simplelru"
 
-	"github.com/DataDog/datadog-agent/pkg/languagedetection/internal/detectors"
+	privdetectors "github.com/DataDog/datadog-agent/pkg/languagedetection/internal/detectors/privileged"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 var detectorsWithPrivilege = []languagemodels.Detector{
-	detectors.NewInjectorDetector(),
-	detectors.NewGoDetector(),
-	detectors.NewDotnetDetector(),
+	privdetectors.NewTracerDetector(),
+	privdetectors.NewInjectorDetector(),
+	privdetectors.NewGoDetector(),
+	privdetectors.NewDotnetDetector(),
 }
 
 var permissionDeniedWarningOnce = sync.Once{}

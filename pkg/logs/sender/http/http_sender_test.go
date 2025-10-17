@@ -6,7 +6,6 @@
 package http
 
 import (
-	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -16,6 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/client/http"
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
+	"github.com/DataDog/datadog-agent/pkg/logs/sender"
 )
 
 func TestHttpDestinationFactory(t *testing.T) {
@@ -89,24 +89,23 @@ func TestHttpDestinationFactory(t *testing.T) {
 			endpoints := config.NewMockEndpoints(tc.endpoints)
 			destinationsCtx := client.NewDestinationsContext()
 			pipelineMonitor := metrics.NewNoopPipelineMonitor("test")
-			senderDoneChan := make(chan *sync.WaitGroup)
 			mockConfig := configmock.New(t)
 
 			factory := httpDestinationFactory(
 				endpoints,
 				destinationsCtx,
 				pipelineMonitor,
-				tc.serverless,
-				senderDoneChan,
+				sender.NewMockServerlessMeta(tc.serverless),
 				mockConfig,
 				"test-component",
 				"application/json",
+				"",
 				1,
 				10,
 			)
 
 			// Test 1: Verify first call creates destinations
-			destinations1 := factory()
+			destinations1 := factory("test")
 			assert.NotNil(t, destinations1)
 
 			// Verify destination quantities
@@ -141,7 +140,7 @@ func TestHttpDestinationFactory(t *testing.T) {
 			}
 
 			// Test 2: Verify second call creates new destination instances
-			destinations2 := factory()
+			destinations2 := factory("test")
 			assert.NotNil(t, destinations2)
 			assert.NotSame(t, destinations1, destinations2,
 				"Factory should create new destinations instance")

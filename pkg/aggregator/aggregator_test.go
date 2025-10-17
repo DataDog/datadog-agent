@@ -22,6 +22,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/core"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
@@ -82,6 +83,14 @@ func getAggregator(t *testing.T) *BufferedAggregator {
 	deps := createAggrDeps(t)
 	deps.Demultiplexer.Aggregator().tlmContainerTagsEnabled = false // do not use a ContainerImpl
 	return deps.Demultiplexer.Aggregator()
+}
+
+func versionTags() []string {
+	tags := []string{"version:" + version.AgentVersion}
+	if version.AgentPackageVersion != "" {
+		tags = append(tags, "package_version:"+version.AgentPackageVersion)
+	}
+	return tags
 }
 
 func TestRegisterCheckSampler(t *testing.T) {
@@ -255,18 +264,10 @@ func TestDefaultData(t *testing.T) {
 	series := metrics.Series{&metrics.Serie{
 		Name:           fmt.Sprintf("datadog.%s.running", flavor.GetFlavor()),
 		Points:         []metrics.Point{{Value: 1, Ts: float64(start.Unix())}},
-		Tags:           tagset.CompositeTagsFromSlice([]string{fmt.Sprintf("version:%s", version.AgentVersion)}),
+		Tags:           tagset.CompositeTagsFromSlice(versionTags()),
 		Host:           agg.hostname,
 		MType:          metrics.APIGaugeType,
 		SourceTypeName: "System",
-	}, &metrics.Serie{
-		Name:           fmt.Sprintf("n_o_i_n_d_e_x.datadog.%s.payload.dropped", flavor.GetFlavor()),
-		Points:         []metrics.Point{{Value: 0, Ts: float64(start.Unix())}},
-		Host:           agg.hostname,
-		Tags:           tagset.CompositeTagsFromSlice([]string{}),
-		MType:          metrics.APIGaugeType,
-		SourceTypeName: "System",
-		NoIndex:        true,
 	}}
 
 	s.On("SendSeries", series).Return(nil).Times(1)
@@ -309,7 +310,7 @@ func TestDefaultSeries(t *testing.T) {
 	expectedSeries := metrics.Series{&metrics.Serie{
 		Name:           fmt.Sprintf("datadog.%s.running", flavor.GetFlavor()),
 		Points:         []metrics.Point{{Value: 1, Ts: float64(start.Unix())}},
-		Tags:           tagset.CompositeTagsFromSlice([]string{"version:" + version.AgentVersion, "config_id:config123"}),
+		Tags:           tagset.CompositeTagsFromSlice(append(versionTags(), "config_id:config123")),
 		Host:           agg.hostname,
 		MType:          metrics.APIGaugeType,
 		SourceTypeName: "System",
@@ -320,14 +321,6 @@ func TestDefaultSeries(t *testing.T) {
 		Host:           agg.hostname,
 		MType:          metrics.APIGaugeType,
 		SourceTypeName: "System",
-	}, &metrics.Serie{
-		Name:           fmt.Sprintf("n_o_i_n_d_e_x.datadog.%s.payload.dropped", flavor.GetFlavor()),
-		Points:         []metrics.Point{{Value: 0, Ts: float64(start.Unix())}},
-		Host:           agg.hostname,
-		Tags:           tagset.CompositeTagsFromSlice([]string{}),
-		MType:          metrics.APIGaugeType,
-		SourceTypeName: "System",
-		NoIndex:        true,
 	}}
 
 	s.On("SendSeries", expectedSeries).Return(nil).Times(1)
@@ -523,18 +516,10 @@ func TestRecurrentSeries(t *testing.T) {
 	}, &metrics.Serie{
 		Name:           fmt.Sprintf("datadog.%s.running", flavor.GetFlavor()),
 		Points:         []metrics.Point{{Value: 1, Ts: float64(start.Unix())}},
-		Tags:           tagset.CompositeTagsFromSlice([]string{fmt.Sprintf("version:%s", version.AgentVersion)}),
+		Tags:           tagset.CompositeTagsFromSlice(versionTags()),
 		Host:           demux.Aggregator().hostname,
 		MType:          metrics.APIGaugeType,
 		SourceTypeName: "System",
-	}, &metrics.Serie{
-		Name:           fmt.Sprintf("n_o_i_n_d_e_x.datadog.%s.payload.dropped", flavor.GetFlavor()),
-		Points:         []metrics.Point{{Value: 0, Ts: float64(start.Unix())}},
-		Host:           demux.Aggregator().hostname,
-		Tags:           tagset.CompositeTagsFromSlice([]string{}),
-		MType:          metrics.APIGaugeType,
-		SourceTypeName: "System",
-		NoIndex:        true,
 	}}
 
 	// Check only the name for `datadog.agent.up` as the timestamp may not be the same.
@@ -593,7 +578,7 @@ func TestTags(t *testing.T) {
 			agentTags:               func(types.TagCardinality) ([]string, error) { return nil, errors.New("disabled") },
 			globalTags:              func(types.TagCardinality) ([]string, error) { return nil, errors.New("disabled") },
 			withVersion:             true,
-			want:                    []string{"version:" + version.AgentVersion},
+			want:                    versionTags(),
 		},
 		{
 			name:                    "tags disabled, without version",
@@ -611,7 +596,7 @@ func TestTags(t *testing.T) {
 			agentTags:               func(types.TagCardinality) ([]string, error) { return []string{"container_name:agent"}, nil },
 			globalTags:              func(types.TagCardinality) ([]string, error) { return nil, errors.New("disabled") },
 			withVersion:             true,
-			want:                    []string{"container_name:agent", "version:" + version.AgentVersion},
+			want:                    append(versionTags(), "container_name:agent"),
 		},
 		{
 			name:                    "tags enabled, without version",
@@ -629,7 +614,7 @@ func TestTags(t *testing.T) {
 			agentTags:               func(types.TagCardinality) ([]string, error) { return nil, errors.New("no tags") },
 			globalTags:              func(types.TagCardinality) ([]string, error) { return nil, errors.New("disabled") },
 			withVersion:             true,
-			want:                    []string{"version:" + version.AgentVersion},
+			want:                    versionTags(),
 		},
 		{
 			name:                    "tags enabled, with version, with global tags (no hostname)",
@@ -638,7 +623,7 @@ func TestTags(t *testing.T) {
 			agentTags:               func(types.TagCardinality) ([]string, error) { return []string{"container_name:agent"}, nil },
 			globalTags:              func(types.TagCardinality) ([]string, error) { return []string{"kube_cluster_name:foo"}, nil },
 			withVersion:             true,
-			want:                    []string{"container_name:agent", "version:" + version.AgentVersion, "kube_cluster_name:foo"},
+			want:                    append(versionTags(), "container_name:agent", "kube_cluster_name:foo"),
 		},
 		{
 			name:                    "tags enabled, with version, with global tags (hostname present)",
@@ -647,7 +632,7 @@ func TestTags(t *testing.T) {
 			agentTags:               func(types.TagCardinality) ([]string, error) { return []string{"container_name:agent"}, nil },
 			globalTags:              func(types.TagCardinality) ([]string, error) { return []string{"kube_cluster_name:foo"}, nil },
 			withVersion:             true,
-			want:                    []string{"container_name:agent", "version:" + version.AgentVersion, "kube_cluster_name:foo"},
+			want:                    append(versionTags(), "container_name:agent", "kube_cluster_name:foo"),
 		},
 	}
 	for _, tt := range tests {
@@ -795,8 +780,7 @@ func assertSeriesEqual(t *testing.T, series []*metrics.Serie, expectedSeries map
 	r := require.New(t)
 	for _, serie := range series {
 		// ignore default series automatically sent by the aggregator
-		if serie.Name == fmt.Sprintf("datadog.%s.running", flavor.GetFlavor()) ||
-			serie.Name == fmt.Sprintf("n_o_i_n_d_e_x.datadog.%s.payload.dropped", flavor.GetFlavor()) {
+		if serie.Name == fmt.Sprintf("datadog.%s.running", flavor.GetFlavor()) {
 			// ignore default series
 			continue
 		}
@@ -832,6 +816,7 @@ type aggregatorDeps struct {
 	OrchestratorFwd  orchestratorforwarder.Component
 	EventPlatformFwd eventplatform.Component
 	Compressor       compression.Component
+	Tagger           tagger.Component
 }
 
 func createAggrDeps(t *testing.T) aggregatorDeps {

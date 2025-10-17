@@ -9,10 +9,10 @@ package inventoryagentimpl
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"maps"
 	"net/http"
 	"reflect"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -22,9 +22,10 @@ import (
 	"gopkg.in/yaml.v2"
 
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
-	"github.com/DataDog/datadog-agent/comp/api/authtoken"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
@@ -42,7 +43,6 @@ import (
 	ecsmeta "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/installinfo"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
@@ -59,9 +59,11 @@ func Module() fxutil.Module {
 
 var (
 	// for testing
-	installinfoGet         = installinfo.Get
-	fetchSecurityConfig    = configFetcher.SecurityAgentConfig
-	fetchProcessConfig     = func(cfg model.Reader) (string, error) { return configFetcher.ProcessAgentConfig(cfg, true) }
+	installinfoGet      = installinfo.Get
+	fetchSecurityConfig = configFetcher.SecurityAgentConfig
+	fetchProcessConfig  = func(cfg model.Reader, client ipc.HTTPClient) (string, error) {
+		return configFetcher.ProcessAgentConfig(cfg, client, true)
+	}
 	fetchTraceConfig       = configFetcher.TraceAgentConfig
 	fetchSystemProbeConfig = sysprobeConfigFetcher.SystemProbeConfig
 )
@@ -82,23 +84,17 @@ func (p *Payload) MarshalJSON() ([]byte, error) {
 	return json.Marshal((*PayloadAlias)(p))
 }
 
-// SplitPayload implements marshaler.AbstractMarshaler#SplitPayload.
-//
-// In this case, the payload can't be split any further.
-func (p *Payload) SplitPayload(_ int) ([]marshaler.AbstractMarshaler, error) {
-	return nil, fmt.Errorf("could not split inventories agent payload any more, payload is too big for intake")
-}
-
 type inventoryagent struct {
 	util.InventoryPayload
 
 	log          log.Component
 	conf         config.Component
+	hostnameComp hostnameinterface.Component
 	sysprobeConf option.Option[sysprobeconfig.Component]
 	m            sync.Mutex
 	data         agentMetadata
 	hostname     string
-	authToken    authtoken.Component
+	client       ipc.HTTPClient
 }
 
 type dependencies struct {
@@ -108,7 +104,8 @@ type dependencies struct {
 	Config         config.Component
 	SysProbeConfig option.Option[sysprobeconfig.Component]
 	Serializer     serializer.MetricSerializer
-	AuthToken      authtoken.Component
+	IPCClient      ipc.HTTPClient
+	Hostname       hostnameinterface.Component
 }
 
 type provides struct {
@@ -122,21 +119,22 @@ type provides struct {
 }
 
 func newInventoryAgentProvider(deps dependencies) provides {
-	hname, _ := hostname.Get(context.Background())
+	hname, _ := deps.Hostname.Get(context.Background())
 	ia := &inventoryagent{
 		conf:         deps.Config,
 		sysprobeConf: deps.SysProbeConfig,
 		log:          deps.Log,
+		hostnameComp: deps.Hostname,
 		hostname:     hname,
 		data:         make(agentMetadata),
-		authToken:    deps.AuthToken,
+		client:       deps.IPCClient,
 	}
 	ia.InventoryPayload = util.CreateInventoryPayload(deps.Config, deps.Log, deps.Serializer, ia.getPayload, "agent.json")
 
 	if ia.Enabled {
 		ia.initData()
 		// We want to be notified when the configuration is updated
-		deps.Config.OnUpdate(func(_ string, _, _ any) { ia.Refresh() })
+		deps.Config.OnUpdate(func(_ string, _ model.Source, _, _ any, _ uint64) { ia.Refresh() })
 	}
 
 	return provides{
@@ -170,7 +168,7 @@ func (ia *inventoryagent) initData() {
 	ia.data["install_method_tool_version"] = toolVersion
 	ia.data["install_method_installer_version"] = installerVersion
 
-	data, err := hostname.GetWithProvider(context.Background())
+	data, err := ia.hostnameComp.GetWithProvider(context.Background())
 	if err == nil {
 		if data.Provider != "" && !data.FromFargate() {
 			ia.data["hostname_source"] = data.Provider
@@ -182,6 +180,14 @@ func (ia *inventoryagent) initData() {
 	ia.data["agent_version"] = version.AgentVersion
 	ia.data["agent_startup_time_ms"] = pkgconfigsetup.StartTime.UnixMilli()
 	ia.data["flavor"] = flavor.GetFlavor()
+
+	infraMode := scrub(ia.conf.GetString("infrastructure_mode"))
+	// agent-configuration: This validation should be done by the Config once we have such mechanism
+	if !slices.Contains([]string{"full", "end_user_device", "basic"}, infraMode) {
+		ia.log.Warnf("invalid value for 'infrastructure_mode': '%s' (defaulting to 'full')", infraMode)
+		infraMode = "full"
+	}
+	ia.data["infrastructure_mode"] = infraMode
 }
 
 type configGetter interface {
@@ -198,10 +204,10 @@ func (z *zeroConfigGetter) GetString(string) string { return "" }
 
 // getCorrectConfig tries to fetch the configuration from another process. It returns a new
 // configuration object on success and the local config upon failure.
-func (ia *inventoryagent) getCorrectConfig(name string, localConf model.Reader, configFetcher func(config model.Reader) (string, error)) configGetter {
+func (ia *inventoryagent) getCorrectConfig(name string, localConf model.Reader, configFetcher func(config model.Reader, client ipc.HTTPClient) (string, error)) configGetter {
 	// We query the configuration from another agent itself to have accurate data. If the other process isn't
 	// available we fallback on the current configuration.
-	if remoteConfig, err := configFetcher(localConf); err == nil {
+	if remoteConfig, err := configFetcher(localConf, ia.client); err == nil {
 		cfg := viper.New()
 		cfg.SetConfigType("yaml")
 		if err = cfg.ReadConfig(strings.NewReader(remoteConfig)); err != nil {
@@ -243,6 +249,9 @@ func (ia *inventoryagent) fetchCoreAgentMetadata() {
 	ia.data["feature_csm_vm_hosts_enabled"] = ia.conf.GetBool("sbom.enabled") && ia.conf.GetBool("sbom.host.enabled")
 
 	ia.data["fleet_policies_applied"] = ia.conf.GetStringSlice("fleet_layers")
+
+	// Synthetics
+	ia.data["feature_synthetics_collector_enabled"] = ia.conf.GetBool("synthetics.collector.enabled")
 
 	// ECS Fargate
 	ia.fetchECSFargateAgentMetadata()
@@ -307,20 +316,25 @@ func (ia *inventoryagent) fetchSystemProbeMetadata() {
 	// Service monitoring / system-probe
 
 	ia.data["feature_networks_enabled"] = sysProbeConf.GetBool("network_config.enabled")
-	ia.data["feature_networks_http_enabled"] = sysProbeConf.GetBool("service_monitoring_config.enable_http_monitoring")
+	ia.data["feature_networks_http_enabled"] = sysProbeConf.GetBool("service_monitoring_config.http.enabled")
 	ia.data["feature_networks_https_enabled"] = sysProbeConf.GetBool("service_monitoring_config.tls.native.enabled")
+	ia.data["feature_traceroute_enabled"] = sysProbeConf.GetBool("traceroute.enabled")
 
 	ia.data["feature_usm_enabled"] = sysProbeConf.GetBool("service_monitoring_config.enabled")
-	ia.data["feature_usm_kafka_enabled"] = sysProbeConf.GetBool("service_monitoring_config.enable_kafka_monitoring")
-	ia.data["feature_usm_postgres_enabled"] = sysProbeConf.GetBool("service_monitoring_config.enable_postgres_monitoring")
-	ia.data["feature_usm_redis_enabled"] = sysProbeConf.GetBool("service_monitoring_config.enable_redis_monitoring")
-	ia.data["feature_usm_http2_enabled"] = sysProbeConf.GetBool("service_monitoring_config.enable_http2_monitoring")
+	ia.data["feature_usm_kafka_enabled"] = sysProbeConf.GetBool("service_monitoring_config.kafka.enabled")
+	ia.data["feature_usm_postgres_enabled"] = sysProbeConf.GetBool("service_monitoring_config.postgres.enabled")
+	ia.data["feature_usm_redis_enabled"] = sysProbeConf.GetBool("service_monitoring_config.redis.enabled")
+	ia.data["feature_usm_http2_enabled"] = sysProbeConf.GetBool("service_monitoring_config.http2.enabled")
 	ia.data["feature_usm_istio_enabled"] = sysProbeConf.GetBool("service_monitoring_config.tls.istio.enabled")
 	ia.data["feature_usm_go_tls_enabled"] = sysProbeConf.GetBool("service_monitoring_config.tls.go.enabled")
 
 	// Discovery module / system-probe
 
 	ia.data["feature_discovery_enabled"] = sysProbeConf.GetBool("discovery.enabled")
+
+	// GPU monitoring / system-probe
+
+	ia.data["feature_gpu_monitoring_enabled"] = sysProbeConf.GetBool("gpu_monitoring.enabled")
 
 	// miscellaneous / system-probe
 
@@ -473,6 +487,10 @@ func (ia *inventoryagent) getPayload() marshaler.JSONMarshaler {
 	maps.Copy(data, ia.data)
 
 	ia.getConfigs(data)
+
+	if !ia.conf.GetBool("inventories_diagnostics_enabled") {
+		delete(data, "diagnostics")
+	}
 
 	return &Payload{
 		Hostname:  ia.hostname,

@@ -37,6 +37,8 @@ MINOR_RC_VERSION_RE = re.compile(r'^\d+[.]\d+[.]0-rc\.\d+$')
 # Regex matching the git describe output
 DESCRIBE_PATTERN = re.compile(r"^.*-(?P<commit_number>\d+)-g[0-9a-f]+$")
 
+RELEASE_JSON_DEPENDENCIES = "dependencies"
+
 
 def build_compatible_version_re(allowed_major_versions, minor_version):
     """
@@ -239,40 +241,27 @@ def _get_highest_repo_version(
     return highest_version
 
 
-def _get_release_version_from_release_json(release_json, version_re, release_json_key=None):
+def _get_release_version_from_release_json(release_json, version_re, release_json_key):
     """
-    If release_json_key is None, returns the highest version entry in release.json.
-    If release_json_key is set, returns the entry for release_json_key of the highest version entry in release.json.
+    returns the release component version for release_json_key in the dependencies entry of the release.json
     """
 
-    release_version = None
     release_component_version = None
+    dependencies_entry = release_json.get(RELEASE_JSON_DEPENDENCIES, None)
 
-    # Get the release entry for the given Agent major version
-    release_entry_name = "release"
-    release_json_entry = release_json.get(release_entry_name, None)
+    if dependencies_entry is None:
+        raise Exit(f"release.json is missing a {RELEASE_JSON_DEPENDENCIES} entry.", 1)
 
-    # Check that the release entry exists, otherwise fail
-    if release_json_entry:
-        release_version = release_entry_name
+    # Check that the component's version is defined in the dependencies entry
+    match = version_re.match(dependencies_entry.get(release_json_key, ""))
+    if match:
+        release_component_version = _create_version_from_match(match)
+    else:
+        print(
+            f"{RELEASE_JSON_DEPENDENCIES} does not have a valid {release_json_key} ({dependencies_entry.get(release_json_key, '')}), ignoring"
+        )
 
-        # Check that the component's version is defined in the release entry
-        if release_json_key is not None:
-            match = version_re.match(release_json_entry.get(release_json_key, ""))
-            if match:
-                release_component_version = _create_version_from_match(match)
-            else:
-                print(
-                    f"{release_entry_name} does not have a valid {release_json_key} ({release_json_entry.get(release_json_key, '')}), ignoring"
-                )
-
-    if not release_version:
-        raise Exit(f"Couldn't find any matching {release_version} version.", 1)
-
-    if release_json_key is not None:
-        return release_component_version
-
-    return release_version
+    return release_component_version
 
 
 def get_version(
@@ -381,14 +370,14 @@ def get_version_numeric_only(ctx, major_version='7'):
     return version
 
 
-def load_release_versions(_, target_version):
+def load_dependencies(_):
     with open("release.json") as f:
         versions = json.load(f)
-        if target_version in versions:
-            # windows runners don't accepts anything else than strings in the
-            # environment when running a subprocess.
-            return {str(k): str(v) for k, v in versions[target_version].items()}
-    raise Exception(f"Could not find '{target_version}' version in release.json")
+        if RELEASE_JSON_DEPENDENCIES not in versions:
+            raise Exception(f"Could not find '{RELEASE_JSON_DEPENDENCIES}' in release.json")
+        # windows runners don't accepts anything else than strings in the
+        # environment when running a subprocess.
+        return {str(k): str(v) for k, v in versions[RELEASE_JSON_DEPENDENCIES].items()}
 
 
 def create_version_json(ctx, git_sha_length=7):

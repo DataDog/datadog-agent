@@ -2,9 +2,9 @@
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
+
 //go:build !windows
 
-//nolint:revive // TODO(PLINT) Fix revive linter
 package load
 
 import (
@@ -30,7 +30,7 @@ const (
 var loadAvg = load.Avg
 var cpuInfo = cpu.Info
 
-// LoadCheck doesn't need additional fields
+//nolint:revive
 type LoadCheck struct {
 	core.CheckBase
 	nbCPU int32

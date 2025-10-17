@@ -1,0 +1,50 @@
+# Tests multiple tenants. Demonstrates that the same process from different
+# tenants is tracked separately.
+- !processes-updated
+  tenant_id: 1
+  updated:
+    - process_id: {pid: 1001}
+      executable: {path: /usr/bin/test}
+      probes:
+        - {type: LOG_PROBE, id: probe1, where: {methodName: main}, captureSnapshot: true}
+- !processes-updated
+  tenant_id: 2
+  updated:
+    - process_id: {pid: 1001}
+      executable: {path: /usr/bin/test}
+      probes:
+        - {type: LOG_PROBE, id: probe_tenant_2, where: {methodName: main}, captureSnapshot: true}
+---
+event: !processes-updated
+  tenant_id: 1
+  updated:
+    - process_id: {pid: 1001}
+      executable: {path: /usr/bin/test}
+      probes:
+        - {type: LOG_PROBE, id: probe1, where: {methodName: main}, captureSnapshot: true}
+effects:
+  - !spawn-bpf-loading {executable: /usr/bin/test@0.0m0.0, probes: [probe1], process_id: 1001, program_id: 1}
+state:
+  currently_loading: <nil> -> 1
+  queued_programs: '[]'
+  processes:
+    t1:1001: <nil> -> WaitingForProgram (prog 1)
+  programs:
+    1: <nil> -> Loading (proc 1001)
+---
+event: !processes-updated
+  tenant_id: 2
+  updated:
+    - process_id: {pid: 1001}
+      executable: {path: /usr/bin/test}
+      probes:
+        - {type: LOG_PROBE, id: probe_tenant_2, where: {methodName: main}, captureSnapshot: true}
+state:
+  currently_loading: "1"
+  queued_programs: '[] -> [2]'
+  processes:
+    t1:1001: WaitingForProgram (prog 1)
+    t2:1001: <nil> -> WaitingForProgram (prog 2)
+  programs:
+    1: Loading (proc 1001)
+    2: <nil> -> Queued (proc 1001)

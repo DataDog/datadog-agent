@@ -17,8 +17,10 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/symlink"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -271,7 +273,7 @@ func (r *Repository) PromoteExperiment(ctx context.Context) error {
 	if !repository.experiment.Exists() {
 		return fmt.Errorf("experiment link does not exist, invalid state")
 	}
-	if repository.stable.Target() == repository.experiment.Target() {
+	if repository.experiment.Target() == "" || repository.stable.Target() == repository.experiment.Target() {
 		return fmt.Errorf("no experiment to promote")
 	}
 	err = repository.stable.Set(*repository.experiment.packagePath)
@@ -418,6 +420,7 @@ func (r *repositoryFiles) cleanup(ctx context.Context) error {
 	}
 
 	// remove left-over packages
+	pkgName := filepath.Base(r.rootPath)
 	files, err := os.ReadDir(r.rootPath)
 	if err != nil {
 		return fmt.Errorf("could not read root directory: %w", err)
@@ -435,7 +438,6 @@ func (r *repositoryFiles) cleanup(ctx context.Context) error {
 		}
 
 		pkgRepositoryPath := filepath.Join(r.rootPath, file.Name())
-		pkgName := filepath.Base(r.rootPath)
 
 		if pkgHook, hasHook := r.preRemoveHooks[pkgName]; hasHook {
 			canDelete, err := pkgHook(ctx, pkgRepositoryPath)
@@ -449,11 +451,29 @@ func (r *repositoryFiles) cleanup(ctx context.Context) error {
 		}
 
 		log.Debugf("Removing package %s", pkgRepositoryPath)
+		realPkgRepositoryPath, err := filepath.EvalSymlinks(pkgRepositoryPath)
+		if err != nil {
+			log.Errorf("could not evaluate symlinks for package %s: %v", pkgRepositoryPath, err)
+		}
+		if err := os.RemoveAll(realPkgRepositoryPath); err != nil {
+			log.Errorf("could not remove package %s directory, will retry: %v", realPkgRepositoryPath, err)
+		}
 		if err := os.RemoveAll(pkgRepositoryPath); err != nil {
 			log.Errorf("could not remove package %s directory, will retry: %v", pkgRepositoryPath, err)
 		}
 	}
 
+	// special case for the agent package
+	// remove the agent deb/rpm directory if it exists and we have upgraded to an OCI-based agent
+	stablePath, err := filepath.EvalSymlinks(filepath.Join(r.rootPath, stableVersionLink))
+	if err != nil {
+		log.Errorf("could not evaluate symlinks for stable link: %v", err)
+	}
+	if err == nil && runtime.GOOS == "linux" && pkgName == "datadog-agent" && strings.HasPrefix(stablePath, "/opt/datadog-packages/datadog-agent") {
+		if err := os.RemoveAll("/opt/datadog-agent"); err != nil {
+			log.Errorf("could not remove previous agent directory: %v", err)
+		}
+	}
 	return nil
 }
 
@@ -463,7 +483,7 @@ type link struct {
 }
 
 func newLink(linkPath string) (*link, error) {
-	linkExists, err := linkExists(linkPath)
+	linkExists, err := symlink.Exist(linkPath)
 	if err != nil {
 		return nil, fmt.Errorf("could check if link exists: %w", err)
 	}
@@ -472,7 +492,7 @@ func newLink(linkPath string) (*link, error) {
 			linkPath: linkPath,
 		}, nil
 	}
-	packagePath, err := linkRead(linkPath)
+	packagePath, err := symlink.Read(linkPath)
 	if err != nil {
 		return nil, fmt.Errorf("could not read link: %w", err)
 	}
@@ -493,13 +513,17 @@ func (l *link) Exists() bool {
 
 func (l *link) Target() string {
 	if l.Exists() {
-		return filepath.Base(*l.packagePath)
+		packagePath := filepath.Base(*l.packagePath)
+		if packagePath == stableVersionLink {
+			return ""
+		}
+		return packagePath
 	}
 	return ""
 }
 
 func (l *link) Set(path string) error {
-	err := linkSet(l.linkPath, path)
+	err := symlink.Set(l.linkPath, path)
 	if err != nil {
 		return fmt.Errorf("could not set link: %w", err)
 	}
@@ -508,7 +532,7 @@ func (l *link) Set(path string) error {
 }
 
 func (l *link) Delete() error {
-	err := linkDelete(l.linkPath)
+	err := symlink.Delete(l.linkPath)
 	if err != nil {
 		return fmt.Errorf("could not delete link: %w", err)
 	}

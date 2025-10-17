@@ -26,8 +26,10 @@ type completeTestSuite struct {
 var completeConfig string
 
 func TestOTelAgentComplete(t *testing.T) {
-	values := enableOTELAgentonfig(`
+	values := `
 datadog:
+  otelCollector:
+    useStandaloneImage: false
   logs:
     containerCollectAll: false
     containerCollectUsingFiles: false
@@ -38,8 +40,8 @@ agents:
         - name: DD_OTELCOLLECTOR_CONVERTER_ENABLED
           value: 'false'
         - name: DD_APM_FEATURES
-          value: 'disable_receive_resource_spans_v2'
-`)
+          value: 'disable_receive_resource_spans_v2,disable_operation_and_resource_name_logic_v2'
+`
 	t.Parallel()
 	e2e.Run(t, &completeTestSuite{}, e2e.WithProvisioner(awskubernetes.KindProvisioner(awskubernetes.WithAgentOptions(kubernetesagentparams.WithHelmValues(values), kubernetesagentparams.WithOTelAgent(), kubernetesagentparams.WithOTelConfig(completeConfig)))))
 }

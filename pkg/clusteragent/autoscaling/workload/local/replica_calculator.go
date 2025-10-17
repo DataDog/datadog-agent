@@ -27,8 +27,7 @@ import (
 )
 
 const (
-	staleDataThresholdSeconds   = 60 // maximum time window to look for valid metrics
-	minRequiredMetricDataPoints = 2  // minimum number of data points to consider for a metric
+	minRequiredMetricDataPoints = 2 // minimum number of data points to consider for a metric
 )
 
 type replicaCalculator struct {
@@ -43,10 +42,10 @@ type utilizationResult struct {
 	recommendationTimestamp time.Time
 }
 
-func newReplicaCalculator(podWatcher workload.PodWatcher) replicaCalculator {
+func newReplicaCalculator(clock clock.Clock, podWatcher workload.PodWatcher) replicaCalculator {
 	return replicaCalculator{
 		podWatcher: podWatcher,
-		clock:      clock.RealClock{},
+		clock:      clock,
 	}
 }
 
@@ -57,6 +56,9 @@ func (r replicaCalculator) calculateHorizontalRecommendations(dpai model.PodAuto
 	// Get current pods for the target
 	targetRef := dpai.Spec().TargetRef
 	objectives := dpai.Spec().Objectives
+	if dpai.Spec().Fallback != nil && len(dpai.Spec().Fallback.Horizontal.Objectives) > 0 {
+		objectives = dpai.Spec().Fallback.Horizontal.Objectives
+	}
 	targetGVK, targetErr := dpai.TargetGVK()
 	if targetErr != nil {
 		return nil, fmt.Errorf("Failed to get GVK for target: %s, %s", dpai.ID(), targetErr)
@@ -81,7 +83,11 @@ func (r replicaCalculator) calculateHorizontalRecommendations(dpai model.PodAuto
 	for _, objective := range objectives {
 		recSettings, err := newResourceRecommenderSettings(objective)
 		if err != nil {
-			return nil, fmt.Errorf("Failed to get resource recommender settings: %s", err)
+			return nil, fmt.Errorf("failed to get recommender settings for objective: %s, %s", dpai.ID(), err)
+		}
+		if recSettings == nil {
+			// ControllerObjective is ignored by the local recommender
+			continue
 		}
 
 		queryResult := lStore.GetMetricsRaw(recSettings.metricName, namespace, podOwnerName, recSettings.containerName)
@@ -185,7 +191,7 @@ func calculateUtilization(recSettings resourceRecommenderSettings, pods []*workl
 			}
 
 			series := getContainerMetrics(queryResult, pod.Name, container.Name)
-			averageValue, lastTimestamp, err := processAverageContainerMetricValue(series, currentTime)
+			averageValue, lastTimestamp, err := processAverageContainerMetricValue(series, currentTime, recSettings.fallbackStaleDataThreshold)
 			if err != nil {
 				continue // skip; no usage information
 			}
@@ -239,7 +245,7 @@ func getContainerMetrics(queryResult loadstore.QueryResult, podName, containerNa
 
 // processAverageContainerMetricValue takes a series of metrics and processes them to return the final metric value and
 // corresponding timestamp to use to generate a recommendation
-func processAverageContainerMetricValue(series []loadstore.EntityValue, currentTime time.Time) (float64, time.Time, error) {
+func processAverageContainerMetricValue(series []loadstore.EntityValue, currentTime time.Time, fallbackStaleDataThreshold int64) (float64, time.Time, error) {
 	if len(series) < 2 { // too little metrics data
 		return 0.0, time.Time{}, fmt.Errorf("Missing usage metrics")
 	}
@@ -256,7 +262,7 @@ func processAverageContainerMetricValue(series []loadstore.EntityValue, currentT
 		}
 
 		// Discard stale metrics
-		if isStaleMetric(currentTime, entity.Timestamp) && len(values) >= minRequiredMetricDataPoints {
+		if isStaleMetric(currentTime, entity.Timestamp, fallbackStaleDataThreshold) && len(values) >= minRequiredMetricDataPoints {
 			continue
 		}
 
@@ -266,6 +272,7 @@ func processAverageContainerMetricValue(series []loadstore.EntityValue, currentT
 		if (lastTimestamp == time.Time{}) || ts.Before(lastTimestamp) {
 			lastTimestamp = ts
 		}
+
 	}
 
 	return average(values), lastTimestamp, nil
@@ -313,7 +320,7 @@ func calculateReplicas(recSettings resourceRecommenderSettings, currentReplicas 
 }
 
 // Helpers
-func isStaleMetric(currentTime time.Time, metricTimestamp loadstore.Timestamp) bool {
+func isStaleMetric(currentTime time.Time, metricTimestamp loadstore.Timestamp, staleDataThresholdSeconds int64) bool {
 	return currentTime.Unix()-int64(metricTimestamp) > staleDataThresholdSeconds
 }
 

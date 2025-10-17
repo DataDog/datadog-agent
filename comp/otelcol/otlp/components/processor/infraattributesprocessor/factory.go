@@ -7,25 +7,28 @@ package infraattributesprocessor
 
 import (
 	"context"
-	"fmt"
 	"sync"
+
+	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	"go.uber.org/fx"
+
+	"go.opentelemetry.io/collector/component"
+	"go.opentelemetry.io/collector/consumer"
+	"go.opentelemetry.io/collector/consumer/xconsumer"
+	"go.opentelemetry.io/collector/processor"
+	"go.opentelemetry.io/collector/processor/processorhelper"
+	"go.opentelemetry.io/collector/processor/processorhelper/xprocessorhelper"
+	"go.opentelemetry.io/collector/processor/xprocessor"
 
 	logfx "github.com/DataDog/datadog-agent/comp/core/log/fx"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	remoteTaggerfx "github.com/DataDog/datadog-agent/comp/core/tagger/fx-remote"
 	taggerTypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
-	"github.com/DataDog/datadog-agent/pkg/api/security"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
-	"go.opentelemetry.io/collector/component"
-	"go.opentelemetry.io/collector/consumer"
-	"go.opentelemetry.io/collector/processor"
-	"go.opentelemetry.io/collector/processor/processorhelper"
 )
 
 var processorCapabilities = consumer.Capabilities{MutatesData: true}
@@ -47,7 +50,7 @@ func (f *factory) getOrCreateData() (*data, error) {
 		return f.data, nil
 	}
 	f.data = &data{}
-	var client taggerClient
+	var client taggerTypes.TaggerClient
 	app := fx.New(
 		fx.Provide(func() config.Component {
 			return pkgconfigsetup.Datadog()
@@ -58,18 +61,8 @@ func (f *factory) getOrCreateData() (*data, error) {
 		logfx.Module(),
 		telemetryModule(),
 		fxutil.FxAgentBase(),
-		remoteTaggerfx.Module(tagger.RemoteParams{
-			RemoteTarget: func(c config.Component) (string, error) {
-				return fmt.Sprintf(":%v", c.GetInt("cmd_port")), nil
-			},
-			RemoteTokenFetcher: func(c config.Component) func() (string, error) {
-				return func() (string, error) {
-					return security.FetchAuthToken(c)
-				}
-			},
-			RemoteFilter: taggerTypes.NewMatchAllFilter(),
-		}),
-		fx.Provide(func(t tagger.Component) taggerClient {
+		remoteTaggerfx.Module(tagger.NewRemoteParams()),
+		fx.Provide(func(t tagger.Component) taggerTypes.TaggerClient {
 			return t
 		}),
 		fx.Populate(&client),
@@ -90,23 +83,24 @@ func NewFactory() processor.Factory {
 type SourceProviderFunc func(context.Context) (string, error)
 
 // NewFactoryForAgent returns a new factory for the InfraAttributes processor.
-func NewFactoryForAgent(tagger taggerClient, hostGetter SourceProviderFunc) processor.Factory {
+func NewFactoryForAgent(tagger taggerTypes.TaggerClient, hostGetter SourceProviderFunc) xprocessor.Factory {
 	return newFactoryForAgent(&data{
 		infraTags: newInfraTagsProcessor(tagger, option.New(hostGetter)),
 	})
 }
 
-func newFactoryForAgent(data *data) processor.Factory {
+func newFactoryForAgent(data *data) xprocessor.Factory {
 	f := &factory{
 		data: data,
 	}
 
-	return processor.NewFactory(
+	return xprocessor.NewFactory(
 		Type,
 		f.createDefaultConfig,
-		processor.WithMetrics(f.createMetricsProcessor, MetricsStability),
-		processor.WithLogs(f.createLogsProcessor, LogsStability),
-		processor.WithTraces(f.createTracesProcessor, TracesStability),
+		xprocessor.WithMetrics(f.createMetricsProcessor, MetricsStability),
+		xprocessor.WithLogs(f.createLogsProcessor, LogsStability),
+		xprocessor.WithTraces(f.createTracesProcessor, TracesStability),
+		xprocessor.WithProfiles(f.createProfilesProcessor, ProfilesStability),
 	)
 }
 
@@ -184,4 +178,27 @@ func (f *factory) createTracesProcessor(
 		nextConsumer,
 		iap.processTraces,
 		processorhelper.WithCapabilities(processorCapabilities))
+}
+
+func (f *factory) createProfilesProcessor(
+	ctx context.Context,
+	set processor.Settings,
+	cfg component.Config,
+	nextConsumer xconsumer.Profiles,
+) (xprocessor.Profiles, error) {
+	data, err := f.getOrCreateData()
+	if err != nil {
+		return nil, err
+	}
+	iap, err := newInfraAttributesProfileProcessor(set, data.infraTags, cfg.(*Config))
+	if err != nil {
+		return nil, err
+	}
+	return xprocessorhelper.NewProfiles(
+		ctx,
+		set,
+		cfg,
+		nextConsumer,
+		iap.processProfiles,
+		xprocessorhelper.WithCapabilities(processorCapabilities))
 }

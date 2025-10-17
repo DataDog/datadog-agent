@@ -27,6 +27,7 @@ import (
 
 	"github.com/DataDog/datadog-go/v5/statsd"
 
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/events"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/kfilters"
@@ -332,6 +333,36 @@ func (p *EBPFLessProbe) handleSyscallMsg(cl *client, syscallMsg *ebpfless.Syscal
 		event.Bind.AddrFamily = syscallMsg.Bind.AddressFamily
 		event.Bind.Protocol = syscallMsg.Bind.Protocol
 		event.Bind.Retval = syscallMsg.Retval
+	case ebpfless.SyscallTypeSetsockopt:
+		event.Type = uint32(model.SetSockOptEventType)
+		event.SetSockOpt.SocketFamily = syscallMsg.Setsockopt.SocketFamily
+		event.SetSockOpt.SocketProtocol = syscallMsg.Setsockopt.SocketProtocol
+		event.SetSockOpt.SocketType = syscallMsg.Setsockopt.SocketType
+		event.SetSockOpt.Level = syscallMsg.Setsockopt.Level
+		event.SetSockOpt.OptName = syscallMsg.Setsockopt.OptName
+		event.SetSockOpt.RawFilter = syscallMsg.Setsockopt.Filter
+		event.SetSockOpt.FilterLen = syscallMsg.Setsockopt.FilterLen
+		event.SetSockOpt.SizeToRead = uint32(syscallMsg.Setsockopt.FilterLen)
+	case ebpfless.SyscallTypeSetrlimit:
+		event.Type = uint32(model.SetrlimitEventType)
+		event.Setrlimit.Resource = syscallMsg.Setrlimit.Resource
+		event.Setrlimit.RlimCur = syscallMsg.Setrlimit.CurLimit
+		event.Setrlimit.RlimMax = syscallMsg.Setrlimit.MaxLimit
+		event.Setrlimit.TargetPid = syscallMsg.Setrlimit.Pid
+
+		// resolve target process context
+		var pce *model.ProcessCacheEntry
+		if event.Setrlimit.TargetPid > 0 {
+			pce = p.Resolvers.ProcessResolver.Resolve(process.CacheResolverKey{Pid: event.Setrlimit.TargetPid, NSID: cl.nsID})
+		}
+		if pce == nil {
+			pce = model.NewPlaceholderProcessCacheEntry(event.Setrlimit.TargetPid, event.Setrlimit.TargetPid, false)
+		}
+		event.Setrlimit.Target = &pce.ProcessContext
+	case ebpfless.SyscallTypePrctl:
+		event.Type = uint32(model.PrCtlEventType)
+		event.PrCtl.Option = syscallMsg.Prctl.Option
+		event.PrCtl.NewName = syscallMsg.Prctl.NewName
 	}
 
 	// container context
@@ -605,8 +636,8 @@ func (p *EBPFLessProbe) FlushDiscarders() error {
 }
 
 // ApplyRuleSet applies the new ruleset
-func (p *EBPFLessProbe) ApplyRuleSet(_ *rules.RuleSet) (*kfilters.ApplyRuleSetReport, error) {
-	return &kfilters.ApplyRuleSetReport{}, nil
+func (p *EBPFLessProbe) ApplyRuleSet(_ *rules.RuleSet) (*kfilters.FilterReport, error) {
+	return &kfilters.FilterReport{}, nil
 }
 
 // OnNewRuleSetLoaded resets statistics and states once a new rule set is loaded
@@ -630,13 +661,11 @@ func (p *EBPFLessProbe) HandleActions(ctx *eval.Context, rule *rules.Rule) {
 				return
 			}
 
-			if p.processKiller.KillAndReport(action.Def.Kill, rule, ev, func(pid uint32, sig uint32) error {
-				return p.processKiller.KillFromUserspace(pid, sig, ev)
-			}) {
+			if p.processKiller.KillAndReport(action.Def.Kill, rule, ev) {
 				p.probe.onRuleActionPerformed(rule, action.Def)
 			}
 		case action.Def.Hash != nil:
-			if p.fileHasher.HashAndReport(rule, ev) {
+			if p.fileHasher.HashAndReport(rule, action.Def.Hash, ev) {
 				p.probe.onRuleActionPerformed(rule, action.Def)
 			}
 		}
@@ -667,7 +696,7 @@ func (p *EBPFLessProbe) GetEventTags(containerID containerutils.ContainerID) []s
 }
 
 func (p *EBPFLessProbe) zeroEvent() *model.Event {
-	p.event.Zero()
+	probeEventZeroer(p.event)
 	p.event.FieldHandlers = p.fieldHandlers
 	p.event.Origin = EBPFLessOrigin
 	return p.event
@@ -684,10 +713,10 @@ func (p *EBPFLessProbe) GetAgentContainerContext() *events.AgentContainerContext
 }
 
 // NewEBPFLessProbe returns a new eBPF less probe
-func NewEBPFLessProbe(probe *Probe, config *config.Config, opts Opts) (*EBPFLessProbe, error) {
+func NewEBPFLessProbe(probe *Probe, config *config.Config, ipc ipc.Component, opts Opts) (*EBPFLessProbe, error) {
 	opts.normalize()
 
-	processKiller, err := NewProcessKiller(config)
+	processKiller, err := NewProcessKiller(config, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -719,7 +748,7 @@ func NewEBPFLessProbe(probe *Probe, config *config.Config, opts Opts) (*EBPFLess
 
 	p.fileHasher = NewFileHasher(config, p.Resolvers.HashResolver)
 
-	hostname, err := hostnameutils.GetHostname()
+	hostname, err := hostnameutils.GetHostname(ipc)
 	if err != nil || hostname == "" {
 		hostname = "unknown"
 	}

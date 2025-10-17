@@ -1,3 +1,4 @@
+import re
 import sys
 from datetime import date
 
@@ -62,13 +63,13 @@ def update_changelog(ctx, release_branch, target="all", upstream="origin"):
     will be generated.
     """
 
-    new_version = deduce_version(ctx, release_branch, next_version=False)
-    new_version_int = list(map(int, new_version.split(".")))
-    if len(new_version_int) != 3:
-        print(f"Error: invalid version: {new_version_int}")
-        raise Exit(code=1)
-
     with agent_context(ctx, release_branch):
+        new_version = deduce_version(ctx, release_branch, next_version=False)
+        new_version_int = list(map(int, new_version.split(".")))
+        if len(new_version_int) != 3:
+            print(f"Error: invalid version: {new_version_int}")
+            raise Exit(code=1)
+
         # Step 1 - generate the changelogs
 
         generate_agent = target in ["all", "agent"]
@@ -134,8 +135,30 @@ def update_changelog(ctx, release_branch, target="all", upstream="origin"):
                 code=1,
             )
 
+        res = ctx.run("git ls-remote --heads origin")
+        backport_labels = []
+        for line in res.splitlines():
+            sections = line.strip().split()
+            if len(sections) != 2:
+                continue
+
+            # Enforce branch release naming convention (i.e. 7.67.x)
+            branch = sections[1].removeprefix("refs/heads/")
+            if not re.match(r'^7\.[0-9]+\.x$', branch):
+                continue
+
+            minor_version = int(branch.split(".")[1])
+            if minor_version > new_version_int[1]:
+                backport_labels.append(f"backport/{branch}")
+
         create_release_pr(
-            f"Changelog update for {new_version} release", base_branch, update_branch, new_version, changelog_pr=True
+            f"Changelog update for {new_version} release",
+            base_branch,
+            update_branch,
+            new_version,
+            changelog_pr=True,
+            milestone=str(new_version),
+            labels=backport_labels,
         )
 
 

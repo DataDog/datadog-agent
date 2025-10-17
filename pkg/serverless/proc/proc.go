@@ -261,25 +261,26 @@ type FileDescriptorUseData struct {
 }
 
 // GetFileDescriptorUseData returns the maximum number of file descriptors the function has used at a time
-func GetFileDescriptorUseData(pids []int) (*FileDescriptorUseData, error) {
+func GetFileDescriptorUseData(pids []int) *FileDescriptorUseData {
 	return getFileDescriptorUseData(ProcPath, pids)
 }
 
-func getFileDescriptorUseData(path string, pids []int) (*FileDescriptorUseData, error) {
+func getFileDescriptorUseData(path string, pids []int) *FileDescriptorUseData {
 	fdUse := 0
 
 	for _, pid := range pids {
 		fdPath := fmt.Sprint(path + fmt.Sprintf(PidFdPathFormat, pid))
 		files, err := os.ReadDir(fdPath)
 		if err != nil {
-			return nil, fmt.Errorf("file descriptor use data not found in file '%s'", fdPath)
+			log.Debugf("File descriptor use data not found in file '%s'", fdPath)
+			continue
 		}
 		fdUse += len(files)
 	}
 
 	return &FileDescriptorUseData{
 		UseFileHandles: float64(fdUse),
-	}, nil
+	}
 }
 
 type ThreadsMaxData struct {

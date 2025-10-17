@@ -17,16 +17,17 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
 	e2eos "github.com/DataDog/test-infra-definitions/components/os"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
 )
 
 // Host is a remote host environment.
 type Host struct {
-	t              *testing.T
+	t              func() *testing.T
 	remote         *components.RemoteHost
 	os             e2eos.Descriptor
 	arch           e2eos.Architecture
@@ -35,10 +36,10 @@ type Host struct {
 }
 
 // Option is an option to configure a Host.
-type Option func(*testing.T, *Host)
+type Option func(func() *testing.T, *Host)
 
 // New creates a new Host.
-func New(t *testing.T, remote *components.RemoteHost, os e2eos.Descriptor, arch e2eos.Architecture, opts ...Option) *Host {
+func New(t func() *testing.T, remote *components.RemoteHost, os e2eos.Descriptor, arch e2eos.Architecture, opts ...Option) *Host {
 	host := &Host{
 		t:      t,
 		remote: remote,
@@ -57,7 +58,7 @@ func New(t *testing.T, remote *components.RemoteHost, os e2eos.Descriptor, arch 
 	} else if _, err := host.remote.Execute("command -v yum"); err == nil {
 		host.pkgManager = "yum"
 	} else {
-		t.Fatal("no package manager found")
+		t().Fatal("no package manager found")
 	}
 	return host
 }
@@ -70,7 +71,7 @@ func (h *Host) GetPkgManager() string {
 func (h *Host) setSystemdVersion() {
 	strVersion := strings.TrimSpace(h.remote.MustExecute("systemctl --version | head -n1 | awk '{print $2}'"))
 	version, err := strconv.Atoi(strVersion)
-	require.NoError(h.t, err)
+	require.NoError(h.t(), err)
 	h.systemdVersion = version
 }
 
@@ -86,14 +87,14 @@ func (h *Host) InstallDocker() {
 		_, _ = h.remote.Execute("sudo systemctl stop docker")
 		_, err := h.remote.Execute("sudo systemctl reset-failed docker")
 		if err != nil {
-			h.t.Logf("warn: failed to reset-failed for docker.d: %v", err)
+			h.t().Logf("warn: failed to reset-failed for docker.d: %v", err)
 		}
 		_, err = h.remote.Execute("sudo rm -rf /var/lib/docker/network")
 		if err != nil {
-			h.t.Logf("warn: failed to remove /var/lib/docker/network: %v", err)
+			h.t().Logf("warn: failed to remove /var/lib/docker/network: %v", err)
 		}
 		_, err = h.remote.Execute("sudo systemctl start docker")
-		require.NoErrorf(h.t, err, "failed to start Docker, logs: %s", h.remote.MustExecute("sudo journalctl -xeu docker"))
+		require.NoErrorf(h.t(), err, "failed to start Docker, logs: %s", h.remote.MustExecute("sudo journalctl -xeu docker"))
 	}()
 	if _, err := h.remote.Execute("command -v docker"); err == nil {
 		return
@@ -115,7 +116,7 @@ func (h *Host) GetDockerRuntimePath(runtime string) string {
 
 	var cmd string
 	switch h.os.Flavor {
-	case e2eos.AmazonLinux:
+	case e2eos.AmazonLinux, e2eos.Suse:
 		cmd = "sudo docker system info --format '{{ (index .Runtimes \"%s\").Path }}'"
 	default:
 		cmd = "sudo docker system info --format '{{ (index .Runtimes \"%s\").Runtime.Path }}'"
@@ -131,6 +132,18 @@ func (h *Host) Run(command string, env ...string) string {
 		envVars[parts[0]] = parts[1]
 	}
 	return h.remote.MustExecute(command, client.WithEnvVariables(envVars))
+}
+
+// UserExists checks if a user exists on the host.
+func (h *Host) UserExists(username string) bool {
+	_, err := h.remote.Execute(fmt.Sprintf("id -u %s", username))
+	return err == nil
+}
+
+// GroupExists checks if a group exists on the host.
+func (h *Host) GroupExists(groupname string) bool {
+	_, err := h.remote.Execute(fmt.Sprintf("id -g %s", groupname))
+	return err == nil
 }
 
 // FileExists checks if a file exists on the host.
@@ -194,7 +207,7 @@ func (h *Host) WaitForFileExists(useSudo bool, filePaths ...string) {
 
 	for _, path := range filePaths {
 		_, err := h.remote.Execute(fmt.Sprintf("timeout=30; file=%s; while [ ! %s -f $file ] && [ $timeout -gt 0 ]; do sleep 1; ((timeout--)); done; [ $timeout -ne 0 ]", path, sudo))
-		require.NoError(h.t, err, "file %s did not exist", path)
+		require.NoError(h.t(), err, "file %s did not exist", path)
 	}
 }
 
@@ -202,8 +215,11 @@ func (h *Host) WaitForFileExists(useSudo bool, filePaths ...string) {
 // This is because of a race condition where the trace agent is not ready to receive traces and we send them
 // meaning that the traces are lost
 func (h *Host) WaitForTraceAgentSocketReady() {
-	_, err := h.remote.Execute("timeout=30; while ! grep -q 'Listening for traces at unix://' <(journalctl _PID=`systemctl show -p MainPID datadog-agent-trace | cut -d\"=\" -f2`); do sleep 1; ((timeout--)); done; [ $timeout -ne 0 ]")
-	require.NoError(h.t, err, "trace agent did not become ready")
+	require.EventuallyWithT(h.t(), func(t *assert.CollectT) {
+		// this endpoint is no-op but it will fail if the trace agent is not ready
+		_, err := h.remote.Execute("curl -XGET --unix-socket /var/run/datadog/apm.socket http:/services")
+		require.NoError(t, err)
+	}, 30*time.Second, 1*time.Second, "trace agent did not become ready")
 }
 
 // BootstrapperVersion returns the version of the bootstrapper on the host.
@@ -227,7 +243,7 @@ func (h *Host) AssertPackageInstalledByInstaller(pkgs ...string) {
 	for _, pkg := range pkgs {
 		_, err := h.remote.ReadDir(fmt.Sprintf("/opt/datadog-packages/%s/stable/", pkg))
 		require.NoErrorf(
-			h.t,
+			h.t(),
 			err,
 			"package %s not installed by the installer (err)",
 			pkg,
@@ -235,9 +251,22 @@ func (h *Host) AssertPackageInstalledByInstaller(pkgs ...string) {
 	}
 }
 
+// AssertPackageNotInstalledByInstaller checks if a package is not installed by the installer on the host.
+func (h *Host) AssertPackageNotInstalledByInstaller(pkgs ...string) {
+	for _, pkg := range pkgs {
+		_, err := h.remote.ReadDir(fmt.Sprintf("/opt/datadog-packages/%s/stable/", pkg))
+		if err == nil {
+			installPath := strings.TrimSpace(h.remote.MustExecute(fmt.Sprintf("sudo readlink -f /opt/datadog-packages/%s/stable", pkg)))
+			if strings.HasPrefix(installPath, "/opt/datadog-packages/") {
+				h.t().Errorf("package %s installed by the installer", pkg)
+			}
+		}
+	}
+}
+
 // AgentRuntimeConfig returns the runtime agent config on the host.
 func (h *Host) AgentRuntimeConfig() (string, error) {
-	return h.remote.Execute("sudo -u dd-agent datadog-agent config")
+	return h.remote.Execute("sudo -u dd-agent datadog-agent config --all")
 }
 
 // AssertPackageVersion checks if a package is installed with the correct version
@@ -257,7 +286,7 @@ func (h *Host) AssertPackagePrefix(pkg string, semver string) {
 			return
 		}
 	}
-	h.t.Errorf("Semver compatible version %v not found among list of installed package %v", semver, list)
+	h.t().Errorf("Semver compatible version %v not found among list of installed package %v", semver, list)
 }
 
 // AssertPackageInstalledByPackageManager checks if a package is installed by the package manager on the host.
@@ -269,7 +298,7 @@ func (h *Host) AssertPackageInstalledByPackageManager(pkgs ...string) {
 		case "yum", "zypper":
 			h.remote.MustExecute("rpm -q " + pkg)
 		default:
-			h.t.Fatal("unsupported package manager")
+			h.t().Fatal("unsupported package manager")
 		}
 	}
 }
@@ -285,7 +314,7 @@ func (h *Host) AssertPackageNotInstalledByPackageManager(pkgs ...string) {
 		case "yum", "zypper":
 			h.remote.MustExecute("! rpm -q " + pkg)
 		default:
-			h.t.Fatal("unsupported package manager")
+			h.t().Fatal("unsupported package manager")
 		}
 	}
 }
@@ -293,7 +322,7 @@ func (h *Host) AssertPackageNotInstalledByPackageManager(pkgs ...string) {
 // State returns the state of the host.
 func (h *Host) State() State {
 	return State{
-		t:      h.t,
+		t:      h.t(),
 		Users:  h.users(),
 		Groups: h.groups(),
 		FS:     h.fs(),
@@ -310,7 +339,7 @@ func (h *Host) users() []user.User {
 			continue
 		}
 		parts := strings.Split(line, ":")
-		assert.Len(h.t, parts, 7)
+		assert.Len(h.t(), parts, 7)
 		users = append(users, user.User{
 			Username: parts[0],
 			Uid:      parts[2],
@@ -334,7 +363,7 @@ func (h *Host) groups() []user.Group {
 			continue
 		}
 		parts := strings.Split(line, ":")
-		assert.Len(h.t, parts, 4)
+		assert.Len(h.t(), parts, 4)
 		groups = append(groups, user.Group{
 			Name: parts[0],
 			Gid:  parts[2],
@@ -368,7 +397,7 @@ func (h *Host) fs() map[string]FileInfo {
 			continue
 		}
 		parts := strings.Split(line, "\\|//")
-		assert.Len(h.t, parts, 9)
+		assert.Len(h.t(), parts, 9)
 
 		path := parts[0]
 		size, _ := strconv.ParseInt(parts[1], 10, 64)
@@ -482,7 +511,7 @@ func (h *Host) SetupProxy() {
 
 	// Check proxy works
 	_, err := h.remote.Execute("curl https://google.com")
-	require.Error(h.t, err)
+	require.Error(h.t(), err)
 }
 
 // RemoveProxy removes the Squid Proxy & iptables/nftables rules
@@ -499,7 +528,13 @@ func (h *Host) RemoveProxy() {
 
 	// Check proxy removed
 	_, err := h.remote.Execute("curl https://google.com")
-	require.NoError(h.t, err)
+	require.NoError(h.t(), err)
+
+	// Remove Docker container
+	_, err = h.remote.Execute("sudo docker rm -f squid-proxy")
+	if err != nil {
+		h.t().Logf("warn: failed to remove Docker container: %v", err)
+	}
 }
 
 // LoadState is the load state of a systemd unit.
@@ -621,6 +656,9 @@ func evalSymlinkPath(path string, fs map[string]FileInfo) string {
 		if fileInfo, exists := fs[nextPath]; exists && fileInfo.IsSymlink {
 			// Resolve the symlink
 			symlinkTarget := fileInfo.Link
+			if !filepath.IsAbs(symlinkTarget) {
+				symlinkTarget = filepath.Join(filepath.Dir(nextPath), symlinkTarget)
+			}
 			// Handle recursive symlink resolution
 			symlinkTarget = evalSymlinkPath(symlinkTarget, fs)
 			// Update the resolvedPath to be the target of the symlink
@@ -635,7 +673,6 @@ func evalSymlinkPath(path string, fs map[string]FileInfo) string {
 			resolvedPath += "/"
 		}
 	}
-
 	return filepath.Clean(resolvedPath)
 }
 
@@ -738,8 +775,8 @@ func (s *State) AssertUnitsRunning(names ...string) {
 // AssertUnitsNotLoaded asserts that a systemd unit is not loaded.
 func (s *State) AssertUnitsNotLoaded(names ...string) {
 	for _, name := range names {
-		_, ok := s.Units[name]
-		assert.True(s.t, !ok, "unit %v is loaded", name)
+		unit, ok := s.Units[name]
+		assert.True(s.t, !ok || (ok && unit.LoadState != Loaded), "unit %v is loaded", name)
 	}
 }
 

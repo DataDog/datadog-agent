@@ -17,6 +17,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/utils"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
+	workloadmetafilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/util/workloadmeta"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
@@ -34,13 +36,21 @@ const (
 // workloadmeta store.
 type ContainerListener struct {
 	workloadmetaListener
-	tagger tagger.Component
+	globalFilter  workloadfilter.FilterBundle
+	metricsFilter workloadfilter.FilterBundle
+	logsFilter    workloadfilter.FilterBundle
+	tagger        tagger.Component
 }
 
 // NewContainerListener returns a new ContainerListener.
 func NewContainerListener(options ServiceListernerDeps) (ServiceListener, error) {
 	const name = "ad-containerlistener"
-	l := &ContainerListener{}
+	l := &ContainerListener{
+		globalFilter:  options.Filter.GetContainerAutodiscoveryFilters(workloadfilter.GlobalFilter),
+		metricsFilter: options.Filter.GetContainerAutodiscoveryFilters(workloadfilter.MetricsFilter),
+		logsFilter:    options.Filter.GetContainerAutodiscoveryFilters(workloadfilter.LogsFilter),
+		tagger:        options.Tagger,
+	}
 	filter := workloadmeta.NewFilterBuilder().
 		SetSource(workloadmeta.SourceAll).
 		AddKind(workloadmeta.KindContainer).Build()
@@ -54,32 +64,25 @@ func NewContainerListener(options ServiceListernerDeps) (ServiceListener, error)
 	if err != nil {
 		return nil, err
 	}
-	l.tagger = options.Tagger
 
 	return l, nil
 }
 
 func (l *ContainerListener) createContainerService(entity workloadmeta.Entity) {
 	container := entity.(*workloadmeta.Container)
-	var annotations map[string]string
 	var pod *workloadmeta.KubernetesPod
 	if findKubernetesInLabels(container.Labels) {
 		kubePod, err := l.Store().GetKubernetesPodForContainer(container.ID)
 		if err == nil {
 			pod = kubePod
-			annotations = pod.Annotations
 		} else {
 			log.Debugf("container %q belongs to a pod but was not found: %s", container.ID, err)
 		}
 	}
 	containerImg := container.Image
-	if l.IsExcluded(
-		containers.GlobalFilter,
-		annotations,
-		container.Name,
-		containerImg.RawName,
-		"",
-	) {
+	filterableContainer := workloadmetafilter.CreateContainer(container, workloadmetafilter.CreatePod(pod))
+
+	if l.globalFilter.IsExcluded(filterableContainer) {
 		log.Debugf("container %s filtered out: name %q image %q", container.ID, container.Name, containerImg.RawName)
 		return
 	}
@@ -121,30 +124,29 @@ func (l *ContainerListener) createContainerService(entity workloadmeta.Entity) {
 			containerImg.RawName,
 			container.Labels,
 		),
-		ports:    ports,
-		pid:      container.PID,
-		hostname: container.Hostname,
-		tagger:   l.tagger,
+		ports:           ports,
+		pid:             container.PID,
+		hostname:        container.Hostname,
+		metricsExcluded: l.metricsFilter.IsExcluded(filterableContainer),
+		logsExcluded:    l.logsFilter.IsExcluded(filterableContainer),
+		tagger:          l.tagger,
 	}
 
 	if pod != nil {
 		svc.hosts = map[string]string{"pod": pod.IP}
-		svc.ready = pod.Ready
+		svc.ready = pod.Ready || shouldSkipPodReadiness(pod)
 
-		svc.metricsExcluded = l.IsExcluded(
-			containers.MetricsFilter,
-			pod.Annotations,
-			container.Name,
-			containerImg.RawName,
-			"",
-		)
-		svc.logsExcluded = l.IsExcluded(
-			containers.LogsFilter,
-			pod.Annotations,
-			container.Name,
-			containerImg.RawName,
-			"",
-		)
+		adIdentifier := container.Name
+		if customADID, found := utils.ExtractCheckIDFromPodAnnotations(pod.Annotations, container.Name); found {
+			adIdentifier = customADID
+			svc.adIdentifiers = append(svc.adIdentifiers, customADID)
+		}
+
+		checkNames, err := utils.ExtractCheckNamesFromPodAnnotations(pod.Annotations, adIdentifier)
+		if err != nil {
+			log.Errorf("error extracting check names from pod annotations: %s", err)
+		}
+		svc.checkNames = checkNames
 	} else {
 		checkNames, err := utils.ExtractCheckNamesFromContainerLabels(container.Labels)
 		if err != nil {
@@ -168,20 +170,6 @@ func (l *ContainerListener) createContainerService(entity workloadmeta.Entity) {
 		svc.ready = true
 		svc.hosts = hosts
 		svc.checkNames = checkNames
-		svc.metricsExcluded = l.IsExcluded(
-			containers.MetricsFilter,
-			nil,
-			container.Name,
-			containerImg.RawName,
-			"",
-		)
-		svc.logsExcluded = l.IsExcluded(
-			containers.LogsFilter,
-			nil,
-			container.Name,
-			containerImg.RawName,
-			"",
-		)
 	}
 
 	svcID := buildSvcID(container.GetID())

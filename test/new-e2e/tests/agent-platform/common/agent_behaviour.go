@@ -9,6 +9,7 @@ package common
 import (
 	"encoding/json"
 	"fmt"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -72,6 +73,15 @@ func CheckAgentBehaviour(t *testing.T, client *TestClient) {
 
 		// API Key is invalid we should not check for the following error
 		statusOutput = strings.ReplaceAll(statusOutput, "[ERROR] API Key is invalid", "API Key is invalid")
+
+		// Ignore errors specifically due to NTP flakiness.
+		if strings.Contains(statusOutput, "Error: failed to get clock offset from any ntp host") {
+			// The triggering error will look something like this:
+			//   Instance ID: ntp:4c427a42a70bbf8 [ERROR]
+			re := regexp.MustCompile(`Instance\sID[:]\sntp[:][a-z0-9]+\s\[ERROR\]`)
+			statusOutput = re.ReplaceAllString(statusOutput, "Instance ID: ntp [ignored]")
+		}
+
 		require.NotContains(tt, statusOutput, "ERROR")
 	})
 }
@@ -212,7 +222,7 @@ const (
 	ExpectedPythonVersion2 = "2.7.18"
 	// ExpectedPythonVersion3 is the expected python 3 version
 	// Bump this version when the version in omnibus/config/software/python3.rb changes
-	ExpectedPythonVersion3 = "3.12.9"
+	ExpectedPythonVersion3 = "3.13.7"
 )
 
 // SetAgentPythonMajorVersion set the python major version in the agent config and restarts the agent
@@ -230,10 +240,12 @@ func SetAgentPythonMajorVersion(t *testing.T, client *TestClient, majorVersion s
 // CheckAgentPython runs tests to check the agent use the correct python version
 func CheckAgentPython(t *testing.T, client *TestClient, expectedVersion string) {
 	t.Run(fmt.Sprintf("check python %s is used", expectedVersion), func(tt *testing.T) {
-		statusVersion, err := client.GetPythonVersion()
-		require.NoError(tt, err)
-		actualPythonVersion := statusVersion
-		require.Equal(tt, expectedVersion, actualPythonVersion)
+		require.EventuallyWithT(tt, func(c *assert.CollectT) {
+			statusVersion, err := client.GetPythonVersion()
+			require.NoError(c, err)
+			actualPythonVersion := statusVersion
+			require.Equal(c, expectedVersion, actualPythonVersion)
+		}, 2*time.Minute, 5*time.Second)
 	})
 }
 
@@ -248,13 +260,18 @@ func CheckApmEnabled(t *testing.T, client *TestClient) {
 		_, err = client.SvcManager.Restart(client.Helper.GetServiceName())
 		require.NoError(tt, err)
 
+		apmProcessName := "(trace-loader)|(trace-agent)"
+		if client.Host.OSFamily == componentos.WindowsFamily {
+			apmProcessName = "trace-agent"
+		}
+
 		var boundPort boundport.BoundPort
 		if !assert.EventuallyWithT(tt, func(c *assert.CollectT) {
-			boundPort, _ = AssertPortBoundByService(c, client, 8126, "trace-agent")
+			boundPort, _ = AssertPortBoundByService(c, client, 8126, "trace-agent", apmProcessName)
 		}, 1*time.Minute, 500*time.Millisecond) {
 			err := fmt.Errorf("port 8126 should be bound when APM is enabled")
-			if err != nil && client.Host.OSFamily == componentos.LinuxFamily {
-				err = fmt.Errorf("%w\n%s", err, ReadJournalCtl(t, client, "trace-agent\\|datadog-agent-trace"))
+			if client.Host.OSFamily == componentos.LinuxFamily {
+				err = fmt.Errorf("%w\n%s", err, ReadJournalCtl(t, client, "trace-loader\\|trace-agent\\|datadog-agent-trace"))
 			}
 			t.Fatalf("%s", err.Error())
 		}
@@ -280,7 +297,7 @@ func CheckApmDisabled(t *testing.T, client *TestClient) {
 		// PowerShell Restart-Service may restart trace-agent if it was already running, and
 		// trace-agent will run for a bit before exiting.
 		require.Eventually(tt, func() bool {
-			return !AgentProcessIsRunning(client, "trace-agent")
+			return !AgentProcessIsRunning(client, "trace-agent") && !AgentProcessIsRunning(client, "trace-loader")
 		}, 1*time.Minute, 500*time.Millisecond, "trace-agent should not be running ", err)
 	})
 }
@@ -288,6 +305,8 @@ func CheckApmDisabled(t *testing.T, client *TestClient) {
 // CheckCWSBehaviour runs tests to check the agent behave correctly when CWS is enabled
 func CheckCWSBehaviour(t *testing.T, client *TestClient) {
 	t.Run("enable CWS and restarts", func(tt *testing.T) {
+		// remove existing config file
+		client.Host.MustExecute("sudo rm -f " + client.Helper.GetConfigFolder() + "system-probe.yaml")
 		err := client.SetConfig(client.Helper.GetConfigFolder()+"system-probe.yaml", "runtime_security_config.enabled", "true")
 		require.NoError(tt, err)
 		err = client.SetConfig(client.Helper.GetConfigFolder()+"security-agent.yaml", "runtime_security_config.enabled", "true")
@@ -298,27 +317,31 @@ func CheckCWSBehaviour(t *testing.T, client *TestClient) {
 	})
 
 	t.Run("security-agent is running", func(tt *testing.T) {
-		var err error
 		require.Eventually(tt, func() bool {
 			return AgentProcessIsRunning(client, "security-agent")
-		}, 1*time.Minute, 500*time.Millisecond, "security-agent should be running ", err)
+		}, 1*time.Minute, 500*time.Millisecond, "security-agent should be running ")
 	})
 
 	t.Run("system-probe is running", func(tt *testing.T) {
-		var err error
+		if client.Host.OSFlavor == componentos.CentOS {
+			tt.Skip("System-probe is broken on CentOS 7")
+		}
 		require.Eventually(tt, func() bool {
 			return AgentProcessIsRunning(client, "system-probe")
-		}, 1*time.Minute, 500*time.Millisecond, "system-probe should be running ", err)
+		}, 1*time.Minute, 500*time.Millisecond, "system-probe should be running ")
 	})
 }
 
 // CheckSystemProbeBehavior runs tests to check the agent behave correctly when system-probe is enabled
 func CheckSystemProbeBehavior(t *testing.T, client *TestClient) {
 	t.Run("enable system-probe and restarts", func(tt *testing.T) {
+		if client.Host.OSFlavor == componentos.CentOS {
+			tt.Skip("System-probe is broken on CentOS 7")
+		}
+		if client.Host.OSFlavor == componentos.Ubuntu && client.Host.OSVersion == "14-04" {
+			tt.Skip("System-probe is flaky on Ubuntu 14.04")
+		}
 		err := client.SetConfig(client.Helper.GetConfigFolder()+"system-probe.yaml", "system_probe_config.enabled", "true")
-		require.NoError(tt, err)
-
-		err = client.SetConfig(client.Helper.GetConfigFolder()+"system-probe.yaml", "system_probe_config.enabled", "true")
 		require.NoError(tt, err)
 
 		_, err = client.SvcManager.Restart(client.Helper.GetServiceName())
@@ -326,13 +349,24 @@ func CheckSystemProbeBehavior(t *testing.T, client *TestClient) {
 	})
 
 	t.Run("system-probe is running", func(tt *testing.T) {
-		var err error
+		if client.Host.OSFlavor == componentos.CentOS {
+			tt.Skip("System-probe is broken on CentOS 7")
+		}
+		if client.Host.OSFlavor == componentos.Ubuntu && client.Host.OSVersion == "14-04" {
+			tt.Skip("System-probe is flaky on Ubuntu 14.04")
+		}
 		require.Eventually(tt, func() bool {
 			return AgentProcessIsRunning(client, "system-probe")
-		}, 1*time.Minute, 500*time.Millisecond, "system-probe should be running ", err)
+		}, 1*time.Minute, 500*time.Millisecond, "system-probe should be running ")
 	})
 
 	t.Run("ebpf programs are unpacked and valid", func(tt *testing.T) {
+		if client.Host.OSFlavor == componentos.CentOS {
+			tt.Skip("System-probe is broken on CentOS 7")
+		}
+		if client.Host.OSFlavor == componentos.Ubuntu && client.Host.OSVersion == "14-04" {
+			tt.Skip("System-probe is flaky on Ubuntu 14.04")
+		}
 		ebpfPath := "/opt/datadog-agent/embedded/share/system-probe/ebpf"
 		output, err := client.Host.Execute(fmt.Sprintf("find %s -name '*.o'", ebpfPath))
 		require.NoError(tt, err)

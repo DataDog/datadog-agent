@@ -16,15 +16,6 @@ import (
 
 var mmapCapabilities = rules.FieldCapabilities{
 	{
-		Field:       "mmap.file.path",
-		TypeBitmask: eval.ScalarValueType | eval.PatternValueType,
-		ValidateFnc: validateBasenameFilter,
-	},
-	{
-		Field:       "mmap.file.name",
-		TypeBitmask: eval.ScalarValueType,
-	},
-	{
 		Field:       "mmap.protection",
 		TypeBitmask: eval.ScalarValueType | eval.BitmaskValueType,
 	},
@@ -34,7 +25,7 @@ var mmapCapabilities = rules.FieldCapabilities{
 	},
 }
 
-func mmapKFiltersGetter(approvers rules.Approvers) (ActiveKFilters, []eval.Field, error) {
+func mmapKFiltersGetter(approvers rules.Approvers) (KFilters, []eval.Field, error) {
 	kfilters, fieldHandled, err := getBasenameKFilters(model.MMapEventType, "file", approvers)
 	if err != nil {
 		return nil, nil, err
@@ -58,5 +49,5 @@ func mmapKFiltersGetter(approvers rules.Approvers) (ActiveKFilters, []eval.Field
 			fieldHandled = append(fieldHandled, field)
 		}
 	}
-	return newActiveKFilters(kfilters...), fieldHandled, nil
+	return newKFilters(kfilters...), fieldHandled, nil
 }

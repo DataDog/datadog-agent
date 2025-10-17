@@ -10,6 +10,8 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/testutil"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/component"
@@ -27,16 +29,14 @@ func TestLoadingConfigStrictLogs(t *testing.T) {
 		expected *Config
 	}{
 		{
-			id: component.MustNewIDWithName("filter", "empty"),
-			expected: &Config{
-				Logs: LogInfraAttributes{},
-			},
+			id:       component.MustNewIDWithName("filter", "empty"),
+			expected: &Config{},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.id.String(), func(t *testing.T) {
-			tc := newTestTaggerClient()
+			tc := testutil.NewTestTaggerClient()
 			f := NewFactoryForAgent(tc, func(_ context.Context) (string, error) {
 				return "test-host", nil
 			})

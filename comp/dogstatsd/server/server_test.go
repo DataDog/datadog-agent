@@ -28,7 +28,34 @@ func TestNewServer(t *testing.T) {
 
 	deps := fulfillDepsWithConfigOverride(t, cfg)
 	requireStart(t, deps.Server)
+}
 
+func TestHistogramMetricNamesFilter(t *testing.T) {
+	cfg := make(map[string]interface{})
+	require := require.New(t)
+
+	cfg["histogram_aggregates"] = []string{"avg", "max", "median"}
+	cfg["histogram_percentiles"] = []string{"0.73", "0.22"}
+
+	deps := fulfillDepsWithConfigOverride(t, cfg)
+	s := deps.Server.(*server)
+
+	bl := []string{
+		"foo",
+		"bar",
+		"baz",
+		"foomax",
+		"foo.avg",
+		"foo.max",
+		"foo.count",
+		"baz.73percentile",
+		"bar.50percentile",
+		"bar.22percentile",
+		"count",
+	}
+
+	filtered := s.createHistogramsFilterList(bl)
+	require.ElementsMatch(filtered, []string{"foo.avg", "foo.max", "baz.73percentile", "bar.22percentile"})
 }
 
 // This test is proving that no data race occurred on the `cachedTlmOriginIds` map.
@@ -75,7 +102,7 @@ func TestNoMappingsConfig(t *testing.T) {
 	assert.Nil(t, s.mapper)
 
 	parser := newParser(deps.Config, s.sharedFloat64List, 1, deps.WMeta, s.stringInternerTelemetry)
-	samples, err := s.parseMetricMessage(samples, parser, []byte("test.metric:666|g"), "", 0, "", false)
+	samples, err := s.parseMetricMessage(samples, parser, []byte("test.metric:666|g"), "", 0, "", false, nil)
 	assert.NoError(t, err)
 	assert.Len(t, samples, 1)
 }
@@ -115,7 +142,7 @@ func TestNewServerExtraTags(t *testing.T) {
 	requireStart(t, s)
 
 	require.ElementsMatch(
-		[]string{"hello:world", "extra:tags", "hello:world2"},
+		[]string{"hello:world", "extra:tags", "hello:world2", "kube_distribution:eks"},
 		s.extraTags,
 		"both tag sources should have been combined",
 	)
@@ -133,7 +160,7 @@ func testContainerIDParsing(t *testing.T, cfg map[string]interface{}) {
 	parser.dsdOriginEnabled = true
 
 	// Metric
-	metrics, err := s.parseMetricMessage(nil, parser, []byte("metric.name:123|g|c:metric-container"), "", 0, "", false)
+	metrics, err := s.parseMetricMessage(nil, parser, []byte("metric.name:123|g|c:metric-container"), "", 0, "", false, nil)
 	assert.NoError(err)
 	assert.Len(metrics, 1)
 	assert.Equal("metric-container", metrics[0].OriginInfo.LocalData.ContainerID)
@@ -177,7 +204,7 @@ func TestOrigin(t *testing.T) {
 		parser.dsdOriginEnabled = true
 
 		// Metric
-		metrics, err := s.parseMetricMessage(nil, parser, []byte("metric.name:123|g|c:metric-container|#dd.internal.card:none"), "", 1234, "", false)
+		metrics, err := s.parseMetricMessage(nil, parser, []byte("metric.name:123|g|c:metric-container|#dd.internal.card:none"), "", 1234, "", false, nil)
 		assert.NoError(err)
 		assert.Len(metrics, 1)
 		assert.Equal("metric-container", metrics[0].OriginInfo.LocalData.ContainerID)

@@ -8,18 +8,20 @@ package clusteragent
 import (
 	"bytes"
 	"context"
-	"crypto/tls"
 	"encoding/json"
+	nativeerrors "errors"
 	"fmt"
 	"io"
 	"net"
 	"net/http"
+	"net/url"
 	"sync"
 	"time"
 
 	"google.golang.org/protobuf/proto"
 
 	"github.com/DataDog/datadog-agent/pkg/api/security"
+	pkgapiutil "github.com/DataDog/datadog-agent/pkg/api/util"
 	apiv1 "github.com/DataDog/datadog-agent/pkg/clusteragent/api/v1"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -54,13 +56,14 @@ type Metadata struct {
 	Labels      map[string]string
 }
 
-// DCAClientInterface  is required to query the API of Datadog cluster agent
+// DCAClientInterface is required to query the API of Datadog cluster agent
 type DCAClientInterface interface {
 	Version(withRefresh bool) version.Version
 	ClusterAgentAPIEndpoint() string
 
 	GetNodeLabels(nodeName string) (map[string]string, error)
-	GetNodeAnnotations(nodeName string) (map[string]string, error)
+	GetNodeAnnotations(nodeName string, filter ...string) (map[string]string, error)
+	GetNodeUID(nodeName string) (string, error)
 	GetNamespaceLabels(nsName string) (map[string]string, error)
 	GetNamespaceMetadata(nsName string) (*Metadata, error)
 	GetPodsMetadataForNode(nodeName string) (apiv1.NamespacesPodsStringsSet, error)
@@ -164,6 +167,13 @@ func (c *DCAClient) startReconnectHandler(reconnectPeriod time.Duration) {
 
 func (c *DCAClient) initHTTPClient() error {
 	var err error
+
+	// Get Cross Node Client TLS Config
+	tlsConfig, err := pkgapiutil.GetCrossNodeClientTLSConfig()
+	if err != nil {
+		return fmt.Errorf("failed to get cross-node client TLS config: %w", err)
+	}
+
 	// Copy of http.DefaulTransport with adapted settings
 	clusterAgentAPIClient := &http.Client{
 		Transport: &http.Transport{
@@ -173,7 +183,7 @@ func (c *DCAClient) initHTTPClient() error {
 				KeepAlive: 20 * time.Second,
 			}).DialContext,
 			ForceAttemptHTTP2:     false,
-			TLSClientConfig:       &tls.Config{InsecureSkipVerify: true},
+			TLSClientConfig:       tlsConfig,
 			TLSHandshakeTimeout:   5 * time.Second,
 			MaxConnsPerHost:       1,
 			MaxIdleConnsPerHost:   1,
@@ -349,6 +359,20 @@ func (c *DCAClient) GetNamespaceLabels(nsName string) (map[string]string, error)
 	return result, err
 }
 
+// GetNodeUID returns the node UID from the Cluster Agent.
+func (c *DCAClient) GetNodeUID(nodeName string) (string, error) {
+	var result map[string]string
+
+	err := c.doJSONQuery(context.TODO(), "api/v1/uid/node/"+nodeName, "GET", nil, &result, false)
+	log.Debugf("GetNodeUID from DCA for node '%s': %v", nodeName, result)
+
+	if err != nil {
+		log.Debugf("Error getting node UID from DCA: %v", err)
+		return "", err
+	}
+	return result["uid"], nil
+}
+
 // GetNamespaceMetadata returns the namespace metadata from the Cluster Agent.
 func (c *DCAClient) GetNamespaceMetadata(nsName string) (*Metadata, error) {
 	var result Metadata
@@ -357,9 +381,16 @@ func (c *DCAClient) GetNamespaceMetadata(nsName string) (*Metadata, error) {
 }
 
 // GetNodeAnnotations returns the node annotations from the Cluster Agent.
-func (c *DCAClient) GetNodeAnnotations(nodeName string) (map[string]string, error) {
+func (c *DCAClient) GetNodeAnnotations(nodeName string, filter ...string) (map[string]string, error) {
 	var result map[string]string
-	err := c.doJSONQuery(context.TODO(), "api/v1/annotations/node/"+nodeName, "GET", nil, &result, false)
+
+	base := fmt.Sprintf("api/v1/annotations/node/%s", nodeName)
+	path, err := buildQueryList(base, "filter", filter)
+	if err != nil {
+		return result, err
+	}
+
+	err = c.doJSONQuery(context.TODO(), path, "GET", nil, &result, false)
 	return result, err
 }
 
@@ -444,4 +475,22 @@ func (c *DCAClient) PostLanguageMetadata(ctx context.Context, data *pbgo.ParentL
 func (c *DCAClient) SupportsNamespaceMetadataCollection() bool {
 	dcaVersion := c.Version(false)
 	return dcaVersion.Major >= 7 && dcaVersion.Minor >= 55
+}
+
+func buildQueryList(path string, key string, list []string) (string, error) {
+	if key == "" {
+		return "", nativeerrors.New("URL query parameter list must not have an empty key")
+	}
+
+	encodedKey := url.QueryEscape(key)
+
+	for i, val := range list {
+		encodedVal := url.QueryEscape(val)
+		if i == 0 {
+			path = path + fmt.Sprintf("?%s=%s", encodedKey, encodedVal) // first parameter starts with a ?
+		} else {
+			path = path + fmt.Sprintf("&%s=%s", encodedKey, encodedVal) // the rest start with &
+		}
+	}
+	return path, nil
 }

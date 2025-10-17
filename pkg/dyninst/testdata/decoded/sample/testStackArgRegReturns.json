@@ -1,0 +1,103 @@
+[
+  {
+    "service": "sample",
+    "ddsource": "dd_debugger",
+    "logger": {
+      "name": "",
+      "method": "main.testStackArgRegReturns",
+      "version": 0,
+      "thread_id": "[goid]",
+      "thread_name": ""
+    },
+    "debugger": {
+      "snapshot": {
+        "id": "[id]",
+        "timestamp": "[ts]",
+        "language": "go",
+        "stack": [
+          {
+            "function": "main.testStackArgRegReturns",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/returns.go",
+            "lineNumber": 341
+          },
+          {
+            "function": "main.executeReturns",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/returns.go",
+            "lineNumber": 426
+          },
+          {
+            "function": "main.main",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
+            "lineNumber": 50
+          },
+          {
+            "function": "runtime.main",
+            "fileName": "runtime/proc.go",
+            "lineNumber": "[lineNumber]"
+          },
+          {
+            "function": "runtime.goexit",
+            "fileName": "runtime/asm_[arch].s",
+            "lineNumber": "[lineNumber]"
+          }
+        ],
+        "probe": {
+          "id": "testStackArgRegReturns",
+          "location": {
+            "method": "main.testStackArgRegReturns"
+          }
+        },
+        "captures": {
+          "entry": {
+            "arguments": {
+              "arg": {
+                "type": "[5]int",
+                "size": "5",
+                "elements": [
+                  {
+                    "type": "int",
+                    "value": "41"
+                  },
+                  {
+                    "type": "int",
+                    "value": "42"
+                  },
+                  {
+                    "type": "int",
+                    "value": "43"
+                  },
+                  {
+                    "type": "int",
+                    "value": "44"
+                  },
+                  {
+                    "type": "int",
+                    "value": "45"
+                  }
+                ]
+              }
+            }
+          },
+          "return": {
+            "locals": {
+              "~r0": {
+                "type": "int",
+                "value": "45"
+              },
+              "~r1": {
+                "type": "int",
+                "value": "42"
+              },
+              "~r2": {
+                "type": "int",
+                "value": "43"
+              }
+            }
+          }
+        }
+      }
+    },
+    "timestamp": "[ts]",
+    "duration": "[duration]"
+  }
+]

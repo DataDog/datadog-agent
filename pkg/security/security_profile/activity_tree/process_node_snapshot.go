@@ -10,11 +10,13 @@ package activitytree
 
 import (
 	"bufio"
+	"bytes"
 	"math/rand"
 	"net"
 	"os"
 	"path"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -137,7 +139,6 @@ func (pn *ProcessNode) addFiles(files []string, stats *Stats, newEvent func() *m
 		}
 		evt.ProcessContext.Process = pn.Process
 		evt.CGroupContext.CGroupID = containerutils.CGroupID(pn.Process.CGroup.CGroupID)
-		evt.CGroupContext.CGroupFlags = pn.Process.CGroup.CGroupFlags
 		evt.ContainerContext.ContainerID = containerutils.ContainerID(pn.Process.ContainerID)
 
 		var fileStats unix.Statx_t
@@ -200,70 +201,59 @@ func (pn *ProcessNode) addFiles(files []string, stats *Stats, newEvent func() *m
 const MaxMmapedFiles = 128
 
 func getMemoryMappedFiles(pid int32, processEventPath string) (files []string, _ error) {
-	smapsPath := kernel.HostProc(strconv.Itoa(int(pid)), "smaps")
-	smapsFile, err := os.Open(smapsPath)
+	mapsPath := kernel.HostProc(strconv.Itoa(int(pid)), "maps")
+	mapsFile, err := os.Open(mapsPath)
 	if err != nil {
 		return nil, err
 	}
-	defer smapsFile.Close()
+	defer mapsFile.Close()
 
 	files = make([]string, 0, MaxMmapedFiles)
-	scanner := bufio.NewScanner(smapsFile)
+	scanner := bufio.NewScanner(mapsFile)
 
 	for scanner.Scan() && len(files) < MaxMmapedFiles {
-		line := scanner.Bytes()
-
-		path, ok := extractPathFromSmapsLine(line)
-		if !ok {
+		pathBytes, ok := extractPathFromMapsLine(scanner.Bytes())
+		if !ok ||
+			len(pathBytes) == 0 ||
+			// skip [vdso], [stack], [heap] and similar mappings
+			bytes.HasPrefix(pathBytes, []byte("[")) ||
+			bytes.Equal(pathBytes, []byte(processEventPath)) {
 			continue
 		}
-
-		if len(path) == 0 {
-			continue
-		}
-
-		if path == processEventPath {
-			continue
-		}
-
-		// skip [vdso], [stack], [heap] and similar mappings
-		if strings.HasPrefix(path, "[") {
-			continue
-		}
-
-		files = append(files, path)
+		files = append(files, string(pathBytes))
 	}
 
 	return files, scanner.Err()
 }
 
-func extractPathFromSmapsLine(line []byte) (string, bool) {
-	inSpace := false
-	spaceCount := 0
-	for i, c := range line {
-		if c == ' ' || c == '\t' {
-			// check for fields separator
-			if !inSpace && spaceCount == 0 && i > 0 {
-				if line[i-1] == ':' {
-					return "", false
-				}
-			}
-
-			if !inSpace {
-				inSpace = true
-				spaceCount++
-			}
-		} else if spaceCount == 5 {
-			return string(line[i:]), true
-		} else {
-			inSpace = false
-		}
+func extractPathFromMapsLine(line []byte) ([]byte, bool) {
+	m := mapsLineParserRegex.FindSubmatchIndex(line)
+	if len(m) == 0 || m[pathnameIdx*2] == -1 {
+		return nil, false
 	}
-	return "", false
+	return line[m[pathnameIdx*2]:m[pathnameIdx*2+1]], true
 }
 
+var (
+	// From `man procfs`: The format of the file is:
+	//
+	//    address           perms offset  dev   inode       pathname
+	//    00400000-00452000 r-xp 00000000 08:02 173521      /usr/bin/dbus-daemon
+	//    00651000-00652000 r--p 00051000 08:02 173521      /usr/bin/dbus-daemon
+	//    00652000-00655000 rw-p 00052000 08:02 173521      /usr/bin/dbus-daemon
+	mapsLineParserRegex = regexp.MustCompile(`^` +
+		`(?:\S+)` + // address
+		`\s+(?:\S+)` + // perms
+		`\s+(?:\S+)` + // offset
+		`\s+(?:\S+)` + // dev
+		`\s+(?:\S+)` + // inode
+		`(?:\s+(?P<pathname>.+))?` +
+		`$`)
+	pathnameIdx = mapsLineParserRegex.SubexpIndex("pathname")
+)
+
 func (pn *ProcessNode) snapshotBoundSockets(p *process.Process, stats *Stats, newEvent func() *model.Event) {
-	boundSockets, err := procfs.GetBoundSockets(p)
+	boundSockets, err := procfs.NewBoundSocketSnapshotter().GetBoundSockets(p)
 	if err != nil {
 		seclog.Warnf("error while listing sockets (pid: %v): %s", p.Pid, err)
 		return

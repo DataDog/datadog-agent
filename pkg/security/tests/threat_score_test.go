@@ -42,7 +42,7 @@ func TestActivityDumpsThreatScore(t *testing.T) {
 		},
 		{
 			ID:         "tag_rule_threat_score_dns",
-			Expression: `dns.question.name == "foo.bar" && process.file.name == "nslookup"`,
+			Expression: `dns.question.name == "one.one.one.one" && process.file.name == "nslookup"`,
 			Tags:       map[string]string{"threat_score": "9"},
 			Version:    "4.5.6",
 		},
@@ -143,7 +143,7 @@ func TestActivityDumpsThreatScore(t *testing.T) {
 		defer dockerInstance.stop()
 
 		time.Sleep(time.Second * 1) // to ensure we did not get ratelimited
-		cmd := dockerInstance.Command("nslookup", []string{"foo.bar"}, []string{})
+		cmd := dockerInstance.Command("nslookup", []string{"one.one.one.one"}, []string{})
 		_, err = cmd.CombinedOutput()
 		if err != nil {
 			t.Fatal(err)
@@ -163,7 +163,7 @@ func TestActivityDumpsThreatScore(t *testing.T) {
 			node := nodes[0]
 
 			for dnsName, dnsReq := range node.DNSNames {
-				if dnsName == "foo.bar" {
+				if dnsName == "one.one.one.one" {
 					if len(dnsReq.MatchedRules) != 1 ||
 						dnsReq.MatchedRules[0].RuleID != "tag_rule_threat_score_dns" ||
 						dnsReq.MatchedRules[0].RuleVersion != "4.5.6" {

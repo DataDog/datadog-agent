@@ -26,7 +26,7 @@ type PathsReducer struct {
 type PatternReducer struct {
 	Pattern  *regexp.Regexp
 	Hint     string
-	PreCheck func(fileEvent *model.FileEvent) bool
+	PreCheck func(path string, fileEvent *model.FileEvent) bool
 	Callback func(ctx *callbackContext)
 }
 
@@ -66,14 +66,13 @@ func (r *PathsReducer) ReducePath(path string, fileEvent *model.FileEvent, node 
 	var ctx *callbackContext
 
 	for _, pattern := range r.patterns {
-
-		if pattern.PreCheck != nil && fileEvent != nil && !pattern.PreCheck(fileEvent) {
-			continue
-		}
-
 		currentPath := path
 		if ctx != nil {
 			currentPath = ctx.path
+		}
+
+		if pattern.PreCheck != nil && fileEvent != nil && !pattern.PreCheck(currentPath, fileEvent) {
+			continue
 		}
 
 		if pattern.Hint != "" && !strings.Contains(currentPath, pattern.Hint) {
@@ -142,7 +141,7 @@ func getPathsReducerPatterns() []PatternReducer {
 		{
 			Pattern: regexp.MustCompile(`kubepods-([^/]*)\.(?:slice|scope)`), // kubernetes cgroup
 			Hint:    "kubepods",
-			PreCheck: func(fileEvent *model.FileEvent) bool {
+			PreCheck: func(_ string, fileEvent *model.FileEvent) bool {
 				return fileEvent.Filesystem == "sysfs"
 			},
 			Callback: func(ctx *callbackContext) {
@@ -153,7 +152,7 @@ func getPathsReducerPatterns() []PatternReducer {
 		{
 			Pattern: regexp.MustCompile(`cri-containerd-([^/]*)\.(?:slice|scope)`), // kubernetes cgroup
 			Hint:    "cri-containerd",
-			PreCheck: func(fileEvent *model.FileEvent) bool {
+			PreCheck: func(_ string, fileEvent *model.FileEvent) bool {
 				return fileEvent.Filesystem == "sysfs"
 			},
 			Callback: func(ctx *callbackContext) {
@@ -163,6 +162,20 @@ func getPathsReducerPatterns() []PatternReducer {
 		},
 		{
 			Pattern: regexp.MustCompile(containerutils.ContainerIDPatternStr), // container ID
+			PreCheck: func(path string, _ *model.FileEvent) bool {
+				var count int
+				for _, c := range []byte(path) {
+					if isHexChar(c) || c == '-' {
+						count++
+						if count >= 28 { // 28 is the minimal length of a container ID
+							return true
+						}
+					} else {
+						count = 0
+					}
+				}
+				return false
+			},
 			Callback: func(ctx *callbackContext) {
 				start, end := ctx.getGroup(0)
 				ctx.replaceBy(start, end, "*")
@@ -171,7 +184,7 @@ func getPathsReducerPatterns() []PatternReducer {
 		{
 			Pattern: regexp.MustCompile(`/sys/devices/virtual/block/(?:dm-|loop)([0-9]+)`), // block devices
 			Hint:    "devices",
-			PreCheck: func(fileEvent *model.FileEvent) bool {
+			PreCheck: func(_ string, fileEvent *model.FileEvent) bool {
 				return fileEvent.Filesystem == "sysfs"
 			},
 			Callback: func(ctx *callbackContext) {
@@ -188,4 +201,10 @@ func getPathsReducerPatterns() []PatternReducer {
 			},
 		},
 	}
+}
+
+func isHexChar(c byte) bool {
+	return ('0' <= c && c <= '9') ||
+		('a' <= c && c <= 'f') ||
+		('A' <= c && c <= 'F')
 }

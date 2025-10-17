@@ -10,6 +10,7 @@ package dualimpl
 
 import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	local "github.com/DataDog/datadog-agent/comp/core/tagger/impl"
@@ -28,6 +29,7 @@ type Requires struct {
 	Log          log.Component
 	Wmeta        workloadmeta.Component
 	Telemetry    telemetry.Component
+	IPC          ipc.Component
 }
 
 // Provides contains returned values for the  dual tagger component
@@ -44,6 +46,7 @@ func NewComponent(req Requires) (Provides, error) {
 			Config:    req.Config,
 			Log:       req.Log,
 			Telemetry: req.Telemetry,
+			IPC:       req.IPC,
 		}
 
 		provide, err := remote.NewComponent(remoteRequires)

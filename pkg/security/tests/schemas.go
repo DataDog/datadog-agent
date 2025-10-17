@@ -13,7 +13,6 @@ import (
 	"fmt"
 	"math/big"
 	"net/http"
-	"os"
 	"syscall"
 	"testing"
 	"time"
@@ -28,11 +27,7 @@ import (
 )
 
 func getUpstreamEventSchema() string {
-	sha, _ := os.LookupEnv("CI_COMMIT_SHA")
-	if sha == "" {
-		sha = "main"
-	}
-	return fmt.Sprintf("https://raw.githubusercontent.com/DataDog/datadog-agent/%s/docs/cloud-workload-security/backend_linux.schema.json", sha)
+	return fmt.Sprintf("https://raw.githubusercontent.com/DataDog/datadog-agent/%s/docs/cloud-workload-security/backend_linux.schema.json", GitAncestorOnMain)
 }
 
 var upstreamEventSchema = getUpstreamEventSchema()
@@ -175,6 +170,12 @@ func (tm *testModule) validateMProtectSchema(t *testing.T, event *model.Event) b
 func (tm *testModule) validatePTraceSchema(t *testing.T, event *model.Event) bool {
 	t.Helper()
 	return tm.validateEventSchema(t, event, "file:///ptrace.schema.json")
+}
+
+//nolint:deadcode,unused
+func (tm *testModule) validateSetrlimitSchema(t *testing.T, event *model.Event) bool {
+	t.Helper()
+	return tm.validateEventSchema(t, event, "file:///setrlimit.schema.json")
 }
 
 //nolint:deadcode,unused

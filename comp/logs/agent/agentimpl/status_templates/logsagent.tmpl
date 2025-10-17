@@ -1,7 +1,7 @@
 {{ with .logsStats }}
 {{- if eq .IsRunning false }}
   Logs Agent is not running
-{{- end }}{{ if eq .WaitingForSDSConfig true }} (waiting for an SDS configuration){{ end }}
+{{- end }}
 
 {{- if .Endpoints }}
 
@@ -88,7 +88,7 @@
   =======
   {{- range .Tailers }}
 
-    - ID: {{ .Id }}
+    - ID: {{ .ID }}
       Type: {{ .Type }}
       {{- if .Info }}
       {{- range $key, $value := .Info }} {{ $len := len $value }} {{ if eq $len 1 }}

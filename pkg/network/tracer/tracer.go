@@ -5,7 +5,6 @@
 
 //go:build linux_bpf
 
-// Package tracer implements the functionality of the network tracer
 package tracer
 
 import (
@@ -459,11 +458,7 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, fu
 	buffer.ConnectionBuffer.Assign(delta.Conns)
 	conns := network.NewConnections(buffer)
 	conns.DNS = t.reverseDNS.Resolve(ips)
-	conns.HTTP = delta.HTTP
-	conns.HTTP2 = delta.HTTP2
-	conns.Kafka = delta.Kafka
-	conns.Postgres = delta.Postgres
-	conns.Redis = delta.Redis
+	conns.USMData = delta.USMData
 	conns.ConnTelemetry = t.state.GetTelemetryDelta(clientID, t.getConnTelemetry(len(active)))
 	conns.CompilationTelemetryByAsset = t.getRuntimeCompilationTelemetry()
 	conns.KernelHeaderFetchResult = int32(headers.HeaderProvider.GetResult())
@@ -916,7 +911,7 @@ func setupConnectionProtocolMapCleaner(connectionProtocolMap *ebpf.Map, name str
 	}
 
 	ttl := connProtoTTL.Nanoseconds()
-	mapCleaner.Clean(connProtoCleaningInterval, nil, nil, func(now int64, _ netebpf.ConnTuple, val netebpf.ProtocolStackWrapper) bool {
+	mapCleaner.Start(connProtoCleaningInterval, nil, nil, func(now int64, _ netebpf.ConnTuple, val netebpf.ProtocolStackWrapper) bool {
 		return (now - int64(val.Updated)) > ttl
 	})
 

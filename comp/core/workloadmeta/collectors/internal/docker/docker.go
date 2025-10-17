@@ -17,7 +17,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/docker/docker/api/types"
+	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/events"
 	"github.com/docker/docker/api/types/image"
@@ -26,6 +26,7 @@ import (
 	v1 "github.com/opencontainers/image-spec/specs-go/v1"
 	"go.uber.org/fx"
 
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/sbomutil"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
@@ -48,7 +49,13 @@ const (
 // imageEventActionSbom is an event that we set to create a fake docker event.
 const imageEventActionSbom = events.Action("sbom")
 
-type resolveHook func(ctx context.Context, co types.ContainerJSON) (string, error)
+type resolveHook func(ctx context.Context, co container.InspectResponse) (string, error)
+
+type dependencies struct {
+	fx.In
+
+	FilterStore workloadfilter.Component
+}
 
 type collector struct {
 	id      string
@@ -68,14 +75,19 @@ type collector struct {
 
 	// SBOM Scanning
 	sbomScanner *scanner.Scanner //nolint: unused
+
+	filterPausedContainers workloadfilter.FilterBundle
+	filterSBOMContainers   workloadfilter.FilterBundle
 }
 
 // NewCollector returns a new docker collector provider and an error
-func NewCollector() (workloadmeta.CollectorProvider, error) {
+func NewCollector(deps dependencies) (workloadmeta.CollectorProvider, error) {
 	return workloadmeta.CollectorProvider{
 		Collector: &collector{
-			id:      collectorID,
-			catalog: workloadmeta.NodeAgent | workloadmeta.ProcessAgent,
+			id:                     collectorID,
+			catalog:                workloadmeta.NodeAgent | workloadmeta.ProcessAgent,
+			filterPausedContainers: deps.FilterStore.GetContainerPausedFilters(),
+			filterSBOMContainers:   deps.FilterStore.GetContainerSBOMFilters(),
 		},
 	}, nil
 }
@@ -102,12 +114,7 @@ func (c *collector) Start(ctx context.Context, store workloadmeta.Component) err
 		return err
 	}
 
-	filter, err := containers.GetPauseContainerFilter()
-	if err != nil {
-		log.Warnf("Can't get pause container filter, no filtering will be applied: %v", err)
-	}
-
-	c.containerEventsCh, c.imageEventsCh, err = c.dockerUtil.SubscribeToEvents(componentName, filter)
+	c.containerEventsCh, c.imageEventsCh, err = c.dockerUtil.SubscribeToEvents(componentName, c.filterPausedContainers)
 	if err != nil {
 		return err
 	}
@@ -117,7 +124,7 @@ func (c *collector) Start(ctx context.Context, store workloadmeta.Component) err
 		return err
 	}
 
-	err = c.generateEventsFromContainerList(ctx, filter)
+	err = c.generateEventsFromContainerList(ctx, c.filterPausedContainers)
 	if err != nil {
 		return err
 	}
@@ -179,7 +186,7 @@ func (c *collector) stream(ctx context.Context) {
 	}
 }
 
-func (c *collector) generateEventsFromContainerList(ctx context.Context, filter *containers.Filter) error {
+func (c *collector) generateEventsFromContainerList(ctx context.Context, filter workloadfilter.FilterBundle) error {
 	if c.store == nil {
 		return errors.New("Start was not called")
 	}
@@ -350,7 +357,7 @@ func (c *collector) buildCollectorEvent(ctx context.Context, ev *docker.Containe
 	return event, nil
 }
 
-func extractImage(ctx context.Context, container types.ContainerJSON, resolve resolveHook, store workloadmeta.Component) workloadmeta.ContainerImage {
+func extractImage(ctx context.Context, container container.InspectResponse, resolve resolveHook, store workloadmeta.Component) workloadmeta.ContainerImage {
 	imageSpec := container.Config.Image
 	image := workloadmeta.ContainerImage{
 		RawName: imageSpec,
@@ -423,7 +430,7 @@ func extractEnvVars(env []string) map[string]string {
 	return envMap
 }
 
-func extractPorts(container types.ContainerJSON) []workloadmeta.ContainerPort {
+func extractPorts(container container.InspectResponse) []workloadmeta.ContainerPort {
 	var ports []workloadmeta.ContainerPort
 
 	// yes, the code in both branches is exactly the same. unfortunately.
@@ -490,7 +497,7 @@ func extractNetworkIPs(networks map[string]*network.EndpointSettings) map[string
 	return networkIPs
 }
 
-func extractStatus(containerState *types.ContainerState) workloadmeta.ContainerStatus {
+func extractStatus(containerState *container.State) workloadmeta.ContainerStatus {
 	if containerState == nil {
 		return workloadmeta.ContainerStatusUnknown
 	}
@@ -511,7 +518,7 @@ func extractStatus(containerState *types.ContainerState) workloadmeta.ContainerS
 	return workloadmeta.ContainerStatusUnknown
 }
 
-func extractHealth(containerLabels map[string]string, containerHealth *types.Health) workloadmeta.ContainerHealth {
+func extractHealth(containerLabels map[string]string, containerHealth *container.Health) workloadmeta.ContainerHealth {
 	// When we're running in Kubernetes, do not report health from Docker but from Kubelet readiness
 	if _, ok := containerLabels[kubernetes.CriContainerNamespaceLabel]; ok {
 		return ""
@@ -522,11 +529,11 @@ func extractHealth(containerLabels map[string]string, containerHealth *types.Hea
 	}
 
 	switch containerHealth.Status {
-	case types.NoHealthcheck, types.Starting:
+	case container.NoHealthcheck, container.Starting:
 		return workloadmeta.ContainerHealthUnknown
-	case types.Healthy:
+	case container.Healthy:
 		return workloadmeta.ContainerHealthHealthy
-	case types.Unhealthy:
+	case container.Unhealthy:
 		return workloadmeta.ContainerHealthUnhealthy
 	}
 
@@ -614,7 +621,12 @@ func (c *collector) getImageMetadata(ctx context.Context, imageID string, newSBO
 		}
 
 		if sbom == nil && existingImg.SBOM.Status != workloadmeta.Pending {
-			sbom = existingImg.SBOM
+			oldSBOM, err := sbomutil.UncompressSBOM(existingImg.SBOM)
+			if err != nil {
+				log.Errorf("Failed to uncompress SBOM for image %s: %v", existingImg.ID, err)
+			} else {
+				sbom = oldSBOM
+			}
 		}
 	}
 
@@ -628,7 +640,12 @@ func (c *collector) getImageMetadata(ctx context.Context, imageID string, newSBO
 	// not be able to inject them. For example, if we use the scanner from filesystem or
 	// if the `imgMeta` object does not contain all the metadata when it is sent.
 	// We add them here to make sure they are present.
-	sbom = util.UpdateSBOMRepoMetadata(sbom, imgInspect.RepoTags, imgInspect.RepoDigests)
+	sbom = sbomutil.UpdateSBOMRepoMetadata(sbom, imgInspect.RepoTags, imgInspect.RepoDigests)
+	csbom, err := sbomutil.CompressSBOM(sbom)
+	if err != nil {
+		log.Errorf("Failed to compress SBOM for image %s: %v", imgInspect.ID, err)
+		return nil, err
+	}
 
 	return &workloadmeta.ContainerImageMetadata{
 		EntityID: workloadmeta.EntityID{
@@ -647,7 +664,7 @@ func (c *collector) getImageMetadata(ctx context.Context, imageID string, newSBO
 		Architecture: imgInspect.Architecture,
 		Variant:      imgInspect.Variant,
 		Layers:       layersFromDockerHistoryAndInspect(imageHistory, imgInspect),
-		SBOM:         sbom,
+		SBOM:         csbom,
 	}, nil
 }
 
@@ -656,7 +673,7 @@ func isInheritedLayer(layer image.HistoryResponseItem) bool {
 	return layer.CreatedBy == "" && layer.Size == 0
 }
 
-func layersFromDockerHistoryAndInspect(history []image.HistoryResponseItem, inspect types.ImageInspect) []workloadmeta.ContainerImageLayer {
+func layersFromDockerHistoryAndInspect(history []image.HistoryResponseItem, inspect image.InspectResponse) []workloadmeta.ContainerImageLayer {
 	var layers []workloadmeta.ContainerImageLayer
 
 	// Loop through history and check how many layers should be assigned a corresponding docker inspect digest

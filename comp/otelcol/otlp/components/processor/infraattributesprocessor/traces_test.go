@@ -9,6 +9,8 @@ import (
 	"context"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/testutil"
+
 	"github.com/stretchr/testify/assert"
 	"go.opentelemetry.io/collector/consumer/consumertest"
 	"go.opentelemetry.io/collector/pdata/ptrace"
@@ -98,6 +100,67 @@ var (
 				},
 			},
 		},
+		{
+			name: "detect container.id from PID",
+			inTraces: testResourceTraces([]traceWithResource{
+				{
+					traceNames: inTraceNames,
+					resourceAttributes: map[string]any{
+						"process.pid": int64(12345),
+					},
+				},
+			}),
+			outResourceAttributes: []map[string]any{
+				{
+					"global":       "tag",
+					"process.pid":  int64(12345),
+					"container.id": "test",
+					"container":    "id",
+				},
+			},
+		},
+		{
+			name: "detect container.id from cgroup inode",
+			inTraces: testResourceTraces([]traceWithResource{
+				{
+					traceNames: inTraceNames,
+					resourceAttributes: map[string]any{
+						"datadog.container.cgroup_inode": int64(12345),
+					},
+				},
+			}),
+			outResourceAttributes: []map[string]any{
+				{
+					"global":                         "tag",
+					"datadog.container.cgroup_inode": int64(12345),
+					"container.id":                   "test",
+					"container":                      "id",
+				},
+			},
+		},
+		{
+			name: "detect container.id from pod UID + container name",
+			inTraces: testResourceTraces([]traceWithResource{
+				{
+					traceNames: inTraceNames,
+					resourceAttributes: map[string]any{
+						"k8s.pod.uid":               "01234567-89ab-cdef-0123-456789abcdef",
+						"k8s.container.name":        "mycontainer",
+						"datadog.container.is_init": true,
+					},
+				},
+			}),
+			outResourceAttributes: []map[string]any{
+				{
+					"global":                    "tag",
+					"k8s.pod.uid":               "01234567-89ab-cdef-0123-456789abcdef",
+					"k8s.container.name":        "mycontainer",
+					"datadog.container.is_init": true,
+					"container.id":              "test",
+					"container":                 "id",
+				},
+			},
+		},
 	}
 )
 
@@ -121,13 +184,16 @@ func TestInfraAttributesTraceProcessor(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			next := new(consumertest.TracesSink)
 			cfg := &Config{
-				Traces:      TraceInfraAttributes{},
 				Cardinality: types.LowCardinality,
 			}
-			tc := newTestTaggerClient()
-			tc.tagMap["container_id://test"] = []string{"container:id"}
-			tc.tagMap["deployment://namespace/deployment"] = []string{"deployment:name"}
-			tc.tagMap[types.NewEntityID("internal", "global-entity-id").String()] = []string{"global:tag"}
+			tc := testutil.NewTestTaggerClient()
+			tc.TagMap["container_id://test"] = []string{"container:id"}
+			tc.TagMap["deployment://namespace/deployment"] = []string{"deployment:name"}
+			tc.TagMap[types.NewEntityID("internal", "global-entity-id").String()] = []string{"global:tag"}
+			tc.ContainerIDMap["pid:12345"] = "test"
+			tc.ContainerIDMap["inode:12345"] = "test"
+			tc.ContainerIDMap["pod:01234567-89ab-cdef-0123-456789abcdef,name:mycontainer,init:true"] = "test"
+
 			factory := NewFactoryForAgent(tc, func(_ context.Context) (string, error) {
 				return "test-host", nil
 			})

@@ -1,0 +1,4 @@
+---
+enhancements:
+  - |
+    Collect agent version in orchestrator check.

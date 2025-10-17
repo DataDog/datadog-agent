@@ -54,12 +54,12 @@ func TestNewTargetMutator(t *testing.T) {
 			wmeta := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 				fx.Supply(coreconfig.Params{}),
 				fx.Provide(func() log.Component { return logmock.New(t) }),
-				coreconfig.MockModule(),
+				fx.Provide(func() coreconfig.Component { return coreconfig.NewMock(t) }),
 				workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 			))
 
 			// Create the mutator.
-			_, err = NewTargetMutator(config, wmeta)
+			_, err = NewTargetMutator(config, wmeta, imageResolver)
 
 			// Validate the output.
 			if test.shouldErr {
@@ -89,7 +89,7 @@ func TestMutatePod(t *testing.T) {
 			},
 			expectedInitContainerImages: []string{
 				"registry/apm-inject:0",
-				"registry/dd-lib-python-init:v2",
+				"registry/dd-lib-python-init:v3",
 			},
 			expectedEnv: map[string]string{
 				"DD_INJECT_SENDER_TYPE":           "k8s",
@@ -100,10 +100,10 @@ func TestMutatePod(t *testing.T) {
 				"DD_TRACE_ENABLED":                "true",
 				"DD_TRACE_HEALTH_METRICS_ENABLED": "true",
 				"LD_PRELOAD":                      "/opt/datadog-packages/datadog-apm-inject/stable/inject/launcher.preload.so",
-				AppliedTargetEnvVar:               "{\"name\":\"Application Namespace\",\"namespaceSelector\":{\"matchNames\":[\"application\"]},\"ddTraceVersions\":{\"python\":\"v2\"},\"ddTraceConfigs\":[{\"name\":\"DD_PROFILING_ENABLED\",\"value\":\"true\"},{\"name\":\"DD_DATA_JOBS_ENABLED\",\"value\":\"true\"}]}",
+				AppliedTargetEnvVar:               "{\"name\":\"Application Namespace\",\"namespaceSelector\":{\"matchNames\":[\"application\"]},\"ddTraceVersions\":{\"python\":\"v3\"},\"ddTraceConfigs\":[{\"name\":\"DD_PROFILING_ENABLED\",\"value\":\"true\"},{\"name\":\"DD_DATA_JOBS_ENABLED\",\"value\":\"true\"}]}",
 			},
 			expectedAnnotations: map[string]string{
-				AppliedTargetAnnotation: "{\"name\":\"Application Namespace\",\"namespaceSelector\":{\"matchNames\":[\"application\"]},\"ddTraceVersions\":{\"python\":\"v2\"},\"ddTraceConfigs\":[{\"name\":\"DD_PROFILING_ENABLED\",\"value\":\"true\"},{\"name\":\"DD_DATA_JOBS_ENABLED\",\"value\":\"true\"}]}",
+				AppliedTargetAnnotation: "{\"name\":\"Application Namespace\",\"namespaceSelector\":{\"matchNames\":[\"application\"]},\"ddTraceVersions\":{\"python\":\"v3\"},\"ddTraceConfigs\":[{\"name\":\"DD_PROFILING_ENABLED\",\"value\":\"true\"},{\"name\":\"DD_DATA_JOBS_ENABLED\",\"value\":\"true\"}]}",
 			},
 		},
 		"no matching rule does not mutate pod": {
@@ -125,7 +125,7 @@ func TestMutatePod(t *testing.T) {
 			},
 			expectedInitContainerImages: []string{
 				"registry/apm-inject:0",
-				"registry/dd-lib-python-init:v2",
+				"registry/dd-lib-python-init:v3",
 			},
 			expectedEnv: map[string]string{
 				"DD_PROFILING_ENABLED":            "true",
@@ -138,10 +138,10 @@ func TestMutatePod(t *testing.T) {
 				"DD_TRACE_ENABLED":                "true",
 				"DD_TRACE_HEALTH_METRICS_ENABLED": "true",
 				"LD_PRELOAD":                      "/opt/datadog-packages/datadog-apm-inject/stable/inject/launcher.preload.so",
-				AppliedTargetEnvVar:               "{\"name\":\"Python Apps\",\"podSelector\":{\"matchLabels\":{\"language\":\"python\"}},\"ddTraceVersions\":{\"python\":\"v2\"},\"ddTraceConfigs\":[{\"name\":\"DD_PROFILING_ENABLED\",\"value\":\"true\"},{\"name\":\"DD_DATA_JOBS_ENABLED\",\"value\":\"true\"}]}",
+				AppliedTargetEnvVar:               "{\"name\":\"Python Apps\",\"podSelector\":{\"matchLabels\":{\"language\":\"python\"}},\"ddTraceVersions\":{\"python\":\"v3\"},\"ddTraceConfigs\":[{\"name\":\"DD_PROFILING_ENABLED\",\"value\":\"true\"},{\"name\":\"DD_DATA_JOBS_ENABLED\",\"value\":\"true\"}]}",
 			},
 			expectedAnnotations: map[string]string{
-				AppliedTargetAnnotation: "{\"name\":\"Python Apps\",\"podSelector\":{\"matchLabels\":{\"language\":\"python\"}},\"ddTraceVersions\":{\"python\":\"v2\"},\"ddTraceConfigs\":[{\"name\":\"DD_PROFILING_ENABLED\",\"value\":\"true\"},{\"name\":\"DD_DATA_JOBS_ENABLED\",\"value\":\"true\"}]}",
+				AppliedTargetAnnotation: "{\"name\":\"Python Apps\",\"podSelector\":{\"matchLabels\":{\"language\":\"python\"}},\"ddTraceVersions\":{\"python\":\"v3\"},\"ddTraceConfigs\":[{\"name\":\"DD_PROFILING_ENABLED\",\"value\":\"true\"},{\"name\":\"DD_DATA_JOBS_ENABLED\",\"value\":\"true\"}]}",
 			},
 		},
 		"service name is applied when set in tracer configs": {
@@ -177,7 +177,7 @@ func TestMutatePod(t *testing.T) {
 			wmeta := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 				fx.Supply(coreconfig.Params{}),
 				fx.Provide(func() log.Component { return logmock.New(t) }),
-				coreconfig.MockModule(),
+				fx.Provide(func() coreconfig.Component { return coreconfig.NewMock(t) }),
 				workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 			))
 
@@ -187,7 +187,7 @@ func TestMutatePod(t *testing.T) {
 			}
 
 			// Create the mutator.
-			f, err := NewTargetMutator(config, wmeta)
+			f, err := NewTargetMutator(config, wmeta, newNoOpImageResolver())
 			require.NoError(t, err)
 
 			input := test.in.DeepCopy()
@@ -282,7 +282,7 @@ func TestShouldMutatePod(t *testing.T) {
 			wmeta := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 				fx.Supply(coreconfig.Params{}),
 				fx.Provide(func() log.Component { return logmock.New(t) }),
-				coreconfig.MockModule(),
+				fx.Provide(func() coreconfig.Component { return coreconfig.NewMock(t) }),
 				workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 			))
 
@@ -292,7 +292,7 @@ func TestShouldMutatePod(t *testing.T) {
 			}
 
 			// Create the mutator.
-			f, err := NewTargetMutator(config, wmeta)
+			f, err := NewTargetMutator(config, wmeta, newNoOpImageResolver())
 			require.NoError(t, err)
 
 			// Determine if the pod should be mutated.
@@ -368,7 +368,7 @@ func TestIsNamespaceEligible(t *testing.T) {
 			wmeta := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 				fx.Supply(coreconfig.Params{}),
 				fx.Provide(func() log.Component { return logmock.New(t) }),
-				coreconfig.MockModule(),
+				fx.Provide(func() coreconfig.Component { return coreconfig.NewMock(t) }),
 				workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 			))
 
@@ -378,7 +378,7 @@ func TestIsNamespaceEligible(t *testing.T) {
 			}
 
 			// Create the mutator.
-			f, err := NewTargetMutator(config, wmeta)
+			f, err := NewTargetMutator(config, wmeta, newNoOpImageResolver())
 			require.NoError(t, err)
 
 			// Determine if the namespace is eligible.
@@ -411,17 +411,13 @@ func TestGetTargetFromAnnotation(t *testing.T) {
 				ObjectMeta: metav1.ObjectMeta{
 					Namespace: "foo",
 					Annotations: map[string]string{
-						"admission.datadoghq.com/python-lib.version": "v2",
+						"admission.datadoghq.com/python-lib.version": "v3",
 					},
 				},
 			},
 			expected: &targetInternal{
 				libVersions: []libInfo{
-					{
-						ctrName: "",
-						lang:    python,
-						image:   "registry/dd-lib-python-init:v2",
-					},
+					defaultLibInfoWithVersion(python, "v3"),
 				},
 			},
 		},
@@ -439,12 +435,12 @@ func TestGetTargetFromAnnotation(t *testing.T) {
 			wmeta := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 				fx.Supply(coreconfig.Params{}),
 				fx.Provide(func() log.Component { return logmock.New(t) }),
-				coreconfig.MockModule(),
+				fx.Provide(func() coreconfig.Component { return coreconfig.NewMock(t) }),
 				workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 			))
 
 			// Create the mutator.
-			f, err := NewTargetMutator(config, wmeta)
+			f, err := NewTargetMutator(config, wmeta, newNoOpImageResolver())
 			require.NoError(t, err)
 
 			// Get the target from the annotation.
@@ -462,6 +458,8 @@ func TestGetTargetFromAnnotation(t *testing.T) {
 }
 
 func TestGetTargetLibraries(t *testing.T) {
+	imageResolver := newNoOpImageResolver()
+
 	tests := map[string]struct {
 		configPath string
 		in         *corev1.Pod
@@ -483,11 +481,7 @@ func TestGetTargetLibraries(t *testing.T) {
 			},
 			expected: &targetInternal{
 				libVersions: []libInfo{
-					{
-						ctrName: "",
-						lang:    js,
-						image:   "registry/dd-lib-js-init:v5",
-					},
+					defaultLibInfoWithVersion(js, "v5"),
 				},
 			},
 		},
@@ -521,11 +515,7 @@ func TestGetTargetLibraries(t *testing.T) {
 			},
 			expected: &targetInternal{
 				libVersions: []libInfo{
-					{
-						ctrName: "",
-						lang:    python,
-						image:   "registry/dd-lib-python-init:v2",
-					},
+					defaultLibInfoWithVersion(python, "v3"),
 				},
 			},
 		},
@@ -544,11 +534,7 @@ func TestGetTargetLibraries(t *testing.T) {
 			},
 			expected: &targetInternal{
 				libVersions: []libInfo{
-					{
-						ctrName: "",
-						lang:    java,
-						image:   "registry/dd-lib-java-init:v1",
-					},
+					defaultLibInfoWithVersion(java, "v1"),
 				},
 			},
 		},
@@ -583,11 +569,7 @@ func TestGetTargetLibraries(t *testing.T) {
 			},
 			expected: &targetInternal{
 				libVersions: []libInfo{
-					{
-						ctrName: "",
-						lang:    dotnet,
-						image:   "registry/dd-lib-dotnet-init:v1",
-					},
+					defaultLibInfoWithVersion(dotnet, "v1"),
 				},
 			},
 		},
@@ -632,36 +614,12 @@ func TestGetTargetLibraries(t *testing.T) {
 			},
 			expected: &targetInternal{
 				libVersions: []libInfo{
-					{
-						ctrName: "",
-						lang:    java,
-						image:   "registry/dd-lib-java-init:v1",
-					},
-					{
-						ctrName: "",
-						lang:    js,
-						image:   "registry/dd-lib-js-init:v5",
-					},
-					{
-						ctrName: "",
-						lang:    python,
-						image:   "registry/dd-lib-python-init:v2",
-					},
-					{
-						ctrName: "",
-						lang:    dotnet,
-						image:   "registry/dd-lib-dotnet-init:v3",
-					},
-					{
-						ctrName: "",
-						lang:    ruby,
-						image:   "registry/dd-lib-ruby-init:v2",
-					},
-					{
-						ctrName: "",
-						lang:    php,
-						image:   "registry/dd-lib-php-init:v1",
-					},
+					defaultLibInfoWithVersion(java, "v1"),
+					defaultLibInfoWithVersion(js, "v5"),
+					defaultLibInfoWithVersion(python, "v3"),
+					defaultLibInfoWithVersion(dotnet, "v3"),
+					defaultLibInfoWithVersion(ruby, "v2"),
+					defaultLibInfoWithVersion(php, "v1"),
 				},
 			},
 		},
@@ -694,7 +652,7 @@ func TestGetTargetLibraries(t *testing.T) {
 			wmeta := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 				fx.Supply(coreconfig.Params{}),
 				fx.Provide(func() log.Component { return logmock.New(t) }),
-				coreconfig.MockModule(),
+				fx.Provide(func() coreconfig.Component { return coreconfig.NewMock(t) }),
 				workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 			))
 
@@ -704,7 +662,7 @@ func TestGetTargetLibraries(t *testing.T) {
 			}
 
 			// Create the mutator.
-			f, err := NewTargetMutator(config, wmeta)
+			f, err := NewTargetMutator(config, wmeta, imageResolver)
 			require.NoError(t, err)
 
 			// Filter the pod.

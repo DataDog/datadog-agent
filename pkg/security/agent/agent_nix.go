@@ -8,43 +8,34 @@
 package agent
 
 import (
-	"errors"
-
 	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
 
-	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	"github.com/DataDog/datadog-agent/pkg/security/security_profile/storage"
+	"github.com/DataDog/datadog-agent/pkg/security/security_profile/storage/backend"
 )
 
 // NewRuntimeSecurityAgent instantiates a new RuntimeSecurityAgent
-func NewRuntimeSecurityAgent(statsdClient statsd.ClientInterface, hostname string, opts RSAOptions, wmeta workloadmeta.Component) (*RuntimeSecurityAgent, error) {
+func NewRuntimeSecurityAgent(statsdClient statsd.ClientInterface, hostname string) (*RuntimeSecurityAgent, error) {
 	client, err := NewRuntimeSecurityClient()
 	if err != nil {
 		return nil, err
 	}
 
-	profContainersTelemetry, err := newProfContainersTelemetry(statsdClient, wmeta, opts.LogProfiledWorkloads)
-	if err != nil {
-		return nil, errors.New("failed to initialize the profiled containers telemetry reporter")
-	}
-
 	// on windows do no storage manager
-	storage, err := storage.NewActivityDumpRemoteStorage()
+	storage, err := backend.NewActivityDumpRemoteBackend()
 	if err != nil {
 		return nil, err
 	}
 
 	return &RuntimeSecurityAgent{
-		client:                  client,
-		statsdClient:            statsdClient,
-		hostname:                hostname,
-		profContainersTelemetry: profContainersTelemetry,
-		storage:                 storage,
-		running:                 atomic.NewBool(false),
-		connected:               atomic.NewBool(false),
-		eventReceived:           atomic.NewUint64(0),
-		activityDumpReceived:    atomic.NewUint64(0),
+		client:               client,
+		statsdClient:         statsdClient,
+		hostname:             hostname,
+		storage:              storage,
+		running:              atomic.NewBool(false),
+		connected:            atomic.NewBool(false),
+		eventReceived:        atomic.NewUint64(0),
+		activityDumpReceived: atomic.NewUint64(0),
 	}, nil
 }

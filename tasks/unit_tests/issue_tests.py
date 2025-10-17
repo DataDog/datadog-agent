@@ -89,7 +89,7 @@ tasks/unit_tests/testdata/add_reviewers/fakeintake/fake.go
         add_reviewers(c, 1234, owner_file="tasks/unit_tests/testdata/add_reviewers/CODEOWNERS")
         print_mock.assert_not_called()
         self.assertCountEqual(
-            pr_mock.create_review_request.call_args[1]['team_reviewers'], ['agent-e2e-testing', 'agent-devx-loops']
+            pr_mock.create_review_request.call_args[1]['team_reviewers'], ['agent-e2e-testing', 'agent-devx']
         )
 
     @patch('builtins.print')
@@ -113,7 +113,7 @@ tasks/unit_tests/testdata/add_reviewers/debugger/fake.go
         print_mock.assert_not_called()
         self.assertCountEqual(
             pr_mock.create_review_request.call_args[1]['team_reviewers'],
-            ['universal-service-monitoring', 'debugger', 'agent-devx-infra'],
+            ['universal-service-monitoring', 'debugger', 'agent-devx'],
         )
 
     @patch('builtins.print')
@@ -137,7 +137,7 @@ tasks/unit_tests/testdata/add_reviewers/new-e2e/fake.go""")
         self.assertCountEqual(
             pr_mock.create_review_request.call_args[1]['team_reviewers'],
             [
-                'windows-agent',
+                'windows-products',
                 'debugger',
                 'agent-e2e-testing',
             ],

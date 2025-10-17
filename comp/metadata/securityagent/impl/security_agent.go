@@ -9,16 +9,16 @@ package securityagentimpl
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"time"
 
 	"gopkg.in/yaml.v2"
 
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
-	"github.com/DataDog/datadog-agent/comp/api/authtoken"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/metadata/internal/util"
 	"github.com/DataDog/datadog-agent/comp/metadata/runner/runnerimpl"
@@ -27,7 +27,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
-	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
@@ -51,19 +50,13 @@ func (p *Payload) MarshalJSON() ([]byte, error) {
 	return json.Marshal((*PayloadAlias)(p))
 }
 
-// SplitPayload implements marshaler.AbstractMarshaler#SplitPayload.
-//
-// In this case, the payload can't be split any further.
-func (p *Payload) SplitPayload(_ int) ([]marshaler.AbstractMarshaler, error) {
-	return nil, fmt.Errorf("could not split security-agent process payload any more, payload is too big for intake")
-}
-
 type secagent struct {
 	util.InventoryPayload
 
 	log      log.Component
 	conf     config.Component
 	hostname string
+	client   ipc.HTTPClient
 }
 
 // Requires defines the dependencies for the securityagent metadata component
@@ -71,8 +64,8 @@ type Requires struct {
 	Log        log.Component
 	Config     config.Component
 	Serializer serializer.MetricSerializer
-	// We need the authtoken to be created so we requires the comp. It will be used by configFetcher.
-	AuthToken authtoken.Component
+	Hostname   hostnameinterface.Component
+	IPCClient  ipc.HTTPClient
 }
 
 // Provides defines the output of the securityagent metadata component
@@ -85,11 +78,12 @@ type Provides struct {
 
 // NewComponent creates a new securityagent metadata Component
 func NewComponent(deps Requires) Provides {
-	hname, _ := hostname.Get(context.Background())
+	hname, _ := deps.Hostname.Get(context.Background())
 	sa := &secagent{
 		log:      deps.Log,
 		conf:     deps.Config,
 		hostname: hname,
+		client:   deps.IPCClient,
 	}
 	sa.InventoryPayload = util.CreateInventoryPayload(deps.Config, deps.Log, deps.Serializer, sa.getPayload, "security-agent.json")
 
@@ -120,7 +114,7 @@ func (sa *secagent) getConfigLayers() map[string]interface{} {
 		return metadata
 	}
 
-	rawLayers, err := fetchSecurityAgentConfigBySource(sa.conf)
+	rawLayers, err := fetchSecurityAgentConfigBySource(sa.conf, sa.client)
 	if err != nil {
 		sa.log.Debugf("error fetching security-agent config layers: %s", err)
 		return metadata
@@ -154,7 +148,7 @@ func (sa *secagent) getConfigLayers() map[string]interface{} {
 		}
 	}
 
-	if str, err := fetchSecurityAgentConfig(sa.conf); err == nil {
+	if str, err := fetchSecurityAgentConfig(sa.conf, sa.client); err == nil {
 		metadata["full_configuration"] = str
 	} else {
 		sa.log.Debugf("error fetching security-agent config: %s", err)

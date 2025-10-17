@@ -1,0 +1,10 @@
+---
+fixes:
+  - |
+    Permissions are no longer applied recursively to the Datadog installer
+    data directory on Windows.
+
+    This fixes an issue that causes Agent updates to restrict access to the
+    .NET APM tracer libraries that were previously installed by the
+    ``DD_APM_INSTRUMENTATION_LIBRARIES`` option, preventing them from being
+    loaded by IIS.

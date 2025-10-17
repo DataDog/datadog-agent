@@ -15,11 +15,12 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/process-agent/command"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
+	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
+	ipchttp "github.com/DataDog/datadog-agent/comp/core/ipc/httphelpers"
+	secretsnoopfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx-noop"
 	"github.com/DataDog/datadog-agent/comp/process"
-	"github.com/DataDog/datadog-agent/pkg/api/util"
-	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config/fetcher"
-	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/settings"
 	settingshttp "github.com/DataDog/datadog-agent/pkg/config/settings/http"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -32,6 +33,8 @@ type dependencies struct {
 	GlobalParams *command.GlobalParams
 
 	Config config.Component
+
+	Client ipc.HTTPClient
 }
 
 // cliParams are the command-line arguments for this subcommand
@@ -51,8 +54,10 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			return fxutil.OneShot(showRuntimeConfiguration,
 				fx.Supply(globalParams, command.GetCoreBundleParamsForOneShot(globalParams)),
 				core.Bundle(),
+				secretsnoopfx.Module(),
 				process.Bundle(),
 				fx.Supply(params),
+				ipcfx.ModuleReadOnly(),
 			)
 		},
 	}
@@ -67,7 +72,9 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				return fxutil.OneShot(listRuntimeConfigurableValue,
 					fx.Supply(globalParams, command.GetCoreBundleParamsForOneShot(globalParams)),
 					core.Bundle(),
+					secretsnoopfx.Module(),
 					process.Bundle(),
+					ipcfx.ModuleReadOnly(),
 				)
 			},
 		},
@@ -82,7 +89,9 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				return fxutil.OneShot(setConfigValue,
 					fx.Supply(globalParams, args, command.GetCoreBundleParamsForOneShot(globalParams)),
 					core.Bundle(),
+					secretsnoopfx.Module(),
 					process.Bundle(),
+					ipcfx.ModuleReadOnly(),
 				)
 			},
 		},
@@ -96,7 +105,9 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				return fxutil.OneShot(getConfigValue,
 					fx.Supply(globalParams, args, command.GetCoreBundleParamsForOneShot(globalParams)),
 					core.Bundle(),
+					secretsnoopfx.Module(),
 					process.Bundle(),
+					ipcfx.ModuleReadOnly(),
 				)
 			},
 		},
@@ -106,7 +117,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 }
 
 func showRuntimeConfiguration(deps dependencies, params *cliParams) error {
-	runtimeConfig, err := fetcher.ProcessAgentConfig(deps.Config, params.showEntireConfig)
+	runtimeConfig, err := fetcher.ProcessAgentConfig(deps.Config, deps.Client, params.showEntireConfig)
 	if err != nil {
 		return err
 	}
@@ -116,7 +127,7 @@ func showRuntimeConfiguration(deps dependencies, params *cliParams) error {
 }
 
 func listRuntimeConfigurableValue(deps dependencies) error {
-	c, err := getClient(deps.Config)
+	c, err := getClient(deps)
 	if err != nil {
 		return err
 	}
@@ -137,7 +148,7 @@ func listRuntimeConfigurableValue(deps dependencies) error {
 }
 
 func setConfigValue(deps dependencies, args []string) error {
-	c, err := getClient(deps.Config)
+	c, err := getClient(deps)
 	if err != nil {
 		return err
 	}
@@ -161,7 +172,7 @@ func setConfigValue(deps dependencies, args []string) error {
 }
 
 func getConfigValue(deps dependencies, args []string) error {
-	c, err := getClient(deps.Config)
+	c, err := getClient(deps)
 	if err != nil {
 		return err
 	}
@@ -180,16 +191,10 @@ func getConfigValue(deps dependencies, args []string) error {
 	return nil
 }
 
-func getClient(cfg model.Reader) (settings.Client, error) {
-	err := util.SetAuthToken(cfg)
-	if err != nil {
-		return nil, err
-	}
-
-	httpClient := apiutil.GetClient()
+func getClient(deps dependencies) (settings.Client, error) {
 	ipcAddress, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
 
-	port := cfg.GetInt("process_config.cmd_port")
+	port := deps.Config.GetInt("process_config.cmd_port")
 	if port <= 0 {
 		return nil, fmt.Errorf("invalid process_config.cmd_port -- %d", port)
 	}
@@ -198,6 +203,6 @@ func getClient(cfg model.Reader) (settings.Client, error) {
 	if err != nil {
 		return nil, err
 	}
-	settingsClient := settingshttp.NewClient(httpClient, ipcAddressWithPort, "process-agent", settingshttp.NewHTTPClientOptions(util.LeaveConnectionOpen))
+	settingsClient := settingshttp.NewSecureClient(deps.Client, ipcAddressWithPort, "process-agent", ipchttp.WithLeaveConnectionOpen)
 	return settingsClient, nil
 }

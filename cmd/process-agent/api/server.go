@@ -13,11 +13,12 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	"github.com/DataDog/datadog-agent/comp/core/secrets"
+	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	"github.com/DataDog/datadog-agent/comp/core/settings"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	"github.com/DataDog/datadog-agent/pkg/api/coverage"
 )
 
 //nolint:revive // TODO(PROC) Fix revive linter
@@ -42,6 +43,7 @@ func injectDeps(deps APIServerDeps, handler func(APIServerDeps, http.ResponseWri
 //nolint:revive // TODO(PROC) Fix revive linter
 func SetupAPIServerHandlers(deps APIServerDeps, r *mux.Router) {
 	r.HandleFunc("/config", deps.Settings.GetFullConfig("process_config")).Methods("GET")
+	r.HandleFunc("/config/without-defaults", deps.Settings.GetFullConfigWithoutDefaults("process_config")).Methods("GET")
 	r.HandleFunc("/config/all", deps.Settings.GetFullConfig("")).Methods("GET") // Get all fields from process-agent Config object
 	r.HandleFunc("/config/list-runtime", deps.Settings.ListConfigurable).Methods("GET")
 	r.HandleFunc("/config/{setting}", deps.Settings.GetValue).Methods("GET")
@@ -57,4 +59,6 @@ func SetupAPIServerHandlers(deps APIServerDeps, r *mux.Router) {
 	}).Methods("GET")
 	r.HandleFunc("/check/{check}", checkHandler).Methods("GET")
 	r.HandleFunc("/secret/refresh", injectDeps(deps, secretRefreshHandler)).Methods("GET")
+	// Special handler to compute running agent Code coverage
+	coverage.SetupCoverageHandler(r)
 }

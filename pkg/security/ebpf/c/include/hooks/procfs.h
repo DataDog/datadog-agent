@@ -57,8 +57,7 @@ HOOK_SYSCALL_EXIT(newfstatat) {
     return handle_ret_stat();
 }
 
-SEC("tracepoint/handle_sys_newfstatat_exit")
-int tracepoint_handle_sys_newfstatat_exit(struct tracepoint_raw_syscalls_sys_exit_t *args) {
+TAIL_CALL_TRACEPOINT_FNC(handle_sys_newfstatat_exit, struct tracepoint_raw_syscalls_sys_exit_t *args) {
     return handle_ret_stat();
 }
 
@@ -147,7 +146,7 @@ int hook_path_get(ctx_t *ctx) {
         // without a port we can't do much, leave early
         return 0;
     }
-
+    route.l4_protocol = get_protocol_from_sock(sk);
     u16 family = get_family_from_sock_common((void *)sk);
     if (family == AF_INET6) {
         bpf_probe_read(&route.addr, sizeof(u64) * 2, &sk->__sk_common.skc_v6_rcv_saddr);

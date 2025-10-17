@@ -14,6 +14,7 @@
 #include "sock.h"
 #include "sockfd.h"
 #include "pid_tgid.h"
+#include "protocols/tls/go-tls-maps.h"
 
 SEC("kprobe/tcp_close")
 int BPF_KPROBE(kprobe__tcp_close, struct sock *sk) {
@@ -28,15 +29,32 @@ int BPF_KPROBE(kprobe__tcp_close, struct sock *sk) {
     }
 
     pid_fd_t *pid_fd = bpf_map_lookup_elem(&pid_fd_by_tuple, &t);
-    if (pid_fd == NULL) {
-        return 0;
+    if (pid_fd != NULL) {
+        // Copy map value to stack so we can use it as a map key (needed for older kernels)
+        pid_fd_t pid_fd_copy = *pid_fd;
+        bpf_map_delete_elem(&tuple_by_pid_fd, &pid_fd_copy);
+        bpf_map_delete_elem(&pid_fd_by_tuple, &t);
     }
-
-    // Copy map value to stack so we can use it as a map key (needed for older kernels)
-    pid_fd_t pid_fd_copy = *pid_fd;
-    bpf_map_delete_elem(&tuple_by_pid_fd, &pid_fd_copy);
-    bpf_map_delete_elem(&pid_fd_by_tuple, &t);
-
+    
+    void **ssl_ctx_ptr = bpf_map_lookup_elem(&ssl_ctx_by_tuple, &t);
+    if (ssl_ctx_ptr) {
+        void *ssl_ctx = *ssl_ctx_ptr;
+        bpf_map_delete_elem(&ssl_ctx_by_tuple, &t);
+        if (ssl_ctx) {
+            bpf_map_delete_elem(&ssl_sock_by_ctx, &ssl_ctx);
+        }
+    }
+    
+    
+    // Cleanup Go TLS connections map
+    // Look up the Go TLS connection pointer using the reverse mapping
+    void **go_tls_conn_ptr = bpf_map_lookup_elem(&go_tls_conn_by_tuple, &t);
+    if (go_tls_conn_ptr) {
+        void *go_tls_conn = *go_tls_conn_ptr;
+        // Remove both the forward and reverse mappings
+        bpf_map_delete_elem(&conn_tup_by_go_tls_conn, &go_tls_conn);
+        bpf_map_delete_elem(&go_tls_conn_by_tuple, &t);
+    }
     // The cleanup of the map happens either during TCP termination or during the TLS shutdown event.
     // TCP termination is managed by the socket filter, thus it cannot clean TLS entries,
     // as it does not have access to the PID and NETNS.

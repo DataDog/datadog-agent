@@ -36,12 +36,20 @@ var minimalFullConfig string
 var sources string
 
 func TestOTelAgentMinimal(t *testing.T) {
-	values := enableOTELAgentonfig(`
+	values := `
 datadog:
+  otelCollector:
+    useStandaloneImage: false
   logs:
     containerCollectAll: false
     containerCollectUsingFiles: false
-`)
+agents:
+  containers:
+    otelAgent:
+      env:
+        - name: DD_APM_FEATURES
+          value: 'disable_operation_and_resource_name_logic_v2'
+`
 	t.Parallel()
 	e2e.Run(t, &minimalTestSuite{}, e2e.WithProvisioner(awskubernetes.KindProvisioner(awskubernetes.WithAgentOptions(kubernetesagentparams.WithHelmValues(values), kubernetesagentparams.WithOTelAgent(), kubernetesagentparams.WithOTelConfig(minimalConfig)))))
 }
@@ -132,7 +140,8 @@ func (s *minimalTestSuite) TestCoreAgentConfigCmd() {
     metrics/dd-autoconfigured/datadog:
       exporters:
       - datadog
-      processors: []
+      processors:
+      - filter/drop-prometheus-internal-metrics/dd-autoconfigured
       receivers:
       - prometheus/dd-autoconfigured
     traces:

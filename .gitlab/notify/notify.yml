@@ -4,9 +4,7 @@
 
 .notify_setup:
   - SLACK_DATADOG_AGENT_BOT_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $SLACK_AGENT token) || exit $?; export SLACK_DATADOG_AGENT_BOT_TOKEN
-  - GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $GITLAB_TOKEN read_api) || exit $?; export GITLAB_TOKEN
   - DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_API_KEY_ORG2 token) || exit $?; export DD_API_KEY
-  - python3 -m pip install "git+https://github.com/DataDog/datadog-agent-dev.git@v$(cat .dda/version)"
   - dda self dep sync -f legacy-tasks -f legacy-notifications
 
 # Notify jobs are allowed to fail but are monitored by https://app.datadoghq.com/monitors/132367692
@@ -17,14 +15,13 @@
 notify-on-tagged-success:
   extends: .notify-job
   stage: notify
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_arm64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   rules: !reference [.on_deploy_stable_or_beta_repo_branch]
   dependencies: []
-  tags: ["arch:arm64"]
+  tags: ["arch:arm64", "specific:true"]
   script: |
     MESSAGE_TEXT=":host-green: Tagged build <$CI_PIPELINE_URL|$CI_PIPELINE_ID> succeeded.
     *$CI_COMMIT_REF_NAME* is available in the staging repositories."
-    python3 -m pip install "git+https://github.com/DataDog/datadog-agent-dev.git@v$(cat .dda/version)"
     dda self dep sync -f legacy-tasks -f legacy-notifications
     SLACK_DATADOG_AGENT_BOT_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $SLACK_AGENT token) || exit $?; export SLACK_DATADOG_AGENT_BOT_TOKEN
     dda inv notify.post-message -c "#agent-release-sync" -m "$MESSAGE_TEXT"
@@ -32,90 +29,51 @@ notify-on-tagged-success:
 notify:
   extends: .notify-job
   stage: notify
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_arm64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   rules: !reference [.on_main_or_release_branch_or_deploy_always]
   dependencies: []
-  tags: ["arch:arm64"]
+  tags: ["arch:arm64", "specific:true"]
   resource_group: notification
   timeout: 15 minutes # Added to prevent a stuck job blocking the resource_group defined above
   script:
     - !reference [.notify_setup]
     - !reference [.setup_agent_github_app]
-    - dda inv -- -e notify.send-message -p $CI_PIPELINE_ID
     - dda inv -- -e notify.check-consistent-failures -p $CI_PIPELINE_ID
 
 send_pipeline_stats:
   extends: .notify-job
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
-  tags: ["arch:amd64"]
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
+  tags: ["arch:amd64", "specific:true"]
   when: always
   dependencies: []
   script:
     - !reference [.notify_setup]
     - dda inv -- -e notify.send-stats
 
-notify_github:
-  extends: .notify-job
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_arm64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
-  tags: ["arch:arm64"]
-  rules:
-    - !reference [.on_dev_branches]
-    - if: $RELEASE_VERSION != ""
-      changes:
-        paths:
-          - '**/*.go'
-        compare_to: $COMPARE_TO_BRANCH
-      when: on_success
-    - when: never
-  needs:
-    - job: "deploy_deb_testing-a7_x64"
-      optional: true
-  dependencies: []
-  script:
-    - !reference [.setup_agent_github_app]
-    # Python 3.12 changes default behavior how packages are installed.
-    # In particular, --break-system-packages command line option is
-    # required to use the old behavior or use a virtual env. https://github.com/actions/runner-images/issues/8615
-    - python3 -m pip install "git+https://github.com/DataDog/datadog-agent-dev.git@v$(cat .dda/version)" --break-system-packages
-    - python3 -m dda self dep sync -f legacy-tasks
-    - messagefile="$(mktemp)"
-    - echo "Use this command from [test-infra-definitions](https://github.com/DataDog/test-infra-definitions) to manually test this PR changes on a VM:" >> "$messagefile"
-    - echo '```sh' >> "$messagefile"
-    - echo "dda inv aws.create-vm --pipeline-id=$CI_PIPELINE_ID --os-family=ubuntu" >> "$messagefile"
-    - echo '```' >> "$messagefile"
-    - 'echo "Note: This applies to commit **$CI_COMMIT_SHORT_SHA**" >> "$messagefile"'
-    - dda inv -- -e github.pr-commenter --title "Test changes on VM" --body "$(cat "$messagefile")" --echo
-    - rm "$messagefile"
-
 notify_gitlab_ci_changes:
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   extends: .notify-job
   needs: [compute_gitlab_ci_config]
-  tags: ["arch:amd64"]
+  tags: ["arch:amd64", "specific:true"]
   rules:
-    - !reference  [.except_mergequeue]
+    - !reference [.except_mergequeue]
     - changes:
         paths:
           - .gitlab-ci.yml
           - .gitlab/**/*.yml
         compare_to: $COMPARE_TO_BRANCH
   script:
-    # Python 3.12 changes default behavior how packages are installed.
-    # In particular, --break-system-packages command line option is
-    # required to use the old behavior or use a virtual env. https://github.com/actions/runner-images/issues/8615
-    - python3 -m pip install "git+https://github.com/DataDog/datadog-agent-dev.git@v$(cat .dda/version)" --break-system-packages
     - python3 -m dda self dep sync -f legacy-tasks
     - !reference [.setup_agent_github_app]
     - dda inv -- -e notify.gitlab-ci-diff --from-diff artifacts/diff.gitlab-ci.yml --pr-comment
 
 .failure_summary_job:
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   extends: .notify-job
   dependencies: []
-  tags: ["arch:amd64"]
+  tags: ["arch:amd64", "specific:true"]
   resource_group: notification
   timeout: 15 minutes # Added to prevent a stuck job blocking the resource_group defined above
-
 
 # Upload failure summary data to S3 at the end of each main pipeline
 notify_failure_summary_on_pipeline:
@@ -153,11 +111,11 @@ notify_failure_summary_daily:
 
 close_failing_tests_stale_issues:
   extends: .notify-job
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_arm64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   rules:
     - !reference [.on_scheduled_main]
   needs: []
-  tags: ["arch:arm64"]
+  tags: ["arch:arm64", "specific:true"]
   script:
     - weekday="$(date --utc '+%A')"
     # Weekly on Friday
@@ -170,6 +128,5 @@ close_failing_tests_stale_issues:
     - DD_APP_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_APP_KEY_ORG2 token) || exit $?; export DD_APP_KEY
     - ATLASSIAN_PASSWORD=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $ATLASSIAN_WRITE token) || exit $?; export ATLASSIAN_PASSWORD
     - ATLASSIAN_USERNAME=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $ATLASSIAN_WRITE user) || exit $?; export ATLASSIAN_USERNAME
-    - python3 -m pip install "git+https://github.com/DataDog/datadog-agent-dev.git@v$(cat .dda/version)" --break-system-packages
-    - python3 -m dda self dep sync -f legacy-tasks
+    - dda self dep sync -f legacy-tasks
     - dda inv -- -e notify.close-failing-tests-stale-issues

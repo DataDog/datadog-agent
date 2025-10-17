@@ -23,7 +23,6 @@ import (
 // declare these as vars not const to ease testing
 var (
 	metadataURL = "http://169.254.169.254"
-	timeout     = 300 * time.Millisecond
 
 	// CloudProviderName contains the inventory name of for EC2
 	CloudProviderName = "Azure"
@@ -111,6 +110,7 @@ func getResponse(ctx context.Context, url string) (string, error) {
 		return "", fmt.Errorf("cloud provider is disabled by configuration")
 	}
 
+	timeout := time.Duration(pkgconfigsetup.Datadog().GetInt("azure_metadata_timeout")) * time.Millisecond
 	return httputils.Get(ctx, url, map[string]string{"Metadata": "true"}, timeout, pkgconfigsetup.Datadog())
 }
 
@@ -172,6 +172,30 @@ func getHostnameWithConfig(ctx context.Context, config model.Config) (string, er
 	}
 
 	return name, nil
+}
+
+var hostCCRIDFetcher = cachedfetch.Fetcher{
+	Name: "Azure Host CCRID",
+	Attempt: func(ctx context.Context) (interface{}, error) {
+		rg, err := getResponse(ctx,
+			metadataURL+"/metadata/instance/compute/resourceId?api-version=2021-02-01&format=text")
+		if err != nil {
+			return "", fmt.Errorf("unable to query metadata endpoint: %s", err)
+		}
+		return rg, nil
+	},
+}
+
+// GetHostCCRID returns the Canonical Cloud Resource ID for the Azure host
+func GetHostCCRID(ctx context.Context) (string, error) {
+	caseInsensitiveCCRID, err := hostCCRIDFetcher.FetchString(ctx)
+	if err != nil {
+		return "", err
+	}
+	// Azure APIs are inconsistent with handling case, so it is recommended to
+	// lower-case returned strings that represent stable IDs
+	// https://learn.microsoft.com/en-us/azure/azure-resource-manager/management/move-resource-group-and-subscription?tabs=azure-cli
+	return strings.ToLower(caseInsensitiveCCRID), nil
 }
 
 var publicIPv4Fetcher = cachedfetch.Fetcher{

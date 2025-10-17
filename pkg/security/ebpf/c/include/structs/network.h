@@ -5,8 +5,7 @@ struct pid_route_t {
     u64 addr[2];
     u32 netns;
     u16 port;
-    // TODO: wait for implementation on security_socket_bind to be ready first
-    // u16 l4_protocol;
+    u16 l4_protocol;
 };
 
 struct sock_meta_t {
@@ -22,10 +21,21 @@ struct pid_route_entry_t {
 struct flow_t {
     u64 saddr[2];
     u64 daddr[2];
-    u16 sport;
-    u16 dport;
-    u16 l4_protocol;
+
+    union {
+        struct {
+            u16 sport;
+            u16 dport;
+        } tcp_udp;
+        struct {
+            u8 type;
+            u8 code;
+            u16 id;
+        } icmp;
+    };
+
     u16 l3_protocol;
+    u16 l4_protocol;
 };
 
 struct network_counters_t {
@@ -100,10 +110,17 @@ struct cursor {
 
 struct packet_t {
     struct ethhdr eth;
-    struct iphdr ipv4;
-    struct ipv6hdr ipv6;
-    struct tcphdr tcp;
-    struct udphdr udp;
+    union {
+        struct iphdr ipv4;
+        struct ipv6hdr ipv6;
+    } l3;
+
+    union {
+        struct tcphdr tcp;
+        struct udphdr udp;
+        struct icmphdr icmp;
+        struct icmp6hdr icmp6;
+    } l4;
 
     struct namespaced_flow_t ns_flow;
     struct namespaced_flow_t translated_ns_flow;
@@ -112,6 +129,7 @@ struct packet_t {
     s64 pid;
     u32 payload_len;
     u32 network_direction;
+    u64 cgroup_id;
 };
 
 struct network_device_context_t {

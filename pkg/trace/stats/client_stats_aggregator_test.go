@@ -59,13 +59,14 @@ func (w *mockStatsWriter) Reset() []*pb.StatsPayload {
 	return ret
 }
 
-func payloadWithCounts(ts time.Time, k BucketsAggregationKey, containerID, version, imageTag, gitCommitSha string, hits, errors, duration uint64) *pb.ClientStatsPayload {
+func payloadWithCounts(ts time.Time, k BucketsAggregationKey, containerID, version, imageTag, gitCommitSha, lang string, hits, errors, duration uint64) *pb.ClientStatsPayload {
 	return &pb.ClientStatsPayload{
 		Env:          "test-env",
 		Version:      version,
 		ImageTag:     imageTag,
 		GitCommitSha: gitCommitSha,
 		ContainerID:  containerID,
+		Lang:         lang,
 		Stats: []*pb.ClientStatsBucket{
 			{
 				Start: uint64(ts.UnixNano()),
@@ -82,6 +83,8 @@ func payloadWithCounts(ts time.Time, k BucketsAggregationKey, containerID, versi
 						Errors:         errors,
 						Duration:       duration,
 						GRPCStatusCode: k.GRPCStatusCode,
+						HTTPMethod:     k.HTTPMethod,
+						HTTPEndpoint:   k.HTTPEndpoint,
 					},
 				},
 			},
@@ -115,7 +118,6 @@ func getTestStatsWithStart(t *testing.T, start time.Time, incPeerTags bool) *pb.
 	p := &pb.ClientStatsPayload{}
 	fuzzer.Fuzz(p)
 	p.Tags = nil
-	p.Lang = ""
 	p.TracerVersion = ""
 	p.RuntimeID = ""
 	p.ContainerID = ""
@@ -144,7 +146,6 @@ func encodeTestSketch(t *testing.T, s *ddsketch.DDSketch) []byte {
 
 func assertAggCountsPayload(t *testing.T, aggCounts *pb.StatsPayload) {
 	for _, p := range aggCounts.Stats {
-		assert.Empty(t, p.Lang)
 		assert.Empty(t, p.TracerVersion)
 		assert.Empty(t, p.RuntimeID)
 		assert.Equal(t, uint64(0), p.Sequence)
@@ -159,7 +160,6 @@ func assertAggCountsPayload(t *testing.T, aggCounts *pb.StatsPayload) {
 
 func assertAggStatsPayload(t *testing.T, aggStats *pb.StatsPayload) {
 	for _, p := range aggStats.Stats {
-		assert.Empty(t, p.Lang)
 		assert.Empty(t, p.TracerVersion)
 		assert.Empty(t, p.RuntimeID)
 		assert.Equal(t, uint64(0), p.Sequence)
@@ -398,6 +398,16 @@ func TestCountAggregation(t *testing.T) {
 			&pb.ClientGroupedStats{GRPCStatusCode: "2"},
 			"status",
 		},
+		{
+			BucketsAggregationKey{HTTPMethod: "GET"},
+			&pb.ClientGroupedStats{HTTPMethod: "GET"},
+			"name",
+		},
+		{
+			BucketsAggregationKey{HTTPEndpoint: "/"},
+			&pb.ClientGroupedStats{HTTPEndpoint: "/"},
+			"name",
+		},
 	}
 	for _, tc := range tts {
 		t.Run(tc.name, func(t *testing.T) {
@@ -406,11 +416,11 @@ func TestCountAggregation(t *testing.T) {
 			a.writer = msw
 			testTime := time.Unix(time.Now().Unix(), 0)
 
-			c1 := payloadWithCounts(testTime, tc.k, "", "test-version", "", "", 11, 7, 100)
-			c2 := payloadWithCounts(testTime, tc.k, "", "test-version", "", "", 27, 2, 300)
-			c3 := payloadWithCounts(testTime, tc.k, "", "test-version", "", "", 5, 10, 3)
+			c1 := payloadWithCounts(testTime, tc.k, "", "test-version", "", "", "", 11, 7, 100)
+			c2 := payloadWithCounts(testTime, tc.k, "", "test-version", "", "", "", 27, 2, 300)
+			c3 := payloadWithCounts(testTime, tc.k, "", "test-version", "", "", "", 5, 10, 3)
 			keyDefault := BucketsAggregationKey{}
-			cDefault := payloadWithCounts(testTime, keyDefault, "", "test-version", "", "", 0, 2, 4)
+			cDefault := payloadWithCounts(testTime, keyDefault, "", "test-version", "", "", "", 0, 2, 4)
 
 			assert.Len(msw.payloads, 0)
 			a.add(testTime, deepCopy(c1))
@@ -474,14 +484,14 @@ func TestCountAggregationPeerTags(t *testing.T) {
 			a.writer = msw
 			testTime := time.Unix(time.Now().Unix(), 0)
 
-			c1 := payloadWithCounts(testTime, tc.k, "", "test-version", "", "", 11, 7, 100)
-			c2 := payloadWithCounts(testTime, tc.k, "", "test-version", "", "", 27, 2, 300)
-			c3 := payloadWithCounts(testTime, tc.k, "", "test-version", "", "", 5, 10, 3)
+			c1 := payloadWithCounts(testTime, tc.k, "", "test-version", "", "", "", 11, 7, 100)
+			c2 := payloadWithCounts(testTime, tc.k, "", "test-version", "", "", "", 27, 2, 300)
+			c3 := payloadWithCounts(testTime, tc.k, "", "test-version", "", "", "", 5, 10, 3)
 			c1.Stats[0].Stats[0].PeerTags = tc.peerTags
 			c2.Stats[0].Stats[0].PeerTags = tc.peerTags
 			c3.Stats[0].Stats[0].PeerTags = tc.peerTags
 			keyDefault := BucketsAggregationKey{}
-			cDefault := payloadWithCounts(testTime, keyDefault, "", "test-version", "", "", 0, 2, 4)
+			cDefault := payloadWithCounts(testTime, keyDefault, "", "test-version", "", "", "", 0, 2, 4)
 
 			assert.Len(msw.payloads, 0)
 			a.add(testTime, deepCopy(c1))
@@ -523,11 +533,11 @@ func TestAggregationVersionData(t *testing.T) {
 		testTime := time.Unix(time.Now().Unix(), 0)
 
 		bak := BucketsAggregationKey{Service: "s", Name: "test.op"}
-		c1 := payloadWithCounts(testTime, bak, "1", "test-version", "abc", "abc123", 11, 7, 100)
-		c2 := payloadWithCounts(testTime, bak, "1", "test-version", "abc", "abc123", 27, 2, 300)
-		c3 := payloadWithCounts(testTime, bak, "1", "test-version", "abc", "abc123", 5, 10, 3)
+		c1 := payloadWithCounts(testTime, bak, "1", "test-version", "abc", "abc123", "", 11, 7, 100)
+		c2 := payloadWithCounts(testTime, bak, "1", "test-version", "abc", "abc123", "", 27, 2, 300)
+		c3 := payloadWithCounts(testTime, bak, "1", "test-version", "abc", "abc123", "", 5, 10, 3)
 		keyDefault := BucketsAggregationKey{}
-		cDefault := payloadWithCounts(testTime, keyDefault, "1", "test-version", "abc", "abc123", 0, 2, 4)
+		cDefault := payloadWithCounts(testTime, keyDefault, "1", "test-version", "abc", "abc123", "", 0, 2, 4)
 
 		assert.Len(msw.payloads, 0)
 		a.add(testTime, deepCopy(c1))
@@ -577,11 +587,11 @@ func TestAggregationVersionData(t *testing.T) {
 		testTime := time.Unix(time.Now().Unix(), 0)
 
 		bak := BucketsAggregationKey{Service: "s", Name: "test.op"}
-		c1 := payloadWithCounts(testTime, bak, "1", "", "", "", 11, 7, 100)
-		c2 := payloadWithCounts(testTime, bak, "1", "", "", "", 27, 2, 300)
-		c3 := payloadWithCounts(testTime, bak, "1", "", "", "", 5, 10, 3)
+		c1 := payloadWithCounts(testTime, bak, "1", "", "", "", "", 11, 7, 100)
+		c2 := payloadWithCounts(testTime, bak, "1", "", "", "", "", 27, 2, 300)
+		c3 := payloadWithCounts(testTime, bak, "1", "", "", "", "", 5, 10, 3)
 		keyDefault := BucketsAggregationKey{}
-		cDefault := payloadWithCounts(testTime, keyDefault, "1", "", "", "", 0, 2, 4)
+		cDefault := payloadWithCounts(testTime, keyDefault, "1", "", "", "", "", 0, 2, 4)
 
 		assert.Len(msw.payloads, 0)
 		a.add(testTime, deepCopy(c1))
@@ -641,11 +651,11 @@ func TestAggregationVersionData(t *testing.T) {
 		testTime := time.Unix(time.Now().Unix(), 0)
 
 		bak := BucketsAggregationKey{Service: "s", Name: "test.op"}
-		c1 := payloadWithCounts(testTime, bak, "1", "test-version", "abc", "abc123", 11, 7, 100)
-		c2 := payloadWithCounts(testTime, bak, "1", "test-version", "abc", "abc123", 27, 2, 300)
-		c3 := payloadWithCounts(testTime, bak, "1", "test-version", "abc", "abc123", 5, 10, 3)
+		c1 := payloadWithCounts(testTime, bak, "1", "test-version", "abc", "abc123", "", 11, 7, 100)
+		c2 := payloadWithCounts(testTime, bak, "1", "test-version", "abc", "abc123", "", 27, 2, 300)
+		c3 := payloadWithCounts(testTime, bak, "1", "test-version", "abc", "abc123", "", 5, 10, 3)
 		keyDefault := BucketsAggregationKey{}
-		cDefault := payloadWithCounts(testTime, keyDefault, "1", "test-version", "abc", "abc123", 0, 2, 4)
+		cDefault := payloadWithCounts(testTime, keyDefault, "1", "test-version", "abc", "abc123", "", 0, 2, 4)
 
 		assert.Len(msw.payloads, 0)
 		a.add(testTime, deepCopy(c1))
@@ -683,6 +693,37 @@ func TestAggregationVersionData(t *testing.T) {
 	})
 }
 
+func TestAggregationProcessTags(t *testing.T) {
+	assert := assert.New(t)
+	a := newTestAggregator()
+	msw := &mockStatsWriter{}
+	a.writer = msw
+	testTime := time.Unix(time.Now().Unix(), 0)
+
+	bak := BucketsAggregationKey{Service: "s", Name: "test.op"}
+	c1 := payloadWithCounts(testTime, bak, "", "test-version", "abc", "abc123", "", 11, 7, 100)
+	c1.ProcessTags = "a:1,b:2,c:3"
+	c2 := payloadWithCounts(testTime, bak, "", "test-version", "abc", "abc123", "", 11, 7, 100)
+	c2.ProcessTags = "b:33"
+
+	assert.Len(msw.payloads, 0)
+	a.add(testTime, deepCopy(c1))
+	a.add(testTime, deepCopy(c2))
+	assert.Len(msw.payloads, 0)
+	a.flushOnTime(testTime.Add(oldestBucketStart + time.Nanosecond))
+	require.Len(t, msw.payloads, 1)
+
+	aggCounts := msw.payloads[0]
+	assertAggCountsPayload(t, aggCounts)
+
+	assert.Len(aggCounts.Stats, 2)
+	resProcessTags := []string{aggCounts.Stats[0].ProcessTags, aggCounts.Stats[1].ProcessTags}
+	resProcessTagsHash := []uint64{aggCounts.Stats[0].ProcessTagsHash, aggCounts.Stats[1].ProcessTagsHash}
+	assert.ElementsMatch([]string{"a:1,b:2,c:3", "b:33"}, resProcessTags)
+	assert.ElementsMatch([]uint64{7030721150995765661, 6360281807028847755}, resProcessTagsHash)
+	assert.Len(a.buckets, 0)
+}
+
 func TestAggregationContainerID(t *testing.T) {
 	t.Run("ContainerID empty", func(t *testing.T) {
 		assert := assert.New(t)
@@ -692,11 +733,11 @@ func TestAggregationContainerID(t *testing.T) {
 		testTime := time.Unix(time.Now().Unix(), 0)
 
 		bak := BucketsAggregationKey{Service: "s", Name: "test.op"}
-		c1 := payloadWithCounts(testTime, bak, "", "test-version", "abc", "abc123", 11, 7, 100)
-		c2 := payloadWithCounts(testTime, bak, "", "test-version", "abc", "abc123", 27, 2, 300)
-		c3 := payloadWithCounts(testTime, bak, "", "test-version", "abc", "abc123", 5, 10, 3)
+		c1 := payloadWithCounts(testTime, bak, "", "test-version", "abc", "abc123", "", 11, 7, 100)
+		c2 := payloadWithCounts(testTime, bak, "", "test-version", "abc", "abc123", "", 27, 2, 300)
+		c3 := payloadWithCounts(testTime, bak, "", "test-version", "abc", "abc123", "", 5, 10, 3)
 		keyDefault := BucketsAggregationKey{}
-		cDefault := payloadWithCounts(testTime, keyDefault, "", "test-version", "abc", "abc123", 0, 2, 4)
+		cDefault := payloadWithCounts(testTime, keyDefault, "", "test-version", "abc", "abc123", "", 0, 2, 4)
 
 		assert.Len(msw.payloads, 0)
 		a.add(testTime, deepCopy(c1))
@@ -722,11 +763,11 @@ func TestAggregationContainerID(t *testing.T) {
 		testTime := time.Unix(time.Now().Unix(), 0)
 
 		bak := BucketsAggregationKey{Service: "s", Name: "test.op"}
-		c1 := payloadWithCounts(testTime, bak, "1", "test-version", "abc", "abc123", 11, 7, 100)
-		c2 := payloadWithCounts(testTime, bak, "1", "test-version", "abc", "abc123", 27, 2, 300)
-		c3 := payloadWithCounts(testTime, bak, "1", "test-version", "abc", "abc123", 5, 10, 3)
+		c1 := payloadWithCounts(testTime, bak, "1", "test-version", "abc", "abc123", "", 11, 7, 100)
+		c2 := payloadWithCounts(testTime, bak, "1", "test-version", "abc", "abc123", "", 27, 2, 300)
+		c3 := payloadWithCounts(testTime, bak, "1", "test-version", "abc", "abc123", "", 5, 10, 3)
 		keyDefault := BucketsAggregationKey{}
-		cDefault := payloadWithCounts(testTime, keyDefault, "1", "test-version", "abc", "abc123", 0, 2, 4)
+		cDefault := payloadWithCounts(testTime, keyDefault, "1", "test-version", "abc", "abc123", "", 0, 2, 4)
 
 		assert.Len(msw.payloads, 0)
 		a.add(testTime, deepCopy(c1))
@@ -743,7 +784,48 @@ func TestAggregationContainerID(t *testing.T) {
 		assert.Equal(aggCounts.Stats[0].ContainerID, "1")
 		assert.Len(a.buckets, 0)
 	})
+}
 
+func TestLangAggregation(t *testing.T) {
+	t.Run("different_lang_separate_buckets", func(t *testing.T) {
+		a := newTestAggregator()
+		msw := &mockStatsWriter{}
+		a.writer = msw
+		testTime := time.Unix(time.Now().Unix(), 0)
+
+		bak := BucketsAggregationKey{Service: "test-service"}
+		c1 := payloadWithCounts(testTime, bak, "", "1.0.0", "", "", "go", 10, 1, 100)
+		c2 := payloadWithCounts(testTime, bak, "", "1.0.0", "", "", "python", 5, 2, 200)
+
+		a.add(testTime, deepCopy(c1))
+		a.add(testTime, deepCopy(c2))
+		a.flushOnTime(testTime.Add(oldestBucketStart + time.Nanosecond))
+
+		require.Len(t, msw.payloads, 1)
+		assert.Len(t, msw.payloads[0].Stats, 2) // Separate buckets for different languages
+	})
+
+	t.Run("same_lang_same_bucket", func(t *testing.T) {
+		a := newTestAggregator()
+		msw := &mockStatsWriter{}
+		a.writer = msw
+		testTime := time.Unix(time.Now().Unix(), 0)
+
+		bak := BucketsAggregationKey{Service: "test-service"}
+		c1 := payloadWithCounts(testTime, bak, "", "1.0.0", "", "", "go", 10, 1, 100)
+		c2 := payloadWithCounts(testTime, bak, "", "1.0.0", "", "", "go", 5, 2, 200)
+
+		a.add(testTime, deepCopy(c1))
+		a.add(testTime, deepCopy(c2))
+		a.flushOnTime(testTime.Add(oldestBucketStart + time.Nanosecond))
+
+		require.Len(t, msw.payloads, 1)
+		require.Len(t, msw.payloads[0].Stats, 1) // Same bucket for same lang
+
+		payload := msw.payloads[0].Stats[0]
+		assert.Equal(t, "go", payload.Lang)
+		assert.Equal(t, uint64(15), payload.Stats[0].Stats[0].Hits) // 10 + 5
+	})
 }
 
 func TestNewBucketAggregationKeyPeerTags(t *testing.T) {
@@ -761,6 +843,26 @@ func TestNewBucketAggregationKeyPeerTags(t *testing.T) {
 	})
 }
 
+func TestGoroutineShutdown(t *testing.T) {
+	a := NewClientStatsAggregator(&config.AgentConfig{}, &mockStatsWriter{}, &statsd.NoOpClient{})
+
+	a.Start()
+
+	// Test graceful shutdown
+	done := make(chan bool)
+	go func() {
+		a.Stop() // Should signal both goroutines to exit and wait for them
+		done <- true
+	}()
+
+	select {
+	case <-done:
+		// Success - both goroutines stopped properly
+	case <-time.After(time.Second):
+		t.Fatal("Goroutines did not stop within timeout")
+	}
+}
+
 func deepCopy(p *pb.ClientStatsPayload) *pb.ClientStatsPayload {
 	payload := &pb.ClientStatsPayload{
 		Hostname:         p.GetHostname(),
@@ -776,6 +878,8 @@ func deepCopy(p *pb.ClientStatsPayload) *pb.ClientStatsPayload {
 		Tags:             p.GetTags(),
 		GitCommitSha:     p.GetGitCommitSha(),
 		ImageTag:         p.GetImageTag(),
+		ProcessTags:      p.GetProcessTags(),
+		ProcessTagsHash:  p.GetProcessTagsHash(),
 	}
 	payload.Stats = deepCopyStatsBucket(p.Stats)
 	return payload
@@ -824,6 +928,8 @@ func deepCopyGroupedStats(s []*pb.ClientGroupedStats) []*pb.ClientGroupedStats {
 			PeerTags:       b.GetPeerTags(),
 			IsTraceRoot:    b.GetIsTraceRoot(),
 			GRPCStatusCode: b.GetGRPCStatusCode(),
+			HTTPMethod:     b.GetHTTPMethod(),
+			HTTPEndpoint:   b.GetHTTPEndpoint(),
 		}
 		if b.OkSummary != nil {
 			stats[i].OkSummary = make([]byte, len(b.OkSummary))

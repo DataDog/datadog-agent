@@ -10,11 +10,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/atomic"
+
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/logs/types"
 )
 
 type ConfigTestSuite struct {
@@ -168,6 +170,43 @@ func (suite *ConfigTestSuite) TestTaggerWarmupDuration() {
 	suite.config.SetWithoutSource("logs_config.tagger_warmup_duration", 5)
 	taggerWarmupDuration = TaggerWarmupDuration(suite.config)
 	suite.Equal(5*time.Second, taggerWarmupDuration)
+}
+
+func (suite *ConfigTestSuite) TestGlobalFingerprintConfigShouldReturnConfigWithValidMap() {
+	suite.config.SetWithoutSource("logs_config.fingerprint_config.fingerprint_strategy", "line_checksum")
+	suite.config.SetWithoutSource("logs_config.fingerprint_config.count", 10)
+	suite.config.SetWithoutSource("logs_config.fingerprint_config.count_to_skip", 5)
+	suite.config.SetWithoutSource("logs_config.fingerprint_config.max_bytes", 1024)
+
+	config, err := GlobalFingerprintConfig(suite.config)
+	suite.Nil(err)
+	suite.NotNil(config)
+	suite.Equal(types.FingerprintStrategyLineChecksum, config.FingerprintStrategy)
+	suite.Equal(10, config.Count)
+	suite.Equal(5, config.CountToSkip)
+	suite.Equal(1024, config.MaxBytes)
+}
+
+func (suite *ConfigTestSuite) TestGlobalFingerprintConfigShouldReturnStrategyDisabled() {
+	suite.config.SetWithoutSource("logs_config.fingerprint_config.fingerprint_strategy", "disabled")
+	suite.config.SetWithoutSource("logs_config.fingerprint_config.count", 10)
+	suite.config.SetWithoutSource("logs_config.fingerprint_config.count_to_skip", 5)
+	suite.config.SetWithoutSource("logs_config.fingerprint_config.max_bytes", 1024)
+
+	config, err := GlobalFingerprintConfig(suite.config)
+	suite.Nil(err)
+	suite.Equal(types.FingerprintStrategyDisabled, config.FingerprintStrategy)
+}
+
+func (suite *ConfigTestSuite) TestGlobalFingerprintConfigShouldReturnErrorWithInvalidConfig() {
+	suite.config.SetWithoutSource("logs_config.fingerprint_config.fingerprint_strategy", "invalid_strategy") // Invalid: unknown strategy
+	suite.config.SetWithoutSource("logs_config.fingerprint_config.count", -1)                                // Invalid: negative value
+	suite.config.SetWithoutSource("logs_config.fingerprint_config.count_to_skip", 5)
+	suite.config.SetWithoutSource("logs_config.fingerprint_config.max_bytes", 1024)
+
+	config, err := GlobalFingerprintConfig(suite.config)
+	suite.NotNil(err)
+	suite.Nil(config)
 }
 
 func TestConfigTestSuite(t *testing.T) {
@@ -522,48 +561,78 @@ func (suite *ConfigTestSuite) TestMultipleTCPEndpointsInConf() {
 }
 
 func (suite *ConfigTestSuite) TestEndpointsSetLogsDDUrl() {
-	suite.config.SetWithoutSource("api_key", "123")
-	suite.config.SetWithoutSource("compliance_config.endpoints.logs_dd_url", "my-proxy:443")
+	expectedHost := "my-proxy"
+	expectedPort := 8888
 
-	logsConfig := NewLogsConfigKeys("compliance_config.endpoints.", suite.config)
-	endpoints, err := BuildHTTPEndpointsWithConfig(suite.config, logsConfig, "default-intake.mydomain.", "test-track", "test-proto", "test-source")
+	setupAndBuildEndpoints := func(url string, connectivity HTTPConnectivity) (*Endpoints, error) {
+		suite.config.SetWithoutSource("api_key", "123")
+		suite.config.SetWithoutSource("compliance_config.endpoints.logs_dd_url", url)
+		logsConfig := NewLogsConfigKeys("compliance_config.endpoints.", suite.config)
 
-	suite.Nil(err)
-
-	main := Endpoint{
-		apiKey:                 atomic.NewString("123"),
-		configSettingPath:      "api_key",
-		isAdditionalEndpoint:   false,
-		additionalEndpointsIdx: 0,
-		Host:                   "my-proxy",
-		Port:                   443,
-		useSSL:                 true,
-		UseCompression:         true,
-		CompressionLevel:       6,
-		BackoffFactor:          pkgconfigsetup.DefaultLogsSenderBackoffFactor,
-		BackoffBase:            pkgconfigsetup.DefaultLogsSenderBackoffBase,
-		BackoffMax:             pkgconfigsetup.DefaultLogsSenderBackoffMax,
-		RecoveryInterval:       pkgconfigsetup.DefaultLogsSenderBackoffRecoveryInterval,
-		Version:                EPIntakeVersion2,
-		TrackType:              "test-track",
-		Protocol:               "test-proto",
-		Origin:                 "test-source",
-		isReliable:             true,
+		return BuildEndpointsWithConfig(suite.config, logsConfig, "default-intake.mydomain.", connectivity, "test-track", "test-proto", "test-source")
 	}
 
-	expectedEndpoints := &Endpoints{
-		UseHTTP:                true,
-		BatchWait:              pkgconfigsetup.DefaultBatchWait * time.Second,
-		Main:                   main,
-		Endpoints:              []Endpoint{main},
-		BatchMaxSize:           pkgconfigsetup.DefaultBatchMaxSize,
-		BatchMaxContentSize:    pkgconfigsetup.DefaultBatchMaxContentSize,
-		BatchMaxConcurrentSend: pkgconfigsetup.DefaultBatchMaxConcurrentSend,
-		InputChanSize:          pkgconfigsetup.DefaultInputChanSize,
+	testCases := []struct {
+		name         string
+		ddURL        string
+		connectivity HTTPConnectivity
+		useSSL       bool
+		useHTTP      bool
+	}{
+		{
+			name:         "basic host:port format",
+			ddURL:        "my-proxy:8888",
+			connectivity: HTTPConnectivitySuccess,
+			useSSL:       true,
+			useHTTP:      true,
+		},
+		{
+			name:         "http scheme with path",
+			ddURL:        "http://my-proxy:8888/logs/intake",
+			connectivity: HTTPConnectivitySuccess,
+			useSSL:       false,
+			useHTTP:      true,
+		},
+		{
+			name:         "https scheme with path",
+			ddURL:        "https://my-proxy:8888/logs/intake",
+			connectivity: HTTPConnectivitySuccess,
+			useSSL:       true,
+			useHTTP:      true,
+		},
+		{
+			name:         "basic host:port format with connectivity failure",
+			ddURL:        "my-proxy:8888",
+			connectivity: HTTPConnectivityFailure,
+			useSSL:       true,
+			useHTTP:      false,
+		},
+		{
+			name:         "http scheme with connectivity failure",
+			ddURL:        "http://my-proxy:8888",
+			connectivity: HTTPConnectivityFailure,
+			useSSL:       false,
+			useHTTP:      true,
+		},
+		{
+			name:         "https scheme with connectivity failure",
+			ddURL:        "https://my-proxy:8888",
+			connectivity: HTTPConnectivityFailure,
+			useSSL:       true,
+			useHTTP:      true,
+		},
 	}
 
-	suite.Nil(err)
-	suite.compareEndpoints(expectedEndpoints, endpoints)
+	for _, testCase := range testCases {
+		suite.Run(testCase.name, func() {
+			endpoints, err := setupAndBuildEndpoints(testCase.ddURL, testCase.connectivity)
+			suite.Nil(err)
+			suite.Equal(testCase.useHTTP, endpoints.UseHTTP)
+			suite.Equal(expectedHost, endpoints.Main.Host)
+			suite.Equal(expectedPort, endpoints.Main.Port)
+			suite.Equal(testCase.useSSL, endpoints.Main.useSSL)
+		})
+	}
 }
 
 func (suite *ConfigTestSuite) TestEndpointsSetDDSite() {
@@ -587,7 +656,7 @@ func (suite *ConfigTestSuite) TestEndpointsSetDDSite() {
 		Port:                   0,
 		useSSL:                 true,
 		UseCompression:         true,
-		CompressionLevel:       6,
+		CompressionLevel:       ZstdCompressionLevel,
 		BackoffFactor:          pkgconfigsetup.DefaultLogsSenderBackoffFactor,
 		BackoffBase:            pkgconfigsetup.DefaultLogsSenderBackoffBase,
 		BackoffMax:             pkgconfigsetup.DefaultLogsSenderBackoffMax,
@@ -623,11 +692,12 @@ func (suite *ConfigTestSuite) TestBuildServerlessEndpoints() {
 		configSettingPath:      "api_key",
 		isAdditionalEndpoint:   false,
 		additionalEndpointsIdx: 0,
-		Host:                   "http-intake.logs.datadoghq.com",
+		Host:                   "http-intake.logs.datadoghq.com.",
 		Port:                   0,
 		useSSL:                 true,
 		UseCompression:         true,
-		CompressionLevel:       6,
+		CompressionKind:        ZstdCompressionKind,
+		CompressionLevel:       ZstdCompressionLevel,
 		BackoffFactor:          pkgconfigsetup.DefaultLogsSenderBackoffFactor,
 		BackoffBase:            pkgconfigsetup.DefaultLogsSenderBackoffBase,
 		BackoffMax:             pkgconfigsetup.DefaultLogsSenderBackoffMax,
@@ -657,9 +727,9 @@ func (suite *ConfigTestSuite) TestBuildServerlessEndpoints() {
 }
 
 func getTestEndpoint(host string, port int, ssl bool) Endpoint {
-	e := NewEndpoint("123", "", host, port, ssl)
+	e := NewEndpoint("123", "", host, port, EmptyPathPrefix, ssl)
 	e.UseCompression = true
-	e.CompressionLevel = 6
+	e.CompressionLevel = ZstdCompressionLevel // by default endpoints uses zstd
 	e.BackoffFactor = pkgconfigsetup.DefaultLogsSenderBackoffFactor
 	e.BackoffBase = pkgconfigsetup.DefaultLogsSenderBackoffBase
 	e.BackoffMax = pkgconfigsetup.DefaultLogsSenderBackoffMax
@@ -735,7 +805,7 @@ func (suite *ConfigTestSuite) TestBuildEndpointsWithoutVector() {
 	suite.config.SetWithoutSource("observability_pipelines_worker.logs.url", "observability_pipelines_worker.host:8443")
 	endpoints, err := BuildHTTPEndpoints(suite.config, "test-track", "test-proto", "test-source")
 	suite.Nil(err)
-	expectedEndpoints := getTestEndpoints(getTestEndpoint("agent-http-intake.logs.datadoghq.com", 0, true))
+	expectedEndpoints := getTestEndpoints(getTestEndpoint("agent-http-intake.logs.datadoghq.com.", 0, true))
 	suite.Nil(err)
 	suite.compareEndpoints(expectedEndpoints, endpoints)
 }
@@ -744,7 +814,7 @@ func (suite *ConfigTestSuite) TestEndpointsSetNonDefaultCustomConfigs() {
 	suite.config.SetWithoutSource("api_key", "123")
 
 	suite.config.SetWithoutSource("network_devices.netflow.forwarder.use_compression", false)
-	suite.config.SetWithoutSource("network_devices.netflow.forwarder.compression_level", 10)
+	suite.config.SetWithoutSource("network_devices.netflow.forwarder.zstd_compression_level", 10)
 	suite.config.SetWithoutSource("network_devices.netflow.forwarder.batch_wait", 10)
 	suite.config.SetWithoutSource("network_devices.netflow.forwarder.connection_reset_interval", 3)
 	suite.config.SetWithoutSource("network_devices.netflow.forwarder.logs_no_ssl", true)
@@ -769,7 +839,7 @@ func (suite *ConfigTestSuite) TestEndpointsSetNonDefaultCustomConfigs() {
 		configSettingPath:       "api_key",
 		isAdditionalEndpoint:    false,
 		additionalEndpointsIdx:  0,
-		Host:                    "ndmflow-intake.datadoghq.com",
+		Host:                    "ndmflow-intake.datadoghq.com.",
 		Port:                    0,
 		useSSL:                  true,
 		UseCompression:          false,
@@ -820,7 +890,7 @@ func (suite *ConfigTestSuite) TestEndpointsSetLogsDDUrlWithPrefix() {
 		Port:                   443,
 		useSSL:                 true,
 		UseCompression:         true,
-		CompressionLevel:       6,
+		CompressionLevel:       ZstdCompressionLevel,
 		BackoffFactor:          pkgconfigsetup.DefaultLogsSenderBackoffFactor,
 		BackoffBase:            pkgconfigsetup.DefaultLogsSenderBackoffBase,
 		BackoffMax:             pkgconfigsetup.DefaultLogsSenderBackoffMax,
@@ -865,7 +935,7 @@ func (suite *ConfigTestSuite) TestEndpointsSetDDUrlWithPrefix() {
 		Port:                   443,
 		useSSL:                 true,
 		UseCompression:         true,
-		CompressionLevel:       6,
+		CompressionLevel:       ZstdCompressionLevel,
 		BackoffFactor:          pkgconfigsetup.DefaultLogsSenderBackoffFactor,
 		BackoffBase:            pkgconfigsetup.DefaultLogsSenderBackoffBase,
 		BackoffMax:             pkgconfigsetup.DefaultLogsSenderBackoffMax,
@@ -899,12 +969,13 @@ func Test_parseAddressWithScheme(t *testing.T) {
 		defaultParser defaultParseAddressFunc
 	}
 	tests := []struct {
-		name       string
-		args       args
-		wantHost   string
-		wantPort   int
-		wantUseSSL bool
-		wantErr    bool
+		name           string
+		args           args
+		wantHost       string
+		wantPort       int
+		wantPathPrefix string
+		wantUseSSL     bool
+		wantErr        bool
 	}{
 		{
 			name: "url without scheme and port",
@@ -913,10 +984,11 @@ func Test_parseAddressWithScheme(t *testing.T) {
 				defaultNoSSL:  true,
 				defaultParser: parseAddress,
 			},
-			wantHost:   "localhost",
-			wantPort:   8080,
-			wantUseSSL: false,
-			wantErr:    false,
+			wantHost:       "localhost",
+			wantPort:       8080,
+			wantPathPrefix: "",
+			wantUseSSL:     false,
+			wantErr:        false,
 		},
 		{
 			name: "url with https prefix",
@@ -925,10 +997,11 @@ func Test_parseAddressWithScheme(t *testing.T) {
 				defaultNoSSL:  true,
 				defaultParser: parseAddress,
 			},
-			wantHost:   "localhost",
-			wantPort:   0,
-			wantUseSSL: true,
-			wantErr:    false,
+			wantHost:       "localhost",
+			wantPort:       0,
+			wantPathPrefix: "",
+			wantUseSSL:     true,
+			wantErr:        false,
 		},
 		{
 			name: "url with https prefix and port",
@@ -936,10 +1009,11 @@ func Test_parseAddressWithScheme(t *testing.T) {
 				address:       "https://localhost:443",
 				defaultParser: parseAddress,
 			},
-			wantHost:   "localhost",
-			wantPort:   443,
-			wantUseSSL: true,
-			wantErr:    false,
+			wantHost:       "localhost",
+			wantPort:       443,
+			wantPathPrefix: "",
+			wantUseSSL:     true,
+			wantErr:        false,
 		},
 		{
 			name: "invalid url",
@@ -948,10 +1022,11 @@ func Test_parseAddressWithScheme(t *testing.T) {
 				defaultNoSSL:  true,
 				defaultParser: parseAddressAsHost,
 			},
-			wantHost:   "",
-			wantPort:   0,
-			wantUseSSL: false,
-			wantErr:    true,
+			wantHost:       "",
+			wantPort:       0,
+			wantPathPrefix: "",
+			wantUseSSL:     false,
+			wantErr:        true,
 		},
 		{
 			name: "allow emptyPort",
@@ -960,10 +1035,11 @@ func Test_parseAddressWithScheme(t *testing.T) {
 				defaultNoSSL:  true,
 				defaultParser: parseAddressAsHost,
 			},
-			wantHost:   "localhost",
-			wantPort:   0,
-			wantUseSSL: true,
-			wantErr:    false,
+			wantHost:       "localhost",
+			wantPort:       0,
+			wantPathPrefix: "",
+			wantUseSSL:     true,
+			wantErr:        false,
 		},
 		{
 			name: "no schema, not port emptyPort",
@@ -972,15 +1048,54 @@ func Test_parseAddressWithScheme(t *testing.T) {
 				defaultNoSSL:  false,
 				defaultParser: parseAddressAsHost,
 			},
-			wantHost:   "localhost",
-			wantPort:   0,
-			wantUseSSL: true,
-			wantErr:    false,
+			wantHost:       "localhost",
+			wantPort:       0,
+			wantPathPrefix: "",
+			wantUseSSL:     true,
+			wantErr:        false,
+		},
+		{
+			name: "path prefix",
+			args: args{
+				address:       "https://localhost:8080/path/prefix",
+				defaultNoSSL:  true,
+				defaultParser: parseAddress,
+			},
+			wantHost:       "localhost",
+			wantPort:       8080,
+			wantPathPrefix: "/path/prefix",
+			wantUseSSL:     true,
+			wantErr:        false,
+		},
+		{
+			name: "legacy path v1 prefix",
+			args: args{
+				address:       "https://localhost:8080/v1/input",
+				defaultNoSSL:  true,
+				defaultParser: parseAddress,
+			},
+			wantHost:       "localhost",
+			wantPort:       8080,
+			wantPathPrefix: "",
+			wantUseSSL:     true,
+			wantErr:        false,
+		},
+		{
+			name: "legacy path v2 prefix",
+			args: args{
+				address:       "https://localhost:8080/api/v2/logs",
+				defaultNoSSL:  true,
+				defaultParser: parseAddress,
+			},
+			wantHost:       "localhost",
+			wantPort:       8080,
+			wantPathPrefix: "",
+			wantUseSSL:     true,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			gotHost, gotPort, gotUseSSL, err := parseAddressWithScheme(tt.args.address, tt.args.defaultNoSSL, tt.args.defaultParser)
+			gotHost, gotPort, gotPathPrefix, gotUseSSL, err := parseAddressWithScheme(tt.args.address, tt.args.defaultNoSSL, tt.args.defaultParser)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("parseAddressWithScheme() error = %v, wantErr %v", err, tt.wantErr)
 				return
@@ -990,6 +1105,9 @@ func Test_parseAddressWithScheme(t *testing.T) {
 			}
 			if gotPort != tt.wantPort {
 				t.Errorf("parseAddressWithScheme() gotPort = %v, want %v", gotPort, tt.wantPort)
+			}
+			if gotPathPrefix != tt.wantPathPrefix {
+				t.Errorf("parseAddressWithScheme() gotPathPrefix = %v, want %v", gotPathPrefix, tt.wantPathPrefix)
 			}
 			if gotUseSSL != tt.wantUseSSL {
 				t.Errorf("parseAddressWithScheme() gotUseSSL = %v, want %v", gotUseSSL, tt.wantUseSSL)

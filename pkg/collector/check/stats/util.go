@@ -7,15 +7,16 @@ package stats
 
 import "time"
 
-func calculateCheckDelay(now time.Time, prevRunStats *Stats, execTime time.Duration) int64 {
-	if prevRunStats.UpdateTimestamp == 0 || prevRunStats.Interval == 0 {
+func calculateCheckDelay(now time.Time, prevRunStats *Stats, execTime time.Duration) float64 {
+	if prevRunStats.UpdateTimestamp.IsZero() || prevRunStats.Interval == 0 {
 		return 0
 	}
 
-	previousCheckStartDate := prevRunStats.UpdateTimestamp - (prevRunStats.LastExecutionTime / 1e3)
-	currentCheckStartDate := now.Unix() - int64(execTime.Seconds())
+	previousCheckStartDate := prevRunStats.UpdateTimestamp.Add(-prevRunStats.LastExecutionTime)
+	currentCheckStartDate := now.Add(-execTime)
 
-	delay := max(currentCheckStartDate-previousCheckStartDate-int64(prevRunStats.Interval.Seconds()), 0)
+	realInterval := currentCheckStartDate.Sub(previousCheckStartDate)
+	delay := realInterval - prevRunStats.Interval
 
-	return delay
+	return max(0, float64(delay)/float64(time.Second))
 }

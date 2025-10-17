@@ -6,52 +6,23 @@
 package common
 
 import (
-	"context"
-	"fmt"
 	"path/filepath"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
-	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/secrets"
+	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	"github.com/DataDog/datadog-agent/pkg/sbom/scanner"
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
-	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
-
-// GetWorkloadmetaInit provides the InitHelper for workloadmeta so it can be injected as a Param
-// at workloadmeta comp fx injection.
-func GetWorkloadmetaInit() workloadmeta.InitHelper {
-	return func(ctx context.Context, wm workloadmeta.Component, cfg config.Component) error {
-		// SBOM scanner needs to be called here as initialization is required prior to the
-		// catalog getting instantiated and initialized.
-		if cfg.GetBool("sbom.host.enabled") || cfg.GetBool("sbom.container_image.enabled") {
-			sbomScanner, err := scanner.CreateGlobalScanner(cfg, option.New(wm))
-			if err != nil {
-				return fmt.Errorf("failed to create SBOM scanner: %s", err)
-			}
-
-			sbomScanner.Start(ctx)
-		}
-
-		return nil
-	}
-}
 
 // LoadComponents configures several common Agent components:
 // tagger, collector, scheduler and autodiscovery
-func LoadComponents(_ secrets.Component, wmeta workloadmeta.Component, ac autodiscovery.Component, confdPath string) {
+func LoadComponents(_ secrets.Component, wmeta workloadmeta.Component, taggerComp tagger.Component, ac autodiscovery.Component, confdPath string) {
 	confSearchPaths := []string{
 		confdPath,
 		filepath.Join(defaultpaths.GetDistPath(), "conf.d"),
 		"",
 	}
 
-	// TODO: (components) - This is a temporary fix to start the autodiscovery component in CLI mode (agent flare and diagnose in forcelocal checks)
-	// because the autodiscovery component is not started by the agent automatically. Probably we can start it inside
-	// fx lifecycle and remove this call.
-	if !ac.IsStarted() {
-		ac.Start()
-	}
-	setupAutoDiscovery(confSearchPaths, wmeta, ac)
+	setupAutoDiscovery(confSearchPaths, wmeta, taggerComp, ac)
 }

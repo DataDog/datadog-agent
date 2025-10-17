@@ -38,6 +38,7 @@ func TestHandleSetEvent(t *testing.T) {
 			Namespace: "default",
 		},
 		Owners: []workloadmeta.KubernetesPodOwner{{Kind: kubernetes.ReplicaSetKind, Name: "deploymentName-766dbb7846"}},
+		Ready:  true,
 	}
 	event := workloadmeta.Event{
 		Type:   workloadmeta.EventTypeSet,
@@ -54,6 +55,9 @@ func TestHandleSetEvent(t *testing.T) {
 	pods := pw.GetPodsForOwner(expectedOwner)
 	require.Len(t, pods, 1)
 	assert.Equal(t, pod, pods[0])
+
+	numReadyPods := pw.GetReadyPodsForOwner(expectedOwner)
+	assert.Equal(t, int32(1), numReadyPods)
 }
 
 func TestHandleUnsetEvent(t *testing.T) {
@@ -68,6 +72,7 @@ func TestHandleUnsetEvent(t *testing.T) {
 			Namespace: "default",
 		},
 		Owners: []workloadmeta.KubernetesPodOwner{{Kind: kubernetes.ReplicaSetKind, Name: "deploymentName-766dbb7846"}},
+		Ready:  true,
 	}
 	setEvent := workloadmeta.Event{
 		Type:   workloadmeta.EventTypeSet,
@@ -78,22 +83,31 @@ func TestHandleUnsetEvent(t *testing.T) {
 		Entity: pod,
 	}
 
-	pw.HandleEvent(setEvent)
-	pw.HandleEvent(unsetEvent)
-
-	pods := pw.GetPodsForOwner(NamespacedPodOwner{
+	expectedOwner := NamespacedPodOwner{
 		Namespace: "default",
 		Kind:      kubernetes.DeploymentKind,
 		Name:      "deploymentName",
-	})
+	}
+
+	pw.HandleEvent(setEvent)
+
+	numReadyPods := pw.GetReadyPodsForOwner(expectedOwner)
+	assert.Equal(t, int32(1), numReadyPods)
+
+	pw.HandleEvent(unsetEvent)
+
+	pods := pw.GetPodsForOwner(expectedOwner)
 	assert.Nil(t, pods)
 	assert.NotNil(t, pw.podsPerPodOwner)
+
+	numReadyPods = pw.GetReadyPodsForOwner(expectedOwner)
+	assert.Equal(t, int32(0), numReadyPods)
 }
 
 func TestPodWatcherStartStop(t *testing.T) {
 	wlm := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		fx.Provide(func() log.Component { return logmock.New(t) }),
-		config.MockModule(),
+		fx.Provide(func() config.Component { return config.NewMock(t) }),
 		fx.Supply(context.Background()),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
@@ -110,6 +124,7 @@ func TestPodWatcherStartStop(t *testing.T) {
 			Namespace: "default",
 		},
 		Owners: []workloadmeta.KubernetesPodOwner{{Kind: kubernetes.ReplicaSetKind, Name: "deploymentName-766dbb7846"}},
+		Ready:  false,
 	}
 
 	wlm.Set(pod)
@@ -128,21 +143,32 @@ func TestPodWatcherStartStop(t *testing.T) {
 	require.Len(t, newPods, 1)
 	assert.Equal(t, pod, newPods[0])
 	cancel()
+
+	numReadyPods := pw.GetReadyPodsForOwner(expectedOwner)
+	assert.Equal(t, int32(0), numReadyPods)
+	_, ok := pw.readyPodsPerPodOwner[expectedOwner]
+	assert.False(t, ok)
 }
 
-func TestGetNamespacedPodOwner(t *testing.T) {
+func TestResolveNamespacedPodOwner(t *testing.T) {
 	for _, tt := range []struct {
 		name     string
-		ns       string
-		owner    *workloadmeta.KubernetesPodOwner
+		pod      *workloadmeta.KubernetesPod
 		expected NamespacedPodOwner
+		err      error
 	}{
 		{
 			name: "pod owned by deployment",
-			ns:   "default",
-			owner: &workloadmeta.KubernetesPodOwner{
-				Kind: kubernetes.ReplicaSetKind,
-				Name: "datadog-agent-linux-cluster-agent-f64dd88",
+			pod: &workloadmeta.KubernetesPod{
+				EntityMeta: workloadmeta.EntityMeta{
+					Namespace: "default",
+				},
+				Owners: []workloadmeta.KubernetesPodOwner{
+					{
+						Kind: kubernetes.ReplicaSetKind,
+						Name: "datadog-agent-linux-cluster-agent-f64dd88",
+					},
+				},
 			},
 			expected: NamespacedPodOwner{
 				Namespace: "default",
@@ -152,10 +178,16 @@ func TestGetNamespacedPodOwner(t *testing.T) {
 		},
 		{
 			name: "pod owned by daemonset",
-			ns:   "default",
-			owner: &workloadmeta.KubernetesPodOwner{
-				Kind: kubernetes.DaemonSetKind,
-				Name: "datadog-agent-f64dd88",
+			pod: &workloadmeta.KubernetesPod{
+				EntityMeta: workloadmeta.EntityMeta{
+					Namespace: "default",
+				},
+				Owners: []workloadmeta.KubernetesPodOwner{
+					{
+						Kind: kubernetes.DaemonSetKind,
+						Name: "datadog-agent-f64dd88",
+					},
+				},
 			},
 			expected: NamespacedPodOwner{
 				Namespace: "default",
@@ -165,10 +197,16 @@ func TestGetNamespacedPodOwner(t *testing.T) {
 		},
 		{
 			name: "pod owned by replica set",
-			ns:   "default",
-			owner: &workloadmeta.KubernetesPodOwner{
-				Kind: kubernetes.ReplicaSetKind,
-				Name: "datadog-agent-linux-cluster-agent",
+			pod: &workloadmeta.KubernetesPod{
+				EntityMeta: workloadmeta.EntityMeta{
+					Namespace: "default",
+				},
+				Owners: []workloadmeta.KubernetesPodOwner{
+					{
+						Kind: kubernetes.ReplicaSetKind,
+						Name: "datadog-agent-linux-cluster-agent",
+					},
+				},
 			},
 			expected: NamespacedPodOwner{
 				Namespace: "default",
@@ -176,10 +214,79 @@ func TestGetNamespacedPodOwner(t *testing.T) {
 				Name:      "datadog-agent-linux-cluster-agent",
 			},
 		},
+		{
+			name: "pod owned by deployment directly",
+			pod: &workloadmeta.KubernetesPod{
+				EntityMeta: workloadmeta.EntityMeta{
+					Namespace: "default",
+				},
+				Owners: []workloadmeta.KubernetesPodOwner{
+					{
+						Kind: kubernetes.DeploymentKind,
+						Name: "datadog-agent-linux-cluster-agent",
+					},
+				},
+			},
+			expected: NamespacedPodOwner{
+				Namespace: "default",
+				Kind:      kubernetes.ReplicaSetKind,
+				Name:      "datadog-agent-linux-cluster-agent",
+			},
+			err: errDeploymentNotValidOwner,
+		},
+		{
+			name: "pod owned by replicaset managed by rollout",
+			pod: &workloadmeta.KubernetesPod{
+				EntityMeta: workloadmeta.EntityMeta{
+					Namespace: "default",
+					Labels: map[string]string{
+						kubernetes.ArgoRolloutLabelKey: "9b8dc4bd6",
+					},
+				},
+				Owners: []workloadmeta.KubernetesPodOwner{
+					{
+						Kind: kubernetes.ReplicaSetKind,
+						Name: "my-rollout-9b8dc4bd6",
+					},
+				},
+			},
+			expected: NamespacedPodOwner{
+				Namespace: "default",
+				Kind:      kubernetes.RolloutKind,
+				Name:      "my-rollout",
+			},
+		},
+		{
+			name: "pod owned by replicaset with rollout label but invalid name format",
+			pod: &workloadmeta.KubernetesPod{
+				EntityMeta: workloadmeta.EntityMeta{
+					Namespace: "default",
+					Labels: map[string]string{
+						kubernetes.ArgoRolloutLabelKey: "invalid",
+					},
+				},
+				Owners: []workloadmeta.KubernetesPodOwner{
+					{
+						Kind: kubernetes.ReplicaSetKind,
+						Name: "invalid-name",
+					},
+				},
+			},
+			expected: NamespacedPodOwner{
+				Namespace: "default",
+				Kind:      kubernetes.ReplicaSetKind,
+				Name:      "invalid-name",
+			},
+		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			res := getNamespacedPodOwner(tt.ns, tt.owner)
-			assert.Equal(t, tt.expected, res)
+			res, err := resolveNamespacedPodOwner(tt.pod)
+			if tt.err != nil {
+				assert.Equal(t, tt.err, err)
+			} else {
+				assert.NoError(t, err)
+				assert.Equal(t, tt.expected, res)
+			}
 		})
 	}
 }

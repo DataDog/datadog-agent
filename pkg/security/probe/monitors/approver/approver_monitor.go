@@ -27,10 +27,12 @@ import (
 
 // Stats is used to collect kernel space metrics about approvers. Stats about added approvers are sent from userspace.
 type Stats struct {
-	EventRejected           uint64
-	EventApprovedByBasename uint64
-	EventApprovedByFlag     uint64
-	EventApprovedByAUID     uint64
+	EventRejected               uint64
+	EventApprovedByPolicy       uint64
+	EventApprovedByBasename     uint64
+	EventApprovedByFlag         uint64
+	EventApprovedByAUID         uint64
+	EventApprovedByInUpperLayer uint64
 }
 
 // Monitor defines an approver monitor
@@ -60,25 +62,39 @@ func (d *Monitor) SendStats() error {
 		// aggregate all cpu stats
 		for _, stat := range statsAcrossAllCPUs {
 			statsByEventType[eventType].EventRejected += stat.EventRejected
+			statsByEventType[eventType].EventApprovedByPolicy += stat.EventApprovedByPolicy
 			statsByEventType[eventType].EventApprovedByBasename += stat.EventApprovedByBasename
 			statsByEventType[eventType].EventApprovedByFlag += stat.EventApprovedByFlag
 			statsByEventType[eventType].EventApprovedByAUID += stat.EventApprovedByAUID
+			statsByEventType[eventType].EventApprovedByInUpperLayer += stat.EventApprovedByInUpperLayer
 		}
 	}
 
 	for eventType, stats := range statsByEventType {
 		eventTypeTag := fmt.Sprintf("event_type:%s", model.EventType(eventType).String())
+		categoryTag := fmt.Sprintf("category:%s", model.GetEventTypeCategory(model.EventType(eventType).String()))
 		if stats.EventRejected != 0 {
 			tagsForRejectedEvents := []string{
 				eventTypeTag,
+				categoryTag,
 			}
 			_ = d.statsdClient.Count(metrics.MetricEventRejected, int64(stats.EventRejected), tagsForRejectedEvents, 1.0)
+		}
+
+		if stats.EventApprovedByPolicy != 0 {
+			tagsForPolicyApprovedEvents := []string{
+				"approver_type:" + kfilters.PolicyApproverType,
+				eventTypeTag,
+				categoryTag,
+			}
+			_ = d.statsdClient.Count(metrics.MetricEventApproved, int64(stats.EventApprovedByPolicy), tagsForPolicyApprovedEvents, 1.0)
 		}
 
 		if stats.EventApprovedByBasename != 0 {
 			tagsForBasenameApprovedEvents := []string{
 				"approver_type:" + kfilters.BasenameApproverType,
 				eventTypeTag,
+				categoryTag,
 			}
 			_ = d.statsdClient.Count(metrics.MetricEventApproved, int64(stats.EventApprovedByBasename), tagsForBasenameApprovedEvents, 1.0)
 		}
@@ -87,6 +103,7 @@ func (d *Monitor) SendStats() error {
 			tagsForFlagApprovedEvents := []string{
 				"approver_type:" + kfilters.FlagApproverType,
 				eventTypeTag,
+				categoryTag,
 			}
 			_ = d.statsdClient.Count(metrics.MetricEventApproved, int64(stats.EventApprovedByFlag), tagsForFlagApprovedEvents, 1.0)
 		}
@@ -95,8 +112,18 @@ func (d *Monitor) SendStats() error {
 			tagsForAUIDApprovedEvents := []string{
 				"approver_type:" + kfilters.AUIDApproverType,
 				eventTypeTag,
+				categoryTag,
 			}
 			_ = d.statsdClient.Count(metrics.MetricEventApproved, int64(stats.EventApprovedByAUID), tagsForAUIDApprovedEvents, 1.0)
+		}
+
+		if stats.EventApprovedByInUpperLayer != 0 {
+			tagsForInUpperLayerApprovedEvents := []string{
+				"approver_type:" + kfilters.InUpperLayerApproverType,
+				eventTypeTag,
+				categoryTag,
+			}
+			_ = d.statsdClient.Count(metrics.MetricEventApproved, int64(stats.EventApprovedByInUpperLayer), tagsForInUpperLayerApprovedEvents, 1.0)
 		}
 	}
 	for i := uint32(0); i != uint32(model.LastApproverEventType); i++ {

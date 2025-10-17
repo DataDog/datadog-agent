@@ -7,12 +7,27 @@ package traceutil
 
 import (
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
+	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace/idx"
 )
 
 // ProcessedTrace represents a trace being processed in the agent.
 type ProcessedTrace struct {
 	TraceChunk             *pb.TraceChunk
 	Root                   *pb.Span
+	TracerEnv              string
+	AppVersion             string
+	TracerHostname         string
+	ClientDroppedP0sWeight float64
+	GitCommitSha           string
+	ImageTag               string
+	Lang                   string
+}
+
+// ProcessedTraceV1 represents a trace being processed in the agent.
+type ProcessedTraceV1 struct {
+	TraceChunk *idx.InternalTraceChunk
+	Root       *idx.InternalSpan
+	// We copy these fields from the tracer payload to enable processing each chunk independently
 	TracerEnv              string
 	AppVersion             string
 	TracerHostname         string
@@ -40,6 +55,25 @@ func (pt *ProcessedTrace) Clone() *ProcessedTrace {
 		return nil
 	}
 	ptClone := new(ProcessedTrace)
+	*ptClone = *pt
+	if pt.TraceChunk != nil {
+		c := pt.TraceChunk.ShallowCopy()
+		ptClone.TraceChunk = c
+	}
+	if pt.Root != nil {
+		r := pt.Root.ShallowCopy()
+		ptClone.Root = r
+	}
+	return ptClone
+}
+
+// Clone creates a copy of ProcessedTraceV1, cloning p, p.TraceChunk, and p.Root.
+// TODO: can we avoid needing this at all?
+func (pt *ProcessedTraceV1) Clone() *ProcessedTraceV1 {
+	if pt == nil {
+		return nil
+	}
+	ptClone := new(ProcessedTraceV1)
 	*ptClone = *pt
 	if pt.TraceChunk != nil {
 		c := pt.TraceChunk.ShallowCopy()

@@ -12,6 +12,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/client/tcp"
+	"github.com/DataDog/datadog-agent/pkg/logs/sender"
 	"github.com/DataDog/datadog-agent/pkg/logs/status/statusinterface"
 )
 
@@ -90,12 +91,12 @@ func TestTCPDestinationFactory(t *testing.T) {
 			factory := tcpDestinationFactory(
 				endpoints,
 				destinationsCtx,
-				tc.serverless,
+				sender.NewMockServerlessMeta(tc.serverless),
 				status,
 			)
 
 			// Test 1: Verify first call creates destinations
-			destinations1 := factory()
+			destinations1 := factory("test")
 			assert.NotNil(t, destinations1)
 
 			// Verify destination quantities
@@ -120,7 +121,7 @@ func TestTCPDestinationFactory(t *testing.T) {
 			}
 
 			// Test 2: Verify second call creates new destination instances
-			destinations2 := factory()
+			destinations2 := factory("test")
 			assert.NotNil(t, destinations2)
 			assert.NotSame(t, destinations1, destinations2,
 				"Factory should create new destinations instance")

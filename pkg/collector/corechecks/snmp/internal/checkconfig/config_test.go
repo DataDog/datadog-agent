@@ -8,27 +8,35 @@ package checkconfig
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
-	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
-	"github.com/stretchr/testify/require"
+	"path/filepath"
 	"regexp"
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/profile"
-
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	nooptagger "github.com/DataDog/datadog-agent/comp/core/tagger/impl-noop"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/profile"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/pinger"
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
+	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/snmp/snmpintegration"
+	"github.com/DataDog/datadog-agent/pkg/util/cache"
 )
 
+func setupHostname(t *testing.T) {
+	mockConfig := configmock.New(t)
+	cache.Cache.Delete(cache.BuildAgentKey("hostname"))
+	mockConfig.SetWithoutSource("hostname", "my-hostname")
+}
+
 func TestConfigurations(t *testing.T) {
+	setupHostname(t)
+
 	profile.SetConfdPathAndCleanProfiles()
 	aggregator.NewBufferedAggregator(nil, nil, nil, nooptagger.NewComponent(), "", 1*time.Hour)
 
@@ -159,7 +167,7 @@ bulk_max_repetitions: 20
 	assert.Equal(t, "aes", config.PrivProtocol)
 	assert.Equal(t, "my-privKey", config.PrivKey)
 	assert.Equal(t, "my-contextName", config.ContextName)
-	assert.Equal(t, []string{"device_namespace:default", "snmp_device:1.2.3.4", "device_ip:1.2.3.4", "device_id:default:1.2.3.4"}, config.GetStaticTags())
+	assert.Equal(t, []string{"device_namespace:default", "snmp_device:1.2.3.4", "device_ip:1.2.3.4", "device_id:default:1.2.3.4", "agent_host:my-hostname"}, config.GetStaticTags())
 	assert.True(t, config.ProfileProvider.HasProfile("f5-big-ip"))
 	assert.Equal(t, "default:1.2.3.4", config.DeviceID)
 	assert.Equal(t, []string{"device_namespace:default", "snmp_device:1.2.3.4"}, config.DeviceIDTags)
@@ -269,6 +277,7 @@ bulk_max_repetitions: 20
 }
 
 func TestDiscoveryConfigurations(t *testing.T) {
+	setupHostname(t)
 	// language=yaml
 	rawInstanceConfig := []byte(`
 network_address: 127.0.0.0/24
@@ -298,6 +307,7 @@ workers: 30
 }
 
 func TestProfileNormalizeMetrics(t *testing.T) {
+	setupHostname(t)
 	profile.SetConfdPathAndCleanProfiles()
 
 	// language=yaml
@@ -320,7 +330,7 @@ profiles:
 	config, err := NewCheckConfig(rawInstanceConfig, rawInitConfig, nil)
 
 	assert.Nil(t, err)
-	assert.Equal(t, []string{"device_namespace:default", "snmp_device:172.26.0.2", "device_ip:172.26.0.2", "device_id:default:172.26.0.2"}, config.GetStaticTags())
+	assert.Equal(t, []string{"device_namespace:default", "snmp_device:172.26.0.2", "device_ip:172.26.0.2", "device_id:default:172.26.0.2", "agent_host:my-hostname"}, config.GetStaticTags())
 
 	profile, err := config.BuildProfile("")
 	require.NoError(t, err)
@@ -338,6 +348,7 @@ profiles:
 }
 
 func TestInlineProfileConfiguration(t *testing.T) {
+	setupHostname(t)
 	profile.SetConfdPathAndCleanProfiles()
 	aggregator.NewBufferedAggregator(nil, nil, nil, nooptagger.NewComponent(), "", 1*time.Hour)
 
@@ -372,7 +383,7 @@ profiles:
 	config, err := NewCheckConfig(rawInstanceConfig, rawInitConfig, nil)
 	require.NoError(t, err)
 
-	assert.Equal(t, []string{"device_namespace:default", "snmp_device:1.2.3.4", "device_ip:1.2.3.4", "device_id:default:1.2.3.4"}, config.GetStaticTags())
+	assert.Equal(t, []string{"device_namespace:default", "snmp_device:1.2.3.4", "device_ip:1.2.3.4", "device_id:default:1.2.3.4", "agent_host:my-hostname"}, config.GetStaticTags())
 	assert.Equal(t, "123", config.CommunityString)
 	assert.True(t, config.ProfileProvider.HasProfile("f5-big-ip"))
 	assert.True(t, config.ProfileProvider.HasProfile("inline-profile"))
@@ -398,6 +409,7 @@ profiles:
 }
 
 func TestDefaultConfigurations(t *testing.T) {
+	setupHostname(t)
 	profile.SetConfdPathAndCleanProfiles()
 
 	// language=yaml
@@ -701,6 +713,7 @@ network_address: 10.0.0.0/xx
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			setupHostname(t)
 			_, err := NewCheckConfig(tt.rawInstanceConfig, tt.rawInitConfig, nil)
 			for _, errStr := range tt.expectedErrors {
 				require.NotNil(t, err, "expected error %q", errStr)
@@ -777,6 +790,7 @@ retries: "5"
 }
 
 func TestExtraTags(t *testing.T) {
+	setupHostname(t)
 	profile.SetConfdPathAndCleanProfiles()
 	// language=yaml
 	rawInstanceConfig := []byte(`
@@ -785,7 +799,7 @@ community_string: abc
 `)
 	config, err := NewCheckConfig(rawInstanceConfig, []byte(``), nil)
 	assert.Nil(t, err)
-	assert.Equal(t, []string{"device_namespace:default", "snmp_device:1.2.3.4", "device_ip:1.2.3.4", "device_id:default:1.2.3.4"}, config.GetStaticTags())
+	assert.Equal(t, []string{"device_namespace:default", "snmp_device:1.2.3.4", "device_ip:1.2.3.4", "device_id:default:1.2.3.4", "agent_host:my-hostname"}, config.GetStaticTags())
 
 	// language=yaml
 	rawInstanceConfigWithExtraTags := []byte(`
@@ -795,7 +809,7 @@ extra_tags: "extratag1:val1,extratag2:val2"
 `)
 	config, err = NewCheckConfig(rawInstanceConfigWithExtraTags, []byte(``), nil)
 	assert.Nil(t, err)
-	assert.ElementsMatch(t, []string{"device_namespace:default", "snmp_device:1.2.3.4", "device_ip:1.2.3.4", "device_id:default:1.2.3.4", "extratag1:val1", "extratag2:val2"}, config.GetStaticTags())
+	assert.ElementsMatch(t, []string{"device_namespace:default", "snmp_device:1.2.3.4", "device_ip:1.2.3.4", "device_id:default:1.2.3.4", "agent_host:my-hostname", "extratag1:val1", "extratag2:val2"}, config.GetStaticTags())
 }
 
 func Test_snmpConfig_getDeviceIDTags(t *testing.T) {
@@ -942,8 +956,81 @@ collect_topology: true
 	assert.Equal(t, false, config.CollectTopology)
 }
 
+func Test_buildConfig_collectVPN(t *testing.T) {
+	// language=yaml
+	rawInstanceConfig := []byte(`
+ip_address: 1.2.3.4
+community_string: "abc"
+`)
+	// language=yaml
+	rawInitConfig := []byte(`
+oid_batch_size: 10
+`)
+	config, err := NewCheckConfig(rawInstanceConfig, rawInitConfig, nil)
+	assert.Nil(t, err)
+	assert.False(t, config.CollectVPN)
+
+	// language=yaml
+	rawInstanceConfig = []byte(`
+ip_address: 1.2.3.4
+community_string: "abc"
+`)
+	// language=yaml
+	rawInitConfig = []byte(`
+oid_batch_size: 10
+collect_vpn: true
+`)
+	config, err = NewCheckConfig(rawInstanceConfig, rawInitConfig, nil)
+	assert.Nil(t, err)
+	assert.True(t, config.CollectVPN)
+
+	// language=yaml
+	rawInstanceConfig = []byte(`
+ip_address: 1.2.3.4
+community_string: "abc"
+collect_vpn: true
+`)
+	// language=yaml
+	rawInitConfig = []byte(`
+oid_batch_size: 10
+`)
+	config, err = NewCheckConfig(rawInstanceConfig, rawInitConfig, nil)
+	assert.Nil(t, err)
+	assert.True(t, config.CollectVPN)
+
+	// language=yaml
+	rawInstanceConfig = []byte(`
+ip_address: 1.2.3.4
+community_string: "abc"
+collect_vpn: true
+`)
+	// language=yaml
+	rawInitConfig = []byte(`
+oid_batch_size: 10
+collect_vpn: false
+`)
+	config, err = NewCheckConfig(rawInstanceConfig, rawInitConfig, nil)
+	assert.Nil(t, err)
+	assert.True(t, config.CollectVPN)
+
+	// language=yaml
+	rawInstanceConfig = []byte(`
+ip_address: 1.2.3.4
+community_string: "abc"
+collect_vpn: false
+`)
+	// language=yaml
+	rawInitConfig = []byte(`
+oid_batch_size: 10
+collect_vpn: true
+`)
+	config, err = NewCheckConfig(rawInstanceConfig, rawInitConfig, nil)
+	assert.Nil(t, err)
+	assert.False(t, config.CollectVPN)
+}
+
 func Test_buildConfig_namespace(t *testing.T) {
-	defer pkgconfigsetup.Datadog().SetWithoutSource("network_devices.namespace", "default")
+	mockConfig := configmock.New(t)
 
 	// Should use namespace defined in instance config
 	// language=yaml
@@ -988,7 +1075,7 @@ ip_address: 1.2.3.4
 community_string: "abc"
 `)
 	rawInitConfig = []byte(``)
-	pkgconfigsetup.Datadog().SetWithoutSource("network_devices.namespace", "totoro")
+	mockConfig.SetWithoutSource("network_devices.namespace", "totoro")
 	conf, err = NewCheckConfig(rawInstanceConfig, rawInitConfig, nil)
 	assert.Nil(t, err)
 	assert.Equal(t, "totoro", conf.Namespace)
@@ -1016,7 +1103,7 @@ community_string: "abc"
 `)
 	rawInitConfig = []byte(`
 namespace: `)
-	pkgconfigsetup.Datadog().SetWithoutSource("network_devices.namespace", "mononoke")
+	mockConfig.SetWithoutSource("network_devices.namespace", "mononoke")
 	conf, err = NewCheckConfig(rawInstanceConfig, rawInitConfig, nil)
 	assert.Nil(t, err)
 	assert.Equal(t, "mononoke", conf.Namespace)
@@ -1028,7 +1115,7 @@ ip_address: 1.2.3.4
 community_string: "abc"
 `)
 	rawInitConfig = []byte(``)
-	pkgconfigsetup.Datadog().SetWithoutSource("network_devices.namespace", "")
+	mockConfig.SetWithoutSource("network_devices.namespace", "")
 	_, err = NewCheckConfig(rawInstanceConfig, rawInitConfig, nil)
 	assert.EqualError(t, err, "namespace cannot be empty")
 }
@@ -1223,6 +1310,9 @@ interface_configs:
     tags:
       - "muted"
       - "test1:value1"
+  - match_field: "index"
+    match_value: "2"
+    disabled: true
 `),
 			// language=yaml
 			rawInitConfig: []byte(``),
@@ -1237,6 +1327,11 @@ interface_configs:
 						"test1:value1",
 					},
 				},
+				{
+					MatchField: "index",
+					MatchValue: "2",
+					Disabled:   true,
+				},
 			},
 		},
 		{
@@ -1244,7 +1339,7 @@ interface_configs:
 			// language=yaml
 			rawInstanceConfig: []byte(`
 ip_address: 1.2.3.4
-interface_configs: '[{"match_field":"name","match_value":"eth0","in_speed":25,"out_speed":10, "tags":["test2:value2", "aTag"]}]'
+interface_configs: '[{"match_field":"name","match_value":"eth0","in_speed":25,"out_speed":10, "tags":["test2:value2", "aTag"]},{"match_field":"index","match_value":"2","disabled":true}]'
 `),
 			// language=yaml
 			rawInitConfig: []byte(``),
@@ -1258,6 +1353,11 @@ interface_configs: '[{"match_field":"name","match_value":"eth0","in_speed":25,"o
 						"test2:value2",
 						"aTag",
 					},
+				},
+				{
+					MatchField: "index",
+					MatchValue: "2",
+					Disabled:   true,
 				},
 			},
 		},
@@ -1446,6 +1546,9 @@ ip_address: 1.2.3.4
 }
 
 func TestCheckConfig_DiscoveryDigest(t *testing.T) {
+	mockConfig := configmock.New(t)
+	cache.Cache.Delete(cache.BuildAgentKey("hostname"))
+	mockConfig.SetWithoutSource("hostname", "my-hostname")
 	baseCaseHash := DeviceDigest("a1d0f0237ee2fe8f")
 	tests := []struct {
 		name         string
@@ -1693,6 +1796,7 @@ func TestCheckConfig_Copy(t *testing.T) {
 		InstanceTags:          []string{"InstanceTags:tag"},
 		CollectDeviceMetadata: true,
 		CollectTopology:       true,
+		CollectVPN:            true,
 		UseDeviceIDAsHostname: true,
 		DeviceID:              "123",
 		DeviceIDTags:          []string{"DeviceIDTags:tag"},
@@ -1757,7 +1861,8 @@ func TestCheckConfig_getResolvedSubnetName(t *testing.T) {
 }
 
 func TestCheckConfig_GetStaticTags(t *testing.T) {
-	pkgconfigsetup.Datadog().SetWithoutSource("hostname", "my-hostname")
+	mockConfig := configmock.New(t)
+	mockConfig.SetWithoutSource("hostname", "my-hostname")
 	tests := []struct {
 		name         string
 		config       CheckConfig
@@ -1773,6 +1878,7 @@ func TestCheckConfig_GetStaticTags(t *testing.T) {
 				"device_namespace:default",
 				"snmp_device:1.2.3.4",
 				"device_ip:1.2.3.4",
+				"agent_host:my-hostname",
 			},
 		},
 		{
@@ -1791,6 +1897,7 @@ func TestCheckConfig_GetStaticTags(t *testing.T) {
 				"device_namespace:default",
 				"snmp_device:1.2.3.4",
 				"device_ip:1.2.3.4",
+				"agent_host:my-hostname",
 			},
 		},
 		{
@@ -1819,12 +1926,203 @@ func TestCheckConfig_GetStaticTags(t *testing.T) {
 				"device_namespace:default",
 				"snmp_device:1.2.3.4",
 				"device_ip:1.2.3.4",
+				"agent_host:my-hostname",
 			},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			assert.ElementsMatch(t, tt.expectedTags, tt.config.GetStaticTags())
+		})
+	}
+}
+
+func TestHaveLegacyProfile(t *testing.T) {
+	mockConfig := configmock.New(t)
+
+	tests := []struct {
+		name                      string
+		rawInstanceConfig         []byte
+		rawInitConfig             []byte
+		mockConfd                 string
+		expectedHaveLegacyProfile bool
+	}{
+		{
+			name: "legacy custom profile (no oid) with loader specified should not fallback to Python",
+			// language=yaml
+			rawInstanceConfig: []byte(`
+loader: core
+ip_address: 1.2.3.4
+port: 1161
+community_string: public
+profile: legacy
+`),
+			// language=yaml
+			rawInitConfig:             []byte(``),
+			mockConfd:                 "legacy_no_oid.d",
+			expectedHaveLegacyProfile: false,
+		},
+		{
+			name: "legacy custom profile (string symbol type) with loader specified should not fallback to Python",
+			// language=yaml
+			rawInstanceConfig: []byte(`
+loader: core
+ip_address: 1.2.3.4
+port: 1161
+community_string: public
+profile: legacy
+`),
+			// language=yaml
+			rawInitConfig:             []byte(``),
+			mockConfd:                 "legacy_symbol_type.d",
+			expectedHaveLegacyProfile: false,
+		},
+		{
+			name: "legacy init config profile with loader specified should not fallback to Python",
+			// language=yaml
+			rawInstanceConfig: []byte(`
+loader: core
+ip_address: 1.2.3.4
+port: 1161
+community_string: public
+profile: legacy-init-config
+`),
+			// language=yaml
+			rawInitConfig: []byte(`
+profiles:
+  legacy-init-config:
+    definition:
+      metrics:
+        - MIB: FOO-MIB
+          symbol:
+            # OID: 1.2.3.4.5.6
+            name: fooName
+`),
+			mockConfd:                 "conf.d",
+			expectedHaveLegacyProfile: false,
+		},
+		{
+			name: "ok profile with loader specified should not fallback to Python",
+			// language=yaml
+			rawInstanceConfig: []byte(`
+loader: core
+ip_address: 1.2.3.4
+port: 1161
+community_string: public
+profile: f5-big-ip
+`),
+			// language=yaml
+			rawInitConfig:             []byte(``),
+			mockConfd:                 "conf.d",
+			expectedHaveLegacyProfile: false,
+		},
+		{
+			name: "ok profile without loader specified should not fallback to Python",
+			// language=yaml
+			rawInstanceConfig: []byte(`
+ip_address: 1.2.3.4
+port: 1161
+community_string: public
+profile: f5-big-ip
+`),
+			// language=yaml
+			rawInitConfig:             []byte(``),
+			mockConfd:                 "conf.d",
+			expectedHaveLegacyProfile: false,
+		},
+		{
+			name: "legacy custom profile (no oid) without loader specified should fallback to Python",
+			// language=yaml
+			rawInstanceConfig: []byte(`
+ip_address: 1.2.3.4
+port: 1161
+community_string: public
+profile: legacy
+`),
+			// language=yaml
+			rawInitConfig:             []byte(``),
+			mockConfd:                 "legacy_no_oid.d",
+			expectedHaveLegacyProfile: true,
+		},
+		{
+			name: "legacy custom profile (string symbol type) without loader specified should fallback to Python",
+			// language=yaml
+			rawInstanceConfig: []byte(`
+ip_address: 1.2.3.4
+port: 1161
+community_string: public
+profile: legacy
+`),
+			// language=yaml
+			rawInitConfig:             []byte(``),
+			mockConfd:                 "legacy_symbol_type.d",
+			expectedHaveLegacyProfile: true,
+		},
+		{
+			name: "legacy init config profile without loader specified should fallback to Python",
+			// language=yaml
+			rawInstanceConfig: []byte(`
+ip_address: 1.2.3.4
+port: 1161
+community_string: public
+profile: legacy-init-config
+`),
+			// language=yaml
+			rawInitConfig: []byte(`
+profiles:
+  legacy-init-config:
+    definition:
+      metrics:
+        - MIB: FOO-MIB
+          symbol:
+            # OID: 1.2.3.4.5.6
+            name: fooName
+`),
+			mockConfd:                 "conf.d",
+			expectedHaveLegacyProfile: true,
+		},
+		{
+			name: "legacy instance config profile without loader specified should fallback to Python",
+			// language=yaml
+			rawInstanceConfig: []byte(`
+ip_address: 1.2.3.4
+port: 1161
+community_string: public
+metrics:
+  - MIB: FOO-MIB
+    table:
+      OID: 1.2.3.4.5.6
+      name: fooTable
+    symbols:
+      - OID: 1.2.3.4.5.6.1
+        name: fooName1
+        metric_type: monotonic_count
+      # - OID: 1.2.3.4.5.6.2
+      - name: fooName2
+        metric_type: monotonic_count
+    metric_tags:
+      - index: 1
+        tag: fooTag3
+`),
+			// language=yaml
+			rawInitConfig:             []byte(``),
+			mockConfd:                 "conf.d",
+			expectedHaveLegacyProfile: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			profile.SetGlobalProfileConfigMap(nil)
+			mockConfdPath, _ := filepath.Abs(filepath.Join("..", "test", tt.mockConfd))
+			mockConfig.SetWithoutSource("confd_path", mockConfdPath)
+
+			_, err := NewCheckConfig(tt.rawInstanceConfig, tt.rawInitConfig, nil)
+			if tt.expectedHaveLegacyProfile {
+				assert.EqualError(t, err, "legacy profile detected with no loader specified, falling back to the Python loader")
+			} else {
+				assert.NoError(t, err)
+			}
 		})
 	}
 }

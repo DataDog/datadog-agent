@@ -57,6 +57,7 @@ type subscription struct {
 	signalEventHandle evtapi.WaitEventHandle
 
 	nextEvent uint
+	isReverse bool // Track if this is a reverse direction query
 }
 
 type eventRecord struct {

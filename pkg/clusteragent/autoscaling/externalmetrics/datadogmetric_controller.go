@@ -94,7 +94,8 @@ func NewDatadogMetricController(client dynamic.Interface, informer dynamicinform
 
 	// We use an observer on the store to propagate events as soon as possible
 	c.store.RegisterObserver(DatadogMetricInternalObserver{
-		SetFunc: c.enqueueID,
+		SetFunc:    c.enqueueID,
+		DeleteFunc: c.deleteTelemetry,
 	})
 
 	return c, nil
@@ -218,7 +219,6 @@ func (c *DatadogMetricController) processDatadogMetric(workerID int, key interfa
 		setDatadogMetricTelemetry(datadogMetricCached)
 	} else {
 		c.store.Delete(datadogMetricKey, ddmControllerStoreID)
-		unsetDatadogMetricTelemetry(ns, name)
 	}
 
 	return noopControllerOperation, nil
@@ -348,6 +348,14 @@ func (c *DatadogMetricController) deleteDatadogMetric(ns, name string) error {
 	if err != nil {
 		return fmt.Errorf("Unable to delete DatadogMetric: %s/%s, err: %v", ns, name, err)
 	}
-	unsetDatadogMetricTelemetry(ns, name)
 	return nil
+}
+
+func (c *DatadogMetricController) deleteTelemetry(id, _ string) {
+	ns, name, err := cache.SplitMetaNamespaceKey(id)
+	if err != nil {
+		log.Debugf("Unable to split meta namespace key to delete telemetry: %v", err)
+		return
+	}
+	unsetDatadogMetricTelemetry(ns, name)
 }

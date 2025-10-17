@@ -13,20 +13,24 @@ type ResourceGPU string
 
 // Resource name prefixes
 const (
-	gpuNvidiaGeneric ResourceGPU = "nvidia.com/gpu"
-	gpuAMD           ResourceGPU = "amd.com/gpu"
-	gpuIntelXe       ResourceGPU = "gpu.intel.com/xe"
-	gpuInteli915     ResourceGPU = "gpu.intel.com/i915"
-
-	gpuNvidiaMigPrefix ResourceGPU = "nvidia.com/mig"
+	// GpuNvidiaGeneric is the resource name for a generic NVIDIA GPU
+	GpuNvidiaGeneric ResourceGPU = "nvidia.com/gpu"
+	// GpuAMD is the resource name for an AMD GPU
+	GpuAMD ResourceGPU = "amd.com/gpu"
+	// GpuIntelXe is the resource name for an Intel Xe GPU
+	GpuIntelXe ResourceGPU = "gpu.intel.com/xe"
+	// GpuInteli915 is the resource name for an Intel i915 GPU
+	GpuInteli915 ResourceGPU = "gpu.intel.com/i915"
+	// GpuNvidiaMigPrefix is the prefix for NVIDIA MIG GPU resources
+	GpuNvidiaMigPrefix ResourceGPU = "nvidia.com/mig"
 )
 
 // longToShortGPUName maps a GPU resource to a simplified name
 var longToShortGPUName = map[ResourceGPU]string{
-	gpuNvidiaGeneric: "nvidia",
-	gpuAMD:           "amd",
-	gpuIntelXe:       "intel",
-	gpuInteli915:     "intel",
+	GpuNvidiaGeneric: "nvidia",
+	GpuAMD:           "amd",
+	GpuIntelXe:       "intel",
+	GpuInteli915:     "intel",
 }
 
 // ExtractSimpleGPUName returns a simplified GPU name.
@@ -39,10 +43,17 @@ func ExtractSimpleGPUName(gpuName ResourceGPU) (string, bool) {
 
 	// More complex cases (eg. nvidia.com/mig-3g.20gb => nvidia)
 	switch {
-	case strings.HasPrefix(string(gpuName), string(gpuNvidiaMigPrefix)):
+	case strings.HasPrefix(string(gpuName), string(GpuNvidiaMigPrefix)):
 		return "nvidia", true
 	}
 
 	// Not a GPU resource (or not recognized)
 	return "", false
+}
+
+// IsNvidiaKubernetesResource returns true if the resource name is a Kubernetes resource
+// for an NVIDIA GPU, either a generic GPU or a MIG GPU.
+func IsNvidiaKubernetesResource(resourceName string) bool {
+	return strings.HasPrefix(resourceName, string(GpuNvidiaMigPrefix)) ||
+		resourceName == string(GpuNvidiaGeneric)
 }

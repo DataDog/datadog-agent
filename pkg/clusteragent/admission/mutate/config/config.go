@@ -59,13 +59,14 @@ const (
 	webhookName = "agent_config"
 )
 
-// csiInjectionMode defines the mode of the injected csi volume
-// mode can be either 'socket' or 'local'
-type csiInjectionMode string
+// csiInjectionType defines the type CSI volume to be injected by the CSI driver
+type csiInjectionType string
 
 const (
-	csiModeSocket csiInjectionMode = "socket"
-	csiModeLocal  csiInjectionMode = "local"
+	csiAPMSocket          csiInjectionType = "APMSocket"
+	csiAPMSocketDirectory csiInjectionType = "APMSocketDirectory"
+	csiDSDSocket          csiInjectionType = "DSDSocket"
+	csiDSDSocketDirectory csiInjectionType = "DSDSocketDirectory"
 )
 
 // Webhook is the webhook that injects DD_AGENT_HOST and DD_ENTITY_ID into a pod
@@ -118,6 +119,11 @@ func (w *Webhook) Endpoint() string {
 // be invoked
 func (w *Webhook) Resources() map[string][]string {
 	return w.resources
+}
+
+// Timeout returns the timeout for the webhook
+func (w *Webhook) Timeout() int32 {
+	return 0
 }
 
 // Operations returns the operations on the resources specified for which

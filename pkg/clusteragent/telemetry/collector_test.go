@@ -14,8 +14,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -52,12 +51,13 @@ func getTestApmRemoteConfigEvent() ApmRemoteConfigEvent {
 }
 
 func TestTelemetryPath(t *testing.T) {
+	mockConfig := configmock.New(t)
 	server := newTestServer()
 	defer server.Close()
 
 	collector := NewCollector(testRcClientId, testKubernetesClusterId)
 	collector.SetTestHost(server.URL)
-	pkgconfigsetup.Datadog().SetWithoutSource("api_key", "dummy")
+	mockConfig.SetWithoutSource("api_key", "dummy")
 
 	var reqCount int
 	var path string

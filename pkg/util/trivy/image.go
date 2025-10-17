@@ -18,11 +18,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/docker/docker/api/types"
-	"github.com/docker/docker/api/types/container"
 	dimage "github.com/docker/docker/api/types/image"
+	"github.com/docker/docker/client"
 	v1 "github.com/google/go-containerregistry/pkg/v1"
 	"github.com/google/go-containerregistry/pkg/v1/tarball"
+	dockerspec "github.com/moby/docker-image-spec/specs-go/v1"
 	"github.com/samber/lo"
 
 	"github.com/DataDog/datadog-agent/pkg/sbom/telemetry"
@@ -32,7 +32,7 @@ var mu sync.Mutex
 
 type opener func() (v1.Image, error)
 
-type imageSave func(context.Context, []string) (io.ReadCloser, error)
+type imageSave func(context.Context, []string, ...client.ImageSaveOption) (io.ReadCloser, error)
 
 func imageOpener(ctx context.Context, collector, ref string, f *os.File, imageSave imageSave) opener {
 	return func() (v1.Image, error) {
@@ -63,12 +63,12 @@ func imageOpener(ctx context.Context, collector, ref string, f *os.File, imageSa
 // image is a wrapper for github.com/google/go-containerregistry/pkg/v1/daemon.Image
 // daemon.Image loads the entire image into the memory at first,
 // but it doesn't need to load it if the information is already in the persistentCache,
-// To avoid entire loading, this wrapper uses ImageInspectWithRaw and checks image ID and layer IDs.
+// To avoid entire loading, this wrapper uses ImageInspect and checks image ID and layer IDs.
 type image struct {
 	v1.Image
 	name    string
 	opener  opener
-	inspect types.ImageInspect
+	inspect dimage.InspectResponse
 	history []v1.History
 }
 
@@ -123,11 +123,8 @@ func (img *image) ConfigFile() (*v1.ConfigFile, error) {
 	}
 
 	return &v1.ConfigFile{
-		Architecture: img.inspect.Architecture,
-		Author:       img.inspect.Author,
-		// Ignore deprecation warning
-		//nolint:staticcheck
-		Container:     img.inspect.Container,
+		Architecture:  img.inspect.Architecture,
+		Author:        img.inspect.Author,
 		Created:       v1.Time{Time: created},
 		DockerVersion: img.inspect.DockerVersion,
 		Config:        img.imageConfig(img.inspect.Config),
@@ -183,34 +180,20 @@ func (img *image) diffIDs() ([]v1.Hash, error) {
 	return diffIDs, nil
 }
 
-func (img *image) imageConfig(config *container.Config) v1.Config {
+func (img *image) imageConfig(config *dockerspec.DockerOCIImageConfig) v1.Config {
 	if config == nil {
 		return v1.Config{}
 	}
 
 	c := v1.Config{
-		AttachStderr:    config.AttachStderr,
-		AttachStdin:     config.AttachStdin,
-		AttachStdout:    config.AttachStdout,
-		Cmd:             config.Cmd,
-		Domainname:      config.Domainname,
-		Entrypoint:      config.Entrypoint,
-		Env:             config.Env,
-		Hostname:        config.Hostname,
-		Image:           config.Image,
-		Labels:          config.Labels,
-		OnBuild:         config.OnBuild,
-		OpenStdin:       config.OpenStdin,
-		StdinOnce:       config.StdinOnce,
-		Tty:             config.Tty,
-		User:            config.User,
-		Volumes:         config.Volumes,
-		WorkingDir:      config.WorkingDir,
-		ArgsEscaped:     config.ArgsEscaped,
-		NetworkDisabled: config.NetworkDisabled,
-		// Ignore deprecation warning
-		//nolint:staticcheck
-		MacAddress: config.MacAddress,
+		Cmd:        config.Cmd,
+		Entrypoint: config.Entrypoint,
+		Env:        config.Env,
+		Labels:     config.Labels,
+		OnBuild:    config.OnBuild,
+		User:       config.User,
+		Volumes:    config.Volumes,
+		WorkingDir: config.WorkingDir,
 		StopSignal: config.StopSignal,
 		Shell:      config.Shell,
 	}

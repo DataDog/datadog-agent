@@ -17,8 +17,10 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	"github.com/DataDog/datadog-agent/comp/core"
-	"github.com/DataDog/datadog-agent/comp/core/secrets"
 
+	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
+	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -34,14 +36,13 @@ func TestCollectCommand(t *testing.T) {
 			Commands(globalParams),
 			[]string{"jmx", "collect"},
 			runJmxCommandConsole,
-			func(cliParams *cliParams, coreParams core.BundleParams, secretParams secrets.Params) {
+			func(cliParams *cliParams, coreParams core.BundleParams) {
 				require.Equal(t, "collect", cliParams.command)
 				require.Equal(t, "debug", cliParams.jmxLogLevel)
 				require.Equal(t, "debug", coreParams.LogLevelFn(nil))
 				require.Equal(t, "", cliParams.logFile)
 				require.Equal(t, "", coreParams.LogFileFn(nil))
 				require.Equal(t, "CORE", coreParams.LoggerName())
-				require.Equal(t, true, secretParams.Enabled)
 			})
 	})
 
@@ -50,14 +51,13 @@ func TestCollectCommand(t *testing.T) {
 			Commands(globalParams),
 			[]string{"jmx", "collect", "--log-level", "info"},
 			runJmxCommandConsole,
-			func(cliParams *cliParams, coreParams core.BundleParams, secretParams secrets.Params) {
+			func(cliParams *cliParams, coreParams core.BundleParams) {
 				require.Equal(t, "collect", cliParams.command)
 				require.Equal(t, "info", cliParams.jmxLogLevel)
 				require.Equal(t, "info", coreParams.LogLevelFn(nil))
 				require.Equal(t, "", cliParams.logFile)
 				require.Equal(t, "", coreParams.LogFileFn(nil))
 				require.Equal(t, "CORE", coreParams.LoggerName())
-				require.Equal(t, true, secretParams.Enabled)
 			})
 	})
 
@@ -66,14 +66,13 @@ func TestCollectCommand(t *testing.T) {
 			Commands(globalParams),
 			[]string{"jmx", "collect", "--flare", "--log-level", "info"},
 			runJmxCommandConsole,
-			func(cliParams *cliParams, coreParams core.BundleParams, secretParams secrets.Params) {
+			func(cliParams *cliParams, coreParams core.BundleParams) {
 				require.Equal(t, "collect", cliParams.command)
 				require.Equal(t, "debug", cliParams.jmxLogLevel)      // overrides --log-level
 				require.Equal(t, "debug", coreParams.LogLevelFn(nil)) // overrides --log-level
 				require.True(t, strings.HasPrefix(cliParams.logFile, defaultpaths.JMXFlareDirectory))
 				require.Equal(t, cliParams.logFile, coreParams.LogFileFn(nil))
 				require.Equal(t, "CORE", coreParams.LoggerName())
-				require.Equal(t, true, secretParams.Enabled)
 			})
 	})
 }
@@ -140,11 +139,21 @@ func TestListNotMatchingCommand(t *testing.T) {
 
 func newGlobalParamsTest(t *testing.T) *command.GlobalParams {
 	// Because run uses fx.Invoke, we need to provide a valid config file
-	config := path.Join(t.TempDir(), "datadog.yaml")
-	err := os.WriteFile(config, []byte("hostname: test"), 0644)
+	configPath := path.Join(t.TempDir(), "datadog.yaml")
+	err := os.WriteFile(configPath, []byte("hostname: test"), 0644)
 	require.NoError(t, err)
 
+	configComponent.NewMockFromYAMLFile(t, configPath)
+	// JMX command should work when an Agent has been run at least one time, so we need to
+	// This is done by building the IPC component
+	// ensure we have exisiting IPC auth artifacts.
+	// with the `ipcfx.ModuleReadWrite()` module.
+	fxutil.Test[ipc.Component](t,
+		ipcfx.ModuleReadWrite(),
+		core.MockBundle(),
+	)
+
 	return &command.GlobalParams{
-		ConfFilePath: config,
+		ConfFilePath: configPath,
 	}
 }

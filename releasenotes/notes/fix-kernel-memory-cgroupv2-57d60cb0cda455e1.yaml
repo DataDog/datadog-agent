@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Fix incorrect `container.memory.kernel` value when running with Kernel >= 5.19 and cgroupv2

@@ -307,15 +307,21 @@ func (k *Version) IsAmazonLinux2023Kernel() bool {
 	return k.IsAmazonLinuxKernel() && k.OsRelease["VERSION_ID"] == "2023"
 }
 
+// IsRockyKernel returns whether the kernel is a Rocky Linux kernel
+func (k *Version) IsRockyKernel() bool {
+	return k.OsRelease["ID"] == "rocky"
+}
+
 // IsInRangeCloseOpen returns whether the kernel version is between the begin
 // version (included) and the end version (excluded)
 func (k *Version) IsInRangeCloseOpen(begin kernel.Version, end kernel.Version) bool {
 	return k.Code != 0 && begin <= k.Code && k.Code < end
 }
 
-// HasNoPreallocMapsInPerfEvent returns true if the kernel supports using non-preallocated maps in perf_event programs
+// HasSafeBPFMemoryAllocations returns true if the kernel supports using non-preallocated maps in perf_event programs
+// and considers using non-preallocated maps in tracing programs as safe
 // See https://github.com/torvalds/linux/commit/274052a2b0ab9f380ce22b19ff80a99b99ecb198
-func (k *Version) HasNoPreallocMapsInPerfEvent() bool {
+func (k *Version) HasSafeBPFMemoryAllocations() bool {
 	return k.Code >= Kernel6_1
 }
 

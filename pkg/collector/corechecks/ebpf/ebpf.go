@@ -10,7 +10,6 @@ package ebpf
 
 import (
 	"fmt"
-	"net/http"
 	"strings"
 
 	"gopkg.in/yaml.v2"
@@ -39,7 +38,7 @@ type EBPFCheckConfig struct {
 // EBPFCheck grabs eBPF map/program/perf buffer metrics
 type EBPFCheck struct {
 	config             *EBPFCheckConfig
-	sysProbeClient     *http.Client
+	sysProbeClient     *sysprobeclient.CheckClient
 	previousMapEntries map[string]int64
 	core.CheckBase
 }
@@ -70,7 +69,7 @@ func (m *EBPFCheck) Configure(senderManager sender.SenderManager, _ uint64, conf
 	if err := m.config.Parse(config); err != nil {
 		return fmt.Errorf("ebpf check config: %s", err)
 	}
-	m.sysProbeClient = sysprobeclient.Get(pkgconfigsetup.SystemProbe().GetString("system_probe_config.sysprobe_socket"))
+	m.sysProbeClient = sysprobeclient.GetCheckClient(sysprobeclient.WithSocketPath(pkgconfigsetup.SystemProbe().GetString("system_probe_config.sysprobe_socket")))
 	return nil
 }
 
@@ -78,6 +77,9 @@ func (m *EBPFCheck) Configure(senderManager sender.SenderManager, _ uint64, conf
 func (m *EBPFCheck) Run() error {
 	stats, err := sysprobeclient.GetCheck[ebpfcheck.EBPFStats](m.sysProbeClient, sysconfig.EBPFModule)
 	if err != nil {
+		if sysprobeclient.IgnoreStartupError(err) == nil {
+			return nil
+		}
 		return fmt.Errorf("get ebpf check: %s", err)
 	}
 
@@ -200,6 +202,44 @@ func (m *EBPFCheck) Run() error {
 			log.Tracef("ebpf check: %s", strings.Join(debuglogs, " "))
 		}
 	}
+
+	for _, kprobeStatsInfo := range stats.KprobeStats {
+		if kprobeStatsInfo.Module == "unknown" {
+			continue
+		}
+
+		tags := []string{
+			"program_name:" + kprobeStatsInfo.Name,
+			"program_type:" + kprobeStatsInfo.Type,
+			"module:" + kprobeStatsInfo.Module,
+		}
+
+		var debuglogs []string
+		if log.ShouldLog(log.TraceLvl) {
+			debuglogs = []string{"program=" + kprobeStatsInfo.Name, "type=" + kprobeStatsInfo.Type}
+		}
+
+		monos := map[string]float64{
+			"kprobe_nesting_misses":      float64(kprobeStatsInfo.KprobeMisses),
+			"kretprobe_maxactive_misses": float64(kprobeStatsInfo.KretprobeMaxActiveMisses),
+			"kprobe_hits":                float64(kprobeStatsInfo.KprobeHits),
+		}
+
+		for k, v := range monos {
+			if v == 0 {
+				continue
+			}
+			sender.MonotonicCountWithFlushFirstValue("ebpf.kprobes."+k, v, "", tags, true)
+			if log.ShouldLog(log.TraceLvl) {
+				debuglogs = append(debuglogs, fmt.Sprintf("%s=%.0f", k, v))
+			}
+		}
+
+		if log.ShouldLog(log.TraceLvl) {
+			log.Tracef("ebpf check: %s", strings.Join(debuglogs, " "))
+		}
+	}
+
 	if totalProgRSS > 0 {
 		sender.Gauge("ebpf.programs.memory_rss_total", float64(totalProgRSS), "", nil)
 	}

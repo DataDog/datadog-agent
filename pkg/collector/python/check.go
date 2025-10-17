@@ -49,7 +49,7 @@ const (
 
 // PythonCheck represents a Python check, implements `Check` interface
 //
-//nolint:revive // TODO(AML) Fix revive linter
+//nolint:revive
 type PythonCheck struct {
 	senderManager  sender.SenderManager
 	id             checkid.ID
@@ -64,6 +64,7 @@ type PythonCheck struct {
 	initConfig     string
 	instanceConfig string
 	haSupported    bool
+	cancelled      bool
 }
 
 // NewPythonCheck conveniently creates a PythonCheck instance
@@ -98,6 +99,10 @@ func (c *PythonCheck) runCheckImpl(commitMetrics bool) error {
 	}
 	defer gstate.unlock()
 
+	if c.cancelled {
+		return fmt.Errorf("check %s is already cancelled", c.ModuleName)
+	}
+
 	log.Debugf("Running python check %s (version: '%s', id: '%s')", c.ModuleName, c.version, c.id)
 
 	cResult := C.run_check(rtloader, c.instance)
@@ -118,7 +123,7 @@ func (c *PythonCheck) runCheckImpl(commitMetrics bool) error {
 	}
 
 	// grab the warnings and add them to the struct
-	c.lastWarnings = c.getPythonWarnings(gstate)
+	c.lastWarnings = c.getPythonWarnings()
 
 	checkErrStr := C.GoString(cResult)
 	if checkErrStr == "" {
@@ -164,6 +169,7 @@ func (c *PythonCheck) Cancel() {
 	if err := getRtLoaderError(); err != nil {
 		log.Warnf("failed to cancel check %s: %s", c.id, err)
 	}
+	c.cancelled = true
 }
 
 // String representation (for debug and logging)
@@ -209,9 +215,7 @@ func (c *PythonCheck) GetWarnings() []error {
 }
 
 // getPythonWarnings grabs the last warnings from the python check
-//
-//nolint:revive // TODO(AML) Fix revive linter
-func (c *PythonCheck) getPythonWarnings(gstate *stickyLock) []error {
+func (c *PythonCheck) getPythonWarnings() []error {
 	/**
 	This function is run with the GIL locked by runCheck
 	**/
@@ -241,9 +245,7 @@ func (c *PythonCheck) getPythonWarnings(gstate *stickyLock) []error {
 }
 
 // Configure the Python check from YAML data
-//
-//nolint:revive // TODO(AML) Fix revive linter
-func (c *PythonCheck) Configure(senderManager sender.SenderManager, integrationConfigDigest uint64, data integration.Data, initConfig integration.Data, source string) error {
+func (c *PythonCheck) Configure(_senderManager sender.SenderManager, integrationConfigDigest uint64, data integration.Data, initConfig integration.Data, source string) error {
 	// Generate check ID
 	c.id = checkid.BuildID(c.String(), integrationConfigDigest, data, initConfig)
 

@@ -5,14 +5,14 @@
 
 //go:build kubelet
 
-//nolint:revive // TODO(AML) Fix revive linter
+// Package tailers provides tailers for API logs
 package tailers
 
 import (
 	"context"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
+	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/def"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	containerTailerPkg "github.com/DataDog/datadog-agent/pkg/logs/tailers/container"
@@ -23,6 +23,7 @@ import (
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 )
 
+// APITailer is a tailer for kubelet API logs
 type APITailer struct {
 	kubeUtil      kubelet.KubeUtilInterface
 	ContainerName string
@@ -67,6 +68,7 @@ func (t *APITailer) tryStartTailer() (*containerTailerPkg.Tailer, chan string, e
 		erroredContainerID,
 		t.readTimeout,
 		t.tagger,
+		t.registry,
 	)
 	since, err := since(t.registry, inner.Identifier())
 	if err != nil {

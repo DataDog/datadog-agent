@@ -137,7 +137,7 @@ func (tcr *Resolver) SetupNewTCClassifierWithNetNSHandle(device model.NetDevice,
 				// return now since we won't be able to attach anything at all
 				return err
 			}
-			_ = multierror.Append(&combinedErr, fmt.Errorf("couldn't clone %s: %v", tcProbe.ProbeIdentificationPair, err))
+			_ = multierror.Append(&combinedErr, fmt.Errorf("couldn't clone %s: %w", tcProbe.ProbeIdentificationPair, err))
 		} else {
 			tcr.programs[progKey] = newProbe
 

@@ -46,37 +46,36 @@ func (c *Check) getSQLRow(SQLID sql.NullString, forceMatchingSignature *string, 
 	return SQLRow, nil
 }
 
-func sendPayload(c *Check, sessionRows []OracleActivityRow, timestamp float64) error {
+func sendPayload(c *Check, payloadRows []OracleActivityRow, utcMs float64) error {
 	var collectionInterval float64
-	if c.config.QuerySamples.ActiveSessionHistory {
+	ash := c.config.QuerySamples.ActiveSessionHistory
+	if ash {
 		collectionInterval = 1
 	} else {
 		collectionInterval = float64(c.config.MinCollectionInterval)
 	}
 	var ts float64
-	if timestamp > 0 {
-		ts = timestamp
+	if utcMs > 0 {
+		ts = utcMs
 	} else {
 		ts = float64(c.clock.Now().UnixMilli())
 	}
-	log.Debugf("%s STIMESTAMP FETCHED %f", c.logPrompt, timestamp)
-	log.Debugf("%s STIMESTAMP UNIX    %f", c.logPrompt, float64(c.clock.Now().UnixMilli()))
+	log.Debugf("%s STIMESTAMP UNIX    %f", c.logPrompt, ts)
 	payload := ActivitySnapshot{
 		Metadata: Metadata{
-			//Timestamp:      float64(c.clock.Now().UnixMilli()),
-			Timestamp:      ts,
-			Host:           c.dbHostname,
-			Source:         common.IntegrationName,
-			DBMType:        "activity",
-			DDAgentVersion: c.agentVersion,
+			Timestamp:        ts,
+			Host:             c.dbHostname,
+			DatabaseInstance: c.dbInstanceIdentifier,
+			Source:           common.IntegrationName,
+			DBMType:          "activity",
+			DDAgentVersion:   c.agentVersion,
 		},
 		CollectionInterval: collectionInterval,
 		Tags:               c.tags,
-		OracleActivityRows: sessionRows,
+		OracleActivityRows: payloadRows,
 	}
-
-	c.lastOracleActivityRows = make([]OracleActivityRow, len(sessionRows))
-	copy(c.lastOracleActivityRows, sessionRows)
+	c.lastOracleActivityRows = make([]OracleActivityRow, len(payloadRows))
+	copy(c.lastOracleActivityRows, payloadRows)
 
 	payloadBytes, err := json.Marshal(payload)
 	if err != nil {
@@ -92,8 +91,34 @@ func sendPayload(c *Check, sessionRows []OracleActivityRow, timestamp float64) e
 		return err
 	}
 	sender.EventPlatformEvent(payloadBytes, "dbm-activity")
-	sendMetric(c, count, "dd.oracle.activity.samples_count", float64(len(sessionRows)), append(c.tags, fmt.Sprintf("sql_substring_length:%d", c.sqlSubstringLength)))
+	sendMetric(c, count, "dd.oracle.activity.samples_count", float64(len(payloadRows)), append(c.tags, fmt.Sprintf("sql_substring_length:%d", c.sqlSubstringLength)))
+	return nil
+}
 
+func sendRows(c *Check, sessionRows []OracleActivityRow) error {
+	var err error
+	var payloadRows []OracleActivityRow
+	var lastNow string
+	var lastUtcMs float64
+	for _, r := range sessionRows {
+		if lastNow == "" || r.Now == lastNow {
+			payloadRows = append(payloadRows, r)
+			lastNow = r.Now
+			lastUtcMs = r.UtcMs
+		} else {
+			err = sendPayload(c, payloadRows, lastUtcMs)
+			if err != nil {
+				log.Errorf("%s error sending payload %s", c.logPrompt, err)
+			}
+			payloadRows = []OracleActivityRow{r}
+			lastNow = r.Now
+			lastUtcMs = r.UtcMs
+		}
+	}
+	err = sendPayload(c, payloadRows, lastUtcMs)
+	if err != nil {
+		log.Errorf("%s error sending payload %s", c.logPrompt, err)
+	}
 	return nil
 }
 
@@ -158,7 +183,6 @@ AND status = 'ACTIVE'`)
 
 	o := c.LazyInitObfuscator()
 	var payloadSent bool
-	var lastNow string
 	for _, sample := range sessionSamples {
 		var sessionRow OracleActivityRow
 
@@ -167,14 +191,7 @@ AND status = 'ACTIVE'`)
 		}
 
 		sessionRow.Now = sample.Now
-		if lastNow != sessionRow.Now && lastNow != "" {
-			err = sendPayload(c, sessionRows, sample.UtcMs)
-			if err != nil {
-				log.Errorf("%s error sending payload %s", c.logPrompt, err)
-			}
-			payloadSent = true
-		}
-		lastNow = sessionRow.Now
+		sessionRow.UtcMs = sample.UtcMs
 
 		sessionRow.SessionID = sample.SessionID
 		sessionRow.SessionSerial = sample.SessionSerial
@@ -203,6 +220,9 @@ AND status = 'ACTIVE'`)
 
 		sessionType := ""
 		if sample.Type.Valid {
+			if sample.Type.String == "FOREGROUND" {
+				sample.Type.String = "USER"
+			}
 			sessionRow.Type = sample.Type.String
 			sessionType = sample.Type.String
 		}
@@ -351,7 +371,7 @@ AND status = 'ACTIVE'`)
 		sessionRows = append(sessionRows, sessionRow)
 	}
 	if !payloadSent {
-		err = sendPayload(c, sessionRows, 0)
+		err = sendRows(c, sessionRows)
 		if err != nil {
 			log.Errorf("%s error sending payload %s", c.logPrompt, err)
 		}

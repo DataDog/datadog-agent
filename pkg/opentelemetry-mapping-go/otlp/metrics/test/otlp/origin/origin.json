@@ -1,0 +1,97 @@
+{
+    "resourceMetrics": [
+      {
+        "resource": {
+          "attributes": [
+            {
+              "key": "datadog.host.name",
+              "value": {
+                "stringValue": "res-hostname"
+              }
+            }
+          ]
+        },
+        "scopeMetrics": [
+          {
+            "scope": {
+              "name": "github.com/open-telemetry/opentelemetry-collector-contrib/receiver/unknownreceiver",
+              "version": "0.91.0"
+            },
+            "metrics": [
+              {
+                "name": "unknown.receiver.metric",
+                "gauge": {
+                  "dataPoints": [
+                    {
+                      "attributes": [],
+                      "timeUnixNano": "1667560641226420924",
+                      "asInt": 1
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "scope": {
+              "name": "github.com/open-telemetry/opentelemetry-collector-contrib/receiver/hostmetricsreceiver/memory",
+              "version": "1.0.0"
+            },
+            "metrics": [
+              {
+                "name": "system.memory.limit",
+                "gauge": {
+                  "dataPoints": [
+                    {
+                      "attributes": [],
+                      "timeUnixNano": "1667560641226420924",
+                      "asInt": 1
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "scope": {
+              "name": "github.com/open-telemetry/opentelemetry-collector-contrib/receiver/prometheusreceiver",
+              "version": "0.91.0"
+            },
+            "metrics": [
+              {
+                "name": "prometheus.receiver.metric",
+                "gauge": {
+                  "dataPoints": [
+                    {
+                      "attributes": [],
+                      "timeUnixNano": "1667560641226420924",
+                      "asInt": 1
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "scope": {
+              "name": "github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/metrics"
+            },
+            "metrics": [
+              {
+                "name": "datadog.otlp_translator.resource.missing_source",
+                "gauge": {
+                  "dataPoints": [
+                    {
+                      "attributes": [],
+                      "timeUnixNano": "1667560641226420924",
+                      "asInt": 37
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }

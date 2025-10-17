@@ -14,21 +14,23 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/setup/common"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/setup/config"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 const (
-	defaultInjectorVersion = "0.35.0-1"
+	defaultInjectorVersion = "0"
 )
 
 var (
+	// We use major version tagging
 	defaultLibraryVersions = map[string]string{
-		common.DatadogAPMLibraryJavaPackage:   "1.47.3-1",
-		common.DatadogAPMLibraryRubyPackage:   "2.12.2-1",
-		common.DatadogAPMLibraryJSPackage:     "5.44.0-1",
-		common.DatadogAPMLibraryDotNetPackage: "3.13.0-1",
-		common.DatadogAPMLibraryPythonPackage: "3.2.1-1",
-		common.DatadogAPMLibraryPHPPackage:    "1.7.3-1",
+		common.DatadogAPMLibraryJavaPackage:   "1",
+		common.DatadogAPMLibraryRubyPackage:   "2",
+		common.DatadogAPMLibraryJSPackage:     "5",
+		common.DatadogAPMLibraryDotNetPackage: "3",
+		common.DatadogAPMLibraryPythonPackage: "3",
+		common.DatadogAPMLibraryPHPPackage:    "1",
 	}
 
 	fullSemverRe = regexp.MustCompile(`^[0-9]+\.[0-9]+\.[0-9]+`)
@@ -54,6 +56,8 @@ var (
 		"DD_FIPS_MODE",
 		"DD_SYSTEM_PROBE_ENSURE_CONFIG",
 		"DD_RUNTIME_SECURITY_CONFIG_ENABLED",
+		"DD_SBOM_CONTAINER_IMAGE_ENABLED",
+		"DD_SBOM_HOST_ENABLED",
 		"DD_COMPLIANCE_CONFIG_ENABLED",
 		"DD_APM_INSTRUMENTATION_ENABLED",
 		"DD_APM_LIBRARIES",
@@ -87,10 +91,19 @@ func SetupDefaultScript(s *common.Setup) error {
 		s.Config.DatadogYAML.DDURL = url
 	}
 
-	// Install packages
+	// Install agent package
 	installAgentPackage(s)
-	installAPMPackages(s)
 
+	// Install DDOT package if enabled
+	installDDOTPackage(s)
+
+	// Optionally setup SSI
+	err := SetupAPMSSIScript(s)
+	if err != nil {
+		return fmt.Errorf("failed to setup APM SSI script: %w", err)
+	}
+
+	s.NoConfig = false
 	return nil
 }
 
@@ -98,22 +111,35 @@ func SetupDefaultScript(s *common.Setup) error {
 func setConfigSecurityProducts(s *common.Setup) {
 	runtimeSecurityConfigEnabled, runtimeSecurityConfigEnabledOk := os.LookupEnv("DD_RUNTIME_SECURITY_CONFIG_ENABLED")
 	complianceConfigEnabled, complianceConfigEnabledOk := os.LookupEnv("DD_COMPLIANCE_CONFIG_ENABLED")
-	if runtimeSecurityConfigEnabledOk || complianceConfigEnabledOk {
-		s.Config.SecurityAgentYAML = &common.SecurityAgentConfig{}
-		s.Config.SystemProbeYAML = &common.SystemProbeConfig{}
+	sbomContainerImageEnabled, sbomContainerImageEnabledOk := os.LookupEnv("DD_SBOM_CONTAINER_IMAGE_ENABLED")
+	sbomHostEnabled, sbomHostEnabledOk := os.LookupEnv("DD_SBOM_HOST_ENABLED")
+	if runtimeSecurityConfigEnabledOk || complianceConfigEnabledOk || sbomContainerImageEnabledOk || sbomHostEnabledOk {
+		s.Config.SecurityAgentYAML = &config.SecurityAgentConfig{}
+		s.Config.SystemProbeYAML = &config.SystemProbeConfig{}
 	}
+
 	if complianceConfigEnabledOk && strings.ToLower(complianceConfigEnabled) != "false" {
-		s.Config.SecurityAgentYAML.ComplianceConfig = common.SecurityAgentComplianceConfig{
-			Enabled: true,
-		}
+		s.Config.SecurityAgentYAML.ComplianceConfig.Enabled = true
 	}
 	if runtimeSecurityConfigEnabledOk && strings.ToLower(runtimeSecurityConfigEnabled) != "false" {
-		s.Config.SecurityAgentYAML.RuntimeSecurityConfig = common.RuntimeSecurityConfig{
-			Enabled: true,
-		}
-		s.Config.SystemProbeYAML.RuntimeSecurityConfig = common.RuntimeSecurityConfig{
-			Enabled: true,
-		}
+		s.Config.SecurityAgentYAML.RuntimeSecurityConfig.Enabled = true
+		s.Config.SystemProbeYAML.RuntimeSecurityConfig.Enabled = true
+	}
+	if sbomContainerImageEnabledOk && strings.ToLower(sbomContainerImageEnabled) != "false" {
+		s.Config.DatadogYAML.SBOM.Enabled = true
+		s.Config.DatadogYAML.SBOM.ContainerImage.Enabled = true
+		s.Config.SecurityAgentYAML.RuntimeSecurityConfig.SBOM.Enabled = true
+		s.Config.SecurityAgentYAML.RuntimeSecurityConfig.SBOM.ContainerImage.Enabled = true
+		s.Config.SystemProbeYAML.RuntimeSecurityConfig.SBOM.Enabled = true
+		s.Config.SystemProbeYAML.RuntimeSecurityConfig.SBOM.ContainerImage.Enabled = true
+	}
+	if sbomHostEnabledOk && strings.ToLower(sbomHostEnabled) != "false" {
+		s.Config.DatadogYAML.SBOM.Enabled = true
+		s.Config.DatadogYAML.SBOM.Host.Enabled = true
+		s.Config.SecurityAgentYAML.RuntimeSecurityConfig.SBOM.Enabled = true
+		s.Config.SecurityAgentYAML.RuntimeSecurityConfig.SBOM.Host.Enabled = true
+		s.Config.SystemProbeYAML.RuntimeSecurityConfig.SBOM.Enabled = true
+		s.Config.SystemProbeYAML.RuntimeSecurityConfig.SBOM.Host.Enabled = true
 	}
 }
 
@@ -130,8 +156,8 @@ func setConfigInstallerRegistries(s *common.Setup) {
 	registryURL, registryURLOk := os.LookupEnv("DD_INSTALLER_REGISTRY_URL")
 	registryAuth, registryAuthOk := os.LookupEnv("DD_INSTALLER_REGISTRY_AUTH")
 	if registryURLOk || registryAuthOk {
-		s.Config.DatadogYAML.Installer = common.DatadogConfigInstaller{
-			Registry: common.DatadogConfigInstallerRegistry{
+		s.Config.DatadogYAML.Installer = config.DatadogConfigInstaller{
+			Registry: config.DatadogConfigInstallerRegistry{
 				URL:  registryURL,
 				Auth: registryAuth,
 			},
@@ -161,6 +187,14 @@ func installAgentPackage(s *common.Setup) {
 	}
 }
 
+// installDDOTPackage installs the DDOT package if enabled
+func installDDOTPackage(s *common.Setup) {
+	// DDOT install - check if otel-collector is enabled
+	if otelEnabled, ok := os.LookupEnv("DD_OTELCOLLECTOR_ENABLED"); ok && strings.ToLower(otelEnabled) == "true" {
+		s.Packages.Install(common.DatadogAgentDDOTPackage, agentVersion())
+	}
+}
+
 // installAPMPackages installs the APM packages
 func installAPMPackages(s *common.Setup) {
 	// Injector install
@@ -174,7 +208,7 @@ func installAPMPackages(s *common.Setup) {
 	for _, library := range common.ApmLibraries {
 		lang := packageToLanguage(library)
 		_, installLibrary := s.Env.ApmLibraries[lang]
-		if (installAllAPMLibraries || len(s.Env.ApmLibraries) == 0 && apmInstrumentationEnabled) && library != common.DatadogAPMLibraryPHPPackage || installLibrary {
+		if (installAllAPMLibraries || len(s.Env.ApmLibraries) == 0 && apmInstrumentationEnabled) || installLibrary {
 			s.Packages.Install(library, getLibraryVersion(s.Env, library))
 		}
 	}

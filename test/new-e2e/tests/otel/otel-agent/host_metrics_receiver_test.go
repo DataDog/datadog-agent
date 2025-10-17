@@ -26,12 +26,14 @@ type hostmetricsreceiverTestSuite struct {
 var hostmetricsreceiverConfig string
 
 func TestOTelAgentHostmetricsReceiver(t *testing.T) {
-	values := enableOTELAgentonfig(`
+	values := `
 datadog:
+  otelCollector:
+    useStandaloneImage: false
   logs:
     containerCollectAll: false
     containerCollectUsingFiles: false
-`)
+`
 	t.Parallel()
 	e2e.Run(t, &hostmetricsreceiverTestSuite{},
 		e2e.WithProvisioner(

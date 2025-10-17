@@ -15,6 +15,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/grpclog"
 
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/remote"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/proto"
@@ -42,6 +43,7 @@ var supportedKinds = []workloadmeta.Kind{
 	workloadmeta.KindContainer,
 	workloadmeta.KindKubernetesPod,
 	workloadmeta.KindECSTask,
+	workloadmeta.KindProcess,
 }
 
 // Params defines the parameters of the remote workloadmeta collector.
@@ -53,6 +55,7 @@ type dependencies struct {
 	fx.In
 
 	Params Params
+	IPC    ipc.Component
 }
 
 type client struct {
@@ -106,6 +109,7 @@ func NewCollector(deps dependencies) (workloadmeta.CollectorProvider, error) {
 				Config: pkgconfigsetup.Datadog(),
 			},
 			Catalog: workloadmeta.Remote,
+			IPC:     deps.IPC,
 		},
 	}, nil
 }

@@ -10,6 +10,10 @@ import (
 	"log"
 	"os"
 	"strings"
+
+	"github.com/DataDog/datadog-agent/cmd/serverless-init/metric"
+	"github.com/DataDog/datadog-agent/pkg/metrics"
+	serverlessMetrics "github.com/DataDog/datadog-agent/pkg/serverless/metrics"
 )
 
 // ContainerApp has helper functions for getting specific Azure Container App data
@@ -43,6 +47,11 @@ const (
 	acaRegion         = "aca.app.region"
 	acaRevision       = "aca.app.revision"
 	acaSubscriptionID = "aca.subscription.id"
+
+	// ContainerAppOrigin origin tag value
+	ContainerAppOrigin = "containerapp"
+
+	containerAppPrefix = "azure.containerapp"
 )
 
 // GetTags returns a map of Azure-related tags
@@ -70,8 +79,8 @@ func (c *ContainerApp) GetTags() map[string]string {
 		acaRevision:    revision,
 		acaReplicaName: replica,
 
-		"origin":     c.GetOrigin(),
-		"_dd.origin": c.GetOrigin(),
+		"origin":     ContainerAppOrigin,
+		"_dd.origin": ContainerAppOrigin,
 	}
 
 	if c.SubscriptionId != "" {
@@ -94,16 +103,20 @@ func (c *ContainerApp) GetTags() map[string]string {
 	return tags
 }
 
+// GetDefaultLogsSource returns the default logs source if `DD_SOURCE` is not set
+func (c *ContainerApp) GetDefaultLogsSource() string {
+	return ContainerAppOrigin
+}
+
 // GetOrigin returns the `origin` attribute type for the given
 // cloud service.
 func (c *ContainerApp) GetOrigin() string {
-	return "containerapp"
+	return ContainerAppOrigin
 }
 
-// GetPrefix returns the prefix that we're prefixing all
-// metrics with.
-func (c *ContainerApp) GetPrefix() string {
-	return "azure.containerapp"
+// GetSource returns the metrics source
+func (c *ContainerApp) GetSource() metrics.MetricSource {
+	return metrics.MetricSourceAzureContainerAppEnhanced
 }
 
 // NewContainerApp returns a new ContainerApp instance
@@ -134,6 +147,21 @@ func (c *ContainerApp) Init() error {
 	}
 
 	return nil
+}
+
+// Shutdown emits the shutdown metric for ContainerApp
+func (c *ContainerApp) Shutdown(agent serverlessMetrics.ServerlessMetricAgent, _ error) {
+	metric.Add(fmt.Sprintf("%s.enhanced.shutdown", containerAppPrefix), 1.0, c.GetSource(), agent)
+}
+
+// GetStartMetricName returns the metric name for container start (coldstart) events
+func (c *ContainerApp) GetStartMetricName() string {
+	return fmt.Sprintf("%s.enhanced.cold_start", containerAppPrefix)
+}
+
+// ShouldForceFlushAllOnForceFlushToSerializer is false usually.
+func (c *ContainerApp) ShouldForceFlushAllOnForceFlushToSerializer() bool {
+	return false
 }
 
 func isContainerAppService() bool {

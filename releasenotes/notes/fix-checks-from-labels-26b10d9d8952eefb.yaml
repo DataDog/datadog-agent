@@ -1,0 +1,13 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+fixes:
+  - |
+    Fix bug causing integrations configured via docker labels or K8s
+    annotations to be overwritten in the agent so logs from integrations
+    now work when configured using via docker labels or K8s annotations.

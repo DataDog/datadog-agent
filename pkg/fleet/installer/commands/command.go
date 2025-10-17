@@ -15,12 +15,15 @@ import (
 	"runtime"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/config"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/setup"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
@@ -40,7 +43,8 @@ func newCmd(operation string) *cmd {
 	env := env.FromEnv()
 	t := newTelemetry(env)
 	span, ctx := telemetry.StartSpanFromEnv(context.Background(), operation)
-	ctx, stop := signal.NotifyContext(ctx, syscall.SIGINT, syscall.SIGTERM)
+	ctx, stop := context.WithCancel(ctx)
+	handleSignals(ctx, stop)
 	setInstallerUmask(span)
 	return &cmd{
 		t:              t,
@@ -49,6 +53,21 @@ func newCmd(operation string) *cmd {
 		env:            env,
 		stopSigHandler: stop,
 	}
+}
+
+func handleSignals(ctx context.Context, stop context.CancelFunc) {
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
+	go func() {
+		select {
+		case <-ctx.Done():
+			return
+		case <-sigChan:
+			// Wait for 10 seconds to allow the command to finish properly
+			time.Sleep(10 * time.Second)
+			stop()
+		}
+	}()
 }
 
 // Stop stops the command
@@ -153,6 +172,10 @@ func RootCommands() []*cobra.Command {
 		getStateCommand(),
 		statusCommand(),
 		postinstCommand(),
+		isPrermSupportedCommand(),
+		prermCommand(),
+		hooksCommand(),
+		packageCommand(),
 	}
 }
 
@@ -349,10 +372,10 @@ func promoteExperimentCommand() *cobra.Command {
 
 func installConfigExperimentCommand() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:     "install-config-experiment <package> <version> <config>",
+		Use:     "install-config-experiment <package> <operations>",
 		Short:   "Install a config experiment",
 		GroupID: "installer",
-		Args:    cobra.ExactArgs(3),
+		Args:    cobra.ExactArgs(2),
 		RunE: func(_ *cobra.Command, args []string) (err error) {
 			i, err := newInstallerCmd("install_config_experiment")
 			if err != nil {
@@ -360,8 +383,15 @@ func installConfigExperimentCommand() *cobra.Command {
 			}
 			defer func() { i.stop(err) }()
 			i.span.SetTag("params.package", args[0])
-			i.span.SetTag("params.version", args[1])
-			return i.InstallConfigExperiment(i.ctx, args[0], args[1], []byte(args[2]))
+
+			var operations config.Operations
+			err = json.Unmarshal([]byte(args[1]), &operations)
+			if err != nil {
+				return err
+			}
+			i.span.SetTag("params.deployment_id", operations.DeploymentID)
+			i.span.SetTag("params.operations", operations.FileOperations)
+			return i.InstallConfigExperiment(i.ctx, args[0], operations)
 		},
 	}
 	return cmd
@@ -499,21 +529,26 @@ func getStateCommand() *cobra.Command {
 	return cmd
 }
 
-func postinstCommand() *cobra.Command {
+// packageCommand runs a package-specific command
+func packageCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Hidden:  true,
-		Use:     "postinst <package> <caller:deb|rpm|oci>",
-		Short:   "Run postinstall scripts for a package",
 		GroupID: "installer",
+		Use:     "package-command <package> <command>",
+		Short:   "Run a package-specific command",
 		Args:    cobra.ExactArgs(2),
 		RunE: func(_ *cobra.Command, args []string) (err error) {
-			i, err := newInstallerCmd("postinst")
-			if err != nil {
-				return err
-			}
+			i := newCmd("package_command")
 			defer i.stop(err)
-			return i.Postinst(i.ctx, args[0], args[1])
+
+			packageName := args[0]
+			command := args[1]
+			i.span.SetTag("params.package", packageName)
+			i.span.SetTag("params.command", command)
+
+			return packages.RunPackageCommand(i.ctx, packageName, command)
 		},
 	}
+
 	return cmd
 }

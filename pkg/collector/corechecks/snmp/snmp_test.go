@@ -28,7 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/collector/externalhost"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -56,9 +56,10 @@ func createDeps(t *testing.T) deps {
 }
 
 func Test_Run_simpleCase(t *testing.T) {
+	cfg := agentconfig.NewMock(t)
 	// We cache the run_path directory because the chk.Run() method will write in cache
 	testDir := t.TempDir()
-	pkgconfigsetup.Datadog().SetWithoutSource("run_path", testDir)
+	cfg.SetWithoutSource("run_path", testDir)
 	deps := createDeps(t)
 	profile.SetConfdPathAndCleanProfiles()
 	sess := session.CreateMockSession()
@@ -338,8 +339,9 @@ tags:
 }
 
 func Test_Run_customIfSpeed(t *testing.T) {
+	cfg := agentconfig.NewMock(t)
 	testDir := t.TempDir()
-	pkgconfigsetup.Datadog().SetWithoutSource("run_path", testDir)
+	cfg.SetWithoutSource("run_path", testDir)
 	report.TimeNow = common.MockTimeNow
 	deps := createDeps(t)
 	profile.SetConfdPathAndCleanProfiles()
@@ -484,8 +486,9 @@ metrics:
 }
 
 func TestSupportedMetricTypes(t *testing.T) {
+	mockConfig := configmock.New(t)
 	testDir := t.TempDir()
-	pkgconfigsetup.Datadog().SetWithoutSource("run_path", testDir)
+	mockConfig.SetWithoutSource("run_path", testDir)
 	profile.SetConfdPathAndCleanProfiles()
 	sess := session.CreateMockSession()
 	sessionFactory := func(*checkconfig.CheckConfig) (session.Session, error) {
@@ -559,8 +562,9 @@ metrics:
 }
 
 func TestProfile(t *testing.T) {
+	mockConfig := configmock.New(t)
 	testDir := t.TempDir()
-	pkgconfigsetup.Datadog().SetWithoutSource("run_path", testDir)
+	mockConfig.SetWithoutSource("run_path", testDir)
 	timeNow = common.MockTimeNow
 
 	deps := createDeps(t)
@@ -873,6 +877,7 @@ profiles:
         "snmp_device:1.2.3.4"
       ],
       "tags": [
+        "agent_host:my-hostname",
         "agent_version:%s",
         "autodiscovery_subnet:127.0.0.0/30",
 		"device_id:default:1.2.3.4",
@@ -958,8 +963,9 @@ profiles:
 }
 
 func TestServiceCheckFailures(t *testing.T) {
+	mockConfig := configmock.New(t)
 	testDir := t.TempDir()
-	pkgconfigsetup.Datadog().SetWithoutSource("run_path", testDir)
+	mockConfig.SetWithoutSource("run_path", testDir)
 	profile.SetConfdPathAndCleanProfiles()
 	sess := session.CreateMockSession()
 	sessionFactory := func(*checkconfig.CheckConfig) (session.Session, error) {
@@ -1041,8 +1047,9 @@ namespace: nsSubnet
 }
 
 func TestCheck_Run(t *testing.T) {
+	mockConfig := configmock.New(t)
 	testDir := t.TempDir()
-	pkgconfigsetup.Datadog().SetWithoutSource("run_path", testDir)
+	mockConfig.SetWithoutSource("run_path", testDir)
 	sysObjectIDPacketInvalidSysObjectIDMock := gosnmp.SnmpPacket{
 		Variables: []gosnmp.SnmpPDU{
 			{
@@ -1259,8 +1266,9 @@ namespace: '%s'
 }
 
 func TestCheck_Run_sessionCloseError(t *testing.T) {
+	mockConfig := configmock.New(t)
 	testDir := t.TempDir()
-	pkgconfigsetup.Datadog().SetWithoutSource("run_path", testDir)
+	mockConfig.SetWithoutSource("run_path", testDir)
 	profile.SetConfdPathAndCleanProfiles()
 
 	sess := session.CreateMockSession()
@@ -1305,8 +1313,10 @@ metrics:
 }
 
 func TestReportDeviceMetadataEvenOnProfileError(t *testing.T) {
+	setupHostname(t)
+	mockConfig := configmock.New(t)
 	testDir := t.TempDir()
-	pkgconfigsetup.Datadog().SetWithoutSource("run_path", testDir)
+	mockConfig.SetWithoutSource("run_path", testDir)
 
 	timeNow = common.MockTimeNow
 
@@ -1539,6 +1549,7 @@ tags:
         "snmp_device:1.2.3.4"
       ],
       "tags": [
+        "agent_host:my-hostname",
         "agent_version:%s",
         "autodiscovery_subnet:127.0.0.0/30",
 		"device_id:default:1.2.3.4",
@@ -1619,8 +1630,9 @@ tags:
 }
 
 func TestReportDeviceMetadataWithFetchError(t *testing.T) {
+	mockConfig := configmock.New(t)
 	testDir := t.TempDir()
-	pkgconfigsetup.Datadog().SetWithoutSource("run_path", testDir)
+	mockConfig.SetWithoutSource("run_path", testDir)
 	timeNow = common.MockTimeNow
 	deps := createDeps(t)
 	senderManager := deps.Demultiplexer
@@ -1664,8 +1676,13 @@ tags:
 		"1.3.6.1.2.1.1.3.0",
 		"1.3.6.1.2.1.1.5.0",
 	}).Return(nilPacket, fmt.Errorf("device failure"))
+	sess.On("Get", []string{
+		"1.3.6.1.2.1.1.1.0",
+		"1.3.6.1.2.1.1.2.0",
+	}).Return(nilPacket, fmt.Errorf("device failure"))
+	sess.On("Get", []string{"1.3.6.1.2.1.1.1.0"}).Return(nilPacket, fmt.Errorf("device failure"))
 
-	expectedErrMsg := "check device reachable: failed: no value for GetNext; failed to autodetect profile: failed to fetch sysobjectid: cannot get sysobjectid: no value; failed to fetch values: failed to fetch scalar oids with batching: failed to fetch scalar oids: fetch scalar: error getting oids `[1.3.6.1.2.1.1.1.0 1.3.6.1.2.1.1.2.0 1.3.6.1.2.1.1.3.0 1.3.6.1.2.1.1.5.0]`: device failure"
+	expectedErrMsg := "check device reachable: failed: no value for GetNext; failed to autodetect profile: failed to fetch sysobjectid: cannot get sysobjectid: no value; failed to fetch values: failed to fetch scalar oids with batching: failed to fetch scalar oids: fetch scalar: failed getting oids `[1.3.6.1.2.1.1.1.0]` using Get: device failure"
 
 	err = chk.Run()
 	assert.EqualError(t, err, expectedErrMsg)
@@ -1688,6 +1705,7 @@ tags:
         "snmp_device:1.2.3.5"
       ],
       "tags": [
+        "agent_host:my-hostname",
         "agent_version:%s",
         "autodiscovery_subnet:127.0.0.0/30",
 		"device_id:default:1.2.3.5",
@@ -1734,8 +1752,9 @@ tags:
 }
 
 func TestDiscovery(t *testing.T) {
+	mockConfig := configmock.New(t)
 	testDir := t.TempDir()
-	pkgconfigsetup.Datadog().SetWithoutSource("run_path", testDir)
+	mockConfig.SetWithoutSource("run_path", testDir)
 	deps := createDeps(t)
 	timeNow = common.MockTimeNow
 	profile.SetConfdPathAndCleanProfiles()
@@ -2005,6 +2024,7 @@ metric_tags:
         "snmp_device:%s"
       ],
       "tags": [
+        "agent_host:my-hostname",
         "agent_version:%s",
         "autodiscovery_subnet:10.10.0.0/30",
 		"device_id:%s",
@@ -2081,8 +2101,9 @@ metric_tags:
 }
 
 func TestDiscovery_CheckError(t *testing.T) {
+	mockConfig := configmock.New(t)
 	testDir := t.TempDir()
-	pkgconfigsetup.Datadog().SetWithoutSource("run_path", testDir)
+	mockConfig.SetWithoutSource("run_path", testDir)
 	deps := createDeps(t)
 	profile.SetConfdPathAndCleanProfiles()
 
@@ -2159,8 +2180,9 @@ metric_tags:
 }
 
 func TestDeviceIDAsHostname(t *testing.T) {
+	mockConfig := configmock.New(t)
 	testDir := t.TempDir()
-	pkgconfigsetup.Datadog().SetWithoutSource("run_path", testDir)
+	mockConfig.SetWithoutSource("run_path", testDir)
 	deps := createDeps(t)
 	cache.Cache.Delete(cache.BuildAgentKey("hostname")) // clean existing hostname cache
 
@@ -2170,8 +2192,8 @@ func TestDeviceIDAsHostname(t *testing.T) {
 		return sess, nil
 	}
 	chk := Check{sessionFactory: sessionFactory, agentConfig: agentconfig.NewMock(t)}
-	pkgconfigsetup.Datadog().SetWithoutSource("hostname", "test-hostname")
-	pkgconfigsetup.Datadog().SetWithoutSource("tags", []string{"agent_tag1:val1", "agent_tag2:val2"})
+	mockConfig.SetWithoutSource("hostname", "test-hostname")
+	mockConfig.SetWithoutSource("tags", []string{"agent_tag1:val1", "agent_tag2:val2"})
 	senderManager := deps.Demultiplexer
 
 	// language=yaml
@@ -2352,8 +2374,9 @@ use_device_id_as_hostname: true
 }
 
 func TestDiscoveryDeviceIDAsHostname(t *testing.T) {
+	mockConfig := configmock.New(t)
 	testDir := t.TempDir()
-	pkgconfigsetup.Datadog().SetWithoutSource("run_path", testDir)
+	mockConfig.SetWithoutSource("run_path", testDir)
 	deps := createDeps(t)
 	cache.Cache.Delete(cache.BuildAgentKey("hostname")) // clean existing hostname cache
 	timeNow = common.MockTimeNow
@@ -2364,7 +2387,7 @@ func TestDiscoveryDeviceIDAsHostname(t *testing.T) {
 	}
 	chk := Check{sessionFactory: sessionFactory, agentConfig: agentconfig.NewMock(t)}
 
-	pkgconfigsetup.Datadog().SetWithoutSource("hostname", "my-hostname")
+	mockConfig.SetWithoutSource("hostname", "my-hostname")
 	senderManager := deps.Demultiplexer
 
 	// language=yaml

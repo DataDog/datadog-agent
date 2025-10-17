@@ -219,6 +219,7 @@ func getRefAndKeychain(env *env.Env, url string) urlWithKeychain {
 		if !strings.HasSuffix(registryOverride, "/") {
 			registryOverride += "/"
 		}
+		registryOverride = formatImageRef(registryOverride)
 		ref = registryOverride + imageWithIdentifier
 	}
 	keychain := getKeychain(env.RegistryAuthOverride, env.RegistryUsername, env.RegistryPassword)
@@ -232,6 +233,11 @@ func getRefAndKeychain(env *env.Env, url string) urlWithKeychain {
 		ref:      ref,
 		keychain: keychain,
 	}
+}
+
+// formatImageRef formats the image ref by removing the http:// or https:// prefix.
+func formatImageRef(override string) string {
+	return strings.TrimPrefix(strings.TrimPrefix(override, "https://"), "http://")
 }
 
 // downloadRegistry downloads the image from a remote registry.
@@ -427,6 +433,10 @@ func isRetryableNetworkError(err error) bool {
 		return true
 	}
 
+	if strings.Contains(err.Error(), "connectex") { // Windows
+		return true
+	}
+
 	return isStreamResetError(err)
 }
 
@@ -461,20 +471,22 @@ func (k usernamePasswordKeychain) Resolve(_ authn.Resource) (authn.Authenticator
 
 // writeBinary extracts the binary from the given reader to the given path.
 func writeBinary(r io.Reader, path string) error {
-	outFile, err := os.Create(path)
+	// Ensure the file has 0700 permissions even if it already exists
+	if err := os.Chmod(path, 0700); err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("could not set file permissions before writing: %w", err)
+	}
+	outFile, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0700)
 	if err != nil {
 		return fmt.Errorf("could not create file: %w", err)
 	}
 	defer outFile.Close()
 
+	// Now that we have the 0700 permissions set, we can write to the file.
+	// Use io.LimitReader to limit the size of the layer to layerMaxSize.
 	limitedReader := io.LimitReader(r, layerMaxSize)
 	_, err = io.Copy(outFile, limitedReader)
 	if err != nil {
 		return fmt.Errorf("could not write to file: %w", err)
-	}
-
-	if err := outFile.Chmod(0700); err != nil {
-		return fmt.Errorf("could not set file permissions: %w", err)
 	}
 
 	return nil

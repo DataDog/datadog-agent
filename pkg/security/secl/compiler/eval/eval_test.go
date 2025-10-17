@@ -8,6 +8,7 @@ package eval
 
 import (
 	"container/list"
+	"errors"
 	"fmt"
 	"net"
 	"os"
@@ -16,6 +17,8 @@ import (
 	"syscall"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/ast"
 )
@@ -52,10 +55,8 @@ func parseRule(expr string, model Model, opts *Opts) (*Rule, error) {
 	return rule, nil
 }
 
-func eval(_ *testing.T, event *testEvent, expr string) (bool, *ast.Rule, error) {
+func eval(ctx *Context, expr string) (bool, *ast.Rule, error) {
 	model := &testModel{}
-
-	ctx := NewContext(event)
 
 	opts := newOptsWithParams(testConstants, nil)
 
@@ -135,7 +136,9 @@ func TestSimpleString(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		result, _, err := eval(t, event, test.Expr)
+		ctx := NewContext(event)
+
+		result, _, err := eval(ctx, test.Expr)
 		if err != nil {
 			t.Fatalf("error while evaluating `%s`: %s", test.Expr, err)
 		}
@@ -168,7 +171,9 @@ func TestSimpleInt(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		result, _, err := eval(t, event, test.Expr)
+		ctx := NewContext(event)
+
+		result, _, err := eval(ctx, test.Expr)
 		if err != nil {
 			t.Fatalf("error while evaluating `%s`: %s", test.Expr, err)
 		}
@@ -200,7 +205,9 @@ func TestSimpleBool(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		result, _, err := eval(t, event, test.Expr)
+		ctx := NewContext(event)
+
+		result, _, err := eval(ctx, test.Expr)
 		if err != nil {
 			t.Fatalf("error while evaluating `%s`: %s", test.Expr, err)
 		}
@@ -227,7 +234,9 @@ func TestPrecedence(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		result, _, err := eval(t, event, test.Expr)
+		ctx := NewContext(event)
+
+		result, _, err := eval(ctx, test.Expr)
 		if err != nil {
 			t.Fatalf("error while evaluating `%s`: %s", test.Expr, err)
 		}
@@ -249,7 +258,9 @@ func TestParenthesis(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		result, _, err := eval(t, event, test.Expr)
+		ctx := NewContext(event)
+
+		result, _, err := eval(ctx, test.Expr)
 		if err != nil {
 			t.Fatalf("error while evaluating `%s`: %s", test.Expr, err)
 		}
@@ -276,7 +287,9 @@ func TestSimpleBitOperations(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		result, _, err := eval(t, event, test.Expr)
+		ctx := NewContext(event)
+
+		result, _, err := eval(ctx, test.Expr)
 		if err != nil {
 			t.Fatalf("error while evaluating `%s`", test.Expr)
 		}
@@ -343,7 +356,9 @@ func TestStringMatcher(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		result, _, err := eval(t, event, test.Expr)
+		ctx := NewContext(event)
+
+		result, _, err := eval(ctx, test.Expr)
 		if err != nil {
 			t.Fatalf("error while evaluating `%s`: %s", test.Expr, err)
 		}
@@ -374,7 +389,9 @@ func TestVariables(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		result, _, err := eval(t, event, test.Expr)
+		ctx := NewContext(event)
+
+		result, _, err := eval(ctx, test.Expr)
 		if err != nil {
 			t.Fatalf("error while evaluating `%s`: %s", test.Expr, err)
 		}
@@ -429,7 +446,9 @@ func TestInArray(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		result, _, err := eval(t, event, test.Expr)
+		ctx := NewContext(event)
+
+		result, _, err := eval(ctx, test.Expr)
 		if err != nil {
 			t.Fatalf("error while evaluating `%s: %s`", test.Expr, err)
 		}
@@ -456,7 +475,9 @@ func TestComplex(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		result, _, err := eval(t, event, test.Expr)
+		ctx := NewContext(event)
+
+		result, _, err := eval(ctx, test.Expr)
 		if err != nil {
 			t.Fatalf("error while evaluating `%s: %s`", test.Expr, err)
 		}
@@ -545,8 +566,6 @@ func TestPartial(t *testing.T) {
 		{Expr: `process.name =~ "/usr/sbin/*" && process.uid == 0 && process.is_root`, Field: "process.uid", IsDiscarder: true},
 	}
 
-	ctx := NewContext(event)
-
 	for _, test := range tests {
 		model := &testModel{}
 
@@ -557,6 +576,8 @@ func TestPartial(t *testing.T) {
 		if err != nil {
 			t.Fatalf("error while evaluating `%s`: %s", test.Expr, err)
 		}
+
+		ctx := NewContext(event)
 
 		result, err := rule.PartialEval(ctx, test.Field)
 		if err != nil {
@@ -628,7 +649,6 @@ func TestMacroList(t *testing.T) {
 	}
 
 	ctx := NewContext(&testEvent{})
-
 	if !rule.Eval(ctx) {
 		t.Fatalf("should return true")
 	}
@@ -940,7 +960,9 @@ func TestRegister(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		result, _, err := eval(t, event, test.Expr)
+		ctx := NewContext(event)
+
+		result, _, err := eval(ctx, test.Expr)
 		if err != nil {
 			t.Fatalf("error while evaluating `%s`: %s", test.Expr, err)
 		}
@@ -978,8 +1000,6 @@ func TestRegisterPartial(t *testing.T) {
 		{Expr: `process.list[A].key == 10 && process.list[A].value == "ZZZ"`, Field: "process.list.value", IsDiscarder: true},
 	}
 
-	ctx := NewContext(event)
-
 	for _, test := range tests {
 		model := &testModel{}
 
@@ -989,6 +1009,8 @@ func TestRegisterPartial(t *testing.T) {
 		if err != nil {
 			t.Fatalf("error while evaluating `%s`: %s", test.Expr, err)
 		}
+
+		ctx := NewContext(event)
 
 		result, err := rule.PartialEval(ctx, test.Field)
 		if err != nil {
@@ -1025,7 +1047,9 @@ func TestOptimizer(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		_, _, err := eval(t, event, test.Expr)
+		ctx := NewContext(event)
+
+		_, _, err := eval(ctx, test.Expr)
 		if err != nil {
 			t.Fatalf("error while evaluating: %s", err)
 		}
@@ -1057,7 +1081,9 @@ func TestDuration(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		result, _, err := eval(t, event, test.Expr)
+		ctx := NewContext(event)
+
+		result, _, err := eval(ctx, test.Expr)
 		if err != nil {
 			t.Fatalf("error while evaluating `%s`: %s", test.Expr, err)
 		}
@@ -1078,7 +1104,9 @@ func TestDuration(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		result, _, err := eval(t, event, test.Expr)
+		ctx := NewContext(event)
+
+		result, _, err := eval(ctx, test.Expr)
 		if err != nil {
 			t.Fatalf("error while evaluating `%s`: %s", test.Expr, err)
 		}
@@ -1164,7 +1192,9 @@ func TestIPv4(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		result, _, err := eval(t, event, test.Expr)
+		ctx := NewContext(event)
+
+		result, _, err := eval(ctx, test.Expr)
 		if err != nil {
 			t.Fatalf("error while evaluating `%s`: %s", test.Expr, err)
 		}
@@ -1237,7 +1267,9 @@ func TestIPv6(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		result, _, err := eval(t, event, test.Expr)
+		ctx := NewContext(event)
+
+		result, _, err := eval(ctx, test.Expr)
 		if err != nil {
 			t.Fatalf("error while evaluating `%s`: %s", test.Expr, err)
 		}
@@ -1296,7 +1328,9 @@ func TestOpOverrides(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		result, _, err := eval(t, event, test.Expr)
+		ctx := NewContext(event)
+
+		result, _, err := eval(ctx, test.Expr)
 		if err != nil {
 			t.Fatalf("error while evaluating `%s`: %s", test.Expr, err)
 		}
@@ -1357,8 +1391,6 @@ func TestOpOverridePartials(t *testing.T) {
 		{Expr: `process.or_array.value not in ["not"] || true`, Field: "process.or_array.value", IsDiscarder: false},
 	}
 
-	ctx := NewContext(event)
-
 	for _, test := range tests {
 		model := &testModel{}
 
@@ -1369,6 +1401,8 @@ func TestOpOverridePartials(t *testing.T) {
 			t.Fatalf("error while evaluating `%s`: %s", test.Expr, err)
 		}
 
+		ctx := NewContext(event)
+
 		result, err := rule.PartialEval(ctx, test.Field)
 		if err != nil {
 			t.Fatalf("error while partial evaluating `%s` for `%s`: %s", test.Expr, test.Field, err)
@@ -1377,6 +1411,36 @@ func TestOpOverridePartials(t *testing.T) {
 		if !result != test.IsDiscarder {
 			t.Fatalf("expected result `%t` for `%s`, got `%t`\n%s", test.IsDiscarder, test.Field, result, test.Expr)
 		}
+	}
+}
+
+func TestMultipleOpOverrides(t *testing.T) {
+	event := &testEvent{
+		title: "hello world",
+	}
+
+	testCases := []struct {
+		expression     string
+		expectedResult bool
+	}{
+		{expression: `event.title == "hello world"`, expectedResult: true},
+		{expression: `event.title == "Hello World"`, expectedResult: true},
+		{expression: `event.title == "HELLO WORLD"`, expectedResult: true},
+		{expression: `event.title == "hellO worlD"`, expectedResult: false},
+		{expression: `"hello world" == event.title`, expectedResult: true},
+		{expression: `"Hello World" == event.title`, expectedResult: true},
+		{expression: `"HELLO WORLD" == event.title`, expectedResult: true},
+		{expression: `"hellO worlD" == event.title`, expectedResult: false},
+	}
+
+	for _, tc := range testCases {
+		ctx := NewContext(event)
+		result, _, err := eval(ctx, tc.expression)
+		if err != nil {
+			t.Errorf("error while evaluating `%s`: %s", tc.expression, err)
+			continue
+		}
+		assert.Equal(t, tc.expectedResult, result, "expression: `%s`", tc.expression)
 	}
 }
 
@@ -1445,7 +1509,9 @@ func TestArithmeticOperation(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		result, _, err := eval(t, event, test.Expr)
+		ctx := NewContext(event)
+
+		result, _, err := eval(ctx, test.Expr)
 		if err != nil {
 			t.Fatalf("error while evaluating `%s`: %s", test.Expr, err)
 		}
@@ -1453,6 +1519,368 @@ func TestArithmeticOperation(t *testing.T) {
 		if result != test.Expected {
 			t.Errorf("expected result `%t` not found, got `%t`\n%s", test.Expected, result, test.Expr)
 		}
+	}
+}
+
+func decorateRuleExpr(m *MatchingSubExpr, expr string, before, after string) (string, error) {
+	a, b := m.ValueA.getPosWithinRuleExpr(expr, m.Offset), m.ValueB.getPosWithinRuleExpr(expr, m.Offset)
+
+	if a.Offset+a.Length > len(expr) || b.Offset+b.Length > len(expr) {
+		return expr, errors.New("expression overflow")
+	}
+
+	if b.Offset < a.Offset {
+		tmp := b
+		b = a
+		a = tmp
+	}
+
+	if a.Length == 0 {
+		return expr[:b.Offset] + before + expr[b.Offset:b.Offset+b.Length] + after + expr[b.Offset+b.Length:], nil
+	}
+
+	if b.Length == 0 {
+		return expr[0:a.Offset] + before + expr[a.Offset:a.Offset+a.Length] + after + expr[a.Offset+a.Length:], nil
+	}
+
+	return expr[0:a.Offset] + before + expr[a.Offset:a.Offset+a.Length] + after +
+		expr[a.Offset+a.Length:b.Offset] + before + expr[b.Offset:b.Offset+b.Length] + after +
+		expr[b.Offset+b.Length:], nil
+}
+
+func decorateRuleExprs(m *MatchingSubExprs, expr string, before, after string) (string, error) {
+	var err error
+
+	dejavu := make(map[int]bool)
+
+	for _, mse := range *m {
+		if dejavu[mse.Offset] {
+			return "", errors.New("duplicate offset")
+		}
+		dejavu[mse.Offset] = true
+
+		expr, err = decorateRuleExpr(&mse, expr, before, after)
+		if err != nil {
+			return expr, err
+		}
+	}
+	return expr, nil
+}
+
+func TestMatchingSubExprs(t *testing.T) {
+	event := &testEvent{
+		process: testProcess{
+			name:   "ls",
+			argv0:  "-al",
+			uid:    22,
+			isRoot: true,
+			pid:    os.Getpid(),
+			gid:    3,
+		},
+		network: testNetwork{
+			ip:  parseCIDR(t, "192.168.0.1"),
+			ips: []net.IPNet{parseCIDR(t, "192.168.0.2"), parseCIDR(t, "192.168.0.3")},
+		},
+	}
+	event.process.list = list.New()
+	event.process.list.PushBack(&testItem{key: 10, value: "AAA"})
+	event.process.list.PushBack(&testItem{key: 11, value: "BBB"})
+
+	tests := []struct {
+		Expr     string
+		Expected string
+	}{
+		{Expr: `true && process.name == "ls"`, Expected: `true && <b>process.name</b> == <b>"ls"</b>`},
+		{Expr: `true && "ls" == process.name`, Expected: `true && <b>"ls"</b> == <b>process.name</b>`},
+		{Expr: `true && process.name == "gzip"`, Expected: `true && process.name == "gzip"`},
+		{Expr: `true && process.name == process.name`, Expected: `true && <b>process.name</b> == <b>process.name</b>`},
+		{Expr: `true && process.name in ["ls"]`, Expected: `true && <b>process.name</b> in [<b>"ls"</b>]`},
+		{Expr: `true && process.name in ["touch", "ls", "date"]`, Expected: `true && <b>process.name</b> in ["touch", <b>"ls"</b>, "date"]`},
+		{Expr: `true && process.name =~ "*ls*"`, Expected: `true && <b>process.name</b> =~ <b>"*ls*"</b>`},
+		{Expr: `true && process.name == ~"*ls*"`, Expected: `true && <b>process.name</b> == ~<b>"*ls*"</b>`},
+		{Expr: `true && process.name == "ls" && process.name == "date"`, Expected: `true && <b>process.name</b> == <b>"ls"</b> && process.name == "date"`},
+		{Expr: `true && process.name == "ls" && process.name =~ "*ls*"`, Expected: `true && <b>process.name</b> == <b>"ls"</b> && <b>process.name</b> =~ <b>"*ls*"</b>`},
+		{Expr: `true && process.name in [~"*ls*"]`, Expected: `true && <b>process.name</b> in [~<b>"*ls*"</b>]`},
+		{Expr: `process.argv0 == "-al" && process.name in [~"*ls*"]`, Expected: `<b>process.argv0</b> == <b>"-al"</b> && <b>process.name</b> in [~<b>"*ls*"</b>]`},
+		{Expr: `true && process.name == r".*ls.*"`, Expected: `true && <b>process.name</b> == r<b>".*ls.*"</b>`},
+		{Expr: `true && process.name in [~"*ls*", "gzip", r".*ls"]`, Expected: `true && <b>process.name</b> in [~<b>"*ls*"</b>, "gzip", r".*ls"]`},
+		{Expr: `true && process.name in ["gzip", r".*ls"]`, Expected: `true && <b>process.name</b> in ["gzip", r<b>".*ls"</b>]`},
+		{Expr: `true && process.uid == 22`, Expected: `true && <b>process.uid</b> == <b>22</b>`},
+		{Expr: `true && process.uid >= 22`, Expected: `true && <b>process.uid</b> >= <b>22</b>`},
+		{Expr: `true && process.uid in [66, 22]`, Expected: `true && <b>process.uid</b> in [66, <b>22</b>]`},
+		{Expr: `true && process.is_root`, Expected: `true && <b>process.is_root</b>`},
+		{Expr: `true && process.is_root == true`, Expected: `true && <b>process.is_root</b> == <b>true</b>`},
+		{Expr: `false || process.is_root == true`, Expected: `false || <b>process.is_root</b> == <b>true</b>`},
+		{Expr: `false || process.is_root`, Expected: `false || <b>process.is_root</b>`},
+		{Expr: `true && process.list.key == 10`, Expected: `true && <b>process.list.key</b> == <b>10</b>`},
+		{Expr: `true && 10 == process.list.key`, Expected: `true && <b>10</b> == <b>process.list.key</b>`},
+		{Expr: `true && 10 in process.list.key`, Expected: `true && <b>10</b> in <b>process.list.key</b>`},
+		{Expr: `true && process.list.key in [10, 11]`, Expected: `true && <b>process.list.key</b> in [<b>10</b>, 11]`},
+		{Expr: `true && process.list.value == "AAA"`, Expected: `true && <b>process.list.value</b> == <b>"AAA"</b>`},
+		{Expr: `true && process.list.value in ["CCC", "BBB"]`, Expected: `true && <b>process.list.value</b> in ["CCC", <b>"BBB"</b>]`},
+		{Expr: `true && process.list.value in ["CCC", ~"*BBB*"]`, Expected: `true && <b>process.list.value</b> in ["CCC", ~<b>"*BBB*"</b>]`},
+		{Expr: `network.ip == 192.168.0.1`, Expected: `<b>network.ip</b> == <b>192.168.0.1</b>`},
+		{Expr: `network.ip == 192.168.0.1/32`, Expected: `<b>network.ip</b> == <b>192.168.0.1/32</b>`},
+		{Expr: `192.168.0.1 == network.ip`, Expected: `<b>192.168.0.1</b> == <b>network.ip</b>`},
+		{Expr: `192.168.0.1/32 == network.ip`, Expected: `<b>192.168.0.1/32</b> == <b>network.ip</b>`},
+		{Expr: `network.ip == 192.168.0.0/24`, Expected: `<b>network.ip</b> == <b>192.168.0.0/24</b>`},
+		{Expr: `network.ip in [127.0.0.1, 192.168.0.1, 10.0.0.1]`, Expected: `<b>network.ip</b> in [127.0.0.1, <b>192.168.0.1</b>, 10.0.0.1]`},
+		{Expr: `network.ips in [192.168.1.33, 192.168.0.3]`, Expected: `<b>network.ips</b> in [192.168.1.33, <b>192.168.0.3</b>]`},
+		{Expr: `network.ips allin [192.168.0.0/16, 192.168.0.0/24]`, Expected: `<b>network.ips</b> allin [<b>192.168.0.0/16, 192.168.0.0/24</b>]`},
+		{Expr: `process.name in [~"aaals*", ~"ls*"]`, Expected: `<b>process.name</b> in [~"aaals*", ~<b>"ls*"</b>]`},
+		{Expr: `process.name in [~"aaals*", ~"ls*"]`, Expected: `<b>process.name</b> in [~"aaals*", ~<b>"ls*"</b>]`},
+
+		// need to add varname in the evaluators
+		//{Expr: `true && process.pid == ${pid}`, Expected: `true && <b>process.pid</b> == ${pid}`},
+
+		// need to handle bitmask
+		//{Expr: `process.gid & 1 > 0`, Expected: `<b>process.gid</b> & 1 > 0`},
+	}
+
+	for _, test := range tests {
+		t.Run(test.Expr, func(t *testing.T) {
+			ctx := NewContext(event)
+
+			res, _, err := eval(ctx, test.Expr)
+			if err != nil {
+				t.Fatalf("error while evaluating `%s`: %s", test.Expr, err)
+			}
+
+			subExprs := ctx.GetMatchingSubExprs()
+
+			decorated, err := decorateRuleExprs(&subExprs, test.Expr, "<b>", "</b>")
+			if test.Expected != decorated {
+				t.Errorf("rule decoration error : %s vs %s => %v : %v", test.Expected, decorated, res, err)
+			}
+		})
+	}
+}
+
+func FuzzEval(f *testing.F) {
+	// Add SECL expressions from all test cases as seeds
+
+	// TestStringError
+	f.Add(`process.name != "/usr/bin/vipw" && process.uid != 0 && open.filename == 3`)
+	f.Add(`process.name != "/usr/bin/vipw" && process.uid != "test" && Open.Filename == "/etc/shadow"`)
+	f.Add(`(process.name != "/usr/bin/vipw") == "test"`)
+
+	// TestSimpleString
+	f.Add(`process.name != ""`)
+	f.Add(`process.name != "/usr/bin/vipw"`)
+	f.Add(`process.name != "/usr/bin/cat"`)
+	f.Add(`process.name == "/usr/bin/cat"`)
+	f.Add(`process.name == "/usr/bin/vipw"`)
+	f.Add(`(process.name == "/usr/bin/cat" && process.uid == 0) && (process.name == "/usr/bin/cat" && process.uid == 0)`)
+	f.Add(`(process.name == "/usr/bin/cat" && process.uid == 1) && (process.name == "/usr/bin/cat" && process.uid == 1)`)
+
+	// TestSimpleInt
+	f.Add(`111 != 555`)
+	f.Add(`process.uid != 555`)
+	f.Add(`process.uid != 444`)
+	f.Add(`process.uid == 444`)
+	f.Add(`process.uid == 555`)
+	f.Add(`--3 == 3`)
+	f.Add(`3 ^ 3 == 0`)
+	f.Add(`^0 == -1`)
+
+	// TestSimpleBool
+	f.Add(`(444 == 444) && ("test" == "test")`)
+	f.Add(`(444 == 444) and ("test" == "test")`)
+	f.Add(`(444 != 444) && ("test" == "test")`)
+	f.Add(`(444 != 555) && ("test" == "test")`)
+	f.Add(`(444 != 555) && ("test" != "aaaa")`)
+
+	// TestPrecedence
+	f.Add(`false || (true != true)`)
+	f.Add(`false || true`)
+	f.Add(`false or true`)
+	f.Add(`1 == 1 & 1`)
+	f.Add(`not true && false`)
+	f.Add(`not (true && false)`)
+
+	// TestParenthesis
+	f.Add(`(true) == (true)`)
+
+	// TestSimpleBitOperations
+	f.Add(`(3 & 3) == 3`)
+	f.Add(`(3 & 1) == 3`)
+	f.Add(`(2 | 1) == 3`)
+	f.Add(`(3 & 1) != 0`)
+	f.Add(`0 != 3 & 1`)
+	f.Add(`(3 ^ 3) == 0`)
+
+	// TestStringMatcher
+	f.Add(`process.name =~ "/usr/bin/c$t/test/*"`)
+	f.Add(`process.name =~ "/usr/bin/c$t*"`)
+	f.Add(`process.name =~ "/usr/bin/c*"`)
+	f.Add(`process.name =~ "/usr/bin/**"`)
+	f.Add(`process.name =~ "/usr/**"`)
+	f.Add(`process.name =~ "/**"`)
+	f.Add(`process.name =~ "/usr/bin/*"`)
+	f.Add(`process.name !~ "/usr/sbin/*"`)
+	f.Add(`process.name == ~"/usr/bin/*"`)
+	f.Add(`process.name =~ ~"/usr/bin/*"`)
+	f.Add(`process.name =~ r".*/bin/.*"`)
+	f.Add(`process.name =~ r".*/[usr]+/bin/.*"`)
+	f.Add(`process.name == r".*/bin/.*"`)
+	f.Add(`r".*/bin/.*" == process.name`)
+	f.Add(`process.argv0 =~ "http://*"`)
+	f.Add(`process.argv0 =~ "*example.com"`)
+
+	// TestVariables
+	f.Add(`process.name == "/proc/${pid}/maps/${str}"`)
+	f.Add(`process.pid == ${pid}`)
+
+	// TestInArray
+	f.Add(`"a" in [ "a", "b", "c" ]`)
+	f.Add(`process.name in [ "c", "b", "aaa" ]`)
+	f.Add(`"d" in [ "aaa", "b", "c" ]`)
+	f.Add(`"aaa" not in [ "aaa", "b", "c" ]`)
+	f.Add(`process.name not in [ "c", "b", "aaa" ]`)
+	f.Add(`3 in [ 1, 2, 3 ]`)
+	f.Add(`process.uid in [ 1, 2, 3 ]`)
+	f.Add(`4 not in [ 1, 2, 3 ]`)
+	f.Add(`process.name in [ ~"*a*" ]`)
+	f.Add(`process.name in [ ~"*d*", "aaa" ]`)
+	f.Add(`process.name in [ ~"*d*", ~"aa*" ]`)
+	f.Add(`process.name in [ r".*d.*", r"aa.*" ]`)
+	f.Add(`process.name not in [ r".*d.*", r"ab.*" ]`)
+	f.Add(`retval in [ EPERM, EACCES, EPFNOSUPPORT ]`)
+
+	// TestComplex
+	f.Add(`open.filename =~ "/var/lib/httpd/*" && open.flags & (O_CREAT | O_TRUNC | O_EXCL | O_RDWR | O_WRONLY) > 0`)
+
+	// TestPartial
+	f.Add(`true || process.name == "/usr/bin/cat"`)
+	f.Add(`false || process.name == "/usr/bin/cat"`)
+	f.Add(`true && process.name == "abc"`)
+	f.Add(`false && process.name == "abc"`)
+	f.Add(`open.filename == "test1" && process.name == "/usr/bin/cat"`)
+	f.Add(`open.filename == "test1" && process.name != "/usr/bin/cat"`)
+	f.Add(`open.filename == "test1" || process.name == "/usr/bin/cat"`)
+	f.Add(`open.filename == "test1" && !(process.name == "/usr/bin/cat")`)
+	f.Add(`open.filename == "test1" && process.name =~ "ab*"`)
+	f.Add(`open.filename == "test1" && process.name == open.filename`)
+	f.Add(`open.filename in [ "test1", "test2" ] && process.name == "abc"`)
+	f.Add(`!(open.filename in [ "test1", "test2" ]) && process.name == "abc"`)
+	f.Add(`open.filename == open.filename`)
+	f.Add(`open.filename != open.filename`)
+	f.Add(`open.filename == "test1" && process.uid == 123`)
+	f.Add(`open.filename == "test1" && process.is_root`)
+	f.Add(`process.uid & (1 | 1024) == 1`)
+	f.Add(`process.name == "abc" && ^process.uid != 0`)
+
+	// TestConstants
+	f.Add(`retval in [ EPERM, EACCES ]`)
+	f.Add(`open.filename in [ my_constant_1, my_constant_2 ]`)
+	f.Add(`process.is_root in [ true, false ]`)
+
+	// TestRegister
+	f.Add(`process.list[A].key == 10`)
+	f.Add(`process.list[A].key != 10`)
+	f.Add(`process.list[A].key >= 200`)
+	f.Add(`process.list[A].key > 100`)
+	f.Add(`10 == process.list[A].key`)
+	f.Add(`10 != process.list[A].key`)
+	f.Add(`10 in process.list[A].key`)
+	f.Add(`10 not in process.list[A].key`)
+	f.Add(`process.array[A].flag == true`)
+	f.Add(`"AAA" in process.list[A].value`)
+	f.Add(`"AAA" not in process.list[A].value`)
+	f.Add(`~"AA*" in process.list[A].value`)
+	f.Add(`process.list[A].value == ~"AA*"`)
+	f.Add(`process.list[A].value =~ "AA*"`)
+	f.Add(`process.list[A].value in ["~zzzz", ~"AA*", "nnnnn"]`)
+	f.Add(`process.list[A].key == 10 && process.list[A].value == "AAA"`)
+	f.Add(`process.array[A].key == 1000 && process.array[A].value == "EEEE"`)
+
+	// TestDuration
+	f.Add(`process.created_at < 2s`)
+	f.Add(`process.created_at > 2s`)
+
+	// TestIPv4
+	f.Add(`192.168.0.1 == 192.168.0.1`)
+	f.Add(`192.168.0.15 in 192.168.0.1/24`)
+	f.Add(`192.168.0.16 not in 192.168.1.1/24`)
+	f.Add(`192.168.0.16/16 allin 192.168.1.1/8`)
+	f.Add(`network.ip == 192.168.0.1`)
+	f.Add(`network.ip == ::ffff:192.168.0.1`)
+	f.Add(`network.ip in 192.168.0.1/32`)
+	f.Add(`network.ip in 0.0.0.0/0`)
+	f.Add(`network.ip in [ 127.0.0.1, 192.168.0.1, 10.0.0.1 ]`)
+	f.Add(`network.ips in 192.168.0.0/16`)
+	f.Add(`network.ips allin 192.168.0.0/8`)
+	f.Add(`network.cidr in 192.168.0.0/8`)
+
+	// TestIPv6
+	f.Add(`2001:0:0eab:dead::a0:abcd:4e == 2001:0:0eab:dead::a0:abcd:4e`)
+	f.Add(`2001:0:0eab:dead::a0:abcd:4e in 2001:0:0eab:dead::a0:abcd:0/120`)
+	f.Add(`2001:0:0eab:dead::a0:abcd:4e/64 allin 2001:0:0eab:dead::a0:abcd:1b00/32`)
+	f.Add(`network.ip == 2001:0:0eab:dead::a0:abcd:4e`)
+	f.Add(`network.ip in ::1/0`)
+	f.Add(`network.ip in 2001:0:0eab:dead::a0:abcd:0/112`)
+
+	// TestOpOverrides
+	f.Add(`process.or_name == "not"`)
+	f.Add(`process.or_name != "not"`)
+	f.Add(`process.or_name in ["not"]`)
+	f.Add(`process.or_array.value == "not"`)
+
+	// TestArithmeticOperation
+	f.Add(`1 + 2 == 5 - 2 && process.name == "ls"`)
+	f.Add(`1 + 2 != 3 && process.name == "ls"`)
+	f.Add(`1 + 2 - 3 + 4  == 4 && process.name == "ls"`)
+	f.Add(`1 - 2 + 3 - (1 - 4) - (1 - 5) == 9 &&  process.name == "ls"`)
+	f.Add(`10s + 40s == 50s && process.name == "ls"`)
+	f.Add(`process.created_at < 5s && process.name == "ls"`)
+	f.Add(`open.opened_at - process.created_at + 3s <= 5s && process.name == "ls"`)
+
+	// TestMatchingSubExprs
+	f.Add(`true && process.name == "ls"`)
+	f.Add(`true && "ls" == process.name`)
+	f.Add(`true && process.name == process.name`)
+	f.Add(`true && process.name in ["ls"]`)
+	f.Add(`true && process.name =~ "*ls*"`)
+	f.Add(`true && process.name == ~"*ls*"`)
+	f.Add(`true && process.name == r".*ls.*"`)
+	f.Add(`true && process.uid == 22`)
+	f.Add(`true && process.uid >= 22`)
+	f.Add(`true && process.is_root`)
+	f.Add(`false || process.is_root`)
+	f.Add(`network.ip == 192.168.0.1`)
+	f.Add(`192.168.0.1 == network.ip`)
+	f.Add(`network.ips allin [192.168.0.0/16, 192.168.0.0/24]`)
+
+	// Benchmark expressions
+	f.Add(`process.name == "/usr/bin/ls" && process.uid == 1`)
+	f.Add(`process.name == "/usr/bin/ls" && process.uid != 0`)
+
+	f.Fuzz(func(_ *testing.T, expr string) {
+		commonFuzzEval(expr)
+	})
+}
+
+func commonFuzzEval(expr string) {
+	model := &testModel{}
+	opts := newOptsWithParams(testConstants, nil)
+
+	// Attempt to parse and evaluate the rule
+	rule, err := parseRule(expr, model, opts)
+	if err != nil {
+		return
+	}
+	_ = rule
+}
+
+func TestDiscoveredByFuzz(t *testing.T) {
+	exprs := []string{
+		`"!"!=A`,
+	}
+
+	for _, expr := range exprs {
+		t.Run(expr, func(_ *testing.T) {
+			commonFuzzEval(expr)
+		})
 	}
 }
 

@@ -10,6 +10,7 @@ package agentimpl
 import (
 	"bytes"
 	"context"
+	"expvar"
 	"fmt"
 	"os"
 	"strings"
@@ -31,13 +32,18 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/def"
+	auditorfx "github.com/DataDog/datadog-agent/comp/logs/auditor/fx"
 	integrationsimpl "github.com/DataDog/datadog-agent/comp/logs/integrations/impl"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
 
 	flareController "github.com/DataDog/datadog-agent/comp/logs/agent/flare"
+	healthdef "github.com/DataDog/datadog-agent/comp/logs/health/def"
+	healthmock "github.com/DataDog/datadog-agent/comp/logs/health/mock"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent/inventoryagentimpl"
 	compressionfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/logs/client/http"
 	"github.com/DataDog/datadog-agent/pkg/logs/client/mock"
@@ -60,14 +66,17 @@ type AgentTestSuite struct {
 	source          *sources.LogSource
 	configOverrides map[string]interface{}
 	tagger          tagger.Component
+	healthRegistrar healthdef.Component
 }
 
 type testDeps struct {
 	fx.In
 
-	Config         configComponent.Component
-	Log            log.Component
-	InventoryAgent inventoryagent.Component
+	Config          configComponent.Component
+	Log             log.Component
+	InventoryAgent  inventoryagent.Component
+	Auditor         auditor.Component
+	HealthRegistrar healthdef.Component
 }
 
 func (suite *AgentTestSuite) SetupTest() {
@@ -95,6 +104,8 @@ func (suite *AgentTestSuite) SetupTest() {
 	suite.configOverrides["logs_config.run_path"] = suite.testDir
 	// Shorter grace period for tests.
 	suite.configOverrides["logs_config.stop_grace_period"] = 1
+	// Set a short scan period to allow it to run in the time period of the tcp and http tests
+	suite.configOverrides["logs_config.file_scan_period"] = 1
 
 	fakeTagger := taggerfxmock.SetupFakeTagger(suite.T())
 	suite.tagger = fakeTagger
@@ -107,6 +118,7 @@ func (suite *AgentTestSuite) TearDownTest() {
 	metrics.LogsSent.Set(0)
 	metrics.DestinationErrors.Set(0)
 	metrics.DestinationLogsDropped.Init()
+	metrics.LogsTruncated.Set(0)
 }
 
 func createAgent(suite *AgentTestSuite, endpoints *config.Endpoints) (*logAgent, *sources.LogSources, *service.Services) {
@@ -117,16 +129,18 @@ func createAgent(suite *AgentTestSuite, endpoints *config.Endpoints) (*logAgent,
 	suite.configOverrides["logs_enabled"] = true
 
 	deps := fxutil.Test[testDeps](suite.T(), fx.Options(
-		fx.Supply(configComponent.Params{}),
-		fx.Supply(log.Params{}),
 		fx.Provide(func() log.Component { return logmock.New(suite.T()) }),
-		configComponent.MockModule(),
+		fx.Provide(func() configComponent.Component {
+			return configComponent.NewMockWithOverrides(suite.T(), suite.configOverrides)
+		}),
 		hostnameimpl.MockModule(),
-		fx.Replace(configComponent.MockParams{Overrides: suite.configOverrides}),
 		inventoryagentimpl.MockModule(),
+		auditorfx.Module(),
+		fx.Provide(healthmock.NewProvides),
 	))
 
 	fakeTagger := taggerfxmock.SetupFakeTagger(suite.T())
+	suite.healthRegistrar = deps.HealthRegistrar
 
 	agent := &logAgent{
 		log:              deps.Log,
@@ -135,12 +149,14 @@ func createAgent(suite *AgentTestSuite, endpoints *config.Endpoints) (*logAgent,
 		started:          atomic.NewUint32(0),
 		integrationsLogs: integrationsimpl.NewLogsIntegration(),
 
-		sources:     sources,
-		services:    services,
-		tracker:     tailers.NewTailerTracker(),
-		endpoints:   endpoints,
-		tagger:      fakeTagger,
-		compression: compressionfx.NewMockCompressor(),
+		auditor:         deps.Auditor,
+		sources:         sources,
+		services:        services,
+		tracker:         tailers.NewTailerTracker(),
+		endpoints:       endpoints,
+		tagger:          fakeTagger,
+		flarecontroller: flareController.NewFlareController(),
+		compression:     compressionfx.NewMockCompressor(),
 	}
 
 	agent.setupAgent()
@@ -158,7 +174,9 @@ func (suite *AgentTestSuite) testAgent(endpoints *config.Endpoints) {
 	assert.Equal(suite.T(), zero, metrics.LogsProcessed.Value())
 	assert.Equal(suite.T(), zero, metrics.LogsSent.Value())
 	assert.Equal(suite.T(), zero, metrics.DestinationErrors.Value())
-	assert.Equal(suite.T(), "{}", metrics.DestinationLogsDropped.String())
+	metrics.DestinationLogsDropped.Do(func(k expvar.KeyValue) {
+		assert.Equal(suite.T(), k.Value.String(), "0")
+	})
 
 	agent.startPipeline()
 	sources.AddSource(suite.source)
@@ -174,6 +192,61 @@ func (suite *AgentTestSuite) testAgent(endpoints *config.Endpoints) {
 	assert.Equal(suite.T(), zero, metrics.DestinationErrors.Value())
 }
 
+func (suite *AgentTestSuite) TestTruncateLogOriginAndService() {
+	// Set a very small max message size to force truncation
+	suite.configOverrides["logs_config.max_message_size_bytes"] = 10 // Only 1 byte
+
+	// Create a test file with content that will definitely trigger log-line truncation
+	truncationLogFile := fmt.Sprintf("%s/truncation.log", suite.testDir)
+	fd, err := os.Create(truncationLogFile)
+	suite.NoError(err)
+	defer fd.Close()
+
+	// Write 10 long lines that exceed the max_message_size
+	for i := 0; i < 10; i++ {
+		fd.WriteString("1235678912345\n")
+	}
+	suite.NoError(fd.Sync())
+
+	l := mock.NewMockLogsIntake(suite.T())
+	defer l.Close()
+	endpoint := tcp.AddrToEndPoint(l.Addr())
+	endpoints := config.NewEndpoints(endpoint, nil, true, false)
+
+	truncationConfig := config.LogsConfig{
+		Type:       config.FileType,
+		Path:       truncationLogFile, // Use our new file with long content
+		Identifier: "source-sds-test",
+		Service:    "service-sds-test",
+	}
+	truncationSource := sources.NewLogSource("", &truncationConfig)
+
+	agent, sources, _ := createAgent(suite, endpoints)
+
+	agent.startPipeline()
+
+	sources.AddSource(truncationSource)
+
+	// Wait for the agent to process logs and trigger truncation
+	testutil.AssertTrueBeforeTimeout(suite.T(), 10*time.Millisecond, 4*time.Second, func() bool {
+		return metrics.LogsTruncated.Value() > 0
+	})
+
+	agent.stop(context.TODO())
+
+	// Verify the metric contains the correct service and source information
+	truncatedLogsMetric := metrics.LogsTruncated.Value()
+
+	// The metric counts total truncations, not just lines
+	assert.True(suite.T(), truncatedLogsMetric == 10, "Expected 10 instances of truncation (one for each line)")
+	suite.T().Logf("Total truncations: %d (this includes byte-level truncations)", truncatedLogsMetric)
+
+	// Verify that the service and source are correctly captured
+	// The truncation metrics should capture this information
+	assert.Equal(suite.T(), truncationSource.Config.Identifier, "source-sds-test", "Source identifier should be 'source-sds-test'")
+	assert.Equal(suite.T(), truncationSource.Config.Service, "service-sds-test", "Service identifier should be 'service-sds-test'")
+}
+
 func (suite *AgentTestSuite) TestAgentTcp() {
 	l := mock.NewMockLogsIntake(suite.T())
 	defer l.Close()
@@ -185,7 +258,8 @@ func (suite *AgentTestSuite) TestAgentTcp() {
 }
 
 func (suite *AgentTestSuite) TestAgentHttp() {
-	server := http.NewTestServer(200, pkgconfigsetup.Datadog())
+	cfg := configmock.New(suite.T())
+	server := http.NewTestServer(200, cfg)
 	defer server.Stop()
 	endpoints := config.NewEndpoints(server.Endpoint, nil, false, true)
 
@@ -193,7 +267,7 @@ func (suite *AgentTestSuite) TestAgentHttp() {
 }
 
 func (suite *AgentTestSuite) TestAgentStopsWithWrongBackendTcp() {
-	endpoint := config.NewEndpoint("", "", "fake:", 0, false)
+	endpoint := config.NewEndpoint("", "", "fake:", 0, config.EmptyPathPrefix, false)
 	endpoints := config.NewEndpoints(endpoint, []config.Endpoint{}, true, false)
 
 	env.SetFeatures(suite.T(), env.Docker, env.Kubernetes)
@@ -230,8 +304,27 @@ func (suite *AgentTestSuite) TestGetPipelineProvider() {
 
 	agent, _, _ := createAgent(suite, endpoints)
 	agent.Start()
+	defer agent.Stop()
 
 	assert.NotNil(suite.T(), agent.GetPipelineProvider())
+}
+
+func (suite *AgentTestSuite) TestAgentLiveness() {
+	server := http.NewTestServer(200, pkgconfigsetup.Datadog())
+	defer server.Stop()
+	endpoints := config.NewEndpoints(server.Endpoint, nil, false, true)
+
+	agent, _, _ := createAgent(suite, endpoints)
+	agent.Start()
+	defer agent.Stop()
+
+	var count int
+	testutil.AssertTrueBeforeTimeout(suite.T(), 10*time.Millisecond, 1*time.Second, func() bool {
+		count = suite.healthRegistrar.(*healthmock.Registrar).CountRegistered("logs-agent")
+		return count > 0
+	})
+
+	assert.Equal(suite.T(), 1, count, "logs-agent should be registered as healthy exactly once")
 }
 
 func (suite *AgentTestSuite) TestStatusProvider() {
@@ -326,8 +419,8 @@ func (suite *AgentTestSuite) TestStatusOut() {
     OSFileLimit: 1048576
 `
 			// We replace windows line break by linux so the tests pass on every OS
-			expectedResult := strings.Replace(result, "\r\n", "\n", -1)
-			output := strings.Replace(b.String(), "\r\n", "\n", -1)
+			expectedResult := strings.ReplaceAll(result, "\r\n", "\n")
+			output := strings.ReplaceAll(b.String(), "\r\n", "\n")
 
 			assert.Equal(t, expectedResult, output)
 		}},
@@ -347,8 +440,8 @@ func (suite *AgentTestSuite) TestStatusOut() {
 </div>
 `
 			// We replace windows line break by linux so the tests pass on every OS
-			expectedResult := strings.Replace(result, "\r\n", "\n", -1)
-			output := strings.Replace(b.String(), "\r\n", "\n", -1)
+			expectedResult := strings.ReplaceAll(result, "\r\n", "\n")
+			output := strings.ReplaceAll(b.String(), "\r\n", "\n")
 
 			assert.Equal(t, expectedResult, output)
 		}},
@@ -399,18 +492,19 @@ func (suite *AgentTestSuite) TestFlareProvider() {
 
 func (suite *AgentTestSuite) createDeps() dependencies {
 	return fxutil.Test[dependencies](suite.T(), fx.Options(
-		fx.Supply(configComponent.Params{}),
-		fx.Supply(log.Params{}),
 		fx.Provide(func() log.Component { return logmock.New(suite.T()) }),
-		configComponent.MockModule(),
+		fx.Provide(func() configComponent.Component {
+			return configComponent.NewMockWithOverrides(suite.T(), suite.configOverrides)
+		}),
 		hostnameimpl.MockModule(),
-		fx.Replace(configComponent.MockParams{Overrides: suite.configOverrides}),
 		inventoryagentimpl.MockModule(),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 		compressionfx.MockModule(),
 		fx.Provide(func() tagger.Component {
 			return suite.tagger
 		}),
+		auditorfx.Module(),
+		fx.Provide(healthmock.NewProvides),
 	))
 }
 

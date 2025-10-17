@@ -11,11 +11,23 @@ import (
 )
 
 // Traceroute is a factory for NDMs Traceroute module
-var Traceroute = module.Factory{
+var Traceroute = &module.Factory{
 	Name:             config.TracerouteModule,
 	ConfigNamespaces: tracerouteConfigNamespaces,
 	Fn:               createTracerouteModule,
 	NeedsEBPF: func() bool {
 		return false
 	},
+}
+
+// startPlatformDriver is a no-op on Linux
+func startPlatformDriver() error {
+	// No driver needed on Linux
+	return nil
+}
+
+// stopPlatformDriver is a no-op on Linux
+func stopPlatformDriver() error {
+	// No driver needed on Linux
+	return nil
 }

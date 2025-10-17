@@ -17,7 +17,7 @@ __attribute__((always_inline)) void send_bpf_event(void *ctx, struct syscall_cac
     };
 
     struct proc_cache_t *entry = fill_process_context(&event.process);
-    fill_container_context(entry, &event.container);
+    fill_cgroup_context(entry, &event.cgroup);
     fill_span_context(&event.span);
 
     u32 id = 0;
@@ -181,8 +181,7 @@ int hook_check_helper_call(ctx_t *ctx) {
     return 0;
 }
 
-SEC("tracepoint/handle_sys_bpf_exit")
-int tracepoint_handle_sys_bpf_exit(struct tracepoint_raw_syscalls_sys_exit_t *args) {
+TAIL_CALL_TRACEPOINT_FNC(handle_sys_bpf_exit, struct tracepoint_raw_syscalls_sys_exit_t *args) {
     return sys_bpf_ret(args, args->ret);
 }
 

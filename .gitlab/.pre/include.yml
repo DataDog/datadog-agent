@@ -3,5 +3,4 @@
 
 include:
   - .gitlab/.pre/cancel-prev-pipelines.yml
-  - .gitlab/.pre/create_release_qa_cards.yml
   - .gitlab/.pre/ci_configuration.yml

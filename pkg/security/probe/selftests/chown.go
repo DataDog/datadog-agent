@@ -9,13 +9,14 @@
 package selftests
 
 import (
+	"context"
 	"fmt"
 	"os/exec"
 	"os/user"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 )
 
 // ChownSelfTest defines a chown self test
@@ -37,21 +38,19 @@ func (o *ChownSelfTest) GetRuleDefinition() *rules.RuleDefinition {
 }
 
 // GenerateEvent generate an event
-func (o *ChownSelfTest) GenerateEvent() error {
+func (o *ChownSelfTest) GenerateEvent(ctx context.Context) error {
 	o.isSuccess = false
 
 	// we need to use chown (or any other external program) as our PID is discarded by probes
 	// so the events would not be generated
 	currentUser, err := user.Current()
 	if err != nil {
-		log.Debugf("error retrieving uid: %v", err)
-		return err
+		return fmt.Errorf("error retrieving uid: %w", err)
 	}
 
-	cmd := exec.Command("chown", currentUser.Uid, o.filename)
+	cmd := exec.CommandContext(ctx, "chown", currentUser.Uid, o.filename)
 	if err := cmd.Run(); err != nil {
-		log.Debugf("error running chown: %v", err)
-		return err
+		return fmt.Errorf("error running chown: %w", err)
 	}
 
 	return nil
@@ -59,7 +58,20 @@ func (o *ChownSelfTest) GenerateEvent() error {
 
 // HandleEvent handles self test events
 func (o *ChownSelfTest) HandleEvent(event selfTestEvent) {
-	o.isSuccess = event.RuleID == o.ruleID
+	if event.Event == nil ||
+		event.Event.BaseEventSerializer == nil ||
+		event.Event.BaseEventSerializer.FileEventSerializer == nil {
+		seclog.Errorf("Chown SelfTest event received with nil Event or File fields")
+		o.isSuccess = false
+		return
+	}
+
+	// debug logs
+	if event.RuleID == o.ruleID && o.filename != event.Event.BaseEventSerializer.FileEventSerializer.Path {
+		seclog.Errorf("Chown SelfTest event received with different filepaths: %s VS %s", o.filename, event.Event.BaseEventSerializer.FileEventSerializer.Path)
+	}
+
+	o.isSuccess = event.RuleID == o.ruleID && o.filename == event.Event.BaseEventSerializer.FileEventSerializer.Path
 }
 
 // IsSuccess return the state of the test

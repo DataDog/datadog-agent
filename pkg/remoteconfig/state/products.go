@@ -35,6 +35,12 @@ var validProducts = map[string]struct{}{
 	ProductOrchestratorK8sCRDs:          {},
 	ProductHaAgent:                      {},
 	ProductNDMDeviceProfilesCustom:      {},
+	ProductMetricControl:                {},
+	ProductDataStreamsLiveMessages:      {},
+	ProductLiveDebuggingSymbolDB:        {},
+	ProductGradualRollout:               {},
+	ProductSyntheticsTest:               {},
+	ProductBTFDD:                        {},
 }
 
 const (
@@ -82,6 +88,9 @@ const (
 	ProductSDSAgentConfig = "SDS_AGENT_CONFIG"
 	// ProductLiveDebugging is the dynamic instrumentation product
 	ProductLiveDebugging = "LIVE_DEBUGGING"
+	// ProductLiveDebuggingSymbolDB is used by the live debugging product for
+	// selecting processes to upload symbols to the symbol database.
+	ProductLiveDebuggingSymbolDB = "LIVE_DEBUGGING_SYMBOL_DB"
 	// ProductContainerAutoscalingSettings receives definition of container autoscaling
 	ProductContainerAutoscalingSettings = "CONTAINER_AUTOSCALING_SETTINGS"
 	// ProductContainerAutoscalingValues receives values for container autoscaling
@@ -94,6 +103,16 @@ const (
 	ProductOrchestratorK8sCRDs = "ORCHESTRATOR_K8S_CRDS"
 	// ProductHaAgent is the HA Agent product
 	ProductHaAgent = "HA_AGENT"
+	// ProductSyntheticsTest is the Synthetics test product
+	ProductSyntheticsTest = "SYNTHETIC_TEST"
 	// ProductNDMDeviceProfilesCustom receives user-created SNMP profiles for network device monitoring
 	ProductNDMDeviceProfilesCustom = "NDM_DEVICE_PROFILES_CUSTOM"
+	// ProductMetricControl receives configuration for the metrics control.
+	ProductMetricControl = "METRIC_CONTROL"
+	// ProductDataStreamsLiveMessages is used for capturing messages from Kafka
+	ProductDataStreamsLiveMessages = "DSM_LIVE_MESSAGES"
+	// ProductGradualRollout tracks the latest stable release versions for K8s gradual rollout.
+	ProductGradualRollout = "K8S_INJECTION_DD"
+	// ProductBTFDD accesses a BTF catalog used when the kernel is newer than the system-probe has bundled support for
+	ProductBTFDD = "BTF_DD"
 )

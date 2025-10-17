@@ -19,6 +19,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/trace/api/apiutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
 )
@@ -131,5 +132,6 @@ func (ds *DebugServer) setupMux() *http.ServeMux {
 		w.Header().Set("Access-Control-Allow-Origin", "http://127.0.0.1:"+ds.conf.GUIPort)
 		expvar.Handler().ServeHTTP(w, req)
 	}))
+	apiutil.SetupCoverageHandler(ds.mux)
 	return ds.mux
 }

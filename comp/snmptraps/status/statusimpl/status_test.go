@@ -64,8 +64,8 @@ func TestStatusProvider(t *testing.T) {
 `
 
 			// We replace windows line break by linux so the tests pass on every OS
-			expectedResult := strings.Replace(expectedOutput, "\r\n", "\n", -1)
-			output := strings.Replace(b.String(), "\r\n", "\n", -1)
+			expectedResult := strings.ReplaceAll(expectedOutput, "\r\n", "\n")
+			output := strings.ReplaceAll(b.String(), "\r\n", "\n")
 
 			assert.Equal(t, expectedResult, output)
 		}},
@@ -87,8 +87,8 @@ func TestStatusProvider(t *testing.T) {
 `
 
 			// We replace windows line break by linux so the tests pass on every OS
-			expectedResult := strings.Replace(expectedOutput, "\r\n", "\n", -1)
-			output := strings.Replace(b.String(), "\r\n", "\n", -1)
+			expectedResult := strings.ReplaceAll(expectedOutput, "\r\n", "\n")
+			output := strings.ReplaceAll(b.String(), "\r\n", "\n")
 
 			assert.Equal(t, expectedResult, output)
 		}},

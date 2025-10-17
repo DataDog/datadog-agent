@@ -1,26 +1,38 @@
-go 1.23.7
+go 1.24.9
 
-// Disable experimental post-quantum key exchange mechanism X25519Kyber768Draft00
-// This was causing errors with AWS Network Firewall
-// See https://github.com/DataDog/datadog-agent/issues/34323 for details.
-// This will be revisited once we update to 1.24.x
-godebug tlskyber=0
+// Disable new post-quantum key exchange mechanism X25519MLKEM768
+// See https://github.com/DataDog/datadog-agent/issues/34323 for historical context.
+// This should be revisited for go 1.25.x
+godebug tlsmlkem=0
 
 use (
 	.
+	./pkg/util/hostinfo
+	./pkg/util/jsonquery
 	comp/api/api/def
-	comp/api/authtoken
+	comp/core/agenttelemetry/def
+	comp/core/agenttelemetry/fx
+	comp/core/agenttelemetry/impl
 	comp/core/config
 	comp/core/configsync
 	comp/core/flare/builder
 	comp/core/flare/types
 	comp/core/hostname/hostnameinterface
+	comp/core/ipc/def
+	comp/core/ipc/httphelpers
+	comp/core/ipc/impl
+	comp/core/ipc/mock
 	comp/core/log/def
 	comp/core/log/fx
 	comp/core/log/impl
 	comp/core/log/impl-trace
 	comp/core/log/mock
-	comp/core/secrets
+	comp/core/secrets/def
+	comp/core/secrets/fx
+	comp/core/secrets/impl
+	comp/core/secrets/mock
+	comp/core/secrets/noop-impl
+	comp/core/secrets/utils
 	comp/core/status
 	comp/core/status/statusimpl
 	comp/core/tagger/def
@@ -67,6 +79,7 @@ use (
 	comp/trace/compression/impl-gzip
 	comp/trace/compression/impl-zstd
 	internal/tools
+	internal/tools/gotest-custom
 	internal/tools/independent-lint
 	internal/tools/modformatter
 	internal/tools/modparser
@@ -91,7 +104,6 @@ use (
 	pkg/fleet/installer
 	pkg/gohai
 	pkg/linters/components/pkgconfigusage
-	pkg/logs/auditor
 	pkg/logs/client
 	pkg/logs/diagnostic
 	pkg/logs/message
@@ -103,12 +115,20 @@ use (
 	pkg/logs/sources
 	pkg/logs/status/statusinterface
 	pkg/logs/status/utils
+	pkg/logs/types
 	pkg/logs/util/testutils
 	pkg/metrics
+	pkg/network/driver
 	pkg/network/payload
 	pkg/networkdevice/profile
 	pkg/networkpath/payload
 	pkg/obfuscate
+	pkg/opentelemetry-mapping-go/inframetadata
+	pkg/opentelemetry-mapping-go/inframetadata/gohai/internal/gohaitest
+	pkg/opentelemetry-mapping-go/otlp/attributes
+	pkg/opentelemetry-mapping-go/otlp/logs
+	pkg/opentelemetry-mapping-go/otlp/metrics
+	pkg/opentelemetry-mapping-go/otlp/rum
 	pkg/orchestrator/model
 	pkg/process/util/api
 	pkg/proto
@@ -120,6 +140,7 @@ use (
 	pkg/tagger/types
 	pkg/tagset
 	pkg/telemetry
+	pkg/template
 	pkg/trace
 	pkg/trace/stats/oteltest
 	pkg/util/backoff
@@ -144,6 +165,8 @@ use (
 	pkg/util/otel
 	pkg/util/pointer
 	pkg/util/prometheus
+	pkg/util/quantile
+	pkg/util/quantile/sketchtest
 	pkg/util/scrubber
 	pkg/util/sort
 	pkg/util/startstop

@@ -8,11 +8,9 @@ package http
 
 import (
 	"strconv"
-	"sync"
 
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
-	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/client/http"
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
@@ -23,15 +21,14 @@ import (
 // NewHTTPSender returns a new http sender.
 func NewHTTPSender(
 	config pkgconfigmodel.Reader,
-	auditor auditor.Auditor,
+	sink sender.Sink,
 	bufferSize int,
-	senderDoneChan chan *sync.WaitGroup,
-	flushWg *sync.WaitGroup,
+	serverlessMeta sender.ServerlessMeta,
 	endpoints *config.Endpoints,
 	destinationsCtx *client.DestinationsContext,
-	serverless bool,
 	componentName string,
 	contentType string,
+	evpCategory string,
 	queueCount int,
 	workersPerQueue int,
 	minWorkerConcurrency int,
@@ -45,28 +42,27 @@ func NewHTTPSender(
 		minWorkerConcurrency,
 		maxWorkerConcurrency,
 	)
-	pipelineMonitor := metrics.NewTelemetryPipelineMonitor("http_sender")
+	pipelineMonitor := metrics.NewTelemetryPipelineMonitor()
 
 	destinationFactory := httpDestinationFactory(
 		endpoints,
 		destinationsCtx,
 		pipelineMonitor,
-		serverless,
-		senderDoneChan,
+		serverlessMeta,
 		config,
 		componentName,
 		contentType,
+		evpCategory,
 		minWorkerConcurrency,
 		maxWorkerConcurrency,
 	)
 
-	return sender.NewSenderV2(
+	return sender.NewSender(
 		config,
-		auditor,
+		sink,
 		destinationFactory,
 		bufferSize,
-		senderDoneChan,
-		flushWg,
+		serverlessMeta,
 		queueCount,
 		workersPerQueue,
 		pipelineMonitor,
@@ -77,31 +73,31 @@ func httpDestinationFactory(
 	endpoints *config.Endpoints,
 	destinationsContext *client.DestinationsContext,
 	pipelineMonitor metrics.PipelineMonitor,
-	serverless bool,
-	senderDoneChan chan *sync.WaitGroup,
+	serverlessMeta sender.ServerlessMeta,
 	cfg pkgconfigmodel.Reader,
 	componentName string,
 	contentyType string,
+	evpCategory string,
 	minConcurrency int,
 	maxConcurrency int,
 ) sender.DestinationFactory {
-	return func() *client.Destinations {
+	return func(instanceID string) *client.Destinations {
 		reliable := []client.Destination{}
 		additionals := []client.Destination{}
 		for i, endpoint := range endpoints.GetReliableEndpoints() {
-			destMeta := client.NewDestinationMetadata(componentName, pipelineMonitor.ID(), "reliable", strconv.Itoa(i))
-			if serverless {
-				reliable = append(reliable, http.NewSyncDestination(endpoint, contentyType, destinationsContext, senderDoneChan, destMeta, cfg))
+			destMeta := client.NewDestinationMetadata(componentName, instanceID, "reliable", strconv.Itoa(i), evpCategory)
+			if serverlessMeta.IsEnabled() {
+				reliable = append(reliable, http.NewSyncDestination(endpoint, contentyType, destinationsContext, serverlessMeta.SenderDoneChan(), destMeta, cfg))
 			} else {
-				reliable = append(reliable, http.NewDestination(endpoint, contentyType, destinationsContext, true, destMeta, cfg, minConcurrency, maxConcurrency, pipelineMonitor))
+				reliable = append(reliable, http.NewDestination(endpoint, contentyType, destinationsContext, true, destMeta, cfg, minConcurrency, maxConcurrency, pipelineMonitor, instanceID))
 			}
 		}
 		for i, endpoint := range endpoints.GetUnReliableEndpoints() {
-			destMeta := client.NewDestinationMetadata(componentName, pipelineMonitor.ID(), "unreliable", strconv.Itoa(i))
-			if serverless {
-				additionals = append(additionals, http.NewSyncDestination(endpoint, contentyType, destinationsContext, senderDoneChan, destMeta, cfg))
+			destMeta := client.NewDestinationMetadata(componentName, instanceID, "unreliable", strconv.Itoa(i), evpCategory)
+			if serverlessMeta.IsEnabled() {
+				additionals = append(additionals, http.NewSyncDestination(endpoint, contentyType, destinationsContext, serverlessMeta.SenderDoneChan(), destMeta, cfg))
 			} else {
-				additionals = append(additionals, http.NewDestination(endpoint, contentyType, destinationsContext, false, destMeta, cfg, minConcurrency, maxConcurrency, pipelineMonitor))
+				additionals = append(additionals, http.NewDestination(endpoint, contentyType, destinationsContext, false, destMeta, cfg, minConcurrency, maxConcurrency, pipelineMonitor, instanceID))
 			}
 		}
 		return client.NewDestinations(reliable, additionals)

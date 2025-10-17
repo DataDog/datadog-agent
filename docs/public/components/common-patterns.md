@@ -13,20 +13,22 @@ Fx [groups](https://pkg.go.dev/go.uber.org/fx#hdr-Value_Groups) help you produce
 
 In the following example, a component add a `server.Endpoint` type to the `server` group.
 
-=== ":octicons-file-code-16: comp/users/users.go"
-    ```go
-    type Provides struct {
-        comp     Component
-        Endpoint server.Endpoint `group:"server"`
-    }
-    ```
+/// tab | :octicons-file-code-16: comp/users/users.go
+```go
+type Provides struct {
+    comp     Component
+    Endpoint server.Endpoint `group:"server"`
+}
+```
+///
 
 In the following example, a component requests all the types added to the `server` group. This takes the form of a slice received at
 instantiation.
 
-=== ":octicons-file-code-16: comp/server/server.go"
-    ```go
-    type Requires struct {
-        Endpoints []Endpoint `group:"server"`
-    }
-    ```
+/// tab | :octicons-file-code-16: comp/server/server.go
+```go
+type Requires struct {
+    Endpoints []Endpoint `group:"server"`
+}
+```
+///

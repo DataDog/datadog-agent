@@ -10,8 +10,9 @@ import (
 	"bytes"
 	"fmt"
 	"strings"
-	"text/template"
 	"unsafe"
+
+	template "github.com/DataDog/datadog-agent/pkg/template/text"
 )
 
 // Node describes an edge of a dot node

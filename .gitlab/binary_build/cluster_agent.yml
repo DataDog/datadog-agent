@@ -1,7 +1,7 @@
 ---
 .cluster_agent-build_common:
   stage: binary_build
-  rules: 
+  rules:
     - !reference [.except_mergequeue]
     - when: on_success
   needs: ["go_mod_tidy_check", "go_deps"]
@@ -9,10 +9,14 @@
     - !reference [.retrieve_linux_go_deps]
   script:
     - dda inv -- check-go-version
-    - dda inv -- -e cluster-agent.build --release-version "$RELEASE_VERSION"
+    - dda inv -- -e cluster-agent.build
+    # keep the unstripped binary for fips compliance checks
+    - cp $CLUSTER_AGENT_BINARIES_DIR/datadog-cluster-agent $CLUSTER_AGENT_BINARIES_DIR/datadog-cluster-agent-unstripped
+    - strip $CLUSTER_AGENT_BINARIES_DIR/datadog-cluster-agent
   artifacts:
     paths:
       - $CLUSTER_AGENT_BINARIES_DIR/datadog-cluster-agent
+      - $CLUSTER_AGENT_BINARIES_DIR/datadog-cluster-agent-unstripped
       - Dockerfiles/cluster-agent/datadog-cluster.yaml
       - Dockerfiles/cluster-agent/security-agent-policies
     exclude:
@@ -26,13 +30,13 @@
 
 cluster_agent-build_amd64:
   extends: .cluster_agent-build_common
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
-  tags: ["arch:amd64"]
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
+  tags: ["arch:amd64", "specific:true"]
 
 cluster_agent-build_arm64:
   extends: .cluster_agent-build_common
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_arm64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
-  tags: ["arch:arm64"]
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
+  tags: ["arch:arm64", "specific:true"]
 
 cluster_agent_fips-build_amd64:
   extends: cluster_agent-build_amd64

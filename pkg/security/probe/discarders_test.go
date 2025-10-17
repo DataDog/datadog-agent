@@ -345,7 +345,7 @@ type testEventListener struct {
 	fields map[eval.Field]int
 }
 
-func (l *testEventListener) RuleMatch(_ *rules.Rule, _ eval.Event) bool { return true }
+func (l *testEventListener) RuleMatch(_ *eval.Context, _ *rules.Rule, _ eval.Event) bool { return true }
 
 func (l *testEventListener) EventDiscarderFound(_ *rules.RuleSet, _ eval.Event, field eval.Field, _ eval.EventType) {
 	if l.fields == nil {
@@ -362,10 +362,16 @@ func TestIsDiscarderOverride(t *testing.T) {
 		WithConstants(model.SECLConstants()).
 		WithLegacyFields(model.SECLLegacyFields)
 
+	supportedDiscarders := map[eval.Field]bool{
+		eval.Field("process.file.path"): true,
+		eval.Field("unlink.file.path"):  true,
+	}
+
 	var opts rules.Opts
 	opts.
 		WithEventTypeEnabled(enabled).
-		WithLogger(seclog.DefaultLogger)
+		WithLogger(seclog.DefaultLogger).
+		WithSupportedDiscarders(supportedDiscarders)
 
 	var listener testEventListener
 

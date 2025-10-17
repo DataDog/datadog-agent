@@ -1,0 +1,3 @@
+enhancements:
+  - |
+    When installing the Agent through the MSI, the install source is now updated to the Installer stable package.

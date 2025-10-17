@@ -11,6 +11,7 @@ import (
 	json "encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"runtime"
 	"slices"
 	"strings"
@@ -20,7 +21,9 @@ import (
 	"github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/mailru/easyjson"
 	"go.uber.org/atomic"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	compression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
 	"github.com/DataDog/datadog-agent/pkg/security/common"
@@ -32,12 +35,14 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/probe/kfilters"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/selftests"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
+	"github.com/DataDog/datadog-agent/pkg/security/proto/api/transform"
 	"github.com/DataDog/datadog-agent/pkg/security/rules/monitor"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/serializers"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
+	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/fargate"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
@@ -45,7 +50,14 @@ import (
 )
 
 const (
-	maxRetry   = 10
+	// events delay is used for 2 actions: hash and kills:
+	// - for hash actions, the reports will be marked as resolved after MAX 5 sec (so
+	//   it doesn't matter if this retry period lasts for longer)
+	// - for kill actions:
+	//   . a kill can be queued up to the end of the first disarmer period (1min by default)
+	//   . so, we set the server retry period to 1min and 2sec (+2sec to have the
+	//     time to trigger the kill and wait to catch the process exit)
+	maxRetry   = 62
 	retryDelay = time.Second
 )
 
@@ -56,9 +68,11 @@ type pendingMsg struct {
 	tags            []string
 	actionReports   []model.ActionReport
 	service         string
-	extTagsCb       func() []string
+	timestamp       time.Time
+	extTagsCb       func() ([]string, bool)
 	sendAfter       time.Time
 	retry           int
+	skip            bool
 }
 
 func (p *pendingMsg) isResolved() bool {
@@ -99,12 +113,16 @@ func (p *pendingMsg) toJSON() ([]byte, error) {
 		return nil, err
 	}
 
-	return mergeJSON(backendEventJSON, eventJSON), nil
+	return mergeJSON(backendEventJSON, eventJSON)
 }
 
-func mergeJSON(j1, j2 []byte) []byte {
+func mergeJSON(j1, j2 []byte) ([]byte, error) {
+	if len(j1) == 0 || len(j2) == 0 {
+		return nil, errors.New("malformed json")
+	}
+
 	data := append(j1[:len(j1)-1], ',')
-	return append(data, j2[1:]...)
+	return append(data, j2[1:]...), nil
 }
 
 // APIServer represents a gRPC server in charge of receiving events sent by
@@ -126,8 +144,11 @@ type APIServer struct {
 	cwsConsumer        *CWSConsumer
 	policiesStatusLock sync.RWMutex
 	policiesStatus     []*api.PolicyStatus
-	msgSender          MsgSender
+	msgSender          EventMsgSender
+	activityDumpSender ActivityDumpMsgSender
 	connEstablished    *atomic.Bool
+	envAsTags          []string
+	containerFilter    *containers.Filter
 
 	// os release data
 	kernelVersion string
@@ -154,26 +175,17 @@ func (a *APIServer) GetActivityDumpStream(_ *api.ActivityDumpStreamParams, strea
 }
 
 // SendActivityDump queues an activity dump to the chan of activity dumps
-func (a *APIServer) SendActivityDump(dump *api.ActivityDumpStreamMessage) {
-	// send the dump to the channel
-	select {
-	case a.activityDumps <- dump:
-		break
-	default:
-		// The channel is full, consume the oldest dump
-		oldestDump := <-a.activityDumps
-		// Try to send the event again
-		select {
-		case a.activityDumps <- dump:
-			break
-		default:
-			// Looks like the channel is full again, expire the current message too
-			a.expireDump(dump)
-			break
-		}
-		a.expireDump(oldestDump)
-		break
+func (a *APIServer) SendActivityDump(imageName string, imageTag string, header []byte, data []byte) {
+	dump := &api.ActivityDumpStreamMessage{
+		Selector: &api.WorkloadSelectorMessage{
+			Name: imageName,
+			Tag:  imageTag,
+		},
+		Header: header,
+		Data:   data,
 	}
+
+	a.activityDumpSender.Send(dump, a.expireDump)
 }
 
 // GetEvents waits for security events
@@ -209,12 +221,16 @@ func (a *APIServer) dequeue(now time.Time, cb func(msg *pendingMsg) bool) {
 	a.queueLock.Lock()
 	defer a.queueLock.Unlock()
 
-	a.queue = slices.DeleteFunc(a.queue, func(msg *pendingMsg) bool {
+	a.queue = slicesDeleteUntilFalse(a.queue, func(msg *pendingMsg) bool {
 		if msg.sendAfter.After(now) {
 			return false
 		}
 
 		if cb(msg) {
+			return true
+		}
+
+		if msg.skip {
 			return true
 		}
 
@@ -229,6 +245,17 @@ func (a *APIServer) dequeue(now time.Time, cb func(msg *pendingMsg) bool) {
 
 		return false
 	})
+}
+
+// slicesDeleteUntilFalse deletes elements from the slice until the function f returns false.
+func slicesDeleteUntilFalse(s []*pendingMsg, f func(*pendingMsg) bool) []*pendingMsg {
+	for i, v := range s {
+		if !f(v) {
+			return s[i:]
+		}
+	}
+
+	return nil
 }
 
 func (a *APIServer) updateMsgService(msg *api.SecurityEventMessage) {
@@ -276,8 +303,13 @@ func (a *APIServer) start(ctx context.Context) {
 		case now := <-ticker.C:
 			a.dequeue(now, func(msg *pendingMsg) bool {
 				if msg.extTagsCb != nil {
+					tags, retryable := msg.extTagsCb()
+					if len(tags) == 0 && retryable && msg.retry < maxRetry {
+						return false
+					}
+
 					// dedup
-					for _, tag := range msg.extTagsCb() {
+					for _, tag := range tags {
 						if !slices.Contains(msg.tags, tag) {
 							msg.tags = append(msg.tags, tag)
 						}
@@ -286,6 +318,12 @@ func (a *APIServer) start(ctx context.Context) {
 
 				// not fully resolved, retry
 				if !msg.isResolved() && msg.retry < maxRetry {
+					return false
+				}
+
+				containerName, imageName, podNamespace := utils.GetContainerFilterTags(msg.tags)
+				if a.containerFilter != nil && a.containerFilter.IsExcluded(nil, containerName, imageName, podNamespace) {
+					msg.skip = true
 					return false
 				}
 
@@ -298,10 +336,11 @@ func (a *APIServer) start(ctx context.Context) {
 				seclog.Tracef("Sending event message for rule `%s` to security-agent `%s`", msg.ruleID, string(data))
 
 				m := &api.SecurityEventMessage{
-					RuleID:  msg.ruleID,
-					Data:    data,
-					Service: msg.service,
-					Tags:    msg.tags,
+					RuleID:    msg.ruleID,
+					Data:      data,
+					Service:   msg.service,
+					Tags:      msg.tags,
+					Timestamp: timestamppb.New(msg.timestamp),
 				}
 				a.updateMsgService(m)
 
@@ -334,27 +373,31 @@ func (a *APIServer) GetConfig(_ context.Context, _ *api.GetConfigParams) (*api.S
 }
 
 // SendEvent forwards events sent by the runtime security module to Datadog
-func (a *APIServer) SendEvent(rule *rules.Rule, event events.Event, extTagsCb func() []string, service string) {
+func (a *APIServer) SendEvent(rule *rules.Rule, event events.Event, extTagsCb func() ([]string, bool), service string) {
+	originalRuleID := rule.Def.ID
+	groupRuleID := rule.Def.ID
+	if rule.Def.GroupID != "" {
+		groupRuleID = rule.Def.GroupID
+	}
+
 	backendEvent := events.BackendEvent{
 		Title: rule.Def.Description,
 		AgentContext: events.AgentContext{
-			RuleID:        rule.Def.ID,
-			RuleVersion:   rule.Def.Version,
-			Version:       version.AgentVersion,
-			OS:            runtime.GOOS,
-			Arch:          utils.RuntimeArch(),
-			Origin:        a.probe.Origin(),
-			KernelVersion: a.kernelVersion,
-			Distribution:  a.distribution,
+			RuleID:         groupRuleID,
+			OriginalRuleID: originalRuleID,
+			RuleVersion:    rule.Def.Version,
+			Version:        version.AgentVersion,
+			OS:             runtime.GOOS,
+			Arch:           utils.RuntimeArch(),
+			Origin:         a.probe.Origin(),
+			KernelVersion:  a.kernelVersion,
+			Distribution:   a.distribution,
+			PolicyName:     rule.Policy.Name,
+			PolicyVersion:  rule.Policy.Version,
 		},
 	}
 
-	if policy := rule.Policy; policy != nil {
-		backendEvent.AgentContext.PolicyName = policy.Name
-		backendEvent.AgentContext.PolicyVersion = policy.Def.Version
-	}
-
-	seclog.Tracef("Prepare event message for rule `%s`", rule.ID)
+	seclog.Tracef("Prepare event message for rule `%s`", groupRuleID)
 
 	// no retention if there is no ext tags to resolve
 	retention := a.retention
@@ -362,18 +405,15 @@ func (a *APIServer) SendEvent(rule *rules.Rule, event events.Event, extTagsCb fu
 		retention = 0
 	}
 
-	ruleID := rule.Def.ID
-	if rule.Def.GroupID != "" {
-		ruleID = rule.Def.GroupID
-	}
-
 	// get type tags + container tags if already resolved, see ResolveContainerTags
 	eventTags := event.GetTags()
 
-	tags := []string{"rule_id:" + ruleID}
+	tags := []string{"rule_id:" + groupRuleID}
+	tags = append(tags, "source_rule_id:"+originalRuleID)
 	tags = append(tags, rule.Tags...)
 	tags = append(tags, eventTags...)
 	tags = append(tags, common.QueryAccountIDTag())
+	tags = append(tags, a.envAsTags...)
 
 	// model event or custom event ? if model event use queuing so that tags and actions can be handled
 	if ev, ok := event.(*model.Event); ok {
@@ -385,12 +425,18 @@ func (a *APIServer) SendEvent(rule *rules.Rule, event events.Event, extTagsCb fu
 			}
 		}
 
+		timestamp := ev.ResolveEventTime()
+		if timestamp.IsZero() {
+			timestamp = time.Now()
+		}
+
 		msg := &pendingMsg{
-			ruleID:          ruleID,
+			ruleID:          groupRuleID,
 			backendEvent:    backendEvent,
-			eventSerializer: serializers.NewEventSerializer(ev, rule.Opts),
+			eventSerializer: serializers.NewEventSerializer(ev, rule),
 			extTagsCb:       extTagsCb,
 			service:         service,
+			timestamp:       timestamp,
 			sendAfter:       time.Now().Add(retention),
 			tags:            tags,
 			actionReports:   actionReports,
@@ -415,20 +461,29 @@ func (a *APIServer) SendEvent(rule *rules.Rule, event events.Event, extTagsCb fu
 			}
 		} else {
 			if eventJSON, err = json.Marshal(event); err != nil {
-				seclog.Errorf("failed to marshal event: %v", err)
+				seclog.Errorf("failed to marshal event: %v : %+v", err, event)
 				return
 			}
 		}
 
-		data := mergeJSON(backendEventJSON, eventJSON)
+		data, err := mergeJSON(backendEventJSON, eventJSON)
+		if err != nil {
+			seclog.Errorf("failed to merge event json: %v", err)
+			return
+		}
 
-		seclog.Tracef("Sending event message for rule `%s` to security-agent `%s`", ruleID, string(data))
+		seclog.Tracef("Sending event message for rule `%s` to security-agent `%s`", groupRuleID, string(data))
+
+		// for custom events, we can use the current time as timestamp
+		timestamp := time.Now()
 
 		m := &api.SecurityEventMessage{
-			RuleID:  ruleID,
-			Data:    data,
-			Service: service,
-			Tags:    tags,
+			RuleID:         groupRuleID,
+			OriginalRuleID: originalRuleID,
+			Data:           data,
+			Service:        service,
+			Tags:           tags,
+			Timestamp:      timestamppb.New(timestamp),
 		}
 		a.updateCustomEventTags(m)
 		a.updateMsgService(m)
@@ -454,12 +509,17 @@ func (a *APIServer) expireEvent(msg *api.SecurityEventMessage) {
 func (a *APIServer) expireDump(dump *api.ActivityDumpStreamMessage) {
 	// update metric
 	a.expiredDumps.Inc()
-	seclog.Tracef("the activity dump server channel is full, a dump of [%s] was dropped\n", dump.GetDump().GetMetadata().GetName())
+
+	selectorStr := "<unknown>"
+	if sel := dump.GetSelector(); sel != nil {
+		selectorStr = fmt.Sprintf("%s:%s", sel.GetName(), sel.GetTag())
+	}
+	seclog.Tracef("the activity dump server channel is full, a dump of [%s] was dropped\n", selectorStr)
 }
 
-// GetStats returns a map indexed by ruleIDs that describes the amount of events
+// getStats returns a map indexed by ruleIDs that describes the amount of events
 // that were expired or rate limited before reaching
-func (a *APIServer) GetStats() map[string]int64 {
+func (a *APIServer) getStats() map[string]int64 {
 	a.expiredEventsLock.RLock()
 	defer a.expiredEventsLock.RUnlock()
 
@@ -470,9 +530,10 @@ func (a *APIServer) GetStats() map[string]int64 {
 	return stats
 }
 
-// SendStats sends statistics about the number of dropped events
+// SendStats sends statistics
 func (a *APIServer) SendStats() error {
-	for ruleID, val := range a.GetStats() {
+	// statistics about the number of dropped events
+	for ruleID, val := range a.getStats() {
 		tags := []string{fmt.Sprintf("rule_id:%s", ruleID)}
 		if val > 0 {
 			if err := a.statsdClient.Count(metrics.MetricEventServerExpired, val, tags, 1.0); err != nil {
@@ -480,6 +541,11 @@ func (a *APIServer) SendStats() error {
 			}
 		}
 	}
+
+	// telemetry for msg senders
+	a.msgSender.SendTelemetry(a.statsdClient)
+	a.activityDumpSender.SendTelemetry(a.statsdClient)
+
 	return nil
 }
 
@@ -492,11 +558,12 @@ func (a *APIServer) ReloadPolicies(_ context.Context, _ *api.ReloadPoliciesParam
 	if err := a.cwsConsumer.ruleEngine.ReloadPolicies(); err != nil {
 		return nil, err
 	}
+
 	return &api.ReloadPoliciesResultMessage{}, nil
 }
 
 // GetRuleSetReport reports the ruleset loaded
-func (a *APIServer) GetRuleSetReport(_ context.Context, _ *api.GetRuleSetReportParams) (*api.GetRuleSetReportResultMessage, error) {
+func (a *APIServer) GetRuleSetReport(_ context.Context, _ *api.GetRuleSetReportParams) (*api.GetRuleSetReportMessage, error) {
 	if a.cwsConsumer == nil || a.cwsConsumer.ruleEngine == nil {
 		return nil, errors.New("no rule engine")
 	}
@@ -513,13 +580,13 @@ func (a *APIServer) GetRuleSetReport(_ context.Context, _ *api.GetRuleSetReportP
 		PIDCacheSize:        a.probe.Config.Probe.PIDCacheSize,
 	}
 
-	report, err := kfilters.NewApplyRuleSetReport(cfg, ruleSet)
+	report, err := kfilters.ComputeFilters(cfg, ruleSet)
 	if err != nil {
 		return nil, err
 	}
 
-	return &api.GetRuleSetReportResultMessage{
-		RuleSetReportMessage: api.FromKFiltersToProtoRuleSetReport(report),
+	return &api.GetRuleSetReportMessage{
+		RuleSetReportMessage: transform.FromFilterReportToProtoRuleSetReportMessage(report),
 	}, nil
 }
 
@@ -568,6 +635,76 @@ func (a *APIServer) Stop() {
 	a.stopper.Stop()
 }
 
+// GetStatus returns the status of the module
+func (a *APIServer) GetStatus(_ context.Context, _ *api.GetStatusParams) (*api.Status, error) {
+	var apiStatus api.Status
+
+	if a.cfg.SendPayloadsFromSystemProbe {
+		var endpointsStatus []string
+		if senderStatus, ok := a.msgSender.(EndpointsStatusFetcher); ok {
+			endpointsStatus = append(endpointsStatus, senderStatus.GetEndpointsStatus()...)
+		}
+		if dumpSenderStatus, ok := a.activityDumpSender.(EndpointsStatusFetcher); ok {
+			endpointsStatus = append(endpointsStatus, dumpSenderStatus.GetEndpointsStatus()...)
+		}
+		apiStatus.DirectSenderStatus = &api.DirectSenderStatus{
+			Endpoints: endpointsStatus,
+		}
+	}
+
+	if a.selfTester != nil {
+		apiStatus.SelfTests = a.selfTester.GetStatus()
+	}
+	apiStatus.PoliciesStatus = a.policiesStatus
+
+	seclVariables := a.GetSECLVariables()
+
+	var globals []*api.SECLVariableState
+	for _, global := range seclVariables {
+		if !strings.Contains(global.Name, ".") {
+			globals = append(globals, global)
+		}
+	}
+	apiStatus.GlobalVariables = globals
+
+	scopedVariables := make(map[string]map[string][]*api.SECLVariableState)
+	for _, scoped := range seclVariables {
+		split := strings.SplitN(scoped.Name, ".", 3)
+		if len(split) < 3 {
+			continue
+		}
+		scope, name, key := split[0], split[1], split[2]
+		if scope != "" {
+			if _, found := scopedVariables[scope]; !found {
+				scopedVariables[scope] = make(map[string][]*api.SECLVariableState)
+			}
+
+			scopedVariables[scope][key] = append(scopedVariables[scope][key], &api.SECLVariableState{
+				Name:  name,
+				Value: scoped.Value,
+			})
+		}
+	}
+	apiStatus.ScopedVariables = make(map[string]*api.ScopedVariableStore)
+	for scope, vars := range scopedVariables {
+		store := &api.ScopedVariableStore{
+			KeyValues: make(map[string]*api.SECLVariableStateList),
+		}
+		for key, values := range vars {
+			store.KeyValues[key] = &api.SECLVariableStateList{
+				Variables: values,
+			}
+		}
+		apiStatus.ScopedVariables[scope] = store
+	}
+
+	if err := a.fillStatusPlatform(&apiStatus); err != nil {
+		return nil, err
+	}
+
+	return &apiStatus, nil
+}
+
 // SetCWSConsumer sets the CWS consumer
 func (a *APIServer) SetCWSConsumer(consumer *CWSConsumer) {
 	a.cwsConsumer = consumer
@@ -588,9 +725,25 @@ func (a *APIServer) getGlobalTags() []string {
 	return globalTags
 }
 
+func getEnvAsTags(cfg *config.RuntimeSecurityConfig) []string {
+	tags := []string{}
+
+	for _, env := range cfg.EnvAsTags {
+		value := os.Getenv(env)
+		if value != "" {
+			tags = append(tags, fmt.Sprintf("%s:%s", env, value))
+		}
+	}
+	return tags
+}
+
 // NewAPIServer returns a new gRPC event server
-func NewAPIServer(cfg *config.RuntimeSecurityConfig, probe *sprobe.Probe, msgSender MsgSender, client statsd.ClientInterface, selfTester *selftests.SelfTester, compression compression.Component) (*APIServer, error) {
+func NewAPIServer(cfg *config.RuntimeSecurityConfig, probe *sprobe.Probe, msgSender MsgSender[api.SecurityEventMessage], client statsd.ClientInterface, selfTester *selftests.SelfTester, compression compression.Component, ipc ipc.Component) (*APIServer, error) {
 	stopper := startstop.NewSerialStopper()
+	containerFilter, err := utils.NewContainerFilter()
+	if err != nil {
+		return nil, err
+	}
 
 	as := &APIServer{
 		msgs:            make(chan *api.SecurityEventMessage, cfg.EventServerBurst*3),
@@ -606,15 +759,17 @@ func NewAPIServer(cfg *config.RuntimeSecurityConfig, probe *sprobe.Probe, msgSen
 		stopChan:        make(chan struct{}),
 		msgSender:       msgSender,
 		connEstablished: atomic.NewBool(false),
+		envAsTags:       getEnvAsTags(cfg),
+		containerFilter: containerFilter,
 	}
 
 	as.collectOSReleaseData()
 
 	if as.msgSender == nil {
-		if cfg.SendEventFromSystemProbe {
-			msgSender, err := NewDirectMsgSender(stopper, compression)
+		if cfg.SendPayloadsFromSystemProbe {
+			msgSender, err := NewDirectEventMsgSender(stopper, compression, ipc)
 			if err != nil {
-				log.Errorf("failed to setup direct reporter: %v", err)
+				log.Errorf("failed to setup direct event sender: %v", err)
 			} else {
 				as.msgSender = msgSender
 			}
@@ -622,6 +777,21 @@ func NewAPIServer(cfg *config.RuntimeSecurityConfig, probe *sprobe.Probe, msgSen
 
 		if as.msgSender == nil {
 			as.msgSender = NewChanMsgSender(as.msgs)
+		}
+	}
+
+	if as.activityDumpSender == nil {
+		if cfg.SendPayloadsFromSystemProbe {
+			adSender, err := NewDirectActivityDumpMsgSender()
+			if err != nil {
+				log.Errorf("failed to setup direct activity dump sender: %v", err)
+			} else {
+				as.activityDumpSender = adSender
+			}
+		}
+
+		if as.activityDumpSender == nil {
+			as.activityDumpSender = NewChanMsgSender(as.activityDumps)
 		}
 	}
 

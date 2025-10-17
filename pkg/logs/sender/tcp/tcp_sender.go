@@ -7,11 +7,8 @@
 package tcp
 
 import (
-	"sync"
-
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
-	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/client/tcp"
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
@@ -23,30 +20,27 @@ import (
 // NewTCPSender returns a new tcp sender.
 func NewTCPSender(
 	config pkgconfigmodel.Reader,
-	auditor auditor.Auditor,
+	sink sender.Sink,
 	bufferSize int,
-	senderDoneChan chan *sync.WaitGroup,
-	flushWg *sync.WaitGroup,
+	serverlessMeta sender.ServerlessMeta,
 	endpoints *config.Endpoints,
 	destinationsCtx *client.DestinationsContext,
 	status statusinterface.Status,
-	serverless bool,
 	componentName string,
 	queueCount int,
 	workersPerQueue int,
 ) *sender.Sender {
 	log.Debugf("Creating a new sender for component %s with %d queues, %d tcp workers", componentName, queueCount, workersPerQueue)
-	pipelineMonitor := metrics.NewTelemetryPipelineMonitor("tcp_sender")
+	pipelineMonitor := metrics.NewTelemetryPipelineMonitor()
 
-	destinationFactory := tcpDestinationFactory(endpoints, destinationsCtx, serverless, status)
+	destinationFactory := tcpDestinationFactory(endpoints, destinationsCtx, serverlessMeta, status)
 
-	return sender.NewSenderV2(
+	return sender.NewSender(
 		config,
-		auditor,
+		sink,
 		destinationFactory,
 		bufferSize,
-		senderDoneChan,
-		flushWg,
+		serverlessMeta,
 		queueCount,
 		workersPerQueue,
 		pipelineMonitor,
@@ -56,14 +50,15 @@ func NewTCPSender(
 func tcpDestinationFactory(
 	endpoints *config.Endpoints,
 	destinationsContext *client.DestinationsContext,
-	serverless bool,
+	serverlessMeta sender.ServerlessMeta,
 	status statusinterface.Status,
 ) sender.DestinationFactory {
-	return func() *client.Destinations {
+	isServerless := serverlessMeta != nil
+	return func(_ string) *client.Destinations {
 		reliable := []client.Destination{}
 		additionals := []client.Destination{}
 		for _, endpoint := range endpoints.GetReliableEndpoints() {
-			reliable = append(reliable, tcp.NewDestination(endpoint, endpoints.UseProto, destinationsContext, !serverless, status))
+			reliable = append(reliable, tcp.NewDestination(endpoint, endpoints.UseProto, destinationsContext, !isServerless, status))
 		}
 		for _, endpoint := range endpoints.GetUnReliableEndpoints() {
 			additionals = append(additionals, tcp.NewDestination(endpoint, endpoints.UseProto, destinationsContext, false, status))

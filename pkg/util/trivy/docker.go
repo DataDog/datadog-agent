@@ -33,10 +33,10 @@ func convertDockerImage(ctx context.Context, client client.ImageAPIClient, imgMe
 	// or
 	// <image_name>@<digest> pattern like "alpine@sha256:21a3deaa0d32a8057914f36584b5288d2e5ecc984380bc0118285c70fa8c9300"
 	imageID := imgMeta.Name
-	inspect, _, err := client.ImageInspectWithRaw(ctx, imageID)
+	inspect, err := client.ImageInspect(ctx, imageID)
 	if err != nil {
 		imageID = imgMeta.ID // <image_id> pattern like `5ac716b05a9c`
-		inspect, _, err = client.ImageInspectWithRaw(ctx, imageID)
+		inspect, err = client.ImageInspect(ctx, imageID)
 		if err != nil {
 			return nil, cleanup, fmt.Errorf("unable to inspect the image (%s): %w", imageID, err)
 		}

@@ -1,0 +1,58 @@
+{
+  "resourceMetrics": [
+    {
+      "resource": {
+        "attributes": [
+          {
+            "key": "datadog.host.name",
+            "value": {
+              "stringValue": "res-hostname"
+            }
+          }
+        ]
+      },
+      "scopeMetrics": [
+        {
+          "scope": {
+            "name": "foo",
+            "version": "1.0.0"
+          },
+          "metrics": [
+            {
+              "name": "double.exponential.delta.histogram",
+              "exponentialHistogram": {
+                "dataPoints": [
+                  {
+                    "attributes": [
+                      {
+                        "key": "custom_attribute",
+                        "value": {
+                          "stringValue": "custom_value"
+                        }
+                      },
+                      {
+                        "key": "deployment.environment",
+                        "value": {
+                          "stringValue": "dev"
+                        }
+                      }
+                    ],
+                    "timeUnixNano": "1667560641226420924",
+                    "count": "1",
+                    "zeroCount": 0,
+                    "sum": 100,
+                    "negative": {},
+                    "positive": {
+                      "bucketCounts": [0, 0, 0, 0, 0, 0, 1, 0, 0]
+                    }
+                  }
+                ],
+                "aggregationTemporality": 1
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

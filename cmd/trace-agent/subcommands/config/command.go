@@ -9,13 +9,17 @@ package config
 import (
 	"fmt"
 
+	"go.uber.org/fx"
+
 	"github.com/DataDog/datadog-agent/cmd/trace-agent/subcommands"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/secrets"
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
+	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	logfx "github.com/DataDog/datadog-agent/comp/core/log/fx"
+	secretsnoopfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx-noop"
 	"github.com/DataDog/datadog-agent/pkg/config/fetcher"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/option"
-	"go.uber.org/fx"
 
 	"github.com/spf13/cobra"
 )
@@ -29,16 +33,19 @@ func MakeCommand(globalParamsGetter func() *subcommands.GlobalParams) *cobra.Com
 		RunE: func(*cobra.Command, []string) error {
 			return fxutil.OneShot(printConfig,
 				fx.Supply(config.NewAgentParams(globalParamsGetter().ConfPath, config.WithFleetPoliciesDirPath(globalParamsGetter().FleetPoliciesDirPath))),
-				fx.Supply(option.None[secrets.Component]()),
+				logfx.Module(),
+				fx.Supply(log.ForOneShot(globalParamsGetter().LoggerName, "off", true)),
+				secretsnoopfx.Module(),
 				config.Module(),
+				ipcfx.ModuleReadOnly(),
 			)
 		},
 		SilenceUsage: true,
 	}
 }
 
-func printConfig(config config.Component) error {
-	fullConfig, err := fetcher.TraceAgentConfig(config)
+func printConfig(config config.Component, client ipc.HTTPClient) error {
+	fullConfig, err := fetcher.TraceAgentConfig(config, client)
 	if err != nil {
 		return fmt.Errorf("error fetching trace-agent configuration: %s", err)
 	}

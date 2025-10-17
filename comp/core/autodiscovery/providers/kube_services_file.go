@@ -12,6 +12,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/types"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
@@ -22,15 +23,13 @@ type KubeServiceFileConfigProvider struct {
 }
 
 // NewKubeServiceFileConfigProvider returns a new KubeServiceFileConfigProvider
-func NewKubeServiceFileConfigProvider(*pkgconfigsetup.ConfigurationProviders, *telemetry.Store) (ConfigProvider, error) {
+func NewKubeServiceFileConfigProvider(*pkgconfigsetup.ConfigurationProviders, *telemetry.Store) (types.ConfigProvider, error) {
 	return &KubeServiceFileConfigProvider{}, nil
 }
 
 // Collect returns the check configurations defined in Yaml files.
 // Only configs with advanced AD identifiers targeting kubernetes services are handled by this collector.
-//
-//nolint:revive // TODO(CINT) Fix revive linter
-func (c *KubeServiceFileConfigProvider) Collect(ctx context.Context) ([]integration.Config, error) {
+func (c *KubeServiceFileConfigProvider) Collect(_ context.Context) ([]integration.Config, error) {
 	configs, _, err := ReadConfigFiles(WithAdvancedADOnly)
 	if err != nil {
 		return nil, err
@@ -40,9 +39,7 @@ func (c *KubeServiceFileConfigProvider) Collect(ctx context.Context) ([]integrat
 }
 
 // IsUpToDate is not implemented for the file providers as the files are not meant to change.
-//
-//nolint:revive // TODO(CINT) Fix revive linter
-func (c *KubeServiceFileConfigProvider) IsUpToDate(ctx context.Context) (bool, error) {
+func (c *KubeServiceFileConfigProvider) IsUpToDate(_ context.Context) (bool, error) {
 	return false, nil
 }
 
@@ -52,8 +49,8 @@ func (c *KubeServiceFileConfigProvider) String() string {
 }
 
 // GetConfigErrors is not implemented for the KubeServiceFileConfigProvider.
-func (c *KubeServiceFileConfigProvider) GetConfigErrors() map[string]ErrorMsgSet {
-	return make(map[string]ErrorMsgSet)
+func (c *KubeServiceFileConfigProvider) GetConfigErrors() map[string]types.ErrorMsgSet {
+	return make(map[string]types.ErrorMsgSet)
 }
 
 // toKubernetesServiceChecks generates integration configs to target

@@ -15,6 +15,7 @@ import (
 
 	"github.com/gorilla/mux"
 
+	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
 	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -43,10 +44,10 @@ type loader struct {
 	closed  bool
 }
 
-func (l *loader) forEachModule(fn func(name string, mod Module)) {
+func (l *loader) forEachModule(fn func(name sysconfigtypes.ModuleName, mod Module)) {
 	for name, mod := range l.modules {
 		withModule(name, func() {
-			fn(string(name), mod)
+			fn(name, mod)
 		})
 	}
 }
@@ -61,8 +62,8 @@ func withModule(name sysconfigtypes.ModuleName, fn func()) {
 // * Initialization using the provided Factory;
 // * Registering the HTTP endpoints of each module;
 // * Register the gRPC server;
-func Register(cfg *sysconfigtypes.Config, httpMux *mux.Router, factories []Factory, deps FactoryDependencies) error {
-	var enabledModulesFactories []Factory
+func Register(cfg *sysconfigtypes.Config, httpMux *mux.Router, factories []*Factory, rcclient rcclient.Component, deps FactoryDependencies) error {
+	var enabledModulesFactories []*Factory
 	for _, factory := range factories {
 		if !cfg.ModuleIsEnabled(factory.Name) {
 			log.Infof("module %s disabled", factory.Name)
@@ -71,7 +72,7 @@ func Register(cfg *sysconfigtypes.Config, httpMux *mux.Router, factories []Facto
 		enabledModulesFactories = append(enabledModulesFactories, factory)
 	}
 
-	if err := preRegister(cfg, enabledModulesFactories); err != nil {
+	if err := preRegister(cfg, rcclient, enabledModulesFactories); err != nil {
 		return fmt.Errorf("error in pre-register hook: %w", err)
 	}
 
@@ -90,13 +91,7 @@ func Register(cfg *sysconfigtypes.Config, httpMux *mux.Router, factories []Facto
 			continue
 		}
 
-		subRouter, err := makeSubrouter(httpMux, string(factory.Name))
-		if err != nil {
-			l.errors[factory.Name] = err
-			log.Errorf("error making router for module %s: %s", factory.Name, err)
-			continue
-		}
-
+		subRouter := NewRouter(string(factory.Name), httpMux)
 		if err = module.Register(subRouter); err != nil {
 			l.errors[factory.Name] = err
 			log.Errorf("error registering HTTP endpoints for module %s: %s", factory.Name, err)
@@ -122,13 +117,6 @@ func Register(cfg *sysconfigtypes.Config, httpMux *mux.Router, factories []Facto
 	return nil
 }
 
-func makeSubrouter(r *mux.Router, namespace string) (*Router, error) {
-	if namespace == "" {
-		return nil, errors.New("module name not set")
-	}
-	return NewRouter(namespace, r), nil
-}
-
 // GetStats returns the stats from all modules, namespaced by their names
 func GetStats() map[string]interface{} {
 	l.Lock()
@@ -137,22 +125,27 @@ func GetStats() map[string]interface{} {
 }
 
 // RestartModule triggers a module restart
-func RestartModule(factory Factory, deps FactoryDependencies) error {
+func RestartModule(factory *Factory, deps FactoryDependencies) error {
 	l.Lock()
 	defer l.Unlock()
 
 	if l.closed {
-		return fmt.Errorf("can't restart module because system-probe is shutting down")
+		return errors.New("can't restart module because system-probe is shutting down")
 	}
 
 	currentModule := l.modules[factory.Name]
 	if currentModule == nil {
 		return fmt.Errorf("module %s is not running", factory.Name)
 	}
+	currentRouter, ok := l.routers[factory.Name]
+	if !ok {
+		return fmt.Errorf("module %s does not have an associated router", factory.Name)
+	}
 
 	var newModule Module
 	var err error
 	withModule(factory.Name, func() {
+		currentRouter.Unregister()
 		currentModule.Close()
 		newModule, err = factory.Fn(l.cfg, deps)
 	})
@@ -162,11 +155,6 @@ func RestartModule(factory Factory, deps FactoryDependencies) error {
 	}
 	delete(l.errors, factory.Name)
 	log.Infof("module %s restarted", factory.Name)
-
-	currentRouter, ok := l.routers[factory.Name]
-	if !ok {
-		return fmt.Errorf("module %s does not have an associated router", factory.Name)
-	}
 
 	err = newModule.Register(currentRouter)
 	if err != nil {
@@ -187,7 +175,11 @@ func Close() {
 	}
 
 	l.closed = true
-	l.forEachModule(func(_ string, mod Module) {
+	l.forEachModule(func(name sysconfigtypes.ModuleName, mod Module) {
+		currentRouter, ok := l.routers[name]
+		if ok {
+			currentRouter.Unregister()
+		}
 		mod.Close()
 	})
 }
@@ -207,8 +199,8 @@ func updateStats() {
 		}
 
 		l.stats = make(map[string]interface{})
-		l.forEachModule(func(name string, mod Module) {
-			l.stats[name] = mod.GetStats()
+		l.forEachModule(func(name sysconfigtypes.ModuleName, mod Module) {
+			l.stats[string(name)] = mod.GetStats()
 		})
 		for name, err := range l.errors {
 			l.stats[string(name)] = map[string]string{"Error": err.Error()}

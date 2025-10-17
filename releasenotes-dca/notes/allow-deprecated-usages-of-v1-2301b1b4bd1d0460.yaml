@@ -1,0 +1,13 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+fixes:
+  - |
+    Customers relying on the deprecated v1 implementation of the auto instrumentation webhook will no longer be forced
+    to use the v2 implementation. This will provide additional time for customers to migrate to the v1 implementation
+    and ensure the v2 implementation adequately supports all existing use cases.

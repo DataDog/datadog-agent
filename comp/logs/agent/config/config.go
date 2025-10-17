@@ -6,10 +6,11 @@
 package config
 
 import (
-	"encoding/json"
+	"errors"
 	"fmt"
 	"net"
 	"net/url"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -17,11 +18,12 @@ import (
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/structure"
 	pkgconfigutils "github.com/DataDog/datadog-agent/pkg/config/utils"
+	"github.com/DataDog/datadog-agent/pkg/logs/types"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// ContainerCollectAll is the name of the docker integration that collect logs from all containers
-const ContainerCollectAll = "container_collect_all"
+// ErrEmptyFingerprintConfig is returned when a fingerprint config is empty
+var ErrEmptyFingerprintConfig = errors.New("fingerprint config is empty - no fields are set")
 
 // logs-intake endpoint prefix.
 const (
@@ -29,6 +31,12 @@ const (
 	httpEndpointPrefix           = "agent-http-intake.logs."
 	serverlessHTTPEndpointPrefix = "http-intake.logs."
 )
+
+// legacyPathPrefixes are the path prefixes that match existing log intake endpoints present
+// at the time that logs_dd_url was extended to support the ability to specify a path prefix.
+// Users with these set are assumed to be relying on legacy logs_dd_url behavior and will
+// have these path prefixes dropped accordingly.
+var legacyPathPrefixes = []string{"/v1/input", "/api/v2/logs"}
 
 // AgentJSONIntakeProtocol agent json protocol
 const AgentJSONIntakeProtocol = "agent-json"
@@ -41,6 +49,12 @@ const DefaultIntakeOrigin IntakeOrigin = "agent"
 
 // ServerlessIntakeOrigin is the lambda extension origin
 const ServerlessIntakeOrigin IntakeOrigin = "lambda-extension"
+
+// DDOTIntakeOrigin is the DDOT Collector origin
+const DDOTIntakeOrigin IntakeOrigin = "ddot"
+
+// OTelCollectorIntakeOrigin is the OSS OTel Collector origin
+const OTelCollectorIntakeOrigin IntakeOrigin = "otel-collector"
 
 // logs-intake endpoints depending on the site and environment.
 var logsEndpoints = map[string]int{
@@ -63,16 +77,7 @@ var (
 // GlobalProcessingRules returns the global processing rules to apply to all logs.
 func GlobalProcessingRules(coreConfig pkgconfigmodel.Reader) ([]*ProcessingRule, error) {
 	var rules []*ProcessingRule
-	var err error
-	raw := coreConfig.Get("logs_config.processing_rules")
-	if raw == nil {
-		return rules, nil
-	}
-	if s, ok := raw.(string); ok && s != "" {
-		err = json.Unmarshal([]byte(s), &rules)
-	} else {
-		err = structure.UnmarshalKey(coreConfig, "logs_config.processing_rules", &rules, structure.ConvertEmptyStringToNil)
-	}
+	err := structure.UnmarshalKey(coreConfig, "logs_config.processing_rules", &rules, structure.EnableStringUnmarshal)
 	if err != nil {
 		return nil, err
 	}
@@ -114,8 +119,12 @@ func BuildEndpointsWithConfig(coreConfig pkgconfigmodel.Reader, logsConfig *Logs
 			"please use '%s' and '%s' instead", logsConfig.getConfigKey("logs_dd_url"), logsConfig.getConfigKey("logs_no_ssl"))
 	}
 
-	mrfEnabled := coreConfig.GetBool("multi_region_failover.enabled")
-	if logsConfig.isForceHTTPUse() || logsConfig.obsPipelineWorkerEnabled() || mrfEnabled || (bool(httpConnectivity) && !(logsConfig.isForceTCPUse() || logsConfig.isSocks5ProxySet() || logsConfig.hasAdditionalEndpoints())) {
+	// logs_config.logs_dd_url might specify a HTTP(S) proxy. Never fall back to TCP in this case.
+	haveHTTPProxy := false
+	if logsDDURL, defined := logsConfig.logsDDURL(); defined {
+		haveHTTPProxy = strings.HasPrefix(logsDDURL, "http://") || strings.HasPrefix(logsDDURL, "https://")
+	}
+	if logsConfig.isForceHTTPUse() || haveHTTPProxy || logsConfig.obsPipelineWorkerEnabled() || (bool(httpConnectivity) && !(logsConfig.isForceTCPUse() || logsConfig.isSocks5ProxySet() || logsConfig.hasAdditionalEndpoints())) {
 		return BuildHTTPEndpointsWithConfig(coreConfig, logsConfig, endpointPrefix, intakeTrackType, intakeProtocol, intakeOrigin)
 	}
 	log.Warnf("You are currently sending Logs to Datadog through TCP (either because %s or %s is set or the HTTP connectivity test has failed) "+
@@ -138,6 +147,58 @@ func ExpectedTagsDuration(coreConfig pkgconfigmodel.Reader) time.Duration {
 // IsExpectedTagsSet returns boolean showing if expected tags feature is enabled.
 func IsExpectedTagsSet(coreConfig pkgconfigmodel.Reader) bool {
 	return ExpectedTagsDuration(coreConfig) > 0
+}
+
+// GlobalFingerprintConfig returns the global fingerprint configuration to apply to all logs.
+func GlobalFingerprintConfig(coreConfig pkgconfigmodel.Reader) (*types.FingerprintConfig, error) {
+	var err error
+	config := types.FingerprintConfig{}
+	err = structure.UnmarshalKey(coreConfig, "logs_config.fingerprint_config", &config)
+	if err != nil {
+		return nil, err
+	}
+	log.Debugf("GlobalFingerprintConfig: after unmarshaling - FingerprintStrategy: %s, Count: %d, CountToSkip: %d, MaxBytes: %d",
+		config.FingerprintStrategy, config.Count, config.CountToSkip, config.MaxBytes)
+
+	// Return the config and validate the fingerprintConfig as well
+	err = ValidateFingerprintConfig(&config)
+	if err != nil {
+		return nil, err
+	}
+	return &config, err
+}
+
+// ValidateFingerprintConfig validates the fingerprint config and returns an error if the config is invalid
+func ValidateFingerprintConfig(config *types.FingerprintConfig) error {
+	if config == nil {
+		return nil
+	}
+
+	if err := config.FingerprintStrategy.Validate(); err != nil {
+		return fmt.Errorf("fingerprintStrategy must be one of: line_checksum, byte_checksum, disabled. Got: %s", config.FingerprintStrategy)
+	}
+
+	// Skip validation if fingerprinting is disabled
+	if config.FingerprintStrategy == types.FingerprintStrategyDisabled {
+		return nil
+	}
+
+	// Validate Count (must be positive if set)
+	if config.Count <= 0 {
+		return fmt.Errorf("count must be greater than zero, got: %d", config.Count)
+	}
+
+	// Validate CountToSkip (must be non-negative)
+	if config.CountToSkip < 0 {
+		return fmt.Errorf("count_to_skip cannot be negative, got: %d", config.CountToSkip)
+	}
+
+	// Validate MaxBytes (must be positive if set, only relevant for line-based fingerprinting)
+	if config.MaxBytes <= 0 && config.FingerprintStrategy == "line_checksum" {
+		return fmt.Errorf("max_bytes must be greater than zero for line-based fingerprinting, got: %d", config.MaxBytes)
+	}
+
+	return nil
 }
 
 func buildTCPEndpoints(coreConfig pkgconfigmodel.Reader, logsConfig *LogsConfigKeys) (*Endpoints, error) {
@@ -172,6 +233,35 @@ func buildTCPEndpoints(coreConfig pkgconfigmodel.Reader, logsConfig *LogsConfigK
 	}
 
 	additionals := loadTCPAdditionalEndpoints(main, logsConfig)
+
+	// Add in the MRF endpoint if MRF is enabled.
+	if coreConfig.GetBool("multi_region_failover.enabled") {
+		mrfURL, err := pkgconfigutils.GetMRFLogsEndpoint(coreConfig, tcpEndpointPrefix)
+		if err != nil {
+			return nil, fmt.Errorf("cannot construct MRF endpoint: %s", err)
+		}
+
+		mrfHost, mrfPort, err := parseAddress(mrfURL)
+		if err != nil {
+			return nil, fmt.Errorf("could not parse %s: %v", mrfURL, err)
+		}
+
+		e := NewEndpoint(coreConfig.GetString("multi_region_failover.api_key"), "multi_region_failover.api_key", mrfHost, mrfPort, "", logsConfig.logsNoSSL())
+		e.IsMRF = true
+		e.UseCompression = main.UseCompression
+		e.CompressionLevel = main.CompressionLevel
+		e.BackoffBase = main.BackoffBase
+		e.BackoffMax = main.BackoffMax
+		e.BackoffFactor = main.BackoffFactor
+		e.RecoveryInterval = main.RecoveryInterval
+		e.RecoveryReset = main.RecoveryReset
+		e.useSSL = main.useSSL
+		e.ConnectionResetInterval = logsConfig.connectionResetInterval()
+		e.ProxyAddress = logsConfig.socks5ProxyAddress()
+
+		additionals = append(additionals, e)
+	}
+
 	return NewEndpoints(main, additionals, useProto, false), nil
 }
 
@@ -185,8 +275,18 @@ func BuildHTTPEndpointsWithVectorOverride(coreConfig pkgconfigmodel.Reader, inta
 	return BuildHTTPEndpointsWithConfig(coreConfig, defaultLogsConfigKeysWithVectorOverride(coreConfig), httpEndpointPrefix, intakeTrackType, intakeProtocol, intakeOrigin)
 }
 
-// BuildHTTPEndpointsWithConfig uses two arguments that instructs it how to access configuration parameters, then returns the HTTP endpoints to send logs to. This function is able to default to the 'classic' BuildHTTPEndpoints() w ldHTTPEndpointsWithConfigdefault variables logsConfigDefaultKeys and httpEndpointPrefix
+// BuildHTTPEndpointsWithCompressionOverride returns the HTTP endpoints to send logs to with compression options.
+func BuildHTTPEndpointsWithCompressionOverride(coreConfig pkgconfigmodel.Reader, logsConfig *LogsConfigKeys, endpointPrefix string, intakeTrackType IntakeTrackType, intakeProtocol IntakeProtocol, intakeOrigin IntakeOrigin, compressionOptions EndpointCompressionOptions) (*Endpoints, error) {
+	return buildHTTPEndpoints(coreConfig, logsConfig, endpointPrefix, intakeTrackType, intakeProtocol, intakeOrigin, compressionOptions)
+}
+
+// BuildHTTPEndpointsWithConfig returns the HTTP endpoints to send logs to.
 func BuildHTTPEndpointsWithConfig(coreConfig pkgconfigmodel.Reader, logsConfig *LogsConfigKeys, endpointPrefix string, intakeTrackType IntakeTrackType, intakeProtocol IntakeProtocol, intakeOrigin IntakeOrigin) (*Endpoints, error) {
+	return buildHTTPEndpoints(coreConfig, logsConfig, endpointPrefix, intakeTrackType, intakeProtocol, intakeOrigin, EndpointCompressionOptions{})
+}
+
+// buildHTTPEndpoints uses two arguments that instructs it how to access configuration parameters, then returns the HTTP endpoints to send logs to. This function is able to default to the 'classic' BuildHTTPEndpoints() w ldHTTPEndpointsWithConfigdefault variables logsConfigDefaultKeys and httpEndpointPrefix
+func buildHTTPEndpoints(coreConfig pkgconfigmodel.Reader, logsConfig *LogsConfigKeys, endpointPrefix string, intakeTrackType IntakeTrackType, intakeProtocol IntakeProtocol, intakeOrigin IntakeOrigin, compressionOptions EndpointCompressionOptions) (*Endpoints, error) {
 	// Provide default values for legacy settings when the configuration key does not exist
 	defaultNoSSL := logsConfig.logsNoSSL()
 
@@ -201,8 +301,13 @@ func BuildHTTPEndpointsWithConfig(coreConfig pkgconfigmodel.Reader, logsConfig *
 		main.Version = EPIntakeVersion1
 	}
 
+	if compressionOptions.CompressionKind != "" {
+		main.CompressionKind = compressionOptions.CompressionKind
+		main.CompressionLevel = compressionOptions.CompressionLevel
+	}
+
 	if vectorURL, vectorURLDefined := logsConfig.getObsPipelineURL(); logsConfig.obsPipelineWorkerEnabled() && vectorURLDefined {
-		host, port, useSSL, err := parseAddressWithScheme(vectorURL, defaultNoSSL, parseAddress)
+		host, port, _, useSSL, err := parseAddressWithScheme(vectorURL, defaultNoSSL, parseAddress)
 		if err != nil {
 			return nil, fmt.Errorf("could not parse %s: %v", vectorURL, err)
 		}
@@ -210,16 +315,17 @@ func BuildHTTPEndpointsWithConfig(coreConfig pkgconfigmodel.Reader, logsConfig *
 		main.Port = port
 		main.useSSL = useSSL
 	} else if logsDDURL, logsDDURLDefined := logsConfig.logsDDURL(); logsDDURLDefined {
-		host, port, useSSL, err := parseAddressWithScheme(logsDDURL, defaultNoSSL, parseAddress)
+		host, port, pathPrefix, useSSL, err := parseAddressWithScheme(logsDDURL, defaultNoSSL, parseAddress)
 		if err != nil {
 			return nil, fmt.Errorf("could not parse %s: %v", logsDDURL, err)
 		}
 		main.Host = host
 		main.Port = port
+		main.PathPrefix = pathPrefix
 		main.useSSL = useSSL
 	} else {
 		addr := pkgconfigutils.GetMainEndpoint(coreConfig, endpointPrefix, logsConfig.getConfigKey("dd_url"))
-		host, port, useSSL, err := parseAddressWithScheme(addr, logsConfig.devModeNoSSL(), parseAddressAsHost)
+		host, port, _, useSSL, err := parseAddressWithScheme(addr, logsConfig.devModeNoSSL(), parseAddressAsHost)
 		if err != nil {
 			return nil, fmt.Errorf("could not parse %s: %v", logsDDURL, err)
 		}
@@ -238,14 +344,15 @@ func BuildHTTPEndpointsWithConfig(coreConfig pkgconfigmodel.Reader, logsConfig *
 			return nil, fmt.Errorf("cannot construct MRF endpoint: %s", err)
 		}
 
-		mrfHost, mrfPort, mrfUseSSL, err := parseAddressWithScheme(mrfURL, defaultNoSSL, parseAddressAsHost)
+		mrfHost, mrfPort, mrfPathPrefix, mrfUseSSL, err := parseAddressWithScheme(mrfURL, defaultNoSSL, parseAddressAsHost)
 		if err != nil {
 			return nil, fmt.Errorf("could not parse %s: %v", mrfURL, err)
 		}
 
-		e := NewEndpoint(coreConfig.GetString("multi_region_failover.api_key"), "multi_region_failover.api_key", mrfHost, mrfPort, mrfUseSSL)
+		e := NewEndpoint(coreConfig.GetString("multi_region_failover.api_key"), "multi_region_failover.api_key", mrfHost, mrfPort, mrfPathPrefix, mrfUseSSL)
 		e.IsMRF = true
 		e.UseCompression = main.UseCompression
+		e.CompressionKind = main.CompressionKind
 		e.CompressionLevel = main.CompressionLevel
 		e.BackoffBase = main.BackoffBase
 		e.BackoffMax = main.BackoffMax
@@ -271,12 +378,12 @@ func BuildHTTPEndpointsWithConfig(coreConfig pkgconfigmodel.Reader, logsConfig *
 
 type defaultParseAddressFunc func(string) (host string, port int, err error)
 
-func parseAddressWithScheme(address string, defaultNoSSL bool, defaultParser defaultParseAddressFunc) (host string, port int, useSSL bool, err error) {
+func parseAddressWithScheme(address string, defaultNoSSL bool, defaultParser defaultParseAddressFunc) (host string, port int, pathPrefix string, useSSL bool, err error) {
 	if strings.HasPrefix(address, "https://") || strings.HasPrefix(address, "http://") {
 		if strings.HasPrefix(address, "https://") && !defaultNoSSL {
 			log.Warn("dd_url set to a URL with an HTTPS prefix and logs_no_ssl set to true. These are conflicting options. In a future release logs_no_ssl will override the dd_url prefix.")
 		}
-		host, port, useSSL, err = parseURL(address)
+		host, port, pathPrefix, useSSL, err = parseURL(address)
 	} else {
 		host, port, err = defaultParser(address)
 		if err != nil {
@@ -288,7 +395,7 @@ func parseAddressWithScheme(address string, defaultNoSSL bool, defaultParser def
 	return
 }
 
-func parseURL(address string) (host string, port int, useSSL bool, err error) {
+func parseURL(address string) (host string, port int, pathPrefix string, useSSL bool, err error) {
 	u, errParse := url.Parse(address)
 	if errParse != nil {
 		err = errParse
@@ -306,6 +413,11 @@ func parseURL(address string) (host string, port int, useSSL bool, err error) {
 		if err != nil {
 			return
 		}
+	}
+	pathPrefix = u.EscapedPath()
+	if slices.Contains(legacyPathPrefixes, pathPrefix) {
+		log.Warnf("Using legacy path %s, it will be automatically updated to the current intake path if necessary.", pathPrefix)
+		pathPrefix = EmptyPathPrefix
 	}
 
 	return

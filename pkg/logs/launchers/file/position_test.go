@@ -12,58 +12,79 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
-	"github.com/DataDog/datadog-agent/pkg/logs/auditor/mock"
+	auditorMock "github.com/DataDog/datadog-agent/comp/logs/auditor/mock"
+	"github.com/DataDog/datadog-agent/pkg/logs/tailers/file"
+	"github.com/DataDog/datadog-agent/pkg/logs/types"
 )
 
 func TestPosition(t *testing.T) {
-	registry := mock.NewRegistry()
+	registry := auditorMock.NewMockRegistry()
 
 	var err error
 	var offset int64
 	var whence int
+	maxLines := 1
+	maxBytes := 2048
+	toSkip := 0
+	fingerprintConfig := &types.FingerprintConfig{
+		MaxBytes:            maxBytes,
+		Count:               maxLines,
+		CountToSkip:         toSkip,
+		FingerprintStrategy: types.FingerprintStrategyLineChecksum,
+	}
 
-	offset, whence, err = Position(registry, "", config.End)
+	// Create a mock fingerprinter
+	mockFingerprinter := file.NewFingerprinter(*fingerprintConfig)
+
+	// Set a fingerprint in the registry
+	fingerprint := &types.Fingerprint{
+		Value:  12345,
+		Config: fingerprintConfig,
+	}
+	registry.SetFingerprint(fingerprint)
+
+	offset, whence, err = Position(registry, "", config.End, *mockFingerprinter)
 	assert.Nil(t, err)
 	assert.Equal(t, int64(0), offset)
 	assert.Equal(t, io.SeekEnd, whence)
 
-	offset, whence, err = Position(registry, "", config.Beginning)
+	offset, whence, err = Position(registry, "", config.Beginning, *mockFingerprinter)
 	assert.Nil(t, err)
 	assert.Equal(t, int64(0), offset)
 	assert.Equal(t, io.SeekStart, whence)
 
-	registry.SetOffset("123456789")
-	offset, whence, err = Position(registry, "", config.End)
+	registry.SetOffset("test", "123456789")
+	offset, whence, err = Position(registry, "test", config.End, *mockFingerprinter)
 	assert.Nil(t, err)
 	assert.Equal(t, int64(123456789), offset)
 	assert.Equal(t, io.SeekStart, whence)
 
-	registry.SetOffset("987654321")
-	offset, whence, err = Position(registry, "", config.Beginning)
+	registry.SetOffset("test", "987654321")
+	offset, whence, err = Position(registry, "test", config.Beginning, *mockFingerprinter)
 	assert.Nil(t, err)
 	assert.Equal(t, int64(987654321), offset)
 	assert.Equal(t, io.SeekStart, whence)
 
-	registry.SetOffset("foo")
-	offset, whence, err = Position(registry, "", config.End)
+	registry.SetOffset("test", "foo")
+	offset, whence, err = Position(registry, "test", config.End, *mockFingerprinter)
 	assert.NotNil(t, err)
 	assert.Equal(t, int64(0), offset)
 	assert.Equal(t, io.SeekEnd, whence)
 
-	registry.SetOffset("bar")
-	offset, whence, err = Position(registry, "", config.Beginning)
+	registry.SetOffset("test", "bar")
+	offset, whence, err = Position(registry, "test", config.Beginning, *mockFingerprinter)
 	assert.NotNil(t, err)
 	assert.Equal(t, int64(0), offset)
 	assert.Equal(t, io.SeekStart, whence)
 
-	registry.SetOffset("123456789")
-	offset, whence, err = Position(registry, "", config.ForceBeginning)
+	registry.SetOffset("test", "123456789")
+	offset, whence, err = Position(registry, "test", config.ForceBeginning, *mockFingerprinter)
 	assert.Nil(t, err)
 	assert.Equal(t, int64(0), offset)
 	assert.Equal(t, io.SeekStart, whence)
 
-	registry.SetOffset("987654321")
-	offset, whence, err = Position(registry, "", config.ForceEnd)
+	registry.SetOffset("test", "987654321")
+	offset, whence, err = Position(registry, "test", config.ForceEnd, *mockFingerprinter)
 	assert.Nil(t, err)
 	assert.Equal(t, int64(0), offset)
 	assert.Equal(t, io.SeekEnd, whence)

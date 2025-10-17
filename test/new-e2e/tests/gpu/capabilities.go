@@ -8,7 +8,7 @@ package gpu
 import (
 	"context"
 	"fmt"
-	"math/rand"
+	"log"
 	"strconv"
 	"strings"
 	"time"
@@ -29,7 +29,9 @@ import (
 const agentNamespace = "datadog"
 const podSelectorField = "app"
 const jobQueryInterval = 500 * time.Millisecond
-const jobQueryTimeout = 120 * time.Second // Might take some time to pull the image
+const jobQueryTimeout = 120 * time.Second // Might take some time to create the container
+const errMsgNoCudaCapableDevice = "error code no CUDA-capable device is detected"
+const maxWorkloadRetries = 3
 
 type agentComponent string
 
@@ -84,25 +86,41 @@ func (c *hostCapabilities) QuerySysprobe(path string) (string, error) {
 	return c.suite.Env().RemoteHost.Execute(cmd)
 }
 
+func (c *hostCapabilities) removeContainer(containerName string) error {
+	_, err := c.suite.Env().RemoteHost.Execute(fmt.Sprintf("docker rm -f %s", containerName))
+	return err
+}
+
 // RunContainerWorkloadWithGPUs runs a container workload with GPUs on the host using Docker
 func (c *hostCapabilities) RunContainerWorkloadWithGPUs(image string, arguments ...string) (string, error) {
-	// Yes, it's deprecated, but apparently without this we get the same random string every time
-	// so seed it just in case, it's a test so we don't care too much about RNG safety
-	rand.Seed(time.Now().UnixNano())
-
 	containerName := strings.ToLower("workload-" + common.RandString(5))
 
 	args := strings.Join(arguments, " ")
 	cmd := fmt.Sprintf("sudo docker run --gpus all --name %s %s %s", containerName, image, args)
 
-	out, err := c.suite.Env().RemoteHost.Execute(cmd)
+	var err error
+	var out string
+	for retries := range maxWorkloadRetries {
+		out, err = c.suite.Env().RemoteHost.Execute(cmd)
+		if err == nil {
+			break
+		}
+
+		// Remove the container and try again
+		if removeErr := c.removeContainer(containerName); removeErr != nil {
+			return out, fmt.Errorf("error removing container for retry: %w", removeErr)
+		}
+
+		log.Printf("Workload container could not start, retrying (attempt %d of %d), error: %v", retries+1, maxWorkloadRetries, err)
+	}
+
 	if err != nil {
-		return out, fmt.Errorf("error running container workload with GPUs: %w", err)
+		return "", fmt.Errorf("could not run container workload with GPUs after %d retries: %w", maxWorkloadRetries, err)
 	}
 
 	c.suite.T().Cleanup(func() {
 		// Cleanup the container
-		_, _ = c.suite.Env().RemoteHost.Execute(fmt.Sprintf("docker rm -f %s", containerName))
+		_ = c.removeContainer(containerName)
 	})
 	containerIDCmd := fmt.Sprintf("docker inspect -f {{.Id}} %s", containerName)
 	idOut, err := c.suite.Env().RemoteHost.Execute(containerIDCmd)
@@ -169,10 +187,6 @@ func (c *kubernetesCapabilities) QuerySysprobe(path string) (string, error) {
 // RunContainerWorkloadWithGPUs runs a container workload with GPUs on the Kubernetes cluster
 // using a Kubernetes Job.
 func (c *kubernetesCapabilities) RunContainerWorkloadWithGPUs(image string, arguments ...string) (string, error) {
-	// Yes, it's deprecated, but apparently without this we get the same random string every time
-	// so seed it just in case, it's a test so we don't care too much about RNG safety
-	rand.Seed(time.Now().UnixNano())
-
 	jobName := strings.ToLower("workload-" + common.RandString(5))
 	jobNamespace := "default"
 

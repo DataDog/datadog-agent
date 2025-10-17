@@ -12,11 +12,10 @@ import (
 	"github.com/stretchr/testify/require"
 
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
 
 func TestDiscoverComponentsFromConfigForSnmp(t *testing.T) {
-	pkgconfigsetup.Datadog().SetConfigType("yaml")
+	configmock.SetDefaultConfigType(t, "yaml")
 
 	configmock.NewFromYAML(t, `
 network_devices:

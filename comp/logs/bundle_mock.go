@@ -5,10 +5,12 @@
 
 //go:build test
 
-package logs //nolint:revive // TODO(AML) Fix revive linter
+// Package logs provides the logs component bundle with mock implementations
+package logs
 
 import (
 	"github.com/DataDog/datadog-agent/comp/logs/agent/agentimpl"
+	auditormock "github.com/DataDog/datadog-agent/comp/logs/auditor/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -16,5 +18,6 @@ import (
 func MockBundle() fxutil.BundleOptions {
 	return fxutil.Bundle(
 		agentimpl.MockModule(),
+		auditormock.AuditorMockModule(),
 	)
 }

@@ -8,8 +8,13 @@ require 'pathname'
 
 name 'installer'
 
-source path: '..'
+source path: '..',
+       options: {
+         exclude: ["**/testdata/**/*"],
+       }
 relative_path 'src/github.com/DataDog/datadog-agent'
+
+always_build true
 
 build do
   license :project_license
@@ -32,21 +37,11 @@ build do
   env = with_embedded_path(env)
 
   if linux_target?
-    command "invoke installer.build --no-cgo --run-path=/opt/datadog-packages/run --install-path=#{install_dir}", env: env
+    command "invoke installer.build --no-cgo --run-path=/opt/datadog-packages/run --install-path=#{install_dir}", env: env, :live_stream => Omnibus.logger.live_stream(:info)
     mkdir "#{install_dir}/bin"
     copy 'bin/installer', "#{install_dir}/bin/"
   elsif windows_target?
-    command "dda inv -- -e installer.build --install-path=#{install_dir}", env: env
+    command "dda inv -- -e installer.build --install-path=#{install_dir}", env: env, :live_stream => Omnibus.logger.live_stream(:info)
     copy 'bin/installer/installer.exe', "#{install_dir}/datadog-installer.exe"
   end
-
-  # Remove empty/unneeded folders
-  delete "#{install_dir}/embedded/bin"
-  delete "#{install_dir}/embedded/lib"
-  delete "#{install_dir}/embedded/"
-
-  # The file below is touched by software builds that don't put anything in the installation
-  # directory (libgcc right now) so that the git_cache gets updated let's remove it from the
-  # final package
-  delete "#{install_dir}/uselessfile"
 end

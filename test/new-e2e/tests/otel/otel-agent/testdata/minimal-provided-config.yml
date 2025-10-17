@@ -4,12 +4,13 @@ connectors:
       bucket_interval: 10s
       compute_stats_by_span_kind: true
       compute_top_level_by_span_kind: true
+      ignore_missing_datadog_fields: false
       ignore_resources: []
       peer_service_aggregation: true
       peer_tags: []
       peer_tags_aggregation: true
       resource_attributes_as_container_tags: []
-      span_name_as_resource_name: true
+      span_name_as_resource_name: false
       span_name_remappings: {}
       trace_buffer: 1000
 exporters:
@@ -18,13 +19,15 @@ exporters:
       fail_on_invalid_key: false
       key: "${env:DD_API_KEY}"
       site: datadoghq.com
+    force_attempt_http2: true
     headers: {}
     host_metadata:
-      enabled: false
+      enabled: true
       hostname_source: config_or_system
       reporter_period: 30m0s
       tags: []
     hostname: otelcol-docker
+    hostname_detection_timeout: 25s
     idle_conn_timeout: "1m30s"
     logs:
       batch_wait: 5
@@ -38,7 +41,7 @@ exporters:
         mode: distributions
         send_aggregation_metrics: false
         send_count_sum_metrics: false
-      instrumentation_scope_metadata_as_tags: false
+      instrumentation_scope_metadata_as_tags: true
       resource_attributes_as_tags: true
       summaries:
         mode: gauges
@@ -54,11 +57,14 @@ exporters:
       multiplier: 1.5
       randomization_factor: 0.5
     sending_queue:
-      blocking: false
+      batch:
+      block_on_overflow: false
       enabled: true
       num_consumers: 10
       queue_size: 1000
+      sizer: {}
       storage: null
+      wait_for_result: false
     timeout: 15s
     traces:
       compute_stats_by_span_kind: true
@@ -67,7 +73,7 @@ exporters:
       peer_service_aggregation: true
       peer_tags: []
       peer_tags_aggregation: true
-      span_name_as_resource_name: true
+      span_name_as_resource_name: false
       span_name_remappings: {}
       trace_buffer: 0
 extensions: {}
@@ -89,7 +95,7 @@ receivers:
         read_buffer_size: 524288
         transport: tcp
       http:
-        cors: {}
+        cors: null
         endpoint: 0.0.0.0:4318
         idle_timeout: 0s
         logs_url_path: /v1/logs

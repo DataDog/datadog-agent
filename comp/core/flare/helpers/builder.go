@@ -8,6 +8,7 @@ package helpers
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -32,10 +33,11 @@ const (
 
 func newBuilder(root string, hostname string, localFlare bool, flareArgs types.FlareArgs) (*builder, error) {
 	fb := &builder{
-		tmpDir:     root,
-		permsInfos: permissionsInfos{},
-		isLocal:    localFlare,
-		flareArgs:  flareArgs,
+		tmpDir:           root,
+		permsInfos:       permissionsInfos{},
+		isLocal:          localFlare,
+		flareArgs:        flareArgs,
+		nonScrubbedFiles: make(map[string]bool),
 	}
 
 	fb.flareDir = filepath.Join(fb.tmpDir, hostname)
@@ -45,6 +47,11 @@ func newBuilder(root string, hostname string, localFlare bool, flareArgs types.F
 
 	fb.scrubber = scrubber.New()
 	scrubber.AddDefaultReplacers(fb.scrubber)
+
+	// Create ENC aware yaml scrubber used during flare creation
+	fb.encAwareScrubber = scrubber.New()
+	scrubber.AddDefaultReplacers(fb.encAwareScrubber)
+	fb.encAwareScrubber.SetPreserveENC(true)
 
 	// The default scrubber doesn't deal with api keys of other services, for
 	// example powerDNS which has an "api_key" field in its YAML configuration.
@@ -57,12 +64,15 @@ func newBuilder(root string, hostname string, localFlare bool, flareArgs types.F
 	// We want the value to be at least 2 characters which will avoid matching the first '"' from the regular
 	// replacer for api_key.
 	otherAPIKeysRx := regexp.MustCompile(`api_key\s*:\s*[a-zA-Z0-9\\\/\^\]\[\(\){}!|%:;"~><=#@$_\-\+]{2,}`)
-	fb.scrubber.AddReplacer(scrubber.SingleLine, scrubber.Replacer{
+	apiKeyReplacer := scrubber.Replacer{
 		Regex: otherAPIKeysRx,
 		ReplFunc: func(_ []byte) []byte {
 			return []byte("api_key: \"********\"")
 		},
-	})
+	}
+
+	fb.scrubber.AddReplacer(scrubber.SingleLine, apiKeyReplacer)
+	fb.encAwareScrubber.AddReplacer(scrubber.SingleLine, apiKeyReplacer)
 
 	logPath, err := fb.PrepareFilePath("flare_creation.log")
 	if err != nil {
@@ -124,9 +134,13 @@ type builder struct {
 	flareArgs types.FlareArgs
 
 	// specialized scrubber for flare content
-	scrubber *scrubber.Scrubber
+	scrubber         *scrubber.Scrubber
+	encAwareScrubber *scrubber.Scrubber // For YAML files with ENC[] preservation used in the flare
 
 	logFile *os.File
+
+	// nonScrubbedFiles tracks files that were added without scrubbing
+	nonScrubbedFiles map[string]bool
 }
 
 func getArchiveName() string {
@@ -149,6 +163,33 @@ func (fb *builder) Save() (string, error) {
 		fb.Lock()
 		defer fb.Unlock()
 		return fb.permsInfos.commit()
+	})
+
+	_ = fb.AddFileFromFunc("non_scrubbed_files.json", func() ([]byte, error) {
+		fb.Lock()
+		defer fb.Unlock()
+		if len(fb.nonScrubbedFiles) == 0 {
+			return []byte(`{"files": [], "message": "All files were scrubbed"}`), nil
+		}
+
+		// Convert map keys to slice for JSON output
+		files := make([]string, 0, len(fb.nonScrubbedFiles))
+		for file := range fb.nonScrubbedFiles {
+			files = append(files, file)
+		}
+
+		// Create JSON structure
+		result := map[string]interface{}{
+			"files": files,
+			"count": len(files),
+		}
+
+		jsonData, err := json.MarshalIndent(result, "", "  ")
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling non-scrubbed files to JSON: %v", err)
+		}
+
+		return jsonData, nil
 	})
 
 	_ = fb.logFile.Close()
@@ -224,7 +265,7 @@ func (fb *builder) addFile(shouldScrub bool, destFile string, content []byte) er
 
 		// We use the YAML scrubber when needed. This handles nested keys, list, maps and such.
 		if strings.Contains(destFile, ".yaml") {
-			content, err = fb.scrubber.ScrubYaml(content)
+			content, err = fb.encAwareScrubber.ScrubYaml(content)
 		} else {
 			content, err = fb.scrubber.ScrubBytes(content)
 		}
@@ -232,6 +273,11 @@ func (fb *builder) addFile(shouldScrub bool, destFile string, content []byte) er
 		if err != nil {
 			return fb.logError("error scrubbing content for '%s': %s", destFile, err)
 		}
+	} else {
+		// Track non-scrubbed files
+		fb.Lock()
+		fb.nonScrubbedFiles[destFile] = true
+		fb.Unlock()
 	}
 
 	fb.Lock()
@@ -285,13 +331,18 @@ func (fb *builder) copyFileTo(shouldScrub bool, srcFile string, destFile string)
 
 		// We use the YAML scrubber when needed. This handles nested keys, list, maps and such.
 		if strings.Contains(srcFile, ".yaml") || strings.Contains(destFile, ".yaml") {
-			content, err = fb.scrubber.ScrubYaml(content)
+			content, err = fb.encAwareScrubber.ScrubYaml(content)
 		} else {
 			content, err = fb.scrubber.ScrubBytes(content)
 		}
 		if err != nil {
 			return fb.logError("error scrubbing content for file '%s': %s", destFile, err)
 		}
+	} else {
+		// Track non-scrubbed files
+		fb.Lock()
+		fb.nonScrubbedFiles[destFile] = true
+		fb.Unlock()
 	}
 
 	fb.Lock()

@@ -1,0 +1,14 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+enhancements:
+  - |
+    The OTLP receiver gRPC server in the trace agent now respects the config `otlp_config.receiver.protocols.grpc.max_recv_msg_size_mib` or env var `DD_OTLP_CONFIG_RECEIVER_PROTOCOLS_GRPC_MAX_RECV_MSG_SIZE_MIB`.
+fixes:
+  - |
+    Fixes a bug that Agent OTLP ingestion fails to start when the config `otlp_config.receiver.protocols.grpc.max_recv_msg_size_mib` or env var `DD_OTLP_CONFIG_RECEIVER_PROTOCOLS_GRPC_MAX_RECV_MSG_SIZE_MIB` is set to a string.

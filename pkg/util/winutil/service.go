@@ -19,7 +19,8 @@ import (
 )
 
 const (
-	defaultServiceCommandTimeout = 30
+	// DefaultServiceCommandTimeout is the default timeout for a service commands
+	DefaultServiceCommandTimeout = 30
 )
 
 // to support edge case/rase condition testing
@@ -109,7 +110,7 @@ func doStartService(service *mgr.Service, serviceArgs ...string) error {
 	// Are we in SERVICE_STOP_PENDING state?
 	if status.State == svc.StopPending {
 		// Lets wait for its completion before preceding
-		ctx, cancel := context.WithTimeout(context.Background(), defaultServiceCommandTimeout*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), DefaultServiceCommandTimeout*time.Second)
 		defer cancel()
 
 		status.State, err = waitForPendingStateChange(ctx, service, status.State)
@@ -237,9 +238,6 @@ func StopService(serviceName string) error {
 func doStopServiceWithDependencies(manager *mgr.Mgr, service *mgr.Service,
 	depenStatus svc.ActivityStatus, callback stopServiceCallback) error {
 
-	ctx, cancel := context.WithTimeout(context.Background(), defaultServiceCommandTimeout*time.Second)
-	defer cancel()
-
 	// open dependent services
 	depServiceNames, err := service.ListDependentServices(depenStatus)
 	if err != nil {
@@ -257,6 +255,11 @@ func doStopServiceWithDependencies(manager *mgr.Mgr, service *mgr.Service,
 		depServices = append(depServices, depService)
 		defer depService.Close()
 	}
+
+	// extend deadline to account for all services we are trying to stop
+	totalTimeout := time.Duration(len(depServices)+1) * DefaultServiceCommandTimeout * time.Second
+	ctx, cancel := context.WithTimeout(context.Background(), totalTimeout)
+	defer cancel()
 
 	for {
 		select {
@@ -368,6 +371,18 @@ func waitForPendingStateChange(ctx context.Context, service *mgr.Service, curren
 	}
 
 	return currentState, nil
+}
+
+// WaitForPendingStateChange opens the service by name and waits until it leaves the given pending state.
+// It returns the new state or an error on timeout/failure.
+func WaitForPendingStateChange(ctx context.Context, serviceName string, currentState svc.State) (svc.State, error) {
+	manager, service, err := openManagerService(serviceName, windows.SERVICE_QUERY_STATUS)
+	if err != nil {
+		return currentState, err
+	}
+	defer closeManagerService(manager, service)
+
+	return waitForPendingStateChange(ctx, service, currentState)
 }
 
 // RestartService stops a service and thenif the stop was successful starts it again

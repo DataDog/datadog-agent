@@ -32,6 +32,11 @@ func diNS(k ...string) string {
 	return NSkey("dynamic_instrumentation", k...)
 }
 
+// swNS adds `software_inventory` namespace to configuration key
+func swNS(k ...string) string {
+	return NSkey("software_inventory", k...)
+}
+
 // secNS adds `runtime_security_config` namespace to configuration key
 func secNS(k ...string) string {
 	return NSkey("runtime_security_config", k...)
@@ -40,6 +45,11 @@ func secNS(k ...string) string {
 // evNS adds `event_monitoring_config` namespace to configuration key
 func evNS(k ...string) string {
 	return NSkey("event_monitoring_config", k...)
+}
+
+// compNS adds `compliance_config` namespace to configuration key
+func compNS(k ...string) string {
+	return NSkey("compliance_config", k...)
 }
 
 // NSkey returns a full key path in the config file by joining the given namespace and the rest of the path fragments
@@ -52,7 +62,7 @@ func FullKeyPath(pieces ...string) string {
 	return strings.Join(pieces, ".")
 }
 
-// wcdNS addes 'windows_crash_detection' namespace to config key
+// wcdNS adds 'windows_crash_detection' namespace to config key
 func wcdNS(k ...string) string {
 	return NSkey("windows_crash_detection", k...)
 }
@@ -75,4 +85,9 @@ func discoveryNS(k ...string) string {
 // gpuNS adds `gpu_monitoring` namespace to config key
 func gpuNS(k ...string) string {
 	return NSkey("gpu_monitoring", k...)
+}
+
+// privilegedLogsNS adds `privileged_logs` namespace to config key
+func privilegedLogsNS(k ...string) string {
+	return NSkey("privileged_logs", k...)
 }

@@ -214,7 +214,7 @@ func NewRuleEvaluator(rule *ast.Rule, model Model, opts *Opts) (*RuleEvaluator, 
 		return nil, NewTypeError(rule.Pos, reflect.Bool)
 	}
 
-	eventType, err := eventTypeFromFields(model, state)
+	eventType, err := EventTypeFromState(model, state)
 	if err != nil {
 		return nil, err
 	}
@@ -235,7 +235,7 @@ func NewRuleEvaluator(rule *ast.Rule, model Model, opts *Opts) (*RuleEvaluator, 
 		}
 
 		regID, field := state.registers[0].ID, state.registers[0].Field
-		lenEval, err := model.GetEvaluator(field+".length", regID)
+		lenEval, err := model.GetEvaluator(field+".length", regID, 0)
 		if err != nil {
 			return nil, &ErrIteratorVariable{Err: err}
 		}

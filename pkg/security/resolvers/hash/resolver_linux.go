@@ -23,7 +23,6 @@ import (
 	"github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/glaslos/ssdeep"
 	lru "github.com/hashicorp/golang-lru/v2"
-	"go.uber.org/atomic"
 	"golang.org/x/time/rate"
 
 	"github.com/DataDog/datadog-agent/pkg/security/config"
@@ -32,6 +31,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	ddsync "github.com/DataDog/datadog-agent/pkg/util/sync"
 )
 
@@ -103,11 +103,6 @@ type Resolver struct {
 	cache *lru.Cache[LRUCacheKey, *LRUCacheEntry]
 
 	bufferPool *ddsync.TypedPool[[]byte]
-
-	// stats
-	hashCount    map[model.EventType]map[model.HashAlgorithm]*atomic.Uint64
-	hashMiss     map[model.EventType]map[model.HashState]*atomic.Uint64
-	hashCacheHit map[model.EventType]*atomic.Uint64
 }
 
 // NewResolver returns a new instance of the hash resolver
@@ -150,26 +145,9 @@ func NewResolver(c *config.RuntimeSecurityConfig, statsdClient statsd.ClientInte
 		limiter:        rate.NewLimiter(rate.Limit(c.HashResolverMaxHashRate), burst),
 		cache:          cache,
 		bufferPool:     ddsync.NewSlicePool[byte](copyBufferSize, copyBufferSize),
-		hashCount:      make(map[model.EventType]map[model.HashAlgorithm]*atomic.Uint64),
-		hashMiss:       make(map[model.EventType]map[model.HashState]*atomic.Uint64),
-		hashCacheHit:   make(map[model.EventType]*atomic.Uint64),
 		replace:        c.HashResolverReplace,
 	}
 
-	// generate counters
-	for i := model.EventType(0); i < model.MaxKernelEventType; i++ {
-		r.hashCount[i] = make(map[model.HashAlgorithm]*atomic.Uint64, model.MaxHashAlgorithm)
-		for j := model.HashAlgorithm(0); j < model.MaxHashAlgorithm; j++ {
-			r.hashCount[i][j] = atomic.NewUint64(0)
-		}
-
-		r.hashMiss[i] = make(map[model.HashState]*atomic.Uint64, model.MaxHashState)
-		for j := model.HashState(0); j < model.MaxHashState; j++ {
-			r.hashMiss[i][j] = atomic.NewUint64(0)
-		}
-
-		r.hashCacheHit[i] = atomic.NewUint64(0)
-	}
 	return r, nil
 }
 
@@ -253,12 +231,12 @@ func (resolver *Resolver) HashFileEvent(eventType model.EventType, ctrID contain
 	// check if the resolver is allowed to hash this event type
 	if !slices.Contains(resolver.opts.EventTypes, eventType) {
 		file.HashState = model.EventTypeNotConfigured
-		resolver.hashMiss[eventType][model.EventTypeNotConfigured].Inc()
+		hashResolverTelemetry.hashMiss.Inc(eventType.String(), model.EventTypeNotConfigured.String())
 		return
 	}
 
 	if !file.IsPathnameStrResolved || len(file.PathnameStr) == 0 {
-		resolver.hashMiss[eventType][model.PathnameResolutionError].Inc()
+		hashResolverTelemetry.hashMiss.Inc(eventType.String(), model.PathnameResolutionError.String())
 		file.HashState = model.PathnameResolutionError
 		return
 	}
@@ -281,7 +259,7 @@ func (resolver *Resolver) HashFileEvent(eventType model.EventType, ctrID contain
 		if ok {
 			file.HashState = cacheEntry.state
 			file.Hashes = cacheEntry.hashes
-			resolver.hashCacheHit[eventType].Inc()
+			hashResolverTelemetry.hashCacheHit.Inc(eventType.String())
 			return
 		}
 	}
@@ -290,7 +268,7 @@ func (resolver *Resolver) HashFileEvent(eventType model.EventType, ctrID contain
 	rateReservation := resolver.limiter.Reserve()
 	if !rateReservation.OK() {
 		// better luck next time
-		resolver.hashMiss[eventType][model.HashWasRateLimited].Inc()
+		hashResolverTelemetry.hashMiss.Inc(eventType.String(), model.HashWasRateLimited.String())
 		file.HashState = model.HashWasRateLimited
 		return
 	}
@@ -334,7 +312,7 @@ func (resolver *Resolver) HashFileEvent(eventType model.EventType, ctrID contain
 		rateReservation.Cancel()
 		if os.IsNotExist(lastErr) {
 			file.HashState = model.FileNotFound
-			resolver.hashMiss[eventType][model.FileNotFound].Inc()
+			hashResolverTelemetry.hashMiss.Inc(eventType.String(), model.FileNotFound.String())
 			return
 		}
 		// We can't open this file, most likely because it isn't a regular file. Example seen in production:
@@ -342,7 +320,7 @@ func (resolver *Resolver) HashFileEvent(eventType model.EventType, ctrID contain
 		//  - open(/host/proc/576833/root/run/containerd/runc/k8s.io/2b100...96104/runc.WUXTJB) => permission denied
 		//  - open(/host/proc/313599/root/proc/10987/task/10988/status/10987/task) => not a directory
 		//  - open(/host/proc/263082/root/usr/local/bin/runc) => no such process
-		resolver.hashMiss[eventType][model.FileOpenError].Inc()
+		hashResolverTelemetry.hashMiss.Inc(eventType.String(), model.FileOpenError.String())
 		file.HashState = model.FileOpenError
 		return
 	}
@@ -350,7 +328,7 @@ func (resolver *Resolver) HashFileEvent(eventType model.EventType, ctrID contain
 	if f == nil {
 		rateReservation.Cancel()
 		file.HashState = model.FileNotFound
-		resolver.hashMiss[eventType][model.FileNotFound].Inc()
+		hashResolverTelemetry.hashMiss.Inc(eventType.String(), model.FileNotFound.String())
 		return
 	}
 	defer f.Close()
@@ -358,7 +336,7 @@ func (resolver *Resolver) HashFileEvent(eventType model.EventType, ctrID contain
 	// is the file size above the configured limit
 	if size > resolver.opts.MaxFileSize {
 		rateReservation.Cancel()
-		resolver.hashMiss[eventType][model.FileTooBig].Inc()
+		hashResolverTelemetry.hashMiss.Inc(eventType.String(), model.FileTooBig.String())
 		file.HashState = model.FileTooBig
 		return
 	}
@@ -366,7 +344,7 @@ func (resolver *Resolver) HashFileEvent(eventType model.EventType, ctrID contain
 	// is the file empty ?
 	if size == 0 {
 		rateReservation.Cancel()
-		resolver.hashMiss[eventType][model.FileEmpty].Inc()
+		hashResolverTelemetry.hashMiss.Inc(eventType.String(), model.FileEmpty.String())
 		file.HashState = model.FileEmpty
 		return
 	}
@@ -387,7 +365,7 @@ func (resolver *Resolver) HashFileEvent(eventType model.EventType, ctrID contain
 	resolver.bufferPool.Put(buffer)
 	if err != nil {
 		if errors.Is(err, ErrSizeLimitReached) {
-			resolver.hashMiss[eventType][model.FileTooBig].Inc()
+			hashResolverTelemetry.hashMiss.Inc(eventType.String(), model.FileTooBig.String())
 			file.HashState = model.FileTooBig
 			return
 		}
@@ -395,7 +373,7 @@ func (resolver *Resolver) HashFileEvent(eventType model.EventType, ctrID contain
 		// in production:
 		//  - read(/host/proc/2076/root/proc/1/fdinfo/64) => no such file or directory
 		//  - read(/host/proc/2328/root/run/netns/a574a27c) => invalid argument
-		resolver.hashMiss[eventType][model.FileOpenError].Inc()
+		hashResolverTelemetry.hashMiss.Inc(eventType.String(), model.FileOpenError.String())
 		file.HashState = model.FileOpenError
 		return
 	}
@@ -410,7 +388,7 @@ func (resolver *Resolver) HashFileEvent(eventType model.EventType, ctrID contain
 		if algorithm == model.SSDEEP {
 			if len(digest) == 0 {
 				// we failed to compute the digest
-				resolver.hashMiss[eventType][model.HashFailed].Inc()
+				hashResolverTelemetry.hashMiss.Inc(eventType.String(), model.HashFailed.String())
 				continue
 			}
 			hashStr.Write(digest)
@@ -418,13 +396,13 @@ func (resolver *Resolver) HashFileEvent(eventType model.EventType, ctrID contain
 			hencoder := hex.NewEncoder(&hashStr)
 			if _, err := hencoder.Write(digest); err != nil {
 				// we failed to compute the digest
-				resolver.hashMiss[eventType][model.HashFailed].Inc()
+				hashResolverTelemetry.hashMiss.Inc(eventType.String(), model.HashFailed.String())
 				continue
 			}
 		}
 
 		file.Hashes = append(file.Hashes, hashStr.String())
-		resolver.hashCount[eventType][algorithm].Inc()
+		hashResolverTelemetry.hashCount.Inc(eventType.String(), algorithm.String())
 	}
 
 	file.HashState = model.Done
@@ -440,49 +418,25 @@ func (resolver *Resolver) HashFileEvent(eventType model.EventType, ctrID contain
 	}
 }
 
+var hashResolverTelemetry = struct {
+	hashCount    telemetry.Counter
+	hashMiss     telemetry.Counter
+	hashCacheHit telemetry.Counter
+	cacheLen     telemetry.Gauge
+}{
+	hashCount:    metrics.NewITCounter(metrics.MetricHashResolverHashCount, []string{"event_type", "hash"}, "Number of hashes computed by the hash resolver"),
+	hashMiss:     metrics.NewITCounter(metrics.MetricHashResolverHashMiss, []string{"event_type", "reason"}, "Number of hash misses by the hash resolver"),
+	hashCacheHit: metrics.NewITCounter(metrics.MetricHashResolverHashCacheHit, []string{"event_type"}, "Number of hash cache hits by the hash resolver"),
+	cacheLen:     metrics.NewITGauge(metrics.MetricHashResolverHashCacheLen, []string{}, "Number of entries in the hash resolver cache"),
+}
+
 // SendStats sends the resolver metrics
 func (resolver *Resolver) SendStats() error {
 	if !resolver.opts.Enabled {
 		return nil
 	}
 
-	for evtType, hashCounts := range resolver.hashCount {
-		for algorithm, count := range hashCounts {
-			tags := []string{fmt.Sprintf("event_type:%s", evtType), fmt.Sprintf("hash:%s", algorithm)}
-			if value := count.Swap(0); value > 0 {
-				if err := resolver.statsdClient.Count(metrics.MetricHashResolverHashCount, int64(value), tags, 1.0); err != nil {
-					return fmt.Errorf("couldn't send MetricHashResolverHashCount metric: %w", err)
-				}
-			}
-		}
-	}
+	hashResolverTelemetry.cacheLen.Set(float64(resolver.cache.Len()))
 
-	for evtType, hashMisses := range resolver.hashMiss {
-		for reason, count := range hashMisses {
-			tags := []string{fmt.Sprintf("event_type:%s", evtType), fmt.Sprintf("reason:%s", reason)}
-			if value := count.Swap(0); value > 0 {
-				if err := resolver.statsdClient.Count(metrics.MetricHashResolverHashMiss, int64(value), tags, 1.0); err != nil {
-					return fmt.Errorf("couldn't send MetricHashResolverHashMiss metric: %w", err)
-				}
-			}
-		}
-	}
-
-	for evtType, count := range resolver.hashCacheHit {
-		tags := []string{fmt.Sprintf("event_type:%s", evtType)}
-		if value := count.Swap(0); value > 0 {
-			if err := resolver.statsdClient.Count(metrics.MetricHashResolverHashCacheHit, int64(value), tags, 1.0); err != nil {
-				return fmt.Errorf("couldn't send MetricHashResolverHashCacheHit metric: %w", err)
-			}
-		}
-	}
-
-	if resolver.cache != nil {
-		if value := resolver.cache.Len(); value > 0 {
-			if err := resolver.statsdClient.Gauge(metrics.MetricHashResolverHashCacheLen, float64(value), []string{}, 1.0); err != nil {
-				return fmt.Errorf("couldn't send MetricHashResolverHashCacheLen metric: %w", err)
-			}
-		}
-	}
 	return nil
 }

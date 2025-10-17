@@ -12,12 +12,14 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
 )
 
 func TestNewCheckConfig(t *testing.T) {
-	setup.Datadog().SetWithoutSource("network_devices.namespace", "my-namespace")
+	mockConfig := configmock.New(t)
+	mockConfig.SetWithoutSource("network_devices.namespace", "my-namespace")
 	tests := []struct {
 		name           string
 		rawInstance    integration.Data
@@ -37,6 +39,8 @@ hostname: 1.2.3.4
 				Namespace:             "my-namespace",
 				Timeout:               setup.DefaultNetworkPathTimeout * time.Millisecond,
 				MaxTTL:                setup.DefaultNetworkPathMaxTTL,
+				TracerouteQueries:     setup.DefaultNetworkPathStaticPathTracerouteQueries,
+				E2eQueries:            setup.DefaultNetworkPathStaticPathE2eQueries,
 			},
 		},
 		{
@@ -73,6 +77,8 @@ min_collection_interval: 10
 				Namespace:             "my-namespace",
 				Timeout:               setup.DefaultNetworkPathTimeout * time.Millisecond,
 				MaxTTL:                setup.DefaultNetworkPathMaxTTL,
+				TracerouteQueries:     setup.DefaultNetworkPathStaticPathTracerouteQueries,
+				E2eQueries:            setup.DefaultNetworkPathStaticPathE2eQueries,
 			},
 		},
 		{
@@ -89,6 +95,8 @@ min_collection_interval: 10
 				Namespace:             "my-namespace",
 				Timeout:               setup.DefaultNetworkPathTimeout * time.Millisecond,
 				MaxTTL:                setup.DefaultNetworkPathMaxTTL,
+				TracerouteQueries:     setup.DefaultNetworkPathStaticPathTracerouteQueries,
+				E2eQueries:            setup.DefaultNetworkPathStaticPathE2eQueries,
 			},
 		},
 		{
@@ -102,6 +110,8 @@ hostname: 1.2.3.4
 				Namespace:             "my-namespace",
 				Timeout:               setup.DefaultNetworkPathTimeout * time.Millisecond,
 				MaxTTL:                setup.DefaultNetworkPathMaxTTL,
+				TracerouteQueries:     setup.DefaultNetworkPathStaticPathTracerouteQueries,
+				E2eQueries:            setup.DefaultNetworkPathStaticPathE2eQueries,
 			},
 		},
 		{
@@ -120,6 +130,8 @@ destination_service: service-b
 				Namespace:             "my-namespace",
 				Timeout:               setup.DefaultNetworkPathTimeout * time.Millisecond,
 				MaxTTL:                setup.DefaultNetworkPathMaxTTL,
+				TracerouteQueries:     setup.DefaultNetworkPathStaticPathTracerouteQueries,
+				E2eQueries:            setup.DefaultNetworkPathStaticPathE2eQueries,
 			},
 		},
 		{
@@ -136,6 +148,8 @@ protocol: udp
 				Protocol:              payload.ProtocolUDP,
 				Timeout:               setup.DefaultNetworkPathTimeout * time.Millisecond,
 				MaxTTL:                setup.DefaultNetworkPathMaxTTL,
+				TracerouteQueries:     setup.DefaultNetworkPathStaticPathTracerouteQueries,
+				E2eQueries:            setup.DefaultNetworkPathStaticPathE2eQueries,
 			},
 		},
 		{
@@ -152,6 +166,8 @@ protocol: UDP
 				Protocol:              payload.ProtocolUDP,
 				Timeout:               setup.DefaultNetworkPathTimeout * time.Millisecond,
 				MaxTTL:                setup.DefaultNetworkPathMaxTTL,
+				TracerouteQueries:     setup.DefaultNetworkPathStaticPathTracerouteQueries,
+				E2eQueries:            setup.DefaultNetworkPathStaticPathE2eQueries,
 			},
 		},
 		{
@@ -168,6 +184,8 @@ protocol: TCP
 				Protocol:              payload.ProtocolTCP,
 				Timeout:               setup.DefaultNetworkPathTimeout * time.Millisecond,
 				MaxTTL:                setup.DefaultNetworkPathMaxTTL,
+				TracerouteQueries:     setup.DefaultNetworkPathStaticPathTracerouteQueries,
+				E2eQueries:            setup.DefaultNetworkPathStaticPathE2eQueries,
 			},
 		},
 		{
@@ -186,6 +204,8 @@ min_collection_interval: 10
 				Namespace:             "my-namespace",
 				Timeout:               50000 * time.Millisecond,
 				MaxTTL:                setup.DefaultNetworkPathMaxTTL,
+				TracerouteQueries:     setup.DefaultNetworkPathStaticPathTracerouteQueries,
+				E2eQueries:            setup.DefaultNetworkPathStaticPathE2eQueries,
 			},
 		},
 		{
@@ -205,6 +225,8 @@ timeout: 70000
 				Namespace:             "my-namespace",
 				Timeout:               50000 * time.Millisecond,
 				MaxTTL:                setup.DefaultNetworkPathMaxTTL,
+				TracerouteQueries:     setup.DefaultNetworkPathStaticPathTracerouteQueries,
+				E2eQueries:            setup.DefaultNetworkPathStaticPathE2eQueries,
 			},
 		},
 		{
@@ -223,6 +245,8 @@ timeout: 70000
 				Namespace:             "my-namespace",
 				Timeout:               70000 * time.Millisecond,
 				MaxTTL:                setup.DefaultNetworkPathMaxTTL,
+				TracerouteQueries:     setup.DefaultNetworkPathStaticPathTracerouteQueries,
+				E2eQueries:            setup.DefaultNetworkPathStaticPathE2eQueries,
 			},
 		},
 		{
@@ -240,6 +264,8 @@ min_collection_interval: 10
 				Namespace:             "my-namespace",
 				Timeout:               setup.DefaultNetworkPathTimeout * time.Millisecond,
 				MaxTTL:                setup.DefaultNetworkPathMaxTTL,
+				TracerouteQueries:     setup.DefaultNetworkPathStaticPathTracerouteQueries,
+				E2eQueries:            setup.DefaultNetworkPathStaticPathE2eQueries,
 			},
 		},
 		{
@@ -270,6 +296,8 @@ min_collection_interval: 10
 				Namespace:             "my-namespace",
 				Timeout:               setup.DefaultNetworkPathTimeout * time.Millisecond,
 				MaxTTL:                50,
+				TracerouteQueries:     setup.DefaultNetworkPathStaticPathTracerouteQueries,
+				E2eQueries:            setup.DefaultNetworkPathStaticPathE2eQueries,
 			},
 		},
 		{
@@ -289,6 +317,8 @@ max_ttl: 64
 				Namespace:             "my-namespace",
 				Timeout:               setup.DefaultNetworkPathTimeout * time.Millisecond,
 				MaxTTL:                50,
+				TracerouteQueries:     setup.DefaultNetworkPathStaticPathTracerouteQueries,
+				E2eQueries:            setup.DefaultNetworkPathStaticPathE2eQueries,
 			},
 		},
 		{
@@ -307,6 +337,153 @@ max_ttl: 64
 				Namespace:             "my-namespace",
 				Timeout:               setup.DefaultNetworkPathTimeout * time.Millisecond,
 				MaxTTL:                64,
+				TracerouteQueries:     setup.DefaultNetworkPathStaticPathTracerouteQueries,
+				E2eQueries:            setup.DefaultNetworkPathStaticPathE2eQueries,
+			},
+		},
+		{
+			name: "overriding the TCP method",
+			rawInstance: []byte(`
+hostname: 1.2.3.4
+protocol: tcp
+tcp_method: sack
+`),
+			rawInitConfig: []byte(``),
+			expectedConfig: &CheckConfig{
+				DestHostname:          "1.2.3.4",
+				MinCollectionInterval: time.Duration(60) * time.Second,
+				Namespace:             "my-namespace",
+				Protocol:              payload.ProtocolTCP,
+				Timeout:               setup.DefaultNetworkPathTimeout * time.Millisecond,
+				MaxTTL:                setup.DefaultNetworkPathMaxTTL,
+				TCPMethod:             payload.TCPConfigSACK,
+				TracerouteQueries:     setup.DefaultNetworkPathStaticPathTracerouteQueries,
+				E2eQueries:            setup.DefaultNetworkPathStaticPathE2eQueries,
+			},
+		},
+		{
+			name: "TCP method converts to lower case",
+			rawInstance: []byte(`
+hostname: 1.2.3.4
+protocol: tcp
+tcp_method: prefer_SACK
+`),
+			rawInitConfig: []byte(``),
+			expectedConfig: &CheckConfig{
+				DestHostname:          "1.2.3.4",
+				MinCollectionInterval: time.Duration(60) * time.Second,
+				Namespace:             "my-namespace",
+				Protocol:              payload.ProtocolTCP,
+				Timeout:               setup.DefaultNetworkPathTimeout * time.Millisecond,
+				MaxTTL:                setup.DefaultNetworkPathMaxTTL,
+				TCPMethod:             payload.TCPConfigPreferSACK,
+				TracerouteQueries:     setup.DefaultNetworkPathStaticPathTracerouteQueries,
+				E2eQueries:            setup.DefaultNetworkPathStaticPathE2eQueries,
+			},
+		},
+		{
+			name: "Enabling TCP SYN compatibility mode",
+			rawInstance: []byte(`
+hostname: 1.2.3.4
+protocol: tcp
+tcp_syn_paris_traceroute_mode: true
+`),
+			rawInitConfig: []byte(``),
+			expectedConfig: &CheckConfig{
+				DestHostname:              "1.2.3.4",
+				MinCollectionInterval:     time.Duration(60) * time.Second,
+				Namespace:                 "my-namespace",
+				Protocol:                  payload.ProtocolTCP,
+				Timeout:                   setup.DefaultNetworkPathTimeout * time.Millisecond,
+				MaxTTL:                    setup.DefaultNetworkPathMaxTTL,
+				TCPSynParisTracerouteMode: true,
+				TracerouteQueries:         setup.DefaultNetworkPathStaticPathTracerouteQueries,
+				E2eQueries:                setup.DefaultNetworkPathStaticPathE2eQueries,
+			},
+		},
+		{
+			name: "tracerouteQueries and e2eQueries from instance config",
+			rawInstance: []byte(`
+hostname: 1.2.3.4
+traceroute_queries: 5
+e2e_queries: 100
+min_collection_interval: 42
+`),
+			rawInitConfig: []byte(`
+min_collection_interval: 10
+`),
+			expectedConfig: &CheckConfig{
+				DestHostname:          "1.2.3.4",
+				MinCollectionInterval: time.Duration(42) * time.Second,
+				Namespace:             "my-namespace",
+				Timeout:               setup.DefaultNetworkPathTimeout * time.Millisecond,
+				MaxTTL:                setup.DefaultNetworkPathMaxTTL,
+				TracerouteQueries:     5,
+				E2eQueries:            100,
+			},
+		},
+		{
+			name: "tracerouteQueries and e2eQueries from instance config preferred over init config",
+			rawInstance: []byte(`
+hostname: 1.2.3.4
+traceroute_queries: 5
+e2e_queries: 100
+min_collection_interval: 42
+`),
+			rawInitConfig: []byte(`
+min_collection_interval: 10
+traceroute_queries: 2
+e2e_queries: 2
+`),
+			expectedConfig: &CheckConfig{
+				DestHostname:          "1.2.3.4",
+				MinCollectionInterval: time.Duration(42) * time.Second,
+				Namespace:             "my-namespace",
+				Timeout:               setup.DefaultNetworkPathTimeout * time.Millisecond,
+				MaxTTL:                setup.DefaultNetworkPathMaxTTL,
+				TracerouteQueries:     5,
+				E2eQueries:            100,
+			},
+		},
+		{
+			name: "tracerouteQueries and e2eQueries from init config",
+			rawInstance: []byte(`
+hostname: 1.2.3.4
+min_collection_interval: 42
+`),
+			rawInitConfig: []byte(`
+min_collection_interval: 10
+traceroute_queries: 4
+e2e_queries: 20
+`),
+			expectedConfig: &CheckConfig{
+				DestHostname:          "1.2.3.4",
+				MinCollectionInterval: time.Duration(42) * time.Second,
+				Namespace:             "my-namespace",
+				Timeout:               setup.DefaultNetworkPathTimeout * time.Millisecond,
+				MaxTTL:                setup.DefaultNetworkPathMaxTTL,
+				TracerouteQueries:     4,
+				E2eQueries:            20,
+			},
+		},
+		{
+			name: "Disabling Windows driver",
+			rawInstance: []byte(`
+hostname: 1.2.3.4
+protocol: tcp
+disable_windows_driver: true
+`),
+			rawInitConfig: []byte(``),
+			expectedConfig: &CheckConfig{
+				DestHostname:          "1.2.3.4",
+				MinCollectionInterval: time.Duration(60) * time.Second,
+				Namespace:             "my-namespace",
+				Protocol:              payload.ProtocolTCP,
+				Timeout:               setup.DefaultNetworkPathTimeout * time.Millisecond,
+				MaxTTL:                setup.DefaultNetworkPathMaxTTL,
+				TracerouteQueries:     setup.DefaultNetworkPathStaticPathTracerouteQueries,
+				E2eQueries:            setup.DefaultNetworkPathStaticPathE2eQueries,
+				DisableWindowsDriver:  true,
 			},
 		},
 	}

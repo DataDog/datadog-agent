@@ -41,7 +41,13 @@ func (k KubeNodeTagsProvider) GetTags(ctx context.Context) ([]string, error) {
 		return tags, nil
 	}
 
-	nodeAnnotations, err := GetNodeAnnotations(ctx)
+	// extract just the annotation names - the keys of annotationsToTags
+	var annotations []string
+	for annotation := range annotationsToTags {
+		annotations = append(annotations, annotation)
+	}
+
+	nodeAnnotations, err := GetNodeAnnotations(ctx, annotations...)
 	if err != nil {
 		return nil, err
 	}

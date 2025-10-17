@@ -1,16 +1,11 @@
 name "libkrb5"
-default_version "1.20.1"
+default_version "1.21.3"
 
 dependency "openssl3"
 
-version "1.20.1" do
-  source url: "https://kerberos.org/dist/krb5/1.20/krb5-1.20.1.tar.gz"
-  source sha256: "704aed49b19eb5a7178b34b2873620ec299db08752d6a8574f95d41879ab8851"
-end
-
-version "1.18.3" do
-  source url: "https://kerberos.org/dist/krb5/1.18/krb5-1.18.3.tar.gz"
-  source sha256: "e61783c292b5efd9afb45c555a80dd267ac67eebabca42185362bee6c4fbd719"
+version "1.21.3" do
+  source url: "https://kerberos.org/dist/krb5/1.21/krb5-1.21.3.tar.gz"
+  source sha256: "b7a4cd5ead67fb08b980b21abd150ff7217e85ea320c9ed0c6dadd304840ad35"
 end
 
 relative_path "krb5-#{version}/src"

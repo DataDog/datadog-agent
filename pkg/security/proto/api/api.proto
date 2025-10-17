@@ -1,5 +1,7 @@
 syntax = "proto3";
 
+import "google/protobuf/timestamp.proto";
+
 option go_package = "pkg/security/proto/api";
 
 package api;
@@ -11,6 +13,8 @@ message SecurityEventMessage {
     bytes Data = 2;
     repeated string Tags = 3;
     string Service = 4;
+    google.protobuf.Timestamp Timestamp = 5;
+    string OriginalRuleID = 6;
 }
 
 message DumpProcessCacheParams {
@@ -40,15 +44,24 @@ message SecurityConfigMessage {
     bool ActivityDumpEnabled = 3;
 }
 
-message RuleSetReportMessage{
-    repeated EventTypePolicy Policies = 1;
+message FilterReport{
+    repeated ApproverReport Approvers = 1;
 }
 
-message EventTypePolicy{
+
+message RuleSetReportMessage{
+    FilterReport Filters = 1;
+}
+
+message AcceptModeRule{
+    string RuleID = 1;
+}
+
+message ApproverReport{
     string EventType = 1;
     uint32 Mode = 2;
-    // field 3 is deprecated
-    Approvers Approvers = 4;
+    Approvers Approvers = 3;
+    repeated AcceptModeRule AcceptModeRules = 4;
 }
 
 message Approvers {
@@ -64,7 +77,7 @@ message ApproverDetails {
 
 message GetRuleSetReportParams{}
 
-message GetRuleSetReportResultMessage{
+message GetRuleSetReportMessage{
     RuleSetReportMessage RuleSetReportMessage = 1;
     string Error = 2;
 }
@@ -111,12 +124,23 @@ message SECLVariableState {
     string Value = 2;
 }
 
+message SECLVariableStateList {
+    repeated SECLVariableState Variables = 1;
+}
+
+message ScopedVariableStore {
+    map<string, SECLVariableStateList> KeyValues = 1;
+}
+
 message Status {
     EnvironmentStatus Environment = 1;
     SelfTestsStatus SelfTests = 2;
     repeated PolicyStatus PoliciesStatus = 3;
-    repeated SECLVariableState SECLVariables = 4;
-}
+    reserved 4;
+    DirectSenderStatus DirectSenderStatus = 5;
+    repeated SECLVariableState GlobalVariables = 6;
+    map<string, ScopedVariableStore> ScopedVariables = 7;
+ }
 
 message ConstantFetcherStatus {
     repeated string Fetchers = 1;
@@ -130,6 +154,10 @@ message EnvironmentStatus {
     bool UseMmapableMaps = 4;
     bool UseRingBuffer = 5;
     bool UseFentry = 6;
+}
+
+message DirectSenderStatus {
+    repeated string Endpoints = 1;
 }
 
 /*Discarders*/
@@ -174,7 +202,7 @@ message MetadataMessage {
     uint64 Size = 13;
     string Serialization = 14;
     string CGroupID = 15;
-    string CGroupManager = 16;
+    string CGroupManager = 16 [deprecated = true];
 }
 
 message StorageRequestMessage {
@@ -226,7 +254,8 @@ message TranscodingRequestMessage {
 message ActivityDumpStreamParams {}
 
 message ActivityDumpStreamMessage {
-    ActivityDumpMessage Dump = 1;
+    WorkloadSelectorMessage Selector = 1;
+    bytes Header = 2;
     bytes Data = 3;
 }
 
@@ -244,6 +273,7 @@ message LastAnomalyTimestampMessage {
 message InstanceMessage {
     string ContainerID = 1;
     repeated string Tags = 2;
+    string CGroupID = 3;
 }
 
 message ActivityTreeStatsMessage {
@@ -255,6 +285,7 @@ message ActivityTreeStatsMessage {
     int64 IMDSNodesCount = 6;
     int64 SyscallNodesCount = 7;
     int64 FlowNodesCount = 8;
+    int64 CapabilityNodesCount = 9;
 }
 
 message event_type_state {
@@ -310,7 +341,7 @@ service SecurityModule {
     rpc GetConfig(GetConfigParams) returns (SecurityConfigMessage) {}
     rpc GetStatus(GetStatusParams) returns (Status) {}
     rpc RunSelfTest(RunSelfTestParams) returns (SecuritySelfTestResultMessage) {}
-    rpc GetRuleSetReport(GetRuleSetReportParams) returns (GetRuleSetReportResultMessage) {}
+    rpc GetRuleSetReport(GetRuleSetReportParams) returns (GetRuleSetReportMessage) {}
     rpc ReloadPolicies(ReloadPoliciesParams) returns (ReloadPoliciesResultMessage) {}
     rpc DumpNetworkNamespace(DumpNetworkNamespaceParams) returns (DumpNetworkNamespaceMessage) {}
     rpc DumpDiscarders(DumpDiscardersParams) returns (DumpDiscardersMessage) {}

@@ -30,6 +30,9 @@ const (
 	// PHP language name.
 	PHP LanguageName = "php"
 
+	// CPP language name.
+	CPP LanguageName = "cpp"
+
 	// Unknown language name.
 	Unknown LanguageName = ""
 )

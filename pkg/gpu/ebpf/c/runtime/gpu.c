@@ -25,6 +25,7 @@ BPF_LRU_MAP(cuda_alloc_cache, __u64, cuda_alloc_request_args_t, 1024)
 BPF_LRU_MAP(cuda_sync_cache, __u64, __u64, 1024)
 BPF_LRU_MAP(cuda_set_device_cache, __u64, int, 1024)
 BPF_LRU_MAP(cuda_event_query_cache, __u64, __u64, 1024) // maps PID/TGID -> event
+BPF_LRU_MAP(cuda_memcpy_cache, __u64, __u64, 1024) // maps PID/TGID -> stream
 BPF_HASH_MAP(cuda_event_to_stream, cuda_event_key_t, cuda_event_value_t, 1024) // maps PID + event -> stream id
 
 // cudaLaunchKernel receives the dim3 argument by value, which gets translated as
@@ -43,6 +44,17 @@ static inline void fill_header(cuda_event_header_t *header, __u64 stream_id, cud
     header->stream_id = stream_id;
     header->type = type;
     get_cgroup_name(header->cgroup, sizeof(header->cgroup));
+}
+
+__maybe_unused static __always_inline __u64 get_ringbuf_flags(size_t data_size) {
+    __u64 ringbuffer_wakeup_size = 0;
+    LOAD_CONSTANT("ringbuffer_wakeup_size", ringbuffer_wakeup_size);
+    if (ringbuffer_wakeup_size == 0) {
+        return 0;
+    }
+
+    __u64 sz = bpf_ringbuf_query(&cuda_events, DD_BPF_RB_AVAIL_DATA);
+    return (sz + data_size) >= ringbuffer_wakeup_size ? DD_BPF_RB_FORCE_WAKEUP : DD_BPF_RB_NO_WAKEUP;
 }
 
 SEC("uprobe/cudaLaunchKernel")
@@ -73,7 +85,7 @@ int BPF_UPROBE(uprobe__cudaLaunchKernel, const void *func, __u64 grid_xy, __u64 
     log_debug("cudaLaunchKernel: EMIT[1/2] pid_tgid=%llu, ts=%llu", launch_data.header.pid_tgid, launch_data.header.ktime_ns);
     log_debug("cudaLaunchKernel: EMIT[2/2] kernel_addr=0x%llx, shared_mem=%llu, stream_id=%llu", launch_data.kernel_addr, launch_data.shared_mem_size, launch_data.header.stream_id);
 
-    bpf_ringbuf_output_with_telemetry(&cuda_events, &launch_data, sizeof(launch_data), 0);
+    bpf_ringbuf_output_with_telemetry(&cuda_events, &launch_data, sizeof(launch_data), get_ringbuf_flags(sizeof(launch_data)));
 
     return 0;
 }
@@ -114,7 +126,7 @@ int BPF_URETPROBE(uretprobe__cudaMalloc) {
 
     log_debug("cudaMalloc[ret]: EMIT size=%llu, addr=0x%llx, ts=%llu", mem_data.size, (__u64)mem_data.addr, mem_data.header.ktime_ns);
 
-    bpf_ringbuf_output_with_telemetry(&cuda_events, &mem_data, sizeof(mem_data), 0);
+    bpf_ringbuf_output_with_telemetry(&cuda_events, &mem_data, sizeof(mem_data), get_ringbuf_flags(sizeof(mem_data)));
 
 out:
     bpf_map_delete_elem(&cuda_alloc_cache, &pid_tgid);
@@ -130,7 +142,7 @@ int BPF_UPROBE(uprobe__cudaFree, void *mem) {
     mem_data.addr = (uint64_t)mem;
     mem_data.type = cudaFree;
 
-    bpf_ringbuf_output_with_telemetry(&cuda_events, &mem_data, sizeof(mem_data), 0);
+    bpf_ringbuf_output_with_telemetry(&cuda_events, &mem_data, sizeof(mem_data), get_ringbuf_flags(sizeof(mem_data)));
 
     return 0;
 }
@@ -163,9 +175,21 @@ int BPF_URETPROBE(uretprobe__cudaStreamSynchronize) {
 
     log_debug("cudaStreamSynchronize[ret]: EMIT cudaSync pid_tgid=%llu, stream_id=%llu", event.header.pid_tgid, event.header.stream_id);
 
-    bpf_ringbuf_output_with_telemetry(&cuda_events, &event, sizeof(event), 0);
+    bpf_ringbuf_output_with_telemetry(&cuda_events, &event, sizeof(event), get_ringbuf_flags(sizeof(event)));
     bpf_map_delete_elem(&cuda_sync_cache, &pid_tgid);
 
+    return 0;
+}
+
+SEC("uretprobe/cudaDeviceSynchronize")
+int BPF_URETPROBE(uretprobe__cudaDeviceSynchronize) {
+    cuda_sync_device_event_t event = { 0 };
+
+    fill_header(&event.header, 0, cuda_sync_device);
+
+    log_debug("cudaDeviceSynchronize[ret]: EMIT cudaSync pid_tgid=%llu", event.header.pid_tgid);
+
+    bpf_ringbuf_output_with_telemetry(&cuda_events, &event, sizeof(event), 0);
     return 0;
 }
 
@@ -203,7 +227,7 @@ int BPF_URETPROBE(uretprobe__cudaSetDevice) {
     event.device = *device;
 
     log_debug("cudaSetDevice: EMIT pid_tgid=%llu, device=%d", event.header.pid_tgid, *device);
-    bpf_ringbuf_output_with_telemetry(&cuda_events, &event, sizeof(event), 0);
+    bpf_ringbuf_output_with_telemetry(&cuda_events, &event, sizeof(event), get_ringbuf_flags(sizeof(event)));
 
 cleanup:
     bpf_map_delete_elem(&cuda_sync_cache, &pid_tgid);
@@ -283,7 +307,7 @@ static inline int _event_api_trigger_sync(__u32 retval, void *event_cache_map) {
 
     fill_header(&sync_event.header, event_value->stream, cuda_sync);
 
-    bpf_ringbuf_output_with_telemetry(&cuda_events, &sync_event, sizeof(sync_event), 0);
+    bpf_ringbuf_output_with_telemetry(&cuda_events, &sync_event, sizeof(sync_event), get_ringbuf_flags(sizeof(sync_event)));
 
 cleanup:
     // We don't remove the event from the stream map here, as it can be queried multiple times
@@ -324,6 +348,83 @@ int BPF_UPROBE(uprobe__cudaEventDestroy, __u64 event) {
     // If this deletion doesn't get triggered, the map cleaner will clean these entries up
     bpf_map_delete_elem(&cuda_event_to_stream, &key);
 
+    return 0;
+}
+
+SEC("uprobe/cudaMemcpy")
+int BPF_UPROBE(uprobe__cudaMemcpy, void *dst, const void *src, size_t count, int kind) {
+    __u64 pid_tgid = bpf_get_current_pid_tgid();
+
+    log_debug("cudaMemcpy: pid_tgid=%llu", pid_tgid);
+    bpf_map_update_with_telemetry(cuda_memcpy_cache, &pid_tgid, &count, BPF_ANY);
+
+    return 0;
+}
+
+SEC("uretprobe/cudaMemcpy")
+int BPF_URETPROBE(uretprobe__cudaMemcpy) {
+    __u64 pid_tgid = bpf_get_current_pid_tgid();
+    __u64 *count = NULL;
+    cuda_sync_t event = { 0 };
+
+    log_debug("cudaMemcpy[ret]: pid_tgid=%llu\n", pid_tgid);
+
+    count = bpf_map_lookup_elem(&cuda_memcpy_cache, &pid_tgid);
+    if (!count) {
+        log_debug("cudaMemcpy[ret]: failed to find cudaMemcpy request");
+        return 0;
+    }
+
+    fill_header(&event.header, 0, cuda_sync);
+
+    // According to https://docs.nvidia.com/cuda/cuda-c-programming-guide/index.html#concurrent-execution-between-host-and-device
+    // most memory transfers force a synchronization on the global stream. Note that other streams might or might not sync,
+    // but for now we don't have fine-grained synchronization data for streams.
+
+    log_debug("cudaMemcpy[ret]: EMIT cudaSync pid_tgid=%llu", event.header.pid_tgid);
+
+    bpf_ringbuf_output_with_telemetry(&cuda_events, &event, sizeof(event), get_ringbuf_flags(sizeof(event)));
+    bpf_map_delete_elem(&cuda_memcpy_cache, &pid_tgid);
+
+    return 0;
+}
+
+SEC("uprobe/setenv")
+int BPF_UPROBE(uprobe__setenv, const char *name, const char *value, int overwrite) {
+    // Check if the env var is CUDA_VISIBLE_DEVICES. This is BPF_UPROBE, so we can't use a string
+    // comparison.
+    const char cuda_visible_devices[] = "CUDA_VISIBLE_DEVICES";
+    char name_buf[sizeof(cuda_visible_devices)];
+
+    // bpf_probe_read_user_str is available from kernel 5.5, our minimum kernel version is 5.8.0
+    int res = bpf_probe_read_user_str_with_telemetry(name_buf, sizeof(name_buf), name);
+    if (res < 0) {
+        return 0;
+    }
+
+    // return value of bpf_probe_read_user_str_with_telemetry is the length of the string read,
+    // including the NULL byte. If the string is not the same length, it's not CUDA_VISIBLE_DEVICES.
+    if (res != sizeof(cuda_visible_devices)) {
+        return 0;
+    }
+
+    // bpf_strncmp is available in kernel 5.17, our minimum kernel version is 5.8.0
+    // so we need to do a manual comparison
+    for (int i = 0; i < sizeof(cuda_visible_devices); i++) {
+        if (name_buf[i] != cuda_visible_devices[i]) {
+            return 0;
+        }
+    }
+
+    cuda_visible_devices_set_t event = { 0 };
+
+    if (bpf_probe_read_user_str_with_telemetry(event.visible_devices, sizeof(event.visible_devices), value) < 0) {
+        return 0;
+    }
+
+    fill_header(&event.header, 0, cuda_visible_devices_set);
+
+    bpf_ringbuf_output_with_telemetry(&cuda_events, &event, sizeof(event), get_ringbuf_flags(sizeof(event)));
     return 0;
 }
 

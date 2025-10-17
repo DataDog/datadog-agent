@@ -12,8 +12,11 @@ import (
 	"sync"
 	"time"
 
+	"gopkg.in/yaml.v2"
+
 	"github.com/DataDog/datadog-agent/comp/agent/jmxlogger"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
@@ -94,7 +97,42 @@ func StopJmxfetch() {
 	}
 }
 
-// InitRunner inits the runner and injects the dogstatsd server component
-func InitRunner(server dogstatsdServer.Component, logger jmxlogger.Component) {
-	state.runner.initRunner(server, logger)
+// InitRunner inits the runner and injects the dogstatsd server component and the IPC component (used to get the auth token for the jmxfetch process).
+func InitRunner(server dogstatsdServer.Component, logger jmxlogger.Component, ipc ipc.Component) {
+	state.runner.initRunner(server, logger, ipc)
+}
+
+// GetIntegrations returns the JMXFetch integrations' instances as a map[string]interface{}.
+func GetIntegrations() (map[string]interface{}, error) {
+	scheduledConfigs := GetScheduledConfigs()
+	integrations := make(map[string]interface{}, 2)
+	configs := make(map[string]integration.JSONMap, len(scheduledConfigs))
+
+	for name, config := range scheduledConfigs {
+		var rawInitConfig integration.RawMap
+		if err := yaml.Unmarshal(config.InitConfig, &rawInitConfig); err != nil {
+			return nil, fmt.Errorf("unable to parse JMX configuration: %w", err)
+		}
+
+		c := make(map[string]interface{}, 5)
+		c["init_config"] = GetJSONSerializableMap(rawInitConfig)
+		instances := make([]integration.JSONMap, 0, len(config.Instances))
+		for _, instance := range config.Instances {
+			var rawInstanceConfig integration.JSONMap
+			if err := yaml.Unmarshal(instance, &rawInstanceConfig); err != nil {
+				return nil, fmt.Errorf("unable to parse JMX configuration: %w", err)
+			}
+			instances = append(instances, GetJSONSerializableMap(rawInstanceConfig).(integration.JSONMap))
+		}
+
+		integration.ConfigSourceToMetadataMap(config.Source, c)
+		c["instances"] = instances
+		c["check_name"] = config.Name
+
+		configs[name] = c
+	}
+	integrations["configs"] = configs
+	integrations["timestamp"] = time.Now().Unix()
+
+	return integrations, nil
 }

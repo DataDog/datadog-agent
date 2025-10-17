@@ -28,6 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/certificate"
@@ -59,6 +60,7 @@ func NewControllerV1(
 	pa workload.PodPatcher,
 	datadogConfig config.Component,
 	demultiplexer demultiplexer.Component,
+	imageResolver autoinstrumentation.ImageResolver,
 ) *ControllerV1 {
 	controller := &ControllerV1{}
 	controller.clientSet = client
@@ -76,7 +78,7 @@ func NewControllerV1(
 	)
 	controller.isLeaderFunc = isLeaderFunc
 	controller.leadershipStateNotif = leadershipStateNotif
-	controller.webhooks = controller.generateWebhooks(wmeta, pa, datadogConfig, demultiplexer)
+	controller.webhooks = controller.generateWebhooks(wmeta, pa, datadogConfig, demultiplexer, imageResolver)
 	controller.generateTemplates()
 
 	if _, err := secretInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
@@ -367,6 +369,7 @@ func (c *ControllerV1) generateTemplates() {
 				nsSelector,
 				objSelector,
 				webhook.MatchConditions(),
+				webhook.Timeout(),
 			),
 		)
 	}
@@ -389,17 +392,20 @@ func (c *ControllerV1) generateTemplates() {
 				nsSelector,
 				objSelector,
 				webhook.MatchConditions(),
+				webhook.Timeout(),
 			),
 		)
 	}
 	c.mutatingWebhookTemplates = mutatingWebhooks
 }
 
-func (c *ControllerV1) getValidatingWebhookSkeleton(nameSuffix, path string, operations []admiv1.OperationType, resourcesMap map[string][]string, namespaceSelector, objectSelector *metav1.LabelSelector, matchConditions []admiv1.MatchCondition) admiv1.ValidatingWebhook {
+func (c *ControllerV1) getValidatingWebhookSkeleton(nameSuffix, path string, operations []admiv1.OperationType, resourcesMap map[string][]string, namespaceSelector, objectSelector *metav1.LabelSelector, matchConditions []admiv1.MatchCondition, timeout int32) admiv1.ValidatingWebhook {
 	matchPolicy := admiv1.Exact
 	sideEffects := admiv1.SideEffectClassNone
 	port := c.config.getServicePort()
-	timeout := c.config.getTimeout()
+	if timeout == 0 {
+		timeout = c.config.getTimeout()
+	}
 	failurePolicy := c.getFailurePolicy()
 
 	webhook := admiv1.ValidatingWebhook{
@@ -438,11 +444,13 @@ func (c *ControllerV1) getValidatingWebhookSkeleton(nameSuffix, path string, ope
 	return webhook
 }
 
-func (c *ControllerV1) getMutatingWebhookSkeleton(nameSuffix, path string, operations []admiv1.OperationType, resourcesMap map[string][]string, namespaceSelector, objectSelector *metav1.LabelSelector, matchConditions []admiv1.MatchCondition) admiv1.MutatingWebhook {
+func (c *ControllerV1) getMutatingWebhookSkeleton(nameSuffix, path string, operations []admiv1.OperationType, resourcesMap map[string][]string, namespaceSelector, objectSelector *metav1.LabelSelector, matchConditions []admiv1.MatchCondition, timeout int32) admiv1.MutatingWebhook {
 	matchPolicy := admiv1.Exact
 	sideEffects := admiv1.SideEffectClassNone
 	port := c.config.getServicePort()
-	timeout := c.config.getTimeout()
+	if timeout == 0 {
+		timeout = c.config.getTimeout()
+	}
 	failurePolicy := c.getFailurePolicy()
 	reinvocationPolicy := c.getReinvocationPolicy()
 

@@ -7,11 +7,11 @@ package apiimpl
 
 import (
 	"crypto/tls"
+	"crypto/x509"
 	"fmt"
 	stdLog "log"
 	"net"
 	"net/http"
-	"strconv"
 
 	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl/observability"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -48,7 +48,13 @@ func (server *apiServer) startServers() error {
 		return fmt.Errorf("unable to get IPC address and port: %v", err)
 	}
 
-	tmf := observability.NewTelemetryMiddlewareFactory(server.telemetry)
+	authTagGetter, err := authTagGetter(server.ipc.GetTLSServerConfig())
+	if err != nil {
+		return fmt.Errorf("unable to load the IPC certificate: %v", err)
+	}
+
+	// create the telemetry middleware
+	tmf := observability.NewTelemetryMiddlewareFactory(server.telemetry, authTagGetter)
 
 	// start the CMD server
 	if err := server.startCMDServer(
@@ -59,10 +65,7 @@ func (server *apiServer) startServers() error {
 	}
 
 	// start the IPC server
-	if ipcServerPort := server.cfg.GetInt("agent_ipc.port"); ipcServerPort > 0 {
-		ipcServerHost := server.cfg.GetString("agent_ipc.host")
-		ipcServerHostPort := net.JoinHostPort(ipcServerHost, strconv.Itoa(ipcServerPort))
-
+	if _, ipcServerHostPort, enabled := getIPCServerAddressPort(); enabled {
 		if err := server.startIPCServer(ipcServerHostPort, tmf); err != nil {
 			// if we fail to start the IPC server, we should stop the CMD server
 			server.stopServers()
@@ -77,4 +80,26 @@ func (server *apiServer) startServers() error {
 func (server *apiServer) stopServers() {
 	stopServer(server.cmdListener, cmdServerName)
 	stopServer(server.ipcListener, ipcServerName)
+}
+
+// authTagGetter returns a function that returns the auth tag for the given request
+// It returns "mTLS" if the client provides a valid certificate, "token" otherwise
+func authTagGetter(serverTLSConfig *tls.Config) (func(r *http.Request) string, error) {
+	// Read the IPC certificate from the server TLS config
+	if serverTLSConfig == nil || len(serverTLSConfig.Certificates) == 0 || len(serverTLSConfig.Certificates[0].Certificate) == 0 {
+		return nil, fmt.Errorf("no certificates found in server TLS config")
+	}
+
+	cert, err := x509.ParseCertificate(serverTLSConfig.Certificates[0].Certificate[0])
+	if err != nil {
+		return nil, fmt.Errorf("error parsing IPC certificate: %v", err)
+	}
+
+	return func(r *http.Request) string {
+		if r.TLS != nil && len(r.TLS.PeerCertificates) > 0 && cert.Equal(r.TLS.PeerCertificates[0]) {
+			return "mTLS"
+		}
+		// We can assert that the auth is at least a token because it has been checked previously by the validateToken middleware
+		return "token"
+	}, nil
 }

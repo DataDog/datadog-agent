@@ -3,7 +3,7 @@
 	<outputs formatid="&#34;&#39;&lt;a&amp;b&gt;&#39;&#34;">
 		<console />
 		<rollingfile type="size" filename="&#34;&#39;&lt;a&amp;b&gt;&#39;&#34;" maxsize="100" maxrolls="10" />
-		<custom name="syslog" formatid="syslog-&#34;&#39;&lt;a&amp;b&gt;&#39;&#34;" data-uri="&#34;&#39;&lt;a&amp;b&gt;&#39;&#34;" data-tls="true" />
+		<custom name="syslog" formatid="syslog-&#34;&#39;&lt;a&amp;b&gt;&#39;&#34;" data-uri="&#34;&#39;&lt;a&amp;b&gt;&#39;&#34;" />
 	</outputs>
 	<formats>
 		<format id="json"          format="&#34;&#39;&lt;a&amp;b&gt;&#39;&#34;"/>

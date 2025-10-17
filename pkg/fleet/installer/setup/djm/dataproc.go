@@ -14,33 +14,22 @@ import (
 	"cloud.google.com/go/compute/metadata"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/setup/common"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/setup/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
-	dataprocInjectorVersion   = "0.35.0-1"
-	dataprocJavaTracerVersion = "1.46.1-1"
-	dataprocAgentVersion      = "7.63.3-1"
+	dataprocInjectorVersion   = "0.45.0-1"
+	dataprocJavaTracerVersion = "1.53.0-1"
+	dataprocAgentVersion      = "7.71.1-1"
 )
 
 var (
-	tracerEnvConfigDataproc = []common.InjectTracerConfigEnvVar{
-		{
-			Key:   "DD_DATA_JOBS_ENABLED",
-			Value: "true",
-		},
-		{
-			Key:   "DD_INTEGRATIONS_ENABLED",
-			Value: "false",
-		},
-		{
-			Key:   "DD_DATA_JOBS_COMMAND_PATTERN",
-			Value: ".*org.apache.spark.deploy.*",
-		},
-		{
-			Key:   "DD_SPARK_APP_NAME_AS_SERVICE",
-			Value: "true",
-		},
+	tracerConfigDataproc = config.APMConfigurationDefault{
+		DataJobsEnabled:               config.BoolToPtr(true),
+		IntegrationsEnabled:           config.BoolToPtr(false),
+		DataJobsCommandPattern:        ".*org.apache.spark.deploy.*",
+		DataJobsSparkAppNameAsService: config.BoolToPtr(true),
 	}
 )
 
@@ -48,8 +37,9 @@ var (
 func SetupDataproc(s *common.Setup) error {
 
 	metadataClient := metadata.NewClient(nil)
-	s.Packages.InstallInstaller()
-	s.Packages.Install(common.DatadogAgentPackage, dataprocAgentVersion)
+	if os.Getenv("DD_NO_AGENT_INSTALL") != "true" {
+		s.Packages.Install(common.DatadogAgentPackage, dataprocAgentVersion)
+	}
 	s.Packages.Install(common.DatadogAPMInjectPackage, dataprocInjectorVersion)
 	s.Packages.Install(common.DatadogAPMLibraryJavaPackage, dataprocJavaTracerVersion)
 
@@ -64,13 +54,11 @@ func SetupDataproc(s *common.Setup) error {
 	s.Config.DatadogYAML.DJM.Enabled = true
 	if os.Getenv("DD_TRACE_DEBUG") == "true" {
 		s.Out.WriteString("Enabling Datadog Java Tracer DEBUG logs on DD_TRACE_DEBUG=true\n")
-		debugLogs := common.InjectTracerConfigEnvVar{
-			Key:   "DD_TRACE_DEBUG",
-			Value: "true",
-		}
-		tracerEnvConfigEmr = append(tracerEnvConfigDataproc, debugLogs)
+		tracerConfigDataproc.TraceDebug = config.BoolToPtr(true)
 	}
-	s.Config.InjectTracerYAML.AdditionalEnvironmentVariables = tracerEnvConfigDataproc
+	s.Config.ApplicationMonitoringYAML = &config.ApplicationMonitoringConfig{
+		Default: tracerConfigDataproc,
+	}
 
 	// Ensure tags are always attached with the metrics
 	s.Config.DatadogYAML.ExpectedTagsDuration = "10m"

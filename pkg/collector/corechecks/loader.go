@@ -11,10 +11,12 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/loaders"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
@@ -59,7 +61,7 @@ func (*GoCheckLoader) Name() string {
 }
 
 // Load returns a Go check
-func (gl *GoCheckLoader) Load(senderManger sender.SenderManager, config integration.Config, instance integration.Data) (check.Check, error) {
+func (gl *GoCheckLoader) Load(senderManger sender.SenderManager, config integration.Config, instance integration.Data, instanceIndex int) (check.Check, error) {
 	var c check.Check
 
 	factory, found := catalog[config.Name]
@@ -69,7 +71,12 @@ func (gl *GoCheckLoader) Load(senderManger sender.SenderManager, config integrat
 	}
 
 	c = factory()
-	if err := c.Configure(senderManger, config.FastDigest(), instance, config.InitConfig, config.Source); err != nil {
+
+	configSource := config.Source
+	if instanceIndex >= 0 {
+		configSource = fmt.Sprintf("%s[%d]", configSource, instanceIndex)
+	}
+	if err := c.Configure(senderManger, config.FastDigest(), instance, config.InitConfig, configSource); err != nil {
 		if errors.Is(err, check.ErrSkipCheckInstance) {
 			return c, err
 		}
@@ -86,9 +93,14 @@ func (gl *GoCheckLoader) String() string {
 }
 
 func init() {
-	factory := func(sender.SenderManager, option.Option[integrations.Component], tagger.Component) (check.Loader, error) {
-		return NewGoCheckLoader()
+	factory := func(sender.SenderManager, option.Option[integrations.Component], tagger.Component, workloadfilter.Component) (check.Loader, int, error) {
+		loader, err := NewGoCheckLoader()
+		priority := 30
+		if pkgconfigsetup.Datadog().GetBool("prioritize_go_check_loader") {
+			priority = 10
+		}
+		return loader, priority, err
 	}
 
-	loaders.RegisterLoader(30, factory)
+	loaders.RegisterLoader(factory)
 }

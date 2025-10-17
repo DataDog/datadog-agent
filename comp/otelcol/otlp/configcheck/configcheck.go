@@ -14,12 +14,12 @@ import (
 	"github.com/mohae/deepcopy"
 	"go.opentelemetry.io/collector/confmap"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	configmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
 
 // ReadConfigSection from a config.Component object.
-func ReadConfigSection(cfg config.Reader, section string) *confmap.Conf {
+func ReadConfigSection(cfg configmodel.Reader, section string) *confmap.Conf {
 	// Viper doesn't work well when getting subsections, since it
 	// ignores environment variables and nil-but-present sections.
 	// To work around this, we do the following two steps:
@@ -52,23 +52,35 @@ func ReadConfigSection(cfg config.Reader, section string) *confmap.Conf {
 		if strings.HasPrefix(key, prefix) && cfg.IsSet(key) {
 			mapKey := strings.ReplaceAll(key[len(prefix):], ".", confmap.KeyDelimiter)
 			// deep copy since `cfg.Get` returns a reference
-			stringMap[mapKey] = deepcopy.Copy(cfg.Get(key))
+			var val interface{}
+			if _, ok := intConfigs[key]; ok {
+				val = deepcopy.Copy(cfg.GetInt(key)) // ensure to get an int even if it is set as a string in env vars
+			} else {
+				val = deepcopy.Copy(cfg.Get(key))
+			}
+			stringMap[mapKey] = val
 		}
 	}
 	return confmap.NewFromStringMap(stringMap)
 }
 
+// intConfigs has the known config keys that may need a type cast to int by calling cfg.GetInt
+var intConfigs = map[string]struct{}{
+	"otlp_config.receiver.protocols.grpc.max_concurrent_streams": {},
+	"otlp_config.receiver.protocols.grpc.max_recv_msg_size_mib":  {},
+	"otlp_config.receiver.protocols.grpc.read_buffer_size":       {},
+	"otlp_config.receiver.protocols.grpc.write_buffer_size":      {},
+	"otlp_config.receiver.protocols.http.max_request_body_size":  {},
+}
+
 // IsEnabled checks if OTLP pipeline is enabled in a given config.
-func IsEnabled(cfg config.Reader) bool {
+func IsEnabled(cfg configmodel.Reader) bool {
 	return hasSection(cfg, coreconfig.OTLPReceiverSubSectionKey)
 }
 
-// HasLogsSectionEnabled checks if OTLP logs are explicitly enabled in a given config.
-func HasLogsSectionEnabled(cfg config.Reader) bool {
-	return hasSection(cfg, coreconfig.OTLPLogsEnabled) && cfg.GetBool(coreconfig.OTLPLogsEnabled)
-}
-
-func hasSection(cfg config.Reader, section string) bool {
+// hasSection checks if a subsection of otlp_config section exists in a given config
+// It does not handle sections nested further down.
+func hasSection(cfg configmodel.Reader, section string) bool {
 	// HACK: We want to mark as enabled if the section is present, even if empty, so that we get errors
 	// from unmarshaling/validation done by the Collector code.
 	//

@@ -9,12 +9,13 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taglist"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/config/mock"
 
 	"github.com/stretchr/testify/assert"
 )
 
 func TestAddResourceTags(t *testing.T) {
+	cfg := mock.New(t)
 	tests := []struct {
 		name      string
 		taskTags  map[string]string
@@ -51,10 +52,10 @@ func TestAddResourceTags(t *testing.T) {
 				expectedTags.AddLow("environment", "sandbox")
 				expectedTags.AddLow("project", "ecs-test")
 				expectedTags.AddLow("foo_bar_baz", "val")
-				pkgconfigsetup.Datadog().SetWithoutSource("ecs_resource_tags_replace_colon", true)
+				cfg.SetWithoutSource("ecs_resource_tags_replace_colon", true)
 				return expectedTags
 			},
-			resetFunc: func() { pkgconfigsetup.Datadog().SetWithoutSource("ecs_resource_tags_replace_colon", false) },
+			resetFunc: func() { cfg.SetWithoutSource("ecs_resource_tags_replace_colon", false) },
 		},
 		{
 			name: "replace colon enabled, do not replace tag value",
@@ -70,10 +71,10 @@ func TestAddResourceTags(t *testing.T) {
 				expectedTags.AddLow("environment", "sandbox")
 				expectedTags.AddLow("project", "ecs-test")
 				expectedTags.AddLow("foo_bar_baz", "val1:val2")
-				pkgconfigsetup.Datadog().SetWithoutSource("ecs_resource_tags_replace_colon", true)
+				cfg.SetWithoutSource("ecs_resource_tags_replace_colon", true)
 				return expectedTags
 			},
-			resetFunc: func() { pkgconfigsetup.Datadog().SetWithoutSource("ecs_resource_tags_replace_colon", false) },
+			resetFunc: func() { cfg.SetWithoutSource("ecs_resource_tags_replace_colon", false) },
 		},
 		{
 			name: "replace colon disabled",

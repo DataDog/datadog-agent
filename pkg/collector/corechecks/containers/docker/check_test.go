@@ -8,10 +8,9 @@
 package docker
 
 import (
-	"regexp"
 	"testing"
 
-	dockerTypes "github.com/docker/docker/api/types"
+	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/image"
 	"github.com/stretchr/testify/assert"
 
@@ -19,14 +18,15 @@ import (
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	taggerUtils "github.com/DataDog/datadog-agent/comp/core/tagger/utils"
+	workloadfilterfxmock "github.com/DataDog/datadog-agent/comp/core/workloadfilter/fx-mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/generic"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
-	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics/mock"
 	dockerUtil "github.com/DataDog/datadog-agent/pkg/util/docker"
@@ -49,8 +49,11 @@ func TestDockerCheckGenericPart(t *testing.T) {
 		"cID101": mock.GetFullSampleContainerEntry(),
 	}
 
+	fakeTagger.SetTags(types.NewEntityID("container_id", "cID100"), "foo", []string{"container_id:cID100"}, nil, nil, nil)
+	fakeTagger.SetTags(types.NewEntityID("container_id", "cID101"), "foo", []string{"container_id:cID101"}, nil, nil, nil)
+
 	// Inject mock processor in check
-	mockSender, processor, _ := generic.CreateTestProcessor(containersMeta, containersStats, metricsAdapter{}, getProcessorFilter(nil, nil), fakeTagger)
+	mockSender, processor, _ := generic.CreateTestProcessor(containersMeta, containersStats, metricsAdapter{}, getProcessorFilter(nil, nil), fakeTagger, false)
 	processor.RegisterExtension("docker-custom-metrics", &dockerCustomMetricsExtension{})
 
 	// Create Docker check
@@ -123,7 +126,7 @@ func TestDockerCustomPart(t *testing.T) {
 
 	// Mock client + fake data
 	dockerClient := dockerUtil.MockClient{}
-	dockerClient.FakeContainerList = []dockerTypes.Container{
+	dockerClient.FakeContainerList = []container.Summary{
 		{
 			ID:      "e2d5394a5321d4a59497f53552a0131b2aafe64faba37f4738e78c531289fc45",
 			Names:   []string{"agent"},
@@ -193,6 +196,11 @@ func TestDockerCustomPart(t *testing.T) {
 		},
 	}
 
+	mockConfig := configmock.New(t)
+	mockConfig.SetWithoutSource("container_exclude", "name:agent-excluded")
+	mockConfig.SetWithoutSource("container_exclude_logs", "name:agent2 image:datadog/agent") // shouldn't be applied to metrics
+	mockFilterStore := workloadfilterfxmock.SetupMockFilter(t)
+
 	// Create Docker check
 	check := DockerCheck{
 		instance: &DockerConfig{
@@ -205,12 +213,9 @@ func TestDockerCustomPart(t *testing.T) {
 		},
 		eventTransformer: newBundledTransformer("testhostname", []string{}, fakeTagger),
 		dockerHostname:   "testhostname",
-		containerFilter: &containers.Filter{
-			Enabled:         true,
-			NameExcludeList: []*regexp.Regexp{regexp.MustCompile("agent-excluded")},
-		},
-		store:  fxutil.Test[workloadmetamock.Mock](t, core.MockBundle(), workloadmetafxmock.MockModule(workloadmeta.NewParams())),
-		tagger: fakeTagger,
+		containerFilter:  mockFilterStore.GetContainerSharedMetricFilters(),
+		store:            fxutil.Test[workloadmetamock.Mock](t, core.MockBundle(), workloadmetafxmock.MockModule(workloadmeta.NewParams())),
+		tagger:           fakeTagger,
 	}
 
 	err := check.runDockerCustom(mockSender, &dockerClient, dockerClient.FakeContainerList)
@@ -259,7 +264,7 @@ func TestContainersRunning(t *testing.T) {
 
 	// Mock client + fake data
 	dockerClient := dockerUtil.MockClient{}
-	dockerClient.FakeContainerList = []dockerTypes.Container{
+	dockerClient.FakeContainerList = []container.Summary{
 		{
 			ID:      "e2d5394a5321d4a59497f53552a0131b2aafe64faba37f4738e78c531289fc45",
 			Names:   []string{"agent"},
@@ -287,7 +292,7 @@ func TestContainersRunning(t *testing.T) {
 	check := DockerCheck{
 		instance:        &DockerConfig{},
 		dockerHostname:  "testhostname",
-		containerFilter: &containers.Filter{},
+		containerFilter: workloadfilterfxmock.SetupMockFilter(t).GetContainerSharedMetricFilters(),
 		store:           fxutil.Test[workloadmetamock.Mock](t, core.MockBundle(), workloadmetafxmock.MockModule(workloadmeta.NewParams())),
 		tagger:          fakeTagger,
 	}
@@ -304,6 +309,10 @@ func TestContainersRunning(t *testing.T) {
 
 func TestProcess_CPUSharesMetric(t *testing.T) {
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
+
+	fakeTagger.SetTags(types.NewEntityID("container_id", "cID100"), "foo", []string{"container_id:cID100"}, nil, nil, nil)
+	fakeTagger.SetTags(types.NewEntityID("container_id", "cID101"), "foo", []string{"container_id:cID101"}, nil, nil, nil)
+	fakeTagger.SetTags(types.NewEntityID("container_id", "cID102"), "foo", []string{"container_id:cID102"}, nil, nil, nil)
 
 	containersMeta := []*workloadmeta.Container{
 		generic.CreateContainerMeta("docker", "cID100"),
@@ -336,7 +345,7 @@ func TestProcess_CPUSharesMetric(t *testing.T) {
 	}
 
 	// Inject mock processor in check
-	mockSender, processor, _ := generic.CreateTestProcessor(containersMeta, containersStats, metricsAdapter{}, getProcessorFilter(nil, nil), fakeTagger)
+	mockSender, processor, _ := generic.CreateTestProcessor(containersMeta, containersStats, metricsAdapter{}, getProcessorFilter(nil, nil), fakeTagger, false)
 	processor.RegisterExtension("docker-custom-metrics", &dockerCustomMetricsExtension{})
 
 	// Create Docker check

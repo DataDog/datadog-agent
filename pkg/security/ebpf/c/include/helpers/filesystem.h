@@ -14,31 +14,52 @@
 static __attribute__((always_inline)) void bump_path_id(u32 mount_id) {
     u32 key = mount_id % PATH_ID_MAP_SIZE;
 
-    u32 *prev_id = bpf_map_lookup_elem(&path_id, &key);
-    if (prev_id) {
-        __sync_fetch_and_add(prev_id, 1);
+    u32 *id = bpf_map_lookup_elem(&path_id, &key);
+    if (id) {
+        __sync_fetch_and_add(id, 1);
     }
 }
 
-static __attribute__((always_inline)) u32 get_path_id(u32 mount_id, int invalidate) {
+#define PATH_ID_LOW_MASK 0xFFFFFF
+#define PATH_ID(high, low) ((u32)((high << 24) | (low & PATH_ID_LOW_MASK)))
+
+static __attribute__((always_inline)) u32 get_path_id(u64 ino, u32 mount_id, int nlink, int invalidate) {
     u32 key = mount_id % PATH_ID_MAP_SIZE;
 
-    u32 *prev_id = bpf_map_lookup_elem(&path_id, &key);
-    if (!prev_id) {
+    u32 *id = bpf_map_lookup_elem(&path_id, &key);
+    if (!id) {
         return 0;
     }
+
+    u32 id_value = *id;
 
     // need to invalidate the current path id for event which may change the association inode/name like
     // unlink, rename, rmdir.
     if (invalidate) {
-        __sync_fetch_and_add(prev_id, 1);
+        __sync_fetch_and_add(id, 1);
     }
 
-    return *prev_id;
+    u8 link_id_value;
+
+    if (nlink > 1) {
+        u8 *link_id = bpf_map_lookup_elem(&hardlink_ids, &ino);
+        if (!link_id) {
+            link_id_value = 1; // start at 1 to avoid conflicts with the nlink <= 1 case
+        } else {
+            link_id_value = (*link_id) + 1;
+        }
+        bpf_map_update_elem(&hardlink_ids, &ino, &link_id_value, BPF_ANY);
+    } else {
+        link_id_value = 0;
+    }
+
+    id_value = PATH_ID(link_id_value, id_value);
+
+    return id_value;
 }
 
-static __attribute__((always_inline)) void update_path_id(struct path_key_t *path_key, int invalidate) {
-    path_key->path_id = get_path_id(path_key->mount_id, invalidate);
+static __attribute__((always_inline)) void update_path_id(struct path_key_t *path_key, int nlink, int invalidate) {
+    path_key->path_id = get_path_id(path_key->ino, path_key->mount_id, nlink, invalidate);
 }
 
 static __attribute__((always_inline)) void inc_mount_ref(u32 mount_id) {
@@ -109,12 +130,19 @@ void __attribute__((always_inline)) fill_file(struct dentry *dentry, struct file
 
     file->dev = get_dentry_dev(dentry);
 
+    // nlink is mostly used userspace side to invalidate cache. use the higher value found
     u64 inode_nlink_offset;
     LOAD_CONSTANT("inode_nlink_offset", inode_nlink_offset);
+
+    u32 nlink = 0;
+    bpf_probe_read(&nlink, sizeof(nlink), (void *)d_inode + inode_nlink_offset);
+    if (nlink > file->metadata.nlink) {
+      file->metadata.nlink = nlink;
+    }
+
     u64 inode_gid_offset;
     LOAD_CONSTANT("inode_gid_offset", inode_gid_offset);
 
-    bpf_probe_read(&file->metadata.nlink, sizeof(file->metadata.nlink), (void *)d_inode + inode_nlink_offset);
     bpf_probe_read(&file->metadata.mode, sizeof(file->metadata.mode), &d_inode->i_mode);
     bpf_probe_read(&file->metadata.uid, sizeof(file->metadata.uid), &d_inode->i_uid);
     bpf_probe_read(&file->metadata.gid, sizeof(file->metadata.gid), (void *)d_inode + inode_gid_offset);
@@ -175,14 +203,21 @@ void __attribute__((always_inline)) fill_file(struct dentry *dentry, struct file
     }
 
 static __attribute__((always_inline)) void set_file_inode(struct dentry *dentry, struct file_t *file, int invalidate) {
-    file->path_key.path_id = get_path_id(file->path_key.mount_id, invalidate);
     if (!file->path_key.ino) {
         file->path_key.ino = get_dentry_ino(dentry);
     }
 
+    int nlink = get_dentry_nlink(dentry);
+    if (nlink > file->metadata.nlink) {
+        file->metadata.nlink = nlink;
+    }
+
     if (is_overlayfs(dentry)) {
         set_overlayfs_inode(dentry, file);
+        set_overlayfs_nlink(dentry, file);
     }
+
+    file->path_key.path_id = get_path_id(file->path_key.ino, file->path_key.mount_id, file->metadata.nlink, invalidate);
 }
 
 #endif

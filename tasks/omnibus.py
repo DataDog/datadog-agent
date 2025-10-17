@@ -1,7 +1,15 @@
+import hashlib
 import os
+import re
+import subprocess
 import sys
 import tempfile
+import warnings
+from collections import defaultdict
+from collections.abc import Iterator
+from typing import NamedTuple
 
+import requests
 from invoke import task
 from invoke.exceptions import Exit, UnexpectedExit
 
@@ -9,43 +17,40 @@ from tasks.flavor import AgentFlavor
 from tasks.go import deps
 from tasks.libs.common.check_tools_version import expected_go_repo_v
 from tasks.libs.common.omnibus import (
+    ENV_PASSHTROUGH,
+    OS_SPECIFIC_ENV_PASSTHROUGH,
     install_dir_for_project,
     omnibus_compute_cache_key,
     send_build_metrics,
     send_cache_miss_event,
+    send_cache_mutation_event,
     should_retry_bundle_install,
 )
+from tasks.libs.common.user_interactions import yes_no_question
 from tasks.libs.common.utils import gitlab_section, timed
-from tasks.libs.releasing.version import get_version, load_release_versions
+from tasks.libs.releasing.version import get_version, load_dependencies
 
 
 def omnibus_run_task(ctx, task, target_project, base_dir, env, log_level="info", host_distribution=None):
     with ctx.cd("omnibus"):
-        overrides_cmd = ""
+        overrides = []
         if base_dir:
-            overrides_cmd = f"--override=base_dir:{base_dir}"
+            overrides.append(f"--override=base_dir:{base_dir}")
         if host_distribution:
-            overrides_cmd += f" --override=host_distribution:{host_distribution}"
+            overrides.append(f"--override=host_distribution:{host_distribution}")
 
-        omnibus = "bundle exec omnibus"
-        if sys.platform == 'win32':
-            omnibus = "bundle exec omnibus.bat"
-        elif sys.platform == 'darwin':
-            # HACK: This is an ugly hack to fix another hack made by python3 on MacOS
-            # The full explanation is available on this PR: https://github.com/DataDog/datadog-agent/pull/5010.
-            omnibus = "unset __PYVENV_LAUNCHER__ && bundle exec omnibus"
-
+        omnibus = f"bundle exec {'omnibus.bat' if sys.platform == 'win32' else 'omnibus'}"
         cmd = "{omnibus} {task} {project_name} --log-level={log_level} {overrides}"
         args = {
             "omnibus": omnibus,
             "task": task,
             "project_name": target_project,
             "log_level": log_level,
-            "overrides": overrides_cmd,
+            "overrides": " ".join(overrides),
         }
 
         with gitlab_section(f"Running omnibus task {task}", collapsed=True):
-            ctx.run(cmd.format(**args), env=env, err_stream=sys.stdout)
+            ctx.run(cmd.format(**args), env=env, replace_env=True, err_stream=sys.stdout)
 
 
 def bundle_install_omnibus(ctx, gem_path=None, env=None, max_try=2):
@@ -53,7 +58,8 @@ def bundle_install_omnibus(ctx, gem_path=None, env=None, max_try=2):
         # make sure bundle install starts from a clean state
         try:
             os.remove("Gemfile.lock")
-        except Exception:
+        except FileNotFoundError:
+            # It's okay if the file doesn't exist - we just want to ensure it's not there
             pass
 
         cmd = "bundle install"
@@ -63,11 +69,11 @@ def bundle_install_omnibus(ctx, gem_path=None, env=None, max_try=2):
         with gitlab_section("Bundle install omnibus", collapsed=True):
             for trial in range(max_try):
                 try:
-                    ctx.run(cmd, env=env, err_stream=sys.stdout)
+                    ctx.run(cmd, env=env, replace_env=True, err_stream=sys.stdout)
                     return
                 except UnexpectedExit as e:
                     if not should_retry_bundle_install(e.result):
-                        print(f'Fatal error while installing omnibus: {e.result.stdout}. Cannot continue.')
+                        print(f'Fatal error while installing omnibus: {e.result.stderr}. Cannot continue.')
                         raise
                     print(f"Retrying bundle install, attempt {trial + 1}/{max_try}")
         raise Exit('Too many failures while installing omnibus, giving up')
@@ -76,8 +82,6 @@ def bundle_install_omnibus(ctx, gem_path=None, env=None, max_try=2):
 def get_omnibus_env(
     ctx,
     skip_sign=False,
-    release_version="nightly",
-    major_version='7',
     hardened_runtime=False,
     system_probe_bin=None,
     go_mod_cache=None,
@@ -86,7 +90,21 @@ def get_omnibus_env(
     custom_config_dir=None,
     fips_mode=False,
 ):
-    env = load_release_versions(ctx, release_version)
+    env = load_dependencies(ctx)
+
+    # Discard windows variables when not on Windows (so that they're not used in the cache key either)
+    if sys.platform != 'win32':
+        windows_only_vars = [
+            'WINDOWS_DDNPM_DRIVER',
+            'WINDOWS_DDNPM_VERSION',
+            'WINDOWS_DDNPM_SHASUM',
+            'WINDOWS_DDPROCMON_DRIVER',
+            'WINDOWS_DDPROCMON_VERSION',
+            'WINDOWS_DDPROCMON_SHASUM',
+        ]
+        for var in windows_only_vars:
+            if var in env:
+                del env[var]
 
     # If the host has a GOMODCACHE set, try to reuse it
     if not go_mod_cache and os.environ.get('GOMODCACHE'):
@@ -95,26 +113,40 @@ def get_omnibus_env(
     if go_mod_cache:
         env['OMNIBUS_GOMODCACHE'] = go_mod_cache
 
-    env_override = ['INTEGRATIONS_CORE_VERSION', 'OMNIBUS_RUBY_VERSION']
-    for key in env_override:
+    external_repos = {
+        "INTEGRATIONS_CORE_VERSION": "https://github.com/DataDog/integrations-core.git",
+        "OMNIBUS_RUBY_VERSION": "https://github.com/DataDog/omnibus-ruby.git",
+    }
+    for key, url in external_repos.items():
         value = os.environ.get(key)
         # Only overrides the env var if the value is a non-empty string.
         if value:
             env[key] = value
+        ref = env[key]
+        if not re.fullmatch(r"[0-9a-f]{4,40}", ref):  # resolve only "moving" refs, such as `own/branch`
+            candidates = [
+                line.split()
+                for line in subprocess.check_output(["git", "ls-remote", "--refs", url, ref], text=True).splitlines()
+            ]
+            if not candidates:
+                raise Exit(f"{key!r}: no candidate for {ref!r} @ {url}!")
+            if len(candidates) > 1:  # happens when a branch name mimics its base or target, such as `my/own/branch`
+                warnings.warn(
+                    f"{key!r}: multiple candidates for {ref!r} @ {url} {[c[1] for c in candidates]}", stacklevel=1
+                )
+            sha1, shortest_ref = min(candidates, key=lambda c: len(c[1]))
+            print(f"{key!r}: {ref!r} @ {url} resolves to {shortest_ref!r} -> {sha1}")
+            env[key] = sha1
 
     if sys.platform == 'darwin':
-        # Target MacOS 10.12
-        env['MACOSX_DEPLOYMENT_TARGET'] = '10.12'
+        env['MACOSX_DEPLOYMENT_TARGET'] = '11.0'  # https://docs.datadoghq.com/agent/supported_platforms/?tab=macos
 
-    if skip_sign:
-        env['SKIP_SIGN_MAC'] = 'true'
-    if hardened_runtime:
-        env['HARDENED_RUNTIME_MAC'] = 'true'
+        if skip_sign:
+            env['SKIP_SIGN_MAC'] = 'true'
+        if hardened_runtime:
+            env['HARDENED_RUNTIME_MAC'] = 'true'
 
-    env['PACKAGE_VERSION'] = get_version(
-        ctx, include_git=True, url_safe=True, major_version=major_version, include_pipeline_id=True
-    )
-    env['MAJOR_VERSION'] = major_version
+    env['PACKAGE_VERSION'] = get_version(ctx, include_git=True, url_safe=True, include_pipeline_id=True)
 
     # Since omnibus and the invoke task won't run in the same folder
     # we need to input the absolute path of the pip config file
@@ -148,24 +180,25 @@ def get_omnibus_env(
     kubernetes_cpu_request = os.environ.get('KUBERNETES_CPU_REQUEST')
     if kubernetes_cpu_request:
         env['OMNIBUS_WORKERS_OVERRIDE'] = str(int(kubernetes_cpu_request) + 1)
-    env_to_forward = [
-        # Forward the DEPLOY_AGENT variable so that we can use a higher compression level for deployed artifacts
-        'DEPLOY_AGENT',
-        # Forward the BUCKET_BRANCH variable to differentiate a nightly pipeline from a release pipeline
-        'BUCKET_BRANCH',
-        'PACKAGE_ARCH',
-        'INSTALL_DIR',
-        'DD_CC',
-        'DD_CXX',
-        'DD_CMAKE_TOOLCHAIN',
-        'OMNIBUS_FORCE_PACKAGES',
-        'OMNIBUS_PACKAGE_ARTIFACT_DIR',
-    ]
-    for key in env_to_forward:
-        if key in os.environ:
-            env[key] = os.environ[key]
+
+    env_to_forward = _passthrough_env_for_os(os.environ, sys.platform)
+    env.update(env_to_forward)
 
     return env
+
+
+def _passthrough_env_for_os(starting_env: dict[str, str], platform: str) -> dict[str, str]:
+    expected_env = set(ENV_PASSHTROUGH) | set(OS_SPECIFIC_ENV_PASSTHROUGH[platform])
+
+    missing_env = expected_env - set(starting_env)
+    if missing_env:
+        warnings.warn(
+            f'Missing expected environment variables for Omnibus build: {missing_env}',
+            stacklevel=1,
+        )
+    passthrough_env = {k: v for k, v in starting_env.items() if k in expected_env}
+
+    return passthrough_env
 
 
 # hardened-runtime needs to be set to False to build on MacOS < 10.13.6, as the -o runtime option is not supported.
@@ -183,8 +216,6 @@ def build(
     gem_path=None,
     skip_deps=False,
     skip_sign=False,
-    release_version="nightly",
-    major_version='7',
     hardened_runtime=False,
     system_probe_bin=None,
     go_mod_cache=None,
@@ -217,8 +248,6 @@ def build(
     env = get_omnibus_env(
         ctx,
         skip_sign=skip_sign,
-        release_version=release_version,
-        major_version=major_version,
         hardened_runtime=hardened_runtime,
         system_probe_bin=system_probe_bin,
         go_mod_cache=go_mod_cache,
@@ -256,7 +285,10 @@ def build(
         and host_distribution != "ociru"
         and "OMNIBUS_PACKAGE_ARTIFACT_DIR" not in os.environ
     )
-    aws_cmd = "aws.cmd" if sys.platform == 'win32' else "aws"
+    remote_cache_name = os.environ.get('CI_JOB_NAME_SLUG')
+    use_remote_cache = use_omnibus_git_cache and remote_cache_name is not None
+    cache_state = None
+    aws_cmd = "aws.exe" if sys.platform == 'win32' else "aws"
     if use_omnibus_git_cache:
         # The cache will be written in the provided cache dir (see omnibus.rb) but
         # the git repository itself will be located in a subfolder that replicates
@@ -270,16 +302,13 @@ def build(
         # which effectively drops whatever was in omnibus_cache_dir
         install_directory = install_directory.lstrip('/')
         omnibus_cache_dir = os.path.join(omnibus_cache_dir, install_directory)
-        remote_cache_name = os.environ.get('CI_JOB_NAME_SLUG')
         # We don't want to update the cache when not running on a CI
         # Individual developers are still able to leverage the cache by providing
         # the OMNIBUS_GIT_CACHE_DIR env variable, but they won't pull from the CI
         # generated one.
         with gitlab_section("Manage omnibus cache", collapsed=True):
-            use_remote_cache = remote_cache_name is not None
             if use_remote_cache:
-                cache_state = None
-                cache_key = omnibus_compute_cache_key(ctx)
+                cache_key = omnibus_compute_cache_key(ctx, env)
                 git_cache_url = f"s3://{os.environ['S3_OMNIBUS_GIT_CACHE_BUCKET']}/{cache_key}/{remote_cache_name}"
                 bundle_dir = tempfile.TemporaryDirectory()
                 bundle_path = os.path.join(bundle_dir.name, 'omnibus-git-cache-bundle')
@@ -319,15 +348,20 @@ def build(
         stale_tags = ctx.run(f'git -C {omnibus_cache_dir} tag --no-merged', warn=True).stdout
         # Purge the cache manually as omnibus will stick to not restoring a tag when
         # a mismatch is detected, but will keep the old cached tags.
-        # Do this before checking for tag differences, in order to remove staled tags
+        # Do this before checking for tag differences, in order to remove stale tags
         # in case they were included in the bundle in a previous build
         for _, tag in enumerate(stale_tags.split(os.linesep)):
             ctx.run(f'git -C {omnibus_cache_dir} tag -d {tag}')
-        with timed(quiet=True) as durations['Updating omnibus cache']:
-            if use_remote_cache and ctx.run(f"git -C {omnibus_cache_dir} tag -l").stdout != cache_state:
-                ctx.run(f"git -C {omnibus_cache_dir} bundle create {bundle_path} --tags")
-                ctx.run(f"{aws_cmd} s3 cp --only-show-errors {bundle_path} {git_cache_url}")
-                bundle_dir.cleanup()
+        if use_remote_cache:
+            if cache_state is None:
+                with timed(quiet=True) as durations['Updating omnibus cache']:
+                    ctx.run(f"git -C {omnibus_cache_dir} bundle create {bundle_path} --tags")
+                    ctx.run(f"{aws_cmd} s3 cp --only-show-errors {bundle_path} {git_cache_url}")
+                    bundle_dir.cleanup()
+            elif ctx.run(f"git -C {omnibus_cache_dir} tag -l").stdout != cache_state:
+                send_cache_mutation_event(
+                    ctx, os.environ.get('CI_PIPELINE_ID'), remote_cache_name, os.environ.get('CI_JOB_ID')
+                )
 
     # Output duration information for different steps
     print("Build component timing:")
@@ -350,8 +384,6 @@ def manifest(
     base_dir=None,
     gem_path=None,
     skip_sign=False,
-    release_version="nightly",
-    major_version='7',
     hardened_runtime=False,
     system_probe_bin=None,
     go_mod_cache=None,
@@ -363,8 +395,6 @@ def manifest(
     env = get_omnibus_env(
         ctx,
         skip_sign=skip_sign,
-        release_version=release_version,
-        major_version=major_version,
         hardened_runtime=hardened_runtime,
         system_probe_bin=system_probe_bin,
         go_mod_cache=go_mod_cache,
@@ -393,6 +423,120 @@ def manifest(
         env=env,
         log_level=log_level,
     )
+
+
+@task()
+def build_repackaged_agent(ctx, log_level="info"):
+    """
+    Create an Agent package by using an existing Agent package as a base and rebuilding the Agent binaries with the local checkout.
+
+    Currently only expected to work for debian packages, and requires the `dpkg` command to be available.
+    """
+    # Make sure we let the user know that we're going to overwrite the existing Agent installation if present
+    agent_path = "/opt/datadog-agent"
+    if os.path.exists(agent_path):
+        if not yes_no_question(
+            f"The Agent installation directory {agent_path} already exists, and will be overwritten by this build. Continue?",
+            color="red",
+            default=False,
+        ):
+            raise Exit("Operation cancelled")
+
+        import shutil
+
+        shutil.rmtree("/opt/datadog-agent")
+
+    architecture = ctx.run("dpkg --print-architecture", hide=True).stdout.strip()
+
+    # Fetch the Packages file from the nightly repository and get the datadog-agent package with the highest pipeline ID
+    # The assumption here is that only nightlies from master are pushed to the nightly repository
+    # and that simply picking up the highest pipeline ID will give us what we want without having to query Gitlab.
+    packages_url = f"https://apt.datad0g.com/dists/nightly/7/binary-{architecture}/Packages"
+    with requests.get(packages_url, stream=True, timeout=10) as response:
+        response.raise_for_status()
+        lines = response.iter_lines(decode_unicode=True)
+
+        latest_package = max(
+            (pkg for pkg in _packages_from_deb_metadata(lines) if pkg.package_name == "datadog-agent"),
+            key=_pipeline_id_of_package,
+        )
+
+    env = get_omnibus_env(ctx, skip_sign=True, flavor=AgentFlavor.base)
+
+    env['OMNIBUS_REPACKAGE_SOURCE_URL'] = f"https://apt.datad0g.com/{latest_package.filename}"
+    env['OMNIBUS_REPACKAGE_SOURCE_SHA256'] = latest_package.sha256
+    # Set up compiler flags (assumes an environment based on our glibc-targeting toolchains)
+    if architecture == "amd64":
+        env.update(
+            {
+                "DD_CC": "x86_64-unknown-linux-gnu-gcc",
+                "DD_CXX": "x86_64-unknown-linux-gnu-g++",
+                "DD_CMAKE_TOOLCHAIN": "/opt/cmake/x86_64-unknown-linux-gnu.toolchain.cmake",
+            }
+        )
+    elif architecture == "arm64":
+        env.update(
+            {
+                "DD_CC": "aarch64-unknown-linux-gnu-gcc",
+                "DD_CXX": "aarch64-unknown-linux-gnu-g++",
+                "DD_CMAKE_TOOLCHAIN": "/opt/cmake/aarch64-unknown-linux-gnu.toolchain.cmake",
+            }
+        )
+
+    print("Using the following package as a base:", env['OMNIBUS_REPACKAGE_SOURCE_URL'])
+
+    bundle_install_omnibus(ctx, None, env)
+
+    omnibus_run_task(ctx, "build", "agent", base_dir=None, env=env, log_level=log_level)
+
+
+class DebPackageInfo(NamedTuple):
+    package_name: str | None
+    filename: str | None
+    sha256: str | None
+
+    @classmethod
+    def from_metadata(cls, package_info: dict) -> "DebPackageInfo":
+        """Creates a DebPackageInfo object from a dictionary of package metadata."""
+        return cls(
+            package_name=package_info.get("Package"),
+            filename=package_info.get("Filename"),
+            sha256=package_info.get("SHA256"),
+        )
+
+
+def _packages_from_deb_metadata(lines: Iterator[str]) -> Iterator[DebPackageInfo]:
+    """Generator function that yields package blocks from the lines of a deb Packages metadata file."""
+    package_info = {}
+    for line in lines:
+        # Empty line indicates end of package block
+        if not line.strip():
+            if package_info:
+                yield DebPackageInfo.from_metadata(package_info)
+                package_info = {}  # Reset for next package
+            continue
+
+        try:
+            key, value = line.split(":", 1)
+            package_info[key] = value.strip()
+        except ValueError:
+            continue
+
+    # Don't forget the last package if it exists
+    if package_info:
+        yield DebPackageInfo.from_metadata(package_info)
+
+
+def _pipeline_id_of_package(package: DebPackageInfo) -> int:
+    """
+    Returns the pipeline ID of the package, or -1 if the package doesn't have a pipeline ID.
+
+    The filenames are expected to be in the format of pool/d/da/datadog-agent_<version>.pipeline.<pipeline_id>-1_<arch>.deb
+    """
+    pipeline_id_match = re.search(r'pipeline\.(\d+)', package.filename)
+    if pipeline_id_match:
+        return int(pipeline_id_match[1])
+    return -1
 
 
 def _otool_install_path_replacements(otool_output, install_path):
@@ -474,3 +618,62 @@ def rpath_edit(ctx, install_path, target_rpath_dd_folder, platform="linux"):
         if install_path in binary_rpath:
             new_rpath = os.path.relpath(target_rpath_dd_folder, os.path.dirname(file))
             _patch_binary_rpath(ctx, new_rpath, install_path, binary_rpath, platform, file)
+
+
+@task
+def deduplicate_files(ctx, directory):
+    # Matches: .so, .so.X, .so.X.Y, .so.X.Y.Z, .bundle, .dll, .dylib, .pyd
+    LIB_PATTERN = re.compile(r"\.(bundle|dll|dylib|pyd|so(?:\.\d+)*)$")
+
+    def hash_file(filepath):
+        """Returns the SHA-256 hash of the file's contents."""
+        with open(filepath, "rb") as f:
+            return hashlib.file_digest(f, "sha256").hexdigest()
+
+    def find_duplicates(root_dir):
+        """Finds and returns duplicates as a map of hash -> list of files with that hash, excluding empty files."""
+        hash_to_files = defaultdict(list)
+        for dirpath, _, filenames in os.walk(root_dir):
+            for name in filenames:
+                if not LIB_PATTERN.search(name):
+                    continue
+
+                full_path = os.path.join(dirpath, name)
+                # Only regular files; skip symlinks
+                if os.path.isfile(full_path) and not os.path.islink(full_path):
+                    try:
+                        if os.path.getsize(full_path) == 0:
+                            continue  # Exclude empty files
+                        file_hash = hash_file(full_path)
+                        hash_to_files[file_hash].append(full_path)
+                    except Exception as e:
+                        print(f"Error hashing {full_path}: {e}")
+        return {h: paths for h, paths in hash_to_files.items() if len(paths) > 1}
+
+    def replace_with_symlinks(duplicates):
+        """Replaces all duplicates with symlinks to the first original (shortest path wins)."""
+        for files in duplicates.values():
+            files.sort(key=lambda p: (len(p), p))  # shortest path, then lexicographic
+            original = files[0]
+            for dup in files[1:]:
+                try:
+                    os.remove(dup)
+                    rel_path = os.path.relpath(original, os.path.dirname(dup))
+                    os.symlink(rel_path, dup)
+                    print(f"Replaced {dup} with symlink to {original}")
+                except Exception as e:
+                    print(f"Failed to replace {dup}: {e}")
+
+    root = os.path.abspath(directory)
+    if not os.path.isdir(root):
+        print(f"{root} is not a valid directory.")
+        return
+
+    print(f"Scanning for duplicates in: {root}")
+    duplicates = find_duplicates(root)
+
+    if not duplicates:
+        return
+
+    print(f"Found {sum(len(v) - 1 for v in duplicates.values())} duplicate files.")
+    replace_with_symlinks(duplicates)

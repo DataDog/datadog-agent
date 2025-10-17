@@ -9,11 +9,11 @@ package docker
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
-	"github.com/CycloneDX/cyclonedx-go"
-
+	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/sbom/collectors"
@@ -61,9 +61,9 @@ func (c *collector) startSBOMCollection(ctx context.Context) error {
 		return fmt.Errorf("error retrieving global docker scanner channel")
 	}
 
-	containerImageFilter, err := collectors.NewSBOMContainerFilter()
-	if err != nil {
-		return fmt.Errorf("failed to create container filter: %w", err)
+	errs := c.filterSBOMContainers.GetErrors()
+	if len(errs) > 0 {
+		return fmt.Errorf("failed to create container filter: %w", errors.Join(errs...))
 	}
 
 	go func() {
@@ -82,7 +82,8 @@ func (c *collector) startSBOMCollection(ctx context.Context) error {
 				for _, event := range eventBundle.Events {
 					image := event.Entity.(*workloadmeta.ContainerImageMetadata)
 
-					if containerImageFilter != nil && containerImageFilter.IsExcluded(nil, "", image.Name, "") {
+					filterableContainer := workloadfilter.CreateContainerImage(image.Name)
+					if c.filterSBOMContainers.IsExcluded(filterableContainer) {
 						continue
 					}
 
@@ -112,31 +113,9 @@ func (c *collector) startSBOMCollection(ctx context.Context) error {
 					log.Errorf("Scan result does not hold the image identifier. Error: %s", result.Error)
 					continue
 				}
-				status := workloadmeta.Success
-				reportedError := ""
-				var report *cyclonedx.BOM
-				if result.Error != nil {
-					// TODO: add a retry mechanism for retryable errors
-					log.Errorf("Failed to generate SBOM for docker: %s", result.Error)
-					status = workloadmeta.Failed
-					reportedError = result.Error.Error()
-				} else {
-					bom, err := result.Report.ToCycloneDX()
-					if err != nil {
-						log.Errorf("Failed to extract SBOM from report")
-						status = workloadmeta.Failed
-						reportedError = result.Error.Error()
-					}
-					report = bom
-				}
 
-				sbom := &workloadmeta.SBOM{
-					CycloneDXBOM:       report,
-					GenerationTime:     result.CreatedAt,
-					GenerationDuration: result.Duration,
-					Status:             status,
-					Error:              reportedError,
-				}
+				sbom := result.ConvertScanResultToSBOM()
+
 				// Updating workloadmeta entities directly is not thread-safe, that's why we
 				// generate an update event here instead.
 				event := &dutil.ImageEvent{

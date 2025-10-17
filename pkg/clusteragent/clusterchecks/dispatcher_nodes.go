@@ -54,6 +54,13 @@ func (d *dispatcher) processNodeStatus(nodeName, clientIP string, status types.N
 	node.Lock()
 	defer node.Unlock()
 	node.heartbeat = timestampNow()
+	node.nodetype = status.NodeType
+
+	// Check if we need to disable advanced dispatching when node agents join
+	if d.advancedDispatching.Load() && status.NodeType == types.NodeTypeNodeAgent {
+		d.disableAdvancedDispatching()
+	}
+
 	// When we receive ExtraHeartbeatLastChangeValue, we only update heartbeat
 	if status.LastChange == types.ExtraHeartbeatLastChangeValue {
 		return true
@@ -89,7 +96,7 @@ func (d *dispatcher) processNodeStatus(nodeName, clientIP string, status types.N
 // On the other hand, when advanced dispatching is not used, we can pick the
 // node with fewer checks. It's because the number of checks is kept up to date.
 func (d *dispatcher) getNodeToScheduleCheck() string {
-	if d.advancedDispatching {
+	if d.advancedDispatching.Load() {
 		return d.getRandomNode()
 	}
 

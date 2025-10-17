@@ -111,7 +111,7 @@ func parseFilters(filters []string) (imageFilters, nameFilters, namespaceFilters
 	for _, filter := range filters {
 		switch {
 		case strings.HasPrefix(filter, imageFilterPrefix):
-			filter = preprocessImageFilter(filter)
+			filter = PreprocessImageFilter(filter)
 			r, err := filterToRegex(filter, imageFilterPrefix)
 			if err != nil {
 				filterErrs = append(filterErrs, err.Error())
@@ -143,10 +143,10 @@ func parseFilters(filters []string) (imageFilters, nameFilters, namespaceFilters
 	return imageFilters, nameFilters, namespaceFilters, filterErrs
 }
 
-// preprocessImageFilter modifies image filters having the format `name$`, where {name} doesn't include a colon (e.g. nginx$, ^nginx$), to
+// PreprocessImageFilter modifies image filters having the format `name$`, where {name} doesn't include a colon (e.g. nginx$, ^nginx$), to
 // `name:.*`.
 // This is done so that image filters can still match even if the matched image contains the tag or digest.
-func preprocessImageFilter(imageFilter string) string {
+func PreprocessImageFilter(imageFilter string) string {
 	regexVal := strings.TrimPrefix(imageFilter, imageFilterPrefix)
 	if strings.HasSuffix(regexVal, "$") && !strings.Contains(regexVal, ":") {
 		mutatedRegexVal := regexVal[:len(regexVal)-1] + "(@sha256)?:.*"
@@ -396,20 +396,21 @@ func (cf Filter) isExcludedByAnnotation(annotations map[string]string, container
 	switch cf.FilterType {
 	case GlobalFilter:
 	case MetricsFilter:
-		if isExcludedByAnnotationInner(annotations, containerName, "metrics_") {
+		if IsExcludedByAnnotationInner(annotations, containerName, "metrics_") {
 			return true
 		}
 	case LogsFilter:
-		if isExcludedByAnnotationInner(annotations, containerName, "logs_") {
+		if IsExcludedByAnnotationInner(annotations, containerName, "logs_") {
 			return true
 		}
 	default:
 		log.Warnf("unrecognized filter type: %s", cf.FilterType)
 	}
-	return isExcludedByAnnotationInner(annotations, containerName, "")
+	return IsExcludedByAnnotationInner(annotations, containerName, "")
 }
 
-func isExcludedByAnnotationInner(annotations map[string]string, containerName string, excludePrefix string) bool {
+// IsExcludedByAnnotationInner checks if an entity is excluded by annotations.
+func IsExcludedByAnnotationInner(annotations map[string]string, containerName string, excludePrefix string) bool {
 	var e bool
 	// try container-less annotations first
 	exclude, found := annotations[fmt.Sprintf(kubeAutodiscoveryAnnotation, excludePrefix)]

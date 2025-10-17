@@ -15,7 +15,6 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -89,7 +88,7 @@ func (d *dockerCollector) GetContainerStats(_, containerID string, _ time.Durati
 	if err != nil {
 		return nil, err
 	}
-	outStats := convertContainerStats(&stats.Stats)
+	outStats := convertContainerStats(stats)
 
 	contSpec, err := d.spec(containerID)
 	if err == nil {
@@ -184,7 +183,7 @@ func (d *dockerCollector) pids(containerID string) ([]int, error) {
 	return d.du.GetContainerPIDs(context.TODO(), containerID)
 }
 
-func (d *dockerCollector) spec(containerID string) (*types.ContainerJSON, error) {
+func (d *dockerCollector) spec(containerID string) (*container.InspectResponse, error) {
 	contSpec, err := d.du.Inspect(context.TODO(), containerID, false)
 	if err != nil {
 		return nil, err
@@ -219,7 +218,7 @@ func (d *dockerCollector) refreshPIDCache(currentTime time.Time, cacheValidity t
 	return nil
 }
 
-func fillStatsFromSpec(containerStats *provider.ContainerStats, spec *types.ContainerJSON) {
+func fillStatsFromSpec(containerStats *provider.ContainerStats, spec *container.InspectResponse) {
 	if spec == nil || containerStats == nil {
 		return
 	}
@@ -228,7 +227,7 @@ func fillStatsFromSpec(containerStats *provider.ContainerStats, spec *types.Cont
 	computeMemoryLimit(containerStats, spec)
 }
 
-func computeMemoryLimit(containerStats *provider.ContainerStats, spec *types.ContainerJSON) {
+func computeMemoryLimit(containerStats *provider.ContainerStats, spec *container.InspectResponse) {
 	if spec == nil || spec.HostConfig == nil || containerStats.Memory == nil {
 		return
 	}

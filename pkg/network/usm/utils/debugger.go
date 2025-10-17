@@ -52,8 +52,8 @@ type PathIdentifierWithSamplePath struct {
 // generates a summary of all active uprobe-based programs along with their file paths and PIDs.
 // This is used for debugging purposes only.
 func GetTracedProgramsEndpoint(moduleName string) func(http.ResponseWriter, *http.Request) {
-	return func(w http.ResponseWriter, _ *http.Request) {
-		otherutils.WriteAsJSON(w, debugger.GetTracedPrograms(moduleName))
+	return func(w http.ResponseWriter, req *http.Request) {
+		otherutils.WriteAsJSON(w, debugger.GetTracedPrograms(moduleName), otherutils.GetPrettyPrintFromQueryParams(req))
 	}
 }
 
@@ -62,8 +62,8 @@ func GetTracedProgramsEndpoint(moduleName string) func(http.ResponseWriter, *htt
 // registry along with their device and inode numbers, and sample path.
 // This is used for debugging purposes only.
 func GetBlockedPathIDEndpoint(moduleName string) func(http.ResponseWriter, *http.Request) {
-	return func(w http.ResponseWriter, _ *http.Request) {
-		otherutils.WriteAsJSON(w, debugger.GetAllBlockedPathIDs(moduleName))
+	return func(w http.ResponseWriter, req *http.Request) {
+		otherutils.WriteAsJSON(w, debugger.GetAllBlockedPathIDs(moduleName), otherutils.GetPrettyPrintFromQueryParams(req))
 	}
 }
 

@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    Factor dependent services into the timeout when stopping the Agent service on Windows.
+    Operations such as the ``stop-service`` Agent subcommand and remote updates
+    now wait longer for the Agent and its subservices to stop before reporting an error.

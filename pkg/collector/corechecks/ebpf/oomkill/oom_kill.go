@@ -10,7 +10,6 @@ package oomkill
 
 import (
 	"fmt"
-	"net/http"
 	"strings"
 
 	yaml "gopkg.in/yaml.v2"
@@ -46,7 +45,7 @@ type OOMKillCheck struct {
 	core.CheckBase
 	instance       *OOMKillConfig
 	tagger         tagger.Component
-	sysProbeClient *http.Client
+	sysProbeClient *sysprobeclient.CheckClient
 }
 
 // Factory creates a new check factory
@@ -78,8 +77,7 @@ func (m *OOMKillCheck) Configure(senderManager sender.SenderManager, _ uint64, c
 	if err != nil {
 		return err
 	}
-	m.sysProbeClient = sysprobeclient.Get(pkgconfigsetup.SystemProbe().GetString("system_probe_config.sysprobe_socket"))
-
+	m.sysProbeClient = sysprobeclient.GetCheckClient(sysprobeclient.WithSocketPath(pkgconfigsetup.SystemProbe().GetString("system_probe_config.sysprobe_socket")))
 	return m.instance.Parse(config)
 }
 
@@ -91,7 +89,7 @@ func (m *OOMKillCheck) Run() error {
 
 	oomkillStats, err := sysprobeclient.GetCheck[[]model.OOMKillStats](m.sysProbeClient, sysconfig.OOMKillProbeModule)
 	if err != nil {
-		return err
+		return sysprobeclient.IgnoreStartupError(err)
 	}
 
 	// sender is just what is used to submit the data

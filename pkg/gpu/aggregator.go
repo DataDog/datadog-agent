@@ -30,16 +30,16 @@ type aggregator struct {
 	measuredIntervalNs int64
 
 	// currentAllocs is the list of current (active) memory allocations
-	currentAllocs []*memoryAllocation
+	currentAllocs []*memorySpan
 
 	// pastAllocs is the list of past (freed) memory allocations
-	pastAllocs []*memoryAllocation
-
-	// processTerminated is true if the process has ended and this aggregator should be deleted
-	processTerminated bool
+	pastAllocs []*memorySpan
 
 	// deviceMaxThreads is the maximum number of threads the GPU can run in parallel, for utilization calculations
 	deviceMaxThreads uint64
+
+	// isActive is a flag to indicate if the aggregator has seen any activity in the last interval!
+	isActive bool
 }
 
 func newAggregator(deviceMaxThreads uint64) *aggregator {
@@ -83,8 +83,8 @@ func (agg *aggregator) processKernelSpan(span *kernelSpan) {
 }
 
 // processPastData takes spans/allocations that have already been closed
-func (agg *aggregator) processPastData(data *streamData) {
-	for _, span := range data.spans {
+func (agg *aggregator) processPastData(data *streamSpans) {
+	for _, span := range data.kernels {
 		agg.processKernelSpan(span)
 	}
 
@@ -92,8 +92,8 @@ func (agg *aggregator) processPastData(data *streamData) {
 }
 
 // processCurrentData takes spans/allocations that are active (e.g., unfreed allocations, running kernels)
-func (agg *aggregator) processCurrentData(data *streamData) {
-	for _, span := range data.spans {
+func (agg *aggregator) processCurrentData(data *streamSpans) {
+	for _, span := range data.kernels {
 		agg.processKernelSpan(span)
 	}
 
@@ -110,15 +110,12 @@ func (agg *aggregator) getAverageCoreUsage() float64 {
 	return agg.totalThreadSecondsUsed / intervalSecs // Compute the average thread usage over the interval
 }
 
-// getStats returns the aggregated stats for the process
-// utilizationNormFactor is the factor to normalize the utilization by, to
-// account for the fact that we might have more kernels enqueued than the
-// GPU can run in parallel. This factor allows distributing the utilization
-// over all the streams that were active during the interval.
-func (agg *aggregator) getStats(utilizationNormFactor float64) model.UtilizationMetrics {
+// getRawStats returns the aggregated stats for the process, without any normalization
+// Normalization to avoid over-reporting is done at the device level by the caller of this function.
+// This function flushes the data after processing it.
+func (agg *aggregator) getRawStats() model.UtilizationMetrics {
 	var stats model.UtilizationMetrics
-
-	stats.UsedCores = agg.getAverageCoreUsage() / utilizationNormFactor
+	stats.UsedCores = agg.getAverageCoreUsage()
 
 	memTsBuilders := make(map[memAllocType]*tseriesBuilder)
 	for i := memAllocType(0); i < memAllocTypeCount; i++ {

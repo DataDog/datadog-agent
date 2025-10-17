@@ -8,9 +8,39 @@ package embedded
 
 import (
 	"embed"
+	"path/filepath"
 )
 
-// FS is the embedded filesystem for the installer.
+// ScriptDDCleanup is the embedded dd-cleanup script.
 //
-//go:embed *
-var FS embed.FS
+//go:embed scripts/dd-cleanup
+var ScriptDDCleanup []byte
+
+// ScriptDDContainerInstall is the embedded dd-container-install script.
+//
+//go:embed scripts/dd-container-install
+var ScriptDDContainerInstall []byte
+
+// ScriptDDHostInstall is the embedded dd-host-install script.
+//
+//go:embed scripts/dd-host-install
+var ScriptDDHostInstall []byte
+
+//go:embed templates/gen/oci/*.service
+//go:embed templates/gen/debrpm/*.service
+var systemdUnits embed.FS
+
+// SystemdUnitType is the type of systemd unit.
+type SystemdUnitType string
+
+const (
+	// SystemdUnitTypeOCI is the type of systemd unit for OCI.
+	SystemdUnitTypeOCI SystemdUnitType = "oci"
+	// SystemdUnitTypeDebRpm is the type of systemd unit for deb/rpm.
+	SystemdUnitTypeDebRpm SystemdUnitType = "debrpm"
+)
+
+// GetSystemdUnit returns the systemd unit for the given name.
+func GetSystemdUnit(name string, unitType SystemdUnitType) ([]byte, error) {
+	return systemdUnits.ReadFile(filepath.Join("templates/gen", string(unitType), name))
+}

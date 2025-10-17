@@ -1,6 +1,13 @@
+## This file is managed by Datadog.
+## Please do not edit it manually.
+#
 ad_identifiers:
   - snmp
 init_config:
+  ## @param use_remote_config_profiles - boolean - optional - default: false
+  ## Whether to apply device profiles from the SNMP Profile Manager.
+  #
+  use_remote_config_profiles: "%%extra_use_remote_config_profiles%%"
 instances:
   -
     ## @param ip_address - string - optional
@@ -118,6 +125,11 @@ instances:
     ## Enabled collection of topology data.
     #
     collect_topology: "%%extra_collect_topology%%"
+
+    ## @param collect_vpn - boolean - optional - default: false
+    ## Enable collection of VPN tunnels and route table data
+    #
+    collect_vpn: "%%extra_collect_vpn%%"
 
     ## @param namespace - string - optional - default: default
     ## Namespace can be used to disambiguate devices with same IPs.

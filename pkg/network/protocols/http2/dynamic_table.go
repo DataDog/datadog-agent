@@ -29,7 +29,7 @@ type DynamicTable struct {
 	cfg *config.Config
 
 	// terminatedConnectionsEventsConsumer is the consumer used to receive terminated connections events from the kernel.
-	terminatedConnectionsEventsConsumer *events.Consumer[netebpf.ConnTuple]
+	terminatedConnectionsEventsConsumer *events.BatchConsumer[netebpf.ConnTuple]
 	// terminatedConnections is the list of terminated connections received from the kernel.
 	terminatedConnections []netebpf.ConnTuple
 	// terminatedConnectionMux is used to protect the terminated connections list from concurrent access.
@@ -52,7 +52,7 @@ func (dt *DynamicTable) configureOptions(mgr *manager.Manager, opts *manager.Opt
 
 // preStart sets up the terminated connections events consumer.
 func (dt *DynamicTable) preStart(mgr *manager.Manager) (err error) {
-	dt.terminatedConnectionsEventsConsumer, err = events.NewConsumer(
+	dt.terminatedConnectionsEventsConsumer, err = events.NewBatchConsumer(
 		terminatedConnectionsEventStream,
 		mgr,
 		dt.processTerminatedConnections,
@@ -91,7 +91,7 @@ func (dt *DynamicTable) setupDynamicTableMapCleaner(mgr *manager.Manager, cfg *c
 	}
 
 	terminatedConnectionsMap := make(map[netebpf.ConnTuple]struct{})
-	mapCleaner.Clean(cfg.HTTP2DynamicTableMapCleanerInterval,
+	mapCleaner.Start(cfg.HTTP2DynamicTableMapCleanerInterval,
 		func() bool {
 			dt.terminatedConnectionsEventsConsumer.Sync()
 			dt.terminatedConnectionMux.Lock()

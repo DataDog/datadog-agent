@@ -20,7 +20,6 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
-	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -31,37 +30,31 @@ type wlmListenerSvc struct {
 
 type testWorkloadmetaListener struct {
 	t        *testing.T
-	filters  *containerFilters
 	store    workloadmeta.Component
 	services map[string]wlmListenerSvc
 }
 
-//nolint:revive // TODO(CINT) Fix revive linter
+// Listen is not implemented
 func (l *testWorkloadmetaListener) Listen(_ chan<- Service, _ chan<- Service) {
 	panic("not implemented")
 }
 
-//nolint:revive // TODO(CINT) Fix revive linter
+// Stop is not implemented
 func (l *testWorkloadmetaListener) Stop() {
 	panic("not implemented")
 }
 
-//nolint:revive // TODO(CINT) Fix revive linter
+// Store returns the workloadmeta store
 func (l *testWorkloadmetaListener) Store() workloadmeta.Component {
 	return l.store
 }
 
-//nolint:revive // TODO(CINT) Fix revive linter
+// AddService adds a service
 func (l *testWorkloadmetaListener) AddService(svcID string, svc Service, parentSvcID string) {
 	l.services[svcID] = wlmListenerSvc{
 		service: svc,
 		parent:  parentSvcID,
 	}
-}
-
-//nolint:revive // TODO(CINT) Fix revive linter
-func (l *testWorkloadmetaListener) IsExcluded(ft containers.FilterType, annotations map[string]string, name string, image string, ns string) bool {
-	return l.filters.IsExcluded(ft, annotations, name, image, ns)
 }
 
 func (l *testWorkloadmetaListener) assertServices(expectedServices map[string]wlmListenerSvc) {
@@ -83,23 +76,17 @@ func (l *testWorkloadmetaListener) assertServices(expectedServices map[string]wl
 }
 
 func newTestWorkloadmetaListener(t *testing.T) *testWorkloadmetaListener {
-	filters := newContainerFilters()
-	if filters == nil {
-		t.Fatal("got nil containers filter")
-	}
-
 	w := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		fx.Supply(config.Params{}),
 		fx.Supply(log.Params{}),
 		fx.Provide(func() log.Component { return logmock.New(t) }),
-		config.MockModule(),
+		fx.Provide(func() config.Component { return config.NewMock(t) }),
 		fx.Supply(context.Background()),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
 
 	return &testWorkloadmetaListener{
 		t:        t,
-		filters:  filters,
 		store:    w,
 		services: make(map[string]wlmListenerSvc),
 	}

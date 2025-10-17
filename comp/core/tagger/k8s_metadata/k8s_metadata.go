@@ -77,10 +77,10 @@ func resolveTag(tmpl, label string) string {
 	tagName := tmpl
 	for _, v := range vars {
 		if _, ok := templateVariables[string(v.Name)]; ok {
-			tagName = strings.Replace(tagName, string(v.Raw), label, -1)
+			tagName = strings.ReplaceAll(tagName, string(v.Raw), label)
 			continue
 		}
-		tagName = strings.Replace(tagName, string(v.Raw), "", -1)
+		tagName = strings.ReplaceAll(tagName, string(v.Raw), "")
 	}
 	return tagName
 }

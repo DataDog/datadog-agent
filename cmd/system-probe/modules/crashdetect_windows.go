@@ -19,8 +19,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+func init() { registerModule(WinCrashProbe) }
+
 // WinCrashProbe Factory
-var WinCrashProbe = module.Factory{
+var WinCrashProbe = &module.Factory{
 	Name:             config.WindowsCrashDetectModule,
 	ConfigNamespaces: []string{"windows_crash_detection"},
 	Fn: func(cfg *sysconfigtypes.Config, _ module.FactoryDependencies) (module.Module, error) {
@@ -46,7 +48,7 @@ func (wcdm *winCrashDetectModule) Register(httpMux *module.Router) error {
 	httpMux.HandleFunc("/check", utils.WithConcurrencyLimit(1, func(w http.ResponseWriter, _ *http.Request) {
 		log.Infof("Got check request in crashDetect")
 		results := wcdm.WinCrashProbe.Get()
-		utils.WriteAsJSON(w, results)
+		utils.WriteAsJSON(w, results, utils.CompactOutput)
 	}))
 
 	return nil

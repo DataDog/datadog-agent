@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux
-// +build linux
 
 package utils
 
@@ -20,12 +19,12 @@ import (
 
 	"github.com/alecthomas/units"
 
-	"github.com/DataDog/datadog-agent/pkg/util/cgroups"
+	"github.com/DataDog/datadog-agent/pkg/util/cgroups/memorymonitor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // MemoryMonitor monitors cgroups' memory usage
-type MemoryMonitor = cgroups.MemoryController
+type MemoryMonitor = memorymonitor.MemoryController
 
 const maxProfileCount = 10
 
@@ -90,7 +89,7 @@ func getActionCallback(action string) (func(), string, error) {
 
 // NewMemoryMonitor instantiates a new memory monitor
 func NewMemoryMonitor(kind string, containerized bool, pressureLevels map[string]string, thresholds map[string]string) (*MemoryMonitor, error) {
-	memoryMonitors := make([]cgroups.MemoryMonitor, 0, len(pressureLevels)+len(thresholds))
+	memoryMonitors := make([]memorymonitor.MemoryMonitor, 0, len(pressureLevels)+len(thresholds))
 
 	for pressureLevel, action := range pressureLevels {
 		actionCallback, name, err := getActionCallback(action)
@@ -99,7 +98,7 @@ func NewMemoryMonitor(kind string, containerized bool, pressureLevels map[string
 		}
 
 		log.Infof("New memory pressure monitor on level %s with action %s", pressureLevel, name)
-		memoryMonitors = append(memoryMonitors, cgroups.MemoryPressureMonitor(func() {
+		memoryMonitors = append(memoryMonitors, memorymonitor.MemoryPressureMonitor(func() {
 			log.Infof("Memory pressure reached level '%s', triggering %s", pressureLevel, name)
 			actionCallback()
 		}, pressureLevel))
@@ -116,7 +115,7 @@ func NewMemoryMonitor(kind string, containerized bool, pressureLevels map[string
 			actionCallback()
 		}
 
-		var memoryMonitor cgroups.MemoryMonitor
+		var memoryMonitor memorymonitor.MemoryMonitor
 		threshold = strings.TrimSpace(threshold)
 		if strings.HasSuffix(threshold, "%") {
 			percentage, err := strconv.Atoi(strings.TrimSuffix(threshold, "%"))
@@ -124,19 +123,19 @@ func NewMemoryMonitor(kind string, containerized bool, pressureLevels map[string
 				return nil, fmt.Errorf("invalid memory threshold '%s': %w", threshold, err)
 			}
 
-			memoryMonitor = cgroups.MemoryPercentageThresholdMonitor(monitorCallback, uint64(percentage), false)
+			memoryMonitor = memorymonitor.MemoryPercentageThresholdMonitor(monitorCallback, uint64(percentage), false)
 		} else {
 			size, err := units.ParseBase2Bytes(strings.ToUpper(threshold))
 			if err != nil {
 				return nil, fmt.Errorf("invalid memory threshold '%s': %w", threshold, err)
 			}
 
-			memoryMonitor = cgroups.MemoryThresholdMonitor(monitorCallback, uint64(size), false)
+			memoryMonitor = memorymonitor.MemoryThresholdMonitor(monitorCallback, uint64(size), false)
 		}
 
 		log.Infof("New memory threshold monitor on level %s with action %s", threshold, name)
 		memoryMonitors = append(memoryMonitors, memoryMonitor)
 	}
 
-	return cgroups.NewMemoryController(kind, containerized, memoryMonitors...)
+	return memorymonitor.NewMemoryController(kind, containerized, memoryMonitors...)
 }

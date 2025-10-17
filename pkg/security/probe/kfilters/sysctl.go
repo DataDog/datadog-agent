@@ -20,9 +20,9 @@ var sysctlCapabilities = rules.FieldCapabilities{
 	},
 }
 
-func sysctlKFiltersGetter(approvers rules.Approvers) (ActiveKFilters, []eval.Field, error) {
+func sysctlKFiltersGetter(approvers rules.Approvers) (KFilters, []eval.Field, error) {
 	var (
-		kfilters     []activeKFilter
+		kfilters     []kFilter
 		fieldHandled []eval.Field
 	)
 
@@ -37,5 +37,5 @@ func sysctlKFiltersGetter(approvers rules.Approvers) (ActiveKFilters, []eval.Fie
 			fieldHandled = append(fieldHandled, field)
 		}
 	}
-	return newActiveKFilters(kfilters...), fieldHandled, nil
+	return newKFilters(kfilters...), fieldHandled, nil
 }

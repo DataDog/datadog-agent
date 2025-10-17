@@ -11,14 +11,16 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 )
 
 func TestSingleLineHandlerProcess(t *testing.T) {
+	mockConfig := configmock.New(t)
+
 	truncateTag := message.TruncatedReasonTag("single_line")
-	tagTrunLogsFlag := pkgconfigsetup.Datadog().GetBool("logs_config.tag_truncated_logs")
-	defer pkgconfigsetup.Datadog().SetWithoutSource("logs_config.tag_truncated_logs", tagTrunLogsFlag)
+	tagTrunLogsFlag := mockConfig.GetBool("logs_config.tag_truncated_logs")
+	defer mockConfig.SetWithoutSource("logs_config.tag_truncated_logs", tagTrunLogsFlag)
 
 	scenarios := []struct {
 		name             string
@@ -83,7 +85,7 @@ func TestSingleLineHandlerProcess(t *testing.T) {
 	for _, scenario := range scenarios {
 		t.Run(scenario.name, func(t *testing.T) {
 			var processedMessage *message.Message
-			pkgconfigsetup.Datadog().SetWithoutSource("logs_config.tag_truncated_logs", scenario.tagTruncatedLogs)
+			mockConfig.SetWithoutSource("logs_config.tag_truncated_logs", scenario.tagTruncatedLogs)
 			h := NewSingleLineHandler(func(m *message.Message) { processedMessage = m }, 20)
 
 			for idx, input := range scenario.input {

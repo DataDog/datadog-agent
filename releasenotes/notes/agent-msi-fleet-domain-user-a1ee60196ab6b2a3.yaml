@@ -1,0 +1,24 @@
+---
+upgrade:
+  - |
+    If you use a custom Agent username and password on Windows with an Active
+    Directory domain account and you want to remotely upgrade the Agent using
+    Fleet Automation then you must provide the ``DDAGENTUSER_PASSWORD``
+    option when upgrading to 7.66 or later. For more information see the features release notes.
+
+features:
+  - |
+    Fleet Automation now supports remote upgrades when using a custom Agent username and password on Windows.
+
+    Windows stores the password as an encrypted LSA local private data object that is only accessible
+    to local Administrators. Windows Service Manager stores service account passwords in the same location.
+    For more information, see the Microsoft documentation on
+    [Storing Private Data](https://learn.microsoft.com/en-us/windows/win32/secmgmt/storing-private-data)
+    and
+    [Private Data Objects](https://learn.microsoft.com/en-us/windows/win32/secmgmt/private-data-object).
+
+    Uninstalling the Agent removes the encrypted password from the LSA.
+
+    To avoid providing and manually managing the account password, consider using a
+    [Group Managed Service Account (gMSA)](https://learn.microsoft.com/en-us/windows-server/identity/ad-ds/manage/group-managed-service-accounts/group-managed-service-accounts/group-managed-service-accounts-overview).
+    For more information, see [Installing the Agent with a gMSA account](https://docs.datadoghq.com/agent/basic_agent_usage/windows/?tab=installationinactivedirectorydomains).

@@ -63,6 +63,9 @@ const (
 
 	// EventFlagsHasActiveActivityDump true if the event has an active activity dump associated to it
 	EventFlagsHasActiveActivityDump
+
+	// EventFlagsIsSnapshot is true if the event is generated from a snapshot
+	EventFlagsIsSnapshot
 )
 
 const (
@@ -181,6 +184,29 @@ var (
 		"CLASS_HESIOD": 4,
 		"CLASS_NONE":   254,
 		"CLASS_ANY":    255,
+	}
+
+	// DNSResponseCodeConstants see https://datatracker.ietf.org/doc/html/rfc2929
+	// generate_constants:DNS Responses,DNS Responses are the supported response codes
+	DNSResponseCodeConstants = map[string]int{
+		"NOERROR":  0,
+		"FORMERR":  1,
+		"SERVFAIL": 2,
+		"NXDOMAIN": 3,
+		"NOTIMP":   4,
+		"REFUSED":  5,
+		"YXDOMAIN": 6,
+		"YXRRSET":  7,
+		"NXRRSET":  8,
+		"NOTAUTH":  9,
+		"NOTZONE":  10,
+		"BADVERS":  16,
+		"BADSIG":   16,
+		"BADKEY":   17,
+		"BADTIME":  18,
+		"BADMODE":  19,
+		"BADNAME":  20,
+		"BADALG":   21,
 	}
 
 	// BooleanConstants holds the evaluator for boolean constants
@@ -321,6 +347,23 @@ var (
 		"IP_PROTO_RAW":     IPProtoRAW,
 	}
 
+	// NetworkProtocolTypeConstants is the list of supported network protocol specific types
+	// generate_constants:Network Protocol Types,Types of specific network protocols.
+	NetworkProtocolTypeConstants = map[string]NetworkProtocolType{
+		"ICMP_ECHO_REQUEST":              ICMPTypeEchoRequest,
+		"ICMP_ECHO_REPLY":                ICMPTypeEchoReply,
+		"ICMP_ROUTER_SOLICITATION":       ICMPTypeRouterSolicitation,
+		"ICMP_ROUTER_ADVERTISEMENT":      ICMPTypeRouterAdvertisement,
+		"ICMP_NEIGHBOR_SOLICITATION":     ICMPTypeNeighborSolicitation,
+		"ICMP_NEIGHBOR_ADVERTISEMENT":    ICMPTypeNeighborAdvertisement,
+		"ICMP_V6_ECHO_REQUEST":           ICMPv6TypeEchoRequest,
+		"ICMP_V6_ECHO_REPLY":             ICMPv6TypeEchoReply,
+		"ICMP_V6_ROUTER_SOLICITATION":    ICMPv6TypeRouterSolicitation,
+		"ICMP_V6_ROUTER_ADVERTISEMENT":   ICMPv6TypeRouterAdvertisement,
+		"ICMP_V6_NEIGHBOR_SOLICITATION":  ICMPv6TypeNeighborSolicitation,
+		"ICMP_V6_NEIGHBOR_ADVERTISEMENT": ICMPv6TypeNeighborAdvertisement,
+	}
+
 	// NetworkDirectionConstants is the list of supported network directions
 	// generate_constants:Network directions,Network directions are the supported directions of network packets.
 	NetworkDirectionConstants = map[string]NetworkDirection{
@@ -343,16 +386,76 @@ var (
 		"TLS_1_2": 0x0303,
 		"TLS_1_3": 0x0304,
 	}
+
+	// ABIConstants defines ABI constants
+	// generate_constants:ABI,ABI used for binary compilation.
+	ABIConstants = map[string]ABI{
+		"BIT32":       Bit32,
+		"BIT64":       Bit64,
+		"UNKNOWN_ABI": UnknownABI,
+	}
+
+	// ArchitectureConstants defines architecture constants
+	// generate_constants:Architecture,Architecture of the binary.
+	ArchitectureConstants = map[string]Architecture{
+		"X86":                  X86,
+		"X86_64":               X8664,
+		"ARM":                  ARM,
+		"ARM64":                ARM64,
+		"UNKNOWN_ARCHITECTURE": UnknownArch,
+	}
+
+	// CompressionTypeConstants defines compression type constants
+	// generate_constants:CompressionType,Compression algorithm.
+	CompressionTypeConstants = map[string]CompressionType{
+		"NONE":  NoCompression,
+		"GZIP":  GZip,
+		"ZIP":   Zip,
+		"ZSTD":  Zstd,
+		"7Z":    SevenZip,
+		"BZIP2": BZip2,
+		"XZ":    XZ,
+	}
+
+	// FileTypeConstants defines file type constants
+	// generate_constants:FileType,File types.
+	FileTypeConstants = map[string]FileType{
+		"EMPTY":              Empty,
+		"SHELL_SCRIPT":       ShellScript,
+		"TEXT":               Text,
+		"COMPRESSED":         Compressed,
+		"ENCRYPTED":          Encrypted,
+		"BINARY":             Binary,
+		"LINUX_EXECUTABLE":   ELFExecutable,
+		"WINDOWS_EXECUTABLE": PEExecutable,
+		"MACOS_EXECUTABLE":   MachOExecutable,
+		"FILE_LESS":          FileLess,
+	}
+
+	// LinkageTypeConstants defines linkage type constants
+	// generate_constants:LinkageType,Linkage types.
+	LinkageTypeConstants = map[string]LinkageType{
+		"NONE":    None,
+		"STATIC":  Static,
+		"DYNAMIC": Dynamic,
+	}
 )
 
 var (
-	dnsQTypeStrings         = map[uint32]string{}
-	dnsQClassStrings        = map[uint32]string{}
-	l3ProtocolStrings       = map[L3Protocol]string{}
-	l4ProtocolStrings       = map[L4Protocol]string{}
-	networkDirectionStrings = map[NetworkDirection]string{}
-	addressFamilyStrings    = map[uint16]string{}
-	tlsVersionStrings       = map[uint16]string{}
+	dnsQTypeStrings            = map[uint32]string{}
+	dnsQClassStrings           = map[uint32]string{}
+	dnsResponseCodeStrings     = map[uint32]string{}
+	l3ProtocolStrings          = map[L3Protocol]string{}
+	l4ProtocolStrings          = map[L4Protocol]string{}
+	networkDirectionStrings    = map[NetworkDirection]string{}
+	networkProtocolTypeStrings = map[NetworkProtocolType]string{}
+	addressFamilyStrings       = map[uint16]string{}
+	tlsVersionStrings          = map[uint16]string{}
+	abiStrings                 = map[ABI]string{}
+	architectureStrings        = map[Architecture]string{}
+	compressionTypeStrings     = map[CompressionType]string{}
+	fileTypeStrings            = map[FileType]string{}
+	linkageTypeStrings         = map[LinkageType]string{}
 )
 
 // File flags
@@ -398,6 +501,13 @@ func initDNSQClassConstants() {
 	}
 }
 
+func initDNSResponseCodeConstants() {
+	for k, v := range DNSResponseCodeConstants {
+		seclConstants[k] = &eval.IntEvaluator{Value: v}
+		dnsResponseCodeStrings[uint32(v)] = k
+	}
+}
+
 func initDNSQTypeConstants() {
 	for k, v := range DNSQTypeConstants {
 		seclConstants[k] = &eval.IntEvaluator{Value: v}
@@ -416,6 +526,13 @@ func initL4ProtocolConstants() {
 	for k, v := range L4ProtocolConstants {
 		seclConstants[k] = &eval.IntEvaluator{Value: int(v)}
 		l4ProtocolStrings[v] = k
+	}
+}
+
+func initNetworkProtocolTypeConstants() {
+	for k, v := range NetworkProtocolTypeConstants {
+		seclConstants[k] = &eval.IntEvaluator{Value: int(v)}
+		networkProtocolTypeStrings[v] = k
 	}
 }
 
@@ -453,6 +570,41 @@ func initSSLVersionConstants() {
 	}
 }
 
+func initABIConstants() {
+	for k, v := range ABIConstants {
+		seclConstants[k] = &eval.IntEvaluator{Value: int(v)}
+		abiStrings[v] = k
+	}
+}
+
+func initArchitectureConstants() {
+	for k, v := range ArchitectureConstants {
+		seclConstants[k] = &eval.IntEvaluator{Value: int(v)}
+		architectureStrings[v] = k
+	}
+}
+
+func initCompressionTypeConstants() {
+	for k, v := range CompressionTypeConstants {
+		seclConstants[k] = &eval.IntEvaluator{Value: int(v)}
+		compressionTypeStrings[v] = k
+	}
+}
+
+func initFileTypeConstants() {
+	for k, v := range FileTypeConstants {
+		seclConstants[k] = &eval.IntEvaluator{Value: int(v)}
+		fileTypeStrings[v] = k
+	}
+}
+
+func initLinkageTypeConstants() {
+	for k, v := range LinkageTypeConstants {
+		seclConstants[k] = &eval.IntEvaluator{Value: int(v)}
+		linkageTypeStrings[v] = k
+	}
+}
+
 func initConstants() {
 	initBoolConstants()
 	initErrorConstants()
@@ -473,9 +625,11 @@ func initConstants() {
 	initSignalConstants()
 	initPipeBufFlagConstants()
 	initDNSQClassConstants()
+	initDNSResponseCodeConstants()
 	initDNSQTypeConstants()
 	initL3ProtocolConstants()
 	initL4ProtocolConstants()
+	initNetworkProtocolTypeConstants()
 	initNetworkDirectionContants()
 	initAddressFamilyConstants()
 	initExitCauseConstants()
@@ -484,6 +638,21 @@ func initConstants() {
 	usersession.InitUserSessionTypes()
 	initSSLVersionConstants()
 	initSysCtlActionConstants()
+	initSetSockOptLevelConstants()
+	initSetSockOptOptNameConstantsIP()
+	initSetSockOptOptNameConstantsSolSocket()
+	initSetSockOptOptNameConstantsTCP()
+	initSetSockOptOptNameConstantsIPv6()
+	initRlimitConstants()
+	initABIConstants()
+	initArchitectureConstants()
+	initCompressionTypeConstants()
+	initFileTypeConstants()
+	initLinkageTypeConstants()
+	initSocketTypeConstants()
+	initSocketFamilyConstants()
+	initSocketProtocolConstants()
+	initPrCtlOptionConstants()
 }
 
 // RetValError represents a syscall return error value
@@ -796,6 +965,41 @@ const (
 	IPProtoRAW L4Protocol = 255
 )
 
+// NetworkProtocolType is the type of the protocol of the network event
+type NetworkProtocolType uint16
+
+func (proto NetworkProtocolType) String() string {
+	return networkProtocolTypeStrings[proto]
+}
+
+const (
+	// ICMPTypeEchoRequest is the type for ICMP echo requests
+	ICMPTypeEchoRequest NetworkProtocolType = 8
+	// ICMPTypeEchoReply is the type for ICMP echo replies
+	ICMPTypeEchoReply NetworkProtocolType = 0
+	// ICMPTypeRouterSolicitation is the type for ICMP router solicitation
+	ICMPTypeRouterSolicitation NetworkProtocolType = 9
+	// ICMPTypeRouterAdvertisement is the type for ICMP router advertisement
+	ICMPTypeRouterAdvertisement NetworkProtocolType = 10
+	// ICMPTypeNeighborSolicitation is the type for ICMP neighbor solicitation
+	ICMPTypeNeighborSolicitation NetworkProtocolType = 135
+	// ICMPTypeNeighborAdvertisement is the type for ICMP neighbor advertisement
+	ICMPTypeNeighborAdvertisement NetworkProtocolType = 136
+
+	// ICMPv6TypeEchoRequest is the type for ICMPv6 echo requests
+	ICMPv6TypeEchoRequest NetworkProtocolType = 128
+	// ICMPv6TypeEchoReply is the type for ICMPv6 echo replies
+	ICMPv6TypeEchoReply NetworkProtocolType = 129
+	// ICMPv6TypeRouterSolicitation is the type for ICMPv6 router solicitation
+	ICMPv6TypeRouterSolicitation NetworkProtocolType = 133
+	// ICMPv6TypeRouterAdvertisement is the type for ICMPv6 router advertisement
+	ICMPv6TypeRouterAdvertisement NetworkProtocolType = 134
+	// ICMPv6TypeNeighborSolicitation is the type for ICMPv6 neighbor solicitation
+	ICMPv6TypeNeighborSolicitation NetworkProtocolType = 137
+	// ICMPv6TypeNeighborAdvertisement is the type for ICMPv6 neighbor advertisement
+	ICMPv6TypeNeighborAdvertisement NetworkProtocolType = 138
+)
+
 // NetworkDirection is used to identify the network direction of a flow
 type NetworkDirection uint32
 
@@ -809,3 +1013,124 @@ const (
 	// Ingress is used to identify ingress traffic
 	Ingress
 )
+
+// ABI represents the Application Binary Interface type
+type ABI int
+
+const (
+	// UnknownABI when ABI is unknown
+	UnknownABI ABI = iota
+	// Bit32 represents 32 bits ABI
+	Bit32
+	// Bit64 represents 64 bits ABI
+	Bit64
+)
+
+func (a ABI) String() string {
+	if len(abiStrings) == 0 {
+		initABIConstants()
+	}
+	return abiStrings[a]
+}
+
+// Architecture represents the CPU architecture
+type Architecture int
+
+const (
+	// UnknownArch when arch is unknown
+	UnknownArch Architecture = iota
+	// X86 arch
+	X86
+	// X8664 represents X86_64 arch, but with a "nicer" naming to pass CI linters
+	X8664
+	// ARM arch
+	ARM
+	// ARM64 arch
+	ARM64
+)
+
+func (a Architecture) String() string {
+	if len(architectureStrings) == 0 {
+		initArchitectureConstants()
+	}
+	return architectureStrings[a]
+}
+
+// CompressionType represents the type of compression used
+type CompressionType int
+
+const (
+	// NoCompression When there is no compression
+	NoCompression CompressionType = iota
+	// GZip compression
+	GZip
+	// Zip compression
+	Zip
+	// Zstd compression
+	Zstd
+	// SevenZip compression
+	SevenZip
+	// BZip2 compression
+	BZip2
+	// XZ compression
+	XZ
+)
+
+func (ct CompressionType) String() string {
+	if len(compressionTypeStrings) == 0 {
+		initCompressionTypeConstants()
+	}
+	return compressionTypeStrings[ct]
+}
+
+// FileType represents the type of the analyzed file
+type FileType int
+
+const (
+	// Empty file
+	Empty FileType = iota
+	// ShellScript file
+	ShellScript
+	// Text file
+	Text
+	// Compressed file
+	Compressed
+	// Encrypted file
+	Encrypted
+	// Binary file
+	Binary
+	// ELFExecutable file
+	ELFExecutable
+	// PEExecutable file
+	PEExecutable
+	// MachOExecutable file
+	MachOExecutable
+	// FileLess file
+	FileLess
+)
+
+func (ft FileType) String() string {
+	if len(fileTypeStrings) == 0 {
+		initFileTypeConstants()
+	}
+	return fileTypeStrings[ft]
+}
+
+// LinkageType represents the type of linkage used in the binary
+type LinkageType int
+
+const (
+	// None when unknown or for non-binary files
+	None LinkageType = iota
+	// Static linked executables
+	Static
+	// Dynamic linked executables
+	Dynamic
+)
+
+func (l LinkageType) String() string {
+	if len(linkageTypeStrings) == 0 {
+		initLinkageTypeConstants()
+	}
+	return linkageTypeStrings[l]
+}

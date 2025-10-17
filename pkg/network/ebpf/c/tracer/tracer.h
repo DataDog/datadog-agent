@@ -14,6 +14,10 @@
 #define TCP_CONN_FAILED_RESET 104
 #define TCP_CONN_FAILED_TIMEOUT 110
 #define TCP_CONN_FAILED_REFUSED 111
+#define TCP_CONN_FAILED_EHOSTUNREACH 113
+#define TCP_CONN_FAILED_ENETUNREACH 101
+// this isn't really a failure from the kernel, this happens when userspace closes the socket during SYN_SENT
+#define TCP_CONN_FAILED_CANCELED 125
 
 typedef enum {
     CONN_DIRECTION_UNKNOWN = 0b00,
@@ -40,19 +44,24 @@ typedef struct {
     tls_info_t info;
 } tls_info_wrapper_t;
 
+// 48-bit milliseconds timestamp
+typedef struct {
+    __u16 timestamp[3];
+} time_ms_t;
+
 typedef struct {
     __u64 sent_bytes;
     __u64 recv_bytes;
     __u32 sent_packets;
     __u32 recv_packets;
-    __u64 timestamp;
+    time_ms_t timestamp_ms;
     // duration of the connection.
     // this is initialized to the current unix
     // timestamp when a conn_stats_ts_t is created.
     // the field remains unchanged until this object
     // is removed from the conn_stats map when it
     // is updated with (CURRENT_TIME - duration)
-    __u64 duration;
+    time_ms_t duration_ms;
     // "cookie" that uniquely identifies
     // a conn_stas_ts_t. This is used
     // in user space to distinguish between
@@ -66,6 +75,7 @@ typedef struct {
     __u8 flags;
     __u8 direction;
     tls_info_t tls_tags;
+    __u32 cert_id;
 } conn_stats_ts_t;
 
 // Connection flags

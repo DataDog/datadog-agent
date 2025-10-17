@@ -14,28 +14,20 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
 
-var openCapabilities = mergeCapabilities(
-	rules.FieldCapabilities{
-		{
-			Field:       "open.flags",
-			TypeBitmask: eval.ScalarValueType | eval.BitmaskValueType,
-		},
-		{
-			Field:        "open.file.path",
-			TypeBitmask:  eval.ScalarValueType | eval.PatternValueType | eval.GlobValueType,
-			ValidateFnc:  validateBasenameFilter,
-			FilterWeight: 15,
-		},
-		{
-			Field:        "open.file.name",
-			TypeBitmask:  eval.ScalarValueType,
-			FilterWeight: 300,
-		},
+var openFlagsCapabilities = rules.FieldCapabilities{
+	{
+		Field:        "open.flags",
+		TypeBitmask:  eval.ScalarValueType | eval.BitmaskValueType,
+		FilterWeight: 100,
 	},
-	processCapabilities,
-)
+	{
+		Field:        "open.file.in_upper_layer",
+		TypeBitmask:  eval.ScalarValueType,
+		FilterWeight: 50,
+	},
+}
 
-func openKFiltersGetter(approvers rules.Approvers) (ActiveKFilters, []eval.Field, error) {
+func openKFiltersGetter(approvers rules.Approvers) (KFilters, []eval.Field, error) {
 	kfilters, fieldHandled, err := getBasenameKFilters(model.FileOpenEventType, "file", approvers)
 	if err != nil {
 		return nil, nil, err
@@ -50,6 +42,13 @@ func openKFiltersGetter(approvers rules.Approvers) (ActiveKFilters, []eval.Field
 			}
 			kfilters = append(kfilters, kfilter)
 			fieldHandled = append(fieldHandled, field)
+		case "open.file.in_upper_layer":
+			activeKFilter, err := newInUpperLayerKFilter(InUpperLayerApproverKernelMapName, model.FileOpenEventType)
+			if err != nil {
+				return nil, nil, err
+			}
+			kfilters = append(kfilters, activeKFilter)
+			fieldHandled = append(fieldHandled, field)
 		}
 	}
 
@@ -60,5 +59,5 @@ func openKFiltersGetter(approvers rules.Approvers) (ActiveKFilters, []eval.Field
 	kfilters = append(kfilters, kfs...)
 	fieldHandled = append(fieldHandled, handled...)
 
-	return newActiveKFilters(kfilters...), fieldHandled, nil
+	return newKFilters(kfilters...), fieldHandled, nil
 }

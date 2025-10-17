@@ -16,8 +16,8 @@ const separatorLength = len(separator)
 
 var globalEntityID = NewEntityID(InternalID, "global-entity-id")
 
-// GetSeparatorLengh returns the length of the entityID separator
-func GetSeparatorLengh() int {
+// GetSeparatorLength returns the length of the entityID separator
+func GetSeparatorLength() int {
 	return separatorLength
 }
 
@@ -27,9 +27,9 @@ type EntityID struct {
 	id     string
 }
 
-// Empty returns true if prefix and id are both empty strings
+// Empty returns true if either the prefix or id empty strings
 func (eid EntityID) Empty() bool {
-	return eid.prefix == "" && eid.id == ""
+	return eid.prefix == "" || eid.id == ""
 }
 
 // GetPrefix returns the entityID prefix
@@ -43,12 +43,20 @@ func (eid EntityID) GetID() string {
 }
 
 // String returns the entityID in the format `{prefix}://{id}`
+// Returns an empty string if `id` is empty
 func (eid EntityID) String() string {
 	return eid.prefix.ToUID(eid.id)
 }
 
+var supportedPrefixes = AllPrefixesSet()
+
 // NewEntityID builds and returns an EntityID object
+// A panic will occur if an unsupported prefix is used
 func NewEntityID(prefix EntityIDPrefix, id string) EntityID {
+	if _, found := supportedPrefixes[prefix]; !found {
+		// prefix is expected to be set based on the prefix enum defined below
+		panic(fmt.Sprintf("unsupported tagger entity prefix: %q", prefix))
+	}
 	return EntityID{prefix, id}
 }
 
@@ -73,6 +81,8 @@ const (
 	InternalID EntityIDPrefix = "internal"
 	// GPU is the prefix `gpu`
 	GPU EntityIDPrefix = "gpu"
+	// Kubelet is the prefix `kubelet`
+	Kubelet EntityIDPrefix = "kubelet"
 )
 
 // AllPrefixesSet returns a set of all possible entity id prefixes that can be used in the tagger
@@ -88,6 +98,7 @@ func AllPrefixesSet() map[EntityIDPrefix]struct{} {
 		Process:                {},
 		InternalID:             {},
 		GPU:                    {},
+		Kubelet:                {},
 	}
 }
 
@@ -101,6 +112,10 @@ func ExtractPrefixAndID(entityID string) (prefix EntityIDPrefix, id string, err 
 	extractedPrefix, extractedID, found := strings.Cut(entityID, "://")
 	if !found {
 		return "", "", fmt.Errorf("unsupported tagger entity id format %q, correct format is `{prefix}://{id}`", entityID)
+	}
+	if _, found := supportedPrefixes[EntityIDPrefix(extractedPrefix)]; !found {
+		// prefix is expected to be set based on the prefix enum.
+		return "", "", fmt.Errorf("unsupported tagger entity prefix: %q", extractedPrefix)
 	}
 
 	return EntityIDPrefix(extractedPrefix), extractedID, nil
