@@ -12,12 +12,53 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 var GitAncestorOnMain = "main"
+
+var wasRequiredFailed = false
+
+const (
+	ExitCodePass = iota
+	ExitCodeError
+	ExitCodeWarning = 44 // this value is arbitrary
+)
+
+var requiredTests = []string{
+	"TestChmod",
+}
+
+func isRequiredTest(testName string) bool {
+	for _, required := range requiredTests {
+		if strings.HasPrefix(testName, required) {
+			return true
+		}
+	}
+	return false
+}
+
+// TrackRequiredTestFailure tracks the failure of a required test
+func TrackRequiredTestFailure(tb testing.TB) {
+	tb.Helper()
+
+	t, ok := tb.(*testing.T)
+	if !ok {
+		return
+	}
+
+	testName := t.Name()
+
+	t.Cleanup(func() {
+		if t.Failed() && isRequiredTest(testName) {
+			fmt.Fprintf(os.Stderr, "Required test %s failed\n", testName)
+			wasRequiredFailed = true
+		}
+	})
+}
 
 // TestMain is the entry points for functional tests
 func TestMain(m *testing.M) {
@@ -27,13 +68,33 @@ func TestMain(m *testing.M) {
 
 	preTestsHook()
 	retCode := m.Run()
+	retCode = checkRetCode(retCode)
 	postTestsHook()
 
 	if commonCfgDir != "" {
 		_ = os.RemoveAll(commonCfgDir)
 	}
-
+	fmt.Fprintf(os.Stderr, "Exit code: %d\n", retCode)
 	os.Exit(retCode)
+}
+func checkRetCode(retCode int) int {
+	fmt.Fprintf(os.Stderr, "[checkRetCode] Initial retCode: %d\n", retCode)
+
+	if retCode == ExitCodePass {
+		fmt.Fprintf(os.Stderr, "[checkRetCode] ✓ TESTS PASSED\n")
+		return retCode
+	}
+
+	fmt.Fprintf(os.Stderr, "[checkRetCode] ✗ TESTS FAILED (retCode=%d)\n", retCode)
+
+	fmt.Fprintf(os.Stderr, "[checkRetCode] WAS_REQUIRED_FAILED env var: '%v'\n", wasRequiredFailed)
+
+	if wasRequiredFailed {
+		fmt.Fprintf(os.Stderr, "[checkRetCode] ✗ REQUIRED TESTS FAILED - Returning ExitCodeError (%d)\n", ExitCodeError)
+		return ExitCodeError
+	}
+	fmt.Fprintf(os.Stderr, "[checkRetCode] ⚠ Only flaky tests failed - Returning ExitCodeWarning (%d)\n", ExitCodeWarning)
+	return ExitCodeWarning
 }
 
 var (

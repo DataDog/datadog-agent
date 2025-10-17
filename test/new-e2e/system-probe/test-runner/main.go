@@ -12,6 +12,7 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -29,6 +30,19 @@ import (
 )
 
 const matchAllPackages = "*"
+
+// testsuiteError wraps an exec.ExitError from a testsuite to preserve its exit code
+type testsuiteError struct {
+	exitErr *exec.ExitError
+}
+
+func (e *testsuiteError) Error() string {
+	return e.exitErr.Error()
+}
+
+func (e *testsuiteError) Unwrap() error {
+	return e.exitErr
+}
 
 func init() {
 	color.NoColor = false
@@ -267,6 +281,7 @@ func testPass(testConfig *testConfig, props map[string]string) error {
 		}
 	}
 
+	var firstTestError error
 	for _, testsuite := range testsuites {
 		pkg, err := filepath.Rel(testConfig.testDirRoot, filepath.Dir(testsuite))
 		if err != nil {
@@ -291,8 +306,17 @@ func testPass(testConfig *testConfig, props map[string]string) error {
 		cmd.Stderr = os.Stderr
 
 		if err := cmd.Run(); err != nil {
-			// log but do not return error
+			// log error and capture the first one to preserve exit code
 			fmt.Fprintf(os.Stderr, "cmd run %s: %s\n", testsuite, err)
+			if firstTestError == nil {
+				// Wrap exec.ExitError to preserve the exit code
+				var exitErr *exec.ExitError
+				if errors.As(err, &exitErr) {
+					firstTestError = &testsuiteError{exitErr: exitErr}
+				} else {
+					firstTestError = fmt.Errorf("testsuite %s failed: %w", testsuite, err)
+				}
+			}
 		}
 
 		if err := addProperties(xmlpath, props); err != nil {
@@ -303,7 +327,9 @@ func testPass(testConfig *testConfig, props map[string]string) error {
 	if err := concatenateJsons(jsonDir, jsonOutDir); err != nil {
 		return fmt.Errorf("concat json: %s", err)
 	}
-	return nil
+
+	// Return the first test error to preserve the exit code
+	return firstTestError
 }
 
 func getRealPath(dir string) (string, error) {
@@ -470,6 +496,13 @@ func run() error {
 func main() {
 	if err := run(); err != nil {
 		fmt.Fprintf(os.Stderr, "%s\n", color.RedString(err.Error()))
+
+		// Preserve the original exit code from testsuite errors (e.g., exit code 44)
+		// For other errors, use exit code 1
+		var tsErr *testsuiteError
+		if errors.As(err, &tsErr) {
+			os.Exit(tsErr.exitErr.ExitCode())
+		}
 		os.Exit(1)
 	}
 }
