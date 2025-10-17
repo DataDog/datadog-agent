@@ -366,6 +366,31 @@ filters:
 			expectedErr:               "",
 			expectedCustomFilterCount: 0,
 		},
+		{
+			name: "monitor IP without domain disabled with filters",
+			config: `
+filters:
+  - match_ip: 10.10.10.0/30
+    type: include
+  - match_ip: 10.10.10.100
+    type: include
+`,
+			ddSite:                 "datad0g.com",
+			monitorIPWithoutDomain: false,
+			expectedMatches: []expectedMatch{
+				{domain: "cloudflare", ip: "1.1.1.1", shouldMatch: true},
+				{ip: "1.1.1.1", shouldMatch: false},
+				{ip: "10.10.20.0", shouldMatch: false},
+				{ip: "10.10.10.0", shouldMatch: true},
+				{ip: "10.10.10.1", shouldMatch: true},
+				{ip: "10.10.10.2", shouldMatch: true},
+				{ip: "10.10.10.3", shouldMatch: true},
+				{ip: "10.10.10.4", shouldMatch: false},
+				{ip: "10.10.10.100", shouldMatch: true},
+			},
+			expectedErr:               "",
+			expectedCustomFilterCount: 2,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
