@@ -376,9 +376,6 @@ func (s *linuxTestSuite) TestManualProcessDiscoveryCheck() {
 }
 
 func (s *linuxTestSuite) TestManualProcessCheckWithIO() {
-	// https://datadoghq.atlassian.net/browse/CXP-2594
-	flake.Mark(s.T())
-
 	s.UpdateEnv(awshost.Provisioner(awshost.WithAgentOptions(
 		agentparams.WithAgentConfig(processCheckConfigStr),
 		agentparams.WithSystemProbeConfig(systemProbeConfigStr))))
