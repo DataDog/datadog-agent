@@ -312,7 +312,7 @@ def update_quality_gates_threshold(ctx, metric_handler, github):
             yaml.dump(file_content, f)
         ctx.run(f"git add {GATE_CONFIG_PATH}")
         print("Creating signed commits using Github API")
-        tree = create_tree(ctx, f"origin/{current_branch.name}")
+        tree = create_tree(ctx, current_branch.name)
         github.commit_and_push_signed(branch_name, commit_message, tree)
     else:
         print("Creating commits using your local git configuration, please make sure to sign them")
@@ -424,7 +424,6 @@ def measure_package_local(
     config_path="test/static/static_quality_gates.yml",
     output_path=None,
     build_job_name="local_test",
-    max_files=20000,
     no_checksums=False,
     debug=False,
 ):
@@ -454,7 +453,6 @@ def measure_package_local(
         config_path=config_path,
         output_path=output_path,
         build_job_name=build_job_name,
-        max_files=max_files,
         no_checksums=no_checksums,
         debug=debug,
     )

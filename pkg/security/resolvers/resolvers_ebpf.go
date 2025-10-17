@@ -14,6 +14,8 @@ import (
 	"os"
 	"sort"
 
+	"github.com/DataDog/datadog-agent/pkg/security/seclog"
+
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/dns"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
@@ -68,6 +70,8 @@ type EBPFResolvers struct {
 	SyscallCtxResolver   *syscallctx.Resolver
 	DNSResolver          *dns.Resolver
 	FileMetadataResolver *file.Resolver
+
+	SnapshotUsingListmount bool
 }
 
 // NewEBPFResolvers creates a new instance of EBPFResolvers
@@ -98,7 +102,7 @@ func NewEBPFResolvers(config *config.Config, manager *manager.Manager, statsdCli
 		}
 	}
 
-	cgroupsResolver, err := cgroup.NewResolver(statsdClient)
+	cgroupsResolver, err := cgroup.NewResolver(statsdClient, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -194,24 +198,30 @@ func NewEBPFResolvers(config *config.Config, manager *manager.Manager, statsdCli
 	}
 
 	resolvers := &EBPFResolvers{
-		manager:              manager,
-		MountResolver:        mountResolver,
-		ContainerResolver:    containerResolver,
-		TimeResolver:         timeResolver,
-		UserGroupResolver:    userGroupResolver,
-		TagsResolver:         tagsResolver,
-		DentryResolver:       dentryResolver,
-		NamespaceResolver:    namespaceResolver,
-		CGroupResolver:       cgroupsResolver,
-		TCResolver:           tcResolver,
-		ProcessResolver:      processResolver,
-		PathResolver:         pathResolver,
-		SBOMResolver:         sbomResolver,
-		HashResolver:         hashResolver,
-		UserSessionsResolver: userSessionsResolver,
-		SyscallCtxResolver:   syscallctx.NewResolver(),
-		DNSResolver:          dnsResolver,
-		FileMetadataResolver: fileMetadataResolver,
+		manager:                manager,
+		MountResolver:          mountResolver,
+		ContainerResolver:      containerResolver,
+		TimeResolver:           timeResolver,
+		UserGroupResolver:      userGroupResolver,
+		TagsResolver:           tagsResolver,
+		DentryResolver:         dentryResolver,
+		NamespaceResolver:      namespaceResolver,
+		CGroupResolver:         cgroupsResolver,
+		TCResolver:             tcResolver,
+		ProcessResolver:        processResolver,
+		PathResolver:           pathResolver,
+		SBOMResolver:           sbomResolver,
+		HashResolver:           hashResolver,
+		UserSessionsResolver:   userSessionsResolver,
+		SyscallCtxResolver:     syscallctx.NewResolver(),
+		DNSResolver:            dnsResolver,
+		FileMetadataResolver:   fileMetadataResolver,
+		SnapshotUsingListmount: config.Probe.SnapshotUsingListmount,
+	}
+
+	if resolvers.SnapshotUsingListmount && !mountResolver.HasListMount() {
+		seclog.Warnf("listmount not found in this system, will default to procfs")
+		resolvers.SnapshotUsingListmount = false
 	}
 
 	return resolvers, nil
@@ -318,6 +328,14 @@ func (r *EBPFResolvers) snapshot() error {
 		return createA < createB
 	})
 
+	if r.SnapshotUsingListmount {
+		err = r.MountResolver.SyncCacheFromListMount()
+		if err != nil {
+			seclog.Errorf("Failed to sync cache from listmount: %v", err)
+			r.SnapshotUsingListmount = false
+		}
+	}
+
 	for _, proc := range processes {
 		ppid, err := proc.Ppid()
 		if err != nil {
@@ -331,11 +349,13 @@ func (r *EBPFResolvers) snapshot() error {
 		}
 
 		// Start with the mount resolver because the process resolver might need it to resolve paths
-		if err = r.MountResolver.SyncCache(pid); err != nil {
-			if !os.IsNotExist(err) {
-				log.Debugf("snapshot failed for %d: couldn't sync mount points: %s", proc.Pid, err)
+		if !r.SnapshotUsingListmount {
+			if err = r.MountResolver.SyncCache(pid); err != nil {
+				if !os.IsNotExist(err) {
+					log.Debugf("snapshot failed for %d: couldn't sync mount points: %s", proc.Pid, err)
+				}
+				continue
 			}
-			continue
 		}
 
 		// Sync the process cache

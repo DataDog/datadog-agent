@@ -17,6 +17,7 @@
 #include "ip.h"
 #include "skb.h"
 #include "pid_tgid.h"
+#include "timestamp_ms.h"
 
 #ifdef COMPILE_PREBUILT
 static __always_inline __u64 offset_rtt();
@@ -81,7 +82,7 @@ static __always_inline conn_stats_ts_t *get_conn_stats(conn_tuple_t *t, struct s
     // initialize-if-no-exist the connection stat, and load it
     conn_stats_ts_t empty = {};
     bpf_memset(&empty, 0, sizeof(conn_stats_ts_t));
-    empty.duration = bpf_ktime_get_ns();
+    empty.duration_ms = convert_ns_to_ms(bpf_ktime_get_ns());
     empty.cookie = get_sk_cookie(sk);
 
     // We skip EEXIST because of the use of BPF_NOEXIST flag. Emitting telemetry for EEXIST here spams metrics
@@ -233,7 +234,7 @@ static __always_inline void update_conn_stats(conn_tuple_t *t, size_t sent_bytes
             val->sent_packets = packets_out;
         }
     }
-    val->timestamp = ts;
+    val->timestamp_ms = convert_ns_to_ms(ts);
 
     if (dir != CONN_DIRECTION_UNKNOWN) {
         val->direction = dir;

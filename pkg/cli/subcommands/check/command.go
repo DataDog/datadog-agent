@@ -41,6 +41,7 @@ import (
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
+	secretsfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/status/statusimpl"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
@@ -159,11 +160,11 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
 					ConfigParams:         config.NewAgentParams(globalParams.ConfFilePath, config.WithConfigName(globalParams.ConfigName), config.WithExtraConfFiles(globalParams.ExtraConfFilePaths), config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
-					SecretParams:         secrets.NewEnabledParams(),
 					SysprobeConfigParams: sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(globalParams.SysProbeConfFilePath), sysprobeconfigimpl.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
 					LogParams:            log.ForOneShot(globalParams.LoggerName, "off", true),
 				}),
 				core.Bundle(),
+				secretsfx.Module(),
 
 				// workloadmeta setup
 				wmcatalog.GetCatalog(),
@@ -280,6 +281,12 @@ func run(
 		_ = cliParams.cmd.Help()
 		return nil
 	}
+
+	// Check if the check is allowed in infrastructure basic mode
+	if !pkgcollector.IsCheckAllowed(cliParams.checkName, pkgconfigsetup.Datadog()) {
+		return fmt.Errorf("check '%s' is not allowed in infrastructure basic mode", cliParams.checkName)
+	}
+
 	// TODO: (components) - Until the checks are components we set there context so they can depends on components.
 	check.InitializeInventoryChecksContext(invChecks)
 	if !config.GetBool("python_lazy_loading") {
@@ -295,7 +302,7 @@ func run(
 
 	// Create the CheckScheduler, but do not attach it to
 	// AutoDiscovery.
-	pkgcollector.InitCheckScheduler(collector, demultiplexer, logReceiver, tagger)
+	pkgcollector.InitCheckScheduler(collector, demultiplexer, logReceiver, tagger, filterStore)
 
 	waitCtx, cancelTimeout := context.WithTimeout(
 		context.Background(), time.Duration(cliParams.discoveryTimeout)*time.Second)
