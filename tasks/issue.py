@@ -67,11 +67,16 @@ def ask_reviews(_, pr_id):
         client = WebClient(os.environ['SLACK_DATADOG_AGENT_BOT_TOKEN'])
         emojis = client.emoji_list()
         waves = [emoji for emoji in emojis.data['emoji'] if 'wave' in emoji and 'microwave' not in emoji]
+
+        channels = set()
         for reviewer in reviewers:
             channel = next(
                 (chan for team, chan in GITHUB_SLACK_REVIEW_MAP.items() if team.casefold() == reviewer.casefold()),
                 DEFAULT_SLACK_CHANNEL,
             )
+            channels.add(channel)
+
+        for channel in channels:
             stop_updating = ""
             if (pr.user.login == "renovate[bot]" or pr.user.login == "mend[bot]") and pr.title.startswith(
                 "chore(deps): update integrations-core"
