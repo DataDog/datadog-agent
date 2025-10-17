@@ -42,6 +42,16 @@ def omnibus_run_task(ctx, task, target_project, base_dir, env, log_level="info",
         omnibus = f"bundle exec {'omnibus.bat' if sys.platform == 'win32' else 'omnibus'}"
 
         if sys.platform == 'win32':
+            if env.get('CI_IDENTITIES_GITLAB_ID_TOKEN'):
+                print(f"CI_IDENTITIES_GITLAB_ID_TOKEN was present in env")
+            else:
+                print(f"CI_IDENTITIES_GITLAB_ID_TOKEN was not present in env, trying to add it...")
+                env_token = os.getenv('CI_IDENTITIES_GITLAB_ID_TOKEN')
+                if env_token:
+                    env['CI_IDENTITIES_GITLAB_ID_TOKEN'] = env_token
+                else:
+                    print(f"CI_IDENTITIES_GITLAB_ID_TOKEN was not present in env or os.getenv('CI_IDENTITIES_GITLAB_ID_TOKEN')")
+
             ctx.run(f"aws.exe s3 cp --only-show-errors s3://binaries-ddbuild-io-prod/ci-identities/ci-identities-gitlab-job-client/development/dev-commit-c5e72f29-job-1184481966/ci-identities-gitlab-job-client-windows-amd64.exe ./ci-identities-gitlab-job-client.exe", warn=True)
             # checking that setting AWS credentials environment variables is working
             omnibus = "ci-identities-gitlab-job-client.exe assume-role -- " + omnibus
