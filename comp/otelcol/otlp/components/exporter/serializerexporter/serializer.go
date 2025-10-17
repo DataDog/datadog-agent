@@ -11,6 +11,8 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
+	hostname "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	logdef "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorinterface"
@@ -138,6 +140,9 @@ func InitSerializer(logger *zap.Logger, cfg *ExporterConfig, sourceProvider sour
 		fx.Provide(func(log *zap.Logger) (logdef.Component, error) {
 			zp := &datadog.Zaplogger{Logger: log}
 			return zp, nil
+		}),
+		fx.Provide(func() hostname.Component {
+			return hostnameimpl.NewHostnameService()
 		}),
 		// casts the defaultforwarder.Component to a defaultforwarder.Forwarder
 		fx.Provide(func(c defaultforwarder.Component) (defaultforwarder.Forwarder, error) {
