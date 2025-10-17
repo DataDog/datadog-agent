@@ -1760,6 +1760,22 @@ network_path:
 			shouldSchedule: false,
 		},
 		{
+			name: "FILTERS: include IP",
+			filters: `
+network_path:
+  collector:
+    filters:
+      - match_ip: '10.10.10.10'
+        type: include
+`,
+			conn: &model.Connection{
+				Laddr:     &model.Addr{Ip: "10.0.0.1", Port: int32(30000)},
+				Raddr:     &model.Addr{Ip: "10.10.10.10", Port: int32(80)},
+				Direction: model.ConnectionDirection_outgoing,
+			},
+			shouldSchedule: true,
+		},
+		{
 			name:                   "FILTERS: test monitor all IPs without domain",
 			domain:                 "",
 			monitorIPWithoutDomain: true,
