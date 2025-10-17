@@ -10,6 +10,7 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/resolver"
@@ -30,9 +31,10 @@ func Module() fxutil.Module {
 type dependencies struct {
 	fx.In
 
-	Config config.Component
-	Logger log.Component
-	Lc     fx.Lifecycle
+	Config   config.Component
+	Logger   log.Component
+	Hostname hostnameinterface.Component
+	Lc       fx.Lifecycle
 }
 
 type forwardersComp struct {
@@ -79,7 +81,7 @@ func newForwarders(deps dependencies) (forwarders.Component, error) {
 }
 
 func createForwarder(deps dependencies, options *defaultforwarder.Options) defaultforwarder.Component {
-	return defaultforwarder.NewForwarder(deps.Config, deps.Logger, deps.Lc, false, options).Comp
+	return defaultforwarder.NewForwarder(deps.Config, deps.Logger, deps.Hostname, deps.Lc, false, options).Comp
 }
 
 func createParams(config config.Component, log log.Component, queueBytes int, endpoints []apicfg.Endpoint) (*defaultforwarder.Options, error) {
