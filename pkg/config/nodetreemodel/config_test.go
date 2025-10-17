@@ -6,6 +6,7 @@
 package nodetreemodel
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -1672,5 +1673,31 @@ tree(#ptr<000015>) source=environment-variable
       inner(#ptr<000007>)
       > num
           leaf(#ptr<000008>), val:"1", source:environment-variable`
+	assert.Equal(t, expect, txt)
+}
+
+func TestComplexMapValueStringify(t *testing.T) {
+	cfg := NewNodeTreeConfig("test", "", nil)
+	cfg.SetConfigType("yaml")
+	cfg.BindEnvAndSetDefault("kubernetes_node_annotations_as_tags", map[string]string{"cluster.k8s.io/machine": "kube_machine"})
+	cfg.BuildSchema()
+
+	confYaml := `kubernetes_node_annotations_as_tags:
+  cluster.k8s.io/machine: different
+`
+	err := cfg.ReadConfig(bytes.NewBuffer([]byte(confYaml)))
+	require.NoError(t, err)
+
+	// Validate that the schema ensures the correct shape: a leaf with a map value
+	txt := cfg.(*ntmConfig).Stringify("all", model.OmitPointerAddr)
+	expect := `tree(#ptr<000000>) source=root
+> kubernetes_node_annotations_as_tags
+    leaf(#ptr<000001>), val:map[cluster.k8s.io/machine:different], source:file
+tree(#ptr<000002>) source=default
+> kubernetes_node_annotations_as_tags
+    leaf(#ptr<000003>), val:map[cluster.k8s.io/machine:kube_machine], source:default
+tree(#ptr<000004>) source=file
+> kubernetes_node_annotations_as_tags
+    leaf(#ptr<000001>), val:map[cluster.k8s.io/machine:different], source:file`
 	assert.Equal(t, expect, txt)
 }
