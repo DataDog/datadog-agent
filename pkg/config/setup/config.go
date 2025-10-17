@@ -1316,6 +1316,13 @@ func autoscaling(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("autoscaling.workload.enabled", false)
 	config.BindEnvAndSetDefault("autoscaling.failover.enabled", false)
 	config.BindEnvAndSetDefault("autoscaling.workload.limit", 1000)
+	config.BindEnvAndSetDefault("autoscaling.external_recommender.tls.ca_file", "")
+	config.BindEnvAndSetDefault("autoscaling.external_recommender.tls.cert_file", "")
+	config.BindEnvAndSetDefault("autoscaling.external_recommender.tls.key_file", "")
+	config.BindEnvAndSetDefault("autoscaling.external_recommender.tls.server_name", "")
+	config.BindEnvAndSetDefault("autoscaling.external_recommender.tls.min_version", "")
+	config.BindEnvAndSetDefault("autoscaling.external_recommender.tls.max_version", "")
+	config.BindEnvAndSetDefault("autoscaling.external_recommender.tls.insecure_skip_verify", false)
 	config.BindEnv("autoscaling.failover.metrics") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 }
 

@@ -81,6 +81,7 @@ import (
 	admissionpatch "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/patch"
 	apidca "github.com/DataDog/datadog-agent/pkg/clusteragent/api"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload"
+	externalautoscaling "github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/external"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/provider"
 	pkgclusterchecks "github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks"
 	clusteragentMetricsStatus "github.com/DataDog/datadog-agent/pkg/clusteragent/metricsstatus"
@@ -488,7 +489,9 @@ func start(log log.Component,
 			log.Error("Admission controller is disabled, vertical autoscaling requires the admission controller to be enabled. Vertical scaling will be disabled.")
 		}
 
-		if adapter, err := provider.StartWorkloadAutoscaling(mainCtx, clusterID, clusterName, le.IsLeader, apiCl, rcClient, wmeta, demultiplexer); err == nil {
+		externalTLSConfig := buildExternalRecommenderTLSConfig(config)
+
+		if adapter, err := provider.StartWorkloadAutoscaling(mainCtx, clusterID, clusterName, le.IsLeader, apiCl, rcClient, wmeta, demultiplexer, externalTLSConfig); err == nil {
 			pa = adapter
 		} else {
 			return fmt.Errorf("Error while starting workload autoscaling: %v", err)
@@ -611,6 +614,30 @@ func start(log log.Component,
 	pkglog.Flush()
 
 	return nil
+}
+
+func buildExternalRecommenderTLSConfig(cfg config.Component) *externalautoscaling.TLSConfig {
+	caFile := cfg.GetString("autoscaling.external_recommender.tls.ca_file")
+	certFile := cfg.GetString("autoscaling.external_recommender.tls.cert_file")
+	keyFile := cfg.GetString("autoscaling.external_recommender.tls.key_file")
+	serverName := cfg.GetString("autoscaling.external_recommender.tls.server_name")
+	minVersion := cfg.GetString("autoscaling.external_recommender.tls.min_version")
+	maxVersion := cfg.GetString("autoscaling.external_recommender.tls.max_version")
+	insecureSkipVerify := cfg.GetBool("autoscaling.external_recommender.tls.insecure_skip_verify")
+
+	if caFile == "" && certFile == "" && keyFile == "" {
+		return nil
+	}
+
+	return &externalautoscaling.TLSConfig{
+		CAFile:             caFile,
+		CertFile:           certFile,
+		KeyFile:            keyFile,
+		ServerName:         serverName,
+		MinVersion:         minVersion,
+		MaxVersion:         maxVersion,
+		InsecureSkipVerify: insecureSkipVerify,
+	}
 }
 
 func setupClusterCheck(ctx context.Context, ac autodiscovery.Component, tagger tagger.Component) (*pkgclusterchecks.Handler, error) {

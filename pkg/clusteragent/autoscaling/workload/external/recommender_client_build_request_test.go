@@ -153,7 +153,7 @@ func TestBuildWorkloadRecommendationRequest_Table(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			client := newRecommenderClient(workload.NewPodWatcher(nil, nil))
+			client := newRecommenderClient(workload.NewPodWatcher(nil, nil), nil)
 			req, err := client.buildWorkloadRecommendationRequest(tc.cluster, tc.dpa.Build(), tc.dpa.CustomRecommenderConfiguration)
 			assert.NoError(t, err)
 			assert.Equal(t, tc.expectReq, req)
