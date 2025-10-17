@@ -7,59 +7,57 @@
 
 package actuator
 
-func makeQueue[Item any, ID comparable](
-	id func(Item) ID,
-) queue[Item, ID] {
-	return queue[Item, ID]{
-		id:   id,
-		list: list[Item]{},
-		m:    make(map[ID]*listItem[Item]),
+// queue is a FIFO queue that offers O(1) pushBack and popFront operations,
+// and remove (by ID) operations.
+type queue[T any, ID comparable] struct {
+	id func(T) ID
+	l  list[T]
+	m  map[ID]*listItem[T]
+}
+
+func makeQueue[T any, ID comparable](id func(T) ID) queue[T, ID] {
+	return queue[T, ID]{
+		id: id,
+		l:  list[T]{},
+		m:  make(map[ID]*listItem[T]),
 	}
 }
 
-// queue is a FIFO queue that offers O(1) pushBack and popFront operations,
-// and remove (by ID) operations.
-type queue[Item any, ID comparable] struct {
-	id   func(Item) ID
-	list list[Item]
-	m    map[ID]*listItem[Item]
-}
-
-func (q *queue[Item, ID]) popFront() (Item, bool) {
-	program, ok := q.list.popFront()
+func (q *queue[T, ID]) popFront() (T, bool) {
+	program, ok := q.l.popFront()
 	if !ok {
-		return *new(Item), false
+		return *new(T), false
 	}
 	delete(q.m, q.id(program))
 	return program, true
 }
 
-func (q *queue[Item, ID]) pushBack(program Item) (prev Item, havePrev bool) {
+func (q *queue[T, ID]) pushBack(program T) (prev T, havePrev bool) {
 	id := q.id(program)
 	if prevListItem, ok := q.m[id]; ok {
-		prev, havePrev = q.list.remove(prevListItem), true
+		prev, havePrev = q.l.remove(prevListItem), true
 	}
-	item := q.list.pushBack(program)
+	item := q.l.pushBack(program)
 	q.m[q.id(program)] = item
 	return prev, havePrev
 }
 
-func (q *queue[Item, ID]) remove(k ID) (Item, bool) {
+func (q *queue[T, ID]) remove(k ID) (T, bool) {
 	item, ok := q.m[k]
 	if !ok {
-		return *new(Item), false
+		return *new(T), false
 	}
 	delete(q.m, k)
-	return q.list.remove(item), true
+	return q.l.remove(item), true
 }
 
-func (q *queue[Item, ID]) len() int {
+func (q *queue[T, ID]) len() int {
 	return len(q.m)
 }
 
 // list is a circular doubly-linked list.
 //
-// Sure, with more allocations and it's painful API, this could just be replaced
+// Sure, with more allocations and its painful API, this could just be replaced
 // with container/list.
 type list[T any] struct {
 	head *listItem[T]
