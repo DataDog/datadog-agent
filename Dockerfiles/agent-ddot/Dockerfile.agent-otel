@@ -9,6 +9,7 @@ FROM ubuntu:${UBUNTU_VERSION} AS builder
 ARG AGENT_REPO
 ARG AGENT_VERSION
 ARG AGENT_BRANCH
+ARG DDA_VERSION
 ENV DEBIAN_FRONTEND=noninteractive
 
 # Set the working directory
@@ -61,7 +62,7 @@ RUN go version && \
 ENV DDA_INTERACTIVE=false
 # Install prebuilt dda and sync tasks
 RUN ARCH=$(dpkg --print-architecture) && \
-    DDA_VERSION=v0.25.0 && \
+    DDA_VERSION=${DDA_VERSION} && \
     if [ "$ARCH" = "amd64" ]; then DDA_ARCH="x86_64"; \
     elif [ "$ARCH" = "arm64" ]; then DDA_ARCH="aarch64"; fi && \
     curl -fsSL "https://github.com/DataDog/datadog-agent-dev/releases/download/${DDA_VERSION}/dda-${DDA_ARCH}-unknown-linux-gnu.tar.gz" \
