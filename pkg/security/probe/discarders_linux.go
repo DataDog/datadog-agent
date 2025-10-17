@@ -14,8 +14,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/security/probe/managerhelper"
-
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
 
@@ -56,16 +54,12 @@ var (
 
 	// recentlyAddedTimeout do not add twice the same discarder in 2sec
 	recentlyAddedTimeout = uint64(2 * time.Second.Nanoseconds())
-)
 
-type discarderHandler func(rs *rules.RuleSet, event *model.Event, probe *EBPFProbe, discarder Discarder) (bool, error)
-
-var (
 	allDiscarderHandlers = make(map[eval.Field]discarderHandler)
 	eventZeroDiscarder   = model.NewFakeEvent()
 )
 
-var dnsMask uint16
+type discarderHandler func(rs *rules.RuleSet, event *model.Event, probe *EBPFProbe, discarder Discarder) (bool, error)
 
 // bumpDiscardersRevision sends an eRPC request to bump the discarders revisionr
 func bumpDiscardersRevision(e *erpc.ERPC) error {
@@ -568,31 +562,6 @@ func dumpDiscarders(resolver *dentry.Resolver, inodeMap, statsFB, statsBB *ebpf.
 	return dump, nil
 }
 
-func dnsResponseCodeDiscarderHandler(_ *rules.RuleSet, event *model.Event, probe *EBPFProbe, _ Discarder) (bool, error) {
-	dnsResponse := &event.DNS
-
-	if !dnsResponse.HasResponse() {
-		return false, nil
-	}
-
-	mask := uint16(1)
-	mask <<= dnsResponse.Response.ResponseCode
-	dnsMask |= mask
-
-	bufferSelector, err := managerhelper.Map(probe.Manager, "filtered_dns_rcodes")
-	if err != nil {
-		return false, err
-	}
-
-	err = bufferSelector.Put(uint32(0), dnsMask)
-	if err != nil {
-		return false, err
-	}
-
-	seclog.Tracef("DNS discarder for response code: %d", dnsResponse.Response.ResponseCode)
-	return true, nil
-}
-
 func init() {
 	allDiscarderHandlers["open.file.path"] = filenameDiscarderWrapper(model.FileOpenEventType,
 		func(event *model.Event) (eval.Field, *model.FileEvent, bool) {
@@ -653,8 +622,6 @@ func init() {
 		func(event *model.Event) (eval.Field, *model.FileEvent, bool) {
 			return "chdir.file.path", &event.Open.File, false
 		})
-
-	allDiscarderHandlers["dns.response.code"] = dnsResponseCodeDiscarderHandler
 
 	// Add all the discarders to the SupportedDiscarders map
 	for field := range allDiscarderHandlers {
