@@ -50,7 +50,7 @@ type Webhook struct {
 	mutator mutatecommon.Mutator
 
 	// use to store all the config option from the config component to avoid costly lookups in the admission webhook hot path.
-	config *Config
+	config *WebhookConfig
 }
 
 // NewWebhook returns a new Webhook dependent on the injection filter.
@@ -62,7 +62,7 @@ func NewWebhook(config *Config, wmeta workloadmeta.Component, mutator mutatecomm
 		matchConditions: []admissionregistrationv1.MatchCondition{},
 		mutator:         mutator,
 		wmeta:           wmeta,
-		config:          config,
+		config:          config.Webhook,
 	}
 
 	log.Debug("Successfully created SSI webhook")
@@ -81,12 +81,12 @@ func (w *Webhook) WebhookType() common.WebhookType {
 
 // IsEnabled returns whether the webhook is enabled
 func (w *Webhook) IsEnabled() bool {
-	return w.config.Webhook.IsEnabled
+	return w.config.IsEnabled
 }
 
 // Endpoint returns the endpoint of the webhook
 func (w *Webhook) Endpoint() string {
-	return w.config.Webhook.Endpoint
+	return w.config.Endpoint
 }
 
 // Resources returns the kubernetes resources for which the webhook should
