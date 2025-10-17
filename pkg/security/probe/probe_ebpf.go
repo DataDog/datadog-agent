@@ -2356,60 +2356,6 @@ func isRawPacketActionPresent(rs *rules.RuleSet) bool {
 	return false
 }
 
-func (p *EBPFProbe) applyDNSDefaultDropMaskFromRules(rs *rules.RuleSet) error {
-	bucket := rs.GetRuleBucket(model.DNSEventType.String())
-	if bucket == nil {
-		return p.setDNSDiscarderMask(^uint16(0))
-	}
-
-	var allowMask uint16
-
-	for code := 0; code < 16; code++ {
-		ev := rs.NewFakeEvent()
-		_ = ev.SetFieldValue("dns.response.code", code)
-
-		ctx := eval.NewContext(ev)
-
-		isDiscarder := true
-		for _, r := range bucket.GetRules() {
-			ok, err := r.PartialEval(ctx, "dns.response.code")
-			if err != nil {
-				var nf *eval.ErrFieldNotFound
-				if errors.As(err, &nf) {
-					continue
-				}
-				isDiscarder = false
-				break
-			}
-			if ok {
-				isDiscarder = false
-				break
-			}
-		}
-
-		if !isDiscarder {
-			allowMask |= 1 << uint(code)
-		}
-	}
-
-	return p.setDNSDiscarderMask(^allowMask)
-}
-
-func (p *EBPFProbe) setDNSDiscarderMask(dnsMask uint16) error {
-	bufferSelector, err := managerhelper.Map(p.Manager, "filtered_dns_rcodes")
-	if err != nil {
-		return err
-	}
-
-	err = bufferSelector.Put(uint32(0), dnsMask)
-	if err != nil {
-		return err
-	}
-
-	seclog.Tracef("DNS discarder for response code: %d", dnsMask)
-	return nil
-}
-
 // ApplyRuleSet apply the required update to handle the new ruleset
 func (p *EBPFProbe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.FilterReport, error) {
 	if p.opts.SyscallsMonitorEnabled {
@@ -2423,7 +2369,7 @@ func (p *EBPFProbe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.FilterReport, err
 		return nil, err
 	}
 
-	if err := p.applyDNSDefaultDropMaskFromRules(rs); err != nil {
+	if err := applyDNSDefaultDropMaskFromRules(p, rs); err != nil {
 		seclog.Warnf("failed to apply DNS default-drop mask: %v", err)
 	}
 
