@@ -121,6 +121,7 @@ type Tailer struct {
 	bytesRead       *status.CountInfo
 	movingSum       *util.MovingSum
 	fingerprint     *logstypes.Fingerprint
+	fingerprinter   *Fingerprinter
 	registry        auditor.Registry
 	CapacityMonitor *metrics.CapacityMonitor
 }
@@ -134,8 +135,9 @@ type TailerOptions struct {
 	Info            *status.InfoRegistry     // Required
 	Rotated         bool                     // Optional
 	TagAdder        tag.EntityTagAdder       // Required
-	Fingerprint     *logstypes.Fingerprint   //Optional
-	Registry        auditor.Registry         //Required
+	Fingerprint     *logstypes.Fingerprint   // Optional
+	Fingerprinter   *Fingerprinter           // Required
+	Registry        auditor.Registry         // Required
 	CapacityMonitor *metrics.CapacityMonitor // Required
 }
 
@@ -190,6 +192,7 @@ func NewTailer(opts *TailerOptions) *Tailer {
 		bytesRead:              bytesRead,
 		movingSum:              movingSum,
 		fingerprint:            opts.Fingerprint,
+		fingerprinter:          opts.Fingerprinter,
 		CapacityMonitor:        opts.CapacityMonitor,
 		registry:               opts.Registry,
 	}
@@ -217,6 +220,7 @@ func (t *Tailer) NewRotatedTailer(
 	info *status.InfoRegistry,
 	tagAdder tag.EntityTagAdder,
 	fingerprint *logstypes.Fingerprint,
+	fingerprinter *Fingerprinter,
 	registry auditor.Registry,
 ) *Tailer {
 	options := &TailerOptions{
@@ -229,6 +233,7 @@ func (t *Tailer) NewRotatedTailer(
 		TagAdder:        tagAdder,
 		CapacityMonitor: capacityMonitor,
 		Fingerprint:     fingerprint,
+		Fingerprinter:   fingerprinter,
 		Registry:        registry,
 	}
 

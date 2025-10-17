@@ -9,9 +9,8 @@ package file
 
 import (
 	"fmt"
-	"os"
 
-	"github.com/DataDog/datadog-agent/pkg/logs/internal/util/opener"
+	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -22,35 +21,31 @@ import (
 // - removed and recreated
 // - truncated
 func (t *Tailer) DidRotate() (bool, error) {
-	f, err := opener.OpenLogFile(t.fullpath)
+	f, err := filesystem.OpenShared(t.fullpath)
 	if err != nil {
 		return false, fmt.Errorf("open %q: %w", t.fullpath, err)
 	}
 	defer f.Close()
-	lastReadOffset := t.lastReadOffset.Load()
+	offset := t.lastReadOffset.Load()
 
-	fi1, err := f.Stat()
+	st, err := f.Stat()
 	if err != nil {
 		return false, fmt.Errorf("stat %q: %w", f.Name(), err)
 	}
 
-	fi2, err := t.osFile.Stat()
-	if err != nil {
+	// It is important to gather these values in this order, as both the file
+	// size and read offset may be changing concurrently.  However, the offset
+	// increases monotonically, and increments occur _after_ the file size has
+	// increased, so the check that size < offset is valid as long as size is
+	// polled before the offset.
+	sz := st.Size()
+
+	if sz < offset {
+		log.Infof("File rotation detected due to size change, lastReadOffset=%d, fileSize=%d", offset, sz)
 		return true, nil
 	}
 
-	fileSize := fi1.Size()
-
-	recreated := !os.SameFile(fi1, fi2)
-	truncated := fileSize < lastReadOffset
-
-	if recreated {
-		log.Debugf("File rotation detected due to recreation, f1: %+v, f2: %+v", fi1, fi2)
-	} else if truncated {
-		log.Debugf("File rotation detected due to size change, lastReadOffset=%d, fileSize=%d", lastReadOffset, fileSize)
-	}
-
-	return recreated || truncated, nil
+	return false, nil
 }
 
 // DidRotateViaFingerprint returns true if the file has been log-rotated via fingerprint.
