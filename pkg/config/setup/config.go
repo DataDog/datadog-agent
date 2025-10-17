@@ -28,6 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check/defaults"
 	"github.com/DataDog/datadog-agent/pkg/config/create"
 	pkgconfigenv "github.com/DataDog/datadog-agent/pkg/config/env"
+	configgen "github.com/DataDog/datadog-agent/pkg/config/gen"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/structure"
 	pkgfips "github.com/DataDog/datadog-agent/pkg/fips"
@@ -35,6 +36,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 	"github.com/DataDog/datadog-agent/pkg/util/system"
+	"google.golang.org/protobuf/proto"
 )
 
 const (
@@ -288,8 +290,30 @@ func initCommonWithServerless(config pkgconfigmodel.Setup) {
 	}
 }
 
-func loadPackedDescriptors() {
-	// TODO
+func isNumberField(f *configgen.Field) bool {
+	switch f.Type {
+	case configgen.FieldType_INT, configgen.FieldType_FLOAT, configgen.FieldType_BOOL:
+		return true
+	}
+	return false
+}
+
+func loadPackedDescriptors(config pkgconfigmodel.Setup) {
+	schema := configgen.Schema{}
+	res := configgen.GetResult()
+	err := proto.Unmarshal(res, &schema)
+	if err != nil {
+		panic("invalid schema data!")
+	}
+
+	for _, field := range schema.Field {
+		if isNumberField(field) {
+			config.BindEnvAndSetDefault(field.Name, field.Nval)
+		} else {
+			config.BindEnvAndSetDefault(field.Name, field.Sval)
+
+		}
+	}
 }
 
 // InitConfig initializes the config defaults on a config used by all agents
@@ -297,7 +321,7 @@ func loadPackedDescriptors() {
 func InitConfig(config pkgconfigmodel.Setup) {
 	initCommonWithServerless(config)
 
-	loadPackedDescriptors()
+	loadPackedDescriptors(config)
 
 	/*
 		// Auto exit configuration

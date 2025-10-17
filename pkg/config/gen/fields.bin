@@ -1,0 +1,13 @@
+
+0.1!
+auto_exit.validation_period<
+auto_exit.noprocess.enabled*
+&auto_exit.noprocess.excluded_processes/
+)check_sampler_bucket_commits_count_expiry6
+-check_sampler_stateful_metric_expiration_time"25h"
+check_sampler_expire_metrics!
+check_sampler_context_metrics
+host_aliases
+collect_ccrid
+iot_host
+heroku_dyno
