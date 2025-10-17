@@ -72,9 +72,7 @@ func (e extraFactoriesWithAgentCore) GetProcessors() []processor.Factory {
 }
 
 func (e extraFactoriesWithAgentCore) GetConverters() []confmap.ConverterFactory {
-	return []confmap.ConverterFactory{
-		converters.NewFactoryWithAgent(),
-	}
+	return nil
 }
 
 // extraFactoriesWithoutAgentCore is a struct that implements the ExtraFactories interface when the Agent Core is NOT available.

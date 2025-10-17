@@ -16,7 +16,7 @@ exporters:
       dd-api-key: ${env:DD_API_KEY}
     profiles_endpoint: https://intake.profile.datad0g.com/api/v2/profotlp
 service:
-  # ddprofiling/default is automatically removed when the Agent Core is not available or when extensions.ddprofiling/default.enable_go_runtime_profiler is false (default is false)  
+  # ddprofiling/default is automatically removed when the Agent Core is not available  
   extensions: [ddprofiling/default]
   pipelines:
     profiles:

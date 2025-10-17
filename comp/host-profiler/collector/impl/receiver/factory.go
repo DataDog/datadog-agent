@@ -20,15 +20,10 @@ import (
 	ebpfcollector "go.opentelemetry.io/ebpf-profiler/collector"
 )
 
-// GetFactoryName returns the name of the factory.
-func GetFactoryName() string {
-	return "hostprofiler"
-}
-
 // NewFactory creates a factory for the receiver.
 func NewFactory() receiver.Factory {
 	return xreceiver.NewFactory(
-		component.MustNewType(GetFactoryName()),
+		component.MustNewType("hostprofiler"),
 		defaultConfig,
 		xreceiver.WithProfiles(createProfilesReceiver, component.StabilityLevelAlpha))
 }
@@ -66,14 +61,8 @@ func createProfilesReceiver(
 
 // Config is the configuration for the profiles receiver.
 type Config struct {
-	*ebpfcollector.Config   `mapstructure:",squash"`
-	SymbolUploader          reporter.SymbolUploaderConfig `mapstructure:"symbol_uploader"`
-	EnableGoRuntimeProfiler bool                          `mapstructure:"enable_go_runtime_profiler"`
-}
-
-// GetDefaultEnableGoRuntimeProfiler returns the default value for the enable_go_runtime_profiler config.
-func GetDefaultEnableGoRuntimeProfiler() bool {
-	return false // TODO use constant in dd-otel-host-profiler when available
+	*ebpfcollector.Config `mapstructure:",squash"`
+	SymbolUploader        reporter.SymbolUploaderConfig `mapstructure:"symbol_uploader"`
 }
 
 func defaultConfig() component.Config {
@@ -95,7 +84,5 @@ func defaultConfig() component.Config {
 			SymbolEndpoints:                nil,
 			Version:                        "0.0.0",
 		},
-
-		EnableGoRuntimeProfiler: GetDefaultEnableGoRuntimeProfiler(),
 	}
 }

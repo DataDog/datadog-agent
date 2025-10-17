@@ -17,10 +17,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/comp/host-profiler/collector/impl/receiver"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/confmap"
-	"go.uber.org/zap"
 )
 
 func TestConverterInfraAttributes(t *testing.T) {
@@ -36,8 +34,8 @@ service:
         - %s
         - otherProcessor
 `, infraAttributesName(), infraAttributesName())
-	conf := readFromYamlFile(t, NewFactoryWithoutAgent(), yaml)
-	require.Equal(t, map[string]any{
+	conf := readFromYamlFile(t, yaml)
+	require.Equal(t, conf, map[string]any{
 		"processors": map[string]any{
 			"otherProcessor": map[string]any{},
 		},
@@ -48,7 +46,7 @@ service:
 				},
 			},
 		},
-	}, conf)
+	})
 }
 
 func TestConverterNoInfraAttributes(t *testing.T) {
@@ -61,8 +59,8 @@ service:
       processors:
         - otherProcessor
 `
-	conf := readFromYamlFile(t, NewFactoryWithoutAgent(), yaml)
-	require.Equal(t, map[string]any{
+	conf := readFromYamlFile(t, yaml)
+	require.Equal(t, conf, map[string]any{
 		"processors": map[string]any{
 			"otherProcessor": map[string]any{},
 		},
@@ -73,7 +71,7 @@ service:
 				},
 			},
 		},
-	}, conf)
+	})
 }
 
 func TestConverterDDProfiling(t *testing.T) {
@@ -84,54 +82,13 @@ service:
   extensions: [%s]
 `, ddprofilingName(), ddprofilingName())
 
-	conf := readFromYamlFile(t, NewFactoryWithoutAgent(), yaml)
-	require.Equal(t, map[string]any{
+	conf := readFromYamlFile(t, yaml)
+	require.Equal(t, conf, map[string]any{
 		"extensions": map[string]any{},
 		"service": map[string]any{
 			"extensions": []any{},
 		},
-	}, conf)
-}
-
-func TestConverterWithAgentDDProfiling(t *testing.T) {
-	for _, test := range []struct {
-		extensions               string
-		expectDDProfilingEnabled bool
-	}{
-		{extensions: fmt.Sprintf("receivers:\n  %s: {}", receiver.GetFactoryName()), expectDDProfilingEnabled: receiver.GetDefaultEnableGoRuntimeProfiler()},
-		{extensions: fmt.Sprintf("receivers:\n  %s:\n    enable_go_runtime_profiler: false", receiver.GetFactoryName()), expectDDProfilingEnabled: false},
-		{extensions: fmt.Sprintf("receivers:\n  %s:\n    enable_go_runtime_profiler: true", receiver.GetFactoryName()), expectDDProfilingEnabled: true},
-	} {
-
-		yaml := fmt.Sprintf(`
-%s
-extensions:
-  %s: {}
-service:
-  extensions: [%s]
-`, test.extensions, ddprofilingName(), ddprofilingName())
-
-		conf := readFromYamlFile(t, NewFactoryWithAgent(), yaml)
-
-		// Check only the extension as receivers is not the same for each test
-		delete(conf, "receivers")
-
-		if test.expectDDProfilingEnabled {
-			require.Equal(t, map[string]any{
-				"extensions": map[string]any{ddprofilingName(): map[string]any{}},
-				"service": map[string]any{
-					"extensions": []any{ddprofilingName()},
-				},
-			}, conf)
-		} else {
-			require.Equal(t, map[string]any{
-				"extensions": map[string]any{},
-				"service": map[string]any{
-					"extensions": []any{},
-				},
-			}, conf)
-		}
-	}
+	})
 }
 
 func TestConverterInfraAttributesName(t *testing.T) {
@@ -147,12 +104,12 @@ func getDefaultConfig(t *testing.T) string {
 	return string(configData)
 }
 
-func readFromYamlFile(t *testing.T, converterFactory confmap.ConverterFactory, yamlContent string) map[string]any {
+func readFromYamlFile(t *testing.T, yamlContent string) map[string]any {
 	confRetrieved, err := confmap.NewRetrievedFromYAML([]byte(yamlContent))
 	require.NoError(t, err)
 	conf, err := confRetrieved.AsConf()
-	require.NoError(t, err, fmt.Sprintf("error retrieving conf: %v", yamlContent))
-	converter := converterFactory.Create(confmap.ConverterSettings{Logger: zap.NewNop()})
+	require.NoError(t, err)
+	converter := &converterNoAgent{}
 	err = converter.Convert(context.Background(), conf)
 	require.NoError(t, err)
 	return conf.ToStringMap()
