@@ -58,7 +58,7 @@ func (s *testAgentScriptInstallsDotnetLibrary) TestInstallFromScript() {
 			"DD_APM_INSTRUMENTATION_ENABLED": "iis",
 			// TODO: remove override once image is published in prod
 			"DD_INSTALLER_REGISTRY_URL":        "install.datad0g.com.internal.dda-testing.com",
-			"DD_APM_INSTRUMENTATION_LIBRARIES": fmt.Sprintf("dotnet:%s", version.PackageVersion()),
+			"DD_APM_INSTRUMENTATION_LIBRARIES": fmt.Sprintf("dotnet:%s", version.Version()),
 		}),
 	)
 	// Start the IIS app to load the library
@@ -86,7 +86,7 @@ func (s *testAgentScriptInstallsDotnetLibrary) TestScriptThenRemoteUpgrade() {
 			"DD_APM_INSTRUMENTATION_ENABLED": "iis",
 			// TODO: remove override once image is published in prod
 			"DD_INSTALLER_REGISTRY_URL":        "install.datad0g.com.internal.dda-testing.com",
-			"DD_APM_INSTRUMENTATION_LIBRARIES": fmt.Sprintf("dotnet:%s", oldVersion.PackageVersion()),
+			"DD_APM_INSTRUMENTATION_LIBRARIES": fmt.Sprintf("dotnet:%s", oldVersion.Version()),
 		}),
 	)
 
