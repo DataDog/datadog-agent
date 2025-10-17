@@ -41,14 +41,48 @@ multitool.hub(lockfile = "//bazel:prebuilt_buildtools.json")
 multitool.hub(lockfile = "//bazel:prebuilt_jq.json")
 use_repo(multitool, "multitool")
 
-#########################
-## Compilers          ##
-#########################
+######################################
+## Compilers and toolchains        ##
+####################################
 
 bazel_dep(name = "rules_cc", version = "0.2.8")
 bazel_dep(name = "rules_python", version = "1.6.1")
 bazel_dep(name = "rules_flex", version = "0.4")
 bazel_dep(name = "rules_m4", version = "0.3")
+bazel_dep(name = "gcc_toolchain", version = "0.9.0")
+git_override(
+    module_name = "gcc_toolchain",
+    commit = "0e2242b07961107d2b05a6552d70b2ef4ef485fb",
+    patch_args = ["-p1"],
+    patches = [
+        "//bazel/patches:datadog_agent_toolchain.patch",
+        "//bazel/patches:0001-fix-c-x86_64-header-locations-with-our-ctng-toolchai.patch",
+    ],
+    remote = "https://github.com/f0rmiga/gcc-toolchain.git",
+)
+
+gcc_toolchains = use_extension("@gcc_toolchain//toolchain:module_extensions.bzl", "gcc_toolchains", dev_dependency = True)
+gcc_toolchains.toolchain(
+    name = "gcc_toolchain_x86_64",
+    binary_prefix = "x86_64-unknown-linux-gnu-",
+    gcc_version = "11.4.0",
+    target_arch = "x86_64",
+)
+gcc_toolchains.toolchain(
+    name = "gcc_toolchain_aarch64",
+    binary_prefix = "aarch64-unknown-linux-gnu-",
+    gcc_version = "12.3.0",
+    target_arch = "aarch64",
+)
+use_repo(gcc_toolchains, "gcc_toolchain_x86_64")
+use_repo(gcc_toolchains, "gcc_toolchain_aarch64")
+
+# TODO{agent-build}: Find a way to register platform-specific toolchains dynamically
+register_toolchains(
+    "@gcc_toolchain_x86_64//:cc_toolchain",
+    "@gcc_toolchain_aarch64//:cc_toolchain",
+    "//bazel/toolchains/mingw:mingw_cc_toolchain",
+)
 
 #########################
 ## Native dependencies ##

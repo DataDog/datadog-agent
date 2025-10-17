@@ -262,6 +262,7 @@
 /cmd/system-probe/windows_resources/    @DataDog/windows-products
 /cmd/system-probe/main_windows*.go      @DataDog/windows-products
 /cmd/system-probe/subcommands/runtime/  @DataDog/agent-security
+/cmd/system-probe/subcommands/usm/      @DataDog/universal-service-monitoring
 /cmd/systray/                           @DataDog/windows-products
 /cmd/security-agent/                    @DataDog/agent-security
 /cmd/installer/                         @DataDog/fleet @DataDog/windows-products

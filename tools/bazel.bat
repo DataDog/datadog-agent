@@ -1,4 +1,5 @@
-@echo off & setlocal EnableDelayedExpansion
+@echo off
+setlocal EnableDelayedExpansion
 >nul chcp 65001
 
 :: Check `bazelisk` properly bootstraps `bazel` or fail with instructions
@@ -57,12 +58,17 @@ set "bazel_exit=!errorlevel!"
 
 :: Diagnostics: dump logs on failure
 if !bazel_exit! neq 0 (
-  >&2 echo 🟡 Bazel failed, dumping available info:
-  for /d %%d in ("!BAZEL_OUTPUT_USER_ROOT!\*") do (
-    for %%f in ("%%d\java.log.*" "%%d\server\*") do (
-      >&2 echo 🟡 %%f:
-      >&2 type "%%f"
-      >&2 echo.
+  >&2 echo 🟡 Bazel failed [!bazel_exit!], dumping available info in !BAZEL_OUTPUT_USER_ROOT! ^(excluding junctions^):
+  for /f "delims=" %%d in ('dir /a:d-l /b "!BAZEL_OUTPUT_USER_ROOT!"') do (
+    >&2 echo 🟡 [%%d]
+    for %%f in ("!BAZEL_OUTPUT_USER_ROOT!\%%d\java.log.*" "!BAZEL_OUTPUT_USER_ROOT!\%%d\server\*") do (
+      if exist "%%f" (
+        >&2 echo 🟡 %%f:
+        >&2 type "%%f"
+        >&2 echo.
+      ) else (
+        >&2 echo 🟡 %%f doesn't exist
+      )
     )
   )
   exit /b !bazel_exit!
