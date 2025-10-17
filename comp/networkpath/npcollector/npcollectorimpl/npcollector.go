@@ -247,12 +247,17 @@ func (s *npCollectorImpl) shouldScheduleNetworkPathForConn(conn *model.Connectio
 	//	return false
 	//}
 
+	if !s.checkPassesConnCIDRFilters(conn, vpcSubnets) {
+		s.statsdClient.Incr(netpathConnsSkippedMetricName, []string{"reason:skip_not_matched_by_conn_filters"}, 1) //nolint:errcheck
+		return false
+	}
+
 	if !s.filter.IsIncluded(domain, conn.Raddr.GetIp()) {
 		s.statsdClient.Incr(netpathConnsSkippedMetricName, []string{"reason:skip_not_matched_by_filters"}, 1) //nolint:errcheck
 		return false
 	}
 
-	return s.checkPassesConnCIDRFilters(conn, vpcSubnets)
+	return true
 }
 
 func (s *npCollectorImpl) getVPCSubnets() ([]*net.IPNet, error) {

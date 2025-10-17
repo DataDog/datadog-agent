@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
+//go:build test
+
 package connfilter
 
 import (
@@ -13,7 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/structure"
 )
 
-func getConnFilter(t *testing.T, configString string, ddSite string) (*ConnFilter, error) {
+func getConnFilter(t *testing.T, configString string, ddSite string, monitorIPWithoutDomain bool) (*ConnFilter, error) {
 	var configs []Config
 
 	cfg := configComponent.NewMockFromYAML(t, configString)
@@ -21,7 +23,7 @@ func getConnFilter(t *testing.T, configString string, ddSite string) (*ConnFilte
 	if err != nil {
 		return nil, err
 	}
-	connFilter, errs := NewConnFilter(configs, ddSite, false)
+	connFilter, errs := NewConnFilter(configs, ddSite, monitorIPWithoutDomain)
 	if len(errs) > 0 {
 		err = errors.Join(errs...)
 	}
