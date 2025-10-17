@@ -748,7 +748,7 @@ func (p *WindowsProbe) startFrimTracing(ecb etwCallback) error {
 				}
 			case idRegOpenKey:
 				if cka, err := p.parseOpenRegistryKey(e); err == nil {
-					log.Tracef("Got idRegOpenKey %s", cka)
+					seclog.Tracef("Got idRegOpenKey %s", cka)
 
 					p.stats.rpnLock.Lock()
 					p.stats.regProcessedNotifications[e.EventHeader.EventDescriptor.ID]++
@@ -760,7 +760,7 @@ func (p *WindowsProbe) startFrimTracing(ecb etwCallback) error {
 				}
 			case idRegDeleteKey:
 				if dka, err := p.parseDeleteRegistryKey(e); err == nil {
-					log.Tracef("Got idRegDeleteKey %v", dka)
+					seclog.Tracef("Got idRegDeleteKey %v", dka)
 
 					p.stats.rpnLock.Lock()
 					p.stats.regProcessedNotifications[e.EventHeader.EventDescriptor.ID]++
@@ -772,7 +772,7 @@ func (p *WindowsProbe) startFrimTracing(ecb etwCallback) error {
 				}
 			case idRegFlushKey:
 				if dka, err := p.parseFlushKey(e); err == nil {
-					log.Tracef("Got idRegFlushKey %v", dka)
+					seclog.Tracef("Got idRegFlushKey %v", dka)
 
 					p.stats.rpnLock.Lock()
 					p.stats.regProcessedNotifications[e.EventHeader.EventDescriptor.ID]++
@@ -782,7 +782,7 @@ func (p *WindowsProbe) startFrimTracing(ecb etwCallback) error {
 				}
 			case idRegCloseKey:
 				if dka, err := p.parseCloseKeyArgs(e); err == nil {
-					log.Tracef("Got idRegCloseKey %s", dka)
+					seclog.Tracef("Got idRegCloseKey %s", dka)
 
 					p.regPathResolver.Remove(dka.keyObject)
 					p.stats.rpnLock.Lock()
@@ -793,7 +793,7 @@ func (p *WindowsProbe) startFrimTracing(ecb etwCallback) error {
 				}
 			case idQuerySecurityKey:
 				if dka, err := p.parseQuerySecurityKeyArgs(e); err == nil {
-					log.Tracef("Got idQuerySecurityKey %v", dka.keyName)
+					seclog.Tracef("Got idQuerySecurityKey %v", dka.keyName)
 
 					p.stats.rpnLock.Lock()
 					p.stats.regProcessedNotifications[e.EventHeader.EventDescriptor.ID]++
@@ -803,7 +803,7 @@ func (p *WindowsProbe) startFrimTracing(ecb etwCallback) error {
 				}
 			case idSetSecurityKey:
 				if dka, err := p.parseSetSecurityKeyArgs(e); err == nil {
-					log.Tracef("Got idSetSecurityKey %v", dka.keyName)
+					seclog.Tracef("Got idSetSecurityKey %v", dka.keyName)
 
 					p.stats.rpnLock.Lock()
 					p.stats.regProcessedNotifications[e.EventHeader.EventDescriptor.ID]++
@@ -813,7 +813,7 @@ func (p *WindowsProbe) startFrimTracing(ecb etwCallback) error {
 				}
 			case idRegSetValueKey:
 				if svk, err := p.parseSetValueKey(e); err == nil {
-					log.Tracef("Got idRegSetValueKey %s", svk)
+					seclog.Tracef("Got idRegSetValueKey %s", svk)
 
 					p.stats.rpnLock.Lock()
 					p.stats.regProcessedNotifications[e.EventHeader.EventDescriptor.ID]++
