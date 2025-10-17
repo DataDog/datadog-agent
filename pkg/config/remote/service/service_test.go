@@ -300,17 +300,17 @@ func TestFetchOrgStatus503And504IncrementsErrCount(t *testing.T) {
 		Authorized: true,
 	}
 	// start with no previous errors
-	assert.Equal(t, service.mu.fetchOrgStatus503And504ErrCount, uint64(0))
+	assert.Equal(t, service.orgStatusPoller.mu.fetchOrgStatus503And504ErrCount, uint64(0))
 
 	api.On("FetchOrgStatus", mock.Anything).Return(response, httpapi.ErrGatewayTimeout)
-	service.pollOrgStatus()
-	assert.Equal(t, service.mu.fetchOrgStatus503And504ErrCount, uint64(1))
+	service.orgStatusPoller.poll(service.getAPI(), service.rcType)
+	assert.Equal(t, service.orgStatusPoller.mu.fetchOrgStatus503And504ErrCount, uint64(1))
 
-	assert.Nil(t, service.mu.previousOrgStatus)
+	assert.Nil(t, service.orgStatusPoller.getPreviousStatus())
 	api.On("FetchOrgStatus", mock.Anything).Return(response, httpapi.ErrGatewayTimeout)
 
-	service.pollOrgStatus()
-	assert.Equal(t, service.mu.fetchOrgStatus503And504ErrCount, uint64(2))
+	service.orgStatusPoller.poll(service.getAPI(), service.rcType)
+	assert.Equal(t, service.orgStatusPoller.mu.fetchOrgStatus503And504ErrCount, uint64(2))
 }
 
 func TestFetchOrgStatusSuccessResetsErrorCount(t *testing.T) {
@@ -319,19 +319,19 @@ func TestFetchOrgStatusSuccessResetsErrorCount(t *testing.T) {
 	uptaneClient := &mockCoreAgentUptane{}
 	service := newTestService(t, api, uptaneClient, clock)
 
-	service.mu.fetchOrgStatus503And504ErrCount = 1
+	service.orgStatusPoller.mu.fetchOrgStatus503And504ErrCount = 1
 	response := &pbgo.OrgStatusResponse{
 		Enabled:    true,
 		Authorized: true,
 	}
 	// start with 1 error
-	assert.Equal(t, service.mu.fetchOrgStatus503And504ErrCount, uint64(1))
+	assert.Equal(t, service.orgStatusPoller.mu.fetchOrgStatus503And504ErrCount, uint64(1))
 
-	assert.Nil(t, service.mu.previousOrgStatus)
+	assert.Nil(t, service.orgStatusPoller.getPreviousStatus())
 	api.On("FetchOrgStatus", mock.Anything).Return(response, nil)
 
-	service.pollOrgStatus()
-	assert.Equal(t, service.mu.fetchOrgStatus503And504ErrCount, uint64(0))
+	service.orgStatusPoller.poll(service.getAPI(), service.rcType)
+	assert.Equal(t, service.orgStatusPoller.mu.fetchOrgStatus503And504ErrCount, uint64(0))
 }
 
 func TestServiceBackoffFailure(t *testing.T) {
@@ -1187,24 +1187,24 @@ func TestOrgStatus(t *testing.T) {
 		Authorized: true,
 	}
 
-	assert.Nil(t, service.mu.previousOrgStatus)
+	assert.Nil(t, service.orgStatusPoller.getPreviousStatus())
 	api.On("FetchOrgStatus", mock.Anything).Return(response, nil)
 
-	service.pollOrgStatus()
-	prev := service.mu.previousOrgStatus
+	service.orgStatusPoller.poll(service.getAPI(), service.rcType)
+	prev := service.orgStatusPoller.getPreviousStatus()
 	assert.True(t, prev.Enabled)
 	assert.True(t, prev.Authorized)
 
 	api.On("FetchOrgStatus", mock.Anything).Return(nil, fmt.Errorf("Error"))
-	service.pollOrgStatus()
-	prev = service.mu.previousOrgStatus
+	service.orgStatusPoller.poll(service.getAPI(), service.rcType)
+	prev = service.orgStatusPoller.getPreviousStatus()
 	assert.True(t, prev.Enabled)
 	assert.True(t, prev.Authorized)
 
 	response.Authorized = false
 	api.On("FetchOrgStatus", mock.Anything).Return(response, nil)
-	service.pollOrgStatus()
-	prev = service.mu.previousOrgStatus
+	service.orgStatusPoller.poll(service.getAPI(), service.rcType)
+	prev = service.orgStatusPoller.getPreviousStatus()
 	assert.True(t, prev.Enabled)
 	assert.False(t, prev.Authorized)
 }
@@ -1535,7 +1535,7 @@ func TestWithOrgStatusPollingIntervalNoConfigPassed(t *testing.T) {
 	}
 	service, err := NewService(cfg, "Remote Config", baseRawURL, "localhost", getHostTags, mockTelemetryReporter, agentVersion, options...)
 	assert.NoError(t, err)
-	assert.Equal(t, service.orgStatusRefreshInterval, defaultRefreshInterval)
+	assert.Equal(t, service.orgStatusPoller.refreshInterval, defaultRefreshInterval)
 	assert.NotNil(t, service)
 	service.Stop()
 }
@@ -1552,7 +1552,7 @@ func TestWithOrgStatusPollingIntervalConfigPassed(t *testing.T) {
 	}
 	service, err := NewService(cfg, "Remote Config", baseRawURL, "localhost", getHostTags, mockTelemetryReporter, agentVersion, options...)
 	assert.NoError(t, err)
-	assert.Equal(t, service.orgStatusRefreshInterval, 54*time.Second)
+	assert.Equal(t, service.orgStatusPoller.refreshInterval, 54*time.Second)
 	assert.NotNil(t, service)
 	service.Stop()
 }
