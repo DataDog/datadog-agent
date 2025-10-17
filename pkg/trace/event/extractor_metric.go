@@ -7,6 +7,7 @@ package event
 
 import (
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
+	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace/idx"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 )
 
@@ -32,6 +33,24 @@ func (e *metricBasedExtractor) Extract(s *pb.Span, priority sampler.SamplingPrio
 		return 0, false
 	}
 	extractionRate, ok := s.Metrics[sampler.KeySamplingRateEventExtraction]
+	if !ok {
+		return 0, false
+	}
+	if extractionRate > 0 && priority >= sampler.PriorityUserKeep {
+		// If the trace has been manually sampled, we keep all matching spans
+		extractionRate = 1
+	}
+	return extractionRate, true
+}
+
+// ExtractV1 decides whether to extract APM events from a span based on the value of the event extraction rate metric set
+// on that span. If such a value exists, the extracted event is returned along with this rate and a true value.
+// Otherwise, false is returned as the third value and the others are invalid.
+//
+// NOTE: If priority is UserKeep (manually sampled) any extraction rate bigger than 0 is upscaled to 1 to ensure no
+// extraction sampling is done on this event.
+func (e *metricBasedExtractor) ExtractV1(s *idx.InternalSpan, priority sampler.SamplingPriority) (float64, bool) {
+	extractionRate, ok := s.GetAttributeAsFloat64(sampler.KeySamplingRateEventExtraction)
 	if !ok {
 		return 0, false
 	}

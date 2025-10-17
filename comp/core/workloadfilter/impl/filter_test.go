@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
+	"github.com/DataDog/datadog-agent/comp/core/workloadfilter/catalog"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	"github.com/DataDog/datadog-agent/comp/core/workloadfilter/program"
 	workloadmetafilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/util/workloadmeta"
@@ -31,7 +32,11 @@ func newFilterStoreObject(t *testing.T, config config.Component) *workloadfilter
 		Log:    logmock.New(t),
 		Config: config,
 	}
-	f, _ := NewComponent(reqs)
+	f, err := NewComponent(reqs)
+	if err != nil {
+		t.Errorf("failed to create filter component: %v", err)
+		return nil
+	}
 	return f.Comp.(*workloadfilterStore)
 }
 
@@ -554,7 +559,7 @@ func TestProgramErrorHandling(t *testing.T) {
 
 		// Register the error program factory
 		errorFilter.registerFactory(workloadfilter.ContainerType, int(workloadfilter.LegacyContainerMetrics),
-			func(_ config.Component, _ log.Component) program.FilterProgram {
+			func(_ *catalog.FilterConfig, _ log.Component) program.FilterProgram {
 				return &errorInclProgram{}
 			})
 
@@ -574,7 +579,7 @@ func TestProgramErrorHandling(t *testing.T) {
 
 		// Register the error program factory
 		errorFilter.registerFactory(workloadfilter.ContainerType, int(workloadfilter.LegacyContainerMetrics),
-			func(_ config.Component, _ log.Component) program.FilterProgram {
+			func(_ *catalog.FilterConfig, _ log.Component) program.FilterProgram {
 				return &errorExclProgram{}
 			})
 
@@ -1008,5 +1013,59 @@ func TestProcessFilterInitializationError(t *testing.T) {
 			}
 		}
 		assert.True(t, hasRegexError, "Expected error message to contain regex-related error. Got errors: %v", errStrings)
+	})
+}
+func TestCELWorkloadExcludeFiltering(t *testing.T) {
+
+	yamlConfig := `
+cel_workload_exclude:
+- products: ["metrics"]
+  rules:
+    kube_services: ["true"]
+    pods: ["false"]
+- products:
+    - logs
+    - sbom
+  rules:
+    containers:
+      - "container.name != 'this'"
+`
+
+	mockConfig := configmock.NewFromYAML(t, yamlConfig)
+	filterStore := newFilterStoreObject(t, mockConfig)
+
+	t.Run("CEL exclude kube_service", func(t *testing.T) {
+		svc := workloadfilter.CreateService("", "", nil)
+		filterBundle := filterStore.GetServiceFilters([][]workloadfilter.ServiceFilter{{workloadfilter.ServiceFilter(workloadfilter.ServiceCELMetrics)}})
+		assert.Nil(t, filterBundle.GetErrors())
+		assert.Equal(t, workloadfilter.Excluded, filterBundle.GetResult(svc))
+	})
+
+	t.Run("CEL exclude pod", func(t *testing.T) {
+		pod := workloadmetafilter.CreatePod(
+			&workloadmeta.KubernetesPod{
+				EntityMeta: workloadmeta.EntityMeta{
+					Name:      "my-pod",
+					Namespace: "test",
+				},
+			},
+		)
+		filterBundle := filterStore.GetPodFilters([][]workloadfilter.PodFilter{{workloadfilter.PodFilter(workloadfilter.PodCELMetrics)}})
+		assert.Nil(t, filterBundle.GetErrors())
+		assert.Equal(t, false, filterBundle.IsExcluded(pod))
+	})
+
+	t.Run("CEL exclude container", func(t *testing.T) {
+		container := workloadmetafilter.CreateContainer(
+			&workloadmeta.Container{
+				EntityMeta: workloadmeta.EntityMeta{
+					Name: "this",
+				},
+			},
+			nil,
+		)
+		filterBundle := filterStore.GetContainerFilters([][]workloadfilter.ContainerFilter{{workloadfilter.ContainerFilter(workloadfilter.ContainerCELLogs)}})
+		assert.Nil(t, filterBundle.GetErrors())
+		assert.Equal(t, false, filterBundle.IsExcluded(container))
 	})
 }
