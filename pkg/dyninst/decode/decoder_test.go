@@ -150,6 +150,81 @@ func generateIrForProbes(
 	return irProg
 }
 
+// findProbeByID finds a probe by its exact ID in the IR program
+func findProbeByID(t testing.TB, irProg *ir.Program, probeID string) *ir.Probe {
+	idx := slices.IndexFunc(irProg.Probes, func(p *ir.Probe) bool {
+		return p.GetID() == probeID
+	})
+	require.NotEqual(t, -1, idx, "probe %q not found", probeID)
+	return irProg.Probes[idx]
+}
+
+// findProbeByIDPrefix finds the first probe whose ID starts with the given prefix
+func findProbeByIDPrefix(t testing.TB, irProg *ir.Program, prefix string) *ir.Probe {
+	idx := slices.IndexFunc(irProg.Probes, func(p *ir.Probe) bool {
+		return strings.HasPrefix(p.GetID(), prefix)
+	})
+	require.NotEqual(t, -1, idx, "probe with prefix %q not found", prefix)
+	return irProg.Probes[idx]
+}
+
+// Helper types and functions for common operations
+
+type eventDataItem struct {
+	header output.DataItemHeader
+	data   []byte
+}
+
+// nextMultipleOf8 rounds up to the next 8-byte boundary
+func nextMultipleOf8(v int) int {
+	return (v + 7) & ^7
+}
+
+// buildEventWithDataItems constructs a complete event from data items
+func buildEventWithDataItems(items []eventDataItem) []byte {
+	const (
+		eventHeaderSize    = int(unsafe.Sizeof(output.EventHeader{}))
+		dataItemHeaderSize = int(unsafe.Sizeof(output.DataItemHeader{}))
+	)
+
+	// Calculate total size with 8-byte padding
+	totalSize := eventHeaderSize
+	for _, item := range items {
+		totalSize += dataItemHeaderSize + len(item.data)
+		totalSize = nextMultipleOf8(totalSize)
+	}
+
+	// Build the event header
+	eventHeader := output.EventHeader{
+		Data_byte_len:  uint32(totalSize),
+		Prog_id:        1,
+		Stack_byte_len: 0,
+		Stack_hash:     1,
+		Ktime_ns:       1,
+	}
+
+	// Start with event header
+	var buf []byte
+	hdrBytes := unsafe.Slice((*byte)(unsafe.Pointer(&eventHeader)), unsafe.Sizeof(eventHeader))
+	buf = append(buf, hdrBytes...)
+
+	// Add each data item with padding
+	for _, item := range items {
+		// Add item header
+		itemHdrBytes := unsafe.Slice((*byte)(unsafe.Pointer(&item.header)), unsafe.Sizeof(item.header))
+		buf = append(buf, itemHdrBytes...)
+		// Add item data
+		buf = append(buf, item.data...)
+		// Add padding to reach next 8-byte boundary
+		padSize := nextMultipleOf8(len(buf)) - len(buf)
+		if padSize > 0 {
+			buf = append(buf, make([]byte, padSize)...)
+		}
+	}
+
+	return buf
+}
+
 var simpleStringArgExpected = map[string]any{
 	"s": map[string]any{
 		"type":  "string",
@@ -157,32 +232,35 @@ var simpleStringArgExpected = map[string]any{
 	},
 }
 
-func simpleStringArgEvent(t testing.TB, irProg *ir.Program) []byte {
-	probe := slices.IndexFunc(irProg.Probes, func(p *ir.Probe) bool {
-		return p.GetID() == "stringArg" || strings.HasPrefix(p.GetID(), "testTemplate")
-	})
-	require.NotEqual(t, -1, probe)
-	events := irProg.Probes[probe].Events
-	require.GreaterOrEqual(t, len(events), 1)
-	eventType := events[0].Type
+// buildStringArgEvent is a helper to construct a string argument event
+// It's used by both simpleStringArgEvent and simpleTestTemplateEvent
+func buildStringArgEvent(t testing.TB, irProg *ir.Program, eventType *ir.EventRootType) []byte {
 	var stringType *ir.GoStringHeaderType
-	for _, t := range irProg.Types {
-		if t.GetName() == "string" {
-			stringType = t.(*ir.GoStringHeaderType)
+	for _, typ := range irProg.Types {
+		if typ.GetName() == "string" {
+			stringType = typ.(*ir.GoStringHeaderType)
+			break
 		}
 	}
-	require.NotNil(t, stringType)
+	require.NotNil(t, stringType, "string type not found in IR program")
 	require.NotNil(t, eventType)
 	require.Equal(t, uint32(17), eventType.GetByteSize())
+
+	// Root data: bitset (1) + pointer (8) + length (8) = 17 bytes
+	rootData := make([]byte, 17)
+	rootData[0] = 1                                          // bitset
+	binary.NativeEndian.PutUint64(rootData[1:9], 0xdeadbeef) // pointer
+	binary.NativeEndian.PutUint64(rootData[9:17], 16)        // length
+
+	// String data: "abcdefghijklmnop" = 16 bytes
+	stringData := []byte("abcdefghijklmnop")
 
 	var item []byte
 	eventHeader := output.EventHeader{
 		Data_byte_len: uint32(
 			unsafe.Sizeof(output.EventHeader{}) +
-				1 /* bitset */ + unsafe.Sizeof(output.DataItemHeader{}) +
-				16 + 7 /* padding */ +
-				unsafe.Sizeof(output.DataItemHeader{}) +
-				16,
+				unsafe.Sizeof(output.DataItemHeader{}) + 17 + 7 /* padding */ +
+				unsafe.Sizeof(output.DataItemHeader{}) + 16,
 		),
 		Prog_id:        1,
 		Stack_byte_len: 0,
@@ -199,21 +277,32 @@ func simpleStringArgEvent(t testing.TB, irProg *ir.Program) []byte {
 		Length:  16,
 		Address: 0xdeadbeef,
 	}
+
 	item = append(item, unsafe.Slice(
 		(*byte)(unsafe.Pointer(&eventHeader)), unsafe.Sizeof(eventHeader))...,
 	)
 	item = append(item, unsafe.Slice(
 		(*byte)(unsafe.Pointer(&dataItem0)), unsafe.Sizeof(dataItem0))...,
 	)
-	item = append(item, 1) // bitset
-	item = binary.NativeEndian.AppendUint64(item, 0xdeadbeef)
-	item = binary.NativeEndian.AppendUint64(item, 16)
+	item = append(item, rootData...)
 	item = append(item, 0, 0, 0, 0, 0, 0, 0) // padding
 	item = append(item, unsafe.Slice(
 		(*byte)(unsafe.Pointer(&dataItem1)), unsafe.Sizeof(dataItem1))...,
 	)
-	item = append(item, "abcdefghijklmnop"...)
+	item = append(item, stringData...)
 	return item
+}
+
+func simpleStringArgEvent(t testing.TB, irProg *ir.Program) []byte {
+	probe := findProbeByID(t, irProg, "stringArg")
+	eventType := probe.Events[0].Type
+	return buildStringArgEvent(t, irProg, eventType)
+}
+
+func simpleTestTemplateEvent(t testing.TB, irProg *ir.Program) []byte {
+	probe := findProbeByIDPrefix(t, irProg, "testTemplate")
+	eventType := probe.Events[0].Type
+	return buildStringArgEvent(t, irProg, eventType)
 }
 
 var simpleMapArgExpected = map[string]any{
@@ -230,13 +319,9 @@ var simpleMapArgExpected = map[string]any{
 }
 
 func simpleMapArgEvent(t testing.TB, irProg *ir.Program) []byte {
-	probe := slices.IndexFunc(irProg.Probes, func(p *ir.Probe) bool {
-		return p.GetID() == "mapArg"
-	})
-	require.NotEqual(t, -1, probe)
-	events := irProg.Probes[probe].Events
-	require.GreaterOrEqual(t, len(events), 1)
-	eventType := events[0].Type
+	probe := findProbeByID(t, irProg, "mapArg")
+	require.GreaterOrEqual(t, len(probe.Events), 1)
+	eventType := probe.Events[0].Type
 
 	var (
 		mapParamType  *ir.GoMapType
@@ -327,83 +412,27 @@ func simpleMapArgEvent(t testing.TB, irProg *ir.Program) []byte {
 	// String data bytes for "a"
 	strData := []byte("a")
 
-	// Compute total event length with padding
-	const (
-		eventHeaderSize    = int(unsafe.Sizeof(output.EventHeader{}))
-		dataItemHeaderSize = int(unsafe.Sizeof(output.DataItemHeader{}))
-	)
-	nextMultipleOf8 := func(v int) int { return (v + 7) & ^7 }
-
-	sz := eventHeaderSize // header
-	// no stack data
-	// root item
-	sz += dataItemHeaderSize + rootLen
-	sz = nextMultipleOf8(sz)
-	// header item
-	sz += dataItemHeaderSize + headerLen
-	sz = nextMultipleOf8(sz)
-	// buckets item (one bucket)
-	sz += dataItemHeaderSize + bucketLen
-	sz = nextMultipleOf8(sz)
-	// string data item
-	sz += dataItemHeaderSize + len(strData)
-	sz = nextMultipleOf8(sz)
-
-	var item []byte
-	eventHeader := output.EventHeader{
-		Data_byte_len:  uint32(sz),
-		Prog_id:        1,
-		Stack_byte_len: 0,
-		Stack_hash:     1,
-		Ktime_ns:       1,
+	// Build all data items
+	items := []eventDataItem{
+		{
+			header: output.DataItemHeader{Type: uint32(eventType.GetID()), Length: uint32(rootLen), Address: 0},
+			data:   rootData,
+		},
+		{
+			header: output.DataItemHeader{Type: uint32(headerType.GetID()), Length: uint32(headerLen), Address: headerAddr},
+			data:   headerData,
+		},
+		{
+			header: output.DataItemHeader{Type: uint32(headerType.BucketsType.GetID()), Length: uint32(bucketLen), Address: bucketsAddr},
+			data:   bucketData,
+		},
+		{
+			header: output.DataItemHeader{Type: uint32(stringHdrType.Data.GetID()), Length: uint32(len(strData)), Address: strAddr},
+			data:   strData,
+		},
 	}
 
-	// DataItem 0: root
-	rootHeader := output.DataItemHeader{
-		Type:    uint32(eventType.GetID()),
-		Length:  uint32(rootLen),
-		Address: 0,
-	}
-	// DataItem 1: header
-	mapHeader := output.DataItemHeader{
-		Type:    uint32(headerType.GetID()),
-		Length:  uint32(headerLen),
-		Address: headerAddr,
-	}
-	// DataItem 2: buckets backing array
-	bucketsHeader := output.DataItemHeader{
-		Type:    uint32(headerType.BucketsType.GetID()),
-		Length:  uint32(bucketLen),
-		Address: bucketsAddr,
-	}
-	// DataItem 3: string data for key
-	strHeader := output.DataItemHeader{
-		Type:    uint32(stringHdrType.Data.GetID()),
-		Length:  uint32(len(strData)),
-		Address: strAddr,
-	}
-
-	pad := func() {
-		for (len(item) % 8) != 0 {
-			item = append(item, 0)
-		}
-	}
-
-	item = append(item, unsafe.Slice((*byte)(unsafe.Pointer(&eventHeader)), unsafe.Sizeof(eventHeader))...)
-	item = append(item, unsafe.Slice((*byte)(unsafe.Pointer(&rootHeader)), unsafe.Sizeof(rootHeader))...)
-	item = append(item, rootData...)
-	pad()
-	item = append(item, unsafe.Slice((*byte)(unsafe.Pointer(&mapHeader)), unsafe.Sizeof(mapHeader))...)
-	item = append(item, headerData...)
-	pad()
-	item = append(item, unsafe.Slice((*byte)(unsafe.Pointer(&bucketsHeader)), unsafe.Sizeof(bucketsHeader))...)
-	item = append(item, bucketData...)
-	pad()
-	item = append(item, unsafe.Slice((*byte)(unsafe.Pointer(&strHeader)), unsafe.Sizeof(strHeader))...)
-	item = append(item, strData...)
-	pad()
-
-	return item
+	return buildEventWithDataItems(items)
 }
 
 var simpleBigMapArgExpected = map[string]any{
@@ -439,13 +468,9 @@ var simpleBigMapArgExpected = map[string]any{
 }
 
 func simpleBigMapArgEvent(t testing.TB, irProg *ir.Program) []byte {
-	probe := slices.IndexFunc(irProg.Probes, func(p *ir.Probe) bool {
-		return p.GetID() == "bigMapArg"
-	})
-	require.NotEqual(t, -1, probe)
-	events := irProg.Probes[probe].Events
-	require.GreaterOrEqual(t, len(events), 1)
-	eventType := events[0].Type
+	probe := findProbeByID(t, irProg, "bigMapArg")
+	require.GreaterOrEqual(t, len(probe.Events), 1)
+	eventType := probe.Events[0].Type
 
 	var (
 		mapParamType   *ir.GoMapType
@@ -520,78 +545,31 @@ func simpleBigMapArgEvent(t testing.TB, irProg *ir.Program) []byte {
 
 	strData := []byte("b")
 
-	const (
-		eventHeaderSize    = int(unsafe.Sizeof(output.EventHeader{}))
-		dataItemHeaderSize = int(unsafe.Sizeof(output.DataItemHeader{}))
-	)
-	nextMultipleOf8 := func(v int) int { return (v + 7) & ^7 }
-	sz := eventHeaderSize
-	sz += dataItemHeaderSize + rootLen
-	sz = nextMultipleOf8(sz)
-	sz += dataItemHeaderSize + headerLen
-	sz = nextMultipleOf8(sz)
-	sz += dataItemHeaderSize + bucketLen
-	sz = nextMultipleOf8(sz)
-	sz += dataItemHeaderSize + len(strData)
-	sz = nextMultipleOf8(sz)
-	sz += dataItemHeaderSize + len(structData)
-	sz = nextMultipleOf8(sz)
-
-	var item []byte
-	eventHeader := output.EventHeader{
-		Data_byte_len: uint32(sz),
-		Prog_id:       1,
-		Stack_hash:    1,
-		Ktime_ns:      1,
-	}
-	rootHeader := output.DataItemHeader{
-		Type:    uint32(eventType.GetID()),
-		Length:  uint32(rootLen),
-		Address: 0,
-	}
-	mapHeader := output.DataItemHeader{
-		Type:    uint32(headerType.GetID()),
-		Length:  uint32(headerLen),
-		Address: headerAddr,
-	}
-	bucketsHeader := output.DataItemHeader{
-		Type:    uint32(headerType.BucketsType.GetID()),
-		Length:  uint32(bucketLen),
-		Address: bucketsAddr,
-	}
-	strHeader := output.DataItemHeader{
-		Type:    uint32(stringHdrType.Data.GetID()),
-		Length:  uint32(len(strData)),
-		Address: strAddr,
-	}
-	structHeader := output.DataItemHeader{
-		Type:    uint32(valStructType.GetID()),
-		Length:  uint32(len(structData)),
-		Address: structAddr,
+	// Build all data items
+	items := []eventDataItem{
+		{
+			header: output.DataItemHeader{Type: uint32(eventType.GetID()), Length: uint32(rootLen), Address: 0},
+			data:   rootData,
+		},
+		{
+			header: output.DataItemHeader{Type: uint32(headerType.GetID()), Length: uint32(headerLen), Address: headerAddr},
+			data:   headerData,
+		},
+		{
+			header: output.DataItemHeader{Type: uint32(headerType.BucketsType.GetID()), Length: uint32(bucketLen), Address: bucketsAddr},
+			data:   bucketData,
+		},
+		{
+			header: output.DataItemHeader{Type: uint32(stringHdrType.Data.GetID()), Length: uint32(len(strData)), Address: strAddr},
+			data:   strData,
+		},
+		{
+			header: output.DataItemHeader{Type: uint32(valStructType.GetID()), Length: uint32(len(structData)), Address: structAddr},
+			data:   structData,
+		},
 	}
 
-	pad := func() {
-		for (len(item) % 8) != 0 {
-			item = append(item, 0)
-		}
-	}
-	item = append(item, unsafe.Slice((*byte)(unsafe.Pointer(&eventHeader)), unsafe.Sizeof(eventHeader))...)
-	item = append(item, unsafe.Slice((*byte)(unsafe.Pointer(&rootHeader)), unsafe.Sizeof(rootHeader))...)
-	item = append(item, rootData...)
-	pad()
-	item = append(item, unsafe.Slice((*byte)(unsafe.Pointer(&mapHeader)), unsafe.Sizeof(mapHeader))...)
-	item = append(item, headerData...)
-	pad()
-	item = append(item, unsafe.Slice((*byte)(unsafe.Pointer(&bucketsHeader)), unsafe.Sizeof(bucketsHeader))...)
-	item = append(item, bucketData...)
-	pad()
-	item = append(item, unsafe.Slice((*byte)(unsafe.Pointer(&strHeader)), unsafe.Sizeof(strHeader))...)
-	item = append(item, strData...)
-	pad()
-	item = append(item, unsafe.Slice((*byte)(unsafe.Pointer(&structHeader)), unsafe.Sizeof(structHeader))...)
-	item = append(item, structData...)
-	pad()
-	return item
+	return buildEventWithDataItems(items)
 }
 
 var simplePointerChainArgExpected = map[string]any{
@@ -603,13 +581,9 @@ var simplePointerChainArgExpected = map[string]any{
 }
 
 func simplePointerChainArgEvent(t testing.TB, irProg *ir.Program) []byte {
-	probe := slices.IndexFunc(irProg.Probes, func(p *ir.Probe) bool {
-		return p.GetID() == "PointerChainArg"
-	})
-	require.NotEqual(t, -1, probe)
-	events := irProg.Probes[probe].Events
-	require.Len(t, events, 1)
-	eventType := events[0].Type
+	probe := findProbeByID(t, irProg, "PointerChainArg")
+	require.Len(t, probe.Events, 1)
+	eventType := probe.Events[0].Type
 	rootLen := int(eventType.GetByteSize())
 	rootData := make([]byte, rootLen)
 	if eventType.PresenceBitsetSize > 0 {
@@ -641,77 +615,42 @@ func simplePointerChainArgEvent(t testing.TB, irProg *ir.Program) []byte {
 	off := int(eventType.Expressions[0].Offset)
 	binary.NativeEndian.PutUint64(rootData[off:off+8], addr1)
 
-	// Helper to build a pointer data item (8-byte address payload)
-	makePtrItem := func(tid ir.TypeID, addr uint64, pointsTo uint64) (hdr output.DataItemHeader, data []byte) {
-		data = make([]byte, 8)
-		binary.NativeEndian.PutUint64(data, pointsTo)
-		hdr = output.DataItemHeader{Type: uint32(tid), Length: uint32(len(data)), Address: addr}
-		return
-	}
-	// Helper to build an int data item (8-byte int payload)
-	makeIntItem := func(tid ir.TypeID, addr uint64, value uint64) (hdr output.DataItemHeader, data []byte) {
-		data = make([]byte, 8)
+	// Helper to create 8-byte data (pointer or int)
+	make8ByteData := func(value uint64) []byte {
+		data := make([]byte, 8)
 		binary.NativeEndian.PutUint64(data, value)
-		hdr = output.DataItemHeader{Type: uint32(tid), Length: uint32(len(data)), Address: addr}
-		return
+		return data
 	}
 
-	// Data items for each pointer level and the final int value
-	ptr2Hdr, ptr2Data := makePtrItem(ptr2.GetID(), addr1, addr2)
-	ptr3Hdr, ptr3Data := makePtrItem(ptr3.GetID(), addr2, addr3)
-	ptr4Hdr, ptr4Data := makePtrItem(ptr4.GetID(), addr3, addr4)
-	ptr5Hdr, ptr5Data := makePtrItem(ptr5.GetID(), addr4, addr5)
-	intHdr, intData := makeIntItem(intType.GetID(), addr5, 17)
-
-	// Compute total size
-	const (
-		eventHeaderSize    = int(unsafe.Sizeof(output.EventHeader{}))
-		dataItemHeaderSize = int(unsafe.Sizeof(output.DataItemHeader{}))
-	)
-	nextMultipleOf8 := func(v int) int { return (v + 7) & ^7 }
-	sz := eventHeaderSize
-	sz += dataItemHeaderSize + rootLen
-	sz = nextMultipleOf8(sz)
-	sz += dataItemHeaderSize + len(ptr2Data)
-	sz = nextMultipleOf8(sz)
-	sz += dataItemHeaderSize + len(ptr3Data)
-	sz = nextMultipleOf8(sz)
-	sz += dataItemHeaderSize + len(ptr4Data)
-	sz = nextMultipleOf8(sz)
-	sz += dataItemHeaderSize + len(ptr5Data)
-	sz = nextMultipleOf8(sz)
-	sz += dataItemHeaderSize + len(intData)
-	sz = nextMultipleOf8(sz)
-
-	var item []byte
-	eh := output.EventHeader{Data_byte_len: uint32(sz), Prog_id: 1, Stack_hash: 1, Ktime_ns: 1}
-	dihRoot := output.DataItemHeader{Type: uint32(eventType.GetID()), Length: uint32(rootLen), Address: 0}
-	pad := func() {
-		for (len(item) % 8) != 0 {
-			item = append(item, 0)
-		}
+	// Build all data items
+	items := []eventDataItem{
+		{
+			header: output.DataItemHeader{Type: uint32(eventType.GetID()), Length: uint32(rootLen), Address: 0},
+			data:   rootData,
+		},
+		{
+			header: output.DataItemHeader{Type: uint32(ptr2.GetID()), Length: 8, Address: addr1},
+			data:   make8ByteData(addr2),
+		},
+		{
+			header: output.DataItemHeader{Type: uint32(ptr3.GetID()), Length: 8, Address: addr2},
+			data:   make8ByteData(addr3),
+		},
+		{
+			header: output.DataItemHeader{Type: uint32(ptr4.GetID()), Length: 8, Address: addr3},
+			data:   make8ByteData(addr4),
+		},
+		{
+			header: output.DataItemHeader{Type: uint32(ptr5.GetID()), Length: 8, Address: addr4},
+			data:   make8ByteData(addr5),
+		},
+		{
+			header: output.DataItemHeader{Type: uint32(intType.GetID()), Length: 8, Address: addr5},
+			data:   make8ByteData(17),
+		},
 	}
-	item = append(item, unsafe.Slice((*byte)(unsafe.Pointer(&eh)), unsafe.Sizeof(eh))...)
-	item = append(item, unsafe.Slice((*byte)(unsafe.Pointer(&dihRoot)), unsafe.Sizeof(dihRoot))...)
-	item = append(item, rootData...)
-	pad()
-	// Append pointer chain items and final int item
-	item = append(item, unsafe.Slice((*byte)(unsafe.Pointer(&ptr2Hdr)), unsafe.Sizeof(ptr2Hdr))...)
-	item = append(item, ptr2Data...)
-	pad()
-	item = append(item, unsafe.Slice((*byte)(unsafe.Pointer(&ptr3Hdr)), unsafe.Sizeof(ptr3Hdr))...)
-	item = append(item, ptr3Data...)
-	pad()
-	item = append(item, unsafe.Slice((*byte)(unsafe.Pointer(&ptr4Hdr)), unsafe.Sizeof(ptr4Hdr))...)
-	item = append(item, ptr4Data...)
-	pad()
-	item = append(item, unsafe.Slice((*byte)(unsafe.Pointer(&ptr5Hdr)), unsafe.Sizeof(ptr5Hdr))...)
-	item = append(item, ptr5Data...)
-	pad()
-	item = append(item, unsafe.Slice((*byte)(unsafe.Pointer(&intHdr)), unsafe.Sizeof(intHdr))...)
-	item = append(item, intData...)
-	pad()
-	return item
+
+	return buildEventWithDataItems(items)
 }
 
 func fieldOffsetByName(t testing.TB, fields []ir.Field, name string) uint32 {
@@ -866,35 +805,35 @@ func TestDecoderWithTemplate(t *testing.T) {
 			expectedInOutput: "hello",
 			programName:      "simple",
 			probeName:        "testTemplateStringSegment",
-			eventGenerator:   simpleStringArgEvent,
+			eventGenerator:   simpleTestTemplateEvent,
 		},
 		{
 			name:             "testTemplateMultipleStringSegments",
 			expectedInOutput: "hello world!",
 			programName:      "simple",
 			probeName:        "testTemplateMultipleStringSegments",
-			eventGenerator:   simpleStringArgEvent,
+			eventGenerator:   simpleTestTemplateEvent,
 		},
 		{
 			name:             "testTemplateStringAndDSLSegment",
 			expectedInOutput: "hello abcdefghijklmnop",
 			programName:      "simple",
 			probeName:        "testTemplateStringAndDSLSegment",
-			eventGenerator:   simpleStringArgEvent,
+			eventGenerator:   simpleTestTemplateEvent,
 		},
 		{
 			name:             "testTemplateMultipleDSLSegment",
 			expectedInOutput: "abcdefghijklmnopabcdefghijklmnop",
 			programName:      "simple",
 			probeName:        "testTemplateMultipleDSLSegment",
-			eventGenerator:   simpleStringArgEvent,
+			eventGenerator:   simpleTestTemplateEvent,
 		},
 		{
 			name:             "testTemplateDSLAndStringSegments",
 			expectedInOutput: "hello abcdefghijklmnop, and hello to abcdefghijklmnop",
 			programName:      "simple",
 			probeName:        "testTemplateDSLAndStringSegments",
-			eventGenerator:   simpleStringArgEvent,
+			eventGenerator:   simpleTestTemplateEvent,
 		},
 	}
 
