@@ -15,7 +15,7 @@
     }
     
     # MSI pattern in omnibus package directory
-    $PackagePattern = "omnibus\pkg\pipeline-$env:CI_PIPELINE_ID\$ProjectName-7*-$env:ARCH.msi"
+    $PackagePattern = "omnibus\pkg\pipeline-$env:CI_PIPELINE_ID\$ProjectName-7*-x86_64.msi"
     
     Write-Host "🔍 Looking for MSI with pattern: $PackagePattern"
     

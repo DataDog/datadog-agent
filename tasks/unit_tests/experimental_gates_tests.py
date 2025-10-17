@@ -446,7 +446,7 @@ class TestInvokeTask(unittest.TestCase):
     @patch('builtins.print')
     def test_measure_package_local_success(self, mock_print, mock_exists, mock_measurer_class):
         """Test successful local package measurement task."""
-        from tasks.static_quality_gates.experimental_gates import measure_package_local
+        from tasks.static_quality_gates.experimental_gates import measure_package
 
         # Setup mocks
         mock_exists.return_value = True
@@ -480,9 +480,7 @@ class TestInvokeTask(unittest.TestCase):
         mock_ctx = Mock()
 
         # Call the function directly
-        measure_package_local(
-            ctx=mock_ctx, package_path="/test/package.deb", gate_name="static_quality_gate_agent_deb_amd64"
-        )
+        measure_package(ctx=mock_ctx, package_path="/test/package.deb", gate_name="static_quality_gate_agent_deb_amd64")
 
         # Verify measurer was initialized and called
         mock_measurer_class.assert_called_once_with(config_path="test/static/static_quality_gates.yml")
@@ -501,14 +499,14 @@ class TestInvokeTask(unittest.TestCase):
     @patch('builtins.print')
     def test_measure_package_local_missing_file(self, mock_print, mock_exists):
         """Test local task with missing package file."""
-        from tasks.static_quality_gates.experimental_gates import measure_package_local
+        from tasks.static_quality_gates.experimental_gates import measure_package
 
         # Setup mocks - package doesn't exist
         mock_exists.return_value = False
         mock_ctx = Mock()
 
         # Call the function directly
-        measure_package_local(
+        measure_package(
             ctx=mock_ctx, package_path="/nonexistent/package.deb", gate_name="static_quality_gate_agent_deb_amd64"
         )
 
@@ -1030,7 +1028,7 @@ class TestInPlaceMSIMeasurer(unittest.TestCase):
         self.assertEqual(report.on_disk_size, 1065353216)
         self.assertEqual(report.pipeline_id, "12345")
         self.assertEqual(report.commit_sha, "abc123def456")
-        self.assertEqual(report.arch, "x86_64")
+        self.assertEqual(report.arch, "amd64")
         self.assertEqual(report.os, "windows")
         self.assertEqual(report.build_job_name, "windows_msi_x64")
         self.assertEqual(len(report.file_inventory), 2)
