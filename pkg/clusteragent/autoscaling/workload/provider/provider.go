@@ -38,6 +38,7 @@ func StartWorkloadAutoscaling(
 	rcClient workload.RcClient,
 	wlm workloadmeta.Component,
 	senderManager sender.SenderManager,
+	externalTLSConfig *external.TLSConfig,
 ) (workload.PodPatcher, error) {
 	if apiCl == nil {
 		return nil, fmt.Errorf("Impossible to start workload autoscaling without valid APIClient")
@@ -88,7 +89,7 @@ func StartWorkloadAutoscaling(
 		go localRecommender.Run(ctx)
 	}
 
-	externalRecommender := external.NewRecommender(podWatcher, store, clusterName)
+	externalRecommender := external.NewRecommender(podWatcher, store, clusterName, externalTLSConfig)
 	go externalRecommender.Run(ctx)
 
 	return podPatcher, nil

@@ -31,8 +31,8 @@ type Recommender struct {
 }
 
 // NewRecommender creates a new Recommender to start fetching external recommendations
-func NewRecommender(podWatcher workload.PodWatcher, store *autoscaling.Store[model.PodAutoscalerInternal], clusterName string) *Recommender {
-	recommenderClient := newRecommenderClient(podWatcher)
+func NewRecommender(podWatcher workload.PodWatcher, store *autoscaling.Store[model.PodAutoscalerInternal], clusterName string, tlsConfig *TLSConfig) *Recommender {
+	recommenderClient := newRecommenderClient(podWatcher, tlsConfig)
 
 	return &Recommender{
 		recommenderClient: recommenderClient,

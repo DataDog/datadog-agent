@@ -14,6 +14,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"sync"
 	"time"
 
 	"google.golang.org/protobuf/encoding/protojson"
@@ -37,12 +38,23 @@ const (
 type recommenderClient struct {
 	podWatcher workload.PodWatcher
 	client     *http.Client
+	tlsConfig  *TLSConfig
+
+	tlsInitOnce      sync.Once
+	tlsInitErr       error
+	certificateCache *tlsCertificateCache
 }
 
-func newRecommenderClient(podWatcher workload.PodWatcher) *recommenderClient {
+func newRecommenderClient(podWatcher workload.PodWatcher, tlsConfig *TLSConfig) *recommenderClient {
+	client := &http.Client{}
+	if transport := cloneDefaultTransport(); transport != nil {
+		client.Transport = transport
+	}
+
 	return &recommenderClient{
 		podWatcher: podWatcher,
-		client:     http.DefaultClient,
+		client:     client,
+		tlsConfig:  tlsConfig,
 	}
 }
 
@@ -75,7 +87,10 @@ func (r *recommenderClient) GetReplicaRecommendation(ctx context.Context, cluste
 	ctx, cancel := context.WithTimeout(ctx, apiTimeoutSeconds*time.Second)
 	defer cancel()
 
-	client := r.getClient()
+	client, err := r.getClient()
+	if err != nil {
+		return nil, fmt.Errorf("error configuring HTTP client: %w", err)
+	}
 
 	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, u.String(), bytes.NewReader(payload))
 	if err != nil {
@@ -212,11 +227,44 @@ func (r *recommenderClient) getReadyReplicas(dpa model.PodAutoscalerInternal) *i
 	return pointer.Ptr(r.podWatcher.GetReadyPodsForOwner(podOwner))
 }
 
-func (r *recommenderClient) getClient() *http.Client {
-	// TODO: Add TLS support
+func (r *recommenderClient) getClient() (*http.Client, error) {
 	if r.client.Transport == nil {
-		r.client.Transport = http.DefaultTransport
+		if transport := cloneDefaultTransport(); transport != nil {
+			r.client.Transport = transport
+		}
 	}
 
-	return r.client
+	if r.tlsConfig == nil {
+		return r.client, nil
+	}
+
+	r.tlsInitOnce.Do(func() {
+		transport, ok := r.client.Transport.(*http.Transport)
+		if !ok {
+			r.tlsInitErr = fmt.Errorf("http client transport must be *http.Transport, got %T", r.client.Transport)
+			return
+		}
+
+		if r.certificateCache == nil && r.tlsConfig != nil && r.tlsConfig.requiresClientCertificate() {
+			r.certificateCache = newTLSCertificateCache()
+		}
+
+		if err := configureTransportTLS(transport, r.tlsConfig, r.certificateCache); err != nil {
+			r.tlsInitErr = err
+		}
+	})
+
+	if r.tlsInitErr != nil {
+		return nil, r.tlsInitErr
+	}
+
+	return r.client, nil
+}
+
+func cloneDefaultTransport() *http.Transport {
+	if defaultTransport, ok := http.DefaultTransport.(*http.Transport); ok {
+		return defaultTransport.Clone()
+	}
+
+	return &http.Transport{}
 }
