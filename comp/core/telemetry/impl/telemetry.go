@@ -37,7 +37,7 @@ type telemetryImpl struct {
 
 // Requires defines the dependencies for the telemetry component
 type Requires struct {
-	Lyfecycle compdef.Lifecycle
+	Lc compdef.Lifecycle
 }
 
 // Provides defines the output of the telemetry component
@@ -59,7 +59,7 @@ func NewComponent(deps Requires) (Provides, error) {
 
 	// Since we are in the middle of a migration to components, we need to ensure that the global variables are reset
 	// when the component is stopped.
-	deps.Lyfecycle.Append(compdef.Hook{
+	deps.Lc.Append(compdef.Hook{
 		OnStop: func(_ context.Context) error {
 			comp.Reset()
 

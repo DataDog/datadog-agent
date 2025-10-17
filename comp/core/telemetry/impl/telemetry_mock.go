@@ -42,7 +42,7 @@ type Mock interface {
 type testDependencies struct {
 	fx.In
 
-	Lyfecycle fx.Lifecycle
+	Lc fx.Lifecycle
 }
 
 // MockModule defines the fx options for the mock component.
@@ -83,7 +83,7 @@ func newMock(deps testDependencies) Mock {
 		},
 	}
 
-	deps.Lyfecycle.Append(fx.Hook{
+	deps.Lc.Append(fx.Hook{
 		OnStop: func(_ context.Context) error {
 			telemetry.Reset()
 

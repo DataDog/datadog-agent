@@ -9,10 +9,7 @@ package implnoop
 import (
 	"net/http"
 
-	"go.uber.org/fx"
-
 	telemetrydef "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 type noopImpl struct{}
@@ -99,10 +96,4 @@ func (t *noopImpl) NewSimpleHistogramWithOpts(_, _, _ string, _ []float64, _ tel
 // TODO (components): Remove this when all telemetry is migrated to the component
 func GetCompatComponent() telemetrydef.Component {
 	return NewTelemetry()
-}
-
-// Module defines the fx options for this component.
-func Module() fxutil.Module {
-	return fxutil.Component(
-		fx.Provide(NewTelemetry))
 }

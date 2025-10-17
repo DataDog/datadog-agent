@@ -20,7 +20,7 @@ import (
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	taggerimpl "github.com/DataDog/datadog-agent/comp/core/tagger/impl"
 	taggermock "github.com/DataDog/datadog-agent/comp/core/tagger/mock"
-	noopTelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/impl-noop"
+	noopTelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/fx-noop"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
