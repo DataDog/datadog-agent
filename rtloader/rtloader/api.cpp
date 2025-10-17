@@ -361,6 +361,7 @@ void signalHandler(int sig, siginfo_t *info, void *context)
             old_sigsegv_handler.sa_handler(sig);
         } else {
             // No previous handler or it was default/ignore, so just abort
+            std::cerr << "Received SIGSEGV and no handler to chain to. Aborting. \n";
             kill(getpid(), SIGABRT);
         }
     }
