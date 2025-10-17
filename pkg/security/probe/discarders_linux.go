@@ -563,10 +563,10 @@ func dumpDiscarders(resolver *dentry.Resolver, inodeMap, statsFB, statsBB *ebpf.
 	return dump, nil
 }
 
-func applyDNSDefaultDropMaskFromRules(p *EBPFProbe, rs *rules.RuleSet) error {
+func applyDNSDefaultDropMaskFromRules(manager *manager.Manager, rs *rules.RuleSet) error {
 	bucket := rs.GetRuleBucket(model.DNSEventType.String())
 	if bucket == nil {
-		return p.setDNSDiscarderMask(^uint16(0))
+		return setDNSDiscarderMask(manager, ^uint16(0))
 	}
 
 	var allowMask uint16
@@ -599,11 +599,11 @@ func applyDNSDefaultDropMaskFromRules(p *EBPFProbe, rs *rules.RuleSet) error {
 		}
 	}
 
-	return p.setDNSDiscarderMask(^allowMask)
+	return setDNSDiscarderMask(manager, ^allowMask)
 }
 
-func (p *EBPFProbe) setDNSDiscarderMask(dnsMask uint16) error {
-	bufferSelector, err := managerhelper.Map(p.Manager, "filtered_dns_rcodes")
+func setDNSDiscarderMask(manager *manager.Manager, dnsMask uint16) error {
+	bufferSelector, err := managerhelper.Map(manager, "filtered_dns_rcodes")
 	if err != nil {
 		return err
 	}

@@ -2369,7 +2369,7 @@ func (p *EBPFProbe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.FilterReport, err
 		return nil, err
 	}
 
-	if err := applyDNSDefaultDropMaskFromRules(p, rs); err != nil {
+	if err := applyDNSDefaultDropMaskFromRules(p.Manager, rs); err != nil {
 		seclog.Warnf("failed to apply DNS default-drop mask: %v", err)
 	}
 
