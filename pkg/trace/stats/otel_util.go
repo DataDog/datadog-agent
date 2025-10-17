@@ -6,9 +6,11 @@
 package stats
 
 import (
+	"context"
 	"slices"
 
 	"github.com/DataDog/datadog-agent/pkg/obfuscate"
+	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/DataDog/datadog-agent/pkg/trace/transform"
 
@@ -18,6 +20,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 )
+
+var emptyString = ""
 
 // chunkKey is used to group TraceChunks
 type chunkKey struct {
@@ -61,11 +65,12 @@ func OTLPTracesToConcentratorInputsWithObfuscation(
 	}
 	chunks := make(map[chunkKey]*pb.TraceChunk)
 	containerTagsByID := make(map[string][]string)
+	useNewTranslations := transform.OTelCompliantTranslationEnabled(conf)
 	for spanID, otelspan := range spanByID {
 		otelres := resByID[spanID]
 		var resourceName string
 		if transform.OperationAndResourceNameV2Enabled(conf) {
-			resourceName = traceutil.GetOTelResourceV2(otelspan, otelres)
+			resourceName = attributes.GetResourceName(otelspan.Kind(), otelspan.Attributes(), conf.OTLPReceiver.IgnoreMissingDatadogFields, true, nil)
 		} else {
 			resourceName = traceutil.GetOTelResourceV1(otelspan, otelres)
 		}
@@ -73,13 +78,33 @@ func OTLPTracesToConcentratorInputsWithObfuscation(
 			continue
 		}
 
-		env := transform.GetOTelEnv(otelspan, otelres, conf.OTLPReceiver.IgnoreMissingDatadogFields)
-		hostname := transform.GetOTelHostname(otelspan, otelres, conf.OTLPReceiver.AttributesTranslator, conf.Hostname, conf.OTLPReceiver.IgnoreMissingDatadogFields)
-		version := transform.GetOTelVersion(otelspan, otelres, conf.OTLPReceiver.IgnoreMissingDatadogFields)
-		cid := transform.GetOTelContainerID(otelspan, otelres, conf.OTLPReceiver.IgnoreMissingDatadogFields)
+		rattr := otelres.Attributes()
+
+		var env string
+		var hostname string
+		var version string
+		var cid string
+		if useNewTranslations {
+			env = attributes.GetEnv(rattr, conf.OTLPReceiver.IgnoreMissingDatadogFields, true, &emptyString)
+			fallbackHostname := conf.Hostname
+			h, foundHostNameFromOTelSemantics := attributes.GetHostname(rattr, nil, conf.OTLPReceiver.IgnoreMissingDatadogFields, true, &fallbackHostname)
+			if !foundHostNameFromOTelSemantics {
+				ctx := context.Background()
+				conf.OTLPReceiver.AttributesTranslator.AddMissingSource(ctx, traceutil.SignalTypeSet)
+			}
+			hostname = h
+			version = attributes.GetVersion(rattr, conf.OTLPReceiver.IgnoreMissingDatadogFields, true, nil)
+			cid = attributes.GetContainerID(rattr, conf.OTLPReceiver.IgnoreMissingDatadogFields, true, nil)
+
+		} else {
+			env = transform.GetOTelEnv(otelspan, otelres, conf.OTLPReceiver.IgnoreMissingDatadogFields)
+			hostname = transform.GetOTelHostname(otelspan, otelres, conf.OTLPReceiver.AttributesTranslator, conf.Hostname, conf.OTLPReceiver.IgnoreMissingDatadogFields)
+			version = transform.GetOTelVersion(otelspan, otelres, conf.OTLPReceiver.IgnoreMissingDatadogFields)
+			cid = transform.GetOTelContainerID(otelspan, otelres, conf.OTLPReceiver.IgnoreMissingDatadogFields)
+		}
 		var ctags []string
 		if cid != "" {
-			ctags = traceutil.GetOTelContainerTags(otelres.Attributes(), containerTagKeys)
+			ctags = attributes.GetContainerTags(rattr, containerTagKeys)
 			if conf.ContainerTags != nil {
 				tags, err := conf.ContainerTags(cid)
 				if err != nil {
