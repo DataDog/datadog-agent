@@ -26,11 +26,13 @@ func (t *Tailer) DidRotateViaFingerprint(fingerprinter *Fingerprinter) (bool, er
 
 	// New fingerprint is invalid: recreated/truncated file, so fall back to filesystem check
 	if !newFingerprint.ValidFingerprint() {
+		log.Debugf("Falling back to filesystem rotation check for %s. New fingerprint invalid", t.file.Path)
 		return t.DidRotate()
 	}
 
 	// Old fingerprint invalid (not nil) but new one isn’t: the file changed, assume rotation
 	if !t.fingerprint.ValidFingerprint() {
+		log.Debugf("File rotation detected for %s. Previous fingerprint invalid, new fingerprint valid; assuming rotation", t.file.Path)
 		return true, nil
 	}
 
