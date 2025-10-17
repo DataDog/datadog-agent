@@ -13,7 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/flare"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
@@ -26,7 +26,7 @@ import (
 
 // RegisterChecks registers the checks that can run in the Cluster Agent
 func RegisterChecks(store workloadmeta.Component, _ workloadfilter.Component, tagger tagger.Component, cfg config.Component,
-	_ telemetry.Component, _ rcclient.Component, _ flare.Component) {
+	_ telemetryimpl.Component, _ rcclient.Component, _ flare.Component) {
 	corecheckLoader.RegisterCheck(kubernetesapiserver.CheckName, kubernetesapiserver.Factory(tagger))
 	corecheckLoader.RegisterCheck(ksm.CheckName, ksm.Factory(tagger, store))
 	corecheckLoader.RegisterCheck(helm.CheckName, helm.Factory())
