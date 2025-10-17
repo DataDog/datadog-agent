@@ -44,6 +44,7 @@
       -e PYTHONUTF8=1
       -e E2E_COVERAGE_PIPELINE=${E2E_COVERAGE_PIPELINE}
       -e CI_JOB_TOKEN=${CI_JOB_TOKEN}
+      -e CI_IDENTITIES_GITLAB_ID_TOKEN=${CI_IDENTITIES_GITLAB_ID_TOKEN}
       ${WINBUILDIMAGE}
       powershell -C "c:\mnt\tasks\winbuildscripts\Build-AgentPackages.ps1 -BuildOutOfSource 1 -InstallDeps 1 -CheckGoVersion 1 -BuildUpgrade 1"
     - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
@@ -70,9 +71,6 @@ windows_msi_and_bosh_zip_x64-a7:
   variables:
     ARCH: "x64"
   timeout: 2h
-  id_tokens:
-    CI_IDENTITIES_GITLAB_ID_TOKEN:
-      aud: ci-identities
 
 windows_msi_and_bosh_zip_x64-a7-fips:
   extends: .windows_main_agent_base
