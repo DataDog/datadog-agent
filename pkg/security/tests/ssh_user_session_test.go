@@ -114,7 +114,9 @@ func sshLocalhostWithGeneratedKey(remoteCmd string) error {
 
 func TestSSHUserSession(t *testing.T) {
 	SkipIfNotAvailable(t)
-
+	if testEnvironment == DockerEnvironment {
+		t.Skip("Skip test spawning docker containers on docker")
+	}
 	currentUser, err := user.Current()
 	if err != nil {
 		t.Fatalf("failed to get current user: %v", err)
@@ -196,6 +198,9 @@ func rotateAuthLog(logPath string) error {
 }
 func TestSSHUserSessionRotated(t *testing.T) {
 	SkipIfNotAvailable(t)
+	if testEnvironment == DockerEnvironment {
+		t.Skip("Skip test spawning docker containers on docker")
+	}
 
 	currentUser, err := user.Current()
 	if err != nil {
