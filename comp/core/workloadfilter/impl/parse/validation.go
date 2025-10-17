@@ -22,6 +22,7 @@ var ProductSupportMap = map[workloadfilter.Product]map[workloadfilter.ResourceTy
 	},
 	workloadfilter.ProductLogs: {
 		workloadfilter.ContainerType: {},
+		workloadfilter.ProcessType:   {},
 	},
 	workloadfilter.ProductSBOM: {
 		workloadfilter.ContainerType: {},

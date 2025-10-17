@@ -170,6 +170,7 @@ func newFilter(cfg config.Component, logger logcomp.Component, telemetry coretel
 
 	// Process Filters
 	filter.registerFactory(workloadfilter.ProcessType, int(workloadfilter.LegacyProcessExcludeList), catalog.LegacyProcessExcludeProgram)
+	filter.registerFactory(workloadfilter.ProcessType, int(workloadfilter.ProcessCELLogs), catalog.ProcessCELLogsProgram)
 
 	return filter, nil
 }

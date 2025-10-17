@@ -1069,3 +1069,46 @@ cel_workload_exclude:
 		assert.Equal(t, false, filterBundle.IsExcluded(container))
 	})
 }
+
+func TestCELProcessLogsFiltering(t *testing.T) {
+	yamlConfig := `
+cel_workload_exclude:
+- products: ["logs"]
+  rules:
+    processes:
+      - "process.name == 'nginx'"
+      - "process.cmdline.contains('-jar app.jar')"
+      - "process.args.exists(arg, arg == 'ignore-me')"
+`
+
+	mockConfig := configmock.NewFromYAML(t, yamlConfig)
+	filterStore := newFilterStoreObject(t, mockConfig)
+
+	t.Run("CEL exclude process by name", func(t *testing.T) {
+		process := workloadfilter.CreateProcess("nginx", []string{"nginx", "-g", "daemon off;"})
+		filterBundle := filterStore.GetProcessFilters([][]workloadfilter.ProcessFilter{{workloadfilter.ProcessCELLogs}})
+		assert.Nil(t, filterBundle.GetErrors())
+		assert.Equal(t, workloadfilter.Excluded, filterBundle.GetResult(process))
+	})
+
+	t.Run("CEL exclude process by cmdline", func(t *testing.T) {
+		process := workloadfilter.CreateProcess("java", []string{"java", "-jar", "app.jar"})
+		filterBundle := filterStore.GetProcessFilters([][]workloadfilter.ProcessFilter{{workloadfilter.ProcessCELLogs}})
+		assert.Nil(t, filterBundle.GetErrors())
+		assert.Equal(t, workloadfilter.Excluded, filterBundle.GetResult(process))
+	})
+
+	t.Run("CEL exclude process by args", func(t *testing.T) {
+		process := workloadfilter.CreateProcess("foobar", []string{"ignore-me", "--foo", "bar"})
+		filterBundle := filterStore.GetProcessFilters([][]workloadfilter.ProcessFilter{{workloadfilter.ProcessCELLogs}})
+		assert.Nil(t, filterBundle.GetErrors())
+		assert.Equal(t, workloadfilter.Excluded, filterBundle.GetResult(process))
+	})
+
+	t.Run("CEL with no matching rule", func(t *testing.T) {
+		process := workloadfilter.CreateProcess("redis-server", []string{"/usr/bin/redis-server"})
+		filterBundle := filterStore.GetProcessFilters([][]workloadfilter.ProcessFilter{{workloadfilter.ProcessCELLogs}})
+		assert.Nil(t, filterBundle.GetErrors())
+		assert.Equal(t, workloadfilter.Unknown, filterBundle.GetResult(process))
+	})
+}

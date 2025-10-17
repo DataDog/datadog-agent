@@ -6,6 +6,8 @@
 package workloadfilter
 
 import (
+	"strings"
+
 	typedef "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def/proto"
 )
 
@@ -364,6 +366,21 @@ type Process struct {
 
 var _ Filterable = &Process{}
 
+// CreateProcess creates a Filterable Process object.
+func CreateProcess(name string, args []string) *Process {
+	cmdline := ""
+	if len(args) > 0 {
+		cmdline = strings.Join(args, " ")
+	}
+	return &Process{
+		FilterProcess: &typedef.FilterProcess{
+			Name:    name,
+			Cmdline: cmdline,
+			Args:    args,
+		},
+	}
+}
+
 // GetAnnotations returns the annotations of the process.
 func (p *Process) GetAnnotations() map[string]string {
 	return nil
@@ -385,4 +402,5 @@ type ProcessFilter int
 // Defined Process filter kinds.
 const (
 	LegacyProcessExcludeList ProcessFilter = iota
+	ProcessCELLogs
 )

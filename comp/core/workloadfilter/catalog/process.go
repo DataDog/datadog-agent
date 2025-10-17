@@ -57,3 +57,10 @@ func LegacyProcessExcludeProgram(filterConfig *FilterConfig, logger log.Componen
 		InitializationErrors: initErrors,
 	}
 }
+
+// ProcessCELLogsProgram creates a program for filtering process logs via CEL rules
+func ProcessCELLogsProgram(filterConfig *FilterConfig, logger log.Component) program.FilterProgram {
+	programName := "ProcessCELLogsProgram"
+	rule := filterConfig.GetCELRulesForProduct(workloadfilter.ProductLogs, workloadfilter.ProcessType)
+	return createCELExcludeProgram(programName, rule, workloadfilter.ProcessType, logger)
+}
