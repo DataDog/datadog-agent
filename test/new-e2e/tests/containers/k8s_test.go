@@ -455,6 +455,18 @@ func (suite *k8sSuite) testClusterAgentCLI() {
 		}
 	})
 
+	suite.Run("cluster-agent clusterchecks force rebalance", func() {
+		stdout, stderr, err := suite.Env().KubernetesCluster.KubernetesClient.PodExec("datadog", leaderDcaPodName, "cluster-agent", []string{"datadog-cluster-agent", "clusterchecks", "rebalance", "--force"})
+		suite.Require().NoError(err)
+		suite.NotContains(stdout+stderr, "advanced dispatching is not enabled", "Advanced dispatching must be enabled for force rebalance")
+		matched := regexp.MustCompile(`\d+\s+cluster checks rebalanced successfully`).MatchString(stdout)
+		suite.True(matched, "Expected 'X cluster checks rebalanced successfully' in output")
+		if suite.T().Failed() {
+			suite.T().Log(stdout)
+			suite.T().Log(stderr)
+		}
+	})
+
 	suite.Run("cluster-agent autoscaler-list --localstore", func() {
 		// First verify the command exists and autoscaling is enabled
 		checkStdout, checkStderr, checkErr := suite.Env().KubernetesCluster.KubernetesClient.PodExec(
@@ -658,6 +670,9 @@ func (suite *k8sSuite) TestNginx() {
 	suite.testLog(&testLogArgs{
 		Filter: testLogFilterArgs{
 			Service: "apps-nginx-server",
+			Tags: []string{
+				`^kube_namespace:workload-nginx$`,
+			},
 		},
 		Expect: testLogExpectArgs{
 			Tags: &[]string{
@@ -792,6 +807,30 @@ func (suite *k8sSuite) TestRedis() {
 	// Check HPA is properly scaling up and down
 	// This indirectly tests the cluster-agent external metrics server
 	suite.testHPA("workload-redis", "redis")
+}
+
+func (suite *k8sSuite) TestArgoRollout() {
+	// Check that kube_argo_rollout tag is added to metric
+	suite.testMetric(&testMetricArgs{
+		Filter: testMetricFilterArgs{
+			Name: "container.cpu.system",
+			Tags: []string{
+				`^kube_namespace:workload-argo-rollout-nginx$`,
+			},
+		},
+		Expect: testMetricExpectArgs{
+			Tags: &[]string{
+				`^container_id:`,
+				`^container_name:nginx$`,
+				`^display_container_name:nginx`,
+				`^kube_container_name:nginx$`,
+				`^kube_deployment:nginx-rollout$`,
+				`^kube_argo_rollout:nginx-rollout$`,
+				`^kube_namespace:workload-argo-rollout-nginx$`,
+			},
+			AcceptUnexpectedTags: true,
+		},
+	})
 }
 
 func (suite *k8sSuite) TestCPU() {
@@ -1271,7 +1310,9 @@ func (suite *k8sSuite) testAdmissionControllerPod(namespace string, name string,
 	)
 
 	if suite.Contains(hostPathVolumes, "datadog") {
-		suite.Equal("/var/run/datadog", hostPathVolumes["datadog"].Path)
+		// trim trailing '/' if exists
+		ddHostPath := strings.TrimSuffix(hostPathVolumes["datadog"].Path, "/")
+		suite.Contains("/var/run/datadog", ddHostPath)
 		suite.Contains(volumesMarkedAsSafeToEvict, "datadog")
 	}
 

@@ -35,7 +35,6 @@ func TestNewInstrumentationConfig(t *testing.T) {
 				LibVersions: map[string]string{
 					"python": "default",
 				},
-				Version:          "v2",
 				InjectorImageTag: "foo",
 			},
 		},
@@ -56,7 +55,6 @@ func TestNewInstrumentationConfig(t *testing.T) {
 				LibVersions: map[string]string{
 					"python": "default",
 				},
-				Version:          "v2",
 				InjectorImageTag: "foo",
 			},
 		},
@@ -69,7 +67,6 @@ func TestNewInstrumentationConfig(t *testing.T) {
 				EnabledNamespaces: []string{},
 				InjectorImageTag:  "0",
 				LibVersions:       map[string]string{},
-				Version:           "v2",
 				DisabledNamespaces: []string{
 					"hacks",
 				},
@@ -117,7 +114,6 @@ func TestNewInstrumentationConfig(t *testing.T) {
 				EnabledNamespaces: []string{},
 				InjectorImageTag:  "0",
 				LibVersions:       map[string]string{},
-				Version:           "v2",
 				DisabledNamespaces: []string{
 					"hacks",
 				},
@@ -173,7 +169,6 @@ func TestNewInstrumentationConfig(t *testing.T) {
 				EnabledNamespaces:  []string{},
 				DisabledNamespaces: []string{},
 				InjectorImageTag:   "0",
-				Version:            "v2",
 				LibVersions:        map[string]string{},
 				Targets: []Target{
 					{

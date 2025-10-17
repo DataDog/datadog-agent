@@ -10,6 +10,7 @@ package sender
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"testing"
 	"time"
 
@@ -21,25 +22,6 @@ import (
 	ncmreport "github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/report"
 	"github.com/stretchr/testify/assert"
 )
-
-// language=json
-var expectedEvent = []byte(`
-{
-  "namespace": "default",
-  "integration": "",
-  "configs": [
-    {
-      "device_id": "default:10.0.0.1",
-      "device_ip": "10.0.0.1",
-      "config_type": "running",
-      "timestamp": 1754043600,
-      "tags": ["device_ip:10.0.0.1"],
-      "content": "version 15.1\nhostname Router1"
-    }
-  ],
-  "collect_timestamp": 1754043600
-}
-`)
 
 func TestNCMSender_SendNCMConfig_Success(t *testing.T) {
 	mockSender := &mocksender.MockSender{}
@@ -57,7 +39,7 @@ func TestNCMSender_SendNCMConfig_Success(t *testing.T) {
 			ConfigType: string(ncmreport.RUNNING),
 			Timestamp:  mockClock.Now().Unix(),
 			Tags:       []string{"device_ip:10.0.0.1"},
-			Content:    "version 15.1\nhostname Router1",
+			Content:    []byte("version 15.1\nhostname Router1"),
 		},
 	}
 
@@ -69,6 +51,27 @@ func TestNCMSender_SendNCMConfig_Success(t *testing.T) {
 	// Send the config
 	err := ncmSender.SendNCMConfig(payload)
 	assert.NoError(t, err)
+
+	contentStr := "version 15.1\nhostname Router1"
+	contentBytes, _ := json.Marshal([]byte(contentStr))
+
+	var expectedEvent = []byte(fmt.Sprintf(`
+{
+  "namespace": "default",
+  "integration": "",
+  "configs": [
+    {
+      "device_id": "default:10.0.0.1",
+      "device_ip": "10.0.0.1",
+      "config_type": "running",
+      "timestamp": 1754043600,
+      "tags": ["device_ip:10.0.0.1"],
+      "content": %s
+    }
+  ],
+  "collect_timestamp": 1754043600
+}
+`, contentBytes))
 
 	compactEvent := new(bytes.Buffer)
 	err = json.Compact(compactEvent, expectedEvent)

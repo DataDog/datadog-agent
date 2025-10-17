@@ -3,9 +3,8 @@ name: Close stale issues and PRs
 
 on:
   schedule:
-    # Every day at noon CEST (10:00 UTC in summer, 11:00 UTC in winter)
-    # Using 10:00 UTC as CEST is UTC+2 (summer time)
-    - cron: '0 10 * * *'
+    # 4 times per day to cope with the backlog of ~40K PR/issues
+    - cron: '0 4,10,16,22 * * *'
   workflow_dispatch:
 
 permissions: {}
@@ -31,6 +30,7 @@ jobs:
           # Stale configuration
           days-before-stale: 15
           days-before-close: 30
+          operations-per-run: 100
 
           # Issue configuration
           stale-issue-message: |

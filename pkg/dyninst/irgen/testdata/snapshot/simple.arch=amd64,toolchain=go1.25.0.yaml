@@ -270,8 +270,7 @@ Subprograms:
           Locations:
             - Range: 0x4ae700..0x4ae719
               Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
-          IsParameter: true
-          IsReturn: false
+          Role: Parameter
     - ID: 2
       Name: main.stringArg
       OutOfLinePCRanges: [0x4ae780..0x4ae7f1]
@@ -286,8 +285,7 @@ Subprograms:
                   Op: {RegNo: 0, Shift: 0}
                 - Size: 8
                   Op: {RegNo: 3, Shift: 0}
-          IsParameter: true
-          IsReturn: false
+          Role: Parameter
     - ID: 3
       Name: main.intSliceArg
       OutOfLinePCRanges: [0x4ae800..0x4ae87a]
@@ -304,8 +302,7 @@ Subprograms:
                   Op: {RegNo: 3, Shift: 0}
                 - Size: 8
                   Op: {RegNo: 2, Shift: 0}
-          IsParameter: true
-          IsReturn: false
+          Role: Parameter
     - ID: 4
       Name: main.intArrayArg
       OutOfLinePCRanges: [0x4ae880..0x4ae8e7]
@@ -316,8 +313,7 @@ Subprograms:
           Locations:
             - Range: 0x4ae880..0x4ae8e7
               Pieces: [{Size: 24, Op: {CfaOffset: 0}}]
-          IsParameter: true
-          IsReturn: false
+          Role: Parameter
     - ID: 5
       Name: main.stringSliceArg
       OutOfLinePCRanges: [0x4ae900..0x4ae97a]
@@ -334,8 +330,7 @@ Subprograms:
                   Op: {RegNo: 3, Shift: 0}
                 - Size: 8
                   Op: {RegNo: 2, Shift: 0}
-          IsParameter: true
-          IsReturn: false
+          Role: Parameter
     - ID: 6
       Name: main.stringArrayArg
       OutOfLinePCRanges: [0x4ae980..0x4ae9e7]
@@ -346,8 +341,7 @@ Subprograms:
           Locations:
             - Range: 0x4ae980..0x4ae9e7
               Pieces: [{Size: 48, Op: {CfaOffset: 0}}]
-          IsParameter: true
-          IsReturn: false
+          Role: Parameter
     - ID: 7
       Name: main.stringArrayArgFrameless
       OutOfLinePCRanges: [0x4aea00..0x4aea01]
@@ -358,8 +352,7 @@ Subprograms:
           Locations:
             - Range: 0x4aea00..0x4aea01
               Pieces: [{Size: 48, Op: {CfaOffset: 0}}]
-          IsParameter: true
-          IsReturn: false
+          Role: Parameter
     - ID: 8
       Name: main.mapArg
       OutOfLinePCRanges: [0x4aeae0..0x4aeb36]
@@ -370,8 +363,7 @@ Subprograms:
           Locations:
             - Range: 0x4aeae0..0x4aeb0d
               Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
-          IsParameter: true
-          IsReturn: false
+          Role: Parameter
     - ID: 9
       Name: main.bigMapArg
       OutOfLinePCRanges: [0x4aeb40..0x4aebfb]
@@ -384,8 +376,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
             - Range: 0x4aeb73..0x4aebfb
               Pieces: [{Size: 8, Op: {CfaOffset: 0}}]
-          IsParameter: true
-          IsReturn: false
+          Role: Parameter
     - ID: 10
       Name: main.noArgs
       OutOfLinePCRanges: [0x4aec00..0x4aec53]
@@ -398,9 +389,14 @@ Subprograms:
       Variables:
         - Name: ~r0
           Type: 120 GoMapType map[uint8]map[int]main.aStructNotUsedAsAnArgument
-          Locations: [{Range: 0x4aec60..0x4aee57, Pieces: []}]
-          IsParameter: true
-          IsReturn: true
+          Locations:
+            - Range: 0x4aec60..0x4aee44
+              Pieces: []
+            - Range: 0x4aee44..0x4aee45
+              Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
+            - Range: 0x4aee45..0x4aee57
+              Pieces: []
+          Role: Return
     - ID: 12
       Name: main.inlined
       OutOfLinePCRanges: [0x4aea20..0x4aea82]
@@ -415,8 +411,7 @@ Subprograms:
               Pieces: []
             - Range: 0x4aea20..0x4aea39
               Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
-          IsParameter: true
-          IsReturn: false
+          Role: Parameter
     - ID: 13
       Name: main.PointerChainArg
       OutOfLinePCRanges: []
@@ -429,8 +424,7 @@ Subprograms:
           Locations:
             - Range: 0x4ae61f..0x4ae66b
               Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
-          IsParameter: true
-          IsReturn: false
+          Role: Parameter
     - ID: 14
       Name: main.PointerSmallChainArg
       OutOfLinePCRanges: []
@@ -443,8 +437,7 @@ Subprograms:
           Locations:
             - Range: 0x4ae690..0x4ae6ca
               Pieces: [{Size: 8, Op: {RegNo: 1, Shift: 0}}]
-          IsParameter: true
-          IsReturn: false
+          Role: Parameter
 Types:
     - __kind: PointerType
       ID: 125

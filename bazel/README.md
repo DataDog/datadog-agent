@@ -4,6 +4,12 @@ Although most elements are still under development, here are a few notes that co
 
 ### Single requirement: `bazelisk`
 
+> [!TIP]
+> We recommend using Bazelisk through `dda`, our developer tool.
+>
+> 1. Ensure that the latest version is [installed](https://datadoghq.dev/datadog-agent/setup/required/#tooling).
+> 2. Use the [`dda bzl`](https://datadoghq.dev/datadog-agent-dev/reference/cli/commands/#dda-bzl) Bazel wrapper in place of all `bazel` commands. This will forward all arguments to Bazel and transparently download Bazelisk if there is no `bazel` nor `bazelisk` in your PATH.
+
 If your OS or dev container does not already provide it, you will need to install the `bazelisk` tool, which will
 automatically switch to the version of `bazel` specified in the branch you wish to contribute to.
 
@@ -16,8 +22,8 @@ brew install bazelisk
 
 Otherwise, please choose the `bazelisk` installation method that suits you best; you can find some of them here:
 
-- [Installation](https://github.com/bazelbuild/bazelisk?tab=readme-ov-file#installation)
-- [Requirements](https://github.com/bazelbuild/bazelisk?tab=readme-ov-file#requirements)
+- [Installation](https://github.com/bazelbuild/bazelisk#installation)
+- [Requirements](https://github.com/bazelbuild/bazelisk#requirements)
 
 In that case, please consider adding a link to `bazelisk` named `bazel` in your PATH.
 
@@ -27,6 +33,8 @@ To help us maintain good `bazel` file hygiene, please preferably run the version
 you wish to work in:
 
 ```sh
+dda bzl run //bazel/buildifier
+# or
 bazel run //bazel/buildifier
 ```
 

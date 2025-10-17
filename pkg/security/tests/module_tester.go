@@ -820,7 +820,6 @@ func genTestConfigs(t testing.TB, cfgDir string, opts testOpts) (*emconfig.Confi
 		"RuntimeSecurityEnabled":                     runtimeSecurityEnabled,
 		"SBOMEnabled":                                opts.enableSBOM,
 		"HostSBOMEnabled":                            opts.enableHostSBOM,
-		"SBOMUseV2Collector":                         opts.sbomUseV2Collector,
 		"EBPFLessEnabled":                            ebpfLessEnabled,
 		"FIMEnabled":                                 opts.enableFIM, // should only be enabled/disabled on windows
 		"NetworkIngressEnabled":                      opts.networkIngressEnabled,
@@ -896,7 +895,7 @@ func setupOptionalDatadogConfigWithDir(t testing.TB, configDir, configFile strin
 		cfg.SetConfigFile(configFile)
 	}
 	// load the configuration
-	_, err := pkgconfigsetup.LoadWithSecret(cfg, secretsmock.New(t), pkgconfigsetup.SystemProbe().GetEnvVars())
+	err := pkgconfigsetup.LoadDatadog(cfg, secretsmock.New(t), pkgconfigsetup.SystemProbe().GetEnvVars())
 	// If `!failOnMissingFile`, do not issue an error if we cannot find the default config file.
 	if err != nil && !errors.Is(err, pkgconfigmodel.ErrConfigFileNotFound) {
 		// special-case permission-denied with a clearer error message

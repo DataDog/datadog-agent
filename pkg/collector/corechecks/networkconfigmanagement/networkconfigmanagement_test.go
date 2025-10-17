@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/profile"
+	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 	"github.com/benbjohnson/clock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -40,14 +41,20 @@ type MockRemoteClient struct {
 	ConfigError     error
 }
 
+const (
+	runningOutput = "Building configuration...\n! Last configuration change at 10:20:00 UTC Fri Aug 1 2025\ninterface GigabitEthernet0/1\n ip address 192.168.1.1 255.255.255.0"
+	startupOutput = "interface GigabitEthernet0/1\n ip address 192.168.1.1 255.255.255.0"
+	versionOutput = "Cisco Device Version 1.0"
+)
+
 func newMockRemoteClient() *MockRemoteClient {
 	// Set up mock remote client
 	mockClient := &MockRemoteClient{
 		Session: &MockRemoteSession{
 			OutputMap: map[string]string{
-				"show running-config": "interface GigabitEthernet0/1\n ip address 192.168.1.1 255.255.255.0",
-				"show startup-config": "interface GigabitEthernet0/1\n ip address 192.168.1.1 255.255.255.0",
-				"show version":        "Cisco Device Version 1.0",
+				"show running-config": runningOutput,
+				"show startup-config": startupOutput,
+				"show version":        versionOutput,
 			},
 		},
 	}
@@ -65,28 +72,28 @@ func (m *MockRemoteClient) NewSession() (ncmremote.Session, error) {
 	return m.Session, nil
 }
 
-func (m *MockRemoteClient) RetrieveRunningConfig() (string, error) {
+func (m *MockRemoteClient) RetrieveRunningConfig() ([]byte, error) {
 	if m.ConfigError != nil {
-		return "", m.ConfigError
+		return []byte{}, m.ConfigError
 	}
 	runningCommand, err := m.Profile.GetCommandValues(profile.Running)
 	if err != nil {
-		return "", err
+		return []byte{}, err
 	}
-	output, _ := m.Session.CombinedOutput(runningCommand[0])
-	return string(output), nil
+	output, err := m.Session.CombinedOutput(runningCommand[0])
+	return output, err
 }
 
-func (m *MockRemoteClient) RetrieveStartupConfig() (string, error) {
+func (m *MockRemoteClient) RetrieveStartupConfig() ([]byte, error) {
 	if m.ConfigError != nil {
-		return "", m.ConfigError
+		return []byte{}, m.ConfigError
 	}
 	runningCommand, err := m.Profile.GetCommandValues(profile.Startup)
 	if err != nil {
-		return "", err
+		return []byte{}, err
 	}
-	output, _ := m.Session.CombinedOutput(runningCommand[0])
-	return string(output), nil
+	output, err := m.Session.CombinedOutput(runningCommand[0])
+	return output, err
 }
 
 func (m *MockRemoteClient) SetProfile(np *profile.NCMProfile) {
@@ -148,33 +155,6 @@ auth:
 
 var invalidConfigMissingAuth = []byte(`
 ip_address: 10.0.0.1
-`)
-
-// language=json
-var expectedEvent = []byte(`
-{
-  "namespace": "default",
-  "integration": "",
-  "configs": [
-    {
-      "device_id": "default:10.0.0.1",
-      "device_ip": "10.0.0.1",
-      "config_type": "running",
-      "timestamp": 1754043600,
-      "tags": ["device_ip:10.0.0.1"],
-      "content": "interface GigabitEthernet0/1\n ip address 192.168.1.1 255.255.255.0"
-    },
-    {
-      "device_id": "default:10.0.0.1",
-      "device_ip": "10.0.0.1",
-      "config_type": "startup",
-      "timestamp": 1754043600,
-      "tags": ["device_ip:10.0.0.1"],
-      "content": "interface GigabitEthernet0/1\n ip address 192.168.1.1 255.255.255.0"
-    }
-  ],
-  "collect_timestamp": 1754043600
-}
 `)
 
 // Unit Tests
@@ -261,6 +241,35 @@ func TestCheck_Run_Success(t *testing.T) {
 	assert.NoError(t, err)
 	assert.True(t, mockClient.Closed, "Remote client should be closed after run")
 
+	runningBytes, _ := json.Marshal([]byte(runningOutput))
+	startupBytes, _ := json.Marshal([]byte(startupOutput))
+
+	var expectedEvent = []byte(fmt.Sprintf(`
+{
+  "namespace": "default",
+  "integration": "",
+  "configs": [
+    {
+      "device_id": "default:10.0.0.1",
+      "device_ip": "10.0.0.1",
+      "config_type": "running",
+      "timestamp": 1754043600,
+      "tags": ["device_ip:10.0.0.1"],
+      "content": %s
+    },
+    {
+      "device_id": "default:10.0.0.1",
+      "device_ip": "10.0.0.1",
+      "config_type": "startup",
+      "timestamp": 0,
+      "tags": ["device_ip:10.0.0.1"],
+      "content": %s
+    }
+  ],
+  "collect_timestamp": 1754043600
+}
+`, runningBytes, startupBytes))
+
 	compactEvent := new(bytes.Buffer)
 	err = json.Compact(compactEvent, expectedEvent)
 	assert.NoError(t, err)
@@ -338,13 +347,45 @@ func TestCheck_FindMatchingProfile(t *testing.T) {
 
 	expected := &profile.NCMProfile{
 		BaseProfile: profile.BaseProfile{
-			Name: "p1",
+			Name: "p2",
 		},
-		Commands: map[profile.CommandType][]string{
-			profile.Running: {"show running-config"},
-			profile.Startup: {"show startup-config"},
-			profile.Version: {"show version"},
+		Commands: map[profile.CommandType]profile.Commands{
+			profile.Running: {
+				CommandType: profile.Running,
+				Values:      []string{"show running-config"},
+				ProcessingRules: profile.ProcessingRules{
+					MetadataRules: []profile.MetadataRule{
+						{
+							Type:   profile.Timestamp,
+							Regex:  `! Last configuration change at (.*)`,
+							Format: "15:04:05 MST Mon Jan 2 2006",
+						},
+						{
+							Type:  profile.ConfigSize,
+							Regex: `Current configuration : (?P<Size>\d+)`,
+						},
+					},
+					ValidationRules: []profile.ValidationRule{
+						{
+							Type:    "valid_output",
+							Pattern: "Building configuration...",
+						},
+					},
+					RedactionRules: []profile.RedactionRule{
+						{Regex: `(username .+ (password|secret) \d) .+`, Replacement: "<redacted secret>"},
+					},
+				},
+			},
+			profile.Startup: {
+				CommandType: profile.Startup,
+				Values:      []string{"show startup-config"},
+			},
+			profile.Version: {
+				CommandType: profile.Version,
+				Values:      []string{"show version"},
+			},
 		},
+		Scrubber: scrubber.New(),
 	}
 	assert.Equal(t, expected, actual)
 }

@@ -126,6 +126,7 @@ AGENT_HEROKU_TAGS = AGENT_TAGS.difference(
         "podman",
         "systemd",
         "trivy",
+        "cel",
     }
 )
 
@@ -151,7 +152,7 @@ CLUSTER_AGENT_CLOUDFOUNDRY_TAGS = {"clusterchecks", "grpcnotrace", "cel"}
 DOGSTATSD_TAGS = {"containerd", "grpcnotrace", "no_dynamic_plugins", "docker", "kubelet", "podman", "zlib", "zstd"}
 
 # IOT_AGENT_TAGS lists the tags needed when building the IoT agent
-IOT_AGENT_TAGS = {"grpcnotrace", "jetson", "otlp", "systemd", "zlib", "zstd", "cel"}
+IOT_AGENT_TAGS = {"grpcnotrace", "jetson", "systemd", "zlib", "zstd"}
 
 # INSTALLER_TAGS lists the tags needed when building the installer
 INSTALLER_TAGS = {"docker", "ec2", "kubelet"}
@@ -219,8 +220,6 @@ SYSTEM_PROBE_TAGS = {
     "npm",
     "nvml",
     "pcap",
-    "trivy",
-    "trivy_no_javadb",
     "zlib",
     "zstd",
 }

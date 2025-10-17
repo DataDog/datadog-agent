@@ -71,3 +71,20 @@ func GetNTPHosts(ctx context.Context) []string {
 
 	return nil
 }
+
+var ccridFetcher = cachedfetch.Fetcher{
+	Name: "Oracle Host CCRID",
+	Attempt: func(ctx context.Context) (interface{}, error) {
+		endpoint := metadataURL + "/opc/v2/instance/id"
+		res, err := httputils.Get(ctx, endpoint, map[string]string{"Authorization": "Bearer Oracle"}, timeout, pkgconfigsetup.Datadog())
+		if err != nil {
+			return "", fmt.Errorf("Oracle CCRID: unable to query metadata endpoint: %s", err)
+		}
+		return res, nil
+	},
+}
+
+// GetHostCCRID return the CCRID for the current instance
+func GetHostCCRID(ctx context.Context) (string, error) {
+	return ccridFetcher.FetchString(ctx)
+}
