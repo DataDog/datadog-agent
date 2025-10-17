@@ -55,7 +55,7 @@ Invoke-BuildScript `
     )
 
     if ($env:CI_IDENTITIES_GITLAB_ID_TOKEN) {
-        Write-Host "✓ CI_IDENTITIES_GITLAB_ID_TOKEN is present in container (length: $($env:CI_IDENTITIES_GITLAB_ID_TOKEN.Length))"
+        Write-Host "✓ CI_IDENTITIES_GITLAB_ID_TOKEN is present in container"
     } else {
         Write-Host "✗ CI_IDENTITIES_GITLAB_ID_TOKEN is missing in container"
     }
