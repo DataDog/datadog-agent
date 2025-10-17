@@ -5,7 +5,6 @@ using Datadog.CustomActions.Rollback;
 using Microsoft.Deployment.WindowsInstaller;
 using System;
 using System.Collections.Generic;
-using System.IO;
 
 namespace Datadog.CustomActions
 {
@@ -30,44 +29,13 @@ namespace Datadog.CustomActions
             _rollbackDataStore = new RollbackDataStore(session, "InstallOciPackages", new FileSystemServices(), new ServiceController());
         }
 
-
-        private string PackageName(string language)
-        {
-            return $"datadog-apm-library-{language}";
-        }
-
-        private string OciImageName(string language)
-        {
-            return $"apm-library-{language}-package";
-        }
-
-        private string PackageUrl(string language, string version)
-        {
-            if (_site == "datad0g.com")
-            {
-                return $"oci://install.datad0g.com/{OciImageName(language)}:{version}";
-            }
-            else
-            {
-                return $"oci://install.datadoghq.com/{OciImageName(language)}:{version}";
-            }
-        }
-
-        private NameVersionPair ParseVersion(string library)
-        {
-            library = library.Trim();
-            var index = library.IndexOf(':');
-            if (index == -1)
-            {
-                return new NameVersionPair(library, string.Empty);
-            }
-
-            return new NameVersionPair(library.Substring(0, index), library.Substring(index + 1));
-        }
-
         private Dictionary<string, string> InstallerEnvironmentVariables()
         {
             var env = new Dictionary<string, string>();
+            
+            // Skip agent installation - we only want the OCI packages
+            env["DD_NO_AGENT_INSTALL"] = "true";
+            
             if (!string.IsNullOrEmpty(_apiKey))
             {
                 env["DD_API_KEY"] = _apiKey;
@@ -80,6 +48,20 @@ namespace Datadog.CustomActions
             {
                 env["DD_INSTALLER_REGISTRY_URL"] = _overrideRegistryUrl;
             }
+            
+            // Add APM instrumentation configuration
+            var instrumentationEnabled = _session.Property("DD_APM_INSTRUMENTATION_ENABLED");
+            if (!string.IsNullOrEmpty(instrumentationEnabled))
+            {
+                env["DD_APM_INSTRUMENTATION_ENABLED"] = instrumentationEnabled;
+            }
+            
+            var libraries = _session.Property("DD_APM_INSTRUMENTATION_LIBRARIES");
+            if (!string.IsNullOrEmpty(libraries))
+            {
+                env["DD_APM_INSTRUMENTATION_LIBRARIES"] = libraries;
+            }
+            
             return env;
         }
 
@@ -87,38 +69,28 @@ namespace Datadog.CustomActions
         {
             try
             {
-                _session.Log("Installing Oci Packages");
+                _session.Log("Running datadog-installer setup");
                 var instrumentationEnabled = _session.Property("DD_APM_INSTRUMENTATION_ENABLED");
                 var librariesRaw = _session.Property("DD_APM_INSTRUMENTATION_LIBRARIES");
                 _session.Log($"instrumentationEnabled: {instrumentationEnabled}");
-                if (string.IsNullOrEmpty(instrumentationEnabled) || string.IsNullOrEmpty(librariesRaw))
-                {
-                    _session.Log($"instrumentation is disabled or no library is provided skipping");
-                    return ActionResult.Success;
-                }
-                if (instrumentationEnabled != "iis")
-                {
-                    _session.Log("Only DD_APM_INSTRUMENTATION_ENABLED=iis is supported");
-                    return ActionResult.Failure;
-                }
-                var libraries = librariesRaw.Split(',');
-                foreach (var library in libraries)
-                {
-                    var libWithVersion = ParseVersion(library);
-                    if (!IsPackageInstalled(libWithVersion.Name))
-                    {
-                        _rollbackDataStore.Add(
-                            new InstallerPackageRollback($"remove {PackageName(libWithVersion.Name)}"));
-                    }
+                
+                // TODO: Add rollback data here for the purge command when it becomes available
+                // Example: _rollbackDataStore.Add(new InstallerPackageRollback("purge ..."));
 
-                    InstallPackage(libWithVersion.Name, libWithVersion.Version);
+                // Run the installer setup command with the flavor
+                using (var proc = _session.RunCommand(_installerExecutable, "setup --flavor=default", InstallerEnvironmentVariables()))
+                {
+                    if (proc.ExitCode != 0)
+                    {
+                        throw new Exception($"'datadog-installer setup --flavor=default' failed with exit code: {proc.ExitCode}");
+                    }
                 }
 
                 return ActionResult.Success;
             }
             catch (Exception ex)
             {
-                _session.Log("Error while installing oci package: " + ex.Message);
+                _session.Log("Error while running installer setup: " + ex.Message);
                 return ActionResult.Failure;
             }
             finally
@@ -129,39 +101,11 @@ namespace Datadog.CustomActions
 
         private ActionResult RollbackState()
         {
+            // TODO: Implement rollback using the future 'purge' command when available
+            _session.Log("Rollback not yet implemented - waiting for purge command");
             _rollbackDataStore.Load();
             _rollbackDataStore.Restore();
             return ActionResult.Success;
-        }
-
-        private bool IsPackageInstalled(string library)
-        {
-            var packageName = PackageName(library);
-            using (var proc = _session.RunCommand(_installerExecutable, $"is-installed {packageName}", InstallerEnvironmentVariables()))
-            {
-                if (proc.ExitCode == 10)
-                {
-                    return false;
-                }
-
-                if (proc.ExitCode != 0)
-                {
-                    throw new Exception($"'datadog-installer is-installed {packageName}' failed with exit code: {proc.ExitCode}");
-                }
-                return true;
-            }
-        }
-
-        private void InstallPackage(string library, string version)
-        {
-            var ociImageName = OciImageName(library);
-            using (var proc = _session.RunCommand(_installerExecutable, $"install  {PackageUrl(library, version)}", InstallerEnvironmentVariables()))
-            {
-                if (proc.ExitCode != 0)
-                {
-                    throw new Exception($"'datadog-installer install {ociImageName}' failed with exit code: {proc.ExitCode}");
-                }
-            }
         }
 
         public static ActionResult InstallPackages(Session session)
@@ -172,18 +116,6 @@ namespace Datadog.CustomActions
         public static ActionResult RollbackActions(Session session)
         {
             return new InstallOciPackages(new SessionWrapper(session)).RollbackState();
-        }
-
-        private class NameVersionPair
-        {
-            public NameVersionPair(string name, string version)
-            {
-                Name = name;
-                Version = version;
-            }
-
-            public string Name { get; }
-            public string Version { get; }
         }
     }
 }
