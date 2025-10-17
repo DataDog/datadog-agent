@@ -273,6 +273,17 @@
       "os_version": "8.4",
       "image": "rocky-8.4-x86_64.qcow2.xz",
       "image_version": "20250320_7cf8bbf7"
+    },
+    "ubuntu_25.04": {
+      "image": "ubuntu-25.04-x86_64.qcow2.xz",
+      "image_version": "bryce.kahle/fix-ubuntu-oracular",
+      "os_name": "Ubuntu",
+      "os_id": "ubuntu",
+      "kernel": "6.14.0-33-generic",
+      "os_version": "25.04",
+      "alt_version_names": [
+        "plucky"
+      ]
     }
   },
   "arm64": {
@@ -510,6 +521,17 @@
       "os_version": "9.4",
       "image": "rocky-9.4-arm64.qcow2.xz",
       "image_version": "20241209_f6a14db0"
+    },
+    "ubuntu_25.04": {
+      "image": "ubuntu-25.04-arm64.qcow2.xz",
+      "image_version": "bryce.kahle/fix-ubuntu-oracular",
+      "os_name": "Ubuntu",
+      "os_id": "ubuntu",
+      "kernel": "6.14.0-33-generic",
+      "os_version": "25.04",
+      "alt_version_names": [
+        "plucky"
+      ]
     }
   }
 }
