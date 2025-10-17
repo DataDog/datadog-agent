@@ -288,32 +288,40 @@ func initCommonWithServerless(config pkgconfigmodel.Setup) {
 	}
 }
 
+func loadPackedDescriptors() {
+	// TODO
+}
+
 // InitConfig initializes the config defaults on a config used by all agents
 // (in particular more than just the serverless agent).
 func InitConfig(config pkgconfigmodel.Setup) {
 	initCommonWithServerless(config)
 
-	// Auto exit configuration
-	config.BindEnvAndSetDefault("auto_exit.validation_period", 60)
-	config.BindEnvAndSetDefault("auto_exit.noprocess.enabled", false)
-	config.BindEnvAndSetDefault("auto_exit.noprocess.excluded_processes", []string{})
+	loadPackedDescriptors()
 
-	// The number of commits before expiring a context. The value is 2 to handle
-	// the case where a check miss to send a metric.
-	config.BindEnvAndSetDefault("check_sampler_bucket_commits_count_expiry", 2)
-	// The number of seconds before removing stateful metric data after expiring a
-	// context. Default is 25h, to minimise problems for checks that emit metircs
-	// only occasionally.
-	config.BindEnvAndSetDefault("check_sampler_stateful_metric_expiration_time", 25*time.Hour)
-	config.BindEnvAndSetDefault("check_sampler_expire_metrics", true)
-	config.BindEnvAndSetDefault("check_sampler_context_metrics", false)
-	config.BindEnvAndSetDefault("host_aliases", []string{})
-	config.BindEnvAndSetDefault("collect_ccrid", true)
+	/*
+		// Auto exit configuration
+		config.BindEnvAndSetDefault("auto_exit.validation_period", 60)
+		config.BindEnvAndSetDefault("auto_exit.noprocess.enabled", false)
+		config.BindEnvAndSetDefault("auto_exit.noprocess.excluded_processes", []string{})
 
-	// overridden in IoT Agent main
-	config.BindEnvAndSetDefault("iot_host", false)
-	// overridden in Heroku buildpack
-	config.BindEnvAndSetDefault("heroku_dyno", false)
+		// The number of commits before expiring a context. The value is 2 to handle
+		// the case where a check miss to send a metric.
+		config.BindEnvAndSetDefault("check_sampler_bucket_commits_count_expiry", 2)
+		// The number of seconds before removing stateful metric data after expiring a
+		// context. Default is 25h, to minimise problems for checks that emit metircs
+		// only occasionally.
+		config.BindEnvAndSetDefault("check_sampler_stateful_metric_expiration_time", 25*time.Hour)
+		config.BindEnvAndSetDefault("check_sampler_expire_metrics", true)
+		config.BindEnvAndSetDefault("check_sampler_context_metrics", false)
+		config.BindEnvAndSetDefault("host_aliases", []string{})
+		config.BindEnvAndSetDefault("collect_ccrid", true)
+
+		// overridden in IoT Agent main
+		config.BindEnvAndSetDefault("iot_host", false)
+		// overridden in Heroku buildpack
+		config.BindEnvAndSetDefault("heroku_dyno", false)
+	*/
 
 	// Python 3 linter timeout, in seconds
 	// NOTE: linter is notoriously slow, in the absence of a better solution we

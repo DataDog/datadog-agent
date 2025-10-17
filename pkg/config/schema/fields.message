@@ -1,0 +1,57 @@
+[
+	{
+		"name": "auto_exit.validation_period",
+		"type": 1,
+		"nval": 60
+	},
+	{
+		"name": "auto_exit.noprocess.enabled",
+		"type": 3,
+		"nval": 0
+	},
+	{
+		"name": "auto_exit.noprocess.excluded_processes",
+		"type": 6,
+		"nval": null
+	},
+    {
+        "name": "check_sampler_bucket_commits_count_expiry",
+        "type": 1,
+        "nval": 2
+    },
+    {
+        "name": "check_sampler_stateful_metric_expiration_time",
+        "type": 5,
+        "sval": "25h"
+    },
+    {
+        "name": "check_sampler_expire_metrics",
+        "type": 3,
+        "nval": 1
+    },
+    {
+        "name": "check_sampler_context_metrics",
+        "type": 3,
+        "nval": 0
+    },
+    {
+        "name": "host_aliases",
+        "type": 6,
+        "nval": 0
+    },
+    {
+        "name": "collect_ccrid",
+        "type": 3,
+        "nval": 1
+    },
+    {
+        "name": "iot_host",
+        "type": 3,
+        "nval": 0
+    },
+    {
+        "name": "heroku_dyno",
+        "type": 3,
+        "nval": 0
+    }
+]

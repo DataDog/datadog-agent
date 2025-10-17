@@ -1,0 +1,31 @@
+syntax = "proto3";
+
+option go_package = "github.com/DataDog/datadog-agent/pkg/config/gen";
+
+package datadog.gen;
+
+message Schema {
+    string version = 1;
+    repeated Field field = 2;
+}
+
+enum FieldType {
+    INVALID = 0;
+    INT = 1;
+    FLOAT = 2;
+    BOOL = 3;
+    STRING = 4;
+    DURATION = 5;
+    LIST_STRING = 6;
+}
+
+message Field {
+    string name = 1;
+    FieldType type = 2;
+
+    int32 nval = 3;
+    string sval = 4;
+
+    string env = 16; // optional
+    string doc = 5;
+}
