@@ -299,8 +299,8 @@ func TestReceiverStatsZeroValueStatsNotPublished(t *testing.T) {
 	t.Run("PublishAndReset", func(t *testing.T) {
 		rs := testStats()
 		rs.PublishAndReset(statsclient)
-		// We would expect 9 here, but we made TracesFiltered non-zero so it will be reported, thus 10
-		assert.EqualValues(t, 10, len(statsclient.CountCalls))
+		// Non-zero stats for some fields aren't published so only 9 here
+		assert.EqualValues(t, 9, len(statsclient.CountCalls))
 		assertStatsAreReset(t, rs)
 	})
 }
