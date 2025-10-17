@@ -16,6 +16,7 @@ filegroup(
     ] + select({
         "@platforms//os:linux": [
             "@libsepol//:sepol",
+            "@pcre2",
         ],
         "//conditions:default": [],
     }),
