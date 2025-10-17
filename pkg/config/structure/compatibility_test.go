@@ -126,7 +126,7 @@ network_devices:
 	// NOTE: Error message differs, but that is an acceptable difference
 	err = unmarshalKeyReflection(ntmConf, "network_devices.autodiscovery", &cfg)
 	assert.Error(t, err)
-	assert.ErrorContains(t, err, "can't GetChild(workers) of a leaf node")
+	assert.ErrorContains(t, err, "expected map at '' got: [map[workers:10]]")
 }
 
 type MetadataProviders struct {
