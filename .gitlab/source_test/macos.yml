@@ -19,9 +19,8 @@ include:
     - dda inv -- -e gitlab.generate-ci-visibility-links --output=$EXTERNAL_LINKS_PATH
     - FAST_TESTS_FLAG=""
     - if [[ "$FAST_TESTS" == "true" ]]; then FAST_TESTS_FLAG="--only-impacted-packages"; fi
+    - dda inv -- -e agent.build
     - dda inv -- -e test --rerun-fails=2 --race --profile --cpus 12 --result-json $TEST_OUTPUT_FILE --junit-tar "junit-${CI_JOB_NAME}.tgz" $FAST_TESTS_FLAG --test-washer --coverage
-    - dda self dep sync -f legacy-kernel-matrix-testing
-    - dda inv --feat legacy-kernel-matrix-testing -- -e invoke-unit-tests
   after_script:
     - !reference [.vault_login]
     - !reference [.install_python_dependencies]

@@ -12,8 +12,9 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	corev1 "k8s.io/api/core/v1"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
@@ -149,9 +150,16 @@ func (i *injector) requirements() libRequirement {
 
 type injectorOption func(*injector)
 
-var injectorVersionAnnotationExtractor = annotationExtractor[injectorOption]{
-	key: "admission.datadoghq.com/apm-inject.version",
-	do:  infallibleFn(injectorWithImageTag),
+var injectorVersionAnnotationExtractorFunc = func(imageResolver ImageResolver) annotationExtractor[injectorOption] {
+	injectorVersionAnnotationExtractor := annotationExtractor[injectorOption]{
+		key: "admission.datadoghq.com/apm-inject.version",
+		do: infallibleFn(func(tag string) injectorOption {
+			return injectorWithImageTag(tag, imageResolver)
+		},
+		),
+	}
+
+	return injectorVersionAnnotationExtractor
 }
 
 var injectorImageAnnotationExtractor = annotationExtractor[injectorOption]{
@@ -176,8 +184,18 @@ func injectorWithImageName(name string) injectorOption {
 	}
 }
 
-func injectorWithImageTag(tag string) injectorOption {
+func injectorWithImageTag(tag string, imageResolver ImageResolver) injectorOption {
 	return func(i *injector) {
+		if imageResolver == nil {
+			log.Error("injectorWithImageTag called without imageResolver")
+			return
+		}
+		if resolvedImage, ok := imageResolver.Resolve(i.registry, "apm-inject", tag); ok {
+			log.Debugf("Resolved image for %s/apm-inject:%s: %s", i.registry, tag, resolvedImage.FullImageRef)
+			i.image = resolvedImage.FullImageRef
+			return
+		}
+		log.Debugf("No resolved image found for %s/apm-inject:%s, falling back to tag-based image", i.registry, tag)
 		i.image = fmt.Sprintf("%s/apm-inject:%s", i.registry, tag)
 	}
 }
@@ -209,13 +227,9 @@ func newInjector(startTime time.Time, registry string, opts ...injectorOption) *
 	return i
 }
 
-func (i *injector) podMutator(v version) podMutator {
+func (i *injector) podMutator() podMutator {
 	return podMutatorFunc(func(pod *corev1.Pod) error {
 		if i.injected {
-			return nil
-		}
-
-		if !v.usesInjector() {
 			return nil
 		}
 

@@ -7,6 +7,7 @@
 #include "helpers/syscalls.h"
 #include "helpers/network/stats.h"
 #include "constants/fentry_macro.h"
+#include "helpers/caps.h"
 
 int __attribute__((always_inline)) trace__sys_execveat(ctx_t *ctx, const char *path, const char **argv, const char **env) {
     // use the fist 56 bits of ktime to simulate a somewhat monotonic id
@@ -68,7 +69,7 @@ int __attribute__((always_inline)) handle_interpreted_exec_event(void *ctx, stru
     bpf_probe_read(&interpreter_inode, sizeof(interpreter_inode), get_file_f_inode_addr(file));
 
     syscall->exec.linux_binprm.interpreter = get_inode_key_path(interpreter_inode, get_file_f_path_addr(file));
-    syscall->exec.linux_binprm.interpreter.path_id = get_path_id(syscall->exec.linux_binprm.interpreter.mount_id, 0);
+    syscall->exec.linux_binprm.interpreter.path_id = get_path_id(syscall->exec.linux_binprm.interpreter.ino, syscall->exec.linux_binprm.interpreter.mount_id, 1, 0);
 
 #if defined(DEBUG_INTERPRETER)
     bpf_printk("interpreter file: %llx", file);
@@ -295,6 +296,7 @@ int __attribute__((always_inline)) handle_do_exit(ctx_t *ctx) {
         struct pid_cache_t *pid_entry = (struct pid_cache_t *)bpf_map_lookup_elem(&pid_cache, &tgid);
         if (pid_entry) {
             pid_entry->exit_timestamp = bpf_ktime_get_ns();
+            flush_capabilities_usage(ctx, tgid, pid_entry->cookie);
         } else if (is_current_kworker_dying()) {
             pop_syscall(EVENT_ANY);
             return 0;
@@ -314,6 +316,10 @@ int __attribute__((always_inline)) handle_do_exit(ctx_t *ctx) {
             event.exit_code |= 0x80;
             bpf_map_delete_elem(&tasks_in_coredump, &pid_tgid);
         }
+
+        // should be sampled for activity dumps
+        event.event.flags |= EVENT_FLAGS_ACTIVITY_DUMP_SAMPLE;
+
         send_event(ctx, EVENT_EXIT, event);
 
         unregister_span_memory();
@@ -375,6 +381,18 @@ int hook_exit_itimers(ctx_t *ctx) {
             bpf_probe_read_str(pc->entry.tty_name, TTY_NAME_LEN, (char *)tty + tty_name_offset);
         }
     }
+
+    return 0;
+}
+
+int __attribute__((always_inline)) fill_exec_context() {
+    struct syscall_cache_t *syscall = peek_current_or_impersonated_exec_syscall();
+    if (!syscall) {
+        return 0;
+    }
+
+    // call it here before the memory get replaced
+    fill_span_context(&syscall->exec.span_context);
 
     return 0;
 }
@@ -661,6 +679,13 @@ int hook_setup_arg_pages(ctx_t *ctx) {
     struct syscall_cache_t *syscall = peek_current_or_impersonated_exec_syscall();
     if (!syscall) {
         return 0;
+    }
+
+    u64 tgid_tid = bpf_get_current_pid_tgid();
+    u32 tgid = tgid_tid >> 32;
+    struct pid_cache_t *pid_entry = get_pid_cache(tgid);
+    if (pid_entry) {
+        flush_capabilities_usage(ctx, tgid, pid_entry->cookie);
     }
 
     if (syscall->exec.args_envs_ctx.envs_offset != 0) {

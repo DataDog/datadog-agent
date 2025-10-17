@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build linux_bpf
+
 package kafka
 
 import (
@@ -14,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/types"
 	"github.com/DataDog/datadog-agent/pkg/util/intern"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	ddsync "github.com/DataDog/datadog-agent/pkg/util/sync"
 )
 
 const (
@@ -22,6 +25,11 @@ const (
 
 	// FetchAPIKey is the API key for fetch requests
 	FetchAPIKey = 1
+)
+
+var (
+	requestStatPool  = ddsync.NewDefaultTypedPool[RequestStat]()
+	requestStatsPool = ddsync.NewTypedPool[RequestStats](NewRequestStats)
 )
 
 // Key is an identifier for a group of Kafka transactions
@@ -79,6 +87,10 @@ func (r *RequestStat) close() {
 		protocols.SketchesPool.Put(r.Latencies)
 		r.Latencies = nil
 	}
+
+	r.Count = 0
+	r.FirstLatencySample = 0
+	r.StaticTags = 0
 }
 
 // CombineWith merges the data in 2 RequestStats objects
@@ -98,7 +110,7 @@ func (r *RequestStats) CombineWith(newStats *RequestStats) {
 
 		stats, exists := r.ErrorCodeToStat[statusCode]
 		if !exists {
-			stats = &RequestStat{}
+			stats = requestStatPool.Get()
 			r.ErrorCodeToStat[statusCode] = stats
 		}
 		// The other bucket (newStats) has a DDSketch object
@@ -140,7 +152,7 @@ func (r *RequestStats) AddRequest(errorCode int32, count int, staticTags uint64,
 	}
 	stats, exists := r.ErrorCodeToStat[errorCode]
 	if !exists {
-		stats = &RequestStat{}
+		stats = requestStatPool.Get()
 		r.ErrorCodeToStat[errorCode] = stats
 	}
 	originalCount := stats.Count
@@ -182,7 +194,8 @@ func (r *RequestStats) Close() {
 	for _, stats := range r.ErrorCodeToStat {
 		if stats != nil {
 			stats.close()
+			requestStatPool.Put(stats)
 		}
 	}
-	r.ErrorCodeToStat = nil
+	clear(r.ErrorCodeToStat)
 }

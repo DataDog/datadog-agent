@@ -37,7 +37,7 @@ type NamespaceMutator struct {
 }
 
 // NewNamespaceMutator creates a new injector interface for the auto-instrumentation injector.
-func NewNamespaceMutator(config *Config, wmeta workloadmeta.Component) (*NamespaceMutator, error) {
+func NewNamespaceMutator(config *Config, wmeta workloadmeta.Component, imageResolver ImageResolver) (*NamespaceMutator, error) {
 	filter, err := NewFilter(config)
 	if err != nil {
 		return nil, err
@@ -49,7 +49,7 @@ func NewNamespaceMutator(config *Config, wmeta workloadmeta.Component) (*Namespa
 		filter:          filter,
 		wmeta:           wmeta,
 		pinnedLibraries: pinnedLibraries,
-		core:            newMutatorCore(config, wmeta, filter),
+		core:            newMutatorCore(config, wmeta, filter, imageResolver),
 	}, nil
 }
 
@@ -116,16 +116,18 @@ func (m *NamespaceMutator) IsNamespaceEligible(ns string) bool {
 }
 
 type mutatorCore struct {
-	config *Config
-	wmeta  workloadmeta.Component
-	filter mutatecommon.MutationFilter
+	config        *Config
+	wmeta         workloadmeta.Component
+	filter        mutatecommon.MutationFilter
+	imageResolver ImageResolver
 }
 
-func newMutatorCore(config *Config, wmeta workloadmeta.Component, filter mutatecommon.MutationFilter) *mutatorCore {
+func newMutatorCore(config *Config, wmeta workloadmeta.Component, filter mutatecommon.MutationFilter, imageResolver ImageResolver) *mutatorCore {
 	return &mutatorCore{
-		config: config,
-		wmeta:  wmeta,
-		filter: filter,
+		config:        config,
+		wmeta:         wmeta,
+		filter:        filter,
+		imageResolver: imageResolver,
 	}
 }
 
@@ -169,7 +171,7 @@ func (m *mutatorCore) injectTracers(pod *corev1.Pod, config extractedPodLibInfo)
 
 		injector          = m.newInjector(pod, startTime, injectorOptions)
 		containerMutators = containerMutators{
-			config.languageDetection.containerMutator(m.config.version),
+			config.languageDetection.containerMutator(),
 			ustEnvVarMutator,
 		}
 	)
@@ -181,7 +183,7 @@ func (m *mutatorCore) injectTracers(pod *corev1.Pod, config extractedPodLibInfo)
 		return err
 	}
 
-	if err := injector.podMutator(m.config.version).mutatePod(pod); err != nil {
+	if err := injector.podMutator().mutatePod(pod); err != nil {
 		// setting the language tag to `injector` because this injection is not related to a specific supported language
 		metrics.LibInjectionErrors.Inc("injector", strconv.FormatBool(autoDetected), injectionType)
 		lastError = err
@@ -195,12 +197,12 @@ func (m *mutatorCore) injectTracers(pod *corev1.Pod, config extractedPodLibInfo)
 			metrics.LibInjectionAttempts.Inc(langStr, strconv.FormatBool(injected), strconv.FormatBool(autoDetected), injectionType)
 		}()
 
-		if err := lib.podMutator(m.config.version, libRequirementOptions{
+		if err := lib.podMutator(libRequirementOptions{
 			containerFilter:       m.config.containerFilter,
 			containerMutators:     containerMutators,
 			initContainerMutators: initContainerMutators,
 			podMutators:           []podMutator{configInjector.podMutator(lib.lang)},
-		}).mutatePod(pod); err != nil {
+		}, m.imageResolver).mutatePod(pod); err != nil {
 			metrics.LibInjectionErrors.Inc(langStr, strconv.FormatBool(autoDetected), injectionType)
 			lastError = err
 			continue
@@ -306,11 +308,11 @@ func (m *mutatorCore) newInitContainerMutators(
 func (m *mutatorCore) newInjector(pod *corev1.Pod, startTime time.Time, lopts libRequirementOptions) *injector {
 	opts := []injectorOption{
 		injectorWithLibRequirementOptions(lopts),
-		injectorWithImageTag(m.config.Instrumentation.InjectorImageTag),
+		injectorWithImageTag(m.config.Instrumentation.InjectorImageTag, m.imageResolver),
 	}
 
 	for _, e := range []annotationExtractor[injectorOption]{
-		injectorVersionAnnotationExtractor,
+		injectorVersionAnnotationExtractorFunc(m.imageResolver),
 		injectorImageAnnotationExtractor,
 		injectorDebugAnnotationExtractor,
 	} {
@@ -395,7 +397,6 @@ func extractLibrariesFromAnnotations(pod *corev1.Pod, containerRegistry string) 
 			}
 		}
 	)
-
 	for _, l := range supportedLanguages {
 		extractLibInfo(l.customLibAnnotationExtractor())
 		extractLibInfo(l.libVersionAnnotationExtractor(containerRegistry))

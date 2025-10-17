@@ -14,12 +14,14 @@
 #include <sys/stat.h>
 #include <sys/fsuid.h>
 #include <sys/mman.h>
+#include <sys/prctl.h>
 #include <fcntl.h>
 #include <pthread.h>
 #include <signal.h>
 #include <errno.h>
 #include <arpa/inet.h>
 #include <linux/un.h>
+#include <linux/prctl.h>
 #include <err.h>
 #include <limits.h>
 #include <sys/time.h>
@@ -203,7 +205,7 @@ int setrlimit_nofile() {
     struct rlimit rlim;
     rlim.rlim_cur = 1024;  // soft limit
     rlim.rlim_max = 2048;  // hard limit
-    
+
     if (setrlimit(RLIMIT_NOFILE, &rlim) < 0) {
         perror("setrlimit RLIMIT_NOFILE");
         return EXIT_FAILURE;
@@ -215,7 +217,7 @@ int setrlimit_nproc() {
     struct rlimit rlim;
     rlim.rlim_cur = 512;   // soft limit
     rlim.rlim_max = 1024;  // hard limit
-    
+
     if (setrlimit(RLIMIT_NPROC, &rlim) < 0) {
         perror("setrlimit RLIMIT_NPROC");
         return EXIT_FAILURE;
@@ -225,7 +227,7 @@ int setrlimit_nproc() {
 
 int prlimit64_stack(void) {
     struct rlimit64 rlim;
-    rlim.rlim_cur = 1024;   
+    rlim.rlim_cur = 1024;
     rlim.rlim_max = 2048;
 
     pid_t dummy_pid = fork();
@@ -255,11 +257,11 @@ int setrlimit_core() {
     struct rlimit rlim;
     rlim.rlim_cur = 0;      // no core dumps
     rlim.rlim_max = 0;      // no core dumps
-    
+
     if (setrlimit(RLIMIT_CORE, &rlim) < 0) {
         perror("setrlimit RLIMIT_CORE");
         return EXIT_FAILURE;
-    }    
+    }
     return EXIT_SUCCESS;
 }
 
@@ -1558,7 +1560,7 @@ int test_connect_and_send(int argc, char **argv) {
     }
 
 
-    // --- TCP ---    
+    // --- TCP ---
     if (sock_type == SOCK_STREAM) {
         if (connect(s, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0) {
             perror("connect (client)");
@@ -1569,7 +1571,7 @@ int test_connect_and_send(int argc, char **argv) {
             perror("send (client)");
             exit(EXIT_FAILURE);
         }
-        
+
         if (listen(s_listen, 1) < 0) {
             perror("listen");
             exit(EXIT_FAILURE);
@@ -1607,14 +1609,14 @@ int test_connect_and_send(int argc, char **argv) {
     } else {
         const char *msg = "Hello from UDP client!";
         ssize_t sent = sendto(s, msg, strlen(msg), 0,
-                                (struct sockaddr *)&server_addr, sizeof(server_addr));  
+                                (struct sockaddr *)&server_addr, sizeof(server_addr));
         if (sent < 0) {
             perror("sendto");
             close(s);
             close(s_listen);
             return EXIT_FAILURE;
         }
-        
+
         // Now wait before closing the socket
         printf("Waiting on port %d\n", listen_port);
         fflush(stdout);  // Send Pid to GO and synchronize with it
@@ -1631,6 +1633,57 @@ int test_connect_and_send(int argc, char **argv) {
         printf("Closing UDP socket...\n");
         fflush(stdout);
     }
+    return EXIT_SUCCESS;
+}
+
+int test_chroot(int argc, char **argv) {
+    if (argc != 2) {
+        fprintf(stderr, "Please specify a directory to change root to\n");
+        return EXIT_FAILURE;
+    }
+
+    const char *new_root = argv[1];
+
+    if (chroot(new_root)) {
+        perror("chroot");
+        return EXIT_FAILURE;
+    }
+
+    return EXIT_SUCCESS;
+}
+
+int test_acct(int argc, char **argv) {
+    int err = acct(NULL);
+    if (err) {
+        perror("acct");
+    }
+    return err;
+}
+
+int test_pause(int argc, char **argv) {
+    if (argc != 1) {
+        fprintf(stderr, "Usage: %s\n", argv[0]);
+        return EXIT_FAILURE;
+    }
+
+    pause();
+
+    return EXIT_SUCCESS;
+}
+
+int test_prctl_setname(int argc, char **argv) {
+    if (argc != 2) {
+        fprintf(stderr, "Please specify a name to set\n");
+        return EXIT_FAILURE;
+    }
+
+    const char *name = argv[1];
+
+    if (prctl(PR_SET_NAME, name, 0, 0, 0) < 0) {
+        perror("prctl(PR_SET_NAME)");
+        return EXIT_FAILURE;
+    }
+
     return EXIT_SUCCESS;
 }
 
@@ -1738,7 +1791,15 @@ int main(int argc, char **argv) {
         } else if (strcmp(cmd, "bind-and-listen") == 0) {
             exit_code = test_bind_and_listen(sub_argc, sub_argv);
         } else if (strcmp(cmd, "connect-and-send") == 0) {
-            exit_code = test_connect_and_send(sub_argc, sub_argv);  
+            exit_code = test_connect_and_send(sub_argc, sub_argv);
+        } else if (strcmp(cmd, "chroot") == 0) {
+            exit_code = test_chroot(sub_argc, sub_argv);
+        } else if (strcmp(cmd, "acct") == 0) {
+            exit_code = test_acct(sub_argc, sub_argv);
+        } else if (strcmp(cmd, "pause") == 0) {
+            exit_code = test_pause(sub_argc, sub_argv);
+        } else if (strcmp(cmd, "prctl-setname") == 0) {
+            exit_code = test_prctl_setname(sub_argc, sub_argv);
         } else {
             fprintf(stderr, "Unknown command: %s\n", cmd);
             exit_code = EXIT_FAILURE;

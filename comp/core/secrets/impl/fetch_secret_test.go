@@ -7,6 +7,7 @@ package secretsimpl
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"maps"
 	"os"
@@ -314,4 +315,37 @@ func TestFetchSecretPayloadIncludesBackendConfig(t *testing.T) {
 	require.NoError(t, err)
 	assert.Contains(t, capturedPayload, `"type":"aws.secrets"`)
 	assert.Contains(t, capturedPayload, `"config":{"foo":"bar"}`)
+}
+
+func TestFetchSecretBackendVersionSuccess(t *testing.T) {
+	tel := nooptelemetry.GetCompatComponent()
+	resolver := newEnabledSecretResolver(tel)
+
+	resolver.versionHookFunc = func() (string, error) {
+		return "test-backend-v1.2.3", nil
+	}
+
+	version, err := resolver.fetchSecretBackendVersion()
+	assert.NoError(t, err)
+	assert.Equal(t, "test-backend-v1.2.3", version)
+}
+
+func TestFetchSecretBackendVersionTimeout(t *testing.T) {
+	tel := nooptelemetry.GetCompatComponent()
+	resolver := newEnabledSecretResolver(tel)
+
+	resolver.versionHookFunc = func() (string, error) {
+		return "", context.DeadlineExceeded
+	}
+
+	_, err := resolver.fetchSecretBackendVersion()
+	assert.Error(t, err)
+}
+
+func TestFetchSecretBackendVersionNoBackendType(t *testing.T) {
+	tel := nooptelemetry.GetCompatComponent()
+	resolver := newEnabledSecretResolver(tel)
+	_, err := resolver.fetchSecretBackendVersion()
+	assert.Error(t, err)
+	assert.ErrorContains(t, err, "secret_backend_type")
 }

@@ -271,7 +271,7 @@ var defaultProfiles = `
       start_after: 30
       iterations: 0
       period: 900
-  - name: api
+  - name: connectivity
     metric:
       exclude:
         zero_metric: true
@@ -283,6 +283,17 @@ var defaultProfiles = `
             - method
             - path
             - auth
+        - name: grpc.request_duration_seconds
+          aggregate_tags:
+            - service_method
+        - name: grpc.request_count
+          aggregate_tags:
+            - service_method
+            - status
+        - name: grpc.error_count
+          aggregate_tags:
+            - service_method
+            - error_code
     schedule:
       start_after: 600
       iterations: 0
@@ -363,6 +374,28 @@ var defaultProfiles = `
             - host
     schedule:
       start_after: 30
+      iterations: 0
+      period: 900
+  - name: trace-agent
+    metric:
+      exclude:
+        zero_metric: true
+      metrics:
+        - name: trace.running
+          aggregate_tags:
+            - state
+    schedule:
+      start_after: 60
+      iterations: 0
+      period: 900
+  - name: gpu
+    metric:
+      exclude:
+        zero_metric: true
+      metrics:
+        - name: gpu.device_total
+    schedule:
+      start_after: 60
       iterations: 0
       period: 900
 `

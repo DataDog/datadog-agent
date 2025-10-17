@@ -1,7 +1,7 @@
 .lint:
   stage: lint
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
-  tags: ["arch:amd64"]
+  tags: ["arch:amd64", "specific:true"]
   needs: []
   retry: !reference [.retry_only_infra_failure, retry]
 
@@ -46,7 +46,7 @@ lint_components:
 lint_python:
   extends: .lint
   script:
-    - dda inv -- -e linter.python
+    - dda inv -- -e linter.python --show-versions
 
 lint_update_go:
   extends: .lint

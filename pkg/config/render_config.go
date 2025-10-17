@@ -8,12 +8,16 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
 	"html/template"
 	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
+
+	"github.com/pmezard/go-difflib/difflib"
+	"gopkg.in/yaml.v3"
 )
 
 // context contains the context used to render the config file template
@@ -22,7 +26,6 @@ type context struct {
 	Common                           bool
 	Agent                            bool
 	Python                           bool // Sub-option of Agent
-	BothPythonPresent                bool // Sub-option of Agent - Python
 	Metadata                         bool
 	InternalProfiling                bool
 	Dogstatsd                        bool
@@ -61,6 +64,7 @@ type context struct {
 	APMInjection                     bool
 	NetworkPath                      bool
 	ApplicationMonitoring            bool
+	Synthetics                       bool
 }
 
 func mkContext(buildType string) context {
@@ -94,13 +98,11 @@ func mkContext(buildType string) context {
 		PrometheusScrape:  true,
 		OTLP:              true,
 		NetworkPath:       true,
+		Synthetics:        true,
 	}
 
 	switch buildType {
 	case "agent-py3":
-		return agentContext
-	case "agent-py2py3":
-		agentContext.BothPythonPresent = true
 		return agentContext
 	case "iot-agent":
 		return context{
@@ -196,5 +198,71 @@ func main() {
 		panic(err)
 	}
 
+	if err := f.Close(); err != nil {
+		panic(err)
+	}
+
+	if err := lint(destFile); err != nil {
+		panic(err)
+	}
+
 	fmt.Println("Successfully wrote", destFile)
+}
+
+// lint reads the YAML file at destFile, unmarshals it into a yaml.Node,
+// re-encodes it, and compares the output to detect unintended changes.
+// It returns an error if the re-encoded content differs from the original.
+//
+// The intent is to ensure that there are no large or confusing changes
+// when the config is processed by yaml.Node. Fleet automation makes
+// configuration changes and we want to ensure the input and output
+// are reasonably stable.
+func lint(destFile string) error {
+	originalBytes, err := os.ReadFile(destFile)
+	if err != nil {
+		return fmt.Errorf("lint: failed to read file: %w", err)
+	}
+
+	// Normalize CRLF to LF to avoid platform-specific differences.
+	normalized := bytes.ReplaceAll(originalBytes, []byte("\r"), []byte(""))
+
+	var root yaml.Node
+	if err := yaml.Unmarshal(normalized, &root); err != nil {
+		return fmt.Errorf("lint: YAML unmarshal failed: %w", err)
+	}
+	if len(root.Content) == 0 {
+		// Add a single lint_testing node to the original bytes.
+		//
+		// if there are no nodes then all comments are removed, so this
+		// allows us to make a comparison even for files which only have comments,
+		// such as system-probe.yaml.
+		normalized = append(normalized, []byte("lint_testing: true # ignore me\n")...)
+		if err := yaml.Unmarshal(normalized, &root); err != nil {
+			return fmt.Errorf("lint: YAML unmarshal failed: %w", err)
+		}
+	}
+
+	var buf bytes.Buffer
+	enc := yaml.NewEncoder(&buf)
+	enc.SetIndent(2)
+	if err := enc.Encode(&root); err != nil {
+		return fmt.Errorf("lint: YAML re-encode failed: %w", err)
+	}
+
+	reencoded := buf.Bytes()
+
+	if !bytes.Equal(normalized, reencoded) {
+		origLines := difflib.SplitLines(string(normalized))
+		reencLines := difflib.SplitLines(string(reencoded))
+		ud := difflib.ContextDiff{
+			A:        origLines,
+			B:        reencLines,
+			FromFile: "rendered (original)",
+			ToFile:   "rendered (re-encoded)",
+			Context:  3,
+		}
+		diff, _ := difflib.GetContextDiffString(ud)
+		return fmt.Errorf("linting %s: re-encoding YAML changed the content; please verify template correctness\n\nDiff:\n%s", destFile, diff)
+	}
+	return nil
 }

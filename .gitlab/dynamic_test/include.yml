@@ -1,0 +1,3 @@
+include:
+  - .gitlab/dynamic_test/consolidate.yml
+  - .gitlab/dynamic_test/evaluate.yml

@@ -23,7 +23,9 @@ import (
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	secretsnoopfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx-noop"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/flare"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -52,6 +54,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					LogParams:    log.ForOneShot(command.LoggerName, "OFF", false),
 				}),
 				core.Bundle(),
+				secretsnoopfx.Module(),
 				ipcfx.ModuleReadOnly(),
 			)
 		},
@@ -71,6 +74,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 						LogParams:    log.ForOneShot(command.LoggerName, "OFF", false),
 					}),
 					core.Bundle(),
+					secretsnoopfx.Module(),
 					ipcfx.ModuleReadOnly(),
 				)
 			},
@@ -82,7 +86,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 }
 
 func reset(_ *cliParams, config config.Component, ipc ipc.Component) error {
-	if !pkgconfigsetup.IsRemoteConfigEnabled(config) {
+	if !configUtils.IsRemoteConfigEnabled(config) {
 		return errors.New("remote configuration is not enabled")
 	}
 	fmt.Println("Resetting the remote configuration state...")
@@ -113,7 +117,7 @@ func reset(_ *cliParams, config config.Component, ipc ipc.Component) error {
 }
 
 func state(_ *cliParams, config config.Component, ipc ipc.Component) error {
-	if !pkgconfigsetup.IsRemoteConfigEnabled(config) {
+	if !configUtils.IsRemoteConfigEnabled(config) {
 		return errors.New("remote configuration is not enabled")
 	}
 	fmt.Println("Fetching the configuration and director repos state..")

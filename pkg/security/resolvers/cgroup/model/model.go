@@ -27,7 +27,7 @@ type CacheEntry struct {
 }
 
 // NewCacheEntry returns a new instance of a CacheEntry
-func NewCacheEntry(containerID containerutils.ContainerID, cgroupContext *model.CGroupContext, pids ...uint32) (*CacheEntry, error) {
+func NewCacheEntry(containerID containerutils.ContainerID, cgroupContext *model.CGroupContext, pids ...uint32) *CacheEntry {
 	newCGroup := CacheEntry{
 		Deleted: atomic.NewBool(false),
 		ContainerContext: model.ContainerContext{
@@ -43,7 +43,7 @@ func NewCacheEntry(containerID containerutils.ContainerID, cgroupContext *model.
 	for _, pid := range pids {
 		newCGroup.PIDs[pid] = true
 	}
-	return &newCGroup, nil
+	return &newCGroup
 }
 
 // GetPIDs returns the list of pids for the current workload

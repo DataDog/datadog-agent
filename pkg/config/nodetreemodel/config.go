@@ -15,12 +15,13 @@ import (
 	"path/filepath"
 	"reflect"
 	"slices"
+	"sort"
 	"strings"
 	"sync"
 
 	"go.uber.org/atomic"
 
-	"github.com/mitchellh/mapstructure"
+	mapstructure "github.com/go-viper/mapstructure/v2"
 
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -71,6 +72,9 @@ type ntmConfig struct {
 	// - it's okay to modify the config schema after it gets built
 	// - unknown keys can be assigned and retrieved
 	allowDynamicSchema *atomic.Bool
+	// state of env vars, only used by tests to decide when to rebuild the env var layer. Necessary because
+	// viper would lookup env vars at runtime, instead of storing them, and many many tests rely on this behavior
+	lastEnvVarState string
 
 	// tree debugger is used by the Stringify method, useful for debugging and test assertions
 	td *treeDebugger
@@ -152,13 +156,14 @@ func (c *ntmConfig) OnUpdate(callback model.NotificationReceiver) {
 
 func (c *ntmConfig) addToSchema(key string, source model.Source) {
 	parts := splitKey(key)
-	_, _ = c.schema.SetAt(parts, nil, source)
-
+	_ = c.schema.SetAt(parts, nil, source)
 	c.addToKnownKeys(key)
 }
 
 func (c *ntmConfig) getTreeBySource(source model.Source) (InnerNode, error) {
 	switch source {
+	case "root":
+		return c.root, nil
 	case model.SourceDefault:
 		return c.defaults, nil
 	case model.SourceUnknown:
@@ -178,7 +183,7 @@ func (c *ntmConfig) getTreeBySource(source model.Source) (InnerNode, error) {
 	case model.SourceCLI:
 		return c.cli, nil
 	}
-	return nil, fmt.Errorf("invalid source tree: %s", source)
+	return nil, fmt.Errorf("invalid source: %s", source)
 }
 
 // SetTestOnlyDynamicSchema allows more flexible usage of the config, should only be used by tests
@@ -198,53 +203,65 @@ func (c *ntmConfig) RevertFinishedBackToBuilder() model.BuildableConfig {
 func (c *ntmConfig) Set(key string, newValue interface{}, source model.Source) {
 	c.maybeRebuild()
 
-	tree, err := c.getTreeBySource(source)
-	if err != nil {
-		log.Errorf("Set invalid source: %s", source)
-		return
-	}
+	c.Lock()
 
-	if !c.IsKnown(key) {
+	if !c.isKnownKey(key) {
 		if c.allowDynamicSchema.Load() {
 			log.Errorf("set value for unknown key '%s'", key)
 		} else {
 			log.Errorf("could not set '%s' unknown key", key)
+			c.Unlock()
 			return
 		}
 	}
+	schemaNode := c.nodeAtPathFromNode(key, c.schema)
+	if _, ok := schemaNode.(LeafNode); schemaNode != missingLeaf && !ok {
+		panicInTest("Key '%s' is not a setting but part of the config tree: 'Set' method only works on settings", key)
+		c.Unlock()
+		return
+	}
+
 	// convert the key to lower case for the logs line and the notification
 	key = strings.ToLower(key)
 
-	c.Lock()
-	defer c.Unlock()
 	previousValue := c.leafAtPathFromNode(key, c.root).Get()
 
-	parts := splitKey(key)
-
-	_, err = tree.SetAt(parts, newValue, source)
+	newTree, err := c.insertValueIntoTree(key, newValue, source)
 	if err != nil {
-		log.Errorf("could not set '%s' invalid key: %s", key, err)
-	}
-
-	updated, err := c.root.SetAt(parts, newValue, source)
-	if err != nil {
-		log.Errorf("could not set '%s' invalid key: %s", key, err)
+		log.Errorf("could not insert value: %s", err)
+		c.Unlock()
+		return
+	} else if newTree != nil {
+		// a new node was allocated, merge it into root
+		c.root, _ = c.root.Merge(newTree.(InnerNode))
 	}
 
 	receivers := slices.Clone(c.notificationReceivers)
 
 	// if no value has changed we don't notify
-	if !updated || reflect.DeepEqual(previousValue, newValue) {
+	if reflect.DeepEqual(previousValue, newValue) {
+		c.Unlock()
 		return
 	}
 
 	c.sequenceID++
+	c.Unlock()
 
 	// notifying all receiver about the updated setting
 	for _, receiver := range receivers {
 		receiver(key, source, previousValue, newValue, c.sequenceID)
 	}
+}
 
+func (c *ntmConfig) insertValueIntoTree(key string, value interface{}, source model.Source) (Node, error) {
+	tree, err := c.getTreeBySource(source)
+	if err != nil {
+		return nil, log.Errorf("Set invalid source: %s", source)
+	}
+
+	parts := splitKey(key)
+	err = tree.SetAt(parts, value, source)
+	return tree, err
 }
 
 // SetWithoutSource assigns the value to the given key using source Unknown, may only be called from tests
@@ -282,7 +299,7 @@ func (c *ntmConfig) SetDefault(key string, value interface{}) {
 	parts := splitKey(key)
 	// TODO: Ensure that for default tree, setting nil to a node will not override
 	// an existing value
-	_, _ = c.defaults.SetAt(parts, value, model.SourceDefault)
+	_ = c.defaults.SetAt(parts, value, model.SourceDefault)
 }
 
 func (c *ntmConfig) findPreviousSourceNode(key string, source model.Source) (Node, error) {
@@ -426,10 +443,24 @@ func (c *ntmConfig) isKnownKey(key string) bool {
 
 func (c *ntmConfig) maybeRebuild() {
 	if c.allowDynamicSchema.Load() {
+		// Write-lock because the root will be written to in order to rebuild the state
+		c.Lock()
+		defer c.Unlock()
+
+		// Only need to rebuild if env vars have different state than last rebuild
+		envs := os.Environ()
+		sort.Strings(envs)
+		envVarState := strings.Join(envs, "$")
+		if c.lastEnvVarState == envVarState {
+			return
+		}
+		c.lastEnvVarState = envVarState
+
 		// building the schema may access data from the config, disable the dynamic schema
 		// flag to prevent recursive rebuilds
 		c.allowDynamicSchema.Store(false)
 		defer func() { c.allowDynamicSchema.Store(true) }()
+
 		c.buildSchema()
 	}
 }
@@ -439,8 +470,6 @@ func (c *ntmConfig) maybeRebuild() {
 //
 // Must be called with the lock read-locked.
 func (c *ntmConfig) checkKnownKey(key string) {
-	c.maybeRebuild()
-
 	if c.isKnownKey(key) {
 		return
 	}
@@ -468,23 +497,22 @@ func (c *ntmConfig) mergeAllLayers() error {
 		c.cli,
 	}
 
-	root := newInnerNode(nil)
+	var merged InnerNode = newInnerNode(nil)
 	for _, tree := range treeList {
-		err := root.Merge(tree)
+		next, err := merged.Merge(tree)
 		if err != nil {
 			return err
 		}
+		merged = next
 	}
 
-	c.root = root
+	c.root = merged
 	// recompile allSettings now that we have the full config
 	c.allSettings = c.computeAllSettings("")
 	return nil
 }
 
 func (c *ntmConfig) computeAllSettings(path string) []string {
-	c.maybeRebuild()
-
 	keySet := make(map[string]struct{})
 
 	// 1. Collect all known keys from schema
@@ -573,14 +601,13 @@ func (c *ntmConfig) buildEnvVars() {
 
 func (c *ntmConfig) insertNodeFromString(curr InnerNode, key string, envval string) error {
 	var actualValue interface{} = envval
-	// TODO: When the nodetreemodel config is further along, we should get the default[key] node
-	// and use its type to convert the envval into something appropriate.
+	// TODO: When nodetreemodel has a schema with type information, we should
+	// use this type to convert the value, instead of requiring a transformer
 	if transformer, found := c.envTransform[key]; found {
 		actualValue = transformer(envval)
 	}
 	parts := splitKeyFunc(key)
-	_, err := curr.SetAt(parts, actualValue, model.SourceEnvVar)
-	return err
+	return curr.SetAt(parts, actualValue, model.SourceEnvVar)
 }
 
 // ParseEnvAsStringSlice registers a transform function to parse an environment variable as a []string.
@@ -789,6 +816,8 @@ func (c *ntmConfig) SetEnvKeyReplacer(r *strings.Replacer) {
 // UnmarshalKey unmarshals the data for the given key
 // DEPRECATED: use pkg/config/structure.UnmarshalKey instead
 func (c *ntmConfig) UnmarshalKey(key string, _rawVal interface{}, _opts ...func(*mapstructure.DecoderConfig)) error {
+	c.maybeRebuild()
+
 	c.RLock()
 	defer c.RUnlock()
 	c.checkKnownKey(key)
@@ -814,7 +843,12 @@ func (c *ntmConfig) MergeConfig(in io.Reader) error {
 		return err
 	}
 
-	return c.root.Merge(other)
+	merged, err := c.root.Merge(other)
+	if err != nil {
+		return err
+	}
+	c.root = merged
+	return nil
 }
 
 // MergeFleetPolicy merges the configuration from the reader given with an existing config
@@ -849,23 +883,30 @@ func (c *ntmConfig) MergeFleetPolicy(configPath string) error {
 		return err
 	}
 
-	return c.root.Merge(other)
+	merged, err := c.root.Merge(other)
+	if err != nil {
+		return err
+	}
+	c.root = merged
+	return nil
 }
 
 // AllSettings returns all settings from the config
 func (c *ntmConfig) AllSettings() map[string]interface{} {
+	c.maybeRebuild()
+
 	c.RLock()
 	defer c.RUnlock()
-	c.maybeRebuild()
 
 	return c.root.DumpSettings(func(model.Source) bool { return true })
 }
 
 // AllSettingsWithoutDefault returns a copy of the all the settings in the configuration without defaults
 func (c *ntmConfig) AllSettingsWithoutDefault() map[string]interface{} {
+	c.maybeRebuild()
+
 	c.RLock()
 	defer c.RUnlock()
-	c.maybeRebuild()
 
 	// We only want to include leaf with a source higher than SourceDefault
 	return c.root.DumpSettings(func(source model.Source) bool { return source.IsGreaterThan(model.SourceDefault) })
@@ -887,14 +928,16 @@ func (c *ntmConfig) AllSettingsBySource() map[model.Source]interface{} {
 		model.SourceLocalConfigProcess: c.localConfigProcess.DumpSettings(func(model.Source) bool { return true }),
 		model.SourceRC:                 c.remoteConfig.DumpSettings(func(model.Source) bool { return true }),
 		model.SourceCLI:                c.cli.DumpSettings(func(model.Source) bool { return true }),
+		model.SourceProvided:           c.root.DumpSettings(func(src model.Source) bool { return src != model.SourceDefault }),
 	}
 }
 
 // AllSettingsWithSequenceID returns the settings and the sequence ID.
 func (c *ntmConfig) AllSettingsWithSequenceID() (map[string]interface{}, uint64) {
+	c.maybeRebuild()
+
 	c.RLock()
 	defer c.RUnlock()
-	c.maybeRebuild()
 	return c.root.DumpSettings(func(model.Source) bool { return true }), c.sequenceID
 }
 
@@ -976,9 +1019,21 @@ func (c *ntmConfig) ConfigFileUsed() string {
 	return c.configFile
 }
 
+// GetSubfields returns the names of child fields of this setting
+func (c *ntmConfig) GetSubfields(key string) []string {
+	n, err := c.GetNode(key)
+	if err != nil {
+		return nil
+	}
+	if inner, ok := n.(*innerNode); ok {
+		return inner.ChildrenKeys()
+	}
+	return nil
+}
+
 // BindEnvAndSetDefault binds an environment variable and sets a default for the given key
 func (c *ntmConfig) BindEnvAndSetDefault(key string, val interface{}, envvars ...string) {
-	c.BindEnv(key, envvars...) //nolint:errcheck
+	c.BindEnv(key, envvars...) //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv' //nolint:errcheck
 	c.SetDefault(key, val)
 }
 
@@ -1012,6 +1067,7 @@ func NewNodeTreeConfig(name string, envPrefix string, envKeyReplacer *strings.Re
 		remoteConfig:       newInnerNode(nil),
 		fleetPolicies:      newInnerNode(nil),
 		cli:                newInnerNode(nil),
+		root:               newInnerNode(nil),
 		envTransform:       make(map[string]func(string) interface{}),
 		configName:         "datadog",
 	}

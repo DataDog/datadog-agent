@@ -1,13 +1,15 @@
 ARG AGENT_REPO=datadog/agent-dev
 ARG AGENT_VERSION=nightly-full-main-jmx
 ARG AGENT_BRANCH=main
+ARG UBUNTU_VERSION=24.04
 # Use the Ubuntu Slim AMD64 base image
-FROM ubuntu:24.04 AS builder
+FROM ubuntu:${UBUNTU_VERSION} AS builder
 
 # Set environment variables
 ARG AGENT_REPO
 ARG AGENT_VERSION
 ARG AGENT_BRANCH
+ARG DDA_VERSION
 ENV DEBIAN_FRONTEND=noninteractive
 
 # Set the working directory
@@ -21,9 +23,6 @@ RUN apt-get update && \
     software-properties-common \
     build-essential \
     git \
-    python3 \
-    python3-pip \
-    python3-venv \
     rpm \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
@@ -58,32 +57,35 @@ ENV GOPATH=/go
 
 # Verify installations
 RUN go version && \
-    python3 --version && \
     curl --version
 
-# Create and activate virtual environment, then install requirements
-RUN python3 -m venv venv && \
-    . venv/bin/activate && \
-    pip install --upgrade pip && \
-    pip install dda && \
+ENV DDA_INTERACTIVE=false
+# Install prebuilt dda and sync tasks
+RUN ARCH=$(dpkg --print-architecture) && \
+    DDA_VERSION=${DDA_VERSION} && \
+    if [ "$ARCH" = "amd64" ]; then DDA_ARCH="x86_64"; \
+    elif [ "$ARCH" = "arm64" ]; then DDA_ARCH="aarch64"; fi && \
+    curl -fsSL "https://github.com/DataDog/datadog-agent-dev/releases/download/${DDA_VERSION}/dda-${DDA_ARCH}-unknown-linux-gnu.tar.gz" \
+    | tar -xzf - -C /usr/local/bin && \
+    chmod +x /usr/local/bin/dda && \
     dda self dep sync -f legacy-tasks
+
 
 # Copy the manifest file
 COPY manifest.yaml /workspace/datadog-agent-${AGENT_BRANCH}/comp/otelcol/collector-contrib/impl/manifest.yaml
 
 # Generate the files
-RUN . venv/bin/activate && dda inv collector.generate
+RUN dda inv collector.generate
 
 # Build the OTel agent
-RUN . venv/bin/activate && dda inv otel-agent.build --byoc
+RUN dda inv otel-agent.build --byoc
 
 # Install nfpm if package type is specified
 ARG PACKAGE_TYPE
 RUN if [ -n "$PACKAGE_TYPE" ]; then \
     ARCH=$(dpkg --print-architecture) && \
     if [ "$ARCH" = "amd64" ]; then ARCH="x86_64"; fi && \
-    curl -sL -o /usr/local/bin/nfpm https://github.com/goreleaser/nfpm/releases/download/v2.43.0/nfpm_2.43.0_linux_${ARCH}.tar.gz && \
-    tar -xzf /usr/local/bin/nfpm -C /usr/local/bin/ && \
+    curl -fsSL "https://github.com/goreleaser/nfpm/releases/download/v2.43.0/nfpm_2.43.0_linux_${ARCH}.tar.gz" | tar -xzf - -C /usr/local/bin/ && \
     chmod +x /usr/local/bin/nfpm; \
     fi
 
@@ -105,9 +107,19 @@ description: "Datadog Distribution of OpenTelemetry Collector (Custom)"
 contents:
   - src: bin/otel-agent/otel-agent
     dst: /opt/datadog-agent/embedded/bin/otel-agent
-    type: file
     file_info:
       mode: 0755
+  - src: bin/otel-agent/dist/otel-config.yaml
+    dst: /etc/datadog-agent/otel-config.yaml.example
+conflicts:
+  - datadog-agent-ddot
+overrides:
+  deb:
+    depends:
+      - "datadog-agent (= 1:${AGENT_VERSION}-1)"
+  rpm:
+    depends:
+      - "datadog-agent = 1:${AGENT_VERSION}-1"
 EOF
   nfpm package --config nfpm.yaml --target /dist --packager "${PACKAGE_TYPE}"
 else

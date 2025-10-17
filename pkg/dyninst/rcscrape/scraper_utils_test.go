@@ -15,8 +15,18 @@ func (s *Scraper) GetTrackedProcesses() []procmon.ProcessID {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	var processes []procmon.ProcessID
-	for _, p := range s.mu.debouncer.processes {
-		processes = append(processes, p.ProcessID)
+	for pid := range s.mu.processes {
+		processes = append(processes, pid)
 	}
 	return processes
 }
+
+// NewScraperWithIRGenerator creates a new Scraper with a custom IR generator
+// for testing.
+func NewScraperWithIRGenerator[A Actuator[AT], AT ActuatorTenant](
+	a A, d Dispatcher, loader Loader, irGenerator IRGenerator,
+) *Scraper {
+	return newScraper(a, d, loader, irGenerator)
+}
+
+type IRGeneratorImpl = irGenerator

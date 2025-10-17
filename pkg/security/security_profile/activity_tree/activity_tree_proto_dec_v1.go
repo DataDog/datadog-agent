@@ -44,6 +44,7 @@ func protoDecodeProcessActivityNode(parent ProcessNodeParent, pan *adproto.Proce
 		Syscalls:       make([]*SyscallNode, 0, len(pan.SyscallNodes)),
 		NodeBase:       NewNodeBase(),
 		NetworkDevices: make(map[model.NetworkDeviceContext]*NetworkDeviceNode, len(pan.NetworkDevices)),
+		Capabilities:   make([]*CapabilityNode, 0, len(pan.CapabilityNodes)),
 	}
 
 	if pan.NodeBase != nil {
@@ -94,6 +95,10 @@ func protoDecodeProcessActivityNode(parent ProcessNodeParent, pan *adproto.Proce
 			IfIndex: networkDevice.Ifindex,
 			IfName:  networkDevice.Ifname,
 		}] = protoDecodeNetworkDevice(networkDevice)
+	}
+
+	for _, capNode := range pan.CapabilityNodes {
+		ppan.Capabilities = append(ppan.Capabilities, decodeProtoCapabilityNode(capNode))
 	}
 
 	return ppan
@@ -207,13 +212,25 @@ func protoDecodeFileEvent(fi *adproto.FileInfo) *model.FileEvent {
 		Filesystem:    fi.Filesystem,
 		PkgName:       fi.PackageName,
 		PkgVersion:    fi.PackageVersion,
-		PkgSrcVersion: fi.PackageSrcversion,
+		PkgEpoch:      int(ptrOrZero(fi.PackageEpoch)),
+		PkgRelease:    ptrOrZero(fi.PackageRelease),
+		PkgSrcVersion: fi.PackageSrcVersion,
+		PkgSrcEpoch:   int(ptrOrZero(fi.PackageSrcEpoch)),
+		PkgSrcRelease: ptrOrZero(fi.PackageSrcRelease),
 		Hashes:        make([]string, len(fi.Hashes)),
 		HashState:     model.HashState(fi.HashState),
 	}
 	copy(fe.Hashes, fi.Hashes)
 
 	return fe
+}
+
+func ptrOrZero[T any](ptr *T) T {
+	if ptr != nil {
+		return *ptr
+	}
+	var zero T
+	return zero
 }
 
 func protoDecodeFileActivityNode(fan *adproto.FileActivityNode) *FileNode {
@@ -507,4 +524,27 @@ func protoDecodeProtoMatchedRule(r *adproto.MatchedRule) *model.MatchedRule {
 // ProtoDecodeTimestamp decodes a nanosecond representation of a timestamp
 func ProtoDecodeTimestamp(nanos uint64) time.Time {
 	return time.Unix(0, int64(nanos))
+}
+
+func decodeProtoCapabilityNode(pan *adproto.CapabilityNode) *CapabilityNode {
+	if pan == nil {
+		return nil
+	}
+
+	capNode := &CapabilityNode{
+		NodeBase:       NewNodeBase(),
+		GenerationType: Runtime,
+		Capability:     pan.Capability,
+		Capable:        pan.IsCapable,
+	}
+
+	if pan.NodeBase != nil {
+		for tag, imageTagTimes := range pan.NodeBase.Seen {
+			firstSeen := ProtoDecodeTimestamp(imageTagTimes.FirstSeen)
+			lastSeen := ProtoDecodeTimestamp(imageTagTimes.LastSeen)
+			capNode.RecordWithTimestamps(tag, firstSeen, lastSeen)
+		}
+	}
+
+	return capNode
 }

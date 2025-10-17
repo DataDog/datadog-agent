@@ -85,9 +85,6 @@ type Config struct {
 	// EnvsWithValue lists environnement variables that will be fully exported
 	EnvsWithValue []string
 
-	// RuntimeMonitor defines if the Go runtime and system monitor should be enabled
-	RuntimeMonitor bool
-
 	// EventStreamUseRingBuffer specifies whether to use eBPF ring buffers when available
 	EventStreamUseRingBuffer bool
 
@@ -173,6 +170,14 @@ type Config struct {
 
 	// SpanTrackingCacheSize is the size of the span tracking cache
 	SpanTrackingCacheSize int
+
+	// CapabilitiesMonitoringEnabled defines whether process capabilities usage should be reported
+	CapabilitiesMonitoringEnabled bool
+	// CapabilitiesMonitoringPeriod defines the period at which process capabilities usage events should be reported back to userspace
+	CapabilitiesMonitoringPeriod time.Duration
+
+	// SnapshotUsingListmount enables the use of listmount to take filesystem mount snapshots
+	SnapshotUsingListmount bool
 }
 
 // NewConfig returns a new Config object
@@ -194,7 +199,6 @@ func NewConfig() (*Config, error) {
 		ERPCDentryResolutionEnabled:        getBool("erpc_dentry_resolution_enabled"),
 		MapDentryResolutionEnabled:         getBool("map_dentry_resolution_enabled"),
 		DentryCacheSize:                    getInt("dentry_cache_size"),
-		RuntimeMonitor:                     getBool("runtime_monitor.enabled"),
 		NetworkLazyInterfacePrefixes:       getStringSlice("network.lazy_interface_prefixes"),
 		NetworkClassifierPriority:          uint16(getInt("network.classifier_priority")),
 		NetworkClassifierHandle:            uint16(getInt("network.classifier_handle")),
@@ -231,6 +235,13 @@ func NewConfig() (*Config, error) {
 		// span tracking
 		SpanTrackingEnabled:   getBool("span_tracking.enabled"),
 		SpanTrackingCacheSize: getInt("span_tracking.cache_size"),
+
+		// Process capabilities monitoring
+		CapabilitiesMonitoringEnabled: getBool("capabilities_monitoring.enabled"),
+		CapabilitiesMonitoringPeriod:  getDuration("capabilities_monitoring.period"),
+
+		// Mount resolver
+		SnapshotUsingListmount: getBool("snapshot_using_listmount"),
 	}
 
 	if err := c.sanitize(); err != nil {

@@ -7,14 +7,15 @@ package cloudservice
 
 import (
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/metrics"
-	serverlessMetrics "github.com/DataDog/datadog-agent/pkg/serverless/metrics"
 	"io"
 	"net/http"
 	"os"
 	"strings"
 	"time"
 
+	"github.com/DataDog/datadog-agent/cmd/serverless-init/metric"
+	"github.com/DataDog/datadog-agent/pkg/metrics"
+	serverlessMetrics "github.com/DataDog/datadog-agent/pkg/serverless/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -131,6 +132,11 @@ func (c *CloudRun) getFunctionTags(tags map[string]string) map[string]string {
 	return tags
 }
 
+// GetDefaultLogsSource returns the default logs source if `DD_SOURCE` is not set
+func (c *CloudRun) GetDefaultLogsSource() string {
+	return CloudRunOrigin
+}
+
 // GetOrigin returns the `origin` attribute type for the given
 // cloud service.
 func (c *CloudRun) GetOrigin() string {
@@ -147,17 +153,14 @@ func (c *CloudRun) Init() error {
 	return nil
 }
 
-// Shutdown is empty for CloudRun
-func (c *CloudRun) Shutdown(serverlessMetrics.ServerlessMetricAgent) {}
+// Shutdown emits the shutdown metric for CloudRun
+func (c *CloudRun) Shutdown(agent serverlessMetrics.ServerlessMetricAgent, _ error) {
+	metric.Add(fmt.Sprintf("%s.enhanced.shutdown", cloudRunPrefix), 1.0, c.GetSource(), agent)
+}
 
 // GetStartMetricName returns the metric name for container start (coldstart) events
 func (c *CloudRun) GetStartMetricName() string {
 	return fmt.Sprintf("%s.enhanced.cold_start", cloudRunPrefix)
-}
-
-// GetShutdownMetricName returns the metric name for container shutdown events
-func (c *CloudRun) GetShutdownMetricName() string {
-	return fmt.Sprintf("%s.enhanced.shutdown", cloudRunPrefix)
 }
 
 // ShouldForceFlushAllOnForceFlushToSerializer is false usually.

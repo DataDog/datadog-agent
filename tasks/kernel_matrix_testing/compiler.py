@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, cast
 
 import yaml
 from invoke.context import Context
+from invoke.exceptions import CommandTimedOut
 from invoke.runners import Result
 
 from tasks.kernel_matrix_testing.tool import Exit, info, warn
@@ -21,6 +22,7 @@ if TYPE_CHECKING:
 
 
 CONTAINER_AGENT_PATH = "/tmp/datadog-agent"
+MARKER_IMAGE_PREPARED = "/tmp/kmt-image-prepared"
 
 APT_URIS = {"amd64": "http://archive.ubuntu.com/ubuntu/", "arm64": "http://ports.ubuntu.com/ubuntu-ports/"}
 
@@ -54,10 +56,14 @@ class CompilerImage:
         return f"kmt-compiler-{self.arch.name}"
 
     @property
-    def image(self):
+    def expected_image_name(self):
         suffix, version = get_build_image_suffix_and_version()
 
         return f"registry.ddbuild.io/ci/datadog-agent-buildimages/linux{suffix}:{version}"
+
+    @property
+    def running_image_name(self):
+        return get_docker_image_name(self.ctx, self.name)
 
     def _check_container_exists(self, allow_stopped=False):
         if self.ctx.config.run["dry"]:
@@ -130,9 +136,11 @@ class CompilerImage:
         if not self.is_loaded:
             return  # Nothing to do if the container is not loaded
 
-        image_used = get_docker_image_name(self.ctx, self.name)
-        if image_used != self.image:
-            warn(f"[!] Running compiler image {image_used} is different from the expected {self.image}, will restart")
+        image_used = self.running_image_name
+        if image_used != self.expected_image_name:
+            warn(
+                f"[!] Running compiler image {image_used} is different from the expected {self.expected_image_name}, will restart"
+            )
             self.start()
 
     def ensure_in_git_repo(self):
@@ -151,7 +159,6 @@ class CompilerImage:
         self,
         cmd: str,
         user: str = "compiler",
-        verbose=True,
         run_dir: PathOrStr | None = None,
         allow_fail=False,
         force_color=True,
@@ -175,7 +182,7 @@ class CompilerImage:
             Result,
             self.ctx.run(
                 f"docker exec -u {user} -i {color_env} {self.name} bash -l -c \"{cmd}\"",
-                hide=(not verbose),
+                hide=not self.ctx.config.run["echo"],
                 warn=allow_fail,
             ),
         )
@@ -191,10 +198,20 @@ class CompilerImage:
         self.ensure_in_git_repo()
 
         # Check if the image exists
-        res = self.ctx.run(f"docker image inspect {self.image}", hide=True, warn=True)
+        res = self.ctx.run(f"docker image inspect {self.expected_image_name}", hide=True, warn=True)
         if res is None or not res.ok:
-            info(f"[!] Image {self.image} not found, pulling...")
-            self.ctx.run(f"docker pull {self.image}")
+            info(f"[!] Image {self.expected_image_name} not found, pulling (timeout: 7m)...")
+
+            pull_cmd = f"docker pull {self.expected_image_name}"
+
+            try:
+                # It might be waiting for authentication or some other
+                # interactive error, so better to raise an error and notify the user
+                self.ctx.run(pull_cmd, timeout=60 * 5)
+            except CommandTimedOut as e:
+                raise ValueError(
+                    f"Timed out pulling image {self.expected_image_name}, try running {pull_cmd} manually"
+                ) from e
 
         platform = ""
         if self.arch != Arch.local():
@@ -202,7 +219,7 @@ class CompilerImage:
         res = self.ctx.run(
             f"docker run {platform} -d --restart always --name {self.name} "
             f"--mount type=bind,source={get_repo_root()},target={CONTAINER_AGENT_PATH} "
-            f"{self.image} sleep \"infinity\"",
+            f"{self.expected_image_name} sleep \"infinity\"",
             warn=True,
         )
         if res is None or not res.ok:
@@ -217,6 +234,9 @@ class CompilerImage:
                 f"chown {self.host_uid}:{self.host_gid} {CONTAINER_AGENT_PATH} && chown -R {self.host_uid}:{self.host_gid} {CONTAINER_AGENT_PATH}",
                 user="root",
             )
+
+        # We need to make the /go directory writable by the compiler user
+        self.exec("chmod -R a+rw /go", user="root")
 
         cross_arch = ARCH_ARM64 if self.arch == ARCH_AMD64 else ARCH_AMD64
         self.exec("chmod a+rx /root", user="root")  # Some binaries will be in /root and need to be readable
@@ -282,8 +302,17 @@ class CompilerImage:
             user=self.compiler_user,
         )
 
+        self.exec(f"touch {MARKER_IMAGE_PREPARED}", user=self.compiler_user)
+
         info(
-            f"[*] Compiler image {self.name} for {self.arch} started, image {self.image}, compiler user '{self.compiler_user}'"
+            f"[*] Compiler image {self.name} for {self.arch} started, image {self.expected_image_name}, compiler user '{self.compiler_user}'"
+        )
+
+    @property
+    def is_ready(self):
+        return (
+            self.is_running
+            and self.exec(f"test -f {MARKER_IMAGE_PREPARED}", user=self.compiler_user, allow_fail=True).ok
         )
 
 

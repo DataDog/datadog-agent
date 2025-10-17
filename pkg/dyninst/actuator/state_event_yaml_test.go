@@ -106,8 +106,8 @@ func (ye yamlEvent) MarshalYAML() (rv any, err error) {
 
 	case eventProgramAttached:
 		return encodeNodeTag("!attached", map[string]int{
-			"program_id": int(ev.program.ir.ID),
-			"process_id": int(ev.program.procID.PID),
+			"program_id": int(ev.program.programID),
+			"process_id": int(ev.program.processID.PID),
 		})
 
 	case eventProgramAttachingFailed:
@@ -229,7 +229,7 @@ func (ye *yamlEvent) UnmarshalYAML(node *yaml.Node) error {
 		ye.event = eventProgramLoaded{
 			programID: ir.ProgramID(eventData.ProgramID),
 			loaded: &loadedProgram{
-				ir: &ir.Program{ID: ir.ProgramID(eventData.ProgramID)},
+				programID: ir.ProgramID(eventData.ProgramID),
 			},
 		}
 
@@ -256,8 +256,10 @@ func (ye *yamlEvent) UnmarshalYAML(node *yaml.Node) error {
 		}
 		ye.event = eventProgramAttached{
 			program: &attachedProgram{
-				ir:     &ir.Program{ID: ir.ProgramID(eventData.ProgramID)},
-				procID: ProcessID{PID: int32(eventData.ProcessID)},
+				loadedProgram: &loadedProgram{
+					programID: ir.ProgramID(eventData.ProgramID),
+				},
+				processID: ProcessID{PID: int32(eventData.ProcessID)},
 			},
 		}
 

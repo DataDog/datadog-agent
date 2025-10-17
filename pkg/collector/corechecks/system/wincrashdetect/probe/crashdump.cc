@@ -50,6 +50,77 @@ STDMETHODIMP StdioOutputCallbacks::Output(THIS_ IN ULONG, IN PCSTR Text) {
 }
 
 /*
+ * getAgentVersion
+ *
+ * Tries to get the version of Datadog system-probe or agent found in the dump.
+*/
+HRESULT getAgentVersion(IDebugClient* iClient, BUGCHECK_INFO* bugCheckInfo, long* extendedError)
+{
+    // List of DD modules to query version information. Agent should be last.
+    const char* k_ddModuleNames[] = { "system-probe", "agent" };
+    const ULONG k_ddModuleCount = sizeof(k_ddModuleNames)/sizeof(k_ddModuleNames[0]);
+
+    IDebugSymbols2* iSymbols = NULL;
+    HRESULT hr = E_FAIL;
+    ULONG index = 0;
+    ULONG64 base = 0;
+    bool moduleFound = false;
+
+    hr = iClient->QueryInterface(__uuidof(IDebugSymbols2), (void**)&iSymbols);
+    if (S_OK != hr) {
+        *extendedError = RCD_QUERY_SYMBOLS_INTERFACE_FAILED;
+        goto end;
+    }
+
+    // The Datadog driver modules do not have embedded resource tables and
+    // therefore no version information to query.
+    // On the other hand, the agent does have one, its version is more meaningful
+    // and provides a fuller end-to-end context (e.g. feature combinations).
+    // However, since "agent" is a generic name, we will first try query system-probe.
+    for (ULONG i = 0; i < k_ddModuleCount; ++i) {
+        hr = iSymbols->GetModuleByModuleName(k_ddModuleNames[i], 0, &index, &base);
+        if (S_OK != hr) {
+            continue;
+        }
+
+        moduleFound = true;
+
+        // This basically queries the resource table of the module.
+        // Either \StringFileInfo\040904b0\FileVersion or \StringFileInfo\040904b0\ProductVersion
+        // will do.
+        hr = iSymbols->GetModuleVersionInformation(
+                        index,
+                        base,
+                        "\\StringFileInfo\\040904b0\\FileVersion",
+                        bugCheckInfo->agentVersion,
+                        sizeof(bugCheckInfo->agentVersion) - 1,
+                        NULL);
+
+        if (S_OK == hr) {
+            // We successfully got the version.
+            // Null termination should already be included but we will guarantee it.
+            bugCheckInfo->agentVersion[sizeof(bugCheckInfo->agentVersion) - 1] = 0;
+            break;
+        }
+    }
+
+    if (S_OK != hr) {
+        *extendedError = !moduleFound ? RCD_DD_MODULE_NOT_FOUND :
+                                        RCD_GET_MODULE_VERSION_INFO_FAILED;
+        goto end;
+    }
+
+end:
+
+    if (NULL != iSymbols) {
+        iSymbols->Release();
+    }
+
+    return hr;
+}
+
+
+/*
  * readCrashDump
  *
  * the caller of this is calling from `go`.  We can't really log.
@@ -123,6 +194,13 @@ READ_CRASH_DUMP_ERROR readCrashDump(char* fname, void* ctx, BUGCHECK_INFO* bugCh
     if (S_OK != hr) {
         *extendedError = hr;
         ret = RCD_EXECUTE_FAILED;
+        goto end;
+    }
+
+    hr = getAgentVersion(iClient, bugCheckInfo, extendedError);
+    if (S_OK != hr) {
+        // Ignore the error and return what is available.
+        hr = S_OK;
         goto end;
     }
 

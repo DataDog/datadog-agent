@@ -493,8 +493,8 @@ func (t *Tailer) Identifier() string {
 // Identifier returns the unique identifier of the current journald config
 func Identifier(config *config.LogsConfig) string {
 	id := "default"
-	if config.ConfigId != "" {
-		id = config.ConfigId
+	if config.ConfigID != "" {
+		id = config.ConfigID
 	} else if config.Path != "" {
 		id = config.Path
 	}

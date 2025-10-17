@@ -50,7 +50,12 @@ func (r probeDefinition) GetThrottleConfig() ir.ThrottleConfig {
 
 type probeCaptureConfig struct{}
 
+// For regular probes, this controls max dynamic type sizes, but rcscrape
+// probes directly generate relevant type information with suitable, hardcoded
+// limits.
 func (r probeCaptureConfig) GetMaxCollectionSize() uint32 { return 0 }
+func (r probeCaptureConfig) GetMaxLength() uint32         { return 0 }
+
 func (r probeCaptureConfig) GetMaxFieldCount() uint32     { return 0 }
 func (r probeCaptureConfig) GetMaxReferenceDepth() uint32 { return 3 }
 

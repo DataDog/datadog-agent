@@ -19,8 +19,6 @@ import (
 
 	"go.opentelemetry.io/collector/component/componenttest"
 
-	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
-
 	corecompcfg "github.com/DataDog/datadog-agent/comp/core/config"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
@@ -32,6 +30,7 @@ import (
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/config/structure"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
+	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil/normalize"
 	"github.com/DataDog/datadog-agent/pkg/util/fargate"
@@ -49,7 +48,7 @@ const (
 	mrfPrefix = "mrf."
 )
 
-func setupConfigCommon(deps Dependencies, _ string) (*config.AgentConfig, error) {
+func setupConfigCommon(deps Dependencies) (*config.AgentConfig, error) {
 	confFilePath := deps.Config.ConfigFileUsed()
 
 	return LoadConfigFile(confFilePath, deps.Config, deps.Tagger, deps.IPC)
@@ -81,15 +80,17 @@ func prepareConfig(c corecompcfg.Component, tagger tagger.Component, ipc ipc.Com
 	cfg.DDAgentBin = defaultDDAgentBin
 	cfg.AgentVersion = version.AgentVersion
 	cfg.GitCommit = version.Commit
-	cfg.ReceiverSocket = defaultReceiverSocket
 
 	// the core config can be assumed to already be set-up as it has been
 	// injected as a component dependency
 	// TODO: do not interface directly with pkg/config anywhere
 	coreConfigObject := c.Object()
+
 	if coreConfigObject == nil {
 		return nil, errors.New("no core config found! Bailing out")
 	}
+
+	cfg.ReceiverSocket = coreConfigObject.GetString("apm_config.receiver_socket")
 
 	if !coreConfigObject.GetBool("disable_file_logging") {
 		cfg.LogFilePath = DefaultLogFilePath
@@ -105,7 +106,7 @@ func prepareConfig(c corecompcfg.Component, tagger tagger.Component, ipc ipc.Com
 	if p := pkgconfigsetup.Datadog().GetProxies(); p != nil {
 		cfg.Proxy = httputils.GetProxyTransportFunc(p, c)
 	}
-	if pkgconfigsetup.IsRemoteConfigEnabled(coreConfigObject) && coreConfigObject.GetBool("remote_configuration.apm_sampling.enabled") {
+	if utils.IsRemoteConfigEnabled(coreConfigObject) && coreConfigObject.GetBool("remote_configuration.apm_sampling.enabled") {
 		client, err := remote(c, ipcAddress, ipc)
 		if err != nil {
 			log.Errorf("Error when subscribing to remote config management %v", err)
@@ -655,6 +656,12 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 	}
 	if k := "ol_proxy_config.api_version"; core.IsSet(k) {
 		c.OpenLineageProxy.APIVersion = core.GetInt(k)
+	}
+	if k := "apm_config.debug_v1_payloads"; core.IsSet(k) {
+		c.DebugV1Payloads = core.GetBool("apm_config.debug_v1_payloads")
+	}
+	if k := "apm_config.enable_v1_trace_endpoint"; core.IsSet(k) {
+		c.EnableV1TraceEndpoint = core.GetBool("apm_config.enable_v1_trace_endpoint")
 	}
 	c.DebugServerPort = core.GetInt("apm_config.debug.port")
 	return nil

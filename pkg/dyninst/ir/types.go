@@ -8,8 +8,10 @@
 package ir
 
 import (
+	"fmt"
 	"iter"
 	"reflect"
+	"slices"
 )
 
 // Type represents a an in-memory representation of a type in the target
@@ -20,7 +22,10 @@ type Type interface {
 	GetID() TypeID
 	// GetName returns the name of the type.
 	GetName() string
-	// GetByteSize returns the size of the type in bytes.
+	// GetDynamicSizeClass returns the class of the dynamic size of the type.
+	GetDynamicSizeClass() DynamicSizeClass
+	// GetByteSize returns either the size of the type in bytes, for statically
+	// sized types, or the size of a single element for dynamically sized types.
 	GetByteSize() uint32
 	// GetGoRuntimeType returns the runtime type of the type, if it is associated
 	// with a Go type.
@@ -56,6 +61,7 @@ func (t *GoTypeAttributes) GetGoKind() (reflect.Kind, bool) {
 var (
 	_ Type = (*BaseType)(nil)
 	_ Type = (*PointerType)(nil)
+	_ Type = (*UnresolvedPointeeType)(nil)
 	_ Type = (*StructureType)(nil)
 	_ Type = (*ArrayType)(nil)
 
@@ -87,10 +93,31 @@ func (t *TypeCommon) GetName() string {
 	return t.Name
 }
 
+// GetDynamicSizeClass returns the class of the dynamic size of the type.
+func (t *TypeCommon) GetDynamicSizeClass() DynamicSizeClass {
+	return t.DynamicSizeClass
+}
+
 // GetByteSize returns the size of the type in bytes.
 func (t *TypeCommon) GetByteSize() uint32 {
 	return t.ByteSize
 }
+
+// DynamicSizeClass is the class of the dynamic size of the type.
+type DynamicSizeClass uint8
+
+// Note these enum must match the ebpf/types.h:dynamic_size_class enum.
+const (
+	// StaticSize corresponds to statically sized types.
+	StaticSize DynamicSizeClass = iota
+	// DynamicSizeSlice corresponds to slices.
+	DynamicSizeSlice
+	// DynamicSizeString corresponds to strings.
+	DynamicSizeString
+	// DynamicSizeHashmap corresponds to bucket slice types of hashmaps.
+	// These are given extra space due to expected fraction of empty slots.
+	DynamicSizeHashmap
+)
 
 // TypeCommon has common fields for all types.
 type TypeCommon struct {
@@ -98,6 +125,8 @@ type TypeCommon struct {
 	ID TypeID
 	// Name is the name of the type.
 	Name string
+	// DynamicSize is true if the type is dynamically sized.
+	DynamicSizeClass DynamicSizeClass
 	// ByteSize is the size of the type in bytes.
 	ByteSize uint32
 }
@@ -156,6 +185,25 @@ func (t *StructureType) Fields() iter.Seq[Field] {
 			}
 		}
 	}
+}
+
+// FieldOffsetByName returns the offset of the field with the given name.
+func (t *StructureType) FieldOffsetByName(name string) (uint32, error) {
+	field, ok := t.FieldByName(name)
+	if !ok {
+		return 0, fmt.Errorf("no field %s in struct %s", name, t.Name)
+	}
+	return field.Offset, nil
+}
+
+// FieldByName returns the field with the given name.
+func (t *StructureType) FieldByName(name string) (*Field, bool) {
+	if idx := slices.IndexFunc(t.RawFields, func(f Field) bool {
+		return f.Name == name
+	}); idx >= 0 {
+		return &t.RawFields[idx], true
+	}
+	return nil, false
 }
 
 // Field is a field in a structure.
@@ -336,6 +384,8 @@ type EventRootType struct {
 	TypeCommon
 	syntheticType
 
+	// EventKind is the kind of the event.
+	EventKind EventKind
 	// Bitset tracking successful expression evaluation (one bit per
 	// expression).
 	PresenceBitsetSize uint32
@@ -356,7 +406,43 @@ type RootExpression struct {
 	Name string
 	// Offset is the offset of the expression in the event output.
 	Offset uint32
+	// Kind is the kind of the expression.
+	Kind RootExpressionKind
 	// Expression is the logical operations to be evaluated to produce the
 	// value of the event.
 	Expression Expression
 }
+
+// RootExpressionKind is the kind of a root expression.
+type RootExpressionKind uint8
+
+const (
+	_ RootExpressionKind = iota
+	// RootExpressionKindArgument corresponds to an argument of the event.
+	RootExpressionKindArgument
+	// RootExpressionKindLocal corresponds to a local variable of the event.
+	RootExpressionKindLocal
+	// RootExpressionKindTemplateSegment means that this expression is part of a
+	// template segment.
+	// RootExpressionKindTemplateSegment
+)
+
+func (k RootExpressionKind) String() string {
+	switch k {
+	case RootExpressionKindArgument:
+		return "argument"
+	case RootExpressionKindLocal:
+		return "local"
+	default:
+		return fmt.Sprintf("RootExpressionKind(%d)", k)
+	}
+}
+
+// UnresolvedPointeeType is a placeholder type that represents an unresolved
+// pointee type.
+type UnresolvedPointeeType struct {
+	TypeCommon
+	syntheticType
+}
+
+func (UnresolvedPointeeType) irType() {}

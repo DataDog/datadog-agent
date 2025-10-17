@@ -28,7 +28,7 @@ func TestCollectorsStillInitIfOneFails(t *testing.T) {
 
 	// On the first call, this function returns correctly. On the second it fails.
 	// We need this as we cannot rely on the order of the subsystems in the map.
-	factory := func(_ ddnvml.Device) (Collector, error) {
+	factory := func(_ ddnvml.Device, _ *CollectorDependencies) (Collector, error) {
 		if !factorySucceeded {
 			factorySucceeded = true
 			return succeedCollector, nil
@@ -38,10 +38,11 @@ func TestCollectorsStillInitIfOneFails(t *testing.T) {
 
 	nvmlMock := testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled())
 	ddnvml.WithMockNVML(t, nvmlMock)
-	deviceCache, err := ddnvml.NewDeviceCache()
+	deviceCache := ddnvml.NewDeviceCache()
+	devices, err := deviceCache.AllPhysicalDevices()
 	require.NoError(t, err)
-	deps := &CollectorDependencies{DeviceCache: deviceCache}
-	collectors, err := buildCollectors(deps, map[CollectorName]subsystemBuilder{"ok": factory, "fail": factory}, nil)
+	deps := &CollectorDependencies{NsPidCache: &NsPidCache{}}
+	collectors, err := buildCollectors(devices, deps, map[CollectorName]subsystemBuilder{"ok": factory, "fail": factory})
 	require.NotNil(t, collectors)
 	require.NoError(t, err)
 }
@@ -125,8 +126,7 @@ func TestGetDeviceTagsMapping(t *testing.T) {
 			ddnvml.WithMockNVML(t, nvmlMock)
 
 			// Execute
-			deviceCache, err := ddnvml.NewDeviceCache()
-			require.NoError(t, err)
+			deviceCache := ddnvml.NewDeviceCache()
 			tagsMapping := GetDeviceTagsMapping(deviceCache, fakeTagger)
 
 			// Assert
@@ -141,10 +141,14 @@ func TestAllCollectorsWork(t *testing.T) {
 
 	nvmlMock := testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled(), testutil.WithMockAllFunctions())
 	ddnvml.WithMockNVML(t, nvmlMock)
-	deviceCache, err := ddnvml.NewDeviceCache()
+	deviceCache := ddnvml.NewDeviceCache()
+	eventsGatherer := NewDeviceEventsGatherer()
+	require.NoError(t, eventsGatherer.Start())
+	t.Cleanup(func() { require.NoError(t, eventsGatherer.Stop()) })
+	devices, err := deviceCache.AllPhysicalDevices()
 	require.NoError(t, err)
-	deps := &CollectorDependencies{DeviceCache: deviceCache}
-	collectors, err := BuildCollectors(deps, nil)
+	deps := &CollectorDependencies{DeviceEventsGatherer: eventsGatherer, NsPidCache: &NsPidCache{}}
+	collectors, err := BuildCollectors(devices, deps)
 	require.NoError(t, err)
 	require.NotNil(t, collectors)
 
@@ -153,7 +157,9 @@ func TestAllCollectorsWork(t *testing.T) {
 	for _, collector := range collectors {
 		result, err := collector.Collect()
 		require.NoError(t, err, "collector %s failed to collect", collector.Name())
-		require.NotEmpty(t, result, "collector %s returned empty result", collector.Name())
+		if collector.Name() != deviceEvents {
+			require.NotEmpty(t, result, "collector %s returned empty result", collector.Name())
+		}
 		seenCollectors[collector.Name()] = struct{}{}
 	}
 
@@ -168,12 +174,12 @@ func TestRemoveDuplicateMetrics(t *testing.T) {
 	t.Run("ComprehensiveScenario", func(t *testing.T) {
 		// Test the exact scenario from function comment plus additional edge cases including zero priority
 		allMetrics := map[CollectorName][]Metric{
-			process: {
+			sampling: {
 				{Name: "memory.usage", Priority: High, Tags: []string{"pid:1001"}},
 				{Name: "memory.usage", Priority: High, Tags: []string{"pid:1002"}},
 				{Name: "core.temp", Priority: Low}, // Zero priority (default)
 			},
-			device: {
+			stateless: {
 				{Name: "memory.usage", Priority: Low, Tags: []string{"pid:1003"}},
 				{Name: "fan.speed", Priority: Low}, // Zero priority (default)
 				{Name: "power.draw", Priority: Low},
@@ -184,7 +190,7 @@ func TestRemoveDuplicateMetrics(t *testing.T) {
 				{Name: "voltage", Priority: Low},
 				{Name: "fan.speed", Priority: Low}, // Zero priority tie with CollectorB
 			},
-			samples: {}, // Empty collector
+			field: {}, // Empty collector
 		}
 
 		result := RemoveDuplicateMetrics(allMetrics)
@@ -227,7 +233,7 @@ func TestRemoveDuplicateMetrics(t *testing.T) {
 	t.Run("SingleCollectorMultipleSameName", func(t *testing.T) {
 		// Ensure intra-collector preservation - no deduplication within same collector
 		allMetrics := map[CollectorName][]Metric{
-			process: {
+			sampling: {
 				{Name: "memory.usage", Priority: High, Tags: []string{"pid:1001"}},
 				{Name: "memory.usage", Priority: High, Tags: []string{"pid:1002"}},
 				{Name: "memory.usage", Priority: High, Tags: []string{"pid:1003"}},
@@ -252,10 +258,10 @@ func TestRemoveDuplicateMetrics(t *testing.T) {
 		// Edge case: same metric name with same priority across collectors
 		// First collector (in iteration order) should win
 		allMetrics := map[CollectorName][]Metric{
-			process: {
+			sampling: {
 				{Name: "metric1", Priority: Low, Tags: []string{"tagA"}},
 			},
-			device: {
+			stateless: {
 				{Name: "metric1", Priority: Low, Tags: []string{"tagB"}},
 			},
 		}
@@ -277,8 +283,8 @@ func TestRemoveDuplicateMetrics(t *testing.T) {
 
 		t.Run("EmptyCollectors", func(t *testing.T) {
 			allMetrics := map[CollectorName][]Metric{
-				process: {},
-				ebpf:    {},
+				sampling: {},
+				ebpf:     {},
 			}
 			result := RemoveDuplicateMetrics(allMetrics)
 			require.Len(t, result, 0)
@@ -286,8 +292,8 @@ func TestRemoveDuplicateMetrics(t *testing.T) {
 
 		t.Run("MixedEmptyAndNonEmpty", func(t *testing.T) {
 			allMetrics := map[CollectorName][]Metric{
-				process: {},
-				device: {
+				sampling: {},
+				stateless: {
 					{Name: "metric1", Priority: Low},
 				},
 			}

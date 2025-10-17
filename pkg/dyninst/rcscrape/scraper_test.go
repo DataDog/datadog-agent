@@ -8,6 +8,7 @@
 package rcscrape_test
 
 import (
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"net"
@@ -23,10 +24,13 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/goleak"
 
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/actuator"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/dispatcher"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/dyninsttest"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/loader"
@@ -38,7 +42,7 @@ import (
 
 func TestMain(m *testing.M) {
 	dyninsttest.SetupLogging()
-	os.Exit(m.Run())
+	goleak.VerifyTestMain(m, goleak.IgnoreCurrent())
 }
 
 // TestScrapeRemoteConfig tests that the scraper can scrape remote config
@@ -53,9 +57,19 @@ func TestScrapeRemoteConfig(t *testing.T) {
 	dyninsttest.SkipIfKernelNotSupported(t)
 
 	cfgs := testprogs.MustGetCommonConfigs(t)
-	for _, program := range []string{"rc_tester", "rc_tester_v1"} {
+
+	testCases := []struct {
+		program      string
+		symdbSupport bool
+	}{
+		{"rc_tester", true},
+		// rc_tester_v1 (using the v1 version of dd-trace-go) does not support
+		// reading the remote config key controlling the SymDB upload.
+		{"rc_tester_v1", false},
+	}
+	for _, tc := range testCases {
 		for _, cfg := range cfgs {
-			t.Run(program+"-"+cfg.String(), func(t *testing.T) {
+			t.Run(tc.program+"-"+cfg.String(), func(t *testing.T) {
 				if cfg.GOARCH != runtime.GOARCH {
 					t.Skipf(
 						"cross-execution is not supported, running on %s",
@@ -63,13 +77,18 @@ func TestScrapeRemoteConfig(t *testing.T) {
 					)
 				}
 				t.Parallel()
-				runScrapeRemoteConfigTest(t, program, cfg)
+				runScrapeRemoteConfigTest(t, tc.program, cfg, tc.symdbSupport)
 			})
 		}
 	}
 }
 
-func runScrapeRemoteConfigTest(t *testing.T, program string, cfg testprogs.Config) {
+func runScrapeRemoteConfigTest(
+	t *testing.T,
+	program string,
+	cfg testprogs.Config,
+	symDBSupport bool,
+) {
 	tmpDir, cleanupTmpDir := dyninsttest.PrepTmpDir(
 		t, strings.ReplaceAll(t.Name(), "/", "_"),
 	)
@@ -91,6 +110,8 @@ func runScrapeRemoteConfigTest(t *testing.T, program string, cfg testprogs.Confi
 		"DD_REMOTE_CONFIGURATION_ENABLED=true",
 		"DD_REMOTE_CONFIG_POLL_INTERVAL_SECONDS=.01",
 		"DD_SERVICE=rc_tester",
+		"DD_ENV=test",
+		"DD_VERSION=1.0.0",
 		"DD_REMOTE_CONFIG_TUF_NO_VERIFICATION=true",
 	}
 	childStdout, err := os.Create(path.Join(tmpDir, "child.stdout"))
@@ -107,12 +128,18 @@ func runScrapeRemoteConfigTest(t *testing.T, program string, cfg testprogs.Confi
 		_ = child.Process.Kill()
 		_ = child.Wait()
 	}()
+	a := actuator.NewActuator()
+	t.Cleanup(func() { require.NoError(t, a.Shutdown()) })
 	loader, err := loader.NewLoader()
 	require.NoError(t, err)
-	a := actuator.NewActuator(loader)
-	rcScraper := rcscrape.NewScraper(a)
+	t.Cleanup(func() { require.NoError(t, loader.Close()) })
+	dispatcher := dispatcher.NewDispatcher(loader.OutputReader())
+	t.Cleanup(func() { require.NoError(t, dispatcher.Shutdown()) })
+
+	rcScraper := rcscrape.NewScraper(a, dispatcher, loader)
 
 	procMon := procmon.NewProcessMonitor(rcScraper.AsProcMonHandler())
+	t.Cleanup(func() { procMon.Close() })
 	procMon.NotifyExec(uint32(child.Process.Pid))
 	rcsFiles := make(map[string][]byte)
 	for _, probe := range probes {
@@ -120,9 +147,14 @@ func runScrapeRemoteConfigTest(t *testing.T, program string, cfg testprogs.Confi
 		require.NoError(t, err)
 		rcsFiles[mkPath(t, probe.GetID())] = marshaled
 	}
+	var symdbPath string
+	if symDBSupport {
+		symdbPayload := []byte(`{"uploadSymbols": true}`)
+		symdbPath = mkPathWithVal("LIVE_DEBUGGING_SYMBOL_DB", "symDb", symdbPayload)
+		rcsFiles[symdbPath] = symdbPayload
+	}
 	rcHandler.UpdateRemoteConfig(rcsFiles)
-
-	waitForExpected(t, rcScraper, append(probes[:0:0], probes...))
+	waitForExpected(t, rcScraper, append(probes[:0:0], probes...), symDBSupport)
 
 	// Make sure that the scraper handles more updates correctly.
 	newUpdate := append(probes[:0:0], probes...)
@@ -143,11 +175,27 @@ func runScrapeRemoteConfigTest(t *testing.T, program string, cfg testprogs.Confi
 		rcsFiles[mkPath(t, probe.GetID())] = marshaled
 	}
 	rcsFiles[mkPath(t, "empty")] = []byte{}
+	// Remove the SymDB key; we'll check that the corresponding flag on the
+	// update turns false.
+	if symDBSupport {
+		delete(rcsFiles, symdbPath)
+	}
 	rcHandler.UpdateRemoteConfig(rcsFiles)
-	waitForExpected(t, rcScraper, newUpdate)
+	waitForExpected(t, rcScraper, newUpdate, false /* expShouldUploadSymDB */)
+
+	// Modify only the SymDB key and check that we get an update.
+	if symDBSupport {
+		symdbPayload := []byte(`{"uploadSymbols": true}`)
+		symdbPath = mkPathWithVal("LIVE_DEBUGGING_SYMBOL_DB", "symDb", symdbPayload)
+		rcsFiles[symdbPath] = symdbPayload
+		rcHandler.UpdateRemoteConfig(rcsFiles)
+		waitForExpected(t, rcScraper, newUpdate, true /* expShouldUploadSymDB */)
+	}
 }
 
-func waitForExpected(t *testing.T, rcScraper *rcscrape.Scraper, exp []ir.ProbeDefinition) {
+func waitForExpected(
+	t *testing.T, rcScraper *rcscrape.Scraper, exp []ir.ProbeDefinition, expShouldUploadSymDB bool,
+) {
 	slices.SortFunc(exp, ir.CompareProbeIDs)
 	require.Eventually(t, func() bool {
 		updates := rcScraper.GetUpdates()
@@ -156,7 +204,8 @@ func waitForExpected(t *testing.T, rcScraper *rcscrape.Scraper, exp []ir.ProbeDe
 		}
 		got := updates[0].Probes
 		slices.SortFunc(got, ir.CompareProbeIDs)
-		require.Equal(t, exp, got)
+		assert.Equal(t, exp, got)
+		assert.Equal(t, expShouldUploadSymDB, updates[0].ShouldUploadSymDB, "SymDB upload flag doesn't match")
 		return true
 	}, 10*time.Second, 100*time.Microsecond)
 }
@@ -198,6 +247,16 @@ func mkPath(t *testing.T, name string) string {
 	})
 }
 
+func mkPathWithVal(product data.Product, id string, val []byte) string {
+	return formatConfigPath(data.ConfigPath{
+		Source:   data.SourceDatadog,
+		OrgID:    1234,
+		Product:  string(product),
+		ConfigID: id,
+		Name:     hex.EncodeToString(val),
+	})
+}
+
 // TestNoDdTraceGo tests that the scraper correctly handles the case where the
 // dd-trace-go library is not present in the process. In particular, the Scraper
 // should try to attach probes to the process, fail, and then stop tracking the
@@ -226,14 +285,29 @@ func testNoDdTraceGo(t *testing.T, cfg testprogs.Config) {
 	tmpDir, cleanupTmpDir := dyninsttest.PrepTmpDir(t, strings.ReplaceAll(t.Name(), "/", "_"))
 	defer cleanupTmpDir()
 
-	loader, err := loader.NewLoader()
-	require.NoError(t, err)
-	a := actuator.NewActuator(loader)
+	a := actuator.NewActuator()
+	t.Cleanup(func() { require.NoError(t, a.Shutdown()) })
+	type irGenFailedMessage struct {
+		executablePath string
+		err            error
+	}
 	irGenFailureCh := make(chan irGenFailedMessage)
-	rcScraper := rcscrape.NewScraper(&wrappedActuator{
-		inner:          a,
-		irGenFailureCh: irGenFailureCh,
+	irGenerator := irGenFunc(func(
+		programID ir.ProgramID, executablePath string, probes []ir.ProbeDefinition,
+	) (*ir.Program, error) {
+		p, err := (rcscrape.IRGeneratorImpl{}).GenerateIR(programID, executablePath, probes)
+		if err != nil {
+			irGenFailureCh <- irGenFailedMessage{executablePath: executablePath, err: err}
+		}
+		return p, err
 	})
+	l, err := loader.NewLoader()
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, l.Close()) })
+	d := dispatcher.NewDispatcher(l.OutputReader())
+	t.Cleanup(func() { require.NoError(t, d.Shutdown()) })
+
+	rcScraper := rcscrape.NewScraperWithIRGenerator(a, d, l, irGenerator)
 
 	stdout, err := os.Create(path.Join(tmpDir, "child.stdout"))
 	require.NoError(t, err)
@@ -270,7 +344,7 @@ func testNoDdTraceGo(t *testing.T, cfg testprogs.Config) {
 		return len(processes) > 0
 	}, 1*time.Second, 10*time.Millisecond)
 	msg := <-irGenFailureCh
-	require.Equal(t, int(msg.processID.PID), child.Process.Pid)
+	require.Equal(t, prog, msg.executablePath)
 	require.Eventually(t, func() bool {
 		processes := rcScraper.GetTrackedProcesses()
 		return len(processes) == 0
@@ -280,42 +354,14 @@ func testNoDdTraceGo(t *testing.T, cfg testprogs.Config) {
 	require.NoError(t, child.Wait())
 }
 
-type wrappedActuator struct {
-	inner          *actuator.Actuator
-	irGenFailureCh chan irGenFailedMessage
-}
-
-type irGenFailedMessage struct {
-	processID actuator.ProcessID
-	err       error
-	probes    []ir.ProbeDefinition
-}
-
-type noDdTraceGoReporter struct {
-	actuator.Reporter
-	irGenFailureCh chan irGenFailedMessage
-}
-
-func (wa *wrappedActuator) NewTenant(
-	name string,
-	reporter actuator.Reporter,
-	irGenerator actuator.IRGenerator,
-) *actuator.Tenant {
-	return wa.inner.NewTenant(name, &noDdTraceGoReporter{
-		Reporter:       reporter,
-		irGenFailureCh: wa.irGenFailureCh,
-	}, irGenerator)
-}
-
-func (r *noDdTraceGoReporter) ReportIRGenFailed(
-	processID actuator.ProcessID,
-	err error,
+type irGenFunc func(
+	programID ir.ProgramID,
+	executablePath string,
 	probes []ir.ProbeDefinition,
-) {
-	r.irGenFailureCh <- irGenFailedMessage{
-		processID: processID,
-		err:       err,
-		probes:    probes,
-	}
-	r.Reporter.ReportIRGenFailed(processID, err, probes)
+) (*ir.Program, error)
+
+func (f irGenFunc) GenerateIR(
+	programID ir.ProgramID, executablePath string, probes []ir.ProbeDefinition,
+) (*ir.Program, error) {
+	return f(programID, executablePath, probes)
 }

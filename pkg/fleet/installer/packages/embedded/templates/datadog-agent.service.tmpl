@@ -19,6 +19,9 @@ PIDFile={{.InstallDir}}/run/agent.pid
 User=dd-agent
 EnvironmentFile=-{{.EtcDir}}/environment
 Environment="DD_FLEET_POLICIES_DIR={{.FleetPoliciesDir}}"
+{{- if not .Stable}}
+Environment="DD_INVENTORIES_FIRST_RUN_DELAY=5"
+{{- end}}
 RuntimeDirectory=datadog
 StartLimitInterval=10
 StartLimitBurst=5
@@ -28,7 +31,7 @@ Restart=on-failure
 ExecStart={{.InstallDir}}/bin/agent/agent run -p {{.InstallDir}}/run/agent.pid
 {{- else}}
 Restart=no
-ExecStart=/usr/bin/timeout --kill-after=15s 3000s {{.InstallDir}}/bin/agent/agent run -p {{.InstallDir}}/run/agent.pid
+ExecStart=/usr/bin/timeout --kill-after=15s 3000s {{.InstallDir}}/bin/agent/agent run -c {{.EtcDir}} -p {{.InstallDir}}/run/agent.pid
 ExecStopPost=/bin/false
 {{- end}}
 

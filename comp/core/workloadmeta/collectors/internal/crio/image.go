@@ -43,6 +43,7 @@ func (c *collector) generateImageEventFromContainer(ctx context.Context, contain
 
 // convertImageToEvent converts a CRI-O image and additional metadata into a workloadmeta CollectorEvent.
 func (c *collector) convertImageToEvent(img *v1.Image, info map[string]string, namespace string) *workloadmeta.CollectorEvent {
+
 	var annotations map[string]string
 	if img.GetSpec() == nil {
 		annotations = nil
@@ -213,6 +214,63 @@ func parseImageInfo(info map[string]string, layerFilePath string, imgID string) 
 	}
 
 	return imgInfo
+}
+
+// generateImageEventsFromImageList creates workloadmeta image events from the full image list.
+// Returns events for new images and IDs of all current images (for seenImages tracking).
+func (c *collector) generateImageEventsFromImageList(ctx context.Context) ([]workloadmeta.CollectorEvent, []workloadmeta.EntityID, error) {
+	images, err := c.client.ListImages(ctx)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to list images: %w", err)
+	}
+
+	imageEvents := make([]workloadmeta.CollectorEvent, 0)
+	allImageIDs := make([]workloadmeta.EntityID, 0, len(images))
+
+	for _, img := range images {
+		// Extract the image ID - prefer digest over the raw ID (same logic as convertImageToEvent)
+		rawID := img.GetId()
+		imgID := rawID
+		if imgIDAsDigest, err := parseDigests(img.GetRepoDigests()); err == nil {
+			imgID = imgIDAsDigest
+		}
+
+		// Always track with the computed ID (same as what convertImageToEvent would use)
+		entityID := workloadmeta.EntityID{Kind: workloadmeta.KindContainerImageMetadata, ID: imgID}
+		allImageIDs = append(allImageIDs, entityID)
+
+		// Check if image already exists in workloadmeta store
+		// Try computed ID first, then raw ID as fallback for edge cases
+		var existsInStore bool
+		if _, err := c.store.GetImage(imgID); err == nil {
+			existsInStore = true
+		} else if imgID != rawID {
+			// Only try raw ID if it's different from computed ID
+			if _, err := c.store.GetImage(rawID); err == nil {
+				existsInStore = true
+			}
+		}
+
+		if existsInStore {
+			// Image already exists in store - no need to send event, metadata persists automatically
+			continue
+		}
+
+		imageSpec := &v1.ImageSpec{Image: img.GetId()}
+		imageResp, err := c.client.GetContainerImage(ctx, imageSpec, true)
+		if err != nil {
+			log.Warnf("Failed to get image status for image %s: %v", img.GetId(), err)
+			continue
+		}
+
+		// Get namespace from any container using this image - use empty string as default
+		namespace := ""
+
+		imageEvent := c.convertImageToEvent(imageResp.GetImage(), imageResp.GetInfo(), namespace)
+		imageEvents = append(imageEvents, *imageEvent)
+	}
+
+	return imageEvents, allImageIDs, nil
 }
 
 // parseLayerInfo reads a JSON file from the given path and returns a list of layerInfo

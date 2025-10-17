@@ -12,7 +12,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"go.uber.org/fx"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -22,7 +21,6 @@ import (
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	"github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 const (
@@ -31,20 +29,11 @@ const (
 	barSource       = "bar"
 )
 
-type testDependencies struct {
-	fx.In
-	Config config.Component
-}
-
 func newWorkloadmetaObject(t *testing.T) *workloadmeta {
-	testDeps := fxutil.Test[testDependencies](t, fx.Options(
-		config.MockModule(),
-	))
-
 	deps := Dependencies{
 		Lc:     compdef.NewTestLifecycle(t),
 		Log:    logmock.New(t),
-		Config: testDeps.Config,
+		Config: config.NewMock(t),
 		Params: wmdef.NewParams(),
 	}
 
@@ -1198,6 +1187,108 @@ func TestGetKubernetesPodByName(t *testing.T) {
 	}
 }
 
+func TestListKubernetesPods(t *testing.T) {
+	pod1 := &wmdef.KubernetesPod{
+		EntityID: wmdef.EntityID{
+			Kind: wmdef.KindKubernetesPod,
+			ID:   "123",
+		},
+	}
+	pod2 := &wmdef.KubernetesPod{
+		EntityID: wmdef.EntityID{
+			Kind: wmdef.KindKubernetesPod,
+			ID:   "456",
+		},
+	}
+
+	tests := []struct {
+		name      string
+		preEvents []wmdef.CollectorEvent
+		expected  []*wmdef.KubernetesPod
+	}{
+		{
+			name: "some pods stored",
+			preEvents: []wmdef.CollectorEvent{
+				{
+					Type:   wmdef.EventTypeSet,
+					Source: fooSource,
+					Entity: pod1,
+				},
+				{
+					Type:   wmdef.EventTypeSet,
+					Source: fooSource,
+					Entity: pod2,
+				},
+			},
+			expected: []*wmdef.KubernetesPod{pod1, pod2},
+		},
+		{
+			name:      "no pods stored",
+			preEvents: nil,
+			expected:  []*wmdef.KubernetesPod{},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			wmeta := newWorkloadmetaObject(t)
+			wmeta.handleEvents(test.preEvents)
+
+			assert.ElementsMatch(t, test.expected, wmeta.ListKubernetesPods())
+		})
+	}
+}
+
+func TestGetKubeletMetrics(t *testing.T) {
+	testKubeletMetrics := &wmdef.KubeletMetrics{
+		EntityID: wmdef.EntityID{
+			Kind: wmdef.KindKubeletMetrics,
+			ID:   "kubelet-metrics",
+		},
+		ExpiredPodCount: 10,
+	}
+
+	tests := []struct {
+		name       string
+		preEvents  []wmdef.CollectorEvent
+		expected   *wmdef.KubeletMetrics
+		expectsErr bool
+	}{
+		{
+			name: "kubelet metrics stored",
+			preEvents: []wmdef.CollectorEvent{
+				{
+					Type:   wmdef.EventTypeSet,
+					Source: fooSource,
+					Entity: testKubeletMetrics,
+				},
+			},
+			expected:   testKubeletMetrics,
+			expectsErr: false,
+		},
+		{
+			name:       "no kubelet metrics stored",
+			preEvents:  nil,
+			expectsErr: true,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			wmeta := newWorkloadmetaObject(t)
+			wmeta.handleEvents(test.preEvents)
+
+			kubeletMetrics, err := wmeta.GetKubeletMetrics()
+			if test.expectsErr {
+				assert.Error(t, err, errors.NewNotFound(string(wmdef.KindKubeletMetrics)).Error())
+			} else {
+				assert.NoError(t, err)
+				assert.Equal(t, test.expected, kubeletMetrics)
+			}
+		})
+	}
+}
+
 func TestListImages(t *testing.T) {
 	image := &wmdef.ContainerImageMetadata{
 		EntityID: wmdef.EntityID{
@@ -1507,6 +1598,147 @@ func TestGetKubernetesMetadata(t *testing.T) {
 
 	_, err = s.GetKubernetesMetadata("deployments/default/app")
 	assert.True(t, errors.IsNotFound(err))
+}
+
+func TestGetKubernetesNodeByName(t *testing.T) {
+	node1Metadata := &wmdef.KubernetesMetadata{
+		EntityID: wmdef.EntityID{
+			Kind: wmdef.KindKubernetesMetadata,
+			ID:   string(util.GenerateKubeMetadataEntityID("", "nodes", "", "node1")),
+		},
+		EntityMeta: wmdef.EntityMeta{
+			Name:        "node1",
+			Annotations: map[string]string{"a1": "v1"},
+			Labels:      map[string]string{"l1": "v2"},
+		},
+		GVR: &schema.GroupVersionResource{
+			Version:  "v1",
+			Resource: "nodes",
+		},
+	}
+
+	node2Metadata := &wmdef.KubernetesMetadata{
+		EntityID: wmdef.EntityID{
+			Kind: wmdef.KindKubernetesMetadata,
+			ID:   string(util.GenerateKubeMetadataEntityID("", "nodes", "", "node2")),
+		},
+		EntityMeta: wmdef.EntityMeta{
+			Name:        "node2",
+			Annotations: map[string]string{"a1": "v1"},
+			Labels:      map[string]string{"l1": "v2"},
+		},
+		GVR: &schema.GroupVersionResource{
+			Version:  "v1",
+			Resource: "nodes",
+		},
+	}
+
+	nonNodeMetadata := &wmdef.KubernetesMetadata{
+		EntityID: wmdef.EntityID{
+			Kind: wmdef.KindKubernetesMetadata,
+			ID:   "deployments/default/app",
+		},
+		EntityMeta: wmdef.EntityMeta{
+			Name:        "node3",
+			Namespace:   "default",
+			Annotations: map[string]string{"a1": "v1"},
+			Labels:      map[string]string{"l1": "v2"},
+		},
+		GVR: &schema.GroupVersionResource{
+			Group:    "apps",
+			Version:  "v1",
+			Resource: "deployments",
+		},
+	}
+	node3Metadata := &wmdef.KubernetesMetadata{
+		EntityID: wmdef.EntityID{
+			Kind: wmdef.KindKubernetesMetadata,
+			ID:   string(util.GenerateKubeMetadataEntityID("", "nodes", "", "node3")),
+		},
+		EntityMeta: wmdef.EntityMeta{
+			Name:        "node3",
+			Annotations: map[string]string{"a1": "v1"},
+			Labels:      map[string]string{"l1": "v2"},
+		},
+		GVR: &schema.GroupVersionResource{
+			Version:  "v1",
+			Resource: "nodes",
+		},
+	}
+
+	type want struct {
+		nodeMetadata *wmdef.KubernetesMetadata
+		err          error
+	}
+	type args struct {
+		nodeName string
+	}
+	tests := []struct {
+		name string
+		args args
+		want want
+	}{
+		{
+			name: "test-node returns correct node",
+			args: args{
+				nodeName: "node1",
+			},
+			want: want{
+				nodeMetadata: node1Metadata,
+			},
+		},
+		{
+			name: "test-node/other-node returns correct node",
+			args: args{
+				nodeName: "node2",
+			},
+			want: want{
+				nodeMetadata: node2Metadata,
+			},
+		},
+		{
+			name: "test-node/ignores non-node metadata with same name",
+			args: args{
+				nodeName: "node3",
+			},
+			want: want{
+				nodeMetadata: node3Metadata,
+			},
+		},
+		{
+			name: "test-node/missing node returns error",
+			args: args{
+				nodeName: "node4",
+			},
+			want: want{
+				err: errors.NewNotFound("test-node/node4"),
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			s := newWorkloadmetaObject(t)
+
+			for _, nodeish := range []*wmdef.KubernetesMetadata{node1Metadata, node2Metadata, nonNodeMetadata, node3Metadata} {
+				s.handleEvents([]wmdef.CollectorEvent{
+					{
+						Type:   wmdef.EventTypeSet,
+						Source: fooSource,
+						Entity: nodeish,
+					},
+				})
+			}
+
+			nodeEntityID := util.GenerateKubeMetadataEntityID("", "nodes", "", test.args.nodeName)
+			nodeMetadata, err := s.GetKubernetesMetadata(nodeEntityID)
+
+			assert.Equal(t, test.want.nodeMetadata, nodeMetadata)
+			if test.want.err != nil {
+				assert.Error(t, err, test.want.err.Error())
+			}
+		})
+	}
 }
 
 func TestListKubernetesMetadata(t *testing.T) {

@@ -66,7 +66,7 @@ func NewKubeletCheck(base core.CheckBase, instance *common.KubeletConfig, store 
 }
 
 func initProviders(filterStore workloadfilter.Component, config *common.KubeletConfig, podUtils *common.PodUtils, store workloadmeta.Component, tagger tagger.Component) []Provider {
-	podProvider := pod.NewProvider(filterStore, config, podUtils, tagger)
+	podProvider := pod.NewProvider(filterStore, store, config, podUtils, tagger)
 	// nodeProvider collects from the /spec endpoint, which was hidden by default in k8s 1.18 and removed in k8s 1.19.
 	// It is here for backwards compatibility.
 	nodeProvider := node.NewProvider(config)

@@ -48,8 +48,7 @@ type processor struct {
 	cfg                   config.Component
 	queue                 chan *model.SBOMEntity
 	workloadmetaStore     workloadmeta.Component
-	filterStore           workloadfilter.Component
-	selectedFilters       [][]workloadfilter.ContainerFilter
+	containerFilter       workloadfilter.FilterBundle
 	tagger                tagger.Component
 	imageRepoDigests      map[string]string              // Map where keys are image repo digest and values are image ID
 	imageUsers            map[string]map[string]struct{} // Map where keys are image repo digest and values are set of container IDs
@@ -98,8 +97,7 @@ func newProcessor(workloadmetaStore workloadmeta.Component, filterStore workload
 			log.Debugf("SBOM event sent with %d entities", len(entities))
 		}),
 		workloadmetaStore:     workloadmetaStore,
-		filterStore:           filterStore,
-		selectedFilters:       workloadfilter.GetContainerSBOMFilters(),
+		containerFilter:       filterStore.GetContainerSBOMFilters(),
 		tagger:                tagger,
 		imageRepoDigests:      make(map[string]string),
 		imageUsers:            make(map[string]map[string]struct{}),
@@ -141,7 +139,7 @@ func (p *processor) processContainerImagesEvents(evBundle workloadmeta.EventBund
 		switch event.Type {
 		case workloadmeta.EventTypeSet:
 			filterableContainerImage := workloadfilter.CreateContainerImage(event.Entity.(*workloadmeta.ContainerImageMetadata).Name)
-			if p.filterStore.IsContainerExcluded(filterableContainerImage, p.selectedFilters) {
+			if p.containerFilter.IsExcluded(filterableContainerImage) {
 				continue
 			}
 
@@ -161,7 +159,7 @@ func (p *processor) processContainerImagesEvents(evBundle workloadmeta.EventBund
 			p.registerContainer(container)
 
 			filterableContainer := workloadmetafilter.CreateContainer(container, nil)
-			if p.filterStore.IsContainerExcluded(filterableContainer, p.selectedFilters) {
+			if p.containerFilter.IsExcluded(filterableContainer) {
 				continue
 			}
 
@@ -225,13 +223,6 @@ func (p *processor) unregisterContainer(ctr *workloadmeta.Container) {
 	delete(p.imageUsers[imgID], ctrID)
 	if len(p.imageUsers[imgID]) == 0 {
 		delete(p.imageUsers, imgID)
-	}
-}
-
-func (p *processor) processContainerImagesRefresh(allImages []*workloadmeta.ContainerImageMetadata) {
-	// So far, the check is refreshing all the images every 5 minutes all together.
-	for _, img := range allImages {
-		p.processImageSBOM(img)
 	}
 }
 

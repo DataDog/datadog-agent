@@ -18,6 +18,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/ast"
 )
 
@@ -1412,6 +1414,36 @@ func TestOpOverridePartials(t *testing.T) {
 	}
 }
 
+func TestMultipleOpOverrides(t *testing.T) {
+	event := &testEvent{
+		title: "hello world",
+	}
+
+	testCases := []struct {
+		expression     string
+		expectedResult bool
+	}{
+		{expression: `event.title == "hello world"`, expectedResult: true},
+		{expression: `event.title == "Hello World"`, expectedResult: true},
+		{expression: `event.title == "HELLO WORLD"`, expectedResult: true},
+		{expression: `event.title == "hellO worlD"`, expectedResult: false},
+		{expression: `"hello world" == event.title`, expectedResult: true},
+		{expression: `"Hello World" == event.title`, expectedResult: true},
+		{expression: `"HELLO WORLD" == event.title`, expectedResult: true},
+		{expression: `"hellO worlD" == event.title`, expectedResult: false},
+	}
+
+	for _, tc := range testCases {
+		ctx := NewContext(event)
+		result, _, err := eval(ctx, tc.expression)
+		if err != nil {
+			t.Errorf("error while evaluating `%s`: %s", tc.expression, err)
+			continue
+		}
+		assert.Equal(t, tc.expectedResult, result, "expression: `%s`", tc.expression)
+	}
+}
+
 func TestFieldValues(t *testing.T) {
 	tests := []struct {
 		Expr     string
@@ -1824,17 +1856,32 @@ func FuzzEval(f *testing.F) {
 	f.Add(`process.name == "/usr/bin/ls" && process.uid != 0`)
 
 	f.Fuzz(func(_ *testing.T, expr string) {
-		model := &testModel{}
-		opts := newOptsWithParams(testConstants, nil)
-
-		// Attempt to parse and evaluate the rule
-		rule, err := parseRule(expr, model, opts)
-		if err != nil {
-			return
-		}
-
-		rule.GenEvaluator(model)
+		commonFuzzEval(expr)
 	})
+}
+
+func commonFuzzEval(expr string) {
+	model := &testModel{}
+	opts := newOptsWithParams(testConstants, nil)
+
+	// Attempt to parse and evaluate the rule
+	rule, err := parseRule(expr, model, opts)
+	if err != nil {
+		return
+	}
+	_ = rule
+}
+
+func TestDiscoveredByFuzz(t *testing.T) {
+	exprs := []string{
+		`"!"!=A`,
+	}
+
+	for _, expr := range exprs {
+		t.Run(expr, func(_ *testing.T) {
+			commonFuzzEval(expr)
+		})
+	}
 }
 
 func BenchmarkArray(b *testing.B) {

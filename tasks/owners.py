@@ -9,11 +9,12 @@ from tasks.libs.pipeline.notifications import GITHUB_SLACK_MAP
 
 @task
 def find_jobowners(_, job, owners_file=".gitlab/JOBOWNERS"):
-    print(", ".join(search_owners(job, owners_file)))
+    print("DEPRECTATED: Use `dda info owners jobs` command instead.")
 
 
 @task
 def find_codeowners(_, path, owners_file=".github/CODEOWNERS"):
+    # TODO(@agent-devx): Deprecate once `dda info owners code` is available and minimal `dda` version is bumped`
     print(", ".join(search_owners(path, owners_file)))
 
 
