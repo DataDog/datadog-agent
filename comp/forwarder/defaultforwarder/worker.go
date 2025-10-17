@@ -197,7 +197,7 @@ func (w *Worker) process(ctx context.Context, t transaction.Transaction) {
 	if w.blockedList.isBlock(target) {
 		w.requeue(t)
 		w.log.Warnf("Too many errors for endpoint '%s': retrying later", target)
-	} else if err := t.Process(ctx, w.config, w.log, w.Client.GetClient()); err != nil {
+	} else if err := t.Process(ctx, w.config, w.log, w.secrets, w.Client.GetClient()); err != nil {
 		w.blockedList.close(target)
 		w.requeue(t)
 		w.log.Errorf("Error while processing transaction: %v", err)
