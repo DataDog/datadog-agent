@@ -262,11 +262,6 @@ func (s *Launcher) resolveActiveTailers(files []*tailer.File) {
 	s.flarecontroller.SetAllFiles(allFiles)
 
 	for _, tailer := range s.tailers.All() {
-		if s.isRotatedTailer(tailer) {
-			log.Debugf("Tailer %s is draining a rotated file; skipping stop", tailer.GetID())
-			continue
-		}
-
 		// stop all tailers which have not been selected
 		_, shouldTail := filesTailed[tailer.GetID()]
 		if !shouldTail {
@@ -335,15 +330,6 @@ func (s *Launcher) cleanUpRotatedTailers() {
 		}
 	}
 	s.rotatedTailers = pendingTailers
-}
-
-func (s *Launcher) isRotatedTailer(candidate *tailer.Tailer) bool {
-	for _, rotated := range s.rotatedTailers {
-		if rotated == candidate {
-			return true
-		}
-	}
-	return false
 }
 
 // addSource keeps track of the new source and launch new tailers for this source.
