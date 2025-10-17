@@ -17,7 +17,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	nooptelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl"
+	nooptelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/impl-noop"
 )
 
 func TestGetExecutablePermissionsError(t *testing.T) {

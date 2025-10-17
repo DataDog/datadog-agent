@@ -22,9 +22,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry"
-	nooptelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
+	nooptelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/impl-noop"
 )
 
 func build(t *testing.T, outTarget string) {
@@ -251,7 +250,7 @@ func TestFetchSecretEmptyValue(t *testing.T) {
 	checkErrorCountMetric(t, tel, 2, "empty", "handle1")
 }
 
-func checkErrorCountMetric(t *testing.T, tel telemetry.Mock, expected int, errorKind, handle string) {
+func checkErrorCountMetric(t *testing.T, tel telemetryimpl.Mock, expected int, errorKind, handle string) {
 	metrics, err := tel.GetCountMetric("secret_backend", "resolve_errors_count")
 	require.NoError(t, err)
 	require.NotEmpty(t, metrics)
@@ -260,7 +259,7 @@ func checkErrorCountMetric(t *testing.T, tel telemetry.Mock, expected int, error
 		"error_kind": errorKind,
 		"handle":     handle,
 	}
-	assert.NotEqual(t, -1, slices.IndexFunc(metrics, func(m telemetry.Metric) bool {
+	assert.NotEqual(t, -1, slices.IndexFunc(metrics, func(m telemetryimpl.Metric) bool {
 		return int(m.Value()) == expected && maps.Equal(m.Tags(), expectedTags)
 	}))
 }

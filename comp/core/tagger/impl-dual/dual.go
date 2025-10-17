@@ -15,7 +15,7 @@ import (
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	local "github.com/DataDog/datadog-agent/comp/core/tagger/impl"
 	remote "github.com/DataDog/datadog-agent/comp/core/tagger/impl-remote"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 )

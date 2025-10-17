@@ -19,7 +19,7 @@ import (
 	"go.uber.org/atomic"
 	"golang.org/x/sys/unix"
 
-	telemetryComp "github.com/DataDog/datadog-agent/comp/core/telemetry"
+	telemetryComp "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"

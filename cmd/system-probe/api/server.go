@@ -18,7 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/debug"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/modules"
 	"github.com/DataDog/datadog-agent/comp/core/settings"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
 	"github.com/DataDog/datadog-agent/pkg/api/coverage"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"

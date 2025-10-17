@@ -15,8 +15,8 @@ import (
 
 	taggerTelemetry "github.com/DataDog/datadog-agent/comp/core/tagger/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
+	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -45,7 +45,7 @@ func init() {
 }
 
 func BenchmarkTagStoreThroughput(b *testing.B) {
-	tel := fxutil.Test[telemetry.Component](b, telemetryimpl.MockModule())
+	tel := fxutil.Test[telemetry.Component](b, impl.MockModule())
 	telemetryStore := taggerTelemetry.NewStore(tel)
 	store := NewTagStore(telemetryStore)
 
@@ -91,7 +91,7 @@ func BenchmarkTagStoreThroughput(b *testing.B) {
 // store is thread-safe, processTagInfo is always used synchronously by the
 // tagger at the moment.
 func BenchmarkTagStore_processTagInfo(b *testing.B) {
-	tel := fxutil.Test[telemetry.Component](b, telemetryimpl.MockModule())
+	tel := fxutil.Test[telemetry.Component](b, impl.MockModule())
 	telemetryStore := taggerTelemetry.NewStore(tel)
 
 	store := NewTagStore(telemetryStore)

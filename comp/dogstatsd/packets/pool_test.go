@@ -11,8 +11,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/comp/core/telemetry"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -36,7 +36,7 @@ func TestPoolTelemetry(t *testing.T) {
 
 	pool.Put(packet)
 
-	telemetryMock, ok := telemetryComponent.(telemetry.Mock)
+	telemetryMock, ok := telemetryComponent.(telemetryimpl.Mock)
 	assert.True(t, ok)
 
 	poolMetrics, err := telemetryMock.GetGaugeMetric("dogstatsd", "packet_pool")

@@ -18,8 +18,7 @@ import (
 	"google.golang.org/grpc/credentials"
 
 	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
@@ -52,7 +51,7 @@ func TestGetGRPCStreamPort(t *testing.T) {
 
 func TestStartStop(t *testing.T) {
 	cfg := configmock.New(t)
-	fxutil.Test[telemetry.Mock](t, telemetryimpl.MockModule()).Reset()
+	fxutil.Test[telemetryimpl.Mock](t, telemetryimpl.MockModule()).Reset()
 
 	extractor := NewWorkloadMetaExtractor(cfg)
 
@@ -89,7 +88,7 @@ func TestStreamServer(t *testing.T) {
 	)
 
 	cfg := configmock.New(t)
-	fxutil.Test[telemetry.Mock](t, telemetryimpl.MockModule()).Reset()
+	fxutil.Test[telemetryimpl.Mock](t, telemetryimpl.MockModule()).Reset()
 	extractor := NewWorkloadMetaExtractor(cfg)
 
 	// Mock IPC component to provide TLS credentials
@@ -172,7 +171,7 @@ func TestStreamServerDropRedundantCacheDiff(t *testing.T) {
 	)
 
 	cfg := configmock.New(t)
-	fxutil.Test[telemetry.Mock](t, telemetryimpl.MockModule()).Reset()
+	fxutil.Test[telemetryimpl.Mock](t, telemetryimpl.MockModule()).Reset()
 	extractor := NewWorkloadMetaExtractor(cfg)
 
 	// Mock IPC component to provide TLS credentials
@@ -380,7 +379,7 @@ func setupGRPCTest(t *testing.T) (*WorkloadMetaExtractor, *GRPCServer, *grpc.Cli
 	port, err := testutil.FindTCPPort()
 	require.NoError(t, err)
 	cfg.SetWithoutSource("process_config.language_detection.grpc_port", port)
-	fxutil.Test[telemetry.Mock](t, telemetryimpl.MockModule()).Reset()
+	fxutil.Test[telemetryimpl.Mock](t, telemetryimpl.MockModule()).Reset()
 	extractor := NewWorkloadMetaExtractor(cfg)
 
 	// Mock IPC component to provide TLS credentials

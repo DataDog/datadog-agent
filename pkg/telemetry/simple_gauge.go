@@ -6,7 +6,7 @@
 package telemetry
 
 import (
-	telemetryComponent "github.com/DataDog/datadog-agent/comp/core/telemetry"
+	telemetryComponent "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 )
 
 // SimpleGauge tracks how many times something is happening.

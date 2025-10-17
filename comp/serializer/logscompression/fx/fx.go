@@ -7,7 +7,7 @@
 package fx
 
 import (
-	"github.com/DataDog/datadog-agent/comp/serializer/logscompression/impl"
+	logscompressionimpl "github.com/DataDog/datadog-agent/comp/serializer/logscompression/impl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 

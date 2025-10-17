@@ -22,7 +22,7 @@ import (
 	"go.uber.org/atomic"
 
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	telemetryComp "github.com/DataDog/datadog-agent/comp/core/telemetry"
+	telemetryComp "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/npcollectorimpl/common"
 	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/npcollectorimpl/pathteststore"

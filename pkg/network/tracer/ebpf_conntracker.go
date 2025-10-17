@@ -21,7 +21,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/sys/unix"
 
-	telemetryComp "github.com/DataDog/datadog-agent/comp/core/telemetry"
+	telemetryComp "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/maps"

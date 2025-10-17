@@ -7,7 +7,7 @@
 package fx
 
 import (
-	"github.com/DataDog/datadog-agent/comp/serializer/metricscompression/impl"
+	metricscompressionimpl "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/impl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 

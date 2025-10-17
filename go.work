@@ -6,9 +6,8 @@ go 1.24.9
 godebug tlsmlkem=0
 
 use (
+
 	.
-	./pkg/util/hostinfo
-	./pkg/util/jsonquery
 	comp/api/api/def
 	comp/core/agenttelemetry/def
 	comp/core/agenttelemetry/fx
@@ -45,7 +44,12 @@ use (
 	comp/core/tagger/telemetry
 	comp/core/tagger/types
 	comp/core/tagger/utils
-	comp/core/telemetry
+	comp/core/telemetry/def
+	comp/core/telemetry/fx
+	comp/core/telemetry/fx-full
+	comp/core/telemetry/fx-noop
+	comp/core/telemetry/impl
+	comp/core/telemetry/impl-noop
 	comp/def
 	comp/forwarder/defaultforwarder
 	comp/forwarder/orchestrator/orchestratorinterface
@@ -156,9 +160,11 @@ use (
 	pkg/util/flavor
 	pkg/util/fxutil
 	pkg/util/grpc
+	pkg/util/hostinfo
 	pkg/util/hostname/validate
 	pkg/util/http
 	pkg/util/json
+	pkg/util/jsonquery
 	pkg/util/log
 	pkg/util/log/setup
 	pkg/util/option
