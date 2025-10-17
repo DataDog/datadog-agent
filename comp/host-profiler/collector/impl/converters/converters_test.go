@@ -109,7 +109,7 @@ func readFromYamlFile(t *testing.T, yamlContent string) map[string]any {
 	require.NoError(t, err)
 	conf, err := confRetrieved.AsConf()
 	require.NoError(t, err)
-	converter := &converterNoAgent{}
+	converter := &converterWithoutAgent{}
 	err = converter.Convert(context.Background(), conf)
 	require.NoError(t, err)
 	return conf.ToStringMap()
