@@ -710,6 +710,7 @@
 /tasks/unit_tests/omnibus_tests.py      @DataDog/agent-build
 /tasks/unit_tests/testdata/components_src/ @DataDog/agent-runtimes
 /tasks/installer.py                     @DataDog/fleet
+/tasks/full_host_profiler.py            @DataDog/opentelemetry-agent @DataDog/profiling-full-host
 /test/                                  @DataDog/agent-devx
 /test/benchmarks/                       @DataDog/agent-metric-pipelines
 /test/benchmarks/kubernetes_state/      @DataDog/container-integrations
