@@ -18,6 +18,7 @@ import (
 	"math"
 	"math/rand"
 	"net"
+	"net/http"
 	"net/netip"
 	"os"
 	"os/exec"
@@ -57,10 +58,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/kprobe"
+	ssluprobes "github.com/DataDog/datadog-agent/pkg/network/tracer/connection/ssl-uprobes"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/offsetguess"
 	tracertestutil "github.com/DataDog/datadog-agent/pkg/network/tracer/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/testutil/testdns"
 	usmconfig "github.com/DataDog/datadog-agent/pkg/network/usm/config"
+	usmutils "github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel/netns"
@@ -3177,4 +3180,94 @@ func (s *TracerSuite) TestTCPSynRst() {
 
 	assert.Equal(t, uint32(1), conn.TCPFailures[uint16(unix.ECONNREFUSED)])
 	assert.Equal(t, uint16(1), conn.Monotonic.TCPClosed)
+}
+
+func getExampleCertPaths() (string, string, error) {
+	curDir, err := usmtestutil.CurDir()
+	if err != nil {
+		return "", "", err
+	}
+
+	return filepath.Join(curDir, "testdata/example.com.crt"), filepath.Join(curDir, "testdata/example.com.key"), nil
+}
+
+func testTLSCertParsing(t *testing.T, client *http.Client, matcher func(c *network.ConnectionStats) bool) {
+	cfg := testConfig()
+	cfg.EnableCertCollection = true
+	if isPrebuilt(cfg) {
+		t.Skip("tls certs not supported on prebuilt")
+	}
+	if err := ssluprobes.ValidateSupported(); err != nil {
+		t.Skipf("skipping because tls certs kernel features are not supported on this kernel: %s", err)
+	}
+	skipOnEbpflessNotSupported(t, cfg)
+
+	tr := setupTracer(t, cfg)
+	if tr.ebpfTracer.Type() == connection.TracerTypeFentry {
+		t.Skip("tls certs not (yet) supported on fentry")
+	}
+
+	serverAddr := "127.0.0.1:8002"
+
+	certPath, keyPath, err := getExampleCertPaths()
+	require.NoError(t, err)
+	cmd := usmtestutil.HTTPPythonServer(t, serverAddr, usmtestutil.Options{
+		EnableTLS: true,
+		CertPath:  certPath,
+		KeyPath:   keyPath,
+	})
+
+	usmutils.WaitForProgramsToBeTraced(t, ssluprobes.CNMModuleName, ssluprobes.CNMTLSAttacherName, cmd.Process.Pid, usmutils.ManualTracingFallbackEnabled)
+
+	code, _, err := tracertestutil.HTTPGet(client, fmt.Sprintf("https://%s/status/200/foobar", serverAddr))
+	require.NoError(t, err)
+	require.Equal(t, 200, code)
+
+	var cert ssluprobes.CertInfo
+	require.EventuallyWithT(t, func(collect *assert.CollectT) {
+		conns, cleanup := getConnections(collect, tr)
+		defer cleanup()
+		c := network.FirstConnection(conns, func(c network.ConnectionStats) bool {
+			server := netip.MustParseAddrPort(serverAddr)
+			addrMatches := server.Addr() == c.Source.Addr && server.Port() == c.SPort
+			return addrMatches && c.HasCertInfo() && matcher(&c)
+		})
+		require.NotNil(collect, c)
+		cert = c.CertInfo.Value()
+	}, time.Second*5, time.Millisecond*200)
+
+	assert.Equal(t, "4dcfeb0a16bcfddba47a1fae9d28b4bd0b9212e7", cert.SerialNumber)
+	assert.Equal(t, "example.com", cert.Domain)
+	assert.Equal(t, time.Date(2025, time.October, 2, 18, 5, 2, 0, time.UTC), cert.Validity.NotBefore)
+	assert.Equal(t, time.Date(2026, time.November, 6, 18, 5, 2, 0, time.UTC), cert.Validity.NotAfter)
+
+}
+
+func (s *TracerSuite) TestTLSCertParsing() {
+
+	t := s.T()
+
+	t.Run("closed connection", func(t *testing.T) {
+		transport := &http.Transport{
+			TLSClientConfig:   &tls.Config{InsecureSkipVerify: true},
+			DisableKeepAlives: true,
+		}
+		client := &http.Client{Transport: transport}
+
+		testTLSCertParsing(t, client, func(c *network.ConnectionStats) bool {
+			return c.IsClosed
+		})
+	})
+
+	t.Run("long-lived connection", func(t *testing.T) {
+		transport := &http.Transport{
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+		}
+		client := &http.Client{Transport: transport}
+
+		testTLSCertParsing(t, client, func(c *network.ConnectionStats) bool {
+			return !c.IsClosed
+		})
+	})
+
 }
