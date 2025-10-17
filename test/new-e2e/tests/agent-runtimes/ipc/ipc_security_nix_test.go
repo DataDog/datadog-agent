@@ -25,7 +25,7 @@ type ipcSecurityLinuxSuite struct {
 	e2e.BaseSuite[environments.Host]
 }
 
-func TestIPCSecuirityLinuxSuite(t *testing.T) {
+func TestLinuxIPCSuite(t *testing.T) {
 	t.Parallel()
 	e2e.Run(t, &ipcSecurityLinuxSuite{}, e2e.WithProvisioner(awshost.Provisioner()))
 }
