@@ -277,10 +277,10 @@ func TestForwarderRetry(t *testing.T) {
 	requireLenForwarderRetryQueue(t, forwarder, 2)
 
 	ready.On("Process", forwarder.workers[0].Client.GetClient()).Return(nil).Times(1)
-	ready.On("GetTarget").Return("").Times(4)
+	ready.On("GetTarget").Return("").Times(2)
 	ready.On("GetCreatedAt").Return(time.Now()).Times(1)
 	notReady.On("GetCreatedAt").Return(time.Now()).Times(1)
-	notReady.On("GetTarget").Return("blocked").Times(3)
+	notReady.On("GetTarget").Return("blocked").Times(1)
 
 	forwarder.retryTransactions(time.Now())
 	<-ready.processed
@@ -288,7 +288,7 @@ func TestForwarderRetry(t *testing.T) {
 	ready.AssertExpectations(t)
 	notReady.AssertExpectations(t)
 	notReady.AssertNumberOfCalls(t, "Process", 0)
-	notReady.AssertNumberOfCalls(t, "GetTarget", 3)
+	notReady.AssertNumberOfCalls(t, "GetTarget", 1)
 	trs, err := forwarder.retryQueue.ExtractTransactions()
 	require.NoError(t, err)
 	require.Len(t, trs, 1)
@@ -311,7 +311,7 @@ func TestForwarderRetryLifo(t *testing.T) {
 	transaction1.On("GetTarget").Return("").Times(1)
 
 	transaction2.On("GetCreatedAt").Return(time.Now().Add(1 * time.Minute)).Times(1)
-	transaction2.On("GetTarget").Return("").Times(3)
+	transaction2.On("GetTarget").Return("").Times(1)
 
 	forwarder.retryTransactions(time.Now())
 

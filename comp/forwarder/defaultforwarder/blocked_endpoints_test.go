@@ -246,7 +246,7 @@ func assertState(t *testing.T, e *blockedEndpoints, endpoint string, expected ci
 	assert.Equal(t, expected, state)
 }
 
-func TestIsblockEndpointStaysClosedAfterFailedTest(t *testing.T) {
+func TestIsBlockForSendEndpointStaysClosedAfterFailedTest(t *testing.T) {
 	mocktime := time.Now()
 
 	mockConfig := mock.New(t)
@@ -280,7 +280,7 @@ func TestIsblockEndpointStaysClosedAfterFailedTest(t *testing.T) {
 	assertState(t, e, "test", halfBlocked)
 }
 
-func TestIsblockEndpointReopensAfterSuccessfulTest(t *testing.T) {
+func TestIsBlockForSendEndpointReopensAfterSuccessfulTest(t *testing.T) {
 	mocktime := time.Now()
 
 	mockConfig := mock.New(t)
@@ -304,7 +304,7 @@ func TestIsblockEndpointReopensAfterSuccessfulTest(t *testing.T) {
 	assertState(t, e, "test", unblocked)
 }
 
-func TestIsblockEndpointReopensForTest(t *testing.T) {
+func TestIsBlockForSendEndpointReopensForTest(t *testing.T) {
 	mocktime := time.Now()
 
 	mockConfig := mock.New(t)
@@ -323,7 +323,7 @@ func TestIsblockEndpointReopensForTest(t *testing.T) {
 	assert.True(t, e.isBlockForSend("test", mocktime))
 }
 
-func TestIsblockEndpointCloses(t *testing.T) {
+func TestIsBlockForSendEndpointCloses(t *testing.T) {
 	mockConfig := mock.New(t)
 	log := logmock.New(t)
 	e := newBlockedEndpoints(mockConfig, log)
@@ -335,10 +335,86 @@ func TestIsblockEndpointCloses(t *testing.T) {
 	assert.True(t, e.isBlockForSend("test", time.Now()))
 }
 
-func TestIsblockOpen(t *testing.T) {
+func TestIsBlockForSendOpen(t *testing.T) {
 	mockConfig := mock.New(t)
 	log := logmock.New(t)
 	e := newBlockedEndpoints(mockConfig, log)
 
 	assert.False(t, e.isBlockForSend("test", time.Now()))
+}
+
+func TestIsBlockForRetryOpen(t *testing.T) {
+	mockConfig := mock.New(t)
+	log := logmock.New(t)
+	e := newBlockedEndpoints(mockConfig, log)
+
+	retry := e.startRetry()
+
+	// Without any errored transactions occurring, we are unblocked no matter
+	// how many times we call.
+	assert.False(t, retry.isBlockForRetry("test", time.Now()))
+	assert.False(t, retry.isBlockForRetry("test", time.Now()))
+	assert.False(t, retry.isBlockForRetry("test", time.Now()))
+}
+
+func TestIsBlockForRetryCloses(t *testing.T) {
+	mockConfig := mock.New(t)
+	log := logmock.New(t)
+	e := newBlockedEndpoints(mockConfig, log)
+
+	mocktime := time.Now()
+	e.close("test", mocktime)
+	retry := e.startRetry()
+
+	// If the first call to `isBlockForRetry` is within the blocked time the enpoint
+	// is blocked as will all subsequent calls.
+	assert.True(t, retry.isBlockForRetry("test", mocktime))
+
+	expired := e.errorPerEndpoint["test"].until
+
+	assert.True(t, retry.isBlockForRetry("test", expired.Add(time.Second)))
+	assert.True(t, retry.isBlockForRetry("test", expired.Add(2*time.Second)))
+}
+
+func TestIsBlockForRetrySendsSingleTransactionInHalfBlockedPeriod(t *testing.T) {
+	mockConfig := mock.New(t)
+	log := logmock.New(t)
+	e := newBlockedEndpoints(mockConfig, log)
+
+	mocktime := time.Now()
+	e.close("test", mocktime)
+	retry := e.startRetry()
+
+	// If the first call to `isBlockForRetry` is after the expired time, we unblock a
+	// single transaction
+	expired := e.errorPerEndpoint["test"].until
+	assert.False(t, retry.isBlockForRetry("test", expired.Add(time.Second)))
+	assert.True(t, retry.isBlockForRetry("test", expired.Add(2*time.Second)))
+	assert.True(t, retry.isBlockForRetry("test", expired.Add(2*time.Second)))
+}
+
+func TestIsBlockForRetryReopens(t *testing.T) {
+	mockConfig := mock.New(t)
+	log := logmock.New(t)
+	e := newBlockedEndpoints(mockConfig, log)
+
+	e.close("test", time.Now())
+	retry := e.startRetry()
+
+	// If the first call to `isBlockForRetry` is after the expired time, we unblock a
+	// single transaction
+	expired := e.errorPerEndpoint["test"].until
+	assert.False(t, retry.isBlockForRetry("test", expired.Add(time.Second)))
+
+	// That test transaction is successful, so the endpoint should be recovered.
+	mocktime := expired.Add(time.Second)
+	// `isBlockForSend` call is needed to move the state into `HalfBlocked`.
+	e.isBlockForSend("test", mocktime)
+	e.recover("test", mocktime)
+
+	// That endpoint should be open again
+	retry = e.startRetry()
+	assert.False(t, retry.isBlockForRetry("test", mocktime.Add(time.Second)))
+	assert.False(t, retry.isBlockForRetry("test", mocktime.Add(time.Second)))
+	assert.False(t, retry.isBlockForRetry("test", mocktime.Add(time.Second)))
 }

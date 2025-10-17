@@ -185,13 +185,23 @@ func (e *blockedEndpoints) recover(endpoint string, timeNow time.Time) {
 	e.errorPerEndpoint[endpoint] = b
 }
 
-const (
-	blockNone shouldBlock = iota
-	allowOne
-	allowNone
-)
+type retryBlockList struct {
+	e           *blockedEndpoints
+	blockedList map[string]bool
+}
 
-type shouldBlock int
+// startRetry will start a new check for blocked endpoints when retrying transactions.
+// This must be called at the start of the retry loop since we need to treat all the
+// transactions to a given endpoint as a whole, either all are sent, or none if the
+// endpoint is blocked, or a single one if we just want to send a test transaction.
+//
+// NOTE: This is not thread safe, `retryBlockList` must not be shared between threads.
+func (e *blockedEndpoints) startRetry() *retryBlockList {
+	return &retryBlockList{
+		e:           e,
+		blockedList: make(map[string]bool),
+	}
+}
 
 // isBlockForRetry checks if the endpoint is blocked when deciding if we want
 // to add the transaction to the retry queue.
@@ -207,25 +217,33 @@ type shouldBlock int
 // worker to send a test transaction.
 // If we are `blocked` and the timeout has not expired, or we are `halfblocked`
 // (waiting for the results of the the test transaction) we block all transactions.
-func (e *blockedEndpoints) isBlockForRetry(endpoint string, timeNow time.Time) shouldBlock {
-	e.m.RLock()
-	defer e.m.RUnlock()
+func (r *retryBlockList) isBlockForRetry(endpoint string, timeNow time.Time) bool {
+	if isblocked, ok := r.blockedList[endpoint]; ok {
+		return isblocked
+	}
 
-	if b, ok := e.errorPerEndpoint[endpoint]; ok {
+	r.e.m.RLock()
+	defer r.e.m.RUnlock()
+
+	if b, ok := r.e.errorPerEndpoint[endpoint]; ok {
 		if b.state == blocked {
 			if timeNow.Before(b.until) {
-				return allowNone
+				r.blockedList[endpoint] = true
+				return true
 			}
 
-			// Time has expired, allow one test transaction through
-			return allowOne
+			// Time has expired, allow one test transaction through, block all
+			// ensuing transactions.
+			r.blockedList[endpoint] = true
+			return false
 		} else if b.state == halfBlocked {
 			// Wait for the test transaction results
-			return allowNone
+			r.blockedList[endpoint] = true
+			return true
 		}
 	}
 
-	return blockNone
+	return false
 }
 
 // isBlockForSend checks if the endpoint is blocked when deciding if
