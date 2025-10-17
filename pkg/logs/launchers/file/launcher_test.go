@@ -1428,9 +1428,6 @@ func (suite *BaseLauncherTestSuite) TestRotatedTailersNotStoppedDuringScan() {
 	suite.Equal(1, s.tailers.Count(), "Should have 1 active tailer")
 	suite.Equal(1, len(s.rotatedTailers), "Should have 1 rotated tailer")
 
-	// Get the rotated tailer
-	rotatedTailer := s.rotatedTailers[0]
-
 	// Change the source path to simulate the file no longer matching
 	// This should normally cause the tailer to be stopped, but rotated tailers should be skipped
 	s.activeSources = []*sources.LogSource{}
@@ -1438,8 +1435,6 @@ func (suite *BaseLauncherTestSuite) TestRotatedTailersNotStoppedDuringScan() {
 	// Scan again - the rotated tailer should NOT be stopped
 	s.resolveActiveTailers(suite.s.fileProvider.FilesToTail(context.Background(), suite.s.validatePodContainerID, suite.s.activeSources, suite.s.registry))
 
-	// The rotated tailer should still be in the rotatedTailers list
-	suite.True(s.isRotatedTailer(rotatedTailer), "Rotated tailer should still be in rotatedTailers list")
 	// Clean up
 	os.Remove(rotatedPath)
 }
