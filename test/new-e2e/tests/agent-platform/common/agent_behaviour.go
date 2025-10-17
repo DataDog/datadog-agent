@@ -230,6 +230,7 @@ func SetAgentPythonMajorVersion(t *testing.T, client *TestClient, majorVersion s
 	t.Run(fmt.Sprintf("set python version %s and restarts", majorVersion), func(tt *testing.T) {
 		configFilePath := client.Helper.GetConfigFolder() + client.Helper.GetConfigFileName()
 		err := client.SetConfig(configFilePath, "python_version", majorVersion)
+		err := client.SetConfig(configFilePath, "python_lazy_loading", "false")
 		require.NoError(tt, err, "failed to set python version: ", err)
 
 		_, err = client.SvcManager.Restart(client.Helper.GetServiceName())

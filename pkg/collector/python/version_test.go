@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build python
+
 package python
 
 import (
@@ -20,7 +22,7 @@ func TestGetPythonInfo(t *testing.T) {
 }
 
 func TestGetPythonInfoNoSet(t *testing.T) {
-	require.Equal(t, "n/a", GetPythonInfo())
+	require.Equal(t, "unused", GetPythonInfo())
 }
 
 func TestGetPythonVersion(t *testing.T) {
@@ -30,5 +32,5 @@ func TestGetPythonVersion(t *testing.T) {
 }
 
 func TestGetPythonVersionNotSet(t *testing.T) {
-	require.Equal(t, "n/a", GetPythonVersion())
+	require.Equal(t, "unused", GetPythonVersion())
 }
