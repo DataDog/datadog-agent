@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	installerwindows "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows"
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows/consts"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows"
 )
 
@@ -89,4 +90,66 @@ func (s *baseIISSuite) getLibraryPathFromInstrumentedIIS() string {
 	output, err := host.Execute(`(Invoke-WebRequest -Uri "http://localhost:8080/index.aspx" -UseBasicParsing).Content`)
 	s.Require().NoErrorf(err, "failed to get content from site: %s", output)
 	return strings.TrimSpace(output)
+}
+
+func (s *baseIISSuite) setAgentConfig() {
+	err := s.Env().RemoteHost.MkdirAll("C:\\ProgramData\\Datadog")
+	s.Require().NoError(err)
+	_, err = s.Env().RemoteHost.WriteFile(consts.ConfigPath, []byte(`
+api_key: aaaaaaaaa
+remote_updates: true
+`))
+	s.Require().NoError(err)
+}
+
+func (s *baseIISSuite) cleanupAgentConfig() {
+	err := s.Env().RemoteHost.Remove(consts.ConfigPath)
+	s.Require().NoError(err)
+}
+
+func (s *baseIISSuite) assertSuccessfulStartExperiment(version string) {
+	s.Require().Host(s.Env().RemoteHost).HasDatadogInstaller().Status().
+		HasPackage("datadog-apm-library-dotnet").
+		WithExperimentVersionMatchPredicate(func(actual string) {
+			s.Require().Contains(actual, version)
+		})
+}
+
+func (s *baseIISSuite) assertSuccessfulPromoteExperiment(version string) {
+	s.Require().Host(s.Env().RemoteHost).HasDatadogInstaller().Status().
+		HasPackage("datadog-apm-library-dotnet").
+		WithStableVersionMatchPredicate(func(actual string) {
+			s.Require().Contains(actual, version)
+		}).
+		WithExperimentVersionEqual("")
+}
+
+func (s *baseIISSuite) startExperimentCurrentDotnetLibrary(version installerwindows.PackageVersion) (string, error) {
+	return s.startExperimentWithCustomPackage(installerwindows.WithName("datadog-apm-library-dotnet"),
+		installerwindows.WithAlias("apm-library-dotnet-package"),
+		// TODO remove override once image is published in prod
+		installerwindows.WithVersion(version.Version()),
+		installerwindows.WithRegistry("install.datad0g.com.internal.dda-testing.com"),
+		installerwindows.WithDevEnvOverrides("CURRENT_DOTNET_LIBRARY"),
+	)
+}
+
+func (s *baseIISSuite) startExperimentWithCustomPackage(opts ...installerwindows.PackageOption) (string, error) {
+	packageConfig, err := installerwindows.NewPackageConfig(opts...)
+	s.Require().NoError(err)
+	packageConfig, err = installerwindows.CreatePackageSourceIfLocal(s.Env().RemoteHost, packageConfig)
+	s.Require().NoError(err)
+
+	// Set catalog so daemon can find the package
+	_, err = s.Installer().SetCatalog(installerwindows.Catalog{
+		Packages: []installerwindows.PackageEntry{
+			{
+				Package: packageConfig.Name,
+				Version: packageConfig.Version,
+				URL:     packageConfig.URL(),
+			},
+		},
+	})
+	s.Require().NoError(err)
+	return s.Installer().StartExperiment("datadog-apm-library-dotnet", packageConfig.Version)
 }
