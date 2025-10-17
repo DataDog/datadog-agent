@@ -1392,7 +1392,7 @@ func TestKSMCheck_processLabelsAsTags(t *testing.T) {
 		{
 			name: "With wildcard template",
 			config: &KSMConfig{
-				labelJoins: map[string]*joinsConfig{},
+				labelJoins:   map[string]*joinsConfig{},
 				LabelsMapper: map[string]string{},
 				LabelsAsTags: map[string]map[string]string{
 					"pod": {"*": "%%label%%"},
@@ -1400,9 +1400,9 @@ func TestKSMCheck_processLabelsAsTags(t *testing.T) {
 			},
 			expectedJoins: map[string]*joinsConfig{
 				"kube_pod_labels": {
-					labelsToMatch: []string{"pod", "namespace"},
-					labelsToGet:   map[string]string{},
-					getAllLabels:  true,
+					labelsToMatch:    []string{"pod", "namespace"},
+					labelsToGet:      map[string]string{},
+					getAllLabels:     true,
 					wildcardTemplate: "%%label%%",
 				},
 			},
@@ -1410,19 +1410,19 @@ func TestKSMCheck_processLabelsAsTags(t *testing.T) {
 		{
 			name: "With wildcard template prefix",
 			config: &KSMConfig{
-				labelJoins: map[string]*joinsConfig{},
+				labelJoins:   map[string]*joinsConfig{},
 				LabelsMapper: map[string]string{},
 				LabelsAsTags: map[string]map[string]string{
-					"pod": {"*": "prefix_%%label%%", 
-							"special.label/test": "special",
+					"pod": {"*": "prefix_%%label%%",
+						"special.label/test": "special",
 					},
 				},
 			},
 			expectedJoins: map[string]*joinsConfig{
 				"kube_pod_labels": {
-					labelsToMatch: []string{"pod", "namespace"},
-					labelsToGet:   map[string]string{"label_special_label_test": "special"},
-					getAllLabels:  true,
+					labelsToMatch:    []string{"pod", "namespace"},
+					labelsToGet:      map[string]string{"label_special_label_test": "special"},
+					getAllLabels:     true,
 					wildcardTemplate: "prefix_%%label%%",
 				},
 			},
@@ -1430,18 +1430,18 @@ func TestKSMCheck_processLabelsAsTags(t *testing.T) {
 		{
 			name: "Mixed wildcard and non-wildcard templates",
 			config: &KSMConfig{
-				labelJoins: map[string]*joinsConfig{},
+				labelJoins:   map[string]*joinsConfig{},
 				LabelsMapper: map[string]string{},
 				LabelsAsTags: map[string]map[string]string{
-					"pod": {"*": "test_%%label%%"},
+					"pod":  {"*": "test_%%label%%"},
 					"node": {"special.label/test": "special"},
 				},
 			},
 			expectedJoins: map[string]*joinsConfig{
 				"kube_pod_labels": {
-					labelsToMatch: []string{"pod", "namespace"},
-					labelsToGet:   map[string]string{},
-					getAllLabels:  true,
+					labelsToMatch:    []string{"pod", "namespace"},
+					labelsToGet:      map[string]string{},
+					getAllLabels:     true,
 					wildcardTemplate: "test_%%label%%",
 				},
 				"kube_node_labels": {
@@ -1487,7 +1487,7 @@ func TestKSMCheck_processAnnotationsAsTags(t *testing.T) {
 		{
 			name: "With wildcard template",
 			config: &KSMConfig{
-				labelJoins: map[string]*joinsConfig{},
+				labelJoins:   map[string]*joinsConfig{},
 				LabelsMapper: map[string]string{},
 				AnnotationsAsTags: map[string]map[string]string{
 					"pod": {"*": "%%annotation%%"},
@@ -1495,9 +1495,9 @@ func TestKSMCheck_processAnnotationsAsTags(t *testing.T) {
 			},
 			expectedJoins: map[string]*joinsConfig{
 				"kube_pod_annotations": {
-					labelsToMatch: []string{"pod", "namespace"},
-					labelsToGet:   map[string]string{},
-					getAllLabels:  true,
+					labelsToMatch:    []string{"pod", "namespace"},
+					labelsToGet:      map[string]string{},
+					getAllLabels:     true,
 					wildcardTemplate: "%%annotation%%",
 				},
 			},
