@@ -192,38 +192,6 @@ func TestDDHostnameFileEnvVar(t *testing.T) {
 	assert.Equal(t, "somefile", testConfig.Get("hostname_file"))
 }
 
-func TestIsCloudProviderEnabled(t *testing.T) {
-	config := newTestConf(t)
-
-	config.SetWithoutSource("cloud_provider_metadata", []string{"aws", "gcp", "azure", "alibaba", "tencent"})
-	assert.True(t, IsCloudProviderEnabled("AWS", config))
-	assert.True(t, IsCloudProviderEnabled("GCP", config))
-	assert.True(t, IsCloudProviderEnabled("Alibaba", config))
-	assert.True(t, IsCloudProviderEnabled("Azure", config))
-	assert.True(t, IsCloudProviderEnabled("Tencent", config))
-
-	config.SetWithoutSource("cloud_provider_metadata", []string{"aws"})
-	assert.True(t, IsCloudProviderEnabled("AWS", config))
-	assert.False(t, IsCloudProviderEnabled("GCP", config))
-	assert.False(t, IsCloudProviderEnabled("Alibaba", config))
-	assert.False(t, IsCloudProviderEnabled("Azure", config))
-	assert.False(t, IsCloudProviderEnabled("Tencent", config))
-
-	config.SetWithoutSource("cloud_provider_metadata", []string{"tencent"})
-	assert.False(t, IsCloudProviderEnabled("AWS", config))
-	assert.False(t, IsCloudProviderEnabled("GCP", config))
-	assert.False(t, IsCloudProviderEnabled("Alibaba", config))
-	assert.False(t, IsCloudProviderEnabled("Azure", config))
-	assert.True(t, IsCloudProviderEnabled("Tencent", config))
-
-	config.SetWithoutSource("cloud_provider_metadata", []string{})
-	assert.False(t, IsCloudProviderEnabled("AWS", config))
-	assert.False(t, IsCloudProviderEnabled("GCP", config))
-	assert.False(t, IsCloudProviderEnabled("Alibaba", config))
-	assert.False(t, IsCloudProviderEnabled("Azure", config))
-	assert.False(t, IsCloudProviderEnabled("Tencent", config))
-}
-
 func TestEnvNestedConfig(t *testing.T) {
 	config := newTestConf(t)
 	config.BindEnv("foo.bar.nested") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
@@ -663,12 +631,6 @@ external_config:
 	assert.Equal(config.GetSource("dd_url"), pkgconfigmodel.SourceAgentRuntime)
 }
 
-func TestGetValidHostAliasesWithConfig(t *testing.T) {
-	config := newTestConf(t)
-	config.SetWithoutSource("host_aliases", []string{"foo", "-bar"})
-	assert.EqualValues(t, getValidHostAliasesWithConfig(config), []string{"foo"})
-}
-
 func TestNetworkDevicesNamespace(t *testing.T) {
 	datadogYaml := `
 network_devices:
@@ -1007,26 +969,6 @@ func TestComputeStatsBySpanKindEnv(t *testing.T) {
 	t.Setenv("DD_APM_COMPUTE_STATS_BY_SPAN_KIND", "true")
 	testConfig = newTestConf(t)
 	require.True(t, testConfig.GetBool("apm_config.compute_stats_by_span_kind"))
-}
-
-func TestGetRemoteConfigurationAllowedIntegrations(t *testing.T) {
-	// EMPTY configuration
-	testConfig := newTestConf(t)
-	require.Equal(t, map[string]bool{}, GetRemoteConfigurationAllowedIntegrations(testConfig))
-
-	t.Setenv("DD_REMOTE_CONFIGURATION_AGENT_INTEGRATIONS_ALLOW_LIST", "[\"POSTgres\", \"redisDB\"]")
-	testConfig = newTestConf(t)
-	require.Equal(t,
-		map[string]bool{"postgres": true, "redisdb": true},
-		GetRemoteConfigurationAllowedIntegrations(testConfig),
-	)
-
-	t.Setenv("DD_REMOTE_CONFIGURATION_AGENT_INTEGRATIONS_BLOCK_LIST", "[\"mySQL\", \"redisDB\"]")
-	testConfig = newTestConf(t)
-	require.Equal(t,
-		map[string]bool{"postgres": true, "redisdb": false, "mysql": false},
-		GetRemoteConfigurationAllowedIntegrations(testConfig),
-	)
 }
 
 func TestLanguageDetectionSettings(t *testing.T) {
@@ -1392,7 +1334,7 @@ use_proxy_for_cloud_metadata: true
 	err := loadCustom(config, nil)
 	assert.NoError(t, err)
 
-	err = ResolveSecrets(config, resolver, "unit_test")
+	err = resolveSecrets(config, resolver, "unit_test")
 	require.NoError(t, err)
 
 	yamlConf, err := yaml.Marshal(config.AllSettingsWithoutDefault())

@@ -11,6 +11,7 @@ import (
 	"time"
 
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/cachedfetch"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 )
@@ -35,7 +36,7 @@ func IsRunningOn(ctx context.Context) bool {
 var instanceIDFetcher = cachedfetch.Fetcher{
 	Name: "Oracle InstanceID",
 	Attempt: func(ctx context.Context) (interface{}, error) {
-		if !pkgconfigsetup.IsCloudProviderEnabled(CloudProviderName, pkgconfigsetup.Datadog()) {
+		if !configutils.IsCloudProviderEnabled(CloudProviderName, pkgconfigsetup.Datadog()) {
 			return "", fmt.Errorf("Oracle cloud provider is disabled by configuration")
 		}
 
