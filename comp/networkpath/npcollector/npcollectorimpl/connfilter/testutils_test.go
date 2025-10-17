@@ -21,7 +21,7 @@ func getConnFilter(t *testing.T, configString string, ddSite string) (*ConnFilte
 	if err != nil {
 		return nil, err
 	}
-	connFilter, errs := NewConnFilter(configs, ddSite)
+	connFilter, errs := NewConnFilter(configs, ddSite, false)
 	if len(errs) > 0 {
 		err = errors.Join(errs...)
 	}

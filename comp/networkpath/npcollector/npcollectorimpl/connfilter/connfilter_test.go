@@ -344,7 +344,7 @@ filters:
 			} else {
 				require.NoError(t, err)
 			}
-			assert.Len(t, connFilter.filters, tt.expectedCustomFilterCount+len(getDefaultConnFilters(tt.ddSite)))
+			assert.Len(t, connFilter.filters, tt.expectedCustomFilterCount+len(getDefaultConnFilters(tt.ddSite, false)))
 			for _, expMatch := range tt.expectedMatches {
 				require.NotNil(t, connFilter)
 				assert.Equal(t, connFilter.IsIncluded(expMatch.domain, expMatch.ip), expMatch.shouldMatch, expMatch)
