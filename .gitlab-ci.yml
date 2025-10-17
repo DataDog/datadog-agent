@@ -64,21 +64,15 @@ dda:linux:features:
     - pip install git+https://github.com/DataDog/datadog-agent-dev.git@kfairise/support-feature-flag-ci
     - which dda
     - dda bzl
-  variables:
-    DDA_FEATURE_FLAGS_CI_VAULT_KEY: token
-    DDA_FEATURE_FLAGS_CI_VAULT_PATH: k8s/gitlab-runner-datadog-agent/datadog-agent/$DDA_CLIENT_TOKEN
 
-# dda:macos:features:
-#   stage: setup
-#   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
-#   tags: ["macos:ventura-amd64", "specific:true"]
-#   dependencies: []
-#   script:
-#     - pip3 install git+https://github.com/DataDog/datadog-agent-dev.git@kfairise/support-feature-flag-ci
-#     - dda bzl
-#   variables:
-#     DDA_FEATURE_FLAGS_CI_VAULT_KEY_MACOS: token
-#     DDA_FEATURE_FLAGS_CI_VAULT_PATH_MACOS: aws/arn:aws:iam::486234852809:role/ci-datadog-agent/$DDA_CLIENT_TOKEN
+dda:macos:features:
+  stage: setup
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
+  tags: ["macos:ventura-amd64", "specific:true"]
+  dependencies: []
+  script:
+    - pip3 install git+https://github.com/DataDog/datadog-agent-dev.git@kfairise/support-feature-flag-ci
+    - dda bzl
 
 dda:windows:features:
   stage: setup
@@ -99,14 +93,13 @@ dda:windows:features:
       -e AWS_NETWORKING=true
       -e CI_PIPELINE_ID=${CI_PIPELINE_ID}
       -e CI_PROJECT_NAME=${CI_PROJECT_NAME}
+      -e CI=${CI}
       -e GOMODCACHE="c:\modcache"
       -e RUST_LOG="uv=trace"
       -e DDA_FEATURE_FLAGS_CI_SSM_KEY_WINDOWS=${DDA_FEATURE_FLAGS_CI_SSM_KEY_WINDOWS}
       ${WINBUILDIMAGE}
       powershell.exe -c "c:\mnt\tasks\winbuildscripts\Invoke-Linters.ps1 -BuildOutOfSource 1 -CheckGoVersion 1 -InstallDeps 1"
     - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
-  variables:
-    DDA_FEATURE_FLAGS_CI_SSM_KEY_WINDOWS: ci.datadog-agent.dda-feature-flags-client-token
 
 default:
   retry:
@@ -161,6 +154,11 @@ stages:
   - notify
 
 variables:
+  DDA_FEATURE_FLAGS_CI_VAULT_KEY_MACOS: token
+  DDA_FEATURE_FLAGS_CI_VAULT_PATH_MACOS: aws/arn:aws:iam::486234852809:role/ci-datadog-agent/$DDA_CLIENT_TOKEN
+  DDA_FEATURE_FLAGS_CI_SSM_KEY_WINDOWS: ci.datadog-agent.dda-feature-flags-client-token
+  DDA_FEATURE_FLAGS_CI_VAULT_KEY: token
+  DDA_FEATURE_FLAGS_CI_VAULT_PATH: k8s/gitlab-runner-datadog-agent/datadog-agent/$DDA_CLIENT_TOKEN
   # Special variable that allows us to set the pipeline to compute the code coverage of the e2e tests. It will impact several jobs so that
   # the agent is build with a special flag that allow computing code coverage of the binary when it is running.
   E2E_COVERAGE_PIPELINE: false
