@@ -17,7 +17,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	taggertypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
@@ -64,13 +65,13 @@ type checkTelemetry struct {
 }
 
 // Factory creates a new check factory
-func Factory(tagger tagger.Component, telemetry telemetry.Component, wmeta workloadmeta.Component) option.Option[func() check.Check] {
+func Factory(tagger tagger.Component, telemetry telemetryimpl.Component, wmeta workloadmeta.Component) option.Option[func() check.Check] {
 	return option.New(func() check.Check {
 		return newCheck(tagger, telemetry, wmeta)
 	})
 }
 
-func newCheck(tagger tagger.Component, telemetry telemetry.Component, wmeta workloadmeta.Component) check.Check {
+func newCheck(tagger tagger.Component, telemetry telemetryimpl.Component, wmeta workloadmeta.Component) check.Check {
 	return &Check{
 		CheckBase:          core.NewCheckBase(CheckName),
 		tagger:             tagger,
@@ -82,7 +83,7 @@ func newCheck(tagger tagger.Component, telemetry telemetry.Component, wmeta work
 	}
 }
 
-func newCheckTelemetry(tm telemetry.Component) *checkTelemetry {
+func newCheckTelemetry(tm telemetryimpl.Component) *checkTelemetry {
 	return &checkTelemetry{
 		metricsSent:                  tm.NewCounter(CheckName, "metrics_sent", []string{"collector"}, "Number of GPU metrics sent"),
 		activeMetrics:                tm.NewGauge(CheckName, "active_metrics", nil, "Number of active metrics"),
