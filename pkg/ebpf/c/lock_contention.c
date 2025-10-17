@@ -350,37 +350,83 @@ BPF_PERCPU_ARRAY_MAP(ranges, struct lock_range, 0);
 
 __hidden int data_map_full;
 
-static __always_inline int can_record(u64 *ctx, struct lock_range* range)
-{
-    u64 addr = ctx[0];
-
-    u64 end = num_of_ranges - 1;
-    u64 start = 0;
-
+struct range_loop_ctx {
+    u64 addr;
     u64 m;
-    struct lock_range *test_range;
-    for (int i = 0; i < log2_num_of_ranges+1; i++) {
-        if (start > end)
-            return false;
+    u64 start;
+    u64 end;
+    struct lock_range *range;
+};
 
-        m = start + ((end - start) / 2);
+static int range_loop_callback(u32 index, void *data)
+{
+    struct range_loop_ctx *ctx = data;
+    if (ctx->start > ctx->end)
+        return 1;
 
-        test_range = bpf_map_lookup_elem(&ranges, &m);
-        if (!test_range)
-            return false;
+    ctx->m = ctx->start + ((ctx->end - ctx->start) / 2);
+    struct lock_range *test_range = bpf_map_lookup_elem(&ranges, &ctx->m);
+    if (!test_range)
+        return 1;
 
-        if ((addr >= test_range->addr_start) && (addr <= (test_range->addr_start + test_range->range))) {
-            bpf_memcpy(range, test_range, sizeof(struct lock_range));
-            return true;
-        }
-
-        if (addr < test_range->addr_start)
-            end = m - 1;
-        else
-            start = m + 1;
+    if ((ctx->addr >= test_range->addr_start) && (ctx->addr <= (test_range->addr_start + test_range->range))) {
+        bpf_memcpy(ctx->range, test_range, sizeof(struct lock_range));
+        return 1;
     }
 
-    return false;
+    if (ctx->addr < test_range->addr_start)
+        ctx->end = ctx->m - 1;
+    else
+        ctx->start = ctx->m + 1;
+
+    return 0;
+}
+
+static __always_inline int can_record(u64 *ctx, struct lock_range* range)
+{
+    struct range_loop_ctx data = {
+        .addr = ctx[0],
+        .m = 0,
+        .start = 0,
+        .end = num_of_ranges - 1,
+        .range = range,
+    };
+
+    int loops_returned = bpf_loop(log2_num_of_ranges, range_loop_callback, &data, 0);
+    if (loops_returned < 0 || !data.range->type)
+        return false;
+
+    return true;
+
+//    u64 addr = ctx[0];
+//
+//    u64 end = num_of_ranges - 1;
+//    u64 start = 0;
+//
+//    u64 m;
+//    struct lock_range *test_range;
+//    for (int i = 0; i < log2_num_of_ranges+1; i++) {
+//        if (start > end)
+//            return false;
+//
+//        m = start + ((end - start) / 2);
+//
+//        test_range = bpf_map_lookup_elem(&ranges, &m);
+//        if (!test_range)
+//            return false;
+//
+//        if ((addr >= test_range->addr_start) && (addr <= (test_range->addr_start + test_range->range))) {
+//            bpf_memcpy(range, test_range, sizeof(struct lock_range));
+//            return true;
+//        }
+//
+//        if (addr < test_range->addr_start)
+//            end = m - 1;
+//        else
+//            start = m + 1;
+//    }
+//
+//    return false;
 }
 
 /* lock contention flags from include/trace/events/lock.h */
