@@ -5,11 +5,9 @@
 # must be readable independently of the other.
 #
 # Each section note must be formatted as reStructuredText.
----
 enhancements:
   - |
-This release refactors the ECS workloadmeta collector architecture to clearly
-separate ECS launch type (EC2 vs Fargate) from agent deployment mode (daemon vs
-sidecar). This improves code organization, reduces duplication, and helps
-future Managed Instances support.
-
+    This release refactors the ECS workloadmeta collector architecture to clearly
+    separate ECS launch type (EC2 vs Fargate) from agent deployment mode (daemon vs
+    sidecar). This improves code organization, reduces duplication, and helps
+    future Managed Instances support.
