@@ -36,10 +36,10 @@
     "amazon_5.4": {
       "os_name": "Amazon Linux",
       "os_id": "amzn",
-      "kernel": "5.4.299-219.436.amzn2",
+      "kernel": "5.4.284-196.380.amzn2",
       "os_version": "2",
       "image": "amzn2-x86_64-5.4.qcow2.xz",
-      "image_version": "20251015_301103a6"
+      "image_version": "20241003_a9a46356"
     },
     "amazon_2023": {
       "os_name": "Amazon Linux",
@@ -261,10 +261,10 @@
     "rocky_9.4": {
       "os_name": "Rocky Linux",
       "os_id": "rocky",
-      "kernel": "5.14.0-570.49.1.el9_6",
+      "kernel": "5.14.0-503.15.1.el9_5",
       "os_version": "9.4",
       "image": "rocky-9.4-x86_64.qcow2.xz",
-      "image_version": "20251015_301103a6"
+      "image_version": "20241209_f6a14db0"
     },
     "rocky_8.4": {
       "os_name": "Rocky Linux",
@@ -303,10 +303,10 @@
     "amazon_5.4": {
       "os_name": "Amazon Linux",
       "os_id": "amzn",
-      "kernel": "5.4.299-219.436.amzn2",
+      "kernel": "5.4.284-196.380.amzn2",
       "os_version": "2",
       "image": "amzn2-arm64-5.4.qcow2.xz",
-      "image_version": "20251015_301103a6"
+      "image_version": "20241003_a9a46356"
     },
     "centos_7.9": {
       "os_name": "CentOS Linux",
@@ -506,10 +506,10 @@
     "rocky_9.4": {
       "os_name": "Rocky Linux",
       "os_id": "rocky",
-      "kernel": "5.14.0-570.49.1.el9_6",
+      "kernel": "5.14.0-503.15.1.el9_5",
       "os_version": "9.4",
       "image": "rocky-9.4-arm64.qcow2.xz",
-      "image_version": "20251015_301103a6"
+      "image_version": "20241209_f6a14db0"
     }
   }
 }
