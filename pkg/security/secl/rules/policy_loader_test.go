@@ -1011,6 +1011,90 @@ func TestPolicyLoader_LoadPolicies(t *testing.T) {
 			},
 		},
 		{
+			name: "P0.DR0 enabled, P0.DR1 enabled, P1.CR0 disabled => P1.DR0 enabled",
+			fields: fields{
+				Providers: []PolicyProvider{
+					dummyRCProvider{
+						dummyLoadPoliciesFunc: func() ([]*Policy, *multierror.Error) {
+							return testPoliciesToPolicies([]*testPolicyDef{
+								{
+									name:       "P1.policy",
+									source:     PolicyProviderTypeRC,
+									policyType: DefaultPolicyType,
+									def: PolicyDef{
+										Rules: []*RuleDefinition{
+											{ID: "rule_1", Expression: "exec.file.path == \"/etc/default/foo\""},
+											{ID: "rule_2", Expression: "exec.file.path == \"/etc/default/bar\""},
+										},
+									},
+								},
+							})
+						},
+					},
+					dummyRCProvider{
+						dummyLoadPoliciesFunc: func() ([]*Policy, *multierror.Error) {
+							return testPoliciesToPolicies([]*testPolicyDef{
+								{
+									name:       "P2.policy",
+									source:     PolicyProviderTypeRC,
+									policyType: DefaultPolicyType,
+									def: PolicyDef{
+										Rules: []*RuleDefinition{
+											{ID: "rule_1", Expression: "exec.file.path == \"/etc/default/foo\""},
+											{ID: "rule_2", Expression: "exec.file.path == \"/etc/default/bar\""},
+										},
+									},
+								},
+							})
+						},
+					},
+					dummyRCProvider{
+						dummyLoadPoliciesFunc: func() ([]*Policy, *multierror.Error) {
+							return testPoliciesToPolicies([]*testPolicyDef{
+								{
+									name:       "C1.policy",
+									source:     PolicyProviderTypeRC,
+									policyType: CustomPolicyType,
+									def: PolicyDef{
+										Rules: []*RuleDefinition{
+											{ID: "rule_2", Expression: "exec.file.path == \"/etc/default/bar\"", Disabled: true},
+										},
+									},
+								},
+							})
+						},
+					},
+				},
+			},
+			want: func(t assert.TestingT, got map[eval.RuleID]*Rule, _ ...interface{}) bool {
+				expected := map[eval.RuleID]*Rule{
+					"rule_1": {
+						PolicyRule: &PolicyRule{
+							Def: &RuleDefinition{ID: "rule_1", Expression: "exec.file.path == \"/etc/default/foo\""},
+							Policy: PolicyInfo{
+								Name:   "P1.policy",
+								Source: PolicyProviderTypeRC,
+								Type:   DefaultPolicyType,
+							},
+							Accepted: true,
+						},
+					},
+					"rule_2": {
+						PolicyRule: &PolicyRule{
+							Def: &RuleDefinition{ID: "rule_2", Expression: "exec.file.path == \"/etc/default/bar\""},
+							Policy: PolicyInfo{
+								Name:   "P1.policy",
+								Source: PolicyProviderTypeRC,
+								Type:   DefaultPolicyType,
+							},
+							Accepted: true,
+						},
+					},
+				}
+				return checkOverrideResult(t, expected, got)
+			},
+		},
+		{
 			name: "P0.DR disabled, P1.CR disabled => CR disabled",
 			fields: fields{
 				Providers: []PolicyProvider{
@@ -2598,20 +2682,18 @@ func testPoliciesToPolicies(testPolicies []*testPolicyDef) ([]*Policy, *multierr
 }
 
 func checkOverrideResult(t assert.TestingT, expected map[eval.RuleID]*Rule, got map[eval.RuleID]*Rule) bool {
-	if len(expected) == 0 {
-		return assert.Equal(t, len(expected), len(got))
-	}
+	assert.Equal(t, len(expected), len(got))
 
-	// From here, we know that we expect exacly one element
-	var ruleID eval.RuleID
-	for r := range expected {
-		ruleID = r
-		break
+	for ruleID, r := range expected {
+		res := assert.NotNil(t, got[ruleID]) &&
+			assert.Equal(t, r.PolicyRule.Def, got[ruleID].PolicyRule.Def) &&
+			assert.Equal(t, r.PolicyRule.Policy.Name, got[ruleID].Policy.Name) &&
+			assert.Equal(t, r.PolicyRule.Policy.Source, got[ruleID].Policy.Source) &&
+			assert.Equal(t, r.PolicyRule.Policy.Type, got[ruleID].Policy.Type) &&
+			assert.Equal(t, r.PolicyRule.Accepted, got[ruleID].PolicyRule.Accepted)
+		if !res {
+			return res
+		}
 	}
-	return (assert.Equal(t, 1, len(got)) &&
-		assert.Equal(t, expected[ruleID].PolicyRule.Def, got[ruleID].PolicyRule.Def) &&
-		assert.Equal(t, expected[ruleID].PolicyRule.Policy.Name, got[ruleID].Policy.Name) &&
-		assert.Equal(t, expected[ruleID].PolicyRule.Policy.Source, got[ruleID].Policy.Source) &&
-		assert.Equal(t, expected[ruleID].PolicyRule.Policy.Type, got[ruleID].Policy.Type) &&
-		assert.Equal(t, expected[ruleID].PolicyRule.Accepted, got[ruleID].PolicyRule.Accepted))
+	return true
 }
