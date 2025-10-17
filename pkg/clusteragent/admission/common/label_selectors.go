@@ -39,8 +39,10 @@ func DefaultLabelSelectors(useNamespaceSelector bool, config LabelSelectorsConfi
 	applySelectorConfig(nsSelector, config)
 
 	if pkgconfigsetup.Datadog().GetBool("admission_controller.add_aks_selectors") {
-		// Azure AKS adds the namespace selector even in Kubernetes versions that
-		// support object selectors, so we need to add it to avoid conflicts.
+		// AKS automatically adds some selector requirements if we don't
+		// so we need to add them to avoid conflicts when updating the webhook.
+		//
+		// Ref: https://docs.microsoft.com/en-us/azure/aks/faq#can-i-use-admission-controller-webhooks-on-aks
 		nsSelector.MatchExpressions = append(
 			nsSelector.MatchExpressions,
 			azureAKSLabelSelectorRequirement()...,
