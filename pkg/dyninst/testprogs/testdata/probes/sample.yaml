@@ -1572,11 +1572,33 @@ probes:
     type: LOG_PROBE
     where:
       methodName: main.testReturnsInt
-    message: "{i}"
+    message: "{i} + {j}"
     segments:
       - json: 
           ref: "i"
         dsl: "i"
+      - str: " + "
+      - dsl: "j"
+        json:
+          ref: "j"
+    captureSnapshot: true
+  - id: testNamedReturnAndChangesToParams
+    type: LOG_PROBE
+    where:
+      methodName: main.testNamedReturnAndChangesToParams
+    message: "{i}, {q}, {j}"
+    segments:
+      - json: 
+          ref: "i"
+        dsl: "i"
+      - str: ", "
+      - json: 
+          ref: "q"
+        dsl: "q"
+      - str: ", "
+      - dsl: "j"
+        json:
+          ref: "j"
     captureSnapshot: true
   - id: testReturnsIntPointer
     type: LOG_PROBE
