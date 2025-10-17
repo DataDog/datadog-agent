@@ -1,7 +1,34 @@
 load("@bazel_skylib//rules:copy_file.bzl", "copy_file")
 load("@rules_cc//cc:defs.bzl", "cc_library")
+load("@rules_cc//cc:cc_shared_library.bzl", "cc_shared_library")
+load("@rules_pkg//pkg:install.bzl", "pkg_install")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_files", "pkg_mklink")
 
 COMMON_COPTS = ["-O3"]
+
+# Version info from unixODBC 2.3.9
+# The actual SONAME version would be determined by LIB_VERSION in the autotools build
+# For unixODBC 2.3.9, the libraries typically have SONAME like libodbc.so.2
+VERSION = "2.3.9"
+SOVERSION = "2"
+
+# Public headers installed by unixODBC
+_UNIXODBC_PUBLIC_HEADERS = [
+    "include/odbcinst.h",
+    "include/odbcinstext.h",
+    "include/sql.h",
+    "include/sqlext.h",
+    "include/sqltypes.h",
+    "include/sqlucode.h",
+    "include/sqlspi.h",
+    "include/autotest.h",
+    "include/uodbc_stats.h",
+    "include/uodbc_extras.h",
+]
+
+_LIBLTDL_PUBLIC_HEADERS = [
+    "libltdl/ltdl.h",
+]
 
 copy_file(
     name = "libltdl_config_h",
@@ -45,29 +72,237 @@ cc_library(
     includes = ["libltdl/libltdl", "libltdl/."],
 )
 
+# Extra utility functions (snprintf, strcasecmp)
+cc_library(
+    name = "extras",
+    # :config_h cannot be inside of the glob() because
+    # actions are executed during execution phase, not during analysis phase
+    # and glob is evaluated during analysis phase.
+    srcs = glob(["extras/**/*.c", "include/*.h"], exclude = ["extras/vms.c"]) + [":config_h"],
+    copts = COMMON_COPTS,
+    includes = [".", "include"],
+)
+
+# Logging library
 cc_library(
     name = "log",
     # :config_h cannot be inside of the glob() because
     # actions are executed during execution phase, not during analysis phase
     # and glob is evaluated during analysis phase.
     srcs = glob(["log/**/*.c", "include/*.h"]) + [":config_h"],
-    visibility = ["//visibility:public"],
     copts = COMMON_COPTS,
     includes = [".", "include"],
 )
 
+# List management library
 cc_library(
-    name = "extras",
-    srcs = glob(["extras/**/*.c", "include/*.h"], exclude = ["extras/vms.c"]) + [":config_h"],
-    visibility = ["//visibility:public"],
+    name = "lst",
+    # :config_h cannot be inside of the glob() because
+    # actions are executed during execution phase, not during analysis phase
+    # and glob is evaluated during analysis phase.
+    srcs = glob(["lst/**/*.c", "include/*.h"]) + [":config_h"],
     copts = COMMON_COPTS,
     includes = [".", "include"],
 )
 
+# INI file parsing library
 cc_library(
     name = "ini",
+    # :config_h cannot be inside of the glob() because
+    # actions are executed during execution phase, not during analysis phase
+    # and glob is evaluated during analysis phase.
     srcs = glob(["ini/**/*.c", "include/*.h"]) + [":config_h"],
+    copts = COMMON_COPTS,
+    includes = [".", "include"],
+    deps = [":extras"],
+)
+
+# ODBC installer library (internal version)
+cc_library(
+    name = "odbcinstlc",
+    # :config_h cannot be inside of the glob() because
+    # actions are executed during execution phase, not during analysis phase
+    # and glob is evaluated during analysis phase.
+    srcs = glob(["odbcinst/**/*.c", "include/*.h"]) + [":config_h"],
+    copts = COMMON_COPTS,
+    includes = [".", "include"],
+    deps = [
+        ":ini",
+        ":log",
+        ":lst",
+        ":libltdl",
+    ],
+)
+
+# ODBC installer library (public version with exports)
+cc_library(
+    name = "odbcinst",
+    # :config_h cannot be inside of the glob() because
+    # actions are executed during execution phase, not during analysis phase
+    # and glob is evaluated during analysis phase.
+    srcs = glob(["odbcinst/**/*.c", "include/*.h"]) + [":config_h"],
+    hdrs = [
+        "include/odbcinst.h",
+        "include/odbcinstext.h",
+    ],
     visibility = ["//visibility:public"],
     copts = COMMON_COPTS,
     includes = [".", "include"],
+    deps = [
+        ":ini",
+        ":log",
+        ":lst",
+        ":libltdl",
+    ],
+)
+
+# Main ODBC Driver Manager library
+cc_library(
+    name = "odbc",
+    # :config_h cannot be inside of the glob() because
+    # actions are executed during execution phase, not during analysis phase
+    # and glob is evaluated during analysis phase.
+    srcs = glob(["DriverManager/**/*.c", "DriverManager/**/*.h", "include/*.h"]) + [":config_h"],
+    hdrs = [
+        "include/sql.h",
+        "include/sqlext.h",
+        "include/sqltypes.h",
+        "include/sqlucode.h",
+        "include/sqlspi.h",
+    ],
+    visibility = ["//visibility:public"],
+    copts = COMMON_COPTS,
+    includes = [".", "include", "DriverManager"],
+    deps = [
+        ":lst",
+        ":log",
+        ":ini",
+        ":odbcinstlc",
+        ":libltdl",
+    ],
+)
+
+# Cursor library
+cc_library(
+    name = "odbccr",
+    # :config_h cannot be inside of the glob() because
+    # actions are executed during execution phase, not during analysis phase
+    # and glob is evaluated during analysis phase.
+    srcs = glob(["cur/**/*.c", "cur/**/*.h", "include/*.h"]) + [":config_h"],
+    visibility = ["//visibility:public"],
+    copts = COMMON_COPTS,
+    includes = [".", "include", "DriverManager", "cur"],
+    deps = [":odbc"],
+)
+
+# ============================================================================
+# Shared Libraries (*.so files)
+# ============================================================================
+
+# libltdl.so - Dynamic loader library (--enable-ltdl-install)
+cc_shared_library(
+    name = "libltdl_so",
+    shared_lib_name = "libltdl.so.%s" % SOVERSION,
+    deps = [":libltdl"],
+    visibility = ["//visibility:public"],
+)
+
+# libodbcinst.so - ODBC Installer/Configuration library
+cc_shared_library(
+    name = "libodbcinst_so",
+    shared_lib_name = "libodbcinst.so.%s" % SOVERSION,
+    deps = [":odbcinst"],
+    visibility = ["//visibility:public"],
+)
+
+# libodbc.so - Main ODBC Driver Manager library
+cc_shared_library(
+    name = "libodbc_so",
+    shared_lib_name = "libodbc.so.%s" % SOVERSION,
+    deps = [":odbc"],
+    visibility = ["//visibility:public"],
+)
+
+# libodbccr.so - Cursor library
+cc_shared_library(
+    name = "libodbccr_so",
+    shared_lib_name = "libodbccr.so.%s" % SOVERSION,
+    deps = [":odbccr"],
+    visibility = ["//visibility:public"],
+)
+
+# ============================================================================
+# Packaging - Library files
+# ============================================================================
+
+# Symlinks for libltdl
+pkg_mklink(
+    name = "libltdl_so_link",
+    link_name = "lib/libltdl.so",
+    target = "libltdl.so.%s" % SOVERSION,
+)
+
+# Symlinks for libodbcinst
+pkg_mklink(
+    name = "libodbcinst_so_link",
+    link_name = "lib/libodbcinst.so",
+    target = "libodbcinst.so.%s" % SOVERSION,
+)
+
+# Symlinks for libodbc
+pkg_mklink(
+    name = "libodbc_so_link",
+    link_name = "lib/libodbc.so",
+    target = "libodbc.so.%s" % SOVERSION,
+)
+
+# Symlinks for libodbccr
+pkg_mklink(
+    name = "libodbccr_so_link",
+    link_name = "lib/libodbccr.so",
+    target = "libodbccr.so.%s" % SOVERSION,
+)
+
+pkg_files(
+    name = "lib_files",
+    srcs = [
+        ":libltdl_so",
+        ":libodbcinst_so",
+        ":libodbc_so",
+        ":libodbccr_so",
+    ],
+    prefix = "lib",
+)
+
+# ============================================================================
+# Packaging - Header files
+# ============================================================================
+
+pkg_files(
+    name = "unixodbc_hdr_files",
+    srcs = _UNIXODBC_PUBLIC_HEADERS,
+    prefix = "include",
+)
+
+pkg_files(
+    name = "libltdl_hdr_files",
+    srcs = _LIBLTDL_PUBLIC_HEADERS,
+    prefix = "include",
+)
+
+# ============================================================================
+# Installation target
+# ============================================================================
+
+pkg_install(
+    name = "install",
+    srcs = [
+        ":lib_files",
+        ":libltdl_so_link",
+        ":libodbcinst_so_link",
+        ":libodbc_so_link",
+        ":libodbccr_so_link",
+        ":unixodbc_hdr_files",
+        ":libltdl_hdr_files",
+    ],
 )
