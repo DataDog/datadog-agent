@@ -18,6 +18,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
+	secretsnoop "github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/endpoints"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/internal/retry"
 	pkgresolver "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/resolver"
@@ -246,15 +248,16 @@ type DefaultForwarder struct {
 	agentName                       string
 	queueDurationCapacity           *retry.QueueDurationCapacity
 	retryQueueDurationCapacityMutex sync.Mutex
+	secrets                         secrets.Component
 }
 
-// NewDefaultForwarder returns a new DefaultForwarder.
-// TODO: (components) Remove this method and other exported methods in comp/forwarder.
-func NewDefaultForwarder(config config.Component, log log.Component, options *Options) *DefaultForwarder {
+// NewDefaultForwarderWithSecrets returns a new DefaultForwarder with secrets support for API key refresh.
+func NewDefaultForwarderWithSecrets(config config.Component, log log.Component, secrets secrets.Component, options *Options) *DefaultForwarder {
 	agentName := getAgentName(options)
 	f := &DefaultForwarder{
 		config:           config,
 		log:              log,
+		secrets:          secrets,
 		NumberOfWorkers:  options.NumberOfWorkers,
 		domainForwarders: map[string]*domainForwarder{},
 		domainResolvers:  map[string]pkgresolver.DomainResolver{},
@@ -262,6 +265,7 @@ func NewDefaultForwarder(config config.Component, log log.Component, options *Op
 		healthChecker: &forwarderHealth{
 			log:                   log,
 			config:                config,
+			secrets:               secrets,
 			domainResolvers:       options.DomainResolvers,
 			disableAPIKeyChecking: options.DisableAPIKeyChecking,
 			validationInterval:    options.APIKeyValidationInterval,
@@ -355,6 +359,7 @@ func NewDefaultForwarder(config config.Component, log log.Component, options *Op
 			fwd := newDomainForwarder(
 				config,
 				log,
+				secrets,
 				domain,
 				isMRF,
 				isLocal,
@@ -389,6 +394,13 @@ func NewDefaultForwarder(config config.Component, log log.Component, options *Op
 	}
 
 	return f
+}
+
+// NewDefaultForwarder returns a new DefaultForwarder.
+// TODO: (components) Remove this method and other exported methods in comp/forwarder.
+func NewDefaultForwarder(config config.Component, log log.Component, options *Options) *DefaultForwarder {
+	// Use existing noop secrets implementation for backward compatibility with external packages like open-telemetry
+	return NewDefaultForwarderWithSecrets(config, log, secretsnoop.NewComponent().Comp, options)
 }
 
 func getAgentName(options *Options) string {
@@ -511,6 +523,7 @@ func (f *DefaultForwarder) createAdvancedHTTPTransactions(endpoint transaction.E
 					t.StorableOnDisk = storableOnDisk
 					t.Destination = payload.Destination
 					t.Headers.Set("Authorization", fmt.Sprintf("Bearer %s", dr.GetBearerAuthToken()))
+
 					for key := range extra {
 						t.Headers.Set(key, extra.Get(key))
 					}

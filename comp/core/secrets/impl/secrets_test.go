@@ -596,7 +596,7 @@ func TestResolveThenRefresh(t *testing.T) {
 
 	// refresh the secrets and only collect newly updated keys
 	keysResolved = []string{}
-	output, err := resolver.Refresh()
+	output, err := resolver.Refresh(true)
 	require.NoError(t, err)
 	assert.Equal(t, testConfNestedOriginMultiple, resolver.origin)
 	assert.Equal(t, []string{"some/second_level"}, keysResolved)
@@ -615,7 +615,7 @@ func TestResolveThenRefresh(t *testing.T) {
 
 	// refresh one last time and only those two handles have updated keys
 	keysResolved = []string{}
-	_, err = resolver.Refresh()
+	_, err = resolver.Refresh(true)
 	require.NoError(t, err)
 	slices.Sort(keysResolved)
 	assert.Equal(t, testConfNestedOriginMultiple, resolver.origin)
@@ -660,7 +660,7 @@ func TestRefreshAllowlist(t *testing.T) {
 	allowlistPaths = []string{"api_key"}
 
 	// Refresh means nothing changes because allowlist doesn't allow it
-	_, err := resolver.Refresh()
+	_, err := resolver.Refresh(true)
 	require.NoError(t, err)
 	assert.Equal(t, changes, []string{})
 
@@ -668,7 +668,7 @@ func TestRefreshAllowlist(t *testing.T) {
 	allowlistPaths = []string{"setting"}
 
 	// Refresh sees the change to the handle
-	_, err = resolver.Refresh()
+	_, err = resolver.Refresh(true)
 	require.NoError(t, err)
 	assert.Equal(t, changes, []string{"second_value"})
 }
@@ -710,7 +710,7 @@ func TestRefreshAllowlistAppliesToEachSettingPath(t *testing.T) {
 	}
 
 	// only 1 setting path got updated
-	_, err = resolver.Refresh()
+	_, err = resolver.Refresh(true)
 	require.NoError(t, err)
 	assert.Equal(t, changedPaths, []string{"instances/0/password"})
 }
@@ -746,7 +746,7 @@ func TestRefreshAddsToAuditFile(t *testing.T) {
 	}
 
 	// Refresh the secrets, which will add to the audit file
-	_, err = resolver.Refresh()
+	_, err = resolver.Refresh(true)
 	require.NoError(t, err)
 	assert.Equal(t, auditFileNumRows(tmpfile.Name()), 1)
 
@@ -757,7 +757,7 @@ func TestRefreshAddsToAuditFile(t *testing.T) {
 	}
 
 	// Refresh secrets again, which will add another row the audit file
-	_, err = resolver.Refresh()
+	_, err = resolver.Refresh(true)
 	require.NoError(t, err)
 	assert.Equal(t, auditFileNumRows(tmpfile.Name()), 2)
 

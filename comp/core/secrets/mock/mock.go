@@ -11,9 +11,10 @@ import (
 	"strings"
 	"testing"
 
+	"gopkg.in/yaml.v2"
+
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	"github.com/DataDog/datadog-agent/comp/core/secrets/utils"
-	"gopkg.in/yaml.v2"
 )
 
 // Mock is a mock of the secret Component useful for testing
@@ -85,4 +86,4 @@ func (m *Mock) SubscribeToChanges(callback secrets.SecretChangeCallback) {
 }
 
 // Refresh will resolve secret handles again, notifying any subscribers of changed values
-func (m *Mock) Refresh() (string, error) { return "", nil }
+func (m *Mock) Refresh(_ bool) (string, error) { return "", nil }

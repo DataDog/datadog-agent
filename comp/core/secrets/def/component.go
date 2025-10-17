@@ -25,6 +25,7 @@ type ConfigParams struct {
 	ScopeIntegrationToNamespace bool
 	AllowedNamespace            []string
 	ImageToHandle               map[string][]string
+	RefreshMinInterval          int
 }
 
 // Component is the component type.
@@ -35,6 +36,8 @@ type Component interface {
 	Resolve(data []byte, origin string, imageName string, kubeNamespace string) ([]byte, error)
 	// SubscribeToChanges registers a callback to be invoked whenever secrets are resolved or refreshed
 	SubscribeToChanges(callback SecretChangeCallback)
-	// Refresh will resolve secret handles again, notifying any subscribers of changed values
-	Refresh() (string, error)
+	// Refresh will resolve secret handles again, notifying any subscribers of changed values.
+	// If bypassRateLimit is true, the refresh will bypass any rate limiting/throttling.
+	// If bypassRateLimit is false, the refresh will be throttled based on RefreshMinInterval config.
+	Refresh(bypassRateLimit bool) (string, error)
 }

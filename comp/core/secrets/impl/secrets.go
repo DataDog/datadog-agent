@@ -124,6 +124,11 @@ type secretResolver struct {
 	tlmSecretBackendElapsed telemetry.Gauge
 	tlmSecretUnmarshalError telemetry.Counter
 	tlmSecretResolveError   telemetry.Counter
+
+	// Secret refresh throttling
+	refreshMinInterval    time.Duration
+	lastThrottledRefresh  time.Time
+	throttledRefreshMutex sync.Mutex
 }
 
 var _ secrets.Component = (*secretResolver)(nil)
@@ -204,7 +209,8 @@ func (r *secretResolver) writeDebugInfo(w http.ResponseWriter, _ *http.Request) 
 }
 
 func (r *secretResolver) handleRefresh(w http.ResponseWriter, _ *http.Request) {
-	result, err := r.Refresh()
+	// HTTP endpoint always bypasses rate limit
+	result, err := r.Refresh(true)
 	if err != nil {
 		log.Infof("could not refresh secrets: %s", err)
 		setJSONError(w, err, 500)
@@ -305,6 +311,8 @@ func (r *secretResolver) Configure(params secrets.ConfigParams) {
 	r.scopeIntegrationToNamespace = params.ScopeIntegrationToNamespace
 	r.allowedNamespace = params.AllowedNamespace
 	r.imageToHandle = params.ImageToHandle
+
+	r.refreshMinInterval = time.Duration(params.RefreshMinInterval) * time.Minute
 }
 
 func (r *secretResolver) startRefreshRoutine(rd *rand.Rand) {
@@ -329,7 +337,8 @@ func (r *secretResolver) startRefreshRoutine(rd *rand.Rand) {
 
 	go func() {
 		<-r.ticker.C
-		if _, err := r.Refresh(); err != nil {
+		// Scheduled refreshes always bypass rate limit
+		if _, err := r.Refresh(true); err != nil {
 			log.Infof("Error with refreshing secrets: %s", err)
 		}
 		// we want to reset the refresh interval to the refreshInterval after the first refresh in case a scattered first refresh interval was configured
@@ -337,7 +346,8 @@ func (r *secretResolver) startRefreshRoutine(rd *rand.Rand) {
 
 		for {
 			<-r.ticker.C
-			if _, err := r.Refresh(); err != nil {
+			// Scheduled refreshes always bypass rate limit
+			if _, err := r.Refresh(true); err != nil {
 				log.Infof("Error with refreshing secrets: %s", err)
 			}
 		}
@@ -613,8 +623,26 @@ func (r *secretResolver) processSecretResponse(secretResponse map[string]string,
 	return secretRefreshInfo{Handles: handleInfoList}
 }
 
-// Refresh the secrets after they have been Resolved by fetching them from the backend again
-func (r *secretResolver) Refresh() (string, error) {
+// Refresh the secrets after they have been Resolved by fetching them from the backend again.
+// bypassRateLimit is used for API Key refresh on 403 errors.
+func (r *secretResolver) Refresh(bypassRateLimit bool) (string, error) {
+
+	if !bypassRateLimit {
+		// check if api key refresh on 403 is enabled
+		if r.refreshMinInterval == 0 {
+			return "", nil
+		}
+
+		// lock to prevent multiple refreshes at the same time
+		r.throttledRefreshMutex.Lock()
+		defer r.throttledRefreshMutex.Unlock()
+		// throttle if last refresh was less than refreshMinInterval ago
+		if time.Since(r.lastThrottledRefresh) < r.refreshMinInterval {
+			return "", nil
+		}
+		r.lastThrottledRefresh = time.Now()
+	}
+
 	r.lock.Lock()
 	defer r.lock.Unlock()
 

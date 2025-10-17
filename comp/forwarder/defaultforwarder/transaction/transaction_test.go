@@ -17,6 +17,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
+	secretsmock "github.com/DataDog/datadog-agent/comp/core/secrets/mock"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 )
 
@@ -54,7 +55,8 @@ func TestProcess(t *testing.T) {
 
 	mockConfig := configmock.New(t)
 	log := logmock.New(t)
-	err := transaction.Process(context.Background(), mockConfig, log, client)
+	secrets := secretsmock.New(t)
+	err := transaction.Process(context.Background(), mockConfig, log, secrets, client)
 	assert.NoError(t, err)
 }
 
@@ -69,7 +71,8 @@ func TestProcessInvalidDomain(t *testing.T) {
 
 	mockConfig := configmock.New(t)
 	log := logmock.New(t)
-	err := transaction.Process(context.Background(), mockConfig, log, client)
+	secrets := secretsmock.New(t)
+	err := transaction.Process(context.Background(), mockConfig, log, secrets, client)
 	assert.NoError(t, err)
 }
 
@@ -84,7 +87,8 @@ func TestProcessNetworkError(t *testing.T) {
 
 	mockConfig := configmock.New(t)
 	log := logmock.New(t)
-	err := transaction.Process(context.Background(), mockConfig, log, client)
+	secrets := secretsmock.New(t)
+	err := transaction.Process(context.Background(), mockConfig, log, secrets, client)
 	assert.NotNil(t, err)
 }
 
@@ -106,21 +110,22 @@ func TestProcessHTTPError(t *testing.T) {
 
 	mockConfig := configmock.New(t)
 	log := logmock.New(t)
-	err := transaction.Process(context.Background(), mockConfig, log, client)
+	secrets := secretsmock.New(t)
+	err := transaction.Process(context.Background(), mockConfig, log, secrets, client)
 	assert.NotNil(t, err)
 	assert.Contains(t, err.Error(), "error \"503 Service Unavailable\" while sending transaction")
 
 	errorCode = http.StatusBadRequest
-	err = transaction.Process(context.Background(), mockConfig, log, client)
+	err = transaction.Process(context.Background(), mockConfig, log, secrets, client)
 	assert.NoError(t, err)
 
 	errorCode = http.StatusRequestEntityTooLarge
-	err = transaction.Process(context.Background(), mockConfig, log, client)
+	err = transaction.Process(context.Background(), mockConfig, log, secrets, client)
 	assert.NoError(t, err)
 	assert.Equal(t, transaction.ErrorCount, 1)
 
 	errorCode = http.StatusForbidden
-	err = transaction.Process(context.Background(), mockConfig, log, client)
+	err = transaction.Process(context.Background(), mockConfig, log, secrets, client)
 	assert.NoError(t, err)
 	assert.Equal(t, transaction.ErrorCount, 1)
 }
@@ -138,7 +143,8 @@ func TestProcessCancel(t *testing.T) {
 
 	mockConfig := configmock.New(t)
 	log := logmock.New(t)
-	err := transaction.Process(ctx, mockConfig, log, client)
+	secrets := secretsmock.New(t)
+	err := transaction.Process(ctx, mockConfig, log, secrets, client)
 	assert.NoError(t, err)
 }
 

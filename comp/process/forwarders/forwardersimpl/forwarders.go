@@ -11,6 +11,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/resolver"
 	"github.com/DataDog/datadog-agent/comp/process/forwarders"
@@ -30,9 +31,10 @@ func Module() fxutil.Module {
 type dependencies struct {
 	fx.In
 
-	Config config.Component
-	Logger log.Component
-	Lc     fx.Lifecycle
+	Config  config.Component
+	Logger  log.Component
+	Lc      fx.Lifecycle
+	Secrets secrets.Component
 }
 
 type forwardersComp struct {
@@ -55,7 +57,7 @@ func newForwarders(deps dependencies) (forwarders.Component, error) {
 		return nil, err
 	}
 
-	eventForwarderOpts, err := createParams(deps.Config, deps.Logger, queueBytes, eventsAPIEndpoints)
+	eventForwarderOpts, err := createParams(deps.Config, deps.Logger, queueBytes, eventsAPIEndpoints, deps.Secrets)
 	if err != nil {
 		return nil, err
 	}
@@ -65,7 +67,7 @@ func newForwarders(deps dependencies) (forwarders.Component, error) {
 		return nil, err
 	}
 
-	processForwarderOpts, err := createParams(deps.Config, deps.Logger, queueBytes, processAPIEndpoints)
+	processForwarderOpts, err := createParams(deps.Config, deps.Logger, queueBytes, processAPIEndpoints, deps.Secrets)
 	if err != nil {
 		return nil, err
 	}
@@ -79,10 +81,10 @@ func newForwarders(deps dependencies) (forwarders.Component, error) {
 }
 
 func createForwarder(deps dependencies, options *defaultforwarder.Options) defaultforwarder.Component {
-	return defaultforwarder.NewForwarder(deps.Config, deps.Logger, deps.Lc, false, options).Comp
+	return defaultforwarder.NewForwarder(deps.Config, deps.Logger, deps.Secrets, deps.Lc, false, options).Comp
 }
 
-func createParams(config config.Component, log log.Component, queueBytes int, endpoints []apicfg.Endpoint) (*defaultforwarder.Options, error) {
+func createParams(config config.Component, log log.Component, queueBytes int, endpoints []apicfg.Endpoint, _ secrets.Component) (*defaultforwarder.Options, error) {
 	resolver, err := resolver.NewSingleDomainResolvers(apicfg.KeysPerDomains(endpoints))
 	if err != nil {
 		return nil, err
