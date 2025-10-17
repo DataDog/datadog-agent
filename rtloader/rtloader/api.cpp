@@ -394,13 +394,13 @@ DATADOG_AGENT_RTLOADER_API int handle_crashes(const int enable_coredump, const i
     if (enable_stacktrace) {
         // Establish an alternate stack, as go stacks are too shallow and might crash
         const size_t alt_stack_size = SIGSTKSZ;
-        static void* alt_stack = nullptr;
+        static void *alt_stack = nullptr;
 
         __sync_synchronize();
         if (alt_stack == nullptr) {
             // Note: this memory is never freed, but it is necessary for the duration of the program
             alt_stack = malloc(alt_stack_size);
-            stack_t new_stack{.ss_sp = alt_stack, .ss_flags = 0, .ss_size = alt_stack_size};
+            stack_t new_stack{ .ss_sp = alt_stack, .ss_flags = 0, .ss_size = alt_stack_size };
             int ret = sigaltstack(&new_stack, nullptr);
             if (ret != 0) {
                 std::ostringstream err_msg;
