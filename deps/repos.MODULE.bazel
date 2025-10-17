@@ -77,6 +77,7 @@ http_archive(
         "x86_64/unixodbc_conf.h": "//deps/unixodbc/x86_64:unixodbc_conf.h",
         "x86_64/libltdl/config.h": "//deps/unixodbc/x86_64:libltdl/config.h",
         "x86_64/config.h": "//deps/unixodbc/x86_64:config.h",
+        "libltdl/preloaded_stub.c": "//deps:unixodbc/preloaded_stub.c",
     },
     sha256 = "52833eac3d681c8b0c9a5a65f2ebd745b3a964f208fc748f977e44015a31b207",
     strip_prefix = "unixODBC-2.3.9",

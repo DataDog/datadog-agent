@@ -99,7 +99,7 @@
 #define HAVE_STRLCAT 1
 
 /* Define to 1 if you have the `strlcpy' function. */
-#define HAVE_STRLCPY 1
+/* #define HAVE_STRLCPY 1 */
 
 /* Define to 1 if you have the <sys/dl.h> header file. */
 /* #undef HAVE_SYS_DL_H */

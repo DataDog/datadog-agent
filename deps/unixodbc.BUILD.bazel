@@ -1,6 +1,6 @@
 load("@bazel_skylib//rules:copy_file.bzl", "copy_file")
-load("@rules_cc//cc:defs.bzl", "cc_library")
 load("@rules_cc//cc:cc_shared_library.bzl", "cc_shared_library")
+load("@rules_cc//cc:defs.bzl", "cc_library")
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_files", "pkg_mklink")
 
@@ -24,11 +24,21 @@ _UNIXODBC_PUBLIC_HEADERS = [
     "include/autotest.h",
     "include/uodbc_stats.h",
     "include/uodbc_extras.h",
+    "include/unixodbc_conf.h",
 ]
 
 _LIBLTDL_PUBLIC_HEADERS = [
     "libltdl/ltdl.h",
 ]
+
+copy_file(
+    name = "unixodbc_conf_h",
+    src = select({
+        "@platforms//cpu:x86_64": "x86_64/unixodbc_conf.h",
+        "//conditions:default": "@platforms//:incompatible",
+    }),
+    out = "include/unixodbc_conf.h",
+)
 
 copy_file(
     name = "libltdl_config_h",
@@ -65,11 +75,20 @@ cc_library(
             # Non-glibc implementation that is not needed
             "libltdl/lt__argz.c",
         ],
-    ) + [":libltdl_config_h"],
+    ) + [
+        ":libltdl_config_h",
+    ],
     visibility = ["//visibility:public"],
-    copts = COMMON_COPTS + ["-DLTDL"],
+    copts = COMMON_COPTS + [
+        "-DLTDL",
+        # LTDLOPEN must match what's used in the autotools build
+        # This expands to lt_libltdl_LTX_preloaded_symbols
+        "-DLTDLOPEN=libltdl",
+    ],
     # "." is needed to make sure config.h is found.
     includes = ["libltdl/libltdl", "libltdl/."],
+    # Link against libdl for dynamic loading support
+    linkopts = ["-ldl"],
 )
 
 # Extra utility functions (snprintf, strcasecmp)
@@ -196,6 +215,80 @@ cc_library(
 )
 
 # ============================================================================
+# Binary Executables
+# ============================================================================
+
+# odbcinst - ODBC driver/data source management utility
+cc_binary(
+    name = "odbcinst_bin",
+    srcs = ["exe/odbcinst.c"] + glob(["include/*.h"]) + [":config_h"],
+    copts = COMMON_COPTS,
+    includes = [".", "include"],
+    deps = [
+        ":odbcinst",  # This refers to the cc_library
+        ":ini",
+        ":libltdl",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+# odbc_config - ODBC configuration information utility
+cc_binary(
+    name = "odbc_config",
+    srcs = ["exe/odbc-config.c"] + glob(["include/*.h"]) + [":config_h"],
+    copts = COMMON_COPTS,
+    includes = [".", "include"],
+    visibility = ["//visibility:public"],
+)
+
+# isql - Interactive SQL tool
+cc_binary(
+    name = "isql",
+    srcs = ["exe/isql.c", "exe/isql.h"] + glob(["include/*.h"]) + [":config_h"],
+    copts = COMMON_COPTS,
+    includes = [".", "include"],
+    deps = [
+        ":odbc",
+        ":extras",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+# iusql - Interactive Unicode SQL tool
+cc_binary(
+    name = "iusql",
+    srcs = ["exe/iusql.c"] + glob(["include/*.h", "exe/*.h"]) + [":config_h"],
+    copts = COMMON_COPTS,
+    includes = [".", "include"],
+    deps = [
+        ":odbc",
+        ":odbcinst",
+        ":ini",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+# dltest - Dynamic loader test utility
+cc_binary(
+    name = "dltest",
+    srcs = ["exe/dltest.c"] + glob(["include/*.h"]) + [":config_h"],
+    copts = COMMON_COPTS,
+    includes = [".", "include"],
+    deps = [":libltdl"],
+    visibility = ["//visibility:public"],
+)
+
+# slencheck - SQL length checker utility
+cc_binary(
+    name = "slencheck",
+    srcs = ["exe/slencheck.c"] + glob(["include/*.h"]) + [":config_h", ":unixodbc_conf_h"],
+    copts = COMMON_COPTS,
+    includes = [".", "include"],
+    deps = [":odbc"],
+    visibility = ["//visibility:public"],
+)
+
+# ============================================================================
 # Shared Libraries (*.so files)
 # ============================================================================
 
@@ -274,6 +367,23 @@ pkg_files(
     prefix = "lib",
 )
 
+pkg_files(
+    name = "bin_files",
+    srcs = [
+        ":odbcinst_bin",
+        ":odbc_config",
+        ":isql",
+        ":iusql",
+        ":dltest",
+        ":slencheck",
+    ],
+    prefix = "bin",
+    # Rename odbcinst_bin to odbcinst in the package
+    renames = {
+        ":odbcinst_bin": "odbcinst",
+    },
+)
+
 # ============================================================================
 # Packaging - Header files
 # ============================================================================
@@ -302,6 +412,7 @@ pkg_install(
         ":libodbcinst_so_link",
         ":libodbc_so_link",
         ":libodbccr_so_link",
+        ":bin_files",
         ":unixodbc_hdr_files",
         ":libltdl_hdr_files",
     ],
