@@ -19,6 +19,7 @@ from tasks.static_quality_gates.experimental_gates import (
     FileInfo,
     InPlaceArtifactReport,
     InPlaceDockerMeasurer,
+    InPlaceMSIMeasurer,
     InPlacePackageMeasurer,
 )
 from tasks.static_quality_gates.gates import ArtifactMeasurement
@@ -935,6 +936,311 @@ class TestInPlaceDockerMeasurer(unittest.TestCase):
         finally:
             if os.path.exists(temp_path):
                 os.unlink(temp_path)
+
+
+class TestInPlaceMSIMeasurer(unittest.TestCase):
+    """Test cases for the InPlaceMSIMeasurer class."""
+
+    def setUp(self):
+        """Set up test data and mocks."""
+        self.mock_config = {
+            "static_quality_gate_agent_msi": {"max_on_wire_size": "150 MiB", "max_on_disk_size": "1015 MiB"},
+        }
+
+        # Create a temporary config file
+        self.temp_config_file = tempfile.NamedTemporaryFile(mode='w', suffix='.yml', delete=False)
+        yaml.dump(self.mock_config, self.temp_config_file)
+        self.temp_config_file.close()
+
+    def tearDown(self):
+        """Clean up temporary files."""
+        os.unlink(self.temp_config_file.name)
+
+    @patch('sys.platform', 'win32')
+    def test_init_on_windows(self):
+        """Test initializing MSI measurer on Windows."""
+        measurer = InPlaceMSIMeasurer(config_path=self.temp_config_file.name)
+        self.assertIsNotNone(measurer._measurer)
+        self.assertEqual(measurer._measurer.config_manager.config_path, self.temp_config_file.name)
+
+    @patch('sys.platform', 'linux')
+    def test_init_on_non_windows(self):
+        """Test that initializing MSI measurer on non-Windows raises error."""
+        with self.assertRaises(RuntimeError) as cm:
+            InPlaceMSIMeasurer(config_path=self.temp_config_file.name)
+        self.assertIn("MSI measurement requires Windows platform", str(cm.exception))
+        self.assertIn("linux", str(cm.exception))
+
+    @patch('sys.platform', 'darwin')
+    def test_init_on_macos(self):
+        """Test that initializing MSI measurer on macOS raises error."""
+        with self.assertRaises(RuntimeError) as cm:
+            InPlaceMSIMeasurer(config_path=self.temp_config_file.name)
+        self.assertIn("MSI measurement requires Windows platform", str(cm.exception))
+        self.assertIn("darwin", str(cm.exception))
+
+    @patch('sys.platform', 'win32')
+    def test_init_missing_config_file(self):
+        """Test initializing measurer with missing config file."""
+        with self.assertRaises(ValueError) as cm:
+            InPlaceMSIMeasurer(config_path="/nonexistent/config.yml")
+        self.assertIn("Configuration file not found", str(cm.exception))
+
+    @patch('sys.platform', 'win32')
+    @patch.dict(os.environ, {"CI_PIPELINE_ID": "12345", "CI_COMMIT_SHA": "abc123def456"})
+    @patch('os.path.exists')
+    def test_measure_msi_success(self, mock_exists):
+        """Test successful MSI measurement."""
+        # Setup mocks
+        mock_exists.return_value = True
+
+        measurer = InPlaceMSIMeasurer(config_path=self.temp_config_file.name)
+
+        # Mock the processor's measure_artifact method
+        with patch.object(measurer._measurer.processor, 'measure_artifact') as mock_measure_artifact:
+            # Create mock file inventory
+            mock_file_inventory = [
+                FileInfo("Program Files/Datadog/Datadog Agent/bin/agent.exe", 50000000, "sha256:abc123"),
+                FileInfo("Program Files/Datadog/Datadog Agent/embedded/python.exe", 10000000, "sha256:def456"),
+            ]
+
+            # Configure the mock to return measurement data
+            mock_measure_artifact.return_value = (
+                157286400,  # wire_size (150 MiB)
+                1065353216,  # disk_size (1015 MiB)
+                mock_file_inventory,
+                None,  # no artifact metadata for MSI
+            )
+
+            # Mock context
+            mock_ctx = Mock()
+
+            # Call the method
+            report = measurer.measure_msi(
+                ctx=mock_ctx,
+                msi_path="C:\\path\\to\\datadog-agent.msi",
+                gate_name="static_quality_gate_agent_msi",
+                build_job_name="windows_msi_x64",
+            )
+
+        # Verify the report
+        self.assertEqual(report.artifact_path, "C:\\path\\to\\datadog-agent.msi")
+        self.assertEqual(report.gate_name, "static_quality_gate_agent_msi")
+        self.assertEqual(report.on_wire_size, 157286400)
+        self.assertEqual(report.on_disk_size, 1065353216)
+        self.assertEqual(report.pipeline_id, "12345")
+        self.assertEqual(report.commit_sha, "abc123def456")
+        self.assertEqual(report.arch, "x86_64")
+        self.assertEqual(report.os, "windows")
+        self.assertEqual(report.build_job_name, "windows_msi_x64")
+        self.assertEqual(len(report.file_inventory), 2)
+
+        # Verify mocked processor was called
+        mock_measure_artifact.assert_called_once()
+
+    @patch('sys.platform', 'win32')
+    def test_measure_msi_missing_file(self):
+        """Test measuring MSI with missing file."""
+        measurer = InPlaceMSIMeasurer(config_path=self.temp_config_file.name)
+        mock_ctx = Mock()
+
+        with patch('os.path.exists', return_value=False):
+            with self.assertRaises(ValueError) as cm:
+                measurer.measure_msi(
+                    ctx=mock_ctx,
+                    msi_path="C:\\nonexistent\\datadog-agent.msi",
+                    gate_name="static_quality_gate_agent_msi",
+                    build_job_name="test_job",
+                )
+            self.assertIn("MSI file not found", str(cm.exception))
+
+    @patch('sys.platform', 'win32')
+    def test_measure_msi_invalid_extension(self):
+        """Test measuring file with non-MSI extension."""
+        measurer = InPlaceMSIMeasurer(config_path=self.temp_config_file.name)
+        mock_ctx = Mock()
+
+        with patch('os.path.exists', return_value=True):
+            with self.assertRaises(ValueError) as cm:
+                measurer.measure_msi(
+                    ctx=mock_ctx,
+                    msi_path="C:\\path\\to\\datadog-agent.exe",
+                    gate_name="static_quality_gate_agent_msi",
+                    build_job_name="test_job",
+                )
+            self.assertIn("File is not an MSI", str(cm.exception))
+            self.assertIn(".exe", str(cm.exception))
+
+    @patch('sys.platform', 'win32')
+    def test_measure_msi_invalid_gate(self):
+        """Test measuring MSI with invalid gate name."""
+        measurer = InPlaceMSIMeasurer(config_path=self.temp_config_file.name)
+        mock_ctx = Mock()
+
+        with patch('os.path.exists', return_value=True):
+            with self.assertRaises(ValueError) as cm:
+                measurer.measure_msi(
+                    ctx=mock_ctx,
+                    msi_path="C:\\path\\to\\datadog-agent.msi",
+                    gate_name="nonexistent_gate",
+                    build_job_name="test_job",
+                )
+            self.assertIn("Gate configuration not found", str(cm.exception))
+
+    @patch('sys.platform', 'win32')
+    def test_save_report_to_yaml(self):
+        """Test saving MSI measurement report to YAML file."""
+        measurer = InPlaceMSIMeasurer(config_path=self.temp_config_file.name)
+
+        # Create a sample report
+        sample_file_inventory = [
+            FileInfo("Program Files/Datadog/Datadog Agent/bin/agent.exe", 50000000, "sha256:abc123"),
+            FileInfo("Program Files/Datadog/Datadog Agent/embedded/python.exe", 10000000, "sha256:def456"),
+        ]
+
+        report = InPlaceArtifactReport(
+            artifact_path="C:\\path\\to\\datadog-agent.msi",
+            gate_name="static_quality_gate_agent_msi",
+            on_wire_size=157286400,
+            on_disk_size=1065353216,
+            max_on_wire_size=157286400,
+            max_on_disk_size=1065353216,
+            file_inventory=sample_file_inventory,
+            measurement_timestamp="2024-01-15T14:30:22.123456Z",
+            pipeline_id="msi_test_pipeline",
+            commit_sha="msi_test_commit",
+            arch="x86_64",
+            os="windows",
+            build_job_name="windows_msi_x64",
+        )
+
+        # Test saving to temporary file
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.yml', delete=False) as temp_file:
+            temp_path = temp_file.name
+
+        try:
+            measurer.save_report_to_yaml(report, temp_path)
+
+            # Verify file was created and contains expected data
+            self.assertTrue(os.path.exists(temp_path))
+
+            with open(temp_path) as file:
+                saved_data = yaml.safe_load(file)
+
+            self.assertEqual(saved_data['artifact_path'], "C:\\path\\to\\datadog-agent.msi")
+            self.assertEqual(saved_data['gate_name'], "static_quality_gate_agent_msi")
+            self.assertEqual(saved_data['on_wire_size'], 157286400)
+            self.assertEqual(saved_data['on_disk_size'], 1065353216)
+            self.assertEqual(saved_data['arch'], "x86_64")
+            self.assertEqual(saved_data['os'], "windows")
+            self.assertEqual(len(saved_data['file_inventory']), 2)
+            # MSI reports should not have docker_info
+            self.assertNotIn('docker_info', saved_data)
+
+        finally:
+            if os.path.exists(temp_path):
+                os.unlink(temp_path)
+
+
+class TestMeasureMSIFunction(unittest.TestCase):
+    """Test cases for the measure_msi function."""
+
+    @patch('sys.platform', 'linux')
+    @patch('builtins.print')
+    def test_measure_msi_on_non_windows(self, mock_print):
+        """Test that measure_msi function fails gracefully on non-Windows."""
+        from tasks.static_quality_gates.experimental_gates import measure_msi
+
+        mock_ctx = Mock()
+
+        # Call the function - should return early with error message
+        measure_msi(
+            ctx=mock_ctx,
+            msi_path="C:\\path\\to\\datadog-agent.msi",
+            gate_name="static_quality_gate_agent_msi",
+        )
+
+        # Verify error message was printed
+        print_calls = [call[0][0] for call in mock_print.call_args_list if call[0]]
+        error_messages = [msg for msg in print_calls if "❌" in str(msg) and "Windows platform" in str(msg)]
+        self.assertTrue(len(error_messages) > 0, "Expected error message for non-Windows platform")
+
+    @patch('sys.platform', 'win32')
+    @patch('tasks.static_quality_gates.experimental_gates.InPlaceMSIMeasurer')
+    @patch('os.path.exists')
+    @patch('builtins.print')
+    def test_measure_msi_success(self, mock_print, mock_exists, mock_measurer_class):
+        """Test successful MSI measurement function."""
+        from tasks.static_quality_gates.experimental_gates import measure_msi
+
+        # Setup mocks
+        mock_exists.return_value = True
+        mock_measurer = Mock()
+        mock_measurer_class.return_value = mock_measurer
+
+        # Create mock report
+        mock_report = Mock()
+        mock_report.on_wire_size = 157286400  # 150 MiB
+        mock_report.on_disk_size = 1065353216  # 1015 MiB
+        mock_report.max_on_wire_size = 157286400
+        mock_report.max_on_disk_size = 1065353216
+
+        # Create mock file info objects
+        mock_file_infos = []
+        for i in range(100):
+            mock_file = Mock()
+            mock_file.size_bytes = 10000000 * (100 - i)  # Decreasing sizes
+            mock_file.relative_path = f"Program Files/Datadog/file_{i}.dll"
+            mock_file.size_mb = (10000000 * (100 - i)) / (1024 * 1024)
+            mock_file_infos.append(mock_file)
+        mock_report.file_inventory = mock_file_infos
+        mock_report.largest_files = mock_file_infos[:10]
+
+        mock_measurer.measure_msi.return_value = mock_report
+        mock_measurer.save_report_to_yaml.return_value = None
+
+        # Mock context
+        mock_ctx = Mock()
+
+        # Call the function
+        measure_msi(
+            ctx=mock_ctx,
+            msi_path="C:\\path\\to\\datadog-agent.msi",
+            gate_name="static_quality_gate_agent_msi",
+        )
+
+        # Verify measurer was initialized and called
+        mock_measurer_class.assert_called_once_with(config_path="test/static/static_quality_gates.yml")
+        mock_measurer.measure_msi.assert_called_once()
+        mock_measurer.save_report_to_yaml.assert_called_once()
+
+        # Verify success messages were printed
+        print_calls = [call[0][0] for call in mock_print.call_args_list if call[0]]
+        success_messages = [msg for msg in print_calls if "✅" in str(msg) or "completed successfully" in str(msg)]
+        self.assertTrue(len(success_messages) > 0, "Expected success messages in output")
+
+    @patch('sys.platform', 'win32')
+    @patch('os.path.exists')
+    @patch('builtins.print')
+    def test_measure_msi_missing_file(self, mock_print, mock_exists):
+        """Test measure_msi function with missing file."""
+        from tasks.static_quality_gates.experimental_gates import measure_msi
+
+        # Setup mocks - MSI doesn't exist
+        mock_exists.return_value = False
+        mock_ctx = Mock()
+
+        # Call the function
+        measure_msi(
+            ctx=mock_ctx,
+            msi_path="C:\\nonexistent\\datadog-agent.msi",
+            gate_name="static_quality_gate_agent_msi",
+        )
+
+        # Verify error message was printed
+        print_calls = [call[0][0] for call in mock_print.call_args_list if call[0]]
+        error_messages = [msg for msg in print_calls if "❌" in str(msg) and "not found" in str(msg)]
+        self.assertTrue(len(error_messages) > 0, "Expected error message for missing file")
 
 
 if __name__ == '__main__':

@@ -411,6 +411,68 @@ class FileUtilities:
         walk_directory(directory)
         return total_size
 
+    @staticmethod
+    def extract_tarball(tarball_path: str, extract_dir: str, debug: bool = False) -> bool:
+        """
+        Extract a tarball to a directory using tar command.
+
+        Args:
+            tarball_path: Path to the tarball file
+            extract_dir: Directory to extract into
+            debug: Enable debug logging
+
+        Returns:
+            True if extraction succeeded, False otherwise
+        """
+        import shlex
+        import subprocess
+
+        extract_command = f"tar -xf {shlex.quote(tarball_path)} -C {shlex.quote(extract_dir)} 2>/dev/null"
+        extract_result = subprocess.run(extract_command, shell=True, capture_output=True).returncode
+
+        if extract_result != 0:
+            if debug:
+                print(f"⚠️  Failed to extract tarball: {tarball_path}")
+            return False
+
+        return True
+
+    @staticmethod
+    def create_hard_link_tracker():
+        """
+        Create a hard link tracker for avoiding duplicate counting of hard-linked files.
+
+        Returns:
+            A set that can be used to track (device, inode) pairs
+        """
+        return set()
+
+    @staticmethod
+    def is_hard_link_duplicate(file_stat, seen_inodes: set) -> bool:
+        """
+        Check if a file is a hard link duplicate that should be skipped.
+
+        For regular files with multiple hard links, only count once per (device, inode) pair.
+
+        Args:
+            file_stat: os.stat_result object for the file
+            seen_inodes: Set of (device, inode) tuples already seen
+
+        Returns:
+            True if this is a duplicate hard link that should be skipped, False otherwise
+        """
+        import stat as stat_module
+
+        # Only track hard links for regular files with nlink > 1
+        if stat_module.S_ISREG(file_stat.st_mode) and file_stat.st_nlink > 1:
+            file_id = (file_stat.st_dev, file_stat.st_ino)
+            if file_id in seen_inodes:
+                # This is a hard link to a file we've already counted
+                return True
+            seen_inodes.add(file_id)
+
+        return False
+
 
 class ReportBuilder:
     """Shared report building functionality for all artifact types."""
@@ -638,6 +700,71 @@ class PackageProcessor:
             return wire_size, disk_size, file_inventory, None
 
 
+class MSIProcessor:
+    """
+    MSI package processor implementing the ArtifactProcessor protocol.
+
+    Uses Windows native msiexec /a for extraction to get true installed size.
+    Windows-only.
+    """
+
+    def measure_artifact(
+        self,
+        ctx: Context,
+        artifact_ref: str,
+        gate_config: QualityGateConfig,
+        debug: bool,
+    ) -> tuple[int, int, list[FileInfo], Any]:
+        """Measure MSI artifact using msiexec extraction."""
+        import sys
+
+        # Validate platform
+        if sys.platform != 'win32':
+            raise RuntimeError(
+                f"MSI measurement requires Windows platform. "
+                f"Current platform: {sys.platform}. "
+                f"MSI files can only be measured on Windows using msiexec. "
+                f"Please run this measurement on a Windows runner."
+            )
+
+        if not os.path.exists(artifact_ref):
+            raise ValueError(f"MSI file not found: {artifact_ref}")
+
+        if not artifact_ref.lower().endswith('.msi'):
+            raise ValueError(
+                f"File is not an MSI: {artifact_ref}. "
+                f"Expected .msi extension but got: {os.path.splitext(artifact_ref)[1]}"
+            )
+
+        if debug:
+            print(f"📦 Measuring MSI package: {artifact_ref}")
+
+        # Wire size is the MSI file itself
+        wire_size = file_size(artifact_ref)
+
+        # Extract and measure disk size
+        with tempfile.TemporaryDirectory() as extract_dir:
+            if debug:
+                print(f"📁 Extracting MSI to: {extract_dir}")
+
+            # Import here to use the function from size.py
+            from tasks.libs.package.size import extract_msi_package
+
+            extract_msi_package(ctx, artifact_ref, extract_dir)
+            disk_size = FileUtilities.calculate_directory_size(extract_dir)
+            file_inventory = FileUtilities.walk_files(extract_dir, debug)
+
+            if debug:
+                print("✅ MSI analysis completed:")
+                print(f"   • Wire size: {wire_size:,} bytes")
+                print(f"   • Disk size: {disk_size:,} bytes")
+                print(f"   • Files inventoried: {len(file_inventory):,}")
+
+            # TODO(agent-build): Add MSI-specific metadata extraction
+            # (components, features, registry entries) if needed in the future
+            return wire_size, disk_size, file_inventory, None
+
+
 class DockerProcessor:
     """Docker image processor implementing the ArtifactProcessor protocol.
 
@@ -735,7 +862,6 @@ class DockerProcessor:
         counting the same file multiple times.
         """
         import json
-        import subprocess
 
         total_disk_size = 0
         all_files = {}  # Use dict to handle overwrites from different layers
@@ -790,20 +916,14 @@ class DockerProcessor:
                     print(f"📦 Processing layer {i + 1}/{len(layer_files)}: {layer_file}")
 
                 with tempfile.TemporaryDirectory() as layer_extract_dir:
-                    # Extract layer
-                    import shlex
-
-                    extract_command = (
-                        f"tar -xf {shlex.quote(layer_path)} -C {shlex.quote(layer_extract_dir)} 2>/dev/null"
-                    )
-                    extract_result = subprocess.run(extract_command, shell=True, capture_output=True).returncode
-                    if extract_result != 0:
+                    # Extract layer using FileUtilities
+                    if not FileUtilities.extract_tarball(layer_path, layer_extract_dir, debug):
                         if debug:
                             print(f"⚠️  Skipping layer {layer_file} (extraction failed)")
                         continue
 
                     # Track (device, inode) pairs within this layer to handle hard links
-                    layer_inodes = set()
+                    layer_inodes = FileUtilities.create_hard_link_tracker()
 
                     # Walk through files in this layer, ensuring we don't follow symlinks
                     layer_files_processed = 0
@@ -820,15 +940,12 @@ class DockerProcessor:
                                 # Use lstat to not follow symlinks, get actual file/symlink size
                                 file_stat = os.lstat(file_path)
 
-                                # For regular files with multiple hard links in this layer, only count once per (device, inode) pair
-                                if stat.S_ISREG(file_stat.st_mode) and file_stat.st_nlink > 1:
-                                    file_id = (file_stat.st_dev, file_stat.st_ino)
-                                    if file_id in layer_inodes:
-                                        # This is a hard link to a file we've already processed in this layer
-                                        # Don't add to inventory but still count as processed
-                                        layer_files_processed += 1
-                                        continue
-                                    layer_inodes.add(file_id)
+                                # Check if this is a duplicate hard link using FileUtilities
+                                if FileUtilities.is_hard_link_duplicate(file_stat, layer_inodes):
+                                    # This is a hard link to a file we've already processed in this layer
+                                    # Don't add to inventory but still count as processed
+                                    layer_files_processed += 1
+                                    continue
 
                                 size_bytes = file_stat.st_size
 
@@ -1093,7 +1210,80 @@ class InPlaceDockerMeasurer:
         self._measurer.save_report_to_yaml(report, output_path)
 
 
-def measure_package_local(
+class InPlaceMSIMeasurer:
+    """
+    Measures MSI package artifacts in-place and generates detailed reports.
+
+    This class handles measurement of MSI packages directly in Windows build jobs,
+    using native msiexec /a for extraction to get accurate installed size and
+    comprehensive file inventory.
+
+    Uses composition with UniversalArtifactMeasurer and MSIProcessor.
+    Windows-only.
+    """
+
+    def __init__(self, config_path: str = "test/static/static_quality_gates.yml"):
+        """
+        Initialize the MSI measurer with configuration.
+
+        Args:
+            config_path: Path to the quality gates configuration file
+
+        Raises:
+            RuntimeError: If not running on Windows
+        """
+        import sys
+
+        if sys.platform != 'win32':
+            raise RuntimeError(
+                f"MSI measurement requires Windows platform. "
+                f"Current platform: {sys.platform}. "
+                f"This measurer can only be used on Windows systems."
+            )
+
+        self._measurer: UniversalArtifactMeasurer = UniversalArtifactMeasurer(
+            processor=MSIProcessor(), config_path=config_path
+        )
+
+    def measure_msi(
+        self,
+        ctx: Context,
+        msi_path: str,
+        gate_name: str,
+        build_job_name: str,
+        debug: bool = False,
+    ) -> InPlaceArtifactReport:
+        """
+        Measure an MSI package and generate a comprehensive report.
+
+        Args:
+            ctx: Invoke context for running commands
+            msi_path: Path to the MSI file
+            gate_name: Quality gate name from configuration
+            build_job_name: Name of the CI job that built this MSI
+            debug: Enable debug logging
+
+        Returns:
+            InPlaceArtifactReport with complete measurement data
+
+        Raises:
+            ValueError: If configuration is invalid or MSI not found
+            RuntimeError: If measurement fails or not on Windows
+        """
+        return self._measurer.measure_artifact(
+            ctx=ctx,
+            artifact_ref=msi_path,
+            gate_name=gate_name,
+            build_job_name=build_job_name,
+            debug=debug,
+        )
+
+    def save_report_to_yaml(self, report: InPlaceArtifactReport, output_path: str) -> None:
+        """Save the measurement report to a YAML file."""
+        self._measurer.save_report_to_yaml(report, output_path)
+
+
+def measure_package(
     ctx,
     package_path,
     gate_name,
@@ -1103,9 +1293,9 @@ def measure_package_local(
     debug=False,
 ):
     """
-    Run the in-place package measurer locally for testing and development.
+    Run the in-place package measurer for testing and development.
 
-    This task allows you to test the measurement functionality on local packages
+    This task allows you to test the measurement functionality on packages
     without requiring a full CI environment.
 
     Args:
@@ -1117,7 +1307,7 @@ def measure_package_local(
         debug: Enable debug logging for troubleshooting (default: false)
 
     Example:
-        dda inv experimental-gates.measure-package-local --package-path /path/to/package.deb --gate-name static_quality_gate_agent_deb_amd64
+        dda inv quality-gates.measure-package --package-path /path/to/package.deb --gate-name static_quality_gate_agent_deb_amd64
     """
     from tasks.libs.common.color import color_message
 
@@ -1200,7 +1390,7 @@ def measure_package_local(
         raise
 
 
-def measure_image_local(
+def measure_image(
     ctx,
     image_ref,
     gate_name,
@@ -1211,9 +1401,9 @@ def measure_image_local(
     debug=False,
 ):
     """
-    Run the in-place Docker image measurer locally for testing and development.
+    Run the in-place Docker image measurer for testing and development.
 
-    This task allows you to test the Docker image measurement functionality on local images
+    This task allows you to test the Docker image measurement functionality on images
     without requiring a full CI environment.
 
     Args:
@@ -1226,7 +1416,7 @@ def measure_image_local(
         debug: Enable debug logging for troubleshooting (default: false)
 
     Example:
-        dda inv experimental-gates.measure-image-local --image-ref nginx:latest --gate-name static_quality_gate_docker_agent_amd64
+        dda inv quality-gates.measure-image --image-ref nginx:latest --gate-name static_quality_gate_docker_agent_amd64
     """
     from tasks.libs.common.color import color_message
 
@@ -1341,4 +1531,118 @@ def measure_image_local(
 
     except Exception as e:
         print(color_message(f"❌ Image measurement failed: {e}", "red"))
+        raise
+
+
+def measure_msi(
+    ctx,
+    msi_path,
+    gate_name,
+    config_path="test/static/static_quality_gates.yml",
+    output_path=None,
+    build_job_name="local_test",
+    debug=False,
+):
+    """
+    Run the in-place MSI measurer for testing and development.
+
+    This task allows you to test the MSI measurement functionality on packages
+    without requiring a full CI environment. Windows-only.
+
+    Args:
+        msi_path: Path to the MSI file to measure
+        gate_name: Quality gate name from the configuration file
+        config_path: Path to quality gates configuration (default: test/static/static_quality_gates.yml)
+        output_path: Path to save the measurement report (default: {gate_name}_report.yml)
+        build_job_name: Simulated build job name (default: local_test)
+        debug: Enable debug logging for troubleshooting (default: false)
+
+    Example:
+        dda inv quality-gates.measure-msi --msi-path C:\\path\\to\\datadog-agent.msi --gate-name static_quality_gate_agent_msi
+    """
+    import sys
+
+    from tasks.libs.common.color import color_message
+
+    if sys.platform != 'win32':
+        print(color_message(f"❌ MSI measurement requires Windows platform. Current platform: {sys.platform}", "red"))
+        print(color_message("   Please run this command on a Windows system with msiexec available.", "red"))
+        return
+
+    if not os.path.exists(msi_path):
+        print(color_message(f"❌ MSI file not found: {msi_path}", "red"))
+        return
+
+    if not os.path.exists(config_path):
+        print(color_message(f"❌ Configuration file not found: {config_path}", "red"))
+        return
+
+    if output_path is None:
+        output_path = f"{gate_name}_report.yml"
+
+    print(color_message("🔍 Starting in-place MSI measurement...", "cyan"))
+    print(f"MSI: {msi_path}")
+    print(f"Gate: {gate_name}")
+    print(f"Config: {config_path}")
+    print(f"Output: {output_path}")
+    print("=" * 50)
+
+    try:
+        measurer = InPlaceMSIMeasurer(config_path=config_path)
+
+        # Set dummy values for local execution
+        os.environ["CI_PIPELINE_ID"] = os.environ.get("CI_PIPELINE_ID", "LOCAL")
+        os.environ["CI_COMMIT_SHA"] = os.environ.get("CI_COMMIT_SHA", "LOCAL")
+
+        if os.environ.get("CI_PIPELINE_ID") == "LOCAL":
+            print(
+                color_message(
+                    "🏷️  Warning! Running in local mode, using dummy CI values",
+                    "yellow",
+                )
+            )
+
+        print(color_message("📏 Measuring MSI package...", "cyan"))
+        report = measurer.measure_msi(
+            ctx=ctx,
+            msi_path=msi_path,
+            gate_name=gate_name,
+            build_job_name=build_job_name,
+            debug=debug,
+        )
+
+        # Save the report
+        print(color_message("💾 Saving measurement report...", "cyan"))
+        measurer.save_report_to_yaml(report, output_path)
+
+        # Display summary
+        print(color_message("✅ Measurement completed successfully!", "green"))
+        print("📊 Results:")
+        print(f"   • Wire size: {report.on_wire_size:,} bytes ({report.on_wire_size / 1024 / 1024:.2f} MiB)")
+        print(f"   • Disk size: {report.on_disk_size:,} bytes ({report.on_disk_size / 1024 / 1024:.2f} MiB)")
+        print(f"   • Files inventoried: {len(report.file_inventory):,}")
+        print(f"   • Report saved to: {output_path}")
+
+        # Show size comparison with limits
+        wire_limit_mb = report.max_on_wire_size / 1024 / 1024
+        disk_limit_mb = report.max_on_disk_size / 1024 / 1024
+        wire_usage_pct = (report.on_wire_size / report.max_on_wire_size) * 100
+        disk_usage_pct = (report.on_disk_size / report.max_on_disk_size) * 100
+
+        print("📏 Size Limits:")
+        print(f"   • Wire limit: {wire_limit_mb:.2f} MiB (using {wire_usage_pct:.1f}%)")
+        print(f"   • Disk limit: {disk_limit_mb:.2f} MiB (using {disk_usage_pct:.1f}%)")
+
+        if wire_usage_pct > 100 or disk_usage_pct > 100:
+            print(color_message("⚠️  WARNING: MSI exceeds size limits!", "red"))
+        else:
+            print(color_message("✅ MSI within size limits", "green"))
+
+        # Show top 10 largest files
+        print("📁 Top 10 largest files:")
+        for i, file_info in enumerate(report.largest_files, 1):
+            print(f"   {i:2}. {file_info.relative_path} ({file_info.size_mb:.2f} MiB)")
+
+    except Exception as e:
+        print(color_message(f"❌ MSI measurement failed: {e}", "red"))
         raise

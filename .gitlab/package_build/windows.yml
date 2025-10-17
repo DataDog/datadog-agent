@@ -1,4 +1,74 @@
 ---
+.static_quality_gate_msi: |
+  # Measure MSI package size and generate in-place report
+  # This runs after the main script and won't fail the job if there are issues.
+  # Windows-only, runs on MSI build jobs
+
+  if ($null -ne $env:STATIC_QUALITY_GATE_NAME) {
+    Write-Host "📊 Starting MSI measurement..."
+    
+    # Determine project name based on AGENT_FLAVOR
+    if ($env:AGENT_FLAVOR -eq "fips") {
+      $ProjectName = "fips-datadog-agent"
+    } else {
+      $ProjectName = "datadog-agent"
+    }
+    
+    # MSI pattern in omnibus package directory
+    $PackagePattern = "omnibus\pkg\pipeline-$env:CI_PIPELINE_ID\$ProjectName-7*-$env:ARCH.msi"
+    
+    Write-Host "🔍 Looking for MSI with pattern: $PackagePattern"
+    
+    # Extract report prefix from gate name
+    $ReportPrefix = $env:STATIC_QUALITY_GATE_NAME -replace '^static_quality_gate_', ''
+    
+    $MsiFiles = Get-ChildItem -Path $PackagePattern -ErrorAction SilentlyContinue
+    
+    if ($MsiFiles) {
+      foreach ($MsiFile in $MsiFiles) {
+        Write-Host "📏 Measuring MSI: $($MsiFile.FullName)"
+        
+        # Generate measurement report using STATIC_QUALITY_GATE_NAME variable
+        $OutputPath = "${ReportPrefix}_size_report_${env:CI_PIPELINE_ID}_$($env:CI_COMMIT_SHA.Substring(0,8)).yml"
+        
+        dda inv quality-gates.measure-msi `
+          --msi-path $MsiFile.FullName `
+          --gate-name $env:STATIC_QUALITY_GATE_NAME `
+          --build-job-name $env:CI_JOB_NAME `
+          --output-path $OutputPath `
+          --debug
+        
+        if ($LASTEXITCODE -ne 0) {
+          Write-Host "⚠️  MSI measurement failed for $($MsiFile.FullName)"
+          exit 0
+        }
+        
+        Write-Host "✅ MSI measurement completed"
+        
+        # Upload the report to S3
+        $BucketBasePath = "s3://dd-ci-artefacts-build-stable/datadog-agent/static_quality_gates/GATE_REPORTS/$env:CI_COMMIT_SHA"
+        Write-Host "Uploading report to ${BucketBasePath}"
+        try {
+          aws s3 cp --only-show-errors --region us-east-1 --sse AES256 `
+            $OutputPath `
+            "${BucketBasePath}/${OutputPath}"
+          if ($LASTEXITCODE -ne 0) {
+            Write-Host "⚠️  S3 upload failed but continuing"
+          }
+        } catch {
+          Write-Host "⚠️  S3 upload failed: $_"
+        }
+      }
+    } else {
+      Write-Host "⚠️  No MSI found matching pattern: $PackagePattern"
+      exit 0
+    }
+  } else {
+    Write-Host "ℹ️  Skipping MSI measurement (no STATIC_QUALITY_GATE_NAME defined)"
+  }
+
+.static_quality_gate_msi_report_path: "**/*_size_report_*.yml"
+
 .windows_msi_base:
   stage: package_build
   extends: .windows_docker_default
@@ -66,6 +136,14 @@ windows_msi_and_bosh_zip_x64-a7:
     - when: on_success
   variables:
     ARCH: "x64"
+    STATIC_QUALITY_GATE_NAME: "static_quality_gate_agent_msi"
+  after_script:
+    - !reference [.static_quality_gate_msi]
+  artifacts:
+    expire_in: 2 weeks
+    paths:
+      - omnibus/pkg/pipeline-$CI_PIPELINE_ID
+      - !reference [.static_quality_gate_msi_report_path]
   timeout: 2h
 
 windows_msi_and_bosh_zip_x64-a7-fips:
