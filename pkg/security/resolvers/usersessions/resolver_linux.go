@@ -59,12 +59,13 @@ func (e *UserSessionData) UnmarshalBinary(data []byte) error {
 
 // incrementalFileReader is used to read a file incrementally
 type incrementalFileReader struct {
-	path     string
-	f        *os.File
-	offset   int64
-	mu       sync.Mutex
-	ino      uint64
-	lastRead time.Time
+	path               string
+	f                  *os.File
+	offset             int64
+	mu                 sync.Mutex
+	ino                uint64
+	lastRead           time.Time
+	readFromJournalctl bool
 }
 
 // Resolver is used to resolve the user sessions context
@@ -240,35 +241,33 @@ func (r *incrementalFileReader) reloadIfRotated() error {
 	return nil
 }
 
-// readNewLines read all the lines that have been added since the last call without reopening the file.
-// Return new lines and update the offset.
-func (r *incrementalFileReader) readNewLines() ([]string, error) {
+// resolveFromLogFile read all the lines that have been added since the last call without reopening the file.
+// Return new lines, the byte offsets at the end of each line, and an error.
+func (r *incrementalFileReader) resolveFromLogFile(ctx *model.UserSessionContext) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
 	if err := r.reloadIfRotated(); err != nil {
-		return nil, err
+		return err
 	}
 
 	st, err := r.f.Stat()
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	// If the file is truncated, we restart from the beginning
 	if st.Size() < r.offset {
 		r.offset = 0
 		if _, err := r.f.Seek(0, io.SeekStart); err != nil {
-			return nil, err
+			return err
 		}
 	} else {
 		// If the file is not truncated, we seek to the offset
 		if _, err := r.f.Seek(r.offset, io.SeekStart); err != nil {
-			return nil, err
+			return err
 		}
 	}
-
-	var lines []string
 
 	// Wait until rsyslog has written new lines
 	timer := time.NewTimer(3 * time.Second)
@@ -301,13 +300,18 @@ func (r *incrementalFileReader) readNewLines() ([]string, error) {
 	sc := bufio.NewScanner(r.f)
 	for sc.Scan() {
 		line := sc.Text()
-		lines = append(lines, line)
+
+		found, _ := parseSSHLogLine(line, ctx)
+		if found {
+			// Get the current position after reading this line
+			newOffset, err := r.f.Seek(0, io.SeekCurrent)
+			if err != nil {
+				return err
+			}
+			r.offset = newOffset
+		}
 	}
-	if len(lines) == 0 {
-		seclog.Warnf("no new lines found eventhough a ssh session was opened")
-	}
-	r.offset, err = r.f.Seek(0, io.SeekCurrent)
-	return lines, err
+	return err
 }
 
 // StartSSHUserSessionResolver initializes the ssh log reader by looking for the available file, opening it and setting up the initial offset
@@ -332,9 +336,11 @@ func (r *Resolver) StartSSHUserSessionResolver() {
 	if path == "" {
 		// Don't want to continue in case there is no log file
 		r.sshLogReader.lastRead = time.Now()
+		r.sshLogReader.readFromJournalctl = true
 		return
 	}
 
+	r.sshLogReader.readFromJournalctl = false
 	// Now we can open the file if there is one
 	f, err := os.OpenFile(path, os.O_RDONLY, 0644)
 	if err != nil {
@@ -353,7 +359,7 @@ func (r *Resolver) StartSSHUserSessionResolver() {
 	// Note: the file is not closed here, as the sshLogReader manage it
 }
 
-func parseSSHLogLines(lines []string, ctx *model.UserSessionContext) {
+func parseSSHLogLine(line string, ctx *model.UserSessionContext) (bool, string) {
 	type SSHLogLine struct {
 		Date      string
 		Hostname  string
@@ -368,93 +374,120 @@ func parseSSHLogLines(lines []string, ctx *model.UserSessionContext) {
 		SSHVersion             string
 		Remaining              string
 	}
-	for i := 0; i < len(lines); i++ {
-		line := lines[i]
-		// separate the line into words
-		words := strings.Split(line, " ")
-		sshLogLine := SSHLogLine{}
-		if len(words) < 5 {
-			continue
+	// separate the line into words
+	words := strings.Split(line, " ")
+	sshLogLine := SSHLogLine{}
+	if len(words) < 5 {
+		return false, ""
+	}
+	switch {
+	// We saw two different types of logs, so we try to parse both
+	case strings.HasPrefix(words[2], "sshd"):
+		sshLogLine = SSHLogLine{
+			Date:      words[0],
+			Hostname:  words[1],
+			Service:   words[2],
+			Remaining: strings.Join(words[3:], " "),
 		}
-		switch {
-		// We saw two different types of logs, so we try to parse both
-		case strings.HasPrefix(words[2], "sshd"):
-			sshLogLine = SSHLogLine{
-				Date:      words[0],
-				Hostname:  words[1],
-				Service:   words[2],
-				Remaining: strings.Join(words[3:], " "),
-			}
-		case strings.HasPrefix(words[4], "sshd"):
-			sshLogLine = SSHLogLine{
-				Date:      words[2],
-				Hostname:  words[3],
-				Service:   words[4],
-				Remaining: strings.Join(words[5:], " "),
-			}
-		default:
-			continue
+	case strings.HasPrefix(words[4], "sshd"):
+		sshLogLine = SSHLogLine{
+			Date:      words[2],
+			Hostname:  words[3],
+			Service:   words[4],
+			Remaining: strings.Join(words[5:], " "),
 		}
-		// if the service is "sshd" and the line starts with "Accepted" it's the beginning of an ssh session
-		if strings.HasPrefix(sshLogLine.Service, "sshd") && strings.HasPrefix(sshLogLine.Remaining, "Accepted") {
-			// One example of line is: "Accepted publickey for lima from 192.168.5.2 port 38835 ssh2: ED25519 SHA256:J3I5W45pnQtan5u0m27HWzyqAMZfTbG+nRet/pzzylU"
-			// Get the infos like that : Accepted <authentification method> for <username> from <ip> port <port> <ssh version> <Remaining (hash)>
-			// Here it should be the good line to parse. If we have multiple connexion with same username, we start by the last one so it should be the good one
-			// TODO?: Maybe add a check on the date and time ( + eventually correlated to edit time of the file ?)
+	default:
+		return false, ""
+	}
+	// if the service is "sshd" and the line starts with "Accepted" it's the beginning of an ssh session
+	if strings.HasPrefix(sshLogLine.Service, "sshd") && strings.HasPrefix(sshLogLine.Remaining, "Accepted") {
+		// One example of line is: "Accepted publickey for lima from 192.168.5.2 port 38835 ssh2: ED25519 SHA256:J3I5W45pnQtan5u0m27HWzyqAMZfTbG+nRet/pzzylU"
+		// Get the infos like that : Accepted <authentification method> for <username> from <ip> port <port> <ssh version> <Remaining (hash)>
+		// Here it should be the good line to parse. If we have multiple connexion with same username, we start by the last one so it should be the good one
+		// TODO?: Maybe add a check on the date and time ( + eventually correlated to edit time of the file ?)
 
-			sshWords := strings.Split(sshLogLine.Remaining, " ")
-			if len(sshWords) < 9 {
-				continue
-			}
-			sshParsedLine := SSHParsedLine{
-				AuthentificationMethod: sshWords[1],
-				User:                   sshWords[3],
-				IP:                     sshWords[5],
-				Port:                   sshWords[7],
-				SSHVersion:             sshWords[8],
-				Remaining:              strings.Join(sshWords[9:], " "),
-			}
-			// We compare port and IP to ensure that the line is the one we want
-			// Convert string IP to net.IP and compare normalized values
-			parsedIP := net.ParseIP(sshParsedLine.IP)
-			if parsedIP != nil && parsedIP.Equal(ctx.SSHClientIP.IP) && sshParsedLine.Port == fmt.Sprintf("%d", ctx.SSHPort) {
-				switch sshParsedLine.AuthentificationMethod {
-				case "publickey":
-					ctx.SSHAuthMethod = usersession.SSHAuthMethodPublicKey
-					// Here Parse the Public Key which can be ED25519 SHA256:J3I5W45pnQtan5u0m27HWzyqAMZfTbG+nRet/pzzylU
-					sshParsedLine.Remaining = strings.Split(sshParsedLine.Remaining, ":")[1]
-					ctx.SSHPublicKey = sshParsedLine.Remaining
-					return
-				case "password":
-					ctx.SSHAuthMethod = usersession.SSHAuthMethodPassword
-					return
-				// Other types not implemented yet
-				default:
-					ctx.SSHAuthMethod = usersession.SSHAuthMethodUnknown
-					return
-				}
+		sshWords := strings.Split(sshLogLine.Remaining, " ")
+		if len(sshWords) < 9 {
+			return false, ""
+		}
+		sshParsedLine := SSHParsedLine{
+			AuthentificationMethod: sshWords[1],
+			User:                   sshWords[3],
+			IP:                     sshWords[5],
+			Port:                   sshWords[7],
+			SSHVersion:             sshWords[8],
+			Remaining:              strings.Join(sshWords[9:], " "),
+		}
+		// We compare port and IP to ensure that the line is the one we want
+		// Convert string IP to net.IP and compare normalized values
+		parsedIP := net.ParseIP(sshParsedLine.IP)
+		if parsedIP != nil && parsedIP.Equal(ctx.SSHClientIP.IP) && sshParsedLine.Port == fmt.Sprintf("%d", ctx.SSHPort) {
+			switch sshParsedLine.AuthentificationMethod {
+			case "publickey":
+				ctx.SSHAuthMethod = usersession.SSHAuthMethodPublicKey
+				// Here Parse the Public Key which can be ED25519 SHA256:J3I5W45pnQtan5u0m27HWzyqAMZfTbG+nRet/pzzylU
+				sshParsedLine.Remaining = strings.Split(sshParsedLine.Remaining, ":")[1]
+				ctx.SSHPublicKey = sshParsedLine.Remaining
+				return true, sshLogLine.Date
+			case "password":
+				ctx.SSHAuthMethod = usersession.SSHAuthMethodPassword
+				return true, sshLogLine.Date
+			// Other types not implemented yet
+			default:
+				ctx.SSHAuthMethod = usersession.SSHAuthMethodUnknown
+				return true, sshLogLine.Date
 			}
 		}
 	}
+	return false, ""
 }
-
-func (r *Resolver) resolveFromJournalctl(ctx *model.UserSessionContext) ([]string, error) {
+func (r *incrementalFileReader) resolveFromJournalctl(ctx *model.UserSessionContext) error {
 	// format for journalctl
-	sinceStr := r.sshLogReader.lastRead.Format("2006-01-02 15:04:05")
-	r.sshLogReader.lastRead = time.Now()
+	sinceStr := r.lastRead.Format("2006-01-02 15:04:05")
+	// r.sshLogReader.lastRead = time.Now()
 
-	cmd := exec.Command("journalctl", "--no-pager", "--since", sinceStr)
+	cmd := exec.Command("journalctl", "--no-pager", "--since", sinceStr, "--output=short-iso")
 
 	var out bytes.Buffer
 	cmd.Stdout = &out
 
 	if err := cmd.Run(); err != nil {
-		return []string{}, err
+		return err
 	}
 
 	lines := strings.Split(strings.TrimSpace(out.String()), "\n")
-	return lines, nil
 
+	for i := 0; i < len(lines); i++ {
+		found, date := parseSSHLogLine(lines[i], ctx)
+		if found {
+			// We update the lastRead like this to avoid skipping another line that could be another ssh session
+			parsedSince, err := time.Parse("2006-01-02T15:04:05-0700", date)
+			if err != nil {
+				seclog.Errorf("failed to parse date from journalctl: %v", err)
+			}
+			r.lastRead = parsedSince
+		}
+	}
+	return nil
+
+}
+
+func (r *incrementalFileReader) resolve(ctx *model.UserSessionContext) error {
+	var err error
+	if r.readFromJournalctl {
+		err = r.resolveFromJournalctl(ctx)
+		if err != nil {
+			seclog.Errorf("failed to read journalctl: %v", err)
+			return err
+		}
+	} else {
+		err = r.resolveFromLogFile(ctx)
+		if err != nil {
+			seclog.Errorf("failed to read ssh log lines: %v", err)
+			return err
+		}
+	}
+	return nil
 }
 
 // ResolveSSHUserSession resolves the ssh user session from the auth log
@@ -468,26 +501,12 @@ func (r *Resolver) ResolveSSHUserSession(ctx *model.UserSessionContext) *model.U
 	r.Lock()
 	defer r.Unlock()
 
-	var lines []string
-	var err error
-	// We resolve from journalctl
-	if r.sshLogReader.path == "" {
-		lines, err = r.resolveFromJournalctl(ctx)
-		if err != nil {
-			seclog.Errorf("failed to read journalctl: %v", err)
-			return ctx
-		}
-	} else {
-		// We resolve from log file
-		lines, err = r.sshLogReader.readNewLines()
-		if err != nil {
-			seclog.Errorf("failed to read ssh log lines: %v", err)
-			return ctx
-		}
+	err := r.sshLogReader.resolve(ctx)
+
+	if err != nil {
+		// An error means we didn't resolve the session
+		return ctx
 	}
-
-	parseSSHLogLines(lines, ctx)
-
 	ctx.Resolved = true
 	// cache resolved context
 	r.userSessions.Add(id, ctx)
