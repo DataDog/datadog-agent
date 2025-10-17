@@ -32,7 +32,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
-	"github.com/DataDog/datadog-agent/pkg/security/utils/cache"
 	"github.com/DataDog/datadog-agent/pkg/security/utils/lru/simplelru"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
@@ -41,8 +40,10 @@ const (
 	numAllowedMountIDsToResolvePerPeriod = 5
 	fallbackLimiterPeriod                = time.Second
 	redemptionTime                       = 2 * time.Second
-	// should be enough to handle most of in queue mounts waiting to be deleted
+	// should be enough to handle most of in-queue mounts waiting to be deleted
 	openQueuePreAllocSize = 32
+	// mounts LRU limit: 100000 mounts
+	mountsLimit = 100000
 )
 
 type redemptionEntry struct {
@@ -107,7 +108,6 @@ type Resolver struct {
 	statsdClient    statsd.ClientInterface
 	lock            sync.RWMutex
 	mounts          *simplelru.LRU[uint32, *model.Mount]
-	pidToMounts     *cache.TwoLayersLRU[uint32, uint32, *model.Mount]
 	minMountID      uint32 // used to find the first userspace visible mount ID
 	redemption      *simplelru.LRU[uint32, *redemptionEntry]
 	fallbackLimiter *utils.Limiter[uint64]
@@ -243,7 +243,7 @@ func (mr *Resolver) insertMoved(mount *model.Mount) {
 	mount.MountPointStr, _ = mr.dentryResolver.Resolve(mount.ParentPathKey, false)
 
 	mr.insert(mount, 0, true)
-	_, _, _, _ = mr.getMountPath(mount.MountID, 0, 0)
+	_, _, _, _ = mr.getMountPath(mount.MountID, 0)
 
 	// Find all the mounts that I'm the parent of
 	for mnt := range mr.mounts.ValuesIter() {
@@ -270,7 +270,7 @@ func (mr *Resolver) insertMoved(mount *model.Mount) {
 
 	for _, child := range allChildren {
 		child.Path = ""
-		_, _, _, _ = mr.getMountPath(child.MountID, 0, 0)
+		_, _, _, _ = mr.getMountPath(child.MountID, 0)
 	}
 }
 
@@ -338,7 +338,6 @@ func (mr *Resolver) deleteOne(curr *model.Mount, now time.Time) {
 	}
 
 	mr.mounts.Remove(curr.MountID)
-	mr.pidToMounts.RemoveKey2(curr.MountID)
 
 	entry := redemptionEntry{
 		mount:      curr,
@@ -410,8 +409,6 @@ func (mr *Resolver) updatePidMapping(m *model.Mount, pid uint32) {
 	if pid == 0 {
 		return
 	}
-
-	mr.pidToMounts.Add(pid, m.MountID, m)
 }
 
 // DelPid removes the pid form the pid mapping
@@ -422,8 +419,6 @@ func (mr *Resolver) DelPid(pid uint32) {
 
 	mr.lock.Lock()
 	defer mr.lock.Unlock()
-
-	mr.pidToMounts.RemoveKey1(pid)
 }
 
 func (mr *Resolver) insert(m *model.Mount, pid uint32, moved bool) {
@@ -487,43 +482,22 @@ func (mr *Resolver) lookupByMountID(mountID uint32) *model.Mount {
 	return mr.getFromRedemption(mountID)
 }
 
-func (mr *Resolver) lookupByDevice(device uint32, pid uint32) *model.Mount {
-	var result *model.Mount
-
-	mr.pidToMounts.WalkInner(pid, func(_ uint32, mount *model.Mount) bool {
-		if mount.Device == device {
-			// should be consistent across all the mounts
-			if result != nil && result.MountPointStr != mount.MountPointStr {
-				result = nil
-				return false
-			}
-			result = mount
-		}
-		return true
-	})
-
-	return result
-}
-
-func (mr *Resolver) lookupMount(mountID uint32, device uint32, pid uint32) (*model.Mount, model.MountSource, model.MountOrigin) {
+func (mr *Resolver) lookupMount(mountID uint32) (*model.Mount, model.MountSource, model.MountOrigin) {
 	mount := mr.lookupByMountID(mountID)
-	if mount != nil {
-		return mount, model.MountSourceMountID, mount.Origin
-	}
 
-	mount = mr.lookupByDevice(device, pid)
 	if mount == nil {
 		return nil, model.MountSourceUnknown, model.MountOriginUnknown
 	}
-	return mount, model.MountSourceDevice, mount.Origin
+
+	return mount, model.MountSourceMountID, mount.Origin
 }
 
-func (mr *Resolver) _getMountPath(mountID uint32, device uint32, pid uint32, cache map[uint32]bool) (string, model.MountSource, model.MountOrigin, error) {
+func (mr *Resolver) _getMountPath(mountID uint32, pid uint32, cache map[uint32]bool) (string, model.MountSource, model.MountOrigin, error) {
 	if _, err := mr.IsMountIDValid(mountID); err != nil {
 		return "", model.MountSourceUnknown, model.MountOriginUnknown, err
 	}
 
-	mount, source, origin := mr.lookupMount(mountID, device, pid)
+	mount, source, origin := mr.lookupMount(mountID)
 	if mount == nil {
 		return "", source, origin, &ErrMountNotFound{MountID: mountID}
 	}
@@ -551,7 +525,7 @@ func (mr *Resolver) _getMountPath(mountID uint32, device uint32, pid uint32, cac
 		return "", source, mount.Origin, ErrMountUndefined
 	}
 
-	parentMountPath, parentSource, parentOrigin, err := mr._getMountPath(mount.ParentPathKey.MountID, mount.Device, pid, cache)
+	parentMountPath, parentSource, parentOrigin, err := mr._getMountPath(mount.ParentPathKey.MountID, pid, cache)
 	if err != nil {
 		return "", parentSource, parentOrigin, err
 	}
@@ -574,8 +548,8 @@ func (mr *Resolver) _getMountPath(mountID uint32, device uint32, pid uint32, cac
 	return mountPointStr, source, origin, nil
 }
 
-func (mr *Resolver) getMountPath(mountID uint32, device uint32, pid uint32) (string, model.MountSource, model.MountOrigin, error) {
-	return mr._getMountPath(mountID, device, pid, map[uint32]bool{})
+func (mr *Resolver) getMountPath(mountID uint32, pid uint32) (string, model.MountSource, model.MountOrigin, error) {
+	return mr._getMountPath(mountID, pid, map[uint32]bool{})
 }
 
 // ResolveMountRoot returns the root of a mount identified by its mount ID.
@@ -626,7 +600,7 @@ func (mr *Resolver) resolveMountPath(mountID uint32, device uint32, pid uint32, 
 	// TODO: DO NOT rely on containerID, but resolve the pid namespace instead to get namespaced PIDs
 	workload, _ := mr.cgroupsResolver.GetWorkload(containerID)
 
-	path, source, origin, err := mr.getMountPath(mountID, device, pid)
+	path, source, origin, err := mr.getMountPath(mountID, pid)
 	if err == nil {
 		mr.cacheHitsStats.Inc()
 		return path, source, origin, nil
@@ -641,7 +615,7 @@ func (mr *Resolver) resolveMountPath(mountID uint32, device uint32, pid uint32, 
 		return "", model.MountSourceUnknown, model.MountOriginUnknown, err
 	}
 
-	path, source, origin, err = mr.getMountPath(mountID, device, pid)
+	path, source, origin, err = mr.getMountPath(mountID, pid)
 	if err == nil {
 		mr.procHitsStats.Inc()
 		return path, source, origin, nil
@@ -667,7 +641,7 @@ func (mr *Resolver) resolveMount(mountID uint32, device uint32, pid uint32, cont
 	// force a resolution here to make sure the LRU keeps doing its job and doesn't evict important entries
 	workload, _ := mr.cgroupsResolver.GetWorkload(containerID)
 
-	mount, source, origin := mr.lookupMount(mountID, device, pid)
+	mount, source, origin := mr.lookupMount(mountID)
 	if mount != nil {
 		mr.cacheHitsStats.Inc()
 		return mount, source, origin, nil
@@ -734,22 +708,9 @@ func (mr *Resolver) ToJSON() ([]byte, error) {
 	return json.Marshal(dump)
 }
 
-const (
-	// mounts LRU limit: 100000 mounts
-	mountsLimit = 100000
-	// pidToMounts LRU limits: 1000 pids, and 1000 mounts per pid
-	pidLimit          = 1000
-	mountsPerPidLimit = 1000
-)
-
 // NewResolver instantiates a new mount resolver
 func NewResolver(statsdClient statsd.ClientInterface, cgroupsResolver *cgroup.Resolver, dentryResolver *dentry.Resolver, opts ResolverOpts) (*Resolver, error) {
 	mounts, err := simplelru.NewLRU[uint32, *model.Mount](mountsLimit, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	pidToMounts, err := cache.NewTwoLayersLRU[uint32, uint32, *model.Mount](pidLimit * mountsPerPidLimit)
 	if err != nil {
 		return nil, err
 	}
@@ -760,7 +721,6 @@ func NewResolver(statsdClient statsd.ClientInterface, cgroupsResolver *cgroup.Re
 		cgroupsResolver: cgroupsResolver,
 		lock:            sync.RWMutex{},
 		mounts:          mounts,
-		pidToMounts:     pidToMounts,
 		dentryResolver:  dentryResolver,
 		cacheHitsStats:  atomic.NewInt64(0),
 		procHitsStats:   atomic.NewInt64(0),
