@@ -164,11 +164,7 @@ func NewTargetMutator(config *Config, wmeta workloadmeta.Component, imageResolve
 
 // MutatePod mutates the pod if it matches the target based workload selection or has the appropriate annotations.
 func (m *TargetMutator) MutatePod(pod *corev1.Pod, ns string, _ dynamic.Interface) (bool, error) {
-	// Return if the mutator is disabled.
-	if !m.enabled {
-		log.Debug("Target mutator is disabled, not mutating")
-		return false, nil
-	}
+	log.Debugf("Mutating pod in target mutator %q", mutatecommon.PodString(pod))
 
 	// Sanitize input.
 	if pod == nil {
@@ -200,7 +196,7 @@ func (m *TargetMutator) MutatePod(pod *corev1.Pod, ns string, _ dynamic.Interfac
 	}
 	extracted := m.core.initExtractedLibInfo(pod).withLibs(target.libVersions)
 
-	// If the user did not sepcify versions, this target is eligable for language detection.
+	// If the user did not specify versions, this target is eligible for language detection.
 	if target.usesDefaultLibs {
 		extractedLanguageDetection, usingLanguageDetection := extracted.useLanguageDetectionLibs()
 		log.Error("AHH", extractedLanguageDetection.libs, usingLanguageDetection)
@@ -374,11 +370,7 @@ func (m *TargetMutator) podHasLibraryAnnotations(pod *corev1.Pod) bool {
 	}
 
 	extractedLibraries := extractLibrariesFromAnnotations(pod, m.containerRegistry)
-	if len(extractedLibraries) > 0 {
-		return true
-	}
-
-	return false
+	return len(extractedLibraries) > 0
 }
 
 // getMatchingTarget filters a pod based on the targets. It returns the target to inject.
@@ -450,7 +442,7 @@ func (t targetInternal) matchesPodSelector(podLabels map[string]string) bool {
 // createDefaultTarget is used when there are no targets. If a user configures enabledNamespaces and libVersions, which
 // are mutually exclusive with a list of targets, then we need to translate those configuration options into a target.
 // Additionally, if there are no targets and enabledNamespaces/libVersions are not set, the expected behavior is that
-// we would inject all SDKs to all pods. This target encompases both of those cases.
+// we would inject all SDKs to all pods. This target encompasses both of those cases.
 func createDefaultTarget(namespaces []string, pinnedLibVersions map[string]string) Target {
 	// Create a default target.
 	target := Target{
