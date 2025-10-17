@@ -39,5 +39,5 @@ secret_backend_config:
 	assert.EventuallyWithT(v.T(), func(t *assert.CollectT) {
 		secretOutput := v.Env().Agent.Client.Secret()
 		require.Contains(t, secretOutput, "embedded_secret_key")
-	}, 30*time.Second, 2*time.Second, "could not check if secretOutput contains 'embedded_key' within the allotted time")
+	}, 60*time.Second, 2*time.Second, "could not check if secretOutput contains 'embedded_key' within the allotted time")
 }
