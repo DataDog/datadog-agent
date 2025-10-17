@@ -476,7 +476,7 @@ SEC("tp_btf/contention_begin")
 int tracepoint__contention_begin(u64 *ctx)
 {
     struct tstamp_data *pelem;
-    struct lock_range range;
+    struct lock_range range = {};
 
     if (!can_record(ctx, &range))
     	return 0;
