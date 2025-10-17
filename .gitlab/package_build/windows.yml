@@ -53,6 +53,9 @@
     expire_in: 2 weeks
     paths:
       - omnibus/pkg/pipeline-$CI_PIPELINE_ID
+  id_tokens:
+    CI_IDENTITIES_GITLAB_ID_TOKEN:
+      aud: ci-identities
 
 .windows_main_agent_base:
   extends: .windows_msi_base
