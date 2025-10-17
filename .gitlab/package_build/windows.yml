@@ -71,6 +71,9 @@ windows_msi_and_bosh_zip_x64-a7:
   variables:
     ARCH: "x64"
   timeout: 2h
+  id_tokens:
+    CI_IDENTITIES_GITLAB_ID_TOKEN:
+      aud: ci-identities
 
 windows_msi_and_bosh_zip_x64-a7-fips:
   extends: .windows_main_agent_base
