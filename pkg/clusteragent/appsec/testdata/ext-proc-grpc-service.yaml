@@ -1,0 +1,399 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grpc-ext-proc
+data:
+  go.mod: |
+    module github.com/envoyproxy/gateway
+
+    go 1.22
+
+    require (
+    	github.com/envoyproxy/go-control-plane v0.12.1-0.20240322155512-db0b36a50fa8
+    	google.golang.org/grpc v1.62.1
+    )
+
+    require (
+        github.com/cncf/xds/go v0.0.0-20231128003011-0fa0005c9caa // indirect
+        github.com/envoyproxy/protoc-gen-validate v1.0.4 // indirect
+        github.com/golang/protobuf v1.5.4 // indirect
+        github.com/planetscale/vtprotobuf v0.5.1-0.20231212170721-e7d721933795 // indirect
+        golang.org/x/net v0.20.0 // indirect
+        golang.org/x/sys v0.16.0 // indirect
+        golang.org/x/text v0.14.0 // indirect
+        google.golang.org/genproto/googleapis/rpc v0.0.0-20240123012728-ef4313101c80 // indirect
+        google.golang.org/protobuf v1.33.0 // indirect
+    )
+  go.sum: |
+    github.com/cncf/xds/go v0.0.0-20231128003011-0fa0005c9caa h1:jQCWAUqqlij9Pgj2i/PB79y4KOPYVyFYdROxgaCwdTQ=
+    github.com/cncf/xds/go v0.0.0-20231128003011-0fa0005c9caa/go.mod h1:x/1Gn8zydmfq8dk6e9PdstVsDgu9RuyIIJqAaF//0IM=
+    github.com/envoyproxy/go-control-plane v0.12.1-0.20240322155512-db0b36a50fa8 h1:Zghtu+wdlGvrmutCyhU9Ew5ozU18PVpxP+zGSgyUpFs=
+    github.com/envoyproxy/go-control-plane v0.12.1-0.20240322155512-db0b36a50fa8/go.mod h1:YtsM9q/kVkKyvmemY+BF/ZK7I93OWsx4uk4Do2Mr/OA=
+    github.com/envoyproxy/protoc-gen-validate v1.0.4 h1:gVPz/FMfvh57HdSJQyvBtF00j8JU4zdyUgIUNhlgg0A=
+    github.com/envoyproxy/protoc-gen-validate v1.0.4/go.mod h1:qys6tmnRsYrQqIhm2bvKZH4Blx/1gTIZ2UKVY1M+Yew=
+    github.com/golang/protobuf v1.5.4 h1:i7eJL8qZTpSEXOPTxNKhASYpMn+8e5Q6AdndVa1dWek=
+    github.com/golang/protobuf v1.5.4/go.mod h1:lnTiLA8Wa4RWRcIUkrtSVa5nRhsEGBg48fD6rSs7xps=
+    github.com/google/go-cmp v0.6.0 h1:ofyhxvXcZhMsU5ulbFiLKl/XBFqE1GSq7atu8tAmTRI=
+    github.com/google/go-cmp v0.6.0/go.mod h1:17dUlkBOakJ0+DkrSSNjCkIjxS6bF9zb3elmeNGIjoY=
+    github.com/planetscale/vtprotobuf v0.5.1-0.20231212170721-e7d721933795 h1:pH+U6pJP0BhxqQ4njBUjOg0++WMMvv3eByWzB+oATBY=
+    github.com/planetscale/vtprotobuf v0.5.1-0.20231212170721-e7d721933795/go.mod h1:t/avpk3KcrXxUnYOhZhMXJlSEyie6gQbtLq5NM3loB8=
+    golang.org/x/net v0.20.0 h1:aCL9BSgETF1k+blQaYUBx9hJ9LOGP3gAVemcZlf1Kpo=
+    golang.org/x/net v0.20.0/go.mod h1:z8BVo6PvndSri0LbOE3hAn0apkU+1YvI6E70E9jsnvY=
+    golang.org/x/sys v0.16.0 h1:xWw16ngr6ZMtmxDyKyIgsE93KNKz5HKmMa3b8ALHidU=
+    golang.org/x/sys v0.16.0/go.mod h1:/VUhepiaJMQUp4+oa/7Zr1D23ma6VTLIYjOOTFZPUcA=
+    golang.org/x/text v0.14.0 h1:ScX5w1eTa3QqT8oi6+ziP7dTV1S2+ALU0bI+0zXKWiQ=
+    golang.org/x/text v0.14.0/go.mod h1:18ZOQIKpY8NJVqYksKHtTdi31H5itFRjB5/qKTNYzSU=
+    google.golang.org/genproto/googleapis/rpc v0.0.0-20240123012728-ef4313101c80 h1:AjyfHzEPEFp/NpvfN5g+KDla3EMojjhRVZc1i7cj+oM=
+    google.golang.org/genproto/googleapis/rpc v0.0.0-20240123012728-ef4313101c80/go.mod h1:PAREbraiVEVGVdTZsVWjSbbTtSyGbAgIIvni8a8CD5s=
+    google.golang.org/grpc v1.62.1 h1:B4n+nfKzOICUXMgyrNd19h/I9oH0L1pizfk1d4zSgTk=
+    google.golang.org/grpc v1.62.1/go.mod h1:IWTG0VlJLCh1SkC58F7np9ka9mx/WNkjl4PGJaiq+QE=
+    google.golang.org/protobuf v1.33.0 h1:uNO2rsAINq/JlFpSdYEKIZ0uKD/R9cpdv0T+yoGwGmI=
+    google.golang.org/protobuf v1.33.0/go.mod h1:c6P6GXX6sHbq/GpV6MGZEdwhWPcYBgnhAHhKbcUYpos=
+  main.go: |
+    package main
+
+    import (
+    	"context"
+    	"crypto/tls"
+    	"crypto/x509"
+    	"flag"
+    	"fmt"
+    	"io"
+    	"log"
+    	"net"
+    	"net/http"
+    	"os"
+    	"strings"
+
+    	"google.golang.org/grpc/credentials"
+
+    	envoy_api_v3_core "github.com/envoyproxy/go-control-plane/envoy/config/core/v3"
+    	envoy_service_proc_v3 "github.com/envoyproxy/go-control-plane/envoy/service/ext_proc/v3"
+
+    	"google.golang.org/grpc"
+    	"google.golang.org/grpc/codes"
+    	"google.golang.org/grpc/status"
+    )
+
+    type extProcServer struct{}
+
+    var (
+    	port     int
+    	certPath string
+    )
+
+    func main() {
+    	flag.IntVar(&port, "port", 9002, "gRPC port")
+    	flag.StringVar(&certPath, "certPath", "", "path to extProcServer certificate and private key")
+    	flag.Parse()
+
+    	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", port))
+    	if err != nil {
+    		log.Fatalf("failed to listen: %v", err)
+    	}
+
+    	creds, err := loadTLSCredentials(certPath)
+    	if err != nil {
+    		log.Fatalf("Failed to load TLS credentials: %v", err)
+    	}
+    	gs := grpc.NewServer(grpc.Creds(creds))
+
+    	envoy_service_proc_v3.RegisterExternalProcessorServer(gs, &extProcServer{})
+
+    	go func() {
+    		err = gs.Serve(lis)
+    		if err != nil {
+    			log.Fatalf("failed to serve: %v", err)
+    		}
+    	}()
+
+    	http.HandleFunc("/healthz", healthCheckHandler)
+    	err = http.ListenAndServe(":8080", nil)
+    	if err != nil {
+    		log.Fatalf("failed to serve: %v", err)
+    	}
+    }
+
+    // used by k8s readiness probes
+    // makes a processing request to check if the processor service is healthy
+    func healthCheckHandler(w http.ResponseWriter, r *http.Request) {
+    	certPool, err := loadCA(certPath)
+    	if err != nil {
+    		log.Fatalf("Could not load CA certificate: %v", err)
+    	}
+
+    	// Create TLS configuration
+    	tlsConfig := &tls.Config{
+    		RootCAs: certPool,
+    		ServerName: "grpc-ext-proc.envoygateway",
+    	}
+
+    	// Create gRPC dial options
+    	opts := []grpc.DialOption{
+    		grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)),
+    	}
+
+    	conn, err := grpc.Dial("localhost:9002", opts...)
+    	if err != nil {
+    		log.Fatalf("Could not connect: %v", err)
+    	}
+    	client := envoy_service_proc_v3.NewExternalProcessorClient(conn)
+
+    	processor, err := client.Process(context.Background())
+    	if err != nil {
+    		log.Fatalf("Could not check: %v", err)
+    	}
+
+    	err = processor.Send(&envoy_service_proc_v3.ProcessingRequest{
+    		Request: &envoy_service_proc_v3.ProcessingRequest_RequestHeaders{
+    			RequestHeaders: &envoy_service_proc_v3.HttpHeaders{},
+    		},
+    	})
+    	if err != nil {
+    		log.Fatalf("Could not check: %v", err)
+    	}
+
+    	response, err := processor.Recv()
+    	if err != nil {
+    		log.Fatalf("Could not check: %v", err)
+    	}
+
+    	if response != nil && response.GetRequestHeaders().Response.Status == envoy_service_proc_v3.CommonResponse_CONTINUE {
+    		w.WriteHeader(http.StatusOK)
+    	} else {
+    		w.WriteHeader(http.StatusServiceUnavailable)
+    	}
+    }
+
+    func loadTLSCredentials(certPath string) (credentials.TransportCredentials, error) {
+    	// Load extProcServer's certificate and private key
+    	crt := "server.crt"
+    	key := "server.key"
+
+    	if certPath != "" {
+    		if !strings.HasSuffix(certPath, "/") {
+    			certPath = fmt.Sprintf("%s/", certPath)
+    		}
+    		crt = fmt.Sprintf("%s%s", certPath, crt)
+    		key = fmt.Sprintf("%s%s", certPath, key)
+    	}
+    	certificate, err := tls.LoadX509KeyPair(crt, key)
+    	if err != nil {
+    		return nil, fmt.Errorf("could not load extProcServer key pair: %s", err)
+    	}
+
+    	// Create a new credentials object
+    	creds := credentials.NewTLS(&tls.Config{Certificates: []tls.Certificate{certificate}})
+
+    	return creds, nil
+    }
+
+    func loadCA(caPath string) (*x509.CertPool, error) {
+    	ca := x509.NewCertPool()
+    	caCertPath := "server.crt"
+    	if caPath != "" {
+    		if !strings.HasSuffix(caPath, "/") {
+    			caPath = fmt.Sprintf("%s/", caPath)
+    		}
+    		caCertPath = fmt.Sprintf("%s%s", caPath, caCertPath)
+    	}
+    	caCert, err := os.ReadFile(caCertPath)
+    	if err != nil {
+    		return nil, fmt.Errorf("could not read ca certificate: %s", err)
+    	}
+    	ca.AppendCertsFromPEM(caCert)
+    	return ca, nil
+    }
+
+    func (s *extProcServer) Process(srv envoy_service_proc_v3.ExternalProcessor_ProcessServer) error {
+    	ctx := srv.Context()
+    	for {
+    		select {
+    		case <-ctx.Done():
+    			return ctx.Err()
+    		default:
+    		}
+    		req, err := srv.Recv()
+    		if err == io.EOF {
+    			return nil
+    		}
+    		if err != nil {
+    			return status.Errorf(codes.Unknown, "cannot receive stream request: %v", err)
+    		}
+
+    		resp := &envoy_service_proc_v3.ProcessingResponse{}
+    		switch v := req.Request.(type) {
+    		case *envoy_service_proc_v3.ProcessingRequest_RequestHeaders:
+    			xrch := ""
+    			if v.RequestHeaders != nil {
+    				hdrs := v.RequestHeaders.Headers.GetHeaders()
+    				for _, hdr := range hdrs {
+    					if hdr.Key == "x-request-client-header" {
+    						xrch = string(hdr.RawValue)
+    					}
+    				}
+    			}
+
+    			rhq := &envoy_service_proc_v3.HeadersResponse{
+    				Response: &envoy_service_proc_v3.CommonResponse{
+    					HeaderMutation: &envoy_service_proc_v3.HeaderMutation{
+    						SetHeaders: []*envoy_api_v3_core.HeaderValueOption{
+    							{
+    								Header: &envoy_api_v3_core.HeaderValue{
+    									Key:      "x-request-ext-processed",
+    									RawValue: []byte("true"),
+    								},
+    							},
+    						},
+    					},
+    				},
+    			}
+
+    			if xrch != "" {
+    				rhq.Response.HeaderMutation.SetHeaders = append(rhq.Response.HeaderMutation.SetHeaders,
+    					&envoy_api_v3_core.HeaderValueOption{
+    						Header: &envoy_api_v3_core.HeaderValue{
+    							Key:      "x-request-client-header",
+    							RawValue: []byte("mutated"),
+    						},
+    					})
+    				rhq.Response.HeaderMutation.SetHeaders = append(rhq.Response.HeaderMutation.SetHeaders,
+    					&envoy_api_v3_core.HeaderValueOption{
+    						Header: &envoy_api_v3_core.HeaderValue{
+    							Key:      "x-request-client-header-received",
+    							RawValue: []byte(xrch),
+    						},
+    					})
+    			}
+
+    			resp = &envoy_service_proc_v3.ProcessingResponse{
+    				Response: &envoy_service_proc_v3.ProcessingResponse_RequestHeaders{
+    					RequestHeaders: rhq,
+    				},
+    			}
+    			break
+    		case *envoy_service_proc_v3.ProcessingRequest_ResponseHeaders:
+    			rhq := &envoy_service_proc_v3.HeadersResponse{
+    				Response: &envoy_service_proc_v3.CommonResponse{
+    					HeaderMutation: &envoy_service_proc_v3.HeaderMutation{
+    						SetHeaders: []*envoy_api_v3_core.HeaderValueOption{
+    							{
+    								Header: &envoy_api_v3_core.HeaderValue{
+    									Key:      "x-response-ext-processed",
+    									RawValue: []byte("true"),
+    								},
+    							},
+    						},
+    					},
+    				},
+    			}
+    			resp = &envoy_service_proc_v3.ProcessingResponse{
+    				Response: &envoy_service_proc_v3.ProcessingResponse_ResponseHeaders{
+    					ResponseHeaders: rhq,
+    				},
+    			}
+    			break
+    		default:
+    			log.Printf("Unknown Request type %v\n", v)
+    		}
+    		if err := srv.Send(resp); err != nil {
+    			log.Printf("send error %v", err)
+    		}
+    	}
+    }
+
+
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: grpc-ext-proc-secret
+type: kubernetes.io/tls
+data:
+  tls.crt: LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCk1JSURTRENDQWpDZ0F3SUJBZ0lCQURBTkJna3Foa2lHOXcwQkFRc0ZBREF0TVJVd0V3WURWUVFLREF4bGVHRnQKY0d4bElFbHVZeTR4RkRBU0JnTlZCQU1NQzJWNFlXMXdiR1V1WTI5dE1CNFhEVEkwTURVek1ERTNOVEV3TkZvWApEVE0wTURVeU9ERTNOVEV3TkZvd056RVdNQlFHQTFVRUF3d05aM0p3WXkxbGVIUXRjSEp2WXpFZE1Cc0dBMVVFCkNnd1VaWGhoYlhCc1pTQnZjbWRoYm1sNllYUnBiMjR3Z2dFaU1BMEdDU3FHU0liM0RRRUJBUVVBQTRJQkR3QXcKZ2dFS0FvSUJBUUNLVTVuemp4SXUwMjlrY0JOZXpuTEJFKy9DSTRDd3FMRmNBblc5RFFwYjNDdG5lYkFPdjVicApMNktWVTc0NnZ5WVh5Q2pmaURRMzN5RnRsOTRPTUEyQ3EzWmpSTXRLWXNraXlHUmFIQXZHOTFBc0x6cmljdVIyCk5QSFgzTW1pN0pjWWtET2dVeDB0VWJXTnltY3hCeExsRG1uM3NjMHhJV1psRHNpTk5wM1FnQnJpMWFzMERCNC8KT29ucWhMd1g2YXRjUW5OSE1MbytMaEpJTUhwNDROeEk5azloQVo3VStBOG5seURydm9IQnZIMHJBQ2hhNklhYgpBa0VZWW1wWmNKRDZiTFI2MUV4V293U3hJRUN6RDl4RU0yUDJJeXVHTHY2cVNEVXFPWnYvTmx4UUJlNGVaWHR3CkpCUmlRWWlPdWRhQ3kvOWJYOVZiUFJMZ0VQcklnWnB0QWdNQkFBR2phVEJuTUNVR0ExVWRFUVFlTUJ5Q0dtZHkKY0dNdFpYaDBMWEJ5YjJNdVpXNTJiM2xuWVhSbGQyRjVNQjBHQTFVZERnUVdCQlJzYWYyL01HL1VkMHJBcEZiOApQdXZIQml2SXFqQWZCZ05WSFNNRUdEQVdnQlJzRkpHQUFrWEZQZjZrbG5CT2NaVnNUUHpCRHpBTkJna3Foa2lHCjl3MEJBUXNGQUFPQ0FRRUFuSnR1eUJDRXBRb2Q4bmdHWUVPMUVyV3dBcVd3ZzFZQUtBSEs0NzZNMHNhR21Gb0wKaW5DeHRRbDM0dHZVKzAzbFl1SUJobUpuYzdEQjQxb29XYkJWRGhaYWRscmw0V1BUSWtWQWpvaHNsU2VaSzh1UgpRVkVOVEN6VUM3TEU0TW42YUhzVm1sbE9wc0FldzBNdWRHaWlUN21TZE80QVF2WmU0ZE5CNit1cWUxYzBHZ1h6CnZZa1BWMjh6MVZMUm5MY25FaEpKL3c1ZlMzMjEvWUlUNGRrNEFmaE5EdVNQMTZMQW9hSkVPNEhzYlBYZUl1eGIKZGluVVJNTG5OTXZYeEhtSHJGcGdWZnZyTkJRTzBsK3VBVDMxTWpBM1lBRjViblhBcEpsUm0xMCtjbDdmeldFdwpHQmlsdVdsRll1TFhIeVBJSVgyTXU2U1grVjg2eXd1YVlLMVdaQT09Ci0tLS0tRU5EIENFUlRJRklDQVRFLS0tLS0K
+  tls.key: LS0tLS1CRUdJTiBQUklWQVRFIEtFWS0tLS0tCk1JSUV2UUlCQURBTkJna3Foa2lHOXcwQkFRRUZBQVNDQktjd2dnU2pBZ0VBQW9JQkFRQ0tVNW56anhJdTAyOWsKY0JOZXpuTEJFKy9DSTRDd3FMRmNBblc5RFFwYjNDdG5lYkFPdjVicEw2S1ZVNzQ2dnlZWHlDamZpRFEzM3lGdApsOTRPTUEyQ3EzWmpSTXRLWXNraXlHUmFIQXZHOTFBc0x6cmljdVIyTlBIWDNNbWk3SmNZa0RPZ1V4MHRVYldOCnltY3hCeExsRG1uM3NjMHhJV1psRHNpTk5wM1FnQnJpMWFzMERCNC9Pb25xaEx3WDZhdGNRbk5ITUxvK0xoSkkKTUhwNDROeEk5azloQVo3VStBOG5seURydm9IQnZIMHJBQ2hhNklhYkFrRVlZbXBaY0pENmJMUjYxRXhXb3dTeApJRUN6RDl4RU0yUDJJeXVHTHY2cVNEVXFPWnYvTmx4UUJlNGVaWHR3SkJSaVFZaU91ZGFDeS85Ylg5VmJQUkxnCkVQcklnWnB0QWdNQkFBRUNnZ0VBUWZidVFzVG1vZWY0aGdnZ1pLVEUrcWhjUE5PYmFpTjRPTzEvWWtGV3dFbTEKZFNvRnVITExMN2Frck50N3F4NCt0emFmcjBHUHpWa2Q0dHA2YlgraTRiNk12WGd3RGZBZ0JQTlZUOWR5RWxjYwpKNFg2YWNUcWlDaGxjRkI4NDdJNXQrQUVqcDgwR2NtT2IraW0zeTJGYURCQWZudU80N0FPMllCOFNVTlRiUHNHCjNJMUkwM09SK2U4aTBrRTJISGZqWCttS1oyNnRDbk95SVQ2SmhudTZ6ZzdwOFFwWEphaFZDbHUrMmR1MFYwUEgKWWNBdURzekFjbVM1WGpvaUw4NmV1Zk9SWVpxSFpybnNpMFlwR0xvZEMwbjNLK1M0TitGQXJUNlRiQjBoMkEwOApPSk40ZEJGTFRQTFZOZ1k3Y3VQOVdjQUtBTmZpQ21ZSzFha3djcHo0clFLQmdRQzhSNEl5dll6aWFqY0w3M1JjClk3empVQVVTN2JWV1ZGNEh1UlVSSEVmVlBpb2Nvcy9MUS81a3ArejFnbSt4ZjNsOTRiVlRxZDJOWEkyRHMxY0kKMHBEeDNsVkhaU0V5QjVvQlBFbVBlQVBpMXQyL2JmaG9DMkF0YXZDeDVOWkEzVHdHdlBhcUFMbmxPcUVLQ3F6dApqUU1qcEppQUQ1cXZhOWVFcXhCMEVmeEVTd0tCZ1FDOEZJT014V1E3WXJpQTZQUHloSDV1eUJic21ZZEhzWXlqCm9QTkVzSUduMW1KbWh6YUFpREM2MWFJZHEzU2ZYYUNvajhQUkRnb04za1g4Z0E0U2prdmRNY2VJMDdaQm45MEsKZFZEdldIV3ZEa2FDZjZINEt6d05BNytxc3FtY3hIVklPNFhOQnhLaEU2Z1FPWDJUZkhTVjM0cVVmdXpZQUdyWQpXU0FIVzR1NUp3S0JnQ2crUUo0SDFlMHZOc1RlVWNqTnFMb05pSWdiTnY5VTJTUmRjeHROS0MxME5Cd2EwTDlwCnNSNWlwa3R6cmR3S216VkU0VFVZd2JwTlpoSVlheW4vbCt1YTBpK0lkaWZ6Wi8rTG0wMkhJWTJDejdMekZuMW0Kc1JBRUk1NWlnMGtxQUlLUU1VajFEc2JvV1RPRVJLSWgyZUhzZEl3cXlhMWxKNU83M0xCeWg3RXhBb0dCQUlXdQp0d281eTFLQ2lzM2x4bThjU1ptSVV2TDg5VEM2UEZLWnRnK2V2YW1FTWhEYURwMHhNQ0c4Y3l4UGorY3ViMkVnClBuaTdWOTRmblBNcU9kWnFtZld3eWppdzhweVdlbEJTcnFKUTUrVHphcDZiQlk4VmUrdHNQTEdocC9rcmtva3kKOVptVGEyUmVTbGl0NUZvT1hmZWhHaWtPUmw0SmZlZ2xBU1Q1cHNpRkFvR0FOc1hSWGZBSGZkNGZlZWtPek9LNwppR3FmNHovTlFaZHlCWGNKZlRhdUpLak1XSGxvSUN2ZjdyblM0YXVEcUE1bmoxTy9Eam5tY01lT2QyNW4yakVlCk1ibU1DMnR1U2VRSW02NjNoaEFYaUk0L2w5SU5Nc3hRUDlzUEJQUjg4Z1RFK3lCTUsvTFY4Mm9vd1BvOG1XNnkKWDdESlJSK3dJY3RueXh6bVBQOExRaE09Ci0tLS0tRU5EIFBSSVZBVEUgS0VZLS0tLS0K
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grpc-ext-proc-ca
+data:
+  ca.crt: |
+    -----BEGIN CERTIFICATE-----
+    MIIDOzCCAiOgAwIBAgIUeZ0sEx2jyxnKQmDw0bllLyag+cgwDQYJKoZIhvcNAQEL
+    BQAwLTEVMBMGA1UECgwMZXhhbXBsZSBJbmMuMRQwEgYDVQQDDAtleGFtcGxlLmNv
+    bTAeFw0yNDA1MzAxNzM4NDBaFw0zNDA1MjgxNzM4NDBaMC0xFTATBgNVBAoMDGV4
+    YW1wbGUgSW5jLjEUMBIGA1UEAwwLZXhhbXBsZS5jb20wggEiMA0GCSqGSIb3DQEB
+    AQUAA4IBDwAwggEKAoIBAQDJEyqHtNXUVlDM3OtzMBUWcB4OdGC6ZA7JrT24PVVs
+    yUXGCvu3P47HLb6GuW7w7IILBhACdTFNBPQ8pNT2ouItASmaX6oZGVCnud6st/Y+
+    KnV0G406IRA/hZOdBO7hSH4pt//j7iDWPF5OEEwH1LJMXEX/5FdIoDKQHdfJdqHz
+    ANE5LP8RAR/A0hdalvBrDhfMzcVRC7wSGyg1AbXDbo+q7M8xPhGa+95KwcMzj7WX
+    vOcnTcjrKHYTuiJEaINSMo9EEfTEMOp0bgqDtSgdCAQWLUL+p5b59tvYOozbOG5P
+    1CLPzZs8K56AbESBA3tK1dO1fMuvV/oMTVU+IstuflC1AgMBAAGjUzBRMB0GA1Ud
+    DgQWBBRsFJGAAkXFPf6klnBOcZVsTPzBDzAfBgNVHSMEGDAWgBRsFJGAAkXFPf6k
+    lnBOcZVsTPzBDzAPBgNVHRMBAf8EBTADAQH/MA0GCSqGSIb3DQEBCwUAA4IBAQAM
+    LrFgkTZPXt3zl9WSI22Tk5BT5jgxB+PwDoIsbmd7koXTpAtdFCoSHJQC1c3GQ66i
+    wcTa3ewrqScI62+cMNtgHBYo+j2jMKuND+N2YotzEBlSgsYKua+ehb2n5H7CTvHZ
+    ED9Ch0cP0c4ke4YPW0Xz2hN4SKPwYNVyqaapaW3iQ7zyOPJSPegDbhDRh/soFF5v
+    kDVQC8/fz6VAmPaq+hiem7w8H69FPdPHI3nseqUT+kyUEZkD5eH08MVuQ4uVyYNy
+    cwN8WlDLDCPxxPt9bclj70Xo1/Nae/VSg+rKgfsjwsKweE5gZ7UhWngsjkMVpFzO
+    QPLCCvayjtnIbYbtsXLE
+    -----END CERTIFICATE-----
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: grpc-ext-proc
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: grpc-ext-proc
+  template:
+    metadata:
+      labels:
+        app: grpc-ext-proc
+    spec:
+      containers:
+        - name: golang-app-container
+          command:
+            - sh
+            - "-c"
+            - "cp -a /app /app-live && cd /app-live && go  run . --certPath=/app-live/certs/ "
+          image: golang:1.23.1-alpine
+          ports:
+            - containerPort: 8000
+          volumeMounts:
+            - name: grpc-ext-proc
+              mountPath: /app
+            - name: grpc-ext-proc-secret
+              mountPath: /app/certs
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+      volumes:
+        - name: grpc-ext-proc
+          configMap:
+            name: grpc-ext-proc
+        - name: grpc-ext-proc-secret
+          secret:
+            secretName: grpc-ext-proc-secret
+            items:
+              - key: tls.crt
+                path: server.crt
+              - key: tls.key
+                path: server.key
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: grpc-ext-proc
+spec:
+  selector:
+    app: grpc-ext-proc
+  ports:
+    - protocol: TCP
+      port: 9002
+      targetPort: 9002
