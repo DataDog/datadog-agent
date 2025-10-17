@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Ensure dd-agent group exists
+if ! getent group dd-agent >/dev/null; then
+    echo "Creating dd-agent group"
+    addgroup --system dd-agent --quiet
+fi
+
+# Ensure dd-agent user exists and is in the correct group
+if ! id -u dd-agent >/dev/null 2>&1; then
+    echo "Creating dd-agent user"
+    adduser --system --disabled-login --shell /usr/sbin/nologin --home "${INSTALL_DIR}" --no-create-home --group --quiet dd-agent
+else
+    # Verify user is in dd-agent group
+    if ! id -nG dd-agent | grep -qw 'dd-agent'; then
+        echo "Adding dd-agent user to dd-agent group"
+        usermod -g dd-agent dd-agent
+    fi
+fi
+
+mkdir -p /opt/datadog-packages/run/
+chown -R dd-agent:dd-agent /opt/datadog-agent
+chown -R dd-agent:dd-agent /opt/datadog-packages/run/
+
+export DD_BUNDLED_AGENT=installer
+export DD_REMOTE_UPDATES=true
+exec /opt/datadog-agent/bin/agent/agent run -c /etc/datadog-agent -p /opt/datadog-agent/run/installer.pid
