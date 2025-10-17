@@ -117,12 +117,12 @@ func (c *registryCollector) GetRegisteredAgentsTelemetry(ch chan<- prometheus.Me
 	client := func(ctx context.Context, remoteAgent *remoteAgentClient, opts ...grpc.CallOption) (*pb.GetTelemetryResponse, error) {
 		return remoteAgent.GetTelemetry(ctx, &pb.GetTelemetryRequest{}, opts...)
 	}
-	processor := func(_ remoteagentregistry.RegisteredAgent, resp *pb.GetTelemetryResponse, err error) struct{} {
+	processor := func(details remoteagentregistry.RegisteredAgent, resp *pb.GetTelemetryResponse, err error) struct{} {
 		if err != nil {
 			return struct{}{}
 		}
 		if promText, ok := resp.Payload.(*pb.GetTelemetryResponse_PromText); ok {
-			collectFromPromText(ch, promText.PromText)
+			collectFromPromText(ch, promText.PromText, details.SanitizedDisplayName)
 		}
 		return struct{}{}
 	}
@@ -132,7 +132,7 @@ func (c *registryCollector) GetRegisteredAgentsTelemetry(ch chan<- prometheus.Me
 }
 
 // Retrieve the telemetry data in exposition format from the remote agent
-func collectFromPromText(ch chan<- prometheus.Metric, promText string) {
+func collectFromPromText(ch chan<- prometheus.Metric, promText string, remoteAgentName string) {
 	parser := expfmt.NewTextParser(model.LegacyValidation)
 	metricFamilies, err := parser.TextToMetricFamilies(strings.NewReader(promText))
 	if err != nil {
@@ -144,29 +144,89 @@ func collectFromPromText(ch chan<- prometheus.Metric, promText string) {
 		if mf.Help != nil {
 			help = *mf.Help
 		}
+
+		// Prefix the name with the registry name
+		// name := proto.String(fmt.Sprintf("%s__%s", remoteAgentName, *mf.Name))
+
+		var errs []error
+
 		for _, metric := range mf.Metric {
-			labelNames := make([]string, 0, len(metric.Label))
-			labelValues := make([]string, 0, len(metric.Label))
+			if metric == nil {
+				continue
+			}
+
+			labelNames := make([]string, 0, len(metric.Label)+1)
+			labelValues := make([]string, 0, len(metric.Label)+1)
+			labelNames = append(labelNames, "remote_agent")
+			labelValues = append(labelValues, remoteAgentName)
 			for _, label := range metric.Label {
 				labelNames = append(labelNames, *label.Name)
 				labelValues = append(labelValues, *label.Value)
 			}
 			switch *mf.Type {
 			case dto.MetricType_COUNTER:
-				ch <- prometheus.MustNewConstMetric(
+				metric, err := prometheus.NewConstMetric(
 					prometheus.NewDesc(*mf.Name, help, labelNames, nil),
 					prometheus.CounterValue,
 					*metric.Counter.Value,
 					labelValues...,
 				)
+				if err != nil {
+					errs = append(errs, err)
+				}
+				ch <- metric
 			case dto.MetricType_GAUGE:
-				ch <- prometheus.MustNewConstMetric(
+				metric, err := prometheus.NewConstMetric(
 					prometheus.NewDesc(*mf.Name, help, labelNames, nil),
 					prometheus.GaugeValue,
 					*metric.Gauge.Value,
 					labelValues...,
 				)
+				if err != nil {
+					errs = append(errs, err)
+				}
+				ch <- metric
+
+			case dto.MetricType_SUMMARY:
+				quantiles := make(map[float64]float64)
+				for _, quantile := range metric.Summary.Quantile {
+					quantiles[*quantile.Quantile] = *quantile.Value
+				}
+				metric, err := prometheus.NewConstSummary(
+					prometheus.NewDesc(*mf.Name, help, labelNames, nil),
+					*metric.Summary.SampleCount,
+					*metric.Summary.SampleSum,
+					quantiles,
+					labelValues...,
+				)
+				if err != nil {
+					errs = append(errs, err)
+				}
+				ch <- metric
+
+			case dto.MetricType_HISTOGRAM:
+				buckets := make(map[float64]uint64)
+				for _, quantile := range metric.Histogram.Bucket {
+					buckets[*quantile.UpperBound] = *quantile.CumulativeCount
+				}
+				metric, err := prometheus.NewConstHistogram(
+					prometheus.NewDesc(*mf.Name, help, labelNames, nil),
+					*metric.Histogram.SampleCount,
+					*metric.Histogram.SampleSum,
+					buckets,
+					labelValues...,
+				)
+				if err != nil {
+					errs = append(errs, err)
+				}
+				ch <- metric
+
+			default:
+				log.Warnf("Unknown metric type: %s", *mf.Type)
 			}
+		}
+		if len(errs) > 0 {
+			log.Warnf("Failed to collect telemetry metrics: %v", errs)
 		}
 	}
 }
