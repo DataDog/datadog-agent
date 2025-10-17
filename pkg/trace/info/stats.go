@@ -150,8 +150,7 @@ func (ts *TagStats) publishAndReset(statsd statsd.ClientInterface, sendAllStats 
 		ts.SpansDropped.Swap(0), tags, 1)
 	publishNonZeroStats(statsd, tags, ts.SpansFiltered.Swap(0), "datadog.trace_agent.receiver.spans_filtered", sendAllStats)
 	publishNonZeroStats(statsd, tags, ts.EventsExtracted.Swap(0), "datadog.trace_agent.receiver.events_extracted", sendAllStats)
-	_ = statsd.Count("datadog.trace_agent.receiver.events_sampled",
-		ts.EventsSampled.Swap(0), tags, 1)
+	publishNonZeroStats(statsd, tags, ts.EventsSampled.Swap(0), "datadog.trace_agent.receiver.events_sampled", sendAllStats)
 	_ = statsd.Count("datadog.trace_agent.receiver.payload_accepted",
 		ts.PayloadAccepted.Swap(0), tags, 1)
 	_ = statsd.Count("datadog.trace_agent.receiver.payload_refused",
