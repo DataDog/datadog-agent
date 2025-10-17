@@ -1201,7 +1201,7 @@ func (p *EBPFProbe) handleRegularEvent(event *model.Event, offset int, dataLen u
 		// TODO: this should be moved in the resolver itself in order to handle the fallbacks
 		if event.Mount.GetFSType() == "nsfs" {
 			nsid := uint32(event.Mount.RootPathKey.Inode)
-			mountPath, _, _, err := p.Resolvers.MountResolver.ResolveMountPath(event.Mount.MountID, event.Mount.Device, event.PIDContext.Pid, event.ProcessContext.Process.ContainerContext.ContainerID)
+			mountPath, _, _, err := p.Resolvers.MountResolver.ResolveMountPath(event.Mount.MountID, event.PIDContext.Pid, event.ProcessContext.Process.ContainerContext.ContainerID)
 			if err != nil {
 				seclog.Debugf("failed to get mount path: %v", err)
 			} else {
@@ -1216,7 +1216,7 @@ func (p *EBPFProbe) handleRegularEvent(event *model.Event, offset int, dataLen u
 		}
 
 		// we can skip this error as this is for the umount only and there is no impact on the filepath resolution
-		mount, _, _, _ := p.Resolvers.MountResolver.ResolveMount(event.Umount.MountID, 0, event.PIDContext.Pid, event.ProcessContext.Process.ContainerContext.ContainerID)
+		mount, _, _, _ := p.Resolvers.MountResolver.ResolveMount(event.Umount.MountID, event.PIDContext.Pid, event.ProcessContext.Process.ContainerContext.ContainerID)
 		if mount != nil && mount.GetFSType() == "nsfs" {
 			nsid := uint32(mount.RootPathKey.Inode)
 			if namespace := p.Resolvers.NamespaceResolver.ResolveNetworkNamespace(nsid); namespace != nil {
@@ -1278,7 +1278,6 @@ func (p *EBPFProbe) handleRegularEvent(event *model.Event, offset int, dataLen u
 		}
 		exists := p.Resolvers.ProcessResolver.ApplyExitEntry(event, newEntryCb)
 		if exists {
-			p.Resolvers.MountResolver.DelPid(event.Exit.Pid)
 			// update action reports
 			p.processKiller.HandleProcessExited(event)
 			p.fileHasher.HandleProcessExited(event)
@@ -3202,6 +3201,10 @@ func AppendProbeRequestsToFetcher(constantFetcher constantfetch.ConstantFetcher,
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameFileFpath, "struct file", "f_path")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameDentryDSb, "struct dentry", "d_sb")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameMountMntID, "struct mount", "mnt_id")
+	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameMountMntIDUnique, "struct mount", "mnt_id_unique")
+	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameMountMntNs, "struct mount", "mnt_ns")
+	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameMntNamespaceNs, "struct mnt_namespace", "ns")
+	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameNsCommonInum, "struct ns_common", "inum")
 	if kv.Code >= kernel.Kernel5_3 {
 		appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameKernelCloneArgsExitSignal, "struct kernel_clone_args", "exit_signal")
 	}
