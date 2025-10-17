@@ -24,6 +24,24 @@ func (s *Setup) restartServices(ctx context.Context, pkgs []packageWithVersion) 
 	for _, pkg := range pkgs {
 		switch pkg.name {
 		case DatadogAgentPackage:
+			if s.flavor == "databricks" {
+				// Databricks requires a special restart command because it can be ran
+				// inside a container and systemctl may not be available; so we use the
+				// default "service" command instead. It should map to the local process
+				// management tool.
+				// We also ignore the "install only" flag here as it's set by default to
+				// only prevent the agent post-inst from starting the agent.
+				_, err := ExecuteCommandWithTimeout(s, "service", "datadog-agent", "restart")
+				if err != nil {
+					return fmt.Errorf("failed to restart datadog-agent service: %w", err)
+				}
+				continue
+			}
+
+			if s.Env.InstallOnly {
+				continue
+			}
+
 			err := systemd.RestartUnit(ctx, "datadog-agent.service")
 			if err != nil {
 				logs, logsErr := systemd.JournaldLogs(ctx, "datadog-agent.service", t)
