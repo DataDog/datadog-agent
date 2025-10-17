@@ -4,11 +4,9 @@ No remote agents registered
 {{ len .registeredAgents }} remote agent(s) registered:
 {{- range $agent := .registeredAgents }}
 
-  Name: {{ $agent.DisplayName }}
-  Flavor: {{ $agent.Flavor }}
-  Session ID: {{ $agent.SessionID }}
+  {{ $agent.DisplayName }}
   {{ printDashes $agent.DisplayName "-" }}
-  Last seen: {{ formatUnixTimeSince $agent.LastSeen }}
+  Last seen: {{ formatUnixTime $agent.LastSeenUnix }} ({{ formatUnixTimeSince $agent.LastSeenUnix }})
 {{- end }}
 {{ end }}
 

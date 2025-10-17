@@ -7,6 +7,49 @@ package util
 
 import "testing"
 
+func TestSanitizeAgentID(t *testing.T) {
+	tests := []struct {
+		name     string
+		agentID  string
+		expected string
+	}{
+		{
+			name:     "empty",
+			agentID:  "",
+			expected: "",
+		},
+		{
+			name:     "no special characters",
+			agentID:  "agentID",
+			expected: "agentid",
+		},
+		{
+			name:     "with special characters",
+			agentID:  "agentID@123",
+			expected: "agentid_123",
+		},
+		{
+			name:     "with spaces",
+			agentID:  "agent ID",
+			expected: "agent_id",
+		},
+		{
+			name:     "with special characters and spaces",
+			agentID:  "agent ID@123",
+			expected: "agent_id_123",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			actual := SanitizeAgentID(tt.agentID)
+			if actual != tt.expected {
+				t.Errorf("expected: %s, got: %s", tt.expected, actual)
+			}
+		})
+	}
+}
+
 func TestSanitizeFileName(t *testing.T) {
 	tests := []struct {
 		name     string

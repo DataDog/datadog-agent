@@ -11,7 +11,17 @@ import (
 	"strings"
 )
 
+var agentIDSanitizeRegex = regexp.MustCompile(`[^a-zA-Z0-9-_]`)
 var fileNameSanitizeRegex = regexp.MustCompile(`[^a-zA-Z0-9-_\.]`)
+
+// SanitizeAgentID sanitizes a string to be used as an agent ID.
+//
+// All characters are not ASCII alphanumerics, underscores, or hyphens are replaced with an underscore, and the string
+// is converted to lowercase.
+func SanitizeAgentID(agentID string) string {
+	agentID = agentIDSanitizeRegex.ReplaceAllString(agentID, "_")
+	return strings.ToLower(agentID)
+}
 
 // SanitizeFileName sanitizes a string to be used as a file name.
 //

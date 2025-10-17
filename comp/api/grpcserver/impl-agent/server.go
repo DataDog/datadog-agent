@@ -25,6 +25,7 @@ import (
 	configstreamServer "github.com/DataDog/datadog-agent/comp/core/configstream/server"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	remoteagentregistry "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/def"
+	rarproto "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/proto"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	taggerProto "github.com/DataDog/datadog-agent/comp/core/tagger/proto"
 	taggerserver "github.com/DataDog/datadog-agent/comp/core/tagger/server"
@@ -214,30 +215,15 @@ func (s *serverSecure) RegisterRemoteAgent(_ context.Context, in *pb.RegisterRem
 		return nil, status.Error(codes.Unimplemented, "remote agent registry not enabled")
 	}
 
-	registration := &remoteagentregistry.RegistrationData{
-		AgentPID:         in.Pid,
-		AgentFlavor:      in.Flavor,
-		AgentDisplayName: in.DisplayName,
-		APIEndpointURI:   in.ApiEndpointUri,
-		Services:         in.Services,
-	}
-	sessionID, recommendedRefreshIntervalSecs, err := s.remoteAgentRegistry.RegisterRemoteAgent(registration)
+	registration := rarproto.ProtobufToRemoteAgentRegistration(in)
+	recommendedRefreshIntervalSecs, err := s.remoteAgentRegistry.RegisterRemoteAgent(registration)
 	if err != nil {
 		return nil, err
 	}
 
 	return &pb.RegisterRemoteAgentResponse{
 		RecommendedRefreshIntervalSecs: recommendedRefreshIntervalSecs,
-		SessionId:                      sessionID,
 	}, nil
-}
-
-func (s *serverSecure) RefreshRemoteAgent(_ context.Context, in *pb.RefreshRemoteAgentRequest) (*pb.RefreshRemoteAgentResponse, error) {
-	found := s.remoteAgentRegistry.RefreshRemoteAgent(in.SessionId)
-	if !found {
-		return nil, status.Error(codes.NotFound, "no remote agent found with session ID")
-	}
-	return &pb.RefreshRemoteAgentResponse{}, nil
 }
 
 func (s *serverSecure) AutodiscoveryStreamConfig(_ *emptypb.Empty, out pb.AgentSecure_AutodiscoveryStreamConfigServer) error {

@@ -7,12 +7,10 @@
         {{ len .registeredAgents }} remote agent(s) registered:
         {{- range $agent := .registeredAgents }}
             <span class="stat_subtitle">
-                Name: {{ $agent.DisplayName }} <br>
-                Flavor: {{ $agent.Flavor }} <br>
-                Session ID: {{ $agent.SessionID }} <br>
+                {{ $agent.DisplayName }} <br>
             </span>
             <span class="stat_subdata">
-                Last seen: {{ formatUnixTimeSince $agent.LastSeen }} <br>
+                Last seen: {{ formatUnixTime $agent.LastSeenUnix }} ({{ formatUnixTimeSince $agent.LastSeenUnix }}) <br>
             </span>
         {{- end }}
     {{ end }}
