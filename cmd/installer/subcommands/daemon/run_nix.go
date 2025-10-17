@@ -13,13 +13,13 @@ import (
 	"os/signal"
 	"syscall"
 
+	"go.uber.org/fx"
+
 	"github.com/DataDog/datadog-agent/cmd/installer/command"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/pid"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/updater/localapi"
 	"github.com/DataDog/datadog-agent/comp/updater/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -34,13 +34,13 @@ func runFxWrapper(global *command.GlobalParams) error {
 	)
 }
 
-func run(shutdowner fx.Shutdowner, cfg config.Component, _ pid.Component, _ localapi.Component, _ telemetry.Component) error {
+func run(shutdowner fx.Shutdowner, cfg config.Component, _ pid.Component, _ telemetry.Component) error {
 	if err := gracefullyExitIfDisabled(cfg, shutdowner); err != nil {
 		log.Infof("Datadog installer is not enabled, exiting")
 		return nil
 	}
 	handleSignals(shutdowner)
-	return nil
+	select {}
 }
 
 func gracefullyExitIfDisabled(cfg config.Component, shutdowner fx.Shutdowner) error {

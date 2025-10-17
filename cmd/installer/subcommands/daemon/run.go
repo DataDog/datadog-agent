@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/pid/pidimpl"
 	secretsfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
+	"github.com/DataDog/datadog-agent/comp/updater/telemetry/telemetryimpl"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
 
@@ -54,7 +55,7 @@ func getCommonFxOption(global *command.GlobalParams) fx.Option {
 		// rcserviceimpl.Module(),
 		// updaterimpl.Module(),
 		// localapiimpl.Module(),
-		// telemetryimpl.Module(),
+		telemetryimpl.Module(),
 		fx.Supply(pidimpl.NewParams(global.PIDFilePath)),
 		ipcfx.ModuleReadWrite(),
 	)

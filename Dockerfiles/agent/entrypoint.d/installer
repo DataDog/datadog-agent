@@ -25,4 +25,4 @@ chown -R dd-agent:dd-agent /opt/datadog-packages/run/
 
 export DD_BUNDLED_AGENT=installer
 export DD_REMOTE_UPDATES=true
-exec /opt/datadog-agent/bin/agent/agent run -c /etc/datadog-agent -p /opt/datadog-agent/run/installer.pid
+exec /opt/datadog-agent/embedded/bin/installer run -c /etc/datadog-agent -p /opt/datadog-agent/run/installer.pid
