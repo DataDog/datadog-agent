@@ -1,6 +1,23 @@
 load("@bazel_skylib//rules:copy_file.bzl", "copy_file")
 load("@bazel_skylib//rules:expand_template.bzl", "expand_template")
 load("@rules_cc//cc:defs.bzl", "cc_library")
+load("@rules_license//rules:license.bzl", "license")
+
+package(
+    default_applicable_licenses = [":license"],
+    default_visibility = ["//visibility:private"],
+)
+
+license(
+    name = "license",
+    license_kinds = ["@rules_license//licenses/spdx:GPL-2.0"],
+    license_text = "LICENSE",
+    visibility = ["//visibility:public"],
+)
+
+exports_files([
+    "LICENSE",
+])
 
 VERSION = "3.4.8"
 
@@ -196,8 +213,9 @@ cc_library(
     visibility = ["//visibility:private"],
 )
 
+# ffi will be prepended by lib automatically
 cc_library(
-    name = "libffi_lib",
+    name = "ffi",
     hdrs = [
         ":ffi_h",
         ":fficonfig_h",
@@ -249,11 +267,5 @@ cc_library(
                 "//conditions:default": [],
             }),
     implementation_deps = [":dlmalloc_header", ":libffi_include_headers"],
-)
-
-cc_binary(
-    name = "libffi",
-    deps = [":libffi_lib"],
-    linkshared = True,
     visibility = ["//visibility:public"],
 )
