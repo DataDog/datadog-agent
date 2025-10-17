@@ -15,7 +15,6 @@ import (
 
 	"github.com/cilium/ebpf"
 	"go.uber.org/atomic"
-	"golang.org/x/sys/unix"
 
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
@@ -189,6 +188,9 @@ func (m *Manager) insertActivityDump(newDump *dump.ActivityDump) error {
 		pces.ad.Profile.Metadata.CGroupContext = entry.CGroup
 		pces.searchTracedProcessCacheEntry(entry)
 	})
+
+	// start by syncing active dumps and traced cgroup map
+	m.syncTracedCgroups()
 
 	// enable the new dump to start collecting events from kernel space
 	if err := m.enableKernelEventCollection(newDump); err != nil {
@@ -526,11 +528,7 @@ workloadLoop:
 		}
 
 		if err := m.startDumpWithConfig(workloads[0].ContainerID, workloads[0].CGroupContext, utils.NewCookie(), *defaultConfig); err != nil {
-			if errors.Is(err, unix.E2BIG) {
-				seclog.Debugf("%v", err)
-				break
-			}
-			seclog.Errorf("%v", err)
+			seclog.Warnf("%v", err)
 		}
 	}
 }
@@ -642,10 +640,7 @@ func (m *Manager) HandleCGroupTracingEvent(event *model.CgroupTracingEvent) {
 	}
 
 	if err := m.startDumpWithConfig(event.ContainerContext.ContainerID, event.CGroupContext, event.ConfigCookie, event.Config); err != nil {
-		if errors.Is(err, unix.E2BIG) {
-			seclog.Debugf("%v", err)
-		}
-		seclog.Errorf("%v", err)
+		seclog.Warnf("%v", err)
 	}
 }
 
@@ -653,6 +648,13 @@ func (m *Manager) HandleCGroupTracingEvent(event *model.CgroupTracingEvent) {
 
 // SyncTracedCgroups recovers lost CGroup tracing events by going through the kernel space map of cgroups
 func (m *Manager) SyncTracedCgroups() {
+	m.m.Lock()
+	defer m.m.Unlock()
+	m.syncTracedCgroups()
+}
+
+// manager should be locked
+func (m *Manager) syncTracedCgroups() {
 	if !m.config.RuntimeSecurity.ActivityDumpEnabled {
 		return
 	}
@@ -667,14 +669,11 @@ func (m *Manager) SyncTracedCgroups() {
 	// to avoid modifying the map while iterating (causes "iteration aborted")
 	var cgroupsToDelete []uint64
 	for iterator.Next(&cgroupInode, &event.ConfigCookie) {
-		m.m.Lock()
 		if m.ignoreFromSnapshot[cgroupInode] {
 			// mark for deletion - will delete AFTER iteration
 			cgroupsToDelete = append(cgroupsToDelete, cgroupInode)
-			m.m.Unlock()
 			continue
 		}
-		m.m.Unlock()
 
 		if err = m.activityDumpsConfigMap.Lookup(&event.ConfigCookie, &event.Config); err != nil {
 			// this config doesn't exist anymore, mark for deletion
@@ -695,7 +694,6 @@ func (m *Manager) SyncTracedCgroups() {
 		event.CGroupContext = *cgroupContext
 		event.ContainerContext.ContainerID = containerutils.FindContainerID(event.CGroupContext.CGroupID)
 
-		m.m.Lock()
 		hasActiveDump := false
 		for _, ad := range m.activeDumps {
 			if ad.Profile.Metadata.ContainerID == event.ContainerContext.ContainerID {
@@ -703,7 +701,6 @@ func (m *Manager) SyncTracedCgroups() {
 				break
 			}
 		}
-		m.m.Unlock()
 
 		if !hasActiveDump {
 			// No active dump for this cgroup - mark for deletion
