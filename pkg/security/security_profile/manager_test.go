@@ -479,7 +479,7 @@ func TestActivityDumpManager_getExpiredDumps(t *testing.T) {
 
 			adm := &Manager{
 				activeDumps:        tt.fields.activeDumps,
-				ignoreFromSnapshot: make(map[model.PathKey]bool),
+				ignoreFromSnapshot: make(map[uint64]bool),
 			}
 
 			expiredDumps := adm.getExpiredDumps()
@@ -964,7 +964,7 @@ func TestActivityDumpManager_getOverweightDumps(t *testing.T) {
 					},
 				},
 				statsdClient:       &statsd.NoOpClient{},
-				ignoreFromSnapshot: make(map[model.PathKey]bool),
+				ignoreFromSnapshot: make(map[uint64]bool),
 			}
 
 			compareListOfDumps(t, adm.getOverweightDumps(), tt.overweightDumps)
