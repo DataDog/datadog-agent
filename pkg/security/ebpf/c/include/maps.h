@@ -41,7 +41,7 @@ BPF_ARRAY_MAP(filtered_dns_rcodes, u16, 1)
 BPF_ARRAY_MAP(in_upper_layer_approvers, struct event_mask_filter_t, 1)
 
 BPF_HASH_MAP(activity_dump_config_defaults, u32, struct activity_dump_config, 1)
-BPF_HASH_MAP(traced_cgroups, struct path_key_t, u64, 1) // max entries will be overridden at runtime
+BPF_HASH_MAP(traced_cgroups, u64, u64, 1) // max entries will be overridden at runtime
 BPF_HASH_MAP(traced_pids, u32, u64, 8192) // max entries will be overridden at runtime
 BPF_HASH_MAP(basename_approvers, struct basename_t, struct event_mask_filter_t, 255)
 BPF_HASH_MAP(register_netdevice_cache, u64, struct register_netdevice_cache_t, 1024)
@@ -59,8 +59,8 @@ BPF_HASH_MAP_FLAGS(active_flows, u32, struct active_flows_t, 1, BPF_F_NO_PREALLO
 BPF_HASH_MAP_FLAGS(inet_bind_args, u64, struct inet_bind_args_t, 1, BPF_F_NO_PREALLOC) // max entries will be overridden at runtime
 
 BPF_LRU_MAP(activity_dumps_config, u64, struct activity_dump_config, 1) // max entries will be overridden at runtime
-BPF_LRU_MAP(cgroup_wait_list, struct path_key_t, u64, 1) // max entries will be overridden at runtime
-BPF_LRU_MAP(traced_cgroups_discarded, struct path_key_t, u8, 512)
+BPF_LRU_MAP(cgroup_wait_list, u64, u64, 1) // max entries will be overridden at runtime
+BPF_LRU_MAP(traced_cgroups_discarded, u64, u8, 512)
 BPF_LRU_MAP(activity_dump_rate_limiters, u64, struct rate_limiter_ctx, 1) // max entries will be overridden at runtime
 BPF_LRU_MAP(pid_rate_limiters, u32, struct rate_limiter_ctx, 1) // max entries will be overridden at runtime
 BPF_LRU_MAP(mount_ref, u32, struct mount_ref_t, 64000)

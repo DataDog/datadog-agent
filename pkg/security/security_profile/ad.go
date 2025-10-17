@@ -100,7 +100,7 @@ func (m *Manager) getExpiredDumps() []*dump.ActivityDump {
 			// Only remove from ignoreFromSnapshot if expired naturally
 			// Keep manually stopped dumps in ignoreFromSnapshot to prevent re-creation
 			if isExpired && !isStopped {
-				delete(m.ignoreFromSnapshot, ad.Profile.Metadata.CGroupContext.CGroupFile)
+				delete(m.ignoreFromSnapshot, ad.Profile.Metadata.CGroupContext.CGroupFile.Inode)
 			}
 		} else {
 			newDumps = append(newDumps, ad)
@@ -140,13 +140,13 @@ func (m *Manager) cleanup() {
 
 	// cleanup cgroup_wait_list map
 	iterator := m.cgroupWaitList.Iterate()
-	cgroupFile := make([]byte, model.PathKeySize)
+	var cgroupInode uint64
 	var timestamp uint64
 
-	for iterator.Next(&cgroupFile, &timestamp) {
+	for iterator.Next(&cgroupInode, &timestamp) {
 		if time.Now().After(m.resolvers.TimeResolver.ResolveMonotonicTimestamp(timestamp)) {
-			if err := m.cgroupWaitList.Delete(&cgroupFile); err != nil {
-				seclog.Errorf("couldn't delete cgroup_wait_list entry for (%v): %v", cgroupFile, err)
+			if err := m.cgroupWaitList.Delete(cgroupInode); err != nil {
+				seclog.Errorf("couldn't delete cgroup_wait_list entry for inode (%v): %v", cgroupInode, err)
 			}
 		}
 	}
@@ -300,7 +300,7 @@ func (m *Manager) enableKernelEventCollection(ad *dump.ActivityDump) error {
 
 	if !ad.Profile.Metadata.CGroupContext.CGroupFile.IsNull() {
 		// insert cgroup ID in traced_cgroups map (it might already exist, do not update in that case)
-		if err := m.tracedCgroupsMap.Update(ad.Profile.Metadata.CGroupContext.CGroupFile, ad.Cookie, ebpf.UpdateNoExist); err != nil {
+		if err := m.tracedCgroupsMap.Update(ad.Profile.Metadata.CGroupContext.CGroupFile.Inode, ad.Cookie, ebpf.UpdateNoExist); err != nil {
 			if !errors.Is(err, ebpf.ErrKeyExist) {
 				// delete activity dump load config
 				_ = m.activityDumpsConfigMap.Delete(ad.Cookie)
@@ -346,7 +346,7 @@ func (m *Manager) disableKernelEventCollection(ad *dump.ActivityDump) error {
 	}
 
 	if !ad.Profile.Metadata.CGroupContext.CGroupFile.IsNull() {
-		err := m.tracedCgroupsMap.Delete(ad.Profile.Metadata.CGroupContext.CGroupFile)
+		err := m.tracedCgroupsMap.Delete(ad.Profile.Metadata.CGroupContext.CGroupFile.Inode)
 		if err != nil && !errors.Is(err, ebpf.ErrKeyNotExist) {
 			return fmt.Errorf("couldn't delete activity dump filter cgroup %s: %v", ad.GetSelectorStr(), err)
 		}
@@ -568,7 +568,7 @@ func (m *Manager) startDumpWithConfig(containerID containerutils.ContainerID, cg
 func (m *Manager) evictTracedCgroup(cgroup *model.CGroupContext) {
 	// first, retrieve the cookie from the traced cgroup entry
 	var cookie uint64
-	if err := m.tracedCgroupsMap.Lookup(cgroup.CGroupFile, &cookie); err != nil {
+	if err := m.tracedCgroupsMap.Lookup(cgroup.CGroupFile.Inode, &cookie); err != nil {
 		if !errors.Is(err, ebpf.ErrKeyNotExist) {
 			seclog.Errorf("couldn't lookup activity dump cgroup %s cookie: %v", cgroup.CGroupID, err)
 		}
@@ -576,7 +576,7 @@ func (m *Manager) evictTracedCgroup(cgroup *model.CGroupContext) {
 	}
 
 	// second, push the evicted cgroup to the discarded map
-	if err := m.tracedCgroupsDiscardedMap.Put(cgroup.CGroupFile, uint8(1)); err != nil {
+	if err := m.tracedCgroupsDiscardedMap.Put(cgroup.CGroupFile.Inode, uint8(1)); err != nil {
 		if !errors.Is(err, ebpf.ErrKeyNotExist) {
 			seclog.Errorf("couldn't discard activity dump cgroup %s: %v", cgroup.CGroupID, err)
 		}
@@ -599,7 +599,7 @@ func (m *Manager) evictTracedCgroup(cgroup *model.CGroupContext) {
 	}
 
 	// finally, evict it from the traced one
-	if err := m.tracedCgroupsMap.Delete(cgroup.CGroupFile); err != nil {
+	if err := m.tracedCgroupsMap.Delete(cgroup.CGroupFile.Inode); err != nil {
 		if !errors.Is(err, ebpf.ErrKeyNotExist) {
 			seclog.Errorf("couldn't delete activity dump filter cgroup %s: %v", cgroup.CGroupID, err)
 		}
@@ -626,7 +626,7 @@ func (m *Manager) HandleCGroupTracingEvent(event *model.CgroupTracingEvent) {
 
 	// Check if this cgroup is in the discarded map (kernel blacklist)
 	var discarded uint8
-	err := m.tracedCgroupsDiscardedMap.Lookup(event.CGroupContext.CGroupFile, &discarded)
+	err := m.tracedCgroupsDiscardedMap.Lookup(event.CGroupContext.CGroupFile.Inode, &discarded)
 	if err == nil {
 		// Cgroup is in the discarded map, should not trace it
 		m.evictTracedCgroup(&event.CGroupContext)
@@ -637,7 +637,7 @@ func (m *Manager) HandleCGroupTracingEvent(event *model.CgroupTracingEvent) {
 	defer m.m.Unlock()
 
 	// Check if this cgroup should be ignored (e.g., manually stopped dump)
-	if m.ignoreFromSnapshot[event.CGroupContext.CGroupFile] {
+	if m.ignoreFromSnapshot[event.CGroupContext.CGroupFile.Inode] {
 		return
 	}
 
@@ -659,18 +659,18 @@ func (m *Manager) SyncTracedCgroups() {
 
 	var err error
 	var event model.CgroupTracingEvent
-	var cgroupFile model.PathKey
+	var cgroupInode uint64
 	iterator := m.tracedCgroupsMap.Iterate()
 	seclog.Infof("snapshotting traced_cgroups map")
 
 	// Collect cgroups to delete during iteration, execute deletion AFTER
 	// to avoid modifying the map while iterating (causes "iteration aborted")
-	var cgroupsToDelete []model.PathKey
-	for iterator.Next(&cgroupFile, &event.ConfigCookie) {
+	var cgroupsToDelete []uint64
+	for iterator.Next(&cgroupInode, &event.ConfigCookie) {
 		m.m.Lock()
-		if m.ignoreFromSnapshot[cgroupFile] {
+		if m.ignoreFromSnapshot[cgroupInode] {
 			// mark for deletion - will delete AFTER iteration
-			cgroupsToDelete = append(cgroupsToDelete, cgroupFile)
+			cgroupsToDelete = append(cgroupsToDelete, cgroupInode)
 			m.m.Unlock()
 			continue
 		}
@@ -678,15 +678,15 @@ func (m *Manager) SyncTracedCgroups() {
 
 		if err = m.activityDumpsConfigMap.Lookup(&event.ConfigCookie, &event.Config); err != nil {
 			// this config doesn't exist anymore, mark for deletion
-			seclog.Warnf("config not found for (%v): %v", cgroupFile, err)
-			cgroupsToDelete = append(cgroupsToDelete, cgroupFile)
+			seclog.Warnf("config not found for inode (%v): %v", cgroupInode, err)
+			cgroupsToDelete = append(cgroupsToDelete, cgroupInode)
 			continue
 		}
 
-		cgroupContext, _, err := m.resolvers.ResolveCGroupContext(cgroupFile)
+		cgroupContext, _, err := m.resolvers.ResolveCGroupContext(model.PathKey{Inode: cgroupInode})
 		if err != nil {
-			seclog.Warnf("couldn't resolve cgroup context for (%v): %v", cgroupFile, err)
-			cgroupsToDelete = append(cgroupsToDelete, cgroupFile)
+			seclog.Warnf("couldn't resolve cgroup context for inode (%v): %v", cgroupInode, err)
+			cgroupsToDelete = append(cgroupsToDelete, cgroupInode)
 			continue
 		}
 
@@ -707,7 +707,7 @@ func (m *Manager) SyncTracedCgroups() {
 
 		if !hasActiveDump {
 			// No active dump for this cgroup - mark for deletion
-			cgroupsToDelete = append(cgroupsToDelete, cgroupFile)
+			cgroupsToDelete = append(cgroupsToDelete, cgroupInode)
 		}
 	}
 
@@ -716,8 +716,8 @@ func (m *Manager) SyncTracedCgroups() {
 	}
 
 	// Delete all marked cgroups AFTER iteration (safe to modify map now)
-	for _, cgroupFile := range cgroupsToDelete {
-		_ = m.tracedCgroupsMap.Delete(cgroupFile)
+	for _, cgroupInode := range cgroupsToDelete {
+		_ = m.tracedCgroupsMap.Delete(cgroupInode)
 	}
 }
 
@@ -730,22 +730,22 @@ func (m *Manager) EvictAllTracedCgroups() {
 	}
 
 	// Iterate through the kernel traced_cgroups map and evict everything
-	var cgroupFile model.PathKey
+	var cgroupInode uint64
 	var cookie uint64
 	iterator := m.tracedCgroupsMap.Iterate()
 
-	var cgroupsToEvict []model.PathKey
-	for iterator.Next(&cgroupFile, &cookie) {
-		cgroupsToEvict = append(cgroupsToEvict, cgroupFile)
+	var cgroupsToEvict []uint64
+	for iterator.Next(&cgroupInode, &cookie) {
+		cgroupsToEvict = append(cgroupsToEvict, cgroupInode)
 	}
 
 	if err := iterator.Err(); err != nil {
 		seclog.Warnf("couldn't iterate over the map traced_cgroups: %v", err)
 	}
 
-	for _, cgroupFile := range cgroupsToEvict {
+	for _, cgroupInode := range cgroupsToEvict {
 		// Add to discarded map to blacklist
-		if err := m.tracedCgroupsDiscardedMap.Put(cgroupFile, uint8(1)); err != nil {
+		if err := m.tracedCgroupsDiscardedMap.Put(cgroupInode, uint8(1)); err != nil {
 			if !errors.Is(err, ebpf.ErrKeyNotExist) {
 				seclog.Warnf("couldn't add cgroup to discarded map: %v", err)
 			}
@@ -766,7 +766,7 @@ func (m *Manager) ClearTracedCgroups() {
 	for _, ad := range m.activeDumps {
 		// Add to discarded map BEFORE disabling
 		if !ad.Profile.Metadata.CGroupContext.CGroupFile.IsNull() {
-			if err := m.tracedCgroupsDiscardedMap.Put(ad.Profile.Metadata.CGroupContext.CGroupFile, uint8(1)); err != nil {
+			if err := m.tracedCgroupsDiscardedMap.Put(ad.Profile.Metadata.CGroupContext.CGroupFile.Inode, uint8(1)); err != nil {
 				if !errors.Is(err, ebpf.ErrKeyNotExist) {
 					seclog.Warnf("couldn't add cgroup to discarded map: %v", err)
 				}
@@ -779,28 +779,28 @@ func (m *Manager) ClearTracedCgroups() {
 
 	// Then clear the kernel maps (both traced and discarded)
 	var err error
-	var cgroupFile model.PathKey
+	var cgroupInode uint64
 	var cookie uint64
 	iterator := m.tracedCgroupsMap.Iterate()
 
-	var cgroupsToDelete []model.PathKey
-	for iterator.Next(&cgroupFile, &cookie) {
-		cgroupsToDelete = append(cgroupsToDelete, cgroupFile)
+	var cgroupsToDelete []uint64
+	for iterator.Next(&cgroupInode, &cookie) {
+		cgroupsToDelete = append(cgroupsToDelete, cgroupInode)
 	}
 
 	if err = iterator.Err(); err != nil {
 		seclog.Warnf("couldn't iterate over the map traced_cgroups: %v", err)
 	}
 
-	for _, cgroupFile := range cgroupsToDelete {
+	for _, cgroupInode := range cgroupsToDelete {
 		// Add to discarded map FIRST to prevent kernel from re-adding it
-		if err := m.tracedCgroupsDiscardedMap.Put(cgroupFile, uint8(1)); err != nil {
+		if err := m.tracedCgroupsDiscardedMap.Put(cgroupInode, uint8(1)); err != nil {
 			if !errors.Is(err, ebpf.ErrKeyNotExist) {
 				seclog.Warnf("couldn't add cgroup to discarded map: %v", err)
 			}
 		}
 		// Then delete from traced map
-		_ = m.tracedCgroupsMap.Delete(cgroupFile)
+		_ = m.tracedCgroupsMap.Delete(cgroupInode)
 	}
 
 	// Also iterate through all currently running containers on the system
@@ -809,7 +809,7 @@ func (m *Manager) ClearTracedCgroups() {
 	// Walk through all process cache entries and blacklist their cgroups
 	m.resolvers.ProcessResolver.Walk(func(entry *model.ProcessCacheEntry) {
 		if entry.ContainerID != "" && !entry.CGroup.CGroupFile.IsNull() {
-			if err := m.tracedCgroupsDiscardedMap.Put(entry.CGroup.CGroupFile, uint8(1)); err != nil {
+			if err := m.tracedCgroupsDiscardedMap.Put(entry.CGroup.CGroupFile.Inode, uint8(1)); err != nil {
 				if !errors.Is(err, ebpf.ErrKeyNotExist) {
 					seclog.Warnf("couldn't add system container cgroup to discarded map: %v", err)
 				}

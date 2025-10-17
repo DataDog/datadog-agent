@@ -99,7 +99,7 @@ type Manager struct {
 	activityDumpConfigDefaults  *ebpf.Map
 	activityDumpRateLimitersMap *ebpf.Map
 
-	ignoreFromSnapshot   map[model.PathKey]bool
+	ignoreFromSnapshot   map[uint64]bool
 	dumpLimiter          *lru.Cache[cgroupModel.WorkloadSelector, *atomic.Uint64]
 	workloadDenyList     []cgroupModel.WorkloadSelector
 	workloadDenyListHits *atomic.Uint64
@@ -302,7 +302,7 @@ func NewManager(cfg *config.Config, statsdClient statsd.ClientInterface, ebpf *e
 		activityDumpConfigDefaults:  activityDumpConfigDefaultsMap,
 		activityDumpRateLimitersMap: activityDumpRateLimitersMap,
 
-		ignoreFromSnapshot:   make(map[model.PathKey]bool),
+		ignoreFromSnapshot:   make(map[uint64]bool),
 		dumpLimiter:          dumpLimiter,
 		workloadDenyList:     workloadDenyList,
 		workloadDenyListHits: atomic.NewUint64(0),

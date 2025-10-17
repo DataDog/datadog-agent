@@ -137,7 +137,7 @@ func (m *Manager) StopActivityDump(params *api.ActivityDumpStopParams) (*api.Act
 			(params.GetCGroupID() != "" && ad.Profile.Metadata.CGroupContext.CGroupID == containerutils.CGroupID(params.GetCGroupID())) {
 			m.finalizeKernelEventCollection(ad, true)
 			// mark the cgroup to ignore from snapshot to prevent re-creation
-			m.ignoreFromSnapshot[ad.Profile.Metadata.CGroupContext.CGroupFile] = true
+			m.ignoreFromSnapshot[ad.Profile.Metadata.CGroupContext.CGroupFile.Inode] = true
 			seclog.Infof("tracing stopped for [%s]", ad.GetSelectorStr())
 			toDelete = i
 
