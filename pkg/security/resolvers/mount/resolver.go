@@ -603,10 +603,6 @@ func (mr *Resolver) ResolveMountPath(mountID uint32, device uint32, pid uint32, 
 	return mr.resolveMountPath(mountID, device, pid, containerID)
 }
 
-func (mr *Resolver) syncCacheMiss() {
-	mr.procMissStats.Inc()
-}
-
 func (mr *Resolver) reSyncCache(mountID uint32, pids []uint32, containerID containerutils.ContainerID, workload *cmodel.CacheEntry) error {
 	if workload != nil {
 		pids = append(pids, workload.GetPIDs()...)
@@ -615,7 +611,7 @@ func (mr *Resolver) reSyncCache(mountID uint32, pids []uint32, containerID conta
 	}
 
 	if err := mr.syncCache(mountID, pids); err != nil {
-		mr.syncCacheMiss()
+		mr.procMissStats.Inc()
 		return err
 	}
 
