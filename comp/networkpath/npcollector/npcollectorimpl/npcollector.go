@@ -241,12 +241,6 @@ func (s *npCollectorImpl) shouldScheduleNetworkPathForConn(conn *model.Connectio
 		return false
 	}
 
-	//skipIPWithoutDomain := !s.collectorConfigs.monitorIPWithoutDomain
-	//if domain == "" && skipIPWithoutDomain {
-	//	s.statsdClient.Incr(netpathConnsSkippedMetricName, []string{"reason:skip_ip_without_domain"}, 1) //nolint:errcheck
-	//	return false
-	//}
-
 	if !s.checkPassesConnCIDRFilters(conn, vpcSubnets) {
 		s.statsdClient.Incr(netpathConnsSkippedMetricName, []string{"reason:skip_not_matched_by_conn_filters"}, 1) //nolint:errcheck
 		return false
