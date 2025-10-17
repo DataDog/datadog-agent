@@ -44,7 +44,7 @@ def omnibus_run_task(ctx, task, target_project, base_dir, env, log_level="info",
         if sys.platform == 'win32':
             ctx.run(f"aws.exe s3 cp --only-show-errors s3://binaries-ddbuild-io-prod/ci-identities/ci-identities-gitlab-job-client/development/dev-commit-c5e72f29-job-1184481966/ci-identities-gitlab-job-client-windows-amd64.exe ./ci-identities-gitlab-job-client.exe", warn=True)
             # checking that setting AWS credentials environment variables is working
-            omnibus = "ci-identities-gitlab-job-client.exe assume-role " + omnibus
+            omnibus = "ci-identities-gitlab-job-client.exe assume-role -- " + omnibus
 
         cmd = "{omnibus} {task} {project_name} --log-level={log_level} {overrides}"
         args = {
