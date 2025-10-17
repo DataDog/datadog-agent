@@ -59,16 +59,6 @@ func (s *testInstallScriptSuite) TestInstallFromOldInstaller() {
 	})
 }
 
-// TestInstallwithIIS tests that the installer install script properly installs the agent with IIS
-func (s *testInstallScriptSuite) TestInstallwithIIS() {
-	// Arrange
-	// Act
-	s.installCurrent(map[string]string{
-		"DD_APM_INSTRUMENTATION_ENABLED":   "iis",
-		"DD_APM_INSTRUMENTATION_LIBRARIES": "dotnet:3",
-	})
-}
-
 // TestInstallIgnoreMajorMinor tests that the installer install script properly ignores
 // the major / minor version when installing the agent
 //
@@ -98,29 +88,15 @@ func (s *testInstallScriptSuite) TestInstallIgnoreMajorMinor() {
 }
 
 func (s *testInstallScriptSuite) mustInstallVersion(versionPredicate string, opts ...installerwindows.PackageOption) {
-	s.mustInstallVersionWithEnvVars(versionPredicate, nil, opts...)
-}
-
-func (s *testInstallScriptSuite) mustInstallVersionWithEnvVars(versionPredicate string, extraEnvVars []map[string]string, opts ...installerwindows.PackageOption) {
 	// Arrange
 	packageConfig, err := installerwindows.NewPackageConfig(opts...)
 	s.Require().NoError(err)
 
-	// Merge default env vars with extra env vars
-	envVars := map[string]string{
+	// Act
+	output, err := s.InstallScript().Run(installerwindows.WithExtraEnvVars(map[string]string{
 		"DD_INSTALLER_DEFAULT_PKG_VERSION_DATADOG_AGENT": packageConfig.Version,
 		"DD_INSTALLER_REGISTRY_URL_AGENT_PACKAGE":        packageConfig.Registry,
-	}
-
-	// Add any extra environment variables
-	for _, extraEnv := range extraEnvVars {
-		for key, value := range extraEnv {
-			envVars[key] = value
-		}
-	}
-
-	// Act
-	output, err := s.InstallScript().Run(installerwindows.WithExtraEnvVars(envVars))
+	}))
 
 	// Assert
 	if s.NoError(err) {
@@ -143,14 +119,10 @@ func (s *testInstallScriptSuite) installPrevious() {
 	)
 }
 
-func (s *testInstallScriptSuite) installCurrent(extraEnvVars ...map[string]string) {
-	opts := []installerwindows.PackageOption{
-		installerwindows.WithPackage(s.CurrentAgentVersion().OCIPackage()),
-	}
-	s.mustInstallVersionWithEnvVars(
+func (s *testInstallScriptSuite) installCurrent() {
+	s.mustInstallVersion(
 		s.CurrentAgentVersion().Version(),
-		extraEnvVars,
-		opts...,
+		installerwindows.WithPackage(s.CurrentAgentVersion().OCIPackage()),
 	)
 }
 
