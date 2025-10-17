@@ -9,6 +9,8 @@ package defaultforwarder
 import (
 	"go.uber.org/fx"
 
+	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
+	secretsmock "github.com/DataDog/datadog-agent/comp/core/secrets/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -46,5 +48,7 @@ type Mock interface {
 // MockModule defines the fx options for the mock component.
 func MockModule() fxutil.Module {
 	return fxutil.Component(
-		fx.Provide(newMockForwarder))
+		fx.Provide(newMockForwarder),
+		fx.Provide(func() secrets.Component { return &secretsmock.Mock{} }),
+	)
 }
