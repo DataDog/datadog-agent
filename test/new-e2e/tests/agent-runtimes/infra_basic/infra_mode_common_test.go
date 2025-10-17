@@ -238,7 +238,12 @@ func (s *infraBasicSuite) verifyCheckSchedulingViaStatusAPI(c *assert.CollectT, 
 func (s *infraBasicSuite) checkServiceRunning(serviceCommand string) (bool, error) {
 	if s.descriptor.Family() == e2eos.WindowsFamily {
 		// Windows: Check service status using PowerShell Get-Service
-		result := s.Env().RemoteHost.MustExecute("powershell -Command \"Get-Service -Name '" + serviceCommand + "' -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Status\"")
+		result, err := s.Env().RemoteHost.Execute("powershell -Command \"Get-Service -Name '" + serviceCommand + "' -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Status\"")
+		// If there's an error or the result is not "Running", the service is not running
+		// (service might not exist, be stopped, etc.)
+		if err != nil {
+			return false, nil
+		}
 		return result == "Running", nil
 	}
 
