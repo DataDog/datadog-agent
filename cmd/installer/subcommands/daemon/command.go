@@ -19,6 +19,6 @@ func Commands(global *command.GlobalParams) []*cobra.Command {
 		Short:   "Interact with the installer daemon",
 		GroupID: "daemon",
 	}
-	ctlCmd.AddCommand(apiCommands(global)...)
+	// ctlCmd.AddCommand(apiCommands(global)...)
 	return []*cobra.Command{runCommand(global), ctlCmd}
 }
