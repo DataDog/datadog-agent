@@ -1,4 +1,4 @@
-OWNER: tony.aiuto@
+OWNER: tony.aiuto@datadoghq.com
 PROJECT: https://datadoghq.atlassian.net/browse/ABLD-158
 
 Temporary clone of Bazel's built in repository rules (#41783)
