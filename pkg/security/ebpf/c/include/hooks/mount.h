@@ -149,6 +149,7 @@ void __attribute__((always_inline)) fill_mount_fields(struct syscall_cache_t *sy
     mfields->mountpoint_key = syscall->mount.mountpoint_key;
     mfields->device = syscall->mount.device;
     mfields->bind_src_mount_id = syscall->mount.bind_src_mount_id;
+    mfields->ns_inum = syscall->mount.ns_inum;
     bpf_probe_read_str(&mfields->fstype, sizeof(mfields->fstype), (void *)syscall->mount.fstype);
 }
 

@@ -455,6 +455,7 @@ func (m *Mount) UnmarshalBinary(data []byte) (int, error) {
 	m.Visible = binary.NativeEndian.Uint16(data[24:26]) != 0
 	m.Detached = binary.NativeEndian.Uint16(data[26:28]) != 0
 
+	m.NamespaceInode = binary.NativeEndian.Uint32(data[28:32])
 	return 64, nil
 }
 
