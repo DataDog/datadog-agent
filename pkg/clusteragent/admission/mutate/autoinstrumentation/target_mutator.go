@@ -148,8 +148,6 @@ func (m *TargetMutator) MutatePod(pod *corev1.Pod, ns string, _ dynamic.Interfac
 		return false, nil
 	}
 
-	log.Debugf("Mutating pod in target mutator %q", mutatecommon.PodString(pod))
-
 	// Sanitize input.
 	if pod == nil {
 		return false, errors.New(metrics.InvalidInput)
@@ -162,6 +160,8 @@ func (m *TargetMutator) MutatePod(pod *corev1.Pod, ns string, _ dynamic.Interfac
 	if _, ok := m.disabledNamespaces[pod.Namespace]; ok {
 		return false, nil
 	}
+
+	log.Debugf("Mutating pod in target mutator %q", mutatecommon.PodString(pod))
 
 	// The admission can be re-run for the same pod. Fast return if we injected the library already.
 	for _, lang := range supportedLanguages {
