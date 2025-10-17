@@ -362,14 +362,15 @@ func copyMap(target reflect.Value, input nodetreemodel.Node, currPath []string, 
 				}
 				input = converted
 			}
-		}
-		obj, err := nodetreemodel.ToMapStringInterface(leafValue, strings.Join(currPath, "."))
-		if err != nil {
-			return err
-		}
-		input, err = nodetreemodel.NewNodeTree(obj, model.SourceUnknown)
-		if err != nil {
-			return err
+		} else {
+			obj, err := nodetreemodel.ToMapStringInterface(leafValue, strings.Join(currPath, "."))
+			if err != nil {
+				return err
+			}
+			input, err = nodetreemodel.NewNodeTree(obj, model.SourceUnknown)
+			if err != nil {
+				return err
+			}
 		}
 	}
 
