@@ -1,0 +1,10 @@
+logs:
+  - type: file
+    path: "/smp-shared/*.log"
+    service: "my-service"
+    source: "my-client-app"
+    fingerprint_config:
+      fingerprint_strategy: "line_checksum"
+      count: 1
+      count_to_skip: 0
+      max_bytes: 100000
