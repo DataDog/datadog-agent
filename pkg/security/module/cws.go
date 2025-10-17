@@ -212,14 +212,13 @@ func (c *CWSConsumer) Start() error {
 			c.selfTestPassed = true
 
 			c.reportSelfTest(success, fails)
-			delay = selftestPassedDelay
 		}
-
-		time.Sleep(delay)
 
 		if _, err := c.RunSelfTest(false); err != nil {
 			seclog.Errorf("self-test error: %s", err)
 		}
+
+		time.Sleep(delay)
 	}
 	if c.selfTester != nil {
 		go c.selfTester.WaitForResult(cb)
