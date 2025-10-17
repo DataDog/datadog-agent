@@ -96,6 +96,8 @@ type RequiresNoAgent struct {
 	URIs             []string
 	Config           config.Component
 	Converter        confmap.Converter
+	Tagger           tagger.Component
+	Hostname         hostnameinterface.Component
 }
 
 // Provides declares the output types from the constructor
@@ -230,6 +232,7 @@ func NewComponentNoAgent(reqs RequiresNoAgent) (Provides, error) {
 	}
 	factories.Connectors[component.MustNewType("datadog")] = datadogconnector.NewFactory()
 	factories.Extensions[ddextension.Type] = ddextension.NewFactoryForAgent(&factories, newConfigProviderSettings(reqs.URIs, reqs.Converter, false), option.None[ipc.Component](), false)
+	factories.Processors[infraattributesprocessor.Type] = infraattributesprocessor.NewFactoryForAgent(reqs.Tagger, reqs.Hostname.Get)
 
 	converterEnabled := reqs.Config.GetBool("otelcollector.converter.enabled")
 	set := otelcol.CollectorSettings{

@@ -22,7 +22,6 @@ def build(
     build_exclude=None,
     flavor=AgentFlavor.base.name,
     install_path=None,
-    major_version='7',
     go_mod="readonly",
 ):
     """
@@ -34,13 +33,12 @@ def build(
     ldflags, gcflags, env = get_build_flags(
         ctx,
         install_path=install_path,
-        major_version=major_version,
     )
 
     # generate windows resources
     if sys.platform == 'win32':
         build_messagetable(ctx)
-        vars = versioninfo_vars(ctx, major_version=major_version)
+        vars = versioninfo_vars(ctx)
         build_rc(
             ctx,
             "cmd/trace-agent/windows/resources/trace-agent.rc",
@@ -89,7 +87,6 @@ def integration_tests(ctx, race=False, go_mod="readonly", timeout="10m"):
         ctx,
         TRACE_AGENT_IT_CONF,
         race=race,
-        remote_docker=False,
         go_mod=go_mod,
         timeout=timeout,
     )

@@ -110,7 +110,10 @@ func TestKernelCacheLoadKernelData(t *testing.T) {
 	}
 	require.NotZero(t, kernelAddress, "kernel address should be found")
 
-	kc, err := NewKernelCache(procRoot, cudatestutil.SamplesSMVersionSet(), testutil.GetTelemetryMock(t), 100)
+	getSMVersionSet := func() (map[uint32]struct{}, error) {
+		return cudatestutil.SamplesSMVersionSet(), nil
+	}
+	kc, err := NewKernelCache(procRoot, getSMVersionSet, testutil.GetTelemetryMock(t), 100)
 	require.NoError(t, err)
 	kc.Start()
 	t.Cleanup(kc.Stop)
@@ -169,7 +172,10 @@ func TestKernelCacheLoadKernelData(t *testing.T) {
 }
 
 func TestKernelCacheLoadKernelDataError(t *testing.T) {
-	kc, err := NewKernelCache(kernel.ProcFSRoot(), cudatestutil.SamplesSMVersionSet(), testutil.GetTelemetryMock(t), 100)
+	getSMVersionSet := func() (map[uint32]struct{}, error) {
+		return cudatestutil.SamplesSMVersionSet(), nil
+	}
+	kc, err := NewKernelCache(kernel.ProcFSRoot(), getSMVersionSet, testutil.GetTelemetryMock(t), 100)
 	require.NoError(t, err)
 	kc.Start()
 	t.Cleanup(kc.Stop)

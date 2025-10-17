@@ -127,6 +127,12 @@ func runOTelAgentCommand(ctx context.Context, params *cliParams, opts ...fx.Opti
 			fx.Provide(func(cp converter.Component, _ configsync.Component) confmap.Converter {
 				return cp
 			}),
+			remoteTaggerFx.Module(tagger.NewRemoteParams()),
+			fx.Provide(func(h hostnameinterface.Component) (serializerexporter.SourceProviderFunc, error) {
+				return h.Get, nil
+			}),
+			telemetryimpl.Module(),
+			remotehostnameimpl.Module(),
 			collectorcontribFx.Module(),
 			collectorfx.ModuleNoAgent(),
 			fx.Options(opts...),
