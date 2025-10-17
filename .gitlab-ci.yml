@@ -99,6 +99,7 @@ dda:windows:features:
       -e AWS_NETWORKING=true
       -e CI_PIPELINE_ID=${CI_PIPELINE_ID}
       -e CI_PROJECT_NAME=${CI_PROJECT_NAME}
+      -e CI=${CI}
       -e GOMODCACHE="c:\modcache"
       -e RUST_LOG="uv=trace"
       -e DDA_FEATURE_FLAGS_CI_SSM_KEY_WINDOWS=${DDA_FEATURE_FLAGS_CI_SSM_KEY_WINDOWS}
