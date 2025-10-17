@@ -156,7 +156,7 @@ require (
 	github.com/goccy/go-json v0.10.5 // indirect
 	github.com/gofrs/flock v0.12.1 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
-	github.com/golang/mock v1.7.0-rc.1 // indirect
+	github.com/golang/mock v1.6.0 // indirect
 	github.com/golang/protobuf v1.5.4 // indirect
 	github.com/golang/snappy v1.0.0 // indirect
 	github.com/google/uuid v1.6.0 // indirect
@@ -238,9 +238,6 @@ require (
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
-
-// github.com/golang/mock is unmaintained and archived, v1.6.0 is the last released version
-replace github.com/golang/mock => github.com/golang/mock v1.6.0
 
 // This section was automatically added by 'dda inv modules.add-all-replace' command, do not edit manually
 

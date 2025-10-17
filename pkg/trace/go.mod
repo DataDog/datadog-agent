@@ -22,7 +22,7 @@ require (
 	github.com/Microsoft/go-winio v0.6.2
 	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc
-	github.com/golang/mock v1.7.0-rc.1
+	github.com/golang/mock v1.6.0
 	github.com/golang/protobuf v1.5.4
 	github.com/google/go-cmp v0.7.0
 	github.com/google/gofuzz v1.2.0
@@ -116,11 +116,6 @@ require (
 	google.golang.org/appengine v1.6.8 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
-
-replace github.com/DataDog/datadog-agent => ../../
-
-// github.com/golang/mock is unmaintained and archived, v1.6.0 is the last released version
-replace github.com/golang/mock => github.com/golang/mock v1.6.0
 
 // This section was automatically added by 'dda inv modules.add-all-replace' command, do not edit manually
 
