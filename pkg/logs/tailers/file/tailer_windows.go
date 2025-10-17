@@ -78,6 +78,18 @@ func (t *Tailer) readAvailable() (int, error) {
 				return bytes, io.EOF
 			}
 
+			if t.fingerprint != nil {
+				currentFingerprint, err := t.fingerprinter.ComputeFingerprintFromHandle(f, t.fingerprint.Config)
+				if err != nil {
+					return bytes, err
+				}
+				if !currentFingerprint.Equals(t.fingerprint) {
+					log.Infof("Fingerprint mismatch detected mid read, file %s has rotated", t.fullpath)
+					t.didFileRotate.Store(true)
+					return bytes, io.EOF
+				}
+			}
+
 			_, err = f.Seek(offset, io.SeekStart)
 			if err != nil {
 				log.Debugf("Error seek()ing file %v", err)
