@@ -521,11 +521,39 @@ def hacky_dev_image_build(
         trace_agent_build(ctx)
         copy_extra_agents += "COPY bin/trace-agent/trace-agent /opt/datadog-agent/embedded/bin/trace-agent\n"
 
+    copy_ebpf_assets = ""
+    copy_ebpf_assets_final = ""
     if system_probe:
+        from tasks.libs.types.arch import Arch
         from tasks.system_probe import build as system_probe_build
+        from tasks.system_probe import build_object_files
 
         system_probe_build(ctx)
+        build_object_files(ctx)  # Build eBPF assets
+
+        # Convert Docker arch to eBPF build arch (amd64 -> x86_64, arm64 -> arm64)
+        arch_obj = Arch.from_str(arch)
+        ebpf_arch = arch_obj.kmt_arch  # This gives us x86_64 for amd64
+
+        # Debug: Check if CO-RE assets exist
+        ctx.run(
+            f"ls -la pkg/ebpf/bytecode/build/{ebpf_arch}/co-re/conntrack* || echo 'CO-RE conntrack assets not found'"
+        )
+
         copy_extra_agents += "COPY bin/system-probe/system-probe /opt/datadog-agent/embedded/bin/system-probe\n"
+        copy_ebpf_assets = f"""# Copy eBPF assets for system-probe
+RUN mkdir -p /opt/datadog-agent/embedded/share/system-probe/ebpf/co-re/
+RUN mkdir -p /opt/datadog-agent/embedded/share/system-probe/ebpf/runtime/
+COPY pkg/ebpf/bytecode/build/{ebpf_arch}/*.o         /opt/datadog-agent/embedded/share/system-probe/ebpf/
+COPY pkg/ebpf/bytecode/build/{ebpf_arch}/co-re/*.o   /opt/datadog-agent/embedded/share/system-probe/ebpf/co-re/
+COPY pkg/ebpf/bytecode/runtime/*.c              /opt/datadog-agent/embedded/share/system-probe/ebpf/runtime/
+RUN ls -la /opt/datadog-agent/embedded/share/system-probe/ebpf/co-re/conntrack* || echo 'CO-RE assets not copied'
+"""
+        copy_ebpf_assets_final = """
+# Copy eBPF assets from bin stage to final stage
+COPY --from=bin /opt/datadog-agent/embedded/share/system-probe/ebpf /opt/datadog-agent/embedded/share/system-probe/ebpf
+RUN ls -la /opt/datadog-agent/embedded/share/system-probe/ebpf/co-re/conntrack* || echo 'Final CO-RE assets not found'
+"""
 
     with tempfile.NamedTemporaryFile(mode='w') as dockerfile:
         dockerfile.write(
@@ -547,6 +575,7 @@ COPY bin/agent/dist/conf.d                      /etc/datadog-agent/conf.d
 COPY dev/lib/libdatadog-agent-rtloader.so.0.1.0 /opt/datadog-agent/embedded/lib/libdatadog-agent-rtloader.so.0.1.0
 COPY dev/lib/libdatadog-agent-three.so          /opt/datadog-agent/embedded/lib/libdatadog-agent-three.so
 
+{copy_ebpf_assets}
 RUN patchelf --set-rpath /opt/datadog-agent/embedded/lib /opt/datadog-agent/bin/agent/agent
 RUN patchelf --set-rpath /opt/datadog-agent/embedded/lib /opt/datadog-agent/embedded/lib/libdatadog-agent-rtloader.so.0.1.0
 RUN patchelf --set-rpath /opt/datadog-agent/embedded/lib /opt/datadog-agent/embedded/lib/libdatadog-agent-three.so
@@ -578,7 +607,7 @@ COPY --from=bin /opt/datadog-agent/bin/agent/agent                              
 COPY --from=bin /opt/datadog-agent/embedded/lib/libdatadog-agent-rtloader.so.0.1.0 /opt/datadog-agent/embedded/lib/libdatadog-agent-rtloader.so.0.1.0
 COPY --from=bin /opt/datadog-agent/embedded/lib/libdatadog-agent-three.so          /opt/datadog-agent/embedded/lib/libdatadog-agent-three.so
 COPY --from=bin /etc/datadog-agent/conf.d /etc/datadog-agent/conf.d
-{copy_extra_agents}
+{copy_extra_agents}{copy_ebpf_assets_final}
 RUN agent          completion bash > /usr/share/bash-completion/completions/agent
 RUN process-agent  completion bash > /usr/share/bash-completion/completions/process-agent
 RUN security-agent completion bash > /usr/share/bash-completion/completions/security-agent
@@ -593,7 +622,9 @@ ENV DD_SSLKEYLOGFILE=/tmp/sslkeylog.txt
         pull_env = {}
         if signed_pull:
             pull_env['DOCKER_CONTENT_TRUST'] = '1'
-        ctx.run(f'docker build --platform linux/{arch} -t {target_image} -f {dockerfile.name} .', env=pull_env)
+        ctx.run(
+            f'docker build --no-cache --platform linux/{arch} -t {target_image} -f {dockerfile.name} .', env=pull_env
+        )
 
         if push:
             ctx.run(f'docker push {target_image}')
