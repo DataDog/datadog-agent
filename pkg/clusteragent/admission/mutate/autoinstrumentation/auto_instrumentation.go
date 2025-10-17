@@ -26,6 +26,7 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
 	mutatecommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -109,7 +110,39 @@ func (w *Webhook) Operations() []admissionregistrationv1.OperationType {
 // LabelSelectors returns the label selectors that specify when the webhook
 // should be invoked
 func (w *Webhook) LabelSelectors(useNamespaceSelector bool) (namespaceSelector *metav1.LabelSelector, objectSelector *metav1.LabelSelector) {
-	return common.DefaultLabelSelectors(useNamespaceSelector)
+	var labelSelector metav1.LabelSelector
+
+	if pkgconfigsetup.Datadog().GetBool("admission_controller.mutate_unlabelled") ||
+		pkgconfigsetup.Datadog().GetBool("apm_config.instrumentation.enabled") ||
+		len(pkgconfigsetup.Datadog().GetStringSlice("apm_config.instrumentation.enabled_namespaces")) > 0 {
+		// Accept all, ignore pods if they're explicitly filtered-out
+		labelSelector = metav1.LabelSelector{
+			MatchExpressions: []metav1.LabelSelectorRequirement{
+				{
+					Key:      common.EnabledLabelKey,
+					Operator: metav1.LabelSelectorOpNotIn,
+					Values:   []string{"false"},
+				},
+			},
+		}
+	} else {
+		// Ignore all, accept pods if they're explicitly allowed
+		labelSelector = metav1.LabelSelector{
+			MatchLabels: map[string]string{
+				common.EnabledLabelKey: "true",
+			},
+		}
+	}
+
+	if pkgconfigsetup.Datadog().GetBool("admission_controller.add_aks_selectors") {
+		return common.AKSSelectors(useNamespaceSelector, labelSelector)
+	}
+
+	if useNamespaceSelector {
+		return &labelSelector, nil
+	}
+
+	return nil, &labelSelector
 }
 
 // MatchConditions returns the Match Conditions used for fine-grained

@@ -17,9 +17,7 @@ import (
 func DefaultLabelSelectors(useNamespaceSelector bool) (namespaceSelector, objectSelector *metav1.LabelSelector) {
 	var labelSelector metav1.LabelSelector
 
-	if pkgconfigsetup.Datadog().GetBool("admission_controller.mutate_unlabelled") ||
-		pkgconfigsetup.Datadog().GetBool("apm_config.instrumentation.enabled") ||
-		len(pkgconfigsetup.Datadog().GetStringSlice("apm_config.instrumentation.enabled_namespaces")) > 0 {
+	if pkgconfigsetup.Datadog().GetBool("admission_controller.mutate_unlabelled") {
 		// Accept all, ignore pods if they're explicitly filtered-out
 		labelSelector = metav1.LabelSelector{
 			MatchExpressions: []metav1.LabelSelectorRequirement{
@@ -40,7 +38,7 @@ func DefaultLabelSelectors(useNamespaceSelector bool) (namespaceSelector, object
 	}
 
 	if pkgconfigsetup.Datadog().GetBool("admission_controller.add_aks_selectors") {
-		return aksSelectors(useNamespaceSelector, labelSelector)
+		return AKSSelectors(useNamespaceSelector, labelSelector)
 	}
 
 	if useNamespaceSelector {
@@ -50,14 +48,14 @@ func DefaultLabelSelectors(useNamespaceSelector bool) (namespaceSelector, object
 	return nil, &labelSelector
 }
 
-// aksSelectors takes a label selector and builds a namespace and object
+// AKSSelectors takes a label selector and builds a namespace and object
 // selector adapted for AKS. AKS adds automatically some selector requirements
 // if we don't, so we need to add them to avoid conflicts when updating the
 // webhook.
 //
 // Ref: https://docs.microsoft.com/en-us/azure/aks/faq#can-i-use-admission-controller-webhooks-on-aks
 // Ref: https://github.com/Azure/AKS/issues/1771
-func aksSelectors(useNamespaceSelector bool, labelSelector metav1.LabelSelector) (namespaceSelector, objectSelector *metav1.LabelSelector) {
+func AKSSelectors(useNamespaceSelector bool, labelSelector metav1.LabelSelector) (namespaceSelector, objectSelector *metav1.LabelSelector) {
 	if useNamespaceSelector {
 		labelSelector.MatchExpressions = append(
 			labelSelector.MatchExpressions,
