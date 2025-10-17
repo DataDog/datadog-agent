@@ -479,6 +479,12 @@ func toInt(str string) int {
 	return 0
 }
 
+// Test_RotationThenShutdownNoGoroutineLeak tests the following scenario:
+//  1. File rotation is detected => StopAfterFileRotation() called (goroutine sleeps)
+//  2. Agent shutdown happens => Stop() called on the rotated tailer
+//  3. Stop() signals channel and waits for completion
+//  4. StopAfterFileRotation goroutine wakes up and tries to send
+//     to validate that if there is a race condition, the goroutine will exit cleanly
 func TestNoGoLeakWithNonBlockingStop(t *testing.T) {
 	// Ignore all goroutines that exist before the test starts (background workers from logging, caching, etc.)
 	defer goleak.VerifyNone(t, goleak.IgnoreCurrent())
@@ -512,13 +518,12 @@ func TestNoGoLeakWithNonBlockingStop(t *testing.T) {
 	tailer := NewTailer(tailerOptions)
 	tailer.closeTimeout = 20 * time.Millisecond // Short timeout for test
 
-	// Write some data
+	// Write some data and start tailer
 	_, err = f.WriteString("line 1\nline 2\n")
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	// Start the tailer
 	err = tailer.StartFromBeginning()
 	if err != nil {
 		t.Fatal(err)
@@ -528,28 +533,39 @@ func TestNoGoLeakWithNonBlockingStop(t *testing.T) {
 	<-outputChan
 	<-outputChan
 
-	// Manually stop readForever by sending to the stop channel
-	// This ensures readForever exits cleanly and won't interfere with our test
-	tailer.stop <- struct{}{}
-
-	// Wait for readForever to fully exit (done channel closes when forwardMessages exits)
-	<-tailer.done
-
-	// Now readForever has exited and won't consume from the stop channel anymore
-	// The stop channel is now empty (readForever consumed the signal)
-
-	// Fill the stop channel so it's full
-	tailer.stop <- struct{}{}
-
-	// Call StopAfterFileRotation which spawns a goroutine that sleeps (20ms) then tries to send to stop channel
-	// Since the channel is full and readForever has exited, the goroutine will block forever (with broken code)
+	// ROTATION DETECTED ...
+	// StopAfterFileRotation spawns goroutine that sleeps for closeTimeout, tries to send to the stop channel
 	tailer.StopAfterFileRotation()
 
-	// Wait for the StopAfterFileRotation goroutine to wake up and try to send
-	// The channel is full and readForever won't consume it (already exited)
-	// With blocking send: goroutine will block FOREVER on the full channel (LEAK!)
-	// With select/default: goroutine will take default case and exit cleanly (NO LEAK)
+	// RN...
+	// - goroutine is sleeping for closeTimeout
+	// - The tailer is still running (readForever is active)
+
+	// Sleep briefly to make sure the goroutine is actually sleeping
+	time.Sleep(10 * time.Millisecond)
+
+	// Stop() is called on the rotated tailer (simulating launcher.cleanup())
+	// This will signal the stop channel, readForever drains it and exits, forwardMessages finishes and closes done channel, Stop() returns after <-t.done
+	tailer.Stop()
+
+	// RN...
+	// - tailer is fully stopped (readForever exited, done channel closed)
+	// - stop channel is empty (0/1)
+	// - StopAfterFileRotation goroutine is still sleeping (not woken up yet)
+
+	// SIMULATE RACE CONDITION
+	// Manually fill the channel to simulate the race where Stop() is called
+	// multiple times concurrently, or where the timing is such that the channel
+	// is still full when StopAfterFileRotation wakes up
+	tailer.stop <- struct{}{} // Fill channel to 1/1
+
+	// Wait for the closeTimeout to expire (100ms)
+	// The goroutine will wake up and try to send to the FULL stop channel (1/1)
+	//
+	// with select/default: it will hit the default case, goroutine exits cleanly
+
+	// Wait long enough for the goroutine to wake up and complete
 	time.Sleep(50 * time.Millisecond)
 
-	// The deferred goleak.VerifyNone() will detect the leaked goroutine
+	// The deferred goleak.VerifyNone() will detect if goroutine leaked
 }
