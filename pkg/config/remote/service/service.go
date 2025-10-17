@@ -144,10 +144,15 @@ type CoreAgentService struct {
 	// data gathering for future development.
 	websocketTest startstop.StartStoppable
 
-	// Self-synchronized (has internal locking)
-	clients            *clients
-	cacheBypassClients cacheBypassClients
-	orgStatusPoller    *orgStatusPoller
+	// refreshBypassLimiter is used from the polling loop goroutine exclusively,
+	// so it does not need to be synchronized.
+	refreshBypassLimiter rateLimiter
+	// refreshBypassCh is used from GetClientConfigs to trigger a refresh
+	// request that may bypass the usual refresh loop's interval.
+	refreshBypassCh chan<- chan<- struct{}
+
+	clients         *clients
+	orgStatusPoller *orgStatusPoller
 
 	// Channels to stop the services main goroutines
 	stopConfigPoller chan struct{}
@@ -612,9 +617,8 @@ func NewService(cfg model.Reader, rcType, baseRawURL, hostname string, tagsGette
 		telemetryReporter:     telemetryReporter,
 		websocketTest:         websocketTest,
 		clients:               newClients(clock, options.clientTTL),
-		cacheBypassClients: cacheBypassClients{
-			clock:    clock,
-			requests: make(chan chan struct{}),
+		refreshBypassLimiter: rateLimiter{
+			clock: clock,
 
 			// By default, allows for 5 cache bypass every refreshInterval seconds
 			// in addition to the usual refresh.
@@ -649,13 +653,15 @@ func newRCBackendOrgUUIDProvider(http api.API) uptane.OrgUUIDProvider {
 
 // Start the remote configuration management service
 func (s *CoreAgentService) Start() {
+	refreshBypassCh := make(chan chan<- struct{})
+	s.refreshBypassCh = refreshBypassCh
 	s.orgStatusPoller.start(s.clock, s.getAPI, s.rcType)
 
 	go func() {
 		if s.disableConfigPollLoop {
-			startWithoutAgentPollLoop(s)
+			startWithoutAgentPollLoop(s, refreshBypassCh)
 		} else {
-			startWithAgentPollLoop(s)
+			startWithAgentPollLoop(s, refreshBypassCh)
 		}
 	}()
 
@@ -670,7 +676,7 @@ func (s *CoreAgentService) UpdatePARJWT(jwt string) {
 	s.mu.Unlock()
 }
 
-func startWithAgentPollLoop(s *CoreAgentService) {
+func startWithAgentPollLoop(s *CoreAgentService, refreshBypassRequests <-chan chan<- struct{}) {
 	err := s.refresh()
 	if err != nil {
 		s.logRefreshError(err)
@@ -683,8 +689,8 @@ func startWithAgentPollLoop(s *CoreAgentService) {
 		case <-s.clock.After(refreshInterval):
 			err = s.refresh()
 		// New clients detected, request refresh
-		case response := <-s.cacheBypassClients.requests:
-			if !s.cacheBypassClients.Limit() {
+		case response := <-refreshBypassRequests:
+			if !s.refreshBypassLimiter.Limit() {
 				err = s.refresh()
 			} else {
 				s.telemetryReporter.IncRateLimit()
@@ -701,11 +707,11 @@ func startWithAgentPollLoop(s *CoreAgentService) {
 	}
 }
 
-func startWithoutAgentPollLoop(s *CoreAgentService) {
+func startWithoutAgentPollLoop(s *CoreAgentService, refreshBypassRequests <-chan chan<- struct{}) {
 	for {
 		var err error
-		response := <-s.cacheBypassClients.requests
-		if !s.cacheBypassClients.Limit() {
+		response := <-refreshBypassRequests
+		if !s.refreshBypassLimiter.Limit() {
 			err = s.refresh()
 		} else {
 			err = errors.New("cache bypass limit exceeded")
@@ -858,7 +864,7 @@ func (s *CoreAgentService) refresh() error {
 		ri, err := s.getRefreshIntervalLocked()
 		if err == nil && ri > 0 && s.mu.defaultRefreshInterval != ri {
 			s.mu.defaultRefreshInterval = ri
-			s.cacheBypassClients.windowDuration = ri
+			s.refreshBypassLimiter.windowDuration = ri
 			log.Infof("[%s] Overriding agent's base refresh interval to %v due to backend recommendation", s.rcType, ri)
 		}
 	}
@@ -950,7 +956,7 @@ func (s *CoreAgentService) ClientGetConfigs(_ context.Context, request *pbgo.Cli
 		// Timeout in case the previous request is still pending
 		// and we can't request another one
 		select {
-		case s.cacheBypassClients.requests <- response:
+		case s.refreshBypassCh <- response:
 		case <-time.After(newClientBlockTTL):
 			// No need to add telemetry here, it'll be done in the second
 			// timeout case that will automatically be triggered
