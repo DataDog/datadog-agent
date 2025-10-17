@@ -12,6 +12,7 @@ import (
 	"github.com/DataDog/zstd"
 
 	"github.com/DataDog/datadog-agent/pkg/util/compression"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // Requires contains the compression level for zstd compression
@@ -40,14 +41,16 @@ type ZstdStrategy struct {
 	numworkers int
 }
 
-func clamp(param zstd.CParameter, value int) int {
+func clamp(paramStr string, param zstd.CParameter, value int) int {
 	low, high := zstd.GetBounds(param)
 
 	if value < low {
+		log.Warnf("Zstd parameter %s too low, increasing to %d", paramStr, low)
 		return low
 	}
 
 	if value > high {
+		log.Warnf("Zstd parameter %s too high, decreasing to %d", paramStr, high)
 		return high
 	}
 
@@ -58,13 +61,13 @@ func clamp(param zstd.CParameter, value int) int {
 func New(reqs Requires) compression.Compressor {
 	if reqs.Strategy > 0 {
 		return &ZstdStrategy{
-			strategy:   clamp(zstd.CParamStrategy, reqs.Strategy),
-			chain:      clamp(zstd.CParamChainLog, reqs.Chain),
-			window:     clamp(zstd.CParamWindowLog, reqs.Window),
-			hash:       clamp(zstd.CParamHashLog, reqs.Hash),
-			searchlog:  clamp(zstd.CParamSearchLog, reqs.Searchlog),
-			minmatch:   clamp(zstd.CParamMinMatch, reqs.Minmatch),
-			numworkers: clamp(zstd.CParamNbWorkers, reqs.NumWorkers),
+			strategy:   clamp("strategy", zstd.CParamStrategy, reqs.Strategy),
+			chain:      clamp("chainLog", zstd.CParamChainLog, reqs.Chain),
+			window:     clamp("windowLog", zstd.CParamWindowLog, reqs.Window),
+			hash:       clamp("hashLog", zstd.CParamHashLog, reqs.Hash),
+			searchlog:  clamp("searchLog", zstd.CParamSearchLog, reqs.Searchlog),
+			minmatch:   clamp("minMatch", zstd.CParamMinMatch, reqs.Minmatch),
+			numworkers: clamp("nbWorkers", zstd.CParamNbWorkers, reqs.NumWorkers),
 		}
 	}
 
