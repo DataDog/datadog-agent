@@ -468,8 +468,7 @@ func TestServiceBackoffFailureRecovery(t *testing.T) {
 	// We'll set the default interal to 1 second to make math less hard
 	service.mu.defaultRefreshInterval = 1 * time.Second
 
-	err := service.refresh()
-	assert.Nil(t, err)
+	require.NoError(t, service.refresh())
 
 	// Our recovery interval is 2, so we should step back to the [31,61] range
 	assert.Equal(t, service.mu.backoffErrorCount, 1)
@@ -477,8 +476,16 @@ func TestServiceBackoffFailureRecovery(t *testing.T) {
 	assert.GreaterOrEqual(t, refreshInterval, 31*time.Second)
 	assert.LessOrEqual(t, refreshInterval, 61*time.Second)
 
-	err = service.refresh()
-	assert.Nil(t, err)
+	errCh := make(chan error)
+	go func() { errCh <- service.refresh() }()
+	select {
+	case err := <-errCh:
+		t.Fatal("expected refresh to block", err)
+	case <-time.After(10 * time.Millisecond): // ensure we block
+	}
+	// Advance the clock by 1 second to trigger the next refresh.
+	clock.Add(1 * time.Second)
+	require.NoError(t, <-errCh)
 
 	// After a 2nd success, we'll be back to not having a backoff added.
 	assert.Equal(t, service.mu.backoffErrorCount, 0)
@@ -583,7 +590,7 @@ func TestClientGetConfigsProvidesEmptyResponseForExpiredSignature(t *testing.T) 
 		},
 	}
 	uptaneClient.On("TUFVersionState").Return(uptane.TUFVersions{}, nil)
-	uptaneClient.On("TimestampExpires").Return(time.Now().Add(-1*time.Hour), nil)
+	uptaneClient.On("TimestampExpires").Return(clock.Now().Add(-1*time.Hour), nil)
 	uptaneClient.On("UnsafeTargetsMeta").Return([]byte{}, nil)
 
 	// The key here is that if we've never initialized the TUF repository, we shouldn't be sending any sort of expired message
@@ -737,6 +744,10 @@ func TestService(t *testing.T) {
 		configResponse.ConfigStatus,
 		pbgo.ConfigStatus_CONFIG_STATUS_OK,
 	)
+
+	// Advance the clock by 1 second to ensure we don't block waiting for
+	// the minimum refresh interval.
+	clock.Add(1 * time.Second)
 	err = service.refresh()
 	assert.NoError(t, err)
 
