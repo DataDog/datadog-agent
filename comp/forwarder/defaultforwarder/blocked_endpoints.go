@@ -124,21 +124,12 @@ func (e *blockedEndpoints) close(endpoint string, timeNow time.Time) {
 	}
 
 	switch b.state {
-	case unblocked:
-		// The circuit breaker is unblocked, we need to block for a time determined by the
-		// backoff policy.
-		if b.state == unblocked {
-			b.nbError = e.backoffPolicy.IncError(b.nbError)
-			b.until = timeNow.Add(e.getBackoffDuration(b.nbError))
-			b.setState(blocked)
-		}
-	case halfBlocked:
-		// The test transaction failed, so we need to mave back to blocked.
-		if b.state == halfBlocked {
-			b.nbError = e.backoffPolicy.IncError(b.nbError)
-			b.until = timeNow.Add(e.getBackoffDuration(b.nbError))
-			b.setState(blocked)
-		}
+	case unblocked, halfBlocked:
+		// If unblocked, this is the first error encountered, if half blocked it means
+		// the test transaction failed. In both cases, we need to block for a time.
+		b.nbError = e.backoffPolicy.IncError(b.nbError)
+		b.until = timeNow.Add(e.getBackoffDuration(b.nbError))
+		b.setState(blocked)
 	case blocked:
 		// We ignore all failures coming in when blocked. These are transactions sent
 		// before the first one returned with an error.
