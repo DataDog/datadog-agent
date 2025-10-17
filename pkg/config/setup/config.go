@@ -341,7 +341,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("use_diskv2_check", true)
 	config.BindEnvAndSetDefault("disk_check.use_core_loader", true)
 
-	// the darwin network and check has not been ported from python
+	// the darwin and bsd network check has not been ported from python
 	if runtime.GOOS == "linux" || runtime.GOOS == "windows" {
 		// If true, then new version of network v2 check will be used.
 		// Otherwise, the python version of network check will be used.

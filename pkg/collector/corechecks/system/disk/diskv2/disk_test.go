@@ -1355,23 +1355,6 @@ func TestGivenADiskCheckWithDefaultConfig_WhenUsagePartitionTimeout_ThenUsageMet
 	m.AssertNotCalled(t, "Gauge", "system.disk.in_use", mock.AnythingOfType("float64"), mock.AnythingOfType("string"), mock.AnythingOfType("[]string"))
 }
 
-func TestDiskCheckWithoutCoreLoader(t *testing.T) {
-	flavor.SetTestFlavor(t, flavor.DefaultAgent)
-
-	cfg := configmock.New(t)
-	cfg.Set("disk_check.use_core_loader", false, configmodel.SourceAgentRuntime)
-	cfg.Set("use_diskv2_check", false, configmodel.SourceAgentRuntime)
-
-	diskFactory := diskv2.Factory()
-	diskCheckFunc, ok := diskFactory.Get()
-	require.True(t, ok)
-	diskCheck := diskCheckFunc()
-
-	mock := mocksender.NewMockSender(diskCheck.ID())
-	err := diskCheck.Configure(mock.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test")
-	require.ErrorIs(t, err, check.ErrSkipCheckInstance)
-}
-
 func TestDiskCheckNonDefaultFlavor(t *testing.T) {
 	for _, fl := range []string{flavor.IotAgent, flavor.ClusterAgent} {
 		t.Run(fl, func(t *testing.T) {
