@@ -200,7 +200,11 @@ func installAPMPackages(s *common.Setup) {
 	// Injector install
 	_, apmInstrumentationEnabled := os.LookupEnv("DD_APM_INSTRUMENTATION_ENABLED")
 	if apmInstrumentationEnabled {
-		s.Packages.Install(common.DatadogAPMInjectPackage, defaultInjectorVersion)
+		if runtime.GOOS != "windows" {
+			s.Packages.Install(common.DatadogAPMInjectPackage, defaultInjectorVersion)
+		}
+		// the "host" options will be added to windows
+		// this will then install the IIS agent package
 	}
 
 	// Libraries install
