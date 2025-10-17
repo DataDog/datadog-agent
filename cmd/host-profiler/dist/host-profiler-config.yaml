@@ -1,8 +1,5 @@
 extensions:
-  ddprofiling/default: 
-    api:
-      key: ${env:DD_API_KEY}
-      site: ${env:DD_SITE}
+  ddprofiling/default:
 receivers:
   hostprofiler:
 processors:
@@ -17,7 +14,7 @@ exporters:
     profiles_endpoint: https://intake.profile.datad0g.com/api/v2/profotlp
 service:
   # ddprofiling/default is automatically removed when the Agent Core is not available  
-  extensions: [ddprofiling/default]
+  # extensions: [ddprofiling/default]
   pipelines:
     profiles:
       receivers: [hostprofiler]
