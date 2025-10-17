@@ -79,7 +79,7 @@ func transform(lr plog.LogRecord, host, service string, res pcommon.Resource, sc
 	if service != "" {
 		l.Service = datadog.PtrString(service)
 	}
-
+	//run
 	// we need to set log attributes as AdditionalProperties
 	// AdditionalProperties are treated as Datadog Log Attributes
 	var status string
