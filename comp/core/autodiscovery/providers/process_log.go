@@ -26,6 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	taggertypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/discovery"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -45,6 +46,7 @@ type serviceLogRef struct {
 type processLogConfigProvider struct {
 	workloadmetaStore       workloadmeta.Component
 	tagger                  tagger.Component
+	logsFilters             workloadfilter.FilterBundle
 	serviceLogRefs          map[string]*serviceLogRef
 	pidToServiceIDs         map[int32][]string
 	unreadableFilesCache    *simplelru.LRU[string, struct{}]
@@ -141,7 +143,7 @@ func discoverIntegrationSources() map[string]bool {
 }
 
 // NewProcessLogConfigProvider returns a new ConfigProvider subscribed to process events
-func NewProcessLogConfigProvider(_ *pkgconfigsetup.ConfigurationProviders, wmeta workloadmeta.Component, tagger tagger.Component, _ *telemetry.Store) (types.ConfigProvider, error) {
+func NewProcessLogConfigProvider(_ *pkgconfigsetup.ConfigurationProviders, wmeta workloadmeta.Component, tagger tagger.Component, filter workloadfilter.Component, _ *telemetry.Store) (types.ConfigProvider, error) {
 	cache, err := simplelru.NewLRU[string, struct{}](128, nil)
 	if err != nil {
 		return nil, err
@@ -150,9 +152,15 @@ func NewProcessLogConfigProvider(_ *pkgconfigsetup.ConfigurationProviders, wmeta
 	// Discover available integration sources
 	validSources := discoverIntegrationSources()
 
+	var logsFilters workloadfilter.FilterBundle
+	if filter != nil {
+		logsFilters = filter.GetProcessFilters([][]workloadfilter.ProcessFilter{{workloadfilter.ProcessCELLogs}})
+	}
+
 	return &processLogConfigProvider{
 		workloadmetaStore:       wmeta,
 		tagger:                  tagger,
+		logsFilters:             logsFilters,
 		serviceLogRefs:          make(map[string]*serviceLogRef),
 		pidToServiceIDs:         make(map[int32][]string),
 		unreadableFilesCache:    cache,
@@ -310,6 +318,14 @@ func (p *processLogConfigProvider) processEventsInner(evBundle workloadmeta.Even
 			if p.excludeAgent && isAgentProcess(process) {
 				log.Debugf("Excluding agent process %d (comm=%s) from process log collection", process.Pid, process.Comm)
 				continue
+			}
+
+			if p.logsFilters != nil {
+				filterProcess := workloadfilter.CreateProcess(process.Name, process.Cmdline)
+				if p.logsFilters.IsExcluded(filterProcess) {
+					log.Debugf("Process %d (name=%s) excluded from logs by CEL filter", process.Pid, process.Name)
+					continue
+				}
 			}
 
 			// The set of logs monitored by this service may change, so we need

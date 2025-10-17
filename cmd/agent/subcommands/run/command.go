@@ -461,11 +461,11 @@ func getSharedFxOption() fx.Option {
 		// Workloadmeta component needs to be initialized before this hook is executed, and thus is included
 		// in the function args to order the execution. This pattern might be worth revising because it is
 		// error prone.
-		fx.Invoke(func(lc fx.Lifecycle, wmeta workloadmeta.Component, tagger tagger.Component, ac autodiscovery.Component, secretResolver secrets.Component) {
+		fx.Invoke(func(lc fx.Lifecycle, wmeta workloadmeta.Component, tagger tagger.Component, filterStore workloadfilter.Component, ac autodiscovery.Component, secretResolver secrets.Component) {
 			lc.Append(fx.Hook{
 				OnStart: func(_ context.Context) error {
 					//  setup the AutoConfig instance
-					common.LoadComponents(secretResolver, wmeta, tagger, ac, pkgconfigsetup.Datadog().GetString("confd_path"))
+					common.LoadComponents(secretResolver, wmeta, tagger, filterStore, ac, pkgconfigsetup.Datadog().GetString("confd_path"))
 					return nil
 				},
 			})
