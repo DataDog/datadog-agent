@@ -1,0 +1,26 @@
+---
+version: "3.9"
+
+services:
+
+  redis:
+    image: ghcr.io/datadog/redis:{APPS_VERSION}
+    container_name: redis
+    command:
+      - --loglevel
+      - verbose
+    ports:
+      - 6379:6379
+
+  redis-query:
+    image: ghcr.io/datadog/apps-redis-client:{APPS_VERSION}
+    container_name: redis-query
+    command:
+      - -min-tps
+      - '1'
+      - -max-tps
+      - '60'
+      - -period
+      - 20m
+    depends_on:
+      - redis
