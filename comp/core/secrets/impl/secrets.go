@@ -624,27 +624,23 @@ func (r *secretResolver) processSecretResponse(secretResponse map[string]string,
 }
 
 // Refresh the secrets after they have been Resolved by fetching them from the backend again.
-// If bypassRateLimit is false, the refresh will be throttled based on RefreshMinInterval config.
-// If bypassRateLimit is true, the refresh will always execute.
+// bypassRateLimit is used for API Key refresh on 403 errors.
 func (r *secretResolver) Refresh(bypassRateLimit bool) (string, error) {
-	// Handle rate limiting if not bypassed
+
 	if !bypassRateLimit {
-		// Check if feature is enabled (refreshMinInterval > 0)
+		// check if api key refresh on 403 is enabled
 		if r.refreshMinInterval == 0 {
-			log.Debug("Throttled secret refresh disabled (secret_refresh_min_interval is 0), skipping refresh")
 			return "", nil
 		}
 
+		// lock to prevent multiple refreshes at the same time
 		r.throttledRefreshMutex.Lock()
-		timeSinceLastRefresh := time.Since(r.lastThrottledRefresh)
-		if timeSinceLastRefresh < r.refreshMinInterval {
-			remaining := r.refreshMinInterval - timeSinceLastRefresh
-			log.Debugf("Secret refresh throttled, %v remaining until next allowed refresh", remaining)
-			r.throttledRefreshMutex.Unlock()
+		defer r.throttledRefreshMutex.Unlock()
+		// throttle if last refresh was less than refreshMinInterval ago
+		if time.Since(r.lastThrottledRefresh) < r.refreshMinInterval {
 			return "", nil
 		}
 		r.lastThrottledRefresh = time.Now()
-		r.throttledRefreshMutex.Unlock()
 	}
 
 	r.lock.Lock()
