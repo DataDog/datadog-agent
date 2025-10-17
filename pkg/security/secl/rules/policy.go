@@ -53,11 +53,11 @@ type PolicyRule struct {
 	Accepted bool
 	Error    error
 	// FilterType is used to keep track of the type of filter that caused the rule to be filtered out
-	FilterType         FilterType
-	Policy             PolicyInfo
-	ModifiedBy         []PolicyInfo
-	UsedBy             []PolicyInfo
-	EnableDisableCount int // tracks the number of times the rule was enabled/disabled
+	FilterType  FilterType
+	Policy      PolicyInfo
+	ModifiedBy  []PolicyInfo
+	UsedBy      []PolicyInfo
+	EnableCount int // tracks the number of times the rule was enabled/disabled.It is only updated when merging conflicting rules.
 
 }
 
@@ -153,9 +153,9 @@ func applyOverride(rd1, rd2 *PolicyRule) {
 func (r *PolicyRule) MergeWith(r2 *PolicyRule) {
 
 	if r2.Def.Disabled {
-		r.EnableDisableCount--
+		r.EnableCount--
 	} else {
-		r.EnableDisableCount++
+		r.EnableCount++
 	}
 
 	switch r2.Def.Combine {
@@ -174,7 +174,7 @@ func (r *PolicyRule) MergeWith(r2 *PolicyRule) {
 		r.Policy = r2.Policy
 	} else {
 		if r.Policy.Type == DefaultPolicyType && r2.Policy.Type == CustomPolicyType {
-			if !r2.Def.Disabled || (r2.Def.Disabled && r.EnableDisableCount < 0) {
+			if !r2.Def.Disabled || (r2.Def.Disabled && r.EnableCount < 0) {
 				r.Def.Disabled = r2.Def.Disabled
 				r.Policy = r2.Policy
 			}
