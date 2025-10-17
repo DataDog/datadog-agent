@@ -1,14 +1,17 @@
+load("//bazel/rules/compliance:license_csv.bzl", "license_csv")
+
 # Do not depend on this.
 # This is a temporary target to make it easy to force build dependencies
 # before they are used by other targets.
 filegroup(
-    name = "smoketest",
+    name = "all_deps",
     srcs = [
         "@bzip2",
         "@bzip2//:bz2",
         "@libffi//:ffi",
         "@libyaml",
         "@lua//:liblua",
+        "@patchelf",
         "@sqlite3",
         "@xz//:lzma",
         "@zlib//:libz_so",
@@ -22,4 +25,11 @@ filegroup(
         "//conditions:default": [],
     }),
     visibility = ["//visibility:private"],
+)
+
+# Gather the licenses for dependencies that not built by omnibus any more.
+license_csv(
+    name = "licenses",
+    out = "licenses.csv",
+    target = ":all_deps",
 )
