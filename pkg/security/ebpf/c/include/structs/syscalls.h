@@ -113,6 +113,7 @@ struct syscall_cache_t {
             dev_t device;
             int clone_mnt_ctr;
             int source;
+            u64 ns_inum;
         } mount;
 
         struct {

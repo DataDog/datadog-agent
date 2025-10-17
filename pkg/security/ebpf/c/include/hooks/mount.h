@@ -149,6 +149,7 @@ void __attribute__((always_inline)) fill_mount_fields(struct syscall_cache_t *sy
     mfields->mountpoint_key = syscall->mount.mountpoint_key;
     mfields->device = syscall->mount.device;
     mfields->bind_src_mount_id = syscall->mount.bind_src_mount_id;
+    mfields->ns_inum = syscall->mount.ns_inum;
     bpf_probe_read_str(&mfields->fstype, sizeof(mfields->fstype), (void *)syscall->mount.fstype);
 }
 
@@ -314,6 +315,7 @@ int hook_mnt_change_mountpoint(ctx_t *ctx)
          return 0;
      }
 
+     syscall->mount.ns_inum = get_mount_mount_ns_inum(newmnt);
      syscall->mount.newmnt = newmnt;
      syscall->mount.parent = (struct mount *)CTX_PARM1(ctx);
      struct mountpoint *mp = (struct mountpoint *)CTX_PARM2(ctx);
@@ -337,9 +339,10 @@ int hook_attach_mnt(ctx_t *ctx) {
         return 0;
     }
 
-    syscall->mount.newmnt = newmnt;
-    syscall->mount.parent = (struct mount *)CTX_PARM2(ctx);
-    struct mountpoint *mp = (struct mountpoint *)CTX_PARM3(ctx);
+    syscall->mount.ns_inum = get_mount_mount_ns_inum(newmnt);
+    syscall->mount.newmnt  = newmnt;
+    syscall->mount.parent  = (struct mount *)CTX_PARM2(ctx);
+    struct mountpoint *mp  = (struct mountpoint *)CTX_PARM3(ctx);
     syscall->mount.mountpoint_dentry = get_mountpoint_dentry(mp);
 
     handle_new_mount(ctx, syscall, KPROBE_OR_FENTRY_TYPE, false);
@@ -360,8 +363,9 @@ int hook___attach_mnt(ctx_t *ctx) {
         return 0;
     }
 
-    syscall->mount.newmnt = newmnt;
-    syscall->mount.parent = (struct mount *)CTX_PARM2(ctx);
+    syscall->mount.ns_inum = get_mount_mount_ns_inum(newmnt);
+    syscall->mount.newmnt  = newmnt;
+    syscall->mount.parent  = (struct mount *)CTX_PARM2(ctx);
     syscall->mount.mountpoint_dentry = get_mount_mountpoint_dentry(newmnt);
 
     handle_new_mount(ctx, syscall, KPROBE_OR_FENTRY_TYPE, false);
@@ -382,9 +386,11 @@ int hook_mnt_set_mountpoint(ctx_t *ctx) {
         return 0;
     }
 
-    syscall->mount.newmnt = newmnt;
-    syscall->mount.parent = (struct mount *)CTX_PARM1(ctx);
-    struct mountpoint *mp = (struct mountpoint *)CTX_PARM2(ctx);
+    syscall->mount.ns_inum = get_mount_mount_ns_inum(newmnt);
+
+    syscall->mount.newmnt  = newmnt;
+    syscall->mount.parent  = (struct mount *)CTX_PARM1(ctx);
+    struct mountpoint *mp  = (struct mountpoint *)CTX_PARM2(ctx);
     syscall->mount.mountpoint_dentry = get_mountpoint_dentry(mp);
 
     handle_new_mount(ctx, syscall, KPROBE_OR_FENTRY_TYPE, false);
@@ -404,6 +410,8 @@ int hook_clone_mnt(ctx_t *ctx) {
     }
 
     struct mount *bind_src_mnt = (struct mount *)CTX_PARM1(ctx);
+    syscall->mount.ns_inum = get_mount_mount_ns_inum(bind_src_mnt);
+
     int mount_id = get_mount_mount_id(bind_src_mnt);
     syscall->mount.bind_src_mount_id = mount_id;
     syscall->mount.clone_mnt_ctr++;
@@ -424,6 +432,8 @@ int rethook_clone_mnt(ctx_t *ctx) {
     }
 
     struct mount *ret = (struct mount *)CTX_PARMRET(ctx);
+    syscall->mount.ns_inum = get_mount_mount_ns_inum(ret);
+
     syscall->mount.newmnt = ret;
     handle_new_mount(ctx, syscall, KPROBE_OR_FENTRY_TYPE, true);
     return 0;
@@ -446,6 +456,8 @@ int hook_attach_recursive_mnt(ctx_t *ctx) {
     syscall->mount.newmnt = newmnt;
     syscall->mount.parent = (struct mount *)CTX_PARM2(ctx);
     struct mountpoint *mp = (struct mountpoint *)CTX_PARM3(ctx);
+    struct mount *topmnt = (struct mount *)CTX_PARM2(ctx);
+    syscall->mount.ns_inum = get_mount_mount_ns_inum(topmnt);
     syscall->mount.mountpoint_dentry = get_mountpoint_dentry(mp);
 
     if (syscall->type != EVENT_MOUNT) {
@@ -466,6 +478,8 @@ int hook_propagate_mnt(ctx_t *ctx) {
     if (syscall->mount.newmnt == newmnt) {
         return 0;
     }
+
+    syscall->mount.ns_inum = get_mount_mount_ns_inum(newmnt);
 
     syscall->mount.newmnt = newmnt;
     syscall->mount.parent = (struct mount *)CTX_PARM1(ctx);
