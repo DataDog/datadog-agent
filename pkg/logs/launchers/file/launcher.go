@@ -262,6 +262,11 @@ func (s *Launcher) resolveActiveTailers(files []*tailer.File) {
 	s.flarecontroller.SetAllFiles(allFiles)
 
 	for _, tailer := range s.tailers.All() {
+		if s.isRotatedTailer(tailer) {
+			log.Debugf("Tailer %s is draining a rotated file; skipping stop", tailer.GetID())
+			continue
+		}
+
 		// stop all tailers which have not been selected
 		_, shouldTail := filesTailed[tailer.GetID()]
 		if !shouldTail {
@@ -301,7 +306,8 @@ func (s *Launcher) resolveActiveTailers(files []*tailer.File) {
 		}
 
 		if hasOldInfo {
-			if s.startNewTailerWithStoredInfo(file, config.Beginning, oldInfo, fingerprint) {
+			if s.startNewTailerWithStoredInfo(file, config.ForceBeginning, oldInfo, fingerprint) {
+				// hasOldInfo is true when restarting a tailer after a file rotation, so start tailer from the beginning
 				filesTailed[scanKey] = true
 			}
 		} else {
@@ -311,7 +317,7 @@ func (s *Launcher) resolveActiveTailers(files []*tailer.File) {
 			}
 		}
 	}
-	log.Debugf("After starting new tailers, there are %d tailers running. Limit is %d.\n", tailersLen, s.tailingLimit)
+	log.Debugf("After starting new tailers, there are %d tailers running. Limit is %d.\n", s.tailers.Count(), s.tailingLimit)
 
 	// Check how many file handles the Agent process has open and log a warning if the process is coming close to the OS file limit
 	fileStats, err := procfilestats.GetProcessFileStats()
@@ -329,6 +335,15 @@ func (s *Launcher) cleanUpRotatedTailers() {
 		}
 	}
 	s.rotatedTailers = pendingTailers
+}
+
+func (s *Launcher) isRotatedTailer(candidate *tailer.Tailer) bool {
+	for _, rotated := range s.rotatedTailers {
+		if rotated == candidate {
+			return true
+		}
+	}
+	return false
 }
 
 // addSource keeps track of the new source and launch new tailers for this source.
@@ -524,6 +539,9 @@ func (s *Launcher) rotateTailerWithoutRestart(oldTailer *tailer.Tailer, file *ta
 	log.Info("Log rotation happened to ", file.Path)
 	oldTailer.StopAfterFileRotation()
 
+	// Remove the draining tailer from the active map; it will keep draining via rotatedTailers.
+	s.tailers.Remove(oldTailer)
+
 	oldRegexPattern := oldTailer.GetDetectedPattern()
 	oldInfoRegistry := oldTailer.GetInfo()
 
@@ -533,7 +551,7 @@ func (s *Launcher) rotateTailerWithoutRestart(oldTailer *tailer.Tailer, file *ta
 			InfoRegistry: oldInfoRegistry,
 			Pattern:      oldRegexPattern,
 		}
-		s.oldInfoMap[file.Path] = regexAndRegistry
+		s.oldInfoMap[file.GetScanKey()] = regexAndRegistry
 	}
 
 	s.rotatedTailers = append(s.rotatedTailers, oldTailer)
@@ -546,6 +564,10 @@ func (s *Launcher) rotateTailerWithoutRestart(oldTailer *tailer.Tailer, file *ta
 func (s *Launcher) restartTailerAfterFileRotation(oldTailer *tailer.Tailer, file *tailer.File) bool {
 	log.Info("Log rotation happened to ", file.Path)
 	oldTailer.StopAfterFileRotation()
+
+	// Remove the rotated tailer from the active container so a fresh tailer can
+	// be created for the new file while this one finishes draining the old file.
+	s.tailers.Remove(oldTailer)
 
 	oldRegexPattern := oldTailer.GetDetectedPattern()
 
