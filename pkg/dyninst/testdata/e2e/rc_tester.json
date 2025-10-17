@@ -34,7 +34,8 @@
       }
     },
     "timestamp": "[ts]",
-    "duration": "[duration]"
+    "duration": "[duration]",
+    "message": "test log message"
   },
   {
     "service": "rc_tester",
@@ -233,7 +234,8 @@
       }
     },
     "timestamp": "[ts]",
-    "duration": "[duration]"
+    "duration": "[duration]",
+    "message": "test log message"
   },
   {
     "service": "rc_tester",
@@ -270,7 +272,8 @@
       }
     },
     "timestamp": "[ts]",
-    "duration": "[duration]"
+    "duration": "[duration]",
+    "message": "test log message"
   },
   {
     "service": "rc_tester",
@@ -469,7 +472,8 @@
       }
     },
     "timestamp": "[ts]",
-    "duration": "[duration]"
+    "duration": "[duration]",
+    "message": "test log message"
   },
   {
     "service": "rc_tester",
@@ -506,7 +510,8 @@
       }
     },
     "timestamp": "[ts]",
-    "duration": "[duration]"
+    "duration": "[duration]",
+    "message": "test log message"
   },
   {
     "service": "rc_tester",
@@ -705,6 +710,7 @@
       }
     },
     "timestamp": "[ts]",
-    "duration": "[duration]"
+    "duration": "[duration]",
+    "message": "test log message"
   }
 ]

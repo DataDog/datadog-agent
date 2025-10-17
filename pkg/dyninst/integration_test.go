@@ -299,9 +299,8 @@ func runIntegrationTestSuite(
 	}
 	if rewrite {
 		t.Cleanup(func() {
-			if t.Failed() {
-				return
-			}
+			// Always save outputs in rewrite mode, even if test failed
+			// This allows updating golden files when the format changes
 			validateAndSaveOutputs(t, service, outputs.byTest)
 		})
 	}

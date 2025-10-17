@@ -521,6 +521,7 @@
         }
       }
     },
-    "timestamp": "[ts]"
+    "timestamp": "[ts]",
+    "message": "<map[[4]int][4]int>"
   }
 ]

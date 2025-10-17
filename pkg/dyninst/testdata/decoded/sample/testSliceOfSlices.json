@@ -103,6 +103,7 @@
         }
       }
     },
-    "timestamp": "[ts]"
+    "timestamp": "[ts]",
+    "message": "[][]uint{[]uint{4}, []uint{5, 6}, []uint{7, 8, 9}}"
   }
 ]

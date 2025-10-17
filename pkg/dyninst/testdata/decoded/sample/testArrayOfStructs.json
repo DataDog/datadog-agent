@@ -87,6 +87,7 @@
         }
       }
     },
-    "timestamp": "[ts]"
+    "timestamp": "[ts]",
+    "message": "[2]main.nestedStruct{main.nestedStruct{ anotherInt = 42 anotherString = foo }, main.nestedStruct{ anotherInt = 24 anotherString = bar }}"
   }
 ]

@@ -113,6 +113,7 @@
         }
       }
     },
-    "timestamp": "[ts]"
+    "timestamp": "[ts]",
+    "message": "[2]map[string]int{<map[string]int>, <map[string]int>}"
   }
 ]

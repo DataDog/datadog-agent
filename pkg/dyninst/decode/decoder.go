@@ -218,6 +218,7 @@ type snapshotMessage struct {
 	Debugger  debuggerData     `json:"debugger"`
 	Timestamp int              `json:"timestamp"`
 	Duration  uint64           `json:"duration,omitzero"`
+	Message   message          `json:"message"`
 }
 
 func (s *snapshotMessage) init(
@@ -237,7 +238,7 @@ func (s *snapshotMessage) init(
 		return nil, fmt.Errorf("entry event is nil")
 	}
 	if err := decoder.entry.init(
-		event.EntryOrLine, decoder.program.Types, &s.Debugger.EvaluationErrors,
+		event.EntryOrLine, ir.EventKindEntry, decoder.program.Types, &s.Debugger.EvaluationErrors,
 	); err != nil {
 		return nil, err
 	}
@@ -258,7 +259,7 @@ func (s *snapshotMessage) init(
 	var returnHeader *output.EventHeader
 	if event.Return != nil {
 		if err := decoder._return.init(
-			event.Return, decoder.program.Types, &s.Debugger.EvaluationErrors,
+			event.Return, ir.EventKindReturn, decoder.program.Types, &s.Debugger.EvaluationErrors,
 		); err != nil {
 			return nil, fmt.Errorf("error initializing return event: %w", err)
 		}
@@ -324,11 +325,22 @@ func (s *snapshotMessage) init(
 			probe.GetID(), where,
 		)
 	}
-
 	s.Logger.Version = probe.GetVersion()
 	s.Logger.ThreadID = int(header.Goid)
 	s.Debugger.Snapshot.Probe.ID = probe.GetID()
 	s.Debugger.Snapshot.Stack.frames = stackFrames
+
+	s.Message = message{
+		probe:            probe,
+		captureMap:       make(map[ir.TypeID]*captureEvent),
+		evaluationErrors: &s.Debugger.EvaluationErrors,
+	}
+
+	s.Message.captureMap[decoder.entry.rootType.ID] = &decoder.entry
+	if event.Return != nil {
+		s.Message.captureMap[decoder._return.rootType.ID] = &decoder._return
+	}
+
 	return probe, nil
 }
 

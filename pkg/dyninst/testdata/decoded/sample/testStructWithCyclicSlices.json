@@ -472,6 +472,7 @@
         }
       }
     },
-    "timestamp": "[ts]"
+    "timestamp": "[ts]",
+    "message": "main.structWithCyclicSlices{ s1 = []main.structWithCyclicSlices{main.structWithCyclicSlices{ s1 = s1 = <error: slice address or length is 0> s2 = s2 = <error: slice address or length is 0> s3 = s3 = <error: slice address or length is 0> s4 = s4 = <error: slice address or length is 0> s5 = s5 = <error: slice address or length is 0> s6 = s6 = <error: slice address or length is 0> }} s2 = [][]main.structWithCyclicSlices{s2 = <error: error extracting raw value for slice element 0: slice address or length is 0> s3 = [][][]main.structWithCyclicSlices{s3 = <error: error extracting raw value for slice element 0: slice address or length is 0> s4 = [][][][]main.structWithCyclicSlices{s4 = <error: error extracting raw value for slice element 0: slice address or length is 0> s5 = [][][][][]main.structWithCyclicSlices{s5 = <error: error extracting raw value for slice element 0: slice address or length is 0> s6 = [][][][][][]main.structWithCyclicSlices{s6 = <error: error extracting raw value for slice element 0: slice address or length is 0> }"
   }
 ]

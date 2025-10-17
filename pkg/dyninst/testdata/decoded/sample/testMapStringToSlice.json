@@ -101,6 +101,7 @@
         }
       }
     },
-    "timestamp": "[ts]"
+    "timestamp": "[ts]",
+    "message": "<map[string][]string>"
   }
 ]

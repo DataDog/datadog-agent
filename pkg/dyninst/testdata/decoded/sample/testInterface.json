@@ -69,7 +69,8 @@
         }
       }
     },
-    "timestamp": "[ts]"
+    "timestamp": "[ts]",
+    "message": "<main.behavior>"
   },
   {
     "service": "sample",
@@ -142,7 +143,8 @@
         }
       }
     },
-    "timestamp": "[ts]"
+    "timestamp": "[ts]",
+    "message": "<main.behavior>"
   },
   {
     "service": "sample",
@@ -214,7 +216,8 @@
         }
       }
     },
-    "timestamp": "[ts]"
+    "timestamp": "[ts]",
+    "message": "<main.behavior>"
   },
   {
     "service": "sample",
@@ -287,7 +290,8 @@
         }
       }
     },
-    "timestamp": "[ts]"
+    "timestamp": "[ts]",
+    "message": "<main.behavior>"
   },
   {
     "service": "sample",
@@ -354,7 +358,8 @@
         }
       }
     },
-    "timestamp": "[ts]"
+    "timestamp": "[ts]",
+    "message": "<main.behavior>"
   },
   {
     "service": "sample",
@@ -420,6 +425,7 @@
         }
       }
     },
-    "timestamp": "[ts]"
+    "timestamp": "[ts]",
+    "message": "<main.behavior>"
   }
 ]

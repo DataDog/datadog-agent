@@ -69,6 +69,7 @@
         }
       }
     },
-    "timestamp": "[ts]"
+    "timestamp": "[ts]",
+    "message": "[2]int16{1, 2}"
   }
 ]

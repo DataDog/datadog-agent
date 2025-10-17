@@ -89,6 +89,7 @@
         }
       }
     },
-    "timestamp": "[ts]"
+    "timestamp": "[ts]",
+    "message": "[2][2]int{[2]int{1, 2}, [2]int{3, 4}}"
   }
 ]

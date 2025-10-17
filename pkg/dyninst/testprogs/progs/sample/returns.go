@@ -105,6 +105,14 @@ func testSomeNamedReturn(i int) (_ int, result2 int, _ int) {
 	return i * 10, i * 20, i * 30
 }
 
+//go:noinline
+func testNamedReturnAndChangesToParams(i int) (j int) {
+	i += 55
+	q := i * 2
+	j = q + 1
+	return j
+}
+
 // Primitive types - exercise all basic types.
 //
 //go:noinline
@@ -427,4 +435,5 @@ func executeReturns() {
 	testMultipleArrayArgs([2]int{51, 52}, [3]int{63, 64, 65})
 	testStructWithArrayArg(structWithArray{arr: [2]int{71, 72}, x: 73})
 	testZeroSizeArgAndReturn([0]int{}, 82)
+	testNamedReturnAndChangesToParams(1)
 }

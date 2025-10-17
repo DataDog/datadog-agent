@@ -70,6 +70,7 @@
         }
       }
     },
-    "timestamp": "[ts]"
+    "timestamp": "[ts]",
+    "message": "0x[addr]"
   }
 ]

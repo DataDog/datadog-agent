@@ -76,6 +76,7 @@
         }
       }
     },
-    "timestamp": "[ts]"
+    "timestamp": "[ts]",
+    "message": "main.structWithMap{ m = <map[int]int> }"
   }
 ]

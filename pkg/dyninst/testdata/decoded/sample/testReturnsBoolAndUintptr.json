@@ -56,7 +56,7 @@
               },
               "~r1": {
                 "type": "uintptr",
-                "value": "0x1234"
+                "value": "4660"
               }
             }
           }
@@ -64,6 +64,7 @@
       }
     },
     "timestamp": "[ts]",
-    "duration": "[duration]"
+    "duration": "[duration]",
+    "message": "testReturnsBoolAndUintptr"
   }
 ]
