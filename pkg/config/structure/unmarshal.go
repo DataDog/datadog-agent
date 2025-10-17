@@ -226,6 +226,14 @@ func unmarshalKeyReflection(cfg model.Reader, key string, target interface{}, op
 			thing := leaf.Get()
 			if arr, ok := thing.([]interface{}); ok {
 				return copyList(outValue, makeNodeArray(arr), rootPath, fs)
+			} else if reflect.TypeOf(thing).Kind() == reflect.Slice {
+				// if thing is not a slice of interface{} but of something else we convert it.
+				s := reflect.ValueOf(thing)
+				arr := make([]interface{}, s.Len())
+				for i := 0; i < s.Len(); i++ {
+					arr[i] = s.Index(i).Interface()
+				}
+				return copyList(outValue, makeNodeArray(arr), rootPath, fs)
 			}
 		}
 		if isEmptyString(inputNode) {
