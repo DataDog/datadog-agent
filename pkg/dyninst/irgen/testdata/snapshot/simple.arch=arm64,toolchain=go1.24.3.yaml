@@ -270,8 +270,7 @@ Subprograms:
           Locations:
             - Range: 0xb52a0..0xb52c0
               Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
-          IsParameter: true
-          IsReturn: false
+          Role: Parameter
     - ID: 2
       Name: main.stringArg
       OutOfLinePCRanges: [0xb5310..0xb5390]
@@ -286,8 +285,7 @@ Subprograms:
                   Op: {RegNo: 0, Shift: 0}
                 - Size: 8
                   Op: {RegNo: 1, Shift: 0}
-          IsParameter: true
-          IsReturn: false
+          Role: Parameter
     - ID: 3
       Name: main.intSliceArg
       OutOfLinePCRanges: [0xb5390..0xb5410]
@@ -304,8 +302,7 @@ Subprograms:
                   Op: {RegNo: 1, Shift: 0}
                 - Size: 8
                   Op: {RegNo: 2, Shift: 0}
-          IsParameter: true
-          IsReturn: false
+          Role: Parameter
     - ID: 4
       Name: main.intArrayArg
       OutOfLinePCRanges: [0xb5410..0xb5490]
@@ -316,8 +313,7 @@ Subprograms:
           Locations:
             - Range: 0xb5410..0xb5490
               Pieces: [{Size: 24, Op: {CfaOffset: 8}}]
-          IsParameter: true
-          IsReturn: false
+          Role: Parameter
     - ID: 5
       Name: main.stringSliceArg
       OutOfLinePCRanges: [0xb5490..0xb5510]
@@ -334,8 +330,7 @@ Subprograms:
                   Op: {RegNo: 1, Shift: 0}
                 - Size: 8
                   Op: {RegNo: 2, Shift: 0}
-          IsParameter: true
-          IsReturn: false
+          Role: Parameter
     - ID: 6
       Name: main.stringArrayArg
       OutOfLinePCRanges: [0xb5510..0xb5590]
@@ -346,8 +341,7 @@ Subprograms:
           Locations:
             - Range: 0xb5510..0xb5590
               Pieces: [{Size: 48, Op: {CfaOffset: 8}}]
-          IsParameter: true
-          IsReturn: false
+          Role: Parameter
     - ID: 7
       Name: main.stringArrayArgFrameless
       OutOfLinePCRanges: [0xb5590..0xb55a0]
@@ -358,8 +352,7 @@ Subprograms:
           Locations:
             - Range: 0xb5590..0xb55a0
               Pieces: [{Size: 48, Op: {CfaOffset: 8}}]
-          IsParameter: true
-          IsReturn: false
+          Role: Parameter
     - ID: 8
       Name: main.mapArg
       OutOfLinePCRanges: [0xb5660..0xb56d0]
@@ -370,8 +363,7 @@ Subprograms:
           Locations:
             - Range: 0xb5660..0xb5698
               Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
-          IsParameter: true
-          IsReturn: false
+          Role: Parameter
     - ID: 9
       Name: main.bigMapArg
       OutOfLinePCRanges: [0xb56d0..0xb5790]
@@ -384,8 +376,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
             - Range: 0xb5708..0xb5790
               Pieces: [{Size: 8, Op: {CfaOffset: 8}}]
-          IsParameter: true
-          IsReturn: false
+          Role: Parameter
     - ID: 10
       Name: main.noArgs
       OutOfLinePCRanges: [0xb5790..0xb5800]
@@ -405,8 +396,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
             - Range: 0xb59a1..0xb59c0
               Pieces: []
-          IsParameter: true
-          IsReturn: true
+          Role: Return
     - ID: 12
       Name: main.inlined
       OutOfLinePCRanges: [0xb55a0..0xb5610]
@@ -421,8 +411,7 @@ Subprograms:
               Pieces: []
             - Range: 0xb55a0..0xb55c0
               Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
-          IsParameter: true
-          IsReturn: false
+          Role: Parameter
     - ID: 13
       Name: main.PointerChainArg
       OutOfLinePCRanges: []
@@ -435,8 +424,7 @@ Subprograms:
           Locations:
             - Range: 0xb51e4..0xb522c
               Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
-          IsParameter: true
-          IsReturn: false
+          Role: Parameter
     - ID: 14
       Name: main.PointerSmallChainArg
       OutOfLinePCRanges: []
@@ -449,8 +437,7 @@ Subprograms:
           Locations:
             - Range: 0xb5244..0xb5274
               Pieces: [{Size: 8, Op: {RegNo: 5, Shift: 0}}]
-          IsParameter: true
-          IsReturn: false
+          Role: Parameter
 Types:
     - __kind: PointerType
       ID: 124

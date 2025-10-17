@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
+	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace/idx"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 	"github.com/DataDog/datadog-agent/pkg/trace/testutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
@@ -160,6 +161,13 @@ func (e *MockExtractor) Extract(_ *pb.Span, _ sampler.SamplingPriority) (float64
 	return e.Rate, true
 }
 
+func (e *MockExtractor) ExtractV1(_ *idx.InternalSpan, _ sampler.SamplingPriority) (float64, bool) {
+	if e.Rate < 0 {
+		return 0, false
+	}
+	return e.Rate, true
+}
+
 // MockEventSampler is a mock implementation of the EventSampler interface
 type MockEventSampler struct {
 	Rate float64
@@ -178,6 +186,12 @@ func (s *MockEventSampler) Stop() {
 }
 
 func (s *MockEventSampler) Sample(_ *pb.Span) (bool, float64) {
+	s.SampleCalls++
+
+	return rand.Float64() < s.Rate, s.Rate
+}
+
+func (s *MockEventSampler) SampleV1(_ uint64) (bool, float64) {
 	s.SampleCalls++
 
 	return rand.Float64() < s.Rate, s.Rate
