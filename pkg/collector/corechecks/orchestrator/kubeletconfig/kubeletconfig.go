@@ -107,10 +107,15 @@ func (c *Check) Configure(
 	if err != nil {
 		return err
 	}
-	if !c.config.OrchestrationCollectionEnabled {
-		log.Warn("orchestrator kubelet_config check is configured but the feature is disabled")
-		return nil
+
+	if !c.config.KubeletConfigCheckEnabled {
+		return fmt.Errorf("%w: orchestrator kubelet_config check is disabled", check.ErrSkipCheckInstance)
 	}
+
+	if !c.config.OrchestrationCollectionEnabled {
+		return fmt.Errorf("%w: orchestrator kubelet_config check is enabled but the orchestration collection is disabled", check.ErrSkipCheckInstance)
+	}
+
 	if c.config.KubeClusterName == "" {
 		return errors.New("orchestrator kubelet_config check is configured but the cluster name is empty")
 	}
