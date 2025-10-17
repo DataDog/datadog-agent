@@ -229,7 +229,7 @@ var passthroughPipelineDescs = []passthroughPipelineDesc{
 		category:                      "EUDM",
 		contentType:                   logshttp.JSONContentType,
 		endpointsConfigPrefix:         "software_inventory.forwarder.",
-		hostnameEndpointPrefix:        "event-platform-intake.",
+		hostnameEndpointPrefix:        "softinv-intake.",
 		intakeTrackType:               "softinv",
 		defaultBatchMaxConcurrentSend: pkgconfigsetup.DefaultBatchMaxConcurrentSend,
 		defaultBatchMaxContentSize:    pkgconfigsetup.DefaultBatchMaxContentSize,
