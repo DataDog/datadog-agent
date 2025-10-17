@@ -177,6 +177,7 @@ type CGroupContext struct {
 	CGroupID      containerutils.CGroupID `field:"id,handler:ResolveCGroupID"` // SECLDoc[id] Definition:`ID of the cgroup`
 	CGroupFile    PathKey                 `field:"file"`
 	CGroupVersion int                     `field:"version,handler:ResolveCGroupVersion"` // SECLDoc[version] Definition:`[Experimental] Version of the cgroup API`
+	Tags          []string                `field:"tags,handler:ResolveCGroupTags"`       // SECLDoc[tags] Definition:`Tags of the cgroup`
 }
 
 // Merge two cgroup context

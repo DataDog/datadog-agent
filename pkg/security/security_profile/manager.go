@@ -660,6 +660,8 @@ func (m *Manager) evictUnusedNodes() {
 	m.profilesLock.Lock()
 	defer m.profilesLock.Unlock()
 
+	filepathsInProcessCache := m.GetNodesInProcessCache()
+
 	for selector, profile := range m.profiles {
 		if profile == nil {
 			continue
@@ -670,7 +672,7 @@ func (m *Manager) evictUnusedNodes() {
 			continue
 		}
 
-		evicted := profile.ActivityTree.EvictUnusedNodes(evictionTime)
+		evicted := profile.ActivityTree.EvictUnusedNodes(evictionTime, filepathsInProcessCache, selector.Image, selector.Tag)
 		if evicted > 0 {
 			totalEvicted += evicted
 			seclog.Debugf("evicted %d unused process nodes from profile [%s] ", evicted, selector.String())
@@ -681,4 +683,42 @@ func (m *Manager) evictUnusedNodes() {
 	if totalEvicted > 0 {
 		seclog.Infof("evicted %d total unused process nodes across all profiles", totalEvicted)
 	}
+}
+
+// GetNodesInProcessCache returns a map with ImageProcessKey as key and bool as value for all filepaths in the process cache
+func (m *Manager) GetNodesInProcessCache() map[activity_tree.ImageProcessKey]bool {
+
+	cgr := m.resolvers.CGroupResolver
+	pr := m.resolvers.ProcessResolver
+	result := make(map[activity_tree.ImageProcessKey]bool)
+
+	cgr.Iterate(func(cgce *cgroupModel.CacheEntry) bool {
+		cgceTags := cgce.GetTags()
+		imageName := utils.GetTagValue("image_name", cgceTags)
+		imageTag := utils.GetTagValue("image_tag", cgceTags)
+		if imageTag == "" {
+			imageTag = "latest"
+		}
+
+		key := activity_tree.ImageProcessKey{
+			ImageName: imageName,
+			ImageTag:  imageTag,
+		}
+
+		// Resolve filepaths for each PID
+		for pid := range cgce.PIDs {
+			pce := pr.Resolve(pid, pid, 0, true, nil)
+			if pce == nil {
+				seclog.Errorf("couldn't resolve process cache entry for pid %d", pid)
+				continue
+			}
+
+			key.Filepath = pce.FileEvent.PathnameStr
+			result[key] = true
+		}
+
+		return false
+	})
+
+	return result
 }

@@ -417,6 +417,9 @@ func (m *Manager) onWorkloadSelectorResolvedEvent(workload *tags.Workload) {
 				return
 			}
 
+			// apply the eviction mechanism right away
+			p.ActivityTree.EvictUnusedNodes(time.Now().Add(-m.config.RuntimeSecurity.SecurityProfileNodeEvictionTimeout), m.GetNodesInProcessCache(), selector.Image, selector.Tag)
+
 			// insert the profile in the list of active profiles
 			m.profiles[selector] = p
 		} else {
@@ -439,6 +442,10 @@ func (m *Manager) onWorkloadSelectorResolvedEvent(workload *tags.Workload) {
 				seclog.Warnf("couldn't load profile from local storage: %v", err)
 				return
 			} else if ok {
+
+				// apply the eviction mechanism right away
+				p.ActivityTree.EvictUnusedNodes(time.Now().Add(-m.config.RuntimeSecurity.SecurityProfileNodeEvictionTimeout), m.GetNodesInProcessCache(), selector.Image, selector.Tag)
+
 				err = m.loadProfileMap(p)
 				if err != nil {
 					seclog.Errorf("couldn't load security profile %s in kernel space: %v", p.GetSelectorStr(), err)
