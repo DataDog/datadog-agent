@@ -60,6 +60,14 @@ http_archive(
 )
 
 http_archive(
+    name = "patchelf",
+    build_file = "//deps:patchelf.BUILD.bazel",
+    sha256 = "64de10e4c6b8b8379db7e87f58030f336ea747c0515f381132e810dbf84a86e7",
+    strip_prefix = "patchelf-0.18.0",
+    url = "https://github.com/NixOS/patchelf/releases/download/0.18.0/patchelf-0.18.0.tar.gz",
+)
+
+http_archive(
     name = "nghttp2",
     build_file = "//deps:nghttp2.BUILD.bazel",
     files = {
