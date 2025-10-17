@@ -26,7 +26,6 @@ import (
 
 	"github.com/DataDog/datadog-go/v5/statsd"
 
-	skernel "github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup"
 	cmodel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
@@ -690,50 +689,6 @@ func (mr *Resolver) resolveMount(mountID uint32, device uint32, pid uint32, cont
 	mr.procMissStats.Inc()
 
 	return nil, model.MountSourceUnknown, model.MountOriginUnknown, &ErrMountNotFound{MountID: mountID}
-}
-
-// GetVFSLinkDentryPosition gets VFS link dentry position
-func GetVFSLinkDentryPosition(kernelVersion *skernel.Version) uint64 {
-	position := uint64(2)
-
-	if kernelVersion.Code != 0 && kernelVersion.Code >= skernel.Kernel5_12 {
-		position = 3
-	}
-
-	return position
-}
-
-// GetVFSMKDirDentryPosition gets VFS MKDir dentry position
-func GetVFSMKDirDentryPosition(kernelVersion *skernel.Version) uint64 {
-	position := uint64(2)
-
-	if kernelVersion.Code != 0 && kernelVersion.Code >= skernel.Kernel5_12 {
-		position = 3
-	}
-
-	return position
-}
-
-// GetVFSSetxattrDentryPosition gets VFS set xattr dentry position
-func GetVFSSetxattrDentryPosition(kernelVersion *skernel.Version) uint64 {
-	position := uint64(1)
-
-	if kernelVersion.Code != 0 && kernelVersion.Code >= skernel.Kernel5_12 {
-		position = 2
-	}
-
-	return position
-}
-
-// GetVFSRemovexattrDentryPosition gets VFS remove xattr dentry position
-func GetVFSRemovexattrDentryPosition(kernelVersion *skernel.Version) uint64 {
-	position := uint64(1)
-
-	if kernelVersion.Code != 0 && kernelVersion.Code >= skernel.Kernel5_12 {
-		position = 2
-	}
-
-	return position
 }
 
 // SendStats sends metrics about the current state of the mount resolver
