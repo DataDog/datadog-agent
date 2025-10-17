@@ -532,9 +532,11 @@ func (c *WorkloadMetaCollector) handleECSTask(ev workloadmeta.Event) []*types.Ta
 	}
 	clusterLow, clusterOrch, clusterHigh, clusterStandard := clusterTags.Compute()
 
-	if task.LaunchType == workloadmeta.ECSLaunchTypeFargate {
+	if task.LaunchType == workloadmeta.ECSLaunchTypeFargate || task.LaunchType == workloadmeta.ECSLaunchTypeManagedInstance {
 		taskTags.AddLow(tags.AvailabilityZoneDeprecated, task.AvailabilityZone) // Deprecated
 		taskTags.AddLow(tags.AvailabilityZone, task.AvailabilityZone)
+		// TODO: When daemon scheduling is available for managed instances,
+		// managed instances should collect resource tags like EC2
 	} else if c.collectEC2ResourceTags {
 		addResourceTags(taskTags, task.ContainerInstanceTags)
 		addResourceTags(taskTags, task.Tags)
@@ -572,7 +574,7 @@ func (c *WorkloadMetaCollector) handleECSTask(ev workloadmeta.Event) []*types.Ta
 		})
 	}
 
-	if task.LaunchType == workloadmeta.ECSLaunchTypeFargate {
+	if task.LaunchType == workloadmeta.ECSLaunchTypeFargate || task.LaunchType == workloadmeta.ECSLaunchTypeManagedInstance {
 		low, orch, high, standard := taskTags.Compute()
 		tagInfos = append(tagInfos, &types.TagInfo{
 			Source:               taskSource,
