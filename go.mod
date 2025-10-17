@@ -956,12 +956,12 @@ require (
 )
 
 require (
+	github.com/DataDog/datadog-agent/comp/core/telemetry v0.72.0-devel
 	github.com/DataDog/datadog-agent/comp/core/telemetry/def v0.72.0-devel
 	github.com/DataDog/datadog-agent/comp/core/telemetry/fx v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/comp/core/telemetry/fx-full v0.0.0-00010101000000-000000000000
-	github.com/DataDog/datadog-agent/comp/core/telemetry/fx-noop v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/comp/core/telemetry/impl v0.72.0-devel
-	github.com/DataDog/datadog-agent/comp/core/telemetry/impl-noop v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/comp/core/telemetry/impl-noop v0.72.0-devel
 	github.com/DataDog/datadog-agent/pkg/util/hostinfo v0.0.0-00010101000000-000000000000
 	github.com/DataDog/dd-otel-host-profiler v0.4.1-0.20251013140043-83a1f38427f0
 	github.com/google/btree v1.1.3
