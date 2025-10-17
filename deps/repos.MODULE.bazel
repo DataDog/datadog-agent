@@ -14,9 +14,9 @@ bazel_dep(name = "sqlite3", version = "3.46.1")
 http_archive(
     name = "xz",
     build_file = "//deps:xz.BUILD.bazel",
-    sha256 = "87947679abcf77cc509d8d1b474218fd16b72281e2797360e909deaee1ac9d05",
-    strip_prefix = "xz-5.4.2",
-    url = "https://tukaani.org/xz/xz-5.4.2.tar.gz",
+    sha256 = "507825b599356c10dca1cd720c9d0d0c9d5400b9de300af00e4d1ea150795543",
+    strip_prefix = "xz-5.8.1",
+    url = "https://tukaani.org/xz/xz-5.8.1.tar.gz",
     files = {
         "config.lzma-linux-arm64.h": "//deps/xz:config.lzma-linux-arm64.h",
         "config.lzma-linux-x86_64.h": "//deps/xz:config.lzma-linux-x86_64.h",
