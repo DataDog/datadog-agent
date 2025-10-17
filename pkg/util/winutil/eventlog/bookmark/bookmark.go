@@ -2,17 +2,25 @@
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2023-present Datadog, Inc.
+
 //go:build windows
 
 // Package evtbookmark provides helpers for working with Windows Event Log Bookmarks
 package evtbookmark
 
 import (
+	"errors"
 	"fmt"
 	"os"
+	"runtime"
 
 	evtapi "github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/api"
 	"golang.org/x/sys/windows"
+)
+
+var (
+	// ErrNoMatchingEvents indicates no events matching the query were found
+	ErrNoMatchingEvents = errors.New("no matching events found")
 )
 
 // Bookmark is an interface for handling Windows Event Log Bookmarks
@@ -154,12 +162,15 @@ func (b *bookmark) Close() {
 
 // FromLatestEvent creates a bookmark pointing to the most recent event matching the channel/query.
 // This prevents the amnesia bug where events between startup and first pull are lost when starting
-// from "now". Returns an empty bookmark if no events exist. An error is only returned if the
-// underlying API calls fail unexpectedly.
+// from "now". Returns ErrNoMatchingEvents if no events matching the query exist in the log.
 //
 // The Windows Event Log API (EvtQuery) automatically handles both single-channel queries and
 // multi-channel XML QueryList queries, so no special handling is needed.
 func FromLatestEvent(api evtapi.API, channelPath, query string) (Bookmark, error) {
+	// EvtQuery requires us to lock the OS thread when using the query handle
+	// https://learn.microsoft.com/en-us/windows/win32/api/winevt/nf-winevt-evtquery
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
 	// Query for the most recent event
 	// EvtQuery handles single/multi channel query selection automatically
 	resultSet, err := api.EvtQuery(0, channelPath, query,
@@ -170,19 +181,20 @@ func FromLatestEvent(api evtapi.API, channelPath, query string) (Bookmark, error
 	defer evtapi.EvtCloseResultSet(api, resultSet)
 
 	// Get one event (the most recent due to reverse direction)
+	// Use INFINITE timeout to avoid ERROR_TIMEOUT issues
 	handles := make([]evtapi.EventRecordHandle, 1)
-	returned, err := api.EvtNext(resultSet, handles, 1, 1000) // 1 second timeout
+	returned, err := api.EvtNext(resultSet, handles, 1, windows.INFINITE)
 	if err != nil {
 		if err == windows.ERROR_NO_MORE_ITEMS || err == windows.ERROR_TIMEOUT {
-			// No events in the log - return empty bookmark
-			return New(WithWindowsEventLogAPI(api))
+			// No events in the log - return error instead of empty bookmark
+			return nil, ErrNoMatchingEvents
 		}
 		return nil, fmt.Errorf("EvtNext failed: %w", err)
 	}
 
 	if len(returned) == 0 {
-		// No events available - return empty bookmark
-		return New(WithWindowsEventLogAPI(api))
+		// No events available - return error instead of empty bookmark
+		return nil, ErrNoMatchingEvents
 	}
 	defer evtapi.EvtCloseRecord(api, returned[0])
 

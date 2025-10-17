@@ -14,7 +14,9 @@ import (
 	"bytes"
 	"encoding/hex"
 	"fmt"
+	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 	"text/template" //nolint:depguard
 
@@ -326,8 +328,25 @@ func (api *API) EvtRenderEventXml(Fragment evtapi.EventRecordHandle) ([]uint16, 
 // EvtRenderBookmark is a fake of EvtRender with EvtRenderEventBookmark
 // not implemented.
 // https://learn.microsoft.com/en-us/windows/win32/api/winevt/nf-winevt-evtrender
-func (api *API) EvtRenderBookmark(_ evtapi.EventBookmarkHandle) ([]uint16, error) {
-	return nil, fmt.Errorf("not implemented")
+func (api *API) EvtRenderBookmark(b evtapi.EventBookmarkHandle) ([]uint16, error) {
+	bookmark, err := api.getBookmarkByHandle(b)
+	if err != nil {
+		return nil, err
+	}
+	if bookmark.eventRecordID == 0 {
+		xml := "<BookmarkList>\r\n</BookmarkList>"
+		res, err := windows.UTF16FromString(xml)
+		if err != nil {
+			return nil, err
+		}
+		return res, nil
+	}
+	xml := fmt.Sprintf("<BookmarkList><Bookmark EventRecordID='%d' /></BookmarkList>", bookmark.eventRecordID)
+	res, err := windows.UTF16FromString(xml)
+	if err != nil {
+		return nil, err
+	}
+	return res, nil
 }
 
 // RegisterEventSource fake
@@ -405,11 +424,29 @@ func (api *API) EvtClearLog(ChannelPath string) error {
 
 // EvtCreateBookmark fake
 // https://learn.microsoft.com/en-us/windows/win32/api/winevt/nf-winevt-evtcreatebookmark
-func (api *API) EvtCreateBookmark(_ string) (evtapi.EventBookmarkHandle, error) {
+func (api *API) EvtCreateBookmark(xml string) (evtapi.EventBookmarkHandle, error) {
 	var b bookmark
 
-	// TODO: parse Xml to get record ID
+	if xml == "" || xml == "<BookmarkList>\r\n</BookmarkList>" {
+		// create an empty bookmark
+		b.eventRecordID = 0
+		api.addBookmark(&b)
+		return evtapi.EventBookmarkHandle(b.handle), nil
+	}
 
+	// parse Xml to get record ID using regex
+	// Example: ...<Bookmark EventRecordID='123' />...
+	re := regexp.MustCompile(`EventRecordID='(\d+)'`)
+	match := re.FindStringSubmatch(xml)
+	if len(match) != 2 {
+		return evtapi.EventBookmarkHandle(0), fmt.Errorf("invalid bookmark XML")
+	}
+	recordID := match[1]
+	recordIDUint, err := strconv.ParseUint(recordID, 10, 64)
+	if err != nil {
+		return evtapi.EventBookmarkHandle(0), fmt.Errorf("invalid bookmark XML")
+	}
+	b.eventRecordID = uint(recordIDUint)
 	api.addBookmark(&b)
 
 	return evtapi.EventBookmarkHandle(b.handle), nil

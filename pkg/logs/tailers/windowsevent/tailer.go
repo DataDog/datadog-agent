@@ -40,6 +40,27 @@ type Config struct {
 	ProcessRawMessage bool
 }
 
+// registrySaverWithInitialBookmark wraps a registry and returns a provided bookmark XML on Load.
+// This allows the tailer to pass the bookmark string parameter to the subscription.
+// Save() updates the internal bookmark state so that subsequent Load() calls return the updated value.
+type registrySaverWithInitialBookmark struct {
+	registry        auditor.Registry
+	identifier      string
+	currentBookmark string
+}
+
+func (s *registrySaverWithInitialBookmark) Save(bookmarkXML string) error {
+	s.registry.SetOffset(s.identifier, bookmarkXML)
+	// Update internal bookmark so subsequent Load() calls return the updated value
+	s.currentBookmark = bookmarkXML
+	return nil
+}
+
+func (s *registrySaverWithInitialBookmark) Load() (string, error) {
+	// Return the current bookmark
+	return s.currentBookmark, nil
+}
+
 // Tailer collects logs from Windows Event Log using a pull subscription
 type Tailer struct {
 	evtapi     evtapi.API
@@ -161,50 +182,33 @@ func (t *Tailer) tail(ctx context.Context, bookmark string) {
 		evtsubscribe.WithEventBatchCount(10),
 	}
 
-	t.bookmark = nil
-	if bookmark != "" {
-		// load bookmark
-		t.bookmark, err = evtbookmark.New(
-			evtbookmark.WithWindowsEventLogAPI(t.evtapi),
-			evtbookmark.FromXML(bookmark))
-		if err != nil {
-			log.Errorf("error loading bookmark, tailer will start at new events: %v", err)
-			t.bookmark = nil
-		} else {
-			opts = append(opts, evtsubscribe.WithStartAfterBookmark(t.bookmark))
-		}
+	// Create bookmark saver that returns the provided bookmark XML
+	bookmarkSaver := &registrySaverWithInitialBookmark{
+		registry:        t.registry,
+		identifier:      t.Identifier(),
+		currentBookmark: bookmark,
 	}
-	if t.bookmark == nil {
-		// Create initial bookmark from the most recent event in the log
-		// This ensures we have a valid starting position even if no events are processed
-		log.Debug("Creating initial bookmark from most recent event")
-		t.bookmark, err = evtbookmark.FromLatestEvent(t.evtapi, t.config.ChannelPath, t.config.Query)
-		if err != nil {
-			t.logErrorAndSetStatus(fmt.Errorf("error creating initial bookmark: %w", err))
-			return
-		}
+	opts = append(opts, evtsubscribe.WithBookmarkSaver(bookmarkSaver))
 
-		// Save the initial bookmark to the registry immediately using direct SetOffset
-		// This ensures the bookmark is persisted even if no real events are processed
-		if t.bookmark != nil {
-			offset, err := t.bookmark.Render()
-			if err == nil {
-				log.Debugf("Saving initial bookmark to registry: %s", offset)
-				// Use direct SetOffset call for immediate persistence
-				t.registry.SetOffset(t.Identifier(), offset)
-				log.Debug("Initial bookmark saved to registry")
-			} else {
-				log.Warnf("Failed to render initial bookmark: %v", err)
-			}
-		}
-	}
+	// Always use "now" mode - if bookmark exists it will be loaded via the saver,
+	// otherwise FromLatestEvent will create one
+	opts = append(opts, evtsubscribe.WithStartMode("now"))
 
-	// subscription
+	// Create subscription - bookmark initialization will happen in Start()
 	t.sub = evtsubscribe.NewPullSubscription(
 		t.config.ChannelPath,
 		t.config.Query,
 		opts...,
 	)
+
+	// Create an initial empty bookmark for updating as events are processed
+	// This will be set to the loaded/created bookmark after subscription starts
+	t.bookmark, err = evtbookmark.New(evtbookmark.WithWindowsEventLogAPI(t.evtapi))
+	if err != nil {
+		t.logErrorAndSetStatus(fmt.Errorf("failed to create bookmark: %w", err))
+		return
+	}
+
 	// subscription will be started in the eventLoop
 
 	// render context for system values
@@ -243,6 +247,7 @@ func (t *Tailer) eventLoop(ctx context.Context) {
 			err := retryForeverWithCancel(ctx, func() error {
 				err := t.sub.Start()
 				if err != nil {
+					// Log error and retry
 					t.logErrorAndSetStatus(fmt.Errorf("failed to start subscription: %w", err))
 					return err
 				}
