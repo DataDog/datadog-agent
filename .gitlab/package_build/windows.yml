@@ -1,9 +1,28 @@
 ---
+test_ci_identity_token:
+  extends: .windows_docker_default
+  stage: package_build
+  id_tokens:
+    CI_IDENTITIES_GITLAB_ID_TOKEN:
+      aud: ci-identities
+  script:
+    - >
+      if ($env:CI_IDENTITIES_GITLAB_ID_TOKEN) { Write-Host "Token present, length: $($env:CI_IDENTITIES_GITLAB_ID_TOKEN.Length)" } else { Write-Host "Token missing" }
+    - >
+      docker run --rm
+      -v "$(Get-Location):c:\mnt"
+      -e CI_IDENTITIES_GITLAB_ID_TOKEN=${CI_IDENTITIES_GITLAB_ID_TOKEN}
+      ${WINBUILDIMAGE}
+      powershell -C "if ($env:CI_IDENTITIES_GITLAB_ID_TOKEN) { Write-Host 'Token in container, length: ' + $env:CI_IDENTITIES_GITLAB_ID_TOKEN.Length } else { Write-Host 'Token missing in container' }"
+
 .windows_msi_base:
   stage: package_build
   extends: .windows_docker_default
   needs: ["go_deps"]
   script:
+    # Check if token exists in GitLab runner environment
+    - >
+      if ($env:CI_IDENTITIES_GITLAB_ID_TOKEN) { Write-Host "CI_IDENTITIES_GITLAB_ID_TOKEN is present in GitLab runner (length: $($env:CI_IDENTITIES_GITLAB_ID_TOKEN.Length))" } else { Write-Host "CI_IDENTITIES_GITLAB_ID_TOKEN is missing in GitLab runner" }
     - $ErrorActionPreference = 'Stop'
     - if (Test-Path omnibus\pkg) { remove-item -recurse -force omnibus\pkg }
     - mkdir omnibus\pkg
@@ -71,9 +90,6 @@ windows_msi_and_bosh_zip_x64-a7:
   variables:
     ARCH: "x64"
   timeout: 2h
-  id_tokens:
-    CI_IDENTITIES_GITLAB_ID_TOKEN:
-      aud: ci-identities
 
 windows_msi_and_bosh_zip_x64-a7-fips:
   extends: .windows_main_agent_base

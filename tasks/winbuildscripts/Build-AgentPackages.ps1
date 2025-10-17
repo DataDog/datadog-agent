@@ -54,6 +54,12 @@ Invoke-BuildScript `
         "--skip-deps"
     )
 
+    if ($env:CI_IDENTITIES_GITLAB_ID_TOKEN) {
+        Write-Host "✓ CI_IDENTITIES_GITLAB_ID_TOKEN is present in container (length: $($env:CI_IDENTITIES_GITLAB_ID_TOKEN.Length))"
+    } else {
+        Write-Host "✗ CI_IDENTITIES_GITLAB_ID_TOKEN is missing in container"
+    }
+
     if ($Flavor) {
         $inv_args += "--flavor"
         $inv_args += $Flavor
