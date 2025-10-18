@@ -156,6 +156,7 @@ type Event struct {
 	NetDevice        NetDeviceEvent        `field:"-"`
 	VethPair         VethPairEvent         `field:"-"`
 	UnshareMountNS   UnshareMountNSEvent   `field:"-"`
+	TracerMemfdSeal  TracerMemfdSealEvent  `field:"-"`
 }
 
 var cgroupContextZero CGroupContext
@@ -349,6 +350,8 @@ type Process struct {
 	UserSession UserSessionContext `field:"user_session"` // SECLDoc[user_session] Definition:`User Session context of this process`
 
 	AWSSecurityCredentials []AWSSecurityCredentials `field:"-"`
+
+	TracerTags []string `field:"-"` // Tags from APM tracer instrumentation
 
 	ArgsID uint64 `field:"-"`
 	EnvsID uint64 `field:"-"`
@@ -1047,4 +1050,10 @@ type PrCtlEvent struct {
 	Option          int    `field:"option"`            // SECLDoc[option] Definition:`prctl option`
 	NewName         string `field:"new_name"`          // SECLDoc[new_name] Definition:`New name of the process`
 	IsNameTruncated bool   `field:"is_name_truncated"` // SECLDoc[is_name_truncated] Definition:`Indicates that the name field is truncated`
+}
+
+// TracerMemfdSealEvent represents a tracer memfd seal event
+type TracerMemfdSealEvent struct {
+	SyscallEvent
+	Fd uint32
 }

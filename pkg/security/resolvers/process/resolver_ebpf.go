@@ -29,6 +29,7 @@ import (
 	"github.com/shirou/gopsutil/v4/process"
 	"go.uber.org/atomic"
 
+	"github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
@@ -1178,6 +1179,32 @@ func (p *EBPFResolver) UpdateLoginUID(pid uint32, e *model.Event) {
 	if entry != nil {
 		entry.Credentials.AUID = e.LoginUIDWrite.AUID
 	}
+}
+
+// AddTracerMetadata reads tracer metadata from a memfd and adds it to the process cache entry
+func (p *EBPFResolver) AddTracerMetadata(pid uint32, event *model.Event) error {
+	fd := event.TracerMemfdSeal.Fd
+	fdPath := fmt.Sprintf("/proc/%d/fd/%d", pid, fd)
+
+	tmeta, err := tracermetadata.GetTracerMetadataFromPath(fdPath)
+	if err != nil {
+		return fmt.Errorf("failed to read tracer metadata: %w", err)
+	}
+
+	tags := tmeta.GetTags()
+	if len(tags) == 0 {
+		return nil
+	}
+
+	p.Lock()
+	defer p.Unlock()
+
+	entry := p.entryCache[pid]
+	if entry != nil {
+		entry.TracerTags = tags
+	}
+
+	return nil
 }
 
 // UpdateAWSSecurityCredentials updates the list of AWS Security Credentials
