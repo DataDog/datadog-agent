@@ -44,7 +44,7 @@ const (
 func GetSystemdUnit(name string, unitType SystemdUnitType, ambiantCapabilitiesSupported bool) ([]byte, error) {
 	dir := string(unitType)
 	if !ambiantCapabilitiesSupported {
-		dir += "-legacy-kernel"
+		dir += "-nocap"
 	}
 	return systemdUnits.ReadFile(filepath.Join("templates/gen", dir, name))
 }

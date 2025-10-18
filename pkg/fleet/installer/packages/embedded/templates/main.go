@@ -59,7 +59,7 @@ func generate(outputDir string) error {
 		}
 	}
 	for unit, content := range systemdUnitsOCILegacyKernel {
-		filePath := filepath.Join(outputDir, "oci-legacy-kernel", unit)
+		filePath := filepath.Join(outputDir, "oci-nocap", unit)
 		if err := os.MkdirAll(filepath.Dir(filePath), 0755); err != nil {
 			return fmt.Errorf("failed to create directory for %s: %w", unit, err)
 		}
@@ -68,7 +68,7 @@ func generate(outputDir string) error {
 		}
 	}
 	for unit, content := range systemdUnitsDebRpmLegacyKernel {
-		filePath := filepath.Join(outputDir, "debrpm-legacy-kernel", unit)
+		filePath := filepath.Join(outputDir, "debrpm-nocap", unit)
 		if err := os.MkdirAll(filepath.Dir(filePath), 0755); err != nil {
 			return fmt.Errorf("failed to create directory for %s: %w", unit, err)
 		}
