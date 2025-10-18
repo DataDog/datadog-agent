@@ -548,11 +548,7 @@ func (c *localAPIClientImpl) PromoteExperiment(pkg string) error {
 
 // StartConfigExperiment starts a config experiment for a package.
 func (c *localAPIClientImpl) StartConfigExperiment(pkg, operations string) error {
-	body, err := json.Marshal(operations)
-	if err != nil {
-		return err
-	}
-	req, err := http.NewRequest(http.MethodPost, fmt.Sprintf("http://%s/%s/config_experiment/start", c.addr, pkg), bytes.NewBuffer(body))
+	req, err := http.NewRequest(http.MethodPost, fmt.Sprintf("http://%s/%s/config_experiment/start", c.addr, pkg), bytes.NewBuffer([]byte(operations)))
 	if err != nil {
 		return err
 	}
