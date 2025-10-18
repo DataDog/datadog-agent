@@ -26,8 +26,8 @@ var ScriptDDContainerInstall []byte
 //go:embed scripts/dd-host-install
 var ScriptDDHostInstall []byte
 
-//go:embed templates/gen/oci/*.service
-//go:embed templates/gen/debrpm/*.service
+//go:embed tmpl/gen/oci/*.service
+//go:embed tmpl/gen/debrpm/*.service
 var systemdUnits embed.FS
 
 // SystemdUnitType is the type of systemd unit.
@@ -46,5 +46,5 @@ func GetSystemdUnit(name string, unitType SystemdUnitType, ambiantCapabilitiesSu
 	if !ambiantCapabilitiesSupported {
 		dir += "-nocap"
 	}
-	return systemdUnits.ReadFile(filepath.Join("templates/gen", dir, name))
+	return systemdUnits.ReadFile(filepath.Join("tmpl/gen", dir, name))
 }
