@@ -1,0 +1,15 @@
+load("@bazel_skylib//:bzl_library.bzl", "bzl_library")
+load("@rules_python//python:py_binary.bzl", "py_binary")
+
+py_binary(
+    name = "generate_module_bazel",
+    srcs = ["generate_module_bazel.py"],
+    main = "generate_module_bazel.py",
+    visibility = ["//deps:__subpackages__"],
+)
+
+bzl_library(
+    name = "generate_module_bazel_bzl",
+    srcs = ["generate_module_bazel.bzl"],
+    visibility = ["//deps:__subpackages__"],
+)
