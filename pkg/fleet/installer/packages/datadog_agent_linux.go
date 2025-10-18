@@ -634,6 +634,11 @@ func removeUnits(ctx HookContext, units ...string) error {
 }
 
 func writeEmbeddedUnitsAndReload(ctx HookContext, units ...string) error {
+	ambiantCapabilitiesSupported, err := isAmbiantCapabilitiesSupported()
+	if err != nil {
+		log.Errorf("failed to check if ambiant capabilities are supported: %v", err)
+		ambiantCapabilitiesSupported = true // Assume true if we can't check
+	}
 	var unitType embedded.SystemdUnitType
 	var unitsPath string
 	switch ctx.PackageType {
@@ -648,7 +653,7 @@ func writeEmbeddedUnitsAndReload(ctx HookContext, units ...string) error {
 		unitsPath = ociUnitsPath
 	}
 	for _, unit := range units {
-		content, err := embedded.GetSystemdUnit(unit, unitType)
+		content, err := embedded.GetSystemdUnit(unit, unitType, ambiantCapabilitiesSupported)
 		if err != nil {
 			return err
 		}
@@ -677,4 +682,12 @@ func reverseStringSlice(slice []string) []string {
 	copy(reversed, slice)
 	slices.Reverse(reversed)
 	return reversed
+}
+
+func isAmbiantCapabilitiesSupported() (bool, error) {
+	content, err := os.ReadFile("/proc/self/status")
+	if err != nil {
+		return false, fmt.Errorf("failed to read /proc/self/status: %v", err)
+	}
+	return strings.Contains(string(content), "CapAmb:"), nil
 }
