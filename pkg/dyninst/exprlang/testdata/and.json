@@ -1,0 +1,13 @@
+{
+  "type": "unsupported",
+  "operation": "and",
+  "argument": [
+    {
+      "ref": "bar"
+    },
+    {
+      "ref": "foo"
+    }
+  ],
+  "error": ""
+}
