@@ -35,15 +35,15 @@ build do
 
   if windows?
     mkdir "#{python_3_embedded}/embedded/ssl/cacerts"
-    copy "deps/cacerts/cacert.pem", "#{python_3_embedded}/embedded/ssl" \
+    copy "deps/cacerts/cacert.pem", "#{python_3_embedded}/embedded/ssl", \
 	cwd: File.join(Omnibus::Config.project_root, "..")
-    copy "deps/cacerts/cacert.pem", "#{python_3_embedded}/embedded/ssl/cacerts" \
+    copy "deps/cacerts/cacert.pem", "#{python_3_embedded}/embedded/ssl/cacerts", \
 	cwd: File.join(Omnibus::Config.project_root, "..")
   else
     mkdir "#{install_dir}/embedded/ssl/cacerts"
-    copy "deps/cacerts/cacert.pem", "#{install_dir}/embedded/ssl" \
+    copy "deps/cacerts/cacert.pem", "#{install_dir}/embedded/ssl", \
 	cwd: File.join(Omnibus::Config.project_root, "..")
-    copy "deps/cacerts/cacert.pem", "#{install_dir}/embedded/ssl/cacerts" \
+    copy "deps/cacerts/cacert.pem", "#{install_dir}/embedded/ssl/cacerts", \
 	cwd: File.join(Omnibus::Config.project_root, "..")
   end
 end
