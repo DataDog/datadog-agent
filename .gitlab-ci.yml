@@ -1115,7 +1115,7 @@ workflow:
   - !reference [.except_mergequeue]
   - changes:
       paths:
-        - pkg/fleet/installer/packages/embedded/templates/**/*.service
+        - pkg/fleet/installer/packages/embedded/tmpl/**/*.service
       compare_to: $COMPARE_TO_BRANCH
   - when: manual
     allow_failure: true
