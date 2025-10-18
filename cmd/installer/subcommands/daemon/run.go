@@ -19,7 +19,11 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/pid/pidimpl"
 	secretsfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
+	"github.com/DataDog/datadog-agent/comp/remote-config/rcservice"
+	"github.com/DataDog/datadog-agent/comp/remote-config/rcservice/rcserviceimpl"
+	"github.com/DataDog/datadog-agent/comp/remote-config/rctelemetryreporter/rctelemetryreporterimpl"
 	"github.com/DataDog/datadog-agent/comp/updater/telemetry/telemetryimpl"
+	"github.com/DataDog/datadog-agent/pkg/config/remote/service"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
 
@@ -46,13 +50,13 @@ func getCommonFxOption(global *command.GlobalParams) fx.Option {
 		}),
 		core.Bundle(),
 		secretsfx.Module(),
-		// fx.Supply(&rcservice.Params{
-		// 	Options: []service.Option{
-		// 		service.WithDatabaseFileName("remote-config-installer.db"),
-		// 	},
-		// }),
-		// rctelemetryreporterimpl.Module(),
-		// rcserviceimpl.Module(),
+		fx.Supply(&rcservice.Params{
+			Options: []service.Option{
+				service.WithDatabaseFileName("remote-config-installer.db"),
+			},
+		}),
+		rctelemetryreporterimpl.Module(),
+		rcserviceimpl.Module(),
 		// updaterimpl.Module(),
 		// localapiimpl.Module(),
 		telemetryimpl.Module(),
