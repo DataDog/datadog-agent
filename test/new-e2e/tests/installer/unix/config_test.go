@@ -24,12 +24,12 @@ func testConfig(os e2eos.Descriptor, arch e2eos.Architecture, method InstallMeth
 }
 
 func (s *configSuite) TestConfig() {
-	s.RunInstallScript()
+	s.RunInstallScript("DD_REMOTE_UPDATES=true")
 	defer s.Purge()
 
 	err := s.backend.StartConfigExperiment(fakefleetbackend.ConfigOperations{
 		DeploymentID:   "123",
-		FileOperations: []fakefleetbackend.FileOperation{{FileOperationType: fakefleetbackend.FileOperationPatch, FilePath: "datadog.yaml", Patch: []byte(`{"log_level": "debug"}`)}},
+		FileOperations: []fakefleetbackend.FileOperation{{FileOperationType: fakefleetbackend.FileOperationMergePatch, FilePath: "/datadog.yaml", Patch: []byte(`{"log_level": "debug"}`)}},
 	})
 	require.NoError(s.T(), err)
 	err = s.backend.PromoteConfigExperiment()

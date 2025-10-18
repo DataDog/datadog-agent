@@ -547,11 +547,8 @@ func (c *localAPIClientImpl) PromoteExperiment(pkg string) error {
 }
 
 // StartConfigExperiment starts a config experiment for a package.
-func (c *localAPIClientImpl) StartConfigExperiment(pkg, version string) error {
-	params := experimentTaskParams{
-		Version: version,
-	}
-	body, err := json.Marshal(params)
+func (c *localAPIClientImpl) StartConfigExperiment(pkg, operations string) error {
+	body, err := json.Marshal(operations)
 	if err != nil {
 		return err
 	}

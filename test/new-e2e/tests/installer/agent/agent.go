@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/goccy/go-yaml"
 
@@ -43,5 +44,16 @@ func (a *Agent) Configuration() (map[string]any, error) {
 
 // runCommand runs a command on the remote host.
 func (a *Agent) runCommand(command string, args ...string) (string, error) {
+	var err error
+	for range 30 {
+		_, err = a.remote.Execute("sudo -u dd-agent datadog-agent config --all")
+		if err == nil {
+			break
+		}
+		time.Sleep(1 * time.Second)
+	}
+	if err != nil {
+		return "", err
+	}
 	return a.remote.Execute(fmt.Sprintf("sudo -u dd-agent datadog-agent %s %s", command, strings.Join(args, " ")))
 }
