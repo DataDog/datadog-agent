@@ -22,7 +22,9 @@ import (
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcservice"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcservice/rcserviceimpl"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rctelemetryreporter/rctelemetryreporterimpl"
+	"github.com/DataDog/datadog-agent/comp/updater/localapi/localapiimpl"
 	"github.com/DataDog/datadog-agent/comp/updater/telemetry/telemetryimpl"
+	"github.com/DataDog/datadog-agent/comp/updater/updater/updaterimpl"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/service"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
@@ -57,8 +59,8 @@ func getCommonFxOption(global *command.GlobalParams) fx.Option {
 		}),
 		rctelemetryreporterimpl.Module(),
 		rcserviceimpl.Module(),
-		// updaterimpl.Module(),
-		// localapiimpl.Module(),
+		updaterimpl.Module(),
+		localapiimpl.Module(),
 		telemetryimpl.Module(),
 		fx.Supply(pidimpl.NewParams(global.PIDFilePath)),
 		ipcfx.ModuleReadWrite(),
