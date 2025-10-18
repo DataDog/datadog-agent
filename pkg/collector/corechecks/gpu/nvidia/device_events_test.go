@@ -11,21 +11,20 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
-	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
-	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	"github.com/NVIDIA/go-nvml/pkg/nvml/mock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
+	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
+	"github.com/DataDog/datadog-agent/pkg/metrics"
 )
 
 func TestDeviceEventsGatherer_RegisterBeforeStart(t *testing.T) {
 	device := setupMockDevice(t, nil)
 
-	gatherer, err := NewDeviceEventsGatherer()
-	require.NoError(t, err)
-
+	gatherer := NewDeviceEventsGatherer()
 	assert.Error(t, gatherer.RegisterDevice(device))
 }
 
@@ -37,16 +36,14 @@ func TestDeviceEventsGatherer_RegisterWithUnsupportedEvents(t *testing.T) {
 		return device
 	})
 
-	gatherer, err := NewDeviceEventsGatherer()
-	require.NoError(t, err)
+	gatherer := NewDeviceEventsGatherer()
 	assert.Error(t, gatherer.RegisterDevice(device))
 }
 
 func TestDeviceEventsGatherer_GetWithUnregistered(t *testing.T) {
 	safenvml.WithMockNVML(t, testutil.GetBasicNvmlMock())
 
-	gatherer, err := NewDeviceEventsGatherer()
-	require.NoError(t, err)
+	gatherer := NewDeviceEventsGatherer()
 	require.NoError(t, gatherer.Start())
 	t.Cleanup(func() { require.NoError(t, gatherer.Stop()) })
 
@@ -79,8 +76,7 @@ func TestDeviceEventsGatherer_RefreshGetSequence(t *testing.T) {
 		}))
 
 	// create gatherer after lib initialization so that it picks up the mock
-	gatherer, err := NewDeviceEventsGatherer()
-	require.NoError(t, err)
+	gatherer := NewDeviceEventsGatherer()
 	require.NoError(t, gatherer.Start())
 	t.Cleanup(func() { require.NoError(t, gatherer.Stop()) })
 
@@ -132,6 +128,15 @@ func TestDeviceEventsGatherer_RefreshGetSequence(t *testing.T) {
 	require.Empty(t, events)
 }
 
+func TestDeviceEventsGatherer_StartShouldFailIfNvmlInitFails(t *testing.T) {
+	if _, err := safenvml.GetSafeNvmlLib(); err == nil {
+		t.Skip("NVML library is already initialized, this test relies on the library not being initializable")
+	}
+
+	gatherer := NewDeviceEventsGatherer()
+	require.Error(t, gatherer.Start())
+}
+
 type mockDeviceEventsCollectorCache struct {
 	uuids  []string
 	events []safenvml.DeviceEventData
@@ -143,6 +148,10 @@ func (m *mockDeviceEventsCollectorCache) RegisterDevice(device safenvml.Device) 
 	return nil
 }
 
+func (m *mockDeviceEventsCollectorCache) SupportsDevice(_ safenvml.Device) (bool, error) {
+	return true, nil
+}
+
 func (m *mockDeviceEventsCollectorCache) GetEvents(_ string) ([]safenvml.DeviceEventData, error) {
 	return m.events, m.err
 }
@@ -150,21 +159,23 @@ func (m *mockDeviceEventsCollectorCache) GetEvents(_ string) ([]safenvml.DeviceE
 func TestDeviceEventsCollector(t *testing.T) {
 	cache := mockDeviceEventsCollectorCache{}
 	device := setupMockDevice(t, nil)
+	uuid := device.GetDeviceInfo().UUID
+
 	collector, err := newDeviceEventsCollectorWithCache(device, &cache)
 	require.NoError(t, err)
 	require.NotNil(t, collector)
 
-	// make sure metadata is all good
-	uuid := device.GetDeviceInfo().UUID
+	// initially, no device should be registered before the first metrics collection
 	require.Equal(t, uuid, collector.DeviceUUID())
-	require.Len(t, cache.uuids, 1)
-	require.Equal(t, cache.uuids[0], uuid)
 	require.Equal(t, deviceEvents, collector.Name())
+	require.Empty(t, cache.uuids)
 
-	// no metrics until no event is received
+	// no metrics until no event is received, but device should now be registered
 	mm, err := collector.Collect()
 	require.NoError(t, err)
 	require.Empty(t, mm)
+	require.Len(t, cache.uuids, 1)
+	require.Equal(t, cache.uuids[0], uuid)
 
 	// make sure non-xid events are ignored
 	cache.events = []safenvml.DeviceEventData{
@@ -236,5 +247,5 @@ func TestDeviceEventsCollector(t *testing.T) {
 	cache.events = nil
 	mm3, err := collector.Collect()
 	require.NoError(t, err)
-	require.Equal(t, mm2, mm3)
+	require.ElementsMatch(t, mm2, mm3)
 }

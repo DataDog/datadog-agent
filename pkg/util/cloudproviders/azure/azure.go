@@ -23,7 +23,6 @@ import (
 // declare these as vars not const to ease testing
 var (
 	metadataURL = "http://169.254.169.254"
-	timeout     = 300 * time.Millisecond
 
 	// CloudProviderName contains the inventory name of for EC2
 	CloudProviderName = "Azure"
@@ -111,6 +110,7 @@ func getResponse(ctx context.Context, url string) (string, error) {
 		return "", fmt.Errorf("cloud provider is disabled by configuration")
 	}
 
+	timeout := time.Duration(pkgconfigsetup.Datadog().GetInt("azure_metadata_timeout")) * time.Millisecond
 	return httputils.Get(ctx, url, map[string]string{"Metadata": "true"}, timeout, pkgconfigsetup.Datadog())
 }
 

@@ -16,8 +16,9 @@ build:windows --strategy=standalone # Valid values are: [dynamic_worker, standal
 build:windows --noexperimental_convenience_symlinks
 
 
-# Remote cache: opt in by adding `common --config=cache` to either `user.bazelrc` (workspace) or `~/.bazelrc` (home)
-common:cache --remote_instance_name=remote-caching
+# datadog-agent virtually isolates caching instance from its parent (which is remote-caching).
+# If entry isn't found in datadog-agent, it will be searched in remote-caching.
+common:cache --remote_instance_name=remote-caching/datadog-agent
 common:cache --remote_cache=grpc://bazel-buildbarn-frontend.ddbuild.io:443
 common:cache --remote_timeout=60
 common:cache --remote_retries=1

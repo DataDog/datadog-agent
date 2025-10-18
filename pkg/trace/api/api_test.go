@@ -23,6 +23,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger/origindetection"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
+	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace/idx"
 	"github.com/DataDog/datadog-agent/pkg/trace/api/internal/header"
 	"github.com/DataDog/datadog-agent/pkg/trace/api/loader"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
@@ -61,7 +62,8 @@ func newTestReceiverFromConfig(conf *config.AgentConfig) *HTTPReceiver {
 	dynConf := sampler.NewDynamicConfig()
 
 	rawTraceChan := make(chan *Payload, 5000)
-	receiver := NewHTTPReceiver(conf, dynConf, rawTraceChan, noopStatsProcessor{}, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{})
+	rawTraceChanV1 := make(chan *PayloadV1, 5000)
+	receiver := NewHTTPReceiver(conf, dynConf, rawTraceChan, rawTraceChanV1, noopStatsProcessor{}, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{})
 
 	return receiver
 }
@@ -96,7 +98,8 @@ func TestServerShutdown(t *testing.T) {
 	dynConf := sampler.NewDynamicConfig()
 
 	rawTraceChan := make(chan *Payload)
-	receiver := NewHTTPReceiver(conf, dynConf, rawTraceChan, noopStatsProcessor{}, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{})
+	rawTraceChanV1 := make(chan *PayloadV1)
+	receiver := NewHTTPReceiver(conf, dynConf, rawTraceChan, rawTraceChanV1, noopStatsProcessor{}, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{})
 
 	receiver.Start()
 
@@ -534,6 +537,123 @@ func TestReceiverMsgpackDecoder(t *testing.T) {
 	}
 }
 
+func TestUnmarshalTestSpanV1(t *testing.T) {
+	traces := testutil.GetTestTracesV1(1, 1, false)
+	bts, err := traces.MarshalMsg(nil)
+	require.Nil(t, err)
+	tp := &idx.InternalTracerPayload{}
+	_, err = tp.UnmarshalMsg(bts)
+	require.Nil(t, err)
+}
+
+func TestReceiverV1MsgpackDecoder(t *testing.T) {
+	// testing traces without content-type in agent endpoints, it should use Msgpack decoding
+	// or it should raise a 415 Unsupported media type
+	assert := assert.New(t)
+	conf := newTestReceiverConfig()
+
+	traces := testutil.GetTestTracesV1(1, 1, false)
+
+	r := newTestReceiverFromConfig(conf)
+	// start testing server
+	server := httptest.NewServer(
+		r.handleWithVersion(V10, r.handleTraces),
+	)
+
+	// send traces to that endpoint using the msgpack content-type
+	bts, err := traces.MarshalMsg(nil)
+	assert.Nil(err)
+	req, err := http.NewRequest("POST", server.URL, bytes.NewReader(bts))
+	assert.Nil(err)
+	req.Header.Set("Content-Type", "application/msgpack")
+
+	var client http.Client
+	resp, err := client.Do(req)
+	require.Nil(t, err)
+	assert.Equal(200, resp.StatusCode)
+
+	// now we should be able to read the trace data
+	select {
+	case p := <-r.outV1:
+		assert.Equal([]byte{0x53, 0x8c, 0x7f, 0x96, 0xb1, 0x64, 0xbf, 0x1b, 0x97, 0xbb, 0x9f, 0x4b, 0xb4, 0x72, 0xe8, 0x9f}, p.TracerPayload.Chunks[0].TraceID)
+		rt := p.TracerPayload.Chunks[0].Spans
+		assert.Len(rt, 1)
+		span := rt[0]
+		assert.Equal(uint64(52), span.SpanID())
+		assert.Equal("fennel_IS amazing!", span.Service())
+		assert.Equal("something &&<@# that should be a metric!", span.Name())
+		assert.Equal("NOT touched because it is going to be hashed", span.Resource())
+		httpHost, _ := span.GetAttributeAsString("http.host")
+		assert.Equal("192.168.0.1", httpHost)
+		httpMonitor, _ := span.GetAttributeAsString("http.monitor")
+		assert.Equal("41.99", httpMonitor)
+		links := span.Links()
+		assert.Equal(1, len(links))
+		assert.Equal([]byte{0x2a}, links[0].TraceID())
+		assert.Equal(uint64(52), links[0].SpanID())
+		a1, _ := links[0].GetAttributeAsString("a1")
+		assert.Equal("v1", a1)
+		a2, _ := links[0].GetAttributeAsString("a2")
+		assert.Equal("v2", a2)
+		assert.Equal("dd=s:2;o:rum,congo=baz123", links[0].Tracestate())
+		assert.Equal(uint32(2147483649), links[0].Flags())
+	case <-time.After(time.Second):
+		t.Fatalf("no data received")
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	assert.Nil(err)
+	var tr traceResponse
+	err = json.Unmarshal(body, &tr)
+	assert.Nil(err, "the answer should be a valid JSON")
+
+	resp.Body.Close()
+	server.Close()
+
+}
+
+func TestReceiverV1DecodingError(t *testing.T) {
+	assert := assert.New(t)
+	conf := newTestReceiverConfig()
+	r := newTestReceiverFromConfig(conf)
+	server := httptest.NewServer(r.handleWithVersion(V10, r.handleTraces))
+	data := []byte("invalid msgpack")
+	var client http.Client
+	req, err := http.NewRequest("POST", server.URL, bytes.NewBuffer(data))
+	assert.NoError(err)
+	traceCount := 10
+	req.Header.Set(header.TraceCount, strconv.Itoa(traceCount))
+	req.Header.Set("Content-Type", "application/msgpack")
+
+	resp, err := client.Do(req)
+	assert.NoError(err)
+	resp.Body.Close()
+	assert.Equal(400, resp.StatusCode)
+	assert.EqualValues(traceCount, r.Stats.GetTagStats(info.Tags{EndpointVersion: "v1.0"}).TracesDropped.DecodingError.Load())
+}
+
+func FuzzHandleTracesV1NoPanic(f *testing.F) {
+	traces := testutil.GetTestTracesV1(1, 1, false)
+	bts, err := traces.MarshalMsg(nil)
+	require.Nil(f, err)
+	f.Add(bts)
+	conf := newTestReceiverConfig()
+	r := newTestReceiverFromConfig(conf)
+	server := httptest.NewServer(r.handleWithVersion(V10, r.handleTraces))
+	defer server.Close()
+	// We just want to make sure our server never panics, regardless of the input
+	f.Fuzz(func(t *testing.T, data []byte) {
+		req, err := http.NewRequest("POST", server.URL, bytes.NewBuffer(data))
+		require.NoError(t, err)
+		req.Header.Set("Content-Type", "application/msgpack")
+		client := &http.Client{}
+		resp, _ := client.Do(req)
+		if resp != nil {
+			resp.Body.Close()
+		}
+	})
+}
+
 func TestReceiverDecodingError(t *testing.T) {
 	assert := assert.New(t)
 	conf := newTestReceiverConfig()
@@ -896,6 +1016,39 @@ func TestClientComputedStatsHeader(t *testing.T) {
 	t.Run("off", run(false))
 }
 
+func TestHandleTracesV1(t *testing.T) {
+	// prepare the receiver
+	conf := newTestReceiverConfig()
+	receiver := newTestReceiverFromConfig(conf)
+
+	// response recorder
+	handler := receiver.handleWithVersion(V10, receiver.handleTraces)
+
+	strings := idx.NewStringTable()
+	tp := idx.InternalTracerPayload{
+		Strings: strings,
+	}
+	tp.SetLanguageName("python")
+	bts, err := tp.MarshalMsg(nil)
+	assert.NoError(t, err)
+
+	rr := httptest.NewRecorder()
+	req, _ := http.NewRequest("POST", "/v1.0/traces", bytes.NewReader(bts))
+	req.Header.Set("Content-Type", "application/msgpack")
+
+	handler.ServeHTTP(rr, req)
+
+	result := rr.Result()
+	defer result.Body.Close()
+	assert.Equal(t, http.StatusOK, result.StatusCode)
+	select {
+	case p := <-receiver.outV1:
+		assert.Equal(t, "python", p.TracerPayload.LanguageName())
+	default:
+		t.Fatal("no trace sent for processing")
+	}
+}
+
 func TestHandleTraces(t *testing.T) {
 	// prepare the msgpack payload
 	bts, err := testutil.GetTestTraces(10, 10, true).MarshalMsg(nil)
@@ -951,7 +1104,7 @@ func TestHandleTraces(t *testing.T) {
 		dynConf := sampler.NewDynamicConfig()
 
 		rawTraceChan := make(chan *Payload)
-		receiver := NewHTTPReceiver(conf, dynConf, rawTraceChan, noopStatsProcessor{}, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{})
+		receiver := NewHTTPReceiver(conf, dynConf, rawTraceChan, nil, noopStatsProcessor{}, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{})
 		receiver.recvsem = make(chan struct{}) //overwrite recvsem to ALWAYS block and ensure we look overwhelmed
 		// response recorder
 		handler := receiver.handleWithVersion(v04, receiver.handleTraces)
@@ -1177,7 +1330,7 @@ func BenchmarkWatchdog(b *testing.B) {
 	now := time.Now()
 	conf := newTestReceiverConfig()
 	conf.Endpoints[0].APIKey = "apikey_2"
-	r := NewHTTPReceiver(conf, nil, nil, nil, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{})
+	r := NewHTTPReceiver(conf, nil, nil, nil, nil, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{})
 
 	b.ResetTimer()
 	b.ReportAllocs()

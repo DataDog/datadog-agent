@@ -30,6 +30,7 @@ import (
 
 const telemetryEventErrorMismatch = "size_mismatch"
 const telemetryEventErrorUnknownType = "unknown_type"
+const telemetryEventErrorHandlerError = "handler_error"
 const telemetryEventTypeUnknown = "unknown"
 const telemetryEventHeader = "header"
 
@@ -218,10 +219,17 @@ func (c *cudaEventConsumer) handleEvent(header *gpuebpf.CudaEventHeader, dataPtr
 	}
 	counter.Inc()
 
+	var err error
 	if isStreamSpecificEvent(eventType) {
-		return c.handleStreamEvent(header, dataPtr, dataLen)
+		err = c.handleStreamEvent(header, dataPtr, dataLen)
+	} else {
+		err = c.handleGlobalEvent(header, dataPtr, dataLen)
 	}
-	return c.handleGlobalEvent(header, dataPtr, dataLen)
+
+	if err != nil {
+		c.telemetry.eventErrors.Inc(eventType.String(), telemetryEventErrorHandlerError)
+	}
+	return err
 }
 
 func handleTypedEventErr[K any](c *cudaEventConsumer, handler func(*K) error, eventType gpuebpf.CudaEventType, data unsafe.Pointer, dataLen int, expectedSize int) error {

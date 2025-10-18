@@ -156,23 +156,55 @@ func GetHostAliases(ctx context.Context) ([]string, string) {
 type cloudProviderCCRIDDetector func(context.Context) (string, error)
 
 var hostCCRIDDetectors = map[string]cloudProviderCCRIDDetector{
-	azure.CloudProviderName: azure.GetHostCCRID,
-	ec2.CloudProviderName:   ec2.GetHostCCRID,
-	gce.CloudProviderName:   gce.GetHostCCRID,
+	azure.CloudProviderName:  azure.GetHostCCRID,
+	ec2.CloudProviderName:    ec2.GetHostCCRID,
+	gce.CloudProviderName:    gce.GetHostCCRID,
+	oracle.CloudProviderName: oracle.GetHostCCRID,
 }
 
 // GetHostCCRID returns the host CCRID from the first provider that works
-func GetHostCCRID(ctx context.Context, cloudname string) string {
-	if callback, found := hostCCRIDDetectors[cloudname]; found {
+func GetHostCCRID(ctx context.Context, detectedCloud string) string {
+	if detectedCloud == "" {
+		log.Infof("No Host CCRID, no cloudprovider detected")
+		return ""
+	}
+
+	// Try the cloud that was previously detected
+	if callback, found := hostCCRIDDetectors[detectedCloud]; found {
 		hostCCRID, err := callback(ctx)
 		if err != nil {
-			log.Debugf("Could not fetch %s Host CCRID: %s", cloudname, err)
+			log.Debugf("Could not fetch %s Host CCRID: %s", detectedCloud, err)
 			return ""
 		}
 		return hostCCRID
 	}
-	log.Infof("No Host CCRID found")
-	return ""
+	// When running in k8s, kubelet may be detected by GetHostAliases (this is
+	// non-deterministic). For such cases, we try each of the possible CCRID
+	// cloud providers that we know about.
+	var wg sync.WaitGroup
+	m := sync.Mutex{}
+	hostCCRID := ""
+
+	// Call each cloud provider concurrently, since this is called during startup
+	for _, ccridDetector := range hostCCRIDDetectors {
+		wg.Add(1)
+		go func(ccridDetector cloudProviderCCRIDDetector) {
+			defer wg.Done()
+
+			ccrid, err := ccridDetector(ctx)
+			if err == nil {
+				m.Lock()
+				hostCCRID = ccrid
+				m.Unlock()
+			}
+		}(ccridDetector)
+	}
+	wg.Wait()
+
+	if hostCCRID == "" {
+		log.Infof("No Host CCRID found for cloudprovider: %q", detectedCloud)
+	}
+	return hostCCRID
 }
 
 // GetPublicIPv4 returns the public IPv4 from different providers
