@@ -11,6 +11,7 @@ package main
 import (
 	"os"
 
+	"github.com/DataDog/datadog-agent/cmd/internal/rssshrinker"
 	"github.com/DataDog/datadog-agent/cmd/internal/runcmd"
 	"github.com/DataDog/datadog-agent/cmd/otel-agent/command"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
@@ -18,6 +19,8 @@ import (
 )
 
 func main() {
+	rssshrinker.Setup()
+
 	flavor.SetFlavor(flavor.OTelAgent)
 	os.Exit(runcmd.Run(command.MakeRootCommand()))
 }
