@@ -41,6 +41,10 @@ const (
 )
 
 // GetSystemdUnit returns the systemd unit for the given name.
-func GetSystemdUnit(name string, unitType SystemdUnitType) ([]byte, error) {
-	return systemdUnits.ReadFile(filepath.Join("templates/gen", string(unitType), name))
+func GetSystemdUnit(name string, unitType SystemdUnitType, ambiantCapabilitiesSupported bool) ([]byte, error) {
+	dir := string(unitType)
+	if !ambiantCapabilitiesSupported {
+		dir += "-legacy-kernel"
+	}
+	return systemdUnits.ReadFile(filepath.Join("templates/gen", dir, name))
 }
