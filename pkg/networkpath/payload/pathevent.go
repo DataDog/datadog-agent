@@ -112,6 +112,7 @@ type NetworkPathSource struct {
 	NetworkID   string       `json:"network_id,omitempty"` // Today this will be a VPC ID since we only resolve AWS resources
 	Service     string       `json:"service,omitempty"`
 	ContainerID string       `json:"container_id,omitempty"`
+	PublicIP    string       `json:"public_ip,omitempty"`
 }
 
 // NetworkPathDestination encapsulates information
