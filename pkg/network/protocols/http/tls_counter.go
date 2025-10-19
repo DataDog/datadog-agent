@@ -35,6 +35,7 @@ func NewTLSCounter(metricGroup *libtelemetry.MetricGroup, metricName string, tag
 	}
 }
 
+// Zero bla bla bla
 func (t *TLSCounter) Zero() {
 	t.counterPlain.Set(0)
 	t.counterGnuTLS.Set(0)
