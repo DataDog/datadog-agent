@@ -149,6 +149,8 @@ type Template struct {
 	TemplateString string
 	// Segments are the ordered parts of the template.
 	Segments []TemplateSegment
+	// Issues conveys if there were any issues processing this template
+	Issues []Issue
 }
 
 // TemplateSegment represents a concrete part of the template.
