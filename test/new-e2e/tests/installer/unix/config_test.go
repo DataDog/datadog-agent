@@ -10,6 +10,7 @@ import (
 	e2eos "github.com/DataDog/test-infra-definitions/components/os"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/agent"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/fakefleetbackend"
 )
 
@@ -24,8 +25,8 @@ func testConfig(os e2eos.Descriptor, arch e2eos.Architecture, method InstallMeth
 }
 
 func (s *configSuite) TestConfig() {
-	s.RunInstallScript("DD_REMOTE_UPDATES=true")
-	defer s.Purge()
+	s.agent.MustInstall(agent.WithRemoteUpdates())
+	defer s.agent.MustUninstall()
 
 	err := s.backend.StartConfigExperiment(fakefleetbackend.ConfigOperations{
 		DeploymentID:   "123",
