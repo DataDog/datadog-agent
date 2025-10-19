@@ -45,9 +45,11 @@ import (
 	"golang.org/x/time/rate"
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/dwarf/loclist"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/exprlang"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/gotype"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/object"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/rcjson"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/safeelf"
 )
@@ -1794,24 +1796,95 @@ func populateEventExpressions(
 		default:
 			panic(fmt.Sprintf("unexpected event kind: %v", event.Kind))
 		}
-		variableSize := variable.Type.GetByteSize()
-		expr := &ir.RootExpression{
-			Name:   variable.Name,
-			Offset: uint32(0),
-			Kind:   variableKind,
-			Expression: ir.Expression{
-				Type: variable.Type,
-				Operations: []ir.ExpressionOp{
-					&ir.LocationOp{
-						Variable: variable,
-						Offset:   0,
-						ByteSize: uint32(variableSize),
-					},
-				},
-			},
-		}
+		expr := newRootExpressionForVariable(variable, variableKind)
 		expressions = append(expressions, expr)
 	}
+
+	// Process template segments if template exists
+	// This is to
+	var variableExpressionSet map[string]int
+	if probe.Template != nil {
+		// Build a set of existing variable expressions for quick lookup
+		variableExpressionSet = make(map[string]int, len(expressions))
+		for i, expr := range expressions {
+			variableExpressionSet[expr.Name] = i
+		}
+
+		for i, segment := range probe.Template.Segments {
+			jsonSeg, ok := segment.(ir.JSONSegment)
+			if !ok {
+				continue // Skip string segments
+			}
+
+			// Parse the DSL expression
+			expr, err := exprlang.Parse(jsonSeg.JSON)
+			if err != nil {
+				return ir.Issue{
+					Kind:    ir.IssueKindUnsupportedFeature,
+					Message: fmt.Sprintf("failed to parse template segment: %v", err),
+				}
+			}
+
+			var refExpr *exprlang.RefExpr
+			switch e := expr.(type) {
+			case *exprlang.RefExpr:
+				refExpr = e
+			default:
+				return ir.Issue{
+					Kind:    ir.IssueKindUnsupportedFeature,
+					Message: fmt.Sprintf("unsupported template operation: %T, only 'ref' operation is supported", expr),
+				}
+			}
+
+			// Find the variable in the subprogram
+			var targetVariableRole ir.VariableRole
+			switch event.Kind {
+			case ir.EventKindEntry:
+				targetVariableRole = ir.VariableRoleParameter
+			case ir.EventKindReturn:
+				targetVariableRole = ir.VariableRoleReturn
+			case ir.EventKindLine:
+				targetVariableRole = ir.VariableRoleLocal
+			default:
+				panic(fmt.Sprintf("unexpected event kind: %v", event.Kind))
+			}
+
+			var targetVar *ir.Variable
+			for _, v := range probe.Subprogram.Variables {
+				if v.Role != targetVariableRole {
+					continue
+				}
+				if v.Name == refExpr.Ref {
+					targetVar = v
+					break
+				}
+			}
+			if targetVar == nil {
+				// Variable not found - could be unavailable at this event kind
+				continue
+			}
+
+			jsonSeg.EventKind = event.Kind
+			// Check if we already have an expression for this variable
+			if existingIdx, ok := variableExpressionSet[targetVar.Name]; ok {
+				// Reuse existing expression index
+				jsonSeg.EventExpressionIndex = existingIdx
+				probe.Template.Segments[i] = jsonSeg
+				continue
+			}
+
+			// Create new template segment expression
+			templateExpr := newRootExpressionForVariable(targetVar, ir.RootExpressionKindTemplateSegment)
+			expressions = append(expressions, templateExpr)
+			exprIdx := len(expressions) - 1
+			variableExpressionSet[targetVar.Name] = exprIdx
+
+			// Map this segment to the expression
+			jsonSeg.EventExpressionIndex = exprIdx
+			probe.Template.Segments[i] = jsonSeg
+		}
+	}
+
 	presenceBitsetSize := uint32((len(expressions) + 7) / 8)
 	byteSize := uint64(presenceBitsetSize)
 	for _, e := range expressions {
@@ -2359,19 +2432,46 @@ func newProbe(
 			Condition:       nil,
 			Kind:            eventKind,
 			SourceLine:      sourceLine,
-			// Will be populated after all the types have been resolved
-			// and placeholders have been filled in.
-			Type: nil,
+			Type:            nil,
 		},
 	}
 	if returnEvent != nil {
 		events = append(events, returnEvent)
 	}
 
+	segments := []ir.TemplateSegment{}
+	probeTemplate := probeCfg.GetTemplate()
+	if probeTemplate != nil {
+		for seg := range probeTemplate.GetSegments() {
+			// See what variables are used in the segment
+			// Find the relevant event that this segment should correspond with
+			// For example, if the segment is relevant to the entry event, then get the entry event, find the index of the expression within that event, and set the EventExpressionIndex to that index.
+			// Similarly, if the segment is relevant to the return event, then get the return event, find the index of the expression within that event, and set the EventExpressionIndex to that index.
+			switch s := seg.(type) {
+			case rcjson.StringSegment:
+				segments = append(segments, ir.StringSegment(s))
+			case rcjson.JSONSegment:
+				segments = append(segments, ir.JSONSegment{
+					JSON: s.GetJSON(),
+					DSL:  s.GetDSL(),
+				})
+			default:
+				return nil, ir.Issue{
+					Kind:    ir.IssueKindInvalidProbeDefinition,
+					Message: fmt.Sprintf("invalid template segment: %T", seg),
+				}, nil
+			}
+		}
+	}
+	template := &ir.Template{
+		TemplateString: probeTemplate.GetTemplateString(),
+		Segments:       segments,
+	}
 	probe := &ir.Probe{
 		ProbeDefinition: probeCfg,
 		Subprogram:      subprogram,
 		Events:          events,
+		Template:        template,
 	}
 	return probe, ir.Issue{}, nil
 }
@@ -3100,4 +3200,23 @@ func compileUnitFromName(name string) string {
 		return runtimePackageName
 	}
 	return name[:packageNameEnd]
+}
+
+func newRootExpressionForVariable(variable *ir.Variable, variableKind ir.RootExpressionKind) *ir.RootExpression {
+	variableSize := variable.Type.GetByteSize()
+	return &ir.RootExpression{
+		Name:   variable.Name,
+		Offset: uint32(0),
+		Kind:   variableKind,
+		Expression: ir.Expression{
+			Type: variable.Type,
+			Operations: []ir.ExpressionOp{
+				&ir.LocationOp{
+					Variable: variable,
+					Offset:   0,
+					ByteSize: uint32(variableSize),
+				},
+			},
+		},
+	}
 }
