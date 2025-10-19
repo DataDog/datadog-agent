@@ -582,4 +582,12 @@ int raw_tracepoint__sched_process_exit(void *ctx) {
     return 0;
 }
 
+// kprobe fallback for kernels < 4.15 that don't support multiple tracepoint attachments
+SEC("kprobe/do_exit")
+int kprobe__do_exit(struct pt_regs *ctx) {
+    CHECK_BPF_PROGRAM_BYPASSED()
+    delete_pid_in_maps();
+    return 0;
+}
+
 #endif
