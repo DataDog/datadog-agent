@@ -112,6 +112,10 @@ func (s *usmHTTPSuite) TestLoadHTTPBinary() {
 
 func (s *usmHTTPSuite) TestSimple() {
 	t := s.T()
+	usmhttp.DetailedLogging = true
+	defer func() {
+		usmhttp.DetailedLogging = false
+	}()
 	for name, isIPv6 := range map[string]bool{"IPv4": false, "IPv6": true} {
 		t.Run(name, func(t *testing.T) {
 			s.testSimple(t, isIPv6)
