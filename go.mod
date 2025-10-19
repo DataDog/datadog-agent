@@ -176,7 +176,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/version v0.72.0-devel
 	github.com/DataDog/datadog-go/v5 v5.8.1
 	github.com/DataDog/datadog-operator/api v0.0.0-20251002125833-f01ea1d12a3f
-	github.com/DataDog/datadog-traceroute v0.1.28
+	github.com/DataDog/datadog-traceroute v0.1.29-0.20251018204331-141702b3b1c0
 	github.com/DataDog/dd-trace-go/v2 v2.2.2
 	github.com/DataDog/ebpf-manager v0.7.14
 	github.com/DataDog/go-libddwaf/v4 v4.3.2
@@ -974,8 +974,12 @@ require (
 	github.com/DataDog/gohai v0.0.0-20230524154621-4316413895ee // indirect
 	github.com/DataDog/jsonapi v0.12.0 // indirect
 	github.com/charlievieth/strcase v0.0.5 // indirect
+	github.com/dgraph-io/badger/v4 v4.8.0 // indirect
+	github.com/dgraph-io/ristretto/v2 v2.2.0 // indirect
 	github.com/elastic/go-freelru v0.16.0 // indirect
 	github.com/elastic/go-perf v0.0.0-20241029065020-30bec95324b8 // indirect
+	github.com/glendc/go-external-ip v0.1.0 // indirect
+	github.com/google/flatbuffers v25.2.10+incompatible // indirect
 	github.com/klauspost/cpuid/v2 v2.3.0 // indirect
 	github.com/mdlayher/kobject v0.0.0-20200520190114-19ca17470d7d // indirect
 	github.com/minio/sha256-simd v1.0.1 // indirect

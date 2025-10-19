@@ -152,6 +152,8 @@ github.com/DataDog/datadog-operator/api v0.0.0-20251002125833-f01ea1d12a3f h1:O+
 github.com/DataDog/datadog-operator/api v0.0.0-20251002125833-f01ea1d12a3f/go.mod h1:E+dFku5SVIXDUj6apiBdDAzrUOR3xLz1bMgUOGjRAVQ=
 github.com/DataDog/datadog-traceroute v0.1.28 h1:aakZepsIXOy0kcDNHkiHMnbIVn0cY8it6gzx/8+rmmU=
 github.com/DataDog/datadog-traceroute v0.1.28/go.mod h1:PU0w0AsVMEapWPgaqXEtBuDUlPQGlnHsaADsXVMKMts=
+github.com/DataDog/datadog-traceroute v0.1.29-0.20251018204331-141702b3b1c0 h1:JIRaNQKhQHYTHJmoBrT2q5/fus9Qyo3OWJNLKaV9BHU=
+github.com/DataDog/datadog-traceroute v0.1.29-0.20251018204331-141702b3b1c0/go.mod h1:4/ZNc98T4CDe/QqfsKOVcs+YDN2s2bZGYiSkILTq0Rw=
 github.com/DataDog/dd-otel-host-profiler v0.4.1-0.20251013140043-83a1f38427f0 h1:OEDWHLCabNtLF+OkbI1DlVLkxxK9QUVQUSIt8uZ3VY8=
 github.com/DataDog/dd-otel-host-profiler v0.4.1-0.20251013140043-83a1f38427f0/go.mod h1:KsvZuiis+8Ix3r+FEIew7LvryZeeIDrYyiTPMR14GOY=
 github.com/DataDog/dd-trace-go/v2 v2.2.2 h1:t7RCS6et5z+xrvM9dqUPtCGoNOWTj0pcApzbktMZi2k=
@@ -643,6 +645,8 @@ github.com/glaslos/ssdeep v0.4.0 h1:w9PtY1HpXbWLYgrL/rvAVkj2ZAMOtDxoGKcBHcUFCLs=
 github.com/glaslos/ssdeep v0.4.0/go.mod h1:il4NniltMO8eBtU7dqoN+HVJ02gXxbpbUfkcyUvNtG0=
 github.com/glebarez/go-sqlite v1.22.0 h1:uAcMJhaA6r3LHMTFgP0SifzgXg46yJkgxqyuyec+ruQ=
 github.com/glebarez/go-sqlite v1.22.0/go.mod h1:PlBIdHe0+aUEFn+r2/uthrWq4FxbzugL0L8Li6yQJbc=
+github.com/glendc/go-external-ip v0.1.0 h1:iX3xQ2Q26atAmLTbd++nUce2P5ht5P4uD4V7caSY/xg=
+github.com/glendc/go-external-ip v0.1.0/go.mod h1:CNx312s2FLAJoWNdJWZ2Fpf5O4oLsMFwuYviHjS4uJE=
 github.com/go-chi/chi v4.1.2+incompatible h1:fGFk2Gmi/YKXk0OmGfBh0WgmN3XB8lVnEyNz34tQRec=
 github.com/go-chi/chi v4.1.2+incompatible/go.mod h1:eB3wogJHnLi3x/kFX2A+IbTBlXxmMeXJVKy9tTv1XzQ=
 github.com/go-delve/delve v1.25.0 h1:JN2S3iVptvayUS2w+d0UEPmijgkodW1AFM4I8UViHGE=
