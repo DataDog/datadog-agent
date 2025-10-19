@@ -53,7 +53,7 @@ func (a *Agent) runCommand(command string, args ...string) (string, error) {
 		time.Sleep(1 * time.Second)
 	}
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("error waiting for agent to be ready: %w", err)
 	}
 	return a.remote.Execute(fmt.Sprintf("sudo -u dd-agent datadog-agent %s %s", command, strings.Join(args, " ")))
 }

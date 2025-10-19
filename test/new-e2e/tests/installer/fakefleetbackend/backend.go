@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 )
@@ -120,9 +121,16 @@ func (b *Backend) RemoteConfigStatus() (RemoteConfigState, error) {
 }
 
 func (b *Backend) runDaemonCommand(command string, args ...string) (string, error) {
-	_, err := b.remote.Execute("sudo curl --unix-socket /opt/datadog-packages/run/installer.sock -H 'Content-Type: application/json' --retry 30 --retry-delay 1 --retry-all-errors http://localhost/status")
+	var err error
+	for range 30 {
+		_, err = b.remote.Execute("sudo DD_BUNDLED_AGENT=installer datadog-agent daemon rc-status")
+		if err == nil {
+			break
+		}
+		time.Sleep(1 * time.Second)
+	}
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("error waiting for daemon to be ready: %w", err)
 	}
 	var sanitizedArgs []string
 	for _, arg := range args {
