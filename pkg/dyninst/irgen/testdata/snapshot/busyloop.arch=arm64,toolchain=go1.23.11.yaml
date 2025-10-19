@@ -13,6 +13,7 @@ Probes:
           Type: 106 EventRootType Probe[main.noop]
           InjectionPoints: [{PC: "0xb5290", Frameless: true}]
           Condition: null
+      probeTemplate: {TemplateString: "", Segments: []}
 Subprograms:
     - ID: 1
       Name: main.noop

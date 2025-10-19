@@ -45,9 +45,11 @@ import (
 	"golang.org/x/time/rate"
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/dwarf/loclist"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/exprlang"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/gotype"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/object"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/rcjson"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/safeelf"
 )
@@ -1746,7 +1748,49 @@ func populateProbeExpressions(
 			return issue
 		}
 	}
+	// Ensure expressions have been populated for all template segments
+	for i := range probe.Template.Segments {
+		if seg, ok := probe.Template.Segments[i].(ir.JSONSegment); ok {
+			if seg.EventExpressionIndex == -1 {
+				return ir.Issue{
+					Kind:    ir.IssueKindTargetNotFoundInBinary,
+					Message: fmt.Sprintf("variable referenced in template missing: %s (probe: %s)", seg.DSL, probe.GetID()),
+				}
+			}
+		}
+	}
 	return ir.Issue{}
+}
+
+type variableToSegmentIndexes map[string][]int
+
+// collectAllSegmentVariables collects all variable names that are referenced by segments
+// and records the index of each referring segment.
+func collectAllSegmentVariables(segments []ir.TemplateSegment) (variableToSegmentIndexes, error) {
+	variableNamesUsedInTemplates := map[string][]int{}
+	for i, seg := range segments {
+		jsonSeg, ok := seg.(ir.JSONSegment)
+		if !ok {
+			// Skip string segments.
+			continue
+		}
+		expr, err := exprlang.Parse(jsonSeg.JSON)
+		if err != nil {
+			return nil, fmt.Errorf("invalid template: %s: %s", jsonSeg.DSL, string(jsonSeg.JSON))
+		}
+		var refExpr *exprlang.RefExpr
+		switch e := expr.(type) {
+		case *exprlang.RefExpr:
+			refExpr = e
+		default:
+			continue
+		}
+		if len(variableNamesUsedInTemplates[refExpr.Ref]) == 0 {
+			variableNamesUsedInTemplates[refExpr.Ref] = []int{}
+		}
+		variableNamesUsedInTemplates[refExpr.Ref] = append(variableNamesUsedInTemplates[refExpr.Ref], i)
+	}
+	return variableNamesUsedInTemplates, nil
 }
 
 func populateEventExpressions(
@@ -1756,6 +1800,13 @@ func populateEventExpressions(
 ) ir.Issue {
 	id := typeCatalog.idAlloc.next()
 	var expressions []*ir.RootExpression
+	variableNamesUsedInTemplates, err := collectAllSegmentVariables(probe.Template.Segments)
+	if err != nil {
+		return ir.Issue{
+			Kind:    ir.IssueKindInvalidProbeDefinition,
+			Message: err.Error(),
+		}
+	}
 	for _, variable := range probe.Subprogram.Variables {
 		var variableKind ir.RootExpressionKind
 		switch event.Kind {
@@ -1792,23 +1843,27 @@ func populateEventExpressions(
 		default:
 			panic(fmt.Sprintf("unexpected event kind: %v", event.Kind))
 		}
-		variableSize := variable.Type.GetByteSize()
-		expr := &ir.RootExpression{
-			Name:   variable.Name,
-			Offset: uint32(0),
-			Kind:   variableKind,
-			Expression: ir.Expression{
-				Type: variable.Type,
-				Operations: []ir.ExpressionOp{
-					&ir.LocationOp{
-						Variable: variable,
-						Offset:   0,
-						ByteSize: uint32(variableSize),
-					},
-				},
-			},
-		}
+		expr := newRootExpressionForVariable(variable, variableKind)
 		expressions = append(expressions, expr)
+
+		// Check if this variable is relevant to any template segment(s).
+		if segmentIndexes, ok := variableNamesUsedInTemplates[variable.Name]; ok {
+			for _, segmentIndex := range segmentIndexes {
+				seg := probe.Template.Segments[segmentIndex]
+				jsonSeg, ok := seg.(ir.JSONSegment)
+				if !ok {
+					// This should not happen.
+					continue
+				}
+				// Annotate the segment with relevant kind/expression index for decoding.
+				jsonSeg.EventExpressionIndex = len(expressions)
+				jsonSeg.EventKind = event.Kind
+				probe.Template.Segments[segmentIndex] = jsonSeg
+
+				segmentRootExpression := newRootExpressionForVariable(variable, ir.RootExpressionKindTemplateSegment)
+				expressions = append(expressions, segmentRootExpression)
+			}
+		}
 	}
 	presenceBitsetSize := uint32((len(expressions) + 7) / 8)
 	byteSize := uint64(presenceBitsetSize)
@@ -2362,10 +2417,38 @@ func newProbe(
 		events = append(events, returnEvent)
 	}
 
+	segments := []ir.TemplateSegment{}
+	probeTemplate := probeCfg.GetTemplate()
+	if probeTemplate != nil {
+		for seg := range probeTemplate.GetSegments() {
+			switch s := seg.(type) {
+			case rcjson.StringSegment:
+				segments = append(segments, ir.StringSegment(s))
+			case rcjson.JSONSegment:
+				segments = append(segments, ir.JSONSegment{
+					JSON: s.GetJSON(),
+					DSL:  s.GetDSL(),
+					// Will be populated when generating expressions
+					EventExpressionIndex: -1,
+					EventKind:            0,
+				})
+			default:
+				return nil, ir.Issue{
+					Kind:    ir.IssueKindInvalidProbeDefinition,
+					Message: fmt.Sprintf("invalid template segment: %T", seg),
+				}, nil
+			}
+		}
+	}
+	template := &ir.Template{
+		TemplateString: probeTemplate.GetTemplateString(),
+		Segments:       segments,
+	}
 	probe := &ir.Probe{
 		ProbeDefinition: probeCfg,
 		Subprogram:      subprogram,
 		Events:          events,
+		Template:        template,
 	}
 	return probe, ir.Issue{}, nil
 }
@@ -3092,4 +3175,23 @@ func compileUnitFromName(name string) string {
 		return runtimePackageName
 	}
 	return name[:packageNameEnd]
+}
+
+func newRootExpressionForVariable(variable *ir.Variable, rootExpressionKind ir.RootExpressionKind) *ir.RootExpression {
+	variableSize := variable.Type.GetByteSize()
+	return &ir.RootExpression{
+		Name:   variable.Name,
+		Offset: uint32(0),
+		Kind:   rootExpressionKind,
+		Expression: ir.Expression{
+			Type: variable.Type,
+			Operations: []ir.ExpressionOp{
+				&ir.LocationOp{
+					Variable: variable,
+					Offset:   0,
+					ByteSize: uint32(variableSize),
+				},
+			},
+		},
+	}
 }

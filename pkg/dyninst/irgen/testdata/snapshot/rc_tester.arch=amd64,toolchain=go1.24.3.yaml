@@ -22,6 +22,7 @@ Probes:
             - PC: "0xd315c5"
               Frameless: false
           Condition: null
+      probeTemplate: {TemplateString: "", Segments: []}
     - id: look_at_the_request
       version: 0
       type: LOG_PROBE
@@ -40,6 +41,7 @@ Probes:
           Type: 270 EventRootType Probe[main.LookAtTheRequest]Return
           InjectionPoints: [{PC: "0xd3175d", Frameless: false}]
           Condition: null
+      probeTemplate: {TemplateString: "", Segments: []}
 Subprograms:
     - ID: 1
       Name: main.HandleHTTP
