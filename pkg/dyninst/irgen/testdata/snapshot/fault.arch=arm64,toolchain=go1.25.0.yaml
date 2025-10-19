@@ -18,6 +18,7 @@ Probes:
           Type: 117 EventRootType Probe[main.callMe]Return
           InjectionPoints: [{PC: "0xba0dc", Frameless: false}]
           Condition: null
+      probeTemplate: {TemplateString: "", Segments: []}
 Subprograms:
     - ID: 1
       Name: main.callMe
