@@ -101,11 +101,6 @@ func (m *testDaemon) SetConfigCatalog(configs map[string]installerConfig) {
 	m.Called(configs)
 }
 
-func (m *testDaemon) HandleRemoteAPIRequest(request remoteAPIRequest) error {
-	args := m.Called(request)
-	return args.Error(0)
-}
-
 type testLocalAPI struct {
 	i *testDaemon
 	s *localAPIImpl

@@ -75,11 +75,9 @@ func (l *localAPIImpl) Stop(ctx context.Context) error {
 
 func (l *localAPIImpl) handler() http.Handler {
 	r := mux.NewRouter().Headers("Content-Type", "application/json").Subrouter()
-	r.HandleFunc("/health", l.health).Methods(http.MethodGet)
 	r.HandleFunc("/status", l.status).Methods(http.MethodGet)
 	r.HandleFunc("/catalog", l.setCatalog).Methods(http.MethodPost)
 	r.HandleFunc("/config_catalog", l.setConfigCatalog).Methods(http.MethodPost)
-	r.HandleFunc("/remote_api_request", l.handleRemoteAPIRequest).Methods(http.MethodPost)
 	r.HandleFunc("/{package}/experiment/start", l.startExperiment).Methods(http.MethodPost)
 	r.HandleFunc("/{package}/experiment/stop", l.stopExperiment).Methods(http.MethodPost)
 	r.HandleFunc("/{package}/experiment/promote", l.promoteExperiment).Methods(http.MethodPost)
@@ -89,11 +87,6 @@ func (l *localAPIImpl) handler() http.Handler {
 	r.HandleFunc("/{package}/install", l.install).Methods(http.MethodPost)
 	r.HandleFunc("/{package}/remove", l.remove).Methods(http.MethodPost)
 	return r
-}
-
-func (l *localAPIImpl) health(w http.ResponseWriter, _ *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
 }
 
 func (l *localAPIImpl) status(w http.ResponseWriter, _ *http.Request) {
@@ -139,29 +132,6 @@ func (l *localAPIImpl) setConfigCatalog(w http.ResponseWriter, r *http.Request) 
 	}
 	log.Infof("Received local request to set config catalog")
 	l.daemon.SetConfigCatalog(configs)
-}
-
-func (l *localAPIImpl) handleRemoteAPIRequest(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	var request remoteAPIRequest
-	var response APIResponse
-	defer func() {
-		_ = json.NewEncoder(w).Encode(response)
-	}()
-
-	err := json.NewDecoder(r.Body).Decode(&request)
-	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		response.Error = &APIError{Message: err.Error()}
-		return
-	}
-	log.Infof("Received local request to handle remote API request")
-	err = l.daemon.HandleRemoteAPIRequest(request)
-	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		response.Error = &APIError{Message: err.Error()}
-		return
-	}
 }
 
 // example: curl -X POST --unix-socket /opt/datadog-packages/run/installer.sock -H 'Content-Type: application/json' http://installer/datadog-agent/experiment/start -d '{"version":"1.21.5"}'
@@ -354,7 +324,6 @@ type LocalAPIClient interface {
 
 	SetCatalog(catalog string) error
 	SetConfigCatalog(configs string) error
-	HandleRemoteAPIRequest(request []byte) error
 	Install(pkg, version string) error
 	Remove(pkg string) error
 	StartExperiment(pkg, version string) error
@@ -439,30 +408,6 @@ func (c *localAPIClientImpl) SetConfigCatalog(configs string) error {
 	}
 	if response.Error != nil {
 		return fmt.Errorf("error setting config catalog: %s", response.Error.Message)
-	}
-	return nil
-}
-
-// HandleRemoteAPIRequest handles a remote API request.
-func (c *localAPIClientImpl) HandleRemoteAPIRequest(request []byte) error {
-	req, err := http.NewRequest(http.MethodPost, fmt.Sprintf("http://%s/remote_api_request", c.addr), bytes.NewBuffer(request))
-	if err != nil {
-		return err
-	}
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Accept", "application/json")
-	resp, err := c.client.Do(req)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-	var response APIResponse
-	err = json.NewDecoder(resp.Body).Decode(&response)
-	if err != nil {
-		return err
-	}
-	if response.Error != nil {
-		return fmt.Errorf("error handling remote API request: %s", response.Error.Message)
 	}
 	return nil
 }

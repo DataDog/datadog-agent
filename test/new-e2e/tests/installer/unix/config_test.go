@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/agent"
-	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/fakefleetbackend"
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/fleetbackend"
 )
 
 type configSuite struct {
@@ -28,9 +28,9 @@ func (s *configSuite) TestConfig() {
 	s.agent.MustInstall(agent.WithRemoteUpdates())
 	defer s.agent.MustUninstall()
 
-	err := s.backend.StartConfigExperiment(fakefleetbackend.ConfigOperations{
+	err := s.backend.StartConfigExperiment(fleetbackend.ConfigOperations{
 		DeploymentID:   "123",
-		FileOperations: []fakefleetbackend.FileOperation{{FileOperationType: fakefleetbackend.FileOperationMergePatch, FilePath: "/datadog.yaml", Patch: []byte(`{"log_level": "debug"}`)}},
+		FileOperations: []fleetbackend.FileOperation{{FileOperationType: fleetbackend.FileOperationMergePatch, FilePath: "/datadog.yaml", Patch: []byte(`{"log_level": "debug"}`)}},
 	})
 	require.NoError(s.T(), err)
 	err = s.backend.PromoteConfigExperiment()

@@ -3,17 +3,21 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package fakefleetbackend contains a fake fleet backend for use in tests.
-package fakefleetbackend
+// Package fleetbackend contains a fake fleet backend for use in tests.
+package fleetbackend
 
 import (
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
+	e2eos "github.com/DataDog/test-infra-definitions/components/os"
+	"github.com/avast/retry-go/v4"
+
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 )
 
 // RemoteConfigState is the state of the remote config.
@@ -32,13 +36,13 @@ type RemoteConfigStatePackage struct {
 
 // Backend is the fake fleet backend.
 type Backend struct {
-	t      func() *testing.T
-	remote *components.RemoteHost
+	t    func() *testing.T
+	host *environments.Host
 }
 
 // New creates a new Backend.
-func New(t func() *testing.T, remote *components.RemoteHost) *Backend {
-	return &Backend{t: t, remote: remote}
+func New(t func() *testing.T, host *environments.Host) *Backend {
+	return &Backend{t: t, host: host}
 }
 
 // FileOperationType is the type of operation to perform on the config.
@@ -73,7 +77,7 @@ func (b *Backend) StartConfigExperiment(operations ConfigOperations) error {
 	if err != nil {
 		return err
 	}
-	output, err := b.runDaemonCommand("start-config-experiment", "datadog-agent", string(rawOperations))
+	output, err := b.runDaemonCommandWithRestart("start-config-experiment", "datadog-agent", string(rawOperations))
 	if err != nil {
 		return fmt.Errorf("%w, output: %s", err, output)
 	}
@@ -84,7 +88,7 @@ func (b *Backend) StartConfigExperiment(operations ConfigOperations) error {
 // PromoteConfigExperiment promotes a config experiment for the given package.
 func (b *Backend) PromoteConfigExperiment() error {
 	b.t().Logf("Promoting config experiment")
-	output, err := b.runDaemonCommand("promote-config-experiment", "datadog-agent")
+	output, err := b.runDaemonCommandWithRestart("promote-config-experiment", "datadog-agent")
 	if err != nil {
 		return fmt.Errorf("%w, output: %s", err, output)
 	}
@@ -120,22 +124,74 @@ func (b *Backend) RemoteConfigStatus() (RemoteConfigState, error) {
 	return remoteConfigState, nil
 }
 
-func (b *Backend) runDaemonCommand(command string, args ...string) (string, error) {
-	var err error
-	for range 30 {
-		_, err = b.remote.Execute("sudo DD_BUNDLED_AGENT=installer datadog-agent daemon rc-status")
-		if err == nil {
-			break
-		}
-		time.Sleep(1 * time.Second)
+func (b *Backend) runDaemonCommandWithRestart(command string, args ...string) (string, error) {
+	originalPID, err := b.getDaemonPID()
+	if err != nil {
+		return "", err
 	}
+	output, err := b.runDaemonCommand(command, args...)
+	if err != nil {
+		return "", err
+	}
+	err = retry.Do(func() error {
+		newPID, err := b.getDaemonPID()
+		if err != nil {
+			return err
+		}
+		if newPID == originalPID {
+			return fmt.Errorf("daemon PID %d is still running", newPID)
+		}
+		return nil
+	}, retry.Attempts(10), retry.Delay(1*time.Second))
+	if err != nil {
+		return "", fmt.Errorf("error waiting for daemon to restart: %w", err)
+	}
+	return output, nil
+}
+
+func (b *Backend) runDaemonCommand(command string, args ...string) (string, error) {
+	var baseCommand string
+	var sanitizeCharacter string
+	switch b.host.RemoteHost.OSFamily {
+	case e2eos.LinuxFamily:
+		sanitizeCharacter = `\"`
+		baseCommand = "sudo DD_BUNDLED_AGENT=installer datadog-agent daemon"
+	case e2eos.WindowsFamily:
+		sanitizeCharacter = "\\`\""
+		baseCommand = `& "C:\Program Files\Datadog\Datadog Agent\bin\datadog-installer.exe" daemon`
+	default:
+		return "", fmt.Errorf("unsupported OS family: %v", b.host.RemoteHost.OSFamily)
+	}
+
+	err := retry.Do(func() error {
+		_, err := b.host.RemoteHost.Execute(fmt.Sprintf("%s rc-status", baseCommand))
+		return err
+	})
 	if err != nil {
 		return "", fmt.Errorf("error waiting for daemon to be ready: %w", err)
 	}
+
 	var sanitizedArgs []string
 	for _, arg := range args {
-		arg = `"` + strings.ReplaceAll(arg, `"`, `\"`) + `"`
+		arg = `"` + strings.ReplaceAll(arg, `"`, sanitizeCharacter) + `"`
 		sanitizedArgs = append(sanitizedArgs, arg)
 	}
-	return b.remote.Execute(fmt.Sprintf("sudo DD_BUNDLED_AGENT=installer datadog-agent daemon %s %s", command, strings.Join(sanitizedArgs, " ")))
+	return b.host.RemoteHost.Execute(fmt.Sprintf("%s %s %s", baseCommand, command, strings.Join(sanitizedArgs, " ")))
+}
+
+func (b *Backend) getDaemonPID() (int, error) {
+	var pid string
+	var err error
+	switch b.host.RemoteHost.OSFamily {
+	case e2eos.LinuxFamily:
+		pid, err = b.host.RemoteHost.Execute(`systemctl show -p MainPID datadog-agent-installer | cut -d= -f2`)
+	case e2eos.WindowsFamily:
+		pid, err = b.host.RemoteHost.Execute(`(Get-CimInstance Win32_Service -Filter "Name='Datadog Installer'").ProcessId`)
+	default:
+		return 0, fmt.Errorf("unsupported OS family: %v", b.host.RemoteHost.OSFamily)
+	}
+	if err != nil {
+		return 0, err
+	}
+	return strconv.Atoi(strings.TrimSpace(pid))
 }
