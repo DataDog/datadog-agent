@@ -2302,7 +2302,9 @@ func testHTTPLikeSketches(t *testing.T, tr *tracer.Tracer, client *nethttp.Clien
 	var getRequestStats, postRequestsStats *http.RequestStats
 	require.EventuallyWithT(t, func(ct *assert.CollectT) {
 		conns, cleanup := getConnections(ct, tr)
-		defer cleanup()
+		// Calling cleanup will restore the requestStats to a pool, and can modify/empty it.
+		// hence, we call the cleanup only during the end of the test
+		t.Cleanup(cleanup)
 
 		requests := conns.USMData.HTTP
 		if isHTTP2 {
@@ -2442,7 +2444,9 @@ func testKafkaSketches(t *testing.T, tr *tracer.Tracer) {
 	var fetchRequestStats, produceTopic1RequestsStats, produceTopic2RequestsStats *kafka.RequestStats
 	require.EventuallyWithT(t, func(ct *assert.CollectT) {
 		conns, cleanup := getConnections(ct, tr)
-		defer cleanup()
+		// Calling cleanup will restore the requestStats to a pool, and can modify/empty it.
+		// hence, we call the cleanup only during the end of the test
+		t.Cleanup(cleanup)
 
 		requests := conns.USMData.Kafka
 		if fetchRequestStats == nil || produceTopic1RequestsStats == nil || produceTopic2RequestsStats == nil {
@@ -2526,7 +2530,9 @@ func testPostgresSketches(t *testing.T, tr *tracer.Tracer) {
 	var insertRequestStats, selectRequestsStats *pgutils.RequestStat
 	require.EventuallyWithT(t, func(ct *assert.CollectT) {
 		conns, cleanup := getConnections(ct, tr)
-		defer cleanup()
+		// Calling cleanup will restore the requestStats to a pool, and can modify/empty it.
+		// hence, we call the cleanup only during the end of the test
+		t.Cleanup(cleanup)
 
 		requests := conns.USMData.Postgres
 		if insertRequestStats == nil || selectRequestsStats == nil {
@@ -2591,7 +2597,9 @@ func testRedisSketches(t *testing.T, tr *tracer.Tracer) {
 	var getRequestStats, setRequestStats *redis.RequestStats
 	require.EventuallyWithT(t, func(ct *assert.CollectT) {
 		conns, cleanup := getConnections(ct, tr)
-		defer cleanup()
+		// Calling cleanup will restore the requestStats to a pool, and can modify/empty it.
+		// hence, we call the cleanup only during the end of the test
+		t.Cleanup(cleanup)
 
 		requests := conns.USMData.Redis
 		if len(requests) == 0 {
