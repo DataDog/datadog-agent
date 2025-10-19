@@ -1,0 +1,82 @@
+[
+  {
+    "service": "simple",
+    "ddsource": "dd_debugger",
+    "logger": {
+      "name": "",
+      "method": "main.templateTest2",
+      "version": 0,
+      "thread_id": "[goid]",
+      "thread_name": ""
+    },
+    "debugger": {
+      "snapshot": {
+        "id": "[id]",
+        "timestamp": "[ts]",
+        "language": "go",
+        "stack": [
+          {
+            "function": "main.templateTest2",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go",
+            "lineNumber": 164
+          },
+          {
+            "function": "main.main",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go",
+            "lineNumber": 42
+          },
+          {
+            "function": "runtime.main",
+            "fileName": "runtime/proc.go",
+            "lineNumber": "[lineNumber]"
+          },
+          {
+            "function": "runtime.goexit",
+            "fileName": "runtime/asm_[arch].s",
+            "lineNumber": "[lineNumber]"
+          }
+        ],
+        "probe": {
+          "id": "templateTest2",
+          "location": {
+            "method": "main.templateTest2"
+          }
+        },
+        "captures": {
+          "entry": {
+            "arguments": {
+              "user": {
+                "type": "main.User",
+                "fields": {
+                  "ID": {
+                    "type": "int",
+                    "value": "42"
+                  },
+                  "Name": {
+                    "type": "string",
+                    "value": "Alice"
+                  }
+                }
+              },
+              "count": {
+                "type": "int",
+                "value": "100"
+              }
+            }
+          },
+          "return": {
+            "locals": {
+              "result": {
+                "type": "int16",
+                "value": "123"
+              }
+            }
+          }
+        }
+      },
+      "message": "User: main.User{ID: 42, Name: \"Alice\"}, Count: 100, Result: 123"
+    },
+    "timestamp": "[ts]",
+    "duration": "[duration]"
+  }
+]
