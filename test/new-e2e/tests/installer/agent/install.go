@@ -139,7 +139,7 @@ func (a *Agent) MustUninstall() {
 }
 
 func (a *Agent) uninstallLinux() error {
-	_, err := a.host.RemoteHost.Execute("sudo apt-get remove -y --purge datadog-installer datadog-agent|| sudo yum remove -y datadog-installer datadog-agent || sudo zypper remove -y datadog-installer datadog-agent")
+	_, err := a.host.RemoteHost.Execute("sudo apt-get remove -y --purge datadog-agent || sudo yum remove -y datadog-agent || sudo zypper remove -y datadog-agent")
 	if err != nil {
 		return err
 	}
