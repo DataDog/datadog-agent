@@ -2298,7 +2298,6 @@ func testHTTPLikeSketches(t *testing.T, tr *tracer.Tracer, client *nethttp.Clien
 	require.NoError(t, err)
 	defer postResp2.Body.Close()
 
-	time.Sleep(1 * time.Second)
 	var getRequestStats, postRequestsStats *http.RequestStats
 	require.EventuallyWithT(t, func(ct *assert.CollectT) {
 		conns, cleanup := getConnections(ct, tr)
