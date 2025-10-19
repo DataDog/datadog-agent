@@ -190,6 +190,62 @@ func testRedisDecoding(t *testing.T, isTLS bool, version int, trackResources boo
 				}, isTLS)
 			},
 		},
+		{
+			name: "ping command",
+			preMonitorSetup: func(t *testing.T, ctx redisTestContext) {
+				dialer := &net.Dialer{}
+				redisClient, err := redis.NewClient(ctx.serverAddress, dialer, isTLS, version)
+				require.NoError(t, err)
+				require.NotNil(t, redisClient)
+				require.NoError(t, redisClient.Ping(context.Background()).Err())
+				ctx.extras["redis"] = redisClient
+			},
+			postMonitorSetup: func(t *testing.T, ctx redisTestContext) {
+				redisClient := ctx.extras["redis"].(*redisv9.Client)
+				// Execute multiple PING commands
+				for i := 0; i < 5; i++ {
+					require.NoError(t, redisClient.Ping(context.Background()).Err())
+				}
+			},
+			validation: func(t *testing.T, _ redisTestContext, monitor *Monitor) {
+				// PING doesn't have a key, so keyName is always empty
+				validateRedis(t, monitor, map[string]map[redis.CommandType]int{
+					"": {
+						redis.PingCommand: adjustCount(5),
+					},
+				}, isTLS)
+			},
+		},
+		{
+			name: "ping command with message (bulk string response)",
+			preMonitorSetup: func(t *testing.T, ctx redisTestContext) {
+				dialer := &net.Dialer{}
+				redisClient, err := redis.NewClient(ctx.serverAddress, dialer, isTLS, version)
+				require.NoError(t, err)
+				require.NotNil(t, redisClient)
+				require.NoError(t, redisClient.Ping(context.Background()).Err())
+				ctx.extras["redis"] = redisClient
+			},
+			postMonitorSetup: func(t *testing.T, ctx redisTestContext) {
+				redisClient := ctx.extras["redis"].(*redisv9.Client)
+				// PING with message argument returns bulk string instead of simple string
+				// This tests that all RESP response types are accepted
+				for i := 0; i < 3; i++ {
+					result, err := redisClient.Do(context.Background(), "PING", "hello").Result()
+					require.NoError(t, err)
+					require.Equal(t, "hello", result)
+				}
+			},
+			validation: func(t *testing.T, _ redisTestContext, monitor *Monitor) {
+				// PING doesn't have a key, so keyName is always empty
+				// Should track both simple PING and PING with message
+				validateRedis(t, monitor, map[string]map[redis.CommandType]int{
+					"": {
+						redis.PingCommand: adjustCount(3),
+					},
+				}, isTLS)
+			},
+		},
 	}
 
 	for _, tt := range tests {
