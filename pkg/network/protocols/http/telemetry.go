@@ -50,7 +50,7 @@ func NewTelemetry(protocol string) *Telemetry {
 	metricGroup := libtelemetry.NewMetricGroup(fmt.Sprintf("usm.%s", protocol))
 	metricGroupJoiner := libtelemetry.NewMetricGroup(fmt.Sprintf("usm.%s.joiner", protocol))
 
-	return &Telemetry{
+	t := &Telemetry{
 		protocol:     protocol,
 		metricGroup:  metricGroup,
 		aggregations: metricGroup.NewCounter("aggregations", libtelemetry.OptPrometheus),
@@ -77,6 +77,27 @@ func NewTelemetry(protocol string) *Telemetry {
 			agedRequest:      metricGroupJoiner.NewCounter("aged", libtelemetry.OptPrometheus),
 		},
 	}
+	// Zeroing for test purposes
+	t.aggregations.Set(0)
+	t.hits1XX.Zero()
+	t.hits2XX.Zero()
+	t.hits3XX.Zero()
+	t.hits4XX.Zero()
+	t.hits5XX.Zero()
+	t.dropped.Set(0)
+	t.rejected.Set(0)
+	t.emptyPath.Set(0)
+	t.unknownMethod.Set(0)
+	t.invalidLatency.Set(0)
+	t.nonPrintableCharacters.Set(0)
+	t.invalidStatusCode.Set(0)
+	t.joiner.requests.Set(0)
+	t.joiner.responses.Set(0)
+	t.joiner.responsesDropped.Set(0)
+	t.joiner.requestJoined.Set(0)
+	t.joiner.agedRequest.Set(0)
+
+	return t
 }
 
 // Count counts a transaction.
