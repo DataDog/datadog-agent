@@ -57,6 +57,9 @@ func TestProcessResults(t *testing.T) {
 			hname:            "test-hostname",
 			destinationHost:  "test-destination-hostname",
 			inputResults: &result.Results{
+				Source: result.Source{
+					PublicIP: "1.2.3.4",
+				},
 				Destination: result.Destination{
 					Port: 33434,
 				},
@@ -120,6 +123,7 @@ func TestProcessResults(t *testing.T) {
 					Hostname:    "test-hostname",
 					Name:        "test-hostname",
 					DisplayName: "test-hostname",
+					PublicIP:    "1.2.3.4",
 				},
 				Destination: payload.NetworkPathDestination{
 					Hostname: "test-destination-hostname",
