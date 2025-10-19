@@ -18,7 +18,7 @@
           {
             "function": "main.PointerSmallChainArg",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go",
-            "lineNumber": 117
+            "lineNumber": 120
           },
           {
             "function": "main.main",

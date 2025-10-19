@@ -329,6 +329,14 @@ func (s *snapshotMessage) init(
 	s.Logger.ThreadID = int(header.Goid)
 	s.Debugger.Snapshot.Probe.ID = probe.GetID()
 	s.Debugger.Snapshot.Stack.frames = stackFrames
+
+	if probe.Template != nil {
+		s.Debugger.Message = MessageData{
+			decoder:  decoder,
+			template: probe.Template,
+		}
+	}
+
 	return probe, nil
 }
 

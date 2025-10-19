@@ -18,7 +18,7 @@
           {
             "function": "main.usesMapsOfMapsThatDoNotAppearAsArguments",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go",
-            "lineNumber": 143
+            "lineNumber": 146
           },
           {
             "function": "main.main",

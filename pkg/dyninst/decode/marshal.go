@@ -10,6 +10,7 @@ package decode
 import (
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/go-json-experiment/json"
 	"github.com/go-json-experiment/json/jsontext"
@@ -31,7 +32,82 @@ type logger struct {
 
 type debuggerData struct {
 	Snapshot         snapshotData      `json:"snapshot"`
+	Message          MessageData       `json:"message,omitempty"`
 	EvaluationErrors []evaluationError `json:"evaluationErrors,omitempty"`
+}
+
+type MessageData struct {
+	decoder  *Decoder
+	template *ir.Template
+}
+
+func (m *MessageData) MarshalJSONTo(enc *jsontext.Encoder) error {
+	var (
+		result    strings.Builder
+		rootType  *ir.EventRootType
+		rootData  []byte
+		dataItems map[typeAndAddr]output.DataItem
+	)
+	for _, segment := range m.template.Segments {
+		switch seg := segment.(type) {
+		case ir.StringSegment:
+			// Literal string - append directly
+			result.WriteString(string(seg))
+		case ir.JSONSegment:
+			switch seg.EventKind {
+			case ir.EventKindEntry:
+				rootType = m.decoder.entry.rootType
+				rootData = m.decoder.entry.rootData
+				dataItems = m.decoder.entry.dataItems
+			case ir.EventKindReturn:
+				rootType = m.decoder._return.rootType
+				rootData = m.decoder._return.rootData
+				dataItems = m.decoder._return.dataItems
+			case ir.EventKindLine:
+				rootType = m.decoder.line.capture.rootType
+				rootData = m.decoder.line.capture.rootData
+				dataItems = m.decoder.line.capture.dataItems
+			default:
+				return fmt.Errorf("unexpected event kind: %v", seg.EventKind)
+			}
+
+			// Expression reference - format the captured value
+			exprIdx := seg.EventExpressionIndex
+			if exprIdx >= len(rootType.Expressions) {
+				result.WriteString("unavailable")
+				continue
+			}
+			expr := rootType.Expressions[exprIdx]
+
+			// Check presence bit
+			presenceBitsetSize := rootType.PresenceBitsetSize
+			if exprIdx >= int(presenceBitsetSize)*8 {
+				return fmt.Errorf("expression index out of bounds")
+			}
+
+			presenceByte := rootData[exprIdx/8]
+			presenceBit := uint8(1) << (exprIdx % 8)
+
+			if (presenceByte & presenceBit) == 0 {
+				// Expression evaluation failed
+				result.WriteString("<unavailable>")
+				continue
+			}
+
+			// Get expression data
+			exprDataStart := expr.Offset
+			exprDataEnd := exprDataStart + expr.Expression.Type.GetByteSize()
+			if exprDataEnd > uint32(len(rootData)) {
+				return fmt.Errorf("expression data out of bounds")
+			}
+			exprData := rootData[exprDataStart:exprDataEnd]
+
+			// Format the value based on type
+			formatted := formatType(expr.Expression.Type, exprData, dataItems, 0)
+			result.WriteString(formatted)
+		}
+	}
+	return writeTokens(enc, jsontext.String(result.String()))
 }
 
 type evaluationError struct {

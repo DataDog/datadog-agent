@@ -1,22 +1,37 @@
-- offset: "0x0000fc00"
+- offset: "0x00012140"
+  size: 24
+  kind: struct
+  nameEntry: main.User (exported)
+  name: main.User
+  pkg: main
+  ptrToThis: "0x00006060"
+  struct:
+    fields:
+    - name: ID (exported)
+      type: int
+      offset: 0
+    - name: Name (exported)
+      type: string
+      offset: 8
+- offset: "0x0000fc60"
   size: 8
   kind: struct
   nameEntry: main.aStructNotUsedAsAnArgument
   name: main.aStructNotUsedAsAnArgument
   pkg: main
-  ptrToThis: "0x00006040"
+  ptrToThis: "0x000060a0"
   struct:
     fields:
     - name: a
       type: int
       offset: 0
-- offset: "0x0001b720"
+- offset: "0x0001b820"
   size: 184
   kind: struct
   nameEntry: main.bigStruct
   name: main.bigStruct
   pkg: main
-  ptrToThis: "0x00006080"
+  ptrToThis: "0x000060e0"
   struct:
     fields:
     - name: Field1 (exported)

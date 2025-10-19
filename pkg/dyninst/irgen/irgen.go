@@ -1801,7 +1801,6 @@ func populateEventExpressions(
 	}
 
 	// Process template segments if template exists
-	// This is to
 	var variableExpressionSet map[string]int
 	if probe.Template != nil {
 		// Build a set of existing variable expressions for quick lookup
