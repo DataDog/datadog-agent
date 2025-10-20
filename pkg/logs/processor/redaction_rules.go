@@ -45,9 +45,9 @@ var defaultPIIRedactionRules = []*config.ProcessingRule{
 	{
 		Type:               config.MaskSequences,
 		Name:               "auto_redact_phone",
-		Pattern:            `\b(?:\+?1[-.\s]?)?\(?([0-9]{3})\)?[-.\s]?([0-9]{3})[-.\s]?([0-9]{4})\b`,
+		Pattern:            `(?:\+?1[-.\s]?)?(?:\([0-9]{3}\)|[0-9]{3})[-.\s]?[0-9]{3}[-.\s]?[0-9]{4}`,
 		ReplacePlaceholder: "[PHONE_REDACTED]",
-		Regex:              regexp.MustCompile(`\b(?:\+?1[-.\s]?)?\(?([0-9]{3})\)?[-.\s]?([0-9]{3})[-.\s]?([0-9]{4})\b`),
+		Regex:              regexp.MustCompile(`(?:\+?1[-.\s]?)?(?:\([0-9]{3}\)|[0-9]{3})[-.\s]?[0-9]{3}[-.\s]?[0-9]{4}`),
 		Placeholder:        []byte("[PHONE_REDACTED]"),
 	},
 	{

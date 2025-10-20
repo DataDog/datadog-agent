@@ -401,9 +401,8 @@ func BenchmarkMaskSequences(b *testing.B) {
 		},
 	}
 
-	msg := newMessage(nil, &sources.LogSource{
-		Config: &config.LogsConfig{},
-	}, "")
+	source := sources.NewLogSource("", &config.LogsConfig{})
+	msg := newMessage(nil, source, "")
 
 	b.Run("always matching", func(b *testing.B) {
 		// what we benchmark here is the worse case scenario where the regex matches every time
@@ -449,4 +448,298 @@ func TestExcludeTruncated(t *testing.T) {
 	shouldProcess2 := p.applyRedactingRules(msg2)
 	assert.False(shouldProcess2)
 	assert.Equal(int64(1), msg2.Origin.LogSource.ProcessingInfo.GetCount(ruleType+":"+ruleName))
+}
+
+// PII Auto-Redaction Tests
+// -------------------------
+
+func TestPIIRedactionEmail(t *testing.T) {
+	assert := assert.New(t)
+
+	tests := []struct {
+		name   string
+		input  []byte
+		output []byte
+	}{
+		{
+			name:   "single_email",
+			input:  []byte("User john.doe@example.com logged in"),
+			output: []byte("User [EMAIL_REDACTED] logged in"),
+		},
+		{
+			name:   "multiple_emails",
+			input:  []byte("From: alice@example.com To: bob@test.org"),
+			output: []byte("From: [EMAIL_REDACTED] To: [EMAIL_REDACTED]"),
+		},
+		{
+			name:   "no_email",
+			input:  []byte("No email here, just text"),
+			output: []byte("No email here, just text"),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Use defaultPIIRedactionRules directly
+			p := &Processor{processingRules: []*config.ProcessingRule{defaultPIIRedactionRules[0]}} // email rule
+			source := sources.NewLogSource("", &config.LogsConfig{})
+			msg := newMessage(tt.input, source, "")
+
+			shouldProcess := p.applyRedactingRules(msg)
+			assert.True(shouldProcess)
+			assert.Equal(tt.output, msg.GetContent())
+		})
+	}
+}
+
+func TestPIIRedactionCreditCard(t *testing.T) {
+	assert := assert.New(t)
+
+	tests := []struct {
+		name   string
+		input  []byte
+		output []byte
+	}{
+		{
+			name:   "visa",
+			input:  []byte("Payment with card 4111111111111111 approved"),
+			output: []byte("Payment with card [CC_REDACTED] approved"),
+		},
+		{
+			name:   "mastercard",
+			input:  []byte("CC: 5500000000000004 was charged"),
+			output: []byte("CC: [CC_REDACTED] was charged"),
+		},
+		{
+			name:   "amex",
+			input:  []byte("Amex 378282246310005 declined"),
+			output: []byte("Amex [CC_REDACTED] declined"),
+		},
+		{
+			name:   "no_cc",
+			input:  []byte("No credit card numbers here"),
+			output: []byte("No credit card numbers here"),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Use credit card rule
+			p := &Processor{processingRules: []*config.ProcessingRule{defaultPIIRedactionRules[1]}}
+			source := sources.NewLogSource("", &config.LogsConfig{})
+			msg := newMessage(tt.input, source, "")
+
+			shouldProcess := p.applyRedactingRules(msg)
+			assert.True(shouldProcess)
+			assert.Equal(tt.output, msg.GetContent())
+		})
+	}
+}
+
+func TestPIIRedactionSSN(t *testing.T) {
+	assert := assert.New(t)
+
+	tests := []struct {
+		name   string
+		input  []byte
+		output []byte
+	}{
+		{
+			name:   "ssn_basic",
+			input:  []byte("SSN: 123-45-6789 verified"),
+			output: []byte("SSN: [SSN_REDACTED] verified"),
+		},
+		{
+			name:   "no_ssn",
+			input:  []byte("No social security numbers"),
+			output: []byte("No social security numbers"),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Use SSN rule
+			p := &Processor{processingRules: []*config.ProcessingRule{defaultPIIRedactionRules[2]}}
+			source := sources.NewLogSource("", &config.LogsConfig{})
+			msg := newMessage(tt.input, source, "")
+
+			shouldProcess := p.applyRedactingRules(msg)
+			assert.True(shouldProcess)
+			assert.Equal(tt.output, msg.GetContent())
+		})
+	}
+}
+
+func TestPIIRedactionPhone(t *testing.T) {
+	assert := assert.New(t)
+
+	tests := []struct {
+		name   string
+		input  []byte
+		output []byte
+	}{
+		{
+			name:   "phone_parentheses",
+			input:  []byte("Call (555) 123-4567 for support"),
+			output: []byte("Call [PHONE_REDACTED] for support"),
+		},
+		{
+			name:   "phone_dashes",
+			input:  []byte("Contact: 555-123-4567"),
+			output: []byte("Contact: [PHONE_REDACTED]"),
+		},
+		{
+			name:   "phone_dots",
+			input:  []byte("Phone: 555.123.4567"),
+			output: []byte("Phone: [PHONE_REDACTED]"),
+		},
+		{
+			name:   "no_phone",
+			input:  []byte("No phone numbers here"),
+			output: []byte("No phone numbers here"),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Use phone rule
+			p := &Processor{processingRules: []*config.ProcessingRule{defaultPIIRedactionRules[3]}}
+			source := sources.NewLogSource("", &config.LogsConfig{})
+			msg := newMessage(tt.input, source, "")
+
+			shouldProcess := p.applyRedactingRules(msg)
+			assert.True(shouldProcess)
+			assert.Equal(tt.output, msg.GetContent())
+		})
+	}
+}
+
+func TestPIIRedactionIPAddress(t *testing.T) {
+	assert := assert.New(t)
+
+	tests := []struct {
+		name   string
+		input  []byte
+		output []byte
+	}{
+		{
+			name:   "ip_basic",
+			input:  []byte("Request from 192.168.1.1 received"),
+			output: []byte("Request from [IP_REDACTED] received"),
+		},
+		{
+			name:   "ip_multiple",
+			input:  []byte("Connection 10.0.0.1 to 172.16.0.1"),
+			output: []byte("Connection [IP_REDACTED] to [IP_REDACTED]"),
+		},
+		{
+			name:   "no_ip",
+			input:  []byte("No IP addresses in this log"),
+			output: []byte("No IP addresses in this log"),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Use IP rule
+			p := &Processor{processingRules: []*config.ProcessingRule{defaultPIIRedactionRules[4]}}
+			source := sources.NewLogSource("", &config.LogsConfig{})
+			msg := newMessage(tt.input, source, "")
+
+			shouldProcess := p.applyRedactingRules(msg)
+			assert.True(shouldProcess)
+			assert.Equal(tt.output, msg.GetContent())
+		})
+	}
+}
+
+func TestPIIRedactionMultipleTypes(t *testing.T) {
+	assert := assert.New(t)
+
+	// Test all PII rules together
+	p := &Processor{processingRules: defaultPIIRedactionRules}
+	source := sources.NewLogSource("", &config.LogsConfig{})
+
+	input := []byte("User alice@example.com from 10.0.0.1 used card 4111111111111111 SSN 123-45-6789 phone (555) 123-4567")
+	expected := []byte("User [EMAIL_REDACTED] from [IP_REDACTED] used card [CC_REDACTED] SSN [SSN_REDACTED] phone [PHONE_REDACTED]")
+
+	msg := newMessage(input, source, "")
+	shouldProcess := p.applyRedactingRules(msg)
+
+	assert.True(shouldProcess)
+	assert.Equal(expected, msg.GetContent())
+}
+
+func TestPIIRedactionWithUserRules(t *testing.T) {
+	assert := assert.New(t)
+
+	// Combine default PII rules with a custom user rule
+	userRule := newProcessingRule(config.MaskSequences, "[CUSTOM]", "secret")
+	rules := append([]*config.ProcessingRule{userRule}, defaultPIIRedactionRules...)
+
+	p := &Processor{processingRules: rules}
+	source := sources.NewLogSource("", &config.LogsConfig{})
+
+	input := []byte("User john@example.com has secret data from 10.0.0.1")
+	expected := []byte("User [EMAIL_REDACTED] has [CUSTOM] data from [IP_REDACTED]")
+
+	msg := newMessage(input, source, "")
+	shouldProcess := p.applyRedactingRules(msg)
+
+	assert.True(shouldProcess)
+	assert.Equal(expected, msg.GetContent())
+}
+
+func TestIsPIIRule(t *testing.T) {
+	assert := assert.New(t)
+
+	// Test that PII rules are correctly identified
+	for _, piiRule := range defaultPIIRedactionRules {
+		assert.True(isPIIRule(piiRule), "Should identify %s as a PII rule", piiRule.Name)
+	}
+
+	// Test that user rules are not identified as PII rules
+	userRule := newProcessingRule(config.MaskSequences, "[CUSTOM]", "test")
+	assert.False(isPIIRule(userRule), "Should not identify user rule as a PII rule")
+}
+
+// Benchmark PII Redaction
+func BenchmarkPIIRedaction(b *testing.B) {
+	processor := &Processor{processingRules: defaultPIIRedactionRules}
+	source := sources.NewLogSource("", &config.LogsConfig{})
+
+	msg := newMessage(nil, source, "")
+
+	b.Run("no PII match", func(b *testing.B) {
+		// what we benchmark here is the best case scenario where no PII is present
+		content := []byte("This is a regular log message without any PII data")
+		b.ResetTimer()
+
+		for range b.N {
+			msg.SetContent(content)
+			processor.applyRedactingRules(msg)
+		}
+	})
+
+	b.Run("single email", func(b *testing.B) {
+		// what we benchmark here is a common case with a single PII match
+		content := []byte("User john.doe@example.com logged in successfully")
+		b.ResetTimer()
+
+		for range b.N {
+			msg.SetContent(content)
+			processor.applyRedactingRules(msg)
+		}
+	})
+
+	b.Run("multiple PII types", func(b *testing.B) {
+		// what we benchmark here is the worst case scenario with multiple PII types
+		content := []byte("User alice@example.com from 10.0.0.1 used card 4111111111111111 phone (555) 123-4567")
+		b.ResetTimer()
+
+		for range b.N {
+			msg.SetContent(content)
+			processor.applyRedactingRules(msg)
+		}
+	})
 }
