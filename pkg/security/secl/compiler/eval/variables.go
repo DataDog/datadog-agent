@@ -103,12 +103,13 @@ func (isn InternalScoperType) VariablePrefix() string {
 	}
 }
 
-// StaticVariableType lists the types that a static variable can take
-type StaticVariableType interface {
-	int | string | bool
+// VariableType lists the types that a SECL variable can take
+type VariableType interface {
+	string | int | bool | net.IPNet |
+		[]string | []int | []net.IPNet
 }
 
-type staticVariable[T StaticVariableType] struct {
+type staticVariable[T VariableType] struct {
 	getValueCb func(ctx *Context) T
 }
 
@@ -123,16 +124,10 @@ type StaticVariable interface {
 }
 
 // NewStaticVariable returns a new static variable
-func NewStaticVariable[T StaticVariableType](getValue func(ctx *Context) T) StaticVariable {
+func NewStaticVariable[T VariableType](getValue func(ctx *Context) T) StaticVariable {
 	return &staticVariable[T]{
 		getValueCb: getValue,
 	}
-}
-
-// VariableType lists the types that a SECL variable can take
-type VariableType interface {
-	string | int | bool | net.IPNet |
-		[]string | []int | []net.IPNet
 }
 
 // VariableDefinition represents the definition of a SECL variable
