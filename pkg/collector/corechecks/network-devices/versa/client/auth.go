@@ -24,6 +24,9 @@ type (
 	// the Versa integration
 	authMethod string
 
+	// authType represents which authentication mechanism to use for a request
+	authType int
+
 	// AuthConfig encapsulates authentication configuration for the Versa client
 	AuthConfig struct {
 		Method       string
@@ -67,6 +70,11 @@ const (
 	// authMethodOAuth specifies that OAuth should be used for
 	// Director API calls
 	authMethodOAuth authMethod = "oauth"
+
+	// authTypeToken indicates token based authentication (OAuth or Basic)
+	authTypeToken authType = iota
+	// authTypeSession indicates session-based authentication for Analytics endpoints
+	authTypeSession
 )
 
 // Parse takes a string and attempts to parse it into a valid authMethod
@@ -257,12 +265,13 @@ func (client *Client) refreshOAuth() error {
 	}
 	expirationDuration := time.Duration(expiresInSeconds) * time.Second
 	client.directorTokenExpiry = timeNow().Add(expirationDuration)
-
-	log.Trace("OAuth refresh successful")
+	log.Tracef("OAuth refresh successful, expires in %s", expirationDuration)
+	log.Tracef("Expires at: %s", client.directorTokenExpiry)
 	return nil
 }
 
 func (client *Client) revokeOAuth() error {
+	log.Trace("Versa OAuth Revoke called!")
 	client.authenticationMutex.Lock()
 	defer client.authenticationMutex.Unlock()
 
@@ -302,6 +311,7 @@ func (client *Client) revokeOAuth() error {
 
 // authenticateDirector handles Director API authentication (OAuth or Basic - Basic doesn't need pre-auth)
 func (client *Client) authenticateDirector() error {
+	log.Tracef("Auth method: %s", client.authMethod)
 	switch client.authMethod {
 	case authMethodBasic:
 		return nil
@@ -317,7 +327,7 @@ func (client *Client) authenticateDirector() error {
 			log.Trace("Director token expired, performing OAuth refresh...")
 			err := client.refreshOAuth()
 			if err != nil {
-				log.Debugf("OAuth token refresh failed, falling back to OAuth login: %v", err)
+				log.Tracef("OAuth token refresh failed, falling back to OAuth login: %v", err)
 				return client.loginOAuth()
 			}
 		}
@@ -339,12 +349,38 @@ func (client *Client) authenticateSession() error {
 	return nil
 }
 
-// clearAuth clears both director and session auth state
-func (client *Client) clearAuth() {
+// clearAuthByType clears only the specified authentication type
+// for OAuth, this will attempt to revoke the token before clearing
+func (client *Client) clearAuthByType(authType authType) {
+	switch authType {
+	case authTypeToken:
+		log.Trace("Clearing director auth")
+		// If using OAuth and we have a token, try to revoke it first
+		if client.authMethod == authMethodOAuth && client.directorToken != "" {
+			log.Trace("Attempting to revoke OAuth token before clearing")
+			_ = client.revokeOAuth() // Ignore errors - we're clearing anyway
+		}
+
+		client.authenticationMutex.Lock()
+		client.directorToken = ""
+		client.directorRefreshToken = ""
+		client.directorTokenExpiry = timeNow()
+		client.authenticationMutex.Unlock()
+	case authTypeSession:
+		log.Trace("Clearing session auth")
+		client.authenticationMutex.Lock()
+		client.sessionToken = ""
+		client.sessionTokenExpiry = timeNow()
+		client.authenticationMutex.Unlock()
+	}
+}
+
+// expireDirectorToken expires the current director token to force a refresh on next authentication
+func (client *Client) expireDirectorToken() {
 	client.authenticationMutex.Lock()
-	client.directorToken = ""
-	client.sessionToken = ""
-	client.authenticationMutex.Unlock()
+	defer client.authenticationMutex.Unlock()
+	log.Trace("Expiring director token to force refresh")
+	client.directorTokenExpiry = timeNow()
 }
 
 // isAuthenticated determine if a request was successful based on the response

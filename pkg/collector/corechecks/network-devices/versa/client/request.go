@@ -41,9 +41,7 @@ func (client *Client) do(req *http.Request) ([]byte, int, error) {
 
 	if !isAuthenticated(resp.StatusCode, resp.Header) {
 		log.Tracef("Versa api request responded with invalid auth %s %s", req.Method, req.URL.Path)
-		// clear auth to trigger re-authentication
-		client.clearAuth()
-		// Return 401 on auth errors
+		// Return 401 on auth errors let the caller decide how to handle it
 		return nil, 401, nil
 	}
 
@@ -56,48 +54,35 @@ func (client *Client) do(req *http.Request) ([]byte, int, error) {
 }
 
 // TODO: can we move this to a common package? Cisco SD-WAN and Versa use similar
-// get implementations to execute GET requests to the given endpoint with the given query params
-func (client *Client) get(endpoint string, params map[string]string, useSessionAuth bool) ([]byte, error) {
+// getWithToken executes GET requests to Director API endpoints with token-based authentication (OAuth or Basic)
+func (client *Client) getWithToken(endpoint string, params map[string]string) ([]byte, error) {
 	var bytes []byte
 	var statusCode int
 	var lastErr error
 
 	for attempts := 0; attempts < client.maxAttempts; attempts++ {
-		if useSessionAuth {
-			// Always authenticate session for Analytics endpoints
-			err := client.authenticateSession()
-			if err != nil {
-				return nil, err
-			}
-		} else {
-			// Authenticate Director API (OAuth needs pre-auth, Basic doesn't)
-			err := client.authenticateDirector()
-			if err != nil {
-				return nil, err
-			}
-		}
-
-		// Now create the request with proper authentication
-		req, err := client.newRequest("GET", endpoint, nil, useSessionAuth)
+		// Authenticate Director API (OAuth needs pre-auth, Basic doesn't)
+		err := client.authenticateDirector()
 		if err != nil {
 			return nil, err
 		}
 
-		// Set authentication headers AFTER authentication
-		if useSessionAuth {
-			// use session token for Analytics endpoints
-			req.Header.Add("X-CSRF-TOKEN", client.sessionToken)
-		} else {
-			switch client.authMethod {
-			case authMethodOAuth:
-				// use OAuth Bearer token for Director API endpoints
-				req.Header.Add("Authorization", "Bearer "+client.directorToken)
-			case authMethodBasic:
-				// use HTTP Basic authentication for Director API endpoints
-				req.SetBasicAuth(client.username, client.password)
-			default:
-				return nil, fmt.Errorf("unsupported authentication method: %s", client.authMethod)
-			}
+		// Create the request for Director API
+		req, err := client.newRequest("GET", endpoint, nil, false)
+		if err != nil {
+			return nil, err
+		}
+
+		// Set Director authentication headers
+		switch client.authMethod {
+		case authMethodOAuth:
+			// use OAuth Bearer token for Director API endpoints
+			req.Header.Add("Authorization", "Bearer "+client.directorToken)
+		case authMethodBasic:
+			// use HTTP Basic authentication for Director API endpoints
+			req.SetBasicAuth(client.username, client.password)
+		default:
+			return nil, fmt.Errorf("unsupported authentication method: %s", client.authMethod)
 		}
 
 		query := req.URL.Query()
@@ -112,6 +97,69 @@ func (client *Client) get(endpoint string, params map[string]string, useSessionA
 			// Got a valid response, stop retrying
 			return bytes, nil
 		}
+
+		// Handle 401 intelligently based on auth method and attempt number
+		if statusCode == 401 {
+			if client.authMethod == authMethodOAuth && attempts == 0 {
+				// expire token to force refresh on next attempt
+				log.Trace("OAuth token rejected, will try refresh on next attempt")
+				client.expireDirectorToken()
+			} else {
+				// OAuth refresh failed, or Basic auth failed, clear and retrys
+				log.Trace("Auth failed, clearing tokens for fresh login")
+				client.clearAuthByType(authTypeToken)
+			}
+		}
+
+		lastErr = err
+	}
+
+	log.Tracef("%d error code hitting endpoint %q with error %+v and response: %s", statusCode, endpoint, lastErr, string(bytes))
+	return nil, fmt.Errorf("%s http responded with %d code and error %v", endpoint, statusCode, lastErr)
+}
+
+// TODO: can we move this to a common package? Cisco SD-WAN and Versa use similar
+// getWithSession executes GET requests to Analytics endpoints with session-based authentication
+func (client *Client) getWithSession(endpoint string, params map[string]string) ([]byte, error) {
+	var bytes []byte
+	var statusCode int
+	var lastErr error
+
+	for attempts := 0; attempts < client.maxAttempts; attempts++ {
+		// Always authenticate session for Analytics endpoints
+		err := client.authenticateSession()
+		if err != nil {
+			return nil, err
+		}
+
+		// Create the request for Analytics endpoints
+		req, err := client.newRequest("GET", endpoint, nil, true)
+		if err != nil {
+			return nil, err
+		}
+
+		// Set session authentication headers
+		req.Header.Add("X-CSRF-TOKEN", client.sessionToken)
+
+		query := req.URL.Query()
+		for key, value := range params {
+			query.Add(key, value)
+		}
+		req.URL.RawQuery = query.Encode()
+
+		bytes, statusCode, err = client.do(req)
+
+		if err == nil && isValidStatusCode(statusCode) {
+			// Got a valid response, stop retrying
+			return bytes, nil
+		}
+
+		// session auth doesn't have refresh, just clear and retry
+		if statusCode == 401 {
+			log.Trace("Session auth failed, clearing session token")
+			client.clearAuthByType(authTypeSession)
+		}
+
 		lastErr = err
 	}
 
@@ -120,9 +168,30 @@ func (client *Client) get(endpoint string, params map[string]string, useSessionA
 }
 
 // TODO: can we move this to a common package? Cisco SD-WAN and Versa use this
-// get wraps client.get with generic type content and unmarshalling (methods can't use generics)
-func get[T Content](client *Client, endpoint string, params map[string]string, useSessionAuth bool) (*T, error) {
-	bytes, err := client.get(endpoint, params, useSessionAuth)
+// getWithToken wraps client.getWithToken with generic type content and unmarshalling (methods can't use generics)
+func getWithToken[T Content](client *Client, endpoint string, params map[string]string) (*T, error) {
+	bytes, err := client.getWithToken(endpoint, params)
+	if err != nil {
+		return nil, err
+	}
+
+	var data T
+
+	err = json.Unmarshal(bytes, &data)
+	if err != nil {
+		log.Tracef("Failed to unmarshal response: %s", err)
+		// Log the response body for debugging
+		log.Tracef("Response body: %s", string(bytes))
+		return nil, err
+	}
+
+	return &data, nil
+}
+
+// TODO: can we move this to a common package? Cisco SD-WAN and Versa use this
+// getWithSession wraps client.getWithSession with generic type content and unmarshalling (methods can't use generics)
+func getWithSession[T Content](client *Client, endpoint string, params map[string]string) (*T, error) {
+	bytes, err := client.getWithSession(endpoint, params)
 	if err != nil {
 		return nil, err
 	}
@@ -171,7 +240,7 @@ func getPaginatedAnalytics[T any](
 		fromCount := page * maxCount
 		analyticsURL := buildAnalyticsPath(tenant, feature, lookback, query, "tableData", filterQuery, joinQuery, metrics, maxCount, fromCount)
 
-		resp, err := get[AnalyticsMetricsResponse](client, analyticsURL, nil, true)
+		resp, err := getWithSession[AnalyticsMetricsResponse](client, analyticsURL, nil)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get analytics metrics page %d: %v", page+1, err)
 		}
