@@ -247,10 +247,6 @@ func (h *hooksCLI) callHook(ctx context.Context, experiment bool, pkg string, na
 	if err != nil {
 		return fmt.Errorf("failed to serialize hook context: %w", err)
 	}
-	// FIXME: remove when we drop support for the installer
-	if pkg == "datadog-installer" {
-		return RunHook(hookCtx)
-	}
 	i := exec.NewInstallerExec(h.env, hooksCLIPath)
 	err = i.RunHook(ctx, string(serializedHookCtx))
 	if err != nil {
