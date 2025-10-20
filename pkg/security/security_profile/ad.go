@@ -682,21 +682,9 @@ func (m *Manager) syncTracedCgroups() {
 			continue
 		}
 
-		cgroupContext, _, err := m.resolvers.ResolveCGroupContext(model.PathKey{Inode: cgroupInode})
-		if err != nil {
-			seclog.Warnf("couldn't resolve cgroup context for inode (%v): %v", cgroupInode, err)
-			cgroupsToDelete = append(cgroupsToDelete, cgroupInode)
-			continue
-		}
-
-		// Just validate that this cgroup corresponds to an existing dump, don't create new ones
-		// We only keep the cgroup in the kernel map if it has an active dump
-		event.CGroupContext = *cgroupContext
-		event.ContainerContext.ContainerID = containerutils.FindContainerID(event.CGroupContext.CGroupID)
-
 		hasActiveDump := false
 		for _, ad := range m.activeDumps {
-			if ad.Profile.Metadata.ContainerID == event.ContainerContext.ContainerID {
+			if ad.Profile.Metadata.CGroupContext.CGroupFile.Inode == cgroupInode {
 				hasActiveDump = true
 				break
 			}
@@ -716,101 +704,4 @@ func (m *Manager) syncTracedCgroups() {
 	for _, cgroupInode := range cgroupsToDelete {
 		_ = m.tracedCgroupsMap.Delete(cgroupInode)
 	}
-}
-
-// Used for tests only
-
-// EvictAllTracedCgroups blacklists all currently traced cgroups by adding them to the discarded map
-func (m *Manager) EvictAllTracedCgroups() {
-	if !m.config.RuntimeSecurity.ActivityDumpEnabled {
-		return
-	}
-
-	// Iterate through the kernel traced_cgroups map and evict everything
-	var cgroupInode uint64
-	var cookie uint64
-	iterator := m.tracedCgroupsMap.Iterate()
-
-	var cgroupsToEvict []uint64
-	for iterator.Next(&cgroupInode, &cookie) {
-		cgroupsToEvict = append(cgroupsToEvict, cgroupInode)
-	}
-
-	if err := iterator.Err(); err != nil {
-		seclog.Warnf("couldn't iterate over the map traced_cgroups: %v", err)
-	}
-
-	for _, cgroupInode := range cgroupsToEvict {
-		// Add to discarded map to blacklist
-		if err := m.tracedCgroupsDiscardedMap.Put(cgroupInode, uint8(1)); err != nil {
-			if !errors.Is(err, ebpf.ErrKeyNotExist) {
-				seclog.Warnf("couldn't add cgroup to discarded map: %v", err)
-			}
-		}
-	}
-}
-
-// ClearTracedCgroups clears all entries from the traced cgroups map
-func (m *Manager) ClearTracedCgroups() {
-	if !m.config.RuntimeSecurity.ActivityDumpEnabled {
-		return
-	}
-
-	m.m.Lock()
-	defer m.m.Unlock()
-
-	// First, disable and remove all active dumps AND add them to discarded map
-	for _, ad := range m.activeDumps {
-		// Add to discarded map BEFORE disabling
-		if !ad.Profile.Metadata.CGroupContext.CGroupFile.IsNull() {
-			if err := m.tracedCgroupsDiscardedMap.Put(ad.Profile.Metadata.CGroupContext.CGroupFile.Inode, uint8(1)); err != nil {
-				if !errors.Is(err, ebpf.ErrKeyNotExist) {
-					seclog.Warnf("couldn't add cgroup to discarded map: %v", err)
-				}
-			}
-		}
-
-		_ = m.disableKernelEventCollection(ad)
-	}
-	m.activeDumps = nil
-
-	// Then clear the kernel maps (both traced and discarded)
-	var err error
-	var cgroupInode uint64
-	var cookie uint64
-	iterator := m.tracedCgroupsMap.Iterate()
-
-	var cgroupsToDelete []uint64
-	for iterator.Next(&cgroupInode, &cookie) {
-		cgroupsToDelete = append(cgroupsToDelete, cgroupInode)
-	}
-
-	if err = iterator.Err(); err != nil {
-		seclog.Warnf("couldn't iterate over the map traced_cgroups: %v", err)
-	}
-
-	for _, cgroupInode := range cgroupsToDelete {
-		// Add to discarded map FIRST to prevent kernel from re-adding it
-		if err := m.tracedCgroupsDiscardedMap.Put(cgroupInode, uint8(1)); err != nil {
-			if !errors.Is(err, ebpf.ErrKeyNotExist) {
-				seclog.Warnf("couldn't add cgroup to discarded map: %v", err)
-			}
-		}
-		// Then delete from traced map
-		_ = m.tracedCgroupsMap.Delete(cgroupInode)
-	}
-
-	// Also iterate through all currently running containers on the system
-	// and add them to the discarded map to prevent automatic tracing
-
-	// Walk through all process cache entries and blacklist their cgroups
-	m.resolvers.ProcessResolver.Walk(func(entry *model.ProcessCacheEntry) {
-		if entry.ContainerID != "" && !entry.CGroup.CGroupFile.IsNull() {
-			if err := m.tracedCgroupsDiscardedMap.Put(entry.CGroup.CGroupFile.Inode, uint8(1)); err != nil {
-				if !errors.Is(err, ebpf.ErrKeyNotExist) {
-					seclog.Warnf("couldn't add system container cgroup to discarded map: %v", err)
-				}
-			}
-		}
-	})
 }

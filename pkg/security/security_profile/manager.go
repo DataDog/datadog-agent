@@ -126,7 +126,8 @@ type Manager struct {
 
 	// fields from SecurityProfileManager
 
-	secProfEventTypes []model.EventType
+	secProfEventTypes       []model.EventType
+	isSyscallAnomalyEnabled bool
 
 	// ebpf maps
 	securityProfileMap         *ebpf.Map
@@ -321,7 +322,8 @@ func NewManager(cfg *config.Config, statsdClient statsd.ClientInterface, ebpf *e
 		emptyDropped:       atomic.NewUint64(0),
 		dropMaxDumpReached: atomic.NewUint64(0),
 
-		secProfEventTypes: secProfEventTypes,
+		secProfEventTypes:       secProfEventTypes,
+		isSyscallAnomalyEnabled: slices.Contains(cfg.RuntimeSecurity.AnomalyDetectionEventTypes, model.SyscallsEventType),
 
 		securityProfileMap:         securityProfileMap,
 		securityProfileSyscallsMap: securityProfileSyscallsMap,
