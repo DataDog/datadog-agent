@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2023-present Datadog, Inc.
 
-// Package impl provides the prometheus-based implementation of the telemetry component.
-package impl
+// Package telemetryimpl provides the prometheus-based implementation of the telemetry component.
+package telemetryimpl
 
 import (
 	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"

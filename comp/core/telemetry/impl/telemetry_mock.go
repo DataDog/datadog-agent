@@ -5,20 +5,15 @@
 
 //go:build test || functionaltests || stresstests
 
-package impl
+package telemetryimpl
 
 import (
-	"context"
 	"fmt"
 	"slices"
 	"testing"
 
 	"github.com/prometheus/client_golang/prometheus"
 	dto "github.com/prometheus/client_model/go"
-	"go.uber.org/fx"
-
-	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 // Metric interface defines the retrieval functions to extract information from a metric
@@ -39,59 +34,29 @@ type Mock interface {
 	GetHistogramMetric(subsystem, name string) ([]Metric, error)
 }
 
-type testDependencies struct {
-	fx.In
-
-	Lc fx.Lifecycle
-}
-
-// MockModule defines the fx options for the mock component.
-func MockModule() fxutil.Module {
-	return fxutil.Component(
-		fx.Provide(newMock),
-		fx.Provide(func(m Mock) telemetry.Component { return m }))
-}
-
-// NewMock returns a new mock for telemetry
+// NewMock returns a new mock for telemetry with automatic cleanup via testing.TB
 func NewMock(t testing.TB) Mock {
+	mock := NewMockNoCleanup()
+	t.Cleanup(mock.Reset)
+	return mock
+}
+
+// NewMockNoCleanup returns a new mock for telemetry without automatic cleanup.
+// The caller is responsible for calling Reset() when done.
+func NewMockNoCleanup() Mock {
 	reg := prometheus.NewRegistry()
 
-	telemetry := &telemetryImplMock{
+	return &telemetryImplMock{
 		telemetryImpl{
 			mutex:           &mutex,
 			registry:        reg,
 			defaultRegistry: prometheus.NewRegistry(),
 		},
 	}
-
-	t.Cleanup(telemetry.Reset)
-	return telemetry
 }
 
 type telemetryImplMock struct {
 	telemetryImpl
-}
-
-func newMock(deps testDependencies) Mock {
-	reg := prometheus.NewRegistry()
-
-	telemetry := &telemetryImplMock{
-		telemetryImpl{
-			mutex:           &mutex,
-			registry:        reg,
-			defaultRegistry: prometheus.NewRegistry(),
-		},
-	}
-
-	deps.Lc.Append(fx.Hook{
-		OnStop: func(_ context.Context) error {
-			telemetry.Reset()
-
-			return nil
-		},
-	})
-
-	return telemetry
 }
 
 type internalMetric struct {

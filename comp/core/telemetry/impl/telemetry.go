@@ -4,7 +4,7 @@
 // Copyright 2023-present Datadog, Inc.
 
 // Package impl implements the telemetry component interface.
-package impl
+package telemetryimpl
 
 import (
 	"context"

@@ -418,7 +418,7 @@ func GetWorkloadMetaMock(t testing.TB) workloadmetamock.Mock {
 
 // GetTelemetryMock returns a mock of the telemetry.Component.
 func GetTelemetryMock(t testing.TB) telemetryimpl.Mock {
-	return fxutil.Test[telemetryimpl.Mock](t, telemetryimpl.MockModule())
+	return fxutil.Test[telemetryimpl.Mock](t, telemetryfxmock.Module())
 }
 
 // GetTotalExpectedDevices calculates the total number of devices (physical + MIG)

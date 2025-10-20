@@ -24,6 +24,7 @@ import (
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	secretsmock "github.com/DataDog/datadog-agent/comp/core/secrets/mock"
 	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
+	telemetryfxmock "github.com/DataDog/datadog-agent/comp/core/telemetry/fx-mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	clientComp "github.com/DataDog/datadog-agent/comp/languagedetection/client"
@@ -55,7 +56,7 @@ func newTestClient(t *testing.T) (*client, chan *pbgo.ParentLanguageAnnotationRe
 				"language_detection.reporting.buffer_period": "50ms",
 			})
 		}),
-		telemetryimpl.MockModule(),
+		telemetryfxmock.Module(),
 		fx.Provide(func() log.Component { return logmock.New(t) }),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
@@ -101,7 +102,7 @@ func TestClientEnabled(t *testing.T) {
 						})
 					}),
 					fx.Provide(func() secrets.Component { return secretsmock.New(t) }),
-					telemetryimpl.MockModule(),
+					telemetryfxmock.Module(),
 					fx.Provide(func() log.Component { return logmock.New(t) }),
 					workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 				))

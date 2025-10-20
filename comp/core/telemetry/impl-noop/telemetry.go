@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2023-present Datadog, Inc.
 
-// Package implnoop creates the noop telemetry component
-package implnoop
+// Package noopimpl provides the no-op implementation of the telemetry component
+package noopimpl
 
 import (
 	"net/http"

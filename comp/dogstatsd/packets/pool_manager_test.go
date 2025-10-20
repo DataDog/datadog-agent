@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
-	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
+	telemetryfxmock "github.com/DataDog/datadog-agent/comp/core/telemetry/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -28,7 +28,7 @@ func countPoolSize(p *PoolManager[Packet]) int {
 }
 
 func TestPoolManager(t *testing.T) {
-	telemetryComponent := fxutil.Test[telemetry.Component](t, telemetryimpl.MockModule())
+	telemetryComponent := fxutil.Test[telemetry.Component](t, telemetryfxmock.Module())
 	packetsTelemetryStore := NewTelemetryStore(nil, telemetryComponent)
 	pool := NewPool(1024, packetsTelemetryStore)
 	manager := NewPoolManager[Packet](pool)
@@ -61,7 +61,7 @@ func TestPoolManager(t *testing.T) {
 }
 
 func BenchmarkPoolManagerPassthru(b *testing.B) {
-	telemetryComponent := fxutil.Test[telemetry.Component](b, telemetryimpl.MockModule())
+	telemetryComponent := fxutil.Test[telemetry.Component](b, telemetryfxmock.Module())
 	packetsTelemetryStore := NewTelemetryStore(nil, telemetryComponent)
 	pool := NewPool(1024, packetsTelemetryStore)
 	manager := NewPoolManager[Packet](pool)
@@ -72,7 +72,7 @@ func BenchmarkPoolManagerPassthru(b *testing.B) {
 	}
 }
 func BenchmarkPoolManagerNoPassthru(b *testing.B) {
-	telemetryComponent := fxutil.Test[telemetry.Component](b, telemetryimpl.MockModule())
+	telemetryComponent := fxutil.Test[telemetry.Component](b, telemetryfxmock.Module())
 	packetsTelemetryStore := NewTelemetryStore(nil, telemetryComponent)
 	pool := NewPool(1024, packetsTelemetryStore)
 	manager := NewPoolManager[Packet](pool)
@@ -85,7 +85,7 @@ func BenchmarkPoolManagerNoPassthru(b *testing.B) {
 }
 
 func BenchmarkSyncPool(b *testing.B) {
-	telemetryComponent := fxutil.Test[telemetry.Component](b, telemetryimpl.MockModule())
+	telemetryComponent := fxutil.Test[telemetry.Component](b, telemetryfxmock.Module())
 	packetsTelemetryStore := NewTelemetryStore(nil, telemetryComponent)
 	pool := NewPool(1024, packetsTelemetryStore)
 

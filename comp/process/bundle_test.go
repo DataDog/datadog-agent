@@ -29,6 +29,7 @@ import (
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
+	telemetryfxmock "github.com/DataDog/datadog-agent/comp/core/telemetry/fx-mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
@@ -118,7 +119,7 @@ func TestBundleOneShot(t *testing.T) {
 		fx.Provide(func() ipc.Component { return ipcmock.New(t) }),
 		fx.Provide(func(ipcComp ipc.Component) ipc.HTTPClient { return ipcComp.GetClient() }),
 		sysprobeconfigimpl.MockModule(),
-		telemetryimpl.MockModule(),
+		telemetryfxmock.Module(),
 		hostnameimpl.MockModule(),
 		Bundle(),
 	)

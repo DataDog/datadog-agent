@@ -4,24 +4,24 @@
 // Copyright 2023-present Datadog, Inc.
 
 // Package fx provides the full prometheus telemetry component for fx-based applications.
-// This module provides impl.Component which includes prometheus-specific methods like
+// This module provides telemetryimpl.Component which includes prometheus-specific methods like
 // RegisterCollector, UnregisterCollector, and Gather.
 package fx
 
 import (
-	"github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 // team: agent-runtimes
 
 // Module provides the full prometheus telemetry implementation.
-// This provides impl.Component (the extended interface with prometheus-specific methods).
+// This provides telemetryimpl.Component (the extended interface with prometheus-specific methods).
 // Use this when you need RegisterCollector, UnregisterCollector, or Gather methods.
 func Module() fxutil.Module {
 	return fxutil.Component(
 		fxutil.ProvideComponentConstructor(
-			impl.NewComponent,
+			telemetryimpl.NewComponent,
 		),
 	)
 }

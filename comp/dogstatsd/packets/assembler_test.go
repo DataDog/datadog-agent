@@ -13,7 +13,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
-	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
+	telemetryfxmock "github.com/DataDog/datadog-agent/comp/core/telemetry/fx-mock"
 
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -43,7 +43,7 @@ func generateRandomPacket(size uint) []byte {
 }
 
 func TestPacketBufferTimeout(t *testing.T) {
-	telemetryComponent := fxutil.Test[telemetry.Component](t, telemetryimpl.MockModule())
+	telemetryComponent := fxutil.Test[telemetry.Component](t, telemetryfxmock.Module())
 	packetsTelemetryStore := NewTelemetryStore(nil, telemetryComponent)
 	pb, out := buildPacketAssembler(packetsTelemetryStore)
 	message := []byte("test")
@@ -56,7 +56,7 @@ func TestPacketBufferTimeout(t *testing.T) {
 }
 
 func TestPacketBufferMerge(t *testing.T) {
-	telemetryComponent := fxutil.Test[telemetry.Component](t, telemetryimpl.MockModule())
+	telemetryComponent := fxutil.Test[telemetry.Component](t, telemetryfxmock.Module())
 	packetsTelemetryStore := NewTelemetryStore(nil, telemetryComponent)
 	pb, out := buildPacketAssembler(packetsTelemetryStore)
 	message1 := []byte("test1")
@@ -71,7 +71,7 @@ func TestPacketBufferMerge(t *testing.T) {
 }
 
 func TestPacketBufferMergeMaxSize(t *testing.T) {
-	telemetryComponent := fxutil.Test[telemetry.Component](t, telemetryimpl.MockModule())
+	telemetryComponent := fxutil.Test[telemetry.Component](t, telemetryfxmock.Module())
 	packetsTelemetryStore := NewTelemetryStore(nil, telemetryComponent)
 	pb, out := buildPacketAssembler(packetsTelemetryStore)
 	message1 := []byte("12345678")
@@ -86,7 +86,7 @@ func TestPacketBufferMergeMaxSize(t *testing.T) {
 }
 
 func TestPacketBufferOverflow(t *testing.T) {
-	telemetryComponent := fxutil.Test[telemetry.Component](t, telemetryimpl.MockModule())
+	telemetryComponent := fxutil.Test[telemetry.Component](t, telemetryfxmock.Module())
 	packetsTelemetryStore := NewTelemetryStore(nil, telemetryComponent)
 	pb, out := buildPacketAssembler(packetsTelemetryStore)
 	// generate a message exactly of the size of the buffer of the packet assembler
@@ -106,7 +106,7 @@ func TestPacketBufferOverflow(t *testing.T) {
 }
 
 func TestPacketBufferMergePlusOverflow(t *testing.T) {
-	telemetryComponent := fxutil.Test[telemetry.Component](t, telemetryimpl.MockModule())
+	telemetryComponent := fxutil.Test[telemetry.Component](t, telemetryfxmock.Module())
 	packetsTelemetryStore := NewTelemetryStore(nil, telemetryComponent)
 	pb, out := buildPacketAssembler(packetsTelemetryStore)
 	message1 := generateRandomPacket(sampleBatchSize / 2)
@@ -126,7 +126,7 @@ func TestPacketBufferMergePlusOverflow(t *testing.T) {
 }
 
 func TestPacketBufferEmpty(t *testing.T) {
-	telemetryComponent := fxutil.Test[telemetry.Component](t, telemetryimpl.MockModule())
+	telemetryComponent := fxutil.Test[telemetry.Component](t, telemetryfxmock.Module())
 	packetsTelemetryStore := NewTelemetryStore(nil, telemetryComponent)
 	pb, out := buildPacketAssembler(packetsTelemetryStore)
 	message1 := []byte("")
@@ -141,7 +141,7 @@ func TestPacketBufferEmpty(t *testing.T) {
 }
 
 func TestPacketBufferHasCorrectSource(t *testing.T) {
-	telemetryComponent := fxutil.Test[telemetry.Component](t, telemetryimpl.MockModule())
+	telemetryComponent := fxutil.Test[telemetry.Component](t, telemetryfxmock.Module())
 	packetsTelemetryStore := NewTelemetryStore(nil, telemetryComponent)
 	pb, out := buildPacketAssembler(packetsTelemetryStore)
 	message1 := []byte("test")
@@ -153,7 +153,7 @@ func TestPacketBufferHasCorrectSource(t *testing.T) {
 }
 
 func TestPacketBufferEmptySecond(t *testing.T) {
-	telemetryComponent := fxutil.Test[telemetry.Component](t, telemetryimpl.MockModule())
+	telemetryComponent := fxutil.Test[telemetry.Component](t, telemetryfxmock.Module())
 	packetsTelemetryStore := NewTelemetryStore(nil, telemetryComponent)
 	pb, out := buildPacketAssembler(packetsTelemetryStore)
 	message1 := []byte("test1")
@@ -169,7 +169,7 @@ func TestPacketBufferEmptySecond(t *testing.T) {
 
 func BenchmarkBufferFlush(b *testing.B) {
 	packet := generateRandomPacket(4)
-	telemetryComponent := fxutil.Test[telemetry.Component](b, telemetryimpl.MockModule())
+	telemetryComponent := fxutil.Test[telemetry.Component](b, telemetryfxmock.Module())
 	packetsTelemetryStore := NewTelemetryStore(nil, telemetryComponent)
 
 	for i := 0; i < b.N; i++ {

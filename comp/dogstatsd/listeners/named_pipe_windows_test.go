@@ -18,6 +18,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
+	telemetryfxmock "github.com/DataDog/datadog-agent/comp/core/telemetry/fx-mock"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/packets"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -124,7 +125,7 @@ type namedPipeListenerTest struct {
 }
 
 func newNamedPipeListenerTest(t *testing.T) namedPipeListenerTest {
-	telemetryComp := fxutil.Test[telemetry.Component](t, telemetryimpl.MockModule())
+	telemetryComp := fxutil.Test[telemetry.Component](t, telemetryfxmock.Module())
 	packetsTelemetryStore := packets.NewTelemetryStore(nil, telemetryComp)
 
 	pool := packets.NewPool(maxPipeMessageCount, packetsTelemetryStore)

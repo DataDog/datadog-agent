@@ -22,6 +22,7 @@ import (
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
+	telemetryfxmock "github.com/DataDog/datadog-agent/comp/core/telemetry/fx-mock"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	rdnsquerier "github.com/DataDog/datadog-agent/comp/rdnsquerier/def"
 )
@@ -76,7 +77,7 @@ func testSetup(t *testing.T, overrides map[string]interface{}, start bool, fakeI
 	config := config.NewMockWithOverrides(t, overrides)
 
 	logComp := logmock.New(t)
-	telemetryComp := fxutil.Test[telemetry.Component](t, telemetryimpl.MockModule())
+	telemetryComp := fxutil.Test[telemetry.Component](t, telemetryfxmock.Module())
 
 	requires := Requires{
 		Lifecycle:   lc,

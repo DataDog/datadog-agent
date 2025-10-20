@@ -7,7 +7,7 @@
 package fx
 
 import (
-	"github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -18,7 +18,7 @@ import (
 func Module() fxutil.Module {
 	return fxutil.Component(
 		fxutil.ProvideComponentConstructor(
-			impl.NewComponent,
+			telemetryimpl.NewComponent,
 		),
 	)
 }

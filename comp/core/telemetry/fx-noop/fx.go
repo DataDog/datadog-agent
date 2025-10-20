@@ -7,7 +7,7 @@
 package fx
 
 import (
-	implnoop "github.com/DataDog/datadog-agent/comp/core/telemetry/impl-noop"
+	noopimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl-noop"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -18,7 +18,7 @@ import (
 func Module() fxutil.Module {
 	return fxutil.Component(
 		fxutil.ProvideComponentConstructor(
-			implnoop.NewComponent,
+			noopimpl.NewComponent,
 		),
 	)
 }

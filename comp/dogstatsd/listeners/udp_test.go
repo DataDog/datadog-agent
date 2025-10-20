@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
+	telemetryfxmock "github.com/DataDog/datadog-agent/comp/core/telemetry/fx-mock"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/packets"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap/pidmapimpl"
@@ -36,7 +37,7 @@ type listenerDeps struct {
 
 func fulfillDepsWithConfig(t testing.TB, overrides map[string]interface{}) listenerDeps {
 	return fxutil.Test[listenerDeps](t, fx.Options(
-		telemetryimpl.MockModule(),
+		telemetryfxmock.Module(),
 		fx.Provide(func() config.Component { return config.NewMockWithOverrides(t, overrides) }),
 		pidmapimpl.Module(),
 	))

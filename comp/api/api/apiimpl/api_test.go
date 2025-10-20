@@ -24,6 +24,7 @@ import (
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
 	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
+	telemetryfxmock "github.com/DataDog/datadog-agent/comp/core/telemetry/fx-mock"
 
 	// package dependencies
 
@@ -88,7 +89,7 @@ func getAPIServer(t *testing.T, confOverrides map[string]interface{}, fxOptions 
 				Provider: nil,
 			}
 		}),
-		telemetryimpl.MockModule(),
+		telemetryfxmock.Module(),
 		fx.Provide(func() config.Component { return config.NewMockWithOverrides(t, confOverrides) }),
 		grpcNonefx.Module(),
 		fx.Options(fxOptions...),

@@ -18,6 +18,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
+	telemetryfxmock "github.com/DataDog/datadog-agent/comp/core/telemetry/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -48,7 +49,7 @@ func mockSuccessfulNvmlNew(_ ...nvml.LibraryOption) nvml.Interface {
 
 func TestNvmlStateTelemetry_CheckUnavailable(t *testing.T) {
 	WithMockNvmlNewFunc(t, mockFailingNvmlNew)
-	telemetryMock := fxutil.Test[telemetryimpl.Mock](t, telemetryimpl.MockModule())
+	telemetryMock := fxutil.Test[telemetryimpl.Mock](t, telemetryfxmock.Module())
 	tracker := NewNvmlStateTelemetry(telemetryMock)
 
 	// First check - should increment error counter but not set unavailable gauge
@@ -87,7 +88,7 @@ func TestNvmlStateTelemetry_CheckUnavailable(t *testing.T) {
 
 func TestNvmlStateTelemetry_CheckMultipleErrors(t *testing.T) {
 	WithMockNvmlNewFunc(t, mockFailingNvmlNew)
-	telemetryMock := fxutil.Test[telemetryimpl.Mock](t, telemetryimpl.MockModule())
+	telemetryMock := fxutil.Test[telemetryimpl.Mock](t, telemetryfxmock.Module())
 	tracker := NewNvmlStateTelemetry(telemetryMock)
 
 	// Multiple checks before threshold
@@ -109,7 +110,7 @@ func TestNvmlStateTelemetry_CheckMultipleErrors(t *testing.T) {
 }
 
 func TestNvmlStateTelemetry_CheckRecovery(t *testing.T) {
-	telemetryMock := fxutil.Test[telemetryimpl.Mock](t, telemetryimpl.MockModule())
+	telemetryMock := fxutil.Test[telemetryimpl.Mock](t, telemetryfxmock.Module())
 	tracker := NewNvmlStateTelemetry(telemetryMock)
 
 	// Start with failing initialization
@@ -158,7 +159,7 @@ func TestNvmlStateTelemetry_CheckRecovery(t *testing.T) {
 
 func TestNvmlStateTelemetry_StartStop(t *testing.T) {
 	WithMockNvmlNewFunc(t, mockFailingNvmlNew)
-	telemetryMock := fxutil.Test[telemetryimpl.Mock](t, telemetryimpl.MockModule())
+	telemetryMock := fxutil.Test[telemetryimpl.Mock](t, telemetryfxmock.Module())
 	// Use a short interval for testing
 	tracker := NewNvmlStateTelemetry(telemetryMock)
 	tracker.checkInterval = 100 * time.Millisecond
@@ -199,7 +200,7 @@ func TestNvmlStateTelemetry_StartStop(t *testing.T) {
 
 func TestNvmlStateTelemetry_StartPerformsImmediateCheck(t *testing.T) {
 	WithMockNvmlNewFunc(t, mockFailingNvmlNew)
-	telemetryMock := fxutil.Test[telemetryimpl.Mock](t, telemetryimpl.MockModule())
+	telemetryMock := fxutil.Test[telemetryimpl.Mock](t, telemetryfxmock.Module())
 	// Use a long interval so we can verify the immediate check
 	tracker := NewNvmlStateTelemetry(telemetryMock)
 	tracker.checkInterval = 10 * time.Second

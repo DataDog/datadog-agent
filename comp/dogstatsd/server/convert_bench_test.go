@@ -16,7 +16,7 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
-	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
+	telemetryfxmock "github.com/DataDog/datadog-agent/comp/core/telemetry/fx-mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
@@ -89,7 +89,7 @@ func newServerDeps(t testing.TB) ServerDeps {
 	return fxutil.Test[ServerDeps](t,
 		fx.Provide(func(t testing.TB) log.Component { return logmock.New(t) }),
 		fx.Provide(func(t testing.TB) config.Component { return config.NewMock(t) }),
-		telemetryimpl.MockModule(),
+		telemetryfxmock.Module(),
 		hostnameimpl.MockModule(),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	)
