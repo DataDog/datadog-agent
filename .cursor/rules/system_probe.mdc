@@ -443,8 +443,8 @@ dda inv system-probe.object-files
 # Build system-probe binary
 dda inv system-probe.build
 
-# Run tests (requires root for eBPF)
-sudo -E dda inv system-probe.test -p <path>
+# Run tests (handles privileges internally, no sudo needed)
+dda inv system-probe.test -p <path>
 
 # Generate runtime compilation files
 go generate ./pkg/collector/corechecks/ebpf/probe/<check>/<check>.go
