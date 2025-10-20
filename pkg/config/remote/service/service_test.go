@@ -213,7 +213,7 @@ func newTestService(t *testing.T, api *mockAPI, coreAgentUptane *mockCoreAgentUp
 	service, err := NewService(cfg, "Remote Config", baseRawURL, "localhost", getHostTags, mockTelemetryReporter, agentVersion, options...)
 	require.NoError(t, err)
 	t.Cleanup(func() { service.Stop() })
-	service.mu.api = api
+	service.api = api
 	service.clock = clock
 	service.mu.uptane = coreAgentUptane
 	return service
@@ -317,13 +317,13 @@ func TestFetchOrgStatus503And504IncrementsErrCount(t *testing.T) {
 	assert.Equal(t, service.orgStatusPoller.mu.fetchOrgStatus503And504ErrCount, uint64(0))
 
 	api.On("FetchOrgStatus", mock.Anything).Return(response, httpapi.ErrGatewayTimeout)
-	service.orgStatusPoller.poll(service.getAPI(), service.rcType)
+	service.orgStatusPoller.poll(service.api, service.rcType)
 	assert.Equal(t, service.orgStatusPoller.mu.fetchOrgStatus503And504ErrCount, uint64(1))
 
 	assert.Nil(t, service.orgStatusPoller.getPreviousStatus())
 	api.On("FetchOrgStatus", mock.Anything).Return(response, httpapi.ErrGatewayTimeout)
 
-	service.orgStatusPoller.poll(service.getAPI(), service.rcType)
+	service.orgStatusPoller.poll(service.api, service.rcType)
 	assert.Equal(t, service.orgStatusPoller.mu.fetchOrgStatus503And504ErrCount, uint64(2))
 }
 
@@ -344,7 +344,7 @@ func TestFetchOrgStatusSuccessResetsErrorCount(t *testing.T) {
 	assert.Nil(t, service.orgStatusPoller.getPreviousStatus())
 	api.On("FetchOrgStatus", mock.Anything).Return(response, nil)
 
-	service.orgStatusPoller.poll(service.getAPI(), service.rcType)
+	service.orgStatusPoller.poll(service.api, service.rcType)
 	assert.Equal(t, service.orgStatusPoller.mu.fetchOrgStatus503And504ErrCount, uint64(0))
 }
 
@@ -460,7 +460,7 @@ func TestServiceBackoffFailureRecovery(t *testing.T) {
 	uptaneClient.On("TUFVersionState").Return(uptane.TUFVersions{}, nil)
 	uptaneClient.On("Update", lastConfigResponse).Return(nil)
 	uptaneClient.On("TargetsCustom").Return([]byte{}, nil)
-	service.mu.api = api
+	service.api = api
 
 	// Artificially set the backoff error count so we can test recovery
 	service.mu.backoffErrorCount = 3
@@ -978,7 +978,7 @@ func TestWithApiKeyUpdate(t *testing.T) {
 		assert.NoError(t, service.Stop())
 		assert.NoError(t, service.Stop()) // ensure idempotency
 	})
-	service.mu.api = api
+	service.api = api
 	service.mu.uptane = uptaneClient
 
 	cfg.SetWithoutSource("api_key", "updated")
@@ -1213,20 +1213,20 @@ func TestOrgStatus(t *testing.T) {
 	assert.Nil(t, service.orgStatusPoller.getPreviousStatus())
 	api.On("FetchOrgStatus", mock.Anything).Return(response, nil)
 
-	service.orgStatusPoller.poll(service.getAPI(), service.rcType)
+	service.orgStatusPoller.poll(service.api, service.rcType)
 	prev := service.orgStatusPoller.getPreviousStatus()
 	assert.True(t, prev.Enabled)
 	assert.True(t, prev.Authorized)
 
 	api.On("FetchOrgStatus", mock.Anything).Return(nil, fmt.Errorf("Error"))
-	service.orgStatusPoller.poll(service.getAPI(), service.rcType)
+	service.orgStatusPoller.poll(service.api, service.rcType)
 	prev = service.orgStatusPoller.getPreviousStatus()
 	assert.True(t, prev.Enabled)
 	assert.True(t, prev.Authorized)
 
 	response.Authorized = false
 	api.On("FetchOrgStatus", mock.Anything).Return(response, nil)
-	service.orgStatusPoller.poll(service.getAPI(), service.rcType)
+	service.orgStatusPoller.poll(service.api, service.rcType)
 	prev = service.orgStatusPoller.getPreviousStatus()
 	assert.True(t, prev.Enabled)
 	assert.False(t, prev.Authorized)

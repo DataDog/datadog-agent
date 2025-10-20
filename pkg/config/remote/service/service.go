@@ -123,6 +123,7 @@ type CoreAgentService struct {
 	// help when triaging via logs.
 	rcType string
 
+	api           api.API
 	clock         clock.Clock
 	hostname      string
 	tagsGetter    func() []string
@@ -162,7 +163,6 @@ type CoreAgentService struct {
 		sync.Mutex
 
 		uptane coreAgentUptaneClient
-		api    api.API
 
 		firstUpdate bool
 
@@ -248,13 +248,15 @@ func newOrgStatusPoller(refreshInterval time.Duration) *orgStatusPoller {
 }
 
 // start begins the periodic polling of org status
-func (p *orgStatusPoller) start(clock clock.Clock, getAPI func() api.API, rcType string) {
+func (p *orgStatusPoller) start(clock clock.Clock, apiClient api.API, rcType string) {
 	go func() {
-		p.poll(getAPI(), rcType)
+		timer := clock.Timer(0)
+		defer timer.Stop()
 		for {
 			select {
-			case <-clock.After(p.refreshInterval):
-				p.poll(getAPI(), rcType)
+			case <-timer.C:
+				p.poll(apiClient, rcType)
+				timer.Reset(p.refreshInterval)
 			case <-p.stopChan:
 				log.Infof("[%s] Stopping Remote Config org status poller", rcType)
 				return
@@ -601,6 +603,7 @@ func NewService(cfg model.Reader, rcType, baseRawURL, hostname string, tagsGette
 
 	now := clock.Now().UTC()
 	cas := &CoreAgentService{
+		api:                   http,
 		rcType:                rcType,
 		startupTime:           now,
 		hostname:              hostname,
@@ -635,7 +638,6 @@ func NewService(cfg model.Reader, rcType, baseRawURL, hostname string, tagsGette
 	cas.mu.backoffErrorCount = 0
 	cas.mu.products = make(map[rdata.Product]struct{})
 	cas.mu.newProducts = make(map[rdata.Product]struct{})
-	cas.mu.api = http
 	cas.mu.uptane = uptaneClient
 
 	cfg.OnUpdate(cas.apiKeyUpdateCallback())
@@ -655,7 +657,7 @@ func newRCBackendOrgUUIDProvider(http api.API) uptane.OrgUUIDProvider {
 func (s *CoreAgentService) Start() {
 	refreshBypassCh := make(chan chan<- struct{})
 	s.refreshBypassCh = refreshBypassCh
-	s.orgStatusPoller.start(s.clock, s.getAPI, s.rcType)
+	s.orgStatusPoller.start(s.clock, s.api, s.rcType)
 
 	go func() {
 		if s.disableConfigPollLoop {
@@ -671,9 +673,7 @@ func (s *CoreAgentService) Start() {
 // UpdatePARJWT updates the stored JWT for Private Action Runners
 // for authentication to the remote config backend.
 func (s *CoreAgentService) UpdatePARJWT(jwt string) {
-	s.mu.Lock()
-	s.mu.api.UpdatePARJWT(jwt)
-	s.mu.Unlock()
+	s.api.UpdatePARJWT(jwt)
 }
 
 func startWithAgentPollLoop(s *CoreAgentService, refreshBypassRequests <-chan chan<- struct{}) {
@@ -762,12 +762,6 @@ func (s *CoreAgentService) Stop() error {
 	return err
 }
 
-func (s *CoreAgentService) getAPI() api.API {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return s.mu.api
-}
-
 func (s *CoreAgentService) calculateRefreshInterval() time.Duration {
 	s.mu.Lock()
 	backoffErrorCount := s.mu.backoffErrorCount
@@ -824,7 +818,7 @@ func (s *CoreAgentService) refresh() error {
 		s.mu.Unlock()
 		defer s.mu.Lock()
 		ctx := context.Background()
-		response, err = s.mu.api.Fetch(ctx, request)
+		response, err = s.api.Fetch(ctx, request)
 	}()
 	s.mu.lastUpdateErr = nil
 	if err != nil {
@@ -1091,7 +1085,7 @@ func (s *CoreAgentService) apiKeyUpdateCallback() func(string, model.Source, any
 		s.mu.Lock()
 		defer s.mu.Unlock()
 
-		s.mu.api.UpdateAPIKey(newKey)
+		s.api.UpdateAPIKey(newKey)
 
 		// Verify that the Org UUID hasn't changed
 		storedOrgUUID, err := s.mu.uptane.StoredOrgUUID()
@@ -1101,7 +1095,7 @@ func (s *CoreAgentService) apiKeyUpdateCallback() func(string, model.Source, any
 		}
 
 		// TODO: Do not hold the mutex while calling FetchOrgData.
-		newOrgUUID, err := s.mu.api.FetchOrgData(context.Background())
+		newOrgUUID, err := s.api.FetchOrgData(context.Background())
 		if err != nil {
 			log.Warnf("Could not get org uuid: %s", err)
 			return
@@ -1161,7 +1155,7 @@ func (s *CoreAgentService) ConfigResetState() (*pbgo.ResetStateConfigResponse, e
 	}
 	uptaneClient, err := uptane.NewCoreAgentClientWithRecreatedTransactionalStore(
 		metadata,
-		newRCBackendOrgUUIDProvider(s.mu.api),
+		newRCBackendOrgUUIDProvider(s.api),
 		opt...,
 	)
 	if err != nil {
