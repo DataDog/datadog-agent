@@ -149,8 +149,6 @@ func TestTracerMemfd(t *testing.T) {
 			"custom.tag:value",
 		}
 
-		for _, expectedTag := range expectedTags {
-			require.Contains(t, tracerTags, expectedTag, "TracerTags should contain %s", expectedTag)
-		}
+		require.Subset(t, tracerTags, expectedTags, "TracerTags")
 	})
 }
