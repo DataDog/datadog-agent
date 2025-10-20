@@ -77,6 +77,12 @@ u32 __attribute__((always_inline)) get_mount_offset_of_mount_id(void) {
     return offset; // offsetof(struct mount, mnt_id)
 }
 
+u32 __attribute__((always_inline)) get_mount_offset_of_mount_id_unique(void) {
+    u64 offset;
+    LOAD_CONSTANT("mount_id_unique_offset", offset);
+    return offset; // offsetof(struct mount, mnt_id_unique)
+}
+
 u32 __attribute__((always_inline)) get_mount_offset_of_mount_ns(void) {
     u64 offset;
     LOAD_CONSTANT("mount_ns_offset", offset);
@@ -136,6 +142,13 @@ int __attribute__((always_inline)) get_mount_mount_id(void *mnt) {
     int mount_id;
 
     bpf_probe_read(&mount_id, sizeof(mount_id), (char *)mnt + get_mount_offset_of_mount_id());
+    return mount_id;
+}
+
+u64 __attribute__((always_inline)) get_mount_mount_id_unique(void *mnt) {
+    u64 mount_id;
+
+    bpf_probe_read(&mount_id, sizeof(mount_id), (char *)mnt + get_mount_offset_of_mount_id_unique());
     return mount_id;
 }
 
