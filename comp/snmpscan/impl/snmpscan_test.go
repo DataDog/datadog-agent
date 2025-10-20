@@ -10,11 +10,10 @@ package snmpscanimpl
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
-	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
 	"github.com/DataDog/datadog-agent/comp/core"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
-	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
+	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
+	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -24,14 +23,14 @@ import (
 
 type deps struct {
 	fx.In
-	Demultiplexer demultiplexer.Mock
+	EventPlatform eventplatform.Mock
 }
 
 func TestSnmpScanComp(t *testing.T) {
-	testDeps := fxutil.Test[deps](t, demultiplexerimpl.MockModule(), defaultforwarder.MockModule(), core.MockBundle())
+	testDeps := fxutil.Test[deps](t, eventplatformimpl.MockModule(), core.MockBundle())
 	deps := Requires{
 		Logger:        logmock.New(t),
-		Demultiplexer: testDeps.Demultiplexer,
+		EventPlatform: testDeps.EventPlatform,
 	}
 	snmpScanner, err := NewComponent(deps)
 	assert.NoError(t, err)
