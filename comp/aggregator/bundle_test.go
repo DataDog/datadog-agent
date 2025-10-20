@@ -8,12 +8,9 @@ package aggregator
 import (
 	"testing"
 
-	"go.uber.org/fx"
-
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
 	"github.com/DataDog/datadog-agent/comp/core"
-	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
-	secretsmock "github.com/DataDog/datadog-agent/comp/core/secrets/mock"
+	secretsfxmock "github.com/DataDog/datadog-agent/comp/core/secrets/fx-mock"
 	nooptagger "github.com/DataDog/datadog-agent/comp/core/tagger/fx-noop"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
@@ -34,6 +31,6 @@ func TestBundleDependencies(t *testing.T) {
 		haagentmock.Module(),
 		logscompression.MockModule(),
 		metricscompression.MockModule(),
-		fx.Provide(func() secrets.Component { return secretsmock.New(t) }),
+		secretsfxmock.MockModule(),
 	)
 }

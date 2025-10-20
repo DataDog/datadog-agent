@@ -20,8 +20,7 @@ import (
 	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
-	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
-	secretsmock "github.com/DataDog/datadog-agent/comp/core/secrets/mock"
+	secretsfxmock "github.com/DataDog/datadog-agent/comp/core/secrets/fx-mock"
 	"github.com/DataDog/datadog-agent/comp/core/settings/settingsimpl"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	coreStatusImpl "github.com/DataDog/datadog-agent/comp/core/status/statusimpl"
@@ -69,7 +68,7 @@ func TestBundleDependencies(t *testing.T) {
 		fx.Provide(func() ddgostatsd.ClientInterface {
 			return &ddgostatsd.NoOpClient{}
 		}),
-		fx.Provide(func() secrets.Component { return secretsmock.New(t) }),
+		secretsfxmock.MockModule(),
 		fx.Provide(func() ipc.Component { return ipcmock.New(t) }),
 		fx.Provide(func(ipcComp ipc.Component) ipc.HTTPClient { return ipcComp.GetClient() }),
 	)
@@ -117,7 +116,7 @@ func TestBundleOneShot(t *testing.T) {
 		}),
 		fx.Provide(func() ipc.Component { return ipcmock.New(t) }),
 		fx.Provide(func(ipcComp ipc.Component) ipc.HTTPClient { return ipcComp.GetClient() }),
-		fx.Provide(func() secrets.Component { return secretsmock.New(t) }),
+		secretsfxmock.MockModule(),
 		sysprobeconfigimpl.MockModule(),
 		telemetryimpl.MockModule(),
 		hostnameimpl.MockModule(),

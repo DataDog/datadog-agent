@@ -14,8 +14,7 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core"
-	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
-	secretsmock "github.com/DataDog/datadog-agent/comp/core/secrets/mock"
+	secretsfxmock "github.com/DataDog/datadog-agent/comp/core/secrets/fx-mock"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	nooptagger "github.com/DataDog/datadog-agent/comp/core/tagger/impl-noop"
@@ -284,7 +283,7 @@ func createDemuxDepsWithOrchestratorFwd(
 	orchestratorParams orchestratorForwarderImpl.Params,
 	eventPlatformParams eventplatformimpl.Params) aggregatorDeps {
 	modules := fx.Options(
-		fx.Provide(func() secrets.Component { return secretsmock.New(t) }),
+		secretsfxmock.MockModule(),
 		defaultforwarder.MockModule(),
 		core.MockBundle(),
 		orchestratorForwarderImpl.Module(orchestratorParams),
