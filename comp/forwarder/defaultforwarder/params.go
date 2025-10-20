@@ -9,7 +9,7 @@ import "github.com/DataDog/datadog-agent/pkg/util/option"
 
 // Params contains the parameters to create a forwarder.
 type Params struct {
-	withResolver     bool
+	withResolver bool
 
 	// Use optional to override Options.DisableAPIKeyChecking only if WithFeatures was called
 	disableAPIKeyCheckingOverride option.Option[bool]
