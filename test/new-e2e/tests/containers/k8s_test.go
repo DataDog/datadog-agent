@@ -670,6 +670,9 @@ func (suite *k8sSuite) TestNginx() {
 	suite.testLog(&testLogArgs{
 		Filter: testLogFilterArgs{
 			Service: "apps-nginx-server",
+			Tags: []string{
+				`^kube_namespace:workload-nginx$`,
+			},
 		},
 		Expect: testLogExpectArgs{
 			Tags: &[]string{
@@ -804,6 +807,30 @@ func (suite *k8sSuite) TestRedis() {
 	// Check HPA is properly scaling up and down
 	// This indirectly tests the cluster-agent external metrics server
 	suite.testHPA("workload-redis", "redis")
+}
+
+func (suite *k8sSuite) TestArgoRollout() {
+	// Check that kube_argo_rollout tag is added to metric
+	suite.testMetric(&testMetricArgs{
+		Filter: testMetricFilterArgs{
+			Name: "container.cpu.system",
+			Tags: []string{
+				`^kube_namespace:workload-argo-rollout-nginx$`,
+			},
+		},
+		Expect: testMetricExpectArgs{
+			Tags: &[]string{
+				`^container_id:`,
+				`^container_name:nginx$`,
+				`^display_container_name:nginx`,
+				`^kube_container_name:nginx$`,
+				`^kube_deployment:nginx-rollout$`,
+				`^kube_argo_rollout:nginx-rollout$`,
+				`^kube_namespace:workload-argo-rollout-nginx$`,
+			},
+			AcceptUnexpectedTags: true,
+		},
+	})
 }
 
 func (suite *k8sSuite) TestCPU() {

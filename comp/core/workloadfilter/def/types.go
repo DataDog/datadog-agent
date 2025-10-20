@@ -292,7 +292,8 @@ type PodFilter int
 
 // Defined Pod filter kinds
 const (
-	LegacyPod PodFilter = iota
+	LegacyPodMetrics PodFilter = iota
+	LegacyPodGlobal
 	PodADAnnotationsMetrics
 	PodADAnnotations
 	// CEL-based filters
