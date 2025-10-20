@@ -134,6 +134,15 @@ func (s *ZstdStrategy) NewStreamCompressor(output *bytes.Buffer) compression.Str
 		return zstd.NewWriterLevel(output, s.level)
 	}
 
+	log.Infof("Compressing Zstd with %d  %d  %d  %d  %d  %d  %d",
+		s.strategy,
+		s.chain,
+		s.window,
+		s.hash,
+		s.searchlog,
+		s.minmatch,
+		s.numworkers)
+
 	return zstd.NewWriterParamsDict(output, nil, func(set func(zstd.CParameter, int)) {
 		set(zstd.CParamStrategy, s.strategy)
 		set(zstd.CParamChainLog, s.chain)
