@@ -16,7 +16,6 @@ namespace Datadog.CustomActions
         private readonly string _site;
         private readonly string _apiKey;
         private readonly string _overrideRegistryUrl;
-        private readonly string _remoteUpdates;
         private readonly RollbackDataStore _rollbackDataStore;
 
         public InstallOciPackages(ISession session)
