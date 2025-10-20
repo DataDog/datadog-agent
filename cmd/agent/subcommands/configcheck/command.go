@@ -76,7 +76,6 @@ func run(cliParams *cliParams, _ log.Component, client ipc.HTTPClient) error {
 	}
 
 	cr := integration.ConfigCheckResponse{}
-
 	err = json.Unmarshal(res, &cr)
 	if err != nil {
 		return fmt.Errorf("unable to parse configcheck: %v", err)
@@ -85,7 +84,7 @@ func run(cliParams *cliParams, _ log.Component, client ipc.HTTPClient) error {
 	var b bytes.Buffer
 	color.Output = &b
 
-	// search through the configs for a check with the same name instead of printing every config
+	// search through the configs for a check with the same name instead of printing everything
 	if cliParams.check != "" {
 		for _, configResponse := range cr.Configs {
 			if cliParams.check == configResponse.Config.Name {
