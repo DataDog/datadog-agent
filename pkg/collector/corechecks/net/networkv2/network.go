@@ -34,6 +34,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/safchain/ethtool"
+	"github.com/ti-mo/conntrack"
 )
 
 const (
@@ -820,20 +821,21 @@ func readIntFile(filePath string, fs afero.Fs) (int, error) {
 	return value, nil
 }
 
-func addConntrackStatsMetrics(sender sender.Sender, conntrackPath string, useSudoConntrack bool) {
-	if conntrackPath == "" {
-		return
-	}
+func addConntrackStatsMetrics(sender sender.Sender) {
+	// if conntrackPath == "" {
+	// 	return
+	// }
 
-	// In CentOS, conntrack is located in /sbin and /usr/sbin which may not be in the agent user PATH
-	cmd := []string{conntrackPath, "-S"}
-	if useSudoConntrack {
-		cmd = append([]string{"sudo"}, cmd...)
-	}
+	// // In CentOS, conntrack is located in /sbin and /usr/sbin which may not be in the agent user PATH
+	// cmd := []string{conntrackPath, "-S"}
+	// if useSudoConntrack {
+	// 	cmd = append([]string{"sudo"}, cmd...)
+	// }
 
-	output, err := runCommandFunction(cmd, []string{})
+	// output, err := runCommandFunction(cmd, []string{})
+	stats, err := conntrack.Stats()
 	if err != nil {
-		log.Debugf("Couldn't use %s to get conntrack stats: %v", conntrackPath, err)
+		log.Debugf("Couldn't get conntrack stats: %v", err)
 		return
 	}
 
@@ -842,29 +844,18 @@ func addConntrackStatsMetrics(sender sender.Sender, conntrackPath string, useSud
 	//       drop=1 early_drop=0 error=0 search_restart=39936711
 	// cpu=1 found=21960 invalid=17288 ignore=475938848 insert=0 insert_failed=1 \
 	//       drop=1 early_drop=0 error=0 search_restart=36983181
-	lines := strings.Split(output, "\n")
-	for _, line := range lines {
-		if line == "" {
-			continue
-		}
-		cols := strings.Fields(line)
-		cpuNum := strings.Split(cols[0], "=")[1]
-		cpuTag := []string{"cpu:" + cpuNum}
-		cols = cols[1:]
+	for _, stat := range stats {
+		cpuTag := []string{"cpu:" + stat.CPUID}
 
-		for _, cell := range cols {
-			parts := strings.Split(cell, "=")
-			if len(parts) != 2 {
-				continue
-			}
-			metric, valueStr := parts[0], parts[1]
-			valueFloat, err := strconv.ParseFloat(valueStr, 64)
-			if err != nil {
-				log.Debugf("Error converting value %s for metric %s: %v", valueStr, metric, err)
-				continue
-			}
-			sender.MonotonicCount("system.net.conntrack."+metric, valueFloat, "", cpuTag)
-		}
+		sender.MonotonicCount("system.net.conntrack.found", stat.Found, "", cpuTag)
+		sender.MonotonicCount("system.net.conntrack.invalid", stat.Invalid, "", cpuTag)
+		sender.MonotonicCount("system.net.conntrack.ignore", stat.Ignore, "", cpuTag)
+		sender.MonotonicCount("system.net.conntrack.insert", stat.Insert, "", cpuTag)
+		sender.MonotonicCount("system.net.conntrack.insert_failed", stat.InsertFailed, "", cpuTag)
+		sender.MonotonicCount("system.net.conntrack.drop", stat.Drop, "", cpuTag)
+		sender.MonotonicCount("system.net.conntrack.early_drop", stat.EarlyDrop, "", cpuTag)
+		sender.MonotonicCount("system.net.conntrack.error", stat.Error, "", cpuTag)
+		sender.MonotonicCount("system.net.conntrack.search_restart", stat.SearchRestart, "", cpuTag)
 	}
 }
 
@@ -883,7 +874,7 @@ func runCommand(cmd []string, env []string) (string, error) {
 }
 
 func collectConntrackMetrics(sender sender.Sender, conntrackPath string, useSudo bool, procfsPath string, blacklistConntrackMetrics []string, whitelistConntrackMetrics []string) {
-	addConntrackStatsMetrics(sender, conntrackPath, useSudo)
+	addConntrackStatsMetrics(sender)
 
 	conntrackFilesLocation := filepath.Join(procfsPath, "sys", "net", "netfilter")
 	var availableFiles []string
