@@ -199,7 +199,6 @@ func (m *TargetMutator) MutatePod(pod *corev1.Pod, ns string, _ dynamic.Interfac
 	// If the user did not specify versions, this target is eligible for language detection.
 	if target.usesDefaultLibs {
 		extractedLanguageDetection, usingLanguageDetection := extracted.useLanguageDetectionLibs()
-		log.Error("AHH", extractedLanguageDetection.libs, usingLanguageDetection)
 		if usingLanguageDetection {
 			extracted = extractedLanguageDetection
 		}
@@ -243,19 +242,12 @@ func (m *TargetMutator) MutatePod(pod *corev1.Pod, ns string, _ dynamic.Interfac
 // ShouldMutatePod determines if a pod would be mutated by the target mutator. It is used by other webhook mutators as
 // a filter.
 func (m *TargetMutator) ShouldMutatePod(pod *corev1.Pod) bool {
-	// Check for local library injection. These apply regardless of whether
-	// instrumentation is enabled or not.
-	val, exists := pod.GetLabels()[common.EnabledLabelKey]
-	if exists && val == "true" {
-		return true
-	}
-	if exists && val == "false" {
+	enabledLabelVal, enabledLabelExists := getEnabledLabel(pod)
+	if enabledLabelExists && !enabledLabelVal {
 		return false
 	}
 
-	// Even if there is not a lable, mutate unlabelled still enables mutation,
-	// even if instrumentation is disabled.
-	if m.mutateUnlabelled {
+	if m.shouldUseLocalLibInjection(pod) {
 		return true
 	}
 
@@ -337,8 +329,7 @@ func (m *TargetMutator) getTargetFromAnnotation(pod *corev1.Pod) *targetInternal
 		}
 	}
 
-	// Otherwise, we use the default as the user either selected "all" or didn't define a value, which both mean all
-	// default libraries.
+	// Otherwise, we use the default as the user selected "all", which both all default libraries.
 	return &targetInternal{
 		libVersions: m.defaultLibVersions,
 	}
@@ -346,18 +337,19 @@ func (m *TargetMutator) getTargetFromAnnotation(pod *corev1.Pod) *targetInternal
 
 // shouldUseLocalLibInjection is a helper to determine if local lib injection should be used for a given pod.
 func (m *TargetMutator) shouldUseLocalLibInjection(pod *corev1.Pod) bool {
+	// If there are no annotations, we should not use local lib injection.
+	if !m.podHasLibraryAnnotations(pod) {
+		return false
+	}
+
 	// The enabled label existing takes precedence.
 	enabledLabelVal, enabledLabelExists := getEnabledLabel(pod)
 	if enabledLabelExists {
 		return enabledLabelVal
 	}
 
-	// Otherwise, the user needs library annotations and mutate unlabelled enabled.
-	if m.podHasLibraryAnnotations(pod) && m.mutateUnlabelled {
-		return true
-	}
-
-	return false
+	// Otherwise, the user needs the mutate unlabelled enabled.
+	return m.mutateUnlabelled
 }
 
 // podHasLibraryAnnotations is a helper to determine if a pod has configured any annotations to configure libraries.
