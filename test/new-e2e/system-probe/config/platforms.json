@@ -284,6 +284,17 @@
       "alt_version_names": [
         "plucky"
       ]
+    },
+    "ubuntu_25.10": {
+      "image": "ubuntu-25.10-x86_64.qcow2.xz",
+      "image_version": "bryce.kahle/ubuntu-2510",
+      "os_name": "Ubuntu",
+      "os_id": "ubuntu",
+      "kernel": "6.17.0-5-generic",
+      "os_version": "25.10",
+      "alt_version_names": [
+        "questing"
+      ]
     }
   },
   "arm64": {
@@ -531,6 +542,17 @@
       "os_version": "25.04",
       "alt_version_names": [
         "plucky"
+      ]
+    },
+    "ubuntu_25.10": {
+      "image": "ubuntu-25.10-arm64.qcow2.xz",
+      "image_version": "bryce.kahle/ubuntu-2510",
+      "os_name": "Ubuntu",
+      "os_id": "ubuntu",
+      "kernel": "6.17.0-5-generic",
+      "os_version": "25.10",
+      "alt_version_names": [
+        "questing"
       ]
     }
   }
