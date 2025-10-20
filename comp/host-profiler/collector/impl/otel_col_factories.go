@@ -10,9 +10,11 @@ package collectorimpl
 
 import (
 	hostname "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/host-profiler/collector/impl/converternoagent"
 	"github.com/DataDog/datadog-agent/comp/host-profiler/collector/impl/receiver"
+	hpflareextension "github.com/DataDog/datadog-agent/comp/host-profiler/hpflareextension/impl"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/processor/infraattributesprocessor"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/processor/attributesprocessor"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/processor/k8sattributesprocessor"
@@ -20,6 +22,7 @@ import (
 	"go.opentelemetry.io/collector/confmap"
 	"go.opentelemetry.io/collector/exporter/debugexporter"
 	"go.opentelemetry.io/collector/exporter/otlphttpexporter"
+	"go.opentelemetry.io/collector/extension"
 	"go.opentelemetry.io/collector/otelcol"
 	"go.opentelemetry.io/collector/processor"
 )
@@ -29,27 +32,36 @@ import (
 type ExtraFactories interface {
 	GetProcessors() []processor.Factory
 	GetConverters() []confmap.ConverterFactory
+	GetExtensions() []extension.Factory
 }
 
 // extraFactoriesWithAgentCore is a struct that implements the ExtraFactories interface when the Agent Core is available.
 type extraFactoriesWithAgentCore struct {
 	tagger   tagger.Component
 	hostname hostname.Component
+	ipcComp  ipc.Component
 }
 
 var _ ExtraFactories = (*extraFactoriesWithAgentCore)(nil)
 
 // NewExtraFactoriesWithAgentCore creates a new ExtraFactories instance when the Agent Core is available.
-func NewExtraFactoriesWithAgentCore(tagger tagger.Component, hostname hostname.Component) ExtraFactories {
+func NewExtraFactoriesWithAgentCore(tagger tagger.Component, hostname hostname.Component, ipcComp ipc.Component) ExtraFactories {
 	return extraFactoriesWithAgentCore{
 		tagger:   tagger,
 		hostname: hostname,
+		ipcComp:  ipcComp,
 	}
 }
 
 func (e extraFactoriesWithAgentCore) GetProcessors() []processor.Factory {
 	return []processor.Factory{
 		infraattributesprocessor.NewFactoryForAgent(e.tagger, e.hostname.Get),
+	}
+}
+
+func (e extraFactoriesWithAgentCore) GetExtensions() []extension.Factory {
+	return []extension.Factory{
+		hpflareextension.NewFactoryForAgent(e.ipcComp),
 	}
 }
 
@@ -70,6 +82,12 @@ func NewExtraFactoriesWithoutAgentCore() ExtraFactories {
 // GetProcessors returns the processors for the collector.
 func (e extraFactoriesWithoutAgentCore) GetProcessors() []processor.Factory {
 	return []processor.Factory{k8sattributesprocessor.NewFactory()}
+}
+
+func (e extraFactoriesWithoutAgentCore) GetExtensions() []extension.Factory {
+	return []extension.Factory{
+		hpflareextension.NewFactory(),
+	}
 }
 
 // GetConverters returns the converters for the collector.
@@ -102,10 +120,17 @@ func createFactories(extraFactories ExtraFactories) func() (otelcol.Factories, e
 			return otelcol.Factories{}, err
 		}
 
+		extensionFactories := extraFactories.GetExtensions()
+		extensions, err := otelcol.MakeFactoryMap(extensionFactories...)
+		if err != nil {
+			return otelcol.Factories{}, err
+		}
+
 		return otelcol.Factories{
 			Receivers:  recvMap,
 			Exporters:  expMap,
 			Processors: processors,
+			Extensions: extensions,
 		}, nil
 	}
 }

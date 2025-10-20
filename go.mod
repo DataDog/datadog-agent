@@ -1,8 +1,6 @@
 module github.com/DataDog/datadog-agent
 
-go 1.24.6
-
-toolchain go1.24.8
+go 1.24.8
 
 // v0.8.0 was tagged long ago, and appared on pkg.go.dev.  We do not want any tagged version
 // to appear there.  The trick to accomplish this is to make a new version (in this case v0.9.0)
@@ -839,11 +837,11 @@ require (
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
 	go.opentelemetry.io/collector v0.137.0 // indirect
 	go.opentelemetry.io/collector/client v1.43.0 // indirect
-	go.opentelemetry.io/collector/component/componentstatus v0.137.0 // indirect
+	go.opentelemetry.io/collector/component/componentstatus v0.137.0
 	go.opentelemetry.io/collector/config/configauth v1.43.0 // indirect
 	go.opentelemetry.io/collector/config/configcompression v1.43.0 // indirect
 	go.opentelemetry.io/collector/config/configgrpc v0.137.0 // indirect
-	go.opentelemetry.io/collector/config/confighttp v0.137.0 // indirect
+	go.opentelemetry.io/collector/config/confighttp v0.137.0
 	go.opentelemetry.io/collector/config/configmiddleware v1.43.0 // indirect
 	go.opentelemetry.io/collector/config/confignet v1.43.0 // indirect
 	go.opentelemetry.io/collector/config/configopaque v1.43.0 // indirect
@@ -950,6 +948,7 @@ require (
 )
 
 require (
+	github.com/DataDog/datadog-agent/comp/host-profiler/hpflareextension/def v0.0.0-00010101000000-000000000000
 	github.com/DataDog/dd-otel-host-profiler v0.4.1-0.20251001104144-35a0daaf10ff
 	github.com/google/btree v1.1.3
 	go.opentelemetry.io/ebpf-profiler v0.0.202540-0.20251001054907-eb8909ecce3f
@@ -1061,6 +1060,7 @@ replace (
 	github.com/DataDog/datadog-agent/comp/def => ./comp/def
 	github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder => ./comp/forwarder/defaultforwarder
 	github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorinterface => ./comp/forwarder/orchestrator/orchestratorinterface
+	github.com/DataDog/datadog-agent/comp/host-profiler/hpflareextension/def => ./comp/host-profiler/hpflareextension/def
 	github.com/DataDog/datadog-agent/comp/logs/agent/config => ./comp/logs/agent/config
 	github.com/DataDog/datadog-agent/comp/netflow/payload => ./comp/netflow/payload
 	github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/def => ./comp/otelcol/collector-contrib/def
