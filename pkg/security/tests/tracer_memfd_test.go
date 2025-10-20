@@ -117,13 +117,13 @@ func TestTracerMemfd(t *testing.T) {
 	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
 	require.NoError(t, err)
 
-	t.Run("validate-event-and-tracer-tags", func(t *testing.T) {
+	test.RunMultiMode(t, "validate-event-and-tracer-tags", func(t *testing.T, kind wrapperType, cmd func(bin string, args []string, envs []string) *exec.Cmd) {
 		consumer.eventReceived.Store(false)
 		consumer.capturedPid.Store(0)
 		consumer.capturedFd.Store(0)
 
-		cmd := exec.Command(syscallTester, "tracer-memfd")
-		_ = cmd.Run()
+		cmdExec := cmd(syscallTester, []string{"tracer-memfd"}, nil)
+		_ = cmdExec.Run()
 
 		require.Eventually(t, consumer.eventReceived.Load, 2*time.Second, 200*time.Millisecond, "tracer-memfd event should be received")
 
