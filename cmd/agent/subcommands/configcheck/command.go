@@ -32,6 +32,7 @@ type cliParams struct {
 	*command.GlobalParams
 
 	verbose bool
+	check   string
 }
 
 // Commands returns a slice of subcommands for the 'agent' command.
@@ -58,6 +59,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		},
 	}
 	configCheckCommand.Flags().BoolVarP(&cliParams.verbose, "verbose", "v", false, "print additional debug info")
+	configCheckCommand.Flags().StringVarP(&cliParams.check, "check", "C", "", "only print the config of the given check name")
 
 	return []*cobra.Command{configCheckCommand}
 }
@@ -74,6 +76,7 @@ func run(cliParams *cliParams, _ log.Component, client ipc.HTTPClient) error {
 	}
 
 	cr := integration.ConfigCheckResponse{}
+
 	err = json.Unmarshal(res, &cr)
 	if err != nil {
 		return fmt.Errorf("unable to parse configcheck: %v", err)
@@ -81,6 +84,20 @@ func run(cliParams *cliParams, _ log.Component, client ipc.HTTPClient) error {
 
 	var b bytes.Buffer
 	color.Output = &b
+
+	// search through the configs for a check with the same name instead of printing every config
+	if cliParams.check != "" {
+		for _, configResponse := range cr.Configs {
+			if cliParams.check == configResponse.Config.Name {
+				flare.PrintConfigWithInstanceIDs(color.Output, configResponse.Config, configResponse.InstanceIDs, "")
+
+				fmt.Println(b.String())
+				return nil
+			}
+		}
+		return fmt.Errorf("no check with the name %q has been found in the configuration responses", cliParams.check)
+	}
+
 	flare.PrintConfigCheck(color.Output, cr, cliParams.verbose)
 
 	fmt.Println(b.String())
