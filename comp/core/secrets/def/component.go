@@ -37,7 +37,6 @@ type Component interface {
 	// SubscribeToChanges registers a callback to be invoked whenever secrets are resolved or refreshed
 	SubscribeToChanges(callback SecretChangeCallback)
 	// Refresh will resolve secret handles again, notifying any subscribers of changed values.
-	// If bypassRateLimit is true, the refresh will bypass any rate limiting/throttling.
-	// If bypassRateLimit is false, the refresh will be throttled based on RefreshMinInterval config.
+	// If bypassRateLimit is true, the refresh bypasses throttling; otherwise, it's rate-limited by RefreshMinInterval.
 	Refresh(bypassRateLimit bool) (string, error)
 }
