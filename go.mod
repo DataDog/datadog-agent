@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent
 
-go 1.24.6
+go 1.24.8
 
 toolchain go1.24.9
 
@@ -950,10 +950,10 @@ require (
 )
 
 require (
-	github.com/DataDog/datadog-agent/comp/host-profiler/hpflareextension/def v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def v0.0.0
 	github.com/DataDog/datadog-agent/comp/core/agenttelemetry/fx v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/comp/core/agenttelemetry/impl v0.0.0 // indirect
+	github.com/DataDog/datadog-agent/comp/host-profiler/hpflareextension/def v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/util/jsonquery v0.0.0-00010101000000-000000000000
 )
 
