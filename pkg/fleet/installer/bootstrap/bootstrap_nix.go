@@ -22,7 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/oci"
 )
 
-func install(ctx context.Context, env *env.Env, url string, experiment bool) error {
+func install(ctx context.Context, env *env.Env, url string, extensions []string, experiment bool) error {
 	err := os.MkdirAll(paths.RootTmpDir, 0755)
 	if err != nil {
 		return fmt.Errorf("failed to create temporary directory: %w", err)
@@ -40,9 +40,9 @@ func install(ctx context.Context, env *env.Env, url string, experiment bool) err
 		)
 	}
 	if experiment {
-		return cmd.InstallExperiment(ctx, url)
+		return cmd.InstallExperiment(ctx, url) // TODO: handle extensions
 	}
-	return cmd.Install(ctx, url, nil)
+	return cmd.Install(ctx, url, extensions, nil)
 }
 
 // extractInstallerFromOCI downloads the installer binary from the agent package in the registry and returns an installer executor

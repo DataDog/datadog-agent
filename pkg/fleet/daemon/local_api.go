@@ -282,7 +282,7 @@ func (l *localAPIImpl) install(w http.ResponseWriter, r *http.Request) {
 	}
 
 	log.Infof("Received local request to install package %s version %s", pkg, request.Version)
-	err = l.daemon.Install(r.Context(), catalogPkg.URL, request.InstallArgs)
+	err = l.daemon.Install(r.Context(), catalogPkg.URL, request.Extensions, request.InstallArgs)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		response.Error = &APIError{Message: err.Error()}
@@ -324,7 +324,7 @@ type LocalAPIClient interface {
 
 	SetCatalog(catalog string) error
 	SetConfigCatalog(configs string) error
-	Install(pkg, version string) error
+	Install(pkg, version string, extensions []string) error
 	Remove(pkg string) error
 	StartExperiment(pkg, version string) error
 	StopExperiment(pkg string) error
@@ -571,9 +571,10 @@ func (c *localAPIClientImpl) PromoteConfigExperiment(pkg string) error {
 }
 
 // Install installs a package with a specific version.
-func (c *localAPIClientImpl) Install(pkg, version string) error {
+func (c *localAPIClientImpl) Install(pkg, version string, extensions []string) error {
 	params := experimentTaskParams{
-		Version: version,
+		Version:    version,
+		Extensions: extensions,
 	}
 	body, err := json.Marshal(params)
 	if err != nil {

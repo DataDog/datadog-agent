@@ -97,10 +97,15 @@ func (i *InstallerExec) newInstallerCmdDetached(ctx context.Context, command str
 }
 
 // Install installs a package.
-func (i *InstallerExec) Install(ctx context.Context, url string, args []string) (err error) {
+func (i *InstallerExec) Install(ctx context.Context, url string, extensions []string, args []string) (err error) {
 	var cmdLineArgs = []string{url}
 	if len(args) > 0 {
 		cmdLineArgs = append(cmdLineArgs, "--install_args", strings.Join(args, ","))
+	}
+	if len(extensions) > 0 {
+		for _, extension := range extensions {
+			cmdLineArgs = append(cmdLineArgs, "--extensions", extension)
+		}
 	}
 	cmd := i.newInstallerCmd(ctx, "install", cmdLineArgs...)
 	defer func() { cmd.span.Finish(err) }()
@@ -115,10 +120,15 @@ func (i *InstallerExec) SetupInstaller(ctx context.Context, path string) (err er
 }
 
 // ForceInstall installs a package, even if it's already installed.
-func (i *InstallerExec) ForceInstall(ctx context.Context, url string, args []string) (err error) {
+func (i *InstallerExec) ForceInstall(ctx context.Context, url string, extensions []string, args []string) (err error) {
 	var cmdLineArgs = []string{url, "--force"}
 	if len(args) > 0 {
 		cmdLineArgs = append(cmdLineArgs, "--install_args", strings.Join(args, ","))
+	}
+	if len(extensions) > 0 {
+		for _, extension := range extensions {
+			cmdLineArgs = append(cmdLineArgs, "--extensions", extension)
+		}
 	}
 	cmd := i.newInstallerCmd(ctx, "install", cmdLineArgs...)
 	defer func() { cmd.span.Finish(err) }()

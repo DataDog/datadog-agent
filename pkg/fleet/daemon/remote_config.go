@@ -281,6 +281,7 @@ type expectedState struct {
 
 type experimentTaskParams struct {
 	Version     string   `json:"version"`
+	Extensions  []string `json:"extensions"`
 	InstallArgs []string `json:"install_args"`
 }
 

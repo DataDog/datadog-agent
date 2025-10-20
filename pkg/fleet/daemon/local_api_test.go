@@ -33,8 +33,8 @@ func (m *testDaemon) Stop(ctx context.Context) error {
 	return args.Error(0)
 }
 
-func (m *testDaemon) Install(ctx context.Context, url string, installArgs []string) error {
-	args := m.Called(ctx, url, installArgs)
+func (m *testDaemon) Install(ctx context.Context, url string, extensions []string, installArgs []string) error {
+	args := m.Called(ctx, url, extensions, installArgs)
 	return args.Error(0)
 }
 
@@ -161,9 +161,9 @@ func TestAPIInstall(t *testing.T) {
 		URL:     "oci://example.com/test-package@5e884898da28047151d0e56f8dc6292773603d0d6aabbdd62a11ef721d1542d8",
 	}
 	api.i.On("GetPackage", testPackage.Name, testPackage.Version).Return(testPackage, nil)
-	api.i.On("Install", mock.Anything, testPackage.URL, []string(nil)).Return(nil)
+	api.i.On("Install", mock.Anything, testPackage.URL, []string(nil), []string(nil)).Return(nil)
 
-	err := api.c.Install(testPackage.Name, testPackage.Version)
+	err := api.c.Install(testPackage.Name, testPackage.Version, nil)
 
 	assert.NoError(t, err)
 }

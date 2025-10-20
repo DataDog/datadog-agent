@@ -29,7 +29,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/oci"
 )
 
-func install(ctx context.Context, env *env.Env, url string, experiment bool) error {
+func install(ctx context.Context, env *env.Env, url string, extensions []string, experiment bool) error {
 	err := paths.EnsureInstallerDataDir()
 	if err != nil {
 		return fmt.Errorf("failed to create installer data directory: %w", err)
@@ -51,9 +51,9 @@ func install(ctx context.Context, env *env.Env, url string, experiment bool) err
 		)
 	}
 	if experiment {
-		return cmd.InstallExperiment(ctx, url)
+		return cmd.InstallExperiment(ctx, url) // TODO: handle extensions
 	}
-	return cmd.ForceInstall(ctx, url, nil)
+	return cmd.ForceInstall(ctx, url, extensions, nil)
 }
 
 // downloadInstaller downloads the installer package from the registry and returns the path to the executable.

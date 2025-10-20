@@ -65,9 +65,9 @@ type Daemon interface {
 
 	SetCatalog(c catalog)
 	SetConfigCatalog(configs map[string]installerConfig)
-	Install(ctx context.Context, url string, args []string) error
+	Install(ctx context.Context, url string, extensions []string, args []string) error
 	Remove(ctx context.Context, pkg string) error
-	StartExperiment(ctx context.Context, url string) error
+	StartExperiment(ctx context.Context, url string) error // TODO: handle extensions
 	StopExperiment(ctx context.Context, pkg string) error
 	PromoteExperiment(ctx context.Context, pkg string) error
 	StartConfigExperiment(ctx context.Context, pkg string, operations config.Operations) error
@@ -342,20 +342,20 @@ func (d *daemonImpl) Stop(_ context.Context) error {
 }
 
 // Install installs the package from the given URL.
-func (d *daemonImpl) Install(ctx context.Context, url string, args []string) error {
+func (d *daemonImpl) Install(ctx context.Context, url string, extensions []string, args []string) error {
 	d.m.Lock()
 	defer d.m.Unlock()
-	return d.install(ctx, d.env, url, args)
+	return d.install(ctx, d.env, url, extensions, args)
 }
 
-func (d *daemonImpl) install(ctx context.Context, env *env.Env, url string, args []string) (err error) {
+func (d *daemonImpl) install(ctx context.Context, env *env.Env, url string, extensions []string, args []string) (err error) {
 	span, ctx := telemetry.StartSpanFromContext(ctx, "install")
 	defer func() { span.Finish(err) }()
 	d.refreshState(ctx)
 	defer d.refreshState(ctx)
 
 	log.Infof("Daemon: Installing package from %s", url)
-	err = d.installer(env).Install(ctx, url, args)
+	err = d.installer(env).Install(ctx, url, extensions, args)
 	if err != nil {
 		return fmt.Errorf("could not install: %w", err)
 	}
@@ -582,7 +582,7 @@ func (d *daemonImpl) handleRemoteAPIRequest(request remoteAPIRequest) (err error
 				err,
 			)
 		}
-		return d.install(ctx, &newEnv, pkg.URL, nil)
+		return d.install(ctx, &newEnv, pkg.URL, nil, nil) // TODO: handle extensions
 
 	case methodUninstallPackage:
 		log.Infof("Installer: Received remote request %s to uninstall package %s", request.ID, request.Package)
