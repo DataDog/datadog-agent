@@ -77,6 +77,7 @@ func TestMount(t *testing.T) {
 				assert.Equal(t, false, event.Mount.Detached, "Mount should not be detached")
 				assert.Equal(t, true, event.Mount.Visible, "Mount should be visible")
 				assert.Equal(t, model.MountOriginEvent, event.Mount.Origin, "Incorrect mount source")
+				assert.NotEqual(t, 0, event.Mount.NamespaceInode, "Mount namespace inode not captured")
 			}
 
 			// filter by pid
@@ -471,6 +472,7 @@ func TestMountEvent(t *testing.T) {
 				assert.Equal(t, model.MountOriginEvent, event.Mount.Origin, "Incorrect mount source")
 				assert.Equal(t, false, event.Mount.Detached, "Mount should not be detached")
 				assert.Equal(t, true, event.Mount.Visible, "Mount should be visible")
+				assert.NotEqual(t, 0, event.Mount.NamespaceInode, "Mount namespace inode not captured")
 			}
 			assertTriggeredRule(t, rule, "test_mount_tmpfs")
 			assertFieldEqual(t, event, "mount.mountpoint.path", tmpfsMountPointPath)
@@ -502,6 +504,7 @@ func TestMountEvent(t *testing.T) {
 				assert.Equal(t, false, event.Mount.Detached, "Mount should not be detached")
 				assert.Equal(t, true, event.Mount.Visible, "Mount should be visible")
 				assert.Equal(t, model.MountOriginEvent, event.Mount.Origin, "Incorrect mount source")
+				assert.NotEqual(t, 0, event.Mount.NamespaceInode, "Mount namespace inode not captured")
 			}
 			assertFieldEqual(t, event, "mount.mountpoint.path", bindMountPointPath)
 			assertFieldEqual(t, event, "mount.source.path", bindMountSourcePath)
@@ -543,6 +546,7 @@ func TestMountEvent(t *testing.T) {
 			assertFieldEqual(t, event, "mount.source.path", "/")
 			assertFieldNotEqual(t, event, "mount.fs_type", "overlay")
 			assertFieldNotEmpty(t, event, "container.id", "container id shouldn't be empty")
+			assert.NotEqual(t, 0, event.Mount.NamespaceInode, "Mount namespace inode not captured")
 
 			test.validateMountSchema(t, event)
 			validateSyscallContext(t, event, "$.syscall.mount.path")
@@ -576,6 +580,7 @@ func TestMountEvent(t *testing.T) {
 			return nil
 		}, func(event *model.Event, rule *rules.Rule) {
 			t.Errorf("shouldn't get an event: event %s matched rule %s", test.debugEvent(event), rule.Expression)
+			assert.NotEqual(t, 0, event.Mount.NamespaceInode, "Mount namespace inode not captured")
 		})
 		if err == nil {
 			t.Error("shouldn't get an event")
