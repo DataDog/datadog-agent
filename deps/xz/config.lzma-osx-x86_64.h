@@ -13,7 +13,7 @@
 
 /* Define to 1 if ARM64 CRC32 instruction is supported. See configure.ac for
    details. */
-#define HAVE_ARM64_CRC32 1
+/* #undef HAVE_ARM64_CRC32 */
 
 /* Define to 1 if bswap_16 is available. */
 /* #undef HAVE_BSWAP_16 */
@@ -63,7 +63,7 @@
 /* #undef HAVE_COMMONCRYPTO_COMMONDIGEST_H */
 
 /* Define to 1 if you have the <cpuid.h> header file. */
-/* #undef HAVE_CPUID_H */
+#define HAVE_CPUID_H 1
 
 /* Define to 1 if the 32-bit x86 CRC assembly files are used. */
 /* #undef HAVE_CRC_X86_ASM */
@@ -179,7 +179,7 @@
 /* #undef HAVE_ICONV */
 
 /* Define to 1 if you have the <immintrin.h> header file. */
-/* #undef HAVE_IMMINTRIN_H */
+#define HAVE_IMMINTRIN_H 1
 
 /* Define to 1 if you have the <inttypes.h> header file. */
 #define HAVE_INTTYPES_H 1
@@ -295,7 +295,7 @@
 /* #undef HAVE_SYMBOL_VERSIONS_LINUX */
 
 /* Define to 1 if you have the 'sysctlbyname' function. */
-#define HAVE_SYSCTLBYNAME 1
+/* #undef HAVE_SYSCTLBYNAME */
 
 /* Define to 1 if you have the <sys/byteorder.h> header file. */
 /* #undef HAVE_SYS_BYTEORDER_H */
@@ -323,7 +323,7 @@
 
 /* Define to 1 if _mm_set_epi64x and _mm_clmulepi64_si128 are usable. See
    configure.ac for details. */
-/* #undef HAVE_USABLE_CLMUL */
+#define HAVE_USABLE_CLMUL 1
 
 /* Define to 1 if you have the 'utime' function. */
 /* #undef HAVE_UTIME */
@@ -351,7 +351,7 @@
 /* #undef HAVE__FUTIME */
 
 /* Define to 1 if _mm_movemask_epi8 is available. */
-/* #undef HAVE__MM_MOVEMASK_EPI8 */
+#define HAVE__MM_MOVEMASK_EPI8 1
 
 /* Define to 1 if the GNU C extension __builtin_assume_aligned is supported.
    */
@@ -433,7 +433,7 @@
 
 /* Define to 1 if the system supports fast unaligned access to 16-bit, 32-bit,
    and 64-bit integers. */
-#define TUKLIB_FAST_UNALIGNED_ACCESS 1
+/* #undef TUKLIB_FAST_UNALIGNED_ACCESS */
 
 /* Define to 1 if the amount of physical memory can be detected with
    _system_configuration.physmem. */
