@@ -24,7 +24,9 @@ Environment="DD_INVENTORIES_FIRST_RUN_DELAY=5"
 ExecStart={{.InstallDir}}/embedded/bin/trace-loader {{.EtcDir}}/datadog.yaml {{.InstallDir}}/embedded/bin/trace-agent --config {{.EtcDir}}/datadog.yaml --pidfile {{.InstallDir}}/run/trace-agent.pid
 StartLimitInterval=10
 StartLimitBurst=5
+{{- if .AmbiantCapabilitiesSupported}}
 AmbientCapabilities=CAP_NET_BIND_SERVICE
+{{- end}}
 
 [Install]
 WantedBy=multi-user.target
