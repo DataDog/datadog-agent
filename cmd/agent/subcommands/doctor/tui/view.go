@@ -30,8 +30,13 @@ func (m model) View() string {
 		return m.renderLoading()
 	}
 
-	// Render the main three-panel layout
-	return m.renderMainView()
+	// Render based on view mode
+	switch m.viewMode {
+	case LogsDetailView:
+		return m.renderLogsDetailView()
+	default:
+		return m.renderMainView()
+	}
 }
 
 // renderError displays a full-screen error message when agent is not reachable
@@ -77,10 +82,10 @@ func (m model) renderMainView() string {
 	panelWidth := (m.width - 12) / 3 // 12 = 3 panels * (2 margin + 2 border)
 	panelHeight := m.height - 6      // Leave space for header and footer
 
-	// Render each panel
-	leftPanel := m.renderIngestionPanel(panelWidth, panelHeight)
-	centerPanel := m.renderAgentPanel(panelWidth, panelHeight)
-	rightPanel := m.renderIntakePanel(panelWidth, panelHeight)
+	// Render each panel with selection state
+	leftPanel := m.renderIngestionPanel(panelWidth, panelHeight, m.selectedPanel == 0)
+	centerPanel := m.renderAgentPanel(panelWidth, panelHeight, m.selectedPanel == 1)
+	rightPanel := m.renderIntakePanel(panelWidth, panelHeight, m.selectedPanel == 2)
 
 	// Join panels horizontally
 	panels := lipgloss.JoinHorizontal(
@@ -131,22 +136,39 @@ func (m model) renderHeader() string {
 	return baseStyle.Render(header)
 }
 
-// renderFooter displays keyboard shortcuts
+// renderFooter displays keyboard shortcuts based on current view mode
 func (m model) renderFooter() string {
-	shortcuts := []string{
-		keyStyle.Render("q") + " quit",
-		keyStyle.Render("r") + " refresh",
+	var shortcuts []string
+
+	switch m.viewMode {
+	case LogsDetailView:
+		shortcuts = []string{
+			keyStyle.Render("↑/↓") + " navigate",
+			keyStyle.Render("esc") + " back",
+			keyStyle.Render("q") + " quit",
+		}
+	default: // MainView
+		shortcuts = []string{
+			keyStyle.Render("←/→") + " switch panel",
+			keyStyle.Render("enter") + " details",
+			keyStyle.Render("r") + " refresh",
+			keyStyle.Render("q") + " quit",
+		}
 	}
 
 	return footerStyle.Render(strings.Join(shortcuts, " • "))
 }
 
 // renderIngestionPanel renders the left panel showing ingestion status
-func (m model) renderIngestionPanel(width, height int) string {
+func (m model) renderIngestionPanel(width, height int, isSelected bool) string {
 	var content strings.Builder
 
-	// Panel title
-	content.WriteString(titleStyle.Render("Ingestion") + "\n\n")
+	// Panel title with selection indicator
+	title := "Ingestion"
+	if isSelected {
+		title = "▶ " + title
+	}
+	content.WriteString(titleStyle.Render(title) + "\n\n")
 
 	// Checks section
 	content.WriteString(formatSectionHeader("Checks") + "\n")
@@ -189,14 +211,25 @@ func (m model) renderIngestionPanel(width, height int) string {
 		content.WriteString(fmt.Sprintf("  %s\n", formatKeyValueStatus("Errors", formatLargeNumber(dogstatsd.ParseErrors), "error")))
 	}
 
-	// Logs section
-	content.WriteString("\n" + formatSectionHeader("Logs") + "\n")
+	// Logs section with detail hint
+	logsHeader := "Logs"
+	if isSelected {
+		logsHeader += " " + subduedStyle.Render("(press Enter for details)")
+	}
+	content.WriteString("\n" + formatSectionHeader(logsHeader) + "\n")
 	logs := m.status.Ingestion.Logs
-	content.WriteString(fmt.Sprintf("  %s\n", formatCount("Sources", logs.Sources, "")))
-	content.WriteString(fmt.Sprintf("  %s\n", formatKeyValue("Lines", formatLargeNumber(logs.LinesProcessed))))
-	content.WriteString(fmt.Sprintf("  %s\n", formatKeyValue("Bytes", formatBytes(logs.BytesProcessed))))
-	if logs.Errors > 0 {
-		content.WriteString(fmt.Sprintf("  %s\n", formatKeyValueStatus("Errors", fmt.Sprintf("%d", logs.Errors), "error")))
+
+	// Show enabled/disabled status
+	if logs.Enabled {
+		content.WriteString(fmt.Sprintf("  %s\n", formatKeyValueStatus("Status", "Enabled", "success")))
+		content.WriteString(fmt.Sprintf("  %s\n", formatCount("Sources", logs.Sources, "")))
+		content.WriteString(fmt.Sprintf("  %s\n", formatKeyValue("Lines", formatLargeNumber(logs.LinesProcessed))))
+		content.WriteString(fmt.Sprintf("  %s\n", formatKeyValue("Bytes", formatBytes(logs.BytesProcessed))))
+		if logs.Errors > 0 {
+			content.WriteString(fmt.Sprintf("  %s\n", formatKeyValueStatus("Errors", fmt.Sprintf("%d", logs.Errors), "error")))
+		}
+	} else {
+		content.WriteString(fmt.Sprintf("  %s\n", formatKeyValueStatus("Status", "Disabled", "warning")))
 	}
 
 	// Metrics section
@@ -212,11 +245,15 @@ func (m model) renderIngestionPanel(width, height int) string {
 }
 
 // renderAgentPanel renders the center panel showing agent health and metadata
-func (m model) renderAgentPanel(width, height int) string {
+func (m model) renderAgentPanel(width, height int, isSelected bool) string {
 	var content strings.Builder
 
-	// Panel title
-	content.WriteString(titleStyle.Render("Agent Health") + "\n\n")
+	// Panel title with selection indicator
+	title := "Agent Health"
+	if isSelected {
+		title = "▶ " + title
+	}
+	content.WriteString(titleStyle.Render(title) + "\n\n")
 
 	// Running status
 	agent := m.status.Agent
@@ -275,11 +312,15 @@ func (m model) renderAgentPanel(width, height int) string {
 }
 
 // renderIntakePanel renders the right panel showing backend connectivity
-func (m model) renderIntakePanel(width, height int) string {
+func (m model) renderIntakePanel(width, height int, isSelected bool) string {
 	var content strings.Builder
 
-	// Panel title
-	content.WriteString(titleStyle.Render("Intake") + "\n\n")
+	// Panel title with selection indicator
+	title := "Intake"
+	if isSelected {
+		title = "▶ " + title
+	}
+	content.WriteString(titleStyle.Render(title) + "\n\n")
 
 	// Connection status
 	intake := m.status.Intake
@@ -394,4 +435,189 @@ func truncate(s string, maxLen int) string {
 		return s[:maxLen]
 	}
 	return s[:maxLen-3] + "..."
+}
+
+// renderLogsDetailView renders the full-screen logs detail view with two panels
+// Left: List of log sources | Right: Streaming logs for selected source
+func (m model) renderLogsDetailView() string {
+	if m.status == nil {
+		return "No data available"
+	}
+
+	// Calculate panel dimensions
+	// Left panel: 40% of width for log sources list
+	// Right panel: 60% of width for streaming logs
+	leftWidth := int(float64(m.width) * 0.4)
+	rightWidth := m.width - leftWidth - 4 // Account for borders and spacing
+	contentHeight := m.height - 6         // Account for header and footer
+
+	// Build left panel - log sources list
+	leftPanel := m.renderLogSourcesList(leftWidth, contentHeight)
+
+	// Build right panel - streaming logs
+	rightPanel := m.renderStreamingLogs(rightWidth, contentHeight)
+
+	// Combine panels horizontally
+	panels := lipgloss.JoinHorizontal(
+		lipgloss.Top,
+		leftPanel,
+		rightPanel,
+	)
+
+	// Header
+	header := titleStyle.Render(" LOGS DETAIL VIEW ")
+
+	// Footer with instructions
+	footer := subduedStyle.Render("↑/↓: Navigate | Esc: Back to main view | Q: Quit")
+
+	// Combine all sections
+	return lipgloss.JoinVertical(
+		lipgloss.Left,
+		header,
+		"",
+		panels,
+		"",
+		footer,
+	)
+}
+
+// renderLogSourcesList renders the left panel with the list of log sources
+func (m model) renderLogSourcesList(width, height int) string {
+	var content strings.Builder
+
+	logsStatus := m.status.Ingestion.Logs
+
+	// Check if logs are enabled
+	if !logsStatus.Enabled {
+		content.WriteString(warningStyle.Render("⚠ Logs collection is DISABLED"))
+		content.WriteString("\n\n")
+		content.WriteString(subduedStyle.Render("Enable it in datadog.yaml with:\nlogs_enabled: true"))
+	} else if len(logsStatus.Integrations) == 0 {
+		content.WriteString(infoStyle.Render("✓ Logs collection is ENABLED"))
+		content.WriteString("\n\n")
+		content.WriteString(subduedStyle.Render("No log sources configured yet."))
+	} else {
+		content.WriteString(successStyle.Render(fmt.Sprintf("✓ ENABLED - %d source(s)", len(logsStatus.Integrations))))
+		content.WriteString("\n\n")
+
+		// Summary stats
+		content.WriteString(subduedStyle.Render(fmt.Sprintf("Sources: %d\nBytes: %s\nErrors: %d",
+			logsStatus.Sources,
+			formatBytes(logsStatus.BytesProcessed),
+			logsStatus.Errors)))
+		content.WriteString("\n\n")
+
+		// Separator
+		content.WriteString(strings.Repeat("─", width-4))
+		content.WriteString("\n\n")
+
+		// List each log source
+		for i, logSource := range logsStatus.Integrations {
+			// Highlight selected source
+			isSelected := i == m.selectedLogIdx
+
+			// Source header
+			var sourceName string
+			if isSelected {
+				sourceName = fmt.Sprintf("▶ %s", logSource.Name)
+			} else {
+				sourceName = fmt.Sprintf("  %s", logSource.Name)
+			}
+
+			// Status symbol
+			statusSymbol := symbolInfo
+			statusColor := subduedStyle
+			switch logSource.Status {
+			case "success":
+				statusSymbol = symbolSuccess
+				statusColor = successStyle
+			case "error":
+				statusSymbol = symbolError
+				statusColor = errorStyle
+			case "pending":
+				statusSymbol = symbolRunning
+				statusColor = warningStyle
+			}
+
+			content.WriteString(statusColor.Render(fmt.Sprintf("%s %s", statusSymbol, sourceName)))
+			content.WriteString("\n")
+
+			// Show details for selected source
+			if isSelected {
+				content.WriteString(subduedStyle.Render(fmt.Sprintf("   Type: %s", logSource.Type)))
+				content.WriteString("\n")
+
+				// Show inputs (files being tailed)
+				if len(logSource.Inputs) > 0 {
+					content.WriteString(subduedStyle.Render("   Files:"))
+					content.WriteString("\n")
+					for _, input := range logSource.Inputs {
+						truncatedInput := truncate(input, width-10)
+						content.WriteString(subduedStyle.Render(fmt.Sprintf("     • %s", truncatedInput)))
+						content.WriteString("\n")
+					}
+				}
+
+				// Show stats
+				if len(logSource.Info) > 0 {
+					content.WriteString(subduedStyle.Render("   Stats:"))
+					content.WriteString("\n")
+					for key, value := range logSource.Info {
+						content.WriteString(subduedStyle.Render(fmt.Sprintf("     %s: %s", key, value)))
+						content.WriteString("\n")
+					}
+				}
+				content.WriteString("\n")
+			}
+		}
+	}
+
+	return panelStyle.
+		Width(width).
+		Height(height).
+		Render(content.String())
+}
+
+// renderStreamingLogs renders the right panel with streaming logs
+func (m model) renderStreamingLogs(width, height int) string {
+	var content strings.Builder
+
+	// Panel title
+	if m.streamingSource != "" {
+		content.WriteString(highlightStyle.Render(fmt.Sprintf("Streaming: %s", m.streamingSource)))
+		content.WriteString("\n\n")
+	} else {
+		content.WriteString(subduedStyle.Render("Select a log source to view stream"))
+		content.WriteString("\n\n")
+	}
+
+	// Show log lines
+	if len(m.logLines) == 0 && m.streamingSource != "" {
+		content.WriteString(subduedStyle.Render("Waiting for logs..."))
+	} else {
+		// Calculate how many lines we can show
+		// Subtract 3 for title and spacing
+		maxLines := height - 3
+		if maxLines < 0 {
+			maxLines = 0
+		}
+
+		// Show the last N lines
+		startIdx := 0
+		if len(m.logLines) > maxLines {
+			startIdx = len(m.logLines) - maxLines
+		}
+
+		for _, line := range m.logLines[startIdx:] {
+			// Truncate line if needed to fit width
+			truncatedLine := truncate(line, width-4)
+			content.WriteString(valueStyle.Render(truncatedLine))
+			content.WriteString("\n")
+		}
+	}
+
+	return panelStyle.
+		Width(width).
+		Height(height).
+		Render(content.String())
 }

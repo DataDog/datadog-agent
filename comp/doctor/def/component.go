@@ -64,10 +64,21 @@ type DogStatsDStatus struct {
 
 // LogsStatus represents log collection status
 type LogsStatus struct {
-	Sources        int   `json:"sources"`
-	BytesProcessed int64 `json:"bytes_processed"`
-	LinesProcessed int64 `json:"lines_processed"`
-	Errors         int   `json:"errors"`
+	Enabled        bool        `json:"enabled"`
+	Sources        int         `json:"sources"`
+	BytesProcessed int64       `json:"bytes_processed"`
+	LinesProcessed int64       `json:"lines_processed"`
+	Errors         int         `json:"errors"`
+	Integrations   []LogSource `json:"integrations"` // Detailed source information
+}
+
+// LogSource represents a single log source
+type LogSource struct {
+	Name   string            `json:"name"`
+	Type   string            `json:"type"`
+	Status string            `json:"status"` // "pending", "success", "error"
+	Inputs []string          `json:"inputs"` // File paths being tailed
+	Info   map[string]string `json:"info"`   // Stats (bytes read, latency, etc.)
 }
 
 // MetricsStatus represents metrics aggregation status

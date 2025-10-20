@@ -6,11 +6,26 @@
 package tui
 
 import (
+	"bufio"
+	"bytes"
+	"context"
+	"sync"
 	"time"
+
+	"github.com/charmbracelet/bubbles/spinner"
 
 	ipcdef "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	doctordef "github.com/DataDog/datadog-agent/comp/doctor/def"
-	"github.com/charmbracelet/bubbles/spinner"
+)
+
+// ViewMode represents the current view state
+type ViewMode int
+
+const (
+	// MainView shows the three-panel dashboard
+	MainView ViewMode = iota
+	// LogsDetailView shows detailed logs information
+	LogsDetailView
 )
 
 // model represents the entire application state for the Bubbletea TUI
@@ -38,6 +53,81 @@ type model struct {
 
 	// Flag to indicate the TUI should quit
 	quitting bool
+
+	// Navigation state
+	viewMode       ViewMode // Current view mode
+	selectedPanel  int      // Which panel is focused (0=ingestion, 1=agent, 2=intake)
+	selectedLogIdx int      // Which log source is selected in detail view
+
+	// Log streaming state
+	logChunk    *logChunk // scanner for the log
+	logLines    []string  // Buffered log lines for the selected source
+	maxLogLines int       // Maximum number of log lines to keep
+
+	streamingSource string          // Name of the currently streaming log source
+	cmdCtx          context.Context // context used for long running command
+	cmdCncl         func()          // context cancel function used for long running command
+}
+
+type logChunk struct {
+	sync.Mutex
+	logChunkChan chan []byte
+	buf          bytes.Buffer
+	scanner      *bufio.Scanner
+}
+
+func newLogChunk() *logChunk {
+	buf := bytes.Buffer{}
+	return &logChunk{
+		logChunkChan: make(chan []byte),
+		buf:          buf,
+		scanner:      nil,
+	}
+}
+
+func (lc *logChunk) ReadChan() bool {
+	if lc == nil {
+		return false
+	}
+	log, ok := <-lc.logChunkChan
+	if !ok {
+		return false
+	}
+	lc.Lock()
+	lc.buf.Write(log)
+	lc.Unlock()
+	return true
+}
+
+func (lc *logChunk) Scan() bool {
+	lc.Lock()
+	defer lc.Unlock()
+	return lc.scanner.Scan()
+}
+
+func (lc *logChunk) Text() string {
+	lc.Lock()
+	defer lc.Unlock()
+	if lc.scanner == nil {
+		return ""
+	}
+	return lc.scanner.Text()
+}
+
+func (lc *logChunk) Reset(logChunkChan chan []byte) *logChunk {
+	if lc == nil {
+		logChunk := *newLogChunk()
+		logChunk.logChunkChan = logChunkChan
+		return &logChunk
+	}
+
+	lc.Lock()
+	defer lc.Unlock()
+	close(lc.logChunkChan)
+	lc.buf.Reset()
+	lc.scanner = bufio.NewScanner(&lc.buf)
+	lc.logChunkChan = logChunkChan
+	return lc
 }
 
 // newModel creates a new model with initial state
@@ -48,14 +138,20 @@ func newModel(client ipcdef.HTTPClient) model {
 	s.Style = spinnerStyle
 
 	return model{
-		client:     client,
-		status:     nil,
-		lastError:  nil,
-		width:      0,
-		height:     0,
-		loading:    true,
-		spinner:    s,
-		lastUpdate: time.Time{},
-		quitting:   false,
+		client:          client,
+		status:          nil,
+		lastError:       nil,
+		width:           0,
+		height:          0,
+		loading:         true,
+		spinner:         s,
+		lastUpdate:      time.Time{},
+		quitting:        false,
+		viewMode:        MainView,
+		selectedPanel:   0,
+		selectedLogIdx:  0,
+		logLines:        []string{},
+		maxLogLines:     100, // Keep last 100 log lines
+		streamingSource: "",
 	}
 }

@@ -13,6 +13,7 @@ import (
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	checkstats "github.com/DataDog/datadog-agent/pkg/collector/check/stats"
 	"github.com/DataDog/datadog-agent/pkg/collector/runner/expvars"
+	logsstatus "github.com/DataDog/datadog-agent/pkg/logs/status"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 
 	"github.com/DataDog/datadog-agent/comp/doctor/def"
@@ -113,34 +114,66 @@ func (d *doctorImpl) collectDogStatsDStatus() def.DogStatsDStatus {
 
 // collectLogsStatus aggregates logs telemetry
 func (d *doctorImpl) collectLogsStatus() def.LogsStatus {
-	status := def.LogsStatus{}
+	// Check if logs are enabled
+	logsEnabled := d.config.GetBool("logs_enabled") || d.config.GetBool("log_enabled")
 
-	// Get logs stats from expvars
+	status := def.LogsStatus{
+		Enabled:      logsEnabled,
+		Integrations: []def.LogSource{},
+	}
+
+	if !logsEnabled {
+		return status
+	}
+
+	// Get detailed logs status from the logs agent
+	// Use verbose=true to get tailer information
+	logsAgentStatus := logsstatus.Get(true)
+
+	if !logsAgentStatus.IsRunning {
+		return status
+	}
+
+	// Collect integration sources
+	for _, integration := range logsAgentStatus.Integrations {
+		for _, source := range integration.Sources {
+			logSource := def.LogSource{
+				Name:   integration.Name,
+				Type:   source.Type,
+				Status: source.Status,
+				Inputs: source.Inputs,
+				Info:   make(map[string]string),
+			}
+
+			// Convert info map from []string to string
+			for key, values := range source.Info {
+				if len(values) > 0 {
+					logSource.Info[key] = values[0]
+				}
+			}
+
+			status.Integrations = append(status.Integrations, logSource)
+			status.Sources++
+		}
+	}
+
+	// Get expvar stats for additional metrics
 	logsVar := expvar.Get("logs")
-	if logsVar == nil {
-		return status
+	if logsVar != nil {
+		logsJSON := []byte(logsVar.String())
+		var logsStats map[string]interface{}
+		if err := json.Unmarshal(logsJSON, &logsStats); err == nil {
+			if val, ok := logsStats["BytesProcessed"].(float64); ok {
+				status.BytesProcessed = int64(val)
+			}
+			if val, ok := logsStats["LinesProcessed"].(float64); ok {
+				status.LinesProcessed = int64(val)
+			}
+		}
 	}
 
-	logsJSON := []byte(logsVar.String())
-	var logsStats map[string]interface{}
-	if err := json.Unmarshal(logsJSON, &logsStats); err != nil {
-		d.log.Debugf("Failed to unmarshal logs stats: %v", err)
-		return status
-	}
-
-	// Extract metrics
-	if val, ok := logsStats["LogSources"].(float64); ok {
-		status.Sources = int(val)
-	}
-	if val, ok := logsStats["BytesProcessed"].(float64); ok {
-		status.BytesProcessed = int64(val)
-	}
-	if val, ok := logsStats["LinesProcessed"].(float64); ok {
-		status.LinesProcessed = int64(val)
-	}
-	if val, ok := logsStats["Errors"].(float64); ok {
-		status.Errors = int(val)
-	}
+	// Count errors from status
+	status.Errors = len(logsAgentStatus.Errors)
 
 	return status
 }

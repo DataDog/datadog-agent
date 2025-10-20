@@ -33,3 +33,12 @@ type fetchErrorMsg struct {
 // refreshRequestMsg is sent when the user manually requests a refresh (via 'r' key)
 // This bypasses the normal ticker cycle for immediate feedback
 type refreshRequestMsg struct{}
+
+// logMsg is sent when a new chunk of the log is received from the stream
+type logMsg struct {
+}
+
+// streamErrorMsg is sent when there's an error streaming logs
+type streamErrorMsg struct {
+	err error
+}
