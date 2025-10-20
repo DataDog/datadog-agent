@@ -1,0 +1,604 @@
+---
+description: This rule serves for development of system-probe modules that use eBPF, and need to send data to the backend
+alwaysApply: false
+---
+
+# System-Probe Development Rules
+
+## Overview
+
+These rules provide quick reference and common patterns for system-probe development. For comprehensive documentation, see:
+
+- **eBPF Checks**: `pkg/collector/corechecks/ebpf/AGENTS.md`
+- **System-Probe Modules**: `cmd/system-probe/modules/AGENTS.md`
+- **Project Overview**: Root `AGENTS.md`
+
+**Scope**: This guide covers simple checks and complex/standalone features. For network monitoring and service discovery, see existing examples in `pkg/network/` and `pkg/collector/corechecks/servicediscovery/`.
+
+## File Naming Conventions
+
+### eBPF Programs (C code)
+
+**Location patterns** (depends on complexity):
+
+- **Simple checks**: `pkg/collector/corechecks/ebpf/c/runtime/<check>-kern.c`
+  - Examples: `oom-kill-kern.c`, `tcp-queue-length-kern.c`, `seccomp-tracer-kern.c`
+- **Complex/standalone features**: `pkg/<feature>/ebpf/c/runtime/<check>.c`
+  - Examples: `pkg/gpu/ebpf/c/runtime/gpu.c`
+
+**Naming conventions**:
+
+- Simple checks: Use kebab-case with `-kern.c` suffix
+- Complex checks: May omit `-kern` suffix, use plain descriptive name
+- Headers: `<check>-kern-user.h` (simple) or `types.h` (complex)
+
+### Go Probe Files
+
+**Location patterns**:
+
+- **Simple checks**: `pkg/collector/corechecks/ebpf/probe/<check>/<check>.go`
+  - Example: `pkg/collector/corechecks/ebpf/probe/oomkill/oom_kill.go`
+- **Complex/standalone**: `pkg/<feature>/probe.go` or `pkg/<feature>/<files>.go`
+  - Example: `pkg/gpu/probe.go`, `pkg/gpu/cuda.go`
+
+**Common files**:
+
+- Main probe: `<check>.go` with `//go:build linux_bpf`
+- CGO types: `<check>_kern_types.go` with `//go:build ignore` (if using CGO types)
+- Generated types: `<check>_kern_types_linux.go` (auto-generated, don't edit)
+- Stub: `<check>_stub.go` with `//go:build !linux_bpf`
+- Model types: `model/<check>_types.go` (no build tags, exported API types)
+
+### Agent Check Files
+
+**Location patterns**:
+
+- **Simple checks**: `pkg/collector/corechecks/ebpf/<check>/<check>.go`
+  - Example: `pkg/collector/corechecks/ebpf/oomkill/oom_kill.go`
+- **Complex/standalone**: `pkg/collector/corechecks/<check>/<check>.go`
+  - Example: `pkg/collector/corechecks/gpu/gpu.go`
+
+**Common files**:
+
+- Check: `<check>.go` with `//go:build linux`
+- Stub: `stub.go` with `//go:build !linux`
+
+**Note**: Some complex features may not have an agent check if they only run in system-probe.
+
+### System-Probe Module
+
+- Location: `cmd/system-probe/modules/<check>.go`
+- Build tag: `//go:build linux && linux_bpf`
+- Naming: Use snake_case for file, e.g., `seccomp_tracer.go`, `gpu.go`
+
+## Common Patterns
+
+### eBPF C Code Header Template
+
+```c
+#ifndef __<CHECK>_KERN_USER_H
+#define __<CHECK>_KERN_USER_H
+
+#include "ktypes.h"
+
+struct stats_key {
+    char cgroup[128];
+    __u32 field1;
+    __u64 field2;
+};
+
+struct stats_value {
+    __u64 count;
+};
+
+#endif
+```
+
+**Important**: Always use `__u32`, `__u64`, etc. (double underscore) and include `ktypes.h`.
+
+### Go Generate Directives
+
+```go
+//go:generate $GOPATH/bin/include_headers pkg/collector/corechecks/ebpf/c/runtime/<check>-kern.c pkg/ebpf/bytecode/build/runtime/<check>.c pkg/ebpf/c
+//go:generate $GOPATH/bin/integrity pkg/ebpf/bytecode/build/runtime/<check>.c pkg/ebpf/bytecode/runtime/<check>.go runtime
+```
+
+### Tracer Pattern
+
+```go
+type Tracer struct {
+    m        *manager.Manager
+    statsMap *ebpfmaps.GenericMap[StructStatsKey, []StructStatsValue]
+}
+
+func NewTracer(cfg *ebpf.Config) (*Tracer, error) {
+    if cfg.EnableCORE {
+        probe, err := loadCOREProbe(cfg)
+        if err != nil && !cfg.AllowRuntimeCompiledFallback {
+            return nil, fmt.Errorf("error loading CO-RE probe: %w", err)
+        }
+        if err == nil {
+            return probe, nil
+        }
+        log.Warnf("CO-RE failed, falling back to runtime compilation: %s", err)
+    }
+    return loadRuntimeCompiledProbe(cfg)
+}
+
+func (t *Tracer) GetAndFlush() model.Stats {
+    nbCpus, _ := kernel.PossibleCPUs()
+    result := make(model.Stats)
+
+    var statsKey StructStatsKey
+    var keys []StructStatsKey
+    statsValue := make([]StructStatsValue, nbCpus)
+
+    it := t.statsMap.Iterate()
+    for it.Next(&statsKey, &statsValue) {
+        // Aggregate per-CPU values
+        var total uint64
+        for cpu := 0; cpu < nbCpus; cpu++ {
+            total += statsValue[cpu].Count
+        }
+
+        result[convertKey(statsKey)] = model.Value{Count: total}
+        keys = append(keys, statsKey)
+    }
+
+    // Clean up
+    for _, k := range keys {
+        t.statsMap.Delete(&k)
+    }
+
+    return result
+}
+```
+
+### System-Probe Module Pattern
+
+```go
+var MyModule = &module.Factory{
+    Name:             config.MyModuleName,
+    ConfigNamespaces: []string{},
+    Fn: func(_ *sysconfigtypes.Config, _ module.FactoryDependencies) (module.Module, error) {
+        t, err := probe.NewTracer(ebpf.NewConfig())
+        if err != nil {
+            return nil, fmt.Errorf("unable to start tracer: %w", err)
+        }
+        return &myModule{Tracer: t}, nil
+    },
+    NeedsEBPF: func() bool { return true },
+}
+
+type myModule struct {
+    *probe.Tracer
+    lastCheck atomic.Int64
+}
+
+func (m *myModule) Register(httpMux *module.Router) error {
+    httpMux.HandleFunc("/check", func(w http.ResponseWriter, _ *http.Request) {
+        m.lastCheck.Store(time.Now().Unix())
+        stats := m.Tracer.GetAndFlush()
+        utils.WriteAsJSON(w, stats, utils.CompactOutput)
+    })
+    return nil
+}
+
+func (m *myModule) GetStats() map[string]interface{} {
+    return map[string]interface{}{
+        "last_check": m.lastCheck.Load(),
+    }
+}
+```
+
+## Build System Integration Checklist
+
+When adding a new eBPF check, update `tasks/system_probe.py`. The specific function depends on your check type:
+
+### Simple Checks
+
+Use `ninja_container_integrations_ebpf_programs()` (line ~413):
+
+```python
+container_integrations_co_re_programs = ["oom-kill", "tcp-queue-length", "ebpf", "seccomp-tracer"]
+```
+
+- File must be in `pkg/collector/corechecks/ebpf/c/runtime/<check>-kern.c`
+- Automatically builds CO-RE and debug versions
+- **Pattern**: Simple, single-purpose checks
+- **Examples**: oom-kill, tcp-queue-length, seccomp-tracer
+
+### Complex/Standalone Features
+
+Create or use a dedicated `ninja_<feature>_ebpf_programs()` function:
+
+**Example - GPU monitoring** (line ~399):
+
+```python
+def ninja_gpu_ebpf_programs(nw: NinjaWriter, co_re_build_dir: Path | str):
+    gpu_headers_dir = Path("pkg/gpu/ebpf/c")
+    gpu_c_dir = gpu_headers_dir / "runtime"
+    gpu_flags = f"-I{gpu_headers_dir} -I{gpu_c_dir} -Ipkg/network/ebpf/c"
+    gpu_programs = ["gpu"]
+
+    for prog in gpu_programs:
+        infile = os.path.join(gpu_c_dir, f"{prog}.c")
+        outfile = os.path.join(co_re_build_dir, f"{prog}.o")
+        ninja_ebpf_co_re_program(nw, infile, outfile, {"flags": gpu_flags})
+        # Build debug version
+        root, ext = os.path.splitext(outfile)
+        ninja_ebpf_co_re_program(nw, infile, f"{root}-debug{ext}", {"flags": gpu_flags + " -DDEBUG=1"})
+```
+
+Then call it in `ninja_generate()` (line ~653):
+
+```python
+ninja_gpu_ebpf_programs(nw, co_re_build_dir)
+```
+
+### Runtime Compiler Files (Required for All - line ~474)
+
+**Every check needs runtime compilation fallback**:
+
+```python
+runtime_compiler_files = {
+    "pkg/path/to/your_check.go": "output-name",
+}
+```
+
+**Examples**:
+
+```python
+# Simple checks
+"pkg/collector/corechecks/ebpf/probe/oomkill/oom_kill.go": "oom-kill",
+"pkg/collector/corechecks/ebpf/probe/seccomptracer/seccomp_tracer.go": "seccomp-tracer",
+
+# Complex/standalone
+"pkg/gpu/compile.go": "gpu",
+```
+
+### CGO Type Files (Optional - line ~538+)
+
+**Only if you use CGO types** for BPF map keys/values:
+
+```python
+def_files = {
+    "pkg/path/to/your_kern_types.go": [
+        "pkg/path/to/your-header.h",
+    ],
+}
+```
+
+**Examples**:
+
+```python
+# Simple checks
+"pkg/collector/corechecks/ebpf/probe/tcpqueuelength/tcp_queue_length_kern_types.go": [
+    "pkg/collector/corechecks/ebpf/c/runtime/tcp-queue-length-kern-user.h",
+],
+
+# Complex/standalone
+"pkg/gpu/ebpf/kprobe_types.go": [
+    "pkg/gpu/ebpf/c/types.h",
+],
+```
+
+## Configuration Registration
+
+### Step 1: Add Module Name
+
+In `pkg/system-probe/config/config.go`:
+
+```go
+const (
+    YourCheckModule types.ModuleName = "your_check"
+)
+```
+
+### Step 2: Bind Configuration
+
+In `pkg/config/setup/system_probe.go`:
+
+```go
+const yourCheckNS = "your_check"
+cfg.BindEnvAndSetDefault(join(yourCheckNS, "enabled"), false)
+// Add any additional config options:
+cfg.BindEnvAndSetDefault(join(yourCheckNS, "option1"), defaultValue)
+```
+
+### Step 3: Static Config Listener (Optional)
+
+Only needed if the check runs in the agent (not just system-probe).
+
+In `comp/core/autodiscovery/listeners/staticconfig.go`:
+
+```go
+if enabled := pkgconfigsetup.SystemProbe().GetBool("your_check.enabled"); enabled {
+    l.newService <- &StaticConfigService{adIdentifier: "_your_check"}
+}
+```
+
+### Step 4: Register Check (Agent-side checks only)
+
+In `pkg/commonchecks/corechecks_sysprobe.go`:
+
+```go
+import "github.com/DataDog/datadog-agent/pkg/collector/corechecks/yourcheck"
+// or for ebpf checks:
+// import "github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/yourcheck"
+
+corecheckLoader.RegisterCheck(yourcheck.CheckName, yourcheck.Factory(tagger))
+```
+
+**Note**: System-probe modules that don't have an agent-side check (pure system-probe features) skip steps 3 and 4.
+
+## Testing Patterns
+
+### Test Suite Structure
+
+```go
+//go:build linux_bpf
+
+type myCheckTestSuite struct {
+    suite.Suite
+}
+
+func TestMyCheck(t *testing.T) {
+    ebpftest.TestBuildModes(t, []ebpftest.BuildMode{ebpftest.CORE, ebpftest.RuntimeCompiled}, "",
+        func(t *testing.T) {
+            suite.Run(t, new(myCheckTestSuite))
+        })
+}
+
+func (s *myCheckTestSuite) getTracer() *Tracer {
+    t := s.T()
+    cfg := ebpf.NewConfig()
+    tracer, err := NewTracer(cfg)
+    require.NoError(t, err)
+    t.Cleanup(tracer.Close)
+    return tracer
+}
+
+func (s *myCheckTestSuite) TestCanLoad() {
+    s.getTracer() // Just verify it loads
+}
+```
+
+### Running Tests
+
+```bash
+# Run with proper command
+dda inv system-probe.test -s -p ./pkg/collector/corechecks/ebpf/probe/yourcheck
+
+# Run specific test
+dda inv system-probe.test -s -p ./pkg/path -r TestName
+
+# Build object files first if needed
+dda inv system-probe.object-files
+```
+
+## Common Pitfalls and Solutions
+
+### Issue: CGO Type Generation Fails
+
+**Error**: `undefined: __u32`
+**Solution**: Include `ktypes.h` in your C header file
+
+### Issue: Runtime Compilation Not Working
+
+**Error**: `undefined: runtime.YourCheck`
+**Solution**: Run `go generate` on your probe file or rebuild with `dda inv system-probe.object-files`
+
+### Issue: Test Can't Find Binary
+
+**Solution**: Use `testutil.CurDir()` and calculate relative paths from there, not hardcoded paths
+
+### Issue: CGO Types Have Wrong Field Names
+
+**Explanation**: CGO converts `syscall_nr` → `Nr`, removes underscores
+**Solution**: Check generated `*_kern_types_linux.go` file for actual field names
+
+### Issue: Stub Implementation Errors
+
+**Error**: `undefined: option.NewNoneOption`
+**Solution**: Use `option.None[T]()` not `option.NewNoneOption[T]()`
+
+### Issue: eBPF Map Iteration Issues
+
+**Common Bug**: Not aggregating per-CPU values
+
+```go
+// ❌ Wrong
+result[key] = statsValue[0].Count
+
+// ✓ Correct
+var total uint64
+for cpu := 0; cpu < nbCpus; cpu++ {
+    total += statsValue[cpu].Count
+}
+result[key] = total
+```
+
+### Issue: Memory Leaks in eBPF Maps
+
+**Solution**: Always delete keys after reading in `GetAndFlush()`:
+
+```go
+keys := []StructStatsKey{}
+for it.Next(&key, &value) {
+    // process...
+    keys = append(keys, key)
+}
+for _, k := range keys {
+    t.statsMap.Delete(&k)
+}
+```
+
+## Quick Command Reference
+
+```bash
+# Build eBPF object files
+dda inv system-probe.object-files
+
+# Build system-probe binary
+dda inv system-probe.build
+
+# Run tests (requires root for eBPF)
+sudo -E dda inv system-probe.test -p <path>
+
+# Generate runtime compilation files
+go generate ./pkg/collector/corechecks/ebpf/probe/<check>/<check>.go
+
+# Generate CGO types
+cd pkg/collector/corechecks/ebpf/probe/<check> && \
+  CC=clang go tool cgo -godefs -- \
+  -I ../../../../../network/ebpf/c -I ../../../../../ebpf/c \
+  -fsigned-char <check>_kern_types.go | \
+  go run /path/to/genpost.go <check>_kern_types_linux_test <package> \
+  > <check>_kern_types_linux.go
+
+# Check for linter errors
+dda inv linter.go --targets=./pkg/collector/corechecks/ebpf/<check>
+```
+
+## eBPF C Code Best Practices
+
+### Use Per-CPU Maps
+
+```c
+BPF_PERCPU_HASH_MAP(stats_map, struct stats_key, struct stats_value, 1024)
+```
+
+Avoids lock contention, requires aggregation in Go.
+
+### Atomic Operations for Counters
+
+```c
+__sync_fetch_and_add(&value->count, 1);
+```
+
+### Cgroup Extraction
+
+```c
+#include "cgroup.h"
+
+struct stats_key k = {};
+if (!get_cgroup_name(k.cgroup, sizeof(k.cgroup))) {
+    return 0; // Failed to get cgroup
+}
+```
+
+### Proper Kprobe Signature
+
+```c
+SEC("kprobe/function_name")
+int BPF_KPROBE(kprobe__function_name, arg1_type arg1, arg2_type arg2) {
+    // implementation
+}
+```
+
+## Error Handling Standards
+
+### Wrap Errors with Context
+
+```go
+// ❌ Bad
+return nil, err
+
+// ✓ Good
+return nil, fmt.Errorf("failed to initialize tracer: %w", err)
+```
+
+### Log Appropriately
+
+```go
+log.Debugf("detailed debug info: %v", detail)
+log.Warnf("recoverable issue: %s", issue)
+log.Errorf("serious error: %s", err)
+```
+
+### Startup Errors vs Runtime Errors
+
+```go
+// In agent check
+if err != nil {
+    return sysprobeclient.IgnoreStartupError(err)
+}
+```
+
+## Performance Considerations
+
+1. **Use per-CPU maps** for lockless updates
+2. **Batch map operations** in GetAndFlush()
+3. **Set appropriate map sizes** (don't make them too small)
+4. **Use `BPF_ANY`** for map updates when possible
+5. **Avoid string operations** in eBPF kernel code
+
+## Build Tags Reference
+
+- `linux_bpf` - eBPF probe implementation
+- `linux` - Linux-specific code (checks, utilities)
+- `!linux_bpf` - Stub implementations for non-eBPF builds
+- `!linux` - Cross-platform stubs
+
+## Key Files to Always Check
+
+When modifying system-probe:
+
+1. ✓ `tasks/system_probe.py` - Build system (choose appropriate `ninja_*_ebpf_programs` function)
+2. ✓ `pkg/system-probe/config/config.go` - Module names
+3. ✓ `pkg/config/setup/system_probe.go` - Configuration
+4. ✓ `pkg/commonchecks/corechecks_sysprobe.go` - Check registration (if agent-side check)
+5. ✓ `comp/core/autodiscovery/listeners/staticconfig.go` - Auto-discovery (if agent-side check)
+
+## Decision Tree: Where Does My Code Go?
+
+### Is it a simple, single-purpose check?
+
+**Characteristics**:
+
+- Monitors a specific kernel event or system behavior
+- Single eBPF program
+- Minimal dependencies
+- Straightforward metric collection
+
+**Pattern**: Simple checks
+
+- eBPF: `pkg/collector/corechecks/ebpf/c/runtime/<check>-kern.c`
+- Probe: `pkg/collector/corechecks/ebpf/probe/<check>/`
+- Check: `pkg/collector/corechecks/ebpf/<check>/`
+- Build: `ninja_container_integrations_ebpf_programs()`
+- **Examples**: oom-kill, tcp-queue-length, seccomp-tracer
+
+### Is it a complex feature with multiple components?
+
+**Characteristics**:
+
+- Multiple eBPF programs or complex logic
+- Significant amount of code (>1000 lines)
+- May have multiple probes or data pipelines
+- Deserves its own package namespace
+
+**Pattern**: Complex/standalone
+
+- eBPF: `pkg/<feature>/ebpf/c/runtime/<check>.c`
+- Probe: `pkg/<feature>/probe.go` or `pkg/<feature>/<files>.go`
+- Check: `pkg/collector/corechecks/<feature>/` (if agent-side component needed)
+- Module: `cmd/system-probe/modules/<feature>.go`
+- Build: Create dedicated `ninja_<feature>_ebpf_programs()` function
+- **Examples**: GPU monitoring (`pkg/gpu/`), dynamic instrumentation (`pkg/dyninst/`)
+
+### When to Choose Complex/Standalone Pattern?
+
+- Feature has >5 source files
+- Requires custom data structures or utilities
+- Multiple eBPF programs working together
+- Significant non-eBPF logic (parsers, state machines, etc.)
+- Would clutter `pkg/collector/corechecks/ebpf/` if placed there
+
+## Additional Resources
+
+- eBPF Program Reference: <https://ebpf.io/>
+- Datadog eBPF Guidelines: Internal docs
+- Build System: See `tasks/system_probe.py` docstrings
+- Testing Framework: `pkg/ebpf/ebpftest` package
