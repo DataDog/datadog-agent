@@ -110,6 +110,7 @@ type Aggregator struct {
 	maxContentSize     int
 	multiLineMatchInfo *status.CountInfo
 	linesCombinedInfo  *status.CountInfo
+	sampleAgg          *SampleAggregator
 }
 
 // NewAggregator creates a new aggregator.
@@ -125,6 +126,7 @@ func NewAggregator(outputFn func(m *message.Message), maxContentSize int, tagTru
 		maxContentSize:     maxContentSize,
 		multiLineMatchInfo: multiLineMatchInfo,
 		linesCombinedInfo:  linesCombinedInfo,
+		sampleAgg:          NewSampleAggregator(),
 	}
 }
 
@@ -186,7 +188,11 @@ func (a *Aggregator) Flush() {
 		a.bucket.reset()
 		return
 	}
-	a.outputFn(a.bucket.flush())
+	msg := a.bucket.flush()
+	msg = a.sampleAgg.Process(msg)
+	if msg != nil {
+		a.outputFn(msg)
+	}
 }
 
 // IsEmpty returns true if the bucket is empty.
