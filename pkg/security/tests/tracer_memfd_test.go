@@ -9,14 +9,12 @@
 package tests
 
 import (
-	"errors"
 	"os/exec"
 	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
 
-	"github.com/avast/retry-go/v4"
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
@@ -127,13 +125,7 @@ func TestTracerMemfd(t *testing.T) {
 		cmd := exec.Command(syscallTester, "tracer-memfd")
 		_ = cmd.Run()
 
-		err := retry.Do(func() error {
-			if consumer.eventReceived.Load() {
-				return nil
-			}
-			return errors.New("event not received")
-		}, retry.Delay(200*time.Millisecond), retry.Attempts(10), retry.DelayType(retry.FixedDelay))
-		require.NoError(t, err, "tracer-memfd event should be received")
+		require.Eventually(t, consumer.eventReceived.Load, 2*time.Second, 200*time.Millisecond, "tracer-memfd event should be received")
 
 		capturedPid := consumer.capturedPid.Load()
 		capturedFd := consumer.capturedFd.Load()
