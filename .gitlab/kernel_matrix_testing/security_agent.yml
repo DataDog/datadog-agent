@@ -137,6 +137,7 @@ kmt_run_secagent_tests_x64:
           - "ubuntu_22.04"
           - "ubuntu_24.04"
           - "ubuntu_25.04"
+          - "ubuntu_25.10"
           - "amazon_4.14"
           - "amazon_5.4"
           - "amazon_5.10"
@@ -180,6 +181,7 @@ kmt_run_secagent_tests_x64_peds:
           - "ubuntu_22.04"
           - "ubuntu_24.04"
           - "ubuntu_25.04"
+          - "ubuntu_25.10"
           - "amazon_4.14"
           - "amazon_5.4"
           - "amazon_5.10"
@@ -218,7 +220,7 @@ kmt_run_secagent_tests_x64_required:
   parallel:
     matrix:
       - TAG:
-          - "ubuntu_25.04"
+          - "ubuntu_25.10"
         TEST_SET: [cws_req]
   after_script:
     - !reference [.collect_outcomes_kmt]
@@ -284,6 +286,7 @@ kmt_run_secagent_tests_x64_docker:
           - "ubuntu_22.04"
           - "ubuntu_24.04"
           - "ubuntu_25.04"
+          - "ubuntu_25.10"
           - "amazon_4.14"
           - "amazon_5.4"
           - "amazon_5.10"
@@ -321,6 +324,7 @@ kmt_run_secagent_tests_arm64:
           - "ubuntu_22.04"
           - "ubuntu_24.04"
           - "ubuntu_25.04"
+          - "ubuntu_25.10"
           - "amazon_5.4"
           - "amazon_5.10"
           - "amazon_2023"
@@ -357,6 +361,7 @@ kmt_run_secagent_tests_arm64_peds:
           - "ubuntu_22.04"
           - "ubuntu_24.04"
           - "ubuntu_25.04"
+          - "ubuntu_25.10"
           - "amazon_5.4"
           - "amazon_5.10"
           - "amazon_2023"
@@ -435,6 +440,7 @@ kmt_run_secagent_tests_arm64_docker:
           - "ubuntu_22.04"
           - "ubuntu_24.04"
           - "ubuntu_25.04"
+          - "ubuntu_25.10"
           - "amazon_5.4"
           - "amazon_5.10"
           - "amazon_2023"
