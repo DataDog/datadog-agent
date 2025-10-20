@@ -156,7 +156,7 @@ func NewProcessLogConfigProvider(_ *pkgconfigsetup.ConfigurationProviders, wmeta
 	return &processLogConfigProvider{
 		workloadmetaStore:       wmeta,
 		tagger:                  tagger,
-		logsFilters:             filter.GetProcessFilters([][]workloadfilter.ProcessFilter{{workloadfilter.ProcessCELLogs}}),
+		logsFilters:             filter.GetProcessFilters([][]workloadfilter.ProcessFilter{{workloadfilter.ProcessCELLogs, workloadfilter.ProcessCELGlobal}}),
 		serviceLogRefs:          make(map[string]*serviceLogRef),
 		pidToServiceIDs:         make(map[int32][]string),
 		unreadableFilesCache:    cache,

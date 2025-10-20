@@ -386,4 +386,5 @@ type ProcessFilter int
 const (
 	LegacyProcessExcludeList ProcessFilter = iota
 	ProcessCELLogs
+	ProcessCELGlobal
 )

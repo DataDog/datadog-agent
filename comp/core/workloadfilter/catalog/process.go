@@ -64,3 +64,10 @@ func ProcessCELLogsProgram(filterConfig *FilterConfig, logger log.Component) pro
 	rule := filterConfig.GetCELRulesForProduct(workloadfilter.ProductLogs, workloadfilter.ProcessType)
 	return createCELExcludeProgram(programName, rule, workloadfilter.ProcessType, logger)
 }
+
+// ProcessCELGlobalProgram creates a program for filtering processes globally via CEL rules
+func ProcessCELGlobalProgram(filterConfig *FilterConfig, logger log.Component) program.FilterProgram {
+	programName := "ProcessCELGlobalProgram"
+	rule := filterConfig.GetCELRulesForProduct(workloadfilter.ProductGlobal, workloadfilter.ProcessType)
+	return createCELExcludeProgram(programName, rule, workloadfilter.ProcessType, logger)
+}

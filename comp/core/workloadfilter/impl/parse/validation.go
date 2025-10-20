@@ -32,6 +32,7 @@ var ProductSupportMap = map[workloadfilter.Product]map[workloadfilter.ResourceTy
 		workloadfilter.PodType:       {},
 		workloadfilter.ServiceType:   {},
 		workloadfilter.EndpointType:  {},
+		workloadfilter.ProcessType:   {},
 	},
 }
 

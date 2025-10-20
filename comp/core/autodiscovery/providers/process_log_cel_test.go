@@ -31,6 +31,10 @@ func TestProcessLogProviderCELFilter(t *testing.T) {
 		// Create a mock config with CEL rules to exclude nginx
 		mockConfig := configmock.NewFromYAML(t, `
 cel_workload_exclude:
+- products: ["global"]
+  rules:
+    processes:
+      - "process.name == 'redis'"
 - products: ["logs"]
   rules:
     processes:
@@ -60,6 +64,7 @@ cel_workload_exclude:
 
 		nginxLogPath := "/var/log/nginx.log"
 		javaLogPath := "/var/log/java.log"
+		redisLogPath := "/var/log/redis.log"
 
 		processes := []workloadmeta.Event{
 			{
@@ -88,13 +93,26 @@ cel_workload_exclude:
 					},
 				},
 			},
+			{
+				Type: workloadmeta.EventTypeSet,
+				Entity: &workloadmeta.Process{
+					EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindProcess, ID: "789"},
+					Name:     "redis",
+					Pid:      789,
+					Cmdline:  []string{"redis"},
+					Service: &workloadmeta.Service{
+						GeneratedName: "redis",
+						LogFiles:      []string{redisLogPath},
+					},
+				},
+			},
 		}
 
 		setBundle := workloadmeta.EventBundle{Events: processes}
 		changes := p.processEventsNoVerifyReadable(setBundle)
 
-		// With CEL filter, only java process should be scheduled (nginx is excluded)
-		assert.Len(t, changes.Schedule, 1, "Only java process should be scheduled (nginx excluded by CEL filter)")
+		// With CEL filter, only java process should be scheduled (nginx and redis are excluded)
+		assert.Len(t, changes.Schedule, 1, "Only java process should be scheduled")
 		assert.Len(t, changes.Unschedule, 0)
 
 		// Verify only java config was created
@@ -102,5 +120,6 @@ cel_workload_exclude:
 		assert.Equal(t, getIntegrationName(javaLogPath), config.Name)
 		assert.Contains(t, string(config.LogsConfig), javaLogPath)
 		assert.NotContains(t, string(config.LogsConfig), nginxLogPath)
+		assert.NotContains(t, string(config.LogsConfig), redisLogPath)
 	})
 }
