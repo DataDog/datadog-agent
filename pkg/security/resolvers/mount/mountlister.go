@@ -12,11 +12,14 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"golang.org/x/sys/unix"
 	"os"
 	"path/filepath"
 	"runtime"
 	"strconv"
+	"strings"
 	"syscall"
 	"unsafe"
 )
@@ -118,6 +121,33 @@ func parseStatmount(buf []byte) Statmount {
 	}
 }
 
+// newMountFromStatmount - Creates a new Mount from parsed MountInfo data
+func newMountFromStatmount(sm *Statmount) *model.Mount {
+	root := sm.MntRoot
+
+	if sm.FsType == "cgroup2" && strings.HasPrefix(root, "/..") {
+		cfs := utils.DefaultCGroupFS()
+		root = filepath.Join(cfs.GetRootCGroupPath(), root)
+	}
+
+	// create a Mount out of the parsed MountInfo
+	return &model.Mount{
+		MountID:       sm.MntIDOld,
+		MountIDUnique: sm.MntID,
+		Device:        utils.Mkdev(sm.SbDevMajor, sm.SbDevMinor),
+		ParentPathKey: model.PathKey{
+			MountID: sm.MntParentIDOld,
+		},
+		FSType:        sm.FsType,
+		MountPointStr: sm.MntPoint,
+		Path:          sm.MntPoint,
+		RootStr:       root,
+		Origin:        model.MountOriginListmount,
+		Visible:       true,
+		Detached:      false,
+	}
+}
+
 func listmount(req *mntIDReq, ids []uint64) (int, error) {
 	if len(ids) == 0 {
 		return 0, nil
@@ -175,6 +205,7 @@ func collectUniqueMountNSFDs(procfs string) ([]int, error) {
 		if !ok {
 			continue
 		}
+		// TODO: This inode is buggy, use `getInodeNumFromLink` on the `extra` file
 		ino := st.Ino
 		if _, ok := seen[ino]; ok {
 			continue
@@ -191,7 +222,7 @@ func collectUniqueMountNSFDs(procfs string) ([]int, error) {
 
 // GetAll Retrieves all the mountpoints from all the mount namespaces present in the procfs path and call
 // a callback for each one
-func GetAll(procfs string, cb func(*Statmount)) error {
+func GetAll(procfs string, cb func(*model.Mount)) error {
 	// The way this function works is the following:
 	// 1 - List procfs and collect a file descriptor for each existing mount namespace
 	// 2 - Create a goroutine that will get scheduled on its own thread, the thread is locked and unshared
@@ -276,7 +307,7 @@ func GetAll(procfs string, cb func(*Statmount)) error {
 					}
 					sm := parseStatmount(buf)
 					visited[sm.MntID] = struct{}{}
-					cb(&sm)
+					cb(newMountFromStatmount(&sm))
 					lastMountID = req2.MntID
 				}
 
@@ -299,4 +330,14 @@ func GetAll(procfs string, cb func(*Statmount)) error {
 		return err
 	}
 	return nil
+}
+
+// HasListMount returns true if the kernel has the listmount() syscall, false otherwise
+func HasListMount() bool {
+	_, _, errno := unix.Syscall(unix.SYS_LISTMOUNT, 0, 0, 0)
+	if errno == unix.ENOSYS {
+		return false
+	}
+	_, _, errno = unix.Syscall(unix.SYS_STATMOUNT, 0, 0, 0)
+	return errno != unix.ENOSYS
 }

@@ -152,9 +152,9 @@ u64 __attribute__((always_inline)) get_mount_mount_id_unique(void *mnt) {
     return mount_id;
 }
 
-u32 __attribute__((always_inline)) get_mount_mount_ns_inum(void *mnt) {
+u64 __attribute__((always_inline)) get_mount_mount_ns_inum(void *mnt) {
     void* mnt_ns = NULL;
-    u32   inum = 0;
+    u64   inum = 0;
 
     bpf_probe_read(&mnt_ns, sizeof(mnt_ns), mnt + get_mount_offset_of_mount_ns());
     if (!mnt_ns) {

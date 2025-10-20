@@ -25,7 +25,7 @@ struct mount_fields_t {
     char fstype[FSTYPE_LEN];
     u16   visible;   // Is mount visible in the VFS?
     u16   detached;  // A detached mount is always not visible, but an invisible mount isn't always detached
-    u32   ns_inum;
+    u64   ns_inum;   // mount namespace inode
 };
 
 #endif
