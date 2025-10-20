@@ -17,6 +17,7 @@ import (
 	"io"
 	"os"
 	"path"
+	"strconv"
 	"strings"
 	"sync"
 	"syscall"
@@ -46,6 +47,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model/sharedconsts"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	stime "github.com/DataDog/datadog-agent/pkg/util/ktime"
 )
 
@@ -1184,7 +1186,7 @@ func (p *EBPFResolver) UpdateLoginUID(pid uint32, e *model.Event) {
 // AddTracerMetadata reads tracer metadata from a memfd and adds it to the process cache entry
 func (p *EBPFResolver) AddTracerMetadata(pid uint32, event *model.Event) error {
 	fd := event.TracerMemfdSeal.Fd
-	fdPath := fmt.Sprintf("/proc/%d/fd/%d", pid, fd)
+	fdPath := kernel.HostProc(strconv.Itoa(int(pid)), "fd", strconv.Itoa(int(fd)))
 
 	tmeta, err := tracermetadata.GetTracerMetadataFromPath(fdPath)
 	if err != nil {
