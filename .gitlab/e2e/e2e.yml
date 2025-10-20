@@ -665,6 +665,7 @@ new-e2e-installer:
     - deploy_installer_oci
     - deploy_agent_oci
     - qa_installer_script_linux
+    - deploy_ddot_oci
   variables:
     TARGETS: ./tests/installer/unix
     TEAM: fleet
