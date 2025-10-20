@@ -83,6 +83,13 @@ func walk(data *interface{}, callback scrubCallback) {
 // ScrubDataObj scrubs credentials from the data interface by recursively walking over all the nodes
 func (c *Scrubber) ScrubDataObj(data *interface{}) {
 	walk(data, func(key string, value interface{}) (bool, interface{}) {
+
+		if str, ok := value.(string); ok {
+			if IsEnc(str) {
+				return false, ""
+			}
+		}
+
 		for _, replacer := range c.singleLineReplacers {
 			if replacer.YAMLKeyRegex == nil {
 				continue

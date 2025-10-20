@@ -14,6 +14,12 @@ modules:
     - ./comp
   comp/api/api/def:
     used_by_otel: true
+  comp/core/agenttelemetry/def:
+    used_by_otel: true
+  comp/core/agenttelemetry/fx:
+    used_by_otel: true
+  comp/core/agenttelemetry/impl:
+    used_by_otel: true
   comp/core/config:
     used_by_otel: true
   comp/core/configsync: default
@@ -195,7 +201,9 @@ modules:
     used_by_otel: true
   pkg/fleet/installer:
     should_replace_internal_modules: false
-  pkg/gohai: default
+    used_by_otel: true
+  pkg/gohai:
+    used_by_otel: true
   pkg/linters/components/pkgconfigusage:
     independent: false
     should_tag: false
@@ -302,11 +310,15 @@ modules:
     used_by_otel: true
   pkg/util/grpc:
     used_by_otel: true
+  pkg/util/hostinfo:
+    used_by_otel: true
   pkg/util/hostname/validate:
     used_by_otel: true
   pkg/util/http:
     used_by_otel: true
   pkg/util/json:
+    used_by_otel: true
+  pkg/util/jsonquery:
     used_by_otel: true
   pkg/util/log:
     used_by_otel: true
