@@ -44,13 +44,13 @@ use (
 	comp/def
 	comp/forwarder/defaultforwarder
 	comp/forwarder/orchestrator/orchestratorinterface
+	comp/host-profiler/hpflareextension/def
 	comp/logs/agent/config
 	comp/netflow/payload
 	comp/otelcol/collector-contrib/def
 	comp/otelcol/collector-contrib/impl
 	comp/otelcol/converter/def
 	comp/otelcol/converter/impl
-	comp/host-profiler/hpflareextension/def
 	comp/otelcol/ddflareextension/def
 	comp/otelcol/ddflareextension/impl
 	comp/otelcol/ddflareextension/types
