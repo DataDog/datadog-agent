@@ -1,0 +1,6 @@
+{
+  "type": "unsupported",
+  "operation": "foo",
+  "argument": "bar",
+  "error": ""
+}

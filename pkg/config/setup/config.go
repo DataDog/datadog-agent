@@ -694,6 +694,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 
 	// Azure
 	config.BindEnvAndSetDefault("azure_hostname_style", "os")
+	config.BindEnvAndSetDefault("azure_metadata_timeout", 300)
 
 	// IBM cloud
 	// We use a long timeout here since the metadata and token API can be very slow sometimes.
@@ -1271,7 +1272,15 @@ func agent(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("allow_arbitrary_tags", false)
 	config.BindEnvAndSetDefault("use_proxy_for_cloud_metadata", false)
 
+	// Infrastructure mode
+	// The infrastructure mode is used to determine the features that are available to the agent.
+	// The possible values are: full, basic.
 	config.BindEnvAndSetDefault("infrastructure_mode", "full")
+
+	// Infrastructure basic mode - additional checks
+	// When infrastructure_mode is set to "basic", only a limited set of checks are allowed to run.
+	// This setting allows customers to add additional checks to the allowlist beyond the default set.
+	config.BindEnvAndSetDefault("infra_basic_additional_checks", []string{})
 
 	// Configuration for TLS for outgoing connections
 	config.BindEnvAndSetDefault("min_tls_version", "tlsv1.2")
