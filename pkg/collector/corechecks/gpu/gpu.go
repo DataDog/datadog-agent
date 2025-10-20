@@ -194,6 +194,9 @@ func (c *Check) Run() error {
 	// Commit the metrics even in case of an error
 	defer snd.Commit()
 
+	// Check the state of the NVML library for telemetry
+	c.nvmlStateTelemetry.Check()
+
 	if err := c.deviceCache.Refresh(); err != nil {
 		return fmt.Errorf("failed to refresh device cache: %w", err)
 	}
@@ -206,9 +209,6 @@ func (c *Check) Run() error {
 		deviceCount = 0
 	}
 	c.telemetry.deviceCount.Set(float64(deviceCount))
-
-	// Check the state of the NVML library for telemetry
-	c.nvmlStateTelemetry.Check()
 
 	// Refresh SP cache before collecting metrics, if it is available
 	if c.spCache != nil {
