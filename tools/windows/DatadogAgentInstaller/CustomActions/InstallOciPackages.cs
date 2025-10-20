@@ -29,6 +29,12 @@ namespace Datadog.CustomActions
             _rollbackDataStore = new RollbackDataStore(session, "InstallOciPackages", new FileSystemServices(), new ServiceController());
         }
 
+        private bool ShouldPurge()
+        {
+            var purge = _session.Property("PURGE");
+            return !string.IsNullOrEmpty(purge) && purge == "1";
+        }
+
         private Dictionary<string, string> InstallerEnvironmentVariables()
         {
             var env = new Dictionary<string, string>();
@@ -62,6 +68,19 @@ namespace Datadog.CustomActions
                 env["DD_APM_INSTRUMENTATION_LIBRARIES"] = libraries;
             }
             
+            return env;
+        }
+        private Dictionary<string, string> PurgeEnvironmentVariables()
+        {
+            var env = new Dictionary<string, string> { { "DD_NO_AGENT_INSTALL", "true" } };
+            if (!string.IsNullOrEmpty(_apiKey))
+            {
+                env["DD_API_KEY"] = _apiKey;
+            }
+            if (!string.IsNullOrEmpty(_site))
+            {
+                env["DD_SITE"] = _site;
+            }
             return env;
         }
 
@@ -98,9 +117,36 @@ namespace Datadog.CustomActions
             }
         }
 
+        private ActionResult PurgePackages()
+        {
+            if (!ShouldPurge())
+            {
+                _session.Log("Skipping purge as PURGE is not set to 1");
+                return ActionResult.Success;
+            }
+            try
+            {
+                _session.Log("Running datadog-installer purge");
+                var env = PurgeEnvironmentVariables();
+                using (var proc = _session.RunCommand(_installerExecutable, "purge", env))
+                {
+                    if (proc.ExitCode != 0)
+                    {
+                        _session.Log($"'datadog-installer purge' failed with exit code: {proc.ExitCode}");
+                        return ActionResult.Failure;
+                    }
+                }
+                return ActionResult.Success;
+            }
+            catch (Exception ex)
+            {
+                _session.Log("Error while running installer purge: " + ex.Message);
+                return ActionResult.Failure;
+            }
+        }
+
         private ActionResult RollbackState()
         {
-            // TODO: Implement rollback using the future 'purge' command when available
             _session.Log("Rollback not yet implemented - waiting for purge command");
             _rollbackDataStore.Load();
             _rollbackDataStore.Restore();
@@ -115,6 +161,11 @@ namespace Datadog.CustomActions
         public static ActionResult RollbackActions(Session session)
         {
             return new InstallOciPackages(new SessionWrapper(session)).RollbackState();
+        }
+
+        public static ActionResult PurgePackages(Session session)
+        {
+            return new InstallOciPackages(new SessionWrapper(session)).PurgePackages();
         }
     }
 }

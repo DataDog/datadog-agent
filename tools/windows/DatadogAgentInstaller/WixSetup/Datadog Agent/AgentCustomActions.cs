@@ -64,6 +64,8 @@ namespace WixSetup.Datadog_Agent
 
         public ManagedAction RollbackOciPackages { get; }
 
+        public ManagedAction PurgeOciPackages { get; }
+
         public ManagedAction WriteInstallInfo { get; }
 
         public ManagedAction ReportInstallFailure { get; }
@@ -508,6 +510,20 @@ namespace WixSetup.Datadog_Agent
                 Impersonate = false
             }
                 .SetProperties("PROJECTLOCATION=[PROJECTLOCATION],SITE=[SITE],APIKEY=[APIKEY]");
+            
+            PurgeOciPackages = new CustomAction<CustomActions>(
+                    new Id(nameof(PurgeOciPackages)),
+                    CustomActions.PurgeOciPackages,
+                    Return.ignore,
+                    When.Before,
+                    new Step(CleanupOnUninstall.Id),
+                    Conditions.Uninstalling
+                )
+            {
+                Execute = Execute.deferred,
+                Impersonate = false
+            }
+                .SetProperties("PROJECTLOCATION=[PROJECTLOCATION],SITE=[SITE],APIKEY=[APIKEY],PURGE=[PURGE]");
 
             WriteInstallInfo = new CustomAction<CustomActions>(
                     new Id(nameof(WriteInstallInfo)),
