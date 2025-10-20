@@ -27,6 +27,7 @@ import (
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	taggertypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
+	workloadmetafilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/util/workloadmeta"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/discovery"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -321,7 +322,7 @@ func (p *processLogConfigProvider) processEventsInner(evBundle workloadmeta.Even
 			}
 
 			if p.logsFilters != nil {
-				filterProcess := workloadfilter.CreateProcess(process.Name, process.Cmdline)
+				filterProcess := workloadmetafilter.CreateProcess(process)
 				if p.logsFilters.IsExcluded(filterProcess) {
 					log.Debugf("Process %d (name=%s) excluded from logs by CEL filter", process.Pid, process.Name)
 					continue

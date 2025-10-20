@@ -1085,28 +1085,40 @@ cel_workload_exclude:
 	filterStore := newFilterStoreObject(t, mockConfig)
 
 	t.Run("CEL exclude process by name", func(t *testing.T) {
-		process := workloadfilter.CreateProcess("nginx", []string{"nginx", "-g", "daemon off;"})
+		process := workloadmetafilter.CreateProcess(&workloadmeta.Process{
+			Name:    "nginx",
+			Cmdline: []string{"nginx", "-g", "daemon off;"},
+		})
 		filterBundle := filterStore.GetProcessFilters([][]workloadfilter.ProcessFilter{{workloadfilter.ProcessCELLogs}})
 		assert.Nil(t, filterBundle.GetErrors())
 		assert.Equal(t, workloadfilter.Excluded, filterBundle.GetResult(process))
 	})
 
 	t.Run("CEL exclude process by cmdline", func(t *testing.T) {
-		process := workloadfilter.CreateProcess("java", []string{"java", "-jar", "app.jar"})
+		process := workloadmetafilter.CreateProcess(&workloadmeta.Process{
+			Name:    "java",
+			Cmdline: []string{"java", "-jar", "app.jar"},
+		})
 		filterBundle := filterStore.GetProcessFilters([][]workloadfilter.ProcessFilter{{workloadfilter.ProcessCELLogs}})
 		assert.Nil(t, filterBundle.GetErrors())
 		assert.Equal(t, workloadfilter.Excluded, filterBundle.GetResult(process))
 	})
 
 	t.Run("CEL exclude process by args", func(t *testing.T) {
-		process := workloadfilter.CreateProcess("foobar", []string{"ignore-me", "--foo", "bar"})
+		process := workloadmetafilter.CreateProcess(&workloadmeta.Process{
+			Name:    "foobar",
+			Cmdline: []string{"ignore-me", "--foo", "bar"},
+		})
 		filterBundle := filterStore.GetProcessFilters([][]workloadfilter.ProcessFilter{{workloadfilter.ProcessCELLogs}})
 		assert.Nil(t, filterBundle.GetErrors())
 		assert.Equal(t, workloadfilter.Excluded, filterBundle.GetResult(process))
 	})
 
 	t.Run("CEL with no matching rule", func(t *testing.T) {
-		process := workloadfilter.CreateProcess("redis-server", []string{"/usr/bin/redis-server"})
+		process := workloadmetafilter.CreateProcess(&workloadmeta.Process{
+			Name:    "redis-server",
+			Cmdline: []string{"/usr/bin/redis-server"},
+		})
 		filterBundle := filterStore.GetProcessFilters([][]workloadfilter.ProcessFilter{{workloadfilter.ProcessCELLogs}})
 		assert.Nil(t, filterBundle.GetErrors())
 		assert.Equal(t, workloadfilter.Unknown, filterBundle.GetResult(process))
