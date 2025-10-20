@@ -973,17 +973,32 @@ require (
 require (
 	github.com/DataDog/gohai v0.0.0-20230524154621-4316413895ee // indirect
 	github.com/DataDog/jsonapi v0.12.0 // indirect
+	github.com/aymanbagabas/go-osc52/v2 v2.0.1 // indirect
 	github.com/charlievieth/strcase v0.0.5 // indirect
+	github.com/charmbracelet/bubbles v0.20.0 // indirect
+	github.com/charmbracelet/bubbletea v1.2.4 // indirect
+	github.com/charmbracelet/colorprofile v0.2.3-0.20250311203215-f60798e515dc // indirect
+	github.com/charmbracelet/lipgloss v1.1.0 // indirect
+	github.com/charmbracelet/x/ansi v0.8.0 // indirect
+	github.com/charmbracelet/x/cellbuf v0.0.13-0.20250311204145-2c3ea96c31dd // indirect
+	github.com/charmbracelet/x/term v0.2.1 // indirect
 	github.com/elastic/go-freelru v0.16.0 // indirect
 	github.com/elastic/go-perf v0.0.0-20241029065020-30bec95324b8 // indirect
+	github.com/erikgeiser/coninput v0.0.0-20211004153227-1c3628e74d0f // indirect
 	github.com/klauspost/cpuid/v2 v2.3.0 // indirect
+	github.com/lucasb-eyer/go-colorful v1.2.0 // indirect
+	github.com/mattn/go-localereader v0.0.1 // indirect
 	github.com/mdlayher/kobject v0.0.0-20200520190114-19ca17470d7d // indirect
 	github.com/minio/sha256-simd v1.0.1 // indirect
+	github.com/muesli/ansi v0.0.0-20230316100256-276c6243b2f6 // indirect
+	github.com/muesli/cancelreader v0.2.2 // indirect
+	github.com/muesli/termenv v0.16.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/extension/datadogextension v0.137.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/internal/datadog v0.137.0 // indirect
 	github.com/shirou/gopsutil/v3 v3.24.5 // indirect
 	github.com/shoenig/go-m1cpu v0.1.7 // indirect
 	github.com/urfave/cli/v3 v3.1.1 // indirect
+	github.com/xo/terminfo v0.0.0-20220910002029-abceb7e1c41e // indirect
 	github.com/zeebo/xxh3 v1.0.2 // indirect
 )
 

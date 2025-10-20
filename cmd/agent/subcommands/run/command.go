@@ -101,6 +101,7 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/defaults"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
+	doctorfx "github.com/DataDog/datadog-agent/comp/doctor/fx"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd"
 	replay "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/def"
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
@@ -532,6 +533,7 @@ func getSharedFxOption() fx.Option {
 		haagentfx.Module(),
 		metricscompressorfx.Module(),
 		diagnosefx.Module(),
+		doctorfx.Module(),
 		ipcfx.ModuleReadWrite(),
 		ssistatusfx.Module(),
 		workloadfilterfx.Module(),
