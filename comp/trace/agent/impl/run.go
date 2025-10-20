@@ -84,7 +84,6 @@ func runAgentSidekicks(ag component) error {
 		// Adding IPC middleware to the secrets refresh endpoint to check validity of auth token Header.
 		ag.ipc.HTTPMiddleware(
 			http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-				// HTTP endpoint always bypasses rate limit
 				res, err := ag.secrets.Refresh(true)
 				if err != nil {
 					log.Errorf("error while refresing secrets: %s", err)
