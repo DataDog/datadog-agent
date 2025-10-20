@@ -29,7 +29,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func getTestExtension(t *testing.T, optIpc option.Option[ipc.Component]) (ddflareextension.Component, error) {
+func getTestExtension(optIpc option.Option[ipc.Component]) (ddflareextension.Component, error) {
 	telemetry := component.TelemetrySettings{}
 	cfg := &Config{
 		HTTPConfig: &confighttp.ServerConfig{
@@ -59,7 +59,7 @@ func getResponseToHandlerRequest(t *testing.T, ipc ipc.Component, tokenOverride 
 	rr := httptest.NewRecorder()
 
 	// Create an instance of your handler
-	ext, err := getTestExtension(t, option.New(ipc))
+	ext, err := getTestExtension(option.New(ipc))
 	require.NoError(t, err)
 
 	ddExt := ext.(*ddExtension)
@@ -84,7 +84,7 @@ func getResponseToHandlerRequest(t *testing.T, ipc ipc.Component, tokenOverride 
 }
 
 func TestNewExtension(t *testing.T) {
-	ext, err := getTestExtension(t, option.None[ipc.Component]())
+	ext, err := getTestExtension(option.None[ipc.Component]())
 	assert.NoError(t, err)
 	assert.NotNil(t, ext)
 

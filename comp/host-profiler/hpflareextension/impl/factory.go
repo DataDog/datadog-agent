@@ -40,7 +40,7 @@ func NewFactoryForAgent(ipcComp ipc.Component) extension.Factory {
 }
 
 // Create creates a new instance of the Datadog Flare Extension
-func (f *ddExtensionFactory) Create(ctx context.Context, set extension.Settings, cfg component.Config) (extension.Extension, error) {
+func (f *ddExtensionFactory) Create(_ context.Context, set extension.Settings, cfg component.Config) (extension.Extension, error) {
 	config := &Config{}
 	config.HTTPConfig = cfg.(*Config).HTTPConfig
 	return NewExtension(config, f.ipcComp, set.TelemetrySettings)

@@ -1060,9 +1060,7 @@ replace (
 	github.com/DataDog/datadog-agent/comp/def => ./comp/def
 	github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder => ./comp/forwarder/defaultforwarder
 	github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorinterface => ./comp/forwarder/orchestrator/orchestratorinterface
-	github.com/DataDog/datadog-agent/comp/host-profiler/flare/def => ./comp/host-profiler/flare/def
 	github.com/DataDog/datadog-agent/comp/host-profiler/hpflareextension/def => ./comp/host-profiler/hpflareextension/def
-	github.com/DataDog/datadog-agent/comp/host-profiler/hpflareextension/impl => ./comp/host-profiler/hpflareextension/impl
 	github.com/DataDog/datadog-agent/comp/logs/agent/config => ./comp/logs/agent/config
 	github.com/DataDog/datadog-agent/comp/netflow/payload => ./comp/netflow/payload
 	github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/def => ./comp/otelcol/collector-contrib/def

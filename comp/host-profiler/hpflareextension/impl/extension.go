@@ -23,6 +23,7 @@ import (
 	"go.uber.org/zap"
 )
 
+// Response is the response struct for API queries
 type Response struct {
 	Config string `json:"config"`
 }
@@ -35,6 +36,12 @@ type ddExtension struct {
 	server    *server
 }
 
+// NotifyConfig implements the ConfigWatcher interface, which allows this extension
+// to be notified of the Collector's effective configuration. See interface:
+// https://github.com/open-telemetry/opentelemetry-collector/blob/d0fde2f6b98f13cbbd8657f8188207ac7d230ed5/extension/extension.go#L46.
+
+// This method is called during the startup process by the Collector's Service right after
+// calling Start.
 func (ext *ddExtension) NotifyConfig(_ context.Context, conf *confmap.Conf) error {
 	if conf == nil {
 		msg := "received a nil config in ddExtension.NotifyConfig"
@@ -50,6 +57,7 @@ func (ext *ddExtension) NotifyConfig(_ context.Context, conf *confmap.Conf) erro
 	return nil
 }
 
+// NewExtension creates a new instance of the extension.
 func NewExtension(cfg *Config, ipcComp option.Option[ipc.Component], telemetry component.TelemetrySettings) (extensionDef.Component, error) {
 	var err error
 	ext := &ddExtension{
