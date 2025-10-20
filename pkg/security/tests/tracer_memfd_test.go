@@ -117,7 +117,7 @@ func TestTracerMemfd(t *testing.T) {
 	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
 	require.NoError(t, err)
 
-	test.RunMultiMode(t, "validate-event-and-tracer-tags", func(t *testing.T, kind wrapperType, cmd func(bin string, args []string, envs []string) *exec.Cmd) {
+	test.RunMultiMode(t, "validate-event-and-tracer-tags", func(t *testing.T, _ wrapperType, cmd func(bin string, args []string, envs []string) *exec.Cmd) {
 		consumer.eventReceived.Store(false)
 		consumer.capturedPid.Store(0)
 		consumer.capturedFd.Store(0)
