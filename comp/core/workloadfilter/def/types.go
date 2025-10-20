@@ -380,6 +380,11 @@ func (p *Process) Type() ResourceType {
 	return ProcessType
 }
 
+// SetLogFile updates the log file path on an existing Process.
+func (p *Process) SetLogFile(logFile string) {
+	p.FilterProcess.LogFile = logFile
+}
+
 // ProcessFilter defines the type of process filter.
 type ProcessFilter int
 
