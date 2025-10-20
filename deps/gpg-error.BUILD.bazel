@@ -1,0 +1,120 @@
+load("@@//bazel/rules:preprocessor.bzl", "c_preprocessor")
+load("@bazel_skylib//rules:copy_file.bzl", "copy_file")
+
+package(default_visibility = ["//visibility:private"])
+
+genrule(
+    name = "codes_to_errno_h",
+    srcs = ["src/mkerrnos.awk", "src/errnos.in"],
+    tools = ["@gawk"],
+    cmd = "$(location @gawk) -f $(location src/mkerrnos.awk) $(location src/errnos.in) > $@",
+    outs = ["code-to-errnos.h"]
+)
+
+genrule(
+    name = "_mkerrcodes_h",
+    srcs = ["src/mkerrcodes1.awk", "src/errnos.in"],
+    tools = ["@gawk"],
+    cmd = "$(location @gawk) -f $(location src/mkerrcodes1.awk) $(location src/errnos.in) > $@",
+    outs = ["_mkerrcodes.h"]
+)
+
+c_preprocessor(
+    name = "mkerrcodes_tmp_h",
+    input = ":_mkerrcodes_h",
+    output = "_mkerrcodes.tmp.h",
+)
+
+genrule(
+    name = "mkerrcodes_h",
+    srcs = ["src/mkerrcodes.awk", ":mkerrcodes_tmp_h"],
+    tools = ["@gawk"],
+    cmd = "grep GPG_ERR_ $(location :mkerrcodes_tmp_h) | gawk -f $(location src/mkerrcodes.awk) > $@",
+    outs = ["mkerrcodes.h"]
+)
+
+cc_binary(
+    name = "mkerrcodes",
+    srcs = ["src/mkerrcodes.c", ":mkerrcodes_h"],
+)
+
+genrule(
+    name = "codefromerrno_h",
+    srcs = ["src/mkerrcodes2.awk"],
+    outs = ["codes-from-errno.h"],
+    tools = [
+        ":mkerrcodes",
+        "@gawk",
+    ],
+    cmd = "$(location mkerrcodes) | $(location @gawk) -f $(location src/mkerrcodes2.awk) > $@",
+)
+
+genrule(
+    name = "err_sources_sym_h",
+    srcs = [
+        "src/mkstrtable.awk",
+        "src/err-sources.h.in",
+    ],
+    outs = ["err-sources-sym.h"],
+    tools = ["@gawk"],
+    cmd = "$(location @gawk) -f $(location src/mkstrtable.awk) -v textidx=2 -v nogettext=1 $(location src/err-sources.h.in) > $@",
+)
+
+genrule(
+    name = "err_codes_sym_h",
+    srcs = [
+        "src/mkstrtable.awk",
+        "src/err-codes.h.in",
+    ],
+    outs = ["err-codes-sym.h"],
+    tools = ["@gawk"],
+    cmd = "$(location @gawk) -f $(location src/mkstrtable.awk) -v textidx=2 -v nogettext=1 $(location src/err-codes.h.in) > $@",
+)
+
+genrule(
+    name = "errnos_sym_h",
+    srcs = [
+        "src/mkstrtable.awk",
+        "src/errnos.in",
+    ],
+    outs = ["errnos-sym.h"],
+    tools = ["@gawk"],
+    cmd = "$(location @gawk) -f $(location src/mkstrtable.awk) -v textidx=2 -v nogettext=1 -v prefix=GPG_ERR_ -v pkg_namespace=errnos_ $(location src/errnos.in) > $@",
+)
+
+copy_file(
+    name = "copy_config_h",
+    src = select({
+        "@//:linux_x86_64": "config-linux-x86_64.h",
+        "@//:linux_arm64": "config-linux-aarch64.h",
+    }),
+    out = "src/config.h",
+)
+
+cc_binary(
+    name = "mkheader",
+    srcs = ["src/mkheader.c"],
+)
+
+cc_binary(
+    name = "gen-posix-lock-obj",
+    srcs = ["src/gen-posix-lock-obj.c", "src/posix-lock-obj.h", "src/config.h"],
+    local_defines = ["HAVE_CONFIG_H"],
+    includes = ["src"],
+)
+
+genrule(
+    name = "lock-obj-pub-native_h",
+    srcs = [":gen-posix-lock-obj"],
+    outs = ["lock-obj-pub-native.h"],
+    tools = [":gen-posix-lock-obj"],
+    cmd = "$(location :gen-posix-lock-obj) > $@",
+)
+
+genrule(
+    name = "gpg-error_h",
+    srcs = ["src/gpg-error.h.in", "src/config.h"],
+    tools = [":mkheader"],
+    outs = ["src/gpp-error.h"],
+    cmd = "$(location :mkheader)"
+)

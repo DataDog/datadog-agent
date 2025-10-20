@@ -77,3 +77,15 @@ http_archive(
     strip_prefix = "nghttp2-1.58.0",
     url = "https://github.com/nghttp2/nghttp2/releases/download/v1.58.0/nghttp2-1.58.0.tar.gz",
 )
+
+http_archive(
+    name = "gpg-error",
+    build_file = "//deps:gpg-error.BUILD.bazel",
+    files = {
+        "config-linux-x86_64.h": "//deps:gpg-error/config-linux-x86_64.h",
+        "config-linux-aarch64.h": "//deps:gpg-error/config-linux-aarch64.h",
+    },
+    sha256 = "9e3c670966b96ecc746c28c2c419541e3bcb787d1a73930f5e5f5e1bcbbb9bdb",
+    url = "https://www.gnupg.org/ftp/gcrypt/libgpg-error/libgpg-error-1.47.tar.bz2",
+    strip_prefix = "libgpg-error-1.47",
+)
