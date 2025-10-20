@@ -11,6 +11,7 @@ import (
 	"regexp"
 	"slices"
 	"sync"
+	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
@@ -29,6 +30,9 @@ const (
 	// MRF logs settings
 	configMRFFailoverLogs     = "multi_region_failover.failover_logs"
 	configMRFServiceAllowlist = "multi_region_failover.logs_service_allowlist"
+
+	// PII auto-redaction settings
+	configAutoRedactPII = "logs_config.auto_redact_pii"
 )
 
 type failoverConfig struct {
@@ -249,6 +253,16 @@ func (p *Processor) applyRedactingRules(msg *message.Message) bool {
 	// ---------------------------
 
 	rules := append(p.processingRules, msg.Origin.LogSource.Config.ProcessingRules...)
+
+	// Add default PII redaction rules if enabled
+	var piiEnabled bool
+	if p.config != nil && p.config.GetBool(configAutoRedactPII) {
+		rules = append(rules, defaultPIIRedactionRules...)
+		piiEnabled = true
+	}
+
+	piiStartTime := time.Now()
+
 	for _, rule := range rules {
 		switch rule.Type {
 		case config.ExcludeAtMatch:
@@ -267,8 +281,19 @@ func (p *Processor) applyRedactingRules(msg *message.Message) bool {
 			if isMatchingLiteralPrefix(rule.Regex, content) {
 				originalContent := content
 				content = rule.Regex.ReplaceAll(content, rule.Placeholder)
+
+				// Track PII redaction metrics if content was modified
 				if !bytes.Equal(originalContent, content) {
 					msg.RecordProcessingRule(rule.Type, rule.Name)
+
+					// Track additional metrics for PII rules
+					if piiEnabled && isPIIRule(rule) {
+						bytesRedacted := len(originalContent) - len(content)
+						if bytesRedacted > 0 {
+							metrics.TlmPIIMatchCount.Inc(rule.Name)
+							metrics.TlmPIIBytesRedacted.Add(float64(bytesRedacted), rule.Name)
+						}
+					}
 				}
 			}
 		case config.ExcludeTruncated:
@@ -280,8 +305,23 @@ func (p *Processor) applyRedactingRules(msg *message.Message) bool {
 		}
 	}
 
+	// Report PII redaction latency if PII rules are enabled
+	if piiEnabled {
+		metrics.TlmPIIRedactionLatency.Observe(float64(time.Since(piiStartTime).Microseconds()))
+	}
+
 	msg.SetContent(content)
 	return true // we want to send this message
+}
+
+// isPIIRule checks if a rule is one of the default PII redaction rules
+func isPIIRule(rule *config.ProcessingRule) bool {
+	for _, piiRule := range defaultPIIRedactionRules {
+		if rule.Name == piiRule.Name {
+			return true
+		}
+	}
+	return false
 }
 
 // isMatchingLiteralPrefix uses a potential literal prefix from the given regex

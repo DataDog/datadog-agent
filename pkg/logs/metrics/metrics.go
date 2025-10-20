@@ -100,6 +100,18 @@ var (
 	LogsTruncated = expvar.Int{}
 	// TlmTruncatedCount tracks the count of times a log is truncated
 	TlmTruncatedCount = telemetry.NewCounter("logs", "truncated", []string{"service", "source"}, "Count the number of times a log is truncated")
+
+	// PII Redaction metrics
+	// TlmPIIRedactionLatency tracks time spent on PII redaction per message
+	TlmPIIRedactionLatency = telemetry.NewHistogram("logs", "pii_redaction_latency",
+		nil, "Histogram of PII redaction latency in microseconds",
+		[]float64{1, 5, 10, 25, 50, 100, 250, 500, 1000})
+	// TlmPIIMatchCount tracks number of PII patterns matched per message
+	TlmPIIMatchCount = telemetry.NewCounter("logs", "pii_matches",
+		[]string{"pattern_type"}, "Count of PII matches by pattern type (email, cc, ssn, etc.)")
+	// TlmPIIBytesRedacted tracks bytes replaced by redaction
+	TlmPIIBytesRedacted = telemetry.NewCounter("logs", "pii_bytes_redacted",
+		[]string{"pattern_type"}, "Total bytes redacted by pattern type")
 )
 
 func init() {

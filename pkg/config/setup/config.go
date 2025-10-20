@@ -1852,6 +1852,9 @@ func logsagent(config pkgconfigmodel.Setup) {
 
 	// If true, exclude agent processes from process log collection
 	config.BindEnvAndSetDefault("logs_config.process_exclude_agent", false)
+
+	// PII auto-redaction settings
+	config.BindEnvAndSetDefault("logs_config.auto_redact_pii", true)
 }
 
 func vector(config pkgconfigmodel.Setup) {
