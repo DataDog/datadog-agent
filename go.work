@@ -50,6 +50,7 @@ use (
 	comp/otelcol/collector-contrib/impl
 	comp/otelcol/converter/def
 	comp/otelcol/converter/impl
+	comp/host-profiler/hpflareextension/def
 	comp/otelcol/ddflareextension/def
 	comp/otelcol/ddflareextension/impl
 	comp/otelcol/ddflareextension/types
