@@ -298,8 +298,12 @@ func (s *testAgentMSIInstallsDotnetLibrary) TestUninstallScript() {
 }
 
 // TestUpgradeFromPinnedVersionThenRemoteDotnetUpgrade tests that instrumentation remains enabled after:
-// 1. Updating the MSI from a pinned version (7.65.0)
+// 1. Installing the agent from a pinned version (7.65.0)
+// 2. Then remotely upgrading the agent package
 // 2. Then remotely upgrading the dotnet package
+// The aim is to ensure that instrumentation remains enabled the whole time,
+// in 7.65.0 installation of the dotnet package always lead to instrumentation
+// while now it only happens if DD_APM_INSTRUMENTATION_ENABLED=iis is passed (and then it's persisted upon updates)
 func (s *testAgentMSIInstallsDotnetLibrary) TestUpgradeFromPinnedVersionThenRemoteDotnetUpgrade() {
 	defer s.cleanupAgentConfig()
 	s.setAgentConfig()
@@ -328,29 +332,25 @@ func (s *testAgentMSIInstallsDotnetLibrary) TestUpgradeFromPinnedVersionThenRemo
 	oldLibraryPath := s.getLibraryPathFromInstrumentedIIS()
 	s.Require().Contains(oldLibraryPath, oldVersion.Version())
 
-	// Upgrade the Agent to the current version
-	s.installCurrentAgentVersion(
-		installerwindows.WithMSIArg("DD_APM_INSTRUMENTATION_ENABLED=iis"),
-		installerwindows.WithMSIArg("DD_INSTALLER_REGISTRY_URL=install.datad0g.com.internal.dda-testing.com"),
-		installerwindows.WithMSIArg(fmt.Sprintf("DD_APM_INSTRUMENTATION_LIBRARIES=dotnet:%s", new.PackageVersion())),
-		installerwindows.WithMSILogFile("upgrade-agent.log"),
-	)
+	// Remotely upgrade the Agent to the current version
+	s.MustStartExperimentCurrentVersion()
 
-	// Restart IIS to pick up the agent upgrade (should be a noop for the library)
+	// Restart IIS to pick up the agent upgrade
 	s.startIISApp(webConfigFile, aspxFile)
 
 	// Verify instrumentation is still enabled with old library after agent upgrade
 	libraryPathAfterAgentUpgrade := s.getLibraryPathFromInstrumentedIIS()
 	s.Require().Contains(libraryPathAfterAgentUpgrade, oldVersion.Version())
 
+	// Promote the agent experiment
+	_, err = s.Installer().PromoteExperiment("datadog-agent")
+	s.Require().NoError(err)
+	s.AssertSuccessfulAgentPromoteExperiment(s.CurrentAgentVersion().Version())
+
 	// Start remote upgrade experiment for dotnet package
 	_, err = s.startExperimentCurrentVersion()
 	s.Require().NoError(err)
 	s.assertSuccessfulStartExperiment(newVersion.Version())
-
-	// Verify old library is still loaded before IIS restart
-	oldLibraryPathBeforeDotnetUpgrade := s.getLibraryPathFromInstrumentedIIS()
-	s.Require().Contains(oldLibraryPathBeforeDotnetUpgrade, oldVersion.Version())
 
 	// Restart IIS to pick up the new dotnet library
 	s.startIISApp(webConfigFile, aspxFile)
