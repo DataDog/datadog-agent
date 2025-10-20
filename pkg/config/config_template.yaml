@@ -162,7 +162,7 @@ api_key:
 
 ## @param remote_updates - boolean - optional - default: false
 ## @env DD_REMOTE_UPDATES - boolean - optional - default: false
-## Enable remote upgrades and configuration changes for the agent.
+## Enable remote upgrades and configuration changes for the Agent.
 #
 # remote_updates: false
 
