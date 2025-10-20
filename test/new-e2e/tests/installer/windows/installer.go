@@ -48,6 +48,10 @@ type DatadogInstallerRunner interface {
 	PromoteConfigExperiment(packageName string) (string, error)
 	StopConfigExperiment(packageName string) (string, error)
 
+	// APM instrumentation commands
+	InstrumentAPMInjector(method string) (string, error)
+	UninstrumentAPMInjector(method string) (string, error)
+
 	// MSI commands
 	// TODO: we should separate installation from the command line interface
 	Install(opts ...MsiOption) error
@@ -241,6 +245,16 @@ func (d *DatadogInstaller) Purge() (string, error) {
 // GarbageCollect runs the garbage-collect command, removing unused packages.
 func (d *DatadogInstaller) GarbageCollect() (string, error) {
 	return d.execute("garbage-collect")
+}
+
+// InstrumentAPMInjector activates APM instrumentation for the given method.
+func (d *DatadogInstaller) InstrumentAPMInjector(method string) (string, error) {
+	return d.execute(fmt.Sprintf("apm instrument %s", method))
+}
+
+// UninstrumentAPMInjector deactivates APM instrumentation for the given method.
+func (d *DatadogInstaller) UninstrumentAPMInjector(method string) (string, error) {
+	return d.execute(fmt.Sprintf("apm uninstrument %s", method))
 }
 
 // Install will attempt to install the Datadog Agent on the remote host.
