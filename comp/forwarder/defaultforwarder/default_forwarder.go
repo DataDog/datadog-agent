@@ -263,15 +263,9 @@ func NewDefaultForwarder(config config.Component, log log.Component, options *Op
 // If a valid hostname is retrieved, it will be added a request header to all transaction sent by this forwarder.
 func NewDefaultForwarderWithHostname(config config.Component, log log.Component, hostname hostname.Component, options *Options) *DefaultForwarder {
 	// Query for the Agent's hostname if a hostname provider was passed.
-	//
-	// We don't _need_ this for forwarding so we put a tight timeout on it to avoid hamstringing ourselves during startup. That means we also
-	// just use an empty string if we can't get it.
 	agentHostname := ""
 	if hostname != nil {
-		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-		defer cancel()
-
-		if value, err := hostname.Get(ctx); err == nil {
+		if value, err := hostname.Get(context.TODO()); err == nil {
 			agentHostname = value
 		}
 	}

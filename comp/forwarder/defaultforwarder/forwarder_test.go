@@ -19,6 +19,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/atomic"
 
+	hostname "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/endpoints"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/resolver"
@@ -338,6 +339,44 @@ func TestArbitraryTagsHTTPHeader(t *testing.T) {
 	transactions := forwarder.createHTTPTransactions(endpoint, transaction.NewBytesPayloadsWithoutMetaData([]*[]byte{&payload}), transaction.Series, headers)
 	require.True(t, len(transactions) > 0)
 	assert.Equal(t, "true", transactions[0].Headers.Get(arbitraryTagHTTPHeaderKey))
+}
+
+func TestAgentHostnameRequestHeader(t *testing.T) {
+	mockConfig := mock.New(t)
+	mockLog := logmock.New(t)
+	mockHostname, _ := hostname.NewMock("test-agent")
+
+	r, err := resolver.NewSingleDomainResolvers(keysPerDomains)
+	require.NoError(t, err)
+
+	forwarder := NewDefaultForwarderWithHostname(mockConfig, mockLog, mockHostname, NewOptionsWithResolvers(mockConfig, mockLog, r))
+
+	payload := []byte("dummy payload")
+	payloads := transaction.NewBytesPayloadsWithoutMetaData([]*[]byte{&payload})
+	transactions := forwarder.createHTTPTransactions(endpoints.V1SeriesEndpoint, payloads, transaction.Series, http.Header{})
+
+	for _, transaction := range transactions {
+		assert.Equal(t, "test-agent", transaction.Headers.Get(hostnameHTTPHeaderKey))
+	}
+}
+
+func TestAgentHostnameRequestHeaderEmptyHostname(t *testing.T) {
+	mockConfig := mock.New(t)
+	mockLog := logmock.New(t)
+	mockHostname, _ := hostname.NewMock("")
+
+	r, err := resolver.NewSingleDomainResolvers(keysPerDomains)
+	require.NoError(t, err)
+
+	forwarder := NewDefaultForwarderWithHostname(mockConfig, mockLog, mockHostname, NewOptionsWithResolvers(mockConfig, mockLog, r))
+
+	payload := []byte("dummy payload")
+	payloads := transaction.NewBytesPayloadsWithoutMetaData([]*[]byte{&payload})
+	transactions := forwarder.createHTTPTransactions(endpoints.V1SeriesEndpoint, payloads, transaction.Series, http.Header{})
+
+	for _, transaction := range transactions {
+		assert.Equal(t, "", transaction.Headers.Get(hostnameHTTPHeaderKey))
+	}
 }
 
 func TestSendHTTPTransactions(t *testing.T) {

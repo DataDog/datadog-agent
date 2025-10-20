@@ -7,14 +7,10 @@ package defaultforwarder
 
 import (
 	"encoding/json"
-	"net/http"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	hostname "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
-	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/endpoints"
-	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/stretchr/testify/assert"
@@ -106,23 +102,4 @@ func TestDefaultForwarderUpdateAdditionalEndpointAPIKey(t *testing.T) {
 	data, err = json.Marshal(actualAPIKeys)
 	require.NoError(t, err)
 	assert.Equal(t, expectData, string(data))
-}
-
-func TestDefaultForwarderAgentHostnameRequestHeader(t *testing.T) {
-	mockConfig := config.NewMock(t)
-	mockLog := logmock.New(t)
-	mockHostname, _ := hostname.NewMock("test-agent")
-
-	opts, err := NewOptions(mockConfig, mockLog, map[string][]utils.APIKeys{})
-	require.NoError(t, err)
-
-	forwarder := NewDefaultForwarderWithHostname(mockConfig, mockLog, mockHostname, opts)
-
-	payload := []byte("dummy payload")
-	payloads := transaction.NewBytesPayloadsWithoutMetaData([]*[]byte{&payload})
-	transactions := forwarder.createHTTPTransactions(endpoints.V1SeriesEndpoint, payloads, transaction.Series, http.Header{})
-
-	for _, transaction := range transactions {
-		assert.Equal(t, "test-agent", transaction.Headers.Get(hostnameHTTPHeaderKey))
-	}
 }
