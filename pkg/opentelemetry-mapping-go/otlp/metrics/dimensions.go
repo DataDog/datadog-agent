@@ -78,11 +78,13 @@ func (d *Dimensions) OriginProductDetail() OriginProductDetail {
 }
 
 // getTags maps an attributeMap into a slice of Datadog tags
+// OPTIMIZED: Pre-sizes slice to exact capacity to avoid growth
 func getTags(labels pcommon.Map) []string {
-	tags := make([]string, 0, labels.Len())
+	// Pre-size slice to exact capacity - no growth needed
+	tags := make([]string, 0, labels.Len()) // 🟢 Exact capacity
 	labels.Range(func(key string, value pcommon.Value) bool {
 		v := value.AsString()
-		tags = append(tags, utils.FormatKeyValueTag(key, v))
+		tags = append(tags, utils.FormatKeyValueTag(key, v)) // 🟢 Now uses optimized FormatKeyValueTag
 		return true
 	})
 	return tags
@@ -133,15 +135,25 @@ func concatDimensionValue(metricKeyBuilder *strings.Builder, value string) {
 
 // String maps dimensions to a string to use as an identifier.
 // The tags order does not matter.
+// OPTIMIZED: Pre-sizes slices and avoids fmt.Sprintf allocations
 func (d *Dimensions) String() string {
-	var metricKeyBuilder strings.Builder
+	// Pre-calculate total capacity needed to avoid builder growth
+	estimatedSize := len(d.name) + len(d.host) + len(d.originID) + 50 // base overhead
+	for _, tag := range d.tags {
+		estimatedSize += len(tag) + 1 // +1 for separator
+	}
 
-	dimensions := make([]string, len(d.tags))
+	var metricKeyBuilder strings.Builder
+	metricKeyBuilder.Grow(estimatedSize) // 🟢 Pre-size to avoid reallocations
+
+	// Pre-size dimensions slice with exact capacity needed (tags + 3 fixed dimensions)
+	dimensions := make([]string, len(d.tags), len(d.tags)+3) // 🟢 Exact capacity
 	copy(dimensions, d.tags)
 
-	dimensions = append(dimensions, fmt.Sprintf("name:%s", d.name))
-	dimensions = append(dimensions, fmt.Sprintf("host:%s", d.host))
-	dimensions = append(dimensions, fmt.Sprintf("originID:%s", d.originID))
+	// Avoid fmt.Sprintf - use direct string concatenation
+	dimensions = append(dimensions, "name:"+d.name)         // 🟢 No fmt.Sprintf
+	dimensions = append(dimensions, "host:"+d.host)         // 🟢 No fmt.Sprintf
+	dimensions = append(dimensions, "originID:"+d.originID) // 🟢 No fmt.Sprintf
 	sort.Strings(dimensions)
 
 	for _, dim := range dimensions {

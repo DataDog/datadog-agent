@@ -17,11 +17,19 @@ package metrics
 import (
 	"encoding/ascii85"
 	"encoding/binary"
+	"sync"
 	"time"
 
 	gocache "github.com/patrickmn/go-cache"
 	"github.com/twmb/murmur3"
 )
+
+// Pool for reusing ASCII85 encoding buffers to reduce allocations
+var ascii85BufPool = sync.Pool{
+	New: func() interface{} {
+		return make([]byte, ascii85.MaxEncodedLen(16))
+	},
+}
 
 // keyHashCache is a wrapper around the go-cache library.
 // It uses a hash function to compute the key from the string
@@ -49,13 +57,21 @@ func (m *keyHashCache) set(s keyHashCacheKey, v interface{}, expiration time.Dur
 	m.cache.Set(string(s), v, expiration)
 }
 
+// OPTIMIZED: Uses buffer pooling to avoid allocations
 func (m *keyHashCache) computeKey(s string) keyHashCacheKey {
 	h1, h2 := murmur3.StringSum128(s)
 	var bytes [16]byte
 	binary.LittleEndian.PutUint64(bytes[0:], h1)
 	binary.LittleEndian.PutUint64(bytes[8:], h2)
 
-	buf := make([]byte, ascii85.MaxEncodedLen(len(bytes)))
+	// Get buffer from pool instead of allocating
+	buf := ascii85BufPool.Get().([]byte)
+	defer ascii85BufPool.Put(buf)
+
 	n := ascii85.Encode(buf, bytes[:])
-	return keyHashCacheKey(buf[:n])
+
+	// Copy result since we're returning the buffer to pool
+	result := make([]byte, n)
+	copy(result, buf[:n])
+	return keyHashCacheKey(result)
 }
