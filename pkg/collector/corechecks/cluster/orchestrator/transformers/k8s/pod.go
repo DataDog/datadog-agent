@@ -87,7 +87,34 @@ func ExtractPod(ctx processors.ProcessorContext, p *corev1.Pod) *model.Pod {
 	pctx := ctx.(*processors.K8sProcessorContext)
 	podModel.Tags = append(podModel.Tags, transformers.RetrieveMetadataTags(p.ObjectMeta.Labels, p.ObjectMeta.Annotations, pctx.LabelsAsTags, pctx.AnnotationsAsTags)...)
 
+	podModel.Containers = make([]*model.ContainerSpec, 0, len(p.Spec.Containers))
+	for _, c := range p.Spec.Containers {
+		podModel.Containers = append(podModel.Containers, &model.ContainerSpec{
+			Name:      c.Name,
+			Image:     c.Image,
+			Ports:     convertContainerPorts(c.Ports),
+			Resources: convertResourceRequirements(c.Resources, c.Name, model.ResourceRequirementsType_container),
+			Command:   c.Command,
+		})
+	}
+
 	return &podModel
+}
+
+func convertContainerPorts(ports []corev1.ContainerPort) []*model.ContainerPort {
+	if len(ports) == 0 {
+		return nil
+	}
+	var containerPorts []*model.ContainerPort
+	for _, port := range ports {
+		containerPorts = append(containerPorts, &model.ContainerPort{
+			Name:          port.Name,
+			ContainerPort: int32(port.ContainerPort),
+			HostPort:      int32(port.HostPort),
+			Protocol:      string(port.Protocol),
+		})
+	}
+	return containerPorts
 }
 
 func convertNodeSelector(ns *corev1.NodeSelector) *model.NodeSelector {
