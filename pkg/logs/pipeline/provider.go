@@ -22,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	"github.com/DataDog/datadog-agent/pkg/logs/sender"
+	grpcsender "github.com/DataDog/datadog-agent/pkg/logs/sender/grpc"
 	httpsender "github.com/DataDog/datadog-agent/pkg/logs/sender/http"
 	tcpsender "github.com/DataDog/datadog-agent/pkg/logs/sender/tcp"
 	"github.com/DataDog/datadog-agent/pkg/logs/status/statusinterface"
@@ -88,7 +89,9 @@ func NewProvider(
 	var senderImpl sender.PipelineComponent
 	serverlessMeta := sender.NewServerlessMeta(serverless)
 
-	if endpoints.UseHTTP {
+	if endpoints.UseGRPC {
+		senderImpl = grpcsender.NewGRPCSender(cfg, sink, endpoints, destinationsContext, metrics.NewTelemetryPipelineMonitor())
+	} else if endpoints.UseHTTP {
 		senderImpl = httpSender(numberOfPipelines, cfg, sink, endpoints, destinationsContext, serverlessMeta, legacyMode)
 	} else {
 		senderImpl = tcpSender(numberOfPipelines, cfg, sink, endpoints, destinationsContext, status, serverlessMeta, legacyMode)

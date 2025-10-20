@@ -21,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/processor"
 	"github.com/DataDog/datadog-agent/pkg/logs/sender"
 	compressioncommon "github.com/DataDog/datadog-agent/pkg/util/compression"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // Pipeline processes and sends messages to the backend
@@ -105,25 +106,25 @@ func getStrategy(
 	compressor logscompression.Component,
 	instanceID string,
 ) sender.Strategy {
-	if endpoints.UseHTTP || serverlessMeta.IsEnabled() {
+	// Use DumbStrategy for pattern extraction when UseProto is enabled
+	if endpoints.UseProto {
+		log.Infof("Pipeline: Using DumbStrategy for pattern extraction (UseProto=true)")
 		var encoder compressioncommon.Compressor
 		encoder = compressor.NewCompressor(compressioncommon.NoneKind, 0)
 		if endpoints.Main.UseCompression {
 			encoder = compressor.NewCompressor(endpoints.Main.CompressionKind, endpoints.Main.CompressionLevel)
 		}
-
-		return sender.NewBatchStrategy(
-			inputChan,
-			outputChan,
-			flushChan,
-			serverlessMeta,
-			endpoints.BatchWait,
-			endpoints.BatchMaxSize,
-			endpoints.BatchMaxContentSize,
-			"logs",
-			encoder,
-			pipelineMonitor,
-			instanceID)
+		return sender.NewDumbStrategy(inputChan, outputChan, flushChan, sender.NewArraySerializer(), endpoints.BatchMaxContentSize, "logs", encoder)
+	} else if endpoints.UseHTTP || endpoints.UseGRPC || serverlessMeta.IsEnabled() {
+		log.Infof("Pipeline: Using BatchStrategy (UseHTTP=%v, UseGRPC=%v, Serverless=%v)", endpoints.UseHTTP, endpoints.UseGRPC, serverlessMeta.IsEnabled())
+		var encoder compressioncommon.Compressor
+		encoder = compressor.NewCompressor(compressioncommon.NoneKind, 0)
+		if endpoints.Main.UseCompression {
+			encoder = compressor.NewCompressor(endpoints.Main.CompressionKind, endpoints.Main.CompressionLevel)
+		}
+		return sender.NewBatchStrategy(inputChan, outputChan, flushChan, serverlessMeta, sender.NewArraySerializer(), endpoints.BatchWait, endpoints.BatchMaxSize, endpoints.BatchMaxContentSize, "logs", encoder, pipelineMonitor, instanceID)
 	}
+
+	log.Infof("Pipeline: Using StreamStrategy (default)")
 	return sender.NewStreamStrategy(inputChan, outputChan, compressor.NewCompressor(compressioncommon.NoneKind, 0))
 }

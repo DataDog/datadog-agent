@@ -1,0 +1,109 @@
+syntax = "proto3";
+
+package intake;
+option go_package = "github.com/DataDog/datadog-agent/pkg/logs/sender/grpc";
+
+// ---------------------------------------------------------------------------
+// Dictionary-encoded
+// ---------------------------------------------------------------------------
+
+message DictEntryDefine {
+  uint64 id = 1;
+  string value = 2;
+}
+
+message DictEntryDelete {
+  uint64 id = 1;
+}
+
+// ---------------------------------------------------------------------------
+// Pattern dictionary
+// ---------------------------------------------------------------------------
+
+// pos_list is used to indicate where dynamic values should be inserted
+// it's more accurate than a marker
+message PatternDefine {
+  uint64 pattern_id = 1;
+  string template = 2;
+  uint32 param_count = 3;
+  repeated uint32 pos_list = 4;
+}
+
+message PatternUpdate {
+  uint64 pattern_id = 1;
+  string new_template = 2;
+  uint32 param_count = 3;
+  repeated uint32 pos_list = 4;
+}
+
+message PatternDelete {
+  uint64 pattern_id = 1;
+}
+
+// ---------------------------------------------------------------------------
+// Log payload
+// ---------------------------------------------------------------------------
+
+message Log {
+  uint64 timestamp = 1;
+  oneof content {
+    StructuredLog structured = 2;
+    string raw = 3;
+  }
+}
+
+message StructuredLog {
+  uint64 pattern_id = 1;
+  repeated DynamicValue dynamic_values = 2;
+}
+
+// TODO not sure we need numeric type
+message DynamicValue {
+  oneof value {
+    int64 int_value = 1;
+    double float_value = 2;
+    string string_value = 3;
+    uint64 dict_index = 4;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Streaming envelope
+// ---------------------------------------------------------------------------
+
+message Datum {
+  oneof data {
+    PatternDefine pattern_define = 1;
+    PatternUpdate pattern_update = 2;
+    PatternDelete pattern_delete = 3;
+    DictEntryDefine dict_entry_define = 4;
+    DictEntryDelete dict_entry_delete = 5;
+    Log logs = 6;
+  }
+}
+
+// data is sequence of pattern/dictionary changes + logs
+// the ordering is significant, must be processed in order
+message StatefulBatch {
+  uint32 batch_id = 1;
+  repeated Datum data = 2;
+}
+
+message BatchStatus {
+  int32 batch_id = 1;
+
+  // See Status Code Mappings section below for more details
+  enum Status {
+     UNKNOWN=0;
+     OK=1;
+  }
+  Status status = 2;
+}
+
+// ---------------------------------------------------------------------------
+// gRPC service definition (bi-directional streaming)
+// ---------------------------------------------------------------------------
+
+service StatefulLogsService {
+  rpc LogsStream(stream StatefulBatch) returns (stream BatchStatus);
+}
