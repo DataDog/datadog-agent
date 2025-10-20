@@ -193,7 +193,7 @@ func (w *Worker) process(ctx context.Context, t transaction.Transaction) {
 	target := t.GetTarget()
 	if w.blockedList.isBlockForSend(target, time.Now()) {
 		w.requeue(t)
-		w.log.Errorf("Too many errors for endpoint '%s': retrying later", target)
+		w.log.Warnf("Too many errors for endpoint '%s': retrying later", target)
 	} else if err := t.Process(ctx, w.config, w.log, w.Client.GetClient()); err != nil {
 		w.blockedList.close(target, time.Now())
 		w.requeue(t)
