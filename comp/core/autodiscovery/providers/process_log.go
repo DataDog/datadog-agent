@@ -153,15 +153,10 @@ func NewProcessLogConfigProvider(_ *pkgconfigsetup.ConfigurationProviders, wmeta
 	// Discover available integration sources
 	validSources := discoverIntegrationSources()
 
-	var logsFilters workloadfilter.FilterBundle
-	if filter != nil {
-		logsFilters = filter.GetProcessFilters([][]workloadfilter.ProcessFilter{{workloadfilter.ProcessCELLogs}})
-	}
-
 	return &processLogConfigProvider{
 		workloadmetaStore:       wmeta,
 		tagger:                  tagger,
-		logsFilters:             logsFilters,
+		logsFilters:             filter.GetProcessFilters([][]workloadfilter.ProcessFilter{{workloadfilter.ProcessCELLogs}}),
 		serviceLogRefs:          make(map[string]*serviceLogRef),
 		pidToServiceIDs:         make(map[int32][]string),
 		unreadableFilesCache:    cache,
