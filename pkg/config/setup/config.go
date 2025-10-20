@@ -383,7 +383,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("secret_backend_skip_checks", false)
 	config.BindEnvAndSetDefault("secret_backend_remove_trailing_line_break", false)
 	config.BindEnvAndSetDefault("secret_refresh_interval", 0)
-	config.BindEnvAndSetDefault("secret_refresh_min_interval", 0)
+	config.BindEnvAndSetDefault("secret_refresh_on_api_key_failure_interval", 5)
 	config.BindEnvAndSetDefault("secret_refresh_scatter", true)
 	config.BindEnvAndSetDefault("secret_scope_integration_to_their_k8s_namespace", false)
 	config.BindEnvAndSetDefault("secret_allowed_k8s_namespace", []string{})
@@ -2451,22 +2451,22 @@ func ResolveSecrets(config pkgconfigmodel.Config, secretResolver secrets.Compone
 	// We have to init the secrets package before we can use it to decrypt
 	// anything.
 	secretResolver.Configure(secrets.ConfigParams{
-		Type:                        config.GetString("secret_backend_type"),
-		Config:                      config.GetStringMap("secret_backend_config"),
-		Command:                     config.GetString("secret_backend_command"),
-		Arguments:                   config.GetStringSlice("secret_backend_arguments"),
-		Timeout:                     config.GetInt("secret_backend_timeout"),
-		MaxSize:                     config.GetInt("secret_backend_output_max_size"),
-		RefreshInterval:             config.GetInt("secret_refresh_interval"),
-		RefreshIntervalScatter:      config.GetBool("secret_refresh_scatter"),
-		GroupExecPerm:               config.GetBool("secret_backend_command_allow_group_exec_perm"),
-		RemoveLinebreak:             config.GetBool("secret_backend_remove_trailing_line_break"),
-		RunPath:                     config.GetString("run_path"),
-		AuditFileMaxSize:            config.GetInt("secret_audit_file_max_size"),
-		ScopeIntegrationToNamespace: config.GetBool("secret_scope_integration_to_their_k8s_namespace"),
-		AllowedNamespace:            config.GetStringSlice("secret_allowed_k8s_namespace"),
-		ImageToHandle:               config.GetStringMapStringSlice("secret_image_to_handle"),
-		RefreshMinInterval:          config.GetInt("secret_refresh_min_interval"),
+		Type:                         config.GetString("secret_backend_type"),
+		Config:                       config.GetStringMap("secret_backend_config"),
+		Command:                      config.GetString("secret_backend_command"),
+		Arguments:                    config.GetStringSlice("secret_backend_arguments"),
+		Timeout:                      config.GetInt("secret_backend_timeout"),
+		MaxSize:                      config.GetInt("secret_backend_output_max_size"),
+		RefreshInterval:              config.GetInt("secret_refresh_interval"),
+		RefreshIntervalScatter:       config.GetBool("secret_refresh_scatter"),
+		GroupExecPerm:                config.GetBool("secret_backend_command_allow_group_exec_perm"),
+		RemoveLinebreak:              config.GetBool("secret_backend_remove_trailing_line_break"),
+		RunPath:                      config.GetString("run_path"),
+		AuditFileMaxSize:             config.GetInt("secret_audit_file_max_size"),
+		ScopeIntegrationToNamespace:  config.GetBool("secret_scope_integration_to_their_k8s_namespace"),
+		AllowedNamespace:             config.GetStringSlice("secret_allowed_k8s_namespace"),
+		ImageToHandle:                config.GetStringMapStringSlice("secret_image_to_handle"),
+		APIKeyFailureRefreshInterval: config.GetInt("secret_refresh_on_api_key_failure_interval"),
 	})
 
 	if config.GetString("secret_backend_command") != "" || config.GetString("secret_backend_type") != "" {

@@ -126,9 +126,9 @@ type secretResolver struct {
 	tlmSecretResolveError   telemetry.Counter
 
 	// Secret refresh throttling
-	refreshMinInterval    time.Duration
-	lastThrottledRefresh  time.Time
-	throttledRefreshMutex sync.Mutex
+	apiKeyFailureRefreshInterval time.Duration
+	lastThrottledRefresh         time.Time
+	throttledRefreshMutex        sync.Mutex
 }
 
 var _ secrets.Component = (*secretResolver)(nil)
@@ -312,7 +312,7 @@ func (r *secretResolver) Configure(params secrets.ConfigParams) {
 	r.allowedNamespace = params.AllowedNamespace
 	r.imageToHandle = params.ImageToHandle
 
-	r.refreshMinInterval = time.Duration(params.RefreshMinInterval) * time.Minute
+	r.apiKeyFailureRefreshInterval = time.Duration(params.APIKeyFailureRefreshInterval) * time.Minute
 }
 
 func (r *secretResolver) startRefreshRoutine(rd *rand.Rand) {
@@ -629,15 +629,15 @@ func (r *secretResolver) Refresh(bypassRateLimit bool) (string, error) {
 
 	if !bypassRateLimit {
 		// check if api key refresh on 403 is enabled
-		if r.refreshMinInterval == 0 {
+		if r.apiKeyFailureRefreshInterval == 0 {
 			return "", nil
 		}
 
 		// lock to prevent multiple refreshes at the same time
 		r.throttledRefreshMutex.Lock()
 		defer r.throttledRefreshMutex.Unlock()
-		// throttle if last refresh was less than refreshMinInterval ago
-		if time.Since(r.lastThrottledRefresh) < r.refreshMinInterval {
+		// throttle if last refresh was less than apiKeyFailureRefreshInterval ago
+		if time.Since(r.lastThrottledRefresh) < r.apiKeyFailureRefreshInterval {
 			return "", nil
 		}
 		r.lastThrottledRefresh = time.Now()

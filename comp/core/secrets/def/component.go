@@ -10,22 +10,22 @@ package secrets
 
 // ConfigParams holds parameters for configuration
 type ConfigParams struct {
-	Type                        string
-	Config                      map[string]interface{}
-	Command                     string
-	Arguments                   []string
-	Timeout                     int
-	MaxSize                     int
-	RefreshInterval             int
-	RefreshIntervalScatter      bool
-	GroupExecPerm               bool
-	RemoveLinebreak             bool
-	RunPath                     string
-	AuditFileMaxSize            int
-	ScopeIntegrationToNamespace bool
-	AllowedNamespace            []string
-	ImageToHandle               map[string][]string
-	RefreshMinInterval          int
+	Type                         string
+	Config                       map[string]interface{}
+	Command                      string
+	Arguments                    []string
+	Timeout                      int
+	MaxSize                      int
+	RefreshInterval              int
+	RefreshIntervalScatter       bool
+	GroupExecPerm                bool
+	RemoveLinebreak              bool
+	RunPath                      string
+	AuditFileMaxSize             int
+	ScopeIntegrationToNamespace  bool
+	AllowedNamespace             []string
+	ImageToHandle                map[string][]string
+	APIKeyFailureRefreshInterval int
 }
 
 // Component is the component type.
@@ -37,6 +37,6 @@ type Component interface {
 	// SubscribeToChanges registers a callback to be invoked whenever secrets are resolved or refreshed
 	SubscribeToChanges(callback SecretChangeCallback)
 	// Refresh will resolve secret handles again, notifying any subscribers of changed values.
-	// If bypassRateLimit is true, the refresh bypasses throttling; otherwise, it's rate-limited by RefreshMinInterval.
+	// If bypassRateLimit is true, the refresh bypasses throttling; otherwise, it's rate-limited by APIKeyFailureRefreshInterval.
 	Refresh(bypassRateLimit bool) (string, error)
 }
