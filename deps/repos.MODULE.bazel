@@ -154,3 +154,15 @@ http_archive(
     url = "https://github.com/facebook/zstd/releases/download/v1.5.7/zstd-1.5.7.tar.gz",
     strip_prefix = "zstd-1.5.7",
 )
+
+http_archive(
+    name = "gpg-error",
+    build_file = "//deps:gpg-error.BUILD.bazel",
+    files = {
+        "config-linux-x86_64.h": "//deps:gpg-error/config-linux-x86_64.h",
+        "config-linux-aarch64.h": "//deps:gpg-error/config-linux-aarch64.h",
+    },
+    sha256 = "82c3d2deb4ad96ad3925d6f9f124fe7205716055ab50e291116ef27975d169c0",
+    url = "https://www.gnupg.org/ftp/gcrypt/libgpg-error/libgpg-error-1.56.tar.bz2",
+    strip_prefix = "libgpg-error-1.56",
+)
