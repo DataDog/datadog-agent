@@ -727,15 +727,14 @@ func (*sslProgram) IsBuildModeSupported(buildmode.Type) bool {
 // - Kernel >= 4.15: regular tracepoint (multiple attachments supported)
 // - Kernel < 4.15: kprobe on do_exit (fallback for old kernels)
 func (o *sslProgram) addProcessExitProbe(options *manager.Options) {
-	var selectedProbe string
-	var excludeProbes []string
+	// Default to kprobe fallback (works on all kernel versions)
+	selectedProbe := kprobeDoExit
+	excludeProbes := []string{rawTracepointSchedProcessExit, oldTracepointSchedProcessExit}
 	var tracepointName string
 
 	kv, err := kernel.HostVersion()
 	if err != nil {
 		log.Warnf("Failed to get kernel version, using kprobe fallback: %v", err)
-		selectedProbe = kprobeDoExit
-		excludeProbes = []string{rawTracepointSchedProcessExit, oldTracepointSchedProcessExit}
 	} else {
 		kv415 := kernel.VersionCode(4, 15, 0)
 
@@ -752,8 +751,6 @@ func (o *sslProgram) addProcessExitProbe(options *manager.Options) {
 			log.Infof("Using regular tracepoint for process exit monitoring (kernel %s >= 4.15)", kv)
 		} else {
 			// Kprobe fallback for kernel < 4.15 (no multiple tracepoint attachment)
-			selectedProbe = kprobeDoExit
-			excludeProbes = []string{rawTracepointSchedProcessExit, oldTracepointSchedProcessExit}
 			log.Infof("Using kprobe fallback for process exit monitoring (kernel %s < 4.15)", kv)
 		}
 	}
