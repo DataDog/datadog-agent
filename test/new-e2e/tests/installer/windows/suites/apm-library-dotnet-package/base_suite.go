@@ -128,7 +128,7 @@ func (s *baseIISSuite) startExperimentCurrentDotnetLibrary(version installerwind
 	return s.startExperimentWithCustomPackage(installerwindows.WithName("datadog-apm-library-dotnet"),
 		installerwindows.WithAlias("apm-library-dotnet-package"),
 		// TODO remove override once image is published in prod
-		installerwindows.WithVersion(version.Version()),
+		installerwindows.WithVersion(version.PackageVersion()),
 		installerwindows.WithRegistry("install.datad0g.com.internal.dda-testing.com"),
 		installerwindows.WithDevEnvOverrides("CURRENT_DOTNET_LIBRARY"),
 	)
