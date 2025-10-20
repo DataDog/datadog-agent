@@ -88,3 +88,8 @@ func setupConfig(config pkgconfigmodel.BuildableConfig, secretComp secrets.Compo
 
 	return nil
 }
+
+// GetInstallPath returns the install path for the agent
+func GetInstallPath() string {
+	return pkgconfigsetup.InstallPath
+}
