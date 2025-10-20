@@ -18,7 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-// Module specifies the mock secrets module.
+// MockModule specifies the mock secrets module.
 func MockModule() fxutil.Module {
 	return fxutil.Component(
 		fx.Provide(func(t testing.TB) secrets.Component {
