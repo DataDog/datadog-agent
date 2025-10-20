@@ -1945,6 +1945,12 @@ func TestShouldInject(t *testing.T) {
 				workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 			)
 
+			// Explicitly adding an annotation because we are testing the enabled label, mutateUnlabelled, and the
+			// interactions with apm enabled. Users need an explicit annotation for local library injection to work.
+			tt.pod.Annotations = map[string]string{
+				fmt.Sprintf(customLibAnnotationKeyFormat, "java"): "v1",
+			}
+
 			mockConfig = configmock.New(t)
 			tt.setupConfig()
 
