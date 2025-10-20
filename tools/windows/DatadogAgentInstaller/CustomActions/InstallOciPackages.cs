@@ -38,10 +38,10 @@ namespace Datadog.CustomActions
         private Dictionary<string, string> InstallerEnvironmentVariables()
         {
             var env = new Dictionary<string, string>();
-            
+
             // Skip agent installation - we only want the OCI packages
             env["DD_NO_AGENT_INSTALL"] = "true";
-            
+
             if (!string.IsNullOrEmpty(_apiKey))
             {
                 env["DD_API_KEY"] = _apiKey;
@@ -54,20 +54,20 @@ namespace Datadog.CustomActions
             {
                 env["DD_INSTALLER_REGISTRY_URL"] = _overrideRegistryUrl;
             }
-            
+
             // Add APM instrumentation configuration
             var instrumentationEnabled = _session.Property("DD_APM_INSTRUMENTATION_ENABLED");
             if (!string.IsNullOrEmpty(instrumentationEnabled))
             {
                 env["DD_APM_INSTRUMENTATION_ENABLED"] = instrumentationEnabled;
             }
-            
+
             var libraries = _session.Property("DD_APM_INSTRUMENTATION_LIBRARIES");
             if (!string.IsNullOrEmpty(libraries))
             {
                 env["DD_APM_INSTRUMENTATION_LIBRARIES"] = libraries;
             }
-            
+
             return env;
         }
         private Dictionary<string, string> PurgeEnvironmentVariables()

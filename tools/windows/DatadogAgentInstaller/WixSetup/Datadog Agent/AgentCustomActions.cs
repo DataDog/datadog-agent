@@ -510,7 +510,7 @@ namespace WixSetup.Datadog_Agent
                 Impersonate = false
             }
                 .SetProperties("PROJECTLOCATION=[PROJECTLOCATION],SITE=[SITE],APIKEY=[APIKEY]");
-            
+
             PurgeOciPackages = new CustomAction<CustomActions>(
                     new Id(nameof(PurgeOciPackages)),
                     CustomActions.PurgeOciPackages,
