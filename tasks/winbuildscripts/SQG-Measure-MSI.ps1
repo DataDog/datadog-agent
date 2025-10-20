@@ -13,22 +13,30 @@ param(
 
 $ErrorActionPreference = 'Continue'
 
-# Skip FIPS builds - SQG measurement is only for vanilla builds
-if ($env:AGENT_FLAVOR -eq "fips") {
-    Write-Host "ℹ️  Skipping MSI measurement for FIPS build"
-    exit 0
-}
-
 # Check if STATIC_QUALITY_GATE_NAME is set
 if ($null -eq $env:STATIC_QUALITY_GATE_NAME) {
     Write-Host "ℹ️  Skipping MSI measurement (no STATIC_QUALITY_GATE_NAME defined)"
     exit 0
 }
 
+# Check if the gate name matches the build flavor
+$IsFipsBuild = $env:AGENT_FLAVOR -eq "fips"
+$IsFipsGate = $env:STATIC_QUALITY_GATE_NAME -match "fips"
+
+if ($IsFipsBuild -and -not $IsFipsGate) {
+    Write-Host "ℹ️  Skipping MSI measurement for FIPS build (gate '$env:STATIC_QUALITY_GATE_NAME' is not for FIPS)"
+    exit 0
+}
+
+if (-not $IsFipsBuild -and $IsFipsGate) {
+    Write-Host "ℹ️  Skipping MSI measurement for vanilla build (gate '$env:STATIC_QUALITY_GATE_NAME' is for FIPS)"
+    exit 0
+}
+
 Write-Host "📊 Starting MSI measurement..."
 
 # Determine project name based on AGENT_FLAVOR
-if ($env:AGENT_FLAVOR -eq "fips") {
+if ($IsFipsBuild) {
     $ProjectName = "fips-datadog-agent"
 } else {
     $ProjectName = "datadog-agent"

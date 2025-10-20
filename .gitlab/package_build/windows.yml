@@ -182,7 +182,7 @@ windows_msi_and_bosh_zip_x64-a7:
       -e CI_JOB_TOKEN=${CI_JOB_TOKEN}
       -e STATIC_QUALITY_GATE_NAME=${STATIC_QUALITY_GATE_NAME}
       ${WINBUILDIMAGE}
-      powershell -C "c:\mnt\tasks\winbuildscripts\Build-AgentPackages.ps1 -BuildOutOfSource 1 -InstallDeps 1 -CheckGoVersion 1 -BuildUpgrade 1; if (`$LASTEXITCODE -ne 0) { exit `$LASTEXITCODE }; c:\mnt\tasks\winbuildscripts\SQG-Measure-MSI.ps1 -WorkingDirectory c:\mnt"
+      powershell -C "c:\mnt\tasks\winbuildscripts\Build-AgentPackages.ps1 -BuildOutOfSource 1 -InstallDeps 1 -CheckGoVersion 1 -BuildUpgrade 1; if (`$LASTEXITCODE -ne 0) { exit `$LASTEXITCODE }; & c:\mnt\tasks\winbuildscripts\SQG-Measure-MSI.ps1 -WorkingDirectory c:\mnt"
     - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
     - get-childitem omnibus\pkg\pipeline-$CI_PIPELINE_ID
     - !reference [.upload_sbom_artifacts_windows]
