@@ -10,7 +10,10 @@ exporters:
     headers:
       dd-api-key: ${env:DD_API_KEY}
     profiles_endpoint: https://intake.profile.datad0g.com/api/v2/profotlp
+extensions:
+  hpflare:
 service:
+  extensions: [hpflare]
   pipelines:
     profiles:
       receivers: [ddprofiling]
