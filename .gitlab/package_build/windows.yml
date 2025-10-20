@@ -54,9 +54,6 @@
     expire_in: 2 weeks
     paths:
       - omnibus/pkg/pipeline-$CI_PIPELINE_ID
-  id_tokens:
-    CI_IDENTITIES_GITLAB_ID_TOKEN:
-      aud: ci-identities
 
 .windows_main_agent_base:
   extends: .windows_msi_base
@@ -123,6 +120,7 @@ windows_msi_and_bosh_zip_x64-a7-fips:
       -e BUNDLE_MIRROR__RUBYGEMS__ORG=${BUNDLE_MIRROR__RUBYGEMS__ORG}
       -e PIP_INDEX_URL=${PIP_INDEX_URL}
       -e API_KEY_ORG2=${API_KEY_ORG2}
+      -e CI_IDENTITIES_GITLAB_ID_TOKEN=${CI_IDENTITIES_GITLAB_ID_TOKEN}
       ${WINBUILDIMAGE}
       powershell -C "c:\mnt\tasks\winbuildscripts\Build-OmnibusTarget.ps1 -BuildOutOfSource 1 -InstallDeps 1 -CheckGoVersion 1"
     - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
