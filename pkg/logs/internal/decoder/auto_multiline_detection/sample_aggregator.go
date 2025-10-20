@@ -41,6 +41,11 @@ func NewSampleAggregator() *SampleAggregator {
 
 func (s *SampleAggregator) Process(msg *message.Message) *message.Message {
 
+	// Reject JSON logs
+	if jsonRegexp.Match(msg.GetContent()) {
+		return msg
+	}
+
 	tokens, _ := s.tokenizer.tokenize(msg.GetContent())
 	tokenizedMessage := &TokenizedMessage{
 		message: msg,
@@ -74,8 +79,8 @@ type Config struct {
 	SlowHalfLife time.Duration // e.g., 60s
 
 	// Rare classification by slow share: slow_rate[type]/global_slow_rate.
-	RareEnterShare    float64 // e.g., 0.004 (0.4%)
-	RareExitShare     float64 // e.g., 0.006 (0.6%)
+	RareEnterShare    float64 // e.g., 0.005 (0.5%)
+	RareExitShare     float64 // e.g., 0.01 (1.0%)
 	HysteresisSeconds int     // consecutive seconds beyond threshold to flip
 
 	// Per-type burst credit (extra above ceiling) while rare.
@@ -92,9 +97,6 @@ type Config struct {
 	// Bootstrap burst for brand-new types (they start rare).
 	NewTypeBurstBootstrap float64 // e.g., 2.0
 
-	// New key defense: track (or enforce) max new types per minute.
-	MaxNewTypesPerMinute int // soft; not enforced here, but tracked
-
 	// Evict idle types after this duration with no traffic.
 	EvictAfter time.Duration // e.g., 3 * time.Minute
 }
@@ -104,16 +106,15 @@ func DefaultConfig() Config {
 		RateCeiling:           1.0,
 		FastHalfLife:          2 * time.Second,
 		SlowHalfLife:          60 * time.Second,
-		RareEnterShare:        0.004,
-		RareExitShare:         0.006,
-		HysteresisSeconds:     3,
-		RareBurstRefill:       0.2,
-		RareBurstCap:          20,
-		CeilingCap:            2,
-		GlobalRareBurstRefill: 50.0,
-		GlobalRareBurstCap:    500.0,
+		RareEnterShare:        0.005,
+		RareExitShare:         0.01,
+		HysteresisSeconds:     5,
+		RareBurstRefill:       0.5,
+		RareBurstCap:          100,
+		CeilingCap:            5,
+		GlobalRareBurstRefill: 100.0,
+		GlobalRareBurstCap:    1000.0,
 		NewTypeBurstBootstrap: 2.0,
-		MaxNewTypesPerMinute:  200,
 		EvictAfter:            3 * time.Minute,
 	}
 }

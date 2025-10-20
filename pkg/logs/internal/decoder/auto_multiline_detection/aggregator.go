@@ -9,6 +9,7 @@ package automultilinedetection
 import (
 	"bytes"
 
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	status "github.com/DataDog/datadog-agent/pkg/logs/status/utils"
@@ -189,8 +190,12 @@ func (a *Aggregator) Flush() {
 		return
 	}
 	msg := a.bucket.flush()
-	msg = a.sampleAgg.Process(msg)
-	if msg != nil {
+	if pkgconfigsetup.Datadog().GetBool("logs_config.dynamic_sampling") {
+		msg = a.sampleAgg.Process(msg)
+		if msg != nil {
+			a.outputFn(msg)
+		}
+	} else {
 		a.outputFn(msg)
 	}
 }
