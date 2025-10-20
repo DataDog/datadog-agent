@@ -366,7 +366,7 @@ require (
 	github.com/scaleway/scaleway-sdk-go v1.0.0-beta.35 // indirect
 	github.com/shirou/gopsutil/v3 v3.24.5 // indirect
 	github.com/shirou/gopsutil/v4 v4.25.9 // indirect
-	github.com/shoenig/go-m1cpu v0.1.6 // indirect
+	github.com/shoenig/go-m1cpu v0.1.7 // indirect
 	github.com/shurcooL/httpfs v0.0.0-20230704072500-f1e31cf0ba5c // indirect
 	github.com/signalfx/sapm-proto v0.18.0 // indirect
 	github.com/spf13/cast v1.10.0 // indirect
@@ -530,6 +530,9 @@ replace github.com/openshift/api => github.com/openshift/api v0.0.0-202307261628
 
 replace (
 	github.com/DataDog/datadog-agent/comp/api/api/def => ../../../../comp/api/api/def
+	github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def => ../../../../comp/core/agenttelemetry/def
+	github.com/DataDog/datadog-agent/comp/core/agenttelemetry/fx => ../../../../comp/core/agenttelemetry/fx
+	github.com/DataDog/datadog-agent/comp/core/agenttelemetry/impl => ../../../../comp/core/agenttelemetry/impl
 	github.com/DataDog/datadog-agent/comp/core/config => ../../../../comp/core/config
 	github.com/DataDog/datadog-agent/comp/core/configsync => ../../../../comp/core/configsync
 	github.com/DataDog/datadog-agent/comp/core/flare/builder => ../../../../comp/core/flare/builder
@@ -666,9 +669,11 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/util/flavor => ../../../../pkg/util/flavor
 	github.com/DataDog/datadog-agent/pkg/util/fxutil => ../../../../pkg/util/fxutil
 	github.com/DataDog/datadog-agent/pkg/util/grpc => ../../../../pkg/util/grpc
+	github.com/DataDog/datadog-agent/pkg/util/hostinfo => ../../../../pkg/util/hostinfo
 	github.com/DataDog/datadog-agent/pkg/util/hostname/validate => ../../../../pkg/util/hostname/validate
 	github.com/DataDog/datadog-agent/pkg/util/http => ../../../../pkg/util/http
 	github.com/DataDog/datadog-agent/pkg/util/json => ../../../../pkg/util/json
+	github.com/DataDog/datadog-agent/pkg/util/jsonquery => ../../../../pkg/util/jsonquery
 	github.com/DataDog/datadog-agent/pkg/util/log => ../../../../pkg/util/log
 	github.com/DataDog/datadog-agent/pkg/util/log/setup => ../../../../pkg/util/log/setup
 	github.com/DataDog/datadog-agent/pkg/util/option => ../../../../pkg/util/option

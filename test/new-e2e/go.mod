@@ -21,7 +21,7 @@ require (
 	// `TEST_INFRA_DEFINITIONS_BUILDIMAGES` matches the commit sha in the module version
 	// Example: 	github.com/DataDog/test-infra-definitions v0.0.0-YYYYMMDDHHmmSS-0123456789AB
 	// => TEST_INFRA_DEFINITIONS_BUILDIMAGES: 0123456789AB
-	github.com/DataDog/test-infra-definitions v0.0.6-0.20251010130333-1dc11388ea00
+	github.com/DataDog/test-infra-definitions v0.0.6-0.20251015184611-078230fb0e47
 	github.com/aws/aws-sdk-go-v2 v1.39.2
 	github.com/aws/aws-sdk-go-v2/config v1.31.12
 	github.com/aws/aws-sdk-go-v2/service/ec2 v1.253.0
@@ -239,12 +239,14 @@ require (
 	github.com/DataDog/datadog-agent/pkg/metrics v0.64.0
 	github.com/DataDog/datadog-agent/pkg/networkpath/payload v0.0.0-20250128160050-7ac9ccd58c07
 	github.com/DataDog/datadog-agent/pkg/trace v0.67.0
-	github.com/DataDog/datadog-go/v5 v5.6.0
+	github.com/DataDog/datadog-go/v5 v5.8.1
 	github.com/DataDog/dd-trace-go/v2 v2.2.2
 	github.com/DataDog/orchestrion v1.4.0
+	github.com/avast/retry-go/v4 v4.6.1
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.88.3
 	github.com/aws/session-manager-plugin v0.0.0-20241119210807-82dc72922492
 	github.com/digitalocean/go-libvirt v0.0.0-20240812180835-9c6c0a310c6c
+	github.com/goccy/go-yaml v1.18.0
 	github.com/google/go-containerregistry v0.20.3
 	github.com/hairyhenderson/go-codeowners v0.7.0
 )
@@ -290,7 +292,6 @@ require (
 	github.com/fxamacker/cbor/v2 v2.7.0 // indirect
 	github.com/go-ole/go-ole v1.3.0 // indirect
 	github.com/go-viper/mapstructure/v2 v2.4.0 // indirect
-	github.com/goccy/go-yaml v1.18.0 // indirect
 	github.com/google/go-tpm v0.9.6 // indirect
 	github.com/hashicorp/go-version v1.7.0 // indirect
 	github.com/iwdgo/sigintwindows v0.2.2 // indirect
@@ -355,6 +356,9 @@ require (
 
 replace (
 	github.com/DataDog/datadog-agent/comp/api/api/def => ../../comp/api/api/def
+	github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def => ../../comp/core/agenttelemetry/def
+	github.com/DataDog/datadog-agent/comp/core/agenttelemetry/fx => ../../comp/core/agenttelemetry/fx
+	github.com/DataDog/datadog-agent/comp/core/agenttelemetry/impl => ../../comp/core/agenttelemetry/impl
 	github.com/DataDog/datadog-agent/comp/core/config => ../../comp/core/config
 	github.com/DataDog/datadog-agent/comp/core/configsync => ../../comp/core/configsync
 	github.com/DataDog/datadog-agent/comp/core/flare/builder => ../../comp/core/flare/builder
@@ -492,9 +496,11 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/util/flavor => ../../pkg/util/flavor
 	github.com/DataDog/datadog-agent/pkg/util/fxutil => ../../pkg/util/fxutil
 	github.com/DataDog/datadog-agent/pkg/util/grpc => ../../pkg/util/grpc
+	github.com/DataDog/datadog-agent/pkg/util/hostinfo => ../../pkg/util/hostinfo
 	github.com/DataDog/datadog-agent/pkg/util/hostname/validate => ../../pkg/util/hostname/validate
 	github.com/DataDog/datadog-agent/pkg/util/http => ../../pkg/util/http
 	github.com/DataDog/datadog-agent/pkg/util/json => ../../pkg/util/json
+	github.com/DataDog/datadog-agent/pkg/util/jsonquery => ../../pkg/util/jsonquery
 	github.com/DataDog/datadog-agent/pkg/util/log => ../../pkg/util/log
 	github.com/DataDog/datadog-agent/pkg/util/log/setup => ../../pkg/util/log/setup
 	github.com/DataDog/datadog-agent/pkg/util/option => ../../pkg/util/option

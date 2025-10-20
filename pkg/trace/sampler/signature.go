@@ -9,6 +9,7 @@ import (
 	"sort"
 
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
+	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace/idx"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 )
 
@@ -35,6 +36,31 @@ func computeSignatureWithRootAndEnv(trace pb.Trace, root *pb.Span, env string) S
 
 	for i := range trace {
 		spanHashes = append(spanHashes, computeSpanHash(trace[i], env, false))
+	}
+	// Now sort, dedupe then merge all the hashes to build the signature
+	sortHashes(spanHashes)
+
+	last := spanHashes[0]
+	traceHash := last ^ rootHash
+	for i := 1; i < len(spanHashes); i++ {
+		if spanHashes[i] != last {
+			last = spanHashes[i]
+			traceHash = spanHashes[i] ^ traceHash
+		}
+	}
+
+	return Signature(traceHash)
+}
+
+// computeSignatureWithRootAndEnvV1 generates the signature of a trace knowing its root
+// Signature based on the hash of (env, service, name, resource, is_error) for the root, plus the set of
+// (env, service, name, is_error) of each span.
+func computeSignatureWithRootAndEnvV1(chunk *idx.InternalTraceChunk, root *idx.InternalSpan, env string) Signature {
+	rootHash := computeSpanHashV1(root, env, true)
+	spanHashes := make([]spanHash, 0, len(chunk.Spans))
+
+	for i := range chunk.Spans {
+		spanHashes = append(spanHashes, computeSpanHashV1(chunk.Spans[i], env, false))
 	}
 	// Now sort, dedupe then merge all the hashes to build the signature
 	sortHashes(spanHashes)
@@ -86,6 +112,22 @@ func computeSpanHash(span *pb.Span, env string, withResource bool) spanHash {
 	typ, ok := traceutil.GetMeta(span, KeyErrorType)
 	if ok {
 		h.Write([]byte(typ))
+	}
+	return spanHash(h.Sum32())
+}
+
+func computeSpanHashV1(span *idx.InternalSpan, env string, withResource bool) spanHash {
+	spanError := 0
+	if span.Error() {
+		spanError = 1
+	}
+	h := new32a()
+	h.Write([]byte(env))
+	h.Write([]byte(span.Service()))
+	h.Write([]byte(span.Name()))
+	h.WriteChar(byte(spanError))
+	if withResource {
+		h.Write([]byte(span.Resource()))
 	}
 	return spanHash(h.Sum32())
 }

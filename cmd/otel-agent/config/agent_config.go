@@ -117,7 +117,7 @@ func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (confi
 			pkgconfig.SetConfigFile(ddCfg)
 		}
 
-		_, err = pkgconfigsetup.LoadWithSecret(pkgconfig, secretsnoop.NewComponent().Comp, nil)
+		err = pkgconfigsetup.LoadDatadog(pkgconfig, secretsnoop.NewComponent().Comp, nil)
 		if err != nil {
 			return nil, err
 		}
@@ -207,9 +207,6 @@ func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (confi
 		pkgconfig.Set("proxy.http", ddc.ProxyURL, pkgconfigmodel.SourceLocalConfigProcess)
 		pkgconfig.Set("proxy.https", ddc.ProxyURL, pkgconfigmodel.SourceLocalConfigProcess)
 	}
-
-	// Disable preaggregation feature for otel-agent since it needs encrypted API keys and that's non-trivial
-	pkgconfig.Set("preaggregation.enabled", false, pkgconfigmodel.SourceAgentRuntime)
 
 	return pkgconfig, nil
 }
