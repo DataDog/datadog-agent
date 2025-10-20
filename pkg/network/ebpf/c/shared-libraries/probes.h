@@ -196,4 +196,48 @@ int BPF_BYPASSABLE_PROG(do_sys_openat2_exit, int dirfd, const char *pathname, op
     return 0;
 }
 
+// Kprobe fallbacks for kernels < 4.15 that don't support multiple tracepoint attachments
+//
+// Background:
+// - On kernel >= 4.15: We use tracepoint/syscalls/sys_enter_open and tracepoint/syscalls/sys_exit_open
+//                       (same for sys_enter_openat/sys_exit_openat)
+// - On kernel < 4.15: Multiple tracepoint attachments fail with "file exists" error
+//                      So we use kprobes on the underlying kernel function instead
+//
+// Important: Both open() and openat() syscalls call the same kernel function do_sys_open(),
+// so a single kprobe/kretprobe pair catches both syscalls.
+//
+// Note: We don't need fallbacks for openat2() because it was introduced in kernel 5.6,
+// which is much newer than our 4.15 cutoff.
+
+// kprobe on do_sys_open - entry point for both open() and openat() syscalls
+// Kernel function signature: long do_sys_open(int dfd, const char __user *filename, int flags, umode_t mode)
+// This replaces both:
+// - tracepoint/syscalls/sys_enter_open
+// - tracepoint/syscalls/sys_enter_openat
+SEC("kprobe/do_sys_open")
+int BPF_BYPASSABLE_KPROBE(kprobe__do_sys_open, int dfd, const char *filename, int flags) {
+    // Skip write-only opens - we only care about shared library loads (read operations)
+    if (should_ignore_flags(flags)) {
+        return 0;
+    }
+
+    // Store the filename in a map keyed by pid_tgid for correlation with the return value
+    do_sys_open_helper_enter(filename);
+    return 0;
+}
+
+// kretprobe on do_sys_open - captures the return value (file descriptor or error code)
+// This replaces both:
+// - tracepoint/syscalls/sys_exit_open
+// - tracepoint/syscalls/sys_exit_openat
+SEC("kretprobe/do_sys_open")
+int BPF_BYPASSABLE_KRETPROBE(kretprobe__do_sys_open, long ret) {
+    // Construct an exit_sys_ctx structure to match what the tracepoint would provide
+    // This allows us to reuse the existing do_sys_open_helper_exit() function
+    exit_sys_ctx args = {.ret = ret};
+    do_sys_open_helper_exit(&args);
+    return 0;
+}
+
 #endif

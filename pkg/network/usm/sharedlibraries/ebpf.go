@@ -639,12 +639,46 @@ func (e *EbpfProgram) initializeProbes() {
 		}
 	}
 
-	if isFexitSupported && openat2Supported {
-		e.enabledProbes = tracingProbes
-		e.disabledProbes = tpProbes
+	// Kprobe fallback for kernels < 4.15 that don't support multiple tracepoint attachments
+	// Both open() and openat() syscalls call the same kernel function do_sys_open(),
+	// so we only need one kprobe/kretprobe pair for both.
+	// Note: We don't include openat2 here because it was introduced in kernel 5.6,
+	// which is much newer than our 4.15 cutoff.
+	kprobeProbes := []manager.ProbeIdentificationPair{
+		{
+			EBPFFuncName: "kprobe__do_sys_open",
+			UID:          probeUID,
+		},
+		{
+			EBPFFuncName: "kretprobe__do_sys_open",
+			UID:          probeUID,
+		},
+	}
+
+	// Default to kprobe fallback (works on all kernel versions)
+	e.enabledProbes = kprobeProbes
+	e.disabledProbes = append(tracingProbes, tpProbes...)
+
+	kv, err := kernel.HostVersion()
+	if err != nil {
+		log.Warnf("Failed to get kernel version for shared library probes, using kprobe fallback: %v", err)
 	} else {
-		e.enabledProbes = tpProbes
-		e.disabledProbes = tracingProbes
+		kv415 := kernel.VersionCode(4, 15, 0)
+
+		if isFexitSupported && openat2Supported {
+			// Kernel >= 5.6 with fexit support - use fexit probes (most efficient)
+			e.enabledProbes = tracingProbes
+			e.disabledProbes = append(tpProbes, kprobeProbes...)
+			log.Infof("Using fexit probes for shared library monitoring (kernel %s)", kv)
+		} else if kv >= kv415 {
+			// Kernel >= 4.15 - use tracepoints (multiple attachment supported)
+			e.enabledProbes = tpProbes
+			e.disabledProbes = append(tracingProbes, kprobeProbes...)
+			log.Infof("Using tracepoint probes for shared library monitoring (kernel %s >= 4.15)", kv)
+		} else {
+			// Kernel < 4.15 - keep kprobe fallback (no multiple tracepoint attachment)
+			log.Infof("Using kprobe fallback for shared library monitoring (kernel %s < 4.15)", kv)
+		}
 	}
 }
 
