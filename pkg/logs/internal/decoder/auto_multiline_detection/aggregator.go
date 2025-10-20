@@ -190,7 +190,7 @@ func (a *Aggregator) Flush() {
 		return
 	}
 	msg := a.bucket.flush()
-	if pkgconfigsetup.Datadog().GetBool("logs_config.dynamic_sampling") {
+	if pkgconfigsetup.Datadog().GetBool("logs_config.dynamic_sampling_enabled") {
 		msg = a.sampleAgg.Process(msg)
 		if msg != nil {
 			a.outputFn(msg)

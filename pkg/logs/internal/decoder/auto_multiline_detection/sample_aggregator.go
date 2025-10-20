@@ -15,6 +15,7 @@ import (
 	"sync"
 	"time"
 
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder/auto_multiline_detection/tokens"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 )
@@ -102,20 +103,21 @@ type Config struct {
 }
 
 func DefaultConfig() Config {
+	cfg := pkgconfigsetup.Datadog()
 	return Config{
-		RateCeiling:           1.0,
-		FastHalfLife:          2 * time.Second,
-		SlowHalfLife:          60 * time.Second,
-		RareEnterShare:        0.005,
-		RareExitShare:         0.01,
-		HysteresisSeconds:     5,
-		RareBurstRefill:       0.5,
-		RareBurstCap:          100,
-		CeilingCap:            5,
-		GlobalRareBurstRefill: 100.0,
-		GlobalRareBurstCap:    1000.0,
-		NewTypeBurstBootstrap: 2.0,
-		EvictAfter:            3 * time.Minute,
+		RateCeiling:           cfg.GetFloat64("logs_config.dynamic_sampling.rate_ceiling"),
+		FastHalfLife:          time.Duration(cfg.GetInt("logs_config.dynamic_sampling.fast_half_life_seconds")) * time.Second,
+		SlowHalfLife:          time.Duration(cfg.GetInt("logs_config.dynamic_sampling.slow_half_life_seconds")) * time.Second,
+		RareEnterShare:        cfg.GetFloat64("logs_config.dynamic_sampling.rare_enter_share"),
+		RareExitShare:         cfg.GetFloat64("logs_config.dynamic_sampling.rare_exit_share"),
+		HysteresisSeconds:     cfg.GetInt("logs_config.dynamic_sampling.hysteresis_seconds"),
+		RareBurstRefill:       cfg.GetFloat64("logs_config.dynamic_sampling.rare_burst_refill"),
+		RareBurstCap:          cfg.GetFloat64("logs_config.dynamic_sampling.rare_burst_cap"),
+		CeilingCap:            cfg.GetFloat64("logs_config.dynamic_sampling.ceiling_cap"),
+		GlobalRareBurstRefill: cfg.GetFloat64("logs_config.dynamic_sampling.global_rare_burst_refill"),
+		GlobalRareBurstCap:    cfg.GetFloat64("logs_config.dynamic_sampling.global_rare_burst_cap"),
+		NewTypeBurstBootstrap: cfg.GetFloat64("logs_config.dynamic_sampling.new_type_burst_bootstrap"),
+		EvictAfter:            time.Duration(cfg.GetInt("logs_config.dynamic_sampling.evict_after_minutes")) * time.Minute,
 	}
 }
 
