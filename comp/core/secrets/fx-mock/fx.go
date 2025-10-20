@@ -18,18 +18,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-type mockDependencies struct {
-	fx.In
-	T testing.TB
-}
-
-func newMock(deps mockDependencies) secrets.Component {
-	return secretsmock.New(deps.T)
-}
-
 // MockModule specifies the mock secrets module.
+//
+//nolint:revive // MockModule doesn't use ProvideComponentConstructor because test mocks need direct access to testing.TB
 func MockModule() fxutil.Module {
 	return fxutil.Component(
-		fxutil.ProvideComponentConstructor(newMock),
+		fx.Provide(func(t testing.TB) secrets.Component {
+			return secretsmock.New(t)
+		}),
 	)
 }
