@@ -32,11 +32,13 @@ func newFilterStoreObject(t *testing.T, config config.Component) *workloadfilter
 		Log:    logmock.New(t),
 		Config: config,
 	}
+
 	f, err := NewComponent(reqs)
 	if err != nil {
 		t.Errorf("failed to create filter component: %v", err)
 		return nil
 	}
+
 	return f.Comp.(*workloadfilterStore)
 }
 
@@ -833,7 +835,7 @@ func TestPodFiltering(t *testing.T) {
 					Namespace: "default",
 				},
 			},
-			filters:  [][]workloadfilter.PodFilter{{workloadfilter.LegacyPod}},
+			filters:  [][]workloadfilter.PodFilter{{workloadfilter.LegacyPodGlobal, workloadfilter.LegacyPodMetrics}},
 			expected: workloadfilter.Excluded,
 		},
 		{
@@ -845,7 +847,7 @@ func TestPodFiltering(t *testing.T) {
 					Namespace: "test",
 				},
 			},
-			filters:  [][]workloadfilter.PodFilter{{workloadfilter.LegacyPod}},
+			filters:  [][]workloadfilter.PodFilter{{workloadfilter.LegacyPodGlobal, workloadfilter.LegacyPodMetrics}},
 			expected: workloadfilter.Included,
 		},
 		{
@@ -859,7 +861,7 @@ func TestPodFiltering(t *testing.T) {
 				},
 			},
 			// Testing PodADAnnotations filter
-			filters:  [][]workloadfilter.PodFilter{{workloadfilter.PodADAnnotations, workloadfilter.PodADAnnotationsMetrics}, {workloadfilter.LegacyPod}},
+			filters:  [][]workloadfilter.PodFilter{{workloadfilter.PodADAnnotations, workloadfilter.PodADAnnotationsMetrics}, {workloadfilter.LegacyPodGlobal, workloadfilter.LegacyPodMetrics}},
 			expected: workloadfilter.Excluded,
 		},
 		{
@@ -873,7 +875,7 @@ func TestPodFiltering(t *testing.T) {
 				},
 			},
 			// Testing PodADAnnotationsMetrics filter
-			filters:  [][]workloadfilter.PodFilter{{workloadfilter.PodADAnnotations, workloadfilter.PodADAnnotationsMetrics}, {workloadfilter.LegacyPod}},
+			filters:  [][]workloadfilter.PodFilter{{workloadfilter.PodADAnnotations, workloadfilter.PodADAnnotationsMetrics}, {workloadfilter.LegacyPodGlobal, workloadfilter.LegacyPodMetrics}},
 			expected: workloadfilter.Excluded,
 		},
 	}
@@ -1038,7 +1040,7 @@ cel_workload_exclude:
 		svc := workloadfilter.CreateService("", "", nil)
 		filterBundle := filterStore.GetServiceFilters([][]workloadfilter.ServiceFilter{{workloadfilter.ServiceFilter(workloadfilter.ServiceCELMetrics)}})
 		assert.Nil(t, filterBundle.GetErrors())
-		assert.Equal(t, workloadfilter.Excluded, filterBundle.GetResult(svc))
+		assert.Equal(t, true, filterBundle.IsExcluded(svc))
 	})
 
 	t.Run("CEL exclude pod", func(t *testing.T) {
