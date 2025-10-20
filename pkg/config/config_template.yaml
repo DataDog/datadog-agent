@@ -164,7 +164,7 @@ api_key:
 ## @env DD_REMOTE_UPDATES - boolean - optional - default: false
 ## Enable remote upgrades and configuration changes for the agent.
 #
-# remote_updates: true
+# remote_updates: false
 
 ## @param tag_value_split_separator - map - optional
 ## @env DD_TAG_VALUE_SPLIT_SEPARATOR - list of key:value strings - optional
