@@ -14,6 +14,7 @@ import (
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
+	logscomp "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx-mock"
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -23,11 +24,11 @@ import (
 
 type deps struct {
 	fx.In
-	EventPlatform eventplatform.Mock
+	EventPlatform eventplatform.Component
 }
 
 func TestSnmpScanComp(t *testing.T) {
-	testDeps := fxutil.Test[deps](t, eventplatformimpl.MockModule(), core.MockBundle())
+	testDeps := fxutil.Test[deps](t, eventplatformimpl.MockModule(), logscomp.MockModule(), core.MockBundle())
 	deps := Requires{
 		Logger:        logmock.New(t),
 		EventPlatform: testDeps.EventPlatform,
