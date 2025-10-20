@@ -30,6 +30,7 @@ var validProducts = map[string]struct{}{
 	ProductLiveDebugging:                {},
 	ProductContainerAutoscalingSettings: {},
 	ProductContainerAutoscalingValues:   {},
+	ProductClusterAutoscalingValues:     {},
 	ProductTesting1:                     {},
 	ProductTesting2:                     {},
 	ProductOrchestratorK8sCRDs:          {},
@@ -93,6 +94,8 @@ const (
 	ProductContainerAutoscalingSettings = "CONTAINER_AUTOSCALING_SETTINGS"
 	// ProductContainerAutoscalingValues receives values for container autoscaling
 	ProductContainerAutoscalingValues = "CONTAINER_AUTOSCALING_VALUES"
+	// ProductClusterAutoscalingValues receives values for cluster autoscaling
+	ProductClusterAutoscalingValues = "CLUSTER_AUTOSCALING_VALUES"
 	// ProductTesting1 is a product used for testing remote config
 	ProductTesting1 = "TESTING1"
 	// ProductTesting2 is a product used for testing remote config

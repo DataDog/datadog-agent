@@ -77,6 +77,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation"
 	admissionpatch "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/patch"
 	apidca "github.com/DataDog/datadog-agent/pkg/clusteragent/api"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/cluster"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/provider"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks"
@@ -378,7 +379,7 @@ func start(log log.Component,
 		pkglog.Errorf("Failed to generate or retrieve the cluster ID, err: %v", err)
 	}
 	if clusterName == "" {
-		if config.GetBool("autoscaling.workload.enabled") {
+		if config.GetBool("autoscaling.workload.enabled") || config.GetBool("autoscaling.cluster.enabled") {
 			return fmt.Errorf("Failed to start: autoscaling is enabled but no cluster name detected, exiting")
 		}
 		pkglog.Warn("Failed to auto-detect a Kubernetes cluster name. We recommend you set it manually via the cluster_name config option")
@@ -395,6 +396,9 @@ func start(log log.Component,
 		}
 		if config.GetBool("autoscaling.workload.enabled") {
 			products = append(products, state.ProductContainerAutoscalingSettings, state.ProductContainerAutoscalingValues)
+		}
+		if config.GetBool("autoscaling.cluster.enabled") {
+			products = append(products, state.ProductClusterAutoscalingValues)
 		}
 		if config.GetBool("admission_controller.auto_instrumentation.enabled") || config.GetBool("apm_config.instrumentation.enabled") {
 			products = append(products, state.ProductGradualRollout)
@@ -473,6 +477,16 @@ func start(log log.Component,
 			pa = adapter
 		} else {
 			return fmt.Errorf("Error while starting workload autoscaling: %v", err)
+		}
+	}
+
+	if config.GetBool("autoscaling.cluster.enabled") {
+		if rcClient == nil {
+			return fmt.Errorf("Remote config is disabled or failed to initialize, remote config is a required dependency for autoscaling")
+		}
+
+		if err := cluster.StartClusterAutoscaling(mainCtx, clusterID, clusterName, le.IsLeader, apiCl, rcClient, demultiplexer); err != nil {
+			return fmt.Errorf("Error while starting cluster autoscaling: %v", err)
 		}
 	}
 
