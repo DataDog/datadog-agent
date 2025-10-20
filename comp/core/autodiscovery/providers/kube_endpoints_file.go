@@ -332,6 +332,7 @@ func endpointChecksFromTemplate(tpl integration.Config, ep *v1.Endpoints, resolv
 				InitConfig:              tpl.InitConfig,
 				MetricConfig:            tpl.MetricConfig,
 				LogsConfig:              tpl.LogsConfig,
+				CELSelector:             tpl.CELSelector,
 				ADIdentifiers:           []string{entity},
 				AdvancedADIdentifiers:   nil,
 				ClusterCheck:            true,
