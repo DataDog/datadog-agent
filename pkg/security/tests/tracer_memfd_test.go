@@ -12,12 +12,12 @@ import (
 	"errors"
 	"os/exec"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/avast/retry-go/v4"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
