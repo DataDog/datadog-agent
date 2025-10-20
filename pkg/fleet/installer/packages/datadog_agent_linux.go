@@ -109,6 +109,12 @@ var (
 		SysvinitMainService: "datadog-agent",
 		SysvinitServices:    []string{"datadog-agent", "datadog-agent-trace", "datadog-agent-process", "datadog-agent-security"},
 	}
+
+	// oldInstallerUnitsPaths are the deb/rpm/oci installer package unit paths
+	oldInstallerUnitPaths = file.Paths{
+		"datadog-installer-exp.service",
+		"datadog-installer.service",
+	}
 )
 
 // installFilesystem sets up the filesystem for the agent installation
@@ -154,6 +160,11 @@ func installFilesystem(ctx HookContext) (err error) {
 	// 5. Handle install info
 	if err = installinfo.WriteInstallInfo(ctx, string(ctx.PackageType)); err != nil {
 		return fmt.Errorf("failed to write install info: %v", err)
+	}
+
+	// 6. Remove old installer units if they exist
+	if err = oldInstallerUnitPaths.EnsureAbsent(ctx, "/etc/systemd/system"); err != nil {
+		return fmt.Errorf("failed to remove old installer units: %v", err)
 	}
 	return nil
 }
