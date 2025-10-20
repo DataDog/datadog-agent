@@ -781,6 +781,7 @@ func (s *CoreAgentService) calculateRefreshInterval() time.Duration {
 
 func (s *CoreAgentService) refresh() error {
 	s.mu.Lock()
+	defer s.mu.Unlock()
 
 	// We can't let the backend process an update twice in the same second due to the fact that we
 	// use the epoch with seconds resolution as the version for the TUF Director Targets. If this happens,
@@ -814,16 +815,17 @@ func (s *CoreAgentService) refresh() error {
 	}
 	orgUUID, err := s.mu.uptane.StoredOrgUUID()
 	if err != nil {
-		s.mu.Unlock()
 		return err
 	}
 
 	request := buildLatestConfigsRequest(s.hostname, s.agentVersion, s.tagsGetter(), s.traceAgentEnv, orgUUID, previousState, activeClients, s.mu.products, s.mu.newProducts, s.mu.lastUpdateErr, clientState)
-	s.mu.Unlock()
-	ctx := context.Background()
-	response, err := s.mu.api.Fetch(ctx, request)
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	var response *pbgo.LatestConfigsResponse
+	func() {
+		s.mu.Unlock()
+		defer s.mu.Lock()
+		ctx := context.Background()
+		response, err = s.mu.api.Fetch(ctx, request)
+	}()
 	s.mu.lastUpdateErr = nil
 	if err != nil {
 		s.mu.backoffErrorCount = s.backoffPolicy.IncError(s.mu.backoffErrorCount)
