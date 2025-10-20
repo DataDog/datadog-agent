@@ -149,6 +149,6 @@ func TestTracerMemfd(t *testing.T) {
 			"custom.tag:value",
 		}
 
-		require.Subset(t, tracerTags, expectedTags, "TracerTags")
+		require.ElementsMatch(t, tracerTags, expectedTags, "TracerTags")
 	})
 }
