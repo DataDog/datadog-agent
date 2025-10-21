@@ -5,6 +5,7 @@
 
 //go:build !linux_bpf
 
+// Package seccomptracer is the system-probe side of the Seccomp Tracer check
 package seccomptracer
 
 import (
