@@ -2,17 +2,13 @@
 name: "Review changelog fragments"
 
 on:
-  #pull_request:
-    #types: [opened, synchronize]
-  push:
-    branches:
-      - jszwedko/test-release-note-review-*
-    #paths:
-      #- 'releasenotes/notes/*.yaml'
+  pull_request:
+    types: [opened, synchronize]
 
 jobs:
   review:
     runs-on: ubuntu-latest
+    if: startsWith(github.head_ref, 'jszwedko/test-release-note-review')
     permissions:
       contents: read
       pull-requests: write
