@@ -11,7 +11,8 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/pid/pidimpl"
-	secretsfxmock "github.com/DataDog/datadog-agent/comp/core/secrets/fx-mock"
+	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
+	secretsmock "github.com/DataDog/datadog-agent/comp/core/secrets/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -20,7 +21,7 @@ func TestBundleDependencies(t *testing.T) {
 		Bundle(),
 		fx.Supply(BundleParams{}),
 		fx.Supply(pidimpl.NewParams("")),
-		secretsfxmock.MockModule(),
+		fx.Provide(func() secrets.Component { return secretsmock.New(t) }),
 	)
 }
 

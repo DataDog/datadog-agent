@@ -20,9 +20,11 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core"
-	secretsfxmock "github.com/DataDog/datadog-agent/comp/core/secrets/fx-mock"
+	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
+	secretsmock "github.com/DataDog/datadog-agent/comp/core/secrets/mock"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
@@ -822,7 +824,7 @@ type aggregatorDeps struct {
 
 func createAggrDeps(t *testing.T) aggregatorDeps {
 	deps := fxutil.Test[TestDeps](t,
-		secretsfxmock.MockModule(),
+		fx.Provide(func() secrets.Component { return secretsmock.New(t) }),
 		defaultforwarder.MockModule(),
 		core.MockBundle(),
 		logscompressionmock.MockModule(),
