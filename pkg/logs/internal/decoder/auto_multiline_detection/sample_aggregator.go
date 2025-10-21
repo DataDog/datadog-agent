@@ -59,8 +59,8 @@ func (s *SampleAggregator) Process(msg *message.Message) *message.Message {
 	emit, message := s.sampler.Process(tokenizedMessage)
 
 	if emit {
-		fmt.Printf("EMIT thr=%v suppr=%4d fast=%5.2f share=%5.2f%% rare=%v burst=%4.1f\n",
-			emit, message.SuppressedSinceLastEmit, message.FastRate, message.SlowShare*100, message.IsRare, message.BurstCreditRemaining)
+		// fmt.Printf("EMIT thr=%v suppr=%4d fast=%5.2f share=%5.2f%% rare=%v burst=%4.1f\n",
+		// emit, message.SuppressedSinceLastEmit, message.FastRate, message.SlowShare*100, message.IsRare, message.BurstCreditRemaining)
 
 		msg := message.TokenizedMessage.message
 		if message.SuppressedSinceLastEmit > 0 {
