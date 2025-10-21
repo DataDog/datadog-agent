@@ -319,7 +319,7 @@ func TestGetWithSessionRetryLogic(t *testing.T) {
 func TestClearAuthByTypeWithRevoke(t *testing.T) {
 	tests := []struct {
 		name            string
-		authType        authType
+		authType        string
 		setupClient     func(*Client)
 		setupServer     func(*atomic.Bool) *httptest.Server
 		expectRevoke    bool
@@ -327,7 +327,7 @@ func TestClearAuthByTypeWithRevoke(t *testing.T) {
 	}{
 		{
 			name:     "oauth_director_auth_cleared_with_revoke",
-			authType: authTypeToken,
+			authType: "token",
 			setupClient: func(client *Client) {
 				client.authMethod = authMethodOAuth
 				client.directorToken = "test-token"
@@ -353,7 +353,7 @@ func TestClearAuthByTypeWithRevoke(t *testing.T) {
 		},
 		{
 			name:     "basic_auth_director_auth_cleared_no_revoke",
-			authType: authTypeToken,
+			authType: "token",
 			setupClient: func(client *Client) {
 				client.authMethod = authMethodBasic
 				// Basic auth doesn't have tokens, but test the clearing logic
@@ -375,7 +375,7 @@ func TestClearAuthByTypeWithRevoke(t *testing.T) {
 		},
 		{
 			name:     "session_auth_cleared_no_revoke",
-			authType: authTypeSession,
+			authType: "session",
 			setupClient: func(client *Client) {
 				client.sessionToken = "test-session-token"
 				client.sessionTokenExpiry = timeNow().Add(time.Hour)
@@ -397,7 +397,7 @@ func TestClearAuthByTypeWithRevoke(t *testing.T) {
 		},
 		{
 			name:     "oauth_no_token_no_revoke",
-			authType: authTypeToken,
+			authType: "token",
 			setupClient: func(client *Client) {
 				client.authMethod = authMethodOAuth
 				// No token set
@@ -428,8 +428,13 @@ func TestClearAuthByTypeWithRevoke(t *testing.T) {
 			require.NoError(t, err)
 			tt.setupClient(client)
 
-			// Clear the auth
-			client.clearAuthByType(tt.authType)
+			// Clear the auth using the appropriate method
+			switch tt.authType {
+			case "token":
+				client.clearDirectorAuth()
+			case "session":
+				client.clearSessionAuth()
+			}
 
 			// Validate revoke was/wasn't called
 			assert.Equal(t, tt.expectRevoke, revokeCalled.Load(), "revoke call mismatch")

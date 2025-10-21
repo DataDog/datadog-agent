@@ -24,9 +24,6 @@ type (
 	// the Versa integration
 	authMethod string
 
-	// authType represents which authentication mechanism to use for a request
-	authType int
-
 	// AuthConfig encapsulates authentication configuration for the Versa client
 	AuthConfig struct {
 		Method       string
@@ -70,11 +67,6 @@ const (
 	// authMethodOAuth specifies that OAuth should be used for
 	// Director API calls
 	authMethodOAuth authMethod = "oauth"
-
-	// authTypeToken indicates token based authentication (OAuth or Basic)
-	authTypeToken authType = iota
-	// authTypeSession indicates session-based authentication for Analytics endpoints
-	authTypeSession
 )
 
 // Parse takes a string and attempts to parse it into a valid authMethod
@@ -349,30 +341,31 @@ func (client *Client) authenticateSession() error {
 	return nil
 }
 
-// clearAuthByType clears only the specified authentication type
+// clearDirectorAuth clears Director API authentication (OAuth or Basic)
 // for OAuth, this will attempt to revoke the token before clearing
-func (client *Client) clearAuthByType(authType authType) {
-	switch authType {
-	case authTypeToken:
-		log.Trace("Clearing director auth")
-		// If using OAuth and we have a token, try to revoke it first
-		if client.authMethod == authMethodOAuth && client.directorToken != "" {
-			log.Trace("Attempting to revoke OAuth token before clearing")
-			_ = client.revokeOAuth() // Ignore errors - we're clearing anyway
-		}
+func (client *Client) clearDirectorAuth() {
+	log.Trace("Clearing director auth")
 
-		client.authenticationMutex.Lock()
-		client.directorToken = ""
-		client.directorRefreshToken = ""
-		client.directorTokenExpiry = timeNow()
-		client.authenticationMutex.Unlock()
-	case authTypeSession:
-		log.Trace("Clearing session auth")
-		client.authenticationMutex.Lock()
-		client.sessionToken = ""
-		client.sessionTokenExpiry = timeNow()
-		client.authenticationMutex.Unlock()
+	// If using OAuth and we have a token, try to revoke it first
+	if client.authMethod == authMethodOAuth && client.directorToken != "" {
+		log.Trace("Attempting to revoke OAuth token before clearing")
+		_ = client.revokeOAuth() // Ignore errors - we're clearing anyway
 	}
+
+	client.authenticationMutex.Lock()
+	client.directorToken = ""
+	client.directorRefreshToken = ""
+	client.directorTokenExpiry = timeNow()
+	client.authenticationMutex.Unlock()
+}
+
+// clearSessionAuth clears session-based authentication
+func (client *Client) clearSessionAuth() {
+	log.Trace("Clearing session auth")
+	client.authenticationMutex.Lock()
+	client.sessionToken = ""
+	client.sessionTokenExpiry = timeNow()
+	client.authenticationMutex.Unlock()
 }
 
 // expireDirectorToken expires the current director token to force a refresh on next authentication

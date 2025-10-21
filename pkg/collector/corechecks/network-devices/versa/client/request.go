@@ -107,7 +107,7 @@ func (client *Client) getWithToken(endpoint string, params map[string]string) ([
 			} else {
 				// OAuth refresh failed, or Basic auth failed, clear and retrys
 				log.Trace("Auth failed, clearing tokens for fresh login")
-				client.clearAuthByType(authTypeToken)
+				client.clearDirectorAuth()
 			}
 		}
 
@@ -157,7 +157,7 @@ func (client *Client) getWithSession(endpoint string, params map[string]string) 
 		// session auth doesn't have refresh, just clear and retry
 		if statusCode == 401 {
 			log.Trace("Session auth failed, clearing session token")
-			client.clearAuthByType(authTypeSession)
+			client.clearSessionAuth()
 		}
 
 		lastErr = err
