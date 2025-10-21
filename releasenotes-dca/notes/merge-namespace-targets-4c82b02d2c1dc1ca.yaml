@@ -2,8 +2,7 @@
 features:
   - |
     Customers using Single Step Instrumentation with target based workload selection can now use language detection.
-    Language detection greatly reduces startup time when all default libraries are configured for a target. To enable
-    this feature, set `language_detection.enabled` to `true`.
+    Language detection greatly reduces startup time when all default libraries are configured for a target.
 
     A target is eligible for language detection if a target has no defined `ddTraceVersions` or if `ddTraceVersions`
     matches the default set of SDKs. Once a language has been determined for a deployment, a subsequent deploy will
