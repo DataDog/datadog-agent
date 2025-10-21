@@ -200,7 +200,7 @@ func (ccc *CCCache) getLockForResource(resourceName, guid string) *sync.RWMutex 
 
 // getResource looks up the given resourceName/GUID in the CCCache
 // If not found and refreshOnCacheMiss is enabled, it will use the fetchFn function to fetch the resource from the CAPI
-func getResource[T any](ccc *CCCache, resourceName, guid string, cache map[string]T, fetchFn func(string) (T, error)) (T, error) {
+func getResource[T any](ccc *CCCache, resourceName, guid string, getCache func() map[string]T, fetchFn func(string) (T, error)) (T, error) {
 	var resource T
 
 	// check if the cccache is still warming up
@@ -216,7 +216,9 @@ func getResource[T any](ccc *CCCache, resourceName, guid string, cache map[strin
 
 	// check cache
 	resourceLock.RLock()
-	resource, ok := cache[guid]
+	ccc.RLock()
+	resource, ok := getCache()[guid]
+	ccc.RUnlock()
 	resourceLock.RUnlock()
 
 	if ok {
@@ -231,7 +233,10 @@ func getResource[T any](ccc *CCCache, resourceName, guid string, cache map[strin
 	defer resourceLock.Unlock()
 
 	// check cache again in case it was updated when the resource was locked
-	resource, ok = cache[guid]
+	ccc.RLock()
+	resource, ok = getCache()[guid]
+	ccc.RUnlock()
+
 	if ok {
 		return resource, nil
 	}
@@ -243,7 +248,9 @@ func getResource[T any](ccc *CCCache, resourceName, guid string, cache map[strin
 	}
 
 	// update cache
-	cache[guid] = fetchedResource
+	ccc.Lock()
+	getCache()[guid] = fetchedResource
+	ccc.Unlock()
 
 	return fetchedResource, nil
 }
@@ -289,7 +296,7 @@ func (ccc *CCCache) GetCFApplications() ([]*CFApplication, error) {
 
 // GetProcesses returns all processes for the given app guid in the cache
 func (ccc *CCCache) GetProcesses(appGUID string) ([]*cfclient.Process, error) {
-	processes, err := getResource(ccc, "Processes", appGUID, ccc.processesByAppGUID, ccc.fetchProcessesByAppGUID)
+	processes, err := getResource(ccc, "Processes", appGUID, func() map[string][]*cfclient.Process { return ccc.processesByAppGUID }, ccc.fetchProcessesByAppGUID)
 	if err != nil {
 		return nil, err
 	}
@@ -298,7 +305,7 @@ func (ccc *CCCache) GetProcesses(appGUID string) ([]*cfclient.Process, error) {
 
 // GetCFApplication looks for a CF application with the given GUID in the cache
 func (ccc *CCCache) GetCFApplication(guid string) (*CFApplication, error) {
-	cfapp, err := getResource(ccc, "CFApplication", guid, ccc.cfApplicationsByGUID, ccc.fetchCFApplicationByGUID)
+	cfapp, err := getResource(ccc, "CFApplication", guid, func() map[string]*CFApplication { return ccc.cfApplicationsByGUID }, ccc.fetchCFApplicationByGUID)
 	if err != nil {
 		return nil, err
 	}
@@ -319,7 +326,7 @@ func (ccc *CCCache) GetSidecars(guid string) ([]*CFSidecar, error) {
 
 // GetApp looks for an app with the given GUID in the cache
 func (ccc *CCCache) GetApp(guid string) (*cfclient.V3App, error) {
-	app, err := getResource(ccc, "App", guid, ccc.appsByGUID, ccc.ccAPIClient.GetV3AppByGUID)
+	app, err := getResource(ccc, "App", guid, func() map[string]*cfclient.V3App { return ccc.appsByGUID }, ccc.ccAPIClient.GetV3AppByGUID)
 	if err != nil {
 		return nil, err
 	}
@@ -328,7 +335,7 @@ func (ccc *CCCache) GetApp(guid string) (*cfclient.V3App, error) {
 
 // GetSpace looks for a space with the given GUID in the cache
 func (ccc *CCCache) GetSpace(guid string) (*cfclient.V3Space, error) {
-	space, err := getResource(ccc, "Space", guid, ccc.spacesByGUID, ccc.ccAPIClient.GetV3SpaceByGUID)
+	space, err := getResource(ccc, "Space", guid, func() map[string]*cfclient.V3Space { return ccc.spacesByGUID }, ccc.ccAPIClient.GetV3SpaceByGUID)
 	if err != nil {
 		return nil, err
 	}
@@ -337,7 +344,7 @@ func (ccc *CCCache) GetSpace(guid string) (*cfclient.V3Space, error) {
 
 // GetOrg looks for an org with the given GUID in the cache
 func (ccc *CCCache) GetOrg(guid string) (*cfclient.V3Organization, error) {
-	org, err := getResource(ccc, "Org", guid, ccc.orgsByGUID, ccc.ccAPIClient.GetV3OrganizationByGUID)
+	org, err := getResource(ccc, "Org", guid, func() map[string]*cfclient.V3Organization { return ccc.orgsByGUID }, ccc.ccAPIClient.GetV3OrganizationByGUID)
 	if err != nil {
 		return nil, err
 	}
