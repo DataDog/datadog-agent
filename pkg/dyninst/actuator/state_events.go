@@ -118,3 +118,12 @@ type eventShutdown struct {
 func (e eventShutdown) String() string {
 	return "eventShutdown{}"
 }
+
+type eventGetMetrics struct {
+	baseEvent
+	metricsChan chan<- Metrics
+}
+
+func (e eventGetMetrics) String() string {
+	return "eventGetMetrics{}"
+}
