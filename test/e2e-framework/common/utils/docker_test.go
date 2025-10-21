@@ -1,0 +1,55 @@
+package utils
+
+import (
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+)
+
+func TestParseImageReference(t *testing.T) {
+
+	tests := []struct {
+		fullImagePath string
+		expectedTag   string
+		expectedImage string
+	}{
+		{
+			fullImagePath: "nginx",
+			expectedImage: "nginx",
+			expectedTag:   "latest",
+		},
+		{
+			fullImagePath: "nginx:latest",
+			expectedImage: "nginx",
+			expectedTag:   "latest",
+		},
+		{
+			fullImagePath: "example.com:5000/myimage",
+			expectedImage: "example.com:5000/myimage",
+			expectedTag:   "latest",
+		},
+		{
+			fullImagePath: "example.com:5000/myimage:1.0",
+			expectedImage: "example.com:5000/myimage",
+			expectedTag:   "1.0",
+		},
+		{
+			fullImagePath: "example.com:5000/myimage:",
+			expectedImage: "example.com:5000/myimage",
+			expectedTag:   "latest",
+		},
+		{
+			fullImagePath: "example.com/datadog/agent-dev:abcdefg",
+			expectedImage: "example.com/datadog/agent-dev",
+			expectedTag:   "abcdefg",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.fullImagePath, func(t *testing.T) {
+			imagePath, tag := ParseImageReference(test.fullImagePath)
+			assert.Equal(t, test.expectedImage, imagePath)
+			assert.Equal(t, test.expectedTag, tag)
+		})
+	}
+}

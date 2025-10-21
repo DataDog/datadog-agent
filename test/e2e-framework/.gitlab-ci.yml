@@ -1,0 +1,157 @@
+variables:
+  BUILD_STABLE_REGISTRY: registry.ddbuild.io
+  CI_IMAGE_REPO: "ci/${CI_PROJECT_NAME}"
+  CI_REGISTRY_IMAGE: "$BUILD_STABLE_REGISTRY/$CI_IMAGE_REPO/runner"
+  CI_REGISTRY_IMAGE_TEST: "$BUILD_STABLE_REGISTRY/$CI_IMAGE_REPO/runner-dev"
+
+stages:
+  - build
+  - test
+  - release
+  - post-release
+
+build-runner-image:
+  stage: build
+  image: ${BUILD_STABLE_REGISTRY}/images/docker:27.3.1
+  tags: ["arch:amd64"]
+  variables:
+    RELEASE_IMAGE: "false"
+  rules:
+    - when: on_success
+  before_script:
+    - set +x
+    - curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+    - unzip awscliv2.zip
+    - ./aws/install
+    - export GITHUB_APP_ID=$(aws ssm get-parameter --region us-east-1 --name ci.test-infra-definitions.github_app_id --with-decryption --query "Parameter.Value" --out text)
+    - export GITHUB_INSTALLATION_ID=$(aws ssm get-parameter --region us-east-1 --name ci.test-infra-definitions.github_installation_id --with-decryption --query "Parameter.Value" --out text)
+    - export GITHUB_PRIVATE_KEY=$(aws ssm get-parameter --region us-east-1 --name ci.test-infra-definitions.github_private_key --with-decryption --query "Parameter.Value" --out text)
+    - export JWT=$(.github/jwt.sh "$GITHUB_APP_ID" <(echo "$GITHUB_PRIVATE_KEY"))
+    - |
+      export GITHUB_TOKEN=`curl -s --fail --retry 10 -X POST -H "Accept: application/vnd.github+json" -H "Authorization: Bearer $JWT" -H "X-GitHub-Api-Version: 2022-11-28" https://api.github.com/app/installations/$GITHUB_INSTALLATION_ID/access_tokens | jq -r '.token'`
+  script:
+    - docker buildx build --no-cache --pull --push --label target=build --tag ${CI_REGISTRY_IMAGE_TEST}:${CI_COMMIT_SHORT_SHA} --tag ${CI_REGISTRY_IMAGE_TEST}:${CI_COMMIT_SHA:0:12} --secret id=github_token,env=GITHUB_TOKEN .
+  retry: 2
+
+build-pulumi-go-main:
+  stage: build
+  image: ${BUILD_STABLE_REGISTRY}/ci/datadog-agent-buildimages/deb_x64:v68913450-a14377f4
+  tags: ["arch:amd64"]
+  rules:
+    - when: on_success
+  script:
+    - go build -o dist/main -gcflags="all=-c=6" main.go
+  artifacts:
+    paths:
+      - dist/main
+    expire_in: "1 day"
+  variables:
+    KUBERNETES_MEMORY_REQUEST: 12Gi
+    KUBERNETES_MEMORY_LIMIT: 16Gi
+    KUBERNETES_CPU_REQUEST: 6
+
+integration-testing:
+  stage: test
+  image: ${CI_REGISTRY_IMAGE_TEST}:${CI_COMMIT_SHORT_SHA}
+  tags: ["arch:amd64"]
+  needs:
+    - build-runner-image
+    - build-pulumi-go-main
+  rules:
+    - when: on_success
+  timeout: 90m
+  before_script:
+    # Setup GCP credentials https://cloud.google.com/docs/authentication/application-default-credentials#GAC
+    - aws ssm get-parameter --region us-east-1 --name ci.test-infra-definitions.gcp_credentials --with-decryption --query "Parameter.Value" --out text > ~/gcp-credentials.json || exit $?
+    - export GOOGLE_APPLICATION_CREDENTIALS=~/gcp-credentials.json
+    # Setup Azure credentials. https://www.pulumi.com/registry/packages/azure-native/installation-configuration/#set-configuration-using-pulumi-config
+    # The app is called `agent-e2e-tests`
+    - export ARM_CLIENT_ID=$(aws ssm get-parameter --region us-east-1 --name ci.test-infra-definitions.azure_client_id --with-decryption --query "Parameter.Value" --out text)
+    - export ARM_CLIENT_SECRET=$(aws ssm get-parameter --region us-east-1 --name ci.test-infra-definitions.azure_client_secret --with-decryption --query "Parameter.Value" --out text)
+    - export ARM_TENANT_ID=$(aws ssm get-parameter --region us-east-1 --name ci.test-infra-definitions.azure_tenant_id --with-decryption --query "Parameter.Value" --out text)
+    - export ARM_SUBSCRIPTION_ID=$(aws ssm get-parameter --region us-east-1 --name ci.test-infra-definitions.azure_subscription_id --with-decryption --query "Parameter.Value" --out text)
+    # Setup AWS Credentials
+    - mkdir -p ~/.aws
+    - aws ssm get-parameter --region us-east-1 --name ci.test-infra-definitions.agent-qa-profile --with-decryption --query "Parameter.Value" --out text >> ~/.aws/config
+    - export AWS_PROFILE=agent-qa-ci
+    - aws ssm get-parameter --region us-east-1 --name ci.test-infra-definitions.ssh_public_key_integration_test --with-decryption --query "Parameter.Value" --out text > $E2E_PUBLIC_KEY_PATH
+    - aws ssm get-parameter --region us-east-1 --name ci.test-infra-definitions.ssh_key_integration_test --with-decryption --query "Parameter.Value" --out text > $E2E_PRIVATE_KEY_PATH
+    - export PULUMI_CONFIG_PASSPHRASE=$(aws ssm get-parameter --region us-east-1 --name ci.test-infra-definitions.pulumi_config_phrase_integration_test --with-decryption --query "Parameter.Value" --out text)
+    - eval $(ssh-agent -s)
+    - chmod 400 $E2E_PRIVATE_KEY_PATH
+    - ssh-add $E2E_PRIVATE_KEY_PATH
+    - pip install -r requirements.txt
+    - go install github.com/DataDog/orchestrion@v1.4.0
+    - orchestrion pin
+    - export DD_CIVISIBILITY_ENABLED=true
+    - export DD_CIVISIBILITY_AGENTLESS_ENABLED=true
+    - export DD_ENV=ci
+    - export DD_API_KEY=$(vault kv get -field=api_key kv/k8s/gitlab-runner/test-infra-definitions/dd-token)
+    - export GOFLAGS="${GOFLAGS} '-toolexec=orchestrion toolexec'"
+  script:
+    - |
+      if [ ! -f ./dist/main ]; then
+        echo "no main binary found, please run 'build-pulumi-go-main' job"
+        exit 1
+      fi
+    # execute test from dist directory to use the generated binary
+    - go test ./integration-tests -v -timeout 0s -workingDir=dist
+  variables:
+    E2E_PUBLIC_KEY_PATH: /tmp/agent-integration-test-ssh-key.pub
+    E2E_PRIVATE_KEY_PATH: /tmp/agent-integration-test-ssh-key
+    E2E_KEY_PAIR_NAME: e2e-integration-test-ssh-key
+
+release-runner-image:
+  stage: release
+  image: ${BUILD_STABLE_REGISTRY}/images/docker:27.3.1
+  tags: ["arch:amd64"]
+  script:
+    - crane copy ${CI_REGISTRY_IMAGE_TEST}:${CI_COMMIT_SHORT_SHA} ${CI_REGISTRY_IMAGE}:${CI_COMMIT_SHA:0:12}
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main"
+      when: on_success
+
+bump-version-on-datadog-agent:
+  stage: post-release
+  image: ${CI_REGISTRY_IMAGE_TEST}:${CI_COMMIT_SHORT_SHA}
+  tags: ["arch:amd64"]
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main"
+      needs: ["release-runner-image"]
+      when: on_success
+    - if: $CI_COMMIT_BRANCH =~ /^mq-working-branch-/
+      when: never
+    - when: manual
+      needs: ["build-runner-image"]
+      allow_failure: true
+      variables:
+        EXTRA_UPDATE_ARGS: "--is-dev-image"
+  variables:
+    EXTRA_UPDATE_ARGS: ""
+    PR_BRANCH: auto-bump/bump-test-infra-$CI_COMMIT_SHORT_SHA
+  before_script:
+    - set +x
+    - export GITHUB_APP_USER_ID=153269286 # Can be found on https://api.github.com/users/agent-platform-auto-pr[bot]
+    - export GITHUB_APP_ID=$(aws ssm get-parameter --region us-east-1 --name ci.test-infra-definitions.platform-github-app-id --with-decryption --query "Parameter.Value" --out text)
+    - export GITHUB_INSTALLATION_ID=$(aws ssm get-parameter --region us-east-1 --name ci.test-infra-definitions.platform-github-app-installation-id --with-decryption --query "Parameter.Value" --out text)
+    - export GITHUB_PRIVATE_KEY=$(aws ssm get-parameter --region us-east-1 --name ci.test-infra-definitions.platform-github-app-key --with-decryption --query "Parameter.Value" --out text)
+    - export JWT=$(.github/jwt.sh "$GITHUB_APP_ID" <(echo "$GITHUB_PRIVATE_KEY"))
+    - |
+      export GITHUB_TOKEN=`curl -s --fail --retry 10 -X POST -H "Accept: application/vnd.github+json" -H "Authorization: Bearer $JWT" -H "X-GitHub-Api-Version: 2022-11-28" https://api.github.com/app/installations/$GITHUB_INSTALLATION_ID/access_tokens | jq -r '.token'`
+  script:
+    - git config --global user.email "$GITHUB_APP_USER_ID+agent-platform-auto-pr[bot]@users.noreply.github.com"
+    - git config --global user.name "agent-platform-auto-pr[bot]"
+    # Set up the Git credential helper with your GitHub token
+    - git config --global credential.helper '!f() { echo "username=x-access-token"; echo "password='${GITHUB_TOKEN}'"; }; f'
+    - git clone https://github.com/DataDog/datadog-agent.git datadog-agent
+    - pushd datadog-agent
+    - git checkout -b $PR_BRANCH
+    - git push origin $PR_BRANCH # Create the reference to push the commit through API later
+    - export PREVIOUS_SHA=$(cat .gitlab/common/test_infra_version.yml | grep 'TEST_INFRA_DEFINITIONS_BUILDIMAGES:' | awk -F " " '{print $NF}')
+    - dda inv -e buildimages.update-test-infra-definitions --commit-sha $CI_COMMIT_SHA $EXTRA_UPDATE_ARGS
+    - dda inv -e tidy
+    - git add -u
+    - dda inv -e git.push-signed-commits --branch $PR_BRANCH --commit-message "[test-infra-definitions][automated] Bump test-infra-definitions to $CI_COMMIT_SHORT_SHA"
+    - popd
+    - pip install -r requirements.txt
+    - inv ci.create-bump-pr-and-close-stale-ones-on-datadog-agent --branch auto-bump/bump-test-infra-$CI_COMMIT_SHORT_SHA --new-commit-sha $CI_COMMIT_SHA --old-commit-sha $PREVIOUS_SHA
