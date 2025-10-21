@@ -35,8 +35,7 @@ Subprograms:
                   Op: {RegNo: 0, Shift: 0}
                 - Size: 8
                   Op: {RegNo: 3, Shift: 0}
-          IsParameter: true
-          IsReturn: false
+          Role: Parameter
         - Name: s2
           Type: 10 GoStringHeaderType string
           Locations:
@@ -52,8 +51,7 @@ Subprograms:
                   Op: {CfaOffset: 16}
                 - Size: 8
                   Op: {CfaOffset: 24}
-          IsParameter: true
-          IsReturn: false
+          Role: Parameter
         - Name: i
           Type: 93 PointerType *int
           Locations:
@@ -61,8 +59,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: {RegNo: 4, Shift: 0}}]
             - Range: 0x4a8085..0x4a8134
               Pieces: [{Size: 8, Op: {CfaOffset: 32}}]
-          IsParameter: true
-          IsReturn: false
+          Role: Parameter
 Types:
     - __kind: PointerType
       ID: 39
