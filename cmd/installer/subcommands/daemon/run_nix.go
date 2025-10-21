@@ -41,6 +41,7 @@ func run(shutdowner fx.Shutdowner, cfg config.Component, _ pid.Component, _ loca
 		return nil
 	}
 	handleSignals(shutdowner)
+	releaseMemory()
 	return nil
 }
 
