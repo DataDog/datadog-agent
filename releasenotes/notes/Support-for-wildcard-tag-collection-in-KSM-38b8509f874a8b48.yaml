@@ -8,4 +8,4 @@
 ---
 enhancements:
   - |
-    KSM now supports using a wildcard to collection all resource labels/annotations as tags on metrics.
+    KSM now supports using a wildcard to collect all resource labels/annotations as tags on metrics.
