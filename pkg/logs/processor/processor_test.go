@@ -479,7 +479,7 @@ func TestPIIRedactionEmail(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+		t.Run(tt.name, func(_ *testing.T) {
 			// Use defaultPIIRedactionRules directly
 			p := &Processor{processingRules: []*config.ProcessingRule{defaultPIIRedactionRules[0]}} // email rule
 			source := sources.NewLogSource("", &config.LogsConfig{})
@@ -523,7 +523,7 @@ func TestPIIRedactionCreditCard(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+		t.Run(tt.name, func(_ *testing.T) {
 			// Use credit card rule
 			p := &Processor{processingRules: []*config.ProcessingRule{defaultPIIRedactionRules[1]}}
 			source := sources.NewLogSource("", &config.LogsConfig{})
@@ -557,7 +557,7 @@ func TestPIIRedactionSSN(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+		t.Run(tt.name, func(_ *testing.T) {
 			// Use SSN rule
 			p := &Processor{processingRules: []*config.ProcessingRule{defaultPIIRedactionRules[2]}}
 			source := sources.NewLogSource("", &config.LogsConfig{})
@@ -601,7 +601,7 @@ func TestPIIRedactionPhone(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+		t.Run(tt.name, func(_ *testing.T) {
 			// Use phone rule
 			p := &Processor{processingRules: []*config.ProcessingRule{defaultPIIRedactionRules[3]}}
 			source := sources.NewLogSource("", &config.LogsConfig{})
@@ -640,7 +640,7 @@ func TestPIIRedactionIPAddress(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+		t.Run(tt.name, func(_ *testing.T) {
 			// Use IP rule
 			p := &Processor{processingRules: []*config.ProcessingRule{defaultPIIRedactionRules[4]}}
 			source := sources.NewLogSource("", &config.LogsConfig{})
