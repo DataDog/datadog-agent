@@ -107,7 +107,7 @@ user:
 `
 	mockConfig = newConfigFromYaml(t, confYaml)
 	err = unmarshalKeyReflection(mockConfig, "user", &person)
-	assert.ErrorContains(t, err, `at [jobs]: []T required, but input is not an array: &{30`)
+	assert.ErrorContains(t, err, `at [jobs], []T required, but input is not an array: &{30`)
 
 	confYaml = `
 user:

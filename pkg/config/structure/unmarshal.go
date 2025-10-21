@@ -224,9 +224,11 @@ func unmarshalKeyReflection(cfg model.Reader, key string, target interface{}, op
 	case reflect.Slice:
 		if leaf, ok := inputNode.(nodetreemodel.LeafNode); ok {
 			thing := leaf.Get()
-			if arr, ok := thing.([]interface{}); ok {
-				return copyList(outValue, makeNodeArray(arr), rootPath, fs)
+			nodeArray, err := makeNodeArray(thing)
+			if err != nil {
+				return fmt.Errorf("can not UnmarshalKey to slice from non-list input: %v of %T", thing, thing)
 			}
+			return copyList(outValue, nodeArray, rootPath, fs)
 		}
 		if isEmptyString(inputNode) {
 			if fs.convertEmptyStrNil {
@@ -543,9 +545,12 @@ func copyAny(target reflect.Value, input nodetreemodel.Node, currPath []string, 
 			if nodetreemodel.IsNilValue(leafValue) {
 				return nil
 			}
-			if arr, ok := leafValue.([]interface{}); ok {
-				return copyList(target, makeNodeArray(arr), currPath, fs)
+
+			nodeArray, err := makeNodeArray(leafValue)
+			if err != nil {
+				return fmt.Errorf("at %v, []T required, but input is not an array: %v of %T", currPath, input, input)
 			}
+			return copyList(target, nodeArray, currPath, fs)
 		}
 		return fmt.Errorf("at %v: []T required, but input is not an array: %v of %T", currPath, input, input)
 	} else if target.Kind() == reflect.Invalid {
@@ -554,13 +559,18 @@ func copyAny(target reflect.Value, input nodetreemodel.Node, currPath []string, 
 	return fmt.Errorf("at %v: unknown value to copy: %v of %T", currPath, input, input)
 }
 
-func makeNodeArray(vals []interface{}) []nodetreemodel.Node {
-	res := make([]nodetreemodel.Node, 0, len(vals))
-	for _, v := range vals {
-		node, _ := nodetreemodel.NewNodeTree(v, model.SourceUnknown)
+func makeNodeArray(vals interface{}) ([]nodetreemodel.Node, error) {
+	s := reflect.ValueOf(vals)
+	if s.Kind() != reflect.Slice {
+		return nil, fmt.Errorf("value is not a slice")
+	}
+
+	res := make([]nodetreemodel.Node, 0, s.Len())
+	for i := 0; i < s.Len(); i++ {
+		node, _ := nodetreemodel.NewNodeTree(s.Index(i).Interface(), model.SourceUnknown)
 		res = append(res, node)
 	}
-	return res
+	return res, nil
 }
 
 func isEmptyString(input nodetreemodel.Node) bool {
