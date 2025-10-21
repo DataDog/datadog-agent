@@ -40,8 +40,8 @@ func run(shutdowner fx.Shutdowner, cfg config.Component, _ pid.Component, _ loca
 		log.Infof("Datadog installer is not enabled, exiting")
 		return nil
 	}
-	handleSignals(shutdowner)
 	releaseMemory()
+	handleSignals(shutdowner)
 	return nil
 }
 
