@@ -201,6 +201,10 @@ func (c *ntmConfig) RevertFinishedBackToBuilder() model.BuildableConfig {
 
 // Set assigns the newValue to the given key and marks it as originating from the given source
 func (c *ntmConfig) Set(key string, newValue interface{}, source model.Source) {
+	if source == model.SourceEnvVar {
+		panicInTest("Writing to env var layers is not allowed, use SourceAgentRuntime instead.")
+	}
+
 	c.maybeRebuild()
 
 	c.Lock()

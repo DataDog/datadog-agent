@@ -152,12 +152,14 @@ func TestBasicUsage(t *testing.T) {
 }
 
 func TestSet(t *testing.T) {
+	t.Setenv("TEST_ENV", "3")
 	cfg := NewNodeTreeConfig("test", "TEST", nil)
 
 	cfg.SetDefault("default", 0)
 	cfg.SetDefault("unknown", 0)
 	cfg.SetDefault("file", 0)
 	cfg.SetDefault("env", 0)
+	cfg.BindEnvAndSetDefault("env", 0)
 	cfg.SetDefault("runtime", 0)
 	cfg.SetDefault("localConfigProcess", 0)
 	cfg.SetDefault("rc", 0)
@@ -169,7 +171,7 @@ func TestSet(t *testing.T) {
 	assert.Equal(t, 0, cfg.Get("default"))
 	assert.Equal(t, 0, cfg.Get("unknown"))
 	assert.Equal(t, 0, cfg.Get("file"))
-	assert.Equal(t, 0, cfg.Get("env"))
+	assert.Equal(t, 3, cfg.Get("env"))
 	assert.Equal(t, 0, cfg.Get("runtime"))
 	assert.Equal(t, 0, cfg.Get("localConfigProcess"))
 	assert.Equal(t, 0, cfg.Get("rc"))
@@ -186,7 +188,6 @@ file: 2
 	assert.Equal(t, 2, cfg.Get("file"))
 
 	cfg.Set("unknown", 1, model.SourceUnknown)
-	cfg.Set("env", 3, model.SourceEnvVar)
 	cfg.Set("runtime", 4, model.SourceAgentRuntime)
 	cfg.Set("localConfigProcess", 5, model.SourceLocalConfigProcess)
 	cfg.Set("rc", 6, model.SourceRC)
