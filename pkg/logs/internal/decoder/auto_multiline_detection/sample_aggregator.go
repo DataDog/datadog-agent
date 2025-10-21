@@ -18,6 +18,7 @@ import (
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder/auto_multiline_detection/tokens"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	status "github.com/DataDog/datadog-agent/pkg/logs/status/utils"
 )
 
 type SampleAggregator struct {
@@ -30,13 +31,14 @@ type TokenizedMessage struct {
 	tokens  []tokens.Token
 }
 
-func NewSampleAggregator() *SampleAggregator {
+func NewSampleAggregator(tailerInfo *status.InfoRegistry) *SampleAggregator {
 
 	s := &SampleAggregator{
 		tokenizer: NewTokenizer(1024 * 10),
 		sampler:   NewSampler(DefaultConfig()),
 	}
 	s.sampler.Start()
+	tailerInfo.Register(s.sampler)
 	return s
 }
 
@@ -431,4 +433,66 @@ func (s *Sampler) currentShareLocked(st *typeState) float64 {
 		return 0
 	}
 	return st.slowEWMA / s.globalSlowEWMA
+}
+
+// InfoKey returns a string representing the key for the pattern table.
+func (s *Sampler) InfoKey() string {
+	return "Dynamic sampling stats"
+}
+
+// Info returns a breakdown of the patterns in the table.
+func (s *Sampler) Info() []string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	// Create a slice of entries with calculated shares for sorting
+	type entry struct {
+		st     *typeState
+		share  float64
+		tokens string
+	}
+
+	entries := make([]entry, 0, len(s.table))
+	for _, st := range s.table {
+		share := s.currentShareLocked(st)
+		tokens := tokensToString(st.tokenizedMessage.tokens)
+		if len(tokens) > 50 {
+			tokens = tokens[:47] + "..."
+		}
+		entries = append(entries, entry{st: st, share: share, tokens: tokens})
+	}
+
+	// Sort by share percentage (highest first)
+	slices.SortFunc(entries, func(a, b entry) int {
+		if a.share > b.share {
+			return -1
+		} else if a.share < b.share {
+			return 1
+		}
+		return 0
+	})
+
+	data := []string{}
+	data = append(data, fmt.Sprintf("%-52s %-8s %-8s %-8s %-6s %-8s %-8s %-12s",
+		"Pattern", "Count", "Fast", "Slow", "Share%", "Ceiling", "Burst", "Rare"))
+
+	for _, e := range entries {
+		data = append(data, fmt.Sprintf("%-52s %-8d %-8.2f %-8.2f %-6.2f %-8.1f %-8.1f %-12t",
+			e.tokens,
+			e.st.secondCount,
+			e.st.fastEWMA,
+			e.st.slowEWMA,
+			e.share*100,
+			e.st.ceilingTokens,
+			e.st.burstTokens,
+			e.st.isRare))
+	}
+
+	// Global stats
+	data = append(data, "")
+	data = append(data, fmt.Sprintf("Global slow rate: %.2f events/sec", s.globalSlowEWMA))
+	data = append(data, fmt.Sprintf("Global rare burst pool: %.1f tokens", s.globalRareBurst))
+	data = append(data, fmt.Sprintf("New types this minute: %d", s.newTypeSeenThisMinute))
+
+	return data
 }

@@ -127,7 +127,7 @@ func NewAggregator(outputFn func(m *message.Message), maxContentSize int, tagTru
 		maxContentSize:     maxContentSize,
 		multiLineMatchInfo: multiLineMatchInfo,
 		linesCombinedInfo:  linesCombinedInfo,
-		sampleAgg:          NewSampleAggregator(),
+		sampleAgg:          NewSampleAggregator(tailerInfo),
 	}
 }
 

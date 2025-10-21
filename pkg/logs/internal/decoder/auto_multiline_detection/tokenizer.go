@@ -321,6 +321,24 @@ func tokenToString(token tokens.Token) string {
 		return "T"
 	case tokens.Zone:
 		return "ZONE"
+	case tokens.Error:
+		return "ERROR"
+	case tokens.Info:
+		return "INFO"
+	case tokens.Debug:
+		return "DEBUG"
+	case tokens.Warn:
+		return "WARN"
+	case tokens.Fatal:
+		return "FATAL"
+	case tokens.Trace:
+		return "TRACE"
+	case tokens.Critical:
+		return "CRITICAL"
+	case tokens.Alert:
+		return "ALERT"
+	case tokens.Emergency:
+		return "EMERGENCY"
 	}
 	return ""
 }
