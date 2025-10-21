@@ -15,7 +15,7 @@ $ErrorActionPreference = 'Continue'
 
 # Check if STATIC_QUALITY_GATE_NAME is set
 if ($null -eq $env:STATIC_QUALITY_GATE_NAME) {
-    Write-Host "ℹ️  Skipping MSI measurement (no STATIC_QUALITY_GATE_NAME defined)"
+    Write-Host "INFO: Skipping MSI measurement (no STATIC_QUALITY_GATE_NAME defined)"
     exit 0
 }
 
@@ -24,16 +24,16 @@ $IsFipsBuild = $env:AGENT_FLAVOR -eq "fips"
 $IsFipsGate = $env:STATIC_QUALITY_GATE_NAME -match "fips"
 
 if ($IsFipsBuild -and -not $IsFipsGate) {
-    Write-Host "ℹ️  Skipping MSI measurement for FIPS build (gate '$env:STATIC_QUALITY_GATE_NAME' is not for FIPS)"
+    Write-Host "INFO: Skipping MSI measurement for FIPS build (gate '$env:STATIC_QUALITY_GATE_NAME' is not for FIPS)"
     exit 0
 }
 
 if (-not $IsFipsBuild -and $IsFipsGate) {
-    Write-Host "ℹ️  Skipping MSI measurement for vanilla build (gate '$env:STATIC_QUALITY_GATE_NAME' is for FIPS)"
+    Write-Host "INFO: Skipping MSI measurement for vanilla build (gate '$env:STATIC_QUALITY_GATE_NAME' is for FIPS)"
     exit 0
 }
 
-Write-Host "📊 Starting MSI measurement..."
+Write-Host "Starting MSI measurement..."
 
 # Determine project name based on AGENT_FLAVOR
 if ($IsFipsBuild) {
@@ -45,7 +45,7 @@ if ($IsFipsBuild) {
 # MSI pattern in omnibus package directory
 $PackagePattern = "$WorkingDirectory\omnibus\pkg\pipeline-$env:CI_PIPELINE_ID\$ProjectName-7*-x86_64.msi"
 
-Write-Host "🔍 Looking for MSI with pattern: $PackagePattern"
+Write-Host "Looking for MSI with pattern: $PackagePattern"
 
 # Extract report prefix from gate name
 $ReportPrefix = $env:STATIC_QUALITY_GATE_NAME -replace '^static_quality_gate_', ''
@@ -53,12 +53,12 @@ $ReportPrefix = $env:STATIC_QUALITY_GATE_NAME -replace '^static_quality_gate_', 
 $MsiFiles = Get-ChildItem -Path $PackagePattern -ErrorAction SilentlyContinue
 
 if (-not $MsiFiles) {
-    Write-Host "⚠️  No MSI found matching pattern: $PackagePattern"
+    Write-Host "WARNING: No MSI found matching pattern: $PackagePattern"
     exit 0
 }
 
 foreach ($MsiFile in $MsiFiles) {
-    Write-Host "📏 Measuring MSI: $($MsiFile.FullName)"
+    Write-Host "Measuring MSI: $($MsiFile.FullName)"
     
     # Generate measurement report using STATIC_QUALITY_GATE_NAME variable
     $OutputPath = "$WorkingDirectory\${ReportPrefix}_size_report_${env:CI_PIPELINE_ID}_$($env:CI_COMMIT_SHA.Substring(0,8)).yml"
@@ -71,15 +71,15 @@ foreach ($MsiFile in $MsiFiles) {
         --debug
     
     if ($LASTEXITCODE -ne 0) {
-        Write-Host "⚠️  MSI measurement failed for $($MsiFile.FullName)"
+        Write-Host "WARNING: MSI measurement failed for $($MsiFile.FullName)"
         exit 0
     }
     
-    Write-Host "✅ MSI measurement completed"
+    Write-Host "MSI measurement completed"
     
     # Upload the report to S3
     $BucketBasePath = "s3://dd-ci-artefacts-build-stable/datadog-agent/static_quality_gates/GATE_REPORTS/$env:CI_COMMIT_SHA"
-    Write-Host "📤 Uploading report to ${BucketBasePath}"
+    Write-Host "Uploading report to ${BucketBasePath}"
     
     try {
         $ReportFileName = Split-Path -Leaf $OutputPath
@@ -88,15 +88,15 @@ foreach ($MsiFile in $MsiFiles) {
             "${BucketBasePath}/${ReportFileName}"
         
         if ($LASTEXITCODE -ne 0) {
-            Write-Host "⚠️  S3 upload failed but continuing"
+            Write-Host "WARNING: S3 upload failed but continuing"
         } else {
-            Write-Host "✅ Report uploaded successfully"
+            Write-Host "Report uploaded successfully"
         }
     } catch {
-        Write-Host "⚠️  S3 upload failed: $_"
+        Write-Host "WARNING: S3 upload failed: $_"
     }
 }
 
-Write-Host "🎉 MSI measurement process completed"
+Write-Host "MSI measurement process completed"
 exit 0
 
