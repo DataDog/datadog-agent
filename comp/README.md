@@ -316,8 +316,6 @@ Package collector defines the host profiler collector component.
 
 ### [comp/host-profiler/hpflareextension](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/host-profiler/hpflareextension)
 
-*Datadog Team*: opentelemetry-agent
-
 Package hpflareextension defines the OpenTelemetry Extension component.
 
 ## [comp/logs](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/logs) (Component Bundle)

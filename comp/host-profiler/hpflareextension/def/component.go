@@ -12,6 +12,8 @@ import (
 	"go.opentelemetry.io/collector/extension"
 )
 
+// team: opentelemetry-agent profiling-full-host
+
 // Component specifies the interface implemented by the extension module.
 type Component interface {
 	extension.Extension // Embed base Extension for common functionality.

@@ -23,6 +23,7 @@ type Provides struct {
 	FlareProvider flaretypes.Provider
 }
 
+// Requires defines the dependencies for the flareimpl component
 type Requires struct {
 	Client ipc.HTTPClient
 }
