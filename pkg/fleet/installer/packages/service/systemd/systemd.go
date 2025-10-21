@@ -105,7 +105,7 @@ func DisableUnit(ctx context.Context, unit string) error {
 		return nil
 	}
 
-	err := telemetry.CommandContext(ctx, "systemctl", "disable", unit).Run()
+	err := telemetry.CommandContext(ctx, "systemctl", "disable", "--force", unit).Run()
 	exitErr := &exec.ExitError{}
 	if !errors.As(err, &exitErr) {
 		return err
