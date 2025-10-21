@@ -201,6 +201,10 @@ func (c *ntmConfig) RevertFinishedBackToBuilder() model.BuildableConfig {
 
 // Set assigns the newValue to the given key and marks it as originating from the given source
 func (c *ntmConfig) Set(key string, newValue interface{}, source model.Source) {
+	if source == model.SourceEnvVar {
+		panicInTest("Writing to env var layers is not allowed, use SourceAgentRuntime instead.")
+	}
+
 	c.maybeRebuild()
 
 	c.Lock()
@@ -216,7 +220,7 @@ func (c *ntmConfig) Set(key string, newValue interface{}, source model.Source) {
 	}
 	schemaNode := c.nodeAtPathFromNode(key, c.schema)
 	if _, ok := schemaNode.(LeafNode); schemaNode != missingLeaf && !ok {
-		panicInTest("Key '%s' is not a setting but part of the config tree: 'Set' method only works on settings", key)
+		panicInTest("Key '%s' is partial path of a setting. 'Set' does not allow configuring multiple settings at once using maps", key)
 		c.Unlock()
 		return
 	}
@@ -914,6 +918,8 @@ func (c *ntmConfig) AllSettingsWithoutDefault() map[string]interface{} {
 
 // AllSettingsBySource returns the settings from each source (file, env vars, ...)
 func (c *ntmConfig) AllSettingsBySource() map[model.Source]interface{} {
+	c.maybeRebuild()
+
 	c.RLock()
 	defer c.RUnlock()
 

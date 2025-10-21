@@ -60,12 +60,6 @@ namespace Datadog.AgentCustomActions
         }
 
         [CustomAction]
-        public static ActionResult UpdateInstallSource(Session session)
-        {
-            return Datadog.CustomActions.UpdateInstallSourceCustomAction.UpdateInstallSource(session);
-        }
-
-        [CustomAction]
         public static ActionResult ReportFailure(Session session)
         {
             return Datadog.CustomActions.Telemetry.ReportFailure(session);
