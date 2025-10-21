@@ -14,6 +14,7 @@ target:
   environment:
     DD_API_KEY: a0000001
     DD_HOSTNAME: smp-regression
+    DD_AUTH_TOKEN_FILE_PATH: /tmp/agent-auth-token
     DD_OTELCOLLECTOR_ENABLED: true
     
   profiling_environment:
