@@ -26,6 +26,7 @@ type DoctorStatus struct {
 	Ingestion IngestionStatus `json:"ingestion"`
 	Agent     AgentStatus     `json:"agent"`
 	Intake    IntakeStatus    `json:"intake"`
+	Services  []ServiceStats  `json:"services"`
 }
 
 // IngestionStatus represents data collection status from various sources
@@ -125,4 +126,12 @@ type EndpointStatus struct {
 	URL       string `json:"url"`
 	Status    string `json:"status"` // "connected", "error", "unknown"
 	LastError string `json:"last_error,omitempty"`
+}
+
+// ServiceStats represents aggregated statistics for a specific service
+type ServiceStats struct {
+	Name        string  `json:"name"`         // Service name
+	TracesRate  float64 `json:"traces_rate"`  // Traces per second for this service
+	MetricsRate float64 `json:"metrics_rate"` // Metrics per second for this service
+	LogsRate    float64 `json:"logs_rate"`    // Logs (bytes) per second for this service
 }

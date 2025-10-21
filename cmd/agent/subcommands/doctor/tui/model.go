@@ -32,6 +32,8 @@ type ViewMode int
 const (
 	// MainView shows the three-panel dashboard
 	MainView ViewMode = iota
+	// ServicesView shows the services list with their stats
+	ServicesView
 	// LogsDetailView shows detailed logs information
 	LogsDetailView
 )
@@ -63,9 +65,10 @@ type model struct {
 	quitting bool
 
 	// Navigation state
-	viewMode       ViewMode // Current view mode
-	selectedPanel  int      // Which panel is focused (0=ingestion, 1=agent, 2=intake)
-	selectedLogIdx int      // Which log source is selected in detail view
+	viewMode           ViewMode // Current view mode
+	selectedPanel      int      // Which panel is focused (0=services, 1=ingestion, 2=agent, 3=intake)
+	selectedLogIdx     int      // Which log source is selected in detail view
+	selectedServiceIdx int      // Which service is selected in services view
 
 	// Log streaming state
 	streamingSource string      // Name of the currently streaming log source
@@ -193,21 +196,22 @@ func newModel(client ipcdef.HTTPClient) model {
 	s.Style = spinnerStyle
 
 	return model{
-		client:          client,
-		status:          nil,
-		lastError:       nil,
-		width:           0,
-		height:          0,
-		loading:         true,
-		spinner:         s,
-		lastUpdate:      time.Time{},
-		quitting:        false,
-		viewMode:        MainView,
-		selectedPanel:   0,
-		selectedLogIdx:  0,
-		logLines:        []string{},
-		maxLogLines:     100, // Keep last 100 log lines
-		streamingSource: "",
+		client:             client,
+		status:             nil,
+		lastError:          nil,
+		width:              0,
+		height:             0,
+		loading:            true,
+		spinner:            s,
+		lastUpdate:         time.Time{},
+		quitting:           false,
+		viewMode:           MainView,
+		selectedPanel:      0,
+		selectedLogIdx:     0,
+		selectedServiceIdx: 0,
+		logLines:           []string{},
+		maxLogLines:        100, // Keep last 100 log lines
+		streamingSource:    "",
 	}
 }
 

@@ -64,13 +64,17 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 			case "right", "l":
 				// Navigate to next panel
-				if m.selectedPanel < 2 {
+				if m.selectedPanel < 3 {
 					m.selectedPanel++
 				}
 
 			case "enter":
 				// Drill down into selected panel
 				if m.selectedPanel == 0 && m.status != nil {
+					// Enter services view
+					m.viewMode = ServicesView
+					m.selectedServiceIdx = 0
+				} else if m.selectedPanel == 1 && m.status != nil {
 					// Enter logs detail view
 					m.viewMode = LogsDetailView
 					m.selectedLogIdx = 0
@@ -90,6 +94,30 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						m.logFetcher = logFetcher
 						return m, tea.Batch(m.logFetcher.ListenCmd(), m.logFetcher.WaitCmd())
 					}
+				}
+			}
+
+		case ServicesView:
+			switch msg.String() {
+			case "q", "ctrl+c":
+				// User wants to quit
+				m.quitting = true
+				return m, tea.Quit
+
+			case "esc":
+				// Go back to main view
+				m.viewMode = MainView
+
+			case "up", "k":
+				// Navigate up in services list
+				if m.selectedServiceIdx > 0 {
+					m.selectedServiceIdx--
+				}
+
+			case "down", "j":
+				// Navigate down in services list
+				if m.status != nil && m.selectedServiceIdx < len(m.status.Services)-1 {
+					m.selectedServiceIdx++
 				}
 			}
 

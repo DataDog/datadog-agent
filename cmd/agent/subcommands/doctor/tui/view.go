@@ -32,6 +32,8 @@ func (m model) View() string {
 
 	// Render based on view mode
 	switch m.viewMode {
+	case ServicesView:
+		return m.renderServicesView()
 	case LogsDetailView:
 		return m.renderLogsDetailView()
 	default:
@@ -70,7 +72,7 @@ func (m model) renderLoading() string {
 	)
 }
 
-// renderMainView renders the three-panel layout with all doctor status information
+// renderMainView renders the four-panel layout with all doctor status information
 func (m model) renderMainView() string {
 	if m.status == nil {
 		return "No data available"
@@ -78,21 +80,23 @@ func (m model) renderMainView() string {
 
 	// Calculate panel dimensions
 	// Leave space for borders, padding, and margins
-	// Formula: (width - margins - borders) / 3
-	panelWidth := (m.width - 12) / 3 // 12 = 3 panels * (2 margin + 2 border)
+	// Formula: (width - margins - borders) / 4
+	panelWidth := (m.width - 16) / 4 // 16 = 4 panels * (2 margin + 2 border)
 	panelHeight := m.height - 6      // Leave space for header and footer
 
 	// Render each panel with selection state
-	leftPanel := m.renderIngestionPanel(panelWidth, panelHeight, m.selectedPanel == 0)
-	centerPanel := m.renderAgentPanel(panelWidth, panelHeight, m.selectedPanel == 1)
-	rightPanel := m.renderIntakePanel(panelWidth, panelHeight, m.selectedPanel == 2)
+	servicesPanel := m.renderServicesPanel(panelWidth, panelHeight, m.selectedPanel == 0)
+	ingestionPanel := m.renderIngestionPanel(panelWidth, panelHeight, m.selectedPanel == 1)
+	agentPanel := m.renderAgentPanel(panelWidth, panelHeight, m.selectedPanel == 2)
+	intakePanel := m.renderIntakePanel(panelWidth, panelHeight, m.selectedPanel == 3)
 
 	// Join panels horizontally
 	panels := lipgloss.JoinHorizontal(
 		lipgloss.Top,
-		leftPanel,
-		centerPanel,
-		rightPanel,
+		servicesPanel,
+		ingestionPanel,
+		agentPanel,
+		intakePanel,
 	)
 
 	// Add header and footer
@@ -620,4 +624,271 @@ func (m model) renderStreamingLogs(width, height int) string {
 		Width(width).
 		Height(height).
 		Render(content.String())
+}
+
+// renderServicesPanel renders the leftmost panel showing services
+func (m model) renderServicesPanel(width, height int, isSelected bool) string {
+	var content strings.Builder
+
+	// Panel title with selection indicator
+	title := "Services"
+	if isSelected {
+		title = "▶ " + title
+	}
+	content.WriteString(titleStyle.Render(title) + "\n\n")
+
+	if len(m.status.Services) == 0 {
+		content.WriteString(subduedStyle.Render("No services detected"))
+		content.WriteString("\n\n")
+		content.WriteString(infoStyle.Render("Services will appear here\nwhen traces, metrics, or\nlogs are collected"))
+	} else {
+		content.WriteString(formatSectionHeader(fmt.Sprintf("Total: %d", len(m.status.Services))) + "\n")
+		if isSelected {
+			content.WriteString(subduedStyle.Render("(press Enter for details)") + "\n")
+		}
+		content.WriteString("\n")
+
+		// Show up to 15 services in the panel
+		limit := 15
+		if len(m.status.Services) < limit {
+			limit = len(m.status.Services)
+		}
+
+		for i := 0; i < limit; i++ {
+			service := m.status.Services[i]
+
+			// Format service name
+			content.WriteString(highlightStyle.Render(service.Name))
+			content.WriteString("\n")
+
+			// Create mini sparkline visualization for each data type
+			var indicators []string
+
+			// Traces rate indicator
+			if service.TracesRate > 0 {
+				indicators = append(indicators, fmt.Sprintf("T:%s/s", formatRate(service.TracesRate)))
+			}
+
+			// Metrics rate indicator
+			if service.MetricsRate > 0 {
+				indicators = append(indicators, fmt.Sprintf("M:%s/s", formatRate(service.MetricsRate)))
+			}
+
+			// Logs rate indicator (bytes/s)
+			if service.LogsRate > 0 {
+				indicators = append(indicators, fmt.Sprintf("L:%s/s", formatBytesRate(service.LogsRate)))
+			}
+
+			if len(indicators) > 0 {
+				content.WriteString("  ")
+				content.WriteString(subduedStyle.Render(strings.Join(indicators, " ")))
+				content.WriteString("\n")
+			} else {
+				content.WriteString("  ")
+				content.WriteString(subduedStyle.Render("(no recent data)"))
+				content.WriteString("\n")
+			}
+
+			content.WriteString("\n")
+		}
+
+		if len(m.status.Services) > limit {
+			content.WriteString(subduedStyle.Render(fmt.Sprintf("... and %d more", len(m.status.Services)-limit)))
+			content.WriteString("\n")
+		}
+	}
+
+	return panelStyle.
+		Width(width).
+		Height(height).
+		Render(content.String())
+}
+
+// renderServicesView renders the full-screen services detail view
+func (m model) renderServicesView() string {
+	if m.status == nil {
+		return "No data available"
+	}
+
+	var content strings.Builder
+
+	// Header
+	header := titleStyle.Render(" SERVICES ")
+	content.WriteString(header)
+	content.WriteString("\n\n")
+
+	if len(m.status.Services) == 0 {
+		content.WriteString(infoStyle.Render("No services detected yet"))
+		content.WriteString("\n\n")
+		content.WriteString(subduedStyle.Render("Services will appear here when the agent receives:"))
+		content.WriteString("\n")
+		content.WriteString(subduedStyle.Render("  • Traces from APM instrumentation"))
+		content.WriteString("\n")
+		content.WriteString(subduedStyle.Render("  • Metrics from integration checks"))
+		content.WriteString("\n")
+		content.WriteString(subduedStyle.Render("  • Logs from configured sources"))
+		content.WriteString("\n")
+	} else {
+		// Summary
+		content.WriteString(successStyle.Render(fmt.Sprintf("✓ %d services detected", len(m.status.Services))))
+		content.WriteString("\n\n")
+
+		// Calculate how many rows we can show
+		maxRows := m.height - 10 // Account for header, footer, spacing
+
+		startIdx := 0
+		endIdx := len(m.status.Services)
+		if endIdx > maxRows {
+			// If there are more services than we can display, show a window around the selected service
+			windowSize := maxRows
+			startIdx = m.selectedServiceIdx - windowSize/2
+			if startIdx < 0 {
+				startIdx = 0
+			}
+			endIdx = startIdx + windowSize
+			if endIdx > len(m.status.Services) {
+				endIdx = len(m.status.Services)
+				startIdx = endIdx - windowSize
+				if startIdx < 0 {
+					startIdx = 0
+				}
+			}
+		}
+
+		// Header row
+		content.WriteString(highlightStyle.Render("SERVICE"))
+		content.WriteString(strings.Repeat(" ", 30))
+		content.WriteString(highlightStyle.Render("TRACES"))
+		content.WriteString(strings.Repeat(" ", 5))
+		content.WriteString(highlightStyle.Render("METRICS"))
+		content.WriteString(strings.Repeat(" ", 5))
+		content.WriteString(highlightStyle.Render("LOGS"))
+		content.WriteString("\n")
+		content.WriteString(strings.Repeat("─", m.width-4))
+		content.WriteString("\n")
+
+		// Service rows
+		for i := startIdx; i < endIdx; i++ {
+			service := m.status.Services[i]
+			isSelected := i == m.selectedServiceIdx
+
+			// Selection indicator
+			if isSelected {
+				content.WriteString("▶ ")
+			} else {
+				content.WriteString("  ")
+			}
+
+			// Service name (truncate if too long)
+			serviceName := truncate(service.Name, 35)
+			if isSelected {
+				content.WriteString(highlightStyle.Render(serviceName))
+			} else {
+				content.WriteString(valueStyle.Render(serviceName))
+			}
+			content.WriteString(strings.Repeat(" ", 37-len(serviceName)))
+
+			// Traces rate with visual indicator
+			tracesStr := formatRate(service.TracesRate) + "/s"
+			if service.TracesRate > 0 {
+				// Create a simple "sparkline" using block characters
+				sparkline := createSparklineFromRate(service.TracesRate, 10)
+				content.WriteString(fmt.Sprintf("%12s %s  ", tracesStr, sparkline))
+			} else {
+				content.WriteString(fmt.Sprintf("%12s %s  ", subduedStyle.Render("-"), subduedStyle.Render("          ")))
+			}
+
+			// Metrics rate with visual indicator
+			metricsStr := formatRate(service.MetricsRate) + "/s"
+			if service.MetricsRate > 0 {
+				sparkline := createSparklineFromRate(service.MetricsRate, 10)
+				content.WriteString(fmt.Sprintf("%12s %s  ", metricsStr, sparkline))
+			} else {
+				content.WriteString(fmt.Sprintf("%12s %s  ", subduedStyle.Render("-"), subduedStyle.Render("          ")))
+			}
+
+			// Logs rate with visual indicator (bytes/s)
+			logsStr := formatBytesRate(service.LogsRate) + "/s"
+			if service.LogsRate > 0 {
+				sparkline := createSparklineFromRate(service.LogsRate, 10)
+				content.WriteString(fmt.Sprintf("%12s %s", logsStr, sparkline))
+			} else {
+				content.WriteString(fmt.Sprintf("%12s %s", subduedStyle.Render("-"), subduedStyle.Render("          ")))
+			}
+
+			content.WriteString("\n")
+		}
+	}
+
+	// Footer with instructions
+	content.WriteString("\n")
+	content.WriteString(subduedStyle.Render("↑/↓: Navigate | Esc: Back to main view | Q: Quit"))
+
+	return baseStyle.Render(content.String())
+}
+
+// createSparklineFromRate creates a simple visual representation of a rate value
+// using block characters to show relative magnitude
+func createSparklineFromRate(rate float64, width int) string {
+	if rate == 0 {
+		return strings.Repeat("░", width)
+	}
+
+	// Use different block characters based on magnitude (logarithmic scale)
+	var blocks string
+	switch {
+	case rate < 1:
+		blocks = "▁"
+	case rate < 10:
+		blocks = "▂"
+	case rate < 100:
+		blocks = "▃"
+	case rate < 1000:
+		blocks = "▄"
+	case rate < 10000:
+		blocks = "▅"
+	case rate < 100000:
+		blocks = "▆"
+	default:
+		blocks = "▇"
+	}
+
+	// Color based on data type context
+	// For now, use a simple blue color for all
+	styled := lipgloss.NewStyle().Foreground(lipgloss.Color("12")).Render(strings.Repeat(blocks, width))
+	return styled
+}
+
+// formatRate formats a rate value with appropriate units (K, M, etc.)
+func formatRate(rate float64) string {
+	if rate == 0 {
+		return "0"
+	}
+	if rate < 1 {
+		return fmt.Sprintf("%.2f", rate)
+	}
+	if rate < 1000 {
+		return fmt.Sprintf("%.1f", rate)
+	}
+	if rate < 1000000 {
+		return fmt.Sprintf("%.1fK", rate/1000)
+	}
+	return fmt.Sprintf("%.1fM", rate/1000000)
+}
+
+// formatBytesRate formats bytes per second rate with appropriate units (KB/s, MB/s, GB/s)
+func formatBytesRate(bytesPerSecond float64) string {
+	if bytesPerSecond == 0 {
+		return "0B"
+	}
+	if bytesPerSecond < 1024 {
+		return fmt.Sprintf("%.0fB", bytesPerSecond)
+	}
+	if bytesPerSecond < 1024*1024 {
+		return fmt.Sprintf("%.1fKB", bytesPerSecond/1024)
+	}
+	if bytesPerSecond < 1024*1024*1024 {
+		return fmt.Sprintf("%.1fMB", bytesPerSecond/(1024*1024))
+	}
+	return fmt.Sprintf("%.1fGB", bytesPerSecond/(1024*1024*1024))
 }

@@ -10,11 +10,13 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"sync"
 	"time"
 
 	"go.uber.org/fx"
 
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
+	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -22,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/doctor/def"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -30,17 +33,24 @@ import (
 type dependencies struct {
 	fx.In
 
-	Lc       fx.Lifecycle
-	Config   config.Component
-	Log      log.Component
-	Hostname hostnameinterface.Component
+	Lc        fx.Lifecycle
+	Config    config.Component
+	Log       log.Component
+	Hostname  hostnameinterface.Component
+	Collector option.Option[collector.Component]
 }
 
 type doctorImpl struct {
 	log       log.Component
 	config    config.Component
 	hostname  hostnameinterface.Component
+	collector option.Option[collector.Component]
 	startTime time.Time
+
+	// Delta tracking for logs rate calculation
+	logsDeltaMu            sync.Mutex
+	previousLogsBytesRead  map[string]int64 // Map of service name to bytes read
+	lastLogsCollectionTime time.Time
 }
 
 type provides struct {
@@ -70,10 +80,13 @@ func newProvides(deps dependencies) provides {
 
 func newDoctor(deps dependencies) *doctorImpl {
 	d := &doctorImpl{
-		log:       deps.Log,
-		config:    deps.Config,
-		hostname:  deps.Hostname,
-		startTime: time.Now(),
+		log:                    deps.Log,
+		config:                 deps.Config,
+		hostname:               deps.Hostname,
+		collector:              deps.Collector,
+		startTime:              time.Now(),
+		previousLogsBytesRead:  make(map[string]int64),
+		lastLogsCollectionTime: time.Now(),
 	}
 
 	deps.Lc.Append(fx.Hook{
@@ -101,6 +114,7 @@ func (d *doctorImpl) GetStatus() *def.DoctorStatus {
 		Ingestion: d.collectIngestionStatus(),
 		Agent:     d.collectAgentStatus(),
 		Intake:    d.collectIntakeStatus(),
+		Services:  d.collectServicesStatus(),
 	}
 }
 
