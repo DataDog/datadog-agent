@@ -94,7 +94,46 @@ def extract_dmg_archive(ctx, package_path, extract_dir):
             ctx.run("cat ../extracted_pkg/datadog-agent-core.pkg/Payload | gunzip -d | cpio -i")
 
 
+def extract_msi_package(ctx, package_path, extract_dir):
+    """
+    Extract MSI package using msiexec /a (administrative install).
+
+    This uses Windows native msiexec.exe to extract the MSI contents without
+    actually installing anything. This is Windows-only.
+
+    Args:
+        ctx: Invoke context
+        package_path: Path to .msi file
+        extract_dir: Directory to extract into
+
+    Raises:
+        InfraError: If extraction fails
+        RuntimeError: If not running on Windows
+    """
+    if sys.platform != 'win32':
+        raise RuntimeError(
+            f"MSI extraction requires Windows platform. "
+            f"Current platform: {sys.platform}. "
+            f"MSI files can only be extracted on Windows using msiexec."
+        )
+
+    # Run: msiexec /a "path\to\file.msi" /qn TARGETDIR="extract\dir"
+    # /a = administrative install (extraction without installing)
+    # /qn = quiet mode, no UI
+    result = ctx.run(f'msiexec /a "{package_path}" /qn TARGETDIR="{extract_dir}"', warn=True)
+    if result.exited != 0:
+        raise InfraError(
+            f"MSI extraction failed with error code {result.exited}. "
+            f"Check that the MSI file is valid and not corrupted."
+        )
+
+
 def extract_package(ctx, package_os, package_path, extract_dir):
+    # Check if this is an MSI file (detect by extension)
+    if package_path.lower().endswith('.msi'):
+        return extract_msi_package(ctx, package_path, extract_dir)
+
+    # Existing logic for other package types
     if package_os in (DEBIAN_OS, HEROKU_OS):
         return extract_deb_package(ctx, package_path, extract_dir)
     elif package_os in (CENTOS_OS, SUSE_OS):

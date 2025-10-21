@@ -16,7 +16,15 @@ from tasks.libs.common.color import color_message
 from tasks.libs.common.git import create_tree, get_common_ancestor, get_current_branch, is_a_release_branch
 from tasks.libs.common.utils import running_in_ci
 from tasks.libs.package.size import InfraError
-from tasks.static_quality_gates.experimental_gates import measure_package_local as _measure_package_local
+from tasks.static_quality_gates.experimental_gates import (
+    measure_image as _measure_image,
+)
+from tasks.static_quality_gates.experimental_gates import (
+    measure_msi as _measure_msi,
+)
+from tasks.static_quality_gates.experimental_gates import (
+    measure_package as _measure_package,
+)
 from tasks.static_quality_gates.gates import (
     GateMetricHandler,
     QualityGateFactory,
@@ -417,14 +425,13 @@ def exception_threshold_bump(ctx, pipeline_id):
 
 
 @task
-def measure_package_local(
+def measure_package(
     ctx,
     package_path,
     gate_name,
     config_path="test/static/static_quality_gates.yml",
     output_path=None,
     build_job_name="local_test",
-    no_checksums=False,
     debug=False,
 ):
     """
@@ -439,20 +446,96 @@ def measure_package_local(
         config_path: Path to quality gates configuration (default: test/static/static_quality_gates.yml)
         output_path: Path to save the measurement report (default: {gate_name}_report.yml)
         build_job_name: Simulated build job name (default: local_test)
-        max_files: Maximum number of files to process in inventory (default: 10000)
-        no_checksums: Skip checksum generation for faster processing (default: false)
         debug: Enable debug logging for troubleshooting (default: false)
 
     Example:
-        dda inv quality-gates.measure-package-local --package-path /path/to/package.deb --gate-name static_quality_gate_agent_deb_amd64
+        dda inv quality-gates.measure-package --package-path /path/to/package.deb --gate-name static_quality_gate_agent_deb_amd64
     """
-    return _measure_package_local(
+    return _measure_package(
         ctx=ctx,
         package_path=package_path,
         gate_name=gate_name,
         config_path=config_path,
         output_path=output_path,
         build_job_name=build_job_name,
-        no_checksums=no_checksums,
+        debug=debug,
+    )
+
+
+@task
+def measure_image(
+    ctx,
+    image_ref,
+    gate_name,
+    config_path="test/static/static_quality_gates.yml",
+    output_path=None,
+    build_job_name="local_test",
+    include_layer_analysis=True,
+    debug=False,
+):
+    """
+    Run the in-place Docker image measurer locally for testing and development.
+
+    This task allows you to test the Docker image measurement functionality on local images
+    without requiring a full CI environment.
+
+    Args:
+        image_ref: Docker image reference (tag, digest, or image ID)
+        gate_name: Quality gate name from the configuration file
+        config_path: Path to quality gates configuration (default: test/static/static_quality_gates.yml)
+        output_path: Path to save the measurement report (default: {gate_name}_image_report.yml)
+        build_job_name: Simulated build job name (default: local_test)
+        include_layer_analysis: Whether to analyze individual layers (default: true)
+        debug: Enable debug logging for troubleshooting (default: false)
+
+    Example:
+        dda inv quality-gates.measure-image --image-ref nginx:latest --gate-name static_quality_gate_docker_agent_amd64
+    """
+    return _measure_image(
+        ctx=ctx,
+        image_ref=image_ref,
+        gate_name=gate_name,
+        config_path=config_path,
+        output_path=output_path,
+        build_job_name=build_job_name,
+        include_layer_analysis=include_layer_analysis,
+        debug=debug,
+    )
+
+
+@task
+def measure_msi(
+    ctx,
+    msi_path,
+    gate_name,
+    config_path="test/static/static_quality_gates.yml",
+    output_path=None,
+    build_job_name="local_test",
+    debug=False,
+):
+    """
+    Run the in-place MSI measurer locally for testing and development.
+
+    This task allows you to test the MSI measurement functionality on local packages
+    without requiring a full CI environment. Windows-only.
+
+    Args:
+        msi_path: Path to the MSI file to measure
+        gate_name: Quality gate name from the configuration file
+        config_path: Path to quality gates configuration (default: test/static/static_quality_gates.yml)
+        output_path: Path to save the measurement report (default: {gate_name}_report.yml)
+        build_job_name: Simulated build job name (default: local_test)
+        debug: Enable debug logging for troubleshooting (default: false)
+
+    Example:
+        dda inv quality-gates.measure-msi --msi-path C:\\path\\to\\datadog-agent.msi --gate-name static_quality_gate_agent_msi
+    """
+    return _measure_msi(
+        ctx=ctx,
+        msi_path=msi_path,
+        gate_name=gate_name,
+        config_path=config_path,
+        output_path=output_path,
+        build_job_name=build_job_name,
         debug=debug,
     )
