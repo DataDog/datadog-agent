@@ -297,6 +297,75 @@ func (s *testAgentMSIInstallsDotnetLibrary) TestUninstallScript() {
 	s.Require().Empty(newLibraryPath)
 }
 
+// TestUpgradeFromPinnedVersionThenRemoteDotnetUpgrade tests that instrumentation remains enabled after:
+// 1. Installing the agent from a pinned version (7.65.0)
+// 2. Then remotely upgrading the agent package
+// 2. Then remotely upgrading the dotnet package
+// The aim is to ensure that instrumentation remains enabled the whole time,
+// in 7.65.0 installation of the dotnet package always lead to instrumentation
+// while now it only happens if DD_APM_INSTRUMENTATION_ENABLED=iis is passed (and then it's persisted upon updates)
+func (s *testAgentMSIInstallsDotnetLibrary) TestUpgradeFromPinnedVersionThenRemoteDotnetUpgrade() {
+	defer s.cleanupAgentConfig()
+	s.setAgentConfig()
+
+	oldVersion := s.previousDotnetLibraryVersion
+	newVersion := s.currentDotnetLibraryVersion
+
+	// Install Agent 7.65.0 with old dotnet library
+	err := s.Installer().Install(
+		installerwindows.WithOption(installerwindows.WithInstallerURL("https://s3.amazonaws.com/ddagent-windows-stable/datadog-agent-7.65.0-1-x86_64.msi")),
+		installerwindows.WithMSIArg("DD_APM_INSTRUMENTATION_ENABLED=iis"),
+		installerwindows.WithMSIArg("DD_INSTALLER_REGISTRY_URL=install.datad0g.com.internal.dda-testing.com"),
+		installerwindows.WithMSIArg(fmt.Sprintf("DD_APM_INSTRUMENTATION_LIBRARIES=dotnet:%s", oldVersion.PackageVersion())),
+		installerwindows.WithMSIArg(fmt.Sprintf("APIKEY=%s", installer.GetAPIKey())),
+		installerwindows.WithMSIArg("SITE=datadoghq.com"),
+		installerwindows.WithMSILogFile("install-7.65.0.log"),
+	)
+	s.Require().NoError(err)
+
+	// Start the IIS app to load the library
+	defer s.stopIISApp()
+	s.startIISApp(webConfigFile, aspxFile)
+
+	// Verify old library is loaded
+	s.assertSuccessfulPromoteExperiment(oldVersion.Version())
+	oldLibraryPath := s.getLibraryPathFromInstrumentedIIS()
+	s.Require().Contains(oldLibraryPath, oldVersion.Version())
+
+	// Remotely upgrade the Agent to the current version
+	s.MustStartExperimentCurrentVersion()
+
+	// Restart IIS to pick up the agent upgrade
+	s.startIISApp(webConfigFile, aspxFile)
+
+	// Verify instrumentation is still enabled with old library after agent upgrade
+	libraryPathAfterAgentUpgrade := s.getLibraryPathFromInstrumentedIIS()
+	s.Require().Contains(libraryPathAfterAgentUpgrade, oldVersion.Version())
+
+	// Promote the agent experiment
+	_, err = s.Installer().PromoteExperiment("datadog-agent")
+	s.Require().NoError(err)
+	s.AssertSuccessfulAgentPromoteExperiment(s.CurrentAgentVersion().Version())
+
+	// Start remote upgrade experiment for dotnet package
+	_, err = s.startExperimentCurrentVersion()
+	s.Require().NoError(err)
+	s.assertSuccessfulStartExperiment(newVersion.Version())
+
+	// Restart IIS to pick up the new dotnet library
+	s.startIISApp(webConfigFile, aspxFile)
+
+	// Verify new dotnet library is loaded and instrumentation is still enabled
+	newLibraryPath := s.getLibraryPathFromInstrumentedIIS()
+	s.Require().Contains(newLibraryPath, newVersion.Version())
+	s.Require().NotEqual(oldLibraryPath, newLibraryPath)
+
+	// Promote the experiment
+	_, err = s.Installer().PromoteExperiment("datadog-apm-library-dotnet")
+	s.Require().NoError(err)
+	s.assertSuccessfulPromoteExperiment(newVersion.Version())
+}
+
 func (s *testAgentMSIInstallsDotnetLibrary) setAgentConfig() {
 	err := s.Env().RemoteHost.MkdirAll("C:\\ProgramData\\Datadog")
 	s.Require().NoError(err)

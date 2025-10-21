@@ -8,12 +8,16 @@ package packages
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io/fs"
 	"path/filepath"
 
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/exec"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"golang.org/x/sys/windows/registry"
 )
 
 var apmLibraryDotnetPackage = hooks{
@@ -24,7 +28,10 @@ var apmLibraryDotnetPackage = hooks{
 }
 
 const (
-	packageAPMLibraryDotnet = "datadog-apm-library-dotnet"
+	packageAPMLibraryDotnet        = "datadog-apm-library-dotnet"
+	apmRegistryKey                 = `SOFTWARE\Datadog\Datadog Installer\APM`
+	dotnetInstrumentationMethodKey = "DotnetInstrumentationMode"
+	dotnetInstrumenationDisabled   = "disabled"
 )
 
 var (
@@ -58,11 +65,7 @@ func postInstallAPMLibraryDotnet(ctx HookContext) (err error) {
 	if err != nil {
 		return err
 	}
-	_, err = dotnetExec.EnableIISInstrumentation(ctx, getLibraryPath(installDir))
-	if err != nil {
-		return err
-	}
-	return nil
+	return instrumentDotnetLibraryIfNeeded(ctx, "stable", ctx.Upgrade)
 }
 
 // postStartExperimentAPMLibraryDotnet starts a .NET APM library experiment.
@@ -80,11 +83,7 @@ func postStartExperimentAPMLibraryDotnet(ctx HookContext) (err error) {
 	if err != nil {
 		return err
 	}
-	_, err = dotnetExec.EnableIISInstrumentation(ctx, getLibraryPath(installDir))
-	if err != nil {
-		return err
-	}
-	return nil
+	return instrumentDotnetLibraryIfNeeded(ctx, "experiment", true)
 }
 
 // preStopExperimentAPMLibraryDotnet stops a .NET APM library experiment.
@@ -102,20 +101,15 @@ func preStopExperimentAPMLibraryDotnet(ctx HookContext) (err error) {
 	if err != nil {
 		return err
 	}
-	_, err = dotnetExec.EnableIISInstrumentation(ctx, getLibraryPath(installDir))
-	if err != nil {
-		return err
-	}
-	return nil
+	return instrumentDotnetLibraryIfNeeded(ctx, "stable", true)
 }
 
 // preRemoveAPMLibraryDotnet uninstalls the .NET APM library
-// This function only disable injection, the cleanup for each version is done by the PreRemoveHook
+// This function only disable injection, the cleanup for each version is done by the asyncPreRemoveHook
 func preRemoveAPMLibraryDotnet(ctx HookContext) (err error) {
 	span, ctx := ctx.StartSpan("remove_apm_library_dotnet")
 	defer func() { span.Finish(err) }()
-	var installDir string
-	installDir, err = filepath.EvalSymlinks(getTargetPath("stable"))
+	_, err = filepath.EvalSymlinks(getTargetPath("stable"))
 	if err != nil {
 		// If the remove is being retried after a failed first attempt, the stable symlink may have been removed
 		// so we do not consider this an error
@@ -125,10 +119,13 @@ func preRemoveAPMLibraryDotnet(ctx HookContext) (err error) {
 		}
 		return err
 	}
-	dotnetExec := exec.NewDotnetLibraryExec(getExecutablePath(installDir))
-	_, err = dotnetExec.RemoveIISInstrumentation(ctx)
+	err = uninstrumentDotnetLibrary(ctx.Context, "stable")
 	if err != nil {
 		return err
+	}
+	err = deleteDotnetInstrumentationMethodRegKey()
+	if err != nil {
+		return fmt.Errorf("Unable to delete the instrumentation method registry key: %w", err)
 	}
 	return nil
 }
@@ -146,4 +143,108 @@ func asyncPreRemoveHookAPMLibraryDotnet(ctx context.Context, pkgRepositoryPath s
 		return shouldDelete, err
 	}
 	return true, nil
+}
+
+func instrumentDotnetLibrary(ctx context.Context, target string) (err error) {
+	var installDir string
+	installDir, err = filepath.EvalSymlinks(getTargetPath(target))
+	if err != nil {
+		return err
+	}
+	dotnetExec := exec.NewDotnetLibraryExec(getExecutablePath(installDir))
+	err = setDotnetInstrumentationMethod(env.APMInstrumentationEnabledIIS)
+	if err != nil {
+		return fmt.Errorf("Unable to set instrumentation method: %w", err)
+	}
+	_, err = dotnetExec.EnableIISInstrumentation(ctx, getLibraryPath(installDir))
+	return err
+}
+
+func uninstrumentDotnetLibrary(ctx context.Context, target string) (err error) {
+	var installDir string
+	installDir, err = filepath.EvalSymlinks(getTargetPath(target))
+	if err != nil {
+		return err
+	}
+	dotnetExec := exec.NewDotnetLibraryExec(getExecutablePath(installDir))
+	_, err = dotnetExec.RemoveIISInstrumentation(ctx)
+	if err != nil {
+		return err
+	}
+	err = setDotnetInstrumentationMethod(dotnetInstrumenationDisabled)
+	if err != nil {
+		return fmt.Errorf("Unable to set instrumentation method: %w", err)
+	}
+	return nil
+}
+
+func instrumentDotnetLibraryIfNeeded(ctx context.Context, target string, isUpgrade bool) (err error) {
+	span, ctx := telemetry.StartSpanFromContext(ctx, "instrumentDotnetLibraryIfNeeded")
+	defer func() { span.Finish(err) }()
+
+	envInst := env.FromEnv()
+	newMethod := envInst.InstallScript.APMInstrumentationEnabled
+	var currentMethod string
+	currentMethod, err = getDotnetInstrumentationMethod()
+	if err != nil {
+		return fmt.Errorf("could not get current instrumentation method: %w", err)
+	}
+
+	// Older versions of the agent did not store the instrumentation method and always enabled IIS instrumentation
+	// So if it's an upgrade and not a reinstall, we assume IIS instrumentation is enabled
+	upgradeFromOldVersion := (currentMethod == env.APMInstrumentationNotSet && isUpgrade)
+
+	if (newMethod == env.APMInstrumentationEnabledIIS) || (currentMethod == env.APMInstrumentationEnabledIIS) || upgradeFromOldVersion {
+		if err = instrumentDotnetLibrary(ctx, target); err != nil {
+			return fmt.Errorf("could not instrument dotnet library: %w", err)
+		}
+	} else {
+		return setDotnetInstrumentationMethod(dotnetInstrumenationDisabled)
+	}
+	return nil
+}
+
+func setDotnetInstrumentationMethod(method string) error {
+	k, err := registry.OpenKey(registry.LOCAL_MACHINE, apmRegistryKey, registry.ALL_ACCESS)
+	if err != nil {
+		// If the key doesn't exist, create it
+		k, _, err = registry.CreateKey(registry.LOCAL_MACHINE, apmRegistryKey, registry.ALL_ACCESS)
+		if err != nil {
+			return err
+		}
+	}
+	defer k.Close()
+
+	return k.SetStringValue(dotnetInstrumentationMethodKey, method)
+}
+
+func deleteDotnetInstrumentationMethodRegKey() error {
+	err := registry.DeleteKey(registry.LOCAL_MACHINE, apmRegistryKey)
+	if err != nil {
+		if err == registry.ErrNotExist {
+			return nil
+		}
+		return err
+	}
+	return nil
+}
+
+func getDotnetInstrumentationMethod() (string, error) {
+	k, err := registry.OpenKey(registry.LOCAL_MACHINE, apmRegistryKey, registry.QUERY_VALUE)
+	if err != nil {
+		if err == registry.ErrNotExist {
+			return env.APMInstrumentationNotSet, nil
+		}
+		return "", err
+	}
+	defer k.Close()
+
+	method, _, err := k.GetStringValue(dotnetInstrumentationMethodKey)
+	if err != nil {
+		if err == registry.ErrNotExist {
+			return env.APMInstrumentationNotSet, nil
+		}
+		return "", err
+	}
+	return method, nil
 }
