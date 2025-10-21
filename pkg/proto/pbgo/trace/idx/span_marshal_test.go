@@ -259,7 +259,9 @@ func (val *AnyValue) assertEqual(t *testing.T, expected *AnyValue, actualStrings
 		var expectedList = expected.Value.(*AnyValue_KeyValueList).KeyValueList
 		require.Len(t, v.KeyValueList.KeyValues, len(expectedList.KeyValues))
 		for i, actualSubValue := range v.KeyValueList.KeyValues {
-			assert.Equal(t, expectedList.KeyValues[i].Key, actualSubValue.Key)
+			expectedKeyStr := expectedStrings.Get(expectedList.KeyValues[i].Key)
+			actualKeyStr := actualStrings.Get(actualSubValue.Key)
+			assert.Equal(t, expectedKeyStr, actualKeyStr)
 			actualSubValue.Value.assertEqual(t, expectedList.KeyValues[i].Value, actualStrings, expectedStrings)
 		}
 	default:
@@ -368,6 +370,49 @@ func FuzzSpanMarshalUnmarshal(f *testing.F) {
 		assert.NoError(t, err)
 		span.assertEqual(t, span2)
 	})
+}
+
+func TestSpanMarshalUnmarshal_KeyValueListKeyIndexMismatch(t *testing.T) {
+	// Reproduce fuzz failure where KeyValueList keys are compared by index across different string tables
+	strings := NewStringTable()
+	// Seed string table to create differing indices after re-unmarshal
+	svc := strings.Add("svc")
+	name := strings.Add("nm")
+	res := strings.Add("res")
+
+	// Add KV keys in a specific order to influence original indices
+	kvB := strings.Add("kv-b")
+	kvA := strings.Add("kv-a")
+
+	// Attribute key
+	attrKey := strings.Add("attr")
+
+	span := &InternalSpan{
+		Strings: strings,
+		span: &Span{
+			ServiceRef:  svc,
+			NameRef:     name,
+			ResourceRef: res,
+			SpanID:      1,
+			Attributes: map[uint32]*AnyValue{
+				attrKey: {Value: &AnyValue_KeyValueList{KeyValueList: &KeyValueList{KeyValues: []*KeyValue{
+					{Key: kvA, Value: &AnyValue{Value: &AnyValue_IntValue{IntValue: 1}}},
+					{Key: kvB, Value: &AnyValue{Value: &AnyValue_IntValue{IntValue: 2}}},
+				}}}},
+			},
+		},
+	}
+
+	bts, err := span.MarshalMsg(nil, NewSerializedStrings(uint32(strings.Len())))
+	require.NoError(t, err)
+
+	strings2 := NewStringTable()
+	span2 := &InternalSpan{Strings: strings2}
+	_, err = span2.UnmarshalMsg(bts)
+	require.NoError(t, err)
+
+	// Prior to fix, this assertion fails with a key index mismatch inside KeyValueList
+	span.assertEqual(t, span2)
 }
 
 func (span *InternalSpan) assertEqual(t *testing.T, expected *InternalSpan) {
