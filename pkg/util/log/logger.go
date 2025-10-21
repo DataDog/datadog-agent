@@ -16,3 +16,8 @@ type LoggerInterface seelog.LoggerInterface
 func Default() LoggerInterface {
 	return seelog.Default
 }
+
+// Disabled returns a disabled logger
+func Disabled() LoggerInterface {
+	return seelog.Disabled
+}

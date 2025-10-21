@@ -13,11 +13,6 @@ import (
 	"github.com/cihub/seelog"
 )
 
-// Disabled returns a disabled logger
-func Disabled() LoggerInterface {
-	return seelog.Disabled
-}
-
 // loggerFromWriterWithMinLevelAndFormat creates a new logger from a writer, a minimum log level and a format.
 func loggerFromWriterWithMinLevelAndFormat(output io.Writer, minLevel LogLevel, format string) (LoggerInterface, error) {
 	return seelog.LoggerFromWriterWithMinLevelAndFormat(output, seelog.LogLevel(minLevel), format)
