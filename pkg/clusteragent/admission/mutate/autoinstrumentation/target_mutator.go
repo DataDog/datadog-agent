@@ -103,7 +103,7 @@ func NewTargetMutator(config *Config, wmeta workloadmeta.Component, imageResolve
 			}
 		}
 
-		// We build the libVersions based on if they are specified in `tracerVersions` else ask the higher-level configuration from `libVersions` 
+		// We build the libVersions based on if they are specified in `tracerVersions` else ask the higher-level configuration from `libVersions`
 		// and/or defer to language detection.
 		var libVersions []libInfo
 		usesDefaultLibs := false
@@ -238,6 +238,7 @@ func (m *TargetMutator) MutatePod(pod *corev1.Pod, ns string, _ dynamic.Interfac
 // ShouldMutatePod determines if a pod would be mutated by the target mutator. It is used by other webhook mutators as
 // a filter.
 func (m *TargetMutator) ShouldMutatePod(pod *corev1.Pod) bool {
+	// We need to explicitly check for the label being set to false, which opts out of mutation.
 	enabledLabelVal, enabledLabelExists := getEnabledLabel(pod)
 	if enabledLabelExists && !enabledLabelVal {
 		return false
