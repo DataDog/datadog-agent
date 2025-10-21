@@ -3,7 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package mock offers a mock for the logger.
+//go:build test
+
 package mock
 
 import (
