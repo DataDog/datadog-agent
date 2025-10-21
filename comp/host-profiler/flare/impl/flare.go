@@ -46,7 +46,7 @@ func (c *flareImpl) fillFlare(fb flaretypes.FlareBuilder) error {
 	if err != nil {
 		msg := fmt.Sprintf("did not get host-profiler configuration: %v", err)
 		log.Error(msg)
-		fb.AddFile("host-profiler/agent.log", []byte(msg))
+		fb.AddFile("host-profiler/host-profiler.log", []byte(msg))
 
 		return nil
 	}
@@ -55,7 +55,7 @@ func (c *flareImpl) fillFlare(fb flaretypes.FlareBuilder) error {
 	if err := json.Unmarshal(responseBytes, &responseInfo); err != nil {
 		msg := fmt.Sprintf("could not read sources from host-profiler response: %s, error: %v", responseBytes, err)
 		log.Error(msg)
-		fb.AddFile("host-profiler/agent.log", []byte(msg))
+		fb.AddFile("host-profiler/host-profiler.log", []byte(msg))
 		return nil
 	}
 

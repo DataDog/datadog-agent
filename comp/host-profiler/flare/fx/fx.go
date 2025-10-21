@@ -11,9 +11,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-// team: opentelemetry-agent
-
-// Module for OTel Agent
+// Module for Flare in core agent 
 func Module() fxutil.Module {
 	return fxutil.Component(
 		fxutil.ProvideComponentConstructor(
