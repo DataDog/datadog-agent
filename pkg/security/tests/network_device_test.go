@@ -102,7 +102,11 @@ func TestNetDevice(t *testing.T) {
 	t.Run("veth_newlink", func(t *testing.T) {
 		err = test.GetProbeEvent(func() error {
 			cmd := exec.Command(executable, "link", "add", "host-eth0", "type", "veth", "peer", "name", "ns-eth0", "netns", "test_netns")
-			return cmd.Run()
+			out, err := cmd.CombinedOutput()
+			if err != nil {
+				t.Logf("ip output: %s", string(out))
+			}
+			return err
 		}, func(event *model.Event) bool {
 			if !assert.Equal(t, "veth_pair", event.GetType(), "wrong event type") {
 				return true
@@ -121,12 +125,16 @@ func TestNetDevice(t *testing.T) {
 	t.Run("veth_newlink_dev_change_netns", func(t *testing.T) {
 		err = test.GetProbeEvent(func() error {
 			cmd := exec.Command(executable, "link", "add", "host-eth1", "type", "veth", "peer", "name", "ns-eth1")
-			if err = cmd.Run(); err != nil {
-				return fmt.Errorf("couldn't create veth pair: %v", err)
+			if out, err := cmd.CombinedOutput(); err != nil {
+				return fmt.Errorf("couldn't create veth pair (out=%s): %w", string(out), err)
 			}
 
 			cmd = exec.Command(executable, "link", "set", "ns-eth1", "netns", "test_netns")
-			return cmd.Run()
+			if out, err := cmd.CombinedOutput(); err != nil {
+				return fmt.Errorf("couldn't set netns (out=%s): %w", string(out), err)
+			}
+
+			return nil
 		}, func(event *model.Event) bool {
 			if !assert.Equal(t, "veth_pair_ns", event.GetType(), "wrong event type") {
 				return true
