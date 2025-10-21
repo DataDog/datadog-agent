@@ -25,9 +25,7 @@
 
 .bazel:ext:windows:
   extends: .windows_docker_default
-  timeout: 15m
-  allow_failure: true
-  retry: 0
+  timeout: 60m # pulling images alone can take more than 30m
   variables:
     GIT_DEPTH: 2
   script:
@@ -37,19 +35,20 @@
       $PSNativeCommandUseErrorActionPreference = $true
       Set-StrictMode -Version 3.0
       '@
-    - Invoke-Expression $FailFast
+      Invoke-Expression $FailFast
+      $Utf8Script = [Text.Encoding]::UTF8.GetString([Text.Encoding]::GetEncoding([Console]::OutputEncoding.CodePage).GetBytes($SCRIPT))
+      $EncodedCommand = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes("$FailFast`n$Utf8Script"))
     - >-
-      (($FailFast, $SCRIPT) -join [Environment]::NewLine) | docker run
+      docker run
       --env=BAZELISK_HOME
       --env=BAZEL_DISK_CACHE
       --env=BAZEL_OUTPUT_USER_ROOT
       --env=BAZEL_REPO_CONTENTS_CACHE
       --env=CI_PROJECT_DIR
       --env=RUNNER_TEMP_PROJECT_DIR
-      --interactive
       --rm
       --volume="${CI_PROJECT_DIR}:$CI_PROJECT_DIR"
       --volume="${RUNNER_TEMP_PROJECT_DIR}:$RUNNER_TEMP_PROJECT_DIR"
       --workdir="$CI_PROJECT_DIR"
       "$WINBUILDIMAGE"
-      powershell -Command -
+      powershell -NonInteractive -NoLogo -NoProfile -InputFormat Text -OutputFormat Text -EncodedCommand $EncodedCommand

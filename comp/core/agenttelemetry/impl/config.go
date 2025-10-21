@@ -376,6 +376,28 @@ var defaultProfiles = `
       start_after: 30
       iterations: 0
       period: 900
+  - name: trace-agent
+    metric:
+      exclude:
+        zero_metric: true
+      metrics:
+        - name: trace.running
+          aggregate_tags:
+            - state
+    schedule:
+      start_after: 60
+      iterations: 0
+      period: 900
+  - name: gpu
+    metric:
+      exclude:
+        zero_metric: true
+      metrics:
+        - name: gpu.device_total
+    schedule:
+      start_after: 60
+      iterations: 0
+      period: 900
 `
 
 func compileMetricsExclude(p *Profile) error {

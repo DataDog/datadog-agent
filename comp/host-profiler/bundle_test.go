@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-//go:build hostprofiler
+//go:build linux
 
 package hostprofiler
 
@@ -12,6 +12,7 @@ import (
 
 	collectorimpl "github.com/DataDog/datadog-agent/comp/host-profiler/collector/impl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"go.uber.org/fx"
 )
 
 // TestBundleDependencies tests that the bundle can be created without errors.
@@ -19,5 +20,8 @@ import (
 // This test ensures that all dependencies in the host profiler bundle are
 // properly configured and can be resolved by the dependency injection container.
 func TestBundleDependencies(t *testing.T) {
-	fxutil.TestBundle(t, Bundle(collectorimpl.NewParams("")))
+	fxutil.TestBundle(t,
+		Bundle(collectorimpl.NewParams("")),
+		fx.Provide(collectorimpl.NewExtraFactoriesWithoutAgentCore),
+	)
 }

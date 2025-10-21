@@ -1,9 +1,6 @@
 # 3rd party dependencies
 
-http_archive = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
-
-# Defines a "bz2" target for the lib, "bzip2" for the CLI tool
-bazel_dep(name = "bzip2", version = "1.0.8.bcr.2")
+http_archive = use_repo_rule("//third_party/bazel/tools/build_defs/repo:http.bzl", "http_archive")
 
 # Defines a "libyaml" target for the lib
 bazel_dep(name = "libyaml", version = "0.2.5")
@@ -25,45 +22,71 @@ http_archive(
     url = "https://github.com/madler/zlib/releases/download/v1.3.1/zlib-1.3.1.tar.gz",
 )
 
+http_archive(
+    name = "bzip2",
+    build_file = "//deps:bzip2.BUILD.bazel",
+    sha256 = "ab5a03176ee106d3f0fa90e381da478ddae405918153cca248e682cd0c4a2269",
+    strip_prefix = "bzip2-1.0.8",
+    # The canonical source is in https://sourceware.org/pub/bzip2/, but the Bazel
+    # team mirror is more reliable.
+    url = "https://mirror.bazel.build/sourceware.org/pub/bzip2/bzip2-1.0.8.tar.gz",
+)
+
 # Defines a "rules_foreign_cc" target to build openssl
 bazel_dep(name = "rules_foreign_cc", version = "0.15.0")
 
 http_archive(
     name = "openssl",
     build_file = "//deps:openssl.BUILD.bazel",
-    sha256 = "c53a47e5e441c930c3928cf7bf6fb00e5d129b630e0aa873b08258656e7345ec",
-    strip_prefix = "openssl-3.5.2",
-    url = "https://www.openssl.org/source/openssl-3.5.2.tar.gz",
+    sha256 = "967311f84955316969bdb1d8d4b983718ef42338639c621ec4c34fddef355e99",
+    strip_prefix = "openssl-3.5.4",
+    url = "https://www.openssl.org/source/openssl-3.5.4.tar.gz",
 )
 
-bazel_dep(name = "gcc_toolchain")
-git_override(
-    module_name = "gcc_toolchain",
-    commit = "0e2242b07961107d2b05a6552d70b2ef4ef485fb",
-    patch_args = ["-p1"],
-    patches = ["//bazel/patches:datadog_agent_toolchain.patch"],
-    remote = "https://github.com/f0rmiga/gcc-toolchain.git",
+http_archive(
+    name = "libffi",
+    build_file = "//deps:libffi.BUILD.bazel",
+    sha256 = "bc9842a18898bfacb0ed1252c4febcc7e78fa139fd27fdc7a3e30d9d9356119b",
+    strip_prefix = "libffi-3.4.8",
+    url = "https://github.com/libffi/libffi/releases/download/v3.4.8/libffi-3.4.8.tar.gz",
 )
 
-gcc_toolchains = use_extension("@gcc_toolchain//toolchain:module_extensions.bzl", "gcc_toolchains", dev_dependency = True)
-gcc_toolchains.toolchain(
-    name = "gcc_toolchain_x86_64",
-    binary_prefix = "x86_64-unknown-linux-gnu-",
-    gcc_version = "11.4.0",
-    target_arch = "x86_64",
+http_archive(
+    name = "libsepol",
+    build_file = "//deps:libsepol.BUILD.bazel",
+    sha256 = "78fdaf69924db780bac78546e43d9c44074bad798c2c415d0b9bb96d065ee8a2",
+    strip_prefix = "libsepol-3.5",
+    url = "https://github.com/SELinuxProject/selinux/releases/download/3.5/libsepol-3.5.tar.gz",
 )
-gcc_toolchains.toolchain(
-    name = "gcc_toolchain_aarch64",
-    binary_prefix = "aarch64-unknown-linux-gnu-",
-    gcc_version = "12.3.0",
-    target_arch = "aarch64",
-)
-use_repo(gcc_toolchains, "gcc_toolchain_x86_64")
-use_repo(gcc_toolchains, "gcc_toolchain_aarch64")
 
-# TODO{agent-build}: Find a way to register platform-specific toolchains dynamically
-register_toolchains(
-    "@gcc_toolchain_x86_64//:cc_toolchain",
-    "@gcc_toolchain_aarch64//:cc_toolchain",
-    dev_dependency = True,
+# PCRE2 has native bazel support.
+# They expose a :pcre2 label for the main library
+http_archive(
+    name = "pcre2",
+    sha256 = "15fbc5aba6beee0b17aecb04602ae39432393aba1ebd8e39b7cabf7db883299f",
+    strip_prefix = "pcre2-10.46",
+    url = "https://github.com/PCRE2Project/pcre2/releases/download/pcre2-10.46/pcre2-10.46.tar.bz2",
+    files = {
+        # We still need to vendor the build file as long as we need .pc files & the :install rule
+        "BUILD.bazel": "//deps:pcre2.BUILD.bazel",
+    },
+)
+
+http_archive(
+    name = "patchelf",
+    build_file = "//deps:patchelf.BUILD.bazel",
+    sha256 = "64de10e4c6b8b8379db7e87f58030f336ea747c0515f381132e810dbf84a86e7",
+    strip_prefix = "patchelf-0.18.0",
+    url = "https://github.com/NixOS/patchelf/releases/download/0.18.0/patchelf-0.18.0.tar.gz",
+)
+
+http_archive(
+    name = "nghttp2",
+    build_file = "//deps:nghttp2.BUILD.bazel",
+    files = {
+        "config.h": "//deps/nghttp2:config.h",
+    },
+    sha256 = "9ebdfbfbca164ef72bdf5fd2a94a4e6dfb54ec39d2ef249aeb750a91ae361dfb",
+    strip_prefix = "nghttp2-1.58.0",
+    url = "https://github.com/nghttp2/nghttp2/releases/download/v1.58.0/nghttp2-1.58.0.tar.gz",
 )

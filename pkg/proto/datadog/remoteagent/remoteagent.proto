@@ -1,89 +1,52 @@
 syntax = "proto3";
 
-package datadog.remoteagent;
-
-
+package datadog.remoteagent.v1;
 
 option go_package = "pkg/proto/pbgo/core"; // golang
 
-message StatusSection {
-  map<string, string> fields = 1;
-}
-
+// This message contains fields that identify a Remote Agent instance.
 message RegisterRemoteAgentRequest {
-  // Unique ID of the remote agent.
+  // Process ID of the remote agent.
+  string pid = 1;
+  // Flavor of the remoteAgent
   //
-  // SHOULD be semi-human-readable, with a unique component, such as the process name followed by a UUID:
-  // otel-agent-0192de13-3d66-7cbc-9b4f-1b74f7b8a467.
-  string id = 1;
-
+  // This should be a stable, unique name for the agent instance (e.g., "otel_agent").
+  string flavor = 2;
   // Human-friendly display name of the remote agent.
   //
-  // SHOULD be the common name for the remote agent, such as OpenTelemetry Collector Agent.
-  string display_name = 2;
+  // SHOULD be the common name for the remote agent, such as "OpenTelemetry Collector".
+  string display_name = 3;
+  // gRPC endpoint address where the remote agent can be reached.
+  //
+  // MUST be a valid gRPC endpoint address, such as "localhost:4317".
+  // MUST expose the `RemoteAgent` service.
+  // MUST be prefixed by the transport layer if not TCP (e.g., "unix:///opt/datadog-agent/run/trace-agent.sock").
+  //     Currently supported transport layers: ["tcp"]
+  // MUST be secured with TLS if using TCP, and SHOULD present a valid certificate where possible.
+  string api_endpoint_uri = 4;
 
-  // gRPC endpoint address to reach the remote agent at.
-  //
-  // MUST be a valid gRPC endpoint address, such as "localhost:4317"
-  // MUST be exposing the `RemoteAgent` service.
-  // MUST be secured with TLS, and SHOULD present a valid certificate where possible.
-  string api_endpoint = 3;
-
-  // Authentication token to be used when connecting to the remote agent's gRPC endpoint.
-  //
-  // The remote agent's gRPC endpoint MUST check that this authentication token was provided as a bearer token in all
-  // requests made to the endpoint. If the token is not provided, the remote agent SHOULD reject the request.
-  //
-  // SHOULD be a unique string value that is generated randomly before a remote agent registers itself for the first time.
-  string auth_token = 4;
+  // List of services that the remote agent supports.
+  // service name MUST be the full name of the service, such as "datadog.remoteagent.status.v1.StatusProvider".
+  repeated string services = 5;
 }
 
 message RegisterRemoteAgentResponse {
+  // UUID representing the current connection between the remoteAgentRegistry and the remoteAgent.
+  //
+  // The remoteAgent MUST include its session_id in all the response to the remoteAgentRegistry
+  // as a metadata named `session_id`. 
+  string session_id = 1;
   // Recommended refresh interval for the remote agent.
   //
   // This is the interval at which the remote agent should call the RegisterRemoteAgent RPC in order to assert that the
   // remote agent is live and healthy.
   //
   // The remote agent SHOULD refresh its status every `recommended_refresh_interval_secs` seconds.
-  uint32 recommended_refresh_interval_secs = 1;
+  uint32 recommended_refresh_interval_secs = 2;
 }
 
-message GetStatusDetailsRequest {}
-
-message GetStatusDetailsResponse {
-  // Main status detail section.
-  //
-  // Generally reserved for high-level details such as version, uptime, configuration flags, etc.
-  StatusSection main_section = 1;
-
-  // Named status detail sections.
-  //
-  // Generally reserved for specific (sub)component details, such as the status of a specific feature or integration, etc.
-  map<string, StatusSection> named_sections = 2;
+message RefreshRemoteAgentRequest {
+  // UUID representing the current connection between the remoteAgentRegistry and the remoteAgent.
+  string session_id = 1;
 }
-
-message GetFlareFilesRequest {}
-
-message GetFlareFilesResponse {
-  // Set of files to add to the flare.
-  //
-  // The key is the name of the file, and the value is the contents of the file.
-  //
-  // The key SHOULD be an ASCII string with no path separators (`/`), and will be sanitized as necessary to ensure it can be
-  // used as a valid filename. The key SHOULD have a file extension that is applicable to the file contents, such as
-  // `.yaml` for YAML data.
-  map<string, bytes> files = 1;
-}
-
-message GetTelemetryRequest {}
-
-message GetTelemetryResponse {
-  // Telemetry payload.
-  oneof payload {
-    // Prometheus "text" exposition format.
-    //
-    // https://prometheus.io/docs/instrumenting/exposition_formats/#text-based-format
-    string prom_text = 1;
-  }
-}
-
+message RefreshRemoteAgentResponse {}

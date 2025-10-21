@@ -17,9 +17,9 @@ func initUSMSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	// General USM Configuration
 	// ========================================
 	cfg.BindEnvAndSetDefault(join(smNS, "enabled"), false, "DD_SYSTEM_PROBE_SERVICE_MONITORING_ENABLED")
-	cfg.BindEnv(join(smNS, "max_concurrent_requests"))
-	cfg.BindEnv(join(smNS, "enable_quantization"))
-	cfg.BindEnv(join(smNS, "enable_connection_rollup"))
+	cfg.BindEnv(join(smNS, "max_concurrent_requests"))  //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	cfg.BindEnv(join(smNS, "enable_quantization"))      //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	cfg.BindEnv(join(smNS, "enable_connection_rollup")) //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 	cfg.BindEnvAndSetDefault(join(smNS, "enable_ring_buffers"), true)
 	cfg.BindEnvAndSetDefault(join(smNS, "enable_event_stream"), true)
 	// kernel_buffer_pages determines the number of pages allocated *per CPU*
@@ -30,6 +30,9 @@ func initUSMSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	// By setting this value to 100, the channel will buffer up to ~400KB of data in the Go heap memory.
 	cfg.BindEnvAndSetDefault(join(smNS, "data_channel_size"), 100)
 	cfg.BindEnvAndSetDefault(join(smNS, "disable_map_preallocation"), true)
+	cfg.BindEnvAndSetDefault(join(smNS, "direct_consumer", "buffer_wakeup_count_per_cpu"), 8)
+	cfg.BindEnvAndSetDefault(join(smNS, "direct_consumer", "channel_size"), 1000)
+	cfg.BindEnvAndSetDefault(join(smNS, "direct_consumer", "kernel_buffer_size_per_cpu"), 65536) // 64KB per CPU base size
 
 	// ========================================
 	// HTTP Protocol Configuration
@@ -69,6 +72,8 @@ func initUSMSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	// Deprecated flat keys for backward compatibility
 	cfg.BindEnvAndSetDefault(join(smNS, "http_idle_connection_ttl_in_s"), 30)
 	cfg.BindEnvAndSetDefault(join(spNS, "http_idle_connection_ttl_in_s"), 30)
+
+	cfg.BindEnvAndSetDefault(join(smNS, "http", "use_direct_consumer"), false)
 
 	// HTTP replace rules configuration
 	cfg.BindEnvAndSetDefault(join(smNS, "http", "replace_rules"), nil)
@@ -135,14 +140,14 @@ func initUSMSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	// ========================================
 	cfg.BindEnvAndSetDefault(join(smNS, "tls", "native", "enabled"), true)
 	// For backward compatibility
-	cfg.BindEnv(join(netNS, "enable_https_monitoring"), "DD_SYSTEM_PROBE_NETWORK_ENABLE_HTTPS_MONITORING")
+	cfg.BindEnv(join(netNS, "enable_https_monitoring"), "DD_SYSTEM_PROBE_NETWORK_ENABLE_HTTPS_MONITORING") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 
 	// ========================================
 	// Go TLS Configuration
 	// ========================================
 	cfg.BindEnvAndSetDefault(join(smNS, "tls", "go", "enabled"), true)
 	// For backward compatibility
-	cfg.BindEnv(join(smNS, "enable_go_tls_support"))
+	cfg.BindEnv(join(smNS, "enable_go_tls_support")) //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 	cfg.BindEnvAndSetDefault(join(smNS, "tls", "go", "exclude_self"), true)
 
 	// ========================================
@@ -154,5 +159,5 @@ func initUSMSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	// ========================================
 	// Node.js TLS Configuration
 	// ========================================
-	cfg.BindEnv(join(smNS, "tls", "nodejs", "enabled"))
+	cfg.BindEnv(join(smNS, "tls", "nodejs", "enabled")) //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 }

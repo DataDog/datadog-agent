@@ -16,6 +16,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 	"golang.org/x/exp/maps"
@@ -29,6 +30,8 @@ import (
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
 )
+
+const expectedCudaSampleMaxMemory = uint64(110)
 
 // TestMain defined to run initialization before any test is run
 func TestMain(m *testing.M) {
@@ -61,8 +64,11 @@ func (s *probeTestSuite) getProbe() *Probe {
 	// Enable fatbin parsing in tests so we can validate it runs
 	cfg.EnableFatbinParsing = true
 
-	// Disable ring buffer wakeup threshold so that every event is processed.
-	cfg.RingBufferWakeupSize = 0
+	// Ensure we flush quickly, so that we don't have to wait as much for the pending events to be processed.
+	cfg.RingBufferFlushInterval = 500 * time.Millisecond
+
+	// Ensure we refresh the cache quickly, but still allow some throttling
+	cfg.DeviceCacheRefreshInterval = 500 * time.Millisecond
 
 	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled()))
 	deps := ProbeDependencies{
@@ -76,6 +82,67 @@ func (s *probeTestSuite) getProbe() *Probe {
 	t.Cleanup(probe.Close)
 
 	return probe
+}
+
+type cudaSampleStreams struct {
+	stream *StreamHandler
+	global *StreamHandler
+}
+
+func (s *probeTestSuite) waitForExpectedCudasampleEvents(probe *Probe, pid int) cudaSampleStreams {
+	t := s.T()
+
+	var handlers cudaSampleStreams
+	require.Eventually(t, func() bool {
+		handlers = cudaSampleStreams{stream: nil, global: nil} // Ensure we see both handlers in the same iteration
+		for _, h := range probe.streamHandlers.allStreams() {
+			if h.metadata.pid == uint32(pid) {
+				if h.metadata.streamID == 0 {
+					handlers.global = h
+				} else {
+					handlers.stream = h
+				}
+			}
+		}
+
+		hasGlobalStreams := probe.streamHandlers.globalStreamsCount() == 1 && handlers.global != nil && len(handlers.global.pendingMemorySpans) > 0
+		hasNonGlobalStreams := probe.streamHandlers.streamsCount() == 1 && handlers.stream != nil && len(handlers.stream.pendingKernelSpans) > 0
+		return hasGlobalStreams && hasNonGlobalStreams
+	}, 3*time.Second, 100*time.Millisecond, "stream and global handlers not found: existing is %v", probe.consumer.streamHandlers)
+
+	// Check that we're receiving the events we expect
+	telemetryMock, ok := probe.deps.Telemetry.(telemetry.Mock)
+	require.True(t, ok)
+
+	expectedEvents := map[string]int{
+		ebpf.CudaEventTypeKernelLaunch.String():      2,
+		ebpf.CudaEventTypeSetDevice.String():         1,
+		ebpf.CudaEventTypeMemory.String():            2,
+		ebpf.CudaEventTypeSync.String():              4, // cudaStreamSynchronize, cudaEventQuery, cudaEventSynchronize and cudaMemcpy
+		ebpf.CudaEventTypeVisibleDevicesSet.String(): 1,
+		ebpf.CudaEventTypeSyncDevice.String():        1,
+	}
+
+	require.EventuallyWithT(t, func(c *assert.CollectT) {
+		eventMetrics, err := telemetryMock.GetCountMetric("gpu__consumer", "events")
+		assert.NoError(c, err)
+
+		actualEvents := make(map[string]int)
+		for _, m := range eventMetrics {
+			if evType, ok := m.Tags()["event_type"]; ok {
+				actualEvents[evType] = int(m.Value())
+			}
+		}
+
+		for evName, value := range expectedEvents {
+			assert.Equal(c, value, actualEvents[evName], "event %s count mismatch", evName)
+			delete(actualEvents, evName)
+		}
+
+		assert.Empty(c, actualEvents, "unexpected events: %v", actualEvents)
+	}, 3*time.Second, 100*time.Millisecond, "events not found")
+
+	return handlers
 }
 
 func (s *probeTestSuite) TestCanLoad() {
@@ -94,50 +161,7 @@ func (s *probeTestSuite) TestCanReceiveEvents() {
 	cmd, err := testutil.RunSample(t, testutil.CudaSample)
 	require.NoError(t, err)
 
-	var handlerStream, handlerGlobal *StreamHandler
-	require.Eventually(t, func() bool {
-		handlerStream, handlerGlobal = nil, nil // Ensure we see both handlers in the same iteration
-		for _, h := range probe.streamHandlers.allStreams() {
-			if h.metadata.pid == uint32(cmd.Process.Pid) {
-				if h.metadata.streamID == 0 {
-					handlerGlobal = h
-				} else {
-					handlerStream = h
-				}
-			}
-		}
-
-		return probe.streamHandlers.globalStreamsCount() == 1 && probe.streamHandlers.streamsCount() == 1 && handlerStream != nil && handlerGlobal != nil && len(handlerStream.pendingKernelSpans) > 0 && len(handlerGlobal.pendingMemorySpans) > 0
-	}, 3*time.Second, 100*time.Millisecond, "stream and global handlers not found: existing is %v", probe.consumer.streamHandlers)
-
-	// Check that we're receiving the events we expect
-	telemetryMock, ok := probe.deps.Telemetry.(telemetry.Mock)
-	require.True(t, ok)
-
-	eventMetrics, err := telemetryMock.GetCountMetric("gpu__consumer", "events")
-	require.NoError(t, err)
-
-	actualEvents := make(map[string]int)
-	for _, m := range eventMetrics {
-		if evType, ok := m.Tags()["event_type"]; ok {
-			actualEvents[evType] = int(m.Value())
-		}
-	}
-
-	expectedEvents := map[string]int{
-		ebpf.CudaEventTypeKernelLaunch.String():      1,
-		ebpf.CudaEventTypeSetDevice.String():         1,
-		ebpf.CudaEventTypeMemory.String():            2,
-		ebpf.CudaEventTypeSync.String():              4, // cudaStreamSynchronize, cudaEventQuery, cudaEventSynchronize and cudaMemcpy
-		ebpf.CudaEventTypeVisibleDevicesSet.String(): 1,
-	}
-
-	for evName, value := range expectedEvents {
-		require.Equal(t, value, actualEvents[evName], "event %s count mismatch", evName)
-		delete(actualEvents, evName)
-	}
-
-	require.Empty(t, actualEvents, "unexpected events: %v", actualEvents)
+	handlers := s.waitForExpectedCudasampleEvents(probe, cmd.Process.Pid)
 
 	// Check device assignments
 	require.Contains(t, probe.consumer.sysCtx.selectedDeviceByPIDAndTID, cmd.Process.Pid)
@@ -145,15 +169,17 @@ func (s *probeTestSuite) TestCanReceiveEvents() {
 	require.Len(t, tidMap, 1)
 	require.ElementsMatch(t, []int{cmd.Process.Pid}, maps.Keys(tidMap))
 
-	streamPastData := handlerStream.getPastData()
+	streamPastData := handlers.stream.getPastData()
 	require.NotNil(t, streamPastData)
-	require.Equal(t, 1, len(streamPastData.kernels))
-	span := streamPastData.kernels[0]
-	require.Equal(t, uint64(1), span.numKernels)
-	require.Equal(t, uint64(1*2*3*4*5*6), span.avgThreadCount)
-	require.Greater(t, span.endKtime, span.startKtime)
+	require.Equal(t, 2, len(streamPastData.kernels))
+	for i := range 2 {
+		span := streamPastData.kernels[i]
+		require.Equal(t, uint64(1), span.numKernels)
+		require.Equal(t, uint64(1*2*3*4*5*6), span.avgThreadCount)
+		require.Greater(t, span.endKtime, span.startKtime)
+	}
 
-	globalPastData := handlerGlobal.getPastData()
+	globalPastData := handlers.global.getPastData()
 	require.NotNil(t, globalPastData)
 	require.Equal(t, 1, len(globalPastData.allocations))
 	alloc := globalPastData.allocations[0]
@@ -170,48 +196,19 @@ func (s *probeTestSuite) TestCanGenerateStats() {
 	cmd, err := testutil.RunSample(t, testutil.CudaSample)
 	require.NoError(t, err)
 
-	require.Eventually(t, func() bool {
-		return probe.streamHandlers.allStreamsCount() == 2
-	}, 3*time.Second, 100*time.Millisecond, "stream handlers count mismatch: expected: 2, got: %d", probe.streamHandlers.allStreamsCount())
+	_ = s.waitForExpectedCudasampleEvents(probe, cmd.Process.Pid)
 
 	stats, err := probe.GetAndFlush()
 	require.NoError(t, err)
 	require.NotNil(t, stats)
 	require.NotEmpty(t, stats.Metrics)
 
-	// Check expected events are received, using the telemetry counts
-	telemetryMock, ok := probe.deps.Telemetry.(telemetry.Mock)
-	require.True(t, ok)
-
-	eventMetrics, err := telemetryMock.GetCountMetric("gpu__consumer", "events")
-	require.NoError(t, err)
-
-	expectedEvents := map[string]int{
-		ebpf.CudaEventTypeKernelLaunch.String():      1,
-		ebpf.CudaEventTypeSetDevice.String():         1,
-		ebpf.CudaEventTypeMemory.String():            2,
-		ebpf.CudaEventTypeSync.String():              4, // cudaStreamSynchronize, cudaEventQuery, cudaEventSynchronize and cudaMemcpy
-		ebpf.CudaEventTypeVisibleDevicesSet.String(): 1,
-	}
-
-	actualEvents := make(map[string]int)
-	for _, m := range eventMetrics {
-		if evType, ok := m.Tags()["event_type"]; ok {
-			actualEvents[evType] = int(m.Value())
-		}
-	}
-
-	require.ElementsMatch(t, maps.Keys(expectedEvents), maps.Keys(actualEvents))
-	for evName, value := range expectedEvents {
-		require.Equal(t, value, actualEvents[evName], "event %s count mismatch", evName)
-	}
-
 	// Ensure the metrics we get are correct
 	metricKey := model.StatsKey{PID: uint32(cmd.Process.Pid), DeviceUUID: testutil.DefaultGpuUUID}
 	metrics := getMetricsEntry(metricKey, stats)
 	require.NotNil(t, metrics)
 	require.Greater(t, metrics.UsedCores, 0.0) // core usage depends on the time this took to run, so it's not deterministic
-	require.Equal(t, metrics.Memory.MaxBytes, uint64(110))
+	require.Equal(t, expectedCudaSampleMaxMemory, metrics.Memory.MaxBytes)
 
 	// Check that the context was updated with the events
 	require.Equal(t, probe.sysCtx.cudaVisibleDevicesPerProcess[cmd.Process.Pid], "42")
@@ -233,11 +230,7 @@ func (s *probeTestSuite) TestMultiGPUSupport() {
 	cmd, err := testutil.RunSampleWithArgs(t, testutil.CudaSample, sampleArgs)
 	require.NoError(t, err)
 
-	//TODO: change this check to  count telemetry counter of the consumer (once added).
-	// we are expecting 2 different streamhandlers because cudasample generates 3 events in total for 2 different streams (stream 0 and stream 30)
-	require.Eventually(t, func() bool {
-		return probe.streamHandlers.allStreamsCount() == 2
-	}, 3*time.Second, 100*time.Millisecond, "stream handlers count mismatch: expected: 2, got: %d", probe.streamHandlers.allStreamsCount())
+	_ = s.waitForExpectedCudasampleEvents(probe, cmd.Process.Pid)
 
 	stats, err := probe.GetAndFlush()
 	require.NoError(t, err)
@@ -247,7 +240,7 @@ func (s *probeTestSuite) TestMultiGPUSupport() {
 	require.NotNil(t, metrics)
 
 	require.Greater(t, metrics.UsedCores, 0.0) // average core usage depends on the time this took to run, so it's not deterministic
-	require.Equal(t, metrics.Memory.MaxBytes, uint64(110))
+	require.Equal(t, expectedCudaSampleMaxMemory, metrics.Memory.MaxBytes)
 }
 
 func (s *probeTestSuite) TestDetectsContainer() {
@@ -255,24 +248,28 @@ func (s *probeTestSuite) TestDetectsContainer() {
 
 	probe := s.getProbe()
 
+	// note: after starting, the program will wait ~5s before making any CUDA call
 	pid, cid := testutil.RunSampleInDocker(t, testutil.CudaSample, testutil.MinimalDockerImage)
 
-	// Check that the stream handlers have the correct container ID assigned
-	for _, handler := range probe.streamHandlers.allStreams() {
-		if handler.metadata.pid == uint32(pid) {
-			require.Equal(t, cid, handler.metadata.containerID)
-		}
-	}
+	handlers := s.waitForExpectedCudasampleEvents(probe, pid)
 
-	stats, err := probe.GetAndFlush()
-	key := model.StatsKey{PID: uint32(pid), DeviceUUID: testutil.DefaultGpuUUID, ContainerID: cid}
-	require.NoError(t, err)
-	require.NotNil(t, stats)
-	pidStats := getMetricsEntry(key, stats)
-	require.NotNil(t, pidStats)
+	require.Equal(t, cid, handlers.global.metadata.containerID)
+	require.Equal(t, cid, handlers.stream.metadata.containerID)
 
-	require.Greater(t, pidStats.UsedCores, 0.0) // core usage depends on the time this took to run, so it's not deterministic
-	require.Equal(t, pidStats.Memory.MaxBytes, uint64(110))
+	// Check that stats are properly collected
+	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
+		stats, err := probe.GetAndFlush()
+		require.NoError(c, err)
+		require.NotNil(c, stats)
+
+		key := model.StatsKey{PID: uint32(pid), DeviceUUID: testutil.DefaultGpuUUID, ContainerID: cid}
+		pidStats := getMetricsEntry(key, stats)
+		require.NotNil(c, pidStats)
+
+		// core usage depends on the time this took to run, so it's not deterministic
+		require.Greater(c, pidStats.UsedCores, 0.0)
+		require.Equal(c, expectedCudaSampleMaxMemory, pidStats.Memory.MaxBytes)
+	}, 3*time.Second, 100*time.Millisecond)
 }
 
 // cpuUsage represents CPU usage metrics

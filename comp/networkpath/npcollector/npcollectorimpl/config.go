@@ -9,6 +9,8 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/npcollectorimpl/connfilter"
 	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/npcollectorimpl/pathteststore"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
 )
@@ -31,9 +33,21 @@ type collectorConfigs struct {
 	tcpMethod                    payload.TCPMethod
 	icmpMode                     payload.ICMPMode
 	tcpSynParisTracerouteMode    bool
+	tracerouteQueries            int
+	e2eQueries                   int
+	disableWindowsDriver         bool
+	filterConfig                 []connfilter.Config
+	monitorIPWithoutDomain       bool
+	ddSite                       string
 }
 
-func newConfig(agentConfig config.Component) *collectorConfigs {
+func newConfig(agentConfig config.Component, logger log.Component) *collectorConfigs {
+	var filterConfigs []connfilter.Config
+	err := agentConfig.UnmarshalKey("network_path.collector.filters", &filterConfigs)
+	if err != nil {
+		logger.Errorf("Error unmarshalling network_path.collector.filters")
+		filterConfigs = nil
+	}
 	return &collectorConfigs{
 		connectionsMonitoringEnabled: agentConfig.GetBool("network_path.connections_monitoring.enabled"),
 		workers:                      agentConfig.GetInt("network_path.collector.workers"),
@@ -57,7 +71,13 @@ func newConfig(agentConfig config.Component) *collectorConfigs {
 		tcpMethod:                 payload.MakeTCPMethod(agentConfig.GetString("network_path.collector.tcp_method")),
 		icmpMode:                  payload.MakeICMPMode(agentConfig.GetString("network_path.collector.icmp_mode")),
 		tcpSynParisTracerouteMode: agentConfig.GetBool("network_path.collector.tcp_syn_paris_traceroute_mode"),
+		tracerouteQueries:         agentConfig.GetInt("network_path.collector.traceroute_queries"),
+		e2eQueries:                agentConfig.GetInt("network_path.collector.e2e_queries"),
+		disableWindowsDriver:      agentConfig.GetBool("network_path.collector.disable_windows_driver"),
 		networkDevicesNamespace:   agentConfig.GetString("network_devices.namespace"),
+		filterConfig:              filterConfigs,
+		monitorIPWithoutDomain:    agentConfig.GetBool("network_path.collector.monitor_ip_without_domain"),
+		ddSite:                    agentConfig.GetString("site"),
 	}
 }
 

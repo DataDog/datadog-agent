@@ -78,58 +78,57 @@ func (sl SketchSeriesList) MarshalSplitCompress(bufferContext *marshaler.BufferC
 	return pb.payloads, nil
 }
 
-// MarshalSplitCompressMultiple uses the stream compressor to marshal and
-// compress one sketch list into two sets of payloads.  One set of payloads
-// contains all metrics, and the other contains only those that pass the
-// provided filter function.  This function exists because we need a way to
-// build both payloads in a single pass over the input data, which cannot be
-// iterated over twice.
-func (sl SketchSeriesList) MarshalSplitCompressMultiple(config config.Component, strategy compression.Component, filterFunc func(ss *metrics.SketchSeries) bool, logger log.Component) (transaction.BytesPayloads, transaction.BytesPayloads, error) {
+// MarshalSplitCompressPipelines uses the stream compressor to marshal and
+// compress sketch series payloads across multiple pipelines. Each pipeline
+// defines a filter function and destination, enabling selective routing of
+// sketches to different endpoints.
+func (sl SketchSeriesList) MarshalSplitCompressPipelines(config config.Component, strategy compression.Component, pipelines []Pipeline, logger log.Component) (transaction.BytesPayloads, error) {
 	var err error
 
-	bufferContext := marshaler.NewBufferContext()
-	bufferContext2 := marshaler.NewBufferContext()
+	// Create payload builders for each pipeline
+	pbs := make([]*payloadsBuilder, len(pipelines))
+	for i := range pbs {
+		bufferContext := marshaler.NewBufferContext()
+		pb := newPayloadsBuilder(bufferContext, config, strategy, logger)
+		pbs[i] = &pb
 
-	pb := newPayloadsBuilder(bufferContext, config, strategy, logger)
-	pb2 := newPayloadsBuilder(bufferContext2, config, strategy, logger)
-
-	// start things off
-	err = pb.startPayload()
-	if err != nil {
-		return nil, nil, err
-	}
-	err = pb2.startPayload()
-	if err != nil {
-		return nil, nil, err
+		err = pbs[i].startPayload()
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	for sl.MoveNext() {
 		ss := sl.Current()
-		err = pb.marshal(ss)
-		if err != nil {
-			return nil, nil, err
-		}
-		if filterFunc(ss) {
-			err = pb2.marshal(ss)
-			if err != nil {
-				return nil, nil, err
+		for i, pipeline := range pipelines {
+			if pipeline.FilterFunc(ss) {
+				err := pbs[i].marshal(ss)
+				if err != nil {
+					return nil, err
+				}
 			}
 		}
 	}
 
-	err = pb.finishPayload()
-	if err != nil {
-		logger.Debugf("Failed to finish payload with err %v", err)
-		return nil, nil, err
+	for i := range pbs {
+		err := pbs[i].finishPayload()
+		if err != nil {
+			return nil, err
+		}
 	}
 
-	err = pb2.finishPayload()
-	if err != nil {
-		logger.Debugf("Failed to finish payload with err %v", err)
-		return nil, nil, err
+	for i, pipeline := range pipelines {
+		for _, payload := range pbs[i].payloads {
+			payload.Destination = pipeline.Destination
+		}
 	}
 
-	return pb.payloads, pb2.payloads, nil
+	payloads := make([]*transaction.BytesPayload, 0)
+	for _, pb := range pbs {
+		payloads = append(payloads, pb.payloads...)
+	}
+
+	return payloads, nil
 }
 
 func newPayloadsBuilder(bufferContext *marshaler.BufferContext, config config.Component, strategy compression.Component, logger log.Component) payloadsBuilder {

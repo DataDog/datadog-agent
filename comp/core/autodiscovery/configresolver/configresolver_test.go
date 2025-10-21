@@ -97,6 +97,11 @@ func (s *dummyService) GetExtraConfig(key string) (string, error) {
 func (s *dummyService) FilterTemplates(map[string]integration.Config) {
 }
 
+// GetImageName does nothing
+func (s *dummyService) GetImageName() string {
+	return ""
+}
+
 func TestGetFallbackHost(t *testing.T) {
 	ip, err := getFallbackHost(map[string]string{"bridge": "172.17.0.1"})
 	assert.Equal(t, "172.17.0.1", ip)
@@ -768,6 +773,7 @@ func TestResolve(t *testing.T) {
 				ADIdentifiers: []string{"redis"},
 				Instances:     []integration.Data{integration.Data("pod_name: redis\npod_namespace: default\npod_uid: 05567616-cb47-41ea-af04-295c1297e957\ntags:\n- foo:bar\n")},
 				ServiceID:     "a5901276aed1",
+				PodNamespace:  "default",
 			},
 		},
 		{

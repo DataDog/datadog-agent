@@ -38,10 +38,14 @@ type Config struct {
 	RingBufferSizePagesPerDevice int
 	// RingBufferWakeupSize is the number of bytes that need to be available in the ring buffer before waking up userspace.
 	RingBufferWakeupSize int
+	// RingBufferFlushInterval is the interval at which the ring buffer should be flushed
+	RingBufferFlushInterval time.Duration
 	// StreamConfig is the configuration for the streams.
 	StreamConfig StreamConfig
 	// AttacherDetailedLogs indicates whether the probe should enable detailed logs for the uprobe attacher.
 	AttacherDetailedLogs bool
+	// DeviceCacheRefreshInterval is the interval at which the probe scans for the latest devices
+	DeviceCacheRefreshInterval time.Duration
 }
 
 // StreamConfig is the configuration for the streams.
@@ -73,6 +77,7 @@ func New() *Config {
 		KernelCacheQueueSize:         spCfg.GetInt(sysconfig.FullKeyPath(consts.GPUNS, "fatbin_request_queue_size")),
 		RingBufferSizePagesPerDevice: spCfg.GetInt(sysconfig.FullKeyPath(consts.GPUNS, "ring_buffer_pages_per_device")),
 		RingBufferWakeupSize:         spCfg.GetInt(sysconfig.FullKeyPath(consts.GPUNS, "ringbuffer_wakeup_size")),
+		RingBufferFlushInterval:      spCfg.GetDuration(sysconfig.FullKeyPath(consts.GPUNS, "ringbuffer_flush_interval")),
 		StreamConfig: StreamConfig{
 			MaxActiveStreams:      spCfg.GetInt(sysconfig.FullKeyPath(consts.GPUNS, "streams", "max_active")),
 			Timeout:               time.Duration(spCfg.GetInt(sysconfig.FullKeyPath(consts.GPUNS, "streams", "timeout_seconds"))) * time.Second,
@@ -81,6 +86,7 @@ func New() *Config {
 			MaxPendingKernelSpans: spCfg.GetInt(sysconfig.FullKeyPath(consts.GPUNS, "streams", "max_pending_kernel_spans")),
 			MaxPendingMemorySpans: spCfg.GetInt(sysconfig.FullKeyPath(consts.GPUNS, "streams", "max_pending_memory_spans")),
 		},
-		AttacherDetailedLogs: spCfg.GetBool(sysconfig.FullKeyPath(consts.GPUNS, "attacher_detailed_logs")),
+		AttacherDetailedLogs:       spCfg.GetBool(sysconfig.FullKeyPath(consts.GPUNS, "attacher_detailed_logs")),
+		DeviceCacheRefreshInterval: spCfg.GetDuration(sysconfig.FullKeyPath(consts.GPUNS, "device_cache_refresh_interval")),
 	}
 }

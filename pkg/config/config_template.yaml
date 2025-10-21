@@ -160,6 +160,12 @@ api_key:
 #
 # env: <environment name>
 
+## @param remote_updates - boolean - optional - default: false
+## @env DD_REMOTE_UPDATES - boolean - optional - default: false
+## Enable remote upgrades and configuration changes for the Agent.
+#
+# remote_updates: false
+
 ## @param tag_value_split_separator - map - optional
 ## @env DD_TAG_VALUE_SPLIT_SEPARATOR - list of key:value strings - optional
 ## Split tag values according to a given separator. Only applies to host tags,
@@ -451,7 +457,7 @@ api_key:
 ## @env DD_EC2_PRIORITIZE_INSTANCE_ID_AS_HOSTNAME - boolean - optional - default: false
 ## On EC2, prefer the instance ID as the Agent hostname even when the OS hostname does not match
 ## the known generic EC2 prefixes. By default, the Agent uses the instance ID if the OS hostname
-## has a generic EC2 prefix to avoid merging multiple instances under one host. This is useful 
+## has a generic EC2 prefix to avoid merging multiple instances under one host. This is useful
 ## when using custom images that share the same system hostname.
 #
 # ec2_prioritize_instance_id_as_hostname: false
@@ -511,6 +517,12 @@ api_key:
 ## Collect GPU related host tags
 #
 # collect_gpu_tags: false
+
+## @param azure_metadata_timeout - integer - optional - default: 300
+## @env DD_AZURE_METADATA_TIMEOUT - integer - optional - default: 300
+## Timeout in milliseconds on calls to the Azure metadata endpoints.
+#
+# azure_metadata_timeout: 300
 
 ## @param azure_hostname_style - string - optional - default: "os"
 ## @env DD_AZURE_HOSTNAME_STYLE - string - optional - default: "os"
@@ -858,7 +870,6 @@ api_key:
 
 ## @param secret_backend_type - string - optional
 ## @env DD_SECRET_BACKEND_TYPE - string - optional
-## This feature is in preview.
 ##
 ## `secret_backend_type` is the type of backend where secrets are stored.
 ## Supported backends are: "aws.secrets", "aws.ssm", "azure.keyvault", "hashicorp.vault",
@@ -871,7 +882,6 @@ api_key:
 
 ## @param secret_backend_config - map - optional
 ## @env DD_SECRET_BACKEND_CONFIG - map - optional
-## This feature is in preview.
 ##
 ## The section contains configuration required by `secret_backend_type` to resolve secrets.
 ## The necessary configuration depends upon which type is used.
@@ -944,6 +954,53 @@ api_key:
 ## add a line break when exporting secrets through files.
 #
 # secret_backend_remove_trailing_line_break: false
+
+## @param secret_scope_integration_to_their_k8s_namespace - boolean - optional - default: false
+## @env DD_SECRET_SCOPE_INTEGRATION_TO_THEIR_NAMESPACE - boolean - optional - default: false
+## When using `k8s_secret@` notation to pull secrets from Kubernetes, you can limit integration to only be able to access
+## their own namespace by setting this setting to true.
+## The limitation will only apply integration's config and secret using `k8s_secret@` secrets.
+##
+## This setting is incompatible with 'secret_allowed_k8s_namespace' and 'secret_image_to_handle'
+##
+## See https://docs.datadoghq.com/agent/configuration/secrets-management for more information on using Kubernetes
+## secrets in your configuration.
+#
+# secret_scope_integration_to_their_k8s_namespace: false
+
+## @param secret_allowed_k8s_namespace - list of strings - optiona - default: []
+## @env DD_SECRET_ALLOWED_K8S_NAMESPACE - list of strings - optional - default: []
+## When using `k8s_secret@` notation to pull secrets from Kubernetes, you can limit all integrations to only be able to access
+## a list of specific namespace.
+## The limitation will only apply integration's config and secret using `k8s_secret@` secrets.
+##
+## This setting is incompatible with 'secret_scope_integration_to_their_k8s_namespace' and 'secret_image_to_handle'
+##
+## See https://docs.datadoghq.com/agent/configuration/secrets-management for more information on using Kubernetes
+## secrets in your configuration.
+#
+# secret_allowed_k8s_namespace: []
+
+## @param secret_image_to_handle - map of list of strings - optiona - default:  {}
+## @env DD_SECRET_IMAGE_TO_HANDLE - map of list of strings - optional - default: {}
+## When using `k8s_secret@` notation to pull secrets from Kubernetes, you can fully control which Kubernetes secret can
+## be access by which image. Any secrets using the `k8s_secret@` prefix not listed for the image being monitored will
+## not be resolved.
+## The limitation will only apply integration's config and secret using `k8s_secret@` secrets.
+##
+## This setting is incompatible with 'secret_scope_integration_to_their_k8s_namespace' and 'secret_image_to_handle'
+##
+## See https://docs.datadoghq.com/agent/configuration/secrets-management for more information on using Kubernetes
+## secrets in your configuration.
+#
+# secret_image_to_handle:
+#   webserver:
+#     - "k8s_secret@prod/weserver/db_password"
+#     - "k8s_secret@prod/weserver/db_password"
+#   <Kubernetes image name>:
+#     - "<full secret handle>"
+#     - ...
+#
 {{ if .InternalProfiling -}}
 ## @param profiling - custom object - optional
 ## Enter specific configurations for internal profiling.
@@ -1009,8 +1066,8 @@ api_key:
 
 #   # @param logs_dd_url - string - optional
 #   # @env DD_LOGS_CONFIG_LOGS_DD_URL - string - optional
-#   # Define the endpoint and port to hit when using a proxy for logs. 
-#   # As of agent version 7.70.0, proxy paths are supported. To forward logs to a 
+#   # Define the endpoint and port to hit when using a proxy for logs.
+#   # As of agent version 7.70.0, proxy paths are supported. To forward logs to a
 #   # specific proxy path, the URL scheme must be specified: https://proxy.example.com:443/logs
 #
 #   logs_dd_url: <ENDPOINT>:<PORT>
@@ -1133,9 +1190,13 @@ api_key:
 
 #   # @param max_message_size_bytes - integer - optional - default: 900000
 #   # @env DD_LOGS_CONFIG_MAX_MESSAGE_SIZE_BYTES - integer - optional - default : 900000
-#   # The maximum size of single log message in bytes. If maxMessageSizeBytes exceeds
-#   # the documented API limit of 1MB - any payloads larger than 1MB will be dropped by the intake.
-#   # https://docs.datadoghq.com/api/latest/logs/
+#   # The maximum size of single log message in bytes. Lines that are longer
+#   # than this limit are split into multiple line where each long line that is
+#   # split has `...TRUNCATED...` added as a suffix and each line that was created
+#   # from a split of a previous line has `...TRUNCATED...` added as a prefix.
+#   #
+#   # Note: Datadog's ingest API truncates any logs greater than 1 MB by discarding the
+#   # remainder. See https://docs.datadoghq.com/api/latest/logs/ for details.
 #
 #   max_message_size_bytes: 900000
 
@@ -1427,6 +1488,7 @@ api_key:
 #   # Obfuscator mode for SQL queries.
 #   # Leave empty to use the default obfuscator.
 #   # Set to "obfuscate_only" to obfuscate the query with the new `sqllexer` obfuscator.
+#   # Set to "normalize_only" to normalize the query with the new `sqllexer` obfuscator.
 #   # If you use DBM, set to "obfuscate_and_normalize" to obfuscate and normalize the query for better APM/DBM correlation.
 #
 #   sql_obfuscation_mode: ""
@@ -1867,18 +1929,67 @@ api_key:
 
 #   # @param collector - custom object - optional
 #   # Configuration related to Network Path Collector.
+#   # Network Path Collector is used to monitor network traffic connections on the host.
 #
 #   collector:
 
 #     # @param workers - integer - optional - default: 4
-#     # @env DD_WORKERS - integer - optional - default: 4
+#     # @env DD_NETWORK_PATH_COLLECTOR_WORKERS - integer - optional - default: 4
 #     # The `workers` refers to the number of concurrent workers available for network path execution.
 #
 #     workers: 4
 
+#     # @param pathtest_interval - integer - optional - default: 10m
+#     # @env DD_NETWORK_PATH_COLLECTOR_PATHTEST_INTERVAL - integer - optional - default: 10m
+#     # The `pathtest_interval` refers to the traceroute run interval for monitored connections.
+#
+#     pathtest_interval: 10m
+
+#     # @param pathtest_ttl - integer - optional - default: 35m
+#     # @env DD_NETWORK_PATH_COLLECTOR_PATHTEST_TTL - integer - optional - default: 35m
+#     # The `pathtest_ttl` refers to the duration (time-to-live) a connection will be monitored when it's not seen anymore.
+#     # The TTL is reset each time the connection is seen again.
+#
+#     pathtest_ttl: 35m
+
 {{ end -}}
 {{ end -}}
 {{ end -}}
+
+{{ if .Synthetics -}}
+########################################
+## Synthetics Configuration           ##
+########################################
+
+## @param synthetics - custom object - optional
+## Enter specific configuration for Synthetics tests.
+# synthetics:
+
+#   # @param collector - custom object - optional
+#   # Configuration related to run Synthetics tests.
+#
+#   collector:
+
+#     # @param enabled - bool - optional - default: false
+#     # @env DD_SYNTHETICS_COLLECTOR_ENABLED - bool - optional - default: false
+#     # [Preview] Enables Synthetics tests.
+#
+#     enabled: false
+
+#     # @param workers - integer - optional - default: 4
+#     # @env DD_SYNTHETICS_COLLECTOR_WORKERS - integer - optional - default: 4
+#     # The `workers` refers to the number of concurrent workers available for synthetics tests execution.
+#
+#     workers: 4
+
+#     # @param flush_interval - integer - optional - default: 10s
+#     # @env DD_SYNTHETICS_COLLECTOR_FLUSH_INTERVAL - integer - optional - default: 10s
+#     # The `flush_interval` refers to the synthetics run interval for tests execution.
+#
+#     flush_interval: 10s
+
+{{ end -}}
+
 {{ if .Compliance -}}
 #############################################
 ## Security Agent Compliance Configuration ##
@@ -3048,18 +3159,18 @@ api_key:
 #   extra_tags:
 #     - <TAG_KEY>:<TAG_VALUE>
 
-#   # @param advanced_dispatching_enabled - boolean - optional - default: false
-#   # @env DD_CLUSTER_CHECKS_ADVANCED_DISPATCHING_ENABLED - boolean - optional - default: false
+#   # @param advanced_dispatching_enabled - boolean - optional - default: true
+#   # @env DD_CLUSTER_CHECKS_ADVANCED_DISPATCHING_ENABLED - boolean - optional - default: true
 #   # If advanced_dispatching_enabled is true the leader cluster-agent collects stats
 #   # from the cluster level check runners to optimize the check dispatching logic.
 #
-#   advanced_dispatching_enabled: false
+#   advanced_dispatching_enabled: true
 
-#   # @param rebalance_with_utilization - boolean - optional - default: false
-#   # @env DD_CLUSTER_CHECKS_REBALANCE_WITH_UTILIZATION - boolean - optional - default: false
+#   # @param rebalance_with_utilization - boolean - optional - default: true
+#   # @env DD_CLUSTER_CHECKS_REBALANCE_WITH_UTILIZATION - boolean - optional - default: true
 #   # If rebalance_with_utilization is true, the cluster-agent will rebalance cluster checks using node utilization.
 #
-#   rebalance_with_utilization: false
+#   rebalance_with_utilization: true
 
 #   # @param clc_runners_port - integer - optional - default: 5005
 #   # @env DD_CLUSTER_CHECKS_CLC_RUNNERS_PORT - integer - optional - default: 5005

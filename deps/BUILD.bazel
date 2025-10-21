@@ -6,12 +6,20 @@ filegroup(
     srcs = [
         "@bzip2",
         "@bzip2//:bz2",
+        "@libffi//:ffi",
         "@libyaml",
         "@lua//:liblua",
         "@sqlite3",
         "@xz",
         "@xz//:lzma",
-        "@zlib//:z",
-    ],
+        "@zlib//:libz_so",
+    ] + select({
+        "@platforms//os:linux": [
+            "@libsepol//:sepol",
+            "@nghttp2",
+            "@pcre2",
+        ],
+        "//conditions:default": [],
+    }),
     visibility = ["//visibility:private"],
 )

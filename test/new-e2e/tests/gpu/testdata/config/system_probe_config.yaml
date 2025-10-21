@@ -3,4 +3,3 @@ system_probe_config:
   enabled: true
 gpu_monitoring:
   enabled: true
-  ringbuffer_wakeup_size: 0  # Wake up the ringbuffer every time a new event is available, our workloads might not generate enough events to trigger the wakeup

@@ -87,7 +87,7 @@ func buildEndpoints(coreConfig model.Reader) (*config.Endpoints, error) {
 	if err != nil {
 		return nil, err
 	}
-	if env.IsServerless() {
+	if env.IsLambda() {
 		// in AWS Lambda, we never want the batch strategy to flush with a tick
 		config.BatchWait = 365 * 24 * time.Hour
 	}

@@ -10,9 +10,15 @@ Probes:
       captureSnapshot: true
       subprogram: {subprogram: 1}
       events:
-        - ID: 1
+        - ID: 2
+          Kind: Entry
           Type: 111 EventRootType Probe[main.callMe]
-          InjectionPoints: [{PC: "0xb752c", Frameless: true}]
+          InjectionPoints: [{PC: "0xb7538", Frameless: false}]
+          Condition: null
+        - ID: 1
+          Kind: Return
+          Type: 112 EventRootType Probe[main.callMe]Return
+          InjectionPoints: [{PC: "0xb75b8", Frameless: false}]
           Condition: null
 Subprograms:
     - ID: 1
@@ -29,8 +35,7 @@ Subprograms:
                   Op: {RegNo: 0, Shift: 0}
                 - Size: 8
                   Op: {RegNo: 1, Shift: 0}
-          IsParameter: true
-          IsReturn: false
+          Role: Parameter
         - Name: s2
           Type: 9 GoStringHeaderType string
           Locations:
@@ -46,8 +51,7 @@ Subprograms:
                   Op: {CfaOffset: 24}
                 - Size: 8
                   Op: {CfaOffset: 32}
-          IsParameter: true
-          IsReturn: false
+          Role: Parameter
         - Name: i
           Type: 99 PointerType *int
           Locations:
@@ -55,8 +59,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: {RegNo: 4, Shift: 0}}]
             - Range: 0xb7558..0xb75f0
               Pieces: [{Size: 8, Op: {CfaOffset: 40}}]
-          IsParameter: true
-          IsReturn: false
+          Role: Parameter
 Types:
     - __kind: PointerType
       ID: 39
@@ -256,6 +259,7 @@ Types:
       Expressions:
         - Name: s1
           Offset: 1
+          Kind: argument
           Expression:
             Type: 9 GoStringHeaderType string
             Operations:
@@ -265,6 +269,7 @@ Types:
                   ByteSize: 16
         - Name: s2
           Offset: 17
+          Kind: argument
           Expression:
             Type: 9 GoStringHeaderType string
             Operations:
@@ -274,6 +279,7 @@ Types:
                   ByteSize: 16
         - Name: i
           Offset: 33
+          Kind: argument
           Expression:
             Type: 99 PointerType *int
             Operations:
@@ -281,6 +287,9 @@ Types:
                   Variable: {subprogram: 1, index: 2, name: i}
                   Offset: 0
                   ByteSize: 8
+    - __kind: EventRootType
+      ID: 112
+      Name: Probe[main.callMe]Return
     - __kind: ArrayType
       ID: 92
       Name: '[0]uint8'
@@ -1436,7 +1445,7 @@ Types:
       ByteSize: 8
       GoRuntimeType: 41920
       GoKind: 26
-MaxTypeID: 111
+MaxTypeID: 112
 Issues: []
 GoModuledataInfo: {FirstModuledataAddr: "0x191340", TypesOffset: 296}
 CommonTypes:
