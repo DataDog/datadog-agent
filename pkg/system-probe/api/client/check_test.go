@@ -6,6 +6,8 @@
 package client
 
 import (
+	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -68,12 +70,27 @@ func validateTelemetry(t *testing.T, module string, expected expectedTelemetryVa
 	assert.Equal(t, expected.malformedResponses, checkTelemetry.malformedResponses.WithValues(module).Get(), "mismatched malformedResponses counter value")
 }
 
+type requestData struct {
+	Pids []int32
+}
+
 func TestGetCheck(t *testing.T) {
 	t.Cleanup(resetStartupChecker)
 
 	socketPath, server := startTestServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/test/check" {
 			_, _ = w.Write([]byte(`{"Str": "asdf", "Num": 42}`))
+		} else if r.URL.Path == "/test/services" {
+			body, err := io.ReadAll(r.Body)
+			require.NoError(t, err)
+			assert.Equal(t, "application/json", r.Header.Get("Content-Type"))
+
+			var reqData requestData
+			err = json.Unmarshal(body, &reqData)
+			require.NoError(t, err)
+			assert.Equal(t, []int32{1, 2, 3}, reqData.Pids)
+
+			_, _ = w.Write([]byte(`{"Str": "with_body", "Num": 99}`))
 		} else if r.URL.Path == "/malformed/check" {
 			//this should fail in json.Unmarshal
 			_, _ = w.Write([]byte("1"))
@@ -93,6 +110,21 @@ func TestGetCheck(t *testing.T) {
 	assert.Equal(t, 42, resp.Num)
 	validateTelemetry(t, "test", expectedTelemetryValues{1, 0, 0, 0, 0})
 
+	//test GetWithBody with request body
+	requestBody := requestData{Pids: []int32{1, 2, 3}}
+	resp, err = GetWithBody[testData](client, "/services", requestBody, "test")
+	require.NoError(t, err)
+	assert.Equal(t, "with_body", resp.Str)
+	assert.Equal(t, 99, resp.Num)
+	validateTelemetry(t, "test", expectedTelemetryValues{2, 0, 0, 0, 0})
+
+	//test GetWithBody with nil body (same as GetCheck)
+	resp, err = GetWithBody[testData](client, "/check", nil, "test")
+	require.NoError(t, err)
+	assert.Equal(t, "asdf", resp.Str)
+	assert.Equal(t, 42, resp.Num)
+	validateTelemetry(t, "test", expectedTelemetryValues{3, 0, 0, 0, 0})
+
 	//test responseError counter
 	resp, err = GetCheck[testData](client, "foo")
 	require.Error(t, err)
@@ -107,7 +139,7 @@ func TestGetCheck(t *testing.T) {
 	server.Close()
 	resp, err = GetCheck[testData](client, "test")
 	require.Error(t, err)
-	validateTelemetry(t, "test", expectedTelemetryValues{2, 1, 0, 0, 0})
+	validateTelemetry(t, "test", expectedTelemetryValues{4, 1, 0, 0, 0})
 }
 
 func TestGetCheckStartup(t *testing.T) {

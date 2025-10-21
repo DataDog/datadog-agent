@@ -6,6 +6,7 @@
 package client
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -210,6 +211,14 @@ func doReq(client *http.Client, req *http.Request, module types.ModuleName) (bod
 
 // GetCheck returns data unmarshalled from JSON to T, from the specified module at the /<module>/check endpoint.
 func GetCheck[T any](client *CheckClient, module types.ModuleName) (T, error) {
+	return GetWithBody[T](client, "/check", nil, module)
+}
+
+// GetWithBody makes a GET request to a module endpoint with an optional JSON
+// request body and returns data unmarshalled from JSON to T.  The endpoint
+// parameter should be the path relative to the module (e.g., "/check",
+// "/services").
+func GetWithBody[T any](client *CheckClient, endpoint string, requestBody interface{}, module types.ModuleName) (T, error) {
 	var data T
 	err := client.startupChecker.ensureStarted(client.startupClient)
 	if err != nil {
@@ -218,10 +227,22 @@ func GetCheck[T any](client *CheckClient, module types.ModuleName) (T, error) {
 
 	checkTelemetry.totalRequests.IncWithTags(map[string]string{checkLabelName: string(module)})
 
-	req, err := http.NewRequest("GET", ModuleURL(module, "/check"), nil)
+	var bodyReader io.Reader
+	if requestBody != nil {
+		jsonBody, err := json.Marshal(requestBody)
+		if err != nil {
+			return data, fmt.Errorf("failed to marshal request body: %w", err)
+		}
+		bodyReader = bytes.NewReader(jsonBody)
+	}
+
+	req, err := http.NewRequest("GET", ModuleURL(module, endpoint), bodyReader)
 	if err != nil {
-		//we don't have a counter for this case, because this function can't really fail, since ModuleURL function constructs a safe URL
 		return data, err
+	}
+
+	if requestBody != nil {
+		req.Header.Set("Content-Type", "application/json")
 	}
 
 	body, err := doReq(client.checkClient, req, module)
