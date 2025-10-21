@@ -220,7 +220,7 @@ func (c *ntmConfig) Set(key string, newValue interface{}, source model.Source) {
 	}
 	schemaNode := c.nodeAtPathFromNode(key, c.schema)
 	if _, ok := schemaNode.(LeafNode); schemaNode != missingLeaf && !ok {
-		panicInTest("Key '%s' is not a setting but part of the config tree: 'Set' method only works on settings", key)
+		panicInTest("Key '%s' is partial path of a setting. 'Set' does not allow configuring multiple settings at once using maps", key)
 		c.Unlock()
 		return
 	}
