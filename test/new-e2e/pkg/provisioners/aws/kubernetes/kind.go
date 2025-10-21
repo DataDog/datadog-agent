@@ -8,9 +8,11 @@ package awskubernetes
 
 import (
 	"context"
+	_ "embed"
 	"fmt"
 
 	"github.com/DataDog/test-infra-definitions/components/datadog/apps/etcd"
+	csidriver "github.com/DataDog/test-infra-definitions/components/datadog/csi-driver"
 	"github.com/DataDog/test-infra-definitions/components/kubernetes/argorollouts"
 	"github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
@@ -26,7 +28,6 @@ import (
 	"github.com/DataDog/test-infra-definitions/components/datadog/apps/prometheus"
 	"github.com/DataDog/test-infra-definitions/components/datadog/apps/redis"
 	"github.com/DataDog/test-infra-definitions/components/datadog/apps/tracegen"
-	csidriver "github.com/DataDog/test-infra-definitions/components/datadog/csi-driver"
 	dogstatsdstandalone "github.com/DataDog/test-infra-definitions/components/datadog/dogstatsd-standalone"
 	fakeintakeComp "github.com/DataDog/test-infra-definitions/components/datadog/fakeintake"
 	"github.com/DataDog/test-infra-definitions/components/datadog/kubernetesagentparams"
@@ -48,6 +49,9 @@ const (
 	provisionerBaseID = "aws-kind-"
 	defaultVMName     = "kind"
 )
+
+//go:embed agent_helm_values.yaml
+var agentHelmValues string
 
 // KindDiagnoseFunc is the diagnose function for the Kind provisioner
 func KindDiagnoseFunc(ctx context.Context, stackName string) (string, error) {
@@ -120,11 +124,6 @@ func KindRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, params *Prov
 		return err
 	}
 
-	// Deploy the datadog CSI driver
-	if err := csidriver.NewDatadogCSIDriver(&awsEnv, kubeProvider, csiDriverCommitSHA); err != nil {
-		return err
-	}
-
 	vpaCrd, err := vpa.DeployCRD(&awsEnv, kubeProvider)
 	if err != nil {
 		return err
@@ -183,15 +182,7 @@ func KindRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, params *Prov
 
 	var dependsOnDDAgent pulumi.ResourceOption
 	if params.agentOptions != nil && !params.deployOperator {
-		helmValues := `
-datadog:
-  kubelet:
-    tlsVerify: false
-agents:
-  useHostNetwork: true
-`
-
-		newOpts := []kubernetesagentparams.Option{kubernetesagentparams.WithHelmValues(helmValues), kubernetesagentparams.WithClusterName(kindCluster.ClusterName), kubernetesagentparams.WithTags([]string{"stackid:" + ctx.Stack()})}
+		newOpts := []kubernetesagentparams.Option{kubernetesagentparams.WithHelmValues(agentHelmValues), kubernetesagentparams.WithClusterName(kindCluster.ClusterName), kubernetesagentparams.WithTags([]string{"stackid:" + ctx.Stack()})}
 		params.agentOptions = append(newOpts, params.agentOptions...)
 		agent, err := helm.NewKubernetesAgent(&awsEnv, "kind", kubeProvider, params.agentOptions...)
 		if err != nil {
@@ -286,6 +277,10 @@ agents:
 	}
 
 	if params.deployOperator && params.operatorDDAOptions != nil {
+		// Deploy the datadog CSI driver
+		if err := csidriver.NewDatadogCSIDriver(&awsEnv, kubeProvider, csiDriverCommitSHA); err != nil {
+			return err
+		}
 		ddaWithOperatorComp, err := agent.NewDDAWithOperator(&awsEnv, awsEnv.CommonNamer().ResourceName("kind-with-operator"), kubeProvider, params.operatorDDAOptions...)
 		if err != nil {
 			return err
