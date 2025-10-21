@@ -549,8 +549,8 @@ struct setsockopt_event_t {
     u16 socket_protocol;
     int level;
     int optname;
-    u32 truncated; 
-    int sent_size; 
+    u32 truncated;
+    int sent_size;
     char bpf_filters_buffer[MAX_BPF_FILTER_SIZE];
 };
 
