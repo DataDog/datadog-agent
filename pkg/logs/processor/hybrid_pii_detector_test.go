@@ -463,7 +463,7 @@ func TestHybridDetector_ThreadSafety(t *testing.T) {
 	done := make(chan bool, numGoroutines)
 
 	for i := 0; i < numGoroutines; i++ {
-		go func(id int) {
+		go func(_ int) {
 			tokenizer := automultilinedetection.NewTokenizer(10000)
 			input := []byte("SSN: 123-45-6789, Email: test@example.com")
 			expected := "SSN: [SSN_REDACTED], Email: [EMAIL_REDACTED]"

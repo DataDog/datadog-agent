@@ -59,7 +59,7 @@ func NewHybridPIIDetector() *HybridPIIDetector {
 			},
 			Replacement: []byte("[SSN_REDACTED]"),
 		},
-		// SSN with numbers only: DDDDDDDDD 
+		// SSN with numbers only: DDDDDDDDD
 		{
 			Name: "auto_redact_ssn_numbers_only",
 			Type: PIIRuleTypeToken,
@@ -263,7 +263,7 @@ func (h *HybridPIIDetector) applyTokenRules(content []byte, toks []tokens.Token,
 	// Work backwards so earlier replacements don't affect later indices
 	for _, m := range matches {
 		// Build new content: before + replacement + after
-		newContent := make([]byte, 0, len(content)-( m.end-m.start)+len(m.rule.Replacement))
+		newContent := make([]byte, 0, len(content)-(m.end-m.start)+len(m.rule.Replacement))
 		newContent = append(newContent, content[:m.start]...)
 		newContent = append(newContent, m.rule.Replacement...)
 		newContent = append(newContent, content[m.end:]...)

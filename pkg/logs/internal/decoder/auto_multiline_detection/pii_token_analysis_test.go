@@ -32,10 +32,10 @@ func TestAnalyzePIITokenPatterns(t *testing.T) {
 		{
 			name: "credit_cards",
 			examples: []string{
-				"4532015112830366",   // Visa
-				"5425233430109903",   // Mastercard
-				"374245455400126",    // Amex
-				"6011000991300009",   // Discover
+				"4532015112830366",    // Visa
+				"5425233430109903",    // Mastercard
+				"374245455400126",     // Amex
+				"6011000991300009",    // Discover
 				"4532-0151-1283-0366", // Visa with dashes
 				"4532 0151 1283 0366", // Visa with spaces
 			},
@@ -72,7 +72,7 @@ func TestAnalyzePIITokenPatterns(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
+		t.Run(tc.name, func(_ *testing.T) {
 			fmt.Printf("\n=== %s ===\n", tc.name)
 			for _, example := range tc.examples {
 				toks, _ := tokenizer.tokenize([]byte(example))
