@@ -13,8 +13,8 @@ import (
 	"strconv"
 	"strings"
 
-	ddfg "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog/featuregates"
 	datadogconfig "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog/config"
+	ddfg "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog/featuregates"
 	"go.opentelemetry.io/collector/confmap"
 	"go.opentelemetry.io/collector/confmap/provider/envprovider"
 	"go.opentelemetry.io/collector/confmap/provider/fileprovider"
@@ -22,7 +22,6 @@ import (
 	"go.opentelemetry.io/collector/confmap/provider/httpsprovider"
 	"go.opentelemetry.io/collector/confmap/provider/yamlprovider"
 	"go.opentelemetry.io/collector/service"
-	"go.opentelemetry.io/collector/service/telemetry/otelconftelemetry"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	secretsnoop "github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl"
@@ -130,14 +129,19 @@ func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (confi
 	}
 
 	// Set the right log level. The most verbose setting takes precedence.
-	teleCfg, ok := sc.Telemetry.(otelconftelemetry.Config)
-	if !ok {
-		return nil, fmt.Errorf("invalid OTel Telemetry configuration type %v", teleCfg)
+	telemetryLogLevel := "info"
+	if stCfgMap, ok := sc.Telemetry.(map[string]any); ok {
+		if stLogsCfg, ok := stCfgMap["logs"]; ok {
+			if stLogsCfgMap, ok := stLogsCfg.(map[string]any); ok {
+				if stLogsLevel, ok := stLogsCfgMap["level"]; ok {
+					telemetryLogLevel = stLogsLevel.(string)
+				}
+			}
+		}
 	}
-	telemetryLogLevel := teleCfg.Logs.Level
-	telemetryLogMapping, ok := logLevelMap[strings.ToLower(telemetryLogLevel.String())]
+	telemetryLogMapping, ok := logLevelMap[strings.ToLower(telemetryLogLevel)]
 	if !ok {
-		return nil, fmt.Errorf("invalid log level (%v) set in the OTel Telemetry configuration", telemetryLogLevel.String())
+		return nil, fmt.Errorf("invalid log level (%v) set in the OTel Telemetry configuration", telemetryLogLevel)
 	}
 	if telemetryLogMapping < activeLogLevel {
 		activeLogLevel = telemetryLogMapping
