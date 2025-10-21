@@ -21,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/common"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
+	logutil "github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // store is a central storage of metadata about workloads. A workload is any
@@ -46,6 +47,7 @@ type workloadmeta struct {
 
 	ongoingPullsMut sync.Mutex
 	ongoingPulls    map[string]time.Time // collector ID => time when last pull started
+	logLimiters     map[string]*logutil.Limit
 }
 
 // Dependencies defines the dependencies of the workloadmeta component.
@@ -84,6 +86,7 @@ func NewWorkloadMeta(deps Dependencies) Provider {
 		collectors:            make(map[string]wmdef.Collector),
 		eventCh:               make(chan []wmdef.CollectorEvent, eventChBufferSize),
 		ongoingPulls:          make(map[string]time.Time),
+		logLimiters:           make(map[string]*logutil.Limit),
 		collectorsInitialized: wmdef.CollectorsNotStarted,
 	}
 
