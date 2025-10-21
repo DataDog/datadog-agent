@@ -334,19 +334,6 @@ func (m *TargetMutator) getTargetFromAnnotation(pod *corev1.Pod) *targetInternal
 	return nil
 }
 
-// podHasLibraryAnnotations is a helper to determine if a pod has configured any annotations to configure libraries.
-// This either includes specific libraries or the "all" annotation.
-func (m *TargetMutator) podHasLibraryAnnotations(pod *corev1.Pod) bool {
-	injectAllAnnotation := strings.ToLower(fmt.Sprintf(libVersionAnnotationKeyFormat, "all"))
-	_, foundInjectAllAnnotation := pod.Annotations[injectAllAnnotation]
-	if foundInjectAllAnnotation {
-		return true
-	}
-
-	extractedLibraries := extractLibrariesFromAnnotations(pod, m.containerRegistry)
-	return len(extractedLibraries) > 0
-}
-
 // getMatchingTarget filters a pod based on the targets. It returns the target to inject.
 func (m *TargetMutator) getMatchingTarget(pod *corev1.Pod) *targetInternal {
 	// If instrumentation is disabled, we don't need to check the targets.
