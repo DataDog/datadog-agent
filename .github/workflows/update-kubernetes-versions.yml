@@ -8,6 +8,11 @@ on:
   # Allow manual trigger
   workflow_dispatch:
 
+  # Temporary: trigger on push for testing
+  push:
+    branches:
+      - frank.spano/CONTINT-4708-2
+
 permissions: {}
 
 jobs:
