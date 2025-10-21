@@ -135,8 +135,6 @@ type CoreAgentService struct {
 	// contact the backend in time
 	startupTime           time.Time
 	disableConfigPollLoop bool
-	// Set the interval for which we will poll the org status
-	orgStatusRefreshInterval time.Duration
 
 	// The backoff policy used for retries when errors are encountered
 	backoffPolicy backoff.Policy
@@ -149,9 +147,9 @@ type CoreAgentService struct {
 	// Self-synchronized (has internal locking)
 	clients            *clients
 	cacheBypassClients cacheBypassClients
+	orgStatusPoller    *orgStatusPoller
 
 	// Channels to stop the services main goroutines
-	stopOrgPoller    chan struct{}
 	stopConfigPoller chan struct{}
 	stopOnce         sync.Once
 
@@ -175,12 +173,6 @@ type CoreAgentService struct {
 
 		// Number of /configurations calls where we get 503 or 504 errors.
 		fetchConfigs503And504ErrCount uint64
-
-		// Number of /status calls where we get 503 or 504 errors.
-		fetchOrgStatus503And504ErrCount uint64
-
-		// Previous /status response
-		previousOrgStatus *pbgo.OrgStatusResponse
 
 		// The number of errors we're currently tracking within the context
 		// of our backoff policy
@@ -226,6 +218,109 @@ type RcTelemetryReporter interface {
 	IncRateLimit()
 	// IncTimeout is invoked when a cache bypass request is cancelled due to timeout or a previous cache bypass request is still pending
 	IncTimeout()
+}
+
+// orgStatusPoller handles periodic polling of the organization status from the remote config backend
+type orgStatusPoller struct {
+	refreshInterval time.Duration
+	stopChan        chan struct{}
+
+	mu struct {
+		sync.Mutex
+		// Number of /status calls where we get 503 or 504 errors.
+		fetchOrgStatus503And504ErrCount uint64
+		// Previous /status response
+		previousOrgStatus *pbgo.OrgStatusResponse
+	}
+}
+
+func newOrgStatusPoller(refreshInterval time.Duration) *orgStatusPoller {
+	p := &orgStatusPoller{
+		refreshInterval: refreshInterval,
+		stopChan:        make(chan struct{}),
+	}
+	return p
+}
+
+// start begins the periodic polling of org status
+func (p *orgStatusPoller) start(clock clock.Clock, getAPI func() api.API, rcType string) {
+	go func() {
+		p.poll(getAPI(), rcType)
+		for {
+			select {
+			case <-clock.After(p.refreshInterval):
+				p.poll(getAPI(), rcType)
+			case <-p.stopChan:
+				log.Infof("[%s] Stopping Remote Config org status poller", rcType)
+				return
+			}
+		}
+	}()
+}
+
+// stop stops the org status poller
+func (p *orgStatusPoller) stop() {
+	close(p.stopChan)
+}
+
+// getPreviousStatus returns the previous org status response, if any
+func (p *orgStatusPoller) getPreviousStatus() *pbgo.OrgStatusResponse {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.mu.previousOrgStatus
+}
+
+// poll fetches and processes the current organization status
+func (p *orgStatusPoller) poll(apiClient api.API, rcType string) {
+	response, err := apiClient.FetchOrgStatus(context.Background())
+
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if err != nil {
+		// Unauthorized and proxy error are caught by the main loop requesting the latest config
+		if errors.Is(err, api.ErrUnauthorized) || errors.Is(err, api.ErrProxy) {
+			return
+		}
+
+		if errors.Is(err, api.ErrGatewayTimeout) || errors.Is(err, api.ErrServiceUnavailable) {
+			p.mu.fetchOrgStatus503And504ErrCount++
+		}
+
+		if p.mu.fetchOrgStatus503And504ErrCount < maxFetchOrgStatusUntilLogLevelErrors {
+			log.Warnf("[%s] Could not refresh Remote Config: %v", rcType, err)
+		} else {
+			log.Errorf("[%s] Could not refresh Remote Config: %v", rcType, err)
+		}
+		return
+	}
+	p.mu.fetchOrgStatus503And504ErrCount = 0
+
+	// Print info log when the new status is different from the previous one, or if it's the first run
+	prev := p.mu.previousOrgStatus
+	if prev == nil ||
+		prev.Enabled != response.Enabled ||
+		prev.Authorized != response.Authorized {
+		if response.Enabled {
+			if response.Authorized {
+				log.Infof("[%s] Remote Configuration is enabled for this organization and agent.", rcType)
+			} else {
+				log.Infof(
+					"[%s] Remote Configuration is enabled for this organization but disabled for this agent. Add the Remote Configuration Read permission to its API key to enable it for this agent.", rcType)
+			}
+		} else {
+			if response.Authorized {
+				log.Infof("[%s] Remote Configuration is disabled for this organization.", rcType)
+			} else {
+				log.Infof("[%s] Remote Configuration is disabled for this organization and agent.", rcType)
+			}
+		}
+	}
+	p.mu.previousOrgStatus = &pbgo.OrgStatusResponse{
+		Enabled:    response.Enabled,
+		Authorized: response.Authorized,
+	}
+	exportedStatusOrgEnabled.Set(strconv.FormatBool(response.Enabled))
+	exportedStatusKeyAuthorized.Set(strconv.FormatBool(response.Authorized))
 }
 
 func init() {
@@ -501,24 +596,22 @@ func NewService(cfg model.Reader, rcType, baseRawURL, hostname string, tagsGette
 
 	now := clock.Now().UTC()
 	cas := &CoreAgentService{
-		rcType:                   rcType,
-		startupTime:              now,
-		hostname:                 hostname,
-		tagsGetter:               tagsGetter,
-		clock:                    clock,
-		traceAgentEnv:            options.traceAgentEnv,
-		agentVersion:             agentVersion,
-		stopOrgPoller:            make(chan struct{}),
-		stopConfigPoller:         make(chan struct{}),
-		disableConfigPollLoop:    options.disableConfigPollLoop,
-		orgStatusRefreshInterval: options.orgStatusRefreshInterval,
-		site:                     options.site,
-		configRoot:               configRoot,
-		directorRoot:             directorRoot,
-		backoffPolicy:            backoffPolicy,
-		telemetryReporter:        telemetryReporter,
-		websocketTest:            websocketTest,
-		clients:                  newClients(clock, options.clientTTL),
+		rcType:                rcType,
+		startupTime:           now,
+		hostname:              hostname,
+		tagsGetter:            tagsGetter,
+		clock:                 clock,
+		traceAgentEnv:         options.traceAgentEnv,
+		agentVersion:          agentVersion,
+		stopConfigPoller:      make(chan struct{}),
+		disableConfigPollLoop: options.disableConfigPollLoop,
+		site:                  options.site,
+		configRoot:            configRoot,
+		directorRoot:          directorRoot,
+		backoffPolicy:         backoffPolicy,
+		telemetryReporter:     telemetryReporter,
+		websocketTest:         websocketTest,
+		clients:               newClients(clock, options.clientTTL),
 		cacheBypassClients: cacheBypassClients{
 			clock:    clock,
 			requests: make(chan chan struct{}),
@@ -530,6 +623,7 @@ func NewService(cfg model.Reader, rcType, baseRawURL, hostname string, tagsGette
 			capacity:       options.clientCacheBypassLimit,
 			allowance:      options.clientCacheBypassLimit,
 		},
+		orgStatusPoller: newOrgStatusPoller(options.orgStatusRefreshInterval),
 	}
 	cas.mu.firstUpdate = true
 	cas.mu.defaultRefreshInterval = options.refresh
@@ -555,28 +649,14 @@ func newRCBackendOrgUUIDProvider(http api.API) uptane.OrgUUIDProvider {
 
 // Start the remote configuration management service
 func (s *CoreAgentService) Start() {
+	s.orgStatusPoller.start(s.clock, s.getAPI, s.rcType)
+
 	go func() {
-		s.pollOrgStatus()
-		for {
-			select {
-			case <-s.clock.After(s.orgStatusRefreshInterval):
-				s.pollOrgStatus()
-			case <-s.stopOrgPoller:
-				log.Infof("[%s] Stopping Remote Config org status poller", s.rcType)
-				return
-			}
-		}
-	}()
-	go func() {
-		defer func() {
-			close(s.stopOrgPoller)
-		}()
 		if s.disableConfigPollLoop {
 			startWithoutAgentPollLoop(s)
 		} else {
 			startWithAgentPollLoop(s)
 		}
-
 	}()
 
 	s.websocketTest.Start()
@@ -642,12 +722,15 @@ func startWithoutAgentPollLoop(s *CoreAgentService) {
 }
 
 func (s *CoreAgentService) logRefreshError(err error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	prev := s.mu.previousOrgStatus
+	prev := s.orgStatusPoller.getPreviousStatus()
 	if prev != nil && prev.Enabled && prev.Authorized {
+		fetchConfigs503And504ErrCount := func() uint64 {
+			s.mu.Lock()
+			defer s.mu.Unlock()
+			return s.mu.fetchConfigs503And504ErrCount
+		}()
 		exportedLastUpdateErr.Set(err.Error())
-		if s.mu.fetchConfigs503And504ErrCount < maxFetchConfigsUntilLogLevelErrors {
+		if fetchConfigs503And504ErrCount < maxFetchConfigsUntilLogLevelErrors {
 			log.Warnf("[%s] Could not refresh Remote Config: %v", s.rcType, err)
 		} else {
 			log.Errorf("[%s] Could not refresh Remote Config: %v", s.rcType, err)
@@ -662,6 +745,7 @@ func (s *CoreAgentService) Stop() error {
 	var err error
 	s.stopOnce.Do(func() {
 		s.websocketTest.Stop()
+		s.orgStatusPoller.stop()
 		close(s.stopConfigPoller)
 
 		s.mu.Lock()
@@ -676,58 +760,6 @@ func (s *CoreAgentService) getAPI() api.API {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.mu.api
-}
-
-func (s *CoreAgentService) pollOrgStatus() {
-	response, err := s.getAPI().FetchOrgStatus(context.Background())
-
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if err != nil {
-		// Unauthorized and proxy error are caught by the main loop requesting the latest config
-		if errors.Is(err, api.ErrUnauthorized) || errors.Is(err, api.ErrProxy) {
-			return
-		}
-
-		if errors.Is(err, api.ErrGatewayTimeout) || errors.Is(err, api.ErrServiceUnavailable) {
-			s.mu.fetchOrgStatus503And504ErrCount++
-		}
-
-		if s.mu.fetchOrgStatus503And504ErrCount < maxFetchOrgStatusUntilLogLevelErrors {
-			log.Warnf("[%s] Could not refresh Remote Config: %v", s.rcType, err)
-		} else {
-			log.Errorf("[%s] Could not refresh Remote Config: %v", s.rcType, err)
-		}
-		return
-	}
-	s.mu.fetchOrgStatus503And504ErrCount = 0
-
-	// Print info log when the new status is different from the previous one, or if it's the first run
-	prev := s.mu.previousOrgStatus
-	if prev == nil ||
-		prev.Enabled != response.Enabled ||
-		prev.Authorized != response.Authorized {
-		if response.Enabled {
-			if response.Authorized {
-				log.Infof("[%s] Remote Configuration is enabled for this organization and agent.", s.rcType)
-			} else {
-				log.Infof(
-					"[%s] Remote Configuration is enabled for this organization but disabled for this agent. Add the Remote Configuration Read permission to its API key to enable it for this agent.", s.rcType)
-			}
-		} else {
-			if response.Authorized {
-				log.Infof("[%s] Remote Configuration is disabled for this organization.", s.rcType)
-			} else {
-				log.Infof("[%s] Remote Configuration is disabled for this organization and agent.", s.rcType)
-			}
-		}
-	}
-	s.mu.previousOrgStatus = &pbgo.OrgStatusResponse{
-		Enabled:    response.Enabled,
-		Authorized: response.Authorized,
-	}
-	exportedStatusOrgEnabled.Set(strconv.FormatBool(response.Enabled))
-	exportedStatusKeyAuthorized.Set(strconv.FormatBool(response.Authorized))
 }
 
 func (s *CoreAgentService) calculateRefreshInterval() time.Duration {
