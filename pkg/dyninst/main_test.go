@@ -8,13 +8,14 @@
 package dyninst
 
 import (
-	"os"
 	"testing"
+
+	"go.uber.org/goleak"
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/dyninsttest"
 )
 
 func TestMain(m *testing.M) {
 	dyninsttest.SetupLogging()
-	os.Exit(m.Run())
+	goleak.VerifyTestMain(m, goleak.IgnoreCurrent())
 }

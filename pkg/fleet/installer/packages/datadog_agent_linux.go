@@ -46,15 +46,17 @@ var datadogAgentPackage = hooks{
 }
 
 const (
-	agentPackage = "datadog-agent"
-	agentSymlink = "/usr/bin/datadog-agent"
+	agentPackage     = "datadog-agent"
+	agentSymlink     = "/usr/bin/datadog-agent"
+	installerSymlink = "/usr/bin/datadog-installer"
 )
 
 var (
 	// agentDirectories are the directories that the agent needs to function
 	agentDirectories = file.Directories{
 		{Path: "/etc/datadog-agent", Mode: 0755, Owner: "dd-agent", Group: "dd-agent"},
-		{Path: "/var/log/datadog", Mode: 0755, Owner: "dd-agent", Group: "dd-agent"},
+		{Path: "/etc/datadog-agent/managed", Mode: 0755, Owner: "dd-agent", Group: "dd-agent"},
+		{Path: "/var/log/datadog", Mode: 0750, Owner: "dd-agent", Group: "dd-agent"},
 		{Path: "/opt/datadog-packages/run", Mode: 0755, Owner: "dd-agent", Group: "dd-agent"},
 		{Path: "/opt/datadog-packages/tmp", Mode: 0755, Owner: "dd-agent", Group: "dd-agent"},
 	}
@@ -62,7 +64,7 @@ var (
 	// agentConfigPermissions are the ownerships and modes that are enforced on the agent configuration files
 	agentConfigPermissions = file.Permissions{
 		{Path: ".", Owner: "dd-agent", Group: "dd-agent", Recursive: true},
-		{Path: "managed", Owner: "root", Group: "root", Recursive: true},
+		{Path: "managed", Owner: "dd-agent", Group: "dd-agent", Recursive: true},
 		{Path: "inject", Owner: "root", Group: "root", Recursive: true},
 		{Path: "compliance.d", Owner: "root", Group: "root", Recursive: true},
 		{Path: "runtime-security.d", Owner: "root", Group: "root", Recursive: true},

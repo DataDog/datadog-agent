@@ -336,6 +336,9 @@ def pr_commenter(
         with open(body_file) as f:
             body = f.read()
 
+    if force_delete:
+        delete = True
+
     if not body and not delete:
         return
 
@@ -626,7 +629,7 @@ def check_permissions(
         gh = GithubAPI()
         root = gh.get_team(name)
         depth = None
-        admins = root.get_members(role='maintainer')
+        admins = list(root.get_members(role='maintainer'))
     else:
         gh = GithubAPI(f"datadog/{name}")
         root = gh._repository

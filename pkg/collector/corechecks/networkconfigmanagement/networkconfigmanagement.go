@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/profile"
 	"github.com/benbjohnson/clock"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
@@ -50,42 +51,55 @@ func (c *Check) Run() error {
 		log.Errorf("unable to connect to remote device %s: %s", c.checkContext.Device.IPAddress, checkErr)
 		return checkErr
 	}
+
+	// Must defer this way because sometimes we will have to redial the remote client
 	defer func() {
 		if c.remoteClient != nil {
 			_ = c.remoteClient.Close()
 		}
 	}()
 
-	// TODO: validate the running config to make sure it's valid, extract other information from it, etc.
-	runningConfig, checkErr := c.remoteClient.RetrieveRunningConfig()
+	// If the check did not have inline profile explicitly defined/from cache, find the profile that works
+	if !c.checkContext.ProfileCache.HasSetProfile() {
+		prof, err := c.FindMatchingProfile()
+		if err != nil {
+			return err
+		}
+		c.checkContext.ProfileCache.Profile = prof
+		c.checkContext.ProfileCache.ProfileName = prof.Name
+	}
+	// Update the remote client's device profile to access the correct commands
+	c.remoteClient.SetProfile(c.checkContext.ProfileCache.Profile)
+
+	rawRunningConfig, checkErr := c.remoteClient.RetrieveRunningConfig()
 	if checkErr != nil {
 		return checkErr
 	}
 
+	// TODO: confirm what tags should be associated for a device config and/or its metrics
 	deviceID := fmt.Sprintf("%s:%s", c.checkContext.Namespace, c.checkContext.Device.IPAddress)
 	tags := []string{
 		"device_ip:" + c.checkContext.Device.IPAddress,
 	}
-	runningTimestamp, checkErr := ncmreport.RetrieveTimestampFromConfig(runningConfig)
-	if checkErr != nil {
-		log.Warnf("unable to extract last change timestamp from running config for %s, using agent collection ts: %s", deviceID, checkErr)
-		runningTimestamp = c.clock.Now().Unix()
-	}
-	configs = append(configs, ncmreport.ToNetworkDeviceConfig(deviceID, c.checkContext.Device.IPAddress, ncmreport.RUNNING, runningTimestamp, tags, runningConfig))
 
-	// TODO: validate the startup config to make sure it's valid, extract other information from it, etc.
-	startupConfig, checkErr := c.remoteClient.RetrieveStartupConfig()
+	runningConfig, metadata, checkErr := c.checkContext.ProfileCache.Profile.ProcessCommandOutput(profile.Running, rawRunningConfig)
+	if checkErr != nil {
+		log.Warnf("unable to process rules for running config for device %s, using agent collection ts: %s", deviceID, checkErr)
+	}
+	// TODO: helper fn to take metadata that needs to be emitted as metrics + emit them
+	configs = append(configs, ncmreport.ToNetworkDeviceConfig(deviceID, c.checkContext.Device.IPAddress, ncmreport.RUNNING, metadata, tags, runningConfig))
+
+	rawStartupConfig, checkErr := c.remoteClient.RetrieveStartupConfig()
 	if checkErr != nil {
 		// If the startup config cannot be retrieved, log a warning but continue
 		log.Warnf("unable to retrieve startup config for %s, will not send: %s", deviceID, checkErr)
 	} else {
-		startupTimestamp, checkErr := ncmreport.RetrieveTimestampFromConfig(startupConfig)
+		startupConfig, metadata, checkErr := c.checkContext.ProfileCache.Profile.ProcessCommandOutput(profile.Startup, rawStartupConfig)
 		if checkErr != nil {
-			log.Warnf("unable to extract last change timestamp from startup config for %s, using agent collection ts: %s", deviceID, checkErr)
-			startupTimestamp = c.clock.Now().Unix()
+			log.Warnf("unable to process rules for startup config for device %s, using agent collection ts: %s", deviceID, checkErr)
 		}
 		// add the startup config to the payload if it was retrieved successfully
-		configs = append(configs, ncmreport.ToNetworkDeviceConfig(deviceID, c.checkContext.Device.IPAddress, ncmreport.STARTUP, startupTimestamp, tags, startupConfig))
+		configs = append(configs, ncmreport.ToNetworkDeviceConfig(deviceID, c.checkContext.Device.IPAddress, ncmreport.STARTUP, metadata, tags, startupConfig))
 	}
 
 	checkErr = c.sender.SendNCMConfig(ncmreport.ToNCMPayload(c.checkContext.Namespace, "", configs, c.clock.Now().Unix()))
@@ -152,4 +166,23 @@ func newCheck(agentConfig config.Component) check.Check {
 		CheckBase:   core.NewCheckBase(CheckName),
 		agentConfig: agentConfig,
 	}
+}
+
+// FindMatchingProfile supports testing profiles until one is found with a successful command for the device
+func (c *Check) FindMatchingProfile() (*profile.NCMProfile, error) {
+	for profName, prof := range c.checkContext.ProfileMap {
+		if c.checkContext.ProfileCache.HasTried(profName) {
+			continue
+		}
+		c.remoteClient.SetProfile(prof)
+		_, err := c.remoteClient.RetrieveRunningConfig()
+		if err != nil {
+			log.Warnf("error with running config retrieval on profile %s on remote device %s: %s", profName, c.checkContext.Device.IPAddress, err)
+			c.checkContext.ProfileCache.AppendToTriedProfiles(profName)
+			// TODO: clear the profile if it didn't work
+			continue
+		}
+		return prof, nil
+	}
+	return nil, fmt.Errorf("unable to find matching profile for device %s", c.checkContext.Device.IPAddress)
 }

@@ -9,7 +9,6 @@ package inventoryagentimpl
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"maps"
 	"net/http"
 	"reflect"
@@ -83,13 +82,6 @@ type Payload struct {
 func (p *Payload) MarshalJSON() ([]byte, error) {
 	type PayloadAlias Payload
 	return json.Marshal((*PayloadAlias)(p))
-}
-
-// SplitPayload implements marshaler.AbstractMarshaler#SplitPayload.
-//
-// In this case, the payload can't be split any further.
-func (p *Payload) SplitPayload(_ int) ([]marshaler.AbstractMarshaler, error) {
-	return nil, fmt.Errorf("could not split inventories agent payload any more, payload is too big for intake")
 }
 
 type inventoryagent struct {
@@ -258,6 +250,9 @@ func (ia *inventoryagent) fetchCoreAgentMetadata() {
 
 	ia.data["fleet_policies_applied"] = ia.conf.GetStringSlice("fleet_layers")
 
+	// Synthetics
+	ia.data["feature_synthetics_collector_enabled"] = ia.conf.GetBool("synthetics.collector.enabled")
+
 	// ECS Fargate
 	ia.fetchECSFargateAgentMetadata()
 
@@ -321,8 +316,9 @@ func (ia *inventoryagent) fetchSystemProbeMetadata() {
 	// Service monitoring / system-probe
 
 	ia.data["feature_networks_enabled"] = sysProbeConf.GetBool("network_config.enabled")
-	ia.data["feature_networks_http_enabled"] = sysProbeConf.GetBool("service_monitoring_config.enable_http_monitoring")
+	ia.data["feature_networks_http_enabled"] = sysProbeConf.GetBool("service_monitoring_config.http.enabled")
 	ia.data["feature_networks_https_enabled"] = sysProbeConf.GetBool("service_monitoring_config.tls.native.enabled")
+	ia.data["feature_traceroute_enabled"] = sysProbeConf.GetBool("traceroute.enabled")
 
 	ia.data["feature_usm_enabled"] = sysProbeConf.GetBool("service_monitoring_config.enabled")
 	ia.data["feature_usm_kafka_enabled"] = sysProbeConf.GetBool("service_monitoring_config.kafka.enabled")

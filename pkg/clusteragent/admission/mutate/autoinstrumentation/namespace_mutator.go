@@ -171,7 +171,7 @@ func (m *mutatorCore) injectTracers(pod *corev1.Pod, config extractedPodLibInfo)
 
 		injector          = m.newInjector(pod, startTime, injectorOptions)
 		containerMutators = containerMutators{
-			config.languageDetection.containerMutator(m.config.version),
+			config.languageDetection.containerMutator(),
 			ustEnvVarMutator,
 		}
 	)
@@ -183,7 +183,7 @@ func (m *mutatorCore) injectTracers(pod *corev1.Pod, config extractedPodLibInfo)
 		return err
 	}
 
-	if err := injector.podMutator(m.config.version).mutatePod(pod); err != nil {
+	if err := injector.podMutator().mutatePod(pod); err != nil {
 		// setting the language tag to `injector` because this injection is not related to a specific supported language
 		metrics.LibInjectionErrors.Inc("injector", strconv.FormatBool(autoDetected), injectionType)
 		lastError = err
@@ -197,7 +197,7 @@ func (m *mutatorCore) injectTracers(pod *corev1.Pod, config extractedPodLibInfo)
 			metrics.LibInjectionAttempts.Inc(langStr, strconv.FormatBool(injected), strconv.FormatBool(autoDetected), injectionType)
 		}()
 
-		if err := lib.podMutator(m.config.version, libRequirementOptions{
+		if err := lib.podMutator(libRequirementOptions{
 			containerFilter:       m.config.containerFilter,
 			containerMutators:     containerMutators,
 			initContainerMutators: initContainerMutators,

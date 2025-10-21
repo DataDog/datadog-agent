@@ -11,8 +11,12 @@ import (
 	"cmp"
 	"fmt"
 	"slices"
+	"time"
+
+	"golang.org/x/time/rate"
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // state represents the state of an Actuator.
@@ -49,6 +53,125 @@ type state struct {
 
 	// If true, the state machine is shutting down.
 	shuttingDown bool
+
+	counters struct {
+		loaded       uint64
+		loadFailed   uint64
+		attached     uint64
+		attachFailed uint64
+		detached     uint64
+		unloaded     uint64
+	}
+}
+
+var unexpectedProgramStateLogLimiter = rate.NewLimiter(rate.Every(time.Minute), 1)
+
+func (s *state) Metrics() Metrics {
+	var numWaiting uint64
+	var numAttached uint64
+	var numAttaching uint64
+	var numLoadingFailed uint64
+	var numDetaching uint64
+	for _, p := range s.processes {
+		switch p.state {
+		case processStateAttached:
+			numAttached++
+		case processStateAttaching:
+			numAttaching++
+		case processStateWaitingForProgram:
+			numWaiting++
+		case processStateLoadingFailed:
+			numLoadingFailed++
+		case processStateDetaching:
+			numDetaching++
+		case processStateInvalid:
+			// no-op
+		default:
+			if unexpectedProgramStateLogLimiter.Allow() {
+				log.Errorf("unexpected actuator.processState: %v", p.state)
+			}
+		}
+	}
+
+	return Metrics{
+		Loaded:       s.counters.loaded,
+		LoadFailed:   s.counters.loadFailed,
+		Attached:     s.counters.attached,
+		AttachFailed: s.counters.attachFailed,
+		Detached:     s.counters.detached,
+		Unloaded:     s.counters.unloaded,
+
+		NumWaitingForProgram: uint64(numWaiting),
+		NumAttached:          numAttached,
+		NumAttaching:         numAttaching,
+		NumLoadingFailed:     numLoadingFailed,
+		NumDetaching:         numDetaching,
+
+		NumProcesses: uint64(len(s.processes)),
+		NumPrograms:  uint64(len(s.programs)),
+	}
+}
+
+// Metrics is used to report metrics about the state machine.
+type Metrics struct {
+	// Counters
+
+	// Loaded is the total number of programs that have been loaded
+	// successfully.
+	Loaded uint64
+	// LoadFailed is the total number of programs that have failed to load.
+	LoadFailed uint64
+	// Attached is the total number of programs that have been attached to a
+	// process.
+	Attached uint64
+	// AttachFailed is the total number of programs that have failed to attach
+	// to a process.
+	AttachFailed uint64
+	// Detached is the total number of programs that have been detached from a
+	// process.
+	Detached uint64
+	// Unloaded is the total number of programs that have been unloaded.
+	Unloaded uint64
+
+	// Gauges
+
+	// NumWaitingForProgram is the number of processes waiting for a program to
+	// be compiled and loaded.
+	NumWaitingForProgram uint64
+	// NumAttached is the number of processes attached to a program.
+	NumAttached uint64
+	// NumAttaching is the number of processes attaching to a program.
+	NumAttaching uint64
+	// NumLoadingFailed is the number of programs that have failed to load.
+	NumLoadingFailed uint64
+	// NumDetaching is the number of programs that are detaching.
+	NumDetaching uint64
+
+	// NumProcesses is the number of processes in the state machine.
+	NumProcesses uint64
+	// NumPrograms is the number of programs in the state machine.
+	NumPrograms uint64
+}
+
+// AsStats converts the Metrics to a map[string]any for use by the system-probe.
+func (m Metrics) AsStats() map[string]any {
+	return map[string]any{
+		"loaded":       m.Loaded,
+		"loadFailed":   m.LoadFailed,
+		"attached":     m.Attached,
+		"attachFailed": m.AttachFailed,
+		"detached":     m.Detached,
+		"unloaded":     m.Unloaded,
+
+		"numWaitingForProgram": m.NumWaitingForProgram,
+		"numAttached":          m.NumAttached,
+		"numAttaching":         m.NumAttaching,
+		"numLoadingFailed":     m.NumLoadingFailed,
+		"numDetaching":         m.NumDetaching,
+
+		"numProcesses": m.NumProcesses,
+		"numPrograms":  m.NumPrograms,
+	}
 }
 
 type processKey struct {
@@ -176,25 +299,35 @@ func handleEvent(
 
 	var err error
 	switch ev := ev.(type) {
+	case eventGetMetrics:
+		ev.metricsChan <- sm.Metrics()
+		return nil
+
 	case eventProcessesUpdated:
 		err = handleProcessesUpdated(sm, effects, ev)
 
 	case eventProgramLoaded:
+		sm.counters.loaded++
 		err = handleProgramLoaded(sm, effects, ev)
 
 	case eventProgramLoadingFailed:
+		sm.counters.loadFailed++
 		err = handleProgramLoadingFailure(sm, ev.programID, ev.err)
 
 	case eventProgramAttached:
+		sm.counters.attached++
 		err = handleProgramAttached(sm, effects, ev)
 
 	case eventProgramAttachingFailed:
+		sm.counters.attachFailed++
 		err = handleProgramAttachingFailed(sm, effects, ev)
 
 	case eventProgramDetached:
+		sm.counters.detached++
 		err = handleProgramDetached(sm, effects, ev)
 
 	case eventProgramUnloaded:
+		sm.counters.unloaded++
 		err = handleProgramUnloaded(sm, ev)
 
 	case eventShutdown:
@@ -597,12 +730,12 @@ func handleProgramAttachingFailed(
 func handleProgramAttached(
 	sm *state, effects effectHandler, ev eventProgramAttached,
 ) error {
-	prog, ok := sm.programs[ev.program.ir.ID]
+	prog, ok := sm.programs[ev.program.programID]
 	if !ok {
-		return fmt.Errorf("program %v not found in programs", ev.program.ir.ID)
+		return fmt.Errorf("program %v not found in programs", ev.program.programID)
 	}
 	key := processKey{
-		ProcessID: ev.program.procID,
+		ProcessID: ev.program.processID,
 		tenantID:  prog.tenantID,
 	}
 	proc, ok := sm.processes[key]
@@ -767,11 +900,8 @@ func handleShutdown(sm *state, effects effectHandler) error {
 	}
 
 	// 3. Clear the loading queue.
-	for {
-		prog, ok := sm.queuedLoading.popFront()
-		if !ok {
-			break
-		}
+	pop := sm.queuedLoading.popFront
+	for prog, ok := pop(); ok; prog, ok = pop() {
 		proc, ok := sm.processes[prog.processKey]
 		if !ok {
 			return fmt.Errorf("process %v not found in processes", prog.processKey)

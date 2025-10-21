@@ -7,6 +7,7 @@
 package rules
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"maps"
@@ -117,7 +118,6 @@ const (
 // ActionDefinitionInterface is an interface that describes a rule action section
 type ActionDefinitionInterface interface {
 	PreCheck(opts PolicyLoaderOpts) error
-	PostCheck(rule *eval.Rule) error
 	IsActionSupported(eventTypeEnabled map[eval.EventType]bool) error
 }
 
@@ -188,23 +188,6 @@ func (a *ActionDefinition) PreCheck(opts PolicyLoaderOpts) error {
 	return nil
 }
 
-// PostCheck returns an error if the action is invalid after parsing
-func (a *ActionDefinition) PostCheck(rule *eval.Rule) error {
-	candidateActions := a.getCandidateActions()
-	actions := 0
-
-	for _, action := range candidateActions {
-		if !reflect.ValueOf(action).IsNil() {
-			if err := action.PostCheck(rule); err != nil {
-				return err
-			}
-			actions++
-		}
-	}
-
-	return nil
-}
-
 // IsActionSupported returns true if the action is supported given a list of enabled event type
 func (a *ActionDefinition) IsActionSupported(eventTypeEnabled map[eval.EventType]bool) error {
 	candidateActions := a.getCandidateActions()
@@ -227,11 +210,6 @@ type DefaultActionDefinition struct{}
 
 // PreCheck returns an error if the action is invalid before parsing
 func (a *DefaultActionDefinition) PreCheck(_ PolicyLoaderOpts) error {
-	return nil
-}
-
-// PostCheck returns an error if the action is invalid after parsing
-func (a *DefaultActionDefinition) PostCheck(_ *eval.Rule) error {
 	return nil
 }
 
@@ -362,6 +340,18 @@ func (h *HashDefinition) PostCheck(rule *eval.Rule) error {
 		return err
 	}
 
+	// check that the field is compatible with the rule event type
+	fieldPathForMetadata := h.Field + ".path"
+	fieldEventType, _, _, err := ev.GetFieldMetadata(fieldPathForMetadata)
+	if err != nil {
+		return fmt.Errorf("failed to get event type for field '%s': %w", fieldPathForMetadata, err)
+	}
+
+	// if the field has an event type, we check it matches the rule event type
+	if fieldEventType != "" && fieldEventType != ruleEventType {
+		return fmt.Errorf("field '%s' is not compatible with '%s' rules", h.Field, ruleEventType)
+	}
+
 	return nil
 }
 
@@ -473,5 +463,35 @@ func (d *HumanReadableDuration) UnmarshalYAML(n *yaml.Node) error {
 	}
 }
 
+// MarshalJSON marshals a duration to a human readable format
+func (d *HumanReadableDuration) MarshalJSON() ([]byte, error) {
+	return json.Marshal(d.String())
+}
+
+// UnmarshalJSON unmarshals a duration from a human readable format or from an integer
+func (d *HumanReadableDuration) UnmarshalJSON(data []byte) error {
+	var v interface{}
+	if err := json.Unmarshal(data, &v); err != nil {
+		return err
+	}
+	switch value := v.(type) {
+	case float64:
+		// JSON numbers are unmarshaled as float64 by default
+		d.Duration = time.Duration(value)
+		return nil
+	case string:
+		var err error
+		d.Duration, err = time.ParseDuration(value)
+		if err != nil {
+			return err
+		}
+		return nil
+	default:
+		return fmt.Errorf("invalid duration: (json type: %T)", v)
+	}
+}
+
 var _ yaml.Marshaler = (*HumanReadableDuration)(nil)
 var _ yaml.Unmarshaler = (*HumanReadableDuration)(nil)
+var _ json.Marshaler = (*HumanReadableDuration)(nil)
+var _ json.Unmarshaler = (*HumanReadableDuration)(nil)

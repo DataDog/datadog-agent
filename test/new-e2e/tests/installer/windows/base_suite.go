@@ -302,6 +302,7 @@ func (s *BaseSuite) AfterTest(suiteName, testName string) {
 		}
 		// collect agent logs
 		s.collectAgentLogs()
+		s.collectInstallerLogs()
 	}
 }
 
@@ -324,6 +325,34 @@ func (s *BaseSuite) collectAgentLogs() {
 			filepath.Join(s.SessionOutputDir(), entry.Name()),
 		)
 		s.Assert().NoError(err, "should download %s", entry.Name())
+	}
+}
+
+func (s *BaseSuite) collectInstallerLogs() {
+	host := s.Env().RemoteHost
+
+	s.T().Logf("Collecting installer logs")
+	tmpFolder := filepath.Join(consts.BaseConfigPath, "tmp")
+	tmpEntries, err := host.ReadDir(tmpFolder)
+	if !s.Assert().NoError(err, "should read tmp folder") {
+		return
+	}
+	for _, entry := range tmpEntries {
+		if entry.IsDir() && strings.HasPrefix(entry.Name(), "datadog-agent") {
+			logsFolder := filepath.Join(tmpFolder, entry.Name())
+			logEntries, err := host.ReadDir(logsFolder)
+			if !s.Assert().NoError(err, "should read logs folder") {
+				continue
+			}
+			for _, log := range logEntries {
+				s.T().Logf("Found log file: %s", log.Name())
+				err = host.GetFile(
+					filepath.Join(logsFolder, log.Name()),
+					filepath.Join(s.SessionOutputDir(), log.Name()),
+				)
+				s.Assert().NoError(err, "should download %s", log.Name())
+			}
+		}
 	}
 }
 
@@ -389,6 +418,39 @@ func (s *BaseSuite) StartExperimentCurrentVersion() (string, error) {
 	return s.startExperimentWithCustomPackage(WithName(consts.AgentPackage),
 		WithPackage(s.CurrentAgentVersion().OCIPackage()),
 	)
+}
+
+func (s *BaseSuite) startxperf() {
+	host := s.Env().RemoteHost
+
+	err := host.HostArtifactClient.Get("windows-products/xperf-5.0.8169.zip", "C:/xperf.zip")
+	s.Require().NoError(err)
+
+	// extract if C:/xperf dir does not exist
+	_, err = host.Execute("if (-Not (Test-Path -Path C:/xperf)) { Expand-Archive -Path C:/xperf.zip -DestinationPath C:/xperf }")
+	s.Require().NoError(err)
+
+	outputPath := "C:/kernel.etl"
+	xperfPath := "C:/xperf/xperf.exe"
+	_, err = host.Execute(fmt.Sprintf(`& "%s" -On Base+Latency+CSwitch+PROC_THREAD+LOADER+Profile+DISPATCHER -stackWalk CSwitch+Profile+ReadyThread+ThreadCreate -f %s -MaxBuffers 1024 -BufferSize 1024 -MaxFile 1024 -FileMode Circular`, xperfPath, outputPath))
+	s.Require().NoError(err)
+}
+
+func (s *BaseSuite) collectxperf() {
+	host := s.Env().RemoteHost
+
+	xperfPath := "C:/xperf/xperf.exe"
+	outputPath := "C:/full_host_profiles.etl"
+
+	_, err := host.Execute(fmt.Sprintf(`& "%s" -stop -d %s`, xperfPath, outputPath))
+	s.Require().NoError(err)
+
+	// collect xperf if the test failed
+	if s.T().Failed() {
+		outDir := s.SessionOutputDir()
+		err = host.GetFile(outputPath, filepath.Join(outDir, "full_host_profiles.etl"))
+		s.Require().NoError(err)
+	}
 }
 
 // MustStartExperimentCurrentVersion start an experiment with current version of the Agent
@@ -522,6 +584,9 @@ func (s *BaseSuite) WaitForDaemonToStop(f func(), b backoff.BackOff) {
 	originalPID, err := windowscommon.GetServicePID(s.Env().RemoteHost, consts.ServiceName)
 	s.Require().NoError(err)
 	s.Require().Greater(originalPID, 0)
+
+	s.startxperf()
+	defer s.collectxperf()
 
 	f()
 

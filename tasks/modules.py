@@ -361,9 +361,6 @@ def add_all_replace(ctx: Context):
 
     # Second we iterate over all go.mod and update them
     for mod in gomods:
-        # Skip comp/otelcol/collector-contrib/impl directory
-        if mod.independent:
-            continue
         if mod.should_replace_internal_modules:
             update_go_mod(mod_to_replace, mod.path)
 

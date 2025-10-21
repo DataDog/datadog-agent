@@ -23,10 +23,7 @@ type filterSelection struct {
 	containerSBOM                 [][]workloadfilter.ContainerFilter
 
 	// Pod filters
-	podAutodiscoveryGlobal  [][]workloadfilter.PodFilter
-	podAutodiscoveryMetrics [][]workloadfilter.PodFilter
-	podAutodiscoveryLogs    [][]workloadfilter.PodFilter
-	podSharedMetric         [][]workloadfilter.PodFilter
+	podSharedMetric [][]workloadfilter.PodFilter
 
 	// Service filters
 	serviceAutodiscoveryGlobal  [][]workloadfilter.ServiceFilter
@@ -58,9 +55,6 @@ func (pf *filterSelection) initializeSelections(cfg config.Component) {
 	pf.containerSBOM = pf.computeContainerSBOMFilters(cfg)
 
 	// Initialize pod filters
-	pf.podAutodiscoveryGlobal = pf.computePodAutodiscoveryFilters(cfg, workloadfilter.GlobalFilter)
-	pf.podAutodiscoveryMetrics = pf.computePodAutodiscoveryFilters(cfg, workloadfilter.MetricsFilter)
-	pf.podAutodiscoveryLogs = pf.computePodAutodiscoveryFilters(cfg, workloadfilter.LogsFilter)
 	pf.podSharedMetric = pf.computePodSharedMetricFilters(cfg)
 
 	// Initialize service filters
@@ -99,20 +93,6 @@ func (pf *filterSelection) GetContainerPausedFilters() [][]workloadfilter.Contai
 // GetContainerSBOMFilters returns pre-computed container SBOM filters
 func (pf *filterSelection) GetContainerSBOMFilters() [][]workloadfilter.ContainerFilter {
 	return pf.containerSBOM
-}
-
-// GetPodAutodiscoveryFilters returns pre-computed pod autodiscovery filters
-func (pf *filterSelection) GetPodAutodiscoveryFilters(filterScope workloadfilter.Scope) [][]workloadfilter.PodFilter {
-	switch filterScope {
-	case workloadfilter.GlobalFilter:
-		return pf.podAutodiscoveryGlobal
-	case workloadfilter.MetricsFilter:
-		return pf.podAutodiscoveryMetrics
-	case workloadfilter.LogsFilter:
-		return pf.podAutodiscoveryLogs
-	default:
-		return nil
-	}
 }
 
 // GetPodSharedMetricFilters returns pre-computed pod shared metric filters
@@ -211,31 +191,16 @@ func (pf *filterSelection) computeContainerPausedFilters(cfg config.Component) [
 }
 
 // computeContainerSBOMFilters computes container SBOM filters (migrated from def/utils.go)
-func (pf *filterSelection) computeContainerSBOMFilters(_ config.Component) [][]workloadfilter.ContainerFilter {
-	return [][]workloadfilter.ContainerFilter{{workloadfilter.LegacyContainerSBOM}}
-}
-
-// computePodAutodiscoveryFilters computes pod autodiscovery filters
-func (pf *filterSelection) computePodAutodiscoveryFilters(_ config.Component, filterScope workloadfilter.Scope) [][]workloadfilter.PodFilter {
-	flist := make([][]workloadfilter.PodFilter, 2)
-
-	high := []workloadfilter.PodFilter{workloadfilter.PodADAnnotations}
-	low := []workloadfilter.PodFilter{workloadfilter.LegacyPod}
-
-	switch filterScope {
-	case workloadfilter.MetricsFilter:
-		high = append(high, workloadfilter.PodADAnnotationsMetrics)
+func (pf *filterSelection) computeContainerSBOMFilters(cfg config.Component) [][]workloadfilter.ContainerFilter {
+	if cfg.GetBool("sbom.container_image.exclude_pause_container") {
+		return [][]workloadfilter.ContainerFilter{{workloadfilter.LegacyContainerSBOM, workloadfilter.ContainerPaused}}
 	}
-
-	flist[0] = high // highPrecedence
-	flist[1] = low  // lowPrecedence
-
-	return flist
+	return [][]workloadfilter.ContainerFilter{{workloadfilter.LegacyContainerSBOM}}
 }
 
 // computePodSharedMetricFilters computes pod shared metric filters (migrated from def/utils.go)
 func (pf *filterSelection) computePodSharedMetricFilters(_ config.Component) [][]workloadfilter.PodFilter {
-	return [][]workloadfilter.PodFilter{{workloadfilter.PodADAnnotations, workloadfilter.PodADAnnotationsMetrics}, {workloadfilter.LegacyPod}}
+	return [][]workloadfilter.PodFilter{{workloadfilter.PodADAnnotations, workloadfilter.PodADAnnotationsMetrics}, {workloadfilter.LegacyPodMetrics, workloadfilter.LegacyPodGlobal}}
 }
 
 // computeServiceAutodiscoveryFilters computes service autodiscovery filters

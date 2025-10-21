@@ -40,11 +40,11 @@ func (e *RuleEngine) GetSECLVariables() map[string]*api.SECLVariableState {
 			}
 			cgr := ebpfProbe.Resolvers.CGroupResolver
 
-			cgr.Iterate(func(cgce *cgroupModel.CacheEntry) {
+			cgr.Iterate(func(cgce *cgroupModel.CacheEntry) bool {
 				cgce.RLock()
 				defer cgce.RUnlock()
 				if cgce.ContainerContext.ContainerID == "" {
-					return
+					return false
 				}
 
 				ctx := preparator.get(func(event *model.Event) {
@@ -54,7 +54,7 @@ func (e *RuleEngine) GetSECLVariables() map[string]*api.SECLVariableState {
 
 				value, found := scopedVariable.GetValue(ctx)
 				if !found {
-					return
+					return false
 				}
 
 				scopedName := fmt.Sprintf("%s.%s", name, cgce.ContainerContext.ContainerID)
@@ -63,12 +63,13 @@ func (e *RuleEngine) GetSECLVariables() map[string]*api.SECLVariableState {
 					Name:  scopedName,
 					Value: scopedValue,
 				}
+				return false
 			})
-		} else if strings.HasPrefix(name, "cgroup.") {
+		} else if !e.probe.Opts.EBPFLessEnabled && strings.HasPrefix(name, "cgroup.") {
 			scopedVariable := value.(eval.ScopedVariable)
 
 			cgr := e.probe.PlatformProbe.(*probe.EBPFProbe).Resolvers.CGroupResolver
-			cgr.Iterate(func(cgce *cgroupModel.CacheEntry) {
+			cgr.Iterate(func(cgce *cgroupModel.CacheEntry) bool {
 				cgce.RLock()
 				defer cgce.RUnlock()
 
@@ -79,7 +80,7 @@ func (e *RuleEngine) GetSECLVariables() map[string]*api.SECLVariableState {
 
 				value, found := scopedVariable.GetValue(ctx)
 				if !found {
-					return
+					return false
 				}
 
 				scopedName := fmt.Sprintf("%s.%s", name, cgce.CGroupID)
@@ -88,6 +89,7 @@ func (e *RuleEngine) GetSECLVariables() map[string]*api.SECLVariableState {
 					Name:  scopedName,
 					Value: scopedValue,
 				}
+				return false
 			})
 		}
 	}

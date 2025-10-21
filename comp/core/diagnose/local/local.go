@@ -22,6 +22,7 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
@@ -37,6 +38,7 @@ func Run(
 	diagnoseConfig diagnose.Config,
 	log log.Component,
 	senderManager diagnosesendermanager.Component,
+	filterStore workloadfilter.Component,
 	wmeta option.Option[workloadmeta.Component],
 	ac autodiscovery.Component,
 	secretResolver secrets.Component,
@@ -59,7 +61,7 @@ func Run(
 		},
 	}
 
-	integrationConfigs, err := getLocalIntegrationConfigs(senderManager, wmeta, ac, secretResolver, tagger, config)
+	integrationConfigs, err := getLocalIntegrationConfigs(senderManager, filterStore, wmeta, ac, secretResolver, tagger, config)
 
 	if err != nil {
 		localSuite[diagnose.CheckDatadog] = func(_ diagnose.Config) []diagnose.Diagnosis {
@@ -97,6 +99,7 @@ func Run(
 }
 
 func getLocalIntegrationConfigs(senderManager diagnosesendermanager.Component,
+	filterStore workloadfilter.Component,
 	wmeta option.Option[workloadmeta.Component],
 	ac autodiscovery.Component,
 	secretResolver secrets.Component,
@@ -111,11 +114,11 @@ func getLocalIntegrationConfigs(senderManager diagnosesendermanager.Component,
 	if !ok {
 		return nil, fmt.Errorf("Workload Meta is not available")
 	}
-	common.LoadComponents(secretResolver, wmetaInstance, ac, config.GetString("confd_path"))
+	common.LoadComponents(secretResolver, wmetaInstance, tagger, ac, config.GetString("confd_path"))
 	ac.LoadAndRun(context.Background())
 
 	// Create the CheckScheduler, but do not attach it to AutoDiscovery.
-	pkgcollector.InitCheckScheduler(option.None[collector.Component](), senderManagerInstance, option.None[integrations.Component](), tagger)
+	pkgcollector.InitCheckScheduler(option.None[collector.Component](), senderManagerInstance, option.None[integrations.Component](), tagger, filterStore)
 
 	// Load matching configurations (should we use common.AC.GetAllConfigs())
 	waitCtx, cancelTimeout := context.WithTimeout(context.Background(), time.Duration(5*time.Second))

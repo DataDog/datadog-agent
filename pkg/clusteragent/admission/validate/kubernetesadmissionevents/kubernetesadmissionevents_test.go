@@ -10,6 +10,7 @@ package kubernetesadmissionevents
 import (
 	"encoding/json"
 	"fmt"
+	"regexp"
 	"testing"
 	"time"
 
@@ -39,6 +40,14 @@ const (
 	sourceTypeName = "kubernetes admission"
 	eventType      = "kubernetes_admission_events"
 )
+
+// compareText compares text while ignoring the timestamp
+func compareText(expected, actual event.Event) bool {
+	re := regexp.MustCompile(`\*\*Time:\*\*.*?(\\n|$)`)
+	expectedText := re.ReplaceAllString(expected.Text, "**Time:** <TIME>\n")
+	actualText := re.ReplaceAllString(actual.Text, "**Time:** <TIME>\n")
+	return expectedText == actualText
+}
 
 // TestKubernetesAdmissionEvents tests the KubernetesAdmissionEvents webhook.
 func TestKubernetesAdmissionEvents(t *testing.T) {
@@ -257,7 +266,7 @@ func TestKubernetesAdmissionEvents(t *testing.T) {
 			assert.NoError(t, err)
 			assert.True(t, validated)
 			if tt.expectedEmitted {
-				mockSender.AssertEvent(t, tt.expectedEvent, 1*time.Second)
+				mockSender.AssertEventWithCompareFunc(t, tt.expectedEvent, 1*time.Second, compareText)
 			} else {
 				mockSender.AssertNotCalled(t, "Event")
 			}
