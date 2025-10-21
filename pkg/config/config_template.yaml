@@ -160,6 +160,12 @@ api_key:
 #
 # env: <environment name>
 
+## @param remote_updates - boolean - optional - default: false
+## @env DD_REMOTE_UPDATES - boolean - optional - default: false
+## Enable remote upgrades and configuration changes for the Agent.
+#
+# remote_updates: false
+
 ## @param tag_value_split_separator - map - optional
 ## @env DD_TAG_VALUE_SPLIT_SEPARATOR - list of key:value strings - optional
 ## Split tag values according to a given separator. Only applies to host tags,
@@ -511,6 +517,12 @@ api_key:
 ## Collect GPU related host tags
 #
 # collect_gpu_tags: false
+
+## @param azure_metadata_timeout - integer - optional - default: 300
+## @env DD_AZURE_METADATA_TIMEOUT - integer - optional - default: 300
+## Timeout in milliseconds on calls to the Azure metadata endpoints.
+#
+# azure_metadata_timeout: 300
 
 ## @param azure_hostname_style - string - optional - default: "os"
 ## @env DD_AZURE_HOSTNAME_STYLE - string - optional - default: "os"
