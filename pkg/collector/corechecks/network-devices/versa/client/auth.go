@@ -42,6 +42,14 @@ type (
 		GrantType    string `json:"grant_type"`
 	}
 
+	// OAuthRefreshRequest enacapsulates data for refreshing an OAuth token
+	OAuthRefreshRequest struct {
+		ClientID     string `json:"client_id"`
+		ClientSecret string `json:"client_secret"`
+		RefreshToken string `json:"refresh_token"`
+		GrantType    string `json:"grant_type"`
+	}
+
 	// OAuthResponse encapsulates Versa OAuth responses
 	OAuthResponse struct {
 		AccessToken  string `json:"access_token"`
@@ -179,6 +187,7 @@ func (client *Client) loginOAuth() error {
 
 	// Set director token and expiration on the client
 	client.directorToken = oauthResp.AccessToken
+	client.directorRefreshToken = oauthResp.RefreshToken
 
 	// Handle expiry
 	expiresInSeconds, err := strconv.ParseInt(oauthResp.ExpiresIn, 10, 64)
@@ -192,8 +201,109 @@ func (client *Client) loginOAuth() error {
 	return nil
 }
 
+// refreshOAuth logs in to the Director API using OAuth
+func (client *Client) refreshOAuth() error {
+	log.Trace("OAuth refresh called!")
+	reqBody, err := json.Marshal(OAuthRefreshRequest{
+		ClientID:     client.clientID,
+		ClientSecret: client.clientSecret,
+		RefreshToken: client.directorRefreshToken,
+		GrantType:    "refresh_token",
+	})
+	if err != nil {
+		return fmt.Errorf("failed to marshal oauth request body: %v", err)
+	}
+
+	// Request to /auth/refresh to perform OAuth refresh
+	req, err := client.newRequest("POST", "/auth/refresh", bytes.NewReader(reqBody), false)
+	if err != nil {
+		return err
+	}
+	req.Header.Add("Content-Type", "application/json")
+	req.Header.Add("Accept", "application/json")
+
+	// Execute the request
+	resp, err := client.httpClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("OAuth request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	bodyBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return fmt.Errorf("failed to read OAuth response body: %w", err)
+	}
+
+	if resp.StatusCode != 200 {
+		return fmt.Errorf("OAuth refresh failed, status code: %v: %s", resp.StatusCode, string(bodyBytes))
+	}
+
+	// Parse JSON response
+	var oauthResp OAuthResponse
+	err = json.Unmarshal(bodyBytes, &oauthResp)
+	if err != nil {
+		// If JSON parsing fails, return the raw response for debugging
+		return fmt.Errorf("failed to parse OAuth response as JSON: %v, response: %s", err, string(bodyBytes))
+	}
+
+	// Set director token and expiration on the client
+	client.directorToken = oauthResp.AccessToken
+	client.directorRefreshToken = oauthResp.RefreshToken
+
+	// Handle expiry
+	expiresInSeconds, err := strconv.ParseInt(oauthResp.ExpiresIn, 10, 64)
+	if err != nil {
+		return fmt.Errorf("failed to parse expires_in as integer: %v, value: %s", err, oauthResp.ExpiresIn)
+	}
+	expirationDuration := time.Duration(expiresInSeconds) * time.Second
+	client.directorTokenExpiry = timeNow().Add(expirationDuration)
+	log.Tracef("OAuth refresh successful, expires in %s", expirationDuration)
+	log.Tracef("Expires at: %s", client.directorTokenExpiry)
+	return nil
+}
+
+func (client *Client) revokeOAuth() error {
+	log.Trace("Versa OAuth Revoke called!")
+	client.authenticationMutex.Lock()
+	defer client.authenticationMutex.Unlock()
+
+	// Request to /auth/revoke to revoke current OAuth token
+	req, err := client.newRequest("POST", "/auth/refresh", nil, false)
+	if err != nil {
+		return err
+	}
+	req.Header.Add("Accept", "application/json")
+	// use OAuth Bearer token for Director API endpoints
+	req.Header.Add("Authorization", "Bearer "+client.directorToken)
+
+	// Execute the request
+	resp, err := client.httpClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("OAuth request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	bodyBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return fmt.Errorf("failed to read OAuth response body: %w", err)
+	}
+
+	if resp.StatusCode != 200 {
+		return fmt.Errorf("OAuth revoke failed, status code: %v: %s", resp.StatusCode, string(bodyBytes))
+	}
+
+	// Unset tokens and set expiry
+	client.directorToken = ""
+	client.directorRefreshToken = ""
+	client.directorTokenExpiry = timeNow()
+
+	log.Trace("OAuth revoke successful")
+	return nil
+}
+
 // authenticateDirector handles Director API authentication (OAuth or Basic - Basic doesn't need pre-auth)
 func (client *Client) authenticateDirector() error {
+	log.Tracef("Auth method: %s", client.authMethod)
 	switch client.authMethod {
 	case authMethodBasic:
 		return nil
@@ -202,8 +312,16 @@ func (client *Client) authenticateDirector() error {
 		client.authenticationMutex.Lock()
 		defer client.authenticationMutex.Unlock()
 
-		if client.directorToken == "" || client.directorTokenExpiry.Before(now) {
+		if client.directorToken == "" {
+			log.Trace("No director token found, performing OAuth login...")
 			return client.loginOAuth()
+		} else if client.directorTokenExpiry.Before(now) {
+			log.Trace("Director token expired, performing OAuth refresh...")
+			err := client.refreshOAuth()
+			if err != nil {
+				log.Tracef("OAuth token refresh failed, falling back to OAuth login: %v", err)
+				return client.loginOAuth()
+			}
 		}
 		return nil
 	default:
@@ -223,18 +341,53 @@ func (client *Client) authenticateSession() error {
 	return nil
 }
 
-// clearAuth clears both director and session auth state
-func (client *Client) clearAuth() {
+// clearDirectorAuth clears Director API authentication (OAuth or Basic)
+// for OAuth, this will attempt to revoke the token before clearing
+func (client *Client) clearDirectorAuth() {
+	log.Trace("Clearing director auth")
+
+	// If using OAuth and we have a token, try to revoke it first
+	if client.authMethod == authMethodOAuth && client.directorToken != "" {
+		log.Trace("Attempting to revoke OAuth token before clearing")
+		_ = client.revokeOAuth() // Ignore errors - we're clearing anyway
+	}
+
 	client.authenticationMutex.Lock()
 	client.directorToken = ""
-	client.sessionToken = ""
+	client.directorRefreshToken = ""
+	client.directorTokenExpiry = timeNow()
 	client.authenticationMutex.Unlock()
 }
 
-// isAuthenticated determine if a request was successful from the headers
-// Vera can return HTTP 200 when auth is invalid, with the HTML login page
-// API calls returns application/json when successful. We assume receiving HTML means we're unauthenticated.
-func isAuthenticated(headers http.Header) bool {
+// clearSessionAuth clears session-based authentication
+func (client *Client) clearSessionAuth() {
+	log.Trace("Clearing session auth")
+	client.authenticationMutex.Lock()
+	client.sessionToken = ""
+	client.sessionTokenExpiry = timeNow()
+	client.authenticationMutex.Unlock()
+}
+
+// expireDirectorToken expires the current director token to force a refresh on next authentication
+func (client *Client) expireDirectorToken() {
+	client.authenticationMutex.Lock()
+	defer client.authenticationMutex.Unlock()
+	log.Trace("Expiring director token to force refresh")
+	client.directorTokenExpiry = timeNow()
+}
+
+// isAuthenticated determine if a request was successful based on the response
+// code and headers. Versa's OAuth APIs will return a 401 when the token expires
+// Versa's session auth APIs will redirect multiple times and/or return HTML
+// We also return false when 403s are thrown in case an API returns this instead
+// of a 401
+func isAuthenticated(statusCode int, headers http.Header) bool {
+	// session auth endpoints will return HTML or a redirect, OAuth should return a 401
+	if statusCode >= 300 && statusCode < 400 || statusCode == http.StatusUnauthorized ||
+		statusCode == http.StatusForbidden {
+		return false
+	}
+
 	content := headers.Get("content-type")
 	return !strings.HasPrefix(content, "text/html")
 }

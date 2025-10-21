@@ -43,8 +43,9 @@ type Client struct {
 	directorAPIPort   int
 	analyticsEndpoint string
 	// OAuth token for Director API endpoints
-	directorToken       string
-	directorTokenExpiry time.Time
+	directorToken        string
+	directorRefreshToken string
+	directorTokenExpiry  time.Time
 	// Session token for Analytics endpoints (always uses session auth)
 	sessionToken        string
 	sessionTokenExpiry  time.Time
@@ -93,6 +94,15 @@ func NewClient(directorEndpoint string, directorPort int, analyticsEndpoint stri
 	httpClient := &http.Client{
 		Timeout: defaultHTTPTimeout * time.Second,
 		Jar:     cookieJar,
+		CheckRedirect: func(_ *http.Request, via []*http.Request) error {
+			// session login endpoints result in a single redirect
+			// if we're redirected more than once, we should return
+			// the 3XX to the caller
+			if len(via) > 1 {
+				return http.ErrUseLastResponse
+			}
+			return nil
+		},
 	}
 
 	scheme := defaultHTTPScheme
@@ -206,10 +216,16 @@ func WithLookback(lookback int) ClientOptions {
 	}
 }
 
+// Close cleans up an existing client instance
+func (client *Client) Close() error {
+	// revoke OAuth token
+	return client.revokeOAuth()
+}
+
 // GetOrganizations retrieves a list of organizations
 func (client *Client) GetOrganizations() ([]Organization, error) {
 	var organizations []Organization
-	resp, err := get[OrganizationListResponse](client, "/vnms/organization/orgs", nil, false)
+	resp, err := getWithToken[OrganizationListResponse](client, "/vnms/organization/orgs", nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get organizations: %v", err)
 	}
@@ -223,7 +239,7 @@ func (client *Client) GetOrganizations() ([]Organization, error) {
 			"limit":  client.maxCount,
 			"offset": strconv.Itoa(i * maxCount),
 		}
-		resp, err := get[OrganizationListResponse](client, "/vnms/organization/orgs", params, false)
+		resp, err := getWithToken[OrganizationListResponse](client, "/vnms/organization/orgs", params)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get organizations: %v", err)
 		}
@@ -249,7 +265,7 @@ func (client *Client) GetChildAppliancesDetail(tenant string) ([]Appliance, erro
 	}
 
 	// Get the total count of appliances
-	totalCount, err := get[int](client, uri, params, false)
+	totalCount, err := getWithToken[int](client, uri, params)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get appliance detail response: %v", err)
 	}
@@ -263,7 +279,7 @@ func (client *Client) GetChildAppliancesDetail(tenant string) ([]Appliance, erro
 	for i := 0; i < totalPages; i++ {
 		params["fetch"] = "all"
 		params["offset"] = fmt.Sprintf("%d", i*maxCount)
-		resp, err := get[[]Appliance](client, uri, params, false)
+		resp, err := getWithToken[[]Appliance](client, uri, params)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get appliance detail response: %v", err)
 		}
@@ -285,7 +301,7 @@ func (client *Client) GetAppliances() ([]Appliance, error) {
 	}
 
 	// Make the first request to get the first page and total count
-	resp, err := get[ApplianceListResponse](client, "/vnms/appliance/appliance", params, false)
+	resp, err := getWithToken[ApplianceListResponse](client, "/vnms/appliance/appliance", params)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get appliances: %v", err)
 	}
@@ -308,7 +324,7 @@ func (client *Client) GetAppliances() ([]Appliance, error) {
 	for i := 1; i < totalPages; i++ {
 		params["offset"] = strconv.Itoa(i * maxCount)
 
-		pageResp, err := get[ApplianceListResponse](client, "/vnms/appliance/appliance", params, false)
+		pageResp, err := getWithToken[ApplianceListResponse](client, "/vnms/appliance/appliance", params)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get appliances page %d: %v", i+1, err)
 		}
@@ -337,7 +353,7 @@ func (client *Client) GetInterfaces(tenantName string) ([]Interface, error) {
 		"tenantName": tenantName,
 	}
 
-	resp, err := get[InterfaceListResponse](client, "/vnms/dashboard/health/interface", params, false)
+	resp, err := getWithToken[InterfaceListResponse](client, "/vnms/dashboard/health/interface", params)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get interfaces: %v", err)
 	}
@@ -366,7 +382,7 @@ func (client *Client) GetInterfaceMetrics(applianceName string, tenantName strin
 		"limit":   client.maxCount,
 	}
 
-	resp, err := get[InterfaceMetricsResponse](client, initialEndpoint, params, false)
+	resp, err := getWithToken[InterfaceMetricsResponse](client, initialEndpoint, params)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get interface metrics (initial request): %v", err)
 	}
@@ -398,7 +414,7 @@ func (client *Client) GetInterfaceMetrics(applianceName string, tenantName strin
 			"queryId": queryID,
 		}
 
-		pageResp, err := get[InterfaceMetricsResponse](client, nextPageEndpoint, pageParams, false)
+		pageResp, err := getWithToken[InterfaceMetricsResponse](client, nextPageEndpoint, pageParams)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get interface metrics (pagination): %v", err)
 		}
@@ -427,7 +443,7 @@ func (client *Client) closeQuery(queryID string) {
 	}
 
 	// We don't expect any meaningful response from the close endpoint
-	_, err := client.get(closeEndpoint, params, false)
+	_, err := client.getWithToken(closeEndpoint, params)
 	if err != nil {
 		log.Debugf("failed to close query %s: %v", queryID, err)
 	}
@@ -435,7 +451,7 @@ func (client *Client) closeQuery(queryID string) {
 
 // GetDirectorStatus retrieves the director status
 func (client *Client) GetDirectorStatus() (*DirectorStatus, error) {
-	resp, err := get[DirectorStatus](client, "/vnms/dashboard/vdStatus", nil, false)
+	resp, err := getWithToken[DirectorStatus](client, "/vnms/dashboard/vdStatus", nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get director status: %v", err)
 	}
