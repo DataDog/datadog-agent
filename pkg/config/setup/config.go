@@ -2377,8 +2377,6 @@ func setupFipsEndpoints(config pkgconfigmodel.Config) error {
 	os.Unsetenv("HTTP_PROXY")
 	os.Unsetenv("HTTPS_PROXY")
 
-	config.Set("fips.https", config.GetBool("fips.https"), pkgconfigmodel.SourceAgentRuntime)
-
 	// HTTP for now, will soon be updated to HTTPS
 	protocol := "http://"
 	if config.GetBool("fips.https") {
@@ -2411,18 +2409,7 @@ func setupFipsEndpoints(config pkgconfigmodel.Config) error {
 	setupFipsLogsConfig(config, "database_monitoring.activity.", urlFor(databasesMonitoringMetrics))
 	setupFipsLogsConfig(config, "database_monitoring.samples.", urlFor(databasesMonitoringSamples))
 
-	// Network devices
-	// Internally, Viper uses multiple storages for the configuration values and values from datadog.yaml are stored
-	// in a different place from where overrides (created with config.Set(...)) are stored.
-	// Some NDM products are using UnmarshalKey() which either uses overridden data or either configuration file data but not
-	// both at the same time (see https://github.com/spf13/viper/issues/1106)
-	//
-	// Because of that we need to put all the NDM config in the overridden data store (using Set) in order to get
-	// data from the config + data created by the FIPS mode when using UnmarshalKey()
-
-	config.Set("network_devices.snmp_traps", config.Get("network_devices.snmp_traps"), pkgconfigmodel.SourceAgentRuntime)
 	setupFipsLogsConfig(config, "network_devices.metadata.", urlFor(networkDevicesMetadata))
-	config.Set("network_devices.netflow", config.Get("network_devices.netflow"), pkgconfigmodel.SourceAgentRuntime)
 	setupFipsLogsConfig(config, "network_devices.snmp_traps.forwarder.", urlFor(networkDevicesSnmpTraps))
 	setupFipsLogsConfig(config, "network_devices.netflow.forwarder.", urlFor(networkDevicesNetflow))
 
