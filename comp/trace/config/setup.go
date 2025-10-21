@@ -70,6 +70,7 @@ func LoadConfigFile(path string, c corecompcfg.Component, tagger tagger.Componen
 
 	if err := applyDatadogConfig(cfg, c); err != nil {
 		log.Error(err)
+		return nil, err
 	}
 
 	return cfg, validate(cfg, c)
