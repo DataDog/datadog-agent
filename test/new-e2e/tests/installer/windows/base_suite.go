@@ -302,6 +302,7 @@ func (s *BaseSuite) AfterTest(suiteName, testName string) {
 		}
 		// collect agent logs
 		s.collectAgentLogs()
+		s.collectInstallerLogs()
 	}
 }
 
@@ -324,6 +325,34 @@ func (s *BaseSuite) collectAgentLogs() {
 			filepath.Join(s.SessionOutputDir(), entry.Name()),
 		)
 		s.Assert().NoError(err, "should download %s", entry.Name())
+	}
+}
+
+func (s *BaseSuite) collectInstallerLogs() {
+	host := s.Env().RemoteHost
+
+	s.T().Logf("Collecting installer logs")
+	tmpFolder := filepath.Join(consts.BaseConfigPath, "tmp")
+	tmpEntries, err := host.ReadDir(tmpFolder)
+	if !s.Assert().NoError(err, "should read tmp folder") {
+		return
+	}
+	for _, entry := range tmpEntries {
+		if entry.IsDir() && strings.HasPrefix(entry.Name(), "datadog-agent") {
+			logsFolder := filepath.Join(tmpFolder, entry.Name())
+			logEntries, err := host.ReadDir(logsFolder)
+			if !s.Assert().NoError(err, "should read logs folder") {
+				continue
+			}
+			for _, log := range logEntries {
+				s.T().Logf("Found log file: %s", log.Name())
+				err = host.GetFile(
+					filepath.Join(logsFolder, log.Name()),
+					filepath.Join(s.SessionOutputDir(), log.Name()),
+				)
+				s.Assert().NoError(err, "should download %s", log.Name())
+			}
+		}
 	}
 }
 

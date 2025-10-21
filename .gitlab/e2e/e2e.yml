@@ -665,6 +665,7 @@ new-e2e-installer:
     - deploy_installer_oci
     - deploy_agent_oci
     - qa_installer_script_linux
+    - deploy_ddot_oci
   variables:
     TARGETS: ./tests/installer/unix
     TEAM: fleet
@@ -929,12 +930,15 @@ generate-flakes-finder-pipeline:
     - deploy_suse_rpm_testing_arm64-a7
     - deploy_suse_rpm_testing_x64-a7
     - deploy_windows_testing-a7
+    - deploy_windows_testing-a7-fips
     - deploy_installer_oci
     - deploy_agent_oci
     - qa_cws_instrumentation
     - qa_dca
     - qa_dogstatsd
     - qa_agent
+    - qa_agent_fips
+    - qa_agent_fips_jmx
     - qa_agent_full
     - tests_windows_sysprobe_x64
   tags: ["arch:amd64", "specific:true"]

@@ -31,6 +31,10 @@ state:
     t1:1001: <nil> -> WaitingForProgram (prog 1)
   programs:
     1: <nil> -> Loading (proc 1001)
+  stats:
+    numProcesses: 0 -> 1
+    numPrograms: 0 -> 1
+    numWaitingForProgram: 0 -> 1
 ---
 event: !processes-updated
   tenant_id: 2
@@ -48,3 +52,7 @@ state:
   programs:
     1: Loading (proc 1001)
     2: <nil> -> Queued (proc 1001)
+  stats:
+    numProcesses: 1 -> 2
+    numPrograms: 1 -> 2
+    numWaitingForProgram: 1 -> 2

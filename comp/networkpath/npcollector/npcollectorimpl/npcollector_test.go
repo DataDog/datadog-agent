@@ -85,9 +85,10 @@ func Test_NpCollector_StartAndStop(t *testing.T) {
 func Test_NpCollector_runningAndProcessing(t *testing.T) {
 	// GIVEN
 	agentConfigs := map[string]any{
-		"network_path.connections_monitoring.enabled": true,
-		"network_path.collector.flush_interval":       "1s",
-		"network_devices.namespace":                   "my-ns1",
+		"network_path.connections_monitoring.enabled":      true,
+		"network_path.collector.flush_interval":            "1s",
+		"network_path.collector.monitor_ip_without_domain": true,
+		"network_devices.namespace":                        "my-ns1",
 	}
 	app, npCollector := newTestNpCollector(t, agentConfigs, &teststatsd.Client{})
 
@@ -395,21 +396,23 @@ func Test_NpCollector_runningAndProcessing(t *testing.T) {
 	).Return(nil).Times(1)
 
 	// WHEN
-	conns := []*model.Connection{
-		{
-			Laddr:     &model.Addr{Ip: "10.0.0.1", Port: int32(30000), ContainerId: "testId1"},
-			Raddr:     &model.Addr{Ip: "10.0.0.2", Port: int32(80)},
-			Direction: model.ConnectionDirection_outgoing,
-			Type:      model.ConnectionType_tcp,
-		},
-		{
-			Laddr:     &model.Addr{Ip: "10.0.0.3", Port: int32(30000), ContainerId: "testId2"},
-			Raddr:     &model.Addr{Ip: "10.0.0.4", Port: int32(80)},
-			Direction: model.ConnectionDirection_outgoing,
-			Type:      model.ConnectionType_udp,
+	conns := &model.Connections{
+		Conns: []*model.Connection{
+			{
+				Laddr:     &model.Addr{Ip: "10.0.0.1", Port: int32(30000), ContainerId: "testId1"},
+				Raddr:     &model.Addr{Ip: "10.0.0.2", Port: int32(80)},
+				Direction: model.ConnectionDirection_outgoing,
+				Type:      model.ConnectionType_tcp,
+			},
+			{
+				Laddr:     &model.Addr{Ip: "10.0.0.3", Port: int32(30000), ContainerId: "testId2"},
+				Raddr:     &model.Addr{Ip: "10.0.0.4", Port: int32(80)},
+				Direction: model.ConnectionDirection_outgoing,
+				Type:      model.ConnectionType_udp,
+			},
 		},
 	}
-	npCollector.ScheduleConns(conns, make(map[string]*model.DNSEntry))
+	npCollector.ScheduleConns(conns)
 
 	waitForProcessedPathtests(npCollector, 5*time.Second, 2)
 
@@ -423,10 +426,11 @@ func Test_NpCollector_runningAndProcessing(t *testing.T) {
 func Test_NpCollector_stopWithoutPanic(t *testing.T) {
 	// GIVEN
 	agentConfigs := map[string]any{
-		"network_path.connections_monitoring.enabled": true,
-		"network_path.collector.flush_interval":       "1s",
-		"network_path.collector.workers":              100,
-		"network_devices.namespace":                   "my-ns1",
+		"network_path.connections_monitoring.enabled":      true,
+		"network_path.collector.flush_interval":            "1s",
+		"network_path.collector.workers":                   100,
+		"network_path.collector.monitor_ip_without_domain": true,
+		"network_devices.namespace":                        "my-ns1",
 	}
 	app, npCollector := newTestNpCollector(t, agentConfigs, &teststatsd.Client{})
 
@@ -464,18 +468,18 @@ func Test_NpCollector_stopWithoutPanic(t *testing.T) {
 	}
 
 	// WHEN
-	var conns []*model.Connection
+	conns := &model.Connections{}
 	currentIP, _ := netip.ParseAddr("10.0.0.0")
 	for i := 0; i < 1000; i++ {
 		currentIP = netipx.AddrNext(currentIP)
-		conns = append(conns, &model.Connection{
+		conns.Conns = append(conns.Conns, &model.Connection{
 			Laddr:     &model.Addr{Ip: "10.0.0.1", Port: int32(30000), ContainerId: "testId1"},
 			Raddr:     &model.Addr{Ip: currentIP.String(), Port: int32(80)},
 			Direction: model.ConnectionDirection_outgoing,
 			Type:      model.ConnectionType_tcp,
 		})
 	}
-	npCollector.ScheduleConns(conns, make(map[string]*model.DNSEntry))
+	npCollector.ScheduleConns(conns)
 
 	waitForProcessedPathtests(npCollector, 5*time.Second, 10)
 
@@ -494,18 +498,20 @@ func Test_NpCollector_ScheduleConns_ScheduleDurationMetric(t *testing.T) {
 	stats := &teststatsd.Client{}
 	_, npCollector := newTestNpCollector(t, agentConfigs, stats)
 
-	conns := []*model.Connection{
-		{
-			Laddr:     &model.Addr{Ip: "10.0.0.1", Port: int32(30000), ContainerId: "testId1"},
-			Raddr:     &model.Addr{Ip: "10.0.0.2", Port: int32(80)},
-			Direction: model.ConnectionDirection_outgoing,
-			Type:      model.ConnectionType_tcp,
-		},
-		{
-			Laddr:     &model.Addr{Ip: "10.0.0.3", Port: int32(30000), ContainerId: "testId2"},
-			Raddr:     &model.Addr{Ip: "10.0.0.4", Port: int32(80)},
-			Direction: model.ConnectionDirection_outgoing,
-			Type:      model.ConnectionType_udp,
+	conns := &model.Connections{
+		Conns: []*model.Connection{
+			{
+				Laddr:     &model.Addr{Ip: "10.0.0.1", Port: int32(30000), ContainerId: "testId1"},
+				Raddr:     &model.Addr{Ip: "10.0.0.2", Port: int32(80)},
+				Direction: model.ConnectionDirection_outgoing,
+				Type:      model.ConnectionType_tcp,
+			},
+			{
+				Laddr:     &model.Addr{Ip: "10.0.0.3", Port: int32(30000), ContainerId: "testId2"},
+				Raddr:     &model.Addr{Ip: "10.0.0.4", Port: int32(80)},
+				Direction: model.ConnectionDirection_outgoing,
+				Type:      model.ConnectionType_udp,
+			},
 		},
 	}
 	timeNowCounter := 0
@@ -516,7 +522,7 @@ func Test_NpCollector_ScheduleConns_ScheduleDurationMetric(t *testing.T) {
 	}
 
 	// WHEN
-	npCollector.ScheduleConns(conns, make(map[string]*model.DNSEntry))
+	npCollector.ScheduleConns(conns)
 
 	// THEN
 	calls := stats.GaugeCalls
@@ -572,15 +578,19 @@ func Test_npCollectorImpl_ScheduleConns(t *testing.T) {
 	defaultagentConfigs := map[string]any{
 		"network_path.connections_monitoring.enabled": true,
 	}
+	monitorIPWithoutDomainConfigs := map[string]any{
+		"network_path.connections_monitoring.enabled":      true,
+		"network_path.collector.monitor_ip_without_domain": true,
+	}
 	icmpModeConfigs := map[string]any{
-		"network_path.connections_monitoring.enabled": true,
-		"network_path.collector.icmp_mode":            "all",
+		"network_path.connections_monitoring.enabled":      true,
+		"network_path.collector.monitor_ip_without_domain": true,
+		"network_path.collector.icmp_mode":                 "all",
 	}
 
 	tests := []struct {
 		name              string
-		conns             []*model.Connection
-		dns               map[string]*model.DNSEntry
+		conns             *model.Connections
 		noInputChan       bool
 		agentConfigs      map[string]any
 		expectedPathtests []*common.Pathtest
@@ -589,18 +599,20 @@ func Test_npCollectorImpl_ScheduleConns(t *testing.T) {
 		{
 			name:              "zero conn",
 			agentConfigs:      defaultagentConfigs,
-			conns:             []*model.Connection{},
+			conns:             &model.Connections{},
 			expectedPathtests: []*common.Pathtest{},
 		},
 		{
 			name:         "one outgoing TCP conn",
-			agentConfigs: defaultagentConfigs,
-			conns: []*model.Connection{
-				{
-					Laddr:     &model.Addr{Ip: "10.0.0.3", Port: int32(30000), ContainerId: "testId1"},
-					Raddr:     &model.Addr{Ip: "10.0.0.4", Port: int32(80)},
-					Direction: model.ConnectionDirection_outgoing,
-					Type:      model.ConnectionType_tcp,
+			agentConfigs: monitorIPWithoutDomainConfigs,
+			conns: &model.Connections{
+				Conns: []*model.Connection{
+					{
+						Laddr:     &model.Addr{Ip: "10.0.0.3", Port: int32(30000), ContainerId: "testId1"},
+						Raddr:     &model.Addr{Ip: "10.0.0.4", Port: int32(80)},
+						Direction: model.ConnectionDirection_outgoing,
+						Type:      model.ConnectionType_tcp,
+					},
 				},
 			},
 			expectedPathtests: []*common.Pathtest{
@@ -609,13 +621,15 @@ func Test_npCollectorImpl_ScheduleConns(t *testing.T) {
 		},
 		{
 			name:         "one outgoing UDP conn",
-			agentConfigs: defaultagentConfigs,
-			conns: []*model.Connection{
-				{
-					Laddr:     &model.Addr{Ip: "10.0.0.5", Port: int32(30000), ContainerId: "testId1"},
-					Raddr:     &model.Addr{Ip: "10.0.0.6", Port: int32(161)},
-					Direction: model.ConnectionDirection_outgoing,
-					Type:      model.ConnectionType_udp,
+			agentConfigs: monitorIPWithoutDomainConfigs,
+			conns: &model.Connections{
+				Conns: []*model.Connection{
+					{
+						Laddr:     &model.Addr{Ip: "10.0.0.5", Port: int32(30000), ContainerId: "testId1"},
+						Raddr:     &model.Addr{Ip: "10.0.0.6", Port: int32(161)},
+						Direction: model.ConnectionDirection_outgoing,
+						Type:      model.ConnectionType_udp,
+					},
 				},
 			},
 			expectedPathtests: []*common.Pathtest{
@@ -625,37 +639,41 @@ func Test_npCollectorImpl_ScheduleConns(t *testing.T) {
 		{
 			name:         "only non-outgoing conns",
 			agentConfigs: defaultagentConfigs,
-			conns: []*model.Connection{
-				{
-					Laddr:     &model.Addr{Ip: "10.0.0.1", Port: int32(30000), ContainerId: "testId1"},
-					Raddr:     &model.Addr{Ip: "10.0.0.2", Port: int32(80)},
-					Direction: model.ConnectionDirection_incoming,
-					Type:      model.ConnectionType_tcp,
-				},
-				{
-					Laddr:     &model.Addr{Ip: "10.0.0.3", Port: int32(30000), ContainerId: "testId2"},
-					Raddr:     &model.Addr{Ip: "10.0.0.4", Port: int32(80)},
-					Direction: model.ConnectionDirection_incoming,
-					Type:      model.ConnectionType_tcp,
+			conns: &model.Connections{
+				Conns: []*model.Connection{
+					{
+						Laddr:     &model.Addr{Ip: "10.0.0.1", Port: int32(30000), ContainerId: "testId1"},
+						Raddr:     &model.Addr{Ip: "10.0.0.2", Port: int32(80)},
+						Direction: model.ConnectionDirection_incoming,
+						Type:      model.ConnectionType_tcp,
+					},
+					{
+						Laddr:     &model.Addr{Ip: "10.0.0.3", Port: int32(30000), ContainerId: "testId2"},
+						Raddr:     &model.Addr{Ip: "10.0.0.4", Port: int32(80)},
+						Direction: model.ConnectionDirection_incoming,
+						Type:      model.ConnectionType_tcp,
+					},
 				},
 			},
 			expectedPathtests: []*common.Pathtest{},
 		},
 		{
 			name:         "ignore non-outgoing conn",
-			agentConfigs: defaultagentConfigs,
-			conns: []*model.Connection{
-				{
-					Laddr:     &model.Addr{Ip: "10.0.0.1", Port: int32(30000), ContainerId: "testId1"},
-					Raddr:     &model.Addr{Ip: "10.0.0.2", Port: int32(80)},
-					Direction: model.ConnectionDirection_incoming,
-					Type:      model.ConnectionType_tcp,
-				},
-				{
-					Laddr:     &model.Addr{Ip: "10.0.0.3", Port: int32(30000), ContainerId: "testId2"},
-					Raddr:     &model.Addr{Ip: "10.0.0.4", Port: int32(80)},
-					Direction: model.ConnectionDirection_outgoing,
-					Type:      model.ConnectionType_tcp,
+			agentConfigs: monitorIPWithoutDomainConfigs,
+			conns: &model.Connections{
+				Conns: []*model.Connection{
+					{
+						Laddr:     &model.Addr{Ip: "10.0.0.1", Port: int32(30000), ContainerId: "testId1"},
+						Raddr:     &model.Addr{Ip: "10.0.0.2", Port: int32(80)},
+						Direction: model.ConnectionDirection_incoming,
+						Type:      model.ConnectionType_tcp,
+					},
+					{
+						Laddr:     &model.Addr{Ip: "10.0.0.3", Port: int32(30000), ContainerId: "testId2"},
+						Raddr:     &model.Addr{Ip: "10.0.0.4", Port: int32(80)},
+						Direction: model.ConnectionDirection_outgoing,
+						Type:      model.ConnectionType_tcp,
+					},
 				},
 			},
 			expectedPathtests: []*common.Pathtest{
@@ -664,14 +682,16 @@ func Test_npCollectorImpl_ScheduleConns(t *testing.T) {
 		},
 		{
 			name:         "no input chan",
-			agentConfigs: defaultagentConfigs,
+			agentConfigs: monitorIPWithoutDomainConfigs,
 			noInputChan:  true,
-			conns: []*model.Connection{
-				{
-					Laddr:     &model.Addr{Ip: "10.0.0.3", Port: int32(30000), ContainerId: "testId1"},
-					Raddr:     &model.Addr{Ip: "10.0.0.4", Port: int32(80)},
-					Direction: model.ConnectionDirection_outgoing,
-					Type:      model.ConnectionType_tcp,
+			conns: &model.Connections{
+				Conns: []*model.Connection{
+					{
+						Laddr:     &model.Addr{Ip: "10.0.0.3", Port: int32(30000), ContainerId: "testId1"},
+						Raddr:     &model.Addr{Ip: "10.0.0.4", Port: int32(80)},
+						Direction: model.ConnectionDirection_outgoing,
+						Type:      model.ConnectionType_tcp,
+					},
 				},
 			},
 			expectedPathtests: []*common.Pathtest{},
@@ -682,8 +702,9 @@ func Test_npCollectorImpl_ScheduleConns(t *testing.T) {
 		{
 			name: "input chan is full",
 			agentConfigs: map[string]any{
-				"network_path.connections_monitoring.enabled": true,
-				"network_path.collector.input_chan_size":      1,
+				"network_path.connections_monitoring.enabled":      true,
+				"network_path.collector.input_chan_size":           1,
+				"network_path.collector.monitor_ip_without_domain": true,
 			},
 			conns:             createConns(20),
 			expectedPathtests: []*common.Pathtest{},
@@ -693,27 +714,29 @@ func Test_npCollectorImpl_ScheduleConns(t *testing.T) {
 		},
 		{
 			name:         "only ipv4 supported",
-			agentConfigs: defaultagentConfigs,
-			conns: []*model.Connection{
-				{
-					Laddr:     &model.Addr{Ip: "::1", Port: int32(30000), ContainerId: "testId1"},
-					Raddr:     &model.Addr{Ip: "::1", Port: int32(80)},
-					Direction: model.ConnectionDirection_outgoing,
-					Family:    model.ConnectionFamily_v6,
-					Type:      model.ConnectionType_tcp,
-				},
-				{
-					Laddr:     &model.Addr{Ip: "::1", Port: int32(30000), ContainerId: "testId2"},
-					Raddr:     &model.Addr{Ip: "::1", Port: int32(80)},
-					Direction: model.ConnectionDirection_outgoing,
-					Family:    model.ConnectionFamily_v6,
-					Type:      model.ConnectionType_tcp,
-				},
-				{
-					Laddr:     &model.Addr{Ip: "10.0.0.3", Port: int32(30000), ContainerId: "testId3"},
-					Raddr:     &model.Addr{Ip: "10.0.0.4", Port: int32(80)},
-					Direction: model.ConnectionDirection_outgoing,
-					Type:      model.ConnectionType_tcp,
+			agentConfigs: monitorIPWithoutDomainConfigs,
+			conns: &model.Connections{
+				Conns: []*model.Connection{
+					{
+						Laddr:     &model.Addr{Ip: "::1", Port: int32(30000), ContainerId: "testId1"},
+						Raddr:     &model.Addr{Ip: "::1", Port: int32(80)},
+						Direction: model.ConnectionDirection_outgoing,
+						Family:    model.ConnectionFamily_v6,
+						Type:      model.ConnectionType_tcp,
+					},
+					{
+						Laddr:     &model.Addr{Ip: "::1", Port: int32(30000), ContainerId: "testId2"},
+						Raddr:     &model.Addr{Ip: "::1", Port: int32(80)},
+						Direction: model.ConnectionDirection_outgoing,
+						Family:    model.ConnectionFamily_v6,
+						Type:      model.ConnectionType_tcp,
+					},
+					{
+						Laddr:     &model.Addr{Ip: "10.0.0.3", Port: int32(30000), ContainerId: "testId3"},
+						Raddr:     &model.Addr{Ip: "10.0.0.4", Port: int32(80)},
+						Direction: model.ConnectionDirection_outgoing,
+						Type:      model.ConnectionType_tcp,
+					},
 				},
 			},
 			expectedPathtests: []*common.Pathtest{
@@ -723,36 +746,242 @@ func Test_npCollectorImpl_ScheduleConns(t *testing.T) {
 		},
 		{
 			name:         "one outgoing TCP conn with known hostname (DNS)",
-			agentConfigs: defaultagentConfigs,
-			conns: []*model.Connection{
-				{
-					Laddr:     &model.Addr{Ip: "10.0.0.3", Port: int32(30000), ContainerId: "testId1"},
-					Raddr:     &model.Addr{Ip: "10.0.0.4", Port: int32(80)},
-					Direction: model.ConnectionDirection_outgoing,
-					Type:      model.ConnectionType_tcp,
+			agentConfigs: monitorIPWithoutDomainConfigs,
+			conns: &model.Connections{
+				Conns: []*model.Connection{
+					{
+						Laddr:     &model.Addr{Ip: "10.0.0.3", Port: int32(30000), ContainerId: "testId1"},
+						Raddr:     &model.Addr{Ip: "10.0.0.4", Port: int32(80)},
+						Direction: model.ConnectionDirection_outgoing,
+						Type:      model.ConnectionType_tcp,
+					},
+				},
+				Dns: map[string]*model.DNSEntry{
+					"10.0.0.4": {Names: []string{"known-hostname"}},
 				},
 			},
 			expectedPathtests: []*common.Pathtest{
-				{Hostname: "10.0.0.4", Port: uint16(80), Protocol: payload.ProtocolTCP, SourceContainerID: "testId1",
+				{Hostname: "known-hostname", Port: uint16(80), Protocol: payload.ProtocolTCP, SourceContainerID: "testId1",
 					Metadata: common.PathtestMetadata{ReverseDNSHostname: "known-hostname"}},
-			},
-			dns: map[string]*model.DNSEntry{
-				"10.0.0.4": {Names: []string{"known-hostname"}},
 			},
 		},
 		{
 			name:         "tcp connection in ICMP mode",
 			agentConfigs: icmpModeConfigs,
-			conns: []*model.Connection{
-				{
-					Laddr:     &model.Addr{Ip: "10.0.0.5", Port: int32(30000), ContainerId: "testId1"},
-					Raddr:     &model.Addr{Ip: "10.0.0.6", Port: int32(80)},
-					Direction: model.ConnectionDirection_outgoing,
-					Type:      model.ConnectionType_tcp,
+			conns: &model.Connections{
+				Conns: []*model.Connection{
+					{
+						Laddr:     &model.Addr{Ip: "10.0.0.5", Port: int32(30000), ContainerId: "testId1"},
+						Raddr:     &model.Addr{Ip: "10.0.0.6", Port: int32(80)},
+						Direction: model.ConnectionDirection_outgoing,
+						Type:      model.ConnectionType_tcp,
+					},
 				},
 			},
 			expectedPathtests: []*common.Pathtest{
 				{Hostname: "10.0.0.6", Protocol: payload.ProtocolICMP, SourceContainerID: "testId1"},
+			},
+		},
+		{
+			name:         "one outgoing TCP conn with domain hostname",
+			agentConfigs: defaultagentConfigs,
+			conns: &model.Connections{
+				Conns: []*model.Connection{
+					{
+						Laddr:     &model.Addr{Ip: "10.0.0.7", Port: int32(30000), ContainerId: "testId1"},
+						Raddr:     &model.Addr{Ip: "93.184.216.34", Port: int32(443)},
+						Direction: model.ConnectionDirection_outgoing,
+						Type:      model.ConnectionType_tcp,
+					},
+				},
+				Dns: map[string]*model.DNSEntry{
+					"93.184.216.34": {Names: []string{"example.com"}},
+				},
+			},
+			expectedPathtests: []*common.Pathtest{
+				{Hostname: "example.com", Port: uint16(443), Protocol: payload.ProtocolTCP, SourceContainerID: "testId1",
+					Metadata: common.PathtestMetadata{ReverseDNSHostname: "example.com"}},
+			},
+		},
+		{
+			name:         "ipv6 conn with domain should be allowed",
+			agentConfigs: defaultagentConfigs,
+			conns: &model.Connections{
+				Conns: []*model.Connection{
+					{
+						Laddr:     &model.Addr{Ip: "::1", Port: int32(30000), ContainerId: "testId1"},
+						Raddr:     &model.Addr{Ip: "2001:db8::1", Port: int32(443)},
+						Direction: model.ConnectionDirection_outgoing,
+						Family:    model.ConnectionFamily_v6,
+						Type:      model.ConnectionType_tcp,
+					},
+				},
+				Dns: map[string]*model.DNSEntry{
+					"2001:db8::1": {Names: []string{"ipv6-example.com"}},
+				},
+			},
+			expectedPathtests: []*common.Pathtest{
+				{Hostname: "ipv6-example.com", Port: uint16(443), Protocol: payload.ProtocolTCP, SourceContainerID: "testId1",
+					Metadata: common.PathtestMetadata{ReverseDNSHostname: "ipv6-example.com"}},
+			},
+		},
+		{
+			name:         "multiple connections with and without domains",
+			agentConfigs: defaultagentConfigs,
+			conns: &model.Connections{
+				Conns: []*model.Connection{
+					{
+						Laddr:     &model.Addr{Ip: "10.0.0.7", Port: int32(30000), ContainerId: "testId1"},
+						Raddr:     &model.Addr{Ip: "93.184.216.34", Port: int32(443)},
+						Direction: model.ConnectionDirection_outgoing,
+						Type:      model.ConnectionType_tcp,
+					},
+				},
+				Dns: map[string]*model.DNSEntry{
+					"93.184.216.34": {Names: []string{"valid.com"}},
+				},
+			},
+			expectedPathtests: []*common.Pathtest{
+				{Hostname: "valid.com", Port: uint16(443), Protocol: payload.ProtocolTCP, SourceContainerID: "testId1",
+					Metadata: common.PathtestMetadata{ReverseDNSHostname: "valid.com"}},
+			},
+		},
+		{
+			name: "skip IP without domain when monitorIPWithoutDomain is false",
+			agentConfigs: map[string]any{
+				"network_path.connections_monitoring.enabled":      true,
+				"network_path.collector.monitor_ip_without_domain": false,
+			},
+			conns: &model.Connections{
+				Conns: []*model.Connection{
+					{
+						Laddr:     &model.Addr{Ip: "10.0.0.3", Port: int32(30000), ContainerId: "testId1"},
+						Raddr:     &model.Addr{Ip: "10.0.0.4", Port: int32(80)},
+						Direction: model.ConnectionDirection_outgoing,
+						Type:      model.ConnectionType_tcp,
+					},
+				},
+			},
+			expectedPathtests: []*common.Pathtest{},
+		},
+		{
+			name: "allow IP without domain when monitorIPWithoutDomain is true",
+			agentConfigs: map[string]any{
+				"network_path.connections_monitoring.enabled":      true,
+				"network_path.collector.monitor_ip_without_domain": true,
+			},
+			conns: &model.Connections{
+				Conns: []*model.Connection{
+					{
+						Laddr:     &model.Addr{Ip: "10.0.0.3", Port: int32(30000), ContainerId: "testId1"},
+						Raddr:     &model.Addr{Ip: "10.0.0.4", Port: int32(80)},
+						Direction: model.ConnectionDirection_outgoing,
+						Type:      model.ConnectionType_tcp,
+					},
+				},
+			},
+			expectedPathtests: []*common.Pathtest{
+				{Hostname: "10.0.0.4", Port: uint16(80), Protocol: payload.ProtocolTCP, SourceContainerID: "testId1"},
+			},
+		},
+		{
+			name: "exclude filter blocks matching domain",
+			agentConfigs: map[string]any{
+				"network_path.connections_monitoring.enabled": true,
+				"network_path.collector.filters": []map[string]any{
+					{
+						"type":         "exclude",
+						"match_domain": "blocked.com",
+					},
+				},
+			},
+			conns: &model.Connections{
+				Conns: []*model.Connection{
+					{
+						Laddr:     &model.Addr{Ip: "10.0.0.3", Port: int32(30000), ContainerId: "testId1"},
+						Raddr:     &model.Addr{Ip: "10.0.0.4", Port: int32(443)},
+						Direction: model.ConnectionDirection_outgoing,
+						Type:      model.ConnectionType_tcp,
+					},
+					{
+						Laddr:     &model.Addr{Ip: "10.0.0.3", Port: int32(30001), ContainerId: "testId2"},
+						Raddr:     &model.Addr{Ip: "10.0.0.5", Port: int32(443)},
+						Direction: model.ConnectionDirection_outgoing,
+						Type:      model.ConnectionType_tcp,
+					},
+				},
+				Dns: map[string]*model.DNSEntry{
+					"10.0.0.4": {Names: []string{"blocked.com"}},
+					"10.0.0.5": {Names: []string{"allowed.com"}},
+				},
+			},
+			expectedPathtests: []*common.Pathtest{
+				{Hostname: "allowed.com", Port: uint16(443), Protocol: payload.ProtocolTCP, SourceContainerID: "testId2",
+					Metadata: common.PathtestMetadata{ReverseDNSHostname: "allowed.com"}},
+			},
+		},
+		{
+			name: "exclude filter blocks matching IP",
+			agentConfigs: map[string]any{
+				"network_path.connections_monitoring.enabled":      true,
+				"network_path.collector.monitor_ip_without_domain": true,
+				"network_path.collector.filters": []map[string]any{
+					{
+						"type":     "exclude",
+						"match_ip": "10.0.0.4",
+					},
+				},
+			},
+			conns: &model.Connections{
+				Conns: []*model.Connection{
+					{
+						Laddr:     &model.Addr{Ip: "10.0.0.3", Port: int32(30000), ContainerId: "testId1"},
+						Raddr:     &model.Addr{Ip: "10.0.0.4", Port: int32(80)},
+						Direction: model.ConnectionDirection_outgoing,
+						Type:      model.ConnectionType_tcp,
+					},
+					{
+						Laddr:     &model.Addr{Ip: "10.0.0.3", Port: int32(30001), ContainerId: "testId2"},
+						Raddr:     &model.Addr{Ip: "10.0.0.5", Port: int32(80)},
+						Direction: model.ConnectionDirection_outgoing,
+						Type:      model.ConnectionType_tcp,
+					},
+				},
+			},
+			expectedPathtests: []*common.Pathtest{
+				{Hostname: "10.0.0.5", Port: uint16(80), Protocol: payload.ProtocolTCP, SourceContainerID: "testId2"},
+			},
+		},
+		{
+			name: "exclude filter blocks matching CIDR",
+			agentConfigs: map[string]any{
+				"network_path.connections_monitoring.enabled":      true,
+				"network_path.collector.monitor_ip_without_domain": true,
+				"network_path.collector.filters": []map[string]any{
+					{
+						"type":     "exclude",
+						"match_ip": "10.0.1.0/24",
+					},
+				},
+			},
+			conns: &model.Connections{
+				Conns: []*model.Connection{
+					{
+						Laddr:     &model.Addr{Ip: "10.0.0.3", Port: int32(30000), ContainerId: "testId1"},
+						Raddr:     &model.Addr{Ip: "10.0.1.100", Port: int32(80)},
+						Direction: model.ConnectionDirection_outgoing,
+						Type:      model.ConnectionType_tcp,
+					},
+					{
+						Laddr:     &model.Addr{Ip: "10.0.0.3", Port: int32(30001), ContainerId: "testId2"},
+						Raddr:     &model.Addr{Ip: "10.0.2.100", Port: int32(80)},
+						Direction: model.ConnectionDirection_outgoing,
+						Type:      model.ConnectionType_tcp,
+					},
+				},
+			},
+			expectedPathtests: []*common.Pathtest{
+				{Hostname: "10.0.2.100", Port: uint16(80), Protocol: payload.ProtocolTCP, SourceContainerID: "testId2"},
 			},
 		},
 	}
@@ -770,7 +999,7 @@ func Test_npCollectorImpl_ScheduleConns(t *testing.T) {
 			assert.Nil(t, err)
 			utillog.SetupLogger(l, "debug")
 
-			npCollector.ScheduleConns(tt.conns, tt.dns)
+			npCollector.ScheduleConns(tt.conns)
 
 			actualPathtests := []*common.Pathtest{}
 			for i := 0; i < len(tt.expectedPathtests); i++ {
@@ -992,7 +1221,7 @@ func Benchmark_npCollectorImpl_ScheduleConns(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		// add line to avoid linter error
 		_ = i
-		npCollector.ScheduleConns(connections, make(map[string]*model.DNSEntry))
+		npCollector.ScheduleConns(connections)
 
 		waitForProcessedPathtests(npCollector, 60*time.Second, 50)
 	}
@@ -1251,6 +1480,7 @@ func Test_npCollectorImpl_shouldScheduleNetworkPathForConn(t *testing.T) {
 		name               string
 		conn               *model.Connection
 		vpcSubnets         []*net.IPNet
+		domain             string
 		shouldSchedule     bool
 		subnetSkipped      bool
 		sourceExcludes     map[string][]string
@@ -1258,7 +1488,8 @@ func Test_npCollectorImpl_shouldScheduleNetworkPathForConn(t *testing.T) {
 		connectionExcluded bool
 	}{
 		{
-			name: "should schedule",
+			name:   "should schedule",
+			domain: "abc",
 			conn: &model.Connection{
 				Laddr:     &model.Addr{Ip: "10.0.0.1", Port: int32(30000)},
 				Raddr:     &model.Addr{Ip: "10.0.0.2", Port: int32(80)},
@@ -1267,7 +1498,8 @@ func Test_npCollectorImpl_shouldScheduleNetworkPathForConn(t *testing.T) {
 			shouldSchedule: true,
 		},
 		{
-			name: "should not schedule incoming conn",
+			name:   "should not schedule incoming conn",
+			domain: "abc",
 			conn: &model.Connection{
 				Laddr:     &model.Addr{Ip: "10.0.0.1", Port: int32(30000)},
 				Raddr:     &model.Addr{Ip: "10.0.0.2", Port: int32(80)},
@@ -1277,7 +1509,8 @@ func Test_npCollectorImpl_shouldScheduleNetworkPathForConn(t *testing.T) {
 			shouldSchedule: false,
 		},
 		{
-			name: "should not schedule conn with none direction",
+			name:   "should not schedule conn with none direction",
+			domain: "abc",
 			conn: &model.Connection{
 				Laddr:     &model.Addr{Ip: "10.0.0.1", Port: int32(30000)},
 				Raddr:     &model.Addr{Ip: "10.0.0.2", Port: int32(80)},
@@ -1287,7 +1520,8 @@ func Test_npCollectorImpl_shouldScheduleNetworkPathForConn(t *testing.T) {
 			shouldSchedule: false,
 		},
 		{
-			name: "should not schedule ipv6",
+			name:   "should not schedule ipv6 when there is no domain",
+			domain: "",
 			conn: &model.Connection{
 				Laddr:     &model.Addr{Ip: "10.0.0.1", Port: int32(30000)},
 				Raddr:     &model.Addr{Ip: "10.0.0.2", Port: int32(80)},
@@ -1297,7 +1531,19 @@ func Test_npCollectorImpl_shouldScheduleNetworkPathForConn(t *testing.T) {
 			shouldSchedule: false,
 		},
 		{
-			name: "should not schedule for loopback",
+			name:   "should schedule for ipv6 cnn if domain is present",
+			domain: "abc",
+			conn: &model.Connection{
+				Laddr:     &model.Addr{Ip: "10.0.0.1", Port: int32(30000)},
+				Raddr:     &model.Addr{Ip: "10.0.0.2", Port: int32(80)},
+				Direction: model.ConnectionDirection_outgoing,
+				Family:    model.ConnectionFamily_v6,
+			},
+			shouldSchedule: true,
+		},
+		{
+			name:   "should not schedule for loopback",
+			domain: "abc",
 			conn: &model.Connection{
 				Laddr:     &model.Addr{Ip: "127.0.0.1", Port: int32(30000)},
 				Raddr:     &model.Addr{Ip: "127.0.0.2", Port: int32(80)},
@@ -1308,7 +1554,8 @@ func Test_npCollectorImpl_shouldScheduleNetworkPathForConn(t *testing.T) {
 			shouldSchedule: false,
 		},
 		{
-			name: "should not schedule for intrahost",
+			name:   "should not schedule for intrahost",
+			domain: "abc",
 			conn: &model.Connection{
 				Laddr:     &model.Addr{Ip: "10.0.0.1", Port: int32(30000)},
 				Raddr:     &model.Addr{Ip: "10.0.0.2", Port: int32(80)},
@@ -1320,7 +1567,8 @@ func Test_npCollectorImpl_shouldScheduleNetworkPathForConn(t *testing.T) {
 		},
 		// intra-vpc subnet skipping tests
 		{
-			name: "VPC: random subnet should schedule anyway",
+			name:   "VPC: random subnet should schedule anyway",
+			domain: "abc",
 			conn: &model.Connection{
 				Laddr:     &model.Addr{Ip: "10.0.0.1", Port: int32(30000)},
 				Raddr:     &model.Addr{Ip: "10.0.0.2", Port: int32(80)},
@@ -1331,7 +1579,8 @@ func Test_npCollectorImpl_shouldScheduleNetworkPathForConn(t *testing.T) {
 			subnetSkipped:  false,
 		},
 		{
-			name: "VPC: relevant subnet should skip",
+			name:   "VPC: relevant subnet should skip",
+			domain: "abc",
 			conn: &model.Connection{
 				Laddr:     &model.Addr{Ip: "10.0.0.1", Port: int32(30000)},
 				Raddr:     &model.Addr{Ip: "192.168.1.1", Port: int32(80)},
@@ -1342,7 +1591,8 @@ func Test_npCollectorImpl_shouldScheduleNetworkPathForConn(t *testing.T) {
 			subnetSkipped:  true,
 		},
 		{
-			name: "VPC: shouldn't skip local address even if the subnet matches",
+			name:   "VPC: shouldn't skip local address even if the subnet matches",
+			domain: "abc",
 			conn: &model.Connection{
 				Laddr:     &model.Addr{Ip: "192.168.1.1", Port: int32(30000)},
 				Raddr:     &model.Addr{Ip: "10.0.0.1", Port: int32(80)},
@@ -1353,7 +1603,8 @@ func Test_npCollectorImpl_shouldScheduleNetworkPathForConn(t *testing.T) {
 			subnetSkipped:  false,
 		},
 		{
-			name: "VPC: translated clusterIP should get matched",
+			name:   "VPC: translated clusterIP should get matched",
+			domain: "abc",
 			conn: &model.Connection{
 				Laddr:     &model.Addr{Ip: "192.168.1.1", Port: int32(30000)},
 				Raddr:     &model.Addr{Ip: "192.168.1.1", Port: int32(80)},
@@ -1368,7 +1619,8 @@ func Test_npCollectorImpl_shouldScheduleNetworkPathForConn(t *testing.T) {
 			subnetSkipped:  true,
 		},
 		{
-			name: "VPC: source translation existing shouldn't break subnet check",
+			name:   "VPC: source translation existing shouldn't break subnet check",
+			domain: "abc",
 			conn: &model.Connection{
 				Laddr:     &model.Addr{Ip: "192.168.1.1", Port: int32(30000)},
 				Raddr:     &model.Addr{Ip: "10.0.0.1", Port: int32(80)},
@@ -1385,7 +1637,8 @@ func Test_npCollectorImpl_shouldScheduleNetworkPathForConn(t *testing.T) {
 		},
 		// connection exclusion tests
 		{
-			name: "exclusion: block dest exactly",
+			name:   "exclusion: block dest exactly",
+			domain: "abc",
 			conn: &model.Connection{
 				Laddr:     &model.Addr{Ip: "10.0.0.1", Port: int32(30000)},
 				Raddr:     &model.Addr{Ip: "10.0.0.2", Port: int32(80)},
@@ -1398,7 +1651,8 @@ func Test_npCollectorImpl_shouldScheduleNetworkPathForConn(t *testing.T) {
 			connectionExcluded: true,
 		},
 		{
-			name: "exclusion: block dest but different port",
+			name:   "exclusion: block dest but different port",
+			domain: "abc",
 			conn: &model.Connection{
 				Laddr:     &model.Addr{Ip: "10.0.0.1", Port: int32(30000)},
 				Raddr:     &model.Addr{Ip: "10.0.0.2", Port: int32(80)},
@@ -1411,7 +1665,8 @@ func Test_npCollectorImpl_shouldScheduleNetworkPathForConn(t *testing.T) {
 			connectionExcluded: false,
 		},
 		{
-			name: "exclusion: block source with port range",
+			name:   "exclusion: block source with port range",
+			domain: "abc",
 			conn: &model.Connection{
 				Laddr:     &model.Addr{Ip: "10.0.0.1", Port: int32(30000)},
 				Raddr:     &model.Addr{Ip: "10.0.0.2", Port: int32(80)},
@@ -1424,7 +1679,8 @@ func Test_npCollectorImpl_shouldScheduleNetworkPathForConn(t *testing.T) {
 			connectionExcluded: true,
 		},
 		{
-			name: "exclusion: block dest subnet",
+			name:   "exclusion: block dest subnet",
+			domain: "abc",
 			conn: &model.Connection{
 				Laddr:     &model.Addr{Ip: "10.0.0.1", Port: int32(30000)},
 				Raddr:     &model.Addr{Ip: "10.0.0.2", Port: int32(80)},
@@ -1437,7 +1693,8 @@ func Test_npCollectorImpl_shouldScheduleNetworkPathForConn(t *testing.T) {
 			connectionExcluded: true,
 		},
 		{
-			name: "exclusion: block dest subnet, no match",
+			name:   "exclusion: block dest subnet, no match",
+			domain: "abc",
 			conn: &model.Connection{
 				Laddr:     &model.Addr{Ip: "10.0.0.1", Port: int32(30000)},
 				Raddr:     &model.Addr{Ip: "192.168.1.1", Port: int32(80)},
@@ -1450,7 +1707,8 @@ func Test_npCollectorImpl_shouldScheduleNetworkPathForConn(t *testing.T) {
 			connectionExcluded: false,
 		},
 		{
-			name: "exclusion: only UDP, matching case",
+			name:   "exclusion: only UDP, matching case",
+			domain: "abc",
 			conn: &model.Connection{
 				Type:      model.ConnectionType_udp,
 				Laddr:     &model.Addr{Ip: "10.0.0.1", Port: int32(30000)},
@@ -1464,7 +1722,8 @@ func Test_npCollectorImpl_shouldScheduleNetworkPathForConn(t *testing.T) {
 			connectionExcluded: true,
 		},
 		{
-			name: "exclusion: only UDP, non-matching case",
+			name:   "exclusion: only UDP, non-matching case",
+			domain: "abc",
 			conn: &model.Connection{
 				// (tcp is 0 so this doesn't actually do anything)
 				Type:      model.ConnectionType_tcp,
@@ -1491,7 +1750,7 @@ func Test_npCollectorImpl_shouldScheduleNetworkPathForConn(t *testing.T) {
 			stats := &teststatsd.Client{}
 			_, npCollector := newTestNpCollector(t, agentConfigs, stats)
 
-			require.Equal(t, tt.shouldSchedule, npCollector.shouldScheduleNetworkPathForConn(tt.conn, tt.vpcSubnets))
+			require.Equal(t, tt.shouldSchedule, npCollector.shouldScheduleNetworkPathForConn(tt.conn, tt.vpcSubnets, tt.domain))
 
 			if tt.subnetSkipped {
 				require.Contains(t, stats.CountCalls, subnetSkippedStat)
@@ -1554,7 +1813,7 @@ func Test_npCollectorImpl_shouldScheduleNetworkPathForConn_subnets(t *testing.T)
 			stats := &teststatsd.Client{}
 			_, npCollector := newTestNpCollector(t, agentConfigs, stats)
 
-			assert.Equal(t, tt.shouldSchedule, npCollector.shouldScheduleNetworkPathForConn(tt.conn, nil))
+			assert.Equal(t, tt.shouldSchedule, npCollector.shouldScheduleNetworkPathForConn(tt.conn, nil, "abc"))
 
 			if tt.subnetSkipped {
 				require.Contains(t, stats.CountCalls, subnetSkippedStat)
