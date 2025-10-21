@@ -15,10 +15,10 @@ import (
 	"strings"
 	"time"
 
+	tracerouteCache "github.com/DataDog/datadog-traceroute/cache"
 	trcommon "github.com/DataDog/datadog-traceroute/common"
 	tracerlog "github.com/DataDog/datadog-traceroute/log"
 	"github.com/DataDog/datadog-traceroute/result"
-	"github.com/DataDog/datadog-traceroute/runner"
 	"github.com/DataDog/datadog-traceroute/traceroute"
 
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
@@ -75,6 +75,7 @@ type Runner struct {
 	nsIno           uint32
 	networkID       string
 	hostnameService hostname.Component
+	traceroute      *traceroute.Traceroute
 }
 
 // New initializes a new traceroute runner
@@ -92,11 +93,16 @@ func New(telemetryComp telemetryComponent.Component, hostnameService hostname.Co
 		log.Warnf("gateway lookup is not enabled")
 	}
 
+	tracerouteInst, err := traceroute.NewTraceroute(tracerouteCache.InMemory)
+	if err != nil {
+		return nil, fmt.Errorf("error creating traceroute instance: %s", err)
+	}
 	return &Runner{
 		gatewayLookup:   gatewayLookup,
 		nsIno:           nsIno,
 		networkID:       networkID,
 		hostnameService: hostnameService,
+		traceroute:      tracerouteInst,
 	}, nil
 }
 
@@ -126,7 +132,7 @@ func (r *Runner) RunTraceroute(ctx context.Context, cfg config.Config) (payload.
 		return payload.NetworkPath{}, err
 	}
 
-	params := runner.TracerouteParams{
+	params := traceroute.TracerouteParams{
 		Hostname:          cfg.DestHostname,
 		Port:              int(cfg.DestPort),
 		Protocol:          strings.ToLower(string(cfg.Protocol)),
@@ -142,7 +148,7 @@ func (r *Runner) RunTraceroute(ctx context.Context, cfg config.Config) (payload.
 		E2eQueries:        cfg.E2eQueries,
 	}
 
-	results, err := runner.RunTraceroute(ctx, params)
+	results, err := r.traceroute.RunTraceroute(ctx, params)
 	if err != nil {
 		tracerouteRunnerTelemetry.failedRuns.Inc()
 		return payload.NetworkPath{}, err
@@ -172,6 +178,7 @@ func (r *Runner) processResults(res *result.Results, protocol payload.Protocol, 
 			DisplayName: hname,
 			Hostname:    hname,
 			NetworkID:   r.networkID,
+			PublicIP:    res.Source.PublicIP,
 		},
 		Destination: payload.NetworkPathDestination{
 			Hostname: destinationHost,

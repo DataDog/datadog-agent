@@ -57,7 +57,10 @@ func TestProcessResults(t *testing.T) {
 			hname:            "test-hostname",
 			destinationHost:  "test-destination-hostname",
 			inputResults: &result.Results{
-				Params: result.Params{
+				Source: result.Source{
+					PublicIP: "1.2.3.4",
+				},
+				Destination: result.Destination{
 					Port: 33434,
 				},
 				Traceroute: result.Traceroute{
@@ -120,6 +123,7 @@ func TestProcessResults(t *testing.T) {
 					Hostname:    "test-hostname",
 					Name:        "test-hostname",
 					DisplayName: "test-hostname",
+					PublicIP:    "1.2.3.4",
 				},
 				Destination: payload.NetworkPathDestination{
 					Hostname: "test-destination-hostname",
@@ -182,7 +186,7 @@ func TestProcessResults(t *testing.T) {
 			hname:            "test-hostname",
 			destinationHost:  "test-destination-hostname",
 			inputResults: &result.Results{
-				Params: result.Params{
+				Destination: result.Destination{
 					Port: 33434,
 				},
 				Traceroute: result.Traceroute{
@@ -265,7 +269,7 @@ func TestProcessResults(t *testing.T) {
 			hname:            "test-hostname",
 			destinationHost:  "test-destination-hostname",
 			inputResults: &result.Results{
-				Params: result.Params{
+				Destination: result.Destination{
 					Port: 443,
 				},
 				Traceroute: result.Traceroute{
@@ -353,7 +357,7 @@ func TestProcessResults(t *testing.T) {
 			hname:            "test-hostname",
 			destinationHost:  "test-destination-hostname",
 			inputResults: &result.Results{
-				Params: result.Params{
+				Destination: result.Destination{
 					Port: 33434,
 				},
 				Traceroute: result.Traceroute{
@@ -464,7 +468,7 @@ func TestProcessResults(t *testing.T) {
 			}
 			dstPort := uint16(0)
 			if test.inputResults != nil {
-				dstPort = uint16(test.inputResults.Params.Port)
+				dstPort = uint16(test.inputResults.Destination.Port)
 			}
 			actual, err := runner.processResults(test.inputResults, test.protocol, test.hname, test.destinationHost, dstPort)
 			if test.errMsg != "" {
