@@ -112,9 +112,7 @@ func NewTargetMutator(config *Config, wmeta workloadmeta.Component, imageResolve
 			usesDefaultLibs = true
 		} else {
 			pinnedLibraries := getPinnedLibraries(t.TracerVersions, config.containerRegistry, true)
-			if pinnedLibraries.areSetToDefaults {
-				usesDefaultLibs = true
-			}
+			usesDefaultLibs = pinnedLibraries.areSetToDefaults
 			libVersions = pinnedLibraries.libs
 		}
 
