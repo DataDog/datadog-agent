@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 
 	kubeAutoscaling "github.com/DataDog/agent-payload/v5/autoscaling/kubernetes"
+	corev1 "k8s.io/api/core/v1"
 
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -77,4 +78,26 @@ func (avp *autoscalingValuesProcessor) postProcess() {
 			log.Debugf("Deleting object from store: %s", s.name)
 		}
 	}
+}
+
+func convertLabels(input []*kubeAutoscaling.DomainLabels) map[string]string {
+	output := make(map[string]string)
+	for _, elem := range input {
+		output[elem.Key] = elem.Value
+	}
+
+	return output
+}
+
+func convertTaints(input []*kubeAutoscaling.Taints) []corev1.Taint {
+	output := []corev1.Taint{}
+	for _, elem := range input {
+		output = append(output, corev1.Taint{
+			Key:    elem.Key,
+			Value:  elem.Value,
+			Effect: corev1.TaintEffect(elem.Effect),
+		})
+	}
+
+	return output
 }

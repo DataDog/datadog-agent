@@ -23,7 +23,6 @@ import (
 	"k8s.io/client-go/util/workqueue"
 	"k8s.io/utils/clock"
 
-	kubeAutoscaling "github.com/DataDog/agent-payload/v5/autoscaling/kubernetes"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/dynamic/dynamicinformer"
 	karpenterv1 "sigs.k8s.io/karpenter/pkg/apis/v1"
@@ -311,7 +310,7 @@ func (c *Controller) deleteNodePool(ctx context.Context, name string) error {
 
 type minNodePool struct {
 	name                     string            `json:"name"`
-	nodePoolHash             string            `json:"target_hash"`
+	nodePoolHash             string            `json:"target_hash"` // TODO utilize once this is part of payload
 	recommendedInstanceTypes []string          `json:"recommended_instance_types"`
 	labels                   map[string]string `json:"labels"`
 	taints                   []corev1.Taint    `json:"taints"`
@@ -370,16 +369,16 @@ func buildNodePoolSpec(mnp minNodePool, nodeClassName string) karpenterv1.NodePo
 func buildNodePoolPatch(np *karpenterv1.NodePool, mnp minNodePool) map[string]interface{} {
 
 	// Build requirements patch, only updating values for the instance types
-	newRequirements := []map[string]interface{}{}
+	updatedRequirements := []map[string]interface{}{}
 	for _, r := range np.Spec.Template.Spec.Requirements {
 		if r.Key == corev1.LabelInstanceTypeStable {
 			r.Operator = "In"
 			r.Values = mnp.recommendedInstanceTypes
 		}
 
-		newRequirements = append(newRequirements, map[string]interface{}{
+		updatedRequirements = append(updatedRequirements, map[string]interface{}{
 			"key":      r.Key,
-			"operator": r.Operator,
+			"operator": string(r.Operator),
 			"values":   r.Values,
 		})
 	}
@@ -393,33 +392,11 @@ func buildNodePoolPatch(np *karpenterv1.NodePool, mnp minNodePool) map[string]in
 		"spec": map[string]interface{}{
 			"template": map[string]interface{}{
 				"spec": map[string]interface{}{
-					"requirements": newRequirements,
+					"requirements": updatedRequirements,
 				},
 			},
 		},
 	}
-}
-
-func convertLabels(input []*kubeAutoscaling.DomainLabels) map[string]string {
-	output := make(map[string]string)
-	for _, elem := range input {
-		output[elem.Name] = elem.Value
-	}
-
-	return output
-}
-
-func convertTaints(input []*kubeAutoscaling.Taints) []corev1.Taint {
-	output := []corev1.Taint{}
-	for _, elem := range input {
-		output = append(output, corev1.Taint{
-			Key:    elem.Key,
-			Value:  elem.Value,
-			Effect: corev1.TaintEffect(elem.Effect),
-		})
-	}
-
-	return output
 }
 
 func isCreatedByDatadog(labels map[string]string) bool {
