@@ -63,8 +63,8 @@ def extract_index_digest(tag_data: Dict) -> Optional[str]:
 
 def get_latest_k8s_versions() -> Dict[str, Dict[str, str]]:
     """
-    Fetch and parse the latest Kubernetes versions from Docker Hub.
-    Returns a dictionary mapping version strings to their metadata:
+    Fetch and parse the latest Kubernetes version from Docker Hub.
+    Returns a dictionary with only the single latest version:
     {
         "v1.34.0": {
             "digest": "sha256:7416a61b42b1662ca6ca89f02028ac133a309a2a30ba309614e8ec94d976dc5a",
@@ -92,24 +92,17 @@ def get_latest_k8s_versions() -> Dict[str, Dict[str, str]]:
     # Sort by version (major, minor, patch)
     version_tags.sort(key=lambda x: x['version'], reverse=True)
 
-    # Group by minor version and get the latest patch for each
-    latest_versions = {}
-    seen_minor = set()
-
-    for tag_data in version_tags:
-        major, minor, patch = tag_data['version']
-        minor_version = f"{major}.{minor}"
-
-        # Only keep the latest patch version for each minor version
-        if minor_version not in seen_minor:
-            seen_minor.add(minor_version)
-            version_key = tag_data['tag']
-            latest_versions[version_key] = {
-                'digest': tag_data['digest'],
-                'tag': tag_data['tag']
+    # Return only the single latest version
+    if version_tags:
+        latest = version_tags[0]
+        return {
+            latest['tag']: {
+                'digest': latest['digest'],
+                'tag': latest['tag']
             }
+        }
 
-    return latest_versions
+    return {}
 
 
 def load_existing_versions() -> Dict[str, Dict[str, str]]:
@@ -155,28 +148,26 @@ def set_github_output(name: str, value: str) -> None:
 
 
 def main():
-    print("Fetching latest Kubernetes versions from Docker Hub...")
+    print("Fetching latest Kubernetes version from Docker Hub...")
     current_versions = get_latest_k8s_versions()
 
-    print(f"Found {len(current_versions)} latest Kubernetes versions")
+    if not current_versions:
+        print("Error: Could not find any Kubernetes versions")
+        set_github_output('has_new_versions', 'false')
+        return
 
-    # Show the top 5 latest versions for logging
-    sorted_versions = sorted(
-        current_versions.items(),
-        key=lambda x: parse_version(x[0]),
-        reverse=True
-    )[:5]
-
-    print("Latest versions:")
-    for version, data in sorted_versions:
-        print(f"  {version}: {data['digest']}")
+    # Show the latest version
+    latest_version = list(current_versions.keys())[0]
+    latest_data = current_versions[latest_version]
+    print(f"Latest Kubernetes version: {latest_version}")
+    print(f"  Digest: {latest_data['digest']}")
 
     # Load previous versions and compare
     previous_versions = load_existing_versions()
     new_versions = find_new_versions(current_versions, previous_versions)
 
     if new_versions:
-        print(f"\nFound {len(new_versions)} new or updated version(s):")
+        print(f"\nNew version found!")
         for version, data in new_versions.items():
             print(f"  {version}: {data['digest']}")
 
@@ -187,7 +178,7 @@ def main():
         set_github_output('has_new_versions', 'true')
         set_github_output('new_versions', json.dumps(new_versions))
     else:
-        print("\nNo new versions found")
+        print(f"\nNo new version - {latest_version} is already tracked")
         set_github_output('has_new_versions', 'false')
 
 

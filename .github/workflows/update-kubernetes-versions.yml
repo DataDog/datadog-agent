@@ -12,7 +12,7 @@ permissions: {}
 
 jobs:
   update-k8s-versions:
-    name: Check for new Kubernetes versions
+    name: Check for new Kubernetes version
     runs-on: ubuntu-latest
     permissions:
       id-token: write # Required for OIDC token from GitHub
@@ -38,12 +38,12 @@ jobs:
         run: |
           pip install requests pyyaml
 
-      - name: Fetch latest Kubernetes versions
+      - name: Fetch latest Kubernetes version
         id: fetch-versions
         run: |
           python .github/scripts/fetch_k8s_versions.py
 
-      - name: Update e2e.yml with new versions
+      - name: Update e2e.yml with new version
         id: update-yaml
         if: steps.fetch-versions.outputs.has_new_versions == 'true'
         run: |
@@ -53,19 +53,19 @@ jobs:
         name: Create pull request
         if: steps.update-yaml.outputs.updated == 'true'
         with:
-          commit-message: "chore(e2e): add new Kubernetes version(s) to e2e tests"
+          commit-message: "chore(e2e): add new Kubernetes version to e2e tests"
           branch: update-k8s-versions-${{ github.run_id }}-${{ github.run_attempt }}
           token: ${{ steps.octo-sts.outputs.token }}
           sign-commits: true
-          title: "[automated] Add new Kubernetes version(s) to e2e tests"
+          title: "[automated] Add new Kubernetes version to e2e tests"
           body: |
             ### What does this PR do?
-            Adds newly released Kubernetes version(s) from kindest/node to the e2e test matrix.
+            Adds the latest Kubernetes version from kindest/node to the e2e test matrix.
 
             ### Motivation
-            Keep e2e tests running against latest Kubernetes versions to ensure compatibility.
+            Keep e2e tests running against the latest Kubernetes version to ensure compatibility.
 
-            ### New versions added:
+            ### New version added:
             ${{ steps.update-yaml.outputs.new_versions }}
 
             ### Describe how you validated your changes
