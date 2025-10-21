@@ -390,14 +390,23 @@ func (e *FileFields) UnmarshalBinary(data []byte) (int, error) {
 	e.Mode = binary.NativeEndian.Uint16(data[20:22])
 
 	timeSec := binary.NativeEndian.Uint64(data[24:32])
-	timeNsec := binary.NativeEndian.Uint64(data[32:40])
+	timeNsec := clearTopBitNsec(binary.NativeEndian.Uint64(data[32:40]))
 	e.CTime = uint64(time.Unix(int64(timeSec), int64(timeNsec)).UnixNano())
 
 	timeSec = binary.NativeEndian.Uint64(data[40:48])
-	timeNsec = binary.NativeEndian.Uint64(data[48:56])
+	timeNsec = clearTopBitNsec(binary.NativeEndian.Uint64(data[48:56]))
 	e.MTime = uint64(time.Unix(int64(timeSec), int64(timeNsec)).UnixNano())
 
 	return FileFieldsSize, nil
+}
+
+// in https://github.com/torvalds/linux/commit/4e40eff0b5737c0de39e1ae5812509efbc0b986e
+// the kernel started using the top bit of the nsec as a flag, let's clear it
+// before using the nsec value
+func clearTopBitNsec(nsec uint64) uint64 {
+	w := uint32(nsec)
+	w = w & ^(uint32(1) << 31)
+	return uint64(w)
 }
 
 // UnmarshalBinary unmarshalls a binary representation of itself
