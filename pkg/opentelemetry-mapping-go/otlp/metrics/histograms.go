@@ -18,6 +18,8 @@ import (
 	"github.com/DataDog/sketches-go/ddsketch/store"
 )
 
+// These methods will be imported in dd-go to convert OTLP to DD trace metrics - see https://github.com/DataDog/dd-go/pull/198508
+
 // getTimeUnitScaleToNanos returns the scaling factor to convert the given unit to nanoseconds
 func getTimeUnitScaleToNanos(unit string) float64 {
 	switch unit {
