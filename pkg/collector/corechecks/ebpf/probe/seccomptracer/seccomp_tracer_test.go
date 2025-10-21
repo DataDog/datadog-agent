@@ -83,16 +83,16 @@ func (s *seccompTracerTestSuite) TestCanDetectSeccompDenial() {
 
 			if key.SyscallNr == unix.SYS_GETPID {
 				foundGetpid = true
-				assert.Equal(t, uint64(1), value.Count, "Expected exactly one getpid denial")
+				assert.Equal(c, uint64(1), value.Count, "Expected exactly one getpid denial")
 			}
 			if key.SyscallNr == unix.SYS_GETUID {
 				foundGetuid = true
-				assert.Equal(t, uint64(1), value.Count, "Expected exactly one getuid denial")
+				assert.Equal(c, uint64(1), value.Count, "Expected exactly one getuid denial")
 			}
 		}
 
-		assert.True(t, foundGetpid, "Expected to capture SYS_GETPID (%d) denial from seccompsample", unix.SYS_GETPID)
-		assert.True(t, foundGetuid, "Expected to capture SYS_GETUID (%d) denial from seccompsample", unix.SYS_GETUID)
+		assert.True(c, foundGetpid, "Expected to capture SYS_GETPID (%d) denial from seccompsample", unix.SYS_GETPID)
+		assert.True(c, foundGetuid, "Expected to capture SYS_GETUID (%d) denial from seccompsample", unix.SYS_GETUID)
 	}, 10*time.Second, 100*time.Millisecond, "Expected to capture seccomp denials")
 }
 
