@@ -142,6 +142,7 @@ var (
 	aggregatorOrchestratorManifestsErrors      = expvar.Int{}
 	aggregatorDogstatsdContexts                = expvar.Int{}
 	aggregatorDogstatsdContextsByMtype         = []expvar.Int{}
+	aggregatorDogstatsdServiceStats            = expvar.Map{} // Per-service DogStatsD metric sample counts
 	aggregatorEventPlatformEvents              = expvar.Map{}
 	aggregatorEventPlatformEventsErrors        = expvar.Map{}
 
@@ -209,6 +210,7 @@ func init() {
 	aggregatorExpvars.Set("OrchestratorManifests", &aggregatorOrchestratorManifests)
 	aggregatorExpvars.Set("OrchestratorManifestsErrors", &aggregatorOrchestratorManifestsErrors)
 	aggregatorExpvars.Set("DogstatsdContexts", &aggregatorDogstatsdContexts)
+	aggregatorExpvars.Set("DogstatsdServiceStats", &aggregatorDogstatsdServiceStats)
 	aggregatorExpvars.Set("EventPlatformEvents", &aggregatorEventPlatformEvents)
 	aggregatorExpvars.Set("EventPlatformEventsErrors", &aggregatorEventPlatformEventsErrors)
 

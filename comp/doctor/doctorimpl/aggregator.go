@@ -298,6 +298,9 @@ func (d *doctorImpl) collectServicesStatus() []def.ServiceStats {
 	// Collect metrics stats by service from checks
 	d.collectMetricsServiceStats(serviceMap)
 
+	// Collect DogStatsD metrics stats by service from aggregator
+	d.collectDogStatsDServiceStats(serviceMap)
+
 	// Collect logs stats by service from log agent
 	d.collectLogsServiceStats(serviceMap)
 
@@ -571,6 +574,117 @@ func extractServiceFromInstanceConfig(instanceConfig string) string {
 	}
 
 	return ""
+}
+
+// collectDogStatsDServiceStats collects DogStatsD metric rates per service from aggregator
+// Uses delta tracking to calculate instantaneous rates instead of average-since-start
+func (d *doctorImpl) collectDogStatsDServiceStats(serviceMap map[string]*def.ServiceStats) {
+	// Get aggregator expvars
+	aggregatorVar := expvar.Get("aggregator")
+	if aggregatorVar == nil {
+		return
+	}
+
+	aggregatorJSON := []byte(aggregatorVar.String())
+	var aggregatorStats map[string]interface{}
+	if err := json.Unmarshal(aggregatorJSON, &aggregatorStats); err != nil {
+		d.log.Debugf("Failed to unmarshal aggregator stats: %v", err)
+		return
+	}
+
+	// Get DogStatsD service stats map
+	serviceStatsInterface, ok := aggregatorStats["DogstatsdServiceStats"]
+	if !ok {
+		return
+	}
+
+	serviceStatsMap, ok := serviceStatsInterface.(map[string]interface{})
+	if !ok {
+		return
+	}
+
+	// Lock for thread-safe access to delta tracking state
+	d.dogstatsdDeltaMu.Lock()
+	defer d.dogstatsdDeltaMu.Unlock()
+
+	// Calculate time delta since last collection
+	now := time.Now()
+	timeDelta := now.Sub(d.lastDogstatsdCollectionTime).Seconds()
+
+	// If this is the first collection or time delta is too small, fall back to average rate
+	if d.lastDogstatsdCollectionTime.IsZero() || timeDelta < 0.1 {
+		// First collection - use average rate since agent start as fallback
+		uptimeSeconds := time.Since(d.startTime).Seconds()
+		if uptimeSeconds == 0 {
+			uptimeSeconds = 1
+		}
+
+		for serviceName, countInterface := range serviceStatsMap {
+			var currentCount int64
+			switch v := countInterface.(type) {
+			case float64:
+				currentCount = int64(v)
+			case int64:
+				currentCount = v
+			default:
+				continue
+			}
+
+			if currentCount > 0 {
+				if _, exists := serviceMap[serviceName]; !exists {
+					serviceMap[serviceName] = &def.ServiceStats{Name: serviceName}
+				}
+				metricsRate := float64(currentCount) / uptimeSeconds
+				serviceMap[serviceName].MetricsRate += metricsRate
+
+				// Store current value for next iteration
+				d.previousDogstatsdSamples[serviceName] = currentCount
+			}
+		}
+
+		d.lastDogstatsdCollectionTime = now
+		return
+	}
+
+	// We have previous data - calculate instantaneous rates using deltas
+	for serviceName, countInterface := range serviceStatsMap {
+		var currentCount int64
+		switch v := countInterface.(type) {
+		case float64:
+			currentCount = int64(v)
+		case int64:
+			currentCount = v
+		default:
+			continue
+		}
+
+		previousCount, hasPrevious := d.previousDogstatsdSamples[serviceName]
+
+		var metricsRate float64
+		if hasPrevious && currentCount >= previousCount {
+			// Calculate instantaneous rate from delta
+			deltaCount := currentCount - previousCount
+			metricsRate = float64(deltaCount) / timeDelta
+		} else {
+			// No previous data or counter reset - use average since start
+			uptimeSeconds := time.Since(d.startTime).Seconds()
+			if uptimeSeconds > 0 {
+				metricsRate = float64(currentCount) / uptimeSeconds
+			}
+		}
+
+		// Get or create service entry
+		if _, exists := serviceMap[serviceName]; !exists {
+			serviceMap[serviceName] = &def.ServiceStats{Name: serviceName}
+		}
+		serviceMap[serviceName].MetricsRate += metricsRate
+
+		// Update tracking state
+		d.previousDogstatsdSamples[serviceName] = currentCount
+	}
+
+	// Update last collection time
+	d.lastDogstatsdCollectionTime = now
 }
 
 // Helper to safely get check ID from various check stat types

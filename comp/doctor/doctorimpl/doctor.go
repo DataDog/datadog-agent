@@ -51,6 +51,11 @@ type doctorImpl struct {
 	logsDeltaMu            sync.Mutex
 	previousLogsBytesRead  map[string]int64 // Map of service name to bytes read
 	lastLogsCollectionTime time.Time
+
+	// Delta tracking for DogStatsD rate calculation
+	dogstatsdDeltaMu            sync.Mutex
+	previousDogstatsdSamples    map[string]int64 // Map of service name to metric sample count
+	lastDogstatsdCollectionTime time.Time
 }
 
 type provides struct {
@@ -80,13 +85,15 @@ func newProvides(deps dependencies) provides {
 
 func newDoctor(deps dependencies) *doctorImpl {
 	d := &doctorImpl{
-		log:                    deps.Log,
-		config:                 deps.Config,
-		hostname:               deps.Hostname,
-		collector:              deps.Collector,
-		startTime:              time.Now(),
-		previousLogsBytesRead:  make(map[string]int64),
-		lastLogsCollectionTime: time.Now(),
+		log:                         deps.Log,
+		config:                      deps.Config,
+		hostname:                    deps.Hostname,
+		collector:                   deps.Collector,
+		startTime:                   time.Now(),
+		previousLogsBytesRead:       make(map[string]int64),
+		lastLogsCollectionTime:      time.Now(),
+		previousDogstatsdSamples:    make(map[string]int64),
+		lastDogstatsdCollectionTime: time.Now(),
 	}
 
 	deps.Lc.Append(fx.Hook{

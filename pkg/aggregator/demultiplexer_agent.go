@@ -490,6 +490,21 @@ func (d *AgentDemultiplexer) flushToSerializer(start time.Time, waitForSerialize
 
 	addFlushTime("MainFlushTime", int64(time.Since(start)))
 	aggregatorNumberOfFlush.Add(1)
+
+	// Update service-level statistics from all time samplers
+	d.updateServiceStats()
+}
+
+// updateServiceStats aggregates service statistics from all time samplers
+// and updates the global expvar map
+func (d *AgentDemultiplexer) updateServiceStats() {
+	// Clear the existing map
+	aggregatorDogstatsdServiceStats.Init()
+
+	// Aggregate stats from all time sampler workers
+	for _, worker := range d.statsd.workers {
+		worker.sampler.serviceStats.exportToExpvar(&aggregatorDogstatsdServiceStats)
+	}
 }
 
 // GetEventsAndServiceChecksChannels returneds underlying events and service checks channels.

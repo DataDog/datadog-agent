@@ -44,6 +44,9 @@ type TimeSampler struct {
 	idString string
 
 	hostname string
+
+	// serviceStats tracks metric sample counts per service tag
+	serviceStats *serviceStatsTracker
 }
 
 // NewTimeSampler returns a newly initialized TimeSampler
@@ -66,6 +69,7 @@ func NewTimeSampler(id TimeSamplerID, interval int64, cache *tags.Store, tagger 
 		id:                 id,
 		idString:           idString,
 		hostname:           hostname,
+		serviceStats:       newServiceStatsTracker(),
 	}
 
 	return s
@@ -84,6 +88,9 @@ func (s *TimeSampler) sample(metricSample *metrics.MetricSample, timestamp float
 	if metricSample.Timestamp > 0 {
 		timestamp = metricSample.Timestamp
 	}
+
+	// Track service-level statistics
+	s.serviceStats.trackSample(metricSample)
 
 	// Keep track of the context
 	contextKey := s.contextResolver.trackContext(metricSample, int64(timestamp))
