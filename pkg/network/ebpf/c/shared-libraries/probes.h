@@ -101,14 +101,19 @@ static __always_inline void push_event_if_relevant(void *ctx, lib_path_t *path, 
     }
 }
 
-static __always_inline void do_sys_open_helper_exit(exit_sys_ctx *args) {
+// Helper function for syscall exit handling - takes ctx and return value separately
+// to support both tracepoint (where ctx is the tracepoint args) and kretprobe (where
+// ctx is the real eBPF context pointer) callers. This separation is critical for
+// kernel 4.14 compatibility, as the verifier rejects passing stack pointers to
+// bpf_perf_event_output (which requires a real ctx pointer).
+static __always_inline void do_sys_open_helper_exit(void *ctx, long ret) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
     lib_path_t *path = bpf_map_lookup_elem(&open_at_args, &pid_tgid);
     if (path == NULL) {
         return;
     }
 
-    push_event_if_relevant(args, path, args->ret);
+    push_event_if_relevant(ctx, path, ret);
     bpf_map_delete_elem(&open_at_args, &pid_tgid);
     return;
 }
@@ -137,7 +142,7 @@ int tracepoint__syscalls__sys_enter_open(enter_sys_open_ctx *args) {
 SEC("tracepoint/syscalls/sys_exit_open")
 int tracepoint__syscalls__sys_exit_open(exit_sys_ctx *args) {
     CHECK_BPF_PROGRAM_BYPASSED()
-    do_sys_open_helper_exit(args);
+    do_sys_open_helper_exit(args, args->ret);
     return 0;
 }
 
@@ -156,7 +161,7 @@ int tracepoint__syscalls__sys_enter_openat(enter_sys_openat_ctx *args) {
 SEC("tracepoint/syscalls/sys_exit_openat")
 int tracepoint__syscalls__sys_exit_openat(exit_sys_ctx *args) {
     CHECK_BPF_PROGRAM_BYPASSED()
-    do_sys_open_helper_exit(args);
+    do_sys_open_helper_exit(args, args->ret);
     return 0;
 }
 
@@ -179,7 +184,7 @@ int tracepoint__syscalls__sys_enter_openat2(enter_sys_openat2_ctx *args) {
 SEC("tracepoint/syscalls/sys_exit_openat2")
 int tracepoint__syscalls__sys_exit_openat2(exit_sys_ctx *args) {
     CHECK_BPF_PROGRAM_BYPASSED()
-    do_sys_open_helper_exit(args);
+    do_sys_open_helper_exit(args, args->ret);
     return 0;
 }
 
@@ -233,10 +238,11 @@ int BPF_BYPASSABLE_KPROBE(kprobe__do_sys_open, int dfd, const char *filename, in
 // - tracepoint/syscalls/sys_exit_openat
 SEC("kretprobe/do_sys_open")
 int BPF_BYPASSABLE_KRETPROBE(kretprobe__do_sys_open, long ret) {
-    // Construct an exit_sys_ctx structure to match what the tracepoint would provide
-    // This allows us to reuse the existing do_sys_open_helper_exit() function
-    exit_sys_ctx args = {.ret = ret};
-    do_sys_open_helper_exit(&args);
+    // Pass the real eBPF context (from BPF_BYPASSABLE_KRETPROBE) directly to the helper.
+    // This is critical for kernel 4.14 compatibility - the verifier rejects passing
+    // stack pointers (exit_sys_ctx allocated on stack) to bpf_perf_event_output,
+    // which requires a real ctx pointer.
+    do_sys_open_helper_exit(ctx, ret);
     return 0;
 }
 
