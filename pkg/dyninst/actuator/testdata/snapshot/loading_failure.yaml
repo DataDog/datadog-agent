@@ -23,6 +23,10 @@ state:
     1001: <nil> -> WaitingForProgram (prog 1)
   programs:
     1: <nil> -> Loading (proc 1001)
+  stats:
+    numProcesses: 0 -> 1
+    numPrograms: 0 -> 1
+    numWaitingForProgram: 0 -> 1
 ---
 event: !loading-failed {program_id: 1, error: "eBPF loading failed"}
 state:
@@ -32,3 +36,8 @@ state:
     1001: WaitingForProgram (prog 1) -> LoadingFailed
   programs:
     1: Loading (proc 1001) -> <nil>
+  stats:
+    loadFailed: 0 -> 1
+    numLoadingFailed: 0 -> 1
+    numPrograms: 1 -> 0
+    numWaitingForProgram: 1 -> 0
