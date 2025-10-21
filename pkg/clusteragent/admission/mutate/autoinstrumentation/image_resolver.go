@@ -212,13 +212,11 @@ func (r *remoteConfigImageResolver) updateCacheFromParsedConfigs(validConfigs ma
 		for _, imageInfo := range repo.Images {
 			if imageInfo.Tag == "" || imageInfo.Digest == "" {
 				log.Warnf("Skipping invalid image entry (missing tag or digest) in %s", repo.RepositoryName)
-				metrics.InvalidRemoteConfigs.Inc()
 				continue
 			}
 
 			if !isValidDigest(imageInfo.Digest) {
 				log.Warnf("Skipping invalid image entry (invalid digest format: %s) in %s", imageInfo.Digest, repo.RepositoryName)
-				metrics.InvalidRemoteConfigs.Inc()
 				continue
 			}
 
