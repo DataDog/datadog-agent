@@ -437,7 +437,9 @@ func (s *discovery) getHeartbeatServiceInfo(context parsingContext, pid int32) *
 	}
 
 	totalPorts := len(tcpPorts) + len(udpPorts)
-	if totalPorts == 0 {
+	hasTracerMetadata := openFileInfo.tracerMemfdFd != ""
+	hasLogs := len(openFileInfo.logs) > 0
+	if totalPorts == 0 && !hasTracerMetadata && !hasLogs {
 		return nil
 	}
 
@@ -582,7 +584,9 @@ func (s *discovery) getServiceWithoutRetry(context parsingContext, pid int32) *m
 	}
 
 	totalPorts := len(tcpPorts) + len(udpPorts)
-	if totalPorts == 0 {
+	hasTracerMetadata := openFileInfo.tracerMemfdFd != ""
+	hasLogs := len(openFileInfo.logs) > 0
+	if totalPorts == 0 && !hasTracerMetadata && !hasLogs {
 		return nil
 	}
 

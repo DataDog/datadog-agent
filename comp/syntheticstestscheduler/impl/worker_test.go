@@ -251,7 +251,7 @@ func TestNetworkPathToTestResult(t *testing.T) {
 					E2eProbe: payload.E2eProbe{
 						PacketsSent:          0,
 						PacketsReceived:      0,
-						PacketLossPercentage: 100,
+						PacketLossPercentage: 1,
 						Jitter:               0,
 						RTT: payload.E2eProbeRttLatency{
 							Avg: 0, Min: 0, Max: 0,
@@ -299,7 +299,7 @@ func TestNetworkPathToTestResult(t *testing.T) {
 					E2eProbe: payload.E2eProbe{
 						PacketsSent:          0,
 						PacketsReceived:      0,
-						PacketLossPercentage: 100,
+						PacketLossPercentage: 1,
 						Jitter:               0,
 						RTT: payload.E2eProbeRttLatency{
 							Avg: 0, Min: 0, Max: 0,

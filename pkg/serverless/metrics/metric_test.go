@@ -44,7 +44,7 @@ func TestStartDoesNotBlock(t *testing.T) {
 		t.Skip("TestStartDoesNotBlock is known to fail on the macOS Gitlab runners because of the already running Agent")
 	}
 	mockConfig := configmock.New(t)
-	pkgconfigsetup.LoadWithSecret(mockConfig, secretsmock.New(t), nil)
+	pkgconfigsetup.LoadDatadog(mockConfig, secretsmock.New(t), nil)
 	metricAgent := &ServerlessMetricAgent{
 		SketchesBucketOffset: time.Second * 10,
 		Tagger:               nooptagger.NewComponent(),

@@ -263,7 +263,7 @@ func (w *workloadmeta) ListKubernetesPods() []*wmdef.KubernetesPod {
 func (w *workloadmeta) GetKubeletMetrics() (*wmdef.KubeletMetrics, error) {
 	// There should only be one entity of this kind with the ID used in the
 	// Kubelet collector
-	entity, err := w.getEntityByKind(wmdef.KindKubeletMetrics, "kubelet-metrics")
+	entity, err := w.getEntityByKind(wmdef.KindKubeletMetrics, wmdef.KubeletMetricsID)
 	if err != nil {
 		return nil, err
 	}

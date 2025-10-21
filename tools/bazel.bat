@@ -1,6 +1,6 @@
-@echo off & setlocal EnableDelayedExpansion & if not defined bb (set "bb=%TEMP%\%~n0-%RANDOM%.bat" & more /e /p "%~f0" >"!bb!" & call "!bb!" %* & set "rc=!errorlevel!" & del /q "!bb!" & exit /b !rc!)
-:: Above one-liner copies the present script to a temporary file with normalized Windows line endings and executes it.
-:: Works regardless of actual source line endings because the pseudo-shebang is interpreted before the first newline.
+@echo off
+setlocal EnableDelayedExpansion
+>nul chcp 65001
 
 :: Check `bazelisk` properly bootstraps `bazel` or fail with instructions
 if not defined BAZEL_REAL (
@@ -41,12 +41,13 @@ if exist "!BAZEL_REPO_CONTENTS_CACHE!" (
 
 :: Pass CI-specific options through `.user.bazelrc` so any nested `bazel run` and next `bazel shutdown` also honor them
 (
-  echo startup --connect_timeout_secs=30
+  echo startup --connect_timeout_secs=5  # instead of 30s, for quicker iterations in diagnostics
+  echo startup --local_startup_timeout_secs=30  # instead of 120s, to fail faster for diagnostics
   echo startup --output_user_root=!BAZEL_OUTPUT_USER_ROOT!
   echo common --config=cache
   echo common --repo_contents_cache=!ext_repo_contents_cache!
   echo build --disk_cache=!BAZEL_DISK_CACHE!
-) >"%CI_PROJECT_DIR%\user.bazelrc"
+) >"%~dp0..\user.bazelrc"
 
 :: Diagnostics: print any stalled client/server before `bazel` execution
 >&2 powershell -NoProfile -Command "Get-Process bazel,java -ErrorAction SilentlyContinue | Select-Object 🟡,ProcessName,StartTime"
@@ -55,16 +56,27 @@ if exist "!BAZEL_REPO_CONTENTS_CACHE!" (
 "%BAZEL_REAL%" %*
 set "bazel_exit=!errorlevel!"
 
-:: Diagnostics: dump JVM output on failure
+:: Diagnostics: dump logs on failure
 if !bazel_exit! neq 0 (
-  >&2 echo 🟡 JVM output:
-  >&2 type "!BAZEL_OUTPUT_USER_ROOT!\server\jvm.out"
+  >&2 echo 🟡 Bazel failed [!bazel_exit!], dumping available info in !BAZEL_OUTPUT_USER_ROOT! ^(excluding junctions^):
+  for /f "delims=" %%d in ('dir /a:d-l /b "!BAZEL_OUTPUT_USER_ROOT!"') do (
+    >&2 echo 🟡 [%%d]
+    for %%f in ("!BAZEL_OUTPUT_USER_ROOT!\%%d\java.log.*" "!BAZEL_OUTPUT_USER_ROOT!\%%d\server\*") do (
+      if exist "%%f" (
+        >&2 echo 🟡 %%f:
+        >&2 type "%%f"
+        >&2 echo.
+      ) else (
+        >&2 echo 🟡 %%f doesn't exist
+      )
+    )
+  )
   exit /b !bazel_exit!
 )
 
 :: Stop `bazel` (if still running) to close files and proceed with cleanup
 >&2 "%BAZEL_REAL%" shutdown --ui_event_filters=-info
->&2 del /f /q "%CI_PROJECT_DIR%\user.bazelrc"
+>&2 del /f /q "%~dp0..\user.bazelrc"
 
 :: Reintegrate `--repo_contents_cache` to original directory
 if exist "!ext_repo_contents_cache!" (

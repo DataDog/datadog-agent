@@ -44,6 +44,22 @@ type Actuator struct {
 	shutdownErr error
 }
 
+// Stats returns the current stats of the Actuator.
+func (a *Actuator) Stats() map[string]any {
+	metricsChan := make(chan Metrics, 1)
+	select {
+	case <-a.shuttingDown:
+		return nil
+	case a.events <- eventGetMetrics{metricsChan: metricsChan}:
+		select {
+		case <-a.shuttingDown:
+			return nil
+		case metrics := <-metricsChan:
+			return metrics.AsStats()
+		}
+	}
+}
+
 // Tenant is a tenant of the Actuator.
 type Tenant struct {
 	name    string
@@ -191,12 +207,7 @@ func (a *effects) unloadProgram(lp *loadedProgram) {
 	go func() {
 		defer a.wg.Done()
 
-		// Close kernel program & links.
 		lp.loaded.Close()
-
-		// Dataplane/sink lifecycle is owned by loader/runtime now.
-
-		// Notify state-machine that unloading is finished.
 		a.sendEvent(eventProgramUnloaded{programID: lp.programID})
 	}()
 }
@@ -217,13 +228,12 @@ func (a *effects) attachToProcess(
 			return
 		}
 
-		program := &attachedProgram{
-			loadedProgram:   loaded,
-			processID:       processID,
-			attachedProgram: attached,
-		}
 		a.sendEvent(eventProgramAttached{
-			program: program,
+			program: &attachedProgram{
+				loadedProgram:   loaded,
+				processID:       processID,
+				attachedProgram: attached,
+			},
 		})
 	}()
 }

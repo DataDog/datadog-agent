@@ -357,7 +357,7 @@ func TestMoveMountRecursivePropagation(t *testing.T) {
 				// Need to figure out what are these mount points and why they aren't to be found anywhere
 				continue
 			}
-			assert.True(t, strings.Contains(path, te.submountDirDst), "Path wasn't moved")
+			assert.True(t, strings.Contains(path, te.submountDirDst), fmt.Sprintf("Path %s wasn't moved. Destination=%s", path, te.submountDirDst))
 		}
 	})
 }

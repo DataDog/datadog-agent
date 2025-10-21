@@ -6,6 +6,9 @@
 package workloadfilter
 
 import (
+	"fmt"
+	"strings"
+
 	typedef "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def/proto"
 )
 
@@ -75,6 +78,42 @@ func GetAllResourceTypes() []ResourceType {
 		EndpointType,
 		ProcessType,
 	}
+}
+
+// Rules defines the rules for filtering different resource types.
+type Rules struct {
+	Containers    []string `yaml:"containers" json:"containers"`
+	Processes     []string `yaml:"processes" json:"processes"`
+	Pods          []string `yaml:"pods" json:"pods"`
+	KubeServices  []string `yaml:"kube_services" json:"kube_services"`
+	KubeEndpoints []string `yaml:"kube_endpoints" json:"kube_endpoints"`
+}
+
+// String returns a string representation of the Rules struct, only showing non-empty fields.
+func (r Rules) String() string {
+	var parts []string
+
+	if len(r.Containers) > 0 {
+		parts = append(parts, fmt.Sprintf("containers:%v", r.Containers))
+	}
+	if len(r.Processes) > 0 {
+		parts = append(parts, fmt.Sprintf("processes:%v", r.Processes))
+	}
+	if len(r.Pods) > 0 {
+		parts = append(parts, fmt.Sprintf("pods:%v", r.Pods))
+	}
+	if len(r.KubeServices) > 0 {
+		parts = append(parts, fmt.Sprintf("kube_services:%v", r.KubeServices))
+	}
+	if len(r.KubeEndpoints) > 0 {
+		parts = append(parts, fmt.Sprintf("kube_endpoints:%v", r.KubeEndpoints))
+	}
+
+	if len(parts) == 0 {
+		return ""
+	}
+
+	return "{" + strings.Join(parts, ", ") + "}"
 }
 
 // Scope defines the scope of the filters.
@@ -253,7 +292,8 @@ type PodFilter int
 
 // Defined Pod filter kinds
 const (
-	LegacyPod PodFilter = iota
+	LegacyPodMetrics PodFilter = iota
+	LegacyPodGlobal
 	PodADAnnotationsMetrics
 	PodADAnnotations
 	// CEL-based filters

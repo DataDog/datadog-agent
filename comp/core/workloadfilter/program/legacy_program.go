@@ -3,8 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build !cel
-
 package program
 
 import (
@@ -12,9 +10,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 )
 
-// LegacyFilterProgram implements the legacy filtering system using containers.Filter as
-// the underlying filter implementation. This should only be used when CEL based filtering
-// is not available.
+// LegacyFilterProgram implements the legacy filtering system using
+// containers.Filter as the underlying filter implementation.
 type LegacyFilterProgram struct {
 	Name                 string
 	Filter               *containers.Filter
@@ -26,33 +23,27 @@ func (n LegacyFilterProgram) Evaluate(entity workloadfilter.Filterable) (workloa
 	if n.Filter == nil {
 		return workloadfilter.Unknown, nil
 	}
-
-	switch entity.Type() {
-	case workloadfilter.ContainerType:
-		container := entity.(*workloadfilter.Container)
-		pod, ok := container.Owner.(*workloadfilter.Pod)
-		podNamespace := ""
-		if ok && pod != nil {
-			podNamespace = pod.Namespace
-		}
-
-		isExcluded := n.Filter.IsExcluded(container.GetAnnotations(), container.GetName(), container.GetImage(), podNamespace)
-		if isExcluded {
-			return workloadfilter.Excluded, nil
-		}
-	case workloadfilter.PodType:
-		pod := entity.(*workloadfilter.Pod)
-		isExcluded := n.Filter.IsExcluded(pod.GetAnnotations(), "", "", pod.Namespace)
-		if isExcluded {
-			return workloadfilter.Excluded, nil
-		}
-	default:
-		return workloadfilter.Unknown, nil
-	}
-	return workloadfilter.Unknown, nil
+	annotations, name, image, namespace := getLegacyFilterValues(entity)
+	return n.Filter.GetResult(annotations, name, image, namespace), nil
 }
 
 // GetInitializationErrors returns any errors that occurred during the creation/initialization of the program
 func (n LegacyFilterProgram) GetInitializationErrors() []error {
 	return n.InitializationErrors
+}
+
+func getLegacyFilterValues(entity workloadfilter.Filterable) (annotations map[string]string, name, image, namespace string) {
+	switch o := entity.(type) {
+	case *workloadfilter.Container:
+		return o.GetAnnotations(), o.GetName(), o.GetImage(), o.GetPod().GetNamespace()
+	case *workloadfilter.Pod:
+		return o.GetAnnotations(), "", "", o.GetNamespace()
+	case *workloadfilter.Service:
+		return o.GetAnnotations(), o.GetName(), "", o.GetNamespace()
+	case *workloadfilter.Endpoint:
+		return o.GetAnnotations(), o.GetName(), "", o.GetNamespace()
+	default:
+		return nil, "", "", ""
+	}
+
 }

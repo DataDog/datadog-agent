@@ -21,6 +21,7 @@ import (
 	rctypes "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/types"
 	syntheticstestscheduler "github.com/DataDog/datadog-agent/comp/syntheticstestscheduler/def"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
+	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
 // Requires defines the dependencies for the syntheticstestscheduler component
@@ -31,6 +32,7 @@ type Requires struct {
 	Telemetry       telemetry.Component
 	AgentConfig     agentconfig.Component
 	HostnameService hostname.Component
+	Statsd          statsd.ClientInterface
 }
 
 // Provides defines the output of the syntheticstestscheduler component
@@ -56,7 +58,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 		return Provides{}, reqs.Logger.Errorf("error getting EpForwarder")
 	}
 
-	scheduler := newSyntheticsTestScheduler(configs, epForwarder, reqs.Logger, reqs.HostnameService, time.Now)
+	scheduler := newSyntheticsTestScheduler(configs, epForwarder, reqs.Logger, reqs.HostnameService, time.Now, reqs.Statsd)
 
 	var rcListener rctypes.ListenerProvider
 	rcListener.ListenerProvider = rctypes.RCListener{

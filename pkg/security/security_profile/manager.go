@@ -91,14 +91,15 @@ type Manager struct {
 	activityDumpLoadConfig *model.ActivityDumpLoadConfig
 
 	// ebpf maps
-	tracedPIDsMap              *ebpf.Map
-	tracedCgroupsMap           *ebpf.Map
-	tracedCgroupsDiscardedMap  *ebpf.Map
-	cgroupWaitList             *ebpf.Map
-	activityDumpsConfigMap     *ebpf.Map
-	activityDumpConfigDefaults *ebpf.Map
+	tracedPIDsMap               *ebpf.Map
+	tracedCgroupsMap            *ebpf.Map
+	tracedCgroupsDiscardedMap   *ebpf.Map
+	cgroupWaitList              *ebpf.Map
+	activityDumpsConfigMap      *ebpf.Map
+	activityDumpConfigDefaults  *ebpf.Map
+	activityDumpRateLimitersMap *ebpf.Map
 
-	ignoreFromSnapshot   map[model.PathKey]bool
+	ignoreFromSnapshot   map[uint64]bool
 	dumpLimiter          *lru.Cache[cgroupModel.WorkloadSelector, *atomic.Uint64]
 	workloadDenyList     []cgroupModel.WorkloadSelector
 	workloadDenyListHits *atomic.Uint64
@@ -125,7 +126,8 @@ type Manager struct {
 
 	// fields from SecurityProfileManager
 
-	secProfEventTypes []model.EventType
+	secProfEventTypes       []model.EventType
+	isSyscallAnomalyEnabled bool
 
 	// ebpf maps
 	securityProfileMap         *ebpf.Map
@@ -179,6 +181,11 @@ func NewManager(cfg *config.Config, statsdClient statsd.ClientInterface, ebpf *e
 	}
 
 	activityDumpConfigDefaultsMap, err := managerhelper.Map(ebpf, "activity_dump_config_defaults")
+	if err != nil {
+		return nil, err
+	}
+
+	activityDumpRateLimitersMap, err := managerhelper.Map(ebpf, "activity_dump_rate_limiters")
 	if err != nil {
 		return nil, err
 	}
@@ -288,14 +295,15 @@ func NewManager(cfg *config.Config, statsdClient statsd.ClientInterface, ebpf *e
 		newEvent:      newEvent,
 		pathsReducer:  activity_tree.NewPathsReducer(),
 
-		tracedPIDsMap:              tracedPIDs,
-		tracedCgroupsMap:           tracedCgroupsMap,
-		tracedCgroupsDiscardedMap:  tracedCgroupsDiscardedMap,
-		cgroupWaitList:             cgroupWaitList,
-		activityDumpsConfigMap:     activityDumpsConfigMap,
-		activityDumpConfigDefaults: activityDumpConfigDefaultsMap,
+		tracedPIDsMap:               tracedPIDs,
+		tracedCgroupsMap:            tracedCgroupsMap,
+		tracedCgroupsDiscardedMap:   tracedCgroupsDiscardedMap,
+		cgroupWaitList:              cgroupWaitList,
+		activityDumpsConfigMap:      activityDumpsConfigMap,
+		activityDumpConfigDefaults:  activityDumpConfigDefaultsMap,
+		activityDumpRateLimitersMap: activityDumpRateLimitersMap,
 
-		ignoreFromSnapshot:   make(map[model.PathKey]bool),
+		ignoreFromSnapshot:   make(map[uint64]bool),
 		dumpLimiter:          dumpLimiter,
 		workloadDenyList:     workloadDenyList,
 		workloadDenyListHits: atomic.NewUint64(0),
@@ -314,7 +322,8 @@ func NewManager(cfg *config.Config, statsdClient statsd.ClientInterface, ebpf *e
 		emptyDropped:       atomic.NewUint64(0),
 		dropMaxDumpReached: atomic.NewUint64(0),
 
-		secProfEventTypes: secProfEventTypes,
+		secProfEventTypes:       secProfEventTypes,
+		isSyscallAnomalyEnabled: slices.Contains(cfg.RuntimeSecurity.AnomalyDetectionEventTypes, model.SyscallsEventType),
 
 		securityProfileMap:         securityProfileMap,
 		securityProfileSyscallsMap: securityProfileSyscallsMap,

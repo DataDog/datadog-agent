@@ -24,6 +24,7 @@ import (
 	dogstatsdstandalone "github.com/DataDog/test-infra-definitions/components/datadog/dogstatsd-standalone"
 	fakeintakeComp "github.com/DataDog/test-infra-definitions/components/datadog/fakeintake"
 	"github.com/DataDog/test-infra-definitions/components/datadog/kubernetesagentparams"
+	"github.com/DataDog/test-infra-definitions/components/kubernetes/argorollouts"
 	"github.com/DataDog/test-infra-definitions/components/kubernetes/vpa"
 	"github.com/DataDog/test-infra-definitions/resources/aws"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/eks"
@@ -97,6 +98,19 @@ func EKSRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, params *Provi
 	}
 	dependsOnVPA := utils.PulumiDependsOn(vpaCrd)
 
+	var dependsOnArgoRollout pulumi.ResourceOption
+	if params.deployArgoRollout {
+		argoParams, err := argorollouts.NewParams()
+		if err != nil {
+			return err
+		}
+		argoHelm, err := argorollouts.NewHelmInstallation(&awsEnv, argoParams, pulumi.Provider(cluster.KubeProvider))
+		if err != nil {
+			return err
+		}
+		dependsOnArgoRollout = utils.PulumiDependsOn(argoHelm)
+	}
+
 	var fakeIntake *fakeintakeComp.Fakeintake
 	if params.fakeintakeOptions != nil {
 		fakeIntakeOptions := []fakeintake.Option{
@@ -131,7 +145,6 @@ func EKSRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, params *Provi
 			params.agentOptions = append(params.agentOptions, kubernetesagentparams.WithDeployWindows())
 		}
 
-		params.agentOptions = append(params.agentOptions, kubernetesagentparams.WithClusterName(cluster.ClusterName))
 		kubernetesAgent, err = helm.NewKubernetesAgent(&awsEnv, "eks", cluster.KubeProvider, params.agentOptions...)
 		if err != nil {
 			return err
@@ -200,6 +213,12 @@ func EKSRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, params *Provi
 			}
 
 			if _, err := redis.K8sAppDefinition(&awsEnv, cluster.KubeProvider, "workload-redis", true, dependsOnDDAgent /* for DDM */, dependsOnVPA); err != nil {
+				return err
+			}
+		}
+
+		if params.deployArgoRollout {
+			if _, err := nginx.K8sRolloutAppDefinition(&awsEnv, cluster.KubeProvider, "workload-argo-rollout-nginx", dependsOnDDAgent, dependsOnArgoRollout); err != nil {
 				return err
 			}
 		}

@@ -29,7 +29,8 @@ type Event interface {
 	GetTags() []string
 }
 
-func eventTypeFromFields(model Model, state *State) (EventType, error) {
+// EventTypeFromState return the event type from state
+func EventTypeFromState(model Model, state *State) (EventType, error) {
 	var eventType EventType
 
 	// if there are no fields, we can't determine the event type

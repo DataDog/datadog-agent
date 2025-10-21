@@ -2,7 +2,7 @@ module github.com/DataDog/datadog-agent
 
 go 1.24.6
 
-toolchain go1.24.8
+toolchain go1.24.9
 
 // v0.8.0 was tagged long ago, and appared on pkg.go.dev.  We do not want any tagged version
 // to appear there.  The trick to accomplish this is to make a new version (in this case v0.9.0)
@@ -174,7 +174,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/uuid v0.69.4
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.72.0-rc.1
 	github.com/DataDog/datadog-agent/pkg/version v0.72.0-devel
-	github.com/DataDog/datadog-go/v5 v5.6.0
+	github.com/DataDog/datadog-go/v5 v5.8.1
 	github.com/DataDog/datadog-operator/api v0.0.0-20251002125833-f01ea1d12a3f
 	github.com/DataDog/datadog-traceroute v0.1.28
 	github.com/DataDog/dd-trace-go/v2 v2.2.2
@@ -193,7 +193,7 @@ require (
 	github.com/Masterminds/sprig/v3 v3.3.0
 	github.com/Microsoft/go-winio v0.6.2
 	github.com/Microsoft/hcsshim v0.12.9
-	github.com/NVIDIA/go-nvml v0.13.0-1
+	github.com/NVIDIA/go-nvml v0.12.4-0
 	github.com/ProtonMail/go-crypto v1.3.0
 	github.com/acobaugh/osrelease v0.1.0
 	github.com/alecthomas/units v0.0.0-20240927000941-0f3dac36c52b
@@ -850,7 +850,7 @@ require (
 	go.opentelemetry.io/collector/config/configoptional v1.43.0 // indirect
 	go.opentelemetry.io/collector/config/configretry v1.43.0 // indirect
 	go.opentelemetry.io/collector/config/configtls v1.43.0 // indirect
-	go.opentelemetry.io/collector/confmap/xconfmap v0.137.0 // indirect
+	go.opentelemetry.io/collector/confmap/xconfmap v0.137.0
 	go.opentelemetry.io/collector/connector v0.137.0 // indirect
 	go.opentelemetry.io/collector/connector/connectortest v0.137.0 // indirect
 	go.opentelemetry.io/collector/connector/xconnector v0.137.0 // indirect
@@ -958,7 +958,7 @@ require (
 
 require (
 	github.com/DataDog/datadog-agent/pkg/util/hostinfo v0.0.0-00010101000000-000000000000
-	github.com/DataDog/dd-otel-host-profiler v0.4.1-0.20251001104144-35a0daaf10ff
+	github.com/DataDog/dd-otel-host-profiler v0.4.1-0.20251013140043-83a1f38427f0
 	github.com/google/btree v1.1.3
 	go.opentelemetry.io/ebpf-profiler v0.0.202540-0.20251001054907-eb8909ecce3f
 )
@@ -982,7 +982,8 @@ require (
 	github.com/open-telemetry/opentelemetry-collector-contrib/extension/datadogextension v0.137.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/internal/datadog v0.137.0 // indirect
 	github.com/shirou/gopsutil/v3 v3.24.5 // indirect
-	github.com/shoenig/go-m1cpu v0.1.6 // indirect
+	github.com/shoenig/go-m1cpu v0.1.7 // indirect
+	github.com/urfave/cli/v3 v3.1.1 // indirect
 	github.com/zeebo/xxh3 v1.0.2 // indirect
 )
 

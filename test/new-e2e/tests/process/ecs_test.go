@@ -80,7 +80,7 @@ func (s *ECSEC2Suite) TestProcessCheck() {
 
 		assertProcessCollectedNew(c, payloads, false, "stress-ng-cpu [run]")
 		assertContainersCollectedNew(c, payloads, []string{"stress-ng"})
-	}, 2*time.Minute, 10*time.Second)
+	}, 5*time.Minute, 10*time.Second)
 }
 
 // ECSEC2CoreAgentSuite runs the same test as ECSEC2Suite but with the process check running in the core agent
@@ -111,7 +111,7 @@ func (s *ECSEC2CoreAgentSuite) TestProcessCheckInCoreAgent() {
 		// expecting the process checks to run in the core agent.
 		payloads = payloads[len(payloads)-1:]
 		requireProcessNotCollected(c, payloads, "process-agent")
-	}, 2*time.Minute, 10*time.Second)
+	}, 5*time.Minute, 10*time.Second)
 
 	// Flush the server to ensure payloads are received from the process checks that are running on the core agent
 	s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
@@ -122,5 +122,5 @@ func (s *ECSEC2CoreAgentSuite) TestProcessCheckInCoreAgent() {
 
 		assertProcessCollectedNew(c, payloads, false, "stress-ng-cpu [run]")
 		assertContainersCollectedNew(c, payloads, []string{"stress-ng"})
-	}, 2*time.Minute, 10*time.Second)
+	}, 5*time.Minute, 10*time.Second)
 }

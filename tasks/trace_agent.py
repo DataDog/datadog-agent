@@ -87,7 +87,6 @@ def integration_tests(ctx, race=False, go_mod="readonly", timeout="10m"):
         ctx,
         TRACE_AGENT_IT_CONF,
         race=race,
-        remote_docker=False,
         go_mod=go_mod,
         timeout=timeout,
     )

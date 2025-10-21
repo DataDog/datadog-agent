@@ -102,7 +102,7 @@ func TestRunWithInterval(t *testing.T) {
 	defer cancel()
 
 	cs := makeConfigSyncWithServer(t, ctx, handler)
-	cs.Config.Set("api_key", "api_key_remote", pkgconfigmodel.SourceEnvVar)
+	t.Setenv("api_key", "api_key_remote")
 
 	refreshInterval := time.Millisecond * 200
 	maxWaitInterval := 5 * refreshInterval

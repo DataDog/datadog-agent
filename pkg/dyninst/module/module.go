@@ -287,10 +287,14 @@ func (m *Module) run(ctx context.Context, interval time.Duration) {
 
 // GetStats returns the stats of the module
 func (m *Module) GetStats() map[string]any {
-	// m.controller.mu.Lock()
-	// defer m.controller.mu.Unlock()
-
-	return map[string]any{}
+	stats := map[string]any{}
+	if m.shutdown.realDependencies.actuator != nil {
+		actuatorStats := m.shutdown.realDependencies.actuator.Stats()
+		if actuatorStats != nil {
+			stats["actuator"] = actuatorStats
+		}
+	}
+	return stats
 }
 
 // Register registers the module to the router

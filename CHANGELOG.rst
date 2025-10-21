@@ -2,6 +2,60 @@
 Release Notes
 =============
 
+.. _Release Notes_7.71.2:
+
+7.71.2
+======
+
+.. _Release Notes_7.71.2_Prelude:
+
+Prelude
+-------
+
+Release on: 2025-10-15
+
+- Please refer to the `7.71.2 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7712>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.71.2_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Stopped sending the example.metric metric to the /sketches endpoint
+
+
+.. _Release Notes_7.71.1:
+
+7.71.1
+======
+
+.. _Release Notes_7.71.1_Prelude:
+
+Prelude
+-------
+
+Release on: 2025-10-08
+
+- Please refer to the `7.71.1 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7711>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.71.1_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fixes configuration parsing for extended container metric 
+  collection on the container core check.
+
+- Fix Remote Agent management configuration changes on Windows.
+
+- Fix race condition that in rare cases caused remote updates on Windows to fail without an error.
+  
+  The Go context used when creating a detached subprocess was closed on exit. This triggered an async
+  action to kill the detached subprocess, which in rare cases completed before the process exited.
+
+
 .. _Release Notes_7.71.0:
 
 7.71.0
@@ -16241,7 +16295,7 @@ New Features
   only updates when containers start/die to save resources
 
 - Add a new option, `force_tls_12`, to the agent configuration to force the
-  TLS version to 1.2 when contactin Datatog.
+  TLS version to 1.2 when contactin Datadog.
 
 - Reno and releasenotes are now mandatory. A test will fail if no
   releasenotes where added/updated to the PR. A 'noreno' label can be added

@@ -101,6 +101,8 @@
     "https://bcr.bazel.build/modules/rules_cc/0.2.0/MODULE.bazel": "b5c17f90458caae90d2ccd114c81970062946f49f355610ed89bebf954f5783c",
     "https://bcr.bazel.build/modules/rules_cc/0.2.8/MODULE.bazel": "f1df20f0bf22c28192a794f29b501ee2018fa37a3862a1a2132ae2940a23a642",
     "https://bcr.bazel.build/modules/rules_cc/0.2.8/source.json": "85087982aca15f31307bd52698316b28faa31bd2c3095a41f456afec0131344c",
+    "https://bcr.bazel.build/modules/rules_flex/0.4/MODULE.bazel": "543edf994d2c044f3d723374e50eaa739ed7ee9d82b8185adb8413bce269dcf3",
+    "https://bcr.bazel.build/modules/rules_flex/0.4/source.json": "98bc56c2139b6ed6387dbabd06f625e82500bed8ba1689a5f4f3c9e8c3289f82",
     "https://bcr.bazel.build/modules/rules_foreign_cc/0.15.0/MODULE.bazel": "fddf47051761cdbbe950bdcf3047e68540f48a63c8329e6ed0605d6007fd9334",
     "https://bcr.bazel.build/modules/rules_foreign_cc/0.15.0/source.json": "563eee5c2d0195d71caf2f5869e3ce20dd690aa96ffb9d9da255a4f9eb0339bd",
     "https://bcr.bazel.build/modules/rules_foreign_cc/0.9.0/MODULE.bazel": "c9e8c682bf75b0e7c704166d79b599f93b72cfca5ad7477df596947891feeef6",
@@ -135,6 +137,9 @@
     "https://bcr.bazel.build/modules/rules_license/0.0.7/MODULE.bazel": "088fbeb0b6a419005b89cf93fe62d9517c0a2b8bb56af3244af65ecfe37e7d5d",
     "https://bcr.bazel.build/modules/rules_license/1.0.0/MODULE.bazel": "a7fda60eefdf3d8c827262ba499957e4df06f659330bbe6cdbdb975b768bb65c",
     "https://bcr.bazel.build/modules/rules_license/1.0.0/source.json": "a52c89e54cc311196e478f8382df91c15f7a2bfdf4c6cd0e2675cc2ff0b56efb",
+    "https://bcr.bazel.build/modules/rules_m4/0.2.5/MODULE.bazel": "95b962956ac1e92f49afe78d7a4f80853b741c4e89af7b43e1e1e3f7a361c033",
+    "https://bcr.bazel.build/modules/rules_m4/0.3/MODULE.bazel": "8793c3117300f7add1cd757d07eb7d6652e0c9259624379b84d891a6bf6e11e0",
+    "https://bcr.bazel.build/modules/rules_m4/0.3/source.json": "9db752727b32753fa382a52ac0da80f01559ecb5f3ba8f6799d6e5b4582b45ac",
     "https://bcr.bazel.build/modules/rules_multitool/1.9.0/MODULE.bazel": "8a042b0dbf35e4aaa94c28ad69efa75c9e673e9ea4bd5c0fb70bab75ef9c636b",
     "https://bcr.bazel.build/modules/rules_multitool/1.9.0/source.json": "d9a01604a8b5c4a0e9430824dd34ca5b1b3f5b25277b755e8f3ae91f2c9362a3",
     "https://bcr.bazel.build/modules/rules_proto/4.0.0/MODULE.bazel": "a7a7b6ce9bee418c1a760b3d84f83a299ad6952f9903c67f19e4edd964894e06",
@@ -155,7 +160,8 @@
     "https://bcr.bazel.build/modules/rules_shell/0.2.0/MODULE.bazel": "fda8a652ab3c7d8fee214de05e7a9916d8b28082234e8d2c0094505c5268ed3c",
     "https://bcr.bazel.build/modules/rules_shell/0.3.0/MODULE.bazel": "de4402cd12f4cc8fda2354fce179fdb068c0b9ca1ec2d2b17b3e21b24c1a937b",
     "https://bcr.bazel.build/modules/rules_shell/0.4.1/MODULE.bazel": "00e501db01bbf4e3e1dd1595959092c2fadf2087b2852d3f553b5370f5633592",
-    "https://bcr.bazel.build/modules/rules_shell/0.4.1/source.json": "4757bd277fe1567763991c4425b483477bb82e35e777a56fd846eb5cceda324a",
+    "https://bcr.bazel.build/modules/rules_shell/0.6.1/MODULE.bazel": "72e76b0eea4e81611ef5452aa82b3da34caca0c8b7b5c0c9584338aa93bae26b",
+    "https://bcr.bazel.build/modules/rules_shell/0.6.1/source.json": "20ec05cd5e592055e214b2da8ccb283c7f2a421ea0dc2acbf1aa792e11c03d0c",
     "https://bcr.bazel.build/modules/sqlite3/3.46.1/MODULE.bazel": "7749f9825ef0221a0b6e99ce8d07bbbb5bb922b587ad15438014710cf09656d0",
     "https://bcr.bazel.build/modules/sqlite3/3.46.1/source.json": "3e745df80e9b43455d058c38c694345a99e9f63370ad5603aacc03551d242e08",
     "https://bcr.bazel.build/modules/stardoc/0.5.1/MODULE.bazel": "1a05d92974d0c122f5ccf09291442580317cdd859f07a8655f1db9a60374f9f8",
@@ -352,6 +358,38 @@
             "bazel_tools"
           ]
         ]
+      }
+    },
+    "@@rules_flex+//flex/internal:default_toolchain_ext.bzl%default_toolchain_ext": {
+      "general": {
+        "bzlTransitiveDigest": "IyvJbFvAYvjVrhYqrB8CJ8qfee94/AdZQhknVQYlFb8=",
+        "usagesDigest": "cvCF4zkacU5rBKBo56xxmQ5DaxVfmtu1H2q2rfnAbig=",
+        "recordedFileInputs": {},
+        "recordedDirentsInputs": {},
+        "envVariables": {},
+        "generatedRepoSpecs": {
+          "flex_v2.6.4": {
+            "repoRuleId": "@@rules_flex+//flex/rules:flex_repository.bzl%flex_repository",
+            "attributes": {
+              "version": "2.6.4"
+            }
+          },
+          "flex": {
+            "repoRuleId": "@@rules_flex+//flex/rules:flex_toolchain_repository.bzl%flex_toolchain_repository",
+            "attributes": {
+              "flex_repository": "@flex_v2.6.4"
+            }
+          }
+        },
+        "moduleExtensionMetadata": {
+          "explicitRootModuleDirectDeps": [
+            "flex"
+          ],
+          "explicitRootModuleDirectDevDeps": [],
+          "useAllRepos": "NO",
+          "reproducible": false
+        },
+        "recordedRepoMappingEntries": []
       }
     },
     "@@rules_foreign_cc+//foreign_cc:extensions.bzl%tools": {
@@ -839,6 +877,38 @@
             "bazel_tools"
           ]
         ]
+      }
+    },
+    "@@rules_m4+//m4/internal:default_toolchain_ext.bzl%default_toolchain_ext": {
+      "general": {
+        "bzlTransitiveDigest": "tsDFT9pkt4Tt3gpC3ufpCdpFRFHSoWSmGrgkKq1xiPM=",
+        "usagesDigest": "si5emwgpnDsU6P/27vQdYzLJhnlKDJjWt+beEA2/t08=",
+        "recordedFileInputs": {},
+        "recordedDirentsInputs": {},
+        "envVariables": {},
+        "generatedRepoSpecs": {
+          "m4_v1.4.18": {
+            "repoRuleId": "@@rules_m4+//m4/rules:m4_repository.bzl%m4_repository",
+            "attributes": {
+              "version": "1.4.18"
+            }
+          },
+          "m4": {
+            "repoRuleId": "@@rules_m4+//m4/rules:m4_toolchain_repository.bzl%m4_toolchain_repository",
+            "attributes": {
+              "m4_repository": "@m4_v1.4.18"
+            }
+          }
+        },
+        "moduleExtensionMetadata": {
+          "explicitRootModuleDirectDeps": [
+            "m4"
+          ],
+          "explicitRootModuleDirectDevDeps": [],
+          "useAllRepos": "NO",
+          "reproducible": false
+        },
+        "recordedRepoMappingEntries": []
       }
     },
     "@@rules_python+//python/uv:uv.bzl%uv": {

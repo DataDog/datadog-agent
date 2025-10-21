@@ -12,12 +12,13 @@ import (
 	"strings"
 
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	ec2internal "github.com/DataDog/datadog-agent/pkg/util/ec2/internal"
 )
 
 // GetClusterName returns the name of the cluster containing the current EC2 instance
 func GetClusterName(ctx context.Context) (string, error) {
-	if !pkgconfigsetup.IsCloudProviderEnabled(ec2internal.CloudProviderName, pkgconfigsetup.Datadog()) {
+	if !configutils.IsCloudProviderEnabled(ec2internal.CloudProviderName, pkgconfigsetup.Datadog()) {
 		return "", fmt.Errorf("cloud provider is disabled by configuration")
 	}
 	tags, err := fetchTagsFromCache(ctx)

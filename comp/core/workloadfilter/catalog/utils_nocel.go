@@ -12,22 +12,9 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	"github.com/DataDog/datadog-agent/comp/core/workloadfilter/program"
-	"github.com/DataDog/datadog-agent/pkg/util/containers"
 )
 
-// createFromOldFilters creates a filter program using a wrapper around the legacy filter system. This is used in place
-// of CELProgram when cel isn't available (ie. Dogstatsd flavor).
-func createFromOldFilters(name string, include, exclude []string, _ workloadfilter.ResourceType, logger log.Component) program.FilterProgram {
-	filter, err := containers.NewFilter(containers.GlobalFilter, include, exclude)
-	var initErrors []error
-	if err != nil {
-		initErrors = append(initErrors, err)
-		logger.Warnf("Failed to create filter: %v", err)
-	}
-
-	return program.LegacyFilterProgram{
-		Name:                 name,
-		Filter:               filter,
-		InitializationErrors: initErrors,
-	}
+// createCELExcludeProgram is a stub to allow compilation without CEL support.
+func createCELExcludeProgram(_ string, _ string, _ workloadfilter.ResourceType, _ log.Component) program.FilterProgram {
+	return nil
 }

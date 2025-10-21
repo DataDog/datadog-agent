@@ -16,7 +16,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/trace v0.71.0-rc.1
 	github.com/DataDog/datadog-agent/pkg/util/option v0.72.0-devel
 	github.com/DataDog/datadog-agent/pkg/util/otel v0.64.0
-	github.com/DataDog/datadog-go/v5 v5.6.0
+	github.com/DataDog/datadog-go/v5 v5.8.1
 	github.com/google/go-cmp v0.7.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog v0.137.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/processor/tailsamplingprocessor v0.137.0

@@ -18,7 +18,7 @@ import (
 )
 
 // Traces specifies the data type used for Vector override. See https://vector.dev/docs/reference/configuration/sources/datadog_agent/ for additional details.
-const Traces DataType = "traces"
+const Traces string = "traces"
 
 func setupAPM(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("apm_config.socket_activation.enabled", false, "DD_APM_SOCKET_ACTIVATION_ENABLED")
@@ -85,6 +85,7 @@ func setupAPM(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("apm_config.peer_tags_aggregation", true, "DD_APM_PEER_TAGS_AGGREGATION")                                     //nolint:errcheck
 	config.BindEnvAndSetDefault("apm_config.compute_stats_by_span_kind", true, "DD_APM_COMPUTE_STATS_BY_SPAN_KIND")                           //nolint:errcheck
 	config.BindEnvAndSetDefault("apm_config.instrumentation.enabled", false, "DD_APM_INSTRUMENTATION_ENABLED")
+	config.BindEnvAndSetDefault("apm_config.workload_selection", true, "DD_APM_WORKLOAD_SELECTION")
 	config.BindEnvAndSetDefault("apm_config.instrumentation.enabled_namespaces", []string{}, "DD_APM_INSTRUMENTATION_ENABLED_NAMESPACES")
 	config.ParseEnvAsStringSlice("apm_config.instrumentation.enabled_namespaces", func(in string) []string {
 		var mappings []string
@@ -185,6 +186,8 @@ func setupAPM(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("apm_config.obfuscation.credit_cards.keep_values", []string{}, "DD_APM_OBFUSCATION_CREDIT_CARDS_KEEP_VALUES")
 	config.BindEnvAndSetDefault("apm_config.sql_obfuscation_mode", "", "DD_APM_SQL_OBFUSCATION_MODE")
 	config.BindEnvAndSetDefault("apm_config.debug.port", 5012, "DD_APM_DEBUG_PORT")
+	config.BindEnvAndSetDefault("apm_config.debug_v1_payloads", false, "DD_APM_DEBUG_V1_PAYLOADS")
+	config.BindEnvAndSetDefault("apm_config.enable_v1_trace_endpoint", false, "DD_APM_ENABLE_V1_TRACE_ENDPOINT")
 	config.BindEnv("apm_config.features", "DD_APM_FEATURES") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 	config.ParseEnvAsStringSlice("apm_config.features", func(s string) []string {
 		// Either commas or spaces can be used as separators.

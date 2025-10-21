@@ -29,6 +29,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/config"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
+	"github.com/DataDog/datadog-agent/pkg/trace/teststatsd"
 	utillog "github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/golang/mock/gomock"
 	"github.com/google/go-cmp/cmp"
@@ -50,7 +51,7 @@ func Test_SyntheticsTestScheduler_StartAndStop(t *testing.T) {
 		flushInterval:              100 * time.Millisecond,
 		syntheticsSchedulerEnabled: true,
 	}
-	scheduler := newSyntheticsTestScheduler(configs, nil, l, nil, time.Now)
+	scheduler := newSyntheticsTestScheduler(configs, nil, l, nil, time.Now, &teststatsd.Client{})
 	assert.Nil(t, err)
 	assert.False(t, scheduler.running)
 
@@ -324,7 +325,7 @@ func Test_SyntheticsTestScheduler_OnConfigUpdate(t *testing.T) {
 				return now
 			}
 
-			scheduler := newSyntheticsTestScheduler(configs, nil, l, nil, timeNowFn)
+			scheduler := newSyntheticsTestScheduler(configs, nil, l, nil, timeNowFn, &teststatsd.Client{})
 			assert.False(t, scheduler.running)
 			applied := map[string]state.ApplyStatus{}
 			applyFunc := func(id string, status state.ApplyStatus) {
@@ -437,7 +438,7 @@ func Test_SyntheticsTestScheduler_Processing(t *testing.T) {
 			mockEpForwarder := eventplatformimpl.NewMockEventPlatformForwarder(ctrl)
 
 			ctx := context.TODO()
-			scheduler := newSyntheticsTestScheduler(configs, mockEpForwarder, l, &mockHostname{}, timeNowFn)
+			scheduler := newSyntheticsTestScheduler(configs, mockEpForwarder, l, &mockHostname{}, timeNowFn, &teststatsd.Client{})
 			assert.False(t, scheduler.running)
 
 			configs := map[string]state.RawConfig{}
@@ -513,6 +514,7 @@ func Test_SyntheticsTestScheduler_RunWorker_ProcessesTestCtxAndSendsResult(t *te
 		flushInterval:                100 * time.Millisecond,
 		workers:                      4,
 		hostNameService:              &mockHostname{},
+		statsdClient:                 &teststatsd.Client{},
 	}
 
 	scheduler.runTraceroute = func(context.Context, config.Config, telemetry.Component) (payload.NetworkPath, error) {
@@ -525,9 +527,9 @@ func Test_SyntheticsTestScheduler_RunWorker_ProcessesTestCtxAndSendsResult(t *te
 	}
 
 	gotCh := make(chan *workerResult, 1)
-	scheduler.sendResult = func(w *workerResult) error {
+	scheduler.sendResult = func(w *workerResult) (string, error) {
 		gotCh <- w // signal test that we got a result
-		return nil
+		return "", nil
 	}
 
 	testCfg := common.SyntheticsTestConfig{

@@ -281,6 +281,12 @@ func run(
 		_ = cliParams.cmd.Help()
 		return nil
 	}
+
+	// Check if the check is allowed in infrastructure basic mode
+	if !pkgcollector.IsCheckAllowed(cliParams.checkName, pkgconfigsetup.Datadog()) {
+		return fmt.Errorf("check '%s' is not allowed in infrastructure basic mode", cliParams.checkName)
+	}
+
 	// TODO: (components) - Until the checks are components we set there context so they can depends on components.
 	check.InitializeInventoryChecksContext(invChecks)
 	if !config.GetBool("python_lazy_loading") {

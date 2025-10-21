@@ -7,6 +7,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/config/model v0.64.1
 	github.com/DataDog/datadog-agent/pkg/proto v0.64.0-devel
 	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.61.0
+	github.com/DataDog/datadog-agent/pkg/trace v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/util/backoff v0.61.0
 	github.com/DataDog/datadog-agent/pkg/util/grpc v0.60.0
 	github.com/DataDog/datadog-agent/pkg/util/http v0.61.0
@@ -67,7 +68,6 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/cache v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/executable v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.61.0 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/hostname/validate v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/option v0.64.0-devel // indirect
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.64.1 // indirect
