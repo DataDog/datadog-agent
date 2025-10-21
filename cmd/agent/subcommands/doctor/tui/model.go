@@ -9,13 +9,21 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"encoding/json"
+	"fmt"
+	"log"
+	"os"
 	"sync"
 	"time"
 
 	"github.com/charmbracelet/bubbles/spinner"
+	tea "github.com/charmbracelet/bubbletea"
 
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcdef "github.com/DataDog/datadog-agent/comp/core/ipc/def"
+	"github.com/DataDog/datadog-agent/comp/core/ipc/httphelpers"
 	doctordef "github.com/DataDog/datadog-agent/comp/doctor/def"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
 
 // ViewMode represents the current view state
@@ -60,74 +68,121 @@ type model struct {
 	selectedLogIdx int      // Which log source is selected in detail view
 
 	// Log streaming state
-	logChunk    *logChunk // scanner for the log
-	logLines    []string  // Buffered log lines for the selected source
-	maxLogLines int       // Maximum number of log lines to keep
-
-	streamingSource string          // Name of the currently streaming log source
-	cmdCtx          context.Context // context used for long running command
-	cmdCncl         func()          // context cancel function used for long running command
+	streamingSource string      // Name of the currently streaming log source
+	logFetcher      *logFetcher // scanner for the log
+	logLines        []string    // Buffered log lines for the selected source
+	maxLogLines     int         // Maximum number of log lines to keep
 }
 
-type logChunk struct {
+type logFetcher struct {
 	sync.Mutex
+
+	// transitive data
+	filtersJSON []byte
+	url         string
+	client      ipc.HTTPClient
+
 	logChunkChan chan []byte
-	buf          bytes.Buffer
-	scanner      *bufio.Scanner
+	cmdCtx       context.Context // context used for long running command
+	cmdCncl      func()          // context cancel function used for long running command
+
+	buf     bytes.Buffer
+	scanner *bufio.Scanner
+	wg      sync.WaitGroup
 }
 
-func newLogChunk() *logChunk {
+func newLogFetcher(sourceName string, client ipc.HTTPClient) (*logFetcher, error) {
 	buf := bytes.Buffer{}
-	return &logChunk{
+
+	ipcAddress, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
+	if err != nil {
+		return nil, err
+	}
+
+	// Create filters for the specific source
+	filters := map[string]string{
+		"name": sourceName,
+	}
+	filtersJSON, err := json.Marshal(filters)
+	if err != nil {
+		return nil, err
+	}
+
+	// Build the URL for the stream-logs endpoint
+	cmdPort := pkgconfigsetup.Datadog().GetInt("cmd_port")
+	if cmdPort == 0 {
+		cmdPort = 5001
+	}
+	url := fmt.Sprintf("https://%v:%v/agent/stream-logs", ipcAddress, cmdPort)
+
+	// creating new context
+	ctx, cncl := context.WithCancel(context.Background())
+	return &logFetcher{
+		client:       client,
+		filtersJSON:  filtersJSON,
+		url:          url,
 		logChunkChan: make(chan []byte),
+		cmdCtx:       ctx,
+		cmdCncl:      cncl,
 		buf:          buf,
-		scanner:      nil,
+		scanner:      bufio.NewScanner(&buf),
+	}, nil
+}
+
+func (lc *logFetcher) ListenCmd() tea.Cmd {
+	return func() tea.Msg {
+		lc.wg.Add(1)
+		defer lc.wg.Done()
+		log.Printf("starting to stream log from %v\n", lc.url)
+		lc.client.PostChunk(lc.url, "application/json", bytes.NewBuffer(lc.filtersJSON),
+			func(chunk []byte) {
+				lc.logChunkChan <- chunk
+				log.Printf("Recieved chunk from %v\n", lc.url)
+			},
+			httphelpers.WithContext(lc.cmdCtx))
+		return nil
 	}
 }
 
-func (lc *logChunk) ReadChan() bool {
+func (lc *logFetcher) WaitCmd() tea.Cmd {
+	return func() tea.Msg {
+		lc.wg.Add(1)
+		defer lc.wg.Done()
+		logChunk, ok := <-lc.logChunkChan
+		if !ok {
+			return nil
+		}
+		lc.Lock()
+		defer lc.Unlock()
+		log.Printf("Adding chunk to buffer %v\n", lc.url)
+
+		lc.buf.Write(logChunk)
+		res := []string{}
+		for lc.scanner.Scan() {
+			res = append(res, lc.scanner.Text())
+		}
+		if len(res) > 0 {
+			log.Printf("Returning logMsg %v\n", lc.url)
+			return logMsg{
+				logLines: res,
+			}
+		}
+		return nil
+	}
+}
+
+func (lc *logFetcher) Close() {
 	if lc == nil {
-		return false
-	}
-	log, ok := <-lc.logChunkChan
-	if !ok {
-		return false
-	}
-	lc.Lock()
-	lc.buf.Write(log)
-	lc.Unlock()
-	return true
-}
-
-func (lc *logChunk) Scan() bool {
-	lc.Lock()
-	defer lc.Unlock()
-	return lc.scanner.Scan()
-}
-
-func (lc *logChunk) Text() string {
-	lc.Lock()
-	defer lc.Unlock()
-	if lc.scanner == nil {
-		return ""
-	}
-	return lc.scanner.Text()
-}
-
-func (lc *logChunk) Reset(logChunkChan chan []byte) *logChunk {
-	if lc == nil {
-		logChunk := *newLogChunk()
-		logChunk.logChunkChan = logChunkChan
-		return &logChunk
+		return
 	}
 
-	lc.Lock()
-	defer lc.Unlock()
+	// First stop context
+	lc.cmdCncl()
+	// wait before closing the channel
+	lc.wg.Wait()
+
+	// Then close channel
 	close(lc.logChunkChan)
-	lc.buf.Reset()
-	lc.scanner = bufio.NewScanner(&lc.buf)
-	lc.logChunkChan = logChunkChan
-	return lc
 }
 
 // newModel creates a new model with initial state
@@ -154,4 +209,16 @@ func newModel(client ipcdef.HTTPClient) model {
 		maxLogLines:     100, // Keep last 100 log lines
 		streamingSource: "",
 	}
+}
+
+var logfile *os.File
+
+func init() {
+	f, err := tea.LogToFile("debug.log", "debug")
+	if err != nil {
+		fmt.Println("fatal:", err)
+		os.Exit(1)
+	}
+	logfile = f
+	log.Println("Initialize logging")
 }

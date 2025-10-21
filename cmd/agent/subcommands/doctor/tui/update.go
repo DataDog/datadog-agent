@@ -6,19 +6,14 @@
 package tui
 
 import (
-	"bytes"
-	"context"
 	"encoding/json"
-	"fmt"
 	"time"
 
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
 
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
-	"github.com/DataDog/datadog-agent/comp/core/ipc/httphelpers"
 	doctordef "github.com/DataDog/datadog-agent/comp/doctor/def"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
 
 // Init is called once when the program starts
@@ -37,9 +32,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
 	var cmds []tea.Cmd
 
-	if m.viewMode == LogsDetailView {
-		cmds = append(cmds, readLogs(m.logChunk))
-	}
+	// if m.viewMode == LogsDetailView {
+	// 	cmds = append(cmds, readLogs(m.logFetcher))
+	// }
 
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
@@ -87,17 +82,13 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						m.streamingSource = selectedSource.Name
 						// Clear previous logs
 						m.logLines = []string{}
-
-						// creating new context
-						ctx, cncl := context.WithCancel(context.Background())
-						m.cmdCtx = ctx
-						m.cmdCncl = cncl
-						// TODO check erro
-						logChan, err := startStreamLogs(ctx, m.client, selectedSource.Name)
+						m.logFetcher.Close()
+						logFetcher, err := newLogFetcher(selectedSource.Name, m.client)
 						if err != nil {
 							// TODO
 						}
-						m.logChunk = m.logChunk.Reset(logChan)
+						m.logFetcher = logFetcher
+						return m, tea.Batch(m.logFetcher.ListenCmd(), m.logFetcher.WaitCmd())
 					}
 				}
 			}
@@ -115,11 +106,6 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.streamingSource = "" // Stop streaming
 				// Clear previous logs
 				m.logLines = []string{}
-				if m.cmdCncl != nil {
-					m.cmdCncl()
-				}
-				m.cmdCtx = nil
-				m.cmdCncl = nil
 
 			case "up", "k":
 				// Navigate up in logs list
@@ -131,20 +117,13 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						m.streamingSource = selectedSource.Name
 						// Clear previous logs
 						m.logLines = []string{}
-						if m.cmdCncl != nil {
-							m.cmdCncl()
-						}
-
-						// creating new context
-						ctx, cncl := context.WithCancel(context.Background())
-						m.cmdCtx = ctx
-						m.cmdCncl = cncl
-						// TODO check erro
-						logChan, err := startStreamLogs(ctx, m.client, selectedSource.Name)
+						m.logFetcher.Close()
+						logFetcher, err := newLogFetcher(selectedSource.Name, m.client)
 						if err != nil {
 							// TODO
 						}
-						m.logChunk = m.logChunk.Reset(logChan)
+						m.logFetcher = logFetcher
+						return m, tea.Batch(m.logFetcher.ListenCmd(), m.logFetcher.WaitCmd())
 					}
 				}
 
@@ -158,20 +137,13 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						m.streamingSource = selectedSource.Name
 						// Clear previous logs
 						m.logLines = []string{}
-						if m.cmdCncl != nil {
-							m.cmdCncl()
-						}
-
-						// creating new context
-						ctx, cncl := context.WithCancel(context.Background())
-						m.cmdCtx = ctx
-						m.cmdCncl = cncl
-						// TODO check erro
-						logChan, err := startStreamLogs(ctx, m.client, selectedSource.Name)
+						m.logFetcher.Close()
+						logFetcher, err := newLogFetcher(selectedSource.Name, m.client)
 						if err != nil {
 							// TODO
 						}
-						m.logChunk = m.logChunk.Reset(logChan)
+						m.logFetcher = logFetcher
+						return m, tea.Batch(m.logFetcher.ListenCmd(), m.logFetcher.WaitCmd())
 					}
 				}
 			}
@@ -202,14 +174,13 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, fetchDoctorStatus(m.client)
 
 	case logMsg:
-		for m.logChunk.Scan() {
-			m.logLines = append(m.logLines, m.logChunk.Text())
-		}
+		m.logLines = append(m.logLines, msg.logLines...)
 
 		// Keep only the last maxLogLines
 		if len(m.logLines) > m.maxLogLines {
 			m.logLines = m.logLines[len(m.logLines)-m.maxLogLines:]
 		}
+		return m, m.logFetcher.WaitCmd()
 
 	case streamErrorMsg:
 		// Error streaming logs - just log it, don't fail
@@ -256,54 +227,5 @@ func fetchDoctorStatus(client ipc.HTTPClient) tea.Cmd {
 		}
 
 		return fetchSuccessMsg{status: status}
-	}
-}
-
-// streamLogs returns a command that streams logs from a specific source
-// This connects to the /agent/stream-logs endpoint using PostChunk callback
-// It runs in a goroutine and sends log lines back via tea.Cmd
-func startStreamLogs(ctx context.Context, client ipc.HTTPClient, sourceName string) (chan []byte, error) {
-	ipcAddress, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
-	if err != nil {
-		return nil, err
-	}
-
-	// Create filters for the specific source
-	filters := map[string]string{
-		"name": sourceName,
-	}
-	filtersJSON, err := json.Marshal(filters)
-	if err != nil {
-		return nil, err
-	}
-
-	// Build the URL for the stream-logs endpoint
-	cmdPort := pkgconfigsetup.Datadog().GetInt("cmd_port")
-	if cmdPort == 0 {
-		cmdPort = 5001
-	}
-	url := fmt.Sprintf("https://%v:%v/agent/stream-logs", ipcAddress, cmdPort)
-
-	logChan := make(chan []byte)
-	go func() {
-		_ = client.PostChunk(url, "application/json", bytes.NewBuffer(filtersJSON),
-			func(chunk []byte) {
-
-				logChan <- chunk
-			},
-			httphelpers.WithContext(ctx))
-
-		<-ctx.Done()
-	}()
-
-	return logChan, nil
-}
-
-func readLogs(logChunk *logChunk) tea.Cmd {
-	return func() tea.Msg {
-		if logChunk.ReadChan() {
-			return logMsg{}
-		}
-		return nil
 	}
 }

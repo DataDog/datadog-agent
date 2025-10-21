@@ -36,6 +36,7 @@ type refreshRequestMsg struct{}
 
 // logMsg is sent when a new chunk of the log is received from the stream
 type logMsg struct {
+	logLines []string
 }
 
 // streamErrorMsg is sent when there's an error streaming logs

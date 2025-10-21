@@ -1,0 +1,386 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+package tui
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"io"
+	"net/http"
+	"net/http/httptest"
+	"net/url"
+	"testing"
+	"time"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
+)
+
+// mockHTTPClient implements ipc.HTTPClient for testing
+type mockHTTPClient struct {
+	serverURL string
+}
+
+func (m *mockHTTPClient) Do(req *http.Request, opts ...ipc.RequestOption) ([]byte, error) {
+	return nil, fmt.Errorf("not implemented")
+}
+
+func (m *mockHTTPClient) Get(url string, opts ...ipc.RequestOption) ([]byte, error) {
+	return nil, fmt.Errorf("not implemented")
+}
+
+func (m *mockHTTPClient) Head(url string, opts ...ipc.RequestOption) ([]byte, error) {
+	return nil, fmt.Errorf("not implemented")
+}
+
+func (m *mockHTTPClient) Post(url string, contentType string, body io.Reader, opts ...ipc.RequestOption) ([]byte, error) {
+	return nil, fmt.Errorf("not implemented")
+}
+
+func (m *mockHTTPClient) PostChunk(urlStr string, contentType string, body io.Reader, onChunk func([]byte), opts ...ipc.RequestOption) error {
+	// Read the request body (filters) if provided
+	if body != nil {
+		bodyBytes, err := io.ReadAll(body)
+		if err != nil {
+			return err
+		}
+
+		// Parse filters (optional, just for validation)
+		var filters map[string]string
+		if len(bodyBytes) > 0 {
+			_ = json.Unmarshal(bodyBytes, &filters)
+		}
+	}
+
+	// Make HTTP request to mock server
+	resp, err := http.Post(m.serverURL, contentType, nil)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	// Read chunks and call callback
+	buf := make([]byte, 1024)
+	for {
+		n, err := resp.Body.Read(buf)
+		if n > 0 {
+			onChunk(buf[:n])
+		}
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (m *mockHTTPClient) PostForm(url string, data url.Values, opts ...ipc.RequestOption) ([]byte, error) {
+	return nil, fmt.Errorf("not implemented")
+}
+
+func (m *mockHTTPClient) NewIPCEndpoint(endpointPath string) (ipc.Endpoint, error) {
+	return nil, fmt.Errorf("not implemented")
+}
+
+// TestLogFetcher_BasicStreaming tests that logFetcher can receive and parse log chunks
+func TestLogFetcher_BasicStreaming(t *testing.T) {
+	// Create a mock server that sends log lines
+	logLines := []string{
+		"2025-01-21 10:00:00 INFO Starting application\n",
+		"2025-01-21 10:00:01 DEBUG Loading configuration\n",
+		"2025-01-21 10:00:02 INFO Application started\n",
+	}
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/plain")
+		w.Header().Set("Transfer-Encoding", "chunked")
+
+		flusher, ok := w.(http.Flusher)
+		require.True(t, ok, "ResponseWriter should support flushing")
+
+		// Send each log line as a separate chunk
+		for _, line := range logLines {
+			_, err := fmt.Fprint(w, line)
+			require.NoError(t, err)
+			flusher.Flush()
+			time.Sleep(10 * time.Millisecond) // Small delay between chunks
+		}
+	}))
+	defer server.Close()
+
+	// Create mock client
+	client := &mockHTTPClient{serverURL: server.URL}
+
+	// Create logFetcher with mock data (we'll override the URL)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	logFetcher := &logFetcher{
+		client:       client,
+		filtersJSON:  []byte(`{"name":"test-source"}`),
+		url:          server.URL,
+		logChunkChan: make(chan []byte, 10),
+		cmdCtx:       ctx,
+		cmdCncl:      cancel,
+	}
+
+	// Start listening in a goroutine
+	go func() {
+		_ = client.PostChunk(logFetcher.url, "application/json", nil,
+			func(chunk []byte) {
+				logFetcher.logChunkChan <- chunk
+			})
+	}()
+
+	// Collect chunks
+	var receivedChunks [][]byte
+	timeout := time.After(2 * time.Second)
+	expectedChunks := len(logLines)
+
+collectLoop:
+	for i := 0; i < expectedChunks; i++ {
+		select {
+		case chunk := <-logFetcher.logChunkChan:
+			receivedChunks = append(receivedChunks, chunk)
+		case <-timeout:
+			break collectLoop
+		}
+	}
+
+	// Verify we received all chunks
+	require.GreaterOrEqual(t, len(receivedChunks), 1, "Should receive at least one chunk")
+
+	// Combine chunks and verify content
+	var allData []byte
+	for _, chunk := range receivedChunks {
+		allData = append(allData, chunk...)
+	}
+
+	allContent := string(allData)
+	for _, expectedLine := range logLines {
+		assert.Contains(t, allContent, expectedLine, "Should contain expected log line")
+	}
+}
+
+// TestLogFetcher_WaitCmd tests the WaitCmd function that processes chunks
+func TestLogFetcher_WaitCmd(t *testing.T) {
+	// Create a logFetcher
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	buf := bytes.Buffer{}
+	logFetcher := &logFetcher{
+		logChunkChan: make(chan []byte, 10),
+		cmdCtx:       ctx,
+		cmdCncl:      cancel,
+		buf:          buf,
+		scanner:      bufio.NewScanner(&buf),
+	}
+
+	// Simulate receiving a chunk with multiple lines
+	testChunk := []byte("line1\nline2\nline3\n")
+
+	// Send chunk in background
+	go func() {
+		time.Sleep(50 * time.Millisecond)
+		logFetcher.logChunkChan <- testChunk
+	}()
+
+	// Execute WaitCmd
+	cmd := logFetcher.WaitCmd()
+	msg := cmd()
+
+	// Verify the message
+	require.NotNil(t, msg, "Should return a message")
+	logMsg, ok := msg.(logMsg)
+	require.True(t, ok, "Should return logMsg type")
+
+	assert.Equal(t, []string{"line1", "line2", "line3"}, logMsg.logLines, "Should parse all lines correctly")
+}
+
+// TestLogFetcher_WaitCmd_PartialLines tests handling of partial lines (no trailing newline)
+func TestLogFetcher_WaitCmd_PartialLines(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	buf := bytes.Buffer{}
+	logFetcher := &logFetcher{
+		logChunkChan: make(chan []byte, 10),
+		cmdCtx:       ctx,
+		cmdCncl:      cancel,
+		buf:          buf,
+		scanner:      bufio.NewScanner(&buf),
+	}
+
+	// First chunk: incomplete line
+	go func() {
+		time.Sleep(50 * time.Millisecond)
+		logFetcher.logChunkChan <- []byte("partial line")
+	}()
+
+	// Execute first WaitCmd
+	cmd1 := logFetcher.WaitCmd()
+	msg1 := cmd1()
+
+	// Should not return any lines yet (no newline)
+	if msg1 != nil {
+		logMsg1, ok := msg1.(logMsg)
+		if ok {
+			assert.Empty(t, logMsg1.logLines, "Should not return partial lines without newline")
+		}
+	}
+
+	// Second chunk: complete the line
+	go func() {
+		time.Sleep(50 * time.Millisecond)
+		logFetcher.logChunkChan <- []byte(" completed\n")
+	}()
+
+	// Execute second WaitCmd
+	cmd2 := logFetcher.WaitCmd()
+	msg2 := cmd2()
+
+	// Now should return the complete line
+	require.NotNil(t, msg2, "Should return a message")
+	logMsg2, ok := msg2.(logMsg)
+	require.True(t, ok, "Should return logMsg type")
+
+	assert.Equal(t, []string{"partial line completed"}, logMsg2.logLines, "Should combine partial chunks")
+}
+
+// TestLogFetcher_Close tests proper cleanup
+func TestLogFetcher_Close(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+
+	logFetcher := &logFetcher{
+		logChunkChan: make(chan []byte, 10),
+		cmdCtx:       ctx,
+		cmdCncl:      cancel,
+	}
+
+	// Close should not panic
+	require.NotPanics(t, func() {
+		logFetcher.Close()
+	})
+
+	// Verify channel is closed
+	_, ok := <-logFetcher.logChunkChan
+	assert.False(t, ok, "Channel should be closed")
+}
+
+// TestLogFetcher_Close_NilSafe tests that Close handles nil gracefully
+func TestLogFetcher_Close_NilSafe(t *testing.T) {
+	var logFetcher *logFetcher
+
+	// Should not panic on nil
+	require.NotPanics(t, func() {
+		logFetcher.Close()
+	})
+}
+
+// TestLogFetcher_MultipleChunks tests processing multiple chunks in sequence
+func TestLogFetcher_MultipleChunks(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	buf := bytes.Buffer{}
+	logFetcher := &logFetcher{
+		logChunkChan: make(chan []byte, 10),
+		cmdCtx:       ctx,
+		cmdCncl:      cancel,
+		buf:          buf,
+		scanner:      bufio.NewScanner(&buf),
+	}
+
+	// Send multiple chunks
+	chunks := [][]byte{
+		[]byte("line1\n"),
+		[]byte("line2\nline3\n"),
+		[]byte("line4\n"),
+	}
+
+	var allLines []string
+
+	for _, chunk := range chunks {
+		// Send chunk
+		go func(c []byte) {
+			time.Sleep(10 * time.Millisecond)
+			logFetcher.logChunkChan <- c
+		}(chunk)
+
+		// Wait for processing
+		cmd := logFetcher.WaitCmd()
+		msg := cmd()
+
+		if msg != nil {
+			if logMsg, ok := msg.(logMsg); ok {
+				allLines = append(allLines, logMsg.logLines...)
+			}
+		}
+	}
+
+	// Verify all lines were processed
+	expectedLines := []string{"line1", "line2", "line3", "line4"}
+	assert.Equal(t, expectedLines, allLines, "Should process all lines from all chunks")
+}
+
+// TestLogFetcher_EmptyChunks tests handling of empty chunks
+func TestLogFetcher_EmptyChunks(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	logFetcher := &logFetcher{
+		logChunkChan: make(chan []byte, 10),
+		cmdCtx:       ctx,
+		cmdCncl:      cancel,
+	}
+
+	// Send empty chunk
+	go func() {
+		time.Sleep(50 * time.Millisecond)
+		logFetcher.logChunkChan <- []byte("")
+	}()
+
+	// Execute WaitCmd
+	cmd := logFetcher.WaitCmd()
+	msg := cmd()
+
+	// Should handle empty chunk gracefully
+	if msg != nil {
+		logMsg, ok := msg.(logMsg)
+		if ok {
+			assert.Empty(t, logMsg.logLines, "Empty chunk should not produce lines")
+		}
+	}
+}
+
+// TestLogFetcher_ChannelClosed tests behavior when channel is closed
+func TestLogFetcher_ChannelClosed(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	logFetcher := &logFetcher{
+		logChunkChan: make(chan []byte, 10),
+		cmdCtx:       ctx,
+		cmdCncl:      cancel,
+	}
+
+	// Close channel immediately
+	close(logFetcher.logChunkChan)
+
+	// Execute WaitCmd
+	cmd := logFetcher.WaitCmd()
+	msg := cmd()
+
+	// Should return nil when channel is closed
+	assert.Nil(t, msg, "Should return nil when channel is closed")
+}

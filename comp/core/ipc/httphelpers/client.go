@@ -67,6 +67,37 @@ func (s *ipcClient) Do(req *http.Request, opts ...ipc.RequestOption) (resp []byt
 	return s.do(req, "application/json", nil, opts...)
 }
 
+// func (s *ipcClient) DoBuffer(req *http.Request, contentType string, opts ...ipc.RequestOption) (Body io.ReadCloser, err error) {
+// 	// Apply all options to the request
+// 	params := ipc.RequestParams{
+// 		Request: req,
+// 		Timeout: s.innerClient.Timeout,
+// 	}
+// 	for _, opt := range opts {
+// 		opt(&params)
+// 	}
+
+// 	// Some options replace the request pointer, so we need to make a shallow copy
+// 	req = params.Request
+
+// 	// Create a shallow copy of the client to avoid modifying the original client's timeout.
+// 	// This is efficient since http.Client is lightweight and only the Transport field (which is the heavy part)
+// 	// is shared between copies. This approach enables per-request timeout customization.
+// 	client := s.innerClient
+// 	client.Timeout = params.Timeout
+
+// 	req.Header.Set("Content-Type", contentType)
+// 	req.Header.Set("Authorization", "Bearer "+s.authToken)
+
+// 	r, err := client.Do(req)
+
+// 	if err != nil {
+// 		return nil, err
+// 	}
+
+// 	return r.Body, nil
+// }
+
 func (s *ipcClient) Post(url string, contentType string, body io.Reader, opts ...ipc.RequestOption) (resp []byte, err error) {
 	req, err := http.NewRequest("POST", url, body)
 	if err != nil {
