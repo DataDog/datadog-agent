@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent
 
-go 1.24.6
+go 1.24.8
 
 toolchain go1.24.9
 
@@ -839,11 +839,11 @@ require (
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
 	go.opentelemetry.io/collector v0.137.0 // indirect
 	go.opentelemetry.io/collector/client v1.43.0 // indirect
-	go.opentelemetry.io/collector/component/componentstatus v0.137.0 // indirect
+	go.opentelemetry.io/collector/component/componentstatus v0.137.0
 	go.opentelemetry.io/collector/config/configauth v1.43.0 // indirect
 	go.opentelemetry.io/collector/config/configcompression v1.43.0 // indirect
 	go.opentelemetry.io/collector/config/configgrpc v0.137.0 // indirect
-	go.opentelemetry.io/collector/config/confighttp v0.137.0 // indirect
+	go.opentelemetry.io/collector/config/confighttp v0.137.0
 	go.opentelemetry.io/collector/config/configmiddleware v1.43.0 // indirect
 	go.opentelemetry.io/collector/config/confignet v1.43.0 // indirect
 	go.opentelemetry.io/collector/config/configopaque v1.43.0 // indirect
@@ -953,6 +953,7 @@ require (
 	github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def v0.0.0
 	github.com/DataDog/datadog-agent/comp/core/agenttelemetry/fx v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/comp/core/agenttelemetry/impl v0.0.0 // indirect
+	github.com/DataDog/datadog-agent/comp/host-profiler/hpflareextension/def v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/util/jsonquery v0.0.0-00010101000000-000000000000
 )
 
@@ -1073,6 +1074,7 @@ replace (
 	github.com/DataDog/datadog-agent/comp/def => ./comp/def
 	github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder => ./comp/forwarder/defaultforwarder
 	github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorinterface => ./comp/forwarder/orchestrator/orchestratorinterface
+	github.com/DataDog/datadog-agent/comp/host-profiler/hpflareextension/def => ./comp/host-profiler/hpflareextension/def
 	github.com/DataDog/datadog-agent/comp/logs/agent/config => ./comp/logs/agent/config
 	github.com/DataDog/datadog-agent/comp/netflow/payload => ./comp/netflow/payload
 	github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/def => ./comp/otelcol/collector-contrib/def

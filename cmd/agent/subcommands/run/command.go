@@ -114,6 +114,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl"
 	orchestratorForwarderImpl "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
+	hostProfilerFlareFx "github.com/DataDog/datadog-agent/comp/host-profiler/flare/fx"
 	langDetectionCl "github.com/DataDog/datadog-agent/comp/languagedetection/client"
 	langDetectionClimpl "github.com/DataDog/datadog-agent/comp/languagedetection/client/clientimpl"
 	"github.com/DataDog/datadog-agent/comp/logs"
@@ -440,6 +441,7 @@ func getSharedFxOption() fx.Option {
 			return option.None[logsagentpipeline.Component]()
 		}),
 		otelcol.Bundle(),
+		hostProfilerFlareFx.Module(),
 		rctelemetryreporterimpl.Module(),
 		rcserviceimpl.Module(),
 		rcservicemrfimpl.Module(),

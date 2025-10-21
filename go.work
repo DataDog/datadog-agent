@@ -49,6 +49,7 @@ use (
 	comp/def
 	comp/forwarder/defaultforwarder
 	comp/forwarder/orchestrator/orchestratorinterface
+	comp/host-profiler/hpflareextension/def
 	comp/logs/agent/config
 	comp/netflow/payload
 	comp/otelcol/collector-contrib/def
