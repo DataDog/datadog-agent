@@ -35,6 +35,12 @@ namespace Datadog.CustomActions
             return !string.IsNullOrEmpty(purge) && purge == "1";
         }
 
+        private bool ShouldInstall()
+        {
+            var fleetInstall = _session.Property("FLEET_INSTALL");
+            return string.IsNullOrEmpty(fleetInstall) || fleetInstall != "1";
+        }
+
         private Dictionary<string, string> InstallerEnvironmentVariables()
         {
             var env = new Dictionary<string, string>();
@@ -86,6 +92,11 @@ namespace Datadog.CustomActions
 
         private ActionResult InstallPackages()
         {
+            if (!ShouldInstall())
+            {
+                _session.Log("Skipping install as FLEET_INSTALL is set to 1");
+                return ActionResult.Success;
+            }
             try
             {
                 _session.Log("Running datadog-installer setup");
