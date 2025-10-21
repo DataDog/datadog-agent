@@ -32,9 +32,10 @@ const (
 var logLimiter = log.NewLogLimit(20, 10*time.Minute)
 
 type collector struct {
-	id      string
-	catalog workloadmeta.AgentType
-	store   workloadmeta.Component
+	id       string
+	catalog  workloadmeta.AgentType
+	store    workloadmeta.Component
+	firstRun bool
 }
 
 func (c *collector) getGPUDeviceInfo(device ddnvml.Device) (*workloadmeta.GPU, error) {
@@ -86,6 +87,15 @@ func (c *collector) fillNVMLAttributes(gpuDeviceInfo *workloadmeta.GPU, device d
 		gpuDeviceInfo.Architecture = gpuArchToString(arch)
 	}
 
+	virtMode, err := device.GetVirtualizationMode()
+	if err != nil {
+		if logLimiter.ShouldLog() {
+			log.Warnf("cannot get virtualization mode: %v for %d", err, gpuDeviceInfo.Index)
+		}
+	} else {
+		gpuDeviceInfo.VirtualizationMode = gpuVirtModeToString(virtMode)
+	}
+
 	memBusWidth, err := device.GetMemoryBusWidth()
 	if err != nil {
 		if logLimiter.ShouldLog() {
@@ -95,31 +105,29 @@ func (c *collector) fillNVMLAttributes(gpuDeviceInfo *workloadmeta.GPU, device d
 		gpuDeviceInfo.MemoryBusWidth = memBusWidth
 	}
 
-	maxSMClock, err := device.GetMaxClockInfo(nvml.CLOCK_SM)
-	if err != nil {
-		if logLimiter.ShouldLog() {
-			log.Warnf("%v for %d", err, gpuDeviceInfo.Index)
+	// Do not generate errors for vGPU devices, we already know that they don't support max clock info
+	if virtMode != nvml.GPU_VIRTUALIZATION_MODE_VGPU {
+		maxSMClock, err := device.GetMaxClockInfo(nvml.CLOCK_SM)
+		if err != nil {
+			if logLimiter.ShouldLog() {
+				log.Warnf("%v for %d", err, gpuDeviceInfo.Index)
+			}
+		} else {
+			gpuDeviceInfo.MaxClockRates[workloadmeta.GPUSM] = maxSMClock
 		}
-	} else {
-		gpuDeviceInfo.MaxClockRates[workloadmeta.GPUSM] = maxSMClock
-	}
 
-	maxMemoryClock, err := device.GetMaxClockInfo(nvml.CLOCK_MEM)
-	if err != nil {
-		if logLimiter.ShouldLog() {
-			log.Warnf("%v for %d", err, gpuDeviceInfo.Index)
+		maxMemoryClock, err := device.GetMaxClockInfo(nvml.CLOCK_MEM)
+		if err != nil {
+			if logLimiter.ShouldLog() {
+				log.Warnf("%v for %d", err, gpuDeviceInfo.Index)
+			}
+		} else {
+			gpuDeviceInfo.MaxClockRates[workloadmeta.GPUMemory] = maxMemoryClock
 		}
 	} else {
-		gpuDeviceInfo.MaxClockRates[workloadmeta.GPUMemory] = maxMemoryClock
-	}
-
-	virtMode, err := device.GetVirtualizationMode()
-	if err != nil {
-		if logLimiter.ShouldLog() {
-			log.Warnf("cannot get virtualization mode: %v for %d", err, gpuDeviceInfo.Index)
+		if c.firstRun && logLimiter.ShouldLog() {
+			log.Infof("vGPU device %s does not support queries for max clock info", gpuDeviceInfo.EntityID.ID)
 		}
-	} else {
-		gpuDeviceInfo.VirtualizationMode = gpuVirtModeToString(virtMode)
 	}
 }
 
@@ -141,8 +149,9 @@ func (c *collector) fillProcesses(gpuDeviceInfo *workloadmeta.GPU, device ddnvml
 func NewCollector() (workloadmeta.CollectorProvider, error) {
 	return workloadmeta.CollectorProvider{
 		Collector: &collector{
-			id:      collectorID,
-			catalog: workloadmeta.NodeAgent,
+			id:       collectorID,
+			catalog:  workloadmeta.NodeAgent,
+			firstRun: true,
 		},
 	}, nil
 }
@@ -206,6 +215,7 @@ func (c *collector) Pull(_ context.Context) error {
 	}
 
 	c.store.Notify(events)
+	c.firstRun = false
 
 	return nil
 }

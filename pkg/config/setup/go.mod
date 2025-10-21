@@ -6,35 +6,35 @@ go 1.24.0
 replace github.com/spf13/cast => github.com/DataDog/cast v1.8.0
 
 require (
-	github.com/DataDog/datadog-agent/comp/core/secrets/def v0.72.0-rc.5
-	github.com/DataDog/datadog-agent/comp/core/secrets/mock v0.72.0-rc.5
-	github.com/DataDog/datadog-agent/pkg/collector/check/defaults v0.72.0-rc.5
-	github.com/DataDog/datadog-agent/pkg/config/create v0.72.0-rc.5
-	github.com/DataDog/datadog-agent/pkg/config/env v0.72.0-rc.5
-	github.com/DataDog/datadog-agent/pkg/config/model v0.72.0-rc.5
-	github.com/DataDog/datadog-agent/pkg/config/nodetreemodel v0.72.0-rc.5
-	github.com/DataDog/datadog-agent/pkg/config/structure v0.72.0-rc.5
-	github.com/DataDog/datadog-agent/pkg/fips v0.72.0-rc.5
-	github.com/DataDog/datadog-agent/pkg/util/executable v0.72.0-rc.5
-	github.com/DataDog/datadog-agent/pkg/util/hostname/validate v0.72.0-rc.5
-	github.com/DataDog/datadog-agent/pkg/util/log v0.72.0-rc.5
-	github.com/DataDog/datadog-agent/pkg/util/option v0.72.0-rc.5
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.72.0-rc.5
-	github.com/DataDog/datadog-agent/pkg/util/system v0.72.0-rc.5
-	github.com/DataDog/datadog-agent/pkg/util/winutil v0.72.0-rc.5
+	github.com/DataDog/datadog-agent/comp/core/secrets/def v0.72.0-rc.8
+	github.com/DataDog/datadog-agent/comp/core/secrets/mock v0.72.0-rc.8
+	github.com/DataDog/datadog-agent/pkg/collector/check/defaults v0.72.0-rc.8
+	github.com/DataDog/datadog-agent/pkg/config/create v0.72.0-rc.8
+	github.com/DataDog/datadog-agent/pkg/config/env v0.72.0-rc.8
+	github.com/DataDog/datadog-agent/pkg/config/model v0.72.0-rc.8
+	github.com/DataDog/datadog-agent/pkg/config/nodetreemodel v0.72.0-rc.8
+	github.com/DataDog/datadog-agent/pkg/config/structure v0.72.0-rc.8
+	github.com/DataDog/datadog-agent/pkg/fips v0.72.0-rc.8
+	github.com/DataDog/datadog-agent/pkg/util/executable v0.72.0-rc.8
+	github.com/DataDog/datadog-agent/pkg/util/hostname/validate v0.72.0-rc.8
+	github.com/DataDog/datadog-agent/pkg/util/log v0.72.0-rc.8
+	github.com/DataDog/datadog-agent/pkg/util/option v0.72.0-rc.8
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.72.0-rc.8
+	github.com/DataDog/datadog-agent/pkg/util/system v0.72.0-rc.8
+	github.com/DataDog/datadog-agent/pkg/util/winutil v0.72.0-rc.8
 	github.com/stretchr/testify v1.11.1
 	golang.org/x/sys v0.37.0
 	gopkg.in/yaml.v2 v2.4.0
 )
 
 require (
-	github.com/DataDog/datadog-agent/comp/core/secrets/utils v0.72.0-rc.5 // indirect
-	github.com/DataDog/datadog-agent/pkg/config/teeconfig v0.72.0-rc.5 // indirect
-	github.com/DataDog/datadog-agent/pkg/config/viperconfig v0.72.0-rc.5 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.72.0-rc.5 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/pointer v0.72.0-rc.5 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/system/socket v0.72.0-rc.5 // indirect
-	github.com/DataDog/datadog-agent/pkg/version v0.72.0-rc.5 // indirect
+	github.com/DataDog/datadog-agent/comp/core/secrets/utils v0.72.0-rc.8 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/teeconfig v0.72.0-rc.8 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/viperconfig v0.72.0-rc.8 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.72.0-rc.8 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/pointer v0.72.0-rc.8 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/system/socket v0.72.0-rc.8 // indirect
+	github.com/DataDog/datadog-agent/pkg/version v0.72.0-rc.8 // indirect
 	github.com/DataDog/viper v1.14.1-0.20251002211519-52225e3aeac8 // indirect
 	github.com/Microsoft/go-winio v0.6.2 // indirect
 	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575 // indirect

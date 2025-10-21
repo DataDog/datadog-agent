@@ -6,9 +6,9 @@ go 1.24.0
 replace github.com/spf13/cast => github.com/DataDog/cast v1.8.0
 
 require (
-	github.com/DataDog/datadog-agent/pkg/config/model v0.72.0-rc.5
-	github.com/DataDog/datadog-agent/pkg/config/viperconfig v0.72.0-rc.5
-	github.com/DataDog/datadog-agent/pkg/util/log v0.72.0-rc.5
+	github.com/DataDog/datadog-agent/pkg/config/model v0.72.0-rc.8
+	github.com/DataDog/datadog-agent/pkg/config/viperconfig v0.72.0-rc.8
+	github.com/DataDog/datadog-agent/pkg/util/log v0.72.0-rc.8
 	github.com/mitchellh/mapstructure v1.5.1-0.20231216201459-8508981c8b6c
 	github.com/mohae/deepcopy v0.0.0-20170929034955-c48cc78d4826
 	github.com/spf13/cast v1.10.0
@@ -19,8 +19,8 @@ require (
 )
 
 require (
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.72.0-rc.5 // indirect
-	github.com/DataDog/datadog-agent/pkg/version v0.72.0-rc.5 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.72.0-rc.8 // indirect
+	github.com/DataDog/datadog-agent/pkg/version v0.72.0-rc.8 // indirect
 	github.com/DataDog/viper v1.14.1-0.20251002211519-52225e3aeac8 // indirect
 	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
