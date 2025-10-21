@@ -21,6 +21,8 @@ const (
 	ECSEC2 Feature = "ecsec2"
 	// ECSFargate environment
 	ECSFargate Feature = "ecsfargate"
+	// ECSManagedInstances environment
+	ECSManagedInstances Feature = "ecsmanagedinstances"
 	// EKSFargate environment
 	EKSFargate Feature = "eksfargate"
 	// KubeOrchestratorExplorer can be enabled

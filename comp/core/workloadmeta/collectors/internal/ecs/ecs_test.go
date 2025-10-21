@@ -16,6 +16,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	v1 "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/v1"
 	"github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/v3or4"
@@ -135,4 +136,106 @@ func TestGetTargetCatalog(t *testing.T) {
 		catalog: catalog,
 	}
 	assert.Equal(t, catalog, collector.GetTargetCatalog())
+}
+
+// TestDetectLaunchType tests the detectLaunchType method with AWS_EXECUTION_ENV
+func TestDetectLaunchType(t *testing.T) {
+	tests := []struct {
+		name            string
+		awsExecutionEnv string
+		expectedType    workloadmeta.ECSLaunchType
+	}{
+		{
+			name:            "AWS_EXECUTION_ENV_FARGATE",
+			awsExecutionEnv: "AWS_ECS_FARGATE",
+			expectedType:    workloadmeta.ECSLaunchTypeFargate,
+		},
+		{
+			name:            "AWS_EXECUTION_ENV_MANAGED_INSTANCES",
+			awsExecutionEnv: "AWS_ECS_MANAGED_INSTANCES",
+			expectedType:    workloadmeta.ECSLaunchTypeManagedInstances,
+		},
+		{
+			name:            "AWS_EXECUTION_ENV_EC2",
+			awsExecutionEnv: "AWS_ECS_EC2",
+			expectedType:    workloadmeta.ECSLaunchTypeEC2,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Set environment variable
+			t.Setenv("AWS_EXECUTION_ENV", tt.awsExecutionEnv)
+
+			collector := &collector{
+				deploymentMode: deploymentModeDaemon,
+			}
+
+			result := collector.detectLaunchType(context.Background())
+			assert.Equal(t, tt.expectedType, result, "Launch type detection failed for %s", tt.name)
+		})
+	}
+}
+
+// TestDetermineDeploymentMode tests the determineDeploymentMode method
+func TestDetermineDeploymentMode(t *testing.T) {
+	tests := []struct {
+		name           string
+		configValue    string
+		setupEnv       func(*testing.T)
+		expectedMode   deploymentMode
+		expectedLogMsg string
+	}{
+		{
+			name:         "Explicit daemon mode",
+			configValue:  "daemon",
+			setupEnv:     func(_ *testing.T) {},
+			expectedMode: deploymentModeDaemon,
+		},
+		{
+			name:         "Explicit sidecar mode",
+			configValue:  "sidecar",
+			setupEnv:     func(_ *testing.T) {},
+			expectedMode: deploymentModeSidecar,
+		},
+		{
+			name:        "Auto mode - EC2 defaults to daemon",
+			configValue: "auto",
+			setupEnv: func(t *testing.T) {
+				t.Setenv("AWS_EXECUTION_ENV", "AWS_ECS_EC2")
+			},
+			expectedMode: deploymentModeDaemon,
+		},
+		{
+			name:        "Auto mode - Managed Instances defaults to daemon",
+			configValue: "auto",
+			setupEnv: func(t *testing.T) {
+				t.Setenv("AWS_EXECUTION_ENV", "AWS_ECS_MANAGED_INSTANCES")
+			},
+			expectedMode: deploymentModeDaemon,
+		},
+		{
+			name:         "Unknown mode defaults to daemon",
+			configValue:  "invalid",
+			setupEnv:     func(_ *testing.T) {},
+			expectedMode: deploymentModeDaemon,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.setupEnv(t)
+
+			// Create a mock config with the test value
+			mockConfig := config.NewMockWithOverrides(t, map[string]interface{}{
+				"ecs_deployment_mode": tt.configValue,
+			})
+			collector := &collector{
+				config: mockConfig,
+			}
+
+			result := collector.determineDeploymentMode()
+			assert.Equal(t, tt.expectedMode, result, "Deployment mode detection failed for %s", tt.name)
+		})
+	}
 }

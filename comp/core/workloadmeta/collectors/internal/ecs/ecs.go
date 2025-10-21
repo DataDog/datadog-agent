@@ -10,6 +10,7 @@ package ecs
 
 import (
 	"context"
+	"os"
 	"strings"
 	"time"
 
@@ -74,7 +75,7 @@ type collector struct {
 	metadataRetryTimeoutFactor   int
 	// deploymentMode tracks whether agent runs as daemon or sidecar
 	deploymentMode deploymentMode
-	// actualLaunchType is the actual AWS ECS launch type (ec2 or fargate)
+	// actualLaunchType is the actual AWS ECS launch type (ec2, fargate, or managed_instances)
 	actualLaunchType workloadmeta.ECSLaunchType
 }
 
@@ -109,8 +110,8 @@ func GetFxOptions() fx.Option {
 }
 
 func (c *collector) Start(ctx context.Context, store workloadmeta.Component) error {
-	// Check if running on ECS (EC2 or Fargate)
-	if !env.IsFeaturePresent(env.ECSEC2) && !env.IsFeaturePresent(env.ECSFargate) {
+	// Check if running on ECS (EC2, Fargate, or Managed Instances)
+	if !env.IsFeaturePresent(env.ECSEC2) && !env.IsFeaturePresent(env.ECSFargate) && !env.IsFeaturePresent(env.ECSManagedInstances) {
 		return errors.NewDisabled(componentName, "Agent is not running on ECS")
 	}
 
@@ -140,17 +141,16 @@ func (c *collector) determineDeploymentMode() deploymentMode {
 	case "sidecar":
 		return deploymentModeSidecar
 	case "auto":
-		// Auto-detect based on environment
-		if env.IsFeaturePresent(env.ECSFargate) {
-			// Fargate can only run as sidecar
+		// Use shared logic to determine if we're in sidecar mode
+		if env.IsECSSidecarMode(c.config) {
 			return deploymentModeSidecar
 		}
-		// EC2 defaults to daemon
+		// EC2 and Managed Instances default to daemon
 		return deploymentModeDaemon
 	default:
 		log.Warnf("Unknown ecs_deployment_mode %q, using auto-detection", configMode)
-		// Default to daemon for EC2, sidecar for Fargate
-		if env.IsFeaturePresent(env.ECSFargate) {
+		// Use shared logic for auto-detection
+		if env.IsECSSidecarMode(c.config) {
 			return deploymentModeSidecar
 		}
 		return deploymentModeDaemon
@@ -158,18 +158,36 @@ func (c *collector) determineDeploymentMode() deploymentMode {
 }
 
 func (c *collector) detectLaunchType(ctx context.Context) workloadmeta.ECSLaunchType {
-	// First check environment variable
+	// Check environment variable for launch type
+	execEnv := os.Getenv("AWS_EXECUTION_ENV")
+
+	switch execEnv {
+	case "AWS_ECS_FARGATE":
+		return workloadmeta.ECSLaunchTypeFargate
+	case "AWS_ECS_MANAGED_INSTANCES":
+		return workloadmeta.ECSLaunchTypeManagedInstances
+	case "AWS_ECS_EC2":
+		return workloadmeta.ECSLaunchTypeEC2
+	}
+
+	// Fallback: check legacy environment variable for Fargate
 	if env.IsFeaturePresent(env.ECSFargate) {
 		return workloadmeta.ECSLaunchTypeFargate
 	}
 
-	// For EC2, try to detect from task metadata if running in sidecar mode
+	// Try to detect from task metadata if running in sidecar mode
 	if c.deploymentMode == deploymentModeSidecar {
 		// Try to get current task metadata to determine launch type
 		if metaV4, err := ecsmeta.V4FromCurrentTask(); err == nil {
 			if task, err := metaV4.GetTask(ctx); err == nil && task != nil {
-				if strings.ToUpper(task.LaunchType) == "FARGATE" {
+				launchType := strings.ToUpper(task.LaunchType)
+				switch launchType {
+				case "FARGATE":
 					return workloadmeta.ECSLaunchTypeFargate
+				case "MANAGED_INSTANCES":
+					return workloadmeta.ECSLaunchTypeManagedInstances
+				case "EC2":
+					return workloadmeta.ECSLaunchTypeEC2
 				}
 			}
 		}

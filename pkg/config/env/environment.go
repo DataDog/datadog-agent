@@ -47,6 +47,10 @@ func IsECS() bool {
 		return false
 	}
 
+	if IsECSManagedInstances() {
+		return false
+	}
+
 	if os.Getenv("AWS_CONTAINER_CREDENTIALS_RELATIVE_URI") != "" ||
 		os.Getenv("ECS_CONTAINER_METADATA_URI") != "" ||
 		os.Getenv("ECS_CONTAINER_METADATA_URI_V4") != "" {
@@ -63,6 +67,30 @@ func IsECS() bool {
 // IsECSFargate returns whether the Agent is running in ECS Fargate
 func IsECSFargate() bool {
 	return os.Getenv("ECS_FARGATE") != "" || os.Getenv("AWS_EXECUTION_ENV") == "AWS_ECS_FARGATE"
+}
+
+// IsECSManagedInstances returns whether the Agent is running in ECS Managed Instances
+func IsECSManagedInstances() bool {
+	return os.Getenv("AWS_EXECUTION_ENV") == "AWS_ECS_MANAGED_INSTANCES"
+}
+
+// IsECSSidecarMode returns true if the agent is running in ECS sidecar mode.
+// This includes Fargate (always sidecar) and Managed Instances when explicitly configured as sidecar.
+// The cfg parameter can be nil, in which case only environment-based detection is performed.
+func IsECSSidecarMode(cfg interface{ GetString(string) string }) bool {
+	// Fargate is always sidecar mode
+	if IsECSFargate() {
+		return true
+	}
+
+	// Managed Instances can be sidecar if explicitly configured
+	if IsECSManagedInstances() && cfg != nil {
+		deploymentMode := cfg.GetString("ecs_deployment_mode")
+		// In auto mode, managed instances default to daemon, so only return true for explicit "sidecar"
+		return deploymentMode == "sidecar"
+	}
+
+	return false
 }
 
 // IsHostProcAvailable returns whether host proc is available or not
