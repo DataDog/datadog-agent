@@ -103,7 +103,8 @@ func NewTargetMutator(config *Config, wmeta workloadmeta.Component, imageResolve
 			}
 		}
 
-		// Get the library versions to inject. If no versions are specified, we inject all libraries.
+		// We build the libVersions based on if they are specified in `tracerVersions` else ask the higher-level configuration from `libVersions` 
+		// and/or defer to language detection.
 		var libVersions []libInfo
 		usesDefaultLibs := false
 		if len(t.TracerVersions) == 0 {
