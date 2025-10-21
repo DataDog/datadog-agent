@@ -28,6 +28,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/parsers/pid"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/tag"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
@@ -400,7 +401,9 @@ func buildMessage(tailer *Tailer, output *message.Message) *message.Message {
 
 	// XXX(remy): is it OK recreating a message here?
 	// Preserve ParsingExtra information from decoder output (including IsTruncated flag)
-	return message.NewMessageWithParsingExtra(output.GetContent(), origin, output.Status, output.IngestionTimestamp, output.ParsingExtra)
+	msg := message.NewMessageWithParsingExtra(output.GetContent(), origin, output.Status, output.IngestionTimestamp, output.ParsingExtra)
+	msg.PID = pid.ExtractPID(output.GetContent())
+	return msg
 }
 
 // forward forwards decoded messages to the next pipeline,

@@ -57,6 +57,7 @@ func newReporter(hostname string, stopper startstop.Stopper, sourceName, sourceT
 		context,
 		&seccommon.NoopStatusProvider{},
 		hostnameimpl.NewHostnameService(),
+		nil, // no tagger for security reporter
 		cfg,
 		compression,
 		cfg.GetBool("logs_config.disable_distributed_senders"),

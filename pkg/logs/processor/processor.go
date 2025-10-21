@@ -10,9 +10,12 @@ import (
 	"context"
 	"regexp"
 	"slices"
+	"strconv"
 	"sync"
 
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	taggertypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
@@ -47,6 +50,7 @@ type Processor struct {
 	diagnosticMessageReceiver diagnostic.MessageReceiver
 	mu                        sync.Mutex
 	hostname                  hostnameinterface.Component
+	tagger                    tagger.Component
 	config                    pkgconfigmodel.Reader
 	configChan                chan failoverConfig
 	failoverConfig            failoverConfig
@@ -60,7 +64,7 @@ type Processor struct {
 // New returns an initialized Processor with config support for failover notifications.
 func New(config pkgconfigmodel.Reader, inputChan, outputChan chan *message.Message, processingRules []*config.ProcessingRule,
 	encoder Encoder, diagnosticMessageReceiver diagnostic.MessageReceiver, hostname hostnameinterface.Component,
-	pipelineMonitor metrics.PipelineMonitor, instanceID string) *Processor {
+	taggerComponent tagger.Component, pipelineMonitor metrics.PipelineMonitor, instanceID string) *Processor {
 
 	p := &Processor{
 		config:                    config,
@@ -72,6 +76,7 @@ func New(config pkgconfigmodel.Reader, inputChan, outputChan chan *message.Messa
 		done:                      make(chan struct{}),
 		diagnosticMessageReceiver: diagnosticMessageReceiver,
 		hostname:                  hostname,
+		tagger:                    taggerComponent,
 		pipelineMonitor:           pipelineMonitor,
 		utilization:               pipelineMonitor.MakeUtilizationMonitor(metrics.ProcessorTlmName, instanceID),
 		instanceID:                instanceID,
@@ -201,6 +206,9 @@ func (p *Processor) processMessage(msg *message.Message) {
 		}
 		msg.SetRendered(rendered)
 
+		// enrich message with process tags if PID is available
+		p.enrichWithProcessTags(msg)
+
 		// report this message to diagnostic receivers (e.g. `stream-logs` command)
 		p.diagnosticMessageReceiver.HandleMessage(msg, rendered, "")
 
@@ -217,6 +225,27 @@ func (p *Processor) processMessage(msg *message.Message) {
 		p.utilization.Stop() // Explicitly call stop here to avoid counting writing on the output channel as processing time
 		p.outputChan <- msg
 		p.pipelineMonitor.ReportComponentIngress(msg, metrics.StrategyTlmName, p.instanceID)
+	}
+}
+
+// enrichWithProcessTags enriches the message with process-level tags if a PID is available.
+// It queries the tagger for tags associated with the process ID and appends them to ProcessingTags.
+func (p *Processor) enrichWithProcessTags(msg *message.Message) {
+	log.Debugf("enrichWithProcessTags: PID: %d", msg.PID)
+	log.Debugf("enrichWithProcessTags: Tagger: %+v", p.tagger)
+	if msg.PID <= 0 || p.tagger == nil {
+		return
+	}
+
+	entityID := taggertypes.NewEntityID(taggertypes.Process, strconv.Itoa(int(msg.PID)))
+	tags, err := p.tagger.Tag(entityID, taggertypes.LowCardinality)
+	if err != nil {
+		log.Debugf("Failed to get tags for process %d: %v", msg.PID, err)
+		return
+	}
+
+	if len(tags) > 0 {
+		msg.ProcessingTags = append(msg.ProcessingTags, tags...)
 	}
 }
 

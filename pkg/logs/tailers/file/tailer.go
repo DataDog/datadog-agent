@@ -23,6 +23,7 @@ import (
 	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/def"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/parsers/pid"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/tag"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/util"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
@@ -389,6 +390,7 @@ func (t *Tailer) forwardMessages() {
 
 		// Preserve ParsingExtra information from decoder output (including IsTruncated flag)
 		msg := message.NewMessageWithParsingExtra(output.GetContent(), origin, output.Status, output.IngestionTimestamp, output.ParsingExtra)
+		msg.PID = pid.ExtractPID(output.GetContent())
 		// Make the write to the output chan cancellable to be able to stop the tailer
 		// after a file rotation when it is stuck on it.
 		// We don't return directly to keep the same shutdown sequence that in the

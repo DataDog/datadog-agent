@@ -52,6 +52,7 @@ func (a *logAgent) SetupPipeline(
 		destinationsCtx,
 		NewStatusProvider(),
 		a.hostname,
+		a.tagger,
 		a.config,
 		a.compression,
 		true, // disable distributed sending for serverless

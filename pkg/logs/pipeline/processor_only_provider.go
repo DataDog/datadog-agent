@@ -9,6 +9,7 @@ import (
 	"context"
 
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
@@ -26,7 +27,7 @@ type processorOnlyProvider struct {
 }
 
 // NewProcessorOnlyProvider is used by the logs check subcommand as the feature does not require the functionalities of the log pipeline other then the processor.
-func NewProcessorOnlyProvider(diagnosticMessageReceiver diagnostic.MessageReceiver, processingRules []*config.ProcessingRule, hostname hostnameinterface.Component) Provider {
+func NewProcessorOnlyProvider(diagnosticMessageReceiver diagnostic.MessageReceiver, processingRules []*config.ProcessingRule, hostname hostnameinterface.Component, taggerComponent tagger.Component) Provider {
 	chanSize := pkgconfigsetup.Datadog().GetInt("logs_config.message_channel_size")
 	outputChan := make(chan *message.Message, chanSize)
 	encoder := processor.JSONEncoder
@@ -34,7 +35,7 @@ func NewProcessorOnlyProvider(diagnosticMessageReceiver diagnostic.MessageReceiv
 	pipelineID := "0"
 	pipelineMonitor := metrics.NewNoopPipelineMonitor(pipelineID)
 	processor := processor.New(nil, inputChan, outputChan, processingRules,
-		encoder, diagnosticMessageReceiver, hostname, pipelineMonitor, pipelineID)
+		encoder, diagnosticMessageReceiver, hostname, taggerComponent, pipelineMonitor, pipelineID)
 
 	p := &processorOnlyProvider{
 		processor:       processor,

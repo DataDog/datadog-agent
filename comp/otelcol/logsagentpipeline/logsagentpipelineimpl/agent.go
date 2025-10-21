@@ -214,6 +214,7 @@ func (a *Agent) SetupPipeline(
 		destinationsCtx,
 		NewStatusProvider(),
 		a.hostname,
+		nil, // no tagger for otelcol logs agent pipeline
 		a.config,
 		a.compression,
 		a.config.GetBool("logs_config.disable_distributed_senders"),

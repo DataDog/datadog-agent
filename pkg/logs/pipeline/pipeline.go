@@ -10,6 +10,7 @@ import (
 	"context"
 
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
@@ -40,6 +41,7 @@ func NewPipeline(
 	diagnosticMessageReceiver diagnostic.MessageReceiver,
 	serverlessMeta sender.ServerlessMeta,
 	hostname hostnameinterface.Component,
+	taggerComponent tagger.Component,
 	cfg pkgconfigmodel.Reader,
 	compression logscompression.Component,
 	instanceID string,
@@ -66,7 +68,7 @@ func NewPipeline(
 	inputChan := make(chan *message.Message, pkgconfigsetup.Datadog().GetInt("logs_config.message_channel_size"))
 
 	processor := processor.New(cfg, inputChan, strategyInput, processingRules,
-		encoder, diagnosticMessageReceiver, hostname, senderImpl.PipelineMonitor(), instanceID)
+		encoder, diagnosticMessageReceiver, hostname, taggerComponent, senderImpl.PipelineMonitor(), instanceID)
 
 	return &Pipeline{
 		InputChan:       inputChan,

@@ -49,6 +49,7 @@ func NewLogReporter(hostname string, sourceName, sourceType string, endpoints *c
 		dstcontext,
 		&common.NoopStatusProvider{},
 		hostnameimpl.NewHostnameService(),
+		nil, // no tagger for compliance reporter
 		cfg,
 		compression,
 		cfg.GetBool("logs_config.disable_distributed_senders"),

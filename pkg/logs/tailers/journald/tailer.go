@@ -205,6 +205,7 @@ func (t *Tailer) forwardMessages() {
 		if len(decodedMessage.GetContent()) > 0 {
 			// Preserve the original message structure and ParsingExtra information (including IsTruncated)
 			// The decodedMessage already has the proper origin with tags set
+			log.Debugf("decodedMessage PID: %d", decodedMessage.PID)
 			t.outputChan <- decodedMessage
 		}
 	}
@@ -305,6 +306,8 @@ func (t *Tailer) tail() {
 					time.Now().UnixNano(),
 				)
 			}
+			msg.PID = t.getPID(entry)
+			log.Debugf("After setting PID: %d", msg.PID)
 
 			select {
 			case <-t.stop:
@@ -479,6 +482,25 @@ func (t *Tailer) getStatus(entry *sdjournal.JournalEntry) string {
 		return message.StatusInfo
 	}
 	return status
+}
+
+// getPID extracts the process ID from the journal entry.
+// Returns 0 if no PID is found.
+func (t *Tailer) getPID(entry *sdjournal.JournalEntry) int32 {
+	pidStr, exists := entry.Fields["_PID"]
+	log.Debugf("Entry: %+v", entry)
+	log.Debugf("PID: %s", pidStr)
+	if !exists {
+		log.Debugf("_PID field does not exist in entry")
+		return 0
+	}
+	var pid int32
+	if _, err := fmt.Sscanf(pidStr, "%d", &pid); err != nil {
+		log.Debugf("Failed to parse PID: %v", err)
+		return 0
+	}
+	log.Debugf("Returning PID: %d", pid)
+	return pid
 }
 
 // journaldIntegration represents the name of the integration,

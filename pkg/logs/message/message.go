@@ -85,6 +85,9 @@ type MessageMetadata struct {
 	RawDataLen int
 	// Tags added on processing
 	ProcessingTags []string
+	// PID is the process ID associated with this log message, extracted from log content or metadata.
+	// A value of 0 indicates no PID was found or extracted.
+	PID int32
 	// Extra information from the parsers
 	ParsingExtra
 	// Extra information for Serverless Logs messages

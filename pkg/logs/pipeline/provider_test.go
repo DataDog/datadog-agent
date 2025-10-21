@@ -229,6 +229,7 @@ func TestProviderConfigurations(t *testing.T) {
 				destinationsContext,
 				status,
 				nil, // hostname
+				nil, // tagger
 				cfg,
 				compression,
 				tc.legacyMode,
@@ -297,6 +298,7 @@ func TestPipelineChannelDistribution(t *testing.T) {
 				destinationsContext,
 				status,
 				nil, // hostname
+				nil, // tagger
 				cfg,
 				compression,
 				false, // legacy mode

@@ -47,6 +47,7 @@ func (a *logAgent) SetupPipeline(processingRules []*config.ProcessingRule, wmeta
 		destinationsCtx,
 		NewStatusProvider(),
 		a.hostname,
+		a.tagger,
 		a.config,
 		a.compression,
 		a.config.GetBool("logs_config.disable_distributed_senders"), // legacy

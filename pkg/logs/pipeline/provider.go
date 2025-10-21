@@ -12,6 +12,7 @@ import (
 	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
@@ -66,6 +67,7 @@ type provider struct {
 	serverlessMeta       sender.ServerlessMeta
 
 	hostname    hostnameinterface.Component
+	tagger      tagger.Component
 	cfg         pkgconfigmodel.Reader
 	compression logscompression.Component
 }
@@ -80,6 +82,7 @@ func NewProvider(
 	destinationsContext *client.DestinationsContext,
 	status statusinterface.Status,
 	hostname hostnameinterface.Component,
+	taggerComponent tagger.Component,
 	cfg pkgconfigmodel.Reader,
 	compression logscompression.Component,
 	legacyMode bool,
@@ -100,6 +103,7 @@ func NewProvider(
 		processingRules,
 		endpoints,
 		hostname,
+		taggerComponent,
 		cfg,
 		compression,
 		serverlessMeta,
@@ -207,6 +211,7 @@ func newProvider(
 	processingRules []*config.ProcessingRule,
 	endpoints *config.Endpoints,
 	hostname hostnameinterface.Component,
+	taggerComponent tagger.Component,
 	cfg pkgconfigmodel.Reader,
 	compression logscompression.Component,
 	serverlessMeta sender.ServerlessMeta,
@@ -222,6 +227,7 @@ func newProvider(
 		currentPipelineIndex:      atomic.NewUint32(0),
 		serverlessMeta:            serverlessMeta,
 		hostname:                  hostname,
+		tagger:                    taggerComponent,
 		cfg:                       cfg,
 		compression:               compression,
 	}
@@ -239,6 +245,7 @@ func (p *provider) Start() {
 			p.diagnosticMessageReceiver,
 			p.serverlessMeta,
 			p.hostname,
+			p.tagger,
 			p.cfg,
 			p.compression,
 			strconv.Itoa(i),

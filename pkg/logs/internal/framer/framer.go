@@ -13,6 +13,7 @@ import (
 	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // Framing describes the kind of framing applied to the byte stream being broken.
@@ -131,10 +132,12 @@ func (fr *Framer) Process(input *message.Message) {
 	// we might consider doing the same on structured log messages with
 	// the framer.
 	if input.State != message.StateUnstructured {
+		log.Debugf("Framer: structured message, PID=%d, passing through", input.PID)
 		fr.outputFn(input, len(input.GetContent()))
 		fr.frames.Inc()
 		return
 	}
+	log.Debugf("Framer: unstructured message, PID=%d, will create new messages", input.PID)
 
 	// buffer is laid out as follows:
 	//
@@ -185,11 +188,13 @@ func (fr *Framer) Process(input *message.Message) {
 				Origin:             input.Origin,
 				Status:             input.Status,
 				IngestionTimestamp: input.IngestionTimestamp,
+				PID:                input.PID,
 				ParsingExtra:       input.ParsingExtra,
 				ServerlessExtra:    input.ServerlessExtra,
 			},
 		}
 		c.SetContent(owned)
+		log.Debugf("Framer: created new message with PID=%d", c.PID)
 
 		fr.outputFn(c, rawDataLen)
 		fr.frames.Inc()
