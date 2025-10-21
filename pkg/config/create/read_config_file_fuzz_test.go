@@ -3,11 +3,14 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package nodetreemodel
+package create
 
 import (
 	"strings"
 	"testing"
+
+	"github.com/DataDog/datadog-agent/pkg/config/nodetreemodel"
+	"github.com/DataDog/datadog-agent/pkg/config/structure"
 )
 
 func FuzzReadConfig(f *testing.F) {
@@ -79,8 +82,7 @@ dogstatsd_entity_id_precedence: ""
 other: value`) // Null value (YAML parses as nil)
 
 	f.Fuzz(func(_ *testing.T, yamlContent string) {
-
-		cfg := NewNodeTreeConfig("test", "TEST", nil).(*ntmConfig)
+		cfg := nodetreemodel.NewNodeTreeConfig("test", "TEST", nil) // nolint: forbidigo // legit use case
 		cfg.SetDefault("a", "default_a")
 		cfg.SetDefault("c.d", 42)
 		cfg.SetDefault("network_devices.snmp_traps.enabled", false)
@@ -126,11 +128,6 @@ other: value`) // Null value (YAML parses as nil)
 		cfg.GetSubfields("network_devices")
 		cfg.GetSubfields("c")
 
-		// Node access - test direct tree manipulation
-		cfg.GetNode("a")
-		cfg.GetNode("c")
-		cfg.GetNode("network_devices.snmp_traps")
-
 		// Configuration metadata - test config state inspection
 		cfg.ConfigFileUsed()
 		cfg.ExtraConfigFilesUsed()
@@ -149,8 +146,8 @@ other: value`) // Null value (YAML parses as nil)
 			// Only test additional operations if ReadConfig succeeded
 			// Test unmarshal functionality on valid configs
 			var result map[string]interface{}
-			cfg.UnmarshalKey("", &result)
-			cfg.UnmarshalKey("c", &result)
+			structure.UnmarshalKey(cfg, "", &result)
+			structure.UnmarshalKey(cfg, "c", &result)
 
 			// Test settings retrieval with sequence ID
 			_, _ = cfg.AllSettingsWithSequenceID()
