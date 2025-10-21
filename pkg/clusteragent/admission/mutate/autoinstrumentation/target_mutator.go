@@ -199,7 +199,6 @@ func (m *TargetMutator) MutatePod(pod *corev1.Pod, ns string, _ dynamic.Interfac
 		if usingLanguageDetection {
 			extracted = extractedLanguageDetection
 		}
-
 	}
 
 	// Add the configuration for the security client library.
