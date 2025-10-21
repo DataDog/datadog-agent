@@ -209,7 +209,6 @@ func (r *secretResolver) writeDebugInfo(w http.ResponseWriter, _ *http.Request) 
 }
 
 func (r *secretResolver) handleRefresh(w http.ResponseWriter, _ *http.Request) {
-	// HTTP endpoint always bypasses rate limit
 	result, err := r.Refresh(true)
 	if err != nil {
 		log.Infof("could not refresh secrets: %s", err)
@@ -337,7 +336,6 @@ func (r *secretResolver) startRefreshRoutine(rd *rand.Rand) {
 
 	go func() {
 		<-r.ticker.C
-		// Scheduled refreshes always bypass rate limit
 		if _, err := r.Refresh(true); err != nil {
 			log.Infof("Error with refreshing secrets: %s", err)
 		}
@@ -346,7 +344,6 @@ func (r *secretResolver) startRefreshRoutine(rd *rand.Rand) {
 
 		for {
 			<-r.ticker.C
-			// Scheduled refreshes always bypass rate limit
 			if _, err := r.Refresh(true); err != nil {
 				log.Infof("Error with refreshing secrets: %s", err)
 			}
