@@ -14,7 +14,7 @@ import (
 	"time"
 	"unsafe"
 
-	telemetryComp "github.com/DataDog/datadog-agent/comp/core/telemetry"
+	telemetryComp "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 
 	"golang.org/x/sys/windows"
 

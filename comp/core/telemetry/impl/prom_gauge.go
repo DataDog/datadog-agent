@@ -8,7 +8,7 @@ package telemetryimpl
 import (
 	"github.com/prometheus/client_golang/prometheus"
 
-	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 )
 
 // Gauge implementation using Prometheus.

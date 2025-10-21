@@ -79,8 +79,6 @@ replace github.com/DataDog/datadog-agent/comp/core/flare/types => ../../../comp/
 
 replace github.com/DataDog/datadog-agent/comp/core/status => ../../../comp/core/status
 
-replace github.com/DataDog/datadog-agent/comp/core/telemetry => ../../../comp/core/telemetry
-
 replace github.com/DataDog/datadog-agent/comp/def => ../../../comp/def
 
 replace github.com/DataDog/datadog-agent/pkg/collector/check/defaults => ../../collector/check/defaults

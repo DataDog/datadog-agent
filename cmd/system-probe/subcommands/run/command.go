@@ -46,8 +46,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	remoteTaggerFx "github.com/DataDog/datadog-agent/comp/core/tagger/fx-remote"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
+	telemetryfx "github.com/DataDog/datadog-agent/comp/core/telemetry/fx"
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	wmcatalog "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/catalog-remote"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
@@ -110,7 +110,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				secretsnoopfx.Module(),
 				statsd.Module(),
 				config.Module(),
-				telemetryimpl.Module(),
+				telemetryfx.Module(),
 				sysprobeconfigimpl.Module(),
 				rcclientimpl.Module(),
 				fx.Provide(func(config config.Component, sysprobeconfig sysprobeconfig.Component) healthprobe.Options {
@@ -164,7 +164,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 }
 
 // run starts the main loop.
-func run(log log.Component, _ config.Component, telemetry telemetry.Component, sysprobeconfig sysprobeconfig.Component, rcclient rcclient.Component, _ pid.Component, _ healthprobe.Component, _ autoexit.Component, settings settings.Component, _ ipc.Component, deps module.FactoryDependencies) error {
+func run(log log.Component, _ config.Component, telemetry telemetryimpl.Component, sysprobeconfig sysprobeconfig.Component, rcclient rcclient.Component, _ pid.Component, _ healthprobe.Component, _ autoexit.Component, settings settings.Component, _ ipc.Component, deps module.FactoryDependencies) error {
 	defer func() {
 		stopSystemProbe()
 	}()
@@ -256,7 +256,7 @@ func StartSystemProbeWithDefaults(ctxChan <-chan context.Context) (<-chan error,
 
 func runSystemProbe(ctxChan <-chan context.Context, errChan chan error) error {
 	return fxutil.OneShot(
-		func(log log.Component, _ config.Component, telemetry telemetry.Component, sysprobeconfig sysprobeconfig.Component, rcclient rcclient.Component, _ healthprobe.Component, settings settings.Component, deps module.FactoryDependencies) error {
+		func(log log.Component, _ config.Component, telemetry telemetryimpl.Component, sysprobeconfig sysprobeconfig.Component, rcclient rcclient.Component, _ healthprobe.Component, settings settings.Component, deps module.FactoryDependencies) error {
 			defer StopSystemProbeWithDefaults()
 			err := startSystemProbe(log, telemetry, sysprobeconfig, rcclient, settings, deps)
 			if err != nil {
@@ -294,7 +294,7 @@ func runSystemProbe(ctxChan <-chan context.Context, errChan chan error) error {
 		secretsnoopfx.Module(),
 		rcclientimpl.Module(),
 		config.Module(),
-		telemetryimpl.Module(),
+		telemetryfx.Module(),
 		statsd.Module(),
 		sysprobeconfigimpl.Module(),
 		fx.Provide(func(config config.Component, sysprobeconfig sysprobeconfig.Component) healthprobe.Options {
@@ -344,7 +344,7 @@ func StopSystemProbeWithDefaults() {
 }
 
 // startSystemProbe Initializes the system-probe process
-func startSystemProbe(log log.Component, telemetry telemetry.Component, sysprobeconfig sysprobeconfig.Component, rcclient rcclient.Component, settings settings.Component, deps module.FactoryDependencies) error {
+func startSystemProbe(log log.Component, telemetry telemetryimpl.Component, sysprobeconfig sysprobeconfig.Component, rcclient rcclient.Component, settings settings.Component, deps module.FactoryDependencies) error {
 	var err error
 	cfg := sysprobeconfig.SysProbeObject()
 

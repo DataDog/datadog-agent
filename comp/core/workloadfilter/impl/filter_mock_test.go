@@ -14,8 +14,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
+	telemetryfxmock "github.com/DataDog/datadog-agent/comp/core/telemetry/fx-mock"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	"github.com/DataDog/datadog-agent/comp/core/workloadfilter/mock"
 	workloadmetafilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/util/workloadmeta"
@@ -27,7 +27,7 @@ func TestNewMock_ProvidesMockFilter(t *testing.T) {
 	// Use mock components for dependencies
 	cfg := config.NewMock(t)
 	logger := logmock.New(t)
-	telemetry := fxutil.Test[telemetry.Mock](t, telemetryimpl.MockModule())
+	telemetry := fxutil.Test[telemetryimpl.Mock](t, telemetryfxmock.Module())
 
 	req := MockRequires{
 		Config:    cfg,
@@ -48,7 +48,7 @@ func TestNewMock_UsesMockConfig(t *testing.T) {
 	cfg.SetWithoutSource("container_exclude", "name:excluded-container")
 
 	logger := logmock.New(t)
-	telemetry := fxutil.Test[telemetry.Mock](t, telemetryimpl.MockModule())
+	telemetry := fxutil.Test[telemetryimpl.Mock](t, telemetryfxmock.Module())
 
 	req := MockRequires{
 		Config:    cfg,

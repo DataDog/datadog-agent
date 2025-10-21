@@ -12,8 +12,8 @@ import (
 
 	taggerTelemetry "github.com/DataDog/datadog-agent/comp/core/tagger/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
+	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -47,7 +47,7 @@ func TestProcessEvent_AddAndModify(t *testing.T) {
 			},
 		},
 	}
-	tel := fxutil.Test[telemetry.Component](t, telemetryimpl.MockModule())
+	tel := fxutil.Test[telemetry.Component](t, impl.MockModule())
 	telemetryStore := taggerTelemetry.NewStore(tel)
 	store := newTagStore(telemetryStore)
 	store.processEvents(events, false)
@@ -84,7 +84,7 @@ func TestProcessEvent_AddAndDelete(t *testing.T) {
 		},
 	}
 
-	tel := fxutil.Test[telemetry.Component](t, telemetryimpl.MockModule())
+	tel := fxutil.Test[telemetry.Component](t, impl.MockModule())
 	telemetryStore := taggerTelemetry.NewStore(tel)
 	store := newTagStore(telemetryStore)
 	store.processEvents(events, false)
@@ -99,7 +99,7 @@ func TestProcessEvent_AddAndDelete(t *testing.T) {
 }
 
 func TestProcessEvent_Replace(t *testing.T) {
-	tel := fxutil.Test[telemetry.Component](t, telemetryimpl.MockModule())
+	tel := fxutil.Test[telemetry.Component](t, impl.MockModule())
 	telemetryStore := taggerTelemetry.NewStore(tel)
 	store := newTagStore(telemetryStore)
 

@@ -15,7 +15,8 @@ package nvidia
 import (
 	"errors"
 
-	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	"github.com/DataDog/datadog-agent/pkg/gpu/config/consts"
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
@@ -160,7 +161,7 @@ type CollectorTelemetry struct {
 }
 
 // NewCollectorTelemetry creates a new CollectorTelemetry with the given telemetry component
-func NewCollectorTelemetry(tm telemetry.Component) *CollectorTelemetry {
+func NewCollectorTelemetry(tm telemetryimpl.Component) *CollectorTelemetry {
 	subsystem := consts.GpuTelemetryModule + "__collectors"
 
 	return &CollectorTelemetry{
