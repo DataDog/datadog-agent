@@ -169,7 +169,6 @@ func (pc *ProcessCacheEntry) SetForkParent(parent *ProcessCacheEntry) {
 	if parent != nil {
 		pc.ArgsEntry = parent.ArgsEntry
 		pc.EnvsEntry = parent.EnvsEntry
-
 	}
 }
 

@@ -988,8 +988,6 @@ func newUserSessionContextSerializer(ctx *model.UserSessionContext, e *model.Eve
 
 	var sshAuthMethod string
 	switch ctx.SSHAuthMethod {
-	case 0:
-		sshAuthMethod = ""
 	case 1:
 		sshAuthMethod = "publickey"
 	case 2:
