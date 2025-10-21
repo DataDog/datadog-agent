@@ -13,10 +13,11 @@ import (
 	"testing"
 	"time"
 
-	workloadfilterfxmock "github.com/DataDog/datadog-agent/comp/core/workloadfilter/fx-mock"
-	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/docker/docker/api/types/events"
 	"github.com/stretchr/testify/assert"
+
+	workloadfilterfxmock "github.com/DataDog/datadog-agent/comp/core/workloadfilter/fx-mock"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 )
 
 func TestProcessContainerEvent(t *testing.T) {
@@ -25,9 +26,17 @@ func TestProcessContainerEvent(t *testing.T) {
 	// Dummy timestamp for events
 	timestamp := time.Now().Truncate(10 * time.Millisecond)
 
+	configYaml := `
+cel_workload_exclude:
+  - products: global
+    rules:
+      containers:
+       - container.name == 'excluded_cel_name'
+container_exclude: name:excluded_name image:excluded_image
+`
+
 	// Container filter
-	mockConfig := configmock.New(t)
-	mockConfig.SetWithoutSource("container_exclude", []string{"name:excluded_name", "image:excluded_image"})
+	configmock.NewFromYAML(t, configYaml)
 	mockFilterStore := workloadfilterfxmock.SetupMockFilter(t)
 	filter := mockFilterStore.GetContainerSharedMetricFilters()
 
@@ -117,6 +126,21 @@ func TestProcessContainerEvent(t *testing.T) {
 				},
 			},
 			err: nil,
+		},
+		{
+			// Ignore excluded container name via cel
+			source: events.Message{
+				Type: "container",
+				Actor: events.Actor{
+					ID: "test_id",
+					Attributes: map[string]string{
+						"name":  "excluded_cel_name",
+						"image": "test_image",
+					},
+				},
+			},
+			event: nil,
+			err:   nil,
 		},
 		{
 			// Ignore excluded container name

@@ -9,6 +9,8 @@ package listeners
 
 import (
 	"context"
+	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -18,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
+	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
@@ -67,16 +70,37 @@ func (l *testWorkloadmetaListener) assertServices(expectedServices map[string]wl
 		}
 
 		if diff := cmp.Diff(expectedSvc, actualSvc,
-			cmpopts.IgnoreUnexported(wlmListenerSvc{}, WorkloadService{}),
+			cmp.AllowUnexported(wlmListenerSvc{}, WorkloadService{}),
 			cmpopts.IgnoreFields(WorkloadService{}, "tagger", "wmeta")); diff != "" {
 			l.t.Errorf("service %q mismatch (-want +got):\n%s", svcID, diff)
+		}
+
+		// Compare filter values
+		filters := []workloadfilter.Scope{
+			workloadfilter.GlobalFilter,
+			workloadfilter.LogsFilter,
+			workloadfilter.MetricsFilter,
+		}
+
+		for _, filter := range filters {
+			expectedHasFilter := expectedSvc.service.HasFilter(filter)
+			actualHasFilter := actualSvc.service.HasFilter(filter)
+			if expectedHasFilter != actualHasFilter {
+				l.t.Errorf("service %q %s mismatch: want %v, got %v",
+					svcID, filter, expectedHasFilter, actualHasFilter)
+			}
 		}
 
 		delete(l.services, svcID)
 	}
 
 	if len(l.services) > 0 {
-		l.t.Errorf("got unexpected services: %+v", l.services)
+		var serviceDetails []string
+		for svcID, svc := range l.services {
+			detail := fmt.Sprintf("ID: %s, Parent: %q, Service: %s", svcID, svc.parent, svc.service)
+			serviceDetails = append(serviceDetails, detail)
+		}
+		l.t.Errorf("got unexpected services:\n%s", strings.Join(serviceDetails, "\n"))
 	}
 }
 

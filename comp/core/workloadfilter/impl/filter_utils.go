@@ -129,7 +129,7 @@ func (pf *filterSelection) computeContainerAutodiscoveryFilters(cfg config.Compo
 	flist := make([][]workloadfilter.ContainerFilter, 2)
 
 	high := []workloadfilter.ContainerFilter{workloadfilter.ContainerADAnnotations}
-	low := []workloadfilter.ContainerFilter{workloadfilter.LegacyContainerGlobal}
+	low := []workloadfilter.ContainerFilter{workloadfilter.LegacyContainerGlobal, workloadfilter.ContainerCELGlobal}
 
 	switch filterScope {
 	case workloadfilter.GlobalFilter:
@@ -140,10 +140,10 @@ func (pf *filterSelection) computeContainerAutodiscoveryFilters(cfg config.Compo
 			low = append(low, workloadfilter.LegacyContainerACExclude)
 		}
 	case workloadfilter.MetricsFilter:
-		low = append(low, workloadfilter.LegacyContainerMetrics)
+		low = append(low, workloadfilter.LegacyContainerMetrics, workloadfilter.ContainerCELMetrics)
 		high = append(high, workloadfilter.ContainerADAnnotationsMetrics)
 	case workloadfilter.LogsFilter:
-		low = append(low, workloadfilter.LegacyContainerLogs)
+		low = append(low, workloadfilter.LegacyContainerLogs, workloadfilter.ContainerCELLogs)
 		high = append(high, workloadfilter.ContainerADAnnotationsLogs)
 	default:
 	}
@@ -159,7 +159,7 @@ func (pf *filterSelection) computeContainerSharedMetricFilters(cfg config.Compon
 	flist := make([][]workloadfilter.ContainerFilter, 2)
 
 	high := []workloadfilter.ContainerFilter{workloadfilter.ContainerADAnnotations, workloadfilter.ContainerADAnnotationsMetrics}
-	low := []workloadfilter.ContainerFilter{workloadfilter.LegacyContainerGlobal, workloadfilter.LegacyContainerMetrics}
+	low := []workloadfilter.ContainerFilter{workloadfilter.LegacyContainerGlobal, workloadfilter.LegacyContainerMetrics, workloadfilter.ContainerCELGlobal, workloadfilter.ContainerCELMetrics}
 
 	includeList := cfg.GetStringSlice("container_include")
 	excludeList := cfg.GetStringSlice("container_exclude")
