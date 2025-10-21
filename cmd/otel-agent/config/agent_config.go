@@ -13,7 +13,7 @@ import (
 	"strconv"
 	"strings"
 
-	pkgdatadog "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog"
+	ddfg "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog/featuregates"
 	datadogconfig "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog/config"
 	"go.opentelemetry.io/collector/confmap"
 	"go.opentelemetry.io/collector/confmap/provider/envprovider"
@@ -22,6 +22,7 @@ import (
 	"go.opentelemetry.io/collector/confmap/provider/httpsprovider"
 	"go.opentelemetry.io/collector/confmap/provider/yamlprovider"
 	"go.opentelemetry.io/collector/service"
+	"go.opentelemetry.io/collector/service/telemetry/otelconftelemetry"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	secretsnoop "github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl"
@@ -129,7 +130,11 @@ func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (confi
 	}
 
 	// Set the right log level. The most verbose setting takes precedence.
-	telemetryLogLevel := sc.Telemetry.Logs.Level
+	teleCfg, ok := sc.Telemetry.(otelconftelemetry.Config)
+	if !ok {
+		return nil, fmt.Errorf("invalid OTel Telemetry configuration type %v", teleCfg)
+	}
+	telemetryLogLevel := teleCfg.Logs.Level
 	telemetryLogMapping, ok := logLevelMap[strings.ToLower(telemetryLogLevel.String())]
 	if !ok {
 		return nil, fmt.Errorf("invalid log level (%v) set in the OTel Telemetry configuration", telemetryLogLevel.String())
@@ -193,7 +198,7 @@ func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (confi
 
 	if pkgconfig.Get("apm_config.features") == nil {
 		apmConfigFeatures := []string{}
-		if !pkgdatadog.OperationAndResourceNameV2FeatureGate.IsEnabled() {
+		if !ddfg.OperationAndResourceNameV2FeatureGate.IsEnabled() {
 			apmConfigFeatures = append(apmConfigFeatures, "disable_operation_and_resource_name_logic_v2")
 		}
 		if ddc.Traces.ComputeTopLevelBySpanKind {
