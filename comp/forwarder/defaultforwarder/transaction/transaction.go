@@ -431,18 +431,12 @@ func (t *HTTPTransaction) internalProcess(ctx context.Context, config config.Com
 		TlmTxDropped.Inc(t.Domain, transactionEndpointName)
 		return resp.StatusCode, body, nil
 	} else if resp.StatusCode == 403 {
-		log.Warnf("API Key invalid (403 response), dropping transaction for %s", logURL)
+		log.Errorf("API Key invalid (403 response), dropping transaction for %s", logURL)
 
-		// Trigger throttled secret refresh on API key error
-		// The refresh won't block - it will check rate limiting and return immediately if throttled
-		go func() {
-			result, err := secrets.Refresh(false)
-			if err != nil {
-				log.Debugf("Secret refresh after 403 failed: %v", err)
-			} else if result != "" {
-				log.Infof("Secret refresh after 403 completed: %s", result)
-			}
-		}()
+		// Trigger throttled secret refresh based on secret_refresh_on_api_key_failure_interval on API key error
+		if _, err := secrets.Refresh(false); err != nil {
+			log.Debugf("Secret refresh after 403 failed: %v", err)
+		}
 
 		TransactionsDroppedByEndpoint.Add(transactionEndpointName, 1)
 		TransactionsDropped.Add(1)
