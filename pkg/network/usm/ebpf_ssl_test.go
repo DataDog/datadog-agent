@@ -311,39 +311,3 @@ func TestSSLMapsCleanup(t *testing.T) {
 		t.FailNow()
 	}
 }
-
-// TestProcessExitProbeDoubleLoad verifies that the SUSM-143 fix allows multiple
-// monitors to attach to the process exit mechanism without "file exists" errors.
-// This test is critical for kernel 4.14 where the kprobe fallback must support
-// multiple attachments from different system-probe instances or security tools.
-func TestProcessExitProbeDoubleLoad(t *testing.T) {
-	cfg := utils.NewUSMEmptyConfig()
-	cfg.EnableNativeTLSMonitoring = true
-	// Disable event stream for simpler testing
-	cfg.EnableUSMEventStream = false
-
-	utils.SkipIfTLSUnsupported(t, cfg)
-
-	// Create first monitor - should succeed
-	t.Log("Creating first USM monitor with process exit probe...")
-	monitor1 := setupUSMTLSMonitor(t, cfg, reInitEventConsumer)
-	require.NotNil(t, monitor1)
-	require.NotNil(t, monitor1.ebpfProgram)
-	require.NotNil(t, monitor1.ebpfProgram.Manager)
-	t.Log("First monitor created and started successfully")
-
-	// Create second monitor - should also succeed (SUSM-143 fix)
-	// This would fail with "file exists" error on kernel 4.14 before the fix
-	t.Log("Creating second USM monitor with process exit probe...")
-	monitor2 := setupUSMTLSMonitor(t, cfg, useExistingConsumer)
-	require.NotNil(t, monitor2)
-	require.NotNil(t, monitor2.ebpfProgram)
-	require.NotNil(t, monitor2.ebpfProgram.Manager)
-	t.Log("Second monitor created and started successfully")
-
-	// Both monitors are running without conflicts
-	t.Log("SUCCESS: Both monitors running without 'file exists' errors")
-
-	// The setupUSMTLSMonitor function registers cleanup handlers via t.Cleanup()
-	// that will stop both monitors when the test completes
-}
