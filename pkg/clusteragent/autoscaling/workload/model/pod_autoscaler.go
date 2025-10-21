@@ -17,6 +17,8 @@ import (
 	datadoghqcommon "github.com/DataDog/datadog-operator/api/datadoghq/common"
 	datadoghq "github.com/DataDog/datadog-operator/api/datadoghq/v1alpha2"
 
+	"github.com/DataDog/datadog-agent/pkg/util/pointer"
+
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -33,6 +35,9 @@ const (
 
 	// statusRetainedActions is the number of horizontal actions kept in status
 	statusRetainedActions = 10
+
+	// statusRetainedRecommendations is the maximum number of horizontal recommendations kept in status
+	statusRetainedRecommendations = 60
 
 	// CustomRecommenderAnnotationKey is the key used to store custom recommender configuration in annotations
 	CustomRecommenderAnnotationKey = "autoscaling.datadoghq.com/custom-recommender"
@@ -74,7 +79,7 @@ type PodAutoscalerInternal struct {
 	horizontalLastActions []datadoghqcommon.DatadogPodAutoscalerHorizontalAction
 
 	// horizontalLastRecommendations is the history of recommendations selected by the horizontal controller
-	horizontalLastRecommendations []HorizontalScalingValues
+	horizontalLastRecommendations []datadoghqcommon.DatadogPodAutoscalerHorizontalRecommendation
 
 	// horizontalLastLimitReason is stored separately as we don't want to keep no-action events in `horizontalLastActions`
 	// i.e. when targetReplicaCount after limits == currentReplicas but we want to surface the last limiting reason anyway.
@@ -202,8 +207,11 @@ func (p *PodAutoscalerInternal) SetActiveScalingValues(currentTime time.Time, ho
 	// Store the recommendation in history if newer
 	if p.scalingValues.Horizontal != nil &&
 		(len(p.horizontalLastRecommendations) == 0 ||
-			p.horizontalLastRecommendations[len(p.horizontalLastRecommendations)-1].Timestamp.Before(p.scalingValues.Horizontal.Timestamp)) {
-		p.horizontalLastRecommendations = addRecommendationToHistory(currentTime, p.horizontalEventsRetention, p.horizontalLastRecommendations, *p.scalingValues.Horizontal)
+			p.horizontalLastRecommendations[len(p.horizontalLastRecommendations)-1].GeneratedAt.Before(pointer.Ptr(metav1.NewTime(p.scalingValues.Horizontal.Timestamp)))) {
+		p.horizontalLastRecommendations = addRecommendationToHistory(currentTime, p.horizontalRecommendationsRetention, p.horizontalLastRecommendations, datadoghqcommon.DatadogPodAutoscalerHorizontalRecommendation{
+			GeneratedAt: metav1.NewTime(p.scalingValues.Horizontal.Timestamp),
+			Replicas:    p.scalingValues.Horizontal.Replicas,
+		})
 	}
 }
 
@@ -309,12 +317,11 @@ func (p *PodAutoscalerInternal) UpdateFromStatus(status *datadoghqcommon.Datadog
 		if len(status.Horizontal.LastActions) > 0 {
 			p.horizontalLastActions = status.Horizontal.LastActions
 
-			// TODO: Store the recommendations history as well, the last actions miss data
-			for _, recommendation := range status.Horizontal.LastActions {
-				if recommendation.RecommendedReplicas != nil {
-					p.horizontalLastRecommendations = addRecommendationToHistory(recommendation.Time.Time, p.horizontalRecommendationsRetention, p.horizontalLastRecommendations, HorizontalScalingValues{
-						Timestamp: recommendation.Time.Time,
-						Replicas:  *recommendation.RecommendedReplicas,
+			for _, recommendation := range status.Horizontal.LastRecommendations {
+				if recommendation.Replicas != 0 {
+					p.horizontalLastRecommendations = addRecommendationToHistory(recommendation.GeneratedAt.Time, p.horizontalRecommendationsRetention, p.horizontalLastRecommendations, datadoghqcommon.DatadogPodAutoscalerHorizontalRecommendation{
+						GeneratedAt: recommendation.GeneratedAt,
+						Replicas:    recommendation.Replicas,
 					})
 				}
 			}
@@ -425,7 +432,7 @@ func (p *PodAutoscalerInternal) HorizontalLastActions() []datadoghqcommon.Datado
 }
 
 // HorizontalLastRecommendations returns the last recommendations
-func (p *PodAutoscalerInternal) HorizontalLastRecommendations() []HorizontalScalingValues {
+func (p *PodAutoscalerInternal) HorizontalLastRecommendations() []datadoghqcommon.DatadogPodAutoscalerHorizontalRecommendation {
 	return p.horizontalLastRecommendations
 }
 
@@ -504,7 +511,7 @@ func (p *PodAutoscalerInternal) BuildStatus(currentTime metav1.Time, currentStat
 	// Produce Horizontal status only if we have a desired number of replicas
 	if p.scalingValues.Horizontal != nil {
 		status.Horizontal = &datadoghqcommon.DatadogPodAutoscalerHorizontalStatus{
-			Target: &datadoghqcommon.DatadogPodAutoscalerHorizontalTargetStatus{
+			Target: &datadoghqcommon.DatadogPodAutoscalerHorizontalRecommendation{
 				Source:      p.scalingValues.Horizontal.Source,
 				GeneratedAt: metav1.NewTime(p.scalingValues.Horizontal.Timestamp),
 				Replicas:    p.scalingValues.Horizontal.Replicas,
@@ -515,6 +522,12 @@ func (p *PodAutoscalerInternal) BuildStatus(currentTime metav1.Time, currentStat
 			firstIndex := max(lenActions-statusRetainedActions, 0)
 
 			status.Horizontal.LastActions = slices.Clone(p.horizontalLastActions[firstIndex:lenActions])
+		}
+
+		if lenRecommendations := len(p.horizontalLastRecommendations); lenRecommendations > 0 {
+			firstIndex := max(lenRecommendations-statusRetainedRecommendations, 0)
+
+			status.Horizontal.LastRecommendations = slices.Clone(p.horizontalLastRecommendations[firstIndex:lenRecommendations])
 		}
 	}
 
@@ -653,7 +666,7 @@ func addHorizontalAction(currentTime time.Time, retention time.Duration, actions
 }
 
 // TODO: We should be able to have a single function with generics
-func addRecommendationToHistory(currentTime time.Time, retention time.Duration, history []HorizontalScalingValues, value HorizontalScalingValues) []HorizontalScalingValues {
+func addRecommendationToHistory(currentTime time.Time, retention time.Duration, history []datadoghqcommon.DatadogPodAutoscalerHorizontalRecommendation, value datadoghqcommon.DatadogPodAutoscalerHorizontalRecommendation) []datadoghqcommon.DatadogPodAutoscalerHorizontalRecommendation {
 	if retention == 0 {
 		history = history[:0]
 		history = append(history, value)
@@ -665,7 +678,7 @@ func addRecommendationToHistory(currentTime time.Time, retention time.Duration, 
 	cutoffIndex := 0
 	for i, h := range history {
 		// The first event after the cutoff time is the oldest event to keep
-		if h.Timestamp.After(cutoffTime) {
+		if h.GeneratedAt.After(cutoffTime) {
 			cutoffIndex = i
 			break
 		}
@@ -740,7 +753,7 @@ func getHorizontalRetentionValues(policy *datadoghq.DatadogPodAutoscalerApplyPol
 	eventsRetention = min(eventsRetention, longestScalingRulePeriodAllowed)
 	recommendationRetention = min(recommendationRetention, longestStabilizationWindowAllowed)
 
-	return
+	return eventsRetention, recommendationRetention
 }
 
 func getLongestScalingRulesPeriod(rules []datadoghqcommon.DatadogPodAutoscalerScalingRule) time.Duration {

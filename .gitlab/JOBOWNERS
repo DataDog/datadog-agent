@@ -27,12 +27,13 @@ security_go_generate_check              @DataDog/agent-security
 prepare_sysprobe_ebpf_functional_tests* @DataDog/ebpf-platform
 prepare_secagent_ebpf_functional_tests* @DataDog/agent-security
 protobuf_test                           @DataDog/multiple
+test_kmt_local_setup*                   @DataDog/ebpf-platform
 
 # Send count metrics about Golang dependencies
 golang_deps_send_count_metrics       @DataDog/agent-runtimes
 # Golang dependency diff generation
-golang_deps_diff                     @DataDog/ebpf-platform
-golang_deps_commenter                @DataDog/ebpf-platform
+golang_deps_diff                     @DataDog/agent-runtimes
+golang_deps_commenter                @DataDog/agent-runtimes
 
 # Binary build
 build_system-probe*                  @DataDog/ebpf-platform
@@ -48,6 +49,7 @@ generate_minimized_btfs_*            @DataDog/ebpf-platform
 
 # Package build
 *agent_dmg*                          @DataDog/agent-build
+bazel:*                              @DataDog/agent-build
 datadog-agent-*                      @DataDog/agent-build
 datadog-ot-agent-*                   @DataDog/agent-build
 dogstatsd-*                          @DataDog/agent-build
@@ -71,11 +73,13 @@ iot_agent_deb*                       @DataDog/agent-build
 iot_agent_suse*                      @DataDog/agent-build
 dogstatsd_suse*                      @DataDog/agent-build
 agent_oci*                           @DataDog/agent-build
+agent_win_oci                        @DataDog/windows-products
 installer_oci*                       @DataDog/agent-build
 ddot_oci*                            @DataDog/agent-build
 ddot_deb*                            @DataDog/agent-build
 ddot_rpm*                            @DataDog/agent-build
 ddot_suse_rpm*                       @DataDog/agent-build
+ddot_win_oci*                        @DataDog/windows-products
 check_pkg_size                       @DataDog/agent-build
 
 # Testing package deploy
@@ -130,6 +134,7 @@ qa_installer_script*                   @DataDog/agent-delivery
 
 # Deploy containers and tags
 deploy_containers*                     @Datadog/agent-delivery
+deploy_latest_rc_only                  @Datadog/agent-delivery
 deploy_mutable_image_tags*             @Datadog/agent-delivery
 deploy_mutable_cws_instrumentation_tags*     @Datadog/agent-delivery
 deploy_mutable_dca_tags*               @Datadog/agent-delivery

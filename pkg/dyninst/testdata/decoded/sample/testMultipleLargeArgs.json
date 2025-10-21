@@ -1,0 +1,200 @@
+[
+  {
+    "service": "sample",
+    "ddsource": "dd_debugger",
+    "logger": {
+      "name": "",
+      "method": "main.testMultipleLargeArgs",
+      "version": 0,
+      "thread_id": "[goid]",
+      "thread_name": ""
+    },
+    "debugger": {
+      "snapshot": {
+        "id": "[id]",
+        "timestamp": "[ts]",
+        "language": "go",
+        "stack": [
+          {
+            "function": "main.testMultipleLargeArgs",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/returns.go",
+            "lineNumber": 293
+          },
+          {
+            "function": "main.executeReturns",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/returns.go",
+            "lineNumber": 420
+          },
+          {
+            "function": "main.main",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
+            "lineNumber": 50
+          },
+          {
+            "function": "runtime.main",
+            "fileName": "runtime/proc.go",
+            "lineNumber": "[lineNumber]"
+          },
+          {
+            "function": "runtime.goexit",
+            "fileName": "runtime/asm_[arch].s",
+            "lineNumber": "[lineNumber]"
+          }
+        ],
+        "probe": {
+          "id": "testMultipleLargeArgs",
+          "location": {
+            "method": "main.testMultipleLargeArgs"
+          }
+        },
+        "captures": {
+          "entry": {
+            "arguments": {
+              "s1": {
+                "type": "main.largeStruct",
+                "fields": {
+                  "a": {
+                    "type": "int",
+                    "value": "101"
+                  },
+                  "b": {
+                    "type": "int",
+                    "value": "102"
+                  },
+                  "c": {
+                    "type": "int",
+                    "value": "103"
+                  },
+                  "d": {
+                    "type": "int",
+                    "value": "104"
+                  },
+                  "e": {
+                    "type": "int",
+                    "value": "105"
+                  },
+                  "f": {
+                    "type": "int",
+                    "value": "106"
+                  },
+                  "g": {
+                    "type": "int",
+                    "value": "107"
+                  },
+                  "h": {
+                    "type": "int",
+                    "value": "108"
+                  },
+                  "i": {
+                    "type": "int",
+                    "value": "109"
+                  },
+                  "j": {
+                    "type": "int",
+                    "value": "110"
+                  }
+                }
+              },
+              "s2": {
+                "type": "main.largeStruct",
+                "fields": {
+                  "a": {
+                    "type": "int",
+                    "value": "111"
+                  },
+                  "b": {
+                    "type": "int",
+                    "value": "112"
+                  },
+                  "c": {
+                    "type": "int",
+                    "value": "113"
+                  },
+                  "d": {
+                    "type": "int",
+                    "value": "114"
+                  },
+                  "e": {
+                    "type": "int",
+                    "value": "115"
+                  },
+                  "f": {
+                    "type": "int",
+                    "value": "116"
+                  },
+                  "g": {
+                    "type": "int",
+                    "value": "117"
+                  },
+                  "h": {
+                    "type": "int",
+                    "value": "118"
+                  },
+                  "i": {
+                    "type": "int",
+                    "value": "119"
+                  },
+                  "j": {
+                    "type": "int",
+                    "value": "120"
+                  }
+                }
+              }
+            }
+          },
+          "return": {
+            "locals": {
+              "~r0": {
+                "type": "main.largeStruct",
+                "fields": {
+                  "a": {
+                    "type": "int",
+                    "value": "1232"
+                  },
+                  "b": {
+                    "type": "int",
+                    "value": "1244"
+                  },
+                  "c": {
+                    "type": "int",
+                    "value": "1256"
+                  },
+                  "d": {
+                    "type": "int",
+                    "value": "1268"
+                  },
+                  "e": {
+                    "type": "int",
+                    "value": "1280"
+                  },
+                  "f": {
+                    "type": "int",
+                    "value": "1292"
+                  },
+                  "g": {
+                    "type": "int",
+                    "value": "1304"
+                  },
+                  "h": {
+                    "type": "int",
+                    "value": "1316"
+                  },
+                  "i": {
+                    "type": "int",
+                    "value": "1328"
+                  },
+                  "j": {
+                    "type": "int",
+                    "value": "1340"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "timestamp": "[ts]",
+    "duration": "[duration]"
+  }
+]

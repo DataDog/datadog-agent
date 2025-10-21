@@ -25,6 +25,7 @@ import (
 	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
+	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
@@ -89,7 +90,7 @@ func parseProcControlGroupsData(data []byte, validateCgroupEntry func(string, st
 			return err
 		}
 
-		if isValid, err = validateCgroupEntry(id, ctrl, path); isValid {
+		if isValid, err = validateCgroupEntry(id, ctrl, path); isValid && err == nil {
 			return nil
 		}
 
@@ -158,8 +159,8 @@ type CGroupContext struct {
 }
 
 var defaultCGroupMountpoints = []string{
+	"/sys/fs/cgroup/systemd", // must stay first for cgroupv1
 	"/sys/fs/cgroup",
-	"/sys/fs/cgroup/unified",
 }
 
 // ErrNoCGroupMountpoint is returned when no cgroup mount point is found
@@ -199,8 +200,17 @@ func newCGroupFS() *CGroupFS {
 	return cfs
 }
 
+func (cfs *CGroupFS) removeMountPointFromCGroupPath(cpath string) string {
+	for _, mount := range cfs.cGroupMountPoints {
+		if strings.HasPrefix(cpath, mount) {
+			return cpath[len(mount):]
+		}
+	}
+	return cpath
+}
+
 // FindCGroupContext returns the container ID, cgroup context and sysfs cgroup path the process belongs to.
-// Returns "" as container ID and sysfs cgroup path, and an empty CGroupContext if the process does not belong to a container.
+// Returns "" as container ID if the process does not belong to a container.
 func (cfs *CGroupFS) FindCGroupContext(tgid, pid uint32) (containerutils.ContainerID, CGroupContext, string, error) {
 	if len(cfs.cGroupMountPoints) == 0 {
 		return "", CGroupContext{}, "", ErrNoCGroupMountpoint
@@ -237,7 +247,11 @@ func (cfs *CGroupFS) FindCGroupContext(tgid, pid uint32) (containerutils.Contain
 			}
 
 			if exists, err = checkPidExists(cgroupPath, pid); err == nil && exists {
-				cgroupID := containerutils.CGroupID(cgroupPath)
+				cgroupID := containerutils.CGroupID(cfs.removeMountPointFromCGroupPath(cgroupPath))
+				if cgroupID == "" {
+					seclog.Warnf("Error finding cgroupID for pid %d in %s, resolved as empty ID", pid, cgroupPath)
+					continue
+				}
 				ctrID := containerutils.FindContainerID(cgroupID)
 				cgroupContext.CGroupID = cgroupID
 				containerID = ctrID
@@ -253,12 +267,16 @@ func (cfs *CGroupFS) FindCGroupContext(tgid, pid uint32) (containerutils.Contain
 				} else if err = unix.Stat(cgroupPath, &fileStats); err == nil {
 					cgroupContext.CGroupFileInode = fileStats.Ino
 				}
-
-				return true, err
+				if err == nil {
+					return true, nil
+				}
+				seclog.Warnf("Unable to stat cgroup path %s", cgroupPath)
 			}
 		}
-
-		// return the lastest error
+		// not found
+		if err == nil {
+			err = os.ErrNotExist
+		}
 		return false, err
 	})
 	if err != nil {
@@ -283,11 +301,40 @@ func checkPidExists(sysFScGroupPath string, expectedPid uint32) (bool, error) {
 	}
 	scanner := bufio.NewScanner(bytes.NewReader(data))
 	for scanner.Scan() {
-		if pid, err := strconv.Atoi(strings.TrimSpace(scanner.Text())); err == nil && uint32(pid) == expectedPid {
+		if pid, err := strconv.ParseUint(strings.TrimSpace(scanner.Text()), 10, 32); err == nil && uint32(pid) == expectedPid {
 			return true, nil
 		}
 	}
 	return false, nil
+}
+
+// GetCgroupPids returns the list of PIDs attached to the given cgroup name
+func (cfs *CGroupFS) GetCgroupPids(cgroupName string) ([]uint32, error) {
+	var data []byte
+	var err error
+	for _, cgroupMountPoint := range cfs.cGroupMountPoints {
+		data, err = os.ReadFile(filepath.Join(cgroupMountPoint, cgroupName, "cgroup.procs"))
+		if err != nil {
+			// the cgroup is in threaded mode, and in that case, reading cgroup.procs returns ENOTSUP.
+			// see https://github.com/opencontainers/runc/issues/3821
+			if errors.Is(err, unix.ENOTSUP) {
+				if data, err = os.ReadFile(filepath.Join(cgroupMountPoint, cgroupName, "cgroup.threads")); err != nil {
+					continue
+				}
+			} else {
+				continue
+			}
+		}
+		scanner := bufio.NewScanner(bytes.NewReader(data))
+		res := []uint32{}
+		for scanner.Scan() {
+			if pid, err := strconv.ParseUint(strings.TrimSpace(scanner.Text()), 10, 32); err == nil {
+				res = append(res, uint32(pid))
+			}
+		}
+		return res, nil
+	}
+	return []uint32{}, err
 }
 
 // GetCgroup2MountPoint checks if cgroup v2 is available and returns its mount point
@@ -346,7 +393,7 @@ func (cfs *CGroupFS) detectCurrentCgroupPath(currentPid, currentNSPid uint32) {
 				if err == nil {
 					scanner := bufio.NewScanner(bytes.NewReader(data))
 					for scanner.Scan() {
-						if pid, err := strconv.Atoi(strings.TrimSpace(scanner.Text())); err == nil && uint32(pid) == currentNSPid {
+						if pid, err := strconv.ParseUint(strings.TrimSpace(scanner.Text()), 10, 32); err == nil && uint32(pid) == currentNSPid {
 							cgroupPath = filepath.Dir(path)
 							return fs.SkipAll
 						}

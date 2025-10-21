@@ -1,6 +1,7 @@
 ---
 include:
   - .gitlab/.pre/include.yml
+  - .gitlab/bazel/*.yaml
   - .gitlab/benchmarks/include.yml
   - .gitlab/binary_build/include.yml
   - .gitlab/check_deploy/check_deploy.yml
@@ -163,24 +164,26 @@ variables:
   # Build images versions
   # To use images from datadog-agent-buildimages dev branches, set the corresponding
   # SUFFIX variable to
-  CI_IMAGE_BTF_GEN: v74233691-a301f846
+  CI_IMAGE_BTF_GEN: v79330459-0f2eff53
   CI_IMAGE_BTF_GEN_SUFFIX: ""
-  CI_IMAGE_DOCKER_X64: v74233691-a301f846
+  CI_IMAGE_DOCKER_X64: v79330459-0f2eff53
   CI_IMAGE_DOCKER_X64_SUFFIX: ""
-  CI_IMAGE_DOCKER_ARM64: v74233691-a301f846
+  CI_IMAGE_DOCKER_ARM64: v79330459-0f2eff53
   CI_IMAGE_DOCKER_ARM64_SUFFIX: ""
-  CI_IMAGE_GITLAB_AGENT_DEPLOY: v74233691-a301f846
+  CI_IMAGE_GITLAB_AGENT_DEPLOY: v79330459-0f2eff53
   CI_IMAGE_GITLAB_AGENT_DEPLOY_SUFFIX: ""
-  CI_IMAGE_LINUX: v74233691-a301f846
+  CI_IMAGE_LINUX: v79330459-0f2eff53
   CI_IMAGE_LINUX_SUFFIX: ""
-  CI_IMAGE_RPM_X64: v74233691-a301f846
+  CI_IMAGE_RPM_X64: v79330459-0f2eff53
   CI_IMAGE_RPM_X64_SUFFIX: ""
-  CI_IMAGE_RPM_ARM64: v74233691-a301f846
+  CI_IMAGE_RPM_ARM64: v79330459-0f2eff53
   CI_IMAGE_RPM_ARM64_SUFFIX: ""
-  CI_IMAGE_RPM_ARMHF: v74233691-a301f846
+  CI_IMAGE_RPM_ARMHF: v79330459-0f2eff53
   CI_IMAGE_RPM_ARMHF_SUFFIX: ""
-  CI_IMAGE_WIN_LTSC2022_X64: v74592374-475a6a2b
+  CI_IMAGE_WIN_LTSC2022_X64: v79330459-0f2eff53
   CI_IMAGE_WIN_LTSC2022_X64_SUFFIX: ""
+  CI_IMAGE_WIN_LTSC2025_X64: v79330459-0f2eff53
+  CI_IMAGE_WIN_LTSC2025_X64_SUFFIX: ""
 
   DATADOG_AGENT_EMBEDDED_PATH: /opt/datadog-agent/embedded
   DEB_GPG_KEY_ID: c0962c7d
@@ -223,9 +226,9 @@ variables:
   ATLASSIAN_WRITE: atlassian-write # agent-devx
   CODECOV: codecov # agent-devx
   DOCKER_REGISTRY_RO: dockerhub-readonly # agent-delivery
+  DYNAMIC_TESTS_BREAKGLASS: dynamic-tests-breakglass # agent-devx
   E2E_AZURE: e2e-azure # agent-devx
   E2E_GCP: e2e-gcp # agent-devx
-  GITLAB_TOKEN: gitlab-token # agent-devx
   INSTALL_SCRIPT_API_KEY_ORG2: install-script-api-key-org-2 # agent-devx
   MACOS_GITHUB_APP_1: macos-github-app-one # agent-devx
   MACOS_GITHUB_APP_2: macos-github-app-two # agent-devx
@@ -523,7 +526,7 @@ workflow:
   - <<: *if_installer_tests
   - <<: *if_auto_e2e_tests
     variables:
-      E2E_OSVERS: $E2E_BRANCH_OSVERS
+      E2E_DESCRIPTORS: $E2E_BRANCH_DESCRIPTORS
 
 .security_agent_change_paths: &security_agent_change_paths
   - pkg/ebpf/**/*
@@ -765,8 +768,10 @@ workflow:
   - !reference [.on_e2e_main_release_or_rc]
   - changes:
       paths:
-        - cmd/agent/dist/conf.d/service_discovery.d/*
+        - cmd/agent/dist/conf.d/discovery.d/*
+        - comp/core/autodiscovery/providers/process_log.go
         - test/new-e2e/tests/discovery/**/*
+        - pkg/collector/corechecks/discovery/**/*
         - pkg/collector/corechecks/servicediscovery/**/*
         - pkg/discovery/**/*
       compare_to: $COMPARE_TO_BRANCH
@@ -897,7 +902,10 @@ workflow:
   - !reference [.on_e2e_main_release_or_rc]
   - changes:
       paths:
+        - cmd/system-probe/modules/traceroute.go
         - pkg/collector/corechecks/networkpath/**/*
+        - pkg/networkpath/**/*
+        - comp/networkpath/**/*
         - test/new-e2e/tests/netpath/**/*
         - test/new-e2e/go.mod
       compare_to: $COMPARE_TO_BRANCH
@@ -985,6 +993,10 @@ workflow:
 .on_scheduled_main:
   - <<: *if_scheduled_main
     when: always
+
+.on_scheduled_main_on_success:
+  - <<: *if_scheduled_main
+    when: on_success
 
 .on_main_or_rc_and_no_skip_e2e:
   - <<: *if_disable_e2e_tests
@@ -1085,15 +1097,6 @@ workflow:
         - tasks/**/*
       compare_to: $COMPARE_TO_BRANCH
 
-.on_powershell_module_or_e2e_changes_or_manual:
-  - !reference [.on_e2e_main_release_or_rc]
-  - changes:
-      paths:
-        - test/new-e2e/tests/windows/powershell-module-test/*
-      compare_to: $COMPARE_TO_BRANCH
-  - when: manual
-    allow_failure: true
-
 .on_gpu_or_e2e_changes:
   - !reference [.on_e2e_main_release_or_rc]
   - changes:
@@ -1121,6 +1124,9 @@ workflow:
   - <<: *if_coverage_pipeline
     when: never
 
+.on_coverage_pipeline:
+  - <<: *if_coverage_pipeline
+    when: on_success
 .always_on_coverage_pipeline:
   - <<: *if_coverage_pipeline
     when: always

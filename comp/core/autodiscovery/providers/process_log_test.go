@@ -6,16 +6,22 @@
 package providers
 
 import (
+	"encoding/json"
 	"os"
+	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
+	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
+	taggertypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata"
+	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -38,12 +44,143 @@ func skipOnWindows(t *testing.T) {
 	}
 }
 
+func TestProcessLogProviderDiscoverIntegrationSources(t *testing.T) {
+	// Create temporary directories with mock integration config files
+	tempDir := t.TempDir()
+	confdDir := filepath.Join(tempDir, "confd")
+
+	// Mock the confd_path configuration
+	originalConfig := configmock.New(t)
+	originalConfig.SetWithoutSource("confd_path", confdDir)
+
+	// Create nginx integration in confd directory
+	nginxDir := filepath.Join(confdDir, "nginx.d")
+	err := os.MkdirAll(nginxDir, 0755)
+	require.NoError(t, err)
+
+	nginxConf := filepath.Join(nginxDir, "conf.yaml.example")
+	nginxContent := `# logs:
+#   - type: file
+#     path: /var/log/nginx/access.log
+#     source: nginx
+#     service: nginx
+`
+	err = os.WriteFile(nginxConf, []byte(nginxContent), 0644)
+	require.NoError(t, err)
+
+	// Create apache integration with multiple source patterns
+	apacheDir := filepath.Join(confdDir, "apache.d")
+	err = os.MkdirAll(apacheDir, 0755)
+	require.NoError(t, err)
+
+	apacheConf := filepath.Join(apacheDir, "conf.yaml.example")
+	apacheContent := `# logs:
+#   - type: file
+#     path: /var/log/apache2/access.log
+#     source: apache
+#   - type: file
+#     path: /var/log/apache2/error.log
+#     source: apache2
+`
+	err = os.WriteFile(apacheConf, []byte(apacheContent), 0644)
+	require.NoError(t, err)
+
+	apacheConf2 := filepath.Join(apacheDir, "conf.yaml")
+	apacheContent2 := `# logs:
+   - type: file
+     path: /var/log/apache2/access.log
+     source: "apache3
+`
+	err = os.WriteFile(apacheConf2, []byte(apacheContent2), 0644)
+	require.NoError(t, err)
+
+	// Create postgresql integration with multi-line format
+	postgresqlDir := filepath.Join(confdDir, "postgresql.d")
+	err = os.MkdirAll(postgresqlDir, 0755)
+	require.NoError(t, err)
+
+	postgresqlConf := filepath.Join(postgresqlDir, "conf.yaml.example")
+	postgresqlContent := `## Log Section
+##
+## logs:
+##   - type: file
+##     path: /var/log/postgres/postgresql.log
+#     source: postgresql
+##   - type: file
+##     path: /var/log/postgres/postgres.log
+#     source: postgresql
+`
+	err = os.WriteFile(postgresqlConf, []byte(postgresqlContent), 0644)
+	require.NoError(t, err)
+
+	// Create integration without source (should be ignored)
+	noSourceDir := filepath.Join(confdDir, "nosource.d")
+	err = os.MkdirAll(noSourceDir, 0755)
+	require.NoError(t, err)
+
+	noSourceConf := filepath.Join(noSourceDir, "conf.yaml.example")
+	noSourceContent := `# logs:
+#   - type: file
+#     path: /var/log/nosource.log
+#     service: nosource
+`
+	err = os.WriteFile(noSourceConf, []byte(noSourceContent), 0644)
+	require.NoError(t, err)
+
+	// Test discovery
+	sources := discoverIntegrationSources()
+
+	// Verify discovered sources from confd_path
+	assert.True(t, sources["nginx"], "Should discover nginx source from confd")
+	assert.True(t, sources["apache"], "Should discover apache source from confd")
+	assert.True(t, sources["apache2"], "Should discover apache2 source from confd")
+	assert.True(t, sources["apache3"], "Should discover apache3 source from confd")
+	assert.True(t, sources["postgresql"], "Should discover postgresql source from confd")
+
+	// Verify that integrations without source comments are not discovered
+	assert.False(t, sources["nosource"], "Should not discover sources without source comments")
+
+	// Test that function scans multiple directories by verifying it includes
+	// sources from both the confd_path we set and the dist path (if it exists)
+	// Note: The actual dist path scanning will work in production, but we test
+	// the basic functionality with the confd_path we can control
+	assert.GreaterOrEqual(t, len(sources), 3, "Should discover at least 3 sources")
+
+	// Verify agent process names are automatically added when integration sources exist
+	assert.True(t, sources["system-probe"], "Should include system-probe")
+
+	// Test edge cases
+	t.Run("empty confd_path", func(t *testing.T) {
+		emptyConfig := configmock.New(t)
+		emptyConfig.SetWithoutSource("confd_path", "")
+
+		// Should still work with just dist path (if it exists)
+		emptySources := discoverIntegrationSources()
+		// Should be a map (possibly empty if no dist directory exists)
+		assert.NotNil(t, emptySources)
+	})
+
+	t.Run("non-existent confd_path", func(t *testing.T) {
+		nonExistentConfig := configmock.New(t)
+		nonExistentConfig.SetWithoutSource("confd_path", "/non/existent/path")
+
+		// Should still work with just dist path (if it exists)
+		nonExistentSources := discoverIntegrationSources()
+		assert.NotNil(t, nonExistentSources)
+	})
+
+	t.Run("no agent names when no integration sources", func(t *testing.T) {
+		sources := discoverIntegrationSources()
+		assert.False(t, sources["system-probe"], "Should NOT include agent name system-probe when no integration sources found")
+	})
+}
+
 func (p *processLogConfigProvider) processEventsNoVerifyReadable(evBundle workloadmeta.EventBundle) integration.ConfigChanges {
 	return p.processEventsInner(evBundle, false)
 }
 
 func TestProcessLogProviderEvents(t *testing.T) {
-	provider, err := NewProcessLogConfigProvider(nil, nil, nil)
+	provider, err := NewProcessLogConfigProvider(nil, nil, nil, nil)
 	require.NoError(t, err)
 
 	p, ok := provider.(*processLogConfigProvider)
@@ -58,7 +195,9 @@ func TestProcessLogProviderEvents(t *testing.T) {
 		},
 		Pid: 123,
 		Service: &workloadmeta.Service{
-			DDService:     "test-service",
+			UST: workloadmeta.UST{
+				Service: "test-service",
+			},
 			GeneratedName: "test-service-gen",
 			LogFiles:      []string{logPath},
 		},
@@ -107,7 +246,7 @@ func TestProcessLogProviderEvents(t *testing.T) {
 
 // TestProcessLogProviderNoLogFile tests that a process without a log file doesn't generate a config
 func TestProcessLogProviderNoLogFile(t *testing.T) {
-	provider, err := NewProcessLogConfigProvider(nil, nil, nil)
+	provider, err := NewProcessLogConfigProvider(nil, nil, nil, nil)
 	require.NoError(t, err)
 
 	p, ok := provider.(*processLogConfigProvider)
@@ -120,7 +259,9 @@ func TestProcessLogProviderNoLogFile(t *testing.T) {
 		},
 		Pid: 123,
 		Service: &workloadmeta.Service{
-			DDService:     "test-service",
+			UST: workloadmeta.UST{
+				Service: "test-service",
+			},
 			GeneratedName: "test-service-gen",
 			LogFiles:      []string{},
 		},
@@ -140,7 +281,7 @@ func TestProcessLogProviderNoLogFile(t *testing.T) {
 }
 
 func TestProcessLogProviderMultipleLogSources(t *testing.T) {
-	provider, err := NewProcessLogConfigProvider(nil, nil, nil)
+	provider, err := NewProcessLogConfigProvider(nil, nil, nil, nil)
 	require.NoError(t, err)
 
 	p, ok := provider.(*processLogConfigProvider)
@@ -156,7 +297,9 @@ func TestProcessLogProviderMultipleLogSources(t *testing.T) {
 		},
 		Pid: 123,
 		Service: &workloadmeta.Service{
-			DDService:     "test-service",
+			UST: workloadmeta.UST{
+				Service: "test-service",
+			},
 			GeneratedName: "test-service-gen",
 			LogFiles:      []string{logPath1, logPath2},
 		},
@@ -188,7 +331,7 @@ func TestProcessLogProviderMultipleLogSources(t *testing.T) {
 
 // TestProcessLogProviderMultipleProcesses creates multiple processes and checks that they are all scheduled and unscheduled correctly.
 func TestProcessLogProviderMultipleProcesses(t *testing.T) {
-	provider, err := NewProcessLogConfigProvider(nil, nil, nil)
+	provider, err := NewProcessLogConfigProvider(nil, nil, nil, nil)
 	require.NoError(t, err)
 
 	p, ok := provider.(*processLogConfigProvider)
@@ -204,7 +347,9 @@ func TestProcessLogProviderMultipleProcesses(t *testing.T) {
 		},
 		Pid: 123,
 		Service: &workloadmeta.Service{
-			DDService:     "test-service",
+			UST: workloadmeta.UST{
+				Service: "test-service",
+			},
 			GeneratedName: "test-service-gen",
 			LogFiles:      []string{logPath1},
 		},
@@ -216,7 +361,9 @@ func TestProcessLogProviderMultipleProcesses(t *testing.T) {
 		},
 		Pid: 456,
 		Service: &workloadmeta.Service{
-			DDService:     "test-service-2",
+			UST: workloadmeta.UST{
+				Service: "test-service-2",
+			},
 			GeneratedName: "test-service-2-gen",
 			LogFiles:      []string{logPath2},
 		},
@@ -276,7 +423,7 @@ func TestProcessLogProviderMultipleProcesses(t *testing.T) {
 
 // TestProcessLogProviderReferenceCounting tests the reference counting behavior for multiple processes using the same log file
 func TestProcessLogProviderReferenceCounting(t *testing.T) {
-	provider, err := NewProcessLogConfigProvider(nil, nil, nil)
+	provider, err := NewProcessLogConfigProvider(nil, nil, nil, nil)
 	require.NoError(t, err)
 
 	p, ok := provider.(*processLogConfigProvider)
@@ -292,7 +439,9 @@ func TestProcessLogProviderReferenceCounting(t *testing.T) {
 		},
 		Pid: 123,
 		Service: &workloadmeta.Service{
-			DDService:     "test-service",
+			UST: workloadmeta.UST{
+				Service: "test-service",
+			},
 			GeneratedName: "test-service-gen",
 			LogFiles:      []string{logPath},
 		},
@@ -305,7 +454,9 @@ func TestProcessLogProviderReferenceCounting(t *testing.T) {
 		},
 		Pid: 456,
 		Service: &workloadmeta.Service{
-			DDService:     "test-service",
+			UST: workloadmeta.UST{
+				Service: "test-service",
+			},
 			GeneratedName: "test-service-gen",
 			LogFiles:      []string{logPath},
 		},
@@ -384,7 +535,7 @@ func TestProcessLogProviderReferenceCounting(t *testing.T) {
 
 // TestProcessLogProviderUnscheduleNonExistent tests that unscheduling a non-existent config does not panic.
 func TestProcessLogProviderUnscheduleNonExistent(t *testing.T) {
-	provider, err := NewProcessLogConfigProvider(nil, nil, nil)
+	provider, err := NewProcessLogConfigProvider(nil, nil, nil, nil)
 	require.NoError(t, err)
 
 	p, ok := provider.(*processLogConfigProvider)
@@ -399,7 +550,9 @@ func TestProcessLogProviderUnscheduleNonExistent(t *testing.T) {
 		},
 		Pid: 123,
 		Service: &workloadmeta.Service{
-			DDService:     "test-service",
+			UST: workloadmeta.UST{
+				Service: "test-service",
+			},
 			GeneratedName: "test-service-gen",
 			LogFiles:      []string{logPath},
 		},
@@ -419,7 +572,7 @@ func TestProcessLogProviderUnscheduleNonExistent(t *testing.T) {
 
 // Test that when a process has multiple log files, we get one config for each
 func TestProcessLogProviderOneProcessMultipleLogFiles(t *testing.T) {
-	provider, err := NewProcessLogConfigProvider(nil, nil, nil)
+	provider, err := NewProcessLogConfigProvider(nil, nil, nil, nil)
 	require.NoError(t, err)
 
 	p, ok := provider.(*processLogConfigProvider)
@@ -435,7 +588,9 @@ func TestProcessLogProviderOneProcessMultipleLogFiles(t *testing.T) {
 		},
 		Pid: 123,
 		Service: &workloadmeta.Service{
-			DDService:     "test-service",
+			UST: workloadmeta.UST{
+				Service: "test-service",
+			},
 			GeneratedName: "test-service-gen",
 			LogFiles:      []string{logPath1, logPath2},
 		},
@@ -480,7 +635,7 @@ func TestProcessLogProviderOneProcessMultipleLogFiles(t *testing.T) {
 // TestProcessLogProviderProcessLogFilesChange tests that when a process's log files change in a Set event,
 // the old configs are unscheduled and new ones are scheduled correctly
 func TestProcessLogProviderProcessLogFilesChange(t *testing.T) {
-	provider, err := NewProcessLogConfigProvider(nil, nil, nil)
+	provider, err := NewProcessLogConfigProvider(nil, nil, nil, nil)
 	require.NoError(t, err)
 
 	p, ok := provider.(*processLogConfigProvider)
@@ -498,7 +653,9 @@ func TestProcessLogProviderProcessLogFilesChange(t *testing.T) {
 		},
 		Pid: 123,
 		Service: &workloadmeta.Service{
-			DDService:     "test-service",
+			UST: workloadmeta.UST{
+				Service: "test-service",
+			},
 			GeneratedName: "test-service-gen",
 			LogFiles:      []string{logPath1},
 		},
@@ -527,7 +684,9 @@ func TestProcessLogProviderProcessLogFilesChange(t *testing.T) {
 		},
 		Pid: 123,
 		Service: &workloadmeta.Service{
-			DDService:     "test-service",
+			UST: workloadmeta.UST{
+				Service: "test-service",
+			},
 			GeneratedName: "test-service-gen",
 			LogFiles:      []string{logPath2, logPath3}, // Different log files
 		},
@@ -587,7 +746,9 @@ func TestProcessLogProviderProcessLogFilesChange(t *testing.T) {
 		},
 		Pid: 123,
 		Service: &workloadmeta.Service{
-			DDService:     "test-service",
+			UST: workloadmeta.UST{
+				Service: "test-service",
+			},
 			GeneratedName: "test-service-gen",
 			LogFiles:      []string{}, // No log files
 		},
@@ -623,7 +784,7 @@ func TestProcessLogProviderProcessLogFilesChange(t *testing.T) {
 func TestProcessLogProviderFileReadabilityVerification(t *testing.T) {
 	skipOnWindows(t)
 
-	provider, err := NewProcessLogConfigProvider(nil, nil, nil)
+	provider, err := NewProcessLogConfigProvider(nil, nil, nil, nil)
 	require.NoError(t, err)
 
 	p, ok := provider.(*processLogConfigProvider)
@@ -649,7 +810,9 @@ func TestProcessLogProviderFileReadabilityVerification(t *testing.T) {
 		},
 		Pid: 123,
 		Service: &workloadmeta.Service{
-			DDService:     "test-service",
+			UST: workloadmeta.UST{
+				Service: "test-service",
+			},
 			GeneratedName: "test-service-gen",
 			LogFiles:      []string{readableFile.Name(), nonReadableFile},
 		},
@@ -716,7 +879,7 @@ func TestProcessLogProviderFileReadabilityWithPermissionDenied(t *testing.T) {
 		t.Skip("Skipping permission test when running as root")
 	}
 
-	provider, err := NewProcessLogConfigProvider(nil, nil, nil)
+	provider, err := NewProcessLogConfigProvider(nil, nil, nil, nil)
 	require.NoError(t, err)
 
 	p, ok := provider.(*processLogConfigProvider)
@@ -744,7 +907,9 @@ func TestProcessLogProviderFileReadabilityWithPermissionDenied(t *testing.T) {
 		},
 		Pid: 123,
 		Service: &workloadmeta.Service{
-			DDService:     "test-service",
+			UST: workloadmeta.UST{
+				Service: "test-service",
+			},
 			GeneratedName: "test-service-gen",
 			LogFiles:      []string{tempFile.Name()},
 		},
@@ -882,7 +1047,9 @@ func TestProcessLogProviderServiceName(t *testing.T) {
 			name: "returns TracerMetadata ServiceName if present",
 			service: workloadmeta.Service{
 				GeneratedName: "foo",
-				DDService:     "bar",
+				UST: workloadmeta.UST{
+					Service: "bar",
+				},
 				TracerMetadata: []tracermetadata.TracerMetadata{
 					{ServiceName: "tracer-service"},
 				},
@@ -893,7 +1060,9 @@ func TestProcessLogProviderServiceName(t *testing.T) {
 			name: "returns DDService if TracerMetadata is empty and DDService is set",
 			service: workloadmeta.Service{
 				GeneratedName: "foo",
-				DDService:     "bar",
+				UST: workloadmeta.UST{
+					Service: "bar",
+				},
 			},
 			want: "bar",
 		},
@@ -935,8 +1104,10 @@ func TestProcessLogProviderAgentExclude(t *testing.T) {
 					Pid:  123,
 					Name: "agent",
 					Service: &workloadmeta.Service{
-						DDService: "agent",
-						LogFiles:  []string{agentLogPath},
+						UST: workloadmeta.UST{
+							Service: "agent",
+						},
+						LogFiles: []string{agentLogPath},
 					},
 				},
 			},
@@ -950,8 +1121,10 @@ func TestProcessLogProviderAgentExclude(t *testing.T) {
 					Pid:  456,
 					Name: "not-agent",
 					Service: &workloadmeta.Service{
-						DDService: "not-agent",
-						LogFiles:  []string{notAgentLogPath},
+						UST: workloadmeta.UST{
+							Service: "not-agent",
+						},
+						LogFiles: []string{notAgentLogPath},
 					},
 				},
 			},
@@ -962,7 +1135,7 @@ func TestProcessLogProviderAgentExclude(t *testing.T) {
 		mockConfig := configmock.New(t)
 		mockConfig.SetWithoutSource("logs_config.process_exclude_agent", excludeAgent)
 
-		provider, err := NewProcessLogConfigProvider(nil, nil, nil)
+		provider, err := NewProcessLogConfigProvider(nil, nil, nil, nil)
 		require.NoError(t, err)
 		p, ok := provider.(*processLogConfigProvider)
 		require.True(t, ok)
@@ -978,6 +1151,150 @@ func TestProcessLogProviderAgentExclude(t *testing.T) {
 	changes = p.processEventsNoVerifyReadable(setBundle)
 	require.Len(t, changes.Schedule, 1)
 	assert.Equal(t, getIntegrationName(notAgentLogPath), changes.Schedule[0].Name)
+}
+
+func TestProcessLogProviderGetSource(t *testing.T) {
+	tests := []struct {
+		name                    string
+		validIntegrationSources map[string]bool
+		generatedName           string
+		generatedNameSource     string
+		language                *languagemodels.Language
+		expectedSource          string
+	}{
+		{
+			name:                    "hardcoded mapping - apache2 to apache",
+			validIntegrationSources: map[string]bool{},
+			generatedName:           "apache2",
+			expectedSource:          "apache",
+		},
+		{
+			name:                    "hardcoded mapping - postgres to postgresql",
+			validIntegrationSources: map[string]bool{},
+			generatedName:           "postgres",
+			expectedSource:          "postgresql",
+		},
+		{
+			name:                    "elasticsearch prefix mapping",
+			validIntegrationSources: map[string]bool{},
+			generatedName:           "org.elasticsearch.bootstrap.Elasticsearch",
+			expectedSource:          "elasticsearch",
+		},
+		{
+			name:                    "sonar prefix mapping",
+			validIntegrationSources: map[string]bool{},
+			generatedName:           "org.sonar.application.App",
+			expectedSource:          "sonarqube",
+		},
+		{
+			name:                    "valid integration source - direct match",
+			validIntegrationSources: map[string]bool{"nginx": true, "redis": true},
+			generatedName:           "nginx",
+			expectedSource:          "nginx",
+		},
+		{
+			name:                    "valid integration source - redis",
+			validIntegrationSources: map[string]bool{"nginx": true, "redis": true},
+			generatedName:           "redis",
+			expectedSource:          "redis",
+		},
+		{
+			name:                    "gunicorn WSGI app - overrides language",
+			validIntegrationSources: map[string]bool{"gunicorn": true},
+			generatedName:           "myapp",
+			generatedNameSource:     "gunicorn",
+			language:                &languagemodels.Language{Name: languagemodels.Python},
+			expectedSource:          "gunicorn",
+		},
+		{
+			name:                    "language fallback - python",
+			validIntegrationSources: map[string]bool{"nginx": true},
+			generatedName:           "myapp",
+			language:                &languagemodels.Language{Name: languagemodels.Python},
+			expectedSource:          "python",
+		},
+		{
+			name:                    "language fallback - go",
+			validIntegrationSources: map[string]bool{"nginx": true},
+			generatedName:           "myapp",
+			language:                &languagemodels.Language{Name: languagemodels.Go},
+			expectedSource:          "go",
+		},
+		{
+			name:                    "language fallback - java",
+			validIntegrationSources: map[string]bool{"nginx": true},
+			generatedName:           "myapp",
+			language:                &languagemodels.Language{Name: languagemodels.Java},
+			expectedSource:          "java",
+		},
+		{
+			name:                    "language fallback - node",
+			validIntegrationSources: map[string]bool{"nginx": true},
+			generatedName:           "myapp",
+			language:                &languagemodels.Language{Name: languagemodels.Node},
+			expectedSource:          "nodejs",
+		},
+		{
+			name:                    "language fallback - ruby",
+			validIntegrationSources: map[string]bool{"nginx": true},
+			generatedName:           "myapp",
+			language:                &languagemodels.Language{Name: languagemodels.Ruby},
+			expectedSource:          "ruby",
+		},
+		{
+			name:                    "language fallback - dotnet",
+			validIntegrationSources: map[string]bool{"nginx": true},
+			generatedName:           "myapp",
+			language:                &languagemodels.Language{Name: languagemodels.Dotnet},
+			expectedSource:          "csharp",
+		},
+		{
+			name:                    "unknown language - uses candidate",
+			validIntegrationSources: map[string]bool{"nginx": true},
+			generatedName:           "myapp",
+			language:                &languagemodels.Language{Name: "unknown"},
+			expectedSource:          "myapp",
+		},
+		{
+			name:                    "no language - uses candidate",
+			validIntegrationSources: map[string]bool{"nginx": true},
+			generatedName:           "myapp",
+			language:                nil,
+			expectedSource:          "myapp",
+		},
+		{
+			name:                    "empty integration sources - uses candidate",
+			validIntegrationSources: map[string]bool{},
+			generatedName:           "unknown-service",
+			expectedSource:          "unknown-service",
+		},
+		{
+			name:                    "not in integration sources but has language - uses language",
+			validIntegrationSources: map[string]bool{"nginx": true},
+			generatedName:           "unknown-service",
+			language:                &languagemodels.Language{Name: languagemodels.Python},
+			expectedSource:          "python",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			provider := &processLogConfigProvider{
+				validIntegrationSources: tt.validIntegrationSources,
+			}
+
+			process := &workloadmeta.Process{
+				Service: &workloadmeta.Service{
+					GeneratedName:       tt.generatedName,
+					GeneratedNameSource: tt.generatedNameSource,
+				},
+				Language: tt.language,
+			}
+
+			result := provider.getSource(process)
+			assert.Equal(t, tt.expectedSource, result)
+		})
+	}
 }
 
 func TestProcessLogProviderIsAgentProcess(t *testing.T) {
@@ -1038,4 +1355,123 @@ func TestProcessLogProviderIsAgentProcess(t *testing.T) {
 			assert.Equal(t, tt.expected, result, "Expected %v for comm '%s'", tt.expected, tt.comm)
 		})
 	}
+}
+
+func TestProcessLogProviderWithUSTTags(t *testing.T) {
+	mockTagger := taggerfxmock.SetupFakeTagger(t)
+
+	provider, err := NewProcessLogConfigProvider(nil, nil, mockTagger, nil)
+	require.NoError(t, err)
+
+	p, ok := provider.(*processLogConfigProvider)
+	require.True(t, ok)
+
+	logPath := "/var/log/webapp.log"
+
+	// Test 1: Process with UST tags
+	t.Run("process with UST tags", func(t *testing.T) {
+		pid := int32(123)
+		processEntityID := taggertypes.NewEntityID(taggertypes.Process, strconv.Itoa(int(pid)))
+		expectedTags := []string{"env:production", "version:1.2.3", "ust_service:webapp"}
+
+		// Set up process tags using the mock's SetTags method
+		mockTagger.SetTags(
+			processEntityID,
+			"workloadmeta",
+			expectedTags, // low cardinality
+			nil,          // orchestrator cardinality
+			nil,          // high cardinality
+			nil,          // standard tags
+		)
+
+		process := &workloadmeta.Process{
+			EntityID: workloadmeta.EntityID{
+				Kind: workloadmeta.KindProcess,
+				ID:   "123",
+			},
+			Name: "webapp",
+			Pid:  pid,
+			Service: &workloadmeta.Service{
+				GeneratedName: "webapp",
+				LogFiles:      []string{logPath},
+			},
+		}
+
+		evBundle := workloadmeta.EventBundle{
+			Events: []workloadmeta.Event{
+				{
+					Type:   workloadmeta.EventTypeSet,
+					Entity: process,
+				},
+			},
+		}
+
+		changes := p.processEventsNoVerifyReadable(evBundle)
+		scheduled := changes.Schedule
+
+		require.Len(t, scheduled, 1, "Expected exactly 1 scheduled config")
+
+		// Verify the config contains the expected tags
+		config := scheduled[0]
+
+		var logConfigs []map[string]interface{}
+		err := json.Unmarshal(config.LogsConfig, &logConfigs)
+		require.NoError(t, err)
+		require.Len(t, logConfigs, 1)
+
+		logConfig := logConfigs[0]
+
+		// Check that tags are present and correct
+		tags, exists := logConfig["tags"]
+		require.True(t, exists, "Expected 'tags' field in log config")
+
+		tagsSlice, ok := tags.([]interface{})
+		require.True(t, ok, "Expected tags to be a slice")
+
+		actualTags := make([]string, len(tagsSlice))
+		for i, tag := range tagsSlice {
+			actualTags[i] = tag.(string)
+		}
+
+		assert.ElementsMatch(t, expectedTags, actualTags, "Tags should match expected values")
+	})
+
+	// Test 2: Tagger returns error - no tags in config
+	t.Run("tagger error no tags", func(t *testing.T) {
+		// Reset the provider state
+		p.serviceLogRefs = make(map[string]*serviceLogRef)
+		p.pidToServiceIDs = make(map[int32][]string)
+
+		pid := int32(999)
+		// Don't set up any tags for this process - tagger will return empty
+
+		process := &workloadmeta.Process{
+			EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindProcess, ID: "999"},
+			Name:     "webapp",
+			Pid:      pid,
+			Service:  &workloadmeta.Service{GeneratedName: "webapp", LogFiles: []string{logPath}},
+		}
+
+		evBundle := workloadmeta.EventBundle{
+			Events: []workloadmeta.Event{{Type: workloadmeta.EventTypeSet, Entity: process}},
+		}
+		changes := p.processEventsNoVerifyReadable(evBundle)
+		scheduled := changes.Schedule
+
+		require.Len(t, scheduled, 1, "Expected exactly 1 scheduled config")
+
+		// Verify the config does not contain tags
+		config := scheduled[0]
+
+		var logConfigs []map[string]interface{}
+		err := json.Unmarshal(config.LogsConfig, &logConfigs)
+		require.NoError(t, err)
+		require.Len(t, logConfigs, 1)
+
+		logConfig := logConfigs[0]
+
+		// Check that tags are not present
+		_, exists := logConfig["tags"]
+		assert.False(t, exists, "Expected no 'tags' field when tagger returns no tags")
+	})
 }

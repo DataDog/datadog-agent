@@ -35,7 +35,6 @@ import (
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
-	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	sbomscanner "github.com/DataDog/datadog-agent/pkg/sbom/scanner"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
@@ -674,17 +673,14 @@ func TestProcessEvents(t *testing.T) {
 
 	cacheDir := t.TempDir()
 
-	cfg := configmock.New(t)
+	cfg := configcomp.NewMockWithOverrides(t, map[string]interface{}{
+		"sbom.cache_directory":                          cacheDir,
+		"sbom.container_image.enabled":                  true,
+		"sbom.container_image.allow_missing_repodigest": true,
+	})
 	wmeta := fxutil.Test[option.Option[workloadmeta.Component]](t, fx.Options(
 		core.MockBundle(),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
-		fx.Replace(configcomp.MockParams{
-			Overrides: map[string]interface{}{
-				"sbom.cache_directory":                          cacheDir,
-				"sbom.container_image.enabled":                  true,
-				"sbom.container_image.allow_missing_repodigest": true,
-			},
-		}),
 	))
 	_, err := sbomscanner.CreateGlobalScanner(cfg, wmeta)
 	assert.Nil(t, err)
@@ -695,7 +691,7 @@ func TestProcessEvents(t *testing.T) {
 
 			workloadmetaStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 				fx.Provide(func() log.Component { return logmock.New(t) }),
-				configcomp.MockModule(),
+				fx.Provide(func() configcomp.Component { return configcomp.NewMock(t) }),
 				fx.Supply(context.Background()),
 				workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 			))

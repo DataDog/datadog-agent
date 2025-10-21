@@ -16,7 +16,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
-	"github.com/DataDog/datadog-agent/pkg/security/secl/model/usersession"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model/utils"
 )
 
@@ -101,6 +100,7 @@ type NetworkContext struct {
 	Destination      IPPortContext `field:"destination"`       // destination of the network packet
 	NetworkDirection uint32        `field:"network_direction"` // SECLDoc[network_direction] Definition:`Network direction of the network packet` Constants:`Network directions`
 	Size             uint32        `field:"size"`              // SECLDoc[size] Definition:`Size in bytes of the network packet`
+	Type             uint32        `field:"type"`              // SECLDoc[type] Definition:`Type of the network packet` Constants:`Network Protocol Types`
 }
 
 // IsZero returns if there is a network context
@@ -298,9 +298,9 @@ func (e *Event) ResolveService() string {
 // UserSessionContext describes the user session context
 // Disclaimer: the `json` tags are used to parse K8s credentials from cws-instrumentation
 type UserSessionContext struct {
-	ID          uint64           `field:"-"`
-	SessionType usersession.Type `field:"-"`
-	Resolved    bool             `field:"-"`
+	ID          uint64 `field:"id"`           // SECLDoc[id] Definition:`Unique identifier of the user session on the host`
+	SessionType int    `field:"session_type"` // SECLDoc[session_type] Definition:`Type of the user session`
+	Resolved    bool   `field:"-"`
 	// Kubernetes User Session context
 	K8SUsername string              `field:"k8s_username,handler:ResolveK8SUsername" json:"username,omitempty"` // SECLDoc[k8s_username] Definition:`Kubernetes username of the user that executed the process`
 	K8SUID      string              `field:"k8s_uid,handler:ResolveK8SUID" json:"uid,omitempty"`                // SECLDoc[k8s_uid] Definition:`Kubernetes UID of the user that executed the process`
@@ -584,6 +584,11 @@ type DNSEvent struct {
 	ID       uint16       `field:"id"` // SECLDoc[id] Definition:`[Experimental] the DNS request ID`
 	Question DNSQuestion  `field:"question"`
 	Response *DNSResponse `field:"response,check:HasResponse"`
+}
+
+// FailedDNSEvent represents a DNS packet that was failed to be decoded (inbound or outbound)
+type FailedDNSEvent struct {
+	Payload []byte `field:"-"`
 }
 
 // DNSResponse represents a DNS response event

@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"os/exec"
 	"path"
 	"path/filepath"
 	"syscall"
@@ -99,6 +100,7 @@ func TestFilterOpenBasenameApprover(t *testing.T) {
 	// stats
 	err = retry.Do(func() error {
 		test.eventMonitor.SendStats()
+		defer test.statsdClient.Flush()
 		if count := test.statsdClient.Get(metrics.MetricEventApproved + ":approver_type:basename"); count == 0 {
 			return fmt.Errorf("expected metrics not found: %+v", test.statsdClient.GetByPrefix(metrics.MetricEventApproved))
 		}
@@ -212,16 +214,25 @@ func TestFilterOpenLeafDiscarderActivityDump(t *testing.T) {
 		Expression: `open.filename =~ "/tmp/no-approver-*"`,
 	}
 
-	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, withStaticOpts(testOpts{enableActivityDump: true}))
+	outputDir := t.TempDir()
+	expectedFormats := []string{"json", "protobuf"}
+	var testActivityDumpTracedEventTypes = []string{"exec", "open"}
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, withStaticOpts(testOpts{
+		enableActivityDump:                  true,
+		activityDumpRateLimiter:             testActivityDumpRateLimiter,
+		activityDumpTracedCgroupsCount:      testActivityDumpTracedCgroupsCount,
+		activityDumpDuration:                testActivityDumpDuration,
+		activityDumpCleanupPeriod:           testActivityDumpCleanupPeriod,
+		activityDumpTracedEventTypes:        testActivityDumpTracedEventTypes,
+		activityDumpLocalStorageDirectory:   outputDir,
+		activityDumpLocalStorageCompression: false,
+		activityDumpLocalStorageFormats:     expectedFormats,
+	}))
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer test.Close()
 
-	if err := test.StopAllActivityDumps(); err != nil {
-		t.Fatal("Can't stop all running activity dumps")
-	}
-	// dockerInstance, err := test.StartACustomDocker("ubuntu")
 	dockerInstance, _, err := test.StartADockerGetDump()
 	if err != nil {
 		t.Fatal(err)
@@ -375,6 +386,7 @@ func runAUIDTest(t *testing.T, test *testModule, goSyscallTester string, eventTy
 	// stats
 	err = retry.Do(func() error {
 		test.eventMonitor.SendStats()
+		defer test.statsdClient.Flush()
 		if count := test.statsdClient.Get(metrics.MetricEventApproved + ":approver_type:auid"); count == 0 {
 			return fmt.Errorf("expected metrics not found: %+v", test.statsdClient.GetByPrefix(metrics.MetricEventApproved))
 		}
@@ -871,6 +883,7 @@ func TestFilterOpenFlagsApprover(t *testing.T) {
 	// stats
 	err = retry.Do(func() error {
 		test.eventMonitor.SendStats()
+		defer test.statsdClient.Flush()
 		if count := test.statsdClient.Get(metrics.MetricEventApproved + ":approver_type:flag"); count == 0 {
 			return fmt.Errorf("expected metrics not found: %+v", test.statsdClient.GetByPrefix(metrics.MetricEventApproved))
 		}
@@ -895,6 +908,7 @@ func TestFilterOpenFlagsApprover(t *testing.T) {
 
 	err = retry.Do(func() error {
 		test.eventMonitor.SendStats()
+		defer test.statsdClient.Flush()
 		if count := test.statsdClient.Get(metrics.MetricEventApproved + ":approver_type:flag"); count == 0 {
 			return fmt.Errorf("expected metrics not found: %+v", test.statsdClient.GetByPrefix(metrics.MetricEventApproved))
 		}
@@ -915,6 +929,67 @@ func TestFilterOpenFlagsApprover(t *testing.T) {
 		return syscall.Close(fd)
 	}, testFile); err == nil {
 		t.Fatal("shouldn't get an event")
+	}
+}
+
+func TestFilterInUpperLayerApprover(t *testing.T) {
+	SkipIfNotAvailable(t)
+
+	if _, err := whichNonFatal("docker"); err != nil {
+		t.Skip("Skip test where docker is unavailable")
+	}
+
+	checkDockerCompatibility(t, "this test requires docker to use overlayfs", func(docker *dockerInfo) bool {
+		return docker.Info["Storage Driver"] != "overlay2"
+	})
+
+	rule := &rules.RuleDefinition{
+		ID:         "test_rule",
+		Expression: `open.file.in_upper_layer`,
+	}
+
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
+	wrapper, err := newDockerCmdWrapper(test.Root(), test.Root(), "busybox", "")
+	if err != nil {
+		t.Fatalf("failed to start docker wrapper: %v", err)
+	}
+
+	wrapper.Run(t, "cat", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+		if err := waitForOpenProbeEvent(test, func() error {
+			cmd := cmdFunc("/bin/cat", []string{"/etc/nsswitch.conf"}, nil)
+			if out, err := cmd.CombinedOutput(); err != nil {
+				return fmt.Errorf("%s: %w", out, err)
+			}
+			return nil
+		}, "/etc/nsswitch.conf"); err == nil {
+			t.Fatal("shouldn't get an event")
+		}
+	})
+
+	test.statsdClient.Flush()
+
+	wrapper.Run(t, "truncate", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+		if err := waitForOpenProbeEvent(test, func() error {
+			cmd := cmdFunc("/bin/truncate", []string{"-s", "0", "/etc/nsswitch.conf"}, nil)
+			if out, err := cmd.CombinedOutput(); err != nil {
+				return fmt.Errorf("%s: %w", out, err)
+			}
+			return nil
+		}, "/etc/nsswitch.conf"); err != nil {
+			t.Fatal(err)
+		}
+	})
+
+	test.sendStats()
+	defer test.statsdClient.Flush()
+
+	if count := test.statsdClient.Get(metrics.MetricEventApproved + ":approver_type:in_upper_layer"); count == 0 {
+		t.Errorf("expected metrics not found: %+v", test.statsdClient.GetByPrefix(metrics.MetricEventApproved))
 	}
 }
 

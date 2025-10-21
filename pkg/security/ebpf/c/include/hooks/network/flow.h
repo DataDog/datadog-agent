@@ -200,7 +200,7 @@ int hook_nf_nat_packet(ctx_t *ctx) {
 __attribute__((always_inline)) void fill_pid_route_from_sflow(struct pid_route_t *route, struct namespaced_flow_t *ns_flow) {
     route->addr[0] = ns_flow->flow.saddr[0];
     route->addr[1] = ns_flow->flow.saddr[1];
-    route->port = ns_flow->flow.sport;
+    route->port = ns_flow->flow.tcp_udp.sport;
     route->netns = ns_flow->netns;
     route->l4_protocol = ns_flow->flow.l4_protocol;
 }

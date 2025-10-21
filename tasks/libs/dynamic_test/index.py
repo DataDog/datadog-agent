@@ -9,6 +9,7 @@ Index format:
 }
 """
 
+import fnmatch
 import json
 import os
 from collections.abc import Iterable
@@ -31,6 +32,8 @@ class IndexKind(Enum):
     """
 
     PACKAGE = "package"
+    FILE = "file"
+    DIFFED_PACKAGE = "diffed_package"
 
 
 class DynamicTestIndex:
@@ -41,7 +44,8 @@ class DynamicTestIndex:
     of which tests should be executed when specific code changes are made.
 
     Index Structure:
-        {
+
+
           "job_name": {
             "package_name": ["test1", "test2", ...],
             "other_package": ["test3", ...]
@@ -55,6 +59,7 @@ class DynamicTestIndex:
     - Efficient merging of multiple indexes
     - JSON serialization for persistence
     - Impact analysis for determining affected tests
+    - * can be used as target to indicate that all the indexed tests should be triggered
 
     Thread Safety:
         This class is not thread-safe. External synchronization is required
@@ -63,8 +68,36 @@ class DynamicTestIndex:
 
     def __init__(self, data: IndexDict | None = None) -> None:
         self._data: IndexDict = {}
+        self._exact_keys: dict[str, dict[str, list[str]]] = {}  # job -> {exact_key -> tests}
+        self._glob_keys: dict[str, dict[str, list[str]]] = {}  # job -> {glob_pattern -> tests}
         if data:
             self._data = self._normalize(data)
+            self._split_keys()
+
+    @staticmethod
+    def _is_blob_pattern(key: str) -> bool:
+        """Check if a key is a blob pattern (contains wildcards)."""
+        return '*' in key or '?' in key or '[' in key
+
+    @staticmethod
+    def _matches_blob_pattern(pattern: str, package: str) -> bool:
+        """Check if a package matches a blob pattern."""
+        return fnmatch.fnmatch(package, pattern)
+
+    def _split_keys(self) -> None:
+        """Split the index keys into exact and glob pattern categories for efficient lookup."""
+        self._exact_keys = {}
+        self._glob_keys = {}
+
+        for job_name, pkg_map in self._data.items():
+            self._exact_keys[job_name] = {}
+            self._glob_keys[job_name] = {}
+
+            for key, tests in pkg_map.items():
+                if self._is_blob_pattern(key):
+                    self._glob_keys[job_name][key] = tests
+                else:
+                    self._exact_keys[job_name][key] = tests
 
     @staticmethod
     def _normalize(data: IndexDict) -> IndexDict:
@@ -99,6 +132,10 @@ class DynamicTestIndex:
 
     # --- Query helpers ---
 
+    def get_jobs(self) -> list[str]:
+        """Get all job names in the index."""
+        return list(self._data.keys())
+
     def get_tests_for_job(self, job_name: str) -> dict[str, list[str]]:
         """Get all package-to-tests mappings for a specific job.
 
@@ -130,6 +167,8 @@ class DynamicTestIndex:
         indexed_tests = set()
         for _, tests in self._data.get(job_name, {}).items():
             for test in tests:
+                if test == "*":
+                    continue
                 indexed_tests.add(test)
         return indexed_tests
 
@@ -140,12 +179,14 @@ class DynamicTestIndex:
 
         Creates job and package entries if they don't exist. Automatically
         deduplicates tests while preserving order of first occurrence.
+        Efficiently adds to the appropriate exact/glob dictionaries.
 
         Args:
             job_name: Name of the CI job
-            package: Name of the code package/component
+            package: Name of the code package/component or blob pattern
             tests: Iterable of test names to add
         """
+        # Add to main data structure
         if job_name not in self._data:
             self._data[job_name] = {}
         if package not in self._data[job_name]:
@@ -155,6 +196,17 @@ class DynamicTestIndex:
             if t not in existing:
                 self._data[job_name][package].append(t)
                 existing.add(t)
+
+        # Add to appropriate processed dictionaries
+        if job_name not in self._exact_keys:
+            self._exact_keys[job_name] = {}
+        if job_name not in self._glob_keys:
+            self._glob_keys[job_name] = {}
+
+        if self._is_blob_pattern(package):
+            self._glob_keys[job_name][package] = self._data[job_name][package]
+        else:
+            self._exact_keys[job_name][package] = self._data[job_name][package]
 
     def merge(self, other: Self) -> None:
         """Merge another index into this one (in-place).
@@ -177,6 +229,9 @@ class DynamicTestIndex:
         This is the core functionality for dynamic test selection - given a list
         of modified packages, return the set of tests that should be executed.
 
+        Supports both exact package matching and blob pattern matching (e.g., cmd/*).
+        Uses pre-split exact/glob keys for efficient lookup.
+
         Args:
             modified_packages: Iterable of package names that have been modified
             job_name: CI job name to restrict the search to
@@ -187,10 +242,22 @@ class DynamicTestIndex:
         """
         impacted: set[str] = set()
 
-        job_map = self._data.get(job_name, {})
+        exact_keys = self._exact_keys.get(job_name, {})
+        glob_keys = self._glob_keys.get(job_name, {})
+
         for pkg in modified_packages:
-            if pkg in job_map:
-                impacted.update(job_map[pkg])
+            # Fast exact match lookup using hash
+            if pkg in exact_keys:
+                impacted.update(exact_keys[pkg])
+
+            # Check glob patterns (only iterate through glob keys)
+            for glob_pattern, tests in glob_keys.items():
+                if self._matches_blob_pattern(glob_pattern, pkg):
+                    impacted.update(tests)
+
+        if "*" in impacted:
+            impacted.remove("*")
+            impacted.update(self.get_indexed_tests_for_job(job_name))
         return impacted
 
     def impacted_tests_per_job(self, modified_packages: Iterable[str]) -> dict[str, set[str]]:
@@ -251,3 +318,12 @@ class DynamicTestIndex:
             skipped[job_name] = self.skipped_tests(modified_packages, job_name)
 
         return skipped
+
+    def triggering_paths(self, job_name: str, test_name: str) -> list[str]:
+        """Determine the triggering path for a specific test.
+
+        Args:
+            job_name: Name of the CI containing the test being queried
+            test_name: Name of the test to get the triggering path for
+        """
+        return list({pkg for pkg, tests in self._data.get(job_name, {}).items() if test_name in tests})

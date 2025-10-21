@@ -71,7 +71,7 @@ type StructField struct {
 	Iterator         *StructField
 	Weight           int64
 	CommentText      string
-	OpOverrides      string
+	OpOverrides      []string
 	Check            string
 	SetHandler       string
 	Alias            string

@@ -14,6 +14,8 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	"github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata"
+	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
@@ -513,6 +515,156 @@ func TestConversions(t *testing.T) {
 							},
 						},
 					},
+				},
+			},
+			expectsError: false,
+		},
+		{
+			name: "event with a process (minimal)",
+			workloadmetaEvent: workloadmeta.Event{
+				Type: workloadmeta.EventTypeSet,
+				Entity: &workloadmeta.Process{
+					EntityID: workloadmeta.EntityID{
+						Kind: workloadmeta.KindProcess,
+						ID:   "1234",
+					},
+					Pid:            1234,
+					NsPid:          5678,
+					Ppid:           1,
+					Name:           "test_process",
+					Cwd:            "/usr/bin",
+					Exe:            "/usr/bin/test_process",
+					Comm:           "test_proc",
+					Cmdline:        []string{"test_process"},
+					Uids:           []int32{1000},
+					Gids:           []int32{1000},
+					ContainerID:    "container123",
+					CreationTime:   createdAt,
+					InjectionState: workloadmeta.InjectionUnknown,
+				},
+			},
+			protoWorkloadmetaEvent: &pb.WorkloadmetaEvent{
+				Type: pb.WorkloadmetaEventType_EVENT_TYPE_SET,
+				Process: &pb.Process{
+					EntityId: &pb.WorkloadmetaEntityId{
+						Kind: pb.WorkloadmetaKind_PROCESS,
+						Id:   "1234",
+					},
+					Pid:            1234,
+					Nspid:          5678,
+					Ppid:           1,
+					Name:           "test_process",
+					Cwd:            "/usr/bin",
+					Exe:            "/usr/bin/test_process",
+					Comm:           "test_proc",
+					Cmdline:        []string{"test_process"},
+					Uids:           []int32{1000},
+					Gids:           []int32{1000},
+					ContainerId:    "container123",
+					CreationTime:   createdAt.Unix(),
+					InjectionState: pb.InjectionState_INJECTION_UNKNOWN,
+				},
+			},
+			expectsError: false,
+		},
+		{
+			name: "event with a process (full)",
+			workloadmetaEvent: workloadmeta.Event{
+				Type: workloadmeta.EventTypeSet,
+				Entity: &workloadmeta.Process{
+					EntityID: workloadmeta.EntityID{
+						Kind: workloadmeta.KindProcess,
+						ID:   "1234",
+					},
+					Pid:          1234,
+					NsPid:        5678,
+					Ppid:         1,
+					Name:         "test_process",
+					Cwd:          "/usr/bin",
+					Exe:          "/usr/bin/test_process",
+					Comm:         "test_proc",
+					Cmdline:      []string{"test_process", "--config", "/etc/config.yaml"},
+					Uids:         []int32{0, 1000},
+					Gids:         []int32{0, 1000},
+					ContainerID:  "container123",
+					CreationTime: createdAt,
+					Language: &languagemodels.Language{
+						Name:    languagemodels.Go,
+						Version: "1.21.0",
+					},
+					InjectionState: workloadmeta.InjectionInjected,
+					Owner: &workloadmeta.EntityID{
+						Kind: workloadmeta.KindContainer,
+						ID:   "container123",
+					},
+					Service: &workloadmeta.Service{
+						GeneratedName:            "test_service",
+						GeneratedNameSource:      "process_name",
+						AdditionalGeneratedNames: []string{"alt_service_name"},
+						TracerMetadata: []tracermetadata.TracerMetadata{
+							{
+								RuntimeID:   "runtime123",
+								ServiceName: "test_service",
+							},
+						},
+						TCPPorts:           []uint16{8080, 9090},
+						UDPPorts:           []uint16{53},
+						APMInstrumentation: true,
+						UST: workloadmeta.UST{
+							Service: "test_service",
+							Env:     "test_env",
+							Version: "test_version",
+						},
+					},
+				},
+			},
+			protoWorkloadmetaEvent: &pb.WorkloadmetaEvent{
+				Type: pb.WorkloadmetaEventType_EVENT_TYPE_SET,
+				Process: &pb.Process{
+					EntityId: &pb.WorkloadmetaEntityId{
+						Kind: pb.WorkloadmetaKind_PROCESS,
+						Id:   "1234",
+					},
+					Pid:          1234,
+					Nspid:        5678,
+					Ppid:         1,
+					Name:         "test_process",
+					Cwd:          "/usr/bin",
+					Exe:          "/usr/bin/test_process",
+					Comm:         "test_proc",
+					Cmdline:      []string{"test_process", "--config", "/etc/config.yaml"},
+					Uids:         []int32{0, 1000},
+					Gids:         []int32{0, 1000},
+					ContainerId:  "container123",
+					CreationTime: createdAt.Unix(),
+					Language: &pb.Language{
+						Name:    "go",
+						Version: "1.21.0",
+					},
+					Owner: &pb.WorkloadmetaEntityId{
+						Kind: pb.WorkloadmetaKind_CONTAINER,
+						Id:   "container123",
+					},
+					Service: &pb.Service{
+						GeneratedName:            "test_service",
+						GeneratedNameSource:      "process_name",
+						AdditionalGeneratedNames: []string{"alt_service_name"},
+						TracerMetadata: []*pb.TracerMetadata{
+							{
+								RuntimeId:   "runtime123",
+								ServiceName: "test_service",
+							},
+						},
+						TcpPorts:           []int32{8080, 9090},
+						UdpPorts:           []int32{53},
+						ApmInstrumentation: true,
+						Ust: &pb.UST{
+							Service: "test_service",
+							Env:     "test_env",
+							Version: "test_version",
+						},
+					},
+					InjectionState: pb.InjectionState_INJECTION_INJECTED,
 				},
 			},
 			expectsError: false,

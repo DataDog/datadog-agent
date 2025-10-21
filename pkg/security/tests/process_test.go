@@ -1911,6 +1911,10 @@ func TestProcessExit(t *testing.T) {
 func TestProcessBusyboxSymlink(t *testing.T) {
 	SkipIfNotAvailable(t)
 
+	if _, err := whichNonFatal("docker"); err != nil {
+		t.Skip("Skip test where docker is unavailable")
+	}
+
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "test_busybox_1",
@@ -1938,8 +1942,7 @@ func TestProcessBusyboxSymlink(t *testing.T) {
 
 	wrapper, err := newDockerCmdWrapper(test.Root(), test.Root(), "alpine", "")
 	if err != nil {
-		t.Skip("docker not available")
-		return
+		t.Fatalf("failed to start docker wrapper: %v", err)
 	}
 
 	wrapper.Run(t, "busybox-1", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
@@ -1994,6 +1997,10 @@ func TestProcessBusyboxSymlink(t *testing.T) {
 func TestProcessBusyboxHardlink(t *testing.T) {
 	SkipIfNotAvailable(t)
 
+	if _, err := whichNonFatal("docker"); err != nil {
+		t.Skip("Skip test where docker is unavailable")
+	}
+
 	checkKernelCompatibility(t, "Not supported on kernels < 5.12", func(kv *kernel.Version) bool {
 		return kv.Code < kernel.Kernel5_12
 	})
@@ -2018,8 +2025,7 @@ func TestProcessBusyboxHardlink(t *testing.T) {
 	// busybox uses hardlinks
 	wrapper, err := newDockerCmdWrapper(test.Root(), test.Root(), "busybox", "")
 	if err != nil {
-		t.Skip("docker not available")
-		return
+		t.Fatalf("failed to create docker wrapper: %v", err)
 	}
 
 	wrapper.Run(t, "busybox-1", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {

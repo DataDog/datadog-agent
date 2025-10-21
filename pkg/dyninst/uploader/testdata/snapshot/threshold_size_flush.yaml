@@ -19,30 +19,35 @@ state:
   timer_set: true
 ---
 now: 0s
+next_flush: 200ms
 event: !enqueue {value: "b"}
 effects:
-  - !send-batch {id: 0, items: 2, bytes: 6}
+  - !send-batch {id: 0, items: 1, bytes: 3}
   - !reset-timer {}
+  - !reset-timer {ts: 200ms (+200ms)}
 state:
-  batch_len: 0
-  current_size: 0
+  batch_len: 1
+  current_size: 3
   inflight: [0]
-  timer_set: false
+  timer_set: true
 ---
 now: 0s
+next_flush: 200ms
 event: !batch-outcome {id: 0, success: true}
 state:
-  batch_len: 0
-  current_size: 0
-  timer_set: false
+  batch_len: 1
+  current_size: 3
+  timer_set: true
 metrics:
   batches_sent: 1 (+1)
-  bytes_sent: 6 (+6)
-  items_sent: 2 (+2)
+  bytes_sent: 3 (+3)
+  items_sent: 1 (+1)
 ---
 now: 0s
 event: !stop {}
+effects:
+  - !reset-timer {}
 state:
-  batch_len: 0
-  current_size: 0
+  batch_len: 1
+  current_size: 3
   timer_set: false

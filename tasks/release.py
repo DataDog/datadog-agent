@@ -12,13 +12,14 @@ import sys
 import tempfile
 import time
 from collections import defaultdict
-from datetime import date
+from datetime import date, datetime
 from time import sleep
 
 from gitlab import GitlabError
 from invoke import Failure, task
 from invoke.exceptions import Exit
 
+from tasks.go import tidy
 from tasks.libs.ciproviders.github_api import GithubAPI, create_release_pr
 from tasks.libs.ciproviders.gitlab_api import get_gitlab_repo
 from tasks.libs.common.color import Color, color_message
@@ -293,13 +294,33 @@ def tag_devel(ctx, release_branch, commit="HEAD", push=True, force=False):
 
 
 @task
-def finish(ctx, release_branch, upstream="origin"):
+def finish(ctx, release_branch, upstream="origin", release_date=None):
     """Updates the release.json file for the new version.
+
+    Args:
+        release_branch: The Git branch from which the release is being finalized.
+            This branch should correspond to the release line you are finishing
+            (for example, "7.69.x"). It is used to determine the major version,
+            update module dependencies, and generate the release artifacts.
+        release_date: Date when the release was done. Expected format YYYY-MM-DD,
+            like '2025-09-03'. (default: today's date)
+        upstream: The name of the remote repository to push the finalized release
+            branch to. This is typically "origin", but can be changed if working
+            with a fork or a differently named remote. (default: "origin")
 
     Updates internal module dependencies with the new version.
     """
-
     # Step 1: Preparation
+
+    # Validate release_date (if provided)
+    if release_date:
+        try:
+            datetime.strptime(release_date, "%Y-%m-%d")
+        except ValueError as err:
+            raise Exit(
+                color_message(f"Invalid date `{release_date}`. Date should be valid and in format YYYY-MM-DD.", "red"),
+                code=1,
+            ) from err
 
     major_version = get_version_major(release_branch)
     print(f"Finishing release for major version {major_version}")
@@ -363,10 +384,10 @@ def finish(ctx, release_branch, upstream="origin"):
 
         # Step 4: Add release changelog preludes
         print(color_message("Adding Agent release changelog prelude", "bold"))
-        _add_prelude(ctx, str(new_version))
+        _add_prelude(ctx, str(new_version), release_date)
 
         print(color_message("Adding DCA release changelog prelude", "bold"))
-        _add_dca_prelude(ctx, str(new_version))
+        _add_dca_prelude(ctx, str(new_version), release_date)
 
         ok = try_git_command(ctx, f"git commit -m 'Add preludes for {new_version} release'")
         if not ok:
@@ -479,8 +500,11 @@ def create_rc(ctx, release_branch, patch_version=False, upstream="origin"):
         print(color_message("Updating Go modules", "bold"))
         update_modules(ctx, version=str(new_highest_version))
 
-        # Step 3: branch out, push branch, then add, and create signed commit with Github API
+        # Step 3: Run tidy task
+        print(color_message("Running `dda inv tidy`", "bold"))
+        tidy(ctx)
 
+        # Step 4: branch out, push branch, then add, and create signed commit with Github API
         print(color_message(f"Branching out to {update_branch}", "bold"))
         ctx.run(f"git checkout -b {update_branch}")
         ctx.run(f"git push --set-upstream {upstream} {update_branch}")
@@ -526,7 +550,7 @@ def create_rc(ctx, release_branch, patch_version=False, upstream="origin"):
             new_final_version,
         )
 
-        # Step 4 - Send a slack message
+        # Step 5 - Send a slack message
         message = f":alert_party: New Agent RC <{pr_url}/s|PR> has been created {new_highest_version}."
         channel = 'agent-release-sync'
         if major_version == 6:

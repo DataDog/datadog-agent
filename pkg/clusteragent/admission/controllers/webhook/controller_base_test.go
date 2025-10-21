@@ -27,6 +27,7 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -34,8 +35,9 @@ import (
 func TestNewController(t *testing.T) {
 	client := fake.NewSimpleClientset()
 	wmeta := fxutil.Test[workloadmeta.Component](t, core.MockBundle(), workloadmetafxmock.MockModule(workloadmeta.NewParams()))
-	datadogConfig := fxutil.Test[config.Component](t, core.MockBundle())
+	datadogConfig := config.NewMock(t)
 	factory := informers.NewSharedInformerFactory(client, time.Duration(0))
+	imageResolver := autoinstrumentation.NewImageResolver(nil, datadogConfig)
 
 	// V1
 	controller := NewController(
@@ -50,6 +52,7 @@ func TestNewController(t *testing.T) {
 		nil,
 		datadogConfig,
 		nil,
+		imageResolver,
 	)
 
 	assert.IsType(t, &ControllerV1{}, controller)
@@ -67,6 +70,7 @@ func TestNewController(t *testing.T) {
 		nil,
 		datadogConfig,
 		nil,
+		imageResolver,
 	)
 
 	assert.IsType(t, &ControllerV1beta1{}, controller)
@@ -133,12 +137,13 @@ func TestAutoInstrumentation(t *testing.T) {
 			wmeta := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 				fx.Supply(config.Params{}),
 				fx.Provide(func() log.Component { return logmock.New(t) }),
-				config.MockModule(),
+				fx.Provide(func() config.Component { return config.NewMock(t) }),
 				workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 			))
 
 			// Create APM webhook.
-			apm, err := generateAutoInstrumentationWebhook(wmeta, mockConfig)
+			imageResolver := autoinstrumentation.NewImageResolver(nil, mockConfig)
+			apm, err := generateAutoInstrumentationWebhook(wmeta, mockConfig, imageResolver)
 			assert.NoError(t, err)
 
 			// Create request.

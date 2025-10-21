@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//nolint:revive // TODO(AML) Fix revive linter
+// Package metrics provides telemetry metrics for the logs agent
 package metrics
 
 import (
@@ -48,9 +48,9 @@ var (
 		[]string{"source"}, "Total number of bytes sent before encoding if any")
 	// RetryCount is the total number of times we have retried payloads that failed to send
 	RetryCount = expvar.Int{}
-	// TlmRetryCountis the total number of times we have retried payloads that failed to send
+	// TlmRetryCount is the total number of times we have retried payloads that failed to send
 	TlmRetryCount = telemetry.NewCounter("logs", "retry_count",
-		nil, "Total number of retried paylaods")
+		nil, "Total number of retried payloads")
 	// RetryTimeSpent is the total time spent retrying payloads that failed to send
 	RetryTimeSpent = expvar.Int{}
 	// EncodedBytesSent is the total number of sent bytes after encoding if any
@@ -70,11 +70,10 @@ var (
 		nil, "Histogram of http sender latency in ms", []float64{10, 25, 50, 75, 100, 250, 500, 1000, 10000})
 	// DestinationExpVars a map of sender utilization metrics for each http destination
 	DestinationExpVars = expvar.Map{}
-	// TODO: Add LogsCollected for the total number of collected logs.
-	//nolint:revive // TODO(AML) Fix revive linter
-	DestinationHttpRespByStatusAndUrl = expvar.Map{}
-	//nolint:revive // TODO(AML) Fix revive linter
-	TlmDestinationHttpRespByStatusAndUrl = telemetry.NewCounter("logs", "destination_http_resp", []string{"status_code", "url"}, "Count of http responses by status code and destination url")
+	// DestinationHTTPRespByStatusAndURL tracks HTTP responses by status code and destination URL
+	DestinationHTTPRespByStatusAndURL = expvar.Map{}
+	// TlmDestinationHTTPRespByStatusAndURL tracks HTTP responses by status code and destination URL
+	TlmDestinationHTTPRespByStatusAndURL = telemetry.NewCounter("logs", "destination_http_resp", []string{"status_code", "url"}, "Count of http responses by status code and destination url")
 
 	// TlmAutoMultilineAggregatorFlush Count of each line flushed from the auto multiline aggregator.
 	TlmAutoMultilineAggregatorFlush = telemetry.NewCounter("logs", "auto_multi_line_aggregator_flush", []string{"truncated", "line_type"}, "Count of each line flushed from the auto multiline aggregator")

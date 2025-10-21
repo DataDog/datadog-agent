@@ -10,8 +10,9 @@ package containercheckimpl
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	"github.com/DataDog/datadog-agent/comp/process/containercheck"
@@ -113,8 +114,8 @@ func TestContainerCheckIsEnabled(t *testing.T) {
 			}
 
 			c := fxutil.Test[containercheck.Component](t, fx.Options(
-				core.MockBundle(),
-				fx.Replace(config.MockParams{Overrides: tc.configs}),
+				fx.Provide(func(t testing.TB) log.Component { return logmock.New(t) }),
+				fx.Provide(func(t testing.TB) config.Component { return config.NewMockWithOverrides(t, tc.configs) }),
 				workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 				fx.Provide(func() statsd.ClientInterface {
 					return &statsd.NoOpClient{}

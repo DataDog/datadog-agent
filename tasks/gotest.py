@@ -21,6 +21,7 @@ from invoke.context import Context
 from invoke.exceptions import Exit
 
 from tasks.build_tags import compute_build_tags_for_flavor
+from tasks.collector import OCB_VERSION
 from tasks.coverage import PROFILE_COV, CodecovWorkaround
 from tasks.devcontainer import run_on_devcontainer
 from tasks.flavor import AgentFlavor
@@ -40,18 +41,14 @@ from tasks.libs.testing.result_json import ActionType, ResultJson
 from tasks.modules import GoModule, get_module_by_path
 from tasks.test_core import DEFAULT_TEST_OUTPUT_JSON, TestResult, process_input_args, process_result
 from tasks.testwasher import TestWasher
-from tasks.update_go import PATTERN_MAJOR_MINOR, PATTERN_MAJOR_MINOR_BUGFIX, update_file
+from tasks.update_go import PATTERN_MAJOR_MINOR, update_file
 
 WINDOWS_MAX_PACKAGES_NUMBER = 150
 WINDOWS_MAX_CLI_LENGTH = 8000  # Windows has a max command line length of 8192 characters
 TRIGGER_ALL_TESTS_PATHS = ["tasks/gotest.py", "tasks/build_tags.py", ".gitlab/source_test/*", ".gitlab-ci.yml"]
 # TODO(songy23): contrib and OCB versions do not match in 0.122. Revert this once 0.123 is released
 OTEL_UPSTREAM_GO_MOD_PATH = (
-    "https://raw.githubusercontent.com/open-telemetry/opentelemetry-collector-contrib/v0.123.0/go.mod"
-)
-# TODO(jackgopack4): move back to OCB_VERSION match once collector v0.133.0 with go 1.24 is used in datadog-agent
-OTEL_UPSTREAM_GO_MOD_PATH_MAIN = (
-    "https://raw.githubusercontent.com/open-telemetry/opentelemetry-collector-contrib/refs/heads/main/go.mod"
+    f"https://raw.githubusercontent.com/open-telemetry/opentelemetry-collector-contrib/v{OCB_VERSION}/go.mod"
 )
 
 
@@ -258,7 +255,6 @@ def test(
     rtloader_root=None,
     python_home_3=None,
     cpus=None,
-    major_version='7',
     timeout=180,
     cache=True,
     test_run_name="",
@@ -272,6 +268,7 @@ def test(
     skip_flakes=False,
     build_stdlib=False,
     test_washer=False,
+    extra_args=None,
     run_on=None,  # noqa: U100, F841. Used by the run_on_devcontainer decorator
 ):
     """
@@ -304,7 +301,6 @@ def test(
         ctx,
         rtloader_root=rtloader_root,
         python_home_3=python_home_3,
-        major_version=major_version,
     )
 
     # Use stdout if no profile is set
@@ -341,7 +337,9 @@ def test(
         '-mod={go_mod} -tags "{go_build_tags}" -gcflags="{gcflags}" -ldflags="{ldflags}" {build_cpus} {race_opt}'
     )
     govet_flags = '-vet=off'
-    gotest_flags = '{verbose} {test_cpus} -timeout {timeout}s -short {covermode_opt} {test_run_arg} {nocache}'
+    gotest_flags = (
+        '{verbose} {test_cpus} -timeout {timeout}s -short {covermode_opt} {test_run_arg} {nocache} {extra_args}'
+    )
     cmd = f'gotestsum {gotestsum_flags} -- {gobuild_flags} {govet_flags} {gotest_flags}'
     args = {
         "go_mod": go_mod,
@@ -359,6 +357,7 @@ def test(
         "rerun_fails": f"--rerun-fails={rerun_fails}" if rerun_fails else "",
         "skip_flakes": "--skip-flake" if skip_flakes else "",
         "gotestsum_format": "standard-verbose" if verbose else "pkgname",
+        "extra_args": extra_args or "",
     }
 
     # Test
@@ -945,79 +944,52 @@ def check_otel_build(ctx):
 
 @task
 def check_otel_module_versions(ctx, fix=False):
-    # Get allowed upstream versions from both sources
-    allowed_versions = []
+    # Get Go version from upstream (e.g., "1.24")
+    upstream_pattern = f"^go {PATTERN_MAJOR_MINOR}\r?$"
+    r = requests.get(OTEL_UPSTREAM_GO_MOD_PATH)
+    upstream_matches = re.findall(upstream_pattern, r.text, flags=re.MULTILINE)
+    if len(upstream_matches) != 1:
+        raise Exit(f"Error parsing upstream go.mod version: {OTEL_UPSTREAM_GO_MOD_PATH}")
+    upstream_major_minor = upstream_matches[0]
 
-    # Try to get go version from the first upstream (v0.123.0 with bugfix pattern)
-    try:
-        r = requests.get(OTEL_UPSTREAM_GO_MOD_PATH)
-        r.raise_for_status()
-        bugfix_pattern = f"^go {PATTERN_MAJOR_MINOR_BUGFIX}\r?$"
-        matches = re.findall(bugfix_pattern, r.text, flags=re.MULTILINE)
-        if len(matches) == 1:
-            allowed_versions.append(matches[0])
-            print(f"Found upstream go version: {matches[0]} from {OTEL_UPSTREAM_GO_MOD_PATH}")
-    except Exception as e:
-        print(f"Warning: Could not fetch upstream go.mod from {OTEL_UPSTREAM_GO_MOD_PATH}: {e}")
+    # Expected version for local modules is the upstream version with .0 patch (e.g., "1.24.0")
+    expected_local_version = f"{upstream_major_minor}.0"
 
-    # Try to get go version from the second upstream (main branch with major.minor pattern)
-    try:
-        r = requests.get(OTEL_UPSTREAM_GO_MOD_PATH_MAIN)
-        r.raise_for_status()
-        major_minor_pattern = f"^go {PATTERN_MAJOR_MINOR}\r?$"
-        matches = re.findall(major_minor_pattern, r.text, flags=re.MULTILINE)
-        if len(matches) == 1:
-            allowed_versions.append(matches[0])
-            print(f"Found upstream go version: {matches[0]} from {OTEL_UPSTREAM_GO_MOD_PATH_MAIN}")
-    except Exception as e:
-        print(f"Warning: Could not fetch upstream go.mod from {OTEL_UPSTREAM_GO_MOD_PATH_MAIN}: {e}")
+    # Pattern to match major.minor.patch format in local modules
+    local_pattern = f"^go {PATTERN_MAJOR_MINOR}\\.\\d+\r?$"
 
-    # If no upstream versions could be determined, raise an error
-    if not allowed_versions:
-        raise Exit("Error: Could not determine go version from either upstream source")
-
-    print(f"Allowed upstream go versions: {allowed_versions}")
+    # Collect all errors instead of failing at the first one
+    format_errors = []
+    version_errors = []
 
     for path, module in get_default_modules().items():
         if module.used_by_otel:
             mod_file = f"./{path}/go.mod"
             with open(mod_file, newline='', encoding='utf-8') as reader:
                 content = reader.read()
+                local_matches = re.findall(local_pattern, content, flags=re.MULTILINE)
+                if len(local_matches) != 1:
+                    format_errors.append(f"{mod_file} does not match expected go directive format")
+                    continue
 
-                # Try to match with both patterns to find the current version format
-                bugfix_pattern = f"^go {PATTERN_MAJOR_MINOR_BUGFIX}\r?$"
-                major_minor_pattern = f"^go {PATTERN_MAJOR_MINOR}\r?$"
-
-                bugfix_matches = re.findall(bugfix_pattern, content, flags=re.MULTILINE)
-                major_minor_matches = re.findall(major_minor_pattern, content, flags=re.MULTILINE)
-
-                current_version = None
-                current_pattern = None
-
-                if len(bugfix_matches) == 1:
-                    current_version = bugfix_matches[0]
-                    current_pattern = bugfix_pattern
-                elif len(major_minor_matches) == 1:
-                    current_version = major_minor_matches[0]
-                    current_pattern = major_minor_pattern
-                else:
-                    raise Exit(
-                        f"{mod_file} does not match expected go directive format (neither major.minor.bugfix nor major.minor)"
-                    )
-
-                # Check if current version matches any of the allowed upstream versions
-                if current_version not in allowed_versions:
+                actual_local_version = local_matches[0]
+                if actual_local_version != expected_local_version:
                     if fix:
-                        # Use the first allowed version for fixing
-                        target_version = allowed_versions[0]
                         update_file(
                             True,
                             mod_file,
-                            current_pattern,
-                            f"go {target_version}",
+                            f"^go {PATTERN_MAJOR_MINOR}\\.\\d+\r?$",
+                            f"go {expected_local_version}",
                         )
-                        print(f"Updated {mod_file} from {current_version} to {target_version}")
                     else:
-                        raise Exit(
-                            f"{mod_file} version {current_version} does not match any allowed upstream versions: {allowed_versions}"
+                        version_errors.append(
+                            f"{mod_file} version {actual_local_version} does not match expected version: {expected_local_version} (derived from upstream {upstream_major_minor})"
                         )
+
+    # Report all errors at once if any were found
+    all_errors = format_errors + version_errors
+    if all_errors:
+        error_msg = "Found the following OTEL module version issues:\n" + "\n".join(
+            f"  - {error}" for error in all_errors
+        )
+        raise Exit(error_msg)

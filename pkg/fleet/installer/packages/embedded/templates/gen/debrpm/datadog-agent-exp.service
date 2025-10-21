@@ -10,14 +10,15 @@ Before=datadog-agent.service
 Type=simple
 PIDFile=/opt/datadog-agent/run/agent.pid
 User=dd-agent
-EnvironmentFile=-/etc/datadog-agent/environment
+EnvironmentFile=-/etc/datadog-agent-exp/environment
 Environment="DD_FLEET_POLICIES_DIR=/etc/datadog-agent/managed/datadog-agent/experiment"
+Environment="DD_INVENTORIES_FIRST_RUN_DELAY=5"
 RuntimeDirectory=datadog
 StartLimitInterval=10
 StartLimitBurst=5
 AmbientCapabilities=CAP_NET_BIND_SERVICE
 Restart=no
-ExecStart=/usr/bin/timeout --kill-after=15s 3000s /opt/datadog-agent/bin/agent/agent run -p /opt/datadog-agent/run/agent.pid
+ExecStart=/usr/bin/timeout --kill-after=15s 3000s /opt/datadog-agent/bin/agent/agent run -c /etc/datadog-agent-exp -p /opt/datadog-agent/run/agent.pid
 ExecStopPost=/bin/false
 
 

@@ -27,6 +27,10 @@ venv*/
 *.log
 /main
 
+# Build System Protocol (Bazel <-> JetBrains IDEs)
+/.bazelbsp/
+# In-workpace cache
+/.cache/
 # Bazel convenience symlinks to output folders
 /bazel-*
 # User specific bazelrc file
@@ -168,6 +172,8 @@ devenv/packer_cache
 test_output.json
 module_test_output.json
 e2e_test_output.json
+e2e_test_output.json.*.part
+junit-out-AgentFlavor.base-*.xml
 
 # doxygen doc & error log
 rtloader/doc

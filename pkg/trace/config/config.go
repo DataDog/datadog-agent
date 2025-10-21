@@ -15,10 +15,9 @@ import (
 	"regexp"
 	"time"
 
-	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
-
 	"github.com/DataDog/datadog-agent/comp/core/tagger/origindetection"
 	"github.com/DataDog/datadog-agent/pkg/obfuscate"
+	ddattributes "github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
@@ -80,7 +79,7 @@ type OTLP struct {
 	ProbabilisticSampling float64
 
 	// AttributesTranslator specifies an OTLP to Datadog attributes translator.
-	AttributesTranslator *attributes.Translator `mapstructure:"-"`
+	AttributesTranslator *ddattributes.Translator `mapstructure:"-"`
 
 	// IgnoreMissingDatadogFields specifies whether we should recompute DD span fields if the corresponding "datadog."
 	// namespaced span attributes are missing. If it is false (default), we will use the incoming "datadog." namespaced
@@ -141,7 +140,9 @@ type ObfuscationConfig struct {
 
 func obfuscationMode(conf *AgentConfig, sqllexerEnabled bool) obfuscate.ObfuscationMode {
 	if conf.SQLObfuscationMode != "" {
-		if conf.SQLObfuscationMode == string(obfuscate.ObfuscateOnly) || conf.SQLObfuscationMode == string(obfuscate.ObfuscateAndNormalize) {
+		if conf.SQLObfuscationMode == string(obfuscate.ObfuscateOnly) ||
+			conf.SQLObfuscationMode == string(obfuscate.NormalizeOnly) ||
+			conf.SQLObfuscationMode == string(obfuscate.ObfuscateAndNormalize) {
 			return obfuscate.ObfuscationMode(conf.SQLObfuscationMode)
 		}
 		log.Warnf("Invalid SQL obfuscator mode %s, falling back to default", conf.SQLObfuscationMode)
@@ -173,15 +174,35 @@ func (o *ObfuscationConfig) Export(conf *AgentConfig) obfuscate.Config {
 		Valkey:               o.Valkey,
 		Memcached:            o.Memcached,
 		CreditCard:           o.CreditCards,
-		Logger:               new(debugLogger),
+		FullLogger:           new(logger),
 		Cache:                o.Cache,
 	}
 }
 
-type debugLogger struct{}
+type logger struct{}
 
-func (debugLogger) Debugf(format string, params ...interface{}) {
+func (logger) Tracef(format string, params ...interface{}) {
+	log.Tracef(format, params...)
+}
+
+func (logger) Debugf(format string, params ...interface{}) {
 	log.Debugf(format, params...)
+}
+
+func (logger) Infof(format string, params ...interface{}) {
+	log.Infof(format, params...)
+}
+
+func (logger) Warnf(format string, params ...interface{}) {
+	log.Warnf(format, params...)
+}
+
+func (logger) Errorf(format string, params ...interface{}) {
+	log.Errorf(format, params...)
+}
+
+func (logger) Criticalf(format string, params ...interface{}) {
+	log.Criticalf(format, params...)
 }
 
 // Enablable can represent any option that has an "enabled" boolean sub-field.
@@ -396,8 +417,6 @@ type AgentConfig struct {
 	// case, the sender will drop failed payloads when it is unable to enqueue
 	// them for another retry.
 	MaxSenderRetries int
-	// HTTP client used in writer connections. If nil, default client values will be used.
-	HTTPClientFunc func() *http.Client `json:"-"`
 	// HTTP Transport used in writer connections. If nil, default transport values will be used.
 	HTTPTransportFunc func() *http.Transport `json:"-"`
 	// ClientStatsFlushInterval specifies the frequency at which the client stats aggregator will flush its buffer.
@@ -515,9 +534,9 @@ type AgentConfig struct {
 	// Lambda function name
 	LambdaFunctionName string
 
-	// Azure container apps tags, in the form of a comma-separated list of
+	// Azure serverless apps tags, in the form of a comma-separated list of
 	// key-value pairs, starting with a comma
-	AzureContainerAppTags string
+	AzureServerlessTags string
 
 	// AuthToken is the auth token for the agent
 	AuthToken string `json:"-"`
@@ -530,6 +549,12 @@ type AgentConfig struct {
 
 	MRFFailoverAPMDefault bool
 	MRFFailoverAPMRC      *bool // failover_apm set by remoteconfig. `nil` if not configured
+
+	// DebugV1Payloads enables debug logging for V1 payloads when they fail to decode
+	DebugV1Payloads bool
+
+	// EnableV1TraceEndpoint enables the V1 trace endpoint, it is hidden by default
+	EnableV1TraceEndpoint bool
 }
 
 // RemoteClient client is used to APM Sampling Updates from a remote source.
@@ -673,10 +698,6 @@ func (c *AgentConfig) UpdateAPIKey(val string) {
 // NewHTTPClient returns a new http.Client to be used for outgoing connections to the
 // Datadog API.
 func (c *AgentConfig) NewHTTPClient() *ResetClient {
-	// If a custom HTTPClientFunc been set, use it. Otherwise use default client values
-	if c.HTTPClientFunc != nil {
-		return NewResetClient(c.ConnectionResetInterval, c.HTTPClientFunc)
-	}
 	return NewResetClient(c.ConnectionResetInterval, func() *http.Client {
 		return &http.Client{
 			Timeout:   10 * time.Second,

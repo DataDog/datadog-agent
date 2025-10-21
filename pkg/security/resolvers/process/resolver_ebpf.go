@@ -579,7 +579,7 @@ func (p *EBPFResolver) RetrieveFileFieldsFromProcfs(filename string) (*model.Fil
 	return &fileFields, nil
 }
 
-func (p *EBPFResolver) insertEntry(entry *model.ProcessCacheEntry, source uint64) {
+func (p *EBPFResolver) insertEntry(entry *model.ProcessCacheEntry, source uint64, newPid bool) {
 	entry.Source = source
 
 	if prev := p.entryCache[entry.Pid]; prev != nil {
@@ -592,7 +592,7 @@ func (p *EBPFResolver) insertEntry(entry *model.ProcessCacheEntry, source uint64
 	// the count will be decremented once the entry is released
 	p.processCacheEntryCount.Inc()
 
-	if p.cgroupResolver != nil && entry.CGroup.CGroupID != "" {
+	if newPid && p.cgroupResolver != nil {
 		// add the new PID in the right cgroup_resolver bucket
 		p.cgroupResolver.AddPID(entry)
 	}
@@ -635,7 +635,7 @@ func (p *EBPFResolver) insertForkEntry(entry *model.ProcessCacheEntry, inode uin
 		}
 	}
 
-	p.insertEntry(entry, source)
+	p.insertEntry(entry, source, true)
 }
 
 func (p *EBPFResolver) insertExecEntry(entry *model.ProcessCacheEntry, inode uint64, source uint64) {
@@ -660,7 +660,7 @@ func (p *EBPFResolver) insertExecEntry(entry *model.ProcessCacheEntry, inode uin
 		entry.IsParentMissing = true
 	}
 
-	p.insertEntry(entry, source)
+	p.insertEntry(entry, source, false)
 }
 
 func (p *EBPFResolver) deleteEntry(pid uint32, exitTime time.Time) {
@@ -1373,7 +1373,7 @@ func (p *EBPFResolver) newEntryFromProcfs(proc *process.Process, filledProc *uti
 		seclog.Debugf("unable to set the type of process, not pid 1, no parent in cache: %+v", entry)
 	}
 
-	p.insertEntry(entry, source)
+	p.insertEntry(entry, source, true)
 
 	seclog.Tracef("New process cache entry added: %s %s %d/%d", entry.Comm, entry.FileEvent.PathnameStr, pid, entry.FileEvent.Inode)
 
@@ -1536,13 +1536,18 @@ func (p *EBPFResolver) UpdateProcessCGroupContext(pid uint32, cgroupContext *mod
 		return false
 	}
 
+	pce.Process.CGroup = *cgroupContext
+	pce.CGroup = *cgroupContext
+
 	if cgroupContext.CGroupID != "" {
 		pce.Process.ContainerID = containerutils.FindContainerID(cgroupContext.CGroupID)
 		pce.ContainerID = pce.Process.ContainerID
-	}
 
-	pce.Process.CGroup = *cgroupContext
-	pce.CGroup = *cgroupContext
+		// update the PID in the right cgroup_resolver bucket
+		if p.cgroupResolver != nil {
+			p.cgroupResolver.AddPID(pce)
+		}
+	}
 
 	return true
 }

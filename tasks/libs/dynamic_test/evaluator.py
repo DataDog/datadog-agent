@@ -12,16 +12,16 @@ Environment variables expected by concrete implementations apply as usual (e.g.,
 
 from __future__ import annotations
 
-import datetime
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 
 from invoke import Context
 
 from tasks.libs.common.color import Color, color_message
-from tasks.libs.common.datadog_api import create_count, get_ci_test_events, send_event, send_metrics
+from tasks.libs.common.datadog_api import get_ci_test_events
 from tasks.libs.dynamic_test.executor import DynTestExecutor
 from tasks.libs.dynamic_test.index import IndexKind
+from tasks.libs.dynamic_test.telemetry import DatadogTelemetryHandler, TelemetryEvent, TelemetryHandler
 
 
 @dataclass
@@ -146,22 +146,33 @@ class DynTestEvaluator(ABC):
         (e.g., DD_SITE, DD_API_KEY, DD_APP_KEY for Datadog implementation).
     """
 
-    def __init__(self, ctx: Context, kind: IndexKind, executor: DynTestExecutor, pipeline_id: str):
+    def __init__(
+        self,
+        ctx: Context,
+        kind: IndexKind,
+        executor: DynTestExecutor,
+        pipeline_id: str,
+        telemetry_handler: TelemetryHandler | None = None,
+    ):
         """Initialize the evaluator.
 
         Note: The index is not loaded during initialization. Call initialize()
-        to load the index and handle any errors with Datadog reporting.
+        to load the index and handle any errors with telemetry reporting.
 
         Args:
             ctx: Invoke context for running shell commands
             kind: Type of index being evaluated
             executor: Executor with lazy index loading capability
             pipeline_id: CI pipeline ID to evaluate against
+            telemetry_handler: Optional telemetry handler for sending events and metrics
         """
         self.ctx = ctx
         self.executor = executor
         self.kind = kind
         self.pipeline_id = pipeline_id
+        self.telemetry_handler = telemetry_handler or DatadogTelemetryHandler(
+            default_tags=[f"pipeline_id:{pipeline_id}", f"index_kind:{kind.value}", "service:dynamic_test_evaluator"]
+        )
 
     @abstractmethod
     def list_tests_for_job(self, job_name: str) -> list[ExecutedTest]:
@@ -189,7 +200,7 @@ class DynTestEvaluator(ABC):
         """Initialize the evaluator's index and send error events on failure.
 
         Triggers the executor's lazy index loading and handles any errors
-        by sending appropriate events to Datadog for monitoring.
+        by sending appropriate events via telemetry handler for monitoring.
 
         Returns:
             bool: True if initialization succeeded, False if it failed
@@ -197,37 +208,39 @@ class DynTestEvaluator(ABC):
         try:
             self.executor.init_index()
             self.index = self.executor.index()
+
+            # Send successful initialization event
+            self._send_initialization_success_event()
             return True
         except RuntimeError as e:
             error_message = str(e)
             if "No ancestor commit found" in error_message:
-                self._send_error_to_datadog(
+                self._send_error_event(
                     error_type="index_not_found",
                     error_message=f"No ancestor commit with index found for {self.executor.commit_sha}. Available indexed commits may be too old or missing.",
                 )
             else:
-                self._send_error_to_datadog(
+                self._send_error_event(
                     error_type="index_initialization_failed",
                     error_message=error_message,
                 )
             return False
         except Exception as e:
-            self._send_error_to_datadog(
+            self._send_error_event(
                 error_type="unexpected_error",
                 error_message=f"Unexpected error initializing index: {str(e)}",
             )
             return False
 
-    def _send_error_to_datadog(self, error_type: str, error_message: str):
-        """Send error event to Datadog when evaluation fails.
+    def _send_error_event(self, error_type: str, error_message: str):
+        """Send error event via telemetry handler when evaluation fails.
 
         Reports issues like missing indexes, backend failures, or other evaluation problems
-        as Datadog events to enable monitoring and alerting on dynamic test system health.
+        as events to enable monitoring and alerting on dynamic test system health.
 
         Args:
             error_type: Type of error (e.g., "index_not_found", "backend_error", "evaluation_failed")
             error_message: Detailed error message for debugging
-            commit_sha: Commit SHA that caused the error (if known)
         """
         event_title = f"Dynamic Test Evaluator Error: {error_type}"
         event_text = f"""
@@ -244,22 +257,26 @@ Dynamic test evaluation failed for pipeline {self.pipeline_id}
 This indicates an issue with the dynamic test system that may affect CI performance.
         """.strip()
 
-        try:
-            send_event(
-                title=event_title,
-                text=event_text,
-                tags=[
-                    f"pipeline_id:{self.pipeline_id}",
-                    f"index_kind:{getattr(self, 'kind', 'unknown')}",
-                    f"error_type:{error_type}",
-                    f"commit_sha:{self.executor.commit_sha}",
-                    "service:dynamic_test_evaluator",
-                ],
-            )
-        except Exception as e:
-            # Fallback to console logging if Datadog event sending fails
-            print(f"Failed to send error event to Datadog: {e}")
-            print(f"Original error - {event_title}: {error_message}")
+        event = TelemetryEvent(
+            title=event_title,
+            text=event_text,
+            alert_type="error",
+            tags=[
+                f"error_type:{error_type}",
+                f"commit_sha:{self.executor.commit_sha}",
+            ],
+        )
+
+        success = self.telemetry_handler.send_event(event)
+        if not success:
+            # Fallback to console logging if telemetry event sending fails
+            print(f"Failed to send error event via telemetry: {event_title}")
+            print(f"Original error: {error_message}")
+
+        # Also increment error metric
+        self.telemetry_handler.count(
+            "dynamic_test.evaluator.errors", tags=[f"error_type:{error_type}", f"commit_sha:{self.executor.commit_sha}"]
+        )
 
     def evaluate(self, changes: list[str]) -> list[EvaluationResult]:
         jobs = list(self.index.to_dict().keys())
@@ -301,33 +318,64 @@ This indicates an issue with the dynamic test system that may affect CI performa
             )
 
     def send_stats_to_datadog(self, results: list[EvaluationResult]):
-        series = []
+        """Send evaluation statistics using both telemetry handler and legacy API.
+
+        Uses telemetry handler for new metrics.
+        """
+        self._send_evaluation_metrics(results)
+
+    def _send_initialization_success_event(self):
+        """Send successful initialization event via telemetry handler."""
+        event = TelemetryEvent(
+            title="Dynamic Test Evaluator Initialized",
+            text=f"Successfully initialized dynamic test evaluator for pipeline {self.pipeline_id}",
+            alert_type="success",
+            tags=[f"commit_sha:{self.executor.commit_sha}"],
+        )
+
+        self.telemetry_handler.send_event(event)
+        self.telemetry_handler.count(
+            "dynamic_test.evaluator.initializations", tags=[f"commit_sha:{self.executor.commit_sha}", "status:success"]
+        )
+
+    def _send_evaluation_metrics(self, results: list[EvaluationResult]):
+        """Send evaluation metrics via telemetry handler."""
         for result in results:
-            series.append(
-                create_count(
-                    metric_name="datadog_agent.ci.dynamic_test.evaluator.actual_executed_tests",
-                    timestamp=int(datetime.datetime.now().timestamp()),
-                    value=result.actual_count(),
-                    tags=["pipeline_id:" + self.pipeline_id, "index_kind:" + self.kind.value, "job:" + result.job_name],
-                )
+            job_tags = [f"job:{result.job_name}"]
+
+            # Send counts via telemetry handler
+            self.telemetry_handler.count(
+                "datadog_agent.ci.dynamic_test.evaluator.actual_executed_tests", result.actual_count(), tags=job_tags
             )
-            series.append(
-                create_count(
-                    metric_name="datadog_agent.ci.dynamic_test.evaluator.predicted_executed_tests",
-                    timestamp=int(datetime.datetime.now().timestamp()),
-                    value=result.predicted_count(),
-                    tags=["pipeline_id:" + self.pipeline_id, "index_kind:" + self.kind.value, "job:" + result.job_name],
-                )
+
+            self.telemetry_handler.count(
+                "datadog_agent.ci.dynamic_test.evaluator.predicted_executed_tests",
+                result.predicted_count(),
+                tags=job_tags,
             )
-            series.append(
-                create_count(
-                    metric_name="datadog_agent.ci.dynamic_test.evaluator.not_executed_failing_tests",
-                    timestamp=int(datetime.datetime.now().timestamp()),
-                    value=result.not_executed_failing_count(),
-                    tags=["pipeline_id:" + self.pipeline_id, "index_kind:" + self.kind.value, "job:" + result.job_name],
-                )
+
+            self.telemetry_handler.count(
+                "datadog_agent.ci.dynamic_test.evaluator.not_executed_failing_tests",
+                result.not_executed_failing_count(),
+                tags=job_tags,
             )
-        send_metrics(series)
+
+            # Calculate efficiency metrics
+            if result.actual_count() > 0:
+                efficiency = result.predicted_count() / result.actual_count()
+                self.telemetry_handler.count(
+                    "datadog_agent.ci.dynamic_test.evaluator.prediction_efficiency", efficiency, tags=job_tags
+                )
+
+            # Send critical miss alerts if there are failing tests that wouldn't be executed
+            if result.not_executed_failing_count() > 0:
+                event = TelemetryEvent(
+                    title=f"Dynamic Test Critical Miss - {result.job_name}",
+                    text=f"Found {result.not_executed_failing_count()} failing tests that would not be executed by the dynamic test index in job {result.job_name}",
+                    alert_type="warning",
+                    tags=[f"job:{result.job_name}", f"failing_tests:{result.not_executed_failing_count()}"],
+                )
+                self.telemetry_handler.send_event(event)
 
     def _evaluate_job(
         self, job: str, current_job_tests: list[ExecutedTest], predicted_tests: set[str]
@@ -340,7 +388,7 @@ This indicates an issue with the dynamic test system that may affect CI performa
         for test in current_job_tests:
             if test.name not in indexed_tests:
                 continue
-            if test.status == "failed" and not test.unreliable_status and test.name not in predicted_executed_tests:
+            if test.status == "fail" and not test.unreliable_status and test.name not in predicted_executed_tests:
                 not_executed_failing_tests.add(test.name)
 
         return EvaluationResult(job, actual_executed_tests, predicted_executed_tests, not_executed_failing_tests)
@@ -381,8 +429,9 @@ class DatadogDynTestEvaluator(DynTestEvaluator):
             - Sets unreliable_status=True for tests marked as flaky by Datadog
             - Queries up to 3 days of historical data
         """
+        escaped_job_name = job_name.replace('"', '\\"')
         events = get_ci_test_events(
-            f'@ci.pipeline.name:DataDog/datadog-agent @ci.pipeline.id:{self.pipeline_id} @ci.job.name:"{job_name.replace('"', '\\"')}"',
+            f'env:prod @ci.pipeline.name:DataDog/datadog-agent @ci.pipeline.id:{self.pipeline_id} @ci.job.name:"{escaped_job_name}"',
             3,
         )
 
@@ -397,6 +446,7 @@ class DatadogDynTestEvaluator(DynTestEvaluator):
             # Only consider root tests, not sub-tests
             if not test_attrs.get("name") or len(test_attrs.get("name").split("/")) > 1:
                 continue
+
             tests.append(
                 ExecutedTest(
                     name=test_attrs.get("name"),

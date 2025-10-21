@@ -17,9 +17,10 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
-	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/symlink"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -211,28 +212,6 @@ func (r *Repository) Delete(ctx context.Context) error {
 	err = os.RemoveAll(r.rootPath)
 	if err != nil {
 		return fmt.Errorf("could not delete root directory for package %w", err)
-	}
-	return nil
-}
-
-// CopyStable copies the stable package to the given destination path.
-func (r *Repository) CopyStable(ctx context.Context, destPath string) (err error) {
-	span, _ := telemetry.StartSpanFromContext(ctx, "repository.CopyStable")
-	defer func() {
-		span.Finish(err)
-	}()
-
-	repository, err := readRepository(r.rootPath, nil)
-	if err != nil {
-		return err
-	}
-	if !repository.stable.Exists() {
-		return fmt.Errorf("stable link does not exist, invalid state")
-	}
-
-	err = copyDirectory(repository.stable.linkPath, destPath)
-	if err != nil {
-		return fmt.Errorf("could not copy directory: %w", err)
 	}
 	return nil
 }
@@ -441,6 +420,7 @@ func (r *repositoryFiles) cleanup(ctx context.Context) error {
 	}
 
 	// remove left-over packages
+	pkgName := filepath.Base(r.rootPath)
 	files, err := os.ReadDir(r.rootPath)
 	if err != nil {
 		return fmt.Errorf("could not read root directory: %w", err)
@@ -458,7 +438,6 @@ func (r *repositoryFiles) cleanup(ctx context.Context) error {
 		}
 
 		pkgRepositoryPath := filepath.Join(r.rootPath, file.Name())
-		pkgName := filepath.Base(r.rootPath)
 
 		if pkgHook, hasHook := r.preRemoveHooks[pkgName]; hasHook {
 			canDelete, err := pkgHook(ctx, pkgRepositoryPath)
@@ -484,6 +463,17 @@ func (r *repositoryFiles) cleanup(ctx context.Context) error {
 		}
 	}
 
+	// special case for the agent package
+	// remove the agent deb/rpm directory if it exists and we have upgraded to an OCI-based agent
+	stablePath, err := filepath.EvalSymlinks(filepath.Join(r.rootPath, stableVersionLink))
+	if err != nil {
+		log.Errorf("could not evaluate symlinks for stable link: %v", err)
+	}
+	if err == nil && runtime.GOOS == "linux" && pkgName == "datadog-agent" && strings.HasPrefix(stablePath, "/opt/datadog-packages/datadog-agent") {
+		if err := os.RemoveAll("/opt/datadog-agent"); err != nil {
+			log.Errorf("could not remove previous agent directory: %v", err)
+		}
+	}
 	return nil
 }
 
@@ -493,7 +483,7 @@ type link struct {
 }
 
 func newLink(linkPath string) (*link, error) {
-	linkExists, err := linkExists(linkPath)
+	linkExists, err := symlink.Exist(linkPath)
 	if err != nil {
 		return nil, fmt.Errorf("could check if link exists: %w", err)
 	}
@@ -502,7 +492,7 @@ func newLink(linkPath string) (*link, error) {
 			linkPath: linkPath,
 		}, nil
 	}
-	packagePath, err := linkRead(linkPath)
+	packagePath, err := symlink.Read(linkPath)
 	if err != nil {
 		return nil, fmt.Errorf("could not read link: %w", err)
 	}
@@ -533,7 +523,7 @@ func (l *link) Target() string {
 }
 
 func (l *link) Set(path string) error {
-	err := linkSet(l.linkPath, path)
+	err := symlink.Set(l.linkPath, path)
 	if err != nil {
 		return fmt.Errorf("could not set link: %w", err)
 	}
@@ -542,7 +532,7 @@ func (l *link) Set(path string) error {
 }
 
 func (l *link) Delete() error {
-	err := linkDelete(l.linkPath)
+	err := symlink.Delete(l.linkPath)
 	if err != nil {
 		return fmt.Errorf("could not delete link: %w", err)
 	}
@@ -569,33 +559,6 @@ func buildFileMap(rootPath string) (map[string]struct{}, error) {
 		return nil, fmt.Errorf("failed to walk directory: %w", err)
 	}
 	return files, nil
-}
-
-// copyDirectory copies a directory from source to target.
-// It preserves the directory structure and file permissions.
-func copyDirectory(sourcePath, targetPath string) error {
-	return filepath.Walk(sourcePath, func(path string, info fs.FileInfo, err error) error {
-		if err != nil {
-			return fmt.Errorf("failed to walk directory: %w", err)
-		}
-
-		if path == sourcePath {
-			// Skip root
-			return nil
-		}
-
-		relPath, err := filepath.Rel(sourcePath, path)
-		if err != nil {
-			return fmt.Errorf("failed to get relative path: %w", err)
-		}
-
-		targetFilePath := filepath.Join(targetPath, relPath)
-		if info.IsDir() {
-			return os.MkdirAll(targetFilePath, info.Mode())
-		}
-
-		return copyFileWithPermissions(path, targetFilePath, info)
-	})
 }
 
 // repairDirectory compares files between source and target directories,

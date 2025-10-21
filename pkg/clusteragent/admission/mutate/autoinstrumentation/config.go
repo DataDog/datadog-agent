@@ -72,11 +72,6 @@ type Config struct {
 	// This is used for picking a default service name for a given pod,
 	// see [[serviceNameMutator]].
 	podMetaAsTags podMetaAsTags
-
-	// version is the version of the autoinstrumentation logic to use.
-	// We don't expose this option to the user, and [[instrumentationV1]]
-	// is deprecated and slated for removal.
-	version version
 }
 
 var excludedContainerNames = map[string]bool{
@@ -93,11 +88,6 @@ func NewConfig(datadogConfig config.Component) (*Config, error) {
 	instrumentationConfig, err := NewInstrumentationConfig(datadogConfig)
 	if err != nil {
 		return nil, err
-	}
-
-	version, err := instrumentationVersion(instrumentationConfig.Version)
-	if err != nil {
-		return nil, fmt.Errorf("invalid version for key apm_config.instrumentation.version: %w", err)
 	}
 
 	initResources, err := initDefaultResources(datadogConfig)
@@ -128,7 +118,6 @@ func NewConfig(datadogConfig config.Component) (*Config, error) {
 		profilingClientLibraryMutator: profilingClientLibraryConfigMutators(datadogConfig),
 		containerFilter:               excludedContainerNamesContainerFilter,
 		podMetaAsTags:                 getPodMetaAsTags(datadogConfig),
-		version:                       version,
 	}, nil
 }
 
@@ -190,9 +179,6 @@ type InstrumentationConfig struct {
 	// the version of the library to inject. If empty, the auto instrumentation will inject all libraries. Full config
 	// key: apm_config.instrumentation.lib_versions
 	LibVersions map[string]string `mapstructure:"lib_versions" json:"lib_versions"`
-	// Version is the version of the autoinstrumentation logic to use. We don't expose this option to the user, and V1
-	// is deprecated and slated for removal. Full config key: apm_config.instrumentation.version
-	Version string `mapstructure:"version" json:"version"`
 	// InjectorImageTag is the tag of the image to use for the auto instrumentation injector library. Full config key:
 	// apm_config.instrumentation.injector_image_tag
 	InjectorImageTag string `mapstructure:"injector_image_tag" json:"injector_image_tag"`
@@ -405,7 +391,7 @@ func getPinnedLibraries(libVersions map[string]string, registry string, checkDef
 			continue
 		}
 
-		info := l.libInfo("", l.libImageName(registry, version))
+		info := l.libInfoWithResolver("", registry, version)
 		log.Infof("Library version %s is specified for language %s, going to use %s", version, lang, info.image)
 		libs = append(libs, info)
 

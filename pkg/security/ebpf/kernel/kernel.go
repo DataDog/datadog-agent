@@ -318,9 +318,10 @@ func (k *Version) IsInRangeCloseOpen(begin kernel.Version, end kernel.Version) b
 	return k.Code != 0 && begin <= k.Code && k.Code < end
 }
 
-// HasNoPreallocMapsInPerfEvent returns true if the kernel supports using non-preallocated maps in perf_event programs
+// HasSafeBPFMemoryAllocations returns true if the kernel supports using non-preallocated maps in perf_event programs
+// and considers using non-preallocated maps in tracing programs as safe
 // See https://github.com/torvalds/linux/commit/274052a2b0ab9f380ce22b19ff80a99b99ecb198
-func (k *Version) HasNoPreallocMapsInPerfEvent() bool {
+func (k *Version) HasSafeBPFMemoryAllocations() bool {
 	return k.Code >= Kernel6_1
 }
 

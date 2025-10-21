@@ -101,4 +101,6 @@ message ClientGroupedStats {
 	repeated string peer_tags = 16;
 	Trilean is_trace_root = 17; // this field's value is equal to span's ParentID == 0.
 	string GRPC_status_code = 18;
+	string HTTP_method = 19; // HTTP method of the request
+	string HTTP_endpoint = 20; // Http route or quantized/simplified URL path
 }

@@ -10,7 +10,6 @@ from tasks.libs.pipeline.notifications import HELP_SLACK_CHANNEL
 PROJECT_NAME = "DataDog/datadog-agent"
 CI_VISIBILITY_JOB_URL = 'https://app.datadoghq.com/ci/pipeline-executions?query=ci_level%3Ajob%20%40ci.pipeline.name%3ADataDog%2Fdatadog-agent%20%40git.branch%3Amain%20%40ci.job.name%3A{name}{extra_flags}&agg_m=count{extra_args}'
 NOTIFICATION_DISCLAIMER = f"If there is something wrong with the notification please contact {HELP_SLACK_CHANNEL}"
-CHANNEL_BROADCAST = '#agent-devx-ops'
 PIPELINES_CHANNEL = '#datadog-agent-pipelines'
 AWS_S3_CP_CMD = "aws s3 cp --only-show-errors --region us-east-1 --sse AES256"
 AWS_S3_LS_CMD = "aws s3api list-objects-v2 --bucket '{bucket}' --prefix '{prefix}/' --delimiter /"

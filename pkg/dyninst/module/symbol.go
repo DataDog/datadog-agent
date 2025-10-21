@@ -8,7 +8,6 @@
 package module
 
 import (
-	"errors"
 	"fmt"
 	"io"
 
@@ -38,49 +37,18 @@ func (n noopSymbolicator) Symbolicate(_ []uint64, _ uint64) ([]symbol.StackFrame
 
 var _ symbol.Symbolicator = noopSymbolicator{}
 
-func newSymbolicator(executable actuator.Executable) (_ symbol.Symbolicator, _ io.Closer, retErr error) {
-	var closer multiCloser
+func newSymbolicator(executable actuator.Executable) (_ symbol.Symbolicator, c io.Closer, retErr error) {
 	defer func() {
-		if retErr != nil {
-			_ = closer.Close()
+		if retErr != nil && c != nil {
+			_ = c.Close()
 		}
 	}()
-	mef, err := object.OpenMMappingElfFile(executable.Path)
+	symbolTable, err := object.OpenGoSymbolTable(executable.Path)
 	if err != nil {
-		return nil, nil, fmt.Errorf("error creating mmapping elf file: %w", err)
+		return nil, nil, fmt.Errorf("error opening go symbol table: %w", err)
 	}
-	closer.closers = append(closer.closers, mef)
-	// Do not close mef here, it must be kept open for the symbolicator to work.
-	// It will be closed when the symbolicator is closed.
-
-	moduledata, err := object.ParseModuleData(mef)
-	if err != nil {
-		return nil, nil, fmt.Errorf("error parsing module data: %w", err)
-	}
-
-	goVersion, err := object.ReadGoVersion(mef)
-	if err != nil {
-		return nil, nil, fmt.Errorf("error parsing go version: %w", err)
-	}
-
-	goDebugSections, err := moduledata.GoDebugSections(mef)
-	if err != nil {
-		return nil, nil, fmt.Errorf("error getting go debug sections: %w", err)
-	}
-	closer.closers = append(closer.closers, goDebugSections)
-	symbolTable, err := gosym.ParseGoSymbolTable(
-		goDebugSections.PcLnTab.Data(),
-		goDebugSections.GoFunc.Data(),
-		moduledata.Text,
-		moduledata.EText,
-		moduledata.MinPC,
-		moduledata.MaxPC,
-		goVersion,
-	)
-	if err != nil {
-		return nil, nil, fmt.Errorf("error parsing go symbol table: %w", err)
-	}
-	symbolicator := symbol.NewGoSymbolicator(symbolTable)
+	c = symbolTable
+	symbolicator := symbol.NewGoSymbolicator(&symbolTable.GoSymbolTable)
 	if symbolicator == nil {
 		return nil, nil, fmt.Errorf("error creating go symbolicator")
 	}
@@ -90,19 +58,5 @@ func newSymbolicator(executable actuator.Executable) (_ symbol.Symbolicator, _ i
 	if err != nil {
 		return nil, nil, fmt.Errorf("error creating caching symbolicator: %w", err)
 	}
-	return cachingSymbolicator, &closer, nil
-}
-
-type multiCloser struct {
-	closers []io.Closer
-}
-
-func (m *multiCloser) Close() error {
-	var errs []error
-	for _, closer := range m.closers {
-		if err := closer.Close(); err != nil {
-			errs = append(errs, err)
-		}
-	}
-	return errors.Join(errs...)
+	return cachingSymbolicator, symbolTable, nil
 }

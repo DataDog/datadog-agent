@@ -1,0 +1,29 @@
+load("@com_github_bazelbuild_buildtools//buildifier:def.bzl", "buildifier", "buildifier_test")
+
+exclude_patterns = [
+    "./.*",  # all "hidden" directories at the root of the workspace: ./.bazelbsp, ./.cache, ./.git, etc.
+]
+
+buildifier(
+    name = "buildifier",
+    buildifier = "@multitool//tools/buildifier",
+    exclude_patterns = exclude_patterns,
+    lint_mode = "fix",
+    mode = "fix",
+)
+
+# PROS of `buildifier_test` over `buildifier`:
+# - renders diffs without having to provide `tkdiff`
+# - also works as a `test` action: `bazel test //bazel/buildifier:test` as well as `bazel test //...`
+# CONS:
+# - requires additional arguments: `no_sandbox` and `workspace`
+buildifier_test(
+    name = "test",
+    buildifier = "@multitool//tools/buildifier",
+    exclude_patterns = exclude_patterns,
+    lint_mode = "warn",
+    lint_warnings = ["-module-docstring"],
+    mode = "diff",
+    no_sandbox = True,
+    workspace = "//:BUILD.bazel",
+)

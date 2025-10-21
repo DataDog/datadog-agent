@@ -31,9 +31,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/generic"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/discovery"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/oomkill"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/tcpqueuelength"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/embed/apm"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/embed/process"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu"
@@ -43,13 +40,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/net/wlan"
 	ciscosdwan "github.com/DataDog/datadog-agent/pkg/collector/corechecks/network-devices/cisco-sdwan"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/network-devices/versa"
+	ncm "github.com/DataDog/datadog-agent/pkg/collector/corechecks/networkconfigmanagement"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/networkpath"
 	nvidia "github.com/DataDog/datadog-agent/pkg/collector/corechecks/nvidia/jetson"
 	oracle "github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/orchestrator/ecs"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/orchestrator/pod"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/sbom"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/cpu/cpu"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/cpu/load"
@@ -69,7 +66,8 @@ import (
 
 // RegisterChecks registers all core checks
 func RegisterChecks(store workloadmeta.Component, filterStore workloadfilter.Component, tagger tagger.Component, cfg config.Component,
-	telemetry telemetry.Component, rcClient rcclient.Component, flare flare.Component) {
+	telemetry telemetry.Component, rcClient rcclient.Component, flare flare.Component,
+) {
 	// Required checks
 	corecheckLoader.RegisterCheck(cpu.CheckName, cpu.Factory())
 	corecheckLoader.RegisterCheck(memory.CheckName, memory.Factory())
@@ -92,11 +90,8 @@ func RegisterChecks(store workloadmeta.Component, filterStore workloadfilter.Com
 	corecheckLoader.RegisterCheck(ksm.CheckName, ksm.Factory(tagger, store))
 	corecheckLoader.RegisterCheck(helm.CheckName, helm.Factory())
 	corecheckLoader.RegisterCheck(pod.CheckName, pod.Factory(store, cfg, tagger))
-	corecheckLoader.RegisterCheck(ebpf.CheckName, ebpf.Factory())
 	corecheckLoader.RegisterCheck(gpu.CheckName, gpu.Factory(tagger, telemetry, store))
 	corecheckLoader.RegisterCheck(ecs.CheckName, ecs.Factory(store, tagger))
-	corecheckLoader.RegisterCheck(oomkill.CheckName, oomkill.Factory(tagger))
-	corecheckLoader.RegisterCheck(tcpqueuelength.CheckName, tcpqueuelength.Factory(tagger))
 	corecheckLoader.RegisterCheck(apm.CheckName, apm.Factory())
 	corecheckLoader.RegisterCheck(process.CheckName, process.Factory())
 	if cfg.GetBool("use_networkv2_check") {
@@ -124,7 +119,9 @@ func RegisterChecks(store workloadmeta.Component, filterStore workloadfilter.Com
 	corecheckLoader.RegisterCheck(containerd.CheckName, containerd.Factory(store, filterStore, tagger))
 	corecheckLoader.RegisterCheck(cri.CheckName, cri.Factory(store, filterStore, tagger))
 	corecheckLoader.RegisterCheck(ciscosdwan.CheckName, ciscosdwan.Factory())
-	corecheckLoader.RegisterCheck(servicediscovery.CheckName, servicediscovery.Factory())
 	corecheckLoader.RegisterCheck(discovery.CheckName, discovery.Factory())
 	corecheckLoader.RegisterCheck(versa.CheckName, versa.Factory())
+	corecheckLoader.RegisterCheck(ncm.CheckName, ncm.Factory(cfg))
+
+	registerSystemProbeChecks(tagger)
 }

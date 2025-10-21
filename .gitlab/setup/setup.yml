@@ -2,7 +2,7 @@
 setup_agent_version:
   stage: setup
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
-  tags: ["arch:amd64"]
+  tags: ["arch:amd64", "specific:true"]
   script:
     - |
       if ! dda inv -- -e agent.version --cache-version > build.env; then
@@ -15,15 +15,19 @@ setup_agent_version:
         echo "Failed to upload agent version cache"
         exit 1
       fi
+    - echo "Agent version:"
+    - cat agent-version.cache
   needs: []
   artifacts:
     reports:
       dotenv: build.env
+  variables:
+    DISABLE_GIT_CACHE: true
 
 github_rate_limit_info:
   stage: .pre
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
-  tags: ["arch:amd64"]
+  tags: ["arch:amd64", "specific:true"]
   rules:
     - !reference [.except_mergequeue]
     - when: on_success

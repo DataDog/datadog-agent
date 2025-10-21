@@ -1774,7 +1774,42 @@ func TestRuleAgentConstraint(t *testing.T) {
 	}
 }
 
-func TestActionSetVariableInvalid(t *testing.T) {
+func TestActionHashField(t *testing.T) {
+	entries := []struct {
+		name        string
+		expr        string
+		field       string
+		errExpected bool
+	}{
+		{"valid", `open.file.path == "/tmp/test"`, "open.file", false},
+		{"wrong field", `open.file.path == "/tmp/test"`, "open.file.path", true},
+		{"incompatible field", `open.file.path == "/tmp/test"`, "chmod.file", true},
+		{"wrong and incompatible", `open.file.path == "/tmp/test"`, "chmod.file.path", true},
+		{"common field", `open.file.path == "/tmp/test"`, "process.file", false},
+	}
+
+	for _, entry := range entries {
+		t.Run(entry.name, func(t *testing.T) {
+			testPolicy := &PolicyDef{
+				Rules: []*RuleDefinition{{
+					ID:         "test_rule",
+					Expression: entry.expr,
+					Actions: []*ActionDefinition{{
+						Hash: &HashDefinition{
+							Field: entry.field,
+						},
+					}},
+				}},
+			}
+
+			if _, err := loadPolicy(t, testPolicy, PolicyLoaderOpts{}); (err != nil) != entry.errExpected {
+				t.Errorf("expected error: %v, got: %v", entry.errExpected, err)
+			}
+		})
+	}
+}
+
+func TestActionSetVariableValidation(t *testing.T) {
 	t.Run("both-field-and-value", func(t *testing.T) {
 		testPolicy := &PolicyDef{
 			Rules: []*RuleDefinition{{
@@ -1958,6 +1993,100 @@ func TestActionSetVariableInvalid(t *testing.T) {
 
 		if _, err := loadPolicy(t, testPolicy, PolicyLoaderOpts{}); err == nil {
 			t.Error("expected policy to fail to load")
+		} else {
+			t.Log(err)
+		}
+	})
+
+	t.Run("incompatible-field-type", func(t *testing.T) {
+		testPolicy := &PolicyDef{
+			Rules: []*RuleDefinition{{
+				ID:         "test_rule",
+				Expression: `open.file.path == "/tmp/test"`,
+				Actions: []*ActionDefinition{{
+					Set: &SetDefinition{
+						Name:   "var1",
+						Field:  "exec.file.path",
+						Append: true,
+					},
+				},
+				}},
+			},
+		}
+
+		if _, err := loadPolicy(t, testPolicy, PolicyLoaderOpts{}); err == nil {
+			t.Error("expected policy to fail to load")
+		} else {
+			t.Log(err)
+		}
+	})
+
+	t.Run("compatible-field-type", func(t *testing.T) {
+		testPolicy := &PolicyDef{
+			Rules: []*RuleDefinition{{
+				ID:         "test_rule",
+				Expression: `open.file.path == "/tmp/test"`,
+				Actions: []*ActionDefinition{{
+					Set: &SetDefinition{
+						Name:   "var1",
+						Field:  "process.file.path",
+						Append: true,
+					},
+				},
+				}},
+			},
+		}
+
+		if _, err := loadPolicy(t, testPolicy, PolicyLoaderOpts{}); err != nil {
+			t.Error("expected policy to fail to load")
+		} else {
+			t.Log(err)
+		}
+	})
+
+	t.Run("incompatible-expression-type", func(t *testing.T) {
+		testPolicy := &PolicyDef{
+			Rules: []*RuleDefinition{{
+				ID:         "test_rule",
+				Expression: `open.file.path == "/tmp/test"`,
+				Actions: []*ActionDefinition{{
+					Set: &SetDefinition{
+						Name:         "var1",
+						Expression:   "exec.file.path",
+						Append:       true,
+						DefaultValue: "",
+					},
+				},
+				}},
+			},
+		}
+
+		if _, err := loadPolicy(t, testPolicy, PolicyLoaderOpts{}); err == nil {
+			t.Error("expected policy to fail to load")
+		} else {
+			t.Log(err)
+		}
+	})
+
+	t.Run("compatible-expression-type", func(t *testing.T) {
+		testPolicy := &PolicyDef{
+			Rules: []*RuleDefinition{{
+				ID:         "test_rule",
+				Expression: `open.file.path == "/tmp/test"`,
+				Actions: []*ActionDefinition{{
+					Set: &SetDefinition{
+						Name:         "var1",
+						Expression:   `"ssh_$${builtins.uuid4}_$${process.pid}"`,
+						Append:       true,
+						DefaultValue: "",
+					},
+				},
+				}},
+			},
+		}
+
+		if _, err := loadPolicy(t, testPolicy, PolicyLoaderOpts{}); err != nil {
+			t.Errorf("expected policy to fail to load: %s", err)
 		} else {
 			t.Log(err)
 		}

@@ -42,6 +42,7 @@ from tasks import (
     issue,
     kmt,
     linter,
+    loader,
     macos,
     modules,
     msi,
@@ -72,6 +73,7 @@ from tasks import (
     testwasher,
     trace_agent,
     vim,
+    virustotal,
     vscode,
     winbuild,
     windows_dev_env,
@@ -198,6 +200,7 @@ ns.add_collection(git)
 ns.add_collection(github_tasks, "github")
 ns.add_collection(gitlab_helpers, "gitlab")
 ns.add_collection(issue)
+ns.add_collection(loader)
 ns.add_collection(package)
 ns.add_collection(pipeline)
 ns.add_collection(quality_gates)
@@ -237,6 +240,7 @@ ns.add_collection(windows_dev_env)
 ns.add_collection(worktree)
 ns.add_collection(sbomgen)
 ns.add_collection(pkg_template)
+ns.add_collection(virustotal)
 ns.configure(
     {
         "run": {

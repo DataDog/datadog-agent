@@ -37,6 +37,8 @@ func (c *ntmConfig) ReadInConfig() error {
 		return log.Errorf("attempt to ReadInConfig before config is constructed")
 	}
 
+	c.maybeRebuild()
+
 	c.Lock()
 	defer c.Unlock()
 
@@ -64,6 +66,8 @@ func (c *ntmConfig) ReadConfig(in io.Reader) error {
 		return log.Errorf("attempt to ReadConfig before config is constructed")
 	}
 
+	c.maybeRebuild()
+
 	c.Lock()
 	defer c.Unlock()
 
@@ -83,7 +87,7 @@ func (c *ntmConfig) ReadConfig(in io.Reader) error {
 func (c *ntmConfig) readInConfig(filePath string) error {
 	content, err := os.ReadFile(filePath)
 	if err != nil {
-		return model.ConfigFileNotFoundError{Err: err}
+		return model.NewConfigFileNotFoundError(err) // nolint: forbidigo // constructing proper error
 	}
 	return c.readConfigurationContent(c.file, model.SourceFile, content)
 }
