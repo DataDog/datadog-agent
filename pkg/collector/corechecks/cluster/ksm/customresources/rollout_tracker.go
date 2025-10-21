@@ -53,6 +53,15 @@ type RolloutOperations interface {
 	CleanupControllerRevision(namespace, name string)
 	HasActiveStatefulSetRollout(sts *appsv1.StatefulSet) bool
 	HasStatefulSetRolloutCondition(sts *appsv1.StatefulSet) bool
+
+	// DaemonSet operations
+	StoreDaemonSet(ds *appsv1.DaemonSet)
+	StoreDaemonSetControllerRevision(cr *appsv1.ControllerRevision, ownerName, ownerUID string)
+	GetDaemonSetRolloutDuration(namespace, daemonSetName string) float64
+	CleanupDaemonSet(namespace, name string)
+	CleanupDaemonSetControllerRevision(namespace, name string)
+	HasActiveDaemonSetRollout(ds *appsv1.DaemonSet) bool
+	HasDaemonSetRolloutCondition(ds *appsv1.DaemonSet) bool
 }
 
 // RolloutTracker manages rollout state for a KSM check instance
@@ -67,7 +76,11 @@ type RolloutTracker struct {
 	statefulSetStartTime  map[string]time.Time // Track when each rollout started
 	controllerRevisionMap map[string]*ControllerRevisionInfo
 
-	mutex sync.RWMutex
+	// DaemonSet tracking
+	daemonSetMap                   map[string]*appsv1.DaemonSet
+	daemonSetStartTime             map[string]time.Time // Track when each rollout started
+	daemonSetControllerRevisionMap map[string]*ControllerRevisionInfo
+	mutex                          sync.RWMutex
 }
 
 // NewRolloutTracker creates a new RolloutTracker instance
@@ -82,6 +95,11 @@ func NewRolloutTracker() *RolloutTracker {
 		statefulSetMap:        make(map[string]*appsv1.StatefulSet),
 		statefulSetStartTime:  make(map[string]time.Time),
 		controllerRevisionMap: make(map[string]*ControllerRevisionInfo),
+
+		// DaemonSet maps
+		daemonSetMap:                   make(map[string]*appsv1.DaemonSet),
+		daemonSetStartTime:             make(map[string]time.Time),
+		daemonSetControllerRevisionMap: make(map[string]*ControllerRevisionInfo),
 	}
 }
 
@@ -370,5 +388,147 @@ func (rt *RolloutTracker) HasStatefulSetRolloutCondition(sts *appsv1.StatefulSet
 	if sts.Status.ReadyReplicas < desiredReplicas {
 		return true
 	}
+	return false
+}
+
+// StoreDaemonSet stores a DaemonSet for rollout tracking
+func (rt *RolloutTracker) StoreDaemonSet(ds *appsv1.DaemonSet) {
+	rt.mutex.Lock()
+	defer rt.mutex.Unlock()
+
+	key := ds.Namespace + "/" + ds.Name
+
+	// Check if this is a new rollout (new DaemonSet OR generation changed)
+	existingDs, exists := rt.daemonSetMap[key]
+	if !exists {
+		rt.daemonSetStartTime[key] = time.Now()
+	} else if existingDs.Generation != ds.Generation {
+		rt.daemonSetStartTime[key] = time.Now()
+	}
+
+	rt.daemonSetMap[key] = ds.DeepCopy()
+}
+
+// StoreDaemonSetControllerRevision stores a ControllerRevision for DaemonSet rollout tracking
+func (rt *RolloutTracker) StoreDaemonSetControllerRevision(cr *appsv1.ControllerRevision, ownerName, ownerUID string) {
+	rt.mutex.Lock()
+	defer rt.mutex.Unlock()
+
+	key := cr.Namespace + "/" + cr.Name
+	rt.daemonSetControllerRevisionMap[key] = &ControllerRevisionInfo{
+		Name:         cr.Name,
+		Namespace:    cr.Namespace,
+		CreationTime: cr.CreationTimestamp.Time,
+		Revision:     cr.Revision,
+		OwnerUID:     ownerUID,
+		OwnerName:    ownerName,
+	}
+
+}
+
+// GetDaemonSetRolloutDuration calculates DaemonSet rollout duration using stored maps
+func (rt *RolloutTracker) GetDaemonSetRolloutDuration(namespace, daemonSetName string) float64 {
+	rt.mutex.RLock()
+	defer rt.mutex.RUnlock()
+
+	daemonSetKey := namespace + "/" + daemonSetName
+
+	// Try to use the newest ControllerRevision creation time, fall back to DaemonSet start time
+	var startTime time.Time
+
+	// First, look for the newest ControllerRevision owned by this DaemonSet
+	var newestCR *ControllerRevisionInfo
+	for _, crInfo := range rt.daemonSetControllerRevisionMap {
+		if crInfo.Namespace == namespace && crInfo.OwnerName == daemonSetName {
+			if newestCR == nil || crInfo.Revision > newestCR.Revision {
+				newestCR = crInfo
+			}
+		}
+	}
+
+	if newestCR != nil {
+		startTime = newestCR.CreationTime
+	} else {
+		// Fall back to DaemonSet start time
+		daemonSetStartTime, hasStartTime := rt.daemonSetStartTime[daemonSetKey]
+		if !hasStartTime || daemonSetStartTime.IsZero() {
+			return 0
+		}
+		startTime = daemonSetStartTime
+	}
+
+	duration := time.Since(startTime)
+	return duration.Seconds()
+}
+
+// CleanupDaemonSet removes a DaemonSet and its ControllerRevisions from tracking
+func (rt *RolloutTracker) CleanupDaemonSet(namespace, name string) {
+	rt.mutex.Lock()
+	defer rt.mutex.Unlock()
+
+	key := namespace + "/" + name
+	// Remove DaemonSet
+	delete(rt.daemonSetMap, key)
+	delete(rt.daemonSetStartTime, key)
+
+	// Remove associated ControllerRevisions
+	for crKey, crInfo := range rt.daemonSetControllerRevisionMap {
+		if crInfo.Namespace == namespace && crInfo.OwnerName == name {
+			delete(rt.daemonSetControllerRevisionMap, crKey)
+		}
+	}
+}
+
+// CleanupDaemonSetControllerRevision removes a deleted ControllerRevision from tracking
+func (rt *RolloutTracker) CleanupDaemonSetControllerRevision(namespace, name string) {
+	rt.mutex.Lock()
+	defer rt.mutex.Unlock()
+
+	key := namespace + "/" + name
+	delete(rt.daemonSetControllerRevisionMap, key)
+}
+
+// HasActiveDaemonSetRollout checks if we're tracking a rollout for the given DaemonSet's current generation
+func (rt *RolloutTracker) HasActiveDaemonSetRollout(ds *appsv1.DaemonSet) bool {
+	key := ds.Namespace + "/" + ds.Name
+	rt.mutex.RLock()
+	defer rt.mutex.RUnlock()
+
+	storedDs, exists := rt.daemonSetMap[key]
+	if !exists {
+		return false
+	}
+
+	// We're tracking a rollout if stored generation matches current generation
+	return storedDs.Generation == ds.Generation
+}
+
+// HasDaemonSetRolloutCondition checks if Kubernetes reports the DaemonSet as updating
+func (rt *RolloutTracker) HasDaemonSetRolloutCondition(ds *appsv1.DaemonSet) bool {
+	desiredPods := ds.Status.DesiredNumberScheduled
+
+	// If there are no desired pods, nothing to roll out
+	if desiredPods == 0 {
+		return false
+	}
+
+	// Check if update is in progress (applies to both OnDelete and RollingUpdate)
+	// - OnDelete: UpdatedNumberScheduled < desiredPods means pods haven't been manually deleted yet
+	// - RollingUpdate: UpdatedNumberScheduled < desiredPods means Kubernetes is actively updating
+	if ds.Status.UpdatedNumberScheduled < desiredPods {
+		return true
+	}
+
+	// All pods are on the new revision, but check if they're all available
+	// NumberAvailable: pods that are ready and available for at least minReadySeconds
+	if ds.Status.NumberAvailable < desiredPods {
+		return true
+	}
+
+	// Check if there are unavailable pods
+	if ds.Status.NumberUnavailable > 0 {
+		return true
+	}
+
 	return false
 }
