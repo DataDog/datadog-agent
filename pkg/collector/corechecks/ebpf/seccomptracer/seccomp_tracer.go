@@ -125,10 +125,7 @@ func seccompActionName(action uint32) string {
 
 // Run executes the check
 func (t *SeccompTracerCheck) Run() error {
-	fmt.Println("Running seccomp tracer check")
-
 	stats, err := sysprobeclient.GetCheck[model.SeccompStats](t.sysProbeClient, sysconfig.SeccompTracerModule)
-	fmt.Println("Got stats", stats, err)
 	if err != nil {
 		return sysprobeclient.IgnoreStartupError(err)
 	}
@@ -158,7 +155,6 @@ func (t *SeccompTracerCheck) Run() error {
 		tags = append(tags, fmt.Sprintf("syscall_name:%s", syscallName(v.SyscallNr)))
 		tags = append(tags, fmt.Sprintf("seccomp_action:%s", seccompActionName(v.SeccompAction)))
 
-		fmt.Println("seccomp.denials", float64(v.Count), "", tags)
 		sender.Gauge("seccomp.denials", float64(v.Count), "", tags)
 	}
 
