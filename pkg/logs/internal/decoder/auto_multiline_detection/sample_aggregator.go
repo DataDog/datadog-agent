@@ -44,8 +44,8 @@ func NewSampleAggregator(tailerInfo *status.InfoRegistry) *SampleAggregator {
 
 func (s *SampleAggregator) Process(msg *message.Message) *message.Message {
 
-	// Reject JSON logs
-	if jsonRegexp.Match(msg.GetContent()) {
+	// Reject JSON logs if configured to skip them
+	if pkgconfigsetup.Datadog().GetBool("logs_config.dynamic_sampling.skip_json_logs") && jsonRegexp.Match(msg.GetContent()) {
 		return msg
 	}
 
