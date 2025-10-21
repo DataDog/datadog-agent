@@ -48,6 +48,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/python"
 	commonsettings "github.com/DataDog/datadog-agent/pkg/config/settings"
 	"github.com/DataDog/datadog-agent/pkg/config/setup"
+	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/security/agent"
 	"github.com/DataDog/datadog-agent/pkg/security/utils/hostnameutils"
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
@@ -125,7 +126,7 @@ func (s *service) Run(svcctx context.Context) error {
 		fx.Provide(func(log log.Component, config config.Component, statsd statsd.Component, compression logscompression.Component, ipc ipc.Component) (status.InformationProvider, *agent.RuntimeSecurityAgent, error) {
 			stopper := startstop.NewSerialStopper()
 
-			statsdClient, err := statsd.CreateForHostPort(setup.GetBindHost(config), config.GetInt("dogstatsd_port"))
+			statsdClient, err := statsd.CreateForHostPort(configutils.GetBindHost(config), config.GetInt("dogstatsd_port"))
 
 			if err != nil {
 				return status.NewInformationProvider(nil), nil, err

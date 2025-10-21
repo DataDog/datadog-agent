@@ -40,6 +40,7 @@ import (
 	"go.uber.org/goleak"
 
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/actuator"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/dyninsttest"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
 	di_module "github.com/DataDog/datadog-agent/pkg/dyninst/module"
@@ -233,6 +234,28 @@ func runE2ETest(t *testing.T, cfg e2eTestConfig) {
 		t, ts.backend.diagPayloadCh,
 		makeTargetStatus(uploader.StatusEmitting, expectedProbeIDs...),
 	)
+
+	assertModuleStats := func(t assert.TestingT, expected actuator.Metrics) {
+		stats := ts.module.GetStats()["actuator"].(map[string]any)
+		exp := expected.AsStats()
+		gotKeys := slices.Sorted(maps.Keys(stats))
+		expectedKeys := slices.Sorted(maps.Keys(exp))
+		if !assert.Equal(t, gotKeys, expectedKeys) {
+			return
+		}
+		for _, key := range gotKeys {
+			assert.Equal(t, exp[key], stats[key], "key %s", key)
+		}
+	}
+
+	assertModuleStats(t, actuator.Metrics{
+		NumProcesses: 2,
+		NumPrograms:  2,
+		NumAttached:  2,
+		Loaded:       2,
+		Attached:     2,
+	})
+
 	// Clear the remote config.
 	ts.rc.UpdateRemoteConfig(nil)
 	require.EventuallyWithT(t, func(c *assert.CollectT) {
@@ -241,6 +264,16 @@ func runE2ETest(t *testing.T, cfg e2eTestConfig) {
 		if cfg.addSymdb {
 			assertSymdb(c, false)
 		}
+		assertModuleStats(c, actuator.Metrics{
+			NumProcesses: 1,
+			NumPrograms:  1,
+			NumAttached:  1,
+
+			Loaded:   2,
+			Attached: 2,
+			Detached: 1,
+			Unloaded: 1,
+		})
 	}, 10*time.Second, 100*time.Millisecond, "probes should be removed")
 
 	// Ensure that the diagnostics states are as expected, and get cleared

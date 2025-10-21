@@ -19,6 +19,7 @@ import (
 
 	telemetryComponent "github.com/DataDog/datadog-agent/comp/core/telemetry"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/ec2"
@@ -73,7 +74,7 @@ func init() {
 
 func gwLookupEnabled() bool {
 	// only enabled on AWS currently
-	return Cloud.IsAWS() && pkgconfigsetup.IsCloudProviderEnabled(ec2.CloudProviderName, pkgconfigsetup.Datadog())
+	return Cloud.IsAWS() && configutils.IsCloudProviderEnabled(ec2.CloudProviderName, pkgconfigsetup.Datadog())
 }
 
 // NewGatewayLookup creates a new instance of a gateway lookup using
