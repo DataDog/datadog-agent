@@ -114,7 +114,7 @@ func NewNcmCheckContext(rawInstance integration.Data, rawInitConfig integration.
 	}
 	ncc.ProfileMap = profMap
 
-	var profileCache *profile.Cache
+	profileCache := &profile.Cache{}
 	// If profile is defined inline for the device, use that profile, otherwise it will have to attempt profiles later
 	if ncc.Device.Profile != "" {
 		p, err := ncc.ProfileMap.GetProfile(ncc.Device.Profile)
