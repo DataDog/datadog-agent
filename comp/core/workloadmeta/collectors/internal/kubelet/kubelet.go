@@ -340,7 +340,7 @@ func eventForKubeletMetrics(expiredPodCount int) workloadmeta.CollectorEvent {
 	kubeletMetrics := &workloadmeta.KubeletMetrics{
 		EntityID: workloadmeta.EntityID{
 			Kind: workloadmeta.KindKubeletMetrics,
-			ID:   "kubelet-metrics",
+			ID:   workloadmeta.KubeletMetricsID,
 		},
 		ExpiredPodCount: expiredPodCount,
 	}

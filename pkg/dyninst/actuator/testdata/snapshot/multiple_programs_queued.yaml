@@ -60,6 +60,10 @@ state:
     1: <nil> -> Loading (proc 1001)
     2: <nil> -> Queued (proc 1002)
     3: <nil> -> Queued (proc 1003)
+  stats:
+    numProcesses: 0 -> 3
+    numPrograms: 0 -> 3
+    numWaitingForProgram: 0 -> 3
 ---
 event: !processes-updated
   updated:
@@ -95,6 +99,10 @@ state:
     1: Loading (proc 1001) -> Loaded (proc 1001)
     3: Queued (proc 1003) -> Loading (proc 1003)
     4: Queued (proc 1002)
+  stats:
+    loaded: 0 -> 1
+    numAttaching: 0 -> 1
+    numWaitingForProgram: 3 -> 2
 ---
 event: !attached {program_id: 1, process_id: 1001}
 state:
@@ -108,6 +116,10 @@ state:
     1: Loaded (proc 1001)
     3: Loading (proc 1003)
     4: Queued (proc 1002)
+  stats:
+    attached: 0 -> 1
+    numAttached: 0 -> 1
+    numAttaching: 1 -> 0
 ---
 event: !processes-updated
   updated:
@@ -128,6 +140,9 @@ state:
     1: Loaded (proc 1001) -> Draining (proc 1001)
     3: Loading (proc 1003)
     4: Queued (proc 1002)
+  stats:
+    numAttached: 1 -> 0
+    numDetaching: 0 -> 1
 ---
 event: !detached {program_id: 1, process_id: 1001}
 effects:
@@ -143,6 +158,8 @@ state:
     1: Draining (proc 1001) -> Unloading (proc 1001)
     3: Loading (proc 1003)
     4: Queued (proc 1002)
+  stats:
+    detached: 0 -> 1
 ---
 event: !loaded {program_id: 3}
 effects:
@@ -159,6 +176,10 @@ state:
     1: Unloading (proc 1001)
     3: Loading (proc 1003) -> Loaded (proc 1003)
     4: Queued (proc 1002) -> Loading (proc 1002)
+  stats:
+    loaded: 1 -> 2
+    numAttaching: 0 -> 1
+    numWaitingForProgram: 2 -> 1
 ---
 event: !attached {program_id: 3, process_id: 1003}
 state:
@@ -172,6 +193,10 @@ state:
     1: Unloading (proc 1001)
     3: Loaded (proc 1003)
     4: Loading (proc 1002)
+  stats:
+    attached: 1 -> 2
+    numAttached: 0 -> 1
+    numAttaching: 1 -> 0
 ---
 event: !unloaded {program_id: 1}
 state:
@@ -186,3 +211,7 @@ state:
     3: Loaded (proc 1003)
     4: Loading (proc 1002)
     5: <nil> -> Queued (proc 1001)
+  stats:
+    numDetaching: 1 -> 0
+    numWaitingForProgram: 1 -> 2
+    unloaded: 0 -> 1

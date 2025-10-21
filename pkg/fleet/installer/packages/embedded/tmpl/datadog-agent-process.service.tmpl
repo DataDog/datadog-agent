@@ -24,7 +24,9 @@ Environment="DD_INVENTORIES_FIRST_RUN_DELAY=5"
 ExecStart={{.InstallDir}}/embedded/bin/process-agent --cfgpath={{.EtcDir}}/datadog.yaml --sysprobe-config={{.EtcDir}}/system-probe.yaml --pid={{.InstallDir}}/run/process-agent.pid
 StartLimitInterval=10
 StartLimitBurst=5
+{{- if .AmbiantCapabilitiesSupported}}
 AmbientCapabilities=CAP_NET_BIND_SERVICE
+{{- end}}
 
 [Install]
 WantedBy=multi-user.target
