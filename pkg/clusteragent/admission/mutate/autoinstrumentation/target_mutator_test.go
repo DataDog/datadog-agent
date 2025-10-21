@@ -737,7 +737,7 @@ func TestGetTargetLibraries(t *testing.T) {
 
 func TestLanguageDetection(t *testing.T) {
 	tests := map[string]struct {
-		config                     map[string]interface{}
+		config                     map[string]any
 		pod                        *corev1.Pod
 		deployments                []mutatecommon.MockDeployment
 		expectedInitContainerNames []string
