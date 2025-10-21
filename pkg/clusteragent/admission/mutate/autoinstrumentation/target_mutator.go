@@ -225,6 +225,15 @@ func (m *TargetMutator) MutatePod(pod *corev1.Pod, ns string, _ dynamic.Interfac
 		return false, fmt.Errorf("error injecting libraries: %w", err)
 	}
 
+	// Only add annotations/env vars if there is a target json to set. This would be blank for local lib injection.
+	if target.json != "" {
+		m.addTargetJSONInfo(pod, target)
+	}
+
+	return true, nil
+}
+
+func (m *TargetMutator) addTargetJSONInfo(pod *corev1.Pod, target *targetInternal) {
 	// Inject the target json. The is added so that the injector can make use of the target information.
 	_ = m.core.mutatePodContainers(pod, envVarMutator(corev1.EnvVar{
 		Name:  AppliedTargetEnvVar,
@@ -233,8 +242,6 @@ func (m *TargetMutator) MutatePod(pod *corev1.Pod, ns string, _ dynamic.Interfac
 
 	// Add the annotations to the pod.
 	mutatecommon.AddAnnotation(pod, AppliedTargetAnnotation, target.json)
-
-	return true, nil
 }
 
 // ShouldMutatePod determines if a pod would be mutated by the target mutator. It is used by other webhook mutators as
