@@ -63,7 +63,7 @@ foreach ($MsiFile in $MsiFiles) {
     # Generate measurement report using STATIC_QUALITY_GATE_NAME variable
     $OutputPath = "$WorkingDirectory\${ReportPrefix}_size_report_${env:CI_PIPELINE_ID}_$($env:CI_COMMIT_SHA.Substring(0,8)).yml"
     
-    & "$WorkingDirectory\dda" inv quality-gates.measure-msi `
+    & dda inv quality-gates.measure-msi `
         --msi-path $MsiFile.FullName `
         --gate-name $env:STATIC_QUALITY_GATE_NAME `
         --build-job-name $env:CI_JOB_NAME `
