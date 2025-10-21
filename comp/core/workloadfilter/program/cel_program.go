@@ -8,9 +8,10 @@
 package program
 
 import (
-	"fmt"
+	"os"
 
 	filterdef "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
+	"github.com/DataDog/datadog-agent/pkg/trace/log"
 
 	"github.com/google/cel-go/cel"
 )
@@ -19,7 +20,6 @@ import (
 // one for inclusion (higher priority) and one for exclusion (lower priority).
 type CELProgram struct {
 	Name                 string
-	Include              cel.Program
 	Exclude              cel.Program
 	InitializationErrors []error
 }
@@ -28,23 +28,6 @@ var _ FilterProgram = &CELProgram{}
 
 // Evaluate evaluates the filter program for a Result (Included, Excluded, or Unknown)
 func (p CELProgram) Evaluate(entity filterdef.Filterable) (filterdef.Result, []error) {
-	var errs []error
-	if p.Include != nil {
-		out, _, err := p.Include.Eval(map[string]any{string(entity.Type()): entity.Serialize()})
-		if err == nil {
-			res, ok := out.Value().(bool)
-			if ok {
-				if res {
-					return filterdef.Included, nil
-				}
-			} else {
-				errs = append(errs, fmt.Errorf("include (%s) result not bool: %v", p.Name, out.Value()))
-			}
-		} else {
-			errs = append(errs, fmt.Errorf("include (%s) eval error: %w", p.Name, err))
-		}
-	}
-
 	if p.Exclude != nil {
 		out, _, err := p.Exclude.Eval(map[string]any{string(entity.Type()): entity.Serialize()})
 		if err == nil {
@@ -54,14 +37,18 @@ func (p CELProgram) Evaluate(entity filterdef.Filterable) (filterdef.Result, []e
 					return filterdef.Excluded, nil
 				}
 			} else {
-				errs = append(errs, fmt.Errorf("exclude (%s) result not bool: %v", p.Name, out.Value()))
+				log.Criticalf(`filter '%s' from 'cel_workload_exclude' failed to convert value to bool: %v`, p.Name, out.Value())
+				log.Flush()
+				os.Exit(1)
 			}
 		} else {
-			errs = append(errs, fmt.Errorf("exclude (%s) eval error: %w", p.Name, err))
+			log.Criticalf(`filter '%s' from 'cel_workload_exclude' failed to convert evaluate: %v`, p.Name, out.Value())
+			log.Flush()
+			os.Exit(1)
 		}
 	}
 
-	return filterdef.Unknown, errs
+	return filterdef.Unknown, nil
 }
 
 // GetInitializationErrors returns any errors that occurred during the creation/initialization of the program
