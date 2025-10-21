@@ -102,7 +102,7 @@ func (f *controllerRevisionRolloutFactory) ListWatch(customResourceClient interf
 	}
 }
 
-// getStatefulSetOwner returns the name and UID of the StatefulSet that owns this ControllerRevision
+// getOwner returns the name and UID of the owner that owns this ControllerRevision
 func (f *controllerRevisionRolloutFactory) getOwner(cr *appsv1.ControllerRevision) *metav1.OwnerReference {
 	for _, owner := range cr.OwnerReferences {
 		if owner.Kind == "StatefulSet" || owner.Kind == "DaemonSet" {
