@@ -1,0 +1,60 @@
+Analyzing: benchstat_comparison_20251021_094433.txt
+========================================
+
+PERFORMANCE COMPARISON
+======================
+
+Scenario                       |     Approach |         Time |       Memory |     Allocs | Speedup from regex (regex/current_approach)
+-------------------------------+--------------+--------------+--------------+------------+-----------
+multiple_same_type             |        regex |      9.580µ |        563.0 |      10.00 |           
+                               |       hybrid |      3.584µ |      1.161Ki |      8.000 |      2.67x
+                               | tokenization_only |       614.1n |        800.0 |      2.000 |     15.60x
+
+single_phone                   |        regex |      4.702µ |        524.0 |      13.00 |           
+                               |       hybrid |      2.366µ |        635.0 |      5.000 |      1.99x
+                               | tokenization_only |       410.9n |        480.0 |      2.000 |     11.44x
+
+long_log_single_pii            |        regex |      26.15µ |      1.932Ki |      12.00 |           
+                               |       hybrid |      13.00µ |      3.159Ki |      5.000 |      2.01x
+                               | tokenization_only |      2.226µ |      2.531Ki |      2.000 |     11.75x
+
+single_ipv4                    |        regex |      4.964µ |        403.0 |      13.00 |           
+                               |       hybrid |      2.463µ |        651.0 |      9.000 |      2.02x
+                               | tokenization_only |       366.9n |        432.0 |      2.000 |     13.53x
+
+no_pii                         |        regex |      7.481µ |        482.0 |      10.00 |           
+                               |       hybrid |      3.332µ |        746.0 |      3.000 |      2.25x
+                               | tokenization_only |       551.6n |        656.0 |      2.000 |     13.56x
+
+single_email                   |        regex |      3.952µ |        371.0 |      13.00 |           
+                               |       hybrid |      2.330µ |        619.0 |      9.000 |      1.70x
+                               | tokenization_only |       426.5n |        432.0 |      2.000 |      9.27x
+
+single_ssn                     |        regex |      8.454µ |        563.0 |      12.00 |           
+                               |       hybrid |      3.782µ |        910.0 |      5.000 |      2.24x
+                               | tokenization_only |       618.5n |        720.0 |      2.000 |     13.67x
+
+long_log_no_pii                |        regex |      24.64µ |      1.490Ki |      10.00 |           
+                               |       hybrid |      12.34µ |      2.852Ki |      3.000 |      2.00x
+                               | tokenization_only |      2.271µ |      2.531Ki |      2.000 |     10.85x
+
+single_credit_card             |        regex |      6.755µ |        402.0 |      10.00 |           
+                               |       hybrid |      2.653µ |        731.0 |      5.000 |      2.55x
+                               | tokenization_only |       451.6n |        576.0 |      2.000 |     14.96x
+
+multiple_pii_mixed             |        regex |      11.73µ |      1.040Ki |      20.00 |           
+                               |       hybrid |      6.962µ |      2.460Ki |      21.00 |      1.68x
+                               | tokenization_only |       922.6n |      1.125Ki |      2.000 |     12.71x
+
+
+SUMMARY STATISTICS
+==================
+
+Average regex time:        10.84µs
+Average hybrid time:       5.28µs
+
+Hybrid speedup (average):  2.11x faster
+Hybrid speedup (minimum):  1.68x faster  [multiple_pii_mixed]
+Hybrid speedup (maximum):  2.67x faster  [multiple_same_type]
+
+Overall time reduction:    51.3%

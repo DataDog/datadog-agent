@@ -101,7 +101,6 @@ var (
 	// TlmTruncatedCount tracks the count of times a log is truncated
 	TlmTruncatedCount = telemetry.NewCounter("logs", "truncated", []string{"service", "source"}, "Count the number of times a log is truncated")
 
-	// PII Redaction metrics
 	// TlmPIIRedactionLatency tracks time spent on PII redaction per message
 	TlmPIIRedactionLatency = telemetry.NewHistogram("logs", "pii_redaction_latency",
 		nil, "Histogram of PII redaction latency in microseconds",
