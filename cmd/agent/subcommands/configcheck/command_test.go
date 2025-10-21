@@ -19,9 +19,8 @@ func TestCommand(t *testing.T) {
 	fxutil.TestOneShotSubcommand(t,
 		Commands(&command.GlobalParams{}),
 		[]string{"configcheck", "-v", "--check", "check_name"},
-		run,
+		fullConfigCmd,
 		func(cliParams *cliParams, _ core.BundleParams) {
 			require.Equal(t, true, cliParams.verbose)
-			require.Equal(t, "check_name", cliParams.check)
 		})
 }

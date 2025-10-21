@@ -31,8 +31,10 @@ import (
 type cliParams struct {
 	*command.GlobalParams
 
+	// args are the positional command-line arguments
+	args []string
+
 	verbose bool
-	check   string
 }
 
 // Commands returns a slice of subcommands for the 'agent' command.
@@ -46,8 +48,10 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		Aliases: []string{"checkconfig"},
 		Short:   "Print all configurations loaded & resolved of a running agent",
 		Long:    ``,
-		RunE: func(_ *cobra.Command, _ []string) error {
-			return fxutil.OneShot(run,
+		RunE: func(_ *cobra.Command, args []string) error {
+			cliParams.args = args
+
+			return fxutil.OneShot(configcheckCmd,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewAgentParams(globalParams.ConfFilePath, config.WithExtraConfFiles(cliParams.ExtraConfFilePath), config.WithFleetPoliciesDirPath(cliParams.FleetPoliciesDirPath)),
@@ -59,12 +63,19 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		},
 	}
 	configCheckCommand.Flags().BoolVarP(&cliParams.verbose, "verbose", "v", false, "print additional debug info")
-	configCheckCommand.Flags().StringVarP(&cliParams.check, "check", "C", "", "only print the config of the given check name")
 
 	return []*cobra.Command{configCheckCommand}
 }
 
-func run(cliParams *cliParams, _ log.Component, client ipc.HTTPClient) error {
+func configcheckCmd(cliParams *cliParams, log log.Component, client ipc.HTTPClient) error {
+	if len(cliParams.args) < 1 {
+		return fullConfigCmd(cliParams, log, client)
+	}
+
+	return checkCmd(cliParams, log, client)
+}
+
+func fullConfigCmd(cliParams *cliParams, _ log.Component, client ipc.HTTPClient) error {
 	endpoint, err := client.NewIPCEndpoint("/agent/config-check")
 	if err != nil {
 		return err
@@ -84,21 +95,44 @@ func run(cliParams *cliParams, _ log.Component, client ipc.HTTPClient) error {
 	var b bytes.Buffer
 	color.Output = &b
 
-	// search through the configs for a check with the same name instead of printing everything
-	if cliParams.check != "" {
-		for _, configResponse := range cr.Configs {
-			if cliParams.check == configResponse.Config.Name {
-				flare.PrintConfigWithInstanceIDs(color.Output, configResponse.Config, configResponse.InstanceIDs, "")
-
-				fmt.Println(b.String())
-				return nil
-			}
-		}
-		return fmt.Errorf("no check with the name %q has been found in the configuration responses", cliParams.check)
-	}
-
 	flare.PrintConfigCheck(color.Output, cr, cliParams.verbose)
 
 	fmt.Println(b.String())
 	return nil
+}
+
+func checkCmd(cliParams *cliParams, _ log.Component, client ipc.HTTPClient) error {
+	if len(cliParams.args) > 1 {
+		return fmt.Errorf("only one check must be specified")
+	}
+
+	endpoint, err := client.NewIPCEndpoint("/agent/config-check")
+	if err != nil {
+		return err
+	}
+
+	res, err := endpoint.DoGet()
+	if err != nil {
+		return fmt.Errorf("the agent ran into an error while checking config: %v", err)
+	}
+
+	cr := integration.ConfigCheckResponse{}
+	err = json.Unmarshal(res, &cr)
+	if err != nil {
+		return fmt.Errorf("unable to parse configcheck: %v", err)
+	}
+
+	// search through the configs for a check with the same name instead of printing everything
+	for _, configResponse := range cr.Configs {
+		if cliParams.args[0] == configResponse.Config.Name {
+			var b bytes.Buffer
+			color.Output = &b
+
+			flare.PrintConfigWithInstanceIDs(color.Output, configResponse.Config, configResponse.InstanceIDs, "")
+
+			fmt.Println(b.String())
+			return nil
+		}
+	}
+	return fmt.Errorf("no check with the name %q was found", cliParams.args[0])
 }
