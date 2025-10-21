@@ -32,9 +32,10 @@ type TokenizedMessage struct {
 }
 
 func NewSampleAggregator(tailerInfo *status.InfoRegistry) *SampleAggregator {
+	tokenizerSize := pkgconfigsetup.Datadog().GetInt("logs_config.dynamic_sampling.tokenizer_size")
 
 	s := &SampleAggregator{
-		tokenizer: NewTokenizer(1024 * 10),
+		tokenizer: NewTokenizer(tokenizerSize),
 		sampler:   NewSampler(DefaultConfig()),
 	}
 	s.sampler.Start()

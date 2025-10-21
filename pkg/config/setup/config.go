@@ -1735,6 +1735,7 @@ func logsagent(config pkgconfigmodel.Setup) {
 	// Dynamic sampling configuration
 	config.BindEnvAndSetDefault("logs_config.dynamic_sampling_enabled", false)
 	config.BindEnvAndSetDefault("logs_config.dynamic_sampling.skip_json_logs", false)
+	config.BindEnvAndSetDefault("logs_config.dynamic_sampling.tokenizer_size", 10240)
 	config.BindEnvAndSetDefault("logs_config.dynamic_sampling.rate_ceiling", 1.0)
 	config.BindEnvAndSetDefault("logs_config.dynamic_sampling.fast_half_life_seconds", 2)
 	config.BindEnvAndSetDefault("logs_config.dynamic_sampling.slow_half_life_seconds", 60)
