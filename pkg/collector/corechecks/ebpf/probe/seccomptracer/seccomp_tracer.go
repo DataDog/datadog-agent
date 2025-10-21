@@ -37,6 +37,13 @@ const (
 	moduleName      = "seccomp_tracer"
 )
 
+// seccompStatsKey represents the key of a single seccomp event
+type seccompStatsKey struct {
+	CgroupName    string `json:"cgroupName"`
+	SyscallNr     uint32 `json:"syscallNr"`
+	SeccompAction uint32 `json:"seccompAction"`
+}
+
 // Tracer is the eBPF side of the Seccomp Tracer check
 type Tracer struct {
 	m            *manager.Manager
@@ -44,7 +51,7 @@ type Tracer struct {
 
 	// In-memory aggregation of events
 	statsMu sync.Mutex
-	stats   map[model.SeccompStatsKey]uint64
+	stats   map[seccompStatsKey]uint64
 }
 
 // NewTracer creates a [Tracer]
@@ -59,7 +66,7 @@ func NewTracer(cfg *ebpf.Config) (*Tracer, error) {
 
 func startSeccompTracerProbe(buf bytecode.AssetReader, managerOptions manager.Options) (*Tracer, error) {
 	t := &Tracer{
-		stats: make(map[model.SeccompStatsKey]uint64),
+		stats: make(map[seccompStatsKey]uint64),
 	}
 
 	// Create event handler for ring buffer
@@ -113,7 +120,7 @@ func (t *Tracer) handleEvent(data []byte) {
 
 	cgroupName := unix.ByteSliceToString(event.Cgroup[:])
 
-	key := model.SeccompStatsKey{
+	key := seccompStatsKey{
 		CgroupName:    cgroupName,
 		SyscallNr:     event.Nr,
 		SeccompAction: event.Action,
@@ -141,11 +148,16 @@ func (t *Tracer) GetAndFlush() model.SeccompStats {
 	result := make(model.SeccompStats, len(t.stats))
 
 	for key, count := range t.stats {
-		result[key] = model.SeccompStatsValue{Count: count}
+		result = append(result, model.SeccompStatsEntry{
+			CgroupName:    key.CgroupName,
+			SyscallNr:     key.SyscallNr,
+			SeccompAction: key.SeccompAction,
+			Count:         count,
+		})
 	}
 
 	// Clear the stats
-	t.stats = make(map[model.SeccompStatsKey]uint64)
+	t.stats = make(map[seccompStatsKey]uint64)
 
 	return result
 }

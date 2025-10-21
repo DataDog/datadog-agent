@@ -77,15 +77,15 @@ func (s *seccompTracerTestSuite) TestCanDetectSeccompDenial() {
 		foundGetpid := false
 		foundGetuid := false
 
-		for key, value := range stats {
+		for _, value := range stats {
 			t.Logf("Captured seccomp denial: syscall=%d (0x%x), action=0x%08x, count=%d, cgroup=%s",
-				key.SyscallNr, key.SyscallNr, key.SeccompAction, value.Count, key.CgroupName)
+				value.SyscallNr, value.SyscallNr, value.SeccompAction, value.Count, value.CgroupName)
 
-			if key.SyscallNr == unix.SYS_GETPID {
+			if value.SyscallNr == unix.SYS_GETPID {
 				foundGetpid = true
 				assert.Equal(c, uint64(1), value.Count, "Expected exactly one getpid denial")
 			}
-			if key.SyscallNr == unix.SYS_GETUID {
+			if value.SyscallNr == unix.SYS_GETUID {
 				foundGetuid = true
 				assert.Equal(c, uint64(1), value.Count, "Expected exactly one getuid denial")
 			}

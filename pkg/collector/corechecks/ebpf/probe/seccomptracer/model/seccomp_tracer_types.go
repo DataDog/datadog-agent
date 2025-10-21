@@ -7,16 +7,12 @@
 package model
 
 // SeccompStatsKey is the type of the `SeccompStats` map key
-type SeccompStatsKey struct {
+type SeccompStatsEntry struct {
 	CgroupName    string `json:"cgroupName"`
 	SyscallNr     uint32 `json:"syscallNr"`
 	SeccompAction uint32 `json:"seccompAction"`
-}
-
-// SeccompStatsValue is the type of the `SeccompStats` map value: the count of denials
-type SeccompStatsValue struct {
-	Count uint64 `json:"count"`
+	Count         uint64 `json:"count"`
 }
 
 // SeccompStats is the map of seccomp denials per container, syscall, and action
-type SeccompStats map[SeccompStatsKey]SeccompStatsValue
+type SeccompStats []SeccompStatsEntry

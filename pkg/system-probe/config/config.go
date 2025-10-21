@@ -172,6 +172,9 @@ func load() (*types.Config, error) {
 	if gpuEnabled {
 		c.EnabledModules[GPUMonitoringModule] = struct{}{}
 	}
+	if cfg.GetBool(seccompTracerNS("enabled")) {
+		c.EnabledModules[SeccompTracerModule] = struct{}{}
+	}
 	if cfg.GetBool(privilegedLogsNS("enabled")) {
 		c.EnabledModules[PrivilegedLogsModule] = struct{}{}
 	}

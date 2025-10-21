@@ -12,7 +12,6 @@ import (
 	"fmt"
 
 	"golang.org/x/sys/unix"
-	"gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
@@ -47,15 +46,9 @@ const (
 	seccompRetAllow       = 0x7fff0000
 )
 
-// SeccompTracerConfig is the config of the Seccomp Tracer check
-type SeccompTracerConfig struct {
-	CollectSeccompFailures bool `yaml:"collect_seccomp_failures"`
-}
-
 // SeccompTracerCheck grabs seccomp failure metrics
 type SeccompTracerCheck struct {
 	core.CheckBase
-	instance       *SeccompTracerConfig
 	tagger         tagger.Component
 	sysProbeClient *sysprobeclient.CheckClient
 }
@@ -70,17 +63,8 @@ func Factory(tagger tagger.Component) option.Option[func() check.Check] {
 func newCheck(tagger tagger.Component) check.Check {
 	return &SeccompTracerCheck{
 		CheckBase: core.NewCheckBase(CheckName),
-		instance:  &SeccompTracerConfig{},
 		tagger:    tagger,
 	}
-}
-
-// Parse parses the check configuration and init the check
-func (t *SeccompTracerConfig) Parse(data []byte) error {
-	// default values
-	t.CollectSeccompFailures = true
-
-	return yaml.Unmarshal(data, t)
 }
 
 // Configure parses the check configuration and init the check
@@ -91,7 +75,7 @@ func (t *SeccompTracerCheck) Configure(senderManager sender.SenderManager, _ uin
 	}
 	t.sysProbeClient = sysprobeclient.GetCheckClient(sysprobeclient.WithSocketPath(pkgconfigsetup.SystemProbe().GetString("system_probe_config.sysprobe_socket")))
 
-	return t.instance.Parse(config)
+	return nil
 }
 
 // syscallName returns the human-readable name for a syscall number
@@ -141,11 +125,10 @@ func seccompActionName(action uint32) string {
 
 // Run executes the check
 func (t *SeccompTracerCheck) Run() error {
-	if !t.instance.CollectSeccompFailures {
-		return nil
-	}
+	fmt.Println("Running seccomp tracer check")
 
 	stats, err := sysprobeclient.GetCheck[model.SeccompStats](t.sysProbeClient, sysconfig.SeccompTracerModule)
+	fmt.Println("Got stats", stats, err)
 	if err != nil {
 		return sysprobeclient.IgnoreStartupError(err)
 	}
@@ -155,11 +138,10 @@ func (t *SeccompTracerCheck) Run() error {
 		return fmt.Errorf("failed to get sender: %w", err)
 	}
 
-	for k, v := range stats {
-		containerID, err := cgroups.ContainerFilter("", k.CgroupName)
+	for _, v := range stats {
+		containerID, err := cgroups.ContainerFilter("", v.CgroupName)
 		if err != nil || containerID == "" {
-			log.Debugf("Unable to extract containerID from cgroup name: %s, err: %v", k.CgroupName, err)
-			continue
+			log.Debugf("Unable to extract containerID from cgroup name: %s, err: %v", v.CgroupName, err)
 		}
 
 		entityID := types.NewEntityID(types.ContainerID, containerID)
@@ -167,15 +149,16 @@ func (t *SeccompTracerCheck) Run() error {
 		if !entityID.Empty() {
 			tags, err = t.tagger.Tag(entityID, types.HighCardinality)
 			if err != nil {
-				log.Errorf("Error collecting tags for container %s: %s", k.CgroupName, err)
+				log.Errorf("Error collecting tags for container %s: %s", v.CgroupName, err)
 			}
 		}
 
 		// Add syscall and action as human-readable tags
-		tags = append(tags, fmt.Sprintf("syscall_nr:%d", k.SyscallNr))
-		tags = append(tags, fmt.Sprintf("syscall_name:%s", syscallName(k.SyscallNr)))
-		tags = append(tags, fmt.Sprintf("seccomp_action:%s", seccompActionName(k.SeccompAction)))
+		tags = append(tags, fmt.Sprintf("syscall_nr:%d", v.SyscallNr))
+		tags = append(tags, fmt.Sprintf("syscall_name:%s", syscallName(v.SyscallNr)))
+		tags = append(tags, fmt.Sprintf("seccomp_action:%s", seccompActionName(v.SeccompAction)))
 
+		fmt.Println("seccomp.denials", float64(v.Count), "", tags)
 		sender.Gauge("seccomp.denials", float64(v.Count), "", tags)
 	}
 
