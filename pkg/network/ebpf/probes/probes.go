@@ -45,11 +45,6 @@ const (
 	// DevQueueXmitNitKprobe is the kprobe fallback for net_dev_queue tracepoint on kernels < 4.15
 	DevQueueXmitNitKprobe ProbeFuncName = "kprobe__dev_queue_xmit_nit"
 
-	// DoSysOpenKprobe is the kprobe fallback for sys_enter_open and sys_enter_openat tracepoints on kernels < 4.15
-	DoSysOpenKprobe ProbeFuncName = "kprobe__do_sys_open"
-	// DoSysOpenKretprobe is the kretprobe fallback for sys_exit_open and sys_exit_openat tracepoints on kernels < 4.15
-	DoSysOpenKretprobe ProbeFuncName = "kretprobe__do_sys_open"
-
 	// TCPSendMsg traces the tcp_sendmsg() system call
 	TCPSendMsg ProbeFuncName = "kprobe__tcp_sendmsg"
 	// TCPSendPage traces the tcp_sendpage() kernel function
