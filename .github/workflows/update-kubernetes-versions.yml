@@ -1,0 +1,74 @@
+name: Update Kubernetes Versions
+
+on:
+  schedule:
+    # Run twice daily at 6am and 6pm UTC
+    - cron: "0 6,18 * * *"
+
+  # Allow manual trigger
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  update-k8s-versions:
+    name: Check for new Kubernetes versions
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write # Required for OIDC token from GitHub
+    environment:
+      name: main
+    steps:
+      - uses: DataDog/dd-octo-sts-action@acaa02eee7e3bb0839e4272dacb37b8f3b58ba80 # v1.0.3
+        id: octo-sts
+        with:
+          scope: DataDog/datadog-agent
+          policy: self.update-kubernetes-versions.create-pr
+
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: true
+          token: ${{ steps.octo-sts.outputs.token }}
+
+      - uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b # v5.3.0
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          pip install requests pyyaml
+
+      - name: Fetch latest Kubernetes versions
+        id: fetch-versions
+        run: |
+          python .github/scripts/fetch_k8s_versions.py
+
+      - name: Update e2e.yml with new versions
+        id: update-yaml
+        if: steps.fetch-versions.outputs.has_new_versions == 'true'
+        run: |
+          python .github/scripts/update_e2e_yaml.py
+
+      - uses: peter-evans/create-pull-request@271a8d0340265f705b14b6d32b9829c1cb33d45e # v7.0.8
+        name: Create pull request
+        if: steps.update-yaml.outputs.updated == 'true'
+        with:
+          commit-message: "chore(e2e): add new Kubernetes version(s) to e2e tests"
+          branch: update-k8s-versions-${{ github.run_id }}-${{ github.run_attempt }}
+          token: ${{ steps.octo-sts.outputs.token }}
+          sign-commits: true
+          title: "[automated] Add new Kubernetes version(s) to e2e tests"
+          body: |
+            ### What does this PR do?
+            Adds newly released Kubernetes version(s) from kindest/node to the e2e test matrix.
+
+            ### Motivation
+            Keep e2e tests running against latest Kubernetes versions to ensure compatibility.
+
+            ### New versions added:
+            ${{ steps.update-yaml.outputs.new_versions }}
+
+            ### Describe how you validated your changes
+            CI will validate the new versions work correctly.
+          team-reviewers: container-integrations
+          labels: team/container-integrations,qa/done,changelog/no-changelog,ask-review
