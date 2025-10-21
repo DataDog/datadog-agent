@@ -65,6 +65,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl"
 	orchestratorForwarderImpl "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
 	haagentfx "github.com/DataDog/datadog-agent/comp/haagent/fx"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/appsec"
 
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	metadatarunner "github.com/DataDog/datadog-agent/comp/metadata/runner"
@@ -510,6 +511,12 @@ func start(log log.Component,
 	if config.GetBool("language_detection.enabled") && config.GetBool("cluster_agent.language_detection.patcher.enabled") {
 		if err = languagedetection.Start(mainCtx, wmeta, log, config); err != nil {
 			log.Errorf("Cannot start language detection patcher: %v", err)
+		}
+	}
+
+	if config.GetBool("appsec.proxy.enabled") && config.GetBool("cluster_agent.appsec.injector.enabled") {
+		if err := appsec.Start(mainCtx, log, config); err != nil {
+			log.Errorf("Cannot start appsec injector: %v", err)
 		}
 	}
 

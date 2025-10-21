@@ -357,6 +357,7 @@ github.com/google/shlex: Copyright 2012 Google Inc. All Rights Reserved.
 github.com/facebook/time/*: Copyright (c) Facebook, Inc. and its affiliates.
 github.com/grobie/gomemcache/memcache: Copyright 2011 Google Inc.
 github.com/lightstep/go-expohisto/*: Copyright The OpenTelemetry Authors
+github.com/envoyproxy/gateway/*: Copyright Envoy Gateway Authors
 github.com/envoyproxy/go-control-plane/*: Copyright 2020 Envoyproxy Authors
 github.com/envoyproxy/protoc-gen-validate/validate:  Copyright 2020 Envoyproxy Authors
 github.com/cncf/xds: Copyright 2020 Envoyproxy Authors
