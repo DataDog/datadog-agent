@@ -33,7 +33,7 @@ import (
 
 var testCtx = context.TODO()
 
-type installFn = func(context.Context, string, []string, []string) error
+type installFn = func(context.Context, string, []string) error
 type installFnFactory = func(manager *testPackageManager) installFn
 
 type testPackageManager struct {
@@ -204,7 +204,7 @@ func TestInstallStable(t *testing.T) {
 		preInstallCall := installer.testHooks.On("PreInstall", testCtx, fixtures.FixtureSimpleV1.Package, packages.PackageTypeOCI, false).Return(nil)
 		installer.testHooks.On("PostInstall", testCtx, fixtures.FixtureSimpleV1.Package, packages.PackageTypeOCI, false, mock.Anything).Return(nil).NotBefore(preInstallCall)
 
-		err := instFactory(installer)(testCtx, s.PackageURL(fixtures.FixtureSimpleV1), nil, nil)
+		err := instFactory(installer)(testCtx, s.PackageURL(fixtures.FixtureSimpleV1), nil)
 		assert.NoError(t, err)
 		r := installer.packages.Get(fixtures.FixtureSimpleV1.Package)
 		state, err := r.GetState()
@@ -225,14 +225,14 @@ func TestInstallUpgrade(t *testing.T) {
 		preInstallCall := installer.testHooks.On("PreInstall", testCtx, fixtures.FixtureSimpleV1.Package, packages.PackageTypeOCI, false).Return(nil)
 		installer.testHooks.On("PostInstall", testCtx, fixtures.FixtureSimpleV1.Package, packages.PackageTypeOCI, false, mock.Anything).Return(nil).NotBefore(preInstallCall)
 
-		err := instFactory(installer)(testCtx, s.PackageURL(fixtures.FixtureSimpleV1), nil, nil)
+		err := instFactory(installer)(testCtx, s.PackageURL(fixtures.FixtureSimpleV1), nil)
 		assert.NoError(t, err)
 
 		preRemoveCall := installer.testHooks.On("PreRemove", testCtx, fixtures.FixtureSimpleV1.Package, packages.PackageTypeOCI, true).Return(nil)
 		preInstallCall = installer.testHooks.On("PreInstall", testCtx, fixtures.FixtureSimpleV1.Package, packages.PackageTypeOCI, true).Return(nil).NotBefore(preRemoveCall)
 		installer.testHooks.On("PostInstall", testCtx, fixtures.FixtureSimpleV1.Package, packages.PackageTypeOCI, true, mock.Anything).Return(nil).NotBefore(preInstallCall)
 
-		err = instFactory(installer)(testCtx, s.PackageURL(fixtures.FixtureSimpleV2), nil, nil)
+		err = instFactory(installer)(testCtx, s.PackageURL(fixtures.FixtureSimpleV2), nil)
 		assert.NoError(t, err)
 		r := installer.packages.Get(fixtures.FixtureSimpleV1.Package)
 		state, err := r.GetState()
@@ -249,7 +249,7 @@ func TestInstallExperiment(t *testing.T) {
 
 		preInstallCall := installer.testHooks.On("PreInstall", testCtx, fixtures.FixtureSimpleV1.Package, packages.PackageTypeOCI, false).Return(nil)
 		installer.testHooks.On("PostInstall", testCtx, fixtures.FixtureSimpleV1.Package, packages.PackageTypeOCI, false, mock.Anything).Return(nil).NotBefore(preInstallCall)
-		err := instFactory(installer)(testCtx, s.PackageURL(fixtures.FixtureSimpleV1), nil, nil)
+		err := instFactory(installer)(testCtx, s.PackageURL(fixtures.FixtureSimpleV1), nil)
 		assert.NoError(t, err)
 		preStartExperimentCall := installer.testHooks.On("PreStartExperiment", testCtx, fixtures.FixtureSimpleV1.Package).Return(nil)
 		installer.testHooks.On("PostStartExperiment", testCtx, fixtures.FixtureSimpleV1.Package).Return(nil).NotBefore(preStartExperimentCall)
@@ -274,7 +274,7 @@ func TestInstallPromoteExperiment(t *testing.T) {
 
 		preInstallCall := installer.testHooks.On("PreInstall", testCtx, fixtures.FixtureSimpleV1.Package, packages.PackageTypeOCI, false).Return(nil)
 		installer.testHooks.On("PostInstall", testCtx, fixtures.FixtureSimpleV1.Package, packages.PackageTypeOCI, false, mock.Anything).Return(nil).NotBefore(preInstallCall)
-		err := instFactory(installer)(testCtx, s.PackageURL(fixtures.FixtureSimpleV1), nil, nil)
+		err := instFactory(installer)(testCtx, s.PackageURL(fixtures.FixtureSimpleV1), nil)
 		assert.NoError(t, err)
 		preStartExperimentCall := installer.testHooks.On("PreStartExperiment", testCtx, fixtures.FixtureSimpleV1.Package).Return(nil)
 		installer.testHooks.On("PostStartExperiment", testCtx, fixtures.FixtureSimpleV1.Package).Return(nil).NotBefore(preStartExperimentCall)
@@ -302,7 +302,7 @@ func TestUninstallExperiment(t *testing.T) {
 
 		preInstallCall := installer.testHooks.On("PreInstall", testCtx, fixtures.FixtureSimpleV1.Package, packages.PackageTypeOCI, false).Return(nil)
 		installer.testHooks.On("PostInstall", testCtx, fixtures.FixtureSimpleV1.Package, packages.PackageTypeOCI, false, mock.Anything).Return(nil).NotBefore(preInstallCall)
-		err := instFactory(installer)(testCtx, s.PackageURL(fixtures.FixtureSimpleV1), nil, nil)
+		err := instFactory(installer)(testCtx, s.PackageURL(fixtures.FixtureSimpleV1), nil)
 		assert.NoError(t, err)
 		preStartExperimentCall := installer.testHooks.On("PreStartExperiment", testCtx, fixtures.FixtureSimpleV1.Package).Return(nil)
 		installer.testHooks.On("PostStartExperiment", testCtx, fixtures.FixtureSimpleV1.Package).Return(nil).NotBefore(preStartExperimentCall)
@@ -329,13 +329,13 @@ func TestInstallSkippedWhenAlreadyInstalled(t *testing.T) {
 	defer installer.db.Close()
 	installer.testHooks.noop = true
 
-	err := installer.Install(testCtx, s.PackageURL(fixtures.FixtureSimpleV1), nil, nil)
+	err := installer.Install(testCtx, s.PackageURL(fixtures.FixtureSimpleV1), nil)
 	assert.NoError(t, err)
 	r := installer.packages.Get(fixtures.FixtureSimpleV1.Package)
 	lastModTime, err := latestModTimeFS(r.StableFS(), ".")
 	assert.NoError(t, err)
 
-	err = installer.Install(testCtx, s.PackageURL(fixtures.FixtureSimpleV1), nil, nil)
+	err = installer.Install(testCtx, s.PackageURL(fixtures.FixtureSimpleV1), nil)
 	assert.NoError(t, err)
 	r = installer.packages.Get(fixtures.FixtureSimpleV1.Package)
 	newLastModTime, err := latestModTimeFS(r.StableFS(), ".")
@@ -349,13 +349,13 @@ func TestForceInstallWhenAlreadyInstalled(t *testing.T) {
 	defer installer.db.Close()
 	installer.testHooks.noop = true
 
-	err := installer.Install(testCtx, s.PackageURL(fixtures.FixtureSimpleV1), nil, nil)
+	err := installer.Install(testCtx, s.PackageURL(fixtures.FixtureSimpleV1), nil)
 	assert.NoError(t, err)
 	r := installer.packages.Get(fixtures.FixtureSimpleV1.Package)
 	lastModTime, err := latestModTimeFS(r.StableFS(), ".")
 	assert.NoError(t, err)
 
-	err = installer.ForceInstall(testCtx, s.PackageURL(fixtures.FixtureSimpleV1), nil, nil)
+	err = installer.ForceInstall(testCtx, s.PackageURL(fixtures.FixtureSimpleV1), nil)
 	assert.NoError(t, err)
 	r = installer.packages.Get(fixtures.FixtureSimpleV1.Package)
 	newLastModTime, err := latestModTimeFS(r.StableFS(), ".")
@@ -369,7 +369,7 @@ func TestReinstallAfterDBClean(t *testing.T) {
 		installer := newTestPackageManager(t, s, t.TempDir())
 		defer installer.db.Close()
 		installer.testHooks.noop = true
-		err := instFactory(installer)(testCtx, s.PackageURL(fixtures.FixtureSimpleV1), nil, nil)
+		err := instFactory(installer)(testCtx, s.PackageURL(fixtures.FixtureSimpleV1), nil)
 		assert.NoError(t, err)
 		r := installer.packages.Get(fixtures.FixtureSimpleV1.Package)
 		lastModTime, err := latestModTimeFS(r.StableFS(), ".")
@@ -377,7 +377,7 @@ func TestReinstallAfterDBClean(t *testing.T) {
 
 		installer.db.DeletePackage(fixtures.FixtureSimpleV1.Package)
 
-		err = instFactory(installer)(testCtx, s.PackageURL(fixtures.FixtureSimpleV1), nil, nil)
+		err = instFactory(installer)(testCtx, s.PackageURL(fixtures.FixtureSimpleV1), nil)
 		assert.NoError(t, err)
 		r = installer.packages.Get(fixtures.FixtureSimpleV1.Package)
 		newLastModTime, err := latestModTimeFS(r.StableFS(), ".")
@@ -454,7 +454,7 @@ func TestPurge(t *testing.T) {
 		err = os.WriteFile(filepath.Join(tmpPath, "test.txt"), []byte("test"), 0644)
 		assert.NoError(t, err)
 
-		err = instFactory(installer)(testCtx, s.PackageURL(fixtures.FixtureSimpleV1), nil, nil)
+		err = instFactory(installer)(testCtx, s.PackageURL(fixtures.FixtureSimpleV1), nil)
 		assert.NoError(t, err)
 		r := installer.packages.Get(fixtures.FixtureSimpleV1.Package)
 

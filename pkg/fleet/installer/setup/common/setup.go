@@ -165,7 +165,7 @@ func (s *Setup) installPackage(name string, url string) (err error) {
 	span.SetTopLevel()
 
 	s.Out.WriteString(fmt.Sprintf("Installing %s...\n", name))
-	err = s.installer.Install(ctx, url, nil, nil)
+	err = s.installer.Install(ctx, url, nil)
 	if err != nil {
 		return err
 	}

@@ -48,8 +48,8 @@ type Installer interface {
 	ConfigState(ctx context.Context, pkg string) (repository.State, error)
 	ConfigStates(ctx context.Context) (map[string]repository.State, error)
 
-	Install(ctx context.Context, url string, extensions []string, args []string) error
-	ForceInstall(ctx context.Context, url string, extensions []string, args []string) error
+	Install(ctx context.Context, url string, args []string) error
+	ForceInstall(ctx context.Context, url string, args []string) error
 	SetupInstaller(ctx context.Context, path string) error
 	Remove(ctx context.Context, pkg string) error
 	Purge(ctx context.Context)
@@ -183,8 +183,8 @@ func (i *installerImpl) IsInstalled(_ context.Context, pkg string) (bool, error)
 }
 
 // ForceInstall installs or updates a package, even if it's already installed
-func (i *installerImpl) ForceInstall(ctx context.Context, url string, extensions []string, args []string) error {
-	return i.doInstall(ctx, url, extensions, args, func(dbPkg db.Package, pkg *oci.DownloadedPackage) bool {
+func (i *installerImpl) ForceInstall(ctx context.Context, url string, args []string) error {
+	return i.doInstall(ctx, url, args, func(dbPkg db.Package, pkg *oci.DownloadedPackage) bool {
 		if dbPkg.Name == pkg.Name && dbPkg.Version == pkg.Version {
 			log.Warnf("package %s version %s is already installed, updating it anyway", pkg.Name, pkg.Version)
 		}
@@ -193,8 +193,8 @@ func (i *installerImpl) ForceInstall(ctx context.Context, url string, extensions
 }
 
 // Install installs or updates a package.
-func (i *installerImpl) Install(ctx context.Context, url string, extensions []string, args []string) error {
-	return i.doInstall(ctx, url, extensions, args, func(dbPkg db.Package, pkg *oci.DownloadedPackage) bool {
+func (i *installerImpl) Install(ctx context.Context, url string, args []string) error {
+	return i.doInstall(ctx, url, args, func(dbPkg db.Package, pkg *oci.DownloadedPackage) bool {
 		if dbPkg.Name == pkg.Name && dbPkg.Version == pkg.Version {
 			log.Warnf("package %s version %s is already installed", pkg.Name, pkg.Version)
 			return false
@@ -278,7 +278,7 @@ func (i *installerImpl) SetupInstaller(ctx context.Context, path string) error {
 
 }
 
-func (i *installerImpl) doInstall(ctx context.Context, url string, extensions []string, args []string, shouldInstallPredicate func(dbPkg db.Package, pkg *oci.DownloadedPackage) bool) error {
+func (i *installerImpl) doInstall(ctx context.Context, url string, args []string, shouldInstallPredicate func(dbPkg db.Package, pkg *oci.DownloadedPackage) bool) error {
 	i.m.Lock()
 	defer i.m.Unlock()
 	pkg, err := i.downloader.Download(ctx, url) // Downloads pkg metadata only
@@ -297,68 +297,61 @@ func (i *installerImpl) doInstall(ctx context.Context, url string, extensions []
 	if err != nil && !errors.Is(err, db.ErrPackageNotFound) {
 		return fmt.Errorf("could not get package: %w", err)
 	}
-	if shouldInstallPredicate(dbPkg, pkg) {
-		upgrade := !errors.Is(err, db.ErrPackageNotFound) && dbPkg.Version != pkg.Version
-		if upgrade {
-			err = i.hooks.PreRemove(ctx, pkg.Name, packages.PackageTypeOCI, true)
-			if err != nil {
-				return fmt.Errorf("could not prepare package: %w", err)
-			}
-		}
-		err = i.hooks.PreInstall(ctx, pkg.Name, packages.PackageTypeOCI, upgrade)
+	if !shouldInstallPredicate(dbPkg, pkg) {
+		return nil
+	}
+	upgrade := !errors.Is(err, db.ErrPackageNotFound) && dbPkg.Version != pkg.Version
+	if upgrade {
+		err = i.hooks.PreRemove(ctx, pkg.Name, packages.PackageTypeOCI, true)
 		if err != nil {
 			return fmt.Errorf("could not prepare package: %w", err)
 		}
-		err = checkAvailableDiskSpace(i.packages, pkg)
-		if err != nil {
-			return installerErrors.Wrap(
-				installerErrors.ErrNotEnoughDiskSpace,
-				fmt.Errorf("not enough disk space: %w", err),
-			)
-		}
-		tmpDir, err := i.packages.MkdirTemp()
-		if err != nil {
-			return fmt.Errorf("could not create temporary directory: %w", err)
-		}
-		defer os.RemoveAll(tmpDir)
-		err = i.db.DeletePackage(pkg.Name)
-		if err != nil {
-			return fmt.Errorf("could not remove package installation in db: %w", err)
-		}
-		configDir := filepath.Join(i.userConfigsDir, "datadog-agent")
-		err = pkg.ExtractLayers(oci.DatadogPackageLayerMediaType, tmpDir)
-		if err != nil {
-			return fmt.Errorf("could not extract package layers: %w", err)
-		}
-		err = pkg.ExtractLayers(oci.DatadogPackageConfigLayerMediaType, configDir)
-		if err != nil {
-			return fmt.Errorf("could not extract package config layer: %w", err)
-		}
-		err = i.packages.Create(ctx, pkg.Name, pkg.Version, tmpDir)
-		if err != nil {
-			return fmt.Errorf("could not create repository: %w", err)
-		}
-		err = i.hooks.PostInstall(ctx, pkg.Name, packages.PackageTypeOCI, upgrade, args)
-		if err != nil {
-			return fmt.Errorf("could not setup package: %w", err)
-		}
-		err = i.db.SetPackage(db.Package{
-			Name:             pkg.Name,
-			Version:          pkg.Version,
-			InstallerVersion: version.AgentVersion,
-		})
-		if err != nil {
-			return fmt.Errorf("could not store package installation in db: %w", err)
-		}
 	}
-
-	if len(extensions) > 0 {
-		err = packages.InstallExtensions(ctx, pkg, extensions, i.hooks)
-		if err != nil {
-			return fmt.Errorf("could not install extensions, package still installed: %w", err)
-		}
+	err = i.hooks.PreInstall(ctx, pkg.Name, packages.PackageTypeOCI, upgrade)
+	if err != nil {
+		return fmt.Errorf("could not prepare package: %w", err)
 	}
-
+	err = checkAvailableDiskSpace(i.packages, pkg)
+	if err != nil {
+		return installerErrors.Wrap(
+			installerErrors.ErrNotEnoughDiskSpace,
+			fmt.Errorf("not enough disk space: %w", err),
+		)
+	}
+	tmpDir, err := i.packages.MkdirTemp()
+	if err != nil {
+		return fmt.Errorf("could not create temporary directory: %w", err)
+	}
+	defer os.RemoveAll(tmpDir)
+	err = i.db.DeletePackage(pkg.Name)
+	if err != nil {
+		return fmt.Errorf("could not remove package installation in db: %w", err)
+	}
+	configDir := filepath.Join(i.userConfigsDir, "datadog-agent")
+	err = pkg.ExtractLayers(oci.DatadogPackageLayerMediaType, tmpDir)
+	if err != nil {
+		return fmt.Errorf("could not extract package layers: %w", err)
+	}
+	err = pkg.ExtractLayers(oci.DatadogPackageConfigLayerMediaType, configDir)
+	if err != nil {
+		return fmt.Errorf("could not extract package config layer: %w", err)
+	}
+	err = i.packages.Create(ctx, pkg.Name, pkg.Version, tmpDir)
+	if err != nil {
+		return fmt.Errorf("could not create repository: %w", err)
+	}
+	err = i.hooks.PostInstall(ctx, pkg.Name, packages.PackageTypeOCI, upgrade, args)
+	if err != nil {
+		return fmt.Errorf("could not setup package: %w", err)
+	}
+	err = i.db.SetPackage(db.Package{
+		Name:             pkg.Name,
+		Version:          pkg.Version,
+		InstallerVersion: version.AgentVersion,
+	})
+	if err != nil {
+		return fmt.Errorf("could not store package installation in db: %w", err)
+	}
 	return nil
 }
 

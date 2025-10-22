@@ -13,9 +13,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/installinfo"
-	"github.com/DataDog/datadog-agent/pkg/fleet/installer/oci"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/embedded"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/fapolicyd"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/file"
@@ -27,11 +25,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/service/sysvinit"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/service/upstart"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/user"
-	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
-	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 var datadogAgentPackage = hooks{
@@ -236,9 +231,9 @@ func postInstallDatadogAgent(ctx HookContext) (err error) {
 	if err := integrations.RestoreCustomIntegrations(ctx, ctx.PackagePath); err != nil {
 		log.Warnf("failed to restore custom integrations: %s", err)
 	}
-	if err := restoreExtensions(ctx); err != nil {
-		return fmt.Errorf("failed to restore extensions: %s", err)
-	}
+	// if err := restoreExtensions(ctx); err != nil {
+	// 	log.Warnf("failed to restore extensions: %s", err)
+	// }
 	if err := agentService.WriteStable(ctx); err != nil {
 		return fmt.Errorf("failed to write stable units: %s", err)
 	}
@@ -247,32 +242,6 @@ func postInstallDatadogAgent(ctx HookContext) (err error) {
 	}
 	if err := agentService.RestartStable(ctx); err != nil {
 		return fmt.Errorf("failed to restart stable unit: %s", err)
-	}
-	return nil
-}
-
-// restoreExtensions restores the extensions for the agent
-// It is called after the agent is installed to restore the extensions that were installed during the previous installation
-func restoreExtensions(ctx HookContext) error {
-	extensions, err := ListExtensions(agentPackage)
-	if err != nil {
-		return fmt.Errorf("failed to list extensions: %s", err)
-	}
-	if len(extensions) == 0 {
-		return nil
-	}
-
-	env := env.FromEnv()
-	downloader := oci.NewDownloader(env, env.HTTPClient())
-	pkgUrl := oci.PackageURL(env, agentPackage, version.AgentVersion) // TODO: this doesn't always map to a tag...
-	pkg, err := downloader.Download(ctx, pkgUrl)                      // Downloads pkg metadata only
-	if err != nil {
-		return fmt.Errorf("failed to download package: %w", err)
-	}
-	repositories := repository.NewRepositories(paths.PackagesPath, AsyncPreRemoveHooks)
-	hooks := NewHooks(env, repositories)
-	if err := InstallExtensions(ctx, pkg, extensions, hooks); err != nil {
-		return fmt.Errorf("failed to re-install extensions: %s", err)
 	}
 	return nil
 }

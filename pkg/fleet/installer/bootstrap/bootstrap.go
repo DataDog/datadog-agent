@@ -23,15 +23,15 @@ const (
 )
 
 // Install self-installs the installer package from the given URL.
-func Install(ctx context.Context, env *env.Env, url string, extensions []string) error {
-	return install(ctx, env, url, extensions, false)
+func Install(ctx context.Context, env *env.Env, url string) error {
+	return install(ctx, env, url, false)
 }
 
 // InstallExperiment installs a package from the given URL as an experiment.
 // It first tries to grab the installer from a specific layer to start the experiment with,
 // and falls back to the current installer if it doesn't exist.
 func InstallExperiment(ctx context.Context, env *env.Env, url string) error {
-	return install(ctx, env, url, nil, true)
+	return install(ctx, env, url, true)
 }
 
 // getLocalInstaller returns an installer executor from the current binary

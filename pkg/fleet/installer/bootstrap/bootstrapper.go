@@ -20,7 +20,7 @@ func Bootstrap(ctx context.Context, env *env.Env) error {
 	if err != nil {
 		return fmt.Errorf("failed to get the installer URL: %w", err)
 	}
-	err = Install(ctx, env, installerURL, nil)
+	err = Install(ctx, env, installerURL)
 	if err != nil {
 		return fmt.Errorf("failed to bootstrap the installer: %w", err)
 	}

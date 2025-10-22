@@ -10,7 +10,6 @@ package oci
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 	"os"
 	"strings"
@@ -120,7 +119,6 @@ func TestDownloadConfigLayer(t *testing.T) {
 	assert.NoError(t, err)
 
 	extensionsFS := s.ExtensionsFS(fixtures.FixtureSimpleV1WithExtension)
-	fmt.Println(extensionsFS)
 	fixtures.AssertEqualFS(t, extensionsFS["simple-v1-extension"], os.DirFS(tmpDir))
 }
 

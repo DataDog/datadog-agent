@@ -270,7 +270,7 @@ func promoteConfig(params *cliParams, client localapiclient.Component) error {
 }
 
 func install(params *cliParams, client localapiclient.Component) error {
-	err := client.Install(params.pkg, params.version, nil)
+	err := client.Install(params.pkg, params.version)
 	if err != nil {
 		fmt.Println("Error installing package:", err)
 		return err

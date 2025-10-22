@@ -70,13 +70,13 @@ func (m *testPackageManager) ConfigStates(ctx context.Context) (map[string]repos
 	return args.Get(0).(map[string]repository.State), args.Error(1)
 }
 
-func (m *testPackageManager) Install(ctx context.Context, url string, extensions []string, installArgs []string) error {
-	args := m.Called(ctx, url, extensions, installArgs)
+func (m *testPackageManager) Install(ctx context.Context, url string, installArgs []string) error {
+	args := m.Called(ctx, url, installArgs)
 	return args.Error(0)
 }
 
-func (m *testPackageManager) ForceInstall(ctx context.Context, url string, extensions []string, installArgs []string) error {
-	args := m.Called(ctx, url, extensions, installArgs)
+func (m *testPackageManager) ForceInstall(ctx context.Context, url string, installArgs []string) error {
+	args := m.Called(ctx, url, installArgs)
 	return args.Error(0)
 }
 
@@ -271,9 +271,9 @@ func TestInstall(t *testing.T) {
 	defer i.Stop()
 
 	testURL := "oci://example.com/test-package:1.0.0"
-	i.pm.On("Install", mock.Anything, testURL, []string(nil), []string(nil)).Return(nil).Once()
+	i.pm.On("Install", mock.Anything, testURL, []string(nil)).Return(nil).Once()
 
-	err := i.Install(context.Background(), testURL, nil, nil)
+	err := i.Install(context.Background(), testURL, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

@@ -71,11 +71,11 @@ func (m *installerMock) ConfigStates(_ context.Context) (map[string]repository.S
 	}, nil
 }
 
-func (m *installerMock) Install(_ context.Context, _ string, _ []string, _ []string) error {
+func (m *installerMock) Install(_ context.Context, _ string, _ []string) error {
 	return nil
 }
 
-func (m *installerMock) ForceInstall(_ context.Context, _ string, _ []string, _ []string) error {
+func (m *installerMock) ForceInstall(_ context.Context, _ string, _ []string) error {
 	return nil
 }
 

@@ -11,11 +11,66 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	// "strings"
 
+	// "github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/oci"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
+	// "github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	// "github.com/DataDog/datadog-agent/pkg/version"
 )
+
+// // saveExtensions saves the extensions for a package by writing them to a file on disk.
+// // the extensions can then be picked up by the restoreExtensions function to restore them
+// func saveExtensions(ctx HookContext) error {
+// 	extensions, err := ListExtensions(ctx.Package)
+// 	if err != nil {
+// 		return fmt.Errorf("failed to list extensions: %s", err)
+// 	}
+// 	if len(extensions) == 0 {
+// 		return nil
+// 	}
+
+// 	filePath := filepath.Join(paths.RunPath, ctx.Package+"_extensions.tmp")
+// 	f, err := os.Create(filePath)
+// 	if err != nil {
+// 		return fmt.Errorf("failed to create extensions file: %w", err)
+// 	}
+// 	defer f.Close()
+// 	for _, ext := range extensions {
+// 		_, err := f.WriteString(ext + "\n")
+// 		if err != nil {
+// 			return fmt.Errorf("failed to write extension: %w", err)
+// 		}
+// 	}
+// 	return nil
+// }
+
+// // restoreExtensions restores the extensions for a package by reading them from a file on disk.
+// func restoreExtensions(ctx HookContext) error {
+// 	filePath := filepath.Join(paths.RunPath, ctx.Package+"_extensions.tmp")
+// 	f, err := os.ReadFile(filePath)
+// 	if err != nil {
+// 		return fmt.Errorf("failed to read extensions file: %w", err)
+// 	}
+// 	extensions := strings.Split(string(f), "\n")
+
+// 	env := env.FromEnv()
+// 	downloader := oci.NewDownloader(env, env.HTTPClient())
+// 	// TODO: this is only compatible with the Agent, so this should probably live in datadog_agent_linux.go
+// 	pkgURL := oci.PackageURL(env, ctx.Package, version.AgentVersion) // TODO: this doesn't always map to a tag...
+// 	pkg, err := downloader.Download(ctx, pkgURL)                     // Downloads pkg metadata only
+// 	if err != nil {
+// 		return fmt.Errorf("failed to download package: %w", err)
+// 	}
+// 	repositories := repository.NewRepositories(paths.PackagesPath, AsyncPreRemoveHooks)
+// 	hooks := NewHooks(env, repositories)
+// 	if err := InstallExtensions(ctx, pkg, extensions, hooks); err != nil {
+// 		return fmt.Errorf("failed to re-install extensions: %s", err)
+// 	}
+// 	return nil
+// }
 
 // ListExtensions lists all extensions for a package.
 // Returns all extensions for a package, empty if the package is not installed.
