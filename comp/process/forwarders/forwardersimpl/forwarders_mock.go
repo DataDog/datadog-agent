@@ -21,6 +21,8 @@ import (
 func MockModule() fxutil.Module {
 	return fxutil.Component(
 		fx.Provide(newMockForwarders),
+		//TODO: Fix the MockForwarder to be a real mock,
+		// and remove the need of including the MockSecrets for tests that use only the Forwarder.
 		fx.Provide(func() secrets.Component { return &secretsmock.Mock{} }),
 	)
 }

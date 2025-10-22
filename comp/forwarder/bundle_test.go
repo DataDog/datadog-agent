@@ -20,6 +20,7 @@ import (
 func TestBundleDependencies(t *testing.T) {
 	fxutil.TestBundle(t, Bundle(defaultforwarder.Params{}),
 		core.MockBundle(),
+		// TODO: Remove this once the mockForwarder is a proper mock
 		fx.Provide(func() secrets.Component { return secretsmock.New(t) }),
 	)
 }
