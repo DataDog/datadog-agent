@@ -1,5 +1,5 @@
 ARG AGENT_REPO=datadog/agent
-ARG AGENT_VERSION=7.66.1
+ARG AGENT_VERSION=7.66.1-full
 ARG AGENT_BRANCH=7.66.1
 # Use the Ubuntu Slim AMD64 base image
 FROM ubuntu:24.04 AS builder
