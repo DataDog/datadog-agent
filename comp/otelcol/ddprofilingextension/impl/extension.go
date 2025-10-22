@@ -204,7 +204,7 @@ func (e *ddExtension) buildProfilerOptions() []profiler.Option {
 func (e *ddExtension) Shutdown(ctx context.Context) error {
 	// stop profiler
 	profiler.Stop()
-	
+
 	// cleanup
 	os.Unsetenv("DD_PROFILING_AGENTLESS")
 	os.Unsetenv("DD_API_KEY")
