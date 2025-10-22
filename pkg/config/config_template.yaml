@@ -899,14 +899,14 @@ api_key:
 #
 # secret_refresh_interval: 0
 
-## @param secret_refresh_on_api_key_failure_interval - integer - optional - default 5
-## @env DD_SECRET_REFRESH_ON_API_KEY_FAILURE_INTERVAL - integer - optional - default 5
+## @param secret_refresh_on_api_key_failure_interval - integer - optional - default 0
+## @env DD_SECRET_REFRESH_ON_API_KEY_FAILURE_INTERVAL - integer - optional - default 0
 ##
 ## `secret_refresh_on_api_key_failure_interval` is the time in minutes between secret refreshes
 ## triggered by API key failures (403 responses or health probe failures). This rate limits how often
 ## the secrets are refreshed in response to errors. Set to 0 to disable the refresh.
 ##
-# secret_refresh_on_api_key_failure_interval: 5
+# secret_refresh_on_api_key_failure_interval: 0
 
 ## @param secret_refresh_scatter - boolean - optional - default true
 ## @env DD_SECRET_REFRESH_SCATTER - boolean - optional - default true
