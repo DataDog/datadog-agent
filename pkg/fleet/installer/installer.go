@@ -757,7 +757,7 @@ func (i *installerImpl) InstallExtensions(ctx context.Context, url string, exten
 		return fmt.Errorf("package %s is installed at version %s, requested version is %s", pkg.Name, existingPkg.Version, pkg.Version)
 	}
 
-	return packages.InstallExtensions(ctx, pkg, extensions, i.hooks)
+	return packages.InstallExtensions(ctx, pkg, extensions, false, i.hooks)
 }
 
 // RemoveExtensions removes multiple extensions.
@@ -776,7 +776,7 @@ func (i *installerImpl) RemoveExtensions(ctx context.Context, pkg string, extens
 		span.SetTag("extensions", strings.Join(extensions, ","))
 	}
 
-	return packages.RemoveExtensions(ctx, pkg, extensions, i.hooks)
+	return packages.RemoveExtensions(ctx, pkg, extensions, false, i.hooks)
 }
 
 // Close cleans up the Installer's dependencies, lock must be held by the caller

@@ -11,77 +11,22 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	// "strings"
 
-	// "github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/oci"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
-	// "github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	// "github.com/DataDog/datadog-agent/pkg/version"
 )
-
-// // saveExtensions saves the extensions for a package by writing them to a file on disk.
-// // the extensions can then be picked up by the restoreExtensions function to restore them
-// func saveExtensions(ctx HookContext) error {
-// 	extensions, err := ListExtensions(ctx.Package)
-// 	if err != nil {
-// 		return fmt.Errorf("failed to list extensions: %s", err)
-// 	}
-// 	if len(extensions) == 0 {
-// 		return nil
-// 	}
-
-// 	filePath := filepath.Join(paths.RunPath, ctx.Package+"_extensions.tmp")
-// 	f, err := os.Create(filePath)
-// 	if err != nil {
-// 		return fmt.Errorf("failed to create extensions file: %w", err)
-// 	}
-// 	defer f.Close()
-// 	for _, ext := range extensions {
-// 		_, err := f.WriteString(ext + "\n")
-// 		if err != nil {
-// 			return fmt.Errorf("failed to write extension: %w", err)
-// 		}
-// 	}
-// 	return nil
-// }
-
-// // restoreExtensions restores the extensions for a package by reading them from a file on disk.
-// func restoreExtensions(ctx HookContext) error {
-// 	filePath := filepath.Join(paths.RunPath, ctx.Package+"_extensions.tmp")
-// 	f, err := os.ReadFile(filePath)
-// 	if err != nil {
-// 		return fmt.Errorf("failed to read extensions file: %w", err)
-// 	}
-// 	extensions := strings.Split(string(f), "\n")
-
-// 	env := env.FromEnv()
-// 	downloader := oci.NewDownloader(env, env.HTTPClient())
-// 	// TODO: this is only compatible with the Agent, so this should probably live in datadog_agent_linux.go
-// 	pkgURL := oci.PackageURL(env, ctx.Package, version.AgentVersion) // TODO: this doesn't always map to a tag...
-// 	pkg, err := downloader.Download(ctx, pkgURL)                     // Downloads pkg metadata only
-// 	if err != nil {
-// 		return fmt.Errorf("failed to download package: %w", err)
-// 	}
-// 	repositories := repository.NewRepositories(paths.PackagesPath, AsyncPreRemoveHooks)
-// 	hooks := NewHooks(env, repositories)
-// 	if err := InstallExtensions(ctx, pkg, extensions, hooks); err != nil {
-// 		return fmt.Errorf("failed to re-install extensions: %s", err)
-// 	}
-// 	return nil
-// }
 
 // ListExtensions lists all extensions for a package.
 // Returns all extensions for a package, empty if the package is not installed.
-func ListExtensions(pkg string) ([]string, error) {
+func ListExtensions(pkg string, experiment bool) ([]string, error) {
 	db, err := newExtensionsDB(filepath.Join(paths.RunPath, "extensions.db"))
 	if err != nil {
 		return nil, fmt.Errorf("could not create extensions db: %w", err)
 	}
 	defer db.Close()
 
-	dbPkg, err := db.GetPackage(pkg)
+	dbPkg, err := db.GetPackage(pkg, experiment)
 	if err != nil {
 		if errors.Is(err, errPackageNotFound) {
 			return nil, nil
@@ -97,14 +42,14 @@ func ListExtensions(pkg string) ([]string, error) {
 }
 
 // InstallExtensions installs multiple extensions for a package.
-func InstallExtensions(ctx context.Context, pkg *oci.DownloadedPackage, extensions []string, hooks Hooks) error {
+func InstallExtensions(ctx context.Context, pkg *oci.DownloadedPackage, extensions []string, experiment bool, hooks Hooks) error {
 	db, err := newExtensionsDB(filepath.Join(paths.RunPath, "extensions.db"))
 	if err != nil {
 		return fmt.Errorf("could not create extensions db: %w", err)
 	}
 	defer db.Close()
 
-	dbPkg, err := db.GetPackage(pkg.Name)
+	dbPkg, err := db.GetPackage(pkg.Name, experiment)
 	if err != nil && !errors.Is(err, errPackageNotFound) {
 		return fmt.Errorf("could not get package: %w", err)
 	} else if err != nil && errors.Is(err, errPackageNotFound) {
@@ -113,6 +58,8 @@ func InstallExtensions(ctx context.Context, pkg *oci.DownloadedPackage, extensio
 			Version:    pkg.Version,
 			Extensions: map[string]struct{}{},
 		}
+	} else if dbPkg.Version != pkg.Version {
+		return fmt.Errorf("package %s is installed at version %s, requested version is %s", pkg.Name, dbPkg.Version, pkg.Version)
 	}
 
 	// Initialize extensions map if needed
@@ -146,7 +93,7 @@ func InstallExtensions(ctx context.Context, pkg *oci.DownloadedPackage, extensio
 
 	// Update package in DB if any extensions were installed
 	if len(installedExtensions) > 0 {
-		err = db.SetPackage(dbPkg)
+		err = db.SetPackage(dbPkg, experiment)
 		if err != nil {
 			// Clean up on failure
 			for _, extension := range installedExtensions {
@@ -209,23 +156,8 @@ func installExtension(ctx context.Context, pkg *oci.DownloadedPackage, extension
 	return nil
 }
 
-// removeExtension removes a single extension for a package.
-func removeExtension(ctx context.Context, pkg, version, extension string, hooks Hooks) error {
-	err := hooks.PreRemoveExtension(ctx, pkg, extension)
-	if err != nil {
-		return fmt.Errorf("could not prepare extension: %w", err)
-	}
-
-	extensionDir := filepath.Join(paths.PackagesPath, pkg, version, "ext", extension)
-	err = os.RemoveAll(extensionDir)
-	if err != nil {
-		return fmt.Errorf("could not remove directory for %s: %w", extension, err)
-	}
-	return nil
-}
-
 // RemoveExtensions removes multiple extensions.
-func RemoveExtensions(ctx context.Context, pkg string, extensions []string, hooks Hooks) error {
+func RemoveExtensions(ctx context.Context, pkg string, extensions []string, experiment bool, hooks Hooks) error {
 	db, err := newExtensionsDB(filepath.Join(paths.RunPath, "extensions.db"))
 	if err != nil {
 		return fmt.Errorf("could not create extensions db: %w", err)
@@ -236,7 +168,7 @@ func RemoveExtensions(ctx context.Context, pkg string, extensions []string, hook
 		return nil
 	}
 
-	dbPkg, err := db.GetPackage(pkg)
+	dbPkg, err := db.GetPackage(pkg, experiment)
 	if err != nil && !errors.Is(err, errPackageNotFound) {
 		return fmt.Errorf("could not get package: %w", err)
 	} else if err != nil && errors.Is(err, errPackageNotFound) {
@@ -268,7 +200,7 @@ func RemoveExtensions(ctx context.Context, pkg string, extensions []string, hook
 
 	// Update package in DB if any extensions were removed
 	if len(removedExtensions) > 0 {
-		err = db.SetPackage(dbPkg)
+		err = db.SetPackage(dbPkg, experiment)
 		if err != nil {
 			return fmt.Errorf("could not update package in db: %w", err)
 		}
@@ -297,7 +229,7 @@ func RemoveAllExtensions(ctx context.Context, pkg string, hooks Hooks) error {
 	}
 	defer db.Close()
 
-	dbPkg, err := db.GetPackage(pkg)
+	dbPkg, err := db.GetPackage(pkg, false)
 	if err != nil {
 		if !errors.Is(err, errPackageNotFound) {
 			return fmt.Errorf("could not get package: %w", err)
@@ -310,10 +242,41 @@ func RemoveAllExtensions(ctx context.Context, pkg string, hooks Hooks) error {
 		}
 	}
 
-	err = db.RemovePackage(pkg)
+	err = db.RemovePackage(pkg, false)
 	if err != nil {
 		return fmt.Errorf("could not remove package from extensions db: %w", err)
 	}
 
+	return nil
+}
+
+// removeExtension removes a single extension for a package.
+func removeExtension(ctx context.Context, pkg, version, extension string, hooks Hooks) error {
+	err := hooks.PreRemoveExtension(ctx, pkg, extension)
+	if err != nil {
+		return fmt.Errorf("could not prepare extension: %w", err)
+	}
+
+	extensionDir := filepath.Join(paths.PackagesPath, pkg, version, "ext", extension)
+	err = os.RemoveAll(extensionDir)
+	if err != nil {
+		return fmt.Errorf("could not remove directory for %s: %w", extension, err)
+	}
+	return nil
+}
+
+// PromoteExtensions promotes an extension from experiment to stable. As the installer handles the top-level dir,
+// we only have to update the DB.
+func PromoteExtensions(pkg string) error {
+	db, err := newExtensionsDB(filepath.Join(paths.RunPath, "extensions.db"))
+	if err != nil {
+		return fmt.Errorf("could not create extensions db: %w", err)
+	}
+	defer db.Close()
+
+	err = db.Promote(pkg)
+	if err != nil {
+		return fmt.Errorf("could not promote extensions: %w", err)
+	}
 	return nil
 }

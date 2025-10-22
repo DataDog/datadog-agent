@@ -54,14 +54,14 @@ func (p *extensionsDB) Close() error {
 }
 
 // GetPackage returns a package by name
-func (p *extensionsDB) GetPackage(name string) (dbPackage, error) {
+func (p *extensionsDB) GetPackage(name string, experiment bool) (dbPackage, error) {
 	var pkg dbPackage
 	err := p.db.View(func(tx *bbolt.Tx) error {
 		b := tx.Bucket(bucketExtensions)
 		if b == nil {
 			return fmt.Errorf("bucket not found")
 		}
-		v := b.Get([]byte(name))
+		v := b.Get([]byte(fmt.Sprintf("%s-%t", name, experiment)))
 		if len(v) == 0 {
 			return errPackageNotFound
 		}
@@ -78,7 +78,7 @@ func (p *extensionsDB) GetPackage(name string) (dbPackage, error) {
 }
 
 // SetPackage sets a package
-func (p *extensionsDB) SetPackage(pkg dbPackage) error {
+func (p *extensionsDB) SetPackage(pkg dbPackage, experiment bool) error {
 	err := p.db.Update(func(tx *bbolt.Tx) error {
 		b := tx.Bucket(bucketExtensions)
 		if b == nil {
@@ -88,7 +88,7 @@ func (p *extensionsDB) SetPackage(pkg dbPackage) error {
 		if err != nil {
 			return fmt.Errorf("could not marshal package: %w", err)
 		}
-		return b.Put([]byte(pkg.Name), rawPkg)
+		return b.Put([]byte(fmt.Sprintf("%s-%t", pkg.Name, experiment)), rawPkg)
 	})
 	if err != nil {
 		return fmt.Errorf("could not set package: %w", err)
@@ -97,14 +97,31 @@ func (p *extensionsDB) SetPackage(pkg dbPackage) error {
 }
 
 // RemovePackage removes a package
-func (p *extensionsDB) RemovePackage(name string) error {
+func (p *extensionsDB) RemovePackage(name string, experiment bool) error {
 	err := p.db.Update(func(tx *bbolt.Tx) error {
 		b := tx.Bucket(bucketExtensions)
 		if b == nil {
 			return fmt.Errorf("bucket not found")
 		}
-		return b.Delete([]byte(name))
+		return b.Delete([]byte(fmt.Sprintf("%s-%t", name, experiment)))
 	})
+	if err != nil {
+		return fmt.Errorf("could not remove package: %w", err)
+	}
+	return nil
+}
+
+// Promote promotes a key from experiment to stable
+func (p *extensionsDB) Promote(name string) error {
+	content, err := p.GetPackage(name, true)
+	if err != nil {
+		return fmt.Errorf("could not get package: %w", err)
+	}
+	err = p.SetPackage(content, false)
+	if err != nil {
+		return fmt.Errorf("could not set package: %w", err)
+	}
+	err = p.RemovePackage(name, true)
 	if err != nil {
 		return fmt.Errorf("could not remove package: %w", err)
 	}
