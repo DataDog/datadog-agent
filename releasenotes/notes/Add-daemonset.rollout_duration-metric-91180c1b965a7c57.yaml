@@ -8,4 +8,4 @@
 ---
 enhancements:
   - |
-    Adds kubernetes_state.daemonset.rollout_duration metric to ksm check.
+    Adds kubernetes_state.daemonset.rollout_duration metric to the KSM check.
