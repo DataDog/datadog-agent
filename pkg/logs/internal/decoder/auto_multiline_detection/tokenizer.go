@@ -221,6 +221,24 @@ func getSpecialLongToken(input string) tokens.Token {
 		"AWST", "AWDT", "AKST", "AKDT", "HST",
 		"HDT", "CHST", "CHDT", "NST", "NDT":
 		return tokens.Zone
+	case "error", "Error", "err", "ERROR", "ERR":
+		return tokens.Error
+	case "info", "Info", "INFO":
+		return tokens.Info
+	case "debug", "Debug", "DEBUG":
+		return tokens.Debug
+	case "warn", "Warn", "WARN":
+		return tokens.Warn
+	case "fatal", "Fatal", "FATAL":
+		return tokens.Fatal
+	case "trace", "Trace", "TRACE":
+		return tokens.Trace
+	case "critical", "Critical", "CRITICAL":
+		return tokens.Critical
+	case "alert", "Alert", "ALERT":
+		return tokens.Alert
+	case "emergency", "Emergency", "EMERGENCY":
+		return tokens.Emergency
 	}
 
 	return tokens.End
@@ -303,6 +321,24 @@ func tokenToString(token tokens.Token) string {
 		return "T"
 	case tokens.Zone:
 		return "ZONE"
+	case tokens.Error:
+		return "ERROR"
+	case tokens.Info:
+		return "INFO"
+	case tokens.Debug:
+		return "DEBUG"
+	case tokens.Warn:
+		return "WARN"
+	case tokens.Fatal:
+		return "FATAL"
+	case tokens.Trace:
+		return "TRACE"
+	case tokens.Critical:
+		return "CRITICAL"
+	case tokens.Alert:
+		return "ALERT"
+	case tokens.Emergency:
+		return "EMERGENCY"
 	}
 	return ""
 }

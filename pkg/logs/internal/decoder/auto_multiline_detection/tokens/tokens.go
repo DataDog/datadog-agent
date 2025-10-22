@@ -76,6 +76,17 @@ const (
 	Zone // Represents a timezone
 	T    // t (often `T`) denotes a time separator in many timestamp formats
 
+	// Log context tokens
+	Error
+	Info
+	Debug
+	Warn
+	Fatal
+	Trace
+	Critical
+	Alert
+	Emergency
+
 	End // Not a valid token. Used to mark the end of the token list or as a terminator.
 )
 

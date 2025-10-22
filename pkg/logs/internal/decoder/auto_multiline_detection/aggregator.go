@@ -9,6 +9,7 @@ package automultilinedetection
 import (
 	"bytes"
 
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	status "github.com/DataDog/datadog-agent/pkg/logs/status/utils"
@@ -110,6 +111,7 @@ type Aggregator struct {
 	maxContentSize     int
 	multiLineMatchInfo *status.CountInfo
 	linesCombinedInfo  *status.CountInfo
+	sampleAgg          *SampleAggregator
 }
 
 // NewAggregator creates a new aggregator.
@@ -125,6 +127,7 @@ func NewAggregator(outputFn func(m *message.Message), maxContentSize int, tagTru
 		maxContentSize:     maxContentSize,
 		multiLineMatchInfo: multiLineMatchInfo,
 		linesCombinedInfo:  linesCombinedInfo,
+		sampleAgg:          NewSampleAggregator(tailerInfo),
 	}
 }
 
@@ -186,7 +189,15 @@ func (a *Aggregator) Flush() {
 		a.bucket.reset()
 		return
 	}
-	a.outputFn(a.bucket.flush())
+	msg := a.bucket.flush()
+	if pkgconfigsetup.Datadog().GetBool("logs_config.dynamic_sampling_enabled") {
+		msg = a.sampleAgg.Process(msg)
+		if msg != nil {
+			a.outputFn(msg)
+		}
+	} else {
+		a.outputFn(msg)
+	}
 }
 
 // IsEmpty returns true if the bucket is empty.

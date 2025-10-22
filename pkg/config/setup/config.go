@@ -1719,6 +1719,24 @@ func logsagent(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("logs_config.use_tcp", false)
 	config.BindEnvAndSetDefault("logs_config.force_use_tcp", false)
 
+	// Dynamic sampling configuration
+	config.BindEnvAndSetDefault("logs_config.dynamic_sampling_enabled", false)
+	config.BindEnvAndSetDefault("logs_config.dynamic_sampling.skip_json_logs", false)
+	config.BindEnvAndSetDefault("logs_config.dynamic_sampling.tokenizer_size", 10240)
+	config.BindEnvAndSetDefault("logs_config.dynamic_sampling.rate_ceiling", 1.0)
+	config.BindEnvAndSetDefault("logs_config.dynamic_sampling.fast_half_life_seconds", 2)
+	config.BindEnvAndSetDefault("logs_config.dynamic_sampling.slow_half_life_seconds", 60)
+	config.BindEnvAndSetDefault("logs_config.dynamic_sampling.rare_enter_share", 0.01)
+	config.BindEnvAndSetDefault("logs_config.dynamic_sampling.rare_exit_share", 0.02)
+	config.BindEnvAndSetDefault("logs_config.dynamic_sampling.hysteresis_seconds", 5)
+	config.BindEnvAndSetDefault("logs_config.dynamic_sampling.rare_burst_refill", 0.6)
+	config.BindEnvAndSetDefault("logs_config.dynamic_sampling.rare_burst_cap", 100.0)
+	config.BindEnvAndSetDefault("logs_config.dynamic_sampling.ceiling_cap", 2.0)
+	config.BindEnvAndSetDefault("logs_config.dynamic_sampling.global_rare_burst_refill", 150.0)
+	config.BindEnvAndSetDefault("logs_config.dynamic_sampling.global_rare_burst_cap", 2000.0)
+	config.BindEnvAndSetDefault("logs_config.dynamic_sampling.new_type_burst_bootstrap", 5.0)
+	config.BindEnvAndSetDefault("logs_config.dynamic_sampling.evict_after_minutes", 3)
+
 	// Transport protocol for log payloads
 	config.BindEnvAndSetDefault("logs_config.http_protocol", "auto")
 	config.BindEnvAndSetDefault("logs_config.http_timeout", 10)
