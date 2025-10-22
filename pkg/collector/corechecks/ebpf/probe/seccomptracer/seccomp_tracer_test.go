@@ -35,6 +35,12 @@ type seccompTracerTestSuite struct {
 func TestSeccompTracer(t *testing.T) {
 	// Seccomp tracer only supports CO-RE (uses bpf_task_pt_regs and bpf_get_current_task_btf)
 	ebpftest.TestBuildModes(t, []ebpftest.BuildMode{ebpftest.CORE}, "", func(t *testing.T) {
+		cfg := ebpf.NewConfig()
+		isSupported, err := IsSupported(cfg)
+		require.NoError(t, err)
+		if !isSupported {
+			t.Skip("seccomp tracer is not supported on this configuration")
+		}
 		suite.Run(t, new(seccompTracerTestSuite))
 	})
 }

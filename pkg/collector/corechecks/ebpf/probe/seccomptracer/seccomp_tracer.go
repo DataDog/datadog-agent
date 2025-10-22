@@ -6,7 +6,6 @@
 //go:build linux_bpf && linux
 
 //go:generate $GOPATH/bin/include_headers pkg/collector/corechecks/ebpf/c/runtime/seccomp-tracer-kern.c pkg/ebpf/bytecode/build/runtime/seccomp-tracer.c pkg/ebpf/c
-//go:generate $GOPATH/bin/integrity pkg/ebpf/bytecode/build/runtime/seccomp-tracer.c pkg/ebpf/bytecode/runtime/seccomp-tracer.go runtime
 
 // Package seccomptracer is the system-probe side of the Seccomp Tracer check
 package seccomptracer
@@ -54,14 +53,31 @@ type Tracer struct {
 	stats   map[seccompStatsKey]uint64
 }
 
+func IsSupported(cfg *ebpf.Config) (bool, error) {
+	kv, err := kernel.HostVersion()
+	if err != nil {
+		return false, fmt.Errorf("error detecting kernel version: %w", err)
+	}
+	// Ring buffers require kernel 5.8+
+	if kv < kernel.VersionCode(5, 8, 0) {
+		return false, fmt.Errorf("detected kernel version %s, but seccomp-tracer probe requires a kernel version of at least 5.8.0 (for ring buffers)", kv)
+	}
+
+	return cfg.EnableCORE, nil
+}
+
 // NewTracer creates a [Tracer]
 // Note: Seccomp tracer requires CO-RE (uses bpf_task_pt_regs and bpf_get_current_task_btf)
 func NewTracer(cfg *ebpf.Config) (*Tracer, error) {
-	if !cfg.EnableCORE {
-		return nil, fmt.Errorf("seccomp tracer requires CO-RE support (set system_probe_config.enable_co_re to true)")
+	isSupported, err := IsSupported(cfg)
+	if err != nil {
+		return nil, err
+	}
+	if !isSupported {
+		return nil, fmt.Errorf("seccomp tracer is not supported on this kernel version")
 	}
 
-	return loadSeccompTracerCOREProbe(cfg)
+	return loadSeccompTracerProbe(cfg)
 }
 
 func startSeccompTracerProbe(buf bytecode.AssetReader, managerOptions manager.Options) (*Tracer, error) {
@@ -162,15 +178,7 @@ func (t *Tracer) GetAndFlush() model.SeccompStats {
 	return result
 }
 
-func loadSeccompTracerCOREProbe(cfg *ebpf.Config) (*Tracer, error) {
-	kv, err := kernel.HostVersion()
-	if err != nil {
-		return nil, fmt.Errorf("error detecting kernel version: %w", err)
-	}
-	// Ring buffers require kernel 5.8+
-	if kv < kernel.VersionCode(5, 8, 0) {
-		return nil, fmt.Errorf("detected kernel version %s, but seccomp-tracer probe requires a kernel version of at least 5.8.0 (for ring buffers)", kv)
-	}
+func loadSeccompTracerProbe(cfg *ebpf.Config) (*Tracer, error) {
 
 	filename := "seccomp-tracer.o"
 	if cfg.BPFDebug {
@@ -179,7 +187,8 @@ func loadSeccompTracerCOREProbe(cfg *ebpf.Config) (*Tracer, error) {
 	}
 
 	var probe *Tracer
-	err = ebpf.LoadCOREAsset(filename, func(buf bytecode.AssetReader, opts manager.Options) error {
+	err := ebpf.LoadCOREAsset(filename, func(buf bytecode.AssetReader, opts manager.Options) error {
+		var err error
 		probe, err = startSeccompTracerProbe(buf, opts)
 		return err
 	})
