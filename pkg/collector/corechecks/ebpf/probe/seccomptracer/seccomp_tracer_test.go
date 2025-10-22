@@ -84,10 +84,12 @@ func (s *seccompTracerTestSuite) TestCanDetectSeccompDenial() {
 			if value.SyscallNr == unix.SYS_GETPID {
 				foundGetpid = true
 				assert.Equal(c, uint64(1), value.Count, "Expected exactly one getpid denial")
+				assert.Equal(c, uint32(unix.SECCOMP_RET_ERRNO), value.SeccompAction)
 			}
 			if value.SyscallNr == unix.SYS_GETUID {
 				foundGetuid = true
 				assert.Equal(c, uint64(1), value.Count, "Expected exactly one getuid denial")
+				assert.Equal(c, uint32(unix.SECCOMP_RET_ERRNO), value.SeccompAction)
 			}
 		}
 

@@ -86,7 +86,7 @@ func startSeccompTracerProbe(buf bytecode.AssetReader, managerOptions manager.Op
 		Probes: []*manager.Probe{
 			{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFFuncName: "kretprobe____seccomp_filter",
+					EBPFFuncName: "kretprobe__seccomp_run_filters",
 					UID:          "seccomp_tracer",
 				},
 			},

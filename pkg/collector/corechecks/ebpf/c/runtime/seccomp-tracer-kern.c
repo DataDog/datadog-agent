@@ -1,7 +1,6 @@
 #include "ktypes.h"
 #include "bpf_metadata.h"
 
-
 #include "seccomp-tracer-kern-user.h"
 #include "cgroup.h"
 
@@ -16,21 +15,29 @@
  */
 BPF_RINGBUF_MAP(seccomp_events, seccomp_event_t)
 
+// source: include/uapi/linux/seccomp.h
+#define SECCOMP_RET_KILL_PROCESS 0x80000000U /* kill the process */
+#define SECCOMP_RET_KILL_THREAD 0x00000000U /* kill the thread */
+#define SECCOMP_RET_KILL SECCOMP_RET_KILL_THREAD
+#define SECCOMP_RET_TRAP 0x00030000U /* disallow and force a SIGSYS */
+#define SECCOMP_RET_ERRNO 0x00050000U /* returns an errno */
+#define SECCOMP_RET_USER_NOTIF 0x7fc00000U /* notifies userspace */
+#define SECCOMP_RET_TRACE 0x7ff00000U /* pass to a tracer or disallow */
+#define SECCOMP_RET_LOG 0x7ffc0000U /* allow after logging */
+#define SECCOMP_RET_ALLOW 0x7fff0000U /* allow */
+
+/* Masks for the return value sections. */
+#define SECCOMP_RET_ACTION_FULL 0xffff0000U
+#define SECCOMP_RET_ACTION 0x7fff0000U
+#define SECCOMP_RET_DATA 0x0000ffffU
+
 // CO-RE only: Read syscall number from task's pt_regs using bpf_task_pt_regs()
-SEC("kretprobe/__seccomp_filter")
-int BPF_KRETPROBE(kretprobe____seccomp_filter, int ret)
-{
-    // The return value contains the seccomp action
-    // SECCOMP_RET_KILL_PROCESS = 0x80000000
-    // SECCOMP_RET_KILL_THREAD  = 0x00000000
-    // SECCOMP_RET_TRAP         = 0x00030000
-    // SECCOMP_RET_ERRNO        = 0x00050000
-    // SECCOMP_RET_ALLOW        = 0x7fff0000
+SEC("kretprobe/seccomp_run_filters")
+int BPF_KRETPROBE(kretprobe__seccomp_run_filters, int ret) {
+    u32 action = ret & SECCOMP_RET_ACTION_FULL;
 
-    u32 action = ret & 0xffff0000;
-
-    // Only track denials (not ALLOW)
-    if (action == 0x7fff0000) { // SECCOMP_RET_ALLOW
+    // Only track denials
+    if (action == SECCOMP_RET_ALLOW || action == SECCOMP_RET_LOG || action == SECCOMP_RET_USER_NOTIF || action == SECCOMP_RET_TRACE) {
         return 0;
     }
 
