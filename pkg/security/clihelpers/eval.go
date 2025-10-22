@@ -177,9 +177,8 @@ func eventFromTestData(testData TestData) (eval.Event, error) {
 
 	event := &model.Event{
 		BaseEvent: model.BaseEvent{
-			Type:             uint32(kind),
-			FieldHandlers:    &model.FakeFieldHandlers{},
-			ContainerContext: &model.ContainerContext{},
+			Type:          uint32(kind),
+			FieldHandlers: &model.FakeFieldHandlers{},
 		},
 	}
 	event.Init()

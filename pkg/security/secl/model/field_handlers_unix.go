@@ -24,13 +24,6 @@ func (ev *Event) ResolveFieldsForAD() {
 func (ev *Event) resolveFields(forADs bool) {
 	eventType := ev.GetEventType().String()
 	// resolve context fields that are not related to any event type
-	_ = ev.FieldHandlers.ResolveCGroupID(ev, ev.CGroupContext)
-	_ = ev.FieldHandlers.ResolveCGroupVersion(ev, ev.CGroupContext)
-	_ = ev.FieldHandlers.ResolveContainerCreatedAt(ev, ev.BaseEvent.ContainerContext)
-	_ = ev.FieldHandlers.ResolveContainerID(ev, ev.BaseEvent.ContainerContext)
-	if !forADs {
-		_ = ev.FieldHandlers.ResolveContainerTags(ev, ev.BaseEvent.ContainerContext)
-	}
 	_ = ev.FieldHandlers.ResolveAsync(ev)
 	_ = ev.FieldHandlers.ResolveHostname(ev, &ev.BaseEvent)
 	if !forADs {
@@ -55,7 +48,11 @@ func (ev *Event) resolveFields(forADs bool) {
 	_ = ev.FieldHandlers.ResolveProcessArgv0(ev, &ev.BaseEvent.ProcessContext.Process)
 	_ = ev.FieldHandlers.ResolveCGroupID(ev, &ev.BaseEvent.ProcessContext.Process.CGroup)
 	_ = ev.FieldHandlers.ResolveCGroupVersion(ev, &ev.BaseEvent.ProcessContext.Process.CGroup)
-	_ = ev.FieldHandlers.ResolveProcessContainerID(ev, &ev.BaseEvent.ProcessContext.Process)
+	_ = ev.FieldHandlers.ResolveContainerCreatedAt(ev, &ev.BaseEvent.ProcessContext.Process.ContainerContext)
+	_ = ev.FieldHandlers.ResolveContainerID(ev, &ev.BaseEvent.ProcessContext.Process.ContainerContext)
+	if !forADs {
+		_ = ev.FieldHandlers.ResolveContainerTags(ev, &ev.BaseEvent.ProcessContext.Process.ContainerContext)
+	}
 	_ = ev.FieldHandlers.ResolveProcessCreatedAt(ev, &ev.BaseEvent.ProcessContext.Process)
 	_ = ev.FieldHandlers.ResolveProcessEnvp(ev, &ev.BaseEvent.ProcessContext.Process)
 	_ = ev.FieldHandlers.ResolveProcessEnvs(ev, &ev.BaseEvent.ProcessContext.Process)
@@ -170,7 +167,13 @@ func (ev *Event) resolveFields(forADs bool) {
 		_ = ev.FieldHandlers.ResolveCGroupVersion(ev, &ev.BaseEvent.ProcessContext.Parent.CGroup)
 	}
 	if ev.BaseEvent.ProcessContext.HasParent() {
-		_ = ev.FieldHandlers.ResolveProcessContainerID(ev, ev.BaseEvent.ProcessContext.Parent)
+		_ = ev.FieldHandlers.ResolveContainerCreatedAt(ev, &ev.BaseEvent.ProcessContext.Parent.ContainerContext)
+	}
+	if ev.BaseEvent.ProcessContext.HasParent() {
+		_ = ev.FieldHandlers.ResolveContainerID(ev, &ev.BaseEvent.ProcessContext.Parent.ContainerContext)
+	}
+	if !forADs && ev.BaseEvent.ProcessContext.HasParent() {
+		_ = ev.FieldHandlers.ResolveContainerTags(ev, &ev.BaseEvent.ProcessContext.Parent.ContainerContext)
 	}
 	if ev.BaseEvent.ProcessContext.HasParent() {
 		_ = ev.FieldHandlers.ResolveProcessCreatedAt(ev, ev.BaseEvent.ProcessContext.Parent)
@@ -455,7 +458,11 @@ func (ev *Event) resolveFields(forADs bool) {
 		}
 		_ = ev.FieldHandlers.ResolveCGroupID(ev, &ev.Exec.Process.CGroup)
 		_ = ev.FieldHandlers.ResolveCGroupVersion(ev, &ev.Exec.Process.CGroup)
-		_ = ev.FieldHandlers.ResolveProcessContainerID(ev, ev.Exec.Process)
+		_ = ev.FieldHandlers.ResolveContainerID(ev, &ev.Exec.Process.ContainerContext)
+		_ = ev.FieldHandlers.ResolveContainerCreatedAt(ev, &ev.Exec.Process.ContainerContext)
+		if !forADs {
+			_ = ev.FieldHandlers.ResolveContainerTags(ev, &ev.Exec.Process.ContainerContext)
+		}
 		if ev.Exec.Process.HasInterpreter() {
 			_ = ev.FieldHandlers.ResolveFileFieldsUser(ev, &ev.Exec.Process.LinuxBinprm.FileEvent.FileFields)
 		}
@@ -590,7 +597,11 @@ func (ev *Event) resolveFields(forADs bool) {
 		}
 		_ = ev.FieldHandlers.ResolveCGroupID(ev, &ev.Exit.Process.CGroup)
 		_ = ev.FieldHandlers.ResolveCGroupVersion(ev, &ev.Exit.Process.CGroup)
-		_ = ev.FieldHandlers.ResolveProcessContainerID(ev, ev.Exit.Process)
+		_ = ev.FieldHandlers.ResolveContainerID(ev, &ev.Exit.Process.ContainerContext)
+		_ = ev.FieldHandlers.ResolveContainerCreatedAt(ev, &ev.Exit.Process.ContainerContext)
+		if !forADs {
+			_ = ev.FieldHandlers.ResolveContainerTags(ev, &ev.Exit.Process.ContainerContext)
+		}
 		if ev.Exit.Process.HasInterpreter() {
 			_ = ev.FieldHandlers.ResolveFileFieldsUser(ev, &ev.Exit.Process.LinuxBinprm.FileEvent.FileFields)
 		}
@@ -869,7 +880,11 @@ func (ev *Event) resolveFields(forADs bool) {
 		}
 		_ = ev.FieldHandlers.ResolveCGroupID(ev, &ev.PTrace.Tracee.Process.CGroup)
 		_ = ev.FieldHandlers.ResolveCGroupVersion(ev, &ev.PTrace.Tracee.Process.CGroup)
-		_ = ev.FieldHandlers.ResolveProcessContainerID(ev, &ev.PTrace.Tracee.Process)
+		_ = ev.FieldHandlers.ResolveContainerID(ev, &ev.PTrace.Tracee.Process.ContainerContext)
+		_ = ev.FieldHandlers.ResolveContainerCreatedAt(ev, &ev.PTrace.Tracee.Process.ContainerContext)
+		if !forADs {
+			_ = ev.FieldHandlers.ResolveContainerTags(ev, &ev.PTrace.Tracee.Process.ContainerContext)
+		}
 		if ev.PTrace.Tracee.Process.HasInterpreter() {
 			_ = ev.FieldHandlers.ResolveFileFieldsUser(ev, &ev.PTrace.Tracee.Process.LinuxBinprm.FileEvent.FileFields)
 		}
@@ -981,7 +996,13 @@ func (ev *Event) resolveFields(forADs bool) {
 			_ = ev.FieldHandlers.ResolveCGroupVersion(ev, &ev.PTrace.Tracee.Parent.CGroup)
 		}
 		if ev.PTrace.Tracee.HasParent() {
-			_ = ev.FieldHandlers.ResolveProcessContainerID(ev, ev.PTrace.Tracee.Parent)
+			_ = ev.FieldHandlers.ResolveContainerID(ev, &ev.PTrace.Tracee.Parent.ContainerContext)
+		}
+		if ev.PTrace.Tracee.HasParent() {
+			_ = ev.FieldHandlers.ResolveContainerCreatedAt(ev, &ev.PTrace.Tracee.Parent.ContainerContext)
+		}
+		if !forADs && ev.PTrace.Tracee.HasParent() {
+			_ = ev.FieldHandlers.ResolveContainerTags(ev, &ev.PTrace.Tracee.Parent.ContainerContext)
 		}
 		if ev.PTrace.Tracee.HasParent() && ev.PTrace.Tracee.Parent.HasInterpreter() {
 			_ = ev.FieldHandlers.ResolveFileFieldsUser(ev, &ev.PTrace.Tracee.Parent.LinuxBinprm.FileEvent.FileFields)
@@ -1200,7 +1221,11 @@ func (ev *Event) resolveFields(forADs bool) {
 		}
 		_ = ev.FieldHandlers.ResolveCGroupID(ev, &ev.Setrlimit.Target.Process.CGroup)
 		_ = ev.FieldHandlers.ResolveCGroupVersion(ev, &ev.Setrlimit.Target.Process.CGroup)
-		_ = ev.FieldHandlers.ResolveProcessContainerID(ev, &ev.Setrlimit.Target.Process)
+		_ = ev.FieldHandlers.ResolveContainerID(ev, &ev.Setrlimit.Target.Process.ContainerContext)
+		_ = ev.FieldHandlers.ResolveContainerCreatedAt(ev, &ev.Setrlimit.Target.Process.ContainerContext)
+		if !forADs {
+			_ = ev.FieldHandlers.ResolveContainerTags(ev, &ev.Setrlimit.Target.Process.ContainerContext)
+		}
 		if ev.Setrlimit.Target.Process.HasInterpreter() {
 			_ = ev.FieldHandlers.ResolveFileFieldsUser(ev, &ev.Setrlimit.Target.Process.LinuxBinprm.FileEvent.FileFields)
 		}
@@ -1312,7 +1337,13 @@ func (ev *Event) resolveFields(forADs bool) {
 			_ = ev.FieldHandlers.ResolveCGroupVersion(ev, &ev.Setrlimit.Target.Parent.CGroup)
 		}
 		if ev.Setrlimit.Target.HasParent() {
-			_ = ev.FieldHandlers.ResolveProcessContainerID(ev, ev.Setrlimit.Target.Parent)
+			_ = ev.FieldHandlers.ResolveContainerID(ev, &ev.Setrlimit.Target.Parent.ContainerContext)
+		}
+		if ev.Setrlimit.Target.HasParent() {
+			_ = ev.FieldHandlers.ResolveContainerCreatedAt(ev, &ev.Setrlimit.Target.Parent.ContainerContext)
+		}
+		if !forADs && ev.Setrlimit.Target.HasParent() {
+			_ = ev.FieldHandlers.ResolveContainerTags(ev, &ev.Setrlimit.Target.Parent.ContainerContext)
 		}
 		if ev.Setrlimit.Target.HasParent() && ev.Setrlimit.Target.Parent.HasInterpreter() {
 			_ = ev.FieldHandlers.ResolveFileFieldsUser(ev, &ev.Setrlimit.Target.Parent.LinuxBinprm.FileEvent.FileFields)
@@ -1471,7 +1502,11 @@ func (ev *Event) resolveFields(forADs bool) {
 		}
 		_ = ev.FieldHandlers.ResolveCGroupID(ev, &ev.Signal.Target.Process.CGroup)
 		_ = ev.FieldHandlers.ResolveCGroupVersion(ev, &ev.Signal.Target.Process.CGroup)
-		_ = ev.FieldHandlers.ResolveProcessContainerID(ev, &ev.Signal.Target.Process)
+		_ = ev.FieldHandlers.ResolveContainerID(ev, &ev.Signal.Target.Process.ContainerContext)
+		_ = ev.FieldHandlers.ResolveContainerCreatedAt(ev, &ev.Signal.Target.Process.ContainerContext)
+		if !forADs {
+			_ = ev.FieldHandlers.ResolveContainerTags(ev, &ev.Signal.Target.Process.ContainerContext)
+		}
 		if ev.Signal.Target.Process.HasInterpreter() {
 			_ = ev.FieldHandlers.ResolveFileFieldsUser(ev, &ev.Signal.Target.Process.LinuxBinprm.FileEvent.FileFields)
 		}
@@ -1583,7 +1618,13 @@ func (ev *Event) resolveFields(forADs bool) {
 			_ = ev.FieldHandlers.ResolveCGroupVersion(ev, &ev.Signal.Target.Parent.CGroup)
 		}
 		if ev.Signal.Target.HasParent() {
-			_ = ev.FieldHandlers.ResolveProcessContainerID(ev, ev.Signal.Target.Parent)
+			_ = ev.FieldHandlers.ResolveContainerID(ev, &ev.Signal.Target.Parent.ContainerContext)
+		}
+		if ev.Signal.Target.HasParent() {
+			_ = ev.FieldHandlers.ResolveContainerCreatedAt(ev, &ev.Signal.Target.Parent.ContainerContext)
+		}
+		if !forADs && ev.Signal.Target.HasParent() {
+			_ = ev.FieldHandlers.ResolveContainerTags(ev, &ev.Signal.Target.Parent.ContainerContext)
 		}
 		if ev.Signal.Target.HasParent() && ev.Signal.Target.Parent.HasInterpreter() {
 			_ = ev.FieldHandlers.ResolveFileFieldsUser(ev, &ev.Signal.Target.Parent.LinuxBinprm.FileEvent.FileFields)
@@ -1808,7 +1849,6 @@ type FieldHandlers interface {
 	ResolveProcessArgv0(ev *Event, e *Process) string
 	ResolveProcessArgvScrubbed(ev *Event, e *Process) []string
 	ResolveProcessCmdArgv(ev *Event, e *Process) []string
-	ResolveProcessContainerID(ev *Event, e *Process) string
 	ResolveProcessCreatedAt(ev *Event, e *Process) int
 	ResolveProcessEnvp(ev *Event, e *Process) []string
 	ResolveProcessEnvs(ev *Event, e *Process) []string
@@ -2043,9 +2083,6 @@ func (dfh *FakeFieldHandlers) ResolveProcessArgvScrubbed(ev *Event, e *Process) 
 }
 func (dfh *FakeFieldHandlers) ResolveProcessCmdArgv(ev *Event, e *Process) []string {
 	return []string(e.Argv)
-}
-func (dfh *FakeFieldHandlers) ResolveProcessContainerID(ev *Event, e *Process) string {
-	return string(e.ContainerID)
 }
 func (dfh *FakeFieldHandlers) ResolveProcessCreatedAt(ev *Event, e *Process) int {
 	return int(e.CreatedAt)

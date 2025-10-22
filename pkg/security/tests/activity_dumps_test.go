@@ -641,7 +641,7 @@ func TestActivityDumpsAutoSuppression(t *testing.T) {
 			_, err = cmd.CombinedOutput()
 			return err
 		}, func(_ *rules.Rule, event *model.Event) bool {
-			if event.ProcessContext.ContainerID == containerutils.ContainerID(dump.ContainerID) {
+			if event.ProcessContext.Process.ContainerContext.ContainerID == containerutils.ContainerID(dump.ContainerID) {
 				t.Error("Got a signal that should have been suppressed")
 			}
 			return false
@@ -660,7 +660,7 @@ func TestActivityDumpsAutoSuppression(t *testing.T) {
 			_, err = cmd.CombinedOutput()
 			return err
 		}, func(_ *rules.Rule, event *model.Event) bool {
-			if event.ProcessContext.ContainerID == containerutils.ContainerID(dump.ContainerID) {
+			if event.ProcessContext.Process.ContainerContext.ContainerID == containerutils.ContainerID(dump.ContainerID) {
 				t.Error("Got a signal that should have been suppressed")
 			}
 			return false
@@ -750,7 +750,7 @@ func TestActivityDumpsAutoSuppressionDriftOnly(t *testing.T) {
 			_, err := cmd.CombinedOutput()
 			return err
 		}, func(_ *rules.Rule, event *model.Event) bool {
-			if event.ProcessContext.ContainerID == containerutils.ContainerID(dockerInstance2.containerID) {
+			if event.ProcessContext.Process.ContainerContext.ContainerID == containerutils.ContainerID(dockerInstance2.containerID) {
 				t.Error("Got a signal that should have been suppressed")
 			}
 			return false
@@ -769,7 +769,7 @@ func TestActivityDumpsAutoSuppressionDriftOnly(t *testing.T) {
 			_, err = cmd.CombinedOutput()
 			return err
 		}, func(_ *rules.Rule, event *model.Event) bool {
-			if event.ProcessContext.ContainerID == containerutils.ContainerID(dockerInstance2.containerID) {
+			if event.ProcessContext.Process.ContainerContext.ContainerID == containerutils.ContainerID(dockerInstance2.containerID) {
 				t.Error("Got a signal that should have been suppressed")
 			}
 			return false

@@ -33,10 +33,8 @@ const (
 func (m *Model) NewEvent() eval.Event {
 	return &Event{
 		BaseEvent: BaseEvent{
-			ContainerContext: &ContainerContext{},
-			Os:               runtime.GOOS,
+			Os: runtime.GOOS,
 		},
-		CGroupContext: &CGroupContext{},
 	}
 }
 
@@ -44,12 +42,10 @@ func (m *Model) NewEvent() eval.Event {
 func NewFakeEvent() *Event {
 	return &Event{
 		BaseEvent: BaseEvent{
-			FieldHandlers:    &FakeFieldHandlers{},
-			ContainerContext: &ContainerContext{},
-			ProcessContext:   &ProcessContext{},
-			Os:               runtime.GOOS,
+			FieldHandlers:  &FakeFieldHandlers{},
+			ProcessContext: &ProcessContext{},
+			Os:             runtime.GOOS,
 		},
-		CGroupContext: &CGroupContext{},
 	}
 }
 
@@ -60,8 +56,6 @@ func (fh *FakeFieldHandlers) ResolveProcessCacheEntryFromPID(pid uint32) *Proces
 
 // Event represents an event sent from the kernel
 // genaccessors
-// gengetter: GetContainerCreatedAt
-// gengetter: GetContainerId
 // gengetter: GetExecCmdargv
 // gengetter: GetExecFilePath
 // gengetter: GetExecFilePath)
@@ -89,7 +83,6 @@ type Event struct {
 	// context
 	SpanContext    SpanContext    `field:"-"`
 	NetworkContext NetworkContext `field:"network" restricted_to:"dns,imds,packet"` // [7.36] [Network] Network context
-	CGroupContext  *CGroupContext `field:"cgroup"`
 
 	// fim events
 	Chmod       ChmodEvent    `field:"chmod" event:"chmod"`             // [7.27] [File] A file's permissions were changed
@@ -159,17 +152,21 @@ type Event struct {
 	TracerMemfdSeal  TracerMemfdSealEvent  `field:"-"`
 }
 
-var cgroupContextZero CGroupContext
-
 // NewEventZeroer returns a function that can be used to zero an Event
 func NewEventZeroer() func(*Event) {
-	var eventZero = Event{CGroupContext: &CGroupContext{}, BaseEvent: BaseEvent{ContainerContext: &ContainerContext{}, Os: runtime.GOOS}}
+	var eventZero = Event{BaseEvent: BaseEvent{Os: runtime.GOOS}}
 
 	return func(e *Event) {
 		*e = eventZero
-		*e.BaseEvent.ContainerContext = containerContextZero
-		*e.CGroupContext = cgroupContextZero
 	}
+}
+
+// GetContainerID returns event's process container ID if any
+func (e *Event) GetContainerID() string {
+	if e.ProcessContext == nil {
+		return ""
+	}
+	return string(e.ProcessContext.Process.ContainerContext.ContainerID)
 }
 
 // CGroupContext holds the cgroup context of an event
@@ -321,8 +318,8 @@ type Process struct {
 
 	FileEvent FileEvent `field:"file,check:IsNotKworker"`
 
-	CGroup      CGroupContext              `field:"cgroup"`                                         // SECLDoc[cgroup] Definition:`CGroup`
-	ContainerID containerutils.ContainerID `field:"container.id,handler:ResolveProcessContainerID"` // SECLDoc[container.id] Definition:`Container ID`
+	CGroup           CGroupContext    `field:"cgroup"`    // SECLDoc[cgroup] Definition:`CGroup`
+	ContainerContext ContainerContext `field:"container"` // SECLDoc[container] Definition:`Container`
 
 	SpanID  uint64        `field:"-"`
 	TraceID utils.TraceID `field:"-"`

@@ -27,7 +27,6 @@ import (
 	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/security/probe/procfs"
-	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
@@ -134,12 +133,7 @@ func (pn *ProcessNode) addFiles(files []string, stats *Stats, newEvent func() *m
 		if evt.ProcessContext == nil {
 			evt.ProcessContext = &model.ProcessContext{}
 		}
-		if evt.ContainerContext == nil {
-			evt.ContainerContext = &model.ContainerContext{}
-		}
 		evt.ProcessContext.Process = pn.Process
-		evt.CGroupContext.CGroupID = containerutils.CGroupID(pn.Process.CGroup.CGroupID)
-		evt.ContainerContext.ContainerID = containerutils.ContainerID(pn.Process.ContainerID)
 
 		var fileStats unix.Statx_t
 		if err := unix.Statx(unix.AT_FDCWD, fullPath, 0, unix.STATX_ALL, &fileStats); err != nil {

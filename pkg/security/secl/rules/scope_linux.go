@@ -17,10 +17,10 @@ import (
 func DefaultVariableScopers() map[Scope]*eval.VariableScoper {
 	variableScopers := getCommonVariableScopers()
 	variableScopers[ScopeCGroup] = eval.NewVariableScoper(eval.CGroupScoperType, func(ctx *eval.Context) (eval.VariableScope, error) {
-		if ctx.Event.(*model.Event).CGroupContext == nil || ctx.Event.(*model.Event).CGroupContext.CGroupFile.IsNull() {
+		if ctx.Event.(*model.Event).ProcessContext == nil || ctx.Event.(*model.Event).ProcessContext.Process.CGroup.CGroupFile.IsNull() {
 			return nil, fmt.Errorf("failed to get cgroup scope")
 		}
-		return ctx.Event.(*model.Event).CGroupContext, nil
+		return &ctx.Event.(*model.Event).ProcessContext.Process.CGroup, nil
 	})
 	return variableScopers
 }

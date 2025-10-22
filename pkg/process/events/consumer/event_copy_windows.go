@@ -24,7 +24,7 @@ func (p *ProcessConsumer) Copy(event *smodel.Event) any {
 	valueCollectionTime := event.GetTimestamp()
 	result.CollectionTime = valueCollectionTime
 
-	valueContainerID := event.GetContainerId()
+	valueContainerID := event.GetContainerID()
 	result.ContainerID = valueContainerID
 
 	valuePpid := event.GetProcessPpid()

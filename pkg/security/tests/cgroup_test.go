@@ -99,11 +99,11 @@ func TestCGroup(t *testing.T) {
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "test_cgroup_id",
-			Expression: `open.file.path == "{{.Root}}/test-open" && cgroup.id =~ "*/cg1"`,
+			Expression: `open.file.path == "{{.Root}}/test-open" && process.cgroup.id =~ "*/cg1"`,
 		},
 		{
 			ID:         "test_cgroup_systemd",
-			Expression: `open.file.path == "{{.Root}}/test-open2" && cgroup.id == "/system.slice/cws-test.service"`,
+			Expression: `open.file.path == "{{.Root}}/test-open2" && process.cgroup.id == "/system.slice/cws-test.service"`,
 		},
 	}
 	test, err := newTestModule(t, nil, ruleDefs)
@@ -148,9 +148,9 @@ func TestCGroup(t *testing.T) {
 		}, func(event *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_cgroup_id")
 			assertFieldEqual(t, event, "open.file.path", testFile)
-			assertFieldEqual(t, event, "container.id", "")
-			assertFieldIsOneOf(t, event, "cgroup.id", []string{"/cg1", "/systemd/cg1"})
-			assertFieldIsOneOf(t, event, "cgroup.version", []int{1, 2})
+			assertFieldEqual(t, event, "process.container.id", "")
+			assertFieldIsOneOf(t, event, "process.cgroup.id", []string{"/cg1", "/systemd/cg1"})
+			assertFieldIsOneOf(t, event, "process.cgroup.version", []int{1, 2})
 
 			test.validateOpenSchema(t, event)
 		})
@@ -189,7 +189,7 @@ ExecStart=/usr/bin/touch %s`, testFile2)
 		}, func(event *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_cgroup_systemd")
 			assertFieldEqual(t, event, "open.file.path", testFile2)
-			assertFieldNotEqual(t, event, "cgroup.id", "")
+			assertFieldNotEqual(t, event, "process.cgroup.id", "")
 
 			test.validateOpenSchema(t, event)
 		})
@@ -238,7 +238,7 @@ func TestCGroupSnapshot(t *testing.T) {
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "test_cgroup_snapshot",
-			Expression: `open.file.path == "{{.Root}}/test-open" && cgroup.id != ""`,
+			Expression: `open.file.path == "{{.Root}}/test-open" && process.cgroup.id != ""`,
 		},
 	}
 
@@ -341,7 +341,7 @@ func TestCGroupVariables(t *testing.T) {
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "test_cgroup_set_variable",
-			Expression: `cgroup.id != "" && open.file.path == "{{.Root}}/test-open"`,
+			Expression: `process.cgroup.id != "" && open.file.path == "{{.Root}}/test-open"`,
 			Actions: []*rules.ActionDefinition{
 				{
 					Set: &rules.SetDefinition{
@@ -354,7 +354,7 @@ func TestCGroupVariables(t *testing.T) {
 		},
 		{
 			ID:         "test_cgroup_check_variable",
-			Expression: `cgroup.id != "" && open.file.path == "{{.Root}}/test-open2" && ${cgroup.foo} == 1`,
+			Expression: `process.cgroup.id != "" && open.file.path == "{{.Root}}/test-open2" && ${cgroup.foo} == 1`,
 		},
 	}
 
@@ -386,7 +386,7 @@ func TestCGroupVariables(t *testing.T) {
 		}, func(event *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_cgroup_set_variable")
 			assertFieldEqual(t, event, "open.file.path", testFile)
-			assertFieldNotEmpty(t, event, "cgroup.id", "cgroup id shouldn't be empty")
+			assertFieldNotEmpty(t, event, "process.cgroup.id", "cgroup id shouldn't be empty")
 
 			test.validateOpenSchema(t, event)
 		})
@@ -397,7 +397,7 @@ func TestCGroupVariables(t *testing.T) {
 		}, func(event *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_cgroup_check_variable")
 			assertFieldEqual(t, event, "open.file.path", testFile2)
-			assertFieldNotEmpty(t, event, "cgroup.id", "cgroup id shouldn't be empty")
+			assertFieldNotEmpty(t, event, "process.cgroup.id", "cgroup id shouldn't be empty")
 
 			test.validateOpenSchema(t, event)
 		})

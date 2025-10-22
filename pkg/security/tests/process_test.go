@@ -1024,9 +1024,9 @@ func TestProcessContext(t *testing.T) {
 			assert.Equal(t, "test_rule_container", rule.ID, "wrong rule triggered")
 
 			if kind == dockerWrapperType {
-				assert.Equal(t, event.Exec.Process.ContainerID, event.ProcessContext.ContainerID)
-				assert.Equal(t, event.Exec.Process.ContainerID, event.ProcessContext.Ancestor.ContainerID)
-				assert.Equal(t, event.Exec.Process.ContainerID, event.ProcessContext.Parent.ContainerID)
+				assert.Equal(t, event.Exec.Process.ContainerContext.ContainerID, event.ProcessContext.Process.ContainerContext.ContainerID)
+				assert.Equal(t, event.Exec.Process.ContainerContext.ContainerID, event.ProcessContext.Ancestor.ContainerContext.ContainerID)
+				assert.Equal(t, event.Exec.Process.ContainerContext.ContainerID, event.ProcessContext.Parent.ContainerContext.ContainerID)
 			}
 		}))
 	})
@@ -2318,7 +2318,7 @@ func TestProcessResolution(t *testing.T) {
 			assert.Equal(t, entry1.FileEvent.PathnameStr, entry2.FileEvent.PathnameStr)
 			assert.Equal(t, entry1.Pid, entry2.Pid)
 			assert.Equal(t, entry1.PPid, entry2.PPid)
-			assert.Equal(t, entry1.ContainerID, entry2.ContainerID)
+			assert.Equal(t, entry1.ProcessContext.Process.ContainerContext.ContainerID, entry2.ProcessContext.Process.ContainerContext.ContainerID)
 			if checkCookie {
 				assert.Equal(t, entry1.Cookie, entry2.Cookie)
 			}

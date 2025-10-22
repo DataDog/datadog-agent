@@ -35,11 +35,11 @@ func TestContainerCreatedAt(t *testing.T) {
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "test_container_created_at",
-			Expression: `container.id != "" && container.created_at < 3s && open.file.path == "{{.Root}}/test-open"`,
+			Expression: `process.container.id != "" && container.created_at < 3s && open.file.path == "{{.Root}}/test-open"`,
 		},
 		{
 			ID:         "test_container_created_at_delay",
-			Expression: `container.id != "" && container.created_at > 3s && open.file.path == "{{.Root}}/test-open-delay"`,
+			Expression: `process.container.id != "" && container.created_at > 3s && open.file.path == "{{.Root}}/test-open-delay"`,
 		},
 	}
 	test, err := newTestModule(t, nil, ruleDefs)
@@ -70,7 +70,7 @@ func TestContainerCreatedAt(t *testing.T) {
 		}, func(event *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_container_created_at")
 			assertFieldEqual(t, event, "open.file.path", testFile)
-			assertFieldNotEmpty(t, event, "container.id", "container id shouldn't be empty")
+			assertFieldNotEmpty(t, event, "process.container.id", "container id shouldn't be empty")
 
 			test.validateOpenSchema(t, event)
 		})
@@ -88,8 +88,8 @@ func TestContainerCreatedAt(t *testing.T) {
 		}, func(event *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_container_created_at_delay")
 			assertFieldEqual(t, event, "open.file.path", testFileDelay)
-			assertFieldNotEmpty(t, event, "container.id", "container id shouldn't be empty")
-			createdAtNano, _ := event.GetFieldValue("container.created_at")
+			assertFieldNotEmpty(t, event, "process.container.id", "container id shouldn't be empty")
+			createdAtNano, _ := event.GetFieldValue("process.container.created_at")
 			createdAt := time.Unix(0, int64(createdAtNano.(int)))
 			assert.True(t, time.Since(createdAt) > 3*time.Second)
 
@@ -108,7 +108,7 @@ func TestContainerVariables(t *testing.T) {
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "test_container_set_variable",
-			Expression: `container.id != "" && open.file.path == "{{.Root}}/test-open"`,
+			Expression: `process.container.id != "" && open.file.path == "{{.Root}}/test-open"`,
 			Actions: []*rules.ActionDefinition{
 				{
 					Set: &rules.SetDefinition{
@@ -121,7 +121,7 @@ func TestContainerVariables(t *testing.T) {
 		},
 		{
 			ID:         "test_container_check_variable",
-			Expression: `container.id != "" && open.file.path == "{{.Root}}/test-open2" && ${container.foo} == 1`,
+			Expression: `process.container.id != "" && open.file.path == "{{.Root}}/test-open2" && ${container.foo} == 1`,
 		},
 	}
 	test, err := newTestModule(t, nil, ruleDefs)
@@ -152,7 +152,7 @@ func TestContainerVariables(t *testing.T) {
 		}, func(event *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_container_set_variable")
 			assertFieldEqual(t, event, "open.file.path", testFile)
-			assertFieldNotEmpty(t, event, "container.id", "container id shouldn't be empty")
+			assertFieldNotEmpty(t, event, "process.container.id", "container id shouldn't be empty")
 
 			test.validateOpenSchema(t, event)
 		})
@@ -163,7 +163,7 @@ func TestContainerVariables(t *testing.T) {
 		}, func(event *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_container_check_variable")
 			assertFieldEqual(t, event, "open.file.path", testFile2)
-			assertFieldNotEmpty(t, event, "container.id", "container id shouldn't be empty")
+			assertFieldNotEmpty(t, event, "process.container.id", "container id shouldn't be empty")
 
 			test.validateOpenSchema(t, event)
 		})

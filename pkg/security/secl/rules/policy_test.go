@@ -418,8 +418,12 @@ func TestActionSetVariableTTL(t *testing.T) {
 	event.Type = uint32(model.FileOpenEventType)
 	processCacheEntry := &model.ProcessCacheEntry{}
 	processCacheEntry.Retain()
-	event.ContainerContext = &model.ContainerContext{
-		ContainerID: "0123456789abcdef",
+	event.ProcessContext = &model.ProcessContext{
+		Process: model.Process{
+			ContainerContext: model.ContainerContext{
+				ContainerID: "0123456789abcdef",
+			},
+		},
 	}
 	event.ProcessCacheEntry = processCacheEntry
 	event.SetFieldValue("open.file.path", "/tmp/test")
@@ -2245,8 +2249,12 @@ func TestActionSetVariableLength(t *testing.T) {
 	event.Type = uint32(model.FileOpenEventType)
 	processCacheEntry := &model.ProcessCacheEntry{}
 	processCacheEntry.Retain()
-	event.ContainerContext = &model.ContainerContext{
-		ContainerID: "0123456789abcdef",
+	event.ProcessContext = &model.ProcessContext{
+		Process: model.Process{
+			ContainerContext: model.ContainerContext{
+				ContainerID: "0123456789abcdef",
+			},
+		},
 	}
 	event.ProcessCacheEntry = processCacheEntry
 	event.SetFieldValue("open.file.path", "/tmp/test")

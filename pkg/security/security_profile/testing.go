@@ -137,7 +137,7 @@ func (m *Manager) ClearTracedCgroups() {
 
 	// Walk through all process cache entries and blacklist their cgroups
 	m.resolvers.ProcessResolver.Walk(func(entry *model.ProcessCacheEntry) {
-		if entry.ContainerID != "" && !entry.CGroup.CGroupFile.IsNull() {
+		if entry.ContainerContext.ContainerID != "" && !entry.CGroup.CGroupFile.IsNull() {
 			if err := m.tracedCgroupsDiscardedMap.Put(entry.CGroup.CGroupFile.Inode, uint8(1)); err != nil {
 				if !errors.Is(err, ebpf.ErrKeyNotExist) {
 					seclog.Warnf("couldn't add system container cgroup to discarded map: %v", err)

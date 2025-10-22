@@ -323,7 +323,7 @@ func (p *EBPFResolver) AddExecEntry(event *model.Event) error {
 	defer p.Unlock()
 
 	var err error
-	if err := p.ResolveNewProcessCacheEntry(event.ProcessCacheEntry, event.ContainerContext); err != nil {
+	if err := p.ResolveNewProcessCacheEntry(event.ProcessCacheEntry, &event.ProcessContext.ContainerContext); err != nil {
 		var errResolution *spath.ErrPathResolution
 		if errors.As(err, &errResolution) {
 			event.SetPathResolutionError(&event.ProcessCacheEntry.FileEvent, err)
@@ -404,7 +404,7 @@ func (p *EBPFResolver) enrichEventFromProcfs(entry *model.ProcessCacheEntry, pro
 		}
 	}
 
-	entry.ContainerID = containerID
+	entry.Process.ContainerContext.ContainerID = containerID
 
 	entry.CGroup = cgroup
 	entry.Process.CGroup = cgroup
@@ -807,7 +807,7 @@ func (p *EBPFResolver) SetProcessSymlink(entry *model.ProcessCacheEntry) {
 // SetProcessFilesystem resolves process file system
 func (p *EBPFResolver) SetProcessFilesystem(entry *model.ProcessCacheEntry) (string, error) {
 	if entry.FileEvent.MountID != 0 {
-		fs, err := p.mountResolver.ResolveFilesystem(entry.FileEvent.MountID, entry.FileEvent.Device, entry.Pid, entry.ContainerID)
+		fs, err := p.mountResolver.ResolveFilesystem(entry.FileEvent.MountID, entry.FileEvent.Device, entry.Pid, entry.Process.ContainerContext.ContainerID)
 		if err != nil {
 			return "", err
 		}
@@ -934,12 +934,12 @@ func (p *EBPFResolver) resolveFromKernelMaps(pid, tid uint32, inode uint64, newE
 
 	if containerID, cgroup, _, err := p.containerResolver.GetContainerContext(pid); err == nil {
 		entry.CGroup.Merge(&cgroup)
-		entry.ContainerID = containerID
+		entry.Process.ContainerContext.ContainerID = containerID
 	}
 
 	// resolve paths and other context fields
 	ctrCtx := model.ContainerContext{
-		ContainerID: entry.ContainerID, // only use to get workload pids (instead of resolve pid namespace :/)
+		ContainerID: entry.Process.ContainerContext.ContainerID, // only use to get workload pids (instead of resolve pid namespace :/)
 	}
 	if err = p.ResolveNewProcessCacheEntry(entry, &ctrCtx); err != nil {
 		if newEntryCb != nil {
@@ -1100,13 +1100,13 @@ func (p *EBPFResolver) SetProcessTTY(pce *model.ProcessCacheEntry) string {
 
 // SetProcessUsersGroups resolves and set users and groups
 func (p *EBPFResolver) SetProcessUsersGroups(pce *model.ProcessCacheEntry) {
-	pce.User, _ = p.userGroupResolver.ResolveUser(int(pce.Credentials.UID), pce.ContainerID)
-	pce.EUser, _ = p.userGroupResolver.ResolveUser(int(pce.Credentials.EUID), pce.ContainerID)
-	pce.FSUser, _ = p.userGroupResolver.ResolveUser(int(pce.Credentials.FSUID), pce.ContainerID)
+	pce.User, _ = p.userGroupResolver.ResolveUser(int(pce.Credentials.UID), pce.Process.ContainerContext.ContainerID)
+	pce.EUser, _ = p.userGroupResolver.ResolveUser(int(pce.Credentials.EUID), pce.Process.ContainerContext.ContainerID)
+	pce.FSUser, _ = p.userGroupResolver.ResolveUser(int(pce.Credentials.FSUID), pce.Process.ContainerContext.ContainerID)
 
-	pce.Group, _ = p.userGroupResolver.ResolveGroup(int(pce.Credentials.GID), pce.ContainerID)
-	pce.EGroup, _ = p.userGroupResolver.ResolveGroup(int(pce.Credentials.EGID), pce.ContainerID)
-	pce.FSGroup, _ = p.userGroupResolver.ResolveGroup(int(pce.Credentials.FSGID), pce.ContainerID)
+	pce.Group, _ = p.userGroupResolver.ResolveGroup(int(pce.Credentials.GID), pce.Process.ContainerContext.ContainerID)
+	pce.EGroup, _ = p.userGroupResolver.ResolveGroup(int(pce.Credentials.EGID), pce.Process.ContainerContext.ContainerID)
+	pce.FSGroup, _ = p.userGroupResolver.ResolveGroup(int(pce.Credentials.FSGID), pce.Process.ContainerContext.ContainerID)
 }
 
 // Get returns the cache entry for a specified pid
@@ -1451,7 +1451,7 @@ func (p *EBPFResolver) ToJSON(raw bool) ([]byte, error) {
 				IsExec:          entry.IsExec,
 				IsParentMissing: entry.IsParentMissing,
 				CGroup:          string(entry.CGroup.CGroupID),
-				ContainerID:     string(entry.ContainerID),
+				ContainerID:     string(entry.Process.ContainerContext.ContainerID),
 			}
 
 			d, err = json.Marshal(e)
@@ -1569,8 +1569,7 @@ func (p *EBPFResolver) UpdateProcessCGroupContext(pid uint32, cgroupContext *mod
 	pce.CGroup = *cgroupContext
 
 	if cgroupContext.CGroupID != "" {
-		pce.Process.ContainerID = containerutils.FindContainerID(cgroupContext.CGroupID)
-		pce.ContainerID = pce.Process.ContainerID
+		pce.Process.ContainerContext.ContainerID = containerutils.FindContainerID(cgroupContext.CGroupID)
 
 		// update the PID in the right cgroup_resolver bucket
 		if p.cgroupResolver != nil {

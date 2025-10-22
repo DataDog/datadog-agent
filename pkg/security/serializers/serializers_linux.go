@@ -948,10 +948,10 @@ func newProcessSerializer(ps *model.Process, e *model.Event) *ProcessSerializer 
 			}
 		}
 
-		if len(ps.ContainerID) != 0 {
+		if len(ps.ContainerContext.ContainerID) != 0 {
 			psSerializer.Container = &ContainerContextSerializer{
-				ID:        string(ps.ContainerID),
-				CreatedAt: utils.NewEasyjsonTimeIfNotZero(time.Unix(0, int64(e.GetContainerCreatedAt()))),
+				ID:        string(ps.ContainerContext.ContainerID),
+				CreatedAt: utils.NewEasyjsonTimeIfNotZero(time.Unix(0, int64(e.ProcessContext.ContainerContext.CreatedAt))),
 			}
 		}
 
@@ -1081,9 +1081,6 @@ func newPTraceEventSerializer(e *model.Event) *PTraceEventSerializer {
 		BaseEvent: model.BaseEvent{
 			FieldHandlers:  e.FieldHandlers,
 			ProcessContext: e.PTrace.Tracee,
-			ContainerContext: &model.ContainerContext{
-				ContainerID: e.PTrace.Tracee.ContainerID,
-			},
 		},
 	}
 
@@ -1486,9 +1483,9 @@ func NewEventSerializer(event *model.Event, rule *rules.Rule) *EventSerializer {
 		}
 	}
 
-	if cgroupID := event.FieldHandlers.ResolveCGroupID(event, event.CGroupContext); cgroupID != "" {
+	if cgroupID := event.FieldHandlers.ResolveCGroupID(event, &event.ProcessContext.CGroup); cgroupID != "" {
 		s.CGroupContextSerializer = &CGroupContextSerializer{
-			ID:        string(event.CGroupContext.CGroupID),
+			ID:        string(event.ProcessContext.CGroup.CGroupID),
 			Variables: newVariablesContext(event, rule, eval.CGroupScoperType),
 		}
 	}

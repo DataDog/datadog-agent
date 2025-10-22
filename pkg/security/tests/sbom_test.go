@@ -43,12 +43,12 @@ func TestSBOM(t *testing.T) {
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID: "test_file_package",
-			Expression: `open.file.path == "/usr/lib/os-release" && (open.flags & O_CREAT != 0) && (container.id != "") ` +
+			Expression: `open.file.path == "/usr/lib/os-release" && (open.flags & O_CREAT != 0) && (process.container.id != "") ` +
 				`&& open.file.package.name == "base-files" && process.file.path != "" && process.file.package.name == "coreutils"`,
 		},
 		{
 			ID: "test_host_file_package",
-			Expression: `open.file.path == "/usr/lib/os-release" && (open.flags & O_CREAT != 0) && (container.id == "") ` +
+			Expression: `open.file.path == "/usr/lib/os-release" && (open.flags & O_CREAT != 0) && (process.container.id == "") ` +
 				`&& process.file.path != "" && process.file.package.name == "coreutils"`,
 		},
 	}
@@ -86,7 +86,7 @@ func TestSBOM(t *testing.T) {
 			assertTriggeredRule(t, rule, "test_file_package")
 			assertFieldEqual(t, event, "open.file.package.name", "base-files")
 			assertFieldEqual(t, event, "process.file.package.name", "coreutils")
-			assertFieldNotEmpty(t, event, "container.id", "container id shouldn't be empty")
+			assertFieldNotEmpty(t, event, "process.container.id", "container id shouldn't be empty")
 
 			test.validateOpenSchema(t, event)
 		})
@@ -103,7 +103,7 @@ func TestSBOM(t *testing.T) {
 		}, func(event *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_host_file_package")
 			assertFieldEqual(t, event, "process.file.package.name", "coreutils")
-			assertFieldEqual(t, event, "container.id", "", "container id should be empty")
+			assertFieldEqual(t, event, "process.container.id", "", "container id should be empty")
 
 			if kv.IsUbuntuKernel() || kv.IsDebianKernel() {
 				checkVersionAgainstApt(t, event, "coreutils")

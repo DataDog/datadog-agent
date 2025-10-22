@@ -542,7 +542,7 @@ func TestActionKillDisarm(t *testing.T) {
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "kill_action_disarm_executable",
-			Expression: `exec.envs in ["TARGETTOKILL"] && container.id == ""`,
+			Expression: `exec.envs in ["TARGETTOKILL"] && process.container.id == ""`,
 			Actions: []*rules.ActionDefinition{
 				{
 					Kill: &rules.KillDefinition{
@@ -553,7 +553,7 @@ func TestActionKillDisarm(t *testing.T) {
 		},
 		{
 			ID:         "kill_action_disarm_container",
-			Expression: `exec.envs in ["TARGETTOKILL"] && container.id != ""`,
+			Expression: `exec.envs in ["TARGETTOKILL"] && process.container.id != ""`,
 			Actions: []*rules.ActionDefinition{
 				{
 					Kill: &rules.KillDefinition{
