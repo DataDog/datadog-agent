@@ -1261,29 +1261,24 @@ func TestWithDatabaseFileName(t *testing.T) {
 
 	baseRawURL := "https://localhost"
 	mockTelemetryReporter := newMockRcTelemetryReporter()
-	uptaneClient := &mockCoreAgentUptane{}
 
+	var uptaneClientMetadata *uptane.Metadata
 	options := []Option{
 		WithDatabaseFileName("test.db"),
 		WithAPIKey("abc"),
-		uptaneFactoryOption(uptaneClient),
+		withUptaneFactory(func(md *uptane.Metadata) (coreAgentUptaneClient, error) {
+			uptaneClientMetadata = md
+			return &mockCoreAgentUptane{}, nil
+		}),
 	}
 	service, err := NewService(cfg, "Remote Config", baseRawURL, "localhost", getHostTags, mockTelemetryReporter, agentVersion, options...)
 	assert.NoError(t, err)
-
-	uptaneClient.On("GetTransactionalStoreMetadata").Return(&uptane.Metadata{
-		Path:         path.Join("/tmp", "test.db"),
-		AgentVersion: agentVersion,
-		APIKey:       "abc",
-		URL:          "https://localhost",
-	}, nil)
-	service.mu.uptane = uptaneClient
-
-	tsMetadata, err := service.mu.uptane.GetTransactionalStoreMetadata()
-	assert.NoError(t, err)
-	assert.Equal(t, "/tmp/test.db", tsMetadata.Path)
 	assert.NotNil(t, service)
 	t.Cleanup(func() { service.Stop() })
+
+	expectedPath := path.Join("/tmp", "test.db")
+	assert.NotNil(t, uptaneClientMetadata)
+	assert.Equal(t, expectedPath, uptaneClientMetadata.Path)
 }
 
 type refreshIntervalTest struct {
