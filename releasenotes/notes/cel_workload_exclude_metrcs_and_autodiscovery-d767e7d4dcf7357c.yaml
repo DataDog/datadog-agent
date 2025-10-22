@@ -9,5 +9,5 @@
 features:
   - |
     Configure filtering for collection of autodiscovered metrics and logs
-    through `cel_workload_exclude` using CEL-based rules.
+    through CEL-based rules using `cel_workload_exclude`.
 
