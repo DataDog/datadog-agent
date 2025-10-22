@@ -8,4 +8,4 @@
 ---
 other:
   - |
-    Temporarily disable CPU and wall clock times when profiling Python integrations, for Python 3.13 compatibility.
+    CPU and wall clock time collection in Python profiling is temporarily disabled to maintain compatibility with Python 3.13.
