@@ -1,0 +1,12 @@
+[package]
+name = "dd_dll_hostname"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "dd_dll_hostname"
+crate-type = ["staticlib"]
+
+[dependencies]
+libc = "0.2"
+hostname = "0.3"

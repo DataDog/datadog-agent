@@ -153,8 +153,13 @@ func getProviderCatalog(legacyHostnameResolution bool) []provider {
 		azureProvider,
 		fqdnProvider,
 		containerProvider,
-		osProvider,
 	}
+
+	// Optionally include DLL-based OS hostname providers (requires build tags: cgo && dll_hostname)
+	providerCatalog = append(providerCatalog, getDLLProviders()...)
+
+	// OS and cloud providers come last
+	providerCatalog = append(providerCatalog, osProvider)
 
 	if legacyHostnameResolution {
 		providerCatalog = append(providerCatalog, ec2LegacyResolutionProvider)

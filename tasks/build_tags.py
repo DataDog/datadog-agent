@@ -28,6 +28,7 @@ ALL_TAGS = {
     "cri",
     "crio",
     "datadog.no_waf",
+    "dll_hostname",
     "docker",
     "ec2",
     "etcd",

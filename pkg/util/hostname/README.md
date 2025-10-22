@@ -36,6 +36,25 @@ When calling a provider we always:
 1. If `hostname` is set to a valid hostname we use it. If `hostname_force_config_as_canonical` is `false` and the hostname
    has the default prefixes used on EC2 we log a warning about non canonical hostname.
 2. If `hostname_file` is set to a valid, non-empty file we use it's content as hostname. If
+
+### DLL-based resolver (optional)
+
+When built with `cgo` and the `dll_hostname` build tag, the Agent includes a DLL-backed hostname provider `dll_os` that resolves the OS hostname via a shared library FFI. It is tried after container-based providers and before the default `os` provider.
+
+Build steps:
+
+1. Ensure Rust toolchain is installed.
+2. Build the shared library via go:generate:
+
+   - In `pkg/util/hostname/rust_hostname_enabled.go` we include:
+     `//go:generate bash -c "cd ${SRCDIR}/rustlib && cargo build --release"`
+
+3. Build the Agent with CGO and the tag:
+
+```bash
+CGO_ENABLED=1 go build -tags "dll_hostname" ./cmd/agent
+```
+
    `hostname_force_config_as_canonical` is `false` and the hostname has the default prefixes used on EC2 we log a warning
    about non canonical hostname.
 3. If running on **Fargate**: we set an empty hostname as the idea of a host doesn't exist. We **DO NOT** set hostname
