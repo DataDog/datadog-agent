@@ -53,8 +53,9 @@ func (p *EBPFProbe) HandleSSHUserSession(event *model.Event) {
 			} else {
 				event.ProcessContext.UserSession.SSHPort = port
 			}
+		} else {
+			seclog.Warnf("SSH_CLIENT is not in the expected format: %q", sshClientVar)
 		}
-
 	}
 }
 
@@ -67,7 +68,6 @@ func getIPfromEnv(ipStr string) net.IPNet {
 				Mask: net.CIDRMask(32, 32),
 			}
 		} else if ip.To16() != nil {
-			//TODO : test IPv6
 			return net.IPNet{
 				IP:   ip,
 				Mask: net.CIDRMask(128, 128),

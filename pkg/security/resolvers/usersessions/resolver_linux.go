@@ -444,7 +444,6 @@ func parseSSHLogLine(line string, ctx *model.UserSessionContext) (bool, string) 
 func (r *incrementalFileReader) resolveFromJournalctl(ctx *model.UserSessionContext) error {
 	// format for journalctl
 	sinceStr := r.lastRead.Format("2006-01-02 15:04:05")
-	// r.sshLogReader.lastRead = time.Now()
 
 	cmd := exec.Command("journalctl", "--no-pager", "--since", sinceStr, "--output=short-iso")
 
@@ -452,6 +451,7 @@ func (r *incrementalFileReader) resolveFromJournalctl(ctx *model.UserSessionCont
 	cmd.Stdout = &out
 
 	if err := cmd.Run(); err != nil {
+		seclog.Errorf("failed to read journalctl: %v", err)
 		return err
 	}
 
