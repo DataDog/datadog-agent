@@ -428,7 +428,7 @@ func NewDefaultForwarderWithSecrets(config config.Component, log log.Component, 
 // NewDefaultForwarder returns a new DefaultForwarder.
 // TODO: (components) Remove this method and other exported methods in comp/forwarder.
 func NewDefaultForwarder(config config.Component, log log.Component, options *Options) *DefaultForwarder {
-	// NewDefaultForwarderWithSecrets should be used instead of NewDefaultForwarder however
+	// TODO: Move Forwarder to multi-impl component layout. NewDefaultForwarder has to remain for usage in external repositories.
 	// github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog/agentcomponents depends on NewDefaultForwarder.
 	// so we need to keep NewDefaultForwarder for compatibility
 	return NewDefaultForwarderWithSecrets(config, log, secretsnoop.NewComponent().Comp, options)
