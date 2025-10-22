@@ -38,6 +38,13 @@ if [ "$SIGN" = true ]; then
     TEAM_ID=$("$CI_PROJECT_DIR/tools/ci/fetch_secret.sh" "$MACOS_APPLE_DEVELOPER_ACCOUNT" team-id) || exit $?; export TEAM_ID
     APPLE_ACCOUNT=$("$CI_PROJECT_DIR/tools/ci/fetch_secret.sh" "$MACOS_APPLE_DEVELOPER_ACCOUNT" user) || exit $?; export APPLE_ACCOUNT
 
+    # Verify Apple Developer account subscription is active
+    echo "Verifying Apple Developer subscription status..."
+    xcrun notarytool history --apple-id "$APPLE_ACCOUNT" --team-id "$TEAM_ID" --password "$NOTARIZATION_PWD" | head -n 5 || {
+        echo "Failed to verify Apple Developer subscription. The account may be expired or credentials invalid."
+        exit 1
+    }
+
     # Create temporary build keychain
     security create-keychain -p "$KEYCHAIN_PWD" "$KEYCHAIN_NAME"
 
@@ -58,6 +65,12 @@ if [ "$SIGN" = true ]; then
     echo "$CODESIGNING_CERT_BASE64" | base64 -d > codesigning_cert.p12
     echo "$INSTALLER_CERT_BASE64" | base64 -d > installer_cert.p12
 
+    # Check certificate expiry before importing
+    echo "Codesigning certificate expiry:"
+    openssl pkcs12 -in codesigning_cert.p12 -passin pass:"$CODESIGNING_CERT_PASSPHRASE" -nokeys -clcerts 2>/dev/null | openssl x509 -noout -subject -dates
+    echo "Installer certificate expiry:"
+    openssl pkcs12 -in installer_cert.p12 -passin pass:"$INSTALLER_CERT_PASSPHRASE" -nokeys -clcerts 2>/dev/null | openssl x509 -noout -subject -dates
+
     # Import codesigning cert, only allow codesign to use it without confirmation
     echo Importing codesigning cert
     security import codesigning_cert.p12 -f pkcs12 -P "$CODESIGNING_CERT_PASSPHRASE" -k "build.keychain" -T "/usr/bin/codesign"
@@ -77,6 +90,18 @@ if [ "$SIGN" = true ]; then
     # Note: this feature is badly documented (and doesn't even appear in the command list if you run security --help...).
     # Note: we silence the output of this command because it contains metadata about the certificates.
     security set-key-partition-list -S apple-tool:,apple: -s -k "$KEYCHAIN_PWD" "$KEYCHAIN_NAME" &>/dev/null
+
+    # List code-signing identities and expiry dates
+    security find-identity -p codesigning -v
+    # Print certificate expiry information
+    echo "Certificate expiry information:"
+    security find-certificate -c "Developer ID Application" -p "$KEYCHAIN_NAME" 2>/dev/null | openssl x509 -noout -subject -dates || echo "Could not retrieve codesigning certificate info"
+    security find-certificate -c "Developer ID Installer" -p "$KEYCHAIN_NAME" 2>/dev/null | openssl x509 -noout -subject -dates || echo "Could not retrieve installer certificate info"
+
+    # Verify certificates haven't been revoked (online OCSP check)
+    echo "Verifying certificate revocation status..."
+    security verify-cert -c "Developer ID Application" -p codesigning -L -R online 2>&1 || echo "Warning: Could not verify codesigning certificate status online"
+    security verify-cert -c "Developer ID Installer" -p codesigning -L -R online 2>&1 || echo "Warning: Could not verify installer certificate status online"
 fi
 
 # --- Build ---
@@ -158,6 +183,7 @@ if [ "$SIGN" = true ]; then
         exit "$EXIT_CODE"
     '
     echo -e "\e[0Ksection_end:`date +%s`:notarization\r\e[0K"
+    xcrun stapler validate "$LATEST_DMG"
 fi
 
 if [ "$SIGN" = true ]; then
