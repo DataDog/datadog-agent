@@ -263,53 +263,97 @@ Source: Trace receiver expvars
    └─> Tags["Service"] field in receiver stats
 ```
 
-**Rate Calculation**: ⚠️ **Cumulative** (Needs improvement)
-- Currently stores cumulative `TracesReceived` count
-- Does NOT calculate instantaneous rate yet
-- TODO: Add delta tracking like logs/DogStatsD
+**Rate Calculation**: ✅ **Instantaneous** (Delta-based)
+- Tracks previous traces received per service
+- Calculates delta between collections
+- Formula: `tracesPerSecond = (currentTraces - previousTraces) / timeDelta`
+- Falls back to average-since-start on first collection
+- Aggregates across multiple TagStats per service
 
-**Current Implementation**:
+**Implementation Details**:
 ```go
-// Get trace receiver stats from expvars
-receiverVar := expvar.Get("receiver")
-receiverJSON := []byte(receiverVar.String())
-var receiverStats []map[string]interface{}
-json.Unmarshal(receiverJSON, &receiverStats)
+// 1. Fetch from trace-agent HTTP endpoint
+traceAgentPort := d.config.GetInt("apm_config.debug.port")  // Default: 5012
+url := fmt.Sprintf("https://localhost:%d/debug/vars", traceAgentPort)
+resp, err := d.httpclient.Get(url)
 
-// Extract traces per service
-for _, tagStats := range receiverStats {
-    if tags, ok := tagStats["Tags"].(map[string]interface{}); ok {
-        if serviceName, ok := tags["Service"].(string); ok {
-            if stats, ok := tagStats["Stats"].(map[string]interface{}); ok {
-                if tracesReceived, ok := stats["TracesReceived"].(float64); ok {
-                    serviceMap[serviceName].TracesRate += tracesReceived  // ← Cumulative!
-                }
-            }
-        }
-    }
-}
-```
+// 2. Parse expvar JSON and extract "receiver" array
+var expvarData map[string]interface{}
+json.Unmarshal(resp, &expvarData)
+receiverInterface := expvarData["receiver"]
 
-**TODO for Traces**:
-```go
-// Recommended implementation (similar to logs/DogStatsD)
+// 3. Lock for thread-safe delta tracking
 d.tracesDeltaMu.Lock()
 defer d.tracesDeltaMu.Unlock()
 
+// 4. Calculate time delta
 now := time.Now()
 timeDelta := now.Sub(d.lastTracesCollectionTime).Seconds()
 
-for serviceName, currentTraces := range traceStatsMap {
+// 5. Aggregate traces across all entries for same service
+// (Same service can have multiple entries with different Lang/TracerVersion)
+currentTracesReceived := make(map[string]int64)
+
+for _, tagStats := range receiverStats {
+    // Service and TracesReceived are at top level (not nested)
+    serviceName, hasService := tagStats["Service"].(string)
+    if !hasService || serviceName == "" {
+        continue
+    }
+
+    tracesReceived, ok := tagStats["TracesReceived"].(float64)
+    if !ok {
+        continue
+    }
+
+    currentTracesReceived[serviceName] += int64(tracesReceived)
+}
+
+// 4. Calculate instantaneous rates using deltas
+for serviceName, currentTraces := range currentTracesReceived {
     previousTraces := d.previousTracesReceived[serviceName]
-    deltaTraces := currentTraces - previousTraces
-    tracesPerSecond := float64(deltaTraces) / timeDelta
+
+    if currentTraces >= previousTraces {
+        deltaTraces := currentTraces - previousTraces
+        tracesRate := float64(deltaTraces) / timeDelta
+    } else {
+        // Counter reset - fallback to average since start
+        tracesRate := float64(currentTraces) / uptimeSeconds
+    }
 
     d.previousTracesReceived[serviceName] = currentTraces
 }
 ```
 
+**Receiver JSON Structure**:
+The "receiver" expvar returns an array where each entry contains flattened fields:
+```json
+[
+    {
+        "Service": "python-flask-app",         ← Service name at top level
+        "Lang": "python",
+        "LangVersion": "3.11.14",
+        "TracerVersion": "2.15.0",
+        "TracesReceived": 13,                  ← Traces count at top level
+        "SpansReceived": 136,
+        "TracesBytes": 17625,
+        "TracesDropped": { ... },
+        ...
+    }
+]
+```
+
+**Key Implementation Details**:
+- Fields are at **top level**, not nested under "Tags" or "Stats" keys
+- Aggregates multiple entries per service (different tracers/languages)
+- Fetches via HTTP from separate trace-agent process
+- Handles counter resets gracefully
+- Thread-safe with mutex protection
+- First collection uses average-since-start as fallback
+
 **Dependencies**:
-- `receiver` expvar from trace agent
+- Trace-agent HTTP endpoint: `http://localhost:{apm_config.debug.port}/debug/vars` (default port 5012)
+- Fetches `receiver` expvar via HTTP from separate trace-agent process
 
 ---
 
@@ -320,7 +364,7 @@ for serviceName, currentTraces := range traceStatsMap {
 | **Check Metrics** | Per-interval | ✅ Instantaneous | `MetricSamples / Interval.Seconds()` |
 | **DogStatsD** | Delta-based | ✅ Instantaneous | `(current - previous) / timeDelta` |
 | **Logs** | Delta-based | ✅ Instantaneous | `(currentBytes - previousBytes) / timeDelta` |
-| **Traces** | Cumulative | ⚠️ Needs improvement | `TracesReceived` (no rate calc) |
+| **Traces** | Delta-based | ✅ Instantaneous | `(currentTraces - previousTraces) / timeDelta` |
 
 ## Delta Tracking Pattern
 

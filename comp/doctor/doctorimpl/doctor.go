@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/doctor/def"
@@ -33,19 +34,21 @@ import (
 type dependencies struct {
 	fx.In
 
-	Lc        fx.Lifecycle
-	Config    config.Component
-	Log       log.Component
-	Hostname  hostnameinterface.Component
-	Collector option.Option[collector.Component]
+	Lc         fx.Lifecycle
+	Config     config.Component
+	Log        log.Component
+	Hostname   hostnameinterface.Component
+	Collector  option.Option[collector.Component]
+	HTTPClient ipc.HTTPClient
 }
 
 type doctorImpl struct {
-	log       log.Component
-	config    config.Component
-	hostname  hostnameinterface.Component
-	collector option.Option[collector.Component]
-	startTime time.Time
+	log        log.Component
+	config     config.Component
+	hostname   hostnameinterface.Component
+	httpclient ipc.HTTPClient
+	collector  option.Option[collector.Component]
+	startTime  time.Time
 
 	// Delta tracking for logs rate calculation
 	logsDeltaMu            sync.Mutex
@@ -56,6 +59,11 @@ type doctorImpl struct {
 	dogstatsdDeltaMu            sync.Mutex
 	previousDogstatsdSamples    map[string]int64 // Map of service name to metric sample count
 	lastDogstatsdCollectionTime time.Time
+
+	// Delta tracking for traces rate calculation
+	tracesDeltaMu            sync.Mutex
+	previousTracesReceived   map[string]int64 // Map of service name to traces received
+	lastTracesCollectionTime time.Time
 }
 
 type provides struct {
@@ -89,11 +97,14 @@ func newDoctor(deps dependencies) *doctorImpl {
 		config:                      deps.Config,
 		hostname:                    deps.Hostname,
 		collector:                   deps.Collector,
+		httpclient:                  deps.HTTPClient,
 		startTime:                   time.Now(),
 		previousLogsBytesRead:       make(map[string]int64),
 		lastLogsCollectionTime:      time.Now(),
 		previousDogstatsdSamples:    make(map[string]int64),
 		lastDogstatsdCollectionTime: time.Now(),
+		previousTracesReceived:      make(map[string]int64),
+		lastTracesCollectionTime:    time.Now(),
 	}
 
 	deps.Lc.Append(fx.Hook{

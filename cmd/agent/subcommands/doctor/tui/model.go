@@ -12,7 +12,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
-	"os"
 	"sync"
 	"time"
 
@@ -213,16 +212,4 @@ func newModel(client ipcdef.HTTPClient) model {
 		maxLogLines:        100, // Keep last 100 log lines
 		streamingSource:    "",
 	}
-}
-
-var logfile *os.File
-
-func init() {
-	f, err := tea.LogToFile("debug.log", "debug")
-	if err != nil {
-		fmt.Println("fatal:", err)
-		os.Exit(1)
-	}
-	logfile = f
-	log.Println("Initialize logging")
 }

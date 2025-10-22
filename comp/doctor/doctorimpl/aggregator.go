@@ -323,41 +323,133 @@ func (d *doctorImpl) collectServicesStatus() []def.ServiceStats {
 	return services
 }
 
-// collectTraceServiceStats collects trace counts per service from trace-agent expvars
+// collectTraceServiceStats collects trace rates per service from trace-agent expvars
+// Uses delta tracking to calculate instantaneous rates instead of cumulative counts
 func (d *doctorImpl) collectTraceServiceStats(serviceMap map[string]*def.ServiceStats) {
-	// Get trace receiver stats from expvars
-	receiverVar := expvar.Get("receiver")
-	if receiverVar == nil {
+	// Get trace-agent debug port from config
+	traceAgentPort := d.config.GetInt("apm_config.debug.port")
+	if traceAgentPort == 0 {
+		traceAgentPort = 5012 // Default trace-agent debug port
+	}
+
+	// Fetch expvars from trace-agent via HTTP
+	url := fmt.Sprintf("https://localhost:%d/debug/vars", traceAgentPort)
+
+	resp, err := d.httpclient.Get(url)
+	if err != nil {
+		// Trace-agent may not be running or not accessible
+		d.log.Debugf("Failed to fetch trace-agent expvars from %s: %v", url, err)
 		return
 	}
 
-	receiverJSON := []byte(receiverVar.String())
+	// Parse the full expvar response
+	var expvarData map[string]interface{}
+	if err := json.Unmarshal(resp, &expvarData); err != nil {
+		d.log.Debugf("Failed to unmarshal trace-agent expvars: %v", err)
+		return
+	}
+
+	// Extract the receiver stats
+	receiverInterface, ok := expvarData["receiver"]
+	if !ok {
+		d.log.Debugf("No 'receiver' key in trace-agent expvars")
+		return
+	}
+
+	receiverJSON, err := json.Marshal(receiverInterface)
+	if err != nil {
+		d.log.Debugf("Failed to marshal receiver stats: %v", err)
+		return
+	}
+
 	var receiverStats []map[string]interface{}
 	if err := json.Unmarshal(receiverJSON, &receiverStats); err != nil {
 		d.log.Debugf("Failed to unmarshal trace receiver stats: %v", err)
 		return
 	}
 
-	// Extract traces per service
+	// Lock for thread-safe access to delta tracking state
+	d.tracesDeltaMu.Lock()
+	defer d.tracesDeltaMu.Unlock()
+
+	// Calculate time delta since last collection
+	now := time.Now()
+	timeDelta := now.Sub(d.lastTracesCollectionTime).Seconds()
+
+	// Collect current traces received per service
+	// Note: Same service can appear multiple times with different Lang/TracerVersion
+	// so we need to aggregate across all TagStats entries
+	currentTracesReceived := make(map[string]int64)
+
 	for _, tagStats := range receiverStats {
-		// Look for service tag in Tags
-		if tags, ok := tagStats["Tags"].(map[string]interface{}); ok {
-			if serviceName, ok := tags["Service"].(string); ok && serviceName != "" {
-				// Get traces received count
-				if stats, ok := tagStats["Stats"].(map[string]interface{}); ok {
-					if tracesReceived, ok := stats["TracesReceived"].(float64); ok {
-						// Get or create service entry
-						if _, exists := serviceMap[serviceName]; !exists {
-							serviceMap[serviceName] = &def.ServiceStats{Name: serviceName}
-						}
-						// For traces, we only have cumulative counts, not rates
-						// TODO: Track delta over time to calculate true rate
-						serviceMap[serviceName].TracesRate += tracesReceived
-					}
+		// Service name is at the top level, not nested under "Tags"
+		serviceName, hasService := tagStats["Service"].(string)
+		if !hasService || serviceName == "" {
+			continue
+		}
+
+		// TracesReceived is also at the top level
+		tracesReceived, ok := tagStats["TracesReceived"].(float64)
+		if !ok {
+			continue
+		}
+
+		currentTracesReceived[serviceName] += int64(tracesReceived)
+	}
+
+	// First collection or time delta too small - use average rate
+	if d.lastTracesCollectionTime.IsZero() || timeDelta < 0.1 {
+		uptimeSeconds := time.Since(d.startTime).Seconds()
+		if uptimeSeconds == 0 {
+			uptimeSeconds = 1
+		}
+
+		for serviceName, currentTraces := range currentTracesReceived {
+			if currentTraces > 0 {
+				if _, exists := serviceMap[serviceName]; !exists {
+					serviceMap[serviceName] = &def.ServiceStats{Name: serviceName}
 				}
+				tracesRate := float64(currentTraces) / uptimeSeconds
+				serviceMap[serviceName].TracesRate += tracesRate
+
+				// Store for next iteration
+				d.previousTracesReceived[serviceName] = currentTraces
 			}
 		}
+
+		d.lastTracesCollectionTime = now
+		return
 	}
+
+	// Calculate instantaneous rates using deltas
+	for serviceName, currentTraces := range currentTracesReceived {
+		previousTraces, hasPrevious := d.previousTracesReceived[serviceName]
+
+		var tracesRate float64
+		if hasPrevious && currentTraces >= previousTraces {
+			// Calculate instantaneous rate from delta
+			deltaTraces := currentTraces - previousTraces
+			tracesRate = float64(deltaTraces) / timeDelta
+		} else {
+			// No previous data or counter reset - fallback to average
+			uptimeSeconds := time.Since(d.startTime).Seconds()
+			if uptimeSeconds > 0 {
+				tracesRate = float64(currentTraces) / uptimeSeconds
+			}
+		}
+
+		// Get or create service entry
+		if _, exists := serviceMap[serviceName]; !exists {
+			serviceMap[serviceName] = &def.ServiceStats{Name: serviceName}
+		}
+		serviceMap[serviceName].TracesRate += tracesRate
+
+		// Update tracking state
+		d.previousTracesReceived[serviceName] = currentTraces
+	}
+
+	// Update last collection time
+	d.lastTracesCollectionTime = now
 }
 
 // collectMetricsServiceStats collects metric rates per service from check stats
