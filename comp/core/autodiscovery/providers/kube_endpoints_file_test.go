@@ -311,7 +311,7 @@ func TestStoreGenerateConfigs(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			s := &store{epConfigs: tt.epConfigs}
 
-			assert.EqualValues(t, tt.want, s.generateConfigs())
+			assert.ElementsMatch(t, tt.want, s.generateConfigs())
 		})
 	}
 }
