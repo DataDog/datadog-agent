@@ -161,7 +161,6 @@ namespace Datadog.CustomActions
 
         private ActionResult RollbackState()
         {
-            _session.Log("Rollback not yet implemented - waiting for purge command");
             _rollbackDataStore.Load();
             _rollbackDataStore.Restore();
             return ActionResult.Success;
