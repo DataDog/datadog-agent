@@ -95,7 +95,7 @@ func assertTreeEqual(t *testing.T, wanted *ActivityTree, tree *ActivityTree) {
 type activityTreeInsertTestValidator struct{}
 
 func (a activityTreeInsertTestValidator) MatchesSelector(entry *model.ProcessCacheEntry) bool {
-	return entry.ContainerID == "123"
+	return entry.ContainerContext.ContainerID == "123"
 }
 
 func (a activityTreeInsertTestValidator) IsEventTypeValid(_ model.EventType) bool {
@@ -156,10 +156,9 @@ func newExecTestEventWithAncestors(lineage []model.Process) *model.Event {
 
 	evt := &model.Event{
 		BaseEvent: model.BaseEvent{
-			Type:             uint32(model.ExecEventType),
-			FieldHandlers:    &model.FakeFieldHandlers{},
-			ContainerContext: &model.ContainerContext{},
-			ProcessContext:   &model.ProcessContext{},
+			Type:           uint32(model.ExecEventType),
+			FieldHandlers:  &model.FakeFieldHandlers{},
+			ProcessContext: &model.ProcessContext{},
 			ProcessCacheEntry: &model.ProcessCacheEntry{
 				ProcessContext: model.ProcessContext{
 					Process:  lineageDup[0],
@@ -168,7 +167,6 @@ func newExecTestEventWithAncestors(lineage []model.Process) *model.Event {
 				},
 			},
 		},
-		CGroupContext: &model.CGroupContext{},
 		Exec: model.ExecEvent{
 			Process: &model.Process{},
 		},
@@ -190,7 +188,7 @@ func TestActivityTree_Patterns(t *testing.T) {
 
 		event := newExecTestEventWithAncestors([]model.Process{
 			{
-				ContainerID: "123",
+				ContainerContext: model.ContainerContext{ContainerID: "123"},
 				FileEvent: model.FileEvent{
 					PathnameStr: "/tmp/123456789/script.sh",
 					FileFields: model.FileFields{
@@ -222,7 +220,7 @@ func TestActivityTree_Patterns(t *testing.T) {
 		// add an event that generates a pattern
 		event = newExecTestEventWithAncestors([]model.Process{
 			{
-				ContainerID: "123",
+				ContainerContext: model.ContainerContext{ContainerID: "123"},
 				FileEvent: model.FileEvent{
 					PathnameStr: "/tmp/987654321/script.sh",
 					FileFields: model.FileFields{
@@ -265,7 +263,7 @@ func TestActivityTree_Patterns(t *testing.T) {
 
 		event := newExecTestEventWithAncestors([]model.Process{
 			{
-				ContainerID: "123",
+				ContainerContext: model.ContainerContext{ContainerID: "123"},
 				FileEvent: model.FileEvent{
 					PathnameStr: "/tmp/123456789/script.sh",
 					FileFields: model.FileFields{
@@ -297,7 +295,7 @@ func TestActivityTree_Patterns(t *testing.T) {
 		// add an event that generates a pattern
 		event = newExecTestEventWithAncestors([]model.Process{
 			{
-				ContainerID: "123",
+				ContainerContext: model.ContainerContext{ContainerID: "123"},
 				FileEvent: model.FileEvent{
 					PathnameStr: "/var/123456789/script.sh",
 					FileFields: model.FileFields{

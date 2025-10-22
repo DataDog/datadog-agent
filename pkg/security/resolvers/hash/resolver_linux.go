@@ -161,7 +161,7 @@ func (resolver *Resolver) ComputeHashesFromEvent(event *model.Event, file *model
 	event.FieldHandlers.ResolveFilePath(event, file)
 
 	process := event.ProcessContext.Process
-	resolver.HashFileEvent(event.GetEventType(), process.ContainerID, process.Pid, file)
+	resolver.HashFileEvent(event.GetEventType(), process.ContainerContext.ContainerID, process.Pid, file)
 
 	return file.Hashes
 }
@@ -173,7 +173,7 @@ func (resolver *Resolver) ComputeHashes(eventType model.EventType, process *mode
 		return nil
 	}
 
-	resolver.HashFileEvent(eventType, process.ContainerID, process.Pid, file)
+	resolver.HashFileEvent(eventType, process.ContainerContext.ContainerID, process.Pid, file)
 
 	return file.Hashes
 }
