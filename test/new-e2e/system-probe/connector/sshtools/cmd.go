@@ -94,3 +94,14 @@ func (e *ExitError) Error() string {
 	}
 	return fmt.Sprintf("%q exit status: %d", e.Command, e.ExitStatus)
 }
+
+// ExitCode returns the exit code of the command. This makes ExitError compatible
+// with code that checks for exit codes via the ExitCode() method.
+func (e *ExitError) ExitCode() int {
+	return e.ExitStatus
+}
+
+// Exited returns true if the program has exited.
+func (e *ExitError) Exited() bool {
+	return true
+}

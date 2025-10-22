@@ -116,11 +116,21 @@ func main() {
 		log.Print(err)
 
 		code = 1
-		var ee *exec.ExitError
-		if errors.As(err, &ee) {
-			code = ee.ExitCode()
+		// Check for sshtools.ExitError first (from remote SSH commands)
+		var sshExitErr *sshtools.ExitError
+		if errors.As(err, &sshExitErr) {
+			code = sshExitErr.ExitCode()
 			if code < 0 {
 				code = 1
+			}
+		} else {
+			// Check for exec.ExitError (from local commands)
+			var execExitErr *exec.ExitError
+			if errors.As(err, &execExitErr) {
+				code = execExitErr.ExitCode()
+				if code < 0 {
+					code = 1
+				}
 			}
 		}
 	}
@@ -181,14 +191,14 @@ func run() (err error) {
 	}
 
 	if err := cmd.Wait(); err != nil {
-		var ee *exec.ExitError
+		var ee *sshtools.ExitError
 		// commands that exit, even with a non-zero exit code are considered success from an SSH PoV
 		if errors.As(err, &ee) && ee.Exited() {
-			return fmt.Errorf("wait: %s", err)
+			return fmt.Errorf("wait: %w", err)
 		}
 
 		failType = failWait
-		return fmt.Errorf("wait: %s", err)
+		return fmt.Errorf("wait: %w", err)
 	}
 
 	result = success
