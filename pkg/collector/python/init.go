@@ -236,9 +236,10 @@ func init() {
 	// Setting environment variables must happen as early as possible in the process lifetime to avoid data race with
 	// `getenv`. Ideally before we start any goroutines that call native code or open network connections.
 	initFIPS()
-	// disableDDTraceStackProfilingV2 sets DD_PROFILING_STACK_V2_ENABLED=false to work around
-	// a hang issue in ddtracepy's stack profiling v2 feature (incident-43814).
-	// This workaround disables the problematic code path in ddtrace that can cause hangs.
+	
+
+	// Workaround for a hang issue in ddtrace's stack profiling v2 feature (incident-43814).
+	// The workaround disables the code path in ddtrace that can cause hangs.
 	// See: https://ddtrace.readthedocs.io/en/stable/configuration.html#DD_PROFILING_STACK_V2_ENABLED
 	os.Setenv("DD_PROFILING_STACK_V2_ENABLED", "false")
 }
