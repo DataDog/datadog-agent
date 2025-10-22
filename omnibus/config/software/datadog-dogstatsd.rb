@@ -16,10 +16,17 @@ build do
 
   # set GOPATH on the omnibus source dir for this software
   gopath = Pathname.new(project_dir) + '../../../..'
-  env = {
-    'GOPATH' => gopath.to_path,
-    'PATH' => "#{gopath.to_path}/bin:#{ENV['PATH']}",
-  }
+  if windows_target?
+    env = {
+      'GOPATH' => gopath.to_path,
+      'PATH' => "#{gopath.to_path}/bin;#{ENV['PATH']}",
+    }
+  else
+    env = {
+      'GOPATH' => gopath.to_path,
+      'PATH' => "#{gopath.to_path}/bin:#{ENV['PATH']}",
+    }
+  end
 
   unless ENV["OMNIBUS_GOMODCACHE"].nil? || ENV["OMNIBUS_GOMODCACHE"].empty?
     gomodcache = Pathname.new(ENV["OMNIBUS_GOMODCACHE"])
