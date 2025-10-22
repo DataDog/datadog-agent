@@ -44,14 +44,14 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	}
 
 	configCheckCommand := &cobra.Command{
-		Use:     "configcheck",
+		Use:     "configcheck [check]",
 		Aliases: []string{"checkconfig"},
 		Short:   "Print all configurations loaded & resolved of a running agent",
 		Long:    ``,
 		RunE: func(_ *cobra.Command, args []string) error {
 			cliParams.args = args
 
-			return fxutil.OneShot(configcheckCmd,
+			return fxutil.OneShot(run,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewAgentParams(globalParams.ConfFilePath, config.WithExtraConfFiles(cliParams.ExtraConfFilePath), config.WithFleetPoliciesDirPath(cliParams.FleetPoliciesDirPath)),
@@ -67,7 +67,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	return []*cobra.Command{configCheckCommand}
 }
 
-func configcheckCmd(cliParams *cliParams, log log.Component, client ipc.HTTPClient) error {
+func run(cliParams *cliParams, log log.Component, client ipc.HTTPClient) error {
 	if len(cliParams.args) < 1 {
 		return fullConfigCmd(cliParams, log, client)
 	}
@@ -122,7 +122,7 @@ func checkCmd(cliParams *cliParams, _ log.Component, client ipc.HTTPClient) erro
 		return fmt.Errorf("unable to parse configcheck: %v", err)
 	}
 
-	// search through the configs for a check with the same name instead of printing everything
+	// search through the configs for a check with the same name
 	for _, configResponse := range cr.Configs {
 		if cliParams.args[0] == configResponse.Config.Name {
 			var b bytes.Buffer
@@ -134,5 +134,7 @@ func checkCmd(cliParams *cliParams, _ log.Component, client ipc.HTTPClient) erro
 			return nil
 		}
 	}
+
+	// return an error if the name wasn't found in the checks list
 	return fmt.Errorf("no check with the name %q was found", cliParams.args[0])
 }
