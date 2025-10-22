@@ -21,6 +21,14 @@ type LabelSelectorsConfig struct {
 	// IncludeNamespaces lists namespaces to explicitly include (mutually exclusive with ExcludeNamespaces)
 	// If set, only these namespaces will be targeted
 	IncludeNamespaces []string
+
+	// ShouldAcceptAllFunc the condition to accept all pods except the ones explicitly
+	// excluded. If empty, defaultShouldAcceptAllFunc is used.
+	ShouldAcceptAllFunc func() bool
+}
+
+var defaultShouldAcceptAllFunc = func() bool {
+	return pkgconfigsetup.Datadog().GetBool("admission_controller.mutate_unlabelled")
 }
 
 // DefaultLabelSelectors returns namespace and object selectors for admission webhooks.
@@ -30,10 +38,10 @@ type LabelSelectorsConfig struct {
 func DefaultLabelSelectors(useNamespaceSelector bool, config LabelSelectorsConfig) (nsSelector *metav1.LabelSelector, objSelector *metav1.LabelSelector) {
 	nsSelector = &metav1.LabelSelector{}
 	if useNamespaceSelector {
-		applyAdmissionEnabledSelectors(nsSelector)
+		applyAdmissionEnabledSelectors(nsSelector, config)
 	} else {
 		objSelector = &metav1.LabelSelector{}
-		applyAdmissionEnabledSelectors(objSelector)
+		applyAdmissionEnabledSelectors(objSelector, config)
 	}
 
 	applySelectorConfig(nsSelector, config)
@@ -67,10 +75,13 @@ func applySelectorConfig(nsSelector *metav1.LabelSelector, config LabelSelectors
 	}
 }
 
-func applyAdmissionEnabledSelectors(selector *metav1.LabelSelector) {
-	if pkgconfigsetup.Datadog().GetBool("admission_controller.mutate_unlabelled") ||
-		pkgconfigsetup.Datadog().GetBool("apm_config.instrumentation.enabled") ||
-		len(pkgconfigsetup.Datadog().GetStringSlice("apm_config.instrumentation.enabled_namespaces")) > 0 {
+func applyAdmissionEnabledSelectors(selector *metav1.LabelSelector, config LabelSelectorsConfig) {
+	shouldAcceptAllFunc := config.ShouldAcceptAllFunc
+	if shouldAcceptAllFunc == nil {
+		shouldAcceptAllFunc = defaultShouldAcceptAllFunc
+	}
+
+	if shouldAcceptAllFunc() {
 		// Accept all, ignore pods explicitly filtered-out
 		selector.MatchExpressions = []metav1.LabelSelectorRequirement{
 			{
