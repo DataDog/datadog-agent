@@ -282,6 +282,10 @@ func (d *doctorImpl) collectIntakeStatus() def.IntakeStatus {
 func (d *doctorImpl) collectHealthStatus() def.HealthStatus {
 	h := health.GetReady()
 
+	// Sort healthy and unhealthy components by name
+	slices.Sort(h.Healthy)
+	slices.Sort(h.Unhealthy)
+
 	return def.HealthStatus{
 		Healthy:   h.Healthy,
 		Unhealthy: h.Unhealthy,

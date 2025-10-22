@@ -84,27 +84,41 @@ func newServiceTimeSeries(maxLen int) *serviceTimeSeries {
 	}
 }
 
-// renderDotGraph renders a 2-row dot graph for a single telemetry type
+// renderDotGraph renders a 6-row dot graph for a single telemetry type
 // width is the number of time bucket columns to display
 // values is the time series data to visualize
 // color is the color for active cells
 // avg and max are used to determine the fill threshold for each column
+// Values are right-aligned: newest values appear on the right, padding left with empty cells if needed
 func renderDotGraph(width int, values []float64, color lipgloss.Color, avg, max float64) string {
-	const rows = 2
+	const rows = 6
 
 	// Build the graph row by row (top to bottom)
 	var lines []string
 	for row := 0; row < rows; row++ {
 		var line strings.Builder
 
-		// Determine how many values we can show based on width
+		// Calculate how many values we have and how many empty columns we need on the left
+		numValues := len(values)
+		emptyColumns := 0
 		startIdx := 0
-		if len(values) > width {
-			startIdx = len(values) - width
+
+		if numValues < width {
+			// Buffer not full yet - pad left with empty columns, align values to the right
+			emptyColumns = width - numValues
+			startIdx = 0
+		} else {
+			// Buffer full - show the last 'width' values
+			startIdx = numValues - width
 		}
 
-		// Fill cells for each time bucket column
-		for col := 0; col < width; col++ {
+		// Render empty columns on the left (padding)
+		for col := 0; col < emptyColumns; col++ {
+			line.WriteString(lipgloss.NewStyle().Foreground(colorInactive).Render("·"))
+		}
+
+		// Render actual values on the right
+		for col := 0; col < numValues && col < width; col++ {
 			valueIdx := startIdx + col
 			var cellActive bool
 
@@ -130,46 +144,69 @@ func renderDotGraph(width int, values []float64, color lipgloss.Color, avg, max 
 }
 
 // shouldFillCell determines if a cell should be filled based on row position and value
-// Row 0 is top (only filled if value >= ½ avg)
-// Row 1 is bottom (filled if value > 0)
+// 6 rows provide fine-grained visualization:
+// Row 0 (top): >= max
+// Row 1: >= 5/6 of max
+// Row 2: >= 4/6 of max
+// Row 3: >= 3/6 of max
+// Row 4: >= 2/6 of max
+// Row 5 (bottom): > 0
 func shouldFillCell(row int, value, avg, max float64) bool {
 	if value == 0 {
 		return false
 	}
 
-	// Threshold based on average
-	threshold := avg * 0.5 // ½ average
+	// Use max for thresholds to show relative magnitude
+	if max == 0 {
+		return value > 0
+	}
 
 	switch row {
-	case 0: // Top row - filled if value >= ½ avg
-		return value >= threshold
-	case 1: // Bottom row - filled if value > 0
+	case 0: // Top row - only filled if value is at max
+		return value >= max
+	case 1: // Second from top - filled if value >= 5/6 of max
+		return value >= (max * 5.0 / 6.0)
+	case 2: // Third from top - filled if value >= 4/6 of max
+		return value >= (max * 4.0 / 6.0)
+	case 3: // Middle - filled if value >= 3/6 (half) of max
+		return value >= (max * 3.0 / 6.0)
+	case 4: // Second from bottom - filled if value >= 2/6 of max
+		return value >= (max * 2.0 / 6.0)
+	case 5: // Bottom row - filled if value > 0
 		return value > 0
 	default:
 		return false
 	}
 }
 
-// renderServiceDotGraphs renders all three dot graphs (metrics, logs, traces) vertically stacked
+// renderServiceDotGraphs renders all three dot graphs (metrics, logs, traces) horizontally side-by-side
 // with labels showing current value and average
-func renderServiceDotGraphs(width int, sts *serviceTimeSeries) string {
-	// Calculate averages and current values for each telemetry type
-	metricsAvg := sts.metrics.getAverage()
-	metricsMax := sts.metrics.getMax()
+// Each graph is 15 columns wide for a 15-second window
+func renderServiceDotGraphs(sts *serviceTimeSeries) string {
+	const graphWidth = 15 // 15 seconds at 1 second per column
+
+	// Get the visible window for each telemetry type (last 15 values)
+	metricsWindow := getVisibleWindow(sts.metrics.values, graphWidth)
+	logsWindow := getVisibleWindow(sts.logs.values, graphWidth)
+	tracesWindow := getVisibleWindow(sts.traces.values, graphWidth)
+
+	// Calculate averages and max for visible window only
+	metricsAvg := getWindowAverage(metricsWindow)
+	metricsMax := getWindowMax(metricsWindow)
 	metricsCurrent := getCurrentValue(sts.metrics.values)
 
-	logsAvg := sts.logs.getAverage()
-	logsMax := sts.logs.getMax()
+	logsAvg := getWindowAverage(logsWindow)
+	logsMax := getWindowMax(logsWindow)
 	logsCurrent := getCurrentValue(sts.logs.values)
 
-	tracesAvg := sts.traces.getAverage()
-	tracesMax := sts.traces.getMax()
+	tracesAvg := getWindowAverage(tracesWindow)
+	tracesMax := getWindowMax(tracesWindow)
 	tracesCurrent := getCurrentValue(sts.traces.values)
 
 	// Render each graph
-	metricsGraph := renderDotGraph(width, sts.metrics.values, colorMetrics, metricsAvg, metricsMax)
-	logsGraph := renderDotGraph(width, sts.logs.values, colorLogs, logsAvg, logsMax)
-	tracesGraph := renderDotGraph(width, sts.traces.values, colorTraces, tracesAvg, tracesMax)
+	metricsGraph := renderDotGraph(graphWidth, sts.metrics.values, colorMetrics, metricsAvg, metricsMax)
+	logsGraph := renderDotGraph(graphWidth, sts.logs.values, colorLogs, logsAvg, logsMax)
+	tracesGraph := renderDotGraph(graphWidth, sts.traces.values, colorTraces, tracesAvg, tracesMax)
 
 	// Create labels for each graph
 	metricsLabel := formatGraphLabel("Metrics", metricsCurrent, metricsAvg, false)
@@ -177,11 +214,38 @@ func renderServiceDotGraphs(width int, sts *serviceTimeSeries) string {
 	tracesLabel := formatGraphLabel("Traces", tracesCurrent, tracesAvg, false)
 
 	// Combine labels and graphs (label is 2 rows tall, same as graph)
-	metricsLine := combineGraphWithLabel(metricsLabel, metricsGraph)
-	logsLine := combineGraphWithLabel(logsLabel, logsGraph)
-	tracesLine := combineGraphWithLabel(tracesLabel, tracesGraph)
+	metricsBlock := combineGraphWithLabel(metricsLabel, metricsGraph)
+	logsBlock := combineGraphWithLabel(logsLabel, logsGraph)
+	tracesBlock := combineGraphWithLabel(tracesLabel, tracesGraph)
 
-	return metricsLine + "\n" + logsLine + "\n" + tracesLine
+	// Split each block into lines
+	metricsLines := strings.Split(metricsBlock, "\n")
+	logsLines := strings.Split(logsBlock, "\n")
+	tracesLines := strings.Split(tracesBlock, "\n")
+
+	// Combine horizontally (side-by-side) with spacing
+	var result strings.Builder
+	for i := 0; i < 6; i++ { // 6 rows per graph
+		if i < len(metricsLines) {
+			result.WriteString(metricsLines[i])
+		}
+		result.WriteString("  ") // Spacing between graphs
+
+		if i < len(logsLines) {
+			result.WriteString(logsLines[i])
+		}
+		result.WriteString("  ") // Spacing between graphs
+
+		if i < len(tracesLines) {
+			result.WriteString(tracesLines[i])
+		}
+
+		if i < 5 { // Don't add newline after last line
+			result.WriteString("\n")
+		}
+	}
+
+	return result.String()
 }
 
 // getCurrentValue returns the most recent value from the time series
@@ -190,6 +254,43 @@ func getCurrentValue(values []float64) float64 {
 		return 0
 	}
 	return values[len(values)-1]
+}
+
+// getVisibleWindow returns the last N values from the time series (the visible window)
+func getVisibleWindow(values []float64, windowSize int) []float64 {
+	if len(values) == 0 {
+		return []float64{}
+	}
+	if len(values) <= windowSize {
+		return values
+	}
+	return values[len(values)-windowSize:]
+}
+
+// getWindowAverage calculates the average of values in the window
+func getWindowAverage(window []float64) float64 {
+	if len(window) == 0 {
+		return 0
+	}
+	sum := 0.0
+	for _, v := range window {
+		sum += v
+	}
+	return sum / float64(len(window))
+}
+
+// getWindowMax returns the maximum value in the window
+func getWindowMax(window []float64) float64 {
+	if len(window) == 0 {
+		return 0
+	}
+	max := window[0]
+	for _, v := range window {
+		if v > max {
+			max = v
+		}
+	}
+	return max
 }
 
 // formatGraphLabel creates a 2-line label for a graph showing current value and average
@@ -216,26 +317,36 @@ func formatGraphLabel(name string, current, avg float64, isBytes bool) string {
 	return line1 + "\n" + line2
 }
 
-// combineGraphWithLabel combines a 2-line label with a 2-row graph horizontally
+// combineGraphWithLabel combines a 2-line label with a 6-row graph horizontally
+// Label appears at top, rest is empty padding
 func combineGraphWithLabel(label string, graph string) string {
 	labelLines := strings.Split(label, "\n")
 	graphLines := strings.Split(graph, "\n")
 
-	// Ensure we have exactly 2 lines for both
-	for len(labelLines) < 2 {
+	// Ensure we have exactly 6 lines for label (2 lines of text + 4 empty)
+	for len(labelLines) < 6 {
 		labelLines = append(labelLines, "")
 	}
-	for len(graphLines) < 2 {
+	// Ensure we have exactly 6 lines for graph
+	for len(graphLines) < 6 {
 		graphLines = append(graphLines, "")
 	}
 
 	// Pad label to consistent width (e.g., 20 characters)
 	labelWidth := 20
-	paddedLabel1 := padRight(labelLines[0], labelWidth)
-	paddedLabel2 := padRight(labelLines[1], labelWidth)
+	var result strings.Builder
 
-	return paddedLabel1 + " " + graphLines[0] + "\n" +
-		paddedLabel2 + " " + graphLines[1]
+	for i := 0; i < 6; i++ {
+		paddedLabel := padRight(labelLines[i], labelWidth)
+		result.WriteString(paddedLabel)
+		result.WriteString(" ")
+		result.WriteString(graphLines[i])
+		if i < 5 {
+			result.WriteString("\n")
+		}
+	}
+
+	return result.String()
 }
 
 // padRight pads a string to the specified width (accounts for ANSI color codes)

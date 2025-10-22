@@ -87,7 +87,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					if m.selectedServiceIdx < maxIdx {
 						m.selectedServiceIdx++
 						// Adjust scroll offset if needed
-						linesPerService := 9
+						linesPerService := 8
 						panelHeight := m.height - 6
 						availableHeight := panelHeight - 5
 						maxVisibleServices := availableHeight / linesPerService
@@ -118,7 +118,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					if m.selectedServiceIdx > maxIdx {
 						m.selectedServiceIdx = maxIdx
 					}
-					linesPerService := 9
+					linesPerService := 8
 					panelHeight := m.height - 6
 					availableHeight := panelHeight - 5
 					maxVisibleServices := availableHeight / linesPerService
@@ -141,7 +141,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				// Jump to last service including "other" (only when services panel is selected)
 				if m.selectedPanel == 0 && m.status != nil {
 					m.selectedServiceIdx = len(m.status.Services) - 1 // Points to "other"
-					linesPerService := 9
+					linesPerService := 8
 					panelHeight := m.height - 6
 					availableHeight := panelHeight - 5
 					maxVisibleServices := availableHeight / linesPerService

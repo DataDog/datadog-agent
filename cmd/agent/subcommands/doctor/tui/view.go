@@ -639,8 +639,8 @@ func (m model) renderServicesPanel(width, height int, isSelected bool) string {
 		content.WriteString(infoStyle.Render("Services will appear here\nwhen traces, metrics, or\nlogs are collected"))
 	} else {
 		// Calculate how many services we can display based on panel height
-		// Each service box takes 6 lines (for graphs) + 2 lines (top/bottom border) + 1 line margin = 9 lines
-		linesPerService := 9
+		// Each service box takes 6 lines (horizontal graphs) + 2 lines (top/bottom border) = 8 lines
+		linesPerService := 8
 		availableHeight := height - 5 // Account for title and padding
 		maxVisibleServices := availableHeight / linesPerService
 		if maxVisibleServices < 1 {
@@ -652,16 +652,6 @@ func (m model) renderServicesPanel(width, height int, isSelected bool) string {
 		endIdx := startIdx + maxVisibleServices
 		if endIdx > totalServices { // +1 for "other"
 			endIdx = totalServices
-		}
-
-		// Calculate dot graph width based on panel width
-		// Reserve space for service name, borders, and padding
-		dotGraphWidth := width - 20
-		if dotGraphWidth < 10 {
-			dotGraphWidth = 10
-		}
-		if dotGraphWidth > 40 {
-			dotGraphWidth = 40
 		}
 
 		// Render each visible service
@@ -680,7 +670,7 @@ func (m model) renderServicesPanel(width, height int, isSelected bool) string {
 			ts = m.serviceTimeSeries[service.Name]
 
 			// Render service with compact layout and border
-			serviceContent := m.renderCompactServiceBox(serviceName, ts, dotGraphWidth, isServiceSelected, isOther)
+			serviceContent := m.renderCompactServiceBox(serviceName, ts, isServiceSelected, isOther)
 
 			// Create border style
 			borderStyle := lipgloss.NewStyle().
@@ -715,8 +705,8 @@ func (m model) renderServicesPanel(width, height int, isSelected bool) string {
 }
 
 // renderCompactServiceBox renders a single service with dot graphs in a compact format
-// Layout: service name on left (padded to fixed width), graphs on right
-func (m model) renderCompactServiceBox(serviceName string, ts *serviceTimeSeries, dotGraphWidth int, isSelected bool, isOther bool) string {
+// Layout: service name on left, 3 graphs horizontally on right (6 rows total)
+func (m model) renderCompactServiceBox(serviceName string, ts *serviceTimeSeries, isSelected bool, isOther bool) string {
 	// Service name styling
 	nameStyle := lipgloss.NewStyle().
 		Foreground(colorHighlight).
@@ -739,14 +729,14 @@ func (m model) renderCompactServiceBox(serviceName string, ts *serviceTimeSeries
 	// Render dot graphs if we have time series data
 	var graphsContent string
 	if ts != nil && len(ts.metrics.values) > 0 {
-		graphsContent = renderServiceDotGraphs(dotGraphWidth, ts)
+		graphsContent = renderServiceDotGraphs(ts)
 	} else {
 		// No data yet - show placeholder (6 lines to match graph height)
 		graphsContent = subduedStyle.Render("(no data)\n\n\n\n\n")
 	}
 
 	// Combine name and graphs side by side
-	// Name should be vertically centered with the 6-row graphs (3 lines padding on top)
+	// Name should be vertically centered with the 6-row graphs
 	nameLines := []string{
 		styledName,
 		"",
@@ -922,7 +912,7 @@ func (m model) renderServiceBox(serviceName string, ts *serviceTimeSeries, dotGr
 
 	// Render dot graphs if we have time series data
 	if ts != nil {
-		dotGraphs := renderServiceDotGraphs(dotGraphWidth, ts)
+		dotGraphs := renderServiceDotGraphs(ts)
 		content.WriteString(dotGraphs)
 	} else {
 		// No data yet
