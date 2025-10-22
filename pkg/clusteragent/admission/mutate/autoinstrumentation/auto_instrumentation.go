@@ -26,6 +26,7 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
 	mutatecommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -111,6 +112,11 @@ func (w *Webhook) Operations() []admissionregistrationv1.OperationType {
 func (w *Webhook) LabelSelectors(useNamespaceSelector bool) (*metav1.LabelSelector, *metav1.LabelSelector) {
 	return common.DefaultLabelSelectors(useNamespaceSelector, common.LabelSelectorsConfig{
 		ExcludeNamespaces: mutatecommon.DefaultDisabledNamespaces(),
+		ShouldAcceptAllFunc: func() bool {
+			return pkgconfigsetup.Datadog().GetBool("admission_controller.mutate_unlabelled") ||
+				pkgconfigsetup.Datadog().GetBool("apm_config.instrumentation.enabled") ||
+				len(pkgconfigsetup.Datadog().GetStringSlice("apm_config.instrumentation.enabled_namespaces")) > 0
+		},
 	})
 }
 
