@@ -6,7 +6,7 @@
 // Package model is the types for the Seccomp Tracer check
 package model
 
-// SeccompStatsKey is the type of the `SeccompStats` map key
+// SeccompStatsEntry represents a single seccomp denial event with the count of the times it occurred
 type SeccompStatsEntry struct {
 	CgroupName    string `json:"cgroupName"`
 	SyscallNr     uint32 `json:"syscallNr"`
@@ -14,5 +14,5 @@ type SeccompStatsEntry struct {
 	Count         uint64 `json:"count"`
 }
 
-// SeccompStats is the map of seccomp denials per container, syscall, and action
+// SeccompStats is a slice of SeccompStatsEntry objects
 type SeccompStats []SeccompStatsEntry
