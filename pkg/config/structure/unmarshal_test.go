@@ -1643,7 +1643,7 @@ some_config:
     memory: 5g
 `
 	mockConfig := newConfigFromYaml(t, confYaml)
-	mockConfig.SetKnown("some_config.resources.memory")
+	mockConfig.SetKnown("some_config.resources.memory") //nolint:forbidigo, using SetKnown to test behavior
 
 	var res myStruct
 	err := unmarshalKeyReflection(mockConfig, "some_config", &res)
