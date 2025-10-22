@@ -10,14 +10,13 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	"github.com/DataDog/datadog-agent/comp/core/workloadfilter/program"
 )
 
 // LegacyProcessExcludeProgram creates a regex-based program for filtering processes based on legacy disallowlist patterns
-func LegacyProcessExcludeProgram(config config.Component, logger log.Component) program.FilterProgram {
+func LegacyProcessExcludeProgram(filterConfig *FilterConfig, logger log.Component) program.FilterProgram {
 	programName := "LegacyProcessExcludeProgram"
 	var initErrors []error
 
@@ -29,7 +28,7 @@ func LegacyProcessExcludeProgram(config config.Component, logger log.Component) 
 		return process.GetCmdline()
 	}
 
-	processPatterns := config.GetStringSlice("process_config.blacklist_patterns")
+	processPatterns := filterConfig.ProcessBlacklistPatterns
 	if len(processPatterns) == 0 {
 		return &program.RegexProgram{
 			Name:                 programName,

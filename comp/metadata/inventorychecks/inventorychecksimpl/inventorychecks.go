@@ -10,7 +10,6 @@ import (
 	"context"
 	"encoding/json"
 	"expvar"
-	"fmt"
 	"maps"
 	"net/http"
 	"reflect"
@@ -65,13 +64,6 @@ type Payload struct {
 func (p *Payload) MarshalJSON() ([]byte, error) {
 	type PayloadAlias Payload
 	return json.Marshal((*PayloadAlias)(p))
-}
-
-// SplitPayload implements marshaler.AbstractMarshaler#SplitPayload.
-//
-// In this case, the payload can't be split any further.
-func (p *Payload) SplitPayload(_ int) ([]marshaler.AbstractMarshaler, error) {
-	return nil, fmt.Errorf("could not split inventories host payload any more, payload is too big for intake")
 }
 
 type instanceMetadata struct {

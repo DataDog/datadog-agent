@@ -8,6 +8,7 @@
 package module
 
 import (
+	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -31,10 +32,10 @@ func isEBPFOptional(factories []*Factory) bool {
 	return false
 }
 
-func preRegister(_ *sysconfigtypes.Config, moduleFactories []*Factory) error {
+func preRegister(_ *sysconfigtypes.Config, rcclient rcclient.Component, moduleFactories []*Factory) error {
 	needed := isEBPFRequired(moduleFactories)
 	if needed || isEBPFOptional(moduleFactories) {
-		err := ebpf.Setup(ebpf.NewConfig())
+		err := ebpf.Setup(ebpf.NewConfig(), rcclient)
 		if err != nil && !needed {
 			log.Warnf("ignoring eBPF setup error: %v", err)
 			return nil

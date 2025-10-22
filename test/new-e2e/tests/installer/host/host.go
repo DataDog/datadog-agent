@@ -49,16 +49,18 @@ func New(t func() *testing.T, remote *components.RemoteHost, os e2eos.Descriptor
 	for _, opt := range opts {
 		opt(t, host)
 	}
-	host.uploadFixtures()
-	host.setSystemdVersion()
-	if _, err := host.remote.Execute("command -v dpkg-query"); err == nil {
-		host.pkgManager = "apt"
-	} else if _, err := host.remote.Execute("command -v zypper"); err == nil {
-		host.pkgManager = "zypper"
-	} else if _, err := host.remote.Execute("command -v yum"); err == nil {
-		host.pkgManager = "yum"
-	} else {
-		t().Fatal("no package manager found")
+	if os.Family() == e2eos.LinuxFamily {
+		host.uploadFixtures()
+		host.setSystemdVersion()
+		if _, err := host.remote.Execute("command -v dpkg-query"); err == nil {
+			host.pkgManager = "apt"
+		} else if _, err := host.remote.Execute("command -v zypper"); err == nil {
+			host.pkgManager = "zypper"
+		} else if _, err := host.remote.Execute("command -v yum"); err == nil {
+			host.pkgManager = "yum"
+		} else {
+			t().Fatal("no package manager found")
+		}
 	}
 	return host
 }
@@ -215,8 +217,11 @@ func (h *Host) WaitForFileExists(useSudo bool, filePaths ...string) {
 // This is because of a race condition where the trace agent is not ready to receive traces and we send them
 // meaning that the traces are lost
 func (h *Host) WaitForTraceAgentSocketReady() {
-	_, err := h.remote.Execute("timeout=30; while ! grep -q 'Listening for traces at unix://' <(sudo journalctl _PID=`systemctl show -p MainPID datadog-agent-trace | cut -d\"=\" -f2`); do sleep 1; ((timeout--)); done; [ $timeout -ne 0 ]")
-	require.NoError(h.t(), err, "trace agent did not become ready")
+	require.EventuallyWithT(h.t(), func(t *assert.CollectT) {
+		// this endpoint is no-op but it will fail if the trace agent is not ready
+		_, err := h.remote.Execute("curl -XGET --unix-socket /var/run/datadog/apm.socket http:/services")
+		require.NoError(t, err)
+	}, 30*time.Second, 1*time.Second, "trace agent did not become ready")
 }
 
 // BootstrapperVersion returns the version of the bootstrapper on the host.

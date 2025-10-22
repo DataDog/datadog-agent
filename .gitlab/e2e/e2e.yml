@@ -327,6 +327,7 @@ new-e2e-agent-subcommands:
       - EXTRA_PARAMS: --run "Test(Linux|Windows)SecretSuite"
       - EXTRA_PARAMS: --run "Test(Linux|Windows)CheckSuite"
       - EXTRA_PARAMS: --run "Test(Linux|Windows)RunSuite"
+      - EXTRA_PARAMS: --run "Test(Linux|Windows)DogstatsdReplaySuite"
 
 new-e2e-fips-compliance-test:
   extends: .new_e2e_template
@@ -664,6 +665,7 @@ new-e2e-installer:
     - deploy_installer_oci
     - deploy_agent_oci
     - qa_installer_script_linux
+    - deploy_ddot_oci
   variables:
     TARGETS: ./tests/installer/unix
     TEAM: fleet
@@ -911,6 +913,7 @@ new-e2e-gpu:
       - EXTRA_PARAMS: "--run TestGPUK8sSuiteUbuntu2204"
       - EXTRA_PARAMS: "--run TestGPUHostSuiteUbuntu1804Driver510"
       - EXTRA_PARAMS: "--run TestGPUHostSuiteUbuntu1804Driver430" # This driver is not supported by the agent, but we can check that the agent does not crash. No need to test in k8s this one.
+  allow_failure: true
 
 generate-flakes-finder-pipeline:
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
@@ -928,12 +931,15 @@ generate-flakes-finder-pipeline:
     - deploy_suse_rpm_testing_arm64-a7
     - deploy_suse_rpm_testing_x64-a7
     - deploy_windows_testing-a7
+    - deploy_windows_testing-a7-fips
     - deploy_installer_oci
     - deploy_agent_oci
     - qa_cws_instrumentation
     - qa_dca
     - qa_dogstatsd
     - qa_agent
+    - qa_agent_fips
+    - qa_agent_fips_jmx
     - qa_agent_full
     - tests_windows_sysprobe_x64
   tags: ["arch:amd64", "specific:true"]

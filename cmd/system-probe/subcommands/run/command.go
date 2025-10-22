@@ -58,7 +58,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	commonsettings "github.com/DataDog/datadog-agent/pkg/config/settings"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	ddruntime "github.com/DataDog/datadog-agent/pkg/runtime"
@@ -151,7 +151,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				settingsimpl.Module(),
 				logscompressionfx.Module(),
 				fx.Provide(func(config config.Component, statsd statsd.Component) (ddgostatsd.ClientInterface, error) {
-					return statsd.CreateForHostPort(pkgconfigsetup.GetBindHost(config), config.GetInt("dogstatsd_port"))
+					return statsd.CreateForHostPort(configutils.GetBindHost(config), config.GetInt("dogstatsd_port"))
 				}),
 				remotehostnameimpl.Module(),
 				configsyncimpl.Module(configsyncimpl.NewParams(configSyncTimeout, true, configSyncTimeout)),
@@ -332,7 +332,7 @@ func runSystemProbe(ctxChan <-chan context.Context, errChan chan error) error {
 		settingsimpl.Module(),
 		logscompressionfx.Module(),
 		fx.Provide(func(config config.Component, statsd statsd.Component) (ddgostatsd.ClientInterface, error) {
-			return statsd.CreateForHostPort(pkgconfigsetup.GetBindHost(config), config.GetInt("dogstatsd_port"))
+			return statsd.CreateForHostPort(configutils.GetBindHost(config), config.GetInt("dogstatsd_port"))
 		}),
 		remotehostnameimpl.Module(),
 	)
@@ -344,7 +344,7 @@ func StopSystemProbeWithDefaults() {
 }
 
 // startSystemProbe Initializes the system-probe process
-func startSystemProbe(log log.Component, telemetry telemetry.Component, sysprobeconfig sysprobeconfig.Component, _ rcclient.Component, settings settings.Component, deps module.FactoryDependencies) error {
+func startSystemProbe(log log.Component, telemetry telemetry.Component, sysprobeconfig sysprobeconfig.Component, rcclient rcclient.Component, settings settings.Component, deps module.FactoryDependencies) error {
 	var err error
 	cfg := sysprobeconfig.SysProbeObject()
 
@@ -400,7 +400,7 @@ func startSystemProbe(log log.Component, telemetry telemetry.Component, sysprobe
 		}()
 	}
 
-	if err = api.StartServer(cfg, settings, telemetry, deps); err != nil {
+	if err = api.StartServer(cfg, settings, telemetry, rcclient, deps); err != nil {
 		return log.Criticalf("error while starting api server, exiting: %v", err)
 	}
 	return nil

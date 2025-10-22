@@ -105,6 +105,9 @@ const (
 	// SourceServiceDiscovery represents service discovery data for processes
 	// detected by the process collector.
 	SourceServiceDiscovery Source = "service_discovery"
+
+	// SourceKubeAPIServer represents metadata collected from the Kubernetes API Server
+	SourceKubeAPIServer Source = "kubeapiserver"
 )
 
 // ContainerRuntime is the container runtime used by a container.
@@ -210,6 +213,9 @@ const (
 	KubeletID = "kubelet-id"
 	// KubeletName is used to name the workloadmeta kubelet entity
 	KubeletName = "kubelet"
+	// KubeletMetricsID is the ID of the workloadmeta KindKubeletMetrics entity.
+	// There can only be one per node.
+	KubeletMetricsID = "kubelet-metrics"
 )
 
 // Entity represents a single unit of work being done that is of interest to

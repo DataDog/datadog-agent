@@ -18,14 +18,13 @@ def build(
     ctx,
     dumpdep=False,
     install_path=None,
-    major_version='7',
     static=False,
 ):
     """
     Build the sbomgen binary
     """
 
-    ldflags, gcflags, env = get_build_flags(ctx, major_version=major_version, static=static, install_path=install_path)
+    ldflags, gcflags, env = get_build_flags(ctx, static=static, install_path=install_path)
     ldflags += "-s -w"
     if dumpdep:
         ldflags += " -dumpdep"

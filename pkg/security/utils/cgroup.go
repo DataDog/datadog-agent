@@ -25,6 +25,7 @@ import (
 	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
+	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
@@ -89,7 +90,7 @@ func parseProcControlGroupsData(data []byte, validateCgroupEntry func(string, st
 			return err
 		}
 
-		if isValid, err = validateCgroupEntry(id, ctrl, path); isValid {
+		if isValid, err = validateCgroupEntry(id, ctrl, path); isValid && err == nil {
 			return nil
 		}
 
@@ -247,6 +248,10 @@ func (cfs *CGroupFS) FindCGroupContext(tgid, pid uint32) (containerutils.Contain
 
 			if exists, err = checkPidExists(cgroupPath, pid); err == nil && exists {
 				cgroupID := containerutils.CGroupID(cfs.removeMountPointFromCGroupPath(cgroupPath))
+				if cgroupID == "" {
+					seclog.Warnf("Error finding cgroupID for pid %d in %s, resolved as empty ID", pid, cgroupPath)
+					continue
+				}
 				ctrID := containerutils.FindContainerID(cgroupID)
 				cgroupContext.CGroupID = cgroupID
 				containerID = ctrID
@@ -262,12 +267,16 @@ func (cfs *CGroupFS) FindCGroupContext(tgid, pid uint32) (containerutils.Contain
 				} else if err = unix.Stat(cgroupPath, &fileStats); err == nil {
 					cgroupContext.CGroupFileInode = fileStats.Ino
 				}
-
-				return true, err
+				if err == nil {
+					return true, nil
+				}
+				seclog.Warnf("Unable to stat cgroup path %s", cgroupPath)
 			}
 		}
-
-		// return the lastest error
+		// not found
+		if err == nil {
+			err = os.ErrNotExist
+		}
 		return false, err
 	})
 	if err != nil {
@@ -292,7 +301,7 @@ func checkPidExists(sysFScGroupPath string, expectedPid uint32) (bool, error) {
 	}
 	scanner := bufio.NewScanner(bytes.NewReader(data))
 	for scanner.Scan() {
-		if pid, err := strconv.Atoi(strings.TrimSpace(scanner.Text())); err == nil && uint32(pid) == expectedPid {
+		if pid, err := strconv.ParseUint(strings.TrimSpace(scanner.Text()), 10, 32); err == nil && uint32(pid) == expectedPid {
 			return true, nil
 		}
 	}
@@ -319,7 +328,7 @@ func (cfs *CGroupFS) GetCgroupPids(cgroupName string) ([]uint32, error) {
 		scanner := bufio.NewScanner(bytes.NewReader(data))
 		res := []uint32{}
 		for scanner.Scan() {
-			if pid, err := strconv.Atoi(strings.TrimSpace(scanner.Text())); err == nil {
+			if pid, err := strconv.ParseUint(strings.TrimSpace(scanner.Text()), 10, 32); err == nil {
 				res = append(res, uint32(pid))
 			}
 		}
@@ -384,7 +393,7 @@ func (cfs *CGroupFS) detectCurrentCgroupPath(currentPid, currentNSPid uint32) {
 				if err == nil {
 					scanner := bufio.NewScanner(bytes.NewReader(data))
 					for scanner.Scan() {
-						if pid, err := strconv.Atoi(strings.TrimSpace(scanner.Text())); err == nil && uint32(pid) == currentNSPid {
+						if pid, err := strconv.ParseUint(strings.TrimSpace(scanner.Text()), 10, 32); err == nil && uint32(pid) == currentNSPid {
 							cgroupPath = filepath.Dir(path)
 							return fs.SkipAll
 						}
