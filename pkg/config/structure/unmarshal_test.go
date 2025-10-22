@@ -1629,3 +1629,24 @@ func TestUnmarshalKeyOnSliceOfMap(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, []map[string]string{{"a": "1", "b": "1"}, {"a": "2", "b": "2"}}, data)
 }
+
+type ResourceType string
+
+type myStruct struct {
+	Resources map[ResourceType]string
+}
+
+func TestUnmarshalMapWithTypeAlias(t *testing.T) {
+	confYaml := `
+some_config:
+  resources:
+    memory: 5g
+`
+	mockConfig := newConfigFromYaml(t, confYaml)
+	mockConfig.SetKnown("some_config.resources.memory")
+
+	var res myStruct
+	err := unmarshalKeyReflection(mockConfig, "some_config", &res)
+	assert.NoError(t, err)
+	assert.Equal(t, map[ResourceType]string{"memory": "5g"}, res.Resources)
+}
