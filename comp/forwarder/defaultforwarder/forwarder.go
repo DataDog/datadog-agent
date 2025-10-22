@@ -44,7 +44,7 @@ func newForwarder(dep dependencies) (provides, error) {
 		}, nil
 	}
 
-	options, err := createOptions(dep.Params, dep.Config, dep.Log, dep.Secrets)
+	options, err := createOptions(dep.Params, dep.Config, dep.Log)
 	if err != nil {
 		return provides{}, err
 	}
@@ -52,7 +52,7 @@ func newForwarder(dep dependencies) (provides, error) {
 	return NewForwarder(dep.Config, dep.Log, dep.Secrets, dep.Lc, true, options), nil
 }
 
-func createOptions(params Params, config config.Component, log log.Component, _ secrets.Component) (*Options, error) {
+func createOptions(params Params, config config.Component, log log.Component) (*Options, error) {
 	var options *Options
 	keysPerDomain, err := utils.GetMultipleEndpoints(config)
 	if err != nil {
@@ -74,7 +74,6 @@ func createOptions(params Params, config config.Component, log log.Component, _ 
 		}
 		options = NewOptionsWithResolvers(config, log, r)
 	}
-
 	// Override the DisableAPIKeyChecking only if WithFeatures was called
 	if disableAPIKeyChecking, ok := params.disableAPIKeyCheckingOverride.Get(); ok {
 		options.DisableAPIKeyChecking = disableAPIKeyChecking

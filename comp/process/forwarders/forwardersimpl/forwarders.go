@@ -57,7 +57,7 @@ func newForwarders(deps dependencies) (forwarders.Component, error) {
 		return nil, err
 	}
 
-	eventForwarderOpts, err := createParams(deps.Config, deps.Logger, queueBytes, eventsAPIEndpoints, deps.Secrets)
+	eventForwarderOpts, err := createParams(deps.Config, deps.Logger, queueBytes, eventsAPIEndpoints)
 	if err != nil {
 		return nil, err
 	}
@@ -67,7 +67,7 @@ func newForwarders(deps dependencies) (forwarders.Component, error) {
 		return nil, err
 	}
 
-	processForwarderOpts, err := createParams(deps.Config, deps.Logger, queueBytes, processAPIEndpoints, deps.Secrets)
+	processForwarderOpts, err := createParams(deps.Config, deps.Logger, queueBytes, processAPIEndpoints)
 	if err != nil {
 		return nil, err
 	}
@@ -84,7 +84,7 @@ func createForwarder(deps dependencies, options *defaultforwarder.Options) defau
 	return defaultforwarder.NewForwarder(deps.Config, deps.Logger, deps.Secrets, deps.Lc, false, options).Comp
 }
 
-func createParams(config config.Component, log log.Component, queueBytes int, endpoints []apicfg.Endpoint, _ secrets.Component) (*defaultforwarder.Options, error) {
+func createParams(config config.Component, log log.Component, queueBytes int, endpoints []apicfg.Endpoint) (*defaultforwarder.Options, error) {
 	resolver, err := resolver.NewSingleDomainResolvers(apicfg.KeysPerDomains(endpoints))
 	if err != nil {
 		return nil, err
