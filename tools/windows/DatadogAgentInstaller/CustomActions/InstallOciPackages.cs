@@ -48,6 +48,9 @@ namespace Datadog.CustomActions
             // Skip agent installation - we only want the OCI packages
             env["DD_NO_AGENT_INSTALL"] = "true";
 
+            // there is no var for remote updates, default is false from MSI
+            env["DD_REMOTE_UPDATES"] = "false";
+
             if (!string.IsNullOrEmpty(_apiKey))
             {
                 env["DD_API_KEY"] = _apiKey;
