@@ -133,7 +133,7 @@ func Test_ParseProfileFromFile(t *testing.T) {
 	defaultTestConfdPath, _ := filepath.Abs(filepath.Join("..", "test", "conf.d"))
 	mockConfig.SetWithoutSource("confd_path", defaultTestConfdPath)
 
-	absPath, _ := filepath.Abs(filepath.Join(defaultTestConfdPath, "networkconfigmanagement.d", "default_profiles", "p2.yaml"))
+	absPath, _ := filepath.Abs(filepath.Join(defaultTestConfdPath, "network_config_management.d", "default_profiles", "p2.yaml"))
 	tests := []struct {
 		name            string
 		definitionType  Definition[any]
@@ -187,7 +187,7 @@ func Test_ParseProfileFromFile(t *testing.T) {
 
 func Test_ParseNCMProfileFromFile(t *testing.T) {
 	SetConfdPathAndCleanProfiles()
-	basePath, _ := filepath.Abs(filepath.Join("..", "test", "conf.d", "networkconfigmanagement.d", "default_profiles"))
+	basePath, _ := filepath.Abs(filepath.Join("..", "test", "conf.d", "network_config_management.d", "default_profiles"))
 	p1 := filepath.Join(basePath, "p1.json")
 	p2 := filepath.Join(basePath, "p2.yaml")
 
@@ -265,7 +265,7 @@ func Test_resolveNCMProfileDefinitionPath(t *testing.T) {
 		{
 			name:               "relative path with default profile",
 			definitionFilePath: "p2.yaml",
-			expectedPath:       filepath.Join(mockConfig.Get("confd_path").(string), "networkconfigmanagement.d", "default_profiles", "p2.yaml"),
+			expectedPath:       filepath.Join(mockConfig.Get("confd_path").(string), "network_config_management.d", "default_profiles", "p2.yaml"),
 		},
 	}
 	for _, tt := range tests {

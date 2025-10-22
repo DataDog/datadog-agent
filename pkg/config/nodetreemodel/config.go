@@ -15,6 +15,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"slices"
+	"sort"
 	"strings"
 	"sync"
 
@@ -71,6 +72,9 @@ type ntmConfig struct {
 	// - it's okay to modify the config schema after it gets built
 	// - unknown keys can be assigned and retrieved
 	allowDynamicSchema *atomic.Bool
+	// state of env vars, only used by tests to decide when to rebuild the env var layer. Necessary because
+	// viper would lookup env vars at runtime, instead of storing them, and many many tests rely on this behavior
+	lastEnvVarState string
 
 	// tree debugger is used by the Stringify method, useful for debugging and test assertions
 	td *treeDebugger
@@ -197,9 +201,13 @@ func (c *ntmConfig) RevertFinishedBackToBuilder() model.BuildableConfig {
 
 // Set assigns the newValue to the given key and marks it as originating from the given source
 func (c *ntmConfig) Set(key string, newValue interface{}, source model.Source) {
-	c.Lock()
+	if source == model.SourceEnvVar {
+		panicInTest("Writing to env var layers is not allowed, use SourceAgentRuntime instead.")
+	}
 
 	c.maybeRebuild()
+
+	c.Lock()
 
 	if !c.isKnownKey(key) {
 		if c.allowDynamicSchema.Load() {
@@ -212,7 +220,7 @@ func (c *ntmConfig) Set(key string, newValue interface{}, source model.Source) {
 	}
 	schemaNode := c.nodeAtPathFromNode(key, c.schema)
 	if _, ok := schemaNode.(LeafNode); schemaNode != missingLeaf && !ok {
-		panicInTest("Key '%s' is not a setting but part of the config tree: 'Set' method only works on settings", key)
+		panicInTest("Key '%s' is partial path of a setting. 'Set' does not allow configuring multiple settings at once using maps", key)
 		c.Unlock()
 		return
 	}
@@ -263,6 +271,7 @@ func (c *ntmConfig) insertValueIntoTree(key string, value interface{}, source mo
 // SetWithoutSource assigns the value to the given key using source Unknown, may only be called from tests
 func (c *ntmConfig) SetWithoutSource(key string, value interface{}) {
 	c.assertIsTest("SetWithoutSource")
+
 	v := reflect.ValueOf(value)
 	if v.Kind() == reflect.Pointer {
 		v = v.Elem()
@@ -271,14 +280,10 @@ func (c *ntmConfig) SetWithoutSource(key string, value interface{}) {
 		panic("SetWithoutSource cannot assign struct to a setting")
 	}
 	c.Set(key, value, model.SourceUnknown)
-	keySet := make(map[string]struct{}, len(c.allSettings))
-	for _, k := range c.allSettings {
-		keySet[k] = struct{}{}
-	}
-	keySet[key] = struct{}{}
-	allKeys := slices.Collect(maps.Keys(keySet))
-	slices.Sort(allKeys)
-	c.allSettings = allKeys
+
+	c.Lock()
+	defer c.Unlock()
+	c.computeAllSettings()
 }
 
 // SetDefault assigns the value to the given key using source Default
@@ -439,10 +444,24 @@ func (c *ntmConfig) isKnownKey(key string) bool {
 
 func (c *ntmConfig) maybeRebuild() {
 	if c.allowDynamicSchema.Load() {
+		// Write-lock because the root will be written to in order to rebuild the state
+		c.Lock()
+		defer c.Unlock()
+
+		// Only need to rebuild if env vars have different state than last rebuild
+		envs := os.Environ()
+		sort.Strings(envs)
+		envVarState := strings.Join(envs, "$")
+		if c.lastEnvVarState == envVarState {
+			return
+		}
+		c.lastEnvVarState = envVarState
+
 		// building the schema may access data from the config, disable the dynamic schema
 		// flag to prevent recursive rebuilds
 		c.allowDynamicSchema.Store(false)
 		defer func() { c.allowDynamicSchema.Store(true) }()
+
 		c.buildSchema()
 	}
 }
@@ -452,8 +471,6 @@ func (c *ntmConfig) maybeRebuild() {
 //
 // Must be called with the lock read-locked.
 func (c *ntmConfig) checkKnownKey(key string) {
-	c.maybeRebuild()
-
 	if c.isKnownKey(key) {
 		return
 	}
@@ -492,27 +509,22 @@ func (c *ntmConfig) mergeAllLayers() error {
 
 	c.root = merged
 	// recompile allSettings now that we have the full config
-	c.allSettings = c.computeAllSettings("")
+	c.computeAllSettings()
 	return nil
 }
 
-func (c *ntmConfig) computeAllSettings(path string) []string {
-	c.maybeRebuild()
-
+func (c *ntmConfig) computeAllSettings() {
 	keySet := make(map[string]struct{})
 
 	// 1. Collect all known keys from schema
-	c.collectKeysFromNode(c.schema, path, keySet, true)
+	c.collectKeysFromNode(c.schema, "", keySet, true)
 
 	// 2. Collect all keys from merged tree (only ones with values)
 	c.collectKeysFromNode(c.root, "", keySet, false)
 
-	// 3. Collect all unknown keys, even if they have no value set
-	c.collectKeysFromNode(c.unknown, "", keySet, true)
-
 	allKeys := slices.Collect(maps.Keys(keySet))
 	slices.Sort(allKeys)
-	return allKeys
+	c.allSettings = allKeys
 }
 
 func (c *ntmConfig) collectKeysFromNode(node InnerNode, path string, keySet map[string]struct{}, includeAllKeys bool) {
@@ -546,7 +558,7 @@ func (c *ntmConfig) buildSchema() {
 	if err := c.mergeAllLayers(); err != nil {
 		c.warnings = append(c.warnings, err)
 	}
-	c.allSettings = c.computeAllSettings("")
+	c.computeAllSettings()
 }
 
 // Stringify stringifies the config, but only with the test build tag
@@ -638,10 +650,10 @@ func (c *ntmConfig) ParseEnvAsSlice(key string, fn func(string) []interface{}) {
 
 // IsSet checks if a key is set in the config
 func (c *ntmConfig) IsSet(key string) bool {
+	c.maybeRebuild()
+
 	c.RLock()
 	defer c.RUnlock()
-
-	c.maybeRebuild()
 
 	if !c.isReady() && !c.allowDynamicSchema.Load() {
 		log.Errorf("attempt to read key before config is constructed: %s", key)
@@ -802,6 +814,8 @@ func (c *ntmConfig) SetEnvKeyReplacer(r *strings.Replacer) {
 // UnmarshalKey unmarshals the data for the given key
 // DEPRECATED: use pkg/config/structure.UnmarshalKey instead
 func (c *ntmConfig) UnmarshalKey(key string, _rawVal interface{}, _opts ...func(*mapstructure.DecoderConfig)) error {
+	c.maybeRebuild()
+
 	c.RLock()
 	defer c.RUnlock()
 	c.checkKnownKey(key)
@@ -877,18 +891,20 @@ func (c *ntmConfig) MergeFleetPolicy(configPath string) error {
 
 // AllSettings returns all settings from the config
 func (c *ntmConfig) AllSettings() map[string]interface{} {
+	c.maybeRebuild()
+
 	c.RLock()
 	defer c.RUnlock()
-	c.maybeRebuild()
 
 	return c.root.DumpSettings(func(model.Source) bool { return true })
 }
 
 // AllSettingsWithoutDefault returns a copy of the all the settings in the configuration without defaults
 func (c *ntmConfig) AllSettingsWithoutDefault() map[string]interface{} {
+	c.maybeRebuild()
+
 	c.RLock()
 	defer c.RUnlock()
-	c.maybeRebuild()
 
 	// We only want to include leaf with a source higher than SourceDefault
 	return c.root.DumpSettings(func(source model.Source) bool { return source.IsGreaterThan(model.SourceDefault) })
@@ -896,6 +912,8 @@ func (c *ntmConfig) AllSettingsWithoutDefault() map[string]interface{} {
 
 // AllSettingsBySource returns the settings from each source (file, env vars, ...)
 func (c *ntmConfig) AllSettingsBySource() map[model.Source]interface{} {
+	c.maybeRebuild()
+
 	c.RLock()
 	defer c.RUnlock()
 
@@ -916,9 +934,10 @@ func (c *ntmConfig) AllSettingsBySource() map[model.Source]interface{} {
 
 // AllSettingsWithSequenceID returns the settings and the sequence ID.
 func (c *ntmConfig) AllSettingsWithSequenceID() (map[string]interface{}, uint64) {
+	c.maybeRebuild()
+
 	c.RLock()
 	defer c.RUnlock()
-	c.maybeRebuild()
 	return c.root.DumpSettings(func(model.Source) bool { return true }), c.sequenceID
 }
 

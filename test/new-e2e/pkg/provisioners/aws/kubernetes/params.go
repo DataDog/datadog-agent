@@ -46,6 +46,7 @@ type ProvisionerParams struct {
 	deployDogstatsd          bool
 	deployTestWorkload       bool
 	deployOperator           bool
+	deployArgoRollout        bool
 }
 
 func newProvisionerParams() *ProvisionerParams {
@@ -126,6 +127,14 @@ func WithEKSOptions(opts ...eks.Option) ProvisionerOption {
 func WithDeployDogstatsd() ProvisionerOption {
 	return func(params *ProvisionerParams) error {
 		params.deployDogstatsd = true
+		return nil
+	}
+}
+
+// WithDeployArgoRollout deploy Argo Rollout
+func WithDeployArgoRollout() ProvisionerOption {
+	return func(params *ProvisionerParams) error {
+		params.deployArgoRollout = true
 		return nil
 	}
 }

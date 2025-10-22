@@ -1,6 +1,6 @@
 # 3rd party dependencies
 
-http_archive = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
+http_archive = use_repo_rule("//third_party/bazel/tools/build_defs/repo:http.bzl", "http_archive")
 
 # Defines a "libyaml" target for the lib
 bazel_dep(name = "libyaml", version = "0.2.5")
@@ -51,16 +51,36 @@ http_archive(
     url = "https://github.com/libffi/libffi/releases/download/v3.4.8/libffi-3.4.8.tar.gz",
 )
 
-bazel_dep(name = "gcc_toolchain", version = "0.9.0")
-git_override(
-    module_name = "gcc_toolchain",
-    commit = "0e2242b07961107d2b05a6552d70b2ef4ef485fb",
-    patch_args = ["-p1"],
-    patches = [
-        "//bazel/patches:datadog_agent_toolchain.patch",
-        "//bazel/patches:0001-fix-c-x86_64-header-locations-with-our-ctng-toolchai.patch"
-    ],
-    remote = "https://github.com/f0rmiga/gcc-toolchain.git",
+http_archive(
+    name = "libsepol",
+    build_file = "//deps:libsepol.BUILD.bazel",
+    sha256 = "78fdaf69924db780bac78546e43d9c44074bad798c2c415d0b9bb96d065ee8a2",
+    strip_prefix = "libsepol-3.5",
+    url = "https://github.com/SELinuxProject/selinux/releases/download/3.5/libsepol-3.5.tar.gz",
+)
+
+# PCRE2 has native bazel support.
+# They expose a :pcre2 label for the main library
+http_archive(
+    name = "pcre2",
+    sha256 = "15fbc5aba6beee0b17aecb04602ae39432393aba1ebd8e39b7cabf7db883299f",
+    strip_prefix = "pcre2-10.46",
+    url = "https://github.com/PCRE2Project/pcre2/releases/download/pcre2-10.46/pcre2-10.46.tar.bz2",
+    files = {
+        # We still need to vendor the build file as long as we need .pc files & the :install rule
+        "BUILD.bazel": "//deps:pcre2.BUILD.bazel",
+    },
+)
+
+http_archive(
+    name = "util-linux",
+    build_file = "//deps:util-linux.BUILD.bazel",
+    url = "https://mirrors.edge.kernel.org/pub/linux/utils/util-linux/v2.39/util-linux-2.39.2.tar.gz",
+    sha256 = "c8e1a11dd5879a2788973c73589fbcf08606e85aeec095e516162495ead8ba68",
+    strip_prefix = "util-linux-2.39.2",
+    files = {
+        "generated/config.h": "//deps:util-linux/config.h"
+    }
 )
 
 http_archive(
@@ -71,25 +91,21 @@ http_archive(
     url = "https://github.com/NixOS/patchelf/releases/download/0.18.0/patchelf-0.18.0.tar.gz",
 )
 
-gcc_toolchains = use_extension("@gcc_toolchain//toolchain:module_extensions.bzl", "gcc_toolchains", dev_dependency = True)
-gcc_toolchains.toolchain(
-    name = "gcc_toolchain_x86_64",
-    binary_prefix = "x86_64-unknown-linux-gnu-",
-    gcc_version = "11.4.0",
-    target_arch = "x86_64",
+http_archive(
+    name = "nghttp2",
+    build_file = "//deps:nghttp2.BUILD.bazel",
+    files = {
+        "config.h": "//deps/nghttp2:config.h",
+    },
+    sha256 = "9ebdfbfbca164ef72bdf5fd2a94a4e6dfb54ec39d2ef249aeb750a91ae361dfb",
+    strip_prefix = "nghttp2-1.58.0",
+    url = "https://github.com/nghttp2/nghttp2/releases/download/v1.58.0/nghttp2-1.58.0.tar.gz",
 )
-gcc_toolchains.toolchain(
-    name = "gcc_toolchain_aarch64",
-    binary_prefix = "aarch64-unknown-linux-gnu-",
-    gcc_version = "12.3.0",
-    target_arch = "aarch64",
-)
-use_repo(gcc_toolchains, "gcc_toolchain_x86_64")
-use_repo(gcc_toolchains, "gcc_toolchain_aarch64")
 
-# TODO{agent-build}: Find a way to register platform-specific toolchains dynamically
-register_toolchains(
-    "@gcc_toolchain_x86_64//:cc_toolchain",
-    "@gcc_toolchain_aarch64//:cc_toolchain",
-    "//bazel/toolchains/mingw:mingw_cc_toolchain",
+http_archive(
+    name = "popt",
+    build_file = "//deps:popt.BUILD.bazel",
+    sha256 = "c25a4838fc8e4c1c8aacb8bd620edb3084a3d63bf8987fdad3ca2758c63240f9",
+    strip_prefix = "popt-1.19",
+    url = "http://ftp.rpm.org/popt/releases/popt-1.x/popt-1.19.tar.gz",
 )

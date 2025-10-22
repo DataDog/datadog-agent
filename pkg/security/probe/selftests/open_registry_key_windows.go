@@ -40,14 +40,12 @@ func (o *WindowsOpenRegistryKeyTest) GetRuleDefinition() *rules.RuleDefinition {
 func (o *WindowsOpenRegistryKeyTest) GenerateEvent(ctx context.Context) error {
 	o.isSuccess = false
 
-	path := fmt.Sprintf("Registry::HKEY_LOCAL_MACHINE:\\%s", o.keyPath)
-
 	cmd := exec.CommandContext(ctx,
 		"powershell",
 		"-c",
 		"Get-ItemProperty",
 		"-Path",
-		path,
+		o.keyPath,
 	)
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("error opening registry key: %w", err)
