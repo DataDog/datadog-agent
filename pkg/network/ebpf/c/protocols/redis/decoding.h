@@ -160,7 +160,7 @@ static __always_inline void process_redis_request(pktbuf_t pkt, conn_tuple_t *co
             return;
         }
 
-        convert_method_to_upper_case(method);
+        convert_ping_to_upper_case(method);
 
         if (bpf_memcmp(method, REDIS_CMD_PING, PING_METHOD_LEN) == 0) {
             transaction.command = REDIS_PING;
@@ -298,11 +298,20 @@ static __always_inline bool is_resp_error(char first_byte) {
 // Handles all RESP2 and RESP3 response types for comprehensive monitoring coverage.
 static void __always_inline process_redis_response(pktbuf_t pkt, conn_tuple_t *tup, redis_transaction_t *transaction) {
     redis_key_data_t *key = NULL;
+    redis_key_data_t empty_key = {};  // For PING commands when resource tracking is enabled
     if (is_redis_with_key_monitoring_enabled()) {
         key = bpf_map_lookup_elem(&redis_key_in_flight, tup);
-        // PING doesn't have a key, so key can be NULL for PING commands
-        if (key == NULL && transaction->command != REDIS_PING) {
-            goto cleanup;
+        // When resource tracking is enabled:
+        // - PING doesn't have a key, so key can be NULL for PING commands
+        // - GET/SET must have a key, so if key is NULL, it's an error
+        if (key == NULL) {
+            if (transaction->command == REDIS_PING) {
+                // For PING commands, use an empty key when sending to keyed stream
+                key = &empty_key;
+            } else {
+                // For GET/SET commands, key is required when resource tracking is enabled
+                goto cleanup;
+            }
         }
     }
 
@@ -326,7 +335,9 @@ static void __always_inline process_redis_response(pktbuf_t pkt, conn_tuple_t *t
 
 enqueue:
     transaction->response_last_seen = bpf_ktime_get_ns();
-    if (is_redis_with_key_monitoring_enabled() && transaction->command != REDIS_PING && key != NULL) {
+    // When resource tracking is enabled, ALL commands (including PING) go to the keyed stream
+    // PING commands use an empty key, GET/SET commands use their actual keys
+    if (is_redis_with_key_monitoring_enabled()) {
         redis_with_key_batch_enqueue_wrapper(tup, transaction, key);
     } else {
         redis_batch_enqueue_wrapper(tup, transaction);

@@ -38,6 +38,15 @@ static __always_inline __maybe_unused void convert_method_to_upper_case(char* me
     }
 }
 
+static __always_inline __maybe_unused void convert_ping_to_upper_case(char* method) {
+    #pragma unroll (PING_METHOD_LEN)
+    for (int i = 0; i < PING_METHOD_LEN; i++) {
+        if ('a' <= method[i] && method[i] <= 'z') {
+            method[i] = method[i] - 'a' + 'A';
+        }
+    }
+}
+
 // Checks the buffer represents an error according to https://redis.io/docs/reference/protocol-spec/#resp-errors
 static __always_inline bool check_err_prefix(const char* buf, __u32 buf_size) {
 #define ERR "-ERR "
@@ -77,13 +86,28 @@ static __always_inline bool is_redis(const char* buf, __u32 buf_size) {
 
     char first_char = buf[0];
     switch (first_char) {
-    case '+':
+    // RESP2 types
+    case '+':  // Simple String
         return check_supported_ascii_and_crlf(buf, buf_size, 1);
-    case '-':
+    case '-':  // Error
         return check_err_prefix(buf, buf_size);
-    case ':':
-    case '$':
-    case '*':
+    case ':':  // Integer
+    case '$':  // Bulk String
+    case '*':  // Array
+        return check_integer_and_crlf(buf, buf_size, 1);
+
+    // RESP3 types (Redis 6.0+)
+    case '_':  // Null
+        return buf_size >= 3 && buf[1] == '\r' && buf[2] == '\n';
+    case '#':  // Boolean
+        return buf_size >= 4 && (buf[1] == 't' || buf[1] == 'f') && buf[2] == '\r' && buf[3] == '\n';
+    case ',':  // Double
+    case '(':  // Big Number
+    case '!':  // Bulk Error
+    case '=':  // Verbatim String
+    case '%':  // Map
+    case '~':  // Set
+    case '>':  // Push
         return check_integer_and_crlf(buf, buf_size, 1);
     default:
         return false;
