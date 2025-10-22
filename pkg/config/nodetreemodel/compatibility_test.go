@@ -617,3 +617,18 @@ fruit:
 	// TODO: difference, unknown key doesn't get stored
 	assert.Equal(t, 0, ntmConf.GetInt("fruit.donut.dozen"))
 }
+
+func TestCompareConfigUsesDotSeparatedFields(t *testing.T) {
+	configData := `
+my_feature.info.enabled: true
+`
+	viperConf, ntmConf := constructBothConfigs(configData, false, func(cfg model.Setup) {
+		cfg.BindEnvAndSetDefault("my_feature.info.name", "feat")
+		cfg.BindEnvAndSetDefault("my_feature.info.enabled", false)
+		cfg.BindEnvAndSetDefault("my_feature.info.version", "v2")
+	})
+
+	assert.Equal(t, true, viperConf.Get("my_feature.info.enabled"))
+	// TODO: incorrect behavior!
+	assert.Equal(t, false, ntmConf.Get("my_feature.info.enabled"))
+}
