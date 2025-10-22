@@ -39,9 +39,10 @@ const (
 )
 
 func TestMain(m *testing.M) {
-	logLevel := os.Getenv("DD_LOG_LEVEL")
-	if logLevel == "" {
-		logLevel = "warn"
+	lvl := os.Getenv("DD_LOG_LEVEL")
+	logLevel, err := log.ValidateLogLevel(lvl)
+	if err != nil {
+		logLevel = log.WarnLvl
 	}
 	log.SetupLogger(log.Default(), logLevel)
 	platformInit()

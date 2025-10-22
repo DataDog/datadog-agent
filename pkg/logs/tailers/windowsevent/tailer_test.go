@@ -60,7 +60,7 @@ func TestReadEventsSuite(t *testing.T) {
 func (s *ReadEventsSuite) SetupSuite() {
 	// Enable logger
 	if false {
-		pkglog.SetupLogger(pkglog.Default(), "debug")
+		pkglog.SetupLogger(pkglog.Default(), pkglog.DebugLvl)
 	}
 
 	s.ti = eventlog_test.GetAPITesterByName(s.testAPI, s.T())

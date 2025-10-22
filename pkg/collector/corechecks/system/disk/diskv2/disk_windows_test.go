@@ -360,7 +360,7 @@ create_mounts:
 	w := bufio.NewWriter(&b)
 	logger, err := log.LoggerFromWriterWithMinLevelAndFormat(w, log.DebugLvl, "[%LEVEL] %Msg")
 	assert.Nil(t, err)
-	log.SetupLogger(logger, "debug")
+	log.SetupLogger(logger, log.DebugLvl)
 
 	err = diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test")
 
@@ -388,7 +388,7 @@ create_mounts:
 	w := bufio.NewWriter(&b)
 	logger, err := log.LoggerFromWriterWithMinLevelAndFormat(w, log.DebugLvl, "[%LEVEL] %Msg")
 	assert.Nil(t, err)
-	log.SetupLogger(logger, "debug")
+	log.SetupLogger(logger, log.DebugLvl)
 
 	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test")
 	err = diskCheck.Run()

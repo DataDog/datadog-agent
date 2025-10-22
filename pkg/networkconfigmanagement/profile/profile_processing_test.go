@@ -14,9 +14,10 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
-	"github.com/stretchr/testify/assert"
 )
 
 var testProfile = &NCMProfile{
@@ -156,7 +157,7 @@ func Test_extractMetadata(t *testing.T) {
 			w := bufio.NewWriter(&b)
 			l, err := log.LoggerFromWriterWithMinLevelAndFormat(w, log.DebugLvl, "[%LEVEL] %FuncShort: %Msg\n")
 			assert.NoError(t, err)
-			log.SetupLogger(l, "debug")
+			log.SetupLogger(l, log.DebugLvl)
 
 			actual, _ := tt.profile.extractMetadata(tt.commandType, tt.configBytes)
 			w.Flush()

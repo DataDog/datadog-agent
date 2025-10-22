@@ -65,9 +65,10 @@ func (s Semaphore) Acquire() (release func()) {
 // SetupLogging is used to have a consistent logging setup for all tests.
 // It is best to call this in TestMain.
 func SetupLogging() {
-	logLevel := os.Getenv("DD_LOG_LEVEL")
-	if logLevel == "" {
-		logLevel = "debug"
+	lvl := os.Getenv("DD_LOG_LEVEL")
+	logLevel, err := log.ValidateLogLevel(lvl)
+	if err != nil {
+		logLevel = log.DebugLvl
 	}
 	const defaultFormat = "%l %Date(15:04:05.000000000) @%File:%Line| %Msg%n"
 	var format string

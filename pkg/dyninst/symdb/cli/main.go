@@ -83,9 +83,10 @@ To upload the SymDB data rather than printing it, use:
 		os.Exit(1)
 	}
 
-	logLevel := os.Getenv("DD_LOG_LEVEL")
-	if logLevel == "" {
-		logLevel = "info"
+	lvl := os.Getenv("DD_LOG_LEVEL")
+	logLevel, err := log.ValidateLogLevel(lvl)
+	if err != nil {
+		logLevel = log.InfoLvl
 	}
 	log.SetupLogger(log.Default(), logLevel)
 	defer log.Flush()

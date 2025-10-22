@@ -31,7 +31,7 @@ var debuglogFlag = flag.Bool("debuglog", false, "Enable seelog debug logging")
 func optEnableDebugLogging() {
 	// Enable logger
 	if *debuglogFlag {
-		pkglog.SetupLogger(pkglog.Default(), "debug")
+		pkglog.SetupLogger(pkglog.Default(), pkglog.DebugLvl)
 	}
 }
 
