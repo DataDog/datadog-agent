@@ -31,7 +31,7 @@ func Install(ctx context.Context, env *env.Env, url string, extensions []string)
 // It first tries to grab the installer from a specific layer to start the experiment with,
 // and falls back to the current installer if it doesn't exist.
 func InstallExperiment(ctx context.Context, env *env.Env, url string) error {
-	return install(ctx, env, url, nil, true) // TODO: handle extensions
+	return install(ctx, env, url, nil, true)
 }
 
 // getLocalInstaller returns an installer executor from the current binary

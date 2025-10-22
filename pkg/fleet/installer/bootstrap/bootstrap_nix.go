@@ -40,7 +40,7 @@ func install(ctx context.Context, env *env.Env, url string, extensions []string,
 		)
 	}
 	if experiment {
-		return cmd.InstallExperiment(ctx, url) // TODO: handle extensions
+		return cmd.InstallExperiment(ctx, url)
 	}
 	return cmd.Install(ctx, url, extensions, nil)
 }

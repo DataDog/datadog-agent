@@ -28,9 +28,6 @@ type Package struct {
 	Name    string
 	Version string
 
-	// Extensions is a set of installed extension names for this package
-	Extensions map[string]struct{} `json:"extensions,omitempty"`
-
 	InstallerVersion string
 }
 
@@ -67,13 +64,11 @@ func New(dbPath string, opts ...Option) (*PackagesDB, error) {
 		return nil, fmt.Errorf("could not open database: %w", err)
 	}
 	err = db.Update(func(tx *bbolt.Tx) error {
-		if _, err := tx.CreateBucketIfNotExists(bucketPackages); err != nil {
-			return err
-		}
-		return nil
+		_, err := tx.CreateBucketIfNotExists(bucketPackages)
+		return err
 	})
 	if err != nil {
-		return nil, fmt.Errorf("could not create buckets: %w", err)
+		return nil, fmt.Errorf("could not create packages bucket: %w", err)
 	}
 	return &PackagesDB{
 		db: db,

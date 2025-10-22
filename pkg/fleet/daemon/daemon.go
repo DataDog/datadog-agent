@@ -67,7 +67,7 @@ type Daemon interface {
 	SetConfigCatalog(configs map[string]installerConfig)
 	Install(ctx context.Context, url string, extensions []string, args []string) error
 	Remove(ctx context.Context, pkg string) error
-	StartExperiment(ctx context.Context, url string) error // TODO: handle extensions
+	StartExperiment(ctx context.Context, url string) error
 	StopExperiment(ctx context.Context, pkg string) error
 	PromoteExperiment(ctx context.Context, pkg string) error
 	StartConfigExperiment(ctx context.Context, pkg string, operations config.Operations) error
@@ -582,7 +582,7 @@ func (d *daemonImpl) handleRemoteAPIRequest(request remoteAPIRequest) (err error
 				err,
 			)
 		}
-		return d.install(ctx, &newEnv, pkg.URL, nil, nil) // TODO: handle extensions
+		return d.install(ctx, &newEnv, pkg.URL, nil, nil)
 
 	case methodUninstallPackage:
 		log.Infof("Installer: Received remote request %s to uninstall package %s", request.ID, request.Package)
