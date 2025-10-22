@@ -33,7 +33,7 @@ build do
     env = with_embedded_path()
     env = {
         'GOPATH' => gopath.to_path,
-        'PATH' => "#{gopath.to_path}/bin:#{env['PATH']}",
+        'PATH' => ["#{gopath.to_path}/bin", env['PATH']].join(File::PATH_SEPARATOR),
         "LDFLAGS" => "-Wl,-rpath,#{install_dir}/embedded/lib -L#{install_dir}/embedded/lib",
         "CGO_CFLAGS" => "-I. -I#{install_dir}/embedded/include",
         "CGO_LDFLAGS" => "-Wl,-rpath,#{install_dir}/embedded/lib -L#{install_dir}/embedded/lib"

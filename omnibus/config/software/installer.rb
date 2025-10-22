@@ -29,17 +29,10 @@ build do
   # in particular it ignores the PATH from the environment given as argument
   # so we need to call it before setting the PATH
   env = with_embedded_path()
-  if windows_target?
-    env = {
-      'GOPATH' => gopath.to_path,
-      'PATH' => "#{gopath.to_path}/bin;#{env['PATH']}",
-    }
-  else
-    env = {
-      'GOPATH' => gopath.to_path,
-      'PATH' => "#{gopath.to_path}/bin:#{env['PATH']}",
-    }
-  end
+  env = {
+    'GOPATH' => gopath.to_path,
+    'PATH' => ["#{gopath.to_path}/bin", env['PATH']].join(File::PATH_SEPARATOR),
+  }
 
   unless ENV["OMNIBUS_GOMODCACHE"].nil? || ENV["OMNIBUS_GOMODCACHE"].empty?
     gomodcache = Pathname.new(ENV["OMNIBUS_GOMODCACHE"])

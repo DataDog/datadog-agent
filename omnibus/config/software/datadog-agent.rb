@@ -47,19 +47,14 @@ build do
   # in particular it ignores the PATH from the environment given as argument
   # so we need to call it before setting the PATH
   env = with_embedded_path()
-  if windows_target?
-    env = {
-        'GOPATH' => gopath.to_path,
-        'PATH' => "#{gopath.to_path}/bin;#{env['PATH']}",
-    }
-  else
-    env = {
-        'GOPATH' => gopath.to_path,
-        'PATH' => "#{gopath.to_path}/bin:#{env['PATH']}",
-        "LDFLAGS" => "-Wl,-rpath,#{install_dir}/embedded/lib -L#{install_dir}/embedded/lib",
-        "CGO_CFLAGS" => "-I. -I#{install_dir}/embedded/include",
-        "CGO_LDFLAGS" => "-Wl,-rpath,#{install_dir}/embedded/lib -L#{install_dir}/embedded/lib"
-    }
+  env = {
+    'GOPATH' => gopath.to_path,
+    'PATH' => ["#{gopath.to_path}/bin", env['PATH']].join(File::PATH_SEPARATOR),
+  }
+  unless windows_target?
+    env['LDFLAGS'] = "-Wl,-rpath,#{install_dir}/embedded/lib -L#{install_dir}/embedded/lib"
+    env['CGO_CFLAGS'] = "-I. -I#{install_dir}/embedded/include"
+    env['CGO_LDFLAGS'] = "-Wl,-rpath,#{install_dir}/embedded/lib -L#{install_dir}/embedded/lib"
   end
 
   unless ENV["OMNIBUS_GOMODCACHE"].nil? || ENV["OMNIBUS_GOMODCACHE"].empty?
