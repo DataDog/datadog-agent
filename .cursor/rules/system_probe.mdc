@@ -9,11 +9,12 @@ alwaysApply: false
 
 These rules provide quick reference and common patterns for system-probe development. For comprehensive documentation, see:
 
+- **Agent Core Checks**: `.cursor/rules/agent_corecheck.mdc` - Creating agent-side checks that consume system-probe data
 - **eBPF Checks**: `pkg/collector/corechecks/ebpf/AGENTS.md`
 - **System-Probe Modules**: `cmd/system-probe/modules/AGENTS.md`
 - **Project Overview**: Root `AGENTS.md`
 
-**Scope**: This guide covers simple checks and complex/standalone features. For network monitoring and service discovery, see existing examples in `pkg/network/` and `pkg/collector/corechecks/servicediscovery/`.
+**Scope**: This guide covers system-probe specific aspects (eBPF probes, modules, build system). For agent check implementation details, refer to `agent_corecheck.mdc`. For network monitoring and service discovery, see existing examples in `pkg/network/` and `pkg/collector/corechecks/servicediscovery/`.
 
 ## File Naming Conventions
 
@@ -51,19 +52,15 @@ These rules provide quick reference and common patterns for system-probe develop
 
 ### Agent Check Files
 
-**Location patterns**:
+If your system-probe module needs an agent-side check (to fetch data via HTTP and emit metrics), see `.cursor/rules/agent_corecheck.mdc` for complete details on creating agent checks.
+
+**Quick reference for system-probe checks**:
 
 - **Simple checks**: `pkg/collector/corechecks/ebpf/<check>/<check>.go`
-  - Example: `pkg/collector/corechecks/ebpf/oomkill/oom_kill.go`
 - **Complex/standalone**: `pkg/collector/corechecks/<check>/<check>.go`
-  - Example: `pkg/collector/corechecks/gpu/gpu.go`
+- Typical pattern: Check fetches stats from system-probe module via HTTP and emits metrics
 
-**Common files**:
-
-- Check: `<check>.go` with `//go:build linux`
-- Stub: `stub.go` with `//go:build !linux`
-
-**Note**: Some complex features may not have an agent check if they only run in system-probe.
+**Note**: Some complex features may not have an agent check if they only run in system-probe (pure telemetry/background processing).
 
 ### System-Probe Module
 
@@ -285,7 +282,9 @@ def_files = {
 
 ## Configuration Registration
 
-### Step 1: Add Module Name
+### System-Probe Configuration
+
+#### Step 1: Add Module Name
 
 In `pkg/system-probe/config/config.go`:
 
@@ -295,7 +294,7 @@ const (
 )
 ```
 
-### Step 2: Bind Configuration
+#### Step 2: Bind Configuration
 
 In `pkg/config/setup/system_probe.go`:
 
@@ -306,31 +305,17 @@ cfg.BindEnvAndSetDefault(join(yourCheckNS, "enabled"), false)
 cfg.BindEnvAndSetDefault(join(yourCheckNS, "option1"), defaultValue)
 ```
 
-### Step 3: Static Config Listener (Optional)
+### Agent Check Registration
 
-Only needed if the check runs in the agent (not just system-probe).
+If your system-probe module has an agent-side component (most do), see `.cursor/rules/agent_corecheck.mdc` for complete details on:
 
-In `comp/core/autodiscovery/listeners/staticconfig.go`:
+- Creating check configuration files (`conf.yaml.example` or `conf.yaml.default`)
+- Parsing configuration in Go
+- Registering the check in `pkg/commonchecks/corechecks_sysprobe.go`
+- Adding to autodiscovery static config listener
+- Adding to `tasks/agent.py` build system
 
-```go
-if enabled := pkgconfigsetup.SystemProbe().GetBool("your_check.enabled"); enabled {
-    l.newService <- &StaticConfigService{adIdentifier: "_your_check"}
-}
-```
-
-### Step 4: Register Check (Agent-side checks only)
-
-In `pkg/commonchecks/corechecks_sysprobe.go`:
-
-```go
-import "github.com/DataDog/datadog-agent/pkg/collector/corechecks/yourcheck"
-// or for ebpf checks:
-// import "github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/yourcheck"
-
-corecheckLoader.RegisterCheck(yourcheck.CheckName, yourcheck.Factory(tagger))
-```
-
-**Note**: System-probe modules that don't have an agent-side check (pure system-probe features) skip steps 3 and 4.
+**Quick summary for system-probe checks**: Add check registration to `pkg/commonchecks/corechecks_sysprobe.go` and autodiscovery listener if needed.
 
 ## Testing Patterns
 
@@ -548,8 +533,7 @@ When modifying system-probe:
 1. ✓ `tasks/system_probe.py` - Build system (choose appropriate `ninja_*_ebpf_programs` function)
 2. ✓ `pkg/system-probe/config/config.go` - Module names
 3. ✓ `pkg/config/setup/system_probe.go` - Configuration
-4. ✓ `pkg/commonchecks/corechecks_sysprobe.go` - Check registration (if agent-side check)
-5. ✓ `comp/core/autodiscovery/listeners/staticconfig.go` - Auto-discovery (if agent-side check)
+4. ✓ If agent-side check: See `.cursor/rules/agent_corecheck.mdc` for registration checklist
 
 ## Decision Tree: Where Does My Code Go?
 
