@@ -948,22 +948,41 @@ func (k *KSMCheck) processAnnotationsAsTags() {
 	k.processLabelsOrAnnotationsAsTags("annotation", k.instance.AnnotationsAsTags)
 }
 
+// parseLabels parses the labels mapper and returns the labels, wildcard template and getAllLabels flag.
+func parseLabels(what string, labelsMapper map[string]string) (map[string]string, string, bool) {
+	labels := make(map[string]string)
+	var wildcardTemplate string
+	var getAllLabels bool
+
+	for label, tag := range labelsMapper {
+		if label == "*" {
+			wildcardTemplate = tag
+			getAllLabels = true
+			continue
+		}
+		// KSM converts labels to snake case.
+		// Ref: https://github.com/kubernetes/kube-state-metrics/blob/v2.2.2/internal/store/utils.go#L133
+		label = what + "_" + toSnakeCase(labelRegexp.ReplaceAllString(label, "_"))
+		labels[label] = tag
+	}
+
+	return labels, wildcardTemplate, getAllLabels
+}
+
 func (k *KSMCheck) processLabelsOrAnnotationsAsTags(what string, configStuffAsTags map[string]map[string]string) {
 	for resourceKind, labelsMapper := range configStuffAsTags {
-		labels := make(map[string]string)
-		for label, tag := range labelsMapper {
-			// KSM converts labels to snake case.
-			// Ref: https://github.com/kubernetes/kube-state-metrics/blob/v2.2.2/internal/store/utils.go#L133
-			label = what + "_" + toSnakeCase(labelRegexp.ReplaceAllString(label, "_"))
-			labels[label] = tag
-		}
+		labels, wildcardTemplate, getAllLabels := parseLabels(what, labelsMapper)
 
 		if joinsCfg, ok := k.instance.labelJoins["kube_"+resourceKind+"_"+what+"s"]; ok {
 			maps.Copy(joinsCfg.labelsToGet, labels)
+			joinsCfg.wildcardTemplate = wildcardTemplate
+			joinsCfg.getAllLabels = getAllLabels
 		} else {
 			joinsConfig := &joinsConfig{
-				labelsToMatch: getLabelToMatchForKind(resourceKind),
-				labelsToGet:   labels,
+				labelsToMatch:    getLabelToMatchForKind(resourceKind),
+				labelsToGet:      labels,
+				wildcardTemplate: wildcardTemplate,
+				getAllLabels:     getAllLabels,
 			}
 			k.instance.labelJoins["kube_"+resourceKind+"_"+what+"s"] = joinsConfig
 		}
