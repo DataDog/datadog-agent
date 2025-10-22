@@ -18,18 +18,28 @@ build do
   gopath = Pathname.new(project_dir) + '../../../..'
   etc_dir = "/etc/datadog-agent"
   gomodcache = Pathname.new("/modcache")
-  env = {
-    'GOPATH' => gopath.to_path,
-    'PATH' => "#{gopath.to_path}/bin:#{ENV['PATH']}",
-  }
+  # include embedded path (mostly for `pkg-config` binary)
+  #
+  # with_embedded_path prepends the embedded path to the PATH from the global environment
+  # in particular it ignores the PATH from the environment given as argument
+  # so we need to call it before setting the PATH
+  env = with_embedded_path()
+  if windows_target?
+    env = {
+      'GOPATH' => gopath.to_path,
+      'PATH' => "#{gopath.to_path}/bin;#{env['PATH']}",
+    }
+  else
+    env = {
+      'GOPATH' => gopath.to_path,
+      'PATH' => "#{gopath.to_path}/bin:#{env['PATH']}",
+    }
+  end
 
   unless ENV["OMNIBUS_GOMODCACHE"].nil? || ENV["OMNIBUS_GOMODCACHE"].empty?
     gomodcache = Pathname.new(ENV["OMNIBUS_GOMODCACHE"])
     env["GOMODCACHE"] = gomodcache.to_path
   end
-
-  # include embedded path (mostly for `pkg-config` binary)
-  env = with_embedded_path(env)
 
   unless windows_target?
     env['CGO_CFLAGS'] = "-I#{install_dir}/embedded/include"
