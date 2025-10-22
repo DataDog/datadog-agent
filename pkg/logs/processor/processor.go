@@ -34,11 +34,10 @@ const (
 
 	// PII auto-redaction settings
 	configAutoRedactPII    = "logs_config.auto_redact_pii"
-	configPIIRedactionMode = "logs_config.pii_redaction_mode" // "regex" or "hybrid"
+	configPIIRedactionMode = "logs_config.pii_redaction_mode" // "regex" (default) or "hybrid"
 
-	// PII redaction modes
-	PIIRedactionModeRegex  = "regex"  // Default: Pure regex-based
-	PIIRedactionModeHybrid = "hybrid" // Hybrid: Token + regex
+	PIIRedactionModeRegex  = "regex"
+	PIIRedactionModeHybrid = "hybrid"
 )
 
 type failoverConfig struct {

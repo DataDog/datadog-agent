@@ -1,0 +1,66 @@
+Analyzing: processor_modes_20251022_140122.txt
+========================================
+
+PERFORMANCE COMPARISON
+======================
+
+Scenario                       |            Mode |         Time |       Memory |     Allocs |    Speedup
+-------------------------------+-----------------+--------------+--------------+------------+-----------
+multiple_pii                   |           regex |   9545 ns/op |    1307 B/op | 31 allocs/op |           
+                               |          hybrid |   5537 ns/op |    2051 B/op | 33 allocs/op |      1.72x
+                               |        disabled |  244.2 ns/op |     224 B/op | 4 allocs/op |     39.09x
+
+multiple_same_type             |           regex |  10205 ns/op |     757 B/op | 16 allocs/op |           
+                               |          hybrid |   4289 ns/op |    1529 B/op | 19 allocs/op |      2.38x
+                               |        disabled |  208.9 ns/op |      96 B/op | 3 allocs/op |     48.85x
+
+single_phone                   |           regex |   5358 ns/op |     768 B/op | 21 allocs/op |           
+                               |          hybrid |   2991 ns/op |     895 B/op | 13 allocs/op |      1.79x
+                               |        disabled |  210.0 ns/op |      96 B/op | 3 allocs/op |     25.51x
+
+long_log_single_pii            |           regex |  26622 ns/op |    2221 B/op | 20 allocs/op |           
+                               |          hybrid |  13833 ns/op |    3489 B/op | 13 allocs/op |      1.92x
+                               |        disabled |  215.5 ns/op |      96 B/op | 3 allocs/op |    123.54x
+
+single_ipv4                    |           regex |   5595 ns/op |     646 B/op | 21 allocs/op |           
+                               |          hybrid |   3047 ns/op |     894 B/op | 17 allocs/op |      1.84x
+                               |        disabled |  210.2 ns/op |      96 B/op | 3 allocs/op |     26.62x
+
+no_pii                         |           regex |   6574 ns/op |     725 B/op | 17 allocs/op |           
+                               |          hybrid |   3142 ns/op |     941 B/op | 10 allocs/op |      2.09x
+                               |        disabled |  236.2 ns/op |     224 B/op | 4 allocs/op |     27.83x
+
+single_email                   |           regex |   4595 ns/op |     630 B/op | 22 allocs/op |           
+                               |          hybrid |   2982 ns/op |     879 B/op | 18 allocs/op |      1.54x
+                               |        disabled |  214.2 ns/op |      96 B/op | 3 allocs/op |     21.45x
+
+single_ssn                     |           regex |   9066 ns/op |     807 B/op | 20 allocs/op |           
+                               |          hybrid |   4353 ns/op |    1151 B/op | 13 allocs/op |      2.08x
+                               |        disabled |  209.3 ns/op |      96 B/op | 3 allocs/op |     43.32x
+
+long_log_no_pii                |           regex |  25651 ns/op |    1721 B/op | 16 allocs/op |           
+                               |          hybrid |  12908 ns/op |    3107 B/op | 9 allocs/op |      1.99x
+                               |        disabled |  209.5 ns/op |      96 B/op | 3 allocs/op |    122.44x
+
+single_credit_card             |           regex |   7223 ns/op |     596 B/op | 16 allocs/op |           
+                               |          hybrid |   3338 ns/op |    1007 B/op | 14 allocs/op |      2.16x
+                               |        disabled |  214.9 ns/op |      96 B/op | 3 allocs/op |     33.61x
+
+multiple_pii_mixed             |           regex |  12618 ns/op |    1454 B/op | 34 allocs/op |           
+                               |          hybrid |   7944 ns/op |    2997 B/op | 38 allocs/op |      1.59x
+                               |        disabled |  214.2 ns/op |      96 B/op | 3 allocs/op |     58.91x
+
+
+SUMMARY STATISTICS
+==================
+
+Average regex time:        10931 ns/op
+Average hybrid time:       5656 ns/op
+
+Hybrid speedup (average):  1.92x faster
+Hybrid speedup (minimum):  1.54x faster  [single_email]
+Hybrid speedup (maximum):  2.38x faster  [multiple_same_type]
+
+Overall time reduction:    48.3%
+
+Analysis complete!

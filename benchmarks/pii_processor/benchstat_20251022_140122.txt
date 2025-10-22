@@ -1,0 +1,93 @@
+goos: darwin
+goarch: arm64
+pkg: github.com/DataDog/datadog-agent/pkg/logs/processor
+cpu: Apple M4 Max
+                                                    │ /var/folders/27/n33yr1b10j7bxg5ttzw6n_ch0000gp/T/tmp.0kCrb1uSgV/regex.txt │ /var/folders/27/n33yr1b10j7bxg5ttzw6n_ch0000gp/T/tmp.0kCrb1uSgV/hybrid.txt │
+                                                    │                                  sec/op                                   │                               sec/op                                 vs base   │
+ProcessorPIIModes/no_pii/regex-16                                                                                   8.127µ ± 4%
+ProcessorPIIModes/single_ssn/regex-16                                                                               9.018µ ± 0%
+ProcessorPIIModes/single_credit_card/regex-16                                                                       7.249µ ± 1%
+ProcessorPIIModes/single_phone/regex-16                                                                             5.340µ ± 1%
+ProcessorPIIModes/single_email/regex-16                                                                             4.572µ ± 1%
+ProcessorPIIModes/single_ipv4/regex-16                                                                              5.611µ ± 1%
+ProcessorPIIModes/multiple_pii_mixed/regex-16                                                                       12.51µ ± 1%
+ProcessorPIIModes/long_log_single_pii/regex-16                                                                      26.59µ ± 0%
+ProcessorPIIModes/long_log_no_pii/regex-16                                                                          25.24µ ± 1%
+ProcessorPIIModes/multiple_same_type/regex-16                                                                       10.25µ ± 1%
+ProcessorPIIModesFullMessage/no_pii/regex-16                                                                        6.603µ ± 1%
+ProcessorPIIModesFullMessage/multiple_pii/regex-16                                                                  9.551µ ± 1%
+ProcessorPIIModes/no_pii/hybrid-16                                                                                                                                                        3.789µ ± 1%
+ProcessorPIIModes/single_ssn/hybrid-16                                                                                                                                                    4.352µ ± 1%
+ProcessorPIIModes/single_credit_card/hybrid-16                                                                                                                                            3.318µ ± 2%
+ProcessorPIIModes/single_phone/hybrid-16                                                                                                                                                  2.979µ ± 1%
+ProcessorPIIModes/single_email/hybrid-16                                                                                                                                                  2.990µ ± 1%
+ProcessorPIIModes/single_ipv4/hybrid-16                                                                                                                                                   3.040µ ± 1%
+ProcessorPIIModes/multiple_pii_mixed/hybrid-16                                                                                                                                            7.926µ ± 2%
+ProcessorPIIModes/long_log_single_pii/hybrid-16                                                                                                                                           13.52µ ± 2%
+ProcessorPIIModes/long_log_no_pii/hybrid-16                                                                                                                                               12.84µ ± 1%
+ProcessorPIIModes/multiple_same_type/hybrid-16                                                                                                                                            4.284µ ± 1%
+ProcessorPIIModesFullMessage/no_pii/hybrid-16                                                                                                                                             3.143µ ± 0%
+ProcessorPIIModesFullMessage/multiple_pii/hybrid-16                                                                                                                                       5.564µ ± 2%
+geomean                                                                                                             9.255µ                                                                4.808µ       ? ¹ ²
+¹ benchmark set differs from baseline; geomeans may not be comparable
+² ratios must be >0 to compute geomean
+
+                                                    │ /var/folders/27/n33yr1b10j7bxg5ttzw6n_ch0000gp/T/tmp.0kCrb1uSgV/regex.txt │ /var/folders/27/n33yr1b10j7bxg5ttzw6n_ch0000gp/T/tmp.0kCrb1uSgV/hybrid.txt │
+                                                    │                                   B/op                                    │                                B/op                                  vs base   │
+ProcessorPIIModes/no_pii/regex-16                                                                                    677.0 ± 0%
+ProcessorPIIModes/single_ssn/regex-16                                                                                806.0 ± 0%
+ProcessorPIIModes/single_credit_card/regex-16                                                                        596.0 ± 0%
+ProcessorPIIModes/single_phone/regex-16                                                                              768.0 ± 0%
+ProcessorPIIModes/single_email/regex-16                                                                              630.5 ± 0%
+ProcessorPIIModes/single_ipv4/regex-16                                                                               646.0 ± 0%
+ProcessorPIIModes/multiple_pii_mixed/regex-16                                                                      1.419Ki ± 0%
+ProcessorPIIModes/long_log_single_pii/regex-16                                                                     2.168Ki ± 0%
+ProcessorPIIModes/long_log_no_pii/regex-16                                                                         1.680Ki ± 0%
+ProcessorPIIModes/multiple_same_type/regex-16                                                                        757.0 ± 0%
+ProcessorPIIModesFullMessage/no_pii/regex-16                                                                         725.5 ± 0%
+ProcessorPIIModesFullMessage/multiple_pii/regex-16                                                                 1.277Ki ± 0%
+ProcessorPIIModes/no_pii/hybrid-16                                                                                                                                                         940.0 ± 0%
+ProcessorPIIModes/single_ssn/hybrid-16                                                                                                                                                   1.125Ki ± 0%
+ProcessorPIIModes/single_credit_card/hybrid-16                                                                                                                                            1007.0 ± 0%
+ProcessorPIIModes/single_phone/hybrid-16                                                                                                                                                   895.0 ± 0%
+ProcessorPIIModes/single_email/hybrid-16                                                                                                                                                   879.0 ± 0%
+ProcessorPIIModes/single_ipv4/hybrid-16                                                                                                                                                    894.0 ± 0%
+ProcessorPIIModes/multiple_pii_mixed/hybrid-16                                                                                                                                           2.927Ki ± 0%
+ProcessorPIIModes/long_log_single_pii/hybrid-16                                                                                                                                          3.405Ki ± 0%
+ProcessorPIIModes/long_log_no_pii/hybrid-16                                                                                                                                              3.034Ki ± 0%
+ProcessorPIIModes/multiple_same_type/hybrid-16                                                                                                                                           1.493Ki ± 0%
+ProcessorPIIModesFullMessage/no_pii/hybrid-16                                                                                                                                              941.0 ± 0%
+ProcessorPIIModesFullMessage/multiple_pii/hybrid-16                                                                                                                                      2.004Ki ± 0%
+geomean                                                                                                              927.5                                                               1.397Ki       ? ¹ ²
+¹ benchmark set differs from baseline; geomeans may not be comparable
+² ratios must be >0 to compute geomean
+
+                                                    │ /var/folders/27/n33yr1b10j7bxg5ttzw6n_ch0000gp/T/tmp.0kCrb1uSgV/regex.txt │ /var/folders/27/n33yr1b10j7bxg5ttzw6n_ch0000gp/T/tmp.0kCrb1uSgV/hybrid.txt │
+                                                    │                                 allocs/op                                 │                              allocs/op                               vs base   │
+ProcessorPIIModes/no_pii/regex-16                                                                                    16.00 ± 0%
+ProcessorPIIModes/single_ssn/regex-16                                                                                20.00 ± 0%
+ProcessorPIIModes/single_credit_card/regex-16                                                                        16.00 ± 0%
+ProcessorPIIModes/single_phone/regex-16                                                                              21.00 ± 0%
+ProcessorPIIModes/single_email/regex-16                                                                              22.00 ± 0%
+ProcessorPIIModes/single_ipv4/regex-16                                                                               21.00 ± 0%
+ProcessorPIIModes/multiple_pii_mixed/regex-16                                                                        34.00 ± 0%
+ProcessorPIIModes/long_log_single_pii/regex-16                                                                       20.00 ± 0%
+ProcessorPIIModes/long_log_no_pii/regex-16                                                                           16.00 ± 0%
+ProcessorPIIModes/multiple_same_type/regex-16                                                                        16.00 ± 0%
+ProcessorPIIModesFullMessage/no_pii/regex-16                                                                         17.00 ± 0%
+ProcessorPIIModesFullMessage/multiple_pii/regex-16                                                                   31.00 ± 0%
+ProcessorPIIModes/no_pii/hybrid-16                                                                                                                                                         9.000 ± 0%
+ProcessorPIIModes/single_ssn/hybrid-16                                                                                                                                                     13.00 ± 0%
+ProcessorPIIModes/single_credit_card/hybrid-16                                                                                                                                             14.00 ± 0%
+ProcessorPIIModes/single_phone/hybrid-16                                                                                                                                                   13.00 ± 0%
+ProcessorPIIModes/single_email/hybrid-16                                                                                                                                                   18.00 ± 0%
+ProcessorPIIModes/single_ipv4/hybrid-16                                                                                                                                                    17.00 ± 0%
+ProcessorPIIModes/multiple_pii_mixed/hybrid-16                                                                                                                                             38.00 ± 0%
+ProcessorPIIModes/long_log_single_pii/hybrid-16                                                                                                                                            13.00 ± 0%
+ProcessorPIIModes/long_log_no_pii/hybrid-16                                                                                                                                                9.000 ± 0%
+ProcessorPIIModes/multiple_same_type/hybrid-16                                                                                                                                             19.00 ± 0%
+ProcessorPIIModesFullMessage/no_pii/hybrid-16                                                                                                                                              10.00 ± 0%
+ProcessorPIIModesFullMessage/multiple_pii/hybrid-16                                                                                                                                        33.00 ± 0%
+geomean                                                                                                              20.18                                                                 15.43       ? ¹ ²
+¹ benchmark set differs from baseline; geomeans may not be comparable
+² ratios must be >0 to compute geomean
