@@ -62,7 +62,7 @@ func TestCreateMatchingProgram_ValidRules(t *testing.T) {
 		{
 			name: "single defined rule",
 			rules: workloadfilter.Rules{
-				Containers: []string{`container.name == "nginx" && container.image == "nginx:latest"`},
+				Containers: []string{`container.name == "nginx" && container.image.reference == "nginx:latest"`},
 			},
 			expectedTarget: workloadfilter.ContainerType,
 		},
@@ -84,8 +84,8 @@ func TestCreateMatchingProgram_ValidRules(t *testing.T) {
 			name: "multiple valid container rules",
 			rules: workloadfilter.Rules{
 				Containers: []string{
-					`container.name == "nginx" && container.image == "nginx:latest"`,
-					`container.image.matches(".*redis.*")`,
+					`container.name == "nginx" && container.image.reference == "nginx:latest"`,
+					`container.image.reference.matches(".*redis.*")`,
 				},
 			},
 			expectedTarget: workloadfilter.ContainerType,
@@ -184,7 +184,7 @@ func TestCreateMatchingProgram_PriorityOrder(t *testing.T) {
 		{
 			name: "containers have priority over services",
 			rules: workloadfilter.Rules{
-				Containers:   []string{`container.name == "nginx" && container.image == "nginx:latest"`},
+				Containers:   []string{`container.name == "nginx" && container.image.reference == "nginx:latest"`},
 				KubeServices: []string{`kube_service.name == "api" && kube_service.namespace == "default"`},
 			},
 			expectedTarget: workloadfilter.ContainerType,
@@ -200,7 +200,7 @@ func TestCreateMatchingProgram_PriorityOrder(t *testing.T) {
 		{
 			name: "all types present - containers win",
 			rules: workloadfilter.Rules{
-				Containers:    []string{`container.name == "nginx" && container.image == "nginx:latest"`},
+				Containers:    []string{`container.name == "nginx" && container.image.reference == "nginx:latest"`},
 				KubeServices:  []string{`kube_service.name == "api" && kube_service.namespace == "default"`},
 				KubeEndpoints: []string{`kube_endpoint.name == "api-endpoint" && kube_endpoint.namespace == "default"`},
 			},

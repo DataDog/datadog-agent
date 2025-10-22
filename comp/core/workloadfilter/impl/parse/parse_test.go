@@ -31,7 +31,7 @@ func TestGetProductConfigs(t *testing.T) {
 			Products: []workloadfilter.Product{workloadfilter.ProductSBOM},
 			Rules: map[workloadfilter.ResourceType][]string{
 				workloadfilter.ResourceType("containers"): {
-					"container.image.contains('alpine')",
+					"container.image.reference.contains('alpine')",
 				},
 				// This should be deleted as pods are not supported for SBOM
 				workloadfilter.ResourceType("pods"): {

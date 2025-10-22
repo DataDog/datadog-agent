@@ -489,7 +489,7 @@ func TestResolveTemplate(t *testing.T) {
 		// Container name and image matching
 		tpl := integration.Config{
 			Name:        "container-check-1",
-			CELSelector: workloadfilter.Rules{Containers: []string{`container.name.matches("container-name") && container.image.matches("container-image")`}},
+			CELSelector: workloadfilter.Rules{Containers: []string{`container.name.matches("container-name") && container.image.reference.matches("container-image")`}},
 		}
 		changes := ac.processNewConfig(tpl)
 		ac.applyChanges(changes)
@@ -498,7 +498,7 @@ func TestResolveTemplate(t *testing.T) {
 		// Pod name and namespace matching
 		tpl = integration.Config{
 			Name:        "container-check-2",
-			CELSelector: workloadfilter.Rules{Containers: []string{`container.pod.name.matches("pod-name") && container.pod.namespace.matches("pod-ns") && container.image != ""`}},
+			CELSelector: workloadfilter.Rules{Containers: []string{`container.pod.name.matches("pod-name") && container.pod.namespace.matches("pod-ns") && container.image.reference != ""`}},
 		}
 		ac.applyChanges(ac.processNewConfig(tpl))
 		assert.Equal(t, 2, countLoadedConfigs(ac))
@@ -516,7 +516,7 @@ func TestResolveTemplate(t *testing.T) {
 		tpl = integration.Config{
 			Name:          "container-check-4",
 			ADIdentifiers: []string{"not-container-image"},
-			CELSelector:   workloadfilter.Rules{Containers: []string{`container.pod.name.matches("pod-name") && container.image != ""`}},
+			CELSelector:   workloadfilter.Rules{Containers: []string{`container.pod.name.matches("pod-name") && container.image.reference != ""`}},
 		}
 		ac.applyChanges(ac.processNewConfig(tpl))
 		assert.Equal(t, 3, countLoadedConfigs(ac))
