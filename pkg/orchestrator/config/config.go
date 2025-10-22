@@ -209,7 +209,7 @@ func IsOrchestratorECSExplorerEnabled() bool {
 		return false
 	}
 
-	if env.IsECS() || env.IsECSFargate() {
+	if env.IsECS() || env.IsECSFargate() || env.IsECSManagedInstances() {
 		return true
 	}
 

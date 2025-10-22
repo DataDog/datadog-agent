@@ -283,7 +283,7 @@ func (a *APIServer) updateCustomEventTags(msg *api.SecurityEventMessage) {
 	}
 
 	// on fargate, append global tags on custom events
-	if fargate.IsFargateInstance() {
+	if fargate.IsSidecarInstance() {
 		appendTagsIfNotPresent(a.getGlobalTags())
 	}
 

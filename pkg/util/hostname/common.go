@@ -25,7 +25,7 @@ import (
 
 // for testing purposes
 var (
-	isFargateInstance                = fargate.IsFargateInstance
+	isFargateInstance                = fargate.IsSidecarInstance
 	ec2GetInstanceID                 = ec2.GetInstanceID
 	ec2GetLegacyResolutionInstanceID = ec2.GetLegacyResolutionInstanceID
 	isContainerized                  = env.IsContainerized //nolint:unused
@@ -72,11 +72,12 @@ func fromHostnameFile(ctx context.Context, _ string) (string, error) {
 }
 
 func fromFargate(_ context.Context, _ string) (string, error) {
-	// If we're running on fargate we strip the hostname
+	// If we're running in sidecar mode (Fargate or managed instances) we strip the hostname
+	// because the task/pod is the unit of identity, not the host
 	if isFargateInstance() {
 		return "", nil
 	}
-	return "", fmt.Errorf("agent is not runnning on Fargate")
+	return "", fmt.Errorf("agent is not running in sidecar mode")
 }
 
 func fromGCE(ctx context.Context, _ string) (string, error) {
