@@ -274,6 +274,16 @@ int hook_do_coredump(ctx_t *ctx) {
     return 0;
 }
 
+HOOK_ENTRY("vfs_coredump")
+int hook_vfs_coredump(ctx_t *ctx) {
+    u64 key = bpf_get_current_pid_tgid();
+    u8 in_coredump = 1;
+
+    bpf_map_update_elem(&tasks_in_coredump, &key, &in_coredump, BPF_ANY);
+
+    return 0;
+}
+
 int __attribute__((always_inline)) handle_do_exit(ctx_t *ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
     u32 tgid = pid_tgid >> 32;
@@ -833,6 +843,6 @@ int hook_security_inode_follow_link(ctx_t *ctx) {
     if (!syscall) {
         return 0;
     }
-    syscall->exec.is_through_symlink = 1;    
+    syscall->exec.is_through_symlink = 1;
     return 0;
 }
