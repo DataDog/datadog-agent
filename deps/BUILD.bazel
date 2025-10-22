@@ -17,6 +17,8 @@ filegroup(
         "@platforms//os:linux": [
             "@libsepol//:sepol",
             "@nghttp2",
+            "@pcre2",
+            "@popt",
         ],
         "//conditions:default": [],
     }),
