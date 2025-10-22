@@ -26,7 +26,7 @@ func TestLogFileAccess(t *testing.T) {
 
 	l, err := log.LoggerFromWriterWithMinLevelAndFormat(w, log.InfoLvl, "%Msg\n")
 	require.NoError(t, err)
-	log.SetupLogger(l, "info")
+	log.SetupLogger(l, log.InfoLvl)
 
 	module := NewPrivilegedLogsModule().(*privilegedLogsModule)
 

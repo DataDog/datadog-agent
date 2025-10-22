@@ -45,7 +45,7 @@ func Test_SyntheticsTestScheduler_StartAndStop(t *testing.T) {
 	w := bufio.NewWriter(&b)
 	l, err := utillog.LoggerFromWriterWithMinLevelAndFormat(w, utillog.DebugLvl, "[%LEVEL] %FuncShort: %Msg")
 	assert.Nil(t, err)
-	utillog.SetupLogger(l, "debug")
+	utillog.SetupLogger(l, utillog.DebugLvl)
 	configs := &schedulerConfigs{
 		workers:                    2,
 		flushInterval:              100 * time.Millisecond,
@@ -92,7 +92,7 @@ func Test_SyntheticsTestScheduler_OnConfigUpdate(t *testing.T) {
 	w := bufio.NewWriter(&b)
 	l, err := utillog.LoggerFromWriterWithMinLevelAndFormat(w, utillog.DebugLvl, "[%LEVEL] %FuncShort: %Msg")
 	assert.Nil(t, err)
-	utillog.SetupLogger(l, "debug")
+	utillog.SetupLogger(l, utillog.DebugLvl)
 	configs := &schedulerConfigs{
 		workers:                    2,
 		flushInterval:              100 * time.Millisecond,
@@ -423,7 +423,7 @@ func Test_SyntheticsTestScheduler_Processing(t *testing.T) {
 			w := bufio.NewWriter(&b)
 			l, err := utillog.LoggerFromWriterWithMinLevelAndFormat(w, utillog.DebugLvl, "[%LEVEL] %FuncShort: %Msg")
 			assert.Nil(t, err)
-			utillog.SetupLogger(l, "debug")
+			utillog.SetupLogger(l, utillog.DebugLvl)
 
 			fixedBase := time.UnixMilli(1756901488589)
 			step := 0
@@ -503,7 +503,7 @@ func Test_SyntheticsTestScheduler_RunWorker_ProcessesTestCtxAndSendsResult(t *te
 	w := bufio.NewWriter(&b)
 	l, err := utillog.LoggerFromWriterWithMinLevelAndFormat(w, utillog.DebugLvl, "[%LEVEL] %FuncShort: %Msg")
 	assert.Nil(t, err)
-	utillog.SetupLogger(l, "debug")
+	utillog.SetupLogger(l, utillog.DebugLvl)
 	ctx, cancel := context.WithCancel(context.TODO())
 
 	scheduler := &syntheticsTestScheduler{
@@ -579,7 +579,7 @@ func TestFlushEnqueuesDueTests(t *testing.T) {
 	w := bufio.NewWriter(&b)
 	l, err := utillog.LoggerFromWriterWithMinLevelAndFormat(w, utillog.DebugLvl, "[%LEVEL] %FuncShort: %Msg")
 	assert.Nil(t, err)
-	utillog.SetupLogger(l, "debug")
+	utillog.SetupLogger(l, utillog.DebugLvl)
 
 	scheduler := &syntheticsTestScheduler{
 		timeNowFn:                    func() time.Time { return now },

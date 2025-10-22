@@ -1982,7 +1982,7 @@ procfs_path: "/mocked/procfs"
 
 	logger, err := log.LoggerFromWriterWithMinLevelAndFormat(w, log.DebugLvl, "[%LEVEL] %Msg")
 	assert.Nil(t, err)
-	log.SetupLogger(logger, "debug")
+	log.SetupLogger(logger, log.DebugLvl)
 	mockSender := mocksender.NewMockSender(networkCheck.ID())
 	err = networkCheck.Configure(mockSender.GetSenderManager(), integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test")
 	assert.Nil(t, err)
@@ -2017,7 +2017,7 @@ procfs_path: "/mocked/procfs"
 
 	logger, err := log.LoggerFromWriterWithMinLevelAndFormat(w, log.DebugLvl, "[%LEVEL] %Msg")
 	assert.Nil(t, err)
-	log.SetupLogger(logger, "debug")
+	log.SetupLogger(logger, log.DebugLvl)
 	mockSender := mocksender.NewMockSender(networkCheck.ID())
 	err = networkCheck.Configure(mockSender.GetSenderManager(), integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test")
 	assert.Nil(t, err)
@@ -2051,7 +2051,7 @@ procfs_path: "/mocked/procfs"
 
 	logger, err := log.LoggerFromWriterWithMinLevelAndFormat(w, log.DebugLvl, "[%LEVEL] %Msg")
 	assert.Nil(t, err)
-	log.SetupLogger(logger, "debug")
+	log.SetupLogger(logger, log.DebugLvl)
 	mockSender := mocksender.NewMockSender(networkCheck.ID())
 	err = networkCheck.Configure(mockSender.GetSenderManager(), integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test")
 	assert.Nil(t, err)

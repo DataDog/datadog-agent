@@ -64,6 +64,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel/netns"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 )
 
@@ -449,7 +450,7 @@ func (s *TracerSuite) TestConnectionExpirationRegression() {
 
 func (s *TracerSuite) TestConntrackExpiration() {
 	t := s.T()
-	ebpftest.LogLevel(t, "trace")
+	ebpftest.LogLevel(t, log.TraceLvl)
 
 	cfg := testConfig()
 	skipOnEbpflessNotSupported(t, cfg)

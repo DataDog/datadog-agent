@@ -38,10 +38,8 @@ func (level LogLevel) String() string {
 	return seelog.LogLevel(level).String()
 }
 
-// LogLevelFromString returns a LogLevel from a string
-//
-//nolint:revive // keeping the original function name from seelog
-func LogLevelFromString(levelStr string) (LogLevel, bool) {
+// logLevelFromString returns a LogLevel from a string
+func logLevelFromString(levelStr string) (LogLevel, bool) {
 	level, ok := seelog.LogLevelFromString(levelStr)
 	return LogLevel(level), ok
 }

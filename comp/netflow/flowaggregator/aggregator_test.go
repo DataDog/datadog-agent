@@ -339,7 +339,7 @@ func TestFlowAggregator_flush_submitCollectorMetrics_error(t *testing.T) {
 
 	l, err := ddlog.LoggerFromWriterWithMinLevelAndFormat(w, ddlog.DebugLvl, "[%LEVEL] %FuncShort: %Msg")
 	require.NoError(t, err)
-	ddlog.SetupLogger(l, "debug")
+	ddlog.SetupLogger(l, ddlog.DebugLvl)
 
 	sender := mocksender.NewMockSender("")
 	sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()

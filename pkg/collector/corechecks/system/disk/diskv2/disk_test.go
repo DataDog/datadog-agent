@@ -250,7 +250,7 @@ func TestGivenADiskCheckWithDefaultConfig_WhenCheckRunsAndUsageSystemCallReturns
 	w := bufio.NewWriter(&b)
 	logger, err := log.LoggerFromWriterWithMinLevelAndFormat(w, log.DebugLvl, "[%LEVEL] %Msg")
 	assert.Nil(t, err)
-	log.SetupLogger(logger, "debug")
+	log.SetupLogger(logger, log.DebugLvl)
 
 	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test")
 	err = diskCheck.Run()
@@ -300,7 +300,7 @@ file_system_global_blacklist:
 	w := bufio.NewWriter(&b)
 	logger, err := log.LoggerFromWriterWithMinLevelAndFormat(w, log.DebugLvl, "[%LEVEL] %Msg")
 	assert.Nil(t, err)
-	log.SetupLogger(logger, "debug")
+	log.SetupLogger(logger, log.DebugLvl)
 
 	_ = diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, nil, initConfig, "test")
 
@@ -321,7 +321,7 @@ device_global_blacklist:
 	w := bufio.NewWriter(&b)
 	logger, err := log.LoggerFromWriterWithMinLevelAndFormat(w, log.DebugLvl, "[%LEVEL] %Msg")
 	assert.Nil(t, err)
-	log.SetupLogger(logger, "debug")
+	log.SetupLogger(logger, log.DebugLvl)
 
 	_ = diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, nil, initConfig, "test")
 
@@ -342,7 +342,7 @@ mount_point_global_blacklist:
 	w := bufio.NewWriter(&b)
 	logger, err := log.LoggerFromWriterWithMinLevelAndFormat(w, log.DebugLvl, "[%LEVEL] %Msg")
 	assert.Nil(t, err)
-	log.SetupLogger(logger, "debug")
+	log.SetupLogger(logger, log.DebugLvl)
 
 	_ = diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, nil, initConfig, "test")
 
@@ -363,7 +363,7 @@ file_system_whitelist:
 	w := bufio.NewWriter(&b)
 	logger, err := log.LoggerFromWriterWithMinLevelAndFormat(w, log.DebugLvl, "[%LEVEL] %Msg")
 	assert.Nil(t, err)
-	log.SetupLogger(logger, "debug")
+	log.SetupLogger(logger, log.DebugLvl)
 
 	_ = diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test")
 
@@ -384,7 +384,7 @@ file_system_blacklist:
 	w := bufio.NewWriter(&b)
 	logger, err := log.LoggerFromWriterWithMinLevelAndFormat(w, log.DebugLvl, "[%LEVEL] %Msg")
 	assert.Nil(t, err)
-	log.SetupLogger(logger, "debug")
+	log.SetupLogger(logger, log.DebugLvl)
 
 	_ = diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test")
 
@@ -405,7 +405,7 @@ device_whitelist:
 	w := bufio.NewWriter(&b)
 	logger, err := log.LoggerFromWriterWithMinLevelAndFormat(w, log.DebugLvl, "[%LEVEL] %Msg")
 	assert.Nil(t, err)
-	log.SetupLogger(logger, "debug")
+	log.SetupLogger(logger, log.DebugLvl)
 
 	_ = diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test")
 
@@ -426,7 +426,7 @@ device_blacklist:
 	w := bufio.NewWriter(&b)
 	logger, err := log.LoggerFromWriterWithMinLevelAndFormat(w, log.DebugLvl, "[%LEVEL] %Msg")
 	assert.Nil(t, err)
-	log.SetupLogger(logger, "debug")
+	log.SetupLogger(logger, log.DebugLvl)
 
 	_ = diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test")
 
@@ -447,7 +447,7 @@ mount_point_whitelist:
 	w := bufio.NewWriter(&b)
 	logger, err := log.LoggerFromWriterWithMinLevelAndFormat(w, log.DebugLvl, "[%LEVEL] %Msg")
 	assert.Nil(t, err)
-	log.SetupLogger(logger, "debug")
+	log.SetupLogger(logger, log.DebugLvl)
 
 	_ = diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test")
 
@@ -468,7 +468,7 @@ mount_point_blacklist:
 	w := bufio.NewWriter(&b)
 	logger, err := log.LoggerFromWriterWithMinLevelAndFormat(w, log.DebugLvl, "[%LEVEL] %Msg")
 	assert.Nil(t, err)
-	log.SetupLogger(logger, "debug")
+	log.SetupLogger(logger, log.DebugLvl)
 
 	_ = diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test")
 
@@ -489,7 +489,7 @@ excluded_mountpoint_re:
 	w := bufio.NewWriter(&b)
 	logger, err := log.LoggerFromWriterWithMinLevelAndFormat(w, log.DebugLvl, "[%LEVEL] %Msg")
 	assert.Nil(t, err)
-	log.SetupLogger(logger, "debug")
+	log.SetupLogger(logger, log.DebugLvl)
 
 	_ = diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test")
 
@@ -510,7 +510,7 @@ excluded_filesystems:
 	w := bufio.NewWriter(&b)
 	logger, err := log.LoggerFromWriterWithMinLevelAndFormat(w, log.DebugLvl, "[%LEVEL] %Msg")
 	assert.Nil(t, err)
-	log.SetupLogger(logger, "debug")
+	log.SetupLogger(logger, log.DebugLvl)
 
 	_ = diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test")
 
@@ -531,7 +531,7 @@ excluded_disks:
 	w := bufio.NewWriter(&b)
 	logger, err := log.LoggerFromWriterWithMinLevelAndFormat(w, log.DebugLvl, "[%LEVEL] %Msg")
 	assert.Nil(t, err)
-	log.SetupLogger(logger, "debug")
+	log.SetupLogger(logger, log.DebugLvl)
 
 	_ = diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test")
 
@@ -552,7 +552,7 @@ excluded_disk_re:
 	w := bufio.NewWriter(&b)
 	logger, err := log.LoggerFromWriterWithMinLevelAndFormat(w, log.DebugLvl, "[%LEVEL] %Msg")
 	assert.Nil(t, err)
-	log.SetupLogger(logger, "debug")
+	log.SetupLogger(logger, log.DebugLvl)
 
 	_ = diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test")
 
@@ -1090,7 +1090,7 @@ func TestGivenADiskCheckWithMinDiskSizeConfiguredTo1MiBConfig_WhenCheckRunsAndUs
 	w := bufio.NewWriter(&b)
 	logger, err := log.LoggerFromWriterWithMinLevelAndFormat(w, log.InfoLvl, "[%LEVEL] %Msg")
 	assert.Nil(t, err)
-	log.SetupLogger(logger, "info")
+	log.SetupLogger(logger, log.InfoLvl)
 
 	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test")
 	err = diskCheck.Run()

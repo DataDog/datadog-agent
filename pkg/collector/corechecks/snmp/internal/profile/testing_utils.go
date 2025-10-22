@@ -220,7 +220,7 @@ func TrapLogs(t testing.TB, level log.LogLevel) LogValidator {
 		t.Errorf("Failed to create a logger: %v", err)
 		return LogValidator{}
 	}
-	log.SetupLogger(l, level.String())
+	log.SetupLogger(l, level)
 	return LogValidator{b: &b, w: w, l: l}
 }
 

@@ -62,7 +62,7 @@ func Test_Enabled(t *testing.T) {
 			w := bufio.NewWriter(&b)
 			l, err := log.LoggerFromWriterWithMinLevelAndFormat(w, log.WarnLvl, "[%LEVEL] %FuncShort: %Msg")
 			assert.Nil(t, err)
-			log.SetupLogger(l, "warn")
+			log.SetupLogger(l, log.WarnLvl)
 
 			haAgent := newTestHaAgentComponent(t, tt.configs, l).Comp.(*haAgentImpl)
 

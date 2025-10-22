@@ -33,7 +33,7 @@ func TestStart(t *testing.T) {
 	prioritySampler := NewMockprioritySampler(ctrl)
 	errorsSampler := NewMockerrorsSampler(ctrl)
 	rareSampler := NewMockrareSampler(ctrl)
-	pkglog.SetupLogger(pkglog.Default(), "debug")
+	pkglog.SetupLogger(pkglog.Default(), pkglog.DebugLvl)
 
 	h := New(&agentConfig, prioritySampler, rareSampler, errorsSampler)
 
@@ -55,7 +55,7 @@ func TestPrioritySampler(t *testing.T) {
 	prioritySampler := NewMockprioritySampler(ctrl)
 	errorsSampler := NewMockerrorsSampler(ctrl)
 	rareSampler := NewMockrareSampler(ctrl)
-	pkglog.SetupLogger(pkglog.Default(), "debug")
+	pkglog.SetupLogger(pkglog.Default(), pkglog.DebugLvl)
 
 	agentConfig := config.AgentConfig{RemoteConfigClient: remoteClient, TargetTPS: 41, ErrorTPS: 41, RareSamplerEnabled: true, DebugServerPort: 1}
 	h := New(&agentConfig, prioritySampler, rareSampler, errorsSampler)
@@ -84,7 +84,7 @@ func TestErrorsSampler(t *testing.T) {
 	prioritySampler := NewMockprioritySampler(ctrl)
 	errorsSampler := NewMockerrorsSampler(ctrl)
 	rareSampler := NewMockrareSampler(ctrl)
-	pkglog.SetupLogger(pkglog.Default(), "debug")
+	pkglog.SetupLogger(pkglog.Default(), pkglog.DebugLvl)
 
 	agentConfig := config.AgentConfig{RemoteConfigClient: remoteClient, TargetTPS: 41, ErrorTPS: 41, RareSamplerEnabled: true, DebugServerPort: 1}
 	h := New(&agentConfig, prioritySampler, rareSampler, errorsSampler)
@@ -113,7 +113,7 @@ func TestRareSampler(t *testing.T) {
 	prioritySampler := NewMockprioritySampler(ctrl)
 	errorsSampler := NewMockerrorsSampler(ctrl)
 	rareSampler := NewMockrareSampler(ctrl)
-	pkglog.SetupLogger(pkglog.Default(), "debug")
+	pkglog.SetupLogger(pkglog.Default(), pkglog.DebugLvl)
 
 	agentConfig := config.AgentConfig{RemoteConfigClient: remoteClient, TargetTPS: 41, ErrorTPS: 41, RareSamplerEnabled: true, DebugServerPort: 1}
 	h := New(&agentConfig, prioritySampler, rareSampler, errorsSampler)
@@ -142,7 +142,7 @@ func TestEnvPrecedence(t *testing.T) {
 	prioritySampler := NewMockprioritySampler(ctrl)
 	errorsSampler := NewMockerrorsSampler(ctrl)
 	rareSampler := NewMockrareSampler(ctrl)
-	pkglog.SetupLogger(pkglog.Default(), "debug")
+	pkglog.SetupLogger(pkglog.Default(), pkglog.DebugLvl)
 
 	agentConfig := config.AgentConfig{RemoteConfigClient: remoteClient, TargetTPS: 41, ErrorTPS: 41, RareSamplerEnabled: true, DefaultEnv: "agent-env", DebugServerPort: 1}
 	h := New(&agentConfig, prioritySampler, rareSampler, errorsSampler)
@@ -182,7 +182,7 @@ func TestLogLevel(t *testing.T) {
 	errorsSampler := NewMockerrorsSampler(ctrl)
 	rareSampler := NewMockrareSampler(ctrl)
 
-	pkglog.SetupLogger(pkglog.Default(), "debug")
+	pkglog.SetupLogger(pkglog.Default(), pkglog.DebugLvl)
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assert.Equal(t, "Bearer fakeToken", r.Header.Get("Authorization"))
 		w.WriteHeader(200)
@@ -228,7 +228,7 @@ func TestStartWithMRF(t *testing.T) {
 	prioritySampler := NewMockprioritySampler(ctrl)
 	errorsSampler := NewMockerrorsSampler(ctrl)
 	rareSampler := NewMockrareSampler(ctrl)
-	pkglog.SetupLogger(pkglog.Default(), "debug")
+	pkglog.SetupLogger(pkglog.Default(), pkglog.DebugLvl)
 
 	h := New(&agentConfig, prioritySampler, rareSampler, errorsSampler)
 
@@ -248,7 +248,7 @@ func TestMRFUpdateCallback(t *testing.T) {
 	prioritySampler := NewMockprioritySampler(ctrl)
 	errorsSampler := NewMockerrorsSampler(ctrl)
 	rareSampler := NewMockrareSampler(ctrl)
-	pkglog.SetupLogger(pkglog.Default(), "debug")
+	pkglog.SetupLogger(pkglog.Default(), pkglog.DebugLvl)
 
 	agentConfig := config.AgentConfig{
 		RemoteConfigClient:    remoteClient,
@@ -305,7 +305,7 @@ func TestMRFUpdateCallbackWithMultipleConfigs(t *testing.T) {
 	prioritySampler := NewMockprioritySampler(ctrl)
 	errorsSampler := NewMockerrorsSampler(ctrl)
 	rareSampler := NewMockrareSampler(ctrl)
-	pkglog.SetupLogger(pkglog.Default(), "debug")
+	pkglog.SetupLogger(pkglog.Default(), pkglog.DebugLvl)
 
 	agentConfig := config.AgentConfig{
 		RemoteConfigClient:    remoteClient,

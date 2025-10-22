@@ -147,7 +147,7 @@ func TestSplitTagRegex(t *testing.T) {
 
 		logger, err := log.LoggerFromWriterWithMinLevelAndFormat(w, log.DebugLvl, "[%LEVEL] %Msg")
 		assert.Nil(t, err)
-		log.SetupLogger(logger, "debug")
+		log.SetupLogger(logger, log.DebugLvl)
 		assert.Nil(t, splitTagRegex(bad.tag))
 		w.Flush()
 		assert.Contains(t, b.String(), "[ERROR] Invalid regex pattern in tag filter: \"key\":\"[value\"")

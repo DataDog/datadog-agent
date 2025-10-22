@@ -12,9 +12,13 @@ import (
 )
 
 func init() {
-	level := os.Getenv("DD_LOG_LEVEL")
-	if level == "" {
-		level = "debug"
+	lvl := DebugLvl
+	if level, ok := os.LookupEnv("DD_LOG_LEVEL"); ok {
+		logLevel, err := ValidateLogLevel(level)
+		if err == nil {
+			lvl = logLevel
+		}
 	}
-	SetupLogger(Default(), level)
+
+	SetupLogger(Default(), lvl)
 }

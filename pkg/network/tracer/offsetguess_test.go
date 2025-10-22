@@ -29,6 +29,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/offsetguess"
 	tracertestutil "github.com/DataDog/datadog-agent/pkg/network/tracer/testutil"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 )
 
@@ -130,7 +131,7 @@ func TestOffsetGuess(t *testing.T) {
 	if prebuilt.IsDeprecated() {
 		t.Skip("skipping because prebuilt is deprecated on this platform")
 	}
-	ebpftest.LogLevel(t, "trace")
+	ebpftest.LogLevel(t, log.TraceLvl)
 	ebpftest.TestBuildMode(t, ebpftest.RuntimeCompiled, "", testOffsetGuess)
 }
 

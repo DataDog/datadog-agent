@@ -38,7 +38,7 @@ func BenchmarkLogScrubbing(b *testing.B) {
 	w := bufio.NewWriter(&buff)
 
 	l, _ := LoggerFromWriterWithMinLevelAndFormat(w, DebugLvl, "[%LEVEL] %FuncShort: %Msg")
-	SetupLogger(l, "info")
+	SetupLogger(l, InfoLvl)
 
 	for n := 0; n < b.N; n++ {
 		Infof("this is a credential encoding uri: %s", "http://user:password@host:port")
@@ -50,7 +50,7 @@ func BenchmarkLogScrubbingLevels(b *testing.B) {
 	w := bufio.NewWriter(&buff)
 
 	l, _ := LoggerFromWriterWithMinLevelAndFormat(w, DebugLvl, "[%LEVEL] %FuncShort: %Msg")
-	SetupLogger(l, "info")
+	SetupLogger(l, InfoLvl)
 
 	for n := 0; n < b.N; n++ {
 		Debugf("this is a credential encoding uri: %s", "http://user:password@host:port")
@@ -62,7 +62,7 @@ func BenchmarkLogWithContext(b *testing.B) {
 	w := bufio.NewWriter(&buff)
 
 	l, _ := LoggerFromWriterWithMinLevelAndFormat(w, DebugLvl, "[%LEVEL] %FuncShort: %Msg")
-	SetupLogger(l, "info")
+	SetupLogger(l, InfoLvl)
 
 	for n := 0; n < b.N; n++ {
 		Infoc("this is a credential encoding uri: %s", "http://user:password@host:port", "extra", "context")

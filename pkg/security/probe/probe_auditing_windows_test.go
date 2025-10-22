@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -48,7 +49,7 @@ func processUntilAudit(t *testing.T, et *etwTester) {
 
 func TestETWAuditNotifications(t *testing.T) {
 	t.Skip("Skipping test that requires admin privileges")
-	ebpftest.LogLevel(t, "info")
+	ebpftest.LogLevel(t, log.InfoLvl)
 	ex, err := os.Executable()
 	require.NoError(t, err, "could not get executable path")
 	testfilename := ex + ".testfile"

@@ -17,12 +17,12 @@ import (
 )
 
 // FailLogLevel sets the logger level for this test only and only outputs if the test fails
-func FailLogLevel(t testing.TB, level string) {
+func FailLogLevel(t testing.TB, level log.LogLevel) {
 	t.Helper()
 	inner := &failureTestLogger{TB: t}
 	t.Cleanup(func() {
 		t.Helper()
-		log.SetupLogger(log.Default(), "off")
+		log.SetupLogger(log.Default(), log.Off)
 		inner.outputIfFailed()
 	})
 	logger, err := seelog.LoggerFromCustomReceiver(inner)

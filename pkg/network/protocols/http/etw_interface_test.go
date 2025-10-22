@@ -21,6 +21,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -251,7 +252,7 @@ func executeRequestForTest(t *testing.T, etw *EtwInterface, test testDef) ([]Win
 }
 
 func TestEtwTransactions(t *testing.T) {
-	ebpftest.LogLevel(t, "info")
+	ebpftest.LogLevel(t, log.InfoLvl)
 	cfg := config.New()
 	cfg.EnableHTTPMonitoring = true
 	cfg.EnableNativeTLSMonitoring = true

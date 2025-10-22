@@ -30,10 +30,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	netnsutil "github.com/DataDog/datadog-agent/pkg/util/kernel/netns"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 func TestConntrackers(t *testing.T) {
-	ebpftest.LogLevel(t, "trace")
+	ebpftest.LogLevel(t, log.TraceLvl)
 	t.Run("netlink", func(t *testing.T) {
 		runConntrackerTest(t, "netlink", setupNetlinkConntracker)
 	})

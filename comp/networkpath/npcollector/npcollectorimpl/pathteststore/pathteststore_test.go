@@ -92,7 +92,7 @@ func Test_pathtestStore_add(t *testing.T) {
 			w := bufio.NewWriter(&b)
 			l, err := utillog.LoggerFromWriterWithMinLevelAndFormat(w, utillog.DebugLvl, "[%LEVEL] %FuncShort: %Msg")
 			assert.Nil(t, err)
-			utillog.SetupLogger(l, "debug")
+			utillog.SetupLogger(l, utillog.DebugLvl)
 
 			config := Config{
 				ContextsLimit: tc.initialSize,

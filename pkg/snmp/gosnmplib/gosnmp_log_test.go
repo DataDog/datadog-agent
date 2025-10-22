@@ -93,7 +93,7 @@ func TestTraceLevelLogWriter_Write(t *testing.T) {
 			w := bufio.NewWriter(&b)
 			l, err := log.LoggerFromWriterWithMinLevelAndFormat(w, log.TraceLvl, "[%LEVEL] %FuncShort: %Msg")
 			require.NoError(t, err)
-			log.SetupLogger(l, "trace")
+			log.SetupLogger(l, log.TraceLvl)
 
 			sw := &TraceLevelLogWriter{}
 			lineLen, err := sw.Write(tt.logLine)

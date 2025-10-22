@@ -50,37 +50,37 @@ func TestZapBasicLogging(t *testing.T) {
 	tests := []struct {
 		desc    string
 		log     func(*zap.Logger)
-		level   string
+		level   log.LogLevel
 		message string
 	}{
 		{
 			desc:    "Debug (no fields, debug level)",
 			log:     func(l *zap.Logger) { l.Debug("Simple message") },
-			level:   "debug",
+			level:   log.DebugLvl,
 			message: "[DEBUG] | test/zapcore_test.go | Simple message",
 		},
 		{
 			desc:    "Info (no fields, debug level)",
 			log:     func(l *zap.Logger) { l.Info("Simple message") },
-			level:   "debug",
+			level:   log.DebugLvl,
 			message: "[INFO] | test/zapcore_test.go | Simple message",
 		},
 		{
 			desc:    "Warn (no fields, debug level)",
 			log:     func(l *zap.Logger) { l.Warn("Simple message") },
-			level:   "debug",
+			level:   log.DebugLvl,
 			message: "[WARN] | test/zapcore_test.go | Simple message",
 		},
 		{
 			desc:    "Error (no fields, debug level)",
 			log:     func(l *zap.Logger) { l.Error("Simple message") },
-			level:   "debug",
+			level:   log.DebugLvl,
 			message: "[ERROR] | test/zapcore_test.go | Simple message",
 		},
 		{
 			desc:    "DPanic (no fields, debug level)",
 			log:     func(l *zap.Logger) { l.DPanic("Development panic") },
-			level:   "debug",
+			level:   log.DebugLvl,
 			message: "[CRITICAL] | test/zapcore_test.go | Development panic",
 		},
 		{
@@ -90,19 +90,19 @@ func TestZapBasicLogging(t *testing.T) {
 				l.Info("Simple message")
 				l.Warn("Simple message")
 			},
-			level:   "error",
+			level:   log.ErrorLvl,
 			message: "",
 		},
 		{
 			desc:    "Info (fields)",
 			log:     func(l *zap.Logger) { l.Info("Fields", zap.Int("int", 1), zap.String("key", "val")) },
-			level:   "debug",
+			level:   log.DebugLvl,
 			message: "[INFO] | test/zapcore_test.go | int:1, key:val | Fields",
 		},
 		{
 			desc:    "Error (fields)",
 			log:     func(l *zap.Logger) { l.Error("Fields", zap.Error(fmt.Errorf("an error"))) },
-			level:   "debug",
+			level:   log.DebugLvl,
 			message: "[ERROR] | test/zapcore_test.go | error:an error | Fields",
 		},
 		{
@@ -111,7 +111,7 @@ func TestZapBasicLogging(t *testing.T) {
 				_ = l.With(zap.Int16("int", 1))
 				l.Info("Fields", zap.Bool("bool", true))
 			},
-			level:   "debug",
+			level:   log.DebugLvl,
 			message: "[INFO] | test/zapcore_test.go | bool:true | Fields",
 		},
 		{
@@ -120,13 +120,13 @@ func TestZapBasicLogging(t *testing.T) {
 				extra := l.With(zap.Int16("int", 1))
 				extra.Info("Fields", zap.Bool("bool", true))
 			},
-			level:   "debug",
+			level:   log.DebugLvl,
 			message: "[INFO] | test/zapcore_test.go | int:1, bool:true | Fields",
 		},
 		{
 			desc:    "Namespace",
 			log:     func(l *zap.Logger) { l.Info("Fields", zap.Namespace("ns"), zap.Int("int", 1)) },
-			level:   "debug",
+			level:   log.DebugLvl,
 			message: "[INFO] | test/zapcore_test.go | ns/int:1 | Fields",
 		},
 	}

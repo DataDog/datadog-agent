@@ -16,9 +16,9 @@ import (
 )
 
 // LogLevel sets the logger level for this test only
-func LogLevel(t testing.TB, level string) {
+func LogLevel(t testing.TB, level log.LogLevel) {
 	t.Cleanup(func() {
-		log.SetupLogger(log.Default(), "off")
+		log.SetupLogger(log.Default(), log.Off)
 	})
 	logger, err := seelog.LoggerFromCustomReceiver(testLogger{t})
 	if err != nil {

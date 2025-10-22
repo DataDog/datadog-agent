@@ -198,7 +198,7 @@ func TestDestinationErrorLogFormat(t *testing.T) {
 	// Set up logger to capture log output
 	testLogger, err := log.LoggerFromWriterWithMinLevelAndFormat(writer, log.WarnLvl, "%Msg")
 	assert.NoError(t, err)
-	log.SetupLogger(testLogger, "warn")
+	log.SetupLogger(testLogger, log.WarnLvl)
 
 	// Send payload to trigger error log
 	err = server.Destination.unconditionalSend(&message.Payload{

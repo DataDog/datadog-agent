@@ -50,7 +50,7 @@ func Test_NpCollector_StartAndStop(t *testing.T) {
 	w := bufio.NewWriter(&b)
 	l, err := utillog.LoggerFromWriterWithMinLevelAndFormat(w, utillog.DebugLvl, "[%LEVEL] %FuncShort: %Msg")
 	assert.Nil(t, err)
-	utillog.SetupLogger(l, "debug")
+	utillog.SetupLogger(l, utillog.DebugLvl)
 
 	assert.False(t, npCollector.running)
 
@@ -997,7 +997,7 @@ func Test_npCollectorImpl_ScheduleConns(t *testing.T) {
 			w := bufio.NewWriter(&b)
 			l, err := utillog.LoggerFromWriterWithMinLevelAndFormat(w, utillog.DebugLvl, "[%LEVEL] %FuncShort: %Msg")
 			assert.Nil(t, err)
-			utillog.SetupLogger(l, "debug")
+			utillog.SetupLogger(l, utillog.DebugLvl)
 
 			npCollector.ScheduleConns(tt.conns)
 
@@ -1048,7 +1048,7 @@ func Test_npCollectorImpl_stopWorker(t *testing.T) {
 	w := bufio.NewWriter(&b)
 	l, err := utillog.LoggerFromWriterWithMinLevelAndFormat(w, utillog.DebugLvl, "[%LEVEL] %FuncShort: %Msg")
 	assert.Nil(t, err)
-	utillog.SetupLogger(l, "debug")
+	utillog.SetupLogger(l, utillog.DebugLvl)
 
 	stopped := make(chan bool, 1)
 	go func() {
@@ -1204,7 +1204,7 @@ func Benchmark_npCollectorImpl_ScheduleConns(b *testing.B) {
 	w := bufio.NewWriter(file)
 	l, err := utillog.LoggerFromWriterWithMinLevelAndFormat(w, utillog.DebugLvl, "[%LEVEL] %FuncShort: %Msg\n")
 	assert.Nil(b, err)
-	utillog.SetupLogger(l, "debug")
+	utillog.SetupLogger(l, utillog.DebugLvl)
 	defer w.Flush()
 
 	app, npCollector := newTestNpCollector(b, agentConfigs, &teststatsd.Client{})

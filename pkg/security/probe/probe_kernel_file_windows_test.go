@@ -23,6 +23,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"golang.org/x/sys/windows"
 )
@@ -533,7 +534,7 @@ func testFileOpen(t *testing.T, et *etwTester, testfilename string) {
 }
 func TestETWFileNotifications(t *testing.T) {
 	if false {
-		ebpftest.LogLevel(t, "info")
+		ebpftest.LogLevel(t, log.InfoLvl)
 	}
 	ex, err := os.Executable()
 	require.NoError(t, err, "could not get executable path")

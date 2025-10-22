@@ -446,7 +446,7 @@ func BenchmarkStartEndInvocation(b *testing.B) {
 	// JSON payload). We're not interested in any output here, so we send it all to `io.Discard`.
 	l, err := log.LoggerFromWriterWithMinLevel(io.Discard, log.ErrorLvl)
 	assert.Nil(b, err)
-	log.SetupLogger(l, "error")
+	log.SetupLogger(l, log.ErrorLvl)
 
 	// relative to location of this test file
 	payloadFiles, err := os.ReadDir("../trace/testdata/event_samples")

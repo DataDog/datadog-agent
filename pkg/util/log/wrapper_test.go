@@ -25,7 +25,7 @@ func TestWrapperMethods(t *testing.T) {
 	w := bufio.NewWriter(&b)
 
 	l, _ := LoggerFromWriterWithMinLevelAndFormat(w, DebugLvl, "[%LEVEL] %FuncShort: %Msg\n")
-	SetupLogger(l, DebugStr)
+	SetupLogger(l, DebugLvl)
 
 	// log messages using the wrapper
 	wrapper := NewWrapper(3)

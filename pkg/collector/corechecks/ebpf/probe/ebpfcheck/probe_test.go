@@ -30,10 +30,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/maps"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 func TestEBPFPerfBufferLength(t *testing.T) {
-	ebpftest.FailLogLevel(t, "trace")
+	ebpftest.FailLogLevel(t, log.TraceLvl)
 
 	ebpftest.RequireKernelVersion(t, minimumKernelVersion)
 	ebpftest.TestBuildMode(t, ebpftest.CORE, "", func(t *testing.T) {

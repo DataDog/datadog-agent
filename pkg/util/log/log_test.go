@@ -23,7 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
 
-func changeLogLevel(level string) error {
+func changeLogLevel(level LogLevel) error {
 	return logger.changeLogLevel(level)
 }
 
@@ -52,7 +52,7 @@ func TestBasicLogging(t *testing.T) {
 	l, err := LoggerFromWriterWithMinLevelAndFormat(w, DebugLvl, "[%LEVEL] %FuncShort: %ExtraTextContext%Msg\n")
 	assert.NoError(t, err)
 
-	SetupLogger(l, "debug")
+	SetupLogger(l, DebugLvl)
 	assert.NotNil(t, logger.Load())
 
 	Tracef("%s", "foo")
@@ -118,7 +118,7 @@ func TestLogBuffer(t *testing.T) {
 	Errorf("%s", "foo")
 	Criticalf("%s", "foo")
 
-	SetupLogger(l, "debug")
+	SetupLogger(l, DebugLvl)
 	assert.NotNil(t, logger.Load())
 
 	w.Flush()
@@ -144,7 +144,7 @@ func TestLogBufferWithContext(t *testing.T) {
 	Errorc("baz", "number", 1, "str", "hello")
 	Criticalc("baz", "number", 1, "str", "hello")
 
-	SetupLogger(l, "debug")
+	SetupLogger(l, DebugLvl)
 	assert.NotNil(t, logger.Load())
 	w.Flush()
 
@@ -173,7 +173,7 @@ func TestCredentialScrubbingLogging(t *testing.T) {
 	l, err := LoggerFromWriterWithMinLevelAndFormat(w, DebugLvl, "[%LEVEL] %FuncShort: %Msg")
 	assert.NoError(t, err)
 
-	SetupLogger(l, "info")
+	SetupLogger(l, InfoLvl)
 	assert.NotNil(t, logger.Load())
 
 	Info("don't tell anyone: ", "SECRET")
@@ -216,11 +216,11 @@ func TestWarnNotNil(t *testing.T) {
 	assert.NotNil(t, Warn("test"))
 
 	l, _ := LoggerFromWriterWithMinLevelAndFormat(w, CriticalLvl, "[%LEVEL] %FuncShort: %Msg")
-	SetupLogger(l, "critical")
+	SetupLogger(l, CriticalLvl)
 
 	assert.NotNil(t, Warn("test"))
 
-	changeLogLevel("info")
+	changeLogLevel(InfoLvl)
 
 	assert.NotNil(t, Warn("test"))
 }
@@ -232,11 +232,11 @@ func TestWarnfNotNil(t *testing.T) {
 	assert.NotNil(t, Warn("test"))
 
 	l, _ := LoggerFromWriterWithMinLevelAndFormat(w, CriticalLvl, "[%LEVEL] %FuncShort: %Msg")
-	SetupLogger(l, "critical")
+	SetupLogger(l, CriticalLvl)
 
 	assert.NotNil(t, Warn("test"))
 
-	changeLogLevel("info")
+	changeLogLevel(InfoLvl)
 
 	assert.NotNil(t, Warn("test"))
 }
@@ -249,11 +249,11 @@ func TestWarncNotNil(t *testing.T) {
 
 	seelog.RegisterCustomFormatter("ExtraTextContext", createExtraTextContext)
 	l, _ := LoggerFromWriterWithMinLevelAndFormat(w, CriticalLvl, "[%LEVEL] %FuncShort: %ExtraTextContext%Msg")
-	SetupLogger(l, "critical")
+	SetupLogger(l, CriticalLvl)
 
 	assert.NotNil(t, Warnc("test", "key", "val"))
 
-	changeLogLevel("info")
+	changeLogLevel(InfoLvl)
 
 	assert.NotNil(t, Warnc("test", "key", "val"))
 }
@@ -265,11 +265,11 @@ func TestErrorNotNil(t *testing.T) {
 	assert.NotNil(t, Error("test"))
 
 	l, _ := LoggerFromWriterWithMinLevelAndFormat(w, CriticalLvl, "[%LEVEL] %FuncShort: %Msg")
-	SetupLogger(l, "critical")
+	SetupLogger(l, CriticalLvl)
 
 	assert.NotNil(t, Error("test"))
 
-	changeLogLevel("info")
+	changeLogLevel(InfoLvl)
 
 	assert.NotNil(t, Error("test"))
 }
@@ -281,11 +281,11 @@ func TestErrorfNotNil(t *testing.T) {
 	assert.NotNil(t, Errorf("test"))
 
 	l, _ := LoggerFromWriterWithMinLevelAndFormat(w, CriticalLvl, "[%LEVEL] %FuncShort: %Msg")
-	SetupLogger(l, "critical")
+	SetupLogger(l, CriticalLvl)
 
 	assert.NotNil(t, Errorf("test"))
 
-	changeLogLevel("info")
+	changeLogLevel(InfoLvl)
 
 	assert.NotNil(t, Errorf("test"))
 }
@@ -298,11 +298,11 @@ func TestErrorcNotNil(t *testing.T) {
 
 	seelog.RegisterCustomFormatter("ExtraTextContext", createExtraTextContext)
 	l, _ := LoggerFromWriterWithMinLevelAndFormat(w, CriticalLvl, "[%LEVEL] %FuncShort: %ExtraTextContext%Msg")
-	SetupLogger(l, "critical")
+	SetupLogger(l, CriticalLvl)
 
 	assert.NotNil(t, Errorc("test", "key", "val"))
 
-	changeLogLevel("info")
+	changeLogLevel(InfoLvl)
 
 	assert.NotNil(t, Errorc("test", "key", "val"))
 }
@@ -314,7 +314,7 @@ func TestCriticalNotNil(t *testing.T) {
 	assert.NotNil(t, Critical("test"))
 
 	l, _ := LoggerFromWriterWithMinLevelAndFormat(w, InfoLvl, "[%LEVEL] %FuncShort: %Msg")
-	SetupLogger(l, "info")
+	SetupLogger(l, InfoLvl)
 
 	assert.NotNil(t, Critical("test"))
 }
@@ -326,7 +326,7 @@ func TestCriticalfNotNil(t *testing.T) {
 	assert.NotNil(t, Criticalf("test"))
 
 	l, _ := LoggerFromWriterWithMinLevelAndFormat(w, InfoLvl, "[%LEVEL] %FuncShort: %Msg")
-	SetupLogger(l, "info")
+	SetupLogger(l, InfoLvl)
 
 	assert.NotNil(t, Criticalf("test"))
 }
@@ -339,7 +339,7 @@ func TestCriticalcNotNil(t *testing.T) {
 
 	seelog.RegisterCustomFormatter("ExtraTextContext", createExtraTextContext)
 	l, _ := LoggerFromWriterWithMinLevelAndFormat(w, InfoLvl, "[%LEVEL] %FuncShort: %ExtraTextContext%Msg")
-	SetupLogger(l, "info")
+	SetupLogger(l, InfoLvl)
 
 	assert.NotNil(t, Criticalc("test", "key", "val"))
 }
@@ -349,7 +349,7 @@ func TestDebugFuncNoExecute(t *testing.T) {
 	w := bufio.NewWriter(&b)
 
 	l, _ := LoggerFromWriterWithMinLevelAndFormat(w, InfoLvl, "[%LEVEL] %FuncShort: %Msg")
-	SetupLogger(l, "info")
+	SetupLogger(l, InfoLvl)
 
 	i := 0
 	DebugFunc(func() string { i = 1; return "hello" })
@@ -365,7 +365,7 @@ func TestDebugFuncExecute(t *testing.T) {
 	w := bufio.NewWriter(&b)
 
 	l, _ := LoggerFromWriterWithMinLevelAndFormat(w, DebugLvl, "[%LEVEL] %FuncShort: %Msg")
-	SetupLogger(l, "debug")
+	SetupLogger(l, DebugLvl)
 
 	i := 0
 	DebugFunc(func() string {
@@ -382,29 +382,28 @@ func TestDebugFuncExecute(t *testing.T) {
 func TestFuncVersions(t *testing.T) {
 	cases := []struct {
 		seelogLevel        LogLevel
-		strLogLevel        string
 		logFunc            func(func() string)
 		expectedToBeCalled bool
 	}{
-		{ErrorLvl, "error", DebugFunc, false},
-		{WarnLvl, "warn", DebugFunc, false},
-		{InfoLvl, "info", DebugFunc, false},
-		{DebugLvl, "debug", DebugFunc, true},
-		{TraceLvl, "trace", DebugFunc, true},
+		{ErrorLvl, DebugFunc, false},
+		{WarnLvl, DebugFunc, false},
+		{InfoLvl, DebugFunc, false},
+		{DebugLvl, DebugFunc, true},
+		{TraceLvl, DebugFunc, true},
 
-		{TraceLvl, "trace", TraceFunc, true},
-		{InfoLvl, "info", TraceFunc, false},
+		{TraceLvl, TraceFunc, true},
+		{InfoLvl, TraceFunc, false},
 
-		{InfoLvl, "info", InfoFunc, true},
-		{WarnLvl, "warn", InfoFunc, false},
+		{InfoLvl, InfoFunc, true},
+		{WarnLvl, InfoFunc, false},
 
-		{WarnLvl, "warn", WarnFunc, true},
-		{ErrorLvl, "error", WarnFunc, false},
+		{WarnLvl, WarnFunc, true},
+		{ErrorLvl, WarnFunc, false},
 
-		{ErrorLvl, "error", ErrorFunc, true},
-		{CriticalLvl, "critical", ErrorFunc, false},
+		{ErrorLvl, ErrorFunc, true},
+		{CriticalLvl, ErrorFunc, false},
 
-		{CriticalLvl, "critical", CriticalFunc, true},
+		{CriticalLvl, CriticalFunc, true},
 	}
 
 	for _, tc := range cases {
@@ -412,7 +411,7 @@ func TestFuncVersions(t *testing.T) {
 		w := bufio.NewWriter(&b)
 
 		l, _ := LoggerFromWriterWithMinLevelAndFormat(w, tc.seelogLevel, "[%LEVEL] %FuncShort: %Msg")
-		SetupLogger(l, tc.strLogLevel)
+		SetupLogger(l, tc.seelogLevel)
 
 		i := 0
 		tc.logFunc(func() string { i = 1; return "hello" })
@@ -435,26 +434,25 @@ func TestStackDepthfLogging(t *testing.T) {
 
 	cases := []struct {
 		seelogLevel        LogLevel
-		strLogLevel        string
 		expectedToBeCalled int
 	}{
-		{CriticalLvl, "critical", 1},
-		{ErrorLvl, "error", 2},
-		{WarnLvl, "warn", 3},
-		{InfoLvl, "info", 4},
-		{DebugLvl, "debug", 5},
-		{TraceLvl, "trace", 6},
+		{CriticalLvl, 1},
+		{ErrorLvl, 2},
+		{WarnLvl, 3},
+		{InfoLvl, 4},
+		{DebugLvl, 5},
+		{TraceLvl, 6},
 	}
 
 	for _, tc := range cases {
-		t.Run(tc.strLogLevel, func(t *testing.T) {
+		t.Run(tc.seelogLevel.String(), func(t *testing.T) {
 			var b bytes.Buffer
 			w := bufio.NewWriter(&b)
 
 			l, err := LoggerFromWriterWithMinLevelAndFormat(w, tc.seelogLevel, "[%LEVEL] %Func: %Msg\n")
 			assert.NoError(t, err)
 
-			SetupLogger(l, tc.strLogLevel)
+			SetupLogger(l, tc.seelogLevel)
 
 			TracefStackDepth(stackDepth, "%s", "foo")
 			DebugfStackDepth(stackDepth, "%s", "foo")
@@ -502,7 +500,7 @@ func TestLoggerScrubbingCount(t *testing.T) {
 	w := bufio.NewWriter(&b)
 	l, err := LoggerFromWriterWithMinLevelAndFormat(w, TraceLvl, "[%LEVEL] %FuncShort: %Msg")
 	require.NoError(t, err)
-	SetupLogger(l, "trace")
+	SetupLogger(l, TraceLvl)
 
 	testCases := []struct {
 		name  string
@@ -602,7 +600,7 @@ func TestLogNilInnerLogger(t *testing.T) {
 	// reset buffer state
 	logsBuffer = []func(){}
 
-	SetupLogger(Default(), DebugStr)
+	SetupLogger(Default(), DebugLvl)
 	logger.Load().inner = nil
 
 	Debug("message")
@@ -611,39 +609,29 @@ func TestLogNilInnerLogger(t *testing.T) {
 	assert.Equal(t, 1, len(logsBuffer))
 }
 
-func TestSetupLoggerWithUnknownLogLevel(t *testing.T) {
-	SetupLogger(Default(), "unknownLogLevel")
-
-	// providing an unknown log level sets the log level to InfoLvl
-	loggerLogLevel, _ := GetLogLevel()
-
-	assert.Equal(t, InfoLvl, loggerLogLevel)
-}
-
 func TestChangeLogLevel(t *testing.T) {
 	testCases := []struct {
-		logLevel    LogLevel
-		logLevelStr string
+		logLevel LogLevel
 	}{
-		{TraceLvl, TraceStr},
-		{DebugLvl, DebugStr},
-		{InfoLvl, InfoStr},
-		{WarnLvl, WarnStr},
-		{ErrorLvl, ErrorStr},
-		{CriticalLvl, CriticalStr},
-		{Off, OffStr},
+		{TraceLvl},
+		{DebugLvl},
+		{InfoLvl},
+		{WarnLvl},
+		{ErrorLvl},
+		{CriticalLvl},
+		{Off},
 	}
 
 	for _, tc := range testCases {
-		t.Run("change log level to "+tc.logLevelStr, func(t *testing.T) {
+		t.Run("change log level to "+tc.logLevel.String(), func(t *testing.T) {
 			var b bytes.Buffer
 			w := bufio.NewWriter(&b)
 
 			l, _ := LoggerFromWriterWithMinLevelAndFormat(w, DebugLvl, "")
 
-			SetupLogger(Default(), DebugStr)
+			SetupLogger(Default(), DebugLvl)
 
-			err := ChangeLogLevel(l, tc.logLevelStr)
+			err := ChangeLogLevel(l, tc.logLevel)
 			assert.NoError(t, err)
 
 			// log level should have been updated
@@ -656,43 +644,25 @@ func TestChangeLogLevel(t *testing.T) {
 	}
 }
 
-func TestChangeLogLevelUnknownLevel(t *testing.T) {
-	var b bytes.Buffer
-	w := bufio.NewWriter(&b)
-
-	l, _ := LoggerFromWriterWithMinLevelAndFormat(w, DebugLvl, "")
-
-	SetupLogger(Default(), InfoStr)
-
-	err := ChangeLogLevel(l, "unknownLogLevel")
-	assert.Error(t, err)
-	assert.Equal(t, "bad log level", err.Error())
-
-	// log level and inner logger should not have changed
-	level, _ := GetLogLevel()
-	assert.Equal(t, InfoLvl, level)
-	assert.NotEqual(t, l, logger.Load().inner)
-}
-
 func TestChangeLogLevelNilLogger(t *testing.T) {
 	logger.Store(nil)
 
-	err := logger.changeLogLevel(InfoStr)
+	err := logger.changeLogLevel(InfoLvl)
 	assert.Error(t, err)
 	assert.Equal(t, "cannot change loglevel: logger not initialized", err.Error())
 }
 
 func TestChangeLogLevelNilInnerLogger(t *testing.T) {
-	SetupLogger(Default(), DebugStr)
+	SetupLogger(Default(), DebugLvl)
 	logger.Load().inner = nil
 
-	err := logger.changeLogLevel(InfoStr)
+	err := logger.changeLogLevel(InfoLvl)
 	assert.Error(t, err)
 	assert.Equal(t, "cannot change loglevel: logger is initialized however logger.inner is nil", err.Error())
 }
 
 func TestGetLogLevel(t *testing.T) {
-	SetupLogger(Default(), WarnStr)
+	SetupLogger(Default(), WarnLvl)
 
 	level, err := GetLogLevel()
 	assert.NoError(t, err)
@@ -709,7 +679,7 @@ func TestGetLogLevelNilLogger(t *testing.T) {
 }
 
 func TestGetLogLevelNilInnerLogger(t *testing.T) {
-	SetupLogger(Default(), DebugStr)
+	SetupLogger(Default(), DebugLvl)
 	logger.Load().inner = nil
 
 	level, err := GetLogLevel()
@@ -719,52 +689,52 @@ func TestGetLogLevelNilInnerLogger(t *testing.T) {
 }
 
 func TestShouldLog(t *testing.T) {
-	SetupLogger(Default(), TraceStr)
+	SetupLogger(Default(), TraceLvl)
 
 	testCases := []struct {
-		logLevelStr string
+		logLevel LogLevel
 		// expected results for each log level in the order
 		// [TraceLvl, DebugLvl, InfoLvl, WarnLvl, ErrorLvl, CriticalLvl, Off]
 		expectedShouldLog []bool
 	}{
 		{
-			TraceStr,
+			TraceLvl,
 			[]bool{true, true, true, true, true, true, true},
 		},
 		{
-			DebugStr,
+			DebugLvl,
 			[]bool{false, true, true, true, true, true, true},
 		},
 		{
-			InfoStr,
+			InfoLvl,
 			[]bool{false, false, true, true, true, true, true},
 		},
 		{
-			WarnStr,
+			WarnLvl,
 			[]bool{false, false, false, true, true, true, true},
 		},
 		{
-			ErrorStr,
+			ErrorLvl,
 			[]bool{false, false, false, false, true, true, true},
 		},
 		{
-			CriticalStr,
+			CriticalLvl,
 			[]bool{false, false, false, false, false, true, true},
 		},
 		{
-			OffStr,
+			Off,
 			[]bool{false, false, false, false, false, false, true},
 		},
 	}
 
 	for _, tc := range testCases {
-		t.Run("should log when log level is "+tc.logLevelStr, func(t *testing.T) {
-			changeLogLevel(tc.logLevelStr)
+		t.Run("should log when log level is "+tc.logLevel.String(), func(t *testing.T) {
+			changeLogLevel(tc.logLevel)
 
 			for i, logLevel := range []LogLevel{TraceLvl, DebugLvl, InfoLvl, WarnLvl, ErrorLvl, CriticalLvl, Off} {
 				shouldLog := ShouldLog(logLevel)
 				expected := tc.expectedShouldLog[i]
-				assert.Equal(t, expected, shouldLog, "expected ShouldLog(%s) to be %v when log level is %q", logLevel.String(), expected, tc.logLevelStr)
+				assert.Equal(t, expected, shouldLog, "expected ShouldLog(%s) to be %v when log level is %q", logLevel.String(), expected, tc.logLevel.String())
 			}
 		})
 	}
@@ -802,7 +772,7 @@ func TestValidateLogLevel(t *testing.T) {
 		t.Run("validate "+tc.logLevelStr, func(t *testing.T) {
 			valid, err := ValidateLogLevel(tc.logLevelStr)
 			assert.NoError(t, err)
-			assert.Equal(t, tc.expected, valid, "expected ValidateLogLevel(%s) to return %s", tc.logLevelStr, tc.expected)
+			assert.Equal(t, tc.expected, valid.String(), "expected ValidateLogLevel(%s) to return %s", tc.logLevelStr, tc.expected)
 		})
 	}
 }

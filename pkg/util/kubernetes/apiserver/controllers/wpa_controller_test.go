@@ -635,7 +635,7 @@ func configureLoggerForTest(t *testing.T) func() {
 	if err != nil {
 		t.Fatalf("unable to configure logger, err: %v", err)
 	}
-	log.SetupLogger(logger, "trace")
+	log.SetupLogger(logger, log.TraceLvl)
 	return log.Flush
 }
 

@@ -18,7 +18,7 @@ import (
 )
 
 func TestMain(m *testing.M) {
-	log.SetupLogger(log.Default(), "trace")
+	log.SetupLogger(log.Default(), log.TraceLvl)
 	os.Exit(m.Run())
 }
 

@@ -133,7 +133,7 @@ func TestRCClientCreate(t *testing.T) {
 }
 
 func TestAgentConfigCallback(t *testing.T) {
-	pkglog.SetupLogger(pkglog.Default(), "info")
+	pkglog.SetupLogger(pkglog.Default(), pkglog.InfoLvl)
 	cfg := configmock.New(t)
 
 	var ipcComp ipc.Component
@@ -236,7 +236,7 @@ func TestAgentConfigCallback(t *testing.T) {
 }
 
 func TestAgentMRFConfigCallback(t *testing.T) {
-	pkglog.SetupLogger(pkglog.Default(), "info")
+	pkglog.SetupLogger(pkglog.Default(), pkglog.InfoLvl)
 	cfg := configmock.New(t)
 
 	var ipcComp ipc.Component

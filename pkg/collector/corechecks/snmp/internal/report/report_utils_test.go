@@ -785,7 +785,7 @@ metric_tags:
 
 			l, err := log.LoggerFromWriterWithMinLevelAndFormat(w, log.DebugLvl, "[%LEVEL] %FuncShort: %Msg")
 			assert.Nil(t, err)
-			log.SetupLogger(l, "debug")
+			log.SetupLogger(l, log.DebugLvl)
 
 			m := profiledefinition.MetricsConfig{}
 			yaml.Unmarshal(tt.rawMetricConfig, &m)
@@ -1104,7 +1104,7 @@ func Test_getContantMetricValues(t *testing.T) {
 
 			l, err := log.LoggerFromWriterWithMinLevelAndFormat(w, log.DebugLvl, "[%LEVEL] %FuncShort: %Msg")
 			assert.Nil(t, err)
-			log.SetupLogger(l, "debug")
+			log.SetupLogger(l, log.DebugLvl)
 
 			values := getConstantMetricValues(tt.metricTags, tt.values)
 
