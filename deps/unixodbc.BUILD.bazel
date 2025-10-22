@@ -5,6 +5,7 @@ load("@rules_pkg//pkg:install.bzl", "pkg_install")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_files", "pkg_mklink")
 
 COMMON_COPTS = ["-O3"]
+COMMON_INCLUDES = [".", "include"]
 
 # Version info from unixODBC 2.3.9
 # The actual SONAME version would be determined by LIB_VERSION in the autotools build
@@ -41,15 +42,6 @@ copy_file(
 )
 
 copy_file(
-    name = "libltdl_config_h",
-    src = select({
-        "@platforms//cpu:x86_64": "x86_64/libltdl/config.h",
-        "//conditions:default": "@platforms//:incompatible",
-    }),
-    out = "libltdl/config.h",
-)
-
-copy_file(
     name = "config_h",
     src = select({
         "@platforms//cpu:x86_64": "x86_64/config.h",
@@ -58,37 +50,11 @@ copy_file(
     out = "config.h",
 )
 
-# Built-in libltdl library to address "--with-included-ltdl" configure option.
 cc_library(
-    name = "libltdl",
-    # This header has to be exposed along with the library to address
-    # "--enable-ltdl-install" configure option.
-    hdrs = ["libltdl/ltdl.h"],
-    srcs = glob(
-        ["libltdl/**/*.c", "libltdl/**/*.h"],
-        exclude = [
-            # Non-Unix loaders
-            "libltdl/loaders/load_add_on.c",
-            "libltdl/loaders/dyld.c",
-            "libltdl/loaders/loadlibrary.c",
-            "libltdl/loaders/shl_load.c",
-            # Non-glibc implementation that is not needed
-            "libltdl/lt__argz.c",
-        ],
-    ) + [
-        ":libltdl_config_h",
-    ],
-    visibility = ["//visibility:public"],
-    copts = COMMON_COPTS + [
-        "-DLTDL",
-        # LTDLOPEN must match what's used in the autotools build
-        # This expands to lt_libltdl_LTX_preloaded_symbols
-        "-DLTDLOPEN=libltdl",
-    ],
-    # "." is needed to make sure config.h is found.
-    includes = ["libltdl/libltdl", "libltdl/."],
-    # Link against libdl for dynamic loading support
-    linkopts = ["-ldl"],
+    name = "ltdl_hdr",
+    hdrs = _LIBLTDL_PUBLIC_HEADERS,
+    includes = ["libltdl"],
+    visibility = ["//visibility:private"],
 )
 
 # Extra utility functions (snprintf, strcasecmp)
@@ -99,7 +65,7 @@ cc_library(
     # and glob is evaluated during analysis phase.
     srcs = glob(["extras/**/*.c", "include/*.h"], exclude = ["extras/vms.c"]) + [":config_h"],
     copts = COMMON_COPTS,
-    includes = [".", "include"],
+    includes = COMMON_INCLUDES,
 )
 
 # Logging library
@@ -110,7 +76,7 @@ cc_library(
     # and glob is evaluated during analysis phase.
     srcs = glob(["log/**/*.c", "include/*.h"]) + [":config_h"],
     copts = COMMON_COPTS,
-    includes = [".", "include"],
+    includes = COMMON_INCLUDES,
 )
 
 # List management library
@@ -121,7 +87,7 @@ cc_library(
     # and glob is evaluated during analysis phase.
     srcs = glob(["lst/**/*.c", "include/*.h"]) + [":config_h"],
     copts = COMMON_COPTS,
-    includes = [".", "include"],
+    includes = COMMON_INCLUDES,
 )
 
 # INI file parsing library
@@ -132,7 +98,7 @@ cc_library(
     # and glob is evaluated during analysis phase.
     srcs = glob(["ini/**/*.c", "include/*.h"]) + [":config_h"],
     copts = COMMON_COPTS,
-    includes = [".", "include"],
+    includes = COMMON_INCLUDES,
     deps = [":extras"],
 )
 
@@ -144,12 +110,12 @@ cc_library(
     # and glob is evaluated during analysis phase.
     srcs = glob(["odbcinst/**/*.c", "include/*.h"]) + [":config_h"],
     copts = COMMON_COPTS,
-    includes = [".", "include"],
+    includes = COMMON_INCLUDES,
     deps = [
         ":ini",
         ":log",
         ":lst",
-        ":libltdl",
+        ":ltdl_hdr",
     ],
 )
 
@@ -166,12 +132,12 @@ cc_library(
     ],
     visibility = ["//visibility:public"],
     copts = COMMON_COPTS,
-    includes = [".", "include"],
+    includes = COMMON_INCLUDES,
     deps = [
         ":ini",
         ":log",
         ":lst",
-        ":libltdl",
+        ":ltdl_hdr",
     ],
 )
 
@@ -191,13 +157,13 @@ cc_library(
     ],
     visibility = ["//visibility:public"],
     copts = COMMON_COPTS,
-    includes = [".", "include", "DriverManager"],
+    includes = COMMON_INCLUDES + ["DriverManager"],
     deps = [
         ":lst",
         ":log",
         ":ini",
         ":odbcinstlc",
-        ":libltdl",
+        ":ltdl_hdr",
     ],
 )
 
@@ -210,7 +176,7 @@ cc_library(
     srcs = glob(["cur/**/*.c", "cur/**/*.h", "include/*.h"]) + [":config_h"],
     visibility = ["//visibility:public"],
     copts = COMMON_COPTS,
-    includes = [".", "include", "DriverManager", "cur"],
+    includes = COMMON_INCLUDES + ["DriverManager", "cur"],
     deps = [":odbc"],
 )
 
@@ -223,11 +189,10 @@ cc_binary(
     name = "odbcinst_bin",
     srcs = ["exe/odbcinst.c"] + glob(["include/*.h"]) + [":config_h"],
     copts = COMMON_COPTS,
-    includes = [".", "include"],
+    includes = COMMON_INCLUDES,
     deps = [
         ":odbcinst",  # This refers to the cc_library
         ":ini",
-        ":libltdl",
     ],
     visibility = ["//visibility:public"],
 )
@@ -237,7 +202,7 @@ cc_binary(
     name = "odbc_config",
     srcs = ["exe/odbc-config.c"] + glob(["include/*.h"]) + [":config_h"],
     copts = COMMON_COPTS,
-    includes = [".", "include"],
+    includes = COMMON_INCLUDES,
     visibility = ["//visibility:public"],
 )
 
@@ -246,7 +211,7 @@ cc_binary(
     name = "isql",
     srcs = ["exe/isql.c", "exe/isql.h"] + glob(["include/*.h"]) + [":config_h"],
     copts = COMMON_COPTS,
-    includes = [".", "include"],
+    includes = COMMON_INCLUDES,
     deps = [
         ":odbc",
         ":extras",
@@ -259,7 +224,7 @@ cc_binary(
     name = "iusql",
     srcs = ["exe/iusql.c"] + glob(["include/*.h", "exe/*.h"]) + [":config_h"],
     copts = COMMON_COPTS,
-    includes = [".", "include"],
+    includes = COMMON_INCLUDES,
     deps = [
         ":odbc",
         ":odbcinst",
@@ -271,10 +236,10 @@ cc_binary(
 # dltest - Dynamic loader test utility
 cc_binary(
     name = "dltest",
-    srcs = ["exe/dltest.c"] + glob(["include/*.h"]) + [":config_h"],
+    srcs = ["exe/dltest.c"] + glob(["include/*.h"]) + [":config_h", "libltdl/ltdl.h"],
     copts = COMMON_COPTS,
-    includes = [".", "include"],
-    deps = [":libltdl"],
+    includes = COMMON_INCLUDES,
+    deps = [":ltdl_hdr"],
     visibility = ["//visibility:public"],
 )
 
@@ -283,7 +248,7 @@ cc_binary(
     name = "slencheck",
     srcs = ["exe/slencheck.c"] + glob(["include/*.h"]) + [":config_h", ":unixodbc_conf_h"],
     copts = COMMON_COPTS,
-    includes = [".", "include"],
+    includes = COMMON_INCLUDES,
     deps = [":odbc"],
     visibility = ["//visibility:public"],
 )
@@ -291,14 +256,6 @@ cc_binary(
 # ============================================================================
 # Shared Libraries (*.so files)
 # ============================================================================
-
-# libltdl.so - Dynamic loader library (--enable-ltdl-install)
-cc_shared_library(
-    name = "libltdl_so",
-    shared_lib_name = "libltdl.so.%s" % SOVERSION,
-    deps = [":libltdl"],
-    visibility = ["//visibility:public"],
-)
 
 # libodbcinst.so - ODBC Installer/Configuration library
 cc_shared_library(
@@ -359,7 +316,6 @@ pkg_mklink(
 pkg_files(
     name = "lib_files",
     srcs = [
-        ":libltdl_so",
         ":libodbcinst_so",
         ":libodbc_so",
         ":libodbccr_so",
@@ -394,6 +350,9 @@ pkg_files(
     prefix = "include",
 )
 
+# We do need this "fake" ltdl.h to use dlopen
+# and other kernel functions directly without 
+# requiring libltdl.
 pkg_files(
     name = "libltdl_hdr_files",
     srcs = _LIBLTDL_PUBLIC_HEADERS,
@@ -408,7 +367,6 @@ pkg_install(
     name = "install",
     srcs = [
         ":lib_files",
-        ":libltdl_so_link",
         ":libodbcinst_so_link",
         ":libodbc_so_link",
         ":libodbccr_so_link",
