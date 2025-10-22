@@ -34,7 +34,6 @@ require (
 	go.opentelemetry.io/collector/otelcol/otelcoltest v0.137.0
 	go.opentelemetry.io/collector/pdata v1.43.0
 	go.opentelemetry.io/collector/processor v1.43.0
-	go.opentelemetry.io/collector/processor/batchprocessor v0.137.0
 	go.opentelemetry.io/collector/receiver v1.43.0
 	go.opentelemetry.io/collector/receiver/otlpreceiver v0.137.0
 	go.opentelemetry.io/otel v1.38.0
