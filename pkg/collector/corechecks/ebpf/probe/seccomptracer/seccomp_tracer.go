@@ -145,7 +145,7 @@ func (t *Tracer) GetAndFlush() model.SeccompStats {
 	t.statsMu.Lock()
 	defer t.statsMu.Unlock()
 
-	result := make(model.SeccompStats, len(t.stats))
+	result := make(model.SeccompStats, 0, len(t.stats))
 
 	for key, count := range t.stats {
 		result = append(result, model.SeccompStatsEntry{
