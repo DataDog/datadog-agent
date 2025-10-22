@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
+	automultilinedetection "github.com/DataDog/datadog-agent/pkg/logs/internal/decoder/auto_multiline_detection"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -32,7 +33,12 @@ const (
 	configMRFServiceAllowlist = "multi_region_failover.logs_service_allowlist"
 
 	// PII auto-redaction settings
-	configAutoRedactPII = "logs_config.auto_redact_pii"
+	configAutoRedactPII    = "logs_config.auto_redact_pii"
+	configPIIRedactionMode = "logs_config.pii_redaction_mode" // "regex" or "hybrid"
+
+	// PII redaction modes
+	PIIRedactionModeRegex  = "regex"  // Default: Pure regex-based
+	PIIRedactionModeHybrid = "hybrid" // Hybrid: Token + regex
 )
 
 type failoverConfig struct {
@@ -54,6 +60,10 @@ type Processor struct {
 	config                    pkgconfigmodel.Reader
 	configChan                chan failoverConfig
 	failoverConfig            failoverConfig
+
+	// PII detection and redaction
+	piiDetector  *HybridPIIDetector
+	piiTokenizer *automultilinedetection.Tokenizer
 
 	// Telemetry
 	pipelineMonitor metrics.PipelineMonitor
@@ -79,6 +89,8 @@ func New(config pkgconfigmodel.Reader, inputChan, outputChan chan *message.Messa
 		pipelineMonitor:           pipelineMonitor,
 		utilization:               pipelineMonitor.MakeUtilizationMonitor(metrics.ProcessorTlmName, instanceID),
 		instanceID:                instanceID,
+		piiDetector:               NewHybridPIIDetector(),
+		piiTokenizer:              automultilinedetection.NewTokenizer(10000),
 	}
 
 	// Initialize cached failover config
@@ -249,19 +261,9 @@ func (p *Processor) filterMRFMessages(msg *message.Message) {
 func (p *Processor) applyRedactingRules(msg *message.Message) bool {
 	var content []byte = msg.GetContent()
 
-	// Use the internal scrubbing implementation of the Agent
+	// Apply user-defined processing rules first
 	// ---------------------------
-
 	rules := append(p.processingRules, msg.Origin.LogSource.Config.ProcessingRules...)
-
-	// Add default PII redaction rules if enabled
-	var piiEnabled bool
-	if p.config != nil && p.config.GetBool(configAutoRedactPII) {
-		rules = append(rules, defaultPIIRedactionRules...)
-		piiEnabled = true
-	}
-
-	piiStartTime := time.Now()
 
 	for _, rule := range rules {
 		switch rule.Type {
@@ -285,15 +287,6 @@ func (p *Processor) applyRedactingRules(msg *message.Message) bool {
 				// Track PII redaction metrics if content was modified
 				if !bytes.Equal(originalContent, content) {
 					msg.RecordProcessingRule(rule.Type, rule.Name)
-
-					// Track additional metrics for PII rules
-					if piiEnabled && isPIIRule(rule) {
-						bytesRedacted := len(originalContent) - len(content)
-						if bytesRedacted > 0 {
-							metrics.TlmPIIMatchCount.Inc(rule.Name)
-							metrics.TlmPIIBytesRedacted.Add(float64(bytesRedacted), rule.Name)
-						}
-					}
 				}
 			}
 		case config.ExcludeTruncated:
@@ -301,7 +294,62 @@ func (p *Processor) applyRedactingRules(msg *message.Message) bool {
 				msg.RecordProcessingRule(rule.Type, rule.Name)
 				return false
 			}
+		}
+	}
 
+	// Apply automatic PII redaction if enabled
+	// ---------------------------
+	var piiEnabled bool
+	var piiMode string
+
+	if p.config != nil && p.config.GetBool(configAutoRedactPII) {
+		piiEnabled = true
+		piiMode = p.config.GetString(configPIIRedactionMode)
+		if piiMode == "" {
+			piiMode = PIIRedactionModeRegex
+		}
+	}
+	piiStartTime := time.Now()
+
+	if piiEnabled {
+		originalContent := content
+
+		switch piiMode {
+		case PIIRedactionModeHybrid:
+			if p.piiDetector != nil {
+				var matchedRules []string
+				content, matchedRules = p.piiDetector.Redact(content, p.piiTokenizer)
+
+				for _, ruleName := range matchedRules {
+					msg.RecordProcessingRule(config.MaskSequences, ruleName)
+					metrics.TlmPIIMatchCount.Inc(ruleName)
+				}
+			} else {
+				log.Warnf("PII detector not initialized")
+			}
+		case PIIRedactionModeRegex:
+			for _, rule := range defaultPIIRedactionRules {
+				if isMatchingLiteralPrefix(rule.Regex, content) {
+					oldContent := content
+					content = rule.Regex.ReplaceAll(content, rule.Placeholder)
+
+					if !bytes.Equal(oldContent, content) {
+						msg.RecordProcessingRule(config.MaskSequences, rule.Name)
+						metrics.TlmPIIMatchCount.Inc(rule.Name)
+					}
+				}
+			}
+
+		default:
+			log.Warnf("Invalid PII redaction mode: %s", piiMode)
+		}
+
+		// Track bytes redacted
+		if !bytes.Equal(originalContent, content) {
+			bytesRedacted := len(originalContent) - len(content)
+			if bytesRedacted > 0 {
+				metrics.TlmPIIBytesRedacted.Add(float64(bytesRedacted), "total")
+			}
 		}
 	}
 
@@ -312,16 +360,6 @@ func (p *Processor) applyRedactingRules(msg *message.Message) bool {
 
 	msg.SetContent(content)
 	return true // we want to send this message
-}
-
-// isPIIRule checks if a rule is one of the default PII redaction rules
-func isPIIRule(rule *config.ProcessingRule) bool {
-	for _, piiRule := range defaultPIIRedactionRules {
-		if rule.Name == piiRule.Name {
-			return true
-		}
-	}
-	return false
 }
 
 // isMatchingLiteralPrefix uses a potential literal prefix from the given regex

@@ -140,6 +140,12 @@ const (
 
 	// DefaultNetworkPathStaticPathE2eQueries defines the default number of end-to-end queries for static path
 	DefaultNetworkPathStaticPathE2eQueries = 50
+
+	// DefaultPIIRedactionMode is the default PII redaction mode
+	// Options are:
+	// - "regex": use regex-based detection and redaction
+	// - "hybrid": use token-based and regex-based detection and redaction
+	DefaultPIIRedactionMode = "hybrid"
 )
 
 var (
@@ -1849,6 +1855,7 @@ func logsagent(config pkgconfigmodel.Setup) {
 
 	// PII auto-redaction settings
 	config.BindEnvAndSetDefault("logs_config.auto_redact_pii", true)
+	config.BindEnvAndSetDefault("logs_config.pii_redaction_mode", DefaultPIIRedactionMode)
 }
 
 // vector integration
