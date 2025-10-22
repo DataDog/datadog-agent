@@ -65,15 +65,21 @@ type model struct {
 
 	// Navigation state
 	viewMode           ViewMode // Current view mode
-	selectedPanel      int      // Which panel is focused (0=services, 1=ingestion, 2=agent, 3=intake)
+	selectedPanel      int      // Which panel is focused (0=services, 1=agent)
 	selectedLogIdx     int      // Which log source is selected in detail view
 	selectedServiceIdx int      // Which service is selected in services view
+	scrollOffset       int      // Vertical scroll offset for services view
 
 	// Log streaming state
 	streamingSource string      // Name of the currently streaming log source
 	logFetcher      *logFetcher // scanner for the log
 	logLines        []string    // Buffered log lines for the selected source
 	maxLogLines     int         // Maximum number of log lines to keep
+
+	// Time-series data for dot graph visualization
+	serviceTimeSeries map[string]*serviceTimeSeries // Service name -> time series data
+	maxTimeSeriesLen  int                           // Maximum number of time buckets to track
+	// otherTimeSeries   *serviceTimeSeries            // Aggregated data for unattributed activity
 }
 
 type logFetcher struct {
@@ -208,8 +214,12 @@ func newModel(client ipcdef.HTTPClient) model {
 		selectedPanel:      0,
 		selectedLogIdx:     0,
 		selectedServiceIdx: 0,
+		scrollOffset:       0,
 		logLines:           []string{},
 		maxLogLines:        100, // Keep last 100 log lines
 		streamingSource:    "",
+		serviceTimeSeries:  make(map[string]*serviceTimeSeries),
+		maxTimeSeriesLen:   60, // Track last 60 time buckets (2 seconds per refresh = 2 minutes)
+		// otherTimeSeries:    newServiceTimeSeries(60), // "other" service for unattributed activity
 	}
 }

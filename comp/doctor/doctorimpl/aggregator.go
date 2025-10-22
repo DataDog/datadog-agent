@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"expvar"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -306,19 +307,40 @@ func (d *doctorImpl) collectServicesStatus() []def.ServiceStats {
 
 	// Convert map to sorted slice
 	services := make([]def.ServiceStats, 0, len(serviceMap))
+	// var hasOther bool
 	for _, stats := range serviceMap {
+		// if name == "" {
+		// 	hasOther = true
+		// 	continue
+		// }
 		services = append(services, *stats)
 	}
+	// if hasOther {
+	// 	services = append(services, *serviceMap[""])
+	// }
 
 	// Sort by service name for consistent ordering
 	// (Could also sort by total activity: traces + metrics + logs)
-	for i := 0; i < len(services); i++ {
-		for j := i + 1; j < len(services); j++ {
-			if services[i].Name > services[j].Name {
-				services[i], services[j] = services[j], services[i]
-			}
+
+	slices.SortFunc(services, func(a, b def.ServiceStats) int {
+		// Always put empty name at the end
+		if a.Name == "" {
+			return 1
 		}
-	}
+		if b.Name == "" {
+			return -1
+		}
+
+		return strings.Compare(a.Name, b.Name)
+	})
+
+	// for i := 0; i < len(services); i++ {
+	// 	for j := i + 1; j < len(services); j++ {
+	// 		if services[i].Name > services[j].Name {
+	// 			services[i], services[j] = services[j], services[i]
+	// 		}
+	// 	}
+	// }
 
 	return services
 }

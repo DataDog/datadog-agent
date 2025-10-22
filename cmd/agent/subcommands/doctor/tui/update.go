@@ -57,42 +57,100 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, fetchDoctorStatus(m.client)
 
 			case "left", "h":
-				// Navigate to previous panel
+				// Navigate to previous panel (only 2 panels now: services and agent)
 				if m.selectedPanel > 0 {
 					m.selectedPanel--
 				}
 
 			case "right", "l":
-				// Navigate to next panel
-				if m.selectedPanel < 3 {
+				// Navigate to next panel (only 2 panels now: services and agent)
+				if m.selectedPanel < 1 {
 					m.selectedPanel++
 				}
 
-			case "enter":
-				// Drill down into selected panel
+			case "up", "k":
+				// Navigate up in services list (only when services panel is selected)
 				if m.selectedPanel == 0 && m.status != nil {
-					// Enter services view
-					m.viewMode = ServicesView
-					m.selectedServiceIdx = 0
-				} else if m.selectedPanel == 1 && m.status != nil {
-					// Enter logs detail view
-					m.viewMode = LogsDetailView
-					m.selectedLogIdx = 0
-					// Start logs streaming goroutine
-
-					// Start streaming logs for the first source if available
-					if len(m.status.Ingestion.Logs.Integrations) > 0 {
-						selectedSource := m.status.Ingestion.Logs.Integrations[m.selectedLogIdx]
-						m.streamingSource = selectedSource.Name
-						// Clear previous logs
-						m.logLines = []string{}
-						m.logFetcher.Close()
-						logFetcher, err := newLogFetcher(selectedSource.Name, m.client)
-						if err != nil {
-							// TODO
+					if m.selectedServiceIdx > 0 {
+						m.selectedServiceIdx--
+						// Adjust scroll offset if needed
+						if m.selectedServiceIdx < m.scrollOffset {
+							m.scrollOffset = m.selectedServiceIdx
 						}
-						m.logFetcher = logFetcher
-						return m, tea.Batch(m.logFetcher.ListenCmd(), m.logFetcher.WaitCmd())
+					}
+				}
+
+			case "down", "j":
+				// Navigate down in services list (only when services panel is selected)
+				if m.selectedPanel == 0 && m.status != nil {
+					maxIdx := len(m.status.Services) - 1
+					if m.selectedServiceIdx < maxIdx {
+						m.selectedServiceIdx++
+						// Adjust scroll offset if needed
+						linesPerService := 9
+						panelHeight := m.height - 6
+						availableHeight := panelHeight - 5
+						maxVisibleServices := availableHeight / linesPerService
+						if maxVisibleServices < 1 {
+							maxVisibleServices = 1
+						}
+						if m.selectedServiceIdx >= m.scrollOffset+maxVisibleServices {
+							m.scrollOffset = m.selectedServiceIdx - maxVisibleServices + 1
+						}
+					}
+				}
+
+			case "pgup":
+				// Page up in services list (only when services panel is selected)
+				if m.selectedPanel == 0 {
+					m.selectedServiceIdx -= 10
+					if m.selectedServiceIdx < 0 {
+						m.selectedServiceIdx = 0
+					}
+					m.scrollOffset = m.selectedServiceIdx
+				}
+
+			case "pgdown":
+				// Page down in services list (only when services panel is selected)
+				if m.selectedPanel == 0 && m.status != nil {
+					m.selectedServiceIdx += 10
+					maxIdx := len(m.status.Services) - 1
+					if m.selectedServiceIdx > maxIdx {
+						m.selectedServiceIdx = maxIdx
+					}
+					linesPerService := 9
+					panelHeight := m.height - 6
+					availableHeight := panelHeight - 5
+					maxVisibleServices := availableHeight / linesPerService
+					if maxVisibleServices < 1 {
+						maxVisibleServices = 1
+					}
+					if m.selectedServiceIdx >= m.scrollOffset+maxVisibleServices {
+						m.scrollOffset = m.selectedServiceIdx - maxVisibleServices + 1
+					}
+				}
+
+			case "home":
+				// Jump to first service (only when services panel is selected)
+				if m.selectedPanel == 0 {
+					m.selectedServiceIdx = 0
+					m.scrollOffset = 0
+				}
+
+			case "end":
+				// Jump to last service including "other" (only when services panel is selected)
+				if m.selectedPanel == 0 && m.status != nil {
+					m.selectedServiceIdx = len(m.status.Services) - 1 // Points to "other"
+					linesPerService := 9
+					panelHeight := m.height - 6
+					availableHeight := panelHeight - 5
+					maxVisibleServices := availableHeight / linesPerService
+					if maxVisibleServices < 1 {
+						maxVisibleServices = 1
+					}
+					m.scrollOffset = m.selectedServiceIdx - maxVisibleServices + 1
+					if m.scrollOffset < 0 {
+						m.scrollOffset = 0
 					}
 				}
 			}
@@ -108,16 +166,73 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				// Go back to main view
 				m.viewMode = MainView
 
+			case "r":
+				// User requested manual refresh
+				return m, fetchDoctorStatus(m.client)
+
 			case "up", "k":
 				// Navigate up in services list
 				if m.selectedServiceIdx > 0 {
 					m.selectedServiceIdx--
+					// Adjust scroll offset if needed
+					if m.selectedServiceIdx < m.scrollOffset {
+						m.scrollOffset = m.selectedServiceIdx
+					}
 				}
 
 			case "down", "j":
 				// Navigate down in services list
 				if m.status != nil && m.selectedServiceIdx < len(m.status.Services)-1 {
 					m.selectedServiceIdx++
+					// Adjust scroll offset if needed
+					linesPerService := 15
+					availableHeight := m.height - 6
+					maxVisibleServices := availableHeight / linesPerService
+					if m.selectedServiceIdx >= m.scrollOffset+maxVisibleServices {
+						m.scrollOffset = m.selectedServiceIdx - maxVisibleServices + 1
+					}
+				}
+
+			case "pgup":
+				// Page up (10 services at a time)
+				m.selectedServiceIdx -= 10
+				if m.selectedServiceIdx < 0 {
+					m.selectedServiceIdx = 0
+				}
+				m.scrollOffset = m.selectedServiceIdx
+
+			case "pgdown":
+				// Page down (10 services at a time)
+				if m.status != nil {
+					m.selectedServiceIdx += 10
+					maxIdx := len(m.status.Services) - 1
+					if m.selectedServiceIdx > maxIdx {
+						m.selectedServiceIdx = maxIdx
+					}
+					linesPerService := 15
+					availableHeight := m.height - 6
+					maxVisibleServices := availableHeight / linesPerService
+					if m.selectedServiceIdx >= m.scrollOffset+maxVisibleServices {
+						m.scrollOffset = m.selectedServiceIdx - maxVisibleServices + 1
+					}
+				}
+
+			case "home":
+				// Jump to first service
+				m.selectedServiceIdx = 0
+				m.scrollOffset = 0
+
+			case "end":
+				// Jump to last service (including "other")
+				if m.status != nil {
+					m.selectedServiceIdx = len(m.status.Services) - 1 // Points to "other"
+					linesPerService := 15
+					availableHeight := m.height - 6
+					maxVisibleServices := availableHeight / linesPerService
+					m.scrollOffset = m.selectedServiceIdx - maxVisibleServices + 1
+					if m.scrollOffset < 0 {
+						m.scrollOffset = 0
+					}
 				}
 			}
 
@@ -191,6 +306,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.loading = false
 		m.lastUpdate = time.Now()
 
+		// Update time series data for all services
+		m.updateTimeSeriesData()
+
 	case fetchErrorMsg:
 		// Failed to fetch doctor status
 		m.lastError = msg.err
@@ -227,7 +345,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 // tick returns a command that sends a tickMsg after 2 seconds
 // This drives the periodic refresh cycle
 func tick() tea.Cmd {
-	return tea.Tick(2*time.Second, func(t time.Time) tea.Msg {
+	return tea.Tick(1*time.Second, func(t time.Time) tea.Msg {
 		return tickMsg(t)
 	})
 }
@@ -255,5 +373,57 @@ func fetchDoctorStatus(client ipc.HTTPClient) tea.Cmd {
 		}
 
 		return fetchSuccessMsg{status: status}
+	}
+}
+
+// updateTimeSeriesData updates the rolling time series buffers with latest service data
+func (m *model) updateTimeSeriesData() {
+	if m.status == nil {
+		return
+	}
+
+	// Track which services we've seen in this update
+	seenServices := make(map[string]bool)
+
+	// // Aggregate unattributed activity (services with empty names)
+	// var otherMetrics, otherLogs, otherTraces float64
+
+	// Update time series for each service
+	for _, service := range m.status.Services {
+		// if service.Name == "" {
+		// 	// Accumulate unattributed activity
+		// 	otherMetrics += service.MetricsRate
+		// 	otherLogs += service.LogsRate
+		// 	otherTraces += service.TracesRate
+		// 	continue
+		// }
+
+		seenServices[service.Name] = true
+
+		// Get or create time series for this service
+		ts, exists := m.serviceTimeSeries[service.Name]
+		if !exists {
+			ts = newServiceTimeSeries(m.maxTimeSeriesLen)
+			m.serviceTimeSeries[service.Name] = ts
+		}
+
+		// Add latest values to the time series
+		ts.metrics.add(service.MetricsRate)
+		ts.logs.add(service.LogsRate)
+		ts.traces.add(service.TracesRate)
+	}
+
+	// // Update "other" time series
+	// m.otherTimeSeries.metrics.add(otherMetrics)
+	// m.otherTimeSeries.logs.add(otherLogs)
+	// m.otherTimeSeries.traces.add(otherTraces)
+
+	// Add zero values for services that disappeared (to maintain time continuity)
+	for serviceName, ts := range m.serviceTimeSeries {
+		if !seenServices[serviceName] {
+			ts.metrics.add(0)
+			ts.logs.add(0)
+			ts.traces.add(0)
+		}
 	}
 }

@@ -72,31 +72,28 @@ func (m model) renderLoading() string {
 	)
 }
 
-// renderMainView renders the four-panel layout with all doctor status information
+// renderMainView renders the two-panel layout: services (left) and agent health (right)
 func (m model) renderMainView() string {
 	if m.status == nil {
 		return "No data available"
 	}
 
-	// Calculate panel dimensions
-	// Leave space for borders, padding, and margins
-	// Formula: (width - margins - borders) / 4
-	panelWidth := (m.width - 16) / 4 // 16 = 4 panels * (2 margin + 2 border)
-	panelHeight := m.height - 6      // Leave space for header and footer
+	// Calculate panel dimensions - split screen in half
+	// Left panel: 50% for services list
+	// Right panel: 50% for agent health
+	leftPanelWidth := (m.width - 8) / 2 // Account for borders and spacing
+	rightPanelWidth := (m.width - 8) / 2
+	panelHeight := m.height - 6 // Leave space for header and footer
 
-	// Render each panel with selection state
-	servicesPanel := m.renderServicesPanel(panelWidth, panelHeight, m.selectedPanel == 0)
-	ingestionPanel := m.renderIngestionPanel(panelWidth, panelHeight, m.selectedPanel == 1)
-	agentPanel := m.renderAgentPanel(panelWidth, panelHeight, m.selectedPanel == 2)
-	intakePanel := m.renderIntakePanel(panelWidth, panelHeight, m.selectedPanel == 3)
+	// Render both panels with selection state
+	servicesPanel := m.renderServicesPanel(leftPanelWidth, panelHeight, m.selectedPanel == 0)
+	agentPanel := m.renderAgentPanel(rightPanelWidth, panelHeight, m.selectedPanel == 1)
 
 	// Join panels horizontally
 	panels := lipgloss.JoinHorizontal(
 		lipgloss.Top,
 		servicesPanel,
-		ingestionPanel,
 		agentPanel,
-		intakePanel,
 	)
 
 	// Add header and footer
@@ -151,10 +148,17 @@ func (m model) renderFooter() string {
 			keyStyle.Render("esc") + " back",
 			keyStyle.Render("q") + " quit",
 		}
+	case ServicesView:
+		shortcuts = []string{
+			keyStyle.Render("↑/↓/PgUp/PgDn/Home/End") + " navigate",
+			keyStyle.Render("r") + " refresh",
+			keyStyle.Render("esc") + " back",
+			keyStyle.Render("q") + " quit",
+		}
 	default: // MainView
 		shortcuts = []string{
 			keyStyle.Render("←/→") + " switch panel",
-			keyStyle.Render("enter") + " details",
+			keyStyle.Render("↑/↓") + " scroll services",
 			keyStyle.Render("r") + " refresh",
 			keyStyle.Render("q") + " quit",
 		}
@@ -416,20 +420,6 @@ func formatLargeNumber(n int64) string {
 	return fmt.Sprintf("%.1fB", float64(n)/1000000000)
 }
 
-// formatBytes formats bytes in a human-readable way
-func formatBytes(n int64) string {
-	if n < 1024 {
-		return fmt.Sprintf("%dB", n)
-	}
-	if n < 1024*1024 {
-		return fmt.Sprintf("%.1fKB", float64(n)/1024)
-	}
-	if n < 1024*1024*1024 {
-		return fmt.Sprintf("%.1fMB", float64(n)/(1024*1024))
-	}
-	return fmt.Sprintf("%.1fGB", float64(n)/(1024*1024*1024))
-}
-
 // truncate truncates a string to a maximum length and adds ellipsis if needed
 func truncate(s string, maxLen int) string {
 	if len(s) <= maxLen {
@@ -626,75 +616,95 @@ func (m model) renderStreamingLogs(width, height int) string {
 		Render(content.String())
 }
 
-// renderServicesPanel renders the leftmost panel showing services
+// renderServicesPanel renders the left panel with services and their dot graphs
 func (m model) renderServicesPanel(width, height int, isSelected bool) string {
 	var content strings.Builder
 
-	// Panel title with selection indicator
-	title := "Services"
+	// Panel title with selection indicator (lowercase "services")
+	title := "services"
 	if isSelected {
 		title = "▶ " + title
 	}
 	content.WriteString(titleStyle.Render(title) + "\n\n")
 
-	if len(m.status.Services) == 0 {
-		content.WriteString(subduedStyle.Render("No services detected"))
-		content.WriteString("\n\n")
+	// Check if there are any services
+	totalServices := len(m.status.Services)
+	// hasOther := m.otherTimeSeries != nil && (len(m.otherTimeSeries.metrics.values) > 0 ||
+	// 	len(m.otherTimeSeries.logs.values) > 0 ||
+	// 	len(m.otherTimeSeries.traces.values) > 0)
+
+	// if totalServices == 0 && !hasOther {
+	if totalServices == 0 {
+		content.WriteString(subduedStyle.Render("No services detected yet\n\n"))
 		content.WriteString(infoStyle.Render("Services will appear here\nwhen traces, metrics, or\nlogs are collected"))
 	} else {
-		content.WriteString(formatSectionHeader(fmt.Sprintf("Total: %d", len(m.status.Services))) + "\n")
-		if isSelected {
-			content.WriteString(subduedStyle.Render("(press Enter for details)") + "\n")
-		}
-		content.WriteString("\n")
-
-		// Show up to 15 services in the panel
-		limit := 15
-		if len(m.status.Services) < limit {
-			limit = len(m.status.Services)
+		// Calculate how many services we can display based on panel height
+		// Each service box takes 6 lines (for graphs) + 2 lines (top/bottom border) + 1 line margin = 9 lines
+		linesPerService := 9
+		availableHeight := height - 5 // Account for title and padding
+		maxVisibleServices := availableHeight / linesPerService
+		if maxVisibleServices < 1 {
+			maxVisibleServices = 1
 		}
 
-		for i := 0; i < limit; i++ {
+		// Calculate scroll window
+		startIdx := m.scrollOffset
+		endIdx := startIdx + maxVisibleServices
+		if endIdx > totalServices { // +1 for "other"
+			endIdx = totalServices
+		}
+
+		// Calculate dot graph width based on panel width
+		// Reserve space for service name, borders, and padding
+		dotGraphWidth := width - 20
+		if dotGraphWidth < 10 {
+			dotGraphWidth = 10
+		}
+		if dotGraphWidth > 40 {
+			dotGraphWidth = 40
+		}
+
+		// Render each visible service
+		for i := startIdx; i < endIdx; i++ {
+			var serviceName string
+			var ts *serviceTimeSeries
+			isServiceSelected := isSelected && i == m.selectedServiceIdx
 			service := m.status.Services[i]
+			isOther := service.Name == ""
 
-			// Format service name
-			content.WriteString(highlightStyle.Render(service.Name))
-			content.WriteString("\n")
+			// Regular service
+			serviceName = service.Name
+			if isOther {
+				serviceName = "other"
+			}
+			ts = m.serviceTimeSeries[service.Name]
 
-			// Create mini sparkline visualization for each data type
-			var indicators []string
+			// Render service with compact layout and border
+			serviceContent := m.renderCompactServiceBox(serviceName, ts, dotGraphWidth, isServiceSelected, isOther)
 
-			// Traces rate indicator
-			if service.TracesRate > 0 {
-				indicators = append(indicators, fmt.Sprintf("T:%s/s", formatRate(service.TracesRate)))
+			// Create border style
+			borderStyle := lipgloss.NewStyle().
+				Border(lipgloss.RoundedBorder()).
+				BorderForeground(colorBorder).
+				Padding(0, 1)
+				// MarginBottom(1)
+
+			// Highlight border if selected
+			if isServiceSelected {
+				borderStyle = borderStyle.BorderForeground(colorHighlight)
 			}
 
-			// Metrics rate indicator
-			if service.MetricsRate > 0 {
-				indicators = append(indicators, fmt.Sprintf("M:%s/s", formatRate(service.MetricsRate)))
-			}
-
-			// Logs rate indicator (bytes/s)
-			if service.LogsRate > 0 {
-				indicators = append(indicators, fmt.Sprintf("L:%s/s", formatBytesRate(service.LogsRate)))
-			}
-
-			if len(indicators) > 0 {
-				content.WriteString("  ")
-				content.WriteString(subduedStyle.Render(strings.Join(indicators, " ")))
-				content.WriteString("\n")
-			} else {
-				content.WriteString("  ")
-				content.WriteString(subduedStyle.Render("(no recent data)"))
-				content.WriteString("\n")
-			}
-
+			borderedContent := borderStyle.Render(serviceContent)
+			content.WriteString(borderedContent)
 			content.WriteString("\n")
 		}
 
-		if len(m.status.Services) > limit {
-			content.WriteString(subduedStyle.Render(fmt.Sprintf("... and %d more", len(m.status.Services)-limit)))
-			content.WriteString("\n")
+		// Scroll indicator if needed
+		if totalServices > maxVisibleServices {
+			remaining := (totalServices) - endIdx
+			if remaining > 0 {
+				content.WriteString(subduedStyle.Render(fmt.Sprintf("... %d more ↓", remaining)))
+			}
 		}
 	}
 
@@ -704,7 +714,95 @@ func (m model) renderServicesPanel(width, height int, isSelected bool) string {
 		Render(content.String())
 }
 
-// renderServicesView renders the full-screen services detail view
+// renderCompactServiceBox renders a single service with dot graphs in a compact format
+// Layout: service name on left (padded to fixed width), graphs on right
+func (m model) renderCompactServiceBox(serviceName string, ts *serviceTimeSeries, dotGraphWidth int, isSelected bool, isOther bool) string {
+	// Service name styling
+	nameStyle := lipgloss.NewStyle().
+		Foreground(colorHighlight).
+		Bold(isSelected)
+
+	displayName := serviceName
+	if isSelected {
+		displayName = "▶ " + displayName
+	} else {
+		displayName = "  " + displayName
+	}
+
+	// Add caption for "other" service
+	if isOther {
+		displayName += " " + subduedStyle.Render("(unattributed)")
+	}
+
+	styledName := nameStyle.Render(displayName)
+
+	// Render dot graphs if we have time series data
+	var graphsContent string
+	if ts != nil && len(ts.metrics.values) > 0 {
+		graphsContent = renderServiceDotGraphs(dotGraphWidth, ts)
+	} else {
+		// No data yet - show placeholder (6 lines to match graph height)
+		graphsContent = subduedStyle.Render("(no data)\n\n\n\n\n")
+	}
+
+	// Combine name and graphs side by side
+	// Name should be vertically centered with the 6-row graphs (3 lines padding on top)
+	nameLines := []string{
+		styledName,
+		"",
+		"",
+		"",
+		"",
+		"",
+	}
+
+	graphLines := strings.Split(graphsContent, "\n")
+	// Pad graph lines to ensure we have 6 lines
+	for len(graphLines) < 6 {
+		graphLines = append(graphLines, "")
+	}
+
+	// Calculate service name column width (for padding)
+	serviceNameWidth := 25
+
+	// Combine line by line
+	var result strings.Builder
+	for i := 0; i < 6; i++ {
+		// Pad service name column
+		nameLine := ""
+		if i < len(nameLines) {
+			nameLine = nameLines[i]
+		}
+		paddedName := padRightWithWidth(nameLine, serviceNameWidth)
+
+		// Graph line
+		graphLine := ""
+		if i < len(graphLines) {
+			graphLine = graphLines[i]
+		}
+
+		result.WriteString(paddedName)
+		result.WriteString(graphLine)
+		if i < 5 { // Don't add newline after last line
+			result.WriteString("\n")
+		}
+	}
+
+	return result.String()
+}
+
+// padRightWithWidth pads a string to the specified width (accounts for ANSI color codes)
+func padRightWithWidth(s string, width int) string {
+	// Strip ANSI codes to measure actual visible length
+	visibleLen := lipgloss.Width(s)
+	if visibleLen >= width {
+		return s
+	}
+	padding := strings.Repeat(" ", width-visibleLen)
+	return s + padding
+}
+
+// renderServicesView renders the full-screen services detail view with dot graphs
 func (m model) renderServicesView() string {
 	if m.status == nil {
 		return "No data available"
@@ -712,12 +810,22 @@ func (m model) renderServicesView() string {
 
 	var content strings.Builder
 
-	// Header
-	header := titleStyle.Render(" SERVICES ")
-	content.WriteString(header)
+	// Title: "services" in lowercase, monospace
+	title := lipgloss.NewStyle().
+		Foreground(colorTitle).
+		Bold(true).
+		Render("services")
+	content.WriteString(title)
 	content.WriteString("\n\n")
 
-	if len(m.status.Services) == 0 {
+	// Check if there are any services
+	totalServices := len(m.status.Services)
+	// hasOther := m.otherTimeSeries != nil && (len(m.otherTimeSeries.metrics.values) > 0 ||
+	// 	len(m.otherTimeSeries.logs.values) > 0 ||
+	// 	len(m.otherTimeSeries.traces.values) > 0)
+
+	// if totalServices == 0 && !hasOther {
+	if totalServices == 0 {
 		content.WriteString(infoStyle.Render("No services detected yet"))
 		content.WriteString("\n\n")
 		content.WriteString(subduedStyle.Render("Services will appear here when the agent receives:"))
@@ -729,102 +837,111 @@ func (m model) renderServicesView() string {
 		content.WriteString(subduedStyle.Render("  • Logs from configured sources"))
 		content.WriteString("\n")
 	} else {
-		// Summary
-		content.WriteString(successStyle.Render(fmt.Sprintf("✓ %d services detected", len(m.status.Services))))
-		content.WriteString("\n\n")
+		// Calculate dimensions for dot graphs
+		// Each service takes approximately 15 lines (name + padding + 3 graphs * 4 rows + spacing)
+		linesPerService := 15
+		availableHeight := m.height - 6 // Leave space for title and footer
+		maxVisibleServices := availableHeight / linesPerService
 
-		// Calculate how many rows we can show
-		maxRows := m.height - 10 // Account for header, footer, spacing
-
-		startIdx := 0
-		endIdx := len(m.status.Services)
-		if endIdx > maxRows {
-			// If there are more services than we can display, show a window around the selected service
-			windowSize := maxRows
-			startIdx = m.selectedServiceIdx - windowSize/2
-			if startIdx < 0 {
-				startIdx = 0
-			}
-			endIdx = startIdx + windowSize
-			if endIdx > len(m.status.Services) {
-				endIdx = len(m.status.Services)
-				startIdx = endIdx - windowSize
-				if startIdx < 0 {
-					startIdx = 0
-				}
-			}
+		// Calculate scroll window
+		startIdx := m.scrollOffset
+		endIdx := startIdx + maxVisibleServices
+		if endIdx > totalServices { // +1 for "other"
+			endIdx = totalServices
 		}
 
-		// Header row
-		content.WriteString(highlightStyle.Render("SERVICE"))
-		content.WriteString(strings.Repeat(" ", 30))
-		content.WriteString(highlightStyle.Render("TRACES"))
-		content.WriteString(strings.Repeat(" ", 5))
-		content.WriteString(highlightStyle.Render("METRICS"))
-		content.WriteString(strings.Repeat(" ", 5))
-		content.WriteString(highlightStyle.Render("LOGS"))
-		content.WriteString("\n")
-		content.WriteString(strings.Repeat("─", m.width-4))
-		content.WriteString("\n")
+		// Calculate dot graph width based on terminal width
+		// Formula: (terminal_width - service_name_width - padding - borders) / columns
+		dotGraphWidth := (m.width - 40) / 2 // Reserve 40 chars for service name and padding
+		if dotGraphWidth < 10 {
+			dotGraphWidth = 10 // Minimum width
+		}
+		if dotGraphWidth > 60 {
+			dotGraphWidth = 60 // Maximum width (2 minutes at 2s intervals)
+		}
 
-		// Service rows
+		// Render each service
 		for i := startIdx; i < endIdx; i++ {
-			service := m.status.Services[i]
+			var serviceName string
+			var ts *serviceTimeSeries
 			isSelected := i == m.selectedServiceIdx
+			isOther := m.status.Services[i].Name == ""
 
-			// Selection indicator
-			if isSelected {
-				content.WriteString("▶ ")
-			} else {
-				content.WriteString("  ")
+			// Regular service
+			service := m.status.Services[i]
+			serviceName = service.Name
+			if serviceName == "" {
+				serviceName = "other"
 			}
+			ts = m.serviceTimeSeries[serviceName]
 
-			// Service name (truncate if too long)
-			serviceName := truncate(service.Name, 35)
-			if isSelected {
-				content.WriteString(highlightStyle.Render(serviceName))
-			} else {
-				content.WriteString(valueStyle.Render(serviceName))
-			}
-			content.WriteString(strings.Repeat(" ", 37-len(serviceName)))
-
-			// Traces rate with visual indicator
-			tracesStr := formatRate(service.TracesRate) + "/s"
-			if service.TracesRate > 0 {
-				// Create a simple "sparkline" using block characters
-				sparkline := createSparklineFromRate(service.TracesRate, 10)
-				content.WriteString(fmt.Sprintf("%12s %s  ", tracesStr, sparkline))
-			} else {
-				content.WriteString(fmt.Sprintf("%12s %s  ", subduedStyle.Render("-"), subduedStyle.Render("          ")))
-			}
-
-			// Metrics rate with visual indicator
-			metricsStr := formatRate(service.MetricsRate) + "/s"
-			if service.MetricsRate > 0 {
-				sparkline := createSparklineFromRate(service.MetricsRate, 10)
-				content.WriteString(fmt.Sprintf("%12s %s  ", metricsStr, sparkline))
-			} else {
-				content.WriteString(fmt.Sprintf("%12s %s  ", subduedStyle.Render("-"), subduedStyle.Render("          ")))
-			}
-
-			// Logs rate with visual indicator (bytes/s)
-			logsStr := formatBytesRate(service.LogsRate) + "/s"
-			if service.LogsRate > 0 {
-				sparkline := createSparklineFromRate(service.LogsRate, 10)
-				content.WriteString(fmt.Sprintf("%12s %s", logsStr, sparkline))
-			} else {
-				content.WriteString(fmt.Sprintf("%12s %s", subduedStyle.Render("-"), subduedStyle.Render("          ")))
-			}
-
+			// Render the service box
+			serviceBox := m.renderServiceBox(serviceName, ts, dotGraphWidth, isSelected, isOther)
+			content.WriteString(serviceBox)
 			content.WriteString("\n")
+		}
+
+		// Scroll indicator
+		if totalServices+1 > maxVisibleServices {
+			scrollInfo := fmt.Sprintf("Showing %d-%d of %d services", startIdx+1, endIdx, totalServices+1)
+			content.WriteString("\n")
+			content.WriteString(subduedStyle.Render(scrollInfo))
 		}
 	}
 
 	// Footer with instructions
 	content.WriteString("\n")
-	content.WriteString(subduedStyle.Render("↑/↓: Navigate | Esc: Back to main view | Q: Quit"))
+	footer := subduedStyle.Render("↑/↓/PgUp/PgDn/Home/End: Navigate | r: Refresh | Enter: Details | Esc: Back | Q: Quit")
+	content.WriteString(footer)
 
 	return baseStyle.Render(content.String())
+}
+
+// renderServiceBox renders a single service with its dot graphs in a rounded rectangle
+func (m model) renderServiceBox(serviceName string, ts *serviceTimeSeries, dotGraphWidth int, isSelected bool, isOther bool) string {
+	var content strings.Builder
+
+	// Service name styling
+	nameStyle := lipgloss.NewStyle().
+		Foreground(colorHighlight).
+		Bold(isSelected)
+
+	if isSelected {
+		serviceName = "▶ " + serviceName
+	} else {
+		serviceName = "  " + serviceName
+	}
+
+	// Add caption for "other" service
+	if isOther {
+		serviceName += " " + subduedStyle.Render("(unattributed activity)")
+	}
+
+	content.WriteString(nameStyle.Render(serviceName))
+	content.WriteString("\n\n")
+
+	// Render dot graphs if we have time series data
+	if ts != nil {
+		dotGraphs := renderServiceDotGraphs(dotGraphWidth, ts)
+		content.WriteString(dotGraphs)
+	} else {
+		// No data yet
+		content.WriteString(subduedStyle.Render("(no historical data yet)"))
+	}
+
+	// Create the box
+	boxStyle := lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(colorBorder).
+		Padding(1, 2).
+		MarginBottom(1)
+
+	if isSelected {
+		// Brighter border for selected service
+		boxStyle = boxStyle.BorderForeground(colorHighlight)
+	}
+
+	return boxStyle.Render(content.String())
 }
 
 // createSparklineFromRate creates a simple visual representation of a rate value
@@ -857,38 +974,4 @@ func createSparklineFromRate(rate float64, width int) string {
 	// For now, use a simple blue color for all
 	styled := lipgloss.NewStyle().Foreground(lipgloss.Color("12")).Render(strings.Repeat(blocks, width))
 	return styled
-}
-
-// formatRate formats a rate value with appropriate units (K, M, etc.)
-func formatRate(rate float64) string {
-	if rate == 0 {
-		return "0"
-	}
-	if rate < 1 {
-		return fmt.Sprintf("%.2f", rate)
-	}
-	if rate < 1000 {
-		return fmt.Sprintf("%.1f", rate)
-	}
-	if rate < 1000000 {
-		return fmt.Sprintf("%.1fK", rate/1000)
-	}
-	return fmt.Sprintf("%.1fM", rate/1000000)
-}
-
-// formatBytesRate formats bytes per second rate with appropriate units (KB/s, MB/s, GB/s)
-func formatBytesRate(bytesPerSecond float64) string {
-	if bytesPerSecond == 0 {
-		return "0B"
-	}
-	if bytesPerSecond < 1024 {
-		return fmt.Sprintf("%.0fB", bytesPerSecond)
-	}
-	if bytesPerSecond < 1024*1024 {
-		return fmt.Sprintf("%.1fKB", bytesPerSecond/1024)
-	}
-	if bytesPerSecond < 1024*1024*1024 {
-		return fmt.Sprintf("%.1fMB", bytesPerSecond/(1024*1024))
-	}
-	return fmt.Sprintf("%.1fGB", bytesPerSecond/(1024*1024*1024))
 }
