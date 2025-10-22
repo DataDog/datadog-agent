@@ -10,6 +10,7 @@ package seccomptracer
 
 import (
 	"fmt"
+	"strings"
 
 	"golang.org/x/sys/unix"
 
@@ -81,12 +82,8 @@ func (t *SeccompTracerCheck) Configure(senderManager sender.SenderManager, _ uin
 // syscallName returns the human-readable name for a syscall number
 func syscallName(nr uint32) string {
 	// Use the security model's syscall name lookup
-	name := secmodel.Syscall(nr).String()
-	// If the secmodel returns the number back, it's unknown
-	if name == fmt.Sprintf("Syscall(%d)", nr) {
-		return fmt.Sprintf("syscall_%d", nr)
-	}
-	return name
+	name := strings.ToLower(secmodel.Syscall(nr).String())
+	return strings.TrimPrefix(name, "sys")
 }
 
 // seccompActionName returns the human-readable name for a seccomp action
