@@ -65,24 +65,24 @@ update_stack:
 
 /*
  * Processes decrypted TLS traffic and dispatches it to appropriate protocol handlers.
- * 
+ *
  * This function is called by various TLS hookpoints (OpenSSL, GnuTLS, GoTLS, JavaTLS)
  * to process decrypted TLS payloads. It manages the protocol stack for each connection,
  * classifies the decrypted payload if the application protocol is not yet known, and
  * dispatches the traffic to the appropriate protocol handler via tail calls.
- * 
+ *
  * The function first creates or retrieves a protocol stack for the connection. If the
  * application protocol is unknown, it attempts to classify the payload. For Kafka traffic,
  * an additional classification step may be performed via a tail call if Kafka monitoring
  * is enabled.
- * 
+ *
  * For each supported protocol, the function performs a tail call to a dedicated handler:
  * - HTTP: PROG_HTTP
  * - HTTP2: PROG_HTTP2_HANDLE_FIRST_FRAME
  * - Kafka: PROG_KAFKA
  * - PostgreSQL: PROG_POSTGRES
  * - Redis: PROG_REDIS
- * 
+ *
  * The function takes the BPF program context, connection metadata (tuple), a pointer to
  * the decrypted payload and its length, and connection metadata tags as input.
  */
@@ -90,7 +90,9 @@ static __always_inline void tls_process(struct pt_regs *ctx, conn_tuple_t *t, vo
     conn_tuple_t final_tuple = {0};
     conn_tuple_t normalized_tuple = *t;
     normalize_tuple(&normalized_tuple);
+#ifndef COMPILE_CORE
     normalized_tuple.pid = 0;
+#endif // COMPILE_CORE
     normalized_tuple.netns = 0;
 
     protocol_stack_t *stack = get_or_create_protocol_stack(&normalized_tuple);
@@ -195,7 +197,9 @@ static __always_inline void tls_dispatch_kafka(struct pt_regs *ctx)
 
     conn_tuple_t normalized_tuple = args->tup;
     normalize_tuple(&normalized_tuple);
+#ifndef COMPILE_CORE
     normalized_tuple.pid = 0;
+#endif // COMPILE_CORE
     normalized_tuple.netns = 0;
 
     read_into_user_buffer_classification(request_fragment, args->buffer_ptr);
@@ -217,7 +221,9 @@ static __always_inline void tls_finish(struct pt_regs *ctx, conn_tuple_t *t, boo
     conn_tuple_t final_tuple = {0};
     conn_tuple_t normalized_tuple = *t;
     normalize_tuple(&normalized_tuple);
+#ifndef COMPILE_CORE
     normalized_tuple.pid = 0;
+#endif // COMPILE_CORE
     normalized_tuple.netns = 0;
 
     // Using __get_protocol_stack_if_exists as `conn_tuple_copy` is already normalized.

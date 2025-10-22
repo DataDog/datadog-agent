@@ -153,7 +153,9 @@ static __always_inline void update_protocol_classification_information(conn_tupl
     // The classifier is a socket filter and there we are not accessible for pid and netns.
     // The key is based of the source & dest addresses and ports, and the metadata.
     conn_tuple_copy.netns = 0;
+#ifndef COMPILE_CORE
     conn_tuple_copy.pid = 0;
+#endif // COMPILE_CORE
     normalize_tuple(&conn_tuple_copy);
 
     // Using __get_protocol_stack_if_exists as `conn_tuple_copy` is already normalized.
