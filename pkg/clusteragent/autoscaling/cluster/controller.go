@@ -12,25 +12,20 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/client-go/kubernetes/scheme"
-	v1core "k8s.io/client-go/kubernetes/typed/core/v1"
+	"k8s.io/client-go/dynamic"
+	"k8s.io/client-go/dynamic/dynamicinformer"
 	"k8s.io/client-go/tools/record"
 	"k8s.io/client-go/util/workqueue"
 	"k8s.io/utils/clock"
-
-	"k8s.io/client-go/dynamic"
-	"k8s.io/client-go/dynamic/dynamicinformer"
 	karpenterv1 "sigs.k8s.io/karpenter/pkg/apis/v1"
-
-	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 type store = autoscaling.Store[minNodePool]
@@ -45,53 +40,6 @@ var (
 
 	controllerID = "dca-c"
 )
-
-func StartClusterAutoscaling(
-	ctx context.Context,
-	clusterID string,
-	clusterName string,
-	isLeaderFunc func() bool,
-	apiCl *apiserver.APIClient,
-	rcClient RcClient,
-	senderManager sender.SenderManager,
-) error {
-
-	if apiCl == nil {
-		return fmt.Errorf("Impossible to start cluster autoscaling without valid APIClient")
-	}
-
-	eventBroadcaster := record.NewBroadcaster()
-	eventBroadcaster.StartRecordingToSink(&v1core.EventSinkImpl{Interface: apiCl.Cl.CoreV1().Events("")})
-	eventRecorder := eventBroadcaster.NewRecorder(scheme.Scheme, corev1.EventSource{Component: "datadog-cluster-autoscaler"})
-
-	store := autoscaling.NewStore[minNodePool]()
-
-	clock := clock.RealClock{}
-
-	_, err := NewConfigRetriever(ctx, clock, store, isLeaderFunc, rcClient)
-	if err != nil {
-		return fmt.Errorf("unable to start cluster autoscaling config retriever: %w", err)
-	}
-
-	sender, err := senderManager.GetSender("cluster_autoscaling")
-	sender.DisableDefaultHostname(true)
-	if err != nil {
-		return fmt.Errorf("unable to start local telemetry for cluster autoscaling: %w", err)
-	}
-
-	controller, err := NewController(clock, clusterID, eventRecorder, rcClient, apiCl.DynamicInformerCl, apiCl.DynamicInformerFactory, isLeaderFunc, store, sender)
-	if err != nil {
-		return fmt.Errorf("unable to start cluster autoscaling controller: %w", err)
-	}
-
-	// Start informers & controllers
-	apiCl.DynamicInformerFactory.Start(ctx.Done())
-	apiCl.InformerFactory.Start(ctx.Done())
-
-	go controller.Run(ctx)
-
-	return nil
-}
 
 type Controller struct {
 	*autoscaling.Controller
@@ -158,7 +106,7 @@ func (c *Controller) PreStart(ctx context.Context) {
 
 // Process implements the Processor interface (so required to be public)
 // this processes what's in the workqueue, comes from the store or cluster
-func (c *Controller) Process(ctx context.Context, key, ns, name string) autoscaling.ProcessResult {
+func (c *Controller) Process(ctx context.Context, _, ns, name string) autoscaling.ProcessResult {
 	// Follower should not process workqueue items
 	if !c.IsLeader() {
 		return autoscaling.ProcessResult{}
@@ -183,12 +131,6 @@ func (c *Controller) Process(ctx context.Context, key, ns, name string) autoscal
 		return autoscaling.Requeue
 	}
 
-	// Track if found NodePool is fully managed
-	fullyManaged := false
-	if np != nil {
-		fullyManaged = isCreatedByDatadog(np.GetLabels())
-	}
-
 	// TODO create duplicate NodePools with greater weight, rather than updating user NodePools
 	mnp, foundInStore := c.store.LockRead(name, true)
 
@@ -206,14 +148,14 @@ func (c *Controller) Process(ctx context.Context, key, ns, name string) autoscal
 			}
 		}
 	} else {
-		if fullyManaged {
+		if isCreatedByDatadog(np.GetLabels()) {
 			// Not present in store, and the cluster NodePool is fully managed, then delete the NodePool
 			if err = c.deleteNodePool(ctx, name); err != nil {
 				log.Errorf("Error deleting NodePool: %v", err)
 			}
 		} else {
 			// Not present in store and the cluster NodePool is not fully managed, do nothing
-			log.Debugf("NodePool not found in store and is not fully managed: %s", name)
+			log.Debugf("NodePool %s not found in store and is not fully managed, nothing to do", name)
 		}
 	}
 
@@ -288,7 +230,7 @@ func (c *Controller) patchNodePool(ctx context.Context, np *karpenterv1.NodePool
 		return fmt.Errorf("error marshaling patch data: %s, err: %v", mnp.name, err)
 	}
 
-	// If NodePool is not considered a custom resource in the future, use StrategicMergePatchType
+	// TODO: If NodePool is not considered a custom resource in the future, use StrategicMergePatchType
 	_, err = c.Client.Resource(nodePoolGVR).Patch(ctx, mnp.name, types.MergePatchType, patchBytes, metav1.PatchOptions{})
 	if err != nil {
 		return fmt.Errorf("unable to update NodePool: %s, err: %v", mnp.name, err)
@@ -306,22 +248,6 @@ func (c *Controller) deleteNodePool(ctx context.Context, name string) error {
 	}
 
 	return nil
-}
-
-type minNodePool struct {
-	name                     string            `json:"name"`
-	nodePoolHash             string            `json:"target_hash"` // TODO utilize once this is part of payload
-	recommendedInstanceTypes []string          `json:"recommended_instance_types"`
-	labels                   map[string]string `json:"labels"`
-	taints                   []corev1.Taint    `json:"taints"`
-}
-
-type minNodeClass struct {
-	Metadata minMetadata `json:"metadata"`
-}
-
-type minMetadata struct {
-	Name string `json:"name"`
 }
 
 // buildNodePoolSpec is used for creating new NodePools
@@ -370,8 +296,10 @@ func buildNodePoolPatch(np *karpenterv1.NodePool, mnp minNodePool) map[string]in
 
 	// Build requirements patch, only updating values for the instance types
 	updatedRequirements := []map[string]interface{}{}
+	instanceTypeLabelExists := false
 	for _, r := range np.Spec.Template.Spec.Requirements {
 		if r.Key == corev1.LabelInstanceTypeStable {
+			instanceTypeLabelExists = true
 			r.Operator = "In"
 			r.Values = mnp.recommendedInstanceTypes
 		}
@@ -380,6 +308,14 @@ func buildNodePoolPatch(np *karpenterv1.NodePool, mnp minNodePool) map[string]in
 			"key":      r.Key,
 			"operator": string(r.Operator),
 			"values":   r.Values,
+		})
+	}
+
+	if !instanceTypeLabelExists {
+		updatedRequirements = append(updatedRequirements, map[string]interface{}{
+			"key":      corev1.LabelInstanceTypeStable,
+			"operator": "In",
+			"values":   mnp.recommendedInstanceTypes,
 		})
 	}
 

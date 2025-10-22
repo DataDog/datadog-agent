@@ -24,7 +24,7 @@ type RcClient interface {
 	SubscribeIgnoreExpiration(product string, fn func(update map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)))
 }
 
-// ConfigRetriever is responsible for retrieving remote objects (Autoscaling .Spec and values)
+// ConfigRetriever is responsible for retrieving remote objects (Cluster Autoscaling values)
 type ConfigRetriever struct {
 	isLeader func() bool
 	clock    clock.WithTicker
@@ -44,7 +44,7 @@ func NewConfigRetriever(ctx context.Context, clock clock.WithTicker, store *stor
 	// Subscribe to remote config updates
 	rcClient.SubscribeIgnoreExpiration(data.ProductClusterAutoscalingValues, cr.autoscalingValuesCallback)
 
-	log.Debugf("Created new cluster scaling config retriever")
+	log.Infof("Created new cluster scaling config retriever")
 	return cr, nil
 }
 
