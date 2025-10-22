@@ -92,7 +92,7 @@ func newTestProfile() *NCMProfile {
 					MetadataRules: []MetadataRule{
 						{
 							Type:   Timestamp,
-							Regex:  `Last configuration change at (.+)`,
+							Regex:  `! Last configuration change at (.*)`,
 							Format: "15:04:05 MST Mon Jan 2 2006",
 						},
 						{

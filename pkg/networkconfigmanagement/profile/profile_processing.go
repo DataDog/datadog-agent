@@ -64,6 +64,9 @@ type ExtractedMetadata struct {
 
 // ProcessCommandOutput is for applying redactions, validating, and extracting metadata from a configuration pulled from a device
 func (p *NCMProfile) ProcessCommandOutput(ct CommandType, output []byte) ([]byte, *ExtractedMetadata, error) {
+	if err := p.ValidateOutput(ct, output); err != nil {
+		return []byte{}, nil, err
+	}
 	redactedOutput, err := p.applyRedactions(ct, output)
 	if err != nil {
 		return []byte{}, nil, err
@@ -72,10 +75,6 @@ func (p *NCMProfile) ProcessCommandOutput(ct CommandType, output []byte) ([]byte
 	if err != nil {
 		return []byte{}, nil, err
 	}
-	if err = p.ValidateOutput(ct, output); err != nil {
-		return []byte{}, nil, err
-	}
-
 	return redactedOutput, metadata, nil
 }
 

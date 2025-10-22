@@ -36,7 +36,7 @@ func Test_extractMetadata(t *testing.T) {
 			profile:      newTestProfile(),
 			compileRules: true,
 			commandType:  Running,
-			configBytes:  []byte(expectedConfig),
+			configBytes:  []byte(exampleConfig),
 			expected: &ExtractedMetadata{
 				Timestamp:  1755204807,
 				ConfigSize: 3144,
@@ -50,7 +50,7 @@ func Test_extractMetadata(t *testing.T) {
 			configBytes:  []byte("huh"),
 			expected:     &ExtractedMetadata{},
 			expectedLogMsgs: []string{
-				`profile "test" does not have a regexp for metadata rule Last configuration change at (.+)`,
+				`profile "test" does not have a regexp for metadata rule ! Last configuration change at (.*)`,
 				`profile "test" does not have a regexp for metadata rule Current configuration : (?P<Size>\d+)`,
 			},
 		},
