@@ -36,6 +36,7 @@ copy_file(
     name = "unixodbc_conf_h",
     src = select({
         "@platforms//cpu:x86_64": "x86_64/unixodbc_conf.h",
+        "@platforms//cpu:aarch64": "aarch64/unixodbc_conf.h",
         "//conditions:default": "@platforms//:incompatible",
     }),
     out = "include/unixodbc_conf.h",
@@ -45,6 +46,7 @@ copy_file(
     name = "config_h",
     src = select({
         "@platforms//cpu:x86_64": "x86_64/config.h",
+        "@platforms//cpu:aarch64": "aarch64/config.h",
         "//conditions:default": "@platforms//:incompatible",
     }),
     out = "config.h",

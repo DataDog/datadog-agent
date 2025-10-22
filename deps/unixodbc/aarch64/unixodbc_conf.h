@@ -1,5 +1,5 @@
-/* config.h.  Generated from config.h.in by configure.  */
-/* config.h.in.  Generated from configure.ac by autoheader.  */
+/* unixodbc_conf.h.  Generated from unixodbc_conf.h.in by configure.  */
+/* unixodbc_conf.h.in.  Generated from configure.ac by autoheader.  */
 
 /* Encoding to use for CHAR */
 #define ASCII_ENCODING "auto-search"
@@ -172,7 +172,7 @@
 #define HAVE_LONG_LONG 1
 
 /* Define this if a modern libltdl is already installed */
-/* #undef HAVE_LTDL */
+#define HAVE_LTDL 1
 
 /* Define to 1 if you have the <mach-o/dyld.h> header file. */
 /* #undef HAVE_MACH_O_DYLD_H */
@@ -274,10 +274,10 @@
 #define HAVE_STRING_H 1
 
 /* Define to 1 if you have the `strlcat' function. */
-#define HAVE_STRLCAT 1
+/* #undef HAVE_STRLCAT */
 
 /* Define to 1 if you have the `strlcpy' function. */
-#define HAVE_STRLCPY 1
+/* #undef HAVE_STRLCPY */
 
 /* Define to 1 if you have the `strncasecmp' function. */
 #define HAVE_STRNCASECMP 1
@@ -360,7 +360,7 @@
 /* #undef LTDL_DLOPEN_DEPLIBS */
 
 /* Define to the system default library search path. */
-/* #define LT_DLSEARCH_PATH "/lib:/usr/lib:/usr/lib/x86_64-linux-gnu/libfakeroot:/usr/local/lib:/usr/local/lib/x86_64-linux-gnu:/lib/x86_64-linux-gnu:/usr/lib/x86_64-linux-gnu:/lib32:/usr/lib32:/libx32:/usr/libx32" */
+#define LT_DLSEARCH_PATH "/lib:/usr/lib:/usr/local/lib/aarch64-linux-gnu:/lib/aarch64-linux-gnu:/usr/lib/aarch64-linux-gnu:/usr/lib/aarch64-linux-gnu/libfakeroot:/usr/local/lib"
 
 /* The archive extension */
 #define LT_LIBEXT "a"
@@ -467,8 +467,6 @@
 /* Flag that we are not using another DM */
 #define UNIXODBC /**/
 
-/* We are building inside the unixODBC source tree */
-#define UNIXODBC_SOURCE /**/
 
 /* Version number of package */
 #define VERSION "2.3.9"

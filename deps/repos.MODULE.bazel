@@ -116,6 +116,8 @@ http_archive(
     files = {
         "x86_64/unixodbc_conf.h": "//deps/unixodbc/x86_64:unixodbc_conf.h",
         "x86_64/config.h": "//deps/unixodbc/x86_64:config.h",
+        "aarch64/unixodbc_conf.h": "//deps/unixodbc/aarch64:unixodbc_conf.h",
+        "aarch64/config.h": "//deps/unixodbc/aarch64:config.h",
         "libltdl/ltdl.h": "//deps:unixodbc/ltdl.h",
     },
     sha256 = "52833eac3d681c8b0c9a5a65f2ebd745b3a964f208fc748f977e44015a31b207",
