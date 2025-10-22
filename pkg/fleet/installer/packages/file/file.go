@@ -13,11 +13,10 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"os/user"
 	"path/filepath"
-	"strconv"
 	"sync"
 
+	userpkg "github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/user"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 )
 
@@ -210,29 +209,21 @@ func EnsureSymlinkAbsent(ctx context.Context, target string) (err error) {
 }
 
 func getUserAndGroup(username, group string) (uid, gid int, err error) {
-	// This is not thread-safe, but we assume that the user and group won't change during the execution of the program.
+	// Use internal user package GetUserID and GetGroupID, caching as before for efficiency
 	uidRaw, uidOk := userCache.Load(username)
 	if !uidOk {
-		rawUID, err := user.Lookup(username)
+		uidRaw, err = userpkg.GetUserID(username)
 		if err != nil {
-			return 0, 0, fmt.Errorf("error looking up user: %w", err)
-		}
-		uidRaw, err = strconv.Atoi(rawUID.Uid)
-		if err != nil {
-			return 0, 0, fmt.Errorf("error converting UID to int: %w", err)
+			return 0, 0, fmt.Errorf("error getting user ID for %s: %w", username, err)
 		}
 		userCache.Store(username, uidRaw)
 	}
 
 	gidRaw, gidOk := groupCache.Load(group)
 	if !gidOk {
-		rawGID, err := user.LookupGroup(group)
+		gidRaw, err = userpkg.GetGroupID(group)
 		if err != nil {
-			return 0, 0, fmt.Errorf("error looking up group: %w", err)
-		}
-		gidRaw, err = strconv.Atoi(rawGID.Gid)
-		if err != nil {
-			return 0, 0, fmt.Errorf("error converting GID to int: %w", err)
+			return 0, 0, fmt.Errorf("error getting group ID for %s: %w", group, err)
 		}
 		groupCache.Store(group, gidRaw)
 	}

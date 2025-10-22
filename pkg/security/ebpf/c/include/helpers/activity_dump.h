@@ -53,6 +53,19 @@ __attribute__((always_inline)) bool is_cgroup_mount_id_filter_valid(u32 cgroup_f
     return true;
 }
 
+// cleanup_expired_dump removes all kernel space entries for an expired dump
+// If pid is non-zero, also removes that specific PID from traced_pids
+// Note: complete traced_pids cleanup requires userspace intervention since we can't iterate the map efficiently
+__attribute__((always_inline)) void cleanup_expired_dump(u64 *cgroup_inode, u64 cookie, u32 pid) {
+    bpf_map_delete_elem(&activity_dumps_config, &cookie);
+    if (cgroup_inode != NULL && *cgroup_inode != 0) {
+        bpf_map_delete_elem(&traced_cgroups, cgroup_inode);
+    }
+    if (pid != 0) {
+        bpf_map_delete_elem(&traced_pids, &pid);
+    }
+}
+
 __attribute__((always_inline)) struct activity_dump_config *lookup_or_delete_traced_pid(u32 pid, u64 now, u64 *cookie) {
     if (cookie == NULL) {
         cookie = bpf_map_lookup_elem(&traced_pids, &pid);
@@ -77,9 +90,8 @@ __attribute__((always_inline)) struct activity_dump_config *lookup_or_delete_tra
     }
 
     if (now > config->end_timestamp) {
-        // delete expired entries
-        bpf_map_delete_elem(&traced_pids, &pid);
-        bpf_map_delete_elem(&activity_dumps_config, &cookie_val);
+        // delete expired dump and the traced pid
+        cleanup_expired_dump(NULL, cookie_val, pid);
         return NULL;
     }
     return config;
@@ -99,9 +111,8 @@ __attribute__((always_inline)) bool reserve_traced_cgroup_spot(struct cgroup_con
         return false;
     }
 
-    struct path_key_t path_key;
-    path_key = cgroup->cgroup_file;
-    int ret = bpf_map_update_elem(&traced_cgroups, &path_key, &cookie, BPF_NOEXIST);
+    u64 cgroup_inode = cgroup->cgroup_file.ino;
+    int ret = bpf_map_update_elem(&traced_cgroups, &cgroup_inode, &cookie, BPF_NOEXIST);
     if (ret < 0) {
         // we didn't get a lock, skip this cgroup for now and go back to it later
         return false;
@@ -114,12 +125,12 @@ __attribute__((always_inline)) bool reserve_traced_cgroup_spot(struct cgroup_con
     ret = bpf_map_update_elem(&activity_dumps_config, &cookie, config, BPF_ANY);
     if (ret < 0) {
         // should never happen, ignore
-        bpf_map_delete_elem(&traced_cgroups, &path_key);
+        bpf_map_delete_elem(&traced_cgroups, &cgroup_inode);
         return false;
     }
 
     // we're tracing a new cgroup, update its wait list timeout
-    bpf_map_update_elem(&cgroup_wait_list, &path_key, &config->wait_list_timestamp, BPF_ANY);
+    bpf_map_update_elem(&cgroup_wait_list, &cgroup_inode, &config->wait_list_timestamp, BPF_ANY);
     return true;
 }
 
@@ -163,21 +174,23 @@ __attribute__((always_inline)) u64 should_trace_new_process_cgroup(void *ctx, u6
 
     if (is_cgroup_activity_dumps_enabled()) {
 
+        u64 cgroup_inode = cgroup_context.cgroup_file.ino;
+
         // is this cgroup discarded ?
-        u8 *discarded = bpf_map_lookup_elem(&traced_cgroups_discarded, &cgroup_context.cgroup_file);
+        u8 *discarded = bpf_map_lookup_elem(&traced_cgroups_discarded, &cgroup_inode);
         if (discarded != NULL) {
             return 0;
         }
 
         // is this cgroup traced ?
-        u64 *cookie = bpf_map_lookup_elem(&traced_cgroups, &cgroup_context.cgroup_file);
+        u64 *cookie = bpf_map_lookup_elem(&traced_cgroups, &cgroup_inode);
 
         if (cookie) {
             u64 cookie_val = *cookie;
             struct activity_dump_config *config = bpf_map_lookup_elem(&activity_dumps_config, &cookie_val);
             if (config == NULL) {
                 // delete expired cgroup entry
-                bpf_map_delete_elem(&traced_cgroups, &cgroup_context.cgroup_file);
+                bpf_map_delete_elem(&traced_cgroups, &cgroup_inode);
                 return 0;
             }
 
@@ -192,10 +205,8 @@ __attribute__((always_inline)) u64 should_trace_new_process_cgroup(void *ctx, u6
             }
 
             if (now > config->end_timestamp) {
-                // delete expired cgroup entry
-                bpf_map_delete_elem(&traced_cgroups, &cgroup_context.cgroup_file);
-                // delete config
-                bpf_map_delete_elem(&activity_dumps_config, &cookie_val);
+                // delete expired dump (no specific pid to clean here)
+                cleanup_expired_dump(&cgroup_inode, cookie_val, 0);
                 return 0;
             }
 
@@ -205,11 +216,11 @@ __attribute__((always_inline)) u64 should_trace_new_process_cgroup(void *ctx, u6
 
         } else {
             // have we seen this cgroup before ?
-            u64 *wait_timeout = bpf_map_lookup_elem(&cgroup_wait_list, &cgroup_context.cgroup_file);
+            u64 *wait_timeout = bpf_map_lookup_elem(&cgroup_wait_list, &cgroup_inode);
             if (wait_timeout) {
                 if (now > *wait_timeout) {
                     // delete expired wait_list entry
-                    bpf_map_delete_elem(&cgroup_wait_list, &cgroup_context.cgroup_file);
+                    bpf_map_delete_elem(&cgroup_wait_list, &cgroup_inode);
                 }
 
                 // this cgroup is on the wait list, do not start tracing it
@@ -258,9 +269,8 @@ __attribute__((always_inline)) void inherit_traced_state(void *ctx, u32 ppid, u3
     }
 
     if (now > config->end_timestamp) {
-        // delete expired entries
-        bpf_map_delete_elem(&traced_pids, &ppid);
-        bpf_map_delete_elem(&activity_dumps_config, &cookie_val);
+        // delete expired dump and the traced parent pid
+        cleanup_expired_dump(NULL, cookie_val, ppid);
         return;
     }
 
