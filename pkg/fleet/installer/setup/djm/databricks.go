@@ -22,7 +22,7 @@ import (
 const (
 	databricksInjectorVersion   = "0.45.0-1"
 	databricksJavaTracerVersion = "1.53.0-1"
-	databricksAgentVersion      = "7.70.2-1"
+	databricksAgentVersion      = "7.71.1-1"
 	gpuIntegrationRestartDelay  = 60 * time.Second
 	restartLogFile              = "/var/log/datadog-gpu-restart"
 )
@@ -47,10 +47,13 @@ var (
 			AutoMultiLineDetection: true,
 		},
 		{
-			Type:                   "file",
-			Path:                   "/databricks/driver/logs/stdout",
-			Source:                 "driver_stdout",
-			Service:                "databricks",
+			Type:    "file",
+			Path:    "/databricks/driver/logs/stdout",
+			Source:  "driver_stdout",
+			Service: "databricks",
+			LogProcessingRules: []config.LogProcessingRule{
+				{Type: "multi_line", Name: "logger_multiline", Pattern: "(^\\+[-+]+\\n(\\|.*\\n)+\\+[-+]+$)|^(ERROR|INFO|DEBUG|WARN|CRITICAL|NOTSET|Traceback)"},
+			},
 			AutoMultiLineDetection: true,
 		},
 	}
@@ -85,7 +88,9 @@ var (
 
 // SetupDatabricks sets up the Databricks environment
 func SetupDatabricks(s *common.Setup) error {
-	s.Packages.Install(common.DatadogAgentPackage, databricksAgentVersion)
+	if os.Getenv("DD_NO_AGENT_INSTALL") != "true" {
+		s.Packages.Install(common.DatadogAgentPackage, databricksAgentVersion)
+	}
 	s.Packages.Install(common.DatadogAPMInjectPackage, databricksInjectorVersion)
 	s.Packages.Install(common.DatadogAPMLibraryJavaPackage, databricksJavaTracerVersion)
 
@@ -114,7 +119,7 @@ func SetupDatabricks(s *common.Setup) error {
 	}
 	s.Span.SetTag("install_method", installMethod)
 
-	if os.Getenv("DD_GPU_MONITORING_ENABLED") == "true" {
+	if os.Getenv("DD_GPU_ENABLED") == "true" {
 		setupGPUIntegration(s)
 	}
 
@@ -236,19 +241,9 @@ func setClearHostTag(s *common.Setup, tagKey, value string) {
 // setupGPUIntegration configures GPU monitoring integration
 func setupGPUIntegration(s *common.Setup) {
 	s.Out.WriteString("Setting up GPU monitoring based on env variable GPU_MONITORING_ENABLED=true\n")
-
-	s.Config.DatadogYAML.CollectGPUTags = true
-	s.Config.DatadogYAML.GPUCheck.Enabled = true
-	s.Config.DatadogYAML.EnableNvmlDetection = true
-
-	if s.Config.SystemProbeYAML == nil {
-		s.Config.SystemProbeYAML = &config.SystemProbeConfig{}
-	}
-	s.Config.SystemProbeYAML.GPUMonitoringConfig = config.GPUMonitoringConfig{
-		Enabled: true,
-	}
-
 	s.Span.SetTag("host_tag_set.gpu_monitoring_enabled", "true")
+
+	s.Config.DatadogYAML.GPUCheck.Enabled = true
 
 	// Agent must be restarted after NVML initialization, which occurs after init script execution
 	s.DelayedAgentRestartConfig.Scheduled = true

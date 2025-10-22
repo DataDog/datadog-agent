@@ -47,7 +47,6 @@ var (
 	platform = flag.String("platform", "",
 		"Platform for the container image (e.g. linux/amd64, linux/arm64).")
 
-	stream         = flag.Bool("stream", false, "Use the package streaming mode for parsing the debug info. This implies ignoring the inlined functions.")
 	onlyFirstParty = flag.Bool("only-1stparty", false,
 		"Only output symbols for \"1st party\" code (i.e. code from modules belonging "+
 			"to the same GitHub org as the main one).")
@@ -204,10 +203,7 @@ func run() (retErr error) {
 		defer trace.Stop()
 	}
 
-	opt := symdb.ExtractOptions{
-		Scope:                   scope,
-		IncludeInlinedFunctions: !*stream,
-	}
+	opt := symdb.ExtractOptions{Scope: scope}
 
 	var up *uploader.SymDBUploader
 	// Headers to attach to every HTTP request. When the system-probe does the
@@ -227,86 +223,60 @@ func run() (retErr error) {
 		)
 	}
 	out := symdbutil.MakePanickingWriter(os.Stdout)
-	if !*stream {
-		symbols, err := symdb.ExtractSymbols(localBinPath, object.NewInMemoryLoader(), opt)
-		if err != nil {
-			return err
-		}
-		if up != nil {
-			scopes := make([]uploader.Scope, len(symbols.Packages))
-			for i, p := range symbols.Packages {
-				scopes[i] = uploader.ConvertPackageToScope(p)
-			}
-			if err := up.Upload(context.Background(), scopes); err != nil {
-				log.Errorf("Failed to upload symbols: %v", err)
-			} else {
-				log.Info("Upload completed")
-			}
-		}
+	it, err := symdb.PackagesIterator(localBinPath, object.NewInMemoryLoader(), opt)
+	if err != nil {
+		return err
+	}
 
-		trace.Stop()
-		log.Infof("Symbol extraction completed in %s.", time.Since(start))
-		stats := statsFromSymbols(symbols)
-		log.Infof("Symbol statistics for %s: %s", localBinPath, stats)
-		if !*silent && !*stream {
-			symbols.Serialize(symdbutil.MakePanickingWriter(os.Stdout))
-		}
-	} else {
-		it, err := symdb.PackagesIterator(localBinPath, object.NewInMemoryLoader(), opt)
-		if err != nil {
-			return err
-		}
-
-		uploadBuffer := make([]uploader.Scope, 0, 100)
-		bufferFuncs := 0
-		// Flush every so ofter in order to not store too many scopes in memory.
-		const maxBufferFuncs = 10000
-		maybeFlush := func(force bool) error {
-			if len(uploadBuffer) == 0 {
-				return nil
-			}
-			if force || bufferFuncs >= maxBufferFuncs {
-				log.Tracef("SymDB: uploading symbols chunk: %d packages, %d functions", len(uploadBuffer), bufferFuncs)
-				if err := up.Upload(context.Background(), uploadBuffer); err != nil {
-					return fmt.Errorf("upload failed: %w", err)
-				}
-				uploadBuffer = uploadBuffer[:0]
-				bufferFuncs = 0
-			}
+	uploadBuffer := make([]uploader.Scope, 0, 100)
+	bufferFuncs := 0
+	// Flush every so ofter in order to not store too many scopes in memory.
+	const maxBufferFuncs = 10000
+	maybeFlush := func(force bool) error {
+		if len(uploadBuffer) == 0 {
 			return nil
 		}
+		if force || bufferFuncs >= maxBufferFuncs {
+			log.Tracef("SymDB: uploading symbols chunk: %d packages, %d functions", len(uploadBuffer), bufferFuncs)
+			if err := up.Upload(context.Background(), uploadBuffer); err != nil {
+				return fmt.Errorf("upload failed: %w", err)
+			}
+			uploadBuffer = uploadBuffer[:0]
+			bufferFuncs = 0
+		}
+		return nil
+	}
 
-		var stats symbolStats
-		for pkg, err := range it {
-			if err != nil {
+	var stats symbolStats
+	for pkg, err := range it {
+		if err != nil {
+			return err
+		}
+
+		if up != nil {
+			scope := uploader.ConvertPackageToScope(pkg, "cli" /* agentVersion */)
+			uploadBuffer = append(uploadBuffer, scope)
+			bufferFuncs += pkg.Stats().NumFunctions
+			if err := maybeFlush(false /* force */); err != nil {
 				return err
 			}
-
-			if up != nil {
-				scope := uploader.ConvertPackageToScope(pkg)
-				uploadBuffer = append(uploadBuffer, scope)
-				bufferFuncs += pkg.Stats().NumFunctions
-				if err := maybeFlush(false /* force */); err != nil {
-					return err
-				}
-			}
-
-			stats.addPackage(pkg)
-
-			if !*silent {
-				pkg.Serialize(out)
-			}
-		}
-		if err := maybeFlush(true /* force */); err != nil {
-			log.Errorf("Failed to upload symbols: %v", err)
-		} else {
-			log.Info("Upload completed")
 		}
 
-		trace.Stop()
-		log.Infof("Symbol extraction completed in %s.", time.Since(start))
-		log.Infof("Symbol statistics for %s: %s", localBinPath, stats)
+		stats.addPackage(pkg)
+
+		if !*silent {
+			pkg.Serialize(out)
+		}
 	}
+	if err := maybeFlush(true /* force */); err != nil {
+		log.Errorf("Failed to upload symbols: %v", err)
+	} else {
+		log.Info("Upload completed")
+	}
+
+	trace.Stop()
+	log.Infof("Symbol extraction completed in %s.", time.Since(start))
+	log.Infof("Symbol statistics for %s: %s", localBinPath, stats)
 
 	if *silent && !*upload {
 		log.Infof("--silent specified; symbols not serialized.")
@@ -326,20 +296,6 @@ func (stats *symbolStats) addPackage(pkg symdb.Package) {
 	s := pkg.Stats()
 	stats.numTypes += s.NumTypes
 	stats.numFunctions += s.NumFunctions
-}
-
-func statsFromSymbols(s symdb.Symbols) symbolStats {
-	stats := symbolStats{
-		numPackages:  len(s.Packages),
-		numTypes:     0,
-		numFunctions: 0,
-	}
-	for _, pkg := range s.Packages {
-		s := pkg.Stats()
-		stats.numTypes += s.NumTypes
-		stats.numFunctions += s.NumFunctions
-	}
-	return stats
 }
 
 func (stats symbolStats) String() string {

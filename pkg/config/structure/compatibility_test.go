@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/nodetreemodel"
@@ -57,7 +58,7 @@ network_devices:
         12
 `
 	viperConf, ntmConf := constructBothConfigs(dataYaml, false, func(cfg model.Setup) {
-		cfg.SetKnown("network_devices.autodiscovery.workers")
+		cfg.SetKnown("network_devices.autodiscovery.workers") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 		cfg.SetDefault("network_devices.autodiscovery.workers", 5)
 	})
 
@@ -96,7 +97,7 @@ network_devices:
     - workers: 10
 `
 	viperConf, ntmConf := constructBothConfigs(dataYaml, false, func(cfg model.Setup) {
-		cfg.SetKnown("network_devices.autodiscovery.workers")
+		cfg.SetKnown("network_devices.autodiscovery.workers") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 	})
 
 	warnings := viperConf.Warnings()
@@ -120,12 +121,12 @@ network_devices:
 
 	err := viperConf.UnmarshalKey("network_devices.autodiscovery", &cfg)
 	assert.Error(t, err)
-	assert.ErrorContains(t, err, "'' expected a map, got 'slice'")
+	assert.ErrorContains(t, err, "'' expected a map or struct, got \"slice\"")
 
 	// NOTE: Error message differs, but that is an acceptable difference
 	err = unmarshalKeyReflection(ntmConf, "network_devices.autodiscovery", &cfg)
 	assert.Error(t, err)
-	assert.ErrorContains(t, err, "can't GetChild(workers) of a leaf node")
+	assert.ErrorContains(t, err, "expected map at '' got: [map[workers:10]]")
 }
 
 type MetadataProviders struct {
@@ -249,4 +250,28 @@ func TestCompareNegativeNumber(t *testing.T) {
 
 	assert.Equal(t, uint64(0xfffffffffffffcf7), mf1.Large)
 	assert.Equal(t, uint64(0xfffffffffffffcf7), mf2.Large)
+}
+
+func TestUnmarshalKeyMapToBools(t *testing.T) {
+	viperConf, ntmConf := constructBothConfigs("", false, func(cfg model.Setup) {
+		cfg.BindEnvAndSetDefault("test", map[string]bool{})
+	})
+
+	type testBool struct {
+		A bool
+		B bool
+	}
+
+	objBool1 := testBool{}
+	objBool2 := testBool{}
+
+	viperConf.Set("test", map[string]bool{"a": false, "b": true}, model.SourceAgentRuntime)
+	err := unmarshalKeyReflection(viperConf, "test", &objBool1)
+	require.NoError(t, err)
+	assert.Equal(t, objBool1, testBool{A: false, B: true})
+
+	ntmConf.Set("test", map[string]bool{"a": false, "b": true}, model.SourceAgentRuntime)
+	err = unmarshalKeyReflection(ntmConf, "test", &objBool2)
+	require.NoError(t, err)
+	assert.Equal(t, objBool2, testBool{A: false, B: true})
 }

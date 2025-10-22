@@ -21,6 +21,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	secretsmock "github.com/DataDog/datadog-agent/comp/core/secrets/mock"
 	nooptagger "github.com/DataDog/datadog-agent/comp/core/tagger/impl-noop"
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
@@ -43,7 +44,7 @@ func TestStartDoesNotBlock(t *testing.T) {
 		t.Skip("TestStartDoesNotBlock is known to fail on the macOS Gitlab runners because of the already running Agent")
 	}
 	mockConfig := configmock.New(t)
-	pkgconfigsetup.LoadWithoutSecret(mockConfig, nil)
+	pkgconfigsetup.LoadDatadog(mockConfig, secretsmock.New(t), nil)
 	metricAgent := &ServerlessMetricAgent{
 		SketchesBucketOffset: time.Second * 10,
 		Tagger:               nooptagger.NewComponent(),

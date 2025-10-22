@@ -9,7 +9,6 @@ package run
 import (
 	"context"
 	"errors"
-	"fmt"
 
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
@@ -22,11 +21,9 @@ import (
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logtracefx "github.com/DataDog/datadog-agent/comp/core/log/fx-trace"
-	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	secretsfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	optionalRemoteTaggerfx "github.com/DataDog/datadog-agent/comp/core/tagger/fx-optional-remote"
-	taggerTypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
 	"github.com/DataDog/datadog-agent/comp/trace"
@@ -38,7 +35,6 @@ import (
 	serverlessenv "github.com/DataDog/datadog-agent/pkg/serverless/env"
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 // MakeCommand returns the run subcommand for the 'trace-agent' command.
@@ -79,10 +75,6 @@ func runTraceAgentProcess(ctx context.Context, cliParams *Params, defaultConfPat
 		fx.Provide(func() context.Context { return ctx }), // fx.Supply(ctx) fails with a missing type error.
 		fx.Supply(coreconfig.NewAgentParams(cliParams.ConfPath, coreconfig.WithFleetPoliciesDirPath(cliParams.FleetPoliciesDirPath))),
 		secretsfx.Module(),
-		fx.Provide(func(comp secrets.Component) option.Option[secrets.Component] {
-			return option.New[secrets.Component](comp)
-		}),
-		fx.Supply(secrets.NewEnabledParams()),
 		telemetryimpl.Module(),
 		coreconfig.Module(),
 		fx.Provide(func() log.Params {
@@ -102,12 +94,7 @@ func runTraceAgentProcess(ctx context.Context, cliParams *Params, defaultConfPat
 				// tagger instead.
 				Disable: serverlessenv.IsAzureAppServicesExtension,
 			},
-			tagger.RemoteParams{
-				RemoteTarget: func(c coreconfig.Component) (string, error) {
-					return fmt.Sprintf(":%v", c.GetInt("cmd_port")), nil
-				},
-				RemoteFilter: taggerTypes.NewMatchAllFilter(),
-			}),
+			tagger.NewRemoteParams()),
 		fx.Invoke(func(_ config.Component) {}),
 		// Required to avoid cyclic imports.
 		fx.Provide(func(cfg config.Component) telemetry.TelemetryCollector { return telemetry.NewCollector(cfg.Object()) }),

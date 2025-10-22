@@ -103,7 +103,7 @@ func (l *KubeletListener) createPodService(
 
 	entity := kubelet.PodUIDToEntityName(pod.ID)
 	taggerEntityID := common.BuildTaggerEntityID(pod.GetID())
-	svc := &service{
+	svc := &WorkloadService{
 		entity:        pod,
 		tagsHash:      l.tagger.GetEntityHash(taggerEntityID, types.ChecksConfigCardinality),
 		adIdentifiers: []string{entity},
@@ -111,6 +111,7 @@ func (l *KubeletListener) createPodService(
 		ports:         ports,
 		ready:         true,
 		tagger:        l.tagger,
+		wmeta:         l.Store(),
 	}
 
 	svcID := buildSvcID(pod.GetID())
@@ -162,7 +163,7 @@ func (l *KubeletListener) createContainerService(
 	})
 
 	entity := containers.BuildEntityName(string(container.Runtime), container.ID)
-	svc := &service{
+	svc := &WorkloadService{
 		entity:   container,
 		tagsHash: l.tagger.GetEntityHash(types.NewEntityID(types.ContainerID, container.ID), types.ChecksConfigCardinality),
 		ready:    pod.Ready || shouldSkipPodReadiness(pod),
@@ -179,6 +180,8 @@ func (l *KubeletListener) createContainerService(
 		metricsExcluded: l.metricsFilter.IsExcluded(filterableContainer) || !container.State.Running,
 		logsExcluded:    l.logsFilter.IsExcluded(filterableContainer),
 		tagger:          l.tagger,
+		imageName:       containerImg.ShortName,
+		wmeta:           l.Store(),
 	}
 
 	adIdentifier := containerName

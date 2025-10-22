@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dyninst/symdb"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/symdb/uploader"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 // symdbManager deals with uploading symbols to the SymDB backend.
@@ -46,6 +47,12 @@ type symdbManager struct {
 	}
 	workerWg     sync.WaitGroup
 	workerCancel context.CancelCauseFunc
+}
+
+type symdbManagerInterface interface {
+	queueUpload(runtimeID procRuntimeID, executablePath string) error
+	removeUpload(runtimeID procRuntimeID)
+	removeUploadByPID(pid procmon.ProcessID)
 }
 
 type processKey struct {
@@ -310,10 +317,7 @@ func (m *symdbManager) performUpload(ctx context.Context, procID processKey, run
 	it, err := symdb.PackagesIterator(
 		executablePath,
 		m.objectLoader,
-		symdb.ExtractOptions{
-			Scope:                   symdb.ExtractScopeModulesFromSameOrg,
-			IncludeInlinedFunctions: false,
-		})
+		symdb.ExtractOptions{Scope: symdb.ExtractScopeModulesFromSameOrg})
 	if err != nil {
 		return fmt.Errorf("failed to read symbols for process %v (executable: %s): %w",
 			procID.pid, executablePath, err)
@@ -354,7 +358,7 @@ func (m *symdbManager) performUpload(ctx context.Context, procID processKey, run
 			return context.Cause(ctx)
 		}
 
-		scope := uploader.ConvertPackageToScope(pkg)
+		scope := uploader.ConvertPackageToScope(pkg, version.AgentVersion)
 		uploadBuffer = append(uploadBuffer, scope)
 		bufferFuncs += pkg.Stats().NumFunctions
 		if err := maybeFlush(false /* force */); err != nil {

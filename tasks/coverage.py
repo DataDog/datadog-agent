@@ -198,7 +198,7 @@ def process_e2e_coverage_folders(ctx: Context, coverage_output_dir: str):
         # Upload coverage with job name as tag
         try:
             with gitlab_section(f"Uploading coverage for {folder.name} with tag: {job_name}", collapsed=True):
-                upload_codecov(ctx=ctx, coverage_file=str(coverage_txt_file), extra_tag=[job_name])
+                upload_codecov(ctx=ctx, coverage_file=str(coverage_txt_file), extra_tag=[job_name, "e2e"])
         except Exception as e:
             print(color_message(f"Error uploading coverage for {folder.name}: {e}", Color.RED))
             continue

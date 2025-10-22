@@ -21,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/persistentcache"
 	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	evtapi "github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/api"
+	"github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/publishermetadatacache"
 	evtreporter "github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/reporter"
 	eventlog_test "github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/test"
 
@@ -124,6 +125,7 @@ func newCheck(api evtapi.API, sender *mocksender.MockSender, instanceConfig []by
 	initConfig := []byte(`legacy_mode: false`)
 	check := new(Check)
 	check.evtapi = api
+	check.publisherMetadataCache = publishermetadatacache.New(api)
 
 	// Have to call BuildID() separately here so we can register our mock sender with the aggregator
 	// for the ID for the check we're about to make so when the check calls GetSender()

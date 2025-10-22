@@ -129,7 +129,6 @@ runtime_security_config:
     enabled: {{ .SBOMEnabled }}
     host:
       enabled: {{ .HostSBOMEnabled }}
-    use_v2_collector: {{ .SBOMUseV2Collector }}
   activity_dump:
     enabled: {{ .EnableActivityDump }}
     syscall_monitor:
@@ -169,6 +168,7 @@ runtime_security_config:
     max_image_tags: {{ .SecurityProfileMaxImageTags }}
     dir: {{ .SecurityProfileDir }}
     watch_dir: {{ .SecurityProfileWatchDir }}
+    node_eviction_timeout: {{ .SecurityProfileNodeEvictionTimeout }}
     auto_suppression:
       enabled: {{ .EnableAutoSuppression }}
       event_types: {{range .AutoSuppressionEventTypes}}
@@ -590,6 +590,12 @@ func (tm *testModule) validateExecEvent(tb *testing.T, kind wrapperType, validat
 	}
 }
 
+func (tm *testModule) sendStats() {
+	// send twice to collect stats from both buffers
+	tm.eventMonitor.SendStats()
+	tm.eventMonitor.SendStats()
+}
+
 func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []*rules.RuleDefinition, fopts ...optFunc) (_ *testModule, err error) {
 	defer func() {
 		if err != nil && testMod != nil {
@@ -723,7 +729,7 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 		testMod.cleanup()
 	}
 
-	emconfig, secconfig, err := genTestConfigs(commonCfgDir, opts.staticOpts)
+	emconfig, secconfig, err := genTestConfigs(t, commonCfgDir, opts.staticOpts)
 	if err != nil {
 		return nil, err
 	}
@@ -1381,7 +1387,7 @@ func (tm *testModule) StartADockerGetDump() (*dockerCmdWrapper, *activityDumpIde
 	if managers == nil {
 		return nil, nil, errors.New("No manager")
 	}
-	managers.SnapshotTracedCgroups()
+	managers.SyncTracedCgroups()
 
 	dockerInstance, err := tm.StartADocker()
 	if err != nil {
@@ -1718,9 +1724,6 @@ func (tm *testModule) StopAllActivityDumps() error {
 	if err != nil {
 		return err
 	}
-	if len(dumps) == 0 {
-		return nil
-	}
 	for _, dump := range dumps {
 		_ = tm.StopActivityDump(dump.Name)
 	}
@@ -1731,6 +1734,19 @@ func (tm *testModule) StopAllActivityDumps() error {
 	if len(dumps) != 0 {
 		return errors.New("Didn't manage to stop all activity dumps")
 	}
+
+	// CRITICAL: Blacklist all currently traced cgroups BEFORE clearing
+	// This prevents them from being re-traced by kernel events
+	p, ok := tm.probe.PlatformProbe.(*sprobe.EBPFProbe)
+	if ok {
+		if managers := p.GetProfileManager(); managers != nil {
+			// First call evictTracedCgroup for all active dumps to blacklist them
+			managers.EvictAllTracedCgroups()
+			// Then clear everything
+			managers.ClearTracedCgroups()
+		}
+	}
+
 	return nil
 }
 

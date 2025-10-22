@@ -12,7 +12,7 @@ import (
 	"gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 )
 
 const (
@@ -376,6 +376,28 @@ var defaultProfiles = `
       start_after: 30
       iterations: 0
       period: 900
+  - name: trace-agent
+    metric:
+      exclude:
+        zero_metric: true
+      metrics:
+        - name: trace.running
+          aggregate_tags:
+            - state
+    schedule:
+      start_after: 60
+      iterations: 0
+      period: 900
+  - name: gpu
+    metric:
+      exclude:
+        zero_metric: true
+      metrics:
+        - name: gpu.device_total
+    schedule:
+      start_after: 60
+      iterations: 0
+      period: 900
 `
 
 func compileMetricsExclude(p *Profile) error {
@@ -568,7 +590,7 @@ func compileConfig(cfg *Config) error {
 // Parse agent telemetry config
 func parseConfig(cfg config.Component) (*Config, error) {
 	// Is it enabled?
-	if !pkgconfigsetup.IsAgentTelemetryEnabled(cfg) {
+	if !configutils.IsAgentTelemetryEnabled(cfg) {
 		return &Config{
 			Enabled: false,
 		}, nil

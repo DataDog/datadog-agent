@@ -22,6 +22,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/fips"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
@@ -414,7 +415,7 @@ func Initialize(paths ...string) error {
 		if pkgconfigsetup.Datadog().GetBool("telemetry.enabled") {
 			// detailed telemetry is enabled
 			interval = 1 * time.Second
-		} else if pkgconfigsetup.IsAgentTelemetryEnabled(pkgconfigsetup.Datadog()) {
+		} else if configutils.IsAgentTelemetryEnabled(pkgconfigsetup.Datadog()) {
 			// default telemetry is enabled (emitted every 15 minute)
 			interval = 15 * time.Minute
 		}
@@ -438,7 +439,6 @@ func Initialize(paths ...string) error {
 	C.initAggregatorModule(rtloader)
 	C.initUtilModule(rtloader)
 	C.initTaggerModule(rtloader)
-	initContainerFilter() // special init for the container go code
 	C.initContainersModule(rtloader)
 	C.initkubeutilModule(rtloader)
 

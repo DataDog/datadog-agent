@@ -240,7 +240,7 @@ c: 1234
 	c := cfg.(*ntmConfig)
 
 	require.Len(t, c.warnings, 1)
-	assert.Equal(t, errors.New("invalid type from configuration for key 'c': 1234"), c.warnings[0])
+	assert.Equal(t, errors.New("expected map at 'c' got: 1234"), c.warnings[0])
 
 	// The file node with "1234" still exists, but it was not merged because it didn't match
 	// the schema layer.
@@ -255,49 +255,48 @@ tree(#ptr<000004>) source=default
 > a
     leaf(#ptr<000005>), val:"apple", source:default
 > c
-  inner(#ptr<000006>)
+  inner(#ptr<000002>)
   > d
-      leaf(#ptr<000007>), val:true, source:default
-tree(#ptr<000008>) source=environment-variable
-tree(#ptr<000009>) source=file
+      leaf(#ptr<000003>), val:true, source:default
+tree(#ptr<000006>) source=file
 > a
-    leaf(#ptr<000010>), val:"orange", source:file
+    leaf(#ptr<000001>), val:"orange", source:file
 > c
-    leaf(#ptr<000011>), val:1234, source:file`
+    leaf(#ptr<000007>), val:1234, source:file`
 	assert.Equal(t, expected, c.Stringify("all", model.OmitPointerAddr))
 }
 
 func TestToMapStringInterface(t *testing.T) {
-	_, err := toMapStringInterface(nil, "key")
+	_, err := ToMapStringInterface(nil, "key")
 	assert.Error(t, err)
-	_, err = toMapStringInterface(1, "key")
+	_, err = ToMapStringInterface(1, "key")
 	assert.Error(t, err)
-	_, err = toMapStringInterface("test", "key")
+	_, err = ToMapStringInterface("test", "key")
 	assert.Error(t, err)
 
-	data, err := toMapStringInterface(map[int]string{1: "test"}, "key")
+	data, err := ToMapStringInterface(map[int]string{1: "test"}, "key")
 	assert.NoError(t, err)
 	assert.Equal(t, map[string]interface{}{"1": "test"}, data)
-	data, err = toMapStringInterface(map[interface{}]string{1: "test"}, "key")
+	data, err = ToMapStringInterface(map[interface{}]string{1: "test"}, "key")
 	assert.NoError(t, err)
 	assert.Equal(t, map[string]interface{}{"1": "test"}, data)
-	data, err = toMapStringInterface(map[interface{}]string{1: "test", "test2": "test2"}, "key")
+	data, err = ToMapStringInterface(map[interface{}]string{1: "test", "test2": "test2"}, "key")
 	assert.NoError(t, err)
 	assert.Equal(t, map[string]interface{}{"1": "test", "test2": "test2"}, data)
 
-	data, err = toMapStringInterface(map[string]string{"test": "test"}, "key")
+	data, err = ToMapStringInterface(map[string]string{"test": "test"}, "key")
 	assert.NoError(t, err)
 	assert.Equal(t, map[string]interface{}{"test": "test"}, data)
 
-	data, err = toMapStringInterface(map[string]interface{}{"test": "test"}, "key")
+	data, err = ToMapStringInterface(map[string]interface{}{"test": "test"}, "key")
 	assert.NoError(t, err)
 	assert.Equal(t, map[string]interface{}{"test": "test"}, data)
 
-	data, err = toMapStringInterface(map[interface{}]interface{}{"test": "test"}, "key")
+	data, err = ToMapStringInterface(map[interface{}]interface{}{"test": "test"}, "key")
 	assert.NoError(t, err)
 	assert.Equal(t, map[string]interface{}{"test": "test"}, data)
 
-	data, err = toMapStringInterface(map[interface{}]string{"test": "test"}, "key")
+	data, err = ToMapStringInterface(map[interface{}]string{"test": "test"}, "key")
 	assert.NoError(t, err)
 	assert.Equal(t, map[string]interface{}{"test": "test"}, data)
 }
