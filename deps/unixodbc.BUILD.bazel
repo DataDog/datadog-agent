@@ -351,7 +351,7 @@ pkg_files(
 )
 
 # We do need this "fake" ltdl.h to use dlopen
-# and other kernel functions directly without 
+# and other kernel functions directly without
 # requiring libltdl.
 pkg_files(
     name = "libltdl_hdr_files",
