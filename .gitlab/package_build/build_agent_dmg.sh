@@ -87,7 +87,7 @@ rm -rf "$OMNIBUS_DIR" && mkdir -p "$OMNIBUS_DIR"
 if [ "$SIGN" = "true" ]; then
     # Unlock the keychain to get access to the signing certificates
     security unlock-keychain -p "$KEYCHAIN_PWD" "$KEYCHAIN_NAME"
-    dda inv -- -e omnibus.build --hardened-runtime --config-directory "$CONFIG_DIR" --install-directory "$INSTALL_DIR" --base-dir "$OMNIBUS_DIR" || exit 1
+    dda inv -- -e omnibus.build --hardened-runtime --config-directory "$CONFIG_DIR" --install-directory "$INSTALL_DIR" --base-dir "$OMNIBUS_DIR" --log-level debug || exit 1
     # Lock the keychain once we're done
     security lock-keychain "$KEYCHAIN_NAME"
 else
