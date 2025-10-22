@@ -104,17 +104,56 @@ cc_binary(
 )
 
 genrule(
-    name = "lock-obj-pub-native_h",
-    srcs = [":gen-posix-lock-obj"],
-    outs = ["lock-obj-pub-native.h"],
+    name = "lock-obj-pub_native_h",
+    outs = ["lock-obj-pub.native.h"],
     tools = [":gen-posix-lock-obj"],
     cmd = "$(location :gen-posix-lock-obj) > $@",
 )
 
+# parametes are:
+# - triplet (see mkheader.c for the list of valid values)
+# - path to gpg-error.h.in template
+# - path to config.h
+# - the version in usual (ie. major.minor) format
+# - the version as hexadecimal number (0x{major}{minor}00)
+mkheader_cmds = [
+    "cp $(location :lock-obj-pub_native_h) $$(pwd) && $(location :mkheader) {} $(location src/gpg-error.h.in) $(location src/config.h) 1.47 0x012F00 > $@".format(arch)
+for arch in ["x86_64-unknown-linux-gnu", "arm-unknown-linux-gnueabi"] ]
+
+# The mkheader tool will use the folder containing gpg-error.h.in as the source
+# folder contanining all the other includes, so we need to gather all generated
+# sources in the same folder, otherwise mkheader will fail to perform its inclusions
+#
+# config.h is given through the command line so this requirement doesn't apply
+
+# copy_file(
+#     name = "copy_lock_obj",
+#     src = ":lock-obj-pub-native_h",
+#     out = "src/lock-obj-pub.native.h",
+# )
+
+# [
+# copy_file(
+#     name = "copy_" + src_file,
+#     src = src_file,
+#     out = "src/" + src_file,
+# ) for src_file in mkheader_srcs
+# ]
+
 genrule(
     name = "gpg-error_h",
-    srcs = ["src/gpg-error.h.in", "src/config.h"],
+    srcs = [
+        "src/config.h",
+        "src/err-codes.h.in",
+        "src/err-sources.h.in",
+        "src/errnos.in",
+        "src/gpg-error.h.in",
+        ":lock-obj-pub_native_h",
+    ],
     tools = [":mkheader"],
-    outs = ["src/gpp-error.h"],
-    cmd = "$(location :mkheader)"
+    outs = ["src/gpg-error.h"],
+    cmd = select({
+        "@//:linux_x86_64": mkheader_cmds[0],
+        "@//:linux_arm64": mkheader_cmds[1],
+    })
 )
