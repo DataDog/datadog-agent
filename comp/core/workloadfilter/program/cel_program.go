@@ -10,8 +10,8 @@ package program
 import (
 	"os"
 
-	filterdef "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
-	"github.com/DataDog/datadog-agent/pkg/trace/log"
+	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/google/cel-go/cel"
 )
@@ -27,14 +27,14 @@ type CELProgram struct {
 var _ FilterProgram = &CELProgram{}
 
 // Evaluate evaluates the filter program for a Result (Included, Excluded, or Unknown)
-func (p CELProgram) Evaluate(entity filterdef.Filterable) (filterdef.Result, []error) {
+func (p CELProgram) Evaluate(entity workloadfilter.Filterable) workloadfilter.Result {
 	if p.Exclude != nil {
 		out, _, err := p.Exclude.Eval(map[string]any{string(entity.Type()): entity.Serialize()})
 		if err == nil {
 			res, ok := out.Value().(bool)
 			if ok {
 				if res {
-					return filterdef.Excluded, nil
+					return workloadfilter.Excluded
 				}
 			} else {
 				log.Criticalf(`filter '%s' from 'cel_workload_exclude' failed to convert value to bool: %v`, p.Name, out.Value())
@@ -48,7 +48,7 @@ func (p CELProgram) Evaluate(entity filterdef.Filterable) (filterdef.Result, []e
 		}
 	}
 
-	return filterdef.Unknown, nil
+	return workloadfilter.Unknown
 }
 
 // GetInitializationErrors returns any errors that occurred during the creation/initialization of the program
