@@ -138,7 +138,7 @@ func (s *testAgentMSIInstallsDotnetLibrary) TestUpgradeWithMSI() {
 		// TODO: remove override once image is published in prod
 		// TODO: support DD_INSTALLER_REGISTRY_URL
 		installerwindows.WithMSIArg("DD_INSTALLER_REGISTRY_URL=install.datad0g.com.internal.dda-testing.com"),
-		installerwindows.WithMSIArg(fmt.Sprintf("DD_APM_INSTRUMENTATION_LIBRARIES=dotnet:%s", oldVersion.Version())),
+		installerwindows.WithMSIArg(fmt.Sprintf("DD_APM_INSTRUMENTATION_LIBRARIES=dotnet:%s", oldVersion.PackageVersion())),
 		installerwindows.WithMSILogFile("install.log"),
 	)
 
@@ -213,7 +213,7 @@ func (s *testAgentMSIInstallsDotnetLibrary) TestMSISkipRollbackIfInstalled() {
 		// TODO: remove override once image is published in prod
 		// TODO: support DD_INSTALLER_REGISTRY_URL
 		installerwindows.WithMSIArg("DD_INSTALLER_REGISTRY_URL=install.datad0g.com.internal.dda-testing.com"),
-		installerwindows.WithMSIArg(fmt.Sprintf("DD_APM_INSTRUMENTATION_LIBRARIES=dotnet:%s", oldVersion.Version())),
+		installerwindows.WithMSIArg(fmt.Sprintf("DD_APM_INSTRUMENTATION_LIBRARIES=dotnet:%s", oldVersion.PackageVersion())),
 		installerwindows.WithMSILogFile("install.log"),
 	)
 
