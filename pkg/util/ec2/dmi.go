@@ -30,7 +30,7 @@ func isBoardVendorEC2() bool {
 // EC2 and that the board_asset_tag match an instanceID format before using it
 func getInstanceIDFromDMI() (string, error) {
 	// we don't want to collect anything on Fargate
-	if fargate.IsFargateInstance() {
+	if fargate.IsSidecarInstance() {
 		return "", fmt.Errorf("host alias detection through DMI is disabled on Fargate")
 	}
 

@@ -112,7 +112,7 @@ func newProcessor(workloadmetaStore workloadmeta.Component, filterStore workload
 
 func isProcfsSBOMEnabled(cfg config.Component) bool {
 	// Allowed only on Fargate instance for now
-	return cfg.GetBool("sbom.container.enabled") && fargate.IsFargateInstance()
+	return cfg.GetBool("sbom.container.enabled") && fargate.IsSidecarInstance()
 }
 
 func (p *processor) processContainerImagesEvents(evBundle workloadmeta.EventBundle) {

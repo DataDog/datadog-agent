@@ -88,7 +88,7 @@ func TestFromHostnameFileInvalid(t *testing.T) {
 // fromFargate
 
 func TestFromFargate(t *testing.T) {
-	defer func() { isFargateInstance = fargate.IsFargateInstance }()
+	defer func() { isFargateInstance = fargate.IsSidecarInstance }()
 
 	isFargateInstance = func() bool { return true }
 	hostname, err := fromFargate(context.TODO(), "")

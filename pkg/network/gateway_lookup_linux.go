@@ -220,7 +220,7 @@ func (g *gatewayLookup) purge() {
 }
 
 func awsSubnetForHardwareAddr(hwAddr net.HardwareAddr) (Subnet, error) {
-	if fargate.IsFargateInstance() {
+	if fargate.IsSidecarInstance() {
 		// we will just report the mac address
 		return Subnet{}, nil
 	}
