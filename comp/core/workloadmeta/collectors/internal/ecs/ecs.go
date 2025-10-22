@@ -134,26 +134,44 @@ func (c *collector) Start(ctx context.Context, store workloadmeta.Component) err
 
 func (c *collector) determineDeploymentMode() deploymentMode {
 	configMode := c.config.GetString("ecs_deployment_mode")
+	requestedMode := strings.ToLower(configMode)
 
-	switch strings.ToLower(configMode) {
+	// Determine the correct default mode based on environment
+	var defaultMode deploymentMode
+	if env.IsECSFargate() {
+		// Fargate can only run as sidecar
+		defaultMode = deploymentModeSidecar
+	} else {
+		// EC2 and Managed Instances default to daemon
+		defaultMode = deploymentModeDaemon
+	}
+
+	switch requestedMode {
 	case "daemon":
-		return deploymentModeDaemon
-	case "sidecar":
-		return deploymentModeSidecar
-	case "auto":
-		// Use shared logic to determine if we're in sidecar mode
-		if env.IsECSSidecarMode(c.config) {
+		// Validate daemon mode is supported
+		if env.IsECSFargate() {
+			log.Errorf("ecs_deployment_mode is set to 'daemon' but agent is running on ECS Fargate. Fargate only supports sidecar mode. Auto-correcting to sidecar.")
 			return deploymentModeSidecar
 		}
-		// EC2 and Managed Instances default to daemon
+		// Daemon mode is valid for EC2 and Managed Instances
 		return deploymentModeDaemon
+
+	case "sidecar":
+		// Validate sidecar mode is appropriate
+		if os.Getenv("AWS_EXECUTION_ENV") == "AWS_ECS_EC2" {
+			log.Errorf("ecs_deployment_mode is set to 'sidecar' but agent is running on ECS EC2. EC2 should use daemon mode for cluster-wide monitoring. Auto-correcting to daemon.")
+			return deploymentModeDaemon
+		}
+		// Sidecar mode is valid for Fargate and Managed Instances
+		return deploymentModeSidecar
+
+	case "auto", "":
+		// Use auto-detection based on launch type
+		return defaultMode
+
 	default:
 		log.Warnf("Unknown ecs_deployment_mode %q, using auto-detection", configMode)
-		// Use shared logic for auto-detection
-		if env.IsECSSidecarMode(c.config) {
-			return deploymentModeSidecar
-		}
-		return deploymentModeDaemon
+		return defaultMode
 	}
 }
 
@@ -171,7 +189,7 @@ func (c *collector) detectLaunchType(ctx context.Context) workloadmeta.ECSLaunch
 	}
 
 	// Fallback: check legacy environment variable for Fargate
-	if env.IsFeaturePresent(env.ECSFargate) {
+	if env.IsECSFargate() {
 		return workloadmeta.ECSLaunchTypeFargate
 	}
 

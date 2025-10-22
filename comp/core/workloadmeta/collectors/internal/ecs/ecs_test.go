@@ -180,44 +180,57 @@ func TestDetectLaunchType(t *testing.T) {
 // TestDetermineDeploymentMode tests the determineDeploymentMode method
 func TestDetermineDeploymentMode(t *testing.T) {
 	tests := []struct {
-		name           string
-		configValue    string
-		setupEnv       func(*testing.T)
-		expectedMode   deploymentMode
-		expectedLogMsg string
+		name         string
+		configValue  string
+		setupEnv     func(*testing.T)
+		expectedMode deploymentMode
 	}{
 		{
-			name:         "Explicit daemon mode",
+			name:         "Explicit daemon mode on EC2",
 			configValue:  "daemon",
-			setupEnv:     func(_ *testing.T) {},
+			setupEnv:     func(t *testing.T) { t.Setenv("AWS_EXECUTION_ENV", "AWS_ECS_EC2") },
 			expectedMode: deploymentModeDaemon,
 		},
 		{
-			name:         "Explicit sidecar mode",
+			name:         "Explicit sidecar mode on Managed Instances",
 			configValue:  "sidecar",
-			setupEnv:     func(_ *testing.T) {},
+			setupEnv:     func(t *testing.T) { t.Setenv("AWS_EXECUTION_ENV", "AWS_ECS_MANAGED_INSTANCES") },
 			expectedMode: deploymentModeSidecar,
 		},
 		{
-			name:        "Auto mode - EC2 defaults to daemon",
-			configValue: "auto",
-			setupEnv: func(t *testing.T) {
-				t.Setenv("AWS_EXECUTION_ENV", "AWS_ECS_EC2")
-			},
+			name:         "Auto mode - EC2 defaults to daemon",
+			configValue:  "auto",
+			setupEnv:     func(t *testing.T) { t.Setenv("AWS_EXECUTION_ENV", "AWS_ECS_EC2") },
 			expectedMode: deploymentModeDaemon,
 		},
 		{
-			name:        "Auto mode - Managed Instances defaults to daemon",
-			configValue: "auto",
-			setupEnv: func(t *testing.T) {
-				t.Setenv("AWS_EXECUTION_ENV", "AWS_ECS_MANAGED_INSTANCES")
-			},
+			name:         "Auto mode - Managed Instances defaults to daemon",
+			configValue:  "auto",
+			setupEnv:     func(t *testing.T) { t.Setenv("AWS_EXECUTION_ENV", "AWS_ECS_MANAGED_INSTANCES") },
 			expectedMode: deploymentModeDaemon,
+		},
+		{
+			name:         "Auto mode - Fargate defaults to sidecar",
+			configValue:  "auto",
+			setupEnv:     func(t *testing.T) { t.Setenv("ECS_FARGATE", "true") },
+			expectedMode: deploymentModeSidecar,
 		},
 		{
 			name:         "Unknown mode defaults to daemon",
 			configValue:  "invalid",
 			setupEnv:     func(_ *testing.T) {},
+			expectedMode: deploymentModeDaemon,
+		},
+		{
+			name:         "Invalid: Fargate + daemon mode → auto-corrects to sidecar",
+			configValue:  "daemon",
+			setupEnv:     func(t *testing.T) { t.Setenv("ECS_FARGATE", "true") },
+			expectedMode: deploymentModeSidecar,
+		},
+		{
+			name:         "Invalid: EC2 + sidecar mode → auto-corrects to daemon",
+			configValue:  "sidecar",
+			setupEnv:     func(t *testing.T) { t.Setenv("AWS_EXECUTION_ENV", "AWS_ECS_EC2") },
 			expectedMode: deploymentModeDaemon,
 		},
 	}
