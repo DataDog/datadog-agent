@@ -223,6 +223,8 @@ func (r *incrementalFileReader) reloadIfRotated() error {
 		}
 		f, err := os.Open(r.path)
 		if err != nil {
+			r.close()
+			r.f = nil
 			return err
 		}
 		r.f = f
@@ -230,13 +232,6 @@ func (r *incrementalFileReader) reloadIfRotated() error {
 
 		// We restart from the beginning because it's a new file
 		r.offset = 0
-
-		if err != nil {
-			r.close()
-			r.f = nil
-			return err
-		}
-		return nil
 	}
 	return nil
 }
