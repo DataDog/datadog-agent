@@ -779,7 +779,7 @@ func TestValidateLogLevel(t *testing.T) {
 
 func TestValidateLogLevelUnknownLevel(t *testing.T) {
 	logLevel, err := ValidateLogLevel("unknownLogLevel")
-	assert.Equal(t, "", logLevel)
+	assert.Equal(t, Off, logLevel)
 	assert.Error(t, err)
 	assert.Equal(t, "unknown log level: "+strings.ToLower("unknownLogLevel"), err.Error())
 }
