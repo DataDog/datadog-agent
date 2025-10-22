@@ -26,7 +26,7 @@ build do
   env = with_embedded_path()
   env = {
     'GOPATH' => gopath.to_path,
-    'PATH' => ["#{gopath.to_path}/bin", ENV['PATH']].join(File::PATH_SEPARATOR),
+    'PATH' => ["#{gopath.to_path}/bin", env['PATH']].join(File::PATH_SEPARATOR),
   }
 
   unless ENV["OMNIBUS_GOMODCACHE"].nil? || ENV["OMNIBUS_GOMODCACHE"].empty?
