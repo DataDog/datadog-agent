@@ -504,7 +504,7 @@ namespace WixSetup.Datadog_Agent
                     Return.ignore,
                     When.Before,
                     new Step(InstallOciPackages.Id),
-                    Condition.NOT(Conditions.Uninstalling | Conditions.RemovingForUpgrade)
+                    Condition.NOT(Conditions.Uninstalling | Conditions.RemovingForUpgrade | Conditions.Upgrading)
                 )
             {
                 Execute = Execute.rollback,
