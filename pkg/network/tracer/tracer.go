@@ -584,6 +584,10 @@ func (t *Tracer) getConnections(activeBuffer *network.ConnectionBuffer) (latestU
 
 	activeConnections = activeBuffer.Connections()
 	log.Infof("JMW Tracer.getConnections() got %d connections", len(activeConnections))
+
+	// JMW: Compare all three conntrack maps and log differences
+	t.compareAndLogConntrackMaps()
+
 	for i := range activeConnections {
 		activeConnections[i].IPTranslation = t.conntracker.GetTranslationForConn(&activeConnections[i].ConnectionTuple)
 		// do gateway resolution only on active connections outside
@@ -872,6 +876,63 @@ func (t *Tracer) DebugConntrackComparison() (interface{}, error) {
 		return ebpfCt.CompareConntrackMaps()
 	}
 	return nil, fmt.Errorf("conntrack comparison only supported with eBPF conntracker")
+}
+
+// compareAndLogConntrackMaps compares all three conntrack maps and logs differences
+func (t *Tracer) compareAndLogConntrackMaps() {
+	// Check if we have an eBPF conntracker that supports comparison
+	ebpfCt, ok := t.conntracker.(*ebpfConntracker)
+	if !ok {
+		log.Debugf("JMW: conntrack comparison only supported with eBPF conntracker, current type: %s", t.conntracker.GetType())
+		return
+	}
+
+	comparison, err := ebpfCt.CompareConntrackMaps()
+	if err != nil {
+		log.Warnf("JMW: error comparing conntrack maps: %s", err)
+		return
+	}
+
+	// Log summary statistics
+	log.Infof("JMW CONNTRACK COMPARISON: conntrack=%d, conntrack2=%d, conntrack3=%d, pending=%d",
+		comparison.ConntrackEntries,
+		comparison.Conntrack2Entries,
+		comparison.Conntrack3Entries,
+		comparison.PendingConfirmsEntries)
+
+	// Log intersection statistics
+	log.Infof("JMW CONNTRACK INTERSECTIONS: common_1_2=%d, common_1_3=%d, common_2_3=%d, common_all=%d",
+		comparison.CommonEntries12,
+		comparison.CommonEntries13,
+		comparison.CommonEntries23,
+		comparison.CommonEntriesAll)
+
+	// Log unique entries (potential issues)
+	if comparison.OnlyInConntrack > 0 || comparison.OnlyInConntrack2 > 0 || comparison.OnlyInConntrack3 > 0 {
+		log.Warnf("JMW CONNTRACK DIFFERENCES: only_in_conntrack=%d, only_in_conntrack2=%d, only_in_conntrack3=%d",
+			comparison.OnlyInConntrack,
+			comparison.OnlyInConntrack2,
+			comparison.OnlyInConntrack3)
+	}
+
+	// Log sample differences for debugging
+	if len(comparison.SampleDifferences) > 0 {
+		log.Debugf("JMW CONNTRACK SAMPLE DIFFERENCES:")
+		for i, diff := range comparison.SampleDifferences {
+			if i >= 5 { // Limit to first 5 for readability
+				break
+			}
+			log.Debugf("  %s - %s", diff.Tuple, diff.Description)
+		}
+	}
+
+	// Calculate and log efficiency metrics
+	if comparison.ConntrackEntries > 0 {
+		natProcessingRate := float64(comparison.Conntrack2Entries) / float64(comparison.ConntrackEntries) * 100
+		natConfirmationRate := float64(comparison.Conntrack3Entries) / float64(comparison.ConntrackEntries) * 100
+		log.Infof("JMW CONNTRACK EFFICIENCY: NAT_processing_rate=%.1f%%, NAT_confirmation_rate=%.1f%%",
+			natProcessingRate, natConfirmationRate)
+	}
 }
 
 // DebugDumpProcessCache dumps the process cache
