@@ -71,16 +71,16 @@ boot-start-marker
 boot-end-marker
 !
 ip domain name lab.local
-ip cef    
+ip cef
 no ipv6 cef
-!         
+!
 multilink bundle-name authenticated
-!         
-!         
-!         
-!         
+!
+!
+!
+!
 username cisco privilege 15 secret 9 $9$BMUEX2PiO0KhAv$N7lS6KlzzGds54nvZM5zmpPuLrKr9CZC3A1/jTwjHzA
-!         
+!
 redundancy
 !
 `
@@ -104,16 +104,16 @@ boot-start-marker
 boot-end-marker
 !
 ip domain name lab.local
-ip cef    
+ip cef
 no ipv6 cef
-!         
+!
 multilink bundle-name authenticated
-!         
-!         
-!         
-!         
+!
+!
+!
+!
 username cisco privilege 15 secret 9 <BIG OL SECRET>
-!         
+!
 redundancy
 !`
 
@@ -154,7 +154,7 @@ func Test_extractMetadata(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			var b bytes.Buffer
 			w := bufio.NewWriter(&b)
-			l, err := log.LoggerFromWriterWithMinLevelAndFormat(w, log.DebugLvl, "[%LEVEL] %FuncShort: %Msg\n")
+			l, err := log.LoggerFromWriterWithMinLevelAndLvlFuncMsgFormat(w, log.DebugLvl)
 			assert.NoError(t, err)
 			log.SetupLogger(l, "debug")
 

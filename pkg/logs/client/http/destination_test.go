@@ -196,7 +196,7 @@ func TestDestinationErrorLogFormat(t *testing.T) {
 	writer := bufio.NewWriter(&logOutput)
 
 	// Set up logger to capture log output
-	testLogger, err := log.LoggerFromWriterWithMinLevelAndFormat(writer, log.WarnLvl, "%Msg")
+	testLogger, err := log.LoggerFromWriterWithMinLevelAndMsgFormat(writer, log.WarnLvl)
 	assert.NoError(t, err)
 	log.SetupLogger(testLogger, "warn")
 

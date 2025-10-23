@@ -5,9 +5,9 @@
 
 // Package service represents the agent's core remoteconfig service
 //
-// The `Service` type provides a communication layer for downstream clients to request
-// configuration, as well as the ability to track clients for requesting complete update
-// payloads from the remote config backend.
+// The `CoreAgentService` type provides a communication layer for downstream
+// clients to request configuration, as well as the ability to track clients for
+// requesting complete update payloads from the remote config backend.
 package service
 
 import (
@@ -82,18 +82,7 @@ var (
 	exportedLastUpdateErr       = expvar.String{}
 )
 
-// Service defines the remote config management service responsible for fetching, storing
-// and dispatching the configurations
-type Service struct {
-	sync.Mutex
-
-	// rcType is used to differentiate multiple RC services running in a single agent.
-	// Today, it is simply logged as a prefix in all log messages to help when triaging
-	// via logs.
-	rcType string
-}
-
-func (s *Service) getNewDirectorRoots(uptane uptaneClient, currentVersion uint64, newVersion uint64) ([][]byte, error) {
+func getNewDirectorRoots(uptane uptaneClient, currentVersion uint64, newVersion uint64) ([][]byte, error) {
 	var roots [][]byte
 	for i := currentVersion + 1; i <= newVersion; i++ {
 		root, err := uptane.DirectorRoot(i)
@@ -105,7 +94,7 @@ func (s *Service) getNewDirectorRoots(uptane uptaneClient, currentVersion uint64
 	return roots, nil
 }
 
-func (s *Service) getTargetFiles(uptaneClient uptaneClient, targetFilePaths []string) ([]*pbgo.File, error) {
+func getTargetFiles(uptaneClient uptaneClient, targetFilePaths []string) ([]*pbgo.File, error) {
 	files, err := uptaneClient.TargetFiles(targetFilePaths)
 	if err != nil {
 		return nil, err
@@ -123,70 +112,80 @@ func (s *Service) getTargetFiles(uptaneClient uptaneClient, targetFilePaths []st
 	return configFiles, nil
 }
 
-// CoreAgentService fetches  Remote Configurations from the RC backend
+// CoreAgentService implements rcservice.Component.
+//
+// It fetches and orchestrates the fetching of Remote Configurations from the RC
+// backend.  and maintains the local state of the configuration on behalf of its
+// clients.
 type CoreAgentService struct {
-	Service
-	firstUpdate bool
+	// rcType is used to differentiate multiple RC services running in a single
+	// agent.  Today, it is simply logged as a prefix in all log messages to
+	// help when triaging via logs.
+	rcType string
 
-	// We record the startup time to ensure we flush client configs if we can't contact the backend in time
-	startupTime time.Time
-
-	defaultRefreshInterval         time.Duration
-	refreshIntervalOverrideAllowed bool
-
-	// The backoff policy used for retries when errors are encountered
-	backoffPolicy backoff.Policy
-	// The number of errors we're currently tracking within the context of our backoff policy
-	backoffErrorCount int
-
-	// Channels to stop the services main goroutines
-	stopOrgPoller    chan struct{}
-	stopConfigPoller chan struct{}
-
+	api           api.API
 	clock         clock.Clock
 	hostname      string
 	tagsGetter    func() []string
 	traceAgentEnv string
-	uptane        coreAgentUptaneClient
-	api           api.API
-
-	products           map[rdata.Product]struct{}
-	newProducts        map[rdata.Product]struct{}
-	clients            *clients
-	cacheBypassClients cacheBypassClients
-
-	// Used to report metrics on cache bypass requests
-	telemetryReporter RcTelemetryReporter
-
-	lastUpdateTimestamp time.Time
-	lastUpdateErr       error
-
-	// Used to rate limit the 4XX error logs
-	fetchErrorCount    uint64
-	lastFetchErrorType error
-	//  Number of /configurations calls where we get 503 or 504 errors
-	fetchConfigs503And504ErrCount uint64
-
-	//  Number of /status calls where we get 503 or 504 errors
-	fetchOrgStatus503And504ErrCount uint64
-
-	// Previous /status response
-	previousOrgStatus *pbgo.OrgStatusResponse
-
-	agentVersion string
-
+	agentVersion  string
+	site          string
+	configRoot    string
+	directorRoot  string
+	// We record the startup time to ensure we flush client configs if we can't
+	// contact the backend in time
+	startupTime           time.Time
 	disableConfigPollLoop bool
 
-	// set the interval for which we will poll the org status
-	orgStatusRefreshInterval time.Duration
-
-	site         string
-	configRoot   string
-	directorRoot string
-
+	// The backoff policy used for retries when errors are encountered
+	backoffPolicy backoff.Policy
+	// Used to report metrics on cache bypass requests
+	telemetryReporter RcTelemetryReporter
 	// A background task used to perform connectivity tests using a WebSocket -
 	// data gathering for future development.
 	websocketTest startstop.StartStoppable
+
+	// refreshBypassLimiter is used from the polling loop goroutine exclusively,
+	// so it does not need to be synchronized.
+	refreshBypassLimiter rateLimiter
+	// refreshBypassCh is used from GetClientConfigs to trigger a refresh
+	// request that may bypass the usual refresh loop's interval.
+	refreshBypassCh chan<- chan<- struct{}
+
+	clients         *clients
+	orgStatusPoller *orgStatusPoller
+
+	// Channels to stop the services main goroutines
+	stopConfigPoller chan struct{}
+	stopOnce         sync.Once
+
+	mu struct {
+		sync.Mutex
+
+		uptane coreAgentUptaneClient
+
+		firstUpdate bool
+
+		defaultRefreshInterval         time.Duration
+		refreshIntervalOverrideAllowed bool
+
+		lastUpdateTimestamp time.Time
+		lastUpdateErr       error
+
+		// Used to rate limit the 4XX error logs
+		fetchErrorCount    uint64
+		lastFetchErrorType error
+
+		// Number of /configurations calls where we get 503 or 504 errors.
+		fetchConfigs503And504ErrCount uint64
+
+		// The number of errors we're currently tracking within the context
+		// of our backoff policy
+		backoffErrorCount int
+
+		products    map[rdata.Product]struct{}
+		newProducts map[rdata.Product]struct{}
+	}
 }
 
 // uptaneClient provides functions to get TUF/uptane repo data.
@@ -224,6 +223,111 @@ type RcTelemetryReporter interface {
 	IncRateLimit()
 	// IncTimeout is invoked when a cache bypass request is cancelled due to timeout or a previous cache bypass request is still pending
 	IncTimeout()
+}
+
+// orgStatusPoller handles periodic polling of the organization status from the remote config backend
+type orgStatusPoller struct {
+	refreshInterval time.Duration
+	stopChan        chan struct{}
+
+	mu struct {
+		sync.Mutex
+		// Number of /status calls where we get 503 or 504 errors.
+		fetchOrgStatus503And504ErrCount uint64
+		// Previous /status response
+		previousOrgStatus *pbgo.OrgStatusResponse
+	}
+}
+
+func newOrgStatusPoller(refreshInterval time.Duration) *orgStatusPoller {
+	p := &orgStatusPoller{
+		refreshInterval: refreshInterval,
+		stopChan:        make(chan struct{}),
+	}
+	return p
+}
+
+// start begins the periodic polling of org status
+func (p *orgStatusPoller) start(clock clock.Clock, apiClient api.API, rcType string) {
+	go func() {
+		timer := clock.Timer(0)
+		defer timer.Stop()
+		for {
+			select {
+			case <-timer.C:
+				p.poll(apiClient, rcType)
+				timer.Reset(p.refreshInterval)
+			case <-p.stopChan:
+				log.Infof("[%s] Stopping Remote Config org status poller", rcType)
+				return
+			}
+		}
+	}()
+}
+
+// stop stops the org status poller
+func (p *orgStatusPoller) stop() {
+	close(p.stopChan)
+}
+
+// getPreviousStatus returns the previous org status response, if any
+func (p *orgStatusPoller) getPreviousStatus() *pbgo.OrgStatusResponse {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.mu.previousOrgStatus
+}
+
+// poll fetches and processes the current organization status
+func (p *orgStatusPoller) poll(apiClient api.API, rcType string) {
+	response, err := apiClient.FetchOrgStatus(context.Background())
+
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if err != nil {
+		// Unauthorized and proxy error are caught by the main loop requesting the latest config
+		if errors.Is(err, api.ErrUnauthorized) || errors.Is(err, api.ErrProxy) {
+			return
+		}
+
+		if errors.Is(err, api.ErrGatewayTimeout) || errors.Is(err, api.ErrServiceUnavailable) {
+			p.mu.fetchOrgStatus503And504ErrCount++
+		}
+
+		if p.mu.fetchOrgStatus503And504ErrCount < maxFetchOrgStatusUntilLogLevelErrors {
+			log.Warnf("[%s] Could not refresh Remote Config: %v", rcType, err)
+		} else {
+			log.Errorf("[%s] Could not refresh Remote Config: %v", rcType, err)
+		}
+		return
+	}
+	p.mu.fetchOrgStatus503And504ErrCount = 0
+
+	// Print info log when the new status is different from the previous one, or if it's the first run
+	prev := p.mu.previousOrgStatus
+	if prev == nil ||
+		prev.Enabled != response.Enabled ||
+		prev.Authorized != response.Authorized {
+		if response.Enabled {
+			if response.Authorized {
+				log.Infof("[%s] Remote Configuration is enabled for this organization and agent.", rcType)
+			} else {
+				log.Infof(
+					"[%s] Remote Configuration is enabled for this organization but disabled for this agent. Add the Remote Configuration Read permission to its API key to enable it for this agent.", rcType)
+			}
+		} else {
+			if response.Authorized {
+				log.Infof("[%s] Remote Configuration is disabled for this organization.", rcType)
+			} else {
+				log.Infof("[%s] Remote Configuration is disabled for this organization and agent.", rcType)
+			}
+		}
+	}
+	p.mu.previousOrgStatus = &pbgo.OrgStatusResponse{
+		Enabled:    response.Enabled,
+		Authorized: response.Authorized,
+	}
+	exportedStatusOrgEnabled.Set(strconv.FormatBool(response.Enabled))
+	exportedStatusKeyAuthorized.Set(strconv.FormatBool(response.Authorized))
 }
 
 func init() {
@@ -499,27 +603,25 @@ func NewService(cfg model.Reader, rcType, baseRawURL, hostname string, tagsGette
 
 	now := clock.Now().UTC()
 	cas := &CoreAgentService{
-		Service: Service{
-			rcType: rcType,
-		},
-		firstUpdate:                    true,
-		startupTime:                    now,
-		defaultRefreshInterval:         options.refresh,
-		refreshIntervalOverrideAllowed: options.refreshIntervalOverrideAllowed,
-		backoffErrorCount:              0,
-		backoffPolicy:                  backoffPolicy,
-		products:                       make(map[rdata.Product]struct{}),
-		newProducts:                    make(map[rdata.Product]struct{}),
-		hostname:                       hostname,
-		tagsGetter:                     tagsGetter,
-		clock:                          clock,
-		traceAgentEnv:                  options.traceAgentEnv,
-		api:                            http,
-		uptane:                         uptaneClient,
-		clients:                        newClients(clock, options.clientTTL),
-		cacheBypassClients: cacheBypassClients{
-			clock:    clock,
-			requests: make(chan chan struct{}),
+		api:                   http,
+		rcType:                rcType,
+		startupTime:           now,
+		hostname:              hostname,
+		tagsGetter:            tagsGetter,
+		clock:                 clock,
+		traceAgentEnv:         options.traceAgentEnv,
+		agentVersion:          agentVersion,
+		stopConfigPoller:      make(chan struct{}),
+		disableConfigPollLoop: options.disableConfigPollLoop,
+		site:                  options.site,
+		configRoot:            configRoot,
+		directorRoot:          directorRoot,
+		backoffPolicy:         backoffPolicy,
+		telemetryReporter:     telemetryReporter,
+		websocketTest:         websocketTest,
+		clients:               newClients(clock, options.clientTTL),
+		refreshBypassLimiter: rateLimiter{
+			clock: clock,
 
 			// By default, allows for 5 cache bypass every refreshInterval seconds
 			// in addition to the usual refresh.
@@ -528,17 +630,15 @@ func NewService(cfg model.Reader, rcType, baseRawURL, hostname string, tagsGette
 			capacity:       options.clientCacheBypassLimit,
 			allowance:      options.clientCacheBypassLimit,
 		},
-		telemetryReporter:        telemetryReporter,
-		agentVersion:             agentVersion,
-		stopOrgPoller:            make(chan struct{}),
-		stopConfigPoller:         make(chan struct{}),
-		disableConfigPollLoop:    options.disableConfigPollLoop,
-		orgStatusRefreshInterval: options.orgStatusRefreshInterval,
-		site:                     options.site,
-		configRoot:               configRoot,
-		directorRoot:             directorRoot,
-		websocketTest:            websocketTest,
+		orgStatusPoller: newOrgStatusPoller(options.orgStatusRefreshInterval),
 	}
+	cas.mu.firstUpdate = true
+	cas.mu.defaultRefreshInterval = options.refresh
+	cas.mu.refreshIntervalOverrideAllowed = options.refreshIntervalOverrideAllowed
+	cas.mu.backoffErrorCount = 0
+	cas.mu.products = make(map[rdata.Product]struct{})
+	cas.mu.newProducts = make(map[rdata.Product]struct{})
+	cas.mu.uptane = uptaneClient
 
 	cfg.OnUpdate(cas.apiKeyUpdateCallback())
 
@@ -555,28 +655,16 @@ func newRCBackendOrgUUIDProvider(http api.API) uptane.OrgUUIDProvider {
 
 // Start the remote configuration management service
 func (s *CoreAgentService) Start() {
-	go func() {
-		s.pollOrgStatus()
-		for {
-			select {
-			case <-s.clock.After(s.orgStatusRefreshInterval):
-				s.pollOrgStatus()
-			case <-s.stopOrgPoller:
-				log.Infof("[%s] Stopping Remote Config org status poller", s.rcType)
-				return
-			}
-		}
-	}()
-	go func() {
-		defer func() {
-			close(s.stopOrgPoller)
-		}()
-		if s.disableConfigPollLoop {
-			startWithoutAgentPollLoop(s)
-		} else {
-			startWithAgentPollLoop(s)
-		}
+	refreshBypassCh := make(chan chan<- struct{})
+	s.refreshBypassCh = refreshBypassCh
+	s.orgStatusPoller.start(s.clock, s.api, s.rcType)
 
+	go func() {
+		if s.disableConfigPollLoop {
+			startWithoutAgentPollLoop(s, refreshBypassCh)
+		} else {
+			startWithAgentPollLoop(s, refreshBypassCh)
+		}
 	}()
 
 	s.websocketTest.Start()
@@ -588,10 +676,10 @@ func (s *CoreAgentService) UpdatePARJWT(jwt string) {
 	s.api.UpdatePARJWT(jwt)
 }
 
-func startWithAgentPollLoop(s *CoreAgentService) {
+func startWithAgentPollLoop(s *CoreAgentService, refreshBypassRequests <-chan chan<- struct{}) {
 	err := s.refresh()
 	if err != nil {
-		logRefreshError(s, err)
+		s.logRefreshError(err)
 	}
 
 	for {
@@ -601,8 +689,8 @@ func startWithAgentPollLoop(s *CoreAgentService) {
 		case <-s.clock.After(refreshInterval):
 			err = s.refresh()
 		// New clients detected, request refresh
-		case response := <-s.cacheBypassClients.requests:
-			if !s.cacheBypassClients.Limit() {
+		case response := <-refreshBypassRequests:
+			if !s.refreshBypassLimiter.Limit() {
 				err = s.refresh()
 			} else {
 				s.telemetryReporter.IncRateLimit()
@@ -614,33 +702,41 @@ func startWithAgentPollLoop(s *CoreAgentService) {
 		}
 
 		if err != nil {
-			logRefreshError(s, err)
+			s.logRefreshError(err)
 		}
 	}
 }
 
-func startWithoutAgentPollLoop(s *CoreAgentService) {
+func startWithoutAgentPollLoop(s *CoreAgentService, refreshBypassRequests <-chan chan<- struct{}) {
 	for {
 		var err error
-		response := <-s.cacheBypassClients.requests
-		if !s.cacheBypassClients.Limit() {
+		response := <-refreshBypassRequests
+		if !s.refreshBypassLimiter.Limit() {
 			err = s.refresh()
 		} else {
 			err = errors.New("cache bypass limit exceeded")
-			s.lastUpdateErr = err
+			s.mu.Lock()
+			s.mu.lastUpdateErr = err
+			s.mu.Unlock()
 			s.telemetryReporter.IncRateLimit()
 		}
 		close(response)
 		if err != nil {
-			logRefreshError(s, err)
+			s.logRefreshError(err)
 		}
 	}
 }
 
-func logRefreshError(s *CoreAgentService, err error) {
-	if s.previousOrgStatus != nil && s.previousOrgStatus.Enabled && s.previousOrgStatus.Authorized {
+func (s *CoreAgentService) logRefreshError(err error) {
+	prev := s.orgStatusPoller.getPreviousStatus()
+	if prev != nil && prev.Enabled && prev.Authorized {
+		fetchConfigs503And504ErrCount := func() uint64 {
+			s.mu.Lock()
+			defer s.mu.Unlock()
+			return s.mu.fetchConfigs503And504ErrCount
+		}()
 		exportedLastUpdateErr.Set(err.Error())
-		if s.fetchConfigs503And504ErrCount < maxFetchConfigsUntilLogLevelErrors {
+		if fetchConfigs503And504ErrCount < maxFetchConfigsUntilLogLevelErrors {
 			log.Warnf("[%s] Could not refresh Remote Config: %v", s.rcType, err)
 		} else {
 			log.Errorf("[%s] Could not refresh Remote Config: %v", s.rcType, err)
@@ -652,120 +748,90 @@ func logRefreshError(s *CoreAgentService, err error) {
 
 // Stop stops the refresh loop and closes the on-disk DB cache
 func (s *CoreAgentService) Stop() error {
-	// NOTE: Stop() MAY be called more than once - cleanup SHOULD be idempotent.
-
-	s.websocketTest.Stop()
-
-	if s.stopConfigPoller != nil {
+	var err error
+	s.stopOnce.Do(func() {
+		s.websocketTest.Stop()
+		s.orgStatusPoller.stop()
 		close(s.stopConfigPoller)
-	}
-	// close boltDB via the transactional store
-	return s.uptane.Close()
-}
 
-func (s *CoreAgentService) pollOrgStatus() {
-	response, err := s.api.FetchOrgStatus(context.Background())
-	if err != nil {
-		// Unauthorized and proxy error are caught by the main loop requesting the latest config
-		if errors.Is(err, api.ErrUnauthorized) || errors.Is(err, api.ErrProxy) {
-			return
-		}
-
-		if errors.Is(err, api.ErrGatewayTimeout) || errors.Is(err, api.ErrServiceUnavailable) {
-			s.fetchOrgStatus503And504ErrCount++
-		}
-
-		if s.fetchOrgStatus503And504ErrCount < maxFetchOrgStatusUntilLogLevelErrors {
-			log.Warnf("[%s] Could not refresh Remote Config: %v", s.rcType, err)
-		} else {
-			log.Errorf("[%s] Could not refresh Remote Config: %v", s.rcType, err)
-		}
-		return
-	}
-	s.fetchOrgStatus503And504ErrCount = 0
-
-	// Print info log when the new status is different from the previous one, or if it's the first run
-	if s.previousOrgStatus == nil ||
-		s.previousOrgStatus.Enabled != response.Enabled ||
-		s.previousOrgStatus.Authorized != response.Authorized {
-		if response.Enabled {
-			if response.Authorized {
-				log.Infof("[%s] Remote Configuration is enabled for this organization and agent.", s.rcType)
-			} else {
-				log.Infof(
-					"[%s] Remote Configuration is enabled for this organization but disabled for this agent. Add the Remote Configuration Read permission to its API key to enable it for this agent.", s.rcType)
-			}
-		} else {
-			if response.Authorized {
-				log.Infof("[%s] Remote Configuration is disabled for this organization.", s.rcType)
-			} else {
-				log.Infof("[%s] Remote Configuration is disabled for this organization and agent.", s.rcType)
-			}
-		}
-	}
-	s.previousOrgStatus = &pbgo.OrgStatusResponse{
-		Enabled:    response.Enabled,
-		Authorized: response.Authorized,
-	}
-	exportedStatusOrgEnabled.Set(strconv.FormatBool(response.Enabled))
-	exportedStatusKeyAuthorized.Set(strconv.FormatBool(response.Authorized))
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		// close boltDB via the transactional store
+		err = s.mu.uptane.Close()
+	})
+	return err
 }
 
 func (s *CoreAgentService) calculateRefreshInterval() time.Duration {
-	backoffTime := s.backoffPolicy.GetBackoffDuration(s.backoffErrorCount)
+	s.mu.Lock()
+	backoffErrorCount := s.mu.backoffErrorCount
+	defaultRefreshInterval := s.mu.defaultRefreshInterval
+	s.mu.Unlock()
 
-	return s.defaultRefreshInterval + backoffTime
+	backoffTime := s.backoffPolicy.GetBackoffDuration(backoffErrorCount)
+
+	return defaultRefreshInterval + backoffTime
 }
 
 func (s *CoreAgentService) refresh() error {
-	s.Lock()
+	s.mu.Lock()
+	defer s.mu.Unlock()
 
 	// We can't let the backend process an update twice in the same second due to the fact that we
 	// use the epoch with seconds resolution as the version for the TUF Director Targets. If this happens,
 	// the update will appear to TUF as being identical to the previous update and it will be dropped.
-	timeSinceUpdate := time.Since(s.lastUpdateTimestamp)
+	timeSinceUpdate := time.Since(s.mu.lastUpdateTimestamp)
 	if timeSinceUpdate < time.Second {
 		log.Debugf("Requests too frequent, delaying by %v", time.Second-timeSinceUpdate)
-		time.Sleep(time.Second - timeSinceUpdate)
+		func() {
+			s.mu.Unlock()
+			defer s.mu.Lock()
+			time.Sleep(time.Second - timeSinceUpdate)
+		}()
 	}
 
 	activeClients := s.clients.activeClients()
-	s.refreshProducts(activeClients)
-	previousState, err := s.uptane.TUFVersionState()
+	s.refreshProductsLocked(activeClients)
+	previousState, err := s.mu.uptane.TUFVersionState()
 	if err != nil {
 		log.Warnf("[%s] could not get previous TUF version state: %v", s.rcType, err)
 	}
-	if s.forceRefresh() || err != nil {
+	if s.mu.firstUpdate || err != nil {
 		previousState = uptane.TUFVersions{}
 	}
-	clientState, err := s.getClientState()
-	if err != nil {
+	var clientState []byte
+	if rawTargetsCustom, err := s.mu.uptane.TargetsCustom(); err != nil {
 		log.Warnf("[%s] could not get previous backend client state: %v", s.rcType, err)
+	} else if custom, err := parseTargetsCustom(rawTargetsCustom); err != nil {
+		log.Warnf("[%s] could not parse targets custom: %v", s.rcType, err)
+	} else {
+		clientState = custom.OpaqueBackendState
 	}
-	orgUUID, err := s.uptane.StoredOrgUUID()
+	orgUUID, err := s.mu.uptane.StoredOrgUUID()
 	if err != nil {
-		s.Unlock()
 		return err
 	}
 
-	request := buildLatestConfigsRequest(s.hostname, s.agentVersion, s.tagsGetter(), s.traceAgentEnv, orgUUID, previousState, activeClients, s.products, s.newProducts, s.lastUpdateErr, clientState)
-	s.Unlock()
-	ctx := context.Background()
-	response, err := s.api.Fetch(ctx, request)
-	s.Lock()
-	defer s.Unlock()
-	s.lastUpdateErr = nil
+	request := buildLatestConfigsRequest(s.hostname, s.agentVersion, s.tagsGetter(), s.traceAgentEnv, orgUUID, previousState, activeClients, s.mu.products, s.mu.newProducts, s.mu.lastUpdateErr, clientState)
+	var response *pbgo.LatestConfigsResponse
+	func() {
+		s.mu.Unlock()
+		defer s.mu.Lock()
+		ctx := context.Background()
+		response, err = s.api.Fetch(ctx, request)
+	}()
+	s.mu.lastUpdateErr = nil
 	if err != nil {
-		s.backoffErrorCount = s.backoffPolicy.IncError(s.backoffErrorCount)
-		s.lastUpdateErr = fmt.Errorf("api: %v", err)
-		if s.lastFetchErrorType != err {
-			s.lastFetchErrorType = err
-			s.fetchErrorCount = 0
+		s.mu.backoffErrorCount = s.backoffPolicy.IncError(s.mu.backoffErrorCount)
+		s.mu.lastUpdateErr = fmt.Errorf("api: %v", err)
+		if s.mu.lastFetchErrorType != err {
+			s.mu.lastFetchErrorType = err
+			s.mu.fetchErrorCount = 0
 		}
 
 		if errors.Is(err, api.ErrUnauthorized) || errors.Is(err, api.ErrProxy) {
-			if s.fetchErrorCount < initialFetchErrorLog {
-				s.fetchErrorCount++
+			if s.mu.fetchErrorCount < initialFetchErrorLog {
+				s.mu.fetchErrorCount++
 				return err
 			}
 			// If we saw the error enough time, we consider that RC not working is a normal behavior
@@ -776,72 +842,56 @@ func (s *CoreAgentService) refresh() error {
 		}
 
 		if errors.Is(err, api.ErrGatewayTimeout) || errors.Is(err, api.ErrServiceUnavailable) {
-			s.fetchConfigs503And504ErrCount++
+			s.mu.fetchConfigs503And504ErrCount++
 		}
 		return err
 	}
-	s.fetchErrorCount = 0
-	s.fetchConfigs503And504ErrCount = 0
-	err = s.uptane.Update(response)
+	s.mu.fetchErrorCount = 0
+	s.mu.fetchConfigs503And504ErrCount = 0
+	err = s.mu.uptane.Update(response)
 	if err != nil {
-		s.backoffErrorCount = s.backoffPolicy.IncError(s.backoffErrorCount)
-		s.lastUpdateErr = fmt.Errorf("tuf: %v", err)
+		s.mu.backoffErrorCount = s.backoffPolicy.IncError(s.mu.backoffErrorCount)
+		s.mu.lastUpdateErr = fmt.Errorf("tuf: %v", err)
 		return err
 	}
 	// If a user hasn't explicitly set the refresh interval, allow the backend to override it based
 	// on the contents of our update request
-	if s.refreshIntervalOverrideAllowed {
-		ri, err := s.getRefreshInterval()
-		if err == nil && ri > 0 && s.defaultRefreshInterval != ri {
-			s.defaultRefreshInterval = ri
-			s.cacheBypassClients.windowDuration = ri
+	if s.mu.refreshIntervalOverrideAllowed {
+		ri, err := s.getRefreshIntervalLocked()
+		if err == nil && ri > 0 && s.mu.defaultRefreshInterval != ri {
+			s.mu.defaultRefreshInterval = ri
+			s.refreshBypassLimiter.windowDuration = ri
 			log.Infof("[%s] Overriding agent's base refresh interval to %v due to backend recommendation", s.rcType, ri)
 		}
 	}
 
-	s.lastUpdateTimestamp = time.Now()
+	s.mu.lastUpdateTimestamp = time.Now()
 
-	s.firstUpdate = false
-	for product := range s.newProducts {
-		s.products[product] = struct{}{}
+	s.mu.firstUpdate = false
+	for product := range s.mu.newProducts {
+		s.mu.products[product] = struct{}{}
 	}
-	s.newProducts = make(map[rdata.Product]struct{})
+	s.mu.newProducts = make(map[rdata.Product]struct{})
 
-	s.backoffErrorCount = s.backoffPolicy.DecError(s.backoffErrorCount)
+	s.mu.backoffErrorCount = s.backoffPolicy.DecError(s.mu.backoffErrorCount)
 
 	exportedLastUpdateErr.Set("")
 
 	return nil
 }
 
-func (s *CoreAgentService) forceRefresh() bool {
-	return s.firstUpdate
-}
-
-func (s *CoreAgentService) refreshProducts(activeClients []*pbgo.Client) {
+func (s *CoreAgentService) refreshProductsLocked(activeClients []*pbgo.Client) {
 	for _, client := range activeClients {
 		for _, product := range client.Products {
-			if _, hasProduct := s.products[rdata.Product(product)]; !hasProduct {
-				s.newProducts[rdata.Product(product)] = struct{}{}
+			if _, hasProduct := s.mu.products[rdata.Product(product)]; !hasProduct {
+				s.mu.newProducts[rdata.Product(product)] = struct{}{}
 			}
 		}
 	}
 }
 
-func (s *CoreAgentService) getClientState() ([]byte, error) {
-	rawTargetsCustom, err := s.uptane.TargetsCustom()
-	if err != nil {
-		return nil, err
-	}
-	custom, err := parseTargetsCustom(rawTargetsCustom)
-	if err != nil {
-		return nil, err
-	}
-	return custom.OpaqueBackendState, nil
-}
-
-func (s *CoreAgentService) getRefreshInterval() (time.Duration, error) {
-	rawTargetsCustom, err := s.uptane.TargetsCustom()
+func (s *CoreAgentService) getRefreshIntervalLocked() (time.Duration, error) {
+	rawTargetsCustom, err := s.mu.uptane.TargetsCustom()
 	if err != nil {
 		return 0, err
 	}
@@ -859,8 +909,8 @@ func (s *CoreAgentService) getRefreshInterval() (time.Duration, error) {
 	return value, nil
 }
 
-func (s *CoreAgentService) flushCacheResponse() (*pbgo.ClientGetConfigsResponse, error) {
-	targets, err := s.uptane.UnsafeTargetsMeta()
+func (s *CoreAgentService) flushCacheResponseLocked() (*pbgo.ClientGetConfigsResponse, error) {
+	targets, err := s.mu.uptane.UnsafeTargetsMeta()
 	if err != nil {
 		return nil, err
 	}
@@ -877,8 +927,8 @@ func (s *CoreAgentService) flushCacheResponse() (*pbgo.ClientGetConfigsResponse,
 //
 //nolint:revive // TODO(RC) Fix revive linter
 func (s *CoreAgentService) ClientGetConfigs(_ context.Context, request *pbgo.ClientGetConfigsRequest) (*pbgo.ClientGetConfigsResponse, error) {
-	s.Lock()
-	defer s.Unlock()
+	s.mu.Lock()
+	defer s.mu.Unlock()
 
 	err := validateRequest(request)
 	if err != nil {
@@ -892,7 +942,7 @@ func (s *CoreAgentService) ClientGetConfigs(_ context.Context, request *pbgo.Cli
 		// - The triggered request takes too long
 
 		s.clients.seen(request.Client)
-		s.Unlock()
+		s.mu.Unlock()
 
 		response := make(chan struct{})
 		bypassStart := time.Now()
@@ -902,7 +952,7 @@ func (s *CoreAgentService) ClientGetConfigs(_ context.Context, request *pbgo.Cli
 		// Timeout in case the previous request is still pending
 		// and we can't request another one
 		select {
-		case s.cacheBypassClients.requests <- response:
+		case s.refreshBypassCh <- response:
 		case <-time.After(newClientBlockTTL):
 			// No need to add telemetry here, it'll be done in the second
 			// timeout case that will automatically be triggered
@@ -918,23 +968,23 @@ func (s *CoreAgentService) ClientGetConfigs(_ context.Context, request *pbgo.Cli
 			s.telemetryReporter.IncTimeout()
 		}
 
-		s.Lock()
+		s.mu.Lock()
 	}
-	if s.disableConfigPollLoop && s.lastUpdateErr != nil {
-		return nil, s.lastUpdateErr
+	if s.disableConfigPollLoop && s.mu.lastUpdateErr != nil {
+		return nil, s.mu.lastUpdateErr
 	}
 
 	s.clients.seen(request.Client)
-	tufVersions, err := s.uptane.TUFVersionState()
+	tufVersions, err := s.mu.uptane.TUFVersionState()
 	if err != nil {
 		return nil, err
 	}
 
 	// We only want to check for this if we have successfully initialized the TUF database
-	if !s.firstUpdate {
+	if !s.mu.firstUpdate {
 
 		// get the expiration time of timestamp.json
-		expires, err := s.uptane.TimestampExpires()
+		expires, err := s.mu.uptane.TimestampExpires()
 		if err != nil {
 			return nil, err
 		}
@@ -942,19 +992,19 @@ func (s *CoreAgentService) ClientGetConfigs(_ context.Context, request *pbgo.Cli
 		// all clients must flush their configuration state.
 		if expires.Before(time.Now()) {
 			log.Warnf("Timestamp expired at %s, flushing cache", expires.Format(time.RFC3339))
-			return s.flushCacheResponse()
+			return s.flushCacheResponseLocked()
 		}
 	}
 
 	if tufVersions.DirectorTargets == request.Client.State.TargetsVersion {
 		return &pbgo.ClientGetConfigsResponse{}, nil
 	}
-	roots, err := s.getNewDirectorRoots(s.uptane, request.Client.State.RootVersion, tufVersions.DirectorRoot)
+	roots, err := getNewDirectorRoots(s.mu.uptane, request.Client.State.RootVersion, tufVersions.DirectorRoot)
 	if err != nil {
 		return nil, err
 	}
 
-	directorTargets, err := s.uptane.Targets()
+	directorTargets, err := s.mu.uptane.Targets()
 	if err != nil {
 		return nil, err
 	}
@@ -968,12 +1018,14 @@ func (s *CoreAgentService) ClientGetConfigs(_ context.Context, request *pbgo.Cli
 		return nil, err
 	}
 
-	targetFiles, err := s.getTargetFiles(s.uptane, neededFiles)
+	// TODO: Do not hold the mutex while calling getTargetFiles -- it may go to
+	// disk or network.
+	targetFiles, err := getTargetFiles(s.mu.uptane, neededFiles)
 	if err != nil {
 		return nil, err
 	}
 
-	targetsRaw, err := s.uptane.TargetsMeta()
+	targetsRaw, err := s.mu.uptane.TargetsMeta()
 	if err != nil {
 		return nil, err
 	}
@@ -1030,17 +1082,19 @@ func (s *CoreAgentService) apiKeyUpdateCallback() func(string, model.Source, any
 			log.Errorf("Could not convert API key to string")
 			return
 		}
-		s.Lock()
-		defer s.Unlock()
+		s.mu.Lock()
+		defer s.mu.Unlock()
 
 		s.api.UpdateAPIKey(newKey)
 
 		// Verify that the Org UUID hasn't changed
-		storedOrgUUID, err := s.uptane.StoredOrgUUID()
+		storedOrgUUID, err := s.mu.uptane.StoredOrgUUID()
 		if err != nil {
 			log.Warnf("Could not get org uuid: %s", err)
 			return
 		}
+
+		// TODO: Do not hold the mutex while calling FetchOrgData.
 		newOrgUUID, err := s.api.FetchOrgData(context.Background())
 		if err != nil {
 			log.Warnf("Could not get org uuid: %s", err)
@@ -1055,7 +1109,11 @@ func (s *CoreAgentService) apiKeyUpdateCallback() func(string, model.Source, any
 
 // ConfigGetState returns the state of the configuration and the director repos in the local store
 func (s *CoreAgentService) ConfigGetState() (*pbgo.GetStateConfigResponse, error) {
-	state, err := s.uptane.State()
+	s.mu.Lock()
+	uptane := s.mu.uptane
+	s.mu.Unlock()
+
+	state, err := uptane.State()
 	if err != nil {
 		return nil, err
 	}
@@ -1082,11 +1140,11 @@ func (s *CoreAgentService) ConfigGetState() (*pbgo.GetStateConfigResponse, error
 
 // ConfigResetState resets the remote configuration state, clearing the local store and reinitializing the uptane client
 func (s *CoreAgentService) ConfigResetState() (*pbgo.ResetStateConfigResponse, error) {
-	s.Lock()
-	defer s.Unlock()
+	s.mu.Lock()
+	defer s.mu.Unlock()
 
 	// get metadata from current ts to recreate it with same params
-	metadata, err := s.uptane.GetTransactionalStoreMetadata()
+	metadata, err := s.mu.uptane.GetTransactionalStoreMetadata()
 	if err != nil {
 		return nil, err
 	}
@@ -1103,7 +1161,7 @@ func (s *CoreAgentService) ConfigResetState() (*pbgo.ResetStateConfigResponse, e
 	if err != nil {
 		return nil, err
 	}
-	s.uptane = uptaneClient
+	s.mu.uptane = uptaneClient
 
 	return &pbgo.ResetStateConfigResponse{}, err
 }
@@ -1206,9 +1264,14 @@ func validateRequest(request *pbgo.ClientGetConfigsRequest) error {
 
 // HTTPClient fetches Remote Configurations from an HTTP(s)-based backend
 type HTTPClient struct {
-	Service
-	lastUpdate time.Time
-	uptane     cdnUptaneClient
+	rcType string
+	uptane cdnUptaneClient
+
+	mu struct {
+		sync.Mutex
+
+		lastUpdate time.Time
+	}
 }
 
 // NewHTTPClient creates a new HTTPClient that can be used to fetch Remote Configurations from an HTTP(s)-based backend
@@ -1228,9 +1291,7 @@ func NewHTTPClient(runPath, site, apiKey, agentVersion string) (*HTTPClient, err
 	}
 
 	return &HTTPClient{
-		Service: Service{
-			rcType: "CDN",
-		},
+		rcType: "CDN",
 		uptane: uptaneCDNClient,
 	}, nil
 }
@@ -1265,23 +1326,17 @@ func (c *HTTPClient) GetCDNConfigUpdate(
 }
 
 func (c *HTTPClient) update(ctx context.Context) error {
-	var err error
-	c.Lock()
-	defer c.Unlock()
+	c.mu.Lock()
+	defer c.mu.Unlock()
 
-	err = c.uptane.Update(ctx)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return c.uptane.Update(ctx)
 }
 
 func (c *HTTPClient) shouldUpdate() bool {
-	c.Lock()
-	defer c.Unlock()
-	if time.Since(c.lastUpdate) > maxCDNUpdateFrequency {
-		c.lastUpdate = time.Now()
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if time.Since(c.mu.lastUpdate) > maxCDNUpdateFrequency {
+		c.mu.lastUpdate = time.Now()
 		return true
 	}
 	return false
@@ -1291,8 +1346,8 @@ func (c *HTTPClient) getUpdate(
 	products []string,
 	currentTargetsVersion, currentRootVersion uint64,
 ) (*state.Update, error) {
-	c.Lock()
-	defer c.Unlock()
+	c.mu.Lock()
+	defer c.mu.Unlock()
 
 	tufVersions, err := c.uptane.TUFVersionState()
 	if err != nil {
@@ -1334,7 +1389,7 @@ func (c *HTTPClient) getUpdate(
 	}
 
 	// Gather the files and map-ify them for the state data structure
-	targetFiles, err := c.getTargetFiles(c.uptane, configs)
+	targetFiles, err := getTargetFiles(c.uptane, configs)
 	if err != nil {
 		return nil, err
 	}
@@ -1344,7 +1399,7 @@ func (c *HTTPClient) getUpdate(
 	}
 
 	// Gather some TUF metadata files we need to send down
-	roots, err := c.getNewDirectorRoots(c.uptane, currentRootVersion, tufVersions.DirectorRoot)
+	roots, err := getNewDirectorRoots(c.uptane, currentRootVersion, tufVersions.DirectorRoot)
 	if err != nil {
 		return nil, err
 	}
