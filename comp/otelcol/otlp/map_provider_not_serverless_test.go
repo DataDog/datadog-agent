@@ -132,12 +132,11 @@ func TestNewMap(t *testing.T) {
 							},
 						},
 						"sending_queue": map[string]any{
-							"sizer":      "items",
-							"queue_size": 8192,
+							"sizer": "items",
 							"batch": map[string]any{
 								"flush_timeout": "10000ms",
-								"min_size":      8192,
-								"max_size":      0,
+								"min_size":      10,
+								"max_size":      100,
 							},
 						},
 					},
@@ -214,12 +213,11 @@ func TestNewMap(t *testing.T) {
 							},
 						},
 						"sending_queue": map[string]any{
-							"sizer":      "items",
-							"queue_size": 8192,
+							"sizer": "items",
 							"batch": map[string]any{
 								"flush_timeout": "10000ms",
-								"min_size":      8192,
-								"max_size":      0,
+								"min_size":      10,
+								"max_size":      100,
 							},
 						},
 					},
@@ -335,12 +333,11 @@ func TestNewMap(t *testing.T) {
 							},
 						},
 						"sending_queue": map[string]any{
-							"sizer":      "items",
-							"queue_size": 8192,
+							"sizer": "items",
 							"batch": map[string]any{
 								"flush_timeout": "10000ms",
-								"min_size":      8192,
-								"max_size":      0,
+								"min_size":      10,
+								"max_size":      100,
 							},
 						},
 					},
@@ -449,12 +446,11 @@ func TestNewMap(t *testing.T) {
 							},
 						},
 						"sending_queue": map[string]any{
-							"sizer":      "items",
-							"queue_size": 8192,
+							"sizer": "items",
 							"batch": map[string]any{
 								"flush_timeout": "10000ms",
-								"min_size":      8192,
-								"max_size":      0,
+								"min_size":      10,
+								"max_size":      100,
 							},
 						},
 					},
@@ -527,12 +523,11 @@ func TestNewMap(t *testing.T) {
 							},
 						},
 						"sending_queue": map[string]any{
-							"sizer":      "items",
-							"queue_size": 8192,
+							"sizer": "items",
 							"batch": map[string]any{
 								"flush_timeout": "10000ms",
-								"min_size":      8192,
-								"max_size":      0,
+								"min_size":      10,
+								"max_size":      100,
 							},
 						},
 					},
@@ -594,12 +589,11 @@ func TestNewMap(t *testing.T) {
 					},
 					"logsagent": map[string]any{
 						"sending_queue": map[string]any{
-							"sizer":      "items",
-							"queue_size": 8192,
+							"sizer": "items",
 							"batch": map[string]any{
 								"flush_timeout": "10000ms",
-								"min_size":      8192,
-								"max_size":      0,
+								"min_size":      10,
+								"max_size":      100,
 							},
 						},
 					},
@@ -677,23 +671,21 @@ func TestNewMap(t *testing.T) {
 							},
 						},
 						"sending_queue": map[string]any{
-							"sizer":      "items",
-							"queue_size": 8192,
+							"sizer": "items",
 							"batch": map[string]any{
 								"flush_timeout": "10000ms",
-								"min_size":      8192,
-								"max_size":      0,
+								"min_size":      10,
+								"max_size":      100,
 							},
 						},
 					},
 					"logsagent": map[string]any{
 						"sending_queue": map[string]any{
-							"sizer":      "items",
-							"queue_size": 8192,
+							"sizer": "items",
 							"batch": map[string]any{
 								"flush_timeout": "10000ms",
-								"min_size":      8192,
-								"max_size":      0,
+								"min_size":      10,
+								"max_size":      100,
 							},
 						},
 					},
@@ -776,23 +768,21 @@ func TestNewMap(t *testing.T) {
 							},
 						},
 						"sending_queue": map[string]any{
-							"sizer":      "items",
-							"queue_size": 8192,
+							"sizer": "items",
 							"batch": map[string]any{
 								"flush_timeout": "10000ms",
-								"min_size":      8192,
-								"max_size":      0,
+								"min_size":      10,
+								"max_size":      100,
 							},
 						},
 					},
 					"logsagent": map[string]any{
 						"sending_queue": map[string]any{
-							"sizer":      "items",
-							"queue_size": 8192,
+							"sizer": "items",
 							"batch": map[string]any{
 								"flush_timeout": "10000ms",
-								"min_size":      8192,
-								"max_size":      0,
+								"min_size":      10,
+								"max_size":      100,
 							},
 						},
 					},
@@ -859,12 +849,11 @@ func TestNewMap(t *testing.T) {
 					},
 					"logsagent": map[string]any{
 						"sending_queue": map[string]any{
-							"sizer":      "items",
-							"queue_size": 8192,
+							"sizer": "items",
 							"batch": map[string]any{
 								"flush_timeout": "10000ms",
-								"min_size":      8192,
-								"max_size":      0,
+								"min_size":      10,
+								"max_size":      100,
 							},
 						},
 					},
@@ -931,23 +920,21 @@ func TestNewMap(t *testing.T) {
 							},
 						},
 						"sending_queue": map[string]any{
-							"sizer":      "items",
-							"queue_size": 8192,
+							"sizer": "items",
 							"batch": map[string]any{
 								"flush_timeout": "10000ms",
-								"min_size":      8192,
-								"max_size":      0,
+								"min_size":      10,
+								"max_size":      100,
 							},
 						},
 					},
 					"logsagent": map[string]any{
 						"sending_queue": map[string]any{
-							"sizer":      "items",
-							"queue_size": 8192,
+							"sizer": "items",
 							"batch": map[string]any{
 								"flush_timeout": "10000ms",
-								"min_size":      8192,
-								"max_size":      0,
+								"min_size":      10,
+								"max_size":      100,
 							},
 						},
 					},
@@ -1009,12 +996,11 @@ func TestNewMap(t *testing.T) {
 					},
 					"logsagent": map[string]any{
 						"sending_queue": map[string]any{
-							"sizer":      "items",
-							"queue_size": 8192,
+							"sizer": "items",
 							"batch": map[string]any{
 								"flush_timeout": "10000ms",
-								"min_size":      8192,
-								"max_size":      0,
+								"min_size":      10,
+								"max_size":      100,
 							},
 						},
 					},
@@ -1079,12 +1065,11 @@ func TestNewMap(t *testing.T) {
 							},
 						},
 						"sending_queue": map[string]any{
-							"sizer":      "items",
-							"queue_size": 8192,
+							"sizer": "items",
 							"batch": map[string]any{
 								"flush_timeout": "10000ms",
-								"min_size":      8192,
-								"max_size":      0,
+								"min_size":      10,
+								"max_size":      100,
 							},
 						},
 					},
@@ -1093,12 +1078,11 @@ func TestNewMap(t *testing.T) {
 					},
 					"logsagent": map[string]any{
 						"sending_queue": map[string]any{
-							"sizer":      "items",
-							"queue_size": 8192,
+							"sizer": "items",
 							"batch": map[string]any{
 								"flush_timeout": "10000ms",
-								"min_size":      8192,
-								"max_size":      0,
+								"min_size":      10,
+								"max_size":      100,
 							},
 						},
 					},
@@ -1174,12 +1158,11 @@ func TestNewMap(t *testing.T) {
 							},
 						},
 						"sending_queue": map[string]any{
-							"sizer":      "items",
-							"queue_size": 8192,
+							"sizer": "items",
 							"batch": map[string]any{
 								"flush_timeout": "10000ms",
-								"min_size":      8192,
-								"max_size":      0,
+								"min_size":      10,
+								"max_size":      100,
 							},
 						},
 					},
@@ -1188,12 +1171,11 @@ func TestNewMap(t *testing.T) {
 					},
 					"logsagent": map[string]any{
 						"sending_queue": map[string]any{
-							"sizer":      "items",
-							"queue_size": 8192,
+							"sizer": "items",
 							"batch": map[string]any{
 								"flush_timeout": "10000ms",
-								"min_size":      8192,
-								"max_size":      0,
+								"min_size":      10,
+								"max_size":      100,
 							},
 						},
 					},
