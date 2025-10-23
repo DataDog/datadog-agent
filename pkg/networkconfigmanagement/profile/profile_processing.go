@@ -203,7 +203,7 @@ func (c *Commands) compileProcessingRules() error {
 		}
 		replacer := scrubber.Replacer{
 			Regex: rules.RedactionRules[i].Regexp,
-			Repl:  []byte(fmt.Sprintf(`$1 %s`, rules.RedactionRules[i].Replacement)),
+			Repl:  []byte(rules.RedactionRules[i].Replacement),
 		}
 		c.Scrubber.AddReplacer(scrubber.SingleLine, replacer)
 	}

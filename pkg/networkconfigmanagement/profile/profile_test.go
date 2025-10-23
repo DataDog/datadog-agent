@@ -165,7 +165,7 @@ func Test_ParseProfileFromFile(t *testing.T) {
 							},
 						},
 						RedactionRules: []RedactionRule{
-							{Regex: `(username .+ (password|secret) \d) .+`, Replacement: "<redacted secret>"},
+							{Regex: `(username .+ (password|secret) \d) .+`, Replacement: "$1 <redacted secret>"},
 						},
 					}},
 					{CommandType: Startup, Values: []string{"show startup-config"}},

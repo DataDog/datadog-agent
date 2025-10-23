@@ -378,7 +378,7 @@ func TestCheck_FindMatchingProfile(t *testing.T) {
 					RedactionRules: []profile.RedactionRule{
 						{Regex: `(username .+ (password|secret) \d) .+`,
 							Regexp:      regexp.MustCompile(`(username .+ (password|secret) \d) .+`),
-							Replacement: "<redacted secret>"},
+							Replacement: "$1 <redacted secret>"},
 					},
 				},
 				Scrubber: getRunningScrubber(),

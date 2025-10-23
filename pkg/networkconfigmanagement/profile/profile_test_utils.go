@@ -106,7 +106,7 @@ func newTestProfile() *NCMProfile {
 						},
 					},
 					RedactionRules: []RedactionRule{
-						{Regex: `(username .+ (password|secret) \d) .+`, Replacement: "<BIG OL SECRET>"},
+						{Regex: `(username .+ (password|secret) \d) .+`, Replacement: "$1 <BIG OL SECRET>"},
 					},
 				},
 			},
@@ -141,7 +141,7 @@ var testProfile = &NCMProfile{
 					},
 				},
 				RedactionRules: []RedactionRule{
-					{Regex: `(username .+ (password|secret) \d) .+`, Replacement: "<redacted secret>"},
+					{Regex: `(username .+ (password|secret) \d) .+`, Replacement: "$1 <redacted secret>"},
 				},
 			},
 		},
@@ -176,7 +176,7 @@ var runningCommandsWithCompiledRegex = &Commands{
 			{
 				Regex:       `(username .+ (password|secret) \d) .+`,
 				Regexp:      regexp.MustCompile(`(username .+ (password|secret) \d) .+`),
-				Replacement: `<redacted secret>`,
+				Replacement: `$1 <redacted secret>`,
 			},
 		},
 	},
