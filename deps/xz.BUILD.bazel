@@ -209,7 +209,7 @@ pkg_files(
 
 expand_template(
     name = "gen_pkgconfig",
-    template = "//deps/xz:liblzma.pc.in",
+    template = "@@//deps/xz:liblzma.pc.in",
     out = "liblzma.pc",
     substitutions = {
         "{{VERSION}}": VERSION,
