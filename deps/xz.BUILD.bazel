@@ -20,7 +20,6 @@ alias(
 )
 
 VERSION = "5.4.2"
-SONAME = "liblzma.so.%s" % VERSION
 
 # Warning: starting from 5.5.2, the license switches to BSD-0
 license(
@@ -182,11 +181,6 @@ cc_library(
 cc_shared_library(
     name = "lzma",
     deps = [":liblzma"],
-    user_link_flags = select({
-        "@platforms//os:windows": [],
-        "@platforms//os:macos": [],
-        "//conditions:default": [],
-    }),
     features = select({
         "@platforms//os:macos": ["-macos_default_link_flags"],
         "//conditions:default": [],
@@ -198,7 +192,7 @@ so_symlink(
     name = "lib_files",
     src = ":lzma",
     libname = "liblzma",
-    version = "5.4.2",
+    version = VERSION,
 )
 
 pkg_files(
@@ -215,7 +209,7 @@ pkg_files(
 
 expand_template(
     name = "gen_pkgconfig",
-    template = "@@//deps/xz:liblzma.pc.in",
+    template = "//deps/xz:liblzma.pc.in",
     out = "liblzma.pc",
     substitutions = {
         "{{VERSION}}": VERSION,
