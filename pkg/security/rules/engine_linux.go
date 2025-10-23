@@ -48,7 +48,7 @@ func (e *RuleEngine) GetSECLVariables() map[string]*api.SECLVariableState {
 				}
 
 				ctx := preparator.get(func(event *model.Event) {
-					event.ContainerContext = &cgce.ContainerContext
+					event.ProcessContext.Process.ContainerContext = cgce.ContainerContext
 				})
 				defer preparator.put(ctx)
 
@@ -74,7 +74,7 @@ func (e *RuleEngine) GetSECLVariables() map[string]*api.SECLVariableState {
 				defer cgce.RUnlock()
 
 				ctx := preparator.get(func(event *model.Event) {
-					event.CGroupContext = &cgce.CGroupContext
+					event.ProcessContext.Process.CGroup = cgce.CGroupContext
 				})
 				defer preparator.put(ctx)
 

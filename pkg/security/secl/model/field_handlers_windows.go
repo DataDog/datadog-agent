@@ -24,11 +24,6 @@ func (ev *Event) ResolveFieldsForAD() {
 func (ev *Event) resolveFields(forADs bool) {
 	eventType := ev.GetEventType().String()
 	// resolve context fields that are not related to any event type
-	_ = ev.FieldHandlers.ResolveContainerCreatedAt(ev, ev.BaseEvent.ContainerContext)
-	_ = ev.FieldHandlers.ResolveContainerID(ev, ev.BaseEvent.ContainerContext)
-	if !forADs {
-		_ = ev.FieldHandlers.ResolveContainerTags(ev, ev.BaseEvent.ContainerContext)
-	}
 	_ = ev.FieldHandlers.ResolveHostname(ev, &ev.BaseEvent)
 	if !forADs {
 		_ = ev.FieldHandlers.ResolveService(ev, &ev.BaseEvent)
@@ -36,6 +31,11 @@ func (ev *Event) resolveFields(forADs bool) {
 	_ = ev.FieldHandlers.ResolveSource(ev, &ev.BaseEvent)
 	_ = ev.FieldHandlers.ResolveEventTimestamp(ev, &ev.BaseEvent)
 	_ = ev.FieldHandlers.ResolveProcessCmdLine(ev, &ev.BaseEvent.ProcessContext.Process)
+	_ = ev.FieldHandlers.ResolveContainerCreatedAt(ev, &ev.BaseEvent.ProcessContext.Process.ContainerContext)
+	_ = ev.FieldHandlers.ResolveContainerID(ev, &ev.BaseEvent.ProcessContext.Process.ContainerContext)
+	if !forADs {
+		_ = ev.FieldHandlers.ResolveContainerTags(ev, &ev.BaseEvent.ProcessContext.Process.ContainerContext)
+	}
 	_ = ev.FieldHandlers.ResolveProcessCreatedAt(ev, &ev.BaseEvent.ProcessContext.Process)
 	_ = ev.FieldHandlers.ResolveProcessEnvp(ev, &ev.BaseEvent.ProcessContext.Process)
 	_ = ev.FieldHandlers.ResolveProcessEnvs(ev, &ev.BaseEvent.ProcessContext.Process)
@@ -44,6 +44,15 @@ func (ev *Event) resolveFields(forADs bool) {
 	_ = ev.FieldHandlers.ResolveFilePath(ev, &ev.BaseEvent.ProcessContext.Process.FileEvent)
 	if ev.BaseEvent.ProcessContext.HasParent() {
 		_ = ev.FieldHandlers.ResolveProcessCmdLine(ev, ev.BaseEvent.ProcessContext.Parent)
+	}
+	if ev.BaseEvent.ProcessContext.HasParent() {
+		_ = ev.FieldHandlers.ResolveContainerCreatedAt(ev, &ev.BaseEvent.ProcessContext.Parent.ContainerContext)
+	}
+	if ev.BaseEvent.ProcessContext.HasParent() {
+		_ = ev.FieldHandlers.ResolveContainerID(ev, &ev.BaseEvent.ProcessContext.Parent.ContainerContext)
+	}
+	if !forADs && ev.BaseEvent.ProcessContext.HasParent() {
+		_ = ev.FieldHandlers.ResolveContainerTags(ev, &ev.BaseEvent.ProcessContext.Parent.ContainerContext)
 	}
 	if ev.BaseEvent.ProcessContext.HasParent() {
 		_ = ev.FieldHandlers.ResolveProcessCreatedAt(ev, ev.BaseEvent.ProcessContext.Parent)
@@ -88,6 +97,11 @@ func (ev *Event) resolveFields(forADs bool) {
 		_ = ev.FieldHandlers.ResolveFilePath(ev, &ev.Exec.Process.FileEvent)
 		_ = ev.FieldHandlers.ResolveFileBasename(ev, &ev.Exec.Process.FileEvent)
 		_ = ev.FieldHandlers.ResolveFileExtension(ev, &ev.Exec.Process.FileEvent)
+		_ = ev.FieldHandlers.ResolveContainerID(ev, &ev.Exec.Process.ContainerContext)
+		_ = ev.FieldHandlers.ResolveContainerCreatedAt(ev, &ev.Exec.Process.ContainerContext)
+		if !forADs {
+			_ = ev.FieldHandlers.ResolveContainerTags(ev, &ev.Exec.Process.ContainerContext)
+		}
 		_ = ev.FieldHandlers.ResolveProcessCreatedAt(ev, ev.Exec.Process)
 		_ = ev.FieldHandlers.ResolveProcessCmdLine(ev, ev.Exec.Process)
 		_ = ev.FieldHandlers.ResolveUser(ev, ev.Exec.Process)
@@ -97,6 +111,11 @@ func (ev *Event) resolveFields(forADs bool) {
 		_ = ev.FieldHandlers.ResolveFilePath(ev, &ev.Exit.Process.FileEvent)
 		_ = ev.FieldHandlers.ResolveFileBasename(ev, &ev.Exit.Process.FileEvent)
 		_ = ev.FieldHandlers.ResolveFileExtension(ev, &ev.Exit.Process.FileEvent)
+		_ = ev.FieldHandlers.ResolveContainerID(ev, &ev.Exit.Process.ContainerContext)
+		_ = ev.FieldHandlers.ResolveContainerCreatedAt(ev, &ev.Exit.Process.ContainerContext)
+		if !forADs {
+			_ = ev.FieldHandlers.ResolveContainerTags(ev, &ev.Exit.Process.ContainerContext)
+		}
 		_ = ev.FieldHandlers.ResolveProcessCreatedAt(ev, ev.Exit.Process)
 		_ = ev.FieldHandlers.ResolveProcessCmdLine(ev, ev.Exit.Process)
 		_ = ev.FieldHandlers.ResolveUser(ev, ev.Exit.Process)
