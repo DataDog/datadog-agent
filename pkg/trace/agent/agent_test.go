@@ -187,7 +187,7 @@ func TestStopWaits(t *testing.T) {
 	// Use select to avoid blocking if channel is closed
 	payload := &api.Payload{
 		TracerPayload: testutil.TracerPayloadWithChunk(testutil.TraceChunkWithSpan(span)),
-		Source:        info.NewReceiverStats().GetTagStats(info.Tags{}),
+		Source:        info.NewReceiverStats(true).GetTagStats(info.Tags{}),
 	}
 
 	select {
@@ -247,7 +247,7 @@ func TestProcess(t *testing.T) {
 
 		agnt.Process(&api.Payload{
 			TracerPayload: testutil.TracerPayloadWithChunk(testutil.TraceChunkWithSpan(span)),
-			Source:        info.NewReceiverStats().GetTagStats(info.Tags{}),
+			Source:        info.NewReceiverStats(true).GetTagStats(info.Tags{}),
 		})
 
 		assert := assert.New(t)
@@ -277,7 +277,7 @@ func TestProcess(t *testing.T) {
 
 		agnt.Process(&api.Payload{
 			TracerPayload: testutil.TracerPayloadWithChunk(testutil.TraceChunkWithSpan(span)),
-			Source:        info.NewReceiverStats().GetTagStats(info.Tags{}),
+			Source:        info.NewReceiverStats(true).GetTagStats(info.Tags{}),
 		})
 
 		assert := assert.New(t)
@@ -317,7 +317,7 @@ func TestProcess(t *testing.T) {
 		}
 		agnt.Process(&api.Payload{
 			TracerPayload: testutil.TracerPayloadWithChunk(testutil.TraceChunkWithSpan(span)),
-			Source:        info.NewReceiverStats().GetTagStats(info.Tags{}),
+			Source:        info.NewReceiverStats(true).GetTagStats(info.Tags{}),
 		})
 
 		assert.Equal(t, 5555.0, span.Metrics["request.secret"])
@@ -2120,7 +2120,7 @@ func TestProbSamplerSetsChunkPriority(t *testing.T) {
 		conf:                 cfg,
 	}
 
-	keep, _ := a.traceSampling(now, info.NewReceiverStats().GetTagStats(info.Tags{}), &pt)
+	keep, _ := a.traceSampling(now, info.NewReceiverStats(true).GetTagStats(info.Tags{}), &pt)
 	assert.True(t, keep)
 	// In order to ensure intake keeps this chunk we must override whatever priority was previously set on this chunk
 	// This is especially an issue for incoming OTLP spans where the chunk priority may have the "unset" value of -128
@@ -2373,14 +2373,14 @@ func TestSampleTrace(t *testing.T) {
 			}
 			a.SamplerMetrics.Add(a.NoPrioritySampler, a.ErrorsSampler, a.PrioritySampler, a.RareSampler)
 			tt.expectStatsd(statsd)
-			keep, _ := a.traceSampling(now, info.NewReceiverStats().GetTagStats(info.Tags{}), &tt.trace)
+			keep, _ := a.traceSampling(now, info.NewReceiverStats(true).GetTagStats(info.Tags{}), &tt.trace)
 			metrics.Report()
 			assert.Equal(t, tt.keep, keep)
 			assert.Equal(t, !tt.keep, tt.trace.TraceChunk.DroppedTrace)
 			cfg.Features["error_rare_sample_tracer_drop"] = struct{}{}
 			defer delete(cfg.Features, "error_rare_sample_tracer_drop")
 			tt.expectStatsdWithFeature(statsd)
-			keep, _ = a.traceSampling(now, info.NewReceiverStats().GetTagStats(info.Tags{}), &tt.trace)
+			keep, _ = a.traceSampling(now, info.NewReceiverStats(true).GetTagStats(info.Tags{}), &tt.trace)
 			metrics.Report()
 			assert.Equal(t, tt.keepWithFeature, keep)
 			assert.Equal(t, !tt.keepWithFeature, tt.trace.TraceChunk.DroppedTrace)
@@ -2505,12 +2505,12 @@ func TestSample(t *testing.T) {
 			conf:              cfg,
 		}
 		t.Run(name, func(t *testing.T) {
-			keep, _ := a.sample(now, info.NewReceiverStats().GetTagStats(info.Tags{}), &tt.trace)
+			keep, _ := a.sample(now, info.NewReceiverStats(true).GetTagStats(info.Tags{}), &tt.trace)
 			assert.Equal(t, tt.keep, keep)
 			assert.Equal(t, !tt.keep, tt.trace.TraceChunk.DroppedTrace)
 			cfg.Features["error_rare_sample_tracer_drop"] = struct{}{}
 			defer delete(cfg.Features, "error_rare_sample_tracer_drop")
-			keep, _ = a.sample(now, info.NewReceiverStats().GetTagStats(info.Tags{}), &tt.trace)
+			keep, _ = a.sample(now, info.NewReceiverStats(true).GetTagStats(info.Tags{}), &tt.trace)
 			assert.Equal(t, tt.keepWithFeature, keep)
 			assert.Equal(t, !tt.keepWithFeature, tt.trace.TraceChunk.DroppedTrace)
 		})
@@ -2542,7 +2542,7 @@ func TestSampleManualUserDropNoAnalyticsEvents(t *testing.T) {
 		SamplerMetrics:    sampler.NewMetrics(statsd),
 		conf:              cfg,
 	}
-	keep, _ := a.sample(now, info.NewReceiverStats().GetTagStats(info.Tags{}), &pt)
+	keep, _ := a.sample(now, info.NewReceiverStats(true).GetTagStats(info.Tags{}), &pt)
 	assert.False(t, keep)
 	assert.Empty(t, pt.Root.Metrics["_dd.analyzed"])
 }
@@ -2610,7 +2610,7 @@ func TestPartialSamplingFree(t *testing.T) {
 	assert.Greater(t, m.HeapInuse, uint64(50*1e6))
 	agnt.Process(&api.Payload{
 		TracerPayload: tracerPayload,
-		Source:        info.NewReceiverStats().GetTagStats(info.Tags{}),
+		Source:        info.NewReceiverStats(true).GetTagStats(info.Tags{}),
 	})
 	runtime.GC()
 	runtime.ReadMemStats(&m)
@@ -2827,7 +2827,7 @@ func runTraceProcessingBenchmark(b *testing.B, c *config.AgentConfig) {
 	for i := 0; i < b.N; i++ {
 		ta.Process(&api.Payload{
 			TracerPayload: testutil.TracerPayloadWithChunk(testutil.RandomTraceChunk(10, 8)),
-			Source:        info.NewReceiverStats().GetTagStats(info.Tags{}),
+			Source:        info.NewReceiverStats(true).GetTagStats(info.Tags{}),
 		})
 	}
 }
@@ -3468,7 +3468,7 @@ func TestSampleWithPriorityNone(t *testing.T) {
 	}
 	// before := traceutil.CopyTraceChunk(pt.TraceChunk)
 	before := pt.TraceChunk.ShallowCopy()
-	keep, numEvents := agnt.sample(time.Now(), info.NewReceiverStats().GetTagStats(info.Tags{}), &pt)
+	keep, numEvents := agnt.sample(time.Now(), info.NewReceiverStats(true).GetTagStats(info.Tags{}), &pt)
 	assert.True(t, keep) // Score Sampler should keep the trace.
 	assert.False(t, pt.TraceChunk.DroppedTrace)
 	assert.Equal(t, before, pt.TraceChunk)
@@ -3827,7 +3827,7 @@ func TestSingleSpanPlusAnalyticsEvents(t *testing.T) {
 	var b bytes.Buffer
 	oldLogger := log.SetLogger(log.NewBufferLogger(&b))
 	defer func() { log.SetLogger(oldLogger) }()
-	keep, numEvents := traceAgent.sample(time.Now(), info.NewReceiverStats().GetTagStats(info.Tags{}), payload)
+	keep, numEvents := traceAgent.sample(time.Now(), info.NewReceiverStats(true).GetTagStats(info.Tags{}), payload)
 	assert.Equal(t, "[WARN] Detected both analytics events AND single span sampling in the same trace. Single span sampling wins because App Analytics is deprecated.", b.String())
 	assert.False(t, keep) //The sampling decision was FALSE but the trace itself is marked as not dropped
 	assert.False(t, payload.TraceChunk.DroppedTrace)
