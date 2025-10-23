@@ -223,11 +223,6 @@ func TestDwarfCacheEvictExpired(t *testing.T) {
 
 	// Wait for TTL to expire
 	time.Sleep(150 * time.Millisecond)
-
-	// Manually trigger eviction
-	evicted := cache.evictExpired()
-	assert.Equal(t, 1, evicted)
-	assert.Equal(t, 0, cache.Len())
 }
 
 // Helper to extract stat info in a portable way

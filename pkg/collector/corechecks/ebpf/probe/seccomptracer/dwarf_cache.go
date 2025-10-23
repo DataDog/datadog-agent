@@ -179,35 +179,6 @@ func (dc *dwarfCache) loadBinary(pathname string) (*binaryInfo, error) {
 	return info, nil
 }
 
-// evictExpired removes all expired entries from the cache
-// This should be called periodically if background cleanup is desired
-func (dc *dwarfCache) evictExpired() int {
-	dc.mu.Lock()
-	defer dc.mu.Unlock()
-
-	var expiredKeys []binaryKey
-	now := time.Now()
-
-	// Iterate through all entries to find expired ones
-	for _, key := range dc.lru.Keys() {
-		if info, ok := dc.lru.Peek(key); ok {
-			if now.Sub(info.lastAccess) >= dc.ttl {
-				expiredKeys = append(expiredKeys, key)
-			}
-		}
-	}
-
-	// Remove expired entries
-	for _, key := range expiredKeys {
-		if info, ok := dc.lru.Peek(key); ok {
-			delete(dc.pathToKey, info.pathname)
-			dc.lru.Remove(key)
-		}
-	}
-
-	return len(expiredKeys)
-}
-
 // Len returns the current number of entries in the cache
 func (dc *dwarfCache) Len() int {
 	dc.mu.RLock()
