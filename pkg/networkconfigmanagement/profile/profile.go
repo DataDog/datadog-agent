@@ -38,6 +38,7 @@ type Commands struct {
 	CommandType     CommandType     `json:"type" yaml:"type"`
 	Values          []string        `json:"values" yaml:"values"`
 	ProcessingRules ProcessingRules `json:"processing_rules" yaml:"processing_rules"`
+	Scrubber        *scrubber.Scrubber
 }
 
 // Map represents the mapping profile name to profiles from the loaded directory
@@ -69,8 +70,7 @@ type NCMProfileRaw struct {
 // NCMProfile represents the profile with transformed variables such as the commands map for easy access to commands
 type NCMProfile struct {
 	BaseProfile
-	Commands map[CommandType]Commands
-	Scrubber *scrubber.Scrubber
+	Commands map[CommandType]*Commands
 }
 
 // ParseProfileFromFile is a base function to easily unmarshal YAML for any type T given a file path
@@ -105,11 +105,16 @@ func ParseNCMProfileFromFile(filePath string) (*NCMProfile, error) {
 		return nil, err
 	}
 	var np NCMProfile
-	np.Commands = make(map[CommandType]Commands)
-	for _, cmd := range ncmRawProfile.Commands {
+	np.Commands = make(map[CommandType]*Commands)
+	for i := range ncmRawProfile.Commands {
+		cmd := &ncmRawProfile.Commands[i]
+		// compile all regex + initialize scrubber if needed
+		err := cmd.compileProcessingRules()
+		if err != nil {
+			return nil, err
+		}
 		np.Commands[cmd.CommandType] = cmd
 	}
-	np.Scrubber = scrubber.New()
 	return &np, nil
 }
 
