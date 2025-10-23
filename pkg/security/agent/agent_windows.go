@@ -13,7 +13,7 @@ import (
 
 // NewRuntimeSecurityAgent instantiates a new RuntimeSecurityAgent
 func NewRuntimeSecurityAgent(_ statsd.ClientInterface, hostname string) (*RuntimeSecurityAgent, error) {
-	client, err := NewRuntimeSecurityClient()
+	client, err := NewRuntimeSecurityCmdClient()
 	if err != nil {
 		return nil, err
 	}
@@ -21,7 +21,7 @@ func NewRuntimeSecurityAgent(_ statsd.ClientInterface, hostname string) (*Runtim
 	// on windows do no telemetry
 
 	rsa := &RuntimeSecurityAgent{
-		client:               client,
+		cmdClient:            client,
 		hostname:             hostname,
 		storage:              nil,
 		running:              atomic.NewBool(false),

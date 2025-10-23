@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
+	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/mailru/easyjson"
 	"go.uber.org/atomic"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -154,9 +155,26 @@ type APIServer struct {
 	kernelVersion string
 	distribution  string
 
-	stopper startstop.Stopper
+	stopChan chan struct{}
+	stopper  startstop.Stopper
 
 	securityAgentAPIClient *SecurityAgentAPIClient
+}
+
+// GetActivityDumpStream transfers dumps to the security-agent. Communication security-agent -> system-probe
+func (a *APIServer) GetActivityDumpStream(_ *empty.Empty, stream api.SecurityEventModule_GetActivityDumpStreamServer) error {
+	for {
+		select {
+		case <-stream.Context().Done():
+			return nil
+		case <-a.stopChan:
+			return nil
+		case dump := <-a.activityDumps:
+			if err := stream.Send(dump); err != nil {
+				return err
+			}
+		}
+	}
 }
 
 // SendActivityDump queues an activity dump to the chan of activity dumps
@@ -171,6 +189,29 @@ func (a *APIServer) SendActivityDump(imageName string, imageTag string, header [
 	}
 
 	a.activityDumpSender.Send(dump, a.expireDump)
+}
+
+// GetEvents transfers events to the security-agent. Communication security-agent -> system-probe
+func (a *APIServer) GetEventStream(_ *empty.Empty, stream api.SecurityEventModule_GetEventStreamServer) error {
+	if prev := a.connEstablished.Swap(true); !prev {
+		// should always be non nil
+		if a.cwsConsumer != nil {
+			a.cwsConsumer.onAPIConnectionEstablished()
+		}
+	}
+
+	for {
+		select {
+		case <-stream.Context().Done():
+			return nil
+		case <-a.stopChan:
+			return nil
+		case msg := <-a.events:
+			if err := stream.Send(msg); err != nil {
+				return err
+			}
+		}
+	}
 }
 
 func (a *APIServer) enqueue(msg *pendingMsg) {
@@ -311,6 +352,7 @@ func (a *APIServer) start(ctx context.Context) {
 				return true
 			})
 		case <-ctx.Done():
+			close(a.stopChan)
 			return
 		}
 	}
@@ -717,27 +759,30 @@ func NewAPIServer(cfg *config.RuntimeSecurityConfig, probe *sprobe.Probe, msgSen
 		return nil, err
 	}
 
-	securityAgentAPIClient, err := NewSecurityAgentAPIClient(cfg)
-	if err != nil {
-		return nil, err
+	as := &APIServer{
+		events:          make(chan *api.SecurityEventMessage, cfg.EventServerBurst*3),
+		activityDumps:   make(chan *api.ActivityDumpStreamMessage, model.MaxTracedCgroupsCount*2),
+		expiredEvents:   make(map[rules.RuleID]*atomic.Int64),
+		expiredDumps:    atomic.NewInt64(0),
+		statsdClient:    client,
+		probe:           probe,
+		retention:       cfg.EventServerRetention,
+		cfg:             cfg,
+		stopper:         stopper,
+		selfTester:      selfTester,
+		stopChan:        make(chan struct{}),
+		msgSender:       msgSender,
+		connEstablished: atomic.NewBool(false),
+		envAsTags:       getEnvAsTags(cfg),
+		containerFilter: containerFilter,
 	}
 
-	as := &APIServer{
-		events:                 make(chan *api.SecurityEventMessage, cfg.EventServerBurst*3),
-		activityDumps:          make(chan *api.ActivityDumpStreamMessage, model.MaxTracedCgroupsCount*2),
-		expiredEvents:          make(map[rules.RuleID]*atomic.Int64),
-		expiredDumps:           atomic.NewInt64(0),
-		statsdClient:           client,
-		probe:                  probe,
-		retention:              cfg.EventServerRetention,
-		cfg:                    cfg,
-		stopper:                stopper,
-		selfTester:             selfTester,
-		msgSender:              msgSender,
-		connEstablished:        atomic.NewBool(false),
-		envAsTags:              getEnvAsTags(cfg),
-		containerFilter:        containerFilter,
-		securityAgentAPIClient: securityAgentAPIClient,
+	if cfg.SendPayloadsFromSystemProbe {
+		securityAgentAPIClient, err := NewSecurityAgentAPIClient(cfg)
+		if err != nil {
+			return nil, err
+		}
+		as.securityAgentAPIClient = securityAgentAPIClient
 	}
 
 	as.collectOSReleaseData()

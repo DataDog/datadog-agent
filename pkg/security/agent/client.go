@@ -19,16 +19,23 @@ import (
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/security/common"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
+	"github.com/golang/protobuf/ptypes/empty"
 )
 
 // RuntimeSecurityClient is used to send request to security module
-type RuntimeSecurityClient struct {
+type RuntimeSecurityCmdClient struct {
 	apiClient api.SecurityModuleClient
 	conn      *grpc.ClientConn
 }
 
+// RuntimeSecurityClient is used to send request to security module
+type RuntimeSecurityEventClient struct {
+	eventClient api.SecurityEventModuleClient
+	conn        *grpc.ClientConn
+}
+
 // SecurityModuleClientWrapper represents a security module client
-type SecurityModuleClientWrapper interface {
+type SecurityModuleCmdClientWrapper interface {
 	DumpDiscarders() (string, error)
 	DumpProcessCache(withArgs bool, format string) (string, error)
 	GenerateActivityDump(request *api.ActivityDumpParams) (*api.ActivityDumpMessage, error)
@@ -47,7 +54,7 @@ type SecurityModuleClientWrapper interface {
 }
 
 // DumpDiscarders sends a request to dump discarders
-func (c *RuntimeSecurityClient) DumpDiscarders() (string, error) {
+func (c *RuntimeSecurityCmdClient) DumpDiscarders() (string, error) {
 	response, err := c.apiClient.DumpDiscarders(context.Background(), &api.DumpDiscardersParams{})
 	if err != nil {
 		return "", err
@@ -57,7 +64,7 @@ func (c *RuntimeSecurityClient) DumpDiscarders() (string, error) {
 }
 
 // DumpProcessCache sends a process cache dump request
-func (c *RuntimeSecurityClient) DumpProcessCache(withArgs bool, format string) (string, error) {
+func (c *RuntimeSecurityCmdClient) DumpProcessCache(withArgs bool, format string) (string, error) {
 	response, err := c.apiClient.DumpProcessCache(context.Background(), &api.DumpProcessCacheParams{WithArgs: withArgs, Format: format})
 	if err != nil {
 		return "", err
@@ -67,17 +74,17 @@ func (c *RuntimeSecurityClient) DumpProcessCache(withArgs bool, format string) (
 }
 
 // ListActivityDumps lists the active activity dumps
-func (c *RuntimeSecurityClient) ListActivityDumps() (*api.ActivityDumpListMessage, error) {
+func (c *RuntimeSecurityCmdClient) ListActivityDumps() (*api.ActivityDumpListMessage, error) {
 	return c.apiClient.ListActivityDumps(context.Background(), &api.ActivityDumpListParams{})
 }
 
 // GenerateActivityDump send a dump activity request
-func (c *RuntimeSecurityClient) GenerateActivityDump(request *api.ActivityDumpParams) (*api.ActivityDumpMessage, error) {
+func (c *RuntimeSecurityCmdClient) GenerateActivityDump(request *api.ActivityDumpParams) (*api.ActivityDumpMessage, error) {
 	return c.apiClient.DumpActivity(context.Background(), request)
 }
 
 // StopActivityDump stops an active dump if it exists
-func (c *RuntimeSecurityClient) StopActivityDump(name, container, cgroup string) (*api.ActivityDumpStopMessage, error) {
+func (c *RuntimeSecurityCmdClient) StopActivityDump(name, container, cgroup string) (*api.ActivityDumpStopMessage, error) {
 	return c.apiClient.StopActivityDump(context.Background(), &api.ActivityDumpStopParams{
 		Name:        name,
 		ContainerID: container,
@@ -86,17 +93,17 @@ func (c *RuntimeSecurityClient) StopActivityDump(name, container, cgroup string)
 }
 
 // GenerateEncoding sends a transcoding request
-func (c *RuntimeSecurityClient) GenerateEncoding(request *api.TranscodingRequestParams) (*api.TranscodingRequestMessage, error) {
+func (c *RuntimeSecurityCmdClient) GenerateEncoding(request *api.TranscodingRequestParams) (*api.TranscodingRequestMessage, error) {
 	return c.apiClient.TranscodingRequest(context.Background(), request)
 }
 
 // DumpNetworkNamespace sends a network namespace cache dump request
-func (c *RuntimeSecurityClient) DumpNetworkNamespace(snapshotInterfaces bool) (*api.DumpNetworkNamespaceMessage, error) {
+func (c *RuntimeSecurityCmdClient) DumpNetworkNamespace(snapshotInterfaces bool) (*api.DumpNetworkNamespaceMessage, error) {
 	return c.apiClient.DumpNetworkNamespace(context.Background(), &api.DumpNetworkNamespaceParams{SnapshotInterfaces: snapshotInterfaces})
 }
 
 // GetConfig retrieves the config of the runtime security module
-func (c *RuntimeSecurityClient) GetConfig() (*api.SecurityConfigMessage, error) {
+func (c *RuntimeSecurityCmdClient) GetConfig() (*api.SecurityConfigMessage, error) {
 	response, err := c.apiClient.GetConfig(context.Background(), &api.GetConfigParams{})
 	if err != nil {
 		return nil, err
@@ -105,13 +112,13 @@ func (c *RuntimeSecurityClient) GetConfig() (*api.SecurityConfigMessage, error) 
 }
 
 // GetStatus returns the status of the module
-func (c *RuntimeSecurityClient) GetStatus() (*api.Status, error) {
+func (c *RuntimeSecurityCmdClient) GetStatus() (*api.Status, error) {
 	apiClient := api.NewSecurityModuleClient(c.conn)
 	return apiClient.GetStatus(context.Background(), &api.GetStatusParams{})
 }
 
 // RunSelfTest instructs the system probe to run a self test
-func (c *RuntimeSecurityClient) RunSelfTest() (*api.SecuritySelfTestResultMessage, error) {
+func (c *RuntimeSecurityCmdClient) RunSelfTest() (*api.SecuritySelfTestResultMessage, error) {
 	response, err := c.apiClient.RunSelfTest(context.Background(), &api.RunSelfTestParams{})
 	if err != nil {
 		return nil, err
@@ -120,7 +127,7 @@ func (c *RuntimeSecurityClient) RunSelfTest() (*api.SecuritySelfTestResultMessag
 }
 
 // ReloadPolicies instructs the system probe to reload its policies
-func (c *RuntimeSecurityClient) ReloadPolicies() (*api.ReloadPoliciesResultMessage, error) {
+func (c *RuntimeSecurityCmdClient) ReloadPolicies() (*api.ReloadPoliciesResultMessage, error) {
 	response, err := c.apiClient.ReloadPolicies(context.Background(), &api.ReloadPoliciesParams{})
 	if err != nil {
 		return nil, err
@@ -129,7 +136,7 @@ func (c *RuntimeSecurityClient) ReloadPolicies() (*api.ReloadPoliciesResultMessa
 }
 
 // GetRuleSetReport gets the currently ruleset loaded status
-func (c *RuntimeSecurityClient) GetRuleSetReport() (*api.GetRuleSetReportMessage, error) {
+func (c *RuntimeSecurityCmdClient) GetRuleSetReport() (*api.GetRuleSetReportMessage, error) {
 	response, err := c.apiClient.GetRuleSetReport(context.Background(), &api.GetRuleSetReportParams{})
 	if err != nil {
 		return nil, err
@@ -138,14 +145,14 @@ func (c *RuntimeSecurityClient) GetRuleSetReport() (*api.GetRuleSetReportMessage
 }
 
 // ListSecurityProfiles lists the profiles held in memory by the Security Profile manager
-func (c *RuntimeSecurityClient) ListSecurityProfiles(includeCache bool) (*api.SecurityProfileListMessage, error) {
+func (c *RuntimeSecurityCmdClient) ListSecurityProfiles(includeCache bool) (*api.SecurityProfileListMessage, error) {
 	return c.apiClient.ListSecurityProfiles(context.Background(), &api.SecurityProfileListParams{
 		IncludeCache: includeCache,
 	})
 }
 
 // SaveSecurityProfile saves the requested security profile to disk
-func (c *RuntimeSecurityClient) SaveSecurityProfile(name string, tag string) (*api.SecurityProfileSaveMessage, error) {
+func (c *RuntimeSecurityCmdClient) SaveSecurityProfile(name string, tag string) (*api.SecurityProfileSaveMessage, error) {
 	return c.apiClient.SaveSecurityProfile(context.Background(), &api.SecurityProfileSaveParams{
 		Selector: &api.WorkloadSelectorMessage{
 			Name: name,
@@ -155,12 +162,30 @@ func (c *RuntimeSecurityClient) SaveSecurityProfile(name string, tag string) (*a
 }
 
 // Close closes the connection
-func (c *RuntimeSecurityClient) Close() {
+func (c *RuntimeSecurityCmdClient) Close() {
 	c.conn.Close()
 }
 
+// GetEvents returns a stream of events. Communication security-agent -> system-probe
+func (c *RuntimeSecurityEventClient) GetEventStream() (api.SecurityEventModule_GetEventStreamClient, error) {
+	stream, err := c.eventClient.GetEventStream(context.Background(), &empty.Empty{})
+	if err != nil {
+		return nil, err
+	}
+	return stream, nil
+}
+
+// GetActivityDumpStream returns a stream of activity dumps. Communication security-agent -> system-probe
+func (c *RuntimeSecurityEventClient) GetActivityDumpStream() (api.SecurityEventModule_GetActivityDumpStreamClient, error) {
+	stream, err := c.eventClient.GetActivityDumpStream(context.Background(), &empty.Empty{})
+	if err != nil {
+		return nil, err
+	}
+	return stream, nil
+}
+
 // NewRuntimeSecurityClient instantiates a new RuntimeSecurityClient
-func NewRuntimeSecurityClient() (*RuntimeSecurityClient, error) {
+func NewRuntimeSecurityCmdClient() (*RuntimeSecurityCmdClient, error) {
 	socketPath := pkgconfigsetup.Datadog().GetString("runtime_security_config.socket")
 	cmdSocketPath := pkgconfigsetup.Datadog().GetString("runtime_security_config.cmd_socket")
 
@@ -192,8 +217,46 @@ func NewRuntimeSecurityClient() (*RuntimeSecurityClient, error) {
 		return nil, err
 	}
 
-	return &RuntimeSecurityClient{
+	return &RuntimeSecurityCmdClient{
 		conn:      conn,
 		apiClient: api.NewSecurityModuleClient(conn),
+	}, nil
+}
+
+// Close closes the connection
+func (c *RuntimeSecurityEventClient) Close() {
+	c.conn.Close()
+}
+
+// NewRuntimeSecurityClient instantiates a new RuntimeSecurityClient
+func NewRuntimeSecurityEventClient() (*RuntimeSecurityEventClient, error) {
+	socketPath := pkgconfigsetup.Datadog().GetString("runtime_security_config.socket")
+
+	family := common.GetFamilyAddress(socketPath)
+	if family == "unix" {
+		if runtime.GOOS == "windows" {
+			return nil, fmt.Errorf("unix sockets are not supported on Windows")
+		}
+
+		socketPath = fmt.Sprintf("unix://%s", socketPath)
+	}
+
+	conn, err := grpc.NewClient(
+		socketPath,
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		grpc.WithDefaultCallOptions(grpc.CallContentSubtype(api.VTProtoCodecName)),
+		grpc.WithConnectParams(grpc.ConnectParams{
+			Backoff: backoff.Config{
+				BaseDelay: time.Second,
+				MaxDelay:  time.Second,
+			},
+		}))
+	if err != nil {
+		return nil, err
+	}
+
+	return &RuntimeSecurityEventClient{
+		conn:        conn,
+		eventClient: api.NewSecurityEventModuleClient(conn),
 	}, nil
 }
