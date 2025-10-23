@@ -183,79 +183,6 @@ cc_library(
 )
 
 # ============================================================================
-# Binary Executables
-# ============================================================================
-
-# odbcinst - ODBC driver/data source management utility
-cc_binary(
-    name = "odbcinst_bin",
-    srcs = ["exe/odbcinst.c"] + glob(["include/*.h"]) + [":config_h"],
-    copts = COMMON_COPTS,
-    includes = COMMON_INCLUDES,
-    deps = [
-        ":odbcinst",  # This refers to the cc_library
-        ":ini",
-    ],
-    visibility = ["//visibility:public"],
-)
-
-# odbc_config - ODBC configuration information utility
-cc_binary(
-    name = "odbc_config",
-    srcs = ["exe/odbc-config.c"] + glob(["include/*.h"]) + [":config_h"],
-    copts = COMMON_COPTS,
-    includes = COMMON_INCLUDES,
-    visibility = ["//visibility:public"],
-)
-
-# isql - Interactive SQL tool
-cc_binary(
-    name = "isql",
-    srcs = ["exe/isql.c", "exe/isql.h"] + glob(["include/*.h"]) + [":config_h"],
-    copts = COMMON_COPTS,
-    includes = COMMON_INCLUDES,
-    deps = [
-        ":odbc",
-        ":extras",
-    ],
-    visibility = ["//visibility:public"],
-)
-
-# iusql - Interactive Unicode SQL tool
-cc_binary(
-    name = "iusql",
-    srcs = ["exe/iusql.c"] + glob(["include/*.h", "exe/*.h"]) + [":config_h"],
-    copts = COMMON_COPTS,
-    includes = COMMON_INCLUDES,
-    deps = [
-        ":odbc",
-        ":odbcinst",
-        ":ini",
-    ],
-    visibility = ["//visibility:public"],
-)
-
-# dltest - Dynamic loader test utility
-cc_binary(
-    name = "dltest",
-    srcs = ["exe/dltest.c"] + glob(["include/*.h"]) + [":config_h", "libltdl/ltdl.h"],
-    copts = COMMON_COPTS,
-    includes = COMMON_INCLUDES,
-    deps = [":ltdl_hdr"],
-    visibility = ["//visibility:public"],
-)
-
-# slencheck - SQL length checker utility
-cc_binary(
-    name = "slencheck",
-    srcs = ["exe/slencheck.c"] + glob(["include/*.h"]) + [":config_h", ":unixodbc_conf_h"],
-    copts = COMMON_COPTS,
-    includes = COMMON_INCLUDES,
-    deps = [":odbc"],
-    visibility = ["//visibility:public"],
-)
-
-# ============================================================================
 # Shared Libraries (*.so files)
 # ============================================================================
 
@@ -323,23 +250,6 @@ pkg_files(
         ":libodbccr_so",
     ],
     prefix = "lib",
-)
-
-pkg_files(
-    name = "bin_files",
-    srcs = [
-        ":odbcinst_bin",
-        ":odbc_config",
-        ":isql",
-        ":iusql",
-        ":dltest",
-        ":slencheck",
-    ],
-    prefix = "bin",
-    # Rename odbcinst_bin to odbcinst in the package
-    renames = {
-        ":odbcinst_bin": "odbcinst",
-    },
 )
 
 # ============================================================================
