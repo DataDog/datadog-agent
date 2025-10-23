@@ -143,12 +143,19 @@ func (d *doctorImpl) collectLogsStatus() def.LogsStatus {
 	// Collect integration sources
 	for _, integration := range logsAgentStatus.Integrations {
 		for _, source := range integration.Sources {
+			// Safely extract service from configuration
+			service := ""
+			if svc, ok := source.Configuration["Service"].(string); ok && svc != "" {
+				service = svc
+			}
+
 			logSource := def.LogSource{
-				Name:   integration.Name,
-				Type:   source.Type,
-				Status: source.Status,
-				Inputs: source.Inputs,
-				Info:   make(map[string]string),
+				Name:    integration.Name,
+				Type:    source.Type,
+				Status:  source.Status,
+				Inputs:  source.Inputs,
+				Info:    make(map[string]string),
+				Service: service,
 			}
 
 			// Convert info map from []string to string
@@ -239,6 +246,15 @@ func (d *doctorImpl) collectIntakeStatus() def.IntakeStatus {
 	// Extract API key info
 	if apiKeyValid, ok := forwarderStats["APIKeyValid"].(bool); ok {
 		status.APIKeyInfo.Valid = apiKeyValid
+	}
+
+	// Get API key and mask it (show only last 4 characters)
+	if apiKey := d.config.GetString("api_key"); apiKey != "" {
+		if len(apiKey) >= 4 {
+			status.APIKeyInfo.APIKey = "***" + apiKey[len(apiKey)-4:]
+		} else {
+			status.APIKeyInfo.APIKey = "***"
+		}
 	}
 
 	// Extract last flush time

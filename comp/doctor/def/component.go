@@ -53,6 +53,7 @@ type CheckInfo struct {
 	LastRun      time.Time `json:"last_run"`
 	LastError    string    `json:"last_error,omitempty"`
 	MetricsCount int       `json:"metrics_count"`
+	Service      string    `json:"service,omitempty"` // Service tag associated with this check
 }
 
 // DogStatsDStatus represents DogStatsD metrics ingestion status
@@ -75,11 +76,12 @@ type LogsStatus struct {
 
 // LogSource represents a single log source
 type LogSource struct {
-	Name   string            `json:"name"`
-	Type   string            `json:"type"`
-	Status string            `json:"status"` // "pending", "success", "error"
-	Inputs []string          `json:"inputs"` // File paths being tailed
-	Info   map[string]string `json:"info"`   // Stats (bytes read, latency, etc.)
+	Name    string            `json:"name"`
+	Type    string            `json:"type"`
+	Status  string            `json:"status"`            // "pending", "success", "error"
+	Inputs  []string          `json:"inputs"`            // File paths being tailed
+	Info    map[string]string `json:"info"`              // Stats (bytes read, latency, etc.)
+	Service string            `json:"service,omitempty"` // Service tag associated with this log source
 }
 
 // MetricsStatus represents metrics aggregation status
@@ -118,6 +120,7 @@ type IntakeStatus struct {
 type APIKeyInfo struct {
 	Valid         bool      `json:"valid"`
 	LastValidated time.Time `json:"last_validated,omitempty"`
+	APIKey        string    `json:"api_key,omitempty"` // Last 4 characters only, masked (e.g., "***ab12")
 }
 
 // EndpointStatus represents the status of a specific intake endpoint

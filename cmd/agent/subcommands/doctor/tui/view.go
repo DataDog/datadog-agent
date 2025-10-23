@@ -273,8 +273,176 @@ func (m model) renderAgentPanel(width, height int, isSelected bool) string {
 		Render(titleStyle.Render(title) + "\n\n" + content)
 }
 
-// renderAgentPanelContent renders the Agent Panel content with logo, endpoints, and animations
+// renderServiceDetailsSection renders details for the currently selected service
+func (m model) renderServiceDetailsSection() string {
+	if m.status == nil || len(m.status.Services) == 0 {
+		return subduedStyle.Render("No service selected")
+	}
+
+	// Get selected service
+	selectedService := m.status.Services[m.selectedServiceIdx]
+	serviceName := selectedService.Name
+	displayServiceName := serviceName
+	if serviceName == "" {
+		displayServiceName = "other"
+	}
+
+	var result strings.Builder
+	result.WriteString(highlightStyle.Render(fmt.Sprintf("Selected: %s", displayServiceName)))
+	result.WriteString("\n\n")
+
+	// Find checks for this service
+	var serviceChecks []doctordef.CheckInfo
+	for _, check := range m.status.Ingestion.Checks.CheckList {
+		if check.Service == serviceName {
+			serviceChecks = append(serviceChecks, check)
+		}
+	}
+
+	// Find logs for this service
+	var serviceLogs []doctordef.LogSource
+	for _, log := range m.status.Ingestion.Logs.Integrations {
+		if log.Service == serviceName {
+			serviceLogs = append(serviceLogs, log)
+		}
+	}
+
+	// Render checks
+	result.WriteString(subduedStyle.Render("Checks:"))
+	result.WriteString("\n")
+	if len(serviceChecks) == 0 {
+		result.WriteString(subduedStyle.Render("  No checks found"))
+	} else {
+		for _, check := range serviceChecks {
+			statusSymbol := "✓"
+			statusColor := successStyle
+			switch check.Status {
+			case "error":
+				statusSymbol = "✗"
+				statusColor = errorStyle
+			case "warning":
+				statusSymbol = "⚠"
+				statusColor = warningStyle
+			}
+			result.WriteString(fmt.Sprintf("  %s %s\n",
+				statusColor.Render(statusSymbol),
+				valueStyle.Render(check.Name)))
+		}
+	}
+
+	// Render logs
+	result.WriteString("\n")
+	result.WriteString(subduedStyle.Render("Logs:"))
+	result.WriteString("\n")
+	if len(serviceLogs) == 0 {
+		result.WriteString(subduedStyle.Render("  No log sources found"))
+	} else {
+		for _, log := range serviceLogs {
+			for _, input := range log.Inputs {
+				result.WriteString(fmt.Sprintf("  • %s\n", valueStyle.Render(truncate(input, 40))))
+			}
+		}
+	}
+
+	return result.String()
+}
+
+// renderAgentPanelContent renders the complete Agent Panel with service details, logo, metadata, and connectivity
 func (m model) renderAgentPanelContent(width, height int) string {
+	if m.status == nil {
+		return "No data available"
+	}
+
+	// Top section: Service details
+	serviceDetails := m.renderServiceDetailsSection()
+
+	// Middle section: Logo on left, Infos + Connectivity on right
+	// Style the logo with purple color
+	styledLogo := lipgloss.NewStyle().Foreground(lipgloss.Color("13")).Render(datadogLogo)
+
+	// Render Infos section
+	infosSection := m.renderAgentInfoSection()
+
+	// Render connectivity section with separator
+	connectivityHeight := 10 // Estimated height for connectivity display
+	connectivity := m.renderConnectivitySection(width, connectivityHeight)
+	connectivityWithSeparator := subduedStyle.Render("─── Connectivity ───") + "\n" + connectivity
+
+	// Stack Infos and Connectivity vertically
+	rightSide := lipgloss.JoinVertical(
+		lipgloss.Left,
+		infosSection,
+		"\n",
+		connectivityWithSeparator,
+	)
+
+	// Combine logo (left) and right side (infos + connectivity) horizontally
+	middleSection := lipgloss.JoinHorizontal(
+		lipgloss.Top,
+		styledLogo,
+		"  ", // Spacing
+		rightSide,
+	)
+
+	// Combine all sections vertically: service details + middle section
+	return lipgloss.JoinVertical(
+		lipgloss.Left,
+		serviceDetails,
+		"\n",
+		middleSection,
+	)
+}
+
+// renderAgentInfoSection renders the agent info section with metadata (no logo)
+func (m model) renderAgentInfoSection() string {
+	if m.status == nil {
+		return "No agent data available"
+	}
+
+	// Format uptime
+	uptime := m.status.Agent.Uptime
+	var uptimeStr string
+	hours := int(uptime.Hours())
+	minutes := int(uptime.Minutes()) % 60
+	if hours > 0 {
+		uptimeStr = fmt.Sprintf("%dh %dm", hours, minutes)
+	} else {
+		uptimeStr = fmt.Sprintf("%dm", minutes)
+	}
+
+	// Format tags (show first 3, then "+N more" if there are more)
+	tagsStr := "none"
+	if len(m.status.Agent.Tags) > 0 {
+		maxTags := 3
+		if len(m.status.Agent.Tags) <= maxTags {
+			tagsStr = strings.Join(m.status.Agent.Tags, ", ")
+		} else {
+			displayedTags := strings.Join(m.status.Agent.Tags[:maxTags], ", ")
+			remaining := len(m.status.Agent.Tags) - maxTags
+			tagsStr = fmt.Sprintf("%s (+%d more)", displayedTags, remaining)
+		}
+	}
+
+	// Format API key (masked)
+	apiKeyStr := "not configured"
+	if m.status.Intake.APIKeyInfo.APIKey != "" {
+		apiKeyStr = m.status.Intake.APIKeyInfo.APIKey
+	}
+
+	// Build metadata text with "Infos" title
+	var result strings.Builder
+	result.WriteString(subduedStyle.Render("─── Infos ───") + "\n")
+	result.WriteString(formatKeyValue("Uptime", uptimeStr) + "\n")
+	result.WriteString(formatKeyValue("Version", m.status.Agent.Version) + "\n")
+	result.WriteString(formatKeyValue("Hostname", m.status.Agent.Hostname) + "\n")
+	result.WriteString(formatKeyValue("API Key", apiKeyStr) + "\n")
+	result.WriteString(formatKeyValue("Tags", tagsStr))
+
+	return result.String()
+}
+
+// renderConnectivitySection renders the connectivity section with endpoints and wire animations
+func (m model) renderConnectivitySection(width, height int) string {
 	if m.status == nil {
 		return "No data available"
 	}
