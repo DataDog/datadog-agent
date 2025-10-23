@@ -316,14 +316,6 @@ func (p *processLogConfigProvider) processEventsInner(evBundle workloadmeta.Even
 				continue
 			}
 
-			if p.logsFilters != nil {
-				filterProcess := workloadmetafilter.CreateProcess(process)
-				if p.logsFilters.IsExcluded(filterProcess) {
-					log.Debugf("Process %d (name=%s) excluded from logs by CEL filter", process.Pid, process.Name)
-					continue
-				}
-			}
-
 			// The set of logs monitored by this service may change, so we need
 			// to handle deleting existing logs too. First, decrement refcounts
 			// for existing service IDs associated with this PID. Any logs still
@@ -340,8 +332,21 @@ func (p *processLogConfigProvider) processEventsInner(evBundle workloadmeta.Even
 			// process still has logs.
 			delete(p.pidToServiceIDs, process.Pid)
 
+			var filterProcess *workloadfilter.Process
+			if p.logsFilters != nil {
+				filterProcess = workloadmetafilter.CreateProcess(process)
+			}
+
 			newServiceIDs := []string{}
 			for _, logFile := range process.Service.LogFiles {
+				if filterProcess != nil {
+					filterProcess.SetLogFile(logFile)
+					if p.logsFilters.IsExcluded(filterProcess) {
+						log.Debugf("Process %d log file %s excluded by CEL filter", process.Pid, logFile)
+						continue
+					}
+				}
+
 				newServiceIDs = append(newServiceIDs, logFile)
 
 				if ref, exists := p.serviceLogRefs[logFile]; exists {
