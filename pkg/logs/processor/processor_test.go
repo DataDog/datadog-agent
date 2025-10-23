@@ -506,6 +506,11 @@ func TestAutoPIIRedaction(t *testing.T) {
 			expected: []byte("Card number [CC_REDACTED] charged"),
 		},
 		{
+			name:     "amex_card_redaction",
+			input:    []byte("Transaction declined for card 3782-822463-10005"),
+			expected: []byte("Transaction declined for card [CC_REDACTED]"),
+		},
+		{
 			name:     "ip_redaction",
 			input:    []byte("Request from 192.168.1.100"),
 			expected: []byte("Request from [IP_REDACTED]"),

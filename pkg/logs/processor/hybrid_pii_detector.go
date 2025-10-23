@@ -97,7 +97,7 @@ func NewHybridPIIDetector(config PIITypeConfig) *HybridPIIDetector {
 	// Credit Card rules (only add if credit card redaction is enabled)
 	if config.CreditCard {
 		allTokenRules = append(allTokenRules,
-			// Credit Card with dashes: DDDD-DDDD-DDDD-DDDD
+			// Credit Card with dashes: DDDD-DDDD-DDDD-DDDD (Visa, Mastercard, Discover)
 			&PIIDetectionRule{
 				Name: "auto_redact_credit_card_dashed",
 				Type: PIIRuleTypeToken,
@@ -106,12 +106,30 @@ func NewHybridPIIDetector(config PIITypeConfig) *HybridPIIDetector {
 				},
 				Replacement: []byte("[CC_REDACTED]"),
 			},
-			// Credit Card with spaces: DDDD DDDD DDDD DDDD
+			// Credit Card with spaces: DDDD DDDD DDDD DDDD (Visa, Mastercard, Discover)
 			&PIIDetectionRule{
 				Name: "auto_redact_credit_card_spaced",
 				Type: PIIRuleTypeToken,
 				TokenPattern: []tokens.Token{
 					tokens.D4, tokens.Space, tokens.D4, tokens.Space, tokens.D4, tokens.Space, tokens.D4,
+				},
+				Replacement: []byte("[CC_REDACTED]"),
+			},
+			// American Express with dashes: DDDD-DDDDDD-DDDDD
+			&PIIDetectionRule{
+				Name: "auto_redact_credit_card_amex_dashed",
+				Type: PIIRuleTypeToken,
+				TokenPattern: []tokens.Token{
+					tokens.D4, tokens.Dash, tokens.D6, tokens.Dash, tokens.D5,
+				},
+				Replacement: []byte("[CC_REDACTED]"),
+			},
+			// American Express with spaces: DDDD DDDDDD DDDDD
+			&PIIDetectionRule{
+				Name: "auto_redact_credit_card_amex_spaced",
+				Type: PIIRuleTypeToken,
+				TokenPattern: []tokens.Token{
+					tokens.D4, tokens.Space, tokens.D6, tokens.Space, tokens.D5,
 				},
 				Replacement: []byte("[CC_REDACTED]"),
 			},
