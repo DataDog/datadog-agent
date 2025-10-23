@@ -109,3 +109,11 @@ http_archive(
     strip_prefix = "nghttp2-1.58.0",
     url = "https://github.com/nghttp2/nghttp2/releases/download/v1.58.0/nghttp2-1.58.0.tar.gz",
 )
+
+http_archive(
+    name = "popt",
+    build_file = "//deps:popt.BUILD.bazel",
+    sha256 = "c25a4838fc8e4c1c8aacb8bd620edb3084a3d63bf8987fdad3ca2758c63240f9",
+    strip_prefix = "popt-1.19",
+    url = "http://ftp.rpm.org/popt/releases/popt-1.x/popt-1.19.tar.gz",
+)
