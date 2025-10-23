@@ -120,7 +120,7 @@ func GetCheckClient(options ...CheckClientOption) *CheckClient {
 	config := &checkClientConfig{
 		startupCheckRequestTimeout: defaultHTTPTimeout,
 		checkRequestTimeout:        pkgconfigsetup.Datadog().GetDuration("check_system_probe_timeout"),
-		socketPath:                 pkgconfigsetup.Datadog().GetString("system_probe_config.sysprobe_socket"),
+		socketPath:                 pkgconfigsetup.SystemProbe().GetString("system_probe_config.sysprobe_socket"),
 	}
 
 	for _, option := range options {
