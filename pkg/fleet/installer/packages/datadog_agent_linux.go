@@ -194,7 +194,7 @@ func restoreAgentExtensions(ctx HookContext, experiment bool) error {
 	env := env.FromEnv()
 	downloader := oci.NewDownloader(env, env.HTTPClient())
 
-	pkg, err := downloader.Download(ctx, oci.PackageURL(env, agentPackage, version.AgentVersion)) // TODO: this doesn't always map to a tag. We need a better way to get the URL.
+	pkg, err := downloader.Download(ctx, oci.PackageURL(env, agentPackage, version.AgentPackageVersion))
 	if err != nil {
 		return fmt.Errorf("failed to download package: %w", err)
 	}

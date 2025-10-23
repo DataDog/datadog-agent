@@ -136,6 +136,10 @@ func installExtension(ctx context.Context, pkg *oci.DownloadedPackage, extension
 
 	err = pkg.ExtractLayers(oci.DatadogPackageExtensionLayerMediaType, tmpDir, oci.LayerAnnotation{Key: "com.datadoghq.package.extension.name", Value: extension})
 	if err != nil {
+		if errors.Is(err, oci.ErrNoLayerMatchesAnnotations) {
+			log.Warnf("no layer matches the requested annotations for %s", extension)
+			return nil // The extension is not available in the package, skip it. Might be an incompatible version, but this shouldn't block other methods.
+		}
 		return fmt.Errorf("could not extract layers for %s: %w", extension, err)
 	}
 

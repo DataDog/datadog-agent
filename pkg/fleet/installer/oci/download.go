@@ -66,6 +66,9 @@ const (
 	DatadogPackageExtensionLayerMediaType types.MediaType = "application/vnd.datadog.package.extension.layer.v1.tar+zstd"
 )
 
+// ErrNoLayerMatchesAnnotations is the error returned when no layer matches the requested annotations.
+var ErrNoLayerMatchesAnnotations = errors.New("no layer matches the requested annotations")
+
 const (
 	layerMaxSize   = 3 << 30 // 3GiB
 	networkRetries = 3
@@ -386,7 +389,7 @@ func (d *DownloadedPackage) ExtractLayers(mediaType types.MediaType, dir string,
 		}
 	}
 	if matchesAnnotationsCount == 0 && len(annotationFilters) > 0 {
-		return fmt.Errorf("no layer matches the requested annotations")
+		return ErrNoLayerMatchesAnnotations
 	}
 	return nil
 }
