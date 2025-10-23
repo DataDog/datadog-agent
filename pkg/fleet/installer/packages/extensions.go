@@ -126,8 +126,7 @@ func installExtension(ctx context.Context, pkg *oci.DownloadedPackage, extension
 	}
 
 	// Extract to a temporary directory first
-	// tmpDir, err := i.packages.MkdirTemp()
-	tmpDir, err := os.MkdirTemp("", "dd-extension-") // TODO fix this
+	tmpDir, err := os.MkdirTemp(paths.PackagesPath, "dd-extension-")
 	if err != nil {
 		return fmt.Errorf("could not create temp directory for %s: %w", extension, err)
 	}
@@ -142,7 +141,13 @@ func installExtension(ctx context.Context, pkg *oci.DownloadedPackage, extension
 		return fmt.Errorf("could not extract layers for %s: %w", extension, err)
 	}
 
-	extractDir := filepath.Join(paths.PackagesPath, pkg.Name, pkg.Version, "ext", extension)
+	packagePath := filepath.Join(paths.PackagesPath, pkg.Name, pkg.Version)
+	// Check if packagePath exists, if not and pkg.Name == "datadog-agent", set to /opt/datadog-agent
+	if _, err := os.Stat(packagePath); os.IsNotExist(err) && pkg.Name == "datadog-agent" {
+		packagePath = "/opt/datadog-agent" // This doesn't work on Windows; need to find a better solution
+	}
+
+	extractDir := filepath.Join(packagePath, "ext", extension)
 	if err := os.MkdirAll(filepath.Dir(extractDir), 0755); err != nil {
 		return fmt.Errorf("could not create directory for %s: %w", extension, err)
 	}
@@ -150,6 +155,10 @@ func installExtension(ctx context.Context, pkg *oci.DownloadedPackage, extension
 	err = os.Rename(tmpDir, extractDir)
 	if err != nil {
 		return fmt.Errorf("could not move %s to final location: %w", extension, err)
+	}
+
+	if err := os.Chmod(extractDir, 0755); err != nil {
+		return fmt.Errorf("could not set permissions on extension directory %s: %w", extractDir, err)
 	}
 
 	err = hooks.PostInstallExtension(ctx, pkg.Name, extension)
