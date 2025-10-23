@@ -11,6 +11,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
@@ -349,10 +350,10 @@ func TestGetHostnameLambda(t *testing.T) {
 
 func TestGetHostname(t *testing.T) {
 	p := &Processor{
-		hostname: nil, // Use nil to test the fallback
+		hostname: hostnameComponent, // Use nil to test the fallback
 	}
 	m := message.NewMessage([]byte("hello"), nil, "", 0)
-	assert.Equal(t, "unknown", p.GetHostname(m))
+	assert.Equal(t, "testHostnameFromEnvVar", p.GetHostname(m))
 }
 
 // DD_EXTRA_TAGS tests
