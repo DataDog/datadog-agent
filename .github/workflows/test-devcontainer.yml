@@ -107,14 +107,8 @@ jobs:
         echo "::endgroup::"
         df -h
 
-    - name: Build image
-      run: |
-        git clone https://github.com/DataDog/datadog-agent-buildimages.git
-        cd datadog-agent-buildimages
-        dda run build devcontainer legacy-devenv
-
     - name: Create Dev Container config
-      run: dda inv -- devcontainer.setup --image legacy-devenv
+      run: dda inv -- devcontainer.setup
 
     - name: Ensure mount paths exist
       run: |
@@ -125,17 +119,6 @@ jobs:
 
     - name: Start Dev Container
       run: devcontainer up --workspace-folder .
-
-    - name: Grant the datadog user access to host Docker socket
-      run: |
-        docker exec -u root datadog-agent-devcontainer sh -lc '
-          set -e
-          sock=/var/run/docker.sock
-          gid=$(stat -c %g "$sock")
-          getent group "$gid" >/dev/null || groupadd -g "$gid" dockersock
-          gname=$(getent group "$gid" | cut -d: -f1)
-          id -nG datadog | tr " " "\n" | grep -qx "$gname" || usermod -aG "$gname" datadog
-        '
 
     - name: Test Agent build
       run: devcontainer exec --workspace-folder . dda inv agent.hacky-dev-image-build --target-image=agent
