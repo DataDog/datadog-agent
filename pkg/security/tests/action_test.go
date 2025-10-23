@@ -740,7 +740,12 @@ func TestActionHash(t *testing.T) {
 	t.Run("exec", func(t *testing.T) {
 		test.msgSender.flush()
 		test.WaitSignal(t, func() error {
-			return exec.Command(testExecutable, "/tmp/aaa").Run()
+			cmd := exec.Command(testExecutable, "/tmp/aaa")
+			out, err := cmd.CombinedOutput()
+			if err != nil {
+				t.Logf("output: %s", string(out))
+			}
+			return err
 		}, func(_ *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "hash_action_exec")
 		})
