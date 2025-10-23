@@ -30,6 +30,7 @@
 // Primary probe: Track all conntrack insertions
 SEC("kprobe/__nf_conntrack_hash_insert") // JMWCONNTRACK
 int BPF_BYPASSABLE_KPROBE(kprobe__nf_conntrack_hash_insert, struct nf_conn *ct) {
+    increment_hash_insert_count();
     log_debug("kprobe/__nf_conntrack_hash_insert: netns: %u", get_netns(ct));
     log_debug("JMWTEST runtime kprobe/__nf_conntrack_hash_insert");
 
@@ -50,6 +51,7 @@ int BPF_BYPASSABLE_KPROBE(kprobe__nf_conntrack_hash_insert, struct nf_conn *ct) 
 // Second probe: Track NAT packet processing
 SEC("kprobe/nf_nat_packet") // JMWCONNTRACK
 int BPF_BYPASSABLE_KPROBE(kprobe_nf_nat_packet, struct nf_conn *ct) {
+    increment_nat_packet_count();
     u32 status = 0;
     BPF_CORE_READ_INTO(&status, ct, status);
     if (!(status&IPS_NAT_MASK)) {
@@ -72,76 +74,70 @@ int BPF_BYPASSABLE_KPROBE(kprobe_nf_nat_packet, struct nf_conn *ct) {
 }
 
 // Third probe: Track conntrack confirmations (entry) - simplified approach
+// Entry probe: Mark NAT connections
 SEC("kprobe/__nf_conntrack_confirm") // JMWCONNTRACK
 int BPF_BYPASSABLE_KPROBE(kprobe__nf_conntrack_confirm, struct pt_regs *ctx) {
-    struct nf_conn *ct = (struct nf_conn *)PT_REGS_PARM2(ctx); // ct is 2nd parameter
+    increment_confirm_entry_count();
+    struct sk_buff *skb = (struct sk_buff *)PT_REGS_PARM1(ctx);
+    struct nf_conn *ct;
+    enum ip_conntrack_info ctinfo;
     u64 ct_ptr;
     u8 val = 1;
     
+    ct = nf_ct_get(skb, &ctinfo);
     if (!ct)
         return 0;
     
+    log_debug("kprobe/__nf_conntrack_confirm: netns: %u, status: %x", get_netns(ct), status);
+    log_debug("JMWTEST runtime kprobe/__nf_conntrack_confirm entry");
+
     // Filter: Only track NAT connections
     u32 status = 0;
     BPF_CORE_READ_INTO(&status, ct, status);
     if (!(status & IPS_NAT_MASK))
         return 0;
     
-    log_debug("kprobe/__nf_conntrack_confirm: netns: %u, status: %x", get_netns(ct), status);
-    log_debug("JMWTEST runtime kprobe/__nf_conntrack_confirm entry");
-    
-    // Store ct pointer for correlation with return probe
+    // Store ct pointer temporarily
     ct_ptr = (u64)ct;
     bpf_map_update_with_telemetry(pending_confirms, &ct_ptr, &val, BPF_ANY);
     
     return 0;
 }
-
+    
 // Third probe: Track conntrack confirmations (return) - simplified approach
+// Return probe: Verify success and count
 SEC("kretprobe/__nf_conntrack_confirm") // JMWCONNTRACK
 int BPF_BYPASSABLE_KPROBE(kretprobe__nf_conntrack_confirm, struct pt_regs *ctx) {
+    increment_confirm_return_count();
     int ret = PT_REGS_RC(ctx);
-    
-    // Only process if returned NF_ACCEPT (1)
-    if (ret != 1) // NF_ACCEPT = 1
-        return 0;
+    u64 ct_ptr;
     
     log_debug("kretprobe/__nf_conntrack_confirm: ret=%d", ret);
     log_debug("JMWTEST runtime kretprobe/__nf_conntrack_confirm success");
-    
-    // Note: This simplified approach doesn't correlate entry/exit perfectly
-    // In production, you'd use the per-CPU correlation approach below
-    
-    return 0;
-}
 
-// Alternative approach: Use nf_conntrack_confirm directly with ct parameter
-// This probe tracks when connections are successfully confirmed
-SEC("kprobe/nf_conntrack_confirm") // JMWCONNTRACK  
-int BPF_BYPASSABLE_KPROBE(kprobe_nf_conntrack_confirm, struct nf_conn *ct) {
-    if (!ct)
-        return 0;
+    // Get the ct pointer (need to track this from entry)
+    // This is the tricky part - need to correlate entry/exit
     
-    // Filter: Only track NAT connections
-    u32 status = 0;
-    BPF_CORE_READ_INTO(&status, ct, status);
-    if (!(status & IPS_NAT_MASK))
-        return 0;
-    
-    log_debug("kprobe/nf_conntrack_confirm: netns: %u, status: %x", get_netns(ct), status);
-    log_debug("JMWTEST runtime kprobe/nf_conntrack_confirm");
-    
-    // Add confirmed NAT connection to conntrack3
-    conntrack_tuple_t orig = {}, reply = {};
-    if (nf_conn_to_conntrack_tuples(ct, &orig, &reply) == 0) {
-        bpf_map_update_with_telemetry(conntrack3, &orig, &reply, BPF_ANY);
-        bpf_map_update_with_telemetry(conntrack3, &reply, &orig, BPF_ANY);
-        increment_telemetry_registers_count();
+    // Only count if returned NF_ACCEPT
+    if (ret != NF_ACCEPT) {
+        increment_confirm_return_failed_count();
+        goto cleanup;
     }
     
+    increment_confirm_return_success_count();
+    
+    // Check if this was a NAT connection we tracked
+    if (!bpf_map_lookup_elem(&pending_confirms, &ct_ptr))
+        goto cleanup;
+    
+    // Successfully confirmed NAT connection!
+    track_nat_connection_confirmed(ct);
+    
+cleanup:
+    bpf_map_delete_elem(&pending_confirms, &ct_ptr);
     return 0;
 }
-
+    
 SEC("kprobe/ctnetlink_fill_info")
 int BPF_BYPASSABLE_KPROBE(kprobe_ctnetlink_fill_info) {
     u32 pid = GET_USER_MODE_PID(bpf_get_current_pid_tgid());

@@ -17,6 +17,7 @@
 // Primary probe: Track all conntrack insertions
 SEC("kprobe/__nf_conntrack_hash_insert") // JMWCONNTRACK
 int BPF_BYPASSABLE_KPROBE(kprobe__nf_conntrack_hash_insert, struct nf_conn *ct) {
+    increment_hash_insert_count();
     log_debug("kprobe/__nf_conntrack_hash_insert: netns: %u", get_netns(ct));
     log_debug("JMWTEST prebuilt kprobe/__nf_conntrack_hash_insert");
 
@@ -37,6 +38,7 @@ int BPF_BYPASSABLE_KPROBE(kprobe__nf_conntrack_hash_insert, struct nf_conn *ct) 
 // Second probe: Track NAT packet processing
 SEC("kprobe/nf_nat_packet") // JMWCONNTRACK
 int BPF_BYPASSABLE_KPROBE(kprobe_nf_nat_packet, struct nf_conn *ct) {
+    increment_nat_packet_count();
     log_debug("kprobe/nf_nat_packet: netns: %u", get_netns(ct));
     log_debug("JMWTEST prebuilt kprobe/nf_nat_packet");
 
@@ -56,6 +58,7 @@ int BPF_BYPASSABLE_KPROBE(kprobe_nf_nat_packet, struct nf_conn *ct) {
 // Third probe: Track confirmed NAT connections
 SEC("kprobe/nf_conntrack_confirm") // JMWCONNTRACK
 int BPF_BYPASSABLE_KPROBE(kprobe_nf_conntrack_confirm, struct nf_conn *ct) {
+    increment_confirm_direct_count();
     log_debug("kprobe/nf_conntrack_confirm: netns: %u", get_netns(ct));
     log_debug("JMWTEST prebuilt kprobe/nf_conntrack_confirm");
 

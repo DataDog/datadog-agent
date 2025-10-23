@@ -933,6 +933,34 @@ func (t *Tracer) compareAndLogConntrackMaps() {
 		log.Infof("JMW CONNTRACK EFFICIENCY: NAT_processing_rate=%.1f%%, NAT_confirmation_rate=%.1f%%",
 			natProcessingRate, natConfirmationRate)
 	}
+
+	// Log probe counters from eBPF telemetry
+	t.logConntrackProbeCounters(ebpfCt)
+}
+
+// logConntrackProbeCounters reads and logs the probe counters from eBPF telemetry
+func (t *Tracer) logConntrackProbeCounters(ebpfCt *ebpfConntracker) {
+	var zero uint32
+	var telemetry netebpf.ConntrackTelemetry
+
+	err := ebpfCt.telemetryMap.Lookup(&zero, &telemetry)
+	if err != nil {
+		log.Warnf("JMW: error reading conntrack telemetry: %s", err)
+		return
+	}
+
+	// Log all probe counters
+	log.Infof("JMW PROBE COUNTERS: hash_insert=%d, nat_packet=%d, confirm_entry=%d, confirm_return=%d, confirm_return_success=%d, confirm_return_failed=%d, confirm_direct=%d",
+		telemetry.HashInsertCount,
+		telemetry.NatPacketCount,
+		telemetry.ConfirmEntryCount,
+		telemetry.ConfirmReturnCount,
+		telemetry.ConfirmReturnSuccessCount,
+		telemetry.ConfirmReturnFailedCount,
+		telemetry.ConfirmDirectCount)
+
+	// Log registers count (existing telemetry)
+	log.Infof("JMW CONNTRACK REGISTERS: %d", telemetry.Registers)
 }
 
 // DebugDumpProcessCache dumps the process cache
