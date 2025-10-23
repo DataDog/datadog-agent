@@ -1152,4 +1152,30 @@ int tracepoint__net__net_dev_queue(struct net_dev_queue_ctx* ctx) {
     return handle_net_dev_queue(skb);
 }
 
+// Kprobe fallback for kernels < 4.15 that don't support multiple tracepoint attachments
+//
+// Background:
+// - On kernel >= 4.17: We use raw_tracepoint/net/net_dev_queue (most efficient)
+// - On kernel >= 4.15 but < 4.17: We use tracepoint/net/net_dev_queue
+// - On kernel < 4.15: Multiple tracepoint attachments fail with "file exists" error
+//                      So we use a kprobe on the underlying kernel function instead
+//
+// The net/net_dev_queue tracepoint is triggered by dev_queue_xmit_nit() kernel function,
+// which is called during packet transmission to notify monitoring tools.
+// This allows us to correlate sk_buff data with socket information for protocol classification.
+
+// kprobe on dev_queue_xmit_nit - kernel function that triggers net_dev_queue tracepoint
+// Kernel function signature: void dev_queue_xmit_nit(struct sk_buff *skb, struct net_device *dev)
+// This replaces:
+// - raw_tracepoint/net/net_dev_queue
+// - tracepoint/net/net_dev_queue
+SEC("kprobe/dev_queue_xmit_nit")
+int BPF_BYPASSABLE_KPROBE(kprobe__dev_queue_xmit_nit, struct sk_buff *skb) {
+    if (!skb) {
+        return 0;
+    }
+
+    return handle_net_dev_queue(skb);
+}
+
 char _license[] SEC("license") = "GPL";

@@ -31,18 +31,8 @@ end
 relative_path "popt-#{version}"
 
 build do
-  env = with_standard_compiler_flags(with_embedded_path)
-
-  env["CFLAGS"] << " -fPIC"
-
-  update_config_guess
-
-  configure_options = [
-    "--disable-static",
-    "--disable-nls",
-  ]
-  configure(*configure_options, env: env)
-
-  make "-j #{workers}", env: env
-  make "install", env: env
+  command_on_repo_root "bazelisk run -- @popt//:install --destdir='#{install_dir}/embedded'"
+  command_on_repo_root "bazelisk run -- //bazel/rules:replace_prefix --prefix '#{install_dir}/embedded'" \
+    " #{install_dir}/embedded/lib/pkgconfig/popt.pc" \
+    " #{install_dir}/embedded/lib/libpopt.so"
 end
