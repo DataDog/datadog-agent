@@ -59,6 +59,30 @@ http_archive(
     url = "https://github.com/SELinuxProject/selinux/releases/download/3.5/libsepol-3.5.tar.gz",
 )
 
+# PCRE2 has native bazel support.
+# They expose a :pcre2 label for the main library
+http_archive(
+    name = "pcre2",
+    sha256 = "15fbc5aba6beee0b17aecb04602ae39432393aba1ebd8e39b7cabf7db883299f",
+    strip_prefix = "pcre2-10.46",
+    url = "https://github.com/PCRE2Project/pcre2/releases/download/pcre2-10.46/pcre2-10.46.tar.bz2",
+    files = {
+        # We still need to vendor the build file as long as we need .pc files & the :install rule
+        "BUILD.bazel": "//deps:pcre2.BUILD.bazel",
+    },
+)
+
+http_archive(
+    name = "util-linux",
+    build_file = "//deps:util-linux.BUILD.bazel",
+    url = "https://mirrors.edge.kernel.org/pub/linux/utils/util-linux/v2.39/util-linux-2.39.2.tar.gz",
+    sha256 = "c8e1a11dd5879a2788973c73589fbcf08606e85aeec095e516162495ead8ba68",
+    strip_prefix = "util-linux-2.39.2",
+    files = {
+        "generated/config.h": "//deps:util-linux/config.h"
+    }
+)
+
 http_archive(
     name = "patchelf",
     build_file = "//deps:patchelf.BUILD.bazel",
@@ -76,4 +100,12 @@ http_archive(
     sha256 = "9ebdfbfbca164ef72bdf5fd2a94a4e6dfb54ec39d2ef249aeb750a91ae361dfb",
     strip_prefix = "nghttp2-1.58.0",
     url = "https://github.com/nghttp2/nghttp2/releases/download/v1.58.0/nghttp2-1.58.0.tar.gz",
+)
+
+http_archive(
+    name = "popt",
+    build_file = "//deps:popt.BUILD.bazel",
+    sha256 = "c25a4838fc8e4c1c8aacb8bd620edb3084a3d63bf8987fdad3ca2758c63240f9",
+    strip_prefix = "popt-1.19",
+    url = "http://ftp.rpm.org/popt/releases/popt-1.x/popt-1.19.tar.gz",
 )
