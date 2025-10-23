@@ -155,7 +155,7 @@ func (b *Backend) runDaemonCommand(command string, args ...string) (string, erro
 	switch b.host.RemoteHost.OSFamily {
 	case e2eos.LinuxFamily:
 		sanitizeCharacter = `\"`
-		baseCommand = "sudo DD_BUNDLED_AGENT=installer datadog-agent daemon"
+		baseCommand = "sudo datadog-installer daemon"
 	case e2eos.WindowsFamily:
 		sanitizeCharacter = "\\`\""
 		baseCommand = `& "C:\Program Files\Datadog\Datadog Agent\bin\datadog-installer.exe" daemon`
