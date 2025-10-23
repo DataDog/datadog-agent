@@ -71,11 +71,12 @@ func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, config, 
 		return fmt.Errorf("no bean collection configuration provided in init_config.conf")
 	}
 
-	// Initialize the JmxClient wrapper
-	c.wrapper = NewJmxClientWrapper()
-	if c.wrapper == nil {
-        return fmt.Errorf("can't create the JMXClient instance")
-    }
+	// Get the shared JmxClient wrapper (singleton, shared across all check instances)
+	wrapper, err := GetSharedWrapper()
+	if err != nil {
+		return fmt.Errorf("failed to get JMXClient wrapper: %w", err)
+	}
+	c.wrapper = wrapper
 
 	log.Infof("JMXClient check configured for instance: %s", c.instanceConfig.GetInstanceName())
 	return nil
@@ -89,9 +90,7 @@ func (c *Check) Run() error {
 		return fmt.Errorf("failed to get sender: %w", err)
 	}
 
-	log.Info("remy: before the connect call")
-
-	// Ensure connection to JVM
+	// are we connected?
 	if !c.isConnected {
 		if err := c.connect(); err != nil {
 			c.Warnf("Failed to connect to JVM: %v", err)
@@ -99,28 +98,22 @@ func (c *Check) Run() error {
 		}
 	}
 
-	log.Info("remy: after the connect call")
-
-	// Check if we need to refresh bean configuration
+    // regular refresh, in the case of some of the beans appearing later in time
 	if time.Since(c.lastRefresh) > time.Duration(c.instanceConfig.RefreshBeans)*time.Second {
 		if err := c.refreshBeans(); err != nil {
-			c.Warnf("Failed to refresh beans: %v", err)
-			// Continue with collection even if refresh failed
+			c.Warnf("Failed to refresh: %v", err)
+			// continue with collection even if refresh failed
 		}
 	}
 
-    log.Info("remy: after the refresh beans call")
-
-	// Collect metrics
+    // collect data from beans
 	beans, err := c.wrapper.CollectBeansAsStructs(c.sessionID)
 	if err != nil {
-		c.Warnf("Failed to collect beans: %v", err)
-		// Try to reconnect on next run
+		c.Warnf("Failed to collect: %v", err)
+		// reconnect on next run
 		c.isConnected = false
 		return err
 	}
-
-	fmt.Println("remy:", beans)
 
 	// Process and send metrics
 	if err := c.processMetrics(beans, sender); err != nil {
@@ -139,8 +132,6 @@ func (c *Check) connect() error {
 	var sessionID int
 	var err error
 
-	fmt.Println("remy.connect: before the connectJVM")
-
 	// Connect using host:port if available
 	if c.instanceConfig.Host != "" && c.instanceConfig.Port > 0 {
 		sessionID, err = c.wrapper.ConnectJVM(c.instanceConfig.Host, c.instanceConfig.Port)
@@ -152,8 +143,6 @@ func (c *Check) connect() error {
 		// TODO: Implement connection via JMX URL or process name regex
 		return fmt.Errorf("only host:port connection is currently supported")
 	}
-
-	fmt.Println("remy.connect: after the connectJVM")
 
 	c.sessionID = sessionID
 	c.isConnected = true
@@ -175,7 +164,7 @@ func (c *Check) refreshBeans() error {
 		return fmt.Errorf("failed to marshal bean config: %w", err)
 	}
 
-	log.Infof("Sending bean configuration to jmxclient: %s", string(configJSON))
+	log.Debugf("Sending bean configuration to jmxclient: %s", string(configJSON))
 
 	// Send configuration to JmxClient
 	if err := c.wrapper.PrepareBeans(c.sessionID, string(configJSON)); err != nil {
@@ -208,6 +197,7 @@ func (c *Check) processMetrics(beans []BeanData, sender sender.Sender) error {
 			// Try to parse the value as a number
 			var numValue float64
 			if _, err := fmt.Sscanf(attr.Value, "%f", &numValue); err == nil {
+			    // TODO(remy): support other types than gauge
 				sender.Gauge(metricName, numValue, "", tags)
 			} else {
 				log.Debugf("Skipping non-numeric metric %s with value: %s", metricName, attr.Value)

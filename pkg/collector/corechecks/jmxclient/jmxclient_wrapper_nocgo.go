@@ -9,19 +9,15 @@ package jmxclient
 
 import (
 	"errors"
-	"unsafe"
 )
 
 // JmxClientWrapper wraps the CGo calls to the JmxClient library
 type JmxClientWrapper struct {
-	isolateThread unsafe.Pointer
 }
 
-// NewJmxClientWrapper creates a new wrapper instance
-func NewJmxClientWrapper(isolateThread unsafe.Pointer) *JmxClientWrapper {
-	return &JmxClientWrapper{
-		isolateThread: isolateThread,
-	}
+// GetSharedWrapper returns an error when CGo is not available
+func GetSharedWrapper() (*JmxClientWrapper, error) {
+	return nil, errors.New("jmxclient check requires CGo support")
 }
 
 // ConnectJVM is not available without CGo
@@ -52,11 +48,6 @@ type BeanData struct {
 	Attributes []BeanAttribute `json:"attributes"`
 	Attribute  string          `json:"attribute"`
 	Type       string          `json:"type"`
-}
-
-// CollectBeansAsMap is not available without CGo
-func (w *JmxClientWrapper) CollectBeansAsMap(sessionID int) (map[string]interface{}, error) {
-	return nil, errors.New("jmxclient check requires CGo support")
 }
 
 // CollectBeansAsStructs is not available without CGo
