@@ -29,12 +29,19 @@ bazel:build-deps:linux-arm64:
     - bazel build //deps/...
 
 bazel:build-deps:macos-amd64:
+  parallel: 50
   extends: .bazel:build-deps
   tags: [ "macos:ventura-amd64", "specific:true" ]
   script:
     - bazel build //deps/...
+  artifacts:
+    when: on_failure
+    paths:
+      - .cache/diag-*.log
+    expire_in: 1 day
 
 bazel:build-deps:macos-arm64:
+  parallel: 50
   extends: .bazel:build-deps
   tags: [ "macos:ventura-arm64", "specific:true" ]
   script:
