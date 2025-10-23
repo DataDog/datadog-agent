@@ -455,7 +455,6 @@ func (rs *RuleSet) PopulateFieldsWithRuleActionsData(policyRules []*PolicyRule, 
 				}
 
 				var newVariableDefinition eval.VariableDefinition
-				var errVariableDefinition error
 
 				switch value := variableValue.(type) {
 				case string:
@@ -463,50 +462,45 @@ func (rs *RuleSet) PopulateFieldsWithRuleActionsData(policyRules []*PolicyRule, 
 					if actionDef.Set.DefaultValue != nil {
 						defaultValue = value
 					}
-					newVariableDefinition, errVariableDefinition = eval.NewVariableDefinition[string](actionDef.Set.Name, scoper, defaultValue, opts)
+					newVariableDefinition = eval.NewVariableDefinition[string](actionDef.Set.Name, scoper, defaultValue, opts)
 				case int:
 					var defaultValue int
 					if actionDef.Set.DefaultValue != nil {
 						defaultValue = value
 					}
-					newVariableDefinition, errVariableDefinition = eval.NewVariableDefinition[int](actionDef.Set.Name, scoper, defaultValue, opts)
+					newVariableDefinition = eval.NewVariableDefinition[int](actionDef.Set.Name, scoper, defaultValue, opts)
 				case bool:
 					var defaultValue bool
 					if actionDef.Set.DefaultValue != nil {
 						defaultValue = value
 					}
-					newVariableDefinition, errVariableDefinition = eval.NewVariableDefinition[bool](actionDef.Set.Name, scoper, defaultValue, opts)
+					newVariableDefinition = eval.NewVariableDefinition[bool](actionDef.Set.Name, scoper, defaultValue, opts)
 				case net.IPNet:
 					var defaultValue net.IPNet
 					if actionDef.Set.DefaultValue != nil {
 						defaultValue = value
 					}
-					newVariableDefinition, errVariableDefinition = eval.NewVariableDefinition[net.IPNet](actionDef.Set.Name, scoper, defaultValue, opts)
+					newVariableDefinition = eval.NewVariableDefinition[net.IPNet](actionDef.Set.Name, scoper, defaultValue, opts)
 				case []string:
 					var defaultValue []string
 					if actionDef.Set.DefaultValue != nil {
 						defaultValue = value
 					}
-					newVariableDefinition, errVariableDefinition = eval.NewVariableDefinition[[]string](actionDef.Set.Name, scoper, defaultValue, opts)
+					newVariableDefinition = eval.NewVariableDefinition[[]string](actionDef.Set.Name, scoper, defaultValue, opts)
 				case []int:
 					var defaultValue []int
 					if actionDef.Set.DefaultValue != nil {
 						defaultValue = value
 					}
-					newVariableDefinition, errVariableDefinition = eval.NewVariableDefinition[[]int](actionDef.Set.Name, scoper, defaultValue, opts)
+					newVariableDefinition = eval.NewVariableDefinition[[]int](actionDef.Set.Name, scoper, defaultValue, opts)
 				case []net.IPNet:
 					var defaultValue []net.IPNet
 					if actionDef.Set.DefaultValue != nil {
 						defaultValue = value
 					}
-					newVariableDefinition, errVariableDefinition = eval.NewVariableDefinition[[]net.IPNet](actionDef.Set.Name, scoper, defaultValue, opts)
+					newVariableDefinition = eval.NewVariableDefinition[[]net.IPNet](actionDef.Set.Name, scoper, defaultValue, opts)
 				default:
 					errs = multierror.Append(errs, fmt.Errorf("rule `%s` has unsupported set action value type: %T", rule.Def.ID, variableValue))
-					continue
-				}
-
-				if errVariableDefinition != nil {
-					errs = multierror.Append(errs, fmt.Errorf("rule `%s` has invalid set action: %w", rule.Def.ID, errVariableDefinition))
 					continue
 				}
 
@@ -856,16 +850,16 @@ func (rs *RuleSet) runSetActions(_ eval.Event, ctx *eval.Context, rule *Rule) er
 				return fmt.Errorf("unknown variable '%s' in rule '%s'", varName, rule.ID)
 			}
 
-			var instance eval.VariableInstance
-			instance, err := definition.GetInstance(ctx)
+			instance, exists, err := definition.GetInstance(ctx)
 			if err != nil {
 				return fmt.Errorf("failed to apply set action for variable '%s' of rule '%s': %w", varName, rule.ID, err)
-			} else if instance == nil { // the variable has no instance for this context
+			} else if !exists { // the variable has no instance for this context
 				newInstance, added, err := definition.AddNewInstance(ctx)
 				if err != nil {
 					return fmt.Errorf("failed to instantiate new '%s' variable for rule '%s': %w", varName, rule.ID, err)
 				}
 				if !added {
+					rs.logger.Warnf("failed to instantiate new '%s' variable for rule '%s'", varName, rule.ID)
 					return nil
 				}
 				instance = newInstance

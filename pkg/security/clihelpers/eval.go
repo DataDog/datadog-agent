@@ -111,7 +111,7 @@ func evalRule(provider rules.PolicyProvider, decoder *json.Decoder, evalArgs Eva
 			return report, fmt.Errorf("failed to register new variable instance `%s`: %s", varName, err)
 		}
 		if !added {
-			return report, fmt.Errorf("failed to add new variable intsance `%s`", varName)
+			return report, fmt.Errorf("failed to add new variable instance `%s`", varName)
 		}
 		err = instance.Set(value)
 		if err != nil {

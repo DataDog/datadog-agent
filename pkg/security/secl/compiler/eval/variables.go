@@ -137,7 +137,7 @@ type VariableDefinition interface {
 	IsPrivate() bool
 	Scoper() *VariableScoper
 	AddNewInstance(ctx *Context) (VariableInstance, bool, error)
-	GetInstance(ctx *Context) (VariableInstance, error)
+	GetInstance(ctx *Context) (VariableInstance, bool, error)
 	GetInstancesCount() int
 	CleanupExpiredVariables()
 	getInstances() map[string]VariableInstance
@@ -165,7 +165,7 @@ type definition[T VariableType] struct {
 }
 
 // NewVariableDefinition returns a new definition of a SECL variable
-func NewVariableDefinition[T VariableType](name string, scoper *VariableScoper, defaultValue T, opts VariableOpts) (VariableDefinition, error) {
+func NewVariableDefinition[T VariableType](name string, scoper *VariableScoper, defaultValue T, opts VariableOpts) VariableDefinition {
 	return &definition[T]{
 		name:         name,
 		defaultValue: defaultValue,
@@ -173,7 +173,7 @@ func NewVariableDefinition[T VariableType](name string, scoper *VariableScoper, 
 		scoper:       scoper,
 		opts:         &opts,
 		instances:    make(map[string]VariableInstance),
-	}, nil
+	}
 }
 
 // Name returns the name of the variable
@@ -233,39 +233,41 @@ func (def *definition[T]) AddNewInstance(ctx *Context) (VariableInstance, bool, 
 		def.instances[key] = newInstance
 	}
 
-	return newInstance, ok, nil
+	return newInstance, ok, nil // newInstance can be nil here
 }
 
 // GetInstance returns a variable instance that corresponds to the given Context or nil if no instance was found
-func (def *definition[T]) GetInstance(ctx *Context) (VariableInstance, error) {
+func (def *definition[T]) GetInstance(ctx *Context) (VariableInstance, bool, error) {
 	var instance VariableInstance
+	var instanceOk bool
 
 	scope, err := def.scoper.GetScope(ctx)
 	if err != nil {
-		return nil, &ErrScopeFailure{VarName: def.name, ScoperType: def.scoper.scoperType, ScoperErr: err}
+		return nil, false, &ErrScopeFailure{VarName: def.name, ScoperType: def.scoper.scoperType, ScoperErr: err}
 	}
 
 	def.instancesLock.RLock()
 
-	key, ok := scope.Key()
-	if ok {
-		instance = def.instances[key]
+	key, scopeOk := scope.Key()
+	if scopeOk {
+		instance, instanceOk = def.instances[key]
 	}
 
-	if (!ok || instance == nil) && def.opts.Inherited {
-		scope, ok = scope.ParentScope()
-		for ok && instance == nil {
-			key, ok = scope.Key()
-			if ok {
-				instance = def.instances[key]
+	if !instanceOk && def.opts.Inherited {
+		var parentScopeOk bool
+		scope, parentScopeOk = scope.ParentScope()
+		for parentScopeOk && !instanceOk {
+			key, scopeOk = scope.Key()
+			if scopeOk {
+				instance, instanceOk = def.instances[key]
 			}
-			scope, ok = scope.ParentScope()
+			scope, parentScopeOk = scope.ParentScope()
 		}
 	}
 
 	def.instancesLock.RUnlock()
 
-	if instance != nil && instance.IsExpired() {
+	if instanceOk && instance.IsExpired() {
 		def.instancesLock.Lock()
 		instance.free()
 		def.instancesLock.Unlock()
@@ -273,7 +275,7 @@ func (def *definition[T]) GetInstance(ctx *Context) (VariableInstance, error) {
 	}
 
 	// instance can be nil here if no instance exists
-	return instance, nil
+	return instance, instanceOk, nil
 }
 
 // GetInstancesCount returns the number of instances this variable current has
@@ -583,8 +585,8 @@ func (s *VariableStore) GetEvaluator(varName VariableName) (any, error) {
 	case *definition[string]:
 		return &StringEvaluator{
 			EvalFnc: func(ctx *Context) string {
-				instance, _ := def.GetInstance(ctx)
-				if instance == nil { // the variable has no instance, thus use the default value
+				instance, exists, _ := def.GetInstance(ctx)
+				if !exists { // the variable has no instance, thus use the default value
 					return def.defaultValue
 				}
 				return instance.GetValue().(string)
@@ -593,8 +595,8 @@ func (s *VariableStore) GetEvaluator(varName VariableName) (any, error) {
 	case *definition[int]:
 		return &IntEvaluator{
 			EvalFnc: func(ctx *Context) int {
-				instance, _ := def.GetInstance(ctx)
-				if instance == nil { // the variable has no instance, thus use the default value
+				instance, exists, _ := def.GetInstance(ctx)
+				if !exists { // the variable has no instance, thus use the default value
 					return def.defaultValue
 				}
 				return instance.GetValue().(int)
@@ -603,8 +605,8 @@ func (s *VariableStore) GetEvaluator(varName VariableName) (any, error) {
 	case *definition[bool]:
 		return &BoolEvaluator{
 			EvalFnc: func(ctx *Context) bool {
-				instance, _ := def.GetInstance(ctx)
-				if instance == nil { // the variable has no instance, thus use the default value
+				instance, exists, _ := def.GetInstance(ctx)
+				if !exists { // the variable has no instance, thus use the default value
 					return def.defaultValue
 				}
 				return instance.GetValue().(bool)
@@ -613,8 +615,8 @@ func (s *VariableStore) GetEvaluator(varName VariableName) (any, error) {
 	case *definition[net.IPNet]:
 		return &CIDREvaluator{
 			EvalFnc: func(ctx *Context) net.IPNet {
-				instance, _ := def.GetInstance(ctx)
-				if instance == nil { // the variable has no instance, thus use the default value
+				instance, exists, _ := def.GetInstance(ctx)
+				if !exists { // the variable has no instance, thus use the default value
 					return def.defaultValue
 				}
 				return instance.GetValue().(net.IPNet)
@@ -623,8 +625,8 @@ func (s *VariableStore) GetEvaluator(varName VariableName) (any, error) {
 	case *definition[[]string]:
 		return &StringArrayEvaluator{
 			EvalFnc: func(ctx *Context) []string {
-				instance, _ := def.GetInstance(ctx)
-				if instance == nil { // the variable has no instance, thus use the default value
+				instance, exists, _ := def.GetInstance(ctx)
+				if !exists { // the variable has no instance, thus use the default value
 					return def.defaultValue
 				}
 				return instance.GetValue().([]string)
@@ -633,8 +635,8 @@ func (s *VariableStore) GetEvaluator(varName VariableName) (any, error) {
 	case *definition[[]int]:
 		return &IntArrayEvaluator{
 			EvalFnc: func(ctx *Context) []int {
-				instance, _ := def.GetInstance(ctx)
-				if instance == nil { // the variable has no instance, thus use the default value
+				instance, exists, _ := def.GetInstance(ctx)
+				if !exists { // the variable has no instance, thus use the default value
 					return def.defaultValue
 				}
 				return instance.GetValue().([]int)
@@ -643,8 +645,8 @@ func (s *VariableStore) GetEvaluator(varName VariableName) (any, error) {
 	case *definition[[]net.IPNet]:
 		return &CIDRArrayEvaluator{
 			EvalFnc: func(ctx *Context) []net.IPNet {
-				instance, _ := def.GetInstance(ctx)
-				if instance == nil { // the variable has no instance, thus use the default value
+				instance, exists, _ := def.GetInstance(ctx)
+				if !exists { // the variable has no instance, thus use the default value
 					return def.defaultValue
 				}
 				return instance.GetValue().([]net.IPNet)

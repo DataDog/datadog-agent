@@ -516,8 +516,8 @@ func newVariablesContext(e *model.Event, rule *rules.Rule, scope eval.InternalSc
 			if definition.IsPrivate() {
 				return
 			}
-			instance, err := definition.GetInstance(eval.NewContext(e))
-			if instance == nil || err != nil {
+			instance, exists, err := definition.GetInstance(eval.NewContext(e))
+			if !exists || err != nil {
 				return
 			}
 			if variables == nil {
