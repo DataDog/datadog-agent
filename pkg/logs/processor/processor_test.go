@@ -357,6 +357,32 @@ func TestGetHostname(t *testing.T) {
 	assert.Equal(t, "testHostnameFromEnvVar", p.GetHostname(m))
 }
 
+// DD_EXTRA_TAGS tests
+// -------------------
+
+func TestApplyExtraTags(t *testing.T) {
+	assert := assert.New(t)
+
+	// Test case 1: Nil config should not panic
+	p1 := &Processor{config: nil}
+	source1 := sources.NewLogSource("", &config.LogsConfig{})
+	msg1 := newMessage([]byte("test message"), source1, "")
+
+	assert.NotPanics(func() {
+		p1.applyExtraTags(msg1)
+	}, "applyExtraTags should not panic when config is nil")
+	assert.Empty(msg1.ProcessingTags, "ProcessingTags should remain empty when config is nil")
+
+	// Test case 2: Test with existing processing tags
+	p2 := &Processor{config: nil}
+	source2 := sources.NewLogSource("", &config.LogsConfig{})
+	msg2 := newMessage([]byte("test message"), source2, "")
+	msg2.ProcessingTags = []string{"existing:tag"}
+
+	p2.applyExtraTags(msg2)
+	assert.Equal([]string{"existing:tag"}, msg2.ProcessingTags, "Existing processing tags should remain unchanged when config is nil")
+}
+
 // helpers
 // -
 
