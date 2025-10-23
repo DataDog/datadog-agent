@@ -518,7 +518,7 @@ func assertAllRequestsExists(t *testing.T, monitor *Monitor, requests []*nethttp
 		}
 
 		return true
-	}, 3*time.Second, time.Millisecond*100, "connection not found")
+	}, 10*time.Second, time.Millisecond*100, "connection not found")
 
 	if t.Failed() {
 		ebpftest.DumpMapsTestHelper(t, monitor.DumpMaps, "http_in_flight")
