@@ -24,8 +24,15 @@ int hook_rtnl_create_link(ctx_t *ctx) {
         return 0;
     }
 
+	u64 rtnl_link_ops_kind_offset;
+    LOAD_CONSTANT("rtnl_link_ops_kind_offset", rtnl_link_ops_kind_offset);
+
     char *kind_ptr;
-    if (bpf_probe_read(&kind_ptr, sizeof(char *), &ops->kind) < 0 || !kind_ptr) {
+    if (bpf_probe_read(&kind_ptr, sizeof(char *), (void *)ops + rtnl_link_ops_kind_offset) < 0) {
+        return 0;
+    }
+
+	if (!kind_ptr) {
         return 0;
     }
 

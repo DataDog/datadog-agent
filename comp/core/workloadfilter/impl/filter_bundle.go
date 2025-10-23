@@ -26,10 +26,7 @@ func (fb *filterBundle) GetResult(obj workloadfilter.Filterable) workloadfilter.
 	for _, filterSet := range fb.filterSets {
 		var setResult = workloadfilter.Unknown
 		for _, prg := range filterSet {
-			res, prgErrs := prg.Evaluate(obj)
-			if prgErrs != nil {
-				fb.log.Debug(prgErrs)
-			}
+			res := prg.Evaluate(obj)
 			if res == workloadfilter.Included {
 				fb.log.Debugf("Resource %s is included by filter %d", obj.Type(), prg)
 				return res

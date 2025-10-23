@@ -11,19 +11,19 @@ import (
 
 // targetStore persists all the target files present in the current director targets.json
 type targetStore struct {
-	db           *transactionalStore
+	ts           *transactionalStore
 	targetBucket string
 }
 
-func newTargetStore(db *transactionalStore) *targetStore {
+func newTargetStore(ts *transactionalStore) *targetStore {
 	return &targetStore{
-		db:           db,
+		ts:           ts,
 		targetBucket: "targets",
 	}
 }
 
 func (s *targetStore) storeTargetFiles(targetFiles []*pbgo.File) error {
-	return s.db.update(func(t *transaction) error {
+	return s.ts.update(func(t *transaction) error {
 		for _, target := range targetFiles {
 			t.put(s.targetBucket, trimHashTargetPath(target.Path), target.Raw)
 		}
@@ -34,7 +34,7 @@ func (s *targetStore) storeTargetFiles(targetFiles []*pbgo.File) error {
 func (s *targetStore) getTargetFile(path string) ([]byte, bool, error) {
 	var target []byte
 	var err error
-	err = s.db.view(func(t *transaction) error {
+	err = s.ts.view(func(t *transaction) error {
 		target, err = t.get(s.targetBucket, trimHashTargetPath(path))
 		return err
 	})
@@ -48,7 +48,7 @@ func (s *targetStore) getTargetFile(path string) ([]byte, bool, error) {
 }
 
 func (s *targetStore) pruneTargetFiles(keptPaths []string) error {
-	return s.db.update(func(t *transaction) error {
+	return s.ts.update(func(t *transaction) error {
 		return t.pruneTargetFiles(s.targetBucket, keptPaths)
 	})
 }
