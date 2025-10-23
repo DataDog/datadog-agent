@@ -533,6 +533,8 @@ new-e2e-alp:
   variables:
     TARGETS: ./tests/agent-log-pipelines
     TEAM: agent-log-pipelines
+  # Temporary for #incident-44744
+  allow_failure: true
 
 new-e2e-cws:
   extends: .new_e2e_template
