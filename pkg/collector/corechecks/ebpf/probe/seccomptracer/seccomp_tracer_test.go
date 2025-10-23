@@ -133,8 +133,16 @@ func (s *seccompTracerTestSuite) TestCanDetectSeccompDenial() {
 				}
 				assert.True(t, hasNonZeroAddr, "Stack trace should have at least one non-zero address")
 
+				// Verify symbolication was applied
+				assert.NotEmpty(t, trace.Symbols, "Stack trace should have symbols")
+				assert.Equal(t, len(trace.Addresses), len(trace.Symbols), "Should have one symbol per address")
+
+				// Log the symbolicated stack trace
 				t.Logf("Stack trace: stackID=%d, count=%d, frames=%d, first_addr=0x%x",
 					trace.StackID, trace.Count, len(trace.Addresses), trace.Addresses[0])
+				for i, symbol := range trace.Symbols {
+					t.Logf("  Frame %d: 0x%x -> %s", i, trace.Addresses[i], symbol)
+				}
 			}
 		}
 	}
@@ -150,8 +158,8 @@ func runSeccompSample(t *testing.T, waitTime int) (*exec.Cmd, error) {
 	sourceFile := filepath.Join(curDir, "../../testdata/seccompsample.c")
 	binaryFile := filepath.Join(curDir, "../../testdata/seccompsample")
 
-	// Build the sample binary
-	buildCmd := exec.Command("gcc", "-static", "-o", binaryFile, sourceFile, "-lseccomp")
+	// Build the sample binary with debug info for better symbolication
+	buildCmd := exec.Command("gcc", "-static", "-g", "-o", binaryFile, sourceFile, "-lseccomp")
 	output, err := buildCmd.CombinedOutput()
 	require.NoError(t, err, "Failed to compile seccompsample: %s", string(output))
 

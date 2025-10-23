@@ -104,5 +104,9 @@ int main(int argc, char *argv[]) {
     printf("Seccomp denials triggered.\n");
     fflush(stdout);
 
+    // Wait a bit to allow the tracer to capture and process the events
+    // This gives time for symbolication to complete before the process exits
+    sleep(1);
+
     return 0;
 }

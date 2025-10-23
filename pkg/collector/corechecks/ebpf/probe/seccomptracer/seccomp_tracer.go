@@ -171,8 +171,8 @@ func startSeccompTracerProbe(buf bytecode.AssetReader, managerOptions manager.Op
 	}
 	t.stackTraceMap = stackTraceMap
 
-	// Create map cleaner for stack traces
-	mapCleaner, err := ddebpf.NewMapCleaner[int32, [127]uint64](stackTraceMap, 100, stackTracesMapName, moduleName)
+	// Create map cleaner for stack traces. Note that it doesn't support batch API.
+	mapCleaner, err := ddebpf.NewMapCleaner[int32, [127]uint64](stackTraceMap, 1, stackTracesMapName, moduleName)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create map cleaner: %w", err)
 	}
@@ -282,11 +282,15 @@ func (t *Tracer) handleEvent(data []byte) {
 				addresses = append(addresses, addr)
 			}
 
+			// Symbolicate the addresses using DWARF/symbols
+			symbols := SymbolicateAddresses(event.Pid, addresses)
+
 			// Store the new stack trace
 			value.stackTraces[stackID] = &model.StackTraceInfo{
 				StackID:   stackID,
 				Count:     1,
 				Addresses: addresses,
+				Symbols:   symbols,
 			}
 		}
 	} else {

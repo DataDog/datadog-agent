@@ -16,6 +16,7 @@ import (
 
 	"github.com/prometheus/procfs"
 
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -46,7 +47,7 @@ func getProcMaps(pid uint32) ([]*procfs.ProcMap, error) {
 	mapsCache.mu.RUnlock()
 
 	// Use procfs library to read memory maps
-	fs, err := procfs.NewDefaultFS()
+	fs, err := procfs.NewFS(kernel.ProcFSRoot())
 	if err != nil {
 		return nil, fmt.Errorf("failed to create procfs: %w", err)
 	}
@@ -89,7 +90,7 @@ func findMapping(mappings []*procfs.ProcMap, addr uint64) *procfs.ProcMap {
 }
 
 // SymbolicateAddresses converts a list of addresses to symbolicated strings
-// Returns a slice of strings in the format: "<binary_path>+0x<offset>" or "0x<address>" if not resolved
+// Returns a slice of strings with function names, line numbers, and inline info when available
 func SymbolicateAddresses(pid uint32, addresses []uint64) []string {
 	if len(addresses) == 0 {
 		return nil
@@ -114,7 +115,23 @@ func SymbolicateAddresses(pid uint32, addresses []uint64) []string {
 			// Calculate offset within the binary
 			// offset = (address - mapping_start) + file_offset
 			offset := (addr - uint64(mapping.StartAddr)) + uint64(mapping.Offset)
-			symbols[i] = fmt.Sprintf("%s+0x%x", mapping.Pathname, offset)
+
+			// Create cache key from device and inode
+			key := binaryKey{
+				dev:   mapping.Dev,
+				inode: mapping.Inode,
+			}
+
+			// Try to get debug information from cache
+			info, err := globalDwarfCache.get(key, mapping.Pathname)
+			if err != nil {
+				// Failed to load binary info, fall back to simple format
+				log.Tracef("Failed to load binary info for %s: %v", mapping.Pathname, err)
+				symbols[i] = fmt.Sprintf("%s+0x%x", mapping.Pathname, offset)
+			} else {
+				// Resolve address using DWARF/symbols
+				symbols[i] = resolveAddress(info, offset)
+			}
 		} else {
 			// Couldn't resolve, use raw address
 			symbols[i] = fmt.Sprintf("0x%x", addr)
