@@ -1,0 +1,6 @@
+---
+deprecations:
+  - |
+    Enabling Universal Service Monitoring (USM) no longer enables eBPF runtime compilation and kernel headers
+    downloading by default. Please use ``system_probe_config.enable_runtime_compiler`` and
+    ``system_probe_config.enable_kernel_header_download`` to enable those features manually.
