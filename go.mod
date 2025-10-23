@@ -256,7 +256,7 @@ require (
 	github.com/gogo/protobuf v1.3.2
 	github.com/golang/groupcache v0.0.0-20241129210726-2c02b8208cf8
 	// github.com/golang/mock is unmaintained and archived, v1.6.0 is the last released version
-	github.com/golang/mock v1.6.0
+	github.com/golang/mock v1.7.0-rc.1
 	github.com/golang/protobuf v1.5.4
 	github.com/google/cel-go v0.26.0
 	github.com/google/go-cmp v0.7.0
