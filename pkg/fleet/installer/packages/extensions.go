@@ -76,7 +76,6 @@ func InstallExtensions(ctx context.Context, pkg *oci.DownloadedPackage, extensio
 		// Check if extension is already installed with the same package version
 		if _, exists := dbPkg.Extensions[extension]; exists && dbPkg.Version == pkg.Version {
 			log.Infof("Extension %s already installed, skipping", extension)
-			fmt.Printf("Extension %s already installed, skipping\n", extension)
 			continue
 		}
 

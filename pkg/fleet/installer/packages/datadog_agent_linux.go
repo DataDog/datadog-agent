@@ -139,7 +139,7 @@ func saveAgentExtensions(ctx HookContext) error {
 		storagePath = paths.RootTmpDir
 	}
 
-	filePath := filepath.Join(storagePath, fmt.Sprintf("%s-extensions.txt", agentPackage))
+	filePath := filepath.Join(storagePath, fmt.Sprintf("%s-%t-extensions.txt", agentPackage, false))
 	f, err := os.Create(filePath)
 	if err != nil {
 		return fmt.Errorf("failed to create extensions file: %w", err)
@@ -194,7 +194,11 @@ func restoreAgentExtensions(ctx HookContext, experiment bool) error {
 	env := env.FromEnv()
 	downloader := oci.NewDownloader(env, env.HTTPClient())
 
-	pkg, err := downloader.Download(ctx, oci.PackageURL(env, agentPackage, version.AgentPackageVersion))
+	versionTag := version.AgentVersionURLSafe
+	if !strings.HasSuffix(versionTag, "-1") {
+		versionTag = versionTag + "-1"
+	}
+	pkg, err := downloader.Download(ctx, oci.PackageURL(env, agentPackage, versionTag))
 	if err != nil {
 		return fmt.Errorf("failed to download package: %w", err)
 	}
