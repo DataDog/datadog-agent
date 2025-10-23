@@ -74,8 +74,13 @@ func TestMain(m *testing.M) {
 	if commonCfgDir != "" {
 		_ = os.RemoveAll(commonCfgDir)
 	}
-	// Write special marker to stdout for test-runner to parse (gotestsum passes stdout through)
-	fmt.Printf("\n###TEST_EXIT_CODE:%d###\n", retCode)
+
+	// Write exit code to file if requested (for test-runner)
+	if exitCodeFile != "" {
+		if err := os.WriteFile(exitCodeFile, []byte(fmt.Sprintf("%d", retCode)), 0644); err != nil {
+			fmt.Fprintf(os.Stderr, "Failed to write exit code to file %s: %v\n", exitCodeFile, err)
+		}
+	}
 
 	os.Exit(retCode)
 }
@@ -97,10 +102,12 @@ var (
 	logPatterns     stringSlice
 	logTags         stringSlice
 	ebpfLessEnabled bool
+	exitCodeFile    string
 )
 
 func init() {
 	flag.StringVar(&logLevelStr, "loglevel", log.WarnStr, "log level")
 	flag.Var(&logPatterns, "logpattern", "List of log pattern")
 	flag.Var(&logTags, "logtag", "List of log tag")
+	flag.StringVar(&exitCodeFile, "exit-code-file", "", "file to write exit code to")
 }
