@@ -193,6 +193,9 @@ func (p *Processor) processMessage(msg *message.Message) {
 		metrics.LogsProcessed.Add(1)
 		metrics.TlmLogsProcessed.Inc()
 
+		// Add extra tags from DD_EXTRA_TAGS environment variable
+		p.applyExtraTags(msg)
+
 		// render the message
 		rendered, err := msg.Render()
 		if err != nil {
@@ -293,6 +296,20 @@ func isMatchingLiteralPrefix(r *regexp.Regexp, content []byte) bool {
 	}
 
 	return bytes.Contains(content, []byte(prefix))
+}
+
+// applyExtraTags adds extra tags from DD_EXTRA_TAGS environment variable to the message
+func (p *Processor) applyExtraTags(msg *message.Message) {
+	if p.config == nil {
+		return
+	}
+
+	// Get extra tags from configuration (DD_EXTRA_TAGS environment variable)
+	extraTags := p.config.GetStringSlice("extra_tags")
+	if len(extraTags) > 0 {
+		// Append extra tags to the message's processing tags
+		msg.ProcessingTags = append(msg.ProcessingTags, extraTags...)
+	}
 }
 
 // GetHostname returns the hostname to applied the given log message
