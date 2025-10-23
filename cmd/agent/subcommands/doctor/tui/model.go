@@ -83,11 +83,12 @@ type model struct {
 	// otherTimeSeries   *serviceTimeSeries            // Aggregated data for unattributed activity
 
 	// Animation state for endpoint connectivity visualization
-	endpointAnimations    map[string]*boneAnimation // Endpoint name -> animation state
-	endpointFlashState    map[string]*flashState    // Endpoint name -> color flash state
-	lastAnimationTrigger  map[string]time.Time      // Endpoint name -> last animation time (for rate limiting)
-	previousSuccessCounts map[string]int64          // Endpoint name -> previous success count (for detecting new sends)
-	previousFailureCounts map[string]int64          // Endpoint name -> previous failure count (for detecting failures)
+	endpointPayloads      map[string][]*payloadAnimation // Endpoint URL -> list of active payloads
+	endpointFlashState    map[string]*flashState         // Endpoint URL -> color flash state
+	lastAnimationTrigger  map[string]time.Time           // Endpoint URL -> last animation time (for rate limiting)
+	lastActivityTime      map[string]time.Time           // Endpoint URL -> last time endpoint had activity (for filtering)
+	previousSuccessCounts map[string]int64               // Endpoint URL -> previous success count (for detecting new sends)
+	previousFailureCounts map[string]int64               // Endpoint URL -> previous failure count (for detecting failures)
 }
 
 type logFetcher struct {
@@ -201,14 +202,11 @@ func (lc *logFetcher) Close() {
 	close(lc.logChunkChan)
 }
 
-// boneAnimation represents an active bone animation flowing from logo to endpoint
-type boneAnimation struct {
-	active        bool      // Is animation currently running
-	vertProgress  float64   // Vertical progress: 0.0 (logo) to 1.0 (endpoint Y position)
-	horizProgress float64   // Horizontal progress: 0.0 (left) to 1.0 (right offset)
-	startTime     time.Time // When animation started
-	success       bool      // Will this delivery succeed or fail
-	targetRow     int       // Target row (endpoint Y position)
+// payloadAnimation represents a single payload moving along the wire
+type payloadAnimation struct {
+	progress  float64   // Progress along wire: 0.0 (left) to 1.0 (right/reached)
+	startTime time.Time // When animation started
+	success   bool      // Will this delivery succeed or fail
 }
 
 // flashState represents a temporary color flash on an endpoint
@@ -246,9 +244,10 @@ func newModel(client ipcdef.HTTPClient) model {
 		serviceTimeSeries:  make(map[string]*serviceTimeSeries),
 		maxTimeSeriesLen:   60, // Track last 60 time buckets (2 seconds per refresh = 2 minutes)
 		// otherTimeSeries:    newServiceTimeSeries(60), // "other" service for unattributed activity
-		endpointAnimations:    make(map[string]*boneAnimation),
+		endpointPayloads:      make(map[string][]*payloadAnimation),
 		endpointFlashState:    make(map[string]*flashState),
 		lastAnimationTrigger:  make(map[string]time.Time),
+		lastActivityTime:      make(map[string]time.Time),
 		previousSuccessCounts: make(map[string]int64),
 		previousFailureCounts: make(map[string]int64),
 	}

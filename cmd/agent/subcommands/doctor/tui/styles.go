@@ -38,29 +38,18 @@ const (
 	symbolRunning = "\u25CF" // ●
 )
 
-// ASCII art for Agent Panel
+// ASCII art and characters for Agent Panel
 const (
-	// Datadog logo (simple DD text)
-	datadogLogo = ` ╔═╗╔═╗
- ║ ║║ ║
- ║ ║║ ║
- ╚═╝╚═╝`
-
-	// Bone animation character
-	boneChar = "●"
+	// Wire visualization
+	wireChar    = "-"
+	payloadChar = ">"
+	wireLength  = 10 // 10 characters wide
 )
 
 // Animation constants
 const (
 	// Animation duration in milliseconds
 	animationDuration = 1500 // 1.5 seconds total
-
-	// Animation phase durations (as fraction of total)
-	verticalPhase   = 0.7 // 70% of time for vertical movement (~1 second)
-	horizontalPhase = 0.3 // 30% of time for horizontal movement (~0.5 seconds)
-
-	// Horizontal offset for bone to reach endpoint (in columns)
-	boneHorizOffset = 12
 
 	// Flash duration for endpoint color changes
 	flashDuration = 2000 // 2 seconds in milliseconds

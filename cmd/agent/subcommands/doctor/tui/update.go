@@ -444,62 +444,60 @@ func (m *model) updateAnimations() {
 
 	now := time.Now()
 
-	// Update existing animations
-	for endpointName, anim := range m.endpointAnimations {
-		if !anim.active {
-			continue
+	// Update existing payload animations and remove completed ones
+	for endpointURL, payloads := range m.endpointPayloads {
+		remainingPayloads := make([]*payloadAnimation, 0, len(payloads))
+
+		for _, payload := range payloads {
+			// Calculate elapsed time and progress
+			elapsed := now.Sub(payload.startTime)
+			elapsedMS := elapsed.Milliseconds()
+			payload.progress = float64(elapsedMS) / animationDuration
+
+			if payload.progress >= 1.0 {
+				// Payload reached endpoint - trigger flash
+				flashColor := colorEndpointSuccess
+				if !payload.success {
+					flashColor = colorEndpointError
+				}
+				m.endpointFlashState[endpointURL] = &flashState{
+					color:     flashColor,
+					startTime: now,
+					duration:  flashDuration * time.Millisecond,
+				}
+				// Don't add to remaining payloads (it's complete)
+			} else {
+				// Payload still moving - keep it
+				remainingPayloads = append(remainingPayloads, payload)
+			}
 		}
 
-		// Calculate elapsed time and total progress
-		elapsed := now.Sub(anim.startTime)
-		elapsedMS := elapsed.Milliseconds()
-		totalProgress := float64(elapsedMS) / animationDuration
-
-		if totalProgress >= 1.0 {
-			// Animation complete - trigger flash and deactivate
-			anim.active = false
-			anim.vertProgress = 1.0
-			anim.horizProgress = 1.0
-
-			// Create flash state
-			flashColor := colorEndpointSuccess
-			if !anim.success {
-				flashColor = colorEndpointError
-			}
-			m.endpointFlashState[endpointName] = &flashState{
-				color:     flashColor,
-				startTime: now,
-				duration:  flashDuration * time.Millisecond,
-			}
-		} else if totalProgress < verticalPhase {
-			// Vertical phase: move down from logo to endpoint
-			anim.vertProgress = totalProgress / verticalPhase
-			anim.horizProgress = 0.0
+		// Update the payload list for this endpoint
+		if len(remainingPayloads) > 0 {
+			m.endpointPayloads[endpointURL] = remainingPayloads
 		} else {
-			// Horizontal phase: move right to endpoint
-			anim.vertProgress = 1.0
-			anim.horizProgress = (totalProgress - verticalPhase) / horizontalPhase
+			delete(m.endpointPayloads, endpointURL)
 		}
 	}
 
 	// Update flash states (remove expired ones)
-	for endpointName, flash := range m.endpointFlashState {
+	for endpointURL, flash := range m.endpointFlashState {
 		if now.Sub(flash.startTime) > flash.duration {
-			delete(m.endpointFlashState, endpointName)
+			delete(m.endpointFlashState, endpointURL)
 		}
 	}
 
 	// Trigger new animations for active endpoints based on count changes
 	for _, endpoint := range m.status.Intake.Endpoints {
-		endpointName := endpoint.Name
+		endpointURL := endpoint.URL
 
 		// Check if we have previous counts (skip first poll to establish baseline)
-		previousSuccess, hadPreviousSuccess := m.previousSuccessCounts[endpointName]
-		previousFailure, hadPreviousFailure := m.previousFailureCounts[endpointName]
+		previousSuccess, hadPreviousSuccess := m.previousSuccessCounts[endpointURL]
+		previousFailure, hadPreviousFailure := m.previousFailureCounts[endpointURL]
 
 		// Update stored counts
-		m.previousSuccessCounts[endpointName] = endpoint.SuccessCount
-		m.previousFailureCounts[endpointName] = endpoint.FailureCount
+		m.previousSuccessCounts[endpointURL] = endpoint.SuccessCount
+		m.previousFailureCounts[endpointURL] = endpoint.FailureCount
 
 		// Skip animation on first poll (establishing baseline)
 		if !hadPreviousSuccess && !hadPreviousFailure {
@@ -532,29 +530,26 @@ func (m *model) updateAnimations() {
 			continue
 		}
 
+		// Update last activity time for this endpoint
+		m.lastActivityTime[endpointURL] = now
+
 		// Check rate limiting
-		lastTrigger, exists := m.lastAnimationTrigger[endpointName]
+		lastTrigger, exists := m.lastAnimationTrigger[endpointURL]
 		if exists && now.Sub(lastTrigger) < animationRateLimit*time.Millisecond {
 			continue
 		}
 
-		// Check if there's already an active animation
-		anim, exists := m.endpointAnimations[endpointName]
-		if exists && anim.active {
-			continue
+		// Create new payload animation
+		newPayload := &payloadAnimation{
+			progress:  0.0,
+			startTime: now,
+			success:   success,
 		}
 
-		// Create new animation
-		m.endpointAnimations[endpointName] = &boneAnimation{
-			active:        true,
-			vertProgress:  0.0,
-			horizProgress: 0.0,
-			startTime:     now,
-			success:       success,
-			targetRow:     0, // Will be calculated during rendering
-		}
+		// Add to the list of payloads for this endpoint
+		m.endpointPayloads[endpointURL] = append(m.endpointPayloads[endpointURL], newPayload)
 
 		// Update last trigger time
-		m.lastAnimationTrigger[endpointName] = now
+		m.lastAnimationTrigger[endpointURL] = now
 	}
 }

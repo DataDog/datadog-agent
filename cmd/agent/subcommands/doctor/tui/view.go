@@ -279,122 +279,99 @@ func (m model) renderAgentPanelContent(width, height int) string {
 		return "No data available"
 	}
 
-	// Render Datadog logo at top-left
-	logoLines := strings.Split(datadogLogo, "\n")
-	logoStartRow := 1
-	logoStartCol := 1
-	logoHeight := len(logoLines)
+	// Get list of endpoints and filter to only show those with recent activity
+	allEndpoints := m.status.Intake.Endpoints
+	if len(allEndpoints) == 0 {
+		return "No endpoints available"
+	}
 
-	// Calculate endpoint positions at the bottom of the panel
-	endpoints := m.status.Intake.Endpoints
+	// Filter endpoints: only show those with activity in the last 30 seconds
+	const activityTimeout = 30 * time.Second
+	now := time.Now()
+	endpoints := make([]doctordef.EndpointStatus, 0) // Will hold filtered endpoints
+
+	for _, endpoint := range allEndpoints {
+		lastActivity, hasActivity := m.lastActivityTime[endpoint.URL]
+		if hasActivity && now.Sub(lastActivity) <= activityTimeout {
+			endpoints = append(endpoints, endpoint)
+		}
+	}
+
 	if len(endpoints) == 0 {
-		endpoints = []doctordef.EndpointStatus{
-			{Name: "metrics", Status: "unknown"},
-			{Name: "logs", Status: "unknown"},
-			{Name: "traces", Status: "unknown"},
-		}
+		return "No endpoints with recent activity"
 	}
 
-	// Position endpoints starting from bottom
-	endpointStartRow := height - len(endpoints) - 1
-	if endpointStartRow < logoStartRow+logoHeight+2 {
-		endpointStartRow = logoStartRow + logoHeight + 2
-	}
-
-	// Build map of endpoint rows and create endpoint lines
-	endpointRows := make(map[string]int)
-	endpointLines := make(map[int]string)
-
-	for i, endpoint := range endpoints {
-		row := endpointStartRow + i
-		if row >= height {
-			break
-		}
-
-		endpointRows[endpoint.Name] = row
-
-		// Determine endpoint color
-		color := colorEndpointDefault
-		if flash, exists := m.endpointFlashState[endpoint.Name]; exists {
-			color = flash.color
-		}
-
-		// Render endpoint with colored dot
-		endpointLines[row] = fmt.Sprintf(" %s %s", lipgloss.NewStyle().Foreground(color).Render("●"), endpoint.Name)
-	}
-
-	// Build map of bone positions
-	logoBottomRow := logoStartRow + logoHeight - 1
-	bonePositions := make(map[int][]int) // row -> []columns
-
-	for endpointName, anim := range m.endpointAnimations {
-		if !anim.active {
-			continue
-		}
-
-		// Get target endpoint row
-		targetRow, exists := endpointRows[endpointName]
-		if !exists {
-			continue
-		}
-
-		// Calculate bone position
-		vertDist := targetRow - logoBottomRow
-		boneRow := logoBottomRow + int(anim.vertProgress*float64(vertDist))
-		boneCol := logoStartCol + int(anim.horizProgress*float64(boneHorizOffset))
-
-		if boneRow >= 0 && boneRow < height && boneCol >= 0 && boneCol < width {
-			bonePositions[boneRow] = append(bonePositions[boneRow], boneCol)
-		}
-	}
-
-	// Build output line by line
 	var result strings.Builder
-	for row := 0; row < height; row++ {
-		var line strings.Builder
 
-		// Check if this row has logo content
-		if row >= logoStartRow && row < logoStartRow+logoHeight {
-			logoLine := logoLines[row-logoStartRow]
-			line.WriteString(logoLine)
-		}
-
-		// Check if this row has endpoint content
-		if endpointLine, exists := endpointLines[row]; exists {
-			// Pad to position endpoint
-			for line.Len() < 1 {
-				line.WriteString(" ")
-			}
-			line.WriteString(endpointLine)
-		}
-
-		// Check if this row has bone animations
-		if boneCols, exists := bonePositions[row]; exists {
-			lineStr := line.String()
-			// Insert bones at their column positions
-			for _, col := range boneCols {
-				// Pad line to bone position if needed
-				for len(lineStr) < col {
-					lineStr += " "
-				}
-				// Insert bone (overwrite character at position)
-				if col < len(lineStr) {
-					lineStr = lineStr[:col] + boneChar + lineStr[col+1:]
-				} else {
-					lineStr += boneChar
-				}
-			}
-			line.Reset()
-			line.WriteString(lineStr)
-		}
-
-		result.WriteString(line.String())
-		if row < height-1 {
+	// Render each endpoint with its wire and payloads
+	for i, endpoint := range endpoints {
+		if i > 0 {
 			result.WriteString("\n")
+		}
+
+		// Determine endpoint dot color and URL color based on flash state
+		var dotColor lipgloss.TerminalColor = colorEndpointDefault
+		var urlColor lipgloss.TerminalColor = colorSubdued // Default: gray for inactive
+		if flash, exists := m.endpointFlashState[endpoint.URL]; exists {
+			dotColor = flash.color
+			urlColor = flash.color // Flash color (white/red) when payload arrives
+		}
+
+		// Build the wire with payloads
+		wire := m.renderWire(endpoint.URL)
+
+		// Render: wire + dot + URL
+		result.WriteString(wire)
+		result.WriteString(" ")
+		result.WriteString(lipgloss.NewStyle().Foreground(dotColor).Render("●"))
+		result.WriteString(" ")
+		result.WriteString(lipgloss.NewStyle().Foreground(urlColor).Render(endpoint.URL))
+
+		// If we've reached height limit, stop rendering
+		if i >= height-1 {
+			break
 		}
 	}
 
 	return result.String()
+}
+
+// renderWire builds a wire visualization with animated payloads
+// Returns a styled string like "->->------" (10 characters)
+// Wire and payloads are rendered in white when there are active payloads, gray when idle
+func (m model) renderWire(endpointURL string) string {
+	// Start with empty wire (all dashes)
+	wire := make([]rune, wireLength)
+	for i := 0; i < wireLength; i++ {
+		wire[i] = rune(wireChar[0])
+	}
+
+	// Get payloads for this endpoint
+	payloads, exists := m.endpointPayloads[endpointURL]
+	hasActivePayloads := exists && len(payloads) > 0
+
+	if hasActivePayloads {
+		// Place each payload at its position in the wire
+		for _, payload := range payloads {
+			// Calculate position (0.0 to 1.0 progress maps to columns 0 to wireLength-1)
+			position := int(payload.progress * float64(wireLength))
+			if position < 0 {
+				position = 0
+			}
+			if position >= wireLength {
+				position = wireLength - 1
+			}
+
+			// Place payload character
+			wire[position] = rune(payloadChar[0])
+		}
+
+		// Active payloads: render wire in white (normal color)
+		return lipgloss.NewStyle().Foreground(colorValue).Render(string(wire))
+	}
+
+	// No payloads: render wire in gray (subdued)
+	return lipgloss.NewStyle().Foreground(colorSubdued).Render(string(wire))
 }
 
 // renderIntakePanel renders the right panel showing backend connectivity

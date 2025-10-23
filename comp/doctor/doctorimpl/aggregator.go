@@ -21,6 +21,7 @@ import (
 	logsstatus "github.com/DataDog/datadog-agent/pkg/logs/status"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/doctor/def"
 )
 
@@ -276,75 +277,48 @@ func (d *doctorImpl) collectIntakeStatus() def.IntakeStatus {
 		}
 	}
 
-	// Map forwarder endpoint names to friendly display names
-	endpointMapping := map[string]string{
-		"series_v1":          "metrics",
-		"series_v2":          "metrics",
-		"sketches_v1":        "metrics",
-		"sketches_v2":        "metrics",
-		"intake":             "logs",
-		"process":            "process",
-		"rtprocess":          "process",
-		"container":          "process",
-		"rtcontainer":        "process",
-		"connections":        "process",
-		"orchestrator":       "orchestrator",
-		"check_run_v1":       "checks",
-		"metadata_v1":        "metadata",
-		"host_metadata_v2":   "metadata",
-		"services_checks_v2": "checks",
-		"events_v2":          "events",
-		"validate_v1":        "validate",
-		"v0.4/traces":        "traces",
-		"v0.5/traces":        "traces",
-		"v0.6/traces":        "traces",
-		"v0.7/traces":        "traces",
+	// Collect all unique endpoint names
+	allEndpoints := make(map[string]bool)
+	for endpoint := range successByEndpoint {
+		allEndpoints[endpoint] = true
+	}
+	for endpoint := range droppedByEndpoint {
+		allEndpoints[endpoint] = true
 	}
 
-	// Aggregate counts by friendly name
-	aggregatedSuccess := make(map[string]int64)
-	aggregatedDropped := make(map[string]int64)
+	// Build URLs and aggregate counts by unique URL
+	// This deduplicates endpoints that map to the same URL (e.g., "process" and "rtprocess")
+	successByURL := make(map[string]int64)
+	droppedByURL := make(map[string]int64)
 
-	for rawEndpoint, successCount := range successByEndpoint {
-		friendlyName := endpointMapping[rawEndpoint]
-		if friendlyName == "" {
-			friendlyName = rawEndpoint // Use raw name if no mapping
+	for endpointName := range allEndpoints {
+		url := constructEndpointURL(endpointName, d.config)
+
+		// Aggregate counts for this URL
+		successByURL[url] += successByEndpoint[endpointName]
+		droppedByURL[url] += droppedByEndpoint[endpointName]
+	}
+
+	// Create sorted list of unique URLs for consistent ordering
+	uniqueURLs := make([]string, 0, len(successByURL))
+	for url := range successByURL {
+		uniqueURLs = append(uniqueURLs, url)
+	}
+	for url := range droppedByURL {
+		if _, exists := successByURL[url]; !exists {
+			uniqueURLs = append(uniqueURLs, url)
 		}
-		aggregatedSuccess[friendlyName] += successCount
 	}
+	slices.Sort(uniqueURLs)
 
-	for rawEndpoint, droppedCount := range droppedByEndpoint {
-		friendlyName := endpointMapping[rawEndpoint]
-		if friendlyName == "" {
-			friendlyName = rawEndpoint // Use raw name if no mapping
-		}
-		aggregatedDropped[friendlyName] += droppedCount
-	}
-
-	// Create endpoint status entries for each unique friendly name
-	seenEndpoints := make(map[string]bool)
-	for friendlyName := range aggregatedSuccess {
-		seenEndpoints[friendlyName] = true
-	}
-	for friendlyName := range aggregatedDropped {
-		seenEndpoints[friendlyName] = true
-	}
-
-	// Create sorted list of endpoint names for consistent ordering
-	endpointNames := make([]string, 0, len(seenEndpoints))
-	for friendlyName := range seenEndpoints {
-		endpointNames = append(endpointNames, friendlyName)
-	}
-	slices.Sort(endpointNames)
-
-	// Create endpoint status entries in sorted order
-	for _, friendlyName := range endpointNames {
-		successCount := aggregatedSuccess[friendlyName]
-		droppedCount := aggregatedDropped[friendlyName]
+	// Create endpoint status entries in sorted order (one per unique URL)
+	for _, url := range uniqueURLs {
+		successCount := successByURL[url]
+		droppedCount := droppedByURL[url]
 
 		endpointStatus := def.EndpointStatus{
-			Name:         friendlyName,
-			URL:          "", // Not available in expvars
+			Name:         url, // Use URL as name for consistency
+			URL:          url,
 			SuccessCount: successCount,
 			FailureCount: droppedCount,
 		}
@@ -368,6 +342,79 @@ func (d *doctorImpl) collectIntakeStatus() def.IntakeStatus {
 	}
 
 	return status
+}
+
+// constructEndpointURL constructs the full intake URL for a given endpoint name
+func constructEndpointURL(endpointName string, cfg config.Component) string {
+	// Get the configured site (defaults to datadoghq.com)
+	site := cfg.GetString("site")
+	if site == "" {
+		site = "datadoghq.com"
+	}
+
+	// Map endpoint names to their full URLs
+	// These follow the standard Datadog intake URL patterns
+	switch endpointName {
+	// Metrics series endpoints
+	case "series_v1":
+		return fmt.Sprintf("https://api.%s/api/v1/series", site)
+	case "series_v2":
+		return fmt.Sprintf("https://api.%s/api/v2/series", site)
+
+	// Metrics distribution/sketches endpoints
+	case "sketches_v1":
+		return fmt.Sprintf("https://api.%s/api/v1/distribution_points", site)
+	case "sketches_v2":
+		return fmt.Sprintf("https://api.%s/api/v2/distribution_points", site)
+
+	// Logs intake
+	case "intake":
+		return fmt.Sprintf("https://http-intake.logs.%s/api/v2/logs", site)
+
+	// Process monitoring endpoints
+	case "process":
+		return fmt.Sprintf("https://process.%s/api/v1/collector", site)
+	case "rtprocess":
+		return fmt.Sprintf("https://process.%s/api/v1/collector", site)
+	case "container":
+		return fmt.Sprintf("https://process.%s/api/v1/container", site)
+	case "rtcontainer":
+		return fmt.Sprintf("https://process.%s/api/v1/container", site)
+	case "connections":
+		return fmt.Sprintf("https://process.%s/api/v1/connections", site)
+
+	// Orchestrator
+	case "orchestrator":
+		return fmt.Sprintf("https://orchestrator.%s/api/v1/orchestrator", site)
+
+	// Check runs and service checks
+	case "check_run_v1":
+		return fmt.Sprintf("https://api.%s/api/v1/check_run", site)
+	case "services_checks_v2":
+		return fmt.Sprintf("https://api.%s/api/v2/service_checks", site)
+
+	// Metadata endpoints
+	case "metadata_v1":
+		return fmt.Sprintf("https://api.%s/api/v1/metadata", site)
+	case "host_metadata_v2":
+		return fmt.Sprintf("https://api.%s/api/v2/host_metadata", site)
+
+	// Events
+	case "events_v2":
+		return fmt.Sprintf("https://api.%s/api/v2/events", site)
+
+	// API key validation
+	case "validate_v1":
+		return fmt.Sprintf("https://api.%s/api/v1/validate", site)
+
+	// Trace endpoints (APM)
+	case "v0.4/traces", "v0.5/traces", "v0.6/traces", "v0.7/traces":
+		return fmt.Sprintf("https://trace.agent.%s/api/%s", site, endpointName)
+
+	// Default: return a generic API URL with the endpoint name
+	default:
+		return fmt.Sprintf("https://api.%s/api/%s", site, endpointName)
+	}
 }
 
 // collectHealthStatus uses the health package to get component health

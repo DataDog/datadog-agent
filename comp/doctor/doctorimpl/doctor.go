@@ -50,6 +50,15 @@ type doctorImpl struct {
 	collector  option.Option[collector.Component]
 	startTime  time.Time
 
+	// Cached status computed by background ticker
+	statusMu     sync.RWMutex
+	cachedStatus *def.DoctorStatus
+
+	// Background ticker for periodic stat collection
+	ticker     *time.Ticker
+	stopChan   chan struct{}
+	tickerDone chan struct{}
+
 	// Delta tracking for logs rate calculation
 	logsDeltaMu            sync.Mutex
 	previousLogsBytesRead  map[string]int64 // Map of service name to bytes read
@@ -99,6 +108,8 @@ func newDoctor(deps dependencies) *doctorImpl {
 		collector:                   deps.Collector,
 		httpclient:                  deps.HTTPClient,
 		startTime:                   time.Now(),
+		stopChan:                    make(chan struct{}),
+		tickerDone:                  make(chan struct{}),
 		previousLogsBytesRead:       make(map[string]int64),
 		lastLogsCollectionTime:      time.Now(),
 		previousDogstatsdSamples:    make(map[string]int64),
@@ -117,23 +128,76 @@ func newDoctor(deps dependencies) *doctorImpl {
 
 func (d *doctorImpl) start(_ context.Context) error {
 	d.log.Info("Doctor component started")
+
+	// Compute initial status immediately
+	d.updateCachedStatus()
+
+	// Start background ticker to update stats every second
+	d.ticker = time.NewTicker(1 * time.Second)
+	go d.statsCollectionLoop()
+
 	return nil
 }
 
 func (d *doctorImpl) stop(_ context.Context) error {
+	d.log.Info("Doctor component stopping")
+
+	// Stop the ticker and wait for goroutine to finish
+	if d.ticker != nil {
+		d.ticker.Stop()
+	}
+	close(d.stopChan)
+	<-d.tickerDone
+
 	d.log.Info("Doctor component stopped")
 	return nil
 }
 
-// GetStatus returns the current doctor status by aggregating telemetry
-func (d *doctorImpl) GetStatus() *def.DoctorStatus {
-	return &def.DoctorStatus{
+// statsCollectionLoop runs in background and updates cached stats every second
+func (d *doctorImpl) statsCollectionLoop() {
+	defer close(d.tickerDone)
+
+	for {
+		select {
+		case <-d.ticker.C:
+			// Update cached status every second
+			d.updateCachedStatus()
+		case <-d.stopChan:
+			// Stop requested
+			return
+		}
+	}
+}
+
+// updateCachedStatus computes stats and updates the cached status
+func (d *doctorImpl) updateCachedStatus() {
+	status := &def.DoctorStatus{
 		Timestamp: time.Now(),
 		Ingestion: d.collectIngestionStatus(),
 		Agent:     d.collectAgentStatus(),
 		Intake:    d.collectIntakeStatus(),
 		Services:  d.collectServicesStatus(),
 	}
+
+	d.statusMu.Lock()
+	d.cachedStatus = status
+	d.statusMu.Unlock()
+}
+
+// GetStatus returns the cached doctor status (updated every second by background ticker)
+func (d *doctorImpl) GetStatus() *def.DoctorStatus {
+	d.statusMu.RLock()
+	defer d.statusMu.RUnlock()
+
+	// Return cached status (nil-safe)
+	if d.cachedStatus == nil {
+		// Fallback if not yet initialized (shouldn't happen in normal operation)
+		return &def.DoctorStatus{
+			Timestamp: time.Now(),
+		}
+	}
+
+	return d.cachedStatus
 }
 
 // handleDoctor is the HTTP handler for the /agent/doctor endpoint
