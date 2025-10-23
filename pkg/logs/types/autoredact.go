@@ -11,6 +11,12 @@ package types
 type AutoRedactConfig struct {
 	// Enabled is the parent switch for PII auto-redaction
 	Enabled *bool `mapstructure:"enabled" json:"enabled" yaml:"enabled"`
+	// PII holds the individual PII type settings
+	PII *PIITypeSettings `mapstructure:"pii" json:"pii" yaml:"pii"`
+}
+
+// PIITypeSettings holds the individual PII type redaction settings
+type PIITypeSettings struct {
 	// Email controls email redaction
 	Email *bool `mapstructure:"email" json:"email" yaml:"email"`
 	// CreditCard controls credit card redaction

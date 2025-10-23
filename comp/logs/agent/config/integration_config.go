@@ -36,7 +36,6 @@ const (
 	SHIFTJIS string = "shift-jis"
 )
 
-
 // LogsConfig represents a log source config, which can be for instance
 // a file to tail or a port to listen to.
 type LogsConfig struct {

@@ -34,11 +34,11 @@ const (
 
 	// PII auto-redaction settings
 	configAutoRedactEnabled    = "logs_config.auto_redact_config.enabled"
-	configAutoRedactEmail      = "logs_config.auto_redact_config.email"
-	configAutoRedactCreditCard = "logs_config.auto_redact_config.credit_card"
-	configAutoRedactSSN        = "logs_config.auto_redact_config.ssn"
-	configAutoRedactPhone      = "logs_config.auto_redact_config.phone"
-	configAutoRedactIP         = "logs_config.auto_redact_config.ip"
+	configAutoRedactEmail      = "logs_config.auto_redact_config.pii.email"
+	configAutoRedactCreditCard = "logs_config.auto_redact_config.pii.credit_card"
+	configAutoRedactSSN        = "logs_config.auto_redact_config.pii.ssn"
+	configAutoRedactPhone      = "logs_config.auto_redact_config.pii.phone"
+	configAutoRedactIP         = "logs_config.auto_redact_config.pii.ip"
 )
 
 type failoverConfig struct {
@@ -343,45 +343,53 @@ func isMatchingLiteralPrefix(r *regexp.Regexp, content []byte) bool {
 
 // getPIITypeConfig merges global and per-source PII redaction configuration.
 // Per-source settings override global settings. Returns nil if PII redaction is disabled.
+// When enabled=true, all PII types default to true unless explicitly set to false.
 func (p *Processor) getPIITypeConfig(msg *message.Message) *PIITypeConfig {
 	if p.config == nil {
 		return nil
 	}
 
-	// Helper to get bool value with source override
-	getBool := func(globalKey string, sourceVal *bool) bool {
+	// Helper to get bool value with source override, defaulting to true when enabled
+	getBoolWithDefault := func(globalKey string, sourceVal *bool, defaultVal bool) bool {
 		if sourceVal != nil {
 			return *sourceVal
 		}
-		return p.config.GetBool(globalKey)
+		// If global config key is configured, use it; otherwise use the default
+		if p.config.IsConfigured(globalKey) {
+			return p.config.GetBool(globalKey)
+		}
+		return defaultVal
 	}
 
 	sourceConfig := msg.Origin.LogSource.Config.AutoRedactConfig
 
-	// Helper to safely get field from source config
+	// Helper to safely get field from source config PII settings
 	var enabledPtr, emailPtr, creditCardPtr, ssnPtr, phonePtr, ipPtr *bool
 	if sourceConfig != nil {
 		enabledPtr = sourceConfig.Enabled
-		emailPtr = sourceConfig.Email
-		creditCardPtr = sourceConfig.CreditCard
-		ssnPtr = sourceConfig.SSN
-		phonePtr = sourceConfig.Phone
-		ipPtr = sourceConfig.IP
+		if sourceConfig.PII != nil {
+			emailPtr = sourceConfig.PII.Email
+			creditCardPtr = sourceConfig.PII.CreditCard
+			ssnPtr = sourceConfig.PII.SSN
+			phonePtr = sourceConfig.PII.Phone
+			ipPtr = sourceConfig.PII.IP
+		}
 	}
 
 	// Check if PII redaction is enabled (parent switch)
-	enabled := getBool(configAutoRedactEnabled, enabledPtr)
+	enabled := enabledPtr != nil && *enabledPtr || enabledPtr == nil && p.config.GetBool(configAutoRedactEnabled)
 	if !enabled {
 		return nil
 	}
 
 	// Build the PII type configuration with per-source overrides
+	// When enabled=true, all PII types default to true
 	return &PIITypeConfig{
-		Email:      getBool(configAutoRedactEmail, emailPtr),
-		CreditCard: getBool(configAutoRedactCreditCard, creditCardPtr),
-		SSN:        getBool(configAutoRedactSSN, ssnPtr),
-		Phone:      getBool(configAutoRedactPhone, phonePtr),
-		IP:         getBool(configAutoRedactIP, ipPtr),
+		Email:      getBoolWithDefault(configAutoRedactEmail, emailPtr, true),
+		CreditCard: getBoolWithDefault(configAutoRedactCreditCard, creditCardPtr, true),
+		SSN:        getBoolWithDefault(configAutoRedactSSN, ssnPtr, true),
+		Phone:      getBoolWithDefault(configAutoRedactPhone, phonePtr, true),
+		IP:         getBoolWithDefault(configAutoRedactIP, ipPtr, true),
 	}
 }
 

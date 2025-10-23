@@ -1867,11 +1867,11 @@ func logsagent(config pkgconfigmodel.Setup) {
 
 	// PII auto-redaction settings (nested config structure)
 	config.BindEnvAndSetDefault("logs_config.auto_redact_config.enabled", DefaultAutoRedactEnabled)
-	config.BindEnvAndSetDefault("logs_config.auto_redact_config.email", DefaultAutoRedactEmail)
-	config.BindEnvAndSetDefault("logs_config.auto_redact_config.credit_card", DefaultAutoRedactCreditCard)
-	config.BindEnvAndSetDefault("logs_config.auto_redact_config.ssn", DefaultAutoRedactSSN)
-	config.BindEnvAndSetDefault("logs_config.auto_redact_config.phone", DefaultAutoRedactPhone)
-	config.BindEnvAndSetDefault("logs_config.auto_redact_config.ip", DefaultAutoRedactIP)
+	config.BindEnvAndSetDefault("logs_config.auto_redact_config.pii.email", DefaultAutoRedactEmail)
+	config.BindEnvAndSetDefault("logs_config.auto_redact_config.pii.credit_card", DefaultAutoRedactCreditCard)
+	config.BindEnvAndSetDefault("logs_config.auto_redact_config.pii.ssn", DefaultAutoRedactSSN)
+	config.BindEnvAndSetDefault("logs_config.auto_redact_config.pii.phone", DefaultAutoRedactPhone)
+	config.BindEnvAndSetDefault("logs_config.auto_redact_config.pii.ip", DefaultAutoRedactIP)
 }
 
 // vector integration
