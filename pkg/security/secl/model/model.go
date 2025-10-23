@@ -54,9 +54,10 @@ type ContainerContext struct {
 	Resolved    bool                       `field:"-"`
 }
 
-// Hash returns a unique key for the entity
-func (c *ContainerContext) Hash() string {
-	return string(c.ContainerID)
+// Key returns a unique key for the entity
+func (c *ContainerContext) Key() (string, bool) {
+	cID := string(c.ContainerID)
+	return cID, cID != ""
 }
 
 // ParentScope returns the parent entity scope
@@ -293,6 +294,14 @@ func (e *Event) ResolveEventTime() time.Time {
 // ResolveService uses the field handler
 func (e *Event) ResolveService() string {
 	return e.FieldHandlers.ResolveService(e, &e.BaseEvent)
+}
+
+// GetProcessTracerTags returns the value of the field, resolving if necessary
+func (e *Event) GetProcessTracerTags() []string {
+	if e.BaseEvent.ProcessContext == nil {
+		return []string{}
+	}
+	return e.BaseEvent.ProcessContext.Process.TracerTags
 }
 
 // UserSessionContext describes the user session context
