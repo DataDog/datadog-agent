@@ -11,18 +11,19 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 )
 
 // LoadComponents configures several common Agent components:
 // tagger, collector, scheduler and autodiscovery
-func LoadComponents(_ secrets.Component, wmeta workloadmeta.Component, taggerComp tagger.Component, ac autodiscovery.Component, confdPath string) {
+func LoadComponents(_ secrets.Component, wmeta workloadmeta.Component, taggerComp tagger.Component, filterStore workloadfilter.Component, ac autodiscovery.Component, confdPath string) {
 	confSearchPaths := []string{
 		confdPath,
 		filepath.Join(defaultpaths.GetDistPath(), "conf.d"),
 		"",
 	}
 
-	setupAutoDiscovery(confSearchPaths, wmeta, taggerComp, ac)
+	setupAutoDiscovery(confSearchPaths, wmeta, taggerComp, filterStore, ac)
 }

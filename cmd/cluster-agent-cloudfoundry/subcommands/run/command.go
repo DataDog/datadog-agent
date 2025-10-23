@@ -220,7 +220,7 @@ func run(
 		return err
 	}
 
-	common.LoadComponents(secretResolver, wmeta, taggerComp, ac, pkgconfigsetup.Datadog().GetString("confd_path"))
+	common.LoadComponents(secretResolver, wmeta, taggerComp, filterStore, ac, pkgconfigsetup.Datadog().GetString("confd_path"))
 
 	// Set up check collector
 	ac.AddScheduler("check", pkgcollector.InitCheckScheduler(option.New(collector), demultiplexer, logReceiver, taggerComp, filterStore), true)
