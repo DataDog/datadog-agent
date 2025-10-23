@@ -18,31 +18,30 @@ const (
 
 // InstanceConfig holds the configuration for a single JMX instance connection
 type InstanceConfig struct {
-	Host             string   `yaml:"host"`
-	Port             int      `yaml:"port"`
-	JMXURL           string   `yaml:"jmx_url"`
-	ProcessNameRegex string   `yaml:"process_name_regex"`
-	User             string   `yaml:"user"`
-	Password         string   `yaml:"password"`
-	Name             string   `yaml:"name"`
-	Tags             []string `yaml:"tags"`
-	JavaBinPath      string   `yaml:"java_bin_path"`
-	JavaOptions      string   `yaml:"java_options"`
-	TrustStorePath   string   `yaml:"trust_store_path"`
-	TrustStorePass   string   `yaml:"trust_store_password"`
-	RefreshBeans     int      `yaml:"refresh_beans"`
+	Name string `yaml:"name"`
+
+	Host   string `yaml:"host"`
+	Port   int    `yaml:"port"`
+	JMXURL string `yaml:"jmx_url"`
+	//	ProcessNameRegex string   `yaml:"process_name_regex"`
+
+	RefreshBeans int      `yaml:"refresh_beans"`
+	Tags         []string `yaml:"tags"`
+	// TODO(remy): unsupported for now
+	//
+	//	User             string   `yaml:"user"`
+	//	Password         string   `yaml:"password"`
+	//	Name             string   `yaml:"name"`
 }
 
 // InitConfig holds the init_config section containing bean collection rules
 type InitConfig struct {
-	IsJMX                 bool                     `yaml:"is_jmx"`
-	CollectDefaultMetrics bool                     `yaml:"collect_default_metrics"`
-	NewGCMetrics          bool                     `yaml:"new_gc_metrics"`
-	CustomJarPaths        []string                 `yaml:"custom_jar_paths"`
-	JavaBinPath           string                   `yaml:"java_bin_path"`
-	JavaOptions           string                   `yaml:"java_options"`
-	ToolsJarPath          string                   `yaml:"tools_jar_path"`
-	Conf                  []BeanCollectionConfig   `yaml:"conf"`
+	IsJMX bool `yaml:"is_jmx"`
+	// TODO(remy): implement collecting a list of default metrics
+	CollectDefaultMetrics bool `yaml:"collect_default_metrics"`
+	// TODO(remy): implement collecting a list of the default metrics for the new GC
+	NewGCMetrics bool                   `yaml:"new_gc_metrics"`
+	Conf         []BeanCollectionConfig `yaml:"conf"`
 }
 
 // BeanCollectionConfig defines rules for collecting beans
@@ -53,17 +52,17 @@ type BeanCollectionConfig struct {
 
 // BeanMatcher defines patterns for matching MBeans
 type BeanMatcher struct {
-	Domain      interface{}            `yaml:"domain,omitempty"`      // string or []string
-	Bean        interface{}            `yaml:"bean,omitempty"`        // string or []string
-	BeanRegex   interface{}            `yaml:"bean_regex,omitempty"`  // string or []string
-	Type        interface{}            `yaml:"type,omitempty"`        // string or []string
-	Scope       interface{}            `yaml:"scope,omitempty"`       // string or []string
-	Name        interface{}            `yaml:"name,omitempty"`        // string or []string
-	Path        interface{}            `yaml:"path,omitempty"`        // string or []string
-	ExcludeTags []string               `yaml:"exclude_tags,omitempty"`
-	Tags        map[string]string      `yaml:"tags,omitempty"`
-	Attribute   map[string]*Attribute  `yaml:"attribute,omitempty"`
-	Keyspace    interface{}            `yaml:"keyspace,omitempty"`    // For Cassandra-style configs
+	Domain      interface{}           `yaml:"domain,omitempty"`     // string or []string
+	Bean        interface{}           `yaml:"bean,omitempty"`       // string or []string
+	BeanRegex   interface{}           `yaml:"bean_regex,omitempty"` // string or []string
+	Type        interface{}           `yaml:"type,omitempty"`       // string or []string
+	Scope       interface{}           `yaml:"scope,omitempty"`      // string or []string
+	Name        interface{}           `yaml:"name,omitempty"`       // string or []string
+	Path        interface{}           `yaml:"path,omitempty"`       // string or []string
+	ExcludeTags []string              `yaml:"exclude_tags,omitempty"`
+	Tags        map[string]string     `yaml:"tags,omitempty"`
+	Attribute   map[string]*Attribute `yaml:"attribute,omitempty"`
+	Keyspace    interface{}           `yaml:"keyspace,omitempty"` // For Cassandra-style configs
 }
 
 // Attribute defines how to collect a specific MBean attribute
@@ -78,16 +77,16 @@ func (c *InstanceConfig) Parse(data []byte) error {
 		return fmt.Errorf("failed to parse instance config: %w", err)
 	}
 
-	// Set defaults
 	if c.RefreshBeans <= 0 {
 		c.RefreshBeans = defaultRefreshBeans
 	}
 
-	// Validate required fields
-	if c.Host == "" && c.JMXURL == "" && c.ProcessNameRegex == "" {
-		return fmt.Errorf("one of 'host', 'jmx_url', or 'process_name_regex' must be specified")
+	// we should at least have one connection method
+	if c.Host == "" && c.JMXURL == "" {
+		return fmt.Errorf("one of 'host' or 'jmx_url' must be specified")
 	}
 
+	// port is mandatory when connecting with a host
 	if c.Host != "" && c.Port <= 0 {
 		return fmt.Errorf("'port' must be specified when 'host' is provided")
 	}
@@ -112,9 +111,6 @@ func (c *InstanceConfig) GetConnectionString() string {
 	if c.Host != "" && c.Port > 0 {
 		return fmt.Sprintf("%s:%d", c.Host, c.Port)
 	}
-	if c.ProcessNameRegex != "" {
-		return fmt.Sprintf("process:%s", c.ProcessNameRegex)
-	}
 	return "unknown"
 }
 
@@ -123,6 +119,7 @@ func (c *InstanceConfig) GetInstanceName() string {
 	if c.Name != "" {
 		return c.Name
 	}
+	// fallback on the connection string
 	return c.GetConnectionString()
 }
 
@@ -136,7 +133,8 @@ type BeanRequest struct {
 	Alias      string `json:"alias,omitempty"`
 }
 
-// ToJmxClientFormat converts BeanCollectionConfig to the format expected by jmxclient
+// ToJmxClientFormat converts BeanCollectionConfig from JMXFetch
+// to the format expected by jmxclient.
 // Returns a slice of BeanRequest objects that can be marshaled to JSON
 func ToJmxClientFormat(configs []BeanCollectionConfig) []BeanRequest {
 	requests := []BeanRequest{}
@@ -206,7 +204,6 @@ func ToJmxClientFormat(configs []BeanCollectionConfig) []BeanRequest {
 		}
 	}
 
-	fmt.Printf("DEBUG: ToJmxClientFormat generated %d bean requests\n", len(requests))
 	return requests
 }
 

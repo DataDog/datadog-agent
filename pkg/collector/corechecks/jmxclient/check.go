@@ -48,19 +48,12 @@ func Factory() option.Option[func() check.Check] {
 }
 
 // Configure configures the check
-func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, config, initConfig integration.Data, source string) error {
-	// Call parent Configure
-	if err := c.CommonConfigure(senderManager, initConfig, config, source); err != nil {
-		return fmt.Errorf("common configure failed: %w", err)
-	}
-
-	// Parse instance config
+func (c *Check) Configure(senderManager sender.SenderManager, integrationDigest uint64, data, initConfig integration.Data, source string) error {
+	// checks commons part
 	c.instanceConfig = &InstanceConfig{}
-	if err := c.instanceConfig.Parse(config); err != nil {
+	if err := c.instanceConfig.Parse(data); err != nil {
 		return fmt.Errorf("failed to parse instance config: %w", err)
 	}
-
-	// Parse init config
 	c.initConfig = &InitConfig{}
 	if err := c.initConfig.Parse(initConfig); err != nil {
 		return fmt.Errorf("failed to parse init config: %w", err)
@@ -70,15 +63,20 @@ func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, config, 
 	if len(c.initConfig.Conf) == 0 {
 		return fmt.Errorf("no bean collection configuration provided in init_config.conf")
 	}
+	c.BuildID(integrationDigest, data, initConfig)
+	err := c.CommonConfigure(senderManager, initConfig, data, source)
+	if err != nil {
+		return err
+	}
 
-	// Get the shared JmxClient wrapper (singleton, shared across all check instances)
+	// jmxclient init
+
 	wrapper, err := GetSharedWrapper()
 	if err != nil {
-		return fmt.Errorf("failed to get JMXClient wrapper: %w", err)
+		return fmt.Errorf("failed to get jmxclient wrapper: %w", err)
 	}
 	c.wrapper = wrapper
-
-	log.Infof("JMXClient check configured for instance: %s", c.instanceConfig.GetInstanceName())
+	log.Infof("jmxclient check configured for instance: %s", c.instanceConfig.GetInstanceName())
 	return nil
 }
 
@@ -98,7 +96,7 @@ func (c *Check) Run() error {
 		}
 	}
 
-    // regular refresh, in the case of some of the beans appearing later in time
+	// regular refresh, in the case of some of the beans appearing later in time
 	if time.Since(c.lastRefresh) > time.Duration(c.instanceConfig.RefreshBeans)*time.Second {
 		if err := c.refreshBeans(); err != nil {
 			c.Warnf("Failed to refresh: %v", err)
@@ -106,7 +104,7 @@ func (c *Check) Run() error {
 		}
 	}
 
-    // collect data from beans
+	// collect data from beans
 	beans, err := c.wrapper.CollectBeansAsStructs(c.sessionID)
 	if err != nil {
 		c.Warnf("Failed to collect: %v", err)
@@ -115,7 +113,7 @@ func (c *Check) Run() error {
 		return err
 	}
 
-	// Process and send metrics
+	// process and send metrics
 	if err := c.processMetrics(beans, sender); err != nil {
 		c.Warnf("Failed to process metrics: %v", err)
 		return err
@@ -140,7 +138,7 @@ func (c *Check) connect() error {
 				c.instanceConfig.Host, c.instanceConfig.Port, err)
 		}
 	} else {
-		// TODO: Implement connection via JMX URL or process name regex
+		// TODO(remy): implement connection via JMX URL & process name
 		return fmt.Errorf("only host:port connection is currently supported")
 	}
 
@@ -179,7 +177,7 @@ func (c *Check) refreshBeans() error {
 
 // processMetrics processes collected metrics and sends them to the aggregator
 func (c *Check) processMetrics(beans []BeanData, sender sender.Sender) error {
-	// Add instance tags
+	// add instance tags
 	tags := append([]string{}, c.instanceConfig.Tags...)
 	tags = append(tags, fmt.Sprintf("jmx_instance:%s", c.instanceConfig.GetInstanceName()))
 
@@ -192,12 +190,13 @@ func (c *Check) processMetrics(beans []BeanData, sender sender.Sender) error {
 
 		// Process each attribute in the bean
 		for _, attr := range bean.Attributes {
+
 			metricName := fmt.Sprintf("jmx.%s.%s", bean.Path, attr.Name)
 
 			// Try to parse the value as a number
 			var numValue float64
 			if _, err := fmt.Sscanf(attr.Value, "%f", &numValue); err == nil {
-			    // TODO(remy): support other types than gauge
+				// TODO(remy): support other types than gauge
 				sender.Gauge(metricName, numValue, "", tags)
 			} else {
 				log.Debugf("Skipping non-numeric metric %s with value: %s", metricName, attr.Value)
