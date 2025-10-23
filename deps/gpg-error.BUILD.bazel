@@ -157,3 +157,31 @@ genrule(
         "@//:linux_arm64": mkheader_cmds[1],
     })
 )
+
+# Copy the file to change its extension. We need to feed this file to the
+# C preprocessor, but it will consider it to be a linker file if its extension
+# is .def.in and will not generate any output
+copy_file(
+    name = "copy_gpg-error_def_in",
+    src = "src/gpg-error.def.in",
+    out = "gpg-error.def.h",
+)
+
+c_preprocessor(
+    name = "_gpg-error_def_tmp_h",
+    input = ":copy_gpg-error_def_in",
+    deps = [
+        "src/config.h",
+    ],
+    include_directories = ["src"],
+    output = "_gpg-error_def.tmp.h",
+)
+
+genrule(
+    name = "gpg-error_def",
+    srcs = [
+        ":_gpg-error_def_tmp_h",
+    ],
+    cmd = "grep -v '^#' $(location :_gpg-error_def_tmp_h) > $@",
+    outs = ["gpg-error.def"]
+)
