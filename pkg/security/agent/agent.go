@@ -15,9 +15,12 @@ import (
 	"sync"
 	"time"
 
+	backoffticker "github.com/cenkalti/backoff/v4"
 	"github.com/golang/protobuf/ptypes/empty"
 	"go.uber.org/atomic"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
 
@@ -27,6 +30,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/security_profile/storage/backend"
+	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	grpcutils "github.com/DataDog/datadog-agent/pkg/security/utils/grpc"
 )
 
@@ -35,7 +39,8 @@ type RuntimeSecurityAgent struct {
 	statsdClient         statsd.ClientInterface
 	hostname             string
 	reporter             common.RawReporter
-	client               *RuntimeSecurityClient
+	eventClient          *RuntimeSecurityEventClient
+	cmdClient            *RuntimeSecurityCmdClient
 	running              *atomic.Bool
 	wg                   sync.WaitGroup
 	connected            *atomic.Bool
@@ -127,9 +132,14 @@ func (rsa *RuntimeSecurityAgent) Start(reporter common.RawReporter, endpoints *c
 		go rsa.startActivityDumpStorageTelemetry(ctx)
 	}
 
-	err := rsa.grpcServer.Start()
-	if err != nil {
-		seclog.Errorf("error starting security agent grpc server: %v", err)
+	if rsa.grpcServer != nil {
+		err := rsa.grpcServer.Start()
+		if err != nil {
+			seclog.Errorf("error starting security agent grpc server: %v", err)
+		}
+	} else {
+		go rsa.startEventStreamListener()
+		go rsa.startActivityDumpStreamListener()
 	}
 }
 
@@ -137,9 +147,106 @@ func (rsa *RuntimeSecurityAgent) Start(reporter common.RawReporter, endpoints *c
 func (rsa *RuntimeSecurityAgent) Stop() {
 	rsa.cancel()
 	rsa.running.Store(false)
-	rsa.client.Close()
-	rsa.grpcServer.Stop()
+	rsa.cmdClient.Close()
+
+	if rsa.eventClient != nil {
+		rsa.eventClient.Close()
+	}
+	if rsa.grpcServer != nil {
+		rsa.grpcServer.Stop()
+	}
 	rsa.wg.Wait()
+}
+
+// startEventStreamListener starts listening for new events from system-probe. communication system-probe -> security-agent
+func (rsa *RuntimeSecurityAgent) startEventStreamListener() {
+	rsa.wg.Add(1)
+	defer rsa.wg.Done()
+
+	rsa.connected.Store(false)
+
+	logTicker := newLogBackoffTicker()
+
+	for rsa.running.Load() {
+		stream, err := rsa.eventClient.GetEventStream()
+		if err != nil {
+			rsa.connected.Store(false)
+
+			select {
+			case <-logTicker.C:
+				msg := fmt.Sprintf("error while connecting to the runtime security module: %v", err)
+
+				if e, ok := status.FromError(err); ok {
+					switch e.Code() {
+					case codes.Unavailable:
+						msg += ", please check that the runtime security module is enabled in the system-probe.yaml config file"
+					}
+				}
+				seclog.Errorf("%s", msg)
+			default:
+				// do nothing
+			}
+
+			// retry in 2 seconds
+			time.Sleep(2 * time.Second)
+			continue
+		}
+
+		if !rsa.connected.Load() {
+			rsa.connected.Store(true)
+
+			seclog.Infof("Successfully connected to the runtime security module")
+		}
+
+		for {
+			// Get new event from stream
+			in, err := stream.Recv()
+			if err == io.EOF || in == nil {
+				break
+			}
+
+			if seclog.DefaultLogger.IsTracing() {
+				seclog.DefaultLogger.Tracef("Got message from rule `%s` for event `%s`", in.RuleID, string(in.Data))
+			}
+
+			rsa.eventReceived.Inc()
+
+			// Dispatch security event
+			rsa.DispatchEvent(in)
+		}
+	}
+}
+
+// startActivityDumpstartActivityDumpStreamListenerListener starts listening for new activity dumps from system-probe. communication system-probe -> security-agent
+func (rsa *RuntimeSecurityAgent) startActivityDumpStreamListener() {
+	rsa.wg.Add(1)
+	defer rsa.wg.Done()
+
+	for rsa.running.Load() {
+		stream, err := rsa.eventClient.GetActivityDumpStream()
+		if err != nil {
+			// retry in 2 seconds
+			time.Sleep(2 * time.Second)
+			continue
+		}
+
+		for {
+			// Get new activity dump from stream
+			msg, err := stream.Recv()
+			if err == io.EOF || msg == nil {
+				break
+			}
+
+			if seclog.DefaultLogger.IsTracing() {
+				seclog.DefaultLogger.Tracef("Got activity dump [%s]", msg.GetSelector())
+			}
+
+			rsa.activityDumpReceived.Inc()
+
+			// Dispatch activity dump
+			rsa.DispatchActivityDump(msg)
+		}
+	}
 }
 
 // DispatchEvent dispatches a security event message to the subsytems of the runtime security agent
@@ -165,6 +272,16 @@ func (rsa *RuntimeSecurityAgent) DispatchActivityDump(msg *api.ActivityDumpStrea
 	}
 }
 
+// newLogBackoffTicker returns a ticker based on an exponential backoff, used to trigger connect error logs
+func newLogBackoffTicker() *backoffticker.Ticker {
+	expBackoff := backoffticker.NewExponentialBackOff()
+	expBackoff.InitialInterval = 2 * time.Second
+	expBackoff.MaxInterval = 60 * time.Second
+	expBackoff.MaxElapsedTime = 0
+	expBackoff.Reset()
+	return backoffticker.NewTicker(expBackoff)
+}
+
 func (rsa *RuntimeSecurityAgent) startActivityDumpStorageTelemetry(ctx context.Context) {
 	metricsTicker := time.NewTicker(1 * time.Minute)
 	defer metricsTicker.Stop()
@@ -182,19 +299,27 @@ func (rsa *RuntimeSecurityAgent) startActivityDumpStorageTelemetry(ctx context.C
 }
 
 //nolint:unused,deadcode
-func (rsa *RuntimeSecurityAgent) setupAPIServer() error {
-	socketPath := pkgconfigsetup.Datadog().GetString("runtime_security_config.socket")
-	if socketPath == "" {
-		return errors.New("runtime_security_config.socket must be set")
-	}
+func (rsa *RuntimeSecurityAgent) setupGPRC() error {
+	if utils.IsSecurityAgentEventGRPCServer() {
+		socketPath := pkgconfigsetup.Datadog().GetString("runtime_security_config.socket")
+		if socketPath == "" {
+			return errors.New("runtime_security_config.socket must be set")
+		}
 
-	family := common.GetFamilyAddress(socketPath)
-	if family == "unix" && runtime.GOOS == "windows" {
-		return fmt.Errorf("unix sockets are not supported on Windows")
-	}
+		family := common.GetFamilyAddress(socketPath)
+		if family == "unix" && runtime.GOOS == "windows" {
+			return fmt.Errorf("unix sockets are not supported on Windows")
+		}
 
-	rsa.grpcServer = grpcutils.NewServer(family, socketPath)
-	api.RegisterSecurityAgentAPIServer(rsa.grpcServer.ServiceRegistrar(), rsa)
+		rsa.grpcServer = grpcutils.NewServer(family, socketPath)
+		api.RegisterSecurityAgentAPIServer(rsa.grpcServer.ServiceRegistrar(), rsa)
+	} else {
+		client, err := NewRuntimeSecurityEventClient()
+		if err != nil {
+			return err
+		}
+		rsa.eventClient = client
+	}
 
 	return nil
 }

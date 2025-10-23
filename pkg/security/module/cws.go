@@ -53,20 +53,21 @@ type CWSConsumer struct {
 	statsdClient statsd.ClientInterface
 
 	// internals
-	wg             sync.WaitGroup
-	ctx            context.Context
-	cancelFnc      context.CancelFunc
-	apiServer      *APIServer
-	rateLimiter    *events.RateLimiter
-	sendStatsChan  chan chan bool
-	eventSender    events.EventSender
-	grpcServer     *grpcutils.Server
-	ruleEngine     *rulesmodule.RuleEngine
-	selfTester     *selftests.SelfTester
-	selfTestCount  int
-	selfTestPassed bool
-	reloader       ReloaderInterface
-	crtelemetry    *telemetry.ContainersRunningTelemetry
+	wg              sync.WaitGroup
+	ctx             context.Context
+	cancelFnc       context.CancelFunc
+	apiServer       *APIServer
+	rateLimiter     *events.RateLimiter
+	sendStatsChan   chan chan bool
+	eventSender     events.EventSender
+	grpcCmdServer   *grpcutils.Server
+	grpcEventServer *grpcutils.Server
+	ruleEngine      *rulesmodule.RuleEngine
+	selfTester      *selftests.SelfTester
+	selfTestCount   int
+	selfTestPassed  bool
+	reloader        ReloaderInterface
+	crtelemetry     *telemetry.ContainersRunningTelemetry
 }
 
 // NewCWSConsumer initializes the module with options
@@ -93,8 +94,6 @@ func NewCWSConsumer(evm *eventmonitor.EventMonitor, cfg *config.RuntimeSecurityC
 		return nil, err
 	}
 
-	family := common.GetFamilyAddress(cmdSocketPath)
-
 	apiServer, err := NewAPIServer(cfg, evm.Probe, opts.MsgSender, evm.StatsdClient, selfTester, compression, ipc)
 	if err != nil {
 		return nil, err
@@ -112,7 +111,7 @@ func NewCWSConsumer(evm *eventmonitor.EventMonitor, cfg *config.RuntimeSecurityC
 		apiServer:     apiServer,
 		rateLimiter:   events.NewRateLimiter(cfg, evm.StatsdClient),
 		sendStatsChan: make(chan chan bool, 1),
-		grpcServer:    grpcutils.NewServer(family, cmdSocketPath),
+		grpcCmdServer: grpcutils.NewServer(common.GetFamilyAddress(cmdSocketPath), cmdSocketPath),
 		selfTester:    selfTester,
 		reloader:      NewReloader(),
 		crtelemetry:   crtelemetry,
@@ -150,7 +149,14 @@ func NewCWSConsumer(evm *eventmonitor.EventMonitor, cfg *config.RuntimeSecurityC
 	seclog.SetPatterns(cfg.LogPatterns...)
 	seclog.SetTags(cfg.LogTags...)
 
-	api.RegisterSecurityModuleServer(c.grpcServer.ServiceRegistrar(), c.apiServer)
+	// setup gRPC servers
+	api.RegisterSecurityModuleServer(c.grpcCmdServer.ServiceRegistrar(), c.apiServer)
+	if !utils.IsSecurityAgentEventGRPCServer() {
+		family := common.GetFamilyAddress(cfg.SocketPath)
+		c.grpcEventServer = grpcutils.NewServer(family, cfg.SocketPath)
+
+		api.RegisterSecurityModuleServer(c.grpcEventServer.ServiceRegistrar(), c.apiServer)
+	}
 
 	// platform specific initialization
 	if err := c.init(evm, cfg, opts); err != nil {
@@ -181,8 +187,14 @@ func (c *CWSConsumer) ID() string {
 
 // Start the module
 func (c *CWSConsumer) Start() error {
-	if err := c.grpcServer.Start(); err != nil {
+	if err := c.grpcCmdServer.Start(); err != nil {
 		return err
+	}
+
+	if c.grpcEventServer != nil {
+		if err := c.grpcEventServer.Start(); err != nil {
+			return err
+		}
 	}
 
 	if err := c.reloader.Start(); err != nil {
@@ -313,7 +325,10 @@ func (c *CWSConsumer) Stop() {
 
 	c.wg.Wait()
 
-	c.grpcServer.Stop()
+	c.grpcCmdServer.Stop()
+	if c.grpcEventServer != nil {
+		c.grpcEventServer.Stop()
+	}
 }
 
 // HandleCustomEvent is called by the probe when an event should be sent to Datadog but doesn't need evaluation

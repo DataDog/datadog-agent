@@ -331,7 +331,10 @@ message SecurityProfileSaveMessage {
     string File = 2;
 }
 
-message EmptyResponse {}
+service SecurityEventModule {
+    rpc GetEventStream(google.protobuf.Empty) returns (stream SecurityEventMessage) {}
+    rpc GetActivityDumpStream(google.protobuf.Empty) returns (stream ActivityDumpStreamMessage) {}
+}
 
 service SecurityModule {
     rpc DumpProcessCache(DumpProcessCacheParams) returns (SecurityDumpProcessCacheMessage) {}

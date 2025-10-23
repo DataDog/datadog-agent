@@ -11,6 +11,7 @@ import (
 
 	"github.com/Masterminds/semver/v3"
 
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -37,4 +38,9 @@ func HostToNetworkShort(short uint16) uint16 {
 	b := make([]byte, 2)
 	binary.NativeEndian.PutUint16(b, short)
 	return binary.BigEndian.Uint16(b)
+}
+
+// IsSecurityAgentEventGRPCServer returns true if the security-agent should be used to send events and activity dumps
+func IsSecurityAgentEventGRPCServer() bool {
+	return pkgconfigsetup.Datadog().GetString("runtime_security_config.event_gprc_server") == "security-agent"
 }

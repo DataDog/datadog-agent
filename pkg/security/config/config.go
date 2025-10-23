@@ -420,6 +420,9 @@ type RuntimeSecurityConfig struct {
 	// IMDSIPv4 is used to provide a custom IP address for the IMDS endpoint
 	IMDSIPv4 uint32
 
+	// EventGRPCServer defines which process should be used to send events and activity dumps
+	EventGRPCServer string
+
 	// SendPayloadsFromSystemProbe defines when the event and activity dumps are sent directly from system-probe
 	SendPayloadsFromSystemProbe bool
 
@@ -630,6 +633,9 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 
 		// IMDS
 		IMDSIPv4: parseIMDSIPv4(),
+
+		// security module
+		EventGRPCServer: pkgconfigsetup.SystemProbe().GetString("runtime_security_config.event_gprc_server"),
 
 		// direct sender
 		SendPayloadsFromSystemProbe: pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.direct_send_from_system_probe"),

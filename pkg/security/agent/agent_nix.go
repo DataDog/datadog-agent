@@ -17,7 +17,7 @@ import (
 
 // NewRuntimeSecurityAgent instantiates a new RuntimeSecurityAgent
 func NewRuntimeSecurityAgent(statsdClient statsd.ClientInterface, hostname string) (*RuntimeSecurityAgent, error) {
-	client, err := NewRuntimeSecurityClient()
+	client, err := NewRuntimeSecurityCmdClient()
 	if err != nil {
 		return nil, err
 	}
@@ -29,7 +29,7 @@ func NewRuntimeSecurityAgent(statsdClient statsd.ClientInterface, hostname strin
 	}
 
 	rsa := &RuntimeSecurityAgent{
-		client:               client,
+		cmdClient:            client,
 		statsdClient:         statsdClient,
 		hostname:             hostname,
 		storage:              storage,
@@ -39,7 +39,7 @@ func NewRuntimeSecurityAgent(statsdClient statsd.ClientInterface, hostname strin
 		activityDumpReceived: atomic.NewUint64(0),
 	}
 
-	if err = rsa.setupAPIServer(); err != nil {
+	if err = rsa.setupGPRC(); err != nil {
 		return nil, err
 	}
 
