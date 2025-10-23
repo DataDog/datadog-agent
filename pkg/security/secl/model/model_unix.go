@@ -160,8 +160,11 @@ func NewEventZeroer() func(*Event) {
 	}
 }
 
-// GetContainerId returns event's process container ID if any
-func (e *Event) GetContainerId() string {
+// GetContainerID returns event's process container ID if any
+func (e *Event) GetContainerID() string {
+	if e.ProcessContext == nil {
+		return ""
+	}
 	return string(e.ProcessContext.Process.ContainerContext.ContainerID)
 }
 

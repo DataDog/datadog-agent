@@ -24,8 +24,6 @@ type Model struct {
 	ExtraValidateFieldFnc func(field eval.Field, fieldValue eval.FieldValue) error
 }
 
-var containerContextZero ContainerContext
-
 // Releasable represents an object than can be released
 type Releasable struct {
 	onReleaseCallbacks []func() `field:"-"`

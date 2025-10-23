@@ -29,6 +29,12 @@ func TestEventConsumerWrapperCopy(t *testing.T) {
 				Type: uint32(model.ExecEventType),
 				ProcessContext: &model.ProcessContext{
 					Process: model.Process{
+						ContainerContext: model.ContainerContext{
+							ContainerID: "cid_exec",
+						},
+						CGroup: model.CGroupContext{
+							CGroupID: "cid_exec",
+						},
 						PIDContext: model.PIDContext{
 							Pid: 2233,
 						},
@@ -40,13 +46,7 @@ func TestEventConsumerWrapperCopy(t *testing.T) {
 						},
 					},
 				},
-				ContainerContext: &model.ContainerContext{
-					ContainerID: "cid_exec",
-				},
 				FieldHandlers: &model.FakeFieldHandlers{},
-			},
-			CGroupContext: &model.CGroupContext{
-				CGroupID: "cid_exec",
 			},
 		}
 		evHandler := &eventConsumerWrapper{}
@@ -71,6 +71,12 @@ func TestEventConsumerWrapperCopy(t *testing.T) {
 				Type: uint32(model.ForkEventType),
 				ProcessContext: &model.ProcessContext{
 					Process: model.Process{
+						ContainerContext: model.ContainerContext{
+							ContainerID: "cid_fork",
+						},
+						CGroup: model.CGroupContext{
+							CGroupID: "cid_fork",
+						},
 						PIDContext: model.PIDContext{
 							Pid: 2244,
 						},
@@ -82,13 +88,7 @@ func TestEventConsumerWrapperCopy(t *testing.T) {
 						},
 					},
 				},
-				ContainerContext: &model.ContainerContext{
-					ContainerID: "cid_fork",
-				},
 				FieldHandlers: &model.FakeFieldHandlers{},
-			},
-			CGroupContext: &model.CGroupContext{
-				CGroupID: "cid_fork",
 			},
 		}
 		evHandler := &eventConsumerWrapper{}

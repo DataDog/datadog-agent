@@ -59,7 +59,6 @@ func (m *Model) ValidateField(field eval.Field, fieldValue eval.FieldValue) erro
 
 // Event represents an event sent from the kernel
 // genaccessors
-// gengetter: GetContainerId
 // gengetter: GetEventService
 // gengetter: GetExecFilePath
 // gengetter: GetExitCode
@@ -100,8 +99,11 @@ func NewEventZeroer() func(*Event) {
 	}
 }
 
-// GetContainerId returns event's process container ID if any
-func (e *Event) GetContainerId() string {
+// GetContainerID returns event's process container ID if any
+func (e *Event) GetContainerID() string {
+	if e.ProcessContext == nil {
+		return ""
+	}
 	return string(e.ProcessContext.Process.ContainerContext.ContainerID)
 }
 

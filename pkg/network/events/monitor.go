@@ -155,7 +155,7 @@ func (h *eventConsumerWrapper) Copy(ev *model.Event) any {
 		}
 	}
 
-	if cid := ev.GetContainerId(); cid != "" {
+	if cid := ev.GetContainerID(); cid != "" {
 		p.ContainerID = intern.GetByString(cid)
 	}
 
