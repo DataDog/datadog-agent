@@ -46,7 +46,6 @@ message FilterReport{
     repeated ApproverReport Approvers = 1;
 }
 
-
 message RuleSetReportMessage{
     FilterReport Filters = 1;
 }
