@@ -12,8 +12,10 @@ COMMON_INCLUDES = [".", "include"]
 # The actual SONAME version would be determined by LIB_VERSION in the autotools build
 # For unixODBC 2.3.9, the libraries typically have SONAME like libodbc.so.2
 VERSION = "2.3.9"
+
+# For some reason version of .so in the final package is 2.0.0, not 2.3.9.
+# To ensure the same behavior as the autotools build, we use 2.0.0 here.
 SOVERSION = "2.0.0"
-SYMLINK_VERSION = "2"
 
 # Public headers installed by unixODBC
 _UNIXODBC_PUBLIC_HEADERS = [
@@ -75,9 +77,6 @@ cc_library(
 # Logging library
 cc_library(
     name = "log",
-    # :config_h cannot be inside of the glob() because
-    # actions are executed during execution phase, not during analysis phase
-    # and glob is evaluated during analysis phase.
     srcs = glob(["log/**/*.c", "include/*.h"]) + [":config_h"],
     copts = COMMON_COPTS,
     includes = COMMON_INCLUDES,
@@ -86,9 +85,6 @@ cc_library(
 # List management library
 cc_library(
     name = "lst",
-    # :config_h cannot be inside of the glob() because
-    # actions are executed during execution phase, not during analysis phase
-    # and glob is evaluated during analysis phase.
     srcs = glob(["lst/**/*.c", "include/*.h"]) + [":config_h"],
     copts = COMMON_COPTS,
     includes = COMMON_INCLUDES,
@@ -97,9 +93,6 @@ cc_library(
 # INI file parsing library
 cc_library(
     name = "ini",
-    # :config_h cannot be inside of the glob() because
-    # actions are executed during execution phase, not during analysis phase
-    # and glob is evaluated during analysis phase.
     srcs = glob(["ini/**/*.c", "include/*.h"]) + [":config_h"],
     copts = COMMON_COPTS,
     includes = COMMON_INCLUDES,
@@ -109,9 +102,6 @@ cc_library(
 # ODBC installer library (internal version)
 cc_library(
     name = "odbcinstlc",
-    # :config_h cannot be inside of the glob() because
-    # actions are executed during execution phase, not during analysis phase
-    # and glob is evaluated during analysis phase.
     srcs = glob(["odbcinst/**/*.c", "include/*.h"]) + [":config_h"],
     copts = COMMON_COPTS,
     includes = COMMON_INCLUDES,
@@ -126,9 +116,6 @@ cc_library(
 # ODBC installer library (public version with exports)
 cc_library(
     name = "odbcinst",
-    # :config_h cannot be inside of the glob() because
-    # actions are executed during execution phase, not during analysis phase
-    # and glob is evaluated during analysis phase.
     srcs = glob(["odbcinst/**/*.c", "include/*.h"]) + [":config_h"],
     hdrs = [
         "include/odbcinst.h",
@@ -148,9 +135,6 @@ cc_library(
 # Main ODBC Driver Manager library
 cc_library(
     name = "odbc",
-    # :config_h cannot be inside of the glob() because
-    # actions are executed during execution phase, not during analysis phase
-    # and glob is evaluated during analysis phase.
     srcs = glob(["DriverManager/**/*.c", "DriverManager/**/*.h", "include/*.h"]) + [":config_h"],
     hdrs = [
         "include/sql.h",
@@ -221,7 +205,8 @@ so_symlink(
     name = "libodbcinst_so_link",
     src = ":libodbcinst_so",
     libname = "libodbcinst",
-    version = SYMLINK_VERSION,
+    # Symlinks version is the major version of the library.
+    version = SOVERSION.split(".")[0],
 )
 
 # Symlinks for libodbc
@@ -229,7 +214,8 @@ so_symlink(
     name = "libodbc_so_link",
     src = ":libodbc_so",
     libname = "libodbc",
-    version = SYMLINK_VERSION,
+    # Symlinks version is the major version of the library.
+    version = SOVERSION.split(".")[0],
 )
 
 # Symlinks for libodbccr
@@ -237,7 +223,8 @@ so_symlink(
     name = "libodbccr_so_link",
     src = ":libodbccr_so",
     libname = "libodbccr",
-    version = SYMLINK_VERSION,
+    # Symlinks version is the major version of the library.
+    version = SOVERSION.split(".")[0],
 )
 
 pkg_files(
