@@ -2654,3 +2654,645 @@ func TestSecurityProfileSyscallDriftNoNewSyscall(t *testing.T) {
 		dockerInstance.stop()
 	})
 }
+
+// TestSecurityProfileSystemd tests the security profile functionality for systemd services.
+// It verifies that security profiles are correctly generated for systemd-managed services,
+// including proper metadata extraction and process tree capture.
+func TestSecurityProfileSystemd(t *testing.T) {
+	SkipIfNotAvailable(t)
+
+	// Skip if not running on a systemd system
+	if !isSystemdAvailable() {
+		t.Skip("Skip test when systemd is not available")
+	}
+	if !IsDedicatedNodeForAD() {
+		t.Skip("Skip test when not run in dedicated env")
+	}
+
+	var expectedFormats = []string{"profile"}
+	var testActivityDumpTracedEventTypes = []string{"exec", "open", "syscalls"}
+
+	outputDir := t.TempDir()
+	os.MkdirAll(outputDir, 0755)
+	defer os.RemoveAll(outputDir)
+
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{}, withStaticOpts(testOpts{
+		enableActivityDump:                  true,
+		activityDumpRateLimiter:             200,
+		activityDumpTracedCgroupsCount:      100,
+		activityDumpDuration:                testActivityDumpDuration,
+		activityDumpLocalStorageDirectory:   outputDir,
+		activityDumpLocalStorageCompression: false,
+		activityDumpLocalStorageFormats:     expectedFormats,
+		activityDumpTracedEventTypes:        testActivityDumpTracedEventTypes,
+		enableSecurityProfile:               true,
+		securityProfileDir:                  outputDir,
+		securityProfileWatchDir:             true,
+		traceSystemdCgroups:                 true,
+		enableSBOM:                          true,
+		enableHostSBOM:                      true,
+	}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
+	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Test that our systemd service profile metadata is correctly generated
+	// This test verifies that profile metadata includes service name tags and correct cgroup information
+	t.Run("systemd-service-profile-metadata", func(t *testing.T) {
+		serviceName := "cws-test-service-" + utils.RandString(6)
+		reloadCmd := syscallTester + " sleep 1"
+		serviceInstance, dump, err := test.StartSystemdServiceGetDump(serviceName, reloadCmd)
+		defer serviceInstance.stop()
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		// reload the service to execute the reload command
+		if err := serviceInstance.reload(); err != nil {
+			t.Fatal(err)
+		}
+
+		time.Sleep(3 * time.Second) // a quick sleep to let events be added to the dump
+
+		err = test.StopActivityDump(dump.Name)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		validateActivityDumpOutputs(t, test, expectedFormats, dump.OutputFiles, nil,
+			func(sp *profile.Profile) bool {
+				if sp.Metadata.Name != dump.Name {
+					t.Errorf("Profile name %s != %s\n", sp.Metadata.Name, dump.Name)
+				}
+				if sp.Metadata.CGroupContext.CGroupID != dump.CGroupID {
+					t.Errorf("Profile cgroup ID %s != %s\n", sp.Metadata.CGroupContext.CGroupID, dump.CGroupID)
+				}
+
+				ctx := sp.GetVersionContextIndex(0)
+				if ctx == nil {
+					t.Errorf("No profile context found!")
+				} else {
+					if !slices.Contains(ctx.Tags, "service:"+serviceName+".service") {
+						t.Errorf("Profile did not contain service tag: %v\n", ctx.Tags)
+					}
+				}
+				return true
+			})
+	})
+
+	// Test that systemd service process information is correctly captured in profiles
+	// This test verifies that the process tree includes the expected executables run within the service
+	t.Run("systemd-service-profile-process", func(t *testing.T) {
+		serviceName := "cws-test-service-proc-" + utils.RandString(6)
+		reloadCmd := syscallTester + " sleep 1"
+		serviceInstance, dump, err := test.StartSystemdServiceGetDump(serviceName, reloadCmd)
+		defer serviceInstance.stop()
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		// reload the service to execute the reload command
+		if err := serviceInstance.reload(); err != nil {
+			t.Fatal(err)
+		}
+
+		time.Sleep(3 * time.Second) // a quick sleep to let events be added to the dump
+
+		err = test.StopActivityDump(dump.Name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		validateActivityDumpOutputs(t, test, expectedFormats, dump.OutputFiles, nil,
+			func(sp *profile.Profile) bool {
+				nodes := WalkActivityTree(sp.ActivityTree, func(node *ProcessNodeAndParent) bool {
+					return node.Node.Process.FileEvent.PathnameStr == syscallTester
+				})
+
+				if nodes == nil {
+					t.Fatal("Node not found in systemd service security profile")
+				}
+				if len(nodes) != 1 {
+					t.Fatalf("Found %d nodes, expected only one.", len(nodes))
+				}
+				return true
+			})
+	})
+}
+
+func TestAnomalyDetectionSystemd(t *testing.T) {
+	SkipIfNotAvailable(t)
+
+	// Skip if not running on a systemd system
+	if !isSystemdAvailable() {
+		t.Skip("Skip test when systemd is not available")
+	}
+	if !IsDedicatedNodeForAD() {
+		t.Skip("Skip test when not run in dedicated env")
+	}
+
+	var expectedFormats = []string{"profile"}
+	var testActivityDumpTracedEventTypes = []string{"exec", "open", "syscalls", "dns", "bind"}
+
+	outputDir := t.TempDir()
+	os.MkdirAll(outputDir, 0755)
+	defer os.RemoveAll(outputDir)
+
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{}, withStaticOpts(testOpts{
+		enableActivityDump:                      true,
+		activityDumpRateLimiter:                 200,
+		activityDumpTracedCgroupsCount:          100,
+		activityDumpDuration:                    testActivityDumpDuration,
+		activityDumpLocalStorageDirectory:       outputDir,
+		activityDumpLocalStorageCompression:     false,
+		activityDumpLocalStorageFormats:         expectedFormats,
+		activityDumpTracedEventTypes:            testActivityDumpTracedEventTypes,
+		enableSecurityProfile:                   true,
+		securityProfileDir:                      outputDir,
+		securityProfileWatchDir:                 true,
+		enableAnomalyDetection:                  true,
+		anomalyDetectionEventTypes:              []string{"exec", "dns"},
+		anomalyDetectionMinimumStablePeriodExec: time.Second,
+		anomalyDetectionMinimumStablePeriodDNS:  time.Second,
+		anomalyDetectionWarmupPeriod:            time.Second,
+		traceSystemdCgroups:                     true,
+		enableSBOM:                              true,
+		enableHostSBOM:                          true,
+	}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
+	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Test that anomaly detection correctly identifies unknown processes in systemd services
+	// This test verifies that executing a process not in the security profile triggers an anomaly detection event
+	t.Run("systemd-anomaly-detection-process", func(t *testing.T) {
+		serviceName := "cws-test-service-anomaly-pos-" + utils.RandString(6)
+		reloadCmd := "getconf -a"
+		serviceInstance, dump, err := test.StartSystemdServiceGetDump(serviceName, reloadCmd)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer serviceInstance.stop()
+
+		// stop the activity dump before reloading the service so that the reload command can be considered as an anomaly
+		err = test.StopActivityDump(dump.Name)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		time.Sleep(6 * time.Second) // a quick sleep to let the profile be loaded (5sec debounce + 1sec spare)
+
+		err = test.GetCustomEventSent(t, func() error {
+			// Execute the reload command to trigger an anomaly detection event
+			err := serviceInstance.reload()
+			return err
+		}, func(_ *rules.Rule, _ *events.CustomEvent) bool {
+			return true
+		}, time.Second*3, model.ExecEventType, events.AnomalyDetectionRuleID)
+		if err != nil {
+			t.Fatal(err)
+		}
+	})
+
+	// Test that anomaly detection doesn't trigger false positives for known processes
+	// This test verifies that executing a process that exists in the security profile does not trigger an anomaly
+	t.Run("systemd-anomaly-detection-process-negative", func(t *testing.T) {
+		serviceName := "cws-test-service-anomaly-neg-" + utils.RandString(6)
+		reloadCmd := syscallTester + " sleep 1"
+		serviceInstance, dump, err := test.StartSystemdServiceGetDump(serviceName, reloadCmd)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer serviceInstance.stop()
+
+		// reload the service to execute the reload command so that the command is considered as part of the profile
+		err = serviceInstance.reload()
+		if err != nil {
+			t.Fatal(err)
+		}
+		time.Sleep(3 * time.Second) // a quick sleep to let events be added to the dump
+
+		err = test.StopActivityDump(dump.Name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		time.Sleep(6 * time.Second) // a quick sleep to let the profile be loaded (5sec debounce + 1sec spare)
+
+		test.GetCustomEventSent(t, func() error {
+			// Execute the same command that was profiled - should not trigger anomaly
+			err := serviceInstance.reload()
+			return err
+		}, func(_ *rules.Rule, _ *events.CustomEvent) bool {
+			t.Error("Should not have received any anomaly detection for known command.")
+			return false
+		}, time.Second*3, model.ExecEventType, events.AnomalyDetectionRuleID)
+	})
+}
+
+// TestSecurityProfileSystemdLifeCycle tests the lifecycle management of security profiles for systemd services.
+// It verifies that profiles transition correctly between learning and stable states, and that
+// multiple versions of the same service are handled properly with appropriate anomaly detection behavior.
+func TestSecurityProfileSystemdLifeCycle(t *testing.T) {
+	SkipIfNotAvailable(t)
+
+	// Skip if not running on a systemd system
+	if !isSystemdAvailable() {
+		t.Skip("Skip test when systemd is not available")
+	}
+	if !IsDedicatedNodeForAD() {
+		t.Skip("Skip test when not run in dedicated env")
+	}
+
+	var expectedFormats = []string{"profile"}
+	var testActivityDumpTracedEventTypes = []string{"exec", "open", "syscalls"}
+
+	outputDir := t.TempDir()
+	os.MkdirAll(outputDir, 0755)
+	defer os.RemoveAll(outputDir)
+
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{}, withStaticOpts(testOpts{
+		enableActivityDump:                      true,
+		activityDumpRateLimiter:                 200,
+		activityDumpTracedCgroupsCount:          100,
+		activityDumpDuration:                    testActivityDumpDuration,
+		activityDumpLocalStorageDirectory:       outputDir,
+		activityDumpLocalStorageCompression:     false,
+		activityDumpLocalStorageFormats:         expectedFormats,
+		activityDumpTracedEventTypes:            testActivityDumpTracedEventTypes,
+		enableSecurityProfile:                   true,
+		securityProfileDir:                      outputDir,
+		securityProfileWatchDir:                 true,
+		enableAnomalyDetection:                  true,
+		anomalyDetectionEventTypes:              []string{"exec"},
+		anomalyDetectionMinimumStablePeriodExec: 10 * time.Second,
+		anomalyDetectionWarmupPeriod:            1 * time.Second,
+		traceSystemdCgroups:                     true,
+		enableSBOM:                              true,
+		enableHostSBOM:                          true,
+	}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
+	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Test that new processes are automatically learned during the learning phase
+	// This test verifies that processes executed during the learning phase are added to the profile
+	// and don't trigger anomaly detection events
+	t.Run("systemd-lifecycle-v1-learning-new-process", func(t *testing.T) {
+		serviceName := "cws-test-lifecycle-learning-" + utils.RandString(6)
+		reloadCmd := syscallTester + " sleep 1"
+		serviceInstance, dump, err := test.StartSystemdServiceGetDump(serviceName, reloadCmd)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer serviceInstance.stop()
+
+		time.Sleep(3 * time.Second) // a quick sleep to let events be added to the dump
+
+		err = test.StopActivityDump(dump.Name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		time.Sleep(6 * time.Second) // a quick sleep to let the profile be loaded (5sec debounce + 1sec spare)
+
+		// HERE: V1 is learning - new process should not trigger anomaly
+		test.GetCustomEventSent(t, func() error {
+			err := serviceInstance.reload()
+			return err
+		}, func(_ *rules.Rule, _ *events.CustomEvent) bool {
+			t.Error("Should not have received any anomaly detection during learning phase.")
+			return false
+		}, time.Second*3, model.ExecEventType, events.AnomalyDetectionRuleID)
+	})
+
+	// Test that unknown processes trigger anomalies when the profile is stable
+	// This test verifies that once a profile transitions to stable state,
+	// executing processes not in the profile generates anomaly detection events
+	t.Run("systemd-lifecycle-v1-stable-process-anomaly", func(t *testing.T) {
+		serviceName := "cws-test-lifecycle-stable-" + utils.RandString(6)
+		reloadCmd := syscallTester + " sleep 1"
+		serviceInstance, dump, err := test.StartSystemdServiceGetDump(serviceName, reloadCmd)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer serviceInstance.stop()
+
+		time.Sleep(3 * time.Second) // a quick sleep to let events be added to the dump
+
+		err = test.StopActivityDump(dump.Name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		time.Sleep(6 * time.Second) // a quick sleep to let the profile be loaded (5sec debounce + 1sec spare)
+
+		// Wait for the stable period to pass
+		time.Sleep(11 * time.Second)
+
+		err = test.GetCustomEventSent(t, func() error {
+			// Execute the new reload command, it should trigger an anomaly
+			err := serviceInstance.reload()
+			return err
+		}, func(_ *rules.Rule, _ *events.CustomEvent) bool {
+			return true
+		}, time.Second*3, model.ExecEventType, events.AnomalyDetectionRuleID)
+		if err != nil {
+			t.Fatal(err)
+		}
+	})
+
+	// Test that known processes don't trigger anomalies when the profile is stable
+	// This test verifies that processes that exist in the security profile do not trigger anomalies
+	t.Run("systemd-lifecycle-v1-stable-known-process", func(t *testing.T) {
+		serviceName := "cws-test-lifecycle-known-" + utils.RandString(6)
+		reloadCmd := "getconf -a"
+		serviceInstance, dump, err := test.StartSystemdServiceGetDump(serviceName, reloadCmd)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer serviceInstance.stop()
+
+		// reload the service to execute the reload command so it gets profiled
+		if err := serviceInstance.reload(); err != nil {
+			t.Fatal(err)
+		}
+
+		time.Sleep(3 * time.Second) // a quick sleep to let events be added to the dump
+
+		err = test.StopActivityDump(dump.Name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		time.Sleep(6 * time.Second) // a quick sleep to let the profile be loaded (5sec debounce + 1sec spare)
+
+		// Wait for the stable period to pass
+		time.Sleep(11 * time.Second)
+
+		// HERE: V1 is stable - known process should not trigger anomaly
+		test.GetCustomEventSent(t, func() error {
+			// Execute the same command that was profiled - should not trigger anomaly
+			err := serviceInstance.reload()
+			return err
+		}, func(_ *rules.Rule, _ *events.CustomEvent) bool {
+			t.Error("Should not have received any anomaly detection for known command.")
+			return false
+		}, time.Second*3, model.ExecEventType, events.AnomalyDetectionRuleID)
+	})
+}
+
+func TestSecurityProfileNodeEviction(t *testing.T) {
+	SkipIfNotAvailable(t)
+
+	// skip test that are about to be run on docker (to avoid trying spawning docker in docker)
+	if testEnvironment == DockerEnvironment {
+		t.Skip("Skip test spawning docker containers on docker")
+	}
+	if _, err := whichNonFatal("docker"); err != nil {
+		t.Skip("Skip test where docker is unavailable")
+	}
+	if !IsDedicatedNodeForAD() {
+		t.Skip("Skip test when not run in dedicated env")
+	}
+
+	var expectedFormats = []string{"profile"}
+	var testActivityDumpTracedEventTypes = []string{"exec", "open", "syscalls", "dns"}
+
+	outputDir := t.TempDir()
+	os.MkdirAll(outputDir, 0755)
+	defer os.RemoveAll(outputDir)
+
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{}, withStaticOpts(testOpts{
+		enableActivityDump:                  true,
+		activityDumpRateLimiter:             200,
+		activityDumpTracedCgroupsCount:      3,
+		activityDumpDuration:                3 * time.Minute,
+		activityDumpLocalStorageDirectory:   outputDir,
+		activityDumpLocalStorageCompression: false,
+		activityDumpLocalStorageFormats:     expectedFormats,
+		activityDumpTracedEventTypes:        testActivityDumpTracedEventTypes,
+		anomalyDetectionEventTypes:          []string{"exec", "syscalls", "dns", "open"},
+		enableSecurityProfile:               true,
+		enableAnomalyDetection:              true,
+		securityProfileDir:                  outputDir,
+		securityProfileWatchDir:             true,
+		securityProfileNodeEvictionTimeout:  5 * time.Second,
+		anomalyDetectionWarmupPeriod:        2 * time.Minute, // as we don't have the new lifecyle of the profiles in which we reinject the drift nodes, we need to be in warmup period to make sure that the new activities of child2 are reinjected
+	}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
+	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	t.Run("node-eviction-basic", func(t *testing.T) {
+		dockerInstance, dump, err := test.StartADockerGetDump()
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer dockerInstance.stop()
+
+		activities := [][]string{
+			{syscallTester, "sleep", "1"},
+			{"touch", "/tmp/test_file"},
+			{"nslookup", "example.com"},
+		}
+
+		for _, activity := range activities {
+			cmd := dockerInstance.Command(activity[0], activity[1:], []string{})
+			_, err = cmd.CombinedOutput()
+			if err != nil {
+				t.Fatal(err)
+			}
+		}
+
+		time.Sleep(1 * time.Second) // Let events be added to the dump
+
+		err = test.StopActivityDump(dump.Name)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		var imageName string
+		// Verify profile was created with nodes
+		validateActivityDumpOutputs(t, test, expectedFormats, dump.OutputFiles, nil,
+			func(sp *profile.Profile) bool {
+				imageName, _ = sp.GetImageNameTag()
+				// Check that we have the activities are in the profile
+				nodes := WalkActivityTree(sp.ActivityTree, func(node *ProcessNodeAndParent) bool {
+					for _, activity := range activities {
+						if node.Node.Process.Argv0+" "+strings.Join(node.Node.Process.Argv, " ") == strings.Join(activity, " ") {
+							return true
+						}
+					}
+					return false
+				})
+
+				if len(nodes) != len(activities) {
+					t.Errorf("Expected %d process nodes found in profile, got %d", len(activities), len(nodes))
+					return false
+				}
+
+				return true
+			})
+
+		// Wait for eviction timeout + some buffer
+		// we need to wait at least twice the eviction timeout
+		// because at the worst case, a node can be touched right after an eviction tick
+		time.Sleep(10 * time.Second)
+
+		manager := test.probe.PlatformProbe.(*probe.EBPFProbe).GetProfileManager()
+		if err != nil {
+			t.Fatal(err)
+		}
+		profile := manager.GetProfile(cgroupModel.WorkloadSelector{Image: imageName, Tag: "*"})
+		if profile == nil {
+			t.Fatal("profile is nil")
+		}
+
+		profile.Lock()
+		defer profile.Unlock()
+
+		// Verify that the nodes have been evicted
+		nodes := WalkActivityTree(profile.ActivityTree, func(node *ProcessNodeAndParent) bool {
+			for _, activity := range activities {
+				if node.Node.Process.Argv0+" "+strings.Join(node.Node.Process.Argv, " ") == strings.Join(activity, " ") {
+					return true
+				}
+			}
+			return false
+		})
+
+		if len(nodes) > 0 {
+			t.Errorf("Process nodes found in profile: %d", len(nodes))
+		}
+
+	})
+
+	t.Run("node-eviction-partial-children", func(t *testing.T) {
+		dockerInstance, dump, err := test.StartADockerGetDump()
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer dockerInstance.stop()
+
+		// Create parent process that spawns two child processes
+		// Use a simple approach: parent shell spawns two background children and waits
+		// child 1 does one operation and exits
+		// child 2 does keep doing operations
+		cmd := dockerInstance.Command("sh", []string{"-c", `
+		    echo "parent process started" >&2
+		    # Spawn child 1 in background - does one operation and exits
+		    touch /tmp/child1_file &
+		    child1_pid=$!
+		    # Spawn child 2 in background - does operation, sleeps, then does it again
+		    (for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do ls /tmp; sleep 1; done) &
+		    child2_pid=$!
+		    wait $child1_pid
+		    wait $child2_pid
+		    echo "parent process ended" >&2
+		`}, []string{})
+
+		err = cmd.Start()
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		time.Sleep(1 * time.Second) // Let events be added to the dump
+
+		err = test.StopActivityDump(dump.Name)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		var imageName string
+		// Verify profile was created with nodes
+		validateActivityDumpOutputs(t, test, expectedFormats, dump.OutputFiles, nil,
+			func(sp *profile.Profile) bool {
+				imageName, _ = sp.GetImageNameTag()
+				nodes := WalkActivityTree(sp.ActivityTree, func(_ *ProcessNodeAndParent) bool {
+					return true
+				})
+
+				// We shoud have 4 nodes: the base sleep activity, the parent, the child 1 and the child 2
+				if len(nodes) != 4 {
+					t.Errorf("Expected 4 nodes, got %d", len(nodes))
+					return false
+				}
+
+				return true
+			})
+
+		// Child 2 will ls again after 7 seconds, so it should be kept
+		// Wait for child 1 to be evicted
+		time.Sleep(11 * time.Second)
+
+		manager := test.probe.PlatformProbe.(*probe.EBPFProbe).GetProfileManager()
+		profile := manager.GetProfile(cgroupModel.WorkloadSelector{Image: imageName, Tag: "*"})
+		if profile == nil {
+			t.Fatal("profile is nil")
+		}
+
+		profile.Lock()
+		defer profile.Unlock()
+
+		// Count remaining nodes
+		allNodes := WalkActivityTree(profile.ActivityTree, func(_ *ProcessNodeAndParent) bool {
+			return true
+		})
+
+		// we should have 2 nodes left:  parent and child 2
+		if len(allNodes) != 2 {
+			t.Errorf("Expected 2 nodes left, got %d", len(allNodes))
+		}
+
+		var argv0s []string
+		for _, node := range allNodes {
+			argv0s = append(argv0s, node.Process.Argv0)
+		}
+
+		// check that parent is not evicted
+		if !slices.Contains(argv0s, "sh") {
+			t.Errorf("Parent should not have been evicted, got %v", argv0s)
+		}
+
+		// check that child 2 is not evicted
+		if !slices.Contains(argv0s, "ls") {
+			t.Errorf("Child 2 should not have been evicted, got %v", argv0s)
+		}
+
+		// check that child 1 is evicted
+		if slices.Contains(argv0s, "touch") {
+			t.Errorf("Child 1 should have been evicted, got %v", argv0s)
+		}
+
+		// Wait for the background process to complete
+		_ = cmd.Wait()
+		t.Cleanup(func() {
+			if cmd.Process != nil {
+				// stop the sleep process
+				cmd.Process.Kill()
+			}
+		})
+
+	})
+
+}

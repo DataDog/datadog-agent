@@ -70,11 +70,12 @@ func NewDeviceDeduper(config snmp.ListenerConfig) DeviceDeduper {
 
 	for _, config := range config.Configs {
 		ipAddr, ipNet, err := net.ParseCIDR(config.Network)
-		startingIP := ipAddr.Mask(ipNet.Mask)
 		if err != nil {
-			log.Error(err)
+			log.Errorf("Couldn't parse SNMP network: %s", err)
 			continue
 		}
+
+		startingIP := ipAddr.Mask(ipNet.Mask)
 
 		for currentIP := startingIP; ipNet.Contains(currentIP); IncrementIP(currentIP) {
 			if ignored := config.IsIPIgnored(currentIP); ignored {

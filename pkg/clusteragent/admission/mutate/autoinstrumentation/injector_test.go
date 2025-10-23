@@ -15,11 +15,12 @@ import (
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
 
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
 
 func TestInjectorOptions(t *testing.T) {
-	i := newInjector(time.Now(), "registry", injectorWithImageResolver(newNoOpImageResolver()), injectorWithImageTag("1"))
+	i := newInjector(time.Now(), "registry", injectorWithImageTag("1", newNoOpImageResolver()))
 	require.Equal(t, "registry/apm-inject:1", i.image)
 }
 
@@ -32,8 +33,7 @@ func TestInjectorLibRequirements(t *testing.T) {
 		},
 	}
 	i := newInjector(time.Now(), "registry",
-		injectorWithImageResolver(newNoOpImageResolver()),
-		injectorWithImageTag("1"),
+		injectorWithImageTag("1", newNoOpImageResolver()),
 		injectorWithLibRequirementOptions(libRequirementOptions{initContainerMutators: mutators}),
 	)
 
@@ -97,14 +97,18 @@ func TestInjectorWithRemoteConfigImageResolver(t *testing.T) {
 			var resolver ImageResolver
 			if tc.hasRemoteData {
 				mockClient := newMockRCClient("image_resolver_multi_repo.json")
-				resolver = newRemoteConfigImageResolverWithRetryConfig(mockClient, 2, 1*time.Millisecond)
+				resolver = newRemoteConfigImageResolverWithRetryConfig(
+					mockClient,
+					2,
+					1*time.Millisecond,
+					config.NewMock(t).GetStringMap("admission_controller.auto_instrumentation.default_dd_registries"),
+				)
 			} else {
 				resolver = newNoOpImageResolver()
 			}
 
 			i := newInjector(time.Now(), tc.registry,
-				injectorWithImageResolver(resolver),
-				injectorWithImageTag(tc.tag),
+				injectorWithImageTag(tc.tag, resolver),
 			)
 
 			assert.Equal(t, tc.expectedImage, i.image, tc.description)
@@ -114,7 +118,12 @@ func TestInjectorWithRemoteConfigImageResolver(t *testing.T) {
 
 func TestInjectorWithRemoteConfigImageResolverAfterInit(t *testing.T) {
 	mockClient := newMockRCClient("image_resolver_multi_repo.json")
-	resolver := newRemoteConfigImageResolverWithRetryConfig(mockClient, 2, 1*time.Millisecond)
+	resolver := newRemoteConfigImageResolverWithRetryConfig(
+		mockClient,
+		2,
+		1*time.Millisecond,
+		config.NewMock(t).GetStringMap("admission_controller.auto_instrumentation.default_dd_registries"),
+	)
 
 	assert.Eventually(t, func() bool {
 		_, ok := resolver.Resolve("gcr.io/datadoghq", "apm-inject", "0")
@@ -122,9 +131,8 @@ func TestInjectorWithRemoteConfigImageResolverAfterInit(t *testing.T) {
 	}, 100*time.Millisecond, 5*time.Millisecond, "Resolver should initialize")
 
 	i := newInjector(time.Now(), "gcr.io/datadoghq",
-		injectorWithImageResolver(resolver),
-		injectorWithImageTag("0"),
+		injectorWithImageTag("0", resolver),
 	)
 
-	assert.Equal(t, "gcr.io/datadoghq/apm-inject@sha256:inject456", i.image)
+	assert.Equal(t, "gcr.io/datadoghq/apm-inject@sha256:9876543210fedcba9876543210fedcba9876543210fedcba9876543210fedcba", i.image)
 }

@@ -141,7 +141,7 @@ func TestProcessDefaultConfig(t *testing.T) {
 		// TODO: process_config.process_collection.use_wlm is a temporary configuration for refactoring purposes
 		{
 			key:          "process_config.process_collection.use_wlm",
-			defaultValue: false,
+			defaultValue: runtime.GOOS == "linux",
 		},
 	} {
 		t.Run(tc.key+" default", func(t *testing.T) {
@@ -556,6 +556,7 @@ func TestEnvVarCustomSensitiveWords(t *testing.T) {
 func TestProcBindEnvAndSetDefault(t *testing.T) {
 	cfg := newTestConf(t)
 	procBindEnvAndSetDefault(cfg, "process_config.foo.bar", "asdf")
+	cfg.BuildSchema()
 
 	envs := map[string]struct{}{}
 	for _, env := range cfg.GetEnvVars() {

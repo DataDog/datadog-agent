@@ -651,6 +651,12 @@ func (e *ebpfProgram) initProtocols(c *config.Config) error {
 			spec.Instance = protocol
 			e.enabledProtocols = append(e.enabledProtocols, spec)
 
+			// Check if protocol provides additional modifiers (like EventHandlers)
+			if mp, ok := protocol.(protocols.ModifierProvider); ok {
+				modifiers := mp.Modifiers()
+				e.Manager.EnabledModifiers = append(e.Manager.EnabledModifiers, modifiers...)
+			}
+
 			log.Infof("%v monitoring enabled", protocol.Name())
 		} else {
 			e.disabledProtocols = append(e.disabledProtocols, spec)

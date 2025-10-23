@@ -16,6 +16,7 @@ import (
 
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
+	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	workloadfilterfxmock "github.com/DataDog/datadog-agent/comp/core/workloadfilter/fx-mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
@@ -204,8 +205,7 @@ func TestCreateContainerService(t *testing.T) {
 			container: basicContainer,
 			expectedServices: map[string]wlmListenerSvc{
 				"container://foobarquux": {
-					service: &service{
-						tagger: taggerComponent,
+					service: &WorkloadService{
 						entity: basicContainer,
 						adIdentifiers: []string{
 							"docker://foobarquux",
@@ -241,8 +241,7 @@ func TestCreateContainerService(t *testing.T) {
 			container: runningContainerWithFinishedAtTime,
 			expectedServices: map[string]wlmListenerSvc{
 				"container://foobarquux": {
-					service: &service{
-						tagger: taggerComponent,
+					service: &WorkloadService{
 						entity: runningContainerWithFinishedAtTime,
 						adIdentifiers: []string{
 							"docker://foobarquux",
@@ -261,8 +260,7 @@ func TestCreateContainerService(t *testing.T) {
 			container: multiplePortsContainer,
 			expectedServices: map[string]wlmListenerSvc{
 				"container://foobarquux": {
-					service: &service{
-						tagger: taggerComponent,
+					service: &WorkloadService{
 						entity: multiplePortsContainer,
 						adIdentifiers: []string{
 							"docker://foobarquux",
@@ -290,8 +288,7 @@ func TestCreateContainerService(t *testing.T) {
 			pod:       pod,
 			expectedServices: map[string]wlmListenerSvc{
 				"container://foo": {
-					service: &service{
-						tagger: taggerComponent,
+					service: &WorkloadService{
 						entity: kubernetesContainer,
 						adIdentifiers: []string{
 							"docker://foo",
@@ -311,8 +308,7 @@ func TestCreateContainerService(t *testing.T) {
 			pod:       podWithTolerateUnreadyAnnotation,
 			expectedServices: map[string]wlmListenerSvc{
 				"container://foo": {
-					service: &service{
-						tagger: taggerComponent,
+					service: &WorkloadService{
 						entity: kubernetesContainer,
 						adIdentifiers: []string{
 							"docker://foo",
@@ -343,8 +339,7 @@ func TestCreateContainerService(t *testing.T) {
 			pod:       podWithCheck,
 			expectedServices: map[string]wlmListenerSvc{
 				"container://foo": {
-					service: &service{
-						tagger: taggerComponent,
+					service: &WorkloadService{
 						entity: kubernetesContainer,
 						adIdentifiers: []string{
 							"docker://foo",
@@ -387,8 +382,7 @@ func TestCreateContainerService(t *testing.T) {
 			},
 			expectedServices: map[string]wlmListenerSvc{
 				"container://foo": {
-					service: &service{
-						tagger: taggerComponent,
+					service: &WorkloadService{
 						entity: kubernetesContainer,
 						adIdentifiers: []string{
 							"docker://foo",
@@ -483,5 +477,11 @@ func newContainerListener(t *testing.T, tagger tagger.Component) (*ContainerList
 	wlm := newTestWorkloadmetaListener(t)
 	filterStore := workloadfilterfxmock.SetupMockFilter(t)
 
-	return &ContainerListener{workloadmetaListener: wlm, filterStore: filterStore, tagger: tagger}, wlm
+	return &ContainerListener{
+		workloadmetaListener: wlm,
+		globalFilter:         filterStore.GetContainerAutodiscoveryFilters(workloadfilter.GlobalFilter),
+		metricsFilter:        filterStore.GetContainerAutodiscoveryFilters(workloadfilter.MetricsFilter),
+		logsFilter:           filterStore.GetContainerAutodiscoveryFilters(workloadfilter.LogsFilter),
+		tagger:               tagger,
+	}, wlm
 }

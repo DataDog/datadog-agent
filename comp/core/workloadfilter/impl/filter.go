@@ -7,10 +7,11 @@
 package workloadfilterimpl
 
 import (
+	"os"
 	"sync"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	logcomp "github.com/DataDog/datadog-agent/comp/core/log/def"
 	coretelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/workloadfilter/catalog"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
@@ -18,20 +19,22 @@ import (
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 )
 
-// filterFactory holds a factory function and ensures it's called only once
-type filterFactory struct {
+// filterProgramFactory holds a factory function and ensures it's called only once
+type filterProgramFactory struct {
 	once    sync.Once
 	program program.FilterProgram
-	factory func(cfg config.Component, logger log.Component) program.FilterProgram
+	factory func(filterConfig *catalog.FilterConfig, logger logcomp.Component) program.FilterProgram
 }
 
-// filter is the implementation of the filter component.
-type filter struct {
+// workloadfilterStore is the implementation of the workloadfilterStore component.
+type workloadfilterStore struct {
 	config              config.Component
-	log                 log.Component
+	log                 logcomp.Component
 	telemetry           coretelemetry.Component
-	programFactoryStore map[workloadfilter.ResourceType]map[int]*filterFactory
+	programFactoryStore map[workloadfilter.ResourceType]map[int]*filterProgramFactory
 	selection           *filterSelection
+	// Pre-built filter configuration with all parsed values
+	filterConfig *catalog.FilterConfig
 }
 
 // Requires defines the dependencies of the filter component.
@@ -39,7 +42,7 @@ type Requires struct {
 	compdef.In
 
 	Config    config.Component
-	Log       log.Component
+	Log       logcomp.Component
 	Telemetry coretelemetry.Component
 }
 
@@ -62,18 +65,18 @@ func NewComponent(req Requires) (Provides, error) {
 	}, nil
 }
 
-var _ workloadfilter.Component = (*filter)(nil)
+var _ workloadfilter.Component = (*workloadfilterStore)(nil)
 
-func (f *filter) registerFactory(resourceType workloadfilter.ResourceType, programType int, factory func(cfg config.Component, logger log.Component) program.FilterProgram) {
+func (f *workloadfilterStore) registerFactory(resourceType workloadfilter.ResourceType, programType int, factory func(filterConfig *catalog.FilterConfig, logger logcomp.Component) program.FilterProgram) {
 	if f.programFactoryStore[resourceType] == nil {
-		f.programFactoryStore[resourceType] = make(map[int]*filterFactory)
+		f.programFactoryStore[resourceType] = make(map[int]*filterProgramFactory)
 	}
-	f.programFactoryStore[resourceType][programType] = &filterFactory{
+	f.programFactoryStore[resourceType][programType] = &filterProgramFactory{
 		factory: factory,
 	}
 }
 
-func (f *filter) getProgram(resourceType workloadfilter.ResourceType, programType int) program.FilterProgram {
+func (f *workloadfilterStore) getProgram(resourceType workloadfilter.ResourceType, programType int) program.FilterProgram {
 	if f.programFactoryStore == nil {
 		return nil
 	}
@@ -89,34 +92,56 @@ func (f *filter) getProgram(resourceType workloadfilter.ResourceType, programTyp
 	}
 
 	factory.once.Do(func() {
-		factory.program = factory.factory(f.config, f.log)
+		factory.program = factory.factory(f.filterConfig, f.log)
 	})
 
 	return factory.program
 }
 
-func newFilter(cfg config.Component, logger log.Component, telemetry coretelemetry.Component) (workloadfilter.Component, error) {
-	filter := &filter{
+func newFilter(cfg config.Component, logger logcomp.Component, telemetry coretelemetry.Component) (workloadfilter.Component, error) {
+	filterConfig, configErr := catalog.NewFilterConfig(cfg)
+	if configErr != nil {
+		logger.Criticalf("failed to parse 'cel_workload_exclude' filters. Provided value: \n%s\nError: %v", cfg.Get("cel_workload_exclude"), configErr)
+		logger.Flush()
+		os.Exit(1)
+	}
+
+	filter := &workloadfilterStore{
 		config:              cfg,
 		log:                 logger,
 		telemetry:           telemetry,
-		programFactoryStore: make(map[workloadfilter.ResourceType]map[int]*filterFactory),
+		programFactoryStore: make(map[workloadfilter.ResourceType]map[int]*filterProgramFactory),
 		selection:           newFilterSelection(cfg),
+		filterConfig:        filterConfig,
 	}
 
 	genericADProgram := catalog.AutodiscoveryAnnotations()
 	genericADMetricsProgram := catalog.AutodiscoveryMetricsAnnotations()
 	genericADLogsProgram := catalog.AutodiscoveryLogsAnnotations()
-	genericADProgramFactory := func(_ config.Component, _ log.Component) program.FilterProgram { return genericADProgram }
-	genericADMetricsProgramFactory := func(_ config.Component, _ log.Component) program.FilterProgram { return genericADMetricsProgram }
-	genericADLogsProgramFactory := func(_ config.Component, _ log.Component) program.FilterProgram { return genericADLogsProgram }
+	genericADProgramFactory := func(_ *catalog.FilterConfig, _ logcomp.Component) program.FilterProgram { return genericADProgram }
+	genericADMetricsProgramFactory := func(_ *catalog.FilterConfig, _ logcomp.Component) program.FilterProgram {
+		return genericADMetricsProgram
+	}
+	genericADLogsProgramFactory := func(_ *catalog.FilterConfig, _ logcomp.Component) program.FilterProgram { return genericADLogsProgram }
+
+	// Pre-compute legacy programs via `DD_CONTAINER_EXCLUDE*` that can be shared across entity types
+	legacyGlobalPrg := catalog.LegacyContainerGlobalProgram(filterConfig, logger)
+	legacyMetricsPrg := catalog.LegacyContainerMetricsProgram(filterConfig, logger)
+	legacyLogsPrg := catalog.LegacyContainerLogsProgram(filterConfig, logger)
+	legacyACIncludePrg := catalog.LegacyContainerACIncludeProgram(filterConfig, logger)
+	legacyACExcludePrg := catalog.LegacyContainerACExcludeProgram(filterConfig, logger)
+	legacyGlobalPrgFactory := func(_ *catalog.FilterConfig, _ logcomp.Component) program.FilterProgram { return legacyGlobalPrg }
+	legacyMetricsPrgFactory := func(_ *catalog.FilterConfig, _ logcomp.Component) program.FilterProgram { return legacyMetricsPrg }
+	legacyLogsPrgFactory := func(_ *catalog.FilterConfig, _ logcomp.Component) program.FilterProgram { return legacyLogsPrg }
+	legacyACIncludePrgFactory := func(_ *catalog.FilterConfig, _ logcomp.Component) program.FilterProgram { return legacyACIncludePrg }
+	legacyACExcludePrgFactory := func(_ *catalog.FilterConfig, _ logcomp.Component) program.FilterProgram { return legacyACExcludePrg }
 
 	// Container Filters
-	filter.registerFactory(workloadfilter.ContainerType, int(workloadfilter.LegacyContainerMetrics), catalog.LegacyContainerMetricsProgram)
-	filter.registerFactory(workloadfilter.ContainerType, int(workloadfilter.LegacyContainerLogs), catalog.LegacyContainerLogsProgram)
-	filter.registerFactory(workloadfilter.ContainerType, int(workloadfilter.LegacyContainerACInclude), catalog.LegacyContainerACIncludeProgram)
-	filter.registerFactory(workloadfilter.ContainerType, int(workloadfilter.LegacyContainerACExclude), catalog.LegacyContainerACExcludeProgram)
-	filter.registerFactory(workloadfilter.ContainerType, int(workloadfilter.LegacyContainerGlobal), catalog.LegacyContainerGlobalProgram)
+	filter.registerFactory(workloadfilter.ContainerType, int(workloadfilter.LegacyContainerMetrics), legacyMetricsPrgFactory)
+	filter.registerFactory(workloadfilter.ContainerType, int(workloadfilter.LegacyContainerLogs), legacyLogsPrgFactory)
+	filter.registerFactory(workloadfilter.ContainerType, int(workloadfilter.LegacyContainerACInclude), legacyACIncludePrgFactory)
+	filter.registerFactory(workloadfilter.ContainerType, int(workloadfilter.LegacyContainerACExclude), legacyACExcludePrgFactory)
+	filter.registerFactory(workloadfilter.ContainerType, int(workloadfilter.LegacyContainerGlobal), legacyGlobalPrgFactory)
 	filter.registerFactory(workloadfilter.ContainerType, int(workloadfilter.LegacyContainerSBOM), catalog.LegacyContainerSBOMProgram)
 
 	filter.registerFactory(workloadfilter.ContainerType, int(workloadfilter.ContainerADAnnotations), genericADProgramFactory)
@@ -124,143 +149,118 @@ func newFilter(cfg config.Component, logger log.Component, telemetry coretelemet
 	filter.registerFactory(workloadfilter.ContainerType, int(workloadfilter.ContainerADAnnotationsLogs), genericADLogsProgramFactory)
 	filter.registerFactory(workloadfilter.ContainerType, int(workloadfilter.ContainerPaused), catalog.ContainerPausedProgram)
 
+	filter.registerFactory(workloadfilter.ContainerType, int(workloadfilter.ContainerCELMetrics), catalog.ContainerCELMetricsProgram)
+	filter.registerFactory(workloadfilter.ContainerType, int(workloadfilter.ContainerCELLogs), catalog.ContainerCELLogsProgram)
+	filter.registerFactory(workloadfilter.ContainerType, int(workloadfilter.ContainerCELSBOM), catalog.ContainerCELSBOMProgram)
+	filter.registerFactory(workloadfilter.ContainerType, int(workloadfilter.ContainerCELGlobal), catalog.ContainerCELGlobalProgram)
+
 	// Service Filters
-	filter.registerFactory(workloadfilter.ServiceType, int(workloadfilter.LegacyServiceGlobal), catalog.LegacyServiceGlobalProgram)
-	filter.registerFactory(workloadfilter.ServiceType, int(workloadfilter.LegacyServiceMetrics), catalog.LegacyServiceMetricsProgram)
+	filter.registerFactory(workloadfilter.ServiceType, int(workloadfilter.LegacyServiceGlobal), legacyGlobalPrgFactory)
+	filter.registerFactory(workloadfilter.ServiceType, int(workloadfilter.LegacyServiceMetrics), legacyMetricsPrgFactory)
 	filter.registerFactory(workloadfilter.ServiceType, int(workloadfilter.ServiceADAnnotations), genericADProgramFactory)
 	filter.registerFactory(workloadfilter.ServiceType, int(workloadfilter.ServiceADAnnotationsMetrics), genericADMetricsProgramFactory)
 
+	filter.registerFactory(workloadfilter.ServiceType, int(workloadfilter.ServiceCELMetrics), catalog.ServiceCELMetricsProgram)
+	filter.registerFactory(workloadfilter.ServiceType, int(workloadfilter.ServiceCELGlobal), catalog.ServiceCELGlobalProgram)
+
 	// Endpoints Filters
-	filter.registerFactory(workloadfilter.EndpointType, int(workloadfilter.LegacyEndpointGlobal), catalog.LegacyEndpointsGlobalProgram)
-	filter.registerFactory(workloadfilter.EndpointType, int(workloadfilter.LegacyEndpointMetrics), catalog.LegacyEndpointsMetricsProgram)
+	filter.registerFactory(workloadfilter.EndpointType, int(workloadfilter.LegacyEndpointGlobal), legacyGlobalPrgFactory)
+	filter.registerFactory(workloadfilter.EndpointType, int(workloadfilter.LegacyEndpointMetrics), legacyMetricsPrgFactory)
 	filter.registerFactory(workloadfilter.EndpointType, int(workloadfilter.EndpointADAnnotations), genericADProgramFactory)
 	filter.registerFactory(workloadfilter.EndpointType, int(workloadfilter.EndpointADAnnotationsMetrics), genericADMetricsProgramFactory)
 
+	filter.registerFactory(workloadfilter.EndpointType, int(workloadfilter.EndpointCELMetrics), catalog.EndpointCELMetricsProgram)
+	filter.registerFactory(workloadfilter.EndpointType, int(workloadfilter.EndpointCELGlobal), catalog.EndpointCELGlobalProgram)
+
 	// Pod Filters
-	filter.registerFactory(workloadfilter.PodType, int(workloadfilter.LegacyPod), catalog.LegacyPodProgram)
+	filter.registerFactory(workloadfilter.PodType, int(workloadfilter.LegacyPodMetrics), legacyMetricsPrgFactory)
+	filter.registerFactory(workloadfilter.PodType, int(workloadfilter.LegacyPodGlobal), legacyGlobalPrgFactory)
 	filter.registerFactory(workloadfilter.PodType, int(workloadfilter.PodADAnnotations), genericADProgramFactory)
 	filter.registerFactory(workloadfilter.PodType, int(workloadfilter.PodADAnnotationsMetrics), genericADMetricsProgramFactory)
+
+	filter.registerFactory(workloadfilter.PodType, int(workloadfilter.PodCELMetrics), catalog.PodCELMetricsProgram)
+	filter.registerFactory(workloadfilter.PodType, int(workloadfilter.PodCELGlobal), catalog.PodCELGlobalProgram)
+
+	// Process Filters
+	filter.registerFactory(workloadfilter.ProcessType, int(workloadfilter.LegacyProcessExcludeList), catalog.LegacyProcessExcludeProgram)
 
 	return filter, nil
 }
 
-// IsContainerExcluded checks if a container is excluded based on the provided filters.
-func (f *filter) IsContainerExcluded(container *workloadfilter.Container, containerFilters [][]workloadfilter.ContainerFilter) bool {
-	return evaluateResource(f, container, containerFilters) == workloadfilter.Excluded
-}
-
-// IsPodExcluded checks if a pod is excluded based on the provided filters.
-func (f *filter) IsPodExcluded(pod *workloadfilter.Pod, podFilters [][]workloadfilter.PodFilter) bool {
-	return evaluateResource(f, pod, podFilters) == workloadfilter.Excluded
-}
-
-func (f *filter) IsServiceExcluded(service *workloadfilter.Service, serviceFilters [][]workloadfilter.ServiceFilter) bool {
-	return evaluateResource(f, service, serviceFilters) == workloadfilter.Excluded
-}
-
-func (f *filter) IsEndpointExcluded(endpoint *workloadfilter.Endpoint, endpointFilters [][]workloadfilter.EndpointFilter) bool {
-	return evaluateResource(f, endpoint, endpointFilters) == workloadfilter.Excluded
-}
-
-// evaluateResource checks if a resource is excluded based on the provided filters.
-func evaluateResource[T ~int](
-	f *filter,
-	resource workloadfilter.Filterable, // Filterable resource (e.g., Container, Pod)
-	filterSets [][]T, // Generic filter types
-) workloadfilter.Result {
-	for _, filterSet := range filterSets {
-		var setResult = workloadfilter.Unknown
-		for _, filter := range filterSet {
-
-			// 1. Retrieve the filtering program
-			prg := f.getProgram(resource.Type(), int(filter))
-			if prg == nil {
-				f.log.Warnf("No program found for filter %d on resource %s", filter, resource.Type())
-				continue
-			}
-
-			// 2. Evaluate the filtering program
-			res, prgErrs := prg.Evaluate(resource)
-			if prgErrs != nil {
-				f.log.Debug(prgErrs)
-			}
-
-			// 3. Process the results
-			if res == workloadfilter.Included {
-				f.log.Debugf("Resource %s is included by filter %d", resource.Type(), filter)
-				return res
-			}
-			if res == workloadfilter.Excluded {
-				setResult = workloadfilter.Excluded
-			}
-		}
-		// If the set of filters produces a Include/Exclude result,
-		// then return the set's results and don't execute subsequent sets.
-		if setResult != workloadfilter.Unknown {
-			return setResult
-		}
-	}
-	return workloadfilter.Unknown
-}
-
-// GetContainerFilterInitializationErrors returns initialization errors for a specific container filter
-func (f *filter) GetContainerFilterInitializationErrors(filters []workloadfilter.ContainerFilter) []error {
-	return getFilterErrors(f, workloadfilter.ContainerType, filters)
-}
-
-// getFilterErrors returns initialization errors for a specific filter
-func getFilterErrors[T ~int](
-	f *filter,
-	resourceType workloadfilter.ResourceType, // Filterable resource (e.g., Container, Pod)
-	filters []T, // Generic filter types
-) []error {
-	errs := []error{}
-	for _, filter := range filters {
-		prg := f.getProgram(resourceType, int(filter))
-		if prg == nil {
-			continue
-		}
-		errs = append(errs, prg.GetInitializationErrors()...)
-	}
-	return errs
-}
-
 // GetContainerAutodiscoveryFilters returns the pre-computed container autodiscovery filters
-func (f *filter) GetContainerAutodiscoveryFilters(filterScope workloadfilter.Scope) [][]workloadfilter.ContainerFilter {
-	return f.selection.GetContainerAutodiscoveryFilters(filterScope)
-}
-
-// GetPodAutodiscoveryFilters returns the pre-computed pod autodiscovery filters
-func (f *filter) GetPodAutodiscoveryFilters(filterScope workloadfilter.Scope) [][]workloadfilter.PodFilter {
-	return f.selection.GetPodAutodiscoveryFilters(filterScope)
+func (f *workloadfilterStore) GetContainerAutodiscoveryFilters(filterScope workloadfilter.Scope) workloadfilter.FilterBundle {
+	return f.GetContainerFilters(f.selection.GetContainerAutodiscoveryFilters(filterScope))
 }
 
 // GetServiceAutodiscoveryFilters returns the pre-computed service autodiscovery filters
-func (f *filter) GetServiceAutodiscoveryFilters(filterScope workloadfilter.Scope) [][]workloadfilter.ServiceFilter {
-	return f.selection.GetServiceAutodiscoveryFilters(filterScope)
+func (f *workloadfilterStore) GetServiceAutodiscoveryFilters(filterScope workloadfilter.Scope) workloadfilter.FilterBundle {
+	return f.GetServiceFilters(f.selection.GetServiceAutodiscoveryFilters(filterScope))
 }
 
 // GetEndpointAutodiscoveryFilters returns the pre-computed endpoint autodiscovery filters
-func (f *filter) GetEndpointAutodiscoveryFilters(filterScope workloadfilter.Scope) [][]workloadfilter.EndpointFilter {
-	return f.selection.GetEndpointAutodiscoveryFilters(filterScope)
+func (f *workloadfilterStore) GetEndpointAutodiscoveryFilters(filterScope workloadfilter.Scope) workloadfilter.FilterBundle {
+	return f.GetEndpointFilters(f.selection.GetEndpointAutodiscoveryFilters(filterScope))
 }
 
 // GetContainerSharedMetricFilters returns the pre-computed container shared metric filters
-func (f *filter) GetContainerSharedMetricFilters() [][]workloadfilter.ContainerFilter {
-	return f.selection.GetContainerSharedMetricFilters()
-}
-
-// GetPodSharedMetricFilters returns the pre-computed pod shared metric filters
-func (f *filter) GetPodSharedMetricFilters() [][]workloadfilter.PodFilter {
-	return f.selection.GetPodSharedMetricFilters()
+func (f *workloadfilterStore) GetContainerSharedMetricFilters() workloadfilter.FilterBundle {
+	return f.GetContainerFilters(f.selection.GetContainerSharedMetricFilters())
 }
 
 // GetContainerPausedFilters returns the pre-computed container paused filters
-func (f *filter) GetContainerPausedFilters() [][]workloadfilter.ContainerFilter {
-	return f.selection.GetContainerPausedFilters()
+func (f *workloadfilterStore) GetContainerPausedFilters() workloadfilter.FilterBundle {
+	return f.GetContainerFilters(f.selection.GetContainerPausedFilters())
+}
+
+// GetPodSharedMetricFilters returns the pre-computed pod shared metric filters
+func (f *workloadfilterStore) GetPodSharedMetricFilters() workloadfilter.FilterBundle {
+	return f.GetPodFilters(f.selection.GetPodSharedMetricFilters())
 }
 
 // GetContainerSBOMFilters returns the pre-computed container SBOM filters
-func (f *filter) GetContainerSBOMFilters() [][]workloadfilter.ContainerFilter {
-	return f.selection.GetContainerSBOMFilters()
+func (f *workloadfilterStore) GetContainerSBOMFilters() workloadfilter.FilterBundle {
+	return f.GetContainerFilters(f.selection.GetContainerSBOMFilters())
+}
+
+// GetContainerFilters returns the filter bundle for the given container filters
+func (f *workloadfilterStore) GetContainerFilters(containerFilters [][]workloadfilter.ContainerFilter) workloadfilter.FilterBundle {
+	return getFilterBundle(f, workloadfilter.ContainerType, containerFilters)
+}
+
+// GetPodFilters returns the filter bundle for the given pod filters
+func (f *workloadfilterStore) GetPodFilters(podFilters [][]workloadfilter.PodFilter) workloadfilter.FilterBundle {
+	return getFilterBundle(f, workloadfilter.PodType, podFilters)
+}
+
+// GetServiceFilters returns the filter bundle for the given service filters
+func (f *workloadfilterStore) GetServiceFilters(serviceFilters [][]workloadfilter.ServiceFilter) workloadfilter.FilterBundle {
+	return getFilterBundle(f, workloadfilter.ServiceType, serviceFilters)
+}
+
+// GetEndpointFilters returns the filter bundle for the given endpoint filters
+func (f *workloadfilterStore) GetEndpointFilters(endpointFilters [][]workloadfilter.EndpointFilter) workloadfilter.FilterBundle {
+	return getFilterBundle(f, workloadfilter.EndpointType, endpointFilters)
+}
+
+func (f *workloadfilterStore) GetProcessFilters(processFilters [][]workloadfilter.ProcessFilter) workloadfilter.FilterBundle {
+	return getFilterBundle(f, workloadfilter.ProcessType, processFilters)
+}
+
+// getFilterBundle constructs a filter bundle for a given resource type and filters.
+func getFilterBundle[T ~int](f *workloadfilterStore, objType workloadfilter.ResourceType, filters [][]T) workloadfilter.FilterBundle {
+	var filterSets [][]program.FilterProgram
+	for _, filterSet := range filters {
+		var set []program.FilterProgram
+		for _, filter := range filterSet {
+			prg := f.getProgram(objType, int(filter))
+			if prg != nil {
+				set = append(set, prg)
+			}
+		}
+		filterSets = append(filterSets, set)
+	}
+	return &filterBundle{
+		log:        f.log,
+		filterSets: filterSets,
+	}
 }

@@ -63,7 +63,7 @@ func TestAgentWindowsSuite(t *testing.T) {
 					agentparams.WithSecurityAgentConfig(securityAgentConfig),
 					agentparams.WithSystemProbeConfig(systemProbeConfig),
 				),
-				awshost.WithEC2InstanceOptions(ec2.WithOS(testos.WindowsDefault), ec2.WithInstanceType("t3.xlarge")),
+				awshost.WithEC2InstanceOptions(ec2.WithOS(testos.WindowsServerDefault), ec2.WithInstanceType("t3.xlarge")),
 			),
 		),
 	)
@@ -145,24 +145,6 @@ func (a *agentSuiteWindows) Test03CreateFileSignal() {
 	// Check if the agent is ready
 	isReady := a.Env().Agent.Client.IsReady()
 	assert.Equal(a.T(), isReady, true, "Agent should be ready")
-
-	// Check if system-probe has started
-	assert.EventuallyWithT(a.T(), func(c *assert.CollectT) {
-		output, err := a.Env().RemoteHost.Execute("cat C:/ProgramData/Datadog/logs/system-probe.log")
-		if !assert.NoError(c, err) {
-			return
-		}
-		assert.Contains(c, output, systemProbeStartLog, "system-probe could not start")
-	}, 30*time.Second, 1*time.Second)
-
-	// Check if security-agent has started
-	assert.EventuallyWithT(a.T(), func(c *assert.CollectT) {
-		output, err := a.Env().RemoteHost.Execute("cat C:/ProgramData/Datadog/logs/security-agent.log")
-		if !assert.NoError(c, err) {
-			return
-		}
-		assert.Contains(c, output, securityStartLog, "security-agent could not start")
-	}, 30*time.Second, 1*time.Second)
 
 	// Wait for host tags
 	time.Sleep(3 * time.Minute)

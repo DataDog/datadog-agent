@@ -9,6 +9,7 @@ package api
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -25,14 +26,15 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/tinylib/msgp/msgp"
 	"go.uber.org/atomic"
 
-	"github.com/DataDog/datadog-go/v5/statsd"
-
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
+	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace/idx"
 	"github.com/DataDog/datadog-agent/pkg/trace/api/apiutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/api/internal/header"
+	"github.com/DataDog/datadog-agent/pkg/trace/api/loader"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
@@ -92,6 +94,7 @@ type HTTPReceiver struct {
 	Stats *info.ReceiverStats
 
 	out                 chan *Payload
+	outV1               chan *PayloadV1
 	conf                *config.AgentConfig
 	dynConf             *sampler.DynamicConfig
 	server              *http.Server
@@ -127,6 +130,7 @@ func NewHTTPReceiver(
 	conf *config.AgentConfig,
 	dynConf *sampler.DynamicConfig,
 	out chan *Payload,
+	outV1 chan *PayloadV1,
 	statsProcessor StatsProcessor,
 	telemetryCollector telemetry.TelemetryCollector,
 	statsd statsd.ClientInterface,
@@ -146,9 +150,10 @@ func NewHTTPReceiver(
 	containerIDProvider := NewIDProvider(conf.ContainerProcRoot, conf.ContainerIDFromOriginInfo)
 	telemetryForwarder := NewTelemetryForwarder(conf, containerIDProvider, statsd)
 	return &HTTPReceiver{
-		Stats: info.NewReceiverStats(),
+		Stats: info.NewReceiverStats(conf.SendAllInternalStats),
 
 		out:                 out,
+		outV1:               outV1,
 		statsProcessor:      statsProcessor,
 		conf:                conf,
 		dynConf:             dynConf,
@@ -274,7 +279,27 @@ func (r *HTTPReceiver) Start() {
 
 	if r.conf.ReceiverPort > 0 {
 		addr := net.JoinHostPort(r.conf.ReceiverHost, strconv.Itoa(r.conf.ReceiverPort))
-		ln, err := r.listenTCP(addr)
+
+		var ln net.Listener
+		var err error
+		// When using the trace-loader, the TCP listener might be provided as an already opened file descriptor
+		// so we try to get a listener from it, and fallback to listening on the given address if it fails
+		if tcpFDStr, ok := os.LookupEnv("DD_APM_NET_RECEIVER_FD"); ok {
+			ln, err = loader.GetListenerFromFD(tcpFDStr, "tcp_conn")
+			if err == nil {
+				log.Debugf("Using TCP listener from file descriptor %s", tcpFDStr)
+			} else {
+				log.Errorf("Error creating TCP listener from file descriptor %s: %v", tcpFDStr, err)
+			}
+		}
+		if ln == nil {
+			// if the fd was not provided, or we failed to get a listener from it, listen on the given address
+			ln, err = loader.GetTCPListener(addr)
+		}
+		if err == nil {
+			ln, err = r.listenTCPListener(ln)
+		}
+
 		if err != nil {
 			r.telemetryCollector.SendStartupError(telemetry.CantStartHttpServer, err)
 			killProcess("Error creating tcp listener: %v", err)
@@ -292,12 +317,31 @@ func (r *HTTPReceiver) Start() {
 	}
 
 	if path := r.conf.ReceiverSocket; path != "" {
+		log.Infof("Using UDS listener at %s", path)
+		// When using the trace-loader, the UDS listener might be provided as an already opened file descriptor
+		// so we try to get a listener from it, and fallback to listening on the given path if it fails
 		if _, err := os.Stat(filepath.Dir(path)); !os.IsNotExist(err) {
-			ln, err := r.listenUnix(path)
+			var ln net.Listener
+			var err error
+			if unixFDStr, ok := os.LookupEnv("DD_APM_UNIX_RECEIVER_FD"); ok {
+				ln, err = loader.GetListenerFromFD(unixFDStr, "unix_conn")
+				if err == nil {
+					log.Debugf("Using UDS listener from file descriptor %s", unixFDStr)
+				} else {
+					log.Errorf("Error creating UDS listener from file descriptor %s: %v", unixFDStr, err)
+				}
+			}
+			if ln == nil {
+				// if the fd was not provided, or we failed to get a listener from it, listen on the given path
+				ln, err = loader.GetUnixListener(path)
+			}
+
 			if err != nil {
 				log.Errorf("Error creating UDS listener: %v", err)
 				r.telemetryCollector.SendStartupError(telemetry.CantStartUdsServer, err)
 			} else {
+				ln = NewMeasuredListener(ln, "uds_connections", r.conf.MaxConnections, r.statsd)
+
 				go func() {
 					defer watchdog.LogOnPanic(r.statsd)
 					if err := r.server.Serve(ln); err != nil && err != http.ErrServerClosed {
@@ -337,39 +381,8 @@ func (r *HTTPReceiver) Start() {
 	}()
 }
 
-// listenUnix returns a net.Listener listening on the given "unix" socket path.
-func (r *HTTPReceiver) listenUnix(path string) (net.Listener, error) {
-	fi, err := os.Stat(path)
-	if err == nil {
-		// already exists
-		if fi.Mode()&os.ModeSocket == 0 {
-			return nil, fmt.Errorf("cannot reuse %q; not a unix socket", path)
-		}
-		if err := os.Remove(path); err != nil {
-			return nil, fmt.Errorf("unable to remove stale socket: %v", err)
-		}
-	}
-	ln, err := net.Listen("unix", path)
-	if err != nil {
-		return nil, err
-	}
-	if unixLn, ok := ln.(*net.UnixListener); ok {
-		// We do not want to unlink the socket here as we can't be sure if another trace-agent has already
-		// put a new file at the same path.
-		unixLn.SetUnlinkOnClose(false)
-	}
-	if err := os.Chmod(path, 0o722); err != nil {
-		return nil, fmt.Errorf("error setting socket permissions: %v", err)
-	}
-	return NewMeasuredListener(ln, "uds_connections", r.conf.MaxConnections, r.statsd), err
-}
-
 // listenTCP creates a new net.Listener on the provided TCP address.
-func (r *HTTPReceiver) listenTCP(addr string) (net.Listener, error) {
-	tcpln, err := net.Listen("tcp", addr)
-	if err != nil {
-		return nil, err
-	}
+func (r *HTTPReceiver) listenTCPListener(tcpln net.Listener) (net.Listener, error) {
 	if climit := r.conf.ConnectionLimit; climit > 0 {
 		ln, err := newRateLimitedListener(tcpln, climit, r.statsd)
 		go func() {
@@ -378,7 +391,7 @@ func (r *HTTPReceiver) listenTCP(addr string) (net.Listener, error) {
 		}()
 		return ln, err
 	}
-	return NewMeasuredListener(tcpln, "tcp_connections", r.conf.MaxConnections, r.statsd), err
+	return NewMeasuredListener(tcpln, "tcp_connections", r.conf.MaxConnections, r.statsd), nil
 }
 
 // Stop stops the receiver and shuts down the HTTP server.
@@ -534,6 +547,28 @@ func decodeTracerPayload(v Version, req *http.Request, cIDProvider IDProvider, l
 	}
 }
 
+func decodeTracerPayloadV1(req *http.Request, cIDProvider IDProvider, conf *config.AgentConfig) (tp *idx.InternalTracerPayload, err error) {
+	buf := getBuffer()
+	defer putBuffer(buf)
+	if _, err = copyRequestBody(buf, req); err != nil {
+		return nil, err
+	}
+	var tracerPayload idx.InternalTracerPayload
+	_, err = tracerPayload.UnmarshalMsg(buf.Bytes())
+	if err != nil {
+		if conf.DebugV1Payloads {
+			encoded := base64.StdEncoding.EncodeToString(buf.Bytes())
+			log.Errorf("decodeTracerPayloadV1: failed to unmarshal payload, base64 received: %s", encoded)
+		}
+		return nil, err
+	}
+	if tracerPayload.ContainerID() == "" {
+		cid := cIDProvider.GetContainerID(req.Context(), req.Header)
+		tracerPayload.SetContainerID(cid)
+	}
+	return &tracerPayload, err
+}
+
 // replyOK replies to the given http.ResponseWriter w based on the endpoint version, with either status 200/OK
 // or with a list of rates by service. It returns the number of bytes written along with reporting if the operation
 // was successful.
@@ -599,9 +634,99 @@ func (r *HTTPReceiver) handleStats(w http.ResponseWriter, req *http.Request) {
 }
 
 // handleTraces knows how to handle a bunch of traces
+func (r *HTTPReceiver) handleTracesV1(w http.ResponseWriter, req *http.Request) {
+	tracen, err := traceCount(req)
+	if err == errInvalidHeaderTraceCountValue {
+		log.Errorf("Failed to count traces: %s", err)
+	}
+	defer req.Body.Close()
+	select {
+	// Wait for the semaphore to become available, allowing the handler to
+	// decode its payload.
+	// After the configured timeout, respond without ingesting the payload,
+	// and sending the configured status.
+	case r.recvsem <- struct{}{}:
+	case <-time.After(time.Duration(r.conf.DecoderTimeout) * time.Millisecond):
+		log.Debugf("trace-agent is overwhelmed, a payload has been rejected")
+		// this payload can not be accepted
+		io.Copy(io.Discard, req.Body) //nolint:errcheck
+		w.WriteHeader(http.StatusTooManyRequests)
+		r.replyOK(req, V10, w)
+		r.tagStats(V10, req.Header, "").PayloadRefused.Inc()
+		return
+	}
+	defer func() {
+		// Signal the semaphore that we are done decoding, so another handler
+		// routine can take a turn decoding a payload.
+		<-r.recvsem
+	}()
+
+	firstService := func(tp *idx.InternalTracerPayload) string {
+		if tp == nil || len(tp.Chunks) == 0 || len(tp.Chunks[0].Spans) == 0 {
+			return ""
+		}
+		return tp.Chunks[0].Spans[0].Service()
+	}
+
+	start := time.Now()
+	tp, err := decodeTracerPayloadV1(req, r.containerIDProvider, r.conf)
+	ts := r.tagStats(V10, req.Header, firstService(tp))
+	defer func(err error) {
+		tags := append(ts.AsTags(), fmt.Sprintf("success:%v", err == nil))
+		_ = r.statsd.Histogram("datadog.trace_agent.receiver.serve_traces_ms", float64(time.Since(start))/float64(time.Millisecond), tags, 1)
+	}(err)
+	if err != nil {
+		httpDecodingError(err, []string{"handler:traces", fmt.Sprintf("v:%s", V10)}, w, r.statsd)
+		switch err {
+		case apiutil.ErrLimitedReaderLimitReached:
+			ts.TracesDropped.PayloadTooLarge.Add(tracen)
+		case io.EOF, io.ErrUnexpectedEOF:
+			ts.TracesDropped.EOF.Add(tracen)
+		case msgp.ErrShortBytes:
+			ts.TracesDropped.MSGPShortBytes.Add(tracen)
+		default:
+			if err, ok := err.(net.Error); ok && err.Timeout() {
+				ts.TracesDropped.Timeout.Add(tracen)
+			} else {
+				ts.TracesDropped.DecodingError.Add(tracen)
+			}
+		}
+		log.Errorf("Cannot decode %s traces payload: %v", V10, err)
+		return
+	}
+	if n, ok := r.replyOK(req, V10, w); ok {
+		tags := append(ts.AsTags(), "endpoint:traces_"+string(V10))
+		_ = r.statsd.Histogram("datadog.trace_agent.receiver.rate_response_bytes", float64(n), tags, 1)
+	}
+
+	ts.TracesReceived.Add(int64(len(tp.Chunks)))
+	ts.TracesBytes.Add(req.Body.(*apiutil.LimitedReader).Count)
+	ts.PayloadAccepted.Inc()
+
+	ctags := getContainerTagsList(r.conf.ContainerTags, tp.ContainerID())
+	if len(ctags) > 0 {
+		tp.SetStringAttribute(tagContainersTags, strings.Join(ctags, ","))
+	}
+
+	payload := &PayloadV1{
+		Source:                 ts,
+		TracerPayload:          tp,
+		ClientComputedTopLevel: isHeaderTrue(header.ComputedTopLevel, req.Header.Get(header.ComputedTopLevel)),
+		ClientComputedStats:    isHeaderTrue(header.ComputedStats, req.Header.Get(header.ComputedStats)),
+		ClientDroppedP0s:       droppedTracesFromHeader(req.Header, ts),
+		ContainerTags:          ctags,
+	}
+	r.outV1 <- payload
+}
+
+// handleTraces knows how to handle a bunch of traces
 func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.Request) {
 	r.wg.Add(1)
 	defer r.wg.Done()
+	if v == V10 {
+		r.handleTracesV1(w, req)
+		return
+	}
 	tracen, err := traceCount(req)
 	if err == errInvalidHeaderTraceCountValue {
 		log.Errorf("Failed to count traces: %s", err)
@@ -787,7 +912,7 @@ func (r *HTTPReceiver) loop() {
 	defer close(r.exit)
 
 	var lastLog time.Time
-	accStats := info.NewReceiverStats()
+	accStats := info.NewReceiverStats(r.conf.SendAllInternalStats)
 
 	t := time.NewTicker(5 * time.Second)
 	defer t.Stop()

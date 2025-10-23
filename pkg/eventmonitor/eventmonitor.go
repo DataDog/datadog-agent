@@ -22,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor/config"
 	secconfig "github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/probe"
+	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
@@ -31,7 +32,7 @@ import (
 
 var (
 	// allowedEventTypes defines allowed event type for consumers
-	allowedEventTypes = []model.EventType{model.ForkEventType, model.ExecEventType, model.ExitEventType}
+	allowedEventTypes = []model.EventType{model.ForkEventType, model.ExecEventType, model.ExitEventType, model.TracerMemfdSealEventType}
 )
 
 // Opts defines options that can be used for the eventmonitor
@@ -55,6 +56,8 @@ type EventMonitor struct {
 	sendStatsChan  chan chan bool
 	eventConsumers []EventConsumer
 	wg             sync.WaitGroup
+
+	cwsStatusProvider CWSStatusProvider
 }
 
 var _ module.Module = &EventMonitor{}
@@ -82,6 +85,16 @@ func (m *EventMonitor) AddEventConsumerHandler(consumer EventConsumerHandler) er
 // RegisterEventConsumer registers an event consumer
 func (m *EventMonitor) RegisterEventConsumer(consumer EventConsumer) {
 	m.eventConsumers = append(m.eventConsumers, consumer)
+}
+
+// CWSStatusProvider defines an interface to get CWS status
+type CWSStatusProvider interface {
+	GetStatus(ctx context.Context) (*api.Status, error)
+}
+
+// SetCWSStatusProvider sets the CWS status provider
+func (m *EventMonitor) SetCWSStatusProvider(provider CWSStatusProvider) {
+	m.cwsStatusProvider = provider
 }
 
 // Init initializes the module
@@ -213,6 +226,15 @@ func (m *EventMonitor) GetStats() map[string]interface{} {
 		debug["probe"] = m.Probe.GetDebugStats()
 	} else {
 		debug["probe"] = "not_running"
+	}
+
+	if m.cwsStatusProvider != nil {
+		cwsStatus, err := m.cwsStatusProvider.GetStatus(context.Background())
+		if err != nil {
+			debug["cws"] = fmt.Sprintf("failed to get CWS status: %v", err)
+		} else {
+			debug["cws"] = cwsStatus
+		}
 	}
 
 	return debug

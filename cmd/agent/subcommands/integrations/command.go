@@ -27,6 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	secretnoopfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx-noop"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/executable"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -42,13 +43,6 @@ const (
 	downloaderModule    = "datadog_checks.downloader"
 	disclaimer          = "For your security, only use this to install wheels containing an Agent integration " +
 		"and coming from a known source. The Agent cannot perform any verification on local wheels."
-	integrationVersionScriptPy2 = `
-import pkg_resources
-try:
-	print(pkg_resources.get_distribution('%s').version)
-except pkg_resources.DistributionNotFound:
-	pass
-`
 	integrationVersionScriptPy3 = `
 from importlib.metadata import version, PackageNotFoundError
 try:
@@ -85,7 +79,6 @@ type cliParams struct {
 	versionOnly               bool
 	localWheel                bool
 	thirdParty                bool
-	pythonMajorVersion        string
 	unsafeDisableVerification bool
 	logLevelDefaultOff        command.LogLevelDefaultOff
 }
@@ -104,10 +97,13 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	integrationCmd.PersistentFlags().CountVarP(&cliParams.verbose, "verbose", "v", "enable verbose logging")
 	integrationCmd.PersistentFlags().BoolVarP(&cliParams.allowRoot, "allow-root", "r", false, "flag to enable root to install packages")
 	integrationCmd.PersistentFlags().BoolVarP(&cliParams.useSysPython, "use-sys-python", "p", false, "use system python instead [dev flag]")
-	integrationCmd.PersistentFlags().StringVarP(&cliParams.pythonMajorVersion, "python", "", "", "the version of Python to act upon (2 or 3). Defaults to 3.")
+	integrationCmd.PersistentFlags().StringP("python", "", "", "the version of Python to act upon (2 or 3). Defaults to 3.")
 
 	// Power user flags - mark as hidden
 	_ = integrationCmd.PersistentFlags().MarkHidden("use-sys-python")
+
+	// Deprecated flags
+	_ = integrationCmd.PersistentFlags().MarkDeprecated("python", "the python flag is now deprecated, python3 is always used")
 
 	// all subcommands use the same provided components, with a different oneShot callback
 	runOneShot := func(callback interface{}) error {
@@ -118,6 +114,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				LogParams:    log.ForOneShot(command.LoggerName, cliParams.logLevelDefaultOff.Value(), true),
 			}),
 			core.Bundle(),
+			secretnoopfx.Module(),
 		)
 	}
 
@@ -183,7 +180,7 @@ You must specify a version of the package to install using the syntax: <package>
 	return []*cobra.Command{integrationCmd}
 }
 
-func loadPythonInfo(cliParams *cliParams) error {
+func loadPythonInfo() error {
 	rootDir, _ = executable.Folder()
 	for {
 		agentReleaseFile := filepath.Join(rootDir, reqAgentReleaseFile)
@@ -200,11 +197,7 @@ func loadPythonInfo(cliParams *cliParams) error {
 		rootDir = parentDir
 	}
 
-	if cliParams.pythonMajorVersion == "" {
-		cliParams.pythonMajorVersion = "3"
-	}
-
-	constraintsPath = filepath.Join(rootDir, fmt.Sprintf("final_constraints-py%s.txt", cliParams.pythonMajorVersion))
+	constraintsPath = filepath.Join(rootDir, "final_constraints-py3.txt")
 	if _, err := os.Lstat(constraintsPath); err != nil {
 		return err
 	}
@@ -277,12 +270,12 @@ func PEP440ToSemver(pep440 string) (*semver.Version, error) {
 	return semver.NewVersion(versionString)
 }
 
-func getCommandPython(pythonMajorVersion string, useSysPython bool) (string, error) {
+func getCommandPython(useSysPython bool) (string, error) {
 	if useSysPython {
 		return pythonBin, nil
 	}
 
-	pyPath := filepath.Join(rootDir, getRelPyPath(pythonMajorVersion))
+	pyPath := filepath.Join(rootDir, getRelPyPath())
 
 	if _, err := os.Stat(pyPath); err != nil {
 		if os.IsNotExist(err) {
@@ -319,7 +312,7 @@ func validateArgs(args []string, local bool) error {
 }
 
 func pip(cliParams *cliParams, args []string, stdout io.Writer, stderr io.Writer) error {
-	pythonPath, err := getCommandPython(cliParams.pythonMajorVersion, cliParams.useSysPython)
+	pythonPath, err := getCommandPython(cliParams.useSysPython)
 	if err != nil {
 		return err
 	}
@@ -371,7 +364,7 @@ func pip(cliParams *cliParams, args []string, stdout io.Writer, stderr io.Writer
 }
 
 func install(cliParams *cliParams, _ log.Component) error {
-	if err := loadPythonInfo(cliParams); err != nil {
+	if err := loadPythonInfo(); err != nil {
 		return err
 	}
 
@@ -512,7 +505,7 @@ func install(cliParams *cliParams, _ log.Component) error {
 
 func downloadWheel(cliParams *cliParams, integration, version, rootLayoutType string) (string, error) {
 	// We use python 3 to invoke the downloader regardless of config
-	pyPath, err := getCommandPython("3", cliParams.useSysPython)
+	pyPath, err := getCommandPython(cliParams.useSysPython)
 	if err != nil {
 		return "", err
 	}
@@ -730,7 +723,7 @@ func minAllowedVersion(integration string) (*semver.Version, bool, error) {
 
 // Return the version of an installed integration and whether or not it was found
 func installedVersion(cliParams *cliParams, integration string) (*semver.Version, bool, error) {
-	pythonPath, err := getCommandPython(cliParams.pythonMajorVersion, cliParams.useSysPython)
+	pythonPath, err := getCommandPython(cliParams.useSysPython)
 	if err != nil {
 		return nil, false, err
 	}
@@ -743,12 +736,7 @@ func installedVersion(cliParams *cliParams, integration string) (*semver.Version
 		return nil, false, fmt.Errorf("Cannot get installed version of %s: invalid integration name", integration)
 	}
 
-	integrationVersionScript := integrationVersionScriptPy3
-	if cliParams.pythonMajorVersion == "2" {
-		integrationVersionScript = integrationVersionScriptPy2
-	}
-
-	pythonCmd := exec.Command(pythonPath, "-c", fmt.Sprintf(integrationVersionScript, integration))
+	pythonCmd := exec.Command(pythonPath, "-c", fmt.Sprintf(integrationVersionScriptPy3, integration))
 	output, err := pythonCmd.Output()
 
 	if err != nil {
@@ -868,7 +856,7 @@ func moveConfigurationFiles(srcFolder string, dstFolder string) error {
 }
 
 func remove(cliParams *cliParams, _ log.Component) error {
-	if err := loadPythonInfo(cliParams); err != nil {
+	if err := loadPythonInfo(); err != nil {
 		return err
 	}
 
@@ -892,7 +880,7 @@ func remove(cliParams *cliParams, _ log.Component) error {
 }
 
 func list(cliParams *cliParams, _ log.Component) error {
-	if err := loadPythonInfo(cliParams); err != nil {
+	if err := loadPythonInfo(); err != nil {
 		return err
 	}
 
@@ -919,7 +907,7 @@ func list(cliParams *cliParams, _ log.Component) error {
 }
 
 func show(cliParams *cliParams, _ log.Component) error {
-	if err := loadPythonInfo(cliParams); err != nil {
+	if err := loadPythonInfo(); err != nil {
 		return err
 	}
 

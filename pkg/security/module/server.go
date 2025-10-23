@@ -35,6 +35,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/probe/kfilters"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/selftests"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
+	"github.com/DataDog/datadog-agent/pkg/security/proto/api/transform"
 	"github.com/DataDog/datadog-agent/pkg/security/rules/monitor"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
@@ -373,23 +374,30 @@ func (a *APIServer) GetConfig(_ context.Context, _ *api.GetConfigParams) (*api.S
 
 // SendEvent forwards events sent by the runtime security module to Datadog
 func (a *APIServer) SendEvent(rule *rules.Rule, event events.Event, extTagsCb func() ([]string, bool), service string) {
+	originalRuleID := rule.Def.ID
+	groupRuleID := rule.Def.ID
+	if rule.Def.GroupID != "" {
+		groupRuleID = rule.Def.GroupID
+	}
+
 	backendEvent := events.BackendEvent{
 		Title: rule.Def.Description,
 		AgentContext: events.AgentContext{
-			RuleID:        rule.Def.ID,
-			RuleVersion:   rule.Def.Version,
-			Version:       version.AgentVersion,
-			OS:            runtime.GOOS,
-			Arch:          utils.RuntimeArch(),
-			Origin:        a.probe.Origin(),
-			KernelVersion: a.kernelVersion,
-			Distribution:  a.distribution,
-			PolicyName:    rule.Policy.Name,
-			PolicyVersion: rule.Policy.Version,
+			RuleID:         groupRuleID,
+			OriginalRuleID: originalRuleID,
+			RuleVersion:    rule.Def.Version,
+			Version:        version.AgentVersion,
+			OS:             runtime.GOOS,
+			Arch:           utils.RuntimeArch(),
+			Origin:         a.probe.Origin(),
+			KernelVersion:  a.kernelVersion,
+			Distribution:   a.distribution,
+			PolicyName:     rule.Policy.Name,
+			PolicyVersion:  rule.Policy.Version,
 		},
 	}
 
-	seclog.Tracef("Prepare event message for rule `%s`", rule.ID)
+	seclog.Tracef("Prepare event message for rule `%s`", groupRuleID)
 
 	// no retention if there is no ext tags to resolve
 	retention := a.retention
@@ -397,15 +405,11 @@ func (a *APIServer) SendEvent(rule *rules.Rule, event events.Event, extTagsCb fu
 		retention = 0
 	}
 
-	ruleID := rule.Def.ID
-	if rule.Def.GroupID != "" {
-		ruleID = rule.Def.GroupID
-	}
-
 	// get type tags + container tags if already resolved, see ResolveContainerTags
 	eventTags := event.GetTags()
 
-	tags := []string{"rule_id:" + ruleID}
+	tags := []string{"rule_id:" + groupRuleID}
+	tags = append(tags, "source_rule_id:"+originalRuleID)
 	tags = append(tags, rule.Tags...)
 	tags = append(tags, eventTags...)
 	tags = append(tags, common.QueryAccountIDTag())
@@ -427,7 +431,7 @@ func (a *APIServer) SendEvent(rule *rules.Rule, event events.Event, extTagsCb fu
 		}
 
 		msg := &pendingMsg{
-			ruleID:          ruleID,
+			ruleID:          groupRuleID,
 			backendEvent:    backendEvent,
 			eventSerializer: serializers.NewEventSerializer(ev, rule),
 			extTagsCb:       extTagsCb,
@@ -468,17 +472,18 @@ func (a *APIServer) SendEvent(rule *rules.Rule, event events.Event, extTagsCb fu
 			return
 		}
 
-		seclog.Tracef("Sending event message for rule `%s` to security-agent `%s`", ruleID, string(data))
+		seclog.Tracef("Sending event message for rule `%s` to security-agent `%s`", groupRuleID, string(data))
 
 		// for custom events, we can use the current time as timestamp
 		timestamp := time.Now()
 
 		m := &api.SecurityEventMessage{
-			RuleID:    ruleID,
-			Data:      data,
-			Service:   service,
-			Tags:      tags,
-			Timestamp: timestamppb.New(timestamp),
+			RuleID:         groupRuleID,
+			OriginalRuleID: originalRuleID,
+			Data:           data,
+			Service:        service,
+			Tags:           tags,
+			Timestamp:      timestamppb.New(timestamp),
 		}
 		a.updateCustomEventTags(m)
 		a.updateMsgService(m)
@@ -581,7 +586,7 @@ func (a *APIServer) GetRuleSetReport(_ context.Context, _ *api.GetRuleSetReportP
 	}
 
 	return &api.GetRuleSetReportMessage{
-		RuleSetReportMessage: api.FromFilterReportToProtoRuleSetReportMessage(report),
+		RuleSetReportMessage: transform.FromFilterReportToProtoRuleSetReportMessage(report),
 	}, nil
 }
 
@@ -628,6 +633,76 @@ func (a *APIServer) GetSECLVariables() map[string]*api.SECLVariableState {
 // Stop stops the API server
 func (a *APIServer) Stop() {
 	a.stopper.Stop()
+}
+
+// GetStatus returns the status of the module
+func (a *APIServer) GetStatus(_ context.Context, _ *api.GetStatusParams) (*api.Status, error) {
+	var apiStatus api.Status
+
+	if a.cfg.SendPayloadsFromSystemProbe {
+		var endpointsStatus []string
+		if senderStatus, ok := a.msgSender.(EndpointsStatusFetcher); ok {
+			endpointsStatus = append(endpointsStatus, senderStatus.GetEndpointsStatus()...)
+		}
+		if dumpSenderStatus, ok := a.activityDumpSender.(EndpointsStatusFetcher); ok {
+			endpointsStatus = append(endpointsStatus, dumpSenderStatus.GetEndpointsStatus()...)
+		}
+		apiStatus.DirectSenderStatus = &api.DirectSenderStatus{
+			Endpoints: endpointsStatus,
+		}
+	}
+
+	if a.selfTester != nil {
+		apiStatus.SelfTests = a.selfTester.GetStatus()
+	}
+	apiStatus.PoliciesStatus = a.policiesStatus
+
+	seclVariables := a.GetSECLVariables()
+
+	var globals []*api.SECLVariableState
+	for _, global := range seclVariables {
+		if !strings.Contains(global.Name, ".") {
+			globals = append(globals, global)
+		}
+	}
+	apiStatus.GlobalVariables = globals
+
+	scopedVariables := make(map[string]map[string][]*api.SECLVariableState)
+	for _, scoped := range seclVariables {
+		split := strings.SplitN(scoped.Name, ".", 3)
+		if len(split) < 3 {
+			continue
+		}
+		scope, name, key := split[0], split[1], split[2]
+		if scope != "" {
+			if _, found := scopedVariables[scope]; !found {
+				scopedVariables[scope] = make(map[string][]*api.SECLVariableState)
+			}
+
+			scopedVariables[scope][key] = append(scopedVariables[scope][key], &api.SECLVariableState{
+				Name:  name,
+				Value: scoped.Value,
+			})
+		}
+	}
+	apiStatus.ScopedVariables = make(map[string]*api.ScopedVariableStore)
+	for scope, vars := range scopedVariables {
+		store := &api.ScopedVariableStore{
+			KeyValues: make(map[string]*api.SECLVariableStateList),
+		}
+		for key, values := range vars {
+			store.KeyValues[key] = &api.SECLVariableStateList{
+				Variables: values,
+			}
+		}
+		apiStatus.ScopedVariables[scope] = store
+	}
+
+	if err := a.fillStatusPlatform(&apiStatus); err != nil {
+		return nil, err
+	}
+
+	return &apiStatus, nil
 }
 
 // SetCWSConsumer sets the CWS consumer

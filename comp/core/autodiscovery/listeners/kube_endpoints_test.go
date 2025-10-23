@@ -16,6 +16,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 
+	adtypes "github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/types"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	workloadfilterfxmock "github.com/DataDog/datadog-agent/comp/core/workloadfilter/fx-mock"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
@@ -62,7 +63,7 @@ func TestProcessEndpoints(t *testing.T) {
 	assert.Equal(t, "kube_endpoint_uid://default/myservice/10.0.0.1", eps[0].GetServiceID())
 
 	adID := eps[0].GetADIdentifiers()
-	assert.Equal(t, []string{"kube_endpoint_uid://default/myservice/10.0.0.1"}, adID)
+	assert.Equal(t, []string{"kube_endpoint_uid://default/myservice/10.0.0.1", string(adtypes.CelEndpointIdentifier)}, adID)
 
 	hosts, err := eps[0].GetHosts()
 	assert.NoError(t, err)
@@ -78,9 +79,13 @@ func TestProcessEndpoints(t *testing.T) {
 
 	assert.Equal(t, "kube_endpoint_uid://default/myservice/10.0.0.2", eps[1].GetServiceID())
 
+	namespaceName, err := eps[0].GetExtraConfig("namespace")
+	assert.NoError(t, err)
+	assert.Equal(t, "default", namespaceName)
+
 	adID = eps[1].GetADIdentifiers()
 	assert.NoError(t, err)
-	assert.Equal(t, []string{"kube_endpoint_uid://default/myservice/10.0.0.2"}, adID)
+	assert.Equal(t, []string{"kube_endpoint_uid://default/myservice/10.0.0.2", string(adtypes.CelEndpointIdentifier)}, adID)
 
 	hosts, err = eps[1].GetHosts()
 	assert.NoError(t, err)
@@ -93,6 +98,10 @@ func TestProcessEndpoints(t *testing.T) {
 	tags, err = eps[1].GetTags()
 	assert.NoError(t, err)
 	assert.Equal(t, []string{"kube_service:myservice", "kube_namespace:default", "kube_endpoint_ip:10.0.0.2", "foo:bar"}, tags)
+
+	namespaceName, err = eps[1].GetExtraConfig("namespace")
+	assert.NoError(t, err)
+	assert.Equal(t, "default", namespaceName)
 }
 
 func TestSubsetsDiffer(t *testing.T) {

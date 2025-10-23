@@ -136,6 +136,8 @@ func (m *Manager) StopActivityDump(params *api.ActivityDumpStopParams) (*api.Act
 			(params.GetContainerID() != "" && ad.Profile.Metadata.ContainerID == containerutils.ContainerID(params.GetContainerID())) ||
 			(params.GetCGroupID() != "" && ad.Profile.Metadata.CGroupContext.CGroupID == containerutils.CGroupID(params.GetCGroupID())) {
 			m.finalizeKernelEventCollection(ad, true)
+			// mark the cgroup to ignore from snapshot to prevent re-creation
+			m.ignoreFromSnapshot[ad.Profile.Metadata.CGroupContext.CGroupFile.Inode] = true
 			seclog.Infof("tracing stopped for [%s]", ad.GetSelectorStr())
 			toDelete = i
 
@@ -143,8 +145,7 @@ func (m *Manager) StopActivityDump(params *api.ActivityDumpStopParams) (*api.Act
 			if !ad.Profile.IsEmpty() && ad.Profile.GetWorkloadSelector() != nil {
 				if err := m.persist(ad.Profile, m.configuredStorageRequests); err != nil {
 					seclog.Errorf("couldn't persist dump [%s]: %v", ad.GetSelectorStr(), err)
-				} else if m.config.RuntimeSecurity.SecurityProfileEnabled && ad.Profile.Metadata.ContainerID != "" {
-					// TODO: remove the IsContainer check once we start handling profiles for non-containerized workloads
+				} else if m.config.RuntimeSecurity.SecurityProfileEnabled {
 					select {
 					case m.newProfiles <- ad.Profile:
 					default:

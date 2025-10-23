@@ -37,7 +37,7 @@ func TestNewController(t *testing.T) {
 	wmeta := fxutil.Test[workloadmeta.Component](t, core.MockBundle(), workloadmetafxmock.MockModule(workloadmeta.NewParams()))
 	datadogConfig := config.NewMock(t)
 	factory := informers.NewSharedInformerFactory(client, time.Duration(0))
-	imageResolver := autoinstrumentation.NewImageResolver(nil)
+	imageResolver := autoinstrumentation.NewImageResolver(nil, datadogConfig)
 
 	// V1
 	controller := NewController(
@@ -142,7 +142,7 @@ func TestAutoInstrumentation(t *testing.T) {
 			))
 
 			// Create APM webhook.
-			imageResolver := autoinstrumentation.NewImageResolver(nil)
+			imageResolver := autoinstrumentation.NewImageResolver(nil, mockConfig)
 			apm, err := generateAutoInstrumentationWebhook(wmeta, mockConfig, imageResolver)
 			assert.NoError(t, err)
 

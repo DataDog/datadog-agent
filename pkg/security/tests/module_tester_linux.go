@@ -27,7 +27,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/avast/retry-go/v4"
+	retry "github.com/avast/retry-go/v4"
 	"github.com/davecgh/go-spew/spew"
 	"github.com/hashicorp/go-multierror"
 	"github.com/oliveagle/jsonpath"
@@ -147,6 +147,7 @@ runtime_security_config:
     {{if .ActivityDumpLoadControllerTimeout }}
     min_timeout: {{ .ActivityDumpLoadControllerTimeout }}
     {{end}}
+    trace_systemd_cgroups: {{ .TraceSystemdCgroups }}
     traced_cgroups_count: {{ .ActivityDumpTracedCgroupsCount }}
     cgroup_differentiate_args: {{ .ActivityDumpCgroupDifferentiateArgs }}
     auto_suppression:
@@ -167,6 +168,7 @@ runtime_security_config:
     max_image_tags: {{ .SecurityProfileMaxImageTags }}
     dir: {{ .SecurityProfileDir }}
     watch_dir: {{ .SecurityProfileWatchDir }}
+    node_eviction_timeout: {{ .SecurityProfileNodeEvictionTimeout }}
     auto_suppression:
       enabled: {{ .EnableAutoSuppression }}
       event_types: {{range .AutoSuppressionEventTypes}}
@@ -588,6 +590,12 @@ func (tm *testModule) validateExecEvent(tb *testing.T, kind wrapperType, validat
 	}
 }
 
+func (tm *testModule) sendStats() {
+	// send twice to collect stats from both buffers
+	tm.eventMonitor.SendStats()
+	tm.eventMonitor.SendStats()
+}
+
 func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []*rules.RuleDefinition, fopts ...optFunc) (_ *testModule, err error) {
 	defer func() {
 		if err != nil && testMod != nil {
@@ -677,6 +685,7 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 		testMod.t = t
 		testMod.opts.dynamicOpts = opts.dynamicOpts
 		testMod.opts.staticOpts = opts.staticOpts
+		testMod.statsdClient.Flush()
 
 		if opts.staticOpts.preStartCallback != nil {
 			opts.staticOpts.preStartCallback(testMod)
@@ -694,6 +703,7 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 		testMod.cmdWrapper = cmdWrapper
 		testMod.t = t
 		testMod.opts.dynamicOpts = opts.dynamicOpts
+		testMod.statsdClient.Flush()
 
 		if !disableTracePipe && !ebpfLessEnabled {
 			if testMod.tracePipe, err = testMod.startTracing(); err != nil {
@@ -719,7 +729,7 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 		testMod.cleanup()
 	}
 
-	emconfig, secconfig, err := genTestConfigs(commonCfgDir, opts.staticOpts)
+	emconfig, secconfig, err := genTestConfigs(t, commonCfgDir, opts.staticOpts)
 	if err != nil {
 		return nil, err
 	}
@@ -1361,12 +1371,24 @@ func (tm *testModule) GetDumpFromDocker(dockerInstance *dockerCmdWrapper) (*acti
 	}
 	dump := findLearningContainerID(dumps, containerutils.ContainerID(dockerInstance.containerID))
 	if dump == nil {
-		return nil, errors.New("ContainerID not found on activity dump list")
+		return nil, fmt.Errorf("ContainerID %s not found on activity dump list (%+v)", dockerInstance.containerID, dumps)
 	}
 	return dump, nil
 }
 
 func (tm *testModule) StartADockerGetDump() (*dockerCmdWrapper, *activityDumpIdentifier, error) {
+	// before starting the docker, we need to make sure the traced cgroup map is not filled with
+	// entries waiting to be evicted
+	p, ok := tm.probe.PlatformProbe.(*sprobe.EBPFProbe)
+	if !ok {
+		return nil, nil, errors.New("not supported")
+	}
+	managers := p.GetProfileManager()
+	if managers == nil {
+		return nil, nil, errors.New("No manager")
+	}
+	managers.SyncTracedCgroups()
+
 	dockerInstance, err := tm.StartADocker()
 	if err != nil {
 		return nil, nil, err
@@ -1387,6 +1409,59 @@ func (tm *testModule) StartADockerGetDump() (*dockerCmdWrapper, *activityDumpIde
 		return nil, nil, err
 	}
 	return dockerInstance, dump, nil
+}
+
+func (tm *testModule) StartSystemdServiceGetDump(serviceName string, reloadCmd string) (*systemdCmdWrapper, *activityDumpIdentifier, error) {
+	systemd, err := newSystemdCmdWrapper(serviceName, reloadCmd)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	_, err = systemd.start()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	time.Sleep(1 * time.Second) // a quick sleep to ensure the dump has started
+
+	var dump *activityDumpIdentifier
+	if err := retry.Do(func() error {
+		dumps, err := tm.ListActivityDumps()
+		if err != nil {
+			return err
+		}
+
+		// Look for a dump with matching cgroup ID
+		for _, d := range dumps {
+			if string(d.CGroupID) == systemd.cgroupID {
+				dump = d
+				return nil
+			}
+		}
+		return errors.New("CGroupID not found on activity dump list")
+	}, retry.Delay(time.Second*1), retry.Attempts(15)); err != nil {
+		_, _ = systemd.stop()
+		return nil, nil, err
+	}
+
+	return systemd, dump, nil
+}
+
+func isSystemdAvailable() bool {
+	// Check if systemd is available and we have the necessary permissions
+	if _, err := exec.LookPath("systemctl"); err != nil {
+		return false
+	}
+
+	// Check if we can access systemd and it's in a usable state
+	// Accept both "running" and "degraded" states as valid for testing
+	cmd := exec.Command("systemctl", "is-system-running")
+	output, err := cmd.Output()
+	if err != nil {
+		state := strings.TrimSpace(string(output))
+		return state == "running" || state == "degraded"
+	}
+	return true
 }
 
 //nolint:deadcode,unused
@@ -1649,9 +1724,6 @@ func (tm *testModule) StopAllActivityDumps() error {
 	if err != nil {
 		return err
 	}
-	if len(dumps) == 0 {
-		return nil
-	}
 	for _, dump := range dumps {
 		_ = tm.StopActivityDump(dump.Name)
 	}
@@ -1662,6 +1734,19 @@ func (tm *testModule) StopAllActivityDumps() error {
 	if len(dumps) != 0 {
 		return errors.New("Didn't manage to stop all activity dumps")
 	}
+
+	// CRITICAL: Blacklist all currently traced cgroups BEFORE clearing
+	// This prevents them from being re-traced by kernel events
+	p, ok := tm.probe.PlatformProbe.(*sprobe.EBPFProbe)
+	if ok {
+		if managers := p.GetProfileManager(); managers != nil {
+			// First call evictTracedCgroup for all active dumps to blacklist them
+			managers.EvictAllTracedCgroups()
+			// Then clear everything
+			managers.ClearTracedCgroups()
+		}
+	}
+
 	return nil
 }
 
@@ -1888,6 +1973,9 @@ func (tm *testModule) CheckZombieProcesses() error {
 
 				comm, err := os.ReadFile(filepath.Join("/proc", pidStr, "comm"))
 				if err != nil {
+					if errors.Is(err, syscall.ESRCH) {
+						continue
+					}
 					return fmt.Errorf("failed to read comm for PID %d: %w", pid, err)
 				}
 				commStr := strings.TrimSpace(string(comm))
@@ -1898,8 +1986,8 @@ func (tm *testModule) CheckZombieProcesses() error {
 				}
 			}
 		}
-		if err := scanner.Err(); err != nil {
-			return fmt.Errorf("error reading status file for PPID %d: %w", pid, err)
+		if err := scanner.Err(); err != nil && !errors.Is(err, syscall.ESRCH) {
+			return fmt.Errorf("error reading status file for PID %d: %w", pid, err)
 		}
 	}
 

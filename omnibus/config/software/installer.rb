@@ -14,6 +14,8 @@ source path: '..',
        }
 relative_path 'src/github.com/DataDog/datadog-agent'
 
+always_build true
+
 build do
   license :project_license
 
@@ -21,9 +23,15 @@ build do
   gopath = Pathname.new(project_dir) + '../../../..'
   etc_dir = "/etc/datadog-agent"
   gomodcache = Pathname.new("/modcache")
+  # include embedded path (mostly for `pkg-config` binary)
+  #
+  # with_embedded_path prepends the embedded path to the PATH from the global environment
+  # in particular it ignores the PATH from the environment given as argument
+  # so we need to call it before setting the PATH
+  env = with_embedded_path()
   env = {
     'GOPATH' => gopath.to_path,
-    'PATH' => "#{gopath.to_path}/bin:#{ENV['PATH']}",
+    'PATH' => ["#{gopath.to_path}/bin", env['PATH']].join(File::PATH_SEPARATOR),
   }
 
   unless ENV["OMNIBUS_GOMODCACHE"].nil? || ENV["OMNIBUS_GOMODCACHE"].empty?
@@ -31,15 +39,12 @@ build do
     env["GOMODCACHE"] = gomodcache.to_path
   end
 
-  # include embedded path (mostly for `pkg-config` binary)
-  env = with_embedded_path(env)
-
   if linux_target?
-    command "invoke installer.build --no-cgo --run-path=/opt/datadog-packages/run --install-path=#{install_dir}", env: env
+    command "invoke installer.build --no-cgo --run-path=/opt/datadog-packages/run --install-path=#{install_dir}", env: env, :live_stream => Omnibus.logger.live_stream(:info)
     mkdir "#{install_dir}/bin"
     copy 'bin/installer', "#{install_dir}/bin/"
   elsif windows_target?
-    command "dda inv -- -e installer.build --install-path=#{install_dir}", env: env
+    command "dda inv -- -e installer.build --install-path=#{install_dir}", env: env, :live_stream => Omnibus.logger.live_stream(:info)
     copy 'bin/installer/installer.exe', "#{install_dir}/datadog-installer.exe"
   end
 end

@@ -492,15 +492,8 @@ func (c *localAPIClientImpl) PromoteExperiment(pkg string) error {
 }
 
 // StartConfigExperiment starts a config experiment for a package.
-func (c *localAPIClientImpl) StartConfigExperiment(pkg, version string) error {
-	params := experimentTaskParams{
-		Version: version,
-	}
-	body, err := json.Marshal(params)
-	if err != nil {
-		return err
-	}
-	req, err := http.NewRequest(http.MethodPost, fmt.Sprintf("http://%s/%s/config_experiment/start", c.addr, pkg), bytes.NewBuffer(body))
+func (c *localAPIClientImpl) StartConfigExperiment(pkg, operations string) error {
+	req, err := http.NewRequest(http.MethodPost, fmt.Sprintf("http://%s/%s/config_experiment/start", c.addr, pkg), bytes.NewBuffer([]byte(operations)))
 	if err != nil {
 		return err
 	}

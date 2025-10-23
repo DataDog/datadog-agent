@@ -8,20 +8,18 @@ package runner
 
 import (
 	"context"
-	"errors"
 	"fmt"
-	"github.com/DataDog/datadog-traceroute/udp"
 	"math/rand"
 	"net"
-	"net/netip"
 	"slices"
+	"strings"
 	"time"
 
-	"github.com/DataDog/datadog-traceroute/common"
-	"github.com/DataDog/datadog-traceroute/icmp"
+	trcommon "github.com/DataDog/datadog-traceroute/common"
 	tracerlog "github.com/DataDog/datadog-traceroute/log"
-	"github.com/DataDog/datadog-traceroute/sack"
-	"github.com/DataDog/datadog-traceroute/tcp"
+	"github.com/DataDog/datadog-traceroute/result"
+	"github.com/DataDog/datadog-traceroute/runner"
+	"github.com/DataDog/datadog-traceroute/traceroute"
 
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
 	telemetryComponent "github.com/DataDog/datadog-agent/comp/core/telemetry"
@@ -109,17 +107,6 @@ func New(telemetryComp telemetryComponent.Component, hostnameService hostname.Co
 // complete implementation.
 func (r *Runner) RunTraceroute(ctx context.Context, cfg config.Config) (payload.NetworkPath, error) {
 	defer tracerouteRunnerTelemetry.runs.Inc()
-	dests, err := net.DefaultResolver.LookupIP(ctx, "ip4", cfg.DestHostname)
-	if err != nil || len(dests) == 0 {
-		tracerouteRunnerTelemetry.failedRuns.Inc()
-		return payload.NetworkPath{}, fmt.Errorf("cannot resolve %s: %v", cfg.DestHostname, err)
-	}
-
-	//TODO: should we get smarter about IP address resolution?
-	// if it's a hostname, perhaps we could run multiple traces
-	// for each of the different IPs it resolves to up to a threshold?
-	// use first resolved IP for now
-	dest := dests[0]
 
 	maxTTL := cfg.MaxTTL
 	if maxTTL == 0 {
@@ -139,187 +126,38 @@ func (r *Runner) RunTraceroute(ctx context.Context, cfg config.Config) (payload.
 		return payload.NetworkPath{}, err
 	}
 
-	var pathResult payload.NetworkPath
-	var protocol = cfg.Protocol
-
-	// default to UDP if protocol
-	// is not set
-	if protocol == "" {
-		protocol = payload.ProtocolUDP
+	params := runner.TracerouteParams{
+		Hostname:          cfg.DestHostname,
+		Port:              int(cfg.DestPort),
+		Protocol:          strings.ToLower(string(cfg.Protocol)),
+		MinTTL:            trcommon.DefaultMinTTL,
+		MaxTTL:            int(cfg.MaxTTL),
+		Delay:             DefaultDelay,
+		Timeout:           timeout,
+		TCPMethod:         traceroute.TCPMethod(cfg.TCPMethod),
+		WantV6:            false,
+		ReverseDns:        cfg.ReverseDNS,
+		UseWindowsDriver:  !cfg.DisableWindowsDriver,
+		TracerouteQueries: cfg.TracerouteQueries,
+		E2eQueries:        cfg.E2eQueries,
 	}
-	switch protocol {
-	case payload.ProtocolTCP:
-		log.Tracef("Running TCP traceroute for: %+v", cfg)
-		pathResult, err = r.runTCP(cfg, hname, dest, maxTTL, timeout)
-		if err != nil {
-			tracerouteRunnerTelemetry.failedRuns.Inc()
-			return payload.NetworkPath{}, err
-		}
-	case payload.ProtocolUDP:
-		log.Tracef("Running UDP traceroute for: %+v", cfg)
-		pathResult, err = r.runUDP(cfg, hname, dest, maxTTL, timeout)
-		if err != nil {
-			tracerouteRunnerTelemetry.failedRuns.Inc()
-			return payload.NetworkPath{}, err
-		}
-	case payload.ProtocolICMP:
-		log.Tracef("Running ICMP traceroute for: %+v", cfg)
-		pathResult, err = r.runICMP(cfg, hname, dest, maxTTL, timeout)
-		if err != nil {
-			tracerouteRunnerTelemetry.failedRuns.Inc()
-			return payload.NetworkPath{}, err
-		}
-	default:
-		log.Errorf("Invalid protocol for: %+v", cfg)
+
+	results, err := runner.RunTraceroute(ctx, params)
+	if err != nil {
 		tracerouteRunnerTelemetry.failedRuns.Inc()
-		return payload.NetworkPath{}, fmt.Errorf("failed to run traceroute, invalid protocol: %s", cfg.Protocol)
+		return payload.NetworkPath{}, err
 	}
 
+	pathResult, err := r.processResults(results, cfg.Protocol, hname, cfg.DestHostname, cfg.DestPort)
+	if err != nil {
+		tracerouteRunnerTelemetry.failedRuns.Inc()
+		return payload.NetworkPath{}, err
+	}
+	log.Tracef("traceroute run results: %+v", pathResult)
 	return pathResult, nil
 }
 
-func (r *Runner) runICMP(cfg config.Config, hname string, target net.IP, maxTTL uint8, timeout time.Duration) (payload.NetworkPath, error) {
-	targetAddr, ok := netip.AddrFromSlice(target)
-	if !ok {
-		return payload.NetworkPath{}, fmt.Errorf("invalid target IP")
-	}
-	results, err := icmp.RunICMPTraceroute(context.TODO(), icmp.Params{
-		Target: targetAddr,
-		ParallelParams: common.TracerouteParallelParams{
-			TracerouteParams: common.TracerouteParams{
-				MinTTL:            DefaultMinTTL,
-				MaxTTL:            maxTTL,
-				TracerouteTimeout: timeout,
-				PollFrequency:     100 * time.Millisecond,
-				SendDelay:         10 * time.Millisecond,
-			},
-		},
-	})
-	if err != nil {
-		return payload.NetworkPath{}, err
-	}
-	pathResult, err := r.processResults(results, payload.ProtocolICMP, hname, cfg.DestHostname, cfg.DestPort)
-	if err != nil {
-		return payload.NetworkPath{}, err
-	}
-	log.Tracef("ICMP Results: %+v", pathResult)
-
-	return pathResult, nil
-}
-
-func (r *Runner) runUDP(cfg config.Config, hname string, target net.IP, maxTTL uint8, timeout time.Duration) (payload.NetworkPath, error) {
-	destPort := cfg.DestPort
-	if destPort == 0 {
-		destPort = 33434 // TODO: is this the default we want?
-	}
-	tr := udp.NewUDPv4(target, destPort, DefaultNumPaths, DefaultMinTTL, maxTTL, time.Duration(DefaultDelay)*time.Millisecond, timeout)
-	results, err := tr.Traceroute()
-	if err != nil {
-		return payload.NetworkPath{}, err
-	}
-	pathResult, err := r.processResults(results, payload.ProtocolUDP, hname, cfg.DestHostname, cfg.DestPort)
-	if err != nil {
-		return payload.NetworkPath{}, err
-	}
-	log.Tracef("UDP Results: %+v", pathResult)
-
-	return pathResult, nil
-}
-
-func makeSackParams(target net.IP, targetPort uint16, maxTTL uint8, timeout time.Duration) (sack.Params, error) {
-	targetAddr, ok := netip.AddrFromSlice(target)
-	if !ok {
-		return sack.Params{}, fmt.Errorf("invalid target IP")
-	}
-	parallelParams := common.TracerouteParallelParams{
-		TracerouteParams: common.TracerouteParams{
-			MinTTL:            DefaultMinTTL,
-			MaxTTL:            maxTTL,
-			TracerouteTimeout: timeout,
-			PollFrequency:     100 * time.Millisecond,
-			SendDelay:         10 * time.Millisecond,
-		},
-	}
-	params := sack.Params{
-		Target:           netip.AddrPortFrom(targetAddr, targetPort),
-		HandshakeTimeout: timeout,
-		FinTimeout:       500 * time.Second,
-		ParallelParams:   parallelParams,
-		LoosenICMPSrc:    true,
-	}
-	return params, nil
-}
-
-var sackFallbackLimit = log.NewLogLimit(10, 5*time.Minute)
-
-type tracerouteImpl func() (*common.Results, error)
-
-func performTCPFallback(tcpMethod payload.TCPMethod, doSyn, doSack, doSynSocket tracerouteImpl) (*common.Results, error) {
-	if tcpMethod == "" {
-		tcpMethod = payload.TCPDefaultMethod
-	}
-	switch tcpMethod {
-	case payload.TCPConfigSYN:
-		return doSyn()
-	case payload.TCPConfigSACK:
-		return doSack()
-	case payload.TCPConfigSYNSocket:
-		return doSynSocket()
-	case payload.TCPConfigPreferSACK:
-		results, err := doSack()
-		var sackNotSupportedErr *sack.NotSupportedError
-		if errors.As(err, &sackNotSupportedErr) {
-			if sackFallbackLimit.ShouldLog() {
-				log.Infof("SACK traceroute not supported, falling back to SYN: %s", err)
-			}
-			return doSyn()
-		}
-		if err != nil {
-			return nil, fmt.Errorf("SACK traceroute failed fatally, not falling back: %w", err)
-		}
-		return results, nil
-	default:
-		return nil, fmt.Errorf("unexpected TCPMethod: %s", tcpMethod)
-	}
-}
-
-func (r *Runner) runTCP(cfg config.Config, hname string, target net.IP, maxTTL uint8, timeout time.Duration) (payload.NetworkPath, error) {
-	destPort := cfg.DestPort
-	if destPort == 0 {
-		destPort = 80 // TODO: is this the default we want?
-	}
-
-	doSyn := func() (*common.Results, error) {
-		tr := tcp.NewTCPv4(target, destPort, DefaultNumPaths, DefaultMinTTL, maxTTL, time.Duration(DefaultDelay)*time.Millisecond, timeout, cfg.TCPSynParisTracerouteMode)
-		return tr.Traceroute()
-	}
-	doSack := func() (*common.Results, error) {
-		params, err := makeSackParams(target, destPort, maxTTL, timeout)
-		if err != nil {
-			return nil, fmt.Errorf("failed to make sack params: %w", err)
-		}
-		return sack.RunSackTraceroute(context.TODO(), params)
-	}
-	doSynSocket := func() (*common.Results, error) {
-		tr := tcp.NewTCPv4(target, destPort, DefaultNumPaths, DefaultMinTTL, maxTTL, time.Duration(DefaultDelay)*time.Millisecond, timeout, cfg.TCPSynParisTracerouteMode)
-		return tr.TracerouteSequentialSocket()
-	}
-
-	results, err := performTCPFallback(cfg.TCPMethod, doSyn, doSack, doSynSocket)
-	if err != nil {
-		return payload.NetworkPath{}, err
-	}
-
-	pathResult, err := r.processResults(results, payload.ProtocolTCP, hname, cfg.DestHostname, cfg.DestPort)
-	if err != nil {
-		return payload.NetworkPath{}, err
-	}
-	log.Tracef("TCP Results: %+v", pathResult)
-
-	return pathResult, nil
-}
-
-func (r *Runner) processResults(res *common.Results, protocol payload.Protocol, hname string, destinationHost string, destinationPort uint16) (payload.NetworkPath, error) {
+func (r *Runner) processResults(res *result.Results, protocol payload.Protocol, hname string, destinationHost string, destinationPort uint16) (payload.NetworkPath, error) {
 	if res == nil {
 		return payload.NetworkPath{}, nil
 	}
@@ -330,15 +168,34 @@ func (r *Runner) processResults(res *common.Results, protocol payload.Protocol, 
 		Protocol:     protocol,
 		Timestamp:    time.Now().UnixMilli(),
 		Source: payload.NetworkPathSource{
-			Hostname:  hname,
-			NetworkID: r.networkID,
+			Name:        hname,
+			DisplayName: hname,
+			Hostname:    hname,
+			NetworkID:   r.networkID,
 		},
 		Destination: payload.NetworkPathDestination{
-			Hostname:  destinationHost,
-			Port:      destinationPort,
-			IPAddress: res.Target.String(),
+			Hostname: destinationHost,
+			Port:     destinationPort,
 		},
-		Tags: slices.Clone(res.Tags),
+		Traceroute: payload.Traceroute{
+			HopCount: payload.HopCountStats{
+				Avg: res.Traceroute.HopCount.Avg,
+				Min: res.Traceroute.HopCount.Min,
+				Max: res.Traceroute.HopCount.Max,
+			},
+		},
+		E2eProbe: payload.E2eProbe{
+			RTTs:                 slices.Clone(res.E2eProbe.RTTs),
+			PacketsSent:          res.E2eProbe.PacketsSent,
+			PacketsReceived:      res.E2eProbe.PacketsReceived,
+			PacketLossPercentage: res.E2eProbe.PacketLossPercentage,
+			Jitter:               float64(res.E2eProbe.Jitter),
+			RTT: payload.E2eProbeRttLatency{
+				Avg: res.E2eProbe.RTT.Avg,
+				Min: res.E2eProbe.RTT.Min,
+				Max: res.E2eProbe.RTT.Max,
+			},
+		},
 	}
 
 	// get hardware interface info
@@ -350,33 +207,38 @@ func (r *Runner) processResults(res *common.Results, protocol payload.Protocol, 
 	// might be worth also looking in to sharing a router between
 	// the gateway lookup and here or exposing a local IP lookup
 	// function
+	// Gateway lookup expect Source.Hostname and Destination.Hostname to be IPs
 	if r.gatewayLookup != nil {
-		src := util.AddressFromNetIP(res.Source)
-		dst := util.AddressFromNetIP(res.Target)
+		src := util.AddressFromNetIP(net.ParseIP(traceroutePath.Source.Hostname))
+		dst := util.AddressFromNetIP(net.ParseIP(traceroutePath.Destination.Hostname))
 
 		traceroutePath.Source.Via = r.gatewayLookup.LookupWithIPs(src, dst, r.nsIno)
 	}
 
-	for i, hop := range res.Hops {
-		ttl := i + 1
-		isReachable := false
-		hopname := fmt.Sprintf("unknown_hop_%d", ttl)
-		hostname := hopname
-
-		if !hop.IP.Equal(net.IP{}) {
-			isReachable = true
-			hopname = hop.IP.String()
-			hostname = hopname // setting to ip address for now, reverse DNS lookup will override hostname field later
+	for _, run := range res.Traceroute.Runs {
+		var hops []payload.TracerouteHop
+		for _, hop := range run.Hops {
+			hops = append(hops, payload.TracerouteHop{
+				TTL:        hop.TTL,
+				IPAddress:  hop.IPAddress,
+				RTT:        hop.RTT,
+				Reachable:  hop.Reachable,
+				ReverseDNS: hop.ReverseDns,
+			})
 		}
-
-		npHop := payload.NetworkPathHop{
-			TTL:       ttl,
-			IPAddress: hopname,
-			Hostname:  hostname,
-			RTT:       float64(hop.RTT.Microseconds()) / float64(1000),
-			Reachable: isReachable,
-		}
-		traceroutePath.Hops = append(traceroutePath.Hops, npHop)
+		traceroutePath.Traceroute.Runs = append(traceroutePath.Traceroute.Runs, payload.TracerouteRun{
+			RunID: run.RunID,
+			Hops:  hops,
+			Source: payload.TracerouteSource{
+				IPAddress: run.Source.IPAddress,
+				Port:      run.Source.Port,
+			},
+			Destination: payload.TracerouteDestination{
+				IPAddress:  run.Destination.IPAddress,
+				Port:       run.Destination.Port,
+				ReverseDNS: run.Destination.ReverseDns,
+			},
+		})
 	}
 
 	return traceroutePath, nil

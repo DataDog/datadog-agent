@@ -40,6 +40,7 @@ type testOpts struct {
 	securityProfileMaxImageTags                int
 	securityProfileDir                         string
 	securityProfileWatchDir                    bool
+	securityProfileNodeEvictionTimeout         time.Duration
 	enableAutoSuppression                      bool
 	autoSuppressionEventTypes                  []string
 	enableAnomalyDetection                     bool
@@ -76,6 +77,7 @@ type testOpts struct {
 	enableSelfTests                            bool
 	networkFlowMonitorEnabled                  bool
 	dnsPort                                    uint16
+	traceSystemdCgroups                        bool
 	capabilitiesMonitoringEnabled              bool
 }
 

@@ -11,6 +11,7 @@ import (
 	"fmt"
 
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
+	logsconfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	compression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/security/common"
@@ -28,6 +29,11 @@ import (
 type MsgSender[T any] interface {
 	Send(msg *T, expireFnc func(*T))
 	SendTelemetry(statsd.ClientInterface)
+}
+
+// EndpointsStatusFetcher defines an interface to get the status of the endpoints
+type EndpointsStatusFetcher interface {
+	GetEndpointsStatus() []string
 }
 
 // EventMsgSender defines a message sender for security events
@@ -80,8 +86,12 @@ func NewChanMsgSender[T any](msgs chan *T) *ChanMsgSender[T] {
 
 // DirectEventMsgSender defines a direct sender
 type DirectEventMsgSender struct {
-	reporter common.RawReporter
+	reporter  common.RawReporter
+	endpoints *logsconfig.Endpoints
 }
+
+var _ MsgSender[api.SecurityEventMessage] = &DirectEventMsgSender{}
+var _ EndpointsStatusFetcher = &DirectEventMsgSender{}
 
 // Send the message
 func (ds *DirectEventMsgSender) Send(msg *api.SecurityEventMessage, _ func(*api.SecurityEventMessage)) {
@@ -91,6 +101,11 @@ func (ds *DirectEventMsgSender) Send(msg *api.SecurityEventMessage, _ func(*api.
 // SendTelemetry sends telemetry data
 func (ds *DirectEventMsgSender) SendTelemetry(statsd.ClientInterface) {}
 
+// GetEndpointsStatus returns the status of the endpoints
+func (ds *DirectEventMsgSender) GetEndpointsStatus() []string {
+	return ds.endpoints.GetStatus()
+}
+
 // NewDirectEventMsgSender returns a new direct sender
 func NewDirectEventMsgSender(stopper startstop.Stopper, compression compression.Component, ipc ipc.Component) (*DirectEventMsgSender, error) {
 	useSecRuntimeTrack := pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.use_secruntime_track")
@@ -99,6 +114,7 @@ func NewDirectEventMsgSender(stopper startstop.Stopper, compression compression.
 	if err != nil {
 		return nil, fmt.Errorf("failed to create direct reported endpoints: %w", err)
 	}
+	stopper.Add(destinationsCtx)
 
 	for _, status := range endpoints.GetStatus() {
 		log.Info(status)
@@ -117,7 +133,8 @@ func NewDirectEventMsgSender(stopper startstop.Stopper, compression compression.
 	}
 
 	return &DirectEventMsgSender{
-		reporter: reporter,
+		reporter:  reporter,
+		endpoints: endpoints,
 	}, nil
 }
 
@@ -125,6 +142,9 @@ func NewDirectEventMsgSender(stopper startstop.Stopper, compression compression.
 type DirectActivityDumpMsgSender struct {
 	backend *backend.ActivityDumpRemoteBackend
 }
+
+var _ MsgSender[api.ActivityDumpStreamMessage] = &DirectActivityDumpMsgSender{}
+var _ EndpointsStatusFetcher = &DirectActivityDumpMsgSender{}
 
 // NewDirectActivityDumpMsgSender returns a new direct activity dump sender
 func NewDirectActivityDumpMsgSender() (*DirectActivityDumpMsgSender, error) {
@@ -153,4 +173,9 @@ func (ds *DirectActivityDumpMsgSender) Send(msg *api.ActivityDumpStreamMessage, 
 // SendTelemetry sends telemetry data
 func (ds *DirectActivityDumpMsgSender) SendTelemetry(statsd statsd.ClientInterface) {
 	ds.backend.SendTelemetry(statsd)
+}
+
+// GetEndpointsStatus returns the status of the endpoints
+func (ds *DirectActivityDumpMsgSender) GetEndpointsStatus() []string {
+	return ds.backend.GetEndpointsStatus()
 }

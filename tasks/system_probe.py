@@ -57,6 +57,8 @@ TEST_PACKAGES_LIST = [
     "./pkg/process/monitor/...",
     "./pkg/dyninst/...",
     "./pkg/gpu/...",
+    "./pkg/logs/launchers/file/",
+    "./pkg/privileged-logs/test/...",
     "./pkg/system-probe/config/...",
     "./comp/metadata/inventoryagent/...",
 ]
@@ -100,8 +102,8 @@ def get_ebpf_runtime_dir() -> Path:
     return Path("pkg/ebpf/bytecode/build/runtime")
 
 
-def ninja_define_windows_resources(ctx, nw: NinjaWriter, major_version):
-    maj_ver, min_ver, patch_ver = get_version_numeric_only(ctx, major_version=major_version).split(".")
+def ninja_define_windows_resources(ctx, nw: NinjaWriter):
+    maj_ver, min_ver, patch_ver = get_version_numeric_only(ctx).split(".")
     nw.variable("maj_ver", maj_ver)
     nw.variable("min_ver", min_ver)
     nw.variable("patch_ver", patch_ver)
@@ -229,7 +231,7 @@ def ninja_security_ebpf_programs(
         infile=infile,
         outfile=outfile,
         variables={
-            "flags": security_flags + " -DUSE_SYSCALL_WRAPPER=0",
+            "flags": security_flags,
             "kheaders": kheaders,
         },
     )
@@ -243,7 +245,7 @@ def ninja_security_ebpf_programs(
         infile=infile,
         outfile=syscall_wrapper_outfile,
         variables={
-            "flags": security_flags + " -DUSE_SYSCALL_WRAPPER=1",
+            "flags": security_flags + " -DUSE_SYSCALL_WRAPPER",
             "kheaders": kheaders,
         },
     )
@@ -257,7 +259,7 @@ def ninja_security_ebpf_programs(
         infile=infile,
         outfile=syscall_wrapper_outfile,
         variables={
-            "flags": security_flags + " -DUSE_SYSCALL_WRAPPER=1 -DUSE_FENTRY=1",
+            "flags": security_flags + " -DUSE_SYSCALL_WRAPPER -DUSE_FENTRY",
             "kheaders": kheaders,
         },
     )
@@ -651,7 +653,6 @@ def ninja_cgo_type_files(nw: NinjaWriter):
 def ninja_generate(
     ctx: Context,
     ninja_path,
-    major_version='7',
     arch: str | Arch = CURRENT_ARCH,
     debug=False,
     strip_object_files=False,
@@ -666,7 +667,7 @@ def ninja_generate(
         nw = NinjaWriter(ninja_file, width=120)
 
         if is_windows:
-            ninja_define_windows_resources(ctx, nw, major_version)
+            ninja_define_windows_resources(ctx, nw)
             # messagestrings
             in_path = MESSAGESTRINGS_MC_PATH
             in_name = os.path.splitext(os.path.basename(in_path))[0]
@@ -743,6 +744,12 @@ def build_libpcap(ctx):
                 "--disable-bluetooth",
                 "--disable-dbus",
                 "--disable-rdma",
+                "--without-dag",
+                "--without-dpdk",
+                "--without-libnl",
+                "--without-septel",
+                "--without-snf",
+                "--without-turbocap",
             ]
             ctx.run(f"./configure {' '.join(config_opts)}")
             ctx.run("make install")
@@ -776,7 +783,6 @@ def build(
     ctx,
     race=False,
     rebuild=False,
-    major_version='7',
     go_mod="readonly",
     arch: str = CURRENT_ARCH,
     bundle_ebpf=False,
@@ -795,7 +801,6 @@ def build(
     if not is_macos:
         build_object_files(
             ctx,
-            major_version=major_version,
             kernel_release=kernel_release,
             debug=debug,
             strip_object_files=strip_object_files,
@@ -805,7 +810,6 @@ def build(
 
     build_sysprobe_binary(
         ctx,
-        major_version=major_version,
         bundle_ebpf=bundle_ebpf,
         go_mod=go_mod,
         race=race,
@@ -833,7 +837,6 @@ def build_sysprobe_binary(
     ctx,
     race=False,
     rebuild=False,
-    major_version='7',
     go_mod="readonly",
     arch: str = CURRENT_ARCH,
     binary=BIN_PATH,
@@ -849,7 +852,6 @@ def build_sysprobe_binary(
     ldflags, gcflags, env = get_build_flags(
         ctx,
         install_path=install_path,
-        major_version=major_version,
         arch=arch_obj,
         static=static,
     )
@@ -1463,7 +1465,6 @@ def run_ninja(
     task="",
     target="",
     explain=False,
-    major_version='7',
     arch: str | Arch = CURRENT_ARCH,
     kernel_release=None,
     debug=False,
@@ -1475,7 +1476,6 @@ def run_ninja(
     ninja_generate(
         ctx,
         nf_path,
-        major_version,
         arch,
         debug,
         strip_object_files,
@@ -1595,7 +1595,6 @@ def validate_object_file_metadata(ctx: Context, build_dir: str | Path = "pkg/ebp
 @task(aliases=["object-files"])
 def build_object_files(
     ctx,
-    major_version='7',
     arch: str = CURRENT_ARCH,
     kernel_release=None,
     debug=False,
@@ -1616,7 +1615,6 @@ def build_object_files(
     run_ninja(
         ctx,
         explain=True,
-        major_version=major_version,
         kernel_release=kernel_release,
         debug=debug,
         strip_object_files=strip_object_files,
@@ -1662,7 +1660,6 @@ def build_object_files(
 
 def build_cws_object_files(
     ctx,
-    major_version='7',
     arch: str | Arch = CURRENT_ARCH,
     kernel_release=None,
     debug=False,
@@ -1673,7 +1670,6 @@ def build_cws_object_files(
     run_ninja(
         ctx,
         target="cws",
-        major_version=major_version,
         debug=debug,
         strip_object_files=strip_object_files,
         kernel_release=kernel_release,
@@ -1681,11 +1677,10 @@ def build_cws_object_files(
     )
 
 
-def clean_object_files(ctx, major_version='7', kernel_release=None, debug=False, strip_object_files=False):
+def clean_object_files(ctx, kernel_release=None, debug=False, strip_object_files=False):
     run_ninja(
         ctx,
         task="clean",
-        major_version=major_version,
         debug=debug,
         strip_object_files=strip_object_files,
         kernel_release=kernel_release,
@@ -1758,10 +1753,6 @@ def generate_minimized_btfs(ctx, source_dir, output_dir, bpf_programs):
 
         nw.rule(name="decompress_btf", command="tar -xf $in -C $target_directory")
         nw.rule(name="minimize_btf", command="bpftool gen min_core_btf $in $out $input_bpf_programs")
-        nw.rule(
-            name="compress_minimized_btf",
-            command="tar --mtime=@0 -cJf $out -C $tar_working_directory $rel_in && rm $in",
-        )
 
         for root, dirs, files in os.walk(source_dir):
             path_from_root = os.path.relpath(root, source_dir)
@@ -1792,16 +1783,6 @@ def generate_minimized_btfs(ctx, source_dir, output_dir, bpf_programs):
                     outputs=[minimized_btf_path],
                     variables={
                         "input_bpf_programs": bpf_programs,
-                    },
-                )
-
-                nw.build(
-                    rule="compress_minimized_btf",
-                    inputs=[minimized_btf_path],
-                    outputs=[f"{minimized_btf_path}.tar.xz"],
-                    variables={
-                        "tar_working_directory": os.path.join(output_dir, path_from_root),
-                        "rel_in": btf_filename,
                     },
                 )
 

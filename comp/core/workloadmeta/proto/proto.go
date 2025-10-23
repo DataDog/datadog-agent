@@ -534,22 +534,23 @@ func protoProcessFromWorkloadmetaProcess(process *workloadmeta.Process) (*pb.Pro
 	}
 
 	return &pb.Process{
-		EntityId:     protoEntityID,
-		Pid:          process.Pid,
-		Nspid:        process.NsPid,
-		Ppid:         process.Ppid,
-		Name:         process.Name,
-		Cwd:          process.Cwd,
-		Exe:          process.Exe,
-		Comm:         process.Comm,
-		Cmdline:      process.Cmdline,
-		Uids:         process.Uids,
-		Gids:         process.Gids,
-		ContainerId:  process.ContainerID,
-		CreationTime: process.CreationTime.Unix(),
-		Language:     toProtoLanguage(process.Language),
-		Owner:        protoOwner,
-		Service:      toProtoService(process.Service),
+		EntityId:       protoEntityID,
+		Pid:            process.Pid,
+		Nspid:          process.NsPid,
+		Ppid:           process.Ppid,
+		Name:           process.Name,
+		Cwd:            process.Cwd,
+		Exe:            process.Exe,
+		Comm:           process.Comm,
+		Cmdline:        process.Cmdline,
+		Uids:           process.Uids,
+		Gids:           process.Gids,
+		ContainerId:    process.ContainerID,
+		CreationTime:   process.CreationTime.Unix(),
+		Language:       toProtoLanguage(process.Language),
+		Owner:          protoOwner,
+		Service:        toProtoService(process.Service),
+		InjectionState: pb.InjectionState(process.InjectionState),
 	}, nil
 }
 
@@ -587,6 +588,18 @@ func toProtoTracerMetadata(tracerMetadata tracermetadata.TracerMetadata) *pb.Tra
 	}
 }
 
+func toProtoUST(ust workloadmeta.UST) *pb.UST {
+	if ust.Service == "" && ust.Env == "" && ust.Version == "" {
+		return nil
+	}
+
+	return &pb.UST{
+		Service: ust.Service,
+		Env:     ust.Env,
+		Version: ust.Version,
+	}
+}
+
 func toProtoService(service *workloadmeta.Service) *pb.Service {
 	if service == nil {
 		return nil
@@ -612,10 +625,10 @@ func toProtoService(service *workloadmeta.Service) *pb.Service {
 		GeneratedNameSource:      service.GeneratedNameSource,
 		AdditionalGeneratedNames: service.AdditionalGeneratedNames,
 		TracerMetadata:           protoTracerMetadata,
-		DdService:                service.DDService,
 		TcpPorts:                 tcpPorts,
 		UdpPorts:                 udpPorts,
 		ApmInstrumentation:       service.APMInstrumentation,
+		Ust:                      toProtoUST(service.UST),
 	}
 }
 
@@ -1078,22 +1091,23 @@ func toWorkloadmetaProcess(protoProcess *pb.Process) (*workloadmeta.Process, err
 	}
 
 	return &workloadmeta.Process{
-		EntityID:     entityID,
-		Pid:          protoProcess.Pid,
-		NsPid:        protoProcess.Nspid,
-		Ppid:         protoProcess.Ppid,
-		Name:         protoProcess.Name,
-		Cwd:          protoProcess.Cwd,
-		Exe:          protoProcess.Exe,
-		Comm:         protoProcess.Comm,
-		Cmdline:      protoProcess.Cmdline,
-		Uids:         protoProcess.Uids,
-		Gids:         protoProcess.Gids,
-		ContainerID:  protoProcess.ContainerId,
-		CreationTime: creationTime,
-		Language:     toWorkloadmetaLanguage(protoProcess.Language),
-		Owner:        owner,
-		Service:      toWorkloadmetaService(protoProcess.Service),
+		EntityID:       entityID,
+		Pid:            protoProcess.Pid,
+		NsPid:          protoProcess.Nspid,
+		Ppid:           protoProcess.Ppid,
+		Name:           protoProcess.Name,
+		Cwd:            protoProcess.Cwd,
+		Exe:            protoProcess.Exe,
+		Comm:           protoProcess.Comm,
+		Cmdline:        protoProcess.Cmdline,
+		Uids:           protoProcess.Uids,
+		Gids:           protoProcess.Gids,
+		ContainerID:    protoProcess.ContainerId,
+		CreationTime:   creationTime,
+		Language:       toWorkloadmetaLanguage(protoProcess.Language),
+		Owner:          owner,
+		Service:        toWorkloadmetaService(protoProcess.Service),
+		InjectionState: workloadmeta.InjectionState(protoProcess.InjectionState),
 	}, nil
 }
 
@@ -1112,6 +1126,18 @@ func toWorkloadmetaTracerMetadata(protoTracerMetadata *pb.TracerMetadata) tracer
 	return tracermetadata.TracerMetadata{
 		RuntimeID:   protoTracerMetadata.RuntimeId,
 		ServiceName: protoTracerMetadata.ServiceName,
+	}
+}
+
+func toWorkloadmetaUST(protoUST *pb.UST) workloadmeta.UST {
+	if protoUST == nil {
+		return workloadmeta.UST{}
+	}
+
+	return workloadmeta.UST{
+		Service: protoUST.Service,
+		Env:     protoUST.Env,
+		Version: protoUST.Version,
 	}
 }
 
@@ -1140,9 +1166,9 @@ func toWorkloadmetaService(protoService *pb.Service) *workloadmeta.Service {
 		GeneratedNameSource:      protoService.GeneratedNameSource,
 		AdditionalGeneratedNames: protoService.AdditionalGeneratedNames,
 		TracerMetadata:           tracerMetadata,
-		DDService:                protoService.DdService,
 		TCPPorts:                 tcpPorts,
 		UDPPorts:                 udpPorts,
 		APMInstrumentation:       protoService.ApmInstrumentation,
+		UST:                      toWorkloadmetaUST(protoService.Ust),
 	}
 }

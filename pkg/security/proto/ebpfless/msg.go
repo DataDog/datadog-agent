@@ -101,6 +101,8 @@ const (
 	SyscallTypeSetsockopt
 	// SyscallTypeSetrlimit setrlimit type
 	SyscallTypeSetrlimit
+	// SyscallTypePrctl prctl type
+	SyscallTypePrctl
 )
 
 // ContainerContext defines a container context
@@ -359,6 +361,13 @@ type SetrlimitSyscallMsg struct {
 	Pid      uint32
 }
 
+// PrctlSyscallMsg defines a prctl message
+type PrctlSyscallMsg struct {
+	Option  int
+	Arg2    uint64
+	NewName string
+}
+
 // SyscallMsg defines a syscall message
 type SyscallMsg struct {
 	Type         SyscallType
@@ -395,6 +404,7 @@ type SyscallMsg struct {
 	Accept       *AcceptSyscallMsg       `json:",omitempty"`
 	Setsockopt   *SetsockoptSyscallMsg   `json:",omitempty"`
 	Setrlimit    *SetrlimitSyscallMsg    `json:",omitempty"`
+	Prctl        *PrctlSyscallMsg        `json:",omitempty"`
 
 	// internals
 	Dup    *DupSyscallFakeMsg    `json:",omitempty"`

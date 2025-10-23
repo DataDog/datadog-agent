@@ -14,11 +14,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-type testDataItem struct {
-	header DataItemHeader
-	data   []byte
-}
-
 // We rely on the fact that the header and data item header are aligned to 8 bytes.
 // This test ensures that this is the case.
 func TestHeaderAlignment(t *testing.T) {
@@ -26,37 +21,74 @@ func TestHeaderAlignment(t *testing.T) {
 	require.Equal(t, 0, int(unsafe.Sizeof(DataItemHeader{}))%8)
 }
 
-func TestEventIterator(t *testing.T) {
-	fullHeader := EventHeader{
+var (
+	fullStack = []uint64{0x1, 0x2}
+	fullItems = []DataItem{
+		{
+			header: &DataItemHeader{Type: 1, Length: 4, Address: 0x100},
+			data:   []byte{1, 2, 3, 4},
+		},
+		{
+			header: &DataItemHeader{Type: 2, Length: 8, Address: 0x200},
+			data:   []byte{5, 6, 7, 8, 9, 10, 11, 12},
+		},
+	}
+	fullItemsDataLen = func() uint32 {
+		l := uint32(0)
+		for _, item := range fullItems {
+			l += uint32(
+				dataItemHeaderSize +
+					nextMultipleOf8(int(item.header.Length)),
+			)
+		}
+		return l
+	}()
+	fullHeader = EventHeader{
 		Prog_id:        1,
 		Stack_byte_len: 16,
 		Stack_hash:     12345,
 		Ktime_ns:       1000,
+		Data_byte_len:  uint32(int(eventHeaderSize) + 16 + int(fullItemsDataLen)),
 	}
-	fullStack := []uint64{0x1, 0x2}
-	fullItems := []testDataItem{
-		{
-			header: DataItemHeader{Type: 1, Length: 4, Address: 0x100},
-			data:   []byte{1, 2, 3, 4},
-		},
-		{
-			header: DataItemHeader{Type: 2, Length: 8, Address: 0x200},
-			data:   []byte{5, 6, 7, 8, 9, 10, 11, 12},
-		},
-	}
-	var fullItemsDataLen uint32
-	for _, item := range fullItems {
-		fullItemsDataLen += uint32(
-			dataItemHeaderSize +
-				nextMultipleOf8(int(item.header.Length)),
-		)
-	}
-	fullHeader.Data_byte_len = uint32(
-		eventHeaderSize +
-			nextMultipleOf8(int(fullHeader.Stack_byte_len)) +
-			int(fullItemsDataLen),
-	)
+	validEvent = Event(buildEvent(nil, &fullHeader, fullStack, fullItems))
+)
 
+func BenchmarkFirstDataItemHeader(b *testing.B) {
+	var v *DataItemHeader
+	for b.Loop() {
+		v, _ = validEvent.FirstDataItemHeader()
+	}
+	require.NotNil(b, v)
+}
+func BenchmarkHeader(b *testing.B) {
+	var v *EventHeader
+	for i := 0; i < b.N; i++ {
+		v, _ = validEvent.Header()
+	}
+	require.NotNil(b, v)
+	require.Equal(b, &fullHeader, v)
+}
+func BenchmarkStackPCs(b *testing.B) {
+	var v []uint64
+	for b.Loop() {
+		v, _ = validEvent.StackPCs()
+	}
+	require.NotNil(b, v)
+	require.Equal(b, fullStack, v)
+}
+
+func BenchmarkDataItems(b *testing.B) {
+	items := []DataItem{}
+	for b.Loop() {
+		items = items[:0]
+		for item := range validEvent.DataItems() {
+			items = append(items, item)
+		}
+	}
+	require.EqualValues(b, fullItems, items)
+}
+
+func TestEventIterator(t *testing.T) {
 	tests := []struct {
 		name               string
 		event              Event
@@ -64,7 +96,7 @@ func TestEventIterator(t *testing.T) {
 		expectHeaderErr    string
 		expectedStack      []uint64
 		expectStackErr     string
-		expectedDataItems  []testDataItem
+		expectedDataItems  []DataItem
 		expectDataItemsErr []string
 	}{
 		{
@@ -191,7 +223,7 @@ func TestEventIterator(t *testing.T) {
 				return &header
 			}(),
 			expectedStack:      fullStack,
-			expectedDataItems:  []testDataItem{fullItems[0]},
+			expectedDataItems:  []DataItem{fullItems[0]},
 			expectDataItemsErr: []string{"", "not enough bytes to read data item:"},
 		},
 		{
@@ -218,7 +250,7 @@ func TestEventIterator(t *testing.T) {
 				return &header
 			}(),
 			expectedStack:      fullStack,
-			expectedDataItems:  []testDataItem{fullItems[0]},
+			expectedDataItems:  []DataItem{fullItems[0]},
 			expectDataItemsErr: []string{"", "not enough bytes to read data item header:"},
 		},
 		{
@@ -255,7 +287,7 @@ func TestEventIterator(t *testing.T) {
 				require.Equal(t, tt.expectedStack, stack)
 			}
 
-			var items []testDataItem
+			var items []DataItem
 			i := 0
 			for item, err := range tt.event.DataItems() {
 				if len(tt.expectDataItemsErr) > i {
@@ -264,13 +296,13 @@ func TestEventIterator(t *testing.T) {
 						require.Regexp(t, pattern, err)
 					} else {
 						require.NoError(t, err)
-						items = append(
-							items,
-							testDataItem{
-								header: *item.Header(),
-								data:   item.Data(),
-							},
-						)
+						data, ok := item.Data()
+						require.True(t, ok)
+						header := *item.Header()
+						items = append(items, DataItem{
+							header: &header,
+							data:   data,
+						})
 					}
 				} else {
 					require.NoError(
@@ -278,10 +310,13 @@ func TestEventIterator(t *testing.T) {
 						"got unexpected error from DataItems iterator on item %d",
 						i,
 					)
-					items = append(
-						items,
-						testDataItem{header: *item.Header(), data: item.Data()},
-					)
+					data, ok := item.Data()
+					require.True(t, ok)
+					header := *item.Header()
+					items = append(items, DataItem{
+						header: &header,
+						data:   data,
+					})
 				}
 				i++
 			}
@@ -330,7 +365,7 @@ func buildEvent(
 	b []byte,
 	header *EventHeader,
 	stack []uint64,
-	items []testDataItem,
+	items []DataItem,
 ) []byte {
 	b = append(b[:0], make([]byte, eventHeaderSize)...)
 	*(*EventHeader)(unsafe.Pointer(&b[0])) = *header
@@ -344,7 +379,7 @@ func buildEvent(
 	for _, item := range items {
 		itemHeaderStart := len(b)
 		b = append(b, make([]byte, dataItemHeaderSize)...)
-		*(*DataItemHeader)(unsafe.Pointer(&b[itemHeaderStart])) = item.header
+		*(*DataItemHeader)(unsafe.Pointer(&b[itemHeaderStart])) = *item.header
 
 		b = append(b, item.data...)
 		b = alignTo8(b)

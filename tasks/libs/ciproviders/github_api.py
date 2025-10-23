@@ -517,20 +517,22 @@ class GithubAPI:
     def _chose_auth(self, public_repo):
         """
         Attempt to find a working authentication, in order:
-            - Personal access token through GITHUB_TOKEN environment variable
-            - Short lived token generated locally
-            - A fake login user/password to reach public repositories
-            - An app token through the GITHUB_APP_ID & GITHUB_KEY_B64 environment
-              variables (can also use GITHUB_INSTALLATION_ID to save a request).
-              This is required for Gitlab CI.
+            - Locally:
+              - Short lived token generated locally
+            - On CI:
+              - GITHUB_TOKEN environment variable
+              - A fake login user/password to reach public repositories
+              - An app token through the GITHUB_APP_ID & GITHUB_KEY_B64 environment
+                variables (can also use GITHUB_INSTALLATION_ID to save a request).
+                This is required for Gitlab CI.
         """
         from tasks.libs.common.utils import running_in_ci
 
+        if not running_in_ci():
+            return Auth.Token(generate_local_github_token(Context()))
         if "GITHUB_TOKEN" in os.environ:
             return Auth.Token(os.environ["GITHUB_TOKEN"])
-        elif not running_in_ci():
-            return Auth.Token(generate_local_github_token(Context()))
-        elif public_repo:
+        if public_repo:
             return Auth.Login("user", "password")
 
         if "GITHUB_APP_ID" not in os.environ or "GITHUB_KEY_B64" not in os.environ:
@@ -548,9 +550,9 @@ class GithubAPI:
             # retrieve it, given the other credentials (app id + key).
             integration = GithubIntegration(auth=appAuth)
             installations = integration.get_installations()
-            if len(installations) == 0:
+            if installations.totalCount == 0:
                 raise Exit(message='No usable installation found', code=1)
-            installation_id = installations[0]
+            installation_id = installations[0].id
         return appAuth.get_installation_auth(int(installation_id))
 
     @staticmethod
@@ -761,7 +763,7 @@ Make sure that milestone is open before trying again.""",
     return updated_pr.html_url
 
 
-def create_release_pr(title, base_branch, target_branch, version, changelog_pr=False, milestone=None):
+def create_release_pr(title, base_branch, target_branch, version, changelog_pr=False, milestone=None, labels=()):
     if milestone:
         milestone_name = milestone
     else:
@@ -771,6 +773,7 @@ def create_release_pr(title, base_branch, target_branch, version, changelog_pr=F
 
     labels = [
         "team/agent-delivery",
+        *labels,
     ]
     if changelog_pr:
         labels.append(f"backport/{get_default_branch()}")
@@ -792,9 +795,11 @@ def generate_local_github_token(ctx):
     try:
         token = ctx.run('ddtool auth github token', hide=True).stdout.strip()
 
-        assert (
-            token.startswith('gh') and ' ' not in token
-        ), "`ddtool auth github token` returned an invalid token, it might be due to ddtool outdated. Please run `brew update && brew upgrade ddtool`."
+        assert token.startswith('gh') and ' ' not in token, (
+            "`ddtool auth github token` returned an invalid token, "
+            "it might be due to ddtool outdated. "
+            "Please run `brew update && brew upgrade ddtool`."
+        )
 
         return token
     except AssertionError:

@@ -64,14 +64,12 @@ func TestMount(t *testing.T) {
 	var mntID uint32
 	t.Run("mount", func(t *testing.T) {
 		err = test.GetProbeEvent(func() error {
-			// Test mount
 			if err := syscall.Mount(mntPath, dstMntPath, "bind", syscall.MS_BIND, ""); err != nil {
 				return fmt.Errorf("could not create bind mount: %w", err)
 			}
 			return nil
 		}, func(event *model.Event) bool {
 			mntID = event.Mount.MountID
-
 			if !assert.Equal(t, "mount", event.GetType(), "wrong event type") {
 				return true
 			}
@@ -518,14 +516,19 @@ func TestMountEvent(t *testing.T) {
 	})
 
 	const dockerMountDest = "/host_root"
-	wrapperTruePositive, err := newDockerCmdWrapper("/", dockerMountDest, "alpine", "")
-	if err != nil {
-		t.Skip("Skipping mounts in containers tests: Docker not available")
-		return
-	}
 
 	t.Run("mount-in-container-root", func(t *testing.T) {
 		SkipIfNotAvailable(t)
+
+		if _, err := whichNonFatal("docker"); err != nil {
+			t.Skip("Skip test where docker is unavailable")
+		}
+
+		wrapperTruePositive, err := newDockerCmdWrapper("/", dockerMountDest, "alpine", "")
+		if err != nil {
+			t.Fatalf("failed to start docker wrapper: %v", err)
+		}
+
 		test.WaitSignal(t, func() error {
 			if _, err := wrapperTruePositive.start(); err != nil {
 				return err
@@ -548,16 +551,21 @@ func TestMountEvent(t *testing.T) {
 		})
 	})
 
-	legitimateSourcePath := testDrive.Path("legitimate_source")
-	if err = os.Mkdir(legitimateSourcePath, 0755); err != nil {
-		t.Fatal(err)
-	}
-	wrapperFalsePositive, err := newDockerCmdWrapper(legitimateSourcePath, dockerMountDest, "alpine", "")
-	if err != nil {
-		t.Fatal(err)
-	}
-
 	t.Run("mount-in-container-legitimate", func(t *testing.T) {
+		if _, err := whichNonFatal("docker"); err != nil {
+			t.Skip("Skip test where docker is unavailable")
+		}
+
+		legitimateSourcePath := testDrive.Path("legitimate_source")
+		if err = os.Mkdir(legitimateSourcePath, 0755); err != nil {
+			t.Fatal(err)
+		}
+
+		wrapperFalsePositive, err := newDockerCmdWrapper(legitimateSourcePath, dockerMountDest, "alpine", "")
+		if err != nil {
+			t.Fatalf("failed to start docker wrapper: %v", err)
+		}
+
 		err = test.GetSignal(t, func() error {
 			if _, err := wrapperFalsePositive.start(); err != nil {
 				return err

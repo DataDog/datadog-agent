@@ -9,14 +9,13 @@ package main
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"os"
-	"os/exec"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-agent/cmd/serverless-init/exitcode"
 	serverlessInitLog "github.com/DataDog/datadog-agent/cmd/serverless-init/log"
 	"github.com/DataDog/datadog-agent/cmd/serverless-init/mode"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
@@ -59,7 +58,6 @@ import (
 	tracelog "github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 const datadogConfigPath = "datadog.yaml"
@@ -87,9 +85,7 @@ func main() {
 		fx.Supply(coreconfig.NewParams("")),
 		coreconfig.Module(),
 		logscompressionfx.Module(),
-		fx.Supply(secrets.NewEnabledParams()),
 		secretsfx.Module(),
-		fx.Provide(func(secrets secrets.Component) option.Option[secrets.Component] { return option.New(secrets) }),
 		fx.Supply(logdef.ForOneShot(modeConf.LoggerName, "off", true)),
 		logfx.Module(),
 		nooptelemetry.Module(),
@@ -98,28 +94,27 @@ func main() {
 
 	if err != nil {
 		log.Error(err)
-		exitCode := errorExitCode(err)
+		exitCode := exitcode.From(err)
+		log.Debugf("propagating exit code %v", exitCode)
 		log.Flush()
 		os.Exit(exitCode)
 	}
 }
 
 // removing these unused dependencies will cause silent crash due to fx framework
-func run(_ secrets.Component, _ autodiscovery.Component, _ healthprobeDef.Component, tagger tagger.Component, compression logscompression.Component, hostname hostnameinterface.Component) error {
-	cloudService, logConfig, traceAgent, metricAgent, logsAgent := setup(modeConf, tagger, compression, hostname)
+func run(secretComp secrets.Component, _ autodiscovery.Component, _ healthprobeDef.Component, tagger tagger.Component, compression logscompression.Component, hostname hostnameinterface.Component) error {
+	cloudService, logConfig, traceAgent, metricAgent, logsAgent := setup(secretComp, modeConf, tagger, compression, hostname)
 
 	err := modeConf.Runner(logConfig)
 
-	metric.Add(cloudService.GetShutdownMetricName(), 1.0, cloudService.GetSource(), *metricAgent)
-
 	// Defers are LIFO
 	defer lastFlush(logConfig.FlushTimeout, metricAgent, traceAgent, logsAgent)
-	defer cloudService.Shutdown(*metricAgent)
+	defer cloudService.Shutdown(*metricAgent, err)
 
 	return err
 }
 
-func setup(_ mode.Conf, tagger tagger.Component, compression logscompression.Component, hostname hostnameinterface.Component) (cloudservice.CloudService, *serverlessInitLog.Config, trace.ServerlessTraceAgent, *metrics.ServerlessMetricAgent, logsAgent.ServerlessLogsAgent) {
+func setup(secretComp secrets.Component, _ mode.Conf, tagger tagger.Component, compression logscompression.Component, hostname hostnameinterface.Component) (cloudservice.CloudService, *serverlessInitLog.Config, trace.ServerlessTraceAgent, *metrics.ServerlessMetricAgent, logsAgent.ServerlessLogsAgent) {
 	tracelog.SetLogger(corelogger{})
 
 	// load proxy settings
@@ -133,11 +128,11 @@ func setup(_ mode.Conf, tagger tagger.Component, compression logscompression.Com
 	// and exit right away.
 	_ = cloudService.Init()
 
-	configuredTags := configUtils.GetConfiguredTags(pkgconfigsetup.Datadog(), false)
-
 	tags := serverlessInitTag.GetBaseTagsMapWithMetadata(
 		serverlessTag.MergeWithOverwrite(
-			serverlessTag.ArrayToMap(configuredTags),
+			serverlessTag.ArrayToMap(
+				configUtils.GetConfiguredTags(pkgconfigsetup.Datadog(), false),
+			),
 			cloudService.GetTags()),
 		modeConf.TagVersionMode)
 
@@ -146,7 +141,7 @@ func setup(_ mode.Conf, tagger tagger.Component, compression logscompression.Com
 
 	// The datadog-agent requires Load to be called or it could
 	// panic down the line.
-	_, err := pkgconfigsetup.LoadWithoutSecret(pkgconfigsetup.Datadog(), nil)
+	err := pkgconfigsetup.LoadDatadog(pkgconfigsetup.Datadog(), secretComp, nil)
 	if err != nil {
 		log.Debugf("Error loading config: %v\n", err)
 	}
@@ -154,7 +149,7 @@ func setup(_ mode.Conf, tagger tagger.Component, compression logscompression.Com
 	origin := cloudService.GetOrigin()
 	logsAgent := serverlessInitLog.SetupLogAgent(agentLogConfig, tags, tagger, compression, hostname, origin)
 
-	functionTags := strings.Join(configuredTags, ",")
+	functionTags := serverlessTag.GetFunctionTags(pkgconfigsetup.Datadog())
 	traceAgent := setupTraceAgent(tags, functionTags, tagger)
 
 	metricAgent := setupMetricAgent(tags, tagger, cloudService.ShouldForceFlushAllOnForceFlushToSerializer())
@@ -286,18 +281,4 @@ func setEnvWithoutOverride(envToSet map[string]string) {
 			log.Debugf("%s already set with %s, skipping setting it", envName, val)
 		}
 	}
-}
-
-func errorExitCode(err error) int {
-	// if error is of type exec.ExitError then propagate the exit code
-	var exitError *exec.ExitError
-	if errors.As(err, &exitError) {
-		exitCode := exitError.ExitCode()
-		log.Debugf("propagating exit code %v", exitCode)
-		return exitCode
-	}
-
-	// use exit code 1 if there is no exit code in the error to propagate
-	log.Debug("using default exit code 1")
-	return 1
 }

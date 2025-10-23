@@ -28,7 +28,7 @@ import (
 
 func TestOptionalModule(t *testing.T) {
 	handler := func(w http.ResponseWriter, _ *http.Request) {
-		w.Write([]byte(`{"key1": "value1"}`))
+		w.Write([]byte(`{"api_key": "value1"}`))
 	}
 
 	ipcComp := ipcmock.New(t)
@@ -59,6 +59,6 @@ func TestOptionalModule(t *testing.T) {
 	require.True(t, comp.(configSync).enabled)
 
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		assert.Equal(t, "value1", cfg.Get("key1"))
+		assert.Equal(t, "value1", cfg.Get("api_key"))
 	}, 5*time.Second, 500*time.Millisecond)
 }

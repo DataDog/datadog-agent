@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipchttp "github.com/DataDog/datadog-agent/comp/core/ipc/httphelpers"
+	"github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/profile"
 	"github.com/DataDog/datadog-agent/pkg/snmp/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"gopkg.in/yaml.v2"
@@ -48,6 +49,7 @@ type AuthCredentials struct { // auth_credentials
 // DeviceInstance holds the initial config to connect to a network device, including its IP address and authentication credentials.
 type DeviceInstance struct {
 	IPAddress string          `yaml:"ip_address"` // ip address of the network device, e.g., "10.0.0.1"
+	Profile   string          `yaml:"profile"`    // device profile name, e.g., "cisco-ios"
 	Auth      AuthCredentials `yaml:"auth"`
 }
 
@@ -62,6 +64,8 @@ type NcmCheckContext struct {
 	Namespace             string
 	Device                *DeviceInstance
 	MinCollectionInterval time.Duration
+	ProfileMap            profile.Map
+	ProfileCache          *profile.Cache
 }
 
 // NcmComponentContext is the processed config structure for Network Config Management (NCM) to be used by the component
@@ -84,12 +88,10 @@ func NewNcmCheckContext(rawInstance integration.Data, rawInitConfig integration.
 	if err != nil {
 		return nil, fmt.Errorf("failed to unmarshal device config: %s", err)
 	}
-	// Validate device instance
 	err = deviceInstance.ValidateDeviceInstance()
 	if err != nil {
 		return nil, fmt.Errorf("invalid device config for device %s: %w", deviceInstance.IPAddress, err)
 	}
-	// Set device instance in context
 	ncc.Device = &deviceInstance
 
 	//Parse init config
@@ -103,7 +105,25 @@ func NewNcmCheckContext(rawInstance integration.Data, rawInitConfig integration.
 		return nil, err
 	}
 	ncc.Namespace = initConfig.Namespace
-	ncc.MinCollectionInterval = time.Duration(initConfig.MinCollectionInterval)
+	ncc.MinCollectionInterval = time.Duration(initConfig.MinCollectionInterval) * time.Second
+
+	// Populate the profiles map (from defaults/OOTB)
+	profMap, err := profile.GetProfileMap("default_profiles")
+	if err != nil {
+		return nil, fmt.Errorf("failed to get profile map: %w", err)
+	}
+	ncc.ProfileMap = profMap
+
+	profileCache := &profile.Cache{}
+	// If profile is defined inline for the device, use that profile, otherwise it will have to attempt profiles later
+	if ncc.Device.Profile != "" {
+		p, err := ncc.ProfileMap.GetProfile(ncc.Device.Profile)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get profile %s: %w", ncc.Device.Profile, err)
+		}
+		profileCache = &profile.Cache{ProfileName: p.Name, Profile: p}
+	}
+	ncc.ProfileCache = profileCache
 
 	return ncc, nil
 }
@@ -192,10 +212,13 @@ func (ic *InitConfig) ValidateInitConfig() error {
 		return err
 	}
 	ic.Namespace = namespace
+
+	// if invalid interval, use default
 	if ic.MinCollectionInterval <= 0 {
 		log.Debugf("No or invalid min_collection_interval specified in init config, applying default: %d", defaultCheckInterval)
 		ic.MinCollectionInterval = int(defaultCheckInterval.Seconds()) // Default to 15 minutes
 	}
+
 	return nil
 }
 

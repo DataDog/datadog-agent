@@ -93,6 +93,7 @@ func TestProcessCollector(t *testing.T) {
 		"language_detection.enabled":                true,
 		"process_config.process_collection.enabled": true,
 		"process_config.run_in_core_agent.enabled":  true,
+		"process_config.process_collection.use_wlm": false,
 	}
 
 	c := setUpCollectorTest(t, configOverrides)
@@ -257,6 +258,7 @@ func TestProcessCollectorWithoutProcessCheck(t *testing.T) {
 		"language_detection.enabled":                true,
 		"process_config.process_collection.enabled": false,
 		"process_config.run_in_core_agent.enabled":  true,
+		"process_config.process_collection.use_wlm": false,
 	}
 
 	c := setUpCollectorTest(t, configOverrides)
@@ -286,8 +288,8 @@ func TestProcessCollectorWithoutProcessCheck(t *testing.T) {
 
 	assert.EventuallyWithT(t, func(cT *assert.CollectT) {
 		proc, err := c.mockStore.GetProcess(1)
-		assert.NoError(cT, err)
-		assert.NotNil(cT, proc)
+		require.NoError(cT, err)
+		require.NotNil(cT, proc)
 		assert.Equal(cT, expectedCid, proc.ContainerID)
 	}, 1*time.Second, time.Millisecond*100)
 }

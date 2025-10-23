@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
 // GetSECLVariables returns the set of SECL variables along with theirs values
@@ -23,8 +24,14 @@ func (e *RuleEngine) GetSECLVariables() map[string]*api.SECLVariableState {
 		return nil
 	}
 
-	seclVariables := e.getCommonSECLVariables(rs)
-	for name, value := range rs.GetVariables() {
+	preparator := e.newSECLVariableEventPreparator()
+
+	rsVariables := rs.GetVariables()
+	seclVariables := make(map[string]*api.SECLVariableState, len(rsVariables))
+
+	e.fillCommonSECLVariables(rsVariables, seclVariables, preparator)
+
+	for name, value := range rsVariables {
 		if strings.HasPrefix(name, "container.") {
 			scopedVariable := value.(eval.ScopedVariable)
 			ebpfProbe, ok := e.probe.PlatformProbe.(*probe.EBPFProbe)
@@ -33,50 +40,56 @@ func (e *RuleEngine) GetSECLVariables() map[string]*api.SECLVariableState {
 			}
 			cgr := ebpfProbe.Resolvers.CGroupResolver
 
-			cgr.Iterate(func(cgce *cgroupModel.CacheEntry) {
+			cgr.Iterate(func(cgce *cgroupModel.CacheEntry) bool {
 				cgce.RLock()
 				defer cgce.RUnlock()
 				if cgce.ContainerContext.ContainerID == "" {
-					return
+					return false
 				}
 
-				event := e.probe.PlatformProbe.NewEvent()
-				event.ContainerContext = &cgce.ContainerContext
-				ctx := eval.NewContext(event)
-				scopedName := fmt.Sprintf("%s.%s", name, cgce.ContainerContext.ContainerID)
+				ctx := preparator.get(func(event *model.Event) {
+					event.ContainerContext = &cgce.ContainerContext
+				})
+				defer preparator.put(ctx)
+
 				value, found := scopedVariable.GetValue(ctx)
 				if !found {
-					return
+					return false
 				}
 
+				scopedName := fmt.Sprintf("%s.%s", name, cgce.ContainerContext.ContainerID)
 				scopedValue := fmt.Sprintf("%v", value)
 				seclVariables[scopedName] = &api.SECLVariableState{
 					Name:  scopedName,
 					Value: scopedValue,
 				}
+				return false
 			})
-		} else if strings.HasPrefix(name, "cgroup.") {
+		} else if !e.probe.Opts.EBPFLessEnabled && strings.HasPrefix(name, "cgroup.") {
 			scopedVariable := value.(eval.ScopedVariable)
 
 			cgr := e.probe.PlatformProbe.(*probe.EBPFProbe).Resolvers.CGroupResolver
-			cgr.Iterate(func(cgce *cgroupModel.CacheEntry) {
+			cgr.Iterate(func(cgce *cgroupModel.CacheEntry) bool {
 				cgce.RLock()
 				defer cgce.RUnlock()
 
-				event := e.probe.PlatformProbe.NewEvent()
-				event.CGroupContext = &cgce.CGroupContext
-				ctx := eval.NewContext(event)
-				scopedName := fmt.Sprintf("%s.%s", name, cgce.CGroupID)
+				ctx := preparator.get(func(event *model.Event) {
+					event.CGroupContext = &cgce.CGroupContext
+				})
+				defer preparator.put(ctx)
+
 				value, found := scopedVariable.GetValue(ctx)
 				if !found {
-					return
+					return false
 				}
 
+				scopedName := fmt.Sprintf("%s.%s", name, cgce.CGroupID)
 				scopedValue := fmt.Sprintf("%v", value)
 				seclVariables[scopedName] = &api.SECLVariableState{
 					Name:  scopedName,
 					Value: scopedValue,
 				}
+				return false
 			})
 		}
 	}

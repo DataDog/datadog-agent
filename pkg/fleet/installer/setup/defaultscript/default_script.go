@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"os"
 	"regexp"
+	"runtime"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
@@ -19,7 +20,7 @@ import (
 )
 
 const (
-	defaultInjectorVersion = "0.40.0-1"
+	defaultInjectorVersion = "0"
 )
 
 var (
@@ -103,6 +104,7 @@ func SetupDefaultScript(s *common.Setup) error {
 		return fmt.Errorf("failed to setup APM SSI script: %w", err)
 	}
 
+	s.NoConfig = false
 	return nil
 }
 
@@ -199,7 +201,11 @@ func installAPMPackages(s *common.Setup) {
 	// Injector install
 	_, apmInstrumentationEnabled := os.LookupEnv("DD_APM_INSTRUMENTATION_ENABLED")
 	if apmInstrumentationEnabled {
-		s.Packages.Install(common.DatadogAPMInjectPackage, defaultInjectorVersion)
+		if runtime.GOOS != "windows" {
+			s.Packages.Install(common.DatadogAPMInjectPackage, defaultInjectorVersion)
+		}
+		// the "host" options will be added to windows
+		// this will then install the IIS agent package
 	}
 
 	// Libraries install

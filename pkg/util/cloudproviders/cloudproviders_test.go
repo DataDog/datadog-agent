@@ -8,9 +8,13 @@ package cloudproviders
 import (
 	"context"
 	"fmt"
+	"strings"
 	"testing"
 
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestCloudProviderAliases(t *testing.T) {
@@ -62,6 +66,10 @@ func TestCloudProviderHostCCRID(t *testing.T) {
 
 	detector1Called := false
 	detector2Called := false
+	clearDetectors := func() {
+		detector1Called = false
+		detector2Called = false
+	}
 
 	hostCCRIDDetectors = map[string]cloudProviderCCRIDDetector{
 		"detector1": func(_ context.Context) (string, error) {
@@ -78,10 +86,34 @@ func TestCloudProviderHostCCRID(t *testing.T) {
 	assert.False(t, detector1Called, "host alias callback for 'detector1' should not be called")
 	assert.True(t, detector2Called, "host alias callback for 'detector2' was not called")
 	assert.Equal(t, "ccrid2", ccrid)
-	detector2Called = false
+	clearDetectors()
 
 	ccrid = GetHostCCRID(context.TODO(), "detector1")
 	assert.True(t, detector1Called, "host alias callback for 'detector1' was not called")
 	assert.False(t, detector2Called, "host alias callback for 'detector2' should not be called")
 	assert.Equal(t, "ccrid1", ccrid)
+	clearDetectors()
+
+	// If not a known environment, try everything
+	ccrid = GetHostCCRID(context.TODO(), "kubelet")
+	assert.True(t, detector1Called, "host alias callback for 'detector1' was not called")
+	assert.True(t, detector2Called, "host alias callback for 'detector2' was not called")
+	assert.True(t, strings.HasPrefix(ccrid, "ccrid"))
+	clearDetectors()
+
+	// If an empty string, fail fast
+	ccrid = GetHostCCRID(context.TODO(), "")
+	assert.False(t, detector1Called, "host alias callback for 'detector1' should not be called")
+	assert.False(t, detector2Called, "host alias callback for 'detector2' should not be called")
+	assert.Equal(t, "", ccrid)
+	clearDetectors()
+}
+
+func TestGetValidHostAliasesWithConfig(t *testing.T) {
+	config := configmock.New(t)
+	config.SetWithoutSource("host_aliases", []string{"foo", "-bar"})
+
+	val, err := getValidHostAliases(context.TODO())
+	require.NoError(t, err)
+	assert.EqualValues(t, []string{"foo"}, val)
 }

@@ -11,12 +11,14 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/gpu/config"
 	"github.com/DataDog/datadog-agent/pkg/gpu/cuda"
 	gpuebpf "github.com/DataDog/datadog-agent/pkg/gpu/ebpf"
@@ -841,10 +843,13 @@ func TestGetPastDataConcurrency(t *testing.T) {
 	// Create a goroutine that will send kernel launches and syncs
 	done := make(chan struct{})
 	sentSyncs := atomic.Uint64{}
+	wg := sync.WaitGroup{}
+	wg.Add(1)
 	go func() {
 		for {
 			select {
 			case <-done:
+				wg.Done()
 				return
 			default:
 				// Send 100 events of each type and then synchronize
@@ -876,7 +881,9 @@ func TestGetPastDataConcurrency(t *testing.T) {
 		}
 	}()
 	t.Cleanup(func() {
+		// Ensure the goroutine is done before ending the test
 		close(done)
+		wg.Wait()
 	})
 
 	// Ensure some data is sent
@@ -934,4 +941,194 @@ func BenchmarkHandleEvents(b *testing.B) {
 
 		i++
 	}
+}
+
+type poolStats struct {
+	active int
+	get    int
+	put    int
+}
+
+func getMetricWithTags(t *testing.T, metrics []telemetry.Metric, tags map[string]string) int {
+	for _, metric := range metrics {
+		matchesAll := true
+		metricTags := metric.Tags()
+		for tag, expectedValue := range tags {
+			if metricTags[tag] != expectedValue {
+				matchesAll = false
+				break
+			}
+		}
+		if matchesAll {
+			return int(metric.Value())
+		}
+	}
+	t.Fatalf("metric not found with tags %v", tags)
+	return 0
+}
+
+func getPoolStats(t *testing.T, telemetryMock telemetry.Mock, pool string) poolStats {
+	active, err := telemetryMock.GetGaugeMetric("sync__pool", "active")
+	require.NoError(t, err)
+	require.NotEmpty(t, active)
+	activeCount := getMetricWithTags(t, active, map[string]string{"module": "gpu", "name": pool})
+
+	get, err := telemetryMock.GetCountMetric("sync__pool", "get")
+	require.NoError(t, err)
+	require.NotEmpty(t, get)
+	getCount := getMetricWithTags(t, get, map[string]string{"module": "gpu", "name": pool})
+
+	put, err := telemetryMock.GetCountMetric("sync__pool", "put")
+	require.NoError(t, err)
+	require.NotEmpty(t, put)
+	putCount := getMetricWithTags(t, put, map[string]string{"module": "gpu", "name": pool})
+
+	return poolStats{
+		active: activeCount,
+		get:    getCount,
+		put:    putCount,
+	}
+}
+
+func TestEnrichedKernelLaunchPool(t *testing.T) {
+	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled()))
+	telemetryMock := testutil.GetTelemetryMock(t)
+	streamTelemetry := newStreamTelemetry(telemetryMock)
+	withTelemetryEnabledPools(t, telemetryMock)
+	cfg := config.StreamConfig{
+		MaxKernelLaunches:     10,
+		MaxMemAllocEvents:     10,
+		MaxPendingKernelSpans: 10,
+		MaxPendingMemorySpans: 10,
+	}
+
+	stream, err := newStreamHandler(streamMetadata{}, getTestSystemContext(t), cfg, streamTelemetry)
+	require.NoError(t, err)
+
+	extraLaunches := 5
+	numLaunches := cfg.MaxKernelLaunches + extraLaunches
+	for i := 0; i < numLaunches; i++ {
+		stream.handleKernelLaunch(&gpuebpf.CudaKernelLaunch{
+			Header: gpuebpf.CudaEventHeader{
+				Ktime_ns: uint64(time.Now().UnixNano()),
+			},
+		})
+	}
+
+	// after this loop, the first 10 (cfg.MaxKernelLaunches) should have been processed as
+	// we reached the max, and once processed they should have been put back in the pool
+	stats := getPoolStats(t, telemetryMock, "enrichedKernelLaunch")
+	require.Equal(t, extraLaunches, stats.active)
+	require.Equal(t, numLaunches, stats.get)
+	require.Equal(t, cfg.MaxKernelLaunches, stats.put)
+
+	// getting the current data should not release or get any items
+	currData := stream.getCurrentData(uint64(time.Now().UnixNano()))
+	require.NotNil(t, currData)
+	stats = getPoolStats(t, telemetryMock, "enrichedKernelLaunch")
+	require.Equal(t, extraLaunches, stats.active)
+	require.Equal(t, numLaunches, stats.get)
+	require.Equal(t, cfg.MaxKernelLaunches, stats.put)
+
+	// forcing a synchronization should release the items
+	stream.markSynchronization(uint64(time.Now().UnixNano()))
+	stats = getPoolStats(t, telemetryMock, "enrichedKernelLaunch")
+	require.Equal(t, 0, stats.active)
+	require.Equal(t, numLaunches, stats.get)
+	require.Equal(t, numLaunches, stats.put)
+}
+
+func testPool(t *testing.T, poolName string, genSpan func(stream *StreamHandler), maxSpans int) {
+	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled()))
+	telemetryMock := testutil.GetTelemetryMock(t)
+	streamTelemetry := newStreamTelemetry(telemetryMock)
+	withTelemetryEnabledPools(t, telemetryMock)
+	cfg := config.StreamConfig{
+		MaxKernelLaunches:     10,
+		MaxMemAllocEvents:     10,
+		MaxPendingKernelSpans: maxSpans,
+		MaxPendingMemorySpans: maxSpans,
+	}
+
+	stream, err := newStreamHandler(streamMetadata{}, getTestSystemContext(t), cfg, streamTelemetry)
+	require.NoError(t, err)
+
+	extraSpans := 5
+	numSpans := maxSpans + extraSpans
+	for i := 0; i < numSpans; i++ {
+		genSpan(stream)
+	}
+
+	// we have generated more kernel spans than the limit. The first 10 (maxSpans) will have been
+	// added into the channel, waiting for consumption. The rest, being over the channel size, should have
+	// been rejected by the channel and released back to the pool
+	stats := getPoolStats(t, telemetryMock, poolName)
+	require.Equal(t, maxSpans, stats.active)
+	require.Equal(t, numSpans, stats.get)
+	require.Equal(t, extraSpans, stats.put)
+
+	// getting current data should not release or get any items, as there are no pending events
+	currData := stream.getCurrentData(uint64(time.Now().UnixNano()))
+	require.Nil(t, currData)
+	stats = getPoolStats(t, telemetryMock, poolName)
+	require.Equal(t, maxSpans, stats.active)
+	require.Equal(t, numSpans, stats.get)
+	require.Equal(t, extraSpans, stats.put)
+
+	// now getting the past data will consume the items from the channel, but not release the
+	// as the ownership is passed to streamSpans
+	pastData := stream.getPastData()
+	require.NotNil(t, pastData)
+
+	switch poolName {
+	case "kernelSpan":
+		require.Len(t, pastData.kernels, maxSpans)
+	case "memorySpan":
+		require.Len(t, pastData.allocations, maxSpans)
+	default:
+		require.Fail(t, "invalid pool name", poolName)
+	}
+
+	stats = getPoolStats(t, telemetryMock, poolName)
+	require.Equal(t, maxSpans, stats.active)
+	require.Equal(t, numSpans, stats.get)
+	require.Equal(t, extraSpans, stats.put)
+
+	// once we release the spans, they should be released back to the pool
+	pastData.releaseSpans()
+	stats = getPoolStats(t, telemetryMock, poolName)
+	require.Equal(t, 0, stats.active)
+	require.Equal(t, numSpans, stats.get)
+	require.Equal(t, numSpans, stats.put)
+}
+
+func TestKernelSpanPool(t *testing.T) {
+	testPool(t, "kernelSpan", func(stream *StreamHandler) {
+		stream.handleKernelLaunch(&gpuebpf.CudaKernelLaunch{
+			Header: gpuebpf.CudaEventHeader{
+				Ktime_ns: uint64(time.Now().UnixNano()),
+			},
+		})
+		stream.markSynchronization(uint64(time.Now().UnixNano()))
+	}, 10)
+}
+
+func TestMemorySpanPool(t *testing.T) {
+	testPool(t, "memorySpan", func(stream *StreamHandler) {
+		stream.handleMemEvent(&gpuebpf.CudaMemEvent{
+			Header: gpuebpf.CudaEventHeader{
+				Ktime_ns: uint64(time.Now().UnixNano()),
+			},
+			Type: gpuebpf.CudaMemAlloc,
+			Addr: uint64(10),
+			Size: uint64(1024),
+		})
+		stream.handleMemEvent(&gpuebpf.CudaMemEvent{
+			Header: gpuebpf.CudaEventHeader{
+				Ktime_ns: uint64(time.Now().UnixNano()),
+			},
+			Type: gpuebpf.CudaMemFree,
+			Addr: uint64(10),
+		})
+	}, 10)
 }

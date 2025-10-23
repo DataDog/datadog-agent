@@ -91,14 +91,15 @@ type Manager struct {
 	activityDumpLoadConfig *model.ActivityDumpLoadConfig
 
 	// ebpf maps
-	tracedPIDsMap              *ebpf.Map
-	tracedCgroupsMap           *ebpf.Map
-	tracedCgroupsDiscardedMap  *ebpf.Map
-	cgroupWaitList             *ebpf.Map
-	activityDumpsConfigMap     *ebpf.Map
-	activityDumpConfigDefaults *ebpf.Map
+	tracedPIDsMap               *ebpf.Map
+	tracedCgroupsMap            *ebpf.Map
+	tracedCgroupsDiscardedMap   *ebpf.Map
+	cgroupWaitList              *ebpf.Map
+	activityDumpsConfigMap      *ebpf.Map
+	activityDumpConfigDefaults  *ebpf.Map
+	activityDumpRateLimitersMap *ebpf.Map
 
-	ignoreFromSnapshot   map[model.PathKey]bool
+	ignoreFromSnapshot   map[uint64]bool
 	dumpLimiter          *lru.Cache[cgroupModel.WorkloadSelector, *atomic.Uint64]
 	workloadDenyList     []cgroupModel.WorkloadSelector
 	workloadDenyListHits *atomic.Uint64
@@ -125,7 +126,8 @@ type Manager struct {
 
 	// fields from SecurityProfileManager
 
-	secProfEventTypes []model.EventType
+	secProfEventTypes       []model.EventType
+	isSyscallAnomalyEnabled bool
 
 	// ebpf maps
 	securityProfileMap         *ebpf.Map
@@ -179,6 +181,11 @@ func NewManager(cfg *config.Config, statsdClient statsd.ClientInterface, ebpf *e
 	}
 
 	activityDumpConfigDefaultsMap, err := managerhelper.Map(ebpf, "activity_dump_config_defaults")
+	if err != nil {
+		return nil, err
+	}
+
+	activityDumpRateLimitersMap, err := managerhelper.Map(ebpf, "activity_dump_rate_limiters")
 	if err != nil {
 		return nil, err
 	}
@@ -288,14 +295,15 @@ func NewManager(cfg *config.Config, statsdClient statsd.ClientInterface, ebpf *e
 		newEvent:      newEvent,
 		pathsReducer:  activity_tree.NewPathsReducer(),
 
-		tracedPIDsMap:              tracedPIDs,
-		tracedCgroupsMap:           tracedCgroupsMap,
-		tracedCgroupsDiscardedMap:  tracedCgroupsDiscardedMap,
-		cgroupWaitList:             cgroupWaitList,
-		activityDumpsConfigMap:     activityDumpsConfigMap,
-		activityDumpConfigDefaults: activityDumpConfigDefaultsMap,
+		tracedPIDsMap:               tracedPIDs,
+		tracedCgroupsMap:            tracedCgroupsMap,
+		tracedCgroupsDiscardedMap:   tracedCgroupsDiscardedMap,
+		cgroupWaitList:              cgroupWaitList,
+		activityDumpsConfigMap:      activityDumpsConfigMap,
+		activityDumpConfigDefaults:  activityDumpConfigDefaultsMap,
+		activityDumpRateLimitersMap: activityDumpRateLimitersMap,
 
-		ignoreFromSnapshot:   make(map[model.PathKey]bool),
+		ignoreFromSnapshot:   make(map[uint64]bool),
 		dumpLimiter:          dumpLimiter,
 		workloadDenyList:     workloadDenyList,
 		workloadDenyListHits: atomic.NewUint64(0),
@@ -314,7 +322,8 @@ func NewManager(cfg *config.Config, statsdClient statsd.ClientInterface, ebpf *e
 		emptyDropped:       atomic.NewUint64(0),
 		dropMaxDumpReached: atomic.NewUint64(0),
 
-		secProfEventTypes: secProfEventTypes,
+		secProfEventTypes:       secProfEventTypes,
+		isSyscallAnomalyEnabled: slices.Contains(cfg.RuntimeSecurity.AnomalyDetectionEventTypes, model.SyscallsEventType),
 
 		securityProfileMap:         securityProfileMap,
 		securityProfileSyscallsMap: securityProfileSyscallsMap,
@@ -363,6 +372,7 @@ func (m *Manager) Start(ctx context.Context) {
 	var adTagsTickerChan <-chan time.Time
 	var adLoadControlTickerChan <-chan time.Time
 	var silentWorkloadsTickerChan <-chan time.Time
+	var nodeEvictionTickerChan <-chan time.Time
 
 	if m.config.RuntimeSecurity.ActivityDumpEnabled {
 		adCleanupTicker := time.NewTicker(m.config.RuntimeSecurity.ActivityDumpCleanupPeriod)
@@ -388,6 +398,14 @@ func (m *Manager) Start(ctx context.Context) {
 		silentWorkloadsTickerChan = silentWorkloadsTicker.C
 	} else {
 		silentWorkloadsTickerChan = make(chan time.Time)
+	}
+
+	if m.config.RuntimeSecurity.SecurityProfileEnabled && m.config.RuntimeSecurity.SecurityProfileNodeEvictionTimeout > 0 {
+		nodeEvictionTicker := time.NewTicker(m.config.RuntimeSecurity.SecurityProfileNodeEvictionTimeout)
+		defer nodeEvictionTicker.Stop()
+		nodeEvictionTickerChan = nodeEvictionTicker.C
+	} else {
+		nodeEvictionTickerChan = make(chan time.Time)
 	}
 
 	if m.config.RuntimeSecurity.SecurityProfileEnabled {
@@ -426,6 +444,8 @@ func (m *Manager) Start(ctx context.Context) {
 			}
 		case <-silentWorkloadsTickerChan:
 			m.handleSilentWorkloads()
+		case <-nodeEvictionTickerChan:
+			m.evictUnusedNodes()
 		case newProfile := <-m.newProfiles:
 			m.onNewProfile(newProfile)
 		case workloadEvent := <-m.workloadEvents:
@@ -635,4 +655,39 @@ func perFormatStorageRequests(requests []config.StorageRequest) map[config.Stora
 		perFormatRequests[request.Format] = append(perFormatRequests[request.Format], request)
 	}
 	return perFormatRequests
+}
+
+// evictUnusedNodes performs periodic eviction of non-touched nodes from all active profiles
+func (m *Manager) evictUnusedNodes() {
+	if m.config.RuntimeSecurity.SecurityProfileNodeEvictionTimeout <= 0 {
+		return
+	}
+
+	evictionTime := time.Now().Add(-m.config.RuntimeSecurity.SecurityProfileNodeEvictionTimeout)
+	totalEvicted := 0
+
+	m.profilesLock.Lock()
+	defer m.profilesLock.Unlock()
+
+	for selector, profile := range m.profiles {
+		if profile == nil {
+			continue
+		}
+		profile.Lock()
+		if profile.ActivityTree == nil {
+			profile.Unlock()
+			continue
+		}
+
+		evicted := profile.ActivityTree.EvictUnusedNodes(evictionTime)
+		if evicted > 0 {
+			totalEvicted += evicted
+			seclog.Debugf("evicted %d unused process nodes from profile [%s] ", evicted, selector.String())
+		}
+		profile.Unlock()
+	}
+
+	if totalEvicted > 0 {
+		seclog.Infof("evicted %d total unused process nodes across all profiles", totalEvicted)
+	}
 }

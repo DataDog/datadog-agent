@@ -74,13 +74,14 @@ type processCache struct {
 
 // Provider provides the metrics related to data collected from the `/metrics/cadvisor` Kubelet endpoint
 type Provider struct {
-	filterStore    workloadfilter.Component
-	store          workloadmeta.Component
-	tagger         tagger.Component
-	podUtils       *common.PodUtils
-	fsUsageBytes   map[string]*processCache
-	memUsageBytes  map[string]*processCache
-	swapUsageBytes map[string]*processCache
+	podFilter       workloadfilter.FilterBundle
+	containerFilter workloadfilter.FilterBundle
+	store           workloadmeta.Component
+	tagger          tagger.Component
+	podUtils        *common.PodUtils
+	fsUsageBytes    map[string]*processCache
+	memUsageBytes   map[string]*processCache
+	swapUsageBytes  map[string]*processCache
 	prometheus.Provider
 }
 
@@ -92,13 +93,14 @@ func NewProvider(filterStore workloadfilter.Component, config *common.KubeletCon
 	cadvisorConfig.IgnoreMetrics = ignoreMetrics
 
 	provider := &Provider{
-		filterStore:    filterStore,
-		store:          store,
-		tagger:         tagger,
-		podUtils:       podUtils,
-		fsUsageBytes:   map[string]*processCache{},
-		memUsageBytes:  map[string]*processCache{},
-		swapUsageBytes: map[string]*processCache{},
+		podFilter:       filterStore.GetPodSharedMetricFilters(),
+		containerFilter: filterStore.GetContainerSharedMetricFilters(),
+		store:           store,
+		tagger:          tagger,
+		podUtils:        podUtils,
+		fsUsageBytes:    map[string]*processCache{},
+		memUsageBytes:   map[string]*processCache{},
+		swapUsageBytes:  map[string]*processCache{},
 	}
 
 	transformers := prometheus.Transformers{
@@ -168,7 +170,11 @@ func (p *Provider) processContainerMetric(metricType, metricName string, metricF
 			cID, _ := kubelet.KubeContainerIDToTaggerEntityID(containerID)
 			tags, _ = p.tagger.Tag(cID, types.HighCardinality)
 
-			tags = common.AppendKubeStaticCPUsTag(p.store, pod.QOSClass, cID, tags)
+			// The pod can be nil here if it's deleted from wmeta after getting
+			// the samples
+			if pod != nil {
+				tags = common.AppendKubeStaticCPUsTag(p.store, pod.QOSClass, cID, tags)
+			}
 		}
 
 		if len(tags) == 0 {
@@ -206,8 +212,7 @@ func (p *Provider) processPodRate(metricName string, metricFam *prom.MetricFamil
 			continue
 		}
 		filterablePod := workloadmetafilter.CreatePod(pod)
-		selectedFilters := p.filterStore.GetPodSharedMetricFilters()
-		if p.filterStore.IsPodExcluded(filterablePod, selectedFilters) {
+		if p.podFilter.IsExcluded(filterablePod) {
 			continue
 		}
 		if strings.Contains(metricName, ".network.") && p.podUtils.IsHostNetworkedPod(podUID) {
@@ -357,7 +362,7 @@ func (p *Provider) getEntityIDIfContainerMetric(labels model.Metric) string {
 			// Return the pod UID so that we can collect metrics from it later on.
 			return p.getPodUID(labels)
 		}
-		cID, _ := common.GetContainerID(p.store, labels, p.filterStore)
+		cID, _ := common.GetContainerID(p.store, labels, p.containerFilter)
 		return types.NewEntityID(types.ContainerID, cID).String()
 	}
 	return ""
@@ -385,8 +390,7 @@ func (p *Provider) getPodByMetricLabel(labels model.Metric) *workloadmeta.Kubern
 	}
 	if pod, err := p.store.GetKubernetesPodByName(string(podName), string(namespace)); err == nil {
 		filterablePod := workloadmetafilter.CreatePod(pod)
-		selectedFilters := p.filterStore.GetPodSharedMetricFilters()
-		if !p.filterStore.IsPodExcluded(filterablePod, selectedFilters) {
+		if !p.podFilter.IsExcluded(filterablePod) {
 			return pod
 		}
 	}

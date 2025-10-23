@@ -6,7 +6,7 @@
       "name": "",
       "method": "main.testInlinedBBB",
       "version": 0,
-      "thread_id": 0,
+      "thread_id": "[goid]",
       "thread_name": ""
     },
     "debugger": {
@@ -57,11 +57,7 @@
             "method": "main.testInlinedBBB"
           }
         },
-        "captures": {
-          "entry": {
-            "arguments": {}
-          }
-        }
+        "captures": {}
       }
     },
     "timestamp": "[ts]"

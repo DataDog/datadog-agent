@@ -5,7 +5,11 @@
 
 package ir
 
-import "cmp"
+import (
+	"cmp"
+	"encoding/json"
+	"iter"
+)
 
 // ProbeIDer is an interface that allows for comparison of probe definitions.
 type ProbeIDer interface {
@@ -28,6 +32,8 @@ type ProbeDefinition interface {
 	GetCaptureConfig() CaptureConfig
 	// ThrottleConfig returns the throttle configuration of the probe.
 	GetThrottleConfig() ThrottleConfig
+	// GetTemplate returns the template of the probe.
+	GetTemplate() TemplateDefinition
 }
 
 // CompareProbeIDs compares two probe definitions by their ID and version.
@@ -36,6 +42,30 @@ func CompareProbeIDs[A, B ProbeIDer](a A, b B) int {
 		cmp.Compare(a.GetID(), b.GetID()),
 		cmp.Compare(b.GetVersion(), a.GetVersion()), // reverse version order
 	)
+}
+
+// TemplateDefinition represents the configuration-time template definition
+type TemplateDefinition interface {
+	GetTemplateString() string
+	GetSegments() iter.Seq[TemplateSegmentDefinition]
+}
+
+// TemplateSegmentDefinition represents a configuration-time template segment
+type TemplateSegmentDefinition interface {
+	TemplateSegment() // marker method
+}
+
+// TemplateSegmentString represents a string literal segment in configuration
+type TemplateSegmentString interface {
+	TemplateSegmentDefinition
+	GetString() string
+}
+
+// TemplateSegmentExpression represents an expression segment in configuration
+type TemplateSegmentExpression interface {
+	TemplateSegmentDefinition
+	GetDSL() string
+	GetJSON() json.RawMessage
 }
 
 // Where is a where clause of a probe.
@@ -49,10 +79,17 @@ type FunctionWhere interface {
 	Location() (functionName string)
 }
 
+// LineWhere is a where clause of a probe that is a line within a function.
+type LineWhere interface {
+	Where
+	Line() (functionName string, sourceFile string, lineNumber string)
+}
+
 // CaptureConfig is the capture configuration of a probe.
 type CaptureConfig interface {
 	GetMaxReferenceDepth() uint32
 	GetMaxFieldCount() uint32
+	GetMaxLength() uint32
 	GetMaxCollectionSize() uint32
 }
 

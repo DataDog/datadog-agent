@@ -20,6 +20,7 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	compression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor"
+	"github.com/DataDog/datadog-agent/pkg/security/common"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/events"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
@@ -86,7 +87,7 @@ func NewCWSConsumer(evm *eventmonitor.EventMonitor, cfg *config.RuntimeSecurityC
 		}
 	}
 
-	family := config.GetFamilyAddress(cfg.SocketPath)
+	family := common.GetFamilyAddress(cfg.SocketPath)
 
 	apiServer, err := NewAPIServer(cfg, evm.Probe, opts.MsgSender, evm.StatsdClient, selfTester, compression, ipc)
 	if err != nil {
@@ -211,13 +212,14 @@ func (c *CWSConsumer) Start() error {
 			c.selfTestPassed = true
 
 			c.reportSelfTest(success, fails)
+			delay = selftestPassedDelay
 		}
+
+		time.Sleep(delay)
 
 		if _, err := c.RunSelfTest(false); err != nil {
 			seclog.Errorf("self-test error: %s", err)
 		}
-
-		time.Sleep(delay)
 	}
 	if c.selfTester != nil {
 		go c.selfTester.WaitForResult(cb)
@@ -295,11 +297,11 @@ func (c *CWSConsumer) reportSelfTest(success []eval.RuleID, fails []eval.RuleID)
 func (c *CWSConsumer) Stop() {
 	c.reloader.Stop()
 
+	c.cancelFnc()
+
 	if c.apiServer != nil {
 		c.apiServer.Stop()
 	}
-
-	c.cancelFnc()
 
 	c.ruleEngine.Stop()
 
@@ -389,4 +391,9 @@ func (c *CWSConsumer) GetRuleEngine() *rulesmodule.RuleEngine {
 func (c *CWSConsumer) PrepareForFunctionalTests() {
 	// no need for container running telemetry in functional tests
 	c.crtelemetry = nil
+}
+
+// GetStatus returns the status of the module
+func (c *CWSConsumer) GetStatus(ctx context.Context) (*api.Status, error) {
+	return c.apiServer.GetStatus(ctx, &api.GetStatusParams{})
 }

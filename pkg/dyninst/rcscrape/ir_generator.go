@@ -26,7 +26,15 @@ func (irGenerator) GenerateIR(
 	programID ir.ProgramID,
 	binaryPath string,
 	probes []ir.ProbeDefinition,
-) (*ir.Program, error) {
+) (ret *ir.Program, retErr error) {
+	defer func() {
+		if retErr != nil {
+			return
+		}
+		if len(ret.Probes) == 0 {
+			retErr = &ir.NoSuccessfulProbesError{Issues: ret.Issues}
+		}
+	}()
 	var v1Def, v2Def, symdbDef ir.ProbeDefinition
 	for _, probe := range probes {
 		switch id := probe.GetID(); id {
@@ -165,7 +173,7 @@ func addRcProbe(
 						{Size: 8, Op: ir.Register{RegNo: abiRegs[1]}},
 					},
 				}},
-				IsParameter: true,
+				Role: ir.VariableRoleParameter,
 			},
 			{
 				Name: "configPath",
@@ -177,7 +185,7 @@ func addRcProbe(
 						{Size: 8, Op: ir.Register{RegNo: abiRegs[3]}},
 					},
 				}},
-				IsParameter: true,
+				Role: ir.VariableRoleParameter,
 			},
 			{
 				Name: "configContent",
@@ -189,7 +197,7 @@ func addRcProbe(
 						{Size: 8, Op: ir.Register{RegNo: abiRegs[5]}},
 					},
 				}},
-				IsParameter: true,
+				Role: ir.VariableRoleParameter,
 			},
 		},
 	}
@@ -259,7 +267,7 @@ func addSymdbProbe(
 						{Size: 8, Op: ir.Register{RegNo: abiRegs[1]}},
 					},
 				}},
-				IsParameter: true,
+				Role: ir.VariableRoleParameter,
 			},
 			{
 				Name: "enabled",
@@ -270,7 +278,7 @@ func addSymdbProbe(
 						{Size: 1, Op: ir.Register{RegNo: abiRegs[2]}},
 					},
 				}},
-				IsParameter: true,
+				Role: ir.VariableRoleParameter,
 			},
 		},
 	}

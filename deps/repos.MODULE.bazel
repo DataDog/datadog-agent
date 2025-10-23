@@ -1,7 +1,6 @@
 # 3rd party dependencies
 
-# Defines a "bz2" target for the lib, "bzip2" for the CLI tool
-bazel_dep(name = "bzip2", version = "1.0.8.bcr.2")
+http_archive = use_repo_rule("//third_party/bazel/tools/build_defs/repo:http.bzl", "http_archive")
 
 # Defines a "libyaml" target for the lib
 bazel_dep(name = "libyaml", version = "0.2.5")
@@ -15,20 +14,98 @@ bazel_dep(name = "sqlite3", version = "3.46.1")
 # Defines a "lzma" target for the lib, "xz" for the CLI tools
 bazel_dep(name = "xz", version = "5.4.5.bcr.5")
 
-# Defines a "zlib" target for the lib
-bazel_dep(name = "zlib", version = "1.3.1.bcr.3")
+http_archive(
+    name = "zlib",
+    build_file = "//deps:zlib.BUILD.bazel",
+    sha256 = "9a93b2b7dfdac77ceba5a558a580e74667dd6fede4585b91eefb60f03b72df23",
+    strip_prefix = "zlib-1.3.1",
+    url = "https://github.com/madler/zlib/releases/download/v1.3.1/zlib-1.3.1.tar.gz",
+)
+
+http_archive(
+    name = "bzip2",
+    build_file = "//deps:bzip2.BUILD.bazel",
+    sha256 = "ab5a03176ee106d3f0fa90e381da478ddae405918153cca248e682cd0c4a2269",
+    strip_prefix = "bzip2-1.0.8",
+    # The canonical source is in https://sourceware.org/pub/bzip2/, but the Bazel
+    # team mirror is more reliable.
+    url = "https://mirror.bazel.build/sourceware.org/pub/bzip2/bzip2-1.0.8.tar.gz",
+)
 
 # Defines a "rules_foreign_cc" target to build openssl
 bazel_dep(name = "rules_foreign_cc", version = "0.15.0")
 
-http_archive = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
-
 http_archive(
     name = "openssl",
     build_file = "//deps:openssl.BUILD.bazel",
-    patch_args = ["-p1"],
-    patches = ["//omnibus/config/patches/openssl3:0001-fix-preprocessor-concatenation.patch"],
-    sha256 = "002a2d6b30b58bf4bea46c43bdd96365aaf8daa6c428782aa4feee06da197df3",
-    strip_prefix = "openssl-3.4.1",
-    url = "https://www.openssl.org/source/openssl-3.4.1.tar.gz",
+    sha256 = "967311f84955316969bdb1d8d4b983718ef42338639c621ec4c34fddef355e99",
+    strip_prefix = "openssl-3.5.4",
+    url = "https://www.openssl.org/source/openssl-3.5.4.tar.gz",
+)
+
+http_archive(
+    name = "libffi",
+    build_file = "//deps:libffi.BUILD.bazel",
+    sha256 = "bc9842a18898bfacb0ed1252c4febcc7e78fa139fd27fdc7a3e30d9d9356119b",
+    strip_prefix = "libffi-3.4.8",
+    url = "https://github.com/libffi/libffi/releases/download/v3.4.8/libffi-3.4.8.tar.gz",
+)
+
+http_archive(
+    name = "libsepol",
+    build_file = "//deps:libsepol.BUILD.bazel",
+    sha256 = "78fdaf69924db780bac78546e43d9c44074bad798c2c415d0b9bb96d065ee8a2",
+    strip_prefix = "libsepol-3.5",
+    url = "https://github.com/SELinuxProject/selinux/releases/download/3.5/libsepol-3.5.tar.gz",
+)
+
+# PCRE2 has native bazel support.
+# They expose a :pcre2 label for the main library
+http_archive(
+    name = "pcre2",
+    sha256 = "15fbc5aba6beee0b17aecb04602ae39432393aba1ebd8e39b7cabf7db883299f",
+    strip_prefix = "pcre2-10.46",
+    url = "https://github.com/PCRE2Project/pcre2/releases/download/pcre2-10.46/pcre2-10.46.tar.bz2",
+    files = {
+        # We still need to vendor the build file as long as we need .pc files & the :install rule
+        "BUILD.bazel": "//deps:pcre2.BUILD.bazel",
+    },
+)
+
+http_archive(
+    name = "util-linux",
+    build_file = "//deps:util-linux.BUILD.bazel",
+    url = "https://mirrors.edge.kernel.org/pub/linux/utils/util-linux/v2.39/util-linux-2.39.2.tar.gz",
+    sha256 = "c8e1a11dd5879a2788973c73589fbcf08606e85aeec095e516162495ead8ba68",
+    strip_prefix = "util-linux-2.39.2",
+    files = {
+        "generated/config.h": "//deps:util-linux/config.h"
+    }
+)
+
+http_archive(
+    name = "patchelf",
+    build_file = "//deps:patchelf.BUILD.bazel",
+    sha256 = "64de10e4c6b8b8379db7e87f58030f336ea747c0515f381132e810dbf84a86e7",
+    strip_prefix = "patchelf-0.18.0",
+    url = "https://github.com/NixOS/patchelf/releases/download/0.18.0/patchelf-0.18.0.tar.gz",
+)
+
+http_archive(
+    name = "nghttp2",
+    build_file = "//deps:nghttp2.BUILD.bazel",
+    files = {
+        "config.h": "//deps/nghttp2:config.h",
+    },
+    sha256 = "9ebdfbfbca164ef72bdf5fd2a94a4e6dfb54ec39d2ef249aeb750a91ae361dfb",
+    strip_prefix = "nghttp2-1.58.0",
+    url = "https://github.com/nghttp2/nghttp2/releases/download/v1.58.0/nghttp2-1.58.0.tar.gz",
+)
+
+http_archive(
+    name = "popt",
+    build_file = "//deps:popt.BUILD.bazel",
+    sha256 = "c25a4838fc8e4c1c8aacb8bd620edb3084a3d63bf8987fdad3ca2758c63240f9",
+    strip_prefix = "popt-1.19",
+    url = "http://ftp.rpm.org/popt/releases/popt-1.x/popt-1.19.tar.gz",
 )

@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // interface requiring all functions expected by the dogstatsd server
@@ -256,20 +257,28 @@ func (b *batcher) flush() {
 
 	// flush events
 	if len(b.events) > 0 {
-		t1 := time.Now()
-		b.choutEvents <- b.events
-		t2 := time.Now()
-		b.tlmChannel.Observe(float64(t2.Sub(t1).Nanoseconds()), "", "events")
+		if b.choutEvents != nil {
+			t1 := time.Now()
+			b.choutEvents <- b.events
+			t2 := time.Now()
+			b.tlmChannel.Observe(float64(t2.Sub(t1).Nanoseconds()), "", "events")
+		} else {
+			log.Debugf("Skipping event flush due to nil channel")
+		}
 
 		b.events = []*event.Event{}
 	}
 
 	// flush service checks
 	if len(b.serviceChecks) > 0 {
-		t1 := time.Now()
-		b.choutServiceChecks <- b.serviceChecks
-		t2 := time.Now()
-		b.tlmChannel.Observe(float64(t2.Sub(t1).Nanoseconds()), "", "service_checks")
+		if b.choutServiceChecks != nil {
+			t1 := time.Now()
+			b.choutServiceChecks <- b.serviceChecks
+			t2 := time.Now()
+			b.tlmChannel.Observe(float64(t2.Sub(t1).Nanoseconds()), "", "service_checks")
+		} else {
+			log.Debugf("Skipping service check flush due to nil channel")
+		}
 
 		b.serviceChecks = []*servicecheck.ServiceCheck{}
 	}

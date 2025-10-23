@@ -69,7 +69,7 @@ int __attribute__((always_inline)) handle_interpreted_exec_event(void *ctx, stru
     bpf_probe_read(&interpreter_inode, sizeof(interpreter_inode), get_file_f_inode_addr(file));
 
     syscall->exec.linux_binprm.interpreter = get_inode_key_path(interpreter_inode, get_file_f_path_addr(file));
-    syscall->exec.linux_binprm.interpreter.path_id = get_path_id(syscall->exec.linux_binprm.interpreter.mount_id, 0);
+    syscall->exec.linux_binprm.interpreter.path_id = get_path_id(syscall->exec.linux_binprm.interpreter.ino, syscall->exec.linux_binprm.interpreter.mount_id, 1, 0);
 
 #if defined(DEBUG_INTERPRETER)
     bpf_printk("interpreter file: %llx", file);
@@ -264,14 +264,22 @@ int sched_process_fork(struct _tracepoint_sched_process_fork *args) {
     return 0;
 }
 
-HOOK_ENTRY("do_coredump")
-int hook_do_coredump(ctx_t *ctx) {
+int __attribute__((always_inline)) coredump_common() {
     u64 key = bpf_get_current_pid_tgid();
     u8 in_coredump = 1;
 
     bpf_map_update_elem(&tasks_in_coredump, &key, &in_coredump, BPF_ANY);
-
     return 0;
+}
+
+HOOK_ENTRY("vfs_coredump")
+int hook_vfs_coredump(ctx_t *ctx) {
+    return coredump_common();
+}
+
+HOOK_ENTRY("do_coredump")
+int hook_do_coredump(ctx_t *ctx) {
+    return coredump_common();
 }
 
 int __attribute__((always_inline)) handle_do_exit(ctx_t *ctx) {
@@ -316,6 +324,10 @@ int __attribute__((always_inline)) handle_do_exit(ctx_t *ctx) {
             event.exit_code |= 0x80;
             bpf_map_delete_elem(&tasks_in_coredump, &pid_tgid);
         }
+
+        // should be sampled for activity dumps
+        event.event.flags |= EVENT_FLAGS_ACTIVITY_DUMP_SAMPLE;
+
         send_event(ctx, EVENT_EXIT, event);
 
         unregister_span_memory();
@@ -829,6 +841,6 @@ int hook_security_inode_follow_link(ctx_t *ctx) {
     if (!syscall) {
         return 0;
     }
-    syscall->exec.is_through_symlink = 1;    
+    syscall->exec.is_through_symlink = 1;
     return 0;
 }

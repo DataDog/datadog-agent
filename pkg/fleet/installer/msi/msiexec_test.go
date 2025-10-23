@@ -563,12 +563,89 @@ func TestMsiexecError_ErrorHandling(t *testing.T) {
 // The file is deleted when the test is done.
 //
 // The function encodes the log data as UTF-16 with BOM, as expected by openAndProcessLogFile.
+// If logData is empty, creates an empty file without encoding.
 func createTestLogFile(t *testing.T, filename string, logData []byte) string {
 	logFile := filepath.Join(t.TempDir(), filename)
-	logData, err := unicode.UTF16(unicode.LittleEndian, unicode.UseBOM).NewEncoder().Bytes(logData)
-	require.NoError(t, err)
-	os.WriteFile(logFile, logData, 0644)
+	if len(logData) == 0 {
+		// Create empty file for empty input
+		err := os.WriteFile(logFile, []byte{}, 0644)
+		require.NoError(t, err)
+	} else {
+		encodedData, err := unicode.UTF16(unicode.LittleEndian, unicode.UseBOM).NewEncoder().Bytes(logData)
+		require.NoError(t, err)
+		err = os.WriteFile(logFile, encodedData, 0644)
+		require.NoError(t, err)
+	}
 	return logFile
+}
+
+// TestMsiexec_Run_LogFileEmptyTag tests that the is_log_empty tag is set correctly
+func TestMsiexecError_LogFileEmptyTag(t *testing.T) {
+	tests := []struct {
+		name            string
+		createLogFile   bool
+		logFileContent  string
+		expectedIsEmpty bool
+	}{
+		{
+			name:            "empty log file",
+			createLogFile:   true,
+			logFileContent:  "",
+			expectedIsEmpty: true,
+		},
+		{
+			name:            "non-empty log file",
+			createLogFile:   true,
+			logFileContent:  "CA: Some log content\nDatadog.CustomActions error occurred",
+			expectedIsEmpty: false,
+		},
+		{
+			name:            "non-existent log file",
+			createLogFile:   false,
+			logFileContent:  "",
+			expectedIsEmpty: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockRunner := &mockCmdRunner{}
+			mockRunner.On("Run", mock.AnythingOfType("string"), mock.AnythingOfType("string")).Return(&mockExitError{code: 1603}).Once()
+
+			var logFilePath string
+			if tt.createLogFile {
+				logFilePath = createTestLogFile(t, "test.log", []byte(tt.logFileContent))
+			} else {
+				logFilePath = "test.log"
+			}
+
+			cmd, err := Cmd(
+				Install(),
+				WithMsi("test.msi"),
+				WithLogFile(logFilePath),
+				withCmdRunner(mockRunner),
+			)
+			require.NoError(t, err)
+
+			err = cmd.Run(t.Context())
+			assert.Error(t, err)
+
+			var msiErr *MsiexecError
+			require.ErrorAs(t, err, &msiErr)
+
+			logFileInfo, logFileStatErr := os.Stat(logFilePath)
+			var actualIsEmpty bool
+			if logFileStatErr != nil {
+				actualIsEmpty = true
+			} else {
+				actualIsEmpty = logFileInfo.Size() == 0
+			}
+
+			assert.Equal(t, tt.expectedIsEmpty, actualIsEmpty)
+
+			mockRunner.AssertExpectations(t)
+		})
+	}
 }
 
 // runCmdWithExitCode runs a real process that exits with the provided exit code

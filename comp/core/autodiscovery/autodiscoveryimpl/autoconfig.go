@@ -14,11 +14,14 @@ import (
 	"errors"
 	"net/http"
 	"sort"
+	"strconv"
 	"sync"
 	"time"
 
 	"github.com/cenkalti/backoff"
 	"go.uber.org/fx"
+
+	"github.com/DataDog/datadog-agent/pkg/util/slices"
 
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
@@ -48,7 +51,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
-	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
 
 var listenerCandidateIntl = 30 * time.Second
@@ -278,7 +280,7 @@ func (ac *AutoConfig) buildConfigCheckResponse(scrub bool) integration.ConfigChe
 		}
 
 		if scrub {
-			config = ac.scrubConfig(config)
+			config = integration.ScrubCheckConfig(config, ac.logs)
 		}
 
 		configResponses[i] = integration.ConfigResponse{
@@ -295,64 +297,16 @@ func (ac *AutoConfig) buildConfigCheckResponse(scrub bool) integration.ConfigChe
 		unresolved := ac.getUnresolvedConfigs()
 		scrubbedUnresolved := make(map[string]integration.Config, len(unresolved))
 		for id, config := range unresolved {
-			scrubbedUnresolved[id] = ac.scrubConfig(config)
+			scrubbedUnresolved[id] = integration.ScrubCheckConfig(config, ac.logs)
 		}
 		response.Unresolved = scrubbedUnresolved
 	} else {
 		response.Unresolved = ac.getUnresolvedConfigs()
 	}
 
+	response.Services = ac.getActiveServices()
+
 	return response
-}
-
-func (ac *AutoConfig) scrubConfig(config integration.Config) integration.Config {
-	scrubbedConfig := config
-	scrubbedInstances := make([]integration.Data, len(config.Instances))
-	for instanceIndex, inst := range config.Instances {
-		scrubbedData, err := scrubData(inst)
-		if err != nil {
-			ac.logs.Warnf("error scrubbing secrets from config: %s", err)
-			continue
-		}
-		scrubbedInstances[instanceIndex] = scrubbedData
-	}
-	scrubbedConfig.Instances = scrubbedInstances
-
-	if len(config.InitConfig) > 0 {
-		scrubbedData, err := scrubData(config.InitConfig)
-		if err != nil {
-			ac.logs.Warnf("error scrubbing secrets from init config: %s", err)
-			scrubbedConfig.InitConfig = []byte{}
-		} else {
-			scrubbedConfig.InitConfig = scrubbedData
-		}
-	}
-
-	if len(config.MetricConfig) > 0 {
-		scrubbedData, err := scrubData(config.MetricConfig)
-		if err != nil {
-			ac.logs.Warnf("error scrubbing secrets from metric config: %s", err)
-			scrubbedConfig.MetricConfig = []byte{}
-		} else {
-			scrubbedConfig.MetricConfig = scrubbedData
-		}
-	}
-
-	if len(config.LogsConfig) > 0 {
-		scrubbedData, err := scrubData(config.LogsConfig)
-		if err != nil {
-			ac.logs.Warnf("error scrubbing secrets from logs config: %s", err)
-			scrubbedConfig.LogsConfig = []byte{}
-		} else {
-			scrubbedConfig.LogsConfig = scrubbedData
-		}
-	}
-
-	return scrubbedConfig
-}
-
-func scrubData(data []byte) ([]byte, error) {
-	return scrubber.ScrubYaml(data)
 }
 
 // fillFlare add the config-checks log to flares.
@@ -480,6 +434,25 @@ func (ac *AutoConfig) GetTelemetryStore() *acTelemetry.Store {
 	return ac.telemetryStore
 }
 
+func (ac *AutoConfig) initializeConfiguration(config *integration.Config) error {
+	prg, celADID, compileErr, recErr := createMatchingProgram(config.CELSelector)
+	if compileErr != nil {
+		return compileErr
+	}
+
+	if len(config.ADIdentifiers) == 0 && celADID != "" {
+		// Only throw recError if no explicit ADIDs are defined
+		if recErr != nil {
+			return recErr
+		}
+		config.ADIdentifiers = []string{string(celADID)}
+	}
+
+	config.SetMatchingProgram(prg)
+
+	return nil
+}
+
 // processNewConfig store (in template cache) and resolves a given config,
 // returning the changes to be made.
 func (ac *AutoConfig) processNewConfig(config integration.Config) integration.ConfigChanges {
@@ -491,6 +464,12 @@ func (ac *AutoConfig) processNewConfig(config integration.Config) integration.Co
 		} else if err := config.AddMetrics(metrics); err != nil {
 			log.Infof("Unable to add default metrics to collect to %s check: %s", config.Name, err)
 		}
+	}
+
+	err := ac.initializeConfiguration(&config)
+	if err != nil {
+		log.Errorf("Config %s (source %s) could not initialize: %v", config.Name, config.Source, err)
+		return integration.ConfigChanges{}
 	}
 
 	changes, changedIDsOfSecretsWithConfigs := ac.cfgMgr.processNewConfig(config)
@@ -616,6 +595,49 @@ func (ac *AutoConfig) processRemovedConfigs(configs []integration.Config) {
 // state.
 func (ac *AutoConfig) getUnresolvedConfigs() map[string]integration.Config {
 	return ac.cfgMgr.getActiveConfigs()
+}
+
+// getActiveServices returns all active services and their metadata.
+func (ac *AutoConfig) getActiveServices() []integration.ServiceResponse {
+	activeSvc := ac.cfgMgr.getActiveServices()
+	serviceResp := make([]integration.ServiceResponse, 0, len(activeSvc))
+	for svcID, svc := range activeSvc {
+		hosts, err := svc.GetHosts()
+		if err != nil {
+			hosts = make(map[string]string)
+		}
+
+		containerPorts, err := svc.GetPorts()
+		ports := make([]string, 0)
+		if err == nil {
+			ports = slices.Map(containerPorts, func(port listeners.ContainerPort) string {
+				return strconv.Itoa(port.Port)
+			})
+		}
+
+		pid, err := svc.GetPid()
+		if err != nil {
+			pid = 0
+		}
+
+		hostname, err := svc.GetHostname()
+		if err != nil {
+			hostname = ""
+		}
+
+		serviceResp = append(serviceResp, integration.ServiceResponse{
+			ServiceID:      svcID,
+			ADIdentifiers:  svc.GetADIdentifiers(),
+			Hosts:          hosts,
+			Ports:          ports,
+			PID:            pid,
+			Hostname:       hostname,
+			IsReady:        svc.IsReady(),
+			FiltersLogs:    svc.HasFilter(workloadfilter.LogsFilter),
+			FiltersMetrics: svc.HasFilter(workloadfilter.MetricsFilter),
+		})
+	}
+	return serviceResp
 }
 
 // GetIDOfCheckWithEncryptedSecrets returns the ID that a checkID had before

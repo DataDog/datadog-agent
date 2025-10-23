@@ -6,7 +6,7 @@
       "name": "",
       "method": "main.testStringType1",
       "version": 0,
-      "thread_id": 0,
+      "thread_id": "[goid]",
       "thread_name": ""
     },
     "debugger": {
@@ -18,12 +18,12 @@
           {
             "function": "main.testStringType1",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/complex.go",
-            "lineNumber": 194
+            "lineNumber": 195
           },
           {
             "function": "main.executeComplexFuncs",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/complex.go",
-            "lineNumber": 265
+            "lineNumber": 286
           },
           {
             "function": "main.main",

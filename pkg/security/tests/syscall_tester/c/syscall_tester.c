@@ -14,12 +14,14 @@
 #include <sys/stat.h>
 #include <sys/fsuid.h>
 #include <sys/mman.h>
+#include <sys/prctl.h>
 #include <fcntl.h>
 #include <pthread.h>
 #include <signal.h>
 #include <errno.h>
 #include <arpa/inet.h>
 #include <linux/un.h>
+#include <linux/prctl.h>
 #include <err.h>
 #include <limits.h>
 #include <sys/time.h>
@@ -203,7 +205,7 @@ int setrlimit_nofile() {
     struct rlimit rlim;
     rlim.rlim_cur = 1024;  // soft limit
     rlim.rlim_max = 2048;  // hard limit
-    
+
     if (setrlimit(RLIMIT_NOFILE, &rlim) < 0) {
         perror("setrlimit RLIMIT_NOFILE");
         return EXIT_FAILURE;
@@ -215,7 +217,7 @@ int setrlimit_nproc() {
     struct rlimit rlim;
     rlim.rlim_cur = 512;   // soft limit
     rlim.rlim_max = 1024;  // hard limit
-    
+
     if (setrlimit(RLIMIT_NPROC, &rlim) < 0) {
         perror("setrlimit RLIMIT_NPROC");
         return EXIT_FAILURE;
@@ -225,7 +227,7 @@ int setrlimit_nproc() {
 
 int prlimit64_stack(void) {
     struct rlimit64 rlim;
-    rlim.rlim_cur = 1024;   
+    rlim.rlim_cur = 1024;
     rlim.rlim_max = 2048;
 
     pid_t dummy_pid = fork();
@@ -255,11 +257,11 @@ int setrlimit_core() {
     struct rlimit rlim;
     rlim.rlim_cur = 0;      // no core dumps
     rlim.rlim_max = 0;      // no core dumps
-    
+
     if (setrlimit(RLIMIT_CORE, &rlim) < 0) {
         perror("setrlimit RLIMIT_CORE");
         return EXIT_FAILURE;
-    }    
+    }
     return EXIT_SUCCESS;
 }
 
@@ -1158,6 +1160,49 @@ int test_memfd_create(int argc, char **argv) {
     return EXIT_SUCCESS;
 }
 
+int test_tracer_memfd(int argc, char **argv) {
+    // TracerMetadata: ServiceName=test-service, ServiceEnv=test-env, ServiceVersion=1.0.0, ProcessTags=custom.tag:value
+    // This is msgpack-encoded binary data
+    const char tracer_data[] =
+        "\x88"                              // fixmap with 8 entries
+        "\xae" "schema_version" "\x00"      // "schema_version": 0
+        "\xaf" "tracer_language" "\xa0"     // "tracer_language": "" (empty str)
+        "\xae" "tracer_version" "\xa0"      // "tracer_version": "" (empty str)
+        "\xa8" "hostname" "\xa0"            // "hostname": "" (empty str)
+        "\xac" "service_name"
+        "\xac" "test-service"
+        "\xab" "service_env"
+        "\xa8" "test-env"
+        "\xaf" "service_version"
+        "\xa5" "1.0.0"
+        "\xac" "process_tags"
+        "\xb0" "custom.tag:value";
+
+    // Create memfd with tracer prefix and allow sealing
+    int fd = memfd_create("datadog-tracer-info-12345678", MFD_ALLOW_SEALING);
+    if (fd < 0) {
+        err(1, "%s failed", "memfd_create");
+    }
+
+    // Write tracer metadata
+    ssize_t written = write(fd, tracer_data, sizeof(tracer_data));
+    if (written != sizeof(tracer_data)) {
+        err(1, "%s failed: wrote %zd bytes, expected %lu", "write", written, sizeof(tracer_data));
+    }
+
+    // Seal the memfd (this triggers the eBPF event)
+    if (fcntl(fd, F_ADD_SEALS, F_SEAL_WRITE | F_SEAL_SHRINK | F_SEAL_GROW) < 0) {
+        err(1, "%s failed", "fcntl F_ADD_SEALS");
+    }
+
+    // Sleep briefly to allow userspace to read the metadata from /proc/PID/fd/FD
+    // before the process exits and the fd is closed
+    sleep(3);
+
+    close(fd);
+    return EXIT_SUCCESS;
+}
+
 int test_new_netns_exec(int argc, char **argv) {
     if (argc < 2) {
         fprintf(stderr, "Please specify at least an executable path\n");
@@ -1558,7 +1603,7 @@ int test_connect_and_send(int argc, char **argv) {
     }
 
 
-    // --- TCP ---    
+    // --- TCP ---
     if (sock_type == SOCK_STREAM) {
         if (connect(s, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0) {
             perror("connect (client)");
@@ -1569,7 +1614,7 @@ int test_connect_and_send(int argc, char **argv) {
             perror("send (client)");
             exit(EXIT_FAILURE);
         }
-        
+
         if (listen(s_listen, 1) < 0) {
             perror("listen");
             exit(EXIT_FAILURE);
@@ -1607,14 +1652,14 @@ int test_connect_and_send(int argc, char **argv) {
     } else {
         const char *msg = "Hello from UDP client!";
         ssize_t sent = sendto(s, msg, strlen(msg), 0,
-                                (struct sockaddr *)&server_addr, sizeof(server_addr));  
+                                (struct sockaddr *)&server_addr, sizeof(server_addr));
         if (sent < 0) {
             perror("sendto");
             close(s);
             close(s_listen);
             return EXIT_FAILURE;
         }
-        
+
         // Now wait before closing the socket
         printf("Waiting on port %d\n", listen_port);
         fflush(stdout);  // Send Pid to GO and synchronize with it
@@ -1665,6 +1710,22 @@ int test_pause(int argc, char **argv) {
     }
 
     pause();
+
+    return EXIT_SUCCESS;
+}
+
+int test_prctl_setname(int argc, char **argv) {
+    if (argc != 2) {
+        fprintf(stderr, "Please specify a name to set\n");
+        return EXIT_FAILURE;
+    }
+
+    const char *name = argv[1];
+
+    if (prctl(PR_SET_NAME, name, 0, 0, 0) < 0) {
+        perror("prctl(PR_SET_NAME)");
+        return EXIT_FAILURE;
+    }
 
     return EXIT_SUCCESS;
 }
@@ -1752,6 +1813,8 @@ int main(int argc, char **argv) {
             exit_code = test_sleep(sub_argc, sub_argv);
         } else if (strcmp(cmd, "fileless") == 0) {
             exit_code = test_memfd_create(sub_argc, sub_argv);
+        } else if (strcmp(cmd, "tracer-memfd") == 0) {
+            exit_code = test_tracer_memfd(sub_argc, sub_argv);
         } else if (strcmp(cmd, "new_netns_exec") == 0) {
             exit_code = test_new_netns_exec(sub_argc, sub_argv);
         } else if (strcmp(cmd, "slow-cat") == 0) {
@@ -1773,13 +1836,15 @@ int main(int argc, char **argv) {
         } else if (strcmp(cmd, "bind-and-listen") == 0) {
             exit_code = test_bind_and_listen(sub_argc, sub_argv);
         } else if (strcmp(cmd, "connect-and-send") == 0) {
-            exit_code = test_connect_and_send(sub_argc, sub_argv);  
+            exit_code = test_connect_and_send(sub_argc, sub_argv);
         } else if (strcmp(cmd, "chroot") == 0) {
             exit_code = test_chroot(sub_argc, sub_argv);
         } else if (strcmp(cmd, "acct") == 0) {
             exit_code = test_acct(sub_argc, sub_argv);
         } else if (strcmp(cmd, "pause") == 0) {
             exit_code = test_pause(sub_argc, sub_argv);
+        } else if (strcmp(cmd, "prctl-setname") == 0) {
+            exit_code = test_prctl_setname(sub_argc, sub_argv);
         } else {
             fprintf(stderr, "Unknown command: %s\n", cmd);
             exit_code = EXIT_FAILURE;

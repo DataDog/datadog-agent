@@ -10,7 +10,6 @@ package actuator
 import (
 	"bytes"
 	"cmp"
-	"encoding/json"
 	"fmt"
 	"math/rand"
 	"os"
@@ -229,8 +228,8 @@ func (pts *propertyTestState) generateProcessUpdate() event {
 							Language: "go",
 						},
 						Template: "test log message",
-						Segments: []json.RawMessage{
-							json.RawMessage(`"test log message"`),
+						Segments: rcjson.SegmentList{
+							rcjson.StringSegment("test log message"),
 						},
 					},
 				}
@@ -333,7 +332,7 @@ func (pts *propertyTestState) completeRandomEffect() event {
 			return eventProgramLoaded{
 				programID: eff.programID,
 				loaded: &loadedProgram{
-					ir: &ir.Program{ID: eff.programID},
+					programID: eff.programID,
 				},
 			}
 		} else {
@@ -347,8 +346,10 @@ func (pts *propertyTestState) completeRandomEffect() event {
 		if success {
 			return eventProgramAttached{
 				program: &attachedProgram{
-					ir:     &ir.Program{ID: eff.programID},
-					procID: eff.processID,
+					loadedProgram: &loadedProgram{
+						programID: eff.programID,
+					},
+					processID: eff.processID,
 				},
 			}
 		} else {

@@ -8,61 +8,16 @@
 package apm
 
 import (
-	"os"
-	"os/exec"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/envs"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/usm"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
-	usmtestutil "github.com/DataDog/datadog-agent/pkg/network/usm/testutil"
-	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
-
-func TestInjected(t *testing.T) {
-	data := []struct {
-		name   string
-		envs   map[string]string
-		result bool
-	}{
-		{
-			name: "injected",
-			envs: map[string]string{
-				"DD_INJECTION_ENABLED": "tracer",
-			},
-			result: true,
-		},
-		{
-			name: "one of injected",
-			envs: map[string]string{
-				"DD_INJECTION_ENABLED": "service_name,tracer",
-			},
-			result: true,
-		},
-		{
-			name: "not injected but with env variable",
-			envs: map[string]string{
-				"DD_INJECTION_ENABLED": "service_name",
-			},
-		},
-		{
-			name: "not injected, no env variable",
-		},
-	}
-	for _, d := range data {
-		t.Run(d.name, func(t *testing.T) {
-			result := isInjected(envs.NewVariables(d.envs))
-			assert.Equal(t, d.result, result)
-		})
-	}
-}
 
 func Test_javaDetector(t *testing.T) {
 	data := []struct {
@@ -264,73 +219,5 @@ func TestDotNetDetector(t *testing.T) {
 			}
 			assert.Equal(t, test.result, result)
 		})
-	}
-}
-
-func TestGoDetector(t *testing.T) {
-	if os.Getenv("CI") == "" && os.Getuid() != 0 {
-		t.Skip("skipping test; requires root privileges")
-	}
-
-	tests := []struct {
-		program string
-		build   func(string, string) (string, error)
-		binary  string
-		pid     int
-	}{
-		{
-			program: "instrumented",
-			build:   usmtestutil.BuildGoBinaryWrapper,
-		},
-		{
-			program: "instrumented",
-			build:   usmtestutil.BuildGoBinaryWrapperWithoutSymbols,
-		},
-		{
-			program: "instrumented2",
-			build:   usmtestutil.BuildGoBinaryWrapper,
-		},
-		{
-			program: "instrumented2",
-			build:   usmtestutil.BuildGoBinaryWrapperWithoutSymbols,
-		},
-	}
-
-	curDir, err := testutil.CurDir()
-	require.NoError(t, err)
-
-	for i, test := range tests {
-		binary, err := test.build(filepath.Join(curDir, "testutil"), test.program)
-		require.NoError(t, err)
-
-		cmd := exec.Command(binary)
-		require.NoError(t, cmd.Start())
-		t.Cleanup(func() {
-			_ = cmd.Process.Kill()
-			cmd.Wait()
-		})
-		require.Eventually(t, func() bool {
-			if cmd.Process.Pid == 0 {
-				return false
-			}
-			f, err := os.Open(kernel.HostProc(strconv.Itoa(cmd.Process.Pid), "exe"))
-			if err == nil {
-				_ = f.Close()
-				return true
-			}
-			return false
-		}, time.Second*10, time.Millisecond*100)
-		tests[i].pid = cmd.Process.Pid
-	}
-
-	ctx := usm.NewDetectionContext(nil, envs.NewVariables(nil), nil)
-	ctx.Pid = os.Getpid()
-	result := goDetector(ctx)
-	require.Equal(t, None, result)
-
-	for _, binary := range tests {
-		ctx.Pid = binary.pid
-		result = goDetector(ctx)
-		require.Equal(t, Provided, result)
 	}
 }

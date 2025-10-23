@@ -17,14 +17,11 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/envs"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/language"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/usm"
 	"github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata"
-	"github.com/DataDog/datadog-agent/pkg/network/go/bininspect"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/safeelf"
 )
 
 // Instrumentation represents the state of APM instrumentation for a service.
@@ -35,8 +32,6 @@ const (
 	None Instrumentation = "none"
 	// Provided means the service has been manually instrumented.
 	Provided Instrumentation = "provided"
-	// Injected means the service is using automatic APM injection.
-	Injected Instrumentation = "injected"
 )
 
 type detector func(ctx usm.DetectionContext) Instrumentation
@@ -47,7 +42,6 @@ var (
 		language.Java:   javaDetector,
 		language.Node:   nodeDetector,
 		language.Python: pythonDetector,
-		language.Go:     goDetector,
 	}
 
 	nodeAPMCheckRegex = regexp.MustCompile(`"dd-trace"`)
@@ -55,11 +49,6 @@ var (
 
 // Detect attempts to detect the type of APM instrumentation for the given service.
 func Detect(lang language.Language, ctx usm.DetectionContext, tracerMetadata *tracermetadata.TracerMetadata) Instrumentation {
-	// first check to see if the DD_INJECTION_ENABLED is set to tracer
-	if isInjected(ctx.Envs) {
-		return Injected
-	}
-
 	// if the process has valid tracer's metadata, then the
 	// instrumentation is provided
 	if tracerMetadata != nil {
@@ -72,64 +61,6 @@ func Detect(lang language.Language, ctx usm.DetectionContext, tracerMetadata *tr
 	}
 
 	return None
-}
-
-func isInjected(envs envs.Variables) bool {
-	if val, ok := envs.Get("DD_INJECTION_ENABLED"); ok {
-		parts := strings.Split(val, ",")
-		for _, v := range parts {
-			if v == "tracer" {
-				return true
-			}
-		}
-	}
-	return false
-}
-
-const (
-	// ddTraceGoPrefix(V2) is the prefix of the dd-trace-go symbols. The symbols
-	// we are looking for are for example:
-	//    gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer.init
-	//  github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.init
-	//
-	// We use an infix instead of a specific symbol name in an attempt to make
-	// it future-proof.
-	ddTraceGoPrefix    = "gopkg.in/DataDog/dd-trace-go"
-	ddTraceGoPrefixV2  = "github.com/DataDog/dd-trace-go/v2/"
-	ddTraceGoMinLength = min(len(ddTraceGoPrefix), len(ddTraceGoPrefixV2))
-	ddTraceGoInfix     = "DataDog/dd-trace-go"
-
-	// ddTraceGoMaxLength is the maximum length of the dd-trace-go symbols which
-	// we look for. The max length is an optimization in bininspect to avoid
-	// reading unnecesssary symbols.  As of writing, most non-internal symbols
-	// in dd-trace-go are under 100 chars. The tracer.init example above at
-	// 51/53 chars is one of the shortest.
-	ddTraceGoMaxLength = 100
-)
-
-// goDetector detects APM instrumentation for Go binaries by checking for
-// the presence of the dd-trace-go symbols in the ELF. This only works for
-// unstripped binaries.
-func goDetector(ctx usm.DetectionContext) Instrumentation {
-	exePath := kernel.HostProc(strconv.Itoa(ctx.Pid), "exe")
-
-	elfFile, err := safeelf.Open(exePath)
-	if err != nil {
-		log.Debugf("Unable to open exe %s: %v", exePath, err)
-		return None
-	}
-	defer elfFile.Close()
-
-	if _, err = bininspect.GetAnySymbolWithInfix(elfFile, ddTraceGoInfix, ddTraceGoMinLength, ddTraceGoMaxLength); err == nil {
-		return Provided
-	}
-
-	// We failed to find symbols in the regular symbols section, now we can try the pclntab
-	if _, err = bininspect.GetAnySymbolWithInfixPCLNTAB(elfFile, ddTraceGoInfix, ddTraceGoMinLength, ddTraceGoMaxLength); err == nil {
-		return Provided
-	}
-	return None
-
 }
 
 func pythonDetectorFromMapsReader(reader io.Reader) Instrumentation {
