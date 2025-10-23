@@ -355,7 +355,7 @@ func (c *collector) getDiscoveryServices(newPids []int32, heartbeatPids []int32)
 		HeartbeatPids: heartbeatPids,
 	}
 
-	response, err := sysprobeclient.GetWithBody[model.ServicesResponse](c.sysProbeClient, "/services", params, sysconfig.DiscoveryModule)
+	response, err := sysprobeclient.Post[model.ServicesResponse](c.sysProbeClient, "/services", params, sysconfig.DiscoveryModule)
 	if err != nil {
 		return nil, err
 	}

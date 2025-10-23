@@ -79,8 +79,10 @@ func TestGetCheck(t *testing.T) {
 
 	socketPath, server := startTestServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/test/check" {
+			assert.Equal(t, http.MethodGet, r.Method, "check endpoint should use GET")
 			_, _ = w.Write([]byte(`{"Str": "asdf", "Num": 42}`))
 		} else if r.URL.Path == "/test/services" {
+			assert.Equal(t, http.MethodPost, r.Method, "services endpoint should use POST")
 			body, err := io.ReadAll(r.Body)
 			require.NoError(t, err)
 			assert.Equal(t, "application/json", r.Header.Get("Content-Type"))
@@ -110,20 +112,13 @@ func TestGetCheck(t *testing.T) {
 	assert.Equal(t, 42, resp.Num)
 	validateTelemetry(t, "test", expectedTelemetryValues{1, 0, 0, 0, 0})
 
-	//test GetWithBody with request body
+	//test Post with request body
 	requestBody := requestData{Pids: []int32{1, 2, 3}}
-	resp, err = GetWithBody[testData](client, "/services", requestBody, "test")
+	resp, err = Post[testData](client, "/services", requestBody, "test")
 	require.NoError(t, err)
 	assert.Equal(t, "with_body", resp.Str)
 	assert.Equal(t, 99, resp.Num)
 	validateTelemetry(t, "test", expectedTelemetryValues{2, 0, 0, 0, 0})
-
-	//test GetWithBody with nil body (same as GetCheck)
-	resp, err = GetWithBody[testData](client, "/check", nil, "test")
-	require.NoError(t, err)
-	assert.Equal(t, "asdf", resp.Str)
-	assert.Equal(t, 42, resp.Num)
-	validateTelemetry(t, "test", expectedTelemetryValues{3, 0, 0, 0, 0})
 
 	//test responseError counter
 	resp, err = GetCheck[testData](client, "foo")
@@ -139,7 +134,7 @@ func TestGetCheck(t *testing.T) {
 	server.Close()
 	resp, err = GetCheck[testData](client, "test")
 	require.Error(t, err)
-	validateTelemetry(t, "test", expectedTelemetryValues{4, 1, 0, 0, 0})
+	validateTelemetry(t, "test", expectedTelemetryValues{3, 1, 0, 0, 0})
 }
 
 func TestGetCheckStartup(t *testing.T) {

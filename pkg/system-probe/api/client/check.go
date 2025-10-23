@@ -211,14 +211,18 @@ func doReq(client *http.Client, req *http.Request, module types.ModuleName) (bod
 
 // GetCheck returns data unmarshalled from JSON to T, from the specified module at the /<module>/check endpoint.
 func GetCheck[T any](client *CheckClient, module types.ModuleName) (T, error) {
-	return GetWithBody[T](client, "/check", nil, module)
+	return request[T](client, http.MethodGet, "/check", nil, module)
 }
 
-// GetWithBody makes a GET request to a module endpoint with an optional JSON
+// Post makes a POST request to a module endpoint with an optional JSON
 // request body and returns data unmarshalled from JSON to T.  The endpoint
 // parameter should be the path relative to the module (e.g., "/check",
 // "/services").
-func GetWithBody[T any](client *CheckClient, endpoint string, requestBody any, module types.ModuleName) (T, error) {
+func Post[T any](client *CheckClient, endpoint string, requestBody any, module types.ModuleName) (T, error) {
+	return request[T](client, http.MethodPost, endpoint, requestBody, module)
+}
+
+func request[T any](client *CheckClient, method string, endpoint string, requestBody any, module types.ModuleName) (T, error) {
 	var data T
 	err := client.startupChecker.ensureStarted(client.startupClient)
 	if err != nil {
@@ -236,7 +240,7 @@ func GetWithBody[T any](client *CheckClient, endpoint string, requestBody any, m
 		bodyReader = bytes.NewReader(jsonBody)
 	}
 
-	req, err := http.NewRequest("GET", ModuleURL(module, endpoint), bodyReader)
+	req, err := http.NewRequest(method, ModuleURL(module, endpoint), bodyReader)
 	if err != nil {
 		return data, err
 	}
