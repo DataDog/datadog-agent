@@ -24,13 +24,13 @@ import (
 
 // RuntimeSecurityClient is used to send request to security module
 type RuntimeSecurityCmdClient struct {
-	apiClient api.SecurityModuleClient
+	apiClient api.SecurityModuleCmdClient
 	conn      *grpc.ClientConn
 }
 
 // RuntimeSecurityClient is used to send request to security module
 type RuntimeSecurityEventClient struct {
-	eventClient api.SecurityEventModuleClient
+	eventClient api.SecurityModuleEventClient
 	conn        *grpc.ClientConn
 }
 
@@ -113,7 +113,7 @@ func (c *RuntimeSecurityCmdClient) GetConfig() (*api.SecurityConfigMessage, erro
 
 // GetStatus returns the status of the module
 func (c *RuntimeSecurityCmdClient) GetStatus() (*api.Status, error) {
-	apiClient := api.NewSecurityModuleClient(c.conn)
+	apiClient := api.NewSecurityModuleCmdClient(c.conn)
 	return apiClient.GetStatus(context.Background(), &api.GetStatusParams{})
 }
 
@@ -167,7 +167,7 @@ func (c *RuntimeSecurityCmdClient) Close() {
 }
 
 // GetEvents returns a stream of events. Communication security-agent -> system-probe
-func (c *RuntimeSecurityEventClient) GetEventStream() (api.SecurityEventModule_GetEventStreamClient, error) {
+func (c *RuntimeSecurityEventClient) GetEventStream() (api.SecurityModuleEvent_GetEventStreamClient, error) {
 	stream, err := c.eventClient.GetEventStream(context.Background(), &empty.Empty{})
 	if err != nil {
 		return nil, err
@@ -176,7 +176,7 @@ func (c *RuntimeSecurityEventClient) GetEventStream() (api.SecurityEventModule_G
 }
 
 // GetActivityDumpStream returns a stream of activity dumps. Communication security-agent -> system-probe
-func (c *RuntimeSecurityEventClient) GetActivityDumpStream() (api.SecurityEventModule_GetActivityDumpStreamClient, error) {
+func (c *RuntimeSecurityEventClient) GetActivityDumpStream() (api.SecurityModuleEvent_GetActivityDumpStreamClient, error) {
 	stream, err := c.eventClient.GetActivityDumpStream(context.Background(), &empty.Empty{})
 	if err != nil {
 		return nil, err
@@ -219,7 +219,7 @@ func NewRuntimeSecurityCmdClient() (*RuntimeSecurityCmdClient, error) {
 
 	return &RuntimeSecurityCmdClient{
 		conn:      conn,
-		apiClient: api.NewSecurityModuleClient(conn),
+		apiClient: api.NewSecurityModuleCmdClient(conn),
 	}, nil
 }
 
@@ -257,6 +257,6 @@ func NewRuntimeSecurityEventClient() (*RuntimeSecurityEventClient, error) {
 
 	return &RuntimeSecurityEventClient{
 		conn:        conn,
-		eventClient: api.NewSecurityEventModuleClient(conn),
+		eventClient: api.NewSecurityModuleEventClient(conn),
 	}, nil
 }

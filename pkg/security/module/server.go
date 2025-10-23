@@ -129,7 +129,8 @@ func mergeJSON(j1, j2 []byte) ([]byte, error) {
 // APIServer represents a gRPC server in charge of receiving events sent by
 // the runtime security system-probe module and forwards them to Datadog
 type APIServer struct {
-	api.UnimplementedSecurityModuleServer
+	api.UnimplementedSecurityModuleEventServer
+	api.UnimplementedSecurityModuleCmdServer
 	events             chan *api.SecurityEventMessage
 	activityDumps      chan *api.ActivityDumpStreamMessage
 	expiredEventsLock  sync.RWMutex
@@ -162,7 +163,7 @@ type APIServer struct {
 }
 
 // GetActivityDumpStream transfers dumps to the security-agent. Communication security-agent -> system-probe
-func (a *APIServer) GetActivityDumpStream(_ *empty.Empty, stream api.SecurityEventModule_GetActivityDumpStreamServer) error {
+func (a *APIServer) GetActivityDumpStream(_ *empty.Empty, stream api.SecurityModuleEvent_GetActivityDumpStreamServer) error {
 	for {
 		select {
 		case <-stream.Context().Done():
@@ -192,7 +193,7 @@ func (a *APIServer) SendActivityDump(imageName string, imageTag string, header [
 }
 
 // GetEvents transfers events to the security-agent. Communication security-agent -> system-probe
-func (a *APIServer) GetEventStream(_ *empty.Empty, stream api.SecurityEventModule_GetEventStreamServer) error {
+func (a *APIServer) GetEventStream(_ *empty.Empty, stream api.SecurityModuleEvent_GetEventStreamServer) error {
 	if prev := a.connEstablished.Swap(true); !prev {
 		// should always be non nil
 		if a.cwsConsumer != nil {
@@ -361,6 +362,8 @@ func (a *APIServer) start(ctx context.Context) {
 // Start the api server, starts to consume the msg queue
 func (a *APIServer) Start(ctx context.Context) {
 	if a.securityAgentAPIClient != nil {
+		seclog.Infof("starting to send events to security agent")
+
 		go a.securityAgentAPIClient.SendEvents(ctx, a.events, func() {
 			if prev := a.connEstablished.Swap(true); !prev {
 				// should always be non nil
@@ -777,7 +780,9 @@ func NewAPIServer(cfg *config.RuntimeSecurityConfig, probe *sprobe.Probe, msgSen
 		containerFilter: containerFilter,
 	}
 
-	if cfg.SendPayloadsFromSystemProbe {
+	if !cfg.SendPayloadsFromSystemProbe && cfg.EventGRPCServer == "security-agent" {
+		seclog.Infof("setting up security agent api client")
+
 		securityAgentAPIClient, err := NewSecurityAgentAPIClient(cfg)
 		if err != nil {
 			return nil, err

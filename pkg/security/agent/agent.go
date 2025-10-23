@@ -30,7 +30,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/security_profile/storage/backend"
-	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	grpcutils "github.com/DataDog/datadog-agent/pkg/security/utils/grpc"
 )
 
@@ -54,7 +53,7 @@ type RuntimeSecurityAgent struct {
 
 	// grpc server
 	api.UnimplementedSecurityAgentAPIServer
-	grpcServer *grpcutils.Server
+	eventGPRCServer *grpcutils.Server
 }
 
 // ADStorage represents the interface for the activity dump storage
@@ -132,12 +131,16 @@ func (rsa *RuntimeSecurityAgent) Start(reporter common.RawReporter, endpoints *c
 		go rsa.startActivityDumpStorageTelemetry(ctx)
 	}
 
-	if rsa.grpcServer != nil {
-		err := rsa.grpcServer.Start()
+	if rsa.eventGPRCServer != nil {
+		seclog.Infof("start security agent event grpc server")
+
+		err := rsa.eventGPRCServer.Start()
 		if err != nil {
 			seclog.Errorf("error starting security agent grpc server: %v", err)
 		}
 	} else {
+		seclog.Infof("start listening for events from system-probe")
+
 		go rsa.startEventStreamListener()
 		go rsa.startActivityDumpStreamListener()
 	}
@@ -152,8 +155,8 @@ func (rsa *RuntimeSecurityAgent) Stop() {
 	if rsa.eventClient != nil {
 		rsa.eventClient.Close()
 	}
-	if rsa.grpcServer != nil {
-		rsa.grpcServer.Stop()
+	if rsa.eventGPRCServer != nil {
+		rsa.eventGPRCServer.Stop()
 	}
 	rsa.wg.Wait()
 }
@@ -300,7 +303,7 @@ func (rsa *RuntimeSecurityAgent) startActivityDumpStorageTelemetry(ctx context.C
 
 //nolint:unused,deadcode
 func (rsa *RuntimeSecurityAgent) setupGPRC() error {
-	if utils.IsSecurityAgentEventGRPCServer() {
+	if pkgconfigsetup.Datadog().GetString("runtime_security_config.event_gprc_server") == "security-agent" {
 		socketPath := pkgconfigsetup.Datadog().GetString("runtime_security_config.socket")
 		if socketPath == "" {
 			return errors.New("runtime_security_config.socket must be set")
@@ -311,8 +314,8 @@ func (rsa *RuntimeSecurityAgent) setupGPRC() error {
 			return fmt.Errorf("unix sockets are not supported on Windows")
 		}
 
-		rsa.grpcServer = grpcutils.NewServer(family, socketPath)
-		api.RegisterSecurityAgentAPIServer(rsa.grpcServer.ServiceRegistrar(), rsa)
+		rsa.eventGPRCServer = grpcutils.NewServer(family, socketPath)
+		api.RegisterSecurityAgentAPIServer(rsa.eventGPRCServer.ServiceRegistrar(), rsa)
 	} else {
 		client, err := NewRuntimeSecurityEventClient()
 		if err != nil {
