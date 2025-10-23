@@ -49,7 +49,7 @@ func TestBasicLogging(t *testing.T) {
 	w := bufio.NewWriter(&b)
 
 	seelog.RegisterCustomFormatter("ExtraTextContext", createExtraTextContext)
-	l, err := LoggerFromWriterWithMinLevelAndFormat(w, DebugLvl, "[%LEVEL] %FuncShort: %ExtraTextContext%Msg\n")
+	l, err := LoggerFromWriterWithMinLevelAndLvlFuncCtxMsgFormat(w, DebugLvl)
 	assert.NoError(t, err)
 
 	SetupLogger(l, "debug")
@@ -108,7 +108,7 @@ func TestLogBuffer(t *testing.T) {
 	var b bytes.Buffer
 	w := bufio.NewWriter(&b)
 
-	l, err := LoggerFromWriterWithMinLevelAndFormat(w, DebugLvl, "[%LEVEL] %FuncShort: %Msg")
+	l, err := LoggerFromWriterWithMinLevelAndLvlFuncMsgFormat(w, DebugLvl)
 	assert.NoError(t, err)
 
 	Tracef("%s", "foo")
@@ -134,7 +134,7 @@ func TestLogBufferWithContext(t *testing.T) {
 	var b bytes.Buffer
 	w := bufio.NewWriter(&b)
 
-	l, err := LoggerFromWriterWithMinLevelAndFormat(w, DebugLvl, "[%LEVEL] %FuncShort: %Msg")
+	l, err := LoggerFromWriterWithMinLevelAndLvlFuncMsgFormat(w, DebugLvl)
 	assert.NoError(t, err)
 
 	Tracec("baz", "number", 1, "str", "hello")
@@ -170,7 +170,7 @@ func TestCredentialScrubbingLogging(t *testing.T) {
 	var b bytes.Buffer
 	w := bufio.NewWriter(&b)
 
-	l, err := LoggerFromWriterWithMinLevelAndFormat(w, DebugLvl, "[%LEVEL] %FuncShort: %Msg")
+	l, err := LoggerFromWriterWithMinLevelAndLvlFuncMsgFormat(w, DebugLvl)
 	assert.NoError(t, err)
 
 	SetupLogger(l, "info")
@@ -215,7 +215,7 @@ func TestWarnNotNil(t *testing.T) {
 
 	assert.NotNil(t, Warn("test"))
 
-	l, _ := LoggerFromWriterWithMinLevelAndFormat(w, CriticalLvl, "[%LEVEL] %FuncShort: %Msg")
+	l, _ := LoggerFromWriterWithMinLevelAndLvlFuncMsgFormat(w, CriticalLvl)
 	SetupLogger(l, "critical")
 
 	assert.NotNil(t, Warn("test"))
@@ -231,7 +231,7 @@ func TestWarnfNotNil(t *testing.T) {
 
 	assert.NotNil(t, Warn("test"))
 
-	l, _ := LoggerFromWriterWithMinLevelAndFormat(w, CriticalLvl, "[%LEVEL] %FuncShort: %Msg")
+	l, _ := LoggerFromWriterWithMinLevelAndLvlFuncMsgFormat(w, CriticalLvl)
 	SetupLogger(l, "critical")
 
 	assert.NotNil(t, Warn("test"))
@@ -248,7 +248,7 @@ func TestWarncNotNil(t *testing.T) {
 	assert.NotNil(t, Warnc("test", "key", "val"))
 
 	seelog.RegisterCustomFormatter("ExtraTextContext", createExtraTextContext)
-	l, _ := LoggerFromWriterWithMinLevelAndFormat(w, CriticalLvl, "[%LEVEL] %FuncShort: %ExtraTextContext%Msg")
+	l, _ := LoggerFromWriterWithMinLevelAndLvlFuncCtxMsgFormat(w, CriticalLvl)
 	SetupLogger(l, "critical")
 
 	assert.NotNil(t, Warnc("test", "key", "val"))
@@ -264,7 +264,7 @@ func TestErrorNotNil(t *testing.T) {
 
 	assert.NotNil(t, Error("test"))
 
-	l, _ := LoggerFromWriterWithMinLevelAndFormat(w, CriticalLvl, "[%LEVEL] %FuncShort: %Msg")
+	l, _ := LoggerFromWriterWithMinLevelAndLvlFuncMsgFormat(w, CriticalLvl)
 	SetupLogger(l, "critical")
 
 	assert.NotNil(t, Error("test"))
@@ -280,7 +280,7 @@ func TestErrorfNotNil(t *testing.T) {
 
 	assert.NotNil(t, Errorf("test"))
 
-	l, _ := LoggerFromWriterWithMinLevelAndFormat(w, CriticalLvl, "[%LEVEL] %FuncShort: %Msg")
+	l, _ := LoggerFromWriterWithMinLevelAndLvlFuncMsgFormat(w, CriticalLvl)
 	SetupLogger(l, "critical")
 
 	assert.NotNil(t, Errorf("test"))
@@ -297,7 +297,7 @@ func TestErrorcNotNil(t *testing.T) {
 	assert.NotNil(t, Errorc("test", "key", "val"))
 
 	seelog.RegisterCustomFormatter("ExtraTextContext", createExtraTextContext)
-	l, _ := LoggerFromWriterWithMinLevelAndFormat(w, CriticalLvl, "[%LEVEL] %FuncShort: %ExtraTextContext%Msg")
+	l, _ := LoggerFromWriterWithMinLevelAndLvlFuncCtxMsgFormat(w, CriticalLvl)
 	SetupLogger(l, "critical")
 
 	assert.NotNil(t, Errorc("test", "key", "val"))
@@ -313,7 +313,7 @@ func TestCriticalNotNil(t *testing.T) {
 
 	assert.NotNil(t, Critical("test"))
 
-	l, _ := LoggerFromWriterWithMinLevelAndFormat(w, InfoLvl, "[%LEVEL] %FuncShort: %Msg")
+	l, _ := LoggerFromWriterWithMinLevelAndLvlFuncMsgFormat(w, InfoLvl)
 	SetupLogger(l, "info")
 
 	assert.NotNil(t, Critical("test"))
@@ -325,7 +325,7 @@ func TestCriticalfNotNil(t *testing.T) {
 
 	assert.NotNil(t, Criticalf("test"))
 
-	l, _ := LoggerFromWriterWithMinLevelAndFormat(w, InfoLvl, "[%LEVEL] %FuncShort: %Msg")
+	l, _ := LoggerFromWriterWithMinLevelAndLvlFuncMsgFormat(w, InfoLvl)
 	SetupLogger(l, "info")
 
 	assert.NotNil(t, Criticalf("test"))
@@ -338,7 +338,7 @@ func TestCriticalcNotNil(t *testing.T) {
 	assert.NotNil(t, Criticalc("test", "key", "val"))
 
 	seelog.RegisterCustomFormatter("ExtraTextContext", createExtraTextContext)
-	l, _ := LoggerFromWriterWithMinLevelAndFormat(w, InfoLvl, "[%LEVEL] %FuncShort: %ExtraTextContext%Msg")
+	l, _ := LoggerFromWriterWithMinLevelAndLvlFuncCtxMsgFormat(w, InfoLvl)
 	SetupLogger(l, "info")
 
 	assert.NotNil(t, Criticalc("test", "key", "val"))
@@ -348,7 +348,7 @@ func TestDebugFuncNoExecute(t *testing.T) {
 	var b bytes.Buffer
 	w := bufio.NewWriter(&b)
 
-	l, _ := LoggerFromWriterWithMinLevelAndFormat(w, InfoLvl, "[%LEVEL] %FuncShort: %Msg")
+	l, _ := LoggerFromWriterWithMinLevelAndLvlFuncMsgFormat(w, InfoLvl)
 	SetupLogger(l, "info")
 
 	i := 0
@@ -364,7 +364,7 @@ func TestDebugFuncExecute(t *testing.T) {
 	var b bytes.Buffer
 	w := bufio.NewWriter(&b)
 
-	l, _ := LoggerFromWriterWithMinLevelAndFormat(w, DebugLvl, "[%LEVEL] %FuncShort: %Msg")
+	l, _ := LoggerFromWriterWithMinLevelAndLvlFuncMsgFormat(w, DebugLvl)
 	SetupLogger(l, "debug")
 
 	i := 0
@@ -411,7 +411,7 @@ func TestFuncVersions(t *testing.T) {
 		var b bytes.Buffer
 		w := bufio.NewWriter(&b)
 
-		l, _ := LoggerFromWriterWithMinLevelAndFormat(w, tc.seelogLevel, "[%LEVEL] %FuncShort: %Msg")
+		l, _ := LoggerFromWriterWithMinLevelAndLvlFuncMsgFormat(w, tc.seelogLevel)
 		SetupLogger(l, tc.strLogLevel)
 
 		i := 0
@@ -451,7 +451,7 @@ func TestStackDepthfLogging(t *testing.T) {
 			var b bytes.Buffer
 			w := bufio.NewWriter(&b)
 
-			l, err := LoggerFromWriterWithMinLevelAndFormat(w, tc.seelogLevel, "[%LEVEL] %Func: %Msg\n")
+			l, err := loggerFromWriterWithMinLevelAndFormat(w, tc.seelogLevel, "[%LEVEL] %Func: %Msg%n")
 			assert.NoError(t, err)
 
 			SetupLogger(l, tc.strLogLevel)
@@ -500,7 +500,7 @@ func getFuncName(val reflect.Value) (string, error) {
 func TestLoggerScrubbingCount(t *testing.T) {
 	var b bytes.Buffer
 	w := bufio.NewWriter(&b)
-	l, err := LoggerFromWriterWithMinLevelAndFormat(w, TraceLvl, "[%LEVEL] %FuncShort: %Msg")
+	l, err := LoggerFromWriterWithMinLevelAndLvlFuncMsgFormat(w, TraceLvl)
 	require.NoError(t, err)
 	SetupLogger(l, "trace")
 
@@ -636,7 +636,7 @@ func TestChangeLogLevel(t *testing.T) {
 			var b bytes.Buffer
 			w := bufio.NewWriter(&b)
 
-			l, _ := LoggerFromWriterWithMinLevelAndFormat(w, DebugLvl, "")
+			l, _ := LoggerFromWriterWithMinLevelAndLvlFuncMsgFormat(w, DebugLvl)
 
 			SetupLogger(Default(), DebugStr)
 
