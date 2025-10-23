@@ -82,7 +82,7 @@ func GetLSASecretString(key string) (string, error) {
 	if err := getWinError(status); err != nil {
 		return "", fmt.Errorf("LsaOpenPolicy failed: %w", err)
 	}
-	defer procLsaClose.Call(uintptr(policyHandle))
+	defer procLsaClose.Call(uintptr(policyHandle)) //nolint:errcheck
 
 	keyName := initLsaUnicodeString(key)
 	var secretPtr *lsaUnicodeString
@@ -97,7 +97,7 @@ func GetLSASecretString(key string) (string, error) {
 	if secretPtr == nil {
 		return "", fmt.Errorf("LSA secret pointer is NULL")
 	}
-	defer procLsaFreeMemory.Call(uintptr(unsafe.Pointer(secretPtr)))
+	defer procLsaFreeMemory.Call(uintptr(unsafe.Pointer(secretPtr))) //nolint:errcheck
 
 	secret := secretPtr
 	if secret.Buffer == nil || secret.Length == 0 {
