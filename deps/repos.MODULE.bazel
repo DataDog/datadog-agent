@@ -84,6 +84,14 @@ http_archive(
 )
 
 http_archive(
+    name = "libselinux",
+    build_file = "//deps:libselinux.BUILD.bazel",
+    sha256 = "9a3a3705ac13a2ccca2de6d652b6356fead10f36fb33115c185c5ccdf29eec19",
+    strip_prefix = "libselinux-3.5",
+    url = "https://github.com/SELinuxProject/selinux/releases/download/3.5/libselinux-3.5.tar.gz",
+)
+
+http_archive(
     name = "patchelf",
     build_file = "//deps:patchelf.BUILD.bazel",
     sha256 = "64de10e4c6b8b8379db7e87f58030f336ea747c0515f381132e810dbf84a86e7",
