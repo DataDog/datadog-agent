@@ -1489,28 +1489,31 @@ func TestProcessExecExit(t *testing.T) {
 	assert.NotEmpty(t, execPid, "exec pid not found")
 
 	// make sure that the process cache entry of the process was properly deleted from the cache
-	err = retry.Do(func() error {
-		if !ebpfLessEnabled {
-			p, ok := test.probe.PlatformProbe.(*sprobe.EBPFProbe)
-			if !ok {
-				t.Skip("not supported")
-			}
+	if !ebpfLessEnabled {
+		p, ok := test.probe.PlatformProbe.(*sprobe.EBPFProbe)
+		if !ok {
+			t.Skip("not supported")
+		}
+		err = retry.Do(func() error {
 			entry := p.Resolvers.ProcessResolver.Get(execPid)
 			if entry != nil {
 				return errors.New("the process cache entry was not deleted from the user space cache")
 			}
-		} else {
-			p, ok := test.probe.PlatformProbe.(*sprobe.EBPFLessProbe)
-			if !ok {
-				t.Skip("not supported")
-			}
+			return nil
+		})
+	} else {
+		p, ok := test.probe.PlatformProbe.(*sprobe.EBPFLessProbe)
+		if !ok {
+			t.Skip("not supported")
+		}
+		err = retry.Do(func() error {
 			entry := p.Resolvers.ProcessResolver.Resolve(process.CacheResolverKey{Pid: execPid, NSID: nsID})
 			if entry != nil {
 				return errors.New("the process cache entry was not deleted from the user space cache")
 			}
-		}
-		return nil
-	})
+			return nil
+		})
+	}
 	if err != nil {
 		t.Error(err)
 	}
