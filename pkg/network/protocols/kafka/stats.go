@@ -9,6 +9,7 @@ package kafka
 
 import (
 	"errors"
+	"fmt"
 
 	"github.com/DataDog/sketches-go/ddsketch"
 
@@ -38,6 +39,11 @@ type Key struct {
 	RequestVersion uint16
 	TopicName      *intern.StringValue
 	types.ConnectionKey
+}
+
+// String rep
+func (k *Key) String() string {
+	return fmt.Sprintf("api key: %d; api version: %d; topic name: %q; conn: %v", k.RequestAPIKey, k.RequestVersion, k.TopicName.Get(), k.ConnectionKey)
 }
 
 // RequestStats stores Kafka request statistics per Kafka error code
@@ -91,6 +97,11 @@ func (r *RequestStat) close() {
 	r.Count = 0
 	r.FirstLatencySample = 0
 	r.StaticTags = 0
+}
+
+// String rep
+func (r *RequestStat) String() string {
+	return fmt.Sprintf("count: %d", r.Count)
 }
 
 // CombineWith merges the data in 2 RequestStats objects
