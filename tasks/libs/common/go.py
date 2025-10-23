@@ -62,7 +62,6 @@ def go_build(
         cmd += f" -o {bin_path}"
     if gcflags:
         cmd += f" -gcflags=\"{gcflags}\""
-    check_deadcode = True  # TODO: remove before merging, this is to ease testing
     if check_deadcode:
         ldflags = (ldflags or "") + " -dumpdep"
     if ldflags:
@@ -106,24 +105,14 @@ def _handle_pipe_to_whydeadcode(ctx: Context, cmd: str, env: dict[str, str] | No
     # worst case it's already installed and nothing happens
     with ctx.cd("internal/tools"):
         # pass the env to the command so that it can check GOPATH/GOBIN if provided
-
-        env = env or {}
-        print(f"os GOPATH: {os.getenv('GOPATH')}")
-        print(f"os GOBIN: {os.getenv('GOBIN')}")
-        print(f"os PATH: {os.getenv('PATH')}")
-        print(f"env GOPATH: {env.get('GOPATH')}")
-        print(f"env GOBIN: {env.get('GOBIN')}")
-        print(f"env PATH: {env.get('PATH')}")
-
-        ctx.run("go install -x github.com/aarzilli/whydeadcode", env=env)
+        ctx.run("go install github.com/aarzilli/whydeadcode", env=env)
 
     # whydeadcode prints unexpected input on stderr (eg. build warnings), and
     # dead code call stack on stdout
     # it returns non-zero if non-expected input is passed, and 0 otherwise, even if dead code elimination is disabled
     # so we check whether stdout is empty to know if dead code elimination is disabled
-    binary_name = "whydeadcode.exe" if sys.platform == "win32" else "whydeadcode"
     whydeadcoderes = cast(
-        Result, runner.run(binary_name, in_stream=CustomReader(result.stderr), warn=True, hide="out", env=env)
+        Result, runner.run("whydeadcode", in_stream=CustomReader(result.stderr), warn=True, hide="out", env=env)
     )
     if whydeadcoderes.stdout:
         print(
