@@ -11,6 +11,7 @@ import (
 
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	doctordef "github.com/DataDog/datadog-agent/comp/doctor/def"
@@ -455,10 +456,15 @@ func (m *model) updateAnimations() {
 			payload.progress = float64(elapsedMS) / animationDuration
 
 			if payload.progress >= 1.0 {
-				// Payload reached endpoint - trigger flash
-				flashColor := colorEndpointSuccess
-				if !payload.success {
-					flashColor = colorEndpointError
+				// Payload reached endpoint - trigger flash based on result type
+				var flashColor lipgloss.Color
+				switch payload.resultType {
+				case "success":
+					flashColor = colorEndpointSuccess // White
+				case "failure":
+					flashColor = colorEndpointError // Red
+				default:
+					flashColor = colorEndpointDefault // Gray fallback
 				}
 				m.endpointFlashState[endpointURL] = &flashState{
 					color:     flashColor,
@@ -491,43 +497,46 @@ func (m *model) updateAnimations() {
 	for _, endpoint := range m.status.Intake.Endpoints {
 		endpointURL := endpoint.URL
 
-		// Check if we have previous counts (skip first poll to establish baseline)
+		// Get previous counts (skip first poll to establish baseline)
 		previousSuccess, hadPreviousSuccess := m.previousSuccessCounts[endpointURL]
 		previousFailure, hadPreviousFailure := m.previousFailureCounts[endpointURL]
+		previousRequeue, hadPreviousRequeue := m.previousRequeuedCounts[endpointURL]
+		previousError, hadPreviousError := m.previousErrorCounts[endpointURL]
 
-		// Update stored counts
+		// Update stored counts for next iteration
 		m.previousSuccessCounts[endpointURL] = endpoint.SuccessCount
 		m.previousFailureCounts[endpointURL] = endpoint.FailureCount
+		m.previousRequeuedCounts[endpointURL] = endpoint.RequeuedCount
+		m.previousErrorCounts[endpointURL] = endpoint.ErrorCount
 
 		// Skip animation on first poll (establishing baseline)
-		if !hadPreviousSuccess && !hadPreviousFailure {
+		if !hadPreviousSuccess && !hadPreviousFailure && !hadPreviousRequeue && !hadPreviousError {
 			continue
 		}
 
 		// Check if counts actually increased
+		requeueIncreased := endpoint.RequeuedCount > previousRequeue
+		errorIncreased := endpoint.ErrorCount > previousError
 		successIncreased := endpoint.SuccessCount > previousSuccess
 		failureIncreased := endpoint.FailureCount > previousFailure
 
-		// Determine if we should trigger animation
-		shouldAnimate := false
-		success := false
-
-		if successIncreased && !failureIncreased {
-			// Only success count increased - successful send
-			shouldAnimate = true
-			success = true
-		} else if failureIncreased && !successIncreased {
-			// Only failure count increased - failed send
-			shouldAnimate = true
-			success = false
-		} else if successIncreased && failureIncreased {
-			// Both increased - prioritize success (most recent send was successful)
-			shouldAnimate = true
-			success = endpoint.LastSuccess.After(endpoint.LastFailure)
+		// Check if any activity occurred
+		hasActivity := requeueIncreased || errorIncreased || successIncreased || failureIncreased
+		if !hasActivity {
+			continue
 		}
 
-		if !shouldAnimate {
-			continue
+		// Determine arrow type: retry (yellow) if requeued, normal (white) otherwise
+		arrowType := "normal"
+		if requeueIncreased {
+			arrowType = "retry"
+		}
+
+		// Determine result type: Only show success when explicitly proven (success counter increased)
+		// Otherwise default to failure (error, dropped, or requeued after failure)
+		resultType := "failure" // Default to failure - only show success when proven
+		if successIncreased {
+			resultType = "success"
 		}
 
 		// Update last activity time for this endpoint
@@ -539,11 +548,12 @@ func (m *model) updateAnimations() {
 			continue
 		}
 
-		// Create new payload animation
+		// Create new payload animation with independent arrow and result types
 		newPayload := &payloadAnimation{
-			progress:  0.0,
-			startTime: now,
-			success:   success,
+			progress:   0.0,
+			startTime:  now,
+			arrowType:  arrowType,
+			resultType: resultType,
 		}
 
 		// Add to the list of payloads for this endpoint

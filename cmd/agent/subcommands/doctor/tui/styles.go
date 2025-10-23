@@ -62,6 +62,7 @@ const (
 var (
 	colorEndpointDefault = lipgloss.Color("240") // Gray
 	colorEndpointSuccess = lipgloss.Color("15")  // White
+	colorEndpointWarning = lipgloss.Color("11")  // Yellow/orange for warnings (requeues)
 	colorEndpointError   = lipgloss.Color("9")   // Red
 )
 

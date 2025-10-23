@@ -45,6 +45,9 @@ var (
 	// TransactionsSuccessByEndpoint is the number of transaction succeeded by endpoint.
 	TransactionsSuccessByEndpoint = expvar.Map{}
 
+	// TransactionsErrorsByEndpoint is the number of transaction errors by endpoint.
+	TransactionsErrorsByEndpoint = expvar.Map{}
+
 	transactionsSuccessBytesByEndpoint = expvar.Map{}
 	transactionsSuccess                = expvar.Int{}
 	transactionsErrors                 = expvar.Int{}
@@ -138,6 +141,7 @@ func init() {
 	transactionsConnectionEvents.Init()
 	TransactionsDroppedByEndpoint.Init()
 	TransactionsSuccessByEndpoint.Init()
+	TransactionsErrorsByEndpoint.Init()
 	transactionsSuccessBytesByEndpoint.Init()
 	transactionsErrorsByType.Init()
 	transactionsHTTPErrorsByCode.Init()
@@ -148,6 +152,7 @@ func init() {
 	TransactionsExpvars.Set("Dropped", &TransactionsDropped)
 	TransactionsExpvars.Set("DroppedByEndpoint", &TransactionsDroppedByEndpoint)
 	TransactionsExpvars.Set("SuccessByEndpoint", &TransactionsSuccessByEndpoint)
+	TransactionsExpvars.Set("ErrorsByEndpoint", &TransactionsErrorsByEndpoint)
 	TransactionsExpvars.Set("SuccessBytesByEndpoint", &transactionsSuccessBytesByEndpoint)
 	TransactionsExpvars.Set("Success", &transactionsSuccess)
 	TransactionsExpvars.Set("Errors", &transactionsErrors)
@@ -380,6 +385,7 @@ func (t *HTTPTransaction) internalProcess(ctx context.Context, config config.Com
 	if err != nil {
 		log.Errorf("Could not create request for transaction to invalid URL %q (dropping transaction): %s", logURL, err)
 		transactionsErrors.Add(1)
+		TransactionsErrorsByEndpoint.Add(transactionEndpointName, 1)
 		tlmTxErrors.Inc(t.Domain, transactionEndpointName, "invalid_request")
 		transactionsSentRequestErrors.Add(1)
 		return 0, nil, nil
@@ -395,6 +401,7 @@ func (t *HTTPTransaction) internalProcess(ctx context.Context, config config.Com
 		}
 		t.ErrorCount++
 		transactionsErrors.Add(1)
+		TransactionsErrorsByEndpoint.Add(transactionEndpointName, 1)
 		tlmTxErrors.Inc(t.Domain, transactionEndpointName, "cant_send")
 		return 0, nil, fmt.Errorf("error while sending transaction, rescheduling it: %s", scrubber.ScrubLine(err.Error()))
 	}
@@ -438,6 +445,7 @@ func (t *HTTPTransaction) internalProcess(ctx context.Context, config config.Com
 	} else if resp.StatusCode > 400 {
 		t.ErrorCount++
 		transactionsErrors.Add(1)
+		TransactionsErrorsByEndpoint.Add(transactionEndpointName, 1)
 		tlmTxErrors.Inc(t.Domain, transactionEndpointName, "gt_400")
 		return resp.StatusCode, body, fmt.Errorf("error %q while sending transaction to %q, rescheduling it: %q", resp.Status, logURL, truncateBodyForLog(body))
 	}

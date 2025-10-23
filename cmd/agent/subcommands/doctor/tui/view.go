@@ -320,12 +320,20 @@ func (m model) renderAgentPanelContent(width, height int) string {
 		// Build the wire with payloads
 		wire := m.renderWire(endpoint.URL)
 
-		// Render: wire + dot + URL
+		// // Format transaction counts (Success/Retry/Error)
+		// countsStr := fmt.Sprintf("  (S:%s R:%s E:%s)",
+		// 	successStyle.Render(formatLargeNumber(endpoint.SuccessCount)),
+		// 	warningStyle.Render(formatLargeNumber(endpoint.RequeuedCount)),
+		// 	errorStyle.Render(formatLargeNumber(endpoint.ErrorCount)),
+		// )
+
+		// Render: wire + dot + URL + counts
 		result.WriteString(wire)
 		result.WriteString(" ")
 		result.WriteString(lipgloss.NewStyle().Foreground(dotColor).Render("●"))
 		result.WriteString(" ")
 		result.WriteString(lipgloss.NewStyle().Foreground(urlColor).Render(endpoint.URL))
+		// result.WriteString(countsStr)
 
 		// If we've reached height limit, stop rendering
 		if i >= height-1 {
@@ -338,40 +346,51 @@ func (m model) renderAgentPanelContent(width, height int) string {
 
 // renderWire builds a wire visualization with animated payloads
 // Returns a styled string like "->->------" (10 characters)
-// Wire and payloads are rendered in white when there are active payloads, gray when idle
+// Arrows are colored based on type: white (normal) or yellow (retry)
+// Wire dashes are white when active, gray when idle
 func (m model) renderWire(endpointURL string) string {
-	// Start with empty wire (all dashes)
-	wire := make([]rune, wireLength)
-	for i := 0; i < wireLength; i++ {
-		wire[i] = rune(wireChar[0])
-	}
-
 	// Get payloads for this endpoint
 	payloads, exists := m.endpointPayloads[endpointURL]
 	hasActivePayloads := exists && len(payloads) > 0
 
-	if hasActivePayloads {
-		// Place each payload at its position in the wire
-		for _, payload := range payloads {
-			// Calculate position (0.0 to 1.0 progress maps to columns 0 to wireLength-1)
-			position := int(payload.progress * float64(wireLength))
-			if position < 0 {
-				position = 0
-			}
-			if position >= wireLength {
-				position = wireLength - 1
-			}
-
-			// Place payload character
-			wire[position] = rune(payloadChar[0])
-		}
-
-		// Active payloads: render wire in white (normal color)
-		return lipgloss.NewStyle().Foreground(colorValue).Render(string(wire))
+	if !hasActivePayloads {
+		// No payloads: render wire in gray (subdued)
+		wire := strings.Repeat(wireChar, wireLength)
+		return lipgloss.NewStyle().Foreground(colorSubdued).Render(wire)
 	}
 
-	// No payloads: render wire in gray (subdued)
-	return lipgloss.NewStyle().Foreground(colorSubdued).Render(string(wire))
+	// Build a map of positions to payloads for quick lookup
+	payloadPositions := make(map[int]*payloadAnimation)
+	for _, payload := range payloads {
+		position := int(payload.progress * float64(wireLength))
+		if position < 0 {
+			position = 0
+		}
+		if position >= wireLength {
+			position = wireLength - 1
+		}
+		payloadPositions[position] = payload
+	}
+
+	// Render wire character by character with individual colors
+	var result strings.Builder
+	for i := 0; i < wireLength; i++ {
+		if payload, hasPayload := payloadPositions[i]; hasPayload {
+			// Render arrow with color based on arrow type
+			var arrowColor lipgloss.TerminalColor
+			if payload.arrowType == "retry" {
+				arrowColor = colorEndpointWarning // Yellow for retries
+			} else {
+				arrowColor = colorValue // White for normal sends
+			}
+			result.WriteString(lipgloss.NewStyle().Foreground(arrowColor).Render(payloadChar))
+		} else {
+			// Render dash in white (active wire)
+			result.WriteString(lipgloss.NewStyle().Foreground(colorValue).Render(wireChar))
+		}
+	}
+
+	return result.String()
 }
 
 // renderIntakePanel renders the right panel showing backend connectivity

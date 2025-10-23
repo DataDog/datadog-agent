@@ -253,9 +253,11 @@ func (d *doctorImpl) collectIntakeStatus() def.IntakeStatus {
 		status.RetryQueue = int(retryQueue)
 	}
 
-	// Extract transaction success/failure counts and create synthetic endpoints
+	// Extract transaction success/failure/requeue/error counts and create synthetic endpoints
 	successByEndpoint := make(map[string]int64)
 	droppedByEndpoint := make(map[string]int64)
+	requeuedByEndpoint := make(map[string]int64)
+	errorsByEndpoint := make(map[string]int64)
 
 	if transactions, ok := forwarderStats["Transactions"].(map[string]interface{}); ok {
 		// Extract success counts by endpoint
@@ -275,6 +277,24 @@ func (d *doctorImpl) collectIntakeStatus() def.IntakeStatus {
 				}
 			}
 		}
+
+		// Extract requeued counts by endpoint
+		if requeuedMap, ok := transactions["RequeuedByEndpoint"].(map[string]interface{}); ok {
+			for endpoint, count := range requeuedMap {
+				if countFloat, ok := count.(float64); ok {
+					requeuedByEndpoint[endpoint] = int64(countFloat)
+				}
+			}
+		}
+
+		// Extract error counts by endpoint
+		if errorsMap, ok := transactions["ErrorsByEndpoint"].(map[string]interface{}); ok {
+			for endpoint, count := range errorsMap {
+				if countFloat, ok := count.(float64); ok {
+					errorsByEndpoint[endpoint] = int64(countFloat)
+				}
+			}
+		}
 	}
 
 	// Collect all unique endpoint names
@@ -285,11 +305,19 @@ func (d *doctorImpl) collectIntakeStatus() def.IntakeStatus {
 	for endpoint := range droppedByEndpoint {
 		allEndpoints[endpoint] = true
 	}
+	for endpoint := range requeuedByEndpoint {
+		allEndpoints[endpoint] = true
+	}
+	for endpoint := range errorsByEndpoint {
+		allEndpoints[endpoint] = true
+	}
 
 	// Build URLs and aggregate counts by unique URL
 	// This deduplicates endpoints that map to the same URL (e.g., "process" and "rtprocess")
 	successByURL := make(map[string]int64)
 	droppedByURL := make(map[string]int64)
+	requeuedByURL := make(map[string]int64)
+	errorsByURL := make(map[string]int64)
 
 	for endpointName := range allEndpoints {
 		url := constructEndpointURL(endpointName, d.config)
@@ -297,16 +325,37 @@ func (d *doctorImpl) collectIntakeStatus() def.IntakeStatus {
 		// Aggregate counts for this URL
 		successByURL[url] += successByEndpoint[endpointName]
 		droppedByURL[url] += droppedByEndpoint[endpointName]
+		requeuedByURL[url] += requeuedByEndpoint[endpointName]
+		errorsByURL[url] += errorsByEndpoint[endpointName]
 	}
 
 	// Create sorted list of unique URLs for consistent ordering
-	uniqueURLs := make([]string, 0, len(successByURL))
+	uniqueURLs := make([]string, 0)
+	seenURLs := make(map[string]bool)
+
+	// Collect from all maps to ensure we get all URLs
 	for url := range successByURL {
-		uniqueURLs = append(uniqueURLs, url)
+		if !seenURLs[url] {
+			uniqueURLs = append(uniqueURLs, url)
+			seenURLs[url] = true
+		}
 	}
 	for url := range droppedByURL {
-		if _, exists := successByURL[url]; !exists {
+		if !seenURLs[url] {
 			uniqueURLs = append(uniqueURLs, url)
+			seenURLs[url] = true
+		}
+	}
+	for url := range requeuedByURL {
+		if !seenURLs[url] {
+			uniqueURLs = append(uniqueURLs, url)
+			seenURLs[url] = true
+		}
+	}
+	for url := range errorsByURL {
+		if !seenURLs[url] {
+			uniqueURLs = append(uniqueURLs, url)
+			seenURLs[url] = true
 		}
 	}
 	slices.Sort(uniqueURLs)
@@ -315,12 +364,16 @@ func (d *doctorImpl) collectIntakeStatus() def.IntakeStatus {
 	for _, url := range uniqueURLs {
 		successCount := successByURL[url]
 		droppedCount := droppedByURL[url]
+		requeuedCount := requeuedByURL[url]
+		errorCount := errorsByURL[url]
 
 		endpointStatus := def.EndpointStatus{
-			Name:         url, // Use URL as name for consistency
-			URL:          url,
-			SuccessCount: successCount,
-			FailureCount: droppedCount,
+			Name:          url, // Use URL as name for consistency
+			URL:           url,
+			SuccessCount:  successCount,
+			FailureCount:  droppedCount,
+			RequeuedCount: requeuedCount,
+			ErrorCount:    errorCount,
 		}
 
 		// Determine status based on success/failure counts

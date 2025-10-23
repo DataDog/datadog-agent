@@ -83,12 +83,14 @@ type model struct {
 	// otherTimeSeries   *serviceTimeSeries            // Aggregated data for unattributed activity
 
 	// Animation state for endpoint connectivity visualization
-	endpointPayloads      map[string][]*payloadAnimation // Endpoint URL -> list of active payloads
-	endpointFlashState    map[string]*flashState         // Endpoint URL -> color flash state
-	lastAnimationTrigger  map[string]time.Time           // Endpoint URL -> last animation time (for rate limiting)
-	lastActivityTime      map[string]time.Time           // Endpoint URL -> last time endpoint had activity (for filtering)
-	previousSuccessCounts map[string]int64               // Endpoint URL -> previous success count (for detecting new sends)
-	previousFailureCounts map[string]int64               // Endpoint URL -> previous failure count (for detecting failures)
+	endpointPayloads       map[string][]*payloadAnimation // Endpoint URL -> list of active payloads
+	endpointFlashState     map[string]*flashState         // Endpoint URL -> color flash state
+	lastAnimationTrigger   map[string]time.Time           // Endpoint URL -> last animation time (for rate limiting)
+	lastActivityTime       map[string]time.Time           // Endpoint URL -> last time endpoint had activity (for filtering)
+	previousSuccessCounts  map[string]int64               // Endpoint URL -> previous success count (for detecting new sends)
+	previousFailureCounts  map[string]int64               // Endpoint URL -> previous failure count (for detecting failures)
+	previousRequeuedCounts map[string]int64               // Endpoint URL -> previous requeue count (for detecting requeues)
+	previousErrorCounts    map[string]int64               // Endpoint URL -> previous error count (for detecting errors)
 }
 
 type logFetcher struct {
@@ -204,9 +206,10 @@ func (lc *logFetcher) Close() {
 
 // payloadAnimation represents a single payload moving along the wire
 type payloadAnimation struct {
-	progress  float64   // Progress along wire: 0.0 (left) to 1.0 (right/reached)
-	startTime time.Time // When animation started
-	success   bool      // Will this delivery succeed or fail
+	progress   float64   // Progress along wire: 0.0 (left) to 1.0 (right/reached)
+	startTime  time.Time // When animation started
+	arrowType  string    // "normal" (white) or "retry" (yellow) - determines arrow color
+	resultType string    // "success" (white) or "failure" (red) - determines URL flash color
 }
 
 // flashState represents a temporary color flash on an endpoint
@@ -244,11 +247,13 @@ func newModel(client ipcdef.HTTPClient) model {
 		serviceTimeSeries:  make(map[string]*serviceTimeSeries),
 		maxTimeSeriesLen:   60, // Track last 60 time buckets (2 seconds per refresh = 2 minutes)
 		// otherTimeSeries:    newServiceTimeSeries(60), // "other" service for unattributed activity
-		endpointPayloads:      make(map[string][]*payloadAnimation),
-		endpointFlashState:    make(map[string]*flashState),
-		lastAnimationTrigger:  make(map[string]time.Time),
-		lastActivityTime:      make(map[string]time.Time),
-		previousSuccessCounts: make(map[string]int64),
-		previousFailureCounts: make(map[string]int64),
+		endpointPayloads:       make(map[string][]*payloadAnimation),
+		endpointFlashState:     make(map[string]*flashState),
+		lastAnimationTrigger:   make(map[string]time.Time),
+		lastActivityTime:       make(map[string]time.Time),
+		previousSuccessCounts:  make(map[string]int64),
+		previousFailureCounts:  make(map[string]int64),
+		previousRequeuedCounts: make(map[string]int64),
+		previousErrorCounts:    make(map[string]int64),
 	}
 }

@@ -122,14 +122,16 @@ type APIKeyInfo struct {
 
 // EndpointStatus represents the status of a specific intake endpoint
 type EndpointStatus struct {
-	Name         string    `json:"name"` // "metrics", "logs", "traces"
-	URL          string    `json:"url"`
-	Status       string    `json:"status"` // "connected", "error", "unknown"
-	LastError    string    `json:"last_error,omitempty"`
-	SuccessCount int64     `json:"success_count"` // Total successful sends to this endpoint
-	FailureCount int64     `json:"failure_count"` // Total failed/dropped sends to this endpoint
-	LastSuccess  time.Time `json:"last_success"`  // Timestamp of last successful send
-	LastFailure  time.Time `json:"last_failure"`  // Timestamp of last failed send
+	Name          string    `json:"name"` // "metrics", "logs", "traces"
+	URL           string    `json:"url"`
+	Status        string    `json:"status"` // "connected", "error", "unknown"
+	LastError     string    `json:"last_error,omitempty"`
+	SuccessCount  int64     `json:"success_count"`  // Total successful sends to this endpoint
+	FailureCount  int64     `json:"failure_count"`  // Total failed/dropped sends to this endpoint
+	RequeuedCount int64     `json:"requeued_count"` // Total requeued transactions for this endpoint
+	ErrorCount    int64     `json:"error_count"`    // Total errors for this endpoint
+	LastSuccess   time.Time `json:"last_success"`   // Timestamp of last successful send
+	LastFailure   time.Time `json:"last_failure"`   // Timestamp of last failed send
 }
 
 // ServiceStats represents aggregated statistics for a specific service
