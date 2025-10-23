@@ -13,9 +13,20 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// allPIITypesEnabled returns a PIITypeConfig with all PII types enabled
+func allPIITypesEnabled() PIITypeConfig {
+	return PIITypeConfig{
+		Email:      true,
+		CreditCard: true,
+		SSN:        true,
+		Phone:      true,
+		IP:         true,
+	}
+}
+
 // TestHybridDetector_SSN tests SSN detection using token patterns
 func TestHybridDetector_SSN(t *testing.T) {
-	detector := NewHybridPIIDetector()
+	detector := NewHybridPIIDetector(allPIITypesEnabled())
 	tokenizer := automultilinedetection.NewTokenizer(10000)
 
 	tests := []struct {
@@ -78,7 +89,7 @@ func TestHybridDetector_SSN(t *testing.T) {
 
 // TestHybridDetector_CreditCard tests credit card detection
 func TestHybridDetector_CreditCard(t *testing.T) {
-	detector := NewHybridPIIDetector()
+	detector := NewHybridPIIDetector(allPIITypesEnabled())
 	tokenizer := automultilinedetection.NewTokenizer(10000)
 
 	tests := []struct {
@@ -130,7 +141,7 @@ func TestHybridDetector_CreditCard(t *testing.T) {
 
 // TestHybridDetector_Phone tests phone number detection
 func TestHybridDetector_Phone(t *testing.T) {
-	detector := NewHybridPIIDetector()
+	detector := NewHybridPIIDetector(allPIITypesEnabled())
 	tokenizer := automultilinedetection.NewTokenizer(10000)
 
 	tests := []struct {
@@ -208,7 +219,7 @@ func TestHybridDetector_Phone(t *testing.T) {
 
 // TestHybridDetector_Email tests email detection (regex-based)
 func TestHybridDetector_Email(t *testing.T) {
-	detector := NewHybridPIIDetector()
+	detector := NewHybridPIIDetector(allPIITypesEnabled())
 	tokenizer := automultilinedetection.NewTokenizer(10000)
 
 	tests := []struct {
@@ -249,7 +260,7 @@ func TestHybridDetector_Email(t *testing.T) {
 
 // TestHybridDetector_IPv4 tests IP address detection (regex-based)
 func TestHybridDetector_IPv4(t *testing.T) {
-	detector := NewHybridPIIDetector()
+	detector := NewHybridPIIDetector(allPIITypesEnabled())
 	tokenizer := automultilinedetection.NewTokenizer(10000)
 
 	tests := []struct {
@@ -290,7 +301,7 @@ func TestHybridDetector_IPv4(t *testing.T) {
 
 // TestHybridDetector_MultiplePIITypes tests mixed PII in one message
 func TestHybridDetector_MultiplePIITypes(t *testing.T) {
-	detector := NewHybridPIIDetector()
+	detector := NewHybridPIIDetector(allPIITypesEnabled())
 	tokenizer := automultilinedetection.NewTokenizer(10000)
 
 	tests := []struct {
@@ -326,7 +337,7 @@ func TestHybridDetector_MultiplePIITypes(t *testing.T) {
 
 // TestHybridDetector_EdgeCases tests boundary conditions
 func TestHybridDetector_EdgeCases(t *testing.T) {
-	detector := NewHybridPIIDetector()
+	detector := NewHybridPIIDetector(allPIITypesEnabled())
 	tokenizer := automultilinedetection.NewTokenizer(10000)
 
 	tests := []struct {
@@ -371,7 +382,7 @@ func TestHybridDetector_EdgeCases(t *testing.T) {
 
 // TestHybridDetector_NoTokenizer tests that regex rules still work without tokenizer
 func TestHybridDetector_NoTokenizer(t *testing.T) {
-	detector := NewHybridPIIDetector()
+	detector := NewHybridPIIDetector(allPIITypesEnabled())
 
 	tests := []struct {
 		name     string
@@ -405,7 +416,7 @@ func TestHybridDetector_NoTokenizer(t *testing.T) {
 
 // TestHybridDetector_FalsePositivePrevention specifically tests false positive scenarios
 func TestHybridDetector_FalsePositivePrevention(t *testing.T) {
-	detector := NewHybridPIIDetector()
+	detector := NewHybridPIIDetector(allPIITypesEnabled())
 	tokenizer := automultilinedetection.NewTokenizer(10000)
 
 	tests := []struct {
@@ -456,7 +467,7 @@ func TestHybridDetector_FalsePositivePrevention(t *testing.T) {
 
 // TestHybridDetector_ThreadSafety tests concurrent usage with different tokenizers
 func TestHybridDetector_ThreadSafety(t *testing.T) {
-	detector := NewHybridPIIDetector()
+	detector := NewHybridPIIDetector(allPIITypesEnabled())
 
 	// Run multiple goroutines, each with its own tokenizer
 	const numGoroutines = 10
@@ -487,7 +498,7 @@ func TestHybridDetector_ThreadSafety(t *testing.T) {
 
 // BenchmarkHybridDetector_SSN benchmarks SSN detection
 func BenchmarkHybridDetector_SSN(b *testing.B) {
-	detector := NewHybridPIIDetector()
+	detector := NewHybridPIIDetector(allPIITypesEnabled())
 	tokenizer := automultilinedetection.NewTokenizer(10000)
 	input := []byte("User with SSN 123-45-6789 created account")
 
@@ -501,7 +512,7 @@ func BenchmarkHybridDetector_SSN(b *testing.B) {
 
 // BenchmarkHybridDetector_Email benchmarks email detection
 func BenchmarkHybridDetector_Email(b *testing.B) {
-	detector := NewHybridPIIDetector()
+	detector := NewHybridPIIDetector(allPIITypesEnabled())
 	tokenizer := automultilinedetection.NewTokenizer(10000)
 	input := []byte("Contact: john.doe@example.com for info")
 
@@ -515,7 +526,7 @@ func BenchmarkHybridDetector_Email(b *testing.B) {
 
 // BenchmarkHybridDetector_MultiplePII benchmarks mixed PII
 func BenchmarkHybridDetector_MultiplePII(b *testing.B) {
-	detector := NewHybridPIIDetector()
+	detector := NewHybridPIIDetector(allPIITypesEnabled())
 	tokenizer := automultilinedetection.NewTokenizer(10000)
 	input := []byte("User: john@test.com, SSN: 987-65-4321, Phone: 555-123-4567, Card: 4532015112830366, IP: 10.0.1.1")
 
@@ -529,7 +540,7 @@ func BenchmarkHybridDetector_MultiplePII(b *testing.B) {
 
 // BenchmarkHybridDetector_NoPII benchmarks overhead when no PII present
 func BenchmarkHybridDetector_NoPII(b *testing.B) {
-	detector := NewHybridPIIDetector()
+	detector := NewHybridPIIDetector(allPIITypesEnabled())
 	tokenizer := automultilinedetection.NewTokenizer(10000)
 	input := []byte("2024-10-20 15:30:00 INFO Application started successfully on port 8080")
 

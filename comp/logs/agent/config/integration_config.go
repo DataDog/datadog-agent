@@ -36,6 +36,7 @@ const (
 	SHIFTJIS string = "shift-jis"
 )
 
+
 // LogsConfig represents a log source config, which can be for instance
 // a file to tail or a port to listen to.
 type LogsConfig struct {
@@ -89,6 +90,9 @@ type LogsConfig struct {
 	ProcessingRules []*ProcessingRule `mapstructure:"log_processing_rules" json:"log_processing_rules" yaml:"log_processing_rules"`
 	// ProcessRawMessage is used to process the raw message instead of only the content part of the message.
 	ProcessRawMessage *bool `mapstructure:"process_raw_message" json:"process_raw_message" yaml:"process_raw_message"`
+
+	// AutoRedactConfig provides per-source PII auto-redaction configuration
+	AutoRedactConfig *types.AutoRedactConfig `mapstructure:"auto_redact_config" json:"auto_redact_config" yaml:"auto_redact_config"`
 
 	AutoMultiLine               *bool   `mapstructure:"auto_multi_line_detection" json:"auto_multi_line_detection" yaml:"auto_multi_line_detection"`
 	AutoMultiLineSampleSize     int     `mapstructure:"auto_multi_line_sample_size" json:"auto_multi_line_sample_size" yaml:"auto_multi_line_sample_size"`

@@ -33,11 +33,12 @@ const (
 	configMRFServiceAllowlist = "multi_region_failover.logs_service_allowlist"
 
 	// PII auto-redaction settings
-	configAutoRedactPII    = "logs_config.auto_redact_pii"
-	configPIIRedactionMode = "logs_config.pii_redaction_mode" // "regex" (default) or "hybrid"
-
-	PIIRedactionModeRegex  = "regex"
-	PIIRedactionModeHybrid = "hybrid"
+	configAutoRedactEnabled    = "logs_config.auto_redact_config.enabled"
+	configAutoRedactEmail      = "logs_config.auto_redact_config.email"
+	configAutoRedactCreditCard = "logs_config.auto_redact_config.credit_card"
+	configAutoRedactSSN        = "logs_config.auto_redact_config.ssn"
+	configAutoRedactPhone      = "logs_config.auto_redact_config.phone"
+	configAutoRedactIP         = "logs_config.auto_redact_config.ip"
 )
 
 type failoverConfig struct {
@@ -61,7 +62,6 @@ type Processor struct {
 	failoverConfig            failoverConfig
 
 	// PII detection and redaction
-	piiDetector  *HybridPIIDetector
 	piiTokenizer *automultilinedetection.Tokenizer
 
 	// Telemetry
@@ -88,7 +88,6 @@ func New(config pkgconfigmodel.Reader, inputChan, outputChan chan *message.Messa
 		pipelineMonitor:           pipelineMonitor,
 		utilization:               pipelineMonitor.MakeUtilizationMonitor(metrics.ProcessorTlmName, instanceID),
 		instanceID:                instanceID,
-		piiDetector:               NewHybridPIIDetector(),
 		piiTokenizer:              automultilinedetection.NewTokenizer(10000),
 	}
 
@@ -298,49 +297,21 @@ func (p *Processor) applyRedactingRules(msg *message.Message) bool {
 
 	// Apply automatic PII redaction if enabled
 	// ---------------------------
-	var piiEnabled bool
-	var piiMode string
+	piiTypeConfig := p.getPIITypeConfig(msg)
+	piiEnabled := piiTypeConfig != nil
 
-	if p.config != nil && p.config.GetBool(configAutoRedactPII) {
-		piiEnabled = true
-		piiMode = p.config.GetString(configPIIRedactionMode)
-		if piiMode == "" {
-			piiMode = PIIRedactionModeRegex
-		}
-	}
 	piiStartTime := time.Now()
 
 	if piiEnabled {
 		originalContent := content
 
-		switch piiMode {
-		case PIIRedactionModeHybrid:
-			if p.piiDetector != nil {
-				var matchedRules []string
-				content, matchedRules = p.piiDetector.Redact(content, p.piiTokenizer)
+		detector := NewHybridPIIDetector(*piiTypeConfig)
+		var matchedRules []string
+		content, matchedRules = detector.Redact(content, p.piiTokenizer)
 
-				for _, ruleName := range matchedRules {
-					msg.RecordProcessingRule(config.MaskSequences, ruleName)
-					metrics.TlmPIIMatchCount.Inc(ruleName)
-				}
-			} else {
-				log.Warnf("PII detector not initialized")
-			}
-		case PIIRedactionModeRegex:
-			for _, rule := range defaultPIIRedactionRules {
-				if isMatchingLiteralPrefix(rule.Regex, content) {
-					oldContent := content
-					content = rule.Regex.ReplaceAll(content, rule.Placeholder)
-
-					if !bytes.Equal(oldContent, content) {
-						msg.RecordProcessingRule(config.MaskSequences, rule.Name)
-						metrics.TlmPIIMatchCount.Inc(rule.Name)
-					}
-				}
-			}
-
-		default:
-			log.Warnf("Invalid PII redaction mode: %s", piiMode)
+		for _, ruleName := range matchedRules {
+			msg.RecordProcessingRule(config.MaskSequences, ruleName)
+			metrics.TlmPIIMatchCount.Inc(ruleName)
 		}
 
 		// Track bytes redacted
@@ -350,10 +321,8 @@ func (p *Processor) applyRedactingRules(msg *message.Message) bool {
 				metrics.TlmPIIBytesRedacted.Add(float64(bytesRedacted), "total")
 			}
 		}
-	}
 
-	// Report PII redaction latency if PII rules are enabled
-	if piiEnabled {
+		// Report PII redaction latency
 		metrics.TlmPIIRedactionLatency.Observe(float64(time.Since(piiStartTime).Microseconds()))
 	}
 
@@ -370,6 +339,50 @@ func isMatchingLiteralPrefix(r *regexp.Regexp, content []byte) bool {
 	}
 
 	return bytes.Contains(content, []byte(prefix))
+}
+
+// getPIITypeConfig merges global and per-source PII redaction configuration.
+// Per-source settings override global settings. Returns nil if PII redaction is disabled.
+func (p *Processor) getPIITypeConfig(msg *message.Message) *PIITypeConfig {
+	if p.config == nil {
+		return nil
+	}
+
+	// Helper to get bool value with source override
+	getBool := func(globalKey string, sourceVal *bool) bool {
+		if sourceVal != nil {
+			return *sourceVal
+		}
+		return p.config.GetBool(globalKey)
+	}
+
+	sourceConfig := msg.Origin.LogSource.Config.AutoRedactConfig
+
+	// Helper to safely get field from source config
+	var enabledPtr, emailPtr, creditCardPtr, ssnPtr, phonePtr, ipPtr *bool
+	if sourceConfig != nil {
+		enabledPtr = sourceConfig.Enabled
+		emailPtr = sourceConfig.Email
+		creditCardPtr = sourceConfig.CreditCard
+		ssnPtr = sourceConfig.SSN
+		phonePtr = sourceConfig.Phone
+		ipPtr = sourceConfig.IP
+	}
+
+	// Check if PII redaction is enabled (parent switch)
+	enabled := getBool(configAutoRedactEnabled, enabledPtr)
+	if !enabled {
+		return nil
+	}
+
+	// Build the PII type configuration with per-source overrides
+	return &PIITypeConfig{
+		Email:      getBool(configAutoRedactEmail, emailPtr),
+		CreditCard: getBool(configAutoRedactCreditCard, creditCardPtr),
+		SSN:        getBool(configAutoRedactSSN, ssnPtr),
+		Phone:      getBool(configAutoRedactPhone, phonePtr),
+		IP:         getBool(configAutoRedactIP, ipPtr),
+	}
 }
 
 // GetHostname returns the hostname to applied the given log message

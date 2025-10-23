@@ -19,6 +19,7 @@ import (
 	automultilinedetection "github.com/DataDog/datadog-agent/pkg/logs/internal/decoder/auto_multiline_detection"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
+	"github.com/DataDog/datadog-agent/pkg/logs/types"
 )
 
 type processorTestCase struct {
@@ -353,7 +354,7 @@ func TestGetHostnameLambda(t *testing.T) {
 }
 
 func TestGetHostname(t *testing.T) {
-	hostnameComponent, _ := hostnameinterface.NewMock(hostnameinterface.MockHostname("testHostnameFromEnvVar"))
+	_, hostnameComponent := hostnameinterface.NewMock(hostnameinterface.MockHostname("testHostnameFromEnvVar"))
 	p := &Processor{
 		hostname: hostnameComponent,
 	}
@@ -461,295 +462,18 @@ func TestExcludeTruncated(t *testing.T) {
 // PII Auto-Redaction Tests
 // -------------------------
 
-func TestPIIRedactionEmail(t *testing.T) {
-	assert := assert.New(t)
-
-	tests := []struct {
-		name   string
-		input  []byte
-		output []byte
-	}{
-		{
-			name:   "single_email",
-			input:  []byte("User john.doe@example.com logged in"),
-			output: []byte("User [EMAIL_REDACTED] logged in"),
-		},
-		{
-			name:   "multiple_emails",
-			input:  []byte("From: alice@example.com To: bob@test.org"),
-			output: []byte("From: [EMAIL_REDACTED] To: [EMAIL_REDACTED]"),
-		},
-		{
-			name:   "no_email",
-			input:  []byte("No email here, just text"),
-			output: []byte("No email here, just text"),
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(_ *testing.T) {
-			// Use defaultPIIRedactionRules directly
-			p := &Processor{processingRules: []*config.ProcessingRule{defaultPIIRedactionRules[0]}} // email rule
-			source := sources.NewLogSource("", &config.LogsConfig{})
-			msg := newMessage(tt.input, source, "")
-
-			shouldProcess := p.applyRedactingRules(msg)
-			assert.True(shouldProcess)
-			assert.Equal(tt.output, msg.GetContent())
-		})
-	}
-}
-
-func TestPIIRedactionCreditCard(t *testing.T) {
-	assert := assert.New(t)
-
-	tests := []struct {
-		name   string
-		input  []byte
-		output []byte
-	}{
-		{
-			name:   "visa",
-			input:  []byte("Payment with card 4111111111111111 approved"),
-			output: []byte("Payment with card [CC_REDACTED] approved"),
-		},
-		{
-			name:   "mastercard",
-			input:  []byte("CC: 5500000000000004 was charged"),
-			output: []byte("CC: [CC_REDACTED] was charged"),
-		},
-		{
-			name:   "amex",
-			input:  []byte("Amex 378282246310005 declined"),
-			output: []byte("Amex [CC_REDACTED] declined"),
-		},
-		{
-			name:   "no_cc",
-			input:  []byte("No credit card numbers here"),
-			output: []byte("No credit card numbers here"),
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(_ *testing.T) {
-			// Use credit card rule
-			p := &Processor{processingRules: []*config.ProcessingRule{defaultPIIRedactionRules[1]}}
-			source := sources.NewLogSource("", &config.LogsConfig{})
-			msg := newMessage(tt.input, source, "")
-
-			shouldProcess := p.applyRedactingRules(msg)
-			assert.True(shouldProcess)
-			assert.Equal(tt.output, msg.GetContent())
-		})
-	}
-}
-
-func TestPIIRedactionSSN(t *testing.T) {
-	assert := assert.New(t)
-
-	tests := []struct {
-		name   string
-		input  []byte
-		output []byte
-	}{
-		{
-			name:   "ssn_basic",
-			input:  []byte("SSN: 123-45-6789 verified"),
-			output: []byte("SSN: [SSN_REDACTED] verified"),
-		},
-		{
-			name:   "no_ssn",
-			input:  []byte("No social security numbers"),
-			output: []byte("No social security numbers"),
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(_ *testing.T) {
-			// Use SSN rule
-			p := &Processor{processingRules: []*config.ProcessingRule{defaultPIIRedactionRules[2]}}
-			source := sources.NewLogSource("", &config.LogsConfig{})
-			msg := newMessage(tt.input, source, "")
-
-			shouldProcess := p.applyRedactingRules(msg)
-			assert.True(shouldProcess)
-			assert.Equal(tt.output, msg.GetContent())
-		})
-	}
-}
-
-func TestPIIRedactionPhone(t *testing.T) {
-	assert := assert.New(t)
-
-	tests := []struct {
-		name   string
-		input  []byte
-		output []byte
-	}{
-		{
-			name:   "phone_parentheses",
-			input:  []byte("Call (555) 123-4567 for support"),
-			output: []byte("Call [PHONE_REDACTED] for support"),
-		},
-		{
-			name:   "phone_dashes",
-			input:  []byte("Contact: 555-123-4567"),
-			output: []byte("Contact: [PHONE_REDACTED]"),
-		},
-		{
-			name:   "phone_dots",
-			input:  []byte("Phone: 555.123.4567"),
-			output: []byte("Phone: [PHONE_REDACTED]"),
-		},
-		{
-			name:   "no_phone",
-			input:  []byte("No phone numbers here"),
-			output: []byte("No phone numbers here"),
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(_ *testing.T) {
-			// Use phone rule
-			p := &Processor{processingRules: []*config.ProcessingRule{defaultPIIRedactionRules[3]}}
-			source := sources.NewLogSource("", &config.LogsConfig{})
-			msg := newMessage(tt.input, source, "")
-
-			shouldProcess := p.applyRedactingRules(msg)
-			assert.True(shouldProcess)
-			assert.Equal(tt.output, msg.GetContent())
-		})
-	}
-}
-
-func TestPIIRedactionIPAddress(t *testing.T) {
-	assert := assert.New(t)
-
-	tests := []struct {
-		name   string
-		input  []byte
-		output []byte
-	}{
-		{
-			name:   "ip_basic",
-			input:  []byte("Request from 192.168.1.1 received"),
-			output: []byte("Request from [IP_REDACTED] received"),
-		},
-		{
-			name:   "ip_multiple",
-			input:  []byte("Connection 10.0.0.1 to 172.16.0.1"),
-			output: []byte("Connection [IP_REDACTED] to [IP_REDACTED]"),
-		},
-		{
-			name:   "no_ip",
-			input:  []byte("No IP addresses in this log"),
-			output: []byte("No IP addresses in this log"),
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(_ *testing.T) {
-			// Use IP rule
-			p := &Processor{processingRules: []*config.ProcessingRule{defaultPIIRedactionRules[4]}}
-			source := sources.NewLogSource("", &config.LogsConfig{})
-			msg := newMessage(tt.input, source, "")
-
-			shouldProcess := p.applyRedactingRules(msg)
-			assert.True(shouldProcess)
-			assert.Equal(tt.output, msg.GetContent())
-		})
-	}
-}
-
-func TestPIIRedactionMultipleTypes(t *testing.T) {
-	assert := assert.New(t)
-
-	// Test all PII rules together
-	p := &Processor{processingRules: defaultPIIRedactionRules}
-	source := sources.NewLogSource("", &config.LogsConfig{})
-
-	input := []byte("User alice@example.com from 10.0.0.1 used card 4111111111111111 SSN 123-45-6789 phone (555) 123-4567")
-	expected := []byte("User [EMAIL_REDACTED] from [IP_REDACTED] used card [CC_REDACTED] SSN [SSN_REDACTED] phone [PHONE_REDACTED]")
-
-	msg := newMessage(input, source, "")
-	shouldProcess := p.applyRedactingRules(msg)
-
-	assert.True(shouldProcess)
-	assert.Equal(expected, msg.GetContent())
-}
-
-func TestPIIRedactionWithUserRules(t *testing.T) {
-	assert := assert.New(t)
-
-	// Combine default PII rules with a custom user rule
-	userRule := newProcessingRule(config.MaskSequences, "[CUSTOM]", "secret")
-	rules := append([]*config.ProcessingRule{userRule}, defaultPIIRedactionRules...)
-
-	p := &Processor{processingRules: rules}
-	source := sources.NewLogSource("", &config.LogsConfig{})
-
-	input := []byte("User john@example.com has secret data from 10.0.0.1")
-	expected := []byte("User [EMAIL_REDACTED] has [CUSTOM] data from [IP_REDACTED]")
-
-	msg := newMessage(input, source, "")
-	shouldProcess := p.applyRedactingRules(msg)
-
-	assert.True(shouldProcess)
-	assert.Equal(expected, msg.GetContent())
-}
-
-// Benchmark PII Redaction
-func BenchmarkPIIRedaction(b *testing.B) {
-	processor := &Processor{processingRules: defaultPIIRedactionRules}
-	source := sources.NewLogSource("", &config.LogsConfig{})
-
-	msg := newMessage(nil, source, "")
-
-	b.Run("no PII match", func(b *testing.B) {
-		// what we benchmark here is the best case scenario where no PII is present
-		content := []byte("This is a regular log message without any PII data")
-		b.ResetTimer()
-
-		for range b.N {
-			msg.SetContent(content)
-			processor.applyRedactingRules(msg)
-		}
-	})
-
-	b.Run("single email", func(b *testing.B) {
-		// what we benchmark here is a common case with a single PII match
-		content := []byte("User john.doe@example.com logged in successfully")
-		b.ResetTimer()
-
-		for range b.N {
-			msg.SetContent(content)
-			processor.applyRedactingRules(msg)
-		}
-	})
-
-	b.Run("multiple PII types", func(b *testing.B) {
-		// what we benchmark here is the worst case scenario with multiple PII types
-		content := []byte("User alice@example.com from 10.0.0.1 used card 4111111111111111 phone (555) 123-4567")
-		b.ResetTimer()
-
-		for range b.N {
-			msg.SetContent(content)
-			processor.applyRedactingRules(msg)
-		}
-	})
-}
-
-// ==================== Auto PII Redaction via Config Tests ====================
-
-// TestAutoPIIRedactionHybridMode tests automatic PII redaction using hybrid mode via config
-func TestAutoPIIRedactionHybridMode(t *testing.T) {
+// TestAutoPIIRedaction tests automatic PII redaction via config
+func TestAutoPIIRedaction(t *testing.T) {
 	mockConfig := pkgconfigmock.New(t)
-	mockConfig.Set("logs_config.auto_redact_pii", true, model.SourceAgentRuntime)
-	mockConfig.Set("logs_config.pii_redaction_mode", "hybrid", model.SourceAgentRuntime)
+	mockConfig.Set("logs_config.auto_redact_config.enabled", true, model.SourceAgentRuntime)
+	mockConfig.Set("logs_config.auto_redact_config.email", true, model.SourceAgentRuntime)
+	mockConfig.Set("logs_config.auto_redact_config.credit_card", true, model.SourceAgentRuntime)
+	mockConfig.Set("logs_config.auto_redact_config.ssn", true, model.SourceAgentRuntime)
+	mockConfig.Set("logs_config.auto_redact_config.phone", true, model.SourceAgentRuntime)
+	mockConfig.Set("logs_config.auto_redact_config.ip", true, model.SourceAgentRuntime)
 
 	p := &Processor{
 		config:       mockConfig,
-		piiDetector:  NewHybridPIIDetector(),
 		piiTokenizer: nil,
 	}
 	p.piiTokenizer = newTokenizer()
@@ -762,32 +486,32 @@ func TestAutoPIIRedactionHybridMode(t *testing.T) {
 		expected []byte
 	}{
 		{
-			name:     "hybrid_ssn_redaction",
+			name:     "ssn_redaction",
 			input:    []byte("User SSN is 123-45-6789"),
 			expected: []byte("User SSN is [SSN_REDACTED]"),
 		},
 		{
-			name:     "hybrid_email_redaction",
+			name:     "email_redaction",
 			input:    []byte("Contact user@example.com for info"),
 			expected: []byte("Contact [EMAIL_REDACTED] for info"),
 		},
 		{
-			name:     "hybrid_phone_redaction",
+			name:     "phone_redaction",
 			input:    []byte("Call (555) 123-4567 now"),
 			expected: []byte("Call [PHONE_REDACTED] now"),
 		},
 		{
-			name:     "hybrid_credit_card_redaction",
+			name:     "credit_card_redaction",
 			input:    []byte("Card number 4532-0151-1283-0366 charged"),
 			expected: []byte("Card number [CC_REDACTED] charged"),
 		},
 		{
-			name:     "hybrid_ip_redaction",
+			name:     "ip_redaction",
 			input:    []byte("Request from 192.168.1.100"),
 			expected: []byte("Request from [IP_REDACTED]"),
 		},
 		{
-			name:     "hybrid_multiple_pii",
+			name:     "multiple_pii",
 			input:    []byte("User john@test.com SSN 123-45-6789 phone 555-123-4567"),
 			expected: []byte("User [EMAIL_REDACTED] SSN [SSN_REDACTED] phone [PHONE_REDACTED]"),
 		},
@@ -803,69 +527,14 @@ func TestAutoPIIRedactionHybridMode(t *testing.T) {
 	}
 }
 
-// TestAutoPIIRedactionRegexMode tests automatic PII redaction using regex mode via config
-func TestAutoPIIRedactionRegexMode(t *testing.T) {
-	mockConfig := pkgconfigmock.New(t)
-	mockConfig.Set("logs_config.auto_redact_pii", true, model.SourceAgentRuntime)
-	mockConfig.Set("logs_config.pii_redaction_mode", "regex", model.SourceAgentRuntime)
-
-	p := &Processor{
-		config:      mockConfig,
-		piiDetector: NewHybridPIIDetector(),
-	}
-
-	source := sources.NewLogSource("", &config.LogsConfig{})
-
-	tests := []struct {
-		name     string
-		input    []byte
-		expected []byte
-	}{
-		{
-			name:     "regex_email_redaction",
-			input:    []byte("Contact user@example.com for info"),
-			expected: []byte("Contact [EMAIL_REDACTED] for info"),
-		},
-		{
-			name:     "regex_ip_redaction",
-			input:    []byte("Request from 192.168.1.100"),
-			expected: []byte("Request from [IP_REDACTED]"),
-		},
-		{
-			name:     "regex_ssn_redaction",
-			input:    []byte("User SSN is 123-45-6789"),
-			expected: []byte("User SSN is [SSN_REDACTED]"),
-		},
-		{
-			name:     "regex_credit_card_redaction",
-			input:    []byte("Card 4111111111111111 charged"),
-			expected: []byte("Card [CC_REDACTED] charged"),
-		},
-		{
-			name:     "regex_phone_redaction",
-			input:    []byte("Call (555) 123-4567 now"),
-			expected: []byte("Call [PHONE_REDACTED] now"),
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			msg := newMessage(tt.input, source, "")
-			shouldProcess := p.applyRedactingRules(msg)
-			assert.True(t, shouldProcess, "Message should be processed")
-			assert.Equal(t, tt.expected, msg.GetContent(), "Content should be redacted using regex mode")
-		})
-	}
-}
-
-// TestAutoPIIRedactionDisabled tests that PII is not redacted when auto_redact_pii is false
+// TestAutoPIIRedactionDisabled tests that PII is not redacted when auto_redact_config.enabled is false
 func TestAutoPIIRedactionDisabled(t *testing.T) {
 	mockConfig := pkgconfigmock.New(t)
-	mockConfig.Set("logs_config.auto_redact_pii", false, model.SourceAgentRuntime)
+	mockConfig.Set("logs_config.auto_redact_config.enabled", false, model.SourceAgentRuntime)
 
 	p := &Processor{
-		config:      mockConfig,
-		piiDetector: NewHybridPIIDetector(),
+		config:       mockConfig,
+		piiTokenizer: newTokenizer(),
 	}
 
 	source := sources.NewLogSource("", &config.LogsConfig{})
@@ -902,51 +571,14 @@ func TestAutoPIIRedactionDisabled(t *testing.T) {
 }
 
 // TestAutoPIIRedactionDefaultMode tests that regex mode is used when pii_redaction_mode is not set
-func TestAutoPIIRedactionDefaultMode(t *testing.T) {
-	mockConfig := pkgconfigmock.New(t)
-	mockConfig.Set("logs_config.auto_redact_pii", true, model.SourceAgentRuntime)
-	// should default to "regex"
-
-	p := &Processor{
-		config:      mockConfig,
-		piiDetector: NewHybridPIIDetector(),
-	}
-
-	source := sources.NewLogSource("", &config.LogsConfig{})
-
-	// Test that default regex mode redacts email and IP addresses
-	tests := []struct {
-		name     string
-		input    []byte
-		expected []byte
-	}{
-		{
-			name:     "email_redaction",
-			input:    []byte("Contact user@example.com for info"),
-			expected: []byte("Contact [EMAIL_REDACTED] for info"),
-		},
-		{
-			name:     "ip_address_redaction",
-			input:    []byte("Request from 192.168.1.1"),
-			expected: []byte("Request from [IP_REDACTED]"),
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			msg := newMessage(tt.input, source, "")
-			shouldProcess := p.applyRedactingRules(msg)
-			assert.True(t, shouldProcess, "Message should be processed")
-			assert.Equal(t, tt.expected, msg.GetContent(), "Should default to regex mode")
-		})
-	}
-}
-
-// TestAutoPIIRedactionWithUserRules tests that auto PII redaction works alongside user-defined rules
 func TestAutoPIIRedactionWithUserRules(t *testing.T) {
 	mockConfig := pkgconfigmock.New(t)
-	mockConfig.Set("logs_config.auto_redact_pii", true, model.SourceAgentRuntime)
-	mockConfig.Set("logs_config.pii_redaction_mode", "hybrid", model.SourceAgentRuntime)
+	mockConfig.Set("logs_config.auto_redact_config.enabled", true, model.SourceAgentRuntime)
+	mockConfig.Set("logs_config.auto_redact_config.email", true, model.SourceAgentRuntime)
+	mockConfig.Set("logs_config.auto_redact_config.credit_card", true, model.SourceAgentRuntime)
+	mockConfig.Set("logs_config.auto_redact_config.ssn", true, model.SourceAgentRuntime)
+	mockConfig.Set("logs_config.auto_redact_config.phone", true, model.SourceAgentRuntime)
+	mockConfig.Set("logs_config.auto_redact_config.ip", true, model.SourceAgentRuntime)
 
 	// User-defined processing rule
 	userRule := newProcessingRule(config.MaskSequences, "[CUSTOM]", "secret")
@@ -954,7 +586,6 @@ func TestAutoPIIRedactionWithUserRules(t *testing.T) {
 	p := &Processor{
 		config:          mockConfig,
 		processingRules: []*config.ProcessingRule{userRule},
-		piiDetector:     NewHybridPIIDetector(),
 		piiTokenizer:    newTokenizer(),
 	}
 
@@ -995,8 +626,12 @@ func TestAutoPIIRedactionWithUserRules(t *testing.T) {
 // TestAutoPIIRedactionWithExclusionRules tests that exclusion rules work before PII redaction
 func TestAutoPIIRedactionWithExclusionRules(t *testing.T) {
 	mockConfig := pkgconfigmock.New(t)
-	mockConfig.Set("logs_config.auto_redact_pii", true, model.SourceAgentRuntime)
-	mockConfig.Set("logs_config.pii_redaction_mode", "hybrid", model.SourceAgentRuntime)
+	mockConfig.Set("logs_config.auto_redact_config.enabled", true, model.SourceAgentRuntime)
+	mockConfig.Set("logs_config.auto_redact_config.email", true, model.SourceAgentRuntime)
+	mockConfig.Set("logs_config.auto_redact_config.credit_card", true, model.SourceAgentRuntime)
+	mockConfig.Set("logs_config.auto_redact_config.ssn", true, model.SourceAgentRuntime)
+	mockConfig.Set("logs_config.auto_redact_config.phone", true, model.SourceAgentRuntime)
+	mockConfig.Set("logs_config.auto_redact_config.ip", true, model.SourceAgentRuntime)
 
 	// Exclusion rule to exclude messages containing "DEBUG"
 	exclusionRule := newProcessingRule(config.ExcludeAtMatch, "", "DEBUG")
@@ -1004,7 +639,6 @@ func TestAutoPIIRedactionWithExclusionRules(t *testing.T) {
 	p := &Processor{
 		config:          mockConfig,
 		processingRules: []*config.ProcessingRule{exclusionRule},
-		piiDetector:     NewHybridPIIDetector(),
 		piiTokenizer:    newTokenizer(),
 	}
 
@@ -1025,8 +659,7 @@ func TestAutoPIIRedactionWithExclusionRules(t *testing.T) {
 // TestAutoPIIRedactionNilConfig tests that processor handles nil config gracefully
 func TestAutoPIIRedactionNilConfig(t *testing.T) {
 	p := &Processor{
-		config:      nil, // No config
-		piiDetector: NewHybridPIIDetector(),
+		config: nil, // No config
 	}
 
 	source := sources.NewLogSource("", &config.LogsConfig{})
@@ -1041,39 +674,18 @@ func TestAutoPIIRedactionNilConfig(t *testing.T) {
 	assert.Equal(t, originalContent, msg.GetContent(), "No redaction should occur with nil config")
 }
 
-// TestAutoPIIRedactionInvalidMode tests handling of invalid pii_redaction_mode
-func TestAutoPIIRedactionInvalidMode(t *testing.T) {
-	mockConfig := pkgconfigmock.New(t)
-	mockConfig.Set("logs_config.auto_redact_pii", true, model.SourceAgentRuntime)
-	mockConfig.Set("logs_config.pii_redaction_mode", "invalid_mode", model.SourceAgentRuntime)
-
-	p := &Processor{
-		config:      mockConfig,
-		piiDetector: NewHybridPIIDetector(),
-	}
-
-	source := sources.NewLogSource("", &config.LogsConfig{})
-	input := []byte("User SSN is 123-45-6789")
-	originalContent := make([]byte, len(input))
-	copy(originalContent, input)
-
-	msg := newMessage(input, source, "")
-	shouldProcess := p.applyRedactingRules(msg)
-
-	assert.True(t, shouldProcess, "Message should be processed")
-	// With invalid mode, no redaction should occur (handled gracefully)
-	assert.Equal(t, originalContent, msg.GetContent(), "Invalid mode should not cause redaction")
-}
-
 // TestAutoPIIRedactionStructuredMessages tests PII redaction on structured messages
 func TestAutoPIIRedactionStructuredMessages(t *testing.T) {
 	mockConfig := pkgconfigmock.New(t)
-	mockConfig.Set("logs_config.auto_redact_pii", true, model.SourceAgentRuntime)
-	mockConfig.Set("logs_config.pii_redaction_mode", "hybrid", model.SourceAgentRuntime)
+	mockConfig.Set("logs_config.auto_redact_config.enabled", true, model.SourceAgentRuntime)
+	mockConfig.Set("logs_config.auto_redact_config.email", true, model.SourceAgentRuntime)
+	mockConfig.Set("logs_config.auto_redact_config.credit_card", true, model.SourceAgentRuntime)
+	mockConfig.Set("logs_config.auto_redact_config.ssn", true, model.SourceAgentRuntime)
+	mockConfig.Set("logs_config.auto_redact_config.phone", true, model.SourceAgentRuntime)
+	mockConfig.Set("logs_config.auto_redact_config.ip", true, model.SourceAgentRuntime)
 
 	p := &Processor{
 		config:       mockConfig,
-		piiDetector:  NewHybridPIIDetector(),
 		piiTokenizer: newTokenizer(),
 	}
 
@@ -1109,12 +721,15 @@ func TestAutoPIIRedactionStructuredMessages(t *testing.T) {
 // TestAutoPIIRedactionMetrics tests that processing rules are recorded correctly
 func TestAutoPIIRedactionMetrics(t *testing.T) {
 	mockConfig := pkgconfigmock.New(t)
-	mockConfig.Set("logs_config.auto_redact_pii", true, model.SourceAgentRuntime)
-	mockConfig.Set("logs_config.pii_redaction_mode", "hybrid", model.SourceAgentRuntime)
+	mockConfig.Set("logs_config.auto_redact_config.enabled", true, model.SourceAgentRuntime)
+	mockConfig.Set("logs_config.auto_redact_config.email", true, model.SourceAgentRuntime)
+	mockConfig.Set("logs_config.auto_redact_config.credit_card", true, model.SourceAgentRuntime)
+	mockConfig.Set("logs_config.auto_redact_config.ssn", true, model.SourceAgentRuntime)
+	mockConfig.Set("logs_config.auto_redact_config.phone", true, model.SourceAgentRuntime)
+	mockConfig.Set("logs_config.auto_redact_config.ip", true, model.SourceAgentRuntime)
 
 	p := &Processor{
 		config:       mockConfig,
-		piiDetector:  NewHybridPIIDetector(),
 		piiTokenizer: newTokenizer(),
 	}
 
@@ -1128,4 +743,55 @@ func TestAutoPIIRedactionMetrics(t *testing.T) {
 	// Verify that at least one PII rule was recorded
 	totalCount := msg.Origin.LogSource.ProcessingInfo.GetCount("mask_sequences:auto_redact_ssn")
 	assert.Greater(t, totalCount, int64(0), "Should record SSN redaction in processing info")
+}
+
+// TestAutoPIIRedactionPerSourceOverride tests that per-source config can override global config
+func TestAutoPIIRedactionPerSourceOverride(t *testing.T) {
+	mockConfig := pkgconfigmock.New(t)
+	// Global: disabled
+	mockConfig.Set("logs_config.auto_redact_config.enabled", false, model.SourceAgentRuntime)
+
+	p := &Processor{
+		config:       mockConfig,
+		piiTokenizer: newTokenizer(),
+	}
+
+	// Per-source: enabled with only SSN
+	enabled := true
+	ssnEnabled := true
+	emailEnabled := false
+	sourceConfig := &config.LogsConfig{
+		AutoRedactConfig: &types.AutoRedactConfig{
+			Enabled: &enabled,
+			SSN:     &ssnEnabled,
+			Email:   &emailEnabled,
+		},
+	}
+	source := sources.NewLogSource("", sourceConfig)
+
+	tests := []struct {
+		name     string
+		input    []byte
+		expected []byte
+	}{
+		{
+			name:     "ssn_redacted_via_source_override",
+			input:    []byte("SSN: 123-45-6789"),
+			expected: []byte("SSN: [SSN_REDACTED]"),
+		},
+		{
+			name:     "email_not_redacted_per_source",
+			input:    []byte("Email: user@example.com"),
+			expected: []byte("Email: user@example.com"),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			msg := newMessage(tt.input, source, "")
+			shouldProcess := p.applyRedactingRules(msg)
+			assert.True(t, shouldProcess, "Message should be processed")
+			assert.Equal(t, tt.expected, msg.GetContent())
+		})
+	}
 }

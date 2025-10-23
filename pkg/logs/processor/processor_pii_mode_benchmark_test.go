@@ -71,12 +71,15 @@ func BenchmarkProcessorPIIModes(b *testing.B) {
 			b.Run("regex", func(b *testing.B) {
 				// Setup BEFORE timer
 				mockConfig := pkgconfigmock.New(b)
-				mockConfig.Set(configAutoRedactPII, true, model.SourceAgentRuntime)
-				mockConfig.Set(configPIIRedactionMode, PIIRedactionModeRegex, model.SourceAgentRuntime)
+				mockConfig.Set(configAutoRedactEnabled, true, model.SourceAgentRuntime)
+				mockConfig.Set(configAutoRedactEmail, true, model.SourceAgentRuntime)
+				mockConfig.Set(configAutoRedactCreditCard, true, model.SourceAgentRuntime)
+				mockConfig.Set(configAutoRedactSSN, true, model.SourceAgentRuntime)
+				mockConfig.Set(configAutoRedactPhone, true, model.SourceAgentRuntime)
+				mockConfig.Set(configAutoRedactIP, true, model.SourceAgentRuntime)
 
 				processor := &Processor{
 					config:       mockConfig,
-					piiDetector:  NewHybridPIIDetector(),
 					piiTokenizer: newTokenizer(),
 				}
 
@@ -97,12 +100,15 @@ func BenchmarkProcessorPIIModes(b *testing.B) {
 			b.Run("hybrid", func(b *testing.B) {
 				// Setup BEFORE timer
 				mockConfig := pkgconfigmock.New(b)
-				mockConfig.Set(configAutoRedactPII, true, model.SourceAgentRuntime)
-				mockConfig.Set(configPIIRedactionMode, PIIRedactionModeHybrid, model.SourceAgentRuntime)
+				mockConfig.Set(configAutoRedactEnabled, true, model.SourceAgentRuntime)
+				mockConfig.Set(configAutoRedactEmail, true, model.SourceAgentRuntime)
+				mockConfig.Set(configAutoRedactCreditCard, true, model.SourceAgentRuntime)
+				mockConfig.Set(configAutoRedactSSN, true, model.SourceAgentRuntime)
+				mockConfig.Set(configAutoRedactPhone, true, model.SourceAgentRuntime)
+				mockConfig.Set(configAutoRedactIP, true, model.SourceAgentRuntime)
 
 				processor := &Processor{
 					config:       mockConfig,
-					piiDetector:  NewHybridPIIDetector(),
 					piiTokenizer: newTokenizer(),
 				}
 
@@ -123,11 +129,10 @@ func BenchmarkProcessorPIIModes(b *testing.B) {
 			b.Run("disabled", func(b *testing.B) {
 				// Setup BEFORE timer
 				mockConfig := pkgconfigmock.New(b)
-				mockConfig.Set(configAutoRedactPII, false, model.SourceAgentRuntime)
+				mockConfig.Set(configAutoRedactEnabled, false, model.SourceAgentRuntime)
 
 				processor := &Processor{
 					config:       mockConfig,
-					piiDetector:  NewHybridPIIDetector(),
 					piiTokenizer: newTokenizer(),
 				}
 
@@ -168,12 +173,10 @@ func BenchmarkProcessorPIIModesFullMessage(b *testing.B) {
 		b.Run(tm.name, func(b *testing.B) {
 			b.Run("regex", func(b *testing.B) {
 				mockConfig := pkgconfigmock.New(b)
-				mockConfig.Set(configAutoRedactPII, true, model.SourceAgentRuntime)
-				mockConfig.Set(configPIIRedactionMode, PIIRedactionModeRegex, model.SourceAgentRuntime)
+				mockConfig.Set(configAutoRedactEnabled, true, model.SourceAgentRuntime)
 
 				processor := &Processor{
 					config:       mockConfig,
-					piiDetector:  NewHybridPIIDetector(),
 					piiTokenizer: newTokenizer(),
 				}
 
@@ -190,12 +193,10 @@ func BenchmarkProcessorPIIModesFullMessage(b *testing.B) {
 
 			b.Run("hybrid", func(b *testing.B) {
 				mockConfig := pkgconfigmock.New(b)
-				mockConfig.Set(configAutoRedactPII, true, model.SourceAgentRuntime)
-				mockConfig.Set(configPIIRedactionMode, PIIRedactionModeHybrid, model.SourceAgentRuntime)
+				mockConfig.Set(configAutoRedactEnabled, true, model.SourceAgentRuntime)
 
 				processor := &Processor{
 					config:       mockConfig,
-					piiDetector:  NewHybridPIIDetector(),
 					piiTokenizer: newTokenizer(),
 				}
 
@@ -212,11 +213,10 @@ func BenchmarkProcessorPIIModesFullMessage(b *testing.B) {
 
 			b.Run("disabled", func(b *testing.B) {
 				mockConfig := pkgconfigmock.New(b)
-				mockConfig.Set(configAutoRedactPII, false, model.SourceAgentRuntime)
+				mockConfig.Set(configAutoRedactEnabled, false, model.SourceAgentRuntime)
 
 				processor := &Processor{
 					config:       mockConfig,
-					piiDetector:  NewHybridPIIDetector(),
 					piiTokenizer: newTokenizer(),
 				}
 
