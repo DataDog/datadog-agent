@@ -330,11 +330,9 @@ func testPass(testConfig *testConfig, props map[string]string) error {
 			// log error and capture the first one to preserve exit code
 			fmt.Fprintf(os.Stderr, "\n>>> cmd run %s: %s\n", testsuite, err)
 			if firstTestError == nil {
-				exitCode := -1
-
 				// Try to extract exit code from stdout marker (reliable with gotestsum)
 				stdoutContent := stdoutBuf.String()
-				exitCode = extractExitCodeFromOutput(stdoutContent)
+				exitCode := extractExitCodeFromOutput(stdoutContent)
 				var exitErr *exec.ExitError
 				if errors.As(err, &exitErr) {
 					// Store the custom exit code if found, otherwise use the one from exitErr
