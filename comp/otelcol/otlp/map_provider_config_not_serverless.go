@@ -48,11 +48,10 @@ exporters:
   serializer:
     sending_queue:
       sizer: "items"
-      queue_size: 8192
       batch:
         flush_timeout: 10000ms
-        min_size: 8192
-        max_size: 0
+        min_size: 10
+        max_size: 100
 
 service:
   telemetry:
@@ -77,11 +76,10 @@ exporters:
   logsagent:
     sending_queue:
       sizer: "items"
-      queue_size: 8192
       batch:
         flush_timeout: 10000ms
-        min_size: 8192
-        max_size: 0
+        min_size: 10
+        max_size: 100
 
 service:
   telemetry:
