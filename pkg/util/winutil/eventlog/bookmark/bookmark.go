@@ -181,8 +181,10 @@ func FromLatestEvent(api evtapi.API, channelPath, query string) (Bookmark, error
 	defer evtapi.EvtCloseResultSet(api, resultSet)
 
 	// Get one event (the most recent due to reverse direction)
-	// Use INFINITE timeout to avoid ERROR_TIMEOUT issues
 	handles := make([]evtapi.EventRecordHandle, 1)
+	// We supply INFINITE for the Timeout parameter but if we are at the end of the log file/there are no more events EvtNext will return,
+	// it will not block forever.
+	// https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-even6/cd4c258c-5a2c-4ba8-bce3-37eefaa416e7
 	returned, err := api.EvtNext(resultSet, handles, 1, windows.INFINITE)
 	if err != nil {
 		if err == windows.ERROR_NO_MORE_ITEMS || err == windows.ERROR_TIMEOUT {
