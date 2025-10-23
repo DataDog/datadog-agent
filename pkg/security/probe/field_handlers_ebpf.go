@@ -26,6 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
 	sprocess "github.com/DataDog/datadog-agent/pkg/security/resolvers/process"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model/usersession"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/security/utils/lru/simplelru"
@@ -637,6 +638,12 @@ func (fh *EBPFFieldHandlers) ResolveProcessCreatedAt(_ *model.Event, e *model.Pr
 // ResolveUserSessionContext resolves and updates the provided user session context
 func (fh *EBPFFieldHandlers) ResolveUserSessionContext(evtCtx *model.UserSessionContext) {
 	if !evtCtx.Resolved {
+		if evtCtx.SessionType == int(usersession.UserSessionTypeSSH) {
+			ctx := fh.resolvers.UserSessionsResolver.ResolveSSHUserSession(evtCtx)
+			if ctx != nil {
+				*evtCtx = *ctx
+			}
+		}
 		ctx := fh.resolvers.UserSessionsResolver.ResolveUserSession(evtCtx.ID)
 		if ctx != nil {
 			*evtCtx = *ctx
@@ -1033,4 +1040,28 @@ func (fh *EBPFFieldHandlers) ResolveCapabilitiesUsed(evt *model.Event, ce *model
 		usedCapabilities |= int(pce.CapsUsed)
 	}
 	return usedCapabilities
+}
+
+// ResolveSSHClientIP resolves the ssh username of the event
+func (fh *EBPFFieldHandlers) ResolveSSHClientIP(_ *model.Event, evtCtx *model.UserSessionContext) net.IPNet {
+	fh.ResolveUserSessionContext(evtCtx)
+	return evtCtx.SSHClientIP
+}
+
+// ResolveSSHAuthMethod resolves the ssh auth method of the event
+func (fh *EBPFFieldHandlers) ResolveSSHAuthMethod(_ *model.Event, evtCtx *model.UserSessionContext) int {
+	fh.ResolveUserSessionContext(evtCtx)
+	return int(evtCtx.SSHAuthMethod)
+}
+
+// ResolveSSHPublicKey resolves the public key of the event
+func (fh *EBPFFieldHandlers) ResolveSSHPublicKey(_ *model.Event, evtCtx *model.UserSessionContext) string {
+	fh.ResolveUserSessionContext(evtCtx)
+	return evtCtx.SSHPublicKey
+}
+
+// ResolveSSHPort resolves the public key of the event
+func (fh *EBPFFieldHandlers) ResolveSSHPort(_ *model.Event, evtCtx *model.UserSessionContext) int {
+	fh.ResolveUserSessionContext(evtCtx)
+	return evtCtx.SSHPort
 }

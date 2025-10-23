@@ -1572,6 +1572,12 @@ func (p *EBPFProbe) handleRegularEvent(event *model.Event, offset int, dataLen u
 		if event.PrCtl.IsNameTruncated {
 			p.MetricNameTruncated.Add(1)
 		}
+		// Second handle for exec event because the context is required to detect a ssh session
+	case model.ExecEventType:
+		p.HandleSSHUserSession(event)
+
+	case model.ForkEventType:
+		p.HandleSSHUserSession(event)
 	}
 	return true
 }
