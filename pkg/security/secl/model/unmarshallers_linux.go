@@ -1592,3 +1592,18 @@ func (e *PrCtlEvent) UnmarshalBinary(data []byte) (int, error) {
 	e.NewName = string(data[12 : sizeToRead+12])
 	return sizeToRead + 12, nil
 }
+
+// UnmarshalBinary unmarshals a binary representation of itself
+func (e *TracerMemfdSealEvent) UnmarshalBinary(data []byte) (int, error) {
+	read, err := UnmarshalBinary(data, &e.SyscallEvent)
+	if err != nil {
+		return 0, err
+	}
+
+	if len(data)-read < 4 {
+		return 0, ErrNotEnoughData
+	}
+
+	e.Fd = binary.NativeEndian.Uint32(data[read : read+4])
+	return read + 4, nil
+}
