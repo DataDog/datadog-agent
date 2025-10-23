@@ -67,6 +67,9 @@ func (s *probeTestSuite) getProbe() *Probe {
 	// Ensure we flush quickly, so that we don't have to wait as much for the pending events to be processed.
 	cfg.RingBufferFlushInterval = 500 * time.Millisecond
 
+	// Ensure we refresh the cache quickly, but still allow some throttling
+	cfg.DeviceCacheRefreshInterval = 500 * time.Millisecond
+
 	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled()))
 	deps := ProbeDependencies{
 		ProcessMonitor: consumerstestutil.NewTestProcessConsumer(t),

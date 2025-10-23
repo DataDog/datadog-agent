@@ -255,7 +255,6 @@ def test(
     rtloader_root=None,
     python_home_3=None,
     cpus=None,
-    major_version='7',
     timeout=180,
     cache=True,
     test_run_name="",
@@ -302,7 +301,6 @@ def test(
         ctx,
         rtloader_root=rtloader_root,
         python_home_3=python_home_3,
-        major_version=major_version,
     )
 
     # Use stdout if no profile is set
