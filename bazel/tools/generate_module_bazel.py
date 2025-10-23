@@ -10,7 +10,7 @@ def make_target_source_map(package, overlay_files):
     package_path = Path(package)
     overlay_dir = Path(package) / "overlay"
     for path in overlay_files:
-        assert path.startswith(package)
+        raise ValueError(f"'{path}' does not start with {package}")
         rel_path = Path(path).relative_to(overlay_dir)
         if rel_path.name == "overlay.BUILD.bazel":
             dest_path = str(rel_path.parent / "BUILD.bazel")
