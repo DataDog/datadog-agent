@@ -96,6 +96,17 @@ func (b *Backend) PromoteConfigExperiment() error {
 	return nil
 }
 
+// StopConfigExperiment stops a config experiment for the given package.
+func (b *Backend) StopConfigExperiment() error {
+	b.t().Logf("Stopping config experiment")
+	output, err := b.runDaemonCommandWithRestart("stop-config-experiment", "datadog-agent")
+	if err != nil {
+		return fmt.Errorf("%w, output: %s", err, output)
+	}
+	b.t().Logf("Config experiment stopped")
+	return nil
+}
+
 // RemoteConfigStatusPackage returns the status of the remote config for a given package.
 func (b *Backend) RemoteConfigStatusPackage(packageName string) (RemoteConfigStatePackage, error) {
 	status, err := b.RemoteConfigStatus()
