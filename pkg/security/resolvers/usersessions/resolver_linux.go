@@ -78,6 +78,11 @@ type sshSessionValue struct {
 	PublicKey            string
 }
 
+type sshSessionParsed struct {
+	mu  sync.Mutex
+	lru *simplelru.LRU[sshSessionKey, sshSessionValue]
+}
+
 // Resolver is used to resolve the user sessions context
 type Resolver struct {
 	sync.RWMutex
@@ -86,7 +91,7 @@ type Resolver struct {
 	userSessionsMap *ebpf.Map
 
 	sshLogReader     *incrementalFileReader
-	sshSessionParsed *simplelru.LRU[sshSessionKey, sshSessionValue]
+	sshSessionParsed sshSessionParsed
 }
 
 // NewResolver returns a new instance of Resolver
@@ -209,7 +214,7 @@ func (r *Resolver) startReading() {
 	case true:
 		for {
 			<-ticker.C
-			err := r.sshLogReader.resolveFromJournalctl(r.sshSessionParsed)
+			err := r.sshLogReader.resolveFromJournalctl(&r.sshSessionParsed)
 			if err != nil {
 				seclog.Errorf("failed to read journalctl: %v", err)
 			}
@@ -217,7 +222,7 @@ func (r *Resolver) startReading() {
 	case false:
 		for {
 			<-ticker.C
-			err := r.sshLogReader.resolveFromLogFile(r.sshSessionParsed)
+			err := r.sshLogReader.resolveFromLogFile(&r.sshSessionParsed)
 			if err != nil {
 				seclog.Errorf("failed to read ssh log lines: %v", err)
 			}
@@ -225,7 +230,7 @@ func (r *Resolver) startReading() {
 	}
 }
 
-func parseSSHLogLine(line string, sshSessionLRU *simplelru.LRU[sshSessionKey, sshSessionValue]) (bool, string) {
+func parseSSHLogLine(line string, sshSessionParsed *sshSessionParsed) (bool, string) {
 	type SSHLogLine struct {
 		Date      string
 		Hostname  string
@@ -309,7 +314,9 @@ func parseSSHLogLine(line string, sshSessionLRU *simplelru.LRU[sshSessionKey, ss
 			AuthenticationMethod: authType,
 			PublicKey:            publicKey,
 		}
-		sshSessionLRU.Add(key, value)
+		sshSessionParsed.mu.Lock()
+		sshSessionParsed.lru.Add(key, value)
+		sshSessionParsed.mu.Unlock()
 		return true, sshLogLine.Date
 	}
 	return false, ""
@@ -317,7 +324,7 @@ func parseSSHLogLine(line string, sshSessionLRU *simplelru.LRU[sshSessionKey, ss
 
 // resolveFromLogFile read all the lines that have been added since the last call without reopening the file.
 // Return new lines, the byte offsets at the end of each line, and an error.
-func (ifr *incrementalFileReader) resolveFromLogFile(sshSessionLRU *simplelru.LRU[sshSessionKey, sshSessionValue]) error {
+func (ifr *incrementalFileReader) resolveFromLogFile(sshSessionParsed *sshSessionParsed) error {
 	ifr.mu.Lock()
 	defer ifr.mu.Unlock()
 
@@ -349,7 +356,7 @@ func (ifr *incrementalFileReader) resolveFromLogFile(sshSessionLRU *simplelru.LR
 	sc := bufio.NewScanner(ifr.f)
 	for sc.Scan() {
 		line := sc.Text()
-		parseSSHLogLine(line, sshSessionLRU)
+		parseSSHLogLine(line, sshSessionParsed)
 	}
 	newOffset, err := ifr.f.Seek(0, io.SeekCurrent)
 	if err != nil {
@@ -360,7 +367,7 @@ func (ifr *incrementalFileReader) resolveFromLogFile(sshSessionLRU *simplelru.LR
 	return err
 }
 
-func (ifr *incrementalFileReader) resolveFromJournalctl(sshSessionLRU *simplelru.LRU[sshSessionKey, sshSessionValue]) error {
+func (ifr *incrementalFileReader) resolveFromJournalctl(sshSessionParsed *sshSessionParsed) error {
 	// format for journalctl
 	sinceStr := ifr.lastRead.Format("2006-01-02 15:04:05")
 
@@ -378,7 +385,7 @@ func (ifr *incrementalFileReader) resolveFromJournalctl(sshSessionLRU *simplelru
 
 	var lastDate string
 	for i := 0; i < len(lines); i++ {
-		_, lastDate = parseSSHLogLine(lines[i], sshSessionLRU)
+		_, lastDate = parseSSHLogLine(lines[i], sshSessionParsed)
 	}
 	// We update the lastRead like this to avoid skipping another line that could be another ssh session
 	parsedSince, err := time.Parse("2006-01-02T15:04:05-0700", lastDate)
@@ -456,10 +463,18 @@ func (r *Resolver) StartSSHUserSessionResolver() {
 
 	r.sshLogReader = newIncrementalFileReader(path)
 
+	// Initialize the SSH session LRU cache (needed in all cases)
+	r.sshSessionParsed.lru, err = simplelru.NewLRU[sshSessionKey, sshSessionValue](100, nil)
+	if err != nil {
+		seclog.Errorf("couldn't create SSH Session LRU cache: %v", err)
+		return
+	}
+
 	if path == "" {
-		// Don't want to continue in case there is no log file
+		// Don't want to continue in case there is no log file, use journalctl instead
 		r.sshLogReader.lastRead = time.Now()
 		r.sshLogReader.readFromJournalctl = true
+		go r.startReading()
 		return
 	}
 
@@ -468,13 +483,6 @@ func (r *Resolver) StartSSHUserSessionResolver() {
 	f, err := os.OpenFile(path, os.O_RDONLY, 0644)
 	if err != nil {
 		seclog.Errorf("failed to open ssh log file: %v", err)
-		return
-	}
-
-	// Initialize the SSH session LRU cache
-	r.sshSessionParsed, err = simplelru.NewLRU[sshSessionKey, sshSessionValue](100, nil)
-	if err != nil {
-		seclog.Errorf("couldn't create SSH Session LRU cache: %v", err)
 		return
 	}
 	if err := r.sshLogReader.Init(f); err != nil {
@@ -505,7 +513,10 @@ func (r *Resolver) ResolveSSHUserSession(ctx *model.UserSessionContext) *model.U
 		IP:   ctx.SSHClientIP.IP.String(),
 		Port: fmt.Sprintf("%d", ctx.SSHPort),
 	}
-	value, ok := r.sshSessionParsed.Get(key)
+	r.sshSessionParsed.mu.Lock()
+	value, ok := r.sshSessionParsed.lru.Get(key)
+	r.sshSessionParsed.mu.Unlock()
+
 	if ok {
 		ctx.SSHAuthMethod = value.AuthenticationMethod
 		ctx.SSHPublicKey = value.PublicKey
