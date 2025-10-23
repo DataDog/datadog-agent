@@ -605,7 +605,7 @@ func TestActionHash(t *testing.T) {
 		},
 		{
 			ID:         "hash_action_exec",
-			Expression: `exec.file.path == "{{.Root}}/test-hash-action-exec"`,
+			Expression: `exec.file.path == "{{.Root}}/test-hash-action-exec_touch"`,
 			Actions: []*rules.ActionDefinition{
 				{
 					Hash: &rules.HashDefinition{},
@@ -625,7 +625,10 @@ func TestActionHash(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	testExecutable, _, err := test.Path("test-hash-action-exec")
+	// it's important that this ends with `touch` because for example ubuntu 25.10
+	// uses the suffix to know which "function/utility" is running
+	// https://github.com/uutils/coreutils/blob/909da503713f39f8e36b1ff077841c9cc13d920b/src/bin/coreutils.rs#L60
+	testExecutable, _, err := test.Path("test-hash-action-exec_touch")
 	if err != nil {
 		t.Fatal(err)
 	}
