@@ -15,6 +15,16 @@
  */
 BPF_RINGBUF_MAP(seccomp_events, seccomp_event_t)
 
+/*
+ * Stack trace map for storing user-space stack traces
+ * Maps stack_id -> array of instruction pointers
+ * For BPF_MAP_TYPE_STACK_TRACE, key type is u32 (stack_id) and value is array of u64 (addresses)
+ */
+BPF_MAP(stack_traces, BPF_MAP_TYPE_STACK_TRACE, u32, __u64[127], 16384, 0, 0, INCLUDE_KEY_TYPE)
+
+// Configuration: whether to capture stack traces
+static __u64 stack_traces_enabled = 1;
+
 // source: include/uapi/linux/seccomp.h
 #define SECCOMP_RET_KILL_PROCESS 0x80000000U /* kill the process */
 #define SECCOMP_RET_KILL_THREAD 0x00000000U /* kill the thread */
@@ -71,6 +81,24 @@ int BPF_KRETPROBE(kretprobe__seccomp_run_filters, int ret) {
 
     event.syscall_nr = (u32)syscall_nr;
     event.action = action;
+
+    // Capture PID/TID
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    event.pid = pid_tgid >> 32;
+    event.tid = pid_tgid & 0xFFFFFFFF;
+
+    // Capture command name
+    bpf_get_current_comm(&event.comm, sizeof(event.comm));
+
+    // Capture user-space stack trace if enabled
+    event.stack_id = -1;
+    LOAD_CONSTANT("stack_traces_enabled", stack_traces_enabled);
+    if (stack_traces_enabled) {
+        s32 stack_id = bpf_get_stackid_compat(ctx, &stack_traces, BPF_F_USER_STACK);
+        // stack_id can be negative on error (e.g., -EEXIST if map full, -EFAULT if can't read)
+        // We store it anyway; userspace will handle -1 as "no stack"
+        event.stack_id = stack_id;
+    }
 
     bpf_ringbuf_output_with_telemetry(&seccomp_events, &event, sizeof(event), 0);
 

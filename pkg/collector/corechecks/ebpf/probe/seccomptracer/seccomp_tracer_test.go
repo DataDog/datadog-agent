@@ -84,8 +84,9 @@ func (s *seccompTracerTestSuite) TestCanDetectSeccompDenial() {
 		foundGetuid := false
 
 		for _, value := range stats {
-			t.Logf("Captured seccomp denial: syscall=%d (0x%x), action=0x%08x, count=%d, cgroup=%s",
-				value.SyscallNr, value.SyscallNr, value.SeccompAction, value.Count, value.CgroupName)
+			t.Logf("Captured seccomp denial: syscall=%d (0x%x), action=0x%08x, count=%d, cgroup=%s, pid=%d, comm=%s, stacks=%d",
+				value.SyscallNr, value.SyscallNr, value.SeccompAction, value.Count, value.CgroupName,
+				value.Pid, value.Comm, len(value.StackTraces))
 
 			if value.SyscallNr == unix.SYS_GETPID {
 				foundGetpid = true
@@ -102,6 +103,43 @@ func (s *seccompTracerTestSuite) TestCanDetectSeccompDenial() {
 		assert.True(c, foundGetpid, "Expected to capture SYS_GETPID (%d) denial from seccompsample", unix.SYS_GETPID)
 		assert.True(c, foundGetuid, "Expected to capture SYS_GETUID (%d) denial from seccompsample", unix.SYS_GETUID)
 	}, 10*time.Second, 100*time.Millisecond, "Expected to capture seccomp denials")
+
+	// Verify stack traces are captured
+	require.NotEmpty(t, stats, "Expected to capture seccomp denials")
+
+	foundStackTrace := false
+	for _, entry := range stats {
+		// Verify PID and comm are captured
+		assert.Greater(t, entry.Pid, uint32(0), "PID should be captured")
+		assert.NotEmpty(t, entry.Comm, "Command name should be captured")
+		t.Logf("Entry: syscall=%d, pid=%d, comm=%s, stacks=%d", entry.SyscallNr, entry.Pid, entry.Comm, len(entry.StackTraces))
+
+		if len(entry.StackTraces) > 0 {
+			foundStackTrace = true
+
+			// Verify stack trace has data
+			for _, trace := range entry.StackTraces {
+				assert.GreaterOrEqual(t, trace.StackID, int32(0), "Stack ID should be valid (>= 0)")
+				assert.Greater(t, trace.Count, uint64(0), "Stack trace count should be > 0")
+				assert.NotEmpty(t, trace.Addresses, "Stack trace should have addresses")
+
+				// Verify addresses are non-zero
+				hasNonZeroAddr := false
+				for _, addr := range trace.Addresses {
+					if addr != 0 {
+						hasNonZeroAddr = true
+						break
+					}
+				}
+				assert.True(t, hasNonZeroAddr, "Stack trace should have at least one non-zero address")
+
+				t.Logf("Stack trace: stackID=%d, count=%d, frames=%d, first_addr=0x%x",
+					trace.StackID, trace.Count, len(trace.Addresses), trace.Addresses[0])
+			}
+		}
+	}
+
+	assert.True(t, foundStackTrace, "Expected at least one entry with stack traces")
 }
 
 // runSeccompSample runs the seccomp sample binary

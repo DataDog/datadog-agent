@@ -6,12 +6,24 @@
 // Package model is the types for the Seccomp Tracer check
 package model
 
+// StackTraceInfo represents a single stack trace with its count
+type StackTraceInfo struct {
+	StackID   int32    `json:"stackId"`
+	Count     uint64   `json:"count"`
+	Addresses []uint64 `json:"addresses"`
+	Symbols   []string `json:"symbols,omitempty"`
+}
+
 // SeccompStatsEntry represents a single seccomp denial event with the count of the times it occurred
 type SeccompStatsEntry struct {
-	CgroupName    string `json:"cgroupName"`
-	SyscallNr     uint32 `json:"syscallNr"`
-	SeccompAction uint32 `json:"seccompAction"`
-	Count         uint64 `json:"count"`
+	CgroupName    string           `json:"cgroupName"`
+	SyscallNr     uint32           `json:"syscallNr"`
+	SeccompAction uint32           `json:"seccompAction"`
+	Pid           uint32           `json:"pid,omitempty"`
+	Comm          string           `json:"comm,omitempty"`
+	Count         uint64           `json:"count"`
+	StackTraces   []StackTraceInfo `json:"stackTraces,omitempty"`
+	DroppedStacks uint64           `json:"droppedStacks,omitempty"`
 }
 
 // SeccompStats is a slice of SeccompStatsEntry objects

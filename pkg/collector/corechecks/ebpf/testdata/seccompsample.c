@@ -10,6 +10,41 @@
 #include <sys/types.h>
 #include <sys/syscall.h>
 
+// Helper functions to create distinct call stacks for testing
+static void trigger_getpid_level3(void) {
+    errno = 0;
+    long pid = syscall(SYS_getpid);
+    int saved_errno = errno;
+    if (pid == -1 && saved_errno == EPERM) {
+        printf("getpid() denied as expected (from level 3)\n");
+    } else {
+        printf("getpid() returned %ld with errno %d\n", pid, saved_errno);
+    }
+}
+
+static void trigger_getpid_level2(void) {
+    trigger_getpid_level3();
+}
+
+static void trigger_getpid_level1(void) {
+    trigger_getpid_level2();
+}
+
+static void trigger_getuid_level2(void) {
+    errno = 0;
+    long uid = syscall(SYS_getuid);
+    int saved_errno = errno;
+    if (uid == -1 && saved_errno == EACCES) {
+        printf("getuid() denied as expected (from level 2)\n");
+    } else {
+        printf("getuid() returned %ld with errno %d\n", uid, saved_errno);
+    }
+}
+
+static void trigger_getuid_level1(void) {
+    trigger_getuid_level2();
+}
+
 int main(int argc, char *argv[]) {
     int wait_time = 5; // default wait time
 
@@ -59,24 +94,12 @@ int main(int argc, char *argv[]) {
 
     seccomp_release(ctx);
 
-    // Trigger the denials using raw syscalls (not libc wrappers which may use vDSO)
-    errno = 0; // Clear errno before syscall
-    long pid = syscall(SYS_getpid); // This will be denied and return -1
-    int saved_errno = errno; // Save errno immediately
-    if (pid == -1 && saved_errno == EPERM) {
-        printf("getpid() denied as expected\n");
-    } else {
-        printf("getpid() returned %ld with errno %d\n", pid, saved_errno);
-    }
+    // Trigger denials from different call stacks to test stack trace capture
+    printf("Triggering denials from nested functions...\n");
+    fflush(stdout);
 
-    errno = 0; // Clear errno before syscall
-    long uid = syscall(SYS_getuid); // This will also be denied
-    saved_errno = errno; // Save errno immediately
-    if (uid == -1 && saved_errno == EACCES) {
-        printf("getuid() denied as expected\n");
-    } else {
-        printf("getuid() returned %ld with errno %d\n", uid, saved_errno);
-    }
+    trigger_getpid_level1();
+    trigger_getuid_level1();
 
     printf("Seccomp denials triggered.\n");
     fflush(stdout);

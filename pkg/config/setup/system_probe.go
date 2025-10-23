@@ -402,6 +402,8 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 
 	// Seccomp tracer config
 	cfg.BindEnvAndSetDefault(join(seccompTracerNS, "enabled"), false)
+	cfg.BindEnvAndSetDefault(join(seccompTracerNS, "stack_traces_enabled"), true)
+	cfg.BindEnvAndSetDefault(join(seccompTracerNS, "max_stacks_per_tuple"), 10)
 
 	initCWSSystemProbeConfig(cfg)
 	initUSMSystemProbeConfig(cfg)

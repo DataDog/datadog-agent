@@ -4,7 +4,11 @@
 package seccomptracer
 
 type SeccompEvent struct {
-	Cgroup [128]byte
-	Nr     uint32
-	Action uint32
+	Cgroup     [128]byte
+	Syscall_nr uint32
+	Action     uint32
+	Stack_id   int32
+	Pid        uint32
+	Tid        uint32
+	Comm       [16]int8
 }

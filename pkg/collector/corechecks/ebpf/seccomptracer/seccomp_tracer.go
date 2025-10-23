@@ -22,6 +22,7 @@ import (
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/seccomptracer/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	secmodel "github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	sysprobeclient "github.com/DataDog/datadog-agent/pkg/system-probe/api/client"
 	sysconfig "github.com/DataDog/datadog-agent/pkg/system-probe/config"
@@ -45,6 +46,8 @@ const (
 	seccompRetTrace       = 0x7ff00000
 	seccompRetLog         = 0x7ffc0000
 	seccompRetAllow       = 0x7fff0000
+
+	maxStackTraceEvents = 10
 )
 
 // SeccompTracerCheck grabs seccomp failure metrics
@@ -151,10 +154,71 @@ func (t *SeccompTracerCheck) Run() error {
 		tags = append(tags, fmt.Sprintf("syscall_nr:%d", v.SyscallNr))
 		tags = append(tags, fmt.Sprintf("syscall_name:%s", syscallName(v.SyscallNr)))
 		tags = append(tags, fmt.Sprintf("seccomp_action:%s", seccompActionName(v.SeccompAction)))
+		tags = append(tags, fmt.Sprintf("command:%s", v.Comm))
 
 		sender.Gauge("seccomp.denials", float64(v.Count), "", tags)
+
+		// Emit events for stack traces
+		if len(v.StackTraces) > 0 {
+			t.emitStackTraceEvents(sender, v, containerID, tags)
+		}
+
+		sender.Gauge("seccomp.dropped_stacks", float64(v.DroppedStacks), "", tags)
 	}
 
 	sender.Commit()
 	return nil
+}
+
+// emitStackTraceEvents emits agent events for stack traces
+func (t *SeccompTracerCheck) emitStackTraceEvents(sender sender.Sender, entry model.SeccompStatsEntry, containerID string, baseTags []string) {
+	syscallNameStr := syscallName(entry.SyscallNr)
+	actionNameStr := seccompActionName(entry.SeccompAction)
+
+	for _, trace := range entry.StackTraces[:maxStackTraceEvents] {
+		// Build the event message
+		var msgBuilder strings.Builder
+		msgBuilder.WriteString("Seccomp denial stack trace\n\n")
+		if entry.Pid > 0 {
+			msgBuilder.WriteString(fmt.Sprintf("PID: %d\n", entry.Pid))
+		}
+		if entry.Comm != "" {
+			msgBuilder.WriteString(fmt.Sprintf("Command: %s\n", entry.Comm))
+		}
+		msgBuilder.WriteString(fmt.Sprintf("Container: %s\n", containerID))
+		msgBuilder.WriteString(fmt.Sprintf("Cgroup: %s\n", entry.CgroupName))
+		msgBuilder.WriteString(fmt.Sprintf("Syscall: %s (%d)\n", syscallNameStr, entry.SyscallNr))
+		msgBuilder.WriteString(fmt.Sprintf("Action: %s\n", actionNameStr))
+		msgBuilder.WriteString(fmt.Sprintf("Occurrences: %d\n\n", trace.Count))
+		msgBuilder.WriteString("Stack trace:\n")
+
+		// Use symbolicated stack if available, otherwise use addresses
+		if len(trace.Symbols) > 0 {
+			for i, symbol := range trace.Symbols {
+				msgBuilder.WriteString(fmt.Sprintf("  #%d %s\n", i, symbol))
+			}
+		} else if len(trace.Addresses) > 0 {
+			for i, addr := range trace.Addresses {
+				msgBuilder.WriteString(fmt.Sprintf("  #%d 0x%x\n", i, addr))
+			}
+		} else {
+			msgBuilder.WriteString("  (no stack trace data available)\n")
+		}
+
+		// Create event tags
+		eventTags := make([]string, len(baseTags))
+		copy(eventTags, baseTags)
+		eventTags = append(eventTags, fmt.Sprintf("stack_id:%d", trace.StackID))
+
+		// Send the event
+		sender.Event(event.Event{
+			Title:          "Seccomp denial stack trace",
+			Text:           msgBuilder.String(),
+			Priority:       event.PriorityNormal,
+			SourceTypeName: CheckName,
+			EventType:      CheckName,
+			AggregationKey: fmt.Sprintf("seccomp:%s:%d:%d", entry.CgroupName, entry.SyscallNr, trace.StackID),
+			Tags:           eventTags,
+		})
+	}
 }
