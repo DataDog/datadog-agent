@@ -372,7 +372,7 @@ pkg_install(
         ":libodbcinst_so_link",
         ":libodbc_so_link",
         ":libodbccr_so_link",
-        ":bin_files",
+        #":bin_files",
         ":unixodbc_hdr_files",
         ":libltdl_hdr_files",
     ],
