@@ -25,6 +25,12 @@ const (
 	CheckName = "jmxclient"
 )
 
+// MetricMetadata stores the alias and metric type for a collected metric
+type MetricMetadata struct {
+	Alias      string
+	MetricType string // gauge, counter, rate, histogram, monotonic_count
+}
+
 // Check implements the JMX check using the JmxClient library
 type Check struct {
 	core.CheckBase
@@ -34,15 +40,19 @@ type Check struct {
 	sessionID      int
 	lastRefresh    time.Time
 	isConnected    bool
+
+	// metricMetadata stores the mapping from "path:attribute" to metric metadata (alias and metric_type)
+	metricMetadata map[string]MetricMetadata
 }
 
 // Factory creates a new check factory
 func Factory() option.Option[func() check.Check] {
 	return option.New(func() check.Check {
 		return &Check{
-			CheckBase:   core.NewCheckBase(CheckName),
-			sessionID:   -1,
-			isConnected: false,
+			CheckBase:      core.NewCheckBase(CheckName),
+			sessionID:      -1,
+			isConnected:    false,
+			metricMetadata: make(map[string]MetricMetadata),
 		}
 	})
 }
@@ -60,8 +70,9 @@ func (c *Check) Configure(senderManager sender.SenderManager, integrationDigest 
 	}
 
 	// Validate that we have bean collection configuration
-	if len(c.initConfig.Conf) == 0 {
-		return fmt.Errorf("no bean collection configuration provided in init_config.conf")
+	// Either user-provided conf or CollectDefaultMetrics must be set
+	if len(c.initConfig.Conf) == 0 && !c.initConfig.CollectDefaultMetrics {
+		return fmt.Errorf("no bean collection configuration provided in init_config.conf and collect_default_metrics is not enabled")
 	}
 	c.BuildID(integrationDigest, data, initConfig)
 	err := c.CommonConfigure(senderManager, initConfig, data, source)
@@ -156,6 +167,27 @@ func (c *Check) refreshBeans() error {
 	// Convert bean configuration to jmxclient format
 	beanRequests := ToJmxClientFormat(c.initConfig.Conf)
 
+	// Build metric metadata mapping from bean requests
+	c.metricMetadata = make(map[string]MetricMetadata)
+	for _, req := range beanRequests {
+		// Create key from path and attribute (with key if composite)
+		key := fmt.Sprintf("%s:%s", req.Path, req.Attribute)
+		if req.Key != "" {
+			key = fmt.Sprintf("%s.%s", key, req.Key)
+		}
+
+		// Store metadata (alias and metric_type)
+		metadata := MetricMetadata{
+			Alias:      req.Alias,
+			MetricType: req.MetricType,
+		}
+		// Default to gauge if no metric_type is specified
+		if metadata.MetricType == "" {
+			metadata.MetricType = "gauge"
+		}
+		c.metricMetadata[key] = metadata
+	}
+
 	// Marshal to JSON in the format expected by jmxclient
 	configJSON, err := json.Marshal(beanRequests)
 	if err != nil {
@@ -190,14 +222,38 @@ func (c *Check) processMetrics(beans []BeanData, sender sender.Sender) error {
 
 		// Process each attribute in the bean
 		for _, attr := range bean.Attributes {
+			// Try multiple keys to find the configured metric metadata
+			// First try: path:attribute_name
+			key := fmt.Sprintf("%s:%s", bean.Path, attr.Name)
+			metadata, hasMetadata := c.metricMetadata[key]
 
-			metricName := fmt.Sprintf("jmx.%s.%s", bean.Path, attr.Name)
+			// Second try: if bean.Attribute is set, try path:bean.Attribute.attr.Name
+			// (for composite attributes where bean.Attribute = "HeapMemoryUsage" and attr.Name = "used")
+			if !hasMetadata && bean.Attribute != "" {
+				compositeKey := fmt.Sprintf("%s:%s.%s", bean.Path, bean.Attribute, attr.Name)
+				metadata, hasMetadata = c.metricMetadata[compositeKey]
+			}
+
+			// Determine metric name
+			var metricName string
+			if hasMetadata && metadata.Alias != "" {
+				metricName = metadata.Alias
+			} else {
+				// Fallback to recomposed name if no alias is configured
+				metricName = fmt.Sprintf("jmx.%s.%s", bean.Path, attr.Name)
+			}
+
+			// Determine metric type (default to gauge if not specified)
+			metricType := "gauge"
+			if hasMetadata && metadata.MetricType != "" {
+				metricType = metadata.MetricType
+			}
 
 			// Try to parse the value as a number
 			var numValue float64
 			if _, err := fmt.Sscanf(attr.Value, "%f", &numValue); err == nil {
-				// TODO(remy): support other types than gauge
-				sender.Gauge(metricName, numValue, "", tags)
+				// Send metric with the appropriate type
+				c.sendMetric(sender, metricType, metricName, numValue, tags)
 			} else {
 				log.Debugf("Skipping non-numeric metric %s with value: %s", metricName, attr.Value)
 			}
@@ -205,6 +261,29 @@ func (c *Check) processMetrics(beans []BeanData, sender sender.Sender) error {
 	}
 
 	return nil
+}
+
+// sendMetric sends a metric with the appropriate type to the aggregator
+func (c *Check) sendMetric(sender sender.Sender, metricType string, name string, value float64, tags []string) {
+	switch metricType {
+	case "counter":
+		// Counter: a value that can increase or decrease
+		sender.Count(name, value, "", tags)
+	case "monotonic_count":
+		// Monotonic counter: a value that only increases
+		sender.MonotonicCount(name, value, "", tags)
+	case "rate":
+		// Rate: a value representing a rate (e.g., requests per second)
+		sender.Rate(name, value, "", tags)
+	case "histogram":
+		// Histogram: for statistical distribution
+		sender.Histogram(name, value, "", tags)
+	case "gauge":
+		fallthrough
+	default:
+		// Gauge: snapshot value at a point in time (default)
+		sender.Gauge(name, value, "", tags)
+	}
 }
 
 // Stop stops the check

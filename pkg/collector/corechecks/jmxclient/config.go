@@ -37,7 +37,7 @@ type InstanceConfig struct {
 // InitConfig holds the init_config section containing bean collection rules
 type InitConfig struct {
 	IsJMX bool `yaml:"is_jmx"`
-	// TODO(remy): implement collecting a list of default metrics
+	// CollectDefaultMetrics when true, loads default JMX metrics from the embedded YAML file
 	CollectDefaultMetrics bool `yaml:"collect_default_metrics"`
 	// TODO(remy): implement collecting a list of the default metrics for the new GC
 	NewGCMetrics bool                   `yaml:"new_gc_metrics"`
@@ -98,6 +98,18 @@ func (c *InstanceConfig) Parse(data []byte) error {
 func (ic *InitConfig) Parse(data []byte) error {
 	if err := yaml.Unmarshal(data, ic); err != nil {
 		return fmt.Errorf("failed to parse init config: %w", err)
+	}
+
+	// If CollectDefaultMetrics is enabled, load and prepend the default metrics
+	if ic.CollectDefaultMetrics {
+		var defaultConfigs []BeanCollectionConfig
+		if err := yaml.Unmarshal(defaultJMXMetricsYAML, &defaultConfigs); err != nil {
+			return fmt.Errorf("failed to parse default JMX metrics: %w", err)
+		}
+
+		// Prepend default configs to user-provided configs
+		// This allows user configs to override defaults if needed
+		ic.Conf = append(defaultConfigs, ic.Conf...)
 	}
 
 	return nil

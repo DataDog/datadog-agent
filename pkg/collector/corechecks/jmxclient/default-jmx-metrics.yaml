@@ -1,0 +1,207 @@
+# Memory
+- include:
+    domain: java.lang
+    type: Memory
+    attribute:
+      HeapMemoryUsage.used:
+        alias: jvm.heap_memory
+        metric_type: gauge
+      HeapMemoryUsage.committed:
+        alias: jvm.heap_memory_committed
+        metric_type: gauge
+      HeapMemoryUsage.init:
+        alias: jvm.heap_memory_init
+        metric_type: gauge
+      HeapMemoryUsage.max:
+        alias: jvm.heap_memory_max
+        metric_type: gauge
+      NonHeapMemoryUsage.used:
+        alias: jvm.non_heap_memory
+        metric_type: gauge
+      NonHeapMemoryUsage.committed:
+        alias: jvm.non_heap_memory_committed
+        metric_type: gauge
+      NonHeapMemoryUsage.init:
+        alias: jvm.non_heap_memory_init
+        metric_type: gauge
+      NonHeapMemoryUsage.max:
+        alias: jvm.non_heap_memory_max
+        metric_type: gauge
+
+# Direct Memory Buffers
+- include:
+    domain: java.nio
+    type: BufferPool
+    name: direct
+    attribute:
+      Count:
+        alias: jvm.buffer_pool.direct.count
+        metric_type: gauge
+      MemoryUsed:
+        alias: jvm.buffer_pool.direct.used
+        metric_type: gauge
+      TotalCapacity:
+        alias: jvm.buffer_pool.direct.capacity
+        metric_type: gauge
+- include:
+    domain: java.nio
+    type: BufferPool
+    name: mapped
+    attribute:
+      Count:
+        alias: jvm.buffer_pool.mapped.count
+        metric_type: gauge
+      MemoryUsed:
+        alias: jvm.buffer_pool.mapped.used
+        metric_type: gauge
+      TotalCapacity:
+        alias: jvm.buffer_pool.mapped.capacity
+        metric_type: gauge
+
+# Threads
+- include:
+    domain: java.lang
+    type: Threading
+    attribute:
+      ThreadCount:
+        alias: jvm.thread_count
+        metric_type: gauge
+
+# CPU load
+- include:
+    domain: java.lang
+    type: OperatingSystem
+    attribute:
+      ProcessCpuLoad:
+        alias: jvm.cpu_load.process
+        metric_type: gauge
+      SystemCpuLoad:
+        alias: jvm.cpu_load.system
+        metric_type: gauge
+
+# Classloading
+- include:
+    domain: java.lang
+    type: ClassLoading
+    attribute:
+      LoadedClassCount:
+        alias: jvm.loaded_classes
+        metric_type: gauge
+      UnloadedClassCount:
+        alias: jvm.unloaded_classes
+        metric_type: gauge
+
+# Open File Descriptors
+- include:
+    domain: java.lang
+    type: OperatingSystem
+    attribute:
+      OpenFileDescriptorCount:
+        alias: jvm.os.open_file_descriptors
+        metric_type: gauge
+
+# GC Memory Pools
+- include:
+      domain: java.lang
+      type: MemoryPool
+      name: Eden Space
+      attribute:
+        Usage.used:
+          alias: jvm.gc.eden_size
+          metric_type: gauge
+- include:
+    domain: java.lang
+    type: MemoryPool
+    name: PS Eden Space
+    attribute:
+      Usage.used:
+        alias: jvm.gc.eden_size
+        metric_type: gauge
+- include:
+    domain: java.lang
+    type: MemoryPool
+    name: Par Eden Space
+    attribute:
+      Usage.used:
+        alias: jvm.gc.eden_size
+        metric_type: gauge
+- include:
+    domain: java.lang
+    type: MemoryPool
+    name: G1 Eden Space
+    attribute:
+      Usage.used:
+        alias: jvm.gc.eden_size
+        metric_type: gauge
+- include:
+    domain: java.lang
+    type: MemoryPool
+    name: Survivor Space
+    attribute:
+      Usage.used:
+        alias: jvm.gc.survivor_size
+        metric_type: gauge
+- include:
+    domain: java.lang
+    type: MemoryPool
+    name: PS Survivor Space
+    attribute:
+      Usage.used:
+        alias: jvm.gc.survivor_size
+        metric_type: gauge
+- include:
+    domain: java.lang
+    type: MemoryPool
+    name: Par Survivor Space
+    attribute:
+      Usage.used:
+        alias: jvm.gc.survivor_size
+        metric_type: gauge
+- include:
+    domain: java.lang
+    type: MemoryPool
+    name: G1 Survivor Space
+    attribute:
+      Usage.used:
+        alias: jvm.gc.survivor_size
+        metric_type: gauge
+- include:
+    domain: java.lang
+    type: MemoryPool
+    name: PS Old Gen
+    attribute:
+      Usage.used:
+        alias: jvm.gc.old_gen_size
+        metric_type: gauge
+- include:
+    domain: java.lang
+    type: MemoryPool
+    name: CMS Old Gen
+    attribute:
+      Usage.used:
+        alias: jvm.gc.old_gen_size
+        metric_type: gauge
+- include:
+    domain: java.lang
+    type: MemoryPool
+    name: G1 Old Gen
+    attribute:
+      Usage.used:
+        alias: jvm.gc.old_gen_size
+        metric_type: gauge
+- include:
+    domain: java.lang
+    type: MemoryPool
+    name: Tenured Gen
+    attribute:
+      Usage.used:
+        alias: jvm.gc.old_gen_size
+        metric_type: gauge
+- include:
+    domain: java.lang
+    type: MemoryPool
+    name: Metaspace
+    attribute:
+      Usage.used:
+        alias: jvm.gc.metaspace_size
+        metric_type: gauge
