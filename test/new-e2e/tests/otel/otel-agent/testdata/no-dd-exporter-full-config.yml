@@ -135,7 +135,7 @@ processors:
       metric: []
       regexp: null
     profiles:
-      profile: {}
+      profile: []
     spans:
       exclude: null
       include: null
