@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"gopkg.in/yaml.v3"
@@ -199,6 +200,8 @@ func ensureDDOTService() error {
 				return errU
 			}
 		}
+		// Ensure service runs under the same account as the core Agent
+		configureDDOTServiceCredentials(s)
 		return nil
 	}
 	// TODO(WINA-1619): Change service user to ddagentuser
@@ -212,7 +215,57 @@ func ensureDDOTService() error {
 		return err
 	}
 	defer s.Close()
+	// Align credentials to ddagentuser (or equivalent) like other Agent services
+	configureDDOTServiceCredentials(s)
 	return nil
+}
+
+// configureDDOTServiceCredentials updates the service credentials to match the core Agent service user.
+// For LocalSystem/LocalService/NetworkService the password is empty string.
+// For managed/virtual accounts (e.g., gMSA ending with '$'), the password is NULL.
+// For normal local/domain users, the password is fetched from LSA or sourced from DD_AGENT_USER_PASSWORD or DDAGENTUSER_PASSWORD.
+func configureDDOTServiceCredentials(s *mgr.Service) {
+	coreUser, err := winutil.GetServiceUser(coreAgentService)
+	if err != nil || coreUser == "" {
+		log.Warnf("DDOT: could not determine core Agent service user: %v; leaving %q as LocalSystem", err, otelServiceName)
+		return
+	}
+
+	noChange := uint32(windows.SERVICE_NO_CHANGE)
+	acctPtr := windows.StringToUTF16Ptr(coreUser)
+	var pwdPtr *uint16
+
+	lower := strings.ToLower(coreUser)
+	switch {
+	case lower == "localsystem" || lower == "nt authority\\system":
+		pwdPtr = windows.StringToUTF16Ptr("")
+	case lower == "localservice" || lower == "nt authority\\localservice":
+		pwdPtr = windows.StringToUTF16Ptr("")
+	case lower == "networkservice" || lower == "nt authority\\networkservice":
+		pwdPtr = windows.StringToUTF16Ptr("")
+	case strings.HasSuffix(coreUser, "$"):
+		// Managed Service Account / virtual account: NULL password
+		pwdPtr = nil
+	default:
+		// Normal local/domain account: fetch password from LSA, fallback to environment
+		pass, _ := winutil.GetAgentUserPasswordFromLSA()
+		if pass == "" {
+			pass = os.Getenv("DD_AGENT_USER_PASSWORD")
+			if pass == "" {
+				pass = os.Getenv("DDAGENTUSER_PASSWORD")
+			}
+		}
+		if pass == "" {
+			log.Warnf("DDOT: missing password for account %q; keeping %q as LocalSystem", coreUser, otelServiceName)
+			return
+		}
+		pwdPtr = windows.StringToUTF16Ptr(pass)
+	}
+
+	if err := windows.ChangeServiceConfig(s.Handle, noChange, noChange, noChange, nil, nil, nil, nil, acctPtr, pwdPtr, nil); err != nil {
+		log.Warnf("DDOT: failed to set credentials for %q to %q: %v", otelServiceName, coreUser, err)
+		return
+	}
 }
 
 // stopServiceIfExists stops the service if it exists
