@@ -159,7 +159,10 @@ func GetSelectorsPerEventType(hasFentry bool, hasCgroupSocket bool) map[eval.Eve
 				hookFunc("hook_vfs_open"),
 				hookFunc("hook_commit_creds"),
 				hookFunc("hook_switch_task_namespaces"),
-				hookFunc("hook_do_coredump"),
+				&manager.OneOf{Selectors: []manager.ProbesSelector{
+					hookFunc("hook_do_coredump"),
+					hookFunc("hook_vfs_coredump"),
+				}},
 				hookFunc("hook_audit_set_loginuid"),
 				hookFunc("rethook_audit_set_loginuid"),
 				hookFunc("hook_security_inode_follow_link"),

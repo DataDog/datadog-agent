@@ -38,4 +38,9 @@ const (
 
 	// LibConfigV1AnnotKeyFormat is the format of the library config annotation
 	LibConfigV1AnnotKeyFormat = "admission.datadoghq.com/%s-lib.config.v1"
+
+	// NamespaceLabelKey label to select resources based on namespace.
+	// This label was added in Kubernetes 1.22, and won't work on older k8s versions.
+	// See https://kubernetes.io/docs/concepts/overview/working-with-objects/namespaces/#automatic-labelling
+	NamespaceLabelKey = "kubernetes.io/metadata.name"
 )

@@ -8,6 +8,7 @@ package defaultforwarder
 import (
 	"fmt"
 	"net/http"
+	"net/url"
 	"path"
 	"strconv"
 	"strings"
@@ -23,6 +24,7 @@ import (
 	pkgresolver "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/resolver"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
@@ -119,6 +121,33 @@ func ToggleFeature(features, flag Features) Features { return features ^ flag }
 // HasFeature lets you know if a specific feature flag is set in a feature set
 func HasFeature(features, flag Features) bool { return features&flag != 0 }
 
+// getObsPipelineURL returns the URL under the 'observability_pipelines_worker.' prefix for the given datatype
+func getObsPipelineURL(log log.Component, datatype string, config pkgconfigmodel.Reader) (string, error) {
+	if config.GetBool(fmt.Sprintf("observability_pipelines_worker.%s.enabled", datatype)) {
+		return getObsPipelineURLForPrefix(log, datatype, "observability_pipelines_worker", config)
+	} else if config.GetBool(fmt.Sprintf("vector.%s.enabled", datatype)) {
+		// Fallback to the `vector` config if observability_pipelines_worker is not set.
+		return getObsPipelineURLForPrefix(log, datatype, "vector", config)
+	}
+	return "", nil
+}
+
+func getObsPipelineURLForPrefix(log log.Component, datatype string, prefix string, config pkgconfigmodel.Reader) (string, error) {
+	if config.GetBool(fmt.Sprintf("%s.%s.enabled", prefix, datatype)) {
+		pipelineURL := config.GetString(fmt.Sprintf("%s.%s.url", prefix, datatype))
+		if pipelineURL == "" {
+			log.Errorf("%s.%s.enabled is set to true, but %s.%s.url is empty", prefix, datatype, prefix, datatype)
+			return "", nil
+		}
+		_, err := url.Parse(pipelineURL)
+		if err != nil {
+			return "", fmt.Errorf("could not parse %s %s endpoint: %s", prefix, datatype, err)
+		}
+		return pipelineURL, nil
+	}
+	return "", nil
+}
+
 // NewOptions creates new Options with default values
 func NewOptions(config config.Component, log log.Component, keysPerDomain map[string][]utils.APIKeys) (*Options, error) {
 
@@ -127,7 +156,7 @@ func NewOptions(config config.Component, log log.Component, keysPerDomain map[st
 		return nil, err
 	}
 
-	vectorMetricsURL, err := pkgconfigsetup.GetObsPipelineURL(pkgconfigsetup.Metrics, config)
+	vectorMetricsURL, err := getObsPipelineURL(log, pkgconfigsetup.Metrics, config)
 	if err != nil {
 		log.Error("Misconfiguration of agent observability_pipelines_worker endpoint for metrics: ", err)
 	}

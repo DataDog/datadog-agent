@@ -11,7 +11,8 @@ import (
 	"context"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -65,7 +66,11 @@ func (l *testWorkloadmetaListener) assertServices(expectedServices map[string]wl
 			continue
 		}
 
-		assert.Equal(l.t, expectedSvc, actualSvc)
+		if diff := cmp.Diff(expectedSvc, actualSvc,
+			cmpopts.IgnoreUnexported(wlmListenerSvc{}, WorkloadService{}),
+			cmpopts.IgnoreFields(WorkloadService{}, "tagger", "wmeta")); diff != "" {
+			l.t.Errorf("service %q mismatch (-want +got):\n%s", svcID, diff)
+		}
 
 		delete(l.services, svcID)
 	}

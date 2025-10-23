@@ -20,10 +20,12 @@ import (
 	v1 "k8s.io/cri-api/pkg/apis/runtime/v1"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
 
 func TestPull(t *testing.T) {
+	configmock.New(t)
 
 	const envVarName = "DD_CONTAINER_IMAGE_ENABLED"
 	originalValue := os.Getenv(envVarName)
