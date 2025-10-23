@@ -252,27 +252,119 @@ func (d *doctorImpl) collectIntakeStatus() def.IntakeStatus {
 		status.RetryQueue = int(retryQueue)
 	}
 
-	// Extract endpoint statuses
-	if endpoints, ok := forwarderStats["Endpoints"].(map[string]interface{}); ok {
-		for name, endpointData := range endpoints {
-			if endpoint, ok := endpointData.(map[string]interface{}); ok {
-				endpointStatus := def.EndpointStatus{
-					Name: name,
-				}
+	// Extract transaction success/failure counts and create synthetic endpoints
+	successByEndpoint := make(map[string]int64)
+	droppedByEndpoint := make(map[string]int64)
 
-				if url, ok := endpoint["URL"].(string); ok {
-					endpointStatus.URL = url
+	if transactions, ok := forwarderStats["Transactions"].(map[string]interface{}); ok {
+		// Extract success counts by endpoint
+		if successMap, ok := transactions["SuccessByEndpoint"].(map[string]interface{}); ok {
+			for endpoint, count := range successMap {
+				if countFloat, ok := count.(float64); ok {
+					successByEndpoint[endpoint] = int64(countFloat)
 				}
-				if endpointState, ok := endpoint["Status"].(string); ok {
-					endpointStatus.Status = endpointState
-				}
-				if lastError, ok := endpoint["LastError"].(string); ok {
-					endpointStatus.LastError = lastError
-				}
-
-				status.Endpoints = append(status.Endpoints, endpointStatus)
 			}
 		}
+
+		// Extract dropped counts by endpoint
+		if droppedMap, ok := transactions["DroppedByEndpoint"].(map[string]interface{}); ok {
+			for endpoint, count := range droppedMap {
+				if countFloat, ok := count.(float64); ok {
+					droppedByEndpoint[endpoint] = int64(countFloat)
+				}
+			}
+		}
+	}
+
+	// Map forwarder endpoint names to friendly display names
+	endpointMapping := map[string]string{
+		"series_v1":          "metrics",
+		"series_v2":          "metrics",
+		"sketches_v1":        "metrics",
+		"sketches_v2":        "metrics",
+		"intake":             "logs",
+		"process":            "process",
+		"rtprocess":          "process",
+		"container":          "process",
+		"rtcontainer":        "process",
+		"connections":        "process",
+		"orchestrator":       "orchestrator",
+		"check_run_v1":       "checks",
+		"metadata_v1":        "metadata",
+		"host_metadata_v2":   "metadata",
+		"services_checks_v2": "checks",
+		"events_v2":          "events",
+		"validate_v1":        "validate",
+		"v0.4/traces":        "traces",
+		"v0.5/traces":        "traces",
+		"v0.6/traces":        "traces",
+		"v0.7/traces":        "traces",
+	}
+
+	// Aggregate counts by friendly name
+	aggregatedSuccess := make(map[string]int64)
+	aggregatedDropped := make(map[string]int64)
+
+	for rawEndpoint, successCount := range successByEndpoint {
+		friendlyName := endpointMapping[rawEndpoint]
+		if friendlyName == "" {
+			friendlyName = rawEndpoint // Use raw name if no mapping
+		}
+		aggregatedSuccess[friendlyName] += successCount
+	}
+
+	for rawEndpoint, droppedCount := range droppedByEndpoint {
+		friendlyName := endpointMapping[rawEndpoint]
+		if friendlyName == "" {
+			friendlyName = rawEndpoint // Use raw name if no mapping
+		}
+		aggregatedDropped[friendlyName] += droppedCount
+	}
+
+	// Create endpoint status entries for each unique friendly name
+	seenEndpoints := make(map[string]bool)
+	for friendlyName := range aggregatedSuccess {
+		seenEndpoints[friendlyName] = true
+	}
+	for friendlyName := range aggregatedDropped {
+		seenEndpoints[friendlyName] = true
+	}
+
+	// Create sorted list of endpoint names for consistent ordering
+	endpointNames := make([]string, 0, len(seenEndpoints))
+	for friendlyName := range seenEndpoints {
+		endpointNames = append(endpointNames, friendlyName)
+	}
+	slices.Sort(endpointNames)
+
+	// Create endpoint status entries in sorted order
+	for _, friendlyName := range endpointNames {
+		successCount := aggregatedSuccess[friendlyName]
+		droppedCount := aggregatedDropped[friendlyName]
+
+		endpointStatus := def.EndpointStatus{
+			Name:         friendlyName,
+			URL:          "", // Not available in expvars
+			SuccessCount: successCount,
+			FailureCount: droppedCount,
+		}
+
+		// Determine status based on success/failure counts
+		if successCount > 0 && droppedCount == 0 {
+			endpointStatus.Status = "connected"
+			endpointStatus.LastSuccess = time.Now()
+		} else if droppedCount > 0 && successCount == 0 {
+			endpointStatus.Status = "error"
+			endpointStatus.LastFailure = time.Now()
+		} else if successCount > 0 && droppedCount > 0 {
+			endpointStatus.Status = "connected" // Some successes
+			endpointStatus.LastSuccess = time.Now()
+			endpointStatus.LastFailure = time.Now()
+		} else {
+			endpointStatus.Status = "unknown"
+		}
+
+		status.Endpoints = append(status.Endpoints, endpointStatus)
 	}
 
 	return status

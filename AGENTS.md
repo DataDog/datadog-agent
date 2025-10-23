@@ -193,4 +193,4 @@ tasks.
 ### Testing Issues
 - **Flaky tests**: Check `flakes.yaml` for known issues
 - **Coverage issues**: Use `--coverage` flag
-
+- Always use `dda env dev run -- dda inv -- -e agent.build` to build the Agent

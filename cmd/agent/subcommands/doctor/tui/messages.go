@@ -43,3 +43,6 @@ type logMsg struct {
 type streamErrorMsg struct {
 	err error
 }
+
+// animationRefreshMsg is sent when the animation refresh loop should run
+type animationRefreshMsg struct{}

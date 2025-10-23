@@ -17,6 +17,7 @@ import (
 
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcdef "github.com/DataDog/datadog-agent/comp/core/ipc/def"
@@ -80,6 +81,13 @@ type model struct {
 	serviceTimeSeries map[string]*serviceTimeSeries // Service name -> time series data
 	maxTimeSeriesLen  int                           // Maximum number of time buckets to track
 	// otherTimeSeries   *serviceTimeSeries            // Aggregated data for unattributed activity
+
+	// Animation state for endpoint connectivity visualization
+	endpointAnimations    map[string]*boneAnimation // Endpoint name -> animation state
+	endpointFlashState    map[string]*flashState    // Endpoint name -> color flash state
+	lastAnimationTrigger  map[string]time.Time      // Endpoint name -> last animation time (for rate limiting)
+	previousSuccessCounts map[string]int64          // Endpoint name -> previous success count (for detecting new sends)
+	previousFailureCounts map[string]int64          // Endpoint name -> previous failure count (for detecting failures)
 }
 
 type logFetcher struct {
@@ -193,6 +201,23 @@ func (lc *logFetcher) Close() {
 	close(lc.logChunkChan)
 }
 
+// boneAnimation represents an active bone animation flowing from logo to endpoint
+type boneAnimation struct {
+	active        bool      // Is animation currently running
+	vertProgress  float64   // Vertical progress: 0.0 (logo) to 1.0 (endpoint Y position)
+	horizProgress float64   // Horizontal progress: 0.0 (left) to 1.0 (right offset)
+	startTime     time.Time // When animation started
+	success       bool      // Will this delivery succeed or fail
+	targetRow     int       // Target row (endpoint Y position)
+}
+
+// flashState represents a temporary color flash on an endpoint
+type flashState struct {
+	color     lipgloss.Color // White for success, red for error
+	startTime time.Time      // When flash started
+	duration  time.Duration  // How long to show the flash
+}
+
 // newModel creates a new model with initial state
 func newModel(client ipcdef.HTTPClient) model {
 	// Create a spinner for the loading state
@@ -221,5 +246,10 @@ func newModel(client ipcdef.HTTPClient) model {
 		serviceTimeSeries:  make(map[string]*serviceTimeSeries),
 		maxTimeSeriesLen:   60, // Track last 60 time buckets (2 seconds per refresh = 2 minutes)
 		// otherTimeSeries:    newServiceTimeSeries(60), // "other" service for unattributed activity
+		endpointAnimations:    make(map[string]*boneAnimation),
+		endpointFlashState:    make(map[string]*flashState),
+		lastAnimationTrigger:  make(map[string]time.Time),
+		previousSuccessCounts: make(map[string]int64),
+		previousFailureCounts: make(map[string]int64),
 	}
 }

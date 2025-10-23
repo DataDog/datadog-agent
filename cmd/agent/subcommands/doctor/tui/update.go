@@ -22,7 +22,8 @@ func (m model) Init() tea.Cmd {
 	return tea.Batch(
 		m.spinner.Tick,              // Start the spinner animation
 		tick(),                      // Start the periodic ticker
-		fetchDoctorStatus(m.client), // Fetch initial data immediately
+		fetchDoctorStatus(m.client), // Start the refresh loop
+		tickAnimationRefresh(),      // Start the animation refresh loop
 	)
 }
 
@@ -31,10 +32,6 @@ func (m model) Init() tea.Cmd {
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
 	var cmds []tea.Cmd
-
-	// if m.viewMode == LogsDetailView {
-	// 	cmds = append(cmds, readLogs(m.logFetcher))
-	// }
 
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
@@ -337,6 +334,11 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Update spinner animation
 		m.spinner, cmd = m.spinner.Update(msg)
 		cmds = append(cmds, cmd)
+
+	case animationRefreshMsg:
+		// Animation refresh loop should run
+		m.updateAnimations()
+		return m, tickAnimationRefresh()
 	}
 
 	return m, tea.Batch(cmds...)
@@ -425,5 +427,134 @@ func (m *model) updateTimeSeriesData() {
 			ts.logs.add(0)
 			ts.traces.add(0)
 		}
+	}
+}
+
+func tickAnimationRefresh() tea.Cmd {
+	return tea.Tick(500*time.Millisecond, func(t time.Time) tea.Msg {
+		return animationRefreshMsg{}
+	})
+}
+
+// updateAnimations updates all active bone animations and triggers new ones for endpoints
+func (m *model) updateAnimations() {
+	if m.status == nil {
+		return
+	}
+
+	now := time.Now()
+
+	// Update existing animations
+	for endpointName, anim := range m.endpointAnimations {
+		if !anim.active {
+			continue
+		}
+
+		// Calculate elapsed time and total progress
+		elapsed := now.Sub(anim.startTime)
+		elapsedMS := elapsed.Milliseconds()
+		totalProgress := float64(elapsedMS) / animationDuration
+
+		if totalProgress >= 1.0 {
+			// Animation complete - trigger flash and deactivate
+			anim.active = false
+			anim.vertProgress = 1.0
+			anim.horizProgress = 1.0
+
+			// Create flash state
+			flashColor := colorEndpointSuccess
+			if !anim.success {
+				flashColor = colorEndpointError
+			}
+			m.endpointFlashState[endpointName] = &flashState{
+				color:     flashColor,
+				startTime: now,
+				duration:  flashDuration * time.Millisecond,
+			}
+		} else if totalProgress < verticalPhase {
+			// Vertical phase: move down from logo to endpoint
+			anim.vertProgress = totalProgress / verticalPhase
+			anim.horizProgress = 0.0
+		} else {
+			// Horizontal phase: move right to endpoint
+			anim.vertProgress = 1.0
+			anim.horizProgress = (totalProgress - verticalPhase) / horizontalPhase
+		}
+	}
+
+	// Update flash states (remove expired ones)
+	for endpointName, flash := range m.endpointFlashState {
+		if now.Sub(flash.startTime) > flash.duration {
+			delete(m.endpointFlashState, endpointName)
+		}
+	}
+
+	// Trigger new animations for active endpoints based on count changes
+	for _, endpoint := range m.status.Intake.Endpoints {
+		endpointName := endpoint.Name
+
+		// Check if we have previous counts (skip first poll to establish baseline)
+		previousSuccess, hadPreviousSuccess := m.previousSuccessCounts[endpointName]
+		previousFailure, hadPreviousFailure := m.previousFailureCounts[endpointName]
+
+		// Update stored counts
+		m.previousSuccessCounts[endpointName] = endpoint.SuccessCount
+		m.previousFailureCounts[endpointName] = endpoint.FailureCount
+
+		// Skip animation on first poll (establishing baseline)
+		if !hadPreviousSuccess && !hadPreviousFailure {
+			continue
+		}
+
+		// Check if counts actually increased
+		successIncreased := endpoint.SuccessCount > previousSuccess
+		failureIncreased := endpoint.FailureCount > previousFailure
+
+		// Determine if we should trigger animation
+		shouldAnimate := false
+		success := false
+
+		if successIncreased && !failureIncreased {
+			// Only success count increased - successful send
+			shouldAnimate = true
+			success = true
+		} else if failureIncreased && !successIncreased {
+			// Only failure count increased - failed send
+			shouldAnimate = true
+			success = false
+		} else if successIncreased && failureIncreased {
+			// Both increased - prioritize success (most recent send was successful)
+			shouldAnimate = true
+			success = endpoint.LastSuccess.After(endpoint.LastFailure)
+		}
+
+		if !shouldAnimate {
+			continue
+		}
+
+		// Check rate limiting
+		lastTrigger, exists := m.lastAnimationTrigger[endpointName]
+		if exists && now.Sub(lastTrigger) < animationRateLimit*time.Millisecond {
+			continue
+		}
+
+		// Check if there's already an active animation
+		anim, exists := m.endpointAnimations[endpointName]
+		if exists && anim.active {
+			continue
+		}
+
+		// Create new animation
+		m.endpointAnimations[endpointName] = &boneAnimation{
+			active:        true,
+			vertProgress:  0.0,
+			horizProgress: 0.0,
+			startTime:     now,
+			success:       success,
+			targetRow:     0, // Will be calculated during rendering
+		}
+
+		// Update last trigger time
+		m.lastAnimationTrigger[endpointName] = now
 	}
 }
