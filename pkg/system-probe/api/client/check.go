@@ -218,7 +218,7 @@ func GetCheck[T any](client *CheckClient, module types.ModuleName) (T, error) {
 // request body and returns data unmarshalled from JSON to T.  The endpoint
 // parameter should be the path relative to the module (e.g., "/check",
 // "/services").
-func GetWithBody[T any](client *CheckClient, endpoint string, requestBody interface{}, module types.ModuleName) (T, error) {
+func GetWithBody[T any](client *CheckClient, endpoint string, requestBody any, module types.ModuleName) (T, error) {
 	var data T
 	err := client.startupChecker.ensureStarted(client.startupClient)
 	if err != nil {
