@@ -89,6 +89,7 @@ func NewEBPFConntracker(cfg *config.Config, telemetrycomp telemetryComp.Componen
 	var m *manager.Manager
 	var err error
 	if cfg.EnableCORE {
+		log.Infof("JMW trying ebpfConntrackerCORECreator()")
 		m, err = ebpfConntrackerCORECreator(cfg)
 		if err != nil {
 			if cfg.EnableRuntimeCompiler && cfg.AllowRuntimeCompiledFallback {
@@ -100,9 +101,13 @@ func NewEBPFConntracker(cfg *config.Config, telemetrycomp telemetryComp.Componen
 				return nil, fmt.Errorf("error loading CO-RE conntracker: %w", err)
 			}
 		}
+		if m != nil {
+			log.Infof("JMW ebpfConntrackerCORECreator() was successful")
+		}
 	}
 
 	if m == nil && allowRC {
+		log.Infof("JMW trying ebpfConntrackerRCCreator()")
 		m, err = ebpfConntrackerRCCreator(cfg)
 		if err != nil {
 			if !cfg.AllowPrebuiltFallback {
@@ -111,16 +116,23 @@ func NewEBPFConntracker(cfg *config.Config, telemetrycomp telemetryComp.Componen
 
 			log.Warnf("unable to compile ebpf conntracker, falling back to prebuilt ebpf conntracker: %s", err)
 		}
+		if m != nil {
+			log.Infof("JMW ebpfConntrackerRCCreator() was successful")
+		}
 	}
 
 	var isPrebuilt bool
 	if m == nil {
+		log.Infof("JMW trying ebpfConntrackerPrebuiltCreator()")
 		m, err = ebpfConntrackerPrebuiltCreator(cfg)
 		if err != nil {
 			return nil, fmt.Errorf("could not load prebuilt ebpf conntracker: %w", err)
 		}
 
 		isPrebuilt = true
+		if m != nil {
+			log.Infof("JMW ebpfConntrackerPrebuiltCreator() was successful")
+		}
 	}
 
 	if isPrebuilt && prebuilt.IsDeprecated() {
@@ -132,6 +144,7 @@ func NewEBPFConntracker(cfg *config.Config, telemetrycomp telemetryComp.Componen
 		_ = m.Stop(manager.CleanAll)
 		return nil, fmt.Errorf("failed to start ebpf conntracker: %w", err)
 	}
+	log.Infof("JMW successfully started ebpf conntracker")
 
 	ddebpf.AddProbeFDMappings(m)
 
@@ -476,6 +489,7 @@ func getManager(cfg *config.Config, buf io.ReaderAt, opts manager.Options) (*man
 var errPrebuiltConntrackerUnsupported = errors.New("prebuilt ebpf conntracker requires kernel version 4.14 or higher or a RHEL kernel with backported eBPF support")
 var errCOREConntrackerUnsupported = errors.New("CO-RE ebpf conntracker requires kernel version 4.14 or higher or a RHEL kernel with backported eBPF support")
 
+// JMWMONADDLOGS
 func getPrebuiltConntracker(cfg *config.Config) (*manager.Manager, error) {
 	supportedOnKernel, err := ebpfPrebuiltConntrackerSupportedOnKernel()
 	if err != nil {
@@ -508,6 +522,7 @@ func getPrebuiltConntracker(cfg *config.Config) (*manager.Manager, error) {
 	return getManager(cfg, buf, opts)
 }
 
+// JMWMONADDLOGS
 func ebpfPrebuiltConntrackerSupportedOnKernel() (bool, error) {
 	kv, err := ebpfkernel.NewKernelVersion()
 	if err != nil {
@@ -520,6 +535,7 @@ func ebpfPrebuiltConntrackerSupportedOnKernel() (bool, error) {
 	return false, nil
 }
 
+// JMWMONADDLOGS
 func ebpfCOREConntrackerSupportedOnKernel() (bool, error) {
 	kv, err := ebpfkernel.NewKernelVersion()
 	if err != nil {
@@ -532,6 +548,7 @@ func ebpfCOREConntrackerSupportedOnKernel() (bool, error) {
 	return false, nil
 }
 
+// JMWMONADDLOGS
 func getRCConntracker(cfg *config.Config) (*manager.Manager, error) {
 	buf, err := getRuntimeCompiledConntracker(cfg)
 	if err != nil {
@@ -542,6 +559,7 @@ func getRCConntracker(cfg *config.Config) (*manager.Manager, error) {
 	return getManager(cfg, buf, manager.Options{})
 }
 
+// JMWMONADDLOGS
 func getCOREConntracker(cfg *config.Config) (*manager.Manager, error) {
 	supportedOnKernel, err := ebpfCOREConntrackerSupportedOnKernel()
 	if err != nil {

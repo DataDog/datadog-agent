@@ -278,14 +278,24 @@ func newConntracker(cfg *config.Config, telemetryComponent telemetryComponent.Co
 		if c, err = loadEbpfConntracker(cfg, telemetryComponent); err != nil {
 			log.Warnf("error initializing ebpf conntracker: %s", err)
 			log.Info("falling back to netlink conntracker")
+			log.Warnf("JMW error initializing ebpf conntracker: %s", err)
+			log.Info("JMW falling back to netlink conntracker")
 		}
 
 		if clb, err = newCiliumLoadBalancerConntracker(cfg); err != nil {
-			log.Warnf("cilium lb conntracker is enabled, but failed to load: %s", err)
+			log.Infof("cilium lb conntracker is enabled, but failed to load: %s", err)
+			log.Infof("JMW cilium lb conntracker is enabled, but failed to load: %s", err)
 		}
+	}
+	if c != nil {
+		log.Infof("JMW newConntracker() successfully initialized ebpf conntracker")
+	}
+	if clb != nil {
+		log.Infof("JMW newConntracker() successfully initialized cilium lb conntracker")
 	}
 
 	if c == nil {
+		log.Infof("JMW newConntracker() trying netlink.NewConntracker()")
 		if c, err = netlink.NewConntracker(cfg, telemetryComponent); err != nil {
 			if errors.Is(err, netlink.ErrNotPermitted) || cfg.IgnoreConntrackInitFailure {
 				log.Warnf("could not initialize netlink conntracker: %s", err)
@@ -293,12 +303,16 @@ func newConntracker(cfg *config.Config, telemetryComponent telemetryComponent.Co
 				return nil, fmt.Errorf("error initializing conntracker: %s. set network_config.ignore_conntrack_init_failure to true to ignore conntrack failures on startup", err)
 			}
 		}
+		if c != nil {
+			log.Infof("JMW newConntracker() successfully initialized netlink conntracker")
+		}
 	}
 
 	c = chainConntrackers(c, clb)
 	if c.GetType() == "" {
 		// no-op conntracker
 		log.Warnf("connection tracking is disabled")
+		log.Warnf("JMW connection tracking is disabled")
 	}
 
 	return c, nil
@@ -536,7 +550,7 @@ func (t *Tracer) getCachedConntrack() *cachedConntrack {
 	return newCachedConntrack(t.config.ProcRoot, newConntrack, 128)
 }
 
-// getConnections returns all the active connections in the ebpf maps along with the latest timestamp.  It takes
+// getConnections returns all the active connections in the ebpf maps along with the latest timestamp.  It takes JMWCONNTRACKER
 // a reusable buffer for appending the active connections so that this doesn't continuously allocate
 func (t *Tracer) getConnections(activeBuffer *network.ConnectionBuffer) (latestUint uint64, activeConnections []network.ConnectionStats, err error) {
 	cachedConntrack := t.getCachedConntrack()
@@ -569,6 +583,7 @@ func (t *Tracer) getConnections(activeBuffer *network.ConnectionBuffer) (latestU
 	}
 
 	activeConnections = activeBuffer.Connections()
+	log.Infof("JMW Tracer.getConnections() got %d connections", len(activeConnections))
 	for i := range activeConnections {
 		activeConnections[i].IPTranslation = t.conntracker.GetTranslationForConn(&activeConnections[i].ConnectionTuple)
 		// do gateway resolution only on active connections outside
