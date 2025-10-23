@@ -18,13 +18,15 @@ type LegacyFilterProgram struct {
 	InitializationErrors []error
 }
 
+var _ FilterProgram = &LegacyFilterProgram{}
+
 // Evaluate evaluates the filter program for a Result (Included, Excluded, or Unknown)
-func (n LegacyFilterProgram) Evaluate(entity workloadfilter.Filterable) (workloadfilter.Result, []error) {
+func (n LegacyFilterProgram) Evaluate(entity workloadfilter.Filterable) workloadfilter.Result {
 	if n.Filter == nil {
-		return workloadfilter.Unknown, nil
+		return workloadfilter.Unknown
 	}
 	annotations, name, image, namespace := getLegacyFilterValues(entity)
-	return n.Filter.GetResult(annotations, name, image, namespace), nil
+	return n.Filter.GetResult(annotations, name, image, namespace)
 }
 
 // GetInitializationErrors returns any errors that occurred during the creation/initialization of the program

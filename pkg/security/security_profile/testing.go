@@ -9,8 +9,13 @@
 package securityprofile
 
 import (
+	"errors"
+
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/security_profile/profile"
+	"github.com/cilium/ebpf"
 )
 
 // AddProfile adds a profile to the manager
@@ -45,4 +50,99 @@ func (m *Manager) GetProfile(selector cgroupModel.WorkloadSelector) *profile.Pro
 
 	// check if this workload had a Security Profile
 	return m.profiles[selector]
+}
+
+// EvictAllTracedCgroups blacklists all currently traced cgroups by adding them to the discarded map
+func (m *Manager) EvictAllTracedCgroups() {
+	if !m.config.RuntimeSecurity.ActivityDumpEnabled {
+		return
+	}
+
+	// Iterate through the kernel traced_cgroups map and evict everything
+	var cgroupInode uint64
+	var cookie uint64
+	iterator := m.tracedCgroupsMap.Iterate()
+
+	var cgroupsToEvict []uint64
+	for iterator.Next(&cgroupInode, &cookie) {
+		cgroupsToEvict = append(cgroupsToEvict, cgroupInode)
+	}
+
+	if err := iterator.Err(); err != nil {
+		seclog.Warnf("couldn't iterate over the map traced_cgroups: %v", err)
+	}
+
+	for _, cgroupInode := range cgroupsToEvict {
+		// Add to discarded map to blacklist
+		if err := m.tracedCgroupsDiscardedMap.Put(cgroupInode, uint8(1)); err != nil {
+			if !errors.Is(err, ebpf.ErrKeyNotExist) {
+				seclog.Warnf("couldn't add cgroup to discarded map: %v", err)
+			}
+		}
+	}
+}
+
+// ClearTracedCgroups clears all entries from the traced cgroups map
+func (m *Manager) ClearTracedCgroups() {
+	if !m.config.RuntimeSecurity.ActivityDumpEnabled {
+		return
+	}
+
+	m.m.Lock()
+	defer m.m.Unlock()
+
+	// First, disable and remove all active dumps AND add them to discarded map
+	for _, ad := range m.activeDumps {
+		// Add to discarded map BEFORE disabling
+		if !ad.Profile.Metadata.CGroupContext.CGroupFile.IsNull() {
+			if err := m.tracedCgroupsDiscardedMap.Put(ad.Profile.Metadata.CGroupContext.CGroupFile.Inode, uint8(1)); err != nil {
+				if !errors.Is(err, ebpf.ErrKeyNotExist) {
+					seclog.Warnf("couldn't add cgroup to discarded map: %v", err)
+				}
+			}
+		}
+
+		_ = m.disableKernelEventCollection(ad)
+	}
+	m.activeDumps = nil
+
+	// Then clear the kernel maps (both traced and discarded)
+	var err error
+	var cgroupInode uint64
+	var cookie uint64
+	iterator := m.tracedCgroupsMap.Iterate()
+
+	var cgroupsToDelete []uint64
+	for iterator.Next(&cgroupInode, &cookie) {
+		cgroupsToDelete = append(cgroupsToDelete, cgroupInode)
+	}
+
+	if err = iterator.Err(); err != nil {
+		seclog.Warnf("couldn't iterate over the map traced_cgroups: %v", err)
+	}
+
+	for _, cgroupInode := range cgroupsToDelete {
+		// Add to discarded map FIRST to prevent kernel from re-adding it
+		if err := m.tracedCgroupsDiscardedMap.Put(cgroupInode, uint8(1)); err != nil {
+			if !errors.Is(err, ebpf.ErrKeyNotExist) {
+				seclog.Warnf("couldn't add cgroup to discarded map: %v", err)
+			}
+		}
+		// Then delete from traced map
+		_ = m.tracedCgroupsMap.Delete(cgroupInode)
+	}
+
+	// Also iterate through all currently running containers on the system
+	// and add them to the discarded map to prevent automatic tracing
+
+	// Walk through all process cache entries and blacklist their cgroups
+	m.resolvers.ProcessResolver.Walk(func(entry *model.ProcessCacheEntry) {
+		if entry.ContainerID != "" && !entry.CGroup.CGroupFile.IsNull() {
+			if err := m.tracedCgroupsDiscardedMap.Put(entry.CGroup.CGroupFile.Inode, uint8(1)); err != nil {
+				if !errors.Is(err, ebpf.ErrKeyNotExist) {
+					seclog.Warnf("couldn't add system container cgroup to discarded map: %v", err)
+				}
+			}
+		}
+	})
 }

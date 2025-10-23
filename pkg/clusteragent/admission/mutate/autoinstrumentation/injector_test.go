@@ -134,5 +134,5 @@ func TestInjectorWithRemoteConfigImageResolverAfterInit(t *testing.T) {
 		injectorWithImageTag("0", resolver),
 	)
 
-	assert.Equal(t, "gcr.io/datadoghq/apm-inject@sha256:inject456", i.image)
+	assert.Equal(t, "gcr.io/datadoghq/apm-inject@sha256:9876543210fedcba9876543210fedcba9876543210fedcba9876543210fedcba", i.image)
 }

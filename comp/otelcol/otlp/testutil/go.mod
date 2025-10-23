@@ -14,7 +14,7 @@ require (
 	github.com/DataDog/sketches-go v1.4.7
 	github.com/stretchr/testify v1.11.1
 	go.opentelemetry.io/collector/pdata v1.43.0
-	google.golang.org/protobuf v1.36.9
+	google.golang.org/protobuf v1.36.10
 )
 
 require (
@@ -31,7 +31,6 @@ require (
 	github.com/DataDog/datadog-agent/pkg/serializer v0.71.0-rc.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/executable v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.61.0 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/hostname/validate v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/log v0.64.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.64.1 // indirect

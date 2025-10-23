@@ -36,6 +36,10 @@ state:
   programs:
     1: <nil> -> Loading (proc 1001)
     2: <nil> -> Queued (proc 1002)
+  stats:
+    numProcesses: 0 -> 2
+    numPrograms: 0 -> 2
+    numWaitingForProgram: 0 -> 2
 ---
 event: !processes-updated {removed: [1001]}
 state:
@@ -61,6 +65,8 @@ state:
   programs:
     1: LoadingAborted (proc 1001) -> Unloading (proc 1001)
     2: Queued (proc 1002) -> Loading (proc 1002)
+  stats:
+    loaded: 0 -> 1
 ---
 event: !loaded {program_id: 2}
 effects:
@@ -74,3 +80,7 @@ state:
   programs:
     1: Unloading (proc 1001)
     2: Loading (proc 1002) -> Loaded (proc 1002)
+  stats:
+    loaded: 1 -> 2
+    numAttaching: 0 -> 1
+    numWaitingForProgram: 2 -> 1

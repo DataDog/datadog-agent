@@ -112,16 +112,44 @@ func AreFentryTailCallsBroken() (bool, error) {
 		return false, err
 	}
 
-	var bpfMap *btf.Struct
-	if err := spec.TypeByName("bpf_map", &bpfMap); err != nil {
-		return false, err
-	}
-
 	/*
 		we are checking for the presence of the bpf_map.owner.attach_func_proto field
 		if it exists, fentry tail calls are broken
 		https://github.com/torvalds/linux/commit/28ead3eaabc16ecc907cfb71876da028080f6356
 	*/
+
+	// on recent kernels (after https://github.com/torvalds/linux/commit/fd1c98f0ef5cbcec842209776505d9e70d8fcd53)
+	// the `attach_func_proto` is in `struct bpf_map_owner`
+	if res, err := checkAttachFuncProtoBpfMapOwnerStruct(spec); err != nil {
+		if !errors.Is(err, btf.ErrNotFound) {
+			return res, err
+		}
+	}
+
+	// on older kernels, the `attach_func_proto` is directly in `struct bpf_map`
+	// through an embedded struct
+	return checkAttachFuncProtoBpfMapEmbedStruct(spec)
+}
+
+func checkAttachFuncProtoBpfMapOwnerStruct(spec *btf.Spec) (bool, error) {
+	var bpfMapOwner *btf.Struct
+	if err := spec.TypeByName("bpf_map_owner", &bpfMapOwner); err != nil {
+		return false, err
+	}
+
+	for _, member := range bpfMapOwner.Members {
+		if member.Name == "attach_func_proto" {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+func checkAttachFuncProtoBpfMapEmbedStruct(spec *btf.Spec) (bool, error) {
+	var bpfMap *btf.Struct
+	if err := spec.TypeByName("bpf_map", &bpfMap); err != nil {
+		return false, err
+	}
 
 	for _, member := range bpfMap.Members {
 		if member.Name != "owner" {

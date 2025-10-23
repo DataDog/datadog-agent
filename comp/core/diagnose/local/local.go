@@ -13,7 +13,6 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
-	"github.com/DataDog/datadog-agent/comp/aggregator/diagnosesendermanager"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
@@ -26,6 +25,7 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
+	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	pkgcollector "github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/DataDog/datadog-agent/pkg/diagnose/connectivity"
 	"github.com/DataDog/datadog-agent/pkg/diagnose/ports"
@@ -37,7 +37,6 @@ func Run(
 	diagnoseComponent diagnose.Component,
 	diagnoseConfig diagnose.Config,
 	log log.Component,
-	senderManager diagnosesendermanager.Component,
 	filterStore workloadfilter.Component,
 	wmeta option.Option[workloadmeta.Component],
 	ac autodiscovery.Component,
@@ -61,7 +60,7 @@ func Run(
 		},
 	}
 
-	integrationConfigs, err := getLocalIntegrationConfigs(senderManager, filterStore, wmeta, ac, secretResolver, tagger, config)
+	integrationConfigs, err := getLocalIntegrationConfigs(filterStore, wmeta, ac, secretResolver, tagger, config)
 
 	if err != nil {
 		localSuite[diagnose.CheckDatadog] = func(_ diagnose.Config) []diagnose.Diagnosis {
@@ -98,18 +97,13 @@ func Run(
 	return diagnoseComponent.RunLocalSuite(localSuite, diagnoseConfig)
 }
 
-func getLocalIntegrationConfigs(senderManager diagnosesendermanager.Component,
+func getLocalIntegrationConfigs(
 	filterStore workloadfilter.Component,
 	wmeta option.Option[workloadmeta.Component],
 	ac autodiscovery.Component,
 	secretResolver secrets.Component,
 	tagger tagger.Component,
 	config config.Component) ([]integration.Config, error) {
-	senderManagerInstance, err := senderManager.LazyGetSenderManager()
-	if err != nil {
-		return nil, err
-	}
-
 	wmetaInstance, ok := wmeta.Get()
 	if !ok {
 		return nil, fmt.Errorf("Workload Meta is not available")
@@ -118,7 +112,7 @@ func getLocalIntegrationConfigs(senderManager diagnosesendermanager.Component,
 	ac.LoadAndRun(context.Background())
 
 	// Create the CheckScheduler, but do not attach it to AutoDiscovery.
-	pkgcollector.InitCheckScheduler(option.None[collector.Component](), senderManagerInstance, option.None[integrations.Component](), tagger, filterStore)
+	pkgcollector.InitCheckScheduler(option.None[collector.Component](), aggregator.NewNoOpSenderManager(), option.None[integrations.Component](), tagger, filterStore)
 
 	// Load matching configurations (should we use common.AC.GetAllConfigs())
 	waitCtx, cancelTimeout := context.WithTimeout(context.Background(), time.Duration(5*time.Second))

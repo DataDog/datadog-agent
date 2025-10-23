@@ -160,6 +160,12 @@ api_key:
 #
 # env: <environment name>
 
+## @param remote_updates - boolean - optional - default: false
+## @env DD_REMOTE_UPDATES - boolean - optional - default: false
+## Enable remote upgrades and configuration changes for the Agent.
+#
+# remote_updates: false
+
 ## @param tag_value_split_separator - map - optional
 ## @env DD_TAG_VALUE_SPLIT_SEPARATOR - list of key:value strings - optional
 ## Split tag values according to a given separator. Only applies to host tags,

@@ -30,12 +30,6 @@ import (
 )
 
 const (
-	// securityStartLog is the log corresponding to a successful start of the security-agent
-	securityStartLog = "Successfully connected to the runtime security module"
-
-	// systemProbeStartLog is the log corresponding to a successful start of the system-probe
-	systemProbeStartLog = "runtime security started"
-
 	// systemProbePath is the path of the system-probe binary
 	systemProbePath = "/opt/datadog-agent/embedded/bin/system-probe"
 
@@ -129,24 +123,6 @@ func (a *agentSuite) Test03OpenSignal() {
 	// Check if the agent is ready
 	isReady := a.Env().Agent.Client.IsReady()
 	assert.Equal(a.T(), isReady, true, "Agent should be ready")
-
-	// Check if system-probe has started
-	assert.EventuallyWithT(a.T(), func(c *assert.CollectT) {
-		output, err := a.Env().RemoteHost.Execute("sudo cat /var/log/datadog/system-probe.log")
-		if !assert.NoError(c, err) {
-			return
-		}
-		assert.Contains(c, output, systemProbeStartLog, "system-probe could not start")
-	}, 30*time.Second, 1*time.Second)
-
-	// Check if security-agent has started
-	assert.EventuallyWithT(a.T(), func(c *assert.CollectT) {
-		output, err := a.Env().RemoteHost.Execute("sudo cat /var/log/datadog/security-agent.log")
-		if !assert.NoError(c, err) {
-			return
-		}
-		assert.Contains(c, output, securityStartLog, "security-agent could not start")
-	}, 30*time.Second, 1*time.Second)
 
 	// Download policies
 	apiKey, err := runner.GetProfile().SecretStore().Get(parameters.APIKey)

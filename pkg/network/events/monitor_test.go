@@ -114,4 +114,200 @@ func TestEventConsumerWrapperCopy(t *testing.T) {
 		assert.Nil(t, p.(*Process).ContainerID, "container ID should be nil")
 	})
 
+	t.Run("test tracer_memfd_sealed event attributes", func(t *testing.T) {
+		now := time.Now()
+		forkTime := now.Add(-5 * time.Second)
+		ev := &model.Event{
+			BaseEvent: model.BaseEvent{
+				Type: uint32(model.TracerMemfdSealEventType),
+				ProcessContext: &model.ProcessContext{
+					Process: model.Process{
+						PIDContext: model.PIDContext{
+							Pid: 1234,
+						},
+						ExecTime: now,
+						ForkTime: forkTime,
+						Envp: []string{
+							"DD_ENV=env",
+							"DD_SERVICE=service",
+							"DD_VERSION=version",
+						},
+					},
+				},
+				ContainerContext: &model.ContainerContext{
+					ContainerID: "cid_tracer_memfd",
+				},
+				FieldHandlers: &model.FakeFieldHandlers{},
+			},
+			CGroupContext: &model.CGroupContext{
+				CGroupID: "cid_tracer_memfd",
+			},
+			TracerMemfdSeal: model.TracerMemfdSealEvent{
+				Fd: 5,
+			},
+		}
+		evHandler := &eventConsumerWrapper{}
+		_m := evHandler.Copy(ev)
+		require.IsType(t, &Process{}, _m, "Copy should return a *events.Process")
+		m := _m.(*Process)
+		require.NotNil(t, m, "Process should not be nil")
+		assert.Equal(t, uint32(1234), m.Pid)
+		assert.Equal(t, now.UnixNano(), m.StartTime)
+		assert.EqualValues(t, []*intern.Value{
+			intern.GetByString("env:env"),
+			intern.GetByString("service:service"),
+			intern.GetByString("version:version"),
+		}, m.Tags)
+		assert.NotNil(t, m.ContainerID, "container ID should not be nil")
+		assert.Equal(t, "cid_tracer_memfd", m.ContainerID.Get().(string), "container id mismatch")
+	})
+
+	t.Run("test tracer_memfd_sealed uses ExecTime when newer", func(t *testing.T) {
+		now := time.Now()
+		execTime := now.Add(5 * time.Second)
+		ev := &model.Event{
+			BaseEvent: model.BaseEvent{
+				Type: uint32(model.TracerMemfdSealEventType),
+				ProcessContext: &model.ProcessContext{
+					Process: model.Process{
+						PIDContext: model.PIDContext{
+							Pid: 1234,
+						},
+						ForkTime: now,
+						ExecTime: execTime,
+					},
+				},
+				FieldHandlers: &model.FakeFieldHandlers{},
+			},
+			TracerMemfdSeal: model.TracerMemfdSealEvent{
+				Fd: 5,
+			},
+		}
+		evHandler := &eventConsumerWrapper{}
+		_m := evHandler.Copy(ev)
+		require.IsType(t, &Process{}, _m, "Copy should return a *events.Process")
+		m := _m.(*Process)
+		assert.Equal(t, execTime.UnixNano(), m.StartTime, "StartTime should be ExecTime when ExecTime is after ForkTime")
+	})
+
+	t.Run("test tracer_memfd_sealed uses ForkTime when newer", func(t *testing.T) {
+		now := time.Now()
+		forkTime := now.Add(5 * time.Second)
+		ev := &model.Event{
+			BaseEvent: model.BaseEvent{
+				Type: uint32(model.TracerMemfdSealEventType),
+				ProcessContext: &model.ProcessContext{
+					Process: model.Process{
+						PIDContext: model.PIDContext{
+							Pid: 1234,
+						},
+						ExecTime: now,
+						ForkTime: forkTime,
+					},
+				},
+				FieldHandlers: &model.FakeFieldHandlers{},
+			},
+			TracerMemfdSeal: model.TracerMemfdSealEvent{
+				Fd: 5,
+			},
+		}
+		evHandler := &eventConsumerWrapper{}
+		_m := evHandler.Copy(ev)
+		require.IsType(t, &Process{}, _m, "Copy should return a *events.Process")
+		m := _m.(*Process)
+		assert.Equal(t, forkTime.UnixNano(), m.StartTime, "StartTime should be ForkTime when ForkTime is after ExecTime")
+	})
+
+}
+
+// mockProcessEventHandler is a test handler that records Process events
+type mockProcessEventHandler struct {
+	events []*Process
+}
+
+func (m *mockProcessEventHandler) HandleProcessEvent(p *Process) {
+	m.events = append(m.events, p)
+}
+
+func TestEventHandleTracerTags(t *testing.T) {
+	require.NoError(t, Init())
+
+	handler := &mockProcessEventHandler{}
+	RegisterHandler(handler)
+	defer UnregisterHandler(handler)
+
+	evHandler := &eventConsumerWrapper{}
+
+	t.Run("process event with tracer tags", func(t *testing.T) {
+		handler.events = nil // reset
+
+		now := time.Now()
+		ev := &model.Event{
+			BaseEvent: model.BaseEvent{
+				Type: uint32(model.ExecEventType),
+				ProcessContext: &model.ProcessContext{
+					Process: model.Process{
+						PIDContext: model.PIDContext{
+							Pid: 1234,
+						},
+						ExecTime: now,
+						Envp: []string{
+							"DD_ENV=env-from-envp",
+						},
+						TracerTags: []string{
+							"service:my-service",
+							"env:my-env",
+							"version:my-version",
+							"entrypoint.name:my-entrypoint",
+						},
+					},
+				},
+				ContainerContext: &model.ContainerContext{
+					ContainerID: "test-container",
+				},
+				FieldHandlers: &model.FakeFieldHandlers{},
+			},
+		}
+
+		p := evHandler.Copy(ev).(*Process)
+		evHandler.HandleEvent(p)
+
+		require.Len(t, handler.events, 1, "should have received 1 process event")
+		receivedProc := handler.events[0]
+		assert.Equal(t, uint32(1234), receivedProc.Pid)
+		assert.Contains(t, receivedProc.Tags, intern.GetByString("env:env-from-envp"))
+		assert.Contains(t, receivedProc.Tags, intern.GetByString("service:my-service"))
+		assert.Contains(t, receivedProc.Tags, intern.GetByString("env:my-env"))
+		assert.Contains(t, receivedProc.Tags, intern.GetByString("version:my-version"))
+		assert.Contains(t, receivedProc.Tags, intern.GetByString("entrypoint.name:my-entrypoint"))
+	})
+
+	t.Run("process event without tracer tags", func(t *testing.T) {
+		handler.events = nil // reset
+
+		now := time.Now()
+		ev := &model.Event{
+			BaseEvent: model.BaseEvent{
+				Type: uint32(model.ExecEventType),
+				ProcessContext: &model.ProcessContext{
+					Process: model.Process{
+						PIDContext: model.PIDContext{
+							Pid: 5678,
+						},
+						ExecTime: now,
+					},
+				},
+				ProcessCacheEntry: &model.ProcessCacheEntry{},
+				FieldHandlers:     &model.FakeFieldHandlers{},
+			},
+		}
+
+		p := evHandler.Copy(ev).(*Process)
+		evHandler.HandleEvent(p)
+
+		require.Len(t, handler.events, 1, "should have received 1 process event")
+		receivedProc := handler.events[0]
+		assert.Equal(t, uint32(5678), receivedProc.Pid)
+		assert.Empty(t, receivedProc.Tags, "should have no tags")
+	})
 }

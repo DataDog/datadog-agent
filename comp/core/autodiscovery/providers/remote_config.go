@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/types"
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -90,13 +91,30 @@ func (rc *RemoteConfigProvider) GetConfigErrors() map[string]types.ErrorMsgSet {
 	return errors
 }
 
+// getRemoteConfigurationAllowedIntegrations returns the list of integrations that can be scheduled
+// with remote-config
+func getRemoteConfigurationAllowedIntegrations(cfg pkgconfigmodel.Reader) map[string]bool {
+	allowList := cfg.GetStringSlice("remote_configuration.agent_integrations.allow_list")
+	allowMap := map[string]bool{}
+	for _, integration := range allowList {
+		allowMap[strings.ToLower(integration)] = true
+	}
+
+	blockList := cfg.GetStringSlice("remote_configuration.agent_integrations.block_list")
+	for _, blockedIntegration := range blockList {
+		allowMap[strings.ToLower(blockedIntegration)] = false
+	}
+
+	return allowMap
+}
+
 // IntegrationScheduleCallback is called at every AGENT_INTEGRATIONS to schedule/unschedule integrations
 func (rc *RemoteConfigProvider) IntegrationScheduleCallback(updates map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) {
 	rc.mu.Lock()
 	defer rc.mu.Unlock()
 	var err error
 
-	allowedIntegration := pkgconfigsetup.GetRemoteConfigurationAllowedIntegrations(pkgconfigsetup.Datadog())
+	allowedIntegration := getRemoteConfigurationAllowedIntegrations(pkgconfigsetup.Datadog())
 
 	newCache := make(map[string]integration.Config, 0)
 	// Now schedule everything

@@ -49,6 +49,7 @@ type ResolverInterface interface {
 	AddPID(*model.ProcessCacheEntry)
 	DelPID(uint32)
 	GetWorkload(containerutils.ContainerID) (*cgroupModel.CacheEntry, bool)
+	GetWorkloadByCGroupID(containerutils.CGroupID) (*cgroupModel.CacheEntry, bool)
 	Len() int
 	RegisterListener(Event, utils.Listener[*cgroupModel.CacheEntry]) error
 }
@@ -344,6 +345,18 @@ func (cr *Resolver) GetWorkload(id containerutils.ContainerID) (*cgroupModel.Cac
 	defer cr.Unlock()
 
 	return cr.containerWorkloads.Get(id)
+}
+
+// GetWorkloadByCGroupID returns the workload referenced by the provided cgroup ID
+func (cr *Resolver) GetWorkloadByCGroupID(cgroupID containerutils.CGroupID) (*cgroupModel.CacheEntry, bool) {
+	if cgroupID == "" {
+		return nil, false
+	}
+
+	cr.Lock()
+	defer cr.Unlock()
+
+	return cr.hostWorkloads.Get(cgroupID)
 }
 
 // DelPID removes a PID from the cgroup resolver

@@ -78,6 +78,9 @@ type Symbol struct {
 type LanguageSpecifics struct {
 	AvailableLineRanges []LineRange `json:"available_line_ranges,omitempty"`
 	GoQualifiedName     string      `json:"go_qualified_name,omitempty"`
+	// AgentVersion is the version of the agent that is uploading this scope to
+	// SymDB. Only filled in for root scopes.
+	AgentVersion string `json:"agent_version,omitempty"`
 }
 
 // LineRange represents a range of source lines, inclusive of both ends.
@@ -225,8 +228,11 @@ func cleanString(s string) string {
 	return strings.ReplaceAll(s, " ", "")
 }
 
-// ConvertPackageToScope converts a symdb.Package to a Scope
-func ConvertPackageToScope(pkg symdb.Package) Scope {
+// ConvertPackageToScope converts a symdb.Package to a Scope.
+//
+// agentVersion, if not empty, is reported in the uploaded scope as
+// language-specific data.
+func ConvertPackageToScope(pkg symdb.Package, agentVersion string) Scope {
 	scope := Scope{
 		ScopeType: ScopeTypePackage,
 		Name:      pkg.Name,
@@ -234,14 +240,19 @@ func ConvertPackageToScope(pkg symdb.Package) Scope {
 		EndLine:   0,
 		Scopes:    make([]Scope, 0, len(pkg.Functions)+len(pkg.Types)),
 	}
+	if agentVersion != "" {
+		scope.LanguageSpecifics = &LanguageSpecifics{
+			AgentVersion: agentVersion,
+		}
+	}
 
-	// Add functions as method scopes
+	// Add functions as method scopes.
 	for _, fn := range pkg.Functions {
 		fnScope := convertFunctionToScope(fn, false)
 		scope.Scopes = append(scope.Scopes, fnScope)
 	}
 
-	// Add types as struct scopes
+	// Add types as struct scopes.
 	for _, typ := range pkg.Types {
 		typeScope := convertTypeToScope(*typ)
 		scope.Scopes = append(scope.Scopes, typeScope)

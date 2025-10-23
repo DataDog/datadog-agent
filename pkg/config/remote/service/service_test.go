@@ -12,6 +12,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"path"
 	"testing"
 	"time"
 
@@ -41,11 +42,6 @@ const (
 	httpError    = "api: simulated HTTP error"
 	agentVersion = "9.9.9"
 	testEnv      = "test-env"
-)
-
-const (
-	site = "test-site"
-	k    = "test-api-key"
 )
 
 // Setup overrides for tests
@@ -156,6 +152,15 @@ func (m *mockUptane) TimestampExpires() (time.Time, error) {
 	return args.Get(0).(time.Time), args.Error(1)
 }
 
+func (m *mockUptane) Close() error {
+	return nil
+}
+
+func (m *mockUptane) GetTransactionalStoreMetadata() (*uptane.Metadata, error) {
+	args := m.Called()
+	return args.Get(0).(*uptane.Metadata), args.Error(1)
+}
+
 type mockRcTelemetryReporter struct {
 	mock.Mock
 }
@@ -181,7 +186,13 @@ var testRCKey = msgpgo.RemoteConfigKey{
 	Datacenter: "dd.com",
 }
 
-func newTestService(t *testing.T, api *mockAPI, uptane *mockCoreAgentUptane, clock clock.Clock) *CoreAgentService {
+func uptaneFactoryOption(coreAgentUptane *mockCoreAgentUptane) Option {
+	return withUptaneFactory(func(_ *uptane.Metadata) (coreAgentUptaneClient, error) {
+		return coreAgentUptane, nil // no DB opened in tests
+	})
+}
+
+func newTestService(t *testing.T, api *mockAPI, coreAgentUptane *mockCoreAgentUptane, clock clock.Clock) *CoreAgentService {
 	cfg := configmock.New(t)
 	cfg.SetWithoutSource("hostname", "test-hostname")
 
@@ -192,7 +203,10 @@ func newTestService(t *testing.T, api *mockAPI, uptane *mockCoreAgentUptane, clo
 	baseRawURL := "https://localhost"
 	traceAgentEnv := testEnv
 	mockTelemetryReporter := newMockRcTelemetryReporter()
+
 	options := []Option{
+		uptaneFactoryOption(coreAgentUptane),
+		WithDatabaseFileName("test.db"),
 		WithTraceAgentEnv(traceAgentEnv),
 		WithAPIKey("abc"),
 	}
@@ -201,7 +215,7 @@ func newTestService(t *testing.T, api *mockAPI, uptane *mockCoreAgentUptane, clo
 	t.Cleanup(func() { service.Stop() })
 	service.api = api
 	service.clock = clock
-	service.uptane = uptane
+	service.uptane = coreAgentUptane
 	return service
 }
 
@@ -734,8 +748,16 @@ func TestService(t *testing.T) {
 	api.AssertExpectations(t)
 	uptaneClient.AssertExpectations(t)
 
+	uptaneClient.On("GetTransactionalStoreMetadata").Return(&uptane.Metadata{
+		Path:         path.Join(t.TempDir(), "test.db"),
+		AgentVersion: agentVersion,
+		APIKey:       "abc",
+		URL:          "https://localhost",
+	}, nil)
+
 	_, err = service.ConfigResetState()
 	assert.NoError(t, err)
+	uptaneClient.AssertExpectations(t)
 
 	// The state should be reset, so we should not be able to get the state again
 	// because the state is empty.
@@ -947,6 +969,7 @@ func TestWithApiKeyUpdate(t *testing.T) {
 	mockTelemetryReporter := newMockRcTelemetryReporter()
 	options := []Option{
 		WithAPIKey("initialKey"),
+		uptaneFactoryOption(uptaneClient),
 	}
 	service, err := NewService(cfg, "Remote Config", baseRawURL, "localhost", getHostTags, mockTelemetryReporter, agentVersion, options...)
 	assert.NoError(t, err)
@@ -1211,9 +1234,12 @@ func TestWithTraceAgentEnv(t *testing.T) {
 	baseRawURL := "https://localhost"
 	traceAgentEnv := "dog"
 	mockTelemetryReporter := newMockRcTelemetryReporter()
+	uptaneClient := &mockCoreAgentUptane{}
+
 	options := []Option{
 		WithTraceAgentEnv(traceAgentEnv),
 		WithAPIKey("abc"),
+		uptaneFactoryOption(uptaneClient),
 	}
 	service, err := NewService(cfg, "Remote Config", baseRawURL, "localhost", getHostTags, mockTelemetryReporter, agentVersion, options...)
 	assert.NoError(t, err)
@@ -1228,13 +1254,27 @@ func TestWithDatabaseFileName(t *testing.T) {
 
 	baseRawURL := "https://localhost"
 	mockTelemetryReporter := newMockRcTelemetryReporter()
+	uptaneClient := &mockCoreAgentUptane{}
+
 	options := []Option{
 		WithDatabaseFileName("test.db"),
 		WithAPIKey("abc"),
+		uptaneFactoryOption(uptaneClient),
 	}
 	service, err := NewService(cfg, "Remote Config", baseRawURL, "localhost", getHostTags, mockTelemetryReporter, agentVersion, options...)
 	assert.NoError(t, err)
-	assert.Equal(t, "/tmp/test.db", service.db.Path())
+
+	uptaneClient.On("GetTransactionalStoreMetadata").Return(&uptane.Metadata{
+		Path:         path.Join("/tmp", "test.db"),
+		AgentVersion: agentVersion,
+		APIKey:       "abc",
+		URL:          "https://localhost",
+	}, nil)
+	service.uptane = uptaneClient
+
+	tsMetadata, err := service.uptane.GetTransactionalStoreMetadata()
+	assert.NoError(t, err)
+	assert.Equal(t, "/tmp/test.db", tsMetadata.Path)
 	assert.NotNil(t, service)
 	t.Cleanup(func() { service.Stop() })
 }
@@ -1269,9 +1309,12 @@ func TestWithRefreshInterval(t *testing.T) {
 
 			baseRawURL := "https://localhost"
 			mockTelemetryReporter := newMockRcTelemetryReporter()
+
+			uptaneClient := &mockCoreAgentUptane{}
 			options := []Option{
 				WithRefreshInterval(tt.interval, "test.refresh_interval"),
 				WithAPIKey("abc"),
+				uptaneFactoryOption(uptaneClient),
 			}
 			service, err := NewService(cfg, "Remote Config", baseRawURL, "localhost", getHostTags, mockTelemetryReporter, agentVersion, options...)
 			assert.NoError(t, err)
@@ -1393,13 +1436,13 @@ func getHostTags() []string {
 	return []string{"dogo_state:hungry"}
 }
 
-func setupCDNClient(t *testing.T, uptaneClient *mockCDNUptane) *HTTPClient {
-	client, err := NewHTTPClient(t.TempDir(), site, k, "9.9.9")
-	require.NoError(t, err)
-	if uptaneClient != nil {
-		client.uptane = uptaneClient
+func setupCDNClient(uptaneClient *mockCDNUptane) *HTTPClient {
+	return &HTTPClient{
+		Service: Service{
+			rcType: "CDN",
+		},
+		uptane: uptaneClient,
 	}
-	return client
 }
 
 // TestHTTPClientRecentUpdate tests that with a recent (<50s ago) last-update-time,
@@ -1423,7 +1466,7 @@ func TestHTTPClientRecentUpdate(t *testing.T) {
 	)
 	uptaneClient.On("TargetFiles", []string{"datadog/2/TESTING1/id/1"}).Return(map[string][]byte{"datadog/2/TESTING1/id/1": []byte(`testing_1`)}, nil)
 
-	client := setupCDNClient(t, uptaneClient)
+	client := setupCDNClient(uptaneClient)
 	defer client.Close()
 	client.lastUpdate = time.Now()
 
@@ -1475,7 +1518,7 @@ func TestHTTPClientUpdateSuccess(t *testing.T) {
 			}
 			uptaneClient.On("Update", mock.Anything).Return(updateErr)
 
-			client := setupCDNClient(t, uptaneClient)
+			client := setupCDNClient(uptaneClient)
 			defer client.Close()
 			client.lastUpdate = time.Now().Add(time.Second * -60)
 
@@ -1520,8 +1563,10 @@ func TestWithOrgStatusPollingIntervalNoConfigPassed(t *testing.T) {
 
 	baseRawURL := "https://localhost"
 	mockTelemetryReporter := newMockRcTelemetryReporter()
+	uptaneClient := &mockCoreAgentUptane{}
 	options := []Option{
 		WithAPIKey("abc"),
+		uptaneFactoryOption(uptaneClient),
 	}
 	service, err := NewService(cfg, "Remote Config", baseRawURL, "localhost", getHostTags, mockTelemetryReporter, agentVersion, options...)
 	assert.NoError(t, err)
@@ -1536,9 +1581,11 @@ func TestWithOrgStatusPollingIntervalConfigPassed(t *testing.T) {
 
 	baseRawURL := "https://localhost"
 	mockTelemetryReporter := newMockRcTelemetryReporter()
+	uptaneClient := &mockCoreAgentUptane{}
 	options := []Option{
 		WithAPIKey("abc"),
 		WithOrgStatusRefreshInterval(54*time.Second, "test.org_status_refresh_interval"),
+		uptaneFactoryOption(uptaneClient),
 	}
 	service, err := NewService(cfg, "Remote Config", baseRawURL, "localhost", getHostTags, mockTelemetryReporter, agentVersion, options...)
 	assert.NoError(t, err)
