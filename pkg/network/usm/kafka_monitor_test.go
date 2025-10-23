@@ -673,10 +673,9 @@ type CannedClientServer struct {
 	unixPath string
 	address  string
 	tls      bool
-	t        *testing.T
 }
 
-func newCannedClientServer(t *testing.T, tls bool) *CannedClientServer {
+func newCannedClientServer(tls bool) *CannedClientServer {
 	return &CannedClientServer{
 		control:  make(chan []Message, 100),
 		done:     make(chan bool, 1),
@@ -688,11 +687,11 @@ func newCannedClientServer(t *testing.T, tls bool) *CannedClientServer {
 		// trace.
 		address: "127.0.0.1:8082",
 		tls:     tls,
-		t:       t,
+		// t:       t,
 	}
 }
 
-func (can *CannedClientServer) runServer() {
+func (can *CannedClientServer) runServer(t *testing.T) {
 	var listener net.Listener
 	var err error
 	var f *os.File
@@ -701,7 +700,7 @@ func (can *CannedClientServer) runServer() {
 		crtPath := filepath.Join(curDir, "../protocols/http/testutil/testdata/cert.pem.0")
 		keyPath := filepath.Join(curDir, "../protocols/http/testutil/testdata/server.key")
 		cer, err2 := tls.LoadX509KeyPair(crtPath, keyPath)
-		require.NoError(can.t, err2)
+		require.NoError(t, err2)
 
 		config := &tls.Config{Certificates: []tls.Certificate{cer}}
 
@@ -716,9 +715,9 @@ func (can *CannedClientServer) runServer() {
 	} else {
 		listener, err = net.Listen("tcp", can.address)
 	}
-	require.NoError(can.t, err)
+	require.NoError(t, err)
 
-	can.t.Cleanup(func() {
+	t.Cleanup(func() {
 		close(can.control)
 		<-can.done
 	})
@@ -731,7 +730,7 @@ func (can *CannedClientServer) runServer() {
 		}()
 
 		conn, err := listener.Accept()
-		require.NoError(can.t, err)
+		require.NoError(t, err)
 		conn.Close()
 
 		// Delay close of connections to work around the known issue of races
@@ -744,13 +743,13 @@ func (can *CannedClientServer) runServer() {
 				prevconn.Close()
 			}
 			conn, err = listener.Accept()
-			require.NoError(can.t, err)
+			require.NoError(t, err)
 
 			reader := bufio.NewReader(conn)
 			for _, msg := range msgs {
 				if len(msg.request) > 0 {
 					_, err := io.ReadFull(reader, msg.request)
-					require.NoError(can.t, err)
+					require.NoError(t, err)
 				}
 
 				if len(msg.response) > 0 {
@@ -767,20 +766,20 @@ func (can *CannedClientServer) runServer() {
 	}()
 }
 
-func (can *CannedClientServer) runProxy() int {
-	proxyProcess, cancel := proxy.NewExternalUnixControlProxyServer(can.t, can.unixPath, can.address, can.tls, false)
-	can.t.Cleanup(cancel)
-	require.NoError(can.t, proxy.WaitForConnectionReady(can.unixPath))
+func (can *CannedClientServer) runProxy(t *testing.T) int {
+	proxyProcess, cancel := proxy.NewExternalUnixControlProxyServer(t, can.unixPath, can.address, can.tls, false)
+	t.Cleanup(cancel)
+	require.NoError(t, proxy.WaitForConnectionReady(can.unixPath))
 
 	return proxyProcess.Process.Pid
 }
 
-func (can *CannedClientServer) runClient(msgs []Message) {
+func (can *CannedClientServer) runClient(t *testing.T, msgs []Message) {
 	can.control <- msgs
 
 	conn, err := net.Dial("unix", can.unixPath)
-	require.NoError(can.t, err)
-	can.t.Cleanup(func() { _ = conn.Close() })
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = conn.Close() })
 
 	// Safety measure to avoid blocking forever in the case of bugs.
 	conn.SetDeadline(time.Now().Add(30 * time.Second))
@@ -804,7 +803,7 @@ func (can *CannedClientServer) runClient(msgs []Message) {
 
 		if len(msg.response) > 0 {
 			_, err := io.ReadFull(reader, msg.response)
-			require.NoError(can.t, err)
+			require.NoError(t, err)
 		}
 	}
 }
@@ -1133,9 +1132,9 @@ func testKafkaFetchRaw(t *testing.T, tls bool, apiVersion int) {
 		},
 	}
 
-	can := newCannedClientServer(t, tls)
-	can.runServer()
-	proxyPid := can.runProxy()
+	can := newCannedClientServer(tls)
+	can.runServer(t)
+	proxyPid := can.runProxy(t)
 
 	monitor := setupUSMTLSMonitor(t, getDefaultTestConfiguration(tls), useExistingConsumer)
 	if tls {
@@ -1167,7 +1166,7 @@ func testKafkaFetchRaw(t *testing.T, tls bool, apiVersion int) {
 				telemetry.OptStatsd)
 			beforeEvents := counter.Get()
 
-			can.runClient(msgs)
+			can.runClient(t, msgs)
 
 			if tt.produceFetchValidationWithErrorCode != nil {
 				getAndValidateKafkaStatsWithErrorCodes(t, monitor, 1, tt.topic, *tt.produceFetchValidationWithErrorCode)
@@ -1208,7 +1207,7 @@ func testKafkaFetchRaw(t *testing.T, tls bool, apiVersion int) {
 					cleanProtocolMaps(t, "kafka", monitor.ebpfProgram.Manager.Manager)
 				})
 
-				can.runClient(group.msgs)
+				can.runClient(t, group.msgs)
 
 				if tt.produceFetchValidationWithErrorCode != nil {
 					tmp := kafkaParsingValidationWithErrorCodes{
@@ -1359,9 +1358,9 @@ func testKafkaProduceRaw(t *testing.T, tls bool, apiVersion int) {
 		},
 	}
 
-	can := newCannedClientServer(t, tls)
-	can.runServer()
-	proxyPid := can.runProxy()
+	can := newCannedClientServer(tls)
+	can.runServer(t)
+	proxyPid := can.runProxy(t)
 
 	monitor := setupUSMTLSMonitor(t, getDefaultTestConfiguration(tls), useExistingConsumer)
 	if tls {
@@ -1378,7 +1377,7 @@ func testKafkaProduceRaw(t *testing.T, tls bool, apiVersion int) {
 			resp := tt.buildResponse(tt.topic)
 			msgs = appendMessages(msgs, 99, &req, &resp)
 
-			can.runClient(msgs)
+			can.runClient(t, msgs)
 
 			getAndValidateKafkaStats(t, monitor, 1, tt.topic, kafkaParsingValidation{
 				expectedNumberOfProduceRequests: tt.numProducedRecords,
@@ -1400,7 +1399,7 @@ func testKafkaProduceRaw(t *testing.T, tls bool, apiVersion int) {
 					cleanProtocolMaps(t, "kafka", monitor.ebpfProgram.Manager.Manager)
 				})
 
-				can.runClient(group.msgs)
+				can.runClient(t, group.msgs)
 
 				getAndValidateKafkaStats(t, monitor, 1, tt.topic, kafkaParsingValidation{
 					expectedNumberOfProduceRequests: tt.numProducedRecords * group.numSets,
