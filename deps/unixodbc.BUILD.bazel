@@ -1,8 +1,9 @@
+load("@@//bazel/rules:so_symlink.bzl", "so_symlink")
 load("@bazel_skylib//rules:copy_file.bzl", "copy_file")
 load("@rules_cc//cc:cc_shared_library.bzl", "cc_shared_library")
 load("@rules_cc//cc:defs.bzl", "cc_library")
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
-load("@rules_pkg//pkg:mappings.bzl", "pkg_files", "pkg_mklink")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_files")
 
 COMMON_COPTS = ["-O3"]
 COMMON_INCLUDES = [".", "include"]
@@ -11,7 +12,8 @@ COMMON_INCLUDES = [".", "include"]
 # The actual SONAME version would be determined by LIB_VERSION in the autotools build
 # For unixODBC 2.3.9, the libraries typically have SONAME like libodbc.so.2
 VERSION = "2.3.9"
-SOVERSION = "2"
+SOVERSION = "2.0.0"
+SYMLINK_VERSION = "2"
 
 # Public headers installed by unixODBC
 _UNIXODBC_PUBLIC_HEADERS = [
@@ -214,32 +216,28 @@ cc_shared_library(
 # Packaging - Library files
 # ============================================================================
 
-# Symlinks for libltdl
-pkg_mklink(
-    name = "libltdl_so_link",
-    link_name = "lib/libltdl.so",
-    target = "libltdl.so.%s" % SOVERSION,
-)
-
 # Symlinks for libodbcinst
-pkg_mklink(
+so_symlink(
     name = "libodbcinst_so_link",
-    link_name = "lib/libodbcinst.so",
-    target = "libodbcinst.so.%s" % SOVERSION,
+    src = ":libodbcinst_so",
+    libname = "libodbcinst",
+    version = SYMLINK_VERSION,
 )
 
 # Symlinks for libodbc
-pkg_mklink(
+so_symlink(
     name = "libodbc_so_link",
-    link_name = "lib/libodbc.so",
-    target = "libodbc.so.%s" % SOVERSION,
+    src = ":libodbc_so",
+    libname = "libodbc",
+    version = SYMLINK_VERSION,
 )
 
 # Symlinks for libodbccr
-pkg_mklink(
+so_symlink(
     name = "libodbccr_so_link",
-    link_name = "lib/libodbccr.so",
-    target = "libodbccr.so.%s" % SOVERSION,
+    src = ":libodbccr_so",
+    libname = "libodbccr",
+    version = SYMLINK_VERSION,
 )
 
 pkg_files(
