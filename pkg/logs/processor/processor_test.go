@@ -349,8 +349,9 @@ func TestGetHostnameLambda(t *testing.T) {
 }
 
 func TestGetHostname(t *testing.T) {
+	hostnameComponent, _ := hostnameinterface.NewMock("testHostnameFromEnvVar")
 	p := &Processor{
-		hostname: hostnameComponent, // Use nil to test the fallback
+		hostname: hostnameComponent,
 	}
 	m := message.NewMessage([]byte("hello"), nil, "", 0)
 	assert.Equal(t, "testHostnameFromEnvVar", p.GetHostname(m))
