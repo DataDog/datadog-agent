@@ -10,7 +10,6 @@ package config
 import (
 	"context"
 
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 
@@ -23,8 +22,6 @@ import (
 // can be used in the current cluster (e.g. if the required CRDs are present).
 // The Namespace method returns the namespace to watch, or metav1.NamespaceAll to watch all namespaces.
 // The methods are called sequentially, there is no need to handle concurrency.
-// The methods receive unstructured.Unstructured objects, which can be converted to the
-// appropriate type using the runtime.DefaultUnstructuredConverter.
 // The methods should return an error if something goes wrong, in which case the
 // object will be re-queued with a backoff.
 type InjectionPattern interface {
@@ -34,10 +31,8 @@ type InjectionPattern interface {
 	Resource() schema.GroupVersionResource
 	// Namespace returns the namespace to watch, or metav1.NamespaceAll to watch all namespaces.
 	Namespace() string
-	// Added is called when an object is added or at startup for existing objects.
-	Added(ctx context.Context, obj *unstructured.Unstructured) error
-	// Modified is called when an object is modified.
-	Modified(ctx context.Context, old *unstructured.Unstructured, new *unstructured.Unstructured) error
-	// Deleted is called when an object is deleted.
-	Deleted(ctx context.Context, obj *unstructured.Unstructured) error
+	// Added is called when an object is added or at startup for existing objects. It should be idempotent.
+	Added(ctx context.Context, namespace, name string) error
+	// Deleted is called when an object is deleted. It should be idempotent.
+	Deleted(ctx context.Context, namespace, name string) error
 }

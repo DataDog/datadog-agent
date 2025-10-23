@@ -17,7 +17,7 @@ import (
 
 // Detect whenever Envoy Gateway is installed in the cluster by using the dynamic client to check for the presence of the EnvoyExtensionPolicy CRD
 func Detect(ctx context.Context, client dynamic.Interface) (bool, error) {
-	_, err := client.Resource(crdGVR).Get(ctx, "envoyextensionpolicies.gateway.envoyproxy.io", metav1.GetOptions{})
+	_, err := client.Resource(crdGVR).Get(ctx, envoyExtensionPolicyCRDName, metav1.GetOptions{})
 	if err == nil || errors.IsNotFound(err) {
 		return err == nil, nil
 	}

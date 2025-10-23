@@ -28,7 +28,12 @@ import (
 	gwapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 )
 
-const extProcName = "datadog-appsec-extproc"
+const (
+	extProcName                             = "datadog-appsec-extproc"
+	envoyExtensionPolicyCRDName             = "envoyextensionpolicies.gateway.envoyproxy.io"
+	gatewayGatewayNetworkingK8sIOCRD        = "gateways.gateway.networking.k8s.io"
+	referenceGrantGatewayNetworkingK8sIOCRD = "referencegrants.gateway.networking.k8s.io"
+)
 
 var (
 	gatewayGVR   = schema.GroupVersionResource{Resource: "gateways", Group: "gateway.networking.k8s.io", Version: "v1"}
@@ -80,20 +85,16 @@ func (e *envoyGatewayInjectionPattern) IsInjectionPossible(ctx context.Context) 
 }
 
 func (e *envoyGatewayInjectionPattern) Resource() schema.GroupVersionResource {
-	return schema.GroupVersionResource{
-		Group:    "gateway.networking.k8s.io",
-		Resource: "gateways",
-		Version:  "v1",
-	}
+	return gatewayGVR
 }
 
 func (e *envoyGatewayInjectionPattern) Namespace() string {
 	return v1.NamespaceAll
 }
 
-func (e *envoyGatewayInjectionPattern) Added(ctx context.Context, obj *unstructured.Unstructured) error {
-	e.logger.Debugf("Processing added gateway for envoygateway: %s/%s", obj.GetName(), obj.GetNamespace())
-	_, err := e.client.Resource(extensionGVR).Namespace(obj.GetNamespace()).Get(ctx, extProcName, metav1.GetOptions{})
+func (e *envoyGatewayInjectionPattern) Added(ctx context.Context, namespace, name string) error {
+	e.logger.Debugf("Processing added gateway for envoygateway: %s/%s", name, namespace)
+	_, err := e.client.Resource(extensionGVR).Namespace(namespace).Get(ctx, extProcName, metav1.GetOptions{})
 	if err == nil {
 		e.logger.Debug("Envoy extension policy already exists")
 		return nil
@@ -103,37 +104,24 @@ func (e *envoyGatewayInjectionPattern) Added(ctx context.Context, obj *unstructu
 		return fmt.Errorf("could not check if Envoy extension policy already exists: %w", err)
 	}
 
-	alone, err := e.isAloneInNamespace(ctx, obj.GetName(), obj.GetNamespace())
-	if err != nil {
-		return fmt.Errorf("could not determine if gateway is alone in namespace: %w", err)
-	}
-	if !alone {
-		e.logger.Debugf("Skipping Envoy extension policy creation for gateway %s/%s: not alone in namespace", obj.GetNamespace(), obj.GetName())
-		return nil
+	if err := e.grantManager.AddNamespaceToGrant(ctx, namespace); err != nil {
+		return fmt.Errorf("could not ensure ReferenceGrant for namespace %s: %w", namespace, err)
 	}
 
-	if err := e.grantManager.AddNamespaceToGrant(ctx, obj.GetNamespace()); err != nil {
-		return fmt.Errorf("could not ensure ReferenceGrant for namespace %s: %w", obj.GetNamespace(), err)
-	}
-
-	if err := e.createEnvoyExtensionPolicy(ctx, obj.GetNamespace(), obj.GetName()); err != nil {
+	if err := e.createEnvoyExtensionPolicy(ctx, namespace, name); err != nil {
 		return fmt.Errorf("could not create Envoy extension policy: %w", err)
 	}
 
 	return nil
 }
 
-func (e *envoyGatewayInjectionPattern) Modified(context.Context, *unstructured.Unstructured, *unstructured.Unstructured) error {
-	return nil
-}
-
 // isAloneInNamespace checks if the given gateway is the only one in its namespace
 // Since ReferenceGrant and EnvoyExtensionPolicy are namespace-scoped, we only want to create them
 // if the gateway is the first/last one in its namespace because what we do applies to all gateways in the namespace.
-func (e *envoyGatewayInjectionPattern) isAloneInNamespace(ctx context.Context, name string, namespace string) (bool, error) {
+func (e *envoyGatewayInjectionPattern) isAloneInNamespace(ctx context.Context, namespace, name string) (bool, error) {
 	// List gateway in the namespace to know if we are alone
 	gateways, err := e.client.Resource(gatewayGVR).Namespace(namespace).List(ctx, metav1.ListOptions{
-		LabelSelector: fields.OneTermNotEqualSelector("admission.datadoghq.com/enabled", "false").String(),
+		LabelSelector: fields.OneTermNotEqualSelector("appsec.datadoghq.com/enabled", "false").String(),
 	})
 	if err != nil {
 		return false, err
@@ -149,9 +137,9 @@ func (e *envoyGatewayInjectionPattern) isAloneInNamespace(ctx context.Context, n
 	return aloneInNamespace, nil
 }
 
-func (e *envoyGatewayInjectionPattern) Deleted(ctx context.Context, obj *unstructured.Unstructured) error {
-	e.logger.Debugf("Processing deleted gateway for envoygateway: %s/%s", obj.GetName(), obj.GetNamespace())
-	_, err := e.client.Resource(extensionGVR).Namespace(obj.GetNamespace()).Get(ctx, extProcName, metav1.GetOptions{})
+func (e *envoyGatewayInjectionPattern) Deleted(ctx context.Context, namespace, name string) error {
+	e.logger.Debugf("Processing deleted gateway for envoygateway: %s/%s", name, namespace)
+	_, err := e.client.Resource(extensionGVR).Namespace(namespace).Get(ctx, extProcName, metav1.GetOptions{})
 	if errors.IsNotFound(err) {
 		e.logger.Debug("Envoy extension policy already deleted")
 		return nil
@@ -161,17 +149,17 @@ func (e *envoyGatewayInjectionPattern) Deleted(ctx context.Context, obj *unstruc
 		return fmt.Errorf("could not check if Envoy extension policy was already deleted: %w", err)
 	}
 
-	alone, err := e.isAloneInNamespace(ctx, obj.GetName(), obj.GetNamespace())
+	alone, err := e.isAloneInNamespace(ctx, namespace, name)
 	if err != nil {
 		return fmt.Errorf("could not determine if gateway is alone in namespace: %w", err)
 	}
 	if !alone {
-		e.logger.Debugf("Skipping Envoy extension policy creation for gateway %s/%s: not alone in namespace", obj.GetNamespace(), obj.GetName())
+		e.logger.Debugf("Skipping Envoy extension policy creation for gateway %s/%s: not alone in namespace", namespace, name)
 		return nil
 	}
 
 	err = e.client.Resource(extensionGVR).
-		Namespace(obj.GetNamespace()).
+		Namespace(namespace).
 		Delete(ctx, extProcName, metav1.DeleteOptions{})
 	if errors.IsNotFound(err) {
 		e.logger.Debug("Envoy extension policy already deleted")
@@ -179,20 +167,47 @@ func (e *envoyGatewayInjectionPattern) Deleted(ctx context.Context, obj *unstruc
 	}
 
 	if err != nil {
-		e.recordExtensionPolicyDeleteFailed(obj.GetNamespace(), obj.GetName(), err)
+		e.recordExtensionPolicyDeleteFailed(namespace, name, err)
 	} else {
-		e.recordExtensionPolicyDeleted(obj.GetNamespace(), obj.GetName())
+		e.recordExtensionPolicyDeleted(namespace, name)
 	}
 
-	if err := e.grantManager.RemoveNamespaceToGrant(ctx, obj.GetNamespace()); err != nil {
-		return fmt.Errorf("could not remove namespace %s from ReferenceGrant: %w", obj.GetNamespace(), err)
+	if err := e.grantManager.RemoveNamespaceToGrant(ctx, namespace); err != nil {
+		return fmt.Errorf("could not remove namespace %s from ReferenceGrant: %w", namespace, err)
 	}
 
 	return err
 }
 
 func (e *envoyGatewayInjectionPattern) createEnvoyExtensionPolicy(ctx context.Context, namespace string, gatewayName string) error {
-	policy := v1alpha1.EnvoyExtensionPolicy{
+	policy := e.newPolicy(namespace)
+
+	unstructuredGrant, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&policy)
+	if err != nil {
+		return err
+	}
+
+	_, err = e.client.Resource(extensionGVR).
+		Namespace(namespace).
+		Create(ctx, &unstructured.Unstructured{Object: unstructuredGrant}, metav1.CreateOptions{})
+	if errors.IsAlreadyExists(err) {
+		e.logger.Debug("Envoy extension policy already exists")
+		return nil
+	}
+
+	if err != nil {
+		e.recordExtensionPolicyCreateFailed(namespace, gatewayName, err)
+		return err
+	}
+
+	e.logger.Infof("Envoy extension policy created in namespace %s", namespace)
+	e.recordExtensionPolicyCreated(namespace, gatewayName)
+
+	return nil
+}
+
+func (e *envoyGatewayInjectionPattern) newPolicy(namespace string) v1alpha1.EnvoyExtensionPolicy {
+	return v1alpha1.EnvoyExtensionPolicy{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: "gateway.envoyproxy.io/v1alpha1",
 			Kind:       "EnvoyExtensionPolicy",
@@ -235,29 +250,6 @@ func (e *envoyGatewayInjectionPattern) createEnvoyExtensionPolicy(ctx context.Co
 			},
 		},
 	}
-
-	unstructuredGrant, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&policy)
-	if err != nil {
-		return err
-	}
-
-	_, err = e.client.Resource(extensionGVR).
-		Namespace(namespace).
-		Create(ctx, &unstructured.Unstructured{Object: unstructuredGrant}, metav1.CreateOptions{})
-	if errors.IsAlreadyExists(err) {
-		e.logger.Debug("Envoy extension policy already exists")
-		return nil
-	}
-
-	if err != nil {
-		e.recordExtensionPolicyCreateFailed(namespace, gatewayName, err)
-		return err
-	}
-
-	e.logger.Infof("Envoy extension policy created in namespace %s", namespace)
-	e.recordExtensionPolicyCreated(namespace, gatewayName)
-
-	return nil
 }
 
 // New returns a new InjectionPattern for Envoy Gateway

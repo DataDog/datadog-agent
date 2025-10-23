@@ -91,10 +91,13 @@ func FromComponent(cfg config.Component) Config {
 	proxiesEnabled := cfg.GetStringSlice("appsec.proxy.proxies")
 	proxiesMap := make(map[ProxyType]struct{}, len(proxiesEnabled))
 	for _, p := range proxiesEnabled {
-		if !slices.Contains(proxyList, ProxyType(p)) {
+		proxyType := ProxyType(p)
+		if !slices.Contains(proxyList, proxyType) {
+			// Note: Logging for unsupported proxies should be done by the caller
+			// as this package doesn't have access to a logger
 			continue
 		}
-		proxiesMap[ProxyType(p)] = struct{}{}
+		proxiesMap[proxyType] = struct{}{}
 	}
 
 	processor := Processor{

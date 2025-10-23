@@ -518,6 +518,10 @@ func start(log log.Component,
 		if err := appsec.Start(mainCtx, log, config); err != nil {
 			log.Errorf("Cannot start appsec injector: %v", err)
 		}
+	} else {
+		if err := appsec.Cleanup(mainCtx, log, config); err != nil {
+			log.Errorf("Cannot clean up appsec injector resources: %v", err)
+		}
 	}
 
 	if config.GetBool("admission_controller.enabled") {

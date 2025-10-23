@@ -5,7 +5,6 @@
 
 //go:build kubeapiserver
 
-// Package appsec is the appsec proxy injection controller for the Cluster Agent autoconfiguration
 package appsec
 
 import (
@@ -20,7 +19,6 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	appsecconfig "github.com/DataDog/datadog-agent/pkg/clusteragent/appsec/config"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection"
@@ -42,6 +40,8 @@ import (
 var (
 	injector          *securityInjector
 	injectorStartOnce sync.Once
+
+	selector = fields.OneTermNotEqualSelector("appsec.datadoghq.com/enabled", "false")
 )
 
 // Start initializes and starts the proxy injector
@@ -102,10 +102,18 @@ func newSecurityInjector(ctx context.Context, logger log.Component, datadogConfi
 		return nil
 	}
 
-	// Get API client to create event recorder
+	// Log warning for any unsupported proxy types specified in configuration
+	proxiesEnabled := datadogConfig.GetStringSlice("appsec.proxy.proxies")
+	for _, p := range proxiesEnabled {
+		if _, supported := config.Proxies[appsecconfig.ProxyType(p)]; !supported && p != "" {
+			logger.Warnf("Unsupported proxy type %q specified in appsec.proxy.proxies configuration - ignoring", p)
+		}
+	}
+
+	// Get API client for proxy detection and event recording
 	apiClient, err := apiserver.GetAPIClient()
 	if err != nil {
-		logger.Errorf("Failed to get API client for event recorder: %v", err)
+		logger.Errorf("Failed to get API client: %v", err)
 		return nil
 	}
 
@@ -150,7 +158,6 @@ type workItemType int
 const (
 	_ workItemType = iota
 	workItemAdded
-	workItemModified
 	workItemDeleted
 )
 
@@ -158,8 +165,6 @@ func (sub workItemType) String() string {
 	switch sub {
 	case workItemAdded:
 		return "added"
-	case workItemModified:
-		return "modified"
 	case workItemDeleted:
 		return "deleted"
 	default:
@@ -168,9 +173,9 @@ func (sub workItemType) String() string {
 }
 
 type workItem struct {
-	old *unstructured.Unstructured
-	new *unstructured.Unstructured
-	typ workItemType
+	name      string
+	namespace string
+	typ       workItemType
 }
 
 func (si *securityInjector) run(proxyType appsecconfig.ProxyType, pattern appsecconfig.InjectionPattern) {
@@ -180,14 +185,6 @@ func (si *securityInjector) run(proxyType appsecconfig.ProxyType, pattern appsec
 		si.logger.Errorf("injection not possible for proxy type %q: %s", proxyType, err)
 		return
 	}
-
-	patchCount := telemetry.NewCounterWithOpts(
-		"appsec_injector",
-		"watched_changes",
-		[]string{"proxy_type", "operation", "success"},
-		"Tracks the number of changes detected by the appsec injector for the watched resources",
-		telemetry.DefaultOptions,
-	)
 
 	queue := workqueue.NewTypedRateLimitingQueueWithConfig(
 		workqueue.NewTypedItemExponentialFailureRateLimiter[workItem](
@@ -201,7 +198,7 @@ func (si *securityInjector) run(proxyType appsecconfig.ProxyType, pattern appsec
 	)
 
 	informerFactory := dynamicinformer.NewFilteredDynamicSharedInformerFactory(si.k8sClient, 0, pattern.Namespace(), func(opts *metav1.ListOptions) {
-		opts.LabelSelector = fields.OneTermNotEqualSelector("admission.datadoghq.com/enabled", "false").String()
+		opts.LabelSelector = selector.String()
 	})
 
 	informer := informerFactory.ForResource(pattern.Resource()).Informer()
@@ -240,7 +237,7 @@ func (si *securityInjector) run(proxyType appsecconfig.ProxyType, pattern appsec
 	}()
 
 	for quit := false; !quit; {
-		quit = si.processWorkItem(proxyType, pattern, queue, patchCount)
+		quit = si.processWorkItem(proxyType, pattern, queue)
 	}
 }
 
@@ -251,25 +248,14 @@ func (si *securityInjector) createEventHandler(queue workqueue.TypedRateLimiting
 			if !ok {
 				si.logger.Warnf("event handler for unexpected type: %T", obj)
 			}
-			queue.Add(workItem{new: unstructured, typ: workItemAdded})
-		},
-		UpdateFunc: func(oldObj, newObj any) {
-			oldUnstructured, ok := oldObj.(*unstructured.Unstructured)
-			if !ok {
-				si.logger.Warnf("event handler for unexpected type: %T", oldObj)
-			}
-			newUnstructured, ok := newObj.(*unstructured.Unstructured)
-			if !ok {
-				si.logger.Warnf("event handler for unexpected type: %T", newObj)
-			}
-			queue.Add(workItem{old: oldUnstructured, new: newUnstructured, typ: workItemModified})
+			queue.Add(workItem{name: unstructured.GetName(), namespace: unstructured.GetNamespace(), typ: workItemAdded})
 		},
 		DeleteFunc: func(obj any) {
 			unstructured, ok := obj.(*unstructured.Unstructured)
 			if !ok {
 				si.logger.Warnf("event handler for unexpected type: %T", obj)
 			}
-			queue.Add(workItem{old: unstructured, typ: workItemDeleted})
+			queue.Add(workItem{name: unstructured.GetName(), namespace: unstructured.GetNamespace(), typ: workItemDeleted})
 		},
 	}
 }
@@ -277,7 +263,6 @@ func (si *securityInjector) createEventHandler(queue workqueue.TypedRateLimiting
 func (si *securityInjector) processWorkItem(proxyType appsecconfig.ProxyType,
 	pattern appsecconfig.InjectionPattern,
 	queue workqueue.TypedRateLimitingInterface[workItem],
-	patchCount telemetry.Counter,
 ) bool {
 	item, quit := queue.Get()
 	if quit {
@@ -287,6 +272,8 @@ func (si *securityInjector) processWorkItem(proxyType appsecconfig.ProxyType,
 	defer queue.Done(item)
 
 	if !si.isLeader() {
+		// Forget the item to prevent retries when we're not the leader
+		// Only the leader should process proxy configuration changes
 		queue.Forget(item)
 		return false
 	}
@@ -294,14 +281,12 @@ func (si *securityInjector) processWorkItem(proxyType appsecconfig.ProxyType,
 	var err error
 	switch item.typ {
 	case workItemAdded:
-		err = pattern.Added(si.ctx, item.new)
-	case workItemModified:
-		err = pattern.Modified(si.ctx, item.old, item.new)
+		err = pattern.Added(si.ctx, item.namespace, item.name)
 	case workItemDeleted:
-		err = pattern.Deleted(si.ctx, item.old)
+		err = pattern.Deleted(si.ctx, item.namespace, item.name)
 	}
 
-	patchCount.Inc(string(proxyType), item.typ.String(), strconv.FormatBool(err == nil))
+	watchedChangesCounter.Inc(string(proxyType), item.typ.String(), strconv.FormatBool(err == nil))
 
 	if err == nil {
 		queue.Forget(item)
