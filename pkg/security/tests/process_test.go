@@ -1340,9 +1340,7 @@ func TestProcessExec(t *testing.T) {
 
 	t.Run("exec-in-pthread", func(t *testing.T) {
 		test.WaitSignal(t, func() error {
-			args := []string{"exec-in-pthread", executable, "/dev/null"}
-			cmd := exec.Command(syscallTester, args...)
-			return cmd.Run()
+			return runSyscallTesterFunc(context.Background(), t, syscallTester, "exec-in-pthread", executable, "/dev/null")
 		}, test.validateExecEvent(t, noWrapperType, func(event *model.Event, _ *rules.Rule) {
 			assertFieldEqual(t, event, "exec.file.path", executable)
 			assertFieldEqual(t, event, "process.parent.file.name", "syscall_tester", "wrong process parent file name")
