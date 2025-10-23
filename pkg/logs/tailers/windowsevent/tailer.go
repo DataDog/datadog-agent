@@ -247,7 +247,6 @@ func (t *Tailer) eventLoop(ctx context.Context) {
 			err := retryForeverWithCancel(ctx, func() error {
 				err := t.sub.Start()
 				if err != nil {
-					// Log error and retry
 					t.logErrorAndSetStatus(fmt.Errorf("failed to start subscription: %w", err))
 					return err
 				}
