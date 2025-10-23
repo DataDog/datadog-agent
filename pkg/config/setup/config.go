@@ -1318,11 +1318,14 @@ func fleet(config pkgconfigmodel.Setup) {
 }
 
 func autoscaling(config pkgconfigmodel.Setup) {
-	// Autoscaling product
+	// Workload autoscaling product
 	config.BindEnvAndSetDefault("autoscaling.workload.enabled", false)
 	config.BindEnvAndSetDefault("autoscaling.failover.enabled", false)
 	config.BindEnvAndSetDefault("autoscaling.workload.limit", 1000)
 	config.BindEnv("autoscaling.failover.metrics") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+
+	// Cluster autoscaling product
+	config.BindEnvAndSetDefault("autoscaling.cluster.enabled", false)
 }
 
 func fips(config pkgconfigmodel.Setup) {

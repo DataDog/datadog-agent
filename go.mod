@@ -32,7 +32,7 @@ require (
 	code.cloudfoundry.org/lager v2.0.0+incompatible
 	github.com/CycloneDX/cyclonedx-go v0.9.2
 	github.com/DATA-DOG/go-sqlmock v1.5.2
-	github.com/DataDog/agent-payload/v5 v5.0.166
+	github.com/DataDog/agent-payload/v5 v5.0.170
 	github.com/DataDog/appsec-internal-go v1.14.0
 	github.com/DataDog/datadog-agent/comp/api/api/def v0.72.0-rc.1
 	github.com/DataDog/datadog-agent/comp/core/config v0.72.0-devel
@@ -258,7 +258,7 @@ require (
 	// github.com/golang/mock is unmaintained and archived, v1.6.0 is the last released version
 	github.com/golang/mock v1.6.0
 	github.com/golang/protobuf v1.5.4
-	github.com/google/cel-go v0.25.0
+	github.com/google/cel-go v0.26.0
 	github.com/google/go-cmp v0.7.0
 	github.com/google/go-containerregistry v0.20.3
 	github.com/google/gofuzz v1.2.0
@@ -324,7 +324,7 @@ require (
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/safchain/baloum v0.0.0-20241120122234-f22c9bd19f3b
 	github.com/safchain/ethtool v0.6.2
-	github.com/samber/lo v1.49.1
+	github.com/samber/lo v1.51.0
 	github.com/samuel/go-zookeeper v0.0.0-20190923202752-2cc03de413da
 	github.com/shirou/gopsutil/v4 v4.25.9
 	github.com/shirou/w32 v0.0.0-20160930032740-bb4de0191aa4
@@ -335,7 +335,7 @@ require (
 	github.com/spf13/afero v1.14.0
 	github.com/spf13/cast v1.10.0
 	github.com/spf13/cobra v1.10.1
-	github.com/spf13/pflag v1.0.9
+	github.com/spf13/pflag v1.0.10
 	github.com/streadway/amqp v1.1.0
 	github.com/stretchr/testify v1.11.1
 	github.com/swaggest/jsonschema-go v0.3.70
@@ -360,7 +360,7 @@ require (
 	github.com/xeipuuv/gojsonschema v1.2.0
 	github.com/xi2/xz v0.0.0-20171230120015-48954b6210f8
 	github.com/yusufpapurcu/wmi v1.2.4
-	go.etcd.io/bbolt v1.4.0
+	go.etcd.io/bbolt v1.4.2
 	go.etcd.io/etcd/client/v2 v2.306.0-alpha.0
 	go.mongodb.org/mongo-driver/v2 v2.1.0
 	go.opentelemetry.io/collector/component v1.43.0
@@ -417,13 +417,13 @@ require (
 	gopkg.in/yaml.v2 v2.4.0
 	gopkg.in/yaml.v3 v3.0.1
 	gopkg.in/zorkian/go-datadog-api.v2 v2.30.0
-	k8s.io/api v0.32.3
-	k8s.io/apiextensions-apiserver v0.32.1
-	k8s.io/apimachinery v0.32.3
+	k8s.io/api v0.34.1
+	k8s.io/apiextensions-apiserver v0.34.1
+	k8s.io/apimachinery v0.34.1
 	k8s.io/autoscaler/vertical-pod-autoscaler v1.2.2
 	k8s.io/cli-runtime v0.31.2
-	k8s.io/client-go v0.32.3
-	k8s.io/component-base v0.32.1
+	k8s.io/client-go v0.34.1
+	k8s.io/component-base v0.34.1
 	k8s.io/cri-api v0.31.2
 	k8s.io/cri-client v0.31.2
 	k8s.io/klog/v2 v2.130.1
@@ -431,10 +431,11 @@ require (
 	k8s.io/kube-state-metrics/v2 v2.13.1-0.20241025121156-110f03d7331f
 	k8s.io/kubectl v0.31.2
 	k8s.io/kubelet v0.31.2
-	k8s.io/metrics v0.31.2
-	k8s.io/utils v0.0.0-20241104100929-3ea5e8cea738
+	k8s.io/metrics v0.33.1
+	k8s.io/utils v0.0.0-20250604170112-4c0f3b243397
 	pgregory.net/rapid v1.2.0
-	sigs.k8s.io/custom-metrics-apiserver v1.30.1-0.20241105195130-84dc8cfe2555
+	sigs.k8s.io/custom-metrics-apiserver v1.33.0
+	sigs.k8s.io/karpenter v1.8.0
 	sigs.k8s.io/yaml v1.6.0
 )
 
@@ -572,7 +573,7 @@ require (
 	github.com/elastic/go-grok v0.3.1 // indirect
 	github.com/elastic/go-licenser v0.4.2 // indirect
 	github.com/elastic/lunes v0.1.0 // indirect
-	github.com/emicklei/go-restful/v3 v3.12.1 // indirect
+	github.com/emicklei/go-restful/v3 v3.12.2 // indirect
 	github.com/envoyproxy/go-control-plane/envoy v1.32.4 // indirect
 	github.com/envoyproxy/protoc-gen-validate v1.2.1 // indirect
 	github.com/expr-lang/expr v1.17.6 // indirect
@@ -580,7 +581,7 @@ require (
 	github.com/felixge/httpsnoop v1.0.4 // indirect
 	github.com/foxboron/go-tpm-keyfiles v0.0.0-20250903184740-5d135037bd4d // indirect
 	github.com/fsnotify/fsnotify v1.9.0 // indirect
-	github.com/fxamacker/cbor/v2 v2.7.0 // indirect
+	github.com/fxamacker/cbor/v2 v2.9.0 // indirect
 	github.com/glebarez/go-sqlite v1.22.0 // indirect
 	github.com/go-kit/log v0.2.1 // indirect
 	github.com/go-logfmt/logfmt v0.6.0 // indirect
@@ -608,17 +609,17 @@ require (
 	github.com/golang-jwt/jwt/v4 v4.5.2 // indirect
 	github.com/golang-jwt/jwt/v5 v5.2.2 // indirect
 	github.com/golang/snappy v1.0.0 // indirect
-	github.com/google/gnostic-models v0.6.9 // indirect
+	github.com/google/gnostic-models v0.7.0 // indirect
 	github.com/google/go-querystring v1.1.0 // indirect
 	github.com/google/go-tpm v0.9.6 // indirect
-	github.com/google/pprof v0.0.0-20250607225305-033d6d78b36a // indirect
+	github.com/google/pprof v0.0.0-20250820193118-f64d9cf942d6 // indirect
 	github.com/google/s2a-go v0.1.9 // indirect
 	github.com/google/wire v0.6.0 // indirect
 	github.com/googleapis/enterprise-certificate-proxy v0.3.6 // indirect
 	github.com/googleapis/gax-go/v2 v2.14.2 // indirect
 	github.com/gophercloud/gophercloud/v2 v2.7.0 // indirect
 	github.com/gopherjs/gopherjs v0.0.0-20200217142428-fce0ec30dd00 // indirect
-	github.com/gorilla/websocket v1.5.3 // indirect
+	github.com/gorilla/websocket v1.5.4-0.20250319132907-e064f32e3674 // indirect
 	github.com/grafana/regexp v0.0.0-20240518133315-a468a5bfb3bc // indirect
 	github.com/grpc-ecosystem/go-grpc-prometheus v1.2.0 // indirect
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.27.2 // indirect
@@ -831,10 +832,9 @@ require (
 	github.com/xor-gate/ar v0.0.0-20170530204233-5c72ae81e2b7 // indirect
 	github.com/yashtewari/glob-intersection v0.2.0 // indirect
 	github.com/youmark/pkcs8 v0.0.0-20240726163527-a2c0da244d78 // indirect
-	go.etcd.io/etcd/api/v3 v3.6.0-alpha.0 // indirect
-	go.etcd.io/etcd/client/pkg/v3 v3.6.0-alpha.0.0.20220522111935-c3bc4116dcd1 // indirect
-	go.etcd.io/etcd/client/v3 v3.6.0-alpha.0 // indirect
-	go.etcd.io/etcd/server/v3 v3.6.0-alpha.0.0.20220522111935-c3bc4116dcd1 // indirect
+	go.etcd.io/etcd/api/v3 v3.6.4 // indirect
+	go.etcd.io/etcd/client/pkg/v3 v3.6.4 // indirect
+	go.etcd.io/etcd/client/v3 v3.6.4 // indirect
 	go.mongodb.org/mongo-driver v1.14.0 // indirect
 	go.opencensus.io v0.24.0 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
@@ -938,16 +938,16 @@ require (
 	gopkg.in/ini.v1 v1.67.0 // indirect
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1 // indirect
 	honnef.co/go/tools v0.5.1 // indirect
-	k8s.io/apiserver v0.32.1 // indirect
-	k8s.io/kms v0.32.1 // indirect
-	k8s.io/kube-openapi v0.0.0-20241105132330-32ad38e42d3f // indirect
+	k8s.io/apiserver v0.34.1 // indirect
+	k8s.io/kms v0.34.1 // indirect
+	k8s.io/kube-openapi v0.0.0-20250710124328-f3f2b991d03b // indirect
 	k8s.io/sample-controller v0.31.2 // indirect
 	mellium.im/sasl v0.3.2 // indirect
 	modernc.org/sqlite v1.36.2 // indirect
-	sigs.k8s.io/apiserver-network-proxy/konnectivity-client v0.31.0 // indirect
-	sigs.k8s.io/controller-runtime v0.20.4 // indirect
-	sigs.k8s.io/json v0.0.0-20241010143419-9aa6b5e7a4b3 // indirect
-	sigs.k8s.io/structured-merge-diff/v4 v4.5.0 // indirect
+	sigs.k8s.io/apiserver-network-proxy/konnectivity-client v0.31.2 // indirect
+	sigs.k8s.io/controller-runtime v0.22.1 // indirect
+	sigs.k8s.io/json v0.0.0-20241014173422-cfa47c3a1cc8 // indirect
+	sigs.k8s.io/structured-merge-diff/v4 v4.6.0 // indirect
 )
 
 require (
@@ -974,9 +974,11 @@ require (
 require (
 	github.com/DataDog/gohai v0.0.0-20230524154621-4316413895ee // indirect
 	github.com/DataDog/jsonapi v0.12.0 // indirect
+	github.com/awslabs/operatorpkg v0.0.0-20250909182303-e8e550b6f339 // indirect
 	github.com/charlievieth/strcase v0.0.5 // indirect
 	github.com/elastic/go-freelru v0.16.0 // indirect
 	github.com/elastic/go-perf v0.0.0-20241029065020-30bec95324b8 // indirect
+	github.com/evanphx/json-patch/v5 v5.9.11 // indirect
 	github.com/klauspost/cpuid/v2 v2.3.0 // indirect
 	github.com/mdlayher/kobject v0.0.0-20200520190114-19ca17470d7d // indirect
 	github.com/minio/sha256-simd v1.0.1 // indirect
@@ -986,6 +988,9 @@ require (
 	github.com/shoenig/go-m1cpu v0.1.7 // indirect
 	github.com/urfave/cli/v3 v3.1.1 // indirect
 	github.com/zeebo/xxh3 v1.0.2 // indirect
+	gomodules.xyz/jsonpatch/v2 v2.4.0 // indirect
+	sigs.k8s.io/randfill v1.0.0 // indirect
+	sigs.k8s.io/structured-merge-diff/v6 v6.3.0 // indirect
 )
 
 // TODO(songy23): remove this once https://github.com/kubernetes/apiserver/commit/b887c9ebecf558a2001fc5c5dbd5c87fd672500c is brought to agent
@@ -1015,15 +1020,6 @@ replace k8s.io/kube-state-metrics/v2 v2.13.1-0.20241025121156-110f03d7331f => gi
 // Remove once https://github.com/Iceber/iouring-go/pull/31 or equivalent is merged,
 // among with the Connect, Bind and Accept requests
 replace github.com/iceber/iouring-go => github.com/lebauce/iouring-go v0.0.0-20250513121434-2d4fb49003b5
-
-// Remove once sigs.k8s.io/custom-metrics-apiserver upgrades to k8s.io/* v0.32+
-replace (
-	k8s.io/api => k8s.io/api v0.31.2
-	k8s.io/apiextensions-apiserver => k8s.io/apiextensions-apiserver v0.31.2
-	k8s.io/apimachinery => k8s.io/apimachinery v0.31.2
-	k8s.io/apiserver => k8s.io/apiserver v0.31.2
-	k8s.io/client-go => k8s.io/client-go v0.31.2
-)
 
 // Fork to remove some text/template usage, https://github.com/paulcacheux/opa/tree/lightweight-1.7.1
 replace github.com/open-policy-agent/opa => github.com/paulcacheux/opa v0.0.0-20250905131841-4497a5aec5eb
