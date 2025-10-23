@@ -21,12 +21,16 @@ import (
 	ddsync "github.com/DataDog/datadog-agent/pkg/util/sync"
 )
 
+const maxInFlightRecords = 10
+
 // RingBuffer implements the EventStream interface
 // using an eBPF map of type BPF_MAP_TYPE_RINGBUF
 type RingBuffer struct {
 	ringBuffer *manager.RingBuffer
 	handler    func(int, []byte)
 	recordPool *ddsync.TypedPool[ringbuf.Record]
+
+	inFlightRecords []*ringbuf.Record
 }
 
 // Init the ring buffer
@@ -57,8 +61,20 @@ func (rb *RingBuffer) Start(_ *sync.WaitGroup) error {
 func (rb *RingBuffer) SetMonitor(_ eventstream.LostEventCounter) {}
 
 func (rb *RingBuffer) handleEvent(record *ringbuf.Record, _ *manager.RingBuffer, _ *manager.Manager) {
-	rb.handler(0, record.RawSample)
-	rb.recordPool.Put(record)
+	rb.inFlightRecords = append(rb.inFlightRecords, record)
+	if record.Remaining != 0 && len(rb.inFlightRecords) < maxInFlightRecords {
+		return
+	}
+
+	rb.flushEvents()
+}
+
+func (rb *RingBuffer) flushEvents() {
+	for _, rec := range rb.inFlightRecords {
+		rb.handler(0, rec.RawSample)
+		rb.recordPool.Put(rec)
+	}
+	rb.inFlightRecords = rb.inFlightRecords[:0]
 }
 
 // Pause the event stream. Do nothing when using ring buffer
