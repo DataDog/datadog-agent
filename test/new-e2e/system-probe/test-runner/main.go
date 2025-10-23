@@ -45,18 +45,16 @@ func (e *testsuiteError) Unwrap() error {
 	return e.exitErr
 }
 
-// extractExitCodeFromOutput parses output to find "###TEST_EXIT_CODE:X###" marker
-// Returns -1 if no exit code is found
-func extractExitCodeFromOutput(output string) int {
-	// Look for "###TEST_EXIT_CODE:44###" pattern
-	re := regexp.MustCompile(`###TEST_EXIT_CODE:(\d+)###`)
-	matches := re.FindStringSubmatch(output)
-	if len(matches) >= 2 {
-		code := 0
-		fmt.Sscanf(matches[1], "%d", &code)
-		return code
+// readExitCodeFromFile reads the exit code from the specified file
+// Returns -1 if the file doesn't exist or can't be read
+func readExitCodeFromFile(path string) int {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return -1
 	}
-	return -1
+	code := -1
+	fmt.Sscanf(string(data), "%d", &code)
+	return code
 }
 
 func init() {
@@ -155,7 +153,7 @@ func glob(dir, filePattern string, filterFn func(path string) bool) ([]string, e
 	return matches, nil
 }
 
-func buildCommandArgs(pkg string, xmlpath string, jsonpath string, testArgs []string, testConfig *testConfig) []string {
+func buildCommandArgs(pkg string, xmlpath string, jsonpath string, exitCodeFile string, testArgs []string, testConfig *testConfig) []string {
 	verbosity := "testname"
 	if testConfig.verbose {
 		verbosity = "standard-verbose"
@@ -178,6 +176,11 @@ func buildCommandArgs(pkg string, xmlpath string, jsonpath string, testArgs []st
 		fmt.Sprintf("-test.count=%d", testConfig.runCount),
 		"-test.timeout="+getTimeout(pkg).String(),
 	)
+
+	// Pass exit code file to the testsuite
+	if exitCodeFile != "" {
+		args = append(args, "-exit-code-file", exitCodeFile)
+	}
 
 	if testConfig.extraParams != "" {
 		args = append(args, strings.Split(testConfig.extraParams, " ")...)
@@ -306,36 +309,36 @@ func testPass(testConfig *testConfig, props map[string]string) error {
 		xmlpath := filepath.Join(xmlDir, fmt.Sprintf("%s.xml", junitfilePrefix))
 		jsonpath := filepath.Join(jsonDir, fmt.Sprintf("%s.json", junitfilePrefix))
 
+		// Only pass exit code file for security-agent functional tests (pkg/security/tests)
+		exitCodeFile := ""
+		if pkg == "pkg/security" || strings.HasPrefix(pkg, "pkg/security/tests") {
+			exitCodeFile = filepath.Join(jsonDir, fmt.Sprintf("%s.exitcode", junitfilePrefix))
+		}
+
 		testsuiteArgs := []string{testsuite}
 		if testContainer != nil {
 			testsuiteArgs = testContainer.buildDockerExecArgs(testsuite, envVars)
 		}
 
-		args := buildCommandArgs(pkg, xmlpath, jsonpath, testsuiteArgs, testConfig)
+		args := buildCommandArgs(pkg, xmlpath, jsonpath, exitCodeFile, testsuiteArgs, testConfig)
 		cmd := exec.Command(filepath.Join(testConfig.testingTools, "go/bin/gotestsum"), args...)
 
 		cmd.Env = append(cmd.Environ(), envVars...)
 
 		cmd.Dir = filepath.Dir(testsuite)
 
-		// Capture stdout to parse exit code marker
-		var stdoutBuf bytes.Buffer
-		cmd.Stdout = io.MultiWriter(os.Stdout, &stdoutBuf)
-
-		// Capture stderr for debug
-		var stderrBuf bytes.Buffer
-		cmd.Stderr = io.MultiWriter(os.Stderr, &stderrBuf)
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
 
 		if err := cmd.Run(); err != nil {
 			// log error and capture the first one to preserve exit code
 			fmt.Fprintf(os.Stderr, "\n>>> cmd run %s: %s\n", testsuite, err)
 			if firstTestError == nil {
-				// Try to extract exit code from stdout marker (reliable with gotestsum)
-				stdoutContent := stdoutBuf.String()
-				exitCode := extractExitCodeFromOutput(stdoutContent)
+				// Read exit code from file (written by testsuite)
+				exitCode := readExitCodeFromFile(exitCodeFile)
 				var exitErr *exec.ExitError
 				if errors.As(err, &exitErr) {
-					// Store the custom exit code if found, otherwise use the one from exitErr
+					// Use exit code from file if found, otherwise use the one from exitErr
 					if exitCode == -1 {
 						exitCode = exitErr.ExitCode()
 					}
