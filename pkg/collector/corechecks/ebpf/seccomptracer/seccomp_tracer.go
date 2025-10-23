@@ -175,7 +175,11 @@ func (t *SeccompTracerCheck) emitStackTraceEvents(sender sender.Sender, entry mo
 	syscallNameStr := syscallName(entry.SyscallNr)
 	actionNameStr := seccompActionName(entry.SeccompAction)
 
-	for _, trace := range entry.StackTraces[:maxStackTraceEvents] {
+	numStackTraces := len(entry.StackTraces)
+	if numStackTraces > maxStackTraceEvents {
+		numStackTraces = maxStackTraceEvents
+	}
+	for _, trace := range entry.StackTraces[:numStackTraces] {
 		// Build the event message
 		var msgBuilder strings.Builder
 		msgBuilder.WriteString("Seccomp denial stack trace\n\n")
