@@ -10,7 +10,7 @@ if [ -z "$CPU_MODEL" ]; then
 fi
 
 COMMIT_SHA=$(git rev-parse HEAD)
-COMMIT_DATE=$(git show -s --format=%ct $COMMIT_SHA)
+COMMIT_DATE=$(git show -s --format=%ct "$COMMIT_SHA")
 benchmark_analyzer convert \
   --framework=GoBench \
   --outpath="pr.json" \
@@ -28,7 +28,7 @@ benchmark_analyzer convert \
 
 git checkout main
 COMMIT_SHA=$(git rev-parse HEAD)
-COMMIT_DATE=$(git show -s --format=%ct $COMMIT_SHA)
+COMMIT_DATE=$(git show -s --format=%ct "$COMMIT_SHA")
 benchmark_analyzer convert \
   --framework=GoBench \
   --outpath="main.json" \
@@ -44,7 +44,7 @@ benchmark_analyzer convert \
   }" \
   "$ARTIFACTS_DIR/main_bench.txt"
 
-benchmark_analyzer compare pairwise --outpath $ARTIFACTS_DIR/report.md --format md-nodejs main.json pr.json
-benchmark_analyzer compare pairwise --outpath $ARTIFACTS_DIR/report_full.html --format html main.json pr.json
+benchmark_analyzer compare pairwise --outpath "$ARTIFACTS_DIR/report.md" --format md-nodejs main.json pr.json
+benchmark_analyzer compare pairwise --outpath "$ARTIFACTS_DIR/report_full.html" --format html main.json pr.json
 
 git checkout "${CI_COMMIT_REF_NAME}" # (Only needed while these changes aren't merged to main)
