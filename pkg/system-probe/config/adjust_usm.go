@@ -66,7 +66,7 @@ func adjustUSM(cfg model.Config) {
 	// minimum kernel version requirement, but USM's check for that is done
 	// later.  This check here prevents the EventMonitorModule from getting
 	// enabled on unsupported kernels by load() in config.go.
-	if cfg.GetBool(smNS("enable_event_stream")) && !ProcessEventDataStreamSupported() {
+	if !ProcessEventDataStreamSupported() {
 		if flavor.GetFlavor() == flavor.SystemProbe {
 			// Only log in system-probe, as we cannot reliably know this in the agent
 			log.Warn("disabling USM event stream as it is not supported for this kernel version")

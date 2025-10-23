@@ -87,7 +87,7 @@ func createEventMonitorModule(sysconfig *sysconfigtypes.Config, deps module.Fact
 	}
 
 	netconfig := netconfig.New()
-	if netconfig.EnableUSMEventStream {
+	if netconfig.USMConfig.ServiceMonitoringEnabled {
 		if err := createProcessMonitorConsumer(evm, netconfig); err != nil {
 			return nil, err
 		}
