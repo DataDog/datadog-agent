@@ -1559,6 +1559,9 @@ func getAndValidateKafkaStats(t *testing.T, monitor *Monitor, expectedStatsCount
 		}
 	}, time.Second*5, time.Millisecond*10)
 	if t.Failed() {
+		for key, value := range kafkaStats {
+			t.Logf("kafka key: %#v; value: %#v", key, value)
+		}
 		ebpftest.DumpMapsTestHelper(t, monitor.ebpfProgram.Manager.Manager.DumpMaps, "kafka_in_flight", "kafka_batches", "kafka_response", "kafka_telemetry")
 		t.FailNow()
 	}
