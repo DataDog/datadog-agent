@@ -22,8 +22,11 @@ import (
 	"k8s.io/client-go/dynamic/dynamicinformer"
 )
 
+// Cleanup removes all AppSec injections from the cluster resources.
+// It is called when AppSec is disabled to ensure no residual configuration remains.
+// Needs to be called as the leader instance to avoid conflicts.
 func Cleanup(ctx context.Context, logger log.Component, datadogConfig config.Component) error {
-	injector = newSecurityInjector(ctx, logger, datadogConfig)
+	injector = newSecurityInjector(ctx, logger, datadogConfig, nil)
 	if injector == nil {
 		return nil
 	}

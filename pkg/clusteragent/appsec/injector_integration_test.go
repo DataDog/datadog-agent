@@ -202,64 +202,64 @@ func (f *integrationFixture) createReferenceGrantCRD() {
 
 func TestIntegration_NewSecurityInjector_Disabled(t *testing.T) {
 	f := newIntegrationFixture(t, map[string]interface{}{
-		"appsec.proxy.enabled":                 false,
+		"appsec.proxy.enabled":                  false,
 		"cluster_agent.appsec.injector.enabled": false,
 	})
 	defer f.cleanup()
 
-	injector := newSecurityInjector(f.ctx, f.logger, f.config)
+	injector := newSecurityInjector(f.ctx, f.logger, f.config, nil)
 	assert.Nil(t, injector, "Injector should be nil when both features are disabled")
 }
 
 func TestIntegration_NewSecurityInjector_ProductEnabledOnly(t *testing.T) {
 	f := newIntegrationFixture(t, map[string]interface{}{
-		"appsec.proxy.enabled":                 true,
+		"appsec.proxy.enabled":                  true,
 		"cluster_agent.appsec.injector.enabled": false,
 	})
 	defer f.cleanup()
 
-	injector := newSecurityInjector(f.ctx, f.logger, f.config)
+	injector := newSecurityInjector(f.ctx, f.logger, f.config, nil)
 	assert.Nil(t, injector, "Injector should be nil when injection is disabled")
 }
 
 func TestIntegration_NewSecurityInjector_InjectorEnabledOnly(t *testing.T) {
 	f := newIntegrationFixture(t, map[string]interface{}{
-		"appsec.proxy.enabled":                 false,
+		"appsec.proxy.enabled":                  false,
 		"cluster_agent.appsec.injector.enabled": true,
 	})
 	defer f.cleanup()
 
-	injector := newSecurityInjector(f.ctx, f.logger, f.config)
+	injector := newSecurityInjector(f.ctx, f.logger, f.config, nil)
 	assert.Nil(t, injector, "Injector should be nil when product is disabled")
 }
 
 func TestIntegration_NewSecurityInjector_NoProxiesConfigured(t *testing.T) {
 	f := newIntegrationFixture(t, map[string]interface{}{
-		"appsec.proxy.enabled":                              true,
-		"cluster_agent.appsec.injector.enabled":             true,
-		"appsec.proxy.proxies":                              []string{},
-		"appsec.proxy.auto_detect":                          false,
+		"appsec.proxy.enabled":                                      true,
+		"cluster_agent.appsec.injector.enabled":                     true,
+		"appsec.proxy.proxies":                                      []string{},
+		"appsec.proxy.auto_detect":                                  false,
 		"cluster_agent.appsec.injector.processor.service.name":      "test-service",
 		"cluster_agent.appsec.injector.processor.service.namespace": "test-namespace",
 	})
 	defer f.cleanup()
 
-	injector := newSecurityInjector(f.ctx, f.logger, f.config)
+	injector := newSecurityInjector(f.ctx, f.logger, f.config, nil)
 	assert.Nil(t, injector, "Injector should be nil when no proxies are configured")
 }
 
 func TestIntegration_NewSecurityInjector_WithEnvoyGateway(t *testing.T) {
 	f := newIntegrationFixture(t, map[string]interface{}{
-		"appsec.proxy.enabled":                              true,
-		"cluster_agent.appsec.injector.enabled":             true,
-		"appsec.proxy.proxies":                              []string{"envoy-gateway"},
-		"appsec.proxy.auto_detect":                          false,
+		"appsec.proxy.enabled":                                      true,
+		"cluster_agent.appsec.injector.enabled":                     true,
+		"appsec.proxy.proxies":                                      []string{"envoy-gateway"},
+		"appsec.proxy.auto_detect":                                  false,
 		"cluster_agent.appsec.injector.processor.service.name":      "test-service",
 		"cluster_agent.appsec.injector.processor.service.namespace": "test-namespace",
-		"appsec.proxy.processor.address":                    "test-service.test-namespace.svc",
-		"appsec.proxy.processor.port":                       443,
-		"cluster_agent.appsec.injector.base_backoff":        "100ms",
-		"cluster_agent.appsec.injector.max_backoff":         "1s",
+		"appsec.proxy.processor.address":                            "test-service.test-namespace.svc",
+		"appsec.proxy.processor.port":                               443,
+		"cluster_agent.appsec.injector.base_backoff":                "100ms",
+		"cluster_agent.appsec.injector.max_backoff":                 "1s",
 	})
 	defer f.cleanup()
 
@@ -278,10 +278,10 @@ func TestIntegration_NewSecurityInjector_WithEnvoyGateway(t *testing.T) {
 
 func TestIntegration_NewSecurityInjector_UnsupportedProxy(t *testing.T) {
 	f := newIntegrationFixture(t, map[string]interface{}{
-		"appsec.proxy.enabled":                              true,
-		"cluster_agent.appsec.injector.enabled":             true,
-		"appsec.proxy.proxies":                              []string{"unsupported-proxy", "envoy-gateway"},
-		"appsec.proxy.auto_detect":                          false,
+		"appsec.proxy.enabled":                                      true,
+		"cluster_agent.appsec.injector.enabled":                     true,
+		"appsec.proxy.proxies":                                      []string{"unsupported-proxy", "envoy-gateway"},
+		"appsec.proxy.auto_detect":                                  false,
 		"cluster_agent.appsec.injector.processor.service.name":      "test-service",
 		"cluster_agent.appsec.injector.processor.service.namespace": "test-namespace",
 	})
@@ -297,16 +297,16 @@ func TestIntegration_NewSecurityInjector_UnsupportedProxy(t *testing.T) {
 
 func TestIntegration_CompilePatterns_WithValidConfig(t *testing.T) {
 	f := newIntegrationFixture(t, map[string]interface{}{
-		"appsec.proxy.enabled":                              true,
-		"cluster_agent.appsec.injector.enabled":             true,
-		"appsec.proxy.proxies":                              []string{"envoy-gateway"},
-		"appsec.proxy.auto_detect":                          false,
+		"appsec.proxy.enabled":                                      true,
+		"cluster_agent.appsec.injector.enabled":                     true,
+		"appsec.proxy.proxies":                                      []string{"envoy-gateway"},
+		"appsec.proxy.auto_detect":                                  false,
 		"cluster_agent.appsec.injector.processor.service.name":      "test-service",
 		"cluster_agent.appsec.injector.processor.service.namespace": "test-namespace",
-		"appsec.proxy.processor.address":                    "test-service.test-namespace.svc",
-		"appsec.proxy.processor.port":                       443,
-		"cluster_agent.appsec.injector.labels":              map[string]string{"app": "test"},
-		"cluster_agent.appsec.injector.annotations":         map[string]string{"annotation": "value"},
+		"appsec.proxy.processor.address":                            "test-service.test-namespace.svc",
+		"appsec.proxy.processor.port":                               443,
+		"cluster_agent.appsec.injector.labels":                      map[string]string{"app": "test"},
+		"cluster_agent.appsec.injector.annotations":                 map[string]string{"annotation": "value"},
 	})
 	defer f.cleanup()
 
@@ -335,11 +335,11 @@ func TestIntegration_CompilePatterns_WithValidConfig(t *testing.T) {
 	}
 
 	si := &securityInjector{
-		ctx:        f.ctx,
-		cancel:     f.cancel,
-		k8sClient:  f.dynamicClient,
-		logger:     f.logger,
-		config:     mockConfig,
+		ctx:         f.ctx,
+		cancel:      f.cancel,
+		k8sClient:   f.dynamicClient,
+		logger:      f.logger,
+		config:      mockConfig,
 		baseBackoff: 100 * time.Millisecond,
 		maxBackoff:  1 * time.Second,
 	}
@@ -361,9 +361,9 @@ func TestIntegration_CompilePatterns_WithValidConfig(t *testing.T) {
 
 func TestIntegration_EventHandler_AddEvent(t *testing.T) {
 	f := newIntegrationFixture(t, map[string]interface{}{
-		"appsec.proxy.enabled":                              true,
-		"cluster_agent.appsec.injector.enabled":             true,
-		"appsec.proxy.proxies":                              []string{"envoy-gateway"},
+		"appsec.proxy.enabled":                                      true,
+		"cluster_agent.appsec.injector.enabled":                     true,
+		"appsec.proxy.proxies":                                      []string{"envoy-gateway"},
 		"cluster_agent.appsec.injector.processor.service.name":      "test-service",
 		"cluster_agent.appsec.injector.processor.service.namespace": "test-namespace",
 	})
@@ -451,10 +451,10 @@ func TestIntegration_Start_DoubleStart(t *testing.T) {
 	injectorStartOnce = sync.Once{}
 
 	f := newIntegrationFixture(t, map[string]interface{}{
-		"appsec.proxy.enabled":                              true,
-		"cluster_agent.appsec.injector.enabled":             true,
-		"appsec.proxy.proxies":                              []string{"envoy-gateway"},
-		"appsec.proxy.auto_detect":                          false,
+		"appsec.proxy.enabled":                                      true,
+		"cluster_agent.appsec.injector.enabled":                     true,
+		"appsec.proxy.proxies":                                      []string{"envoy-gateway"},
+		"appsec.proxy.auto_detect":                                  false,
 		"cluster_agent.appsec.injector.processor.service.name":      "test-service",
 		"cluster_agent.appsec.injector.processor.service.namespace": "test-namespace",
 	})
@@ -469,7 +469,7 @@ func TestIntegration_Start_DoubleStart(t *testing.T) {
 		config: appsecconfig.Config{},
 	}
 
-	err := Start(f.ctx, f.logger, f.config)
+	err := Start(f.ctx, f.logger, f.config, nil)
 	assert.Error(t, err, "Should return error on second start")
 	assert.Contains(t, err.Error(), "can't start proxy injection twice", "Error should mention double start")
 
@@ -480,9 +480,9 @@ func TestIntegration_Start_DoubleStart(t *testing.T) {
 
 func TestIntegration_ConfigValidation_MissingProcessorName(t *testing.T) {
 	f := newIntegrationFixture(t, map[string]interface{}{
-		"appsec.proxy.enabled":                              true,
-		"cluster_agent.appsec.injector.enabled":             true,
-		"appsec.proxy.proxies":                              []string{"envoy-gateway"},
+		"appsec.proxy.enabled":                  true,
+		"cluster_agent.appsec.injector.enabled": true,
+		"appsec.proxy.proxies":                  []string{"envoy-gateway"},
 		// Missing processor service name
 		"cluster_agent.appsec.injector.processor.service.namespace": "test-namespace",
 	})
@@ -496,9 +496,9 @@ func TestIntegration_ConfigValidation_MissingProcessorName(t *testing.T) {
 
 func TestIntegration_ConfigValidation_DefaultNamespace(t *testing.T) {
 	f := newIntegrationFixture(t, map[string]interface{}{
-		"appsec.proxy.enabled":                              true,
-		"cluster_agent.appsec.injector.enabled":             true,
-		"appsec.proxy.proxies":                              []string{"envoy-gateway"},
+		"appsec.proxy.enabled":                                 true,
+		"cluster_agent.appsec.injector.enabled":                true,
+		"appsec.proxy.proxies":                                 []string{"envoy-gateway"},
 		"cluster_agent.appsec.injector.processor.service.name": "test-service",
 		// Missing namespace - should default
 	})

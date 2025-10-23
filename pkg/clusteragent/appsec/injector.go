@@ -20,8 +20,6 @@ import (
 	appsecconfig "github.com/DataDog/datadog-agent/pkg/clusteragent/appsec/config"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection"
 	workqueuetelemetry "github.com/DataDog/datadog-agent/pkg/util/workqueue/telemetry"
 
 	v1 "k8s.io/api/core/v1"
@@ -45,13 +43,13 @@ var (
 )
 
 // Start initializes and starts the proxy injector
-func Start(ctx context.Context, logger log.Component, datadogConfig config.Component) error {
+func Start(ctx context.Context, logger log.Component, datadogConfig config.Component, leader func() bool) error {
 	if injector != nil {
 		return fmt.Errorf("can't start proxy injection twice")
 	}
 
 	injectorStartOnce.Do(func() {
-		injector = newSecurityInjector(ctx, logger, datadogConfig)
+		injector = newSecurityInjector(ctx, logger, datadogConfig, leader)
 		if injector == nil {
 			return
 		}
@@ -92,10 +90,12 @@ type securityInjector struct {
 	leaderElectionEnabled bool
 	baseBackoff           time.Duration
 	maxBackoff            time.Duration
+
+	isLeader func() bool
 }
 
 // NewLanguagePatcher initializes and returns a new patcher with a dynamic k8s client
-func newSecurityInjector(ctx context.Context, logger log.Component, datadogConfig config.Component) *securityInjector {
+func newSecurityInjector(ctx context.Context, logger log.Component, datadogConfig config.Component, leader func() bool) *securityInjector {
 	config := appsecconfig.FromComponent(datadogConfig)
 	if !config.Injection.Enabled && !config.Product.Enabled {
 		logger.Info("Appsec proxy injection is disabled")
@@ -150,6 +150,8 @@ func newSecurityInjector(ctx context.Context, logger log.Component, datadogConfi
 		leaderElectionEnabled: datadogConfig.GetBool("leader_election"),
 		baseBackoff:           datadogConfig.GetDuration("cluster_agent.appsec.injector.base_backoff"),
 		maxBackoff:            datadogConfig.GetDuration("cluster_agent.appsec.injector.max_backoff"),
+
+		isLeader: leader,
 	}
 }
 
@@ -298,25 +300,6 @@ func (si *securityInjector) processWorkItem(proxyType appsecconfig.ProxyType,
 	}
 
 	return false
-}
-
-// isLeader checks if the current instance is the leader
-func (si *securityInjector) isLeader() bool {
-	if !si.leaderElectionEnabled {
-		// If leader election is disabled, we're always the leader
-		return true
-	}
-
-	common.GetResourcesNamespace()
-
-	leaderEngine, err := leaderelection.GetLeaderEngine()
-	if err != nil {
-		si.logger.Errorf("Failed to get leader engine: %v", err)
-		// If we can't determine leader status, don't patch to be safe
-		return false
-	}
-
-	return leaderEngine.IsLeader()
 }
 
 func (si *securityInjector) CompilePatterns() map[appsecconfig.ProxyType]appsecconfig.InjectionPattern {

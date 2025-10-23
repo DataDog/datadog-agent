@@ -515,10 +515,10 @@ func start(log log.Component,
 	}
 
 	if config.GetBool("appsec.proxy.enabled") && config.GetBool("cluster_agent.appsec.injector.enabled") {
-		if err := appsec.Start(mainCtx, log, config); err != nil {
+		if err := appsec.Start(mainCtx, log, config, le.IsLeader); err != nil {
 			log.Errorf("Cannot start appsec injector: %v", err)
 		}
-	} else {
+	} else if le.IsLeader() {
 		if err := appsec.Cleanup(mainCtx, log, config); err != nil {
 			log.Errorf("Cannot clean up appsec injector resources: %v", err)
 		}
