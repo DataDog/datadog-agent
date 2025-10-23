@@ -27,11 +27,16 @@ jobs:
   triage:
     runs-on: ubuntu-latest
     permissions:
-      contents: read
-      issues: write
+      id-token: write # This is required for getting the required OIDC token from GitHub
     environment:
       name: main
     steps:
+    - uses: DataDog/dd-octo-sts-action@acaa02eee7e3bb0839e4272dacb37b8f3b58ba80 # v1.0.3
+      id: octo-sts
+      with:
+        scope: DataDog/datadog-agent
+        policy: self.assign-issue.label-issue
+
     - name: Checkout repository
       uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
@@ -40,7 +45,7 @@ jobs:
       uses: anthropics/claude-code-action@ac1a3207f3f00b4a37e2f3a6f0935733c7c64651 # v1.0.0
       with:
         anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-        github_token: ${{ secrets.GITHUB_TOKEN }}
+        github_token: ${{ steps.octo-sts.outputs.token }}
         claude_args : --allowedTools "Read,Write,Bash(gh issue edit:*)"
         prompt: |
           # Datadog Agent - Intelligent Issue Triage System
@@ -67,9 +72,9 @@ jobs:
           6. **Documentation**: Comment on the issue explaining the triage decision
 
           ## Available Teams
-          Extract all the team name labels from the .github/CODEOWNERS file. 
+          Extract all the team name labels from the .github/CODEOWNERS file.
           If the name of the team is `@DataDog/agent-devx` in the CODEOWNERS file, its associated label will be `team/agent-devx`.
-          Generate all the label names using the example above. 
+          Generate all the label names using the example above.
           The github team name will be used to retrieve the slack channel once the team has been selected.
 
           ## Action Items
@@ -80,19 +85,19 @@ jobs:
           5. Apply the selected labels using the **Apply label** section below
           6. Retrieve the slack channel associated to the selected team in the tasks/libs/pipeline/github_slack_map.yaml
           7. Write TEAM, SLACK, CONFIDENCE and EXPLANATION in a local file claude.txt for the next step
-            
+
           **IMPORTANT:**
           - For `team=`, provide ONLY the team name without "team/" prefix (e.g., "container-platform", not "team/container-platform")
           - Use HIGH confidence if you're very sure, MEDIUM if reasonably sure, LOW if uncertain
           - If you don't find a corresponding slack channel, use #agent-devx
           - Keep explanation under 150 characters
-          
+
           ## Apply label
           Use gh issue edit to apply your selected labels
           DO NOT post any comments explaining your decision
           DO NOT communicate directly with users
           If no labels are clearly applicable, do not apply any labels
-          
+
           ## Output Format
           At the end of your analysis, provide a summary in this exact format:
 
@@ -124,10 +129,10 @@ jobs:
           echo "confidence=low" >> $GITHUB_OUTPUT
           echo "explanation=none" >> $GITHUB_OUTPUT
         fi
-  
+
     - name: Install dependencies
       run: npm install @slack/web-api
-    
+
     - name: Send Slack Message
       uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.1.0
       env:
