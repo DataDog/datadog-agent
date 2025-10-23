@@ -14,7 +14,7 @@ require (
 	github.com/DataDog/sketches-go v1.4.7
 	github.com/stretchr/testify v1.11.1
 	go.opentelemetry.io/collector/pdata v1.43.0
-	google.golang.org/protobuf v1.36.9
+	google.golang.org/protobuf v1.36.10
 )
 
 require (
