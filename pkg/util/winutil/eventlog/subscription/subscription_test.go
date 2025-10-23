@@ -118,6 +118,13 @@ func assertNoMoreEvents(t testing.TB, sub PullSubscription) error {
 	}
 }
 
+// newMockSaverWithBookmark creates a mock bookmark saver that returns the given bookmark XML on Load()
+func newMockSaverWithBookmark(bookmarkXML string) *evtbookmark.MockSaver {
+	mockSaver := new(evtbookmark.MockSaver)
+	mockSaver.On("Load").Return(bookmarkXML, nil).Once()
+	return mockSaver
+}
+
 func BenchmarkTestGetEventHandles(b *testing.B) {
 	optEnableDebugLogging()
 
@@ -539,10 +546,6 @@ func (s *GetEventsTestSuite) TestStartAfterBookmark() {
 	err := s.ti.GenerateEvents(s.eventSource, s.numEvents)
 	require.NoError(s.T(), err)
 
-	// Create bookmark
-	bookmark, err := evtbookmark.New(evtbookmark.WithWindowsEventLogAPI(s.ti.API()))
-	require.NoError(s.T(), err)
-
 	// Create sub
 	sub, err := startSubscription(s.T(), s.ti, s.channelPath,
 		WithStartAtOldestRecord(),
@@ -555,9 +558,9 @@ func (s *GetEventsTestSuite) TestStartAfterBookmark() {
 	err = assertNoMoreEvents(s.T(), sub)
 	require.NoError(s.T(), err)
 
-	// Update bookmark to last event
-	// Must do so before closing the subscription
-	bookmark.Update(events[len(events)-1].EventRecordHandle)
+	// Get bookmark XML from last event
+	bookmarkXML, err := bookmarkXMLFromEvent(s.ti.API(), events[len(events)-1])
+	require.NoError(s.T(), err)
 
 	// Close out this subscription
 	sub.Stop()
@@ -590,10 +593,13 @@ func (s *GetEventsTestSuite) TestStartAfterBookmark() {
 	//
 
 	// Create a new subscription starting from the bookmark
+	mockSaver := newMockSaverWithBookmark(bookmarkXML)
 	sub, err = startSubscription(s.T(), s.ti, s.channelPath,
-		WithStartAfterBookmark(bookmark),
+		WithBookmarkSaver(mockSaver),
+		WithStartMode("now"),
 	)
 	require.NoError(s.T(), err)
+	mockSaver.AssertExpectations(s.T())
 
 	// Get Events
 	_, err = getEventHandles(s.T(), s.ti, sub, s.numEvents)
@@ -613,10 +619,6 @@ func (s *GetEventsTestSuite) TestStartAfterBookmarkNotFoundWithoutStrictFlag() {
 	err := s.ti.GenerateEvents(s.eventSource, s.numEvents)
 	require.NoError(s.T(), err)
 
-	// Create bookmark
-	bookmark, err := evtbookmark.New(evtbookmark.WithWindowsEventLogAPI(s.ti.API()))
-	require.NoError(s.T(), err)
-
 	// Create sub
 	sub, err := startSubscription(s.T(), s.ti, s.channelPath,
 		WithStartAtOldestRecord(),
@@ -629,9 +631,9 @@ func (s *GetEventsTestSuite) TestStartAfterBookmarkNotFoundWithoutStrictFlag() {
 	err = assertNoMoreEvents(s.T(), sub)
 	require.NoError(s.T(), err)
 
-	// Update bookmark to last event
-	// Must do so before closing the subscription
-	bookmark.Update(events[len(events)-1].EventRecordHandle)
+	// Get bookmark XML from last event
+	bookmarkXML, err := bookmarkXMLFromEvent(s.ti.API(), events[len(events)-1])
+	require.NoError(s.T(), err)
 
 	// Close out this subscription
 	sub.Stop()
@@ -668,11 +670,14 @@ func (s *GetEventsTestSuite) TestStartAfterBookmarkNotFoundWithoutStrictFlag() {
 	//
 
 	// Create a new subscription starting from the bookmark
+	mockSaver := newMockSaverWithBookmark(bookmarkXML)
 	sub, err = startSubscription(s.T(), s.ti, s.channelPath,
-		WithStartAfterBookmark(bookmark),
+		WithBookmarkSaver(mockSaver),
+		WithStartMode("now"),
 	)
 	// strict flag not set so there should be no error
 	require.NoError(s.T(), err)
+	mockSaver.AssertExpectations(s.T())
 
 	// Get Events
 	_, err = getEventHandles(s.T(), s.ti, sub, s.numEvents)
@@ -691,10 +696,6 @@ func (s *GetEventsTestSuite) TestStartAfterBookmarkNotFoundWithStrictFlag() {
 	err := s.ti.GenerateEvents(s.eventSource, s.numEvents)
 	require.NoError(s.T(), err)
 
-	// Create bookmark
-	bookmark, err := evtbookmark.New(evtbookmark.WithWindowsEventLogAPI(s.ti.API()))
-	require.NoError(s.T(), err)
-
 	// Create sub
 	sub, err := startSubscription(s.T(), s.ti, s.channelPath,
 		WithStartAtOldestRecord(),
@@ -707,9 +708,9 @@ func (s *GetEventsTestSuite) TestStartAfterBookmarkNotFoundWithStrictFlag() {
 	err = assertNoMoreEvents(s.T(), sub)
 	require.NoError(s.T(), err)
 
-	// Update bookmark to last event
-	// Must do so before closing the subscription
-	bookmark.Update(events[len(events)-1].EventRecordHandle)
+	// Get bookmark XML from last event
+	bookmarkXML, err := bookmarkXMLFromEvent(s.ti.API(), events[len(events)-1])
+	require.NoError(s.T(), err)
 
 	// Close out this subscription
 	sub.Stop()
@@ -745,11 +746,13 @@ func (s *GetEventsTestSuite) TestStartAfterBookmarkNotFoundWithStrictFlag() {
 	// With bookmark not found and strict flag set subscription should fail
 	//
 
+	mockSaver := newMockSaverWithBookmark(bookmarkXML)
 	sub = NewPullSubscription(
 		s.channelPath,
 		"*",
 		WithWindowsEventLogAPI(s.ti.API()),
-		WithStartAfterBookmark(bookmark),
+		WithBookmarkSaver(mockSaver),
+		WithStartMode("now"),
 		WithSubscribeFlags(evtapi.EvtSubscribeStrict))
 	err = sub.Start()
 	require.Error(s.T(), err, "Subscription should return error when bookmark is not found and the Strict flag is set")
@@ -817,15 +820,12 @@ func (s *GetEventsTestSuite) TestInitializeBookmark_LoadPersistedBookmark() {
 
 	sub1.Stop()
 
-	// Create mock saver with pre-saved bookmark
-	mockSaver := new(evtbookmark.MockSaver)
-	mockSaver.On("Load").Return(bookmarkXML, nil).Once()
-
 	// Generate more events while subscription is stopped
 	err = s.ti.GenerateEvents(s.eventSource, s.numEvents)
 	require.NoError(s.T(), err)
 
 	// Create new subscription with the mock saver providing the bookmark XML
+	mockSaver := newMockSaverWithBookmark(bookmarkXML)
 	sub2, err := startSubscription(s.T(), s.ti, s.channelPath,
 		WithBookmarkSaver(mockSaver),
 		WithStartMode("now"))
@@ -903,9 +903,7 @@ func (s *GetEventsTestSuite) TestInitializeBookmark_StartModeNowWithEvents() {
 	require.NoError(s.T(), err)
 
 	// Restart with the saved bookmark XML
-	mockSaver2 := new(evtbookmark.MockSaver)
-	mockSaver2.On("Load").Return(savedBookmark, nil).Once()
-
+	mockSaver2 := newMockSaverWithBookmark(savedBookmark)
 	sub2, err := startSubscription(s.T(), s.ti, s.channelPath,
 		WithBookmarkSaver(mockSaver2),
 		WithStartMode("now"))
@@ -951,9 +949,7 @@ func (s *GetEventsTestSuite) TestInitializeBookmark_StartModeNowEmptyLog() {
 	require.NoError(s.T(), err)
 
 	// Restart with the saved bookmark XML
-	mockSaver2 := new(evtbookmark.MockSaver)
-	mockSaver2.On("Load").Return(savedBookmark, nil).Once()
-
+	mockSaver2 := newMockSaverWithBookmark(savedBookmark)
 	sub2, err := startSubscription(s.T(), s.ti, s.channelPath,
 		WithBookmarkSaver(mockSaver2),
 		WithStartMode("now"))
@@ -1020,6 +1016,141 @@ func (s *GetEventsTestSuite) TestInitializeBookmark_NoSaverProvided() {
 
 	// Should collect new events
 	_, err = getEventHandles(s.T(), s.ti, sub, s.numEvents)
+	require.NoError(s.T(), err)
+	err = assertNoMoreEvents(s.T(), sub)
+	require.NoError(s.T(), err)
+}
+
+// Test that stopping and restarting the same subscription retains bookmark via saver
+func (s *GetEventsTestSuite) TestStartStopRestart_RetainsBookmarkWithSaver() {
+	// Generate initial events
+	err := s.ti.GenerateEvents(s.eventSource, s.numEvents)
+	require.NoError(s.T(), err)
+
+	// Create a mock saver to track bookmark updates
+	mockSaver := new(evtbookmark.MockSaver)
+	mockSaver.On("Load").Return("", nil).Once() // First start, no saved bookmark
+
+	// Create subscription with bookmarksaver using "oldest" mode
+	sub := NewPullSubscription(
+		s.channelPath,
+		"*",
+		WithWindowsEventLogAPI(s.ti.API()),
+		WithBookmarkSaver(mockSaver),
+		WithStartMode("oldest"))
+
+	// Start subscription
+	err = sub.Start()
+	require.NoError(s.T(), err)
+
+	// Verify initial Load was called
+	mockSaver.AssertExpectations(s.T())
+
+	// Read all the initial events and save bookmark
+	events, err := getEventHandles(s.T(), s.ti, sub, s.numEvents)
+	require.NoError(s.T(), err)
+
+	// Create bookmark from last read event
+	savedBookmarkXML, err := bookmarkXMLFromEvent(s.ti.API(), events[len(events)-1])
+	require.NoError(s.T(), err)
+
+	// Stop subscription
+	sub.Stop()
+
+	// Generate more events while stopped
+	err = s.ti.GenerateEvents(s.eventSource, s.numEvents)
+	require.NoError(s.T(), err)
+
+	// Restart the same subscription with saved bookmark
+	mockSaver.On("Load").Return(savedBookmarkXML, nil).Once()
+	err = sub.Start()
+	require.NoError(s.T(), err)
+	mockSaver.AssertExpectations(s.T())
+
+	// Should only read the new events generated while stopped
+	_, err = getEventHandles(s.T(), s.ti, sub, s.numEvents)
+	require.NoError(s.T(), err)
+	err = assertNoMoreEvents(s.T(), sub)
+	require.NoError(s.T(), err)
+}
+
+// Test multiple start/stop cycles
+func (s *GetEventsTestSuite) TestStartStopRestart_MultipleCycles() {
+	var savedBookmark string
+	mockSaver := new(evtbookmark.MockSaver)
+	mockSaver.On("Load").Return("", nil).Once() // Initial start
+	mockSaver.On("Save", mock.MatchedBy(func(xml string) bool {
+		savedBookmark = xml
+		return len(xml) > 0
+	})).Return(nil) // Can be called multiple times
+
+	// Create subscription
+	sub := NewPullSubscription(
+		s.channelPath,
+		"*",
+		WithWindowsEventLogAPI(s.ti.API()),
+		WithBookmarkSaver(mockSaver),
+		WithStartMode("now"))
+
+	// Cycle through multiple start/stop iterations
+	for i := 0; i < 3; i++ {
+		if i > 0 {
+			// Load the saved bookmark on subsequent starts
+			mockSaver.On("Load").Return(savedBookmark, nil).Once()
+		}
+
+		err := sub.Start()
+		require.NoError(s.T(), err, "Cycle %d: Start failed", i)
+
+		// Generate events
+		err = s.ti.GenerateEvents(s.eventSource, s.numEvents)
+		require.NoError(s.T(), err, "Cycle %d: GenerateEvents failed", i)
+
+		// Read events
+		_, err = getEventHandles(s.T(), s.ti, sub, s.numEvents)
+		require.NoError(s.T(), err, "Cycle %d: getEventHandles failed", i)
+
+		// Stop
+		sub.Stop()
+	}
+
+	mockSaver.AssertExpectations(s.T())
+}
+
+// Test start/stop without bookmarksaver
+func (s *GetEventsTestSuite) TestStartStopRestart_NoSaver() {
+	// Generate initial events
+	err := s.ti.GenerateEvents(s.eventSource, s.numEvents)
+	require.NoError(s.T(), err)
+
+	// Create subscription without saver, using oldest mode
+	sub := NewPullSubscription(
+		s.channelPath,
+		"*",
+		WithWindowsEventLogAPI(s.ti.API()),
+		WithStartMode("oldest"))
+
+	// Start subscription
+	err = sub.Start()
+	require.NoError(s.T(), err)
+
+	// Read all events
+	_, err = getEventHandles(s.T(), s.ti, sub, s.numEvents)
+	require.NoError(s.T(), err)
+
+	// Stop subscription
+	sub.Stop()
+
+	// Generate more events while stopped
+	err = s.ti.GenerateEvents(s.eventSource, s.numEvents)
+	require.NoError(s.T(), err)
+
+	// Restart the same subscription
+	err = sub.Start()
+	require.NoError(s.T(), err)
+
+	// Without saver, should restart from oldest and read ALL events (both batches)
+	_, err = getEventHandles(s.T(), s.ti, sub, 2*s.numEvents)
 	require.NoError(s.T(), err)
 	err = assertNoMoreEvents(s.T(), sub)
 	require.NoError(s.T(), err)

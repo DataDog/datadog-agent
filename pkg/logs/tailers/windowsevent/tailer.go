@@ -321,7 +321,6 @@ func (t *Tailer) handleEvent(eventRecordHandle evtapi.EventRecordHandle) {
 	if err == nil {
 		msg.Origin.Identifier = t.Identifier()
 		msg.Origin.Offset = offset
-		t.sub.SetBookmark(t.bookmark)
 	} else {
 		log.Warnf("Failed to render bookmark: %v for event %s", err, xml)
 	}

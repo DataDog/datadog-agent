@@ -341,7 +341,7 @@ func (api *API) EvtRenderBookmark(b evtapi.EventBookmarkHandle) ([]uint16, error
 		}
 		return res, nil
 	}
-	xml := fmt.Sprintf("<BookmarkList><Bookmark EventRecordID='%d' /></BookmarkList>", bookmark.eventRecordID)
+	xml := fmt.Sprintf("<BookmarkList><Bookmark RecordId=\"%d\" /></BookmarkList>", bookmark.eventRecordID)
 	res, err := windows.UTF16FromString(xml)
 	if err != nil {
 		return nil, err
@@ -435,8 +435,8 @@ func (api *API) EvtCreateBookmark(xml string) (evtapi.EventBookmarkHandle, error
 	}
 
 	// parse Xml to get record ID using regex
-	// Example: ...<Bookmark EventRecordID='123' />...
-	re := regexp.MustCompile(`EventRecordID='(\d+)'`)
+	// Example: ...<Bookmark RecordId='123' />...
+	re := regexp.MustCompile(`RecordId="(\d+)"`)
 	match := re.FindStringSubmatch(xml)
 	if len(match) != 2 {
 		return evtapi.EventBookmarkHandle(0), fmt.Errorf("invalid bookmark XML")

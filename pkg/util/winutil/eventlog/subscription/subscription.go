@@ -53,9 +53,6 @@ type PullSubscription interface {
 
 	// Error returns the last error returned from the subscription, for example from EvtNext
 	Error() error
-
-	// Set the subscription to "StartAfterBookmark"
-	SetBookmark(bookmark evtbookmark.Bookmark)
 }
 
 type pullSubscription struct {
@@ -83,7 +80,6 @@ type pullSubscription struct {
 	// EvtSubscribe args
 	subscribeOriginFlag uint
 	subscribeFlags      uint
-	bookmark            evtbookmark.Bookmark
 	session             evtsession.Session
 
 	// Bookmark initialization
@@ -167,18 +163,6 @@ func WithWindowsEventLogAPI(api evtapi.API) PullSubscriptionOption {
 	}
 }
 
-// WithStartAfterBookmark sets the bookmark for the subscription.
-// The subscription will start reading the event log from the record identified by the bookmark.
-// The subscription will not automatically update the bookmark. The user should update the
-// bookmark to an event record returned from GetEvents() when it makes sense for the user.
-// https://learn.microsoft.com/en-us/windows/win32/wes/bookmarking-events
-// https://learn.microsoft.com/en-us/windows/win32/api/winevt/ne-winevt-evt_subscribe_flags
-func WithStartAfterBookmark(bookmark evtbookmark.Bookmark) PullSubscriptionOption {
-	return func(q *pullSubscription) {
-		q.SetBookmark(bookmark)
-	}
-}
-
 // WithStartAtOldestRecord will start the subscription from the oldest record in the event log.
 // https://learn.microsoft.com/en-us/windows/win32/api/winevt/ne-winevt-evt_subscribe_flags
 func WithStartAtOldestRecord() PullSubscriptionOption {
@@ -205,10 +189,14 @@ func WithSession(session evtsession.Session) PullSubscriptionOption {
 }
 
 // WithBookmarkSaver provides an interface for the subscription to load and save persisted bookmarks.
-// On Start(), the subscription will attempt to load a persisted bookmark. If successful, it will be
-// used to start the subscription from that position. If loading fails or returns an empty string,
-// the subscription will use the startMode to determine where to start reading events.
-// When a bookmark is created by FromLatestEvent (start mode "now"), it will be immediately persisted.
+//
+// On Start(), the subscription will attempt to load a persisted bookmark.
+//   - If successful, the subscription starts from that position.
+//   - If loading fails or returns an empty string, the subscription uses the startMode to determine where to start reading events.
+//     When a bookmark is created by FromLatestEvent (start mode "now"), it is immediately persisted.
+//
+// The user should update the bookmark to an event record returned from GetEvents() when it makes sense for the user.
+// https://learn.microsoft.com/en-us/windows/win32/wes/bookmarking-events
 func WithBookmarkSaver(saver evtbookmark.Saver) PullSubscriptionOption {
 	return func(q *pullSubscription) {
 		q.bookmarkSaver = saver
@@ -244,25 +232,23 @@ func (q *pullSubscription) Running() bool {
 	return q.started
 }
 
-func (q *pullSubscription) SetBookmark(bookmark evtbookmark.Bookmark) {
-	q.bookmark = bookmark
-	q.subscribeOriginFlag = evtapi.EvtSubscribeStartAfterBookmark
-}
-
 func (q *pullSubscription) Start() error {
 
 	if q.started {
 		return fmt.Errorf("Query subscription is already started")
 	}
 
-	err := q.initializeBookmark()
+	// Initialize bookmark (may load from saver or create new)
+	bookmark, err := q.initializeBookmark()
 	if err != nil {
 		return err
 	}
 
 	var bookmarkHandle evtapi.EventBookmarkHandle
-	if q.bookmark != nil {
-		bookmarkHandle = q.bookmark.Handle()
+	if bookmark != nil {
+		// Close bookmark when we're done with it
+		defer bookmark.Close()
+		bookmarkHandle = bookmark.Handle()
 	}
 
 	// Get session handle, if one was provided
@@ -320,12 +306,7 @@ func (q *pullSubscription) Start() error {
 	return nil
 }
 
-func (q *pullSubscription) initializeBookmark() error {
-	if q.bookmark != nil {
-		// Bookmark already initialized
-		return nil
-	}
-
+func (q *pullSubscription) initializeBookmark() (evtbookmark.Bookmark, error) {
 	// Try to load persisted bookmark if saver provided
 	if q.bookmarkSaver != nil {
 		bookmarkXML, err := q.bookmarkSaver.Load()
@@ -336,18 +317,18 @@ func (q *pullSubscription) initializeBookmark() error {
 				evtbookmark.FromXML(bookmarkXML))
 			if err == nil {
 				pkglog.Debug("Loaded persisted bookmark from saver")
-				q.SetBookmark(bookmark)
-				return nil
+				q.subscribeOriginFlag = evtapi.EvtSubscribeStartAfterBookmark
+				return bookmark, nil
 			}
 			pkglog.Warnf("Failed to load bookmark from XML: %v", err)
 		}
 	}
 
-	// If no bookmark and startMode is "oldest", we don't need to do anything
+	// If no bookmark and startMode is "oldest", we don't need to create a bookmark
 	// we will always start from the oldest event in the log, and will create a bookmark
 	// once we read an event.
 	if q.startMode == "oldest" {
-		return nil
+		return nil, nil
 	}
 
 	// If no bookmark and startMode is "now", create from latest event and save it
@@ -356,13 +337,13 @@ func (q *pullSubscription) initializeBookmark() error {
 		return q.initializeBookmarkFromLatestEvent()
 	}
 
-	return nil
+	return nil, nil
 }
 
-func (q *pullSubscription) initializeBookmarkFromLatestEvent() error {
+func (q *pullSubscription) initializeBookmarkFromLatestEvent() (evtbookmark.Bookmark, error) {
 	if q.bookmarkSaver == nil {
 		// This function doesn't make sense if we're not going to save the bookmark
-		return fmt.Errorf("bookmark saver not provided")
+		return nil, fmt.Errorf("bookmark saver not provided")
 	}
 
 	bookmark, err := evtbookmark.FromLatestEvent(q.eventLogAPI, q.channelPath, q.query)
@@ -370,27 +351,19 @@ func (q *pullSubscription) initializeBookmarkFromLatestEvent() error {
 		if errors.Is(err, evtbookmark.ErrNoMatchingEvents) {
 			// No events found - log and continue with EvtSubscribeToFutureEvents
 			pkglog.Debugf("No matching events found for channel '%s', starting subscription from future events", q.channelPath)
-			// Save an empty bookmark
-			// An empty bookmark will cause the subscription to start from the beginning of the log, this behavior seems undocumented.
-			// This is useful in this case, we just queried the log and we know that there are no matching events,
-			// so next Agent start can read from the beginning of the log without worrying about duplicating or sending old events.
-			// This behavior is tested by TestInitializeBookmarkStartModeNowEmptyLog
-			// If we do not save the empty bookmark now, then we could miss events that occur when the agent isn't running. Though this would
-			// only be an issue the first time. Once there are matching events the bookmark will be created and saved.
-			// Note: empty bookmark refers to an empty BookmarkList XML field, not an empty string.
-			bookmark, err = evtbookmark.New(evtbookmark.WithWindowsEventLogAPI(q.eventLogAPI))
-			if err != nil {
-				return fmt.Errorf("failed to create empty bookmark: %w", err)
+			// Persist an empty bookmark, see documentation for persistEmptyBookmark for more details.
+			if err := persistEmptyBookmark(q.eventLogAPI, q.bookmarkSaver); err != nil {
+				pkglog.Warnf("Failed to persist empty bookmark: %v", err)
 			}
-			defer bookmark.Close()
-			// Continue to start subscription (no bookmark, will use subscribeOriginFlag)
-		} else {
-			return fmt.Errorf("failed to create bookmark from latest event: %w", err)
+			// Return nil bookmark - we'll start with EvtSubscribeToFutureEvents
+			return nil, nil
 		}
-	} else {
-		pkglog.Debug("Created bookmark from latest event")
-		q.SetBookmark(bookmark)
+		return nil, fmt.Errorf("failed to create bookmark from latest event: %w", err)
 	}
+
+	// We have a bookmark from the latest event
+	pkglog.Debug("Created bookmark from latest event")
+	q.subscribeOriginFlag = evtapi.EvtSubscribeStartAfterBookmark
 
 	// Immediately persist the bookmark
 	bookmarkXML, err := bookmark.Render()
@@ -400,7 +373,7 @@ func (q *pullSubscription) initializeBookmarkFromLatestEvent() error {
 		}
 	}
 
-	return nil
+	return bookmark, nil
 }
 
 func (q *pullSubscription) Stop() {
@@ -527,4 +500,32 @@ func safeCloseNullHandle(h windows.Handle) {
 	if h != windows.Handle(0) {
 		windows.CloseHandle(h)
 	}
+}
+
+// persistEmptyBookmark saves an empty bookmark to the bookmark saver.
+//
+// An empty bookmark will cause the subscription to start from the beginning of the log. This behavior seems undocumented.
+// This is useful for handling ErrNoMatchingEvents from FromLatestEvent. We just queried the log and we know that there are no matching events,
+// so next Agent start can read from the beginning of the log without worrying about duplicating or sending old events.
+// This behavior is tested by TestInitializeBookmark_StartModeNowEmptyLog
+// If we do not save the empty bookmark now, then we could miss events that occur when the agent is not running. Though this would
+// only be an issue the first time. Once there are matching events then FromLatestEvent will see the latset and create a bookmark.
+// Note: empty bookmark refers to an empty BookmarkList XML field, not an empty string.
+func persistEmptyBookmark(api evtapi.API, bookmarkSaver evtbookmark.Saver) error {
+	emptyBookmark, err := evtbookmark.New(evtbookmark.WithWindowsEventLogAPI(api))
+	if err != nil {
+		return fmt.Errorf("failed to create empty bookmark: %w", err)
+	}
+	defer emptyBookmark.Close()
+
+	bookmarkXML, err := emptyBookmark.Render()
+	if err != nil {
+		return fmt.Errorf("failed to render empty bookmark: %w", err)
+	}
+
+	if err := bookmarkSaver.Save(bookmarkXML); err != nil {
+		return fmt.Errorf("failed to persist empty bookmark: %w", err)
+	}
+
+	return nil
 }
