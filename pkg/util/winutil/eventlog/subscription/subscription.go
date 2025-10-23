@@ -307,21 +307,24 @@ func (q *pullSubscription) Start() error {
 }
 
 func (q *pullSubscription) initializeBookmark() (evtbookmark.Bookmark, error) {
-	// Try to load persisted bookmark if saver provided
-	if q.bookmarkSaver != nil {
-		bookmarkXML, err := q.bookmarkSaver.Load()
-		if err == nil && bookmarkXML != "" {
-			// Load bookmark from XML
-			bookmark, err := evtbookmark.New(
-				evtbookmark.WithWindowsEventLogAPI(q.eventLogAPI),
-				evtbookmark.FromXML(bookmarkXML))
-			if err == nil {
-				pkglog.Debug("Loaded persisted bookmark from saver")
-				q.subscribeOriginFlag = evtapi.EvtSubscribeStartAfterBookmark
-				return bookmark, nil
-			}
-			pkglog.Warnf("Failed to load bookmark from XML: %v", err)
+	if q.bookmarkSaver == nil {
+		// no bookmark saver provided, so we can't load a bookmark
+		return nil, nil
+	}
+
+	// Try to load persisted bookmark
+	bookmarkXML, err := q.bookmarkSaver.Load()
+	if err == nil && bookmarkXML != "" {
+		// Load bookmark from XML
+		bookmark, err := evtbookmark.New(
+			evtbookmark.WithWindowsEventLogAPI(q.eventLogAPI),
+			evtbookmark.FromXML(bookmarkXML))
+		if err == nil {
+			pkglog.Debug("Loaded persisted bookmark from saver")
+			q.subscribeOriginFlag = evtapi.EvtSubscribeStartAfterBookmark
+			return bookmark, nil
 		}
+		pkglog.Warnf("Failed to load bookmark from XML: %v", err)
 	}
 
 	// If no bookmark and startMode is "oldest", we don't need to create a bookmark
@@ -332,7 +335,7 @@ func (q *pullSubscription) initializeBookmark() (evtbookmark.Bookmark, error) {
 	}
 
 	// If no bookmark and startMode is "now", create from latest event and save it
-	if q.bookmarkSaver != nil && q.startMode == "now" {
+	if q.startMode == "now" {
 		pkglog.Debugf("No bookmark found, creating from latest event for channel '%s'", q.channelPath)
 		return q.initializeBookmarkFromLatestEvent()
 	}
