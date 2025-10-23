@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import io
 import os
+import os.path
+import platform
 import sys
 from pathlib import Path
 from typing import cast
@@ -72,7 +74,7 @@ def go_build(
     cmd += f" {entrypoint}"
 
     if check_deadcode:
-        result = _handle_pipe_to_whydeadcode(ctx, cmd, env)
+        result = _handle_pipe_to_whydeadcode(ctx, os.path.basename(entrypoint), cmd, env)
     else:
         result = cast(Result, ctx.run(cmd, env=env))
 
@@ -88,7 +90,7 @@ def go_build(
     return result
 
 
-def _handle_pipe_to_whydeadcode(ctx: Context, cmd: str, env: dict[str, str] | None = None) -> Result:
+def _handle_pipe_to_whydeadcode(ctx: Context, name: str, cmd: str, env: dict[str, str] | None = None) -> Result:
     # use a custom runner to read stderr in bigger chunks as dumpdep output is huge
     # and invoke is super slow by default when writing to stdout/stderr
     # https://github.com/pyinvoke/invoke/issues/774
@@ -115,8 +117,10 @@ def _handle_pipe_to_whydeadcode(ctx: Context, cmd: str, env: dict[str, str] | No
         Result, runner.run("whydeadcode", in_stream=CustomReader(result.stderr), warn=True, hide="out", env=env)
     )
     if whydeadcoderes.stdout:
+        arch = platform.machine()
+        osname = sys.platform
         print(
-            f"dead code elimination is disabled by the following call stack (only the first one is guaranteed to be a true positive):\n{whydeadcoderes.stdout}"
+            f"dead code elimination is disabled for {name} on {osname} {arch} by the following call stack (only the first one is guaranteed to be a true positive):\n{whydeadcoderes.stdout}"
         )
 
     return result
