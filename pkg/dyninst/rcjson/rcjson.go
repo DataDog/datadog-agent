@@ -12,6 +12,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"iter"
 	"math"
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
@@ -50,8 +51,8 @@ func UnmarshalProbe(data []byte) (Probe, error) {
 	}
 	if err := json.Unmarshal(data, v); err != nil {
 		return nil, fmt.Errorf(
-			"UnmarshalProbe: id: %s, kind: %v: failed to parse json: %w",
-			c.ID, v.GetKind(), err,
+			"UnmarshalProbe: id: %s, type: %s: failed to parse json: %w",
+			c.ID, c.Type, err,
 		)
 	}
 	return v, nil
@@ -194,6 +195,9 @@ func (m *MetricProbe) GetThrottleConfig() ir.ThrottleConfig {
 // GetKind returns the kind of the probe.
 func (m *MetricProbe) GetKind() ir.ProbeKind { return ir.ProbeKindMetric }
 
+// GetTemplate returns the template of the probe.
+func (m *MetricProbe) GetTemplate() ir.TemplateDefinition { return nil }
+
 // LogProbeCommon groups the configuration fields that are shared between
 // LogProbe and SnapshotProbe.
 //
@@ -213,8 +217,79 @@ type LogProbeCommon struct {
 	// Template is the message template of the log to emit.
 	Template string `json:"template"`
 	// Segments are the segments of the log message template.
-	Segments []json.RawMessage `json:"segments"`
+	Segments SegmentList `json:"segments"`
 }
+
+// TemplateSegment is a segment of a probe template.
+type TemplateSegment interface {
+	TemplateSegment() // marker method
+}
+
+// SegmentList is a list of Segments which can each be either a StringSegment or a JSONSegment
+type SegmentList []TemplateSegment
+
+type segment struct {
+	String string          `json:"str"`
+	DSL    string          `json:"dsl"`
+	JSON   json.RawMessage `json:"json"`
+}
+
+// UnmarshalJSON implements custom JSON unmarshaling for SegmentList
+func (sl *SegmentList) UnmarshalJSON(data []byte) error {
+	var segmentData []segment
+	if err := json.Unmarshal(data, &segmentData); err != nil {
+		return err
+	}
+
+	if len(segmentData) == 0 {
+		*sl = nil
+		return nil
+	}
+
+	*sl = make([]TemplateSegment, len(segmentData))
+	for i, segment := range segmentData {
+		if segment.String != "" {
+			(*sl)[i] = StringSegment(segment.String)
+		} else if segment.DSL != "" {
+			(*sl)[i] = JSONSegment{DSL: segment.DSL, JSON: segment.JSON}
+		} else {
+			return fmt.Errorf("unknown segment type at index %d: %s", i, segment)
+		}
+	}
+	return nil
+}
+
+// StringSegment is a string literal to be used as a segment of a probe template.
+type StringSegment string
+
+// GetString implements the ir.TemplateSegmentString interface
+func (s StringSegment) GetString() string {
+	return string(s)
+}
+
+// TemplateSegment implements the TemplateSegment interface.
+func (s StringSegment) TemplateSegment() {}
+
+// JSONSegment is a JSON object to be used as a segment of a probe template.
+type JSONSegment struct {
+	// JSON is the AST of the DSL segment.
+	JSON json.RawMessage `json:"json"`
+	// DSL is the raw expression language segment.
+	DSL string `json:"dsl"`
+}
+
+// GetDSL implements the ir.TemplateSegmentExpression interface
+func (s JSONSegment) GetDSL() string {
+	return s.DSL
+}
+
+// GetJSON implements the ir.TemplateSegmentExpression interface
+func (s JSONSegment) GetJSON() json.RawMessage {
+	return s.JSON
+}
+
+// TemplateSegment implements the TemplateSegment interface.
+func (s JSONSegment) TemplateSegment() {}
 
 // GetCaptureConfig returns the capture configuration of the probe.
 func (l *LogProbeCommon) GetCaptureConfig() ir.CaptureConfig {
@@ -249,6 +324,11 @@ func (l *LogProbe) GetThrottleConfig() ir.ThrottleConfig {
 // GetKind returns the kind of the probe.
 func (l *LogProbe) GetKind() ir.ProbeKind { return ir.ProbeKindLog }
 
+// GetTemplate returns the template of the probe.
+func (l *LogProbe) GetTemplate() ir.TemplateDefinition {
+	return &logProbeTemplate{template: l.Template, segments: l.Segments}
+}
+
 // SnapshotProbe represents a probe that captures a complete snapshot of the
 // local variables and object graph when it is triggered. It behaves similarly
 // to a log probe with `captureSnapshot=true`, but it is treated as a distinct
@@ -278,6 +358,11 @@ func (l *SnapshotProbe) GetThrottleConfig() ir.ThrottleConfig {
 	return (*snapshotThrottleConfig)(l.Sampling)
 }
 
+// GetTemplate returns the template of the probe.
+func (l *SnapshotProbe) GetTemplate() ir.TemplateDefinition {
+	return &logProbeTemplate{template: l.Template, segments: l.Segments}
+}
+
 // SpanProbe is a probe that decorates a span.
 type SpanProbe struct {
 	ProbeCommon
@@ -298,6 +383,9 @@ func (s *SpanProbe) GetKind() ir.ProbeKind { return ir.ProbeKindSpan }
 
 // GetThrottleConfig returns the throttle configuration of the probe.
 func (s *SpanProbe) GetThrottleConfig() ir.ThrottleConfig { return infiniteThrottleConfig{} }
+
+// GetTemplate returns the template of the probe.
+func (s *SpanProbe) GetTemplate() ir.TemplateDefinition { return nil }
 
 // Exists so that we can make accessors infallible. In practice, valid
 // probes won't return this.
@@ -404,6 +492,26 @@ var _ ir.ThrottleConfig = infiniteThrottleConfig{}
 
 func (infiniteThrottleConfig) GetThrottlePeriodMs() uint32 { return 1000 }
 func (infiniteThrottleConfig) GetThrottleBudget() int64    { return math.MaxInt64 }
+
+// logProbeTemplate implements ir.TemplateDefinition for LogProbe
+type logProbeTemplate struct {
+	template string
+	segments []TemplateSegment
+}
+
+func (l *logProbeTemplate) GetTemplateString() string {
+	return l.template
+}
+
+func (l *logProbeTemplate) GetSegments() iter.Seq[ir.TemplateSegmentDefinition] {
+	return func(yield func(ir.TemplateSegmentDefinition) bool) {
+		for _, seg := range l.segments {
+			if !yield(seg) {
+				return
+			}
+		}
+	}
+}
 
 func validateWhere(where *Where) error {
 	if where == nil {

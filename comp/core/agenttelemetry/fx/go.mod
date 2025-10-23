@@ -40,7 +40,6 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/executable v0.70.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.70.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/hostinfo v0.0.0-00010101000000-000000000000 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/hostname/validate v0.70.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/http v0.70.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/log v0.70.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/option v0.70.0 // indirect
@@ -103,7 +102,7 @@ require (
 	golang.org/x/sys v0.37.0 // indirect
 	golang.org/x/text v0.30.0 // indirect
 	golang.org/x/time v0.14.0 // indirect
-	google.golang.org/protobuf v1.36.9 // indirect
+	google.golang.org/protobuf v1.36.10 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )

@@ -11,12 +11,20 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 )
+
+var tplCel = integration.Config{
+	Name: "check-cel",
+	CELSelector: workloadfilter.Rules{
+		KubeEndpoints: []string{`v`},
+	},
+}
 
 func TestBuildConfigStore(t *testing.T) {
 	tpl1 := &integration.Config{
@@ -64,13 +72,13 @@ func TestBuildConfigStore(t *testing.T) {
 			want: map[string]*epConfig{
 				"ep-ns1/ep-name1": {
 					templates:     []integration.Config{*tpl1},
-					ep:            nil,
+					eps:           nil,
 					shouldCollect: false,
 					resolveMode:   kubeEndpointResolveAuto,
 				},
 				"ep-ns2/ep-name2": {
 					templates:     []integration.Config{*tpl2},
-					ep:            nil,
+					eps:           nil,
 					shouldCollect: false,
 					resolveMode:   kubeEndpointResolveAuto,
 				},
@@ -82,7 +90,19 @@ func TestBuildConfigStore(t *testing.T) {
 			want: map[string]*epConfig{
 				"ep-ns3/ep-name3": {
 					templates:     []integration.Config{*tpl3},
-					ep:            nil,
+					eps:           nil,
+					shouldCollect: false,
+					resolveMode:   kubeEndpointResolveAuto,
+				},
+			},
+		},
+		{
+			name:      "with cel template",
+			templates: []integration.Config{tplCel},
+			want: map[string]*epConfig{
+				celEndpointID: {
+					templates:     []integration.Config{tplCel},
+					eps:           nil,
 					shouldCollect: false,
 					resolveMode:   kubeEndpointResolveAuto,
 				},
@@ -125,10 +145,17 @@ func TestStoreInsertEp(t *testing.T) {
 		},
 		{
 			name:          "found",
-			epConfigs:     map[string]*epConfig{"ns1/ep1": {templates: []integration.Config{tpl}, ep: nil, shouldCollect: false}},
+			epConfigs:     map[string]*epConfig{"ns1/ep1": {templates: []integration.Config{tpl}, eps: nil, shouldCollect: false}},
 			ep:            ep1,
 			want:          true,
-			wantEpConfigs: map[string]*epConfig{"ns1/ep1": {templates: []integration.Config{tpl}, ep: ep1, shouldCollect: true}},
+			wantEpConfigs: map[string]*epConfig{"ns1/ep1": {templates: []integration.Config{tpl}, eps: map[*v1.Endpoints]struct{}{ep1: {}}, shouldCollect: true}},
+		},
+		{
+			name:          "found cel",
+			epConfigs:     map[string]*epConfig{celEndpointID: {templates: []integration.Config{tplCel}, eps: nil, shouldCollect: false}},
+			ep:            ep1,
+			want:          true,
+			wantEpConfigs: map[string]*epConfig{celEndpointID: {templates: []integration.Config{tplCel}, eps: map[*v1.Endpoints]struct{}{ep1: {}}, shouldCollect: true}},
 		},
 	}
 	for _, tt := range tests {
@@ -171,6 +198,19 @@ func TestStoreGenerateConfigs(t *testing.T) {
 		},
 	}
 
+	// Additional endpoint for CEL test
+	ep2 := &v1.Endpoints{
+		ObjectMeta: metav1.ObjectMeta{Name: "ep2", Namespace: "ns2"},
+		Subsets: []v1.EndpointSubset{
+			{
+				Addresses: []v1.EndpointAddress{
+					{IP: "10.0.1.1", NodeName: &node1, TargetRef: &v1.ObjectReference{UID: types.UID("pod-3"), Kind: "Pod"}},
+					{IP: "10.0.1.2", NodeName: &node2, TargetRef: &v1.ObjectReference{UID: types.UID("pod-4"), Kind: "Pod"}},
+				},
+			},
+		},
+	}
+
 	tests := []struct {
 		name      string
 		epConfigs map[string]*epConfig
@@ -179,8 +219,8 @@ func TestStoreGenerateConfigs(t *testing.T) {
 		{
 			name: "nominal case",
 			epConfigs: map[string]*epConfig{
-				"ns1/ep1": {templates: []integration.Config{tpl1}, ep: ep1, shouldCollect: true},
-				"ns2/ep2": {templates: []integration.Config{tpl2}, ep: nil, shouldCollect: false},
+				"ns1/ep1": {templates: []integration.Config{tpl1}, eps: map[*v1.Endpoints]struct{}{ep1: {}}, shouldCollect: true},
+				"ns2/ep2": {templates: []integration.Config{tpl2}, eps: nil, shouldCollect: false},
 			},
 			want: []integration.Config{
 				{
@@ -206,16 +246,72 @@ func TestStoreGenerateConfigs(t *testing.T) {
 		{
 			name: "should not collect",
 			epConfigs: map[string]*epConfig{
-				"ns1/ep1": {templates: []integration.Config{tpl1}, ep: ep1, shouldCollect: false},
+				"ns1/ep1": {templates: []integration.Config{tpl1}, eps: map[*v1.Endpoints]struct{}{ep1: {}}, shouldCollect: false},
 			},
 			want: []integration.Config{},
+		},
+		{
+			name: "cel case with multiple endpoints",
+			epConfigs: map[string]*epConfig{
+				celEndpointID: {
+					templates: []integration.Config{tplCel},
+					eps: map[*v1.Endpoints]struct{}{
+						ep1: {},
+						ep2: {},
+					},
+					shouldCollect: true,
+					resolveMode:   kubeEndpointResolveAuto,
+				},
+			},
+			want: []integration.Config{
+				{
+					Name:                  "check-cel",
+					ServiceID:             "kube_endpoint_uid://ns1/ep1/10.0.0.1",
+					ADIdentifiers:         []string{"kube_endpoint_uid://ns1/ep1/10.0.0.1", "kubernetes_pod://pod-1"},
+					CELSelector:           workloadfilter.Rules{KubeEndpoints: []string{`v`}},
+					AdvancedADIdentifiers: nil,
+					NodeName:              "node1",
+					Provider:              "kubernetes-endpoints-file",
+					ClusterCheck:          true,
+				},
+				{
+					Name:                  "check-cel",
+					ServiceID:             "kube_endpoint_uid://ns1/ep1/10.0.0.2",
+					ADIdentifiers:         []string{"kube_endpoint_uid://ns1/ep1/10.0.0.2", "kubernetes_pod://pod-2"},
+					CELSelector:           workloadfilter.Rules{KubeEndpoints: []string{`v`}},
+					AdvancedADIdentifiers: nil,
+					NodeName:              "node2",
+					Provider:              "kubernetes-endpoints-file",
+					ClusterCheck:          true,
+				},
+				{
+					Name:                  "check-cel",
+					ServiceID:             "kube_endpoint_uid://ns2/ep2/10.0.1.1",
+					ADIdentifiers:         []string{"kube_endpoint_uid://ns2/ep2/10.0.1.1", "kubernetes_pod://pod-3"},
+					CELSelector:           workloadfilter.Rules{KubeEndpoints: []string{`v`}},
+					AdvancedADIdentifiers: nil,
+					NodeName:              "node1",
+					Provider:              "kubernetes-endpoints-file",
+					ClusterCheck:          true,
+				},
+				{
+					Name:                  "check-cel",
+					ServiceID:             "kube_endpoint_uid://ns2/ep2/10.0.1.2",
+					ADIdentifiers:         []string{"kube_endpoint_uid://ns2/ep2/10.0.1.2", "kubernetes_pod://pod-4"},
+					CELSelector:           workloadfilter.Rules{KubeEndpoints: []string{`v`}},
+					AdvancedADIdentifiers: nil,
+					NodeName:              "node2",
+					Provider:              "kubernetes-endpoints-file",
+					ClusterCheck:          true,
+				},
+			},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			s := &store{epConfigs: tt.epConfigs}
 
-			assert.EqualValues(t, tt.want, s.generateConfigs())
+			assert.ElementsMatch(t, tt.want, s.generateConfigs())
 		})
 	}
 }

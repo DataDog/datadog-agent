@@ -325,7 +325,7 @@ func (suite *ProviderTestSuite) fillWorkloadmetaStore(testDataFile string) error
 		Entity: &workloadmeta.KubeletMetrics{
 			EntityID: workloadmeta.EntityID{
 				Kind: workloadmeta.KindKubeletMetrics,
-				ID:   "kubelet-metrics",
+				ID:   workloadmeta.KubeletMetricsID,
 			},
 			ExpiredPodCount: podList.ExpiredCount,
 		},
