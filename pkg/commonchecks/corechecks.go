@@ -12,6 +12,7 @@ package commonchecks
 import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/flare"
+	logcomp "github.com/DataDog/datadog-agent/comp/core/log/def"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
@@ -65,7 +66,7 @@ import (
 )
 
 // RegisterChecks registers all core checks
-func RegisterChecks(store workloadmeta.Component, filterStore workloadfilter.Component, tagger tagger.Component, cfg config.Component,
+func RegisterChecks(log logcomp.Component, store workloadmeta.Component, filterStore workloadfilter.Component, tagger tagger.Component, cfg config.Component,
 	telemetry telemetry.Component, rcClient rcclient.Component, flare flare.Component,
 ) {
 	// Required checks
@@ -114,7 +115,7 @@ func RegisterChecks(store workloadmeta.Component, filterStore workloadfilter.Com
 	corecheckLoader.RegisterCheck(systemd.CheckName, systemd.Factory())
 	corecheckLoader.RegisterCheck(orchestrator.CheckName, orchestrator.Factory(store, cfg, tagger))
 	corecheckLoader.RegisterCheck(docker.CheckName, docker.Factory(store, filterStore, tagger))
-	corecheckLoader.RegisterCheck(sbom.CheckName, sbom.Factory(store, filterStore, cfg, tagger))
+	corecheckLoader.RegisterCheck(sbom.CheckName, sbom.Factory(log, store, filterStore, cfg, tagger))
 	corecheckLoader.RegisterCheck(kubelet.CheckName, kubelet.Factory(store, filterStore, tagger))
 	corecheckLoader.RegisterCheck(containerd.CheckName, containerd.Factory(store, filterStore, tagger))
 	corecheckLoader.RegisterCheck(cri.CheckName, cri.Factory(store, filterStore, tagger))
