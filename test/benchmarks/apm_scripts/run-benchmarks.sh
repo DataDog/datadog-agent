@@ -10,6 +10,6 @@ bench_loop_x10 () {
 }
 
 bench_loop_x10 "pr_bench.txt"
-git checkout main && bench_loop_x10 "main_bench.txt"
+git checkout "${BASE_BRANCH:-main}" && bench_loop_x10 "base_bench.txt"
 
 git checkout "${CI_COMMIT_REF_NAME}" # (Only needed while these changes aren't merged to main)

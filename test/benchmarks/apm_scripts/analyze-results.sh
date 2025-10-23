@@ -26,12 +26,12 @@ benchmark_analyzer convert \
   }" \
   "$ARTIFACTS_DIR/pr_bench.txt"
 
-git checkout main
+git checkout "${BASE_BRANCH:-main}"
 COMMIT_SHA=$(git rev-parse HEAD)
 COMMIT_DATE=$(git show -s --format=%ct "$COMMIT_SHA")
 benchmark_analyzer convert \
   --framework=GoBench \
-  --outpath="main.json" \
+  --outpath="base.json" \
   --extra-params="{\
     \"baseline_or_candidate\":\"baseline\", \
     \"cpu_model\":\"$CPU_MODEL\", \
@@ -40,11 +40,11 @@ benchmark_analyzer convert \
     \"ci_pipeline_id\":\"$CI_PIPELINE_ID\", \
     \"git_commit_sha\":\"$COMMIT_SHA\", \
     \"git_commit_date\":\"$COMMIT_DATE\", \
-    \"git_branch\":\"main\"\
+    \"git_branch\":\"${BASE_BRANCH:-main}\"\
   }" \
-  "$ARTIFACTS_DIR/main_bench.txt"
+  "$ARTIFACTS_DIR/base_bench.txt"
 
-benchmark_analyzer compare pairwise --outpath "$ARTIFACTS_DIR/report.md" --format md-nodejs main.json pr.json
-benchmark_analyzer compare pairwise --outpath "$ARTIFACTS_DIR/report_full.html" --format html main.json pr.json
+benchmark_analyzer compare pairwise --outpath "$ARTIFACTS_DIR/report.md" --format md-nodejs base.json pr.json
+benchmark_analyzer compare pairwise --outpath "$ARTIFACTS_DIR/report_full.html" --format html base.json pr.json
 
 git checkout "${CI_COMMIT_REF_NAME}" # (Only needed while these changes aren't merged to main)
