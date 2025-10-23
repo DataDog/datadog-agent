@@ -182,6 +182,135 @@ func TestSymbolTableBinarySearch(t *testing.T) {
 	}
 }
 
+func TestResolveSymbolDirect(t *testing.T) {
+	tests := []struct {
+		name           string
+		pathname       string
+		symbols        []safeelf.Symbol
+		address        uint64
+		expectedResult string
+	}{
+		{
+			name:           "empty symbols list",
+			pathname:       "/bin/test",
+			symbols:        []safeelf.Symbol{},
+			address:        0x1000,
+			expectedResult: "",
+		},
+		{
+			name:     "address before first symbol",
+			pathname: "/bin/test",
+			symbols: []safeelf.Symbol{
+				{Name: "main", Value: 0x2000},
+			},
+			address:        0x1000,
+			expectedResult: "test+0x1000",
+		},
+		{
+			name:     "exact symbol match (offset = 0)",
+			pathname: "/bin/myapp",
+			symbols: []safeelf.Symbol{
+				{Name: "func1", Value: 0x1000},
+				{Name: "func2", Value: 0x2000},
+			},
+			address:        0x1000,
+			expectedResult: "myapp!func1",
+		},
+		{
+			name:     "symbol with offset",
+			pathname: "/usr/bin/program",
+			symbols: []safeelf.Symbol{
+				{Name: "function_a", Value: 0x1000},
+				{Name: "function_b", Value: 0x2000},
+			},
+			address:        0x1050,
+			expectedResult: "program!function_a+0x50",
+		},
+		{
+			name:     "symbol with version suffix @@VERSION",
+			pathname: "/lib/libc.so",
+			symbols: []safeelf.Symbol{
+				{Name: "malloc@@GLIBC_2.2.5", Value: 0x1000},
+			},
+			address:        0x1020,
+			expectedResult: "libc.so!malloc+0x20",
+		},
+		{
+			name:     "symbol with version suffix @VERSION",
+			pathname: "/lib/libpthread.so",
+			symbols: []safeelf.Symbol{
+				{Name: "pthread_create@GLIBC_2.2.5", Value: 0x1000},
+			},
+			address:        0x1010,
+			expectedResult: "libpthread.so!pthread_create+0x10",
+		},
+		{
+			name:     "offset too large (>1MB) - fallback",
+			pathname: "/bin/test",
+			symbols: []safeelf.Symbol{
+				{Name: "start", Value: 0x1000},
+			},
+			address:        0x1000 + 0x100001, // Just over 1MB
+			expectedResult: "test+0x101001",
+		},
+		{
+			name:     "binary search - finds correct symbol among many",
+			pathname: "/usr/bin/complex",
+			symbols: []safeelf.Symbol{
+				{Name: "func1", Value: 0x1000},
+				{Name: "func2", Value: 0x2000},
+				{Name: "func3", Value: 0x3000},
+				{Name: "func4", Value: 0x4000},
+				{Name: "func5", Value: 0x5000},
+			},
+			address:        0x3100,
+			expectedResult: "complex!func3+0x100",
+		},
+		{
+			name:     "empty symbol name - fallback",
+			pathname: "/bin/test",
+			symbols: []safeelf.Symbol{
+				{Name: "", Value: 0x1000},
+			},
+			address:        0x1050,
+			expectedResult: "test+0x1050",
+		},
+		{
+			name:     "address at boundary between symbols",
+			pathname: "/bin/app",
+			symbols: []safeelf.Symbol{
+				{Name: "func_a", Value: 0x1000},
+				{Name: "func_b", Value: 0x2000},
+			},
+			address:        0x1fff,
+			expectedResult: "app!func_a+0xfff",
+		},
+		{
+			name:     "last symbol in list",
+			pathname: "/bin/test",
+			symbols: []safeelf.Symbol{
+				{Name: "func1", Value: 0x1000},
+				{Name: "func2", Value: 0x2000},
+				{Name: "last_func", Value: 0x3000},
+			},
+			address:        0x3050,
+			expectedResult: "test!last_func+0x50",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			info := &binaryInfo{
+				pathname: tt.pathname,
+				symbols:  tt.symbols,
+			}
+
+			result := resolveSymbol(info, tt.address)
+			assert.Equal(t, tt.expectedResult, result)
+		})
+	}
+}
+
 func TestDWARFLineResolution(t *testing.T) {
 	cache := newDwarfCache(10, 0)
 	defer cache.Clear()
