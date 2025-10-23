@@ -8,5 +8,5 @@
 ---
 fixes:
   - |
-    Fix an issue with the `kube_static_cpus` tag that results in multiple timeseries
+    Fix an issue with the `kube_static_cpus` tag that resulted in multiple timeseries
     for the `kubernetes.memory.limits` metric.
