@@ -701,7 +701,6 @@ func makeModelService(pid int32, name string) model.Service {
 				ServiceName:    name + "-service",
 			},
 		},
-		DDService:          "dd-model-" + name,
 		TCPPorts:           []uint16{3000, 4000},
 		APMInstrumentation: true,
 		Language:           "python",
