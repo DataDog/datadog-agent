@@ -422,7 +422,7 @@ func setupLogger() {
 	logLevel := "error"
 	if userLogLevel := os.Getenv(logLevelEnvVar); len(userLogLevel) > 0 {
 		if seelogLogLevel, err := log.ValidateLogLevel(userLogLevel); err == nil {
-			logLevel = seelogLogLevel
+			logLevel = seelogLogLevel.String()
 		} else {
 			log.Errorf("Invalid log level '%s', using default log level '%s'", userLogLevel, logLevel)
 		}

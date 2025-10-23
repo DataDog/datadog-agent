@@ -80,7 +80,7 @@ func SetupLogger(loggerName LoggerName, logLevel, logFile, syslogURI string, sys
 		return err
 	}
 	_ = seelog.ReplaceLogger(loggerInterface)
-	log.SetupLogger(loggerInterface, seelogLogLevel)
+	log.SetupLogger(loggerInterface, seelogLogLevel.String())
 
 	// Registering a callback in case of "log_level" update
 	cfg.OnUpdate(func(setting string, _ pkgconfigmodel.Source, oldValue, newValue any, _ uint64) {
@@ -95,7 +95,7 @@ func SetupLogger(loggerName LoggerName, logLevel, logFile, syslogURI string, sys
 			return
 		}
 		// We create a new logger to propagate the new log level everywhere seelog is used (including dependencies)
-		seelogConfig.SetLogLevel(seelogLogLevel)
+		seelogConfig.SetLogLevel(seelogLogLevel.String())
 		configTemplate, err := seelogConfig.Render()
 		if err != nil {
 			return
@@ -120,11 +120,7 @@ func BuildJMXLogger(logFile, syslogURI string, syslogRFC, logToConsole, jsonForm
 	// The JMX logger always logs at level "info", because JMXFetch does its
 	// own level filtering on and provides all messages to seelog at the info
 	// or error levels, via log.JMXInfo and log.JMXError.
-	seelogLogLevel, err := log.ValidateLogLevel("info")
-	if err != nil {
-		return nil, err
-	}
-	jmxSeelogConfig, err = buildLoggerConfig(JMXLoggerName, seelogLogLevel, logFile, syslogURI, syslogRFC, logToConsole, jsonFormat, cfg)
+	jmxSeelogConfig, err := buildLoggerConfig(JMXLoggerName, log.InfoLvl, logFile, syslogURI, syslogRFC, logToConsole, jsonFormat, cfg)
 	if err != nil {
 		return nil, err
 	}
@@ -134,12 +130,7 @@ func BuildJMXLogger(logFile, syslogURI string, syslogRFC, logToConsole, jsonForm
 // SetupDogstatsdLogger sets up a logger with dogstatsd logger name and log level
 // if a non empty logFile is provided, it will also log to the file
 func SetupDogstatsdLogger(logFile string, cfg pkgconfigmodel.Reader) (seelog.LoggerInterface, error) {
-	seelogLogLevel, err := log.ValidateLogLevel("info")
-	if err != nil {
-		return nil, err
-	}
-
-	dogstatsdSeelogConfig = buildDogstatsdLoggerConfig(DogstatsDLoggerName, seelogLogLevel, logFile, cfg)
+	dogstatsdSeelogConfig = buildDogstatsdLoggerConfig(DogstatsDLoggerName, log.InfoLvl, logFile, cfg)
 
 	dogstatsdLoggerInterface, err := GenerateLoggerInterface(dogstatsdSeelogConfig)
 	if err != nil {
@@ -149,8 +140,8 @@ func SetupDogstatsdLogger(logFile string, cfg pkgconfigmodel.Reader) (seelog.Log
 	return dogstatsdLoggerInterface, nil
 }
 
-func buildDogstatsdLoggerConfig(loggerName LoggerName, seelogLogLevel, logFile string, cfg pkgconfigmodel.Reader) *seelogCfg.Config {
-	config := seelogCfg.NewSeelogConfig(string(loggerName), seelogLogLevel, "common", "", buildCommonFormat(loggerName, cfg), false)
+func buildDogstatsdLoggerConfig(loggerName LoggerName, seelogLogLevel log.LogLevel, logFile string, cfg pkgconfigmodel.Reader) *seelogCfg.Config {
+	config := seelogCfg.NewSeelogConfig(string(loggerName), seelogLogLevel.String(), "common", "", buildCommonFormat(loggerName, cfg), false)
 
 	// Configuring max roll for log file, if dogstatsd_log_file_max_rolls env var is not set (or set improperly ) within datadog.yaml then default value is 3
 	dogstatsdLogFileMaxRolls := cfg.GetInt("dogstatsd_log_file_max_rolls")
@@ -165,13 +156,13 @@ func buildDogstatsdLoggerConfig(loggerName LoggerName, seelogLogLevel, logFile s
 	return config
 }
 
-func buildLoggerConfig(loggerName LoggerName, seelogLogLevel, logFile, syslogURI string, syslogRFC, logToConsole, jsonFormat bool, cfg pkgconfigmodel.Reader) (*seelogCfg.Config, error) {
+func buildLoggerConfig(loggerName LoggerName, seelogLogLevel log.LogLevel, logFile, syslogURI string, syslogRFC, logToConsole, jsonFormat bool, cfg pkgconfigmodel.Reader) (*seelogCfg.Config, error) {
 	formatID := "common"
 	if jsonFormat {
 		formatID = "json"
 	}
 
-	config := seelogCfg.NewSeelogConfig(string(loggerName), seelogLogLevel, formatID, buildJSONFormat(loggerName, cfg), buildCommonFormat(loggerName, cfg), syslogRFC)
+	config := seelogCfg.NewSeelogConfig(string(loggerName), seelogLogLevel.String(), formatID, buildJSONFormat(loggerName, cfg), buildCommonFormat(loggerName, cfg), syslogRFC)
 	config.EnableConsoleLog(logToConsole)
 	config.EnableFileLogging(logFile, cfg.GetSizeInBytes("log_file_max_size"), uint(cfg.GetInt("log_file_max_rolls")))
 

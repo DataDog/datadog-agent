@@ -30,7 +30,7 @@ func SetLogLevel(level string, config pkgconfigmodel.Writer, source pkgconfigmod
 		return err
 	}
 	// Logger subscribe to config changes to automatically apply new log_level value
-	config.Set("log_level", seelogLogLevel, source)
+	config.Set("log_level", seelogLogLevel.String(), source)
 	return nil
 }
 
