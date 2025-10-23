@@ -865,6 +865,15 @@ func (t *Tracer) DebugHostConntrack(ctx context.Context) (*DebugConntrackTable, 
 	}, nil
 }
 
+// DebugConntrackComparison compares all three conntrack maps and returns statistics
+func (t *Tracer) DebugConntrackComparison() (interface{}, error) {
+	// Check if we have an eBPF conntracker that supports comparison
+	if ebpfCt, ok := t.conntracker.(*ebpfConntracker); ok {
+		return ebpfCt.CompareConntrackMaps()
+	}
+	return nil, fmt.Errorf("conntrack comparison only supported with eBPF conntracker")
+}
+
 // DebugDumpProcessCache dumps the process cache
 func (t *Tracer) DebugDumpProcessCache(_ context.Context) (interface{}, error) {
 	if t.processCache != nil {

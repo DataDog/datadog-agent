@@ -186,6 +186,17 @@ func (nt *networkTracer) Register(httpMux *module.Router) error {
 		writeConntrackTable(table, w)
 	})
 
+	httpMux.HandleFunc("/debug/conntrack/compare", func(w http.ResponseWriter, req *http.Request) {
+		comparison, err := nt.tracer.DebugConntrackComparison()
+		if err != nil {
+			log.Errorf("unable to compare conntrack maps: %s", err)
+			w.WriteHeader(500)
+			return
+		}
+
+		utils.WriteAsJSON(w, comparison, utils.GetPrettyPrintFromQueryParams(req))
+	})
+
 	httpMux.HandleFunc("/debug/process_cache", func(w http.ResponseWriter, r *http.Request) {
 		ctx, cancelFunc := context.WithTimeout(r.Context(), 10*time.Second)
 		defer cancelFunc()
