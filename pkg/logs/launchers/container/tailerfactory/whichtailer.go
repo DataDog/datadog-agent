@@ -12,7 +12,6 @@ package tailerfactory
 import (
 	"context"
 	"fmt"
-	"time"
 
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/util/containersorpods"
@@ -43,7 +42,7 @@ func (tf *factory) whichTailer(source *sources.LogSource) whichTailer {
 	// quickly. But it doesn't if there is no docker socket, in case of Podman for example.
 	// Make expiring context to run detection on.
 	to := pkgconfigsetup.Datadog().GetDuration("logs_config.container_runtime_waiting_timeout")
-	ctx, cancel := context.WithTimeout(context.Background(), to*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), to)
 	defer cancel()
 
 	logWhat := tf.cop.Wait(ctx)

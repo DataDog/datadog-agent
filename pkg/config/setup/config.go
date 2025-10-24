@@ -89,9 +89,6 @@ const (
 	// DefaultAuditorTTL is the default logs auditor TTL in hours
 	DefaultAuditorTTL = 23
 
-	// DefaultRuntimeWaitingTimeout is the default timeout in seconds for executing containers or pods chooser Wait.
-	DefaultRuntimeWaitingTimeout = 3
-
 	// DefaultRuntimePoliciesDir is the default policies directory used by the runtime security module
 	DefaultRuntimePoliciesDir = "/etc/datadog-agent/runtime-security.d"
 
@@ -1814,7 +1811,7 @@ func logsagent(config pkgconfigmodel.Setup) {
 	// which is reflected in the Agent status output for the Logs.
 	// If this such behavior undesired, set the value to a significantly large number.
 	// Timeout is in seconds.
-	config.BindEnvAndSetDefault("logs_config.container_runtime_waiting_timeout", DefaultRuntimeWaitingTimeout)
+	config.BindEnvAndSetDefault("logs_config.container_runtime_waiting_timeout", "3s")
 
 	config.BindEnvAndSetDefault("logs_config.auditor_ttl", DefaultAuditorTTL) // in hours
 	// Timeout in milliseonds used when performing agreggation operations,

@@ -19,7 +19,6 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
-	"time"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
@@ -59,8 +58,9 @@ func (tf *factory) makeFileSource(source *sources.LogSource) (*sources.LogSource
 	// quickly. But it doesn't if there is no docker socket, in case of Podman for example.
 	// Make expiring context to run detection on.
 	to := pkgconfigsetup.Datadog().GetDuration("logs_config.container_runtime_waiting_timeout")
-	ctx, cancel := context.WithTimeout(context.Background(), to*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), to)
 	defer cancel()
+
 	logWhat := tf.cop.Wait(ctx)
 
 	switch logWhat {
