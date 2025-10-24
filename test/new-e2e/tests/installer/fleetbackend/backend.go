@@ -196,6 +196,11 @@ func (b *Backend) getDaemonPID() (int, error) {
 	switch b.host.RemoteHost.OSFamily {
 	case e2eos.LinuxFamily:
 		pid, err = b.host.RemoteHost.Execute(`systemctl show -p MainPID datadog-agent-installer | cut -d= -f2`)
+		pidExp, errExp := b.host.RemoteHost.Execute(`systemctl show -p MainPID datadog-agent-installer-exp | cut -d= -f2`)
+		if pidExp != "" && errExp == nil {
+			pid = pidExp
+			err = errExp
+		}
 	case e2eos.WindowsFamily:
 		pid, err = b.host.RemoteHost.Execute(`(Get-CimInstance Win32_Service -Filter "Name='Datadog Installer'").ProcessId`)
 	default:
