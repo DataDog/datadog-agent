@@ -26,6 +26,7 @@ import (
 	installerErrors "github.com/DataDog/datadog-agent/pkg/fleet/installer/errors"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/oci"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages"
+	extensionsPkg "github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/extensions"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -651,13 +652,13 @@ func (i *installerImpl) Remove(ctx context.Context, pkg string) error {
 	if err != nil {
 		return fmt.Errorf("could not remove package: %w", err)
 	}
-	err = packages.RemoveAllExtensions(ctx, pkg, i.hooks)
-	if err != nil {
-		return fmt.Errorf("could not remove extensions: %w", err)
-	}
 	err = i.packages.Delete(ctx, pkg)
 	if err != nil {
 		return fmt.Errorf("could not delete repository: %w", err)
+	}
+	err = extensionsPkg.DeletePackage(ctx, pkg, false)
+	if err != nil {
+		return fmt.Errorf("could not remove package from extensions db: %w", err)
 	}
 	err = i.db.DeletePackage(pkg)
 	if err != nil {
@@ -754,7 +755,7 @@ func (i *installerImpl) InstallExtensions(ctx context.Context, url string, exten
 		return fmt.Errorf("package %s is installed at version %s, requested version is %s", pkg.Name, existingPkg.Version, pkg.Version)
 	}
 
-	return packages.InstallExtensions(ctx, pkg, extensions, false, i.hooks)
+	return extensionsPkg.Install(ctx, i.downloader, url, extensions, false, i.hooks)
 }
 
 // RemoveExtensions removes multiple extensions.
@@ -773,7 +774,7 @@ func (i *installerImpl) RemoveExtensions(ctx context.Context, pkg string, extens
 		span.SetTag("extensions", strings.Join(extensions, ","))
 	}
 
-	return packages.RemoveExtensions(ctx, pkg, extensions, false, i.hooks)
+	return extensionsPkg.Remove(ctx, pkg, extensions, false, i.hooks)
 }
 
 // Close cleans up the Installer's dependencies, lock must be held by the caller

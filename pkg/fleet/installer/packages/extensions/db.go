@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package packages
+package extensions
 
 import (
 	"encoding/json"
@@ -18,7 +18,7 @@ var (
 )
 
 type dbPackage struct {
-	Name       string              `json:"name"`
+	Name       string              `json:"pkg"`
 	Version    string              `json:"version"`
 	Extensions map[string]struct{} `json:"extensions"`
 }
@@ -53,19 +53,19 @@ func (p *extensionsDB) Close() error {
 	return p.db.Close()
 }
 
-// GetPackage returns a package by name
-func (p *extensionsDB) GetPackage(name string, experiment bool) (dbPackage, error) {
-	var pkg dbPackage
+// GetPackage returns a package by pkg
+func (p *extensionsDB) GetPackage(pkg string, isExperiment bool) (dbPackage, error) {
+	var dbPkg dbPackage
 	err := p.db.View(func(tx *bbolt.Tx) error {
 		b := tx.Bucket(bucketExtensions)
 		if b == nil {
 			return fmt.Errorf("bucket not found")
 		}
-		v := b.Get([]byte(fmt.Sprintf("%s-%t", name, experiment)))
+		v := b.Get(getKey(pkg, isExperiment))
 		if len(v) == 0 {
 			return errPackageNotFound
 		}
-		err := json.Unmarshal(v, &pkg)
+		err := json.Unmarshal(v, &dbPkg)
 		if err != nil {
 			return fmt.Errorf("could not unmarshal package: %w", err)
 		}
@@ -74,21 +74,21 @@ func (p *extensionsDB) GetPackage(name string, experiment bool) (dbPackage, erro
 	if err != nil {
 		return dbPackage{}, fmt.Errorf("could not get package: %w", err)
 	}
-	return pkg, nil
+	return dbPkg, nil
 }
 
 // SetPackage sets a package
-func (p *extensionsDB) SetPackage(pkg dbPackage, experiment bool) error {
+func (p *extensionsDB) SetPackage(dbPkg dbPackage, isExperiment bool) error {
 	err := p.db.Update(func(tx *bbolt.Tx) error {
 		b := tx.Bucket(bucketExtensions)
 		if b == nil {
 			return fmt.Errorf("bucket not found")
 		}
-		rawPkg, err := json.Marshal(&pkg)
+		rawPkg, err := json.Marshal(&dbPkg)
 		if err != nil {
 			return fmt.Errorf("could not marshal package: %w", err)
 		}
-		return b.Put([]byte(fmt.Sprintf("%s-%t", pkg.Name, experiment)), rawPkg)
+		return b.Put(getKey(dbPkg.Name, isExperiment), rawPkg)
 	})
 	if err != nil {
 		return fmt.Errorf("could not set package: %w", err)
@@ -97,13 +97,13 @@ func (p *extensionsDB) SetPackage(pkg dbPackage, experiment bool) error {
 }
 
 // RemovePackage removes a package
-func (p *extensionsDB) RemovePackage(name string, experiment bool) error {
+func (p *extensionsDB) RemovePackage(pkg string, isExperiment bool) error {
 	err := p.db.Update(func(tx *bbolt.Tx) error {
 		b := tx.Bucket(bucketExtensions)
 		if b == nil {
 			return fmt.Errorf("bucket not found")
 		}
-		return b.Delete([]byte(fmt.Sprintf("%s-%t", name, experiment)))
+		return b.Delete(getKey(pkg, isExperiment))
 	})
 	if err != nil {
 		return fmt.Errorf("could not remove package: %w", err)
@@ -111,9 +111,9 @@ func (p *extensionsDB) RemovePackage(name string, experiment bool) error {
 	return nil
 }
 
-// Promote promotes a key from experiment to stable
-func (p *extensionsDB) Promote(name string) error {
-	content, err := p.GetPackage(name, true)
+// Promote promotes a key from isExperiment to stable
+func (p *extensionsDB) PromotePackage(pkg string) error {
+	content, err := p.GetPackage(pkg, true)
 	if err != nil {
 		return fmt.Errorf("could not get package: %w", err)
 	}
@@ -121,9 +121,38 @@ func (p *extensionsDB) Promote(name string) error {
 	if err != nil {
 		return fmt.Errorf("could not set package: %w", err)
 	}
-	err = p.RemovePackage(name, true)
+	err = p.RemovePackage(pkg, true)
 	if err != nil {
 		return fmt.Errorf("could not remove package: %w", err)
 	}
 	return nil
+}
+
+func (p *extensionsDB) SetPackageVersion(pkg string, version string, isExperiment bool) error {
+	err := p.db.Update(func(tx *bbolt.Tx) error {
+		b := tx.Bucket(bucketExtensions)
+		if b == nil {
+			return fmt.Errorf("bucket not found")
+		}
+		dbPkg := dbPackage{
+			Name:    pkg,
+			Version: version,
+		}
+		rawPkg, err := json.Marshal(&dbPkg)
+		if err != nil {
+			return fmt.Errorf("could not marshal package: %w", err)
+		}
+		return b.Put(getKey(pkg, isExperiment), rawPkg)
+	})
+	if err != nil {
+		return fmt.Errorf("could not set package version: %w", err)
+	}
+	return nil
+}
+
+func getKey(pkg string, isExperiment bool) []byte {
+	if isExperiment {
+		return []byte(fmt.Sprintf("%s-exp", pkg))
+	}
+	return []byte(pkg)
 }

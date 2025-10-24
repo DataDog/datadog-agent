@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/installinfo"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/oci"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/embedded"
+	extensionsPkg "github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/extensions"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/fapolicyd"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/file"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/integrations"
@@ -31,7 +32,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/version"
+	// "github.com/DataDog/datadog-agent/pkg/version"
 )
 
 var datadogAgentPackage = hooks{
@@ -122,95 +123,6 @@ var (
 		"datadog-installer.service",
 	}
 )
-
-// saveAgentExtensions saves the extensions of the Agent package by writing them to a file on disk.
-// the extensions can then be picked up by the restoreAgentExtensions function to restore them
-func saveAgentExtensions(ctx HookContext) error {
-	extensions, err := ListExtensions(agentPackage, false)
-	if err != nil {
-		return fmt.Errorf("failed to list extensions: %s", err)
-	}
-	if len(extensions) == 0 {
-		return nil
-	}
-
-	storagePath := ctx.PackagePath
-	if strings.HasPrefix(ctx.PackagePath, paths.PackagesPath) {
-		storagePath = paths.RootTmpDir
-	}
-
-	filePath := filepath.Join(storagePath, fmt.Sprintf("%s-%t-extensions.txt", agentPackage, false))
-	f, err := os.Create(filePath)
-	if err != nil {
-		return fmt.Errorf("failed to create extensions file: %w", err)
-	}
-	defer f.Close()
-	for _, ext := range extensions {
-		_, err := f.WriteString(ext + "\n")
-		if err != nil {
-			return fmt.Errorf("failed to write extension: %w", err)
-		}
-	}
-
-	return nil
-}
-
-// removeAgentExtensions removes the extensions of the Agent package by reading them from a file on disk.
-func removeAgentExtensions(ctx HookContext, experiment bool) error {
-	extensions, err := ListExtensions(agentPackage, experiment)
-	if err != nil {
-		return fmt.Errorf("failed to list extensions: %s", err)
-	}
-	if len(extensions) == 0 {
-		return nil
-	}
-
-	hooks := NewHooks(env.FromEnv(), repository.NewRepositories(paths.PackagesPath, AsyncPreRemoveHooks))
-	if err := RemoveExtensions(ctx, agentPackage, extensions, experiment, hooks); err != nil {
-		return fmt.Errorf("failed to remove extensions: %s", err)
-	}
-
-	return nil
-}
-
-// restoreAgentExtensions restores the extensions for a package by reading them from a file on disk.
-func restoreAgentExtensions(ctx HookContext, experiment bool) error {
-	storagePath := ctx.PackagePath
-	if strings.HasPrefix(ctx.PackagePath, paths.PackagesPath) {
-		storagePath = paths.RootTmpDir
-	}
-
-	filePath := filepath.Join(storagePath, fmt.Sprintf("%s-%t-extensions.txt", agentPackage, experiment))
-	f, err := os.ReadFile(filePath)
-	if err != nil && !os.IsNotExist(err) {
-		return fmt.Errorf("failed to read extensions file: %w", err)
-	}
-	extensions := strings.Split(string(f), "\n")
-
-	env := env.FromEnv()
-	downloader := oci.NewDownloader(env, env.HTTPClient())
-
-	versionTag := version.AgentVersionURLSafe
-	if !strings.HasSuffix(versionTag, "-1") {
-		versionTag = versionTag + "-1"
-	}
-	pkg, err := downloader.Download(ctx, oci.PackageURL(env, agentPackage, versionTag))
-	if err != nil {
-		return fmt.Errorf("failed to download package: %w", err)
-	}
-
-	hooks := NewHooks(env, repository.NewRepositories(paths.PackagesPath, AsyncPreRemoveHooks))
-	if err := InstallExtensions(ctx, pkg, extensions, experiment, hooks); err != nil {
-		return fmt.Errorf("failed to re-install extensions: %s", err)
-	}
-
-	// Remove the tmp file after restoring extensions
-	if err := os.Remove(filePath); err != nil && !os.IsNotExist(err) {
-		return fmt.Errorf("failed to remove extensions tmp file: %w", err)
-	}
-
-	return nil
-}
 
 // installFilesystem sets up the filesystem for the agent installation
 func installFilesystem(ctx HookContext) (err error) {
@@ -325,7 +237,11 @@ func postInstallDatadogAgent(ctx HookContext) (err error) {
 	if err := integrations.RestoreCustomIntegrations(ctx, ctx.PackagePath); err != nil {
 		log.Warnf("failed to restore custom integrations: %s", err)
 	}
+	if err := extensionsPkg.SetPackage(ctx, agentPackage, getCurrentAgentVersion(), false); err != nil {
+		return fmt.Errorf("failed to set package version in extensions db: %w", err)
+	}
 	if err := restoreAgentExtensions(ctx, false); err != nil {
+		fmt.Println("failed to restore extensions: %s", err.Error())
 		log.Warnf("failed to restore extensions: %s", err)
 	}
 	if err := agentService.WriteStable(ctx); err != nil {
@@ -482,7 +398,7 @@ func postPromoteExperimentDatadogAgent(ctx HookContext) error {
 	if err != nil {
 		return err
 	}
-	err = PromoteExtensions(agentPackage)
+	err = extensionsPkg.Promote(ctx, agentPackage)
 	if err != nil {
 		return fmt.Errorf("failed to promote extensions: %s", err)
 	}
@@ -526,6 +442,48 @@ func postPromoteConfigExperimentDatadogAgent(ctx HookContext) error {
 		return err
 	}
 	return nil
+}
+
+// saveAgentExtensions saves the extensions of the Agent package by writing them to a file on disk.
+// the extensions can then be picked up by the restoreAgentExtensions function to restore them
+func saveAgentExtensions(ctx HookContext) error {
+	storagePath := ctx.PackagePath
+	if strings.HasPrefix(ctx.PackagePath, paths.PackagesPath) {
+		storagePath = paths.RootTmpDir
+	}
+
+	return extensionsPkg.Save(ctx, agentPackage, storagePath)
+}
+
+// removeAgentExtensions removes the extensions of the Agent package & then deletes the package from the extensions db.
+func removeAgentExtensions(ctx HookContext, experiment bool) error {
+	env := env.FromEnv()
+	hooks := NewHooks(env, repository.NewRepositories(paths.PackagesPath, AsyncPreRemoveHooks))
+	err := extensionsPkg.RemoveAll(ctx, agentPackage, experiment, hooks)
+	if err != nil {
+		return fmt.Errorf("failed to remove all extensions: %w", err)
+	}
+	return extensionsPkg.DeletePackage(ctx, agentPackage, experiment)
+}
+
+// restoreAgentExtensions restores the extensions for a package by setting the new package version in the extensions db &
+// then reading the extensions from a file on disk
+func restoreAgentExtensions(ctx HookContext, experiment bool) error {
+	if err := extensionsPkg.SetPackage(ctx, agentPackage, getCurrentAgentVersion(), experiment); err != nil {
+		return fmt.Errorf("failed to set package version in extensions db: %w", err)
+	}
+
+	storagePath := ctx.PackagePath
+	if strings.HasPrefix(ctx.PackagePath, paths.PackagesPath) {
+		storagePath = paths.RootTmpDir
+	}
+
+	env := env.FromEnv()
+	downloader := oci.NewDownloader(env, env.HTTPClient()) // TODO: add registry override from env or datadog.yaml
+	url := oci.PackageURL(env, agentPackage, getCurrentAgentVersion())
+	hooks := NewHooks(env, repository.NewRepositories(paths.PackagesPath, AsyncPreRemoveHooks))
+
+	return extensionsPkg.Restore(ctx, downloader, agentPackage, url, storagePath, experiment, hooks)
 }
 
 type datadogAgentService struct {
@@ -821,4 +779,13 @@ func isAmbiantCapabilitiesSupported() (bool, error) {
 		return false, fmt.Errorf("failed to read /proc/self/status: %v", err)
 	}
 	return strings.Contains(string(content), "CapAmb:"), nil
+}
+
+func getCurrentAgentVersion() string {
+	// v := version.AgentVersionURLSafe
+	// if strings.HasSuffix(v, "-1") {
+	// 	return v
+	// }
+	// return v + "-1"
+	return "7.73.0-devel.git.371.f3d4a83.pipeline.80209939-1"
 }
