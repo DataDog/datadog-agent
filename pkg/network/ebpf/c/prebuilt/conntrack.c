@@ -87,8 +87,6 @@ SEC("kretprobe/__nf_conntrack_confirm") // JMWCONNTRACK
 int BPF_BYPASSABLE_KPROBE(kretprobe__nf_conntrack_confirm) {
     increment_confirm_return_count();
     int ret = PT_REGS_RC(ctx);
-    u64 ct_ptr;
-    u8 *pending_val;
 
     log_debug("kretprobe/__nf_conntrack_confirm: ret=%d", ret);
     log_debug("JMWTEST prebuilt kretprobe/__nf_conntrack_confirm");
