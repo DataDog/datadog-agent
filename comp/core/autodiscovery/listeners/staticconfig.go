@@ -55,6 +55,10 @@ func (l *StaticConfigListener) createServices() {
 	if enabled := pkgconfigsetup.SystemProbe().GetBool("discovery.enabled"); enabled {
 		l.newService <- &StaticConfigService{adIdentifier: "_discovery"}
 	}
+
+	if enabled := pkgconfigsetup.SystemProbe().GetBool("seccomp_tracer.enabled"); enabled {
+		l.newService <- &StaticConfigService{adIdentifier: "_seccomp_tracer"}
+	}
 }
 
 // Equal returns whether the two StaticConfigService are equal

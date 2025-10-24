@@ -33,6 +33,7 @@ const (
 	gpuNS                        = "gpu_monitoring"
 	privilegedLogsNS             = "privileged_logs"
 	swNS                         = "software_inventory"
+	seccompTracerNS              = "seccomp_tracer"
 	defaultConnsMessageBatchSize = 600
 
 	// defaultRuntimeCompilerOutputDir is the default path for output from the system-probe runtime compiler
@@ -398,6 +399,11 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	cfg.BindEnvAndSetDefault(join(gpuNS, "streams", "max_pending_memory_spans"), 1000)
 	cfg.BindEnvAndSetDefault(join(gpuNS, "streams", "max_active"), 100)
 	cfg.BindEnvAndSetDefault(join(gpuNS, "streams", "timeout_seconds"), 30) // 30 seconds by default, includes two checks at the default interval of 15 seconds
+
+	// Seccomp tracer config
+	cfg.BindEnvAndSetDefault(join(seccompTracerNS, "enabled"), false)
+	cfg.BindEnvAndSetDefault(join(seccompTracerNS, "stack_traces_enabled"), true)
+	cfg.BindEnvAndSetDefault(join(seccompTracerNS, "max_stacks_per_tuple"), 10)
 
 	initCWSSystemProbeConfig(cfg)
 	initUSMSystemProbeConfig(cfg)

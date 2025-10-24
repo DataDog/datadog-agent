@@ -91,3 +91,8 @@ func gpuNS(k ...string) string {
 func privilegedLogsNS(k ...string) string {
 	return NSkey("privileged_logs", k...)
 }
+
+// seccompTracerNS adds `seccomp_tracer` namespace to config key
+func seccompTracerNS(k ...string) string {
+	return NSkey("seccomp_tracer", k...)
+}
