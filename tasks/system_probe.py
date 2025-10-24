@@ -425,19 +425,6 @@ def ninja_container_integrations_ebpf_programs(nw: NinjaWriter, co_re_build_dir)
         )
 
 
-def ninja_discovery_ebpf_programs(nw: NinjaWriter, co_re_build_dir):
-    dir = Path("pkg/collector/corechecks/servicediscovery/c/ebpf/runtime")
-    flags = f"-I{dir} -Ipkg/network/ebpf/c"
-    programs = ["discovery-net"]
-
-    for prog in programs:
-        infile = os.path.join(dir, f"{prog}.c")
-        outfile = os.path.join(co_re_build_dir, f"{prog}.o")
-        ninja_ebpf_co_re_program(nw, infile, outfile, {"flags": flags})
-        root, ext = os.path.splitext(outfile)
-        ninja_ebpf_co_re_program(nw, infile, f"{root}-debug{ext}", {"flags": flags + " -DDEBUG=1"})
-
-
 def ninja_dynamic_instrumentation_ebpf_programs(nw: NinjaWriter, co_re_build_dir):
     dir = Path("pkg/dyninst/ebpf")
     flags = f"-I{dir}"
@@ -474,7 +461,6 @@ def ninja_runtime_compilation_files(nw: NinjaWriter, gobin):
     runtime_compiler_files = {
         "pkg/collector/corechecks/ebpf/probe/oomkill/oom_kill.go": "oom-kill",
         "pkg/collector/corechecks/ebpf/probe/tcpqueuelength/tcp_queue_length.go": "tcp-queue-length",
-        "pkg/collector/corechecks/servicediscovery/module/network_ebpf.go": "discovery-net",
         "pkg/network/usm/compile.go": "usm",
         "pkg/network/usm/sharedlibraries/compile.go": "shared-libraries",
         "pkg/network/tracer/compile.go": "conntrack",
@@ -581,9 +567,6 @@ def ninja_cgo_type_files(nw: NinjaWriter):
             ],
             "pkg/network/protocols/events/types.go": [
                 "pkg/network/ebpf/c/protocols/events-types.h",
-            ],
-            "pkg/collector/corechecks/servicediscovery/core/kern_types.go": [
-                "pkg/collector/corechecks/servicediscovery/c/ebpf/runtime/discovery-types.h",
             ],
             "pkg/collector/corechecks/ebpf/probe/tcpqueuelength/tcp_queue_length_kern_types.go": [
                 "pkg/collector/corechecks/ebpf/c/runtime/tcp-queue-length-kern-user.h",
@@ -700,7 +683,6 @@ def ninja_generate(
             ninja_runtime_compilation_files(nw, gobin)
             ninja_telemetry_ebpf_programs(nw, build_dir, co_re_build_dir)
             ninja_gpu_ebpf_programs(nw, co_re_build_dir)
-            ninja_discovery_ebpf_programs(nw, co_re_build_dir)
             ninja_dynamic_instrumentation_ebpf_programs(nw, co_re_build_dir)
 
         ninja_cgo_type_files(nw)
