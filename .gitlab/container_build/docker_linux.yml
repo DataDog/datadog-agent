@@ -126,7 +126,6 @@
 .docker_build_agent7:
   extends: [.docker_build_job_definition, .docker_build_artifact]
   rules:
-    - !reference [.except_mergequeue]
     - when: on_success
   variables:
     IMAGE: registry.ddbuild.io/ci/datadog-agent/agent
@@ -299,7 +298,6 @@ docker_build_agent7_full_arm64:
 .docker_build_cluster_agent:
   extends: .docker_build_job_definition
   rules:
-    - !reference [.except_mergequeue]
     - when: on_success
   variables:
     IMAGE: registry.ddbuild.io/ci/datadog-agent/cluster-agent
@@ -368,7 +366,6 @@ docker_build_cluster_agent_fips_arm64:
 .docker_build_cws_instrumentation:
   extends: .docker_build_job_definition
   rules:
-    - !reference [.except_mergequeue]
     - when: on_success
   variables:
     IMAGE: registry.ddbuild.io/ci/datadog-agent/cws-instrumentation
@@ -396,7 +393,6 @@ docker_build_cws_instrumentation_arm64:
 .docker_build_dogstatsd:
   extends: [.docker_build_job_definition, .docker_build_s3]
   rules:
-    - !reference [.except_mergequeue]
     - when: on_success
   variables:
     IMAGE: registry.ddbuild.io/ci/datadog-agent/dogstatsd

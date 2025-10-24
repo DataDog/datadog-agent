@@ -17,7 +17,6 @@
 
 .agent_build_common:
   rules:
-    - !reference [.except_mergequeue]
     - when: on_success
   stage: package_build
   script:
@@ -120,7 +119,6 @@ iot-agent-armhf:
 .dogstatsd_build_common:
   needs: ["go_mod_tidy_check", "go_deps"]
   rules:
-    - !reference [.except_mergequeue]
     - when: on_success
   stage: package_build
   script:
