@@ -73,6 +73,7 @@ type Tracer struct {
 	stats   map[seccompStatsKey]*seccompStatsValue
 }
 
+// IsSupported checks if the seccomp tracer is supported on the current kernel version
 func IsSupported(cfg *ddebpf.Config) (bool, error) {
 	kv, err := kernel.HostVersion()
 	if err != nil {
@@ -100,7 +101,7 @@ func NewTracer(cfg *ddebpf.Config) (*Tracer, error) {
 	return loadSeccompTracerProbe(cfg)
 }
 
-func startSeccompTracerProbe(buf bytecode.AssetReader, managerOptions manager.Options, cfg *ddebpf.Config) (*Tracer, error) {
+func startSeccompTracerProbe(buf bytecode.AssetReader, managerOptions manager.Options) (*Tracer, error) {
 	// Read configuration from system-probe config
 	maxStacksPerTuple := pkgconfigsetup.SystemProbe().GetInt("seccomp_tracer.max_stacks_per_tuple")
 	if maxStacksPerTuple <= 0 {
@@ -366,7 +367,7 @@ func loadSeccompTracerProbe(cfg *ddebpf.Config) (*Tracer, error) {
 	var probe *Tracer
 	err := ddebpf.LoadCOREAsset(filename, func(buf bytecode.AssetReader, opts manager.Options) error {
 		var err error
-		probe, err = startSeccompTracerProbe(buf, opts, cfg)
+		probe, err = startSeccompTracerProbe(buf, opts)
 		return err
 	})
 	if err != nil {

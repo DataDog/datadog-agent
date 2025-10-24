@@ -34,11 +34,7 @@ func TestResolveAddressWithSymbols(t *testing.T) {
 	info, err := os.Stat(binPath)
 	require.NoError(t, err)
 
-	stat := getStatInfo(t, info)
-	key := binaryKey{
-		dev:   stat.dev,
-		inode: stat.inode,
-	}
+	key := getStatInfo(t, info)
 
 	// Load binary info
 	binaryInfo, err := cache.get(key, binPath)
@@ -116,11 +112,7 @@ func TestResolveSymbolFallback(t *testing.T) {
 	info, err := os.Stat(binPath)
 	require.NoError(t, err)
 
-	stat := getStatInfo(t, info)
-	key := binaryKey{
-		dev:   stat.dev,
-		inode: stat.inode,
-	}
+	key := getStatInfo(t, info)
 
 	binaryInfo, err := cache.get(key, binPath)
 	require.NoError(t, err)
@@ -157,11 +149,7 @@ func TestSymbolTableBinarySearch(t *testing.T) {
 	info, err := os.Stat(binPath)
 	require.NoError(t, err)
 
-	stat := getStatInfo(t, info)
-	key := binaryKey{
-		dev:   stat.dev,
-		inode: stat.inode,
-	}
+	key := getStatInfo(t, info)
 
 	binaryInfo, err := cache.get(key, binPath)
 	require.NoError(t, err)
@@ -338,12 +326,6 @@ func TestDWARFLineResolution(t *testing.T) {
 	// Load the binary into cache
 	info, err := os.Stat(binPath)
 	require.NoError(t, err)
-
-	stat := getStatInfo(t, info)
-	key := binaryKey{
-		dev:   stat.dev,
-		inode: stat.inode,
-	}
 
 	binaryInfo, err := cache.get(key, binPath)
 	require.NoError(t, err)

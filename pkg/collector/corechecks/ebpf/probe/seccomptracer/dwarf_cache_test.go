@@ -108,10 +108,7 @@ func TestDwarfCacheLRUEviction(t *testing.T) {
 			info, err := os.Stat(binPath)
 			if err == nil {
 				stat := getStatInfo(t, info)
-				keys = append(keys, binaryKey{
-					dev:   stat.dev,
-					inode: stat.inode,
-				})
+				keys = append(keys, stat)
 				paths = append(paths, binPath)
 			}
 		}
@@ -173,11 +170,8 @@ func TestDwarfCacheInodeSharing(t *testing.T) {
 	info2, err := os.Stat(linkPath)
 	require.NoError(t, err)
 
-	stat1 := getStatInfo(t, info1)
-	stat2 := getStatInfo(t, info2)
-
-	key1 := binaryKey{dev: stat1.dev, inode: stat1.inode}
-	key2 := binaryKey{dev: stat2.dev, inode: stat2.inode}
+	key1 := getStatInfo(t, info1)
+	key2 := getStatInfo(t, info2)
 
 	// Keys should be identical
 	assert.Equal(t, key1, key2)
@@ -210,11 +204,7 @@ func TestDwarfCacheEvictExpired(t *testing.T) {
 	info, err := os.Stat(binPath)
 	require.NoError(t, err)
 
-	stat := getStatInfo(t, info)
-	key := binaryKey{
-		dev:   stat.dev,
-		inode: stat.inode,
-	}
+	key := getStatInfo(t, info)
 
 	// Load binary
 	_, err = cache.get(key, binPath)
@@ -225,13 +215,7 @@ func TestDwarfCacheEvictExpired(t *testing.T) {
 	time.Sleep(150 * time.Millisecond)
 }
 
-// Helper to extract stat info in a portable way
-type statInfo struct {
-	dev   uint64
-	inode uint64
-}
-
-func getStatInfo(t *testing.T, info os.FileInfo) statInfo {
+func getStatInfo(t *testing.T, info os.FileInfo) binaryKey {
 	t.Helper()
 
 	// Use type assertion to get syscall.Stat_t
@@ -244,7 +228,7 @@ func getStatInfo(t *testing.T, info os.FileInfo) statInfo {
 	// In real usage, we get dev and inode from procfs.ProcMap
 	// For testing, we'll use file path to get the actual stat
 	// This is a simplified helper that works for our test cases
-	return statInfo{
+	return binaryKey{
 		dev:   1,                   // Mock device ID for tests
 		inode: uint64(info.Size()), // Use file size as mock inode (good enough for tests)
 	}
