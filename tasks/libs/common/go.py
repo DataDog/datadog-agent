@@ -126,9 +126,12 @@ def _handle_pipe_to_whydeadcode(ctx: Context, name: str, cmd: str, env: dict[str
     return result
 
 
-# reading from stdin in invoke is super slow, see https://github.com/pyinvoke/invoke/issues/819
-# so we use a custom reader that always reads 10MiB at a time
 class CustomReader(io.StringIO):
+    """
+    Custom reader to read 10MiB at a time.
+    This is a workaround to increase invoke performance at reading from stdin
+    See https://github.com/pyinvoke/invoke/issues/819
+    """
     def __init__(self, data: str):
         super().__init__(data)
 
