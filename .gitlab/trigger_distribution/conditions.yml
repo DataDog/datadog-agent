@@ -171,6 +171,13 @@
     # Clone is required since cancelled Windows jobs with fetch strategy
     # can cause CIEXE-1152 which makes the runner unusable.
     OVERRIDE_GIT_STRATEGY: "clone"
+    # DEBUG: finding uses of the AWS SDK or CLI
+    # not covered by env var injection from ci-identities-gitlab-job-client.exe
+    AWS_ACCESS_KEY_ID: "FAKEKEY123"
+    AWS_SECRET_ACCESS_KEY: "FAKESECRET123"
+    AWS_SESSION_TOKEN: "FAKESESSION"
+    AWS_PROFILE: ""
+    AWS_SDK_LOAD_CONFIG: "0"
   id_tokens:
     CI_IDENTITIES_GITLAB_ID_TOKEN:
       aud: ci-identities
