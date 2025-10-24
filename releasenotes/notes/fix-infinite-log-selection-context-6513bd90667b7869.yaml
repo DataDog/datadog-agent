@@ -8,7 +8,7 @@
 ---
 fixes:
   - |
-    Make context expiring with configurable timeout when selecting log source type.
+    Make context expire with configurable timeout when selecting log source type.
     Infinite context was masking an error of missing runtime sockets.
     With this change, expiring context eventually reflects as log source error in `agent status` log section.
     Timeout value could be changed by setting `logs_config.container_runtime_waiting_timeout` in the Agent configuration file.
