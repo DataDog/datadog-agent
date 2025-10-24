@@ -19,8 +19,8 @@ BPF_HASH_MAP(conntrack2, conntrack_tuple_t, conntrack_tuple_t, 1)
  */
 BPF_HASH_MAP(conntrack3, conntrack_tuple_t, conntrack_tuple_t, 1)
 
-/* Map to track pending confirmations (ct pointer -> dummy value)
+/* Map to track pending confirmations (pid_tgid -> ct pointer)
  */
-BPF_HASH_MAP(pending_confirms, u64, u8, 10240)
+BPF_HASH_MAP(pending_confirms, u64, u64, 10240)
 
 #endif

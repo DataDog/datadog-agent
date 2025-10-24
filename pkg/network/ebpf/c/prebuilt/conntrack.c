@@ -59,9 +59,25 @@ int BPF_BYPASSABLE_KPROBE(kprobe_nf_nat_packet, struct nf_conn *ct) {
 SEC("kprobe/__nf_conntrack_confirm") // JMWCONNTRACK
 int BPF_BYPASSABLE_KPROBE(kprobe__nf_conntrack_confirm) {
     increment_confirm_entry_count();
-    struct nf_conn *ct = (struct nf_conn *)PT_REGS_PARM2(ctx);
+    struct sk_buff *skb = (struct sk_buff *)PT_REGS_PARM1(ctx); // skb is 1st parameter
     u64 ct_ptr;
     u8 val = 1;
+
+    if (!skb)
+        return 0;
+
+    // Extract ct from skb using nf_ct_get()
+    struct nf_conn *ct = NULL;
+    // Note: nf_ct_get() is typically inlined, so we need to access the skb fields directly
+    // The conntrack info is stored in skb->_nfct
+    u64 nfct = 0;
+    bpf_probe_read_kernel(&nfct, sizeof(nfct), &skb->_nfct);
+    if (!nfct)
+        return 0;
+    
+    // Extract ct pointer from nfct (lower 3 bits contain ctinfo, upper bits contain ct pointer)
+    // Standard Linux kernel mask is ~7UL to clear the lower 3 bits
+    ct = (struct nf_conn *)(nfct & ~7UL);
 
     if (!ct)
         return 0;
