@@ -192,20 +192,24 @@ func (c *Container) GetAnnotations() map[string]string {
 
 // CreateContainerImage creates a Filterable Container Image object.
 // This is used only for container image filtering
-func CreateContainerImage(name string) *Container {
+func CreateContainerImage(reference string) *Container {
 	return &Container{
 		FilterContainer: &typedef.FilterContainer{
-			Image: name,
+			Image: &typedef.FilterImage{
+				Reference: reference,
+			},
 		},
 	}
 }
 
 // CreateContainer creates a Filterable Container object from a name, image and an (optional) owner.
-func CreateContainer(id, name, img string, owner Filterable) *Container {
+func CreateContainer(id, name, reference string, owner Filterable) *Container {
 	c := &typedef.FilterContainer{
-		Id:    id,
-		Name:  name,
-		Image: img,
+		Id:   id,
+		Name: name,
+		Image: &typedef.FilterImage{
+			Reference: reference,
+		},
 	}
 
 	setContainerOwner(c, owner)
