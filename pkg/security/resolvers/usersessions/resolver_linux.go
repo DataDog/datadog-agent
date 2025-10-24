@@ -268,7 +268,7 @@ func parseSSHLogLine(line string, sshSessionParsed *sshSessionParsed) (bool, str
 			Remaining: strings.Join(words[5:], " "),
 		}
 	default:
-		return false, ""
+		return false, words[0]
 	}
 	// if the service is "sshd" and the line starts with "Accepted" it's the beginning of an ssh session
 	if strings.HasPrefix(sshLogLine.Service, "sshd") && strings.HasPrefix(sshLogLine.Remaining, "Accepted") {
@@ -277,7 +277,7 @@ func parseSSHLogLine(line string, sshSessionParsed *sshSessionParsed) (bool, str
 
 		sshWords := strings.Split(sshLogLine.Remaining, " ")
 		if len(sshWords) < 9 {
-			return false, ""
+			return false, sshLogLine.Date
 		}
 		sshParsedLine := SSHParsedLine{
 			AuthentificationMethod: sshWords[1],
@@ -319,7 +319,7 @@ func parseSSHLogLine(line string, sshSessionParsed *sshSessionParsed) (bool, str
 		sshSessionParsed.mu.Unlock()
 		return true, sshLogLine.Date
 	}
-	return false, ""
+	return false, sshLogLine.Date
 }
 
 // resolveFromLogFile read all the lines that have been added since the last call without reopening the file.
