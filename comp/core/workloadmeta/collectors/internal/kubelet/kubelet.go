@@ -43,21 +43,12 @@ type collector struct {
 	store                      workloadmeta.Component
 	collectEphemeralContainers bool
 
-	// These fields are only used when querying the Kubelet directly
 	kubeUtil             kubelet.KubeUtilInterface
 	lastSeenPodUIDs      map[string]time.Time
 	lastSeenContainerIDs map[string]time.Time
 
 	// These fields are used to pull the kubelet config
 	kubeletConfigLastExpire time.Time
-
-	// usePodWatcher indicates whether to use the pod watcher for collecting
-	// pods. The new implementation queries the Kubelet directly instead. This
-	// option is only here as a fallback in case the new implementation causes
-	// issues.
-	usePodWatcher bool
-	watcher       *kubelet.PodWatcher // only used if usePodWatcher is true
-	lastExpire    time.Time           // only used if usePodWatcher is true
 }
 
 // NewCollector returns a kubelet CollectorProvider that instantiates its collector
@@ -67,7 +58,6 @@ func NewCollector(deps dependencies) (workloadmeta.CollectorProvider, error) {
 			id:                         collectorID,
 			catalog:                    workloadmeta.NodeAgent | workloadmeta.ProcessAgent,
 			collectEphemeralContainers: deps.Config.GetBool("include_ephemeral_containers"),
-			usePodWatcher:              deps.Config.GetBool("kubelet_use_pod_watcher"),
 		},
 	}, nil
 }
@@ -85,30 +75,17 @@ func (c *collector) Start(_ context.Context, store workloadmeta.Component) error
 	c.store = store
 
 	var err error
-
-	if c.usePodWatcher {
-		c.watcher, err = kubelet.NewPodWatcher(expireFreq)
-		if err != nil {
-			return err
-		}
-		c.lastExpire = time.Now()
-	} else {
-		c.kubeUtil, err = kubelet.GetKubeUtil()
-		if err != nil {
-			return err
-		}
-		c.lastSeenPodUIDs = make(map[string]time.Time)
-		c.lastSeenContainerIDs = make(map[string]time.Time)
+	c.kubeUtil, err = kubelet.GetKubeUtil()
+	if err != nil {
+		return err
 	}
+	c.lastSeenPodUIDs = make(map[string]time.Time)
+	c.lastSeenContainerIDs = make(map[string]time.Time)
 
 	return nil
 }
 
 func (c *collector) Pull(ctx context.Context) error {
-	if c.usePodWatcher {
-		return c.pullUsingPodWatcher(ctx)
-	}
-
 	return c.pullFromKubelet(ctx)
 }
 
@@ -270,70 +247,12 @@ func parseExpiredContainers(expiredContainerIDs []string) []workloadmeta.Collect
 	return events
 }
 
-func (c *collector) pullUsingPodWatcher(ctx context.Context) error {
-	updatedPods, err := c.watcher.PullChanges(ctx)
-	if err != nil {
-		return err
-	}
-
-	events := util.ParseKubeletPods(updatedPods, c.collectEphemeralContainers)
-
-	if time.Since(c.lastExpire) >= expireFreq {
-		var expiredIDs []string
-		expiredIDs, err = c.watcher.Expire()
-		if err == nil {
-			events = append(events, parseExpires(expiredIDs)...)
-			c.lastExpire = time.Now()
-		}
-	}
-
-	c.store.Notify(events)
-
-	return err
-}
-
 func (c *collector) GetID() string {
 	return c.id
 }
 
 func (c *collector) GetTargetCatalog() workloadmeta.AgentType {
 	return c.catalog
-}
-
-func parseExpires(expiredIDs []string) []workloadmeta.CollectorEvent {
-	events := make([]workloadmeta.CollectorEvent, 0, len(expiredIDs))
-	podTerminatedTime := time.Now()
-
-	for _, expiredID := range expiredIDs {
-		prefix, id := containers.SplitEntityName(expiredID)
-
-		var entity workloadmeta.Entity
-
-		if prefix == kubelet.KubePodEntityName {
-			entity = &workloadmeta.KubernetesPod{
-				EntityID: workloadmeta.EntityID{
-					Kind: workloadmeta.KindKubernetesPod,
-					ID:   id,
-				},
-				FinishedAt: podTerminatedTime,
-			}
-		} else {
-			entity = &workloadmeta.Container{
-				EntityID: workloadmeta.EntityID{
-					Kind: workloadmeta.KindContainer,
-					ID:   id,
-				},
-			}
-		}
-
-		events = append(events, workloadmeta.CollectorEvent{
-			Source: workloadmeta.SourceNodeOrchestrator,
-			Type:   workloadmeta.EventTypeUnset,
-			Entity: entity,
-		})
-	}
-
-	return events
 }
 
 func eventForKubeletMetrics(expiredPodCount int) workloadmeta.CollectorEvent {
