@@ -71,7 +71,7 @@ type ebpfConntracker struct {
 	ctMap              *maps.GenericMap[netebpf.ConntrackTuple, netebpf.ConntrackTuple]
 	ctMap2             *maps.GenericMap[netebpf.ConntrackTuple, netebpf.ConntrackTuple]
 	ctMap3             *maps.GenericMap[netebpf.ConntrackTuple, netebpf.ConntrackTuple]
-	pendingConfirmsMap *maps.GenericMap[uint64, uint8]
+	pendingConfirmsMap *maps.GenericMap[uint64, uint64]
 	telemetryMap       *maps.GenericMap[uint32, netebpf.ConntrackTelemetry]
 	rootNS             uint32
 	// only kept around for stats purposes from initial dump
@@ -170,7 +170,7 @@ func NewEBPFConntracker(cfg *config.Config, telemetrycomp telemetryComp.Componen
 		return nil, fmt.Errorf("unable to get conntrack3 map: %w", err)
 	}
 
-	pendingConfirmsMap, err := maps.GetMap[uint64, uint8](m, probes.PendingConfirmsMap)
+	pendingConfirmsMap, err := maps.GetMap[uint64, uint64](m, probes.PendingConfirmsMap)
 	if err != nil {
 		_ = m.Stop(manager.CleanAll)
 		return nil, fmt.Errorf("unable to get pending_confirms map: %w", err)
@@ -720,7 +720,7 @@ func (e *ebpfConntracker) CompareConntrackMaps() (*ConntrackMapComparison, error
 	// Count pending confirmations
 	pendingIter := e.pendingConfirmsMap.Iterate()
 	pendingKey := uint64(0)
-	pendingValue := uint8(0)
+	pendingValue := uint64(0)
 	for pendingIter.Next(&pendingKey, &pendingValue) {
 		pendingCount++
 	}
