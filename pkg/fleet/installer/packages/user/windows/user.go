@@ -138,6 +138,11 @@ func getAgentUserPasswordFromLSA() (string, error) {
 	return retrievePrivateData(key)
 }
 
+// GetAgentUserPasswordFromLSA returns the Agent user password stored by the MSI in LSA.
+func GetAgentUserPasswordFromLSA() (string, error) {
+	return getAgentUserPasswordFromLSA()
+}
+
 func retrievePrivateData(key string) (string, error) {
 	// Convert Go string to UTF-16
 	keyUtf16, err := windows.UTF16PtrFromString(key)
