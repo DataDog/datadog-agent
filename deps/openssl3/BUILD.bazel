@@ -1,0 +1,26 @@
+load("//bazel/rules:golden_file_test.bzl", "golden_file_test")
+load("//bazel/tools:generate_module_bazel.bzl", "generate_module_bazel")
+
+# Forwarder to make this more accessible to the rest of the build.
+# TODO: We are getting biuld problems in CI
+#alias(
+#    name = "libcrypto",
+#    actual = "@openssl3//:libcrypto",
+#)
+
+generate_module_bazel(
+    name = "openssl3_module_bazel_new",
+    out = "openssl3.MODULE.bazel.new",
+    module = "openssl3",
+    sha256 = "967311f84955316969bdb1d8d4b983718ef42338639c621ec4c34fddef355e99",
+    strip_prefix = "openssl-3.5.4",
+    tags = ["manual"],
+    url = "https://www.openssl.org/source/openssl-3.5.4.tar.gz",
+)
+
+golden_file_test(
+    name = "openssl3_module_bazel_test",
+    golden = "openssl3.MODULE.bazel",
+    tags = ["manual"],
+    target = ":openssl3_module_bazel_new",
+)

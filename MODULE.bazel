@@ -90,3 +90,4 @@ register_toolchains(
 
 # Make our 3rd parties depencency repositories known
 include("//deps:repos.MODULE.bazel")
+include("//deps/openssl3:openssl3.MODULE.bazel")
