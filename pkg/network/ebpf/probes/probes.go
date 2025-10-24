@@ -183,13 +183,14 @@ const (
 
 	// ConntrackHashInsert is the probe for new conntrack entries
 	ConntrackHashInsert ProbeFuncName = "kprobe__nf_conntrack_hash_insert"
-
 	// ConntrackNatPacket is the probe for NAT packet processing
 	ConntrackNatPacket ProbeFuncName = "kprobe_nf_nat_packet"
-
-	// ConntrackConfirm is the probe for confirmed NAT connections
-	ConntrackConfirm ProbeFuncName = "kprobe_nf_conntrack_confirm"
-
+	// ConntrackConfirmEntry is the kprobe for __nf_conntrack_confirm entry
+	ConntrackConfirmEntry ProbeFuncName = "kprobe__nf_conntrack_confirm"
+	// ConntrackConfirmReturn is the kretprobe for __nf_conntrack_confirm return
+	ConntrackConfirmReturn ProbeFuncName = "kretprobe__nf_conntrack_confirm"
+	// ConntrackConfirmDirect is the kprobe for nf_conntrack_confirm (direct)
+	ConntrackConfirmDirect ProbeFuncName = "kprobe_nf_conntrack_confirm"
 	// ConntrackFillInfo is the probe for dumping existing conntrack entries
 	ConntrackFillInfo ProbeFuncName = "kprobe_ctnetlink_fill_info"
 )

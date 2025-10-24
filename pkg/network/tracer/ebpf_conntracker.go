@@ -452,6 +452,9 @@ func getManager(cfg *config.Config, buf io.ReaderAt, opts manager.Options) (*man
 	mgr := ddebpf.NewManagerWithDefault(&manager.Manager{
 		Maps: []*manager.Map{
 			{Name: probes.ConntrackMap},
+			{Name: probes.Conntrack2Map},
+			{Name: probes.Conntrack3Map},
+			{Name: probes.PendingConfirmsMap},
 			{Name: probes.ConntrackTelemetryMap},
 		},
 		PerfMaps: []*manager.PerfMap{},
@@ -459,6 +462,30 @@ func getManager(cfg *config.Config, buf io.ReaderAt, opts manager.Options) (*man
 			{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
 					EBPFFuncName: probes.ConntrackHashInsert, // JMWCONNTRACK
+					UID:          "conntracker",
+				},
+			},
+			{
+				ProbeIdentificationPair: manager.ProbeIdentificationPair{
+					EBPFFuncName: probes.ConntrackNatPacket, // JMWCONNTRACK
+					UID:          "conntracker",
+				},
+			},
+			{
+				ProbeIdentificationPair: manager.ProbeIdentificationPair{
+					EBPFFuncName: probes.ConntrackConfirmEntry, // JMWCONNTRACK
+					UID:          "conntracker",
+				},
+			},
+			{
+				ProbeIdentificationPair: manager.ProbeIdentificationPair{
+					EBPFFuncName: probes.ConntrackConfirmReturn, // JMWCONNTRACK
+					UID:          "conntracker",
+				},
+			},
+			{
+				ProbeIdentificationPair: manager.ProbeIdentificationPair{
+					EBPFFuncName: probes.ConntrackConfirmDirect, // JMWCONNTRACK
 					UID:          "conntracker",
 				},
 			},
@@ -491,16 +518,22 @@ func getManager(cfg *config.Config, buf io.ReaderAt, opts manager.Options) (*man
 		opts.MapSpecEditors = make(map[string]manager.MapSpecEditor)
 	}
 	opts.MapSpecEditors[probes.ConntrackMap] = manager.MapSpecEditor{MaxEntries: uint32(cfg.ConntrackMaxStateSize), EditorFlag: manager.EditMaxEntries}
+	opts.MapSpecEditors[probes.Conntrack2Map] = manager.MapSpecEditor{MaxEntries: uint32(cfg.ConntrackMaxStateSize), EditorFlag: manager.EditMaxEntries}
+	opts.MapSpecEditors[probes.Conntrack3Map] = manager.MapSpecEditor{MaxEntries: uint32(cfg.ConntrackMaxStateSize), EditorFlag: manager.EditMaxEntries}
+	opts.MapSpecEditors[probes.PendingConfirmsMap] = manager.MapSpecEditor{MaxEntries: 10240, EditorFlag: manager.EditMaxEntries}
 	if opts.MapEditors == nil {
 		opts.MapEditors = make(map[string]*ebpf.Map)
 	}
 	opts.BypassEnabled = cfg.BypassEnabled
 
 	if err := features.HaveMapType(ebpf.LRUHash); err == nil {
-		me := opts.MapSpecEditors[probes.ConntrackMap]
-		me.Type = ebpf.LRUHash
-		me.EditorFlag |= manager.EditType
-		opts.MapSpecEditors[probes.ConntrackMap] = me
+		// Apply LRU hash to all conntrack maps
+		for _, mapName := range []string{probes.ConntrackMap, probes.Conntrack2Map, probes.Conntrack3Map} {
+			me := opts.MapSpecEditors[mapName]
+			me.Type = ebpf.LRUHash
+			me.EditorFlag |= manager.EditType
+			opts.MapSpecEditors[mapName] = me
+		}
 	}
 
 	err = mgr.InitWithOptions(buf, &opts)
