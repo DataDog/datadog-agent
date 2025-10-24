@@ -95,8 +95,7 @@ type ProcessCheck struct {
 	// determine if zombies process will be collected
 	ignoreZombieProcesses bool
 
-	// TODO: process_config.process_collection.use_wlm is a temporary configuration for refactoring purposes
-	// that determines if linux process collection will use WLM
+	// useWLMProcessCollection determines if process collection uses workloadmeta (always true on Linux, false elsewhere)
 	useWLMProcessCollection bool
 
 	hostInfo                   *HostInfo
@@ -192,7 +191,9 @@ func (p *ProcessCheck) Init(syscfg *SysProbeConfig, info *HostInfo, oneShot bool
 
 	p.extractors = append(p.extractors, p.serviceExtractor)
 
-	if !oneShot && workloadmeta.Enabled(p.config) && !p.useWLMCollection() {
+	p.useWLMProcessCollection = p.useWLMCollection()
+
+	if !oneShot && workloadmeta.Enabled(p.config) && !p.useWLMProcessCollection {
 		p.workloadMetaExtractor = workloadmeta.GetSharedWorkloadMetaExtractor(pkgconfigsetup.SystemProbe())
 
 		// The server is only needed on the process agent
@@ -207,9 +208,6 @@ func (p *ProcessCheck) Init(syscfg *SysProbeConfig, info *HostInfo, oneShot bool
 		p.extractors = append(p.extractors, p.workloadMetaExtractor)
 	}
 
-	// TODO: process_config.process_collection.use_wlm is a temporary configuration for refactoring purposes
-	p.useWLMProcessCollection = p.useWLMCollection()
-
 	return nil
 }
 
@@ -222,7 +220,7 @@ func (p *ProcessCheck) IsEnabled() bool {
 
 	// we want the check to be run for process collection or when the new service discovery collection is enabled
 	return p.config.GetBool("process_config.process_collection.enabled") ||
-		(p.sysConfig.GetBool("discovery.enabled") && p.config.GetBool("process_config.process_collection.use_wlm"))
+		p.sysConfig.GetBool("discovery.enabled")
 }
 
 // SupportsRunOptions returns true if the check supports RunOptions

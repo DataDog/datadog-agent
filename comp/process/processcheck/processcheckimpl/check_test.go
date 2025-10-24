@@ -11,6 +11,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/fx"
 
+	"github.com/DataDog/datadog-go/v5/statsd"
+
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
@@ -23,7 +25,6 @@ import (
 	gpusubscriberfxmock "github.com/DataDog/datadog-agent/comp/process/gpusubscriber/fx-mock"
 	"github.com/DataDog/datadog-agent/comp/process/processcheck"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
 func TestProcessChecksIsEnabled(t *testing.T) {
@@ -37,7 +38,6 @@ func TestProcessChecksIsEnabled(t *testing.T) {
 			name: "check enabled: collection enabled, discovery enabled",
 			configs: map[string]interface{}{
 				"process_config.process_collection.enabled": true,
-				"process_config.process_collection.use_wlm": true, // temporarily used to gate discovery check
 			},
 			sysProbeConfigs: map[string]interface{}{
 				"discovery.enabled": true,
@@ -48,7 +48,6 @@ func TestProcessChecksIsEnabled(t *testing.T) {
 			name: "check enabled: collection enabled, discovery disabled",
 			configs: map[string]interface{}{
 				"process_config.process_collection.enabled": true,
-				"process_config.process_collection.use_wlm": false, // temporarily used to gate discovery check
 			},
 			sysProbeConfigs: map[string]interface{}{
 				"discovery.enabled": false,
@@ -59,7 +58,6 @@ func TestProcessChecksIsEnabled(t *testing.T) {
 			name: "check enabled: collection disabled, discovery enabled",
 			configs: map[string]interface{}{
 				"process_config.process_collection.enabled": false,
-				"process_config.process_collection.use_wlm": true, // temporarily used to gate discovery check
 			},
 			sysProbeConfigs: map[string]interface{}{
 				"discovery.enabled": true,
@@ -67,21 +65,9 @@ func TestProcessChecksIsEnabled(t *testing.T) {
 			enabled: true,
 		},
 		{
-			name: "check disabled: collection disabled, discovery enabled but use_wlm disabled",
-			configs: map[string]interface{}{
-				"process_config.process_collection.enabled": false,
-				"process_config.process_collection.use_wlm": false, // temporarily used to gate discovery check
-			},
-			sysProbeConfigs: map[string]interface{}{
-				"discovery.enabled": true,
-			},
-			enabled: false,
-		},
-		{
 			name: "check disabled: collection disabled, discovery disabled",
 			configs: map[string]interface{}{
 				"process_config.process_collection.enabled": false,
-				"process_config.process_collection.use_wlm": false, // temporarily used to gate discovery check
 			},
 			sysProbeConfigs: map[string]interface{}{
 				"discovery.enabled": false,
