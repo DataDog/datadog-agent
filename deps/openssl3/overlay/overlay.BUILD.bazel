@@ -1,0 +1,147 @@
+# Agent specific openssl3 build.
+
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load("@rules_license//rules:license.bzl", "license")
+load(
+    "lib_contents.bzl",
+    "HDRS",
+    "HDRS_DARWIN64_ARM64",
+    "HDRS_LINUX_ARM64",
+    "LIBCRYPTO_OBJS",
+    "OBJ_TO_SRC",
+)
+
+package(
+    default_applicable_licenses = [":license"],
+    default_visibility = ["//visibility:private"],
+)
+
+license(
+    name = "license",
+    license_kinds = ["@rules_license//licenses/spdx:Apache-2.0"],
+    license_text = "LICENSE.txt",
+    visibility = ["//visibility:public"],
+)
+
+exports_files([
+    "LICENSE.txt",
+])
+
+VERSION = "3.5.2"
+SONAME = "libcrypto.so.%s" % VERSION
+
+LIB_CRYPTO_SRCS = [OBJ_TO_SRC.get(obj) for obj in LIBCRYPTO_OBJS if obj in OBJ_TO_SRC]
+
+LOCAL_DEFINES = [
+    "-DOPENSSLDIR='\"/opt/datadog/embedded/ssl/cacerts\"'",
+    "-DENGINESDIR='\"/opt/datadog/embedded/lib/engines-3\"'",
+    "-DMODULESDIR='\"/opt/datadog/embedded/lib/ossl-modules\"'",
+    "-DBSAES_ASM",
+    "-DECP_NISTZ256_ASM",
+    "-DECP_SM2P256_ASM",
+    "-DKECCAK1600_ASM",
+    "-DOPENSSL_CPUID_OBJ",
+    "-DSHA1_ASM",
+    "-DSHA256_ASM",
+    "-DSHA512_ASM",
+    "-DSM4_ASM",
+    "-DVPAES_ASM",
+    "-DVPSM4_ASM",
+    "-DL_ENDIAN",
+    "-DOPENSSL_PIC",
+]
+
+# print(LIB_CRYPTO_SRCS)
+
+ARCH_HDRS_COND = {
+    "@platforms//os:linux": [
+        "linux_arm64/crypto/buildinf.h",
+    ],
+    "@platforms//os:macos": [
+        "darwin64_arm64/crypto/buildinf.h",
+    ],
+    "//conditions:default": [],
+}
+
+cc_library(
+    name = "libcrypto",
+    srcs = [OBJ_TO_SRC.get(obj) for obj in LIBCRYPTO_OBJS if obj in OBJ_TO_SRC] + HDRS + select({
+        "@platforms//os:macos": HDRS_DARWIN64_ARM64,
+        "@platforms//os:linux": HDRS_LINUX_ARM64,
+    }) + select({
+        "@platforms//cpu:aarch64": [
+            "crypto/sm4/vpsm4-armv8.S",
+        ],
+        "//conditions:default": [
+            "crypto/sm4/vpsm4-armv8.S",
+        ],
+    }) + select(ARCH_HDRS_COND),
+    # Yeech.  Includes polutes the build. But we can not use -I because we don't know
+    # the path to the folder when building via external/openssl3/...
+    # Ideal solution:
+    #    port local_incudes concept from Google out to rules_cc.
+    includes = [
+        "include",
+        "crypto",
+        "openssl",
+        "providers",
+        "providers/common/include",
+        "providers/fips/include",
+        "providers/implementations/include",
+    ] + select({
+        # TODO: This needs to be arch specific too.
+        "@platforms//os:linux": [
+            "linux_arm64/crypto",
+            "linux_arm64/include",
+            "linux_arm64/providers/common/include",
+        ],
+        "@platforms//os:macos": [
+            "darwin64_arm64/crypto",
+            "darwin64_arm64/include",
+            "darwin64_arm64/providers/common/include",
+        ],
+    }),
+    copts = LOCAL_DEFINES + select({
+        "@platforms//os:linux": [
+            "-fPIC",
+            "-O3",
+        ],
+        "@platforms//os:macos": [
+            "-fPIC",
+            "-O3",
+        ],
+    }),
+    textual_hdrs = [
+        "crypto/LPdir_unix.c",
+        "crypto/des/ncbc_enc.c",
+        "providers/implementations/macs/blake2_mac_impl.c",
+    ] + glob(["**/*.inc"]),
+    visibility = ["//visibility:public"],
+)
+
+"""Grabbed from live build.
+
+sm2_sig.d.tmp -c -o providers/implementations/signature/libdefault-lib-sm2_sig.o ../openssl-3.5.2-pristine/providers/implementations/signature/sm2_sig.c
+cc  -I. -Icrypto -Iinclude -Iproviders/implementations/include -Iproviders/common/include -Iproviders/fips/include -I../openssl-3.5.2-pristine -I../openssl-3.5.2-pristine/crypto -I../openssl-3.5.2-pristine/include -I../openssl-3.5.2-pristine/providers/implementations/include -I../openssl-3.5.2-pristine/providers/common/include -I../openssl-3.5.2-pristine/providers/fips/include
+-DBSAES_ASM
+-DECP_NISTZ256_ASM
+-DECP_SM2P256_ASM
+-DKECCAK1600_ASM
+-DOPENSSL_CPUID_OBJ
+-DSHA1_ASM
+-DSHA256_ASM
+-DSHA512_ASM
+-DSM4_ASM
+-DVPAES_ASM
+-DVPSM4_ASM -fPIC -arch arm64 -O3 -Wall
+-DL_ENDIAN
+-DOPENSSL_PIC
+-DOPENSSLDIR="\"/opt/datadog/embedded/ssl\""
+-DENGINESDIR="\"/opt/datadog/embedded/lib/engines-3\""
+-DMODULESDIR="\"/opt/datadog/embedded/lib/ossl-modules\""
+-D_REENTRANT
+-DOPENSSL_BUILDING_OPENSSL
+-DZLIB
+-DNDEBUG
+ -I/opt/datadog/embedded/include  -MMD -MF providers/implementations/skeymgmt/libdefault-lib-aes_skmgmt.d.tmp -c -o providers/implementations/skeymgmt/libdefault-lib-aes_skmgmt.o ../openssl-3.5.2-pristine/providers/implementations/skeymgmt/aes_skmgmt.c
+"""
