@@ -3,10 +3,10 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build !linux
+//go:build !windows
 
-// Package processlanguage implements the process language collector for Workloadmeta.
-package processlanguage
+// Package processcollector implements the remote process collector for Workloadmeta on Windows.
+package processcollector
 
 import (
 	"go.uber.org/fx"
@@ -14,5 +14,5 @@ import (
 
 // GetFxOptions returns the FX framework options for the collector
 func GetFxOptions() fx.Option {
-	return nil
+	return fx.Options()
 }
