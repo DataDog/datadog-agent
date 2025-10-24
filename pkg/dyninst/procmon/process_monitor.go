@@ -18,6 +18,7 @@ import (
 
 	"golang.org/x/time/rate"
 
+	"github.com/DataDog/datadog-agent/pkg/dyninst/process"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/container"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -31,36 +32,8 @@ type Handler interface {
 // ProcessesUpdate is a set of updates that the process monitor will send to the
 // handler.
 type ProcessesUpdate struct {
-	Processes []ProcessUpdate
-	Removals  []ProcessID
-}
-
-// ProcessUpdate is an update to a process's instrumentation configuration.
-type ProcessUpdate struct {
-	ProcessID   ProcessID
-	Executable  Executable
-	Service     string
-	Version     string
-	Environment string
-	GitInfo     GitInfo
-	Container   ContainerInfo
-}
-
-// ContainerInfo is information about the container the process is running in.
-type ContainerInfo struct {
-	// EntityID is the entity id of the process. It is either derived from the
-	// container id or inode of the cgroup root.
-	EntityID string
-	// ContainerID is the container id of the process.
-	ContainerID string
-}
-
-// GitInfo is information about the git repository and commit sha of the process.
-type GitInfo struct {
-	// CommitSha is the git commit sha of the process.
-	CommitSha string
-	// RepositoryURL is the git repository url of the process.
-	RepositoryURL string
+	Processes []process.Info
+	Removals  []process.ID
 }
 
 // ProcessMonitor encapsulates the logic of processing events from an event

@@ -13,27 +13,62 @@ permissions:
   contents: read
 
 jobs:
-  check-changes:
+  detect-changes:
     runs-on: ubuntu-latest
     outputs:
-      changes: "${{ steps.check-changes.outcome == 'success' }}"
+      changes: "${{ steps.images.outcome == 'success' || steps.files.outcome == 'success' }}"
 
     steps:
-    - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-      with:
-        persist-credentials: false
-
-    - name: Check for build images changes
-      id: check-changes
+    - name: Fetch changed files (PR)
+      if: github.event_name == 'pull_request'
       env:
         GH_TOKEN: "${{ github.token }}"
-      run: >-
-        gh pr diff "${{ github.event.pull_request.number }}" | grep -E "^[-+] +CI_IMAGE_[^:]+: v"
-      continue-on-error: true
+      run: |
+        gh api repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}/files --paginate \
+        | jq -s 'add' > pr-files.json
+
+    - name: Fetch changed files (push)
+      uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      if: github.event_name == 'push'
+      with:
+        persist-credentials: false
+        fetch-depth: 2
+
+    - name: Build changed files list
+      run: |
+        if [ "${{ github.event_name }}" = "pull_request" ]; then
+          jq -r '.[].filename' pr-files.json | sort -u > changed-files.txt
+          jq -r '.[] | select(.filename==".gitlab-ci.yml") | .patch // empty' pr-files.json > gitlab-ci.patch
+        else
+          git diff --name-only HEAD~1 HEAD | sort -u > changed-files.txt
+          git diff HEAD~1 HEAD -- .gitlab-ci.yml > gitlab-ci.patch || true
+        fi
+
+    - name: Detect CI image changes
+      id: images
+      run: |
+        if grep -E '^[-+] +CI_IMAGE_[^:]+: v' gitlab-ci.patch >/dev/null; then
+          echo "changed=true"  >> "$GITHUB_OUTPUT"
+        else
+          echo "changed=false" >> "$GITHUB_OUTPUT"
+        fi
+
+    - name: Detect files of interest changes
+      id: files
+      run: |
+        cat > files-of-interest.txt <<'EOF'
+        .github/workflows/test-devcontainer.yml
+        EOF
+
+        if grep -Fx -f files-of-interest.txt changed-files.txt >/dev/null; then
+          echo "changed=true"  >> "$GITHUB_OUTPUT"
+        else
+          echo "changed=false" >> "$GITHUB_OUTPUT"
+        fi
 
   test:
-    needs: check-changes
-    if: ${{ needs.check-changes.outputs.changes == 'true' }}
+    needs: detect-changes
+    if: ${{ needs.detect-changes.outputs.changes == 'true' }}
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false

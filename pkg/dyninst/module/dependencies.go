@@ -20,8 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/loader"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/object"
-	"github.com/DataDog/datadog-agent/pkg/dyninst/procmon"
-	"github.com/DataDog/datadog-agent/pkg/dyninst/rcscrape"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/process"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/symbol"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/uploader"
 )
@@ -31,7 +30,6 @@ import (
 // through the WithDependencies option.
 type dependencies struct {
 	Actuator            Actuator[ActuatorTenant]
-	Scraper             Scraper
 	Dispatcher          Dispatcher
 	DecoderFactory      DecoderFactory
 	IRGenerator         IRGenerator
@@ -40,23 +38,14 @@ type dependencies struct {
 	Attacher            Attacher
 	LogsFactory         LogsUploaderFactory[LogsUploader]
 	DiagnosticsUploader DiagnosticsUploader
+	ProcessSubscriber   ProcessSubscriber
 	symdbManager        *symdbManager
 }
 
-// ProcessSubscriber is an interface that can be used to subscribe to process
-// events.
+// ProcessSubscriber emits combined process lifecycle updates and configuration
+// updates.
 type ProcessSubscriber interface {
-	SubscribeExec(func(pid uint32)) (cleanup func())
-	SubscribeExit(func(pid uint32)) (cleanup func())
-}
-
-// Scraper is an interface that enables the Controller to get updates from the
-// scraper and to set the probe status to emitting.
-type Scraper interface {
-	// GetUpdates returns the current set of updates.
-	GetUpdates() []rcscrape.ProcessUpdate
-	// AsProcMonHandler returns a procmon.Handler attached to the Scraper.
-	AsProcMonHandler() procmon.Handler
+	Subscribe(callback func(process.ProcessesUpdate))
 }
 
 // IRGenerator is used to generate IR from binary updates.
@@ -85,7 +74,7 @@ type Attacher interface {
 
 // DecoderFactory is a factory for creating decoders.
 type DecoderFactory interface {
-	NewDecoder(*ir.Program, procmon.Executable) (Decoder, error)
+	NewDecoder(*ir.Program, process.Executable) (Decoder, error)
 }
 
 // Decoder is a decoder for a program.
@@ -107,7 +96,7 @@ type decoderFactory struct {
 // NewDecoder creates a new decoder using decode.NewDecoder.
 func (f decoderFactory) NewDecoder(
 	program *ir.Program,
-	executable procmon.Executable,
+	executable process.Executable,
 ) (_ Decoder, retErr error) {
 
 	// It's a bit unfortunate that we have to open the file here, but it's

@@ -22,6 +22,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
+	procinfo "github.com/DataDog/datadog-agent/pkg/dyninst/process"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/rcjson"
 )
 
@@ -237,9 +238,11 @@ func (pts *propertyTestState) generateProcessUpdate() event {
 			}
 
 			updates = append(updates, ProcessUpdate{
-				ProcessID: processID,
-				Executable: Executable{
-					Path: fmt.Sprintf("/usr/bin/app_%d", pts.processIDCounter),
+				Info: procinfo.Info{
+					ProcessID: processID,
+					Executable: Executable{
+						Path: fmt.Sprintf("/usr/bin/app_%d", pts.processIDCounter),
+					},
 				},
 				Probes: probes,
 			})
@@ -274,9 +277,11 @@ func (pts *propertyTestState) generateProcessUpdate() event {
 				}
 
 				updates = append(updates, ProcessUpdate{
-					ProcessID:  processID.ProcessID,
-					Executable: existingProcess.executable,
-					Probes:     probes,
+					Info: procinfo.Info{
+						ProcessID:  processID.ProcessID,
+						Executable: existingProcess.executable,
+					},
+					Probes: probes,
 				})
 			}
 

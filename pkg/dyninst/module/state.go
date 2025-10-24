@@ -13,8 +13,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/actuator"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
-	"github.com/DataDog/datadog-agent/pkg/dyninst/procmon"
-	"github.com/DataDog/datadog-agent/pkg/dyninst/rcscrape"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/process"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/symbol"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -25,7 +24,7 @@ type processState struct {
 	symbolicator     symbol.Symbolicator
 	symbolicatorFile io.Closer
 	symbolicatorErr  error
-	gitInfo          procmon.GitInfo
+	gitInfo          process.GitInfo
 }
 
 type processStore struct {
@@ -41,7 +40,7 @@ func newProcessStore() *processStore {
 	}
 }
 
-func (ps *processStore) remove(removals []procmon.ProcessID, dm *diagnosticsManager) {
+func (ps *processStore) remove(removals []process.ID, dm *diagnosticsManager) {
 	ps.mu.Lock()
 	defer ps.mu.Unlock()
 	for _, pid := range removals {
@@ -57,14 +56,14 @@ func (ps *processStore) remove(removals []procmon.ProcessID, dm *diagnosticsMana
 	}
 }
 
-func (ps *processStore) ensureExists(update *rcscrape.ProcessUpdate) procRuntimeID {
+func (ps *processStore) ensureExists(update *process.Config) procRuntimeID {
 	ps.mu.Lock()
 	defer ps.mu.Unlock()
 	proc, ok := ps.processes[update.ProcessID]
 	if !ok {
 		proc = &processState{
 			procRuntimeID: procRuntimeID{
-				ProcessID:   update.ProcessID,
+				ID:          update.ProcessID,
 				runtimeID:   update.RuntimeID,
 				service:     update.Service,
 				version:     update.Version,
@@ -73,10 +72,10 @@ func (ps *processStore) ensureExists(update *rcscrape.ProcessUpdate) procRuntime
 			executable: update.Executable,
 			gitInfo:    update.GitInfo,
 		}
-		if update.GitInfo != (procmon.GitInfo{}) {
+		if update.GitInfo != (process.GitInfo{}) {
 			proc.procRuntimeID.gitInfo = &proc.gitInfo
 		}
-		if update.Container != (procmon.ContainerInfo{}) {
+		if update.Container != (process.ContainerInfo{}) {
 			proc.procRuntimeID.containerInfo = &update.Container
 		}
 		ps.processes[update.ProcessID] = proc

@@ -9,17 +9,7 @@ package module
 
 import (
 	"sync"
-
-	"github.com/DataDog/datadog-agent/pkg/dyninst/rcscrape"
 )
-
-// SetScraperUpdatesCallback installs a callback that will be called when the
-// module processes updates from the rcscrape.Scraper.
-func (m *Module) SetScraperUpdatesCallback(
-	callback func(updates []rcscrape.ProcessUpdate),
-) {
-	m.testingKnobs.scraperUpdatesCallback = callback
-}
 
 // DiagnosticsStates returns the diagnostics states for the controller.
 func (m *Module) DiagnosticsStates() map[string]map[string][]string {
