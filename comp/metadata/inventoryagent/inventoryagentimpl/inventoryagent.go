@@ -35,6 +35,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	configFetcher "github.com/DataDog/datadog-agent/pkg/config/fetcher"
 	sysprobeConfigFetcher "github.com/DataDog/datadog-agent/pkg/config/fetcher/sysprobe"
+	"github.com/DataDog/datadog-agent/pkg/config/fetcher/tracers"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/fips"
@@ -360,6 +361,19 @@ func (ia *inventoryagent) fetchSystemProbeMetadata() {
 	ia.data["feature_dynamic_instrumentation_enabled"] = sysProbeConf.GetBool("dynamic_instrumentation.enabled")
 }
 
+func (ia *inventoryagent) fetchApplicationMonitoringMetadata() {
+	applicationMonitoringConfig, err := tracers.ApplicationMonitoringConfig(ia.conf.Object())
+	if err != nil {
+		ia.log.Errorf("could not fetch application monitoring configuration: %s", err)
+	}
+	applicationMonitoringConfigFleet, err := tracers.ApplicationMonitoringConfigFleet(ia.conf.Object())
+	if err != nil {
+		ia.log.Errorf("could not fetch application monitoring configuration fleet: %s", err)
+	}
+	ia.data["application_monitoring_config"] = applicationMonitoringConfig
+	ia.data["application_monitoring_config_fleet"] = applicationMonitoringConfigFleet
+}
+
 // fetchECSFargateAgentMetadata fetches ECS Fargate agent metadata from the ECS metadata V2 service.
 // Times out after 5 seconds to avoid blocking the agent startup.
 func (ia *inventoryagent) fetchECSFargateAgentMetadata() {
@@ -403,6 +417,8 @@ func (ia *inventoryagent) refreshMetadata() {
 	ia.fetchSystemProbeMetadata()
 	// Fleet
 	ia.fetchFleetMetadata()
+	// Application Monitoring (tracers)
+	ia.fetchApplicationMonitoringMetadata()
 }
 
 func (ia *inventoryagent) writePayloadAsJSON(w http.ResponseWriter, _ *http.Request) {
