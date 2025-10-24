@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/resolver"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
 
@@ -29,8 +30,7 @@ type dependencies struct {
 	Params Params
 	// DelegatedAuth ensures the delegated auth component is initialized before the forwarder
 	// This is critical because the API key from delegated auth must be available before domain resolvers are created
-	// The dependency is optional to avoid breaking tests that don't need delegated auth
-	DelegatedAuth delegatedauth.Component `optional:"true"`
+	DelegatedAuth option.Option[delegatedauth.Component]
 }
 
 type provides struct {

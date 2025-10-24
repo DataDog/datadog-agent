@@ -9,8 +9,6 @@ import (
 	"context"
 	"testing"
 	"time"
-
-	"github.com/stretchr/testify/assert"
 )
 
 func TestContextCancellationStopsRefresh(t *testing.T) {
@@ -53,26 +51,6 @@ func TestContextCancellationStopsRefresh(t *testing.T) {
 	}
 }
 
-func TestNoopDelegatedAuth(t *testing.T) {
-	noop := &noopDelegatedAuth{}
-
-	ctx := context.Background()
-
-	// GetAPIKey should return error
-	_, err := noop.GetAPIKey(ctx)
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "not enabled")
-
-	// RefreshAPIKey should return error
-	err = noop.RefreshAPIKey(ctx)
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "not enabled")
-
-	// StartApiKeyRefresh should not panic
-	assert.NotPanics(t, func() {
-		noop.StartApiKeyRefresh()
-	})
-}
 
 func TestBackgroundRefreshContextHandling(t *testing.T) {
 	// This test verifies that the background refresh goroutine properly

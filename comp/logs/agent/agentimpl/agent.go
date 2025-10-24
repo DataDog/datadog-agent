@@ -87,8 +87,7 @@ type dependencies struct {
 	Compression        logscompression.Component
 	// DelegatedAuth ensures the delegated auth component is initialized before the logs agent
 	// This is critical because the API key from delegated auth must be available before endpoints are created
-	// The dependency is optional to avoid breaking tests that don't need delegated auth
-	DelegatedAuth delegatedauth.Component `optional:"true"`
+	DelegatedAuth option.Option[delegatedauth.Component]
 }
 
 type provides struct {

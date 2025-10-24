@@ -20,6 +20,7 @@ import (
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	delegatedauthpkg "github.com/DataDog/datadog-agent/pkg/delegatedauth"
 	"github.com/DataDog/datadog-agent/pkg/delegatedauth/cloudauth"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 type delegatedAuthComponent struct {
@@ -45,9 +46,10 @@ type dependencies struct {
 }
 
 // NewDelegatedAuth creates a new delegated auth Component based on the current configuration
-func NewDelegatedAuth(deps dependencies) (delegatedauth.Component, error) {
+func NewDelegatedAuth(deps dependencies) option.Option[delegatedauth.Component] {
 	if !deps.Config.GetBool("delegated_auth.enabled") {
-		return &noopDelegatedAuth{}, nil
+		deps.Log.Info("Delegated authentication is disabled")
+		return option.None[delegatedauth.Component]()
 	}
 
 	provider := deps.Config.GetString("delegated_auth.provider")
@@ -61,7 +63,8 @@ func NewDelegatedAuth(deps dependencies) (delegatedauth.Component, error) {
 	}
 
 	if orgUUID == "" {
-		return nil, fmt.Errorf("delegated_auth.org_uuid is required when delegated_auth.enabled is true")
+		deps.Log.Error("delegated_auth.org_uuid is required when delegated_auth.enabled is true")
+		return option.None[delegatedauth.Component]()
 	}
 
 	var tokenProvider delegatedauthpkg.Provider
@@ -71,7 +74,8 @@ func NewDelegatedAuth(deps dependencies) (delegatedauth.Component, error) {
 			AwsRegion: deps.Config.GetString("delegated_auth.aws_region"),
 		}
 	default:
-		return nil, fmt.Errorf("unsupported delegated auth provider: %s", provider)
+		deps.Log.Errorf("unsupported delegated auth provider: %s", provider)
+		return option.None[delegatedauth.Component]()
 	}
 
 	authConfig := &delegatedauthpkg.AuthConfig{
@@ -126,7 +130,7 @@ func NewDelegatedAuth(deps dependencies) (delegatedauth.Component, error) {
 		},
 	})
 
-	return comp, nil
+	return option.New[delegatedauth.Component](comp)
 }
 
 // GetAPIKey returns the current API key or fetches one if it has not yet been fetched
@@ -215,19 +219,4 @@ func (d *delegatedAuthComponent) updateConfigWithAPIKey(apiKey string) {
 	// This will trigger OnUpdate callbacks for any components listening to this config
 	d.config.Set("api_key", apiKey, pkgconfigmodel.SourceAgentRuntime)
 	d.log.Infof("Updated config with new apiKey")
-}
-
-// noopDelegatedAuth is used when delegated auth is disabled
-type noopDelegatedAuth struct{}
-
-func (n *noopDelegatedAuth) GetAPIKey(ctx context.Context) (*string, error) {
-	return nil, fmt.Errorf("delegated auth is not enabled")
-}
-
-func (n *noopDelegatedAuth) RefreshAPIKey(ctx context.Context) error {
-	return fmt.Errorf("delegated auth is not enabled")
-}
-
-func (n *noopDelegatedAuth) StartApiKeyRefresh() {
-	// noop
 }

@@ -30,6 +30,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	installertelemetry "github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 
 	dto "github.com/prometheus/client_model/go"
@@ -71,7 +72,7 @@ type Requires struct {
 	// is enabled, it will be initialized (and fetch the API key) before agenttelemetry starts.
 	// This ensures telemetry has the correct API key from the start.
 	// FX will initialize delegatedauth before agenttelemetry due to this dependency.
-	DelegatedAuth delegatedauth.Component
+	DelegatedAuth option.Option[delegatedauth.Component]
 }
 
 // Provides defines the output of the agenttelemetry component
