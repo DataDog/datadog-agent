@@ -43,7 +43,7 @@ func TestResolveAddressWithSymbols(t *testing.T) {
 
 	// Try to resolve some address (we don't know exact addresses, but test the format)
 	// Use a small offset that's likely to be in the binary
-	symbol := resolveAddress(binaryInfo, 0x1000)
+	symbol := resolveAddress(binaryInfo, 0x1000, SymbolicationModeRawAddresses|SymbolicationModeSymTable|SymbolicationModeDWARF)
 
 	// Should return something, either:
 	// - Function name with DWARF info: "func_name (file.c:123)"
@@ -92,7 +92,7 @@ func TestResolveAddressFormats(t *testing.T) {
 			require.NoError(t, err)
 			require.NotNil(t, binaryInfo)
 
-			symbol := resolveAddress(binaryInfo, tc.offset)
+			symbol := resolveAddress(binaryInfo, tc.offset, SymbolicationModeRawAddresses|SymbolicationModeSymTable|SymbolicationModeDWARF)
 			assert.Contains(t, symbol, tc.expectedFormat)
 			t.Logf("Resolved: %s", symbol)
 		})
@@ -119,7 +119,7 @@ func TestResolveSymbolFallback(t *testing.T) {
 	require.NotNil(t, binaryInfo)
 
 	// Even if DWARF is missing, we should fall back to symbols
-	symbol := resolveAddress(binaryInfo, 0x1000)
+	symbol := resolveAddress(binaryInfo, 0x1000, SymbolicationModeRawAddresses|SymbolicationModeSymTable|SymbolicationModeDWARF)
 	assert.NotEmpty(t, symbol)
 
 	// The symbol should either have:
@@ -164,7 +164,7 @@ func TestSymbolTableBinarySearch(t *testing.T) {
 	// Test resolving at various offsets
 	offsets := []uint64{0x1000, 0x2000, 0x5000}
 	for _, offset := range offsets {
-		symbol := resolveAddress(binaryInfo, offset)
+		symbol := resolveAddress(binaryInfo, offset, SymbolicationModeRawAddresses|SymbolicationModeSymTable|SymbolicationModeDWARF)
 		assert.NotEmpty(t, symbol)
 		t.Logf("Offset 0x%x -> %s", offset, symbol)
 	}
@@ -348,7 +348,7 @@ func TestDWARFLineResolution(t *testing.T) {
 		for _, sym := range symbols {
 			if sym.Info&0xf == byte(safeelf.STT_FUNC) && sym.Value > 0 && sym.Value < 0x100000 {
 				// Try the function entry point
-				symbol := resolveAddress(binaryInfo, sym.Value)
+				symbol := resolveAddress(binaryInfo, sym.Value, SymbolicationModeRawAddresses|SymbolicationModeSymTable|SymbolicationModeDWARF)
 				assert.NotEmpty(t, symbol)
 				t.Logf("Address 0x%x (%s) -> %s", sym.Value, sym.Name, symbol)
 
@@ -365,7 +365,7 @@ func TestDWARFLineResolution(t *testing.T) {
 	testOffsets := []uint64{0x1000, 0x2000, 0x3000, 0x4000, 0x5000}
 	foundDwarfResolution := false
 	for _, offset := range testOffsets {
-		symbol := resolveAddress(binaryInfo, offset)
+		symbol := resolveAddress(binaryInfo, offset, SymbolicationModeRawAddresses|SymbolicationModeSymTable|SymbolicationModeDWARF)
 		assert.NotEmpty(t, symbol)
 
 		// Check if DWARF worked (should contain file:line info)

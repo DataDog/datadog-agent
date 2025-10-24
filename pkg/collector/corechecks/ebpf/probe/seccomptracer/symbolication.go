@@ -89,9 +89,21 @@ func findMapping(mappings []*procfs.ProcMap, addr uint64) *procfs.ProcMap {
 	return nil
 }
 
+// SymbolicationMode is the mode of symbolication
+type SymbolicationMode int
+
+const (
+	// SymbolicationModeRawAddresses indicates that raw addresses should be used
+	SymbolicationModeRawAddresses SymbolicationMode = 1 << iota
+	// SymbolicationModeSymTable indicates that the symbol table should be used
+	SymbolicationModeSymTable
+	// SymbolicationModeDWARF indicates that DWARF should be used
+	SymbolicationModeDWARF
+)
+
 // SymbolicateAddresses converts a list of addresses to symbolicated strings
 // Returns a slice of strings with function names, line numbers, and inline info when available
-func SymbolicateAddresses(pid uint32, addresses []uint64) []string {
+func SymbolicateAddresses(pid uint32, addresses []uint64, mode SymbolicationMode) []string {
 	if len(addresses) == 0 {
 		return nil
 	}
@@ -110,7 +122,10 @@ func SymbolicateAddresses(pid uint32, addresses []uint64) []string {
 
 	symbols := make([]string, len(addresses))
 	for i, addr := range addresses {
-		mapping := findMapping(mappings, addr)
+		var mapping *procfs.ProcMap
+		if mode&SymbolicationModeSymTable != 0 || mode&SymbolicationModeDWARF != 0 {
+			mapping = findMapping(mappings, addr)
+		}
 		if mapping != nil {
 			// Calculate offset within the binary
 			// offset = (address - mapping_start) + file_offset
@@ -130,7 +145,7 @@ func SymbolicateAddresses(pid uint32, addresses []uint64) []string {
 				symbols[i] = fmt.Sprintf("%s+0x%x", mapping.Pathname, offset)
 			} else {
 				// Resolve address using DWARF/symbols
-				symbols[i] = resolveAddress(info, offset)
+				symbols[i] = resolveAddress(info, offset, mode)
 			}
 		} else {
 			// Couldn't resolve, use raw address

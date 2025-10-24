@@ -32,6 +32,7 @@ type binaryInfo struct {
 	dwarfData  *dwarf.Data      // Parsed DWARF (may be nil if stripped)
 	elfFile    *safeelf.File    // ELF file handle
 	symbols    []safeelf.Symbol // Sorted by address for fallback
+	baseAddr   uint64           // Base virtual address for ET_EXEC files
 	lastAccess time.Time        // For TTL expiration
 }
 
@@ -145,6 +146,22 @@ func (dc *dwarfCache) loadBinary(pathname string) (*binaryInfo, error) {
 	info := &binaryInfo{
 		pathname: pathname,
 		elfFile:  elfFile,
+	}
+
+	// Compute base address for symbol lookup
+	// For ET_EXEC files, symbols have virtual addresses, so we need to find the base
+	// For ET_DYN files (PIE/shared libs), symbols are relative, so base is 0
+	if elfFile.Type == safeelf.ET_EXEC {
+		// Find the lowest virtual address from loadable segments
+		info.baseAddr = ^uint64(0) // Max uint64
+		for _, prog := range elfFile.Progs {
+			if prog.Type == safeelf.PT_LOAD && prog.Vaddr < info.baseAddr {
+				info.baseAddr = prog.Vaddr
+			}
+		}
+		if info.baseAddr == ^uint64(0) {
+			info.baseAddr = 0
+		}
 	}
 
 	// Try to load DWARF data

@@ -28,7 +28,7 @@ func TestSymbolicateAddressesWithDWARF(t *testing.T) {
 		0x402000,
 	}
 
-	symbols := SymbolicateAddresses(pid, testAddrs)
+	symbols := SymbolicateAddresses(pid, testAddrs, SymbolicationModeRawAddresses|SymbolicationModeSymTable|SymbolicationModeDWARF)
 	require.NotNil(t, symbols)
 	require.Equal(t, len(testAddrs), len(symbols))
 
@@ -48,13 +48,13 @@ func TestSymbolicateAddressesCaching(t *testing.T) {
 	assert.Equal(t, 0, globalDwarfCache.Len())
 
 	// First symbolication - should populate cache
-	symbols1 := SymbolicateAddresses(pid, testAddrs)
+	symbols1 := SymbolicateAddresses(pid, testAddrs, SymbolicationModeRawAddresses|SymbolicationModeSymTable|SymbolicationModeDWARF)
 	require.NotNil(t, symbols1)
 	cacheSize := globalDwarfCache.Len()
 	assert.Greater(t, cacheSize, 0, "Cache should be populated")
 
 	// Second symbolication - should hit cache
-	symbols2 := SymbolicateAddresses(pid, testAddrs)
+	symbols2 := SymbolicateAddresses(pid, testAddrs, SymbolicationModeRawAddresses|SymbolicationModeSymTable|SymbolicationModeDWARF)
 	require.NotNil(t, symbols2)
 	assert.Equal(t, cacheSize, globalDwarfCache.Len(), "Cache size should not change on cache hit")
 
@@ -67,7 +67,7 @@ func TestSymbolicateAddressesFallback(t *testing.T) {
 	invalidPID := uint32(999999)
 	testAddrs := []uint64{0x12345678, 0x87654321}
 
-	symbols := SymbolicateAddresses(invalidPID, testAddrs)
+	symbols := SymbolicateAddresses(invalidPID, testAddrs, SymbolicationModeRawAddresses|SymbolicationModeSymTable|SymbolicationModeDWARF)
 	require.NotNil(t, symbols)
 	require.Equal(t, len(testAddrs), len(symbols))
 
@@ -80,9 +80,9 @@ func TestSymbolicateAddressesFallback(t *testing.T) {
 
 func TestSymbolicateAddressesEmpty(t *testing.T) {
 	// Test with empty address list
-	symbols := SymbolicateAddresses(1, nil)
+	symbols := SymbolicateAddresses(1, nil, SymbolicationModeRawAddresses|SymbolicationModeSymTable|SymbolicationModeDWARF)
 	assert.Nil(t, symbols)
 
-	symbols = SymbolicateAddresses(1, []uint64{})
+	symbols = SymbolicateAddresses(1, []uint64{}, SymbolicationModeRawAddresses|SymbolicationModeSymTable|SymbolicationModeDWARF)
 	assert.Nil(t, symbols)
 }

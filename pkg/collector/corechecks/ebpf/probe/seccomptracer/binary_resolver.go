@@ -20,24 +20,29 @@ import (
 )
 
 // resolveAddress resolves an address to symbolic information using DWARF, symbol table, or raw address fallback
-func resolveAddress(info *binaryInfo, address uint64) string {
+func resolveAddress(info *binaryInfo, address uint64, mode SymbolicationMode) string {
 	basename := filepath.Base(info.pathname)
 
+	// Convert file offset to virtual address for ET_EXEC binaries
+	// For ET_EXEC files, symbols have virtual addresses (e.g., 0x400748)
+	// but we receive file offsets (e.g., 0x754), so we need to add the base
+	virtualAddr := address + info.baseAddr
+
 	// Try DWARF first if available
-	if info.dwarfData != nil {
-		if symbol := resolveDWARF(info, address); symbol != "" {
+	if mode&SymbolicationModeDWARF != 0 && info.dwarfData != nil {
+		if symbol := resolveDWARF(info, virtualAddr); symbol != "" {
 			return symbol
 		}
 	}
 
 	// Fall back to symbol table
-	if len(info.symbols) > 0 {
-		if symbol := resolveSymbol(info, address); symbol != "" {
+	if mode&SymbolicationModeSymTable != 0 && len(info.symbols) > 0 {
+		if symbol := resolveSymbol(info, virtualAddr); symbol != "" {
 			return symbol
 		}
 	}
 
-	// Final fallback: raw address
+	// Final fallback: raw address (use file offset)
 	return fmt.Sprintf("%s+0x%x", basename, address)
 }
 
@@ -71,16 +76,19 @@ func resolveDWARF(info *binaryInfo, address uint64) string {
 		return ""
 	}
 
-	// Format the result with inline information if available
-	basename := filepath.Base(lineEntry.File.Name)
+	// Format the result
+	// Get the binary basename for consistent formatting
+	binaryBasename := filepath.Base(info.pathname)
 
 	if inlineInfo != "" {
 		// Inlined function: show both inlined and parent function
-		return fmt.Sprintf("%s@%s (%s:%d)", funcName, inlineInfo, basename, lineEntry.Line)
+		// Format: binary!funcName()@inlineInfo
+		return fmt.Sprintf("%s!%s()@%s", binaryBasename, funcName, inlineInfo)
 	}
 
-	// Regular function with line info
-	return fmt.Sprintf("%s (%s:%d)", funcName, basename, lineEntry.Line)
+	// Regular function with DWARF info
+	// Format: binary!funcName()
+	return fmt.Sprintf("%s!%s()", binaryBasename, funcName)
 }
 
 // findLineEntry finds the line table entry for the given address
@@ -243,16 +251,15 @@ func resolveSymbol(info *binaryInfo, address uint64) string {
 
 	symbol := info.symbols[idx-1]
 
-	// Verify the address falls within this symbol's range
-	// We don't have size info, so we just check it's not unreasonably far
 	offset := address - symbol.Value
-	if offset > 0x100000 { // 1MB seems like a reasonable max function size
+	symbolName := symbol.Name
+	if symbolName == "" {
 		return fmt.Sprintf("%s+0x%x", basename, address)
 	}
 
-	// Clean up the symbol name (demangle C++ names minimally)
-	symbolName := symbol.Name
-	if symbolName == "" {
+	// If offset is too large (>1MB), likely incorrect - fallback to binary+offset
+	const maxReasonableOffset = 0x100000 // 1MB
+	if offset > maxReasonableOffset {
 		return fmt.Sprintf("%s+0x%x", basename, address)
 	}
 

@@ -71,6 +71,22 @@ type Tracer struct {
 	// In-memory aggregation of events
 	statsMu sync.Mutex
 	stats   map[seccompStatsKey]*seccompStatsValue
+
+	symbolicationMode SymbolicationMode
+}
+
+// Config is the configuration for the Seccomp Tracer
+type Config struct {
+	ddebpf.Config
+	SymbolicationMode SymbolicationMode
+}
+
+// NewConfig creates a new Config with the default values
+func NewConfig() *Config {
+	return &Config{
+		Config:            *ddebpf.NewConfig(),
+		SymbolicationMode: SymbolicationModeRawAddresses | SymbolicationModeSymTable | SymbolicationModeDWARF,
+	}
 }
 
 // IsSupported checks if the seccomp tracer is supported on the current kernel version
@@ -89,8 +105,8 @@ func IsSupported(cfg *ddebpf.Config) (bool, error) {
 
 // NewTracer creates a [Tracer]
 // Note: Seccomp tracer requires CO-RE (uses bpf_task_pt_regs and bpf_get_current_task_btf)
-func NewTracer(cfg *ddebpf.Config) (*Tracer, error) {
-	isSupported, err := IsSupported(cfg)
+func NewTracer(cfg *Config) (*Tracer, error) {
+	isSupported, err := IsSupported(&cfg.Config)
 	if err != nil {
 		return nil, err
 	}
@@ -101,7 +117,7 @@ func NewTracer(cfg *ddebpf.Config) (*Tracer, error) {
 	return loadSeccompTracerProbe(cfg)
 }
 
-func startSeccompTracerProbe(buf bytecode.AssetReader, managerOptions manager.Options) (*Tracer, error) {
+func startSeccompTracerProbe(buf bytecode.AssetReader, managerOptions manager.Options, cfg *Config) (*Tracer, error) {
 	// Read configuration from system-probe config
 	maxStacksPerTuple := pkgconfigsetup.SystemProbe().GetInt("seccomp_tracer.max_stacks_per_tuple")
 	if maxStacksPerTuple <= 0 {
@@ -115,6 +131,7 @@ func startSeccompTracerProbe(buf bytecode.AssetReader, managerOptions manager.Op
 		stats:             make(map[seccompStatsKey]*seccompStatsValue),
 		stackIDLastSeen:   make(map[int32]time.Time),
 		maxStacksPerTuple: maxStacksPerTuple,
+		symbolicationMode: cfg.SymbolicationMode,
 	}
 
 	// Create event handler for ring buffer
@@ -284,7 +301,7 @@ func (t *Tracer) handleEvent(data []byte) {
 			}
 
 			// Symbolicate the addresses using DWARF/symbols
-			symbols := SymbolicateAddresses(event.Pid, addresses)
+			symbols := SymbolicateAddresses(event.Pid, addresses, t.symbolicationMode)
 
 			// Store the new stack trace
 			value.stackTraces[stackID] = &model.StackTraceInfo{
@@ -356,10 +373,10 @@ func (t *Tracer) GetAndFlush() model.SeccompStats {
 	return result
 }
 
-func loadSeccompTracerProbe(cfg *ddebpf.Config) (*Tracer, error) {
+func loadSeccompTracerProbe(cfg *Config) (*Tracer, error) {
 
 	filename := "seccomp-tracer.o"
-	if cfg.BPFDebug {
+	if cfg.Config.BPFDebug {
 		log.Infof("Using debug version of seccomp-tracer probe")
 		filename = "seccomp-tracer-debug.o"
 	}
@@ -367,7 +384,7 @@ func loadSeccompTracerProbe(cfg *ddebpf.Config) (*Tracer, error) {
 	var probe *Tracer
 	err := ddebpf.LoadCOREAsset(filename, func(buf bytecode.AssetReader, opts manager.Options) error {
 		var err error
-		probe, err = startSeccompTracerProbe(buf, opts)
+		probe, err = startSeccompTracerProbe(buf, opts, cfg)
 		return err
 	})
 	if err != nil {

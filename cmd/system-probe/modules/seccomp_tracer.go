@@ -28,7 +28,11 @@ var SeccompTracer = &module.Factory{
 	Name:             config.SeccompTracerModule,
 	ConfigNamespaces: []string{},
 	Fn: func(_ *sysconfigtypes.Config, _ module.FactoryDependencies) (module.Module, error) {
-		t, err := seccomptracer.NewTracer(ebpf.NewConfig())
+		cfg := seccomptracer.Config{
+			Config:            *ebpf.NewConfig(),
+			SymbolicationMode: seccomptracer.SymbolicationModeRawAddresses | seccomptracer.SymbolicationModeSymTable | seccomptracer.SymbolicationModeDWARF,
+		}
+		t, err := seccomptracer.NewTracer(&cfg)
 		if err != nil {
 			return nil, fmt.Errorf("unable to start the seccomp tracer: %w", err)
 		}

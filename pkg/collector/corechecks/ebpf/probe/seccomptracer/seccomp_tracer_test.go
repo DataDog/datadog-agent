@@ -13,6 +13,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"strings"
 	"testing"
 	"time"
 
@@ -48,7 +49,8 @@ func TestSeccompTracer(t *testing.T) {
 func (s *seccompTracerTestSuite) TestCanLoad() {
 	t := s.T()
 
-	tracer, err := NewTracer(ebpf.NewConfig())
+	cfg := NewConfig()
+	tracer, err := NewTracer(cfg)
 	require.NoError(t, err)
 	require.NotNil(t, tracer)
 	t.Cleanup(func() { tracer.Close() })
@@ -61,7 +63,8 @@ func (s *seccompTracerTestSuite) TestCanLoad() {
 func (s *seccompTracerTestSuite) TestCanDetectSeccompDenial() {
 	t := s.T()
 
-	tracer, err := NewTracer(ebpf.NewConfig())
+	cfg := NewConfig()
+	tracer, err := NewTracer(cfg)
 	require.NoError(t, err)
 	require.NotNil(t, tracer)
 	t.Cleanup(func() { tracer.Close() })
@@ -150,6 +153,87 @@ func (s *seccompTracerTestSuite) TestCanDetectSeccompDenial() {
 	assert.True(t, foundStackTrace, "Expected at least one entry with stack traces")
 }
 
+func innerTestStackTraceSymbolication(t *testing.T, mode SymbolicationMode) {
+	cfg := Config{
+		Config:            *ebpf.NewConfig(),
+		SymbolicationMode: mode,
+	}
+	tracer, err := NewTracer(&cfg)
+	require.NoError(t, err)
+	require.NotNil(t, tracer)
+	t.Cleanup(func() { tracer.Close() })
+
+	// Run the seccomp sample
+	cmd, err := runSeccompSample(t, 2) // 2 second wait time
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		if cmd.Process != nil {
+			_ = cmd.Process.Kill()
+			_ = cmd.Wait()
+		}
+	})
+
+	// Wait for the getpid denial
+	var denialEntry *model.SeccompStatsEntry
+	require.EventuallyWithT(t, func(c *assert.CollectT) {
+		stats := tracer.GetAndFlush()
+		for _, value := range stats {
+			if value.SyscallNr == unix.SYS_GETPID {
+				assert.Equal(c, uint64(1), value.Count, "Expected exactly one getpid denial")
+				assert.Equal(c, uint32(unix.SECCOMP_RET_ERRNO), value.SeccompAction)
+				denialEntry = &value
+				break
+			}
+		}
+
+		assert.NotNil(c, denialEntry, "Expected to capture getpid denial")
+	}, 10*time.Second, 100*time.Millisecond, "Expected to capture getpid denial")
+
+	require.Len(t, denialEntry.StackTraces, 1, "Expected exactly one stack trace")
+
+	foundTrigger := false
+	for _, line := range denialEntry.StackTraces[0].Symbols {
+		t.Logf("Symbol: %s (mode: %v)", line, mode)
+		if strings.Contains(line, "trigger_getpid_level1") {
+			foundTrigger = true
+
+			if mode == SymbolicationModeDWARF {
+				require.Regexp(t, `^seccompsample!trigger_getpid_level\d+\(\)$`, line)
+			} else if mode == SymbolicationModeSymTable {
+				// Symbol table mode may include offsets (e.g., +0xc) for return addresses
+				require.Regexp(t, `^seccompsample!trigger_getpid_level\d+(\+0x[0-9a-f]+)?$`, line)
+			} else {
+				require.Regexp(t, `^seccompsample\+0x[0-9a-f]+$`, line)
+			}
+		}
+	}
+
+	if mode == SymbolicationModeDWARF || mode == SymbolicationModeSymTable {
+		assert.True(t, foundTrigger, "Expected to find trigger_getpid_level1 in stack trace")
+	} else {
+		assert.False(t, foundTrigger, "Expected to not find trigger_getpid_level1 in stack trace")
+	}
+
+}
+
+func (s *seccompTracerTestSuite) TestStackTraces() {
+	t := s.T()
+
+	cases := []struct {
+		name string
+		mode SymbolicationMode
+	}{
+		{name: "RawOnly", mode: SymbolicationModeRawAddresses},
+		{name: "SymTableOnly", mode: SymbolicationModeSymTable},
+		{name: "DWARF", mode: SymbolicationModeDWARF},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			innerTestStackTraceSymbolication(t, c.mode)
+		})
+	}
+}
+
 // runSeccompSample runs the seccomp sample binary
 func runSeccompSample(t *testing.T, waitTime int) (*exec.Cmd, error) {
 	curDir, err := testutil.CurDir()
@@ -159,7 +243,7 @@ func runSeccompSample(t *testing.T, waitTime int) (*exec.Cmd, error) {
 	binaryFile := filepath.Join(curDir, "../../testdata/seccompsample")
 
 	// Build the sample binary with debug info for better symbolication
-	buildCmd := exec.Command("gcc", "-static", "-g", "-o", binaryFile, sourceFile, "-lseccomp")
+	buildCmd := exec.Command("gcc", "-static", "-g", "-o", binaryFile, sourceFile, "-lseccomp", "-ggdb")
 	output, err := buildCmd.CombinedOutput()
 	require.NoError(t, err, "Failed to compile seccompsample: %s", string(output))
 
