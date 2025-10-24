@@ -343,5 +343,15 @@ function Invoke-BuildScript {
     }
 }
 
+Write-Host "Downloading CI identity client..."
 aws.exe s3 cp --only-show-errors s3://binaries-ddbuild-io-prod/ci-identities/ci-identities-gitlab-job-client/development/dev-commit-c5e72f29-job-1184481966/ci-identities-gitlab-job-client-windows-amd64.exe ./ci-identities-gitlab-job-client.exe
-ci-identities-gitlab-job-client.exe assume-role
+if ($LASTEXITCODE -ne 0) {
+    Write-Error "Failed to download CI identity client (exit code: $LASTEXITCODE)"
+    exit 1
+}
+Write-Host "Assuming CI role..."
+.\ci-identities-gitlab-job-client.exe assume-role
+if ($LASTEXITCODE -ne 0) {
+    Write-Error "Failed to assume CI role (exit code: $LASTEXITCODE)"
+    exit 1
+}
