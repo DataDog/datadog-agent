@@ -6,6 +6,7 @@
 package telemetry
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -34,12 +35,15 @@ func CommandContext(ctx context.Context, name string, args ...string) *TracedCmd
 // Run runs the command and finishes the span
 func (c *TracedCmd) Run() (err error) {
 	defer func() { c.span.Finish(err) }()
+	var stderr bytes.Buffer
+	c.Cmd.Stderr = &stderr
 	err = c.Cmd.Run()
-	exitErr := &exec.ExitError{}
-	if !errors.As(err, &exitErr) {
-		return err
+	c.span.SetTag("stderr", stderr.String())
+	if err != nil {
+		exitErr := &exec.ExitError{}
+		if errors.As(err, &exitErr) {
+			c.span.SetTag("exit_code", exitErr.ExitCode())
+		}
 	}
-	c.span.SetTag("exit_code", exitErr.ExitCode())
-	c.span.SetTag("stderr", string(exitErr.Stderr))
 	return err
 }

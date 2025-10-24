@@ -165,7 +165,7 @@ const defaultProfilesFolder = "default_profiles"
 
 func getNCMProfileConfdRoot(profileFolderName string) string {
 	confdPath := pkgconfigsetup.Datadog().GetString("confd_path")
-	return filepath.Join(confdPath, "networkconfigmanagement.d", profileFolderName)
+	return filepath.Join(confdPath, "network_config_management.d", profileFolderName)
 }
 
 func resolveNCMProfileDefinitionPath(definitionFile string) string {

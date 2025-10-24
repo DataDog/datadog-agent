@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dyninst/symdb"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/symdb/uploader"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 // symdbManager deals with uploading symbols to the SymDB backend.
@@ -357,7 +358,7 @@ func (m *symdbManager) performUpload(ctx context.Context, procID processKey, run
 			return context.Cause(ctx)
 		}
 
-		scope := uploader.ConvertPackageToScope(pkg)
+		scope := uploader.ConvertPackageToScope(pkg, version.AgentVersion)
 		uploadBuffer = append(uploadBuffer, scope)
 		bufferFuncs += pkg.Stats().NumFunctions
 		if err := maybeFlush(false /* force */); err != nil {
