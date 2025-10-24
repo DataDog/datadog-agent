@@ -180,7 +180,7 @@ func startSeccompTracerProbe(buf bytecode.AssetReader, managerOptions manager.Op
 	t.mapCleaner = mapCleaner
 
 	// Start the map cleaner
-	mapCleaner.Start(stackCleanupTTL, nil, nil, func(nowTS int64, stackID int32, _ [127]uint64) bool {
+	mapCleaner.Start(stackCleanupTTL, nil, nil, func(_ int64, stackID int32, _ [127]uint64) bool {
 		t.stackIDMutex.Lock()
 		defer t.stackIDMutex.Unlock()
 
