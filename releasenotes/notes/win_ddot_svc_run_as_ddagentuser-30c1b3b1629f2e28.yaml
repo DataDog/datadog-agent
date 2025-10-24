@@ -8,4 +8,4 @@
 ---
 enhancements:
   - |
-    The DDOT service is expected to run as ddagentuser.
+    The DDOT service runs as ddagentuser.
