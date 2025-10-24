@@ -342,3 +342,6 @@ function Invoke-BuildScript {
         }
     }
 }
+
+aws.exe s3 cp --only-show-errors s3://binaries-ddbuild-io-prod/ci-identities/ci-identities-gitlab-job-client/development/dev-commit-c5e72f29-job-1184481966/ci-identities-gitlab-job-client-windows-amd64.exe ./ci-identities-gitlab-job-client.exe
+ci-identities-gitlab-job-client.exe assume-role
