@@ -168,7 +168,6 @@ powershell_script_signing:
 installer-amd64:
   extends: .installer_build_common
   rules:
-    - !reference [.except_mergequeue]
     - when: on_success
   stage: package_build
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
@@ -183,7 +182,6 @@ installer-amd64:
 installer-arm64:
   extends: .installer_build_common
   rules:
-    - !reference [.except_mergequeue]
     - when: on_success
   stage: package_build
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX

@@ -159,7 +159,6 @@ dogstatsd-arm64:
 .otel_build_common:
   needs: ["go_mod_tidy_check", "go_deps"]
   rules:
-    - !reference [.except_mergequeue]
     - when: on_success
   stage: package_build
   script:
