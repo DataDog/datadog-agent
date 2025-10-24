@@ -143,7 +143,7 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 			agenttelemetryComponent agenttelemetry.Component,
 			hostname hostnameinterface.Component,
 			ipc ipc.Component,
-			delegatedAuthComp delegatedauth.Component,
+			delegatedAuthComp option.Option[delegatedauth.Component],
 		) error {
 			defer StopAgentWithDefaults()
 

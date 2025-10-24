@@ -293,7 +293,7 @@ func run(log log.Component,
 	_ diagnose.Component,
 	hostname hostnameinterface.Component,
 	ipc ipc.Component,
-	delegatedAuthComp delegatedauth.Component,
+	delegatedAuthComp option.Option[delegatedauth.Component],
 ) error {
 	defer func() {
 		stopAgent()
@@ -567,7 +567,7 @@ func startAgent(
 	agenttelemetryComponent agenttelemetry.Component,
 	hostname hostnameinterface.Component,
 	ipc ipc.Component,
-	delegatedAuthComp delegatedauth.Component,
+	_ option.Option[delegatedauth.Component],
 ) error {
 	var err error
 
