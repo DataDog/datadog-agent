@@ -15,15 +15,14 @@
 // Package utils provides utilities for the OpenTelemetry Collector.
 package utils
 
-import (
-	"fmt"
-)
-
 // FormatKeyValueTag takes a key-value pair, and creates a tag string out of it
 // Tags can't end with ":" so we replace empty values with "n/a"
+// OPTIMIZED: Avoids fmt.Sprintf allocation by using string concatenation
 func FormatKeyValueTag(key, value string) string {
 	if value == "" {
-		value = "n/a"
+		// Fast path for empty values - simple concatenation
+		return key + ":n/a"
 	}
-	return fmt.Sprintf("%s:%s", key, value)
+	// Fast path for non-empty values - simple concatenation
+	return key + ":" + value
 }
