@@ -505,6 +505,11 @@ namespace WixSetup.Datadog_Agent
                     Return.ignore,
                     When.Before,
                     new Step(InstallOciPackages.Id),
+                    // Only rollback on first install.
+                    // On rollback we run `purge` to cleanup the OCI packages, this is
+                    // not suitable for upgrade rollback. Upgrade rollback will require
+                    // tracking which version of each package to rollback to. As well as
+                    // their registry url/auth/etc., which is currently not available.
                     Conditions.FirstInstall
                 )
             {
@@ -516,7 +521,10 @@ namespace WixSetup.Datadog_Agent
             PurgeOciPackages = new CustomAction<CustomActions>(
                     new Id(nameof(PurgeOciPackages)),
                     CustomActions.PurgeOciPackages,
-                    Return.ignore,
+                    // Check the return value to prevent removing datadog-installer.exe if purge fails.
+                    // We will need to use the datadog-installer.exe to cleanup packages if purge fails.
+                    // To skip purging entirely, set the PURGE property to 0.
+                    Return.check,
                     When.Before,
                     new Step(CleanupOnUninstall.Id),
                     Conditions.Uninstalling

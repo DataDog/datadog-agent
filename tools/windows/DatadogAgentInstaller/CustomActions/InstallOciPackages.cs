@@ -119,6 +119,7 @@ namespace Datadog.CustomActions
                     }
                 }
                 // add purge command to the rollback data store
+                // this will only be run on first install, not on upgrade
                 _rollbackDataStore.Add(new InstallerPackageRollback("purge"));
 
                 return ActionResult.Success;
