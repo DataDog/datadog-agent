@@ -329,6 +329,22 @@ new-e2e-agent-subcommands:
       - EXTRA_PARAMS: --run "Test(Linux|Windows)RunSuite"
       - EXTRA_PARAMS: --run "Test(Linux|Windows)DogstatsdReplaySuite"
 
+new-e2e-cluster-agent-subcommands:
+  extends: .new_e2e_template
+  rules:
+    - !reference [.on_subcommands_or_e2e_changes]
+    - !reference [.manual]
+  needs:
+    - !reference [.needs_new_e2e_template]
+    - qa_agent
+    - qa_dca
+  variables:
+    TARGETS: ./tests/agent-subcommands/config
+    TEAM: agent-configuration
+    EXTRA_PARAMS: --run "TestClusterAgentConfigSuite"
+    ON_NIGHTLY_FIPS: "true"
+    REMOTE_STACK_CLEANING: "true"
+
 new-e2e-fips-compliance-test:
   extends: .new_e2e_template
   needs:
