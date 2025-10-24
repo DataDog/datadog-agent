@@ -16,7 +16,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/config v1.31.13
 	github.com/aws/aws-sdk-go-v2/credentials v1.18.18
 	github.com/aws/aws-sdk-go-v2/service/secretsmanager v1.39.7
-	github.com/aws/aws-sdk-go-v2/service/ssm v1.66.0
+	github.com/aws/aws-sdk-go-v2/service/ssm v1.66.2
 	github.com/aws/aws-sdk-go-v2/service/sts v1.38.8
 	github.com/frapposelli/wwhrd v0.4.0
 	github.com/go-enry/go-license-detector/v4 v4.3.1
@@ -318,8 +318,8 @@ require (
 	github.com/Azure/go-autorest/logger v0.2.1 // indirect
 	github.com/Azure/go-autorest/tracing v0.6.0 // indirect
 	github.com/ProtonMail/gopenpgp/v3 v3.2.1 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/configsources v1.4.10 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.7.10 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/configsources v1.4.11 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.7.11 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.13.2 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.35.2 // indirect
 	github.com/containerd/errdefs v1.0.0 // indirect
