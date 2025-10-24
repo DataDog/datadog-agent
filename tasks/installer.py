@@ -5,7 +5,7 @@ installer namespaced tasks
 import glob
 import hashlib
 import sys
-from os import makedirs, path
+from os import getenv, makedirs, path
 
 from invoke import task
 
@@ -81,6 +81,7 @@ def build(
         ldflags=ldflags,
         build_tags=build_tags,
         bin_path=installer_bin,
+        check_deadcode=getenv("DEPLOY_AGENT") == "true",
         env=env,
     )
 
