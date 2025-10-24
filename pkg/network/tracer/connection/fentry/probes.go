@@ -12,6 +12,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
+	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
@@ -133,9 +134,10 @@ func enabledPrograms(c *config.Config) (map[string]struct{}, error) {
 		return nil, err
 	}
 
+	hasSendPage := util.HasTCPSendPage(kv)
+
 	if c.CollectTCPv4Conns || c.CollectTCPv6Conns {
 		enableProgram(enabled, tcpSendMsgReturn)
-		enableProgram(enabled, tcpSendPageReturn)
 		enableProgram(enabled, selectVersionBasedProbe(kv, tcpRecvMsgReturn, tcpRecvMsgPre5190Return, kv5190))
 		enableProgram(enabled, tcpClose)
 		enableProgram(enabled, tcpConnect)
@@ -156,10 +158,12 @@ func enabledPrograms(c *config.Config) (map[string]struct{}, error) {
 		if c.CustomBatchingEnabled {
 			enableProgram(enabled, tcpCloseReturn)
 		}
+		if hasSendPage {
+			enableProgram(enabled, tcpSendPageReturn)
+		}
 	}
 
 	if c.CollectUDPv4Conns {
-		enableProgram(enabled, udpSendPageReturn)
 		enableProgram(enabled, udpDestroySock)
 		enableProgram(enabled, inetBind)
 		enableProgram(enabled, inetBindRet)
@@ -170,6 +174,9 @@ func enabledPrograms(c *config.Config) (map[string]struct{}, error) {
 
 		if c.CustomBatchingEnabled {
 			enableProgram(enabled, udpDestroySockReturn)
+		}
+		if hasSendPage {
+			enableProgram(enabled, udpSendPageReturn)
 		}
 	}
 
@@ -185,6 +192,9 @@ func enabledPrograms(c *config.Config) (map[string]struct{}, error) {
 
 		if c.CustomBatchingEnabled {
 			enableProgram(enabled, udpv6DestroySockReturn)
+		}
+		if hasSendPage {
+			enableProgram(enabled, udpSendPageReturn)
 		}
 	}
 

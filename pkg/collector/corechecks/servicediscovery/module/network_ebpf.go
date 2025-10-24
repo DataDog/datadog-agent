@@ -18,7 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode/runtime"
 	ebpfmaps "github.com/DataDog/datadog-agent/pkg/ebpf/maps"
-	kprobeconfig "github.com/DataDog/datadog-agent/pkg/network/tracer/connection/kprobe"
+	kprobeutil "github.com/DataDog/datadog-agent/pkg/network/tracer/connection/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -47,7 +47,7 @@ func (c *eBPFNetworkCollector) setupManager(buf bytecode.AssetReader, options ma
 		{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: "kretprobe__tcp_sendmsg", UID: moduleName}, KProbeMaxActive: maxActive},
 	}
 
-	if kprobeconfig.HasTCPSendPage(kv) {
+	if kprobeutil.HasTCPSendPage(kv) {
 		probes = append(probes,
 			&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: "kretprobe__tcp_sendpage", UID: moduleName}, KProbeMaxActive: maxActive})
 	}
