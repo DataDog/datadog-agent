@@ -571,6 +571,30 @@ func (s *VariableStore) GetEvaluator(varName VariableName) (any, error) {
 					return static.getValueCb(ctx)
 				},
 			}, nil
+		case *staticVariable[net.IPNet]:
+			return &CIDREvaluator{
+				EvalFnc: func(ctx *Context) net.IPNet {
+					return static.getValueCb(ctx)
+				},
+			}, nil
+		case *staticVariable[[]string]:
+			return &StringArrayEvaluator{
+				EvalFnc: func(ctx *Context) []string {
+					return static.getValueCb(ctx)
+				},
+			}, nil
+		case *staticVariable[[]int]:
+			return &IntArrayEvaluator{
+				EvalFnc: func(ctx *Context) []int {
+					return static.getValueCb(ctx)
+				},
+			}, nil
+		case *staticVariable[[]net.IPNet]:
+			return &CIDRArrayEvaluator{
+				EvalFnc: func(ctx *Context) []net.IPNet {
+					return static.getValueCb(ctx)
+				},
+			}, nil
 		default:
 			return nil, fmt.Errorf("variable `%s` has unsupported type", varName)
 		}
