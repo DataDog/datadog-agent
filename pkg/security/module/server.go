@@ -192,7 +192,7 @@ func (a *APIServer) SendActivityDump(imageName string, imageTag string, header [
 	a.activityDumpSender.Send(dump, a.expireDump)
 }
 
-// GetEvents transfers events to the security-agent. Communication security-agent -> system-probe
+// GetEventStream transfers events to the security-agent. Communication security-agent -> system-probe
 func (a *APIServer) GetEventStream(_ *empty.Empty, stream api.SecurityModuleEvent_GetEventStreamServer) error {
 	if prev := a.connEstablished.Swap(true); !prev {
 		// should always be non nil

@@ -124,27 +124,6 @@ func (a *agentSuite) Test03OpenSignal() {
 	isReady := a.Env().Agent.Client.IsReady()
 	assert.Equal(a.T(), isReady, true, "Agent should be ready")
 
-<<<<<<< HEAD
-=======
-	// Check if system-probe has started
-	assert.EventuallyWithT(a.T(), func(c *assert.CollectT) {
-		output, err := a.Env().RemoteHost.Execute("sudo cat /var/log/datadog/system-probe.log")
-		if !assert.NoError(c, err) {
-			return
-		}
-		assert.Contains(c, output, systemProbeStartLog, "system-probe could not start")
-	}, 30*time.Second, 1*time.Second)
-
-	// Check if system-probe has connected to the security agent event GRPC server
-	assert.EventuallyWithT(a.T(), func(c *assert.CollectT) {
-		output, err := a.Env().RemoteHost.Execute("sudo cat /var/log/datadog/system-probe.log")
-		if !assert.NoError(c, err) {
-			return
-		}
-		assert.Contains(c, output, systemProbeGrpcLog, "system-probe could not connect to GRPC server")
-	}, 30*time.Second, 1*time.Second)
-
->>>>>>> 6a74427c23f (fix e2e tests)
 	// Download policies
 	apiKey, err := runner.GetProfile().SecretStore().Get(parameters.APIKey)
 	require.NoError(a.T(), err, "Could not get API KEY")
