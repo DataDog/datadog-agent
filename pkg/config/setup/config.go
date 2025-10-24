@@ -865,10 +865,10 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.inject_auto_detected_libraries", true)                                    // allows injecting libraries for languages detected by automatic language detection feature
 	config.BindEnv("admission_controller.auto_instrumentation.init_resources.cpu")
 	config.BindEnv("admission_controller.auto_instrumentation.init_resources.memory")
-	config.BindEnv("admission_controller.auto_instrumentation.init_requests.cpu")
-	config.BindEnv("admission_controller.auto_instrumentation.init_requests.memory")
-	config.BindEnv("admission_controller.auto_instrumentation.init_limits.cpu")
-	config.BindEnv("admission_controller.auto_instrumentation.init_limits.memory")
+	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.init_requests.cpu", "")
+	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.init_requests.memory", "")
+	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.init_limits.cpu", "")
+	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.init_limits.memory", "")
 	config.BindEnv("admission_controller.auto_instrumentation.init_security_context")
 	config.BindEnv("admission_controller.auto_instrumentation.asm.enabled", "DD_ADMISSION_CONTROLLER_AUTO_INSTRUMENTATION_APPSEC_ENABLED")          // config for ASM which is implemented in the client libraries
 	config.BindEnv("admission_controller.auto_instrumentation.iast.enabled", "DD_ADMISSION_CONTROLLER_AUTO_INSTRUMENTATION_IAST_ENABLED")           // config for IAST which is implemented in the client libraries
