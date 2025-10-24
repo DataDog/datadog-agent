@@ -13,12 +13,12 @@ import (
 	"fmt"
 	"syscall"
 	"testing"
-	"unsafe"
+
+	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
-	"github.com/stretchr/testify/assert"
 )
 
 func TestPrCtl(t *testing.T) {
@@ -84,32 +84,22 @@ func TestPrCtlTruncated(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-
 	defer test.Close()
+
+	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	t.Run("prctl-set-name-truncated", func(t *testing.T) {
 		test.WaitSignal(t, func() error {
-			bs, err := syscall.BytePtrFromString("my_thread_is_waaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaay_too_long")
-			if err != nil {
-				return fmt.Errorf("failed to convert string: %v", err)
-			}
-
-			_, _, errno := syscall.Syscall6(
-				syscall.SYS_PRCTL,
-				uintptr(syscall.PR_SET_NAME),
-				uintptr(unsafe.Pointer(bs)), 0, 0, 0, 0,
-			)
-			if errno != 0 {
-				return fmt.Errorf("prctl failed: %v", errno)
-			}
-			return nil
+			return runSyscallTesterFunc(context.Background(), t, syscallTester, "prctl-setname", "my_thread_is_waaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaay_too_long")
 		}, func(_ *model.Event, rule *rules.Rule) {
-
 			assertTriggeredRule(t, rule, "test_rule_prctl_truncated")
 		})
 		test.eventMonitor.SendStats()
 		key := metrics.MetricNameTruncated
 		assert.NotEmpty(t, test.statsdClient.Get(key))
 		assert.NotZero(t, test.statsdClient.Get(key))
-
 	})
 }

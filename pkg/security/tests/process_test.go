@@ -401,11 +401,16 @@ func TestProcessContext(t *testing.T) {
 	})
 
 	t.Run("args-options", func(t *testing.T) {
-		lsExecutable := which(t, "ls")
-
 		test.WaitSignal(t, func() error {
-			cmd := exec.Command(lsExecutable, "--block-size", "123")
-			return cmd.Run()
+			return runSyscallTesterFunc(context.Background(), t, syscallTester, "check", "--block-size=123")
+		}, test.validateExecEvent(t, noWrapperType, func(_ *model.Event, rule *rules.Rule) {
+			assertTriggeredRule(t, rule, "test_rule_args_options")
+		}))
+	})
+
+	t.Run("args-options-2", func(t *testing.T) {
+		test.WaitSignal(t, func() error {
+			return runSyscallTesterFunc(context.Background(), t, syscallTester, "check", "--block-size", "123")
 		}, test.validateExecEvent(t, noWrapperType, func(_ *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_rule_args_options")
 		}))
@@ -1340,9 +1345,7 @@ func TestProcessExec(t *testing.T) {
 
 	t.Run("exec-in-pthread", func(t *testing.T) {
 		test.WaitSignal(t, func() error {
-			args := []string{"exec-in-pthread", executable, "/dev/null"}
-			cmd := exec.Command(syscallTester, args...)
-			return cmd.Run()
+			return runSyscallTesterFunc(context.Background(), t, syscallTester, "exec-in-pthread", executable, "/dev/null")
 		}, test.validateExecEvent(t, noWrapperType, func(event *model.Event, _ *rules.Rule) {
 			assertFieldEqual(t, event, "exec.file.path", executable)
 			assertFieldEqual(t, event, "process.parent.file.name", "syscall_tester", "wrong process parent file name")
@@ -1489,28 +1492,31 @@ func TestProcessExecExit(t *testing.T) {
 	assert.NotEmpty(t, execPid, "exec pid not found")
 
 	// make sure that the process cache entry of the process was properly deleted from the cache
-	err = retry.Do(func() error {
-		if !ebpfLessEnabled {
-			p, ok := test.probe.PlatformProbe.(*sprobe.EBPFProbe)
-			if !ok {
-				t.Skip("not supported")
-			}
+	if !ebpfLessEnabled {
+		p, ok := test.probe.PlatformProbe.(*sprobe.EBPFProbe)
+		if !ok {
+			t.Skip("not supported")
+		}
+		err = retry.Do(func() error {
 			entry := p.Resolvers.ProcessResolver.Get(execPid)
 			if entry != nil {
 				return errors.New("the process cache entry was not deleted from the user space cache")
 			}
-		} else {
-			p, ok := test.probe.PlatformProbe.(*sprobe.EBPFLessProbe)
-			if !ok {
-				t.Skip("not supported")
-			}
+			return nil
+		})
+	} else {
+		p, ok := test.probe.PlatformProbe.(*sprobe.EBPFLessProbe)
+		if !ok {
+			t.Skip("not supported")
+		}
+		err = retry.Do(func() error {
 			entry := p.Resolvers.ProcessResolver.Resolve(process.CacheResolverKey{Pid: execPid, NSID: nsID})
 			if entry != nil {
 				return errors.New("the process cache entry was not deleted from the user space cache")
 			}
-		}
-		return nil
-	})
+			return nil
+		})
+	}
 	if err != nil {
 		t.Error(err)
 	}

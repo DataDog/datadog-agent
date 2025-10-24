@@ -54,10 +54,9 @@ type ContainerContext struct {
 	Resolved    bool                       `field:"-"`
 }
 
-// Key returns a unique key for the entity
-func (c *ContainerContext) Key() (string, bool) {
-	cID := string(c.ContainerID)
-	return cID, cID != ""
+// Hash returns a unique key for the entity
+func (c *ContainerContext) Hash() string {
+	return string(c.ContainerID)
 }
 
 // ParentScope returns the parent entity scope

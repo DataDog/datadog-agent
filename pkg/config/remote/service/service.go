@@ -780,13 +780,14 @@ func (s *CoreAgentService) refresh() error {
 	// We can't let the backend process an update twice in the same second due to the fact that we
 	// use the epoch with seconds resolution as the version for the TUF Director Targets. If this happens,
 	// the update will appear to TUF as being identical to the previous update and it will be dropped.
-	timeSinceUpdate := time.Since(s.mu.lastUpdateTimestamp)
-	if timeSinceUpdate < time.Second {
-		log.Debugf("Requests too frequent, delaying by %v", time.Second-timeSinceUpdate)
+	earliestNextUpdate := s.mu.lastUpdateTimestamp.Add(time.Second)
+	if now := s.clock.Now(); now.Before(earliestNextUpdate) {
 		func() {
 			s.mu.Unlock()
 			defer s.mu.Lock()
-			time.Sleep(time.Second - timeSinceUpdate)
+			delay := earliestNextUpdate.Sub(now)
+			log.Debugf("Requests too frequent, delaying by %v", delay)
+			s.clock.Sleep(delay)
 		}()
 	}
 
@@ -865,7 +866,7 @@ func (s *CoreAgentService) refresh() error {
 		}
 	}
 
-	s.mu.lastUpdateTimestamp = time.Now()
+	s.mu.lastUpdateTimestamp = s.clock.Now()
 
 	s.mu.firstUpdate = false
 	for product := range s.mu.newProducts {
@@ -945,7 +946,7 @@ func (s *CoreAgentService) ClientGetConfigs(_ context.Context, request *pbgo.Cli
 		s.mu.Unlock()
 
 		response := make(chan struct{})
-		bypassStart := time.Now()
+		bypassStart := s.clock.Now()
 
 		log.Debugf("Making bypass request for client %s", request.Client.GetId())
 
@@ -953,17 +954,17 @@ func (s *CoreAgentService) ClientGetConfigs(_ context.Context, request *pbgo.Cli
 		// and we can't request another one
 		select {
 		case s.refreshBypassCh <- response:
-		case <-time.After(newClientBlockTTL):
+		case <-s.clock.After(newClientBlockTTL):
 			// No need to add telemetry here, it'll be done in the second
 			// timeout case that will automatically be triggered
 		}
 
-		partialNewClientBlockTTL := newClientBlockTTL - time.Since(bypassStart)
+		partialNewClientBlockTTL := newClientBlockTTL - s.clock.Since(bypassStart)
 
 		// Timeout if the response is taking too long
 		select {
 		case <-response:
-		case <-time.After(partialNewClientBlockTTL):
+		case <-s.clock.After(partialNewClientBlockTTL):
 			log.Debugf("Bypass request timed out for client %s", request.Client.GetId())
 			s.telemetryReporter.IncTimeout()
 		}
@@ -990,7 +991,7 @@ func (s *CoreAgentService) ClientGetConfigs(_ context.Context, request *pbgo.Cli
 		}
 		// If timestamp.json has expired and we've waited to ensure connection to the backend,
 		// all clients must flush their configuration state.
-		if expires.Before(time.Now()) {
+		if expires.Before(s.clock.Now()) {
 			log.Warnf("Timestamp expired at %s, flushing cache", expires.Format(time.RFC3339))
 			return s.flushCacheResponseLocked()
 		}
