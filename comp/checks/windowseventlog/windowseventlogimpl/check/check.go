@@ -27,6 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 	evtapi "github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/api"
 	winevtapi "github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/api/windows"
+	evtbookmark "github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/bookmark"
 	evtsession "github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/session"
 	evtsubscribe "github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/subscription"
 
@@ -67,7 +68,7 @@ type Check struct {
 	evtapi                 evtapi.API
 	systemRenderContext    evtapi.EventRenderContextHandle
 	userRenderContext      evtapi.EventRenderContextHandle
-	bookmarkSaver          *bookmarkSaver
+	bookmarkManager        evtbookmark.Manager
 	publisherMetadataCache publishermetadatacache.Component
 }
 
@@ -101,7 +102,7 @@ func (c *Check) Run() error {
 	// if the events read are less than bookmark_frequency then a bookmark won't
 	// be saved before the process exits. saving here, too, gives us a good time periodic
 	// save/persist in addition to the count periodic bookmark_frequency option.
-	err = c.bookmarkSaver.saveLastBookmark()
+	err = c.bookmarkManager.Save()
 	if err != nil {
 		c.Warnf("error saving bookmark: %v", err)
 	}
@@ -118,7 +119,7 @@ func (c *Check) fetchEventsLoop(outCh chan<- *evtapi.EventRecord, pipelineWaiter
 
 	// Save the bookmark at the end of the loop, regardless of the bookmarkFrequency
 	defer func() {
-		err := c.bookmarkSaver.saveLastBookmark()
+		err := c.bookmarkManager.Save()
 		if err != nil {
 			c.Warnf("error saving bookmark: %v", err)
 		}
@@ -292,8 +293,8 @@ func (c *Check) Cancel() {
 		c.session.Close()
 	}
 
-	if c.bookmarkSaver != nil && c.bookmarkSaver.bookmark != nil {
-		c.bookmarkSaver.bookmark.Close()
+	if c.bookmarkManager != nil {
+		c.bookmarkManager.Close()
 	}
 
 	if c.systemRenderContext != evtapi.EventRenderContextHandle(0) {
