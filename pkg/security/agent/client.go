@@ -22,19 +22,19 @@ import (
 	"github.com/golang/protobuf/ptypes/empty"
 )
 
-// RuntimeSecurityClient is used to send request to security module
+// RuntimeSecurityCmdClient is used to send request to security module
 type RuntimeSecurityCmdClient struct {
 	apiClient api.SecurityModuleCmdClient
 	conn      *grpc.ClientConn
 }
 
-// RuntimeSecurityClient is used to send request to security module
+// RuntimeSecurityEventClient is used to send request to security module
 type RuntimeSecurityEventClient struct {
 	eventClient api.SecurityModuleEventClient
 	conn        *grpc.ClientConn
 }
 
-// SecurityModuleClientWrapper represents a security module client
+// SecurityModuleCmdClientWrapper represents a security module client
 type SecurityModuleCmdClientWrapper interface {
 	DumpDiscarders() (string, error)
 	DumpProcessCache(withArgs bool, format string) (string, error)
@@ -166,7 +166,7 @@ func (c *RuntimeSecurityCmdClient) Close() {
 	c.conn.Close()
 }
 
-// GetEvents returns a stream of events. Communication security-agent -> system-probe
+// GetEventStream returns a stream of events. Communication security-agent -> system-probe
 func (c *RuntimeSecurityEventClient) GetEventStream() (api.SecurityModuleEvent_GetEventStreamClient, error) {
 	stream, err := c.eventClient.GetEventStream(context.Background(), &empty.Empty{})
 	if err != nil {
@@ -184,7 +184,7 @@ func (c *RuntimeSecurityEventClient) GetActivityDumpStream() (api.SecurityModule
 	return stream, nil
 }
 
-// NewRuntimeSecurityClient instantiates a new RuntimeSecurityClient
+// NewRuntimeSecurityCmdClient instantiates a new RuntimeSecurityCmdClient
 func NewRuntimeSecurityCmdClient() (*RuntimeSecurityCmdClient, error) {
 	socketPath := pkgconfigsetup.Datadog().GetString("runtime_security_config.socket")
 	cmdSocketPath := pkgconfigsetup.Datadog().GetString("runtime_security_config.cmd_socket")
@@ -228,7 +228,7 @@ func (c *RuntimeSecurityEventClient) Close() {
 	c.conn.Close()
 }
 
-// NewRuntimeSecurityClient instantiates a new RuntimeSecurityClient
+// NewRuntimeSecurityEventClient instantiates a new RuntimeSecurityEventClient
 func NewRuntimeSecurityEventClient() (*RuntimeSecurityEventClient, error) {
 	socketPath := pkgconfigsetup.Datadog().GetString("runtime_security_config.socket")
 

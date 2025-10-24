@@ -30,7 +30,7 @@ func NewRuntimeSecurityAgent(_ statsd.ClientInterface, hostname string) (*Runtim
 		activityDumpReceived: atomic.NewUint64(0),
 	}
 
-	if err := rsa.setupAPIServer(); err != nil {
+	if err := rsa.setupGPRC(); err != nil {
 		return nil, err
 	}
 
