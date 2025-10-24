@@ -18,6 +18,8 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/core/delegatedauth"
+	delegatedauthfx "github.com/DataDog/datadog-agent/comp/core/delegatedauth/fx"
 	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
@@ -292,6 +294,7 @@ func run(log log.Component,
 	_ diagnose.Component,
 	hostname hostnameinterface.Component,
 	ipc ipc.Component,
+	delegatedAuthComp delegatedauth.Component,
 ) error {
 	defer func() {
 		stopAgent()
@@ -351,6 +354,7 @@ func run(log log.Component,
 		agenttelemetryComponent,
 		hostname,
 		ipc,
+		delegatedAuthComp,
 	); err != nil {
 		return err
 	}
@@ -378,6 +382,7 @@ func run(log log.Component,
 
 func getSharedFxOption() fx.Option {
 	return fx.Options(
+		delegatedauthfx.Module(),
 		flare.Module(flare.NewParams(
 			defaultpaths.GetDistPath(),
 			defaultpaths.PyChecksPath,
@@ -564,6 +569,7 @@ func startAgent(
 	agenttelemetryComponent agenttelemetry.Component,
 	hostname hostnameinterface.Component,
 	ipc ipc.Component,
+	delegatedAuthComp delegatedauth.Component,
 ) error {
 	var err error
 
@@ -693,6 +699,9 @@ func startAgent(
 	// must run in background go command because the agent might be in service start pending
 	// and not service running yet, and as such, the call will block or fail
 	go startDependentServices()
+
+	// Note: Delegated authentication is now initialized automatically via FX lifecycle hooks
+	// before other components start, ensuring the API key is available early for telemetry
 
 	return nil
 }

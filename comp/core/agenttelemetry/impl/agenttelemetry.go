@@ -23,6 +23,7 @@ import (
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	agenttelemetry "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/delegatedauth"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
@@ -65,6 +66,12 @@ type Requires struct {
 	Telemetry telemetry.Component
 
 	Lc compdef.Lifecycle
+
+	// DelegatedAuth is added as a dependency to ensure that if delegated auth
+	// is enabled, it will be initialized (and fetch the API key) before agenttelemetry starts.
+	// This ensures telemetry has the correct API key from the start.
+	// FX will initialize delegatedauth before agenttelemetry due to this dependency.
+	DelegatedAuth delegatedauth.Component
 }
 
 // Provides defines the output of the agenttelemetry component

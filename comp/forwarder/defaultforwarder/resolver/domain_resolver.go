@@ -106,20 +106,36 @@ func OnUpdateConfig(resolver DomainResolver, log log.Component, config config.Co
 			return
 		}
 
+		// Handle the case where oldValue is nil (initial configuration)
 		oldAPIKey, ok1 := oldValue.(string)
 		newAPIKey, ok2 := newValue.(string)
+
+		// If oldValue is nil, treat it as an empty string for initial setup
+		if oldValue == nil {
+			ok1 = true
+			oldAPIKey = ""
+		}
+
 		if ok1 && ok2 {
-			resolver.UpdateAPIKey(setting, oldAPIKey, newAPIKey)
+			if oldAPIKey != "" {
+				resolver.UpdateAPIKey(setting, oldAPIKey, newAPIKey)
 
-			if health := resolver.GetForwarderHealth(); health != nil {
-				health.UpdateAPIKeys(resolver.GetBaseDomain(), []string{oldAPIKey}, []string{newAPIKey})
+				if health := resolver.GetForwarderHealth(); health != nil {
+					health.UpdateAPIKeys(resolver.GetBaseDomain(), []string{oldAPIKey}, []string{newAPIKey})
+				}
+
+				log.Infof("rotating API key for '%s': %s -> %s",
+					setting,
+					scrubber.HideKeyExceptLastFiveChars(oldAPIKey),
+					scrubber.HideKeyExceptLastFiveChars(newAPIKey),
+				)
+			} else {
+				// Initial API key setup
+				log.Debugf("initial API key setup for '%s': %s",
+					setting,
+					scrubber.HideKeyExceptLastFiveChars(newAPIKey),
+				)
 			}
-
-			log.Infof("rotating API key for '%s': %s -> %s",
-				setting,
-				scrubber.HideKeyExceptLastFiveChars(oldAPIKey),
-				scrubber.HideKeyExceptLastFiveChars(newAPIKey),
-			)
 
 			return
 		}

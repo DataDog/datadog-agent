@@ -18,6 +18,7 @@ import (
 	"syscall"
 	"time"
 
+	delegatedauthfx "github.com/DataDog/datadog-agent/comp/core/delegatedauth/fx"
 	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
@@ -98,6 +99,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		RunE: func(_ *cobra.Command, _ []string) error {
 			return fxutil.OneShot(run,
 				fx.Supply(config.NewAgentParams("")),
+				delegatedauthfx.Module(),
 				// Force FX to load Datadog configuration before System Probe config.
 				// This is necessary because the 'software_inventory.enabled' setting is defined in the Datadog configuration.
 				// Without this explicit dependency, FX might initialize System Probe's config first, causing pkgconfigsetup.Datadog().GetBool()
@@ -282,6 +284,7 @@ func runSystemProbe(ctxChan <-chan context.Context, errChan chan error) error {
 		},
 		// no config file path specification in this situation
 		fx.Supply(config.NewAgentParams("")),
+		delegatedauthfx.Module(),
 		// Force FX to load Datadog configuration before System Probe config.
 		// This is necessary because the 'software_inventory.enabled' setting is defined in the Datadog configuration.
 		// Without this explicit dependency, FX might initialize System Probe's config first, causing pkgconfigsetup.Datadog().GetBool()

@@ -299,16 +299,25 @@ func (e *Endpoint) onConfigUpdate(l *LogsConfigKeys) {
 			if newAPIKey, ok := newVal.(string); !ok {
 				log.Errorf("new API key for '%s' is invalid (not a string) ignoring new value", e.configSettingPath)
 			} else {
-				if oldKey, ok := oldVal.(string); ok && oldKey != e.apiKey.Load() {
-					// This should never happens as it means that an update from the config was
-					// missed
-					log.Warnf("old API key for '%s' doesn't match the one in this endpoints", e.configSettingPath)
+				// Handle the case where oldVal is nil (initial configuration)
+				if oldVal != nil {
+					if oldKey, ok := oldVal.(string); ok && oldKey != e.apiKey.Load() {
+						// This should never happens as it means that an update from the config was
+						// missed
+						log.Warnf("old API key for '%s' doesn't match the one in this endpoints", e.configSettingPath)
+					}
+					log.Infof("rotating API key for '%s': %s -> %s",
+						e.configSettingPath,
+						scrubber.HideKeyExceptLastFiveChars(e.apiKey.Load()),
+						scrubber.HideKeyExceptLastFiveChars(newAPIKey),
+					)
+				} else {
+					// Initial API key setup
+					log.Debugf("initial API key setup for '%s': %s",
+						e.configSettingPath,
+						scrubber.HideKeyExceptLastFiveChars(newAPIKey),
+					)
 				}
-				log.Infof("rotating API key for '%s': %s -> %s",
-					e.configSettingPath,
-					scrubber.HideKeyExceptLastFiveChars(e.apiKey.Load()),
-					scrubber.HideKeyExceptLastFiveChars(newAPIKey),
-				)
 				e.apiKey.Store(newAPIKey)
 			}
 			return
@@ -322,12 +331,22 @@ func (e *Endpoint) onConfigUpdate(l *LogsConfigKeys) {
 		}
 
 		newAPIKey := newAdditionalEndpoints[e.additionalEndpointsIdx].APIKey
-		log.Infof("rotating API key for '%s' endpoints number %d: %s -> %s",
-			e.configSettingPath,
-			e.additionalEndpointsIdx,
-			scrubber.HideKeyExceptLastFiveChars(e.apiKey.Load()),
-			scrubber.HideKeyExceptLastFiveChars(newAPIKey),
-		)
+		// Handle the case where oldVal is nil (initial configuration)
+		if oldVal != nil {
+			log.Infof("rotating API key for '%s' endpoints number %d: %s -> %s",
+				e.configSettingPath,
+				e.additionalEndpointsIdx,
+				scrubber.HideKeyExceptLastFiveChars(e.apiKey.Load()),
+				scrubber.HideKeyExceptLastFiveChars(newAPIKey),
+			)
+		} else {
+			// Initial API key setup
+			log.Debugf("initial API key setup for '%s' endpoints number %d: %s",
+				e.configSettingPath,
+				e.additionalEndpointsIdx,
+				scrubber.HideKeyExceptLastFiveChars(newAPIKey),
+			)
+		}
 		e.apiKey.Store(newAPIKey)
 	})
 }
