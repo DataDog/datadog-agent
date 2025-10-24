@@ -207,6 +207,7 @@ type Config struct {
 
 // New creates a config for the network tracer
 func New() *Config {
+	log.Info("JMW creating new config for network tracer")
 	cfg := pkgconfigsetup.SystemProbe()
 	sysconfig.Adjust(cfg)
 

@@ -57,7 +57,7 @@ func NewConntrackOffsetGuesser(cfg *config.Config) (OffsetGuesser, error) {
 			},
 			PerfMaps: []*manager.PerfMap{},
 			Probes: []*manager.Probe{
-				{ProbeIdentificationPair: idPair(probes.ConntrackHashInsert)},
+				{ProbeIdentificationPair: idPair(probes.ConntrackHashInsert)}, // JMWCONNTRACK
 				// have to add this for older kernels since loading
 				// it twice in a process (once by the tracer offset guesser)
 				// does not seem to work; this will be not be enabled,
@@ -83,7 +83,7 @@ func (c *conntrackOffsetGuesser) Close() {
 
 func (c *conntrackOffsetGuesser) Probes(*config.Config) (map[probes.ProbeFuncName]struct{}, error) {
 	p := map[probes.ProbeFuncName]struct{}{}
-	enableProbe(p, probes.ConntrackHashInsert)
+	enableProbe(p, probes.ConntrackHashInsert) // JMWCONNTRACK
 	return p, nil
 }
 

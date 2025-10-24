@@ -11,4 +11,13 @@
  */
 BPF_HASH_MAP(conntrack, conntrack_tuple_t, conntrack_tuple_t, 1)
 
+
+/* Second map for tracking confirmed NAT connections
+ */
+BPF_HASH_MAP(conntrack2, conntrack_tuple_t, conntrack_tuple_t, 1)
+
+/* Map to track pending confirmations (pid_tgid -> ct pointer)
+ */
+BPF_HASH_MAP(pending_confirms, u64, u64, 10240)
+
 #endif

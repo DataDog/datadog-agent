@@ -99,6 +99,53 @@ static __always_inline void increment_telemetry_registers_count() {
     __sync_fetch_and_add(&val->registers, 1);
 }
 
+static __always_inline void increment_hash_insert_count() {
+    u64 key = 0;
+    conntrack_telemetry_t *val = bpf_map_lookup_elem(&conntrack_telemetry, &key);
+    if (val == NULL) {
+        return;
+    }
+    __sync_fetch_and_add(&val->hash_insert_count, 1);
+}
+
+
+static __always_inline void increment_confirm_entry_count() {
+    u64 key = 0;
+    conntrack_telemetry_t *val = bpf_map_lookup_elem(&conntrack_telemetry, &key);
+    if (val == NULL) {
+        return;
+    }
+    __sync_fetch_and_add(&val->confirm_entry_count, 1);
+}
+
+static __always_inline void increment_confirm_return_count() {
+    u64 key = 0;
+    conntrack_telemetry_t *val = bpf_map_lookup_elem(&conntrack_telemetry, &key);
+    if (val == NULL) {
+        return;
+    }
+    __sync_fetch_and_add(&val->confirm_return_count, 1);
+}
+
+static __always_inline void increment_confirm_return_success_count() {
+    u64 key = 0;
+    conntrack_telemetry_t *val = bpf_map_lookup_elem(&conntrack_telemetry, &key);
+    if (val == NULL) {
+        return;
+    }
+    __sync_fetch_and_add(&val->confirm_return_success_count, 1);
+}
+
+static __always_inline void increment_confirm_return_failed_count() {
+    u64 key = 0;
+    conntrack_telemetry_t *val = bpf_map_lookup_elem(&conntrack_telemetry, &key);
+    if (val == NULL) {
+        return;
+    }
+    __sync_fetch_and_add(&val->confirm_return_failed_count, 1);
+}
+
+
 
 
 #endif /* __CONNTRACK_HELPERS_H */

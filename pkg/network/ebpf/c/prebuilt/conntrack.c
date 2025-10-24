@@ -14,19 +14,92 @@
 #include "ipv6.h"
 #include "pid_tgid.h"
 
-SEC("kprobe/__nf_conntrack_hash_insert")
-int BPF_BYPASSABLE_KPROBE(kprobe___nf_conntrack_hash_insert, struct nf_conn *ct) {
+// Primary probe: Track all conntrack insertions
+SEC("kprobe/__nf_conntrack_hash_insert") // JMWCONNTRACK
+int BPF_BYPASSABLE_KPROBE(kprobe__nf_conntrack_hash_insert, struct nf_conn *ct) {
+    increment_hash_insert_count();
     log_debug("kprobe/__nf_conntrack_hash_insert: netns: %u", get_netns(ct));
+    log_debug("JMWTEST prebuilt kprobe/__nf_conntrack_hash_insert");
 
     conntrack_tuple_t orig = {}, reply = {};
     if (nf_conn_to_conntrack_tuples(ct, &orig, &reply) != 0) {
         return 0;
     }
-    RETURN_IF_NOT_NAT(&orig, &reply);
+    // Note: For hash_insert, we track all connections, not just NAT
+    // The NAT filtering happens in the other probes
 
     bpf_map_update_with_telemetry(conntrack, &orig, &reply, BPF_ANY);
     bpf_map_update_with_telemetry(conntrack, &reply, &orig, BPF_ANY);
     increment_telemetry_registers_count();
+
+    return 0;
+}
+
+
+// Third probe: Track confirmed NAT connections (entry)
+SEC("kprobe/__nf_conntrack_confirm") // JMWCONNTRACK
+int BPF_BYPASSABLE_KPROBE(kprobe__nf_conntrack_confirm) {
+    increment_confirm_entry_count();
+    struct sk_buff *skb = (struct sk_buff *)PT_REGS_PARM1(ctx); // skb is 1st parameter
+    u64 ct_ptr;
+    u8 val = 1;
+
+    if (!skb)
+        return 0;
+
+    // Extract ct from skb using nf_ct_get()
+    struct nf_conn *ct = NULL;
+    // Note: nf_ct_get() is typically inlined, so we need to access the skb fields directly
+    // The conntrack info is stored in skb->_nfct
+    u64 nfct = 0;
+    bpf_probe_read_kernel(&nfct, sizeof(nfct), &skb->_nfct);
+    if (!nfct)
+        return 0;
+    
+    // Extract ct pointer from nfct (lower 3 bits contain ctinfo, upper bits contain ct pointer)
+    // Standard Linux kernel mask is ~7UL to clear the lower 3 bits
+    ct = (struct nf_conn *)(nfct & ~7UL);
+
+    if (!ct)
+        return 0;
+
+    log_debug("kprobe/__nf_conntrack_confirm: netns: %u", get_netns(ct));
+    log_debug("JMWTEST prebuilt kprobe/__nf_conntrack_confirm entry");
+
+    // Filter: Only track NAT connections
+    u32 status = 0;
+    bpf_probe_read_kernel(&status, sizeof(status), &ct->status);
+    if (!(status & IPS_NAT_MASK))
+        return 0;
+
+    // Store ct pointer temporarily for correlation with return probe
+    ct_ptr = (u64)ct;
+    bpf_map_update_with_telemetry(pending_confirms, &ct_ptr, &val, BPF_ANY);
+
+    return 0;
+}
+
+// Fourth probe: Track confirmed NAT connections (return)
+SEC("kretprobe/__nf_conntrack_confirm") // JMWCONNTRACK
+int BPF_BYPASSABLE_KPROBE(kretprobe__nf_conntrack_confirm) {
+    increment_confirm_return_count();
+    int ret = PT_REGS_RC(ctx);
+
+    log_debug("kretprobe/__nf_conntrack_confirm: ret=%d", ret);
+    log_debug("JMWTEST prebuilt kretprobe/__nf_conntrack_confirm");
+
+    // Only process if returned NF_ACCEPT (1)
+    if (ret != 1) { // NF_ACCEPT = 1
+        increment_confirm_return_failed_count();
+        return 0;
+    }
+
+    increment_confirm_return_success_count();
+
+    // For prebuilt version, we can't easily correlate entry/exit
+    // So we'll just count successful returns
+    // The actual conntrack entry population would need the ct pointer
+    // which is challenging to get in the return probe without correlation
 
     return 0;
 }

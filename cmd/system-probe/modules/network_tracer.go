@@ -50,6 +50,7 @@ func createNetworkTracerModule(_ *sysconfigtypes.Config, deps module.FactoryDepe
 
 	if ncfg.NPMEnabled {
 		log.Info("enabling network performance monitoring (NPM)")
+		log.Info("JMW enabling network performance monitoring (NPM)")
 	}
 	if ncfg.ServiceMonitoringEnabled {
 		log.Info("enabling universal service monitoring (USM)")
@@ -183,6 +184,17 @@ func (nt *networkTracer) Register(httpMux *module.Router) error {
 		}
 
 		writeConntrackTable(table, w)
+	})
+
+	httpMux.HandleFunc("/debug/conntrack/compare", func(w http.ResponseWriter, req *http.Request) {
+		comparison, err := nt.tracer.DebugConntrackComparison()
+		if err != nil {
+			log.Errorf("unable to compare conntrack maps: %s", err)
+			w.WriteHeader(500)
+			return
+		}
+
+		utils.WriteAsJSON(w, comparison, utils.GetPrettyPrintFromQueryParams(req))
 	})
 
 	httpMux.HandleFunc("/debug/process_cache", func(w http.ResponseWriter, r *http.Request) {

@@ -52,7 +52,7 @@ func dumpMapsHandler(w io.Writer, _ *manager.Manager, mapName string, currentMap
 			spew.Fdump(w, key, value)
 		}
 
-	case probes.ConntrackMap: // maps/conntrack (BPF_MAP_TYPE_HASH), key ConnTuple, value ConnTuple
+	case probes.ConntrackMap: // maps/conntrack (BPF_MAP_TYPE_HASH), key ConnTuple, value ConnTuple // JMWTRY
 		io.WriteString(w, "Map: '"+mapName+"', key: 'ConnTuple', value: 'ConnTuple'\n")
 		iter := currentMap.Iterate()
 		var key ddebpf.ConnTuple
