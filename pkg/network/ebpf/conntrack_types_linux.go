@@ -16,12 +16,12 @@ type ConntrackTuple struct {
 }
 
 type ConntrackTelemetry struct {
-	Registers                 uint64
-	HashInsertCount           uint64
-	NatPacketCount            uint64
-	ConfirmEntryCount         uint64
-	ConfirmReturnCount        uint64
-	ConfirmReturnSuccessCount uint64
-	ConfirmReturnFailedCount  uint64
-	ConfirmDirectCount        uint64
+	Registers                    uint64
+	Hash_insert_count            uint64
+	Nat_packet_count             uint64
+	Confirm_entry_count          uint64
+	Confirm_return_count         uint64
+	Confirm_return_success_count uint64
+	Confirm_return_failed_count  uint64
+	Confirm_direct_count         uint64
 }
