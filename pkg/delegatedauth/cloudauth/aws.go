@@ -7,8 +7,8 @@
 package cloudauth
 
 import (
+	"bytes"
 	"context"
-	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
@@ -16,9 +16,10 @@ import (
 	"fmt"
 	"net/http"
 	"os"
-	"sort"
-	"strings"
 	"time"
+
+	"github.com/aws/aws-sdk-go-v2/aws"
+	v4 "github.com/aws/aws-sdk-go-v2/aws/signer/v4"
 
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/delegatedauth"
@@ -37,26 +38,18 @@ type SigningData struct {
 
 const (
 	// orgIDHeader is the header we use to specify the name of the org we request a token for
-	orgIDHeader         = "x-ddog-org-id"
-	hostHeader          = "host"
-	contextLengthHeader = "Content-Length"
-	contentTypeHeader   = "Content-Type"
-	applicationForm     = "application/x-www-form-urlencoded; charset=utf-8"
+	orgIDHeader       = "x-ddog-org-id"
+	contentTypeHeader = "Content-Type"
+	applicationForm   = "application/x-www-form-urlencoded; charset=utf-8"
 
 	awsAccessKeyIdName     = "AWS_ACCESS_KEY_ID"
 	awsSecretAccessKeyName = "AWS_SECRET_ACCESS_KEY"
 	awsSessionTokenName    = "AWS_SESSION_TOKEN"
 
-	amzDateHeader         = "X-Amz-Date"
-	amzTokenHeader        = "X-Amz-Security-Token"
-	amzDateFormat         = "20060102"
-	amzDateTimeFormat     = "20060102T150405Z"
 	defaultRegion         = "us-east-1"
 	defaultStsHost        = "sts.amazonaws.com"
 	regionalStsHost       = "sts.%s.amazonaws.com"
 	service               = "sts"
-	algorithm             = "AWS4-HMAC-SHA256"
-	aws4Request           = "aws4_request"
 	getCallerIdentityBody = "Action=GetCallerIdentity&Version=2011-06-15"
 )
 
@@ -155,120 +148,65 @@ func (a *AWSAuth) generateAwsAuthData(orgUUID string, creds *ec2.SecurityCredent
 	}
 	stsFullURL, region, host := a.getConnectionParameters()
 
-	now := time.Now().UTC()
-
+	// Create the request body
 	requestBody := getCallerIdentityBody
-	h := sha256.Sum256([]byte(requestBody))
-	payloadHash := hex.EncodeToString(h[:])
+	bodyBytes := []byte(requestBody)
 
-	// Create the headers that factor into the signing algorithm
-	headerMap := map[string][]string{
-		contextLengthHeader: {
-			fmt.Sprintf("%d", len(requestBody)),
-		},
-		contentTypeHeader: {
-			applicationForm,
-		},
-		amzDateHeader: {
-			now.Format(amzDateTimeFormat),
-		},
-		orgIDHeader: {
-			orgUUID,
-		},
-		amzTokenHeader: {
-			creds.Token,
-		},
-		hostHeader: {
-			host,
-		},
+	// Calculate the payload hash manually
+	payloadHashBytes := sha256.Sum256(bodyBytes)
+	payloadHash := hex.EncodeToString(payloadHashBytes[:])
+
+	// Create a seekable body reader
+	bodyReader := bytes.NewReader(bodyBytes)
+
+	// Create an HTTP request
+	req, err := http.NewRequest(http.MethodPost, stsFullURL, bodyReader)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
 
-	headerArr := make([]string, len(headerMap), len(headerMap))
-	signedHeadersArr := make([]string, len(headerMap), len(headerMap))
-	headerIdx := 0
-	for k, v := range headerMap {
-		loweredHeaderName := strings.ToLower(k)
-		headerArr[headerIdx] = fmt.Sprintf("%s:%s", loweredHeaderName, strings.Join(v, ","))
-		signedHeadersArr[headerIdx] = loweredHeaderName
-		headerIdx++
+	// Set required headers before signing
+	req.Header.Set(contentTypeHeader, applicationForm)
+	req.Header.Set(orgIDHeader, orgUUID)
+	req.Header.Set("User-Agent", a.getUserAgent())
+	req.ContentLength = int64(len(bodyBytes))
+	req.Host = host
+
+	// Create AWS credentials from our EC2 credentials
+	awsCreds := aws.Credentials{
+		AccessKeyID:     creds.AccessKeyID,
+		SecretAccessKey: creds.SecretAccessKey,
+		SessionToken:    creds.Token,
 	}
-	sort.Strings(headerArr)
-	sort.Strings(signedHeadersArr)
-	signedHeaders := strings.Join(signedHeadersArr, ";")
 
-	canonicalRequest := strings.Join([]string{
-		http.MethodPost,
-		"/",
-		"", // No query string
-		strings.Join(headerArr, "\n") + "\n",
-		signedHeaders,
-		payloadHash,
-	}, "\n")
+	// Create the v4 signer
+	signer := v4.NewSigner()
 
-	// Create the string to sign
-	hashCanonicalRequest := sha256.Sum256([]byte(canonicalRequest))
-	credentialScope := strings.Join([]string{
-		now.Format(amzDateFormat),
-		region,
-		service,
-		aws4Request,
-	}, "/")
-	stringToSign := a.makeSignature(
-		now,
-		credentialScope,
-		hex.EncodeToString(hashCanonicalRequest[:]),
-		region,
-		service,
-		creds.SecretAccessKey,
-		algorithm,
-	)
+	// Sign the request
+	// The orgIDHeader is already set on the request, so it will be included in the signature
+	now := time.Now().UTC()
+	err = signer.SignHTTP(context.Background(), awsCreds, req, payloadHash, service, region, now)
+	if err != nil {
+		return nil, fmt.Errorf("failed to sign request: %w", err)
+	}
 
-	// Create the authorization header
-	credential := strings.Join([]string{
-		creds.AccessKeyID,
-		credentialScope,
-	}, "/")
-	authHeader := fmt.Sprintf("%s Credential=%s, SignedHeaders=%s, Signature=%s",
-		algorithm, credential, signedHeaders, stringToSign)
+	// Extract headers from the signed request
+	headerMap := make(map[string][]string)
+	for key, values := range req.Header {
+		headerMap[key] = values
+	}
+	headerMap["Host"] = []string{host}
 
-	headerMap["Authorization"] = []string{authHeader}
-	headerMap["User-Agent"] = []string{a.getUserAgent()}
+	// Marshal headers to JSON
 	headersJSON, err := json.Marshal(headerMap)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to marshal headers: %w", err)
 	}
 
 	return &SigningData{
 		HeadersEncoded: base64.StdEncoding.EncodeToString(headersJSON),
-		BodyEncoded:    base64.StdEncoding.EncodeToString([]byte(requestBody)),
+		BodyEncoded:    base64.StdEncoding.EncodeToString(bodyBytes),
 		Method:         http.MethodPost,
 		URLEncoded:     base64.StdEncoding.EncodeToString([]byte(stsFullURL)),
 	}, nil
-}
-
-func (a *AWSAuth) makeSignature(t time.Time, credentialScope, payloadHash, region, service, secretAccessKey, algorithm string) string {
-	// Create the string to sign
-	stringToSign := strings.Join([]string{
-		algorithm,
-		t.Format(amzDateTimeFormat),
-		credentialScope,
-		payloadHash,
-	}, "\n")
-
-	// Create the signing key
-	kDate := hmac256(t.Format(amzDateFormat), []byte("AWS4"+secretAccessKey))
-	kRegion := hmac256(region, kDate)
-	kService := hmac256(service, kRegion)
-	kSigning := hmac256(aws4Request, kService)
-
-	// Sign the string
-	signature := hex.EncodeToString(hmac256(stringToSign, kSigning))
-
-	return signature
-}
-
-func hmac256(data string, key []byte) []byte {
-	h := hmac.New(sha256.New, key)
-	h.Write([]byte(data))
-	return h.Sum(nil)
 }

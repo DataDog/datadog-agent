@@ -82,31 +82,32 @@ func GetApiKey(cfg pkgconfigmodel.Reader, orgUUID, delegatedAuthProof string) (*
 	return apiKey, nil
 }
 
+// TokenResponse represents the response from the intake-key endpoint
+type TokenResponse struct {
+	Data TokenData `json:"data"`
+}
+
+// TokenData represents the data field in the token response
+type TokenData struct {
+	Attributes TokenAttributes `json:"attributes"`
+}
+
+// TokenAttributes represents the attributes field containing the API key
+type TokenAttributes struct {
+	APIKey string `json:"api_key"`
+}
+
 func parseResponse(tokenBytes []byte) (*string, error) {
-	// Parse the response to get the token
-	var tokenResponse map[string]interface{}
+	var tokenResponse TokenResponse
 	err := json.Unmarshal(tokenBytes, &tokenResponse)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to unmarshal response: %w", err)
 	}
 
-	// Get attributes from the response
-	dataResponse, ok := tokenResponse["data"].(map[string]interface{})
-	if !ok {
-		return nil, fmt.Errorf("failed to get data from response: %v", tokenResponse)
+	// Validate that we got an API key
+	if tokenResponse.Data.Attributes.APIKey == "" {
+		return nil, fmt.Errorf("api_key is empty in response")
 	}
 
-	// Get the attributes from the data
-	attributes, ok := dataResponse["attributes"].(map[string]interface{})
-	if !ok {
-		return nil, fmt.Errorf("failed to get attributes from response: %v", tokenResponse)
-	}
-
-	// Get the apiKey from the response
-	apiKey, ok := attributes["api_key"].(string)
-	if !ok {
-		return nil, fmt.Errorf("failed to get api key from response: %v", tokenResponse)
-	}
-
-	return &apiKey, nil
+	return &tokenResponse.Data.Attributes.APIKey, nil
 }

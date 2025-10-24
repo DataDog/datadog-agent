@@ -31,6 +31,10 @@ type delegatedAuthComponent struct {
 	provider        delegatedauthpkg.Provider
 	authConfig      *delegatedauthpkg.AuthConfig
 	refreshInterval time.Duration
+
+	// Context and cancellation for background refresh goroutine
+	refreshCtx    context.Context
+	refreshCancel context.CancelFunc
 }
 
 type dependencies struct {
@@ -48,11 +52,12 @@ func NewDelegatedAuth(deps dependencies) (delegatedauth.Component, error) {
 
 	provider := deps.Config.GetString("delegated_auth.provider")
 	orgUUID := deps.Config.GetString("delegated_auth.org_uuid")
-	refreshInterval := deps.Config.GetDuration("delegated_auth.refresh_interval") * time.Second
+	refreshInterval := deps.Config.GetDuration("delegated_auth.refresh_interval_mins") * time.Minute
 
 	if refreshInterval == 0 {
-		// Default to 1 second if no refresh interval
-		refreshInterval = 1 * time.Second
+		// Default to 60 minutes if refresh interval was set incorrectly
+		refreshInterval = 60 * time.Minute
+		deps.Log.Warn("Refresh interval was set to 0 defaulting to 60 minutes")
 	}
 
 	if orgUUID == "" {
@@ -88,6 +93,9 @@ func NewDelegatedAuth(deps dependencies) (delegatedauth.Component, error) {
 		OnStart: func(ctx context.Context) error {
 			comp.log.Info("Delegated authentication is enabled, fetching initial API key...")
 
+			// Create a context for the background refresh goroutine
+			comp.refreshCtx, comp.refreshCancel = context.WithCancel(context.Background())
+
 			// Fetch the initial API key synchronously during startup
 			apiKey, err := comp.GetAPIKey(ctx)
 			if err != nil {
@@ -105,6 +113,17 @@ func NewDelegatedAuth(deps dependencies) (delegatedauth.Component, error) {
 
 			return nil
 		},
+		OnStop: func(ctx context.Context) error {
+			comp.log.Info("Stopping delegated auth background refresh...")
+
+			// Cancel the background refresh context
+			if comp.refreshCancel != nil {
+				comp.refreshCancel()
+			}
+
+			comp.log.Info("Delegated auth background refresh stopped")
+			return nil
+		},
 	})
 
 	return comp, nil
@@ -112,14 +131,6 @@ func NewDelegatedAuth(deps dependencies) (delegatedauth.Component, error) {
 
 // GetAPIKey returns the current API key or fetches one if it has not yet been fetched
 func (d *delegatedAuthComponent) GetAPIKey(ctx context.Context) (*string, error) {
-	d.mu.RLock()
-	if d.apiKey != nil {
-		apiKey := d.apiKey
-		d.mu.RUnlock()
-		return apiKey, nil
-	}
-	d.mu.RUnlock()
-
 	creds, _, err := d.RefreshAndGetApiKey(ctx)
 	return creds, err
 }
@@ -132,15 +143,16 @@ func (d *delegatedAuthComponent) RefreshAPIKey(ctx context.Context) error {
 
 // RefreshAndGetApiKey refreshes the API key and stores it in the component it returns the current API key and if a refresh actually occurred
 func (d *delegatedAuthComponent) RefreshAndGetApiKey(ctx context.Context) (*string, bool, error) {
-	d.mu.Lock()
-	defer d.mu.Unlock()
+	d.mu.RLock()
+	apiKey := d.apiKey
+	defer d.mu.RUnlock()
 
 	// Double-check pattern - another goroutine might have refreshed while we were waiting
-	if d.apiKey != nil {
-		return d.apiKey, false, nil
+	if apiKey != nil {
+		return apiKey, false, nil
 	}
 
-	d.log.Info("Refreshing delegated API key")
+	d.log.Info("Fetching delegated API key")
 
 	// Authenticate with the configured provider
 	apiKey, err := d.authenticate()
@@ -156,25 +168,32 @@ func (d *delegatedAuthComponent) RefreshAndGetApiKey(ctx context.Context) (*stri
 
 // startBackgroundRefresh starts the background goroutine that periodically refreshes the API key
 func (d *delegatedAuthComponent) startBackgroundRefresh() {
-	if d.refreshInterval < 0 {
-		d.refreshInterval = 1 * time.Second
-	}
-	d.log.Infof("Setting refresh interval to %s", d.refreshInterval)
-
 	// Start background refresh
 	go func() {
 		ticker := time.NewTicker(d.refreshInterval)
 		defer ticker.Stop()
 
-		ctx := context.Background()
-		for range ticker.C {
-			lCreds, updated, lErr := d.RefreshAndGetApiKey(ctx)
-			if lErr != nil {
-				d.log.Errorf("Failed to refresh delegated API key: %v", lErr)
-			} else {
-				// Update the config with the new API key
-				if updated {
-					d.updateConfigWithAPIKey(*lCreds)
+		for {
+			select {
+			case <-d.refreshCtx.Done():
+				// Context was canceled, exit the goroutine
+				d.log.Debug("Background refresh goroutine exiting due to context cancellation")
+				return
+			case <-ticker.C:
+				// Time to refresh
+				lCreds, updated, lErr := d.RefreshAndGetApiKey(d.refreshCtx)
+				if lErr != nil {
+					// Check if the error is due to context cancellation
+					if d.refreshCtx.Err() != nil {
+						d.log.Debug("Refresh failed due to context cancellation, exiting")
+						return
+					}
+					d.log.Errorf("Failed to refresh delegated API key: %v", lErr)
+				} else {
+					// Update the config with the new API key
+					if updated {
+						d.updateConfigWithAPIKey(*lCreds)
+					}
 				}
 			}
 		}
