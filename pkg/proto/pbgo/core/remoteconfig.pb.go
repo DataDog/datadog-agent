@@ -122,6 +122,55 @@ func (ConfigStatus) EnumDescriptor() ([]byte, []int) {
 	return file_datadog_remoteconfig_remoteconfig_proto_rawDescGZIP(), []int{1}
 }
 
+type ConfigSubscriptionRequest_Action int32
+
+const (
+	ConfigSubscriptionRequest_INVALID ConfigSubscriptionRequest_Action = 0
+	ConfigSubscriptionRequest_TRACK   ConfigSubscriptionRequest_Action = 1
+	ConfigSubscriptionRequest_UNTRACK ConfigSubscriptionRequest_Action = 2
+)
+
+// Enum value maps for ConfigSubscriptionRequest_Action.
+var (
+	ConfigSubscriptionRequest_Action_name = map[int32]string{
+		0: "INVALID",
+		1: "TRACK",
+		2: "UNTRACK",
+	}
+	ConfigSubscriptionRequest_Action_value = map[string]int32{
+		"INVALID": 0,
+		"TRACK":   1,
+		"UNTRACK": 2,
+	}
+)
+
+func (x ConfigSubscriptionRequest_Action) Enum() *ConfigSubscriptionRequest_Action {
+	p := new(ConfigSubscriptionRequest_Action)
+	*p = x
+	return p
+}
+
+func (x ConfigSubscriptionRequest_Action) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (ConfigSubscriptionRequest_Action) Descriptor() protoreflect.EnumDescriptor {
+	return file_datadog_remoteconfig_remoteconfig_proto_enumTypes[2].Descriptor()
+}
+
+func (ConfigSubscriptionRequest_Action) Type() protoreflect.EnumType {
+	return &file_datadog_remoteconfig_remoteconfig_proto_enumTypes[2]
+}
+
+func (x ConfigSubscriptionRequest_Action) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use ConfigSubscriptionRequest_Action.Descriptor instead.
+func (ConfigSubscriptionRequest_Action) EnumDescriptor() ([]byte, []int) {
+	return file_datadog_remoteconfig_remoteconfig_proto_rawDescGZIP(), []int{20, 0}
+}
+
 type ConfigMetas struct {
 	state            protoimpl.MessageState `protogen:"open.v1"`
 	Roots            []*TopMeta             `protobuf:"bytes,1,rep,name=roots,proto3" json:"roots,omitempty"`
@@ -1587,6 +1636,138 @@ func (x *TargetFileMeta) GetHashes() []*TargetFileHash {
 	return nil
 }
 
+type ConfigSubscriptionRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// RuntimeID of the client to track or untrack.
+	RuntimeId string `protobuf:"bytes,1,opt,name=runtime_id,json=runtimeId,proto3" json:"runtime_id,omitempty"`
+	// Action indicates the action to take for the client with the given
+	// runtime_id.
+	Action ConfigSubscriptionRequest_Action `protobuf:"varint,2,opt,name=action,proto3,enum=datadog.config.ConfigSubscriptionRequest_Action" json:"action,omitempty"`
+	// If action is TRACK, products indicates the products for which the client is
+	// interested in receiving updates.
+	Products      []string `protobuf:"bytes,3,rep,name=products,proto3" json:"products,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ConfigSubscriptionRequest) Reset() {
+	*x = ConfigSubscriptionRequest{}
+	mi := &file_datadog_remoteconfig_remoteconfig_proto_msgTypes[20]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ConfigSubscriptionRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ConfigSubscriptionRequest) ProtoMessage() {}
+
+func (x *ConfigSubscriptionRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_datadog_remoteconfig_remoteconfig_proto_msgTypes[20]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ConfigSubscriptionRequest.ProtoReflect.Descriptor instead.
+func (*ConfigSubscriptionRequest) Descriptor() ([]byte, []int) {
+	return file_datadog_remoteconfig_remoteconfig_proto_rawDescGZIP(), []int{20}
+}
+
+func (x *ConfigSubscriptionRequest) GetRuntimeId() string {
+	if x != nil {
+		return x.RuntimeId
+	}
+	return ""
+}
+
+func (x *ConfigSubscriptionRequest) GetAction() ConfigSubscriptionRequest_Action {
+	if x != nil {
+		return x.Action
+	}
+	return ConfigSubscriptionRequest_INVALID
+}
+
+func (x *ConfigSubscriptionRequest) GetProducts() []string {
+	if x != nil {
+		return x.Products
+	}
+	return nil
+}
+
+type ConfigSubscriptionResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Client is the client that was tracked or untracked.
+	Client *Client `protobuf:"bytes,1,opt,name=client,proto3" json:"client,omitempty"`
+	// Matched configs are all configs that were matched for the client given
+	// the subscription request.
+	//
+	// If a previously reported config is no longer matched, it will not be
+	// included in the response.
+	MatchedConfigs []string `protobuf:"bytes,2,rep,name=matched_configs,json=matchedConfigs,proto3" json:"matched_configs,omitempty"`
+	// Target files are the target files that needs to be sent to the client.
+	TargetFiles   []*File `protobuf:"bytes,3,rep,name=target_files,json=targetFiles,proto3" json:"target_files,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ConfigSubscriptionResponse) Reset() {
+	*x = ConfigSubscriptionResponse{}
+	mi := &file_datadog_remoteconfig_remoteconfig_proto_msgTypes[21]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ConfigSubscriptionResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ConfigSubscriptionResponse) ProtoMessage() {}
+
+func (x *ConfigSubscriptionResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_datadog_remoteconfig_remoteconfig_proto_msgTypes[21]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ConfigSubscriptionResponse.ProtoReflect.Descriptor instead.
+func (*ConfigSubscriptionResponse) Descriptor() ([]byte, []int) {
+	return file_datadog_remoteconfig_remoteconfig_proto_rawDescGZIP(), []int{21}
+}
+
+func (x *ConfigSubscriptionResponse) GetClient() *Client {
+	if x != nil {
+		return x.Client
+	}
+	return nil
+}
+
+func (x *ConfigSubscriptionResponse) GetMatchedConfigs() []string {
+	if x != nil {
+		return x.MatchedConfigs
+	}
+	return nil
+}
+
+func (x *ConfigSubscriptionResponse) GetTargetFiles() []*File {
+	if x != nil {
+		return x.TargetFiles
+	}
+	return nil
+}
+
 type ClientGetConfigsRequest struct {
 	state             protoimpl.MessageState `protogen:"open.v1"`
 	Client            *Client                `protobuf:"bytes,1,opt,name=client,proto3" json:"client,omitempty"`
@@ -1597,7 +1778,7 @@ type ClientGetConfigsRequest struct {
 
 func (x *ClientGetConfigsRequest) Reset() {
 	*x = ClientGetConfigsRequest{}
-	mi := &file_datadog_remoteconfig_remoteconfig_proto_msgTypes[20]
+	mi := &file_datadog_remoteconfig_remoteconfig_proto_msgTypes[22]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1609,7 +1790,7 @@ func (x *ClientGetConfigsRequest) String() string {
 func (*ClientGetConfigsRequest) ProtoMessage() {}
 
 func (x *ClientGetConfigsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_datadog_remoteconfig_remoteconfig_proto_msgTypes[20]
+	mi := &file_datadog_remoteconfig_remoteconfig_proto_msgTypes[22]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1622,7 +1803,7 @@ func (x *ClientGetConfigsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ClientGetConfigsRequest.ProtoReflect.Descriptor instead.
 func (*ClientGetConfigsRequest) Descriptor() ([]byte, []int) {
-	return file_datadog_remoteconfig_remoteconfig_proto_rawDescGZIP(), []int{20}
+	return file_datadog_remoteconfig_remoteconfig_proto_rawDescGZIP(), []int{22}
 }
 
 func (x *ClientGetConfigsRequest) GetClient() *Client {
@@ -1652,7 +1833,7 @@ type ClientGetConfigsResponse struct {
 
 func (x *ClientGetConfigsResponse) Reset() {
 	*x = ClientGetConfigsResponse{}
-	mi := &file_datadog_remoteconfig_remoteconfig_proto_msgTypes[21]
+	mi := &file_datadog_remoteconfig_remoteconfig_proto_msgTypes[23]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1664,7 +1845,7 @@ func (x *ClientGetConfigsResponse) String() string {
 func (*ClientGetConfigsResponse) ProtoMessage() {}
 
 func (x *ClientGetConfigsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_datadog_remoteconfig_remoteconfig_proto_msgTypes[21]
+	mi := &file_datadog_remoteconfig_remoteconfig_proto_msgTypes[23]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1677,7 +1858,7 @@ func (x *ClientGetConfigsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ClientGetConfigsResponse.ProtoReflect.Descriptor instead.
 func (*ClientGetConfigsResponse) Descriptor() ([]byte, []int) {
-	return file_datadog_remoteconfig_remoteconfig_proto_rawDescGZIP(), []int{21}
+	return file_datadog_remoteconfig_remoteconfig_proto_rawDescGZIP(), []int{23}
 }
 
 func (x *ClientGetConfigsResponse) GetRoots() [][]byte {
@@ -1725,7 +1906,7 @@ type FileMetaState struct {
 
 func (x *FileMetaState) Reset() {
 	*x = FileMetaState{}
-	mi := &file_datadog_remoteconfig_remoteconfig_proto_msgTypes[22]
+	mi := &file_datadog_remoteconfig_remoteconfig_proto_msgTypes[24]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1737,7 +1918,7 @@ func (x *FileMetaState) String() string {
 func (*FileMetaState) ProtoMessage() {}
 
 func (x *FileMetaState) ProtoReflect() protoreflect.Message {
-	mi := &file_datadog_remoteconfig_remoteconfig_proto_msgTypes[22]
+	mi := &file_datadog_remoteconfig_remoteconfig_proto_msgTypes[24]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1750,7 +1931,7 @@ func (x *FileMetaState) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use FileMetaState.ProtoReflect.Descriptor instead.
 func (*FileMetaState) Descriptor() ([]byte, []int) {
-	return file_datadog_remoteconfig_remoteconfig_proto_rawDescGZIP(), []int{22}
+	return file_datadog_remoteconfig_remoteconfig_proto_rawDescGZIP(), []int{24}
 }
 
 func (x *FileMetaState) GetVersion() uint64 {
@@ -1779,7 +1960,7 @@ type GetStateConfigResponse struct {
 
 func (x *GetStateConfigResponse) Reset() {
 	*x = GetStateConfigResponse{}
-	mi := &file_datadog_remoteconfig_remoteconfig_proto_msgTypes[23]
+	mi := &file_datadog_remoteconfig_remoteconfig_proto_msgTypes[25]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1791,7 +1972,7 @@ func (x *GetStateConfigResponse) String() string {
 func (*GetStateConfigResponse) ProtoMessage() {}
 
 func (x *GetStateConfigResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_datadog_remoteconfig_remoteconfig_proto_msgTypes[23]
+	mi := &file_datadog_remoteconfig_remoteconfig_proto_msgTypes[25]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1804,7 +1985,7 @@ func (x *GetStateConfigResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetStateConfigResponse.ProtoReflect.Descriptor instead.
 func (*GetStateConfigResponse) Descriptor() ([]byte, []int) {
-	return file_datadog_remoteconfig_remoteconfig_proto_rawDescGZIP(), []int{23}
+	return file_datadog_remoteconfig_remoteconfig_proto_rawDescGZIP(), []int{25}
 }
 
 func (x *GetStateConfigResponse) GetConfigState() map[string]*FileMetaState {
@@ -1843,7 +2024,7 @@ type ResetStateConfigResponse struct {
 
 func (x *ResetStateConfigResponse) Reset() {
 	*x = ResetStateConfigResponse{}
-	mi := &file_datadog_remoteconfig_remoteconfig_proto_msgTypes[24]
+	mi := &file_datadog_remoteconfig_remoteconfig_proto_msgTypes[26]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1855,7 +2036,7 @@ func (x *ResetStateConfigResponse) String() string {
 func (*ResetStateConfigResponse) ProtoMessage() {}
 
 func (x *ResetStateConfigResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_datadog_remoteconfig_remoteconfig_proto_msgTypes[24]
+	mi := &file_datadog_remoteconfig_remoteconfig_proto_msgTypes[26]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1868,7 +2049,7 @@ func (x *ResetStateConfigResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ResetStateConfigResponse.ProtoReflect.Descriptor instead.
 func (*ResetStateConfigResponse) Descriptor() ([]byte, []int) {
-	return file_datadog_remoteconfig_remoteconfig_proto_rawDescGZIP(), []int{24}
+	return file_datadog_remoteconfig_remoteconfig_proto_rawDescGZIP(), []int{26}
 }
 
 type TracerPredicateV1 struct {
@@ -1886,7 +2067,7 @@ type TracerPredicateV1 struct {
 
 func (x *TracerPredicateV1) Reset() {
 	*x = TracerPredicateV1{}
-	mi := &file_datadog_remoteconfig_remoteconfig_proto_msgTypes[25]
+	mi := &file_datadog_remoteconfig_remoteconfig_proto_msgTypes[27]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1898,7 +2079,7 @@ func (x *TracerPredicateV1) String() string {
 func (*TracerPredicateV1) ProtoMessage() {}
 
 func (x *TracerPredicateV1) ProtoReflect() protoreflect.Message {
-	mi := &file_datadog_remoteconfig_remoteconfig_proto_msgTypes[25]
+	mi := &file_datadog_remoteconfig_remoteconfig_proto_msgTypes[27]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1911,7 +2092,7 @@ func (x *TracerPredicateV1) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TracerPredicateV1.ProtoReflect.Descriptor instead.
 func (*TracerPredicateV1) Descriptor() ([]byte, []int) {
-	return file_datadog_remoteconfig_remoteconfig_proto_rawDescGZIP(), []int{25}
+	return file_datadog_remoteconfig_remoteconfig_proto_rawDescGZIP(), []int{27}
 }
 
 func (x *TracerPredicateV1) GetClientID() string {
@@ -1972,7 +2153,7 @@ type TracerPredicates struct {
 
 func (x *TracerPredicates) Reset() {
 	*x = TracerPredicates{}
-	mi := &file_datadog_remoteconfig_remoteconfig_proto_msgTypes[26]
+	mi := &file_datadog_remoteconfig_remoteconfig_proto_msgTypes[28]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1984,7 +2165,7 @@ func (x *TracerPredicates) String() string {
 func (*TracerPredicates) ProtoMessage() {}
 
 func (x *TracerPredicates) ProtoReflect() protoreflect.Message {
-	mi := &file_datadog_remoteconfig_remoteconfig_proto_msgTypes[26]
+	mi := &file_datadog_remoteconfig_remoteconfig_proto_msgTypes[28]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1997,7 +2178,7 @@ func (x *TracerPredicates) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TracerPredicates.ProtoReflect.Descriptor instead.
 func (*TracerPredicates) Descriptor() ([]byte, []int) {
-	return file_datadog_remoteconfig_remoteconfig_proto_rawDescGZIP(), []int{26}
+	return file_datadog_remoteconfig_remoteconfig_proto_rawDescGZIP(), []int{28}
 }
 
 func (x *TracerPredicates) GetTracerPredicatesV1() []*TracerPredicateV1 {
@@ -2140,7 +2321,20 @@ const file_datadog_remoteconfig_remoteconfig_proto_rawDesc = "" +
 	"\x0eTargetFileMeta\x12\x12\n" +
 	"\x04path\x18\x01 \x01(\tR\x04path\x12\x16\n" +
 	"\x06length\x18\x02 \x01(\x03R\x06length\x126\n" +
-	"\x06hashes\x18\x03 \x03(\v2\x1e.datadog.config.TargetFileHashR\x06hashes\"\x99\x01\n" +
+	"\x06hashes\x18\x03 \x03(\v2\x1e.datadog.config.TargetFileHashR\x06hashes\"\xcf\x01\n" +
+	"\x19ConfigSubscriptionRequest\x12\x1d\n" +
+	"\n" +
+	"runtime_id\x18\x01 \x01(\tR\truntimeId\x12H\n" +
+	"\x06action\x18\x02 \x01(\x0e20.datadog.config.ConfigSubscriptionRequest.ActionR\x06action\x12\x1a\n" +
+	"\bproducts\x18\x03 \x03(\tR\bproducts\"-\n" +
+	"\x06Action\x12\v\n" +
+	"\aINVALID\x10\x00\x12\t\n" +
+	"\x05TRACK\x10\x01\x12\v\n" +
+	"\aUNTRACK\x10\x02\"\xae\x01\n" +
+	"\x1aConfigSubscriptionResponse\x12.\n" +
+	"\x06client\x18\x01 \x01(\v2\x16.datadog.config.ClientR\x06client\x12'\n" +
+	"\x0fmatched_configs\x18\x02 \x03(\tR\x0ematchedConfigs\x127\n" +
+	"\ftarget_files\x18\x03 \x03(\v2\x14.datadog.config.FileR\vtargetFiles\"\x99\x01\n" +
 	"\x17ClientGetConfigsRequest\x12.\n" +
 	"\x06client\x18\x01 \x01(\v2\x16.datadog.config.ClientR\x06client\x12N\n" +
 	"\x13cached_target_files\x18\x02 \x03(\v2\x1e.datadog.config.TargetFileMetaR\x11cachedTargetFiles\"\xed\x01\n" +
@@ -2202,82 +2396,88 @@ func file_datadog_remoteconfig_remoteconfig_proto_rawDescGZIP() []byte {
 	return file_datadog_remoteconfig_remoteconfig_proto_rawDescData
 }
 
-var file_datadog_remoteconfig_remoteconfig_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
-var file_datadog_remoteconfig_remoteconfig_proto_msgTypes = make([]protoimpl.MessageInfo, 30)
+var file_datadog_remoteconfig_remoteconfig_proto_enumTypes = make([]protoimpl.EnumInfo, 3)
+var file_datadog_remoteconfig_remoteconfig_proto_msgTypes = make([]protoimpl.MessageInfo, 32)
 var file_datadog_remoteconfig_remoteconfig_proto_goTypes = []any{
-	(TaskState)(0),                   // 0: datadog.config.TaskState
-	(ConfigStatus)(0),                // 1: datadog.config.ConfigStatus
-	(*ConfigMetas)(nil),              // 2: datadog.config.ConfigMetas
-	(*DirectorMetas)(nil),            // 3: datadog.config.DirectorMetas
-	(*DelegatedMeta)(nil),            // 4: datadog.config.DelegatedMeta
-	(*TopMeta)(nil),                  // 5: datadog.config.TopMeta
-	(*File)(nil),                     // 6: datadog.config.File
-	(*LatestConfigsRequest)(nil),     // 7: datadog.config.LatestConfigsRequest
-	(*LatestConfigsResponse)(nil),    // 8: datadog.config.LatestConfigsResponse
-	(*OrgDataResponse)(nil),          // 9: datadog.config.OrgDataResponse
-	(*OrgStatusResponse)(nil),        // 10: datadog.config.OrgStatusResponse
-	(*Client)(nil),                   // 11: datadog.config.Client
-	(*ClientTracer)(nil),             // 12: datadog.config.ClientTracer
-	(*ClientAgent)(nil),              // 13: datadog.config.ClientAgent
-	(*ClientUpdater)(nil),            // 14: datadog.config.ClientUpdater
-	(*PackageState)(nil),             // 15: datadog.config.PackageState
-	(*PackageStateTask)(nil),         // 16: datadog.config.PackageStateTask
-	(*TaskError)(nil),                // 17: datadog.config.TaskError
-	(*ConfigState)(nil),              // 18: datadog.config.ConfigState
-	(*ClientState)(nil),              // 19: datadog.config.ClientState
-	(*TargetFileHash)(nil),           // 20: datadog.config.TargetFileHash
-	(*TargetFileMeta)(nil),           // 21: datadog.config.TargetFileMeta
-	(*ClientGetConfigsRequest)(nil),  // 22: datadog.config.ClientGetConfigsRequest
-	(*ClientGetConfigsResponse)(nil), // 23: datadog.config.ClientGetConfigsResponse
-	(*FileMetaState)(nil),            // 24: datadog.config.FileMetaState
-	(*GetStateConfigResponse)(nil),   // 25: datadog.config.GetStateConfigResponse
-	(*ResetStateConfigResponse)(nil), // 26: datadog.config.ResetStateConfigResponse
-	(*TracerPredicateV1)(nil),        // 27: datadog.config.TracerPredicateV1
-	(*TracerPredicates)(nil),         // 28: datadog.config.TracerPredicates
-	nil,                              // 29: datadog.config.GetStateConfigResponse.ConfigStateEntry
-	nil,                              // 30: datadog.config.GetStateConfigResponse.DirectorStateEntry
-	nil,                              // 31: datadog.config.GetStateConfigResponse.TargetFilenamesEntry
+	(TaskState)(0),                        // 0: datadog.config.TaskState
+	(ConfigStatus)(0),                     // 1: datadog.config.ConfigStatus
+	(ConfigSubscriptionRequest_Action)(0), // 2: datadog.config.ConfigSubscriptionRequest.Action
+	(*ConfigMetas)(nil),                   // 3: datadog.config.ConfigMetas
+	(*DirectorMetas)(nil),                 // 4: datadog.config.DirectorMetas
+	(*DelegatedMeta)(nil),                 // 5: datadog.config.DelegatedMeta
+	(*TopMeta)(nil),                       // 6: datadog.config.TopMeta
+	(*File)(nil),                          // 7: datadog.config.File
+	(*LatestConfigsRequest)(nil),          // 8: datadog.config.LatestConfigsRequest
+	(*LatestConfigsResponse)(nil),         // 9: datadog.config.LatestConfigsResponse
+	(*OrgDataResponse)(nil),               // 10: datadog.config.OrgDataResponse
+	(*OrgStatusResponse)(nil),             // 11: datadog.config.OrgStatusResponse
+	(*Client)(nil),                        // 12: datadog.config.Client
+	(*ClientTracer)(nil),                  // 13: datadog.config.ClientTracer
+	(*ClientAgent)(nil),                   // 14: datadog.config.ClientAgent
+	(*ClientUpdater)(nil),                 // 15: datadog.config.ClientUpdater
+	(*PackageState)(nil),                  // 16: datadog.config.PackageState
+	(*PackageStateTask)(nil),              // 17: datadog.config.PackageStateTask
+	(*TaskError)(nil),                     // 18: datadog.config.TaskError
+	(*ConfigState)(nil),                   // 19: datadog.config.ConfigState
+	(*ClientState)(nil),                   // 20: datadog.config.ClientState
+	(*TargetFileHash)(nil),                // 21: datadog.config.TargetFileHash
+	(*TargetFileMeta)(nil),                // 22: datadog.config.TargetFileMeta
+	(*ConfigSubscriptionRequest)(nil),     // 23: datadog.config.ConfigSubscriptionRequest
+	(*ConfigSubscriptionResponse)(nil),    // 24: datadog.config.ConfigSubscriptionResponse
+	(*ClientGetConfigsRequest)(nil),       // 25: datadog.config.ClientGetConfigsRequest
+	(*ClientGetConfigsResponse)(nil),      // 26: datadog.config.ClientGetConfigsResponse
+	(*FileMetaState)(nil),                 // 27: datadog.config.FileMetaState
+	(*GetStateConfigResponse)(nil),        // 28: datadog.config.GetStateConfigResponse
+	(*ResetStateConfigResponse)(nil),      // 29: datadog.config.ResetStateConfigResponse
+	(*TracerPredicateV1)(nil),             // 30: datadog.config.TracerPredicateV1
+	(*TracerPredicates)(nil),              // 31: datadog.config.TracerPredicates
+	nil,                                   // 32: datadog.config.GetStateConfigResponse.ConfigStateEntry
+	nil,                                   // 33: datadog.config.GetStateConfigResponse.DirectorStateEntry
+	nil,                                   // 34: datadog.config.GetStateConfigResponse.TargetFilenamesEntry
 }
 var file_datadog_remoteconfig_remoteconfig_proto_depIdxs = []int32{
-	5,  // 0: datadog.config.ConfigMetas.roots:type_name -> datadog.config.TopMeta
-	5,  // 1: datadog.config.ConfigMetas.timestamp:type_name -> datadog.config.TopMeta
-	5,  // 2: datadog.config.ConfigMetas.snapshot:type_name -> datadog.config.TopMeta
-	5,  // 3: datadog.config.ConfigMetas.topTargets:type_name -> datadog.config.TopMeta
-	4,  // 4: datadog.config.ConfigMetas.delegatedTargets:type_name -> datadog.config.DelegatedMeta
-	5,  // 5: datadog.config.DirectorMetas.roots:type_name -> datadog.config.TopMeta
-	5,  // 6: datadog.config.DirectorMetas.timestamp:type_name -> datadog.config.TopMeta
-	5,  // 7: datadog.config.DirectorMetas.snapshot:type_name -> datadog.config.TopMeta
-	5,  // 8: datadog.config.DirectorMetas.targets:type_name -> datadog.config.TopMeta
-	11, // 9: datadog.config.LatestConfigsRequest.active_clients:type_name -> datadog.config.Client
-	2,  // 10: datadog.config.LatestConfigsResponse.config_metas:type_name -> datadog.config.ConfigMetas
-	3,  // 11: datadog.config.LatestConfigsResponse.director_metas:type_name -> datadog.config.DirectorMetas
-	6,  // 12: datadog.config.LatestConfigsResponse.target_files:type_name -> datadog.config.File
-	19, // 13: datadog.config.Client.state:type_name -> datadog.config.ClientState
-	12, // 14: datadog.config.Client.client_tracer:type_name -> datadog.config.ClientTracer
-	13, // 15: datadog.config.Client.client_agent:type_name -> datadog.config.ClientAgent
-	14, // 16: datadog.config.Client.client_updater:type_name -> datadog.config.ClientUpdater
-	15, // 17: datadog.config.ClientUpdater.packages:type_name -> datadog.config.PackageState
-	16, // 18: datadog.config.PackageState.task:type_name -> datadog.config.PackageStateTask
+	6,  // 0: datadog.config.ConfigMetas.roots:type_name -> datadog.config.TopMeta
+	6,  // 1: datadog.config.ConfigMetas.timestamp:type_name -> datadog.config.TopMeta
+	6,  // 2: datadog.config.ConfigMetas.snapshot:type_name -> datadog.config.TopMeta
+	6,  // 3: datadog.config.ConfigMetas.topTargets:type_name -> datadog.config.TopMeta
+	5,  // 4: datadog.config.ConfigMetas.delegatedTargets:type_name -> datadog.config.DelegatedMeta
+	6,  // 5: datadog.config.DirectorMetas.roots:type_name -> datadog.config.TopMeta
+	6,  // 6: datadog.config.DirectorMetas.timestamp:type_name -> datadog.config.TopMeta
+	6,  // 7: datadog.config.DirectorMetas.snapshot:type_name -> datadog.config.TopMeta
+	6,  // 8: datadog.config.DirectorMetas.targets:type_name -> datadog.config.TopMeta
+	12, // 9: datadog.config.LatestConfigsRequest.active_clients:type_name -> datadog.config.Client
+	3,  // 10: datadog.config.LatestConfigsResponse.config_metas:type_name -> datadog.config.ConfigMetas
+	4,  // 11: datadog.config.LatestConfigsResponse.director_metas:type_name -> datadog.config.DirectorMetas
+	7,  // 12: datadog.config.LatestConfigsResponse.target_files:type_name -> datadog.config.File
+	20, // 13: datadog.config.Client.state:type_name -> datadog.config.ClientState
+	13, // 14: datadog.config.Client.client_tracer:type_name -> datadog.config.ClientTracer
+	14, // 15: datadog.config.Client.client_agent:type_name -> datadog.config.ClientAgent
+	15, // 16: datadog.config.Client.client_updater:type_name -> datadog.config.ClientUpdater
+	16, // 17: datadog.config.ClientUpdater.packages:type_name -> datadog.config.PackageState
+	17, // 18: datadog.config.PackageState.task:type_name -> datadog.config.PackageStateTask
 	0,  // 19: datadog.config.PackageStateTask.state:type_name -> datadog.config.TaskState
-	17, // 20: datadog.config.PackageStateTask.error:type_name -> datadog.config.TaskError
-	18, // 21: datadog.config.ClientState.config_states:type_name -> datadog.config.ConfigState
-	20, // 22: datadog.config.TargetFileMeta.hashes:type_name -> datadog.config.TargetFileHash
-	11, // 23: datadog.config.ClientGetConfigsRequest.client:type_name -> datadog.config.Client
-	21, // 24: datadog.config.ClientGetConfigsRequest.cached_target_files:type_name -> datadog.config.TargetFileMeta
-	6,  // 25: datadog.config.ClientGetConfigsResponse.target_files:type_name -> datadog.config.File
-	1,  // 26: datadog.config.ClientGetConfigsResponse.config_status:type_name -> datadog.config.ConfigStatus
-	29, // 27: datadog.config.GetStateConfigResponse.config_state:type_name -> datadog.config.GetStateConfigResponse.ConfigStateEntry
-	30, // 28: datadog.config.GetStateConfigResponse.director_state:type_name -> datadog.config.GetStateConfigResponse.DirectorStateEntry
-	31, // 29: datadog.config.GetStateConfigResponse.target_filenames:type_name -> datadog.config.GetStateConfigResponse.TargetFilenamesEntry
-	11, // 30: datadog.config.GetStateConfigResponse.active_clients:type_name -> datadog.config.Client
-	27, // 31: datadog.config.TracerPredicates.tracer_predicates_v1:type_name -> datadog.config.TracerPredicateV1
-	24, // 32: datadog.config.GetStateConfigResponse.ConfigStateEntry.value:type_name -> datadog.config.FileMetaState
-	24, // 33: datadog.config.GetStateConfigResponse.DirectorStateEntry.value:type_name -> datadog.config.FileMetaState
-	34, // [34:34] is the sub-list for method output_type
-	34, // [34:34] is the sub-list for method input_type
-	34, // [34:34] is the sub-list for extension type_name
-	34, // [34:34] is the sub-list for extension extendee
-	0,  // [0:34] is the sub-list for field type_name
+	18, // 20: datadog.config.PackageStateTask.error:type_name -> datadog.config.TaskError
+	19, // 21: datadog.config.ClientState.config_states:type_name -> datadog.config.ConfigState
+	21, // 22: datadog.config.TargetFileMeta.hashes:type_name -> datadog.config.TargetFileHash
+	2,  // 23: datadog.config.ConfigSubscriptionRequest.action:type_name -> datadog.config.ConfigSubscriptionRequest.Action
+	12, // 24: datadog.config.ConfigSubscriptionResponse.client:type_name -> datadog.config.Client
+	7,  // 25: datadog.config.ConfigSubscriptionResponse.target_files:type_name -> datadog.config.File
+	12, // 26: datadog.config.ClientGetConfigsRequest.client:type_name -> datadog.config.Client
+	22, // 27: datadog.config.ClientGetConfigsRequest.cached_target_files:type_name -> datadog.config.TargetFileMeta
+	7,  // 28: datadog.config.ClientGetConfigsResponse.target_files:type_name -> datadog.config.File
+	1,  // 29: datadog.config.ClientGetConfigsResponse.config_status:type_name -> datadog.config.ConfigStatus
+	32, // 30: datadog.config.GetStateConfigResponse.config_state:type_name -> datadog.config.GetStateConfigResponse.ConfigStateEntry
+	33, // 31: datadog.config.GetStateConfigResponse.director_state:type_name -> datadog.config.GetStateConfigResponse.DirectorStateEntry
+	34, // 32: datadog.config.GetStateConfigResponse.target_filenames:type_name -> datadog.config.GetStateConfigResponse.TargetFilenamesEntry
+	12, // 33: datadog.config.GetStateConfigResponse.active_clients:type_name -> datadog.config.Client
+	30, // 34: datadog.config.TracerPredicates.tracer_predicates_v1:type_name -> datadog.config.TracerPredicateV1
+	27, // 35: datadog.config.GetStateConfigResponse.ConfigStateEntry.value:type_name -> datadog.config.FileMetaState
+	27, // 36: datadog.config.GetStateConfigResponse.DirectorStateEntry.value:type_name -> datadog.config.FileMetaState
+	37, // [37:37] is the sub-list for method output_type
+	37, // [37:37] is the sub-list for method input_type
+	37, // [37:37] is the sub-list for extension type_name
+	37, // [37:37] is the sub-list for extension extendee
+	0,  // [0:37] is the sub-list for field type_name
 }
 
 func init() { file_datadog_remoteconfig_remoteconfig_proto_init() }
@@ -2290,8 +2490,8 @@ func file_datadog_remoteconfig_remoteconfig_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_datadog_remoteconfig_remoteconfig_proto_rawDesc), len(file_datadog_remoteconfig_remoteconfig_proto_rawDesc)),
-			NumEnums:      2,
-			NumMessages:   30,
+			NumEnums:      3,
+			NumMessages:   32,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
