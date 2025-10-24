@@ -1046,9 +1046,9 @@ func (tm *testModule) CloseWithOptions(zombieCheck bool) {
 var logInitilialized bool
 
 func initLogger() error {
-	logLevel, found := log.LogLevelFromString(logLevelStr)
-	if !found {
-		return fmt.Errorf("invalid log level '%s'", logLevel)
+	logLevel, err := log.ValidateLogLevel(logLevelStr)
+	if err != nil {
+		return err
 	}
 
 	if !logInitilialized {
@@ -1072,7 +1072,7 @@ func swapLogLevel(logLevel log.LogLevel) (log.LogLevel, error) {
 	}
 	log.SetupLogger(logger, logLevel.String())
 
-	prevLevel, _ := log.LogLevelFromString(logLevelStr)
+	prevLevel, _ := log.ValidateLogLevel(logLevelStr)
 	logLevelStr = logLevel.String()
 	return prevLevel, nil
 }
