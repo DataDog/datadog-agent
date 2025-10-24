@@ -2,7 +2,6 @@
 .cluster_agent-build_common:
   stage: binary_build
   rules:
-    - !reference [.except_mergequeue]
     - when: on_success
   needs: ["go_mod_tidy_check", "go_deps"]
   before_script:

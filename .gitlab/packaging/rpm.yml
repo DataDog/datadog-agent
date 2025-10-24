@@ -4,7 +4,6 @@ include:
 
 .package_rpm_common:
   rules:
-    - !reference [.except_mergequeue]
     - when: on_success
   before_script:
   script:
@@ -195,7 +194,6 @@ installer_suse_rpm-arm64:
 
 .package_iot_rpm_common:
   rules:
-    - !reference [.except_mergequeue]
     - when: on_success
   script:
     - !reference [.cache_omnibus_ruby_deps, setup]

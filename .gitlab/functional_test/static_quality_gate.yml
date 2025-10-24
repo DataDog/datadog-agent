@@ -2,6 +2,7 @@ static_quality_gates:
   stage: functional_test
   rules:
     - !reference [.except_coverage_pipeline] # Coverage pipeline creates a special artifact that will not pass the quality gate
+    - !reference [.on_mergequeue]
     - !reference [.on_main_or_release_branch]
     - !reference [.on_dev_branches]
     - when: on_success
