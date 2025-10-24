@@ -158,14 +158,12 @@ func (e *blockedEndpoints) recover(endpoint string, timeNow time.Time) {
 		// Nothing to do, we are already unblocked and running smoothly.
 	case halfBlocked:
 		// The test worked, we can ease off.
-		if b.state == halfBlocked {
-			b.nbError = e.backoffPolicy.DecError(b.nbError)
-			if b.nbError == 0 {
-				b.setState(unblocked)
-			} else {
-				b.until = timeNow.Add(e.getBackoffDuration(b.nbError))
-				b.setState(blocked)
-			}
+		b.nbError = e.backoffPolicy.DecError(b.nbError)
+		if b.nbError == 0 {
+			b.setState(unblocked)
+		} else {
+			b.until = timeNow.Add(e.getBackoffDuration(b.nbError))
+			b.setState(blocked)
 		}
 	case blocked:
 		// If we are blocked and a successful transaction came through, we
@@ -243,33 +241,24 @@ func (r *retryBlockList) isBlockForRetry(endpoint string, timeNow time.Time) boo
 // timeout has expired we want to move to `HalfOpen` where we send a
 // single transaction to test if the endpoint now available.
 func (e *blockedEndpoints) isBlockForSend(endpoint string, timeNow time.Time) bool {
-	e.m.RLock()
+	e.m.Lock()
+	defer e.m.Unlock()
 
 	if b, ok := e.errorPerEndpoint[endpoint]; ok {
 		switch b.state {
 		case halfBlocked:
 			// We have already sent the single transactions to test if the endpoint is now up.
-			e.m.RUnlock()
 			return true
 		case blocked:
 			if timeNow.Before(b.until) {
-				e.m.RUnlock()
 				return true
 			} else {
 				// The timeout has expired, move to `halfBlocked` and send this transaction.
-				e.m.RUnlock()
-				e.m.Lock()
-				defer e.m.Unlock()
-				if b.state == blocked {
-					b.setState(halfBlocked)
-				}
-
+				b.setState(halfBlocked)
 				return false
 			}
 		}
 	}
-
-	e.m.RUnlock()
 	return false
 }
 
