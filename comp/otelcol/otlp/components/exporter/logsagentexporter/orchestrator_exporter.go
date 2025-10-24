@@ -89,7 +89,7 @@ func shouldSkipManifest(manifest *agentmodel.Manifest) bool {
 
 func (e *Exporter) consumeK8sObjects(ctx context.Context, ld plog.Logs) (err error) {
 	var manifests []*agentmodel.Manifest
-	fmt.Println("aurele-debug: consumeK8sObjects")
+	fmt.Println("aurele-debug: consumeK8sObjects ")
 	for i := 0; i < ld.ResourceLogs().Len(); i++ {
 		resourceLogs := ld.ResourceLogs().At(i)
 		resource := resourceLogs.Resource()
