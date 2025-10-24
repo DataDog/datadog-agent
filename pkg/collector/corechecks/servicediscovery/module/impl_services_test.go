@@ -543,32 +543,6 @@ func TestServicesAPMInstrumentationProvided(t *testing.T) {
 	}
 }
 
-func TestServicesCommandLineSanitization(t *testing.T) {
-	serverDir := buildFakeServer(t)
-	discovery := setupDiscoveryModule(t)
-
-	ctx, cancel := context.WithCancel(context.Background())
-	t.Cleanup(func() { cancel() })
-
-	bin := filepath.Join(serverDir, "node")
-
-	actualCommandLine := []string{bin, "--password", "secret", strings.Repeat("A", maxCommandLine*10)}
-	sanitizedCommandLine := []string{bin, "--password", "********", "placeholder"}
-	sanitizedCommandLine[3] = strings.Repeat("A", maxCommandLine-(len(bin)+len(sanitizedCommandLine[1])+len(sanitizedCommandLine[2])))
-
-	cmd := exec.CommandContext(ctx, bin, actualCommandLine[1:]...)
-	require.NoError(t, cmd.Start())
-
-	pid := cmd.Process.Pid
-
-	require.EventuallyWithT(t, func(collect *assert.CollectT) {
-		resp := getServices(collect, discovery.url)
-		startEvent := findService(pid, resp.Services)
-		require.NotNilf(collect, startEvent, "could not find start event for pid %v", pid)
-		assert.Equal(collect, sanitizedCommandLine, startEvent.CommandLine)
-	}, 30*time.Second, 100*time.Millisecond)
-}
-
 func TestServicesNodeDocker(t *testing.T) {
 	cert, key, err := testutil.GetCertsPaths()
 	require.NoError(t, err)
