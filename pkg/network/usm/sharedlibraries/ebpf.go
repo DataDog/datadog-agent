@@ -26,8 +26,10 @@ import (
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	bugs "github.com/DataDog/datadog-agent/pkg/ebpf/kernelbugs"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/perf"
 	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/util/common"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -36,6 +38,8 @@ const (
 	maxActive              = 1024
 	sharedLibrariesPerfMap = "shared_libraries"
 	probeUID               = "so"
+	perCPUBufferPages      = 8
+	dataChannelSize        = 100
 
 	// probe used for streaming shared library events
 	openSysCall    = "open"
@@ -65,7 +69,7 @@ type libsetHandler struct {
 	done chan struct{}
 
 	// perfHandler is the perf handler for this libset, that will get the events from the perf buffer
-	perfHandler *ddebpf.PerfHandler
+	perfHandler *perf.EventHandler
 
 	// enabled is true if the eBPF program has been enabled for this libset,
 	// which means that the perf buffer is being read, the eBPF program has been
@@ -184,28 +188,35 @@ func (e *EbpfProgram) isLibsetRequested(libset Libset) bool {
 
 // setupManagerAndPerfHandlers sets up the manager and perf handlers for the eBPF program, creating the perf handlers
 // Assumes initMutex is locked
-func (e *EbpfProgram) setupManagerAndPerfHandlers() {
+func (e *EbpfProgram) setupManagerAndPerfHandlers() error {
 	mgr := &manager.Manager{}
+	numCPUs, err := kernel.PossibleCPUs()
+	if err != nil {
+		numCPUs = 1
 
-	// Tell the manager to load all possible maps
+	}
+	perfBufferSize := perCPUBufferPages * os.Getpagesize()
+	ringBufferSize := common.ToPowerOf2(perfBufferSize * numCPUs)
+
+	managerMods := []ddebpf.Modifier{
+		&ebpftelemetry.ErrorsTelemetryModifier{},
+	}
+
+	// Load perf handlers for all requested libsets
 	for libset, handler := range e.libsets {
-		perfHandler := ddebpf.NewPerfHandler(100)
-		pm := &manager.PerfMap{
-			Map: manager.Map{
-				Name: fmt.Sprintf("%s_%s", string(libset), sharedLibrariesPerfMap),
-			},
-			PerfMapOptions: manager.PerfMapOptions{
-				PerfRingBufferSize: 8 * os.Getpagesize(),
-				Watermark:          1,
-				RecordHandler:      perfHandler.RecordHandler,
-				LostHandler:        perfHandler.LostHandler,
-				RecordGetter:       perfHandler.RecordGetter,
-				TelemetryEnabled:   e.cfg.InternalTelemetryEnabled,
-			},
+		if !handler.requested {
+			continue
 		}
-		mgr.PerfMaps = append(mgr.PerfMaps, pm)
-		ebpftelemetry.ReportPerfMapTelemetry(pm)
-		handler.perfHandler = perfHandler
+
+		mapName := fmt.Sprintf("%s_%s", string(libset), sharedLibrariesPerfMap)
+		mode := perf.UpgradePerfBuffers(perfBufferSize, dataChannelSize, perf.Watermark(1), ringBufferSize)
+
+		perfHandler, err := perf.NewEventHandler(mapName, handler.handleEvent, mode, perf.SendTelemetry(e.cfg.InternalTelemetryEnabled))
+		if err != nil {
+			return fmt.Errorf("failed to create perf handler for map %s: %w", mapName, err)
+		}
+
+		managerMods = append(managerMods, perfHandler)
 	}
 
 	e.initializeProbes()
@@ -217,7 +228,9 @@ func (e *EbpfProgram) setupManagerAndPerfHandlers() {
 		mgr.Probes = append(mgr.Probes, probe)
 	}
 
-	e.Manager = ddebpf.NewManager(mgr, "shared-libraries", &ebpftelemetry.ErrorsTelemetryModifier{})
+	e.Manager = ddebpf.NewManager(mgr, "shared-libraries", managerMods...)
+
+	return nil
 }
 
 // areLibsetsAlreadyEnabled checks if the eBPF program is already enabled for the given libsets
@@ -298,13 +311,13 @@ func (e *EbpfProgram) InitWithLibsets(libsets ...Libset) error {
 		e.stopImpl()
 	}
 
-	e.setupManagerAndPerfHandlers()
-
 	// Mark the libsets as requested so they can be started
 	// Note that other libsets might be requested from previous executions
 	for _, libset := range libsets {
 		e.libsets[libset].requested = true
 	}
+
+	e.setupManagerAndPerfHandlers()
 
 	if err := e.loadProgram(); err != nil {
 		return fmt.Errorf("cannot load program: %w", err)
@@ -321,6 +334,7 @@ func (e *EbpfProgram) InitWithLibsets(libsets ...Libset) error {
 
 // start starts the eBPF program and the perf handlers, assumes the initMutex is locked
 func (e *EbpfProgram) start() error {
+	// Manager.Start will also start all the perf handlers that were added to the manager
 	err := e.Manager.Start()
 	if err != nil {
 		return err
@@ -328,42 +342,7 @@ func (e *EbpfProgram) start() error {
 
 	ddebpf.AddProbeFDMappings(e.Manager.Manager)
 
-	for _, handler := range e.libsets {
-		if !handler.requested {
-			continue
-		}
-
-		// Init the "done" channel for the handler, it will be closed when the handler stops
-		handler.done = make(chan struct{})
-		e.wg.Add(1)
-		go handler.eventLoop(&e.wg)
-
-		handler.enabled = true
-	}
-
 	return nil
-}
-
-// eventLoop is the main loop for a single libset. Should be called with all perfHandlers initialized.
-func (l *libsetHandler) eventLoop(wg *sync.WaitGroup) {
-	defer wg.Done()
-
-	dataChan := l.perfHandler.DataChannel()
-	lostChan := l.perfHandler.LostChannel()
-	for {
-		select {
-		case <-l.done:
-			return
-		case event, ok := <-dataChan:
-			if !ok {
-				return
-			}
-			l.handleEvent(&event)
-		case <-lostChan:
-			// Nothing to do in this case
-			break
-		}
-	}
 }
 
 // toLibPath casts the perf event data to the LibPath structure
@@ -371,10 +350,8 @@ func toLibPath(data []byte) LibPath {
 	return *(*LibPath)(unsafe.Pointer(&data[0]))
 }
 
-func (l *libsetHandler) handleEvent(event *ddebpf.DataEvent) {
-	defer event.Done()
-
-	libpath := toLibPath(event.Data)
+func (l *libsetHandler) handleEvent(data []byte) {
+	libpath := toLibPath(data)
 
 	l.callbacksMutex.RLock()
 	defer l.callbacksMutex.RUnlock()
@@ -389,11 +366,6 @@ func (l *libsetHandler) stop() {
 	// The done channel might not be initialized if the program is stopped before it starts (e.g., two sequential calls to InitWithLibsets()).
 	if l.done != nil {
 		close(l.done)
-	}
-
-	// stop the perf handler after the event loop is done
-	if l.perfHandler != nil {
-		l.perfHandler.Stop()
 	}
 
 	l.enabled = false
