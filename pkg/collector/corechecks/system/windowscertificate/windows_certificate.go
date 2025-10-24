@@ -608,11 +608,10 @@ func findCertificatesInStore(storeHandle windows.Handle, subjectFilters []string
 				}
 			}
 
-			// >>> ADD: populate thumbprint on the filtered path <<<
 			certThumbprint, err := getCertThumbprint(certContext)
 			if err != nil {
 				log.Errorf("Error getting certificate thumbprint: %v", err)
-				// keep or 'continue' depending on desired behavior; keeping matches enumerate path semantics only if err is rare
+				continue
 			}
 
 			certificates = append(certificates, certInfo{
