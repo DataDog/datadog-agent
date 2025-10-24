@@ -44,7 +44,7 @@ int BPF_BYPASSABLE_KPROBE(kprobe__nf_conntrack_hash_insert, struct nf_conn *ct) 
     bpf_map_update_with_telemetry(conntrack, &reply, &orig, BPF_ANY);
     increment_telemetry_registers_count();
 
-    log_debug("JMW(runtime)kretprobe/__nf_conntrack_hash_insert: added to conntrack, ct: %p, netns: %u", ct, get_netns(ct));
+    log_debug("JMW(runtime)kprobe/__nf_conntrack_hash_insert: added to conntrack, ct: %p, netns: %u", ct, get_netns(ct));
 
     return 0;
 }
@@ -137,14 +137,14 @@ int BPF_BYPASSABLE_KPROBE(kretprobe__nf_conntrack_confirm) {
     // Successfully confirmed NAT connection - add to conntrack2 map
     conntrack_tuple_t orig = {}, reply = {};
     if (nf_conn_to_conntrack_tuples(ct, &orig, &reply) != 0) {
-        log_debug("JMW(runtime)kprobe/ctnetlink_fill_info: failed to get conntrack tuples, ct: %p, netns: %u", ct, get_netns(ct));
+        log_debug("JMW(runtime)kretprobe/__nf_conntrack_confirm: failed to get conntrack tuples, ct: %p, netns: %u", ct, get_netns(ct));
         return 0;
     }
 
     // Add both directions to conntrack2 map
     bpf_map_update_with_telemetry(conntrack2, &orig, &reply, BPF_ANY);
     bpf_map_update_with_telemetry(conntrack2, &reply, &orig, BPF_ANY);
-    increment_telemetry_registers_count();
+    //increment_telemetry_registers_count();
 
     log_debug("JMW(runtime)kretprobe/__nf_conntrack_confirm: added to conntrack2, ct: %p, netns: %u", ct, get_netns(ct));
 
@@ -177,6 +177,8 @@ int BPF_BYPASSABLE_KPROBE(kprobe_ctnetlink_fill_info) {
     bpf_map_update_with_telemetry(conntrack, &orig, &reply, BPF_ANY);
     bpf_map_update_with_telemetry(conntrack, &reply, &orig, BPF_ANY);
     increment_telemetry_registers_count();
+    bpf_map_update_with_telemetry(conntrack2, &orig, &reply, BPF_ANY);
+    bpf_map_update_with_telemetry(conntrack2, &reply, &orig, BPF_ANY);
 
     return 0;
 }
