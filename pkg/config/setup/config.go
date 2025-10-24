@@ -140,6 +140,24 @@ const (
 
 	// DefaultNetworkPathStaticPathE2eQueries defines the default number of end-to-end queries for static path
 	DefaultNetworkPathStaticPathE2eQueries = 50
+
+	// DefaultAutoRedactEnabled is the default setting for PII auto-redaction (parent switch)
+	DefaultAutoRedactEnabled = false
+
+	// DefaultAutoRedactEmail is the default setting for email redaction
+	DefaultAutoRedactEmail = true
+
+	// DefaultAutoRedactCreditCard is the default setting for credit card redaction
+	DefaultAutoRedactCreditCard = true
+
+	// DefaultAutoRedactSSN is the default setting for SSN redaction
+	DefaultAutoRedactSSN = true
+
+	// DefaultAutoRedactPhone is the default setting for phone number redaction
+	DefaultAutoRedactPhone = true
+
+	// DefaultAutoRedactIP is the default setting for IP address redaction
+	DefaultAutoRedactIP = true
 )
 
 var (
@@ -1854,6 +1872,14 @@ func logsagent(config pkgconfigmodel.Setup) {
 
 	// If true, exclude agent processes from process log collection
 	config.BindEnvAndSetDefault("logs_config.process_exclude_agent", false)
+
+	// PII auto-redaction settings (nested config structure)
+	config.BindEnvAndSetDefault("logs_config.auto_redact_config.enabled", DefaultAutoRedactEnabled)
+	config.BindEnvAndSetDefault("logs_config.auto_redact_config.pii.email", DefaultAutoRedactEmail)
+	config.BindEnvAndSetDefault("logs_config.auto_redact_config.pii.credit_card", DefaultAutoRedactCreditCard)
+	config.BindEnvAndSetDefault("logs_config.auto_redact_config.pii.ssn", DefaultAutoRedactSSN)
+	config.BindEnvAndSetDefault("logs_config.auto_redact_config.pii.phone", DefaultAutoRedactPhone)
+	config.BindEnvAndSetDefault("logs_config.auto_redact_config.pii.ip", DefaultAutoRedactIP)
 }
 
 // vector integration

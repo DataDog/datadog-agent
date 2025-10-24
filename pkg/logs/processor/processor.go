@@ -11,11 +11,13 @@ import (
 	"regexp"
 	"slices"
 	"sync"
+	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
+	automultilinedetection "github.com/DataDog/datadog-agent/pkg/logs/internal/decoder/auto_multiline_detection"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -29,6 +31,14 @@ const (
 	// MRF logs settings
 	configMRFFailoverLogs     = "multi_region_failover.failover_logs"
 	configMRFServiceAllowlist = "multi_region_failover.logs_service_allowlist"
+
+	// PII auto-redaction settings
+	configAutoRedactEnabled    = "logs_config.auto_redact_config.enabled"
+	configAutoRedactEmail      = "logs_config.auto_redact_config.pii.email"
+	configAutoRedactCreditCard = "logs_config.auto_redact_config.pii.credit_card"
+	configAutoRedactSSN        = "logs_config.auto_redact_config.pii.ssn"
+	configAutoRedactPhone      = "logs_config.auto_redact_config.pii.phone"
+	configAutoRedactIP         = "logs_config.auto_redact_config.pii.ip"
 )
 
 type failoverConfig struct {
@@ -50,6 +60,9 @@ type Processor struct {
 	config                    pkgconfigmodel.Reader
 	configChan                chan failoverConfig
 	failoverConfig            failoverConfig
+
+	// PII detection and redaction
+	piiTokenizer *automultilinedetection.Tokenizer
 
 	// Telemetry
 	pipelineMonitor metrics.PipelineMonitor
@@ -75,6 +88,7 @@ func New(config pkgconfigmodel.Reader, inputChan, outputChan chan *message.Messa
 		pipelineMonitor:           pipelineMonitor,
 		utilization:               pipelineMonitor.MakeUtilizationMonitor(metrics.ProcessorTlmName, instanceID),
 		instanceID:                instanceID,
+		piiTokenizer:              automultilinedetection.NewTokenizer(10000),
 	}
 
 	// Initialize cached failover config
@@ -245,10 +259,10 @@ func (p *Processor) filterMRFMessages(msg *message.Message) {
 func (p *Processor) applyRedactingRules(msg *message.Message) bool {
 	var content []byte = msg.GetContent()
 
-	// Use the internal scrubbing implementation of the Agent
+	// Apply user-defined processing rules first
 	// ---------------------------
-
 	rules := append(p.processingRules, msg.Origin.LogSource.Config.ProcessingRules...)
+
 	for _, rule := range rules {
 		switch rule.Type {
 		case config.ExcludeAtMatch:
@@ -267,6 +281,8 @@ func (p *Processor) applyRedactingRules(msg *message.Message) bool {
 			if isMatchingLiteralPrefix(rule.Regex, content) {
 				originalContent := content
 				content = rule.Regex.ReplaceAll(content, rule.Placeholder)
+
+				// Track PII redaction metrics if content was modified
 				if !bytes.Equal(originalContent, content) {
 					msg.RecordProcessingRule(rule.Type, rule.Name)
 				}
@@ -276,8 +292,38 @@ func (p *Processor) applyRedactingRules(msg *message.Message) bool {
 				msg.RecordProcessingRule(rule.Type, rule.Name)
 				return false
 			}
-
 		}
+	}
+
+	// Apply automatic PII redaction if enabled
+	// ---------------------------
+	piiTypeConfig := p.getPIITypeConfig(msg)
+	piiEnabled := piiTypeConfig != nil
+
+	piiStartTime := time.Now()
+
+	if piiEnabled {
+		originalContent := content
+
+		detector := NewHybridPIIDetector(*piiTypeConfig)
+		var matchedRules []string
+		content, matchedRules = detector.Redact(content, p.piiTokenizer)
+
+		for _, ruleName := range matchedRules {
+			msg.RecordProcessingRule(config.MaskSequences, ruleName)
+			metrics.TlmPIIMatchCount.Inc(ruleName)
+		}
+
+		// Track bytes redacted
+		if !bytes.Equal(originalContent, content) {
+			bytesRedacted := len(originalContent) - len(content)
+			if bytesRedacted > 0 {
+				metrics.TlmPIIBytesRedacted.Add(float64(bytesRedacted), "total")
+			}
+		}
+
+		// Report PII redaction latency
+		metrics.TlmPIIRedactionLatency.Observe(float64(time.Since(piiStartTime).Microseconds()))
 	}
 
 	msg.SetContent(content)
@@ -293,6 +339,67 @@ func isMatchingLiteralPrefix(r *regexp.Regexp, content []byte) bool {
 	}
 
 	return bytes.Contains(content, []byte(prefix))
+}
+
+// getPIITypeConfig merges global and per-source PII redaction configuration.
+// Per-source settings override global settings. Returns nil if PII redaction is disabled.
+// When enabled=true, all PII types default to true unless explicitly set to false.
+func (p *Processor) getPIITypeConfig(msg *message.Message) *PIITypeConfig {
+	if p.config == nil {
+		return nil
+	}
+
+	// Helper to get bool value with source override, defaulting to true when enabled
+	getBoolWithDefault := func(globalKey string, sourceVal *bool, defaultVal bool) bool {
+		if sourceVal != nil {
+			return *sourceVal
+		}
+		// If global config key is configured, use it; otherwise use the default
+		if p.config.IsConfigured(globalKey) {
+			return p.config.GetBool(globalKey)
+		}
+		return defaultVal
+	}
+
+	sourceConfig := msg.Origin.LogSource.Config.AutoRedactConfig
+
+	// Helper to safely get field from source config PII settings
+	var enabledPtr, emailPtr, creditCardPtr, ssnPtr, phonePtr, ipPtr *bool
+	if sourceConfig != nil {
+		enabledPtr = sourceConfig.Enabled
+		if sourceConfig.PII != nil {
+			emailPtr = sourceConfig.PII.Email
+			creditCardPtr = sourceConfig.PII.CreditCard
+			ssnPtr = sourceConfig.PII.SSN
+			phonePtr = sourceConfig.PII.Phone
+			ipPtr = sourceConfig.PII.IP
+		}
+	}
+
+	// Check if PII redaction is enabled (parent switch)
+	// Per-source enabled setting takes precedence over global
+	var enabled bool
+	if enabledPtr != nil {
+		// Source explicitly set enabled/disabled
+		enabled = *enabledPtr
+	} else {
+		// Source didn't set it - use global config
+		enabled = p.config.GetBool(configAutoRedactEnabled)
+	}
+
+	if !enabled {
+		return nil
+	}
+
+	// Build the PII type configuration with per-source overrides
+	// When enabled=true, all PII types default to true
+	return &PIITypeConfig{
+		Email:      getBoolWithDefault(configAutoRedactEmail, emailPtr, true),
+		CreditCard: getBoolWithDefault(configAutoRedactCreditCard, creditCardPtr, true),
+		SSN:        getBoolWithDefault(configAutoRedactSSN, ssnPtr, true),
+		Phone:      getBoolWithDefault(configAutoRedactPhone, phonePtr, true),
+		IP:         getBoolWithDefault(configAutoRedactIP, ipPtr, true),
+	}
 }
 
 // GetHostname returns the hostname to applied the given log message

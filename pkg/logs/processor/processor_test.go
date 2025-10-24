@@ -10,11 +10,16 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	pkgconfigmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
+	automultilinedetection "github.com/DataDog/datadog-agent/pkg/logs/internal/decoder/auto_multiline_detection"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
+	"github.com/DataDog/datadog-agent/pkg/logs/types"
 )
 
 type processorTestCase struct {
@@ -349,7 +354,7 @@ func TestGetHostnameLambda(t *testing.T) {
 }
 
 func TestGetHostname(t *testing.T) {
-	hostnameComponent, _ := hostnameinterface.NewMock("testHostnameFromEnvVar")
+	_, hostnameComponent := hostnameinterface.NewMock(hostnameinterface.MockHostname("testHostnameFromEnvVar"))
 	p := &Processor{
 		hostname: hostnameComponent,
 	}
@@ -390,6 +395,10 @@ func newStructuredMessage(content []byte, source *sources.LogSource, status stri
 	return msg
 }
 
+func newTokenizer() *automultilinedetection.Tokenizer {
+	return automultilinedetection.NewTokenizer(10000)
+}
+
 func BenchmarkMaskSequences(b *testing.B) {
 	processor := &Processor{
 		processingRules: []*config.ProcessingRule{
@@ -401,9 +410,8 @@ func BenchmarkMaskSequences(b *testing.B) {
 		},
 	}
 
-	msg := newMessage(nil, &sources.LogSource{
-		Config: &config.LogsConfig{},
-	}, "")
+	source := sources.NewLogSource("", &config.LogsConfig{})
+	msg := newMessage(nil, source, "")
 
 	b.Run("always matching", func(b *testing.B) {
 		// what we benchmark here is the worse case scenario where the regex matches every time
@@ -449,4 +457,654 @@ func TestExcludeTruncated(t *testing.T) {
 	shouldProcess2 := p.applyRedactingRules(msg2)
 	assert.False(shouldProcess2)
 	assert.Equal(int64(1), msg2.Origin.LogSource.ProcessingInfo.GetCount(ruleType+":"+ruleName))
+}
+
+// PII Auto-Redaction Tests
+// -------------------------
+
+// TestAutoPIIRedaction tests automatic PII redaction via config
+func TestAutoPIIRedaction(t *testing.T) {
+	mockConfig := pkgconfigmock.New(t)
+	mockConfig.Set("logs_config.auto_redact_config.enabled", true, model.SourceAgentRuntime)
+	mockConfig.Set("logs_config.auto_redact_config.pii.email", true, model.SourceAgentRuntime)
+	mockConfig.Set("logs_config.auto_redact_config.pii.credit_card", true, model.SourceAgentRuntime)
+	mockConfig.Set("logs_config.auto_redact_config.pii.ssn", true, model.SourceAgentRuntime)
+	mockConfig.Set("logs_config.auto_redact_config.pii.phone", true, model.SourceAgentRuntime)
+	mockConfig.Set("logs_config.auto_redact_config.pii.ip", true, model.SourceAgentRuntime)
+
+	p := &Processor{
+		config:       mockConfig,
+		piiTokenizer: nil,
+	}
+	p.piiTokenizer = newTokenizer()
+
+	source := sources.NewLogSource("", &config.LogsConfig{})
+
+	tests := []struct {
+		name     string
+		input    []byte
+		expected []byte
+	}{
+		{
+			name:     "ssn_redaction",
+			input:    []byte("User SSN is 123-45-6789"),
+			expected: []byte("User SSN is [SSN_REDACTED]"),
+		},
+		{
+			name:     "email_redaction",
+			input:    []byte("Contact user@example.com for info"),
+			expected: []byte("Contact [EMAIL_REDACTED] for info"),
+		},
+		{
+			name:     "phone_redaction",
+			input:    []byte("Call (555) 123-4567 now"),
+			expected: []byte("Call [PHONE_REDACTED] now"),
+		},
+		{
+			name:     "credit_card_redaction",
+			input:    []byte("Card number 4532-0151-1283-0366 charged"),
+			expected: []byte("Card number [CC_REDACTED] charged"),
+		},
+		{
+			name:     "amex_card_redaction",
+			input:    []byte("Transaction declined for card 3782-822463-10005"),
+			expected: []byte("Transaction declined for card [CC_REDACTED]"),
+		},
+		{
+			name:     "ip_redaction",
+			input:    []byte("Request from 192.168.1.100"),
+			expected: []byte("Request from [IP_REDACTED]"),
+		},
+		{
+			name:     "multiple_pii",
+			input:    []byte("User john@test.com SSN 123-45-6789 phone 555-123-4567"),
+			expected: []byte("User [EMAIL_REDACTED] SSN [SSN_REDACTED] phone [PHONE_REDACTED]"),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			msg := newMessage(tt.input, source, "")
+			shouldProcess := p.applyRedactingRules(msg)
+			assert.True(t, shouldProcess, "Message should be processed")
+			assert.Equal(t, tt.expected, msg.GetContent(), "Content should be redacted")
+		})
+	}
+}
+
+// TestAutoPIIRedactionDisabled tests that PII is not redacted when auto_redact_config.enabled is false
+func TestAutoPIIRedactionDisabled(t *testing.T) {
+	mockConfig := pkgconfigmock.New(t)
+	mockConfig.Set("logs_config.auto_redact_config.enabled", false, model.SourceAgentRuntime)
+
+	p := &Processor{
+		config:       mockConfig,
+		piiTokenizer: newTokenizer(),
+	}
+
+	source := sources.NewLogSource("", &config.LogsConfig{})
+
+	tests := []struct {
+		name  string
+		input []byte
+	}{
+		{
+			name:  "disabled_ssn_not_redacted",
+			input: []byte("User SSN is 123-45-6789"),
+		},
+		{
+			name:  "disabled_email_not_redacted",
+			input: []byte("Contact user@example.com for info"),
+		},
+		{
+			name:  "disabled_phone_not_redacted",
+			input: []byte("Call (555) 123-4567 now"),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			msg := newMessage(tt.input, source, "")
+			originalContent := make([]byte, len(tt.input))
+			copy(originalContent, tt.input)
+
+			shouldProcess := p.applyRedactingRules(msg)
+			assert.True(t, shouldProcess, "Message should be processed")
+			assert.Equal(t, originalContent, msg.GetContent(), "Content should NOT be redacted when disabled")
+		})
+	}
+}
+
+// TestAutoPIIRedactionDefaultMode tests that regex mode is used when pii_redaction_mode is not set
+func TestAutoPIIRedactionWithUserRules(t *testing.T) {
+	mockConfig := pkgconfigmock.New(t)
+	mockConfig.Set("logs_config.auto_redact_config.enabled", true, model.SourceAgentRuntime)
+	mockConfig.Set("logs_config.auto_redact_config.pii.email", true, model.SourceAgentRuntime)
+	mockConfig.Set("logs_config.auto_redact_config.pii.credit_card", true, model.SourceAgentRuntime)
+	mockConfig.Set("logs_config.auto_redact_config.pii.ssn", true, model.SourceAgentRuntime)
+	mockConfig.Set("logs_config.auto_redact_config.pii.phone", true, model.SourceAgentRuntime)
+	mockConfig.Set("logs_config.auto_redact_config.pii.ip", true, model.SourceAgentRuntime)
+
+	// User-defined processing rule
+	userRule := newProcessingRule(config.MaskSequences, "[CUSTOM]", "secret")
+
+	p := &Processor{
+		config:          mockConfig,
+		processingRules: []*config.ProcessingRule{userRule},
+		piiTokenizer:    newTokenizer(),
+	}
+
+	source := sources.NewLogSource("", &config.LogsConfig{})
+
+	tests := []struct {
+		name     string
+		input    []byte
+		expected []byte
+	}{
+		{
+			name:     "user_rule_and_auto_pii",
+			input:    []byte("secret data from user@example.com"),
+			expected: []byte("[CUSTOM] data from [EMAIL_REDACTED]"),
+		},
+		{
+			name:     "user_rule_only",
+			input:    []byte("This has secret info"),
+			expected: []byte("This has [CUSTOM] info"),
+		},
+		{
+			name:     "auto_pii_only",
+			input:    []byte("SSN: 123-45-6789"),
+			expected: []byte("SSN: [SSN_REDACTED]"),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			msg := newMessage(tt.input, source, "")
+			shouldProcess := p.applyRedactingRules(msg)
+			assert.True(t, shouldProcess, "Message should be processed")
+			assert.Equal(t, tt.expected, msg.GetContent(), "Both user rules and auto PII should work")
+		})
+	}
+}
+
+// TestAutoPIIRedactionWithExclusionRules tests that exclusion rules work before PII redaction
+func TestAutoPIIRedactionWithExclusionRules(t *testing.T) {
+	mockConfig := pkgconfigmock.New(t)
+	mockConfig.Set("logs_config.auto_redact_config.enabled", true, model.SourceAgentRuntime)
+	mockConfig.Set("logs_config.auto_redact_config.pii.email", true, model.SourceAgentRuntime)
+	mockConfig.Set("logs_config.auto_redact_config.pii.credit_card", true, model.SourceAgentRuntime)
+	mockConfig.Set("logs_config.auto_redact_config.pii.ssn", true, model.SourceAgentRuntime)
+	mockConfig.Set("logs_config.auto_redact_config.pii.phone", true, model.SourceAgentRuntime)
+	mockConfig.Set("logs_config.auto_redact_config.pii.ip", true, model.SourceAgentRuntime)
+
+	// Exclusion rule to exclude messages containing "DEBUG"
+	exclusionRule := newProcessingRule(config.ExcludeAtMatch, "", "DEBUG")
+
+	p := &Processor{
+		config:          mockConfig,
+		processingRules: []*config.ProcessingRule{exclusionRule},
+		piiTokenizer:    newTokenizer(),
+	}
+
+	source := sources.NewLogSource("", &config.LogsConfig{})
+
+	// Message should be excluded before PII redaction
+	msg := newMessage([]byte("DEBUG: User SSN is 123-45-6789"), source, "")
+	shouldProcess := p.applyRedactingRules(msg)
+	assert.False(t, shouldProcess, "Message should be excluded, not redacted")
+
+	// Message should be redacted
+	msg2 := newMessage([]byte("INFO: User SSN is 123-45-6789"), source, "")
+	shouldProcess2 := p.applyRedactingRules(msg2)
+	assert.True(t, shouldProcess2, "Message should be processed and redacted")
+	assert.Equal(t, []byte("INFO: User SSN is [SSN_REDACTED]"), msg2.GetContent())
+}
+
+// TestAutoPIIRedactionNilConfig tests that processor handles nil config gracefully
+func TestAutoPIIRedactionNilConfig(t *testing.T) {
+	p := &Processor{
+		config: nil, // No config
+	}
+
+	source := sources.NewLogSource("", &config.LogsConfig{})
+	input := []byte("User SSN is 123-45-6789")
+	originalContent := make([]byte, len(input))
+	copy(originalContent, input)
+
+	msg := newMessage(input, source, "")
+	shouldProcess := p.applyRedactingRules(msg)
+
+	assert.True(t, shouldProcess, "Message should be processed")
+	assert.Equal(t, originalContent, msg.GetContent(), "No redaction should occur with nil config")
+}
+
+// TestAutoPIIRedactionStructuredMessages tests PII redaction on structured messages
+func TestAutoPIIRedactionStructuredMessages(t *testing.T) {
+	mockConfig := pkgconfigmock.New(t)
+	mockConfig.Set("logs_config.auto_redact_config.enabled", true, model.SourceAgentRuntime)
+	mockConfig.Set("logs_config.auto_redact_config.pii.email", true, model.SourceAgentRuntime)
+	mockConfig.Set("logs_config.auto_redact_config.pii.credit_card", true, model.SourceAgentRuntime)
+	mockConfig.Set("logs_config.auto_redact_config.pii.ssn", true, model.SourceAgentRuntime)
+	mockConfig.Set("logs_config.auto_redact_config.pii.phone", true, model.SourceAgentRuntime)
+	mockConfig.Set("logs_config.auto_redact_config.pii.ip", true, model.SourceAgentRuntime)
+
+	p := &Processor{
+		config:       mockConfig,
+		piiTokenizer: newTokenizer(),
+	}
+
+	source := sources.NewLogSource("", &config.LogsConfig{})
+
+	tests := []struct {
+		name     string
+		input    []byte
+		expected []byte
+	}{
+		{
+			name:     "structured_ssn",
+			input:    []byte("User with SSN 123-45-6789 logged in"),
+			expected: []byte("User with SSN [SSN_REDACTED] logged in"),
+		},
+		{
+			name:     "structured_email",
+			input:    []byte("Email: john@example.com"),
+			expected: []byte("Email: [EMAIL_REDACTED]"),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			msg := newStructuredMessage(tt.input, source, "")
+			shouldProcess := p.applyRedactingRules(msg)
+			assert.True(t, shouldProcess, "Structured message should be processed")
+			assert.Equal(t, tt.expected, msg.GetContent(), "Structured message should be redacted")
+		})
+	}
+}
+
+// TestAutoPIIRedactionMetrics tests that processing rules are recorded correctly
+func TestAutoPIIRedactionMetrics(t *testing.T) {
+	mockConfig := pkgconfigmock.New(t)
+	mockConfig.Set("logs_config.auto_redact_config.enabled", true, model.SourceAgentRuntime)
+	mockConfig.Set("logs_config.auto_redact_config.pii.email", true, model.SourceAgentRuntime)
+	mockConfig.Set("logs_config.auto_redact_config.pii.credit_card", true, model.SourceAgentRuntime)
+	mockConfig.Set("logs_config.auto_redact_config.pii.ssn", true, model.SourceAgentRuntime)
+	mockConfig.Set("logs_config.auto_redact_config.pii.phone", true, model.SourceAgentRuntime)
+	mockConfig.Set("logs_config.auto_redact_config.pii.ip", true, model.SourceAgentRuntime)
+
+	p := &Processor{
+		config:       mockConfig,
+		piiTokenizer: newTokenizer(),
+	}
+
+	source := sources.NewLogSource("", &config.LogsConfig{})
+	input := []byte("SSN: 123-45-6789")
+
+	msg := newMessage(input, source, "")
+	shouldProcess := p.applyRedactingRules(msg)
+
+	require.True(t, shouldProcess)
+	// Verify that at least one PII rule was recorded
+	totalCount := msg.Origin.LogSource.ProcessingInfo.GetCount("mask_sequences:auto_redact_ssn")
+	assert.Greater(t, totalCount, int64(0), "Should record SSN redaction in processing info")
+}
+
+// TestAutoPIIRedactionPerSourceOverride tests that per-source config can override global config
+func TestAutoPIIRedactionPerSourceOverride(t *testing.T) {
+	mockConfig := pkgconfigmock.New(t)
+	// Global: disabled
+	mockConfig.Set("logs_config.auto_redact_config.enabled", false, model.SourceAgentRuntime)
+
+	p := &Processor{
+		config:       mockConfig,
+		piiTokenizer: newTokenizer(),
+	}
+
+	// Per-source: enabled with only SSN
+	enabled := true
+	ssnEnabled := true
+	emailEnabled := false
+	sourceConfig := &config.LogsConfig{
+		AutoRedactConfig: &types.AutoRedactConfig{
+			Enabled: &enabled,
+			PII: &types.PIITypeSettings{
+				SSN:   &ssnEnabled,
+				Email: &emailEnabled,
+			},
+		},
+	}
+	source := sources.NewLogSource("", sourceConfig)
+
+	tests := []struct {
+		name     string
+		input    []byte
+		expected []byte
+	}{
+		{
+			name:     "ssn_redacted_via_source_override",
+			input:    []byte("SSN: 123-45-6789"),
+			expected: []byte("SSN: [SSN_REDACTED]"),
+		},
+		{
+			name:     "email_not_redacted_per_source",
+			input:    []byte("Email: user@example.com"),
+			expected: []byte("Email: user@example.com"),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			msg := newMessage(tt.input, source, "")
+			shouldProcess := p.applyRedactingRules(msg)
+			assert.True(t, shouldProcess, "Message should be processed")
+			assert.Equal(t, tt.expected, msg.GetContent())
+		})
+	}
+}
+
+// TestAutoPIIRedactionSourceDisablesGlobalEnabled tests that per-source disabled overrides global enabled
+func TestAutoPIIRedactionSourceDisablesGlobalEnabled(t *testing.T) {
+	mockConfig := pkgconfigmock.New(t)
+	// Global: ENABLED
+	mockConfig.Set("logs_config.auto_redact_config.enabled", true, model.SourceAgentRuntime)
+
+	p := &Processor{
+		config:       mockConfig,
+		piiTokenizer: newTokenizer(),
+	}
+
+	// Per-source: DISABLED
+	disabled := false
+	sourceConfig := &config.LogsConfig{
+		AutoRedactConfig: &types.AutoRedactConfig{
+			Enabled: &disabled,
+		},
+	}
+	source := sources.NewLogSource("", sourceConfig)
+
+	tests := []struct {
+		name     string
+		input    []byte
+		expected []byte
+	}{
+		{
+			name:     "email_not_redacted_source_disabled",
+			input:    []byte("Email: user@example.com"),
+			expected: []byte("Email: user@example.com"), // Should NOT be redacted
+		},
+		{
+			name:     "ssn_not_redacted_source_disabled",
+			input:    []byte("SSN: 123-45-6789"),
+			expected: []byte("SSN: 123-45-6789"), // Should NOT be redacted
+		},
+		{
+			name:     "credit_card_not_redacted_source_disabled",
+			input:    []byte("Card: 4532-0151-1283-0366"),
+			expected: []byte("Card: 4532-0151-1283-0366"), // Should NOT be redacted
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			msg := newMessage(tt.input, source, "")
+			shouldProcess := p.applyRedactingRules(msg)
+			assert.True(t, shouldProcess, "Message should be processed")
+			assert.Equal(t, tt.expected, msg.GetContent(), "PII should NOT be redacted when source disabled")
+		})
+	}
+}
+
+// TestAutoPIIRedactionDefaultsAllTypesToTrue tests that when enabled=true with no PII type config,
+// all PII types default to true
+func TestAutoPIIRedactionDefaultsAllTypesToTrue(t *testing.T) {
+	mockConfig := pkgconfigmock.New(t)
+	// Only set enabled=true, do NOT set any individual PII type configs
+	mockConfig.Set("logs_config.auto_redact_config.enabled", true, model.SourceAgentRuntime)
+
+	p := &Processor{
+		config:       mockConfig,
+		piiTokenizer: newTokenizer(),
+	}
+
+	source := sources.NewLogSource("", &config.LogsConfig{})
+
+	tests := []struct {
+		name     string
+		input    []byte
+		expected []byte
+	}{
+		{
+			name:     "ssn_defaults_to_enabled",
+			input:    []byte("User SSN is 123-45-6789"),
+			expected: []byte("User SSN is [SSN_REDACTED]"),
+		},
+		{
+			name:     "email_defaults_to_enabled",
+			input:    []byte("Contact user@example.com"),
+			expected: []byte("Contact [EMAIL_REDACTED]"),
+		},
+		{
+			name:     "credit_card_defaults_to_enabled",
+			input:    []byte("Card 4532-0151-1283-0366"),
+			expected: []byte("Card [CC_REDACTED]"),
+		},
+		{
+			name:     "phone_defaults_to_enabled",
+			input:    []byte("Call (555) 123-4567"),
+			expected: []byte("Call [PHONE_REDACTED]"),
+		},
+		{
+			name:     "ip_defaults_to_enabled",
+			input:    []byte("From 192.168.1.100"),
+			expected: []byte("From [IP_REDACTED]"),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			msg := newMessage(tt.input, source, "")
+			shouldProcess := p.applyRedactingRules(msg)
+			assert.True(t, shouldProcess, "Message should be processed")
+			assert.Equal(t, tt.expected, msg.GetContent(), "PII type should default to enabled")
+		})
+	}
+}
+
+// TestAutoPIIRedactionIndividualTypes tests enabling individual PII types
+func TestAutoPIIRedactionIndividualTypes(t *testing.T) {
+	tests := []struct {
+		name         string
+		enabledTypes map[string]bool // which types to enable
+		input        []byte
+		expected     []byte
+		shouldRedact bool
+		description  string
+	}{
+		{
+			name: "only_credit_card_enabled",
+			enabledTypes: map[string]bool{
+				"email": false, "credit_card": true, "ssn": false, "phone": false, "ip": false,
+			},
+			input:        []byte("Card 4532-0151-1283-0366, SSN 123-45-6789, email user@test.com"),
+			expected:     []byte("Card [CC_REDACTED], SSN 123-45-6789, email user@test.com"),
+			shouldRedact: true,
+			description:  "Only credit card should be redacted",
+		},
+		{
+			name: "only_ssn_enabled",
+			enabledTypes: map[string]bool{
+				"email": false, "credit_card": false, "ssn": true, "phone": false, "ip": false,
+			},
+			input:        []byte("SSN: 123-45-6789, Phone: (555) 123-4567"),
+			expected:     []byte("SSN: [SSN_REDACTED], Phone: (555) 123-4567"),
+			shouldRedact: true,
+			description:  "Only SSN should be redacted",
+		},
+		{
+			name: "only_email_enabled",
+			enabledTypes: map[string]bool{
+				"email": true, "credit_card": false, "ssn": false, "phone": false, "ip": false,
+			},
+			input:        []byte("Contact user@example.com or call (555) 123-4567"),
+			expected:     []byte("Contact [EMAIL_REDACTED] or call (555) 123-4567"),
+			shouldRedact: true,
+			description:  "Only email should be redacted",
+		},
+		{
+			name: "only_phone_enabled",
+			enabledTypes: map[string]bool{
+				"email": false, "credit_card": false, "ssn": false, "phone": true, "ip": false,
+			},
+			input:        []byte("Call (555) 123-4567 or email user@test.com"),
+			expected:     []byte("Call [PHONE_REDACTED] or email user@test.com"),
+			shouldRedact: true,
+			description:  "Only phone should be redacted",
+		},
+		{
+			name: "only_ip_enabled",
+			enabledTypes: map[string]bool{
+				"email": false, "credit_card": false, "ssn": false, "phone": false, "ip": true,
+			},
+			input:        []byte("Request from 192.168.1.100, user@test.com"),
+			expected:     []byte("Request from [IP_REDACTED], user@test.com"),
+			shouldRedact: true,
+			description:  "Only IP should be redacted",
+		},
+		{
+			name: "ssn_and_credit_card_enabled",
+			enabledTypes: map[string]bool{
+				"email": false, "credit_card": true, "ssn": true, "phone": false, "ip": false,
+			},
+			input:        []byte("SSN 123-45-6789, Card 4532-0151-1283-0366, Phone (555) 123-4567"),
+			expected:     []byte("SSN [SSN_REDACTED], Card [CC_REDACTED], Phone (555) 123-4567"),
+			shouldRedact: true,
+			description:  "SSN and credit card should be redacted, phone not",
+		},
+		{
+			name: "all_disabled",
+			enabledTypes: map[string]bool{
+				"email": false, "credit_card": false, "ssn": false, "phone": false, "ip": false,
+			},
+			input:        []byte("SSN 123-45-6789, user@test.com, (555) 123-4567"),
+			expected:     []byte("SSN 123-45-6789, user@test.com, (555) 123-4567"),
+			shouldRedact: false,
+			description:  "Nothing should be redacted when all types disabled",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockConfig := pkgconfigmock.New(t)
+			mockConfig.Set("logs_config.auto_redact_config.enabled", true, model.SourceAgentRuntime)
+			mockConfig.Set("logs_config.auto_redact_config.pii.email", tt.enabledTypes["email"], model.SourceAgentRuntime)
+			mockConfig.Set("logs_config.auto_redact_config.pii.credit_card", tt.enabledTypes["credit_card"], model.SourceAgentRuntime)
+			mockConfig.Set("logs_config.auto_redact_config.pii.ssn", tt.enabledTypes["ssn"], model.SourceAgentRuntime)
+			mockConfig.Set("logs_config.auto_redact_config.pii.phone", tt.enabledTypes["phone"], model.SourceAgentRuntime)
+			mockConfig.Set("logs_config.auto_redact_config.pii.ip", tt.enabledTypes["ip"], model.SourceAgentRuntime)
+
+			p := &Processor{
+				config:       mockConfig,
+				piiTokenizer: newTokenizer(),
+			}
+
+			source := sources.NewLogSource("", &config.LogsConfig{})
+			msg := newMessage(tt.input, source, "")
+
+			shouldProcess := p.applyRedactingRules(msg)
+			assert.True(t, shouldProcess, "Message should be processed")
+			assert.Equal(t, tt.expected, msg.GetContent(), tt.description)
+		})
+	}
+}
+
+// TestAutoPIIRedactionPerSourceIndividualTypes tests per-source individual type overrides
+func TestAutoPIIRedactionPerSourceIndividualTypes(t *testing.T) {
+	tests := []struct {
+		name        string
+		globalTypes map[string]bool
+		sourceTypes map[string]*bool // nil means use global
+		input       []byte
+		expected    []byte
+		description string
+	}{
+		{
+			name: "global_all_enabled_source_disables_email",
+			globalTypes: map[string]bool{
+				"email": true, "credit_card": true, "ssn": true, "phone": true, "ip": true,
+			},
+			sourceTypes: map[string]*bool{
+				"email": boolPtr(false), // Disable email for this source
+			},
+			input:       []byte("Email user@test.com, SSN 123-45-6789"),
+			expected:    []byte("Email user@test.com, SSN [SSN_REDACTED]"),
+			description: "Email not redacted (source override), SSN redacted (global)",
+		},
+		{
+			name: "global_none_enabled_source_enables_ssn",
+			globalTypes: map[string]bool{
+				"email": false, "credit_card": false, "ssn": false, "phone": false, "ip": false,
+			},
+			sourceTypes: map[string]*bool{
+				"ssn": boolPtr(true), // Enable SSN for this source
+			},
+			input:       []byte("Email user@test.com, SSN 123-45-6789"),
+			expected:    []byte("Email user@test.com, SSN [SSN_REDACTED]"),
+			description: "SSN redacted (source override), email not redacted (global)",
+		},
+		{
+			name: "source_selectively_enables_types",
+			globalTypes: map[string]bool{
+				"email": false, "credit_card": false, "ssn": false, "phone": false, "ip": false,
+			},
+			sourceTypes: map[string]*bool{
+				"email":       boolPtr(true),
+				"credit_card": boolPtr(true),
+			},
+			input:       []byte("user@test.com, Card 4532-0151-1283-0366, SSN 123-45-6789"),
+			expected:    []byte("[EMAIL_REDACTED], Card [CC_REDACTED], SSN 123-45-6789"),
+			description: "Email and CC redacted (source), SSN not (global)",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockConfig := pkgconfigmock.New(t)
+			mockConfig.Set("logs_config.auto_redact_config.enabled", true, model.SourceAgentRuntime)
+			mockConfig.Set("logs_config.auto_redact_config.pii.email", tt.globalTypes["email"], model.SourceAgentRuntime)
+			mockConfig.Set("logs_config.auto_redact_config.pii.credit_card", tt.globalTypes["credit_card"], model.SourceAgentRuntime)
+			mockConfig.Set("logs_config.auto_redact_config.pii.ssn", tt.globalTypes["ssn"], model.SourceAgentRuntime)
+			mockConfig.Set("logs_config.auto_redact_config.pii.phone", tt.globalTypes["phone"], model.SourceAgentRuntime)
+			mockConfig.Set("logs_config.auto_redact_config.pii.ip", tt.globalTypes["ip"], model.SourceAgentRuntime)
+
+			p := &Processor{
+				config:       mockConfig,
+				piiTokenizer: newTokenizer(),
+			}
+
+			// Build source config with overrides
+			sourceConfig := &config.LogsConfig{
+				AutoRedactConfig: &types.AutoRedactConfig{
+					PII: &types.PIITypeSettings{
+						Email:      tt.sourceTypes["email"],
+						CreditCard: tt.sourceTypes["credit_card"],
+						SSN:        tt.sourceTypes["ssn"],
+						Phone:      tt.sourceTypes["phone"],
+						IP:         tt.sourceTypes["ip"],
+					},
+				},
+			}
+			source := sources.NewLogSource("", sourceConfig)
+
+			msg := newMessage(tt.input, source, "")
+			shouldProcess := p.applyRedactingRules(msg)
+			assert.True(t, shouldProcess, "Message should be processed")
+			assert.Equal(t, tt.expected, msg.GetContent(), tt.description)
+		})
+	}
+}
+
+// boolPtr returns a pointer to a bool value
+func boolPtr(b bool) *bool {
+	return &b
 }
