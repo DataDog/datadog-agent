@@ -247,6 +247,7 @@ func (def *definition[T]) GetInstance(ctx *Context) (VariableInstance, bool, err
 	}
 
 	def.instancesLock.RLock()
+	defer def.instancesLock.RUnlock()
 
 	key, scopeOk := scope.Key()
 	if scopeOk {
@@ -263,16 +264,6 @@ func (def *definition[T]) GetInstance(ctx *Context) (VariableInstance, bool, err
 			}
 			scope, parentScopeOk = scope.ParentScope()
 		}
-	}
-
-	def.instancesLock.RUnlock()
-
-	if instanceOk && instance.IsExpired() {
-		def.instancesLock.Lock()
-		instance.free()
-		def.instancesLock.Unlock()
-		instance = nil
-		instanceOk = false
 	}
 
 	// instance can be nil here if no instance exists
@@ -611,7 +602,7 @@ func (s *VariableStore) GetEvaluator(varName VariableName) (any, error) {
 		return &StringEvaluator{
 			EvalFnc: func(ctx *Context) string {
 				instance, exists, _ := def.GetInstance(ctx)
-				if !exists { // the variable has no instance, thus use the default value
+				if !exists || instance.IsExpired() {
 					return def.defaultValue
 				}
 				return instance.GetValue().(string)
@@ -621,7 +612,7 @@ func (s *VariableStore) GetEvaluator(varName VariableName) (any, error) {
 		return &IntEvaluator{
 			EvalFnc: func(ctx *Context) int {
 				instance, exists, _ := def.GetInstance(ctx)
-				if !exists { // the variable has no instance, thus use the default value
+				if !exists || instance.IsExpired() {
 					return def.defaultValue
 				}
 				return instance.GetValue().(int)
@@ -631,7 +622,7 @@ func (s *VariableStore) GetEvaluator(varName VariableName) (any, error) {
 		return &BoolEvaluator{
 			EvalFnc: func(ctx *Context) bool {
 				instance, exists, _ := def.GetInstance(ctx)
-				if !exists { // the variable has no instance, thus use the default value
+				if !exists || instance.IsExpired() {
 					return def.defaultValue
 				}
 				return instance.GetValue().(bool)
@@ -641,7 +632,7 @@ func (s *VariableStore) GetEvaluator(varName VariableName) (any, error) {
 		return &CIDREvaluator{
 			EvalFnc: func(ctx *Context) net.IPNet {
 				instance, exists, _ := def.GetInstance(ctx)
-				if !exists { // the variable has no instance, thus use the default value
+				if !exists || instance.IsExpired() {
 					return def.defaultValue
 				}
 				return instance.GetValue().(net.IPNet)
@@ -651,7 +642,7 @@ func (s *VariableStore) GetEvaluator(varName VariableName) (any, error) {
 		return &StringArrayEvaluator{
 			EvalFnc: func(ctx *Context) []string {
 				instance, exists, _ := def.GetInstance(ctx)
-				if !exists { // the variable has no instance, thus use the default value
+				if !exists || instance.IsExpired() {
 					return def.defaultValue
 				}
 				return instance.GetValue().([]string)
@@ -661,7 +652,7 @@ func (s *VariableStore) GetEvaluator(varName VariableName) (any, error) {
 		return &IntArrayEvaluator{
 			EvalFnc: func(ctx *Context) []int {
 				instance, exists, _ := def.GetInstance(ctx)
-				if !exists { // the variable has no instance, thus use the default value
+				if !exists || instance.IsExpired() {
 					return def.defaultValue
 				}
 				return instance.GetValue().([]int)
@@ -671,7 +662,7 @@ func (s *VariableStore) GetEvaluator(varName VariableName) (any, error) {
 		return &CIDRArrayEvaluator{
 			EvalFnc: func(ctx *Context) []net.IPNet {
 				instance, exists, _ := def.GetInstance(ctx)
-				if !exists { // the variable has no instance, thus use the default value
+				if !exists || instance.IsExpired() {
 					return def.defaultValue
 				}
 				return instance.GetValue().([]net.IPNet)
