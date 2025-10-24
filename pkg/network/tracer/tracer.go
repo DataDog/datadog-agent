@@ -585,7 +585,7 @@ func (t *Tracer) getConnections(activeBuffer *network.ConnectionBuffer) (latestU
 	activeConnections = activeBuffer.Connections()
 	log.Infof("JMW Tracer.getConnections() got %d connections", len(activeConnections))
 
-	// JMW: Compare all three conntrack maps and log differences
+	// JMW: Compare both conntrack maps and log differences
 	t.compareAndLogConntrackMaps()
 
 	for i := range activeConnections {
@@ -878,7 +878,7 @@ func (t *Tracer) DebugConntrackComparison() (interface{}, error) {
 	return nil, fmt.Errorf("conntrack comparison only supported with eBPF conntracker")
 }
 
-// compareAndLogConntrackMaps compares all three conntrack maps and logs differences
+// compareAndLogConntrackMaps compares both conntrack maps and logs differences
 func (t *Tracer) compareAndLogConntrackMaps() {
 	// Check if we have an eBPF conntracker that supports comparison
 	ebpfCt, ok := t.conntracker.(*ebpfConntracker)
@@ -945,9 +945,8 @@ func (t *Tracer) logConntrackProbeCounters(ebpfCt *ebpfConntracker) {
 	}
 
 	// Log all probe counters
-	log.Infof("JMW PROBE COUNTERS: hash_insert=%d, nat_packet=%d, confirm_entry=%d, confirm_return=%d, confirm_return_success=%d, confirm_return_failed=%d",
+	log.Infof("JMW PROBE COUNTERS: hash_insert=%d, confirm_entry=%d, confirm_return=%d, confirm_return_success=%d, confirm_return_failed=%d",
 		telemetry.Hash_insert_count,
-		telemetry.Nat_packet_count,
 		telemetry.Confirm_entry_count,
 		telemetry.Confirm_return_count,
 		telemetry.Confirm_return_success_count,
