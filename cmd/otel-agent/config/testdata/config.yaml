@@ -26,10 +26,8 @@ exporters:
         io.opentelemetry.javaagent.spring.client: spring.client
       ignore_resources: ["(GET|POST) /healthcheck"]
       compute_top_level_by_span_kind: false
-      trace_buffer: 10      
+      trace_buffer: 10
 processors:
-  batch:
-    timeout: 10s
   resourcedetection:
     detectors: [system, env]
 service:
@@ -39,13 +37,13 @@ service:
   pipelines:
     traces:
       receivers: [otlp]
-      processors: [batch, resourcedetection]
+      processors: [resourcedetection]
       exporters: [debug, datadog/exp1]
     metrics:
       receivers: [otlp]
-      processors: [batch, resourcedetection]
+      processors: [resourcedetection]
       exporters: [debug]
     logs:
       receivers: [otlp]
-      processors: [batch, resourcedetection]
+      processors: [resourcedetection]
       exporters: [debug]

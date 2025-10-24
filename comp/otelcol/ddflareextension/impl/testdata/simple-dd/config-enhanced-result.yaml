@@ -45,6 +45,10 @@ exporters:
       randomization_factor: 0.5
     sending_queue:
       batch:
+        flush_timeout: 10s
+        max_size: 100
+        min_size: 10
+        sizer: {}
       block_on_overflow: false
       enabled: true
       num_consumers: 10
@@ -112,7 +116,7 @@ receivers:
       grpc: null
       http: null
   prometheus:
-    api_server: 
+    api_server:
       enabled: false
       server_config:
         cors: null
