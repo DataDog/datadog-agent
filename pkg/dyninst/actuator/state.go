@@ -16,6 +16,7 @@ import (
 	"golang.org/x/time/rate"
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
+	procinfo "github.com/DataDog/datadog-agent/pkg/dyninst/process"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -477,7 +478,9 @@ func handleProcessesUpdated(
 	}
 	for _, removal := range ev.removed {
 		if err := handleProcessUpdate(sm, ProcessUpdate{
-			ProcessID: removal,
+			Info: procinfo.Info{
+				ProcessID: removal,
+			},
 		}); err != nil {
 			return err
 		}
