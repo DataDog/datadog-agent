@@ -1,5 +1,20 @@
 # CHANGELOG - datadog-secret-backend
 
+## Next
+
+* Bump github.com/hashicorp/vault fropm 1.20.4 to v1.21.0
+* Bump github.com/aws/aws-sdk-go-v2 from 1.39.3 to 1.39.4
+* Bump github.com/aws/aws-sdk-go-v2/config from 1.31.8 to 1.31.15
+* Bump github.com/aws/aws-sdk-go-v2/service/secretsmanager 1.39.4 to 1.39.9
+* Bump github.com/aws/aws-sdk-go-v2/service/sts from 1.38.8 to 1.38.9
+* Bump github.com/aws/aws-sdk-go-v2/service/ssm from 1.64.4 to 1.66.2
+* Bump github.com/aws/aws-sdk-go-v2/credentials from 1.18.17 to 1.18.18
+* Bump github.com/Azure/azure-sdk-for-go/sdk/azidentity from 1.12.0 to 1.13.0
+* Bump github.com/hashicorp/vault/api/auth/userpass from 0.10.0 to 0.11.0
+* Bump github.com/hashicorp/vault/api from 1.21.0 to 1.22.0
+* Bump github.com/hashicorp/vault/api/auth/ldap from 0.10.0 to 0.11.0
+* Bump github.com/hashicorp/vault/api/auth/approle from 0.10.0 to 0.11.0
+
 ## 1.3.0 / 2025-09-23
 
 * Bump aws-sdk-go-v2, multiple packages (config, ssm, secretsmanager)
