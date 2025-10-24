@@ -387,6 +387,7 @@ def get_version_ldflags(ctx, install_path=None):
     payload_v = get_payload_version()
     commit = get_commit_sha(ctx, short=True)
     version = get_version(ctx, include_git=True)
+    version_url_safe = get_version(ctx, include_git=True, url_safe=True, include_pipeline_id=True)
     package_version = os.getenv('PACKAGE_VERSION', version)
 
     ldflags = f"-X {REPO_PATH}/pkg/version.Commit={commit} "
@@ -398,7 +399,7 @@ def get_version_ldflags(ctx, install_path=None):
             # so, set the package_version tag in order for Fleet Automation to detect
             # upgrade in the health check.
             # https://github.com/DataDog/dd-go/blob/cada5b3c2929473a2bd4a4142011767fe2dcce52/remote-config/apps/rc-api-internal/updater/health_check.go#L219
-            package_version = get_version(ctx, include_git=True, url_safe=True, include_pipeline_id=True)
+            package_version = version_url_safe
             # append suffix
             # TODO: what if we want a -2 ? Where does that value even come from in the pipeline?
             #       it's also hardcoded in Generate-OCIPackage.ps1
@@ -408,6 +409,7 @@ def get_version_ldflags(ctx, install_path=None):
             if install_dir != "datadog-agent":
                 package_version = install_dir
     ldflags += f"-X {REPO_PATH}/pkg/version.AgentPackageVersion={package_version} "
+    ldflags += f"-X {REPO_PATH}/pkg/version.AgentVersionURLSafe={version_url_safe} "
     return ldflags
 
 

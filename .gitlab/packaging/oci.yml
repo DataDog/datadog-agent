@@ -30,6 +30,9 @@
         echo "Copying already built images to output dir"
         cp $OMNIBUS_PACKAGE_DIR/pipeline-$CI_PIPELINE_ID/*.oci.tar ${OUTPUT_DIR}
       fi
+    - mkdir test-ext
+    - touch test-ext/test-ext.txt
+    - echo "test-ext" > test-ext/test-ext.txt
     - |
       for ARCH in "amd64" "arm64"; do
         INPUT_FILE="${OMNIBUS_PACKAGE_DIR}${OCI_PRODUCT}-*${ARCH}.tar.xz"
@@ -62,6 +65,7 @@
           --os linux \
           --arch ${ARCH} \
           --archive --archive-path "${OUTPUT_DIR}/${OUTPUT_FILE}" \
+          --extension test=$(pwd)/test-ext \
           ${EXTRA_FLAGS} \
           ${INPUT_DIR}/${INSTALL_DIR}/
         rm -f ${INPUT_FILE}
