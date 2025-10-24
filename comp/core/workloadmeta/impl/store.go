@@ -30,6 +30,8 @@ const (
 	maxCollectorPullTime          = 1 * time.Minute
 	eventBundleChTimeout          = 1 * time.Second
 	eventChBufferSize             = 50
+	logLimitCount                 = 10
+	logLimitInterval              = 10 * time.Minute
 )
 
 type subscriber struct {
@@ -650,6 +652,7 @@ func (w *workloadmeta) startCandidates(ctx context.Context) bool {
 		if err == nil {
 			w.log.Infof("workloadmeta collector %q started successfully", id)
 			w.collectors[id] = c
+			w.logLimiters[id] = log.NewLogLimit(logLimitCount, logLimitInterval)
 		} else {
 			w.log.Infof("workloadmeta collector %q could not start. error: %s", id, err)
 		}
@@ -706,7 +709,9 @@ func (w *workloadmeta) pull(ctx context.Context) {
 
 			err := c.Pull(pullCtx)
 			if err != nil {
-				w.log.Warnf("error pulling from collector %q: %s", id, err.Error())
+				if w.logLimiters[id].ShouldLog() {
+					w.log.Warnf("error pulling from collector %q: %s", id, err.Error())
+				}
 				telemetry.PullErrors.Inc(id)
 			}
 
