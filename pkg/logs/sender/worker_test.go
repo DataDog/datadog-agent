@@ -64,7 +64,7 @@ func TestSender(t *testing.T) {
 	}
 
 	cfg := configmock.New(t)
-	worker := newWorker(cfg, input, auditor, destinationFactory, 0, NewMockServerlessMeta(false), metrics.NewNoopPipelineMonitor(""), "test")
+	worker := newWorker(cfg, input, auditor, destinationFactory, 0, NewMockServerlessMeta(false), metrics.NewNoopPipelineMonitor(""), "test", nil)
 	worker.start()
 
 	expectedMessage := newMessage([]byte("fake line"), source, "")
@@ -95,7 +95,7 @@ func TestSenderSingleDestination(t *testing.T) {
 		return client.NewDestinations([]client.Destination{server.Destination}, nil)
 	}
 
-	worker := newWorker(cfg, input, auditor, destinationFactory, 10, NewMockServerlessMeta(false), metrics.NewNoopPipelineMonitor(""), "test")
+	worker := newWorker(cfg, input, auditor, destinationFactory, 10, NewMockServerlessMeta(false), metrics.NewNoopPipelineMonitor(""), "test", nil)
 	worker.start()
 
 	input <- &message.Payload{}
@@ -128,7 +128,7 @@ func TestSenderDualReliableDestination(t *testing.T) {
 		return client.NewDestinations([]client.Destination{server1.Destination, server2.Destination}, nil)
 	}
 
-	worker := newWorker(cfg, input, auditor, destinationFactory, 10, NewMockServerlessMeta(false), metrics.NewNoopPipelineMonitor(""), "test")
+	worker := newWorker(cfg, input, auditor, destinationFactory, 10, NewMockServerlessMeta(false), metrics.NewNoopPipelineMonitor(""), "test", nil)
 	worker.start()
 
 	input <- &message.Payload{}
@@ -166,7 +166,7 @@ func TestSenderUnreliableAdditionalDestination(t *testing.T) {
 		return client.NewDestinations([]client.Destination{server1.Destination}, []client.Destination{server2.Destination})
 	}
 
-	worker := newWorker(cfg, input, auditor, destinationFactory, 10, NewMockServerlessMeta(false), metrics.NewNoopPipelineMonitor(""), "test")
+	worker := newWorker(cfg, input, auditor, destinationFactory, 10, NewMockServerlessMeta(false), metrics.NewNoopPipelineMonitor(""), "test", nil)
 	worker.start()
 
 	input <- &message.Payload{}
@@ -202,7 +202,7 @@ func TestSenderUnreliableStopsWhenMainFails(t *testing.T) {
 		return client.NewDestinations([]client.Destination{reliableServer.Destination}, []client.Destination{unreliableServer.Destination})
 	}
 
-	worker := newWorker(cfg, input, auditor, destinationFactory, 10, NewMockServerlessMeta(false), metrics.NewNoopPipelineMonitor(""), "test")
+	worker := newWorker(cfg, input, auditor, destinationFactory, 10, NewMockServerlessMeta(false), metrics.NewNoopPipelineMonitor(""), "test", nil)
 	worker.start()
 
 	input <- &message.Payload{}
@@ -254,7 +254,7 @@ func TestSenderReliableContinuseWhenOneFails(t *testing.T) {
 		return client.NewDestinations([]client.Destination{reliableServer1.Destination, reliableServer2.Destination}, nil)
 	}
 
-	worker := newWorker(cfg, input, auditor, destinationFactory, 10, NewMockServerlessMeta(false), metrics.NewNoopPipelineMonitor(""), "test")
+	worker := newWorker(cfg, input, auditor, destinationFactory, 10, NewMockServerlessMeta(false), metrics.NewNoopPipelineMonitor(""), "test", nil)
 	worker.start()
 
 	input <- &message.Payload{}
@@ -303,7 +303,7 @@ func TestSenderReliableWhenOneFailsAndRecovers(t *testing.T) {
 		return client.NewDestinations([]client.Destination{reliableServer1.Destination, reliableServer2.Destination}, nil)
 	}
 
-	worker := newWorker(cfg, input, auditor, destinationFactory, 10, NewMockServerlessMeta(false), metrics.NewNoopPipelineMonitor(""), "test")
+	worker := newWorker(cfg, input, auditor, destinationFactory, 10, NewMockServerlessMeta(false), metrics.NewNoopPipelineMonitor(""), "test", nil)
 	worker.start()
 
 	input <- &message.Payload{}
@@ -369,7 +369,7 @@ func TestMRFPayloads(t *testing.T) {
 		return client.NewDestinations([]client.Destination{reliableServer1.Destination}, nil)
 	}
 
-	worker := newWorker(cfg, input, auditor, destinationFactory, 10, NewMockServerlessMeta(false), metrics.NewNoopPipelineMonitor(""), "test")
+	worker := newWorker(cfg, input, auditor, destinationFactory, 10, NewMockServerlessMeta(false), metrics.NewNoopPipelineMonitor(""), "test", nil)
 	worker.start()
 
 	input <- &message.Payload{}
