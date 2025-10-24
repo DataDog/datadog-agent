@@ -205,8 +205,7 @@ func TestCreateContainerService(t *testing.T) {
 			container: basicContainer,
 			expectedServices: map[string]wlmListenerSvc{
 				"container://foobarquux": {
-					service: &service{
-						tagger: taggerComponent,
+					service: &WorkloadService{
 						entity: basicContainer,
 						adIdentifiers: []string{
 							"docker://foobarquux",
@@ -242,8 +241,7 @@ func TestCreateContainerService(t *testing.T) {
 			container: runningContainerWithFinishedAtTime,
 			expectedServices: map[string]wlmListenerSvc{
 				"container://foobarquux": {
-					service: &service{
-						tagger: taggerComponent,
+					service: &WorkloadService{
 						entity: runningContainerWithFinishedAtTime,
 						adIdentifiers: []string{
 							"docker://foobarquux",
@@ -262,8 +260,7 @@ func TestCreateContainerService(t *testing.T) {
 			container: multiplePortsContainer,
 			expectedServices: map[string]wlmListenerSvc{
 				"container://foobarquux": {
-					service: &service{
-						tagger: taggerComponent,
+					service: &WorkloadService{
 						entity: multiplePortsContainer,
 						adIdentifiers: []string{
 							"docker://foobarquux",
@@ -291,8 +288,7 @@ func TestCreateContainerService(t *testing.T) {
 			pod:       pod,
 			expectedServices: map[string]wlmListenerSvc{
 				"container://foo": {
-					service: &service{
-						tagger: taggerComponent,
+					service: &WorkloadService{
 						entity: kubernetesContainer,
 						adIdentifiers: []string{
 							"docker://foo",
@@ -312,8 +308,7 @@ func TestCreateContainerService(t *testing.T) {
 			pod:       podWithTolerateUnreadyAnnotation,
 			expectedServices: map[string]wlmListenerSvc{
 				"container://foo": {
-					service: &service{
-						tagger: taggerComponent,
+					service: &WorkloadService{
 						entity: kubernetesContainer,
 						adIdentifiers: []string{
 							"docker://foo",
@@ -344,8 +339,7 @@ func TestCreateContainerService(t *testing.T) {
 			pod:       podWithCheck,
 			expectedServices: map[string]wlmListenerSvc{
 				"container://foo": {
-					service: &service{
-						tagger: taggerComponent,
+					service: &WorkloadService{
 						entity: kubernetesContainer,
 						adIdentifiers: []string{
 							"docker://foo",
@@ -388,8 +382,7 @@ func TestCreateContainerService(t *testing.T) {
 			},
 			expectedServices: map[string]wlmListenerSvc{
 				"container://foo": {
-					service: &service{
-						tagger: taggerComponent,
+					service: &WorkloadService{
 						entity: kubernetesContainer,
 						adIdentifiers: []string{
 							"docker://foo",

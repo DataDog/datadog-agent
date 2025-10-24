@@ -6,6 +6,8 @@
 package nodetreemodel
 
 import (
+	"fmt"
+	"reflect"
 	"strings"
 	"unicode"
 
@@ -66,4 +68,29 @@ func parseSizeInBytes(sizeStr string) uint {
 	size := max(cast.ToInt(sizeStr), 0)
 
 	return safeMul(uint(size), multiplier)
+}
+
+// ToMapStringInterface converts any type of map into a map[string]interface{}
+func ToMapStringInterface(data any, path string) (map[string]interface{}, error) {
+	if res, ok := data.(map[string]interface{}); ok {
+		return res, nil
+	}
+
+	v := reflect.ValueOf(data)
+	switch v.Kind() {
+	case reflect.Map:
+		convert := map[string]interface{}{}
+		iter := v.MapRange()
+		for iter.Next() {
+			key := iter.Key()
+			switch k := key.Interface().(type) {
+			case string:
+				convert[k] = iter.Value().Interface()
+			default:
+				convert[fmt.Sprintf("%v", key.Interface())] = iter.Value().Interface()
+			}
+		}
+		return convert, nil
+	}
+	return nil, fmt.Errorf("expected map at '%s' got: %v", path, v)
 }
