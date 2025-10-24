@@ -19,7 +19,7 @@ type mockTransport struct {
 	returnNilResponse bool
 }
 
-func (m *mockTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+func (m *mockTransport) RoundTrip(_ *http.Request) (*http.Response, error) {
 	if m.returnNilResponse {
 		return nil, errors.New("mock error with nil response")
 	}
@@ -44,6 +44,9 @@ func TestForwardingTransport_NilResponse(t *testing.T) {
 
 	// This should not panic even though the underlying transport returns nil response
 	resp, err := ft.RoundTrip(req)
+	if resp != nil && resp.Body != nil {
+		defer resp.Body.Close()
+	}
 
 	if err == nil {
 		t.Error("expected an error from RoundTrip")
@@ -72,6 +75,9 @@ func TestForwardingTransport_MultipleTargetsNilResponse(t *testing.T) {
 
 	// This should not panic even though the underlying transport returns nil response
 	resp, err := ft.RoundTrip(req)
+	if resp != nil && resp.Body != nil {
+		defer resp.Body.Close()
+	}
 
 	if err == nil {
 		t.Error("expected an error from RoundTrip")
