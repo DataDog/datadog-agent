@@ -21,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/autodiscoveryimpl"
 	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
+	delegatedauthfx "github.com/DataDog/datadog-agent/comp/core/delegatedauth/fx"
 	healthprobeDef "github.com/DataDog/datadog-agent/comp/core/healthprobe/def"
 	healthprobeFx "github.com/DataDog/datadog-agent/comp/core/healthprobe/fx"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
@@ -71,6 +72,7 @@ func main() {
 
 	err := fxutil.OneShot(
 		run,
+		delegatedauthfx.Module(),
 		workloadfilterfx.Module(),
 		autodiscoveryimpl.Module(),
 		fx.Provide(func(config coreconfig.Component) healthprobeDef.Options {

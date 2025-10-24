@@ -16,6 +16,7 @@ import (
 	"go.uber.org/fx"
 
 	configcomp "github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/delegatedauth"
 	diagnose "github.com/DataDog/datadog-agent/comp/core/diagnose/def"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
@@ -560,6 +561,9 @@ type dependencies struct {
 	EventPlatformReceiver eventplatformreceiver.Component
 	Hostname              hostnameinterface.Component
 	Compression           logscompression.Component
+	// DelegatedAuth ensures the delegated auth component is initialized before the event platform forwarder
+	// This is critical because the API key from delegated auth must be available before endpoints are created
+	DelegatedAuth delegatedauth.Component
 }
 
 // newEventPlatformForwarder creates a new EventPlatformForwarder

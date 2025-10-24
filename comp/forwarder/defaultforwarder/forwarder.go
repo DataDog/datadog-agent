@@ -13,6 +13,7 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/delegatedauth"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/resolver"
@@ -26,6 +27,9 @@ type dependencies struct {
 	Log    log.Component
 	Lc     fx.Lifecycle
 	Params Params
+	// DelegatedAuth ensures the delegated auth component is initialized before the forwarder
+	// This is critical because the API key from delegated auth must be available before domain resolvers are created
+	DelegatedAuth delegatedauth.Component
 }
 
 type provides struct {

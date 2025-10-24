@@ -1186,6 +1186,12 @@ func InitConfig(config pkgconfigmodel.Setup) {
 
 	// Agent Workload Filtering config
 	config.BindEnvAndSetDefault("cel_workload_exclude", []interface{}{})
+
+	// Delegated authentication
+	config.BindEnvAndSetDefault("delegated_auth.enabled", false)
+	config.BindEnv("delegated_auth.provider", "DD_DELEGATED_AUTH_PROVIDER")
+	config.BindEnv("delegated_auth.org_uuid", "DD_DELEGATED_AUTH_ORG_UUID")
+	config.BindEnvAndSetDefault("delegated_auth.refresh_interval", 15*time.Minute)
 }
 
 func agent(config pkgconfigmodel.Setup) {
