@@ -415,15 +415,9 @@ func (s *Serializer) SendOrchestratorMetadata(msgs []types.ProcessMessageBody, h
 			return s.logger.Errorf("Unable to encode message: %s", err)
 		}
 
-		responses, err := orchestratorForwarder.SubmitOrchestratorChecks(payloads, extraHeaders, payloadType)
+		err = orchestratorForwarder.SubmitOrchestratorChecks(payloads, extraHeaders, payloadType)
 		if err != nil {
 			return s.logger.Errorf("Unable to submit payload: %s", err)
-		}
-
-		// Consume the responses so that writers to the channel do not become blocked
-		// we don't need the bodies here though
-		//nolint:revive // TODO(AML) Fix revive linter
-		for range responses {
 		}
 	}
 	return nil
@@ -442,15 +436,9 @@ func (s *Serializer) SendOrchestratorManifests(msgs []types.ProcessMessageBody, 
 			continue
 		}
 
-		responses, err := orchestratorForwarder.SubmitOrchestratorManifests(payloads, extraHeaders)
+		err = orchestratorForwarder.SubmitOrchestratorManifests(payloads, extraHeaders)
 		if err != nil {
 			return s.logger.Errorf("Unable to submit payload: %s", err)
-		}
-
-		// Consume the responses so that writers to the channel do not become blocked
-		// we don't need the bodies here though
-		//nolint:revive // TODO(AML) Fix revive linter
-		for range responses {
 		}
 	}
 	return nil

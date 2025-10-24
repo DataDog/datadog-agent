@@ -201,11 +201,11 @@ func (tf *MockedForwarder) SubmitConnectionChecks(payload transaction.BytesPaylo
 }
 
 // SubmitOrchestratorChecks mock
-func (tf *MockedForwarder) SubmitOrchestratorChecks(payload transaction.BytesPayloads, extra http.Header, _ int) (chan Response, error) {
-	return nil, tf.Called(payload, extra).Error(0)
+func (tf *MockedForwarder) SubmitOrchestratorChecks(payload transaction.BytesPayloads, extra http.Header, _ int) error {
+	return tf.Called(payload, extra).Error(0)
 }
 
 // SubmitOrchestratorManifests mock
-func (tf *MockedForwarder) SubmitOrchestratorManifests(payload transaction.BytesPayloads, extra http.Header) (chan Response, error) {
-	return nil, tf.Called(payload, extra).Error(0)
+func (tf *MockedForwarder) SubmitOrchestratorManifests(payload transaction.BytesPayloads, extra http.Header) error {
+	return tf.Called(payload, extra).Error(0)
 }
