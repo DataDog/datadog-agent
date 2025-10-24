@@ -2,8 +2,6 @@
 
 http_archive = use_repo_rule("//third_party/bazel/tools/build_defs/repo:http.bzl", "http_archive")
 
-local_repository = use_repo_rule("//third_party/bazel/tools/build_defs/repo:local.bzl", "local_repository")
-
 # package_metadata and rules_license are dependencies of every module in the
 # Bazel ecosystem.  We pin those first to get the versions we require.
 # Instead of the canonical rules_license, we use the version from supply-chain.
