@@ -41,7 +41,6 @@ require (
 	go.opentelemetry.io/collector/extension/zpagesextension v0.138.0
 	go.opentelemetry.io/collector/otelcol v0.138.0
 	go.opentelemetry.io/collector/processor v1.44.0
-	go.opentelemetry.io/collector/processor/batchprocessor v0.138.0
 	go.opentelemetry.io/collector/receiver v1.44.0
 	go.opentelemetry.io/collector/receiver/nopreceiver v0.138.0
 	go.opentelemetry.io/collector/receiver/otlpreceiver v0.138.0
