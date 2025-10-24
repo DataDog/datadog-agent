@@ -131,6 +131,10 @@ func (u *verticalController) syncDeploymentKind(
 	podsPerRecomendationID map[string]int32,
 	podsPerDirectOwner map[string]int32,
 ) (autoscaling.ProcessResult, error) {
+
+	log.Debugf("[AUTOSCALING] Syncing deployment kind for autoscaler: %s, gvk: %s, name: %s", autoscalerInternal.ID(), targetGVK.String(), autoscalerInternal.Spec().TargetRef.Name)
+	log.Debugf("[AUTOSCALING] Pods per recommendation ID: %v", podsPerRecomendationID)
+	log.Debugf("[AUTOSCALING] Pods per direct owner: %v", podsPerDirectOwner)
 	// Check if we need to rollout, currently basic check with 100% match expected.
 	// TODO: Refine the logic and add backoff for stuck PODs.
 	if podsPerRecomendationID[recommendationID] == int32(len(pods)) {
@@ -147,18 +151,16 @@ func (u *verticalController) syncDeploymentKind(
 
 	// Normally we should check updateStrategy here, we currently only support one way, so not required for now.
 
-	// Generate the patch request which adds the scaling hash annotation to the pod template
+	// We will attach the scaling hash annotations to the deployment template, and separately
+	// patch the pods to apply the recommendations (and additionally attach the scaling hash annotations).
+	// This allows us to use the in-place pod resize functionality if available.
 	gvr := targetGVK.GroupVersion().WithResource(fmt.Sprintf("%ss", strings.ToLower(targetGVK.Kind)))
 	patchTime := u.clock.Now()
 	patchData, err := json.Marshal(map[string]interface{}{
-		"spec": map[string]interface{}{
-			"template": map[string]interface{}{
-				"metadata": map[string]interface{}{
-					"annotations": map[string]string{
-						model.RolloutTimestampAnnotation: patchTime.Format(time.RFC3339),
-						model.RecommendationIDAnnotation: recommendationID,
-					},
-				},
+		"metadata": map[string]interface{}{
+			"annotations": map[string]string{
+				model.RolloutTimestampAnnotation: patchTime.Format(time.RFC3339),
+				model.RecommendationIDAnnotation: recommendationID,
 			},
 		},
 	})
@@ -167,22 +169,34 @@ func (u *verticalController) syncDeploymentKind(
 		return autoscaling.Requeue, err
 	}
 
-	// Apply patch to trigger rollout
+	// Apply patch to attach the scaling hash annotations to the deployment template
 	_, err = u.dynamicClient.Resource(gvr).Namespace(target.Namespace).Patch(ctx, target.Name, types.MergePatchType, patchData, metav1.PatchOptions{})
 	if err != nil {
-		err = fmt.Errorf("failed to trigger rollout for gvk: %s, name: %s, err: %v", targetGVK.String(), autoscalerInternal.Spec().TargetRef.Name, err)
+		err = fmt.Errorf("failed to attach scaling hash annotations to deployment template for gvk: %s, name: %s, err: %v", targetGVK.String(), autoscalerInternal.Spec().TargetRef.Name, err)
 		telemetryVerticalRolloutTriggered.Inc(target.Namespace, target.Name, autoscalerInternal.Name(), "error", le.JoinLeaderValue)
 		autoscalerInternal.UpdateFromVerticalAction(nil, err)
 		u.eventRecorder.Event(podAutoscaler, corev1.EventTypeWarning, model.FailedTriggerRolloutEventReason, err.Error())
 
 		return autoscaling.Requeue, err
 	}
+	log.Debugf("[AUTOSCALING] Successfully attached scaling hash annotations to deployment template for gvk: %s, name: %s", targetGVK.String(), autoscalerInternal.Spec().TargetRef.Name)
 
-	// Propagating information about the rollout
-	log.Infof("Successfully triggered rollout for autoscaler: %s, gvk: %s, name: %s", autoscalerInternal.ID(), targetGVK.String(), autoscalerInternal.Spec().TargetRef.Name)
-	telemetryVerticalRolloutTriggered.Inc(target.Namespace, target.Name, autoscalerInternal.Name(), "ok", le.JoinLeaderValue)
-	u.eventRecorder.Eventf(podAutoscaler, corev1.EventTypeNormal, model.SuccessfulTriggerRolloutEventReason, "Successfully triggered rollout on target:%s/%s", targetGVK.String(), autoscalerInternal.Spec().TargetRef.Name)
+	// Apply patch to the pods to apply the recommendations and attach the scaling hash annotations
+	for _, pod := range pods {
+		err = u.patchPod(ctx, pod, recommendationID, autoscalerInternal.ScalingValues().Vertical.ContainerResources)
+		if err != nil {
+			err = fmt.Errorf("failed to patch pod %s/%s for autoscaler: %s, gvk: %s, name: %s, err: %v", pod.Namespace, pod.Name, autoscalerInternal.ID(), targetGVK.String(), autoscalerInternal.Spec().TargetRef.Name, err)
+			telemetryVerticalRolloutTriggered.Inc(target.Namespace, target.Name, autoscalerInternal.Name(), "error", le.JoinLeaderValue)
+			autoscalerInternal.UpdateFromVerticalAction(nil, err)
+			u.eventRecorder.Event(podAutoscaler, corev1.EventTypeWarning, model.FailedTriggerRolloutEventReason, err.Error())
+		}
 
+		log.Infof("Successfully sent patches to pod %s/%s for autoscaler: %s, gvk: %s, name: %s", pod.Namespace, pod.Name, autoscalerInternal.ID(), targetGVK.String(), autoscalerInternal.Spec().TargetRef.Name)
+		telemetryVerticalRolloutTriggered.Inc(target.Namespace, target.Name, autoscalerInternal.Name(), "ok", le.JoinLeaderValue)
+		u.eventRecorder.Eventf(podAutoscaler, corev1.EventTypeNormal, model.SuccessfulTriggerRolloutEventReason, "Successfully patched pod %s/%s on target:%s/%s", pod.Namespace, pod.Name, targetGVK.String(), autoscalerInternal.Spec().TargetRef.Name)
+	}
+
+	log.Debugf("[AUTOSCALING] Successfully sent patches to all pods for autoscaler: %s, gvk: %s, name: %s", autoscalerInternal.ID(), targetGVK.String(), autoscalerInternal.Spec().TargetRef.Name)
 	autoscalerInternal.UpdateFromVerticalAction(&datadoghqcommon.DatadogPodAutoscalerVerticalAction{
 		Time:    metav1.NewTime(patchTime),
 		Version: recommendationID,
@@ -242,4 +256,95 @@ func getVerticalPatchingStrategy(autoscalerInternal *model.PodAutoscalerInternal
 
 	// No update strategy defined, defaulting to auto
 	return datadoghqcommon.DatadogPodAutoscalerAutoUpdateStrategy, ""
+}
+
+func (u *verticalController) patchPod(ctx context.Context, pod *workloadmeta.KubernetesPod, recommendationID string, containerResources []datadoghqcommon.DatadogPodAutoscalerContainerResources) error {
+	// Create the containers patch data
+	containers := []map[string]interface{}{}
+
+	// note: containers may not be reordered on resize
+	// unfortunately containerResources are not given in order
+	for _, c := range pod.Containers {
+		for _, reco := range containerResources {
+			if reco.Name != c.Name {
+				continue
+			}
+
+			// Collect requests
+			reqs := map[string]string{}
+			for res, q := range reco.Requests {
+				if !q.IsZero() {
+					reqs[string(res)] = q.String()
+				}
+			}
+
+			// Collect limits
+			lims := map[string]string{}
+			for res, q := range reco.Limits {
+				if !q.IsZero() {
+					lims[string(res)] = q.String()
+				}
+			}
+
+			resources := map[string]interface{}{}
+			if len(reqs) > 0 {
+				resources["requests"] = reqs
+			}
+			if len(lims) > 0 {
+				resources["limits"] = lims
+			}
+
+			containerMap := map[string]interface{}{
+				"name": c.Name,
+			}
+			if len(resources) > 0 {
+				containerMap["resources"] = resources
+			}
+
+			containers = append(containers, containerMap)
+			break
+		}
+	}
+
+	containersPatch, err := json.Marshal(map[string]interface{}{
+		"spec": map[string]interface{}{
+			"containers": containers,
+		},
+	})
+
+	if err != nil {
+		return fmt.Errorf("failed to marshal patch data: %w", err)
+	}
+	log.Debugf("[AUTOSCALING] Containers patch: %s", containersPatch)
+
+	// Create the metadata patch data
+	metadataPatch, err := json.Marshal(map[string]interface{}{
+		"metadata": map[string]interface{}{
+			"annotations": map[string]string{
+				model.RolloutTimestampAnnotation: u.clock.Now().Format(time.RFC3339),
+				model.RecommendationIDAnnotation: recommendationID,
+			},
+		},
+	})
+	if err != nil {
+		return fmt.Errorf("failed to marshal patch data: %w", err)
+	}
+	log.Debugf("[AUTOSCALING] Metadata patch: %s", metadataPatch)
+
+	// Patching with the "resize" subresource allows us to use the in-place pod resize functionality if available
+	// but does NOT allow us to attach the scaling hash annotations to the pod. Thus, we need to patch the pod metadata separately.
+
+	// First patch (resources)
+	_, err = u.dynamicClient.Resource(podGVR).Namespace(pod.Namespace).Patch(ctx, pod.Name, types.StrategicMergePatchType, containersPatch, metav1.PatchOptions{}, "resize")
+	if err != nil {
+		return fmt.Errorf("failed to send resources patch for pod %s/%s: %w", pod.Namespace, pod.Name, err)
+	}
+
+	// Second patch (metadata)
+	_, err = u.dynamicClient.Resource(podGVR).Namespace(pod.Namespace).Patch(ctx, pod.Name, types.StrategicMergePatchType, metadataPatch, metav1.PatchOptions{})
+	if err != nil {
+		return fmt.Errorf("failed to send metadata patch for pod %s/%s: %w", pod.Namespace, pod.Name, err)
+	}
+
+	return nil
 }

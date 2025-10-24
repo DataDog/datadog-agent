@@ -59,6 +59,7 @@ func NewPodPatcher(store *store, isLeader func() bool, client dynamic.Interface,
 }
 
 func (pa podPatcher) ApplyRecommendations(pod *corev1.Pod) (bool, error) {
+	log.Debugf("Applying recommendations to pod %s/%s", pod.Namespace, pod.Name)
 	autoscaler, err := pa.findAutoscaler(pod)
 	if err != nil {
 		return false, err
@@ -101,6 +102,7 @@ func (pa podPatcher) ApplyRecommendations(pod *corev1.Pod) (bool, error) {
 
 	// Even if annotation matches, we still verify the resources are correct, in case the POD was modified.
 	for _, reco := range autoscaler.ScalingValues().Vertical.ContainerResources {
+		log.Debugf("Patching pod %s/%s with recommendation for container %s", pod.Namespace, pod.Name, reco.Name)
 		patched = patchPod(reco, pod) || patched
 	}
 
@@ -199,6 +201,7 @@ func (pa podPatcher) observedPodCallback(ctx context.Context, pod *workloadmeta.
 // K8s guarantees that the name for an init container or normal container are unique among all containers.
 // It means that dispatching recommendations just by container names is sufficient
 func patchPod(reco datadoghqcommon.DatadogPodAutoscalerContainerResources, pod *corev1.Pod) (patched bool) {
+	log.Debugf("[AUTOSCALING] Patching pod %s/%s with recommendations: %+v", pod.Namespace, pod.Name, reco)
 	for i := range pod.Spec.Containers {
 		cont := &pod.Spec.Containers[i]
 		if cont.Name == reco.Name {
