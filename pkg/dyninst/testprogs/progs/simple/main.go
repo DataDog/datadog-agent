@@ -38,6 +38,9 @@ func main() {
 	PointerSmallChainArg(ptr2)
 	noArgs()
 	usesMapsOfMapsThatDoNotAppearAsArguments()
+	templateTest(User{ID: 42, Name: "Alice"}, 100)
+	result := templateTest2(User{ID: 42, Name: "Alice"}, 100)
+	fmt.Println(result)
 }
 
 //go:noinline
@@ -143,4 +146,20 @@ func usesMapsOfMapsThatDoNotAppearAsArguments() map[byte]map[int]aStructNotUsedA
 	return map[byte]map[int]aStructNotUsedAsAnArgument{
 		'a': m["a"],
 	}
+}
+
+type User struct {
+	ID   int
+	Name string
+}
+
+//go:noinline
+func templateTest(user User, count int) {
+	fmt.Printf("User: %v, Count: %d\n", user, count)
+}
+
+//go:noinline
+func templateTest2(user User, count int) (result int16) {
+	result = 123
+	return
 }

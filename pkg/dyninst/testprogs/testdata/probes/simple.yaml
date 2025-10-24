@@ -77,3 +77,53 @@ probes:
   captureSnapshot: true
   where:
     methodName: main.usesMapsOfMapsThatDoNotAppearAsArguments
+- id: templateTest
+  type: LOG_PROBE
+  where:
+    methodName: main.templateTest
+  template: "User: {user}, Count: {count}"
+  segments:
+    - str: "User: "
+    - json:
+        "ref": "user"
+      dsl: "user"
+    - str: ", Count: "
+    - json:
+        "ref": "count"
+      dsl: "count"
+- id: templateTest2
+  type: LOG_PROBE
+  where:
+    methodName: main.templateTest2
+  template: "User: {user}, Count: {count}, Result: {result}"
+  segments:
+    - str: "User: "
+    - json:
+        "ref": "user"
+      dsl: "user"
+    - str: ", Count: "
+    - json:
+        "ref": "count"
+      dsl: "count"
+    - str: ", Result: "
+    - json:
+        "ref": "result"
+      dsl: "result"
+- id: templateTest3
+  type: LOG_PROBE
+  where:
+    methodName: main.templateTest2
+  template: "User: {user}, Count: {count}, Result: {result}"
+  segments:
+    - str: "Result: "
+    - json:
+        "ref": "result"
+      dsl: "result"
+    - str: ", User: "
+    - json:
+        "ref": "user"
+      dsl: "user"
+    - str: ", Count: "
+    - json:
+        "ref": "count"
+      dsl: "count"

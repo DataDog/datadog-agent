@@ -243,6 +243,13 @@ var defaultRedactors = []jsonRedactor{
 			`UnknownType(0x[GoRuntimeType])`,
 		),
 	),
+	redactor(
+		exactMatcher(`/message`),
+		regexpStringReplacer(
+			`0x[[:xdigit:]]+`,
+			`0x[addr]`,
+		),
+	),
 }
 
 func redactGoID(v jsontext.Value) jsontext.Value {
