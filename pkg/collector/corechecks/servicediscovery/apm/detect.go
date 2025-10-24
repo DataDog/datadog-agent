@@ -11,7 +11,6 @@ package apm
 import (
 	"bufio"
 	"io"
-	"io/fs"
 	"os"
 	"regexp"
 	"strconv"
@@ -21,7 +20,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/usm"
 	"github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // Instrumentation represents the state of APM instrumentation for a service.
@@ -40,11 +38,8 @@ var (
 	detectorMap = map[language.Language]detector{
 		language.DotNet: dotNetDetector,
 		language.Java:   javaDetector,
-		language.Node:   nodeDetector,
 		language.Python: pythonDetector,
 	}
-
-	nodeAPMCheckRegex = regexp.MustCompile(`"dd-trace"`)
 )
 
 // Detect attempts to detect the type of APM instrumentation for the given service.
@@ -96,52 +91,6 @@ func pythonDetector(ctx usm.DetectionContext) Instrumentation {
 	defer mapsFile.Close()
 
 	return pythonDetectorFromMapsReader(mapsFile)
-}
-
-// isNodeInstrumented parses the provided `os.File` trying to find an
-// entry for APM NodeJS instrumentation. Returns true if finding such
-// an entry, false otherwise.
-func isNodeInstrumented(f fs.File) bool {
-	reader, err := usm.SizeVerifiedReader(f)
-	if err != nil {
-		return false
-	}
-
-	bufferedReader := bufio.NewReader(reader)
-
-	return nodeAPMCheckRegex.MatchReader(bufferedReader)
-}
-
-// nodeDetector checks if a service has APM NodeJS instrumentation.
-//
-// To check for APM instrumentation, we try to find a package.json in
-// the parent directories of the service. If found, we then check for a
-// `dd-trace` entry to be present.
-func nodeDetector(ctx usm.DetectionContext) Instrumentation {
-	pkgJSONPath, ok := ctx.ContextMap[usm.NodePackageJSONPath]
-	if !ok {
-		log.Debugf("could not get package.json path from context map")
-		return None
-	}
-
-	fs, ok := ctx.ContextMap[usm.ServiceSubFS]
-	if !ok {
-		log.Debugf("could not get SubFS for package.json")
-		return None
-	}
-
-	pkgJSONFile, err := fs.(usm.SubDirFS).Open(pkgJSONPath.(string))
-	if err != nil {
-		log.Debugf("could not open package.json: %s", err)
-		return None
-	}
-	defer pkgJSONFile.Close()
-
-	if isNodeInstrumented(pkgJSONFile) {
-		return Provided
-	}
-
-	return None
 }
 
 var javaAgentRegex = regexp.MustCompile(`-javaagent:.*(?:datadog|dd-java-agent|dd-trace-agent)\S*\.jar`)
