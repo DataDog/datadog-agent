@@ -251,6 +251,12 @@ func (api *API) EvtNext(
 // EvtClose fake
 // https://learn.microsoft.com/en-us/windows/win32/api/winevt/nf-winevt-evtclose
 func (api *API) EvtClose(h windows.Handle) {
+	// is handle a bookmark?
+	bookmark, err := api.getBookmarkByHandle(evtapi.EventBookmarkHandle(h))
+	if err == nil {
+		delete(api.bookmarkHandles, bookmark.handle)
+		return
+	}
 	// is handle an event?
 	event, err := api.getEventRecordByHandle(evtapi.EventRecordHandle(h))
 	if err == nil {
