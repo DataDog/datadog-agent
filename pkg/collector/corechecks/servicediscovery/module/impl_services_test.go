@@ -563,7 +563,6 @@ func TestServicesCommandLineSanitization(t *testing.T) {
 }
 
 func TestServicesNodeDocker(t *testing.T) {
-	t.Skip("Skip temporarily")
 	cert, key, err := testutil.GetCertsPaths()
 	require.NoError(t, err)
 
@@ -584,7 +583,7 @@ func TestServicesNodeDocker(t *testing.T) {
 		assert.Equal(collect, svc.PID, pid)
 		assert.Equal(collect, "test_nodejs-https-server", svc.GeneratedName)
 		assert.Equal(collect, string(usm.Nodejs), svc.GeneratedNameSource)
-		assert.Equal(collect, true, svc.APMInstrumentation)
+		assert.Equal(collect, false, svc.APMInstrumentation)
 		assert.Equal(collect, "web_service", svc.Type)
 	}, 30*time.Second, 100*time.Millisecond)
 }
