@@ -12,6 +12,7 @@ import (
 
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logimpl "github.com/DataDog/datadog-agent/comp/core/log/impl"
+	secretsnoop "github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	forwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags"
@@ -53,7 +54,8 @@ type ServerlessDemultiplexer struct {
 func InitAndStartServerlessDemultiplexer(keysPerDomain map[string][]utils.APIKeys, forwarderTimeout time.Duration, tagger tagger.Component, shouldForceFlushAllOnForceFlushToSerializer bool) (*ServerlessDemultiplexer, error) {
 	bufferSize := pkgconfigsetup.Datadog().GetInt("aggregator_buffer_size")
 	logger := logimpl.NewTemporaryLoggerWithoutInit()
-	forwarder, err := forwarder.NewSyncForwarder(pkgconfigsetup.Datadog(), logger, keysPerDomain, forwarderTimeout)
+	secrets := secretsnoop.NewComponent().Comp
+	forwarder, err := forwarder.NewSyncForwarder(pkgconfigsetup.Datadog(), logger, secrets, keysPerDomain, forwarderTimeout)
 	if err != nil {
 		return nil, err
 	}

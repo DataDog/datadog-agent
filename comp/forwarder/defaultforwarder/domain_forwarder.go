@@ -17,6 +17,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/internal/retry"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
@@ -32,6 +33,7 @@ var (
 type domainForwarder struct {
 	config                    config.Component
 	log                       log.Component
+	secrets                   secrets.Component
 	isRetrying                *atomic.Bool
 	domain                    string
 	isMRF                     bool
@@ -56,6 +58,7 @@ type domainForwarder struct {
 func newDomainForwarder(
 	config config.Component,
 	log log.Component,
+	secrets secrets.Component,
 	domain string,
 	mrf bool,
 	isLocal bool,
@@ -67,6 +70,7 @@ func newDomainForwarder(
 	return &domainForwarder{
 		config:                    config,
 		log:                       log,
+		secrets:                   secrets,
 		isRetrying:                atomic.NewBool(false),
 		isMRF:                     mrf,
 		isLocal:                   isLocal,
@@ -217,7 +221,7 @@ func (f *domainForwarder) Start() error {
 	f.init()
 
 	for i := 0; i < f.numberOfWorkers; i++ {
-		w := NewWorker(f.config, f.log, f.highPrio, f.lowPrio, f.requeuedTransaction, f.blockedList, f.pointCountTelemetry, f.Client)
+		w := NewWorker(f.config, f.log, f.secrets, f.highPrio, f.lowPrio, f.requeuedTransaction, f.blockedList, f.pointCountTelemetry, f.Client)
 		w.Start()
 		f.workers = append(f.workers, w)
 	}

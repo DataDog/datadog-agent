@@ -16,6 +16,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/endpoints"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/resolver"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
@@ -67,6 +68,7 @@ func initForwarderHealthExpvars() {
 type forwarderHealth struct {
 	log                   log.Component
 	config                config.Component
+	secrets               secrets.Component
 	health                *health.Handle
 	stop                  chan bool
 	stopped               chan struct{}
@@ -323,6 +325,14 @@ func (fh *forwarderHealth) checkValidAPIKeys(domain string, keys []string) (apiE
 			validKey = true
 		} else {
 			fh.log.Warnf("api_key '%s' for domain %s is invalid", scrubbedAPIKey, domain)
+
+			// Trigger throttled secret refresh on invalid API key
+			result, err := fh.secrets.Refresh(false)
+			if err != nil {
+				fh.log.Debugf("Secret refresh after invalid API key failed: %v", err)
+			} else if result != "" {
+				fh.log.Infof("Secret refresh after invalid API key completed")
+			}
 		}
 	}
 
