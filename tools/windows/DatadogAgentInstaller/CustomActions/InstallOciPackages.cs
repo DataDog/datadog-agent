@@ -16,6 +16,7 @@ namespace Datadog.CustomActions
         private readonly string _site;
         private readonly string _apiKey;
         private readonly string _overrideRegistryUrl;
+        private readonly string _remoteUpdates;
         private readonly RollbackDataStore _rollbackDataStore;
 
         public InstallOciPackages(ISession session)
@@ -25,6 +26,7 @@ namespace Datadog.CustomActions
             _site = session.Property("SITE");
             _apiKey = session.Property("APIKEY");
             _overrideRegistryUrl = session.Property("DD_INSTALLER_REGISTRY_URL");
+            _remoteUpdates = session.Property("DD_REMOTE_UPDATES");
             _installerExecutable = System.IO.Path.Combine(installDir, "bin", "datadog-installer.exe");
             _rollbackDataStore = new RollbackDataStore(session, "InstallOciPackages", new FileSystemServices(), new ServiceController());
         }
@@ -48,9 +50,10 @@ namespace Datadog.CustomActions
             // Skip agent installation - we only want the OCI packages
             env["DD_NO_AGENT_INSTALL"] = "true";
 
-            // there is no var for remote updates, default is false from MSI
-            env["DD_REMOTE_UPDATES"] = "false";
-
+            if (!string.IsNullOrEmpty(_remoteUpdates))
+            {
+                env["DD_REMOTE_UPDATES"] = _remoteUpdates;
+            }
             if (!string.IsNullOrEmpty(_apiKey))
             {
                 env["DD_API_KEY"] = _apiKey;

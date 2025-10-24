@@ -129,6 +129,10 @@ namespace WixSetup.Datadog_Agent
                 {
                     AttributesDefinition = "Secure=yes"
                 },
+                new Property("DD_REMOTE_UPDATES")
+                {
+                    AttributesDefinition = "Secure=yes"
+                },
                 new Property("PURGE")
                 {
                     AttributesDefinition = "Secure=yes"
