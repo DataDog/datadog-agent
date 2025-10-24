@@ -327,6 +327,8 @@ func TestDWARFLineResolution(t *testing.T) {
 	info, err := os.Stat(binPath)
 	require.NoError(t, err)
 
+	key := getStatInfo(t, info)
+
 	binaryInfo, err := cache.get(key, binPath)
 	require.NoError(t, err)
 	require.NotNil(t, binaryInfo)
