@@ -46,7 +46,6 @@ def main():
     parser.add_argument("--output", required=True, help="The output file, mandatory")
     parser.add_argument("--usage_map", required=True, help="The changes output file, mandatory.")
     parser.add_argument("--metadata", action='append', help="path to a metadata bundle")
-    parser.add_argument("--purl", action='append', help="the PURL for this metadata")
     options = parser.parse_args()
 
     attrs = AttrUsage()

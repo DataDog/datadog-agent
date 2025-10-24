@@ -9,17 +9,21 @@ local_repository = use_repo_rule("//third_party/bazel/tools/build_defs/repo:loca
 # Instead of the canonical rules_license, we use the version from supply-chain.
 # This allows mixing both old and new license rules during the multi-year
 # migration between the two styles.
-# bazel_dep(name = "package_metadata", version = "0.0.5")
-http_archive(
-    name = "package_metadata",
+bazel_dep(name = "package_metadata", version = "0.0.5")
+
+# We are currently using one that is ahead of the latest BCR release
+archive_override(
+    module_name = "package_metadata",
     sha256 = "5bd0cc7594ea528fd28f98d82457f157827d48cc20e07bcfdbb56072f35c8f67",
     strip_prefix = "supply-chain-0.0.6/metadata",
     urls = ["https://github.com/bazel-contrib/supply-chain/archive/refs/tags/v0.0.6.tar.gz"],
 )
 
-# the rules_license overlay will never be available in the BCR, for obvious name confusion reasons.
-http_archive(
-    name = "rules_license",
+# The rules_license overlay will never be available in the BCR, for obvious name confusion reasons.
+# We are temporarily using a development fork
+bazel_dep(name = "rules_license", version = "1.0.0")
+archive_override(
+    module_name = "rules_license",
     # sha256 = TBD,
     strip_prefix = "supply-chain-dd_test/rules_license",
     urls = ["https://github.com/aiuto/supply-chain/archive/refs/tags/dd_test.tar.gz"],
