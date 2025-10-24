@@ -69,12 +69,12 @@ type reqs struct {
 	Comp profilerdef.Component
 }
 
-func getProfiler(t testing.TB, overrideConfig map[string]interface{}, overrideSysProbe map[string]interface{}) profiler {
+func getProfiler(t testing.TB, overrideSysProbe map[string]interface{}) profiler {
 	deps := fxutil.Test[reqs](
 		t,
 		fx.Provide(func() log.Component { return logmock.New(t) }),
 		fx.Provide(func() config.Component {
-			return config.NewMockWithOverrides(t, overrideConfig)
+			return config.NewMockWithOverrides(t, map[string]interface{}{})
 		}),
 		fx.Replace(sysprobeconfigimpl.MockParams{
 			Overrides: overrideSysProbe,
@@ -124,7 +124,7 @@ func TestProfileSetting(t *testing.T) {
 	for _, s := range scenarios {
 		t.Run(s.name, func(t *testing.T) {
 			fb := helpers.NewFlareBuilderMockWithArgs(t, true, types.FlareArgs{})
-			profiler := getProfiler(t, map[string]interface{}{}, map[string]interface{}{})
+			profiler := getProfiler(t, map[string]interface{}{})
 			profiler.settingsComponent.SetRuntimeSetting("runtime_block_profile_rate", s.oldVal, model.SourceDefault)
 
 			deferFunc := profiler.setProfilerSetting("runtime_block_profile_rate", s.newVal, fb)
@@ -276,6 +276,7 @@ func TestTimeout(t *testing.T) {
 		t.Run(s.name, func(t *testing.T) {
 			cfg := createGenericConfig(t)
 			cfg.SetWithoutSource("flare.profile_overhead_runtime", baseTimeout)
+
 			fArgs := types.FlareArgs{
 				ProfileDuration: s.profileDuration,
 			}
@@ -283,7 +284,7 @@ func TestTimeout(t *testing.T) {
 				cfg.SetWithoutSource(k, v)
 			}
 			fb := helpers.NewFlareBuilderMockWithArgs(t, true, fArgs)
-			profiler := getProfiler(t, cfg.AllSettings(), s.extraSysCfgs)
+			profiler := getProfiler(t, s.extraSysCfgs)
 
 			timeout := profiler.timeout(fb)
 
