@@ -35,6 +35,7 @@ type cliParams struct {
 	args []string
 
 	verbose bool
+	json    bool
 }
 
 // Commands returns a slice of subcommands for the 'agent' command.
@@ -63,6 +64,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		},
 	}
 	configCheckCommand.Flags().BoolVarP(&cliParams.verbose, "verbose", "v", false, "print additional debug info")
+	configCheckCommand.Flags().BoolVarP(&cliParams.json, "json", "j", false, "print out raw json")
 
 	return []*cobra.Command{configCheckCommand}
 }
@@ -72,7 +74,7 @@ func run(cliParams *cliParams, log log.Component, client ipc.HTTPClient) error {
 		return fullConfigCmd(cliParams, log, client)
 	}
 
-	return checkCmd(cliParams, log, client)
+	return singleCheckCmd(cliParams, log, client)
 }
 
 func fullConfigCmd(cliParams *cliParams, _ log.Component, client ipc.HTTPClient) error {
@@ -95,13 +97,29 @@ func fullConfigCmd(cliParams *cliParams, _ log.Component, client ipc.HTTPClient)
 	var b bytes.Buffer
 	color.Output = &b
 
-	flare.PrintConfigCheck(color.Output, cr, cliParams.verbose)
+	if cliParams.json {
+		// gather every check config
+		configs := make([]*integration.Config, len(cr.Configs))
+		for i := range cr.Configs {
+			configs[i] = &cr.Configs[i].Config
+		}
+
+		jsonConfigs, err := json.MarshalIndent(configs, "", "  ")
+		if err != nil {
+			return err
+		}
+
+		fmt.Fprintln(color.Output, string(jsonConfigs))
+
+	} else {
+		flare.PrintConfigCheck(color.Output, cr, cliParams.verbose)
+	}
 
 	fmt.Println(b.String())
 	return nil
 }
 
-func checkCmd(cliParams *cliParams, _ log.Component, client ipc.HTTPClient) error {
+func singleCheckCmd(cliParams *cliParams, _ log.Component, client ipc.HTTPClient) error {
 	if len(cliParams.args) > 1 {
 		return fmt.Errorf("only one check must be specified")
 	}
@@ -128,7 +146,16 @@ func checkCmd(cliParams *cliParams, _ log.Component, client ipc.HTTPClient) erro
 			var b bytes.Buffer
 			color.Output = &b
 
-			flare.PrintConfigWithInstanceIDs(color.Output, configResponse.Config, configResponse.InstanceIDs, "")
+			if cliParams.json {
+				jsonConfig, err := json.MarshalIndent(configResponse.Config, "", "  ")
+				if err != nil {
+					return err
+				}
+
+				fmt.Fprintln(color.Output, string(jsonConfig))
+			} else {
+				flare.PrintConfigWithInstanceIDs(color.Output, configResponse.Config, configResponse.InstanceIDs, "")
+			}
 
 			fmt.Println(b.String())
 			return nil
@@ -136,5 +163,5 @@ func checkCmd(cliParams *cliParams, _ log.Component, client ipc.HTTPClient) erro
 	}
 
 	// return an error if the name wasn't found in the checks list
-	return fmt.Errorf("no check with the name %q was found", cliParams.args[0])
+	return fmt.Errorf("no check named %q was found", cliParams.args[0])
 }
