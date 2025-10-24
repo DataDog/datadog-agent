@@ -19,6 +19,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"time"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
@@ -32,10 +33,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-var podLogsBasePath = "/var/log/pods"
-var dockerLogsBasePathNix = "/var/lib/docker"
-var dockerLogsBasePathWin = "c:\\programdata\\docker"
-var podmanRootfullLogsBasePath = "/var/lib/containers"
+var (
+	podLogsBasePath            = "/var/log/pods"
+	dockerLogsBasePathNix      = "/var/lib/docker"
+	dockerLogsBasePathWin      = "c:\\programdata\\docker"
+	podmanRootfullLogsBasePath = "/var/lib/containers"
+)
 
 // makeFileTailer makes a file-based tailer for the given source, or returns
 // an error if it cannot do so (e.g., due to permission errors)
@@ -53,8 +56,12 @@ func (tf *factory) makeFileSource(source *sources.LogSource) (*sources.LogSource
 	// The user configuration consulted is different depending on what we are
 	// logging.  Note that we assume that by the time we have gotten a source
 	// from AD, it is clear what we are logging.  The `Wait` here should return
-	// quickly.
-	logWhat := tf.cop.Wait(context.Background())
+	// quickly. But it doesn't if there is no docker socket, in case of Podman for example.
+	// Make expiring context to run detection on.
+	to := pkgconfigsetup.Datadog().GetInt("logs_config.container_runtime_waiting_timeout")
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(to)*time.Second)
+	defer cancel()
+	logWhat := tf.cop.Wait(ctx)
 
 	switch logWhat {
 	case containersorpods.LogContainers:
