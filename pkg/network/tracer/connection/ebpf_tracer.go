@@ -327,7 +327,7 @@ func newEbpfTracer(config *config.Config, _ telemetryComponent.Component) (Trace
 	return tr, nil
 }
 
-type lookupCertCb = func(certID uint32) unique.Handle[ssluprobes.CertInfo]
+type lookupCertCb = func(certID uint32, refreshTimestamp bool) unique.Handle[ssluprobes.CertInfo]
 
 func initClosedConnEventHandler(config *config.Config, lookupCert lookupCertCb, closedCallback func(*network.ConnectionStats), pool ddsync.Pool[network.ConnectionStats], extractor *batchExtractor) (*perf.EventHandler, error) {
 	connHasher := newCookieHasher()
@@ -348,7 +348,7 @@ func initClosedConnEventHandler(config *config.Config, lookupCert lookupCertCb, 
 		ct := (*netebpf.Conn)(unsafe.Pointer(&buf[0]))
 		c.FromConn(ct)
 
-		c.CertInfo = lookupCert(ct.Conn_stats.Cert_id)
+		c.CertInfo = lookupCert(ct.Conn_stats.Cert_id, false)
 		connHasher.Hash(c)
 		closedCallback(c)
 	}
@@ -500,6 +500,8 @@ func (t *ebpfTracer) GetConnections(buffer *network.ConnectionBuffer, filter fun
 
 	var tcp4, tcp6, udp4, udp6 float64
 	entries := t.conns.IterateWithBatchSize(1000)
+	refreshedCertIDs := make(map[uint32]struct{})
+
 	for entries.Next(key, stats) {
 		if cookie, exists := connsByTuple[*key]; exists && cookie == stats.Cookie {
 			// already seen the connection in current batch processing,
@@ -538,7 +540,13 @@ func (t *ebpfTracer) GetConnections(buffer *network.ConnectionBuffer, filter fun
 		if retrans, ok := t.getTCPRetransmits(key, seen); ok && conn.Type == network.TCP {
 			conn.Monotonic.Retransmits = retrans
 		}
-		conn.CertInfo = t.getSSLCertInfo(stats.Cert_id)
+
+		// use a map to only refresh cert timestamps once per connections check
+		_, refreshTimestamp := refreshedCertIDs[stats.Cert_id]
+		if refreshTimestamp {
+			refreshedCertIDs[stats.Cert_id] = struct{}{}
+		}
+		conn.CertInfo = t.getSSLCertInfo(stats.Cert_id, refreshTimestamp)
 
 		*buffer.Next() = *conn
 	}
@@ -815,29 +823,63 @@ func (t *ebpfTracer) getTCPRetransmits(tuple *netebpf.ConnTuple, seen map[netebp
 	return retransmits, true
 }
 
-func (t *ebpfTracer) getSSLCertInfo(certID uint32) unique.Handle[ssluprobes.CertInfo] {
+func (t *ebpfTracer) lookupSSLCertItem(certID uint32) (*netebpf.CertItem, error) {
 	if t.sslCertInfoMap == nil {
-		return unique.Handle[ssluprobes.CertInfo]{}
+		return nil, nil
 	}
 	if certID == 0 {
-		return unique.Handle[ssluprobes.CertInfo]{}
+		return nil, nil
 	}
-	var certItem netebpf.CertItem
 
+	var certItem netebpf.CertItem
 	if err := t.sslCertInfoMap.Lookup(&certID, &certItem); err != nil {
 		if err == ebpf.ErrKeyNotExist {
 			EbpfTracerTelemetry.sslCertMissed.Inc()
-			return unique.Handle[ssluprobes.CertInfo]{}
+			return nil, nil
 		}
+		return nil, err
+	}
 
-		if log.ShouldLog(log.TraceLvl) {
-			log.Tracef("error retrieving certItem: %s", err)
+	return &certItem, nil
+}
+
+func (t *ebpfTracer) refreshCertTimestamp(certID uint32, certItem *netebpf.CertItem) error {
+	now, err := ddebpf.NowNanoseconds()
+	if err != nil {
+		return fmt.Errorf("refreshCert failed to get NowNanoseconds: %w", err)
+	}
+
+	certItem.Timestamp = uint64(now)
+	err = t.sslCertInfoMap.Update(&certID, certItem, ebpf.UpdateExist)
+	if err != nil {
+		// the map cleaner swiped this key out from under us?
+		if err == ebpf.ErrKeyNotExist {
+			return fmt.Errorf("tried to refresh timestamp for certID=%d but it was already deleted", certID)
 		}
+		return fmt.Errorf("failed to refresh timestamp for certID=%d: %w", certID, err)
+	}
+	return nil
+}
+
+func (t *ebpfTracer) getSSLCertInfo(certID uint32, refreshTimestamp bool) unique.Handle[ssluprobes.CertInfo] {
+	certItem, err := t.lookupSSLCertItem(certID)
+	if err != nil {
+		log.Warnf("getSSLCertInfoAndRefresh failed to lookupSSLCertItem: %s", err)
+		return unique.Handle[ssluprobes.CertInfo]{}
+	}
+	if certItem == nil {
 		return unique.Handle[ssluprobes.CertInfo]{}
 	}
 
 	var certInfo ssluprobes.CertInfo
-	certInfo.FromCertItem(&certItem)
+	certInfo.FromCertItem(certItem)
+
+	if refreshTimestamp {
+		err := t.refreshCertTimestamp(certID, certItem)
+		if err != nil {
+			log.Warnf("getSSLCertInfoAndRefresh failed to refreshCert: %w", err)
+		}
+	}
 
 	return unique.Make(certInfo)
 }

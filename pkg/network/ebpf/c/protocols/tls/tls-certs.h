@@ -48,17 +48,6 @@ static __always_inline void SSL_add_cert(void *ssl_ctx, data_t data) {
     cert_t cert = {0};
     if (parse_cert(data, &cert)) {
         log_debug("SSL_add_cert failed to parse the cert");
-
-
-        for (int i = 0; i < 16; i++) {
-            __u64 buf = 0;
-            if (data_read(&buf, &data, 4)) {
-                log_debug("SSL_add_cert failed to read the cert");
-                return;
-            }
-            log_debug("SSL_add_cert: %llx", buf);
-        }
-
         return;
     }
 
@@ -67,13 +56,13 @@ static __always_inline void SSL_add_cert(void *ssl_ctx, data_t data) {
         ssl_handshake_state_t state = {0};
 
         __u64 timestamp = bpf_ktime_get_ns();
-        state.timestamp = timestamp;
 
+        state.cert_id = cert.cert_id;
+
+        state.cert_item.timestamp = timestamp;
         state.cert_item.serial = cert.serial;
         state.cert_item.domain = cert.domain;
         state.cert_item.validity = cert.validity;
-
-        state.cert_id = cert.cert_id;
 
         bpf_map_update_with_telemetry(ssl_cert_info, &cert.cert_id, &state.cert_item, BPF_ANY);
         bpf_map_update_with_telemetry(ssl_handshake_state, &ssl_ctx, &state, BPF_ANY);

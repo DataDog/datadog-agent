@@ -56,14 +56,14 @@ typedef struct {
 } cert_t;
 
 typedef struct {
+    __u64 timestamp;
+
     cert_serial_t serial;
     cert_domain_t domain;
     cert_validity_t validity;
 } cert_item_t;
 
-
 typedef struct {
-    __u64 timestamp;
     cert_id_t cert_id;
 
     cert_item_t cert_item;
