@@ -28,7 +28,6 @@ typedef struct {
     __u64 confirm_return_count;
     __u64 confirm_return_success_count;
     __u64 confirm_return_failed_count;
-    __u64 confirm_direct_count;
 } conntrack_telemetry_t;
 
 

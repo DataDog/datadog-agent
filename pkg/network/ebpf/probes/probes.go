@@ -189,8 +189,6 @@ const (
 	ConntrackConfirmEntry ProbeFuncName = "kprobe__nf_conntrack_confirm"
 	// ConntrackConfirmReturn is the kretprobe for __nf_conntrack_confirm return
 	ConntrackConfirmReturn ProbeFuncName = "kretprobe__nf_conntrack_confirm"
-	// ConntrackConfirmDirect is the kprobe for nf_conntrack_confirm (direct)
-	ConntrackConfirmDirect ProbeFuncName = "kprobe_nf_conntrack_confirm"
 	// ConntrackFillInfo is the probe for dumping existing conntrack entries
 	ConntrackFillInfo ProbeFuncName = "kprobe_ctnetlink_fill_info"
 )

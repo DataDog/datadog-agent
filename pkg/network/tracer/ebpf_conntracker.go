@@ -485,12 +485,6 @@ func getManager(cfg *config.Config, buf io.ReaderAt, opts manager.Options) (*man
 			},
 			{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFFuncName: probes.ConntrackConfirmDirect, // JMWCONNTRACK
-					UID:          "conntracker",
-				},
-			},
-			{
-				ProbeIdentificationPair: manager.ProbeIdentificationPair{
 					EBPFFuncName: probes.ConntrackFillInfo,
 					UID:          "conntracker",
 				},
