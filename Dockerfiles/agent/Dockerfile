@@ -160,7 +160,6 @@ RUN --mount=from=artifacts,target=/artifacts \
  && find /artifacts -maxdepth 1 -name "${DD_AGENT_ARTIFACT}" -exec tar xvf {} -C . \; \
  && rm -rf usr etc/init lib \
     go/ \
-    opt/datadog-agent/embedded/bin/installer \
     opt/datadog-agent/embedded/bin/dd-compile-policy \
     opt/datadog-agent/sources \
     opt/datadog-agent/embedded/share/doc \
