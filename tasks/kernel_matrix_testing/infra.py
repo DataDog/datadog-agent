@@ -262,7 +262,7 @@ def build_alien_infrastructure(alien_vms: Path) -> dict[KMTArchNameOrLocal, Host
                 "",
                 [],
                 vm["ssh_key_path"],
-                cast(KMTArchNameOrLocal, vm["arch"]),
+                cast("KMTArchNameOrLocal", vm["arch"]),
                 instance,
                 ssh_user,
             )
