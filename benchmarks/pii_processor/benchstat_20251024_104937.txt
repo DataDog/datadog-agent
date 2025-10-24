@@ -1,0 +1,42 @@
+goos: darwin
+goarch: arm64
+pkg: github.com/DataDog/datadog-agent/pkg/logs/processor
+cpu: Apple M4 Max
+                                           │ /var/folders/27/n33yr1b10j7bxg5ttzw6n_ch0000gp/T/tmp.kcCRCAbuBm/disabled.txt │ /var/folders/27/n33yr1b10j7bxg5ttzw6n_ch0000gp/T/tmp.kcCRCAbuBm/enabled.txt │
+                                           │                                    sec/op                                    │                                sec/op                                 vs base   │
+ProcessorPIIModes/no_pii/disabled-16                                                                         391.9n ± ∞ ¹
+ProcessorPIIModes/single_pii/disabled-16                                                                     392.1n ± ∞ ¹
+ProcessorPIIModes/multiple_pii/disabled-16                                                                   391.5n ± ∞ ¹
+ProcessorPIIModes/no_pii/enabled-16                                                                                                                                                 25.98µ ± ∞ ¹
+ProcessorPIIModes/single_pii/enabled-16                                                                                                                                             25.67µ ± ∞ ¹
+ProcessorPIIModes/multiple_pii/enabled-16                                                                                                                                           30.39µ ± ∞ ¹
+geomean                                                                                                      391.8n                                                                 27.26µ        ? ² ³
+¹ need >= 6 samples for confidence interval at level 0.95
+² benchmark set differs from baseline; geomeans may not be comparable
+³ ratios must be >0 to compute geomean
+
+                                           │ /var/folders/27/n33yr1b10j7bxg5ttzw6n_ch0000gp/T/tmp.kcCRCAbuBm/disabled.txt │ /var/folders/27/n33yr1b10j7bxg5ttzw6n_ch0000gp/T/tmp.kcCRCAbuBm/enabled.txt │
+                                           │                                     B/op                                     │                                 B/op                                  vs base   │
+ProcessorPIIModes/no_pii/disabled-16                                                                          208.0 ± ∞ ¹
+ProcessorPIIModes/single_pii/disabled-16                                                                      208.0 ± ∞ ¹
+ProcessorPIIModes/multiple_pii/disabled-16                                                                    208.0 ± ∞ ¹
+ProcessorPIIModes/no_pii/enabled-16                                                                                                                                                40.68Ki ± ∞ ¹
+ProcessorPIIModes/single_pii/enabled-16                                                                                                                                            40.88Ki ± ∞ ¹
+ProcessorPIIModes/multiple_pii/enabled-16                                                                                                                                          42.68Ki ± ∞ ¹
+geomean                                                                                                       208.0                                                                41.40Ki        ? ² ³
+¹ need >= 6 samples for confidence interval at level 0.95
+² benchmark set differs from baseline; geomeans may not be comparable
+³ ratios must be >0 to compute geomean
+
+                                           │ /var/folders/27/n33yr1b10j7bxg5ttzw6n_ch0000gp/T/tmp.kcCRCAbuBm/disabled.txt │ /var/folders/27/n33yr1b10j7bxg5ttzw6n_ch0000gp/T/tmp.kcCRCAbuBm/enabled.txt │
+                                           │                                  allocs/op                                   │                              allocs/op                                vs base   │
+ProcessorPIIModes/no_pii/disabled-16                                                                          5.000 ± ∞ ¹
+ProcessorPIIModes/single_pii/disabled-16                                                                      5.000 ± ∞ ¹
+ProcessorPIIModes/multiple_pii/disabled-16                                                                    5.000 ± ∞ ¹
+ProcessorPIIModes/no_pii/enabled-16                                                                                                                                                  514.0 ± ∞ ¹
+ProcessorPIIModes/single_pii/enabled-16                                                                                                                                              527.0 ± ∞ ¹
+ProcessorPIIModes/multiple_pii/enabled-16                                                                                                                                            543.0 ± ∞ ¹
+geomean                                                                                                       5.000                                                                  527.9        ? ² ³
+¹ need >= 6 samples for confidence interval at level 0.95
+² benchmark set differs from baseline; geomeans may not be comparable
+³ ratios must be >0 to compute geomean
