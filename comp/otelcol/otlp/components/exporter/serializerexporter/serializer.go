@@ -133,8 +133,12 @@ func InitSerializer(logger *zap.Logger, cfg *ExporterConfig, sourceProvider sour
 			}
 			setupSerializer(pkgconfig, cfg)
 			setupForwarder(pkgconfig)
-			pkgconfig.Set("logging_frequency", int64(500), pkgconfigmodel.SourceDefault)
 			pkgconfig.Set("skip_ssl_validation", cfg.ClientConfig.InsecureSkipVerify, pkgconfigmodel.SourceFile)
+
+			// Disable regular "Successfully posted payload" logs, since flushing is user-controlled and may happen frequently.
+			// Successful export operations can be monitored with exporterhelper metrics.
+			pkgconfig.Set("logging_frequency", int64(0), pkgconfigmodel.SourceAgentRuntime)
+
 			return pkgconfig
 		}),
 		fx.Provide(func(log *zap.Logger) (logdef.Component, error) {
