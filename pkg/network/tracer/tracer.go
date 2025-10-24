@@ -894,25 +894,20 @@ func (t *Tracer) compareAndLogConntrackMaps() {
 	}
 
 	// Log summary statistics
-	log.Infof("JMW CONNTRACK COMPARISON: conntrack=%d, conntrack2=%d, conntrack3=%d, pending=%d",
+	log.Infof("JMW CONNTRACK COMPARISON: conntrack=%d, conntrack2=%d, pending=%d",
 		comparison.ConntrackEntries,
 		comparison.Conntrack2Entries,
-		comparison.Conntrack3Entries,
 		comparison.PendingConfirmsEntries)
 
 	// Log intersection statistics
-	log.Infof("JMW CONNTRACK INTERSECTIONS: common_1_2=%d, common_1_3=%d, common_2_3=%d, common_all=%d",
-		comparison.CommonEntries12,
-		comparison.CommonEntries13,
-		comparison.CommonEntries23,
-		comparison.CommonEntriesAll)
+	log.Infof("JMW CONNTRACK INTERSECTIONS: common_1_2=%d",
+		comparison.CommonEntries12)
 
 	// Log unique entries (potential issues)
-	if comparison.OnlyInConntrack > 0 || comparison.OnlyInConntrack2 > 0 || comparison.OnlyInConntrack3 > 0 {
-		log.Warnf("JMW CONNTRACK DIFFERENCES: only_in_conntrack=%d, only_in_conntrack2=%d, only_in_conntrack3=%d",
+	if comparison.OnlyInConntrack > 0 || comparison.OnlyInConntrack2 > 0 {
+		log.Warnf("JMW CONNTRACK DIFFERENCES: only_in_conntrack=%d, only_in_conntrack2=%d",
 			comparison.OnlyInConntrack,
-			comparison.OnlyInConntrack2,
-			comparison.OnlyInConntrack3)
+			comparison.OnlyInConntrack2)
 	}
 
 	// Log sample differences for debugging
@@ -929,7 +924,7 @@ func (t *Tracer) compareAndLogConntrackMaps() {
 	// Calculate and log efficiency metrics
 	if comparison.ConntrackEntries > 0 {
 		natProcessingRate := float64(comparison.Conntrack2Entries) / float64(comparison.ConntrackEntries) * 100
-		natConfirmationRate := float64(comparison.Conntrack3Entries) / float64(comparison.ConntrackEntries) * 100
+		natConfirmationRate := float64(comparison.Conntrack2Entries) / float64(comparison.ConntrackEntries) * 100
 		log.Infof("JMW CONNTRACK EFFICIENCY: NAT_processing_rate=%.1f%%, NAT_confirmation_rate=%.1f%%",
 			natProcessingRate, natConfirmationRate)
 	}

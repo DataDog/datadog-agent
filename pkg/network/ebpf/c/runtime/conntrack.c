@@ -49,29 +49,6 @@ int BPF_BYPASSABLE_KPROBE(kprobe__nf_conntrack_hash_insert, struct nf_conn *ct) 
     return 0;
 }
 
-// Second probe: Track NAT packet processing
-SEC("kprobe/nf_nat_packet") // JMWCONNTRACK
-int BPF_BYPASSABLE_KPROBE(kprobe_nf_nat_packet, struct nf_conn *ct) {
-    increment_nat_packet_count();
-    u32 status = 0;
-    BPF_CORE_READ_INTO(&status, ct, status);
-    if (!(status&IPS_NAT_MASK)) {
-        return 0;
-    }
-
-    log_debug("JMW(runtime)kprobe/nf_nat_packet: netns: %u, status: %x", get_netns(ct), status);
-
-    conntrack_tuple_t orig = {}, reply = {};
-    if (nf_conn_to_conntrack_tuples(ct, &orig, &reply) != 0) {
-        return 0;
-    }
-
-    bpf_map_update_with_telemetry(conntrack2, &orig, &reply, BPF_ANY);
-    bpf_map_update_with_telemetry(conntrack2, &reply, &orig, BPF_ANY);
-    increment_telemetry_registers_count();
-
-    return 0;
-}
 
 // Approach 1: Use per-CPU correlation (most robust)
 // Create a per-CPU map to store the ct pointer, then retrieve it in the kretprobe.
@@ -127,7 +104,7 @@ int BPF_BYPASSABLE_KPROBE(kprobe__nf_conntrack_confirm) {
 }
 
 // Third probe: Track conntrack confirmations (return) - correlation approach
-// Return probe: Process successful confirmations and populate conntrack3 map
+// Return probe: Process successful confirmations and populate conntrack2 map
 SEC("kretprobe/__nf_conntrack_confirm") // JMWCONNTRACK
 int BPF_BYPASSABLE_KPROBE(kretprobe__nf_conntrack_confirm) {
     increment_confirm_return_count();
@@ -157,19 +134,19 @@ int BPF_BYPASSABLE_KPROBE(kretprobe__nf_conntrack_confirm) {
 
     increment_confirm_return_success_count();
 
-    // Successfully confirmed NAT connection - add to conntrack3 map
+    // Successfully confirmed NAT connection - add to conntrack2 map
     conntrack_tuple_t orig = {}, reply = {};
     if (nf_conn_to_conntrack_tuples(ct, &orig, &reply) != 0) {
         log_debug("JMW(runtime)kprobe/ctnetlink_fill_info: failed to get conntrack tuples, ct: %p, netns: %u", ct, get_netns(ct));
         return 0;
     }
 
-    // Add both directions to conntrack3 map
-    bpf_map_update_with_telemetry(conntrack3, &orig, &reply, BPF_ANY);
-    bpf_map_update_with_telemetry(conntrack3, &reply, &orig, BPF_ANY);
+    // Add both directions to conntrack2 map
+    bpf_map_update_with_telemetry(conntrack2, &orig, &reply, BPF_ANY);
+    bpf_map_update_with_telemetry(conntrack2, &reply, &orig, BPF_ANY);
     increment_telemetry_registers_count();
 
-    log_debug("JMW(runtime)kretprobe/__nf_conntrack_confirm: added to conntrack3, ct: %p, netns: %u", ct, get_netns(ct));
+    log_debug("JMW(runtime)kretprobe/__nf_conntrack_confirm: added to conntrack2, ct: %p, netns: %u", ct, get_netns(ct));
 
     return 0;
 }

@@ -108,14 +108,6 @@ static __always_inline void increment_hash_insert_count() {
     __sync_fetch_and_add(&val->hash_insert_count, 1);
 }
 
-static __always_inline void increment_nat_packet_count() {
-    u64 key = 0;
-    conntrack_telemetry_t *val = bpf_map_lookup_elem(&conntrack_telemetry, &key);
-    if (val == NULL) {
-        return;
-    }
-    __sync_fetch_and_add(&val->nat_packet_count, 1);
-}
 
 static __always_inline void increment_confirm_entry_count() {
     u64 key = 0;

@@ -70,7 +70,6 @@ type ebpfConntracker struct {
 	m                  *manager.Manager
 	ctMap              *maps.GenericMap[netebpf.ConntrackTuple, netebpf.ConntrackTuple]
 	ctMap2             *maps.GenericMap[netebpf.ConntrackTuple, netebpf.ConntrackTuple]
-	ctMap3             *maps.GenericMap[netebpf.ConntrackTuple, netebpf.ConntrackTuple]
 	pendingConfirmsMap *maps.GenericMap[uint64, uint64]
 	telemetryMap       *maps.GenericMap[uint32, netebpf.ConntrackTelemetry]
 	rootNS             uint32
@@ -157,17 +156,10 @@ func NewEBPFConntracker(cfg *config.Config, telemetrycomp telemetryComp.Componen
 		return nil, fmt.Errorf("unable to get conntrack map: %w", err)
 	}
 
-	// Get the additional conntrack maps
 	ctMap2, err := maps.GetMap[netebpf.ConntrackTuple, netebpf.ConntrackTuple](m, probes.Conntrack2Map)
 	if err != nil {
 		_ = m.Stop(manager.CleanAll)
 		return nil, fmt.Errorf("unable to get conntrack2 map: %w", err)
-	}
-
-	ctMap3, err := maps.GetMap[netebpf.ConntrackTuple, netebpf.ConntrackTuple](m, probes.Conntrack3Map)
-	if err != nil {
-		_ = m.Stop(manager.CleanAll)
-		return nil, fmt.Errorf("unable to get conntrack3 map: %w", err)
 	}
 
 	pendingConfirmsMap, err := maps.GetMap[uint64, uint64](m, probes.PendingConfirmsMap)
@@ -191,7 +183,6 @@ func NewEBPFConntracker(cfg *config.Config, telemetrycomp telemetryComp.Componen
 		m:                  m,
 		ctMap:              ctMap,
 		ctMap2:             ctMap2,
-		ctMap3:             ctMap3,
 		pendingConfirmsMap: pendingConfirmsMap,
 		telemetryMap:       telemetryMap,
 		rootNS:             rootNS,
@@ -453,7 +444,6 @@ func getManager(cfg *config.Config, buf io.ReaderAt, opts manager.Options) (*man
 		Maps: []*manager.Map{
 			{Name: probes.ConntrackMap},
 			{Name: probes.Conntrack2Map},
-			{Name: probes.Conntrack3Map},
 			{Name: probes.PendingConfirmsMap},
 			{Name: probes.ConntrackTelemetryMap},
 		},
@@ -462,12 +452,6 @@ func getManager(cfg *config.Config, buf io.ReaderAt, opts manager.Options) (*man
 			{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
 					EBPFFuncName: probes.ConntrackHashInsert, // JMWCONNTRACK
-					UID:          "conntracker",
-				},
-			},
-			{
-				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFFuncName: probes.ConntrackNatPacket, // JMWCONNTRACK
 					UID:          "conntracker",
 				},
 			},
@@ -513,7 +497,6 @@ func getManager(cfg *config.Config, buf io.ReaderAt, opts manager.Options) (*man
 	}
 	opts.MapSpecEditors[probes.ConntrackMap] = manager.MapSpecEditor{MaxEntries: uint32(cfg.ConntrackMaxStateSize), EditorFlag: manager.EditMaxEntries}
 	opts.MapSpecEditors[probes.Conntrack2Map] = manager.MapSpecEditor{MaxEntries: uint32(cfg.ConntrackMaxStateSize), EditorFlag: manager.EditMaxEntries}
-	opts.MapSpecEditors[probes.Conntrack3Map] = manager.MapSpecEditor{MaxEntries: uint32(cfg.ConntrackMaxStateSize), EditorFlag: manager.EditMaxEntries}
 	opts.MapSpecEditors[probes.PendingConfirmsMap] = manager.MapSpecEditor{MaxEntries: 10240, EditorFlag: manager.EditMaxEntries}
 	if opts.MapEditors == nil {
 		opts.MapEditors = make(map[string]*ebpf.Map)
@@ -522,7 +505,7 @@ func getManager(cfg *config.Config, buf io.ReaderAt, opts manager.Options) (*man
 
 	if err := features.HaveMapType(ebpf.LRUHash); err == nil {
 		// Apply LRU hash to all conntrack maps
-		for _, mapName := range []string{probes.ConntrackMap, probes.Conntrack2Map, probes.Conntrack3Map} {
+		for _, mapName := range []string{probes.ConntrackMap, probes.Conntrack2Map} {
 			me := opts.MapSpecEditors[mapName]
 			me.Type = ebpf.LRUHash
 			me.EditorFlag |= manager.EditType
@@ -645,19 +628,14 @@ func boolConst(name string, value bool) manager.ConstantEditor {
 	return c
 }
 
-// ConntrackMapComparison represents a comparison between the three conntrack maps
+// ConntrackMapComparison represents a comparison between the conntrack maps
 type ConntrackMapComparison struct {
 	ConntrackEntries       int                   `json:"conntrack_entries"`
 	Conntrack2Entries      int                   `json:"conntrack2_entries"`
-	Conntrack3Entries      int                   `json:"conntrack3_entries"`
 	PendingConfirmsEntries int                   `json:"pending_confirms_entries"`
 	CommonEntries12        int                   `json:"common_entries_1_2"`
-	CommonEntries13        int                   `json:"common_entries_1_3"`
-	CommonEntries23        int                   `json:"common_entries_2_3"`
-	CommonEntriesAll       int                   `json:"common_entries_all"`
 	OnlyInConntrack        int                   `json:"only_in_conntrack"`
 	OnlyInConntrack2       int                   `json:"only_in_conntrack2"`
-	OnlyInConntrack3       int                   `json:"only_in_conntrack3"`
 	SampleDifferences      []ConntrackDifference `json:"sample_differences,omitempty"`
 }
 
@@ -666,16 +644,14 @@ type ConntrackDifference struct {
 	Tuple        string `json:"tuple"`
 	InConntrack  bool   `json:"in_conntrack"`
 	InConntrack2 bool   `json:"in_conntrack2"`
-	InConntrack3 bool   `json:"in_conntrack3"`
 	Description  string `json:"description"`
 }
 
-// CompareConntrackMaps compares all three conntrack maps and returns statistics
+// CompareConntrackMaps compares the conntrack maps and returns statistics
 func (e *ebpfConntracker) CompareConntrackMaps() (*ConntrackMapComparison, error) {
 	// Collect all entries from each map
 	map1Entries := make(map[string]*netebpf.ConntrackTuple)
 	map2Entries := make(map[string]*netebpf.ConntrackTuple)
-	map3Entries := make(map[string]*netebpf.ConntrackTuple)
 	pendingCount := 0
 
 	// Read conntrack map (map1)
@@ -691,7 +667,7 @@ func (e *ebpfConntracker) CompareConntrackMaps() (*ConntrackMapComparison, error
 		return nil, fmt.Errorf("error iterating conntrack map: %w", err)
 	}
 
-	// Read conntrack2 map (NAT packet processing)
+	// Read conntrack2 map (confirmed connections)
 	iter2 := e.ctMap2.Iterate()
 	key2 := &netebpf.ConntrackTuple{}
 	value2 := &netebpf.ConntrackTuple{}
@@ -702,19 +678,6 @@ func (e *ebpfConntracker) CompareConntrackMaps() (*ConntrackMapComparison, error
 	}
 	if err := iter2.Err(); err != nil {
 		return nil, fmt.Errorf("error iterating conntrack2 map: %w", err)
-	}
-
-	// Read conntrack3 map (confirmed connections)
-	iter3 := e.ctMap3.Iterate()
-	key3 := &netebpf.ConntrackTuple{}
-	value3 := &netebpf.ConntrackTuple{}
-	for iter3.Next(key3, value3) {
-		keyStr := conntrackTupleToString(key3)
-		valueCopy := *value3 // Make a copy
-		map3Entries[keyStr] = &valueCopy
-	}
-	if err := iter3.Err(); err != nil {
-		return nil, fmt.Errorf("error iterating conntrack3 map: %w", err)
 	}
 
 	// Count pending confirmations
@@ -732,7 +695,6 @@ func (e *ebpfConntracker) CompareConntrackMaps() (*ConntrackMapComparison, error
 	comparison := &ConntrackMapComparison{
 		ConntrackEntries:       len(map1Entries),
 		Conntrack2Entries:      len(map2Entries),
-		Conntrack3Entries:      len(map3Entries),
 		PendingConfirmsEntries: pendingCount,
 	}
 
@@ -744,43 +706,27 @@ func (e *ebpfConntracker) CompareConntrackMaps() (*ConntrackMapComparison, error
 	for key := range map2Entries {
 		allKeys[key] = true
 	}
-	for key := range map3Entries {
-		allKeys[key] = true
-	}
 
 	sampleDifferences := []ConntrackDifference{}
 	for key := range allKeys {
 		in1 := map1Entries[key] != nil
 		in2 := map2Entries[key] != nil
-		in3 := map3Entries[key] != nil
 
 		// Count intersections
 		if in1 && in2 {
 			comparison.CommonEntries12++
 		}
-		if in1 && in3 {
-			comparison.CommonEntries13++
-		}
-		if in2 && in3 {
-			comparison.CommonEntries23++
-		}
-		if in1 && in2 && in3 {
-			comparison.CommonEntriesAll++
-		}
 
 		// Count unique entries
-		if in1 && !in2 && !in3 {
+		if in1 && !in2 {
 			comparison.OnlyInConntrack++
 		}
-		if !in1 && in2 && !in3 {
+		if !in1 && in2 {
 			comparison.OnlyInConntrack2++
-		}
-		if !in1 && !in2 && in3 {
-			comparison.OnlyInConntrack3++
 		}
 
 		// Collect sample differences (limit to 10 for readability)
-		if len(sampleDifferences) < 10 && !(in1 && in2 && in3) {
+		if len(sampleDifferences) < 10 && !(in1 && in2) {
 			description := "Present in: "
 			if in1 {
 				description += "conntrack "
@@ -788,15 +734,11 @@ func (e *ebpfConntracker) CompareConntrackMaps() (*ConntrackMapComparison, error
 			if in2 {
 				description += "conntrack2 "
 			}
-			if in3 {
-				description += "conntrack3 "
-			}
 
 			sampleDifferences = append(sampleDifferences, ConntrackDifference{
 				Tuple:        key,
 				InConntrack:  in1,
 				InConntrack2: in2,
-				InConntrack3: in3,
 				Description:  description,
 			})
 		}

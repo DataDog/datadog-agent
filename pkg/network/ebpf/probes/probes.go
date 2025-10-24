@@ -183,8 +183,6 @@ const (
 
 	// ConntrackHashInsert is the probe for new conntrack entries
 	ConntrackHashInsert ProbeFuncName = "kprobe__nf_conntrack_hash_insert"
-	// ConntrackNatPacket is the probe for NAT packet processing
-	ConntrackNatPacket ProbeFuncName = "kprobe_nf_nat_packet"
 	// ConntrackConfirmEntry is the kprobe for __nf_conntrack_confirm entry
 	ConntrackConfirmEntry ProbeFuncName = "kprobe__nf_conntrack_confirm"
 	// ConntrackConfirmReturn is the kretprobe for __nf_conntrack_confirm return
@@ -224,10 +222,8 @@ const (
 	ConnCloseBatchMap BPFMapName = "conn_close_batch"
 	// ConntrackMap is the map storing conntrack entries
 	ConntrackMap BPFMapName = "conntrack"
-	// Conntrack2Map is the map storing NAT packet processing entries
+	// Conntrack2Map is the map storing confirmed NAT connections
 	Conntrack2Map BPFMapName = "conntrack2"
-	// Conntrack3Map is the map storing confirmed NAT connections
-	Conntrack3Map BPFMapName = "conntrack3"
 	// PendingConfirmsMap is the map for tracking pending confirmations
 	PendingConfirmsMap BPFMapName = "pending_confirms"
 	// ConntrackTelemetryMap is the map storing conntrack telemetry

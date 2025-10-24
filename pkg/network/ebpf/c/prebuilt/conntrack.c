@@ -35,25 +35,6 @@ int BPF_BYPASSABLE_KPROBE(kprobe__nf_conntrack_hash_insert, struct nf_conn *ct) 
     return 0;
 }
 
-// Second probe: Track NAT packet processing
-SEC("kprobe/nf_nat_packet") // JMWCONNTRACK
-int BPF_BYPASSABLE_KPROBE(kprobe_nf_nat_packet, struct nf_conn *ct) {
-    increment_nat_packet_count();
-    log_debug("kprobe/nf_nat_packet: netns: %u", get_netns(ct));
-    log_debug("JMWTEST prebuilt kprobe/nf_nat_packet");
-
-    conntrack_tuple_t orig = {}, reply = {};
-    if (nf_conn_to_conntrack_tuples(ct, &orig, &reply) != 0) {
-        return 0;
-    }
-    RETURN_IF_NOT_NAT(&orig, &reply);
-
-    bpf_map_update_with_telemetry(conntrack2, &orig, &reply, BPF_ANY);
-    bpf_map_update_with_telemetry(conntrack2, &reply, &orig, BPF_ANY);
-    increment_telemetry_registers_count();
-
-    return 0;
-}
 
 // Third probe: Track confirmed NAT connections (entry)
 SEC("kprobe/__nf_conntrack_confirm") // JMWCONNTRACK
