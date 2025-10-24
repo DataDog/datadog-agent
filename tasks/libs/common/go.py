@@ -91,9 +91,10 @@ def go_build(
 
 
 def _handle_pipe_to_whydeadcode(ctx: Context, name: str, cmd: str, env: dict[str, str] | None = None) -> Result:
-    # use a custom runner to read stderr in bigger chunks as dumpdep output is huge
-    # and invoke is super slow by default when writing to stdout/stderr
-    # https://github.com/pyinvoke/invoke/issues/774
+    """
+    - Runs `go build` with the `dumpdep` flag in a custom runner. This runner reads big chunks to improve invoke I/O performance, see https://github.com/pyinvoke/invoke/issues/774
+    - Calls `whydeadcode` in the same runner using an associated custom reader.
+    """
     runner = Local(ctx)
     runner.read_chunk_size = 1024 * 1024 * 10
     _ = runner.read_chunk_size  # please linters
