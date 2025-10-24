@@ -235,7 +235,6 @@ func addRcProbe(
 		ProbeDefinition: probeDef,
 		Subprogram:      subprogram,
 		Events: []*ir.Event{{
-			ID:   ir.EventID(subprogram.ID),
 			Type: rootType,
 			InjectionPoints: []ir.InjectionPoint{
 				{PC: symbol.Entry, Frameless: true},
@@ -317,7 +316,6 @@ func addSymdbProbe(
 		ProbeDefinition: probeDef,
 		Subprogram:      subprogram,
 		Events: []*ir.Event{{
-			ID:   ir.EventID(subprogram.ID),
 			Type: rootType,
 			InjectionPoints: []ir.InjectionPoint{
 				{PC: symbol.Entry, Frameless: true},
