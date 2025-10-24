@@ -12,12 +12,53 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 var GitAncestorOnMain = "main"
+
+var wasRequiredFailed = false
+
+const (
+	ExitCodePass = iota
+	ExitCodeError
+	ExitCodeWarning = 44 // this value is arbitrary
+)
+
+var requiredTests = []string{
+	"TestChmod",
+}
+
+func isRequiredTest(testName string) bool {
+	for _, required := range requiredTests {
+		if strings.HasPrefix(testName, required) {
+			return true
+		}
+	}
+	return false
+}
+
+// TrackRequiredTestFailure tracks the failure of a required test
+func TrackRequiredTestFailure(tb testing.TB) {
+	tb.Helper()
+
+	t, ok := tb.(*testing.T)
+	if !ok {
+		return
+	}
+
+	testName := t.Name()
+
+	t.Cleanup(func() {
+		if t.Failed() && isRequiredTest(testName) {
+			fmt.Fprintf(os.Stderr, "Required test %s failed\n", testName)
+			wasRequiredFailed = true
+		}
+	})
+}
 
 // TestMain is the entry points for functional tests
 func TestMain(m *testing.M) {
@@ -27,13 +68,31 @@ func TestMain(m *testing.M) {
 
 	preTestsHook()
 	retCode := m.Run()
+	retCode = checkRetCode(retCode)
 	postTestsHook()
 
 	if commonCfgDir != "" {
 		_ = os.RemoveAll(commonCfgDir)
 	}
 
+	// Write exit code to file if requested (for test-runner)
+	if exitCodeFile != "" {
+		if err := os.WriteFile(exitCodeFile, []byte(fmt.Sprintf("%d", retCode)), 0644); err != nil {
+			fmt.Fprintf(os.Stderr, "Failed to write exit code to file %s: %v\n", exitCodeFile, err)
+		}
+	}
+
 	os.Exit(retCode)
+}
+func checkRetCode(retCode int) int {
+	if retCode == ExitCodePass {
+		return retCode
+	}
+
+	if wasRequiredFailed {
+		return ExitCodeError
+	}
+	return ExitCodeWarning
 }
 
 var (
@@ -43,10 +102,12 @@ var (
 	logPatterns     stringSlice
 	logTags         stringSlice
 	ebpfLessEnabled bool
+	exitCodeFile    string
 )
 
 func init() {
 	flag.StringVar(&logLevelStr, "loglevel", log.WarnStr, "log level")
 	flag.Var(&logPatterns, "logpattern", "List of log pattern")
 	flag.Var(&logTags, "logtag", "List of log tag")
+	flag.StringVar(&exitCodeFile, "exit-code-file", "", "file to write exit code to")
 }
