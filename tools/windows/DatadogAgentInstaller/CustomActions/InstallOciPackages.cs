@@ -84,7 +84,7 @@ namespace Datadog.CustomActions
         }
         private Dictionary<string, string> PurgeEnvironmentVariables()
         {
-            var env = new Dictionary<string, string> { { "DD_NO_AGENT_INSTALL", "true" } };
+            var env = new Dictionary<string, string> { { "DD_NO_AGENT_UNINSTALL", "true" } };
             if (!string.IsNullOrEmpty(_apiKey))
             {
                 env["DD_API_KEY"] = _apiKey;
