@@ -8,6 +8,7 @@ package logsagentexporter
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"time"
 
@@ -83,6 +84,7 @@ func (e *Exporter) ConsumeLogs(ctx context.Context, ld plog.Logs) (err error) {
 		}
 	}()
 
+	fmt.Println("ConsumeLogs")
 	if e.cfg.HostMetadata.Enabled && e.reporter != nil {
 		// Consume resources for host metadata
 		for i := 0; i < ld.ResourceLogs().Len(); i++ {
