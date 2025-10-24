@@ -399,17 +399,17 @@ var defaultProfiles = `
       iterations: 0
       period: 900
   - name: cluster-agent
-	metric:
+    metric:
 	  exclude:
-		zero_metric: true
+	    zero_metric: true
 	  metrics:
-		- name: admission_webhooks.image_resolution_attempts
+	    - name: admission_webhooks.image_resolution_attempts
 		  aggregate_tags:
-			- registry
-			- repository
-			- digest_resolution
-			- outcome
-	schedule:
+		    - registry
+		    - repository
+		    - digest_resolution
+		    - outcome
+    schedule:
 	  start_after: 30
 	  iterations: 0
 	  period: 900
