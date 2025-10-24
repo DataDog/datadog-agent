@@ -1,3 +1,9 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2025-present Datadog, Inc.
+
+// Package delegatedauthimpl implements the delegatedauth component interface
 package delegatedauthimpl
 
 import (
@@ -22,8 +28,8 @@ type delegatedAuthComponent struct {
 
 	mu              sync.RWMutex
 	apiKey          *string
-	provider        delegatedauthpkg.DelegatedAuthProvider
-	authConfig      *delegatedauthpkg.DelegatedAuthConfig
+	provider        delegatedauthpkg.Provider
+	authConfig      *delegatedauthpkg.AuthConfig
 	refreshInterval time.Duration
 }
 
@@ -34,6 +40,7 @@ type dependencies struct {
 	Lc     fx.Lifecycle
 }
 
+// NewDelegatedAuth creates a new delegated auth Component based on the current configuration
 func NewDelegatedAuth(deps dependencies) (delegatedauth.Component, error) {
 	if !deps.Config.GetBool("delegated_auth.enabled") {
 		return &noopDelegatedAuth{}, nil
@@ -52,7 +59,7 @@ func NewDelegatedAuth(deps dependencies) (delegatedauth.Component, error) {
 		return nil, fmt.Errorf("delegated_auth.org_uuid is required when delegated_auth.enabled is true")
 	}
 
-	var tokenProvider delegatedauthpkg.DelegatedAuthProvider
+	var tokenProvider delegatedauthpkg.Provider
 	switch provider {
 	case cloudauth.ProviderAWS:
 		tokenProvider = &cloudauth.AWSAuth{
@@ -62,7 +69,7 @@ func NewDelegatedAuth(deps dependencies) (delegatedauth.Component, error) {
 		return nil, fmt.Errorf("unsupported delegated auth provider: %s", provider)
 	}
 
-	authConfig := &delegatedauthpkg.DelegatedAuthConfig{
+	authConfig := &delegatedauthpkg.AuthConfig{
 		OrgUUID:      orgUUID,
 		Provider:     provider,
 		ProviderAuth: tokenProvider,
@@ -82,7 +89,7 @@ func NewDelegatedAuth(deps dependencies) (delegatedauth.Component, error) {
 			comp.log.Info("Delegated authentication is enabled, fetching initial API key...")
 
 			// Fetch the initial API key synchronously during startup
-			apiKey, err := comp.GetApiKey(ctx)
+			apiKey, err := comp.GetAPIKey(ctx)
 			if err != nil {
 				comp.log.Errorf("Failed to get initial delegated API key: %v", err)
 				// Return nil here to not stop the agent from starting
@@ -90,7 +97,7 @@ func NewDelegatedAuth(deps dependencies) (delegatedauth.Component, error) {
 			}
 
 			// Update the config with the initial API key
-			comp.updateConfigWithApiKey(*apiKey)
+			comp.updateConfigWithAPIKey(*apiKey)
 			comp.log.Info("Successfully fetched and set initial delegated API key")
 
 			// Start the background refresh goroutine
@@ -103,7 +110,8 @@ func NewDelegatedAuth(deps dependencies) (delegatedauth.Component, error) {
 	return comp, nil
 }
 
-func (d *delegatedAuthComponent) GetApiKey(ctx context.Context) (*string, error) {
+// GetAPIKey returns the current API key or fetches one if it has not yet been fetched
+func (d *delegatedAuthComponent) GetAPIKey(ctx context.Context) (*string, error) {
 	d.mu.RLock()
 	if d.apiKey != nil {
 		apiKey := d.apiKey
@@ -116,11 +124,13 @@ func (d *delegatedAuthComponent) GetApiKey(ctx context.Context) (*string, error)
 	return creds, err
 }
 
-func (d *delegatedAuthComponent) RefreshApiKey(ctx context.Context) error {
+// RefreshAPIKey fetches the API key and stores it in the component. It only returns an error if there is an issue
+func (d *delegatedAuthComponent) RefreshAPIKey(ctx context.Context) error {
 	_, _, err := d.RefreshAndGetApiKey(ctx)
 	return err
 }
 
+// RefreshAndGetApiKey refreshes the API key and stores it in the component it returns the current API key and if a refresh actually occurred
 func (d *delegatedAuthComponent) RefreshAndGetApiKey(ctx context.Context) (*string, bool, error) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
@@ -164,7 +174,7 @@ func (d *delegatedAuthComponent) startBackgroundRefresh() {
 			} else {
 				// Update the config with the new API key
 				if updated {
-					d.updateConfigWithApiKey(*lCreds)
+					d.updateConfigWithAPIKey(*lCreds)
 				}
 			}
 		}
@@ -180,8 +190,8 @@ func (d *delegatedAuthComponent) authenticate() (*string, error) {
 	return creds, nil
 }
 
-// Update the updateConfigWithApiKey method to use the correct Set method
-func (d *delegatedAuthComponent) updateConfigWithApiKey(apiKey string) {
+// Update the updateConfigWithAPIKey method to use the correct Set method
+func (d *delegatedAuthComponent) updateConfigWithAPIKey(apiKey string) {
 	// Update the api_key config value using the Writer interface
 	// This will trigger OnUpdate callbacks for any components listening to this config
 	d.config.Set("api_key", apiKey, pkgconfigmodel.SourceAgentRuntime)
@@ -191,11 +201,11 @@ func (d *delegatedAuthComponent) updateConfigWithApiKey(apiKey string) {
 // noopDelegatedAuth is used when delegated auth is disabled
 type noopDelegatedAuth struct{}
 
-func (n *noopDelegatedAuth) GetApiKey(ctx context.Context) (*string, error) {
+func (n *noopDelegatedAuth) GetAPIKey(ctx context.Context) (*string, error) {
 	return nil, fmt.Errorf("delegated auth is not enabled")
 }
 
-func (n *noopDelegatedAuth) RefreshApiKey(ctx context.Context) error {
+func (n *noopDelegatedAuth) RefreshAPIKey(ctx context.Context) error {
 	return fmt.Errorf("delegated auth is not enabled")
 }
 

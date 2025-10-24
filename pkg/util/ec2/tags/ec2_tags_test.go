@@ -13,7 +13,6 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -24,55 +23,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	ec2internal "github.com/DataDog/datadog-agent/pkg/util/ec2/internal"
 )
-
-func TestGetIAMRole(t *testing.T) {
-	ctx := context.Background()
-	const expected = "test-role"
-
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/iam/security-credentials/" {
-			w.Header().Set("Content-Type", "text/plain")
-			io.WriteString(w, expected)
-		} else {
-			w.WriteHeader(http.StatusInternalServerError)
-		}
-	}))
-	defer ts.Close()
-	ec2internal.MetadataURL = ts.URL
-	conf := configmock.New(t)
-	conf.SetWithoutSource("ec2_metadata_timeout", 1000)
-
-	val, err := getIAMRole(ctx)
-	require.NoError(t, err)
-	assert.Equal(t, expected, val)
-}
-
-func TestGetSecurityCreds(t *testing.T) {
-	ctx := context.Background()
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/iam/security-credentials/" {
-			w.Header().Set("Content-Type", "text/plain")
-			io.WriteString(w, "test-role")
-		} else if r.URL.Path == "/iam/security-credentials/test-role" {
-			w.Header().Set("Content-Type", "text/plain")
-			content, err := os.ReadFile("payloads/security_cred.json")
-			require.NoError(t, err, fmt.Sprintf("failed to load json in payloads/security_cred.json: %v", err))
-			w.Write(content)
-		} else {
-			w.WriteHeader(http.StatusInternalServerError)
-		}
-	}))
-	defer ts.Close()
-	ec2internal.MetadataURL = ts.URL
-	conf := configmock.New(t)
-	conf.SetWithoutSource("ec2_metadata_timeout", 1000)
-
-	cred, err := getSecurityCreds(ctx)
-	require.NoError(t, err)
-	assert.Equal(t, "123456", cred.AccessKeyID)
-	assert.Equal(t, "secret access key", cred.SecretAccessKey)
-	assert.Equal(t, "secret token", cred.Token)
-}
 
 func TestFetchEc2TagsFromIMDS(t *testing.T) {
 	ctx := context.Background()

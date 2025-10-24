@@ -1,3 +1,9 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2025-present Datadog, Inc.
+
+// Package cloudauth provides the implementation for specific delegated auth exchanges
 package cloudauth
 
 import (
@@ -30,18 +36,16 @@ type SigningData struct {
 }
 
 const (
-	// Common Headers
-	// orgIdHeader is the header we use to specify the name of the org we request a token for
-	orgIdHeader         = "x-ddog-org-id"
+	// orgIDHeader is the header we use to specify the name of the org we request a token for
+	orgIDHeader         = "x-ddog-org-id"
 	hostHeader          = "host"
 	contextLengthHeader = "Content-Length"
 	contentTypeHeader   = "Content-Type"
 	applicationForm     = "application/x-www-form-urlencoded; charset=utf-8"
 
-	// AWS specific constants
-	AWSAccessKeyIdName     = "AWS_ACCESS_KEY_ID"
-	AWSSecretAccessKeyName = "AWS_SECRET_ACCESS_KEY"
-	AWSSessionTokenName    = "AWS_SESSION_TOKEN"
+	awsAccessKeyIdName     = "AWS_ACCESS_KEY_ID"
+	awsSecretAccessKeyName = "AWS_SECRET_ACCESS_KEY"
+	awsSessionTokenName    = "AWS_SESSION_TOKEN"
 
 	amzDateHeader         = "X-Amz-Date"
 	amzTokenHeader        = "X-Amz-Security-Token"
@@ -56,22 +60,23 @@ const (
 	getCallerIdentityBody = "Action=GetCallerIdentity&Version=2011-06-15"
 )
 
+// ProviderAWS is the specifier for the AWS provider type
 const ProviderAWS = "aws"
 
 type AWSAuth struct {
 	AwsRegion string
 }
 
-func (a *AWSAuth) GetApiKey(cfg pkgconfigmodel.Reader, config *delegatedauth.DelegatedAuthConfig) (*string, error) {
+func (a *AWSAuth) GetApiKey(cfg pkgconfigmodel.Reader, config *delegatedauth.AuthConfig) (*string, error) {
 	// Get local AWS Credentials
-	creds := a.GetCredentials(cfg)
+	creds := a.getCredentials(cfg)
 
 	if config == nil || config.OrgUUID == "" {
 		return nil, fmt.Errorf("missing org UUID in config")
 	}
 
 	// Use the credentials to generate the signing data
-	data, err := a.GenerateAwsAuthData(config.OrgUUID, creds)
+	data, err := a.generateAwsAuthData(config.OrgUUID, creds)
 	if err != nil {
 		return nil, err
 	}
@@ -83,25 +88,25 @@ func (a *AWSAuth) GetApiKey(cfg pkgconfigmodel.Reader, config *delegatedauth.Del
 	return authResponse, err
 }
 
-// GetCredentials retrieves AWS credentials using the same approach as EC2 tags fetching.
+// getCredentials retrieves AWS credentials using the same approach as EC2 tags fetching.
 // It first tries config/environment variables, then falls back to EC2 instance metadata service.
-func (a *AWSAuth) GetCredentials(cfg pkgconfigmodel.Reader) *ec2.SecurityCredentials {
+func (a *AWSAuth) getCredentials(cfg pkgconfigmodel.Reader) *ec2.SecurityCredentials {
 	creds := &ec2.SecurityCredentials{}
 
 	// First, try to get credentials from config
-	creds.AccessKeyID = cfg.GetString(AWSAccessKeyIdName)
-	creds.SecretAccessKey = cfg.GetString(AWSSecretAccessKeyName)
-	creds.Token = cfg.GetString(AWSSessionTokenName)
+	creds.AccessKeyID = cfg.GetString(awsAccessKeyIdName)
+	creds.SecretAccessKey = cfg.GetString(awsSecretAccessKeyName)
+	creds.Token = cfg.GetString(awsSessionTokenName)
 
 	// Then try environment variables
 	if creds.AccessKeyID == "" {
-		creds.AccessKeyID = os.Getenv(AWSAccessKeyIdName)
+		creds.AccessKeyID = os.Getenv(awsAccessKeyIdName)
 	}
 	if creds.SecretAccessKey == "" {
-		creds.SecretAccessKey = os.Getenv(AWSSecretAccessKeyName)
+		creds.SecretAccessKey = os.Getenv(awsSecretAccessKeyName)
 	}
 	if creds.Token == "" {
-		creds.Token = os.Getenv(AWSSessionTokenName)
+		creds.Token = os.Getenv(awsSessionTokenName)
 	}
 
 	// If we have explicit credentials, return them
@@ -137,11 +142,11 @@ func (a *AWSAuth) getConnectionParameters() (string, string, string) {
 	return stsFullURL, region, host
 }
 
-func (a *AWSAuth) GetUserAgent() string {
+func (a *AWSAuth) getUserAgent() string {
 	return fmt.Sprintf("datadog-agent/%s", version.AgentVersion)
 }
 
-func (a *AWSAuth) GenerateAwsAuthData(orgUUID string, creds *ec2.SecurityCredentials) (*SigningData, error) {
+func (a *AWSAuth) generateAwsAuthData(orgUUID string, creds *ec2.SecurityCredentials) (*SigningData, error) {
 	if orgUUID == "" {
 		return nil, fmt.Errorf("missing org UUID")
 	}
@@ -167,7 +172,7 @@ func (a *AWSAuth) GenerateAwsAuthData(orgUUID string, creds *ec2.SecurityCredent
 		amzDateHeader: {
 			now.Format(amzDateTimeFormat),
 		},
-		orgIdHeader: {
+		orgIDHeader: {
 			orgUUID,
 		},
 		amzTokenHeader: {
@@ -227,7 +232,7 @@ func (a *AWSAuth) GenerateAwsAuthData(orgUUID string, creds *ec2.SecurityCredent
 		algorithm, credential, signedHeaders, stringToSign)
 
 	headerMap["Authorization"] = []string{authHeader}
-	headerMap["User-Agent"] = []string{a.GetUserAgent()}
+	headerMap["User-Agent"] = []string{a.getUserAgent()}
 	headersJSON, err := json.Marshal(headerMap)
 	if err != nil {
 		return nil, err

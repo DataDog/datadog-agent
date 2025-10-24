@@ -29,7 +29,8 @@ type dependencies struct {
 	Params Params
 	// DelegatedAuth ensures the delegated auth component is initialized before the forwarder
 	// This is critical because the API key from delegated auth must be available before domain resolvers are created
-	DelegatedAuth delegatedauth.Component
+	// The dependency is optional to avoid breaking tests that don't need delegated auth
+	DelegatedAuth delegatedauth.Component `optional:"true"`
 }
 
 type provides struct {

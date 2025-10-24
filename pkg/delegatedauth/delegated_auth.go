@@ -1,3 +1,9 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2025-present Datadog, Inc.
+
+// Package delegatedauth provides the configuration and implementation for exchanging an delegated auth proof for an API key
 package delegatedauth
 
 import (
@@ -15,15 +21,15 @@ import (
 )
 
 const (
-	tokenUrlEndpoint  = "%s/api/v2/intake-key"
+	tokenURLEndpoint  = "%s/api/v2/intake-key"
 	authorizationType = "Delegated"
 
 	contentTypeHeader   = "Content-Type"
 	authorizationHeader = "Authorization"
-	applicationJson     = "application/json"
+	applicationJSON     = "application/json"
 )
 
-func GetSite(cfg pkgconfigmodel.Reader) string {
+func getSite(cfg pkgconfigmodel.Reader) string {
 	site := pkgconfigsetup.DefaultSite
 	if cfg.GetString("site") != "" {
 		site = cfg.GetString("site")
@@ -32,12 +38,13 @@ func GetSite(cfg pkgconfigmodel.Reader) string {
 	return utils.BuildURLWithPrefix("https://", site)
 }
 
+// GetApiKey actually performs the cloud auth exchange and returns an API key. It is called be each individual provider
 func GetApiKey(cfg pkgconfigmodel.Reader, orgUUID, delegatedAuthProof string) (*string, error) {
-	site := GetSite(cfg)
+	site := getSite(cfg)
 	var apiKey *string
 
 	log.Infof("Fetching api key for site %s", site)
-	url := fmt.Sprintf(tokenUrlEndpoint, site)
+	url := fmt.Sprintf(tokenURLEndpoint, site)
 
 	transport := httputils.CreateHTTPTransport(cfg)
 	client := &http.Client{
@@ -48,7 +55,7 @@ func GetApiKey(cfg pkgconfigmodel.Reader, orgUUID, delegatedAuthProof string) (*
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set(contentTypeHeader, applicationJson)
+	req.Header.Set(contentTypeHeader, applicationJSON)
 	req.Header.Set(authorizationHeader, fmt.Sprintf("%s %s", authorizationType, delegatedAuthProof))
 	resp, err := client.Do(req)
 	if err != nil {
@@ -66,7 +73,7 @@ func GetApiKey(cfg pkgconfigmodel.Reader, orgUUID, delegatedAuthProof string) (*
 		err = fmt.Errorf("failed to get API key: %s", resp.Status)
 		return nil, err
 	} else {
-		apiKey, err = ParseResponse(tokenBytes)
+		apiKey, err = parseResponse(tokenBytes)
 		if err != nil {
 			return nil, fmt.Errorf("failed to parse response: %w", err)
 		}
@@ -75,7 +82,7 @@ func GetApiKey(cfg pkgconfigmodel.Reader, orgUUID, delegatedAuthProof string) (*
 	return apiKey, nil
 }
 
-func ParseResponse(tokenBytes []byte) (*string, error) {
+func parseResponse(tokenBytes []byte) (*string, error) {
 	// Parse the response to get the token
 	var tokenResponse map[string]interface{}
 	err := json.Unmarshal(tokenBytes, &tokenResponse)

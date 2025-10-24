@@ -1189,8 +1189,8 @@ func InitConfig(config pkgconfigmodel.Setup) {
 
 	// Delegated authentication
 	config.BindEnvAndSetDefault("delegated_auth.enabled", false)
-	config.BindEnv("delegated_auth.provider", "DD_DELEGATED_AUTH_PROVIDER")
-	config.BindEnv("delegated_auth.org_uuid", "DD_DELEGATED_AUTH_ORG_UUID")
+	config.BindEnvAndSetDefault("delegated_auth.provider", "", "DD_DELEGATED_AUTH_PROVIDER")
+	config.BindEnvAndSetDefault("delegated_auth.org_uuid", "", "DD_DELEGATED_AUTH_ORG_UUID")
 	config.BindEnvAndSetDefault("delegated_auth.refresh_interval", 15*time.Minute)
 }
 
