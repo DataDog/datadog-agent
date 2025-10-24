@@ -53,6 +53,7 @@ func InstallExtensions(ctx context.Context, pkg *oci.DownloadedPackage, extensio
 	if err != nil && !errors.Is(err, errPackageNotFound) {
 		return fmt.Errorf("could not get package: %w", err)
 	} else if err != nil && errors.Is(err, errPackageNotFound) {
+		// Skip version check if DB is empty -- this should only happen once on first install
 		dbPkg = dbPackage{
 			Name:       pkg.Name,
 			Version:    pkg.Version,
@@ -96,8 +97,12 @@ func InstallExtensions(ctx context.Context, pkg *oci.DownloadedPackage, extensio
 		if err != nil {
 			// Clean up on failure
 			for _, extension := range installedExtensions {
-				extractDir := filepath.Join(paths.PackagesPath, pkg.Name, pkg.Version, "ext", extension)
-				os.RemoveAll(extractDir)
+				packagePath := filepath.Join(paths.PackagesPath, pkg.Name, pkg.Version)
+				// Check if packagePath exists, if not and pkg.Name == "datadog-agent", set to /opt/datadog-agent
+				if _, err := os.Stat(packagePath); os.IsNotExist(err) && pkg.Name == "datadog-agent" {
+					packagePath = "/opt/datadog-agent"
+				}
+				os.RemoveAll(filepath.Join(packagePath, "ext", extension))
 			}
 			return fmt.Errorf("could not update package in db: %w", err)
 		}
@@ -269,7 +274,13 @@ func removeExtension(ctx context.Context, pkg, version, extension string, hooks 
 		return fmt.Errorf("could not prepare extension: %w", err)
 	}
 
-	extensionDir := filepath.Join(paths.PackagesPath, pkg, version, "ext", extension)
+	packagePath := filepath.Join(paths.PackagesPath, pkg, version)
+	// Check if packagePath exists, if not and pkg.Name == "datadog-agent", set to /opt/datadog-agent
+	if _, err := os.Stat(packagePath); os.IsNotExist(err) && pkg == "datadog-agent" {
+		packagePath = "/opt/datadog-agent" // TODO: find a better solution for Windows
+	}
+
+	extensionDir := filepath.Join(packagePath, "ext", extension)
 	err = os.RemoveAll(extensionDir)
 	if err != nil {
 		return fmt.Errorf("could not remove directory for %s: %w", extension, err)

@@ -747,13 +747,10 @@ func (i *installerImpl) InstallExtensions(ctx context.Context, url string, exten
 	}
 
 	existingPkg, err := i.db.GetPackage(pkg.Name)
-	if err != nil {
-		if errors.Is(err, db.ErrPackageNotFound) {
-			return fmt.Errorf("package %s is not installed", pkg.Name)
-		}
+	if err != nil && !errors.Is(err, db.ErrPackageNotFound) {
 		return fmt.Errorf("could not get package %s from database: %w", pkg.Name, err)
 	}
-	if existingPkg.Version != pkg.Version {
+	if existingPkg.Version != pkg.Version && !errors.Is(err, db.ErrPackageNotFound) {
 		return fmt.Errorf("package %s is installed at version %s, requested version is %s", pkg.Name, existingPkg.Version, pkg.Version)
 	}
 

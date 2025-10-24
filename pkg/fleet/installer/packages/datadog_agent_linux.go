@@ -182,11 +182,7 @@ func restoreAgentExtensions(ctx HookContext, experiment bool) error {
 
 	filePath := filepath.Join(storagePath, fmt.Sprintf("%s-%t-extensions.txt", agentPackage, experiment))
 	f, err := os.ReadFile(filePath)
-	if err != nil {
-		if os.IsNotExist(err) {
-			// File does not exist, nothing to restore, skip
-			return nil
-		}
+	if err != nil && !os.IsNotExist(err) {
 		return fmt.Errorf("failed to read extensions file: %w", err)
 	}
 	extensions := strings.Split(string(f), "\n")
