@@ -124,7 +124,7 @@ func TestProcess(t *testing.T) {
 	store.Set("default/autoscaler2", dpaLocal, "")
 
 	// test
-	recommender := NewRecommender(pw, store, "test-cluster")
+	recommender := NewRecommender(pw, store, "test-cluster", nil)
 	recommender.process(ctx)
 
 	paiExternal, found := store.Get("default/autoscaler1")
