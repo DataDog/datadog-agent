@@ -38,10 +38,6 @@ func ValidateSupported() error {
 		return fmt.Errorf("TLS cert collection requires raw tracepoints (linux 4.17+)")
 	}
 
-	if features.HaveMapType(ebpf.LRUHash) != nil {
-		return fmt.Errorf("TLS cert collection requires LRU maps (linux 4.10+)")
-	}
-
 	// pass in EnableCORE: true so we're only checking kernel features. This is because
 	// ConfigureOptions is called before we even know what tracer loaded successfully.
 	// newEbpfTracer properly disables TLS cert collection on prebuilt
@@ -51,7 +47,7 @@ func ValidateSupported() error {
 
 	hasUretprobeBug, err := kernelbugs.HasUretprobeSyscallSeccompBug()
 	if err != nil {
-		return fmt.Errorf("disabling TLS cert collection due to failed to check for uretprobe syscall seccomp bug: %v", err)
+		return fmt.Errorf("disabling TLS cert collection due to failure to check for uretprobe syscall seccomp bug: %v", err)
 	}
 	if hasUretprobeBug {
 		return fmt.Errorf("disabling TLS cert collection due to kernel bug that causes segmentation faults with uretprobes and seccomp filters")
@@ -134,10 +130,8 @@ func ConfigureOptions(options *manager.Options, cfg *config.Config) error {
 		EditorFlag: manager.EditMaxEntries,
 	}
 	options.MapSpecEditors[probes.SSLCertInfoMap] = manager.MapSpecEditor{
-		// now that we know LRU is supported, set its type to that
-		Type:       ebpf.LRUHash,
 		MaxEntries: cfg.MaxTrackedConnections / 32,
-		EditorFlag: manager.EditType | manager.EditMaxEntries,
+		EditorFlag: manager.EditMaxEntries,
 	}
 
 	schedExitIDPair := IDPairFromFuncName(probes.RawTracepointSchedProcessExit)
@@ -152,6 +146,7 @@ type SSLCertsProgram struct {
 	ebpfManager              *manager.Manager
 	attacher                 *uprobes.UprobeAttacher
 	handshakeStateMapCleaner *ddebpf.MapCleaner[uint64, netebpf.SSLHandshakeState]
+	sslCertInfoMapCleaner    *ddebpf.MapCleaner[uint32, netebpf.CertItem]
 }
 
 // NewSSLCertsProgram creates an SSLCertsProgram for the given ebpf manager
@@ -208,7 +203,11 @@ func NewSSLCertsProgram(mgr *manager.Manager, cfg *config.Config) (*SSLCertsProg
 
 const (
 	defaultMapCleanerBatchSize = 100
-	handshakeStateTTL          = 10 * time.Second
+	// handshakes should finish quickly, ten seconds is fine.
+	handshakeStateTTL = 10 * time.Second
+	// certs need to hang around for a while until connections aren't referencing its ID anymore.
+	// the connections check will renew the timestamp for long-lived connections every 30s
+	certItemTTL = 2 * time.Minute
 )
 
 func (p *SSLCertsProgram) setupHandshakeStateMapCleaner() error {
@@ -223,8 +222,28 @@ func (p *SSLCertsProgram) setupHandshakeStateMapCleaner() error {
 	}
 
 	p.handshakeStateMapCleaner.Start(30*time.Second, nil, nil, func(now int64, _ uint64, val netebpf.SSLHandshakeState) bool {
-		ts := int64(val.Timestamp)
+		ts := int64(val.Item.Timestamp)
 		expired := ts > 0 && now-ts > handshakeStateTTL.Nanoseconds()
+		return expired
+	})
+
+	return nil
+}
+
+func (p *SSLCertsProgram) setupSSLCertInfoMapCleaner() error {
+	mapObj, _, err := p.ebpfManager.GetMap(probes.SSLCertInfoMap)
+	if err != nil {
+		return fmt.Errorf("setupSSLCertInfoMapCleaner failed to get map: %w", err)
+	}
+
+	p.sslCertInfoMapCleaner, err = ddebpf.NewMapCleaner[uint32, netebpf.CertItem](mapObj, defaultMapCleanerBatchSize, probes.SSLCertInfoMap, CNMModuleName)
+	if err != nil {
+		return fmt.Errorf("setupSSLCertInfoMapCleaner failed to create cleaner: %w", err)
+	}
+
+	p.sslCertInfoMapCleaner.Start(30*time.Second, nil, nil, func(now int64, _ uint32, val netebpf.CertItem) bool {
+		ts := int64(val.Timestamp)
+		expired := ts > 0 && now-ts > certItemTTL.Nanoseconds()
 		return expired
 	})
 

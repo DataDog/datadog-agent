@@ -117,9 +117,11 @@ type NetTimeMs struct {
 	Timestamp [3]uint16
 }
 type CertItem struct {
-	Serial   CertSerial
-	Domain   CertDomain
-	Validity CertValidity
+	Timestamp uint64
+	Serial    CertSerial
+	Domain    CertDomain
+	Validity  CertValidity
+	Pad_cgo_0 [2]byte
 }
 type CertSerial struct {
 	Len  uint8
@@ -134,10 +136,8 @@ type CertValidity struct {
 	After  [12]uint8
 }
 type SSLHandshakeState struct {
-	Timestamp uint64
-	Id        uint32
-	Item      CertItem
-	Pad_cgo_0 [6]byte
+	Id   uint32
+	Item CertItem
 }
 
 type _Ctype_struct_sock uint64

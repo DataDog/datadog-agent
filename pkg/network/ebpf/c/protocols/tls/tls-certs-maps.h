@@ -8,8 +8,6 @@ BPF_HASH_MAP(ssl_certs_statem_args, __u64, void *, 1)
 BPF_HASH_MAP(ssl_certs_i2d_X509_args, __u64, i2d_X509_args_t, 1)
 
 BPF_HASH_MAP(ssl_handshake_state, void *, ssl_handshake_state_t, 1)
-// NOTE: This map will be changed into BPF_LRU_MAP by ssluprobes.ConfigureOptions,
-// if LRU maps are supported
 BPF_HASH_MAP(ssl_cert_info, cert_id_t, cert_item_t, 1)
 
 
