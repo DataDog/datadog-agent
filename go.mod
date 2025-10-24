@@ -177,7 +177,7 @@ require (
 	github.com/DataDog/datadog-go/v5 v5.8.1
 	github.com/DataDog/datadog-operator/api v0.0.0-20251002125833-f01ea1d12a3f
 	github.com/DataDog/datadog-traceroute v0.1.28
-	github.com/DataDog/dd-trace-go/v2 v2.2.2
+	github.com/DataDog/dd-trace-go/v2 v2.2.2 // indirect
 	github.com/DataDog/ebpf-manager v0.7.14
 	github.com/DataDog/go-libddwaf/v4 v4.3.2
 	github.com/DataDog/go-sqllexer v0.1.8
