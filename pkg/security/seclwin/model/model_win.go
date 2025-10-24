@@ -239,9 +239,9 @@ func SetAncestorFields(_ *ProcessCacheEntry, _ string, _ interface{}) (bool, err
 	return true, nil
 }
 
-// Key returns a unique key for the entity
-func (pc *ProcessCacheEntry) Key() (string, bool) {
-	return strconv.Itoa(int(pc.Pid)), true
+// Hash returns a unique key for the entity
+func (pc *ProcessCacheEntry) Hash() string {
+	return strconv.Itoa(int(pc.Pid))
 }
 
 // ParentScope returns the parent entity scope
