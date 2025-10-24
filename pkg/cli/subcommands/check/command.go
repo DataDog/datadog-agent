@@ -301,27 +301,9 @@ func run(
 	// AutoDiscovery.
 	pkgcollector.InitCheckScheduler(collector, demultiplexer, logReceiver, tagger, filterStore)
 
-	var allConfigs []integration.Config
-	var err error
-
-	if cliParams.customConfig == "" {
-		waitCtx, cancelTimeout := context.WithTimeout(
-			context.Background(), time.Duration(cliParams.discoveryTimeout)*time.Second)
-
-		allConfigs, err = common.WaitForConfigsFromAD(waitCtx, []string{cliParams.checkName}, int(cliParams.discoveryMinInstances), cliParams.instanceFilter, ac)
-		cancelTimeout()
-		if err != nil {
-			return err
-		}
-	} else {
-		fmt.Printf("Loading custom check config from %q\n", cliParams.customConfig)
-
-		customConf, _, err := providers.GetIntegrationConfigFromFile(cliParams.checkName, cliParams.customConfig)
-		if err != nil {
-			return fmt.Errorf("fail to load custom config: %v", err)
-		}
-
-		allConfigs = []integration.Config{customConf}
+	allConfigs, err := getAllCheckConfigs(ac, *cliParams)
+	if err != nil {
+		return err
 	}
 
 	// make sure the checks in cs are not JMX checks
@@ -768,6 +750,29 @@ func populateMemoryProfileConfig(cliParams *cliParams, initConfig map[string]int
 	}
 
 	return nil
+}
+
+func getAllCheckConfigs(ac autodiscovery.Component, cliParams cliParams) ([]integration.Config, error) {
+	// get configs from auto discovery
+	if cliParams.customConfig == "" {
+		waitCtx, cancelTimeout := context.WithTimeout(
+			context.Background(), time.Duration(cliParams.discoveryTimeout)*time.Second)
+
+		allConfigs, err := common.WaitForConfigsFromAD(waitCtx, []string{cliParams.checkName}, int(cliParams.discoveryMinInstances), cliParams.instanceFilter, ac)
+		cancelTimeout()
+
+		return allConfigs, err
+	}
+
+	// get config from custom config file
+	fmt.Printf("Loading custom check config from %q\n", cliParams.customConfig)
+
+	customConf, _, err := providers.GetIntegrationConfigFromFile(cliParams.checkName, cliParams.customConfig)
+	if err != nil {
+		return nil, fmt.Errorf("fail to load custom config: %v", err)
+	}
+
+	return []integration.Config{customConf}, nil
 }
 
 // disableCmdPort overrrides the `cmd_port` configuration so that when the
