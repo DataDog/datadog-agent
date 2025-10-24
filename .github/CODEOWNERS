@@ -429,13 +429,13 @@
 /pkg/version/                           @DataDog/agent-runtimes
 /pkg/obfuscate/                         @DataDog/agent-apm
 /pkg/trace/                             @DataDog/agent-apm
-/pkg/trace/api/otlp*.go                 @DataDog/opentelemetry-agent
+/pkg/trace/api/otlp*.go                 @DataDog/opentelemetry
 /pkg/trace/api/loader/                  @DataDog/agent-runtimes
 /pkg/trace/api/loader/listeners.go      @DataDog/agent-apm
-/pkg/trace/traceutil/otel*.go           @DataDog/opentelemetry-agent
-/pkg/trace/stats/                       @DataDog/agent-apm @DataDog/opentelemetry-agent
+/pkg/trace/traceutil/otel*.go           @DataDog/opentelemetry
+/pkg/trace/stats/                       @DataDog/agent-apm @DataDog/opentelemetry
 /pkg/trace/telemetry/                   @DataDog/apm-trace-storage
-/pkg/trace/transform/                   @DataDog/opentelemetry-agent
+/pkg/trace/transform/                   @DataDog/opentelemetry
 /comp/core/autodiscovery/listeners/           @DataDog/container-platform
 /comp/core/autodiscovery/listeners/cloudfoundry*.go  @DataDog/agent-integrations
 /comp/core/autodiscovery/listeners/snmp*.go   @DataDog/ndm-core
