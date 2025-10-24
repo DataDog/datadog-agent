@@ -184,6 +184,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Provide(func() option.Option[integrations.Component] {
 					return option.None[integrations.Component]()
 				}),
+				// TODO(erikayasuda): enable this
 				fx.Provide(func() option.Option[agenttelemetry.Component] {
 					return option.None[agenttelemetry.Component]()
 				}),
