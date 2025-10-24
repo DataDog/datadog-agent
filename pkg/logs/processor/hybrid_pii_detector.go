@@ -9,7 +9,7 @@ import (
 	"bytes"
 	"regexp"
 
-	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder/auto_multiline_detection"
+	automultilinedetection "github.com/DataDog/datadog-agent/pkg/logs/internal/decoder/auto_multiline_detection"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder/auto_multiline_detection/tokens"
 )
 
@@ -61,129 +61,15 @@ func NewHybridPIIDetector(config PIITypeConfig) *HybridPIIDetector {
 	// These run first because they're faster than regex
 	allTokenRules := []*PIIDetectionRule{}
 
-	// SSN rules (only add if SSN redaction is enabled)
+	// Add rules based on enabled PII types
 	if config.SSN {
-		allTokenRules = append(allTokenRules,
-			// SSN with dashes: DDD-DD-DDDD (unambiguous pattern, no confirmation needed)
-			&PIIDetectionRule{
-				Name: "auto_redact_ssn",
-				Type: PIIRuleTypeToken,
-				TokenPattern: []tokens.Token{
-					tokens.D3, tokens.Dash, tokens.D2, tokens.Dash, tokens.D4,
-				},
-				Replacement: []byte("[SSN_REDACTED]"),
-			},
-			// SSN with numbers only: DDDDDDDDD
-			&PIIDetectionRule{
-				Name: "auto_redact_ssn_numbers_only",
-				Type: PIIRuleTypeToken,
-				TokenPattern: []tokens.Token{
-					tokens.D9,
-				},
-				Replacement: []byte("[SSN_REDACTED]"),
-			},
-			// SSN with spaces: DDD DD DDDD
-			&PIIDetectionRule{
-				Name: "auto_redact_ssn_spaces",
-				Type: PIIRuleTypeToken,
-				TokenPattern: []tokens.Token{
-					tokens.D3, tokens.Space, tokens.D2, tokens.Space, tokens.D4,
-				},
-				Replacement: []byte("[SSN_REDACTED]"),
-			},
-		)
+		allTokenRules = append(allTokenRules, getSSNRules()...)
 	}
-
-	// Credit Card rules (only add if credit card redaction is enabled)
 	if config.CreditCard {
-		allTokenRules = append(allTokenRules,
-			// Credit Card with dashes: DDDD-DDDD-DDDD-DDDD (Visa, Mastercard, Discover)
-			&PIIDetectionRule{
-				Name: "auto_redact_credit_card_dashed",
-				Type: PIIRuleTypeToken,
-				TokenPattern: []tokens.Token{
-					tokens.D4, tokens.Dash, tokens.D4, tokens.Dash, tokens.D4, tokens.Dash, tokens.D4,
-				},
-				Replacement: []byte("[CC_REDACTED]"),
-			},
-			// Credit Card with spaces: DDDD DDDD DDDD DDDD (Visa, Mastercard, Discover)
-			&PIIDetectionRule{
-				Name: "auto_redact_credit_card_spaced",
-				Type: PIIRuleTypeToken,
-				TokenPattern: []tokens.Token{
-					tokens.D4, tokens.Space, tokens.D4, tokens.Space, tokens.D4, tokens.Space, tokens.D4,
-				},
-				Replacement: []byte("[CC_REDACTED]"),
-			},
-			// American Express with dashes: DDDD-DDDDDD-DDDDD
-			&PIIDetectionRule{
-				Name: "auto_redact_credit_card_amex_dashed",
-				Type: PIIRuleTypeToken,
-				TokenPattern: []tokens.Token{
-					tokens.D4, tokens.Dash, tokens.D6, tokens.Dash, tokens.D5,
-				},
-				Replacement: []byte("[CC_REDACTED]"),
-			},
-			// American Express with spaces: DDDD DDDDDD DDDDD
-			&PIIDetectionRule{
-				Name: "auto_redact_credit_card_amex_spaced",
-				Type: PIIRuleTypeToken,
-				TokenPattern: []tokens.Token{
-					tokens.D4, tokens.Space, tokens.D6, tokens.Space, tokens.D5,
-				},
-				Replacement: []byte("[CC_REDACTED]"),
-			},
-		)
+		allTokenRules = append(allTokenRules, getCreditCardRules()...)
 	}
-
-	// Phone rules (only add if phone redaction is enabled)
 	if config.Phone {
-		allTokenRules = append(allTokenRules,
-			// Phone with parentheses: (DDD) DDD-DDDD
-			// Regex confirms: area code starts with 2-9 (not 0 or 1, which would be invalid)
-			&PIIDetectionRule{
-				Name: "auto_redact_phone_parens",
-				Type: PIIRuleTypeToken,
-				TokenPattern: []tokens.Token{
-					tokens.Parenopen, tokens.D3, tokens.Parenclose, tokens.Space, tokens.D3, tokens.Dash, tokens.D4,
-				},
-				RegexConfirmation: regexp.MustCompile(`^\([2-9][0-9]{2}\) [0-9]{3}-[0-9]{4}$`),
-				Replacement:       []byte("[PHONE_REDACTED]"),
-			},
-			// Phone with dashes: DDD-DDD-DDDD
-			// Regex confirms: this is a phone (area code 2-9), not a timestamp (would start with 0-1)
-			&PIIDetectionRule{
-				Name: "auto_redact_phone_dashed",
-				Type: PIIRuleTypeToken,
-				TokenPattern: []tokens.Token{
-					tokens.D3, tokens.Dash, tokens.D3, tokens.Dash, tokens.D4,
-				},
-				RegexConfirmation: regexp.MustCompile(`^[2-9][0-9]{2}-[0-9]{3}-[0-9]{4}$`),
-				Replacement:       []byte("[PHONE_REDACTED]"),
-			},
-			// Phone with dots: DDD.DDD.DDDD
-			// Regex confirms: phone, not version number or partial IP
-			&PIIDetectionRule{
-				Name: "auto_redact_phone_dotted",
-				Type: PIIRuleTypeToken,
-				TokenPattern: []tokens.Token{
-					tokens.D3, tokens.Period, tokens.D3, tokens.Period, tokens.D4,
-				},
-				RegexConfirmation: regexp.MustCompile(`^[2-9][0-9]{2}\.[0-9]{3}\.[0-9]{4}$`),
-				Replacement:       []byte("[PHONE_REDACTED]"),
-			},
-			// Phone unformatted: D10 = 10 consecutive digits
-			// Regex confirms: area code starts with 2-9 (not 0 or 1)
-			&PIIDetectionRule{
-				Name: "auto_redact_phone_unformatted",
-				Type: PIIRuleTypeToken,
-				TokenPattern: []tokens.Token{
-					tokens.D10,
-				},
-				RegexConfirmation: regexp.MustCompile(`^[2-9][0-9]{9}$`),
-				Replacement:       []byte("[PHONE_REDACTED]"),
-			},
-		)
+		allTokenRules = append(allTokenRules, getPhoneRules()...)
 	}
 
 	detector.tokenRules = allTokenRules
@@ -192,30 +78,11 @@ func NewHybridPIIDetector(config PIITypeConfig) *HybridPIIDetector {
 	// These handle patterns that are too variable for token matching
 	allRegexRules := []*PIIDetectionRule{}
 
-	// Email rule (only add if email redaction is enabled)
 	if config.Email {
-		allRegexRules = append(allRegexRules,
-			// Email: too variable for token matching (many TLD lengths, subdomain variations)
-			&PIIDetectionRule{
-				Name:        "auto_redact_email",
-				Type:        PIIRuleTypeRegex,
-				Regex:       regexp.MustCompile(`\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b`),
-				Replacement: []byte("[EMAIL_REDACTED]"),
-			},
-		)
+		allRegexRules = append(allRegexRules, getEmailRules()...)
 	}
-
-	// IPv4 rule (only add if IP redaction is enabled)
 	if config.IP {
-		allRegexRules = append(allRegexRules,
-			// IPv4: variable digit lengths (D.D.D.D to DDD.DDD.DDD.DDD), hard for tokens
-			&PIIDetectionRule{
-				Name:        "auto_redact_ipv4",
-				Type:        PIIRuleTypeRegex,
-				Regex:       regexp.MustCompile(`\b(?:[0-9]{1,3}\.){3}[0-9]{1,3}\b`),
-				Replacement: []byte("[IP_REDACTED]"),
-			},
-		)
+		allRegexRules = append(allRegexRules, getIPRules()...)
 	}
 
 	detector.regexRules = allRegexRules

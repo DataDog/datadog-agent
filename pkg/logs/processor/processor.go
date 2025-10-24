@@ -377,7 +377,16 @@ func (p *Processor) getPIITypeConfig(msg *message.Message) *PIITypeConfig {
 	}
 
 	// Check if PII redaction is enabled (parent switch)
-	enabled := enabledPtr != nil && *enabledPtr || enabledPtr == nil && p.config.GetBool(configAutoRedactEnabled)
+	// Per-source enabled setting takes precedence over global
+	var enabled bool
+	if enabledPtr != nil {
+		// Source explicitly set enabled/disabled
+		enabled = *enabledPtr
+	} else {
+		// Source didn't set it - use global config
+		enabled = p.config.GetBool(configAutoRedactEnabled)
+	}
+
 	if !enabled {
 		return nil
 	}

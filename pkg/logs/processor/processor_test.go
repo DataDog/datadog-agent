@@ -803,6 +803,58 @@ func TestAutoPIIRedactionPerSourceOverride(t *testing.T) {
 	}
 }
 
+// TestAutoPIIRedactionSourceDisablesGlobalEnabled tests that per-source disabled overrides global enabled
+func TestAutoPIIRedactionSourceDisablesGlobalEnabled(t *testing.T) {
+	mockConfig := pkgconfigmock.New(t)
+	// Global: ENABLED
+	mockConfig.Set("logs_config.auto_redact_config.enabled", true, model.SourceAgentRuntime)
+
+	p := &Processor{
+		config:       mockConfig,
+		piiTokenizer: newTokenizer(),
+	}
+
+	// Per-source: DISABLED
+	disabled := false
+	sourceConfig := &config.LogsConfig{
+		AutoRedactConfig: &types.AutoRedactConfig{
+			Enabled: &disabled,
+		},
+	}
+	source := sources.NewLogSource("", sourceConfig)
+
+	tests := []struct {
+		name     string
+		input    []byte
+		expected []byte
+	}{
+		{
+			name:     "email_not_redacted_source_disabled",
+			input:    []byte("Email: user@example.com"),
+			expected: []byte("Email: user@example.com"), // Should NOT be redacted
+		},
+		{
+			name:     "ssn_not_redacted_source_disabled",
+			input:    []byte("SSN: 123-45-6789"),
+			expected: []byte("SSN: 123-45-6789"), // Should NOT be redacted
+		},
+		{
+			name:     "credit_card_not_redacted_source_disabled",
+			input:    []byte("Card: 4532-0151-1283-0366"),
+			expected: []byte("Card: 4532-0151-1283-0366"), // Should NOT be redacted
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			msg := newMessage(tt.input, source, "")
+			shouldProcess := p.applyRedactingRules(msg)
+			assert.True(t, shouldProcess, "Message should be processed")
+			assert.Equal(t, tt.expected, msg.GetContent(), "PII should NOT be redacted when source disabled")
+		})
+	}
+}
+
 // TestAutoPIIRedactionDefaultsAllTypesToTrue tests that when enabled=true with no PII type config,
 // all PII types default to true
 func TestAutoPIIRedactionDefaultsAllTypesToTrue(t *testing.T) {
