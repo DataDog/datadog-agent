@@ -38,6 +38,21 @@ type cliParams struct {
 	json    bool
 }
 
+type instance struct {
+	ID     string `json:"id"`
+	Config string `json:"config"`
+}
+
+type jsonConfig struct {
+	Name         string     `json:"check_name"`
+	Provider     string     `json:"provider"`
+	Source       string     `json:"source"`
+	Instances    []instance `json:"instances"`
+	InitConfig   string     `json:"init_config"`
+	MetricConfig string     `json:"metric_config"`
+	Logs         string     `json:"logs"`
+}
+
 // Commands returns a slice of subcommands for the 'agent' command.
 func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	cliParams := &cliParams{
@@ -98,18 +113,19 @@ func fullConfigCmd(cliParams *cliParams, _ log.Component, client ipc.HTTPClient)
 	color.Output = &b
 
 	if cliParams.json {
-		// gather every check config
-		configs := make([]*integration.Config, len(cr.Configs))
-		for i := range cr.Configs {
-			configs[i] = &cr.Configs[i].Config
+		jsonConfigs := make([]jsonConfig, len(cr.Configs))
+
+		// gather and filter every check config
+		for i, config := range cr.Configs {
+			jsonConfigs[i] = convertCheckConfigToJSON(config.Config, config.InstanceIDs)
 		}
 
-		jsonConfigs, err := json.MarshalIndent(configs, "", "  ")
+		configs, err := json.MarshalIndent(jsonConfigs, "", "  ")
 		if err != nil {
 			return err
 		}
 
-		fmt.Fprintln(color.Output, string(jsonConfigs))
+		fmt.Fprintln(color.Output, string(configs))
 
 	} else {
 		flare.PrintConfigCheck(color.Output, cr, cliParams.verbose)
@@ -147,12 +163,12 @@ func singleCheckCmd(cliParams *cliParams, _ log.Component, client ipc.HTTPClient
 			color.Output = &b
 
 			if cliParams.json {
-				jsonConfig, err := json.MarshalIndent(configResponse.Config, "", "  ")
+				config, err := json.MarshalIndent(convertCheckConfigToJSON(configResponse.Config, configResponse.InstanceIDs), "", "  ")
 				if err != nil {
 					return err
 				}
 
-				fmt.Fprintln(color.Output, string(jsonConfig))
+				fmt.Fprintln(color.Output, string(config))
 			} else {
 				flare.PrintConfigWithInstanceIDs(color.Output, configResponse.Config, configResponse.InstanceIDs, "")
 			}
@@ -164,4 +180,38 @@ func singleCheckCmd(cliParams *cliParams, _ log.Component, client ipc.HTTPClient
 
 	// return an error if the name wasn't found in the checks list
 	return fmt.Errorf("no check named %q was found", cliParams.args[0])
+}
+
+func convertCheckConfigToJSON(c integration.Config, instanceIDs []string) jsonConfig {
+	jsonConfig := jsonConfig{}
+
+	jsonConfig.Name = c.Name
+
+	if c.Provider != "" {
+		jsonConfig.Provider = c.Provider
+	} else {
+		jsonConfig.Provider = "Unknown provider"
+	}
+
+	if c.Source != "" {
+		jsonConfig.Source = c.Source
+	} else {
+		jsonConfig.Source = "Unknown configuration source"
+	}
+
+	jsonConfig.Instances = make([]instance, len(c.Instances))
+	for idx, content := range c.Instances {
+		inst := instance{
+			ID:     instanceIDs[idx],
+			Config: string(content),
+		}
+
+		jsonConfig.Instances[idx] = inst
+	}
+
+	jsonConfig.InitConfig = string(c.InitConfig)
+	jsonConfig.MetricConfig = string(c.MetricConfig)
+	jsonConfig.Logs = string(c.LogsConfig)
+
+	return jsonConfig
 }
