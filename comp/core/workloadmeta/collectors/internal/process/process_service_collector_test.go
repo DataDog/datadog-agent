@@ -698,7 +698,6 @@ func makeModelService(pid int32, name string) model.Service {
 		APMInstrumentation: true,
 		Language:           "python",
 		Type:               "database",
-		CommandLine:        []string{"python", "-m", "myservice"},
 		LogFiles:           []string{"/var/log/" + name + ".log"},
 		UST: model.UST{
 			Service: "dd-model-" + name,
