@@ -1807,6 +1807,13 @@ func logsagent(config pkgconfigmodel.Setup) {
 	// https://docs.docker.com/engine/reference/commandline/dockerd/.
 	config.BindEnvAndSetDefault("logs_config.docker_path_override", "")
 
+	// Amount of time to wait for the container runtime to respond while determining what to log, containers or pods.
+	// If the container runtime doesn't respond after specified timeout, log source marked as failed
+	// which is reflected in the Agent status output for the Logs.
+	// If this such behavior undesired, set the value to a significantly large number.
+	// Timeout is in seconds.
+	config.BindEnvAndSetDefault("logs_config.container_runtime_waiting_timeout", "3s")
+
 	config.BindEnvAndSetDefault("logs_config.auditor_ttl", DefaultAuditorTTL) // in hours
 	// Timeout in milliseonds used when performing agreggation operations,
 	// including multi-line log processing rules and chunked line reaggregation.
