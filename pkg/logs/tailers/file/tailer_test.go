@@ -26,6 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	status "github.com/DataDog/datadog-agent/pkg/logs/status/utils"
+	"github.com/DataDog/datadog-agent/pkg/logs/types"
 )
 
 var chanSize = 10
@@ -59,6 +60,14 @@ func (suite *TailerTestSuite) SetupTest() {
 	sleepDuration := 10 * time.Millisecond
 	info := status.NewInfoRegistry()
 
+	// Create a default fingerprinter for the test suite
+	fingerprintConfig := types.FingerprintConfig{
+		FingerprintStrategy: types.FingerprintStrategyByteChecksum,
+		Count:               1024,
+		CountToSkip:         0,
+	}
+	fingerprinter := NewFingerprinter(fingerprintConfig)
+
 	tailerOptions := &TailerOptions{
 		OutputChan:      suite.outputChan,
 		File:            NewFile(suite.testPath, suite.source.UnderlyingSource(), false),
@@ -67,6 +76,7 @@ func (suite *TailerTestSuite) SetupTest() {
 		Info:            info,
 		CapacityMonitor: metrics.NewNoopPipelineMonitor("").GetCapacityMonitor("", ""),
 		Registry:        auditor.NewMockRegistry(),
+		Fingerprinter:   fingerprinter,
 	}
 
 	suite.tailer = NewTailer(tailerOptions)
