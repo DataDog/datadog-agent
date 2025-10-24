@@ -291,6 +291,27 @@ func (e *ebpfConntracker) GetTranslationForConn(stats *network.ConnectionTuple) 
 		dst = e.get(src)
 	}
 
+	// Always check conntrack2 for comparison purposes
+	src.Netns = e.rootNS
+	dst2 := e.get2(src)
+	if dst2 == nil && stats.NetNS != e.rootNS {
+		// Also check connection namespace in conntrack2
+		src.Netns = stats.NetNS
+		dst2 = e.get2(src)
+	}
+
+	// Log discrepancies between the two maps
+	if dst != nil && dst2 == nil {
+		log.Warnf("JMW Entry found in conntrack but missing in conntrack2 for connection: %s", stats)
+	} else if dst == nil && dst2 != nil {
+		log.Infof("JMW Entry not found in conntrack but found in conntrack2 for connection: %s", stats)
+		// Don't use dst2, just log the discrepancy
+		tuplePool.Put(dst2)
+	} else if dst2 != nil {
+		// Both found, clean up dst2 since we only use dst
+		tuplePool.Put(dst2)
+	}
+
 	if dst == nil {
 		return nil
 	}
@@ -341,6 +362,49 @@ func (e *ebpfConntracker) delete(key *netebpf.ConntrackTuple) {
 		return
 	}
 
+	// Also delete from conntrack2 map
+	if err := e.ctMap2.Delete(key); err != nil {
+		if !errors.Is(err, ebpf.ErrKeyNotExist) {
+			log.Warnf("unable to delete conntrack entry from eBPF conntrack2 map: %s", err)
+		}
+		// Don't return here - we successfully deleted from the main map
+	}
+
+	conntrackerTelemetry.unregistersTotal.Inc()
+}
+
+// Duplicated methods for conntrack2 map
+func (e *ebpfConntracker) get2(src *netebpf.ConntrackTuple) *netebpf.ConntrackTuple {
+	dst := tuplePool.Get()
+	if err := e.ctMap2.Lookup(src, dst); err != nil {
+		if !errors.Is(err, ebpf.ErrKeyNotExist) {
+			log.Warnf("error looking up connection in ebpf conntrack2 map: %s", err)
+		}
+		tuplePool.Put(dst)
+		return nil
+	}
+	return dst
+}
+
+func (e *ebpfConntracker) delete2(key *netebpf.ConntrackTuple) {
+	start := time.Now()
+	defer func() {
+		conntrackerTelemetry.unregistersDuration.Observe(float64(time.Since(start).Nanoseconds()))
+	}()
+
+	if err := e.ctMap2.Delete(key); err != nil {
+		if errors.Is(err, ebpf.ErrKeyNotExist) {
+			if log.ShouldLog(log.TraceLvl) {
+				log.Tracef("connection does not exist in ebpf conntrack2 map: %s", key)
+			}
+
+			return
+		}
+
+		log.Warnf("unable to delete conntrack entry from eBPF conntrack2 map: %s", err)
+		return
+	}
+
 	conntrackerTelemetry.unregistersTotal.Inc()
 }
 
@@ -350,6 +414,17 @@ func (e *ebpfConntracker) deleteTranslationNs(key *netebpf.ConntrackTuple, ns ui
 	e.delete(key)
 	if dst != nil {
 		e.delete(dst)
+	}
+
+	return dst
+}
+
+func (e *ebpfConntracker) deleteTranslationNs2(key *netebpf.ConntrackTuple, ns uint32) *netebpf.ConntrackTuple {
+	key.Netns = ns
+	dst := e.get2(key)
+	e.delete2(key)
+	if dst != nil {
+		e.delete2(dst)
 	}
 
 	return dst
@@ -367,6 +442,15 @@ func (e *ebpfConntracker) DeleteTranslation(stats *network.ConnectionTuple) {
 	}
 
 	if dst := e.deleteTranslationNs(key, stats.NetNS); dst != nil {
+		tuplePool.Put(dst)
+	}
+
+	// Also delete from conntrack2 map
+	if dst := e.deleteTranslationNs2(key, e.rootNS); dst != nil {
+		tuplePool.Put(dst)
+	}
+
+	if dst := e.deleteTranslationNs2(key, stats.NetNS); dst != nil {
 		tuplePool.Put(dst)
 	}
 }
