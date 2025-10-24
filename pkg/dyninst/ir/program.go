@@ -17,10 +17,6 @@ type ProgramID uint32
 // TypeID is a ID corresponding to a type in a program.
 type TypeID uint32
 
-// EventID is a ID corresponding to an event output by the program.  It is used
-// to identify events as they are communicated over the ring buffer.
-type EventID uint32
-
 // SubprogramID is a ID corresponding to a subprogram in a program.
 type SubprogramID uint32
 
@@ -157,9 +153,6 @@ type Probe struct {
 
 // Event corresponds to an action that will occur when a PC is hit.
 type Event struct {
-	// ID of the event. This is used to identify data produced by the event over
-	// the ring buffer.
-	ID EventID
 	// Kind is the kind of event.
 	Kind EventKind
 	// SourceLine for line events, empty otherwise.

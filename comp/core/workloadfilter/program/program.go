@@ -6,15 +6,13 @@
 // Package program contains the implementation of filtering programs.
 package program
 
-import (
-	filterdef "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
-)
+import workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 
 // FilterProgram is an interface that defines a method for evaluating a filter program.
 type FilterProgram interface {
 
 	// Evaluate evaluates the filter program for a Result (Included, Excluded, or Unknown)
-	Evaluate(entity filterdef.Filterable) (filterdef.Result, []error)
+	Evaluate(entity workloadfilter.Filterable) workloadfilter.Result
 
 	// GetInitializationErrors returns any errors that occurred
 	// during the initialization of the filtering program

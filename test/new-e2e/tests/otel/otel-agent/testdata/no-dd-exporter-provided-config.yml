@@ -18,7 +18,6 @@ exporters:
     logs:
       batch_wait: 5
       compression_level: 6
-      dump_payloads: false
       use_compression: true
     max_idle_conns: 100
     metrics:
@@ -96,6 +95,7 @@ receivers:
         cors: null
         endpoint: 0.0.0.0:4318
         idle_timeout: 0s
+        keep_alives_enabled: true
         logs_url_path: /v1/logs
         metrics_url_path: /v1/metrics
         read_header_timeout: 0s
