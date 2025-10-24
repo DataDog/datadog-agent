@@ -272,6 +272,7 @@ func (def *definition[T]) GetInstance(ctx *Context) (VariableInstance, bool, err
 		instance.free()
 		def.instancesLock.Unlock()
 		instance = nil
+		instanceOk = false
 	}
 
 	// instance can be nil here if no instance exists
