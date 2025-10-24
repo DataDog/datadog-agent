@@ -593,9 +593,15 @@ func (i *installerImpl) Purge(ctx context.Context) {
 	//         failing the uninstall.
 	//       We can't workaround this by moving removePackage to the end of purge,
 	//       as the daemon may be running and holding locks on files that need to be removed.
-	err = i.hooks.PreRemove(ctx, packageDatadogAgent, packages.PackageTypeOCI, false)
-	if err != nil {
-		log.Warnf("could not remove agent: %v", err)
+	//
+	// Note: If DD_NO_AGENT_UNINSTALL is set, then the agent will not be uninstalled.
+	//       This is used to prevent the agent from being uninstalled when purge is
+	//       called from within the MSI.
+	if _, ok := os.LookupEnv("DD_NO_AGENT_UNINSTALL"); !ok {
+		err = i.hooks.PreRemove(ctx, packageDatadogAgent, packages.PackageTypeOCI, false)
+		if err != nil {
+			log.Warnf("could not remove agent: %v", err)
+		}
 	}
 	// TODO: wont need this when Linux packages are merged
 	if runtime.GOOS != "windows" {
