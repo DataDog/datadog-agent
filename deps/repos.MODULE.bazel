@@ -8,8 +8,14 @@ bazel_dep(name = "libyaml", version = "0.2.5")
 # Defies a "liblua" target for the lib
 bazel_dep(name = "lua", version = "5.4.6")
 
-# Defines a "sqlite3" target for the lib
-bazel_dep(name = "sqlite3", version = "3.46.1")
+sqlite_amalgamation = "sqlite-amalgamation-3500400"  # version 3.50.4
+http_archive(
+    name = "sqlite3",
+    build_file = "//deps:sqlite3.BUILD.bazel",
+    sha256 = "1d3049dd0f830a025a53105fc79fd2ab9431aea99e137809d064d8ee8356b032",
+    strip_prefix = sqlite_amalgamation,
+    url = "https://www.sqlite.org/2025/{}.zip".format(sqlite_amalgamation),
+)
 
 http_archive(
     name = "xz",
@@ -91,8 +97,8 @@ http_archive(
     sha256 = "c8e1a11dd5879a2788973c73589fbcf08606e85aeec095e516162495ead8ba68",
     strip_prefix = "util-linux-2.39.2",
     files = {
-        "generated/config.h": "//deps:util-linux/config.h"
-    }
+        "generated/config.h": "//deps:util-linux/config.h",
+    },
 )
 
 http_archive(
