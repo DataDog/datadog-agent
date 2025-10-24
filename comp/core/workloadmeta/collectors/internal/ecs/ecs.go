@@ -10,6 +10,7 @@ package ecs
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	"github.com/patrickmn/go-cache"
@@ -20,9 +21,9 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/errors"
-	ecsutil "github.com/DataDog/datadog-agent/pkg/util/ecs"
 	ecsmeta "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata"
 	v1 "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/v1"
+	v2 "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/v2"
 	"github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/v3or4"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -30,6 +31,13 @@ import (
 const (
 	collectorID   = "ecs"
 	componentName = "workloadmeta-ecs"
+)
+
+type deploymentMode string
+
+const (
+	deploymentModeDaemon  deploymentMode = "daemon"
+	deploymentModeSidecar deploymentMode = "sidecar"
 )
 
 type dependencies struct {
@@ -43,6 +51,8 @@ type collector struct {
 	store                workloadmeta.Component
 	catalog              workloadmeta.AgentType
 	metaV1               v1.Client
+	metaV2               v2.Client
+	metaV4               v3or4.Client
 	metaV3or4            func(metaURI, metaVersion string) v3or4.Client
 	clusterName          string
 	containerInstanceARN string
@@ -62,6 +72,10 @@ type collector struct {
 	metadataRetryInitialInterval time.Duration
 	metadataRetryMaxElapsedTime  time.Duration
 	metadataRetryTimeoutFactor   int
+	// deploymentMode tracks whether agent runs as daemon or sidecar
+	deploymentMode deploymentMode
+	// actualLaunchType is the actual AWS ECS launch type (ec2 or fargate)
+	actualLaunchType workloadmeta.ECSLaunchType
 }
 
 type resourceTags struct {
@@ -95,64 +109,74 @@ func GetFxOptions() fx.Option {
 }
 
 func (c *collector) Start(ctx context.Context, store workloadmeta.Component) error {
-	if !env.IsFeaturePresent(env.ECSEC2) {
-		return errors.NewDisabled(componentName, "Agent is not running on ECS EC2")
+	// Check if running on ECS (EC2 or Fargate)
+	if !env.IsFeaturePresent(env.ECSEC2) && !env.IsFeaturePresent(env.ECSFargate) {
+		return errors.NewDisabled(componentName, "Agent is not running on ECS")
 	}
-
-	var err error
 
 	c.store = store
-	c.metaV1, err = ecsmeta.V1()
-	if err != nil {
-		return err
+
+	// Determine deployment mode (daemon or sidecar)
+	c.deploymentMode = c.determineDeploymentMode()
+	log.Infof("ECS collector starting in %s mode", c.deploymentMode)
+
+	// Detect actual launch type from AWS metadata
+	c.actualLaunchType = c.detectLaunchType(ctx)
+	log.Infof("Detected ECS launch type: %s", c.actualLaunchType)
+
+	// Initialize metadata clients based on deployment mode
+	if c.deploymentMode == deploymentModeDaemon {
+		return c.initializeDaemonMode(ctx)
 	}
-
-	// This only exists to allow overriding for testing
-	c.metaV3or4 = func(metaURI, metaVersion string) v3or4.Client {
-		return v3or4.NewClient(metaURI, metaVersion, v3or4.WithTryOption(
-			c.metadataRetryInitialInterval,
-			c.metadataRetryMaxElapsedTime,
-			func(d time.Duration) time.Duration { return time.Duration(c.metadataRetryTimeoutFactor) * d }),
-		)
-	}
-
-	c.hasResourceTags = ecsutil.HasEC2ResourceTags()
-	c.collectResourceTags = c.config.GetBool("ecs_collect_resource_tags_ec2")
-
-	instance, err := c.metaV1.GetInstance(ctx)
-	if err == nil {
-		c.clusterName = instance.Cluster
-		c.containerInstanceARN = instance.ContainerInstanceARN
-		c.setTaskCollectionParser(instance.Version)
-	} else {
-		log.Warnf("cannot determine ECS cluster name: %s", err)
-	}
-
-	return nil
+	return c.initializeSidecarMode(ctx)
 }
 
-func (c *collector) setTaskCollectionParser(version string) {
-	if !c.taskCollectionEnabled {
-		log.Infof("detailed task collection disabled, using metadata v1 endpoint")
-		c.taskCollectionParser = c.parseTasksFromV1Endpoint
-		return
+func (c *collector) determineDeploymentMode() deploymentMode {
+	configMode := c.config.GetString("ecs_deployment_mode")
+
+	switch strings.ToLower(configMode) {
+	case "daemon":
+		return deploymentModeDaemon
+	case "sidecar":
+		return deploymentModeSidecar
+	case "auto":
+		// Auto-detect based on environment
+		if env.IsFeaturePresent(env.ECSFargate) {
+			// Fargate can only run as sidecar
+			return deploymentModeSidecar
+		}
+		// EC2 defaults to daemon
+		return deploymentModeDaemon
+	default:
+		log.Warnf("Unknown ecs_deployment_mode %q, using auto-detection", configMode)
+		// Default to daemon for EC2, sidecar for Fargate
+		if env.IsFeaturePresent(env.ECSFargate) {
+			return deploymentModeSidecar
+		}
+		return deploymentModeDaemon
+	}
+}
+
+func (c *collector) detectLaunchType(ctx context.Context) workloadmeta.ECSLaunchType {
+	// First check environment variable
+	if env.IsFeaturePresent(env.ECSFargate) {
+		return workloadmeta.ECSLaunchTypeFargate
 	}
 
-	ok, err := ecsmeta.IsMetadataV4Available(util.ParseECSAgentVersion(version))
-	if err != nil {
-		log.Warnf("detailed task collection enabled but agent cannot determine if v4 metadata endpoint is available, using metadata v1 endpoint: %s", err.Error())
-		c.taskCollectionParser = c.parseTasksFromV1Endpoint
-		return
+	// For EC2, try to detect from task metadata if running in sidecar mode
+	if c.deploymentMode == deploymentModeSidecar {
+		// Try to get current task metadata to determine launch type
+		if metaV4, err := ecsmeta.V4FromCurrentTask(); err == nil {
+			if task, err := metaV4.GetTask(ctx); err == nil && task != nil {
+				if strings.ToUpper(task.LaunchType) == "FARGATE" {
+					return workloadmeta.ECSLaunchTypeFargate
+				}
+			}
+		}
 	}
 
-	if !ok {
-		log.Infof("detailed task collection enabled but v4 metadata endpoint is not available, using metadata v1 endpoint")
-		c.taskCollectionParser = c.parseTasksFromV1Endpoint
-		return
-	}
-
-	log.Infof("detailed task collection enabled, using metadata v4 endpoint")
-	c.taskCollectionParser = c.parseTasksFromV4Endpoint
+	// Default to EC2
+	return workloadmeta.ECSLaunchTypeEC2
 }
 
 func (c *collector) Pull(ctx context.Context) error {
@@ -174,36 +198,4 @@ func (c *collector) GetID() string {
 
 func (c *collector) GetTargetCatalog() workloadmeta.AgentType {
 	return c.catalog
-}
-
-func (c *collector) setLastSeenEntitiesAndUnsetEvents(events []workloadmeta.CollectorEvent, seen map[workloadmeta.EntityID]struct{}) []workloadmeta.CollectorEvent {
-	for seenID := range c.seen {
-		if _, ok := seen[seenID]; ok {
-			continue
-		}
-
-		if c.hasResourceTags && seenID.Kind == workloadmeta.KindECSTask {
-			delete(c.resourceTags, seenID.ID)
-		}
-
-		var entity workloadmeta.Entity
-		switch seenID.Kind {
-		case workloadmeta.KindECSTask:
-			entity = &workloadmeta.ECSTask{EntityID: seenID}
-		case workloadmeta.KindContainer:
-			entity = &workloadmeta.Container{EntityID: seenID}
-		default:
-			log.Errorf("cannot handle expired entity of kind %q, skipping", seenID.Kind)
-			continue
-		}
-
-		events = append(events, workloadmeta.CollectorEvent{
-			Type:   workloadmeta.EventTypeUnset,
-			Source: workloadmeta.SourceNodeOrchestrator,
-			Entity: entity,
-		})
-	}
-
-	c.seen = seen
-	return events
 }
