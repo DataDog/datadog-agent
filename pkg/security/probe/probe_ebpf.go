@@ -101,6 +101,7 @@ var (
 		model.ForkEventType.String(),
 		model.ExecEventType.String(),
 		model.ExitEventType.String(),
+		model.TracerMemfdSealEventType.String(),
 	}
 )
 
@@ -1571,6 +1572,13 @@ func (p *EBPFProbe) handleRegularEvent(event *model.Event, offset int, dataLen u
 		}
 		if event.PrCtl.IsNameTruncated {
 			p.MetricNameTruncated.Add(1)
+		}
+	case model.TracerMemfdSealEventType:
+		if !p.regularUnmarshalEvent(&event.TracerMemfdSeal, eventType, offset, dataLen, data) {
+			return false
+		}
+		if err := p.Resolvers.ProcessResolver.AddTracerMetadata(event.PIDContext.Pid, event); err != nil {
+			seclog.Debugf("failed to add tracer metadata: %s (pid %d, fd %d)", err, event.PIDContext.Pid, event.TracerMemfdSeal.Fd)
 		}
 	}
 	return true

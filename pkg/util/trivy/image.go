@@ -123,9 +123,10 @@ func (img *image) ConfigFile() (*v1.ConfigFile, error) {
 	}
 
 	return &v1.ConfigFile{
-		Architecture:  img.inspect.Architecture,
-		Author:        img.inspect.Author,
-		Created:       v1.Time{Time: created},
+		Architecture: img.inspect.Architecture,
+		Author:       img.inspect.Author,
+		Created:      v1.Time{Time: created},
+		//nolint:staticcheck // SA1019 keep for backwards compatibility, to be removed in the next Docker release
 		DockerVersion: img.inspect.DockerVersion,
 		Config:        img.imageConfig(img.inspect.Config),
 		History:       img.history,
