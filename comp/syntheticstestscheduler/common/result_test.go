@@ -22,7 +22,7 @@ func TestAssertionResult_Compare(t *testing.T) {
 			{"actual equal", 10, 10, false, false},
 			{"actual more", 10, 20, false, false},
 		},
-		OperatorLessThanOrEquals: {
+		OperatorLessThanOrEqual: {
 			{"less is true", 10, 5, true, false},
 			{"equal is true", 10, 10, true, false},
 			{"more is false", 10, 20, false, false},
@@ -32,7 +32,7 @@ func TestAssertionResult_Compare(t *testing.T) {
 			{"equal is false", 10, 10, false, false},
 			{"less is false", 10, 5, false, false},
 		},
-		OperatorMoreThanOrEquals: {
+		OperatorMoreThanOrEqual: {
 			{"more is true", 10, 20, true, false},
 			{"equal is true", 10, 10, true, false},
 			{"less is false", 10, 5, false, false},

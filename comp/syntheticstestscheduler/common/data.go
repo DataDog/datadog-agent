@@ -91,12 +91,12 @@ const (
 	OperatorIsNot Operator = "isNot"
 	// OperatorMoreThan checks if greater than target.
 	OperatorMoreThan Operator = "moreThan"
-	// OperatorMoreThanOrEquals checks if greater than or equal to target.
-	OperatorMoreThanOrEquals Operator = "moreThanOrEquals"
+	// OperatorMoreThanOrEqual checks if greater than or equal to target.
+	OperatorMoreThanOrEqual Operator = "moreThanOrEqual"
 	// OperatorLessThan checks if less than target.
 	OperatorLessThan Operator = "lessThan"
-	// OperatorLessThanOrEquals checks if less than or equal to target.
-	OperatorLessThanOrEquals Operator = "lessThanOrEquals"
+	// OperatorLessThanOrEqual checks if less than or equal to target.
+	OperatorLessThanOrEqual Operator = "lessThanOrEqual"
 )
 
 // AssertionType represents the type of metric being asserted in a network test.
@@ -127,10 +127,10 @@ const (
 
 // Assertion represents a single condition to be checked in a network test.
 type Assertion struct {
-	Operator Operator         `json:"operator"`
-	Property AssertionSubType `json:"property"`
-	Target   string           `json:"target"`
-	Type     AssertionType    `json:"type"`
+	Operator Operator          `json:"operator"`
+	Property *AssertionSubType `json:"property,omitempty"`
+	Target   string            `json:"target"`
+	Type     AssertionType     `json:"type"`
 }
 
 // UnmarshalJSON is a Custom unmarshal for SyntheticsTestConfig
