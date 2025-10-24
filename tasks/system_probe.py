@@ -474,7 +474,6 @@ def ninja_runtime_compilation_files(nw: NinjaWriter, gobin):
     runtime_compiler_files = {
         "pkg/collector/corechecks/ebpf/probe/oomkill/oom_kill.go": "oom-kill",
         "pkg/collector/corechecks/ebpf/probe/tcpqueuelength/tcp_queue_length.go": "tcp-queue-length",
-        "pkg/collector/corechecks/ebpf/probe/seccomptracer/seccomp_tracer.go": "seccomp-tracer",
         "pkg/collector/corechecks/servicediscovery/module/network_ebpf.go": "discovery-net",
         "pkg/network/usm/compile.go": "usm",
         "pkg/network/usm/sharedlibraries/compile.go": "shared-libraries",
