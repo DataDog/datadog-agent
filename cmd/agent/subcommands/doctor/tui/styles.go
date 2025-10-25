@@ -46,6 +46,19 @@ const (
 	wireLength  = 10 // 10 characters wide
 )
 
+// Layout constants for responsiveness
+const (
+	minTerminalWidth           = 60 // Minimum terminal width to display properly
+	minWidthForHorizontalSplit = 130
+	// minPanelWidth    = 100 // Minimum width for a single panel
+	logoWidth         = 44 // Approximate width of the Datadog logo
+	horizontalPadding = 1
+	verticalPadding   = 1
+	panelBorderWidth  = 2 // Border + padding width (2 * (border 1px + padding 2))
+	panelPaddingWidth = 2 * horizontalPadding
+	// panelSpacing = 2 // Spacing between panels
+)
+
 // Animation constants
 const (
 	// Animation duration in milliseconds
@@ -98,19 +111,25 @@ var (
 var (
 	// Base styles
 	baseStyle = lipgloss.NewStyle().
-			Padding(0, 1)
+			Padding(0, horizontalPadding)
 
 	// Panel styles
 	panelStyle = lipgloss.NewStyle().
 			Border(lipgloss.RoundedBorder()).
 			BorderForeground(colorBorder).
-			Padding(1, 2).
-			MarginRight(1)
+			Padding(verticalPadding, horizontalPadding)
+		// MarginRight(1)
 
 	titleStyle = lipgloss.NewStyle().
 			Foreground(colorTitle).
 			Bold(true).
 			Underline(true).
+			MarginBottom(1)
+
+	boxStyle = lipgloss.NewStyle().
+			Border(lipgloss.RoundedBorder()).
+			BorderForeground(colorBorder).
+			Padding(1, horizontalPadding).
 			MarginBottom(1)
 
 	// Status indicator styles
@@ -159,7 +178,7 @@ var (
 			BorderTop(true).
 			BorderStyle(lipgloss.NormalBorder()).
 			BorderForeground(colorBorder).
-			Padding(1, 2)
+			Padding(1, horizontalPadding)
 
 	keyStyle = lipgloss.NewStyle().
 			Foreground(colorHighlight).

@@ -180,65 +180,77 @@ func shouldFillCell(row int, value, avg, max float64) bool {
 }
 
 // renderServiceDotGraphs renders all three dot graphs (metrics, logs, traces) horizontally side-by-side
-// with labels showing current value and average
-// Each graph is 15 columns wide for a 15-second window
-func renderServiceDotGraphs(sts *serviceTimeSeries) string {
-	const graphWidth = 15 // 15 seconds at 1 second per column
-
-	// Get the visible window for each telemetry type (last 15 values)
-	metricsWindow := getVisibleWindow(sts.metrics.values, graphWidth)
-	logsWindow := getVisibleWindow(sts.logs.values, graphWidth)
-	tracesWindow := getVisibleWindow(sts.traces.values, graphWidth)
+// with a unified info block on the left showing all metrics info
+// graphWidth specifies the width of each individual graph (number of time columns)
+func renderServiceDotGraphs(sts *serviceTimeSeries, graphWidth, infoBlockWidth int) string {
+	// Get the visible window for each telemetry type
+	// metricsWindow := getVisibleWindow(sts.metrics.values, graphWidth)
+	// logsWindow := getVisibleWindow(sts.logs.values, graphWidth)
+	// tracesWindow := getVisibleWindow(sts.traces.values, graphWidth)
 
 	// Calculate averages and max for visible window only
-	metricsAvg := getWindowAverage(metricsWindow)
-	metricsMax := getWindowMax(metricsWindow)
+	metricsAvg := getWindowAverage(sts.metrics.values)
+	metricsMax := getWindowMax(sts.metrics.values)
 	metricsCurrent := getCurrentValue(sts.metrics.values)
 
-	logsAvg := getWindowAverage(logsWindow)
-	logsMax := getWindowMax(logsWindow)
+	logsAvg := getWindowAverage(sts.logs.values)
+	logsMax := getWindowMax(sts.logs.values)
 	logsCurrent := getCurrentValue(sts.logs.values)
 
-	tracesAvg := getWindowAverage(tracesWindow)
-	tracesMax := getWindowMax(tracesWindow)
+	tracesAvg := getWindowAverage(sts.traces.values)
+	tracesMax := getWindowMax(sts.traces.values)
 	tracesCurrent := getCurrentValue(sts.traces.values)
 
-	// Render each graph
-	metricsGraph := renderDotGraph(graphWidth, sts.metrics.values, colorMetrics, metricsAvg, metricsMax)
-	logsGraph := renderDotGraph(graphWidth, sts.logs.values, colorLogs, logsAvg, logsMax)
-	tracesGraph := renderDotGraph(graphWidth, sts.traces.values, colorTraces, tracesAvg, tracesMax)
+	// Render each graph (6 rows each)
+	var metricsGraph, logsGraph, tracesGraph string
+	if graphWidth > 0 {
+		metricsGraph = renderDotGraph(graphWidth, sts.metrics.values, colorMetrics, metricsAvg, metricsMax)
+		logsGraph = renderDotGraph(graphWidth, sts.logs.values, colorLogs, logsAvg, logsMax)
+		tracesGraph = renderDotGraph(graphWidth, sts.traces.values, colorTraces, tracesAvg, tracesMax)
+	}
 
-	// Create labels for each graph
-	metricsLabel := formatGraphLabel("Metrics", metricsCurrent, metricsAvg, false)
-	logsLabel := formatGraphLabel("Logs", logsCurrent, logsAvg, true)
-	tracesLabel := formatGraphLabel("Traces", tracesCurrent, tracesAvg, false)
+	// Create unified info block (6 lines) showing all metrics
+	infoBlock := formatUnifiedInfoBlock(metricsCurrent, metricsAvg, logsCurrent, logsAvg, tracesCurrent, tracesAvg)
 
-	// Combine labels and graphs (label is 2 rows tall, same as graph)
-	metricsBlock := combineGraphWithLabel(metricsLabel, metricsGraph)
-	logsBlock := combineGraphWithLabel(logsLabel, logsGraph)
-	tracesBlock := combineGraphWithLabel(tracesLabel, tracesGraph)
+	// Split graphs into lines
+	metricsLines := strings.Split(metricsGraph, "\n")
+	logsLines := strings.Split(logsGraph, "\n")
+	tracesLines := strings.Split(tracesGraph, "\n")
+	infoLines := strings.Split(infoBlock, "\n")
 
-	// Split each block into lines
-	metricsLines := strings.Split(metricsBlock, "\n")
-	logsLines := strings.Split(logsBlock, "\n")
-	tracesLines := strings.Split(tracesBlock, "\n")
+	// Ensure we have 6 lines for each
+	for len(metricsLines) < 6 {
+		metricsLines = append(metricsLines, "")
+	}
+	for len(logsLines) < 6 {
+		logsLines = append(logsLines, "")
+	}
+	for len(tracesLines) < 6 {
+		tracesLines = append(tracesLines, "")
+	}
+	for len(infoLines) < 6 {
+		infoLines = append(infoLines, "")
+	}
 
-	// Combine horizontally (side-by-side) with spacing
+	// Combine: info block on left, then 3 graphs horizontally on right
 	var result strings.Builder
-	for i := 0; i < 6; i++ { // 6 rows per graph
-		if i < len(metricsLines) {
-			result.WriteString(metricsLines[i])
-		}
+
+	for i := 0; i < 6; i++ {
+		// Info block (left side)
+		paddedInfo := padRight(infoLines[i], infoBlockWidth)
+		result.WriteString(paddedInfo)
+		result.WriteString(" ") // Space after info block
+
+		// Metrics graph
+		result.WriteString(metricsLines[i])
 		result.WriteString("  ") // Spacing between graphs
 
-		if i < len(logsLines) {
-			result.WriteString(logsLines[i])
-		}
+		// Logs graph
+		result.WriteString(logsLines[i])
 		result.WriteString("  ") // Spacing between graphs
 
-		if i < len(tracesLines) {
-			result.WriteString(tracesLines[i])
-		}
+		// Traces graph
+		result.WriteString(tracesLines[i])
 
 		if i < 5 { // Don't add newline after last line
 			result.WriteString("\n")
@@ -258,6 +270,10 @@ func getCurrentValue(values []float64) float64 {
 
 // getVisibleWindow returns the last N values from the time series (the visible window)
 func getVisibleWindow(values []float64, windowSize int) []float64 {
+	// If the window is null, return all values
+	if windowSize <= 0 {
+		return values
+	}
 	if len(values) == 0 {
 		return []float64{}
 	}
@@ -406,4 +422,33 @@ func formatRate(rate float64) string {
 		return fmt.Sprintf("%.1fK", rate/1000)
 	}
 	return fmt.Sprintf("%.1fM", rate/1000000)
+}
+
+// formatUnifiedInfoBlock creates a 6-line info block showing all metrics info stacked
+// Lines 0-1: Metrics (current + avg)
+// Lines 2-3: Logs (current + avg)
+// Lines 4-5: Traces (current + avg)
+func formatUnifiedInfoBlock(metricsCurr, metricsAvg, logsCurr, logsAvg, tracesCurr, tracesAvg float64) string {
+	// Format metrics info (2 lines)
+	metricsLine1 := lipgloss.NewStyle().Foreground(colorLabel).Render("Metrics: ") +
+		lipgloss.NewStyle().Foreground(colorValue).Render(formatRate(metricsCurr)+"/s")
+	metricsLine2 := lipgloss.NewStyle().Foreground(colorSubdued).Render("~" + formatRate(metricsAvg) + "/s")
+
+	// Format logs info (2 lines)
+	logsLine1 := lipgloss.NewStyle().Foreground(colorLabel).Render("Logs: ") +
+		lipgloss.NewStyle().Foreground(colorValue).Render(formatBytesPerSecond(logsCurr))
+	logsLine2 := lipgloss.NewStyle().Foreground(colorSubdued).Render("~" + formatBytes(int64(logsAvg)))
+
+	// Format traces info (2 lines)
+	tracesLine1 := lipgloss.NewStyle().Foreground(colorLabel).Render("Traces: ") +
+		lipgloss.NewStyle().Foreground(colorValue).Render(formatRate(tracesCurr)+"/s")
+	tracesLine2 := lipgloss.NewStyle().Foreground(colorSubdued).Render("~" + formatRate(tracesAvg) + "/s")
+
+	// Combine into 6 lines
+	return metricsLine1 + "\n" +
+		metricsLine2 + "\n" +
+		logsLine1 + "\n" +
+		logsLine2 + "\n" +
+		tracesLine1 + "\n" +
+		tracesLine2
 }

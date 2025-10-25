@@ -54,21 +54,22 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				// User requested manual refresh
 				return m, fetchDoctorStatus(m.client)
 
-			case "left", "h":
-				// Navigate to previous panel (only 2 panels now: services and agent)
-				if m.selectedPanel > 0 {
-					m.selectedPanel--
-				}
+			// case "left", "h":
+			// 	// Navigate to previous panel (only 2 panels now: services and agent)
+			// 	if m.selectedPanel > 0 {
+			// 		m.selectedPanel--
+			// 	}
 
-			case "right", "l":
-				// Navigate to next panel (only 2 panels now: services and agent)
-				if m.selectedPanel < 1 {
-					m.selectedPanel++
-				}
+			// case "right", "l":
+			// 	// Navigate to next panel (only 2 panels now: services and agent)
+			// 	if m.selectedPanel < 1 {
+			// 		m.selectedPanel++
+			// 	}
 
 			case "up", "k":
 				// Navigate up in services list (only when services panel is selected)
-				if m.selectedPanel == 0 && m.status != nil {
+				// if m.selectedPanel == 0 && m.status != nil {
+				if m.status != nil {
 					if m.selectedServiceIdx > 0 {
 						m.selectedServiceIdx--
 						// Adjust scroll offset if needed
@@ -80,7 +81,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 			case "down", "j":
 				// Navigate down in services list (only when services panel is selected)
-				if m.selectedPanel == 0 && m.status != nil {
+				// if m.selectedPanel == 0 && m.status != nil {
+				if m.status != nil {
 					maxIdx := len(m.status.Services) - 1
 					if m.selectedServiceIdx < maxIdx {
 						m.selectedServiceIdx++
@@ -100,17 +102,18 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 			case "pgup":
 				// Page up in services list (only when services panel is selected)
-				if m.selectedPanel == 0 {
-					m.selectedServiceIdx -= 10
-					if m.selectedServiceIdx < 0 {
-						m.selectedServiceIdx = 0
-					}
-					m.scrollOffset = m.selectedServiceIdx
+				// if m.selectedPanel == 0 {
+				m.selectedServiceIdx -= 10
+				if m.selectedServiceIdx < 0 {
+					m.selectedServiceIdx = 0
 				}
+				m.scrollOffset = m.selectedServiceIdx
+				// }
 
 			case "pgdown":
 				// Page down in services list (only when services panel is selected)
-				if m.selectedPanel == 0 && m.status != nil {
+				// if m.selectedPanel == 0 && m.status != nil {
+				if m.status != nil {
 					m.selectedServiceIdx += 10
 					maxIdx := len(m.status.Services) - 1
 					if m.selectedServiceIdx > maxIdx {
@@ -130,14 +133,15 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 			case "home":
 				// Jump to first service (only when services panel is selected)
-				if m.selectedPanel == 0 {
-					m.selectedServiceIdx = 0
-					m.scrollOffset = 0
-				}
+				// if m.selectedPanel == 0 {
+				m.selectedServiceIdx = 0
+				m.scrollOffset = 0
+				// }
 
 			case "end":
 				// Jump to last service including "other" (only when services panel is selected)
-				if m.selectedPanel == 0 && m.status != nil {
+				// if m.selectedPanel == 0 && m.status != nil {
+				if m.status != nil {
 					m.selectedServiceIdx = len(m.status.Services) - 1 // Points to "other"
 					linesPerService := 8
 					panelHeight := m.height - 6
@@ -234,60 +238,60 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 			}
 
-		case LogsDetailView:
-			switch msg.String() {
-			case "q", "ctrl+c":
-				// User wants to quit
-				m.quitting = true
-				return m, tea.Quit
+			// case LogsDetailView:
+			// 	switch msg.String() {
+			// 	case "q", "ctrl+c":
+			// 		// User wants to quit
+			// 		m.quitting = true
+			// 		return m, tea.Quit
 
-			case "esc":
-				// Go back to main view
-				m.viewMode = MainView
-				m.streamingSource = "" // Stop streaming
-				// Clear previous logs
-				m.logLines = []string{}
+			// 	case "esc":
+			// 		// Go back to main view
+			// 		m.viewMode = MainView
+			// 		m.streamingSource = "" // Stop streaming
+			// 		// Clear previous logs
+			// 		m.logLines = []string{}
 
-			case "up", "k":
-				// Navigate up in logs list
-				if m.selectedLogIdx > 0 && m.status != nil {
-					m.selectedLogIdx--
-					// Switch to streaming logs for the newly selected source
-					selectedSource := m.status.Ingestion.Logs.Integrations[m.selectedLogIdx]
-					if m.streamingSource != selectedSource.Name {
-						m.streamingSource = selectedSource.Name
-						// Clear previous logs
-						m.logLines = []string{}
-						m.logFetcher.Close()
-						logFetcher, err := newLogFetcher(selectedSource.Name, m.client)
-						if err != nil {
-							// TODO
-						}
-						m.logFetcher = logFetcher
-						return m, tea.Batch(m.logFetcher.ListenCmd(), m.logFetcher.WaitCmd())
-					}
-				}
+			// 	case "up", "k":
+			// 		// Navigate up in logs list
+			// 		if m.selectedLogIdx > 0 && m.status != nil {
+			// 			m.selectedLogIdx--
+			// 			// Switch to streaming logs for the newly selected source
+			// 			selectedSource := m.status.Ingestion.Logs.Integrations[m.selectedLogIdx]
+			// 			if m.streamingSource != selectedSource.Name {
+			// 				m.streamingSource = selectedSource.Name
+			// 				// Clear previous logs
+			// 				m.logLines = []string{}
+			// 				m.logFetcher.Close()
+			// 				logFetcher, err := newLogFetcher(selectedSource.Name, m.client)
+			// 				if err != nil {
+			// 					// TODO
+			// 				}
+			// 				m.logFetcher = logFetcher
+			// 				return m, tea.Batch(m.logFetcher.ListenCmd(), m.logFetcher.WaitCmd())
+			// 			}
+			// 		}
 
-			case "down", "j":
-				// Navigate down in logs list
-				if m.status != nil && m.selectedLogIdx < len(m.status.Ingestion.Logs.Integrations)-1 {
-					m.selectedLogIdx++
-					// Switch to streaming logs for the newly selected source
-					selectedSource := m.status.Ingestion.Logs.Integrations[m.selectedLogIdx]
-					if m.streamingSource != selectedSource.Name {
-						m.streamingSource = selectedSource.Name
-						// Clear previous logs
-						m.logLines = []string{}
-						m.logFetcher.Close()
-						logFetcher, err := newLogFetcher(selectedSource.Name, m.client)
-						if err != nil {
-							// TODO
-						}
-						m.logFetcher = logFetcher
-						return m, tea.Batch(m.logFetcher.ListenCmd(), m.logFetcher.WaitCmd())
-					}
-				}
-			}
+			// 	case "down", "j":
+			// 		// Navigate down in logs list
+			// 		if m.status != nil && m.selectedLogIdx < len(m.status.Ingestion.Logs.Integrations)-1 {
+			// 			m.selectedLogIdx++
+			// 			// Switch to streaming logs for the newly selected source
+			// 			selectedSource := m.status.Ingestion.Logs.Integrations[m.selectedLogIdx]
+			// 			if m.streamingSource != selectedSource.Name {
+			// 				m.streamingSource = selectedSource.Name
+			// 				// Clear previous logs
+			// 				m.logLines = []string{}
+			// 				m.logFetcher.Close()
+			// 				logFetcher, err := newLogFetcher(selectedSource.Name, m.client)
+			// 				if err != nil {
+			// 					// TODO
+			// 				}
+			// 				m.logFetcher = logFetcher
+			// 				return m, tea.Batch(m.logFetcher.ListenCmd(), m.logFetcher.WaitCmd())
+			// 			}
+			// 		}
+			// 	}
 		}
 
 	case tickMsg:

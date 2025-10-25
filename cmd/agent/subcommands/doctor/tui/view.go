@@ -34,10 +34,10 @@ func (m model) View() string {
 
 	// Render based on view mode
 	switch m.viewMode {
-	case ServicesView:
-		return m.renderServicesView()
-	case LogsDetailView:
-		return m.renderLogsDetailView()
+	// case ServicesView:
+	// 	return m.renderServicesView()
+	// case LogsDetailView:
+	// 	return m.renderLogsDetailView()
 	default:
 		return m.renderMainView()
 	}
@@ -80,20 +80,58 @@ func (m model) renderMainView() string {
 		return "No data available"
 	}
 
-	// Calculate panel dimensions - split screen in half
-	// Left panel: 50% for services list
-	// Right panel: 50% for agent health
-	leftPanelWidth := (m.width - 8) / 2 // Account for borders and spacing
-	rightPanelWidth := (m.width - 8) / 2
-	panelHeight := m.height - 6 // Leave space for header and footer
+	// // Check for minimum terminal width
+	// if m.width < minTerminalWidth {
+	// 	return lipgloss.NewStyle().
+	// 		Foreground(colorError).
+	// 		Render(fmt.Sprintf("Terminal too narrow (%d chars). Minimum width: %d chars", m.width, minTerminalWidth))
+	// }
+
+	var displayDualPanel bool
+
+	// Calculate panel height (account for header and footer)
+	panelHeight := m.height - 6
+	if panelHeight < 10 {
+		panelHeight = 10 // Minimum height
+	}
+
+	var leftPanelWidth, rightPanelWidth, LeftPanelHeight, rightPanelHeight int
+
+	// If dual panel
+	if m.width >= minWidthForHorizontalSplit {
+		// Calculate available width for panels (account for borders, padding, and spacing)
+		displayDualPanel = true
+
+		// Split width equally between panels
+		leftPanelWidth = m.width / 2
+		rightPanelWidth = m.width - leftPanelWidth
+
+		// splitHorizontally
+		LeftPanelHeight = panelHeight
+		rightPanelHeight = panelHeight
+	} else {
+		// Calculate available width for panels (account for borders, padding, and spacing)
+		leftPanelWidth = m.width
+		rightPanelWidth = m.width
+		LeftPanelHeight = panelHeight / 3 * 2
+		rightPanelHeight = panelHeight - LeftPanelHeight
+	}
 
 	// Render both panels with selection state
-	servicesPanel := m.renderServicesPanel(leftPanelWidth, panelHeight, m.selectedPanel == 0)
-	agentPanel := m.renderAgentPanel(rightPanelWidth, panelHeight, m.selectedPanel == 1)
+	// servicesPanel := m.renderServicesPanel(leftPanelWidth, LeftPanelHeight, m.selectedPanel == 0)
+	servicesPanel := m.renderServicesPanel(leftPanelWidth, LeftPanelHeight, true)
+	// agentPanel := m.renderAgentPanel(rightPanelWidth, rightPanelHeight, m.selectedPanel == 1)
+	agentPanel := m.renderAgentPanel(rightPanelWidth, rightPanelHeight, false)
 
 	// Join panels horizontally
-	panels := lipgloss.JoinHorizontal(
-		lipgloss.Top,
+	var joinFunc func(lipgloss.Position, ...string) string
+	joinFunc = lipgloss.JoinHorizontal
+	if !displayDualPanel {
+		joinFunc = lipgloss.JoinVertical
+	}
+
+	panels := joinFunc(
+		0, // either lipgloss.Top or lipgloss.Left
 		servicesPanel,
 		agentPanel,
 	)
@@ -144,12 +182,12 @@ func (m model) renderFooter() string {
 	var shortcuts []string
 
 	switch m.viewMode {
-	case LogsDetailView:
-		shortcuts = []string{
-			keyStyle.Render("↑/↓") + " navigate",
-			keyStyle.Render("esc") + " back",
-			keyStyle.Render("q") + " quit",
-		}
+	// case LogsDetailView:
+	// 	shortcuts = []string{
+	// 		keyStyle.Render("↑/↓") + " navigate",
+	// 		keyStyle.Render("esc") + " back",
+	// 		keyStyle.Render("q") + " quit",
+	// 	}
 	case ServicesView:
 		shortcuts = []string{
 			keyStyle.Render("↑/↓/PgUp/PgDn/Home/End") + " navigate",
@@ -169,90 +207,90 @@ func (m model) renderFooter() string {
 	return footerStyle.Render(strings.Join(shortcuts, " • "))
 }
 
-// renderIngestionPanel renders the left panel showing ingestion status
-func (m model) renderIngestionPanel(width, height int, isSelected bool) string {
-	var content strings.Builder
+// // renderIngestionPanel renders the left panel showing ingestion status
+// func (m model) renderIngestionPanel(width, height int, isSelected bool) string {
+// 	var content strings.Builder
 
-	// Panel title with selection indicator
-	title := "Ingestion"
-	if isSelected {
-		title = "▶ " + title
-	}
-	content.WriteString(titleStyle.Render(title) + "\n\n")
+// 	// Panel title with selection indicator
+// 	title := "Ingestion"
+// 	if isSelected {
+// 		title = "▶ " + title
+// 	}
+// 	content.WriteString(titleStyle.Render(title) + "\n\n")
 
-	// Checks section
-	content.WriteString(formatSectionHeader("Checks") + "\n")
-	checks := m.status.Ingestion.Checks
-	content.WriteString(fmt.Sprintf("  %s\n", formatCount("Total", checks.Total, "")))
-	content.WriteString(fmt.Sprintf("  %s\n", formatCount("Running", checks.Running, "success")))
-	if checks.Errors > 0 {
-		content.WriteString(fmt.Sprintf("  %s\n", formatCount("Errors", checks.Errors, "error")))
-	}
-	if checks.Warnings > 0 {
-		content.WriteString(fmt.Sprintf("  %s\n", formatCount("Warnings", checks.Warnings, "warning")))
-	}
+// 	// Checks section
+// 	content.WriteString(formatSectionHeader("Checks") + "\n")
+// 	checks := m.status.Ingestion.Checks
+// 	content.WriteString(fmt.Sprintf("  %s\n", formatCount("Total", checks.Total, "")))
+// 	content.WriteString(fmt.Sprintf("  %s\n", formatCount("Running", checks.Running, "success")))
+// 	if checks.Errors > 0 {
+// 		content.WriteString(fmt.Sprintf("  %s\n", formatCount("Errors", checks.Errors, "error")))
+// 	}
+// 	if checks.Warnings > 0 {
+// 		content.WriteString(fmt.Sprintf("  %s\n", formatCount("Warnings", checks.Warnings, "warning")))
+// 	}
 
-	// Show individual check status (limit to 5 most recent)
-	if len(checks.CheckList) > 0 {
-		content.WriteString("\n  " + subduedStyle.Render("Recent checks:") + "\n")
-		limit := 5
-		if len(checks.CheckList) < limit {
-			limit = len(checks.CheckList)
-		}
-		for i := 0; i < limit; i++ {
-			check := checks.CheckList[i]
-			status := formatStatusIndicator(check.Status, 0)
-			content.WriteString(fmt.Sprintf("  %s %s\n", status, valueStyle.Render(check.Name)))
-			if check.LastError != "" && check.Status == "error" {
-				content.WriteString(fmt.Sprintf("    %s\n", errorStyle.Render(truncate(check.LastError, 30))))
-			}
-		}
-	}
+// 	// Show individual check status (limit to 5 most recent)
+// 	if len(checks.CheckList) > 0 {
+// 		content.WriteString("\n  " + subduedStyle.Render("Recent checks:") + "\n")
+// 		limit := 5
+// 		if len(checks.CheckList) < limit {
+// 			limit = len(checks.CheckList)
+// 		}
+// 		for i := 0; i < limit; i++ {
+// 			check := checks.CheckList[i]
+// 			status := formatStatusIndicator(check.Status, 0)
+// 			content.WriteString(fmt.Sprintf("  %s %s\n", status, valueStyle.Render(check.Name)))
+// 			if check.LastError != "" && check.Status == "error" {
+// 				content.WriteString(fmt.Sprintf("    %s\n", errorStyle.Render(truncate(check.LastError, 30))))
+// 			}
+// 		}
+// 	}
 
-	// DogStatsD section
-	content.WriteString("\n" + formatSectionHeader("DogStatsD") + "\n")
-	dogstatsd := m.status.Ingestion.DogStatsD
-	content.WriteString(fmt.Sprintf("  %s\n", formatKeyValue("Metrics", formatLargeNumber(dogstatsd.MetricsReceived))))
-	content.WriteString(fmt.Sprintf("  %s\n", formatKeyValue("Packets", formatLargeNumber(dogstatsd.PacketsReceived))))
-	if dogstatsd.PacketsDropped > 0 {
-		content.WriteString(fmt.Sprintf("  %s\n", formatKeyValueStatus("Dropped", formatLargeNumber(dogstatsd.PacketsDropped), "warning")))
-	}
-	if dogstatsd.ParseErrors > 0 {
-		content.WriteString(fmt.Sprintf("  %s\n", formatKeyValueStatus("Errors", formatLargeNumber(dogstatsd.ParseErrors), "error")))
-	}
+// 	// DogStatsD section
+// 	content.WriteString("\n" + formatSectionHeader("DogStatsD") + "\n")
+// 	dogstatsd := m.status.Ingestion.DogStatsD
+// 	content.WriteString(fmt.Sprintf("  %s\n", formatKeyValue("Metrics", formatLargeNumber(dogstatsd.MetricsReceived))))
+// 	content.WriteString(fmt.Sprintf("  %s\n", formatKeyValue("Packets", formatLargeNumber(dogstatsd.PacketsReceived))))
+// 	if dogstatsd.PacketsDropped > 0 {
+// 		content.WriteString(fmt.Sprintf("  %s\n", formatKeyValueStatus("Dropped", formatLargeNumber(dogstatsd.PacketsDropped), "warning")))
+// 	}
+// 	if dogstatsd.ParseErrors > 0 {
+// 		content.WriteString(fmt.Sprintf("  %s\n", formatKeyValueStatus("Errors", formatLargeNumber(dogstatsd.ParseErrors), "error")))
+// 	}
 
-	// Logs section with detail hint
-	logsHeader := "Logs"
-	if isSelected {
-		logsHeader += " " + subduedStyle.Render("(press Enter for details)")
-	}
-	content.WriteString("\n" + formatSectionHeader(logsHeader) + "\n")
-	logs := m.status.Ingestion.Logs
+// 	// Logs section with detail hint
+// 	logsHeader := "Logs"
+// 	if isSelected {
+// 		logsHeader += " " + subduedStyle.Render("(press Enter for details)")
+// 	}
+// 	content.WriteString("\n" + formatSectionHeader(logsHeader) + "\n")
+// 	logs := m.status.Ingestion.Logs
 
-	// Show enabled/disabled status
-	if logs.Enabled {
-		content.WriteString(fmt.Sprintf("  %s\n", formatKeyValueStatus("Status", "Enabled", "success")))
-		content.WriteString(fmt.Sprintf("  %s\n", formatCount("Sources", logs.Sources, "")))
-		content.WriteString(fmt.Sprintf("  %s\n", formatKeyValue("Lines", formatLargeNumber(logs.LinesProcessed))))
-		content.WriteString(fmt.Sprintf("  %s\n", formatKeyValue("Bytes", formatBytes(logs.BytesProcessed))))
-		if logs.Errors > 0 {
-			content.WriteString(fmt.Sprintf("  %s\n", formatKeyValueStatus("Errors", fmt.Sprintf("%d", logs.Errors), "error")))
-		}
-	} else {
-		content.WriteString(fmt.Sprintf("  %s\n", formatKeyValueStatus("Status", "Disabled", "warning")))
-	}
+// 	// Show enabled/disabled status
+// 	if logs.Enabled {
+// 		content.WriteString(fmt.Sprintf("  %s\n", formatKeyValueStatus("Status", "Enabled", "success")))
+// 		content.WriteString(fmt.Sprintf("  %s\n", formatCount("Sources", logs.Sources, "")))
+// 		content.WriteString(fmt.Sprintf("  %s\n", formatKeyValue("Lines", formatLargeNumber(logs.LinesProcessed))))
+// 		content.WriteString(fmt.Sprintf("  %s\n", formatKeyValue("Bytes", formatBytes(logs.BytesProcessed))))
+// 		if logs.Errors > 0 {
+// 			content.WriteString(fmt.Sprintf("  %s\n", formatKeyValueStatus("Errors", fmt.Sprintf("%d", logs.Errors), "error")))
+// 		}
+// 	} else {
+// 		content.WriteString(fmt.Sprintf("  %s\n", formatKeyValueStatus("Status", "Disabled", "warning")))
+// 	}
 
-	// Metrics section
-	content.WriteString("\n" + formatSectionHeader("Metrics") + "\n")
-	metrics := m.status.Ingestion.Metrics
-	content.WriteString(fmt.Sprintf("  %s\n", formatKeyValue("In Queue", fmt.Sprintf("%d", metrics.InQueue))))
-	content.WriteString(fmt.Sprintf("  %s\n", formatKeyValue("Flushed", formatLargeNumber(metrics.Flushed))))
+// 	// Metrics section
+// 	content.WriteString("\n" + formatSectionHeader("Metrics") + "\n")
+// 	metrics := m.status.Ingestion.Metrics
+// 	content.WriteString(fmt.Sprintf("  %s\n", formatKeyValue("In Queue", fmt.Sprintf("%d", metrics.InQueue))))
+// 	content.WriteString(fmt.Sprintf("  %s\n", formatKeyValue("Flushed", formatLargeNumber(metrics.Flushed))))
 
-	return panelStyle.
-		Width(width).
-		Height(height).
-		Render(content.String())
-}
+// 	return panelStyle.
+// 		Width(width).
+// 		Height(height).
+// 		Render(content.String())
+// }
 
 // renderAgentPanel renders the center panel showing agent health and metadata
 func (m model) renderAgentPanel(width, height int, isSelected bool) string {
@@ -268,7 +306,7 @@ func (m model) renderAgentPanel(width, height int, isSelected bool) string {
 	// Wrap in panel style
 	return panelStyle.
 		BorderForeground(colorBorder).
-		Width(width).
+		Width(width - panelBorderWidth).
 		Height(height).
 		Render(titleStyle.Render(title) + "\n\n" + content)
 }
@@ -353,43 +391,30 @@ func (m model) renderAgentPanelContent(width, height int) string {
 		return "No data available"
 	}
 
-	// Top section: Service details
-	serviceDetails := m.renderServiceDetailsSection()
+	// Top section: Service details with max width
+	serviceDetails := lipgloss.NewStyle().
+		MaxWidth(width).
+		MaxHeight(height / 2).
+		Render(m.renderServiceDetailsSection())
 
-	// Middle section: Logo on left, Infos + Connectivity on right
-	// Style the logo with purple color
-	styledLogo := lipgloss.NewStyle().Foreground(lipgloss.Color("13")).Render(datadogLogo)
+	// Render Infos section with width constraint
+	infosSection := lipgloss.NewStyle().
+		MaxWidth(width).
+		Render(m.renderAgentInfoSection())
 
-	// Render Infos section
-	infosSection := m.renderAgentInfoSection()
-
-	// Render connectivity section with separator
+	// Render connectivity section with separator and width constraint
 	connectivityHeight := 10 // Estimated height for connectivity display
 	connectivity := m.renderConnectivitySection(width, connectivityHeight)
 	connectivityWithSeparator := subduedStyle.Render("─── Connectivity ───") + "\n" + connectivity
-
-	// Stack Infos and Connectivity vertically
-	rightSide := lipgloss.JoinVertical(
-		lipgloss.Left,
-		infosSection,
-		"\n",
-		connectivityWithSeparator,
-	)
-
-	// Combine logo (left) and right side (infos + connectivity) horizontally
-	middleSection := lipgloss.JoinHorizontal(
-		lipgloss.Top,
-		styledLogo,
-		"  ", // Spacing
-		rightSide,
-	)
 
 	// Combine all sections vertically: service details + middle section
 	return lipgloss.JoinVertical(
 		lipgloss.Left,
 		serviceDetails,
 		"\n",
-		middleSection,
+		infosSection,
+		"\n",
+		connectivityWithSeparator,
 	)
 }
 
@@ -488,20 +513,25 @@ func (m model) renderConnectivitySection(width, height int) string {
 		// Build the wire with payloads
 		wire := m.renderWire(endpoint.URL)
 
-		// // Format transaction counts (Success/Retry/Error)
-		// countsStr := fmt.Sprintf("  (S:%s R:%s E:%s)",
-		// 	successStyle.Render(formatLargeNumber(endpoint.SuccessCount)),
-		// 	warningStyle.Render(formatLargeNumber(endpoint.RequeuedCount)),
-		// 	errorStyle.Render(formatLargeNumber(endpoint.ErrorCount)),
-		// )
+		// Calculate maximum URL length based on available width
+		// Wire (10) + space (1) + dot (1) + space (1) = 13 chars
+		maxURLLength := width - 13
+		if maxURLLength < 20 {
+			maxURLLength = 20 // Minimum URL display length
+		}
 
-		// Render: wire + dot + URL + counts
+		// Truncate URL if necessary
+		displayURL := endpoint.URL
+		if len(displayURL) > maxURLLength {
+			displayURL = truncate(displayURL, maxURLLength)
+		}
+
+		// Render: wire + dot + URL
 		result.WriteString(wire)
 		result.WriteString(" ")
 		result.WriteString(lipgloss.NewStyle().Foreground(dotColor).Render("●"))
 		result.WriteString(" ")
-		result.WriteString(lipgloss.NewStyle().Foreground(urlColor).Render(endpoint.URL))
-		// result.WriteString(countsStr)
+		result.WriteString(lipgloss.NewStyle().Foreground(urlColor).Render(displayURL))
 
 		// If we've reached height limit, stop rendering
 		if i >= height-1 {
@@ -561,76 +591,76 @@ func (m model) renderWire(endpointURL string) string {
 	return result.String()
 }
 
-// renderIntakePanel renders the right panel showing backend connectivity
-func (m model) renderIntakePanel(width, height int, isSelected bool) string {
-	var content strings.Builder
+// // renderIntakePanel renders the right panel showing backend connectivity
+// func (m model) renderIntakePanel(width, height int, isSelected bool) string {
+// 	var content strings.Builder
 
-	// Panel title with selection indicator
-	title := "Intake"
-	if isSelected {
-		title = "▶ " + title
-	}
-	content.WriteString(titleStyle.Render(title) + "\n\n")
+// 	// Panel title with selection indicator
+// 	title := "Intake"
+// 	if isSelected {
+// 		title = "▶ " + title
+// 	}
+// 	content.WriteString(titleStyle.Render(title) + "\n\n")
 
-	// Connection status
-	intake := m.status.Intake
-	if intake.Connected {
-		content.WriteString(fmt.Sprintf("%s\n\n", formatStatusIndicator("connected", 0)))
-	} else {
-		content.WriteString(fmt.Sprintf("%s\n\n", formatStatusIndicator("disconnected", 0)))
-	}
+// 	// Connection status
+// 	intake := m.status.Intake
+// 	if intake.Connected {
+// 		content.WriteString(fmt.Sprintf("%s\n\n", formatStatusIndicator("connected", 0)))
+// 	} else {
+// 		content.WriteString(fmt.Sprintf("%s\n\n", formatStatusIndicator("disconnected", 0)))
+// 	}
 
-	// API Key status
-	content.WriteString(formatSectionHeader("API Key") + "\n")
-	if intake.APIKeyInfo.Valid {
-		content.WriteString(fmt.Sprintf("  %s\n", formatStatusIndicator("valid", 0)))
-		if !intake.APIKeyInfo.LastValidated.IsZero() {
-			lastValidated := time.Since(intake.APIKeyInfo.LastValidated)
-			content.WriteString(fmt.Sprintf("  %s\n", formatKeyValue("Validated", fmt.Sprintf("%s ago", formatDuration(lastValidated)))))
-		}
-	} else {
-		content.WriteString(fmt.Sprintf("  %s\n", formatStatusIndicator("invalid", 0)))
-	}
+// 	// API Key status
+// 	content.WriteString(formatSectionHeader("API Key") + "\n")
+// 	if intake.APIKeyInfo.Valid {
+// 		content.WriteString(fmt.Sprintf("  %s\n", formatStatusIndicator("valid", 0)))
+// 		if !intake.APIKeyInfo.LastValidated.IsZero() {
+// 			lastValidated := time.Since(intake.APIKeyInfo.LastValidated)
+// 			content.WriteString(fmt.Sprintf("  %s\n", formatKeyValue("Validated", fmt.Sprintf("%s ago", formatDuration(lastValidated)))))
+// 		}
+// 	} else {
+// 		content.WriteString(fmt.Sprintf("  %s\n", formatStatusIndicator("invalid", 0)))
+// 	}
 
-	// Last flush
-	if !intake.LastFlush.IsZero() {
-		content.WriteString("\n" + formatSectionHeader("Last Flush") + "\n")
-		timeSince := time.Since(intake.LastFlush)
-		content.WriteString(fmt.Sprintf("  %s\n", formatKeyValue("Time", fmt.Sprintf("%s ago", formatDuration(timeSince)))))
-	}
+// 	// Last flush
+// 	if !intake.LastFlush.IsZero() {
+// 		content.WriteString("\n" + formatSectionHeader("Last Flush") + "\n")
+// 		timeSince := time.Since(intake.LastFlush)
+// 		content.WriteString(fmt.Sprintf("  %s\n", formatKeyValue("Time", fmt.Sprintf("%s ago", formatDuration(timeSince)))))
+// 	}
 
-	// Retry queue
-	if intake.RetryQueue > 0 {
-		content.WriteString("\n" + formatSectionHeader("Retry Queue") + "\n")
-		content.WriteString(fmt.Sprintf("  %s\n", formatKeyValueStatus("Size", fmt.Sprintf("%d", intake.RetryQueue), "warning")))
-	}
+// 	// Retry queue
+// 	if intake.RetryQueue > 0 {
+// 		content.WriteString("\n" + formatSectionHeader("Retry Queue") + "\n")
+// 		content.WriteString(fmt.Sprintf("  %s\n", formatKeyValueStatus("Size", fmt.Sprintf("%d", intake.RetryQueue), "warning")))
+// 	}
 
-	// Endpoints
-	content.WriteString("\n" + formatSectionHeader("Endpoints") + "\n")
-	for _, endpoint := range intake.Endpoints {
-		var status string
-		switch endpoint.Status {
-		case "connected":
-			status = formatStatusIndicator("ok", 0)
-		case "error":
-			status = formatStatusIndicator("error", 0)
-		default:
-			status = formatStatusIndicator("unknown", 0)
-		}
+// 	// Endpoints
+// 	content.WriteString("\n" + formatSectionHeader("Endpoints") + "\n")
+// 	for _, endpoint := range intake.Endpoints {
+// 		var status string
+// 		switch endpoint.Status {
+// 		case "connected":
+// 			status = formatStatusIndicator("ok", 0)
+// 		case "error":
+// 			status = formatStatusIndicator("error", 0)
+// 		default:
+// 			status = formatStatusIndicator("unknown", 0)
+// 		}
 
-		content.WriteString(fmt.Sprintf("  %s %s\n", status, highlightStyle.Render(endpoint.Name)))
-		content.WriteString(fmt.Sprintf("    %s\n", subduedStyle.Render(truncate(endpoint.URL, 35))))
+// 		content.WriteString(fmt.Sprintf("  %s %s\n", status, highlightStyle.Render(endpoint.Name)))
+// 		content.WriteString(fmt.Sprintf("    %s\n", subduedStyle.Render(truncate(endpoint.URL, 35))))
 
-		if endpoint.LastError != "" && endpoint.Status == "error" {
-			content.WriteString(fmt.Sprintf("    %s\n", errorStyle.Render(truncate(endpoint.LastError, 35))))
-		}
-	}
+// 		if endpoint.LastError != "" && endpoint.Status == "error" {
+// 			content.WriteString(fmt.Sprintf("    %s\n", errorStyle.Render(truncate(endpoint.LastError, 35))))
+// 		}
+// 	}
 
-	return panelStyle.
-		Width(width).
-		Height(height).
-		Render(content.String())
-}
+// 	return panelStyle.
+// 		Width(width).
+// 		Height(height).
+// 		Render(content.String())
+// }
 
 // Helper functions for formatting
 
@@ -673,190 +703,190 @@ func truncate(s string, maxLen int) string {
 	return s[:maxLen-3] + "..."
 }
 
-// renderLogsDetailView renders the full-screen logs detail view with two panels
-// Left: List of log sources | Right: Streaming logs for selected source
-func (m model) renderLogsDetailView() string {
-	if m.status == nil {
-		return "No data available"
-	}
+// // renderLogsDetailView renders the full-screen logs detail view with two panels
+// // Left: List of log sources | Right: Streaming logs for selected source
+// func (m model) renderLogsDetailView() string {
+// 	if m.status == nil {
+// 		return "No data available"
+// 	}
 
-	// Calculate panel dimensions
-	// Left panel: 40% of width for log sources list
-	// Right panel: 60% of width for streaming logs
-	leftWidth := int(float64(m.width) * 0.4)
-	rightWidth := m.width - leftWidth - 4 // Account for borders and spacing
-	contentHeight := m.height - 6         // Account for header and footer
+// 	// Calculate panel dimensions
+// 	// Left panel: 40% of width for log sources list
+// 	// Right panel: 60% of width for streaming logs
+// 	leftWidth := int(float64(m.width) * 0.4)
+// 	rightWidth := m.width - leftWidth - 4 // Account for borders and spacing
+// 	contentHeight := m.height - 6         // Account for header and footer
 
-	// Build left panel - log sources list
-	leftPanel := m.renderLogSourcesList(leftWidth, contentHeight)
+// 	// Build left panel - log sources list
+// 	leftPanel := m.renderLogSourcesList(leftWidth, contentHeight)
 
-	// Build right panel - streaming logs
-	rightPanel := m.renderStreamingLogs(rightWidth, contentHeight)
+// 	// Build right panel - streaming logs
+// 	rightPanel := m.renderStreamingLogs(rightWidth, contentHeight)
 
-	// Combine panels horizontally
-	panels := lipgloss.JoinHorizontal(
-		lipgloss.Top,
-		leftPanel,
-		rightPanel,
-	)
+// 	// Combine panels horizontally
+// 	panels := lipgloss.JoinHorizontal(
+// 		lipgloss.Top,
+// 		leftPanel,
+// 		rightPanel,
+// 	)
 
-	// Header
-	header := titleStyle.Render(" LOGS DETAIL VIEW ")
+// 	// Header
+// 	header := titleStyle.Render(" LOGS DETAIL VIEW ")
 
-	// Footer with instructions
-	footer := subduedStyle.Render("↑/↓: Navigate | Esc: Back to main view | Q: Quit")
+// 	// Footer with instructions
+// 	footer := subduedStyle.Render("↑/↓: Navigate | Esc: Back to main view | Q: Quit")
 
-	// Combine all sections
-	return lipgloss.JoinVertical(
-		lipgloss.Left,
-		header,
-		"",
-		panels,
-		"",
-		footer,
-	)
-}
+// 	// Combine all sections
+// 	return lipgloss.JoinVertical(
+// 		lipgloss.Left,
+// 		header,
+// 		"",
+// 		panels,
+// 		"",
+// 		footer,
+// 	)
+// }
 
-// renderLogSourcesList renders the left panel with the list of log sources
-func (m model) renderLogSourcesList(width, height int) string {
-	var content strings.Builder
+// // renderLogSourcesList renders the left panel with the list of log sources
+// func (m model) renderLogSourcesList(width, height int) string {
+// 	var content strings.Builder
 
-	logsStatus := m.status.Ingestion.Logs
+// 	logsStatus := m.status.Ingestion.Logs
 
-	// Check if logs are enabled
-	if !logsStatus.Enabled {
-		content.WriteString(warningStyle.Render("⚠ Logs collection is DISABLED"))
-		content.WriteString("\n\n")
-		content.WriteString(subduedStyle.Render("Enable it in datadog.yaml with:\nlogs_enabled: true"))
-	} else if len(logsStatus.Integrations) == 0 {
-		content.WriteString(infoStyle.Render("✓ Logs collection is ENABLED"))
-		content.WriteString("\n\n")
-		content.WriteString(subduedStyle.Render("No log sources configured yet."))
-	} else {
-		content.WriteString(successStyle.Render(fmt.Sprintf("✓ ENABLED - %d source(s)", len(logsStatus.Integrations))))
-		content.WriteString("\n\n")
+// 	// Check if logs are enabled
+// 	if !logsStatus.Enabled {
+// 		content.WriteString(warningStyle.Render("⚠ Logs collection is DISABLED"))
+// 		content.WriteString("\n\n")
+// 		content.WriteString(subduedStyle.Render("Enable it in datadog.yaml with:\nlogs_enabled: true"))
+// 	} else if len(logsStatus.Integrations) == 0 {
+// 		content.WriteString(infoStyle.Render("✓ Logs collection is ENABLED"))
+// 		content.WriteString("\n\n")
+// 		content.WriteString(subduedStyle.Render("No log sources configured yet."))
+// 	} else {
+// 		content.WriteString(successStyle.Render(fmt.Sprintf("✓ ENABLED - %d source(s)", len(logsStatus.Integrations))))
+// 		content.WriteString("\n\n")
 
-		// Summary stats
-		content.WriteString(subduedStyle.Render(fmt.Sprintf("Sources: %d\nBytes: %s\nErrors: %d",
-			logsStatus.Sources,
-			formatBytes(logsStatus.BytesProcessed),
-			logsStatus.Errors)))
-		content.WriteString("\n\n")
+// 		// Summary stats
+// 		content.WriteString(subduedStyle.Render(fmt.Sprintf("Sources: %d\nBytes: %s\nErrors: %d",
+// 			logsStatus.Sources,
+// 			formatBytes(logsStatus.BytesProcessed),
+// 			logsStatus.Errors)))
+// 		content.WriteString("\n\n")
 
-		// Separator
-		content.WriteString(strings.Repeat("─", width-4))
-		content.WriteString("\n\n")
+// 		// Separator
+// 		content.WriteString(strings.Repeat("─", width-4))
+// 		content.WriteString("\n\n")
 
-		// List each log source
-		for i, logSource := range logsStatus.Integrations {
-			// Highlight selected source
-			isSelected := i == m.selectedLogIdx
+// 		// List each log source
+// 		for i, logSource := range logsStatus.Integrations {
+// 			// Highlight selected source
+// 			isSelected := i == m.selectedLogIdx
 
-			// Source header
-			var sourceName string
-			if isSelected {
-				sourceName = fmt.Sprintf("▶ %s", logSource.Name)
-			} else {
-				sourceName = fmt.Sprintf("  %s", logSource.Name)
-			}
+// 			// Source header
+// 			var sourceName string
+// 			if isSelected {
+// 				sourceName = fmt.Sprintf("▶ %s", logSource.Name)
+// 			} else {
+// 				sourceName = fmt.Sprintf("  %s", logSource.Name)
+// 			}
 
-			// Status symbol
-			statusSymbol := symbolInfo
-			statusColor := subduedStyle
-			switch logSource.Status {
-			case "success":
-				statusSymbol = symbolSuccess
-				statusColor = successStyle
-			case "error":
-				statusSymbol = symbolError
-				statusColor = errorStyle
-			case "pending":
-				statusSymbol = symbolRunning
-				statusColor = warningStyle
-			}
+// 			// Status symbol
+// 			statusSymbol := symbolInfo
+// 			statusColor := subduedStyle
+// 			switch logSource.Status {
+// 			case "success":
+// 				statusSymbol = symbolSuccess
+// 				statusColor = successStyle
+// 			case "error":
+// 				statusSymbol = symbolError
+// 				statusColor = errorStyle
+// 			case "pending":
+// 				statusSymbol = symbolRunning
+// 				statusColor = warningStyle
+// 			}
 
-			content.WriteString(statusColor.Render(fmt.Sprintf("%s %s", statusSymbol, sourceName)))
-			content.WriteString("\n")
+// 			content.WriteString(statusColor.Render(fmt.Sprintf("%s %s", statusSymbol, sourceName)))
+// 			content.WriteString("\n")
 
-			// Show details for selected source
-			if isSelected {
-				content.WriteString(subduedStyle.Render(fmt.Sprintf("   Type: %s", logSource.Type)))
-				content.WriteString("\n")
+// 			// Show details for selected source
+// 			if isSelected {
+// 				content.WriteString(subduedStyle.Render(fmt.Sprintf("   Type: %s", logSource.Type)))
+// 				content.WriteString("\n")
 
-				// Show inputs (files being tailed)
-				if len(logSource.Inputs) > 0 {
-					content.WriteString(subduedStyle.Render("   Files:"))
-					content.WriteString("\n")
-					for _, input := range logSource.Inputs {
-						truncatedInput := truncate(input, width-10)
-						content.WriteString(subduedStyle.Render(fmt.Sprintf("     • %s", truncatedInput)))
-						content.WriteString("\n")
-					}
-				}
+// 				// Show inputs (files being tailed)
+// 				if len(logSource.Inputs) > 0 {
+// 					content.WriteString(subduedStyle.Render("   Files:"))
+// 					content.WriteString("\n")
+// 					for _, input := range logSource.Inputs {
+// 						truncatedInput := truncate(input, width-10)
+// 						content.WriteString(subduedStyle.Render(fmt.Sprintf("     • %s", truncatedInput)))
+// 						content.WriteString("\n")
+// 					}
+// 				}
 
-				// Show stats
-				if len(logSource.Info) > 0 {
-					content.WriteString(subduedStyle.Render("   Stats:"))
-					content.WriteString("\n")
-					for key, value := range logSource.Info {
-						content.WriteString(subduedStyle.Render(fmt.Sprintf("     %s: %s", key, value)))
-						content.WriteString("\n")
-					}
-				}
-				content.WriteString("\n")
-			}
-		}
-	}
+// 				// Show stats
+// 				if len(logSource.Info) > 0 {
+// 					content.WriteString(subduedStyle.Render("   Stats:"))
+// 					content.WriteString("\n")
+// 					for key, value := range logSource.Info {
+// 						content.WriteString(subduedStyle.Render(fmt.Sprintf("     %s: %s", key, value)))
+// 						content.WriteString("\n")
+// 					}
+// 				}
+// 				content.WriteString("\n")
+// 			}
+// 		}
+// 	}
 
-	return panelStyle.
-		Width(width).
-		Height(height).
-		Render(content.String())
-}
+// 	return panelStyle.
+// 		Width(width).
+// 		Height(height).
+// 		Render(content.String())
+// }
 
-// renderStreamingLogs renders the right panel with streaming logs
-func (m model) renderStreamingLogs(width, height int) string {
-	var content strings.Builder
+// // renderStreamingLogs renders the right panel with streaming logs
+// func (m model) renderStreamingLogs(width, height int) string {
+// 	var content strings.Builder
 
-	// Panel title
-	if m.streamingSource != "" {
-		content.WriteString(highlightStyle.Render(fmt.Sprintf("Streaming: %s", m.streamingSource)))
-		content.WriteString("\n\n")
-	} else {
-		content.WriteString(subduedStyle.Render("Select a log source to view stream"))
-		content.WriteString("\n\n")
-	}
+// 	// Panel title
+// 	if m.streamingSource != "" {
+// 		content.WriteString(highlightStyle.Render(fmt.Sprintf("Streaming: %s", m.streamingSource)))
+// 		content.WriteString("\n\n")
+// 	} else {
+// 		content.WriteString(subduedStyle.Render("Select a log source to view stream"))
+// 		content.WriteString("\n\n")
+// 	}
 
-	// Show log lines
-	if len(m.logLines) == 0 && m.streamingSource != "" {
-		content.WriteString(subduedStyle.Render("Waiting for logs..."))
-	} else {
-		// Calculate how many lines we can show
-		// Subtract 3 for title and spacing
-		maxLines := height - 3
-		if maxLines < 0 {
-			maxLines = 0
-		}
+// 	// Show log lines
+// 	if len(m.logLines) == 0 && m.streamingSource != "" {
+// 		content.WriteString(subduedStyle.Render("Waiting for logs..."))
+// 	} else {
+// 		// Calculate how many lines we can show
+// 		// Subtract 3 for title and spacing
+// 		maxLines := height - 3
+// 		if maxLines < 0 {
+// 			maxLines = 0
+// 		}
 
-		// Show the last N lines
-		startIdx := 0
-		if len(m.logLines) > maxLines {
-			startIdx = len(m.logLines) - maxLines
-		}
+// 		// Show the last N lines
+// 		startIdx := 0
+// 		if len(m.logLines) > maxLines {
+// 			startIdx = len(m.logLines) - maxLines
+// 		}
 
-		for _, line := range m.logLines[startIdx:] {
-			// Truncate line if needed to fit width
-			truncatedLine := truncate(line, width-4)
-			content.WriteString(valueStyle.Render(truncatedLine))
-			content.WriteString("\n")
-		}
-	}
+// 		for _, line := range m.logLines[startIdx:] {
+// 			// Truncate line if needed to fit width
+// 			truncatedLine := truncate(line, width-4)
+// 			content.WriteString(valueStyle.Render(truncatedLine))
+// 			content.WriteString("\n")
+// 		}
+// 	}
 
-	return panelStyle.
-		Width(width).
-		Height(height).
-		Render(content.String())
-}
+// 	return panelStyle.
+// 		Width(width).
+// 		Height(height).
+// 		Render(content.String())
+// }
 
 // renderServicesPanel renders the left panel with services and their dot graphs
 func (m model) renderServicesPanel(width, height int, isSelected bool) string {
@@ -871,9 +901,10 @@ func (m model) renderServicesPanel(width, height int, isSelected bool) string {
 
 	// Check if there are any services
 	totalServices := len(m.status.Services)
-	// hasOther := m.otherTimeSeries != nil && (len(m.otherTimeSeries.metrics.values) > 0 ||
-	// 	len(m.otherTimeSeries.logs.values) > 0 ||
-	// 	len(m.otherTimeSeries.traces.values) > 0)
+
+	// Calculate available content width (panel width - borders - padding)
+	// Need to include the serviceList padding + serviceItem border + serviceItem padding: |_|_content_|_|
+	serviceBoxWidth := width - (panelStyle.GetBorderLeftSize() + panelStyle.GetBorderRightSize() + panelStyle.GetPaddingLeft() + panelStyle.GetPaddingRight())
 
 	// if totalServices == 0 && !hasOther {
 	if totalServices == 0 {
@@ -911,15 +942,20 @@ func (m model) renderServicesPanel(width, height int, isSelected bool) string {
 			}
 			ts = m.serviceTimeSeries[service.Name]
 
-			// Render service with compact layout and border
-			serviceContent := m.renderCompactServiceBox(serviceName, ts, isServiceSelected, isOther)
-
+			// if serviceBoxWidth < 40 {
+			// 	serviceBoxWidth = 40 // Minimum
+			// }
 			// Create border style
 			borderStyle := lipgloss.NewStyle().
 				Border(lipgloss.RoundedBorder()).
 				BorderForeground(colorBorder).
-				Padding(0, 1)
-				// MarginBottom(1)
+				Padding(0, horizontalPadding).
+				Width(serviceBoxWidth - panelBorderWidth)
+
+			// Render service with compact layout and border
+			// contentWidth := serviceBoxWidth - (borderStyle.GetBorderLeftSize() + borderStyle.GetBorderRightSize() + borderStyle.GetPaddingLeft() + borderStyle.GetPaddingLeft())
+			contentWidth := serviceBoxWidth - (borderStyle.GetBorderLeftSize() + borderStyle.GetBorderRightSize() + borderStyle.GetPaddingLeft() + borderStyle.GetPaddingLeft())
+			serviceContent := m.renderCompactServiceBoxContent(serviceName, ts, contentWidth, isServiceSelected, isOther)
 
 			// Highlight border if selected
 			if isServiceSelected {
@@ -941,14 +977,15 @@ func (m model) renderServicesPanel(width, height int, isSelected bool) string {
 	}
 
 	return panelStyle.
-		Width(width).
+		Width(width - panelBorderWidth).
 		Height(height).
 		Render(content.String())
 }
 
-// renderCompactServiceBox renders a single service with dot graphs in a compact format
+// renderCompactServiceBoxContent renders a single service with dot graphs in a compact format
 // Layout: service name on left, 3 graphs horizontally on right (6 rows total)
-func (m model) renderCompactServiceBox(serviceName string, ts *serviceTimeSeries, isSelected bool, isOther bool) string {
+// width is the available width for the entire service box content
+func (m model) renderCompactServiceBoxContent(serviceName string, ts *serviceTimeSeries, width int, isSelected bool, isOther bool) string {
 	// Service name styling
 	nameStyle := lipgloss.NewStyle().
 		Foreground(colorHighlight).
@@ -966,12 +1003,31 @@ func (m model) renderCompactServiceBox(serviceName string, ts *serviceTimeSeries
 		displayName += " " + subduedStyle.Render("(unattributed)")
 	}
 
-	styledName := nameStyle.Render(displayName)
+	// Calculate dynamic graph width based on available space
+	// Layout: service name (25) + space (1) + info block (25) + space (1) + 3 graphs + 2 spacing (2*2)
+	const serviceNameWidth = 26
+	const infoBlockWidth = 18
+	const graphSpacing = 4 // 2 spaces between each of 3 graphs (2 gaps)
+
+	styledName := nameStyle.Render(truncate(displayName, serviceNameWidth))
+
+	// Available width for all 3 graphs combined
+	availableForGraphs := width - serviceNameWidth - 1 - infoBlockWidth - 1 - graphSpacing
+	// availableForGraphs := width - serviceNameWidth - 1 - infoBlockWidth - 1 - graphSpacing - panelBorderWidth
+	// if availableForGraphs < 15 {
+	// 	availableForGraphs = 15 // Minimum total width for 3 graphs
+	// }
+
+	// Divide equally among 3 graphs
+	graphWidth := availableForGraphs / 3
+	// if graphWidth < 5 {
+	// 	graphWidth = 5 // Minimum per graph
+	// }
 
 	// Render dot graphs if we have time series data
 	var graphsContent string
 	if ts != nil && len(ts.metrics.values) > 0 {
-		graphsContent = renderServiceDotGraphs(ts)
+		graphsContent = renderServiceDotGraphs(ts, graphWidth, infoBlockWidth)
 	} else {
 		// No data yet - show placeholder (6 lines to match graph height)
 		graphsContent = subduedStyle.Render("(no data)\n\n\n\n\n")
@@ -989,15 +1045,12 @@ func (m model) renderCompactServiceBox(serviceName string, ts *serviceTimeSeries
 	}
 
 	graphLines := strings.Split(graphsContent, "\n")
-	// Pad graph lines to ensure we have 6 lines
-	for len(graphLines) < 6 {
-		graphLines = append(graphLines, "")
-	}
+	// // Pad graph lines to ensure we have 6 lines
+	// for len(graphLines) < 6 {
+	// 	graphLines = append(graphLines, "")
+	// }
 
-	// Calculate service name column width (for padding)
-	serviceNameWidth := 25
-
-	// Combine line by line
+	// Combine line by line (serviceNameWidth already declared above as const)
 	var result strings.Builder
 	for i := 0; i < 6; i++ {
 		// Pad service name column
@@ -1034,176 +1087,182 @@ func padRightWithWidth(s string, width int) string {
 	return s + padding
 }
 
-// renderServicesView renders the full-screen services detail view with dot graphs
-func (m model) renderServicesView() string {
-	if m.status == nil {
-		return "No data available"
-	}
+// // renderServicesView renders the full-screen services detail view with dot graphs
+// func (m model) renderServicesView() string {
+// 	if m.status == nil {
+// 		return "No data available"
+// 	}
 
-	var content strings.Builder
+// 	var content strings.Builder
 
-	// Title: "services" in lowercase, monospace
-	title := lipgloss.NewStyle().
-		Foreground(colorTitle).
-		Bold(true).
-		Render("services")
-	content.WriteString(title)
-	content.WriteString("\n\n")
+// 	// Title: "services" in lowercase, monospace
+// 	title := lipgloss.NewStyle().
+// 		Foreground(colorTitle).
+// 		Bold(true).
+// 		Render("services")
+// 	content.WriteString(title)
+// 	content.WriteString("\n\n")
 
-	// Check if there are any services
-	totalServices := len(m.status.Services)
-	// hasOther := m.otherTimeSeries != nil && (len(m.otherTimeSeries.metrics.values) > 0 ||
-	// 	len(m.otherTimeSeries.logs.values) > 0 ||
-	// 	len(m.otherTimeSeries.traces.values) > 0)
+// 	// Check if there are any services
+// 	totalServices := len(m.status.Services)
+// 	// hasOther := m.otherTimeSeries != nil && (len(m.otherTimeSeries.metrics.values) > 0 ||
+// 	// 	len(m.otherTimeSeries.logs.values) > 0 ||
+// 	// 	len(m.otherTimeSeries.traces.values) > 0)
 
-	// if totalServices == 0 && !hasOther {
-	if totalServices == 0 {
-		content.WriteString(infoStyle.Render("No services detected yet"))
-		content.WriteString("\n\n")
-		content.WriteString(subduedStyle.Render("Services will appear here when the agent receives:"))
-		content.WriteString("\n")
-		content.WriteString(subduedStyle.Render("  • Traces from APM instrumentation"))
-		content.WriteString("\n")
-		content.WriteString(subduedStyle.Render("  • Metrics from integration checks"))
-		content.WriteString("\n")
-		content.WriteString(subduedStyle.Render("  • Logs from configured sources"))
-		content.WriteString("\n")
-	} else {
-		// Calculate dimensions for dot graphs
-		// Each service takes approximately 15 lines (name + padding + 3 graphs * 4 rows + spacing)
-		linesPerService := 15
-		availableHeight := m.height - 6 // Leave space for title and footer
-		maxVisibleServices := availableHeight / linesPerService
+// 	// if totalServices == 0 && !hasOther {
+// 	if totalServices == 0 {
+// 		content.WriteString(infoStyle.Render("No services detected yet"))
+// 		content.WriteString("\n\n")
+// 		content.WriteString(subduedStyle.Render("Services will appear here when the agent receives:"))
+// 		content.WriteString("\n")
+// 		content.WriteString(subduedStyle.Render("  • Traces from APM instrumentation"))
+// 		content.WriteString("\n")
+// 		content.WriteString(subduedStyle.Render("  • Metrics from integration checks"))
+// 		content.WriteString("\n")
+// 		content.WriteString(subduedStyle.Render("  • Logs from configured sources"))
+// 		content.WriteString("\n")
+// 	} else {
+// 		// Calculate dimensions for dot graphs
+// 		// Each service takes approximately 15 lines (name + padding + 3 graphs * 4 rows + spacing)
+// 		linesPerService := 15
+// 		availableHeight := m.height - 6 // Leave space for title and footer
+// 		maxVisibleServices := availableHeight / linesPerService
 
-		// Calculate scroll window
-		startIdx := m.scrollOffset
-		endIdx := startIdx + maxVisibleServices
-		if endIdx > totalServices { // +1 for "other"
-			endIdx = totalServices
-		}
+// 		// Calculate scroll window
+// 		startIdx := m.scrollOffset
+// 		endIdx := startIdx + maxVisibleServices
+// 		if endIdx > totalServices { // +1 for "other"
+// 			endIdx = totalServices
+// 		}
 
-		// Calculate dot graph width based on terminal width
-		// Formula: (terminal_width - service_name_width - padding - borders) / columns
-		dotGraphWidth := (m.width - 40) / 2 // Reserve 40 chars for service name and padding
-		if dotGraphWidth < 10 {
-			dotGraphWidth = 10 // Minimum width
-		}
-		if dotGraphWidth > 60 {
-			dotGraphWidth = 60 // Maximum width (2 minutes at 2s intervals)
-		}
+// 		// Calculate dot graph width based on terminal width
+// 		// Layout: info block (25) + space (1) + 3 graphs + spacing (4) + borders/padding (10)
+// 		const infoBlockWidth = 25
+// 		const graphSpacing = 4
+// 		const layoutOverhead = 10
 
-		// Render each service
-		for i := startIdx; i < endIdx; i++ {
-			var serviceName string
-			var ts *serviceTimeSeries
-			isSelected := i == m.selectedServiceIdx
-			isOther := m.status.Services[i].Name == ""
+// 		availableForGraphs := m.width - infoBlockWidth - 1 - graphSpacing - layoutOverhead
+// 		if availableForGraphs < 15 {
+// 			availableForGraphs = 15 // Minimum total
+// 		}
 
-			// Regular service
-			service := m.status.Services[i]
-			serviceName = service.Name
-			if serviceName == "" {
-				serviceName = "other"
-			}
-			ts = m.serviceTimeSeries[serviceName]
+// 		// Divide among 3 graphs
+// 		dotGraphWidth := availableForGraphs / 3
+// 		if dotGraphWidth < 5 {
+// 			dotGraphWidth = 5 // Minimum per graph
+// 		}
+// 		if dotGraphWidth > 30 {
+// 			dotGraphWidth = 30 // Maximum per graph
+// 		}
 
-			// Render the service box
-			serviceBox := m.renderServiceBox(serviceName, ts, dotGraphWidth, isSelected, isOther)
-			content.WriteString(serviceBox)
-			content.WriteString("\n")
-		}
+// 		// Render each service
+// 		for i := startIdx; i < endIdx; i++ {
+// 			var serviceName string
+// 			var ts *serviceTimeSeries
+// 			isSelected := i == m.selectedServiceIdx
+// 			isOther := m.status.Services[i].Name == ""
 
-		// Scroll indicator
-		if totalServices+1 > maxVisibleServices {
-			scrollInfo := fmt.Sprintf("Showing %d-%d of %d services", startIdx+1, endIdx, totalServices+1)
-			content.WriteString("\n")
-			content.WriteString(subduedStyle.Render(scrollInfo))
-		}
-	}
+// 			// Regular service
+// 			service := m.status.Services[i]
+// 			serviceName = service.Name
+// 			if serviceName == "" {
+// 				serviceName = "other"
+// 			}
+// 			ts = m.serviceTimeSeries[serviceName]
 
-	// Footer with instructions
-	content.WriteString("\n")
-	footer := subduedStyle.Render("↑/↓/PgUp/PgDn/Home/End: Navigate | r: Refresh | Enter: Details | Esc: Back | Q: Quit")
-	content.WriteString(footer)
+// 			// Render the service box
+// 			serviceBox := m.renderServiceBox(serviceName, ts, dotGraphWidth, isSelected, isOther)
+// 			content.WriteString(serviceBox)
+// 			content.WriteString("\n")
+// 		}
 
-	return baseStyle.Render(content.String())
-}
+// 		// Scroll indicator
+// 		if totalServices+1 > maxVisibleServices {
+// 			scrollInfo := fmt.Sprintf("Showing %d-%d of %d services", startIdx+1, endIdx, totalServices+1)
+// 			content.WriteString("\n")
+// 			content.WriteString(subduedStyle.Render(scrollInfo))
+// 		}
+// 	}
 
-// renderServiceBox renders a single service with its dot graphs in a rounded rectangle
-func (m model) renderServiceBox(serviceName string, ts *serviceTimeSeries, dotGraphWidth int, isSelected bool, isOther bool) string {
-	var content strings.Builder
+// 	// Footer with instructions
+// 	content.WriteString("\n")
+// 	footer := subduedStyle.Render("↑/↓/PgUp/PgDn/Home/End: Navigate | r: Refresh | Enter: Details | Esc: Back | Q: Quit")
+// 	content.WriteString(footer)
 
-	// Service name styling
-	nameStyle := lipgloss.NewStyle().
-		Foreground(colorHighlight).
-		Bold(isSelected)
+// 	return baseStyle.Render(content.String())
+// }
 
-	if isSelected {
-		serviceName = "▶ " + serviceName
-	} else {
-		serviceName = "  " + serviceName
-	}
+// // renderServiceBox renders a single service with its dot graphs in a rounded rectangle
+// func (m model) renderServiceBox(serviceName string, ts *serviceTimeSeries, graphWidth int, isSelected bool, isOther bool) string {
+// 	var content strings.Builder
 
-	// Add caption for "other" service
-	if isOther {
-		serviceName += " " + subduedStyle.Render("(unattributed activity)")
-	}
+// 	// Service name styling
+// 	nameStyle := lipgloss.NewStyle().
+// 		Foreground(colorHighlight).
+// 		Bold(isSelected)
 
-	content.WriteString(nameStyle.Render(serviceName))
-	content.WriteString("\n\n")
+// 	if isSelected {
+// 		serviceName = "▶ " + serviceName
+// 	} else {
+// 		serviceName = "  " + serviceName
+// 	}
 
-	// Render dot graphs if we have time series data
-	if ts != nil {
-		dotGraphs := renderServiceDotGraphs(ts)
-		content.WriteString(dotGraphs)
-	} else {
-		// No data yet
-		content.WriteString(subduedStyle.Render("(no historical data yet)"))
-	}
+// 	// Add caption for "other" service
+// 	if isOther {
+// 		serviceName += " " + subduedStyle.Render("(unattributed activity)")
+// 	}
 
-	// Create the box
-	boxStyle := lipgloss.NewStyle().
-		Border(lipgloss.RoundedBorder()).
-		BorderForeground(colorBorder).
-		Padding(1, 2).
-		MarginBottom(1)
+// 	content.WriteString(nameStyle.Render(serviceName))
+// 	content.WriteString("\n\n")
 
-	if isSelected {
-		// Brighter border for selected service
-		boxStyle = boxStyle.BorderForeground(colorHighlight)
-	}
+// 	// Render dot graphs if we have time series data
+// 	if ts != nil {
+// 		dotGraphs := renderServiceDotGraphs(ts, graphWidth)
+// 		content.WriteString(dotGraphs)
+// 	} else {
+// 		// No data yet
+// 		content.WriteString(subduedStyle.Render("(no historical data yet)"))
+// 	}
 
-	return boxStyle.Render(content.String())
-}
+// 	currentStyle := boxStyle
 
-// createSparklineFromRate creates a simple visual representation of a rate value
-// using block characters to show relative magnitude
-func createSparklineFromRate(rate float64, width int) string {
-	if rate == 0 {
-		return strings.Repeat("░", width)
-	}
+// 	// Create the box
+// 	if isSelected {
+// 		// Brighter border for selected service
+// 		currentStyle = boxStyle.BorderForeground(colorHighlight)
+// 	}
 
-	// Use different block characters based on magnitude (logarithmic scale)
-	var blocks string
-	switch {
-	case rate < 1:
-		blocks = "▁"
-	case rate < 10:
-		blocks = "▂"
-	case rate < 100:
-		blocks = "▃"
-	case rate < 1000:
-		blocks = "▄"
-	case rate < 10000:
-		blocks = "▅"
-	case rate < 100000:
-		blocks = "▆"
-	default:
-		blocks = "▇"
-	}
+// 	return currentStyle.Render(content.String())
+// }
 
-	// Color based on data type context
-	// For now, use a simple blue color for all
-	styled := lipgloss.NewStyle().Foreground(lipgloss.Color("12")).Render(strings.Repeat(blocks, width))
-	return styled
-}
+// // createSparklineFromRate creates a simple visual representation of a rate value
+// // using block characters to show relative magnitude
+// func createSparklineFromRate(rate float64, width int) string {
+// 	if rate == 0 {
+// 		return strings.Repeat("░", width)
+// 	}
+
+// 	// Use different block characters based on magnitude (logarithmic scale)
+// 	var blocks string
+// 	switch {
+// 	case rate < 1:
+// 		blocks = "▁"
+// 	case rate < 10:
+// 		blocks = "▂"
+// 	case rate < 100:
+// 		blocks = "▃"
+// 	case rate < 1000:
+// 		blocks = "▄"
+// 	case rate < 10000:
+// 		blocks = "▅"
+// 	case rate < 100000:
+// 		blocks = "▆"
+// 	default:
+// 		blocks = "▇"
+// 	}
+
+// 	// Color based on data type context
+// 	// For now, use a simple blue color for all
+// 	styled := lipgloss.NewStyle().Foreground(lipgloss.Color("12")).Render(strings.Repeat(blocks, width))
+// 	return styled
+// }

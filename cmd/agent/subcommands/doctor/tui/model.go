@@ -34,8 +34,8 @@ const (
 	MainView ViewMode = iota
 	// ServicesView shows the services list with their stats
 	ServicesView
-	// LogsDetailView shows detailed logs information
-	LogsDetailView
+	// // LogsDetailView shows detailed logs information
+	// LogsDetailView
 )
 
 // model represents the entire application state for the Bubbletea TUI
@@ -65,11 +65,11 @@ type model struct {
 	quitting bool
 
 	// Navigation state
-	viewMode           ViewMode // Current view mode
-	selectedPanel      int      // Which panel is focused (0=services, 1=agent)
-	selectedLogIdx     int      // Which log source is selected in detail view
-	selectedServiceIdx int      // Which service is selected in services view
-	scrollOffset       int      // Vertical scroll offset for services view
+	viewMode ViewMode // Current view mode
+	// selectedPanel      int      // Which panel is focused (0=services, 1=agent)
+	selectedLogIdx     int // Which log source is selected in detail view
+	selectedServiceIdx int // Which service is selected in services view
+	scrollOffset       int // Vertical scroll offset for services view
 
 	// Log streaming state
 	streamingSource string      // Name of the currently streaming log source
@@ -227,17 +227,17 @@ func newModel(client ipcdef.HTTPClient) model {
 	s.Style = spinnerStyle
 
 	return model{
-		client:             client,
-		status:             nil,
-		lastError:          nil,
-		width:              0,
-		height:             0,
-		loading:            true,
-		spinner:            s,
-		lastUpdate:         time.Time{},
-		quitting:           false,
-		viewMode:           MainView,
-		selectedPanel:      0,
+		client:     client,
+		status:     nil,
+		lastError:  nil,
+		width:      0,
+		height:     0,
+		loading:    true,
+		spinner:    s,
+		lastUpdate: time.Time{},
+		quitting:   false,
+		viewMode:   MainView,
+		// selectedPanel:      0,
 		selectedLogIdx:     0,
 		selectedServiceIdx: 0,
 		scrollOffset:       0,
