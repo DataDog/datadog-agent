@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/agent-payload/v5/cyclonedx_v1_4"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/servicetype"
 	"github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	pkgcontainersimage "github.com/DataDog/datadog-agent/pkg/util/containers/image"
@@ -1646,7 +1647,7 @@ type Service struct {
 	APMInstrumentation bool
 
 	// Type is the service type (e.g., "web_service")
-	Type string
+	Type servicetype.ServiceType
 }
 
 // UST contains Unified Service Tagging environment variables

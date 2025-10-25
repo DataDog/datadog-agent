@@ -7,6 +7,7 @@
 package model
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/servicetype"
 	"github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata"
 )
 
@@ -22,7 +23,7 @@ type Service struct {
 	UDPPorts                 []uint16                        `json:"udp_ports,omitempty"`
 	APMInstrumentation       bool                            `json:"apm_instrumentation"`
 	Language                 string                          `json:"language"`
-	Type                     string                          `json:"service_type"`
+	Type                     servicetype.ServiceType         `json:"service_type"`
 	CommandLine              []string                        `json:"cmdline"`
 	UST                      UST                             `json:"ust"`
 }
