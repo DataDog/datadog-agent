@@ -114,20 +114,39 @@ register_toolchains(
 # Python dependencies
 # =========================================
 
-python = use_extension("@rules_python//python/extensions:python.bzl", "python")
-python.toolchain(
-    ignore_root_user_error = True,
-    is_default = True,
-    python_version = "3.11",
+# Use the toolchain from the container, as if it was hermetic.
+# from https://rules-python.readthedocs.io/en/latest/toolchains.html
+
+local_runtime_repo = use_repo_rule(
+    "@rules_python//python/local_toolchains:repos.bzl",
+    "local_runtime_repo",
 )
 
-pip = use_extension("@rules_python//python/extensions:pip.bzl", "pip")
-pip.parse(
-    hub_name = "bazel_pip_dev_deps",
-    python_version = "3.11",
-    requirements_lock = "//:requirements.txt",
+local_runtime_toolchains_repo = use_repo_rule(
+    "@rules_python//python/local_toolchains:repos.bzl",
+    "local_runtime_toolchains_repo",
 )
-use_repo(pip, "bazel_pip_dev_deps")
+
+# Step 1: Define the Python runtime
+local_runtime_repo(
+    name = "local_python3",
+    dev_dependency = True,
+    interpreter_path = "python3",
+    on_failure = "fail",
+)
+
+# Step 2: Create toolchains for the runtimes
+local_runtime_toolchains_repo(
+    name = "local_python_toolchains",
+    dev_dependency = True,
+    runtimes = ["local_python3"],
+)
+
+# Step 3: Register the toolchains
+register_toolchains(
+    "@local_python_toolchains//:all",
+    dev_dependency = True,
+)
 
 #########################
 ## Native dependencies ##
