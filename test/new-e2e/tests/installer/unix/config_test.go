@@ -96,8 +96,6 @@ func (s *configSuite) TestConfigFailureHealth() {
 	config, err := s.agent.Configuration()
 	require.NoError(s.T(), err)
 	require.Equal(s.T(), "debug", config["log_level"])
-	err = s.backend.PromoteConfigExperiment()
-	require.NoError(s.T(), err)
 
 	err = s.backend.StopConfigExperiment()
 	require.NoError(s.T(), err)

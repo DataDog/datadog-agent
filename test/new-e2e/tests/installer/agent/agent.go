@@ -60,7 +60,7 @@ func (a *Agent) runCommand(command string, args ...string) (string, error) {
 	err := retry.Do(func() error {
 		_, err := a.host.RemoteHost.Execute(fmt.Sprintf("%s config --all", baseCommand))
 		return err
-	}, retry.Attempts(10), retry.Delay(1*time.Second))
+	}, retry.Attempts(10), retry.Delay(1*time.Second), retry.DelayType(retry.FixedDelay))
 	if err != nil {
 		return "", fmt.Errorf("error waiting for agent to be ready: %w", err)
 	}
