@@ -122,3 +122,46 @@ func TestAllFieldsAreCopied(t *testing.T) {
 	assert.ElementsMatch(t, []string{"tagOne:a", "tagTwo:b", "tagThree:c", "tagFour:d"}, newDims.Tags())
 	assert.Equal(t, "origin_id", newDims.OriginID())
 }
+
+func TestStringMethodOptimization(t *testing.T) {
+	// Test that String() method produces consistent results with different tag orders
+	dims1 := &Dimensions{
+		name:     "test.metric",
+		host:     "host1",
+		tags:     []string{"tag1:val1", "tag2:val2"},
+		originID: "origin1",
+	}
+
+	dims2 := &Dimensions{
+		name:     "test.metric",
+		host:     "host1",
+		tags:     []string{"tag2:val2", "tag1:val1"}, // Different order
+		originID: "origin1",
+	}
+
+	// Both should produce the same string due to sorting
+	assert.Equal(t, dims1.String(), dims2.String())
+
+	// Test with empty values
+	dims3 := &Dimensions{
+		name:     "test.metric",
+		host:     "",
+		tags:     []string{},
+		originID: "",
+	}
+
+	result := dims3.String()
+	assert.Contains(t, result, "name:test.metric")
+	assert.Contains(t, result, "host:")
+	assert.Contains(t, result, "originID:")
+
+	// Test that original dimensions are not modified
+	originalTags := []string{"tag1:val1", "tag2:val2"}
+	dims4 := &Dimensions{
+		name: "test.metric",
+		tags: originalTags,
+	}
+
+	_ = dims4.String()
+	assert.Equal(t, []string{"tag1:val1", "tag2:val2"}, originalTags)
+}
