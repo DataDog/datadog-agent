@@ -68,7 +68,7 @@ jobs:
           go-version: ${{ inputs.go_version }}
 
       - name: Install dda
-        uses: ./.github/actions/install-dda
+        uses: DataDog/datadog-agent/.github/actions/install-dda@efcd8852af4c4797b065f0653bdfd4852d2144c1
         with:
           features: legacy-tasks
 
