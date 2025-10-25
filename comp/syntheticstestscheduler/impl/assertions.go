@@ -31,7 +31,7 @@ func runAssertion(assertion common.Assertion, stats common.NetStats) common.Asse
 	case common.AssertionTypePacketJitter:
 		actual = stats.Jitter
 	case common.AssertionTypeLatency:
-		switch assertion.Property {
+		switch *assertion.Property {
 		case common.AssertionSubTypeAverage:
 			actual = stats.Latency.Avg
 		case common.AssertionSubTypeMin:
@@ -48,7 +48,7 @@ func runAssertion(assertion common.Assertion, stats common.NetStats) common.Asse
 			}
 		}
 	case common.AssertionTypeNetworkHops:
-		switch assertion.Property {
+		switch *assertion.Property {
 		case common.AssertionSubTypeAverage:
 			actual = stats.Hops.Avg
 		case common.AssertionSubTypeMin:
