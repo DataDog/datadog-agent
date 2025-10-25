@@ -36,6 +36,12 @@ type failoverConfig struct {
 	failoverServiceAllowlist map[string]struct{}
 }
 
+// StreamRotateSignal represents a signal to rotate gRPC streams
+// This is a local type alias to avoid import cycles with the grpc package
+type StreamRotateSignal struct {
+	Type int // RotationType from grpc package
+}
+
 // A Processor updates messages from an inputChan and pushes
 // in an outputChan.
 type Processor struct {
@@ -51,6 +57,10 @@ type Processor struct {
 	configChan                chan failoverConfig
 	failoverConfig            failoverConfig
 
+	// Stream rotation signaling for gRPC
+	streamRotateSignal chan any // Uses any to avoid import cycles with grpc package
+	pendingSnapshot    bool     // Flag to mark next message as snapshot
+
 	// Telemetry
 	pipelineMonitor metrics.PipelineMonitor
 	utilization     metrics.UtilizationMonitor
@@ -60,7 +70,7 @@ type Processor struct {
 // New returns an initialized Processor with config support for failover notifications.
 func New(config pkgconfigmodel.Reader, inputChan, outputChan chan *message.Message, processingRules []*config.ProcessingRule,
 	encoder Encoder, diagnosticMessageReceiver diagnostic.MessageReceiver, hostname hostnameinterface.Component,
-	pipelineMonitor metrics.PipelineMonitor, instanceID string) *Processor {
+	pipelineMonitor metrics.PipelineMonitor, instanceID string, streamRotateSignal chan any) *Processor {
 
 	p := &Processor{
 		config:                    config,
@@ -72,6 +82,8 @@ func New(config pkgconfigmodel.Reader, inputChan, outputChan chan *message.Messa
 		done:                      make(chan struct{}),
 		diagnosticMessageReceiver: diagnosticMessageReceiver,
 		hostname:                  hostname,
+		streamRotateSignal:        streamRotateSignal,
+		pendingSnapshot:           false,
 		pipelineMonitor:           pipelineMonitor,
 		utilization:               pipelineMonitor.MakeUtilizationMonitor(metrics.ProcessorTlmName, instanceID),
 		instanceID:                instanceID,
@@ -123,7 +135,11 @@ func (p *Processor) updateFailoverConfig() {
 
 // Start starts the Processor.
 func (p *Processor) Start() {
-	go p.run()
+	if p.streamRotateSignal != nil {
+		go p.runWithStreamRotation()
+	} else {
+		go p.runWithoutStreamRotation()
+	}
 }
 
 // Stop stops the Processor,
@@ -152,8 +168,35 @@ func (p *Processor) Flush(ctx context.Context) {
 	}
 }
 
-// run starts the processing of the inputChan
-func (p *Processor) run() {
+// runWithStreamRotation handles the main loop for gRPC transport (with stream rotation)
+func (p *Processor) runWithStreamRotation() {
+	defer func() {
+		p.done <- struct{}{}
+	}()
+
+	for {
+		select {
+		case msg, ok := <-p.inputChan:
+			if !ok {
+				// Input channel closed, exit
+				return
+			}
+
+			// process the message
+			p.processMessage(msg)
+			p.mu.Lock() // block here if we're trying to flush synchronously
+			//nolint:staticcheck
+			p.mu.Unlock()
+
+		case <-p.streamRotateSignal:
+			// Stream rotation signal received - mark next message as snapshot
+			p.pendingSnapshot = true
+		}
+	}
+}
+
+// runWithoutStreamRotation handles the main loop for non-gRPC transports
+func (p *Processor) runWithoutStreamRotation() {
 	defer func() {
 		p.done <- struct{}{}
 	}()
@@ -164,6 +207,7 @@ func (p *Processor) run() {
 			if !ok {
 				return
 			}
+			// process the message (no stream rotation for non-gRPC)
 			p.processMessage(msg)
 			p.mu.Lock() // block here if we're trying to flush synchronously
 			//nolint:staticcheck
@@ -212,6 +256,12 @@ func (p *Processor) processMessage(msg *message.Message) {
 		if err := p.encoder.Encode(msg, p.GetHostname(msg)); err != nil {
 			log.Error("unable to encode msg ", err)
 			return
+		}
+
+		// Check if this message should be marked as a snapshot for stream rotation
+		if p.pendingSnapshot {
+			msg.IsSnapshot = true
+			p.pendingSnapshot = false // Reset the flag after marking one message
 		}
 
 		p.utilization.Stop() // Explicitly call stop here to avoid counting writing on the output channel as processing time
