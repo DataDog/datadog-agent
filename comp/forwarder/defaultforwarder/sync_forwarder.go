@@ -13,6 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/endpoints"
+	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/resolver"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	utilhttp "github.com/DataDog/datadog-agent/pkg/util/http"
@@ -29,7 +30,12 @@ type SyncForwarder struct {
 
 // NewSyncForwarder returns a new synchronous forwarder.
 func NewSyncForwarder(config config.Component, log log.Component, keysPerDomain map[string][]utils.APIKeys, timeout time.Duration) (*SyncForwarder, error) {
-	options, err := NewOptions(config, log, keysPerDomain)
+	resolvers, err := resolver.NewSingleDomainResolvers(keysPerDomain)
+	if err != nil {
+		return nil, err
+	}
+
+	options := NewOptionsWithResolvers(config, log, resolvers)
 	if err != nil {
 		return nil, err
 	}

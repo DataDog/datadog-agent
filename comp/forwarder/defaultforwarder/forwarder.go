@@ -7,7 +7,6 @@ package defaultforwarder
 
 import (
 	"context"
-	"fmt"
 	"strings"
 
 	"go.uber.org/fx"
@@ -16,7 +15,6 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/resolver"
-	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
 
@@ -45,27 +43,13 @@ func newForwarder(dep dependencies) (provides, error) {
 }
 
 func createOptions(params Params, config config.Component, log log.Component) (*Options, error) {
-	var options *Options
-	keysPerDomain, err := utils.GetMultipleEndpoints(config)
+	resolvers, err := resolver.FromConfig(config, log, params.allowOPW)
 	if err != nil {
-		log.Error("Misconfiguration of agent endpoints: ", err)
-		return nil, fmt.Errorf("Misconfiguration of agent endpoints: %s", err)
+		return nil, err
 	}
 
-	if !params.withResolver {
-		options, err = NewOptions(config, log, keysPerDomain)
-		if err != nil {
-			log.Error("Error creating forwarder options: ", err)
-			return nil, fmt.Errorf("Error creating forwarder options: %s", err)
-		}
-	} else {
-		r, err := resolver.NewSingleDomainResolvers(keysPerDomain)
-		if err != nil {
-			log.Error("Error creating resolver: ", err)
-			return nil, fmt.Errorf("Error creating resolver: %s", err)
-		}
-		options = NewOptionsWithResolvers(config, log, r)
-	}
+	options := NewOptionsWithResolvers(config, log, resolvers)
+
 	// Override the DisableAPIKeyChecking only if WithFeatures was called
 	if disableAPIKeyChecking, ok := params.disableAPIKeyCheckingOverride.Get(); ok {
 		options.DisableAPIKeyChecking = disableAPIKeyChecking
@@ -106,7 +90,7 @@ func NewForwarder(config config.Component, log log.Component, lc fx.Lifecycle, i
 }
 
 func newMockForwarder(config config.Component, log log.Component) provides {
-	options, _ := NewOptions(config, log, nil)
+	options := NewOptionsWithResolvers(config, log, make(resolver.DomainSet))
 	return provides{
 		Comp: NewDefaultForwarder(config, log, options),
 	}

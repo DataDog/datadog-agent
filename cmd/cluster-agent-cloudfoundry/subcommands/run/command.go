@@ -103,7 +103,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				}),
 				core.Bundle(),
 				secretsfx.Module(),
-				forwarder.Bundle(defaultforwarder.NewParams(defaultforwarder.WithResolvers())),
+				forwarder.Bundle(defaultforwarder.NewParams(defaultforwarder.WithAllowOPW(false))),
 				demultiplexerimpl.Module(demultiplexerimpl.NewDefaultParams()),
 				orchestratorForwarderImpl.Module(orchestratorForwarderImpl.NewDisabledParams()),
 				eventplatformimpl.Module(eventplatformimpl.NewDisabledParams()),

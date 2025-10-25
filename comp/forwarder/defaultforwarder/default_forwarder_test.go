@@ -9,12 +9,14 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
-	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
-	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
-	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
+	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/resolver"
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/config/utils"
 )
 
 // domainAPIKeyMap used by tests to get API keys from each domain resolver
@@ -41,8 +43,9 @@ func TestDefaultForwarderUpdateAPIKey(t *testing.T) {
 			utils.NewAPIKeys("additional_endpoints", "api_key3"),
 		},
 	}
-	forwarderOptions, err := NewOptions(mockConfig, log, keysPerDomains)
+	resolvers, err := resolver.NewSingleDomainResolvers(keysPerDomains)
 	require.NoError(t, err)
+	forwarderOptions := NewOptionsWithResolvers(mockConfig, log, resolvers)
 	forwarder := NewDefaultForwarder(mockConfig, log, forwarderOptions)
 
 	// API keys from the domain resolvers match
@@ -79,8 +82,9 @@ func TestDefaultForwarderUpdateAdditionalEndpointAPIKey(t *testing.T) {
 			utils.NewAPIKeys("additional_endpoints", "api_key3"),
 		},
 	}
-	forwarderOptions, err := NewOptions(mockConfig, log, keysPerDomains)
+	resolvers, err := resolver.NewSingleDomainResolvers(keysPerDomains)
 	require.NoError(t, err)
+	forwarderOptions := NewOptionsWithResolvers(mockConfig, log, resolvers)
 	forwarder := NewDefaultForwarder(mockConfig, log, forwarderOptions)
 
 	// API keys from the domain resolvers match

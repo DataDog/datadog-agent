@@ -9,7 +9,7 @@ import "github.com/DataDog/datadog-agent/pkg/util/option"
 
 // Params contains the parameters to create a forwarder.
 type Params struct {
-	withResolver bool
+	allowOPW bool
 
 	// Use optional to override Options.DisableAPIKeyChecking only if WithFeatures was called
 	disableAPIKeyCheckingOverride option.Option[bool]
@@ -20,17 +20,19 @@ type optionParams = func(*Params)
 
 // NewParams initializes a new Params struct
 func NewParams(options ...optionParams) Params {
-	p := Params{}
+	p := Params{
+		allowOPW: true,
+	}
 	for _, option := range options {
 		option(&p)
 	}
 	return p
 }
 
-// WithResolvers enables the forwarder to use resolvers
-func WithResolvers() optionParams {
+// WithAllowOPW sets whether observability_pipelines and vector config keys need to be honored.
+func WithAllowOPW(allow bool) optionParams {
 	return func(p *Params) {
-		p.withResolver = true
+		p.allowOPW = allow
 	}
 }
 
