@@ -134,15 +134,23 @@ func concatDimensionValue(metricKeyBuilder *strings.Builder, value string) {
 // String maps dimensions to a string to use as an identifier.
 // The tags order does not matter.
 func (d *Dimensions) String() string {
-	var metricKeyBuilder strings.Builder
+	// Pre-allocate slice with known capacity to avoid multiple allocations
+	dimensions := make([]string, 0, len(d.tags)+3)
 
-	dimensions := make([]string, len(d.tags))
-	copy(dimensions, d.tags)
+	// Copy existing tags
+	dimensions = append(dimensions, d.tags...)
 
-	dimensions = append(dimensions, fmt.Sprintf("name:%s", d.name))
-	dimensions = append(dimensions, fmt.Sprintf("host:%s", d.host))
-	dimensions = append(dimensions, fmt.Sprintf("originID:%s", d.originID))
+	// Add dimension strings without fmt.Sprintf to avoid temporary allocations
+	dimensions = append(dimensions, "name:"+d.name)
+	dimensions = append(dimensions, "host:"+d.host)
+	dimensions = append(dimensions, "originID:"+d.originID)
+
+	// Sort in place
 	sort.Strings(dimensions)
+
+	// Pre-allocate string builder with estimated capacity
+	var metricKeyBuilder strings.Builder
+	metricKeyBuilder.Grow(len(dimensions) * 16) // Estimate 16 chars per dimension
 
 	for _, dim := range dimensions {
 		concatDimensionValue(&metricKeyBuilder, dim)
