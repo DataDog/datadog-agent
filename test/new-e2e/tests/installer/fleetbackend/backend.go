@@ -96,6 +96,17 @@ func (b *Backend) PromoteConfigExperiment() error {
 	return nil
 }
 
+// StopConfigExperiment stops a config experiment for the given package.
+func (b *Backend) StopConfigExperiment() error {
+	b.t().Logf("Stopping config experiment")
+	output, err := b.runDaemonCommandWithRestart("stop-config-experiment", "datadog-agent")
+	if err != nil {
+		return fmt.Errorf("%w, output: %s", err, output)
+	}
+	b.t().Logf("Config experiment stopped")
+	return nil
+}
+
 // RemoteConfigStatusPackage returns the status of the remote config for a given package.
 func (b *Backend) RemoteConfigStatusPackage(packageName string) (RemoteConfigStatePackage, error) {
 	status, err := b.RemoteConfigStatus()
@@ -142,7 +153,7 @@ func (b *Backend) runDaemonCommandWithRestart(command string, args ...string) (s
 			return fmt.Errorf("daemon PID %d is still running", newPID)
 		}
 		return nil
-	}, retry.Attempts(10), retry.Delay(1*time.Second))
+	}, retry.Attempts(5), retry.Delay(1*time.Second), retry.DelayType(retry.FixedDelay))
 	if err != nil {
 		return "", fmt.Errorf("error waiting for daemon to restart: %w", err)
 	}
@@ -185,6 +196,15 @@ func (b *Backend) getDaemonPID() (int, error) {
 	switch b.host.RemoteHost.OSFamily {
 	case e2eos.LinuxFamily:
 		pid, err = b.host.RemoteHost.Execute(`systemctl show -p MainPID datadog-agent-installer | cut -d= -f2`)
+		pidExp, errExp := b.host.RemoteHost.Execute(`systemctl show -p MainPID datadog-agent-installer-exp | cut -d= -f2`)
+		pid = strings.TrimSpace(pid)
+		pidExp = strings.TrimSpace(pidExp)
+		if err != nil || errExp != nil {
+			return 0, fmt.Errorf("error getting daemon PID: %w, %w", err, errExp)
+		}
+		if pidExp != "0" {
+			pid = pidExp
+		}
 	case e2eos.WindowsFamily:
 		pid, err = b.host.RemoteHost.Execute(`(Get-CimInstance Win32_Service -Filter "Name='Datadog Installer'").ProcessId`)
 	default:
@@ -193,5 +213,8 @@ func (b *Backend) getDaemonPID() (int, error) {
 	if err != nil {
 		return 0, err
 	}
-	return strconv.Atoi(strings.TrimSpace(pid))
+	if pid == "0" {
+		return 0, fmt.Errorf("daemon PID is 0")
+	}
+	return strconv.Atoi(pid)
 }
