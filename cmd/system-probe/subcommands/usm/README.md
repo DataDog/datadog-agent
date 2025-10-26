@@ -72,6 +72,59 @@ PID     | PPID    | Name                      | Command
 ...
 ```
 
+### `usm ebpf map list`
+
+Lists all eBPF maps loaded on the system.
+
+**Usage:**
+```bash
+sudo ./system-probe usm ebpf map list
+sudo ./system-probe usm ebpf map list | grep http  # Filter for specific maps
+```
+
+**Output:**
+- Lists all eBPF maps system-wide
+- Shows map ID, type, name, flags, key size, value size, and max entries
+- Output format matches bpftool
+
+**Example:**
+```
+28677: Hash  name helper_err_tele  flags 0x0
+    key 8B  value 3072B  max_entries 63
+28678: Hash  name tcp_sendmsg_arg  flags 0x0
+    key 8B  value 8B  max_entries 1024
+28682: Hash  name conn_stats  flags 0x0
+    key 48B  value 56B  max_entries 65536
+```
+
+### `usm ebpf map dump`
+
+Dumps the contents of a specific eBPF map.
+
+**Usage:**
+```bash
+sudo ./system-probe usm ebpf map dump id <map-id>       # Dump by map ID
+sudo ./system-probe usm ebpf map dump name <map-name>   # Dump by map name
+sudo ./system-probe usm ebpf map dump name conn_stats | jq  # Use with jq
+```
+
+**Output:**
+- JSON format with compact byte arrays
+- Each entry shows key and value as arrays of hex-encoded bytes
+- Output format matches bpftool
+- Compatible with jq and other JSON tools
+
+**Example:**
+```json
+[{
+	"key": ["0x00","0x00","0x00","0x00","0x00","0x00","0x00","0x00","0xac","0x12","0x00","0x02"],
+	"value": ["0x38","0x04","0x00","0x00","0x00","0x00","0x00","0x00","0x88","0x02","0x00","0x00"]
+},{
+	"key": ["0x00","0x00","0x00","0x00","0x00","0x00","0x00","0x00","0x7f","0x00","0x00","0x01"],
+	"value": ["0xa6","0x7a","0x00","0x00","0x00","0x00","0x00","0x00","0x00","0x00","0x00","0x00"]
+}]
+```
+
 ## Use Cases
 
 ### Debugging USM Configuration Issues
@@ -98,6 +151,27 @@ Use `usm sysinfo` to see what processes are running that USM might be monitoring
 - Check if applications are running with expected command line arguments
 - Identify processes by PID for further investigation
 
+### Inspecting eBPF Maps
+
+Use `usm ebpf map list` and `usm ebpf map dump` to debug eBPF map contents:
+- Verify maps are loaded correctly
+- Check map sizes and configurations
+- Inspect map contents for debugging
+- Extract data for offline analysis with jq
+
+**Example workflow:**
+```bash
+# List all maps and find the one you need
+sudo ./system-probe usm ebpf map list | grep conn
+
+# Dump the map contents
+sudo ./system-probe usm ebpf map dump name conn_stats > conn_stats.json
+
+# Analyze with jq
+jq 'length' conn_stats.json  # Count entries
+jq '.[0]' conn_stats.json    # See first entry
+```
+
 ## Implementation Notes
 
 ### Configuration Command
@@ -114,3 +188,12 @@ Use `usm sysinfo` to see what processes are running that USM might be monitoring
 - Output truncates long process names (default 25 chars) and command lines (default 50 chars) for readability
 - Both truncation limits are configurable via flags
 - Use `--max-cmdline-length 0` and `--max-name-length 0` for unlimited display
+
+### eBPF Commands
+- Direct eBPF map inspection using cilium/ebpf library
+- No dependencies on running system-probe instance
+- Uses kernel APIs (`MapGetNextID`, `NewMapFromID`) to enumerate all maps system-wide
+- Generic map iteration via `Map.Iterate()` - no custom per-map handlers needed
+- Output format matches bpftool for compatibility
+- List command outputs text, dump command outputs JSON
+- Works with all eBPF map types (Hash, Array, PerCPU, etc.)
