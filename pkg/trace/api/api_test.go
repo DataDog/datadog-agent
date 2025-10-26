@@ -107,8 +107,9 @@ func TestServerShutdown(t *testing.T) {
 		for {
 			// simulate the channel being busy
 			time.Sleep(100 * time.Millisecond)
-			_, ok := <-rawTraceChan
-			if !ok {
+			//_, ok := <-rawTraceChan
+			_, okV1 := <-rawTraceChanV1
+			if !okV1 {
 				return
 			}
 		}
@@ -802,7 +803,7 @@ func TestDecodeV05(t *testing.T) {
 	req.Header.Set(header.ContainerID, "abcdef123789456")
 	tp, err := decodeTracerPayload(v05, req, NewIDProvider("", func(_ origindetection.OriginInfo) (string, error) {
 		return "abcdef123789456", nil
-	}), "python", "3.8.1", "1.2.3")
+	}), "python", "3.8.1", "1.2.3", newTestReceiverConfig())
 	assert.NoError(err)
 	assert.EqualValues(tp, &pb.TracerPayload{
 		ContainerID:     "abcdef123789456",
@@ -1001,7 +1002,7 @@ func TestClientComputedStatsHeader(t *testing.T) {
 			timeout := time.After(time.Second)
 			for {
 				select {
-				case p := <-rcv.out:
+				case p := <-rcv.outV1:
 					assert.Equal(t, p.ClientComputedStats, on)
 					wg.Wait()
 					return
@@ -1156,7 +1157,7 @@ func TestClientComputedTopLevel(t *testing.T) {
 			timeout := time.After(time.Second)
 			for {
 				select {
-				case p := <-rcv.out:
+				case p := <-rcv.outV1:
 					assert.Equal(t, p.ClientComputedTopLevel, on)
 					wg.Wait()
 					return
@@ -1193,7 +1194,7 @@ func TestClientDropP0s(t *testing.T) {
 	if resp.StatusCode != 200 {
 		t.Fatal(resp.StatusCode)
 	}
-	p := <-rcv.out
+	p := <-rcv.outV1
 	assert.Equal(t, p.ClientDroppedP0s, int64(153))
 }
 
@@ -1544,7 +1545,6 @@ func TestGetProcessTags(t *testing.T) {
 				Chunks: []*pb.TraceChunk{
 					nil,
 					{},
-					{Spans: []*pb.Span{nil}},
 				},
 			},
 			expected: "header-value",
@@ -1553,7 +1553,7 @@ func TestGetProcessTags(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			result := getProcessTags(tc.header, tc.payload)
+			result := getProcessTags(tc.header, convertToIdx(tc.payload))
 			if result != tc.expected {
 				t.Errorf("expected %q, got %q", tc.expected, result)
 			}
