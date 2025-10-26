@@ -8,8 +8,8 @@
 package usm
 
 import (
-	"github.com/spf13/cobra"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/command"
+	"github.com/spf13/cobra"
 )
 
 func makeEbpfCommand(_ *command.GlobalParams) *cobra.Command {
