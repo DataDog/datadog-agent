@@ -129,3 +129,15 @@ http_archive(
     strip_prefix = "popt-1.19",
     url = "http://ftp.rpm.org/popt/releases/popt-1.x/popt-1.19.tar.gz",
 )
+
+http_archive(
+    name = "expat",
+    files = {
+        "BUILD.bazel": "//deps:expat/expat.BUILD.bazel",
+        "macos/expat_config.h": "//deps:expat/overlay/macos/expat_config.h",
+        "linux/expat_config.h": "//deps:expat/overlay/linux/expat_config.h",
+    },
+    sha256 = "6b902ab103843592be5e99504f846ec109c1abb692e85347587f237a4ffa1033",
+    strip_prefix = "expat-2.5.0",
+    url = "https://github.com/libexpat/libexpat/releases/download/R_2_5_0/expat-2.5.0.tar.gz",
+)
