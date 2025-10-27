@@ -1564,8 +1564,8 @@ func getAndValidateKafkaStats(parentT *testing.T, t *testing.T, monitor *Monitor
 	fmt.Printf("test name: %q; >>>>>>>>>>>>\n", t.Name())
 	parentT.Logf("test name: %q; >>>>>>>>>>>>", t.Name())
 	for key, value := range kafkaStats {
-		fmt.Printf("test name: %q; kafka key: %s; value: %v\n", t.Name(), key.String(), value)
-		parentT.Logf("test name: %q; kafka key: %s; value: %v", t.Name(), key.String(), value)
+		fmt.Printf("test name: %q; kafka key: %s; value: %v; value ptr: %p\n", t.Name(), key.String(), value, value)
+		parentT.Logf("test name: %q; kafka key: %s; value: %v; value ptr: %p", t.Name(), key.String(), value, value)
 	}
 	fmt.Printf("test name: %q; <<<<<<<<<<<<\n", t.Name())
 	parentT.Logf("test name: %q; <<<<<<<<<<<<", t.Name())
