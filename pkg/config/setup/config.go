@@ -953,6 +953,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("orchestrator_explorer.terminated_resources.enabled", true)
 	config.BindEnvAndSetDefault("orchestrator_explorer.terminated_pods.enabled", true)
 	config.BindEnvAndSetDefault("orchestrator_explorer.custom_resources.ootb.enabled", true)
+	config.BindEnvAndSetDefault("orchestrator_explorer.kubelet_config_check.enabled", false, "DD_ORCHESTRATOR_EXPLORER_KUBELET_CONFIG_CHECK_ENABLED")
 
 	// Container lifecycle configuration
 	config.BindEnvAndSetDefault("container_lifecycle.enabled", true)
@@ -1824,6 +1825,13 @@ func logsagent(config pkgconfigmodel.Setup) {
 	// See more documentation here:
 	// https://docs.docker.com/engine/reference/commandline/dockerd/.
 	config.BindEnvAndSetDefault("logs_config.docker_path_override", "")
+
+	// Amount of time to wait for the container runtime to respond while determining what to log, containers or pods.
+	// If the container runtime doesn't respond after specified timeout, log source marked as failed
+	// which is reflected in the Agent status output for the Logs.
+	// If this such behavior undesired, set the value to a significantly large number.
+	// Timeout is in seconds.
+	config.BindEnvAndSetDefault("logs_config.container_runtime_waiting_timeout", "3s")
 
 	config.BindEnvAndSetDefault("logs_config.auditor_ttl", DefaultAuditorTTL) // in hours
 	// Timeout in milliseonds used when performing agreggation operations,

@@ -76,6 +76,7 @@ def build(
         build_tags=build_tags,
         bin_path=agent_bin,
         env=env,
+        check_deadcode=os.getenv("DEPLOY_AGENT") == "true",
     )
 
 
