@@ -47,7 +47,7 @@ type testCase struct {
 
 func setupHostnameTest(t *testing.T, tc testCase) {
 	t.Cleanup(func() {
-		isFargateInstance = fargate.IsSidecarInstance
+		isFargateInstance = fargate.IsFargateInstance
 		ec2GetInstanceID = ec2.GetInstanceID
 		isContainerized = env.IsContainerized
 		gceGetHostname = gce.GetHostname

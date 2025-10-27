@@ -25,7 +25,7 @@ import (
 
 // for testing purposes
 var (
-	isFargateInstance                = fargate.IsSidecarInstance
+	isFargateInstance                = fargate.IsFargateInstance
 	ec2GetInstanceID                 = ec2.GetInstanceID
 	ec2GetLegacyResolutionInstanceID = ec2.GetLegacyResolutionInstanceID
 	isContainerized                  = env.IsContainerized //nolint:unused
