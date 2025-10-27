@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package diskretry provides disk based log retry capabilities.
 package diskretry
 
 import (
@@ -18,12 +19,16 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+// Config represents the configuration options for the retrier
 type Config struct {
 	Enabled      bool   // Enable disk-based retry
 	Path         string // Directory path for storing retry files
 	MaxSizeBytes int64  // Maximum total size of all retry files
 }
 
+// Retrier takes takes payloads from the processor and writes them to disk
+// whenever there is backpressure further in the logs pipeline. When the
+// backpressure is relieved it sends them back into the pipeline.
 type Retrier struct {
 	config          Config
 	mu              sync.Mutex
@@ -228,6 +233,8 @@ func (r *Retrier) readOldestPayload() *message.Payload {
 	)
 }
 
+// ReplayFromDisk tries to write take payloads on disk and sends them into the
+// pipeline to be sent to the backend. It blocks if there is backpressure.
 func (r *Retrier) ReplayFromDisk(payloadChan chan *message.Payload, done chan struct{}) {
 	for {
 		select {
