@@ -146,7 +146,7 @@ func setConfigSecurityProducts(s *common.Setup) {
 
 // setConfigInstallerDaemon sets the daemon in the configuration
 func setConfigInstallerDaemon(s *common.Setup) {
-	if runtime.GOOS != "windows" {
+	if runtime.GOOS == "windows" {
 		// on windows this needs to default to false
 		// as setup is the entry point for FIPS installations as well
 		s.Config.DatadogYAML.RemoteUpdates = false
