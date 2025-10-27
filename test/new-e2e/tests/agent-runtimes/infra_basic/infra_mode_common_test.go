@@ -7,6 +7,7 @@
 package infrabasic
 
 import (
+	_ "embed"
 	"encoding/json"
 	"fmt"
 	"testing"
@@ -24,6 +25,9 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/testcommon/check"
 	agentclient "github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclient"
 )
+
+//go:embed fixtures/custom_mycheck.py
+var customCheckPython []byte
 
 var (
 	// allowedChecks lists all checks that should work in basic mode
@@ -314,6 +318,12 @@ infra_basic_additional_checks:
 
 	s.T().Logf("Updating environment to test regex patterns and custom checks")
 
+	// Determine the correct path for the custom check Python file based on OS
+	customCheckPath := "/etc/datadog-agent/checks.d/custom_mycheck.py"
+	if s.descriptor.Family() == e2eos.WindowsFamily {
+		customCheckPath = "C:/ProgramData/Datadog/checks.d/custom_mycheck.py"
+	}
+
 	// Update the environment with the new agent config and check integrations
 	s.UpdateEnv(awshost.Provisioner(
 		awshost.WithEC2InstanceOptions(ec2.WithOS(s.descriptor), ec2.WithInstanceType("t3.micro")),
@@ -321,6 +331,7 @@ infra_basic_additional_checks:
 			agentparams.WithAgentConfig(agentConfigWithAdditionalCheck),
 			agentparams.WithIntegration("http_check.d", httpCheckConfig),
 			agentparams.WithIntegration("custom_mycheck.d", customCheckConfig),
+			agentparams.WithFile(customCheckPath, string(customCheckPython), true),
 		),
 	))
 
