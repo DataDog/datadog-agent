@@ -57,8 +57,9 @@ const (
 
 // collectorConfig allows to pass configuration
 type collectorConfig struct {
-	clearCacheOnClose bool
-	maxCacheSize      int
+	clearCacheOnClose   bool
+	maxCacheSize        int
+	computeDependencies bool
 }
 
 // Collector uses trivy to generate a SBOM
@@ -221,8 +222,9 @@ func DefaultDisabledHandlers() []ftypes.HandlerType {
 func NewCollector(cfg config.Component, wmeta option.Option[workloadmeta.Component]) (*Collector, error) {
 	return &Collector{
 		config: collectorConfig{
-			clearCacheOnClose: cfg.GetBool("sbom.clear_cache_on_exit"),
-			maxCacheSize:      cfg.GetInt("sbom.cache.max_disk_size"),
+			clearCacheOnClose:   cfg.GetBool("sbom.clear_cache_on_exit"),
+			maxCacheSize:        cfg.GetInt("sbom.cache.max_disk_size"),
+			computeDependencies: cfg.GetBool("sbom.compute_dependencies"),
 		},
 		marshaler: cyclonedx.NewMarshaler(""),
 		wmeta:     wmeta,
@@ -378,7 +380,7 @@ func (c *Collector) buildReport(trivyReport *types.Report, id string) (*Report, 
 	}
 	log.Debugf("Found %d packages", pkgCount)
 
-	return newReport(id, trivyReport, c.marshaler)
+	return newReport(id, trivyReport, c.marshaler, c.config.computeDependencies)
 }
 
 func looselyCompareAnalyzers(given []string, against []string) bool {

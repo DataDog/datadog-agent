@@ -11,7 +11,6 @@ package process
 
 import (
 	"context"
-	"net/http"
 	"strconv"
 	"testing"
 	"time"
@@ -663,7 +662,6 @@ func setUpCollectorTest(t *testing.T, cfg config.Component, sysProbeConfigOverri
 		fx.Replace(sysprobeconfigimpl.MockParams{Overrides: sysProbeConfigOverrides}),
 	))
 	processCollector := newProcessCollector(collectorID, workloadmeta.NodeAgent, mockClock, mockProbe, cfg, mockSystemProbeConfig)
-	processCollector.sysProbeClient = &http.Client{}
 	processCollector.containerProvider = mockContainerProvider
 
 	return collectorTest{&processCollector, mockProbe, mockSystemProbeConfig, mockClock, mockStore, mockContainerProvider}

@@ -16,6 +16,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/pkg/dyninst/process"
 	containerutils "github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
@@ -169,5 +170,9 @@ func (testResolver) GetContainerContext(uint32) (containerutils.ContainerID, mod
 
 type noopAnalyzer struct{}
 
-func (noopAnalyzer) checkFileKeyCache(FileKey) (bool, bool)        { return false, false }
-func (noopAnalyzer) isInteresting(*os.File, FileKey) (bool, error) { return true, nil }
+func (noopAnalyzer) checkFileKeyCache(process.FileKey) (bool, bool) {
+	return false, false
+}
+func (noopAnalyzer) isInteresting(*os.File, process.FileKey) (bool, error) {
+	return true, nil
+}

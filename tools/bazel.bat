@@ -56,8 +56,9 @@ if exist "!BAZEL_REPO_CONTENTS_CACHE!" (
 "%BAZEL_REAL%" %*
 set "bazel_exit=!errorlevel!"
 
-:: Diagnostics: dump logs on failure
-if !bazel_exit! neq 0 (
+:: Diagnostics: dump logs on non-trivial failures (https://bazel.build/run/scripts#exit-codes)
+:: TODO(regis): adjust (probably `== 37`) next time a `cannot connect to Bazel server` error happens (#incident-42947)
+if !bazel_exit! geq 2 (
   >&2 echo 🟡 Bazel failed [!bazel_exit!], dumping available info in !BAZEL_OUTPUT_USER_ROOT! ^(excluding junctions^):
   for /f "delims=" %%d in ('dir /a:d-l /b "!BAZEL_OUTPUT_USER_ROOT!"') do (
     >&2 echo 🟡 [%%d]
@@ -71,8 +72,8 @@ if !bazel_exit! neq 0 (
       )
     )
   )
-  exit /b !bazel_exit!
 )
+if !bazel_exit! neq 0 exit /b !bazel_exit!
 
 :: Stop `bazel` (if still running) to close files and proceed with cleanup
 >&2 "%BAZEL_REAL%" shutdown --ui_event_filters=-info

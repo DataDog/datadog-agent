@@ -12,6 +12,7 @@ import (
 	"math"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 
@@ -325,5 +326,242 @@ func TestActivityTree_Patterns(t *testing.T) {
 		assert.NoError(t, err)
 		assert.True(t, newEntry)
 		assertTreeEqual(t, wanted, tree)
+	})
+}
+
+func TestEvictUnusedNodes_ProcessCacheProtection(t *testing.T) {
+	t.Run("expired_node_gets_evicted_when_not_in_process_cache", func(t *testing.T) {
+		// Create an activity tree with a process node that has an old timestamp
+		tree := &ActivityTree{
+			validator: activityTreeInsertTestValidator{},
+			Stats:     NewActivityTreeNodeStats(),
+		}
+
+		// Create a process node with an old "last seen" timestamp
+		oldTime := time.Now().Add(-2 * time.Hour)
+		processNode := &ProcessNode{
+			NodeBase: NewNodeBase(),
+			Process: model.Process{
+				FileEvent: model.FileEvent{
+					PathnameStr: "/usr/bin/expired",
+				},
+			},
+		}
+		processNode.AppendImageTag("test-tag", oldTime)
+		tree.ProcessNodes = []*ProcessNode{processNode}
+
+		// Set eviction time to 1 hour ago (node should be evicted)
+		evictionTime := time.Now().Add(-1 * time.Hour)
+
+		// Empty process cache (node is not active)
+		filepathsInProcessCache := map[ImageProcessKey]bool{}
+
+		// Perform eviction
+		evicted := tree.EvictUnusedNodes(evictionTime, filepathsInProcessCache, "test-image", "test-tag")
+
+		// The node should be evicted since it's not in the process cache
+		assert.Equal(t, 1, evicted, "Expected 1 node to be evicted")
+		assert.Empty(t, tree.ProcessNodes, "Expected process node to be removed from tree")
+	})
+
+	t.Run("expired_node_gets_protected_when_in_process_cache", func(t *testing.T) {
+		// Create an activity tree with a process node that has an old timestamp
+		tree := &ActivityTree{
+			validator: activityTreeInsertTestValidator{},
+			Stats:     NewActivityTreeNodeStats(),
+		}
+
+		// Create a process node with an old "last seen" timestamp
+		oldTime := time.Now().Add(-2 * time.Hour)
+		processNode := &ProcessNode{
+			NodeBase: NewNodeBase(),
+			Process: model.Process{
+				FileEvent: model.FileEvent{
+					PathnameStr: "/usr/bin/protected",
+				},
+			},
+		}
+		processNode.AppendImageTag("test-tag", oldTime)
+		tree.ProcessNodes = []*ProcessNode{processNode}
+
+		// Set eviction time to 1 hour ago (node would normally be evicted)
+		evictionTime := time.Now().Add(-1 * time.Hour)
+
+		// Process cache contains this filepath (node is active)
+		filepathsInProcessCache := map[ImageProcessKey]bool{
+			{ImageName: "test-image", ImageTag: "test-tag", Filepath: "/usr/bin/protected"}: true,
+		}
+
+		// Perform eviction
+		evicted := tree.EvictUnusedNodes(evictionTime, filepathsInProcessCache, "test-image", "test-tag")
+
+		// The node should NOT be evicted since it's in the process cache
+		assert.Equal(t, 0, evicted, "Expected 0 nodes to be evicted")
+		assert.Len(t, tree.ProcessNodes, 1, "Expected process node to remain in tree")
+
+		// Verify that the LastSeen timestamp was updated to protect the node
+		imageTagTimes := processNode.Seen["test-tag"]
+		assert.NotNil(t, imageTagTimes, "Expected image tag to still exist")
+		assert.True(t, imageTagTimes.LastSeen.After(evictionTime), "Expected LastSeen to be updated to current time")
+	})
+
+	t.Run("mixed_scenario_some_protected_some_evicted", func(t *testing.T) {
+		// Create an activity tree with multiple process nodes
+		tree := &ActivityTree{
+			validator: activityTreeInsertTestValidator{},
+			Stats:     NewActivityTreeNodeStats(),
+		}
+
+		// Create process nodes with old timestamps
+		oldTime := time.Now().Add(-2 * time.Hour)
+
+		protectedNode := &ProcessNode{
+			NodeBase: NewNodeBase(),
+			Process: model.Process{
+				FileEvent: model.FileEvent{
+					PathnameStr: "/usr/bin/protected",
+				},
+			},
+		}
+		protectedNode.AppendImageTag("test-tag", oldTime)
+
+		expiredNode := &ProcessNode{
+			NodeBase: NewNodeBase(),
+			Process: model.Process{
+				FileEvent: model.FileEvent{
+					PathnameStr: "/usr/bin/expired",
+				},
+			},
+		}
+		expiredNode.AppendImageTag("test-tag", oldTime)
+
+		tree.ProcessNodes = []*ProcessNode{protectedNode, expiredNode}
+
+		// Set eviction time to 1 hour ago
+		evictionTime := time.Now().Add(-1 * time.Hour)
+
+		// Process cache only contains the protected filepath
+		filepathsInProcessCache := map[ImageProcessKey]bool{
+			{ImageName: "test-image", ImageTag: "test-tag", Filepath: "/usr/bin/protected"}: true,
+		}
+
+		// Perform eviction
+		evicted := tree.EvictUnusedNodes(evictionTime, filepathsInProcessCache, "test-image", "test-tag")
+
+		// Only the expired node should be evicted
+		assert.Equal(t, 1, evicted, "Expected 1 node to be evicted")
+		assert.Len(t, tree.ProcessNodes, 1, "Expected 1 process node to remain in tree")
+		assert.Equal(t, "/usr/bin/protected", tree.ProcessNodes[0].Process.FileEvent.PathnameStr, "Expected protected node to remain")
+
+		// Verify that the protected node's timestamp was updated
+		imageTagTimes := tree.ProcessNodes[0].Seen["test-tag"]
+		assert.NotNil(t, imageTagTimes, "Expected image tag to still exist")
+		assert.True(t, imageTagTimes.LastSeen.After(evictionTime), "Expected LastSeen to be updated to current time")
+	})
+
+	t.Run("node_with_multiple_image_tags_partial_protection", func(t *testing.T) {
+		// Test scenario where a node has multiple image tags, some expired, some not
+		tree := &ActivityTree{
+			validator: activityTreeInsertTestValidator{},
+			Stats:     NewActivityTreeNodeStats(),
+		}
+
+		// Create a process node with multiple image tags at different times
+		veryOldTime := time.Now().Add(-3 * time.Hour)
+		oldTime := time.Now().Add(-2 * time.Hour)
+		recentTime := time.Now().Add(-30 * time.Minute)
+
+		processNode := &ProcessNode{
+			NodeBase: NewNodeBase(),
+			Process: model.Process{
+				FileEvent: model.FileEvent{
+					PathnameStr: "/usr/bin/multi-tag",
+				},
+			},
+		}
+		processNode.AppendImageTag("very-old-tag", veryOldTime)
+		processNode.AppendImageTag("old-tag", oldTime)
+		processNode.AppendImageTag("recent-tag", recentTime)
+		processNode.AppendImageTag("test-tag", oldTime) // Add the profile tag that can be refreshed
+		tree.ProcessNodes = []*ProcessNode{processNode}
+
+		// Set eviction time to 1 hour ago (very-old-tag and old-tag should be evicted)
+		evictionTime := time.Now().Add(-1 * time.Hour)
+
+		// Process cache contains this filepath (node is active)
+		filepathsInProcessCache := map[ImageProcessKey]bool{
+			{ImageName: "test-image", ImageTag: "test-tag", Filepath: "/usr/bin/multi-tag"}: true,
+		}
+
+		// Perform eviction
+		evicted := tree.EvictUnusedNodes(evictionTime, filepathsInProcessCache, "test-image", "test-tag")
+
+		// The node should NOT be evicted, but expired tags should be refreshed
+		assert.Equal(t, 0, evicted, "Expected 0 nodes to be evicted")
+		assert.Len(t, tree.ProcessNodes, 1, "Expected process node to remain in tree")
+
+		// Verify that only the profile's image tag was refreshed
+		node := tree.ProcessNodes[0]
+		veryOldTagTimes := node.Seen["very-old-tag"]
+		oldTagTimes := node.Seen["old-tag"]
+		recentTagTimes := node.Seen["recent-tag"]
+		testTagTimes := node.Seen["test-tag"]
+
+		// The very-old-tag and old-tag should have been evicted since they weren't refreshed
+		assert.Nil(t, veryOldTagTimes, "Expected very-old-tag to be evicted")
+		assert.Nil(t, oldTagTimes, "Expected old-tag to be evicted")
+		assert.NotNil(t, recentTagTimes, "Expected recent-tag to still exist")
+		assert.NotNil(t, testTagTimes, "Expected test-tag to still exist")
+
+		// The test-tag should have been refreshed to current time (it's the profile tag)
+		assert.True(t, testTagTimes.LastSeen.After(evictionTime), "Expected test-tag LastSeen to be updated")
+		// Recent tag should remain unchanged since it wasn't expired
+		assert.True(t, recentTagTimes.LastSeen.Equal(recentTime), "Expected recent-tag LastSeen to remain unchanged")
+	})
+
+	t.Run("empty_process_cache_allows_normal_eviction", func(t *testing.T) {
+		// Test that when process cache is empty, normal eviction behavior occurs
+		tree := &ActivityTree{
+			validator: activityTreeInsertTestValidator{},
+			Stats:     NewActivityTreeNodeStats(),
+		}
+
+		// Create multiple process nodes with old timestamps
+		oldTime := time.Now().Add(-2 * time.Hour)
+
+		node1 := &ProcessNode{
+			NodeBase: NewNodeBase(),
+			Process: model.Process{
+				FileEvent: model.FileEvent{
+					PathnameStr: "/usr/bin/node1",
+				},
+			},
+		}
+		node1.AppendImageTag("test-tag", oldTime)
+
+		node2 := &ProcessNode{
+			NodeBase: NewNodeBase(),
+			Process: model.Process{
+				FileEvent: model.FileEvent{
+					PathnameStr: "/usr/bin/node2",
+				},
+			},
+		}
+		node2.AppendImageTag("test-tag", oldTime)
+
+		tree.ProcessNodes = []*ProcessNode{node1, node2}
+
+		// Set eviction time to 1 hour ago
+		evictionTime := time.Now().Add(-1 * time.Hour)
+
+		// Empty process cache
+		filepathsInProcessCache := map[ImageProcessKey]bool{}
+
+		// Perform eviction
+		evicted := tree.EvictUnusedNodes(evictionTime, filepathsInProcessCache, "test-image", "test-tag")
+
+		// Both nodes should be evicted
+		assert.Equal(t, 2, evicted, "Expected 2 nodes to be evicted")
+		assert.Empty(t, tree.ProcessNodes, "Expected all process nodes to be removed from tree")
 	})
 }

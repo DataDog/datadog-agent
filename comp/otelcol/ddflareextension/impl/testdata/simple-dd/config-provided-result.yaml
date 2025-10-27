@@ -18,7 +18,6 @@ exporters:
     logs:
       batch_wait: 5
       compression_level: 6
-      dump_payloads: false
       endpoint: https://http-intake.logs.datadoghq.com
       use_compression: true
     max_idle_conns: 100
