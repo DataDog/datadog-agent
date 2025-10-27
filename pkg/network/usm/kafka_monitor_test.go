@@ -1561,10 +1561,13 @@ func getAndValidateKafkaStats(parentT *testing.T, t *testing.T, monitor *Monitor
 			validateProduceFetchCount(collect, kafkaStats, topicName, validation, errorCode)
 		}
 	}, time.Second*5, time.Millisecond*10)
+	fmt.Printf("test name: %q; >>>>>>>>>>>>\n", t.Name())
 	parentT.Logf("test name: %q; >>>>>>>>>>>>", t.Name())
 	for key, value := range kafkaStats {
+		fmt.Printf("test name: %q; kafka key: %s; value: %v\n", t.Name(), key.String(), value)
 		parentT.Logf("test name: %q; kafka key: %s; value: %v", t.Name(), key.String(), value)
 	}
+	fmt.Printf("test name: %q; <<<<<<<<<<<<\n", t.Name())
 	parentT.Logf("test name: %q; <<<<<<<<<<<<", t.Name())
 	if t.Failed() {
 		ebpftest.DumpMapsTestHelper(t, monitor.ebpfProgram.Manager.Manager.DumpMaps, "kafka_in_flight", "kafka_batches", "kafka_response", "kafka_telemetry")
