@@ -744,7 +744,7 @@ func (can *CannedClientServer) runServer(t *testing.T) {
 			}
 			conn, err = listener.Accept()
 			require.NoError(t, err)
-			can.t.Logf("new can conn: laddr %v; raddr %v", conn.LocalAddr(), conn.RemoteAddr())
+			t.Logf("new can conn: test %q; laddr %v; raddr %v", can.t.Name(), conn.LocalAddr(), conn.RemoteAddr())
 
 			reader := bufio.NewReader(conn)
 			for _, msg := range msgs {
