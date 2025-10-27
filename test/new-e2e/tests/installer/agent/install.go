@@ -81,6 +81,13 @@ func (a *Agent) installLinuxInstallScript(params *installParams) error {
 			return fmt.Errorf("error reexecuting systemd: %w", err)
 		}
 	}
+
+	// reset failure from previous tests
+	_, err := a.host.RemoteHost.Execute("systemctl list-units --type=service --all | awk '/datadog-/{print $1}' | xargs -r -n1 systemctl reset-failed")
+	if err != nil {
+		return fmt.Errorf("error resetting failed services: %w", err)
+	}
+
 	env := map[string]string{
 		"DD_API_KEY": apiKey(),
 		"DD_SITE":    "datadoghq.com",
