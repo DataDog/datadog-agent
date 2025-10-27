@@ -1,5 +1,5 @@
 ---
-description: This rule serves for development of system-probe modules that use eBPF, and need to send data to the backend
+description: This rule serves for development of new system-probe modules that use eBPF, and need to send data to the backend
 alwaysApply: false
 ---
 
@@ -7,7 +7,7 @@ alwaysApply: false
 
 ## Overview
 
-These rules provide quick reference and common patterns for system-probe development. For comprehensive documentation, see:
+These rules provide quick reference and common patterns for development of new system-probe modules that use eBPF, and need to send data to the backend. For comprehensive documentation, see:
 
 - **Agent Core Checks**: `.cursor/rules/agent_corecheck.mdc` - Creating agent-side checks that consume system-probe data
 - **eBPF Checks**: `pkg/collector/corechecks/ebpf/AGENTS.md`
@@ -15,6 +15,68 @@ These rules provide quick reference and common patterns for system-probe develop
 - **Project Overview**: Root `AGENTS.md`
 
 **Scope**: This guide covers system-probe specific aspects (eBPF probes, modules, build system). For agent check implementation details, refer to `agent_corecheck.mdc`. For network monitoring and service discovery, see existing examples in `pkg/network/` and `pkg/collector/corechecks/servicediscovery/`.
+
+## Architecture: How System-Probe Checks Work
+
+System-probe checks follow a two-process architecture that separates privileged operations from metric collection:
+
+### System-Probe Module (Privileged Process)
+
+The system-probe process runs with elevated privileges and handles:
+
+- **eBPF Program Management**: Loading, attaching, and managing eBPF programs that collect kernel-level data
+- **Privileged Operations**: Operations requiring root/CAP_BPF capabilities (BPF map access, kernel probes, etc.)
+- **Data Collection**: Raw event collection and aggregation from eBPF maps
+- **HTTP API**: Exposes endpoints for querying collected data
+
+**Location**: `cmd/system-probe/modules/<check>.go`
+
+### Agent Core Check (Unprivileged Process)
+
+The main agent process runs with minimal privileges and handles:
+
+- **Data Retrieval**: Queries system-probe via HTTP to fetch aggregated stats
+- **Metric Emission**: Converts raw stats into Datadog metrics and sends to the platform
+- **Configuration**: Manages check-specific configuration and scheduling
+
+**Location**: `pkg/collector/corechecks/ebpf/<check>/` or `pkg/collector/corechecks/<check>/`
+
+### Data Flow
+
+```
+┌─────────────────────────────────────────┐
+│  Kernel Space                           │
+│  eBPF Programs collect events           │
+│  Store in eBPF data structures          │
+└─────────────────┬───────────────────────┘
+                  │
+                  ▼
+┌─────────────────────────────────────────┐
+│  System-Probe Process (privileged)      │
+│  - Probe reads/aggregates from maps     │
+│  - Module exposes HTTP endpoint         │
+│  - GetAndFlush() returns data           │
+└─────────────────┬───────────────────────┘
+                  │ HTTP Request
+                  │ (e.g., GET /check)
+                  ▼
+┌─────────────────────────────────────────┐
+│  Agent Process (unprivileged)           │
+│  - Check queries system-probe           │
+│  - Converts to metrics/logs/events      │
+│  - Sends to Datadog backend             │
+└─────────────────────────────────────────┘
+```
+
+**Example Flow**:
+
+1. eBPF kprobe attached to `mark_oom_victim` collects OOM kill events
+2. System-probe's `oomkill.Tracer` reads from eBPF map, aggregates per-CPU stats
+3. System-probe's `oomkill` module exposes stats at `/check` endpoint
+4. Agent's `oomkill.Check` calls `http://system-probe/check` periodically
+5. Agent converts stats to `system.oom_kill.count` metric and submits to Datadog
+
+**Note**: Not all system-probe modules have an agent-side check. Some features run entirely in system-probe for telemetry or background processing.
 
 ## File Naming Conventions
 
@@ -233,15 +295,17 @@ Then call it in `ninja_generate()` (line ~653):
 ninja_gpu_ebpf_programs(nw, co_re_build_dir)
 ```
 
-### Runtime Compiler Files (Required for All - line ~474)
+### Runtime Compiler Files (Optional - line ~474)
 
-**Every check needs runtime compilation fallback**:
+**Runtime compilation is optional** if your check can rely entirely on CO-RE programs (kernels 5.4+ with BTF). For broader kernel compatibility, provide a runtime compilation fallback:
 
 ```python
 runtime_compiler_files = {
     "pkg/path/to/your_check.go": "output-name",
 }
 ```
+
+**Note**: Most production checks include runtime compilation for older kernel support, but CO-RE-only is acceptable if your use case targets modern kernels.
 
 **Examples**:
 
@@ -359,64 +423,7 @@ dda inv system-probe.test -s -p ./pkg/collector/corechecks/ebpf/probe/yourcheck
 dda inv system-probe.test -s -p ./pkg/path -r TestName
 
 # Build object files first if needed
-dda inv system-probe.object-files
-```
-
-## Common Pitfalls and Solutions
-
-### Issue: CGO Type Generation Fails
-
-**Error**: `undefined: __u32`
-**Solution**: Include `ktypes.h` in your C header file
-
-### Issue: Runtime Compilation Not Working
-
-**Error**: `undefined: runtime.YourCheck`
-**Solution**: Run `go generate` on your probe file or rebuild with `dda inv system-probe.object-files`
-
-### Issue: Test Can't Find Binary
-
-**Solution**: Use `testutil.CurDir()` and calculate relative paths from there, not hardcoded paths
-
-### Issue: CGO Types Have Wrong Field Names
-
-**Explanation**: CGO converts `syscall_nr` → `Nr`, removes underscores
-**Solution**: Check generated `*_kern_types_linux.go` file for actual field names
-
-### Issue: Stub Implementation Errors
-
-**Error**: `undefined: option.NewNoneOption`
-**Solution**: Use `option.None[T]()` not `option.NewNoneOption[T]()`
-
-### Issue: eBPF Map Iteration Issues
-
-**Common Bug**: Not aggregating per-CPU values
-
-```go
-// ❌ Wrong
-result[key] = statsValue[0].Count
-
-// ✓ Correct
-var total uint64
-for cpu := 0; cpu < nbCpus; cpu++ {
-    total += statsValue[cpu].Count
-}
-result[key] = total
-```
-
-### Issue: Memory Leaks in eBPF Maps
-
-**Solution**: Always delete keys after reading in `GetAndFlush()`:
-
-```go
-keys := []StructStatsKey{}
-for it.Next(&key, &value) {
-    // process...
-    keys = append(keys, key)
-}
-for _, k := range keys {
-    t.statsMap.Delete(&k)
-}
+dda inv system-probe.build-object-files
 ```
 
 ## Quick Command Reference
