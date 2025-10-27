@@ -89,7 +89,7 @@ func ParseProfileFromFile[T Definition[T]](filePath string) (T, error) {
 		log.Warnf("unable to parse JSON profile from file %q: %v", filePath, err)
 	}
 	// try to unmarshal as YAML next
-	err = yaml.Unmarshal(buf, &profile)
+	err = yaml.UnmarshalStrict(buf, &profile)
 	// err out in this case, not parseable as JSON and YAML
 	if err != nil {
 		return profile, fmt.Errorf("unable to parse JSON or YAML; parse error in file %q: %w", filePath, err)

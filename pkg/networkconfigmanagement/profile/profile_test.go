@@ -31,12 +31,6 @@ func Test_GetProfileMap(t *testing.T) {
 			name:          "default profiles successful",
 			profileFolder: "default_profiles",
 			expected: Map{
-				"_base": &NCMProfile{
-					BaseProfile: BaseProfile{
-						Name: "_base",
-					},
-					Commands: map[CommandType]*Commands{},
-				},
 				"p1": &NCMProfile{
 					BaseProfile: BaseProfile{
 						Name: "p1",
