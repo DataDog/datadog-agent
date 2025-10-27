@@ -5,7 +5,7 @@
 
 //go:build linux_bpf
 
-package usm
+package ebpf
 
 import (
 	"bytes"

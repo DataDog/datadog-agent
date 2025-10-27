@@ -27,10 +27,5 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		usmCmd.AddCommand(sysinfoCmd)
 	}
 
-	// Add ebpf command if available on this platform
-	if ebpfCmd := makeEbpfCommand(globalParams); ebpfCmd != nil {
-		usmCmd.AddCommand(ebpfCmd)
-	}
-
 	return []*cobra.Command{usmCmd}
 }

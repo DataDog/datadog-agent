@@ -5,7 +5,7 @@
 
 //go:build linux
 
-package usm
+package ebpf
 
 import (
 	"encoding/json"

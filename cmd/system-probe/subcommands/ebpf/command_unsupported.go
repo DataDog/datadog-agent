@@ -5,7 +5,7 @@
 
 //go:build !linux
 
-package usm
+package ebpf
 
 import (
 	"github.com/DataDog/datadog-agent/cmd/system-probe/command"
