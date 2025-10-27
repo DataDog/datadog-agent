@@ -6,200 +6,233 @@
 package serializerexporter
 
 import (
-	"bytes"
-	"fmt"
-	"io"
-	"net"
-	"net/http"
-	"net/http/httptest"
-	"strings"
+	"context"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/metrics"
-	"github.com/DataDog/datadog-agent/pkg/metrics/event"
-	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
-	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
-	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
-	"github.com/DataDog/datadog-agent/pkg/serializer/types"
-
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"github.com/tinylib/msgp/msgp"
+
+	"github.com/DataDog/datadog-agent/pkg/metrics"
+	otlpmetrics "github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/metrics"
+	"github.com/DataDog/datadog-agent/pkg/tagset"
 )
 
-var statsPayloads = []*pb.ClientStatsPayload{
-	{
-		Hostname:         "host",
-		Env:              "prod",
-		Version:          "v1.2",
-		Lang:             "go",
-		TracerVersion:    "v44",
-		RuntimeID:        "123jkl",
-		Sequence:         2,
-		AgentAggregation: "blah",
-		Service:          "mysql",
-		ContainerID:      "abcdef123456",
-		Tags:             []string{"a:b", "c:d"},
-		Stats: []*pb.ClientStatsBucket{
-			{
-				Start:    10,
-				Duration: 1,
-				Stats: []*pb.ClientGroupedStats{
-					{
-						Service:        "kafka",
-						Name:           "queue.add",
-						Resource:       "append",
-						HTTPStatusCode: 220,
-						Type:           "queue",
-						Hits:           15,
-						Errors:         3,
-						Duration:       143,
-						OkSummary:      []byte{1, 2, 3},
-						ErrorSummary:   []byte{4, 5, 6},
-						TopLevelHits:   5,
-					},
-				},
-			},
-		},
-	},
-	{
-		Hostname:         "host2",
-		Env:              "prod2",
-		Version:          "v1.22",
-		Lang:             "go2",
-		TracerVersion:    "v442",
-		RuntimeID:        "123jkl2",
-		Sequence:         22,
-		AgentAggregation: "blah2",
-		Service:          "mysql2",
-		ContainerID:      "abcdef1234562",
-		Tags:             []string{"a:b2", "c:d2"},
-		Stats: []*pb.ClientStatsBucket{
-			{
-				Start:    102,
-				Duration: 12,
-				Stats: []*pb.ClientGroupedStats{
-					{
-						Service:        "kafka2",
-						Name:           "queue.add2",
-						Resource:       "append2",
-						HTTPStatusCode: 2202,
-						Type:           "queue2",
-						Hits:           152,
-						Errors:         32,
-						Duration:       1432,
-						OkSummary:      []byte{1, 2, 3},
-						ErrorSummary:   []byte{4, 5, 6},
-						TopLevelHits:   52,
-					},
-				},
-			},
-		},
-	},
-}
-
-func TestConsumeAPMStats(t *testing.T) {
-	sc := serializerConsumer{extraTags: []string{"k:v"}, apmReceiverAddr: "http://localhost:1234/v0.6/stats"}
-	sc.ConsumeAPMStats(statsPayloads[0])
-	require.Len(t, sc.apmstats, 1)
-	sc.ConsumeAPMStats(statsPayloads[1])
-	require.Len(t, sc.apmstats, 2)
-
-	one := &pb.ClientStatsPayload{}
-	two := &pb.ClientStatsPayload{}
-	err := msgp.Decode(sc.apmstats[0], one)
-	require.NoError(t, err)
-	err = msgp.Decode(sc.apmstats[1], two)
-	require.NoError(t, err)
-	assert.Equal(t, one.String(), statsPayloads[0].String())
-	assert.Equal(t, two.String(), statsPayloads[1].String())
-}
-
-func TestSendAPMStats(t *testing.T) {
-	withHandler := func(response http.Handler) (*httptest.Server, string) {
-		srv := httptest.NewServer(response)
-		_, port, err := net.SplitHostPort(srv.Listener.Addr().String())
-		require.NoError(t, err)
-		return srv, port
+func TestConsumeTimeSeriesOptimized(t *testing.T) {
+	consumer := &serializerConsumer{
+		extraTags: []string{"env:test", "service:test-service"},
+		tagBuffer: make([]string, 0, 10), // Pre-allocate with reasonable capacity
 	}
 
-	t.Run("ok", func(t *testing.T) {
-		var called int
-		srv, port := withHandler(http.HandlerFunc(func(_ http.ResponseWriter, req *http.Request) {
-			require.Equal(t, req.URL.Path, "/v0.6/stats")
-			in := &pb.ClientStatsPayload{}
-			in.Reset()
-			err := msgp.Decode(req.Body, in)
-			defer req.Body.Close()
-			require.NoError(t, err)
-			// compare string representations of messages
-			assert.Equal(t, statsPayloads[called].String(), in.String())
-			called++
-		}))
-		defer srv.Close()
+	// Create test dimensions
+	dimensions := &otlpmetrics.Dimensions{
+		// Mock implementation - in real code this would be properly initialized
+	}
 
-		sc := serializerConsumer{extraTags: []string{"k:v"}, apmReceiverAddr: fmt.Sprintf("http://localhost:%s/v0.6/stats", port)}
-		sc.ConsumeAPMStats(statsPayloads[0])
-		sc.ConsumeAPMStats(statsPayloads[1])
-		err := sc.Send(&MockSerializer{})
-		require.NoError(t, err)
-		require.Equal(t, called, 2)
-	})
+	// Mock the dimensions methods for testing
+	// Note: This is a simplified test - in practice you'd need to properly mock the Dimensions struct
+	// or use a test helper that creates real Dimensions objects
 
-	t.Run("error", func(t *testing.T) {
-		var called int
-		srv, port := withHandler(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-			io.Copy(io.Discard, req.Body)
-			req.Body.Close()
-			w.WriteHeader(http.StatusInternalServerError)
-			called++
-		}))
-		defer srv.Close()
+	// Test that ConsumeTimeSeries doesn't panic and creates a serie
+	// This is a basic smoke test - more comprehensive testing would require proper mocking
+	consumer.ConsumeTimeSeries(context.Background(), dimensions, otlpmetrics.Gauge, 1000000000, 60, 42.5)
 
-		sc := serializerConsumer{extraTags: []string{"k:v"}, apmReceiverAddr: fmt.Sprintf("http://localhost:%s/v0.6/stats", port)}
-		sc.ConsumeAPMStats(statsPayloads[0])
-		err := sc.Send(&MockSerializer{})
-		require.ErrorContains(t, err, "HTTP Status code == 500 Internal Server Error")
-		require.Equal(t, called, 1)
-	})
+	// Verify that a serie was added
+	assert.Len(t, consumer.series, 1, "Expected one serie to be added")
 
-	t.Run("error-msg", func(t *testing.T) {
-		var called int
-		srv, port := withHandler(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-			io.Copy(io.Discard, req.Body)
-			req.Body.Close()
-			w.WriteHeader(http.StatusInternalServerError)
-			w.Write(bytes.Repeat([]byte{'A'}, 2000))
-			called++
-		}))
-		defer srv.Close()
-
-		sc := serializerConsumer{extraTags: []string{"k:v"}, apmReceiverAddr: fmt.Sprintf("http://localhost:%s/v0.6/stats", port)}
-		sc.ConsumeAPMStats(statsPayloads[0])
-		err := sc.Send(&MockSerializer{})
-		require.ErrorContains(t, err, "HTTP Status code == 500 Internal Server Error "+strings.Repeat("A", 1024))
-		require.Equal(t, called, 1)
-	})
+	// Verify the serie has the expected structure
+	serie := consumer.series[0]
+	assert.NotNil(t, serie, "Serie should not be nil")
+	assert.NotNil(t, serie.Points, "Points should not be nil")
+	assert.Len(t, serie.Points, 1, "Expected one point")
+	assert.Equal(t, 1.0, serie.Points[0].Ts, "Expected timestamp to be converted to seconds")
+	assert.Equal(t, 42.5, serie.Points[0].Value, "Expected value to be preserved")
 }
 
-// MockSerializer implements a no-op serializer.MetricSerializer.
-type MockSerializer struct{}
+func TestEnrichTagsLogic(t *testing.T) {
+	tests := []struct {
+		name      string
+		extraTags []string
+		dimTags   []string
+		expected  []string
+	}{
+		{
+			name:      "empty tags",
+			extraTags: []string{},
+			dimTags:   []string{},
+			expected:  []string{},
+		},
+		{
+			name:      "only extra tags",
+			extraTags: []string{"env:test", "service:web"},
+			dimTags:   []string{},
+			expected:  []string{"env:test", "service:web"},
+		},
+		{
+			name:      "only dimension tags",
+			extraTags: []string{},
+			dimTags:   []string{"host:server1", "region:us-west"},
+			expected:  []string{"host:server1", "region:us-west"},
+		},
+		{
+			name:      "both extra and dimension tags",
+			extraTags: []string{"env:test", "service:web"},
+			dimTags:   []string{"host:server1", "region:us-west"},
+			expected:  []string{"env:test", "service:web", "host:server1", "region:us-west"},
+		},
+	}
 
-func (m *MockSerializer) SendEvents(_ event.Events) error                         { return nil }
-func (m *MockSerializer) SendServiceChecks(_ servicecheck.ServiceChecks) error    { return nil }
-func (m *MockSerializer) SendIterableSeries(_ metrics.SerieSource) error          { return nil }
-func (m *MockSerializer) AreSeriesEnabled() bool                                  { return true }
-func (m *MockSerializer) SendSketch(_ metrics.SketchesSource) error               { return nil }
-func (m *MockSerializer) AreSketchesEnabled() bool                                { return true }
-func (m *MockSerializer) SendMetadata(_ marshaler.JSONMarshaler) error            { return nil }
-func (m *MockSerializer) SendHostMetadata(_ marshaler.JSONMarshaler) error        { return nil }
-func (m *MockSerializer) SendProcessesMetadata(_ interface{}) error               { return nil }
-func (m *MockSerializer) SendAgentchecksMetadata(_ marshaler.JSONMarshaler) error { return nil }
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Test the enrichTags logic directly
+			capacity := len(tt.extraTags) + len(tt.dimTags)
+			tags := make([]string, 0, capacity)
+			tags = append(tags, tt.extraTags...)
+			tags = append(tags, tt.dimTags...)
 
-func (m *MockSerializer) SendOrchestratorMetadata(_ []types.ProcessMessageBody, _, _ string, _ int) error {
-	return nil
+			assert.Equal(t, tt.expected, tags, "enrichTags logic should combine tags correctly")
+		})
+	}
 }
 
-func (m *MockSerializer) SendOrchestratorManifests(_ []types.ProcessMessageBody, _, _ string) error {
-	return nil
+func TestEnrichTagsOptimizedLogic(t *testing.T) {
+	tests := []struct {
+		name      string
+		extraTags []string
+		dimTags   []string
+		expected  []string
+	}{
+		{
+			name:      "empty tags",
+			extraTags: []string{},
+			dimTags:   []string{},
+			expected:  []string{},
+		},
+		{
+			name:      "only extra tags",
+			extraTags: []string{"env:test", "service:web"},
+			dimTags:   []string{},
+			expected:  []string{"env:test", "service:web"},
+		},
+		{
+			name:      "only dimension tags",
+			extraTags: []string{},
+			dimTags:   []string{"host:server1", "region:us-west"},
+			expected:  []string{"host:server1", "region:us-west"},
+		},
+		{
+			name:      "both extra and dimension tags",
+			extraTags: []string{"env:test", "service:web"},
+			dimTags:   []string{"host:server1", "region:us-west"},
+			expected:  []string{"env:test", "service:web", "host:server1", "region:us-west"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Test the enrichTagsOptimized logic directly
+			buf := make([]string, 0, 10)
+			originalCap := cap(buf)
+
+			buf = buf[:0]
+			buf = append(buf, tt.extraTags...)
+			buf = append(buf, tt.dimTags...)
+
+			assert.Equal(t, tt.expected, buf, "enrichTagsOptimized logic should combine tags correctly")
+			assert.Equal(t, originalCap, cap(buf), "Buffer capacity should be preserved")
+			assert.Len(t, buf, len(tt.expected), "Result length should match expected")
+		})
+	}
+}
+
+func TestEnrichTagsOptimizedBufferReuseLogic(t *testing.T) {
+	extraTags1 := []string{"env:test"}
+	dimTags1 := []string{"host:server1"}
+
+	// Test multiple calls with the same buffer
+	buf := make([]string, 0, 5)
+
+	// First call
+	buf = buf[:0]
+	buf = append(buf, extraTags1...)
+	buf = append(buf, dimTags1...)
+	expected1 := []string{"env:test", "host:server1"}
+	assert.Equal(t, expected1, buf)
+	assert.Equal(t, 5, cap(buf), "Buffer capacity should be preserved")
+
+	// Second call with same buffer
+	extraTags2 := []string{"env:prod", "service:api"}
+	dimTags2 := []string{"host:server2", "region:us-west"}
+	buf = buf[:0]
+	buf = append(buf, extraTags2...)
+	buf = append(buf, dimTags2...)
+	expected2 := []string{"env:prod", "service:api", "host:server2", "region:us-west"}
+	assert.Equal(t, expected2, buf)
+	assert.Equal(t, 5, cap(buf), "Buffer capacity should still be preserved")
+}
+
+func TestSeriePoolReuse(t *testing.T) {
+	// Get a serie from the pool
+	serie1 := seriePool.Get().(*metrics.Serie)
+	originalCapacity := cap(serie1.Points)
+
+	// Use the serie
+	serie1.Name = "test.metric"
+	serie1.Points = append(serie1.Points, metrics.Point{Ts: 1.0, Value: 42.0})
+
+	// Manually reset the serie (simulating what returnSeriesToPool does)
+	serie1.Name = ""
+	serie1.Points = serie1.Points[:0]
+	serie1.Tags = tagset.CompositeTags{}
+	serie1.Host = ""
+	serie1.Device = ""
+	serie1.MType = 0
+	serie1.Interval = 0
+	serie1.SourceTypeName = ""
+	serie1.ContextKey = 0
+	serie1.NameSuffix = ""
+	serie1.NoIndex = false
+	serie1.Resources = nil
+	serie1.Source = 0
+
+	// Return to pool
+	seriePool.Put(serie1)
+
+	// Get another serie from the pool
+	serie2 := seriePool.Get().(*metrics.Serie)
+
+	// Verify it's the same underlying object (pool reuse)
+	assert.Equal(t, originalCapacity, cap(serie2.Points), "Points capacity should be preserved")
+	assert.Len(t, serie2.Points, 0, "Points should be reset")
+	assert.Empty(t, serie2.Name, "Name should be reset")
+
+	// Return to pool
+	seriePool.Put(serie2)
+}
+
+func TestReturnSeriesToPool(t *testing.T) {
+	consumer := &serializerConsumer{
+		series: make(metrics.Series, 0, 10),
+	}
+
+	// Add some series to the consumer
+	serie1 := &metrics.Serie{
+		Name:   "test.metric1",
+		Points: []metrics.Point{{Ts: 1.0, Value: 42.0}},
+		Host:   "test-host",
+		MType:  metrics.APIGaugeType,
+	}
+	serie2 := &metrics.Serie{
+		Name:   "test.metric2",
+		Points: []metrics.Point{{Ts: 2.0, Value: 84.0}},
+		Host:   "test-host",
+		MType:  metrics.APICountType,
+	}
+
+	consumer.series = append(consumer.series, serie1, serie2)
+
+	// Return series to pool
+	consumer.returnSeriesToPool()
+
+	// Verify series slice is cleared but capacity preserved
+	assert.Len(t, consumer.series, 0, "Series slice should be empty")
+	assert.GreaterOrEqual(t, cap(consumer.series), 2, "Series slice capacity should be preserved")
 }

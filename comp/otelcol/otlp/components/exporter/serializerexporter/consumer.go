@@ -12,6 +12,7 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"go.opentelemetry.io/collector/exporter"
@@ -30,6 +31,15 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/otel"
 	"github.com/DataDog/datadog-agent/pkg/util/quantile"
 )
+
+// seriePool is a pool for reusing metrics.Serie objects to reduce allocations
+var seriePool = sync.Pool{
+	New: func() interface{} {
+		return &metrics.Serie{
+			Points: make([]metrics.Point, 0, 1), // Pre-allocate for single point
+		}
+	},
+}
 
 var metricOriginsMappings = map[otlpmetrics.OriginProductDetail]metrics.MetricSource{
 	otlpmetrics.OriginProductDetailUnknown:                   metrics.MetricSourceOpenTelemetryCollectorUnknown,
@@ -97,6 +107,7 @@ type serializerConsumer struct {
 	ipath           ingestionPath
 	hosts           map[string]struct{}
 	ecsFargateTags  map[string]struct{}
+	tagBuffer       []string // Reusable buffer for tag enrichment
 }
 
 // ingestionPath specifies which ingestion path is using the serializer exporter
@@ -119,11 +130,14 @@ func (c *serializerConsumer) ConsumeAPMStats(ss *pb.ClientStatsPayload) {
 	c.apmstats = append(c.apmstats, body)
 }
 
-func enrichTags(extraTags []string, dimensions *otlpmetrics.Dimensions) []string {
-	enrichedTags := make([]string, 0, len(extraTags)+len(dimensions.Tags()))
-	enrichedTags = append(enrichedTags, extraTags...)
-	enrichedTags = append(enrichedTags, dimensions.Tags()...)
-	return enrichedTags
+// enrichTagsOptimized reuses a pre-allocated slice to avoid allocations
+func enrichTagsOptimized(extraTags []string, dimensions *otlpmetrics.Dimensions, buf []string) []string {
+	// Reset the buffer but keep capacity
+	buf = buf[:0]
+	// Pre-allocate with known capacity
+	buf = append(buf, extraTags...)
+	buf = append(buf, dimensions.Tags()...)
+	return buf
 }
 
 func (c *serializerConsumer) ConsumeSketch(_ context.Context, dimensions *otlpmetrics.Dimensions, ts uint64, interval int64, qsketch *quantile.Sketch) {
@@ -131,9 +145,20 @@ func (c *serializerConsumer) ConsumeSketch(_ context.Context, dimensions *otlpme
 	if !ok {
 		msrc = metrics.MetricSourceOpenTelemetryCollectorUnknown
 	}
+	// Reuse tag buffer to avoid allocations
+	c.tagBuffer = enrichTagsOptimized(c.extraTags, dimensions, c.tagBuffer)
+
+	// Ensure we have an empty slice instead of nil for empty tags
+	var tags []string
+	if len(c.tagBuffer) > 0 {
+		tags = c.tagBuffer
+	} else {
+		tags = []string{}
+	}
+
 	c.sketches = append(c.sketches, &metrics.SketchSeries{
 		Name:     dimensions.Name(),
-		Tags:     tagset.CompositeTagsFromSlice(enrichTags(c.extraTags, dimensions)),
+		Tags:     tagset.CompositeTagsFromSlice(tags),
 		Host:     dimensions.Host(),
 		Interval: interval,
 		Points: []metrics.SketchPoint{{
@@ -159,17 +184,31 @@ func (c *serializerConsumer) ConsumeTimeSeries(_ context.Context, dimensions *ot
 	if !ok {
 		msrc = metrics.MetricSourceOpenTelemetryCollectorUnknown
 	}
-	c.series = append(c.series,
-		&metrics.Serie{
-			Name:     dimensions.Name(),
-			Points:   []metrics.Point{{Ts: float64(ts / 1e9), Value: value}},
-			Tags:     tagset.CompositeTagsFromSlice(enrichTags(c.extraTags, dimensions)),
-			Host:     dimensions.Host(),
-			MType:    apiTypeFromTranslatorType(typ),
-			Interval: interval,
-			Source:   msrc,
-		},
-	)
+
+	// Get a Serie from the pool and reset it
+	serie := seriePool.Get().(*metrics.Serie)
+	serie.Name = dimensions.Name()
+	serie.Points = serie.Points[:0] // Reset but keep capacity
+	serie.Points = append(serie.Points, metrics.Point{Ts: float64(ts / 1e9), Value: value})
+
+	// Reuse tag buffer to avoid allocations
+	c.tagBuffer = enrichTagsOptimized(c.extraTags, dimensions, c.tagBuffer)
+
+	// Ensure we have an empty slice instead of nil for empty tags
+	var tags []string
+	if len(c.tagBuffer) > 0 {
+		tags = c.tagBuffer
+	} else {
+		tags = []string{}
+	}
+	serie.Tags = tagset.CompositeTagsFromSlice(tags)
+
+	serie.Host = dimensions.Host()
+	serie.MType = apiTypeFromTranslatorType(typ)
+	serie.Interval = interval
+	serie.Source = msrc
+
+	c.series = append(c.series, serie)
 }
 
 // addTelemetryMetric to know if an Agent is using OTLP metrics.
@@ -255,7 +294,34 @@ func (c *serializerConsumer) Send(s serializer.MetricSerializer) error {
 		},
 	)
 	apmErr := c.sendAPMStats()
+
+	// Return Serie objects to the pool after sending
+	c.returnSeriesToPool()
+
 	return multierr.Combine(serieErr, sketchesErr, apmErr)
+}
+
+// returnSeriesToPool returns all Serie objects to the pool for reuse
+func (c *serializerConsumer) returnSeriesToPool() {
+	for _, serie := range c.series {
+		// Reset the serie before returning to pool
+		serie.Name = ""
+		serie.Points = serie.Points[:0]
+		serie.Tags = tagset.CompositeTags{}
+		serie.Host = ""
+		serie.Device = ""
+		serie.MType = 0
+		serie.Interval = 0
+		serie.SourceTypeName = ""
+		serie.ContextKey = 0
+		serie.NameSuffix = ""
+		serie.NoIndex = false
+		serie.Resources = nil
+		serie.Source = 0
+		seriePool.Put(serie)
+	}
+	// Clear the series slice but keep capacity
+	c.series = c.series[:0]
 }
 
 func (c *serializerConsumer) sendAPMStats() error {

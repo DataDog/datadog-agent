@@ -16,21 +16,71 @@ package utils
 
 import (
 	"testing"
-
-	"github.com/stretchr/testify/assert"
 )
 
 func TestFormatKeyValueTag(t *testing.T) {
 	tests := []struct {
-		key         string
-		value       string
-		expectedTag string
+		name     string
+		key      string
+		value    string
+		expected string
 	}{
-		{"a.test.tag", "a.test.value", "a.test.tag:a.test.value"},
-		{"a.test.tag", "", "a.test.tag:n/a"},
+		{
+			name:     "normal key value",
+			key:      "service",
+			value:    "web",
+			expected: "service:web",
+		},
+		{
+			name:     "empty value",
+			key:      "env",
+			value:    "",
+			expected: "env:n/a",
+		},
+		{
+			name:     "empty key",
+			key:      "",
+			value:    "value",
+			expected: ":value",
+		},
+		{
+			name:     "both empty",
+			key:      "",
+			value:    "",
+			expected: ":n/a",
+		},
+		{
+			name:     "long key and value",
+			key:      "very_long_service_name",
+			value:    "very_long_value_name",
+			expected: "very_long_service_name:very_long_value_name",
+		},
+		{
+			name:     "special characters in key",
+			key:      "service-name",
+			value:    "web-app",
+			expected: "service-name:web-app",
+		},
+		{
+			name:     "special characters in value",
+			key:      "env",
+			value:    "prod-1",
+			expected: "env:prod-1",
+		},
+		{
+			name:     "unicode characters",
+			key:      "service",
+			value:    "测试",
+			expected: "service:测试",
+		},
 	}
 
-	for _, testInstance := range tests {
-		assert.Equal(t, testInstance.expectedTag, FormatKeyValueTag(testInstance.key, testInstance.value))
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := FormatKeyValueTag(tt.key, tt.value)
+			if result != tt.expected {
+				t.Errorf("FormatKeyValueTag(%q, %q) = %q, want %q", tt.key, tt.value, result, tt.expected)
+			}
+		})
 	}
 }

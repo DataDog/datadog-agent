@@ -16,7 +16,7 @@
 package utils
 
 import (
-	"fmt"
+	"strings"
 )
 
 // FormatKeyValueTag takes a key-value pair, and creates a tag string out of it
@@ -25,5 +25,16 @@ func FormatKeyValueTag(key, value string) string {
 	if value == "" {
 		value = "n/a"
 	}
-	return fmt.Sprintf("%s:%s", key, value)
+
+	// Pre-allocate with known capacity to avoid multiple allocations
+	// key + ":" + value + 1 for potential growth
+	capacity := len(key) + 1 + len(value) + 1
+	var builder strings.Builder
+	builder.Grow(capacity)
+
+	builder.WriteString(key)
+	builder.WriteString(":")
+	builder.WriteString(value)
+
+	return builder.String()
 }
