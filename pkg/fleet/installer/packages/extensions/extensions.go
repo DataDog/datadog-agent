@@ -351,7 +351,7 @@ func Save(ctx context.Context, pkg string, saveDir string) (err error) {
 	}
 	span.SetTag("extensions", strings.Join(keys(dbPkg.Extensions), ","))
 
-	savePath := filepath.Join(saveDir, fmt.Sprintf("%s-extensions.txt", pkg))
+	savePath := filepath.Join(saveDir, fmt.Sprintf(".%s-extensions.txt", pkg))
 	err = os.WriteFile(savePath, []byte(strings.Join(keys(dbPkg.Extensions), "\n")), 0644)
 	if err != nil {
 		return fmt.Errorf("could not write extensions to file: %w", err)
@@ -369,15 +369,16 @@ func Restore(ctx context.Context, downloader *oci.Downloader, pkg string, downlo
 	span.SetTag("save_dir", saveDir)
 	span.SetTag("is_experiment", isExperiment)
 
-	savePath := filepath.Join(saveDir, fmt.Sprintf("%s-extensions.txt", pkg))
+	savePath := filepath.Join(saveDir, fmt.Sprintf(".%s-extensions.txt", pkg))
 	f, err := os.ReadFile(savePath)
 	if err != nil && !os.IsNotExist(err) {
 		return fmt.Errorf("could not read extensions file: %w", err)
 	}
-	extensions := strings.Split(string(f), "\n")
-	if len(extensions) == 0 {
+	content := strings.TrimSpace(string(f))
+	if content == "" {
 		return nil // No extensions to restore
 	}
+	extensions := strings.Split(content, "\n")
 	span.SetTag("extensions", strings.Join(extensions, ","))
 
 	err = Install(ctx, downloader, downloadURL, extensions, isExperiment, hooks)

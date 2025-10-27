@@ -13,6 +13,8 @@ import (
 	"slices"
 	"strings"
 
+	"gopkg.in/yaml.v3"
+
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/installinfo"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/oci"
@@ -444,6 +446,53 @@ func postPromoteConfigExperimentDatadogAgent(ctx HookContext) error {
 	return nil
 }
 
+type datadogAgentConfig struct {
+	Installer installerConfig `yaml:"installer"`
+}
+
+type installerConfig struct {
+	Registry installerRegistryConfig `yaml:"registry,omitempty"`
+}
+
+type installerRegistryConfig struct {
+	URL      string `yaml:"url,omitempty"`
+	Auth     string `yaml:"auth,omitempty"`
+	Username string `yaml:"username,omitempty"`
+	Password string `yaml:"password,omitempty"`
+}
+
+// setRegistryConfig is a best effort to get the `installer` block from `datadog.yaml` and update the env.
+func setRegistryConfig(env *env.Env) {
+	configPath := "/etc/datadog-agent/datadog.yaml"
+	// if runtime.GOOS == "windows" {
+	// 	// TODO: share this code with Windows
+	// 	configPath = "C:\\ProgramData\\Datadog\\datadog.yaml"
+	// }
+	rawConfig, err := os.ReadFile(configPath)
+	if err != nil {
+		return
+	}
+	var config datadogAgentConfig
+	err = yaml.Unmarshal(rawConfig, &config)
+	if err != nil {
+		return
+	}
+
+	// Update env with values from config if not already set
+	if config.Installer.Registry.URL != "" && env.RegistryOverride == "" {
+		env.RegistryOverride = config.Installer.Registry.URL
+	}
+	if config.Installer.Registry.Auth != "" && env.RegistryAuthOverride == "" {
+		env.RegistryAuthOverride = config.Installer.Registry.Auth
+	}
+	if config.Installer.Registry.Username != "" && env.RegistryUsername == "" {
+		env.RegistryUsername = config.Installer.Registry.Username
+	}
+	if config.Installer.Registry.Password != "" && env.RegistryPassword == "" {
+		env.RegistryPassword = config.Installer.Registry.Password
+	}
+}
+
 // saveAgentExtensions saves the extensions of the Agent package by writing them to a file on disk.
 // the extensions can then be picked up by the restoreAgentExtensions function to restore them
 func saveAgentExtensions(ctx HookContext) error {
@@ -479,7 +528,11 @@ func restoreAgentExtensions(ctx HookContext, experiment bool) error {
 	}
 
 	env := env.FromEnv()
-	downloader := oci.NewDownloader(env, env.HTTPClient()) // TODO: add registry override from env or datadog.yaml
+
+	// Best effort to get the registry config from datadog.yaml
+	setRegistryConfig(env)
+
+	downloader := oci.NewDownloader(env, env.HTTPClient())
 	url := oci.PackageURL(env, agentPackage, getCurrentAgentVersion())
 	hooks := NewHooks(env, repository.NewRepositories(paths.PackagesPath, AsyncPreRemoveHooks))
 
