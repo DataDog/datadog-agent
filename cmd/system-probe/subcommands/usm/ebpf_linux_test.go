@@ -230,6 +230,45 @@ func TestFindMapByNameNotFound(t *testing.T) {
 	require.Contains(t, err.Error(), "not found")
 }
 
+func TestRunMapDumpByID(t *testing.T) {
+	require.NoError(t, rlimit.RemoveMemlock())
+
+	// Create a test map
+	spec := &ebpf.MapSpec{
+		Type:       ebpf.Hash,
+		KeySize:    4,
+		ValueSize:  4,
+		MaxEntries: 10,
+	}
+
+	m, err := ebpf.NewMapWithOptions(spec, ebpf.MapOptions{})
+	require.NoError(t, err)
+	defer m.Close()
+
+	// Add entry
+	key := []byte{0x01, 0x02, 0x03, 0x04}
+	value := []byte{0xaa, 0xbb, 0xcc, 0xdd}
+	require.NoError(t, m.Put(key, value))
+
+	// Get the map ID
+	info, err := m.Info()
+	require.NoError(t, err)
+	mapID, ok := info.ID()
+	require.True(t, ok)
+
+	// Dump by ID
+	var buf bytes.Buffer
+	err = runMapDumpByID(mapID, &buf)
+	require.NoError(t, err)
+
+	// Verify output
+	var entries []mapEntry
+	err = json.Unmarshal(buf.Bytes(), &entries)
+	require.NoError(t, err)
+	require.Len(t, entries, 1)
+	require.Equal(t, []string{"0x01", "0x02", "0x03", "0x04"}, entries[0].Key)
+}
+
 func TestRunMapDumpByIDNotFound(t *testing.T) {
 	require.NoError(t, rlimit.RemoveMemlock())
 
@@ -237,6 +276,43 @@ func TestRunMapDumpByIDNotFound(t *testing.T) {
 	var buf bytes.Buffer
 	err := runMapDumpByID(ebpf.MapID(999999999), &buf)
 	require.Error(t, err)
+}
+
+func TestRunMapDumpByName(t *testing.T) {
+	require.NoError(t, rlimit.RemoveMemlock())
+
+	// Create a test map with a specific name
+	spec := &ebpf.MapSpec{
+		Name:       "test_dump_by_name",
+		Type:       ebpf.Hash,
+		KeySize:    4,
+		ValueSize:  4,
+		MaxEntries: 10,
+	}
+
+	m, err := ebpf.NewMapWithOptions(spec, ebpf.MapOptions{})
+	require.NoError(t, err)
+	defer m.Close()
+
+	// Add entry
+	key := []byte{0x0a, 0x0b, 0x0c, 0x0d}
+	value := []byte{0xf0, 0xf1, 0xf2, 0xf3}
+	require.NoError(t, m.Put(key, value))
+
+	// Dump by name
+	var buf bytes.Buffer
+	err = runMapDumpByName("test_dump_by_name", &buf)
+	if err != nil {
+		// Skip if kernel doesn't support map names
+		t.Skipf("Could not dump by name (this is OK on some kernels): %v", err)
+	}
+
+	// Verify output
+	var entries []mapEntry
+	err = json.Unmarshal(buf.Bytes(), &entries)
+	require.NoError(t, err)
+	require.Len(t, entries, 1)
+	require.Equal(t, []string{"0x0a", "0x0b", "0x0c", "0x0d"}, entries[0].Key)
 }
 
 func TestJSONCompactArrayFormat(t *testing.T) {
