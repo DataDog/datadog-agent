@@ -1160,6 +1160,49 @@ int test_memfd_create(int argc, char **argv) {
     return EXIT_SUCCESS;
 }
 
+int test_tracer_memfd(int argc, char **argv) {
+    // TracerMetadata: ServiceName=test-service, ServiceEnv=test-env, ServiceVersion=1.0.0, ProcessTags=custom.tag:value
+    // This is msgpack-encoded binary data
+    const char tracer_data[] =
+        "\x88"                              // fixmap with 8 entries
+        "\xae" "schema_version" "\x00"      // "schema_version": 0
+        "\xaf" "tracer_language" "\xa0"     // "tracer_language": "" (empty str)
+        "\xae" "tracer_version" "\xa0"      // "tracer_version": "" (empty str)
+        "\xa8" "hostname" "\xa0"            // "hostname": "" (empty str)
+        "\xac" "service_name"
+        "\xac" "test-service"
+        "\xab" "service_env"
+        "\xa8" "test-env"
+        "\xaf" "service_version"
+        "\xa5" "1.0.0"
+        "\xac" "process_tags"
+        "\xb0" "custom.tag:value";
+
+    // Create memfd with tracer prefix and allow sealing
+    int fd = memfd_create("datadog-tracer-info-12345678", MFD_ALLOW_SEALING);
+    if (fd < 0) {
+        err(1, "%s failed", "memfd_create");
+    }
+
+    // Write tracer metadata
+    ssize_t written = write(fd, tracer_data, sizeof(tracer_data));
+    if (written != sizeof(tracer_data)) {
+        err(1, "%s failed: wrote %zd bytes, expected %lu", "write", written, sizeof(tracer_data));
+    }
+
+    // Seal the memfd (this triggers the eBPF event)
+    if (fcntl(fd, F_ADD_SEALS, F_SEAL_WRITE | F_SEAL_SHRINK | F_SEAL_GROW) < 0) {
+        err(1, "%s failed", "fcntl F_ADD_SEALS");
+    }
+
+    // Sleep briefly to allow userspace to read the metadata from /proc/PID/fd/FD
+    // before the process exits and the fd is closed
+    sleep(3);
+
+    close(fd);
+    return EXIT_SUCCESS;
+}
+
 int test_new_netns_exec(int argc, char **argv) {
     if (argc < 2) {
         fprintf(stderr, "Please specify at least an executable path\n");
@@ -1770,6 +1813,8 @@ int main(int argc, char **argv) {
             exit_code = test_sleep(sub_argc, sub_argv);
         } else if (strcmp(cmd, "fileless") == 0) {
             exit_code = test_memfd_create(sub_argc, sub_argv);
+        } else if (strcmp(cmd, "tracer-memfd") == 0) {
+            exit_code = test_tracer_memfd(sub_argc, sub_argv);
         } else if (strcmp(cmd, "new_netns_exec") == 0) {
             exit_code = test_new_netns_exec(sub_argc, sub_argv);
         } else if (strcmp(cmd, "slow-cat") == 0) {

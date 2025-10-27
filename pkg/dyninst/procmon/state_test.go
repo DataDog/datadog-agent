@@ -14,6 +14,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/dyninst/process"
 )
 
 func TestStateMachine(t *testing.T) {
@@ -32,8 +34,8 @@ func TestStateMachine(t *testing.T) {
 				s.update = &ProcessesUpdate{}
 			}
 			for _, pid := range procPids {
-				s.update.Processes = append(s.update.Processes, ProcessUpdate{
-					ProcessID: ProcessID{PID: int32(pid)},
+				s.update.Processes = append(s.update.Processes, process.Info{
+					ProcessID: process.ID{PID: int32(pid)},
 				})
 			}
 		}
@@ -45,7 +47,7 @@ func TestStateMachine(t *testing.T) {
 				s.update = &ProcessesUpdate{}
 			}
 			for _, pid := range procPids {
-				s.update.Removals = append(s.update.Removals, ProcessID{PID: int32(pid)})
+				s.update.Removals = append(s.update.Removals, process.ID{PID: int32(pid)})
 			}
 		}
 	}

@@ -34,6 +34,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dyninst/dyninsttest"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/loader"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/process"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/procmon"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/rcjson"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/rcscrape"
@@ -331,10 +332,10 @@ func testNoDdTraceGo(t *testing.T, cfg testprogs.Config) {
 	}()
 
 	rcScraper.AsProcMonHandler().HandleUpdate(procmon.ProcessesUpdate{
-		Processes: []procmon.ProcessUpdate{
+		Processes: []process.Info{
 			{
-				ProcessID:  procmon.ProcessID{PID: int32(child.Process.Pid)},
-				Executable: procmon.Executable{Path: prog},
+				ProcessID:  process.ID{PID: int32(child.Process.Pid)},
+				Executable: process.Executable{Path: prog},
 				Service:    "simple",
 			},
 		},

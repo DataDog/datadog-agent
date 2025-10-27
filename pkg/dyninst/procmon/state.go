@@ -9,6 +9,8 @@ package procmon
 
 import (
 	"slices"
+
+	"github.com/DataDog/datadog-agent/pkg/dyninst/process"
 )
 
 // TODO: We should add rate limiting on the actual rate at which we will
@@ -31,10 +33,10 @@ type processAnalysis struct {
 	service       string
 	version       string
 	environment   string
-	exe           Executable
+	exe           process.Executable
 	interesting   bool
-	gitInfo       GitInfo
-	containerInfo ContainerInfo
+	gitInfo       process.GitInfo
+	containerInfo process.ContainerInfo
 }
 
 type analysisResult struct {
@@ -75,8 +77,8 @@ type state struct {
 	// being built.
 	pending map[uint32]struct{}
 
-	updates  []ProcessUpdate
-	removals []ProcessID
+	updates  []process.Info
+	removals []process.ID
 }
 
 func makeState() state {
@@ -103,8 +105,8 @@ func (s *state) handleAnalysisResult(e analysisResult) {
 		delete(s.pending, uint32(e.pid))
 	} else if _, ok := s.alive[e.pid]; ok {
 		delete(s.pending, e.pid)
-		s.updates = append(s.updates, ProcessUpdate{
-			ProcessID: ProcessID{
+		s.updates = append(s.updates, process.Info{
+			ProcessID: process.ID{
 				PID: int32(e.pid),
 			},
 			Executable:  e.exe,
@@ -131,7 +133,7 @@ func (s *state) handleProcessEvent(e processEvent) {
 		if _, ok := s.alive[e.pid]; ok {
 			delete(s.alive, e.pid)
 			if _, ok := s.pending[e.pid]; !ok {
-				pid := ProcessID{PID: int32(e.pid)}
+				pid := process.ID{PID: int32(e.pid)}
 				s.removals = append(s.removals, pid)
 			}
 		}
@@ -158,7 +160,7 @@ func (s *state) analyzeOrReport(eff effects) {
 
 	// Drop updates for processes that exited before we finished building.
 	isDead := func(pid uint32) bool { _, ok := s.alive[pid]; return !ok }
-	s.updates = slices.DeleteFunc(s.updates, func(u ProcessUpdate) bool {
+	s.updates = slices.DeleteFunc(s.updates, func(u process.Info) bool {
 		return isDead(uint32(u.ProcessID.PID))
 	})
 	if len(s.updates) > 0 || len(s.removals) > 0 {
