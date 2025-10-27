@@ -57,7 +57,6 @@ func (c *collector) start() error {
 		c.channelPath,
 		c.query,
 		evtsubscribe.WithWindowsEventLogAPI(c.api),
-		evtsubscribe.WithStartAtOldestRecord(),
 	)
 
 	log.Infof("Initialized Windows Event Log subscription: channel=%s, query=%s", c.channelPath, c.query)
