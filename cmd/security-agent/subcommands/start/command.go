@@ -25,7 +25,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/security-agent/api"
 	"github.com/DataDog/datadog-agent/cmd/security-agent/command"
-	"github.com/DataDog/datadog-agent/cmd/security-agent/subcommands/compliance"
 	"github.com/DataDog/datadog-agent/comp/agent/autoexit"
 	"github.com/DataDog/datadog-agent/comp/agent/autoexit/autoexitimpl"
 	"github.com/DataDog/datadog-agent/comp/core"
@@ -54,7 +53,7 @@ import (
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
 	logscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
 	"github.com/DataDog/datadog-agent/pkg/collector/python"
-	pkgCompliance "github.com/DataDog/datadog-agent/pkg/compliance"
+	"github.com/DataDog/datadog-agent/pkg/compliance"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	commonsettings "github.com/DataDog/datadog-agent/pkg/config/settings"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -131,7 +130,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					// TODO - components: Do not remove runtimeAgent ref until "github.com/DataDog/datadog-agent/pkg/security/agent" is a component so they're not GCed
 					return status.NewInformationProvider(runtimeAgent.StatusProvider()), runtimeAgent, nil
 				}),
-				fx.Provide(func(stopper startstop.Stopper, log log.Component, config config.Component, statsdClient ddgostatsd.ClientInterface, sysprobeconfig sysprobeconfig.Component, wmeta workloadmeta.Component, compression logscompression.Component, ipc ipc.Component) (status.InformationProvider, *pkgCompliance.Agent, error) {
+				fx.Provide(func(stopper startstop.Stopper, log log.Component, config config.Component, statsdClient ddgostatsd.ClientInterface, sysprobeconfig sysprobeconfig.Component, wmeta workloadmeta.Component, compression logscompression.Component, ipc ipc.Component) (status.InformationProvider, *compliance.Agent, error) {
 					hostnameDetected, err := hostnameutils.GetHostnameWithContextAndFallback(context.TODO(), ipc)
 					if err != nil {
 						return status.NewInformationProvider(nil), nil, err
