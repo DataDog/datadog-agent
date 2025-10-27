@@ -40,18 +40,18 @@ func makeMapCommand(globalParams *command.GlobalParams) *cobra.Command {
 	return mapCmd
 }
 
-func makeMapListCommand(globalParams *command.GlobalParams) *cobra.Command {
+func makeMapListCommand(_ *command.GlobalParams) *cobra.Command {
 	return &cobra.Command{
 		Use:   "list",
 		Short: "List all eBPF maps",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, _ []string) error {
 			return runMapList(os.Stdout)
 		},
 	}
 }
 
 func runMapList(w io.Writer) error {
-	var id ebpf.MapID = 0
+	var id ebpf.MapID
 
 	for {
 		var err error
@@ -84,12 +84,12 @@ func runMapList(w io.Writer) error {
 	return nil
 }
 
-func makeMapDumpCommand(globalParams *command.GlobalParams) *cobra.Command {
+func makeMapDumpCommand(_ *command.GlobalParams) *cobra.Command {
 	return &cobra.Command{
 		Use:   "dump {id <id> | name <name>}",
 		Short: "Dump contents of an eBPF map",
 		Args:  cobra.ExactArgs(2),
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, args []string) error {
 			specifier := args[0]
 			value := args[1]
 
@@ -135,7 +135,7 @@ func runMapDumpByName(name string, w io.Writer) error {
 }
 
 func findMapByName(name string) (*ebpf.Map, *ebpf.MapInfo, error) {
-	var id ebpf.MapID = 0
+	var id ebpf.MapID
 
 	for {
 		var err error
