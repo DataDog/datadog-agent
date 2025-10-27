@@ -28,7 +28,8 @@ from tasks.libs.common.omnibus import (
 )
 from tasks.libs.common.user_interactions import yes_no_question
 from tasks.libs.common.utils import gitlab_section, timed
-from tasks.libs.releasing.version import get_version, load_dependencies
+from tasks.libs.dependencies import get_effective_dependencies_env
+from tasks.libs.releasing.version import get_version
 
 
 def omnibus_run_task(ctx, task, target_project, base_dir, env, log_level="info", host_distribution=None):
@@ -90,21 +91,7 @@ def get_omnibus_env(
     custom_config_dir=None,
     fips_mode=False,
 ):
-    env = load_dependencies(ctx)
-
-    # Discard windows variables when not on Windows (so that they're not used in the cache key either)
-    if sys.platform != 'win32':
-        windows_only_vars = [
-            'WINDOWS_DDNPM_DRIVER',
-            'WINDOWS_DDNPM_VERSION',
-            'WINDOWS_DDNPM_SHASUM',
-            'WINDOWS_DDPROCMON_DRIVER',
-            'WINDOWS_DDPROCMON_VERSION',
-            'WINDOWS_DDPROCMON_SHASUM',
-        ]
-        for var in windows_only_vars:
-            if var in env:
-                del env[var]
+    env = get_effective_dependencies_env()
 
     # If the host has a GOMODCACHE set, try to reuse it
     if not go_mod_cache and os.environ.get('GOMODCACHE'):
@@ -118,10 +105,6 @@ def get_omnibus_env(
         "OMNIBUS_RUBY_VERSION": "https://github.com/DataDog/omnibus-ruby.git",
     }
     for key, url in external_repos.items():
-        value = os.environ.get(key)
-        # Only overrides the env var if the value is a non-empty string.
-        if value:
-            env[key] = value
         ref = env[key]
         if not re.fullmatch(r"[0-9a-f]{4,40}", ref):  # resolve only "moving" refs, such as `own/branch`
             candidates = [

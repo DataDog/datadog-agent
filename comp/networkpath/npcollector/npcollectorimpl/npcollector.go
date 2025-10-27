@@ -95,7 +95,7 @@ func newNoopNpCollectorImpl() *npCollectorImpl {
 
 func newNpCollectorImpl(epForwarder eventplatform.Forwarder, collectorConfigs *collectorConfigs, logger log.Component, telemetrycomp telemetryComp.Component, rdnsquerier rdnsquerier.Component, statsd ddgostatsd.ClientInterface) *npCollectorImpl {
 	logger.Infof("New NpCollector %+v", collectorConfigs)
-	filter, errs := connfilter.NewConnFilter(collectorConfigs.filterConfig, collectorConfigs.ddSite)
+	filter, errs := connfilter.NewConnFilter(collectorConfigs.filterConfig, collectorConfigs.ddSite, collectorConfigs.monitorIPWithoutDomain)
 
 	if len(errs) > 0 {
 		logger.Errorf("connection filter errors: %s", errors.Join(errs...))
@@ -241,9 +241,8 @@ func (s *npCollectorImpl) shouldScheduleNetworkPathForConn(conn *model.Connectio
 		return false
 	}
 
-	skipIPWithoutDomain := !s.collectorConfigs.monitorIPWithoutDomain
-	if domain == "" && skipIPWithoutDomain {
-		s.statsdClient.Incr(netpathConnsSkippedMetricName, []string{"reason:skip_ip_without_domain"}, 1) //nolint:errcheck
+	if !s.checkPassesConnCIDRFilters(conn, vpcSubnets) {
+		s.statsdClient.Incr(netpathConnsSkippedMetricName, []string{"reason:skip_not_matched_by_conn_filters"}, 1) //nolint:errcheck
 		return false
 	}
 
@@ -252,7 +251,7 @@ func (s *npCollectorImpl) shouldScheduleNetworkPathForConn(conn *model.Connectio
 		return false
 	}
 
-	return s.checkPassesConnCIDRFilters(conn, vpcSubnets)
+	return true
 }
 
 func (s *npCollectorImpl) getVPCSubnets() ([]*net.IPNet, error) {

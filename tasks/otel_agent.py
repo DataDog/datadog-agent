@@ -79,6 +79,7 @@ def build(ctx, byoc=False):
         ldflags=ldflags,
         gcflags=gcflags,
         bin_path=BIN_PATH,
+        check_deadcode=os.getenv("DEPLOY_AGENT") == "true",
         env=env,
     )
 

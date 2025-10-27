@@ -46,6 +46,7 @@ def build_common(
         build_tags=build_tags,
         bin_path=os.path.join(bin_path, bin_name(f"datadog-cluster-agent{bin_suffix}")),
         env=env,
+        check_deadcode=os.getenv("DEPLOY_AGENT") == "true",
         coverage=cover,
     )
 
