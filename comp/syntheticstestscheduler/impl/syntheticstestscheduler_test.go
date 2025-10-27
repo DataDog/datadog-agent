@@ -43,7 +43,7 @@ func Test_SyntheticsTestScheduler_StartAndStop(t *testing.T) {
 	mockConfig.SetWithoutSource("run_path", testDir)
 	var b bytes.Buffer
 	w := bufio.NewWriter(&b)
-	l, err := utillog.LoggerFromWriterWithMinLevelAndFormat(w, utillog.DebugLvl, "[%LEVEL] %FuncShort: %Msg")
+	l, err := utillog.LoggerFromWriterWithMinLevelAndLvlFuncMsgFormat(w, utillog.DebugLvl)
 	assert.Nil(t, err)
 	utillog.SetupLogger(l, "debug")
 	configs := &schedulerConfigs{
@@ -90,7 +90,7 @@ func Test_SyntheticsTestScheduler_OnConfigUpdate(t *testing.T) {
 
 	var b bytes.Buffer
 	w := bufio.NewWriter(&b)
-	l, err := utillog.LoggerFromWriterWithMinLevelAndFormat(w, utillog.DebugLvl, "[%LEVEL] %FuncShort: %Msg")
+	l, err := utillog.LoggerFromWriterWithMinLevelAndLvlFuncMsgFormat(w, utillog.DebugLvl)
 	assert.Nil(t, err)
 	utillog.SetupLogger(l, "debug")
 	configs := &schedulerConfigs{
@@ -421,7 +421,7 @@ func Test_SyntheticsTestScheduler_Processing(t *testing.T) {
 
 			var b bytes.Buffer
 			w := bufio.NewWriter(&b)
-			l, err := utillog.LoggerFromWriterWithMinLevelAndFormat(w, utillog.DebugLvl, "[%LEVEL] %FuncShort: %Msg")
+			l, err := utillog.LoggerFromWriterWithMinLevelAndLvlFuncMsgFormat(w, utillog.DebugLvl)
 			assert.Nil(t, err)
 			utillog.SetupLogger(l, "debug")
 
@@ -501,7 +501,7 @@ func (m *mockHostname) Get(_ context.Context) (string, error) {
 func Test_SyntheticsTestScheduler_RunWorker_ProcessesTestCtxAndSendsResult(t *testing.T) {
 	var b bytes.Buffer
 	w := bufio.NewWriter(&b)
-	l, err := utillog.LoggerFromWriterWithMinLevelAndFormat(w, utillog.DebugLvl, "[%LEVEL] %FuncShort: %Msg")
+	l, err := utillog.LoggerFromWriterWithMinLevelAndLvlFuncMsgFormat(w, utillog.DebugLvl)
 	assert.Nil(t, err)
 	utillog.SetupLogger(l, "debug")
 	ctx, cancel := context.WithCancel(context.TODO())
@@ -577,7 +577,7 @@ func TestFlushEnqueuesDueTests(t *testing.T) {
 	now := time.Now()
 	var b bytes.Buffer
 	w := bufio.NewWriter(&b)
-	l, err := utillog.LoggerFromWriterWithMinLevelAndFormat(w, utillog.DebugLvl, "[%LEVEL] %FuncShort: %Msg")
+	l, err := utillog.LoggerFromWriterWithMinLevelAndLvlFuncMsgFormat(w, utillog.DebugLvl)
 	assert.Nil(t, err)
 	utillog.SetupLogger(l, "debug")
 

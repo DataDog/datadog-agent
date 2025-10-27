@@ -46,6 +46,6 @@ bazel:build-deps:windows-amd64:
   variables:
     ARCH: x64
     SCRIPT: |-
-      echo "🟡 TODO(regis): compilation errors remain - limiting to a working subset for the time being"
-      bazel build '@zlib//...' '@libffi'
+      [Console]::WriteLine("🟡 TODO(regis): compilation errors remain - limiting to a working subset for the time being")
+      bazel build '@zlib//...' '@libffi//:ffi' '@xz//...'
       # bazel build @bzip2//...

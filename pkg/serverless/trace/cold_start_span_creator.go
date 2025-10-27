@@ -168,7 +168,7 @@ func (c *ColdStartSpanCreator) processSpan(coldStartSpan *pb.Span) {
 	}
 
 	c.TraceAgent.Process(&api.Payload{
-		Source:        info.NewReceiverStats().GetTagStats(info.Tags{}),
+		Source:        info.NewReceiverStats(true).GetTagStats(info.Tags{}),
 		TracerPayload: tracerPayload,
 	})
 }
