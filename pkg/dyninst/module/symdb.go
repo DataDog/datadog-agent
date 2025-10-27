@@ -50,8 +50,20 @@ type symdbManager struct {
 }
 
 type symdbManagerInterface interface {
+	// queueUpload queues a new upload request, if the process' data has not
+	// been uploaded previously (since the last corresponding removeUpload()
+	// call, if any). Calling queueUpload() again for the same process is a
+	// no-op.
+	//
+	// The upload will be performed asynchronously. A single upload can be in
+	// progress at a time. Returns an error if the manager has been stopped.
 	queueUpload(runtimeID procRuntimeID, executablePath string) error
+	// removeUpload removes the queued upload for the given process ID, if any. If
+	// the upload is currently being processed, it will be cancelled and the call
+	// will block until the upload stops. If no upload for the respective process is
+	// in progress or queued, the call is a no-op.
 	removeUpload(runtimeID procRuntimeID)
+	// removeUploadByPID removes the queued upload(s) for the given process ID.
 	removeUploadByPID(pid process.ID)
 }
 
