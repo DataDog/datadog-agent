@@ -28,7 +28,7 @@ from tasks.libs.common.omnibus import (
 )
 from tasks.libs.common.user_interactions import yes_no_question
 from tasks.libs.common.utils import gitlab_section, timed
-from tasks.libs.dependencies import load_overridden_dependencies
+from tasks.libs.dependencies import get_effective_dependencies_env
 from tasks.libs.releasing.version import get_version
 
 
@@ -91,7 +91,7 @@ def get_omnibus_env(
     custom_config_dir=None,
     fips_mode=False,
 ):
-    env = load_overridden_dependencies()
+    env = get_effective_dependencies_env()
 
     # If the host has a GOMODCACHE set, try to reuse it
     if not go_mod_cache and os.environ.get('GOMODCACHE'):

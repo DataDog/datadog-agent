@@ -18,7 +18,7 @@ from invoke.exceptions import Exit, UnexpectedExit
 
 from tasks.libs.ciproviders.gitlab_api import get_gitlab_repo
 from tasks.libs.common.utils import download_to_tempfile, timed
-from tasks.libs.dependencies import load_overridden_dependencies
+from tasks.libs.dependencies import get_effective_dependencies_env
 from tasks.libs.releasing.version import VERSION_RE, _create_version_from_match, get_version
 
 # Windows only import
@@ -79,7 +79,7 @@ def _get_vs_build_command(cmd, vstudio_root=None):
 
 
 def _get_env(ctx, flavor=None):
-    env = load_overridden_dependencies()
+    env = get_effective_dependencies_env()
 
     if flavor is None:
         flavor = os.getenv("AGENT_FLAVOR", "")
@@ -498,7 +498,7 @@ def get_msm_info(ctx):
     """
     Get the merge module info from the release.json
     """
-    env = load_overridden_dependencies()
+    env = get_effective_dependencies_env()
     base_url = "https://s3.amazonaws.com/dd-windowsfilter/builds"
     msm_info = {}
     if 'WINDOWS_DDNPM_VERSION' in env:
