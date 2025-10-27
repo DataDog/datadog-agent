@@ -32,19 +32,8 @@ source url: "https://www.gnupg.org/ftp/gcrypt/libgcrypt/libgcrypt-#{version}.tar
 relative_path "libgcrypt-#{version}"
 
 build do
-  env = with_standard_compiler_flags(with_embedded_path)
-
-  env["CFLAGS"] = "-I#{install_dir}/embedded/include -O1 -D_FORTIFY_SOURCE=1 -fPIC"
-
-  patch source: "0001-disable-tests-building.patch"
-  command 'autoreconf -vif'
-
-  configure_options = [
-    "--enable-maintainer-mode",
-  ]
-
-  configure(*configure_options, env: env)
-
-  make "-j #{workers}", env: env
-  make "install", env: env
+  command_on_repo_root "bazelisk run -- @gcrypt//:install --destdir='#{install_dir}/embedded'"
+  command_on_repo_root "bazelisk run -- //bazel/rules:replace_prefix --prefix '#{install_dir}/embedded'" \
+    " #{install_dir}/embedded/lib/pkgconfig/libgcrypt.pc" \
+    " #{install_dir}/embedded/lib/libgcrypt.so"
 end
