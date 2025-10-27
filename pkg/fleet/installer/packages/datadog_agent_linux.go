@@ -464,10 +464,6 @@ type installerRegistryConfig struct {
 // setRegistryConfig is a best effort to get the `installer` block from `datadog.yaml` and update the env.
 func setRegistryConfig(env *env.Env) {
 	configPath := "/etc/datadog-agent/datadog.yaml"
-	// if runtime.GOOS == "windows" {
-	// 	// TODO: share this code with Windows
-	// 	configPath = "C:\\ProgramData\\Datadog\\datadog.yaml"
-	// }
 	rawConfig, err := os.ReadFile(configPath)
 	if err != nil {
 		return

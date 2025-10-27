@@ -62,7 +62,6 @@ type Hooks interface {
 	PreStopConfigExperiment(ctx context.Context, pkg string) error
 	PostPromoteConfigExperiment(ctx context.Context, pkg string) error
 
-	// TODO: update readme to include extension hooks
 	PreInstallExtension(ctx context.Context, pkg string, extension string) error
 	PreRemoveExtension(ctx context.Context, pkg string, extension string) error
 	PostInstallExtension(ctx context.Context, pkg string, extension string) error

@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 
 	installerErrors "github.com/DataDog/datadog-agent/pkg/fleet/installer/errors"
@@ -100,8 +101,6 @@ func Install(ctx context.Context, downloader *oci.Downloader, url string, extens
 	if dbPkg.Extensions == nil {
 		dbPkg.Extensions = make(map[string]struct{})
 	}
-
-	// TODO: store extension URL in the DB for later use?
 
 	// Process each extension
 	var installErrors []error
@@ -393,10 +392,14 @@ func Restore(ctx context.Context, downloader *oci.Downloader, pkg string, downlo
 func getExtensionsPath(pkg, version string) string {
 	basePath := filepath.Join(paths.PackagesPath, pkg, version)
 	if pkg == "datadog-agent" {
-		// Check if basePath exists, if not, return /opt/datadog-agent
-		// TODO: find a better solution to get the Agent install path (pkgconfigsetup?)
+		// Check if basePath exists, if not, return the install path of the Agent
 		if _, err := os.Stat(basePath); os.IsNotExist(err) {
-			basePath = "/opt/datadog-agent"
+			if runtime.GOOS == "windows" {
+				// This is a bit hacky but it allows us to not import pkg/config/setup
+				basePath = paths.DatadogProgramFilesDir
+			} else {
+				basePath = "/opt/datadog-agent"
+			}
 		}
 	}
 	return filepath.Join(basePath, "ext")
