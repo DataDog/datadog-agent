@@ -362,16 +362,25 @@ func (ia *inventoryagent) fetchSystemProbeMetadata() {
 }
 
 func (ia *inventoryagent) fetchApplicationMonitoringMetadata() {
-	applicationMonitoringConfig, err := tracers.ApplicationMonitoringConfig(ia.conf.Object())
+	scrubber := scrubber.NewWithDefaults()
+	applicationMonitoringConfig, err := tracers.ApplicationMonitoringConfig(ia.conf)
 	if err != nil {
 		ia.log.Errorf("could not fetch application monitoring configuration: %s", err)
 	}
-	applicationMonitoringConfigFleet, err := tracers.ApplicationMonitoringConfigFleet(ia.conf.Object())
+	applicationMonitoringConfigFleet, err := tracers.ApplicationMonitoringConfigFleet(ia.conf)
 	if err != nil {
 		ia.log.Errorf("could not fetch application monitoring configuration fleet: %s", err)
 	}
-	ia.data["application_monitoring_config"] = applicationMonitoringConfig
-	ia.data["application_monitoring_config_fleet"] = applicationMonitoringConfigFleet
+	scrubbedApplicationMonitoringConfig, err := scrubber.ScrubYaml([]byte(applicationMonitoringConfig))
+	if err != nil {
+		ia.log.Errorf("could not scrub application monitoring configuration: %s", err)
+	}
+	scrubbedApplicationMonitoringConfigFleet, err := scrubber.ScrubYaml([]byte(applicationMonitoringConfigFleet))
+	if err != nil {
+		ia.log.Errorf("could not scrub application monitoring configuration fleet: %s", err)
+	}
+	ia.data["application_monitoring_config"] = scrubbedApplicationMonitoringConfig
+	ia.data["application_monitoring_config_fleet"] = scrubbedApplicationMonitoringConfigFleet
 }
 
 // fetchECSFargateAgentMetadata fetches ECS Fargate agent metadata from the ECS metadata V2 service.
