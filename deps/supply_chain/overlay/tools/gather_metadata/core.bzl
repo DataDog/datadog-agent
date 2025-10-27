@@ -1,6 +1,6 @@
 """Rules and macros for collecting package_metadata providers."""
 
-load(":providers.bzl", "TargetWithMetadataInfo", "TransitiveMetadataInfo")
+load(":providers.bzl", "TargetWithMetadataInfo")
 load(":rule_filters.bzl", "rule_to_excluded_attributes")
 load(":trace.bzl", "TraceInfo")
 
