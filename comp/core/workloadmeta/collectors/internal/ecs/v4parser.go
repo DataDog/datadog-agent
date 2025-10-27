@@ -19,7 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// parseV4Tasks queries the v4 task endpoint for each task, parses them and stores them in the store.
+// parseTasksFromV4Endpoint queries the v4 task endpoint for each task, parses them and stores them in the store.
 func (c *collector) parseTasksFromV4Endpoint(ctx context.Context) ([]workloadmeta.CollectorEvent, error) {
 	tasks, err := c.metaV1.GetTasks(ctx)
 	if err != nil {
