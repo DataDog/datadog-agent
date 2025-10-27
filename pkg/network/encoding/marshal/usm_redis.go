@@ -67,6 +67,8 @@ func (e *redisEncoder) encodeData(connectionData *USMConnectionData[redis.Key, *
 					aggregationBuilder.SetCommand(uint64(model.RedisCommand_RedisGetCommand))
 				case redis.SetCommand:
 					aggregationBuilder.SetCommand(uint64(model.RedisCommand_RedisSetCommand))
+				case redis.PingCommand:
+					aggregationBuilder.SetCommand(uint64(model.RedisCommand_RedisPingCommand))
 				default:
 					aggregationBuilder.SetCommand(uint64(model.RedisCommand_RedisUnknownCommand))
 				}
