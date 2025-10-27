@@ -35,6 +35,7 @@ var (
 type worker struct {
 	config         pkgconfigmodel.Reader
 	inputChan      chan *message.Payload
+	payloadChan    chan *message.Payload
 	outputChan     chan *message.Payload
 	destinations   *client.Destinations
 	done           chan struct{}
@@ -44,7 +45,7 @@ type worker struct {
 	flushWg        *sync.WaitGroup
 	sink           Sink
 	workerID       string
-	diskRetryQueue *diskretry.Queue
+	retrier        *diskretry.Retrier
 
 	pipelineMonitor metrics.PipelineMonitor
 	utilization     metrics.UtilizationMonitor
@@ -59,7 +60,7 @@ func newWorker(
 	serverlessMeta ServerlessMeta,
 	pipelineMonitor metrics.PipelineMonitor,
 	workerID string,
-	diskRetryQueue *diskretry.Queue,
+	retrier *diskretry.Retrier,
 ) *worker {
 	var senderDoneChan chan *sync.WaitGroup
 	var flushWg *sync.WaitGroup
@@ -71,6 +72,7 @@ func newWorker(
 	return &worker{
 		config:         config,
 		inputChan:      inputChan,
+		payloadChan:    make(chan *message.Payload, 1),
 		sink:           sink,
 		destinations:   destinationFactory(workerID),
 		bufferSize:     bufferSize,
@@ -79,7 +81,7 @@ func newWorker(
 		done:           make(chan struct{}),
 		finished:       make(chan struct{}),
 		workerID:       workerID,
-		diskRetryQueue: diskRetryQueue,
+		retrier:        retrier,
 
 		// Telemetry
 		pipelineMonitor: pipelineMonitor,
@@ -92,6 +94,10 @@ func (s *worker) start() {
 	s.outputChan = s.sink.Channel()
 
 	go s.run()
+	if s.retrier != nil {
+		go s.retrier.ReplayFromDisk(s.payloadChan, s.done)
+	}
+	go s.routePayloads()
 }
 
 // Stop stops the worker,
@@ -99,6 +105,30 @@ func (s *worker) start() {
 func (s *worker) stop() {
 	s.done <- struct{}{}
 	<-s.finished
+}
+
+// routPayloads takes all incoming payloads and routes them to one of two places:
+// 1. Further in the pipeline if the pipeline is healthy
+// 2. To disk if the pipeline is blocking
+func (s *worker) routePayloads() {
+	for {
+		select {
+		case payload := <-s.inputChan:
+			// Try to send to run(), if that doesn't work, then write to disk
+			select {
+			case s.payloadChan <- payload:
+			default:
+				// write to disk if there is backpressure
+				_, err := s.retrier.WritePayloadToDisk(payload)
+				if err != nil {
+					log.Warnf("Failed to write payload to disk: %v", err)
+				}
+			}
+		case <-s.done:
+			close(s.payloadChan)
+			return
+		}
+	}
 }
 
 func (s *worker) run() {
@@ -111,17 +141,9 @@ func (s *worker) run() {
 	reliableDestinations := buildDestinationSenders(s.config, s.destinations.Reliable, reliableOutputChan, s.bufferSize)
 	unreliableDestinations := buildDestinationSenders(s.config, s.destinations.Unreliable, noopSink, s.bufferSize)
 	continueLoop := true
-	wasFailingBefore := false // Track if we were writing to disk in previous iteration
 	for continueLoop {
-		// Check if destinations have recovered and we need to replay from disk
-		if wasFailingBefore && s.canSendToDestinations(reliableDestinations) {
-			log.Infof("Worker %s: Destinations recovered, replaying from disk before processing new logs", s.workerID)
-			s.replayFromDisk(reliableDestinations)
-			wasFailingBefore = false
-		}
-
 		select {
-		case payload := <-s.inputChan:
+		case payload := <-s.payloadChan:
 			s.pipelineMonitor.ReportComponentEgress(payload, metrics.SenderTlmName, metrics.SenderTlmInstanceID)
 			s.pipelineMonitor.ReportComponentIngress(payload, metrics.WorkerTlmName, s.workerID)
 			s.utilization.Start()
@@ -151,24 +173,9 @@ func (s *worker) run() {
 				}
 
 				if !sent {
-					// All reliable destinations have failed. Write to disk if enabled.
-					if s.diskRetryQueue != nil {
-						if err := s.diskRetryQueue.Add(payload, s.workerID); err != nil {
-							log.Errorf("Failed to persist payload to disk: %v", err)
-							// Fall through to throttle and retry
-						} else {
-							log.Debugf("Persisted payload to disk (%d messages) after all destinations failed", payload.Count())
-							// Mark that we're in failure mode - will trigger replay when destinations recover
-							wasFailingBefore = true
-							// Successfully persisted - break out of retry loop
-							sent = true
-							break
-						}
-					}
-
 					// Throttle the poll loop while waiting for a send to succeed
 					// This will only happen when all reliable destinations
-					// are blocked and we either have no disk queue or disk write failed.
+					// are blocked so logs have no where to go.
 					time.Sleep(100 * time.Millisecond)
 				}
 			}
@@ -233,97 +240,6 @@ func (s *worker) run() {
 	}
 	close(noopSink)
 	s.finished <- struct{}{}
-}
-
-// canSendToDestinations checks if at least one reliable destination is ready to accept payloads
-func (s *worker) canSendToDestinations(destinations []*DestinationSender) bool {
-	for _, destSender := range destinations {
-		// Check if destination is not in retry state
-		destSender.retryLock.Lock()
-		isRetrying := destSender.lastRetryState
-		destSender.retryLock.Unlock()
-
-		if !isRetrying {
-			return true
-		}
-	}
-	return false
-}
-
-// replayFromDisk attempts to replay all persisted payloads from disk before processing new logs
-// This ensures logs are delivered in order: old logs from disk first, then new logs from pipeline
-func (s *worker) replayFromDisk(reliableDestinations []*DestinationSender) {
-	if s.diskRetryQueue == nil {
-		return
-	}
-
-	payloads, err := s.diskRetryQueue.List()
-	if err != nil {
-		log.Warnf("Failed to list payloads for replay: %v", err)
-		return
-	}
-
-	if len(payloads) == 0 {
-		return
-	}
-
-	log.Infof("Worker %s: Replaying %d payload(s) from disk before processing new logs", s.workerID, len(payloads))
-
-	replayedCount := 0
-	for _, pp := range payloads {
-		// Check if payload should still be retried
-		config := s.diskRetryQueue.GetConfig()
-		if !pp.ShouldRetry(config.MaxAge, config.MaxRetries) {
-			log.Infof("Worker %s: Discarding stale payload: age=%s, retries=%d", s.workerID, pp.Age(), pp.RetryCount)
-			if err := s.diskRetryQueue.Delete(pp); err != nil {
-				log.Warnf("Failed to delete stale payload: %v", err)
-			}
-			continue
-		}
-
-		payload := pp.ToPayload()
-
-		// Try to send to destinations
-		sent := false
-		for _, destSender := range reliableDestinations {
-			// Drop non-MRF payloads to MRF destinations
-			if destSender.destination.IsMRF() && !payload.IsMRF() {
-				log.Debugf("Dropping non-MRF payload to MRF destination: %s", destSender.destination.Target())
-				sent = true
-				continue
-			}
-
-			if destSender.Send(payload) {
-				if destSender.destination.Metadata().ReportingEnabled {
-					s.pipelineMonitor.ReportComponentIngress(payload, destSender.destination.Metadata().MonitorTag(), s.workerID)
-				}
-				sent = true
-				break
-			}
-		}
-
-		if sent {
-			// Successfully replayed - delete from disk
-			if err := s.diskRetryQueue.Delete(pp); err != nil {
-				log.Warnf("Failed to delete replayed payload: %v", err)
-			} else {
-				replayedCount++
-				log.Debugf("Worker %s: Successfully replayed payload (age: %s, retries: %d)",
-					s.workerID, pp.Age(), pp.RetryCount)
-			}
-		} else {
-			// Failed to send - update retry count and stop replaying
-			log.Infof("Worker %s: Replay stopped after %d payloads, destinations failing again", s.workerID, replayedCount)
-			if err := s.diskRetryQueue.UpdateRetryMetadata(pp); err != nil {
-				log.Warnf("Failed to update retry metadata: %v", err)
-			}
-			return
-		}
-	}
-
-	if replayedCount > 0 {
-		log.Infof("Worker %s: Successfully replayed %d payload(s) from disk", s.workerID, replayedCount)
-	}
 }
 
 // Drains the output channel from destinations that don't update the auditor.

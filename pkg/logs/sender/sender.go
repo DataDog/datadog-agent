@@ -8,7 +8,6 @@ package sender
 import (
 	"fmt"
 	"sync"
-	"time"
 
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
@@ -57,9 +56,9 @@ type PipelineComponent interface {
 // Sender can distribute payloads on multiple
 // underlying workers
 type Sender struct {
-	workers        []*worker
-	queues         []chan *message.Payload
-	diskRetryQueue *diskretry.Queue
+	workers []*worker
+	queues  []chan *message.Payload
+	retrier *diskretry.Retrier
 
 	pipelineMonitor metrics.PipelineMonitor
 	idx             *atomic.Uint32
@@ -134,14 +133,11 @@ func NewSender(
 	}
 
 	// Initialize disk retry queue from config
-	var diskQueue *diskretry.Queue
+	var retrier *diskretry.Retrier
 	diskRetryConfig := diskretry.Config{
-		Enabled:         config.GetBool("logs_config.disk_retry_enabled"),
-		Path:            config.GetString("logs_config.disk_retry_path"),
-		MaxSizeBytes:    int64(config.GetInt("logs_config.disk_retry_max_size_mb")) * 1024 * 1024,
-		MaxAge:          time.Duration(config.GetInt("logs_config.disk_retry_max_age_hours")) * time.Hour,
-		MaxRetries:      config.GetInt("logs_config.disk_retry_max_retries"),
-		CleanupInterval: 5 * time.Minute,
+		Enabled:      config.GetBool("logs_config.disk_retry_enabled"),
+		Path:         config.GetString("logs_config.disk_retry_path"),
+		MaxSizeBytes: int64(config.GetInt("logs_config.disk_retry_max_size_mb")) * 1024 * 1024,
 	}
 
 	// Use defaults if not configured
@@ -152,18 +148,11 @@ func NewSender(
 		if diskRetryConfig.MaxSizeBytes == 0 {
 			diskRetryConfig.MaxSizeBytes = 1024 * 1024 * 1024 // 1GB
 		}
-		if diskRetryConfig.MaxAge == 0 {
-			diskRetryConfig.MaxAge = 24 * time.Hour
-		}
-		if diskRetryConfig.MaxRetries == 0 {
-			diskRetryConfig.MaxRetries = 10
-		}
 
 		var err error
-		diskQueue, err = diskretry.NewQueue(diskRetryConfig)
+		retrier, err = diskretry.NewRetrier(diskRetryConfig)
 		if err != nil {
-			log.Warnf("Failed to initialize disk retry queue: %v", err)
-			diskQueue = nil
+			log.Warnf("Unable to create retrier: %v", err)
 		}
 	}
 
@@ -182,7 +171,7 @@ func NewSender(
 				serverlessMeta,
 				pipelineMonitor,
 				workerID,
-				diskQueue,
+				retrier,
 			)
 			workers = append(workers, worker)
 		}
@@ -192,7 +181,7 @@ func NewSender(
 		workers:         workers,
 		pipelineMonitor: pipelineMonitor,
 		queues:          queues,
-		diskRetryQueue:  diskQueue,
+		retrier:         retrier,
 		idx:             &atomic.Uint32{},
 	}
 }
@@ -224,7 +213,7 @@ func (s *Sender) Stop() {
 	for _, q := range s.queues {
 		close(q)
 	}
-	if s.diskRetryQueue != nil {
-		s.diskRetryQueue.Stop()
+	if s.retrier != nil {
+		s.retrier.Stop()
 	}
 }

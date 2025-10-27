@@ -353,6 +353,7 @@ func (d *Destination) unconditionalSend(payload *message.Payload) (err error) {
 
 	req = req.WithContext(ctx)
 	resp, err := d.client.Do(req)
+	time.Sleep(100 * time.Second)
 	latency := time.Since(then).Milliseconds()
 	metrics.TlmSenderLatency.Observe(float64(latency))
 	metrics.SenderLatency.Set(latency)
