@@ -9,17 +9,14 @@
 package workloadfilterimpl
 
 import (
-	"fmt"
 	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
-	"github.com/DataDog/datadog-agent/comp/core/workloadfilter/program"
 	workloadmetafilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/util/workloadmeta"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
@@ -31,7 +28,13 @@ func newFilterStoreObject(t *testing.T, config config.Component) *workloadfilter
 		Log:    logmock.New(t),
 		Config: config,
 	}
-	f, _ := NewComponent(reqs)
+
+	f, err := NewComponent(reqs)
+	if err != nil {
+		t.Errorf("failed to create filter component: %v", err)
+		return nil
+	}
+
 	return f.Comp.(*workloadfilterStore)
 }
 
@@ -507,83 +510,6 @@ func TestContainerFilterInitializationError(t *testing.T) {
 	})
 }
 
-type errorInclProgram struct{}
-
-func (p errorInclProgram) Evaluate(o workloadfilter.Filterable) (workloadfilter.Result, []error) {
-	return workloadfilter.Included, []error{fmt.Errorf("include evaluation error on %s", o.Type())}
-}
-
-func (p errorInclProgram) GetInitializationErrors() []error {
-	return nil
-}
-
-type errorExclProgram struct{}
-
-func (p errorExclProgram) Evaluate(o workloadfilter.Filterable) (workloadfilter.Result, []error) {
-	return workloadfilter.Excluded, []error{fmt.Errorf("exclude evaluation error on %s", o.Type())}
-}
-
-func (p errorExclProgram) GetInitializationErrors() []error {
-	return nil
-}
-
-func TestProgramErrorHandling(t *testing.T) {
-	mockConfig := configmock.New(t)
-	filterStore := newFilterStoreObject(t, mockConfig)
-
-	container := workloadmetafilter.CreateContainer(
-		&workloadmeta.Container{
-			EntityMeta: workloadmeta.EntityMeta{
-				Name: "error-case",
-			},
-		},
-		nil,
-	)
-	precedenceFilters := [][]workloadfilter.ContainerFilter{
-		{workloadfilter.LegacyContainerMetrics},
-	}
-
-	t.Run("Include with error thrown", func(t *testing.T) {
-		// Create a new filter with injected error factory
-		errorFilter := &workloadfilterStore{
-			config:              filterStore.config,
-			log:                 filterStore.log,
-			telemetry:           filterStore.telemetry,
-			programFactoryStore: make(map[workloadfilter.ResourceType]map[int]*filterProgramFactory),
-		}
-
-		// Register the error program factory
-		errorFilter.registerFactory(workloadfilter.ContainerType, int(workloadfilter.LegacyContainerMetrics),
-			func(_ config.Component, _ log.Component) program.FilterProgram {
-				return &errorInclProgram{}
-			})
-
-		filterBundle := errorFilter.GetContainerFilters(precedenceFilters)
-		res := filterBundle.GetResult(container)
-		assert.Equal(t, workloadfilter.Included, res)
-	})
-
-	t.Run("Exclude with error thrown", func(t *testing.T) {
-		// Create a new filter with injected error factory
-		errorFilter := &workloadfilterStore{
-			config:              filterStore.config,
-			log:                 filterStore.log,
-			telemetry:           filterStore.telemetry,
-			programFactoryStore: make(map[workloadfilter.ResourceType]map[int]*filterProgramFactory),
-		}
-
-		// Register the error program factory
-		errorFilter.registerFactory(workloadfilter.ContainerType, int(workloadfilter.LegacyContainerMetrics),
-			func(_ config.Component, _ log.Component) program.FilterProgram {
-				return &errorExclProgram{}
-			})
-
-		filterBundle := errorFilter.GetContainerFilters(precedenceFilters)
-		res := filterBundle.GetResult(container)
-		assert.Equal(t, workloadfilter.Excluded, res)
-	})
-}
-
 func TestSpecialCharacters(t *testing.T) {
 	mockConfig := configmock.New(t)
 	mockConfig.SetWithoutSource("container_include", []string{`name:g'oba\\r\d-0x[0-9a-fA-F]+\\n`})
@@ -828,7 +754,7 @@ func TestPodFiltering(t *testing.T) {
 					Namespace: "default",
 				},
 			},
-			filters:  [][]workloadfilter.PodFilter{{workloadfilter.LegacyPod}},
+			filters:  [][]workloadfilter.PodFilter{{workloadfilter.LegacyPodGlobal, workloadfilter.LegacyPodMetrics}},
 			expected: workloadfilter.Excluded,
 		},
 		{
@@ -840,7 +766,7 @@ func TestPodFiltering(t *testing.T) {
 					Namespace: "test",
 				},
 			},
-			filters:  [][]workloadfilter.PodFilter{{workloadfilter.LegacyPod}},
+			filters:  [][]workloadfilter.PodFilter{{workloadfilter.LegacyPodGlobal, workloadfilter.LegacyPodMetrics}},
 			expected: workloadfilter.Included,
 		},
 		{
@@ -854,7 +780,7 @@ func TestPodFiltering(t *testing.T) {
 				},
 			},
 			// Testing PodADAnnotations filter
-			filters:  [][]workloadfilter.PodFilter{{workloadfilter.PodADAnnotations, workloadfilter.PodADAnnotationsMetrics}, {workloadfilter.LegacyPod}},
+			filters:  [][]workloadfilter.PodFilter{{workloadfilter.PodADAnnotations, workloadfilter.PodADAnnotationsMetrics}, {workloadfilter.LegacyPodGlobal, workloadfilter.LegacyPodMetrics}},
 			expected: workloadfilter.Excluded,
 		},
 		{
@@ -868,7 +794,7 @@ func TestPodFiltering(t *testing.T) {
 				},
 			},
 			// Testing PodADAnnotationsMetrics filter
-			filters:  [][]workloadfilter.PodFilter{{workloadfilter.PodADAnnotations, workloadfilter.PodADAnnotationsMetrics}, {workloadfilter.LegacyPod}},
+			filters:  [][]workloadfilter.PodFilter{{workloadfilter.PodADAnnotations, workloadfilter.PodADAnnotationsMetrics}, {workloadfilter.LegacyPodGlobal, workloadfilter.LegacyPodMetrics}},
 			expected: workloadfilter.Excluded,
 		},
 	}
@@ -1008,5 +934,59 @@ func TestProcessFilterInitializationError(t *testing.T) {
 			}
 		}
 		assert.True(t, hasRegexError, "Expected error message to contain regex-related error. Got errors: %v", errStrings)
+	})
+}
+func TestCELWorkloadExcludeFiltering(t *testing.T) {
+
+	yamlConfig := `
+cel_workload_exclude:
+- products: ["metrics"]
+  rules:
+    kube_services: ["true"]
+    pods: ["false"]
+- products:
+    - logs
+    - sbom
+  rules:
+    containers:
+      - "container.name != 'this'"
+`
+
+	mockConfig := configmock.NewFromYAML(t, yamlConfig)
+	filterStore := newFilterStoreObject(t, mockConfig)
+
+	t.Run("CEL exclude kube_service", func(t *testing.T) {
+		svc := workloadfilter.CreateService("", "", nil)
+		filterBundle := filterStore.GetServiceFilters([][]workloadfilter.ServiceFilter{{workloadfilter.ServiceFilter(workloadfilter.ServiceCELMetrics)}})
+		assert.Nil(t, filterBundle.GetErrors())
+		assert.Equal(t, true, filterBundle.IsExcluded(svc))
+	})
+
+	t.Run("CEL exclude pod", func(t *testing.T) {
+		pod := workloadmetafilter.CreatePod(
+			&workloadmeta.KubernetesPod{
+				EntityMeta: workloadmeta.EntityMeta{
+					Name:      "my-pod",
+					Namespace: "test",
+				},
+			},
+		)
+		filterBundle := filterStore.GetPodFilters([][]workloadfilter.PodFilter{{workloadfilter.PodFilter(workloadfilter.PodCELMetrics)}})
+		assert.Nil(t, filterBundle.GetErrors())
+		assert.Equal(t, false, filterBundle.IsExcluded(pod))
+	})
+
+	t.Run("CEL exclude container", func(t *testing.T) {
+		container := workloadmetafilter.CreateContainer(
+			&workloadmeta.Container{
+				EntityMeta: workloadmeta.EntityMeta{
+					Name: "this",
+				},
+			},
+			nil,
+		)
+		filterBundle := filterStore.GetContainerFilters([][]workloadfilter.ContainerFilter{{workloadfilter.ContainerFilter(workloadfilter.ContainerCELLogs)}})
+		assert.Nil(t, filterBundle.GetErrors())
+		assert.Equal(t, false, filterBundle.IsExcluded(container))
 	})
 }
