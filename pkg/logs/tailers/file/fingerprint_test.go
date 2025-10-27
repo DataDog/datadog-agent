@@ -1281,3 +1281,155 @@ func (suite *FingerprintTestSuite) TestFingerprintConfigEdgeCases() {
 		})
 	}
 }
+
+// TestFingerprintConfigInfo tests the FingerprintConfigInfo struct and its Info() method
+func TestFingerprintConfigInfo(t *testing.T) {
+	testCases := []struct {
+		name           string
+		config         *types.FingerprintConfig
+		source         string
+		expectedOutput []string
+	}{
+		{
+			name: "per_source_line_checksum_with_maxbytes",
+			config: &types.FingerprintConfig{
+				FingerprintStrategy: types.FingerprintStrategyLineChecksum,
+				Count:               10,
+				CountToSkip:         5,
+				MaxBytes:            1024,
+			},
+			source: "per-source",
+			expectedOutput: []string{
+				"Source: per-source",
+				"Strategy: line_checksum",
+				"Count: 10",
+				"CountToSkip: 5",
+				"MaxBytes: 1024",
+			},
+		},
+		{
+			name: "per_source_byte_checksum_no_maxbytes",
+			config: &types.FingerprintConfig{
+				FingerprintStrategy: types.FingerprintStrategyByteChecksum,
+				Count:               512,
+				CountToSkip:         0,
+				MaxBytes:            0,
+			},
+			source: "per-source",
+			expectedOutput: []string{
+				"Source: per-source",
+				"Strategy: byte_checksum",
+				"Count: 512",
+				"CountToSkip: 0",
+			},
+		},
+		{
+			name: "global_line_checksum_with_maxbytes",
+			config: &types.FingerprintConfig{
+				FingerprintStrategy: types.FingerprintStrategyLineChecksum,
+				Count:               1,
+				CountToSkip:         0,
+				MaxBytes:            10000,
+			},
+			source: "global",
+			expectedOutput: []string{
+				"Source: global",
+				"Strategy: line_checksum",
+				"Count: 1",
+				"CountToSkip: 0",
+				"MaxBytes: 10000",
+			},
+		},
+		{
+			name: "global_byte_checksum",
+			config: &types.FingerprintConfig{
+				FingerprintStrategy: types.FingerprintStrategyByteChecksum,
+				Count:               2048,
+				CountToSkip:         100,
+				MaxBytes:            0,
+			},
+			source: "global",
+			expectedOutput: []string{
+				"Source: global",
+				"Strategy: byte_checksum",
+				"Count: 2048",
+				"CountToSkip: 100",
+			},
+		},
+		{
+			name: "disabled_strategy_per_source",
+			config: &types.FingerprintConfig{
+				FingerprintStrategy: types.FingerprintStrategyDisabled,
+				Count:               0,
+				CountToSkip:         0,
+				MaxBytes:            0,
+			},
+			source: "per-source",
+			expectedOutput: []string{
+				"Source: per-source",
+				"Strategy: disabled",
+			},
+		},
+		{
+			name: "disabled_strategy_global",
+			config: &types.FingerprintConfig{
+				FingerprintStrategy: types.FingerprintStrategyDisabled,
+			},
+			source: "global",
+			expectedOutput: []string{
+				"Source: global",
+				"Strategy: disabled",
+			},
+		},
+		{
+			name:   "nil_config",
+			config: nil,
+			source: "none",
+			expectedOutput: []string{
+				"Source: none",
+				"Strategy: not configured",
+			},
+		},
+		{
+			name: "line_checksum_with_zero_values",
+			config: &types.FingerprintConfig{
+				FingerprintStrategy: types.FingerprintStrategyLineChecksum,
+				Count:               0,
+				CountToSkip:         0,
+				MaxBytes:            0,
+			},
+			source: "per-source",
+			expectedOutput: []string{
+				"Source: per-source",
+				"Strategy: line_checksum",
+				"Count: 0",
+				"CountToSkip: 0",
+				"MaxBytes: 0",
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			info := NewFingerprintConfigInfo(tc.config, tc.source)
+
+			// Test InfoKey
+			if info.InfoKey() != "Fingerprint Config" {
+				t.Errorf("Expected InfoKey to be 'Fingerprint Config', got '%s'", info.InfoKey())
+			}
+
+			// Test Info output
+			output := info.Info()
+			if len(output) != len(tc.expectedOutput) {
+				t.Fatalf("Expected %d output lines, got %d.\nExpected: %v\nGot: %v",
+					len(tc.expectedOutput), len(output), tc.expectedOutput, output)
+			}
+
+			for i, expected := range tc.expectedOutput {
+				if output[i] != expected {
+					t.Errorf("Line %d: expected '%s', got '%s'", i, expected, output[i])
+				}
+			}
+		})
+	}
+}
