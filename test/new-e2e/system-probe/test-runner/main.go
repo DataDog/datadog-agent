@@ -48,8 +48,13 @@ func (e *testsuiteError) Unwrap() error {
 // readExitCodeFromFile reads the exit code from the specified file
 // Returns -1 if the file doesn't exist or can't be read
 func readExitCodeFromFile(path string) int {
+	fmt.Printf("Reading exit code from file: %s\n", path)
+	if path == "" {
+		return -1
+	}
 	data, err := os.ReadFile(path)
 	if err != nil {
+		fmt.Printf("Error reading file: %s\n", err)
 		return -1
 	}
 	code := -1
@@ -335,6 +340,7 @@ func testPass(testConfig *testConfig, props map[string]string) error {
 			fmt.Fprintf(os.Stderr, "\n>>> cmd run %s: %s\n", testsuite, err)
 			if firstTestError == nil {
 				// Read exit code from file (written by testsuite)
+				fmt.Printf("exitCodeFile: %s\n", exitCodeFile)
 				exitCode := readExitCodeFromFile(exitCodeFile)
 				var exitErr *exec.ExitError
 				if errors.As(err, &exitErr) {
