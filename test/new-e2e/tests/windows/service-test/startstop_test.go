@@ -407,7 +407,7 @@ func run[Env any](t *testing.T, s e2e.Suite[Env], systemProbeConfig string, agen
 			agentclientparams.WithSkipWaitForAgentReady(),
 		),
 		awsHostWindows.WithEC2InstanceOptions(
-			ec2.WithAMI("ami-0345f44fe05216fc4", e2eos.WindowsServer2022, e2eos.AMD64Arch),
+			ec2.WithAMI("ami-0efee5160a1079475", e2eos.WindowsServer2025, e2eos.AMD64Arch),
 		),
 	))}
 	e2e.Run(t, s, opts...)
