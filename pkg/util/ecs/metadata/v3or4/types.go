@@ -64,7 +64,7 @@ type Container struct {
 	RestartCount  *int              `json:"RestartCount,omitempty"` // present only in v4
 }
 
-// ContainerStats represents the statistics of a container as returned by the
+// ContainerStatsV4 represents the statistics of a container as returned by the
 // ECS metadata API v4.
 type ContainerStatsV4 struct {
 	Timestamp string      `json:"read"`
