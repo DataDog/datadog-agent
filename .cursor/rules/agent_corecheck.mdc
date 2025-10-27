@@ -331,23 +331,339 @@ If the check renders output or errors, iterate on `Run()` and configuration acco
 
 ## Testing
 
-Add standard Go tests under your package:
+### Basic Testing Setup
+
+Core checks require comprehensive unit tests covering configuration parsing, metric collection, and edge cases. Use the following patterns and mocking utilities.
+
+### Mocking the Sender
+
+Use `mocksender` to intercept and validate submitted metrics, service checks, and events:
 
 ```go
-func TestRun(t *testing.T) {
-    c := newCheck().(*Check)
-    // You can inject a test sender using mocksender if needed
-    // s := mocksender.NewMockSender(c.ID())
-    // s.SetupAcceptAll()
-    // c.SetSender(s)
-    err := c.Run()
-    if err != nil {
-        t.Fatalf("run failed: %v", err)
-    }
+import (
+    "github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
+    "github.com/stretchr/testify/assert"
+    "github.com/stretchr/testify/mock"
+    "github.com/stretchr/testify/require"
+)
+
+func TestEmitMetrics(t *testing.T) {
+    // Create a mock sender for your check
+    mockSender := mocksender.NewMockSender("checkname")
+    mockSender.SetupAcceptAll()  // Accept all calls without pre-defining expectations
+
+    // Create your check and set the sender
+    check := newCheck().(*Check)
+    check.SetSender(mockSender)
+
+    // Run your check
+    require.NoError(t, check.Run())
+
+    // Verify specific metrics were submitted with exact values
+    mockSender.AssertCalled(t, "Gauge", "check.metric_name", 42.0, "", []string{"tag:value"})
+    mockSender.AssertCalled(t, "Count", "check.counter", 1.0, "", mock.Anything)
+
+    // Verify a metric was submitted with tags matching a condition
+    mockSender.AssertCalled(t, "Gauge", "check.metric", 100.0, "",
+        mock.MatchedBy(func(tags []string) bool {
+            return slices.Contains(tags, "expected_tag:value")
+        }),
+    )
+
+    // For metrics with timestamps, use GaugeWithTimestamp
+    expectedTimestamp := float64(time.Now().UnixNano()) / float64(time.Second)
+    mockSender.AssertCalled(t, "GaugeWithTimestamp",
+        "check.metric",
+        123.0,
+        "",
+        []string{"tag:value"},
+        expectedTimestamp,
+    )
+
+    // Assert specific number of times a metric was called
+    mockSender.AssertNumberOfCalls(t, "Gauge", 5)
+
+    // Verify Commit was called exactly once
+    mockSender.AssertCalled(t, "Commit")
 }
 ```
 
-For configuration parsing, unit test `Configure` with representative `integration.Data` payloads.
+### Advanced Mock Matcher Patterns
+
+Use `mock.MatchedBy` for complex tag validation:
+
+```go
+func TestMetricsWithDynamicTags(t *testing.T) {
+    mockSender := mocksender.NewMockSender("checkname")
+    mockSender.SetupAcceptAll()
+
+    // Build expected tags that should be present
+    expectedTags := []string{"uuid:device-123", "container_id:abc"}
+    slices.Sort(expectedTags)
+
+    // Create a matcher function that sorts both tag lists before comparing
+    matchTagsFunc := func(tags []string) bool {
+        slices.Sort(tags)
+        return slices.Equal(tags, expectedTags)
+    }
+
+    // Collect and verify metrics
+    check := newCheck().(*Check)
+    check.SetSender(mockSender)
+    require.NoError(t, check.Run())
+
+    mockSender.AssertCalled(t, "Gauge",
+        "check.metric",
+        42.0,
+        "",
+        mock.MatchedBy(matchTagsFunc),
+    )
+}
+```
+
+### Mocking the Tagger
+
+Use `taggerfxmock` to set up fake tags for entities:
+
+```go
+import (
+    taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
+    taggertypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
+)
+
+func TestWithTagger(t *testing.T) {
+    // Set up a fake tagger instance
+    fakeTagger := taggerfxmock.SetupFakeTagger(t)
+
+    // Configure tags for specific entities
+    containerID := "container123"
+    containerTags := []string{"container_name:my-app", "image:my-image:v1.0"}
+
+    entityID := taggertypes.NewEntityID(taggertypes.ContainerID, containerID)
+    fakeTagger.SetTags(entityID, "foo", containerTags, nil, nil, nil)
+
+    // Create your check with the fake tagger as a dependency
+    check := newCheckWithDeps(fakeTagger, ...)
+
+    // Your check can now query tags for the container
+    // and they will return the configured values
+}
+```
+
+### Mocking Workload Metadata
+
+Use `workloadmeta` mocks to simulate container and pod information:
+
+```go
+import (
+    workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+    "github.com/DataDog/datadog-agent/pkg/gpu/testutil"  // or create your own mock
+)
+
+func TestWithWorkloadMeta(t *testing.T) {
+    // Create a workload metadata mock
+    wmetaMock := testutil.GetWorkloadMetaMock(t)  // or workloadmeta.NewMockStore()
+
+    // Add container entities to the mock store
+    wmetaMock.Set(&workloadmeta.Container{
+        EntityID: workloadmeta.EntityID{
+            ID:   "container123",
+            Kind: workloadmeta.KindContainer,
+        },
+        EntityMeta: workloadmeta.EntityMeta{
+            Name: "my-container",
+        },
+        ResolvedAllocatedResources: []workloadmeta.ContainerAllocatedResource{
+            {
+                Name: "nvidia.com/gpu",
+                ID:   "GPU-abc123",
+            },
+        },
+    })
+
+    // Create check with workloadmeta dependency
+    check := newCheckWithDeps(tagger, wmetaMock)
+
+    // Check can now query workload metadata and find the container
+}
+```
+
+### Testing Configuration
+
+Test that your check correctly parses and validates configuration:
+
+```go
+import (
+    "github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+    "github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
+)
+
+func TestConfigure(t *testing.T) {
+    check := newCheck().(*Check)
+    senderManager := mocksender.CreateDefaultDemultiplexer()
+
+    // Test valid configuration
+    instanceConfig := []byte(`
+required_param: "value"
+optional_param: 30
+`)
+    initConfig := []byte(`
+global_option: "test"
+`)
+
+    err := check.Configure(senderManager, integration.FakeConfigHash, instanceConfig, initConfig, "test")
+    require.NoError(t, err)
+    assert.Equal(t, "value", check.cfg.instance.RequiredParam)
+    assert.Equal(t, 30, check.cfg.instance.OptionalParam)
+
+    // Test missing required parameter
+    badConfig := []byte(`
+optional_param: 30
+`)
+    err = check.Configure(senderManager, integration.FakeConfigHash, badConfig, initConfig, "test")
+    require.Error(t, err)
+    assert.Contains(t, err.Error(), "required_param")
+}
+```
+
+### Testing with Configuration Flags
+
+Some checks depend on global configuration:
+
+```go
+import (
+    pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+)
+
+func TestWithConfigFlag(t *testing.T) {
+    // Enable feature flag before configuring check
+    pkgconfigsetup.Datadog().SetWithoutSource("gpu.enabled", true)
+
+    // Clean up after test
+    t.Cleanup(func() {
+        pkgconfigsetup.Datadog().SetWithoutSource("gpu.enabled", false)
+    })
+
+    check := newCheck()
+    err := check.Configure(senderManager, integration.FakeConfigHash, []byte{}, []byte{}, "test")
+    require.NoError(t, err)
+}
+```
+
+### Testing Run Without Errors
+
+Ensure your check doesn't error even in non-ideal conditions:
+
+```go
+func TestRunDoesNotError(t *testing.T) {
+    senderManager := mocksender.CreateDefaultDemultiplexer()
+    fakeTagger := taggerfxmock.SetupFakeTagger(t)
+    wmetaMock := testutil.GetWorkloadMetaMock(t)
+
+    // Create check with all dependencies
+    check := newCheckWithDeps(fakeTagger, wmetaMock)
+
+    // Configure check
+    err := check.Configure(senderManager, integration.FakeConfigHash, []byte{}, []byte{}, "test")
+    require.NoError(t, err)
+
+    // Run should not error
+    require.NoError(t, check.Run())
+
+    // Cancel check to clean up resources
+    t.Cleanup(func() { check.Cancel() })
+}
+```
+
+### Testing Full End-to-End Flow
+
+Test the complete flow with all components:
+
+```go
+func TestEndToEnd(t *testing.T) {
+    // Set up all mocks
+    mockSender := mocksender.NewMockSender("checkname")
+    mockSender.SetupAcceptAll()
+
+    fakeTagger := taggerfxmock.SetupFakeTagger(t)
+    wmetaMock := testutil.GetWorkloadMetaMock(t)
+
+    // Set up entity tags
+    containerID := "container1"
+    containerTags := []string{"container_id:" + containerID}
+    entityID := taggertypes.NewEntityID(taggertypes.ContainerID, containerID)
+    fakeTagger.SetTags(entityID, "foo", containerTags, nil, nil, nil)
+
+    // Add entity to workload metadata
+    wmetaMock.Set(&workloadmeta.Container{
+        EntityID: workloadmeta.EntityID{
+            ID:   containerID,
+            Kind: workloadmeta.KindContainer,
+        },
+    })
+
+    // Create and configure check
+    check := newCheckWithDeps(fakeTagger, wmetaMock)
+    check.SetSender(mockSender)
+
+    senderManager := mocksender.CreateDefaultDemultiplexer()
+    err := check.Configure(senderManager, integration.FakeConfigHash, []byte{}, []byte{}, "test")
+    require.NoError(t, err)
+
+    // Run check
+    metricTime := time.Now()
+    metricTimestamp := float64(metricTime.UnixNano()) / float64(time.Second)
+    require.NoError(t, check.Run())
+
+    // Verify metrics were emitted with correct tags
+    expectedTags := []string{"container_id:container1"}
+    mockSender.AssertCalled(t, "GaugeWithTimestamp",
+        "check.metric",
+        42.0,
+        "",
+        mock.MatchedBy(func(tags []string) bool {
+            return slices.Contains(tags, "container_id:container1")
+        }),
+        mock.Anything,  // or specific timestamp if known
+    )
+
+    mockSender.AssertCalled(t, "Commit")
+
+    t.Cleanup(func() { check.Cancel() })
+}
+```
+
+```
+
+### Common Test Patterns
+
+1. **Always use `require.NoError(t, err)` for critical setup** - stops test immediately on failure
+2. **Use `assert.*` for non-critical validations** - continues test to show all failures
+3. **Sort tags before comparison** - order can vary
+4. **Use `mock.Anything` when value doesn't matter** - focuses test on what's important
+5. **Use `t.Cleanup()`** - ensures resources are released even if test fails
+6. **Test both success and error paths** - validate error messages contain useful context
+
+### Key Testing Imports
+
+```go
+import (
+    "testing"
+    "time"
+    "slices"
+
+    "github.com/stretchr/testify/assert"
+    "github.com/stretchr/testify/mock"
+    "github.com/stretchr/testify/require"
+
+    "github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+    taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
+    taggertypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
+    workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+    "github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
+    pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+)
+```
 
 ---
 
