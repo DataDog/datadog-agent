@@ -80,7 +80,7 @@ type RuleDefinition struct {
 	Filters                []string               `yaml:"filters,omitempty" json:"filters,omitempty"`
 	Disabled               bool                   `yaml:"disabled,omitempty" json:"disabled,omitempty"`
 	Combine                CombinePolicy          `yaml:"combine,omitempty" json:"combine,omitempty" jsonschema:"enum=override"`
-	OverrideOptions        OverrideOptions        `yaml:"override_options,omitempty" json:"override_options,omitzero"`
+	OverrideOptions        OverrideOptions        `yaml:"override_options,omitempty" json:"override_options,omitzero,omitempty"`
 	Actions                []*ActionDefinition    `yaml:"actions,omitempty" json:"actions,omitempty"`
 	Every                  *HumanReadableDuration `yaml:"every,omitempty" json:"every,omitempty"`
 	RateLimiterToken       []string               `yaml:"limiter_token,omitempty" json:"limiter_token,omitempty"`
