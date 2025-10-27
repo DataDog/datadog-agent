@@ -31,6 +31,7 @@ filegroup(
 license_csv(
     name = "licenses",
     out = "licenses.csv",
+    tags = ["manual"],
     target = ":all_deps",
     target_compatible_with = select({
         "@platforms//os:linux": ["@platforms//cpu:x86_64"],
