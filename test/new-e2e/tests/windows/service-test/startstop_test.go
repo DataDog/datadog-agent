@@ -26,6 +26,8 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclientparams"
 	windowsCommon "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
 	windowsAgent "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent"
+	e2eos "github.com/DataDog/test-infra-definitions/components/os"
+	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
 
 	"testing"
 
@@ -403,6 +405,9 @@ func run[Env any](t *testing.T, s e2e.Suite[Env], systemProbeConfig string, agen
 		),
 		awsHostWindows.WithAgentClientOptions(
 			agentclientparams.WithSkipWaitForAgentReady(),
+		),
+		awsHostWindows.WithEC2InstanceOptions(
+			ec2.WithAMI("ami-0345f44fe05216fc4", e2eos.WindowsServer2022, e2eos.AMD64Arch),
 		),
 	))}
 	e2e.Run(t, s, opts...)
