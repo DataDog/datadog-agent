@@ -43,14 +43,27 @@ func Test_extractMetadata(t *testing.T) {
 			},
 		},
 		{
-			name:        "extracting metadata failure",
-			profile:     testProfile,
-			commandType: Running,
-			configBytes: []byte("huh"),
-			expected:    &ExtractedMetadata{},
+			name:         "extracting metadata error logs - no compiled rules",
+			profile:      testProfile,
+			compileRules: false,
+			commandType:  Running,
+			configBytes:  []byte(exampleConfig),
+			expected:     &ExtractedMetadata{},
 			expectedLogMsgs: []string{
 				`profile "test" does not have a regexp for metadata rule ! Last configuration change at (.*)`,
 				`profile "test" does not have a regexp for metadata rule Current configuration : (?P<Size>\d+)`,
+			},
+		},
+		{
+			name:         "extracting metadata error logs - cannot parse metadata from bad config",
+			profile:      testProfile,
+			compileRules: true,
+			commandType:  Running,
+			configBytes:  []byte("huh"),
+			expected:     &ExtractedMetadata{},
+			expectedLogMsgs: []string{
+				`could not parse timestamp for profile test`,
+				`could not parse config size for profile test`,
 			},
 		},
 	}
