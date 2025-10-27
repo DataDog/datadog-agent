@@ -1,8 +1,7 @@
 # CHANGELOG - datadog-secret-backend
 
-## 1.3.1 / 2025-10-27
+## Next
 
-* Allow for the passing in of the VAULT_ADDR env var
 * Bump github.com/hashicorp/vault fropm 1.20.4 to v1.21.0
 * Bump github.com/aws/aws-sdk-go-v2 from 1.39.3 to 1.39.4
 * Bump github.com/aws/aws-sdk-go-v2/config from 1.31.8 to 1.31.15
