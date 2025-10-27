@@ -246,4 +246,3 @@ func GetTags(ctx context.Context) ([]string, error) {
 	}
 	return tags, err
 }
-

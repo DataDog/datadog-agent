@@ -39,7 +39,7 @@ func getSite(cfg pkgconfigmodel.Reader) string {
 }
 
 // GetAPIKey actually performs the cloud auth exchange and returns an API key. It is called be each individual provider
-func GetAPIKey(cfg pkgconfigmodel.Reader, orgUUID, delegatedAuthProof string) (*string, error) {
+func GetAPIKey(cfg pkgconfigmodel.Reader, _, delegatedAuthProof string) (*string, error) {
 	site := getSite(cfg)
 	var apiKey *string
 
@@ -61,9 +61,7 @@ func GetAPIKey(cfg pkgconfigmodel.Reader, orgUUID, delegatedAuthProof string) (*
 	if err != nil {
 		return nil, err
 	}
-	defer func(Body io.ReadCloser) {
-		_ = Body.Close()
-	}(resp.Body)
+	defer resp.Body.Close()
 
 	tokenBytes, err := io.ReadAll(resp.Body)
 	if err != nil {

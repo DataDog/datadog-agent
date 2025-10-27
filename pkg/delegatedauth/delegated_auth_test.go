@@ -15,10 +15,10 @@ import (
 
 func TestParseResponse(t *testing.T) {
 	tests := []struct {
-		name        string
+		name         string
 		responseJSON string
-		wantAPIKey  string
-		wantErr     bool
+		wantAPIKey   string
+		wantErr      bool
 	}{
 		{
 			name: "valid response",
@@ -79,16 +79,16 @@ func TestParseResponse(t *testing.T) {
 			wantErr:    true,
 		},
 		{
-			name:        "invalid json",
+			name:         "invalid json",
 			responseJSON: `{invalid json`,
-			wantAPIKey:  "",
-			wantErr:     true,
+			wantAPIKey:   "",
+			wantErr:      true,
 		},
 		{
-			name:        "empty response",
+			name:         "empty response",
 			responseJSON: `{}`,
-			wantAPIKey:  "",
-			wantErr:     true,
+			wantAPIKey:   "",
+			wantErr:      true,
 		},
 	}
 
