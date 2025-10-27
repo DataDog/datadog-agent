@@ -48,8 +48,8 @@ func newTestPackageManager(t *testing.T, s *fixtures.Server, rootPath string) *t
 	hooks := &testHooks{}
 	userConfigsDir := t.TempDir()
 	config := &config.Directories{
-		StablePath:     filepath.Join(userConfigsDir, "stable"),
-		ExperimentPath: filepath.Join(userConfigsDir, "experiment"),
+		StablePath:     userConfigsDir,
+		ExperimentPath: t.TempDir(),
 	}
 	return &testPackageManager{
 		installerImpl: installerImpl{
