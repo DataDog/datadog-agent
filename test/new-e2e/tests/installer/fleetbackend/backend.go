@@ -207,6 +207,7 @@ func (b *Backend) getDaemonPID() (int, error) {
 		}
 	case e2eos.WindowsFamily:
 		pid, err = b.host.RemoteHost.Execute(`(Get-CimInstance Win32_Service -Filter "Name='Datadog Installer'").ProcessId`)
+		pid = strings.TrimSpace(pid)
 	default:
 		return 0, fmt.Errorf("unsupported OS family: %v", b.host.RemoteHost.OSFamily)
 	}

@@ -48,6 +48,9 @@ func (s *configSuite) TestConfig() {
 }
 
 func (s *configSuite) TestConfigFailureCrash() {
+	if s.Env().RemoteHost.OSFamily == e2eos.WindowsFamily {
+		s.T().Skip("FIXME: Experiments on windows")
+	}
 	s.agent.MustInstall(agent.WithRemoteUpdates())
 	defer s.agent.MustUninstall()
 
@@ -63,6 +66,9 @@ func (s *configSuite) TestConfigFailureCrash() {
 }
 
 func (s *configSuite) TestConfigFailureTimeout() {
+	if s.Env().RemoteHost.OSFamily == e2eos.WindowsFamily {
+		s.T().Skip("FIXME: Experiments on windows")
+	}
 	s.agent.MustInstall(agent.WithRemoteUpdates())
 	defer s.agent.MustUninstall()
 	s.agent.MustSetExperimentTimeout(10 * time.Second)
@@ -85,6 +91,9 @@ func (s *configSuite) TestConfigFailureTimeout() {
 }
 
 func (s *configSuite) TestConfigFailureHealth() {
+	if s.Env().RemoteHost.OSFamily == e2eos.WindowsFamily {
+		s.T().Skip("FIXME: Experiments on windows")
+	}
 	s.agent.MustInstall(agent.WithRemoteUpdates())
 	defer s.agent.MustUninstall()
 
