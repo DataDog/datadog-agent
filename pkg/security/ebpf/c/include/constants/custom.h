@@ -255,7 +255,7 @@ static __attribute__((always_inline)) u64 is_network_flow_monitor_enabled() {
 #define SYSCTL_NEW_VALUE_TRUNCATED (1 << 2)
 #define MAX_BPF_FILTER_SIZE (511 * sizeof(struct sock_filter))
 #define MAX_PRCTL_NAME_LEN 255
-
+#define TRACER_MEMFD_SUFFIX_LEN 8
 
 static __attribute__((always_inline)) u64 has_tracing_helpers_in_cgroup_sysctl() {
     u64 tracing_helpers_in_cgroup_sysctl;

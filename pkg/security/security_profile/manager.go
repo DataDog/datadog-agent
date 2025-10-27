@@ -91,14 +91,15 @@ type Manager struct {
 	activityDumpLoadConfig *model.ActivityDumpLoadConfig
 
 	// ebpf maps
-	tracedPIDsMap              *ebpf.Map
-	tracedCgroupsMap           *ebpf.Map
-	tracedCgroupsDiscardedMap  *ebpf.Map
-	cgroupWaitList             *ebpf.Map
-	activityDumpsConfigMap     *ebpf.Map
-	activityDumpConfigDefaults *ebpf.Map
+	tracedPIDsMap               *ebpf.Map
+	tracedCgroupsMap            *ebpf.Map
+	tracedCgroupsDiscardedMap   *ebpf.Map
+	cgroupWaitList              *ebpf.Map
+	activityDumpsConfigMap      *ebpf.Map
+	activityDumpConfigDefaults  *ebpf.Map
+	activityDumpRateLimitersMap *ebpf.Map
 
-	ignoreFromSnapshot   map[model.PathKey]bool
+	ignoreFromSnapshot   map[uint64]bool
 	dumpLimiter          *lru.Cache[cgroupModel.WorkloadSelector, *atomic.Uint64]
 	workloadDenyList     []cgroupModel.WorkloadSelector
 	workloadDenyListHits *atomic.Uint64
@@ -125,7 +126,8 @@ type Manager struct {
 
 	// fields from SecurityProfileManager
 
-	secProfEventTypes []model.EventType
+	secProfEventTypes       []model.EventType
+	isSyscallAnomalyEnabled bool
 
 	// ebpf maps
 	securityProfileMap         *ebpf.Map
@@ -179,6 +181,11 @@ func NewManager(cfg *config.Config, statsdClient statsd.ClientInterface, ebpf *e
 	}
 
 	activityDumpConfigDefaultsMap, err := managerhelper.Map(ebpf, "activity_dump_config_defaults")
+	if err != nil {
+		return nil, err
+	}
+
+	activityDumpRateLimitersMap, err := managerhelper.Map(ebpf, "activity_dump_rate_limiters")
 	if err != nil {
 		return nil, err
 	}
@@ -288,14 +295,15 @@ func NewManager(cfg *config.Config, statsdClient statsd.ClientInterface, ebpf *e
 		newEvent:      newEvent,
 		pathsReducer:  activity_tree.NewPathsReducer(),
 
-		tracedPIDsMap:              tracedPIDs,
-		tracedCgroupsMap:           tracedCgroupsMap,
-		tracedCgroupsDiscardedMap:  tracedCgroupsDiscardedMap,
-		cgroupWaitList:             cgroupWaitList,
-		activityDumpsConfigMap:     activityDumpsConfigMap,
-		activityDumpConfigDefaults: activityDumpConfigDefaultsMap,
+		tracedPIDsMap:               tracedPIDs,
+		tracedCgroupsMap:            tracedCgroupsMap,
+		tracedCgroupsDiscardedMap:   tracedCgroupsDiscardedMap,
+		cgroupWaitList:              cgroupWaitList,
+		activityDumpsConfigMap:      activityDumpsConfigMap,
+		activityDumpConfigDefaults:  activityDumpConfigDefaultsMap,
+		activityDumpRateLimitersMap: activityDumpRateLimitersMap,
 
-		ignoreFromSnapshot:   make(map[model.PathKey]bool),
+		ignoreFromSnapshot:   make(map[uint64]bool),
 		dumpLimiter:          dumpLimiter,
 		workloadDenyList:     workloadDenyList,
 		workloadDenyListHits: atomic.NewUint64(0),
@@ -314,7 +322,8 @@ func NewManager(cfg *config.Config, statsdClient statsd.ClientInterface, ebpf *e
 		emptyDropped:       atomic.NewUint64(0),
 		dropMaxDumpReached: atomic.NewUint64(0),
 
-		secProfEventTypes: secProfEventTypes,
+		secProfEventTypes:       secProfEventTypes,
+		isSyscallAnomalyEnabled: slices.Contains(cfg.RuntimeSecurity.AnomalyDetectionEventTypes, model.SyscallsEventType),
 
 		securityProfileMap:         securityProfileMap,
 		securityProfileSyscallsMap: securityProfileSyscallsMap,
@@ -657,6 +666,8 @@ func (m *Manager) evictUnusedNodes() {
 	evictionTime := time.Now().Add(-m.config.RuntimeSecurity.SecurityProfileNodeEvictionTimeout)
 	totalEvicted := 0
 
+	filepathsInProcessCache := m.GetNodesInProcessCache()
+
 	m.profilesLock.Lock()
 	defer m.profilesLock.Unlock()
 
@@ -664,13 +675,13 @@ func (m *Manager) evictUnusedNodes() {
 		if profile == nil {
 			continue
 		}
+
 		profile.Lock()
 		if profile.ActivityTree == nil {
 			profile.Unlock()
 			continue
 		}
-
-		evicted := profile.ActivityTree.EvictUnusedNodes(evictionTime)
+		evicted := profile.ActivityTree.EvictUnusedNodes(evictionTime, filepathsInProcessCache, selector.Image, selector.Tag)
 		if evicted > 0 {
 			totalEvicted += evicted
 			seclog.Debugf("evicted %d unused process nodes from profile [%s] ", evicted, selector.String())
@@ -681,4 +692,84 @@ func (m *Manager) evictUnusedNodes() {
 	if totalEvicted > 0 {
 		seclog.Infof("evicted %d total unused process nodes across all profiles", totalEvicted)
 	}
+}
+
+// GetNodesInProcessCache returns a map with ImageProcessKey as key and bool as value for all filepaths in the process cache
+func (m *Manager) GetNodesInProcessCache() map[activity_tree.ImageProcessKey]bool {
+
+	cgr := m.resolvers.CGroupResolver
+	pr := m.resolvers.ProcessResolver
+	tagsResolver := m.resolvers.TagsResolver
+
+	type imageTagKey struct {
+		imageName string
+		imageTag  string
+	}
+
+	pids := make(map[imageTagKey][]uint32)
+
+	result := make(map[activity_tree.ImageProcessKey]bool)
+
+	cgr.Iterate(func(cgce *cgroupModel.CacheEntry) bool {
+		cgce.Lock()
+		defer cgce.Unlock()
+
+		var cgceTags []string
+		var err error
+		var imageName, imageTag string
+		if cgce.ContainerID != "" {
+			cgceTags, err = tagsResolver.ResolveWithErr(cgce.ContainerID)
+			if err != nil {
+				return false
+			}
+			imageName = utils.GetTagValue("image_name", cgceTags)
+			imageTag = utils.GetTagValue("image_tag", cgceTags)
+		} else if cgce.CGroupID != "" {
+			cgceTags, err = tagsResolver.ResolveWithErr(cgce.CGroupID)
+			if err != nil {
+				return false
+			}
+			imageName = utils.GetTagValue("service", cgceTags)
+			imageTag = utils.GetTagValue("version", cgceTags)
+		} else {
+			return false
+		}
+
+		if imageTag == "" {
+			imageTag = "latest"
+		}
+
+		imageTagKey := imageTagKey{
+			imageName: imageName,
+			imageTag:  imageTag,
+		}
+		for pid := range cgce.PIDs {
+			pids[imageTagKey] = append(pids[imageTagKey], pid)
+		}
+
+		return false
+	})
+
+	// we do the resolution of filepaths here so that we can release the cgroup resolver lock before acquiring the process resolver lock
+	for k, pids := range pids {
+
+		key := activity_tree.ImageProcessKey{
+			ImageName: k.imageName,
+			ImageTag:  k.imageTag,
+			Filepath:  "",
+		}
+
+		for _, pid := range pids {
+			pce := pr.Resolve(pid, pid, 0, true, nil)
+			if pce == nil {
+				seclog.Errorf("couldn't resolve process cache entry for pid %d", pid)
+				continue
+			}
+
+			key.Filepath = pce.FileEvent.PathnameStr
+			result[key] = true
+		}
+	}
+
+	return result
 }
