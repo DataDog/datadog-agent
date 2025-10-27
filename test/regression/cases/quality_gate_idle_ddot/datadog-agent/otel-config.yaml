@@ -12,7 +12,6 @@ receivers:
         scrape_interval: 10s
         static_configs:
           - targets: ['0.0.0.0:8888']
-
 exporters:
   datadog:
     traces:
@@ -20,17 +19,17 @@ exporters:
       endpoint: "http://127.0.0.1:9091"
     hostname: "smp-regression"    
     api:
-      key: "a0000001"
+      key: "123456789"
       site: 127.0.0.1:9091
     metrics:
       resource_attributes_as_tags: true
       endpoint: http://127.0.0.1:9091
     logs:
       endpoint: http://127.0.0.1:9091
+      
 
 processors:
   batch:
-
 connectors:
   # Use datadog connector to compute stats for pre-sampled traces
   datadog/connector:
@@ -39,7 +38,6 @@ connectors:
       compute_stats_by_span_kind: true
       compute_top_level_by_span_kind: true
       peer_tags_aggregation: true
-
 service:
   pipelines:
     traces:
@@ -51,11 +49,10 @@ service:
       processors: [batch]
       exporters: [datadog]
     metrics:
-      receivers: [otlp, datadog/connector, prometheus]
+      receivers: [otlp, datadog/connector]
       processors: [batch]
       exporters: [datadog]
     logs:
       receivers: [otlp]
       processors: [batch]
       exporters: [datadog]
-
