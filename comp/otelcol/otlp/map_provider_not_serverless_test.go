@@ -132,7 +132,6 @@ func TestNewMap(t *testing.T) {
 							},
 						},
 						"sending_queue": map[string]any{
-							"sizer": "items",
 							"batch": map[string]any{
 								"flush_timeout": "10000ms",
 								"min_size":      10,
@@ -213,7 +212,6 @@ func TestNewMap(t *testing.T) {
 							},
 						},
 						"sending_queue": map[string]any{
-							"sizer": "items",
 							"batch": map[string]any{
 								"flush_timeout": "10000ms",
 								"min_size":      10,
@@ -333,7 +331,6 @@ func TestNewMap(t *testing.T) {
 							},
 						},
 						"sending_queue": map[string]any{
-							"sizer": "items",
 							"batch": map[string]any{
 								"flush_timeout": "10000ms",
 								"min_size":      10,
@@ -446,7 +443,6 @@ func TestNewMap(t *testing.T) {
 							},
 						},
 						"sending_queue": map[string]any{
-							"sizer": "items",
 							"batch": map[string]any{
 								"flush_timeout": "10000ms",
 								"min_size":      10,
@@ -523,7 +519,6 @@ func TestNewMap(t *testing.T) {
 							},
 						},
 						"sending_queue": map[string]any{
-							"sizer": "items",
 							"batch": map[string]any{
 								"flush_timeout": "10000ms",
 								"min_size":      10,
@@ -589,7 +584,6 @@ func TestNewMap(t *testing.T) {
 					},
 					"logsagent": map[string]any{
 						"sending_queue": map[string]any{
-							"sizer": "items",
 							"batch": map[string]any{
 								"flush_timeout": "10000ms",
 								"min_size":      10,
@@ -671,7 +665,6 @@ func TestNewMap(t *testing.T) {
 							},
 						},
 						"sending_queue": map[string]any{
-							"sizer": "items",
 							"batch": map[string]any{
 								"flush_timeout": "10000ms",
 								"min_size":      10,
@@ -681,7 +674,6 @@ func TestNewMap(t *testing.T) {
 					},
 					"logsagent": map[string]any{
 						"sending_queue": map[string]any{
-							"sizer": "items",
 							"batch": map[string]any{
 								"flush_timeout": "10000ms",
 								"min_size":      10,
@@ -768,7 +760,6 @@ func TestNewMap(t *testing.T) {
 							},
 						},
 						"sending_queue": map[string]any{
-							"sizer": "items",
 							"batch": map[string]any{
 								"flush_timeout": "10000ms",
 								"min_size":      10,
@@ -778,7 +769,6 @@ func TestNewMap(t *testing.T) {
 					},
 					"logsagent": map[string]any{
 						"sending_queue": map[string]any{
-							"sizer": "items",
 							"batch": map[string]any{
 								"flush_timeout": "10000ms",
 								"min_size":      10,
@@ -849,7 +839,6 @@ func TestNewMap(t *testing.T) {
 					},
 					"logsagent": map[string]any{
 						"sending_queue": map[string]any{
-							"sizer": "items",
 							"batch": map[string]any{
 								"flush_timeout": "10000ms",
 								"min_size":      10,
@@ -920,7 +909,6 @@ func TestNewMap(t *testing.T) {
 							},
 						},
 						"sending_queue": map[string]any{
-							"sizer": "items",
 							"batch": map[string]any{
 								"flush_timeout": "10000ms",
 								"min_size":      10,
@@ -930,7 +918,6 @@ func TestNewMap(t *testing.T) {
 					},
 					"logsagent": map[string]any{
 						"sending_queue": map[string]any{
-							"sizer": "items",
 							"batch": map[string]any{
 								"flush_timeout": "10000ms",
 								"min_size":      10,
@@ -996,7 +983,6 @@ func TestNewMap(t *testing.T) {
 					},
 					"logsagent": map[string]any{
 						"sending_queue": map[string]any{
-							"sizer": "items",
 							"batch": map[string]any{
 								"flush_timeout": "10000ms",
 								"min_size":      10,
@@ -1065,7 +1051,6 @@ func TestNewMap(t *testing.T) {
 							},
 						},
 						"sending_queue": map[string]any{
-							"sizer": "items",
 							"batch": map[string]any{
 								"flush_timeout": "10000ms",
 								"min_size":      10,
@@ -1078,7 +1063,6 @@ func TestNewMap(t *testing.T) {
 					},
 					"logsagent": map[string]any{
 						"sending_queue": map[string]any{
-							"sizer": "items",
 							"batch": map[string]any{
 								"flush_timeout": "10000ms",
 								"min_size":      10,
@@ -1158,7 +1142,6 @@ func TestNewMap(t *testing.T) {
 							},
 						},
 						"sending_queue": map[string]any{
-							"sizer": "items",
 							"batch": map[string]any{
 								"flush_timeout": "10000ms",
 								"min_size":      10,
@@ -1171,7 +1154,6 @@ func TestNewMap(t *testing.T) {
 					},
 					"logsagent": map[string]any{
 						"sending_queue": map[string]any{
-							"sizer": "items",
 							"batch": map[string]any{
 								"flush_timeout": "10000ms",
 								"min_size":      10,
