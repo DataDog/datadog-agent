@@ -1778,7 +1778,7 @@ probes:
       methodName: main.testLongFunctionWithChangingState
       sourceFile: complex.go
       lines:
-        - "208"
+        - "237"
     template: "testLongFunctionWithChangingState"
     segments:
       - str: "testLongFunctionWithChangingState"
@@ -1791,7 +1791,7 @@ probes:
       methodName: main.testLongFunctionWithChangingState
       sourceFile: complex.go
       lines:
-        - "215"
+        - "244"
     template: "testLongFunctionWithChangingState"
     segments:
       - str: "testLongFunctionWithChangingState"
@@ -1804,7 +1804,7 @@ probes:
       methodName: main.testLongFunctionWithChangingState
       sourceFile: complex.go
       lines:
-        - "220"
+        - "249"
     captureSnapshot: true
     sampling:
       snapshotsPerSecond: 100
@@ -2162,4 +2162,17 @@ probes:
           ref: "@duration"
         dsl: "@duration"
       - str: "ms"
+    captureSnapshot: true
+  - id: testVariableShadowing
+    type: LOG_PROBE
+    where:
+      methodName: main.testVariableShadowing
+      sourceFile: complex.go
+      lines:
+        - "208"
+    template: "{x}"
+    segments:
+      - json: 
+          ref: "x"
+        dsl: "x"
     captureSnapshot: true

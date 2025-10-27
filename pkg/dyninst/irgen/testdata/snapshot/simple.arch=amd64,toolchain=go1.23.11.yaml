@@ -14,7 +14,7 @@ Probes:
           Type: 184 EventRootType Probe[main.PointerChainArg]
           InjectionPoints: [{PC: "0x4a6046", Frameless: false}]
           Condition: null
-      probeTemplate: {TemplateString: "", Segments: [], Issues: []}
+      probeTemplate: {TemplateString: "", Segments: []}
     - id: PointerSmallChainArg
       version: 0
       type: LOG_PROBE
@@ -29,7 +29,7 @@ Probes:
           Type: 185 EventRootType Probe[main.PointerSmallChainArg]
           InjectionPoints: [{PC: "0x4a6090", Frameless: false}]
           Condition: null
-      probeTemplate: {TemplateString: "", Segments: [], Issues: []}
+      probeTemplate: {TemplateString: "", Segments: []}
     - id: bigMapArg
       version: 0
       type: LOG_PROBE
@@ -47,7 +47,7 @@ Probes:
           Type: 177 EventRootType Probe[main.bigMapArg]Return
           InjectionPoints: [{PC: "0x4a65de", Frameless: false}]
           Condition: null
-      probeTemplate: {TemplateString: "", Segments: [], Issues: []}
+      probeTemplate: {TemplateString: "", Segments: []}
     - id: inlined
       version: 0
       type: LOG_PROBE
@@ -70,7 +70,7 @@ Probes:
           Type: 183 EventRootType Probe[main.inlined]Return
           InjectionPoints: [{PC: "0x4a646a", Frameless: false}]
           Condition: null
-      probeTemplate: {TemplateString: "", Segments: [], Issues: []}
+      probeTemplate: {TemplateString: "", Segments: []}
     - id: intArg
       version: 0
       type: LOG_PROBE
@@ -88,7 +88,7 @@ Probes:
           Type: 162 EventRootType Probe[main.intArg]Return
           InjectionPoints: [{PC: "0x4a614a", Frameless: false}]
           Condition: null
-      probeTemplate: {TemplateString: "", Segments: [], Issues: []}
+      probeTemplate: {TemplateString: "", Segments: []}
     - id: intArrayArg
       version: 0
       type: LOG_PROBE
@@ -106,7 +106,7 @@ Probes:
           Type: 168 EventRootType Probe[main.intArrayArg]Return
           InjectionPoints: [{PC: "0x4a62d6", Frameless: false}]
           Condition: null
-      probeTemplate: {TemplateString: "", Segments: [], Issues: []}
+      probeTemplate: {TemplateString: "", Segments: []}
     - id: intArrayArgFrameless
       version: 0
       type: LOG_PROBE
@@ -120,7 +120,7 @@ Probes:
           Type: 173 EventRootType Probe[main.stringArrayArgFrameless]
           InjectionPoints: [{PC: "0x4a6400", Frameless: true}]
           Condition: null
-      probeTemplate: {TemplateString: "", Segments: [], Issues: []}
+      probeTemplate: {TemplateString: "", Segments: []}
     - id: intSliceArg
       version: 0
       type: LOG_PROBE
@@ -138,7 +138,7 @@ Probes:
           Type: 166 EventRootType Probe[main.intSliceArg]Return
           InjectionPoints: [{PC: "0x4a624f", Frameless: false}]
           Condition: null
-      probeTemplate: {TemplateString: "", Segments: [], Issues: []}
+      probeTemplate: {TemplateString: "", Segments: []}
     - id: mapArg
       version: 0
       type: LOG_PROBE
@@ -156,7 +156,7 @@ Probes:
           Type: 175 EventRootType Probe[main.mapArg]Return
           InjectionPoints: [{PC: "0x4a651f", Frameless: false}]
           Condition: null
-      probeTemplate: {TemplateString: "", Segments: [], Issues: []}
+      probeTemplate: {TemplateString: "", Segments: []}
     - id: noArgs
       version: 0
       type: LOG_PROBE
@@ -174,7 +174,7 @@ Probes:
           Type: 179 EventRootType Probe[main.noArgs]Return
           InjectionPoints: [{PC: "0x4a6646", Frameless: false}]
           Condition: null
-      probeTemplate: {TemplateString: "", Segments: [], Issues: []}
+      probeTemplate: {TemplateString: "", Segments: []}
     - id: stringArg
       version: 0
       type: LOG_PROBE
@@ -192,7 +192,7 @@ Probes:
           Type: 164 EventRootType Probe[main.stringArg]Return
           InjectionPoints: [{PC: "0x4a61cf", Frameless: false}]
           Condition: null
-      probeTemplate: {TemplateString: "", Segments: [], Issues: []}
+      probeTemplate: {TemplateString: "", Segments: []}
     - id: stringArrayArg
       version: 0
       type: LOG_PROBE
@@ -210,7 +210,7 @@ Probes:
           Type: 172 EventRootType Probe[main.stringArrayArg]Return
           InjectionPoints: [{PC: "0x4a63d6", Frameless: false}]
           Condition: null
-      probeTemplate: {TemplateString: "", Segments: [], Issues: []}
+      probeTemplate: {TemplateString: "", Segments: []}
     - id: stringSliceArg
       version: 0
       type: LOG_PROBE
@@ -228,7 +228,7 @@ Probes:
           Type: 170 EventRootType Probe[main.stringSliceArg]Return
           InjectionPoints: [{PC: "0x4a634f", Frameless: false}]
           Condition: null
-      probeTemplate: {TemplateString: "", Segments: [], Issues: []}
+      probeTemplate: {TemplateString: "", Segments: []}
     - id: usesMapsOfMapsThatDoNotAppearAsArguments
       version: 0
       type: LOG_PROBE
@@ -247,7 +247,7 @@ Probes:
           Type: 181 EventRootType Probe[main.usesMapsOfMapsThatDoNotAppearAsArguments]Return
           InjectionPoints: [{PC: "0x4a682e", Frameless: false}]
           Condition: null
-      probeTemplate: {TemplateString: "", Segments: [], Issues: []}
+      probeTemplate: {TemplateString: "", Segments: []}
 Subprograms:
     - ID: 1
       Name: main.intArg
@@ -768,6 +768,7 @@ Types:
     - __kind: EventRootType
       ID: 177
       Name: Probe[main.bigMapArg]Return
+      Expressions: []
     - __kind: EventRootType
       ID: 182
       Name: Probe[main.inlined]
@@ -787,6 +788,7 @@ Types:
     - __kind: EventRootType
       ID: 183
       Name: Probe[main.inlined]Return
+      Expressions: []
     - __kind: EventRootType
       ID: 161
       Name: Probe[main.intArg]
@@ -806,6 +808,7 @@ Types:
     - __kind: EventRootType
       ID: 162
       Name: Probe[main.intArg]Return
+      Expressions: []
     - __kind: EventRootType
       ID: 167
       Name: Probe[main.intArrayArg]
@@ -825,6 +828,7 @@ Types:
     - __kind: EventRootType
       ID: 168
       Name: Probe[main.intArrayArg]Return
+      Expressions: []
     - __kind: EventRootType
       ID: 165
       Name: Probe[main.intSliceArg]
@@ -844,6 +848,7 @@ Types:
     - __kind: EventRootType
       ID: 166
       Name: Probe[main.intSliceArg]Return
+      Expressions: []
     - __kind: EventRootType
       ID: 174
       Name: Probe[main.mapArg]
@@ -863,12 +868,15 @@ Types:
     - __kind: EventRootType
       ID: 175
       Name: Probe[main.mapArg]Return
+      Expressions: []
     - __kind: EventRootType
       ID: 178
       Name: Probe[main.noArgs]
+      Expressions: []
     - __kind: EventRootType
       ID: 179
       Name: Probe[main.noArgs]Return
+      Expressions: []
     - __kind: EventRootType
       ID: 163
       Name: Probe[main.stringArg]
@@ -888,6 +896,7 @@ Types:
     - __kind: EventRootType
       ID: 164
       Name: Probe[main.stringArg]Return
+      Expressions: []
     - __kind: EventRootType
       ID: 173
       Name: Probe[main.stringArrayArgFrameless]
@@ -923,6 +932,7 @@ Types:
     - __kind: EventRootType
       ID: 172
       Name: Probe[main.stringArrayArg]Return
+      Expressions: []
     - __kind: EventRootType
       ID: 169
       Name: Probe[main.stringSliceArg]
@@ -942,9 +952,11 @@ Types:
     - __kind: EventRootType
       ID: 170
       Name: Probe[main.stringSliceArg]Return
+      Expressions: []
     - __kind: EventRootType
       ID: 180
       Name: Probe[main.usesMapsOfMapsThatDoNotAppearAsArguments]
+      Expressions: []
     - __kind: EventRootType
       ID: 181
       Name: Probe[main.usesMapsOfMapsThatDoNotAppearAsArguments]Return

@@ -9,7 +9,6 @@ package irgen
 
 import (
 	"encoding/json"
-	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -72,11 +71,13 @@ func (probeDef) GetVersion() int                      { return 0 }
 func (probeDef) GetWhere() ir.Where                   { return nil }
 
 func TestPopulateProbeExpressionTemplateIssues(t *testing.T) {
+	// Segments are expected to be populated with the event expression index and kind
+	// as well as the segment itself can be replaced in the case of an issue.
 	type testCase struct {
-		name                   string
-		probe                  ir.Probe
-		expectedReturnedIssue  ir.Issue
-		expectedTemplateIssues []ir.Issue
+		name                  string
+		probe                 ir.Probe
+		expectedReturnedIssue ir.Issue
+		expectedSegments      []ir.TemplateSegment
 	}
 	tests := []testCase{
 		{
@@ -91,7 +92,6 @@ func TestPopulateProbeExpressionTemplateIssues(t *testing.T) {
 					},
 				},
 				Template: &ir.Template{
-					Issues: []ir.Issue{},
 					Segments: []ir.TemplateSegment{
 						ir.JSONSegment{
 							JSON:                 json.RawMessage(`{"ref": "foobar"}`),
@@ -102,8 +102,15 @@ func TestPopulateProbeExpressionTemplateIssues(t *testing.T) {
 					},
 				},
 			},
-			expectedReturnedIssue:  ir.Issue{},
-			expectedTemplateIssues: []ir.Issue{},
+			expectedReturnedIssue: ir.Issue{},
+			expectedSegments: []ir.TemplateSegment{
+				ir.JSONSegment{
+					JSON:                 json.RawMessage(`{"ref": "foobar"}`),
+					DSL:                  "foobar",
+					EventKind:            1,
+					EventExpressionIndex: 0,
+				},
+			},
 		},
 		{
 			name: "missing variable in template",
@@ -117,7 +124,6 @@ func TestPopulateProbeExpressionTemplateIssues(t *testing.T) {
 					},
 				},
 				Template: &ir.Template{
-					Issues: []ir.Issue{},
 					Segments: []ir.TemplateSegment{
 						ir.JSONSegment{
 							JSON:                 json.RawMessage(`{"ref": "nonexistentVariable"}`),
@@ -129,8 +135,8 @@ func TestPopulateProbeExpressionTemplateIssues(t *testing.T) {
 				},
 			},
 			expectedReturnedIssue: ir.Issue{},
-			expectedTemplateIssues: []ir.Issue{
-				{Kind: ir.IssueKindInvalidProbeDefinition, Message: "could not evaluate template segment: nonexistentVariable (probe: non-existent-variable-probe)"},
+			expectedSegments: []ir.TemplateSegment{
+				ir.IssueSegment("could not evaluate template segment: nonexistentVariable (probe: non-existent-variable-probe)"),
 			},
 		},
 		{
@@ -151,7 +157,6 @@ func TestPopulateProbeExpressionTemplateIssues(t *testing.T) {
 				},
 				ProbeDefinition: probeDef{id: "bad-jsons"},
 				Template: &ir.Template{
-					Issues: []ir.Issue{},
 					Segments: []ir.TemplateSegment{
 						ir.JSONSegment{
 							JSON:                 json.RawMessage(`{"" foo " }}}}`),
@@ -163,9 +168,9 @@ func TestPopulateProbeExpressionTemplateIssues(t *testing.T) {
 				},
 			},
 			expectedReturnedIssue: ir.Issue{},
-			expectedTemplateIssues: []ir.Issue{
-				{Kind: ir.IssueKindInvalidProbeDefinition, Message: "invalid template: bad-json: {\"\" foo \" }}}}"},
-				{Kind: ir.IssueKindInvalidProbeDefinition, Message: "could not evaluate template segment: bad-json (probe: bad-jsons)"}},
+			expectedSegments: []ir.TemplateSegment{
+				ir.IssueSegment("malformed template segment: bad-json (internal error)"),
+			},
 		},
 		{
 			name: "multiple variables in template",
@@ -179,7 +184,6 @@ func TestPopulateProbeExpressionTemplateIssues(t *testing.T) {
 					},
 				},
 				Template: &ir.Template{
-					Issues: []ir.Issue{},
 					Segments: []ir.TemplateSegment{
 						ir.JSONSegment{
 							JSON:                 json.RawMessage(`{"ref": "var1"}`),
@@ -204,8 +208,29 @@ func TestPopulateProbeExpressionTemplateIssues(t *testing.T) {
 					},
 				},
 			},
-			expectedReturnedIssue:  ir.Issue{},
-			expectedTemplateIssues: []ir.Issue{},
+			expectedReturnedIssue: ir.Issue{},
+			expectedSegments: []ir.TemplateSegment{
+				ir.JSONSegment{
+					JSON:                 json.RawMessage(`{"ref": "var1"}`),
+					DSL:                  "var1",
+					EventKind:            1,
+					EventExpressionIndex: 0,
+				},
+				ir.StringSegment(" "),
+				ir.JSONSegment{
+					JSON:                 json.RawMessage(`{"ref": "var2"}`),
+					DSL:                  "var2",
+					EventKind:            1,
+					EventExpressionIndex: 0,
+				},
+				ir.StringSegment(" "),
+				ir.JSONSegment{
+					JSON:                 json.RawMessage(`{"ref": "var3"}`),
+					DSL:                  "var3",
+					EventKind:            1,
+					EventExpressionIndex: 0,
+				},
+			},
 		},
 		{
 			name: "template with only string segments",
@@ -217,15 +242,17 @@ func TestPopulateProbeExpressionTemplateIssues(t *testing.T) {
 					},
 				},
 				Template: &ir.Template{
-					Issues: []ir.Issue{},
 					Segments: []ir.TemplateSegment{
 						ir.StringSegment("This is a static string"),
 						ir.StringSegment(" with multiple segments"),
 					},
 				},
 			},
-			expectedReturnedIssue:  ir.Issue{},
-			expectedTemplateIssues: []ir.Issue{},
+			expectedReturnedIssue: ir.Issue{},
+			expectedSegments: []ir.TemplateSegment{
+				ir.StringSegment("This is a static string"),
+				ir.StringSegment(" with multiple segments"),
+			},
 		},
 		{
 			name: "empty template",
@@ -237,12 +264,11 @@ func TestPopulateProbeExpressionTemplateIssues(t *testing.T) {
 					},
 				},
 				Template: &ir.Template{
-					Issues:   []ir.Issue{},
 					Segments: []ir.TemplateSegment{},
 				},
 			},
-			expectedReturnedIssue:  ir.Issue{},
-			expectedTemplateIssues: []ir.Issue{},
+			expectedReturnedIssue: ir.Issue{},
+			expectedSegments:      []ir.TemplateSegment{},
 		},
 		{
 			name: "multiple reference same var",
@@ -254,7 +280,6 @@ func TestPopulateProbeExpressionTemplateIssues(t *testing.T) {
 					},
 				},
 				Template: &ir.Template{
-					Issues: []ir.Issue{},
 					Segments: []ir.TemplateSegment{
 						ir.JSONSegment{
 							JSON:                 json.RawMessage(`{"ref": "foo"}`),
@@ -273,8 +298,23 @@ func TestPopulateProbeExpressionTemplateIssues(t *testing.T) {
 					},
 				},
 			},
-			expectedReturnedIssue:  ir.Issue{},
-			expectedTemplateIssues: []ir.Issue{},
+			expectedReturnedIssue: ir.Issue{},
+			expectedSegments: []ir.TemplateSegment{
+				ir.JSONSegment{
+					JSON:                 json.RawMessage(`{"ref": "foo"}`),
+					DSL:                  "foo",
+					EventKind:            1,
+					EventExpressionIndex: 0,
+				},
+				ir.StringSegment(" items, "),
+				ir.JSONSegment{
+					JSON:                 json.RawMessage(`{"ref": "foo"}`),
+					DSL:                  "foo",
+					EventKind:            1,
+					EventExpressionIndex: 0,
+				},
+				ir.StringSegment(" total"),
+			},
 		},
 		{
 			name: "partial match",
@@ -286,7 +326,6 @@ func TestPopulateProbeExpressionTemplateIssues(t *testing.T) {
 					},
 				},
 				Template: &ir.Template{
-					Issues: []ir.Issue{},
 					Segments: []ir.TemplateSegment{
 						ir.JSONSegment{
 							JSON:                 json.RawMessage(`{"ref": "exists"}`),
@@ -305,8 +344,15 @@ func TestPopulateProbeExpressionTemplateIssues(t *testing.T) {
 				},
 			},
 			expectedReturnedIssue: ir.Issue{},
-			expectedTemplateIssues: []ir.Issue{
-				{Kind: ir.IssueKindInvalidProbeDefinition, Message: "could not evaluate template segment: missing (probe: partial-match-probe)"},
+			expectedSegments: []ir.TemplateSegment{
+				ir.JSONSegment{
+					JSON:                 json.RawMessage(`{"ref": "exists"}`),
+					DSL:                  "exists",
+					EventKind:            1,
+					EventExpressionIndex: 0,
+				},
+				ir.StringSegment(" "),
+				ir.IssueSegment("could not evaluate template segment: missing (probe: partial-match-probe)"),
 			},
 		},
 		{
@@ -317,7 +363,6 @@ func TestPopulateProbeExpressionTemplateIssues(t *testing.T) {
 					Variables: []*ir.Variable{},
 				},
 				Template: &ir.Template{
-					Issues: []ir.Issue{},
 					Segments: []ir.TemplateSegment{
 						ir.JSONSegment{
 							JSON:                 json.RawMessage(`{"ref": "anything"}`),
@@ -329,8 +374,8 @@ func TestPopulateProbeExpressionTemplateIssues(t *testing.T) {
 				},
 			},
 			expectedReturnedIssue: ir.Issue{},
-			expectedTemplateIssues: []ir.Issue{
-				{Kind: ir.IssueKindInvalidProbeDefinition, Message: "could not evaluate template segment: anything (probe: no-vars-probe)"},
+			expectedSegments: []ir.TemplateSegment{
+				ir.IssueSegment("could not evaluate template segment: anything (probe: no-vars-probe)"),
 			},
 		},
 		{
@@ -343,7 +388,6 @@ func TestPopulateProbeExpressionTemplateIssues(t *testing.T) {
 					},
 				},
 				Template: &ir.Template{
-					Issues: []ir.Issue{},
 					Segments: []ir.TemplateSegment{
 						ir.StringSegment("Result: "),
 						ir.JSONSegment{
@@ -355,8 +399,16 @@ func TestPopulateProbeExpressionTemplateIssues(t *testing.T) {
 					},
 				},
 			},
-			expectedReturnedIssue:  ir.Issue{},
-			expectedTemplateIssues: []ir.Issue{},
+			expectedReturnedIssue: ir.Issue{},
+			expectedSegments: []ir.TemplateSegment{
+				ir.StringSegment("Result: "),
+				ir.JSONSegment{
+					JSON:                 json.RawMessage(`{"ref": "data"}`),
+					DSL:                  "data",
+					EventKind:            1,
+					EventExpressionIndex: 0,
+				},
+			},
 		},
 	}
 
@@ -367,96 +419,7 @@ func TestPopulateProbeExpressionTemplateIssues(t *testing.T) {
 				idAlloc:   idAllocator[ir.TypeID]{},
 			})
 			require.Equal(t, tc.expectedReturnedIssue, issue)
-			require.Equal(t, tc.expectedTemplateIssues, tc.probe.Template.Issues)
-		})
-	}
-}
-
-func TestCollectAllSegmentVariables(t *testing.T) {
-	tests := []struct {
-		name         string
-		segments     []ir.TemplateSegment
-		expectedVars variableToSegmentIndexes
-		expectedErr  error
-	}{
-		{
-			name: "single JSONSegment with ref",
-			segments: []ir.TemplateSegment{
-				ir.JSONSegment{
-					JSON: json.RawMessage(`{"ref":"foobar"}`),
-					DSL:  "foobar",
-				},
-				ir.StringSegment("oh yea this is a string heehee"),
-			},
-			expectedVars: variableToSegmentIndexes{
-				"foobar": []int{0},
-			},
-			expectedErr: nil,
-		},
-		{
-			name: "multiple JSONSegment with ref to different variables",
-			segments: []ir.TemplateSegment{
-				ir.JSONSegment{
-					JSON: json.RawMessage(`{"ref":"foobar"}`),
-					DSL:  "foobar",
-				},
-				ir.JSONSegment{
-					JSON: json.RawMessage(`{"ref":"bazbuz"}`),
-					DSL:  "bazbuz",
-				},
-				ir.StringSegment("oh yea this is a string heehee"),
-			},
-			expectedVars: variableToSegmentIndexes{
-				"foobar": []int{0},
-				"bazbuz": []int{1},
-			},
-			expectedErr: nil,
-		},
-		{
-			name: "multiple JSONSegment with ref to same variable",
-			segments: []ir.TemplateSegment{
-				ir.JSONSegment{
-					JSON: json.RawMessage(`{"ref":"foobar"}`),
-					DSL:  "foobar",
-				},
-				ir.JSONSegment{
-					JSON: json.RawMessage(`{"ref":"foobar"}`),
-					DSL:  "bazbuz",
-				},
-				ir.StringSegment("oh yea this is a string heehee"),
-			},
-			expectedVars: variableToSegmentIndexes{
-				"foobar": []int{0, 1},
-			},
-			expectedErr: nil,
-		},
-		{
-			name: "no JSONSegments",
-			segments: []ir.TemplateSegment{
-				ir.StringSegment("just a string segment"),
-			},
-			expectedVars: variableToSegmentIndexes{},
-			expectedErr:  nil,
-		},
-		{
-			name: "invalid JSONSegment",
-			segments: []ir.TemplateSegment{
-				ir.JSONSegment{
-					JSON: json.RawMessage(`not-valid-json`),
-					DSL:  "bad",
-				},
-			},
-			expectedVars: nil,
-			expectedErr:  errors.New("invalid template: bad: not-valid-json"),
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			vars, err := collectAllSegmentVariables(tc.segments)
-			require.Equal(t, err, tc.expectedErr)
-			require.Equal(t, tc.expectedVars, vars)
-
+			require.Equal(t, tc.expectedSegments, tc.probe.Template.Segments)
 		})
 	}
 }

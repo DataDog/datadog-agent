@@ -18,7 +18,7 @@ Probes:
           Type: 117 EventRootType Probe[main.callMe]Return
           InjectionPoints: [{PC: "0xba0dc", Frameless: false}]
           Condition: null
-      probeTemplate: {TemplateString: "", Segments: [], Issues: []}
+      probeTemplate: {TemplateString: "", Segments: []}
 Subprograms:
     - ID: 1
       Name: main.callMe
@@ -307,6 +307,7 @@ Types:
     - __kind: EventRootType
       ID: 117
       Name: Probe[main.callMe]Return
+      Expressions: []
     - __kind: ArrayType
       ID: 92
       Name: '[10]runtime.heldLockInfo'

@@ -22,7 +22,7 @@ Probes:
             - PC: "0xd050df"
               Frameless: false
           Condition: null
-      probeTemplate: {TemplateString: "", Segments: [], Issues: []}
+      probeTemplate: {TemplateString: "", Segments: []}
     - id: look_at_the_request
       version: 0
       type: LOG_PROBE
@@ -41,7 +41,7 @@ Probes:
           Type: 219 EventRootType Probe[main.LookAtTheRequest]Return
           InjectionPoints: [{PC: "0xd0527d", Frameless: false}]
           Condition: null
-      probeTemplate: {TemplateString: "", Segments: [], Issues: []}
+      probeTemplate: {TemplateString: "", Segments: []}
 Subprograms:
     - ID: 1
       Name: main.HandleHTTP
@@ -621,6 +621,7 @@ Types:
     - __kind: EventRootType
       ID: 217
       Name: Probe[main.HandleHTTP]Return
+      Expressions: []
     - __kind: EventRootType
       ID: 218
       Name: Probe[main.LookAtTheRequest]
@@ -640,6 +641,7 @@ Types:
     - __kind: EventRootType
       ID: 219
       Name: Probe[main.LookAtTheRequest]Return
+      Expressions: []
     - __kind: ArrayType
       ID: 92
       Name: '[10]runtime.heldLockInfo'

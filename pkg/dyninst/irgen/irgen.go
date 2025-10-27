@@ -1721,6 +1721,12 @@ func completeGoSliceType(tc *typeCatalog, st *ir.StructureType) error {
 	return nil
 }
 
+/*
+Multiple segments can reference the same variable
+Each segment can only reference one variable
+Each variable can be in the scope of one or more events
+*/
+
 func populateProbeEventsExpressions(
 	probes []*ir.Probe,
 	typeCatalog *typeCatalog,
@@ -1743,48 +1749,116 @@ func populateProbeExpressions(
 	typeCatalog *typeCatalog,
 ) ir.Issue {
 	for _, event := range probe.Events {
-		issue := populateEventExpressions(probe, event, typeCatalog)
+		templateEventExpressions := createProbeEventTemplateExpressions(probe, event)
+		eventExpressions, issue := createEventExpressions(probe, event)
+		if !issue.IsNone() {
+			return issue
+		}
+		issue = populateEventExpressionType(probe, event, typeCatalog, templateEventExpressions, eventExpressions)
 		if !issue.IsNone() {
 			return issue
 		}
 	}
+
 	// Check if expressions have been populated for all template segments
-	issueFound := false
 	for i := range probe.Template.Segments {
 		if seg, ok := probe.Template.Segments[i].(ir.JSONSegment); ok {
 			if seg.EventExpressionIndex == -1 {
-				issueFound = true
-				probe.Template.Issues = append(probe.Template.Issues, ir.Issue{
-					Kind:    ir.IssueKindInvalidProbeDefinition,
-					Message: fmt.Sprintf("could not evaluate template segment: %s (probe: %s)", seg.DSL, probe.GetID()),
-				})
+				probe.Template.Segments[i] = ir.IssueSegment(fmt.Sprintf("could not evaluate template segment: %s (probe: %s)", seg.DSL, probe.GetID()))
 			}
 		}
-	}
-	if issueFound {
-		probe.Template.Segments = nil
 	}
 	return ir.Issue{}
 }
 
-type variableToSegmentIndexes map[string][]int
+func populateEventExpressionType(probe *ir.Probe, event *ir.Event, typeCatalog *typeCatalog, expressionSlices ...[]*ir.RootExpression) ir.Issue {
+	id := typeCatalog.idAlloc.next()
 
-func populateEventExpressions(
+	// Combine expressions into single slice
+	expressions := make([]*ir.RootExpression, 0)
+	for _, exprs := range expressionSlices {
+		expressions = append(expressions, exprs...)
+	}
+
+	presenceBitsetSize := uint32((len(expressions) + 7) / 8)
+	byteSize := uint64(presenceBitsetSize)
+	for _, e := range expressions {
+		e.Offset = uint32(byteSize)
+		byteSize += uint64(e.Expression.Type.GetByteSize())
+	}
+	if byteSize > math.MaxUint32 {
+		return ir.Issue{
+			Kind:    ir.IssueKindUnsupportedFeature,
+			Message: fmt.Sprintf("root data type too large: %d bytes", byteSize),
+		}
+	}
+	var eventKind string
+	if event.Kind != ir.EventKindEntry {
+		eventKind = event.Kind.String()
+	}
+	event.Type = &ir.EventRootType{
+		TypeCommon: ir.TypeCommon{
+			ID:       id,
+			Name:     fmt.Sprintf("Probe[%s]%s", probe.Subprogram.Name, eventKind),
+			ByteSize: uint32(byteSize),
+		},
+		PresenceBitsetSize: presenceBitsetSize,
+		Expressions:        expressions,
+	}
+	typeCatalog.typesByID[event.Type.ID] = event.Type
+	return ir.Issue{}
+}
+
+// createProbeEventTemplateExpressions creates all the expressions relevant to this event from the
+// probes template segments.
+func createProbeEventTemplateExpressions(probe *ir.Probe, event *ir.Event) []*ir.RootExpression {
+	eventExpressions := []*ir.RootExpression{}
+	for i, seg := range probe.Template.Segments {
+		jsonSeg, ok := seg.(ir.JSONSegment)
+		if !ok {
+			// Skip string segments
+			continue
+		}
+		elExpression, err := exprlang.Parse(jsonSeg.JSON)
+		if err != nil {
+			// Replace this segment with one that reflects this issue
+			is := ir.IssueSegment(fmt.Sprintf("malformed template segment: %s (internal error)", jsonSeg.DSL))
+			probe.Template.Segments[i] = is
+			return nil
+		}
+		switch e := elExpression.(type) {
+		case (*exprlang.RefExpr):
+			for _, variable := range probe.Subprogram.Variables {
+				if e.Ref == variable.Name {
+					// This is a variable referenced by this segment, but we also have to make sure the variable is
+					// scoped to this event before creating an expression for it (takes shadowing into account)
+					for _, eventInjectionPoint := range event.InjectionPoints {
+						for _, location := range variable.Locations {
+							if eventInjectionPoint.PC >= location.Range[0] && eventInjectionPoint.PC <= location.Range[1] {
+								expr := newRootExpressionForVariable(variable, ir.RootExpressionKindTemplateSegment)
+								eventExpressions = append(eventExpressions, expr)
+
+								// Record event and expression index of this segment for decoding later
+								jsonSeg.EventExpressionIndex = len(eventExpressions)
+								jsonSeg.EventKind = event.Kind
+								probe.Template.Segments[i] = jsonSeg
+							}
+						}
+					}
+				}
+			}
+		default:
+			// Unsupported expression for now
+		}
+	}
+	return eventExpressions
+}
+
+func createEventExpressions(
 	probe *ir.Probe,
 	event *ir.Event,
-	typeCatalog *typeCatalog,
-) ir.Issue {
-	id := typeCatalog.idAlloc.next()
+) ([]*ir.RootExpression, ir.Issue) {
 	var expressions []*ir.RootExpression
-	variableNamesUsedInTemplates, err := collectAllSegmentVariables(probe.Template.Segments)
-	if err != nil {
-		// If there was any issue with the template we still want to attempt to populate
-		// other expressions, but note the issue
-		probe.Template.Issues = append(probe.Template.Issues, ir.Issue{
-			Kind:    ir.IssueKindInvalidProbeDefinition,
-			Message: err.Error(),
-		})
-	}
 	for _, variable := range probe.Subprogram.Variables {
 		var variableKind ir.RootExpressionKind
 		switch event.Kind {
@@ -1823,82 +1897,8 @@ func populateEventExpressions(
 		}
 		expr := newRootExpressionForVariable(variable, variableKind)
 		expressions = append(expressions, expr)
-
-		// Check if this variable is relevant to any template segment(s).
-		if segmentIndexes, ok := variableNamesUsedInTemplates[variable.Name]; ok {
-			for _, segmentIndex := range segmentIndexes {
-				seg := probe.Template.Segments[segmentIndex]
-				jsonSeg, ok := seg.(ir.JSONSegment)
-				if !ok {
-					// This should not happen.
-					continue
-				}
-				// Annotate the segment with relevant kind/expression index for decoding.
-				jsonSeg.EventExpressionIndex = len(expressions)
-				jsonSeg.EventKind = event.Kind
-				probe.Template.Segments[segmentIndex] = jsonSeg
-
-				segmentRootExpression := newRootExpressionForVariable(variable, ir.RootExpressionKindTemplateSegment)
-				expressions = append(expressions, segmentRootExpression)
-			}
-		}
 	}
-	presenceBitsetSize := uint32((len(expressions) + 7) / 8)
-	byteSize := uint64(presenceBitsetSize)
-	for _, e := range expressions {
-		e.Offset = uint32(byteSize)
-		byteSize += uint64(e.Expression.Type.GetByteSize())
-	}
-	if byteSize > math.MaxUint32 {
-		return ir.Issue{
-			Kind:    ir.IssueKindUnsupportedFeature,
-			Message: fmt.Sprintf("root data type too large: %d bytes", byteSize),
-		}
-	}
-	var eventKind string
-	if event.Kind != ir.EventKindEntry {
-		eventKind = event.Kind.String()
-	}
-	event.Type = &ir.EventRootType{
-		TypeCommon: ir.TypeCommon{
-			ID:       id,
-			Name:     fmt.Sprintf("Probe[%s]%s", probe.Subprogram.Name, eventKind),
-			ByteSize: uint32(byteSize),
-		},
-		PresenceBitsetSize: presenceBitsetSize,
-		Expressions:        expressions,
-	}
-	typeCatalog.typesByID[event.Type.ID] = event.Type
-	return ir.Issue{}
-}
-
-// collectAllSegmentVariables collects all variable names that are referenced by segments
-// and records the index of each referring segment.
-func collectAllSegmentVariables(segments []ir.TemplateSegment) (variableToSegmentIndexes, error) {
-	variableNamesUsedInTemplates := map[string][]int{}
-	for i, seg := range segments {
-		jsonSeg, ok := seg.(ir.JSONSegment)
-		if !ok {
-			// Skip string segments.
-			continue
-		}
-		expr, err := exprlang.Parse(jsonSeg.JSON)
-		if err != nil {
-			return nil, fmt.Errorf("invalid template: %s: %s", jsonSeg.DSL, string(jsonSeg.JSON))
-		}
-		var refExpr *exprlang.RefExpr
-		switch e := expr.(type) {
-		case *exprlang.RefExpr:
-			refExpr = e
-		default:
-			continue
-		}
-		if len(variableNamesUsedInTemplates[refExpr.Ref]) == 0 {
-			variableNamesUsedInTemplates[refExpr.Ref] = []int{}
-		}
-		variableNamesUsedInTemplates[refExpr.Ref] = append(variableNamesUsedInTemplates[refExpr.Ref], i)
-	}
-	return variableNamesUsedInTemplates, nil
+	return expressions, ir.Issue{}
 }
 
 // concreteSubprogramRef is a reference to a concrete instance of an inlined
@@ -2440,17 +2440,15 @@ func newProbe(
 					EventKind:            0,
 				})
 			default:
-				return nil, ir.Issue{
-					Kind:    ir.IssueKindInvalidProbeDefinition,
-					Message: fmt.Sprintf("invalid template segment: %T", seg),
-				}, nil
+				// FIXME: Do we actually want to surface this issue to the user (by creating the issue segment)?
+				log.Warnf("invalid template segment: %T", seg)
+				segments = append(segments, ir.IssueSegment("invalid template segment (internal error)"))
 			}
 		}
 	}
 	template := &ir.Template{
 		TemplateString: probeTemplate.GetTemplateString(),
 		Segments:       segments,
-		Issues:         []ir.Issue{},
 	}
 	probe := &ir.Probe{
 		ProbeDefinition: probeCfg,

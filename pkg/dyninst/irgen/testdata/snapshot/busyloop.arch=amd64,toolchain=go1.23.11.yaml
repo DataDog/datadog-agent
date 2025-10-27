@@ -13,7 +13,7 @@ Probes:
           Type: 105 EventRootType Probe[main.noop]
           InjectionPoints: [{PC: "0x4a5f60", Frameless: true}]
           Condition: null
-      probeTemplate: {TemplateString: "", Segments: [], Issues: []}
+      probeTemplate: {TemplateString: "", Segments: []}
 Subprograms:
     - ID: 1
       Name: main.noop
@@ -207,6 +207,7 @@ Types:
     - __kind: EventRootType
       ID: 105
       Name: Probe[main.noop]
+      Expressions: []
     - __kind: ArrayType
       ID: 85
       Name: '[10]runtime.heldLockInfo'

@@ -149,8 +149,6 @@ type Template struct {
 	TemplateString string
 	// Segments are the ordered parts of the template.
 	Segments []TemplateSegment
-	// Issues conveys if there were any issues processing this template
-	Issues []Issue
 }
 
 // TemplateSegment represents a concrete part of the template.
@@ -176,6 +174,11 @@ type JSONSegment struct {
 }
 
 func (s JSONSegment) templateSegment() {}
+
+// IssueSegment is a segment that represents an issue with the template.
+type IssueSegment string
+
+func (i IssueSegment) templateSegment() {}
 
 // Probe represents a probe from the config as it applies to the program.
 type Probe struct {

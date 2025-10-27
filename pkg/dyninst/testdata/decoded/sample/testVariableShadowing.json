@@ -4,7 +4,7 @@
     "ddsource": "dd_debugger",
     "logger": {
       "name": "",
-      "method": "main.testStringType2",
+      "method": "main.testVariableShadowing",
       "version": 0,
       "thread_id": "[goid]",
       "thread_name": ""
@@ -16,14 +16,14 @@
         "language": "go",
         "stack": [
           {
-            "function": "main.testStringType2",
+            "function": "main.testVariableShadowing",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/complex.go",
-            "lineNumber": 201
+            "lineNumber": 208
           },
           {
             "function": "main.executeComplexFuncs",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/complex.go",
-            "lineNumber": 316
+            "lineNumber": 320
           },
           {
             "function": "main.main",
@@ -42,17 +42,25 @@
           }
         ],
         "probe": {
-          "id": "testStringType2",
+          "id": "testVariableShadowing",
           "location": {
-            "method": "main.testStringType2"
+            "method": "main.testVariableShadowing",
+            "file": "complex.go",
+            "line": 208
           }
         },
         "captures": {
-          "entry": {
-            "arguments": {
-              "a": {
-                "type": "**main.stringType2",
-                "notCapturedReason": "depth"
+          "lines": {
+            "208": {
+              "locals": {
+                "x": {
+                  "type": "int",
+                  "value": "1"
+                },
+                "~r0": {
+                  "type": "int",
+                  "notCapturedReason": "unavailable"
+                }
               }
             }
           }

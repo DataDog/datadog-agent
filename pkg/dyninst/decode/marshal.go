@@ -233,7 +233,6 @@ func (ce *captureEvent) MarshalJSONTo(enc *jsontext.Encoder) error {
 		return errors.New("presence bitset is out of bounds")
 	}
 	presenceBitSet := ce.rootData[:ce.rootType.PresenceBitsetSize]
-
 	if err := writeTokens(enc, jsontext.BeginObject); err != nil {
 		return err
 	}

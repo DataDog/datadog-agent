@@ -13,7 +13,7 @@ Probes:
           Type: 111 EventRootType Probe[main.noop]
           InjectionPoints: [{PC: "0xb5170", Frameless: true}]
           Condition: null
-      probeTemplate: {TemplateString: "", Segments: [], Issues: []}
+      probeTemplate: {TemplateString: "", Segments: []}
 Subprograms:
     - ID: 1
       Name: main.noop
@@ -214,6 +214,7 @@ Types:
     - __kind: EventRootType
       ID: 111
       Name: Probe[main.noop]
+      Expressions: []
     - __kind: ArrayType
       ID: 92
       Name: '[0]uint8'

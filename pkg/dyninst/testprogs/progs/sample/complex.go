@@ -201,23 +201,52 @@ func testStringType1(a *stringType1) {}
 func testStringType2(a **stringType2) {}
 
 //go:noinline
+func testVariableShadowing(x int) int {
+	x += 9
+	{
+		x := true
+		fmt.Println(x)
+		{
+			x := "shadow"
+			fmt.Println(x)
+		}
+	}
+	fmt.Println(x)
+	return x
+}
+
+//go:noinline
+func testVariableShadowing2(x int) int {
+	x = 4 // Go likely optimizes the parameter away
+	{
+		x := true
+		fmt.Println(x)
+		{
+			x := "shadow"
+			fmt.Println(x)
+		}
+	}
+	fmt.Println(x)
+	return x
+}
+
 func testLongFunctionWithChangingState() {
 	s := 3
 	a := 0
 	b := 1
-	fmt.Println(s, a, b)
+	fmt.Println(s, a, b) // 208
 	// This loop and the following print statement reproduce
 	// https://github.com/golang/go/issues/75615
 	for _ = range 10 {
 		a, b = b, a+b
 	}
 	s += a
-	fmt.Println(s, a, b)
+	fmt.Println(s, a, b) // 215
 	for _ = range 10 {
 		a, b = b-a, a
 	}
 	s += b
-	fmt.Println(s, a, b)
+	fmt.Println(s, a, b) // 220
 }
 
 //nolint:all
@@ -287,4 +316,6 @@ func executeComplexFuncs() {
 	testStringType2(&s2p)
 
 	testLongFunctionWithChangingState()
+
+	testVariableShadowing(1)
 }
