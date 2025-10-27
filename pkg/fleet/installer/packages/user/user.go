@@ -24,6 +24,10 @@ import (
 
 // GetGroupID returns the ID of the given group.
 func GetGroupID(groupName string) (int, error) {
+	if groupName == "root" {
+		return 0, nil
+	}
+
 	if _, err := exec.LookPath("getent"); err == nil {
 		cmd := exec.Command("getent", "group", groupName)
 		output, err := cmd.Output()
@@ -53,6 +57,7 @@ func GetGroupID(groupName string) (int, error) {
 
 // GetUserID returns the ID of the given user.
 func GetUserID(userName string) (int, error) {
+
 	if _, err := exec.LookPath("getent"); err == nil {
 		cmd := exec.Command("getent", "passwd", userName)
 		output, err := cmd.Output()
