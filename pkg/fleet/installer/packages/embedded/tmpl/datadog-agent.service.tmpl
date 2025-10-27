@@ -17,6 +17,7 @@ Before=datadog-agent.service
 Type=simple
 PIDFile={{.InstallDir}}/run/agent.pid
 User=dd-agent
+EnvironmentFile=-{{.EtcDir}}/environment
 Environment="DD_FLEET_POLICIES_DIR={{.FleetPoliciesDir}}"
 {{- if not .Stable}}
 Environment="DD_INVENTORIES_FIRST_RUN_DELAY=5"
