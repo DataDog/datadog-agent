@@ -117,7 +117,9 @@ func (m *forwardingTransport) RoundTrip(req *http.Request) (rres *http.Response,
 				// Ignoring bodyclose lint here because of a bug in the linter:
 				// https://github.com/timakin/bodyclose/issues/30.
 				rres, rerr = m.rt.RoundTrip(newreq) //nolint:bodyclose
-				rres.Body.Close()
+				if rres != nil && rres.Body != nil {
+					_ = rres.Body.Close()
+				}
 				return
 			}
 			resp, err := m.rt.RoundTrip(newreq)
@@ -127,7 +129,9 @@ func (m *forwardingTransport) RoundTrip(req *http.Request) (rres *http.Response,
 			} else {
 				log.Error(err)
 			}
-			resp.Body.Close()
+			if resp != nil && resp.Body != nil {
+				_ = resp.Body.Close()
+			}
 
 		}(i, u)
 	}
