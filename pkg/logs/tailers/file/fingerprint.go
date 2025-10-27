@@ -7,6 +7,7 @@ package file
 
 import (
 	"bufio"
+	"fmt"
 	"hash/crc64"
 	"io"
 	"os"
@@ -35,6 +36,12 @@ var defaultLinesConfig = &types.FingerprintConfig{
 // Fingerprinter is a struct that contains the fingerprinting configuration
 type Fingerprinter struct {
 	FingerprintConfig types.FingerprintConfig
+}
+
+// FingerprintConfigInfo holds fingerprint configuration for status display
+type FingerprintConfigInfo struct {
+	config *types.FingerprintConfig
+	source string
 }
 
 // NewFingerprinter creates a new Fingerprinter with the given configuration
@@ -239,4 +246,52 @@ func computeFingerPrintByLines(fpFile *os.File, filePath string, fingerprintConf
 // GetFingerprintConfig returns the fingerprint configuration
 func (f *Fingerprinter) GetFingerprintConfig() *types.FingerprintConfig {
 	return &f.FingerprintConfig
+}
+
+// InfoKey returns the key for this info
+// This data is exposed in the status table
+func (f *FingerprintConfigInfo) InfoKey() string {
+	return "Fingerprint Config"
+}
+
+// Info returns formatted fingerprint configuration information
+func (f *FingerprintConfigInfo) Info() []string {
+	if f.config == nil {
+		return []string{
+			"Source: " + f.source,
+			"Strategy: not configured",
+		}
+	}
+
+	if f.config.FingerprintStrategy == types.FingerprintStrategyDisabled {
+		return []string{
+			"Source: " + f.source,
+			"Strategy: disabled",
+		}
+	}
+
+	info := []string{
+		"Source: " + f.source,
+		"Strategy: " + string(f.config.FingerprintStrategy),
+	}
+
+	// Add Count and CountToSkip for all strategies except disabled
+	info = append(info,
+		fmt.Sprintf("Count: %d", f.config.Count),
+		fmt.Sprintf("CountToSkip: %d", f.config.CountToSkip),
+	)
+
+	if f.config.FingerprintStrategy == types.FingerprintStrategyLineChecksum {
+		info = append(info, fmt.Sprintf("MaxBytes: %d", f.config.MaxBytes))
+	}
+
+	return info
+}
+
+// NewFingerprintConfigInfo creates a new FingerprintConfigInfo
+func NewFingerprintConfigInfo(config *types.FingerprintConfig, source string) *FingerprintConfigInfo {
+	return &FingerprintConfigInfo{
+		config: config,
+		source: source,
+	}
 }

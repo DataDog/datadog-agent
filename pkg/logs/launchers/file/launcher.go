@@ -8,7 +8,6 @@ package file
 
 import (
 	"context"
-	"fmt"
 	"regexp"
 	"slices"
 	"time"
@@ -610,42 +609,18 @@ func (s *Launcher) createRotatedTailer(t *tailer.Tailer, file *tailer.File, patt
 // addFingerprintConfigToTailerInfo adds fingerprint configuration info to the tailer's status display
 func addFingerprintConfigToTailerInfo(t *tailer.Tailer, file *tailer.File, fingerprinter *tailer.Fingerprinter) {
 	fileFingerprintConfig := file.Source.Config().FingerprintConfig
-	var configInfo string
+	var configInfo *tailer.FingerprintConfigInfo
 
 	// Check per-source config first (takes precedence over global config)
 	if fileFingerprintConfig != nil && fileFingerprintConfig.FingerprintStrategy != "" {
-		if fileFingerprintConfig.FingerprintStrategy == types.FingerprintStrategyDisabled {
-			configInfo = "Source: per-source, Strategy: disabled"
-		} else {
-			configInfo = fmt.Sprintf("Source: per-source, Strategy: %s, Count: %d, CountToSkip: %d",
-				fileFingerprintConfig.FingerprintStrategy,
-				fileFingerprintConfig.Count,
-				fileFingerprintConfig.CountToSkip)
-			if fileFingerprintConfig.FingerprintStrategy == types.FingerprintStrategyLineChecksum {
-				configInfo += fmt.Sprintf(", MaxBytes: %d", fileFingerprintConfig.MaxBytes)
-			}
-		}
+		configInfo = tailer.NewFingerprintConfigInfo(fileFingerprintConfig, "per-source")
 	} else if globalConfig := fingerprinter.GetFingerprintConfig(); globalConfig != nil {
-		// Global config
-		if globalConfig.FingerprintStrategy == types.FingerprintStrategyDisabled {
-			configInfo = "Source: global, Strategy: disabled"
-		} else {
-			configInfo = fmt.Sprintf("Source: global, Strategy: %s, Count: %d, CountToSkip: %d",
-				globalConfig.FingerprintStrategy,
-				globalConfig.Count,
-				globalConfig.CountToSkip)
-			if globalConfig.FingerprintStrategy == types.FingerprintStrategyLineChecksum {
-				configInfo += fmt.Sprintf(", MaxBytes: %d", globalConfig.MaxBytes)
-			}
-		}
+		configInfo = tailer.NewFingerprintConfigInfo(globalConfig, "global")
 	} else {
-		// No config
-		configInfo = "Source: none, Strategy: not configured"
+		configInfo = tailer.NewFingerprintConfigInfo(nil, "none")
 	}
 
-	info := status.NewMappedInfo("Fingerprint Config")
-	info.SetMessage("Fingerprint Config", configInfo)
-	t.GetInfo().Register(info)
+	t.GetInfo().Register(configInfo)
 }
 
 // CheckProcessTelemetry checks process file statistics and logs warnings about file handle usage
