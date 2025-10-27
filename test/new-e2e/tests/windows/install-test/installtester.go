@@ -164,7 +164,7 @@ func (t *Tester) runTestsForKitchenCompat(tt *testing.T) {
 		common.CheckIntegrationInstall(tt, t.InstallTestClient)
 
 		tt.Run("default python version", func(tt *testing.T) {
-			expected := common.ExpectedPythonVersion3
+			expected := common.ExpectedUnloadedPython
 			if t.ExpectPython2Installed() {
 				expected = common.ExpectedPythonVersion2
 			}
