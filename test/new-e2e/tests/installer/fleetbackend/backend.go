@@ -136,7 +136,12 @@ func (b *Backend) RemoteConfigStatus() (RemoteConfigState, error) {
 }
 
 func (b *Backend) runDaemonCommandWithRestart(command string, args ...string) (string, error) {
-	originalPID, err := b.getDaemonPID()
+	var originalPID int
+	err := retry.Do(func() error {
+		var err error
+		originalPID, err = b.getDaemonPID()
+		return err
+	}, retry.Attempts(10), retry.Delay(1*time.Second), retry.DelayType(retry.FixedDelay))
 	if err != nil {
 		return "", err
 	}
@@ -153,7 +158,7 @@ func (b *Backend) runDaemonCommandWithRestart(command string, args ...string) (s
 			return fmt.Errorf("daemon PID %d is still running", newPID)
 		}
 		return nil
-	}, retry.Attempts(5), retry.Delay(1*time.Second), retry.DelayType(retry.FixedDelay))
+	}, retry.Attempts(10), retry.Delay(1*time.Second), retry.DelayType(retry.FixedDelay))
 	if err != nil {
 		return "", fmt.Errorf("error waiting for daemon to restart: %w", err)
 	}
@@ -195,8 +200,8 @@ func (b *Backend) getDaemonPID() (int, error) {
 	var err error
 	switch b.host.RemoteHost.OSFamily {
 	case e2eos.LinuxFamily:
-		pid, err = b.host.RemoteHost.Execute(`systemctl show -p MainPID datadog-agent-installer | cut -d= -f2`)
-		pidExp, errExp := b.host.RemoteHost.Execute(`systemctl show -p MainPID datadog-agent-installer-exp | cut -d= -f2`)
+		pid, err = b.host.RemoteHost.Execute(`sudo systemctl show -p MainPID datadog-agent-installer | cut -d= -f2`)
+		pidExp, errExp := b.host.RemoteHost.Execute(`sudo systemctl show -p MainPID datadog-agent-installer-exp | cut -d= -f2`)
 		pid = strings.TrimSpace(pid)
 		pidExp = strings.TrimSpace(pidExp)
 		if err != nil || errExp != nil {
