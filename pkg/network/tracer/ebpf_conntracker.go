@@ -55,13 +55,15 @@ var conntrackerTelemetry = struct {
 	unregistersDuration telemetry.Histogram
 	getsTotal           telemetry.Counter
 	unregistersTotal    telemetry.Counter
+	unregistersTotal2   telemetry.Counter
 	registersTotal      *prometheus.Desc
 	lastRegisters       uint64
 }{
 	telemetry.NewHistogram(ebpfConntrackerModuleName, "gets_duration_nanoseconds", []string{}, "Histogram measuring the time spent retrieving connection tuples from the EBPF map", defaultBuckets),
 	telemetry.NewHistogram(ebpfConntrackerModuleName, "unregisters_duration_nanoseconds", []string{}, "Histogram measuring the time spent deleting connection tuples from the EBPF map", defaultBuckets),
 	telemetry.NewCounter(ebpfConntrackerModuleName, "gets_total", []string{}, "Counter measuring the total number of attempts to get connection tuples from the EBPF map"),
-	telemetry.NewCounter(ebpfConntrackerModuleName, "unregisters_total", []string{}, "Counter measuring the total number of attempts to delete connection tuples from the EBPF map"),
+	telemetry.NewCounter(ebpfConntrackerModuleName, "unregisters_total", []string{}, "Counter measuring the total number of successful deletions from the conntrack EBPF map"),
+	telemetry.NewCounter(ebpfConntrackerModuleName, "unregisters_total2", []string{}, "Counter measuring the total number of successful deletions from the conntrack2 EBPF map"),
 	prometheus.NewDesc(ebpfConntrackerModuleName+"__registers_total", "Counter measuring the total number of attempts to update/create connection tuples in the EBPF map", nil, nil),
 	0,
 }
@@ -293,10 +295,16 @@ func (e *ebpfConntracker) GetTranslationForConn(stats *network.ConnectionTuple) 
 
 	// Always check conntrack2 for comparison purposes
 	src.Netns = e.rootNS
+	if log.ShouldLog(log.TraceLvl) {
+		log.Tracef("looking up in conntrack2 (tuple): %s", src)
+	}
 	dst2 := e.get2(src)
 	if dst2 == nil && stats.NetNS != e.rootNS {
 		// Also check connection namespace in conntrack2
 		src.Netns = stats.NetNS
+		if log.ShouldLog(log.TraceLvl) {
+			log.Tracef("looking up in conntrack2 (tuple,netns): %s", src)
+		}
 		dst2 = e.get2(src)
 	}
 
@@ -351,26 +359,23 @@ func (e *ebpfConntracker) delete(key *netebpf.ConntrackTuple) {
 
 	if err := e.ctMap.Delete(key); err != nil {
 		if errors.Is(err, ebpf.ErrKeyNotExist) {
-			if log.ShouldLog(log.TraceLvl) {
-				log.Tracef("connection does not exist in ebpf conntrack map: %s", key)
-			}
-
-			return
+			log.Warnf("JMW unable to delete conntrack entry - connection does not exist in ebpf conntrack map: %s", key)
+		} else {
+			log.Warnf("JMW unable to delete conntrack entry from eBPF map: %s", err)
 		}
-
-		log.Warnf("unable to delete conntrack entry from eBPF map: %s", err)
-		return
+	} else {
+		conntrackerTelemetry.unregistersTotal.Inc()
 	}
 
-	// Also delete from conntrack2 map
 	if err := e.ctMap2.Delete(key); err != nil {
-		if !errors.Is(err, ebpf.ErrKeyNotExist) {
-			log.Warnf("unable to delete conntrack entry from eBPF conntrack2 map: %s", err)
+		if errors.Is(err, ebpf.ErrKeyNotExist) {
+			log.Warnf("JMW unable to delete conntrack2 entry - connection does not exist in ebpf conntrack2 map: %s", key)
+		} else {
+			log.Warnf("JMW unable to delete conntrack entry from eBPF conntrack2 map: %s", err)
 		}
-		// Don't return here - we successfully deleted from the main map
+	} else {
+		conntrackerTelemetry.unregistersTotal2.Inc()
 	}
-
-	conntrackerTelemetry.unregistersTotal.Inc()
 }
 
 // Duplicated methods for conntrack2 map
@@ -405,7 +410,7 @@ func (e *ebpfConntracker) delete2(key *netebpf.ConntrackTuple) {
 		return
 	}
 
-	conntrackerTelemetry.unregistersTotal.Inc()
+	conntrackerTelemetry.unregistersTotal2.Inc()
 }
 
 func (e *ebpfConntracker) deleteTranslationNs(key *netebpf.ConntrackTuple, ns uint32) *netebpf.ConntrackTuple {
@@ -608,7 +613,6 @@ func getManager(cfg *config.Config, buf io.ReaderAt, opts manager.Options) (*man
 var errPrebuiltConntrackerUnsupported = errors.New("prebuilt ebpf conntracker requires kernel version 4.14 or higher or a RHEL kernel with backported eBPF support")
 var errCOREConntrackerUnsupported = errors.New("CO-RE ebpf conntracker requires kernel version 4.14 or higher or a RHEL kernel with backported eBPF support")
 
-// JMWMONADDLOGS
 func getPrebuiltConntracker(cfg *config.Config) (*manager.Manager, error) {
 	supportedOnKernel, err := ebpfPrebuiltConntrackerSupportedOnKernel()
 	if err != nil {
@@ -641,7 +645,6 @@ func getPrebuiltConntracker(cfg *config.Config) (*manager.Manager, error) {
 	return getManager(cfg, buf, opts)
 }
 
-// JMWMONADDLOGS
 func ebpfPrebuiltConntrackerSupportedOnKernel() (bool, error) {
 	kv, err := ebpfkernel.NewKernelVersion()
 	if err != nil {
@@ -654,7 +657,6 @@ func ebpfPrebuiltConntrackerSupportedOnKernel() (bool, error) {
 	return false, nil
 }
 
-// JMWMONADDLOGS
 func ebpfCOREConntrackerSupportedOnKernel() (bool, error) {
 	kv, err := ebpfkernel.NewKernelVersion()
 	if err != nil {
@@ -667,7 +669,6 @@ func ebpfCOREConntrackerSupportedOnKernel() (bool, error) {
 	return false, nil
 }
 
-// JMWMONADDLOGS
 func getRCConntracker(cfg *config.Config) (*manager.Manager, error) {
 	buf, err := getRuntimeCompiledConntracker(cfg)
 	if err != nil {
@@ -678,7 +679,6 @@ func getRCConntracker(cfg *config.Config) (*manager.Manager, error) {
 	return getManager(cfg, buf, manager.Options{})
 }
 
-// JMWMONADDLOGS
 func getCOREConntracker(cfg *config.Config) (*manager.Manager, error) {
 	supportedOnKernel, err := ebpfCOREConntrackerSupportedOnKernel()
 	if err != nil {
