@@ -47,7 +47,6 @@ processors:
 exporters:
   serializer:
     sending_queue:
-      sizer: "items"
       batch:
         flush_timeout: 10000ms
         min_size: 10
@@ -75,7 +74,6 @@ processors:
 exporters:
   logsagent:
     sending_queue:
-      sizer: "items"
       batch:
         flush_timeout: 10000ms
         min_size: 10
