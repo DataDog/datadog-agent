@@ -25,8 +25,8 @@ type ConnFilter struct {
 }
 
 // NewConnFilter constructor
-func NewConnFilter(config []Config, site string) (*ConnFilter, []error) {
-	defaultConfig := getDefaultConnFilters(site)
+func NewConnFilter(config []Config, site string, monitorIPWithoutDomain bool) (*ConnFilter, []error) {
+	defaultConfig := getDefaultConnFilters(site, monitorIPWithoutDomain)
 	newConfigs := append(defaultConfig, config...)
 
 	var filters []Filter
@@ -88,6 +88,9 @@ func NewConnFilter(config []Config, site string) (*ConnFilter, []error) {
 // IsIncluded return true if the matching domain and ip of a connection should be included
 func (f *ConnFilter) IsIncluded(domain string, ip string) bool {
 	isIncluded := true
+	if domain == "" {
+		isIncluded = false
+	}
 	for _, filter := range f.filters {
 		matched := false
 		if filter.matchDomain != nil {

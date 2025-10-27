@@ -384,6 +384,9 @@ func (m *Manager) unlinkProfile(profile *profile.Profile, workload *tags.Workloa
 }
 
 func (m *Manager) onWorkloadSelectorResolvedEvent(workload *tags.Workload) {
+
+	filepathsInProcessCache := m.GetNodesInProcessCache()
+
 	m.profilesLock.Lock()
 	defer m.profilesLock.Unlock()
 	workload.Lock()
@@ -424,6 +427,11 @@ func (m *Manager) onWorkloadSelectorResolvedEvent(workload *tags.Workload) {
 				return
 			}
 
+			// apply the eviction mechanism right away
+			if m.config.RuntimeSecurity.SecurityProfileNodeEvictionTimeout > 0 {
+				p.ActivityTree.EvictUnusedNodes(time.Now().Add(-m.config.RuntimeSecurity.SecurityProfileNodeEvictionTimeout), filepathsInProcessCache, selector.Image, selector.Tag)
+			}
+
 			// insert the profile in the list of active profiles
 			m.profiles[selector] = p
 		} else {
@@ -446,6 +454,12 @@ func (m *Manager) onWorkloadSelectorResolvedEvent(workload *tags.Workload) {
 				seclog.Warnf("couldn't load profile from local storage: %v", err)
 				return
 			} else if ok {
+
+				// apply the eviction mechanism right away
+				if m.config.RuntimeSecurity.SecurityProfileNodeEvictionTimeout > 0 {
+					p.ActivityTree.EvictUnusedNodes(time.Now().Add(-m.config.RuntimeSecurity.SecurityProfileNodeEvictionTimeout), filepathsInProcessCache, selector.Image, selector.Tag)
+				}
+
 				err = m.loadProfileMap(p)
 				if err != nil {
 					seclog.Errorf("couldn't load security profile %s in kernel space: %v", p.GetSelectorStr(), err)
