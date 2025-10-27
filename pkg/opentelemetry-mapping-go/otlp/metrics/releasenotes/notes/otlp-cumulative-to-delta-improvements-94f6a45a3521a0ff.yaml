@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    When receiving cumulative histogram metrics or rate metrics through OTLP,
+    the first point will now be passed through as a delta using the same logic as cumulative monotonic sum metrics.
+    Additionally, added logic to better handle negative duration points and overlapping metric series.

@@ -35,25 +35,26 @@ type point struct {
 	expectFirstPoint bool
 	expectDropPoint  bool
 	dropPointMessage string
+	expectDx         float64
 }
 
 func TestMonotonicDiffUnknownStart(t *testing.T) {
-	points := []point{
-		{startTs: 0, ts: 1, val: 5, expectFirstPoint: true, expectDropPoint: false, dropPointMessage: "first point"},
-		{startTs: 0, ts: 1, val: 6, expectFirstPoint: false, expectDropPoint: true, dropPointMessage: "new ts == old ts"},
-		{startTs: 0, ts: 0, val: 0, expectFirstPoint: false, expectDropPoint: true, dropPointMessage: "new ts < old ts"},
-		{startTs: 0, ts: 2, val: 2, expectFirstPoint: true, expectDropPoint: false, dropPointMessage: "new < old => there has been a reset: first point"},
-		{startTs: 0, ts: 4, val: 6, expectFirstPoint: false, expectDropPoint: false},
-	}
-
 	t.Run("diff", func(t *testing.T) {
+		points := []point{
+			{startTs: 0, ts: 2, val: 5, expectFirstPoint: true, expectDropPoint: false, dropPointMessage: "first point"},
+			{startTs: 0, ts: 2, val: 6, expectFirstPoint: false, expectDropPoint: true, dropPointMessage: "new ts == old ts"},
+			{startTs: 0, ts: 1, val: 0, expectFirstPoint: false, expectDropPoint: true, dropPointMessage: "new ts < old ts"},
+			{startTs: 0, ts: 3, val: 2, expectFirstPoint: true, expectDropPoint: false, dropPointMessage: "new < old => there has been a reset: first point"},
+			{startTs: 0, ts: 5, val: 6, expectFirstPoint: false, expectDropPoint: false},
+		}
+
 		prevPts := newTestCache()
 		var dx float64
 		var firstPoint bool
 		var dropPoint bool
 
 		for _, point := range points {
-			dx, firstPoint, dropPoint = prevPts.MonotonicDiff(dims, point.startTs, point.ts, point.val)
+			dx, firstPoint, dropPoint = prevPts.putAndGetDiff(dims, point.startTs, point.ts, point.val, true, false)
 			assert.Equal(t, point.expectFirstPoint, firstPoint)
 			assert.Equal(t, point.expectDropPoint, dropPoint, point.dropPointMessage)
 		}
@@ -61,6 +62,14 @@ func TestMonotonicDiffUnknownStart(t *testing.T) {
 	})
 
 	t.Run("rate", func(t *testing.T) {
+		points := []point{
+			{startTs: 0, ts: 2, val: 5, expectFirstPoint: true, expectDropPoint: false, dropPointMessage: "first point"},
+			{startTs: 0, ts: 2, val: 6, expectFirstPoint: false, expectDropPoint: true, dropPointMessage: "new ts == old ts"},
+			{startTs: 0, ts: 1, val: 0, expectFirstPoint: false, expectDropPoint: true, dropPointMessage: "new ts < old ts"},
+			{startTs: 0, ts: 3, val: 2, expectFirstPoint: true, expectDropPoint: true, dropPointMessage: "new < old => there has been a reset: first point + drop"},
+			{startTs: 0, ts: 5, val: 6, expectFirstPoint: false, expectDropPoint: false},
+		}
+
 		startTs := uint64(0) // equivalent to start being unset
 		prevPts := newTestCache()
 		sec := uint64(time.Second)
@@ -69,40 +78,37 @@ func TestMonotonicDiffUnknownStart(t *testing.T) {
 		var dropPoint bool
 
 		for _, point := range points {
-			dx, firstPoint, dropPoint = prevPts.MonotonicRate(dims, startTs, point.ts*sec, point.val)
+			dx, firstPoint, dropPoint = prevPts.putAndGetDiff(dims, startTs, point.ts*sec, point.val, true, true)
 			assert.Equal(t, point.expectFirstPoint, firstPoint)
 			assert.Equal(t, point.expectDropPoint, dropPoint, point.dropPointMessage)
 		}
-		assert.Equal(t, 2.0, dx, "expected rate (6-2)/(4s-2s)")
+		assert.Equal(t, 2.0, dx, "expected rate (6-2)/(5s-3s)")
 	})
 }
 
 func TestDiffUnknownStart(t *testing.T) {
-	startTs := uint64(0) // equivalent to start being unset
+	points := []point{
+		{startTs: 0, ts: 1, val: 5, expectFirstPoint: true, expectDropPoint: false, dropPointMessage: "first point", expectDx: 5},
+		{startTs: 0, ts: 1, val: 6, expectFirstPoint: false, expectDropPoint: true, dropPointMessage: "new ts == old ts"},
+		{startTs: 0, ts: 0, val: 0, expectFirstPoint: false, expectDropPoint: true, dropPointMessage: "new ts < old ts"},
+		{startTs: 0, ts: 2, val: 2, expectFirstPoint: false, expectDropPoint: false, dropPointMessage: "not monotonic", expectDx: -3},
+		{startTs: 0, ts: 3, val: 4, expectFirstPoint: false, expectDropPoint: false, expectDx: 2},
+	}
 	prevPts := newTestCache()
-	_, ok := prevPts.Diff(dims, startTs, 1, 5)
-	assert.False(t, ok, "expected no diff: first point")
-	_, ok = prevPts.Diff(dims, startTs, 0, 0)
-	assert.False(t, ok, "expected no diff: old point")
-	dx, ok := prevPts.Diff(dims, startTs, 2, 2)
-	assert.True(t, ok, "expected diff: no startTs, not monotonic")
-	assert.Equal(t, -3.0, dx, "expected diff -3.0 with (0,1,5) value")
-	dx, ok = prevPts.Diff(dims, startTs, 3, 4)
-	assert.True(t, ok, "expected diff: no startTs, old >= new")
-	assert.Equal(t, 2.0, dx, "expected diff 2.0 with (0,2,2) value")
+	for _, point := range points {
+		dx, firstPoint, dropPoint := prevPts.putAndGetDiff(dims, point.startTs, point.ts, point.val, false, false)
+		assert.Equal(t, point.expectFirstPoint, firstPoint)
+		assert.Equal(t, point.expectDropPoint, dropPoint, point.dropPointMessage)
+		if !point.expectDropPoint {
+			assert.Equal(t, point.expectDx, dx)
+		}
+	}
 }
 
 func TestMonotonicDiffKnownStart(t *testing.T) {
-	initialPoints := []point{
-		{startTs: 1, ts: 1, val: 5, expectFirstPoint: true, expectDropPoint: false, dropPointMessage: "first point"},
-		{startTs: 1, ts: 1, val: 6, expectFirstPoint: false, expectDropPoint: true, dropPointMessage: "new ts == old ts"},
-		{startTs: 1, ts: 0, val: 0, expectFirstPoint: false, expectDropPoint: true, dropPointMessage: "new ts < old ts"},
-		{startTs: 1, ts: 2, val: 2, expectFirstPoint: true, expectDropPoint: false, dropPointMessage: "new < old => there has been a reset: first point"},
-		{startTs: 1, ts: 3, val: 6, expectFirstPoint: false, expectDropPoint: false},
-	}
 	pointsAfterReset := []point{
-		{startTs: 4, ts: 4, val: 8, expectFirstPoint: true, expectDropPoint: false, dropPointMessage: "first point: startTs = ts, there has been a reset"},
-		{startTs: 4, ts: 6, val: 12, expectFirstPoint: false, expectDropPoint: false, dropPointMessage: "same startTs, old >= new"},
+		{startTs: 5, ts: 5, val: 8, expectFirstPoint: true, expectDropPoint: true, dropPointMessage: "first point: startTs = ts, there has been a reset at an unknown time"},
+		{startTs: 5, ts: 7, val: 12, expectFirstPoint: false, expectDropPoint: false, dropPointMessage: "same startTs, old >= new"},
 	}
 	pointsAfterSecondReset := []point{
 		{startTs: 8, ts: 9, val: 1, expectFirstPoint: true, expectDropPoint: false, dropPointMessage: "first point"},
@@ -110,13 +116,21 @@ func TestMonotonicDiffKnownStart(t *testing.T) {
 	}
 
 	t.Run("diff", func(t *testing.T) {
+		initialPoints := []point{
+			{startTs: 1, ts: 2, val: 5, expectFirstPoint: true, expectDropPoint: false, dropPointMessage: "first point"},
+			{startTs: 1, ts: 2, val: 6, expectFirstPoint: false, expectDropPoint: true, dropPointMessage: "new ts == old ts"},
+			{startTs: 1, ts: 1, val: 0, expectFirstPoint: false, expectDropPoint: true, dropPointMessage: "new ts < old ts"},
+			{startTs: 1, ts: 3, val: 2, expectFirstPoint: true, expectDropPoint: false, dropPointMessage: "new < old => there has been a reset: first point"},
+			{startTs: 1, ts: 4, val: 6, expectFirstPoint: false, expectDropPoint: false},
+		}
+
 		prevPts := newTestCache()
 		var dx float64
 		var firstPoint bool
 		var dropPoint bool
 
 		for _, point := range initialPoints {
-			dx, firstPoint, dropPoint = prevPts.MonotonicDiff(dims, point.startTs, point.ts, point.val)
+			dx, firstPoint, dropPoint = prevPts.putAndGetDiff(dims, point.startTs, point.ts, point.val, true, false)
 			assert.Equal(t, point.expectFirstPoint, firstPoint)
 			assert.Equal(t, point.expectDropPoint, dropPoint, point.dropPointMessage)
 		}
@@ -124,7 +138,7 @@ func TestMonotonicDiffKnownStart(t *testing.T) {
 
 		// reset
 		for _, point := range pointsAfterReset {
-			dx, firstPoint, dropPoint = prevPts.MonotonicDiff(dims, point.startTs, point.ts, point.val)
+			dx, firstPoint, dropPoint = prevPts.putAndGetDiff(dims, point.startTs, point.ts, point.val, true, false)
 			assert.Equal(t, point.expectFirstPoint, firstPoint)
 			assert.Equal(t, point.expectDropPoint, dropPoint, point.dropPointMessage)
 		}
@@ -132,7 +146,7 @@ func TestMonotonicDiffKnownStart(t *testing.T) {
 
 		// reset
 		for _, point := range pointsAfterSecondReset {
-			dx, firstPoint, dropPoint = prevPts.MonotonicDiff(dims, point.startTs, point.ts, point.val)
+			dx, firstPoint, dropPoint = prevPts.putAndGetDiff(dims, point.startTs, point.ts, point.val, true, false)
 			assert.Equal(t, point.expectFirstPoint, firstPoint)
 			assert.Equal(t, point.expectDropPoint, dropPoint, point.dropPointMessage)
 		}
@@ -140,6 +154,14 @@ func TestMonotonicDiffKnownStart(t *testing.T) {
 	})
 
 	t.Run("rate", func(t *testing.T) {
+		initialPoints := []point{
+			{startTs: 1, ts: 2, val: 5, expectFirstPoint: true, expectDropPoint: false, dropPointMessage: "first point"},
+			{startTs: 1, ts: 2, val: 6, expectFirstPoint: false, expectDropPoint: true, dropPointMessage: "new ts == old ts"},
+			{startTs: 1, ts: 1, val: 0, expectFirstPoint: false, expectDropPoint: true, dropPointMessage: "new ts < old ts"},
+			{startTs: 1, ts: 3, val: 2, expectFirstPoint: true, expectDropPoint: true, dropPointMessage: "new < old => there has been a reset: first point + drop"},
+			{startTs: 1, ts: 4, val: 6, expectFirstPoint: false, expectDropPoint: false},
+		}
+
 		prevPts := newTestCache()
 		sec := uint64(time.Second)
 		var dx float64
@@ -147,7 +169,7 @@ func TestMonotonicDiffKnownStart(t *testing.T) {
 		var dropPoint bool
 
 		for _, point := range initialPoints {
-			dx, firstPoint, dropPoint = prevPts.MonotonicRate(dims, point.startTs*sec, point.ts*sec, point.val)
+			dx, firstPoint, dropPoint = prevPts.putAndGetDiff(dims, point.startTs*sec, point.ts*sec, point.val, true, true)
 			assert.Equal(t, point.expectFirstPoint, firstPoint)
 			assert.Equal(t, point.expectDropPoint, dropPoint, point.dropPointMessage)
 		}
@@ -155,15 +177,15 @@ func TestMonotonicDiffKnownStart(t *testing.T) {
 
 		// reset
 		for _, point := range pointsAfterReset {
-			dx, firstPoint, dropPoint = prevPts.MonotonicRate(dims, point.startTs*sec, point.ts*sec, point.val)
+			dx, firstPoint, dropPoint = prevPts.putAndGetDiff(dims, point.startTs*sec, point.ts*sec, point.val, true, true)
 			assert.Equal(t, point.expectFirstPoint, firstPoint)
 			assert.Equal(t, point.expectDropPoint, dropPoint, point.dropPointMessage)
 		}
-		assert.Equal(t, 2.0, dx, "expected rate (12-8)/(6s-4s)")
+		assert.Equal(t, 2.0, dx, "expected rate (12-8)/(7s-5s)")
 
 		// rest
 		for _, point := range pointsAfterSecondReset {
-			dx, firstPoint, dropPoint = prevPts.MonotonicRate(dims, point.startTs*sec, point.ts*sec, point.val)
+			dx, firstPoint, dropPoint = prevPts.putAndGetDiff(dims, point.startTs*sec, point.ts*sec, point.val, true, true)
 			assert.Equal(t, point.expectFirstPoint, firstPoint)
 			assert.Equal(t, point.expectDropPoint, dropPoint, point.dropPointMessage)
 		}
@@ -172,32 +194,26 @@ func TestMonotonicDiffKnownStart(t *testing.T) {
 }
 
 func TestDiffKnownStart(t *testing.T) {
-	startTs := uint64(1)
+	points := []point{
+		{startTs: 1, ts: 3, val: 5, expectFirstPoint: true, expectDropPoint: false, dropPointMessage: "first point", expectDx: 5},
+		{startTs: 1, ts: 3, val: 6, expectFirstPoint: false, expectDropPoint: true, dropPointMessage: "new ts == old ts"},
+		{startTs: 1, ts: 2, val: 0, expectFirstPoint: false, expectDropPoint: true, dropPointMessage: "new ts < old ts"},
+		{startTs: 1, ts: 4, val: 2, expectFirstPoint: false, expectDropPoint: false, dropPointMessage: "not monotonic", expectDx: -3},
+		{startTs: 1, ts: 5, val: 4, expectFirstPoint: false, expectDropPoint: false, expectDx: 2},
+		{startTs: 5, ts: 6, val: 8, expectFirstPoint: true, expectDropPoint: false, dropPointMessage: "first point", expectDx: 8},
+		{startTs: 5, ts: 7, val: 9, expectFirstPoint: false, expectDropPoint: false, expectDx: 1},
+		{startTs: 7, ts: 8, val: 1, expectFirstPoint: true, expectDropPoint: false, dropPointMessage: "first point", expectDx: 1},
+		{startTs: 7, ts: 9, val: 10, expectFirstPoint: false, expectDropPoint: false, expectDx: 9},
+	}
 	prevPts := newTestCache()
-	_, ok := prevPts.Diff(dims, startTs, 1, 5)
-	assert.False(t, ok, "expected no diff: first point")
-	_, ok = prevPts.Diff(dims, startTs, 0, 0)
-	assert.False(t, ok, "expected no diff: old point")
-	dx, ok := prevPts.Diff(dims, startTs, 2, 2)
-	assert.True(t, ok, "expected diff: same startTs, not monotonic")
-	assert.Equal(t, -3.0, dx, "expected diff -3.0 with (1,1,5) point")
-	dx, ok = prevPts.Diff(dims, startTs, 3, 4)
-	assert.True(t, ok, "expected diff: same startTs, not monotonic")
-	assert.Equal(t, 2.0, dx, "expected diff 2.0 with (0,2,2) value")
-
-	startTs = uint64(4) // simulate reset with startTs = ts
-	_, ok = prevPts.Diff(dims, startTs, startTs, 8)
-	assert.False(t, ok, "expected no diff: reset with unknown start")
-	dx, ok = prevPts.Diff(dims, startTs, 5, 9)
-	assert.True(t, ok, "expected diff: same startTs, not monotonic")
-	assert.Equal(t, 1.0, dx, "expected diff 1.0 with (4,4,8) value")
-
-	startTs = uint64(6)
-	_, ok = prevPts.Diff(dims, startTs, 7, 1)
-	assert.False(t, ok, "expected no diff: reset with known start")
-	dx, ok = prevPts.Diff(dims, startTs, 8, 10)
-	assert.True(t, ok, "expected diff: same startTs, not monotonic")
-	assert.Equal(t, 9.0, dx, "expected diff 9.0 with (6,7,1) value")
+	for _, point := range points {
+		dx, firstPoint, dropPoint := prevPts.putAndGetDiff(dims, point.startTs, point.ts, point.val, false, false)
+		assert.Equal(t, point.expectFirstPoint, firstPoint)
+		assert.Equal(t, point.expectDropPoint, dropPoint, point.dropPointMessage)
+		if !point.expectDropPoint {
+			assert.Equal(t, point.expectDx, dx)
+		}
+	}
 }
 
 func TestPutAndGetExtrema(t *testing.T) {

@@ -376,54 +376,6 @@ func TestMapIntMonotonicDifferentDimensions(t *testing.T) {
 	)
 }
 
-func buildMonotonicIntRebootPoints() (slice pmetric.NumberDataPointSlice) {
-	values := []int64{0, 30, 0, 20}
-	slice = pmetric.NewNumberDataPointSlice()
-	slice.EnsureCapacity(len(values))
-
-	for i, val := range values {
-		point := slice.AppendEmpty()
-		point.SetTimestamp(seconds(i * 10))
-		point.SetIntValue(val)
-	}
-
-	return
-}
-
-// This test checks that in the case of a reboot within a NumberDataPointSlice,
-// we cache the value but we do NOT compute first value for the value at reset.
-func TestMapIntMonotonicWithRebootWithinSlice(t *testing.T) {
-	t.Run("diff", func(t *testing.T) {
-		slice := buildMonotonicIntRebootPoints()
-		ctx := context.Background()
-		tr := newTranslator(t, zap.NewNop())
-		consumer := &mockTimeSeriesConsumer{}
-		tr.mapNumberMonotonicMetrics(ctx, consumer, exampleDims, slice)
-		assert.ElementsMatch(t,
-			consumer.metrics,
-			[]metric{
-				newCount(exampleDims, uint64(seconds(10)), 30),
-				newCount(exampleDims, uint64(seconds(30)), 20),
-			},
-		)
-	})
-
-	t.Run("rate", func(t *testing.T) {
-		slice := buildMonotonicIntRebootPoints()
-		ctx := context.Background()
-		tr := newTranslator(t, zap.NewNop())
-		consumer := &mockTimeSeriesConsumer{}
-		tr.mapNumberMonotonicMetrics(ctx, consumer, rateAsGaugeDims, slice)
-		assert.ElementsMatch(t,
-			consumer.metrics,
-			[]metric{
-				newGauge(rateAsGaugeDims, uint64(seconds(10)), 3),
-				newGauge(rateAsGaugeDims, uint64(seconds(30)), 2),
-			},
-		)
-	})
-}
-
 // This test checks that in the case of a reboot within a NumberDataPointSlice,
 // we cache the value but we do NOT compute first value for the value at reset.
 func TestMapIntMonotonicWithNoRecordedValueWithinSlice(t *testing.T) {
@@ -476,7 +428,7 @@ func TestMapIntMonotonicWithRebootBeginningOfSlice(t *testing.T) {
 		dpsInt.EnsureCapacity(3)
 
 		// dpInt1
-		tr.prevPts.MonotonicDiff(dims, uint64(seconds(startTs)), uint64(seconds(startTs+2)), 10)
+		tr.prevPts.putAndGetDiff(dims, uint64(seconds(startTs)), uint64(seconds(startTs+2)), 10, true, false)
 
 		dpInt2 := dpsInt.AppendEmpty()
 		dpInt2.SetStartTimestamp(seconds(startTs))
@@ -517,7 +469,7 @@ func TestMapIntMonotonicWithRebootBeginningOfSlice(t *testing.T) {
 		dpsInt.EnsureCapacity(3)
 
 		// dpInt1
-		tr.prevPts.MonotonicRate(dims, uint64(seconds(startTs)), uint64(seconds(startTs+2)), 10)
+		tr.prevPts.putAndGetDiff(dims, uint64(seconds(startTs)), uint64(seconds(startTs+2)), 10, true, true)
 
 		dpInt2 := dpsInt.AppendEmpty()
 		dpInt2.SetStartTimestamp(seconds(startTs))
@@ -602,7 +554,7 @@ func TestMapIntMonotonicDropPointPointWithinSlice(t *testing.T) {
 
 		dpInt := dpsInt.AppendEmpty()
 		dpInt.SetStartTimestamp(seconds(startTs))
-		// initial value, not computed for rate
+		// initial value, rate computed based on ts - startTs
 		dpInt.SetTimestamp(seconds(startTs + 2))
 		dpInt.SetIntValue(10)
 
@@ -625,6 +577,7 @@ func TestMapIntMonotonicDropPointPointWithinSlice(t *testing.T) {
 		assert.ElementsMatch(t,
 			consumer.metrics,
 			[]metric{
+				newGaugeWithHost(rateAsGaugeDims, uint64(seconds(startTs+2)), 5, fallbackHostname),
 				newGaugeWithHost(rateAsGaugeDims, uint64(seconds(startTs+4)), 15, fallbackHostname),
 			},
 		)
@@ -686,19 +639,19 @@ func TestMapIntMonotonicDropPointPointWithinSlice(t *testing.T) {
 
 		dpInt := dpsInt.AppendEmpty()
 		dpInt.SetStartTimestamp(seconds(startTs))
-		// initial value, not computed for rate
-		dpInt.SetTimestamp(seconds(startTs + 3))
+		// initial value, rate computed based on ts - startTs
+		dpInt.SetTimestamp(seconds(startTs + 2))
 		dpInt.SetIntValue(10)
 
 		dpInt2 := dpsInt.AppendEmpty()
 		dpInt2.SetStartTimestamp(seconds(startTs))
 		// lower timestamp than dpInt. This point should be ignored.
-		dpInt2.SetTimestamp(seconds(startTs + 2))
+		dpInt2.SetTimestamp(seconds(startTs + 1))
 		dpInt2.SetIntValue(25)
 
 		dpInt3 := dpsInt.AppendEmpty()
 		dpInt3.SetStartTimestamp(seconds(startTs))
-		dpInt3.SetTimestamp(seconds(startTs + 5))
+		dpInt3.SetTimestamp(seconds(startTs + 4))
 		dpInt3.SetIntValue(40)
 
 		ctx := context.Background()
@@ -709,7 +662,8 @@ func TestMapIntMonotonicDropPointPointWithinSlice(t *testing.T) {
 		assert.ElementsMatch(t,
 			consumer.metrics,
 			[]metric{
-				newGaugeWithHost(rateAsGaugeDims, uint64(seconds(startTs+5)), 15, fallbackHostname),
+				newGaugeWithHost(rateAsGaugeDims, uint64(seconds(startTs+2)), 5, fallbackHostname),
+				newGaugeWithHost(rateAsGaugeDims, uint64(seconds(startTs+4)), 15, fallbackHostname),
 			},
 		)
 		assert.Empty(t, rmt.Languages)
@@ -733,7 +687,7 @@ func TestMapIntMonotonicDropPointPointBeginningOfSlice(t *testing.T) {
 		dpsInt.EnsureCapacity(3)
 
 		// dpInt1
-		tr.prevPts.MonotonicDiff(dims, uint64(seconds(startTs)), uint64(seconds(startTs+2)), 10)
+		tr.prevPts.putAndGetDiff(dims, uint64(seconds(startTs)), uint64(seconds(startTs+2)), 10, true, false)
 
 		dpInt2 := dpsInt.AppendEmpty()
 		dpInt2.SetStartTimestamp(seconds(startTs))
@@ -773,7 +727,7 @@ func TestMapIntMonotonicDropPointPointBeginningOfSlice(t *testing.T) {
 		dpsInt.EnsureCapacity(3)
 
 		// dpInt1
-		tr.prevPts.MonotonicDiff(dims, uint64(seconds(startTs)), uint64(seconds(startTs+2)), 10)
+		tr.prevPts.putAndGetDiff(dims, uint64(seconds(startTs)), uint64(seconds(startTs+2)), 10, true, false)
 
 		dpInt2 := dpsInt.AppendEmpty()
 		dpInt2.SetStartTimestamp(seconds(startTs))
@@ -813,7 +767,7 @@ func TestMapIntMonotonicDropPointPointBeginningOfSlice(t *testing.T) {
 		dpsInt.EnsureCapacity(3)
 
 		// dpInt1
-		tr.prevPts.MonotonicDiff(dims, uint64(seconds(startTs)), uint64(seconds(startTs+3)), 10)
+		tr.prevPts.putAndGetDiff(dims, uint64(seconds(startTs)), uint64(seconds(startTs+3)), 10, true, false)
 
 		dpInt2 := dpsInt.AppendEmpty()
 		dpInt2.SetStartTimestamp(seconds(startTs))
@@ -853,7 +807,7 @@ func TestMapIntMonotonicDropPointPointBeginningOfSlice(t *testing.T) {
 		dpsInt.EnsureCapacity(3)
 
 		// dpInt1
-		tr.prevPts.MonotonicDiff(dims, uint64(seconds(startTs)), uint64(seconds(startTs+3)), 10)
+		tr.prevPts.putAndGetDiff(dims, uint64(seconds(startTs)), uint64(seconds(startTs+3)), 10, true, false)
 
 		dpInt2 := dpsInt.AppendEmpty()
 		dpInt2.SetStartTimestamp(seconds(startTs))
@@ -898,22 +852,6 @@ func TestMapIntMonotonicReportFirstValue(t *testing.T) {
 	assert.Empty(t, rmt.Languages)
 }
 
-func TestMapIntMonotonicRateDontReportFirstValue(t *testing.T) {
-	ctx := context.Background()
-	tr := newTranslator(t, zap.NewNop())
-	consumer := &mockFullConsumer{}
-	rmt, _ := tr.MapMetrics(ctx, createTestIntCumulativeMonotonicMetrics(false, rateAsGaugeDims), consumer, nil)
-	startTs := int(getProcessStartTime()) + 1
-	assert.ElementsMatch(t,
-		consumer.metrics,
-		[]metric{
-			newGaugeWithHost(rateAsGaugeDims, uint64(seconds(startTs+3)), 5, fallbackHostname),
-			newGaugeWithHost(rateAsGaugeDims, uint64(seconds(startTs+4)), 5, fallbackHostname),
-		},
-	)
-	assert.Empty(t, rmt.Languages)
-}
-
 func TestMapIntMonotonicNotReportFirstValueIfStartTSMatchTS(t *testing.T) {
 	ctx := context.Background()
 	tr := newTranslator(t, zap.NewNop())
@@ -939,7 +877,7 @@ func TestMapIntMonotonicReportDiffForFirstValue(t *testing.T) {
 	dims := &Dimensions{name: exampleDims.name, host: fallbackHostname}
 	startTs := int(getProcessStartTime()) + 1
 	// Add an entry to the cache about the timeseries, in this case we send the diff (9) rather than the first value (10).
-	tr.prevPts.MonotonicDiff(dims, uint64(seconds(startTs)), uint64(seconds(startTs+1)), 1)
+	tr.prevPts.putAndGetDiff(dims, uint64(seconds(startTs)), uint64(seconds(startTs+1)), 1, true, false)
 	rmt, _ := tr.MapMetrics(ctx, createTestIntCumulativeMonotonicMetrics(false, exampleDims), consumer, nil)
 	assert.ElementsMatch(t,
 		consumer.metrics,
@@ -959,7 +897,7 @@ func TestMapIntMonotonicReportRateForFirstValue(t *testing.T) {
 	dims := &Dimensions{name: rateAsGaugeDims.name, host: fallbackHostname}
 	startTs := int(getProcessStartTime()) + 1
 	// Add an entry to the cache about the timeseries, in this case we send the rate (10-1)/(startTs+2-startTs+1) rather than the first value (10).
-	tr.prevPts.MonotonicDiff(dims, uint64(seconds(startTs)), uint64(seconds(startTs+1)), 1)
+	tr.prevPts.putAndGetDiff(dims, uint64(seconds(startTs)), uint64(seconds(startTs+1)), 1, true, false)
 	rmt, _ := tr.MapMetrics(ctx, createTestIntCumulativeMonotonicMetrics(false, rateAsGaugeDims), consumer, nil)
 	assert.ElementsMatch(t,
 		consumer.metrics,
@@ -1536,56 +1474,6 @@ func TestMapDoubleMonotonicDifferentDimensions(t *testing.T) {
 	)
 }
 
-func buildMonotonicDoubleRebootPoints() (slice pmetric.NumberDataPointSlice) {
-	values := []float64{0, 30, 0, 20}
-	slice = pmetric.NewNumberDataPointSlice()
-	slice.EnsureCapacity(len(values))
-
-	for i, val := range values {
-		point := slice.AppendEmpty()
-		point.SetTimestamp(seconds(i * 10))
-		point.SetDoubleValue(val)
-	}
-
-	return
-}
-
-// This test checks that in the case of a reboot within a NumberDataPointSlice,
-// we cache the value but we do NOT compute first value for the value at reset.
-func TestMapDoubleMonotonicWithRebootWithinSlice(t *testing.T) {
-	t.Run("diff", func(t *testing.T) {
-		slice := buildMonotonicDoubleRebootPoints()
-
-		ctx := context.Background()
-		tr := newTranslator(t, zap.NewNop())
-		consumer := &mockTimeSeriesConsumer{}
-		tr.mapNumberMonotonicMetrics(ctx, consumer, exampleDims, slice)
-		assert.ElementsMatch(t,
-			consumer.metrics,
-			[]metric{
-				newCount(exampleDims, uint64(seconds(10)), 30),
-				newCount(exampleDims, uint64(seconds(30)), 20),
-			},
-		)
-	})
-
-	t.Run("rate", func(t *testing.T) {
-		slice := buildMonotonicDoubleRebootPoints()
-
-		ctx := context.Background()
-		tr := newTranslator(t, zap.NewNop())
-		consumer := &mockTimeSeriesConsumer{}
-		tr.mapNumberMonotonicMetrics(ctx, consumer, rateAsGaugeDims, slice)
-		assert.ElementsMatch(t,
-			consumer.metrics,
-			[]metric{
-				newGauge(rateAsGaugeDims, uint64(seconds(10)), 3),
-				newGauge(rateAsGaugeDims, uint64(seconds(30)), 2),
-			},
-		)
-	})
-}
-
 // This test checks that in the case of a reboot at the first point in a NumberDataPointSlice:
 // - diff: we cache the value AND compute first value
 // - rate: we cache the value AND don't compute first value
@@ -1604,7 +1492,7 @@ func TestMapDoubleMonotonicWithRebootBeginningOfSlice(t *testing.T) {
 		dpsInt.EnsureCapacity(3)
 
 		// dpInt1
-		tr.prevPts.MonotonicDiff(dims, uint64(seconds(startTs)), uint64(seconds(startTs+2)), 10.0)
+		tr.prevPts.putAndGetDiff(dims, uint64(seconds(startTs)), uint64(seconds(startTs+2)), 10.0, true, false)
 
 		dpInt2 := dpsInt.AppendEmpty()
 		dpInt2.SetStartTimestamp(seconds(startTs))
@@ -1645,7 +1533,7 @@ func TestMapDoubleMonotonicWithRebootBeginningOfSlice(t *testing.T) {
 		dpsInt.EnsureCapacity(3)
 
 		// dpInt1
-		tr.prevPts.MonotonicRate(dims, uint64(seconds(startTs)), uint64(seconds(startTs+2)), 10.0)
+		tr.prevPts.putAndGetDiff(dims, uint64(seconds(startTs)), uint64(seconds(startTs+2)), 10.0, true, true)
 
 		dpInt2 := dpsInt.AppendEmpty()
 		dpInt2.SetStartTimestamp(seconds(startTs))
@@ -1731,7 +1619,7 @@ func TestMapDoubleMonotonicDropPointPointWithinSlice(t *testing.T) {
 
 		dpInt := dpsInt.AppendEmpty()
 		dpInt.SetStartTimestamp(seconds(startTs))
-		// initial value, not computed for rate
+		// initial value, rate computed based on ts - startTs
 		dpInt.SetTimestamp(seconds(startTs + 2))
 		dpInt.SetDoubleValue(10)
 
@@ -1754,6 +1642,7 @@ func TestMapDoubleMonotonicDropPointPointWithinSlice(t *testing.T) {
 		assert.ElementsMatch(t,
 			consumer.metrics,
 			[]metric{
+				newGaugeWithHost(rateAsGaugeDims, uint64(seconds(startTs+2)), 5, fallbackHostname),
 				newGaugeWithHost(rateAsGaugeDims, uint64(seconds(startTs+4)), 15, fallbackHostname),
 			},
 		)
@@ -1815,19 +1704,19 @@ func TestMapDoubleMonotonicDropPointPointWithinSlice(t *testing.T) {
 
 		dpInt := dpsInt.AppendEmpty()
 		dpInt.SetStartTimestamp(seconds(startTs))
-		// initial value, not computed for rate
-		dpInt.SetTimestamp(seconds(startTs + 3))
+		// initial value, rate computed based on ts - startTs
+		dpInt.SetTimestamp(seconds(startTs + 2))
 		dpInt.SetIntValue(10)
 
 		dpInt2 := dpsInt.AppendEmpty()
 		dpInt2.SetStartTimestamp(seconds(startTs))
 		// lower timestamp than dpInt. This point should be ignored.
-		dpInt2.SetTimestamp(seconds(startTs + 2))
+		dpInt2.SetTimestamp(seconds(startTs + 1))
 		dpInt2.SetIntValue(25)
 
 		dpInt3 := dpsInt.AppendEmpty()
 		dpInt3.SetStartTimestamp(seconds(startTs))
-		dpInt3.SetTimestamp(seconds(startTs + 5))
+		dpInt3.SetTimestamp(seconds(startTs + 4))
 		dpInt3.SetIntValue(40)
 
 		ctx := context.Background()
@@ -1838,7 +1727,8 @@ func TestMapDoubleMonotonicDropPointPointWithinSlice(t *testing.T) {
 		assert.ElementsMatch(t,
 			consumer.metrics,
 			[]metric{
-				newGaugeWithHost(rateAsGaugeDims, uint64(seconds(startTs+5)), 15, fallbackHostname),
+				newGaugeWithHost(rateAsGaugeDims, uint64(seconds(startTs+2)), 5, fallbackHostname),
+				newGaugeWithHost(rateAsGaugeDims, uint64(seconds(startTs+4)), 15, fallbackHostname),
 			},
 		)
 		assert.Empty(t, rmt.Languages)
@@ -1862,7 +1752,7 @@ func TestMapDoubleMonotonicDropPointPointBeginningOfSlice(t *testing.T) {
 		dpsInt.EnsureCapacity(3)
 
 		// dpInt1
-		tr.prevPts.MonotonicDiff(dims, uint64(seconds(startTs)), uint64(seconds(startTs+2)), 10)
+		tr.prevPts.putAndGetDiff(dims, uint64(seconds(startTs)), uint64(seconds(startTs+2)), 10, true, false)
 
 		dpInt2 := dpsInt.AppendEmpty()
 		dpInt2.SetStartTimestamp(seconds(startTs))
@@ -1902,7 +1792,7 @@ func TestMapDoubleMonotonicDropPointPointBeginningOfSlice(t *testing.T) {
 		dpsInt.EnsureCapacity(3)
 
 		// dpInt1
-		tr.prevPts.MonotonicDiff(dims, uint64(seconds(startTs)), uint64(seconds(startTs+3)), 10)
+		tr.prevPts.putAndGetDiff(dims, uint64(seconds(startTs)), uint64(seconds(startTs+3)), 10, true, false)
 
 		dpInt2 := dpsInt.AppendEmpty()
 		dpInt2.SetStartTimestamp(seconds(startTs))
@@ -1945,22 +1835,6 @@ func TestMapDoubleMonotonicReportFirstValue(t *testing.T) {
 	)
 }
 
-func TestMapDoubleMonotonicRateDontReportFirstValue(t *testing.T) {
-	ctx := context.Background()
-	tr := newTranslator(t, zap.NewNop())
-	consumer := &mockFullConsumer{}
-	rmt, _ := tr.MapMetrics(ctx, createTestDoubleCumulativeMonotonicMetrics(false, rateAsGaugeDims), consumer, nil)
-	startTs := int(getProcessStartTime()) + 1
-	assert.ElementsMatch(t,
-		consumer.metrics,
-		[]metric{
-			newGaugeWithHost(rateAsGaugeDims, uint64(seconds(startTs+3)), 5, fallbackHostname),
-			newGaugeWithHost(rateAsGaugeDims, uint64(seconds(startTs+4)), 5, fallbackHostname),
-		},
-	)
-	assert.Empty(t, rmt.Languages)
-}
-
 func TestMapDoubleMonotonicNotReportFirstValueIfStartTSMatchTS(t *testing.T) {
 	ctx := context.Background()
 	tr := newTranslator(t, zap.NewNop())
@@ -1998,7 +1872,7 @@ func TestMapDoubleMonotonicReportDiffForFirstValue(t *testing.T) {
 	dims := &Dimensions{name: exampleDims.name, host: fallbackHostname}
 	startTs := int(getProcessStartTime()) + 1
 	// Add an entry to the cache about the timeseries, in this case we send the diff (9) rather than the first value (10).
-	tr.prevPts.MonotonicDiff(dims, uint64(seconds(startTs)), uint64(seconds(startTs+1)), 1)
+	tr.prevPts.putAndGetDiff(dims, uint64(seconds(startTs)), uint64(seconds(startTs+1)), 1, true, false)
 	tr.MapMetrics(ctx, createTestDoubleCumulativeMonotonicMetrics(false, exampleDims), consumer, nil)
 	assert.ElementsMatch(t,
 		consumer.metrics,
@@ -2017,7 +1891,7 @@ func TestMapDoubleMonotonicReportRateForFirstValue(t *testing.T) {
 	dims := &Dimensions{name: rateAsGaugeDims.name, host: fallbackHostname}
 	startTs := int(getProcessStartTime()) + 1
 	// Add an entry to the cache about the timeseries, in this case we send the rate (10-1)/(startTs+2-startTs+1) rather than the first value (10).
-	tr.prevPts.MonotonicDiff(dims, uint64(seconds(startTs)), uint64(seconds(startTs+1)), 1)
+	tr.prevPts.putAndGetDiff(dims, uint64(seconds(startTs)), uint64(seconds(startTs+1)), 1, true, false)
 	rmt, _ := tr.MapMetrics(ctx, createTestDoubleCumulativeMonotonicMetrics(false, rateAsGaugeDims), consumer, nil)
 	assert.ElementsMatch(t,
 		consumer.metrics,

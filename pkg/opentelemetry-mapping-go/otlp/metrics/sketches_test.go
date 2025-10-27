@@ -196,7 +196,7 @@ func TestHistogramSketches(t *testing.T) {
 }
 
 func TestExactHistogramStats(t *testing.T) {
-	tests := []struct {
+	type testCase struct {
 		name        string
 		getHist     func() pmetric.Metrics
 		sum         float64
@@ -204,19 +204,13 @@ func TestExactHistogramStats(t *testing.T) {
 		testExtrema bool
 		min         float64
 		max         float64
-	}{}
+	}
+
+	var tests []testCase
 
 	// Add tests for issue 6129: https://github.com/open-telemetry/opentelemetry-collector-contrib/issues/6129
 	tests = append(tests,
-		struct {
-			name        string
-			getHist     func() pmetric.Metrics
-			sum         float64
-			count       uint64
-			testExtrema bool
-			min         float64
-			max         float64
-		}{
+		testCase{
 			name: "Uniform distribution (delta)",
 			getHist: func() pmetric.Metrics {
 				md := pmetric.NewMetrics()
@@ -231,6 +225,8 @@ func TestExactHistogramStats(t *testing.T) {
 				m.Histogram().SetAggregationTemporality(pmetric.AggregationTemporalityDelta)
 				dp := m.Histogram().DataPoints()
 				p := dp.AppendEmpty()
+				p.SetStartTimestamp(secondsAfterStart(0))
+				p.SetTimestamp(secondsAfterStart(1))
 				p.ExplicitBounds().FromRaw([]float64{0, 5_000, 10_000, 15_000, 20_000})
 				// Points from contrib issue 6129: 0, 5_000, 10_000, 15_000, 20_000
 				p.BucketCounts().FromRaw([]uint64{0, 1, 1, 1, 1, 1})
@@ -246,16 +242,7 @@ func TestExactHistogramStats(t *testing.T) {
 			min:         0,
 			max:         20_000,
 		},
-
-		struct {
-			name        string
-			getHist     func() pmetric.Metrics
-			sum         float64
-			count       uint64
-			testExtrema bool
-			min         float64
-			max         float64
-		}{
+		testCase{
 			name: "Uniform distribution (cumulative)",
 			getHist: func() pmetric.Metrics {
 				md := pmetric.NewMetrics()
@@ -271,8 +258,11 @@ func TestExactHistogramStats(t *testing.T) {
 				dp := m.Histogram().DataPoints()
 				// Points from contrib issue 6129: 0, 5_000, 10_000, 15_000, 20_000 repeated.
 				bounds := []float64{0, 5_000, 10_000, 15_000, 20_000}
+				startTs := secondsAfterStart(0)
 				for i := 1; i <= 2; i++ {
 					p := dp.AppendEmpty()
+					p.SetStartTimestamp(startTs)
+					p.SetTimestamp(secondsAfterStart(i))
 					p.ExplicitBounds().FromRaw(bounds)
 					cnt := uint64(i)
 					p.BucketCounts().FromRaw([]uint64{0, cnt, cnt, cnt, cnt, cnt})
@@ -289,15 +279,7 @@ func TestExactHistogramStats(t *testing.T) {
 
 	// Add tests for issue 7065: https://github.com/open-telemetry/opentelemetry-collector-contrib/issues/7065
 	for pos, val := range []float64{500, 5_000, 50_000} {
-		tests = append(tests, struct {
-			name        string
-			getHist     func() pmetric.Metrics
-			sum         float64
-			count       uint64
-			testExtrema bool
-			min         float64
-			max         float64
-		}{
+		tests = append(tests, testCase{
 			name: fmt.Sprintf("Issue 7065 (%d, %f)", pos, val),
 			getHist: func() pmetric.Metrics {
 				md := pmetric.NewMetrics()
@@ -314,8 +296,11 @@ func TestExactHistogramStats(t *testing.T) {
 				bounds := []float64{1_000, 10_000, 100_000}
 
 				dp := m.Histogram().DataPoints()
+				startTs := secondsAfterStart(0)
 				for i := 0; i < 2; i++ {
 					p := dp.AppendEmpty()
+					p.SetStartTimestamp(startTs)
+					p.SetTimestamp(secondsAfterStart(i + 1))
 					p.ExplicitBounds().FromRaw(bounds)
 					counts := []uint64{0, 0, 0, 0}
 					counts[pos] = uint64(i)
@@ -334,14 +319,15 @@ func TestExactHistogramStats(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	tr := newTranslator(t, zap.NewNop())
 	for _, testInstance := range tests {
 		t.Run(testInstance.name, func(t *testing.T) {
+			tr := newTranslator(t, zap.NewNop())
 			md := testInstance.getHist()
 			consumer := &sketchConsumer{}
 			_, err := tr.MapMetrics(ctx, md, consumer, nil)
 			assert.NoError(t, err)
 			sk := consumer.sk
+			require.NotNil(t, sk, "no sketch emitted")
 
 			assert.Equal(t, testInstance.count, uint64(sk.Basic.Cnt), "counts differ")
 			assert.Equal(t, testInstance.sum, sk.Basic.Sum, "sums differ")

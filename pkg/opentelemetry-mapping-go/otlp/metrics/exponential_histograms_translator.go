@@ -100,7 +100,7 @@ func (t *Translator) mapExponentialHistogramMetrics(
 		countDims := pointDims.WithSuffix("count")
 		if delta {
 			histInfo.count = p.Count()
-		} else if dx, ok := t.prevPts.Diff(countDims, startTs, ts, float64(p.Count())); ok {
+		} else if dx, ok := t.diffMonotonic(countDims, startTs, ts, float64(p.Count())); ok {
 			histInfo.count = uint64(dx)
 		} else { // not ok
 			histInfo.ok = false
@@ -110,7 +110,7 @@ func (t *Translator) mapExponentialHistogramMetrics(
 		if !t.isSkippable(sumDims.name, p.Sum()) {
 			if delta {
 				histInfo.sum = p.Sum()
-			} else if dx, ok := t.prevPts.Diff(sumDims, startTs, ts, p.Sum()); ok {
+			} else if dx, ok := t.diffCumulative(sumDims, startTs, ts, p.Sum()); ok {
 				histInfo.sum = dx
 			} else { // not ok
 				histInfo.ok = false

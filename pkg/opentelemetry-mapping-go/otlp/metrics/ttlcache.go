@@ -37,100 +37,73 @@ func newTTLCache(sweepInterval int64, deltaTTL int64) *ttlCache {
 	return &ttlCache{cache: newKeyHashCache(cache)}
 }
 
-// Diff submits a new value for a given non-monotonic metric and returns the difference with the
-// last submitted value (ordered by timestamp). The diff value is only valid if `ok` is true.
-func (t *ttlCache) Diff(dimensions *Dimensions, startTs, ts uint64, val float64) (float64, bool) {
-	return t.putAndGetDiff(dimensions, startTs, ts, val)
-}
-
-// MonotonicDiff submits a new value for a given monotonic metric and returns the difference with the
-// last submitted value (ordered by timestamp). It also returns whether this is a first point and
-// whether it should be dropped.
-func (t *ttlCache) MonotonicDiff(dimensions *Dimensions, startTs, ts uint64, val float64) (float64, bool, bool) {
-	return t.putAndGetMonotonic(dimensions, startTs, ts, val, false)
-}
-
-// MonotonicRate submits a new value for a given monotonic metric and returns the rate per second since
-// the last submitted value (ordered by timestamp). It also returns whether this is a first point and
-// whether it should be dropped.
-func (t *ttlCache) MonotonicRate(dimensions *Dimensions, startTs, ts uint64, val float64) (float64, bool, bool) {
-	return t.putAndGetMonotonic(dimensions, startTs, ts, val, true)
-}
-
-// isNotFirstPoint determines if this is NOT the first point on a cumulative series:
+// isFirstPoint determines if this is the first point on a cumulative series:
 // https://github.com/open-telemetry/opentelemetry-specification/blob/v1.19.0/specification/metrics/data-model.md#resets-and-gaps
-func isNotFirstPoint(startTs, ts, oldStartTs uint64) (isNotFirst bool) {
+func isFirstPoint(startTs, ts, oldStartTs uint64) bool {
 	if startTs == 0 {
 		// We don't know the start time, assume the sequence has not been restarted.
-		isNotFirst = true
+		return false
 	} else if startTs != ts && startTs == oldStartTs {
 		// Since startTs != 0 we know the start time, thus we apply the following rules from the spec:
 		//  - "When StartTimeUnixNano equals TimeUnixNano, a new unbroken sequence of observations begins with a reset at an unknown start time."
 		//  - "[for cumulative series] the StartTimeUnixNano of each point matches the StartTimeUnixNano of the initial observation."
-		isNotFirst = true
+		return false
 	}
-
-	return
+	return true
 }
 
-// putAndGetMonotonic submits a new value for a given metric and returns:
+// putAndGetDiff submits a new value for a given cunulative metric and returns:
 // - the difference with the last submitted value (ordered by timestamp)
 // - whether the submitted point is a first point (either first point ever, or first point after reset)
 // - whether the point needs to be dropped.
-func (t *ttlCache) putAndGetMonotonic(
-	dimensions *Dimensions,
-	startTs, ts uint64,
-	val float64,
-	rate bool,
-) (dx float64, firstPoint bool, dropPoint bool) {
-	// assume it's first point before cache check.
-	firstPoint = true
-
-	key := t.cache.computeKey(dimensions.String())
-	if c, found := t.cache.get(key); found {
-		cnt := c.(numberCounter)
-		if cnt.ts >= ts {
-			// We were given a point with a timestamp older or equal to the one in the cache. This point
-			// should be dropped. We keep the current point in cache.
-			return 0, false, true
-		}
-		dx = val - cnt.value
-		if rate {
-			dx = dx / time.Duration(ts-cnt.ts).Seconds()
-		}
-		// If !isNotFirstPoint or dx < 0, there has been a reset. We cache the new value, and firstPoint is true.
-		firstPoint = !isNotFirstPoint(startTs, ts, cnt.startTs) || dx < 0
-	}
-
-	t.cache.set(
-		key,
-		numberCounter{
-			startTs: startTs,
-			ts:      ts,
-			value:   val,
-		},
-		gocache.DefaultExpiration,
-	)
-	return
-}
-
-// putAndGetDiff submits a new value for a given metric and returns the difference with the
-// last submitted value (ordered by timestamp). The diff value is only valid if `ok` is true.
 func (t *ttlCache) putAndGetDiff(
 	dimensions *Dimensions,
 	startTs, ts uint64,
 	val float64,
-) (dx float64, ok bool) {
+	monotonic bool,
+	rate bool,
+) (dx float64, firstPoint bool, dropPoint bool) {
+	if startTs > ts {
+		// Invalid negative-duration point: drop it and keep the current point
+		return 0, false, true
+	}
+
 	key := t.cache.computeKey(dimensions.String())
+
+	oldTs := startTs
+	oldVal := 0.0
 	if c, found := t.cache.get(key); found {
 		cnt := c.(numberCounter)
-		if cnt.ts > ts {
-			// We were given a point older than the one in memory so we drop it
-			// We keep the existing point in memory since it is the most recent
-			return 0, false
+		// Late point, or one from an overlapping metric series: drop it and keep the current point
+		if ts <= cnt.ts || startTs < cnt.startTs {
+			return 0, false, true
 		}
-		dx = val - cnt.value
-		ok = isNotFirstPoint(startTs, ts, cnt.startTs)
+		firstPoint = isFirstPoint(startTs, ts, cnt.startTs)
+		if !firstPoint && monotonic && val < cnt.value {
+			// Break in monotonicity within a series, assume reset
+			firstPoint = true
+			if rate {
+				// Assume timestamp diff is bad, don't emit delta
+				dropPoint = true
+			}
+		}
+		if !firstPoint {
+			oldTs = cnt.ts
+			oldVal = cnt.value
+		}
+	} else {
+		firstPoint = true
+	}
+
+	if ts == oldTs {
+		// Zero-duration point which resumes a series with an unknown start time: don't emit delta, but set new current point
+		dropPoint = true
+		dx = 0
+	} else {
+		dx = val - oldVal
+		if rate {
+			dx = dx / time.Duration(ts-oldTs).Seconds()
+		}
 	}
 
 	t.cache.set(
@@ -169,7 +142,7 @@ func (t *ttlCache) putAndCheckExtrema(
 			return false
 		}
 
-		isNotFirst := isNotFirstPoint(startTs, ts, cnt.startTs)
+		isNotFirst := !isFirstPoint(startTs, ts, cnt.startTs)
 		if min {
 			// We assume the minimum comes from the last time window if either of the following is true:
 			// - the point is NOT the first in the timeseries AND is lower than the previous one

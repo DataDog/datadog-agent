@@ -240,6 +240,35 @@ func (t *Translator) shouldConsumeInitialValue(startTs, ts uint64) bool {
 	return false
 }
 
+func (t *Translator) diff(
+	dimensions *Dimensions,
+	startTs, ts uint64,
+	val float64,
+	monotonic bool,
+	rate bool,
+) (dx float64, ok bool) {
+	dx, firstPoint, dropPoint := t.prevPts.putAndGetDiff(dimensions, startTs, ts, val, monotonic, rate)
+	if dropPoint {
+		t.logger.Debug("Dropping point: timestamp is older or equal to timestamp of previous point received", zap.String(metricName, dimensions.name))
+		return 0, false
+	}
+	if !firstPoint || t.shouldConsumeInitialValue(startTs, ts) {
+		return dx, true
+	} else {
+		return 0, false
+	}
+}
+
+func (t *Translator) diffCumulative(dimensions *Dimensions, startTs, ts uint64, val float64) (dx float64, ok bool) {
+	return t.diff(dimensions, startTs, ts, val, false, false)
+}
+func (t *Translator) diffMonotonic(dimensions *Dimensions, startTs, ts uint64, val float64) (dx float64, ok bool) {
+	return t.diff(dimensions, startTs, ts, val, true, false)
+}
+func (t *Translator) diffMonotonicRate(dimensions *Dimensions, startTs, ts uint64, val float64) (dx float64, ok bool) {
+	return t.diff(dimensions, startTs, ts, val, true, true)
+}
+
 // mapNumberMonotonicMetrics maps monotonic datapoints into Datadog metrics
 func (t *Translator) mapNumberMonotonicMetrics(
 	ctx context.Context,
@@ -271,27 +300,14 @@ func (t *Translator) mapNumberMonotonicMetrics(
 		}
 
 		if _, ok := rateAsGaugeMetrics[pointDims.name]; ok {
-			dx, isFirstPoint, shouldDropPoint := t.prevPts.MonotonicRate(pointDims, startTs, ts, val)
-			if shouldDropPoint {
-				t.logger.Debug("Dropping point: timestamp is older or equal to timestamp of previous point received", zap.String(metricName, pointDims.name))
-			} else if !isFirstPoint {
+			if dx, ok := t.diffMonotonicRate(pointDims, startTs, ts, val); ok {
 				consumer.ConsumeTimeSeries(ctx, pointDims, Gauge, ts, 0, dx)
 			}
 			continue
 		}
 
-		dx, isFirstPoint, shouldDropPoint := t.prevPts.MonotonicDiff(pointDims, startTs, ts, val)
-		if shouldDropPoint {
-			t.logger.Debug("Dropping point: timestamp is older or equal to timestamp of previous point received", zap.String(metricName, pointDims.name))
-			continue
-		}
-
-		if !isFirstPoint {
+		if dx, ok := t.diffMonotonic(pointDims, startTs, ts, val); ok {
 			consumer.ConsumeTimeSeries(ctx, pointDims, Count, ts, 0, dx)
-		} else if i == 0 && t.shouldConsumeInitialValue(startTs, ts) {
-			// We only compute the first point in the timeseries if it is the first value in the datapoint slice.
-			// Todo: Investigate why we don't compute first val if i > 0 and add reason as comment.
-			consumer.ConsumeTimeSeries(ctx, pointDims, Count, ts, 0, val)
 		}
 	}
 }
@@ -387,7 +403,7 @@ func (t *Translator) getSketchBuckets(
 			if err != nil {
 				return err
 			}
-		} else if dx, ok := t.prevPts.Diff(bucketDims, startTs, ts, float64(count)); ok {
+		} else if dx, ok := t.diffMonotonic(bucketDims, startTs, ts, float64(count)); ok {
 			nonZeroBucket = dx > 0
 			err := as.InsertInterpolate(lowerBound, upperBound, uint(dx))
 			if err != nil {
@@ -471,7 +487,7 @@ func (t *Translator) getLegacyBuckets(
 		count := float64(p.BucketCounts().At(idx))
 		if delta {
 			consumer.ConsumeTimeSeries(ctx, bucketDims, Count, ts, 0, count)
-		} else if dx, ok := t.prevPts.Diff(bucketDims, startTs, ts, count); ok {
+		} else if dx, ok := t.diffMonotonic(bucketDims, startTs, ts, count); ok {
 			consumer.ConsumeTimeSeries(ctx, bucketDims, Count, ts, 0, dx)
 		}
 	}
@@ -513,7 +529,7 @@ func (t *Translator) mapHistogramMetrics(
 		countDims := pointDims.WithSuffix("count")
 		if delta {
 			histInfo.count = p.Count()
-		} else if dx, ok := t.prevPts.Diff(countDims, startTs, ts, float64(p.Count())); ok {
+		} else if dx, ok := t.diffMonotonic(countDims, startTs, ts, float64(p.Count())); ok {
 			histInfo.count = uint64(dx)
 		} else { // not ok
 			histInfo.ok = false
@@ -523,7 +539,7 @@ func (t *Translator) mapHistogramMetrics(
 		if !t.isSkippable(sumDims.name, p.Sum()) {
 			if delta {
 				histInfo.sum = p.Sum()
-			} else if dx, ok := t.prevPts.Diff(sumDims, startTs, ts, p.Sum()); ok {
+			} else if dx, ok := t.diffCumulative(sumDims, startTs, ts, p.Sum()); ok {
 				histInfo.sum = dx
 			} else { // not ok
 				histInfo.ok = false
@@ -627,21 +643,15 @@ func (t *Translator) mapSummaryMetrics(
 		{
 			countDims := pointDims.WithSuffix("count")
 			val := float64(p.Count())
-			dx, isFirstPoint, shouldDropPoint := t.prevPts.MonotonicDiff(countDims, startTs, ts, val)
-			if !shouldDropPoint && !t.isSkippable(countDims.name, dx) {
-				if !isFirstPoint {
-					consumer.ConsumeTimeSeries(ctx, countDims, Count, ts, 0, dx)
-				} else if i == 0 && t.shouldConsumeInitialValue(startTs, ts) {
-					// We only compute the first point in the timeseries if it is the first value in the datapoint slice.
-					consumer.ConsumeTimeSeries(ctx, countDims, Count, ts, 0, val)
-				}
+			if dx, ok := t.diffMonotonic(countDims, startTs, ts, val); ok {
+				consumer.ConsumeTimeSeries(ctx, countDims, Count, ts, 0, dx)
 			}
 		}
 
 		{
 			sumDims := pointDims.WithSuffix("sum")
 			if !t.isSkippable(sumDims.name, p.Sum()) {
-				if dx, ok := t.prevPts.Diff(sumDims, startTs, ts, p.Sum()); ok {
+				if dx, ok := t.diffCumulative(sumDims, startTs, ts, p.Sum()); ok {
 					consumer.ConsumeTimeSeries(ctx, sumDims, Count, ts, 0, dx)
 				}
 			}
