@@ -114,53 +114,9 @@ register_toolchains(
 # Python dependencies
 # =========================================
 
-"""
-# Use the toolchain from the container, as if it was hermetic.
-# from https://rules-python.readthedocs.io/en/latest/toolchains.html
-
-local_runtime_repo = use_repo_rule(
-    "@rules_python//python/local_toolchains:repos.bzl",
-    "local_runtime_repo",
-)
-
-local_runtime_toolchains_repo = use_repo_rule(
-    "@rules_python//python/local_toolchains:repos.bzl",
-    "local_runtime_toolchains_repo",
-)
-
-# Step 1: Define the Python runtime
-local_runtime_repo(
-    name = "local_python3",
-    dev_dependency = True,
-    interpreter_path = "/usr/bin/python3",
-    on_failure = "fail",
-)
-
-# Step 2: Create toolchains for the runtimes
-local_runtime_toolchains_repo(
-    name = "local_python_toolchains",
-    dev_dependency = True,
-    runtimes = ["local_python3"],
-)
-
-# Step 3: Register the toolchains
-register_toolchains(
-    "@local_python_toolchains//:all",
-    dev_dependency = True,
-)
-"""
-
-# From
 python = use_extension("@rules_python//python/extensions:python.bzl", "python")
-python.toolchain(
-    # https://github.com/bazelbuild/rules_python/pull/713#issuecomment-1885628496
-    # Running as root is not allowed by rules_python by default to enforce that the Python installation
-    # be read-only; the result of allowing root is that we may get cache misses on the toolchain.
-    # The Omnibus build is run by the root user, and for now it's inconvenient to work around this
-    # in any other way than enabling this flag.
-    ignore_root_user_error = True,
-    python_version = "3.12",
-)
+python.defaults(python_version = "3.12")
+python.toolchain(python_version = "3.12")
 
 #########################
 ## Native dependencies ##
