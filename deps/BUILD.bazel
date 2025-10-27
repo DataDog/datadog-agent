@@ -23,6 +23,7 @@ filegroup(
             "@pcre2",
             "@popt",
             "@zstd",
+            "@gcrypt",
         ],
         "//conditions:default": [],
     }),
