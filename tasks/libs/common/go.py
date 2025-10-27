@@ -133,6 +133,7 @@ class CustomReader(io.StringIO):
     This is a workaround to increase invoke performance at reading from stdin
     See https://github.com/pyinvoke/invoke/issues/819
     """
+
     def __init__(self, data: str):
         super().__init__(data)
 
