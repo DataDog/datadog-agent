@@ -245,7 +245,7 @@ func (s *KafkaProtocolParsingSuite) testKafkaProtocolParsing(t *testing.T, tls b
 				_, err = req.RequestWith(ctxTimeout, client.Client)
 				require.NoError(t, err)
 
-				getAndValidateKafkaStats(t, monitor, fixCount(2), topicName, kafkaParsingValidation{
+				getAndValidateKafkaStats(t, t, monitor, fixCount(2), topicName, kafkaParsingValidation{
 					expectedNumberOfProduceRequests: fixCount(1),
 					expectedNumberOfFetchRequests:   fixCount(1),
 					expectedAPIVersionProduce:       expectedAPIVersionProduce,
@@ -283,7 +283,7 @@ func (s *KafkaProtocolParsingSuite) testKafkaProtocolParsing(t *testing.T, tls b
 				defer cancel()
 				require.NoError(t, client.Client.ProduceSync(ctxTimeout, record).FirstErr(), "record had a produce error while synchronously producing")
 
-				getAndValidateKafkaStats(t, monitor, fixCount(1), topicName, kafkaParsingValidation{
+				getAndValidateKafkaStats(t, t, monitor, fixCount(1), topicName, kafkaParsingValidation{
 					expectedNumberOfProduceRequests: fixCount(1),
 					expectedNumberOfFetchRequests:   0,
 					expectedAPIVersionProduce:       expectedAPIVersionProduce,
@@ -324,7 +324,7 @@ func (s *KafkaProtocolParsingSuite) testKafkaProtocolParsing(t *testing.T, tls b
 					cancel()
 				}
 
-				getAndValidateKafkaStats(t, monitor, fixCount(1), topicName, kafkaParsingValidation{
+				getAndValidateKafkaStats(t, t, monitor, fixCount(1), topicName, kafkaParsingValidation{
 					expectedNumberOfProduceRequests: fixCount(numberOfIterations),
 					expectedNumberOfFetchRequests:   0,
 					expectedAPIVersionProduce:       expectedAPIVersionProduce,
@@ -374,7 +374,7 @@ func (s *KafkaProtocolParsingSuite) testKafkaProtocolParsing(t *testing.T, tls b
 				_, err = req.RequestWith(ctxTimeout, client.Client)
 				require.NoError(t, err)
 
-				getAndValidateKafkaStats(t, monitor, fixCount(2), topicName, kafkaParsingValidation{
+				getAndValidateKafkaStats(t, t, monitor, fixCount(2), topicName, kafkaParsingValidation{
 					expectedNumberOfProduceRequests: fixCount(2),
 					expectedNumberOfFetchRequests:   fixCount(2),
 					expectedAPIVersionProduce:       expectedAPIVersionProduce,
@@ -439,7 +439,7 @@ func (s *KafkaProtocolParsingSuite) testKafkaProtocolParsing(t *testing.T, tls b
 				_, err = req.RequestWith(ctxTimeout, client.Client)
 				require.NoError(t, err)
 
-				getAndValidateKafkaStats(t, monitor, fixCount(2), topicName, kafkaParsingValidation{
+				getAndValidateKafkaStats(t, t, monitor, fixCount(2), topicName, kafkaParsingValidation{
 					expectedNumberOfProduceRequests: fixCount(5 + 2*2),
 					expectedNumberOfFetchRequests:   fixCount(5 + 2*2),
 					expectedAPIVersionProduce:       expectedAPIVersionProduce,
@@ -1173,7 +1173,7 @@ func testKafkaFetchRaw(t *testing.T, tls bool, apiVersion int) {
 			if tt.produceFetchValidationWithErrorCode != nil {
 				getAndValidateKafkaStatsWithErrorCodes(t, monitor, 1, tt.topic, *tt.produceFetchValidationWithErrorCode)
 			} else {
-				getAndValidateKafkaStats(t, monitor, 1, tt.topic, kafkaParsingValidation{
+				getAndValidateKafkaStats(t, t, monitor, 1, tt.topic, kafkaParsingValidation{
 					expectedNumberOfFetchRequests: tt.numFetchedRecords,
 					expectedAPIVersionFetch:       apiVersion,
 					tlsEnabled:                    tls,
@@ -1204,6 +1204,7 @@ func testKafkaFetchRaw(t *testing.T, tls bool, apiVersion int) {
 
 		for groupIdx, group := range groups {
 			name := fmt.Sprintf("split/%s/group%d", tt.name, groupIdx)
+			parentT := t
 			t.Run(name, func(t *testing.T) {
 				t.Cleanup(func() {
 					cleanProtocolMaps(t, "kafka", monitor.ebpfProgram.Manager.Manager)
@@ -1222,7 +1223,7 @@ func testKafkaFetchRaw(t *testing.T, tls bool, apiVersion int) {
 					tmp.expectedNumberOfFetchRequests = tempFetchValidation
 					getAndValidateKafkaStatsWithErrorCodes(t, monitor, 1, tt.topic, tmp)
 				} else {
-					getAndValidateKafkaStats(t, monitor, 1, tt.topic, kafkaParsingValidation{
+					getAndValidateKafkaStats(parentT, t, monitor, 1, tt.topic, kafkaParsingValidation{
 						expectedNumberOfFetchRequests: tt.numFetchedRecords * group.numSets,
 						expectedAPIVersionFetch:       apiVersion,
 						tlsEnabled:                    tls,
@@ -1381,7 +1382,7 @@ func testKafkaProduceRaw(t *testing.T, tls bool, apiVersion int) {
 
 			can.runClient(t, msgs)
 
-			getAndValidateKafkaStats(t, monitor, 1, tt.topic, kafkaParsingValidation{
+			getAndValidateKafkaStats(t, t, monitor, 1, tt.topic, kafkaParsingValidation{
 				expectedNumberOfProduceRequests: tt.numProducedRecords,
 				expectedAPIVersionProduce:       apiVersion,
 				tlsEnabled:                      tls,
@@ -1403,7 +1404,7 @@ func testKafkaProduceRaw(t *testing.T, tls bool, apiVersion int) {
 
 				can.runClient(t, group.msgs)
 
-				getAndValidateKafkaStats(t, monitor, 1, tt.topic, kafkaParsingValidation{
+				getAndValidateKafkaStats(t, t, monitor, 1, tt.topic, kafkaParsingValidation{
 					expectedNumberOfProduceRequests: tt.numProducedRecords * group.numSets,
 					expectedAPIVersionProduce:       apiVersion,
 					tlsEnabled:                      tls,
@@ -1537,7 +1538,7 @@ func (i *PrintableInt) Add(other int) {
 	*i = PrintableInt(other + i.Load())
 }
 
-func getAndValidateKafkaStats(t *testing.T, monitor *Monitor, expectedStatsCount int, topicName string, validation kafkaParsingValidation, errorCode int32) map[kafka.Key]*kafka.RequestStats {
+func getAndValidateKafkaStats(parentT *testing.T, t *testing.T, monitor *Monitor, expectedStatsCount int, topicName string, validation kafkaParsingValidation, errorCode int32) map[kafka.Key]*kafka.RequestStats {
 	kafkaStats := make(map[kafka.Key]*kafka.RequestStats)
 	assert.EventuallyWithT(t, func(collect *assert.CollectT) {
 		protocolStats, cleaners := monitor.GetProtocolStats()
@@ -1560,11 +1561,11 @@ func getAndValidateKafkaStats(t *testing.T, monitor *Monitor, expectedStatsCount
 			validateProduceFetchCount(collect, kafkaStats, topicName, validation, errorCode)
 		}
 	}, time.Second*5, time.Millisecond*10)
-	t.Logf("test name: %q; >>>>>>>>>>>>", t.Name())
+	parentT.Logf("test name: %q; >>>>>>>>>>>>", t.Name())
 	for key, value := range kafkaStats {
-		t.Logf("test name: %q; kafka key: %s; value: %v", t.Name(), key.String(), value)
+		parentT.Logf("test name: %q; kafka key: %s; value: %v", t.Name(), key.String(), value)
 	}
-	t.Logf("test name: %q; <<<<<<<<<<<<", t.Name())
+	parentT.Logf("test name: %q; <<<<<<<<<<<<", t.Name())
 	if t.Failed() {
 		ebpftest.DumpMapsTestHelper(t, monitor.ebpfProgram.Manager.Manager.DumpMaps, "kafka_in_flight", "kafka_batches", "kafka_response", "kafka_telemetry")
 		t.FailNow()
