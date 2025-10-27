@@ -74,6 +74,13 @@ func (a *Agent) MustInstall(options ...InstallOption) {
 }
 
 func (a *Agent) installLinuxInstallScript(params *installParams) error {
+	// bugfix for https://major.io/p/systemd-in-fedora-22-failed-to-restart-service-access-denied/
+	if a.host.RemoteHost.OSFlavor == e2eos.CentOS && a.host.RemoteHost.OSVersion == e2eos.CentOS7.Version {
+		_, err := a.host.RemoteHost.Execute("sudo systemctl daemon-reexec")
+		if err != nil {
+			return fmt.Errorf("error reexecuting systemd: %w", err)
+		}
+	}
 	env := map[string]string{
 		"DD_API_KEY": apiKey(),
 		"DD_SITE":    "datadoghq.com",
