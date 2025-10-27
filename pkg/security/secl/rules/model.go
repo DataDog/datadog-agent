@@ -232,7 +232,7 @@ type SetDefinition struct {
 	Size                    int                    `yaml:"size,omitempty" json:"size,omitempty"`
 	TTL                     *HumanReadableDuration `yaml:"ttl,omitempty" json:"ttl,omitempty"`
 	Private                 bool                   `yaml:"private,omitempty" json:"private,omitempty"`
-	Inherited               bool                   `yaml:"inherited,omitempty" json:"inherited"`
+	Inherited               bool                   `yaml:"inherited,omitempty" json:"inherited,omitempty"`
 }
 
 // PreCheck returns an error if the set action is invalid
