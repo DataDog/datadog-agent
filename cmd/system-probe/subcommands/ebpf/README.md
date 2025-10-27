@@ -115,22 +115,6 @@ diff <(jq -S . usm.json) <(jq -S . network.json)
 - Works with all eBPF map types (Hash, Array, PerCPU, etc.)
 
 ### Platform Support
-- Linux only (build tag: `linux`)
+- Linux only (build tag: `linux_bpf`)
 - Requires kernel support for BPF syscalls
 - No special permissions beyond CAP_BPF or CAP_SYS_ADMIN
-
-### Comparison with bpftool
-
-These commands provide similar functionality to `bpftool`:
-
-| Operation | bpftool | system-probe |
-|-----------|---------|--------------|
-| List maps | `bpftool map list` | `system-probe ebpf map list` |
-| Dump by ID | `bpftool map dump id 123` | `system-probe ebpf map dump id 123` |
-| Dump by name | `bpftool map dump name foo` | `system-probe ebpf map dump name foo` |
-| JSON output | `bpftool -j map dump` | `system-probe ebpf map dump` (always JSON) |
-
-Key differences:
-- system-probe dump always outputs JSON (no text format option)
-- system-probe is integrated with system-probe debugging workflows
-- bpftool is more feature-rich (can modify maps, load programs, etc.)
