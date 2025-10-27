@@ -28,6 +28,11 @@ func TestFormatKeyValueTag(t *testing.T) {
 	}{
 		{"a.test.tag", "a.test.value", "a.test.tag:a.test.value"},
 		{"a.test.tag", "", "a.test.tag:n/a"},
+		{"", "value", ":value"},
+		{"", "", ":n/a"},
+		{"key", "value with spaces", "key:value with spaces"},
+		{"key", "value:with:colons", "key:value:with:colons"},
+		{"key", "value\nwith\nnewlines", "key:value\nwith\nnewlines"},
 	}
 
 	for _, testInstance := range tests {

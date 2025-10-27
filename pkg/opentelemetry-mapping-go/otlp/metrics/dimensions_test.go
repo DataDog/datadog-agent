@@ -122,3 +122,47 @@ func TestAllFieldsAreCopied(t *testing.T) {
 	assert.ElementsMatch(t, []string{"tagOne:a", "tagTwo:b", "tagThree:c", "tagFour:d"}, newDims.Tags())
 	assert.Equal(t, "origin_id", newDims.OriginID())
 }
+
+func TestAddTagsEmptyTags(t *testing.T) {
+	// Test AddTags with empty tags slice
+	dims := &Dimensions{
+		name: "test.metric",
+		tags: []string{"existing:tag"},
+	}
+
+	// Test adding no tags
+	newDims := dims.AddTags()
+	assert.Equal(t, []string{"existing:tag"}, newDims.Tags())
+	assert.NotSame(t, dims, newDims) // Should be a new instance
+
+	// Test adding to empty tags
+	emptyDims := &Dimensions{name: "test.metric"}
+	newEmptyDims := emptyDims.AddTags("new:tag")
+	assert.Equal(t, []string{"new:tag"}, newEmptyDims.Tags())
+}
+
+func TestStringMethodEdgeCases(t *testing.T) {
+	// Test with empty fields - should return empty string
+	dims := &Dimensions{}
+	result := dims.String()
+	assert.Equal(t, "", result)
+
+	// Test with only name
+	dims = &Dimensions{name: "test.metric"}
+	result = dims.String()
+	assert.Contains(t, result, "name:test.metric")
+
+	// Test with all fields
+	dims = &Dimensions{
+		name:     "test.metric",
+		host:     "test.host",
+		originID: "test.origin",
+		tags:     []string{"tag1:val1", "tag2:val2"},
+	}
+	result = dims.String()
+	assert.Contains(t, result, "name:test.metric")
+	assert.Contains(t, result, "host:test.host")
+	assert.Contains(t, result, "originID:test.origin")
+	assert.Contains(t, result, "tag1:val1")
+	assert.Contains(t, result, "tag2:val2")
+}

@@ -90,8 +90,22 @@ func getTags(labels pcommon.Map) []string {
 
 // AddTags to metrics dimensions.
 func (d *Dimensions) AddTags(tags ...string) *Dimensions {
-	// defensively copy the tags
-	newTags := make([]string, 0, len(tags)+len(d.tags))
+	// Pre-allocate with exact capacity to avoid slice growth
+	totalLen := len(tags) + len(d.tags)
+	if totalLen == 0 {
+		// Return a copy with empty tags slice to avoid sharing
+		return &Dimensions{
+			name:                d.name,
+			tags:                make([]string, 0),
+			host:                d.host,
+			originID:            d.originID,
+			originProduct:       d.originProduct,
+			originSubProduct:    d.originSubProduct,
+			originProductDetail: d.originProductDetail,
+		}
+	}
+
+	newTags := make([]string, 0, totalLen)
 	newTags = append(newTags, tags...)
 	newTags = append(newTags, d.tags...)
 	return &Dimensions{
@@ -134,15 +148,46 @@ func concatDimensionValue(metricKeyBuilder *strings.Builder, value string) {
 // String maps dimensions to a string to use as an identifier.
 // The tags order does not matter.
 func (d *Dimensions) String() string {
-	var metricKeyBuilder strings.Builder
+	// Pre-allocate slice with known capacity to avoid growth
+	totalDims := len(d.tags) + 3 // +3 for name, host, originID
+	dimensions := make([]string, 0, totalDims)
 
-	dimensions := make([]string, len(d.tags))
-	copy(dimensions, d.tags)
+	// Add existing tags
+	dimensions = append(dimensions, d.tags...)
 
-	dimensions = append(dimensions, fmt.Sprintf("name:%s", d.name))
-	dimensions = append(dimensions, fmt.Sprintf("host:%s", d.host))
-	dimensions = append(dimensions, fmt.Sprintf("originID:%s", d.originID))
+	// Add name dimension using efficient string building
+	if d.name != "" {
+		nameDim := make([]byte, 0, 5+len(d.name)) // "name:" + name
+		nameDim = append(nameDim, "name:"...)
+		nameDim = append(nameDim, d.name...)
+		dimensions = append(dimensions, string(nameDim))
+	}
+
+	// Add host dimension using efficient string building
+	if d.host != "" {
+		hostDim := make([]byte, 0, 5+len(d.host)) // "host:" + host
+		hostDim = append(hostDim, "host:"...)
+		hostDim = append(hostDim, d.host...)
+		dimensions = append(dimensions, string(hostDim))
+	}
+
+	// Add originID dimension using efficient string building
+	if d.originID != "" {
+		originDim := make([]byte, 0, 8+len(d.originID)) // "originID:" + originID
+		originDim = append(originDim, "originID:"...)
+		originDim = append(originDim, d.originID...)
+		dimensions = append(dimensions, string(originDim))
+	}
+
 	sort.Strings(dimensions)
+
+	// Pre-allocate builder with estimated capacity
+	var metricKeyBuilder strings.Builder
+	estimatedLen := 0
+	for _, dim := range dimensions {
+		estimatedLen += len(dim) + 1 // +1 for separator
+	}
+	metricKeyBuilder.Grow(estimatedLen)
 
 	for _, dim := range dimensions {
 		concatDimensionValue(&metricKeyBuilder, dim)
