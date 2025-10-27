@@ -46,7 +46,10 @@ void close_shared_library(void *lib_handle, const char **error) {
     // close the library and check for errors (error_code == 0)
     int error_code = FreeLibrary(lib_handle);
     if (!error_code) {
-        *error = strdup("fail to close the library");
+        char error_msg[256];
+        int error_code = GetLastError();
+        snprintf(error_msg, sizeof(error_msg), "unable to close shared library, error code: %d", error_code);
+		*error = strdup(error_msg);
     }
 }
 
