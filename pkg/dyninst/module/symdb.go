@@ -38,9 +38,11 @@ type symdbManager struct {
 		currentDone   chan struct{} // closed when current upload finishes
 		stopped       bool
 
-		// trackedProcesses stores processes for which an upload was requested.
+		// trackedProcesses stores processes for which an upload was requested
+		// (and perhaps completed).
+		//
 		// Repeated requests for the same process (through queueProcess()) are
-		// no-ops. However, untrackProcess() can be called to remove a process
+		// no-ops. However, removeUpload() can be called to remove a process
 		// from this map, making future queueProcess() calls for it actually
 		// upload data again.
 		trackedProcesses map[processKey]struct{}
@@ -194,8 +196,8 @@ func (m *symdbManager) queueUpload(runtimeID procRuntimeID, executablePath strin
 
 // removeUpload removes the queued upload for the given process ID, if any. If
 // the upload is currently being processed, it will be cancelled and the call
-// will block until the upload stops. If no upload for the respective process is
-// in progress or queued, the call is a no-op.
+// will block until the upload stops. Future calls to queueUpload() for the
+// respective process will result in a new upload being queued.
 func (m *symdbManager) removeUpload(runtimeID procRuntimeID) {
 	key := processKey{
 		pid:     runtimeID.ID,
