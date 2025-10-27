@@ -27,6 +27,10 @@ type SysProbeClient interface {
 	FetchDBConfig(ctx context.Context, pid int32) (*dbconfig.DBResource, error)
 }
 
+var _ SysProbeClient = (*RemoteSysProbeClient)(nil)
+var _ SysProbeClient = (*LocalSysProbeClient)(nil)
+
+// RemoteSysProbeClient is a client that fetches database configuration from a remote system probe instance
 type RemoteSysProbeClient struct {
 	client *http.Client
 }
@@ -89,4 +93,14 @@ func (c *RemoteSysProbeClient) FetchDBConfig(ctx context.Context, pid int32) (*d
 	return resource, nil
 }
 
-var _ SysProbeClient = (*RemoteSysProbeClient)(nil)
+// LocalSysProbeClient is a client that fetches database configuration locally without going through system probe
+type LocalSysProbeClient struct{}
+
+// FetchDBConfig fetches database configuration for the given process ID locally
+func (c *LocalSysProbeClient) FetchDBConfig(ctx context.Context, pid int32) (*dbconfig.DBResource, error) {
+	res, ok := dbconfig.LoadDBResourceFromPID(ctx, pid)
+	if !ok {
+		return nil, fmt.Errorf("DB resource not found for pid=%d", pid)
+	}
+	return res, nil
+}
