@@ -175,13 +175,9 @@ func enabledPrograms(c *config.Config) (map[string]struct{}, error) {
 		if c.CustomBatchingEnabled {
 			enableProgram(enabled, udpDestroySockReturn)
 		}
-		if hasSendPage {
-			enableProgram(enabled, udpSendPageReturn)
-		}
 	}
 
 	if c.CollectUDPv6Conns {
-		enableProgram(enabled, udpSendPageReturn)
 		enableProgram(enabled, udpv6DestroySock)
 		enableProgram(enabled, inet6Bind)
 		enableProgram(enabled, inet6BindRet)
@@ -193,12 +189,12 @@ func enabledPrograms(c *config.Config) (map[string]struct{}, error) {
 		if c.CustomBatchingEnabled {
 			enableProgram(enabled, udpv6DestroySockReturn)
 		}
-		if hasSendPage {
-			enableProgram(enabled, udpSendPageReturn)
-		}
 	}
 
 	if c.CollectUDPv4Conns || c.CollectUDPv6Conns {
+		if hasSendPage {
+			enableProgram(enabled, udpSendPageReturn)
+		}
 		if err := enableAdvancedUDP(enabled); err != nil {
 			return nil, err
 		}
