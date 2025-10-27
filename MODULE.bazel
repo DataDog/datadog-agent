@@ -20,6 +20,8 @@ archive_override(
 # The rules_license overlay will never be available in the BCR, for obvious name confusion reasons.
 # We are temporarily using a development fork
 bazel_dep(name = "rules_license", version = "1.0.0")
+
+# As with package_metadata, we are currently pulling a fork ahead of the release.
 archive_override(
     module_name = "rules_license",
     # sha256 = TBD,
@@ -27,7 +29,6 @@ archive_override(
     urls = ["https://github.com/aiuto/supply-chain/archive/refs/tags/dd_test.tar.gz"],
 )
 
-# supply-chain will not be available in the BCR for the foreseable future.
 include("//deps/supply_chain:supply_chain.MODULE.bazel")
 
 bazel_dep(name = "platforms", version = "1.0.0")
