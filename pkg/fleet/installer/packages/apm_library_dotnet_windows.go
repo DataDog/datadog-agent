@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/exec"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -132,6 +133,8 @@ func asyncPreRemoveHookAPMLibraryDotnet(ctx context.Context, pkgRepositoryPath s
 }
 
 func instrumentDotnetLibrary(ctx context.Context, target string) (err error) {
+	span, ctx := telemetry.StartSpanFromContext(ctx, "instrument_dotnet_library")
+	defer func() { span.Finish(err) }()
 	var installDir string
 	installDir, err = filepath.EvalSymlinks(getTargetPath(target))
 	if err != nil {
@@ -143,6 +146,8 @@ func instrumentDotnetLibrary(ctx context.Context, target string) (err error) {
 }
 
 func uninstrumentDotnetLibrary(ctx context.Context, target string) (err error) {
+	span, ctx := telemetry.StartSpanFromContext(ctx, "uninstrument_dotnet_library")
+	defer func() { span.Finish(err) }()
 	var installDir string
 	installDir, err = filepath.EvalSymlinks(getTargetPath(target))
 	if err != nil {
@@ -157,6 +162,10 @@ func instrumentDotnetLibraryIfNeeded(ctx context.Context, target string) (err er
 	envInst := env.FromEnv()
 	if envInst.InstallScript.APMInstrumentationEnabled == env.APMInstrumentationEnabledIIS {
 		return instrumentDotnetLibrary(ctx, target)
+	} else {
+		// If we don't instrument we try uninstrumenting in case there was a previous installation
+		// to make sure we don't leave a previous version's instrumentation hanging around.
+		_ = uninstrumentDotnetLibrary(ctx, target)
 	}
 	return nil
 }
