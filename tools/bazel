@@ -13,6 +13,8 @@ if [ -z "${CI_PROJECT_DIR:-}" ]; then
   exit 2 # should not reach here
 fi
 
+echo "tools/bazel[$(uname -s)-$(uname -m)] CI_PROJECT_DIR=$CI_PROJECT_DIR RUNNER_TEMP_PROJECT_DIR=$RUNNER_TEMP_PROJECT_DIR"
+
 # In CI: externalize `--repo_contents_cache` to the job's sibling temporary directory created alongside $CI_PROJECT_DIR
 # - https://github.com/bazelbuild/bazel/issues/26384 for why
 # - https://docs.gitlab.com/runner/configuration/advanced-configuration/ for `RUNNER_TEMP_PROJECT_DIR`

@@ -17,6 +17,8 @@ if not defined CI_PROJECT_DIR (
   exit /b !errorlevel!
 )
 
+echo tools/bazel[%OS%-%PROCESSOR_ARCHITECTURE%] CI_PROJECT_DIR=%CI_PROJECT_DIR% RUNNER_TEMP_PROJECT_DIR=%RUNNER_TEMP_PROJECT_DIR%
+
 :: In CI: first, verify directory environment variables are set and normalize their paths
 for %%v in (BAZEL_DISK_CACHE BAZEL_OUTPUT_USER_ROOT BAZEL_REPO_CONTENTS_CACHE RUNNER_TEMP_PROJECT_DIR VSTUDIO_ROOT) do (
   if not defined %%v (
