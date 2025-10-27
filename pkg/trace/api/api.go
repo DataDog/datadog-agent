@@ -150,7 +150,7 @@ func NewHTTPReceiver(
 	containerIDProvider := NewIDProvider(conf.ContainerProcRoot, conf.ContainerIDFromOriginInfo)
 	telemetryForwarder := NewTelemetryForwarder(conf, containerIDProvider, statsd)
 	return &HTTPReceiver{
-		Stats: info.NewReceiverStats(),
+		Stats: info.NewReceiverStats(conf.SendAllInternalStats),
 
 		out:                 out,
 		outV1:               outV1,
@@ -912,7 +912,7 @@ func (r *HTTPReceiver) loop() {
 	defer close(r.exit)
 
 	var lastLog time.Time
-	accStats := info.NewReceiverStats()
+	accStats := info.NewReceiverStats(r.conf.SendAllInternalStats)
 
 	t := time.NewTicker(5 * time.Second)
 	defer t.Stop()

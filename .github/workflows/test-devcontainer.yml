@@ -1,18 +1,74 @@
 name: test devcontainer
 
 on:
-  workflow_call:
-  workflow_dispatch:
+  push:
+    branches:
+    - main
   pull_request:
     branches:
     - main
-    paths:
-    - .github/workflows/test-devcontainer.yml
+  workflow_dispatch:
 
-permissions: {}
+permissions:
+  contents: read
 
 jobs:
+  detect-changes:
+    runs-on: ubuntu-latest
+    outputs:
+      changes: "${{ steps.images.outcome == 'success' || steps.files.outcome == 'success' }}"
+
+    steps:
+    - name: Fetch changed files (PR)
+      if: github.event_name == 'pull_request'
+      env:
+        GH_TOKEN: "${{ github.token }}"
+      run: |
+        gh api repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}/files --paginate \
+        | jq -s 'add' > pr-files.json
+
+    - name: Fetch changed files (push)
+      uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      if: github.event_name == 'push'
+      with:
+        persist-credentials: false
+        fetch-depth: 2
+
+    - name: Build changed files list
+      run: |
+        if [ "${{ github.event_name }}" = "pull_request" ]; then
+          jq -r '.[].filename' pr-files.json | sort -u > changed-files.txt
+          jq -r '.[] | select(.filename==".gitlab-ci.yml") | .patch // empty' pr-files.json > gitlab-ci.patch
+        else
+          git diff --name-only HEAD~1 HEAD | sort -u > changed-files.txt
+          git diff HEAD~1 HEAD -- .gitlab-ci.yml > gitlab-ci.patch || true
+        fi
+
+    - name: Detect CI image changes
+      id: images
+      run: |
+        if grep -E '^[-+] +CI_IMAGE_[^:]+: v' gitlab-ci.patch >/dev/null; then
+          echo "changed=true"  >> "$GITHUB_OUTPUT"
+        else
+          echo "changed=false" >> "$GITHUB_OUTPUT"
+        fi
+
+    - name: Detect files of interest changes
+      id: files
+      run: |
+        cat > files-of-interest.txt <<'EOF'
+        .github/workflows/test-devcontainer.yml
+        EOF
+
+        if grep -Fx -f files-of-interest.txt changed-files.txt >/dev/null; then
+          echo "changed=true"  >> "$GITHUB_OUTPUT"
+        else
+          echo "changed=false" >> "$GITHUB_OUTPUT"
+        fi
+
   test:
+    needs: detect-changes
+    if: ${{ needs.detect-changes.outputs.changes == 'true' }}
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -23,7 +79,8 @@ jobs:
     - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
       with:
         persist-credentials: false
-        fetch-depth: 0
+        fetch-depth: 1000
+        fetch-tags: true
 
     - name: Setup Node.js
       uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
@@ -32,6 +89,23 @@ jobs:
       uses: ./.github/actions/install-dda
       with:
         features: legacy-tasks
+
+    - name: Free disk space
+      run: |
+        df -h
+        echo "::group::Android"
+        sudo rm -rf /usr/local/lib/android
+        echo "::endgroup::"
+        echo "::group::.NET"
+        sudo rm -rf /usr/share/dotnet
+        echo "::endgroup::"
+        echo "::group::Haskell"
+        sudo rm -rf /opt/ghc
+        echo "::endgroup::"
+        echo "::group::CodeQL"
+        sudo rm -rf /opt/hostedtoolcache/CodeQL
+        echo "::endgroup::"
+        df -h
 
     - name: Build image
       run: |
@@ -51,6 +125,17 @@ jobs:
 
     - name: Start Dev Container
       run: devcontainer up --workspace-folder .
+
+    - name: Grant the datadog user access to host Docker socket
+      run: |
+        docker exec -u root datadog_agent_devcontainer sh -lc '
+          set -e
+          sock=/var/run/docker.sock
+          gid=$(stat -c %g "$sock")
+          getent group "$gid" >/dev/null || groupadd -g "$gid" dockersock
+          gname=$(getent group "$gid" | cut -d: -f1)
+          id -nG datadog | tr " " "\n" | grep -qx "$gname" || usermod -aG "$gname" datadog
+        '
 
     - name: Test Agent build
       run: devcontainer exec --workspace-folder . dda inv agent.hacky-dev-image-build --target-image=agent
