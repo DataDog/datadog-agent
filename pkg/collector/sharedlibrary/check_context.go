@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// this file is identical to pkg/collector/python/check_context.go besides the error returned
+
 package sharedlibrary
 
 import (

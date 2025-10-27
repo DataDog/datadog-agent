@@ -5,6 +5,8 @@
 
 //go:build test
 
+// this file is identical to pkg/collector/python/aggregator.go besides the C imports and metrics enum names
+
 package sharedlibrary
 
 import (

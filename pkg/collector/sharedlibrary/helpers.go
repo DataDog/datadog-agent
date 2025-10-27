@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// the content of this file is a part of pkg/collector/python/helpers.go
+
 package sharedlibrary
 
 import (

@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// this file is identical to pkg/collector/python/aggregator.go besides the C imports and the function names
+
 package sharedlibrary
 
 import (

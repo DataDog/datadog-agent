@@ -5,6 +5,8 @@
 
 //go:build test
 
+// this file is identical to pkg/collector/python/aggregator_test.go besides the function names
+
 package sharedlibrary
 
 import "testing"
