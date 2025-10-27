@@ -101,6 +101,8 @@ func (s *grpcBatchStrategy) Stop() {
 
 // Start reads the incoming messages and accumulates them to a buffer
 func (s *grpcBatchStrategy) Start() {
+	log.Infof("Starting gRPC batch strategy for pipeline %s", s.pipelineName)
+
 	go func() {
 		flushTicker := s.clock.Ticker(s.batchWait)
 		defer func() {

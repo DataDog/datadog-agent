@@ -376,8 +376,10 @@ func buildHTTPEndpoints(coreConfig pkgconfigmodel.Reader, logsConfig *LogsConfig
 	// Detect if gRPC transport is requested
 	useGRPC := logsConfig.isGRPCUse()
 	if useGRPC {
+		log.Infof("Using gRPC transport for endpoint %s", main.Host)
 		return NewEndpointsWithBatchSettings(main, additionals, false, false, true, batchWait, batchMaxConcurrentSend, batchMaxSize, batchMaxContentSize, inputChanSize), nil
 	}
+	log.Infof("Using HTTP transport for endpoint %s", main.Host)
 	return NewEndpointsWithBatchSettings(main, additionals, false, true, false, batchWait, batchMaxConcurrentSend, batchMaxSize, batchMaxContentSize, inputChanSize), nil
 }
 

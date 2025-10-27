@@ -62,7 +62,7 @@ func (h *headerCredentials) RequireTransportSecurity() bool {
 
 // Sender implements PipelineComponent interface for gRPC log transmission.
 // It manages multiple StreamWorker instances (one per pipeline) using round-robin distribution.
-// It is similar to Sender/Worker architecture
+// This is similar to the setup in pkg/logs/sender.Sender and pkg/logs/sender.Worker
 type Sender struct {
 	// Configuration
 	endpoint            config.Endpoint
@@ -73,7 +73,7 @@ type Sender struct {
 	// Pipeline integration
 	pipelineMonitor metrics.PipelineMonitor
 
-	// Stream management (similar to Sender's workers and queues)
+	// Stream management (similar to pkg/logs/sender.Sender's workers and queues)
 	workers []*StreamWorker
 	queues  []chan *message.Payload
 	idx     *atomic.Uint32
@@ -243,6 +243,11 @@ func (s *Sender) GetSignalChannelForInputChannel(inputChan chan *message.Payload
 	// Convert the typed channel to chan any using unsafe conversion
 	// This is safe because both channels have the same underlying type
 	return worker.signalStreamRotate
+}
+
+// TODO: due to the way the pipeline is setup/configured we need to be able to pass this output channel to the strategy.
+func (s *Sender) GetWorkerOutputChannelForInputChannel(inputChan chan *message.Payload) chan *message.Payload {
+	return s.channelToWorkerMap[inputChan].outputChan
 }
 
 // Start starts all StreamWorker instances (same pattern as Sender.Start())

@@ -72,9 +72,9 @@ type StreamWorker struct {
 	destinationsContext *client.DestinationsContext
 
 	// Pipeline integration
-	inputChan  chan *message.Payload
-	outputChan chan *message.Payload // For auditor acknowledgments
-	sink       sender.Sink           // For getting auditor channel
+	inputChan  chan *message.Payload // IN: payloads from sender.Strategy
+	outputChan chan *message.Payload // OUT: paylaods back to sender.Strategy to handle retry logic (including re-encoding)
+	sink       sender.Sink           // OUT: auditor channel for acknowledgments
 
 	// gRPC connection management (shared with other streams)
 	client statefulpb.StatefulLogsServiceClient
@@ -114,7 +114,7 @@ func NewStreamWorker(
 		workerID:            workerID,
 		destinationsContext: destinationsCtx,
 		inputChan:           make(chan *message.Payload, 100), // Buffered input
-		outputChan:          nil,                              // Will be set in Start()
+		outputChan:          make(chan *message.Payload, 100), // Buffered output
 		sink:                sink,                             // For getting auditor channel
 		client:              client,
 		recvFailureCh:       make(chan ReceiverSignal), // Unbuffered receiver failure signal
@@ -133,7 +133,6 @@ func NewStreamWorker(
 // Start begins the supervisor goroutine
 func (s *StreamWorker) Start() {
 	log.Infof("Starting gRPC stream worker %s", s.workerID)
-	s.outputChan = s.sink.Channel()
 
 	// Start supervisor/sender goroutine (master)
 	go s.supervisorLoop()
@@ -360,8 +359,11 @@ func (s *StreamWorker) sendPayload(payload *message.Payload) error {
 
 	batch := s.payloadToBatch(payload)
 
+	log.Infof("Worker %s (generation %d): Sending payload: %v", s.workerID, s.generationID, payload)
+
 	// Send the batch (headers were sent at stream creation time)
 	if err := s.currentStream.Stream.Send(batch); err != nil {
+		log.Errorf("Worker %s (generation %d): Failed to send payload: %v", s.workerID, s.generationID, err)
 		return fmt.Errorf("failed to send batch: %w", err)
 	}
 
@@ -460,9 +462,9 @@ func (s *StreamWorker) handleBatchStatus(response *statefulpb.BatchStatus) {
 	if exists {
 		if response.Status == statefulpb.BatchStatus_OK {
 			// Handle acknowledgments - send successful payloads to auditor
-			if s.outputChan != nil {
+			if auditOutput := s.sink.Channel(); auditOutput != nil {
 				select {
-				case s.outputChan <- payload:
+				case auditOutput <- payload:
 					// Successfully sent to auditor
 				default:
 					log.Warnf("Worker %s: Auditor channel full, dropping ack for batch %d", s.workerID, batchID)
