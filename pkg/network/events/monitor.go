@@ -155,6 +155,11 @@ func (h *eventConsumerWrapper) Copy(ev *model.Event) any {
 		}
 	}
 
+	tracerTags := ev.GetProcessTracerTags()
+	for _, tag := range tracerTags {
+		p.Tags = append(p.Tags, intern.GetByString(tag))
+	}
+
 	if cid := ev.GetContainerId(); cid != "" {
 		p.ContainerID = intern.GetByString(cid)
 	}
@@ -167,6 +172,7 @@ func (h *eventConsumerWrapper) EventTypes() []model.EventType {
 	return []model.EventType{
 		model.ForkEventType,
 		model.ExecEventType,
+		model.TracerMemfdSealEventType,
 	}
 }
 

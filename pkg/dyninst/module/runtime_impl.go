@@ -232,7 +232,7 @@ func (rt *runtimeImpl) onProgramDetached(programID ir.ProgramID) {
 func (rt *runtimeImpl) reportAttachError(
 	programID ir.ProgramID, runtimeID procRuntimeID, program *ir.Program, err error,
 ) {
-	log.Errorf("attaching program %v to process %v failed: %v", programID, runtimeID.ProcessID, err)
+	log.Errorf("attaching program %v to process %v failed: %v", programID, runtimeID.ID, err)
 	for _, probe := range program.Probes {
 		rt.diagnostics.reportError(runtimeID, probe.ProbeDefinition, err, "AttachmentFailed")
 	}

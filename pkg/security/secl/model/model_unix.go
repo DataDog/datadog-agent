@@ -156,6 +156,7 @@ type Event struct {
 	NetDevice        NetDeviceEvent        `field:"-"`
 	VethPair         VethPairEvent         `field:"-"`
 	UnshareMountNS   UnshareMountNSEvent   `field:"-"`
+	TracerMemfdSeal  TracerMemfdSealEvent  `field:"-"`
 }
 
 var cgroupContextZero CGroupContext
@@ -192,9 +193,10 @@ func (cg *CGroupContext) Merge(cg2 *CGroupContext) {
 	}
 }
 
-// Hash returns a unique key for the entity
-func (cg *CGroupContext) Hash() string {
-	return string(cg.CGroupID)
+// Key returns a unique key for the entity
+func (cg *CGroupContext) Key() (string, bool) {
+	cgrpID := string(cg.CGroupID)
+	return cgrpID, cgrpID != ""
 }
 
 // ParentScope returns the parent entity scope
@@ -350,6 +352,8 @@ type Process struct {
 
 	AWSSecurityCredentials []AWSSecurityCredentials `field:"-"`
 
+	TracerTags []string `field:"-"` // Tags from APM tracer instrumentation
+
 	ArgsID uint64 `field:"-"`
 	EnvsID uint64 `field:"-"`
 
@@ -398,9 +402,9 @@ func SetAncestorFields(pce *ProcessCacheEntry, subField string, _ interface{}) (
 	return true, nil
 }
 
-// Hash returns a unique key for the entity
-func (pc *ProcessCacheEntry) Hash() string {
-	return fmt.Sprintf("%d/%s", pc.Pid, pc.Comm)
+// Key returns a unique key for the entity
+func (pc *ProcessCacheEntry) Key() (string, bool) {
+	return fmt.Sprintf("%d/%s", pc.Pid, pc.Comm), true
 }
 
 // ParentScope returns the parent entity scope
@@ -1047,4 +1051,10 @@ type PrCtlEvent struct {
 	Option          int    `field:"option"`            // SECLDoc[option] Definition:`prctl option`
 	NewName         string `field:"new_name"`          // SECLDoc[new_name] Definition:`New name of the process`
 	IsNameTruncated bool   `field:"is_name_truncated"` // SECLDoc[is_name_truncated] Definition:`Indicates that the name field is truncated`
+}
+
+// TracerMemfdSealEvent represents a tracer memfd seal event
+type TracerMemfdSealEvent struct {
+	SyscallEvent
+	Fd uint32
 }

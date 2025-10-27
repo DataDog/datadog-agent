@@ -7,6 +7,7 @@ package structure
 
 import (
 	"bytes"
+	"encoding/json"
 	"reflect"
 	"strings"
 	"testing"
@@ -1606,4 +1607,46 @@ func TestUnmarshalKeyComplexMapValueFromYAML(t *testing.T) {
 	err = unmarshalKeyReflection(cfg, "kubernetes_node_annotations_as_tags", &annotations)
 	require.NoError(t, err)
 	assert.Equal(t, annotations, map[string]string{"cluster.k8s.io/machine": "different"})
+}
+
+func TestUnmarshalKeyOnSliceOfMap(t *testing.T) {
+	t.Setenv("DD_TEST_VALUE", "[{\"a\": \"1\", \"b\": \"1\"}, {\"a\": \"2\", \"b\": \"2\"}]")
+	mockConfig := newEmptyMockConf(t)
+
+	mockConfig.BindEnvAndSetDefault("test_value", []map[string]int{})
+	mockConfig.ParseEnvAsSliceMapString("test_value", func(in string) []map[string]string {
+		var out []map[string]string
+		if err := json.Unmarshal([]byte(in), &out); err != nil {
+			require.FailNow(t, "can not parse JSON")
+		}
+		return out
+	})
+
+	mockConfig.BuildSchema()
+
+	data := []map[string]string{}
+	err := unmarshalKeyReflection(mockConfig, "test_value", &data)
+	assert.NoError(t, err)
+	assert.Equal(t, []map[string]string{{"a": "1", "b": "1"}, {"a": "2", "b": "2"}}, data)
+}
+
+type ResourceType string
+
+type myStruct struct {
+	Resources map[ResourceType]string
+}
+
+func TestUnmarshalMapWithTypeAlias(t *testing.T) {
+	confYaml := `
+some_config:
+  resources:
+    memory: 5g
+`
+	mockConfig := newConfigFromYaml(t, confYaml)
+	mockConfig.SetKnown("some_config.resources.memory") //nolint:forbidigo, using SetKnown to test behavior
+
+	var res myStruct
+	err := unmarshalKeyReflection(mockConfig, "some_config", &res)
+	assert.NoError(t, err)
+	assert.Equal(t, map[ResourceType]string{"memory": "5g"}, res.Resources)
 }

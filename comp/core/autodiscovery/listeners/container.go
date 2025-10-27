@@ -116,7 +116,7 @@ func (l *ContainerListener) createContainerService(entity workloadmeta.Entity) {
 		return ports[i].Port < ports[j].Port
 	})
 
-	svc := &service{
+	svc := &WorkloadService{
 		entity:   container,
 		tagsHash: l.tagger.GetEntityHash(types.NewEntityID(types.ContainerID, container.ID), types.ChecksConfigCardinality),
 		adIdentifiers: computeContainerServiceIDs(
@@ -130,6 +130,7 @@ func (l *ContainerListener) createContainerService(entity workloadmeta.Entity) {
 		metricsExcluded: l.metricsFilter.IsExcluded(filterableContainer),
 		logsExcluded:    l.logsFilter.IsExcluded(filterableContainer),
 		tagger:          l.tagger,
+		wmeta:           l.Store(),
 	}
 
 	if pod != nil {
