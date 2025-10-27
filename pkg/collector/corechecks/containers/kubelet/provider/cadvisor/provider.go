@@ -143,6 +143,10 @@ func NewProvider(filterStore workloadfilter.Component, config *common.KubeletCon
 	return provider, nil
 }
 
+func (p *Provider) Name() string {
+	return "cadvisor"
+}
+
 func (p *Provider) processContainerMetric(metricType, metricName string, metricFam *prom.MetricFamily, labels []string, sender sender.Sender) {
 	if _, ok := metricTypes[metricFam.Type]; !ok {
 		log.Errorf("Metric type %s unsupported for metric %s", metricFam.Type, metricFam.Name)

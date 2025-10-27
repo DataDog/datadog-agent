@@ -50,6 +50,10 @@ func NewProvider(config *common.KubeletConfig, store workloadmeta.Component) (*P
 	return provider, nil
 }
 
+func (p *Provider) Name() string {
+	return "slis"
+}
+
 func (p *Provider) sliHealthCheck(metricFam *prom.MetricFamily, sender sender.Sender) {
 	for _, metric := range metricFam.Samples {
 		metricSuffix := string(metric.Metric["__name__"])

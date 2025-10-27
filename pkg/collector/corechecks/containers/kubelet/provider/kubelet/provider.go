@@ -152,6 +152,10 @@ func NewProvider(filterStore workloadfilter.Component, config *common.KubeletCon
 	return provider, nil
 }
 
+func (p *Provider) Name() string {
+	return "kubelet"
+}
+
 // Provide sends the metrics collected and handles first run tracking
 func (p *Provider) Provide(kc kubelet.KubeUtilInterface, sender sender.Sender) error {
 	err := p.Provider.Provide(kc, sender)

@@ -11,6 +11,8 @@ package kubelet
 import (
 	"fmt"
 
+	"github.com/DataDog/dd-trace-go/v2/ddtrace/tracer"
+
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
@@ -41,6 +43,7 @@ const (
 // Provider provides the metrics related to a given Kubelet endpoint
 type Provider interface {
 	Provide(kubelet.KubeUtilInterface, sender.Sender) error
+	Name() string
 }
 
 // KubeletCheck wraps the config and the metric stores needed to run the check
@@ -143,11 +146,19 @@ func (k *KubeletCheck) Configure(senderManager sender.SenderManager, _ uint64, c
 	k.podUtils = common.NewPodUtils(k.tagger)
 	k.providers = initProviders(k.filterStore, k.instance, k.podUtils, k.store, k.tagger)
 
+	err = tracer.Start()
+	if err != nil {
+		return fmt.Errorf("failed to init tracer: %v", err)
+	}
+
 	return nil
 }
 
 // Run runs the check
 func (k *KubeletCheck) Run() error {
+	span := tracer.StartSpan("kubeletcheck")
+	defer span.Finish()
+
 	sender, err := k.GetSender()
 	if err != nil {
 		return err
@@ -164,10 +175,13 @@ func (k *KubeletCheck) Run() error {
 
 	for _, provider := range k.providers {
 		if provider != nil {
+			s := span.StartChild(provider.Name())
 			err = provider.Provide(kc, sender)
 			if err != nil {
 				_ = k.Warnf("Error reporting metrics: %s", err)
 			}
+
+			s.Finish()
 		}
 	}
 

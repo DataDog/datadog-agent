@@ -55,6 +55,10 @@ func NewProvider(filterStore workloadfilter.Component, config *common.KubeletCon
 	return provider, nil
 }
 
+func (p *Provider) Name() string {
+	return "probe"
+}
+
 func (p *Provider) proberProbeTotal(metricFam *prom.MetricFamily, sender sender.Sender) {
 	metricSuffix := ""
 

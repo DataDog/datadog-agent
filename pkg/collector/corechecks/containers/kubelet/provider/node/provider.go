@@ -64,3 +64,7 @@ func (p *Provider) Provide(kc kubelet.KubeUtilInterface, sender sender.Sender) e
 
 	return nil
 }
+
+func (p *Provider) Name() string {
+	return "node"
+}

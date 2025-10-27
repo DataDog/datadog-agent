@@ -129,6 +129,10 @@ func (p *Provider) Provide(kc kubelet.KubeUtilInterface, sender sender.Sender) e
 	return nil
 }
 
+func (p *Provider) Name() string {
+	return "summary"
+}
+
 func (p *Provider) processSystemStats(sender sender.Sender,
 	statsSummary *kubeletv1alpha1.Summary) {
 	//System metrics

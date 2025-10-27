@@ -87,6 +87,10 @@ func (p *Provider) Provide(_ kubelet.KubeUtilInterface, sender sender.Sender) er
 	return nil
 }
 
+func (p *Provider) Name() string {
+	return "pod"
+}
+
 func (p *Provider) processWorkloadmetaPod(pod *workloadmeta.KubernetesPod, sender sender.Sender, runningAggregator *runningAggregator) {
 	p.podUtils.PopulateForPod(pod)
 
