@@ -18,6 +18,10 @@ from tasks.build_tags import filter_incompatible_tags, get_build_tags, get_defau
 from tasks.cluster_agent import CONTAINER_PLATFORM_MAPPING
 from tasks.devcontainer import run_on_devcontainer
 from tasks.flavor import AgentFlavor
+from tasks.gointegrationtest import (
+    CORE_AGENT_WINDOWS_IT_CONF,
+    containerized_integration_tests,
+)
 from tasks.libs.common.go import go_build
 from tasks.libs.common.utils import (
     REPO_PATH,
@@ -226,6 +230,7 @@ def build(
             gcflags=gcflags,
             ldflags=ldflags,
             build_tags=build_tags,
+            check_deadcode=os.getenv("DEPLOY_AGENT") == "true",
             coverage=os.getenv("E2E_COVERAGE_PIPELINE") == "true",
         )
 
@@ -446,6 +451,7 @@ def hacky_dev_image_build(
     process_agent=False,
     trace_agent=False,
     system_probe=False,
+    security_agent=False,
     push=False,
     race=False,
     signed_pull=False,
@@ -498,11 +504,18 @@ def hacky_dev_image_build(
         )
 
     copy_extra_agents = ""
+    if security_agent:
+        from tasks.security_agent import build as security_agent_build
+
+        security_agent_build(ctx, [""])
+        copy_extra_agents += "COPY bin/security-agent/security-agent /opt/datadog-agent/embedded/bin/security-agent\n"
+
     if process_agent:
         from tasks.process_agent import build as process_agent_build
 
         process_agent_build(ctx)
         copy_extra_agents += "COPY bin/process-agent/process-agent /opt/datadog-agent/embedded/bin/process-agent\n"
+
     if trace_agent:
         from tasks.trace_agent import build as trace_agent_build
 
@@ -585,6 +598,17 @@ ENV DD_SSLKEYLOGFILE=/tmp/sslkeylog.txt
 
         if push:
             ctx.run(f'docker push {target_image}')
+
+
+@task
+def integration_tests(ctx, race=False, go_mod="readonly", timeout=""):
+    """
+    Run integration tests for the Agent
+    """
+    if sys.platform == 'win32':
+        return containerized_integration_tests(
+            ctx, CORE_AGENT_WINDOWS_IT_CONF, race=race, go_mod=go_mod, timeout=timeout
+        )
 
 
 def check_supports_python_version(check_dir, python):

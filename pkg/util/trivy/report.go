@@ -24,14 +24,15 @@ type Report struct {
 	bom *cyclonedx_v1_4.Bom
 }
 
-func newReport(id string, report *types.Report, marshaler cyclonedx.Marshaler) (*Report, error) {
+func newReport(id string, report *types.Report, marshaler cyclonedx.Marshaler, dependencies bool) (*Report, error) {
 	bom, err := marshaler.MarshalReport(context.TODO(), *report)
 	if err != nil {
 		return nil, err
 	}
 
-	// We don't need the dependencies attribute. Remove to save memory.
-	bom.Dependencies = nil
+	if !dependencies {
+		bom.Dependencies = nil
+	}
 
 	bom14 := bomconvert.ConvertBOM(bom)
 

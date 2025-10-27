@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"net/http/httptrace"
 	"sync"
+	"time"
 
 	"golang.org/x/sync/semaphore"
 
@@ -190,16 +191,16 @@ func (w *Worker) callProcess(t transaction.Transaction) error {
 func (w *Worker) process(ctx context.Context, t transaction.Transaction) {
 	// Run the endpoint through our blockedEndpoints circuit breaker
 	target := t.GetTarget()
-	if w.blockedList.isBlock(target) {
+	if w.blockedList.isBlockForSend(target, time.Now()) {
 		w.requeue(t)
-		w.log.Errorf("Too many errors for endpoint '%s': retrying later", target)
+		w.log.Warnf("Too many errors for endpoint '%s': retrying later", target)
 	} else if err := t.Process(ctx, w.config, w.log, w.Client.GetClient()); err != nil {
-		w.blockedList.close(target)
+		w.blockedList.close(target, time.Now())
 		w.requeue(t)
 		w.log.Errorf("Error while processing transaction: %v", err)
 	} else {
 		w.pointSuccessfullySent.OnPointSuccessfullySent(t.GetPointCount())
-		w.blockedList.recover(target)
+		w.blockedList.recover(target, time.Now())
 	}
 }
 

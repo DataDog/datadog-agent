@@ -75,6 +75,18 @@ func DiscoverComponentsFromConfig() ([]pkgconfigsetup.ConfigurationProviders, []
 				}
 			}
 
+			if len(conf.CELSelector.KubeServices) > 0 {
+				svcFound = true
+				log.Info("Configs with CEL kube service selectors detected: Adding the 'kube service file' config provider")
+				detectedProviders = append(detectedProviders, pkgconfigsetup.ConfigurationProviders{Name: names.KubeServicesFileRegisterName, Polling: false})
+			}
+
+			if len(conf.CELSelector.KubeEndpoints) > 0 {
+				epFound = true
+				log.Info("Configs with CEL kube endpoints selectors detected: Adding the 'kube endpoints file' config provider")
+				detectedProviders = append(detectedProviders, pkgconfigsetup.ConfigurationProviders{Name: names.KubeEndpointsFileRegisterName, Polling: true})
+			}
+
 			if svcFound && epFound {
 				break
 			}

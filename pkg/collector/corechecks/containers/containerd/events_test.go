@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build containerd
+//go:build containerd && cel
 
 package containerd
 
@@ -288,10 +288,17 @@ func TestCheckEvents_PauseContainers(t *testing.T) {
 // TestComputeEvents checks the conversion of Containerd events to Datadog events
 func TestComputeEvents(t *testing.T) {
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
-	mockConfig := configmock.New(t)
-	mockConfig.SetWithoutSource("container_exclude", "image:dd-agent")
-	mockConfig.SetWithoutSource("container_exclude_metrics", "image:dd-metric-exclude")
-	mockConfig.SetWithoutSource("container_exclude_logs", "image:dd-log-exclude") // shouldn't be used
+	configYaml := `
+cel_workload_exclude:
+  - products: metrics
+    rules:
+      containers:
+        - container.image.matches('not-monitored')
+container_exclude: image:dd-agent
+container_exclude_metrics: image:dd-metric-exclude
+container_exclude_logs: image:dd-log-exclude
+`
+	configmock.NewFromYAML(t, configYaml)
 	fakeFilterStore := workloadfilterfxmock.SetupMockFilter(t)
 	containerdCheck := &ContainerdCheck{
 		instance:        &ContainerdConfig{},
@@ -367,6 +374,21 @@ func TestComputeEvents(t *testing.T) {
 					Extra:     map[string]string{},
 					Message:   "Image kubernetes/pause created",
 					ID:        "kubernetes/pause",
+				},
+			},
+			expectedTitle: "Event on images from Containerd",
+			expectedTags:  nil,
+			numberEvents:  0,
+		},
+		{
+			name: "Filtered event ID via cel_workload_exclude",
+			events: []containerdEvent{
+				{
+					Topic:     "/images/create",
+					Timestamp: time.Now(),
+					Extra:     map[string]string{},
+					Message:   "Container 212-not-monitored created",
+					ID:        "212-not-monitored",
 				},
 			},
 			expectedTitle: "Event on images from Containerd",

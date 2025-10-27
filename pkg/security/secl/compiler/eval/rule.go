@@ -58,7 +58,7 @@ func NewRule(id string, expression string, parsingContext *ast.ParsingContext, o
 		opts.WithMacroStore(&MacroStore{})
 	}
 	if opts.VariableStore == nil {
-		opts.WithVariableStore(&VariableStore{})
+		opts.VariableStore = NewVariableStore()
 	}
 
 	labelSet, err := utils.NewLabelSet("rule_id", id)
@@ -214,7 +214,7 @@ func NewRuleEvaluator(rule *ast.Rule, model Model, opts *Opts) (*RuleEvaluator, 
 		return nil, NewTypeError(rule.Pos, reflect.Bool)
 	}
 
-	eventType, err := eventTypeFromFields(model, state)
+	eventType, err := EventTypeFromState(model, state)
 	if err != nil {
 		return nil, err
 	}

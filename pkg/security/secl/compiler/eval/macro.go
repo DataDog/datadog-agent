@@ -113,7 +113,7 @@ func macroToEvaluator(macro *ast.Macro, model Model, opts *Opts, field Field) (*
 		return nil, err
 	}
 
-	eventType, err := eventTypeFromFields(model, state)
+	eventType, err := EventTypeFromState(model, state)
 	if err != nil {
 		return nil, err
 	}
