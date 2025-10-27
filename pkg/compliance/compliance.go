@@ -18,7 +18,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/constants"
 	compression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
@@ -32,13 +31,13 @@ import (
 // and checks.
 func StartCompliance(log log.Component,
 	config config.Component,
-	sysprobeconfig sysprobeconfig.Component,
 	hostname string,
 	stopper startstop.Stopper,
 	statsdClient ddgostatsd.ClientInterface,
 	wmeta workloadmeta.Component,
 	compression compression.Component,
 	ipc ipc.Component,
+	sysProbeClient SysProbeClient,
 ) (*Agent, error) {
 
 	enabled := config.GetBool("compliance_config.enabled")
@@ -65,11 +64,6 @@ func StartCompliance(log log.Component,
 
 	if metricsEnabled {
 		resolverOptions.StatsdClient = statsdClient
-	}
-
-	var sysProbeClient SysProbeClient
-	if config := sysprobeconfig.SysProbeObject(); config != nil && config.SocketAddress != "" {
-		sysProbeClient = NewRemoteSysProbeClient(config.SocketAddress)
 	}
 
 	enabledConfigurationsExporters := []ConfigurationExporter{

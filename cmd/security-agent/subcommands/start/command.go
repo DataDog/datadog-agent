@@ -136,8 +136,13 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 						return status.NewInformationProvider(nil), nil, err
 					}
 
+					var sysProbeClient compliance.SysProbeClient
+					if cfg := sysprobeconfig.SysProbeObject(); cfg != nil && cfg.SocketAddress != "" {
+						sysProbeClient = compliance.NewRemoteSysProbeClient(cfg.SocketAddress)
+					}
+
 					// start compliance security agent
-					complianceAgent, err := compliance.StartCompliance(log, config, sysprobeconfig, hostnameDetected, stopper, statsdClient, wmeta, compression, ipc)
+					complianceAgent, err := compliance.StartCompliance(log, config, hostnameDetected, stopper, statsdClient, wmeta, compression, ipc, sysProbeClient)
 					if err != nil {
 						return status.NewInformationProvider(nil), nil, err
 					}
