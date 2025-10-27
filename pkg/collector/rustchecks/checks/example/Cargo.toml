@@ -1,0 +1,14 @@
+[package]
+name = "example"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+rust-check-core = { path = "../../core" }
+
+[dev-dependencies]
+# helper for testing the check implementation
+rust-check-core = { path = "../../core", features = ["test-utils"] }
+
+[lib]
+crate-type = ["cdylib"]
