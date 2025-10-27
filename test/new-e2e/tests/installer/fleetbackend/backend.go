@@ -200,6 +200,13 @@ func (b *Backend) getDaemonPID() (int, error) {
 	var err error
 	switch b.host.RemoteHost.OSFamily {
 	case e2eos.LinuxFamily:
+		// bugfix for https://major.io/p/systemd-in-fedora-22-failed-to-restart-service-access-denied/
+		if b.host.RemoteHost.OSFlavor == e2eos.CentOS && b.host.RemoteHost.OSVersion == e2eos.CentOS7.Version {
+			_, err := b.host.RemoteHost.Execute("sudo systemctl daemon-reexec")
+			if err != nil {
+				return 0, fmt.Errorf("error reexecuting systemd: %w", err)
+			}
+		}
 		pid, err = b.host.RemoteHost.Execute(`sudo systemctl show -p MainPID datadog-agent-installer.service | cut -d= -f2`)
 		pidExp, errExp := b.host.RemoteHost.Execute(`sudo systemctl show -p MainPID datadog-agent-installer-exp.service | cut -d= -f2`)
 		pid = strings.TrimSpace(pid)
