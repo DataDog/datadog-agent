@@ -69,6 +69,7 @@ func getProcessAgentFxOptions(cliParams *processchecks.CliParams, bundleParams c
 			return &statsd.NoOpClient{}
 		}),
 		ipcfx.ModuleReadOnly(),
+		delegatedauthfx.Module(),
 	}
 }
 
