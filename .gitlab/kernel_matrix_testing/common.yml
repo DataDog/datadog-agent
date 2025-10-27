@@ -282,7 +282,9 @@
     - $CI_PROJECT_DIR/connector-$ARCH -host $INSTANCE_IP -user ubuntu -ssh-file $AWS_EC2_SSH_KEY_FILE -vm-cmd "${NESTED_VM_CMD}" -send-env-vars CI_COMMIT_SHA,DD_API_KEY || CONNECTOR_EXIT_CODE=$? # Allow DD_API_KEY to be passed to the metal instance, so we can use it to send metrics from the connector.
     - ${CI_PROJECT_DIR}/tools/ci/retry.sh ssh metal_instance "ssh ${MICRO_VM_IP} '/opt/testing-tools/test-json-review -flakes /opt/testing-tools/flakes.yaml -codeowners /opt/testing-tools/CODEOWNERS -test-root /opt/${TEST_COMPONENT}-tests'" || true
     - "[ ! -f $CI_PROJECT_DIR/daemon-${ARCH}.log ] && ${CI_PROJECT_DIR}/tools/ci/retry.sh scp metal_instance:/home/ubuntu/daemon.log $CI_PROJECT_DIR/vm-metrics-daemon-${ARCH}.log || true"
-    - exit ${CONNECTOR_EXIT_CODE:-0}
+    - |
+      echo "Connector exit code: ${CONNECTOR_EXIT_CODE:-0}"
+      exit ${CONNECTOR_EXIT_CODE:-0}
   artifacts:
     expire_in: 2 weeks
     when: always
