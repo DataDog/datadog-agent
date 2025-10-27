@@ -62,6 +62,6 @@ func ToNetworkDeviceConfig(deviceID, deviceIP string, configType ConfigType, ext
 		ConfigType: string(configType),
 		Timestamp:  ts,
 		Tags:       tags,
-		Content:    content,
+		Content:    string(content),
 	}
 }

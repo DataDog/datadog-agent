@@ -37,7 +37,7 @@ func TestNetworkDeviceConfig_Creation(t *testing.T) {
 	assert.Equal(t, string(configType), config.ConfigType)
 	assert.Equal(t, now, config.Timestamp)
 	assert.Equal(t, tags, config.Tags)
-	assert.Equal(t, content, config.Content)
+	assert.Equal(t, string(content), config.Content)
 }
 
 func TestNetworkDeviceConfig_ConfigTypes(t *testing.T) {
@@ -80,7 +80,7 @@ func TestNetworkDevicesConfigPayload_Creation(t *testing.T) {
 			ConfigType: string(RUNNING),
 			Timestamp:  timestamp,
 			Tags:       []string{"device_type:router"},
-			Content:    []byte("running config content"),
+			Content:    "running config content",
 		},
 		{
 			DeviceID:   "default:10.0.0.1",

@@ -8,7 +8,6 @@
 package networkconfigmanagement
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
 	"regexp"
@@ -16,6 +15,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/profile"
+	"github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/report"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 	"github.com/benbjohnson/clock"
 	"github.com/stretchr/testify/assert"
@@ -43,9 +43,13 @@ type MockRemoteClient struct {
 }
 
 const (
-	runningOutput = "Building configuration...\n! Last configuration change at 10:20:00 UTC Fri Aug 1 2025\ninterface GigabitEthernet0/1\n ip address 192.168.1.1 255.255.255.0"
-	startupOutput = "interface GigabitEthernet0/1\n ip address 192.168.1.1 255.255.255.0"
-	versionOutput = "Cisco Device Version 1.0"
+	runningOutput = `Building configuration...
+! Last configuration change at 10:20:00 UTC Fri Aug 1 2025
+interface GigabitEthernet0/1
+ ip address 192.168.1.1 255.255.255.0`
+	startupOutput = `interface GigabitEthernet0/1
+ip address 192.168.1.1 255.255.255.0`
+	versionOutput = `Cisco Device Version 1.0`
 )
 
 func newMockRemoteClient() *MockRemoteClient {
@@ -242,40 +246,32 @@ func TestCheck_Run_Success(t *testing.T) {
 	assert.NoError(t, err)
 	assert.True(t, mockClient.Closed, "Remote client should be closed after run")
 
-	runningBytes, _ := json.Marshal([]byte(runningOutput))
-	startupBytes, _ := json.Marshal([]byte(startupOutput))
-
-	var expectedEvent = []byte(fmt.Sprintf(`
-{
-  "namespace": "default",
-  "integration": "",
-  "configs": [
-    {
-      "device_id": "default:10.0.0.1",
-      "device_ip": "10.0.0.1",
-      "config_type": "running",
-      "timestamp": 1754043600,
-      "tags": ["device_ip:10.0.0.1"],
-      "content": %s
-    },
-    {
-      "device_id": "default:10.0.0.1",
-      "device_ip": "10.0.0.1",
-      "config_type": "startup",
-      "timestamp": 0,
-      "tags": ["device_ip:10.0.0.1"],
-      "content": %s
-    }
-  ],
-  "collect_timestamp": 1754043600
-}
-`, runningBytes, startupBytes))
-
-	compactEvent := new(bytes.Buffer)
-	err = json.Compact(compactEvent, expectedEvent)
+	expectedPayload := report.NCMPayload{
+		Namespace: "default",
+		Configs: []report.NetworkDeviceConfig{
+			{
+				DeviceID:   "default:10.0.0.1",
+				DeviceIP:   "10.0.0.1",
+				ConfigType: "running",
+				Timestamp:  1754043600,
+				Tags:       []string{"device_ip:10.0.0.1"},
+				Content:    runningOutput,
+			},
+			{
+				DeviceID:   "default:10.0.0.1",
+				DeviceIP:   "10.0.0.1",
+				ConfigType: "startup",
+				Timestamp:  0,
+				Tags:       []string{"device_ip:10.0.0.1"},
+				Content:    startupOutput,
+			},
+		},
+		CollectTimestamp: 1754043600,
+	}
+	expectedEvent, err := json.Marshal(expectedPayload)
 	assert.NoError(t, err)
 	mockSender.AssertNumberOfCalls(t, "EventPlatformEvent", 1)
-	mockSender.AssertEventPlatformEvent(t, compactEvent.Bytes(), "ndmconfig")
+	mockSender.AssertEventPlatformEvent(t, expectedEvent, "ndmconfig")
 	mockSender.AssertExpectations(t)
 }
 
