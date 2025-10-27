@@ -337,6 +337,48 @@ func (s *testAgentMSIInstallsDotnetLibrary) TestMSIPurge() {
 	s.Require().Empty(newLibraryPath)
 }
 
+// TestDisableEnableScript validates that the enable and disable commands work
+func (s *testAgentMSIInstallsDotnetLibrary) TestDisableEnableScript() {
+	// Arrange
+	version := s.currentDotnetLibraryVersion
+
+	// Act
+	s.installCurrentAgentVersion(
+		installerwindows.WithMSIArg("DD_APM_INSTRUMENTATION_ENABLED=iis"),
+		// TODO: remove override once image is published in prod
+		installerwindows.WithMSIArg("DD_INSTALLER_REGISTRY_URL=install.datad0g.com.internal.dda-testing.com"),
+		installerwindows.WithMSIArg(fmt.Sprintf("DD_APM_INSTRUMENTATION_LIBRARIES=dotnet:%s", version.PackageVersion())),
+		installerwindows.WithMSILogFile("install.log"),
+	)
+	// Start the IIS app to load the library
+	defer s.stopIISApp()
+	s.startIISApp(webConfigFile, aspxFile)
+
+	// Assert
+	s.assertSuccessfulPromoteExperiment(version.Version())
+	// Check that the expected version of the library is loaded
+	libraryPath := s.getLibraryPathFromInstrumentedIIS()
+	s.Require().Contains(libraryPath, version.Version())
+
+	output, err := s.Env().RemoteHost.Execute(`&"C:\Program Files\Datadog\Datadog Agent\bin\scripts\iis-instrumentation.bat" --disable`)
+	s.Require().NoErrorf(err, "failed to run uninstall script: %s", output)
+
+	s.stopIISApp()
+	defer s.stopIISApp()
+	s.startIISApp(webConfigFile, aspxFile)
+	libraryPath = s.getLibraryPathFromInstrumentedIIS()
+	s.Require().Empty(libraryPath)
+
+	output, err = s.Env().RemoteHost.Execute(`&"C:\Program Files\Datadog\Datadog Agent\bin\scripts\iis-instrumentation.bat" --enable`)
+	s.Require().NoErrorf(err, "failed to run uninstall script: %s", output)
+
+	s.stopIISApp()
+	defer s.stopIISApp()
+	s.startIISApp(webConfigFile, aspxFile)
+	libraryPath = s.getLibraryPathFromInstrumentedIIS()
+	s.Require().Contains(libraryPath, version.Version())
+}
+
 func (s *testAgentMSIInstallsDotnetLibrary) installPreviousAgentVersion(opts ...installerwindows.MsiOption) {
 	agentVersion := s.StableAgentVersion().Version()
 	options := []installerwindows.MsiOption{
