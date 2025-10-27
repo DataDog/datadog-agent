@@ -117,7 +117,7 @@ func NewDelegatedAuth(deps dependencies) option.Option[delegatedauth.Component] 
 
 			return nil
 		},
-		OnStop: func(ctx context.Context) error {
+		OnStop: func(_ context.Context) error {
 			comp.log.Info("Stopping delegated auth background refresh...")
 
 			// Cancel the background refresh context
@@ -135,18 +135,18 @@ func NewDelegatedAuth(deps dependencies) option.Option[delegatedauth.Component] 
 
 // GetAPIKey returns the current API key or fetches one if it has not yet been fetched
 func (d *delegatedAuthComponent) GetAPIKey(ctx context.Context) (*string, error) {
-	creds, _, err := d.RefreshAndGetApiKey(ctx)
+	creds, _, err := d.RefreshAndGetAPIKey(ctx)
 	return creds, err
 }
 
 // RefreshAPIKey fetches the API key and stores it in the component. It only returns an error if there is an issue
 func (d *delegatedAuthComponent) RefreshAPIKey(ctx context.Context) error {
-	_, _, err := d.RefreshAndGetApiKey(ctx)
+	_, _, err := d.RefreshAndGetAPIKey(ctx)
 	return err
 }
 
-// RefreshAndGetApiKey refreshes the API key and stores it in the component it returns the current API key and if a refresh actually occurred
-func (d *delegatedAuthComponent) RefreshAndGetApiKey(ctx context.Context) (*string, bool, error) {
+// RefreshAndGetAPIKey refreshes the API key and stores it in the component it returns the current API key and if a refresh actually occurred
+func (d *delegatedAuthComponent) RefreshAndGetAPIKey(_ context.Context) (*string, bool, error) {
 	d.mu.RLock()
 	apiKey := d.apiKey
 	defer d.mu.RUnlock()
@@ -185,7 +185,7 @@ func (d *delegatedAuthComponent) startBackgroundRefresh() {
 				return
 			case <-ticker.C:
 				// Time to refresh
-				lCreds, updated, lErr := d.RefreshAndGetApiKey(d.refreshCtx)
+				lCreds, updated, lErr := d.RefreshAndGetAPIKey(d.refreshCtx)
 				if lErr != nil {
 					// Check if the error is due to context cancellation
 					if d.refreshCtx.Err() != nil {
@@ -206,7 +206,7 @@ func (d *delegatedAuthComponent) startBackgroundRefresh() {
 
 // authenticate uses the configured provider to get creds
 func (d *delegatedAuthComponent) authenticate() (*string, error) {
-	creds, err := d.authConfig.ProviderAuth.GetApiKey(d.config, d.authConfig)
+	creds, err := d.authConfig.ProviderAuth.GetAPIKey(d.config, d.authConfig)
 	if err != nil {
 		return nil, fmt.Errorf("failed to authenticate with AWS: %w", err)
 	}

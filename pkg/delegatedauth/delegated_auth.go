@@ -38,8 +38,8 @@ func getSite(cfg pkgconfigmodel.Reader) string {
 	return utils.BuildURLWithPrefix("https://", site)
 }
 
-// GetApiKey actually performs the cloud auth exchange and returns an API key. It is called be each individual provider
-func GetApiKey(cfg pkgconfigmodel.Reader, orgUUID, delegatedAuthProof string) (*string, error) {
+// GetAPIKey actually performs the cloud auth exchange and returns an API key. It is called be each individual provider
+func GetAPIKey(cfg pkgconfigmodel.Reader, orgUUID, delegatedAuthProof string) (*string, error) {
 	site := getSite(cfg)
 	var apiKey *string
 
@@ -61,24 +61,25 @@ func GetApiKey(cfg pkgconfigmodel.Reader, orgUUID, delegatedAuthProof string) (*
 	if err != nil {
 		return nil, err
 	}
-	tokenBytes, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, err
-	}
 	defer func(Body io.ReadCloser) {
 		_ = Body.Close()
 	}(resp.Body)
 
+	tokenBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
 	if resp.StatusCode != http.StatusOK {
 		err = fmt.Errorf("failed to get API key: %s", resp.Status)
 		return nil, err
-	} else {
-		apiKey, err = parseResponse(tokenBytes)
-		if err != nil {
-			return nil, fmt.Errorf("failed to parse response: %w", err)
-		}
-		log.Infof("Successfully parsed delegated API key")
 	}
+
+	apiKey, err = parseResponse(tokenBytes)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse response: %w", err)
+	}
+	log.Infof("Successfully parsed delegated API key")
 	return apiKey, nil
 }
 

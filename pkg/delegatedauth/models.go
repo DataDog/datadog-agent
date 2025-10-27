@@ -19,5 +19,5 @@ type AuthConfig struct {
 
 // Provider is an interface for getting a delegated token utilizing different methods.
 type Provider interface {
-	GetApiKey(cfg pkgconfigmodel.Reader, config *AuthConfig) (*string, error)
+	GetAPIKey(cfg pkgconfigmodel.Reader, config *AuthConfig) (*string, error)
 }

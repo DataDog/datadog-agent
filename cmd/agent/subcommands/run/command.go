@@ -698,9 +698,6 @@ func startAgent(
 	// and not service running yet, and as such, the call will block or fail
 	go startDependentServices()
 
-	// Note: Delegated authentication is now initialized automatically via FX lifecycle hooks
-	// before other components start, ensuring the API key is available early for telemetry
-
 	return nil
 }
 

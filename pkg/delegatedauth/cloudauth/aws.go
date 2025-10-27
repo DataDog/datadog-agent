@@ -42,7 +42,7 @@ const (
 	contentTypeHeader = "Content-Type"
 	applicationForm   = "application/x-www-form-urlencoded; charset=utf-8"
 
-	awsAccessKeyIdName     = "AWS_ACCESS_KEY_ID"
+	awsAccessKeyIDName     = "AWS_ACCESS_KEY_ID"
 	awsSecretAccessKeyName = "AWS_SECRET_ACCESS_KEY"
 	awsSessionTokenName    = "AWS_SESSION_TOKEN"
 
@@ -56,11 +56,13 @@ const (
 // ProviderAWS is the specifier for the AWS provider type
 const ProviderAWS = "aws"
 
+// AWSAuth contains the implementation for the AWS cloud auth
 type AWSAuth struct {
 	AwsRegion string
 }
 
-func (a *AWSAuth) GetApiKey(cfg pkgconfigmodel.Reader, config *delegatedauth.AuthConfig) (*string, error) {
+// GetAPIKey fetches the API key based on the cloud auth exchange
+func (a *AWSAuth) GetAPIKey(cfg pkgconfigmodel.Reader, config *delegatedauth.AuthConfig) (*string, error) {
 	// Get local AWS Credentials
 	creds := a.getCredentials(cfg)
 
@@ -77,7 +79,7 @@ func (a *AWSAuth) GetApiKey(cfg pkgconfigmodel.Reader, config *delegatedauth.Aut
 	// Generate the auth string passed to the token endpoint
 	authString := data.BodyEncoded + "|" + data.HeadersEncoded + "|" + data.Method + "|" + data.URLEncoded
 
-	authResponse, err := delegatedauth.GetApiKey(cfg, config.OrgUUID, authString)
+	authResponse, err := delegatedauth.GetAPIKey(cfg, config.OrgUUID, authString)
 	return authResponse, err
 }
 
@@ -87,13 +89,13 @@ func (a *AWSAuth) getCredentials(cfg pkgconfigmodel.Reader) *ec2.SecurityCredent
 	creds := &ec2.SecurityCredentials{}
 
 	// First, try to get credentials from config
-	creds.AccessKeyID = cfg.GetString(awsAccessKeyIdName)
+	creds.AccessKeyID = cfg.GetString(awsAccessKeyIDName)
 	creds.SecretAccessKey = cfg.GetString(awsSecretAccessKeyName)
 	creds.Token = cfg.GetString(awsSessionTokenName)
 
 	// Then try environment variables
 	if creds.AccessKeyID == "" {
-		creds.AccessKeyID = os.Getenv(awsAccessKeyIdName)
+		creds.AccessKeyID = os.Getenv(awsAccessKeyIDName)
 	}
 	if creds.SecretAccessKey == "" {
 		creds.SecretAccessKey = os.Getenv(awsSecretAccessKeyName)
