@@ -5,7 +5,7 @@
 
 package connfilter
 
-func getDefaultConnFilters(site string) []Config {
+func getDefaultConnFilters(site string, monitorIPWithoutDomain bool) []Config {
 	defaultConfig := []Config{
 		{
 			Type:        FilterTypeExclude,
@@ -24,6 +24,12 @@ func getDefaultConnFilters(site string) []Config {
 		defaultConfig = append(defaultConfig, Config{
 			Type:        FilterTypeExclude,
 			MatchDomain: "*." + site,
+		})
+	}
+	if monitorIPWithoutDomain {
+		defaultConfig = append(defaultConfig, Config{
+			Type:    FilterTypeInclude,
+			MatchIP: "0.0.0.0/0",
 		})
 	}
 	return defaultConfig

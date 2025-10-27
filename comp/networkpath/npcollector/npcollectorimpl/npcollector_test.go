@@ -22,6 +22,9 @@ import (
 	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/npcollectorimpl/connfilter"
+	"github.com/DataDog/datadog-agent/pkg/config/structure"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -48,7 +51,7 @@ func Test_NpCollector_StartAndStop(t *testing.T) {
 
 	var b bytes.Buffer
 	w := bufio.NewWriter(&b)
-	l, err := utillog.LoggerFromWriterWithMinLevelAndFormat(w, utillog.DebugLvl, "[%LEVEL] %FuncShort: %Msg")
+	l, err := utillog.LoggerFromWriterWithMinLevelAndLvlFuncMsgFormat(w, utillog.DebugLvl)
 	assert.Nil(t, err)
 	utillog.SetupLogger(l, "debug")
 
@@ -995,7 +998,7 @@ func Test_npCollectorImpl_ScheduleConns(t *testing.T) {
 
 			var b bytes.Buffer
 			w := bufio.NewWriter(&b)
-			l, err := utillog.LoggerFromWriterWithMinLevelAndFormat(w, utillog.DebugLvl, "[%LEVEL] %FuncShort: %Msg")
+			l, err := utillog.LoggerFromWriterWithMinLevelAndLvlFuncMsgFormat(w, utillog.DebugLvl)
 			assert.Nil(t, err)
 			utillog.SetupLogger(l, "debug")
 
@@ -1046,7 +1049,7 @@ func Test_npCollectorImpl_stopWorker(t *testing.T) {
 
 	var b bytes.Buffer
 	w := bufio.NewWriter(&b)
-	l, err := utillog.LoggerFromWriterWithMinLevelAndFormat(w, utillog.DebugLvl, "[%LEVEL] %FuncShort: %Msg")
+	l, err := utillog.LoggerFromWriterWithMinLevelAndLvlFuncMsgFormat(w, utillog.DebugLvl)
 	assert.Nil(t, err)
 	utillog.SetupLogger(l, "debug")
 
@@ -1202,7 +1205,7 @@ func Benchmark_npCollectorImpl_ScheduleConns(b *testing.B) {
 	assert.Nil(b, err)
 	defer file.Close()
 	w := bufio.NewWriter(file)
-	l, err := utillog.LoggerFromWriterWithMinLevelAndFormat(w, utillog.DebugLvl, "[%LEVEL] %FuncShort: %Msg\n")
+	l, err := utillog.LoggerFromWriterWithMinLevelAndLvlFuncMsgFormat(w, utillog.DebugLvl)
 	assert.Nil(b, err)
 	utillog.SetupLogger(l, "debug")
 	defer w.Flush()
@@ -1477,15 +1480,17 @@ var cidrExcludedStat = teststatsd.MetricsArgs{Name: netpathConnsSkippedMetricNam
 
 func Test_npCollectorImpl_shouldScheduleNetworkPathForConn(t *testing.T) {
 	tests := []struct {
-		name               string
-		conn               *model.Connection
-		vpcSubnets         []*net.IPNet
-		domain             string
-		shouldSchedule     bool
-		subnetSkipped      bool
-		sourceExcludes     map[string][]string
-		destExcludes       map[string][]string
-		connectionExcluded bool
+		name                   string
+		conn                   *model.Connection
+		vpcSubnets             []*net.IPNet
+		domain                 string
+		shouldSchedule         bool
+		subnetSkipped          bool
+		sourceExcludes         map[string][]string
+		destExcludes           map[string][]string
+		filters                string
+		monitorIPWithoutDomain bool
+		connectionExcluded     bool
 	}{
 		{
 			name:   "should schedule",
@@ -1737,15 +1742,65 @@ func Test_npCollectorImpl_shouldScheduleNetworkPathForConn(t *testing.T) {
 			shouldSchedule:     true,
 			connectionExcluded: false,
 		},
+		{
+			name:   "FILTERS: excluded domain to test that filters works",
+			domain: "google.com",
+			filters: `
+network_path:
+  collector:
+    filters:
+      - match_domain: 'google.com'
+        type: exclude
+`,
+			conn: &model.Connection{
+				Laddr:     &model.Addr{Ip: "10.0.0.1", Port: int32(30000)},
+				Raddr:     &model.Addr{Ip: "10.0.0.2", Port: int32(80)},
+				Direction: model.ConnectionDirection_outgoing,
+			},
+			shouldSchedule: false,
+		},
+		{
+			name: "FILTERS: include IP",
+			filters: `
+network_path:
+  collector:
+    filters:
+      - match_ip: '10.10.10.10'
+        type: include
+`,
+			conn: &model.Connection{
+				Laddr:     &model.Addr{Ip: "10.0.0.1", Port: int32(30000)},
+				Raddr:     &model.Addr{Ip: "10.10.10.10", Port: int32(80)},
+				Direction: model.ConnectionDirection_outgoing,
+			},
+			shouldSchedule: true,
+		},
+		{
+			name:                   "FILTERS: test monitor all IPs without domain",
+			domain:                 "",
+			monitorIPWithoutDomain: true,
+			conn: &model.Connection{
+				Laddr:     &model.Addr{Ip: "10.0.0.1", Port: int32(30000)},
+				Raddr:     &model.Addr{Ip: "10.0.0.2", Port: int32(80)},
+				Direction: model.ConnectionDirection_outgoing,
+			},
+			shouldSchedule: true,
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			var configs []connfilter.Config
+			cfg := configComponent.NewMockFromYAML(t, tt.filters)
+			err := structure.UnmarshalKey(cfg, "network_path.collector.filters", &configs)
+			require.NoError(t, err)
 			agentConfigs := map[string]any{
 				"network_path.connections_monitoring.enabled":         true,
 				"network_path.collector.disable_intra_vpc_collection": true,
 				"network_path.collector.source_excludes":              tt.sourceExcludes,
 				"network_path.collector.dest_excludes":                tt.destExcludes,
+				"network_path.collector.filters":                      configs,
+				"network_path.collector.monitor_ip_without_domain":    tt.monitorIPWithoutDomain,
 			}
 			stats := &teststatsd.Client{}
 			_, npCollector := newTestNpCollector(t, agentConfigs, stats)

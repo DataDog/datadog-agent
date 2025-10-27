@@ -1587,8 +1587,33 @@ func (e *PrCtlEvent) UnmarshalBinary(data []byte) (int, error) {
 		return 0, ErrNotEnoughData
 	}
 	e.Option = int(binary.NativeEndian.Uint32(data[0:4]))
-	sizeToRead := int(binary.NativeEndian.Uint32(data[4:8]))
+	sizeToRead := binary.NativeEndian.Uint32(data[4:8])
 	e.IsNameTruncated = binary.NativeEndian.Uint32(data[8:12]) > 0
-	e.NewName = string(data[12 : sizeToRead+12])
-	return sizeToRead + 12, nil
+
+	if sizeToRead > sharedconsts.MaxPrCtlSetNameSize {
+		sizeToRead = sharedconsts.MaxPrCtlSetNameSize
+	}
+
+	data = data[12:]
+	e.NewName, err = UnmarshalString(data[:], int(sizeToRead))
+	if err != nil {
+		return 12, err
+	}
+
+	return 12 + int(sizeToRead), nil
+}
+
+// UnmarshalBinary unmarshals a binary representation of itself
+func (e *TracerMemfdSealEvent) UnmarshalBinary(data []byte) (int, error) {
+	read, err := UnmarshalBinary(data, &e.SyscallEvent)
+	if err != nil {
+		return 0, err
+	}
+
+	if len(data)-read < 4 {
+		return 0, ErrNotEnoughData
+	}
+
+	e.Fd = binary.NativeEndian.Uint32(data[read : read+4])
+	return read + 4, nil
 }

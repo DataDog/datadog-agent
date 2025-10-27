@@ -21,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dyninst/dispatcher"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/loader"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/process"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/procmon"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -42,7 +43,7 @@ type Scraper struct {
 }
 
 type trackedProcess struct {
-	pu procmon.ProcessUpdate
+	pu process.Info
 	// The runtimeID reported by the tracer inside this process.
 	runtimeID string
 }
@@ -103,39 +104,28 @@ func newScraper[A Actuator[AT], AT ActuatorTenant](
 	return v
 }
 
-// ProcessUpdate represents the current state of a process, which may have
-// changed since the last time the Scraper returned information about that
-// process. An update doesn't tell you exactly what changed, and ProcessUpdates
-// can be produced even when nothing at all changed.
-type ProcessUpdate struct {
-	procmon.ProcessUpdate
-	RuntimeID         string
-	Probes            []ir.ProbeDefinition
-	ShouldUploadSymDB bool
-}
-
 // GetUpdates returns the current state of processes that have pending updates
 // (i.e. updates not previously returned by GetUpdates).
-func (s *Scraper) GetUpdates() []ProcessUpdate {
+func (s *Scraper) GetUpdates() []process.Config {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	updates := s.mu.debouncer.getUpdates(time.Now())
-	res := make([]ProcessUpdate, 0, len(updates))
+	res := make([]process.Config, 0, len(updates))
 	for _, u := range updates {
 		p, ok := s.mu.processes[u.procID]
 		if !ok {
 			log.Warnf("bug: debouncer update for untracked process: %v", u.procID)
 			continue
 		}
-		res = append(res, ProcessUpdate{
-			ProcessUpdate:     p.pu,
+		res = append(res, process.Config{
+			Info:              p.pu,
 			RuntimeID:         p.runtimeID,
 			Probes:            u.probes,
 			ShouldUploadSymDB: u.symdbEnabled,
 		})
 	}
 
-	slices.SortFunc(res, func(a, b ProcessUpdate) int {
+	slices.SortFunc(res, func(a, b process.Config) int {
 		return cmp.Compare(a.ProcessID.PID, b.ProcessID.PID)
 	})
 	return res
@@ -219,10 +209,9 @@ func (h *procMonHandler) HandleUpdate(update procmon.ProcessesUpdate) {
 	(*Scraper)(h).handleProcmonUpdates(update)
 	updates := make([]actuator.ProcessUpdate, 0, len(update.Processes))
 	for i := range update.Processes {
-		process := &update.Processes[i]
+		proc := &update.Processes[i]
 		updates = append(updates, actuator.ProcessUpdate{
-			ProcessID:  process.ProcessID,
-			Executable: process.Executable,
+			Info: *proc,
 			Probes: []ir.ProbeDefinition{
 				probeDefinitionV1{},
 				probeDefinitionV2{},

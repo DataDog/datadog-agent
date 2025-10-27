@@ -45,8 +45,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dyninst/irprinter"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/loader"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/module"
-	"github.com/DataDog/datadog-agent/pkg/dyninst/procmon"
-	"github.com/DataDog/datadog-agent/pkg/dyninst/rcscrape"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/process"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/procscrape"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/testprogs"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/uploader"
 )
@@ -146,15 +146,14 @@ func testDyninst(
 	cfg.LogUploaderURL = testServer.getLogsURL()
 	cfg.DiagsUploaderURL = testServer.getDiagsURL()
 	cfg.ProcessSyncDisabled = true
-	scraper := &fakeScraper{}
-	cfg.TestingKnobs.ScraperOverride = func(_ module.Scraper) module.Scraper {
-		return scraper
+	var sendUpdate fakeProcessSubscriber
+	cfg.TestingKnobs.ProcessSubscriberOverride = func(_ module.ProcessSubscriber) module.ProcessSubscriber {
+		return &sendUpdate
 	}
 	cfg.TestingKnobs.IRGeneratorOverride = func(g module.IRGenerator) module.IRGenerator {
 		return &outputSavingIRGenerator{irGenerator: g, t: t, output: irDump}
 	}
-	subscriber := &fakeSubscriber{}
-	m, err := module.NewModule(cfg, subscriber)
+	m, err := module.NewModule(cfg, &fakeProcessEventSource{})
 	require.NoError(t, err)
 	t.Cleanup(m.Close)
 
@@ -174,24 +173,26 @@ func testDyninst(
 	fileInfo := stat.Sys().(*syscall.Stat_t)
 	exe := actuator.Executable{
 		Path: servicePath,
-		Key: procmon.FileKey{
-			FileHandle: procmon.FileHandle{
+		Key: process.FileKey{
+			FileHandle: process.FileHandle{
 				Dev: uint64(fileInfo.Dev),
 				Ino: fileInfo.Ino,
 			},
 		},
 	}
 	const runtimeID = "foo"
-	scraper.putUpdates([]rcscrape.ProcessUpdate{
-		{
-			ProcessUpdate: procmon.ProcessUpdate{
-				ProcessID:  procmon.ProcessID{PID: int32(sampleProc.Process.Pid)},
-				Executable: exe,
-				Service:    service,
+	sendUpdate(process.ProcessesUpdate{
+		Updates: []process.Config{
+			{
+				Info: process.Info{
+					ProcessID:  process.ID{PID: int32(sampleProc.Process.Pid)},
+					Executable: exe,
+					Service:    service,
+				},
+				RuntimeID:         runtimeID,
+				Probes:            probes,
+				ShouldUploadSymDB: false,
 			},
-			RuntimeID:         runtimeID,
-			Probes:            probes,
-			ShouldUploadSymDB: false,
 		},
 	})
 
@@ -250,7 +251,9 @@ func testDyninst(
 		require.GreaterOrEqual(t, n, totalExpectedEvents, "expected at least %d events, got %d", totalExpectedEvents, n)
 	}
 	require.NoError(t, sampleProc.Wait())
-	m.HandleRemovals([]procmon.ProcessID{{PID: int32(sampleProc.Process.Pid)}})
+	sendUpdate(process.ProcessesUpdate{
+		Removals: []process.ID{{PID: int32(sampleProc.Process.Pid)}},
+	})
 	require.EventuallyWithT(t, func(c *assert.CollectT) {
 		assert.Empty(c, m.DiagnosticsStates())
 	}, timeout, 100*time.Millisecond, "expected no diagnostics states")
@@ -665,46 +668,20 @@ func readDiags(req *http.Request) ([]receivedDiag, error) {
 	return ret, nil
 }
 
-type fakeSubscriber struct{}
+type fakeProcessEventSource struct{}
 
-func (f *fakeSubscriber) SubscribeExec(func(uint32)) func() { return noop }
-func (f *fakeSubscriber) SubscribeExit(func(uint32)) func() { return noop }
+func (f *fakeProcessEventSource) SubscribeExec(func(uint32)) func() { return noop }
+func (f *fakeProcessEventSource) SubscribeExit(func(uint32)) func() { return noop }
 
 func noop() {}
 
-var _ module.ProcessSubscriber = (*fakeSubscriber)(nil)
+var _ procscrape.EventSource = (*fakeProcessEventSource)(nil)
 
-type fakeScraper struct {
-	mu struct {
-		sync.Mutex
-		outputs []rcscrape.ProcessUpdate
-	}
+type fakeProcessSubscriber func(process.ProcessesUpdate)
+
+func (f *fakeProcessSubscriber) Subscribe(cb func(process.ProcessesUpdate)) {
+	*f = cb
 }
-
-// HandleUpdate implements procmon.Handler.
-func (f *fakeScraper) HandleUpdate(procmon.ProcessesUpdate) {}
-
-// AsProcMonHandler implements module.Scraper.
-func (f *fakeScraper) AsProcMonHandler() procmon.Handler {
-	return f
-}
-
-// GetUpdates implements module.Scraper.
-func (f *fakeScraper) GetUpdates() []rcscrape.ProcessUpdate {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	ret := f.mu.outputs
-	f.mu.outputs = nil
-	return ret
-}
-
-func (f *fakeScraper) putUpdates(outputs []rcscrape.ProcessUpdate) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	f.mu.outputs = outputs
-}
-
-var _ module.Scraper = (*fakeScraper)(nil)
 
 // Make a redactor for the onlyOnAmd64_17 float
 // return value in the testReturnsManyFloats function. This function is expected
