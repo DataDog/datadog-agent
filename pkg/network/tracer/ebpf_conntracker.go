@@ -550,13 +550,19 @@ func getManager(cfg *config.Config, buf io.ReaderAt, opts manager.Options) (*man
 			},
 			{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFFuncName: probes.ConntrackConfirmEntry, // JMWCONNTRACK
+					EBPFFuncName: probes.ConntrackHashCheckInsertReturn,
 					UID:          "conntracker",
 				},
 			},
 			{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
 					EBPFFuncName: probes.ConntrackConfirmReturn, // JMWCONNTRACK
+					UID:          "conntracker",
+				},
+			},
+			{
+				ProbeIdentificationPair: manager.ProbeIdentificationPair{
+					EBPFFuncName: probes.ConntrackConfirmEntry, // JMWCONNTRACK
 					UID:          "conntracker",
 				},
 			},

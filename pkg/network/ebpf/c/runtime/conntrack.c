@@ -49,6 +49,32 @@ int BPF_BYPASSABLE_KPROBE(kprobe__nf_conntrack_hash_insert, struct nf_conn *ct) 
     return 0;
 }
 
+// Second probe: Track nf_conntrack_hash_check_insert - kretprobe only
+// We can access ct from PT_REGS_PARM1 even in the kretprobe since it was passed as an argument
+SEC("kretprobe/__nf_conntrack_hash_check_insert")
+int BPF_BYPASSABLE_KPROBE(kretprobe__nf_conntrack_hash_check_insert, struct nf_conn *ct) {
+    int ret = PT_REGS_RC(ctx);
+    
+    // Only process successful insertions (ret == 0 means success)
+    if (ret != 0) {
+        log_debug("JMW(runtime)kretprobe/__nf_conntrack_hash_check_insert: failed, ret=%d", ret);
+        return 0;
+    }
+    
+    increment_hash_check_insert_success_count();
+    log_debug("JMW(runtime)kretprobe/__nf_conntrack_hash_check_insert: success, ct: %p, netns: %u", ct, get_netns(ct));
+    
+    // You can add to conntrack2 map here if needed:
+    // conntrack_tuple_t orig = {}, reply = {};
+    // if (nf_conn_to_conntrack_tuples(ct, &orig, &reply) != 0) {
+    //     return 0;
+    // }
+    // bpf_map_update_with_telemetry(conntrack2, &orig, &reply, BPF_ANY);
+    // bpf_map_update_with_telemetry(conntrack2, &reply, &orig, BPF_ANY);
+    
+    return 0;
+}
+
 
 // Approach 1: Use per-CPU correlation (most robust)
 // Create a per-CPU map to store the ct pointer, then retrieve it in the kretprobe.

@@ -23,6 +23,7 @@ typedef struct {
 typedef struct {
     __u64 registers;
     __u64 hash_insert_count;
+    __u64 hash_check_insert_success_count;
     __u64 confirm_entry_count;
     __u64 confirm_return_count;
     __u64 confirm_return_success_count;
