@@ -370,32 +370,6 @@ def get_version_numeric_only(ctx, major_version='7'):
     return version
 
 
-def load_overridden_dependencies():
-    """
-    Load dependency versions from release.json with environment variable overrides.
-    WINDOWS_* dependencies are skipped on non-Windows platforms.
-
-    Returns:
-        dict: Environment dictionary with dependency versions as strings.
-    """
-    from tasks.libs.releasing.json import load_release_json  # delayed to avoid circular imports
-
-    release = load_release_json()
-    if not (dependencies := release.get(RELEASE_JSON_DEPENDENCIES)):
-        raise Exit(f"Could not find {RELEASE_JSON_DEPENDENCIES!r} in release.json")
-    env = {}
-    for key, value in dependencies.items():
-        if key.startswith("WINDOWS_") and sys.platform != "win32":
-            print(f"Ignoring {key!r} on {sys.platform}", file=sys.stderr)
-            continue
-        if override := os.getenv(key):
-            print(f"Overriding {key!r}: {value!r} -> {override!r}", file=sys.stderr)
-            value = override
-        # windows runners don't accept anything else than strings in the environment when running a subprocess.
-        env[key] = str(value)
-    return env
-
-
 def create_version_json(ctx, git_sha_length=7):
     """
     Generate a json cache file containing all needed variables used by get_version.

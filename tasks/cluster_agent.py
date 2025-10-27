@@ -15,7 +15,7 @@ from invoke.exceptions import Exit
 from tasks.build_tags import get_default_build_tags
 from tasks.cluster_agent_helpers import build_common, clean_common, refresh_assets_common, version_common
 from tasks.cws_instrumentation import BIN_PATH as CWS_INSTRUMENTATION_BIN_PATH
-from tasks.libs.releasing.version import load_overridden_dependencies
+from tasks.libs.dependencies import load_overridden_dependencies
 
 # constants
 BIN_PATH = os.path.join(".", "bin", "datadog-cluster-agent")

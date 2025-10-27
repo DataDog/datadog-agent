@@ -18,12 +18,8 @@ from invoke.exceptions import Exit, UnexpectedExit
 
 from tasks.libs.ciproviders.gitlab_api import get_gitlab_repo
 from tasks.libs.common.utils import download_to_tempfile, timed
-from tasks.libs.releasing.version import (
-    VERSION_RE,
-    _create_version_from_match,
-    get_version,
-    load_overridden_dependencies,
-)
+from tasks.libs.dependencies import load_overridden_dependencies
+from tasks.libs.releasing.version import VERSION_RE, _create_version_from_match, get_version
 
 # Windows only import
 try:

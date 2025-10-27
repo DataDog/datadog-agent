@@ -28,7 +28,8 @@ from tasks.libs.common.omnibus import (
 )
 from tasks.libs.common.user_interactions import yes_no_question
 from tasks.libs.common.utils import gitlab_section, timed
-from tasks.libs.releasing.version import get_version, load_overridden_dependencies
+from tasks.libs.dependencies import load_overridden_dependencies
+from tasks.libs.releasing.version import get_version
 
 
 def omnibus_run_task(ctx, task, target_project, base_dir, env, log_level="info", host_distribution=None):
