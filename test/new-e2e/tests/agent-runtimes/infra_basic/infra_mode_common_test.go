@@ -276,12 +276,9 @@ func (s *infraBasicSuite) TestCheckSchedulingBehavior() {
 	})
 }
 
-// TestAdditionalCheckWorks verifies that a check can be added via infra_basic_additional_checks.
-// This test dynamically updates the environment to add a check not in the default allow list.
+// TestAdditionalCheckWorks verifies that checks can be added via infra_basic_additional_checks
+// and that regex patterns work. This test also verifies the static custom_.* pattern.
 func (s *infraBasicSuite) TestAdditionalCheckWorks() {
-	// Use http_check as an example of a check not in the default allow list
-	additionalCheckName := "http_check"
-
 	// HTTP check configuration
 	httpCheckConfig := `
 init_config:
@@ -292,7 +289,14 @@ instances:
     timeout: 1
 `
 
-	// Agent configuration with the additional check enabled
+	// Custom check configuration (tests static custom_.* pattern)
+	customCheckConfig := `
+init_config:
+instances:
+  - {}
+`
+
+	// Agent configuration with additional checks including a regex pattern
 	agentConfigWithAdditionalCheck := `
 api_key: "00000000000000000000000000000000"
 site: "datadoghq.com"
@@ -305,32 +309,50 @@ process_config:
 telemetry:
   enabled: true
 infra_basic_additional_checks:
-  - http_check
+  - "^http_.*"
 `
 
-	s.T().Logf("Updating environment to enable additional check: %s", additionalCheckName)
+	s.T().Logf("Updating environment to test regex patterns and custom checks")
 
-	// Update the environment with the new agent config and check integration
+	// Update the environment with the new agent config and check integrations
 	s.UpdateEnv(awshost.Provisioner(
 		awshost.WithEC2InstanceOptions(ec2.WithOS(s.descriptor), ec2.WithInstanceType("t3.micro")),
 		awshost.WithAgentOptions(
 			agentparams.WithAgentConfig(agentConfigWithAdditionalCheck),
-			agentparams.WithIntegration(additionalCheckName+".d", httpCheckConfig),
+			agentparams.WithIntegration("http_check.d", httpCheckConfig),
+			agentparams.WithIntegration("custom_mycheck.d", customCheckConfig),
 		),
 	))
 
-	s.T().Run("via_status_api", func(t *testing.T) {
-		t.Logf("Verifying additional check %s is scheduled via status API...", additionalCheckName)
+	s.T().Run("regex_pattern_in_config", func(t *testing.T) {
+		t.Run("via_status_api", func(t *testing.T) {
+			t.Logf("Verifying http_check matches ^http_.* pattern via status API...")
 
-		assert.EventuallyWithT(t, func(c *assert.CollectT) {
-			s.verifyCheckSchedulingViaStatusAPI(c, []string{additionalCheckName}, true)
-		}, 1*time.Minute, 10*time.Second, "Additional check should be scheduled within 1 minute")
+			assert.EventuallyWithT(t, func(c *assert.CollectT) {
+				s.verifyCheckSchedulingViaStatusAPI(c, []string{"http_check"}, true)
+			}, 1*time.Minute, 10*time.Second, "http_check should match ^http_.* pattern")
+		})
+
+		t.Run("via_cli", func(t *testing.T) {
+			t.Logf("Testing http_check matches ^http_.* pattern via CLI...")
+			ran := s.verifyCheckRuns("http_check")
+			assert.True(t, ran, "http_check must match ^http_.* regex pattern")
+		})
 	})
 
-	s.T().Run("via_cli", func(t *testing.T) {
-		// Verify the additional check can be run via CLI
-		t.Logf("Testing additional check %s via CLI...", additionalCheckName)
-		ran := s.verifyCheckRuns(additionalCheckName)
-		assert.True(t, ran, "Check %s must be runnable via CLI in basic mode when added via infra_basic_additional_checks", additionalCheckName)
+	s.T().Run("static_custom_pattern", func(t *testing.T) {
+		t.Run("via_status_api", func(t *testing.T) {
+			t.Logf("Verifying custom_mycheck matches static custom_.* pattern via status API...")
+
+			assert.EventuallyWithT(t, func(c *assert.CollectT) {
+				s.verifyCheckSchedulingViaStatusAPI(c, []string{"custom_mycheck"}, true)
+			}, 1*time.Minute, 10*time.Second, "custom_mycheck should match static custom_.* pattern")
+		})
+
+		t.Run("via_cli", func(t *testing.T) {
+			t.Logf("Testing custom_mycheck matches static custom_.* pattern via CLI...")
+			ran := s.verifyCheckRuns("custom_mycheck")
+			assert.True(t, ran, "custom_mycheck must match static custom_.* pattern")
+		})
 	})
 }

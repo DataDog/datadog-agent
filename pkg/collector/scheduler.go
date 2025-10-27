@@ -62,7 +62,6 @@ type CheckScheduler struct {
 	collector      option.Option[collector.Component]
 	senderManager  sender.SenderManager
 	m              sync.RWMutex
-	allowedChecks  map[string]struct{}
 }
 
 // InitCheckScheduler creates and returns a check scheduler
@@ -71,7 +70,6 @@ func InitCheckScheduler(collector option.Option[collector.Component], senderMana
 		collector:      collector,
 		senderManager:  senderManager,
 		configToChecks: make(map[string][]checkid.ID),
-		allowedChecks:  GetAllowedChecks(setup.Datadog()), // Allow list depends on infrastructure mode
 		loaders:        make([]check.Loader, 0, len(loaders.LoaderCatalog(senderManager, logReceiver, tagger, filterStore))),
 	}
 	// add the check loaders
@@ -89,12 +87,9 @@ func (s *CheckScheduler) Schedule(configs []integration.Config) {
 		checks := s.GetChecksFromConfigs(configs, true)
 		for _, c := range checks {
 			// Check if this check is allowed in infra basic mode
-			// If the set is empty, all checks are allowed
-			if len(s.allowedChecks) > 0 {
-				if _, ok := s.allowedChecks[c.String()]; !ok {
-					log.Infof("Check %s is not allowed in infra basic mode, skipping", c.String())
-					continue
-				}
+			if !IsCheckAllowed(c.String(), setup.Datadog()) {
+				log.Infof("Check %s is not allowed in infra basic mode, skipping", c.String())
+				continue
 			}
 			_, err := coll.RunCheck(c)
 			if err != nil {
