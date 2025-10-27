@@ -16,13 +16,6 @@
 
 #include <stdbool.h>
 
-// shared libraries handler
-#ifdef _WIN32
-#    include <Windows.h>
-#else
-#    include <dlfcn.h>
-#endif
-
 // metric types
 typedef enum {
     GAUGE = 0,
