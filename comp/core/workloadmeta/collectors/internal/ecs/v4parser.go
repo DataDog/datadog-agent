@@ -16,6 +16,7 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	v1 "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/v1"
 	"github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/v3or4"
+	"github.com/DataDog/datadog-agent/pkg/util/fargate"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -233,6 +234,8 @@ func (c *collector) parseV4TaskForSidecar(task *v3or4.Task) []workloadmeta.Colle
 		if container, ok := taskEvents[i].Entity.(*workloadmeta.Container); ok {
 			if c.actualLaunchType == workloadmeta.ECSLaunchTypeFargate {
 				container.Runtime = workloadmeta.ContainerRuntimeECSFargate
+			} else if c.actualLaunchType == workloadmeta.ECSLaunchTypeManagedInstances && fargate.IsSidecarInstance() {
+				container.Runtime = workloadmeta.ContainerRuntimeECSManagedInstances
 			} else {
 				// EC2 sidecar: don't set runtime, let Docker collector handle it
 				container.Runtime = ""
