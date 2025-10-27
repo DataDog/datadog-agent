@@ -10,13 +10,11 @@ Probes:
       captureSnapshot: true
       subprogram: {subprogram: 1}
       events:
-        - ID: 2
-          Kind: Entry
+        - Kind: Entry
           Type: 211 EventRootType Probe[main.HandleHTTP]
           InjectionPoints: [{PC: "0x86c120", Frameless: false}]
           Condition: null
-        - ID: 1
-          Kind: Return
+        - Kind: Return
           Type: 212 EventRootType Probe[main.HandleHTTP]Return
           InjectionPoints:
             - PC: "0x86c2f8"
@@ -34,13 +32,11 @@ Probes:
       captureSnapshot: true
       subprogram: {subprogram: 2}
       events:
-        - ID: 4
-          Kind: Entry
+        - Kind: Entry
           Type: 213 EventRootType Probe[main.LookAtTheRequest]
           InjectionPoints: [{PC: "0x86c428", Frameless: false}]
           Condition: null
-        - ID: 3
-          Kind: Return
+        - Kind: Return
           Type: 214 EventRootType Probe[main.LookAtTheRequest]Return
           InjectionPoints: [{PC: "0x86c49c", Frameless: false}]
           Condition: null

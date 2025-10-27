@@ -289,7 +289,7 @@ def compute_count_metric(
     cmd = "go list -f '{{ join .Deps \"\\n\"}}'"
     with ctx.cd(entrypoint):
         res = ctx.run(
-            f"{cmd} -tags {','.join(build_tags)}",
+            f"{cmd} -tags \"{','.join(build_tags)}\"",
             env=env,
             hide='out',  # don't hide errors
         )
@@ -354,7 +354,7 @@ def compute_binary_dependencies_list(
     cmd = "go list -f '{{ join .Deps \"\\n\"}}'"
 
     res = ctx.run(
-        f"{cmd} -tags {','.join(build_tags)}",
+        f"{cmd} -tags \"{','.join(build_tags)}\"",
         env=env,
         hide='out',  # don't hide errors
     )
