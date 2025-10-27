@@ -18,7 +18,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/object"
-	"github.com/DataDog/datadog-agent/pkg/dyninst/procmon"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/process"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/testprogs"
 )
 
@@ -63,7 +63,7 @@ func TestSymdbManagerUpload(t *testing.T) {
 
 	// Create runtime ID for testing
 	runtimeID := procRuntimeID{
-		ProcessID:   procmon.ProcessID{PID: 12345},
+		ID:          process.ID{PID: 12345},
 		service:     "test_service",
 		environment: "test_env",
 		version:     "1.0.0",
@@ -140,7 +140,7 @@ func testSymdbManagerCancellation(t *testing.T, useStop bool) {
 	t.Cleanup(manager.stop)
 	// Create a dummy runtime ID
 	runtimeID := procRuntimeID{
-		ProcessID:   procmon.ProcessID{PID: 12345},
+		ID:          process.ID{PID: 12345},
 		service:     "test_service",
 		environment: "test_env",
 		version:     "1.0.0",
@@ -165,7 +165,7 @@ func testSymdbManagerCancellation(t *testing.T, useStop bool) {
 
 	// Now perform another upload (for a different process), which we'll block
 	// and then cancel.
-	runtimeID.ProcessID.PID++ // change the ID to a new process
+	runtimeID.ID.PID++ // change the ID to a new process
 	blockUpload = true
 	err = manager.queueUpload(runtimeID, binPath)
 	require.NoError(t, err)

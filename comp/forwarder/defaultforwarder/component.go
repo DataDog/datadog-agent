@@ -48,3 +48,9 @@ func MockModule() fxutil.Module {
 	return fxutil.Component(
 		fx.Provide(newMockForwarder))
 }
+
+// NoopModule provides a stub forwarder component that does nothing.
+func NoopModule() fxutil.Module {
+	return fxutil.Component(
+		fx.Provide(func() Component { return NoopForwarder{} }))
+}

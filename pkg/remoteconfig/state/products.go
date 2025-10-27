@@ -39,8 +39,10 @@ var validProducts = map[string]struct{}{
 	ProductDataStreamsLiveMessages:      {},
 	ProductLiveDebuggingSymbolDB:        {},
 	ProductGradualRollout:               {},
+	ProductApmPolicies:                  {},
 	ProductSyntheticsTest:               {},
 	ProductBTFDD:                        {},
+	ProductFFEFlags:                     {},
 }
 
 const (
@@ -115,4 +117,8 @@ const (
 	ProductGradualRollout = "K8S_INJECTION_DD"
 	// ProductBTFDD accesses a BTF catalog used when the kernel is newer than the system-probe has bundled support for
 	ProductBTFDD = "BTF_DD"
+	// ProductApmPolicies is the workload selection product
+	ProductApmPolicies = "APM_POLICIES"
+	// ProductFFEFlags is used for feature flagging experiments remote updates
+	ProductFFEFlags = "FFE_FLAGS"
 )
