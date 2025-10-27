@@ -143,6 +143,9 @@ static __always_inline void process_redis_request(pktbuf_t pkt, conn_tuple_t *co
     // Read method length
     const u16 method_len = get_key_len(pkt);
 
+    // Declare transaction at function scope to help verifier
+    redis_transaction_t transaction = {};
+
     // Handle PING command (length 4)
     if (method_len == PING_METHOD_LEN) {
         char method[PING_METHOD_LEN + 1] = {};
@@ -159,7 +162,7 @@ static __always_inline void process_redis_request(pktbuf_t pkt, conn_tuple_t *co
         convert_ping_to_upper_case(method);
 
         if (bpf_memcmp(method, REDIS_CMD_PING, PING_METHOD_LEN) == 0) {
-            redis_transaction_t transaction = {};
+            // Initialize transaction only after validation passes
             transaction.tags = tags;
             transaction.request_started = bpf_ktime_get_ns();
             transaction.command = REDIS_PING;
@@ -185,11 +188,6 @@ static __always_inline void process_redis_request(pktbuf_t pkt, conn_tuple_t *co
 
         convert_method_to_upper_case(method);
 
-        // Initialize transaction only after validation passes
-        redis_transaction_t transaction = {};
-        transaction.tags = tags;
-        transaction.request_started = bpf_ktime_get_ns();
-
         if (bpf_memcmp(method, REDIS_CMD_SET, METHOD_LEN) == 0) {
             transaction.command = REDIS_SET;
         } else if (bpf_memcmp(method, REDIS_CMD_GET, METHOD_LEN) == 0) {
@@ -197,6 +195,10 @@ static __always_inline void process_redis_request(pktbuf_t pkt, conn_tuple_t *co
         } else {
             return;
         }
+
+        // Initialize transaction only after validation passes
+        transaction.tags = tags;
+        transaction.request_started = bpf_ktime_get_ns();
 
         // Read key name (only for GET/SET, not PING)
         __u16 len = get_key_len(pkt);
