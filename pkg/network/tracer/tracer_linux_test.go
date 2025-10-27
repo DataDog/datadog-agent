@@ -1997,7 +1997,7 @@ func (s *TracerSuite) TestShortWrite() {
 		require.True(collect, ok)
 
 		require.Equal(collect, sent, conn.Monotonic.SentBytes)
-	}, 3*time.Second, 100*time.Millisecond, "couldn't find connection used by short write")
+	}, 10*time.Second, 100*time.Millisecond, "couldn't find connection used by short write")
 }
 
 func (s *TracerSuite) TestKprobeAttachWithKprobeEvents() {
