@@ -893,6 +893,7 @@ def build_sysprobe_binary(
         bin_path=binary,
         gcflags=gcflags,
         ldflags=ldflags,
+        check_deadcode=os.getenv("DEPLOY_AGENT") == "true",
         coverage=os.getenv("E2E_COVERAGE_PIPELINE") == "true",
         env=env,
     )

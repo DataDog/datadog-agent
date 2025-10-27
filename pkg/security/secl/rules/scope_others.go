@@ -8,13 +8,9 @@
 // Package rules holds rules related files
 package rules
 
-// VariableScopes is the list of scopes for variables
-var VariableScopes = []string{
-	ScopeProcess,
-	ScopeContainer,
-}
+import "github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 
-// DefaultStateScopes returns the default state scopes for variables
-func DefaultStateScopes() map[Scope]VariableProviderFactory {
-	return getCommonStateScopes()
+// DefaultVariableScopers returns the default variable scopers
+func DefaultVariableScopers() map[Scope]*eval.VariableScoper {
+	return getCommonVariableScopers()
 }
