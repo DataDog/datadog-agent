@@ -1,18 +1,9 @@
-module github.com/DataDog/datadog-agent/comp/core/config
+module github.com/DataDog/datadog-agent/comp/core/delegatedauth
 
 go 1.24.0
 
 require (
-	github.com/DataDog/datadog-agent/comp/core/flare/types v0.72.0-rc.1
-	github.com/DataDog/datadog-agent/comp/core/secrets/def v0.72.0-rc.1
-	github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl v0.0.0-20251003153905-4e3e64f07b69
-	github.com/DataDog/datadog-agent/pkg/config/mock v0.61.0
 	github.com/DataDog/datadog-agent/pkg/config/model v0.64.1
-	github.com/DataDog/datadog-agent/pkg/config/setup v0.61.0
-	github.com/DataDog/datadog-agent/pkg/util/defaultpaths v0.64.0-devel
-	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.61.0
-	github.com/DataDog/datadog-agent/pkg/util/winutil v0.61.0
-	github.com/stretchr/testify v1.11.1
 	go.uber.org/fx v1.24.0
 )
 
@@ -72,10 +63,10 @@ require (
 	go.uber.org/dig v1.19.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap v1.27.0 // indirect
-	golang.org/x/exp v0.0.0-20251009144603-d2f985daa21b // indirect
-	golang.org/x/sys v0.37.0 // indirect
-	golang.org/x/text v0.30.0 // indirect
-	golang.org/x/time v0.14.0 // indirect
+	golang.org/x/exp v0.0.0-20250911091902-df9299821621 // indirect
+	golang.org/x/sys v0.36.0 // indirect
+	golang.org/x/text v0.29.0 // indirect
+	golang.org/x/time v0.12.0 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
@@ -87,8 +78,8 @@ replace (
 	github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def => ../../../comp/core/agenttelemetry/def
 	github.com/DataDog/datadog-agent/comp/core/agenttelemetry/fx => ../../../comp/core/agenttelemetry/fx
 	github.com/DataDog/datadog-agent/comp/core/agenttelemetry/impl => ../../../comp/core/agenttelemetry/impl
+	github.com/DataDog/datadog-agent/comp/core/config => ../../../comp/core/config
 	github.com/DataDog/datadog-agent/comp/core/configsync => ../../../comp/core/configsync
-	github.com/DataDog/datadog-agent/comp/core/delegatedauth => ../../../comp/core/delegatedauth
 	github.com/DataDog/datadog-agent/comp/core/flare/builder => ../../../comp/core/flare/builder
 	github.com/DataDog/datadog-agent/comp/core/flare/types => ../../../comp/core/flare/types
 	github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface => ../../../comp/core/hostname/hostnameinterface

@@ -15,6 +15,7 @@ use (
 	comp/core/agenttelemetry/impl
 	comp/core/config
 	comp/core/configsync
+	comp/core/delegatedauth
 	comp/core/flare/builder
 	comp/core/flare/types
 	comp/core/hostname/hostnameinterface

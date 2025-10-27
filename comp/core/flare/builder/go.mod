@@ -11,6 +11,7 @@ replace (
 	github.com/DataDog/datadog-agent/comp/core/agenttelemetry/impl => ../../../../comp/core/agenttelemetry/impl
 	github.com/DataDog/datadog-agent/comp/core/config => ../../../../comp/core/config
 	github.com/DataDog/datadog-agent/comp/core/configsync => ../../../../comp/core/configsync
+	github.com/DataDog/datadog-agent/comp/core/delegatedauth => ../../../../comp/core/delegatedauth
 	github.com/DataDog/datadog-agent/comp/core/flare/types => ../../../../comp/core/flare/types
 	github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface => ../../../../comp/core/hostname/hostnameinterface
 	github.com/DataDog/datadog-agent/comp/core/ipc/def => ../../../../comp/core/ipc/def
