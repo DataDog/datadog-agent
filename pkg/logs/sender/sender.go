@@ -58,7 +58,7 @@ type PipelineComponent interface {
 type Sender struct {
 	workers []*worker
 	queues  []chan *message.Payload
-	retrier *diskretry.Retrier
+	retrier retrierInterface
 
 	pipelineMonitor metrics.PipelineMonitor
 	idx             *atomic.Uint32
@@ -133,7 +133,7 @@ func NewSender(
 	}
 
 	// Initialize disk retry queue from config
-	var retrier *diskretry.Retrier
+	var retrier retrierInterface
 	diskRetryConfig := diskretry.Config{
 		Enabled:      config.GetBool("logs_config.disk_retry_enabled"),
 		Path:         config.GetString("logs_config.disk_retry_path"),
@@ -154,6 +154,8 @@ func NewSender(
 		if err != nil {
 			log.Warnf("Unable to create retrier: %v", err)
 		}
+	} else {
+		retrier = &noopRetrier{}
 	}
 
 	queues := make([]chan *message.Payload, queueCount)
