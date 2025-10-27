@@ -370,7 +370,7 @@ def get_version_numeric_only(ctx, major_version='7'):
     return version
 
 
-def load_overridden_dependencies(_):
+def load_overridden_dependencies():
     """
     Load dependency versions from release.json with environment variable overrides.
     WINDOWS_* dependencies are skipped on non-Windows platforms.

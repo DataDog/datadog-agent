@@ -90,7 +90,7 @@ def get_omnibus_env(
     custom_config_dir=None,
     fips_mode=False,
 ):
-    env = load_overridden_dependencies(ctx)
+    env = load_overridden_dependencies()
 
     # If the host has a GOMODCACHE set, try to reuse it
     if not go_mod_cache and os.environ.get('GOMODCACHE'):

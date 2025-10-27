@@ -57,7 +57,7 @@ def build(
 
     if policies_version is None:
         print("Loading dependencies from release.json")
-        env = load_overridden_dependencies(ctx)
+        env = load_overridden_dependencies()
         if "SECURITY_AGENT_POLICIES_VERSION" in env:
             policies_version = env["SECURITY_AGENT_POLICIES_VERSION"]
             print(f"Security Agent polices: {policies_version}")

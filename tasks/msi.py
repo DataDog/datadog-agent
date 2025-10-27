@@ -83,7 +83,7 @@ def _get_vs_build_command(cmd, vstudio_root=None):
 
 
 def _get_env(ctx, flavor=None):
-    env = load_overridden_dependencies(ctx)
+    env = load_overridden_dependencies()
 
     if flavor is None:
         flavor = os.getenv("AGENT_FLAVOR", "")
@@ -502,7 +502,7 @@ def get_msm_info(ctx):
     """
     Get the merge module info from the release.json
     """
-    env = load_overridden_dependencies(ctx)
+    env = load_overridden_dependencies()
     base_url = "https://s3.amazonaws.com/dd-windowsfilter/builds"
     msm_info = {}
     if 'WINDOWS_DDNPM_VERSION' in env:
