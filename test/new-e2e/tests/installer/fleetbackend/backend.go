@@ -200,8 +200,8 @@ func (b *Backend) getDaemonPID() (int, error) {
 	var err error
 	switch b.host.RemoteHost.OSFamily {
 	case e2eos.LinuxFamily:
-		pid, err = b.host.RemoteHost.Execute(`sudo systemctl show -p MainPID datadog-agent-installer | cut -d= -f2`)
-		pidExp, errExp := b.host.RemoteHost.Execute(`sudo systemctl show -p MainPID datadog-agent-installer-exp | cut -d= -f2`)
+		pid, err = b.host.RemoteHost.Execute(`sudo systemctl show -p MainPID datadog-agent-installer.service | cut -d= -f2`)
+		pidExp, errExp := b.host.RemoteHost.Execute(`sudo systemctl show -p MainPID datadog-agent-installer-exp.service | cut -d= -f2`)
 		pid = strings.TrimSpace(pid)
 		pidExp = strings.TrimSpace(pidExp)
 		if err != nil || errExp != nil {
