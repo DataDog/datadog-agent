@@ -254,7 +254,7 @@ CWS_INSTRUMENTATION_TAGS = {"netgo", "osusergo"}
 
 OTEL_AGENT_TAGS = {"otlp", "zlib", "zstd"}
 
-LOADER_TAGS = {"otlp"}
+LOADER_TAGS = set()
 
 # AGENT_TEST_TAGS lists the tags that have to be added to run tests
 AGENT_TEST_TAGS = AGENT_TAGS.union({"clusterchecks"})

@@ -49,6 +49,9 @@ func (s *EbpfProgramSuite) TestExpectedLibrariesAreDetected() {
 
 	cfg := ebpf.NewConfig()
 	require.NotNil(t, cfg)
+	prog := GetEBPFProgram(cfg)
+	require.NotNil(t, prog)
+	t.Cleanup(prog.Stop)
 
 	libsetToSampleLibraries := map[Libset][]string{
 		LibsetCrypto: {
@@ -66,15 +69,7 @@ func (s *EbpfProgramSuite) TestExpectedLibrariesAreDetected() {
 
 	for libset, libraries := range libsetToSampleLibraries {
 		t.Run(string(libset), func(t *testing.T) {
-			cfg := ebpf.NewConfig()
-			require.NotNil(t, cfg)
-
-			prog := GetEBPFProgram(cfg)
-			require.NotNil(t, prog)
-			t.Cleanup(prog.Stop)
-
 			require.NoError(t, prog.InitWithLibsets(libset))
-
 			for _, library := range libraries {
 				t.Run(library, func(t *testing.T) {
 					// Add foo prefix to ensure we only get opens from our test file
@@ -82,12 +77,12 @@ func (s *EbpfProgramSuite) TestExpectedLibrariesAreDetected() {
 					tempFile, _ := createTempTestFile(t, filename)
 
 					var receivedEventMutex sync.Mutex
-					var receivedEvent *LibPath
+					receivedEvents := make(map[uint32]*LibPath)
 					unsub, err := prog.Subscribe(func(path LibPath) {
 						receivedEventMutex.Lock()
 						defer receivedEventMutex.Unlock()
 						if strings.Contains(path.String(), filename) {
-							receivedEvent = &path
+							receivedEvents[path.Pid] = &path
 						}
 					}, libset)
 					require.NoError(t, err)
@@ -103,11 +98,11 @@ func (s *EbpfProgramSuite) TestExpectedLibrariesAreDetected() {
 					require.Eventually(t, func() bool {
 						receivedEventMutex.Lock()
 						defer receivedEventMutex.Unlock()
-						return receivedEvent != nil
+						_, exists := receivedEvents[uint32(command.Process.Pid)]
+						return exists
 					}, 1*time.Second, 10*time.Millisecond)
 
-					require.Equal(t, tempFile, receivedEvent.String())
-					require.Equal(t, command.Process.Pid, int(receivedEvent.Pid))
+					require.Equal(t, tempFile, receivedEvents[uint32(command.Process.Pid)].String())
 				})
 			}
 		})

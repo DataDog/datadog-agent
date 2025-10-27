@@ -39,7 +39,7 @@ func filterConfigsDropped(filter func(map[string]integration.Config), configs ..
 }
 
 func TestServiceFilterTemplatesEmptyOverrides(t *testing.T) {
-	filterDrops := func(svc *service, configs ...integration.Config) (dropped []integration.Config) {
+	filterDrops := func(svc *WorkloadService, configs ...integration.Config) (dropped []integration.Config) {
 		return filterConfigsDropped(svc.filterTemplatesEmptyOverrides, configs...)
 	}
 
@@ -50,32 +50,32 @@ func TestServiceFilterTemplatesEmptyOverrides(t *testing.T) {
 
 	t.Run("nil checkNames", func(t *testing.T) {
 		assert.Equal(t, nothingDropped,
-			filterDrops(&service{entity: entity, checkNames: nil}, fileTpl))
+			filterDrops(&WorkloadService{entity: entity, checkNames: nil}, fileTpl))
 	})
 
 	t.Run("one checkName", func(t *testing.T) {
 		assert.Equal(t, nothingDropped,
-			filterDrops(&service{entity: entity, checkNames: []string{"foo"}}, fileTpl))
+			filterDrops(&WorkloadService{entity: entity, checkNames: []string{"foo"}}, fileTpl))
 	})
 
 	t.Run("some checkNames", func(t *testing.T) {
 		assert.Equal(t, nothingDropped,
-			filterDrops(&service{entity: entity, checkNames: []string{"foo", "bar"}}, fileTpl))
+			filterDrops(&WorkloadService{entity: entity, checkNames: []string{"foo", "bar"}}, fileTpl))
 	})
 
 	t.Run("zero checkNames", func(t *testing.T) {
 		assert.Equal(t, []integration.Config{fileTpl}, // fileTpl gets dropped, but not non-file
-			filterDrops(&service{entity: entity, checkNames: []string{}}, fileTpl, nonFileTpl))
+			filterDrops(&WorkloadService{entity: entity, checkNames: []string{}}, fileTpl, nonFileTpl))
 	})
 
 	t.Run("one empty checkName", func(t *testing.T) {
 		assert.Equal(t, []integration.Config{fileTpl}, // fileTpl gets dropped, but not non-file
-			filterDrops(&service{entity: entity, checkNames: []string{""}}, fileTpl, nonFileTpl))
+			filterDrops(&WorkloadService{entity: entity, checkNames: []string{""}}, fileTpl, nonFileTpl))
 	})
 }
 
 func TestServiceFilterTemplatesOverriddenChecks(t *testing.T) {
-	filterDrops := func(svc *service, configs ...integration.Config) (dropped []integration.Config) {
+	filterDrops := func(svc *WorkloadService, configs ...integration.Config) (dropped []integration.Config) {
 		return filterConfigsDropped(svc.filterTemplatesOverriddenChecks, configs...)
 	}
 
@@ -88,27 +88,27 @@ func TestServiceFilterTemplatesOverriddenChecks(t *testing.T) {
 
 	t.Run("nil checkNames", func(t *testing.T) {
 		assert.Equal(t, nothingDropped,
-			filterDrops(&service{entity: entity, checkNames: nil}, fooTpl, barTpl))
+			filterDrops(&WorkloadService{entity: entity, checkNames: nil}, fooTpl, barTpl))
 	})
 
 	t.Run("one checkName", func(t *testing.T) {
 		assert.Equal(t, []integration.Config{fooTpl},
-			filterDrops(&service{entity: entity, checkNames: []string{"foo"}}, fooTpl, barTpl, fooNonFileTpl))
+			filterDrops(&WorkloadService{entity: entity, checkNames: []string{"foo"}}, fooTpl, barTpl, fooNonFileTpl))
 	})
 
 	t.Run("some checkNames", func(t *testing.T) {
 		assert.Equal(t, []integration.Config{fooTpl, barTpl},
-			filterDrops(&service{entity: entity, checkNames: []string{"foo", "bar"}}, fooTpl, barTpl, fooNonFileTpl, barNonFileTpl))
+			filterDrops(&WorkloadService{entity: entity, checkNames: []string{"foo", "bar"}}, fooTpl, barTpl, fooNonFileTpl, barNonFileTpl))
 	})
 
 	t.Run("some checkNames, partial match", func(t *testing.T) {
 		assert.Equal(t, []integration.Config{barTpl},
-			filterDrops(&service{entity: entity, checkNames: []string{"bing", "bar"}}, fooTpl, barTpl, fooNonFileTpl, barNonFileTpl))
+			filterDrops(&WorkloadService{entity: entity, checkNames: []string{"bing", "bar"}}, fooTpl, barTpl, fooNonFileTpl, barNonFileTpl))
 	})
 }
 
 func TestServiceFilterTemplatesCCA(t *testing.T) {
-	filterDrops := func(svc *service, configs ...integration.Config) (dropped []integration.Config) {
+	filterDrops := func(svc *WorkloadService, configs ...integration.Config) (dropped []integration.Config) {
 		return filterConfigsDropped(svc.filterTemplatesContainerCollectAll, configs...)
 	}
 
@@ -123,7 +123,7 @@ func TestServiceFilterTemplatesCCA(t *testing.T) {
 		mockConfig.SetWithoutSource("logs_config.container_collect_all", true)
 
 		assert.Equal(t, nothingDropped,
-			filterDrops(&service{}, logsTpl, noLogsTpl))
+			filterDrops(&WorkloadService{}, logsTpl, noLogsTpl))
 	})
 
 	t.Run("no other logs config", func(t *testing.T) {
@@ -131,7 +131,7 @@ func TestServiceFilterTemplatesCCA(t *testing.T) {
 		mockConfig.SetWithoutSource("logs_config.container_collect_all", true)
 
 		assert.Equal(t, nothingDropped,
-			filterDrops(&service{}, noLogsTpl, ccaTpl))
+			filterDrops(&WorkloadService{}, noLogsTpl, ccaTpl))
 	})
 
 	t.Run("other logs config", func(t *testing.T) {
@@ -139,7 +139,7 @@ func TestServiceFilterTemplatesCCA(t *testing.T) {
 		mockConfig.SetWithoutSource("logs_config.container_collect_all", true)
 
 		assert.Equal(t, []integration.Config{ccaTpl},
-			filterDrops(&service{}, noLogsTpl, logsTpl, ccaTpl))
+			filterDrops(&WorkloadService{}, noLogsTpl, logsTpl, ccaTpl))
 	})
 
 	t.Run("other logs config, CCA disabled", func(t *testing.T) {
@@ -147,6 +147,6 @@ func TestServiceFilterTemplatesCCA(t *testing.T) {
 		mockConfig.SetWithoutSource("logs_config.container_collect_all", false)
 
 		assert.Equal(t, nothingDropped,
-			filterDrops(&service{}, noLogsTpl, logsTpl, ccaTpl))
+			filterDrops(&WorkloadService{}, noLogsTpl, logsTpl, ccaTpl))
 	})
 }
