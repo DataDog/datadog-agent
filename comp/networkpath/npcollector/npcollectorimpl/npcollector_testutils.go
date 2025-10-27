@@ -22,6 +22,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/delegatedauth"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
@@ -33,6 +34,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector"
 	rdnsqueriermock "github.com/DataDog/datadog-agent/comp/rdnsquerier/fx-mock"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx-mock"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 // MockTimeNow mocks time.Now
@@ -55,6 +57,10 @@ var testOptions = fx.Options(
 	logscompression.MockModule(),
 	telemetryimpl.MockModule(),
 	hostnameimpl.MockModule(),
+	// Provide None for optional delegated auth component in tests
+	fx.Provide(func() option.Option[delegatedauth.Component] {
+		return option.None[delegatedauth.Component]()
+	}),
 )
 
 func newTestNpCollector(t testing.TB, agentConfigs map[string]any, statsdClient statsd.ClientInterface) (*fxtest.App, *npCollectorImpl) {

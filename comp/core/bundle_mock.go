@@ -21,12 +21,14 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/delegatedauth"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 // team: agent-runtimes
@@ -41,6 +43,10 @@ func makeMockBundle(logParams, logger fx.Option) fxutil.BundleOptions {
 		sysprobeconfigimpl.MockModule(),
 		telemetryimpl.MockModule(),
 		hostnameimpl.MockModule(),
+		// Provide None for optional delegated auth component in tests
+		fx.Provide(func() option.Option[delegatedauth.Component] {
+			return option.None[delegatedauth.Component]()
+		}),
 	)
 }
 

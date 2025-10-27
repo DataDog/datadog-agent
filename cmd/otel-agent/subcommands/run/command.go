@@ -22,6 +22,7 @@ import (
 	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/configsync"
 	"github.com/DataDog/datadog-agent/comp/core/configsync/configsyncimpl"
+	delegatedauthfx "github.com/DataDog/datadog-agent/comp/core/delegatedauth/fx"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/remotehostnameimpl"
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
@@ -135,6 +136,7 @@ func runOTelAgentCommand(ctx context.Context, params *cliParams, opts ...fx.Opti
 			collectorcontribFx.Module(),
 			collectorfx.ModuleNoAgent(),
 			fx.Options(opts...),
+			delegatedauthfx.Module(),
 			fx.Invoke(func(_ collectordef.Component, _ pid.Component) {
 			}),
 		)
@@ -240,6 +242,7 @@ func runOTelAgentCommand(ctx context.Context, params *cliParams, opts ...fx.Opti
 		payloadmodifierfx.NilModule(),
 		traceagentfx.Module(),
 		agenttelemetryfx.Module(),
+		delegatedauthfx.Module(),
 	)
 }
 

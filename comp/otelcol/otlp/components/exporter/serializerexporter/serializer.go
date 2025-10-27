@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	delegatedauthfx "github.com/DataDog/datadog-agent/comp/core/delegatedauth/fx"
 	logdef "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorinterface"
@@ -159,6 +160,7 @@ func InitSerializer(logger *zap.Logger, cfg *ExporterConfig, sourceProvider sour
 			return c
 		}),
 		defaultforwarder.Module(defaultforwarder.NewParams()),
+		delegatedauthfx.Module(),
 		fx.Populate(&f),
 		fx.Populate(&s),
 	)

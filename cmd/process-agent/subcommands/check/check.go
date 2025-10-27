@@ -24,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/process-agent/command"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	delegatedauthfx "github.com/DataDog/datadog-agent/comp/core/delegatedauth/fx"
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	secretsfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx"
@@ -176,6 +177,7 @@ func MakeCommand(globalParamsGetter func() *command.GlobalParams, name string, a
 					return &statsd.NoOpClient{}
 				}),
 				ipcfx.ModuleReadOnly(),
+				delegatedauthfx.Module(),
 			)
 		},
 		SilenceUsage: true,
