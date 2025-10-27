@@ -54,7 +54,7 @@ const (
 	resourceName      = "resource_name"
 	functionTarget    = "build_function_target"
 	functionSignature = "function_signature_type"
-	cloudRunPrefix    = "gpc.run"
+	cloudRunPrefix    = "gcp.run"
 )
 
 var metadataHelperFunc = GetMetaData
