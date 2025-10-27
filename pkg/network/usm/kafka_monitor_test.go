@@ -673,6 +673,7 @@ type CannedClientServer struct {
 	unixPath string
 	address  string
 	tls      bool
+	t        *testing.T
 }
 
 func newCannedClientServer(tls bool) *CannedClientServer {
@@ -687,7 +688,6 @@ func newCannedClientServer(tls bool) *CannedClientServer {
 		// trace.
 		address: "127.0.0.1:8082",
 		tls:     tls,
-		// t:       t,
 	}
 }
 
@@ -744,7 +744,7 @@ func (can *CannedClientServer) runServer(t *testing.T) {
 			}
 			conn, err = listener.Accept()
 			require.NoError(t, err)
-			t.Logf("new can conn: laddr %v; raddr %v", conn.LocalAddr(), conn.RemoteAddr())
+			can.t.Logf("new can conn: laddr %v; raddr %v", conn.LocalAddr(), conn.RemoteAddr())
 
 			reader := bufio.NewReader(conn)
 			for _, msg := range msgs {
@@ -776,6 +776,7 @@ func (can *CannedClientServer) runProxy(t *testing.T) int {
 }
 
 func (can *CannedClientServer) runClient(t *testing.T, msgs []Message) {
+	can.t = t
 	can.control <- msgs
 
 	conn, err := net.Dial("unix", can.unixPath)
