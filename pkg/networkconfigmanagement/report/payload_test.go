@@ -15,8 +15,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/profile"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"github.com/DataDog/datadog-agent/pkg/networkdevice/integrations"
 )
 
 func TestNetworkDeviceConfig_Creation(t *testing.T) {
@@ -73,7 +71,6 @@ func TestNetworkDeviceConfig_ConfigTypes(t *testing.T) {
 
 func TestNetworkDevicesConfigPayload_Creation(t *testing.T) {
 	namespace := "production"
-	integration := integrations.Integration("ncm")
 	timestamp := time.Now().Unix()
 
 	configs := []NetworkDeviceConfig{
@@ -91,21 +88,20 @@ func TestNetworkDevicesConfigPayload_Creation(t *testing.T) {
 			ConfigType: string(STARTUP),
 			Timestamp:  timestamp,
 			Tags:       []string{"device_type:router"},
-			Content:    []byte("startup config content"),
+			Content:    "startup config content",
 		},
 	}
 
-	payload := ToNCMPayload(namespace, integration, configs, timestamp)
+	payload := ToNCMPayload(namespace, configs, timestamp)
 
 	assert.Equal(t, namespace, payload.Namespace)
-	assert.Equal(t, integration, payload.Integration)
 	assert.Equal(t, timestamp, payload.CollectTimestamp)
 	assert.Len(t, payload.Configs, 2)
 	assert.Equal(t, configs, payload.Configs)
 }
 
 func TestNetworkDevicesConfigPayload_EmptyConfigs(t *testing.T) {
-	payload := ToNCMPayload("test", "", []NetworkDeviceConfig{}, time.Now().Unix())
+	payload := ToNCMPayload("test", []NetworkDeviceConfig{}, time.Now().Unix())
 
 	assert.Equal(t, "test", payload.Namespace)
 	assert.Empty(t, payload.Configs)

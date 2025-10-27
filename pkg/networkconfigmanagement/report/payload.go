@@ -10,7 +10,6 @@ package report
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/profile"
-	"github.com/DataDog/datadog-agent/pkg/networkdevice/integrations"
 )
 
 // ConfigType defines the type of network device configuration
@@ -25,10 +24,9 @@ const (
 
 // NCMPayload contains network devices configuration payload sent to EvP / backend
 type NCMPayload struct {
-	Namespace        string                   `json:"namespace"`
-	Integration      integrations.Integration `json:"integration"`
-	Configs          []NetworkDeviceConfig    `json:"configs"`
-	CollectTimestamp int64                    `json:"collect_timestamp"`
+	Namespace        string                `json:"namespace"`
+	Configs          []NetworkDeviceConfig `json:"configs"`
+	CollectTimestamp int64                 `json:"collect_timestamp"`
 }
 
 // NetworkDeviceConfig contains network device configuration for a single device
@@ -38,14 +36,13 @@ type NetworkDeviceConfig struct {
 	ConfigType string   `json:"config_type"`
 	Timestamp  int64    `json:"timestamp"`
 	Tags       []string `json:"tags"`
-	Content    []byte   `json:"content"`
+	Content    string   `json:"content"`
 }
 
 // ToNCMPayload converts the given parameters into a NCMPayload (sent to event platform / backend).
-func ToNCMPayload(namespace string, integration integrations.Integration, configs []NetworkDeviceConfig, timestamp int64) NCMPayload {
+func ToNCMPayload(namespace string, configs []NetworkDeviceConfig, timestamp int64) NCMPayload {
 	return NCMPayload{
 		Namespace:        namespace,
-		Integration:      integration,
 		Configs:          configs,
 		CollectTimestamp: timestamp,
 	}
