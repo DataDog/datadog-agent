@@ -1308,6 +1308,9 @@ func agent(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("software_inventory.interval", 10)
 	bindEnvAndSetLogsConfigKeys(config, "software_inventory.forwarder.")
 
+	// Notable Events (EUDM)
+	config.BindEnvAndSetDefault("notable_events.enabled", false)
+
 	pkgconfigmodel.AddOverrideFunc(toggleDefaultPayloads)
 }
 
