@@ -115,6 +115,12 @@ func (e *Exporter) consumeK8sObjects(ctx context.Context, ld plog.Logs) (err err
 						zap.String("kind", manifest.Kind),
 						zap.String("resourceVersion", manifest.ResourceVersion))
 					continue
+				} else {
+					fmt.Println("Sending manifest", manifest.Uid, manifest.Kind, manifest.ResourceVersion)
+					logger.Info("Sending manifest",
+						zap.String("uid", manifest.Uid),
+						zap.String("kind", manifest.Kind),
+						zap.String("resourceVersion", manifest.ResourceVersion))
 				}
 
 				manifests = append(manifests, manifest)
