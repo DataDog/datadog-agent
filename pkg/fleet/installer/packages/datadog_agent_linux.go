@@ -32,7 +32,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	// "github.com/DataDog/datadog-agent/pkg/version"
+	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 var datadogAgentPackage = hooks{
@@ -241,7 +241,7 @@ func postInstallDatadogAgent(ctx HookContext) (err error) {
 		return fmt.Errorf("failed to set package version in extensions db: %w", err)
 	}
 	if err := restoreAgentExtensions(ctx, false); err != nil {
-		fmt.Println("failed to restore extensions: %s", err.Error())
+		fmt.Printf("failed to restore extensions: %s\n", err.Error())
 		log.Warnf("failed to restore extensions: %s", err)
 	}
 	if err := agentService.WriteStable(ctx); err != nil {
@@ -782,10 +782,9 @@ func isAmbiantCapabilitiesSupported() (bool, error) {
 }
 
 func getCurrentAgentVersion() string {
-	// v := version.AgentVersionURLSafe
-	// if strings.HasSuffix(v, "-1") {
-	// 	return v
-	// }
-	// return v + "-1"
-	return "7.73.0-devel.git.371.f3d4a83.pipeline.80209939-1"
+	v := version.AgentVersionURLSafe
+	if strings.HasSuffix(v, "-1") {
+		return v
+	}
+	return v + "-1"
 }
