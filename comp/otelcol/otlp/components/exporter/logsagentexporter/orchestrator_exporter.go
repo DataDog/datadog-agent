@@ -45,7 +45,16 @@ var (
 	// within a short period. Uses UID + resourceVersion as the cache key.
 	manifestCache     *gocache.Cache
 	manifestCacheOnce sync.Once
+	k8sTypeMap        map[string]int
 )
+
+func init() {
+	// Map Kubernetes resource types to orchestrator manifest types
+	k8sTypeMap = make(map[string]int)
+	for _, t := range orchestratormodel.NodeTypes() {
+		k8sTypeMap[t.String()] = int(t)
+	}
+}
 
 // getManifestCache returns the singleton manifest cache instance
 func getManifestCache() *gocache.Cache {
@@ -109,14 +118,12 @@ func (e *Exporter) consumeK8sObjects(ctx context.Context, ld plog.Logs) (err err
 
 				// Check cache to avoid sending the same manifest multiple times within 3 minutes
 				if shouldSkipManifest(manifest) {
-					fmt.Println("Skipping manifest (cache hit)", manifest.Uid, manifest.Kind, manifest.ResourceVersion)
 					logger.Info("Skipping manifest (cache hit)",
 						zap.String("uid", manifest.Uid),
 						zap.String("kind", manifest.Kind),
 						zap.String("resourceVersion", manifest.ResourceVersion))
 					continue
 				} else {
-					fmt.Println("Sending manifest", manifest.Uid, manifest.Kind, manifest.ResourceVersion)
 					logger.Info("Sending manifest",
 						zap.String("uid", manifest.Uid),
 						zap.String("kind", manifest.Kind),
@@ -279,47 +286,12 @@ func buildClusterID(clusterName string) string {
 	return uuid.String()
 }
 
-// ToDo: add more types if needed
 func getManifestType(kind string) int {
-	switch kind {
-	case "Pod":
-		return int(orchestratormodel.K8sPod)
-	case "Deployment":
-		return int(orchestratormodel.K8sDeployment)
-	case "Service":
-		return int(orchestratormodel.K8sService)
-	case "Node":
-		return int(orchestratormodel.K8sNode)
-	case "Namespace":
-		return int(orchestratormodel.K8sNamespace)
-	case "ReplicaSet":
-		return int(orchestratormodel.K8sReplicaSet)
-	case "DaemonSet":
-		return int(orchestratormodel.K8sDaemonSet)
-	case "StatefulSet":
-		return int(orchestratormodel.K8sStatefulSet)
-	case "Job":
-		return int(orchestratormodel.K8sJob)
-	case "CronJob":
-		return int(orchestratormodel.K8sCronJob)
-	case "PersistentVolume":
-		return int(orchestratormodel.K8sPersistentVolume)
-	case "PersistentVolumeClaim":
-		return int(orchestratormodel.K8sPersistentVolumeClaim)
-	case "Ingress":
-		return int(orchestratormodel.K8sIngress)
-	case "NetworkPolicy":
-		return int(orchestratormodel.K8sNetworkPolicy)
-	case "StorageClass":
-		return int(orchestratormodel.K8sStorageClass)
-	case "LimitRange":
-		return int(orchestratormodel.K8sLimitRange)
-	case "PodDisruptionBudget":
-		return int(orchestratormodel.K8sPodDisruptionBudget)
-	default:
-		// For unknown types, use the generic manifest type
-		return int(orchestratormodel.K8sUnsetType)
+	if _, ok := k8sTypeMap[kind]; ok {
+		return k8sTypeMap[kind]
 	}
+
+	return int(orchestratormodel.K8sUnsetType)
 }
 
 // ToDo: add more common tags
