@@ -2,7 +2,7 @@
 Docker related tasks
 """
 
-from invoke import task
+from invoke.tasks import task
 
 
 @task

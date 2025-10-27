@@ -10,8 +10,7 @@ Probes:
       captureSnapshot: true
       subprogram: {subprogram: 13}
       events:
-        - ID: 24
-          Kind: Entry
+        - Kind: Entry
           Type: 185 EventRootType Probe[main.PointerChainArg]
           InjectionPoints: [{PC: "0xb5388", Frameless: false}]
           Condition: null
@@ -25,8 +24,7 @@ Probes:
       captureSnapshot: true
       subprogram: {subprogram: 14}
       events:
-        - ID: 25
-          Kind: Entry
+        - Kind: Entry
           Type: 186 EventRootType Probe[main.PointerSmallChainArg]
           InjectionPoints: [{PC: "0xb53c0", Frameless: false}]
           Condition: null
@@ -39,13 +37,11 @@ Probes:
       captureSnapshot: true
       subprogram: {subprogram: 9}
       events:
-        - ID: 17
-          Kind: Entry
+        - Kind: Entry
           Type: 177 EventRootType Probe[main.bigMapArg]
           InjectionPoints: [{PC: "0xb5880", Frameless: false}]
           Condition: null
-        - ID: 16
-          Kind: Return
+        - Kind: Return
           Type: 178 EventRootType Probe[main.bigMapArg]Return
           InjectionPoints: [{PC: "0xb58f4", Frameless: false}]
           Condition: null
@@ -59,8 +55,7 @@ Probes:
       captureSnapshot: true
       subprogram: {subprogram: 12}
       events:
-        - ID: 23
-          Kind: Entry
+        - Kind: Entry
           Type: 183 EventRootType Probe[main.inlined]
           InjectionPoints:
             - PC: "0xb519c"
@@ -68,8 +63,7 @@ Probes:
             - PC: "0xb5748"
               Frameless: false
           Condition: null
-        - ID: 22
-          Kind: Return
+        - Kind: Return
           Type: 184 EventRootType Probe[main.inlined]Return
           InjectionPoints: [{PC: "0xb5780", Frameless: false}]
           Condition: null
@@ -82,13 +76,11 @@ Probes:
       captureSnapshot: true
       subprogram: {subprogram: 1}
       events:
-        - ID: 2
-          Kind: Entry
+        - Kind: Entry
           Type: 162 EventRootType Probe[main.intArg]
           InjectionPoints: [{PC: "0xb5428", Frameless: false}]
           Condition: null
-        - ID: 1
-          Kind: Return
+        - Kind: Return
           Type: 163 EventRootType Probe[main.intArg]Return
           InjectionPoints: [{PC: "0xb5460", Frameless: false}]
           Condition: null
@@ -101,13 +93,11 @@ Probes:
       captureSnapshot: true
       subprogram: {subprogram: 4}
       events:
-        - ID: 8
-          Kind: Entry
+        - Kind: Entry
           Type: 168 EventRootType Probe[main.intArrayArg]
           InjectionPoints: [{PC: "0xb55a8", Frameless: false}]
           Condition: null
-        - ID: 7
-          Kind: Return
+        - Kind: Return
           Type: 169 EventRootType Probe[main.intArrayArg]Return
           InjectionPoints: [{PC: "0xb55ec", Frameless: false}]
           Condition: null
@@ -120,8 +110,7 @@ Probes:
       captureSnapshot: true
       subprogram: {subprogram: 7}
       events:
-        - ID: 13
-          Kind: Entry
+        - Kind: Entry
           Type: 174 EventRootType Probe[main.stringArrayArgFrameless]
           InjectionPoints: [{PC: "0xb5720", Frameless: true}]
           Condition: null
@@ -134,13 +123,11 @@ Probes:
       captureSnapshot: true
       subprogram: {subprogram: 3}
       events:
-        - ID: 6
-          Kind: Entry
+        - Kind: Entry
           Type: 166 EventRootType Probe[main.intSliceArg]
           InjectionPoints: [{PC: "0xb5518", Frameless: false}]
           Condition: null
-        - ID: 5
-          Kind: Return
+        - Kind: Return
           Type: 167 EventRootType Probe[main.intSliceArg]Return
           InjectionPoints: [{PC: "0xb5554", Frameless: false}]
           Condition: null
@@ -153,13 +140,11 @@ Probes:
       captureSnapshot: true
       subprogram: {subprogram: 8}
       events:
-        - ID: 15
-          Kind: Entry
+        - Kind: Entry
           Type: 175 EventRootType Probe[main.mapArg]
           InjectionPoints: [{PC: "0xb5808", Frameless: false}]
           Condition: null
-        - ID: 14
-          Kind: Return
+        - Kind: Return
           Type: 176 EventRootType Probe[main.mapArg]Return
           InjectionPoints: [{PC: "0xb5838", Frameless: false}]
           Condition: null
@@ -172,13 +157,11 @@ Probes:
       captureSnapshot: true
       subprogram: {subprogram: 10}
       events:
-        - ID: 19
-          Kind: Entry
+        - Kind: Entry
           Type: 179 EventRootType Probe[main.noArgs]
           InjectionPoints: [{PC: "0xb5938", Frameless: false}]
           Condition: null
-        - ID: 18
-          Kind: Return
+        - Kind: Return
           Type: 180 EventRootType Probe[main.noArgs]Return
           InjectionPoints: [{PC: "0xb5970", Frameless: false}]
           Condition: null
@@ -191,13 +174,11 @@ Probes:
       captureSnapshot: true
       subprogram: {subprogram: 2}
       events:
-        - ID: 4
-          Kind: Entry
+        - Kind: Entry
           Type: 164 EventRootType Probe[main.stringArg]
           InjectionPoints: [{PC: "0xb5498", Frameless: false}]
           Condition: null
-        - ID: 3
-          Kind: Return
+        - Kind: Return
           Type: 165 EventRootType Probe[main.stringArg]Return
           InjectionPoints: [{PC: "0xb54d4", Frameless: false}]
           Condition: null
@@ -210,13 +191,11 @@ Probes:
       captureSnapshot: true
       subprogram: {subprogram: 6}
       events:
-        - ID: 12
-          Kind: Entry
+        - Kind: Entry
           Type: 172 EventRootType Probe[main.stringArrayArg]
           InjectionPoints: [{PC: "0xb56b8", Frameless: false}]
           Condition: null
-        - ID: 11
-          Kind: Return
+        - Kind: Return
           Type: 173 EventRootType Probe[main.stringArrayArg]Return
           InjectionPoints: [{PC: "0xb56fc", Frameless: false}]
           Condition: null
@@ -229,13 +208,11 @@ Probes:
       captureSnapshot: true
       subprogram: {subprogram: 5}
       events:
-        - ID: 10
-          Kind: Entry
+        - Kind: Entry
           Type: 170 EventRootType Probe[main.stringSliceArg]
           InjectionPoints: [{PC: "0xb5628", Frameless: false}]
           Condition: null
-        - ID: 9
-          Kind: Return
+        - Kind: Return
           Type: 171 EventRootType Probe[main.stringSliceArg]Return
           InjectionPoints: [{PC: "0xb5664", Frameless: false}]
           Condition: null
@@ -249,13 +226,11 @@ Probes:
       captureSnapshot: true
       subprogram: {subprogram: 11}
       events:
-        - ID: 21
-          Kind: Entry
+        - Kind: Entry
           Type: 181 EventRootType Probe[main.usesMapsOfMapsThatDoNotAppearAsArguments]
           InjectionPoints: [{PC: "0xb59b0", Frameless: false}]
           Condition: null
-        - ID: 20
-          Kind: Return
+        - Kind: Return
           Type: 182 EventRootType Probe[main.usesMapsOfMapsThatDoNotAppearAsArguments]Return
           InjectionPoints: [{PC: "0xb5b24", Frameless: false}]
           Condition: null
@@ -270,8 +245,7 @@ Subprograms:
           Locations:
             - Range: 0xb5410..0xb5430
               Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
-          IsParameter: true
-          IsReturn: false
+          Role: Parameter
     - ID: 2
       Name: main.stringArg
       OutOfLinePCRanges: [0xb5480..0xb5500]
@@ -286,8 +260,7 @@ Subprograms:
                   Op: {RegNo: 0, Shift: 0}
                 - Size: 8
                   Op: {RegNo: 1, Shift: 0}
-          IsParameter: true
-          IsReturn: false
+          Role: Parameter
     - ID: 3
       Name: main.intSliceArg
       OutOfLinePCRanges: [0xb5500..0xb5590]
@@ -304,8 +277,7 @@ Subprograms:
                   Op: {RegNo: 1, Shift: 0}
                 - Size: 8
                   Op: {RegNo: 2, Shift: 0}
-          IsParameter: true
-          IsReturn: false
+          Role: Parameter
     - ID: 4
       Name: main.intArrayArg
       OutOfLinePCRanges: [0xb5590..0xb5610]
@@ -316,8 +288,7 @@ Subprograms:
           Locations:
             - Range: 0xb5590..0xb5610
               Pieces: [{Size: 24, Op: {CfaOffset: 8}}]
-          IsParameter: true
-          IsReturn: false
+          Role: Parameter
     - ID: 5
       Name: main.stringSliceArg
       OutOfLinePCRanges: [0xb5610..0xb56a0]
@@ -334,8 +305,7 @@ Subprograms:
                   Op: {RegNo: 1, Shift: 0}
                 - Size: 8
                   Op: {RegNo: 2, Shift: 0}
-          IsParameter: true
-          IsReturn: false
+          Role: Parameter
     - ID: 6
       Name: main.stringArrayArg
       OutOfLinePCRanges: [0xb56a0..0xb5720]
@@ -346,8 +316,7 @@ Subprograms:
           Locations:
             - Range: 0xb56a0..0xb5720
               Pieces: [{Size: 48, Op: {CfaOffset: 8}}]
-          IsParameter: true
-          IsReturn: false
+          Role: Parameter
     - ID: 7
       Name: main.stringArrayArgFrameless
       OutOfLinePCRanges: [0xb5720..0xb5730]
@@ -358,8 +327,7 @@ Subprograms:
           Locations:
             - Range: 0xb5720..0xb5730
               Pieces: [{Size: 48, Op: {CfaOffset: 8}}]
-          IsParameter: true
-          IsReturn: false
+          Role: Parameter
     - ID: 8
       Name: main.mapArg
       OutOfLinePCRanges: [0xb57f0..0xb5860]
@@ -370,8 +338,7 @@ Subprograms:
           Locations:
             - Range: 0xb57f0..0xb5828
               Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
-          IsParameter: true
-          IsReturn: false
+          Role: Parameter
     - ID: 9
       Name: main.bigMapArg
       OutOfLinePCRanges: [0xb5860..0xb5920]
@@ -384,8 +351,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
             - Range: 0xb5898..0xb5920
               Pieces: [{Size: 8, Op: {CfaOffset: 8}}]
-          IsParameter: true
-          IsReturn: false
+          Role: Parameter
     - ID: 10
       Name: main.noArgs
       OutOfLinePCRanges: [0xb5920..0xb5990]
@@ -405,13 +371,11 @@ Subprograms:
               Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
             - Range: 0xb5b25..0xb5b40
               Pieces: []
-          IsParameter: true
-          IsReturn: true
+          Role: Return
         - Name: m
           Type: 121 GoMapType map[string]map[int]main.aStructNotUsedAsAnArgument
           Locations: [{Range: 0xb5990..0xb5b40, Pieces: []}]
-          IsParameter: false
-          IsReturn: false
+          Role: Local
     - ID: 12
       Name: main.inlined
       OutOfLinePCRanges: [0xb5730..0xb57a0]
@@ -426,8 +390,7 @@ Subprograms:
               Pieces: []
             - Range: 0xb5730..0xb5750
               Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
-          IsParameter: true
-          IsReturn: false
+          Role: Parameter
     - ID: 13
       Name: main.PointerChainArg
       OutOfLinePCRanges: []
@@ -440,8 +403,7 @@ Subprograms:
           Locations:
             - Range: 0xb5360..0xb53a8
               Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
-          IsParameter: true
-          IsReturn: false
+          Role: Parameter
     - ID: 14
       Name: main.PointerSmallChainArg
       OutOfLinePCRanges: []
@@ -454,8 +416,7 @@ Subprograms:
           Locations:
             - Range: 0xb53c0..0xb53f0
               Pieces: [{Size: 8, Op: {RegNo: 5, Shift: 0}}]
-          IsParameter: true
-          IsReturn: false
+          Role: Parameter
 Types:
     - __kind: PointerType
       ID: 126

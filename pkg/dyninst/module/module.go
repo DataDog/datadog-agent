@@ -8,10 +8,8 @@
 package module
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
-	"math/rand"
 	"net/http"
 	"net/url"
 	"sync"
@@ -24,7 +22,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dyninst/irgen"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/loader"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/object"
-	"github.com/DataDog/datadog-agent/pkg/dyninst/procmon"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/process"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/procscrape"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/rcscrape"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/uploader"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
@@ -34,57 +33,39 @@ import (
 
 // Module is the dynamic instrumentation system probe module.
 type Module struct {
-	tenant    ActuatorTenant
-	symdb     symdbManagerInterface
-	rcScraper Scraper
+	tenant ActuatorTenant
+	symdb  symdbManagerInterface
 
 	store       *processStore
 	diagnostics *diagnosticsManager
 
-	testingKnobs testingKnobs
-
 	shutdown struct {
 		sync.Once
 		realDependencies realDependencies
-		unsubscribeExec  context.CancelFunc
-		unsubscribeExit  context.CancelFunc
-		cancelTasks      context.CancelFunc
-		processMonitor   *procmon.ProcessMonitor
 	}
 }
 
 // NewModule creates a new dynamic instrumentation module.
 func NewModule(
-	config *Config, subscriber ProcessSubscriber,
+	config *Config, processEventSource procscrape.EventSource,
 ) (_ *Module, err error) {
-	realDeps, err := makeRealDependencies(config)
+	realDeps, err := makeRealDependencies(config, processEventSource)
 	if err != nil {
 		return nil, err
 	}
 	deps := realDeps.asDependencies()
-	if override := config.TestingKnobs.ScraperOverride; override != nil {
-		deps.Scraper = override(deps.Scraper)
+	if override := config.TestingKnobs.ProcessSubscriberOverride; override != nil {
+		deps.ProcessSubscriber = override(deps.ProcessSubscriber)
 	}
 	if override := config.TestingKnobs.IRGeneratorOverride; override != nil {
 		deps.IRGenerator = override(deps.IRGenerator)
 	}
 	m := newUnstartedModule(deps)
 	m.shutdown.realDependencies = realDeps
-	procMon := procmon.NewProcessMonitor(&processHandler{
-		module:         m,
-		scraperHandler: deps.Scraper.AsProcMonHandler(),
-	})
-	m.shutdown.processMonitor = procMon
-	m.shutdown.unsubscribeExec = subscriber.SubscribeExec(procMon.NotifyExec)
-	m.shutdown.unsubscribeExit = subscriber.SubscribeExit(procMon.NotifyExit)
 
-	ctx, cancel := context.WithCancel(context.Background())
-	m.shutdown.cancelTasks = cancel
-	if !config.ProcessSyncDisabled {
-		go m.runProcessSync(ctx, procMon)
+	if realDeps.processSubscriber != nil {
+		realDeps.processSubscriber.Start()
 	}
-	const defaultInterval = 200 * time.Millisecond
-	go m.run(ctx, defaultInterval)
 	return m, nil
 }
 
@@ -116,27 +97,29 @@ func newUnstartedModule(deps dependencies) *Module {
 	tenant := deps.Actuator.NewTenant("dyninst", runtime)
 
 	m := &Module{
-		rcScraper:    deps.Scraper,
-		store:        store,
-		diagnostics:  diagnostics,
-		symdb:        deps.symdbManager,
-		tenant:       tenant,
-		testingKnobs: testingKnobs{},
+		store:       store,
+		diagnostics: diagnostics,
+		symdb:       deps.symdbManager,
+		tenant:      tenant,
+	}
+	if deps.ProcessSubscriber != nil {
+		deps.ProcessSubscriber.Subscribe(m.handleProcessesUpdate)
 	}
 	return m
 }
 
 type realDependencies struct {
-	logUploader     *uploader.LogsUploaderFactory
-	diagsUploader   *uploader.DiagnosticsUploader
-	actuator        *actuator.Actuator
-	dispatcher      *dispatcher.Dispatcher
-	loader          *loader.Loader
-	attacher        *defaultAttacher
-	scraper         *rcscrape.Scraper
-	symdbManager    *symdbManager
-	decoderFactory  decoderFactory
-	programCompiler *stackMachineCompiler
+	logUploader       *uploader.LogsUploaderFactory
+	diagsUploader     *uploader.DiagnosticsUploader
+	actuator          *actuator.Actuator
+	dispatcher        *dispatcher.Dispatcher
+	loader            *loader.Loader
+	attacher          *defaultAttacher
+	scraper           *rcscrape.Scraper
+	symdbManager      *symdbManager
+	processSubscriber *procscrape.Subscriber
+	decoderFactory    decoderFactory
+	programCompiler   *stackMachineCompiler
 
 	objectLoader object.Loader
 	irGenerator  IRGenerator
@@ -145,7 +128,7 @@ type realDependencies struct {
 func (c *realDependencies) asDependencies() dependencies {
 	return dependencies{
 		Actuator:            &erasedActuator[*actuator.Actuator, *actuator.Tenant]{a: c.actuator},
-		Scraper:             c.scraper,
+		ProcessSubscriber:   c.processSubscriber,
 		Dispatcher:          c.dispatcher,
 		DecoderFactory:      c.decoderFactory,
 		IRGenerator:         c.irGenerator,
@@ -181,9 +164,15 @@ func (c *realDependencies) shutdown() {
 	if c.symdbManager != nil {
 		c.symdbManager.stop()
 	}
+	if c.processSubscriber != nil {
+		c.processSubscriber.Close()
+	}
 }
 
-func makeRealDependencies(config *Config) (_ realDependencies, retErr error) {
+func makeRealDependencies(
+	config *Config,
+	procEventSource procscrape.EventSource,
+) (_ realDependencies, retErr error) {
 	var ret realDependencies
 	defer func() {
 		if retErr != nil {
@@ -244,6 +233,12 @@ func makeRealDependencies(config *Config) (_ realDependencies, retErr error) {
 	}
 	ret.dispatcher = dispatcher.NewDispatcher(ret.loader.OutputReader())
 	ret.scraper = rcscrape.NewScraper(ret.actuator, ret.dispatcher, ret.loader)
+	if procEventSource == nil {
+		return ret, fmt.Errorf("missing process subscriber dependency")
+	}
+	ret.processSubscriber = procscrape.NewSubscriber(
+		ret.scraper, procEventSource, config.ProcessSyncDisabled,
+	)
 
 	approximateBootTime := time.Now().Add(time.Duration(-ts.Nano()))
 	ret.decoderFactory = decoderFactory{approximateBootTime: approximateBootTime}
@@ -253,44 +248,16 @@ func makeRealDependencies(config *Config) (_ realDependencies, retErr error) {
 	return ret, nil
 }
 
-func (m *Module) runProcessSync(ctx context.Context, subscriber *procmon.ProcessMonitor) {
-	const syncInterval = 30 * time.Second
-	timer := time.NewTimer(0) // sync immediately on startup
-	defer timer.Stop()
-	for {
-		select {
-		case <-timer.C:
-		case <-ctx.Done():
-			return
-		}
-		if err := subscriber.Sync(); err != nil {
-			log.Errorf("error syncing process monitor: %v", err)
-		}
-		timer.Reset(jitter(syncInterval, 0.2))
-	}
-}
-
-func (m *Module) run(ctx context.Context, interval time.Duration) {
-	duration := func() time.Duration { return jitter(interval, 0.2) }
-	timer := time.NewTimer(0)
-	defer timer.Stop()
-	for {
-		select {
-		case <-timer.C:
-			m.checkForUpdates()
-			timer.Reset(duration())
-		case <-ctx.Done():
-			return
-		}
-	}
-}
-
 // GetStats returns the stats of the module
 func (m *Module) GetStats() map[string]any {
-	// m.controller.mu.Lock()
-	// defer m.controller.mu.Unlock()
-
-	return map[string]any{}
+	stats := map[string]any{}
+	if m.shutdown.realDependencies.actuator != nil {
+		actuatorStats := m.shutdown.realDependencies.actuator.Stats()
+		if actuatorStats != nil {
+			stats["actuator"] = actuatorStats
+		}
+	}
+	return stats
 }
 
 // Register registers the module to the router
@@ -309,80 +276,46 @@ func (m *Module) Register(router *module.Router) error {
 	return nil
 }
 
-// Close closes the module
+// Close closes the Module.
 func (m *Module) Close() {
 	m.shutdown.Once.Do(func() {
 		log.Debugf("closing dynamic instrumentation module")
-		if m.shutdown.unsubscribeExec != nil {
-			m.shutdown.unsubscribeExec()
-		}
-		if m.shutdown.unsubscribeExit != nil {
-			m.shutdown.unsubscribeExit()
-		}
-		if m.shutdown.cancelTasks != nil {
-			m.shutdown.cancelTasks()
-		}
-		if m.shutdown.processMonitor != nil {
-			m.shutdown.processMonitor.Close()
-		}
 		m.shutdown.realDependencies.shutdown()
 	})
 }
 
-func (m *Module) handleRemovals(removals []procmon.ProcessID) {
-	m.store.remove(removals, m.diagnostics)
-	if len(removals) > 0 && m.tenant != nil {
-		m.tenant.HandleUpdate(actuator.ProcessesUpdate{Removals: removals})
-	}
-	for _, pid := range removals {
-		m.symdb.removeUploadByPID(pid)
-	}
-}
-
-func (m *Module) checkForUpdates() {
-	updates := m.rcScraper.GetUpdates()
-	if m.testingKnobs.scraperUpdatesCallback != nil && len(updates) > 0 {
-		m.testingKnobs.scraperUpdatesCallback(updates)
-	}
-	if len(updates) == 0 {
-		return
-	}
-	actuatorUpdates := make([]actuator.ProcessUpdate, 0, len(updates))
-	for i := range updates {
-		update := &updates[i]
-		runtimeID := m.store.ensureExists(update)
-		actuatorUpdates = append(actuatorUpdates, actuator.ProcessUpdate{
-			ProcessID:  update.ProcessID,
-			Executable: update.Executable,
-			Probes:     update.Probes,
-		})
-		for _, probe := range update.Probes {
-			m.diagnostics.reportReceived(runtimeID, probe)
+func (m *Module) handleProcessesUpdate(update process.ProcessesUpdate) {
+	if removals := update.Removals; len(removals) > 0 {
+		m.store.remove(removals, m.diagnostics)
+		if len(removals) > 0 && m.tenant != nil {
+			m.tenant.HandleUpdate(actuator.ProcessesUpdate{Removals: removals})
 		}
-		if update.ShouldUploadSymDB {
-			if err := m.symdb.queueUpload(runtimeID, update.Executable.Path); err != nil {
-				log.Warnf("Failed to queue SymDB upload for process %v: %v", runtimeID.ProcessID, err)
+		for _, pid := range removals {
+			m.symdb.removeUploadByPID(pid)
+		}
+	}
+	if updates := update.Updates; len(updates) > 0 {
+		actuatorUpdates := make([]actuator.ProcessUpdate, 0, len(updates))
+		for i := range updates {
+			update := &updates[i]
+			runtimeID := m.store.ensureExists(update)
+			actuatorUpdates = append(actuatorUpdates, actuator.ProcessUpdate{
+				Info:   update.Info,
+				Probes: update.Probes,
+			})
+			for _, probe := range update.Probes {
+				m.diagnostics.reportReceived(runtimeID, probe)
 			}
-		} else {
-			m.symdb.removeUpload(runtimeID)
+			if update.ShouldUploadSymDB {
+				if err := m.symdb.queueUpload(runtimeID, update.Executable.Path); err != nil {
+					log.Warnf("Failed to queue SymDB upload for process %v: %v", runtimeID.ID, err)
+				}
+			} else {
+				m.symdb.removeUpload(runtimeID)
+			}
+		}
+		if m.tenant != nil {
+			m.tenant.HandleUpdate(actuator.ProcessesUpdate{Processes: actuatorUpdates})
 		}
 	}
-	if m.tenant != nil {
-		m.tenant.HandleUpdate(actuator.ProcessesUpdate{Processes: actuatorUpdates})
-	}
-}
-
-// CheckForUpdates runs a single iteration of the update loop. Exposed for tests.
-func (m *Module) CheckForUpdates() {
-	m.checkForUpdates()
-}
-
-// HandleRemovals removes the provided processes. Exposed for tests.
-func (m *Module) HandleRemovals(removals []procmon.ProcessID) {
-	m.handleRemovals(removals)
-}
-
-func jitter(duration time.Duration, fraction float64) time.Duration {
-	multiplier := 1 + ((rand.Float64()*2 - 1) * fraction)
-	return time.Duration(float64(duration) * multiplier)
 }
