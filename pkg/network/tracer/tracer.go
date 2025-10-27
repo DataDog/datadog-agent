@@ -945,12 +945,13 @@ func (t *Tracer) logConntrackProbeCounters(ebpfCt *ebpfConntracker) {
 	}
 
 	// Log all probe counters
-	log.Infof("JMW PROBE COUNTERS: hash_insert=%d, confirm_entry=%d, confirm_return=%d, confirm_return_success=%d, confirm_return_failed=%d",
+	log.Infof("JMW PROBE COUNTERS: hash_insert=%d, confirm_entry=%d, confirm_return=%d, confirm_return_success=%d, confirm_return_no_matching_entry_probe=%d, confirm_return_not_accepted=%d",
 		telemetry.Hash_insert_count,
 		telemetry.Confirm_entry_count,
 		telemetry.Confirm_return_count,
 		telemetry.Confirm_return_success_count,
-		telemetry.Confirm_return_failed_count)
+		telemetry.Confirm_return_no_matching_entry_probe_count,
+		telemetry.Confirm_return_not_accepted_count)
 
 	// Log registers count (existing telemetry)
 	log.Infof("JMW CONNTRACK REGISTERS: %d", telemetry.Registers)

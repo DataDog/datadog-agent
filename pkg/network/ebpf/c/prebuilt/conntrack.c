@@ -90,7 +90,7 @@ int BPF_BYPASSABLE_KPROBE(kretprobe__nf_conntrack_confirm) {
 
     // Only process if returned NF_ACCEPT (1)
     if (ret != 1) { // NF_ACCEPT = 1
-        increment_confirm_return_failed_count();
+        increment_confirm_return_not_accepted_count();
         return 0;
     }
 

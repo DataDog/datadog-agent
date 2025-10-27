@@ -115,6 +115,7 @@ int BPF_BYPASSABLE_KPROBE(kretprobe__nf_conntrack_confirm) {
     u64 *ct_ptr = bpf_map_lookup_elem(&pending_confirms, &pid_tgid);
     if (!ct_ptr) {
         // No matching entry probe - this can happen if entry was filtered out
+        increment_confirm_return_no_matching_entry_probe_count();
         log_debug("JMW(runtime)kretprobe/__nf_conntrack_confirm: no matching entry probe, pid_tgid: %llu", pid_tgid);
         return 0;
     }
@@ -128,7 +129,7 @@ int BPF_BYPASSABLE_KPROBE(kretprobe__nf_conntrack_confirm) {
 
     // Only process if returned NF_ACCEPT (1)
     if (ret != 1) { // NF_ACCEPT = 1
-        increment_confirm_return_failed_count();
+        increment_confirm_return_not_accepted_count();
         return 0;
     }
 
