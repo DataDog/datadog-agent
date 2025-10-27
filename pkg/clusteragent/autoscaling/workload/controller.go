@@ -569,7 +569,7 @@ func unsetTelemetry(key, _ string) {
 
 func getActiveScalingSources(currentTime time.Time, podAutoscalerInternal *model.PodAutoscalerInternal) (*datadoghqcommon.DatadogPodAutoscalerValueSource, *datadoghqcommon.DatadogPodAutoscalerValueSource) {
 	// Set default vertical scaling source
-	activeVerticalSource := (*datadoghqcommon.DatadogPodAutoscalerValueSource)(nil)
+	var activeVerticalSource *datadoghqcommon.DatadogPodAutoscalerValueSource
 	if podAutoscalerInternal.MainScalingValues().Vertical != nil {
 		activeVerticalSource = pointer.Ptr(podAutoscalerInternal.MainScalingValues().Vertical.Source)
 	}
@@ -614,7 +614,7 @@ func getActiveScalingSources(currentTime time.Time, podAutoscalerInternal *model
 
 	// When creating a new pod autoscaler internal from a Kubernetes CR, we update the ScalingValues directly from the status
 	// If we do not have any new generated recommendations, we want to keep the previous scaling values so we return nil
-	return nil, nil
+	return nil, activeVerticalSource
 }
 
 func isTimestampStale(currentTime, receivedTime time.Time, staleTimestampThreshold time.Duration) bool {

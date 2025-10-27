@@ -1049,3 +1049,205 @@ func TestValidateAutoscalerObjectives(t *testing.T) {
 		})
 	}
 }
+
+func TestGetActiveScalingSources(t *testing.T) {
+	currentTime := time.Now()
+	tests := []struct {
+		name                  string
+		podAutoscalerInternal model.FakePodAutoscalerInternal
+		wantHorizontalSource  *datadoghqcommon.DatadogPodAutoscalerValueSource
+		wantVerticalSource    *datadoghqcommon.DatadogPodAutoscalerValueSource
+	}{
+		{
+			name: "horizontal, vertical scaling values are available",
+			podAutoscalerInternal: model.FakePodAutoscalerInternal{
+				Namespace: "default",
+				Name:      "dpa-0",
+				Spec:      &datadoghq.DatadogPodAutoscalerSpec{},
+				MainScalingValues: model.ScalingValues{
+					Horizontal: &model.HorizontalScalingValues{
+						Source:    datadoghqcommon.DatadogPodAutoscalerAutoscalingValueSource,
+						Timestamp: currentTime,
+					},
+					Vertical: &model.VerticalScalingValues{
+						Source: datadoghqcommon.DatadogPodAutoscalerAutoscalingValueSource,
+					},
+				},
+			},
+			wantHorizontalSource: pointer.Ptr(datadoghqcommon.DatadogPodAutoscalerAutoscalingValueSource),
+			wantVerticalSource:   pointer.Ptr(datadoghqcommon.DatadogPodAutoscalerAutoscalingValueSource),
+		},
+		{
+			name: "horizontal scaling is disabled, vertical scaling values are available",
+			podAutoscalerInternal: model.FakePodAutoscalerInternal{
+				Namespace: "default",
+				Name:      "dpa-0",
+				Spec: &datadoghq.DatadogPodAutoscalerSpec{
+					ApplyPolicy: &datadoghq.DatadogPodAutoscalerApplyPolicy{
+						ScaleUp: &datadoghqcommon.DatadogPodAutoscalerScalingPolicy{
+							Strategy: pointer.Ptr(datadoghqcommon.DatadogPodAutoscalerDisabledStrategySelect),
+						},
+						ScaleDown: &datadoghqcommon.DatadogPodAutoscalerScalingPolicy{
+							Strategy: pointer.Ptr(datadoghqcommon.DatadogPodAutoscalerDisabledStrategySelect),
+						},
+					},
+				},
+				MainScalingValues: model.ScalingValues{
+					Horizontal: &model.HorizontalScalingValues{
+						Source:    datadoghqcommon.DatadogPodAutoscalerAutoscalingValueSource,
+						Timestamp: currentTime,
+					},
+					Vertical: &model.VerticalScalingValues{
+						Source: datadoghqcommon.DatadogPodAutoscalerAutoscalingValueSource,
+					},
+				},
+			},
+			wantHorizontalSource: pointer.Ptr(datadoghqcommon.DatadogPodAutoscalerAutoscalingValueSource),
+			wantVerticalSource:   pointer.Ptr(datadoghqcommon.DatadogPodAutoscalerAutoscalingValueSource),
+		},
+		{
+			name: "horizontal scaling values are in error, vertical scaling values are available",
+			podAutoscalerInternal: model.FakePodAutoscalerInternal{
+				Namespace: "default",
+				Name:      "dpa-0",
+				Spec:      &datadoghq.DatadogPodAutoscalerSpec{},
+				MainScalingValues: model.ScalingValues{
+					Horizontal:      nil,
+					HorizontalError: fmt.Errorf("test horizontal error"),
+					Vertical: &model.VerticalScalingValues{
+						Source: datadoghqcommon.DatadogPodAutoscalerAutoscalingValueSource,
+					},
+				},
+			},
+			wantHorizontalSource: nil,
+			wantVerticalSource:   pointer.Ptr(datadoghqcommon.DatadogPodAutoscalerAutoscalingValueSource),
+		},
+		{
+			name: "horizontal scaling values are stale, fallback values are available",
+			podAutoscalerInternal: model.FakePodAutoscalerInternal{
+				Namespace:         "default",
+				Name:              "dpa-0",
+				Spec:              &datadoghq.DatadogPodAutoscalerSpec{},
+				CreationTimestamp: currentTime.Add(-60 * time.Minute),
+				MainScalingValues: model.ScalingValues{
+					Horizontal: &model.HorizontalScalingValues{
+						Source:    datadoghqcommon.DatadogPodAutoscalerAutoscalingValueSource,
+						Timestamp: currentTime.Add(-31 * time.Minute),
+					},
+					Vertical: nil,
+				},
+				FallbackScalingValues: model.ScalingValues{
+					Horizontal: &model.HorizontalScalingValues{
+						Source:    datadoghqcommon.DatadogPodAutoscalerLocalValueSource,
+						Timestamp: currentTime.Add(-30 * time.Second),
+					},
+					Vertical: nil,
+				},
+			},
+			wantHorizontalSource: pointer.Ptr(datadoghqcommon.DatadogPodAutoscalerLocalValueSource),
+			wantVerticalSource:   nil,
+		},
+		{
+			name: "no main horizontal values, current scaling values are stale, dpa is not new, fallback values are available",
+			podAutoscalerInternal: model.FakePodAutoscalerInternal{
+				Namespace:         "default",
+				Name:              "dpa-0",
+				Spec:              &datadoghq.DatadogPodAutoscalerSpec{},
+				CreationTimestamp: currentTime.Add(-60 * time.Minute),
+				ScalingValues: model.ScalingValues{
+					Horizontal: &model.HorizontalScalingValues{
+						Source:    datadoghqcommon.DatadogPodAutoscalerAutoscalingValueSource,
+						Timestamp: currentTime.Add(-31 * time.Minute),
+					},
+					Vertical: nil,
+				},
+				MainScalingValues: model.ScalingValues{
+					Horizontal: nil,
+					Vertical:   nil,
+				},
+				FallbackScalingValues: model.ScalingValues{
+					Horizontal: &model.HorizontalScalingValues{
+						Source:    datadoghqcommon.DatadogPodAutoscalerLocalValueSource,
+						Timestamp: currentTime.Add(-30 * time.Second),
+					},
+					Vertical: nil,
+				},
+			},
+			wantHorizontalSource: pointer.Ptr(datadoghqcommon.DatadogPodAutoscalerLocalValueSource),
+			wantVerticalSource:   nil,
+		},
+		{
+			name: "no horizontal values are available, dpa is not new, fallback values are available",
+			podAutoscalerInternal: model.FakePodAutoscalerInternal{
+				Namespace:         "default",
+				Name:              "dpa-0",
+				Spec:              &datadoghq.DatadogPodAutoscalerSpec{},
+				CreationTimestamp: currentTime.Add(-60 * time.Minute),
+				ScalingValues: model.ScalingValues{
+					Horizontal: nil,
+					Vertical:   nil,
+				},
+				MainScalingValues: model.ScalingValues{
+					Horizontal: nil,
+					Vertical:   nil,
+				},
+				FallbackScalingValues: model.ScalingValues{
+					Horizontal: &model.HorizontalScalingValues{
+						Source:    datadoghqcommon.DatadogPodAutoscalerLocalValueSource,
+						Timestamp: currentTime.Add(-30 * time.Second),
+					},
+					Vertical: nil,
+				},
+			},
+			wantHorizontalSource: pointer.Ptr(datadoghqcommon.DatadogPodAutoscalerLocalValueSource),
+			wantVerticalSource:   nil,
+		},
+		{
+			name: "horizontal scaling values are stale, fallback values are stale",
+			podAutoscalerInternal: model.FakePodAutoscalerInternal{
+				Namespace:         "default",
+				Name:              "dpa-0",
+				Spec:              &datadoghq.DatadogPodAutoscalerSpec{},
+				CreationTimestamp: currentTime.Add(-60 * time.Minute),
+				MainScalingValues: model.ScalingValues{
+					Horizontal: &model.HorizontalScalingValues{
+						Source:    datadoghqcommon.DatadogPodAutoscalerAutoscalingValueSource,
+						Timestamp: currentTime.Add(-31 * time.Minute),
+					},
+					Vertical: nil,
+				},
+				FallbackScalingValues: model.ScalingValues{
+					Horizontal: &model.HorizontalScalingValues{
+						Source:    datadoghqcommon.DatadogPodAutoscalerLocalValueSource,
+						Timestamp: currentTime.Add(-31 * time.Minute),
+					},
+					Vertical: nil,
+				},
+			},
+			wantHorizontalSource: nil,
+			wantVerticalSource:   nil,
+		},
+		{
+			name: "new autoscaler, no scaling values",
+			podAutoscalerInternal: model.FakePodAutoscalerInternal{
+				Namespace: "default",
+				Name:      "dpa-0",
+				Spec:      &datadoghq.DatadogPodAutoscalerSpec{},
+				MainScalingValues: model.ScalingValues{
+					Horizontal: nil,
+					Vertical:   nil,
+				},
+			},
+			wantHorizontalSource: nil,
+			wantVerticalSource:   nil,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dpai := tt.podAutoscalerInternal.Build()
+			horizontalSource, verticalSource := getActiveScalingSources(currentTime, &dpai)
+			assert.Equal(t, tt.wantHorizontalSource, horizontalSource)
+			assert.Equal(t, tt.wantVerticalSource, verticalSource)
+		})
+	}
+}

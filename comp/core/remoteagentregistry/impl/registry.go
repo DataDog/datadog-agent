@@ -247,14 +247,16 @@ func (ra *remoteAgentRegistry) start() {
 				}
 
 				for _, sessionID := range agentsToRemove {
-					details, ok := ra.agentMap[sessionID]
+					remoteAgentClient, ok := ra.agentMap[sessionID]
 					if ok {
-						if details.unhealthy {
-							log.Warnf("Remote agent '%s' deregistered due to session ID validation failure (expected: %s, got: %s)", details.RegisteredAgent.DisplayName, details.RegisteredAgent.SessionID, sessionID)
+						if remoteAgentClient.unhealthy {
+							log.Warnf("Remote agent '%s' deregistered due to session ID validation failure (expected: %s, got: %s)", remoteAgentClient.RegisteredAgent.DisplayName, remoteAgentClient.RegisteredAgent.SessionID, sessionID)
 						} else {
-							log.Infof("Remote agent '%s' deregistered after being idle for %s.", details.RegisteredAgent.DisplayName, remoteAgentIdleTimeout)
+							log.Infof("Remote agent '%s' deregistered after being idle for %s.", remoteAgentClient.RegisteredAgent.DisplayName, remoteAgentIdleTimeout)
 						}
-						ra.telemetryStore.remoteAgentRegistered.Dec(details.RegisteredAgent.SanitizedDisplayName)
+						ra.telemetryStore.remoteAgentRegistered.Dec(remoteAgentClient.RegisteredAgent.SanitizedDisplayName)
+						// close the remote agent client and remove it from the registry
+						remoteAgentClient.close()
 						delete(ra.agentMap, sessionID)
 					}
 				}
