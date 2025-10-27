@@ -1549,7 +1549,7 @@ func getAndValidateKafkaStats(parentT *testing.T, t *testing.T, monitor *Monitor
 			fmt.Printf("test %q; got the following stats ->>>\n", t.Name())
 			currentStats := kafkaProtocolStats.(map[kafka.Key]*kafka.RequestStats)
 			for key, stats := range currentStats {
-				fmt.Printf("test %q; iter; key: %s; value: %v; value ptr: %p\n", t.Name(), key, stats, stats)
+				fmt.Printf("test %q; iter; key: %s; value: %v; value ptr: %p\n", t.Name(), key.String(), stats, stats)
 
 				prevStats, ok := kafkaStats[key]
 				if ok && prevStats != nil {
