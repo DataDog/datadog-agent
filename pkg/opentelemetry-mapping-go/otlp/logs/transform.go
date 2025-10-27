@@ -20,6 +20,7 @@ import (
 	"errors"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/DataDog/datadog-api-client-go/v2/api/datadog"
 	"github.com/DataDog/datadog-api-client-go/v2/api/datadogV2"
@@ -61,6 +62,20 @@ const (
 	logLevelFatal = "fatal"
 )
 
+// Pool for reusing maps to reduce allocations
+var (
+	mapPool = sync.Pool{
+		New: func() interface{} {
+			return make(map[string]interface{}, 16) // Pre-allocate with reasonable capacity
+		},
+	}
+	flattenMapPool = sync.Pool{
+		New: func() interface{} {
+			return make(map[string]any, 8) // Pre-allocate with reasonable capacity
+		},
+	}
+)
+
 // Transform converts the log record in lr, which came in with the resource in res to a Datadog log item.
 // the variable specifies if the log body should be sent as an attribute or as a plain message.
 // Deprecated: use Translator instead.
@@ -70,8 +85,16 @@ func Transform(lr plog.LogRecord, res pcommon.Resource, logger *zap.Logger) data
 }
 
 func transform(lr plog.LogRecord, host, service string, res pcommon.Resource, scope pcommon.InstrumentationScope, logger *zap.Logger) datadogV2.HTTPLogItem {
+	// Get map from pool and ensure it's clean
+	additionalProps := mapPool.Get().(map[string]interface{})
+	// Clear the map for reuse
+	for k := range additionalProps {
+		delete(additionalProps, k)
+	}
+	defer mapPool.Put(additionalProps)
+
 	l := datadogV2.HTTPLogItem{
-		AdditionalProperties: make(map[string]interface{}),
+		AdditionalProperties: additionalProps,
 	}
 	if host != "" {
 		l.Hostname = datadog.PtrString(host)
@@ -115,7 +138,11 @@ func transform(lr plog.LogRecord, host, service string, res pcommon.Resource, sc
 				l.AdditionalProperties[otelSpanID] = v.AsString()
 			}
 		case "ddtags":
-			var tags = append(attributes.TagsFromAttributes(res.Attributes()), v.AsString())
+			// Pre-allocate slice with known capacity to avoid multiple reallocations
+			baseTags := attributes.TagsFromAttributes(res.Attributes())
+			tags := make([]string, 0, len(baseTags)+1)
+			tags = append(tags, baseTags...)
+			tags = append(tags, v.AsString())
 			tagStr := strings.Join(tags, ",")
 			l.Ddtags = datadog.PtrString(tagStr)
 		default:
@@ -175,16 +202,23 @@ func transform(lr plog.LogRecord, host, service string, res pcommon.Resource, sc
 	}
 
 	if !l.HasDdtags() {
-		var tags = attributes.TagsFromAttributes(res.Attributes())
-		tagStr := strings.Join(tags, ",")
-		l.Ddtags = datadog.PtrString(tagStr)
+		tags := attributes.TagsFromAttributes(res.Attributes())
+		if len(tags) > 0 {
+			tagStr := strings.Join(tags, ",")
+			l.Ddtags = datadog.PtrString(tagStr)
+		}
 	}
 
 	return l
 }
 
 func flattenAttribute(key string, val pcommon.Value, depth int) map[string]any {
-	result := make(map[string]any)
+	// Get map from pool and ensure it's clean
+	result := flattenMapPool.Get().(map[string]any)
+	for k := range result {
+		delete(result, k)
+	}
+	defer flattenMapPool.Put(result)
 
 	if val.Type() != pcommon.ValueTypeMap || depth == 10 {
 		if val.Type() == pcommon.ValueTypeStr ||
@@ -195,7 +229,8 @@ func flattenAttribute(key string, val pcommon.Value, depth int) map[string]any {
 		} else {
 			result[key] = val.AsString()
 		}
-		return result
+		// Return a copy since we're returning the pooled map
+		return copyMap(result)
 	}
 
 	val.Map().Range(func(k string, v pcommon.Value) bool {
@@ -207,7 +242,30 @@ func flattenAttribute(key string, val pcommon.Value, depth int) map[string]any {
 		return true
 	})
 
-	return result
+	// Return a copy since we're returning the pooled map
+	return copyMap(result)
+}
+
+// copyMap creates a copy of the map to return from pooled maps
+func copyMap(src map[string]any) map[string]any {
+	if len(src) == 0 {
+		return make(map[string]any)
+	}
+	dst := make(map[string]any, len(src))
+	for k, v := range src {
+		dst[k] = v
+	}
+	return dst
+}
+
+// buildTagString efficiently builds tag strings without fmt.Sprintf
+func buildTagString(key, value string) string {
+	// Pre-allocate with known capacity: key + ":" + value
+	buf := make([]byte, 0, len(key)+len(value)+1)
+	buf = append(buf, key...)
+	buf = append(buf, ':')
+	buf = append(buf, value...)
+	return string(buf)
 }
 
 func extractHostNameAndServiceName(resourceAttrs pcommon.Map, logAttrs pcommon.Map) (host string, service string) {

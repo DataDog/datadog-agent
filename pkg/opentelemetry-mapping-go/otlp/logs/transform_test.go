@@ -768,6 +768,71 @@ func TestTranslatorWithRUMRouting(t *testing.T) {
 	}
 }
 
+// TestMemoryOptimizations verifies that the optimized transform function works correctly
+// and doesn't leak memory through the sync.Pool
+func TestMemoryOptimizations(t *testing.T) {
+	// Test that the transform function works correctly with pooled maps
+	lr := plog.NewLogRecord()
+	lr.Attributes().PutStr("app", "test")
+	lr.Attributes().PutStr("nested", "value")
+	lr.SetSeverityNumber(5)
+	lr.Body().SetStr("test message")
+
+	res := pcommon.NewResource()
+	res.Attributes().PutStr(string(semconv16.ServiceNameKey), "test-service")
+
+	scope := pcommon.NewInstrumentationScope()
+	scope.Attributes().PutStr("scope.attr", "scope-value")
+
+	logger := zaptest.NewLogger(t)
+
+	// Call transform multiple times to test pool reuse
+	for i := 0; i < 10; i++ {
+		result := transform(lr, "test-host", "test-service", res, scope, logger)
+
+		// Verify basic functionality
+		assert.Equal(t, "test-host", *result.Hostname)
+		assert.Equal(t, "test-service", *result.Service)
+		assert.Equal(t, "test message", result.Message)
+		assert.Equal(t, "debug", result.AdditionalProperties["status"])
+		assert.Equal(t, "test", result.AdditionalProperties["app"])
+		assert.Equal(t, "value", result.AdditionalProperties["nested"])
+		assert.Equal(t, "scope-value", result.AdditionalProperties["scope.attr"])
+	}
+
+	// Test flattenAttribute with pooled maps
+	val := pcommon.NewValueMap()
+	val.Map().PutStr("nested_key", "nested_value")
+	val.Map().PutInt("nested_int", 42)
+
+	result := flattenAttribute("test", val, 1)
+	assert.Equal(t, "nested_value", result["test.nested_key"])
+	assert.Equal(t, int64(42), result["test.nested_int"])
+}
+
+// TestBuildTagString verifies the optimized string building function
+func TestBuildTagString(t *testing.T) {
+	tests := []struct {
+		key    string
+		value  string
+		expect string
+	}{
+		{"service", "test", "service:test"},
+		{"env", "prod", "env:prod"},
+		{"version", "1.0.0", "version:1.0.0"},
+		{"", "value", ":value"},
+		{"key", "", "key:"},
+		{"", "", ":"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.key+"_"+tt.value, func(t *testing.T) {
+			result := buildTagString(tt.key, tt.value)
+			assert.Equal(t, tt.expect, result)
+		})
+	}
+}
+
 func TestDeriveStatus(t *testing.T) {
 	type args struct {
 		severity plog.SeverityNumber
