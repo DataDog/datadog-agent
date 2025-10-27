@@ -166,3 +166,15 @@ http_archive(
     url = "https://www.gnupg.org/ftp/gcrypt/libgpg-error/libgpg-error-1.56.tar.bz2",
     strip_prefix = "libgpg-error-1.56",
 )
+
+http_archive(
+    name = "gcrypt",
+    build_file = "//deps:gcrypt.BUILD.bazel",
+    files = {
+        "config-linux-x86_64.h": "//deps:gcrypt/config-linux-x86_64.h",
+        "config-linux-aarch64.h": "//deps:gcrypt/config-linux-aarch64.h",
+    },
+    sha256 = "6ba59dd192270e8c1d22ddb41a07d95dcdbc1f0fb02d03c4b54b235814330aac",
+    url = "https://gnupg.org/ftp/gcrypt/libgcrypt/libgcrypt-1.11.2.tar.bz2",
+    strip_prefix = "libgcrypt-1.11.2",
+)
