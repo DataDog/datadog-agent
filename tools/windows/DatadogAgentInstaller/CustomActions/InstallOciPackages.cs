@@ -109,6 +109,11 @@ namespace Datadog.CustomActions
                 var instrumentationEnabled = _session.Property("DD_APM_INSTRUMENTATION_ENABLED");
                 var librariesRaw = _session.Property("DD_APM_INSTRUMENTATION_LIBRARIES");
                 _session.Log($"instrumentationEnabled: {instrumentationEnabled}");
+                
+                // add purge command to the rollback data store
+                // this will only be run on first install, not on upgrade
+                // if install command fails we still wanna purge our packages
+                _rollbackDataStore.Add(new InstallerPackageRollback("purge"));
 
                 // Run the installer setup command with the flavor
                 using (var proc = _session.RunCommand(_installerExecutable, "setup --flavor=default", InstallerEnvironmentVariables()))
@@ -118,9 +123,6 @@ namespace Datadog.CustomActions
                         throw new Exception($"'datadog-installer setup --flavor=default' failed with exit code: {proc.ExitCode}");
                     }
                 }
-                // add purge command to the rollback data store
-                // this will only be run on first install, not on upgradet
-                _rollbackDataStore.Add(new InstallerPackageRollback("purge"));
 
                 return ActionResult.Success;
             }
