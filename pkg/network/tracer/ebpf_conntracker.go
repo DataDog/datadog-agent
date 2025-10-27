@@ -359,7 +359,9 @@ func (e *ebpfConntracker) delete(key *netebpf.ConntrackTuple) {
 
 	if err := e.ctMap.Delete(key); err != nil {
 		if errors.Is(err, ebpf.ErrKeyNotExist) {
-			log.Warnf("JMW unable to delete conntrack entry - connection does not exist in ebpf conntrack map: %s", key)
+			if log.ShouldLog(log.TraceLvl) {
+				log.Tracef("connection does not exist in ebpf conntrack map: %s", key)
+			}
 		} else {
 			log.Warnf("JMW unable to delete conntrack entry from eBPF map: %s", err)
 		}
@@ -369,7 +371,9 @@ func (e *ebpfConntracker) delete(key *netebpf.ConntrackTuple) {
 
 	if err := e.ctMap2.Delete(key); err != nil {
 		if errors.Is(err, ebpf.ErrKeyNotExist) {
-			log.Warnf("JMW unable to delete conntrack2 entry - connection does not exist in ebpf conntrack2 map: %s", key)
+			if log.ShouldLog(log.TraceLvl) {
+				log.Tracef("connection does not exist in ebpf conntrack2 map: %s", key)
+			}
 		} else {
 			log.Warnf("JMW unable to delete conntrack entry from eBPF conntrack2 map: %s", err)
 		}
