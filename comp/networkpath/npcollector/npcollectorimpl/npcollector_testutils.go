@@ -82,7 +82,7 @@ func newTestNpCollector(t testing.TB, agentConfigs map[string]any, statsdClient 
 	return app, npCollector
 }
 
-func createConns(numberOfConns int) []*model.Connection {
+func createConns(numberOfConns int) *model.Connections {
 	var conns []*model.Connection
 	for i := 0; i < numberOfConns; i++ {
 		conns = append(conns, &model.Connection{
@@ -91,10 +91,13 @@ func createConns(numberOfConns int) []*model.Connection {
 			Direction: model.ConnectionDirection_outgoing,
 		})
 	}
-	return conns
+
+	return &model.Connections{
+		Conns: conns,
+	}
 }
 
-func createBenchmarkConns(numberOfConns int, tcpPercent int) []*model.Connection {
+func createBenchmarkConns(numberOfConns int, tcpPercent int) *model.Connections {
 	port := rand.Intn(65535-1) + 1
 	connType := model.ConnectionType_udp
 	if rand.Intn(100) < tcpPercent {
@@ -109,7 +112,7 @@ func createBenchmarkConns(numberOfConns int, tcpPercent int) []*model.Connection
 			Type:      connType,
 		})
 	}
-	return conns
+	return &model.Connections{Conns: conns}
 }
 
 func randomPublicIP() string {

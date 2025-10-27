@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
+	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace/idx"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 )
@@ -39,6 +40,21 @@ func (e *legacyExtractor) Extract(s *pb.Span, _ sampler.SamplingPriority) (float
 		return 0, false
 	}
 	extractionRate, ok := e.rateByService[strings.ToLower(s.Service)]
+	if !ok {
+		return 0, false
+	}
+	return extractionRate, true
+}
+
+// ExtractV1 decides to extract an apm event from the provided span if there's an extraction rate configured for that
+// span's service. In this case the extracted event is returned along with the found extraction rate and a true value.
+// If this rate doesn't exist or the provided span is not a top level one, then no extraction is done and false is
+// returned as the third value, with the others being invalid.
+func (e *legacyExtractor) ExtractV1(s *idx.InternalSpan, _ sampler.SamplingPriority) (float64, bool) {
+	if !traceutil.HasTopLevelMetricsV1(s) {
+		return 0, false
+	}
+	extractionRate, ok := e.rateByService[strings.ToLower(s.Service())]
 	if !ok {
 		return 0, false
 	}

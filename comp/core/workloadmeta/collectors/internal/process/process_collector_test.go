@@ -11,7 +11,6 @@ package process
 
 import (
 	"context"
-	"net/http"
 	"strconv"
 	"testing"
 	"time"
@@ -56,8 +55,6 @@ func (c collectorTest) cleanup() {
 
 // TestBasicCreatedProcessesCollection tests the collector capturing new processes without language + container data
 func TestBasicCreatedProcessesCollection(t *testing.T) {
-	collectionInterval := time.Second * 10
-
 	creationTime1 := time.Now().Unix()
 	pid1 := int32(1234)
 	proc1 := createTestPythonProcess(pid1, creationTime1)
@@ -109,15 +106,12 @@ func TestBasicCreatedProcessesCollection(t *testing.T) {
 			ctx, cancel := context.WithCancel(context.TODO())
 			defer cancel()
 
-			// start execution
-			err := c.collector.Start(ctx, c.mockStore)
-			assert.NoError(t, err)
-
 			c.probe.On("ProcessesByPID", mock.Anything, mock.Anything).Return(tc.processesToCollect, nil).Times(1)
 			c.mockContainerProvider.EXPECT().GetPidToCid(cacheValidityNoRT).Return(nil).Times(1)
 
-			// update clock to trigger processing
-			c.mockClock.Add(collectionInterval)
+			// start execution
+			err := c.collector.Start(ctx, c.mockStore)
+			assert.NoError(t, err)
 
 			assert.EventuallyWithT(t, func(cT *assert.CollectT) {
 				for pid, expectedProc := range tc.expectedProcesses {
@@ -132,7 +126,6 @@ func TestBasicCreatedProcessesCollection(t *testing.T) {
 
 // TestCreatedProcessesCollectionWithLanguages tests the collector capturing new processes with language data
 func TestCreatedProcessesCollectionWithLanguages(t *testing.T) {
-	collectionInterval := time.Second * 10
 	creationTime1 := time.Now().Unix()
 	pid1 := int32(1234)
 	proc1 := createTestPythonProcess(pid1, creationTime1)
@@ -193,15 +186,12 @@ func TestCreatedProcessesCollectionWithLanguages(t *testing.T) {
 			ctx, cancel := context.WithCancel(context.TODO())
 			defer cancel()
 
-			// start execution
-			err := c.collector.Start(ctx, c.mockStore)
-			assert.NoError(t, err)
-
 			c.probe.On("ProcessesByPID", mock.Anything, mock.Anything).Return(tc.processesToCollect, nil).Times(1)
 			c.mockContainerProvider.EXPECT().GetPidToCid(cacheValidityNoRT).Return(nil).Times(1)
 
-			// update clock to trigger processing
-			c.mockClock.Add(collectionInterval)
+			// start execution
+			err := c.collector.Start(ctx, c.mockStore)
+			assert.NoError(t, err)
 
 			assert.EventuallyWithT(t, func(cT *assert.CollectT) {
 				for pid, expectedProc := range tc.expectedProcesses {
@@ -216,8 +206,6 @@ func TestCreatedProcessesCollectionWithLanguages(t *testing.T) {
 
 // TestCreatedProcessesCollectionWithContainers tests the collector capturing new processes with container data
 func TestCreatedProcessesCollectionWithContainers(t *testing.T) {
-	collectionInterval := time.Second * 10
-
 	creationTime1 := time.Now().Unix()
 	pid1 := int32(1234)
 	proc1 := createTestPythonProcess(pid1, creationTime1)
@@ -305,15 +293,13 @@ func TestCreatedProcessesCollectionWithContainers(t *testing.T) {
 			ctx, cancel := context.WithCancel(context.TODO())
 			defer cancel()
 
+			c.probe.On("ProcessesByPID", mock.Anything, mock.Anything).Return(tc.processesToCollect, nil).Times(1)
+			c.mockContainerProvider.EXPECT().GetPidToCid(cacheValidityNoRT).Return(tc.pidToCidToCollect).Times(1)
+
 			// start execution
 			err := c.collector.Start(ctx, c.mockStore)
 			assert.NoError(t, err)
 
-			c.probe.On("ProcessesByPID", mock.Anything, mock.Anything).Return(tc.processesToCollect, nil).Times(1)
-			c.mockContainerProvider.EXPECT().GetPidToCid(cacheValidityNoRT).Return(tc.pidToCidToCollect).Times(1)
-
-			// update clock to trigger processing
-			c.mockClock.Add(collectionInterval)
 			assert.EventuallyWithT(t, func(cT *assert.CollectT) {
 				for pid, expectedProc := range tc.expectedProcesses {
 					actualProc, err := c.mockStore.GetProcess(pid)
@@ -467,19 +453,17 @@ func TestProcessLifecycleCollection(t *testing.T) {
 			ctx, cancel := context.WithCancel(context.TODO())
 			defer cancel()
 
+			c.probe.On("ProcessesByPID", mock.Anything, mock.Anything).Return(tc.processesToCollectA, nil).Times(1)
+			c.mockContainerProvider.EXPECT().GetPidToCid(cacheValidityNoRT).Return(tc.pidToCidToCollectA).Times(1)
+
+			c.probe.On("ProcessesByPID", mock.Anything, mock.Anything).Return(tc.processesToCollectB, nil).Times(1)
+			c.mockContainerProvider.EXPECT().GetPidToCid(cacheValidityNoRT).Return(tc.pidToCidToCollectB).Times(1)
+
 			// start execution
 			err := c.collector.Start(ctx, c.mockStore)
 			assert.NoError(t, err)
 
-			c.probe.On("ProcessesByPID", mock.Anything, mock.Anything).Return(tc.processesToCollectA, nil).Times(1)
-			c.mockContainerProvider.EXPECT().GetPidToCid(cacheValidityNoRT).Return(tc.pidToCidToCollectA).Times(1)
-
-			// update clock to trigger processing
-			c.mockClock.Add(collectionInterval)
-			c.probe.On("ProcessesByPID", mock.Anything, mock.Anything).Return(tc.processesToCollectB, nil).Times(1)
-
-			c.mockContainerProvider.EXPECT().GetPidToCid(cacheValidityNoRT).Return(tc.pidToCidToCollectB).Times(1)
-			// update clock to trigger processing
+			// update clock to trigger second collection
 			c.mockClock.Add(collectionInterval)
 
 			assert.EventuallyWithT(t, func(cT *assert.CollectT) {
@@ -606,6 +590,10 @@ func TestStartConfiguration(t *testing.T) {
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 
+			// set up mocks as some configurations result in calls
+			c.probe.On("ProcessesByPID", mock.Anything, mock.Anything).Return(map[int32]*procutil.Process{}, nil).Maybe()
+			c.mockContainerProvider.EXPECT().GetPidToCid(cacheValidityNoRT).Return(map[int]string{}).AnyTimes()
+
 			err := c.collector.Start(ctx, c.mockStore)
 			assert.Equal(t, tc.expectedError, err)
 		})
@@ -674,7 +662,6 @@ func setUpCollectorTest(t *testing.T, cfg config.Component, sysProbeConfigOverri
 		fx.Replace(sysprobeconfigimpl.MockParams{Overrides: sysProbeConfigOverrides}),
 	))
 	processCollector := newProcessCollector(collectorID, workloadmeta.NodeAgent, mockClock, mockProbe, cfg, mockSystemProbeConfig)
-	processCollector.sysProbeClient = &http.Client{}
 	processCollector.containerProvider = mockContainerProvider
 
 	return collectorTest{&processCollector, mockProbe, mockSystemProbeConfig, mockClock, mockStore, mockContainerProvider}

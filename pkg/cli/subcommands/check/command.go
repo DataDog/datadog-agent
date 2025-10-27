@@ -55,7 +55,6 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/defaults"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
-	"github.com/DataDog/datadog-agent/comp/forwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl"
@@ -176,7 +175,7 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 				dualTaggerfx.Module(common.DualTaggerParams()),
 				workloadfilterfx.Module(),
 				autodiscoveryimpl.Module(),
-				forwarder.Bundle(defaultforwarder.NewParams(defaultforwarder.WithNoopForwarder())),
+				defaultforwarder.NoopModule(),
 				inventorychecksimpl.Module(),
 				logscompression.Module(),
 				metricscompression.Module(),
@@ -283,6 +282,12 @@ func run(
 		_ = cliParams.cmd.Help()
 		return nil
 	}
+
+	// Check if the check is allowed in infrastructure basic mode
+	if !pkgcollector.IsCheckAllowed(cliParams.checkName, pkgconfigsetup.Datadog()) {
+		return fmt.Errorf("check '%s' is not allowed in infrastructure basic mode", cliParams.checkName)
+	}
+
 	// TODO: (components) - Until the checks are components we set there context so they can depends on components.
 	check.InitializeInventoryChecksContext(invChecks)
 	if !config.GetBool("python_lazy_loading") {

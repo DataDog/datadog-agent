@@ -143,7 +143,7 @@ func setup(secretComp secrets.Component, _ mode.Conf, tagger tagger.Component, c
 
 	// The datadog-agent requires Load to be called or it could
 	// panic down the line.
-	_, err := pkgconfigsetup.LoadWithSecret(pkgconfigsetup.Datadog(), secretComp, nil)
+	err := pkgconfigsetup.LoadDatadog(pkgconfigsetup.Datadog(), secretComp, nil)
 	if err != nil {
 		log.Debugf("Error loading config: %v\n", err)
 	}

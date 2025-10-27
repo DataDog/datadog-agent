@@ -1,0 +1,23 @@
+commands:
+  - type: running
+    values:
+      - "show running-config"
+    processing_rules:
+      metadata:
+        - type: timestamp
+          regex: "! Last configuration change at (.*)"
+          format: "15:04:05 MST Mon Jan 2 2006"
+        - type: config_size
+          regex: "Current configuration : (?P<Size>\\d+)"
+      validation:
+        - type: valid_output
+          pattern: "Building configuration..."
+      redaction:
+        - regex: "(username .+ (password|secret) \\d) .+"
+          replacement: "<redacted secret>"
+  - type: startup
+    values:
+      - "show startup-config"
+  - type: version
+    values:
+      - "show version"

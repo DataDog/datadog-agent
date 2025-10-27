@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor"
 	emconfig "github.com/DataDog/datadog-agent/pkg/eventmonitor/config"
 	secconfig "github.com/DataDog/datadog-agent/pkg/security/config"
+	secmodule "github.com/DataDog/datadog-agent/pkg/security/module"
 	sysconfig "github.com/DataDog/datadog-agent/pkg/system-probe/config"
 )
 
@@ -32,6 +33,9 @@ func StartEventMonitor(tb testing.TB, callback PreStartCallback) {
 	emconfig := emconfig.NewConfig()
 	secconfig, err := secconfig.NewConfig()
 	require.NoError(tb, err)
+
+	// disable the CWS part (similar to running USM/CNM only)
+	secmodule.DisableRuntimeSecurity(secconfig)
 
 	// Needed for the socket creation to work
 	require.NoError(tb, os.MkdirAll("/opt/datadog-agent/run/", 0755))

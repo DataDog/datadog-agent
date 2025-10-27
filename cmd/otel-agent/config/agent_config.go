@@ -13,8 +13,8 @@ import (
 	"strconv"
 	"strings"
 
-	pkgdatadog "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog"
 	datadogconfig "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog/config"
+	ddfg "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog/featuregates"
 	"go.opentelemetry.io/collector/confmap"
 	"go.opentelemetry.io/collector/confmap/provider/envprovider"
 	"go.opentelemetry.io/collector/confmap/provider/fileprovider"
@@ -117,7 +117,7 @@ func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (confi
 			pkgconfig.SetConfigFile(ddCfg)
 		}
 
-		_, err = pkgconfigsetup.LoadWithSecret(pkgconfig, secretsnoop.NewComponent().Comp, nil)
+		err = pkgconfigsetup.LoadDatadog(pkgconfig, secretsnoop.NewComponent().Comp, nil)
 		if err != nil {
 			return nil, err
 		}
@@ -129,10 +129,19 @@ func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (confi
 	}
 
 	// Set the right log level. The most verbose setting takes precedence.
-	telemetryLogLevel := sc.Telemetry.Logs.Level
-	telemetryLogMapping, ok := logLevelMap[strings.ToLower(telemetryLogLevel.String())]
+	telemetryLogLevel := "info"
+	if stCfgMap, ok := sc.Telemetry.(map[string]any); ok {
+		if stLogsCfg, ok := stCfgMap["logs"]; ok {
+			if stLogsCfgMap, ok := stLogsCfg.(map[string]any); ok {
+				if stLogsLevel, ok := stLogsCfgMap["level"]; ok {
+					telemetryLogLevel = stLogsLevel.(string)
+				}
+			}
+		}
+	}
+	telemetryLogMapping, ok := logLevelMap[strings.ToLower(telemetryLogLevel)]
 	if !ok {
-		return nil, fmt.Errorf("invalid log level (%v) set in the OTel Telemetry configuration", telemetryLogLevel.String())
+		return nil, fmt.Errorf("invalid log level (%v) set in the OTel Telemetry configuration", telemetryLogLevel)
 	}
 	if telemetryLogMapping < activeLogLevel {
 		activeLogLevel = telemetryLogMapping
@@ -193,7 +202,7 @@ func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (confi
 
 	if pkgconfig.Get("apm_config.features") == nil {
 		apmConfigFeatures := []string{}
-		if !pkgdatadog.OperationAndResourceNameV2FeatureGate.IsEnabled() {
+		if !ddfg.OperationAndResourceNameV2FeatureGate.IsEnabled() {
 			apmConfigFeatures = append(apmConfigFeatures, "disable_operation_and_resource_name_logic_v2")
 		}
 		if ddc.Traces.ComputeTopLevelBySpanKind {
@@ -207,9 +216,6 @@ func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (confi
 		pkgconfig.Set("proxy.http", ddc.ProxyURL, pkgconfigmodel.SourceLocalConfigProcess)
 		pkgconfig.Set("proxy.https", ddc.ProxyURL, pkgconfigmodel.SourceLocalConfigProcess)
 	}
-
-	// Disable preaggregation feature for otel-agent since it needs encrypted API keys and that's non-trivial
-	pkgconfig.Set("preaggregation.enabled", false, pkgconfigmodel.SourceAgentRuntime)
 
 	return pkgconfig, nil
 }

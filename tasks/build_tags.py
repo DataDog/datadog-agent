@@ -152,7 +152,7 @@ CLUSTER_AGENT_CLOUDFOUNDRY_TAGS = {"clusterchecks", "grpcnotrace", "cel"}
 DOGSTATSD_TAGS = {"containerd", "grpcnotrace", "no_dynamic_plugins", "docker", "kubelet", "podman", "zlib", "zstd"}
 
 # IOT_AGENT_TAGS lists the tags needed when building the IoT agent
-IOT_AGENT_TAGS = {"grpcnotrace", "jetson", "otlp", "systemd", "zlib", "zstd"}
+IOT_AGENT_TAGS = {"grpcnotrace", "jetson", "systemd", "zlib", "zstd"}
 
 # INSTALLER_TAGS lists the tags needed when building the installer
 INSTALLER_TAGS = {"docker", "ec2", "kubelet"}
@@ -254,7 +254,7 @@ CWS_INSTRUMENTATION_TAGS = {"netgo", "osusergo"}
 
 OTEL_AGENT_TAGS = {"otlp", "zlib", "zstd"}
 
-LOADER_TAGS = {"otlp"}
+LOADER_TAGS = set()
 
 # AGENT_TEST_TAGS lists the tags that have to be added to run tests
 AGENT_TEST_TAGS = AGENT_TAGS.union({"clusterchecks"})

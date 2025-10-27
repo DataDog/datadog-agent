@@ -101,6 +101,7 @@ var (
 		model.ForkEventType.String(),
 		model.ExecEventType.String(),
 		model.ExitEventType.String(),
+		model.TracerMemfdSealEventType.String(),
 	}
 )
 
@@ -415,7 +416,7 @@ func (p *EBPFProbe) VerifyEnvironment() *multierror.Error {
 		}
 
 		if mounted, _ := mountinfo.Mounted(utilkernel.ProcFSRoot()); !mounted {
-			err = multierror.Append(err, errors.New("/etc/group doesn't seem to be a mountpoint"))
+			err = multierror.Append(err, fmt.Errorf("%s doesn't seem to be a mountpoint", utilkernel.ProcFSRoot()))
 		}
 
 		if mounted, _ := mountinfo.Mounted(p.kernelVersion.OsReleasePath); !mounted {
@@ -1004,7 +1005,7 @@ func (p *EBPFProbe) unmarshalProcessCacheEntry(ev *model.Event, data []byte) (in
 func (p *EBPFProbe) onEventLost(_ string, perEvent map[string]uint64) {
 	// snapshot traced cgroups if a CgroupTracing event was lost
 	if p.probe.IsActivityDumpEnabled() && perEvent[model.CgroupTracingEventType.String()] > 0 {
-		p.profileManager.SnapshotTracedCgroups()
+		p.profileManager.SyncTracedCgroups()
 	}
 }
 
@@ -1571,6 +1572,13 @@ func (p *EBPFProbe) handleRegularEvent(event *model.Event, offset int, dataLen u
 		}
 		if event.PrCtl.IsNameTruncated {
 			p.MetricNameTruncated.Add(1)
+		}
+	case model.TracerMemfdSealEventType:
+		if !p.regularUnmarshalEvent(&event.TracerMemfdSeal, eventType, offset, dataLen, data) {
+			return false
+		}
+		if err := p.Resolvers.ProcessResolver.AddTracerMetadata(event.PIDContext.Pid, event); err != nil {
+			seclog.Debugf("failed to add tracer metadata: %s (pid %d, fd %d)", err, event.PIDContext.Pid, event.TracerMemfdSeal.Fd)
 		}
 	}
 	return true
@@ -2698,6 +2706,7 @@ func (p *EBPFProbe) initManagerOptionsMapSpecEditors() {
 		SpanTrackMaxCount:             1,
 		CapabilitiesMonitoringEnabled: p.config.Probe.CapabilitiesMonitoringEnabled,
 		CgroupSocketEnabled:           p.kernelVersion.HasBpfGetSocketCookieForCgroupSocket(),
+		SecurityProfileSyscallAnomaly: slices.Contains(p.config.RuntimeSecurity.AnomalyDetectionEventTypes, model.SyscallsEventType),
 	}
 
 	if p.config.Probe.SpanTrackingEnabled {
@@ -3288,6 +3297,7 @@ func AppendProbeRequestsToFetcher(constantFetcher constantfetch.ConstantFetcher,
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameVfsmountMntFlags, "struct vfsmount", "mnt_flags")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameVfsmountMntRoot, "struct vfsmount", "mnt_root")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameVfsmountMntSb, "struct vfsmount", "mnt_sb")
+	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameRtnlLinkOpsKind, "struct rtnl_link_ops", "kind")
 }
 
 // HandleActions handles the rule actions

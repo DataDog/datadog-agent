@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -34,27 +35,70 @@ func Test_GetProfileMap(t *testing.T) {
 					BaseProfile: BaseProfile{
 						Name: "_base",
 					},
-					Commands: map[CommandType][]string{},
+					Commands: map[CommandType]Commands{},
+					Scrubber: scrubber.New(),
 				},
 				"p1": &NCMProfile{
 					BaseProfile: BaseProfile{
 						Name: "p1",
 					},
-					Commands: map[CommandType][]string{
-						Running: {"show run"},
-						Startup: {"show start"},
-						Version: {"show ver"},
+					Commands: map[CommandType]Commands{
+						Running: {
+							CommandType: Running,
+							Values:      []string{"show run"},
+						},
+						Startup: {
+							CommandType: Startup,
+							Values:      []string{"show start"},
+						},
+						Version: {
+							CommandType: Version,
+							Values:      []string{"show ver"},
+						},
 					},
+					Scrubber: scrubber.New(),
 				},
 				"p2": &NCMProfile{
 					BaseProfile: BaseProfile{
 						Name: "p2",
 					},
-					Commands: map[CommandType][]string{
-						Running: {"show running-config"},
-						Startup: {"show startup-config"},
-						Version: {"show version"},
+					Commands: map[CommandType]Commands{
+						Running: {
+							CommandType: Running,
+							Values:      []string{"show running-config"},
+							ProcessingRules: ProcessingRules{
+								MetadataRules: []MetadataRule{
+									{
+										Type:   Timestamp,
+										Regex:  `! Last configuration change at (.*)`,
+										Format: "15:04:05 MST Mon Jan 2 2006",
+									},
+									{
+										Type:  ConfigSize,
+										Regex: `Current configuration : (?P<Size>\d+)`,
+									},
+								},
+								ValidationRules: []ValidationRule{
+									{
+										Type:    "valid_output",
+										Pattern: "Building configuration...",
+									},
+								},
+								RedactionRules: []RedactionRule{
+									{Regex: `(username .+ (password|secret) \d) .+`, Replacement: "<redacted secret>"},
+								},
+							},
+						},
+						Startup: {
+							CommandType: Startup,
+							Values:      []string{"show startup-config"},
+						},
+						Version: {
+							CommandType: Version,
+							Values:      []string{"show version"},
+						},
 					},
+					Scrubber: scrubber.New(),
 				},
 			},
 		},
@@ -75,8 +119,10 @@ func Test_GetCommandValues(t *testing.T) {
 		BaseProfile: BaseProfile{
 			Name: "test-profile",
 		},
-		Commands: map[CommandType][]string{
-			Running: {"show running-config"},
+		Commands: map[CommandType]Commands{
+			Running: {
+				CommandType: Running,
+				Values:      []string{"show running-config"}},
 		},
 	}
 	tests := []struct {
@@ -116,7 +162,7 @@ func Test_ParseProfileFromFile(t *testing.T) {
 	defaultTestConfdPath, _ := filepath.Abs(filepath.Join("..", "test", "conf.d"))
 	mockConfig.SetWithoutSource("confd_path", defaultTestConfdPath)
 
-	absPath, _ := filepath.Abs(filepath.Join(defaultTestConfdPath, "networkconfigmanagement.d", "default_profiles", "p2.yaml"))
+	absPath, _ := filepath.Abs(filepath.Join(defaultTestConfdPath, "network_config_management.d", "default_profiles", "p2.yaml"))
 	tests := []struct {
 		name            string
 		definitionType  Definition[any]
@@ -129,7 +175,28 @@ func Test_ParseProfileFromFile(t *testing.T) {
 			profileFile: absPath,
 			expectedProfile: &NCMProfileRaw{
 				Commands: []Commands{
-					{CommandType: Running, Values: []string{"show running-config"}},
+					{CommandType: Running, Values: []string{"show running-config"}, ProcessingRules: ProcessingRules{
+						MetadataRules: []MetadataRule{
+							{
+								Type:   Timestamp,
+								Regex:  `! Last configuration change at (.*)`,
+								Format: "15:04:05 MST Mon Jan 2 2006",
+							},
+							{
+								Type:  ConfigSize,
+								Regex: `Current configuration : (?P<Size>\d+)`,
+							},
+						},
+						ValidationRules: []ValidationRule{
+							{
+								Type:    "valid_output",
+								Pattern: "Building configuration...",
+							},
+						},
+						RedactionRules: []RedactionRule{
+							{Regex: `(username .+ (password|secret) \d) .+`, Replacement: "<redacted secret>"},
+						},
+					}},
 					{CommandType: Startup, Values: []string{"show startup-config"}},
 					{CommandType: Version, Values: []string{"show version"}},
 				},
@@ -149,7 +216,7 @@ func Test_ParseProfileFromFile(t *testing.T) {
 
 func Test_ParseNCMProfileFromFile(t *testing.T) {
 	SetConfdPathAndCleanProfiles()
-	basePath, _ := filepath.Abs(filepath.Join("..", "test", "conf.d", "networkconfigmanagement.d", "default_profiles"))
+	basePath, _ := filepath.Abs(filepath.Join("..", "test", "conf.d", "network_config_management.d", "default_profiles"))
 	p1 := filepath.Join(basePath, "p1.json")
 	p2 := filepath.Join(basePath, "p2.yaml")
 
@@ -163,22 +230,64 @@ func Test_ParseNCMProfileFromFile(t *testing.T) {
 			name:        "read NCM json profile successful",
 			profileFile: p1,
 			expectedDeviceProfile: &NCMProfile{
-				Commands: map[CommandType][]string{
-					Running: {"show run"},
-					Startup: {"show start"},
-					Version: {"show ver"},
+				Commands: map[CommandType]Commands{
+					Running: {
+						CommandType: Running,
+						Values:      []string{"show run"},
+					},
+					Startup: {
+						CommandType: Startup,
+						Values:      []string{"show start"},
+					},
+					Version: {
+						CommandType: Version,
+						Values:      []string{"show ver"},
+					},
 				},
+				Scrubber: scrubber.New(),
 			},
 		},
 		{
 			name:        "read NCM YAML profile successful",
 			profileFile: p2,
 			expectedDeviceProfile: &NCMProfile{
-				Commands: map[CommandType][]string{
-					Running: {"show running-config"},
-					Startup: {"show startup-config"},
-					Version: {"show version"},
+				Commands: map[CommandType]Commands{
+					Running: {
+						CommandType: Running,
+						Values:      []string{"show running-config"},
+						ProcessingRules: ProcessingRules{
+							MetadataRules: []MetadataRule{
+								{
+									Type:   Timestamp,
+									Regex:  `! Last configuration change at (.*)`,
+									Format: "15:04:05 MST Mon Jan 2 2006",
+								},
+								{
+									Type:  ConfigSize,
+									Regex: `Current configuration : (?P<Size>\d+)`,
+								},
+							},
+							ValidationRules: []ValidationRule{
+								{
+									Type:    "valid_output",
+									Pattern: "Building configuration...",
+								},
+							},
+							RedactionRules: []RedactionRule{
+								{Regex: `(username .+ (password|secret) \d) .+`, Replacement: "<redacted secret>"},
+							},
+						},
+					},
+					Startup: {
+						CommandType: Startup,
+						Values:      []string{"show startup-config"},
+					},
+					Version: {
+						CommandType: Version,
+						Values:      []string{"show version"},
+					},
 				},
+				Scrubber: scrubber.New(),
 			},
 		},
 	}
@@ -212,7 +321,7 @@ func Test_resolveNCMProfileDefinitionPath(t *testing.T) {
 		{
 			name:               "relative path with default profile",
 			definitionFilePath: "p2.yaml",
-			expectedPath:       filepath.Join(mockConfig.Get("confd_path").(string), "networkconfigmanagement.d", "default_profiles", "p2.yaml"),
+			expectedPath:       filepath.Join(mockConfig.Get("confd_path").(string), "network_config_management.d", "default_profiles", "p2.yaml"),
 		},
 	}
 	for _, tt := range tests {
