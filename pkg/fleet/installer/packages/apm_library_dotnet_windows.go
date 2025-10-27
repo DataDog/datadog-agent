@@ -162,10 +162,9 @@ func instrumentDotnetLibraryIfNeeded(ctx context.Context, target string) (err er
 	envInst := env.FromEnv()
 	if envInst.InstallScript.APMInstrumentationEnabled == env.APMInstrumentationEnabledIIS {
 		return instrumentDotnetLibrary(ctx, target)
-	} else {
-		// If we don't instrument we try uninstrumenting in case there was a previous installation
-		// to make sure we don't leave a previous version's instrumentation hanging around.
-		_ = uninstrumentDotnetLibrary(ctx, target)
 	}
+	// If we don't instrument we try uninstrumenting in case there was a previous installation
+	// to make sure we don't leave a previous version's instrumentation hanging around.
+	_ = uninstrumentDotnetLibrary(ctx, target)
 	return nil
 }
