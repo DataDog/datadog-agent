@@ -569,7 +569,7 @@ func unsetTelemetry(key, _ string) {
 
 func getActiveScalingSources(currentTime time.Time, podAutoscalerInternal *model.PodAutoscalerInternal) (*datadoghqcommon.DatadogPodAutoscalerValueSource, *datadoghqcommon.DatadogPodAutoscalerValueSource) {
 	// Set default vertical scaling source
-	activeVerticalSource := (*datadoghqcommon.DatadogPodAutoscalerValueSource)(nil)
+	var activeVerticalSource *datadoghqcommon.DatadogPodAutoscalerValueSource
 	if podAutoscalerInternal.MainScalingValues().Vertical != nil {
 		activeVerticalSource = pointer.Ptr(podAutoscalerInternal.MainScalingValues().Vertical.Source)
 	}
