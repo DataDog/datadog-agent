@@ -5,8 +5,8 @@ exclude_patterns = [
     # Exclude folders that include copies of upstream code we need to import.
     # Our intent is usually to upstream our changes over time, so keeping the
     # style as the upstream has it makes merging it back easier.
-    "third_party/.*",
-    "deps/.*/overlay/.*",
+    "./third_party/.*",
+    "./deps/.*/overlay/.*",
 ]
 
 buildifier(
