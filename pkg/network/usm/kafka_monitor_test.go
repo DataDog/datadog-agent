@@ -1546,8 +1546,11 @@ func getAndValidateKafkaStats(parentT *testing.T, t *testing.T, monitor *Monitor
 		kafkaProtocolStats, exists := protocolStats[protocols.Kafka]
 		// We might not have kafka stats, and it might be the expected case (to capture 0).
 		if exists {
+			fmt.Printf("test %q; got the following stats ->>>\n", t.Name())
 			currentStats := kafkaProtocolStats.(map[kafka.Key]*kafka.RequestStats)
 			for key, stats := range currentStats {
+				fmt.Printf("test %q; iter; key: %s; value: %v; value ptr: %p\n", t.Name(), key, stats, stats)
+
 				prevStats, ok := kafkaStats[key]
 				if ok && prevStats != nil {
 					prevStats.CombineWith(stats)
