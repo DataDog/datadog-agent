@@ -106,7 +106,7 @@ env:
       deployment.environment=$(OTEL_K8S_NAMESPACE)
 ```
 
-If you are using OTel SDK auto-instrumentation, `container.id` and `process.pid` will be automatically set by your SDK.
+When using OTel SDK auto-instrumentation, some SDKs automatically set `container.id` and `process.pid`, while others may require manual configuration..
 
 ### Collector Configuration
 
