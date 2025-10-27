@@ -92,21 +92,21 @@ func newTestProfile() *NCMProfile {
 					MetadataRules: []MetadataRule{
 						{
 							Type:   Timestamp,
-							Regex:  `! Last configuration change at (.*)`,
+							Regex:  regexp.MustCompile(`! Last configuration change at (.*)`),
 							Format: "15:04:05 MST Mon Jan 2 2006",
 						},
 						{
 							Type:  ConfigSize,
-							Regex: `Current configuration : (?P<Size>\d+)`,
+							Regex: regexp.MustCompile(`Current configuration : (?P<Size>\d+)`),
 						},
 					},
 					ValidationRules: []ValidationRule{
 						{
-							Pattern: "Building configuration...",
+							Pattern: regexp.MustCompile("Building configuration..."),
 						},
 					},
 					RedactionRules: []RedactionRule{
-						{Regex: `(username .+ (password|secret) \d) .+`, Replacement: "$1 <BIG OL SECRET>"},
+						{Regex: regexp.MustCompile(`(username .+ (password|secret) \d) .+`), Replacement: "$1 <BIG OL SECRET>"},
 					},
 				},
 			},
@@ -126,22 +126,22 @@ var testProfile = &NCMProfile{
 				MetadataRules: []MetadataRule{
 					{
 						Type:   Timestamp,
-						Regex:  `! Last configuration change at (.*)`,
+						Regex:  regexp.MustCompile(`! Last configuration change at (.*)`),
 						Format: "15:04:05 MST Mon Jan 2 2006",
 					},
 					{
 						Type:  ConfigSize,
-						Regex: `Current configuration : (?P<Size>\d+)`,
+						Regex: regexp.MustCompile(`Current configuration : (?P<Size>\d+)`),
 					},
 				},
 				ValidationRules: []ValidationRule{
 					{
 						Type:    "valid_output",
-						Pattern: "Building configuration...",
+						Pattern: regexp.MustCompile("Building configuration..."),
 					},
 				},
 				RedactionRules: []RedactionRule{
-					{Regex: `(username .+ (password|secret) \d) .+`, Replacement: "$1 <redacted secret>"},
+					{Regex: regexp.MustCompile(`(username .+ (password|secret) \d) .+`), Replacement: "$1 <redacted secret>"},
 				},
 			},
 		},
@@ -155,27 +155,23 @@ var runningCommandsWithCompiledRegex = &Commands{
 		MetadataRules: []MetadataRule{
 			{
 				Type:   Timestamp,
-				Regex:  `! Last configuration change at (.*)`,
-				Regexp: regexp.MustCompile(`! Last configuration change at (.*)`),
+				Regex:  regexp.MustCompile(`! Last configuration change at (.*)`),
 				Format: "15:04:05 MST Mon Jan 2 2006",
 			},
 			{
-				Type:   ConfigSize,
-				Regex:  `Current configuration : (?P<Size>\d+)`,
-				Regexp: regexp.MustCompile(`Current configuration : (?P<Size>\d+)`),
+				Type:  ConfigSize,
+				Regex: regexp.MustCompile(`Current configuration : (?P<Size>\d+)`),
 			},
 		},
 		ValidationRules: []ValidationRule{
 			{
 				Type:    "valid_output",
-				Pattern: "Building configuration...",
-				Regexp:  regexp.MustCompile(`Building configuration...`),
+				Pattern: regexp.MustCompile(`Building configuration...`),
 			},
 		},
 		RedactionRules: []RedactionRule{
 			{
-				Regex:       `(username .+ (password|secret) \d) .+`,
-				Regexp:      regexp.MustCompile(`(username .+ (password|secret) \d) .+`),
+				Regex:       regexp.MustCompile(`(username .+ (password|secret) \d) .+`),
 				Replacement: `$1 <redacted secret>`,
 			},
 		},

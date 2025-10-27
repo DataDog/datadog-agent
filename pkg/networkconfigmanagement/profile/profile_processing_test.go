@@ -22,7 +22,6 @@ func Test_extractMetadata(t *testing.T) {
 	tests := []struct {
 		name            string
 		profile         *NCMProfile
-		compileRules    bool
 		commandType     CommandType
 		metadataRules   []MetadataRule
 		configBytes     []byte
@@ -32,35 +31,21 @@ func Test_extractMetadata(t *testing.T) {
 	}{
 		// TODO: consolidate testing variables for ease of testing one thing at a time
 		{
-			name:         "extracting timestamp, config size success",
-			profile:      newTestProfile(),
-			compileRules: true,
-			commandType:  Running,
-			configBytes:  []byte(exampleConfig),
+			name:        "extracting timestamp, config size success",
+			profile:     newTestProfile(),
+			commandType: Running,
+			configBytes: []byte(exampleConfig),
 			expected: &ExtractedMetadata{
 				Timestamp:  1755204807,
 				ConfigSize: 3144,
 			},
 		},
 		{
-			name:         "extracting metadata error logs - no compiled rules",
-			profile:      testProfile,
-			compileRules: false,
-			commandType:  Running,
-			configBytes:  []byte(exampleConfig),
-			expected:     &ExtractedMetadata{},
-			expectedLogMsgs: []string{
-				`profile "test" does not have a regexp for metadata rule ! Last configuration change at (.*)`,
-				`profile "test" does not have a regexp for metadata rule Current configuration : (?P<Size>\d+)`,
-			},
-		},
-		{
-			name:         "extracting metadata error logs - cannot parse metadata from bad config",
-			profile:      testProfile,
-			compileRules: true,
-			commandType:  Running,
-			configBytes:  []byte("huh"),
-			expected:     &ExtractedMetadata{},
+			name:        "extracting metadata error logs - cannot parse metadata from bad config",
+			profile:     testProfile,
+			commandType: Running,
+			configBytes: []byte("huh"),
+			expected:    &ExtractedMetadata{},
 			expectedLogMsgs: []string{
 				`could not parse timestamp for profile test`,
 				`could not parse config size for profile test`,
@@ -75,9 +60,6 @@ func Test_extractMetadata(t *testing.T) {
 			assert.NoError(t, err)
 			log.SetupLogger(l, "debug")
 
-			if tt.compileRules {
-				_ = tt.profile.compileProcessingRules()
-			}
 			actual, _ := tt.profile.extractMetadata(tt.commandType, tt.configBytes)
 			w.Flush()
 
@@ -97,43 +79,29 @@ func Test_extractMetadata(t *testing.T) {
 
 func Test_validateOutput(t *testing.T) {
 	tests := []struct {
-		name         string
-		profile      *NCMProfile
-		compileRules bool
-		commandType  CommandType
-		configBytes  []byte
-		expected     error
+		name        string
+		profile     *NCMProfile
+		commandType CommandType
+		configBytes []byte
+		expected    error
 	}{
 		{
-			name:         "valid output",
-			profile:      newTestProfile(),
-			compileRules: true,
-			commandType:  Running,
-			configBytes:  []byte(exampleConfig),
-			expected:     nil,
+			name:        "valid output",
+			profile:     newTestProfile(),
+			commandType: Running,
+			configBytes: []byte(exampleConfig),
+			expected:    nil,
 		},
 		{
-			name:         "invalid output - no metadata found for the command type",
-			profile:      newTestProfile(),
-			compileRules: false,
-			commandType:  Startup,
-			configBytes:  []byte(exampleConfig),
-			expected:     fmt.Errorf("no metadata found for command type startup in profile test"),
-		},
-		{
-			name:         "invalid output - rule violation",
-			profile:      newTestProfile(),
-			compileRules: false,
-			commandType:  Running,
-			configBytes:  []byte("example"),
-			expected:     fmt.Errorf(`profile "test" does not have a regexp for validation rule: Building configuration... `),
+			name:        "invalid output - no metadata found for the command type",
+			profile:     newTestProfile(),
+			commandType: Startup,
+			configBytes: []byte(exampleConfig),
+			expected:    fmt.Errorf("no metadata found for command type startup in profile test"),
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if tt.compileRules {
-				_ = tt.profile.compileProcessingRules()
-			}
 			err := tt.profile.ValidateOutput(tt.commandType, tt.configBytes)
 			if tt.expected != nil {
 				assert.Equal(t, tt.expected, err)
@@ -173,7 +141,7 @@ func Test_applyRedactions(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			if tt.compileRules {
-				_ = tt.profile.compileProcessingRules()
+				tt.profile.initializeScrubbers()
 			}
 			actual, err := tt.profile.applyRedactions(tt.commandType, tt.configBytes)
 			if tt.expectedErrMsg != "" {
@@ -201,10 +169,7 @@ func Test_compileProcessingRules(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			cmd := tt.profile.Commands[tt.commandType]
-			err := cmd.compileProcessingRules()
-			if tt.expected != nil {
-				assert.NoError(t, err)
-			}
+			cmd.initializeScrubber()
 			assert.Equal(t, tt.expected, cmd)
 		})
 	}

@@ -9,6 +9,7 @@ package profile
 
 import (
 	"path/filepath"
+	"regexp"
 	"testing"
 
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
@@ -150,22 +151,22 @@ func Test_ParseProfileFromFile(t *testing.T) {
 						MetadataRules: []MetadataRule{
 							{
 								Type:   Timestamp,
-								Regex:  `! Last configuration change at (.*)`,
+								Regex:  regexp.MustCompile(`! Last configuration change at (.*)`),
 								Format: "15:04:05 MST Mon Jan 2 2006",
 							},
 							{
 								Type:  ConfigSize,
-								Regex: `Current configuration : (?P<Size>\d+)`,
+								Regex: regexp.MustCompile(`Current configuration : (?P<Size>\d+)`),
 							},
 						},
 						ValidationRules: []ValidationRule{
 							{
 								Type:    "valid_output",
-								Pattern: "Building configuration...",
+								Pattern: regexp.MustCompile("Building configuration..."),
 							},
 						},
 						RedactionRules: []RedactionRule{
-							{Regex: `(username .+ (password|secret) \d) .+`, Replacement: "$1 <redacted secret>"},
+							{Regex: regexp.MustCompile(`(username .+ (password|secret) \d) .+`), Replacement: "$1 <redacted secret>"},
 						},
 					}},
 					{CommandType: Startup, Values: []string{"show startup-config"}},

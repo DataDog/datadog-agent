@@ -358,26 +358,23 @@ func TestCheck_FindMatchingProfile(t *testing.T) {
 					MetadataRules: []profile.MetadataRule{
 						{
 							Type:   profile.Timestamp,
-							Regex:  `! Last configuration change at (.*)`,
-							Regexp: regexp.MustCompile(`! Last configuration change at (.*)`),
+							Regex:  regexp.MustCompile(`! Last configuration change at (.*)`),
 							Format: "15:04:05 MST Mon Jan 2 2006",
 						},
 						{
-							Type:   profile.ConfigSize,
-							Regex:  `Current configuration : (?P<Size>\d+)`,
-							Regexp: regexp.MustCompile(`Current configuration : (?P<Size>\d+)`),
+							Type:  profile.ConfigSize,
+							Regex: regexp.MustCompile(`Current configuration : (?P<Size>\d+)`),
 						},
 					},
 					ValidationRules: []profile.ValidationRule{
 						{
-							Pattern: "Building configuration...",
 							Type:    "valid_output",
-							Regexp:  regexp.MustCompile(`Building configuration...`),
+							Pattern: regexp.MustCompile(`Building configuration...`),
 						},
 					},
 					RedactionRules: []profile.RedactionRule{
-						{Regex: `(username .+ (password|secret) \d) .+`,
-							Regexp:      regexp.MustCompile(`(username .+ (password|secret) \d) .+`),
+						{
+							Regex:       regexp.MustCompile(`(username .+ (password|secret) \d) .+`),
 							Replacement: "$1 <redacted secret>"},
 					},
 				},

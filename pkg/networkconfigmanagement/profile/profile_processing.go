@@ -26,10 +26,9 @@ type ProcessingRules struct {
 
 // MetadataRule represents the rules for parsing metadata from a network device's command
 type MetadataRule struct {
-	Type   MetadataType `json:"type" yaml:"type"`
-	Regex  string       `json:"regex" yaml:"regex"`
-	Regexp *regexp.Regexp
-	Format string `json:"format" yaml:"format"`
+	Type   MetadataType   `json:"type" yaml:"type"`
+	Regex  *regexp.Regexp `json:"regex" yaml:"regex"`
+	Format string         `json:"format" yaml:"format"`
 }
 
 // MetadataType represents enums for "types" of things than can be typically extracted for NCM
@@ -44,16 +43,14 @@ const (
 
 // ValidationRule represents patterns that should be expected from valid output from a command
 type ValidationRule struct {
-	Type    string `json:"type" yaml:"type"`
-	Pattern string `json:"pattern" yaml:"pattern"`
-	Regexp  *regexp.Regexp
+	Type    string         `json:"type" yaml:"type"`
+	Pattern *regexp.Regexp `json:"pattern" yaml:"pattern"`
 }
 
 // RedactionRule represents rules for patterns that warrant removal to protect sensitive data or irrelevant information
 type RedactionRule struct {
-	Regex       string `json:"regex" yaml:"regex"`
-	Regexp      *regexp.Regexp
-	Replacement string `json:"replacement" yaml:"replacement"`
+	Regex       *regexp.Regexp `json:"regex" yaml:"regex"`
+	Replacement string         `json:"replacement" yaml:"replacement"`
 }
 
 // ExtractedMetadata is a means to hold metadata to be emitted as metrics or sent as part of the payload
@@ -89,13 +86,9 @@ func (p *NCMProfile) extractMetadata(ct CommandType, output []byte) (*ExtractedM
 	// TODO: should this just return the `NetworkDeviceConfig` pre-filled with the metadata?
 	// TODO: send metrics once retrieved by the main functionality (access to metrics sender for the device)
 	for _, rule := range metadataParsingRules {
-		if rule.Regexp == nil {
-			log.Errorf("profile %q does not have a regexp for metadata rule %s", p.Name, rule.Regex)
-			continue
-		}
 		switch rule.Type {
 		case Timestamp:
-			match := rule.Regexp.FindSubmatch(output)
+			match := rule.Regex.FindSubmatch(output)
 			if match == nil || len(match) < 2 {
 				log.Warnf("could not parse timestamp for profile %s", p.Name)
 				continue
@@ -108,8 +101,8 @@ func (p *NCMProfile) extractMetadata(ct CommandType, output []byte) (*ExtractedM
 			}
 			result.Timestamp = timestamp.Unix()
 		case ConfigSize:
-			matches := rule.Regexp.FindSubmatch(output)
-			sizeIndex := rule.Regexp.SubexpIndex("Size")
+			matches := rule.Regex.FindSubmatch(output)
+			sizeIndex := rule.Regex.SubexpIndex("Size")
 			if sizeIndex == -1 || matches == nil {
 				log.Warnf("could not parse config size for profile %s", p.Name)
 				continue
@@ -133,10 +126,7 @@ func (p *NCMProfile) ValidateOutput(ct CommandType, output []byte) error {
 	}
 	validationRules := commandInfo.ProcessingRules.ValidationRules
 	for _, rule := range validationRules {
-		if rule.Regexp == nil {
-			return fmt.Errorf("profile %q does not have a regexp for validation rule: %s ", p.Name, rule.Pattern)
-		}
-		if !rule.Regexp.Match(output) {
+		if !rule.Pattern.Match(output) {
 			return fmt.Errorf("invalid output (due to rule requiring: %s) for command type %s in profile %s", rule.Pattern, ct, p.Name)
 		}
 	}
@@ -166,47 +156,24 @@ func (c Commands) scrub(output []byte) ([]byte, error) {
 	return output, nil
 }
 
-func (p *NCMProfile) compileProcessingRules() error {
+func (p *NCMProfile) initializeScrubbers() {
 	for _, command := range p.Commands {
-		err := command.compileProcessingRules()
-		if err != nil {
-			return err
-		}
+		command.initializeScrubber()
 	}
-	return nil
 }
 
-func (c *Commands) compileProcessingRules() error {
-	var err error
-
+func (c *Commands) initializeScrubber() {
 	rules := c.ProcessingRules
-	for i := range rules.MetadataRules {
-		rules.MetadataRules[i].Regexp, err = regexp.Compile(rules.MetadataRules[i].Regex)
-		if err != nil {
-			return err
-		}
-	}
-	for i := range rules.ValidationRules {
-		rules.ValidationRules[i].Regexp, err = regexp.Compile(rules.ValidationRules[i].Pattern)
-		if err != nil {
-			return err
-		}
-	}
+
 	if len(rules.RedactionRules) > 0 {
 		// initialize scrubber for command
 		c.Scrubber = scrubber.New()
 	}
 	for i := range rules.RedactionRules {
-		rules.RedactionRules[i].Regexp, err = regexp.Compile(rules.RedactionRules[i].Regex)
-		if err != nil {
-			return err
-		}
 		replacer := scrubber.Replacer{
-			Regex: rules.RedactionRules[i].Regexp,
+			Regex: rules.RedactionRules[i].Regex,
 			Repl:  []byte(rules.RedactionRules[i].Replacement),
 		}
 		c.Scrubber.AddReplacer(scrubber.SingleLine, replacer)
 	}
-
-	return nil
 }

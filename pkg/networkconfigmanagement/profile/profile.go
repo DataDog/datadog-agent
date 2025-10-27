@@ -108,11 +108,8 @@ func ParseNCMProfileFromFile(filePath string) (*NCMProfile, error) {
 	np.Commands = make(map[CommandType]*Commands)
 	for i := range ncmRawProfile.Commands {
 		cmd := &ncmRawProfile.Commands[i]
-		// compile all regex + initialize scrubber if needed
-		err := cmd.compileProcessingRules()
-		if err != nil {
-			return nil, err
-		}
+		// initialize scrubber if redaction rules are specified
+		cmd.initializeScrubber()
 		np.Commands[cmd.CommandType] = cmd
 	}
 	return &np, nil
