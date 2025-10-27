@@ -250,9 +250,6 @@
       },
       "additionalProperties": false,
       "type": "object",
-      "required": [
-        "fields"
-      ],
       "description": "OverrideOptions defines combine options"
     },
     "RuleDefinition": {
