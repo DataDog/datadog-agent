@@ -194,10 +194,6 @@ func dumpMapJSON(m *ebpf.Map, info *ebpf.MapInfo, w io.Writer) error {
 			Key:   keyHex,
 			Value: valueHex,
 		})
-
-		// Make new buffers for next iteration
-		keyBuf = make([]byte, info.KeySize)
-		valueBuf = make([]byte, info.ValueSize)
 	}
 
 	if err := iter.Err(); err != nil {
@@ -213,13 +209,19 @@ func dumpMapJSON(m *ebpf.Map, info *ebpf.MapInfo, w io.Writer) error {
 		fmt.Fprintf(w, "{\n\t\"key\": ")
 
 		// Marshal key array compactly
-		keyJSON, _ := json.Marshal(entry.Key)
+		keyJSON, err := json.Marshal(entry.Key)
+		if err != nil {
+			return fmt.Errorf("failed to marshal key: %w", err)
+		}
 		fmt.Fprintf(w, "%s", keyJSON)
 
 		fmt.Fprintf(w, ",\n\t\"value\": ")
 
 		// Marshal value array compactly
-		valueJSON, _ := json.Marshal(entry.Value)
+		valueJSON, err := json.Marshal(entry.Value)
+		if err != nil {
+			return fmt.Errorf("failed to marshal value: %w", err)
+		}
 		fmt.Fprintf(w, "%s", valueJSON)
 
 		fmt.Fprintf(w, "\n}")

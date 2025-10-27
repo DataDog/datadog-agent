@@ -10,7 +10,6 @@ package usm
 import (
 	"bytes"
 	"encoding/json"
-	"strings"
 	"testing"
 
 	"github.com/cilium/ebpf"
@@ -36,82 +35,6 @@ func TestEbpfCommandStructure(t *testing.T) {
 
 	dumpCmd := findSubcommand(mapCmd, "dump")
 	require.NotNil(t, dumpCmd)
-}
-
-func TestDumpMapJSON(t *testing.T) {
-	require.NoError(t, rlimit.RemoveMemlock())
-
-	// Create a test eBPF map
-	spec := &ebpf.MapSpec{
-		Type:       ebpf.Hash,
-		KeySize:    4,
-		ValueSize:  8,
-		MaxEntries: 10,
-	}
-
-	m, err := ebpf.NewMapWithOptions(spec, ebpf.MapOptions{})
-	require.NoError(t, err)
-	defer m.Close()
-
-	// Put some test data
-	key1 := []byte{0x01, 0x02, 0x03, 0x04}
-	value1 := []byte{0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff, 0x11, 0x22}
-	require.NoError(t, m.Put(key1, value1))
-
-	key2 := []byte{0x10, 0x20, 0x30, 0x40}
-	value2 := []byte{0xa1, 0xb2, 0xc3, 0xd4, 0xe5, 0xf6, 0x17, 0x28}
-	require.NoError(t, m.Put(key2, value2))
-
-	// Get map info
-	info, err := m.Info()
-	require.NoError(t, err)
-
-	// Dump the map to JSON
-	var buf bytes.Buffer
-	err = dumpMapJSON(m, info, &buf)
-	require.NoError(t, err)
-
-	// Parse the JSON output
-	var entries []mapEntry
-	err = json.Unmarshal(buf.Bytes(), &entries)
-	require.NoError(t, err)
-
-	// Verify we got 2 entries
-	require.Len(t, entries, 2)
-
-	// Verify byte array format
-	for _, entry := range entries {
-		require.Len(t, entry.Key, 4)
-		require.Len(t, entry.Value, 8)
-
-		// Each element should be a hex string like "0xXX"
-		for _, k := range entry.Key {
-			require.True(t, strings.HasPrefix(k, "0x"))
-			require.Len(t, k, 4) // "0xXX" is 4 characters
-		}
-		for _, v := range entry.Value {
-			require.True(t, strings.HasPrefix(v, "0x"))
-			require.Len(t, v, 4)
-		}
-	}
-
-	// Verify one of the entries matches our test data
-	foundEntry1 := false
-	for _, entry := range entries {
-		if entry.Key[0] == "0x01" && entry.Key[1] == "0x02" &&
-			entry.Key[2] == "0x03" && entry.Key[3] == "0x04" {
-			foundEntry1 = true
-			require.Equal(t, "0xaa", entry.Value[0])
-			require.Equal(t, "0xbb", entry.Value[1])
-			require.Equal(t, "0xcc", entry.Value[2])
-			require.Equal(t, "0xdd", entry.Value[3])
-			require.Equal(t, "0xee", entry.Value[4])
-			require.Equal(t, "0xff", entry.Value[5])
-			require.Equal(t, "0x11", entry.Value[6])
-			require.Equal(t, "0x22", entry.Value[7])
-		}
-	}
-	require.True(t, foundEntry1, "Expected to find entry with key [0x01, 0x02, 0x03, 0x04]")
 }
 
 func TestFindMapByName(t *testing.T) {
@@ -144,58 +67,214 @@ func TestFindMapByName(t *testing.T) {
 	require.Equal(t, "test_map_find", info.Name)
 }
 
-func TestRunMapListOutput(t *testing.T) {
+func TestDumpEmptyMap(t *testing.T) {
 	require.NoError(t, rlimit.RemoveMemlock())
 
-	// Create a test map
+	// Create an empty map
 	spec := &ebpf.MapSpec{
-		Name:       "test_list_map",
 		Type:       ebpf.Hash,
-		KeySize:    8,
-		ValueSize:  16,
-		MaxEntries: 100,
+		KeySize:    4,
+		ValueSize:  4,
+		MaxEntries: 10,
 	}
 
-	testMap, err := ebpf.NewMapWithOptions(spec, ebpf.MapOptions{})
+	m, err := ebpf.NewMapWithOptions(spec, ebpf.MapOptions{})
 	require.NoError(t, err)
-	defer testMap.Close()
+	defer m.Close()
 
-	// Run map list and capture output
+	info, err := m.Info()
+	require.NoError(t, err)
+
+	// Dump empty map
 	var buf bytes.Buffer
-	err = runMapList(&buf)
+	err = dumpMapJSON(m, info, &buf)
+	require.NoError(t, err)
+
+	// Should output empty JSON array
+	var entries []mapEntry
+	err = json.Unmarshal(buf.Bytes(), &entries)
+	require.NoError(t, err)
+	require.Len(t, entries, 0, "Empty map should produce empty array")
+}
+
+func TestDumpSingleEntry(t *testing.T) {
+	require.NoError(t, rlimit.RemoveMemlock())
+
+	spec := &ebpf.MapSpec{
+		Type:       ebpf.Hash,
+		KeySize:    4,
+		ValueSize:  4,
+		MaxEntries: 10,
+	}
+
+	m, err := ebpf.NewMapWithOptions(spec, ebpf.MapOptions{})
+	require.NoError(t, err)
+	defer m.Close()
+
+	// Add single entry
+	key := []byte{0x01, 0x02, 0x03, 0x04}
+	value := []byte{0xaa, 0xbb, 0xcc, 0xdd}
+	require.NoError(t, m.Put(key, value))
+
+	info, err := m.Info()
+	require.NoError(t, err)
+
+	var buf bytes.Buffer
+	err = dumpMapJSON(m, info, &buf)
+	require.NoError(t, err)
+
+	var entries []mapEntry
+	err = json.Unmarshal(buf.Bytes(), &entries)
+	require.NoError(t, err)
+
+	// Verify exactly one entry
+	require.Len(t, entries, 1)
+	require.Equal(t, []string{"0x01", "0x02", "0x03", "0x04"}, entries[0].Key)
+	require.Equal(t, []string{"0xaa", "0xbb", "0xcc", "0xdd"}, entries[0].Value)
+}
+
+func TestDumpArrayMap(t *testing.T) {
+	require.NoError(t, rlimit.RemoveMemlock())
+
+	// Array maps use index as key
+	spec := &ebpf.MapSpec{
+		Type:       ebpf.Array,
+		KeySize:    4, // uint32 index
+		ValueSize:  8,
+		MaxEntries: 5,
+	}
+
+	m, err := ebpf.NewMapWithOptions(spec, ebpf.MapOptions{})
+	require.NoError(t, err)
+	defer m.Close()
+
+	// Put values at specific indices
+	index0 := uint32(0)
+	value0 := []byte{0x00, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77}
+	require.NoError(t, m.Put(&index0, value0))
+
+	index2 := uint32(2)
+	value2 := []byte{0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff, 0x00, 0x11}
+	require.NoError(t, m.Put(&index2, value2))
+
+	info, err := m.Info()
+	require.NoError(t, err)
+
+	var buf bytes.Buffer
+	err = dumpMapJSON(m, info, &buf)
+	require.NoError(t, err)
+
+	var entries []mapEntry
+	err = json.Unmarshal(buf.Bytes(), &entries)
+	require.NoError(t, err)
+
+	// Array maps return all slots (including unset ones)
+	require.Equal(t, int(spec.MaxEntries), len(entries), "Array maps should return all entries")
+}
+
+func TestDumpLargeKeyValue(t *testing.T) {
+	require.NoError(t, rlimit.RemoveMemlock())
+
+	// Test with large key/value sizes
+	spec := &ebpf.MapSpec{
+		Type:       ebpf.Hash,
+		KeySize:    64,
+		ValueSize:  128,
+		MaxEntries: 10,
+	}
+
+	m, err := ebpf.NewMapWithOptions(spec, ebpf.MapOptions{})
+	require.NoError(t, err)
+	defer m.Close()
+
+	// Create large key and value
+	key := make([]byte, 64)
+	for i := range key {
+		key[i] = byte(i)
+	}
+	value := make([]byte, 128)
+	for i := range value {
+		value[i] = byte(i * 2)
+	}
+
+	require.NoError(t, m.Put(key, value))
+
+	info, err := m.Info()
+	require.NoError(t, err)
+
+	var buf bytes.Buffer
+	err = dumpMapJSON(m, info, &buf)
+	require.NoError(t, err)
+
+	var entries []mapEntry
+	err = json.Unmarshal(buf.Bytes(), &entries)
+	require.NoError(t, err)
+
+	require.Len(t, entries, 1)
+	require.Len(t, entries[0].Key, 64, "Key should have 64 bytes")
+	require.Len(t, entries[0].Value, 128, "Value should have 128 bytes")
+
+	// Verify some byte values
+	require.Equal(t, "0x00", entries[0].Key[0])
+	require.Equal(t, "0x3f", entries[0].Key[63]) // 63 in hex
+	require.Equal(t, "0x00", entries[0].Value[0])
+	require.Equal(t, "0xfe", entries[0].Value[127]) // 127*2 = 254
+}
+
+func TestFindMapByNameNotFound(t *testing.T) {
+	require.NoError(t, rlimit.RemoveMemlock())
+
+	// Try to find a map that doesn't exist
+	_, _, err := findMapByName("nonexistent_map_name_12345")
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "not found")
+}
+
+func TestRunMapDumpByIDNotFound(t *testing.T) {
+	require.NoError(t, rlimit.RemoveMemlock())
+
+	// Try to dump a map with an invalid ID
+	var buf bytes.Buffer
+	err := runMapDumpByID(ebpf.MapID(999999999), &buf)
+	require.Error(t, err)
+}
+
+func TestJSONCompactArrayFormat(t *testing.T) {
+	require.NoError(t, rlimit.RemoveMemlock())
+
+	spec := &ebpf.MapSpec{
+		Type:       ebpf.Hash,
+		KeySize:    4,
+		ValueSize:  4,
+		MaxEntries: 10,
+	}
+
+	m, err := ebpf.NewMapWithOptions(spec, ebpf.MapOptions{})
+	require.NoError(t, err)
+	defer m.Close()
+
+	key := []byte{0x01, 0x02, 0x03, 0x04}
+	value := []byte{0xaa, 0xbb, 0xcc, 0xdd}
+	require.NoError(t, m.Put(key, value))
+
+	info, err := m.Info()
+	require.NoError(t, err)
+
+	var buf bytes.Buffer
+	err = dumpMapJSON(m, info, &buf)
 	require.NoError(t, err)
 
 	output := buf.String()
-	require.NotEmpty(t, output)
 
-	// Output should have lines in bpftool format
-	lines := strings.Split(output, "\n")
+	// Verify arrays are on single lines (compact format)
+	// Key array should be on one line
+	require.Contains(t, output, `"key": ["0x01","0x02","0x03","0x04"]`)
+	// Value array should be on one line
+	require.Contains(t, output, `"value": ["0xaa","0xbb","0xcc","0xdd"]`)
 
-	// Should have at least some maps (the system will have maps)
-	// Each map takes 2 lines, so we should have at least 2 lines
-	require.Greater(t, len(lines), 2)
-
-	// Check format of first map entry
-	// Format: "<id>: <type>  name <name>  flags 0x<flags>"
-	// Second line: "    key <size>B  value <size>B  max_entries <count>"
-
-	foundMapLine := false
-	foundSizeLine := false
-	for i, line := range lines {
-		if strings.Contains(line, ": ") && strings.Contains(line, "name") && strings.Contains(line, "flags") {
-			foundMapLine = true
-			// Next line should be the size line
-			if i+1 < len(lines) && strings.Contains(lines[i+1], "key") &&
-				strings.Contains(lines[i+1], "value") && strings.Contains(lines[i+1], "max_entries") {
-				foundSizeLine = true
-				// Verify it starts with spaces (indentation)
-				require.True(t, strings.HasPrefix(lines[i+1], "    "))
-			}
-		}
-	}
-
-	require.True(t, foundMapLine, "Expected to find at least one map line in output")
-	require.True(t, foundSizeLine, "Expected to find at least one size line in output")
+	// Verify object has proper indentation
+	require.Contains(t, output, "{\n\t\"key\":")
+	require.Contains(t, output, ",\n\t\"value\":")
 }
 
 func findSubcommand(parent *cobra.Command, name string) *cobra.Command {
