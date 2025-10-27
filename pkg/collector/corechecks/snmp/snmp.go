@@ -17,6 +17,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	diagnose "github.com/DataDog/datadog-agent/comp/core/diagnose/def"
+	scanmanager "github.com/DataDog/datadog-agent/comp/snmpscanmanager/def"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
@@ -49,6 +50,7 @@ type Check struct {
 	sessionFactory             session.Factory
 	workerRunDeviceCheckErrors *atomic.Uint64
 	agentConfig                config.Component
+	scanManager                scanmanager.Component
 }
 
 // Run executes the check
@@ -127,6 +129,14 @@ func (c *Check) runCheckDevice(deviceCk *devicecheck.DeviceCheck) error {
 
 // Configure configures the snmp checks
 func (c *Check) Configure(senderManager sender.SenderManager, integrationConfigDigest uint64, rawInstance integration.Data, rawInitConfig integration.Data, source string) error {
+	// Test the scan manager
+	if c.scanManager != nil {
+		fmt.Println("Calling scanManager.TestPrint() from SNMP check Configure...")
+		c.scanManager.TestPrint()
+	} else {
+		fmt.Println("scanManager is nil in SNMP check Configure!")
+	}
+
 	var err error
 	c.config, err = checkconfig.NewCheckConfig(rawInstance, rawInitConfig, c.rcClient)
 	if err != nil {
@@ -205,18 +215,19 @@ func (c *Check) IsHASupported() bool {
 }
 
 // Factory creates a new check factory
-func Factory(agentConfig config.Component, rcClient rcclient.Component) option.Option[func() check.Check] {
+func Factory(agentConfig config.Component, rcClient rcclient.Component, scanManager scanmanager.Component) option.Option[func() check.Check] {
 	return option.New(func() check.Check {
-		return newCheck(agentConfig, rcClient)
+		return newCheck(agentConfig, rcClient, scanManager)
 	})
 }
 
-func newCheck(agentConfig config.Component, rcClient rcclient.Component) check.Check {
+func newCheck(agentConfig config.Component, rcClient rcclient.Component, scanManager scanmanager.Component) check.Check {
 	return &Check{
 		rcClient:                   rcClient,
 		CheckBase:                  core.NewCheckBase(common.SnmpIntegrationName),
 		sessionFactory:             session.NewGosnmpSession,
 		workerRunDeviceCheckErrors: atomic.NewUint64(0),
 		agentConfig:                agentConfig,
+		scanManager:                scanManager,
 	}
 }

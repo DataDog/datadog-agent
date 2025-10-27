@@ -38,6 +38,8 @@ import (
 
 	haagentfx "github.com/DataDog/datadog-agent/comp/haagent/fx"
 	snmpscanfx "github.com/DataDog/datadog-agent/comp/snmpscan/fx"
+	scanmanager "github.com/DataDog/datadog-agent/comp/snmpscanmanager/def"
+	snmpscanmanagerfx "github.com/DataDog/datadog-agent/comp/snmpscanmanager/fx"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/diagnose/connectivity"
 	"github.com/DataDog/datadog-agent/pkg/diagnose/firewallscanner"
@@ -292,6 +294,7 @@ func run(log log.Component,
 	_ diagnose.Component,
 	hostname hostnameinterface.Component,
 	ipc ipc.Component,
+	scanManager scanmanager.Component,
 ) error {
 	defer func() {
 		stopAgent()
@@ -351,6 +354,7 @@ func run(log log.Component,
 		agenttelemetryComponent,
 		hostname,
 		ipc,
+		scanManager,
 	); err != nil {
 		return err
 	}
@@ -491,6 +495,7 @@ func getSharedFxOption() fx.Option {
 		rdnsquerierfx.Module(),
 		snmptraps.Bundle(),
 		snmpscanfx.Module(),
+		snmpscanmanagerfx.Module(),
 		collectorimpl.Module(),
 		fx.Provide(func(demux demultiplexer.Component, hostname hostnameinterface.Component) (ddgostatsd.ClientInterface, error) {
 			return aggregator.NewStatsdDirect(demux, hostname)
@@ -564,6 +569,7 @@ func startAgent(
 	agenttelemetryComponent agenttelemetry.Component,
 	hostname hostnameinterface.Component,
 	ipc ipc.Component,
+	scanManager scanmanager.Component,
 ) error {
 	var err error
 
@@ -650,8 +656,14 @@ func startAgent(
 	jmxfetch.InitRunner(server, jmxLogger, ipc)
 	jmxfetch.RegisterWith(ac)
 
+	fmt.Println("RUN")
+	fmt.Println("/////////////////////////")
+	fmt.Println("/////////////////////////")
+	fmt.Println("/////////////////////////")
+	fmt.Println("/////////////////////////")
+
 	// Set up check collector
-	commonchecks.RegisterChecks(wmeta, filterStore, tagger, cfg, telemetry, rcclient, flare)
+	commonchecks.RegisterChecks(wmeta, filterStore, tagger, cfg, telemetry, rcclient, flare, scanManager)
 	ac.AddScheduler("check", pkgcollector.InitCheckScheduler(option.New(collectorComponent), demultiplexer, logReceiver, tagger, filterStore), true)
 
 	demultiplexer.AddAgentStartupTelemetry(version.AgentVersion)

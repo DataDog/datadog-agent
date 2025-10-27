@@ -8,6 +8,7 @@ package snmpscanimpl
 
 import (
 	"errors"
+	"fmt"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
@@ -37,6 +38,22 @@ type Provides struct {
 
 // NewComponent creates a new snmpscan component
 func NewComponent(reqs Requires) (Provides, error) {
+	fmt.Println("==================================")
+	fmt.Println("==================================")
+	fmt.Println("==================================")
+	fmt.Println("==================================")
+	fmt.Println("==================================")
+	fmt.Println("==================================")
+	fmt.Println("==================================")
+	fmt.Println("SNMPSCAN COMPONENT")
+	fmt.Println("==================================")
+	fmt.Println("==================================")
+	fmt.Println("==================================")
+	fmt.Println("==================================")
+	fmt.Println("==================================")
+	fmt.Println("==================================")
+	fmt.Println("==================================")
+
 	forwarder, ok := reqs.EventPlatform.Get()
 	if !ok {
 		return Provides{}, errors.New("event platform forwarder not initialized")
