@@ -104,7 +104,7 @@ func (s *testAgentMSIInstallsDotnetLibrary) TestMSIThenRemoteUpgrade() {
 	s.Require().Contains(oldLibraryPath, oldVersion.Version())
 
 	// Start remote upgrade experiment
-	_, err := s.startExperimentCurrentVersion()
+	_, err := s.startExperimentCurrentDotnetLibrary(newVersion)
 	s.Require().NoError(err)
 	s.assertSuccessfulStartExperiment(newVersion.Version())
 
@@ -296,68 +296,6 @@ func (s *testAgentMSIInstallsDotnetLibrary) TestUninstallScript() {
 	s.startIISApp(webConfigFile, aspxFile)
 	newLibraryPath := s.getLibraryPathFromInstrumentedIIS()
 	s.Require().Empty(newLibraryPath)
-}
-
-func (s *testAgentMSIInstallsDotnetLibrary) setAgentConfig() {
-	err := s.Env().RemoteHost.MkdirAll("C:\\ProgramData\\Datadog")
-	s.Require().NoError(err)
-	_, err = s.Env().RemoteHost.WriteFile(consts.ConfigPath, []byte(`
-api_key: aaaaaaaaa
-remote_updates: true
-`))
-	s.Require().NoError(err)
-}
-
-func (s *testAgentMSIInstallsDotnetLibrary) cleanupAgentConfig() {
-	err := s.Env().RemoteHost.Remove(consts.ConfigPath)
-	s.Require().NoError(err)
-}
-
-func (s *testAgentMSIInstallsDotnetLibrary) assertSuccessfulStartExperiment(version string) {
-	s.Require().Host(s.Env().RemoteHost).HasDatadogInstaller().Status().
-		HasPackage("datadog-apm-library-dotnet").
-		WithExperimentVersionMatchPredicate(func(actual string) {
-			s.Require().Contains(actual, version)
-		})
-}
-
-func (s *testAgentMSIInstallsDotnetLibrary) assertSuccessfulPromoteExperiment(version string) {
-	s.Require().Host(s.Env().RemoteHost).HasDatadogInstaller().Status().
-		HasPackage("datadog-apm-library-dotnet").
-		WithStableVersionMatchPredicate(func(actual string) {
-			s.Require().Contains(actual, version)
-		}).
-		WithExperimentVersionEqual("")
-}
-
-func (s *testAgentMSIInstallsDotnetLibrary) startExperimentCurrentVersion() (string, error) {
-	return s.startExperimentWithCustomPackage(installerwindows.WithName("datadog-apm-library-dotnet"),
-		installerwindows.WithAlias("apm-library-dotnet-package"),
-		// TODO remove override once image is published in prod
-		installerwindows.WithVersion(s.currentDotnetLibraryVersion.PackageVersion()),
-		installerwindows.WithRegistry("install.datad0g.com.internal.dda-testing.com"),
-		installerwindows.WithDevEnvOverrides("CURRENT_DOTNET_LIBRARY"),
-	)
-}
-
-func (s *testAgentMSIInstallsDotnetLibrary) startExperimentWithCustomPackage(opts ...installerwindows.PackageOption) (string, error) {
-	packageConfig, err := installerwindows.NewPackageConfig(opts...)
-	s.Require().NoError(err)
-	packageConfig, err = installerwindows.CreatePackageSourceIfLocal(s.Env().RemoteHost, packageConfig)
-	s.Require().NoError(err)
-
-	// Set catalog so daemon can find the package
-	_, err = s.Installer().SetCatalog(installerwindows.Catalog{
-		Packages: []installerwindows.PackageEntry{
-			{
-				Package: packageConfig.Name,
-				Version: packageConfig.Version,
-				URL:     packageConfig.URL(),
-			},
-		},
-	})
-	s.Require().NoError(err)
-	return s.Installer().StartExperiment("datadog-apm-library-dotnet", packageConfig.Version)
 }
 
 func (s *testAgentMSIInstallsDotnetLibrary) installPreviousAgentVersion(opts ...installerwindows.MsiOption) {
