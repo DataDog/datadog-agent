@@ -101,6 +101,7 @@ var (
 		model.ForkEventType.String(),
 		model.ExecEventType.String(),
 		model.ExitEventType.String(),
+		model.TracerMemfdSealEventType.String(),
 	}
 )
 
@@ -1571,6 +1572,13 @@ func (p *EBPFProbe) handleRegularEvent(event *model.Event, offset int, dataLen u
 		}
 		if event.PrCtl.IsNameTruncated {
 			p.MetricNameTruncated.Add(1)
+		}
+	case model.TracerMemfdSealEventType:
+		if !p.regularUnmarshalEvent(&event.TracerMemfdSeal, eventType, offset, dataLen, data) {
+			return false
+		}
+		if err := p.Resolvers.ProcessResolver.AddTracerMetadata(event.PIDContext.Pid, event); err != nil {
+			seclog.Debugf("failed to add tracer metadata: %s (pid %d, fd %d)", err, event.PIDContext.Pid, event.TracerMemfdSeal.Fd)
 		}
 	}
 	return true
@@ -3289,6 +3297,7 @@ func AppendProbeRequestsToFetcher(constantFetcher constantfetch.ConstantFetcher,
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameVfsmountMntFlags, "struct vfsmount", "mnt_flags")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameVfsmountMntRoot, "struct vfsmount", "mnt_root")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameVfsmountMntSb, "struct vfsmount", "mnt_sb")
+	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameRtnlLinkOpsKind, "struct rtnl_link_ops", "kind")
 }
 
 // HandleActions handles the rule actions

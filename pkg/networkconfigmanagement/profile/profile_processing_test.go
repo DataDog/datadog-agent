@@ -43,12 +43,11 @@ func Test_extractMetadata(t *testing.T) {
 			},
 		},
 		{
-			name:         "extracting metadata failure",
-			profile:      newTestProfile(),
-			compileRules: false,
-			commandType:  Running,
-			configBytes:  []byte("huh"),
-			expected:     &ExtractedMetadata{},
+			name:        "extracting metadata failure",
+			profile:     testProfile,
+			commandType: Running,
+			configBytes: []byte("huh"),
+			expected:    &ExtractedMetadata{},
 			expectedLogMsgs: []string{
 				`profile "test" does not have a regexp for metadata rule ! Last configuration change at (.*)`,
 				`profile "test" does not have a regexp for metadata rule Current configuration : (?P<Size>\d+)`,
@@ -59,7 +58,7 @@ func Test_extractMetadata(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			var b bytes.Buffer
 			w := bufio.NewWriter(&b)
-			l, err := log.LoggerFromWriterWithMinLevelAndFormat(w, log.DebugLvl, "[%LEVEL] %FuncShort: %Msg\n")
+			l, err := log.LoggerFromWriterWithMinLevelAndLvlFuncMsgFormat(w, log.DebugLvl)
 			assert.NoError(t, err)
 			log.SetupLogger(l, "debug")
 
