@@ -91,7 +91,7 @@ func TestRegisterCheck(t *testing.T) {
 	validCheck := healthplatform.CheckConfig{
 		CheckName: "test-check",
 		CheckID:   "test-check-1",
-		Callback: func(ctx context.Context) ([]healthplatform.Issue, error) {
+		Callback: func(_ context.Context) ([]healthplatform.Issue, error) {
 			return []healthplatform.Issue{}, nil
 		},
 	}
@@ -103,7 +103,7 @@ func TestRegisterCheck(t *testing.T) {
 	invalidCheck := healthplatform.CheckConfig{
 		CheckName: "invalid-check",
 		CheckID:   "",
-		Callback: func(ctx context.Context) ([]healthplatform.Issue, error) {
+		Callback: func(_ context.Context) ([]healthplatform.Issue, error) {
 			return []healthplatform.Issue{}, nil
 		},
 	}
@@ -160,7 +160,7 @@ func TestIssueManagement(t *testing.T) {
 	checkWithIssues := healthplatform.CheckConfig{
 		CheckName: "issue-check",
 		CheckID:   "issue-check-1",
-		Callback: func(ctx context.Context) ([]healthplatform.Issue, error) {
+		Callback: func(_ context.Context) ([]healthplatform.Issue, error) {
 			return testIssues, nil
 		},
 	}
@@ -172,7 +172,7 @@ func TestIssueManagement(t *testing.T) {
 	checkWithoutIssues := healthplatform.CheckConfig{
 		CheckName: "no-issue-check",
 		CheckID:   "no-issue-check-1",
-		Callback: func(ctx context.Context) ([]healthplatform.Issue, error) {
+		Callback: func(_ context.Context) ([]healthplatform.Issue, error) {
 			return []healthplatform.Issue{}, nil
 		},
 	}
@@ -246,7 +246,7 @@ func TestHealthCheckExecution(t *testing.T) {
 	trackingCheck := healthplatform.CheckConfig{
 		CheckName: "tracking-check",
 		CheckID:   "tracking-check-1",
-		Callback: func(ctx context.Context) ([]healthplatform.Issue, error) {
+		Callback: func(_ context.Context) ([]healthplatform.Issue, error) {
 			callCount.Add(1)
 			return []healthplatform.Issue{}, nil
 		},
@@ -287,7 +287,7 @@ func TestHealthCheckErrorHandling(t *testing.T) {
 	errorCheck := healthplatform.CheckConfig{
 		CheckName: "error-check",
 		CheckID:   "error-check-1",
-		Callback: func(ctx context.Context) ([]healthplatform.Issue, error) {
+		Callback: func(_ context.Context) ([]healthplatform.Issue, error) {
 			return nil, errors.New("test error")
 		},
 	}
@@ -328,7 +328,7 @@ func TestHealthCheckPanicRecovery(t *testing.T) {
 	panicCheck := healthplatform.CheckConfig{
 		CheckName: "panic-check",
 		CheckID:   "panic-check-1",
-		Callback: func(ctx context.Context) ([]healthplatform.Issue, error) {
+		Callback: func(_ context.Context) ([]healthplatform.Issue, error) {
 			panic("test panic")
 		},
 	}
@@ -382,7 +382,7 @@ func TestConcurrentOperations(t *testing.T) {
 			check := healthplatform.CheckConfig{
 				CheckName: "concurrent-check",
 				CheckID:   "concurrent-check-" + string(rune(id)),
-				Callback: func(ctx context.Context) ([]healthplatform.Issue, error) {
+				Callback: func(_ context.Context) ([]healthplatform.Issue, error) {
 					return []healthplatform.Issue{}, nil
 				},
 			}
@@ -424,7 +424,7 @@ func TestComponentLifecycle(t *testing.T) {
 	check := healthplatform.CheckConfig{
 		CheckName: "lifecycle-check",
 		CheckID:   "lifecycle-check-1",
-		Callback: func(ctx context.Context) ([]healthplatform.Issue, error) {
+		Callback: func(_ context.Context) ([]healthplatform.Issue, error) {
 			return []healthplatform.Issue{}, nil
 		},
 	}
@@ -501,7 +501,7 @@ func TestIssueTimestamping(t *testing.T) {
 	timestampCheck := healthplatform.CheckConfig{
 		CheckName: "timestamp-check",
 		CheckID:   "timestamp-check-1",
-		Callback: func(ctx context.Context) ([]healthplatform.Issue, error) {
+		Callback: func(_ context.Context) ([]healthplatform.Issue, error) {
 			return []healthplatform.Issue{testIssue}, nil
 		},
 	}
