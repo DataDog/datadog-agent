@@ -830,7 +830,7 @@ func (p *EBPFProbe) playSnapshot(notifyConsumers bool) {
 		tsA := eventA.ProcessContext.ExecTime
 		tsB := eventB.ProcessContext.ExecTime
 		if tsA.IsZero() || tsB.IsZero() || tsA.Equal(tsB) {
-			return eventA.PIDContext.Pid < eventB.PIDContext.Pid
+			return eventA.ProcessContext.Pid < eventB.ProcessContext.Pid
 		}
 
 		return tsA.Before(tsB)
