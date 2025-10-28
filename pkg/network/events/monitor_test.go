@@ -29,6 +29,12 @@ func TestEventConsumerWrapperCopy(t *testing.T) {
 				Type: uint32(model.ExecEventType),
 				ProcessContext: &model.ProcessContext{
 					Process: model.Process{
+						ContainerContext: model.ContainerContext{
+							ContainerID: "cid_exec",
+						},
+						CGroup: model.CGroupContext{
+							CGroupID: "cid_exec",
+						},
 						PIDContext: model.PIDContext{
 							Pid: 2233,
 						},
@@ -40,13 +46,7 @@ func TestEventConsumerWrapperCopy(t *testing.T) {
 						},
 					},
 				},
-				ContainerContext: &model.ContainerContext{
-					ContainerID: "cid_exec",
-				},
 				FieldHandlers: &model.FakeFieldHandlers{},
-			},
-			CGroupContext: &model.CGroupContext{
-				CGroupID: "cid_exec",
 			},
 		}
 		evHandler := &eventConsumerWrapper{}
@@ -71,6 +71,12 @@ func TestEventConsumerWrapperCopy(t *testing.T) {
 				Type: uint32(model.ForkEventType),
 				ProcessContext: &model.ProcessContext{
 					Process: model.Process{
+						ContainerContext: model.ContainerContext{
+							ContainerID: "cid_fork",
+						},
+						CGroup: model.CGroupContext{
+							CGroupID: "cid_fork",
+						},
 						PIDContext: model.PIDContext{
 							Pid: 2244,
 						},
@@ -82,13 +88,7 @@ func TestEventConsumerWrapperCopy(t *testing.T) {
 						},
 					},
 				},
-				ContainerContext: &model.ContainerContext{
-					ContainerID: "cid_fork",
-				},
 				FieldHandlers: &model.FakeFieldHandlers{},
-			},
-			CGroupContext: &model.CGroupContext{
-				CGroupID: "cid_fork",
 			},
 		}
 		evHandler := &eventConsumerWrapper{}
@@ -122,6 +122,12 @@ func TestEventConsumerWrapperCopy(t *testing.T) {
 				Type: uint32(model.TracerMemfdSealEventType),
 				ProcessContext: &model.ProcessContext{
 					Process: model.Process{
+						ContainerContext: model.ContainerContext{
+							ContainerID: "cid_tracer_memfd",
+						},
+						CGroup: model.CGroupContext{
+							CGroupID: "cid_tracer_memfd",
+						},
 						PIDContext: model.PIDContext{
 							Pid: 1234,
 						},
@@ -134,13 +140,7 @@ func TestEventConsumerWrapperCopy(t *testing.T) {
 						},
 					},
 				},
-				ContainerContext: &model.ContainerContext{
-					ContainerID: "cid_tracer_memfd",
-				},
 				FieldHandlers: &model.FakeFieldHandlers{},
-			},
-			CGroupContext: &model.CGroupContext{
-				CGroupID: "cid_tracer_memfd",
 			},
 			TracerMemfdSeal: model.TracerMemfdSealEvent{
 				Fd: 5,
@@ -247,6 +247,9 @@ func TestEventHandleTracerTags(t *testing.T) {
 				Type: uint32(model.ExecEventType),
 				ProcessContext: &model.ProcessContext{
 					Process: model.Process{
+						ContainerContext: model.ContainerContext{
+							ContainerID: "test-container",
+						},
 						PIDContext: model.PIDContext{
 							Pid: 1234,
 						},
@@ -261,9 +264,6 @@ func TestEventHandleTracerTags(t *testing.T) {
 							"entrypoint.name:my-entrypoint",
 						},
 					},
-				},
-				ContainerContext: &model.ContainerContext{
-					ContainerID: "test-container",
 				},
 				FieldHandlers: &model.FakeFieldHandlers{},
 			},
