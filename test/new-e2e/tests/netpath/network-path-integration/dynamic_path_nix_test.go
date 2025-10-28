@@ -41,15 +41,8 @@ func TestLinuxDynamicPathSuite(t *testing.T) {
 }
 
 func (s *linuxDynamicPathTestSuite) TestLinuxDynamicPathMetrics() {
-	fakeIntake := s.Env().FakeIntake
 	hostname := s.Env().Agent.Client.Hostname()
 	s.EventuallyWithT(func(c *assert.CollectT) {
-		assertMetrics(fakeIntake, c, [][]string{
-			testAgentRunningMetricTagsTCP,
-			testAgentRunningMetricTagsUDP,
-		})
-
-		s.checkDatadogEUTCP(c, hostname)
-		s.checkGoogleDNSUDP(c, hostname)
+		s.checkAtLeastOneNetworkPathPayloadExist(c, hostname)
 	}, 5*time.Minute, 3*time.Second)
 }

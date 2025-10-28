@@ -1,5 +1,5 @@
+log_level: debug
+
 network_path:
   connections_monitoring:
     enabled: true
-
-#log_level: debug
