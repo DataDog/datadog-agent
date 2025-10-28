@@ -30,7 +30,7 @@ func TestLinuxDynamicPathSuite(t *testing.T) {
 	t.Parallel()
 	e2e.Run(t, &linuxDynamicPathTestSuite{}, e2e.WithProvisioner(awshost.Provisioner(
 		awshost.WithAgentOptions(
-			agentparams.WithAgentConfig(string(datadogYaml)),
+			agentparams.WithAgentConfig(string(dynamicPathDatadogYaml)),
 			agentparams.WithSystemProbeConfig(string(sysProbeConfig)),
 		)),
 	))
