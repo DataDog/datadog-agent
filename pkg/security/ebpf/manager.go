@@ -23,6 +23,8 @@ func NewDefaultOptions(kretprobeMaxActive int) manager.Options {
 		DefaultPerfRingBufferSize: probes.EventsPerfRingBufferSize,
 
 		RemoveRlimit: true,
+
+		DefaultProbeRetry: 5, // in some rare cases, we can get an -EBUSY on some probes during detach, so let's add some retry
 	}
 }
 
