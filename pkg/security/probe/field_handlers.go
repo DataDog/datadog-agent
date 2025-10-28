@@ -56,11 +56,11 @@ func getProcessService(config *config.Config, entry *model.ProcessCacheEntry) (s
 		}
 	}
 
-	inContainer := entry.ContainerID != ""
+	inContainer := entry.ProcessContext.ContainerContext.ContainerID != ""
 
 	// while in container check for each ancestor
 	for ancestor := entry.Ancestor; ancestor != nil; ancestor = ancestor.Ancestor {
-		if inContainer && ancestor.ContainerID == "" {
+		if inContainer && ancestor.ContainerContext.ContainerID == "" {
 			break
 		}
 

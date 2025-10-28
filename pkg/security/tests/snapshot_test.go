@@ -64,7 +64,7 @@ func TestSnapshot(t *testing.T) {
 		ruleDefs := []*rules.RuleDefinition{
 			{
 				ID:         "test_rule_snapshot_container",
-				Expression: `exec.comm in ["sleep"] && process.argv in ["123"] && container.id != ""`,
+				Expression: `exec.comm in ["sleep"] && process.argv in ["123"] && process.container.id != ""`,
 			},
 		}
 
