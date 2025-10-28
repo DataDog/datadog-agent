@@ -597,7 +597,7 @@ func (i *installerImpl) Purge(ctx context.Context) {
 	// Note: If DD_NO_AGENT_UNINSTALL is set, then the agent will not be uninstalled.
 	//       This is used to prevent the agent from being uninstalled when purge is
 	//       called from within the MSI.
-	if remoteUpdates, ok := os.LookupEnv("DD_REMOTE_UPDATES"); !ok && strings.ToLower(remoteUpdates) == "true" {
+	if uninstallAgent, ok := os.LookupEnv("DD_NO_AGENT_UNINSTALL"); !ok && strings.ToLower(uninstallAgent) == "true" {
 		err = i.hooks.PreRemove(ctx, packageDatadogAgent, packages.PackageTypeOCI, false)
 		if err != nil {
 			log.Warnf("could not remove agent: %v", err)
