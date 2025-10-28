@@ -46,7 +46,6 @@ use_repo(multitool, "multitool")
 ####################################
 
 bazel_dep(name = "rules_cc", version = "0.2.8")
-bazel_dep(name = "rules_python", version = "1.6.1")
 bazel_dep(name = "rules_flex", version = "0.4")
 bazel_dep(name = "rules_m4", version = "0.3")
 bazel_dep(name = "gcc_toolchain", version = "0.9.0")
@@ -83,6 +82,33 @@ register_toolchains(
     "@gcc_toolchain_aarch64//:cc_toolchain",
     "//bazel/toolchains/mingw:mingw_cc_toolchain",
 )
+
+# =========================================
+# Python dependencies
+# =========================================
+
+bazel_dep(name = "rules_python", version = "1.6.3")
+
+python = use_extension("@rules_python//python/extensions:python.bzl", "python")
+python.defaults(python_version = "3.12")
+python.toolchain(
+    is_default = True,
+    python_version = "3.12",
+)
+use_repo(python, "pythons_hub")
+
+pip = use_extension("@rules_python//python/extensions:pip.bzl", "pip")
+
+# Devopment requirements. These are the tools needed to build the agent.
+# TODO: Make a distinct set for modules we redistribute with the agent.
+pip.parse(
+    hub_name = "py_dev_requirements",
+    python_version = "3.12",
+    requirements_lock = "//deps:py_dev_requirements.txt",
+)
+use_repo(pip, "py_dev_requirements")
+
+register_toolchains("@pythons_hub//:all")
 
 #########################
 ## Native dependencies ##
