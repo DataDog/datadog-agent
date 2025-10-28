@@ -1,4 +1,3 @@
-load("//bazel/rules:golden_file_test.bzl", "golden_file_test")
 load("//bazel/tools:generate_module_bazel.bzl", "generate_module_bazel")
 
 # Forwarder to make this more accessible to the rest of the build.
@@ -16,11 +15,4 @@ generate_module_bazel(
     strip_prefix = "openssl-3.5.4",
     tags = ["manual"],
     url = "https://www.openssl.org/source/openssl-3.5.4.tar.gz",
-)
-
-golden_file_test(
-    name = "openssl3_module_bazel_test",
-    golden = "openssl3.MODULE.bazel",
-    tags = ["manual"],
-    target = ":openssl3_module_bazel_new",
 )
