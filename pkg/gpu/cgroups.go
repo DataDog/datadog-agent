@@ -82,7 +82,7 @@ const (
 	systemdTransientConfigPath = "run/systemd/transient"
 	cgroupv1DeviceAllowFile    = "devices.allow"
 	cgroupv1DeviceControlDir   = "sys/fs/cgroup/devices"
-	nvidiaSystemdDeviceAllow   = "DeviceAllow=char-nvidia rwm\n" // Allow access to the NVIDIA character devices
+	nvidiaSystemdDeviceAllow   = "DeviceAllow=char-nvidia rwm\nDeviceAllow=char-195 rwm\n" // Allow access to the NVIDIA character devices
 	nvidiaDeviceMajor          = 195
 	cgroupFsPath               = "/sys/fs/cgroup"
 )
