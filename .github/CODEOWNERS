@@ -337,7 +337,6 @@
 /comp/updater @DataDog/fleet @DataDog/windows-products
 /comp/agent/cloudfoundrycontainer @DataDog/agent-integrations
 /comp/agent/jmxlogger @DataDog/agent-metric-pipelines
-/comp/aggregator/diagnosesendermanager @DataDog/agent-configuration
 /comp/checks/agentcrashdetect @DataDog/windows-products
 /comp/checks/windowseventlog @DataDog/windows-products
 /comp/checks/winregistry @DataDog/windows-products
