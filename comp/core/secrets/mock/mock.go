@@ -21,6 +21,7 @@ import (
 type Mock struct {
 	secretsCache map[string]string
 	callbacks    []secrets.SecretChangeCallback
+	refreshHook  func(bool) (string, error)
 }
 
 var _ secrets.Component = (*Mock)(nil)
@@ -85,5 +86,15 @@ func (m *Mock) SubscribeToChanges(callback secrets.SecretChangeCallback) {
 	m.callbacks = append(m.callbacks, callback)
 }
 
+// SetRefreshHook sets a hook function that will be called when Refresh is invoked
+func (m *Mock) SetRefreshHook(hook func(bool) (string, error)) {
+	m.refreshHook = hook
+}
+
 // Refresh will resolve secret handles again, notifying any subscribers of changed values
-func (m *Mock) Refresh(_ bool) (string, error) { return "", nil }
+func (m *Mock) Refresh(bypass bool) (string, error) {
+	if m.refreshHook != nil {
+		return m.refreshHook(bypass)
+	}
+	return "", nil
+}

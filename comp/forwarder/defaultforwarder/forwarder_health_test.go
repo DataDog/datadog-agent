@@ -451,3 +451,37 @@ func TestOneEndpointInvalid(t *testing.T) {
 	fh.init()
 	assert.True(t, fh.checkValidAPIKey(), "Endpoint should be valid")
 }
+
+func TestInvalidAPIKeyTriggersSecretRefresh(t *testing.T) {
+	var refreshCalls int
+	var bypassValue bool
+
+	secrets := secretsmock.New(t)
+	secrets.SetRefreshHook(func(bypass bool) (string, error) {
+		refreshCalls++
+		bypassValue = bypass
+		return "", nil
+	})
+
+	// test server that returns 403 for all keys
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusForbidden)
+	}))
+	defer ts.Close()
+
+	log := logmock.New(t)
+	cfg := configmock.New(t)
+	fh := forwarderHealth{
+		log:     log,
+		config:  cfg,
+		secrets: secrets,
+	}
+	fh.init()
+
+	// keysPerAPIEndpoint needs to be set after init in this test to avoid being overwritten
+	fh.keysPerAPIEndpoint = map[string][]string{ts.URL: {"invalid_key"}}
+	fh.checkValidAPIKey()
+
+	assert.Equal(t, 1, refreshCalls, "secrets.Refresh should be called once when API key is invalid")
+	assert.False(t, bypassValue, "secrets.Refresh should be called with bypassRateLimit=false")
+}
