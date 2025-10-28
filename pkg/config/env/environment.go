@@ -8,6 +8,7 @@ package env
 import (
 	"os"
 
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 )
 
@@ -77,7 +78,7 @@ func IsECSManagedInstances() bool {
 // IsECSSidecarMode returns true if the agent is running in ECS sidecar mode.
 // This includes Fargate (always sidecar) and Managed Instances when explicitly configured as sidecar.
 // The cfg parameter can be nil, in which case only environment-based detection is performed.
-func IsECSSidecarMode(cfg interface{ GetString(string) string }) bool {
+func IsECSSidecarMode(cfg model.Reader) bool {
 	// Fargate is always sidecar mode
 	if IsECSFargate() {
 		return true
