@@ -879,10 +879,9 @@ func createProbes(
 	skipReturnEvents bool,
 ) ([]*ir.Probe, []*ir.Subprogram, []ir.ProbeIssue, error) {
 	var (
-		probes       []*ir.Probe
-		subprograms  []*ir.Subprogram
-		issues       []ir.ProbeIssue
-		eventIDAlloc idAllocator[ir.EventID]
+		probes      []*ir.Probe
+		subprograms []*ir.Subprogram
+		issues      []ir.ProbeIssue
 	)
 
 	for _, p := range pending {
@@ -897,8 +896,7 @@ func createProbes(
 		var haveProbe bool
 		for _, cfg := range p.probesCfgs {
 			probe, iss, err := newProbe(
-				arch, cfg, sp, &eventIDAlloc, lineData, textSection,
-				skipReturnEvents,
+				arch, cfg, sp, lineData, textSection, skipReturnEvents,
 			)
 			if err != nil {
 				return nil, nil, nil, err
@@ -2279,7 +2277,6 @@ func newProbe(
 	arch object.Architecture,
 	probeCfg ir.ProbeDefinition,
 	subprogram *ir.Subprogram,
-	eventIDAlloc *idAllocator[ir.EventID],
 	lineData map[ir.PCRange]lineData,
 	textSection *section,
 	skipReturnEvents bool,
@@ -2304,7 +2301,6 @@ func newProbe(
 		var issue ir.Issue
 		var err error
 		injectionPoints, returnEvent, issue, err = pickInjectionPoint(
-			eventIDAlloc,
 			subprogram.Name,
 			subprogram.OutOfLinePCRanges,
 			subprogram.OutOfLinePCRanges,
@@ -2324,7 +2320,6 @@ func newProbe(
 		var issue ir.Issue
 		var err error
 		injectionPoints, _, issue, err = pickInjectionPoint(
-			eventIDAlloc,
 			subprogram.Name,
 			inlined.Ranges,
 			inlined.RootRanges,
@@ -2354,7 +2349,6 @@ func newProbe(
 	}
 	events := []*ir.Event{
 		{
-			ID:              eventIDAlloc.next(),
 			InjectionPoints: injectionPoints,
 			Condition:       nil,
 			Kind:            eventKind,
@@ -2379,7 +2373,6 @@ func newProbe(
 // Returns a list of injection points for a given probe, as well as optional
 // return event, if required.
 func pickInjectionPoint(
-	eventIDAlloc *idAllocator[ir.EventID],
 	subprogramName string,
 	ranges []ir.PCRange,
 	rootRanges []ir.PCRange,
@@ -2457,7 +2450,6 @@ func pickInjectionPoint(
 			})
 			if hasAssociatedReturn {
 				returnEvent = &ir.Event{
-					ID:              eventIDAlloc.next(),
 					InjectionPoints: returnLocations,
 					Kind:            ir.EventKindReturn,
 					Type:            nil,

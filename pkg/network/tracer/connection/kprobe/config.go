@@ -50,6 +50,7 @@ func enabledProbes(c *config.Config, runtimeTracer, coreTracer bool) (map[probes
 	enabled := make(map[probes.ProbeFuncName]struct{}, 0)
 
 	kv410 := kernel.VersionCode(4, 1, 0)
+	kv415 := kernel.VersionCode(4, 15, 0)
 	kv470 := kernel.VersionCode(4, 7, 0)
 	kv4180 := kernel.VersionCode(4, 18, 0)
 	kv5180 := kernel.VersionCode(5, 18, 0)
@@ -60,10 +61,18 @@ func enabledProbes(c *config.Config, runtimeTracer, coreTracer bool) (map[probes
 		return nil, err
 	}
 
-	netDevQueue := probes.NetDevQueueTracepoint
+	// Default to kprobe fallback for net_dev_queue (works on all kernel versions)
+	netDevQueue := probes.DevQueueXmitNitKprobe
+
+	// Upgrade to tracepoint or raw tracepoint based on kernel version and capabilities
 	if features.HaveProgramType(libebpf.RawTracepoint) == nil {
+		// Kernel >= 4.17 typically - use raw tracepoint (most efficient)
 		netDevQueue = probes.NetDevQueueRawTracepoint
+	} else if kv >= kv415 {
+		// Kernel >= 4.15 - use regular tracepoint (multiple attachment supported)
+		netDevQueue = probes.NetDevQueueTracepoint
 	}
+	// else: Kernel < 4.15 - keep kprobe fallback (no multiple tracepoint attachment)
 
 	hasSendPage := HasTCPSendPage(kv)
 

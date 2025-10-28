@@ -1,7 +1,7 @@
 .bazel:defs:
   cache:
     - key:
-        prefix: bazel-$CI_RUNNER_DESCRIPTION
+        prefix: bazelversion-$CI_RUNNER_DESCRIPTION
         files: [ .bazelversion ]
       paths:
         - .cache/bazelisk
@@ -26,8 +26,6 @@
 .bazel:ext:windows:
   extends: .windows_docker_default
   timeout: 60m # pulling images alone can take more than 30m
-  allow_failure: true
-  retry: 0
   variables:
     GIT_DEPTH: 2
   script:
@@ -53,4 +51,4 @@
       --volume="${RUNNER_TEMP_PROJECT_DIR}:$RUNNER_TEMP_PROJECT_DIR"
       --workdir="$CI_PROJECT_DIR"
       "$WINBUILDIMAGE"
-      powershell -NonInteractive -NoLogo -NoProfile -OutputFormat Text -EncodedCommand $EncodedCommand
+      powershell -NonInteractive -NoLogo -NoProfile -InputFormat Text -OutputFormat Text -EncodedCommand $EncodedCommand

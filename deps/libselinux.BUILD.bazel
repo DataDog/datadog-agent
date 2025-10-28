@@ -1,0 +1,88 @@
+load("@bazel_skylib//rules:expand_template.bzl", "expand_template")
+load("@rules_cc//cc:defs.bzl", "cc_library")
+load("@rules_pkg//pkg:install.bzl", "pkg_install")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_files")
+
+cc_library(
+    name = "libselinux",
+    hdrs = glob(["include/selinux/*.h"]),
+    srcs = glob(["src/*.c", "src/*.h"], exclude=[
+        "src/audit2why.c",
+        "src/label_backends_android.c",
+    ])
+    ,
+    deps = [
+        "@libsepol//:libsepol",
+        "@pcre2//:pcre2",
+    ],
+    local_defines = [
+        "_LARGEFILE_SOURCE",
+        "FILE_OFFSET_BITS=64",
+        "_GNU_SOURCE",
+        "NO_ANDROID_BACKEND",
+        "USE_PCRE2",
+        "PCRE2_CODE_UNIT_WIDTH=8",
+        # if glibc >= 2.38
+        # "HAVE_STRLCPY",
+        # glibc >= 2.28
+        # "HAVE_REALLOCARRAY",
+    ],
+    includes = [
+        "include",
+    ],
+)
+
+cc_shared_library(
+    name = "selinux",
+    deps = [
+        ":libselinux",
+    ],
+    additional_linker_inputs = [
+        "src/libselinux.map",
+    ],
+    user_link_flags = [
+        "-Wl,-soname=libselinux.so",
+        "-Wl,--version-script=$(location src/libselinux.map)",
+    ],
+)
+
+expand_template(
+    name = "libselinux_pc",
+    out = "libselinux.pc",
+    substitutions = {
+        # Prepare the .pc file for our own substitution later
+        "@prefix@": "##PREFIX##",
+        # and make other values depend on the prefix declared in the .pc file
+        "@libdir@": "${prefix}/lib",
+        "@includedir@": "${prefix}/include",
+        "@VERSION@": "3.5",
+    },
+    template = ":src/libselinux.pc.in",
+)
+
+pkg_files(
+    name = "lib_files",
+    srcs = [":selinux"],
+    prefix = "lib",
+)
+
+pkg_files(
+    name = "hdr_files",
+    srcs = glob(["include/selinux/*.h"]),
+    prefix = "include/selinux",
+)
+
+pkg_files(
+    name = "pc_file",
+    srcs = [":libselinux_pc"],
+    prefix = "lib/pkgconfig",
+)
+
+pkg_install(
+    name = "install",
+    srcs = [
+        ":hdr_files",
+        ":lib_files",
+        ":pc_file",
+    ],
+)

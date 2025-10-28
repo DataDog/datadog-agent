@@ -14,7 +14,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
-	filter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
+	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/cloudfoundry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -252,7 +252,7 @@ func (s *CloudFoundryService) IsReady() bool {
 }
 
 // HasFilter returns false on CF
-func (s *CloudFoundryService) HasFilter(_ filter.Scope) bool {
+func (s *CloudFoundryService) HasFilter(_ workloadfilter.Scope) bool {
 	return false
 }
 
@@ -262,7 +262,7 @@ func (s *CloudFoundryService) GetExtraConfig(_ string) (string, error) {
 }
 
 // FilterTemplates does nothing.
-func (s *CloudFoundryService) FilterTemplates(map[string]integration.Config) {
+func (s *CloudFoundryService) FilterTemplates(_ map[string]integration.Config) {
 }
 
 // GetImageName does nothing.
