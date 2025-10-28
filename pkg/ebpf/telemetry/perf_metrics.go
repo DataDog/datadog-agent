@@ -154,11 +154,15 @@ func (p *perfUsageCollector) Collect(metrics chan<- prometheus.Metric) {
 			continue
 		}
 
-		cpuString := "0"
+		labels := []string{mapName, mapType}
+		if p.emitPerCPU {
+			labels = append(labels, "0")
+		}
+
 		count := float64(usage)
-		p.usage.WithLabelValues(mapName, mapType, cpuString).Set(count)
-		p.usagePct.WithLabelValues(mapName, mapType, cpuString).Set(100 * (count / size))
-		p.size.WithLabelValues(mapName, mapType, cpuString).Set(size)
+		p.usage.WithLabelValues(labels...).Set(count)
+		p.usagePct.WithLabelValues(labels...).Set(100 * (count / size))
+		p.size.WithLabelValues(labels...).Set(size)
 	}
 
 	for rb, chFunc := range p.ringChannelLenFuncs {
