@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"time"
 
+	snmpscan "github.com/DataDog/datadog-agent/comp/snmpscan/def"
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/metadata"
 	"github.com/DataDog/datadog-agent/pkg/snmp/gosnmplib"
 	"github.com/DataDog/datadog-agent/pkg/snmp/snmpparse"
@@ -16,7 +17,7 @@ import (
 	"github.com/gosnmp/gosnmp"
 )
 
-func (s snmpScannerImpl) ScanDeviceAndSendData(connParams *snmpparse.SNMPConfig, namespace string, scanType metadata.ScanType) error {
+func (s snmpScannerImpl) ScanDeviceAndSendData(connParams *snmpparse.SNMPConfig, namespace string, scanParams snmpscan.ScanParams) error {
 	// Establish connection
 	snmp, err := snmpparse.NewSNMP(connParams, s.log)
 	if err != nil {
@@ -29,7 +30,7 @@ func (s snmpScannerImpl) ScanDeviceAndSendData(connParams *snmpparse.SNMPConfig,
 		DeviceScanStatus: &metadata.ScanStatusMetadata{
 			DeviceID:   deviceID,
 			ScanStatus: metadata.ScanStatusInProgress,
-			ScanType:   scanType,
+			ScanType:   scanParams.ScanType,
 		},
 		CollectTimestamp: time.Now().Unix(),
 		Namespace:        namespace,
@@ -43,7 +44,7 @@ func (s snmpScannerImpl) ScanDeviceAndSendData(connParams *snmpparse.SNMPConfig,
 			DeviceScanStatus: &metadata.ScanStatusMetadata{
 				DeviceID:   deviceID,
 				ScanStatus: metadata.ScanStatusError,
-				ScanType:   scanType,
+				ScanType:   scanParams.ScanType,
 			},
 			CollectTimestamp: time.Now().Unix(),
 			Namespace:        namespace,
@@ -60,7 +61,7 @@ func (s snmpScannerImpl) ScanDeviceAndSendData(connParams *snmpparse.SNMPConfig,
 			DeviceScanStatus: &metadata.ScanStatusMetadata{
 				DeviceID:   deviceID,
 				ScanStatus: metadata.ScanStatusError,
-				ScanType:   scanType,
+				ScanType:   scanParams.ScanType,
 			},
 			CollectTimestamp: time.Now().Unix(),
 			Namespace:        namespace,
@@ -75,7 +76,7 @@ func (s snmpScannerImpl) ScanDeviceAndSendData(connParams *snmpparse.SNMPConfig,
 		DeviceScanStatus: &metadata.ScanStatusMetadata{
 			DeviceID:   deviceID,
 			ScanStatus: metadata.ScanStatusCompleted,
-			ScanType:   scanType,
+			ScanType:   scanParams.ScanType,
 		},
 		CollectTimestamp: time.Now().Unix(),
 		Namespace:        namespace,
