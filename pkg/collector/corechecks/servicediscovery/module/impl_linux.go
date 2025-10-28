@@ -31,7 +31,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/privileged"
 	"github.com/DataDog/datadog-agent/pkg/network"
-	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
 	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/utils"
@@ -62,9 +61,6 @@ type discovery struct {
 
 	// privilegedDetector is used to detect the language of a process.
 	privilegedDetector privileged.LanguageDetector
-
-	// scrubber is used to remove potentially sensitive data from the command line
-	scrubber *procutil.DataScrubber
 }
 
 // NewDiscoveryModule creates a new discovery system probe module.
@@ -78,7 +74,6 @@ func NewDiscoveryModule(_ *sysconfigtypes.Config, _ module.FactoryDependencies) 
 		config:             cfg,
 		mux:                &sync.RWMutex{},
 		privilegedDetector: privileged.NewLanguageDetector(),
-		scrubber:           procutil.NewDefaultDataScrubber(),
 	}
 
 	return d, nil
@@ -373,8 +368,6 @@ func (s *discovery) getServiceInfo(pid int32, openFiles openFilesInfo) (*model.S
 	nameMeta := detector.GetServiceName(lang, ctx)
 	apmInstrumentation := apm.Detect(lang, ctx, firstMetadata)
 
-	cmdline, _ = s.scrubber.ScrubCommand(cmdline)
-
 	return &model.Service{
 		PID:                      int(pid),
 		GeneratedName:            nameMeta.Name,
@@ -388,7 +381,6 @@ func (s *discovery) getServiceInfo(pid int32, openFiles openFilesInfo) (*model.S
 		},
 		Language:           string(lang),
 		APMInstrumentation: apmInstrumentation == apm.Provided,
-		CommandLine:        truncateCmdline(lang, cmdline),
 	}, nil
 }
 

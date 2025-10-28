@@ -23,7 +23,6 @@ type Service struct {
 	APMInstrumentation       bool                            `json:"apm_instrumentation"`
 	Language                 string                          `json:"language"`
 	Type                     string                          `json:"service_type"`
-	CommandLine              []string                        `json:"cmdline"`
 	UST                      UST                             `json:"ust"`
 }
 
