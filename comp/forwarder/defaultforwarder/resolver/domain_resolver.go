@@ -375,7 +375,7 @@ func NewLocalDomainResolver(domain string, authToken string) DomainResolver {
 	}
 }
 
-// IsUsable returns true if the resolver has valid configuration.a
+// IsUsable returns true if the resolver has valid configuration.
 func (r *domainResolver) IsUsable() bool {
 	return r.IsLocal() || len(r.dedupedAPIKeys) > 0
 }
