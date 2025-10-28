@@ -301,27 +301,30 @@ cc_library(
     ],
 )
 
+_CIPHER_COMMON_SRCS = [
+    ":copy_config_h",
+    "src/g10lib.h",
+    "src/visibility.h",
+    "src/types.h",
+    "src/gcrypt-int.h",
+    "src/cipher.h",
+    "random/random.h",
+    "src/gcrypt-testapi.h",
+    "src/cipher-proto.h",
+    "cipher/bithelp.h",
+    "cipher/bufhelp.h",
+    "src/const-time.h",
+    "cipher/cipher-internal.h",
+    "cipher/poly1305-internal.h",
+    "cipher/bulkhelp.h",
+    ":gcrypt_h",
+]
+
 cc_library(
     name = "serpent-avx512",
     srcs = [
         "cipher/serpent-avx512-x86.c",
-        ":copy_config_h",
-        "src/g10lib.h",
-        "src/visibility.h",
-        "src/types.h",
-        "src/gcrypt-int.h",
-        "src/cipher.h",
-        "random/random.h",
-        "src/gcrypt-testapi.h",
-        "src/cipher-proto.h",
-        "cipher/bithelp.h",
-        "cipher/bufhelp.h",
-        "src/const-time.h",
-        "cipher/cipher-internal.h",
-        "cipher/poly1305-internal.h",
-        "cipher/bulkhelp.h",
-        ":gcrypt_h",
-    ],
+    ] + _CIPHER_COMMON_SRCS,
     includes = [
         ".",
         "src",
@@ -335,16 +338,52 @@ cc_library(
 )
 
 cc_library(
+    name = "cipher-neon-intrinsics-crypto",
+    srcs = [
+        "cipher/camellia-aarch64-ce.c",
+        "cipher/rijndael-vp-aarch64.c",
+        "cipher/rijndael-internal.h",
+        "cipher/rijndael-vp-simd128.h",
+        "cipher/asm-common-aarch64.h",
+        "cipher/camellia-simd128.h",
+        "cipher/simd-common-aarch64.h",
+    ] + _CIPHER_COMMON_SRCS,
+    copts = ["-O2", "-march=armv8-a+simd+crypto"],
+    deps = [
+        "@gpg-error//:libgpg-error",
+        ":libcompat",
+    ],
+    includes = [
+        ".",
+        "src",
+        "cipher",
+    ],
+)
+
+cc_library(
+    name = "cipher-neon-intrinsics",
+    srcs = [
+        "cipher/cipher-gcm-aarch64-simd.c",
+        "cipher/simd-common-aarch64.h",
+        "cipher/asm-common-aarch64.h",
+    ] + _CIPHER_COMMON_SRCS,
+    copts = ["-O2", "-march=armv8-a+simd"],
+    deps = [
+        "@gpg-error//:libgpg-error",
+        ":libcompat",
+    ],
+    includes = [
+        ".",
+        "src",
+        "cipher",
+    ],
+)
+
+cc_library(
     name = "libcipher",
     srcs = [
-        ":copy_config_h",
         ":gost-sb_h",
         "cipher/cipher.c",
-        "src/cipher.h",
-        "random/random.h",
-        "src/gcrypt-testapi.h",
-        "src/cipher-proto.h",
-        "cipher/cipher-internal.h",
         "cipher/cipher-cbc.c",
         "cipher/cipher-cfb.c",
         "cipher/cipher-ofb.c",
@@ -370,7 +409,6 @@ cc_library(
         "cipher/mac-gmac.c",
         "cipher/mac-poly1305.c",
         "cipher/poly1305.c",
-        "cipher/poly1305-internal.h",
         "cipher/kem.c",
         "cipher/sntrup761.c",
         "cipher/sntrup761.h",
@@ -380,9 +418,6 @@ cc_library(
         "cipher/mceliece6688128f.h",
         "cipher/kdf.c",
         "cipher/kdf-internal.h",
-        "cipher/bithelp.h",
-        "cipher/bufhelp.h",
-        "cipher/bulkhelp.h",
         "cipher/primegen.c",
         "cipher/hash-common.c",
         "cipher/hash-common.h",
@@ -446,7 +481,8 @@ cc_library(
         "cipher/camellia-glue.c",
         "cipher/camellia-simd128.h",
         "cipher/blake2.c",
-    ] + select({
+    ] + _CIPHER_COMMON_SRCS +
+    select({
         "@@//:linux_x86_64": [
             "cipher/asm-common-amd64.h",
             "cipher/asm-poly1305-amd64.h",
@@ -512,7 +548,6 @@ cc_library(
             "cipher/blowfish-arm.S",
             "cipher/cast5-arm.S",
             "cipher/chacha20-aarch64.S",
-            "cipher/cipher-gcm-aarch64-simd.c",
             "cipher/cipher-gcm-armv8-aarch32-ce.S",
             "cipher/cipher-gcm-armv8-aarch64-ce.S",
             "cipher/crc-armv8-ce.c",
@@ -522,7 +557,6 @@ cc_library(
             "cipher/rijndael-armv8-aarch32-ce.S",
             "cipher/rijndael-armv8-aarch64-ce.S",
             "cipher/rijndael-aarch64.S",
-            "cipher/rijndael-vp-aarch64.c",
             "cipher/salsa20-armv7-neon.S",
             "cipher/serpent-armv7-neon.S",
             "cipher/simd-common-aarch64.h",
@@ -539,7 +573,6 @@ cc_library(
             "cipher/twofish-aarch64.S",
             "cipher/camellia-arm.S",
             "cipher/camellia-aarch64.S",
-            "cipher/camellia-aarch64-ce.c",
         ],
     }),
     deps = [
@@ -548,6 +581,10 @@ cc_library(
         ":libmpi",
     ] + select({
         "@@//:linux_x86_64": [":serpent-avx512"],
+        "@@//:linux_arm64": [
+            ":cipher-neon-intrinsics",
+            ":cipher-neon-intrinsics-crypto",
+        ],
         "//conditions:default": [],
     }),
     local_defines = [
