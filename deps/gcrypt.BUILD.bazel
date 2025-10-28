@@ -191,6 +191,8 @@ cc_library(
             "mpi/aarch64/mpih-mul3.S",
             "mpi/aarch64/mpih-sub1.S",
             "cipher/asm-common-aarch64.h",
+            "mpi/generic/mpih-lshift.c",
+            "mpi/generic/mpih-rshift.c",
         ],
     }) + [
         ":copy_config_h",
