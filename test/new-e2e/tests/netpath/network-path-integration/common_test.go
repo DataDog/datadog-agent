@@ -31,6 +31,12 @@ var sysProbeConfig []byte
 //go:embed fixtures/network_path.yaml
 var networkPathIntegration []byte
 
+//go:embed fixtures/dynamic_path_datadog.yaml
+var dynamicPathDatadogYaml []byte
+
+//go:embed fixtures/dynamic_path_system_probe.yaml
+var dynamicPathSystemProbeYaml []byte
+
 var testAgentRunningMetricTagsTCP = []string{"protocol:TCP"}
 var testAgentRunningMetricTagsUDP = []string{"protocol:UDP"}
 
