@@ -18,8 +18,11 @@ import (
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
 )
 
-//go:embed fake-traceroute/dynamic_path_datadog.yaml
+//go:embed fixtures/dynamic_path_datadog.yaml
 var dynamicPathDatadogYaml []byte
+
+//go:embed fixtures/dynamic_path_system_probe.yaml
+var dynamicPathSystemProbeYaml []byte
 
 type linuxDynamicPathTestSuite struct {
 	baseNetworkPathIntegrationTestSuite
@@ -31,7 +34,7 @@ func TestLinuxDynamicPathSuite(t *testing.T) {
 	e2e.Run(t, &linuxDynamicPathTestSuite{}, e2e.WithProvisioner(awshost.Provisioner(
 		awshost.WithAgentOptions(
 			agentparams.WithAgentConfig(string(dynamicPathDatadogYaml)),
-			agentparams.WithSystemProbeConfig(string(sysProbeConfig)),
+			agentparams.WithSystemProbeConfig(string(dynamicPathSystemProbeYaml)),
 		)),
 	))
 
