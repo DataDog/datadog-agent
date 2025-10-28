@@ -98,7 +98,7 @@ func (ad *ActivityDump) MatchesSelector(entry *model.ProcessCacheEntry) bool {
 	}
 
 	if len(ad.Profile.Metadata.ContainerID) > 0 {
-		if ad.Profile.Metadata.ContainerID != entry.ContainerID {
+		if ad.Profile.Metadata.ContainerID != entry.ContainerContext.ContainerID {
 			return false
 		}
 	}
