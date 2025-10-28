@@ -11,7 +11,10 @@ import (
 	"strings"
 	"testing"
 
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestCloudProviderAliases(t *testing.T) {
@@ -104,4 +107,13 @@ func TestCloudProviderHostCCRID(t *testing.T) {
 	assert.False(t, detector2Called, "host alias callback for 'detector2' should not be called")
 	assert.Equal(t, "", ccrid)
 	clearDetectors()
+}
+
+func TestGetValidHostAliasesWithConfig(t *testing.T) {
+	config := configmock.New(t)
+	config.SetWithoutSource("host_aliases", []string{"foo", "-bar"})
+
+	val, err := getValidHostAliases(context.TODO())
+	require.NoError(t, err)
+	assert.EqualValues(t, []string{"foo"}, val)
 }

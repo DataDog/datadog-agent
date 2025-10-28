@@ -21,8 +21,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
-	"github.com/DataDog/datadog-agent/comp/aggregator/diagnosesendermanager"
-	"github.com/DataDog/datadog-agent/comp/aggregator/diagnosesendermanager/diagnosesendermanagerimpl"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
@@ -120,7 +118,6 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				dualTaggerfx.Module(common.DualTaggerParams()),
 				workloadfilterfx.Module(),
 				autodiscoveryimpl.Module(),
-				diagnosesendermanagerimpl.Module(),
 				haagentfx.Module(),
 				logscompressorfx.Module(),
 				metricscompressorfx.Module(),
@@ -387,7 +384,6 @@ This command print the security-agent metadata payload. This payload is used by 
 }
 
 func cmdDiagnose(cliParams *cliParams,
-	senderManager diagnosesendermanager.Component,
 	filterStore workloadfilter.Component,
 	wmeta option.Option[workloadmeta.Component],
 	ac autodiscovery.Component,
@@ -431,13 +427,13 @@ func cmdDiagnose(cliParams *cliParams,
 				fmt.Fprintln(w, color.YellowString(fmt.Sprintf("Error running diagnose in Agent process: %s", err)))
 				fmt.Fprintln(w, "Running diagnose command locally (may take extra time to run checks locally) ...")
 			}
-			result, err = diagnoseLocal.Run(diagnoseComponent, diagCfg, log, senderManager, filterStore, wmeta, ac, secretResolver, tagger, config)
+			result, err = diagnoseLocal.Run(diagnoseComponent, diagCfg, log, filterStore, wmeta, ac, secretResolver, tagger, config)
 		}
 	} else {
 		if !cliParams.JSONOutput { // If JSON output is requested, the output should stay a valid JSON
 			fmt.Fprintln(w, "Running diagnose command locally (may take extra time to run checks locally) ...")
 		}
-		result, err = diagnoseLocal.Run(diagnoseComponent, diagCfg, log, senderManager, filterStore, wmeta, ac, secretResolver, tagger, config)
+		result, err = diagnoseLocal.Run(diagnoseComponent, diagCfg, log, filterStore, wmeta, ac, secretResolver, tagger, config)
 	}
 
 	if err != nil {

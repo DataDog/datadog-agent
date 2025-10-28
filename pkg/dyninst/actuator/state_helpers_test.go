@@ -27,6 +27,7 @@ func deepCopyState(original *state) *state {
 	// Create new state with basic fields copied.
 	copied := newState()
 
+	copied.counters = original.counters
 	copied.programIDAlloc = original.programIDAlloc
 
 	// Deep copy programs map first (needed for queue and currentlyCompiling

@@ -23,10 +23,7 @@ type filterSelection struct {
 	containerSBOM                 [][]workloadfilter.ContainerFilter
 
 	// Pod filters
-	podAutodiscoveryGlobal  [][]workloadfilter.PodFilter
-	podAutodiscoveryMetrics [][]workloadfilter.PodFilter
-	podAutodiscoveryLogs    [][]workloadfilter.PodFilter
-	podSharedMetric         [][]workloadfilter.PodFilter
+	podSharedMetric [][]workloadfilter.PodFilter
 
 	// Service filters
 	serviceAutodiscoveryGlobal  [][]workloadfilter.ServiceFilter
@@ -58,9 +55,6 @@ func (pf *filterSelection) initializeSelections(cfg config.Component) {
 	pf.containerSBOM = pf.computeContainerSBOMFilters(cfg)
 
 	// Initialize pod filters
-	pf.podAutodiscoveryGlobal = pf.computePodAutodiscoveryFilters(cfg, workloadfilter.GlobalFilter)
-	pf.podAutodiscoveryMetrics = pf.computePodAutodiscoveryFilters(cfg, workloadfilter.MetricsFilter)
-	pf.podAutodiscoveryLogs = pf.computePodAutodiscoveryFilters(cfg, workloadfilter.LogsFilter)
 	pf.podSharedMetric = pf.computePodSharedMetricFilters(cfg)
 
 	// Initialize service filters
@@ -101,20 +95,6 @@ func (pf *filterSelection) GetContainerSBOMFilters() [][]workloadfilter.Containe
 	return pf.containerSBOM
 }
 
-// GetPodAutodiscoveryFilters returns pre-computed pod autodiscovery filters
-func (pf *filterSelection) GetPodAutodiscoveryFilters(filterScope workloadfilter.Scope) [][]workloadfilter.PodFilter {
-	switch filterScope {
-	case workloadfilter.GlobalFilter:
-		return pf.podAutodiscoveryGlobal
-	case workloadfilter.MetricsFilter:
-		return pf.podAutodiscoveryMetrics
-	case workloadfilter.LogsFilter:
-		return pf.podAutodiscoveryLogs
-	default:
-		return nil
-	}
-}
-
 // GetPodSharedMetricFilters returns pre-computed pod shared metric filters
 func (pf *filterSelection) GetPodSharedMetricFilters() [][]workloadfilter.PodFilter {
 	return pf.podSharedMetric
@@ -149,7 +129,7 @@ func (pf *filterSelection) computeContainerAutodiscoveryFilters(cfg config.Compo
 	flist := make([][]workloadfilter.ContainerFilter, 2)
 
 	high := []workloadfilter.ContainerFilter{workloadfilter.ContainerADAnnotations}
-	low := []workloadfilter.ContainerFilter{workloadfilter.LegacyContainerGlobal}
+	low := []workloadfilter.ContainerFilter{workloadfilter.LegacyContainerGlobal, workloadfilter.ContainerCELGlobal}
 
 	switch filterScope {
 	case workloadfilter.GlobalFilter:
@@ -160,10 +140,10 @@ func (pf *filterSelection) computeContainerAutodiscoveryFilters(cfg config.Compo
 			low = append(low, workloadfilter.LegacyContainerACExclude)
 		}
 	case workloadfilter.MetricsFilter:
-		low = append(low, workloadfilter.LegacyContainerMetrics)
+		low = append(low, workloadfilter.LegacyContainerMetrics, workloadfilter.ContainerCELMetrics)
 		high = append(high, workloadfilter.ContainerADAnnotationsMetrics)
 	case workloadfilter.LogsFilter:
-		low = append(low, workloadfilter.LegacyContainerLogs)
+		low = append(low, workloadfilter.LegacyContainerLogs, workloadfilter.ContainerCELLogs)
 		high = append(high, workloadfilter.ContainerADAnnotationsLogs)
 	default:
 	}
@@ -179,7 +159,7 @@ func (pf *filterSelection) computeContainerSharedMetricFilters(cfg config.Compon
 	flist := make([][]workloadfilter.ContainerFilter, 2)
 
 	high := []workloadfilter.ContainerFilter{workloadfilter.ContainerADAnnotations, workloadfilter.ContainerADAnnotationsMetrics}
-	low := []workloadfilter.ContainerFilter{workloadfilter.LegacyContainerGlobal, workloadfilter.LegacyContainerMetrics}
+	low := []workloadfilter.ContainerFilter{workloadfilter.LegacyContainerGlobal, workloadfilter.LegacyContainerMetrics, workloadfilter.ContainerCELGlobal, workloadfilter.ContainerCELMetrics}
 
 	includeList := cfg.GetStringSlice("container_include")
 	excludeList := cfg.GetStringSlice("container_exclude")
@@ -218,27 +198,9 @@ func (pf *filterSelection) computeContainerSBOMFilters(cfg config.Component) [][
 	return [][]workloadfilter.ContainerFilter{{workloadfilter.LegacyContainerSBOM}}
 }
 
-// computePodAutodiscoveryFilters computes pod autodiscovery filters
-func (pf *filterSelection) computePodAutodiscoveryFilters(_ config.Component, filterScope workloadfilter.Scope) [][]workloadfilter.PodFilter {
-	flist := make([][]workloadfilter.PodFilter, 2)
-
-	high := []workloadfilter.PodFilter{workloadfilter.PodADAnnotations}
-	low := []workloadfilter.PodFilter{workloadfilter.LegacyPod}
-
-	switch filterScope {
-	case workloadfilter.MetricsFilter:
-		high = append(high, workloadfilter.PodADAnnotationsMetrics)
-	}
-
-	flist[0] = high // highPrecedence
-	flist[1] = low  // lowPrecedence
-
-	return flist
-}
-
 // computePodSharedMetricFilters computes pod shared metric filters (migrated from def/utils.go)
 func (pf *filterSelection) computePodSharedMetricFilters(_ config.Component) [][]workloadfilter.PodFilter {
-	return [][]workloadfilter.PodFilter{{workloadfilter.PodADAnnotations, workloadfilter.PodADAnnotationsMetrics}, {workloadfilter.LegacyPod}}
+	return [][]workloadfilter.PodFilter{{workloadfilter.PodADAnnotations, workloadfilter.PodADAnnotationsMetrics}, {workloadfilter.LegacyPodMetrics, workloadfilter.LegacyPodGlobal, workloadfilter.PodCELGlobal, workloadfilter.PodCELMetrics}}
 }
 
 // computeServiceAutodiscoveryFilters computes service autodiscovery filters
@@ -246,12 +208,12 @@ func (pf *filterSelection) computeServiceAutodiscoveryFilters(_ config.Component
 	flist := make([][]workloadfilter.ServiceFilter, 2)
 
 	high := []workloadfilter.ServiceFilter{workloadfilter.ServiceADAnnotations}
-	low := []workloadfilter.ServiceFilter{}
+	low := []workloadfilter.ServiceFilter{workloadfilter.ServiceCELGlobal}
 
 	switch filterScope {
 	case workloadfilter.MetricsFilter:
 		high = append(high, workloadfilter.ServiceADAnnotationsMetrics)
-		low = append(low, workloadfilter.LegacyServiceMetrics)
+		low = append(low, workloadfilter.LegacyServiceMetrics, workloadfilter.ServiceCELMetrics)
 	case workloadfilter.GlobalFilter:
 		low = append(low, workloadfilter.LegacyServiceGlobal)
 	}
@@ -267,12 +229,12 @@ func (pf *filterSelection) computeEndpointAutodiscoveryFilters(_ config.Componen
 	flist := make([][]workloadfilter.EndpointFilter, 2)
 
 	high := []workloadfilter.EndpointFilter{workloadfilter.EndpointADAnnotations}
-	low := []workloadfilter.EndpointFilter{}
+	low := []workloadfilter.EndpointFilter{workloadfilter.EndpointCELGlobal}
 
 	switch filterScope {
 	case workloadfilter.MetricsFilter:
 		high = append(high, workloadfilter.EndpointADAnnotationsMetrics)
-		low = append(low, workloadfilter.LegacyEndpointMetrics)
+		low = append(low, workloadfilter.LegacyEndpointMetrics, workloadfilter.EndpointCELMetrics)
 	case workloadfilter.GlobalFilter:
 		low = append(low, workloadfilter.LegacyEndpointGlobal)
 	default:
