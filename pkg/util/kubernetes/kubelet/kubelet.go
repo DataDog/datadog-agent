@@ -36,7 +36,6 @@ const (
 	kubeletStatsSummary    = "/stats/summary"
 	authorizationHeaderKey = "Authorization"
 	podListCacheKey        = "KubeletPodListCacheKey"
-	unreadyAnnotation      = "ad.datadoghq.com/tolerate-unready"
 	configSourceAnnotation = "kubernetes.io/config.source"
 )
 
@@ -415,16 +414,6 @@ func IsPodReady(pod *Pod) bool {
 
 	if pod.Status.Phase != "Running" {
 		return false
-	}
-
-	// In the previous implementation that used the pod watcher, the
-	// tolerate-unready annotation logic was handled here. The new
-	// implementation moves this logic into the autodiscovery parts that need
-	// it.
-	if pkgconfigsetup.Datadog().GetBool("kubelet_use_pod_watcher") {
-		if tolerate, ok := pod.Metadata.Annotations[unreadyAnnotation]; ok && tolerate == "true" {
-			return true
-		}
 	}
 
 	for _, status := range pod.Status.Conditions {

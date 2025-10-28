@@ -22,7 +22,6 @@
     mkdir -p $GOMODCACHE
 
 .agent_dmg:
-  allow_failure: true  #incident-44652
   stage: package_build
   needs: ["go_mod_tidy_check"]
   rules:

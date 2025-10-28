@@ -51,12 +51,6 @@ func compareText(expected, actual event.Event) bool {
 
 // TestKubernetesAdmissionEvents tests the KubernetesAdmissionEvents webhook.
 func TestKubernetesAdmissionEvents(t *testing.T) {
-	// Mock demultiplexer and sender
-	demultiplexerMock := createDemultiplexer(t)
-	mockSender := mocksender.NewMockSenderWithSenderManager(eventType, demultiplexerMock)
-	err := demultiplexerMock.SetSender(mockSender, eventType)
-	assert.NoError(t, err)
-
 	// Mock Datadog Config
 	datadogConfigMock := config.NewMock(t)
 	datadogConfigMock.SetWithoutSource("admission_controller.kubernetes_admission_events.enabled", true)
@@ -252,6 +246,12 @@ func TestKubernetesAdmissionEvents(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			// Mock demultiplexer and sender - create fresh instances for each test case
+			demultiplexerMock := createDemultiplexer(t)
+			mockSender := mocksender.NewMockSenderWithSenderManager(eventType, demultiplexerMock)
+			err := demultiplexerMock.SetSender(mockSender, eventType)
+			assert.NoError(t, err)
+
 			// Create the webhook
 			kubernetesAuditWebhook := NewWebhook(datadogConfigMock, demultiplexerMock, tt.supportsMatchConditions)
 			assert.True(t, kubernetesAuditWebhook.IsEnabled())
