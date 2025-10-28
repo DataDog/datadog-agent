@@ -247,9 +247,6 @@ func (e *RuleEngine) startSendHeartbeatEvents(ctx context.Context) {
 
 // StartRunningMetrics starts sending the running metrics
 func (e *RuleEngine) StartRunningMetrics(ctx context.Context) {
-	e.Lock()
-	defer e.Unlock()
-
 	e.wg.Add(1)
 	go func() {
 		defer e.wg.Done()
@@ -535,9 +532,6 @@ func (e *RuleEngine) RuleMatch(ctx *eval.Context, rule *rules.Rule, event eval.E
 
 // Stop stops the rule engine
 func (e *RuleEngine) Stop() {
-	e.Lock()
-	defer e.Unlock()
-
 	for _, provider := range e.policyProviders {
 		_ = provider.Close()
 	}
