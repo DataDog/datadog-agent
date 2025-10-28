@@ -77,7 +77,6 @@ func IsECSManagedInstances() bool {
 
 // IsECSSidecarMode returns true if the agent is running in ECS sidecar mode.
 // This includes Fargate (always sidecar) and Managed Instances when explicitly configured as sidecar.
-// The cfg parameter can be nil, in which case only environment-based detection is performed.
 func IsECSSidecarMode(cfg model.Reader) bool {
 	// Fargate is always sidecar mode
 	if IsECSFargate() {
@@ -85,7 +84,7 @@ func IsECSSidecarMode(cfg model.Reader) bool {
 	}
 
 	// Managed Instances can be sidecar if explicitly configured
-	if IsECSManagedInstances() && cfg != nil {
+	if IsECSManagedInstances() {
 		deploymentMode := cfg.GetString("ecs_deployment_mode")
 		// In auto mode, managed instances default to daemon, so only return true for explicit "sidecar"
 		return deploymentMode == "sidecar"
