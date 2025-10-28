@@ -108,7 +108,7 @@ func TestMaxSizeLimit(t *testing.T) {
 		written, err := retrier.WritePayloadToDisk(payload)
 		if err != nil {
 			// Should eventually hit the limit
-			assert.Contains(t, err.Error(), "disk retry queue is full")
+			assert.Contains(t, err.Error(), "disk retry space full")
 			break
 		}
 		if written {

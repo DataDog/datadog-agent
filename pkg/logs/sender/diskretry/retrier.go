@@ -16,7 +16,25 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+)
+
+var (
+	tlmPayloadsWrittenToDisk = telemetry.NewCounterWithOpts("logs_sender", "disk_retry_payloads_written",
+		[]string{}, "Payloads written to disk due to backpressure", telemetry.Options{DefaultMetric: true})
+	tlmPayloadsReadFromDisk = telemetry.NewCounterWithOpts("logs_sender", "disk_retry_payloads_read",
+		[]string{}, "Payloads read from disk for retry", telemetry.Options{DefaultMetric: true})
+	tlmDiskWriteErrors = telemetry.NewCounterWithOpts("logs_sender", "disk_retry_write_errors",
+		[]string{}, "Errors writing payloads to disk", telemetry.Options{DefaultMetric: true})
+	tlmDiskReadErrors = telemetry.NewCounterWithOpts("logs_sender", "disk_retry_read_errors",
+		[]string{}, "Errors reading payloads from disk", telemetry.Options{DefaultMetric: true})
+	tlmDiskFull = telemetry.NewCounterWithOpts("logs_sender", "disk_retry_queue_full",
+		[]string{}, "Payloads dropped due to disk queue being full", telemetry.Options{DefaultMetric: true})
+	tlmDiskUsageBytes = telemetry.NewGaugeWithOpts("logs_sender", "disk_retry_usage_bytes",
+		[]string{}, "Current disk usage in bytes for retry queue", telemetry.Options{DefaultMetric: true})
+	tlmDiskFileCount = telemetry.NewGaugeWithOpts("logs_sender", "disk_retry_file_count",
+		[]string{}, "Number of retry files on disk", telemetry.Options{DefaultMetric: true})
 )
 
 // Config represents the configuration options for the retrier
@@ -88,15 +106,17 @@ func (r *Retrier) WritePayloadToDisk(payload *message.Payload) (bool, error) {
 
 	// Check if we have capacity
 	if r.config.MaxSizeBytes > 0 && r.currentDiskSize+payloadSize > r.config.MaxSizeBytes {
-		log.Warnf("Disk retry queue is full (current: %d bytes, max: %d bytes), cannot write payload",
+		log.Warnf("Disk retry storage is at max capacity (current: %d bytes, max: %d bytes), cannot write payload",
 			r.currentDiskSize, r.config.MaxSizeBytes)
-		return false, fmt.Errorf("disk retry queue is full")
+		tlmDiskFull.Inc()
+		return false, fmt.Errorf("disk retry space full")
 	}
 
 	// Generate filename using forwarder convention: YYYY_MM_DD__HH_MM_SS_<random>.json
 	filenamePrefix := time.Now().UTC().Format("2006_01_02__15_04_05_")
 	tempFile, err := os.CreateTemp(r.config.Path, filenamePrefix+"*.json.tmp")
 	if err != nil {
+		tlmDiskWriteErrors.Inc()
 		return false, fmt.Errorf("failed to create temp file: %w", err)
 	}
 	tempFilePath := tempFile.Name()
@@ -105,11 +125,13 @@ func (r *Retrier) WritePayloadToDisk(payload *message.Payload) (bool, error) {
 	if _, err := tempFile.Write(data); err != nil {
 		_ = tempFile.Close()
 		_ = os.Remove(tempFilePath)
+		tlmDiskWriteErrors.Inc()
 		return false, fmt.Errorf("failed to write to temp file: %w", err)
 	}
 
 	if err := tempFile.Close(); err != nil {
 		_ = os.Remove(tempFilePath)
+		tlmDiskWriteErrors.Inc()
 		return false, fmt.Errorf("failed to close temp file: %w", err)
 	}
 
@@ -117,11 +139,14 @@ func (r *Retrier) WritePayloadToDisk(payload *message.Payload) (bool, error) {
 	finalPath := tempFilePath[:len(tempFilePath)-4] // Remove ".tmp"
 	if err := os.Rename(tempFilePath, finalPath); err != nil {
 		_ = os.Remove(tempFilePath)
+		tlmDiskWriteErrors.Inc()
 		return false, fmt.Errorf("failed to rename temp file: %w", err)
 	}
 
 	// Update disk usage tracking
 	r.currentDiskSize += payloadSize
+	tlmDiskUsageBytes.Set(float64(r.currentDiskSize))
+	tlmPayloadsWrittenToDisk.Inc()
 
 	log.Debugf("Successfully wrote payload to disk: %s (%d bytes)", filepath.Base(finalPath), payloadSize)
 	return true, nil
@@ -157,12 +182,14 @@ func (r *Retrier) readOldestPayload() *message.Payload {
 	entries, err := os.ReadDir(r.config.Path)
 	if err != nil {
 		log.Warnf("Failed to read retry directory: %v", err)
+		tlmDiskReadErrors.Inc()
 		return nil
 	}
 
 	// Find oldest .json file by modification time
 	var oldestFile string
 	var oldestTime time.Time
+	fileCount := 0
 	for _, entry := range entries {
 		if entry.IsDir() {
 			continue
@@ -171,6 +198,7 @@ func (r *Retrier) readOldestPayload() *message.Payload {
 		if !strings.HasSuffix(name, ".json") {
 			continue
 		}
+		fileCount++
 
 		// Get file info for modification time
 		info, err := entry.Info()
@@ -185,6 +213,9 @@ func (r *Retrier) readOldestPayload() *message.Payload {
 		}
 	}
 
+	// Update file count telemetry
+	tlmDiskFileCount.Set(float64(fileCount))
+
 	if oldestFile == "" {
 		return nil // No files to replay
 	}
@@ -194,6 +225,7 @@ func (r *Retrier) readOldestPayload() *message.Payload {
 	data, err := os.ReadFile(filePath)
 	if err != nil {
 		log.Warnf("Failed to read retry file %s: %v", oldestFile, err)
+		tlmDiskReadErrors.Inc()
 		return nil
 	}
 
@@ -201,12 +233,14 @@ func (r *Retrier) readOldestPayload() *message.Payload {
 	var persisted PersistedPayload
 	if err := json.Unmarshal(data, &persisted); err != nil {
 		log.Warnf("Failed to unmarshal retry file %s: %v", oldestFile, err)
+		tlmDiskReadErrors.Inc()
 		// Delete corrupted file
 		_ = os.Remove(filePath)
 		r.currentDiskSize -= int64(len(data))
 		if r.currentDiskSize < 0 {
 			r.currentDiskSize = 0
 		}
+		tlmDiskUsageBytes.Set(float64(r.currentDiskSize))
 		return nil
 	}
 
@@ -221,6 +255,8 @@ func (r *Retrier) readOldestPayload() *message.Payload {
 	if r.currentDiskSize < 0 {
 		r.currentDiskSize = 0
 	}
+	tlmDiskUsageBytes.Set(float64(r.currentDiskSize))
+	tlmPayloadsReadFromDisk.Inc()
 
 	log.Debugf("Read payload from disk: %s (%d bytes)", oldestFile, len(data))
 
