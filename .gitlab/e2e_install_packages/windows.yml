@@ -247,3 +247,5 @@ new-e2e-installer-windows:
       - EXTRA_PARAMS: --run "TestAgentMSIInstallsDotnetLibrary/TestMSISkipRollbackIfInstalled$"
       - EXTRA_PARAMS: --run "TestAgentMSIInstallsDotnetLibrary/TestUninstallKeepsLibrary$"
       - EXTRA_PARAMS: --run "TestAgentMSIInstallsDotnetLibrary/TestUninstallScript$"
+      - EXTRA_PARAMS: --run "TestAgentScriptInstallsDotnetLibrary/TestInstallFromScript$"
+      - EXTRA_PARAMS: --run "TestAgentScriptInstallsDotnetLibrary/TestScriptThenRemoteUpgrade$"
