@@ -501,6 +501,8 @@ func (c *collector) updateServices(alivePids core.PidSet, procs map[int32]*procu
 func (c *collector) updateServicesNoCache(alivePids core.PidSet, procs map[int32]*procutil.Process) []*workloadmeta.Process {
 	entities, _ := c.updateServices(alivePids, procs)
 
+	pidToCid := c.containerProvider.GetPidToCid(cacheValidityNoRT)
+
 	for _, entity := range entities {
 		if proc, exists := procs[entity.Pid]; exists {
 			// process fields should be set when the process collector is disabled
@@ -514,6 +516,14 @@ func (c *collector) updateServicesNoCache(alivePids core.PidSet, procs map[int32
 			entity.CreationTime = time.UnixMilli(proc.Stats.CreateTime).UTC()
 			entity.Uids = proc.Uids
 			entity.Gids = proc.Gids
+		}
+
+		if cid, exists := pidToCid[int(entity.Pid)]; exists {
+			entity.ContainerID = cid
+			entity.Owner = &workloadmeta.EntityID{
+				Kind: workloadmeta.KindContainer,
+				ID:   cid,
+			}
 		}
 	}
 
