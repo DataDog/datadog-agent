@@ -273,7 +273,7 @@ func TestPayloadsBuilderV3_PointsLimit(t *testing.T) {
 	r.Equal(9, payloads[1].GetPointCount())
 }
 
-func TestPaylodsBuilderV3_ReservedSpace(t *testing.T) {
+func TestPayloadsBuilderV3_ReservedSpace(t *testing.T) {
 	const ts = 1756737057.1
 	serie := &metrics.Serie{
 		Name:   "serie1",
