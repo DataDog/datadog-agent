@@ -41,6 +41,7 @@ void close_shared_library(void *lib_handle, const char **error) {
 	// verify pointer
 	if (!lib_handle) {
 		*error = strdup("pointer to shared library is NULL");
+        return;
 	}
 
     // close the library and check for errors (error_code == 0)
@@ -87,6 +88,7 @@ void close_shared_library(void *lib_handle, const char **error) {
     // verify library handle
 	if (!lib_handle) {
         *error = strdup("pointer to shared library is NULL");
+        return;
 	}
 
     // close the library
@@ -104,6 +106,7 @@ void run_shared_library(run_function_t *run_handle, char *check_id, char *init_c
     // verify `Run` handle
     if (!run_handle) {
         *error = strdup("pointer to 'Run' symbol of the shared library is NULL");
+        return;
     }
 
     // run the shared library check and put any errors string in the `error` variable
