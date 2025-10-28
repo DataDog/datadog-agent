@@ -62,8 +62,8 @@ func getCommonVariableScopers() map[Scope]*eval.VariableScoper {
 			return nil, fmt.Errorf("failed to get process scope")
 		}),
 		ScopeContainer: eval.NewVariableScoper(eval.ContainerScoperType, func(ctx *eval.Context) (eval.VariableScope, error) {
-			if cc := ctx.Event.(*model.Event).ContainerContext; cc != nil {
-				return cc, nil
+			if ctx.Event.(*model.Event).ProcessContext != nil {
+				return &ctx.Event.(*model.Event).ProcessContext.ContainerContext, nil
 			}
 			return nil, fmt.Errorf("failed to get container scope")
 		}),

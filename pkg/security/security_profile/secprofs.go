@@ -62,9 +62,9 @@ func (m *Manager) LookupEventInProfiles(event *model.Event) {
 	var tags []string
 
 	// First try container-based lookup
-	event.FieldHandlers.ResolveContainerTags(event, event.ContainerContext)
-	if len(event.ContainerContext.Tags) > 0 {
-		tags = event.ContainerContext.Tags
+	event.FieldHandlers.ResolveContainerTags(event, &event.ProcessContext.Process.ContainerContext)
+	if len(event.ProcessContext.Process.ContainerContext.Tags) > 0 {
+		tags = event.ProcessContext.Process.ContainerContext.Tags
 		selector, err := cgroupModel.NewWorkloadSelector(utils.GetTagValue("image_name", tags), "*")
 		if err == nil {
 			// lookup profile
@@ -79,10 +79,10 @@ func (m *Manager) LookupEventInProfiles(event *model.Event) {
 	}
 
 	// If no profile found and there's a cgroup ID, try cgroup-based lookup
-	if profile == nil && event.CGroupContext.CGroupID != "" {
-		tags, err := m.resolvers.TagsResolver.ResolveWithErr(event.CGroupContext.CGroupID)
+	if profile == nil && event.ProcessContext.Process.CGroup.CGroupID != "" {
+		tags, err := m.resolvers.TagsResolver.ResolveWithErr(event.ProcessContext.Process.CGroup.CGroupID)
 		if err != nil {
-			seclog.Errorf("failed to resolve tags for cgroup %s: %v", event.CGroupContext.CGroupID, err)
+			seclog.Errorf("failed to resolve tags for cgroup %s: %v", event.ProcessContext.Process.CGroup.CGroupID, err)
 			return
 		}
 		selector, err := cgroupModel.NewWorkloadSelector(utils.GetTagValue("service", tags), "*")
@@ -107,7 +107,7 @@ func (m *Manager) LookupEventInProfiles(event *model.Event) {
 		return
 	}
 
-	_ = event.FieldHandlers.ResolveContainerCreatedAt(event, event.ContainerContext)
+	_ = event.FieldHandlers.ResolveContainerCreatedAt(event, &event.ProcessContext.Process.ContainerContext)
 
 	ctx, found := profile.GetVersionContext(imageTag)
 	if found {
@@ -620,7 +620,7 @@ func (m *Manager) getEventTypeState(p *profile.Profile, pctx *profile.VersionCon
 	var nodeType activity_tree.NodeGenerationType
 	var profileState model.EventFilteringProfileState
 	// check if we are at the beginning of a workload lifetime
-	if event.ResolveEventTime().Sub(time.Unix(0, int64(event.ContainerContext.CreatedAt))) < m.config.RuntimeSecurity.AnomalyDetectionWorkloadWarmupPeriod {
+	if event.ResolveEventTime().Sub(time.Unix(0, int64(event.ProcessContext.Process.ContainerContext.CreatedAt))) < m.config.RuntimeSecurity.AnomalyDetectionWorkloadWarmupPeriod {
 		nodeType = activity_tree.WorkloadWarmup
 		profileState = model.WorkloadWarmup
 	} else {

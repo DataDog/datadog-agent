@@ -303,18 +303,10 @@ func (s *Serializer) getAutoscalingFailoverMetrics() (bool, map[string]struct{})
 	autoscalingFailoverEnabled := s.config.GetBool("autoscaling.failover.enabled") && s.config.GetBool("cluster_agent.enabled")
 	var allowlist map[string]struct{}
 	if autoscalingFailoverEnabled {
-		if s.config.IsConfigured("autoscaling.failover.metrics") {
-			rawList := s.config.GetStringSlice("autoscaling.failover.metrics")
-			allowlist = make(map[string]struct{}, len(rawList))
-			for _, allowed := range rawList {
-				allowlist[allowed] = struct{}{}
-			}
-		} else {
-			s.logger.Info("Local autoscaling.failover.enabled is set but no metrics are configured. Defaulting to container.memory.usage and container.cpu.usage")
-			allowlist = map[string]struct{}{
-				"container.memory.usage": {},
-				"container.cpu.usage":    {},
-			}
+		rawList := s.config.GetStringSlice("autoscaling.failover.metrics")
+		allowlist = make(map[string]struct{}, len(rawList))
+		for _, allowed := range rawList {
+			allowlist[allowed] = struct{}{}
 		}
 	}
 	return autoscalingFailoverEnabled, allowlist
@@ -415,15 +407,9 @@ func (s *Serializer) SendOrchestratorMetadata(msgs []types.ProcessMessageBody, h
 			return s.logger.Errorf("Unable to encode message: %s", err)
 		}
 
-		responses, err := orchestratorForwarder.SubmitOrchestratorChecks(payloads, extraHeaders, payloadType)
+		err = orchestratorForwarder.SubmitOrchestratorChecks(payloads, extraHeaders, payloadType)
 		if err != nil {
 			return s.logger.Errorf("Unable to submit payload: %s", err)
-		}
-
-		// Consume the responses so that writers to the channel do not become blocked
-		// we don't need the bodies here though
-		//nolint:revive // TODO(AML) Fix revive linter
-		for range responses {
 		}
 	}
 	return nil
@@ -442,15 +428,9 @@ func (s *Serializer) SendOrchestratorManifests(msgs []types.ProcessMessageBody, 
 			continue
 		}
 
-		responses, err := orchestratorForwarder.SubmitOrchestratorManifests(payloads, extraHeaders)
+		err = orchestratorForwarder.SubmitOrchestratorManifests(payloads, extraHeaders)
 		if err != nil {
 			return s.logger.Errorf("Unable to submit payload: %s", err)
-		}
-
-		// Consume the responses so that writers to the channel do not become blocked
-		// we don't need the bodies here though
-		//nolint:revive // TODO(AML) Fix revive linter
-		for range responses {
 		}
 	}
 	return nil

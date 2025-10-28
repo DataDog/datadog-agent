@@ -120,7 +120,7 @@ func (p *FileHasher) HashAndReport(rule *rules.Rule, action *rules.HashDefinitio
 	report := &HashActionReport{
 		rule:      rule,
 		pid:       ev.ProcessContext.Pid,
-		crtID:     ev.ProcessContext.ContainerID,
+		crtID:     ev.ProcessContext.Process.ContainerContext.ContainerID,
 		seenAt:    ev.Timestamp,
 		fileEvent: *fileEvent,
 		eventType: eventType,

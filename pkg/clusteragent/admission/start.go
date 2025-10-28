@@ -49,7 +49,10 @@ func StartControllers(ctx ControllerContext, wmeta workloadmeta.Component, pa wo
 		return webhooks, nil
 	}
 
-	notifChan, isLeaderFunc := ctx.LeadershipStateSubscribeFunc()
+	// Subscribe twice to get separate notification channels for each controller
+	// This ensures both controllers receive leadership change notifications
+	notifChanSecret, isLeaderFunc := ctx.LeadershipStateSubscribeFunc()
+	notifChanWebhook, _ := ctx.LeadershipStateSubscribeFunc()
 
 	certConfig := secret.NewCertConfig(
 		datadogConfig.GetDuration("admission_controller.certificate.expiration_threshold")*time.Hour,
@@ -63,7 +66,7 @@ func StartControllers(ctx ControllerContext, wmeta workloadmeta.Component, pa wo
 		ctx.Client,
 		ctx.SecretInformers.Core().V1().Secrets(),
 		isLeaderFunc,
-		notifChan,
+		notifChanSecret,
 		secretConfig,
 	)
 
@@ -89,7 +92,7 @@ func StartControllers(ctx ControllerContext, wmeta workloadmeta.Component, pa wo
 		ctx.ValidatingInformers.Admissionregistration(),
 		ctx.MutatingInformers.Admissionregistration(),
 		isLeaderFunc,
-		notifChan,
+		notifChanWebhook,
 		webhookConfig,
 		wmeta,
 		pa,

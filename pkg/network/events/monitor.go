@@ -160,7 +160,7 @@ func (h *eventConsumerWrapper) Copy(ev *model.Event) any {
 		p.Tags = append(p.Tags, intern.GetByString(tag))
 	}
 
-	if cid := ev.GetContainerId(); cid != "" {
+	if cid := ev.GetContainerID(); cid != "" {
 		p.ContainerID = intern.GetByString(cid)
 	}
 
