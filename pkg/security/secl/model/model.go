@@ -22,6 +22,7 @@ import (
 // Model describes the data model for the runtime security agent events
 type Model struct {
 	ExtraValidateFieldFnc func(field eval.Field, fieldValue eval.FieldValue) error
+	LegacyFields          map[eval.Field]eval.Field
 }
 
 // Releasable represents an object than can be released
@@ -163,6 +164,7 @@ type BaseEvent struct {
 
 	// field resolution
 	FieldHandlers FieldHandlers `field:"-"`
+	LegacyFields  map[eval.Field]eval.Field
 }
 
 func initMember(member reflect.Value, deja map[string]bool) {

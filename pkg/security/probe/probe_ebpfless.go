@@ -615,8 +615,8 @@ func (p *EBPFLessProbe) OnNewDiscarder(_ *rules.RuleSet, _ *model.Event, _ eval.
 }
 
 // NewModel returns a new Model
-func (p *EBPFLessProbe) NewModel() *model.Model {
-	return NewEBPFLessModel()
+func (p *EBPFLessProbe) NewModel(legacyFields map[eval.Field]eval.Field) *model.Model {
+	return NewEBPFLessModel(legacyFields)
 }
 
 // SendStats send the stats

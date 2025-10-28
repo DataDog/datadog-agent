@@ -31,8 +31,10 @@ func (tkl *TokenLimiter) SwapStats() []utils.LimiterStat {
 	return tkl.limiter.SwapStats()
 }
 
-func (tkl *TokenLimiter) genGetTokenFnc(fields []eval.Field) error {
-	var m model.Model
+func (tkl *TokenLimiter) genGetTokenFnc(fields []eval.Field, legacyFields map[eval.Field]eval.Field) error {
+	m := &model.Model{
+		LegacyFields: legacyFields,
+	}
 	event := m.NewEvent()
 
 	for _, field := range fields {
@@ -62,7 +64,7 @@ func (tkl *TokenLimiter) genGetTokenFnc(fields []eval.Field) error {
 }
 
 // NewTokenLimiter returns a new rate limiter which is bucketed by fields
-func NewTokenLimiter(maxUniqueToken int, numEventsAllowedPerPeriod int, period time.Duration, fields []eval.Field) (*TokenLimiter, error) {
+func NewTokenLimiter(maxUniqueToken int, numEventsAllowedPerPeriod int, period time.Duration, fields []eval.Field, legacyFields map[eval.Field]eval.Field) (*TokenLimiter, error) {
 	limiter, err := utils.NewLimiter[string](maxUniqueToken, numEventsAllowedPerPeriod, period)
 	if err != nil {
 		return nil, err
@@ -71,7 +73,7 @@ func NewTokenLimiter(maxUniqueToken int, numEventsAllowedPerPeriod int, period t
 	tkl := &TokenLimiter{
 		limiter: limiter,
 	}
-	if err := tkl.genGetTokenFnc(fields); err != nil {
+	if err := tkl.genGetTokenFnc(fields, legacyFields); err != nil {
 		return nil, err
 	}
 

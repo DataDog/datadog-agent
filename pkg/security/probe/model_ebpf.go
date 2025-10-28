@@ -18,7 +18,7 @@ import (
 )
 
 // NewEBPFModel returns a new model with some extra field validation
-func NewEBPFModel(probe *EBPFProbe) *model.Model {
+func NewEBPFModel(probe *EBPFProbe, legacyFields map[eval.Field]eval.Field) *model.Model {
 	return &model.Model{
 		ExtraValidateFieldFnc: func(field eval.Field, value eval.FieldValue) error {
 			switch field {
@@ -48,6 +48,7 @@ func NewEBPFModel(probe *EBPFProbe) *model.Model {
 
 			return nil
 		},
+		LegacyFields: legacyFields,
 	}
 }
 

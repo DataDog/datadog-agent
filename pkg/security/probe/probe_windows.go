@@ -1507,8 +1507,8 @@ func (p *WindowsProbe) OnNewDiscarder(_ *rules.RuleSet, ev *model.Event, field e
 }
 
 // NewModel returns a new Model
-func (p *WindowsProbe) NewModel() *model.Model {
-	return NewWindowsModel(p)
+func (p *WindowsProbe) NewModel(legacyFields map[eval.Field]eval.Field) *model.Model {
+	return NewWindowsModel(legacyFields)
 }
 
 // DumpDiscarders dump the discarders

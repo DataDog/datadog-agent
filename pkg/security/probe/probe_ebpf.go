@@ -391,8 +391,8 @@ func (p *EBPFProbe) sanityChecks() error {
 }
 
 // NewModel returns a new Model
-func (p *EBPFProbe) NewModel() *model.Model {
-	return NewEBPFModel(p)
+func (p *EBPFProbe) NewModel(legacyFields map[eval.Field]eval.Field) *model.Model {
+	return NewEBPFModel(p, legacyFields)
 }
 
 // VerifyOSVersion returns an error if the current kernel version is not supported

@@ -45,7 +45,7 @@ type PlatformProbe interface {
 	Snapshot() error
 	Walk(_ func(_ *model.ProcessCacheEntry))
 	Close() error
-	NewModel() *model.Model
+	NewModel(map[eval.Field]eval.Field) *model.Model
 	DumpDiscarders() (string, error)
 	FlushDiscarders() error
 	ApplyRuleSet(_ *rules.RuleSet) (*kfilters.FilterReport, error)
@@ -410,10 +410,12 @@ func (p *Probe) NewRuleSet(eventTypeEnabled map[eval.EventType]bool) *rules.Rule
 	evalOpts.WithTelemetry(&eval.Telemetry{TotalVariables: probeTelemetry.totalVariables})
 
 	eventCtor := func() eval.Event {
-		return p.PlatformProbe.NewEvent()
+		event := p.PlatformProbe.NewEvent()
+		event.LegacyFields = evalOpts.LegacyFields
+		return event
 	}
 
-	return rules.NewRuleSet(p.PlatformProbe.NewModel(), eventCtor, ruleOpts, evalOpts)
+	return rules.NewRuleSet(p.PlatformProbe.NewModel(evalOpts.LegacyFields), eventCtor, ruleOpts, evalOpts)
 }
 
 // IsNetworkEnabled returns whether network is enabled

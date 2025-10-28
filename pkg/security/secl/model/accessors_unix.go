@@ -67,7 +67,12 @@ func (_ *Model) GetEventTypes() []eval.EventType {
 		eval.EventType("utimes"),
 	}
 }
-func (_ *Model) GetFieldRestrictions(field eval.Field) []eval.EventType {
+func (m *Model) GetFieldRestrictions(field eval.Field) []eval.EventType {
+	if m.LegacyFields != nil {
+		if newField, found := m.LegacyFields[field]; found {
+			field = newField
+		}
+	}
 	switch field {
 	case "network.destination.ip":
 		return []eval.EventType{"dns", "imds", "packet"}
@@ -96,7 +101,12 @@ func (_ *Model) GetFieldRestrictions(field eval.Field) []eval.EventType {
 	}
 	return nil
 }
-func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int) (eval.Evaluator, error) {
+func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int) (eval.Evaluator, error) {
+	if m.LegacyFields != nil {
+		if newField, found := m.LegacyFields[field]; found {
+			field = newField
+		}
+	}
 	switch field {
 	case "accept.addr.family":
 		return &eval.IntEvaluator{
@@ -36597,6 +36607,11 @@ func (ev *Event) GetFields() []eval.Field {
 	}
 }
 func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kind, string, error) {
+	if ev.LegacyFields != nil {
+		if newField, found := ev.LegacyFields[field]; found {
+			field = newField
+		}
+	}
 	switch field {
 	case "accept.addr.family":
 		return "accept", reflect.Int, "int", nil
@@ -40896,6 +40911,11 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 	return "", reflect.Invalid, "", &eval.ErrFieldNotFound{Field: field}
 }
 func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
+	if ev.LegacyFields != nil {
+		if newField, found := ev.LegacyFields[field]; found {
+			field = newField
+		}
+	}
 	if strings.HasPrefix(field, "process.") || strings.HasPrefix(field, "exec.") {
 		ev.initProcess()
 	}

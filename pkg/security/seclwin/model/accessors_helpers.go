@@ -14,6 +14,12 @@ import (
 
 // GetFieldValue retrieves the value of a field from the event using the evaluator.
 func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
+	if ev.LegacyFields != nil {
+		if newField, found := ev.LegacyFields[field]; found {
+			field = newField
+		}
+	}
+
 	m := &Model{}
 	evaluator, err := m.GetEvaluator(field, "", 0)
 	if err != nil {

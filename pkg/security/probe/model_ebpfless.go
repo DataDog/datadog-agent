@@ -17,7 +17,7 @@ import (
 )
 
 // NewEBPFLessModel returns a new model with some extra field validation
-func NewEBPFLessModel() *model.Model {
+func NewEBPFLessModel(legacyFields map[eval.Field]eval.Field) *model.Model {
 	return &model.Model{
 		ExtraValidateFieldFnc: func(field eval.Field, _ eval.FieldValue) error {
 			// TODO(safchain) remove this check when multiple model per platform will be supported in the SECL package
@@ -58,6 +58,7 @@ func NewEBPFLessModel() *model.Model {
 			}
 			return nil
 		},
+		LegacyFields: legacyFields,
 	}
 }
 

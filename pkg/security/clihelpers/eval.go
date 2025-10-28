@@ -52,7 +52,14 @@ type EvalRuleParams struct {
 func evalRule(provider rules.PolicyProvider, decoder *json.Decoder, evalArgs EvalRuleParams) (EvalReport, error) {
 	var report EvalReport
 
-	event, variables, err := dataFromJSON(decoder)
+	var legacyFields map[eval.Field]eval.Field
+	if evalArgs.UseWindowsModel {
+		legacyFields = winmodel.SECLLegacyFields
+	} else {
+		legacyFields = model.SECLLegacyFields
+	}
+
+	event, variables, err := dataFromJSON(decoder, legacyFields)
 	if err != nil {
 		return report, err
 	}
@@ -86,9 +93,9 @@ func evalRule(provider rules.PolicyProvider, decoder *json.Decoder, evalArgs Eva
 
 	var ruleSet *rules.RuleSet
 	if evalArgs.UseWindowsModel {
-		ruleSet = rules.NewRuleSet(&winmodel.Model{}, newFakeWindowsEvent, ruleOpts, evalOpts)
+		ruleSet = rules.NewRuleSet(&winmodel.Model{LegacyFields: legacyFields}, newFakeWindowsEvent, ruleOpts, evalOpts)
 	} else {
-		ruleSet = rules.NewRuleSet(&model.Model{}, newFakeEvent, ruleOpts, evalOpts)
+		ruleSet = rules.NewRuleSet(&model.Model{LegacyFields: legacyFields}, newFakeEvent, ruleOpts, evalOpts)
 	}
 
 	if _, err := ruleSet.LoadPolicies(loader, loaderOpts); err.ErrorOrNil() != nil {
@@ -169,7 +176,7 @@ func EvalRule(evalArgs EvalRuleParams) error {
 	return nil
 }
 
-func eventFromTestData(testData TestData) (eval.Event, error) {
+func eventFromTestData(testData TestData, legacyFields map[eval.Field]eval.Field) (eval.Event, error) {
 	kind, err := model.ParseEvalEventType(testData.Type)
 	if err != nil {
 		return nil, err
@@ -179,6 +186,7 @@ func eventFromTestData(testData TestData) (eval.Event, error) {
 		BaseEvent: model.BaseEvent{
 			Type:          uint32(kind),
 			FieldHandlers: &model.FakeFieldHandlers{},
+			LegacyFields:  legacyFields,
 		},
 	}
 	event.Init()
@@ -268,13 +276,13 @@ func variablesFromTestData(testData TestData) (map[string]any, error) {
 	return variables, nil
 }
 
-func dataFromJSON(decoder *json.Decoder) (eval.Event, map[string]any, error) {
+func dataFromJSON(decoder *json.Decoder, legacyFields map[eval.Field]eval.Field) (eval.Event, map[string]any, error) {
 	var testData TestData
 	if err := decoder.Decode(&testData); err != nil {
 		return nil, nil, err
 	}
 
-	event, err := eventFromTestData(testData)
+	event, err := eventFromTestData(testData, legacyFields)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -300,11 +308,15 @@ func anySliceToStringSlice(in []any) ([]string, bool) {
 }
 
 func newFakeEvent() eval.Event {
-	return model.NewFakeEvent()
+	event := model.NewFakeEvent()
+	event.LegacyFields = model.SECLLegacyFields
+	return event
 }
 
 func newFakeWindowsEvent() eval.Event {
-	return winmodel.NewFakeEvent()
+	event := winmodel.NewFakeEvent()
+	event.LegacyFields = winmodel.SECLLegacyFields
+	return event
 }
 
 func newEvalOpts(winModel bool) *eval.Opts {
@@ -391,10 +403,10 @@ func CheckPoliciesLocal(args CheckPoliciesLocalParams, writer io.Writer) error {
 
 	var ruleSet *rules.RuleSet
 	if args.UseWindowsModel {
-		ruleSet = rules.NewRuleSet(&winmodel.Model{}, newFakeWindowsEvent, ruleOpts, evalOpts)
+		ruleSet = rules.NewRuleSet(&winmodel.Model{LegacyFields: winmodel.SECLLegacyFields}, newFakeWindowsEvent, ruleOpts, evalOpts)
 		ruleSet.SetFakeEventCtor(newFakeWindowsEvent)
 	} else {
-		ruleSet = rules.NewRuleSet(&model.Model{}, newFakeEvent, ruleOpts, evalOpts)
+		ruleSet = rules.NewRuleSet(&model.Model{LegacyFields: model.SECLLegacyFields}, newFakeEvent, ruleOpts, evalOpts)
 		ruleSet.SetFakeEventCtor(newFakeEvent)
 	}
 	if _, err := ruleSet.LoadPolicies(loader, loaderOpts); err.ErrorOrNil() != nil {

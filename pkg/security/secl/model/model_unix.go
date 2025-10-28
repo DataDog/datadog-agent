@@ -33,7 +33,8 @@ const (
 func (m *Model) NewEvent() eval.Event {
 	return &Event{
 		BaseEvent: BaseEvent{
-			Os: runtime.GOOS,
+			Os:           runtime.GOOS,
+			LegacyFields: m.LegacyFields,
 		},
 	}
 }
