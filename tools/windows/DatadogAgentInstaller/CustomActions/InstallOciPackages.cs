@@ -109,7 +109,7 @@ namespace Datadog.CustomActions
                 var instrumentationEnabled = _session.Property("DD_APM_INSTRUMENTATION_ENABLED");
                 var librariesRaw = _session.Property("DD_APM_INSTRUMENTATION_LIBRARIES");
                 _session.Log($"instrumentationEnabled: {instrumentationEnabled}");
-                
+
                 // add purge command to the rollback data store
                 // this will only be run on first install, not on upgrade
                 // if install command fails we still wanna purge our packages
