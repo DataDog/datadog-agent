@@ -24,8 +24,6 @@ type Model struct {
 	ExtraValidateFieldFnc func(field eval.Field, fieldValue eval.FieldValue) error
 }
 
-var containerContextZero ContainerContext
-
 // Releasable represents an object than can be released
 type Releasable struct {
 	onReleaseCallbacks []func() `field:"-"`
@@ -154,7 +152,6 @@ type BaseEvent struct {
 
 	// context shared with all event types
 	ProcessContext         *ProcessContext        `field:"process"`
-	ContainerContext       *ContainerContext      `field:"container"`
 	SecurityProfileContext SecurityProfileContext `field:"-"`
 
 	// internal usage
@@ -265,8 +262,8 @@ func (e *Event) GetTags() []string {
 	tags := []string{"type:" + e.GetType()}
 
 	// should already be resolved at this stage
-	if len(e.ContainerContext.Tags) > 0 {
-		tags = append(tags, e.ContainerContext.Tags...)
+	if e.ProcessContext != nil && len(e.ProcessContext.Process.ContainerContext.Tags) > 0 {
+		tags = append(tags, e.ProcessContext.Process.ContainerContext.Tags...)
 	}
 	return tags
 }
@@ -445,7 +442,7 @@ type ProcessCacheEntry struct {
 
 // IsContainerRoot returns whether this is a top level process in the container ID
 func (pc *ProcessCacheEntry) IsContainerRoot() bool {
-	return pc.ContainerID != "" && pc.Ancestor != nil && pc.Ancestor.ContainerID == ""
+	return pc.Process.ContainerContext.ContainerID != "" && pc.Ancestor != nil && pc.Ancestor.ContainerContext.ContainerID == ""
 }
 
 // Reset the entry
