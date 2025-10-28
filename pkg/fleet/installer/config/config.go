@@ -308,7 +308,9 @@ func (a *FileOperation) apply(root *os.Root) error {
 		return nil
 	case FileOperationDelete:
 		err := root.Remove(path)
+		fmt.Printf("[TEST] Trying to remove %s", path)
 		if err != nil && !os.IsNotExist(err) {
+			fmt.Printf("[TEST] Error: %v", err)
 			return err
 		}
 		return nil
