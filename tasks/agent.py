@@ -78,6 +78,7 @@ AGENT_CORECHECKS = [
     "jetson",
     "telemetry",
     "orchestrator_pod",
+    "orchestrator_kubelet_config",
     "orchestrator_ecs",
     "cisco_sdwan",
     "network_path",
@@ -85,6 +86,7 @@ AGENT_CORECHECKS = [
     "wlan",
     "discovery",
     "versa",
+    "network_config_management",
 ]
 
 WINDOWS_CORECHECKS = [

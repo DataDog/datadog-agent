@@ -83,7 +83,6 @@ components_classic_style = [
     'comp/agent/cloudfoundrycontainer/cloudfoundrycontainerimpl',
     'comp/agent/expvarserver/expvarserverimpl',
     'comp/agent/jmxlogger/jmxloggerimpl',
-    'comp/aggregator/diagnosesendermanager/diagnosesendermanagerimpl',
     'comp/api/api/apiimpl',
     'comp/api/api/def',
     'comp/api/authtoken/fetchonlyimpl',
