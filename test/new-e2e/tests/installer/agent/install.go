@@ -103,7 +103,7 @@ func (a *Agent) installLinuxInstallScript(params *installParams) error {
 		env["TESTING_YUM_VERSION_PATH"] = fmt.Sprintf("testing/pipeline-%s-a7/7", os.Getenv("E2E_PIPELINE_ID"))
 		env["DD_APM_INSTRUMENTATION_PIPELINE_ID"] = os.Getenv("E2E_PIPELINE_ID")
 	}
-	_, err := a.host.RemoteHost.Execute(fmt.Sprintf(`bash -c "$(curl -L %s)"`, linuxInstallScriptURL), client.WithEnvVariables(env))
+	_, err = a.host.RemoteHost.Execute(fmt.Sprintf(`bash -c "$(curl -L %s)"`, linuxInstallScriptURL), client.WithEnvVariables(env))
 	return err
 }
 
