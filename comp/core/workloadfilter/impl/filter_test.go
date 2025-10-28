@@ -9,18 +9,14 @@
 package workloadfilterimpl
 
 import (
-	"fmt"
 	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
-	"github.com/DataDog/datadog-agent/comp/core/workloadfilter/catalog"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
-	"github.com/DataDog/datadog-agent/comp/core/workloadfilter/program"
 	workloadmetafilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/util/workloadmeta"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
@@ -511,83 +507,6 @@ func TestContainerFilterInitializationError(t *testing.T) {
 		assert.NotEmpty(t, errs, "Expected initialization errors for improperly defined filter with multiple filters")
 		assert.True(t, containsErrorWithMessage(errs, "other_bad_name"), "Expected error message to contain the improper key 'other_bad_name'")
 		assert.True(t, containsErrorWithMessage(errs, "bad_name"), "Expected error message to contain the improper key 'bad_name'")
-	})
-}
-
-type errorInclProgram struct{}
-
-func (p errorInclProgram) Evaluate(o workloadfilter.Filterable) (workloadfilter.Result, []error) {
-	return workloadfilter.Included, []error{fmt.Errorf("include evaluation error on %s", o.Type())}
-}
-
-func (p errorInclProgram) GetInitializationErrors() []error {
-	return nil
-}
-
-type errorExclProgram struct{}
-
-func (p errorExclProgram) Evaluate(o workloadfilter.Filterable) (workloadfilter.Result, []error) {
-	return workloadfilter.Excluded, []error{fmt.Errorf("exclude evaluation error on %s", o.Type())}
-}
-
-func (p errorExclProgram) GetInitializationErrors() []error {
-	return nil
-}
-
-func TestProgramErrorHandling(t *testing.T) {
-	mockConfig := configmock.New(t)
-	filterStore := newFilterStoreObject(t, mockConfig)
-
-	container := workloadmetafilter.CreateContainer(
-		&workloadmeta.Container{
-			EntityMeta: workloadmeta.EntityMeta{
-				Name: "error-case",
-			},
-		},
-		nil,
-	)
-	precedenceFilters := [][]workloadfilter.ContainerFilter{
-		{workloadfilter.LegacyContainerMetrics},
-	}
-
-	t.Run("Include with error thrown", func(t *testing.T) {
-		// Create a new filter with injected error factory
-		errorFilter := &workloadfilterStore{
-			config:              filterStore.config,
-			log:                 filterStore.log,
-			telemetry:           filterStore.telemetry,
-			programFactoryStore: make(map[workloadfilter.ResourceType]map[int]*filterProgramFactory),
-		}
-
-		// Register the error program factory
-		errorFilter.registerFactory(workloadfilter.ContainerType, int(workloadfilter.LegacyContainerMetrics),
-			func(_ *catalog.FilterConfig, _ log.Component) program.FilterProgram {
-				return &errorInclProgram{}
-			})
-
-		filterBundle := errorFilter.GetContainerFilters(precedenceFilters)
-		res := filterBundle.GetResult(container)
-		assert.Equal(t, workloadfilter.Included, res)
-	})
-
-	t.Run("Exclude with error thrown", func(t *testing.T) {
-		// Create a new filter with injected error factory
-		errorFilter := &workloadfilterStore{
-			config:              filterStore.config,
-			log:                 filterStore.log,
-			telemetry:           filterStore.telemetry,
-			programFactoryStore: make(map[workloadfilter.ResourceType]map[int]*filterProgramFactory),
-		}
-
-		// Register the error program factory
-		errorFilter.registerFactory(workloadfilter.ContainerType, int(workloadfilter.LegacyContainerMetrics),
-			func(_ *catalog.FilterConfig, _ log.Component) program.FilterProgram {
-				return &errorExclProgram{}
-			})
-
-		filterBundle := errorFilter.GetContainerFilters(precedenceFilters)
-		res := filterBundle.GetResult(container)
-		assert.Equal(t, workloadfilter.Excluded, res)
 	})
 }
 

@@ -201,6 +201,10 @@ func (c *ntmConfig) RevertFinishedBackToBuilder() model.BuildableConfig {
 
 // Set assigns the newValue to the given key and marks it as originating from the given source
 func (c *ntmConfig) Set(key string, newValue interface{}, source model.Source) {
+	if source == model.SourceEnvVar {
+		panicInTest("Writing to env var layers is not allowed, use SourceAgentRuntime instead.")
+	}
+
 	c.maybeRebuild()
 
 	c.Lock()
@@ -216,7 +220,7 @@ func (c *ntmConfig) Set(key string, newValue interface{}, source model.Source) {
 	}
 	schemaNode := c.nodeAtPathFromNode(key, c.schema)
 	if _, ok := schemaNode.(LeafNode); schemaNode != missingLeaf && !ok {
-		panicInTest("Key '%s' is not a setting but part of the config tree: 'Set' method only works on settings", key)
+		panicInTest("Key '%s' is partial path of a setting. 'Set' does not allow configuring multiple settings at once using maps", key)
 		c.Unlock()
 		return
 	}
@@ -267,6 +271,7 @@ func (c *ntmConfig) insertValueIntoTree(key string, value interface{}, source mo
 // SetWithoutSource assigns the value to the given key using source Unknown, may only be called from tests
 func (c *ntmConfig) SetWithoutSource(key string, value interface{}) {
 	c.assertIsTest("SetWithoutSource")
+
 	v := reflect.ValueOf(value)
 	if v.Kind() == reflect.Pointer {
 		v = v.Elem()
@@ -275,14 +280,10 @@ func (c *ntmConfig) SetWithoutSource(key string, value interface{}) {
 		panic("SetWithoutSource cannot assign struct to a setting")
 	}
 	c.Set(key, value, model.SourceUnknown)
-	keySet := make(map[string]struct{}, len(c.allSettings))
-	for _, k := range c.allSettings {
-		keySet[k] = struct{}{}
-	}
-	keySet[key] = struct{}{}
-	allKeys := slices.Collect(maps.Keys(keySet))
-	slices.Sort(allKeys)
-	c.allSettings = allKeys
+
+	c.Lock()
+	defer c.Unlock()
+	c.computeAllSettings()
 }
 
 // SetDefault assigns the value to the given key using source Default
@@ -508,25 +509,22 @@ func (c *ntmConfig) mergeAllLayers() error {
 
 	c.root = merged
 	// recompile allSettings now that we have the full config
-	c.allSettings = c.computeAllSettings("")
+	c.computeAllSettings()
 	return nil
 }
 
-func (c *ntmConfig) computeAllSettings(path string) []string {
+func (c *ntmConfig) computeAllSettings() {
 	keySet := make(map[string]struct{})
 
 	// 1. Collect all known keys from schema
-	c.collectKeysFromNode(c.schema, path, keySet, true)
+	c.collectKeysFromNode(c.schema, "", keySet, true)
 
 	// 2. Collect all keys from merged tree (only ones with values)
 	c.collectKeysFromNode(c.root, "", keySet, false)
 
-	// 3. Collect all unknown keys, even if they have no value set
-	c.collectKeysFromNode(c.unknown, "", keySet, true)
-
 	allKeys := slices.Collect(maps.Keys(keySet))
 	slices.Sort(allKeys)
-	return allKeys
+	c.allSettings = allKeys
 }
 
 func (c *ntmConfig) collectKeysFromNode(node InnerNode, path string, keySet map[string]struct{}, includeAllKeys bool) {
@@ -560,7 +558,7 @@ func (c *ntmConfig) buildSchema() {
 	if err := c.mergeAllLayers(); err != nil {
 		c.warnings = append(c.warnings, err)
 	}
-	c.allSettings = c.computeAllSettings("")
+	c.computeAllSettings()
 }
 
 // Stringify stringifies the config, but only with the test build tag
@@ -914,6 +912,8 @@ func (c *ntmConfig) AllSettingsWithoutDefault() map[string]interface{} {
 
 // AllSettingsBySource returns the settings from each source (file, env vars, ...)
 func (c *ntmConfig) AllSettingsBySource() map[model.Source]interface{} {
+	c.maybeRebuild()
+
 	c.RLock()
 	defer c.RUnlock()
 
