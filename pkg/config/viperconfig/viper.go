@@ -138,7 +138,7 @@ func (c *safeConfig) Set(key string, newValue interface{}, source model.Source) 
 func (c *safeConfig) SetWithoutSource(key string, value interface{}) {
 	c.assertIsTest("SetWithoutSource")
 	if !ValidateBasicTypes(value) {
-		panic("SetWithoutSource can only be called with basic types (int, string, slice, map, etc)")
+		panic(fmt.Errorf("SetWithoutSource can only be called with basic types (int, string, slice, map, etc), got %v", value))
 	}
 	c.Set(key, value, model.SourceUnknown)
 }

@@ -273,7 +273,7 @@ func (c *ntmConfig) insertValueIntoTree(key string, value interface{}, source mo
 func (c *ntmConfig) SetWithoutSource(key string, value interface{}) {
 	c.assertIsTest("SetWithoutSource")
 	if !viperconfig.ValidateBasicTypes(value) {
-		panic("SetWithoutSource can only be called with basic types (int, string, slice, map, etc)")
+		panic(fmt.Errorf("SetWithoutSource can only be called with basic types (int, string, slice, map, etc), got %v", value))
 	}
 	c.Set(key, value, model.SourceUnknown)
 
