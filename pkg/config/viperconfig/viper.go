@@ -137,12 +137,8 @@ func (c *safeConfig) Set(key string, newValue interface{}, source model.Source) 
 // SetWithoutSource sets the given value using source Unknown, may only be called from tests
 func (c *safeConfig) SetWithoutSource(key string, value interface{}) {
 	c.assertIsTest("SetWithoutSource")
-	v := reflect.ValueOf(value)
-	if v.Kind() == reflect.Pointer {
-		v = v.Elem()
-	}
-	if v.Kind() == reflect.Struct {
-		panic("SetWithoutSource cannot assign struct to a setting")
+	if !ValidateBasicTypes(value) {
+		panic("SetWithoutSource can only be called with basic types (int, string, slice, map, etc)")
 	}
 	c.Set(key, value, model.SourceUnknown)
 }
