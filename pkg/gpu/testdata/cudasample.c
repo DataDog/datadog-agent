@@ -9,10 +9,6 @@
 #include <unistd.h>
 #include "common_functions.h"
 
-cudaError_t cudaDeviceSynchronize() {
-    return 0;
-}
-
 int main(int argc, char **argv) {
     cudaStream_t stream = 30;
     cudaEvent_t event = 42;
@@ -40,6 +36,10 @@ int main(int argc, char **argv) {
     cudaMalloc(&ptr, 100);
     cudaFree(ptr);
     cudaStreamSynchronize(stream);
+
+    // Sleep for 10ms to ensure that there's time separating the first span and next
+    // spans
+    usleep(10000);
 
     cudaMemcpy((void *)0x1234, (void *)0x5678, 100, 0); // kind 0 is cudaMemcpyHostToDevice
 

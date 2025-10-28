@@ -11,6 +11,7 @@ import (
 	"bufio"
 	"bytes"
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
 	"slices"
@@ -27,10 +28,11 @@ import (
 // stateUpdate is a struct that represents the changes to the state after an
 // event is processed. It's used to generate the output document.
 type stateUpdate struct {
-	CurrentlyLoading string         `yaml:"currently_loading,omitempty"`
-	QueuedPrograms   string         `yaml:"queued_programs,omitempty"`
-	Processes        map[any]string `yaml:"processes,omitempty"`
-	Programs         map[int]string `yaml:"programs,omitempty"`
+	CurrentlyLoading string            `yaml:"currently_loading,omitempty"`
+	QueuedPrograms   string            `yaml:"queued_programs,omitempty"`
+	Processes        map[any]string    `yaml:"processes,omitempty"`
+	Programs         map[int]string    `yaml:"programs,omitempty"`
+	Stats            map[string]string `yaml:"stats,omitempty"`
 }
 
 func TestSnapshot(t *testing.T) {
@@ -335,6 +337,21 @@ func computeStateUpdate(before, after *state) *stateUpdate {
 			}
 		}
 
+	}
+	{
+		before, after := before.Metrics().AsStats(), after.Metrics().AsStats()
+		keys := slices.Sorted(maps.Keys(before))
+		for _, key := range keys {
+			beforeVal := before[key]
+			afterVal := after[key]
+			if beforeVal == afterVal {
+				continue
+			}
+			if update.Stats == nil {
+				update.Stats = make(map[string]string)
+			}
+			update.Stats[key] = fmt.Sprintf("%v -> %v", beforeVal, afterVal)
+		}
 	}
 
 	return update

@@ -29,8 +29,15 @@ type SystemProbeCache struct {
 
 // NewSystemProbeCache creates a new stats cache that connects to system-probe using sysprobeclient.
 func NewSystemProbeCache() *SystemProbeCache {
+	timeout := pkgconfigsetup.SystemProbe().GetDuration("gpu.sp_process_metrics_request_timeout")
+	client := sysprobeclient.GetCheckClient(
+		sysprobeclient.WithSocketPath(pkgconfigsetup.SystemProbe().GetString("system_probe_config.sysprobe_socket")),
+		sysprobeclient.WithCheckTimeout(timeout),
+		sysprobeclient.WithStartupCheckTimeout(timeout),
+	)
+
 	return &SystemProbeCache{
-		client: sysprobeclient.GetCheckClient(pkgconfigsetup.SystemProbe().GetString("system_probe_config.sysprobe_socket")),
+		client: client,
 		stats:  nil, // Start with no data
 	}
 }
@@ -79,10 +86,11 @@ type ebpfCollector struct {
 	device        ddnvml.Device
 	cache         *SystemProbeCache
 	activeMetrics map[model.StatsKey]bool // activeMetrics tracks processes that are active for this device
+	nsPidCache    *NsPidCache             // nsPidCache resolves and caches nspids for processes
 }
 
 // newEbpfCollector creates a new eBPF-based collector for the given device.
-func newEbpfCollector(device ddnvml.Device, cache *SystemProbeCache) (*ebpfCollector, error) {
+func newEbpfCollector(device ddnvml.Device, nsPidCache *NsPidCache, cache *SystemProbeCache) (*ebpfCollector, error) {
 	if cache == nil {
 		return nil, fmt.Errorf("system-probe cache cannot be nil")
 	}
@@ -91,6 +99,7 @@ func newEbpfCollector(device ddnvml.Device, cache *SystemProbeCache) (*ebpfColle
 		device:        device,
 		cache:         cache,
 		activeMetrics: make(map[model.StatsKey]bool),
+		nsPidCache:    nsPidCache,
 	}, nil
 }
 
@@ -138,9 +147,12 @@ func (c *ebpfCollector) Collect() ([]Metric, error) {
 		key := entry.Key
 		metrics := entry.UtilizationMetrics
 
-		// Create PID tag for this process
-		pidTag := []string{fmt.Sprintf("pid:%d", key.PID)}
-		allPidTags = append(allPidTags, pidTag[0])
+		// Create PID tag for this process, and add NS PID if available
+		pidTags := []string{
+			fmt.Sprintf("pid:%d", key.PID),
+			fmt.Sprintf("nspid:%d", c.nsPidCache.GetNsPidOrHostPid(key.PID, true)),
+		}
+		allPidTags = append(allPidTags, pidTags...)
 
 		// Add per-process usage metrics
 		deviceMetrics = append(deviceMetrics,
@@ -148,13 +160,13 @@ func (c *ebpfCollector) Collect() ([]Metric, error) {
 				Name:  "process.core.usage",
 				Value: metrics.UsedCores,
 				Type:  ddmetrics.GaugeType,
-				Tags:  pidTag,
+				Tags:  pidTags,
 			},
 			Metric{
 				Name:  "process.memory.usage",
 				Value: float64(metrics.Memory.CurrentBytes),
 				Type:  ddmetrics.GaugeType,
-				Tags:  pidTag,
+				Tags:  pidTags,
 			},
 		)
 
@@ -166,8 +178,11 @@ func (c *ebpfCollector) Collect() ([]Metric, error) {
 	log.Debugf("ebpf collector: %d active metrics in the cache after processing", len(c.activeMetrics))
 	for key, active := range c.activeMetrics {
 		if !active {
-			pidTag := []string{fmt.Sprintf("pid:%d", key.PID)}
-			allPidTags = append(allPidTags, pidTag[0])
+			pidTags := []string{
+				fmt.Sprintf("pid:%d", key.PID),
+				fmt.Sprintf("nspid:%d", c.nsPidCache.GetNsPidOrHostPid(key.PID, true)),
+			}
+			allPidTags = append(allPidTags, pidTags...)
 
 			// Emit zero metrics for inactive processes
 			deviceMetrics = append(deviceMetrics,
@@ -175,13 +190,13 @@ func (c *ebpfCollector) Collect() ([]Metric, error) {
 					Name:  "process.core.usage",
 					Value: 0,
 					Type:  ddmetrics.GaugeType,
-					Tags:  pidTag,
+					Tags:  pidTags,
 				},
 				Metric{
 					Name:  "process.memory.usage",
 					Value: 0,
 					Type:  ddmetrics.GaugeType,
-					Tags:  pidTag,
+					Tags:  pidTags,
 				},
 			)
 

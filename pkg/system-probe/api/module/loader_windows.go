@@ -8,12 +8,13 @@ package module
 import (
 	"fmt"
 
+	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
 	"github.com/DataDog/datadog-agent/pkg/network/driver"
 	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-func preRegister(_ *sysconfigtypes.Config, _ []*Factory) error {
+func preRegister(_ *sysconfigtypes.Config, _ rcclient.Component, _ []*Factory) error {
 	if err := driver.Init(); err != nil {
 		return fmt.Errorf("failed to load driver subsystem: %v", err)
 	}

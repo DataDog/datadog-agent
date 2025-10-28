@@ -32,9 +32,10 @@ const (
 var logLimiter = log.NewLogLimit(20, 10*time.Minute)
 
 type collector struct {
-	id      string
-	catalog workloadmeta.AgentType
-	store   workloadmeta.Component
+	id        string
+	catalog   workloadmeta.AgentType
+	store     workloadmeta.Component
+	seenUUIDs map[string]struct{}
 }
 
 func (c *collector) getGPUDeviceInfo(device ddnvml.Device) (*workloadmeta.GPU, error) {
@@ -86,6 +87,15 @@ func (c *collector) fillNVMLAttributes(gpuDeviceInfo *workloadmeta.GPU, device d
 		gpuDeviceInfo.Architecture = gpuArchToString(arch)
 	}
 
+	virtMode, err := device.GetVirtualizationMode()
+	if err != nil {
+		if logLimiter.ShouldLog() {
+			log.Warnf("cannot get virtualization mode: %v for %d", err, gpuDeviceInfo.Index)
+		}
+	} else {
+		gpuDeviceInfo.VirtualizationMode = gpuVirtModeToString(virtMode)
+	}
+
 	memBusWidth, err := device.GetMemoryBusWidth()
 	if err != nil {
 		if logLimiter.ShouldLog() {
@@ -95,31 +105,30 @@ func (c *collector) fillNVMLAttributes(gpuDeviceInfo *workloadmeta.GPU, device d
 		gpuDeviceInfo.MemoryBusWidth = memBusWidth
 	}
 
-	maxSMClock, err := device.GetMaxClockInfo(nvml.CLOCK_SM)
-	if err != nil {
-		if logLimiter.ShouldLog() {
-			log.Warnf("%v for %d", err, gpuDeviceInfo.Index)
+	// Do not generate errors for vGPU devices, we already know that they don't support max clock info
+	if virtMode != nvml.GPU_VIRTUALIZATION_MODE_VGPU {
+		maxSMClock, err := device.GetMaxClockInfo(nvml.CLOCK_SM)
+		if err != nil {
+			if logLimiter.ShouldLog() {
+				log.Warnf("%v for %d", err, gpuDeviceInfo.Index)
+			}
+		} else {
+			gpuDeviceInfo.MaxClockRates[workloadmeta.GPUSM] = maxSMClock
 		}
-	} else {
-		gpuDeviceInfo.MaxClockRates[workloadmeta.GPUSM] = maxSMClock
-	}
 
-	maxMemoryClock, err := device.GetMaxClockInfo(nvml.CLOCK_MEM)
-	if err != nil {
-		if logLimiter.ShouldLog() {
-			log.Warnf("%v for %d", err, gpuDeviceInfo.Index)
+		maxMemoryClock, err := device.GetMaxClockInfo(nvml.CLOCK_MEM)
+		if err != nil {
+			if logLimiter.ShouldLog() {
+				log.Warnf("%v for %d", err, gpuDeviceInfo.Index)
+			}
+		} else {
+			gpuDeviceInfo.MaxClockRates[workloadmeta.GPUMemory] = maxMemoryClock
 		}
 	} else {
-		gpuDeviceInfo.MaxClockRates[workloadmeta.GPUMemory] = maxMemoryClock
-	}
-
-	virtMode, err := device.GetVirtualizationMode()
-	if err != nil {
-		if logLimiter.ShouldLog() {
-			log.Warnf("cannot get virtualization mode: %v for %d", err, gpuDeviceInfo.Index)
+		if _, ok := c.seenUUIDs[gpuDeviceInfo.EntityID.ID]; !ok && logLimiter.ShouldLog() {
+			// only report the warning once for each device
+			log.Infof("vGPU device %s does not support queries for max clock info", gpuDeviceInfo.EntityID.ID)
 		}
-	} else {
-		gpuDeviceInfo.VirtualizationMode = gpuVirtModeToString(virtMode)
 	}
 }
 
@@ -141,8 +150,9 @@ func (c *collector) fillProcesses(gpuDeviceInfo *workloadmeta.GPU, device ddnvml
 func NewCollector() (workloadmeta.CollectorProvider, error) {
 	return workloadmeta.CollectorProvider{
 		Collector: &collector{
-			id:      collectorID,
-			catalog: workloadmeta.NodeAgent,
+			id:        collectorID,
+			catalog:   workloadmeta.NodeAgent,
+			seenUUIDs: map[string]struct{}{},
 		},
 	}, nil
 }
@@ -169,27 +179,33 @@ func (c *collector) Pull(_ context.Context) error {
 	if err != nil {
 		return fmt.Errorf("failed to get NVML library : %w", err)
 	}
+
 	deviceCache := ddnvml.NewDeviceCacheWithOptions(lib)
-	if err := deviceCache.EnsureInit(); err != nil {
+	if err := deviceCache.Refresh(); err != nil {
 		return fmt.Errorf("failed to initialize device cache: %w", err)
 	}
+
 	// driver version is equal to all devices of the same vendor
 	// currently we handle only nvidia.
 	// in the future this function should be refactored to support more vendors
 	driverVersion, err := lib.SystemGetDriverVersion()
-	//we try to get the driver version as best effort, just log warning if it fails
+	// we try to get the driver version as best effort, just log warning if it fails
 	if err != nil {
 		if logLimiter.ShouldLog() {
 			log.Warnf("%v", err)
 		}
 	}
 
-	var events []workloadmeta.CollectorEvent
+	// note: the device list can change over time so we need to set/unset for reconciliation
 	allDevices, err := deviceCache.All()
 	if err != nil {
 		// Should not happen as we check the last init error for the library
 		return fmt.Errorf("failed to get all devices: %w", err)
 	}
+
+	// add/update current devices
+	currentUUIDs := map[string]struct{}{}
+	var events []workloadmeta.CollectorEvent
 	for _, dev := range allDevices {
 		gpu, err := c.getGPUDeviceInfo(dev)
 		gpu.DriverVersion = driverVersion
@@ -203,7 +219,28 @@ func (c *collector) Pull(_ context.Context) error {
 			Entity: gpu,
 		}
 		events = append(events, event)
+		currentUUIDs[dev.GetDeviceInfo().UUID] = struct{}{}
 	}
+
+	// remove previous devices that are no more available
+	for uuid := range c.seenUUIDs {
+		if _, ok := currentUUIDs[uuid]; ok {
+			continue
+		}
+
+		events = append(events, workloadmeta.CollectorEvent{
+			Source: workloadmeta.SourceRuntime,
+			Type:   workloadmeta.EventTypeUnset,
+			Entity: &workloadmeta.GPU{
+				EntityID: workloadmeta.EntityID{
+					ID:   uuid,
+					Kind: workloadmeta.KindGPU,
+				},
+			},
+		})
+	}
+
+	c.seenUUIDs = currentUUIDs
 
 	c.store.Notify(events)
 

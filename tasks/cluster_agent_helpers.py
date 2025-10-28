@@ -22,7 +22,6 @@ def build_common(
     development,
     skip_assets,
     go_mod="readonly",
-    major_version="7",
     cover=False,
 ):
     """
@@ -34,7 +33,7 @@ def build_common(
     build_tags = get_build_tags(build_include, build_exclude)
 
     # We rely on the go libs embedded in the debian stretch image to build dynamically
-    ldflags, gcflags, env = get_build_flags(ctx, static=False, major_version=major_version)
+    ldflags, gcflags, env = get_build_flags(ctx, static=False)
 
     go_build(
         ctx,
@@ -47,6 +46,7 @@ def build_common(
         build_tags=build_tags,
         bin_path=os.path.join(bin_path, bin_name(f"datadog-cluster-agent{bin_suffix}")),
         env=env,
+        check_deadcode=os.getenv("DEPLOY_AGENT") == "true",
         coverage=cover,
     )
 

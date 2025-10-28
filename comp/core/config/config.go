@@ -72,13 +72,11 @@ func newComponent(deps dependencies) (provides, error) {
 
 func newConfig(deps dependencies) (*cfg, error) {
 	config := pkgconfigsetup.GlobalConfigBuilder()
+	warnings := &pkgconfigmodel.Warnings{}
 
-	warnings, err := setupConfig(config, deps.Secret, deps.Params)
+	err := setupConfig(config, deps.Secret, deps.Params)
 	returnErrFct := func(e error) (*cfg, error) {
 		if e != nil && deps.Params.ignoreErrors {
-			if warnings == nil {
-				warnings = &pkgconfigmodel.Warnings{}
-			}
 			warnings.Errors = []error{e}
 			e = nil
 		}

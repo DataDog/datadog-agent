@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
+	publishermetadatacache "github.com/DataDog/datadog-agent/comp/publishermetadatacache/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
@@ -61,12 +62,13 @@ type Check struct {
 	ddSecurityEventsFilter eventdatafilter.Filter
 
 	// event log
-	session             evtsession.Session
-	sub                 evtsubscribe.PullSubscription
-	evtapi              evtapi.API
-	systemRenderContext evtapi.EventRenderContextHandle
-	userRenderContext   evtapi.EventRenderContextHandle
-	bookmarkSaver       *bookmarkSaver
+	session                evtsession.Session
+	sub                    evtsubscribe.PullSubscription
+	evtapi                 evtapi.API
+	systemRenderContext    evtapi.EventRenderContextHandle
+	userRenderContext      evtapi.EventRenderContextHandle
+	bookmarkSaver          *bookmarkSaver
+	publisherMetadataCache publishermetadatacache.Component
 }
 
 // Run updates sender stats, restarts the subscription if it failed, and saves the bookmark.
@@ -300,13 +302,14 @@ func (c *Check) Cancel() {
 }
 
 // Factory creates a new check factory
-func Factory(logsAgent option.Option[logsAgent.Component], config configComponent.Component) option.Option[func() check.Check] {
+func Factory(logsAgent option.Option[logsAgent.Component], config configComponent.Component, publisherMetadataCache publishermetadatacache.Component) option.Option[func() check.Check] {
 	return option.New(func() check.Check {
 		return &Check{
-			CheckBase:   core.NewCheckBase(CheckName),
-			logsAgent:   logsAgent,
-			agentConfig: config,
-			evtapi:      winevtapi.New(),
+			CheckBase:              core.NewCheckBase(CheckName),
+			logsAgent:              logsAgent,
+			agentConfig:            config,
+			evtapi:                 winevtapi.New(),
+			publisherMetadataCache: publisherMetadataCache,
 		}
 	})
 }

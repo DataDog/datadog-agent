@@ -16,7 +16,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
-	"github.com/DataDog/datadog-agent/pkg/security/secl/model/usersession"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model/utils"
 )
 
@@ -24,8 +23,6 @@ import (
 type Model struct {
 	ExtraValidateFieldFnc func(field eval.Field, fieldValue eval.FieldValue) error
 }
-
-var containerContextZero ContainerContext
 
 // Releasable represents an object than can be released
 type Releasable struct {
@@ -55,9 +52,10 @@ type ContainerContext struct {
 	Resolved    bool                       `field:"-"`
 }
 
-// Hash returns a unique key for the entity
-func (c *ContainerContext) Hash() string {
-	return string(c.ContainerID)
+// Key returns a unique key for the entity
+func (c *ContainerContext) Key() (string, bool) {
+	cID := string(c.ContainerID)
+	return cID, cID != ""
 }
 
 // ParentScope returns the parent entity scope
@@ -154,7 +152,6 @@ type BaseEvent struct {
 
 	// context shared with all event types
 	ProcessContext         *ProcessContext        `field:"process"`
-	ContainerContext       *ContainerContext      `field:"container"`
 	SecurityProfileContext SecurityProfileContext `field:"-"`
 
 	// internal usage
@@ -265,8 +262,8 @@ func (e *Event) GetTags() []string {
 	tags := []string{"type:" + e.GetType()}
 
 	// should already be resolved at this stage
-	if len(e.ContainerContext.Tags) > 0 {
-		tags = append(tags, e.ContainerContext.Tags...)
+	if e.ProcessContext != nil && len(e.ProcessContext.Process.ContainerContext.Tags) > 0 {
+		tags = append(tags, e.ProcessContext.Process.ContainerContext.Tags...)
 	}
 	return tags
 }
@@ -296,12 +293,20 @@ func (e *Event) ResolveService() string {
 	return e.FieldHandlers.ResolveService(e, &e.BaseEvent)
 }
 
+// GetProcessTracerTags returns the value of the field, resolving if necessary
+func (e *Event) GetProcessTracerTags() []string {
+	if e.BaseEvent.ProcessContext == nil {
+		return []string{}
+	}
+	return e.BaseEvent.ProcessContext.Process.TracerTags
+}
+
 // UserSessionContext describes the user session context
 // Disclaimer: the `json` tags are used to parse K8s credentials from cws-instrumentation
 type UserSessionContext struct {
-	ID          uint64           `field:"-"`
-	SessionType usersession.Type `field:"-"`
-	Resolved    bool             `field:"-"`
+	ID          uint64 `field:"id"`           // SECLDoc[id] Definition:`Unique identifier of the user session on the host`
+	SessionType int    `field:"session_type"` // SECLDoc[session_type] Definition:`Type of the user session`
+	Resolved    bool   `field:"-"`
 	// Kubernetes User Session context
 	K8SUsername string              `field:"k8s_username,handler:ResolveK8SUsername" json:"username,omitempty"` // SECLDoc[k8s_username] Definition:`Kubernetes username of the user that executed the process`
 	K8SUID      string              `field:"k8s_uid,handler:ResolveK8SUID" json:"uid,omitempty"`                // SECLDoc[k8s_uid] Definition:`Kubernetes UID of the user that executed the process`
@@ -437,7 +442,7 @@ type ProcessCacheEntry struct {
 
 // IsContainerRoot returns whether this is a top level process in the container ID
 func (pc *ProcessCacheEntry) IsContainerRoot() bool {
-	return pc.ContainerID != "" && pc.Ancestor != nil && pc.Ancestor.ContainerID == ""
+	return pc.Process.ContainerContext.ContainerID != "" && pc.Ancestor != nil && pc.Ancestor.ContainerContext.ContainerID == ""
 }
 
 // Reset the entry

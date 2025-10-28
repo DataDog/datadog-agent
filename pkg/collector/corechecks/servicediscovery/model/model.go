@@ -18,13 +18,11 @@ type Service struct {
 	GeneratedNameSource      string                          `json:"generated_name_source"`
 	AdditionalGeneratedNames []string                        `json:"additional_generated_names"`
 	TracerMetadata           []tracermetadata.TracerMetadata `json:"tracer_metadata,omitempty"`
-	DDService                string                          `json:"dd_service"`
 	TCPPorts                 []uint16                        `json:"tcp_ports,omitempty"`
 	UDPPorts                 []uint16                        `json:"udp_ports,omitempty"`
-	APMInstrumentation       string                          `json:"apm_instrumentation"`
+	APMInstrumentation       bool                            `json:"apm_instrumentation"`
 	Language                 string                          `json:"language"`
 	Type                     string                          `json:"service_type"`
-	CommandLine              []string                        `json:"cmdline"`
 	UST                      UST                             `json:"ust"`
 }
 

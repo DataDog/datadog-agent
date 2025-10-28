@@ -18,12 +18,12 @@
           {
             "function": "main.testReturnsAnyAndError",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/returns.go",
-            "lineNumber": 43
+            "lineNumber": 46
           },
           {
             "function": "main.executeReturns",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/returns.go",
-            "lineNumber": 91
+            "lineNumber": 380
           },
           {
             "function": "main.main",
@@ -69,11 +69,26 @@
             "locals": {
               "~r0": {
                 "type": "interface {}",
-                "notCapturedReason": "unavailable"
+                "fields": {
+                  "data": {
+                    "isNull": true
+                  }
+                }
               },
               "~r1": {
                 "type": "error",
-                "notCapturedReason": "unavailable"
+                "fields": {
+                  "data": {
+                    "type": "*errors.errorString",
+                    "address": "[addr]",
+                    "fields": {
+                      "s": {
+                        "type": "string",
+                        "value": "error"
+                      }
+                    }
+                  }
+                }
               }
             }
           }
@@ -102,12 +117,12 @@
           {
             "function": "main.testReturnsAnyAndError",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/returns.go",
-            "lineNumber": 45
+            "lineNumber": 51
           },
           {
             "function": "main.executeReturns",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/returns.go",
-            "lineNumber": 92
+            "lineNumber": 381
           },
           {
             "function": "main.main",
@@ -153,11 +168,20 @@
             "locals": {
               "~r0": {
                 "type": "interface {}",
-                "notCapturedReason": "unavailable"
+                "fields": {
+                  "data": {
+                    "type": "int",
+                    "value": "1042"
+                  }
+                }
               },
               "~r1": {
                 "type": "error",
-                "notCapturedReason": "unavailable"
+                "fields": {
+                  "data": {
+                    "isNull": true
+                  }
+                }
               }
             }
           }

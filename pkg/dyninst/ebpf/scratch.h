@@ -322,7 +322,7 @@ buf_offset_t scratch_buf_serialize(scratch_buf_t* scratch_buf,
   buf_offset_t offset =
       scratch_buf_serialize_with_fallback(scratch_buf, data_item_header, len);
   if ((offset & FAILED_READ_OFFSET_BIT) == 0) {
-    LOG(5, "serialized scratch@%lld (!%d [%d]) < user@%lld", offset,
+    LOG(5, "serialized scratch@%lld (!%d [%d]) < user@%llx", offset,
         data_item_header->type, data_item_header->length,
         data_item_header->address);
     return offset;
@@ -359,7 +359,7 @@ static bool scratch_buf_dereference_inner(scratch_buf_t* scratch_buf,
         read_result);
     return false;
   };
-  LOG(5, "recorded scratch@%lld < user@%lld [%d]", real_offset, ptr, real_len);
+  LOG(5, "recorded scratch@%lld < user@%llx [%d]", real_offset, ptr, real_len);
   return true;
 }
 

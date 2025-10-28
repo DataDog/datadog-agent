@@ -11,7 +11,6 @@ var (
 	// packagesHooks is a map of package names to their hooks
 	packagesHooks = map[string]hooks{
 		"datadog-agent":      datadogAgentPackage,
-		"datadog-installer":  datadogInstallerPackage,
 		"datadog-apm-inject": apmInjectPackage,
 		"datadog-agent-ddot": datadogAgentDDOTPackage,
 	}

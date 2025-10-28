@@ -267,7 +267,6 @@ func (s *Serializer) buildPipelines() []metricsserializer.Pipeline {
 	failoverActiveForAutoscaling, allowlistForAutoscaling := s.getAutoscalingFailoverMetrics()
 	failoverActive := (failoverActiveForMRF && len(allowlistForMRF) > 0) || (failoverActiveForAutoscaling && len(allowlistForAutoscaling) > 0)
 
-	// Don't worry about preaggregation when failover is active
 	if failoverActive {
 		return []metricsserializer.Pipeline{
 			{
@@ -291,45 +290,6 @@ func (s *Serializer) buildPipelines() []metricsserializer.Pipeline {
 		}
 	}
 
-	preaggregationEnabled, allowlistForPreaggr := s.getPreaggregationAllowlist()
-
-	// Normal operation: preaggregation or standard routing
-	if preaggregationEnabled {
-		hasAllowlist := len(allowlistForPreaggr) > 0
-
-		if hasAllowlist {
-			// Split routing: allowlist metrics → PreaggrOnly, others → AllRegions
-			return []metricsserializer.Pipeline{
-				{
-					FilterFunc: func(metric metricsserializer.Filterable) bool {
-						_, allowed := allowlistForPreaggr[metric.GetName()]
-						return !allowed
-					},
-					Destination: transaction.AllRegions,
-				},
-				{
-					FilterFunc: func(metric metricsserializer.Filterable) bool {
-						_, allowed := allowlistForPreaggr[metric.GetName()]
-						return allowed
-					},
-					Destination: transaction.PreaggrOnly,
-				},
-			}
-		} else {
-			// Dual-ship: all metrics → both destinations
-			return []metricsserializer.Pipeline{
-				{
-					FilterFunc:  func(metric metricsserializer.Filterable) bool { return true },
-					Destination: transaction.AllRegions,
-				},
-				{
-					FilterFunc:  func(metric metricsserializer.Filterable) bool { return true },
-					Destination: transaction.PreaggrOnly,
-				},
-			}
-		}
-	}
-
 	// Default: all metrics to AllRegions
 	return []metricsserializer.Pipeline{
 		{
@@ -338,21 +298,6 @@ func (s *Serializer) buildPipelines() []metricsserializer.Pipeline {
 			UseV3:       s.config.GetBool("serializer_experimental_use_v3_api_series"),
 		},
 	}
-}
-
-func (s *Serializer) getPreaggregationAllowlist() (bool, map[string]struct{}) {
-	preaggregationEnabled := s.config.GetBool("preaggregation.enabled")
-	var allowlist map[string]struct{}
-	if preaggregationEnabled && s.config.IsConfigured("preaggregation.metric_allowlist") {
-		rawList := s.config.GetStringSlice("preaggregation.metric_allowlist")
-		if len(rawList) > 0 {
-			allowlist = make(map[string]struct{}, len(rawList))
-			for _, allowed := range rawList {
-				allowlist[allowed] = struct{}{}
-			}
-		}
-	}
-	return preaggregationEnabled, allowlist
 }
 
 func (s *Serializer) getAutoscalingFailoverMetrics() (bool, map[string]struct{}) {
@@ -471,15 +416,9 @@ func (s *Serializer) SendOrchestratorMetadata(msgs []types.ProcessMessageBody, h
 			return s.logger.Errorf("Unable to encode message: %s", err)
 		}
 
-		responses, err := orchestratorForwarder.SubmitOrchestratorChecks(payloads, extraHeaders, payloadType)
+		err = orchestratorForwarder.SubmitOrchestratorChecks(payloads, extraHeaders, payloadType)
 		if err != nil {
 			return s.logger.Errorf("Unable to submit payload: %s", err)
-		}
-
-		// Consume the responses so that writers to the channel do not become blocked
-		// we don't need the bodies here though
-		//nolint:revive // TODO(AML) Fix revive linter
-		for range responses {
 		}
 	}
 	return nil
@@ -498,15 +437,9 @@ func (s *Serializer) SendOrchestratorManifests(msgs []types.ProcessMessageBody, 
 			continue
 		}
 
-		responses, err := orchestratorForwarder.SubmitOrchestratorManifests(payloads, extraHeaders)
+		err = orchestratorForwarder.SubmitOrchestratorManifests(payloads, extraHeaders)
 		if err != nil {
 			return s.logger.Errorf("Unable to submit payload: %s", err)
-		}
-
-		// Consume the responses so that writers to the channel do not become blocked
-		// we don't need the bodies here though
-		//nolint:revive // TODO(AML) Fix revive linter
-		for range responses {
 		}
 	}
 	return nil

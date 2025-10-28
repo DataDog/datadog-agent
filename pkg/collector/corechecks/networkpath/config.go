@@ -101,6 +101,11 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 		return nil, fmt.Errorf("invalid instance config: %s", err)
 	}
 
+	// hostname validation is done by the datadog-traceroute library but an empty hostname results in querying system-probe with an invalid URL
+	if instance.DestHostname == "" {
+		return nil, fmt.Errorf("invalid instance config, hostname must be provided")
+	}
+
 	c := &CheckConfig{}
 
 	c.DestHostname = instance.DestHostname

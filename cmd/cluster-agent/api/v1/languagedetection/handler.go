@@ -281,7 +281,7 @@ func (handler *languageDetectionHandler) syncFollowerWithInjectableLanguages(ctx
 	// Subscribe to deployment changes from kubeapiserver
 	// We're interested in InjectableLanguages changes (which come from annotations)
 	filter := workloadmeta.NewFilterBuilder().
-		SetSource("kubeapiserver").
+		SetSource(workloadmeta.SourceKubeAPIServer).
 		AddKind(workloadmeta.KindKubernetesDeployment).
 		Build()
 

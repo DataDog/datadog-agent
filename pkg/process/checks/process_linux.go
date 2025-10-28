@@ -10,7 +10,6 @@ package checks
 import (
 	model "github.com/DataDog/agent-payload/v5/process"
 	workloadmetacomp "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/apm"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/usm"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
@@ -183,20 +182,6 @@ func serviceNameSource(source string) model.ServiceNameSource {
 	return model.ServiceNameSource_SERVICE_NAME_SOURCE_UNKNOWN
 }
 
-// apmInstrumentation maps the apm instrumentation value to the agent payload type
-func apmInstrumentation(instrumentation string) bool {
-	// the instrumentation only has 2 states we need to worry about: "provided" and "none"
-	// TODO: `injected` is not used or planned to be used in the future, so it should be removed
-	switch instrumentation {
-	case string(apm.Provided):
-		return true
-	case string(apm.None):
-		return false
-	default:
-		return false
-	}
-}
-
 // formatInjectionState converts the internal injection state to the agent payload enum
 func formatInjectionState(state procutil.InjectionState) model.InjectionState {
 	switch state {
@@ -257,6 +242,6 @@ func formatServiceDiscovery(service *procutil.Service) *model.ServiceDiscovery {
 		DdServiceName:            ddServiceName,
 		AdditionalGeneratedNames: additionalGeneratedNames,
 		TracerMetadata:           tracerMetadata,
-		ApmInstrumentation:       apmInstrumentation(service.APMInstrumentation),
+		ApmInstrumentation:       service.APMInstrumentation,
 	}
 }

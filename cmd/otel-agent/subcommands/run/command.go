@@ -38,6 +38,7 @@ import (
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
 	workloadmetainit "github.com/DataDog/datadog-agent/comp/core/workloadmeta/init"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
+	statsdotel "github.com/DataDog/datadog-agent/comp/dogstatsd/statsd/otel"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorinterface"
 	logconfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
@@ -126,6 +127,12 @@ func runOTelAgentCommand(ctx context.Context, params *cliParams, opts ...fx.Opti
 			fx.Provide(func(cp converter.Component, _ configsync.Component) confmap.Converter {
 				return cp
 			}),
+			remoteTaggerFx.Module(tagger.NewRemoteParams()),
+			fx.Provide(func(h hostnameinterface.Component) (serializerexporter.SourceProviderFunc, error) {
+				return h.Get, nil
+			}),
+			telemetryimpl.Module(),
+			remotehostnameimpl.Module(),
 			collectorcontribFx.Module(),
 			collectorfx.ModuleNoAgent(),
 			fx.Options(opts...),
@@ -140,7 +147,7 @@ func runOTelAgentCommand(ctx context.Context, params *cliParams, opts ...fx.Opti
 		inventoryagentimpl.Module(),
 		fx.Supply(metricsclient.NewStatsdClientWrapper(&ddgostatsd.NoOpClient{})),
 		fx.Provide(func(client *metricsclient.StatsdClientWrapper) statsd.Component {
-			return statsd.NewOTelStatsd(client)
+			return statsdotel.NewOTelStatsd(client)
 		}),
 		ipcfx.ModuleReadWrite(),
 		collectorfx.Module(collectorimpl.NewParams(params.BYOC)),

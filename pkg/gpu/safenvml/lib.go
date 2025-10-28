@@ -336,9 +336,12 @@ func (s *safeNvml) ensureInitWithOpts(nvmlNewFunc func(opts ...nvml.LibraryOptio
 	return nil
 }
 
+// nvmlNewFunc is the function to create a new NVML library instance. It can be overridden for testing purposes.
+var nvmlNewFunc = nvml.New
+
 // ensureInit initializes the NVML library with the default options.
 func (s *safeNvml) ensureInit() error {
-	return s.ensureInitWithOpts(nvml.New)
+	return s.ensureInitWithOpts(nvmlNewFunc)
 }
 
 var singleton safeNvml

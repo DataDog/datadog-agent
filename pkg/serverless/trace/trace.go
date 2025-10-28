@@ -298,9 +298,10 @@ func getDDOrigin() string {
 // noopConcentrator is a no-op implementation of agent.Concentrator interface
 type noopConcentrator struct{}
 
-func (c noopConcentrator) Start()          {}
-func (c noopConcentrator) Stop()           {}
-func (c noopConcentrator) Add(stats.Input) {}
+func (c noopConcentrator) Start()              {}
+func (c noopConcentrator) Stop()               {}
+func (c noopConcentrator) Add(stats.Input)     {}
+func (c noopConcentrator) AddV1(stats.InputV1) {}
 
 type noopTraceAgent struct{}
 

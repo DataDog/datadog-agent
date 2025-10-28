@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/mitchellh/mapstructure"
+	mapstructure "github.com/go-viper/mapstructure/v2"
 )
 
 // ErrConfigFileNotFound is an error for when the config file is not found

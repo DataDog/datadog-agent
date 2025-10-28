@@ -105,6 +105,9 @@ const (
 	// SourceServiceDiscovery represents service discovery data for processes
 	// detected by the process collector.
 	SourceServiceDiscovery Source = "service_discovery"
+
+	// SourceKubeAPIServer represents metadata collected from the Kubernetes API Server
+	SourceKubeAPIServer Source = "kubeapiserver"
 )
 
 // ContainerRuntime is the container runtime used by a container.
@@ -210,6 +213,9 @@ const (
 	KubeletID = "kubelet-id"
 	// KubeletName is used to name the workloadmeta kubelet entity
 	KubeletName = "kubelet"
+	// KubeletMetricsID is the ID of the workloadmeta KindKubeletMetrics entity.
+	// There can only be one per node.
+	KubeletMetricsID = "kubelet-metrics"
 )
 
 // Entity represents a single unit of work being done that is of interest to
@@ -1239,6 +1245,8 @@ type Kubelet struct {
 	EntityID
 	EntityMeta
 	ConfigDocument KubeletConfigDocument
+	RawConfig      []byte
+	NodeName       string
 }
 
 // GetID implements Entity#GetID
@@ -1636,8 +1644,8 @@ type Service struct {
 	// UDPPorts is the list of UDP ports the service is listening on
 	UDPPorts []uint16
 
-	// APMInstrumentation indicates the APM instrumentation status
-	APMInstrumentation string
+	// APMInstrumentation indicates if the service is instrumented for APM
+	APMInstrumentation bool
 
 	// Type is the service type (e.g., "web_service")
 	Type string

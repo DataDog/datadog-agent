@@ -662,7 +662,7 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 		},
 		{
 			name: "validate max interesting frames limit with PRIORITY",
-			// PRIORITY frames should not be supported and cause failure
+			// PRIORITY frames are supported - validate with maximum frame limit
 			messageBuilder: func() [][]byte {
 				const iterations = 119
 				framer := newFramer()
@@ -674,7 +674,12 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 				}
 				return [][]byte{framer.bytes()}
 			},
-			expectedEndpoints: nil, // PRIORITY not supported
+			expectedEndpoints: map[usmhttp.Key]int{
+				{
+					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString(http2DefaultTestPath)},
+					Method: usmhttp.MethodPost,
+				}: 119,
+			},
 		},
 		{
 			name: "validate literal header field without indexing",
@@ -703,7 +708,7 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 		},
 		{
 			name: "validate literal header field without indexing with PRIORITY",
-			// PRIORITY affects HEADERS frame size changing HPACK boundary calculations
+			// PRIORITY is supported - validate with literal header field without indexing
 			messageBuilder: func() [][]byte {
 				const iterations = 5
 				framer := newFramer()
@@ -717,7 +722,12 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 				}
 				return [][]byte{framer.bytes()}
 			},
-			expectedEndpoints: nil, // PRIORITY not supported
+			expectedEndpoints: map[usmhttp.Key]int{
+				{
+					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString("/" + strings.Repeat("a", defaultDynamicTableSize))},
+					Method: usmhttp.MethodPost,
+				}: 5,
+			},
 		},
 		{
 			name: "validate literal header field never indexed",
@@ -745,7 +755,7 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 		},
 		{
 			name: "validate literal header field never indexed with PRIORITY",
-			// PRIORITY impacts frame structure for literal header processing
+			// PRIORITY is supported - validate with literal header field never indexed
 			messageBuilder: func() [][]byte {
 				const iterations = 5
 				framer := newFramer()
@@ -758,7 +768,12 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 				}
 				return [][]byte{framer.bytes()}
 			},
-			expectedEndpoints: nil, // PRIORITY not supported
+			expectedEndpoints: map[usmhttp.Key]int{
+				{
+					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString(http2DefaultTestPath)},
+					Method: usmhttp.MethodPost,
+				}: 5,
+			},
 		},
 		{
 			name: "validate path with index 4",
@@ -1134,19 +1149,23 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 		},
 		{
 			name: "Interesting frame header sent separately from frame payload with PRIORITY",
-			// PRIORITY adds 5 bytes to HEADERS frame - changes frame splitting calculations
+			// Testing the scenario in which the frame header with priority (of an interesting type) is sent separately from the frame payload.
 			messageBuilder: func() [][]byte {
 				headersFrame := newFramer().writeHeaders(t, withStream(1), withFrameOptions(t, usmhttp2.HeadersFrameOptions{Headers: testHeaders()}), withPriority(true)).bytes()
 				dataFrame := newFramer().writeData(t, 1, endStream, emptyBody).bytes()
-				// Split after HTTP/2 frame header (9 bytes) + PRIORITY section (5 bytes) = 14 bytes
-				headersFrameHeader := headersFrame[:14]
-				secondMessage := append(headersFrame[14:], dataFrame...)
+				headersFrameHeader := headersFrame[:9]
+				secondMessage := append(headersFrame[9:], dataFrame...)
 				return [][]byte{
 					headersFrameHeader,
 					secondMessage,
 				}
 			},
-			expectedEndpoints: nil, // PRIORITY not supported
+			expectedEndpoints: map[usmhttp.Key]int{
+				{
+					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString(http2DefaultTestPath)},
+					Method: usmhttp.MethodPost,
+				}: 1,
+			},
 		},
 		{
 			name: "Not interesting frame header sent separately from frame payload",
@@ -1195,7 +1214,7 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 		},
 		{
 			name: "validate dynamic table update with indexed header field with PRIORITY",
-			// PRIORITY impacts dynamic table operations
+			// PRIORITY is supported - validate with dynamic table update
 			messageBuilder: func() [][]byte {
 				const iterations = 5
 				framer := newFramer()
@@ -1209,7 +1228,12 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 				}
 				return [][]byte{framer.bytes()}
 			},
-			expectedEndpoints: nil, // PRIORITY not supported
+			expectedEndpoints: map[usmhttp.Key]int{
+				{
+					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString("/")},
+					Method: usmhttp.MethodPost,
+				}: 5,
+			},
 		},
 		{
 			name: "validate dynamic table update with high value and indexed header field",
@@ -1265,7 +1289,7 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 		},
 		{
 			name: "Data frame header sent separately from frame payload with PRIORITY",
-			// PRIORITY affects frame boundaries in multi-frame messages
+			// PRIORITY is supported - validate frame boundaries in multi-frame messages with PRIORITY
 			messageBuilder: func() [][]byte {
 				payload := []byte("test")
 				headersFrame := newFramer().writeHeaders(t, withStream(1), withFrameOptions(t, usmhttp2.HeadersFrameOptions{Headers: testHeaders()}), withPriority(true)).bytes()
@@ -1283,7 +1307,12 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 					secondMessage,
 				}
 			},
-			expectedEndpoints: nil, // PRIORITY not supported
+			expectedEndpoints: map[usmhttp.Key]int{
+				{
+					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString(http2DefaultTestPath)},
+					Method: usmhttp.MethodPost,
+				}: 2,
+			},
 		},
 		{
 			name: "Data frame header sent separately from frame payload with PING between them",
@@ -1343,7 +1372,7 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 		},
 		{
 			name: "Payload data frame header sent separately with PRIORITY",
-			// PRIORITY changes HEADERS frame size affecting frame splitting calculations
+			// PRIORITY is supported - validate payload frame splitting with PRIORITY
 			messageBuilder: func() [][]byte {
 				payload := []byte{1, 2, 3, 4, 5, 6, 7, 8, 9}
 				headersFrame := newFramer().writeHeaders(t, withStream(1), withFrameOptions(t, usmhttp2.HeadersFrameOptions{
@@ -1362,7 +1391,12 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 					secondMessage,
 				}
 			},
-			expectedEndpoints: nil, // PRIORITY not supported
+			expectedEndpoints: map[usmhttp.Key]int{
+				{
+					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString(http2DefaultTestPath)},
+					Method: usmhttp.MethodPost,
+				}: 2,
+			},
 		},
 		{
 			name: "validate CONTINUATION frame support",
@@ -1439,7 +1473,7 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 		},
 		{
 			name: "remainder + header remainder with PRIORITY",
-			// PRIORITY changes frame sizes affecting remainder calculations
+			// PRIORITY is supported - validate remainder handling with PRIORITY
 			messageBuilder: func() [][]byte {
 				data := []byte("testcontent")
 				request1 := newFramer().
@@ -1457,7 +1491,16 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 					request2[5:],
 				}
 			},
-			expectedEndpoints: nil, // PRIORITY not supported
+			expectedEndpoints: map[usmhttp.Key]int{
+				{
+					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString(http2DefaultTestPath)},
+					Method: usmhttp.MethodPost,
+				}: 1,
+				{
+					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString("/bbb")},
+					Method: usmhttp.MethodPost,
+				}: 1,
+			},
 		},
 	}
 	for _, tt := range tests {
@@ -1606,7 +1649,7 @@ func (s *usmHTTP2Suite) TestIncompleteFrameTable() {
 		},
 		{
 			name: "validate clean with remainder and header zero with PRIORITY",
-			// PRIORITY changes HEADERS frame size affecting remainder calculations
+			// PRIORITY is supported - validate remainder cleanup with PRIORITY (HEADERS frame size changes)
 			messageBuilder: func() [][]byte {
 				data := []byte("test12345")
 				a := newFramer().
@@ -1619,7 +1662,7 @@ func (s *usmHTTP2Suite) TestIncompleteFrameTable() {
 					b[11:],
 				}
 			},
-			mapSize: 0, // PRIORITY not supported, so map should be empty
+			mapSize: 0,
 		},
 		{
 			name: "validate remainder in map",
@@ -1798,11 +1841,16 @@ func validateStats(t *testing.T, usmMonitor *Monitor, res, expectedEndpoints map
 			if statusCode == 0 {
 				statusCode = 200
 			}
-			hasTag := stat.Data[statusCode].StaticTags == ebpftls.ConnTagGo
+			statusCodeStats, ok := stat.Data[statusCode]
+			if !ok {
+				t.Logf("Bug was found; Path: %q; Status Code: %d; data: %#v", key.Path.Content.Get(), statusCode, stat.Data)
+				return false
+			}
+			hasTag := statusCodeStats.StaticTags == ebpftls.ConnTagGo
 			if hasTag != isTLS {
 				continue
 			}
-			count := stat.Data[statusCode].Count
+			count := statusCodeStats.Count
 			newKey := usmhttp.Key{
 				Path:   usmhttp.Path{Content: key.Path.Content},
 				Method: key.Method,

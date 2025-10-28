@@ -8,6 +8,8 @@
 package safenvml
 
 import (
+	"sync"
+	"sync/atomic"
 	"testing"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
@@ -29,7 +31,7 @@ func TestDeviceCache(t *testing.T) {
 	// Create device cache
 	cache := NewDeviceCache()
 	require.NotNil(t, cache)
-	require.NoError(t, cache.EnsureInit())
+	require.NoError(t, cache.Refresh())
 	count, err := cache.Count()
 	require.NoError(t, err)
 	require.Equal(t, len(testutil.GPUUUIDs), count)
@@ -64,7 +66,7 @@ func TestDeviceCachePartialFailure(t *testing.T) {
 	// Create device cache
 	cache := NewDeviceCache()
 	require.NotNil(t, cache)
-	require.NoError(t, cache.EnsureInit())
+	require.NoError(t, cache.Refresh())
 	count, err := cache.Count()
 	require.NoError(t, err)
 	require.Equal(t, 2, count)
@@ -97,7 +99,7 @@ func TestDeviceCacheGetByIndex(t *testing.T) {
 	// Create device cache
 	cache := NewDeviceCache()
 	require.NotNil(t, cache)
-	require.NoError(t, cache.EnsureInit())
+	require.NoError(t, cache.Refresh())
 
 	// Test get by index
 	device, err := cache.GetByIndex(0)
@@ -128,7 +130,7 @@ func TestDeviceCacheSMVersionSet(t *testing.T) {
 	// Create device cache
 	cache := NewDeviceCache()
 	require.NotNil(t, cache)
-	require.NoError(t, cache.EnsureInit())
+	require.NoError(t, cache.Refresh())
 
 	// Test SM version set
 	smVersions, err := cache.SMVersionSet()
@@ -150,7 +152,7 @@ func TestDeviceCacheAll(t *testing.T) {
 	// Create device cache
 	cache := NewDeviceCache()
 	require.NotNil(t, cache)
-	require.NoError(t, cache.EnsureInit())
+	require.NoError(t, cache.Refresh())
 
 	// cache.Count() should *only* counts physical devices
 	count, err := cache.Count()
@@ -177,7 +179,7 @@ func TestDeviceCacheCores(t *testing.T) {
 	// Create device cache
 	cache := NewDeviceCache()
 	require.NotNil(t, cache)
-	require.NoError(t, cache.EnsureInit())
+	require.NoError(t, cache.Refresh())
 
 	// Test getting cores
 	cores, err := cache.Cores(testutil.DefaultGpuUUID)
@@ -199,7 +201,7 @@ func TestDeviceCacheAllPhysicalDevices(t *testing.T) {
 
 	cache := NewDeviceCache()
 	require.NotNil(t, cache)
-	require.NoError(t, cache.EnsureInit())
+	require.NoError(t, cache.Refresh())
 
 	// Test get all devices
 	physicalDevices, err := cache.AllPhysicalDevices()
@@ -221,7 +223,7 @@ func TestDeviceCacheAllMigDevices(t *testing.T) {
 	WithMockNVML(t, mockNvml)
 
 	cache := NewDeviceCache()
-	require.NoError(t, cache.EnsureInit())
+	require.NoError(t, cache.Refresh())
 	require.NotNil(t, cache)
 
 	migDevices, err := cache.AllMigDevices()
@@ -236,4 +238,106 @@ func TestDeviceCacheAllMigDevices(t *testing.T) {
 		require.NoError(t, err)
 		require.True(t, isMig, "Device %s from AllMigDevices should be identified as a MIG device handle", migDevice.GetDeviceInfo().UUID)
 	}
+}
+
+func TestDeviceCacheRefresh_Sequential(t *testing.T) {
+	mockNvml := testutil.GetBasicNvmlMockWithOptions(
+		testutil.WithSymbolsMock(allSymbols),
+		testutil.WithMIGDisabled(),
+	)
+
+	// Override device count and get by index funcs
+	numDevicesAvailable := 6 // control this and change it during the test
+	mockNvml.DeviceGetCountFunc = func() (int, nvml.Return) {
+		return numDevicesAvailable, nvml.SUCCESS
+	}
+	mockNvml.DeviceGetHandleByIndexFunc = func(index int) (nvml.Device, nvml.Return) {
+		if index >= numDevicesAvailable {
+			return nil, nvml.ERROR_INVALID_ARGUMENT
+		}
+		return testutil.GetDeviceMock(index), nvml.SUCCESS
+	}
+
+	// create a cache with a custom mock lib
+	WithMockNVML(t, mockNvml)
+	cache := NewDeviceCache()
+	require.NotNil(t, cache)
+
+	// initially, the cache should be up to date and see all available devices
+	count, err := cache.Count()
+	require.NoError(t, err)
+	require.Equal(t, 6, count)
+
+	// without a refresh, changes should not be visible in the cache
+	numDevicesAvailable = 4
+	count, err = cache.Count()
+	require.NoError(t, err)
+	require.Equal(t, 6, count)
+
+	// after a refresh, changes should be visible
+	require.NoError(t, cache.Refresh())
+	count, err = cache.Count()
+	require.NoError(t, err)
+	require.Equal(t, 4, count)
+}
+
+func TestDeviceCacheRefresh_Concurrent(t *testing.T) {
+	mockNvml := testutil.GetBasicNvmlMockWithOptions(
+		testutil.WithSymbolsMock(allSymbols),
+		testutil.WithMIGDisabled(),
+	)
+
+	numDevicesAvailable := atomic.Int32{}
+	numDevicesAvailable.Store(6)
+	mockNvml.DeviceGetCountFunc = func() (int, nvml.Return) {
+		return int(numDevicesAvailable.Load()), nvml.SUCCESS
+	}
+	mockNvml.DeviceGetHandleByIndexFunc = func(index int) (nvml.Device, nvml.Return) {
+		if index >= int(numDevicesAvailable.Load()) {
+			return nil, nvml.ERROR_INVALID_ARGUMENT
+		}
+		return testutil.GetDeviceMock(index), nvml.SUCCESS
+	}
+
+	// create a cache with a custom mock lib
+	WithMockNVML(t, mockNvml)
+	cache := NewDeviceCache()
+	require.NotNil(t, cache)
+
+	// launch two workers, one refreshing the cache and one reading from it
+	var wg sync.WaitGroup
+	var barrier sync.WaitGroup
+	wg.Add(2)
+	barrier.Add(2) // used to force workers to start together-ish
+
+	// run updater
+	go func() {
+		defer wg.Done()
+		barrier.Done()
+		barrier.Wait()
+
+		for i := range 10000 {
+			if i%2 == 0 {
+				numDevicesAvailable.Store(6)
+			} else {
+				numDevicesAvailable.Store(4)
+			}
+			require.NoError(t, cache.Refresh())
+		}
+	}()
+
+	// run reader
+	go func() {
+		defer wg.Done()
+		barrier.Done()
+		barrier.Wait()
+
+		for range 10000 {
+			count, err := cache.Count()
+			require.NoError(t, err)
+			require.Truef(t, count == 4 || count == 6, "count is %d", count)
+		}
+	}()
+
+	wg.Wait()
 }

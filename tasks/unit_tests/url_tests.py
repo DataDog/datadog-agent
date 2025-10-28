@@ -304,13 +304,11 @@ class TestGetDebPackageUrl(unittest.TestCase):
         result = get_deb_package_url(ctx, pipeline_id, package_name, arch)
 
         # Assert the result
-        expected_url = f"{DEB_TESTING_BUCKET_URL}/pool/main/d/datadog-agent/datadog-agent_7.45.0-1_amd64.deb"
+        expected_url = f"{DEB_TESTING_BUCKET_URL}/datadog-agent/pipeline-123456-a7/pool/main/d/datadog-agent/datadog-agent_7.45.0-1_amd64.deb"
         self.assertEqual(result, expected_url)
 
         # Assert the mock was called with the correct parameters
-        expected_packages_url = (
-            f"{DEB_TESTING_BUCKET_URL}/dists/pipeline-{pipeline_id}-a7-x86_64/7/binary-{arch}/Packages"
-        )
+        expected_packages_url = f"{DEB_TESTING_BUCKET_URL}/datadog-agent/pipeline-{pipeline_id}-a7/dists/stable-x86_64/7/binary-{arch}/Packages"
         mock_get_filename.assert_called_once_with(expected_packages_url, package_name)
 
     @patch('tasks.libs.package.url._deb_get_filename_for_package')
@@ -328,13 +326,11 @@ class TestGetDebPackageUrl(unittest.TestCase):
         result = get_deb_package_url(ctx, pipeline_id, package_name, arch)
 
         # Assert the result
-        expected_url = f"{DEB_TESTING_BUCKET_URL}/pool/main/d/datadog-agent/datadog-agent_7.45.0-1_arm64.deb"
+        expected_url = f"{DEB_TESTING_BUCKET_URL}/datadog-agent/pipeline-987654-a7/pool/main/d/datadog-agent/datadog-agent_7.45.0-1_arm64.deb"
         self.assertEqual(result, expected_url)
 
         # Assert the mock was called with the correct parameters
-        expected_packages_url = (
-            f"{DEB_TESTING_BUCKET_URL}/dists/pipeline-{pipeline_id}-a7-{arch}/7/binary-{arch}/Packages"
-        )
+        expected_packages_url = f"{DEB_TESTING_BUCKET_URL}/datadog-agent/pipeline-{pipeline_id}-a7/dists/stable-{arch}/7/binary-{arch}/Packages"
         mock_get_filename.assert_called_once_with(expected_packages_url, package_name)
 
 

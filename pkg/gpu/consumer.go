@@ -30,6 +30,7 @@ import (
 
 const telemetryEventErrorMismatch = "size_mismatch"
 const telemetryEventErrorUnknownType = "unknown_type"
+const telemetryEventErrorHandlerError = "handler_error"
 const telemetryEventTypeUnknown = "unknown"
 const telemetryEventHeader = "header"
 
@@ -55,6 +56,7 @@ type cudaEventConsumer struct {
 type cudaEventConsumerTelemetry struct {
 	events              telemetry.Counter
 	eventErrors         telemetry.Counter
+	streamGetErrors     telemetry.Counter
 	eventCounterByType  map[gpuebpf.CudaEventType]telemetry.SimpleCounter
 	droppedProcessExits telemetry.Counter
 }
@@ -88,6 +90,7 @@ func newCudaEventConsumerTelemetry(tm telemetry.Component) *cudaEventConsumerTel
 	return &cudaEventConsumerTelemetry{
 		events:              events,
 		eventErrors:         tm.NewCounter(subsystem, "events__errors", []string{"event_type", "error"}, "Number of CUDA events that couldn't be processed due to an error"),
+		streamGetErrors:     tm.NewCounter(subsystem, "stream_get_errors", nil, "Number of errors when getting a stream handler"),
 		eventCounterByType:  eventCounterByType,
 		droppedProcessExits: tm.NewCounter(subsystem, "dropped_process_exits", nil, "Number of process exits events that were dropped"),
 	}
@@ -216,10 +219,17 @@ func (c *cudaEventConsumer) handleEvent(header *gpuebpf.CudaEventHeader, dataPtr
 	}
 	counter.Inc()
 
+	var err error
 	if isStreamSpecificEvent(eventType) {
-		return c.handleStreamEvent(header, dataPtr, dataLen)
+		err = c.handleStreamEvent(header, dataPtr, dataLen)
+	} else {
+		err = c.handleGlobalEvent(header, dataPtr, dataLen)
 	}
-	return c.handleGlobalEvent(header, dataPtr, dataLen)
+
+	if err != nil {
+		c.telemetry.eventErrors.Inc(eventType.String(), telemetryEventErrorHandlerError)
+	}
+	return err
 }
 
 func handleTypedEventErr[K any](c *cudaEventConsumer, handler func(*K) error, eventType gpuebpf.CudaEventType, data unsafe.Pointer, dataLen int, expectedSize int) error {
@@ -252,6 +262,7 @@ func (c *cudaEventConsumer) handleStreamEvent(header *gpuebpf.CudaEventHeader, d
 		if logLimitProbe.ShouldLog() {
 			log.Warnf("error getting stream handler for stream id %d: %v", header.Stream_id, err)
 		}
+		c.telemetry.streamGetErrors.Inc()
 		return err
 	}
 

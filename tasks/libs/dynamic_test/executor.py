@@ -138,3 +138,12 @@ class DynTestExecutor:
         """
 
         return self.index().impacted_tests_per_job(changes)
+
+    def triggering_paths(self, job_name: str, test_name: str) -> list[str]:
+        """Determine the triggering paths for a specific test.
+
+        Args:
+            job_name: Name of the CI containing the test being queried
+            test_name: Name of the test to get the triggering paths for
+        """
+        return self.index().triggering_paths(job_name, test_name)

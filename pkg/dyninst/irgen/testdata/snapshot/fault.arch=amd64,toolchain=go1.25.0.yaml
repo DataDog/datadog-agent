@@ -10,13 +10,11 @@ Probes:
       captureSnapshot: true
       subprogram: {subprogram: 1}
       events:
-        - ID: 2
-          Kind: Entry
+        - Kind: Entry
           Type: 115 EventRootType Probe[main.callMe]
           InjectionPoints: [{PC: "0x4b094e", Frameless: false}]
           Condition: null
-        - ID: 1
-          Kind: Return
+        - Kind: Return
           Type: 116 EventRootType Probe[main.callMe]Return
           InjectionPoints: [{PC: "0x4b09f2", Frameless: false}]
           Condition: null
@@ -35,8 +33,7 @@ Subprograms:
                   Op: {RegNo: 0, Shift: 0}
                 - Size: 8
                   Op: {RegNo: 3, Shift: 0}
-          IsParameter: true
-          IsReturn: false
+          Role: Parameter
         - Name: s2
           Type: 9 GoStringHeaderType string
           Locations:
@@ -52,8 +49,7 @@ Subprograms:
                   Op: {CfaOffset: 16}
                 - Size: 8
                   Op: {CfaOffset: 24}
-          IsParameter: true
-          IsReturn: false
+          Role: Parameter
         - Name: i
           Type: 99 PointerType *int
           Locations:
@@ -61,8 +57,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: {RegNo: 4, Shift: 0}}]
             - Range: 0x4b0985..0x4b0a34
               Pieces: [{Size: 8, Op: {CfaOffset: 32}}]
-          IsParameter: true
-          IsReturn: false
+          Role: Parameter
 Types:
     - __kind: PointerType
       ID: 63

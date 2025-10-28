@@ -114,7 +114,11 @@ func (u *LogsUploaderFactory) GetUploader(metadata LogsUploaderMetadata) *LogsUp
 		tagURL := *u.cfg.url
 		tagURL.RawQuery = query.Encode()
 		logsURL = tagURL.String()
+	}
+	if metadata.EntityID != "" {
 		addHeader(ddHeaderEntityID, metadata.EntityID)
+	}
+	if metadata.ContainerID != "" {
 		addHeader(ddHeaderContainerID, metadata.ContainerID)
 	}
 	name = fmt.Sprintf("logs:%d", uploaderID)

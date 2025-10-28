@@ -131,15 +131,16 @@ func TestServiceStoreLifetimeProcessCollectionDisabled(t *testing.T) {
 	}
 
 	tests := []struct {
-		name               string
-		shouldError        bool
-		httpResponse       *model.ServicesResponse
-		ignoredPids        []int32
-		processesToCollect map[int32]*procutil.Process
-		existingProcesses  []*workloadmeta.Process
-		expectStored       []*workloadmeta.Process
-		pidHeartbeats      map[int32]time.Time
-		expectNoEntities   []int32
+		name                     string
+		shouldError              bool
+		httpResponse             *model.ServicesResponse
+		ignoredPids              []int32
+		processesToCollect       map[int32]*procutil.Process
+		existingProcesses        []*workloadmeta.Process
+		expectStored             []*workloadmeta.Process
+		pidHeartbeats            map[int32]time.Time
+		expectNoEntities         []int32
+		knownInjectionStatusPids []int32 // PIDs whose injection status was already reported in a previous cycle
 	}{
 		{
 			name: "new service discovered",
@@ -230,6 +231,23 @@ func TestServiceStoreLifetimeProcessCollectionDisabled(t *testing.T) {
 			expectStored: []*workloadmeta.Process{makeProcessEntity(pidNewService, baseTime.Add(-2*time.Minute), nil, workloadmeta.InjectionNotInjected)},
 		},
 		{
+			name: "preserve injection state",
+			existingProcesses: []*workloadmeta.Process{
+				makeProcessEntity(pidInjectedOnly, baseTime.Add(-2*time.Minute), nil, workloadmeta.InjectionInjected), // Already reported in previous cycle
+			},
+			knownInjectionStatusPids: []int32{pidInjectedOnly}, // We already reported this PID's injection status
+			processesToCollect: map[int32]*procutil.Process{
+				pidInjectedOnly: makeProcess(pidInjectedOnly, baseTime.Add(-2*time.Minute).UnixMilli(), nil),
+			},
+			httpResponse: &model.ServicesResponse{
+				Services:     []model.Service{},      // Still no service
+				InjectedPIDs: []int{pidInjectedOnly}, // Same injection state as before
+			},
+			expectStored: []*workloadmeta.Process{
+				makeProcessEntity(pidInjectedOnly, baseTime.Add(-2*time.Minute), nil, workloadmeta.InjectionInjected), // Injection state preserved, no duplicate entity
+			},
+		},
+		{
 			name: "injected_death_cleanup",
 			existingProcesses: []*workloadmeta.Process{
 				makeProcessEntity(pidInjectedOnly, baseTime.Add(-2*time.Minute), nil, workloadmeta.InjectionInjected), // Pre-existing injected-only process
@@ -257,7 +275,7 @@ func TestServiceStoreLifetimeProcessCollectionDisabled(t *testing.T) {
 			ctx := t.Context()
 
 			socketPath, _ := startTestServer(t, tc.httpResponse, tc.shouldError)
-			c.collector.sysProbeClient = sysprobeclient.Get(socketPath)
+			c.collector.sysProbeClient = sysprobeclient.GetCheckClient(sysprobeclient.WithSocketPath(socketPath))
 
 			for _, pid := range tc.ignoredPids {
 				c.collector.ignoredPids.Add(pid)
@@ -287,12 +305,16 @@ func TestServiceStoreLifetimeProcessCollectionDisabled(t *testing.T) {
 				c.collector.pidHeartbeats = tc.pidHeartbeats
 			}
 
-			err := c.collector.Start(ctx, c.mockStore)
-			assert.NoError(t, err)
+			for _, pid := range tc.knownInjectionStatusPids {
+				c.collector.knownInjectionStatusPids.Add(pid)
+			}
 
 			// Mock processProbe.ProcessesByPID to be called directly by collectServicesDefault
 			c.probe.On("ProcessesByPID", mock.Anything, mock.Anything).Return(tc.processesToCollect, nil).Maybe()
 			c.mockContainerProvider.EXPECT().GetPidToCid(cacheValidityNoRT).Return(map[int]string{}).AnyTimes()
+
+			err := c.collector.Start(ctx, c.mockStore)
+			assert.NoError(t, err)
 
 			// Trigger service collection
 			c.mockClock.Add(collectionInterval)
@@ -319,15 +341,16 @@ func TestServiceStoreLifetime(t *testing.T) {
 	}
 
 	tests := []struct {
-		name                string
-		shouldError         bool
-		httpResponse        *model.ServicesResponse
-		ignoredPids         []int32
-		existingProcessData []*workloadmeta.Process
-		existingServiceData []*workloadmeta.Process
-		expectStored        []*workloadmeta.Process
-		pidHeartbeats       map[int32]time.Time
-		processesToCollect  map[int32]*procutil.Process
+		name                     string
+		shouldError              bool
+		httpResponse             *model.ServicesResponse
+		ignoredPids              []int32
+		existingProcessData      []*workloadmeta.Process
+		existingServiceData      []*workloadmeta.Process
+		expectStored             []*workloadmeta.Process
+		pidHeartbeats            map[int32]time.Time
+		processesToCollect       map[int32]*procutil.Process
+		knownInjectionStatusPids []int32 // PIDs whose injection status was already reported in a previous cycle
 	}{
 		{
 			name: "new service discovered and stored",
@@ -402,6 +425,23 @@ func TestServiceStoreLifetime(t *testing.T) {
 			expectStored: []*workloadmeta.Process{makeProcessEntity(pidRecentService, baseTime.Add(time.Minute+30*time.Second), languagePython, workloadmeta.InjectionUnknown)},
 		},
 		{
+			name: "preserve injection state",
+			existingServiceData: []*workloadmeta.Process{
+				makeProcessEntity(pidInjectedOnly, baseTime.Add(-2*time.Minute), nil, workloadmeta.InjectionInjected), // Already reported in previous cycle
+			},
+			knownInjectionStatusPids: []int32{pidInjectedOnly}, // We already reported this PID's injection status
+			processesToCollect: map[int32]*procutil.Process{
+				pidInjectedOnly: makeProcess(pidInjectedOnly, baseTime.Add(-2*time.Minute).UnixMilli(), nil),
+			},
+			httpResponse: &model.ServicesResponse{
+				Services:     []model.Service{},      // Still no service
+				InjectedPIDs: []int{pidInjectedOnly}, // Same injection state as before
+			},
+			expectStored: []*workloadmeta.Process{
+				makeProcessEntity(pidInjectedOnly, baseTime.Add(-2*time.Minute), nil, workloadmeta.InjectionInjected), // Injection state preserved, no duplicate entity
+			},
+		},
+		{
 			name: "injected_death_cleanup",
 			existingServiceData: []*workloadmeta.Process{
 				makeProcessEntity(pidInjectedOnly, baseTime.Add(-2*time.Minute), nil, workloadmeta.InjectionInjected), // Pre-existing injected-only process
@@ -437,7 +477,7 @@ func TestServiceStoreLifetime(t *testing.T) {
 
 			// Create test server & override collector client
 			socketPath, _ := startTestServer(t, tc.httpResponse, tc.shouldError)
-			c.collector.sysProbeClient = sysprobeclient.Get(socketPath)
+			c.collector.sysProbeClient = sysprobeclient.GetCheckClient(sysprobeclient.WithSocketPath(socketPath))
 
 			// Add ignored PIDs to the collector
 			for _, pid := range tc.ignoredPids {
@@ -472,9 +512,9 @@ func TestServiceStoreLifetime(t *testing.T) {
 					Stats: &procutil.Stats{CreateTime: process.CreationTime.UnixMilli()}, // Use actual creation time from process entity
 				}
 
-				// If this is an injected-only process (has injection but no service), add to tracking
-				if process.InjectionState == workloadmeta.InjectionInjected && process.Service == nil {
-					c.collector.injectedOnlyPids.Add(process.Pid)
+				// If this is a process whose injection status we've reported (but has no service), add to tracking
+				if process.Service == nil {
+					c.collector.knownInjectionStatusPids.Add(process.Pid)
 				}
 			}
 
@@ -486,22 +526,20 @@ func TestServiceStoreLifetime(t *testing.T) {
 				c.collector.pidHeartbeats = tc.pidHeartbeats
 			}
 
-			err := c.collector.Start(ctx, c.mockStore)
-			assert.NoError(t, err)
+			for _, pid := range tc.knownInjectionStatusPids {
+				c.collector.knownInjectionStatusPids.Add(pid)
+			}
 
 			c.probe.On("ProcessesByPID", mock.Anything, mock.Anything).Return(tc.processesToCollect, nil).Maybe()
 			c.mockContainerProvider.EXPECT().GetPidToCid(cacheValidityNoRT).Return(map[int]string{}).AnyTimes()
 
-			// Trigger process collection first to populate lastCollectedProcesses
+			err := c.collector.Start(ctx, c.mockStore)
+			assert.NoError(t, err)
+
+			// Trigger service collection (service collection waits for first tick)
 			c.mockClock.Add(collectionInterval)
 
-			// Wait for processes to be stored (confirms process collection completed)
-			assertProcessData(t, c.mockStore, tc.expectStored)
-
-			// Trigger service collection
-			c.mockClock.Add(collectionInterval)
-
-			// reconfirm data still exists
+			// Wait for processes and service data to be stored
 			assertProcessData(t, c.mockStore, tc.expectStored)
 
 			// For HTTP error cases, verify processes exist but have no service data
@@ -552,15 +590,16 @@ func TestProcessDeathRemovesServiceData(t *testing.T) {
 	c.collector.pidHeartbeats[pidFreshService] = baseTime
 
 	socketPath, _ := startTestServer(t, &model.ServicesResponse{}, false)
-	c.collector.sysProbeClient = sysprobeclient.Get(socketPath)
+	c.collector.sysProbeClient = sysprobeclient.GetCheckClient(sysprobeclient.WithSocketPath(socketPath))
 	c.mockClock.Set(baseTime)
 
 	c.collector.store = c.mockStore
 
+	c.probe.On("ProcessesByPID", mock.Anything, mock.Anything).Return(nil, nil).Times(2)
+	c.mockContainerProvider.EXPECT().GetPidToCid(cacheValidityNoRT).Return(nil).Times(2)
+
 	err := c.collector.Start(ctx, c.mockStore)
 	assert.NoError(t, err)
-	c.probe.On("ProcessesByPID", mock.Anything, mock.Anything).Return(nil, nil).Times(1)
-	c.mockContainerProvider.EXPECT().GetPidToCid(cacheValidityNoRT).Return(nil).Times(1)
 
 	c.mockClock.Add(collectionInterval)
 
@@ -591,6 +630,13 @@ func startTestServer(t *testing.T, response *model.ServicesResponse, shouldError
 	t.Helper()
 
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Handle CheckClient's startup check
+		if r.URL.Path == "/debug/stats" {
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte("{}"))
+			return
+		}
+
 		if r.URL.Path != "/discovery/services" {
 			w.WriteHeader(http.StatusNotFound)
 			return
@@ -655,12 +701,10 @@ func makeModelService(pid int32, name string) model.Service {
 				ServiceName:    name + "-service",
 			},
 		},
-		DDService:          "dd-model-" + name,
 		TCPPorts:           []uint16{3000, 4000},
-		APMInstrumentation: "manual",
+		APMInstrumentation: true,
 		Language:           "python",
 		Type:               "database",
-		CommandLine:        []string{"python", "-m", "myservice"},
 		LogFiles:           []string{"/var/log/" + name + ".log"},
 		UST: model.UST{
 			Service: "dd-model-" + name,
@@ -690,7 +734,7 @@ func makeProcessEntityService(pid int32, name string, injectionState workloadmet
 				},
 			},
 			TCPPorts:           []uint16{3000, 4000},
-			APMInstrumentation: "manual",
+			APMInstrumentation: true,
 			Type:               "database",
 			LogFiles:           []string{"/var/log/" + name + ".log"},
 			UST: workloadmeta.UST{

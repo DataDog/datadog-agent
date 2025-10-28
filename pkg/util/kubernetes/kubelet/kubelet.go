@@ -36,7 +36,6 @@ const (
 	kubeletStatsSummary    = "/stats/summary"
 	authorizationHeaderKey = "Authorization"
 	podListCacheKey        = "KubeletPodListCacheKey"
-	unreadyAnnotation      = "ad.datadoghq.com/tolerate-unready"
 	configSourceAnnotation = "kubernetes.io/config.source"
 )
 
@@ -327,12 +326,6 @@ func (ku *KubeUtil) GetLocalPodListWithMetadata(ctx context.Context) (*PodList, 
 	return ku.getLocalPodList(ctx)
 }
 
-// ForceGetLocalPodList reset podList cache and call GetLocalPodList
-func (ku *KubeUtil) ForceGetLocalPodList(ctx context.Context) (*PodList, error) {
-	ResetCache()
-	return ku.GetLocalPodListWithMetadata(ctx)
-}
-
 // GetLocalStatsSummary returns node and pod stats from kubelet
 func (ku *KubeUtil) GetLocalStatsSummary(ctx context.Context) (*kubeletv1alpha1.Summary, error) {
 	data, code, err := ku.QueryKubelet(ctx, kubeletStatsSummary)
@@ -421,16 +414,6 @@ func IsPodReady(pod *Pod) bool {
 
 	if pod.Status.Phase != "Running" {
 		return false
-	}
-
-	// In the previous implementation that used the pod watcher, the
-	// tolerate-unready annotation logic was handled here. The new
-	// implementation moves this logic into the autodiscovery parts that need
-	// it.
-	if pkgconfigsetup.Datadog().GetBool("kubelet_use_pod_watcher") {
-		if tolerate, ok := pod.Metadata.Annotations[unreadyAnnotation]; ok && tolerate == "true" {
-			return true
-		}
 	}
 
 	for _, status := range pod.Status.Conditions {

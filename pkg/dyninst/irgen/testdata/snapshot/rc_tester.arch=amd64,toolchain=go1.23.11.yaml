@@ -10,13 +10,11 @@ Probes:
       captureSnapshot: true
       subprogram: {subprogram: 1}
       events:
-        - ID: 2
-          Kind: Entry
+        - Kind: Entry
           Type: 234 EventRootType Probe[main.HandleHTTP]
           InjectionPoints: [{PC: "0xd597d3", Frameless: false}]
           Condition: null
-        - ID: 1
-          Kind: Return
+        - Kind: Return
           Type: 235 EventRootType Probe[main.HandleHTTP]Return
           InjectionPoints:
             - PC: "0xd59a14"
@@ -34,13 +32,11 @@ Probes:
       captureSnapshot: true
       subprogram: {subprogram: 2}
       events:
-        - ID: 4
-          Kind: Entry
+        - Kind: Entry
           Type: 236 EventRootType Probe[main.LookAtTheRequest]
           InjectionPoints: [{PC: "0xd59b2e", Frameless: false}]
           Condition: null
-        - ID: 3
-          Kind: Return
+        - Kind: Return
           Type: 237 EventRootType Probe[main.LookAtTheRequest]Return
           InjectionPoints: [{PC: "0xd59bbd", Frameless: false}]
           Condition: null
@@ -71,8 +67,7 @@ Subprograms:
                   Op: {CfaOffset: 0}
                 - Size: 8
                   Op: {CfaOffset: 8}
-          IsParameter: true
-          IsReturn: false
+          Role: Parameter
         - Name: r
           Type: 103 PointerType *net/http.Request
           Locations:
@@ -80,15 +75,13 @@ Subprograms:
               Pieces: [{Size: 8, Op: {RegNo: 2, Shift: 0}}]
             - Range: 0xd59836..0xd59a5c
               Pieces: [{Size: 8, Op: {CfaOffset: 16}}]
-          IsParameter: true
-          IsReturn: false
+          Role: Parameter
         - Name: span
           Type: 105 PointerType *github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.Span
           Locations:
             - Range: 0xd59848..0xd59881
               Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
-          IsParameter: false
-          IsReturn: false
+          Role: Local
         - Name: '&buf'
           Type: 107 PointerType *bytes.Buffer
           Locations:
@@ -96,8 +89,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
             - Range: 0xd5997a..0xd59a5c
               Pieces: [{Size: 8, Op: {CfaOffset: -128}}]
-          IsParameter: false
-          IsReturn: false
+          Role: Local
     - ID: 2
       Name: main.LookAtTheRequest
       OutOfLinePCRanges: [0xd59b20..0xd59be5]
@@ -112,8 +104,7 @@ Subprograms:
                   Op: {RegNo: 0, Shift: 0}
                 - Size: 8
                   Op: {RegNo: 3, Shift: 0}
-          IsParameter: true
-          IsReturn: false
+          Role: Parameter
 Types:
     - __kind: PointerType
       ID: 220

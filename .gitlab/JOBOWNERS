@@ -134,6 +134,7 @@ qa_installer_script*                   @DataDog/agent-delivery
 
 # Deploy containers and tags
 deploy_containers*                     @Datadog/agent-delivery
+deploy_latest_rc_only                  @Datadog/agent-delivery
 deploy_mutable_image_tags*             @Datadog/agent-delivery
 deploy_mutable_cws_instrumentation_tags*     @Datadog/agent-delivery
 deploy_mutable_dca_tags*               @Datadog/agent-delivery

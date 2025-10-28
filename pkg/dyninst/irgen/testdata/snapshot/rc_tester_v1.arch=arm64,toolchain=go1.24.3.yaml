@@ -10,13 +10,11 @@ Probes:
       captureSnapshot: true
       subprogram: {subprogram: 1}
       events:
-        - ID: 2
-          Kind: Entry
+        - Kind: Entry
           Type: 211 EventRootType Probe[main.HandleHTTP]
           InjectionPoints: [{PC: "0x86c120", Frameless: false}]
           Condition: null
-        - ID: 1
-          Kind: Return
+        - Kind: Return
           Type: 212 EventRootType Probe[main.HandleHTTP]Return
           InjectionPoints:
             - PC: "0x86c2f8"
@@ -34,13 +32,11 @@ Probes:
       captureSnapshot: true
       subprogram: {subprogram: 2}
       events:
-        - ID: 4
-          Kind: Entry
+        - Kind: Entry
           Type: 213 EventRootType Probe[main.LookAtTheRequest]
           InjectionPoints: [{PC: "0x86c428", Frameless: false}]
           Condition: null
-        - ID: 3
-          Kind: Return
+        - Kind: Return
           Type: 214 EventRootType Probe[main.LookAtTheRequest]Return
           InjectionPoints: [{PC: "0x86c49c", Frameless: false}]
           Condition: null
@@ -71,8 +67,7 @@ Subprograms:
                   Op: {CfaOffset: 8}
                 - Size: 8
                   Op: {CfaOffset: 16}
-          IsParameter: true
-          IsReturn: false
+          Role: Parameter
         - Name: r
           Type: 108 PointerType *net/http.Request
           Locations:
@@ -80,8 +75,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: {RegNo: 2, Shift: 0}}]
             - Range: 0x86c164..0x86c340
               Pieces: [{Size: 8, Op: {CfaOffset: 24}}]
-          IsParameter: true
-          IsReturn: false
+          Role: Parameter
         - Name: '&buf'
           Type: 110 PointerType *bytes.Buffer
           Locations:
@@ -89,8 +83,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
             - Range: 0x86c268..0x86c340
               Pieces: [{Size: 8, Op: {CfaOffset: -128}}]
-          IsParameter: false
-          IsReturn: false
+          Role: Local
         - Name: span
           Type: 112 GoInterfaceType gopkg.in/DataDog/dd-trace-go.v1/ddtrace.Span
           Locations:
@@ -112,8 +105,7 @@ Subprograms:
                   Op: null
                 - Size: 8
                   Op: {RegNo: 1, Shift: 0}
-          IsParameter: false
-          IsReturn: false
+          Role: Local
     - ID: 2
       Name: main.LookAtTheRequest
       OutOfLinePCRanges: [0x86c410..0x86c4c0]
@@ -128,8 +120,7 @@ Subprograms:
                   Op: {RegNo: 0, Shift: 0}
                 - Size: 8
                   Op: {RegNo: 1, Shift: 0}
-          IsParameter: true
-          IsReturn: false
+          Role: Parameter
 Types:
     - __kind: PointerType
       ID: 165

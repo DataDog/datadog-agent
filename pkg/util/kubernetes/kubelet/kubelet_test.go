@@ -702,7 +702,7 @@ func (suite *KubeletTestSuite) TestPodListNoExpire() {
 	require.NotNil(suite.T(), kubeutil)
 	kubelet.dropRequests() // Throwing away first GETs
 
-	pods, err := kubeutil.ForceGetLocalPodList(ctx)
+	pods, err := kubeutil.GetLocalPodListWithMetadata(ctx)
 	require.Nil(suite.T(), err)
 	require.NotNil(suite.T(), pods)
 	require.Len(suite.T(), pods.Items, 4)
@@ -742,7 +742,7 @@ func (suite *KubeletTestSuite) TestPodListExpire() {
 		return t
 	}
 
-	pods, err := kubeutil.ForceGetLocalPodList(ctx)
+	pods, err := kubeutil.GetLocalPodListWithMetadata(ctx)
 	require.Nil(suite.T(), err)
 	require.NotNil(suite.T(), pods)
 	require.Len(suite.T(), pods.Items, 3)
@@ -791,7 +791,7 @@ func (suite *KubeletTestSuite) TestContainerEnvVars() {
 	kubeutil := suite.getCustomKubeUtil()
 	kubelet.dropRequests() // Throwing away first GETs
 
-	pods, err := kubeutil.ForceGetLocalPodList(ctx)
+	pods, err := kubeutil.GetLocalPodListWithMetadata(ctx)
 	require.Nil(suite.T(), err)
 	require.NotNil(suite.T(), pods)
 
@@ -841,7 +841,7 @@ func (suite *KubeletTestSuite) TestPodListWithNullPod() {
 	kubeutil := suite.getCustomKubeUtil()
 	kubelet.dropRequests() // Throwing away first GETs
 
-	pods, err := kubeutil.ForceGetLocalPodList(ctx)
+	pods, err := kubeutil.GetLocalPodListWithMetadata(ctx)
 	require.Nil(suite.T(), err)
 	require.NotNil(suite.T(), pods)
 	require.Len(suite.T(), pods.Items, 1)
@@ -870,7 +870,7 @@ func (suite *KubeletTestSuite) TestPodListOnKubeletInit() {
 	kubeutil := suite.getCustomKubeUtil()
 	kubelet.dropRequests() // Throwing away first GETs
 
-	pods, err := kubeutil.ForceGetLocalPodList(ctx)
+	pods, err := kubeutil.GetLocalPodListWithMetadata(ctx)
 	require.NotNil(suite.T(), err)
 	require.Nil(suite.T(), pods)
 }
@@ -894,7 +894,7 @@ func (suite *KubeletTestSuite) TestPodListWithPersistentVolumeClaim() {
 	kubeutil := suite.getCustomKubeUtil()
 	kubelet.dropRequests() // Throwing away first GETs
 
-	pods, err := kubeutil.ForceGetLocalPodList(ctx)
+	pods, err := kubeutil.GetLocalPodListWithMetadata(ctx)
 	require.Nil(suite.T(), err)
 	require.NotNil(suite.T(), pods)
 	require.Len(suite.T(), pods.Items, 9)

@@ -1,0 +1,17 @@
+cc_binary(
+    name = "patchelf",
+    srcs = glob([
+        "src/*.cc",
+        "src/*.h",
+    ]),
+    copts = [
+        "-std=c++17",
+    ],
+    linkopts = [
+        "-lstdc++",
+    ],
+    local_defines = [
+        "D_FILE_OFFSET_BITS=64",
+    ],
+    visibility = ["//visibility:public"],
+)

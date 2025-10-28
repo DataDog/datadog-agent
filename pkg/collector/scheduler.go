@@ -26,6 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/collector/loaders"
+	"github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
@@ -61,6 +62,7 @@ type CheckScheduler struct {
 	collector      option.Option[collector.Component]
 	senderManager  sender.SenderManager
 	m              sync.RWMutex
+	allowedChecks  map[string]struct{}
 }
 
 // InitCheckScheduler creates and returns a check scheduler
@@ -69,6 +71,7 @@ func InitCheckScheduler(collector option.Option[collector.Component], senderMana
 		collector:      collector,
 		senderManager:  senderManager,
 		configToChecks: make(map[string][]checkid.ID),
+		allowedChecks:  GetAllowedChecks(setup.Datadog()), // Allow list depends on infrastructure mode
 		loaders:        make([]check.Loader, 0, len(loaders.LoaderCatalog(senderManager, logReceiver, tagger, filterStore))),
 	}
 	// add the check loaders
@@ -76,6 +79,7 @@ func InitCheckScheduler(collector option.Option[collector.Component], senderMana
 		checkScheduler.addLoader(loader)
 		log.Debugf("Added %s to Check Scheduler", loader)
 	}
+
 	return checkScheduler
 }
 
@@ -84,6 +88,14 @@ func (s *CheckScheduler) Schedule(configs []integration.Config) {
 	if coll, ok := s.collector.Get(); ok {
 		checks := s.GetChecksFromConfigs(configs, true)
 		for _, c := range checks {
+			// Check if this check is allowed in infra basic mode
+			// If the set is empty, all checks are allowed
+			if len(s.allowedChecks) > 0 {
+				if _, ok := s.allowedChecks[c.String()]; !ok {
+					log.Infof("Check %s is not allowed in infra basic mode, skipping", c.String())
+					continue
+				}
+			}
 			_, err := coll.RunCheck(c)
 			if err != nil {
 				log.Errorf("Unable to run Check %s: %v", c, err)

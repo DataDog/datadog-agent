@@ -81,7 +81,7 @@ func (sl SketchSeriesList) MarshalSplitCompress(bufferContext *marshaler.BufferC
 // MarshalSplitCompressPipelines uses the stream compressor to marshal and
 // compress sketch series payloads across multiple pipelines. Each pipeline
 // defines a filter function and destination, enabling selective routing of
-// sketches to different endpoints (e.g., preaggregation vs standard).
+// sketches to different endpoints.
 func (sl SketchSeriesList) MarshalSplitCompressPipelines(config config.Component, strategy compression.Component, pipelines []Pipeline, logger log.Component) (transaction.BytesPayloads, error) {
 	var err error
 

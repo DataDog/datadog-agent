@@ -43,16 +43,13 @@ func (v *linuxAzureHostnameSuite) TestAgentHostnameStyle() {
 	hostname := v.Env().RemoteHost.MustExecute("hostname")
 	hostname = strings.TrimSpace(hostname)
 
-	metadataStr := v.Env().RemoteHost.MustExecute(`curl -s -H "Metadata: true" http://169.254.169.254/metadata/instance/compute?api-version=2021-02-01`)
+	metadataStr := v.Env().RemoteHost.MustExecute(`curl -s -H "Metadata: true" http://169.254.169.254/metadata/instance/compute?api-version=2017-08-01`)
 
 	var metadata struct {
 		VMID              string
 		Name              string
 		ResourceGroupName string
 		SubscriptionID    string
-		OsProfile         struct {
-			ComputerName string
-		}
 	}
 
 	err := json.Unmarshal([]byte(metadataStr), &metadata)
@@ -65,7 +62,8 @@ func (v *linuxAzureHostnameSuite) TestAgentHostnameStyle() {
 		"name":                    metadata.Name,
 		"name_and_resource_group": fmt.Sprintf("%s.%s", metadata.Name, metadata.ResourceGroupName),
 		"full":                    fmt.Sprintf("%s.%s.%s", metadata.Name, metadata.ResourceGroupName, metadata.SubscriptionID),
-		"os_computer_name":        strings.ToLower(metadata.OsProfile.ComputerName),
+		// the machine hostname will be used if the style is invalid
+		"some_invalid_value": hostname,
 	}
 
 	for hostnameStyle, expected := range hostnameStyles {

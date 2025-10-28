@@ -3,7 +3,6 @@ name "python3"
 default_version "3.13.7"
 
 unless windows?
-  dependency "libxcrypt"
   dependency "libffi"
   dependency "zlib"
   dependency "bzip2"

@@ -1225,7 +1225,7 @@ def gitlab_configuration_is_modified(ctx):
                     for above_line in reversed(content[:start]):
                         current = leading_space.match(above_line)
                         if current[1] < item[1]:
-                            if any(keyword in above_line for keyword in ["needs:", "dependencies:"]):
+                            if any(keyword in above_line for keyword in ["needs:", "dependencies:", "rules:"]):
                                 print(f"> Found a gitlab configuration change on line: {content[start]}")
                                 return True
                             else:
@@ -1235,7 +1235,7 @@ def gitlab_configuration_is_modified(ctx):
             and line.startswith("+")
             and (
                 (len(line) > 1 and line[1].isalpha())
-                or any(keyword in line for keyword in ["needs:", "dependencies:", "!reference"])
+                or any(keyword in line for keyword in ["needs:", "dependencies:", "rules:", "!reference"])
             )
         ):
             print(f"> Found a gitlab configuration change on line: {line}")

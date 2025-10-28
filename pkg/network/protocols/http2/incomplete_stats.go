@@ -56,14 +56,18 @@ func (b *incompleteBuffer) Add(tx http.Transaction) {
 		return
 	}
 
+	ebpfTxCopy := new(EbpfTx)
+	*ebpfTxCopy = *eventWrapper.EbpfTx
+
 	eventWrapperCopy := new(EventWrapper)
 	*eventWrapperCopy = *eventWrapper
+	eventWrapperCopy.EbpfTx = ebpfTxCopy
 
 	b.data = append(b.data, eventWrapperCopy)
 }
 
 // Flush flushes the buffer and returns the joined transactions.
-func (b *incompleteBuffer) Flush(time.Time) []http.Transaction {
+func (b *incompleteBuffer) Flush() []http.Transaction {
 	var (
 		joined   []http.Transaction
 		previous = b.data

@@ -10,7 +10,6 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"reflect"
 	"strings"
 
 	"gopkg.in/yaml.v2"
@@ -36,6 +35,8 @@ func (c *ntmConfig) ReadInConfig() error {
 	if !c.isReady() && !c.allowDynamicSchema.Load() {
 		return log.Errorf("attempt to ReadInConfig before config is constructed")
 	}
+
+	c.maybeRebuild()
 
 	c.Lock()
 	defer c.Unlock()
@@ -63,6 +64,8 @@ func (c *ntmConfig) ReadConfig(in io.Reader) error {
 	if !c.isReady() && !c.allowDynamicSchema.Load() {
 		return log.Errorf("attempt to ReadConfig before config is constructed")
 	}
+
+	c.maybeRebuild()
 
 	c.Lock()
 	defer c.Unlock()
@@ -99,31 +102,6 @@ func (c *ntmConfig) readConfigurationContent(target InnerNode, source model.Sour
 	}
 	c.warnings = append(c.warnings, loadYamlInto(target, source, inData, "", c.schema, c.allowDynamicSchema.Load())...)
 	return nil
-}
-
-// toMapStringInterface convert any type of map into a map[string]interface{}
-func toMapStringInterface(data any, path string) (map[string]interface{}, error) {
-	if res, ok := data.(map[string]interface{}); ok {
-		return res, nil
-	}
-
-	v := reflect.ValueOf(data)
-	switch v.Kind() {
-	case reflect.Map:
-		convert := map[string]interface{}{}
-		iter := v.MapRange()
-		for iter.Next() {
-			key := iter.Key()
-			switch k := key.Interface().(type) {
-			case string:
-				convert[k] = iter.Value().Interface()
-			default:
-				convert[fmt.Sprintf("%v", key.Interface())] = iter.Value().Interface()
-			}
-		}
-		return convert, nil
-	}
-	return nil, fmt.Errorf("invalid type from configuration for key '%s': %v", path, v)
 }
 
 // loadYamlInto traverses input data parsed from YAML, checking if each node is defined by the schema.
@@ -167,7 +145,7 @@ func loadYamlInto(dest InnerNode, source model.Source, inData map[string]interfa
 		// by now we know schemaNode is an InnerNode
 		schemaInner, _ := schemaChild.(InnerNode)
 
-		childValue, err := toMapStringInterface(value, currPath)
+		childValue, err := ToMapStringInterface(value, currPath)
 		if err != nil {
 			warnings = append(warnings, err)
 			// Insert child node here as a leaf. It has the wrong type, but this maintains better
