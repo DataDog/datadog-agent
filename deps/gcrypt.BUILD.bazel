@@ -126,7 +126,7 @@ copy_file(
     out = "mpi/mpi-asm-defs.h",
     src = select({
         "@@//:linux_x86_64": "mpi/amd64/mpi-asm-defs.h",
-        "@@//:linux_arm64": "mpi/arm64/mpi-asm-defs.h",
+        "@@//:linux_arm64": "mpi/aarch64/mpi-asm-defs.h",
     }),
 )
 
