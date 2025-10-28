@@ -517,6 +517,8 @@ func newVariablesContext(e *model.Event, rule *rules.Rule, scope eval.InternalSc
 				return
 			}
 			instance, exists, err := definition.GetInstance(eval.NewContext(e))
+			// do not check whether the instance has expired here because we want to serialize variables
+			// that were used during the evaluation of the rule.
 			if !exists || err != nil {
 				return
 			}
