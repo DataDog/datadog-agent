@@ -9,12 +9,13 @@ package checks
 
 import (
 	model "github.com/DataDog/agent-payload/v5/process"
+
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 )
 
-// useWLMCollection checks the configuration to use the workloadmeta process collector or not in linux
-func (p *ProcessCheck) useWLMCollection() bool {
+// WLMCollectionEnabled returns wheter to use the workloadmeta process collector or not in linux
+func (p *ProcessCheck) WLMProcessCollectionEnabled() bool {
 	return false
 }
 

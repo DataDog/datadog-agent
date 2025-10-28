@@ -51,7 +51,7 @@ var serviceNameSourceMap = map[string]model.ServiceNameSource{
 }
 
 // useWLMCollection checks the configuration to use the workloadmeta process collector or not in linux
-func (p *ProcessCheck) useWLMCollection() bool {
+func (p *ProcessCheck) WLMProcessCollectionEnabled() bool {
 	return true
 }
 

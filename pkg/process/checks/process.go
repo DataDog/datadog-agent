@@ -95,9 +95,6 @@ type ProcessCheck struct {
 	// determine if zombies process will be collected
 	ignoreZombieProcesses bool
 
-	// useWLMProcessCollection determines if process collection uses workloadmeta (always true on Linux, false elsewhere)
-	useWLMProcessCollection bool
-
 	hostInfo                   *HostInfo
 	clock                      clock.Clock
 	lastCPUTime                cpu.TimesStat
@@ -191,9 +188,7 @@ func (p *ProcessCheck) Init(syscfg *SysProbeConfig, info *HostInfo, oneShot bool
 
 	p.extractors = append(p.extractors, p.serviceExtractor)
 
-	p.useWLMProcessCollection = p.useWLMCollection()
-
-	if !oneShot && workloadmeta.Enabled(p.config) && !p.useWLMProcessCollection {
+	if !oneShot && workloadmeta.Enabled(p.config) && !p.WLMProcessCollectionEnabled() {
 		p.workloadMetaExtractor = workloadmeta.GetSharedWorkloadMetaExtractor(pkgconfigsetup.SystemProbe())
 
 		// The server is only needed on the process agent
