@@ -125,7 +125,7 @@ func addEmbeddedCollectorConfigWarnings(cfg *datadogconfig.Config) {
 		cfg.AddWarningf("hostname \"%s\" is ignored in the embedded collector", cfg.Hostname)
 	}
 	if cfg.OnlyMetadata {
-		cfg.AddWarning(fmt.Errorf("only_metadata should not be enabled and is ignored in the embedded collector"))
+		cfg.AddWarningf("only_metadata should not be enabled and is ignored in the embedded collector")
 	}
 }
 
