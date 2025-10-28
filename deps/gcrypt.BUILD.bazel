@@ -603,6 +603,7 @@ cc_library(
     copts = [
         "-O2",
     ],
+    visibility = ["//visibility:public"],
 )
 
 
@@ -617,6 +618,7 @@ cc_shared_library(
     user_link_flags = [
         "-Wl,--version-script=$(location src/libgcrypt.vers)",
     ],
+    visibility = ["//visibility:public"],
 )
 
 so_symlink(
