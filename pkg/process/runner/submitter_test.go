@@ -491,3 +491,19 @@ func getSubmitterDeps(t *testing.T, configOverrides map[string]interface{}, sysp
 		}),
 	))
 }
+
+func getSubmitterDepsWithConfig(t *testing.T, configObj config.Component) submitterDeps {
+	return fxutil.Test[submitterDeps](t, fx.Options(
+		fx.Provide(func() config.Component {
+			return configObj
+		}),
+		sysprobeconfigimpl.MockModule(),
+		forwardersimpl.MockModule(),
+		fx.Provide(func() log.Component {
+			return logmock.New(t)
+		}),
+		fx.Provide(func() statsd.ClientInterface {
+			return &statsd.NoOpClient{}
+		}),
+	))
+}
