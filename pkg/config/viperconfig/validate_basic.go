@@ -34,7 +34,7 @@ var allowlistCaller = []string{
 	"pkg/fleet/installer/packages/embedded/tmpl/main_test.go",
 }
 
-// ValdiateBasicTypes returns true if the argument is made of only basic types
+// ValidateBasicTypes returns true if the argument is made of only basic types
 func ValidateBasicTypes(value interface{}) bool {
 	if value == nil {
 		return true
