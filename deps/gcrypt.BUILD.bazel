@@ -168,7 +168,8 @@ cc_library(
         "src/context.h",
         "src/ec-context.h",
         "cipher/bufhelp.h",
-        "cipher/bithelp.h"
+        "cipher/bithelp.h",
+        "src/g10lib.h",
     ] + select({
         "@@//:linux_x86_64": [
             "mpi/asm-common-amd64.h",
@@ -180,9 +181,17 @@ cc_library(
             "mpi/amd64/mpih-lshift.S",
             "mpi/amd64/mpih-rshift.S",
             "cipher/asm-common-amd64.h",
-            "src/g10lib.h",
         ],
-        "@@//:linux_arm64": ["mpi/asm-common-aarch64.h"],
+        "@@//:linux_arm64": [
+            "mpi/asm-common-aarch64.h",
+            "mpi/aarch64/mpi-asm-defs.h",
+            "mpi/aarch64/mpih-add1.S",
+            "mpi/aarch64/mpih-mul1.S",
+            "mpi/aarch64/mpih-mul2.S",
+            "mpi/aarch64/mpih-mul3.S",
+            "mpi/aarch64/mpih-sub1.S",
+            "cipher/asm-common-aarch64.h",
+        ],
     }) + [
         ":copy_config_h",
         ":mod-source-info_h",
