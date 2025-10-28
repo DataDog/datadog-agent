@@ -1,8 +1,10 @@
 """Helper tool for gathering third party license information.
 
+TODO: This is just a shell to get the tool in place. The behaviors and
+      conditions to be documented later as we learn the requirements.
+
 - Private helper to licenses_csv.bzl
 - Cracks open metadata attribute files and deals with them each.
-- The behaviors and conditions to be documented later as we learn the requirements.
 """
 
 import argparse
