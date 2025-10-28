@@ -70,10 +70,10 @@ cc_library(
         "@platforms//os:linux": HDRS_LINUX_ARM64,
     }) + select({
         "@platforms//cpu:aarch64": [
-            "crypto/sm4/vpsm4-armv8.S",
+            # TODO: This does not compile on linux. Huh?
+            # "crypto/sm4/vpsm4_ex-armv8.S",
         ],
         "//conditions:default": [
-            "crypto/sm4/vpsm4-armv8.S",
         ],
     }) + select(ARCH_HDRS_COND),
     # Yeech.  Includes polutes the build. But we can not use -I because we don't know
@@ -117,6 +117,9 @@ cc_library(
         "providers/implementations/macs/blake2_mac_impl.c",
     ] + glob(["**/*.inc"]),
     visibility = ["//visibility:public"],
+    deps = [
+        "@zlib//:zlib",
+    ],
 )
 
 """Grabbed from live build.
