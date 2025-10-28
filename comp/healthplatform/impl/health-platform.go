@@ -47,7 +47,6 @@ type healthPlatformImpl struct {
 
 	// Lifecycle management
 	ticker *time.Ticker       // Periodic ticker for running health checks
-	stopCh chan struct{}      // Channel to signal component shutdown
 	ctx    context.Context    // Context for managing component lifecycle
 	cancel context.CancelFunc // Cancel function for the context
 
@@ -84,7 +83,6 @@ func NewComponent(reqs Requires) (Provides, error) {
 
 		// Lifecycle management
 		ticker: time.NewTicker(tickerInterval), // Start periodic ticker
-		stopCh: make(chan struct{}),            // Create shutdown channel
 		ctx:    ctx,                            // Set lifecycle context
 		cancel: cancel,                         // Set context cancel function
 
@@ -135,7 +133,6 @@ func (h *healthPlatformImpl) stop(_ context.Context) error {
 
 	h.cancel()
 	h.ticker.Stop()
-	close(h.stopCh)
 
 	return nil
 }
@@ -173,8 +170,6 @@ func (h *healthPlatformImpl) runTicker() {
 		select {
 		case <-h.ticker.C:
 			h.runHealthChecks()
-		case <-h.stopCh:
-			return
 		case <-h.ctx.Done():
 			return
 		}
@@ -226,7 +221,8 @@ func (h *healthPlatformImpl) executeCheck(check healthplatform.CheckConfig) {
 		}
 	}()
 
-	issues, err := check.Callback()
+	// Pass the component's context to the health check so it can respect cancellation
+	issues, err := check.Callback(h.ctx)
 	if err != nil {
 		h.log.Warn("Health check failed: " + check.CheckName + " - " + err.Error())
 		// Store empty issues for failed checks so they can run again

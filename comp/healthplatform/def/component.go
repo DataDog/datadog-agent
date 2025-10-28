@@ -9,6 +9,8 @@
 // and a list of issues.
 package healthplatform
 
+import "context"
+
 // team: agent-health
 
 // Issue represents an individual issue to be reported
@@ -33,7 +35,7 @@ type Issue struct {
 	Integration *string `json:"Integration,omitempty"`
 	// Extra is optional complementary information
 	Extra string `json:"Extra"`
-	// IntegrationFeature indicates which integration or feature is affected (legacy field)
+	// IntegrationFeature indicates which integration or feature is affected
 	IntegrationFeature string `json:"IntegrationFeature"`
 	// Remediation provides steps to fix the issue
 	Remediation *Remediation `json:"Remediation,omitempty"`
@@ -105,7 +107,8 @@ type CheckConfig struct {
 	CheckName string
 	CheckID   string
 
-	Callback func() ([]Issue, error)
+	// Callback is the function that performs the health check.
+	Callback func(context.Context) ([]Issue, error)
 }
 
 // Component is the health platform component interface

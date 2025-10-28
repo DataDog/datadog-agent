@@ -3,12 +3,15 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
+//go:build test
+
 package healthplatformimpl
 
 import (
 	"context"
 	"errors"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -88,7 +91,7 @@ func TestRegisterCheck(t *testing.T) {
 	validCheck := healthplatform.CheckConfig{
 		CheckName: "test-check",
 		CheckID:   "test-check-1",
-		Callback: func() ([]healthplatform.Issue, error) {
+		Callback: func(ctx context.Context) ([]healthplatform.Issue, error) {
 			return []healthplatform.Issue{}, nil
 		},
 	}
@@ -100,7 +103,7 @@ func TestRegisterCheck(t *testing.T) {
 	invalidCheck := healthplatform.CheckConfig{
 		CheckName: "invalid-check",
 		CheckID:   "",
-		Callback: func() ([]healthplatform.Issue, error) {
+		Callback: func(ctx context.Context) ([]healthplatform.Issue, error) {
 			return []healthplatform.Issue{}, nil
 		},
 	}
@@ -157,7 +160,7 @@ func TestIssueManagement(t *testing.T) {
 	checkWithIssues := healthplatform.CheckConfig{
 		CheckName: "issue-check",
 		CheckID:   "issue-check-1",
-		Callback: func() ([]healthplatform.Issue, error) {
+		Callback: func(ctx context.Context) ([]healthplatform.Issue, error) {
 			return testIssues, nil
 		},
 	}
@@ -169,7 +172,7 @@ func TestIssueManagement(t *testing.T) {
 	checkWithoutIssues := healthplatform.CheckConfig{
 		CheckName: "no-issue-check",
 		CheckID:   "no-issue-check-1",
-		Callback: func() ([]healthplatform.Issue, error) {
+		Callback: func(ctx context.Context) ([]healthplatform.Issue, error) {
 			return []healthplatform.Issue{}, nil
 		},
 	}
@@ -237,17 +240,14 @@ func TestHealthCheckExecution(t *testing.T) {
 	comp := provides.Comp
 
 	// Track how many times the callback is called
-	callCount := 0
-	var callCountMux sync.Mutex
+	var callCount atomic.Int32
 
 	// Register a health check that tracks calls
 	trackingCheck := healthplatform.CheckConfig{
 		CheckName: "tracking-check",
 		CheckID:   "tracking-check-1",
-		Callback: func() ([]healthplatform.Issue, error) {
-			callCountMux.Lock()
-			callCount++
-			callCountMux.Unlock()
+		Callback: func(ctx context.Context) ([]healthplatform.Issue, error) {
+			callCount.Add(1)
 			return []healthplatform.Issue{}, nil
 		},
 	}
@@ -264,9 +264,7 @@ func TestHealthCheckExecution(t *testing.T) {
 	comp.RunHealthChecksNow()
 
 	// Verify the callback was called
-	callCountMux.Lock()
-	assert.Greater(t, callCount, 0, "Health check callback should have been called")
-	callCountMux.Unlock()
+	assert.Greater(t, int(callCount.Load()), 0, "Health check callback should have been called")
 
 	// Stop the component
 	err = lifecycle.Stop(context.Background())
@@ -289,7 +287,7 @@ func TestHealthCheckErrorHandling(t *testing.T) {
 	errorCheck := healthplatform.CheckConfig{
 		CheckName: "error-check",
 		CheckID:   "error-check-1",
-		Callback: func() ([]healthplatform.Issue, error) {
+		Callback: func(ctx context.Context) ([]healthplatform.Issue, error) {
 			return nil, errors.New("test error")
 		},
 	}
@@ -330,7 +328,7 @@ func TestHealthCheckPanicRecovery(t *testing.T) {
 	panicCheck := healthplatform.CheckConfig{
 		CheckName: "panic-check",
 		CheckID:   "panic-check-1",
-		Callback: func() ([]healthplatform.Issue, error) {
+		Callback: func(ctx context.Context) ([]healthplatform.Issue, error) {
 			panic("test panic")
 		},
 	}
@@ -384,7 +382,7 @@ func TestConcurrentOperations(t *testing.T) {
 			check := healthplatform.CheckConfig{
 				CheckName: "concurrent-check",
 				CheckID:   "concurrent-check-" + string(rune(id)),
-				Callback: func() ([]healthplatform.Issue, error) {
+				Callback: func(ctx context.Context) ([]healthplatform.Issue, error) {
 					return []healthplatform.Issue{}, nil
 				},
 			}
@@ -426,7 +424,7 @@ func TestComponentLifecycle(t *testing.T) {
 	check := healthplatform.CheckConfig{
 		CheckName: "lifecycle-check",
 		CheckID:   "lifecycle-check-1",
-		Callback: func() ([]healthplatform.Issue, error) {
+		Callback: func(ctx context.Context) ([]healthplatform.Issue, error) {
 			return []healthplatform.Issue{}, nil
 		},
 	}
@@ -503,7 +501,7 @@ func TestIssueTimestamping(t *testing.T) {
 	timestampCheck := healthplatform.CheckConfig{
 		CheckName: "timestamp-check",
 		CheckID:   "timestamp-check-1",
-		Callback: func() ([]healthplatform.Issue, error) {
+		Callback: func(ctx context.Context) ([]healthplatform.Issue, error) {
 			return []healthplatform.Issue{testIssue}, nil
 		},
 	}
@@ -528,4 +526,62 @@ func TestIssueTimestamping(t *testing.T) {
 	// Stop the component
 	err = lifecycle.Stop(context.Background())
 	require.NoError(t, err)
+}
+
+// TestHealthCheckContextCancellation tests that health checks respect context cancellation
+func TestHealthCheckContextCancellation(t *testing.T) {
+	reqs := Requires{
+		Lifecycle: newMockLifecycle(),
+		Log:       logmock.New(t),
+		Telemetry: nooptelemetry.GetCompatComponent(),
+	}
+
+	provides, err := NewComponent(reqs)
+	require.NoError(t, err)
+	comp := provides.Comp
+
+	// Track if the check was cancelled
+	var wasCancelled atomic.Int32
+
+	// Register a health check that respects context cancellation
+	cancellableCheck := healthplatform.CheckConfig{
+		CheckName: "cancellable-check",
+		CheckID:   "cancellable-check-1",
+		Callback: func(ctx context.Context) ([]healthplatform.Issue, error) {
+			// Simulate a long-running operation
+			select {
+			case <-time.After(5 * time.Second):
+				// This should not happen in the test
+				return []healthplatform.Issue{}, nil
+			case <-ctx.Done():
+				// Context was cancelled, mark it
+				wasCancelled.Store(1)
+				return nil, ctx.Err()
+			}
+		},
+	}
+
+	err = comp.RegisterCheck(cancellableCheck)
+	require.NoError(t, err)
+
+	// Start the component
+	lifecycle := reqs.Lifecycle.(*mockLifecycle)
+	err = lifecycle.Start(context.Background())
+	require.NoError(t, err)
+
+	// Trigger the check asynchronously
+	go comp.RunHealthChecksNow()
+
+	// Give it a moment to start
+	time.Sleep(100 * time.Millisecond)
+
+	// Stop the component (should cancel the context)
+	err = lifecycle.Stop(context.Background())
+	require.NoError(t, err)
+
+	// Wait a bit for cancellation to propagate
+	time.Sleep(100 * time.Millisecond)
+
+	// Verify the check was cancelled
+	assert.Equal(t, int32(1), wasCancelled.Load(), "Health check should have been cancelled")
 }

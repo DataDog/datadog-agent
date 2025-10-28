@@ -7,6 +7,7 @@
 package healthcheck
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -41,8 +42,16 @@ func isPermissionError(err error) bool {
 }
 
 // CheckDockerPermissions performs Docker file tailing permission health checks
-func CheckDockerPermissions() ([]healthplatform.Issue, error) {
+// The context can be used to cancel long-running operations during shutdown
+func CheckDockerPermissions(ctx context.Context) ([]healthplatform.Issue, error) {
 	var issues []healthplatform.Issue
+
+	// Check if context is already cancelled before starting
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	default:
+	}
 
 	// Check Docker file tailing permissions
 	if issue := checkDockerFileTailing(); issue != nil {
