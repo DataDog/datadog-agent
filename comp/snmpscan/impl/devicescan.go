@@ -48,8 +48,8 @@ func (s snmpScannerImpl) ScanDeviceAndSendData(connParams *snmpparse.SNMPConfig,
 			CollectTimestamp: time.Now().Unix(),
 			Namespace:        namespace,
 		}
-		if err = s.sendPayload(errorStatusPayload); err != nil {
-			return fmt.Errorf("unable to send error status: %v", err)
+		if sendErr := s.sendPayload(errorStatusPayload); sendErr != nil {
+			return fmt.Errorf("unable to send error status: %v", sendErr)
 		}
 		return fmt.Errorf("unable to connect to SNMP agent on %s:%d: %w", snmp.LocalAddr, snmp.Port, err)
 	}
@@ -65,8 +65,8 @@ func (s snmpScannerImpl) ScanDeviceAndSendData(connParams *snmpparse.SNMPConfig,
 			CollectTimestamp: time.Now().Unix(),
 			Namespace:        namespace,
 		}
-		if err = s.sendPayload(errorStatusPayload); err != nil {
-			return fmt.Errorf("unable to send error status: %v", err)
+		if sendErr := s.sendPayload(errorStatusPayload); sendErr != nil {
+			return fmt.Errorf("unable to send error status: %v", sendErr)
 		}
 		return fmt.Errorf("unable to perform device scan: %v", err)
 	}
