@@ -50,7 +50,7 @@ var serviceNameSourceMap = map[string]model.ServiceNameSource{
 	string(usm.WebSphere):   model.ServiceNameSource_SERVICE_NAME_SOURCE_WEBSPHERE,
 }
 
-// useWLMCollection checks the configuration to use the workloadmeta process collector or not in linux
+// WLMProcessCollectionEnabled checks the configuration to use the workloadmeta process collector or not in linux
 func (p *ProcessCheck) WLMProcessCollectionEnabled() bool {
 	return true
 }

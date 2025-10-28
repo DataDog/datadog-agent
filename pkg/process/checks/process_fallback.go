@@ -14,7 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 )
 
-// WLMCollectionEnabled returns wheter to use the workloadmeta process collector or not in linux
+// WLMProcessCollectionEnabled returns wheter to use the workloadmeta process collector or not in linux
 func (p *ProcessCheck) WLMProcessCollectionEnabled() bool {
 	return false
 }
