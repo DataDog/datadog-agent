@@ -10,7 +10,7 @@ load("@rules_pkg//pkg:install.bzl", "pkg_install")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_files")
 
 package(
-    default_applicable_licenses = [":license"],
+    default_package_metadata = [":license"],
     default_visibility = ["//visibility:private"],
 )
 
@@ -24,14 +24,11 @@ VERSION = "5.4.2"
 # Warning: starting from 5.5.2, the license switches to BSD-0
 license(
     name = "license",
-    license_kinds = ["@rules_license//licenses/generic:unencumbered"],
-    license_text = "LICENSE",
+    license_kinds = ["@rules_license//licenses/spdx:0BSD"],
+    license_text = "COPYING.0BSD",
+    copyright_notice = "Copyright (C) The XZ Utils authors and contributors",
     visibility = ["//visibility:public"],
 )
-
-exports_files([
-    "LICENSE",
-])
 
 copy_file(
     name = "copy_config",

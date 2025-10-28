@@ -844,7 +844,7 @@ func (p *EBPFProbe) playSnapshot(notifyConsumers bool) {
 }
 
 func (p *EBPFProbe) sendAnomalyDetection(event *model.Event) {
-	tags := p.probe.GetEventTags(event.ContainerContext.ContainerID)
+	tags := p.probe.GetEventTags(event.ProcessContext.Process.ContainerContext.ContainerID)
 	if service := p.probe.GetService(event); service != "" {
 		tags = append(tags, "service:"+service)
 	}
@@ -885,10 +885,10 @@ func (p *EBPFProbe) DispatchEvent(event *model.Event, notifyConsumers bool) {
 	if event.IsAnomalyDetectionEvent() {
 		var workloadID containerutils.WorkloadID
 		var imageTag string
-		if containerID := event.FieldHandlers.ResolveContainerID(event, event.ContainerContext); containerID != "" {
+		if containerID := event.FieldHandlers.ResolveContainerID(event, &event.ProcessContext.Process.ContainerContext); containerID != "" {
 			workloadID = containerID
-			imageTag = utils.GetTagValue("image_tag", event.ContainerContext.Tags)
-		} else if cgroupID := event.FieldHandlers.ResolveCGroupID(event, event.CGroupContext); cgroupID != "" {
+			imageTag = utils.GetTagValue("image_tag", event.ProcessContext.Process.ContainerContext.Tags)
+		} else if cgroupID := event.FieldHandlers.ResolveCGroupID(event, &event.ProcessContext.Process.CGroup); cgroupID != "" {
 			workloadID = containerutils.CGroupID(cgroupID)
 			tags, err := p.Resolvers.TagsResolver.ResolveWithErr(workloadID)
 			if err != nil {
@@ -948,7 +948,7 @@ func (p *EBPFProbe) EventMarshallerCtor(event *model.Event) func() events.EventM
 }
 
 func (p *EBPFProbe) unmarshalContexts(data []byte, event *model.Event) (int, error) {
-	read, err := model.UnmarshalBinary(data, &event.PIDContext, &event.SpanContext, event.CGroupContext)
+	read, err := model.UnmarshalBinary(data, &event.PIDContext, &event.SpanContext, &event.ProcessContext.Process.CGroup)
 	if err != nil {
 		return 0, err
 	}
@@ -991,11 +991,9 @@ func (p *EBPFProbe) unmarshalProcessCacheEntry(ev *model.Event, data []byte) (in
 		return n, err
 	}
 
-	entry.Process.ContainerID = ev.ContainerContext.ContainerID
-	entry.ContainerID = ev.ContainerContext.ContainerID
+	entry.Process.ContainerContext.ContainerID = ev.ProcessContext.Process.ContainerContext.ContainerID
 
-	entry.Process.CGroup.Merge(ev.CGroupContext)
-	entry.CGroup.Merge(ev.CGroupContext)
+	entry.Process.CGroup.Merge(&ev.ProcessContext.Process.CGroup)
 
 	entry.Source = model.ProcessCacheEntryFromEvent
 
@@ -1023,9 +1021,6 @@ func (p *EBPFProbe) setProcessContext(eventType model.EventType, event *model.Ev
 		panic("should always return a process context")
 	}
 
-	// do the same with cgroup context
-	event.CGroupContext = &event.ProcessCacheEntry.CGroup
-
 	if process.IsKThread(event.ProcessContext.PPid, event.ProcessContext.Pid) {
 		return false
 	}
@@ -1049,6 +1044,7 @@ func (p *EBPFProbe) zeroEvent() *model.Event {
 	probeEventZeroer(p.event)
 	p.event.FieldHandlers = p.fieldHandlers
 	p.event.Origin = EBPFOrigin
+	p.event.ProcessContext = &model.ProcessContext{}
 	return p.event
 }
 
@@ -1157,7 +1153,7 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 	}
 
 	// resolve the container context
-	event.ContainerContext, _ = p.fieldHandlers.ResolveContainerContext(event)
+	_, _ = p.fieldHandlers.ResolveContainerContext(event)
 
 	// handle regular events
 	if !p.handleRegularEvent(event, offset, dataLen, data, newEntryCb) {
@@ -1203,7 +1199,7 @@ func (p *EBPFProbe) handleRegularEvent(event *model.Event, offset int, dataLen u
 		// TODO: this should be moved in the resolver itself in order to handle the fallbacks
 		if event.Mount.GetFSType() == "nsfs" {
 			nsid := uint32(event.Mount.RootPathKey.Inode)
-			mountPath, _, _, err := p.Resolvers.MountResolver.ResolveMountPath(event.Mount.MountID, event.Mount.Device, event.PIDContext.Pid, event.ContainerContext.ContainerID)
+			mountPath, _, _, err := p.Resolvers.MountResolver.ResolveMountPath(event.Mount.MountID, event.Mount.Device, event.PIDContext.Pid, event.ProcessContext.Process.ContainerContext.ContainerID)
 			if err != nil {
 				seclog.Debugf("failed to get mount path: %v", err)
 			} else {
@@ -1218,7 +1214,7 @@ func (p *EBPFProbe) handleRegularEvent(event *model.Event, offset int, dataLen u
 		}
 
 		// we can skip this error as this is for the umount only and there is no impact on the filepath resolution
-		mount, _, _, _ := p.Resolvers.MountResolver.ResolveMount(event.Umount.MountID, 0, event.PIDContext.Pid, event.ContainerContext.ContainerID)
+		mount, _, _, _ := p.Resolvers.MountResolver.ResolveMount(event.Umount.MountID, 0, event.PIDContext.Pid, event.ProcessContext.Process.ContainerContext.ContainerID)
 		if mount != nil && mount.GetFSType() == "nsfs" {
 			nsid := uint32(mount.RootPathKey.Inode)
 			if namespace := p.Resolvers.NamespaceResolver.ResolveNetworkNamespace(nsid); namespace != nil {
@@ -1485,7 +1481,7 @@ func (p *EBPFProbe) handleRegularEvent(event *model.Event, offset int, dataLen u
 		}
 		event.NetworkContext = event.RawPacket.NetworkContext
 
-		tags := p.probe.GetEventTags(event.ContainerContext.ContainerID)
+		tags := p.probe.GetEventTags(event.ProcessContext.Process.ContainerContext.ContainerID)
 		if service := p.probe.GetService(event); service != "" {
 			tags = append(tags, "service:"+service)
 		}
@@ -1653,7 +1649,7 @@ func (p *EBPFProbe) handleEarlyReturnEvents(event *model.Event, offset int, data
 			seclog.Debugf("Failed to resolve cgroup: %s", err.Error())
 		} else {
 			event.CgroupTracing.CGroupContext = *cgroupContext
-			event.CGroupContext = cgroupContext
+			event.ProcessContext.Process.CGroup = *cgroupContext
 			containerID := containerutils.FindContainerID(cgroupContext.CGroupID)
 			if containerID != "" {
 				event.CgroupTracing.ContainerContext.ContainerID = containerID
@@ -1710,7 +1706,7 @@ func resolveTraceProcessContext(event *model.Event, p *EBPFProbe, newEntryCb fun
 		pidToResolve := event.PTrace.PID
 
 		if pidToResolve == 0 { // resolve the PID given as argument instead
-			containerID := p.fieldHandlers.ResolveContainerID(event, event.ContainerContext)
+			containerID := p.fieldHandlers.ResolveContainerID(event, &event.ProcessContext.Process.ContainerContext)
 			if containerID == "" && event.PTrace.Request != unix.PTRACE_ATTACH {
 				pidToResolve = event.PTrace.NSPID
 			} else {
@@ -3311,11 +3307,11 @@ func (p *EBPFProbe) HandleActions(ctx *eval.Context, rule *rules.Rule) {
 
 		switch {
 		case action.InternalCallback != nil && rule.ID == bundled.RefreshUserCacheRuleID:
-			_ = p.RefreshUserCache(ev.ContainerContext.ContainerID)
+			_ = p.RefreshUserCache(ev.ProcessContext.Process.ContainerContext.ContainerID)
 
-		case action.InternalCallback != nil && rule.ID == bundled.RefreshSBOMRuleID && p.Resolvers.SBOMResolver != nil && len(ev.ContainerContext.ContainerID) > 0:
-			if err := p.Resolvers.SBOMResolver.RefreshSBOM(ev.ContainerContext.ContainerID); err != nil {
-				seclog.Warnf("failed to refresh SBOM for container %s, triggered by %s: %s", ev.ContainerContext.ContainerID, ev.ProcessContext.Comm, err)
+		case action.InternalCallback != nil && rule.ID == bundled.RefreshSBOMRuleID && p.Resolvers.SBOMResolver != nil && len(ev.ProcessContext.Process.ContainerContext.ContainerID) > 0:
+			if err := p.Resolvers.SBOMResolver.RefreshSBOM(ev.ProcessContext.Process.ContainerContext.ContainerID); err != nil {
+				seclog.Warnf("failed to refresh SBOM for container %s, triggered by %s: %s", ev.ProcessContext.Process.ContainerContext.ContainerID, ev.ProcessContext.Comm, err)
 			}
 
 		case action.Def.Kill != nil:
@@ -3357,7 +3353,7 @@ func (p *EBPFProbe) HandleActions(ctx *eval.Context, rule *rules.Rule) {
 				}
 
 				if action.Def.NetworkFilter.Scope == "cgroup" {
-					dropActionFilter.CGroupPathKey = ev.CGroupContext.CGroupFile
+					dropActionFilter.CGroupPathKey = ev.ProcessContext.Process.CGroup.CGroupFile
 				} else {
 					dropActionFilter.Pid = ev.ProcessContext.Pid
 				}
@@ -3405,9 +3401,8 @@ func (p *EBPFProbe) newEBPFPooledEventFromPCE(entry *model.ProcessCacheEntry) *m
 	event.ProcessCacheEntry = entry
 	event.ProcessContext = &entry.ProcessContext
 	event.Exec.Process = &entry.Process
-	event.ProcessContext.Process.ContainerID = entry.ContainerID
+	event.ProcessContext.Process.ContainerContext.ContainerID = entry.ContainerContext.ContainerID
 	event.ProcessContext.Process.CGroup = entry.CGroup
-	event.CGroupContext = &entry.CGroup
 
 	return event
 }
@@ -3419,7 +3414,7 @@ func (p *EBPFProbe) newBindEventFromSnapshot(entry *model.ProcessCacheEntry, sna
 	event.Type = uint32(model.BindEventType)
 	event.ProcessCacheEntry = entry
 	event.ProcessContext = &entry.ProcessContext
-	event.ProcessContext.Process.ContainerID = entry.ContainerID
+	event.ProcessContext.Process.ContainerContext.ContainerID = entry.ContainerContext.ContainerID
 	event.ProcessContext.Process.CGroup = entry.CGroup
 
 	event.Bind.SyscallEvent.Retval = 0
