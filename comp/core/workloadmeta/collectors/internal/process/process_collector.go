@@ -500,6 +500,9 @@ func (c *collector) updateServices(alivePids core.PidSet, procs map[int32]*procu
 
 func (c *collector) updateServicesNoCache(alivePids core.PidSet, procs map[int32]*procutil.Process) []*workloadmeta.Process {
 	entities, _ := c.updateServices(alivePids, procs)
+	if len(entities) == 0 {
+		return nil
+	}
 
 	pidToCid := c.containerProvider.GetPidToCid(cacheValidityNoRT)
 
