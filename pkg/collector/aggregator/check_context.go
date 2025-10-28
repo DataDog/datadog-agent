@@ -17,21 +17,21 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
-var checkCtx *checkContext
+var checkCtx *CheckContext
 var checkContextMutex = sync.Mutex{}
 
-// As it is difficult to pass Go context to Go methods like SubmitMetric,
-// checkContext stores the global context required by these functions.
+// CheckContext stores the global context required by Go methods like SubmitMetric.
 // Doing so allow to have a single global state instead of having one
 // per dependency used inside SubmitMetric like methods.
-type checkContext struct {
+type CheckContext struct {
 	senderManager sender.SenderManager
-	logReceiver   option.Option[integrations.Component]
-	tagger        tagger.Component
-	filter        workloadfilter.FilterBundle
+	LogReceiver   option.Option[integrations.Component]
+	Tagger        tagger.Component
+	Filter        workloadfilter.FilterBundle
 }
 
-func getCheckContext() (*checkContext, error) {
+// GetCheckContext retrives the current context
+func GetCheckContext() (*CheckContext, error) {
 	checkContextMutex.Lock()
 	defer checkContextMutex.Unlock()
 
@@ -41,14 +41,15 @@ func getCheckContext() (*checkContext, error) {
 	return checkCtx, nil
 }
 
-func initializeCheckContext(senderManager sender.SenderManager, logReceiver option.Option[integrations.Component], tagger tagger.Component, filterStore workloadfilter.Component) {
+// InitializeCheckContext creates the context that can be later used for storing/retrieving checks context for submit functions
+func InitializeCheckContext(senderManager sender.SenderManager, logReceiver option.Option[integrations.Component], tagger tagger.Component, filterStore workloadfilter.Component) {
 	checkContextMutex.Lock()
 	if checkCtx == nil {
-		checkCtx = &checkContext{
+		checkCtx = &CheckContext{
 			senderManager: senderManager,
-			logReceiver:   logReceiver,
-			tagger:        tagger,
-			filter:        filterStore.GetContainerSharedMetricFilters(),
+			LogReceiver:   logReceiver,
+			Tagger:        tagger,
+			Filter:        filterStore.GetContainerSharedMetricFilters(),
 		}
 
 		if _, ok := logReceiver.Get(); !ok {

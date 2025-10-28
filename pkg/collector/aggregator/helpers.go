@@ -11,10 +11,6 @@ import (
 
 /*
 #include <stdlib.h>
-#include <string.h>
-
-#include "datadog_agent_rtloader.h"
-#include "rtloader_mem.h"
 */
 import "C"
 

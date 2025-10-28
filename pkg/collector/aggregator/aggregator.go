@@ -15,22 +15,21 @@ import (
 )
 
 /*
-#include <datadog_agent_rtloader.h>
-#cgo !windows LDFLAGS: -L${SRCDIR}/../../../rtloader/build/rtloader -ldatadog-agent-rtloader -ldl
-#cgo windows LDFLAGS: -L${SRCDIR}/../../../rtloader/build/rtloader -ldatadog-agent-rtloader -lstdc++ -static
-#cgo CFLAGS: -I "${SRCDIR}/../../../rtloader/include"  -I "${SRCDIR}/../../../rtloader/common"
+#include <stdbool.h>
+
+#include "aggregator_types.h"
 */
 import "C"
 
-// SubmitMetric is the method exposed to Python scripts to submit metrics
+// SubmitMetric is the method exposed to scripts to submit metrics
 //
 //export SubmitMetric
 func SubmitMetric(checkID *C.char, metricType C.metric_type_t, metricName *C.char, value C.double, tags **C.char, hostname *C.char, flushFirstValue C.bool) {
 	goCheckID := C.GoString(checkID)
 
-	checkContext, err := getCheckContext()
+	checkContext, err := GetCheckContext()
 	if err != nil {
-		log.Errorf("Python check context: %v", err)
+		log.Errorf("check context: %v", err)
 		return
 	}
 
@@ -64,15 +63,15 @@ func SubmitMetric(checkID *C.char, metricType C.metric_type_t, metricName *C.cha
 	}
 }
 
-// SubmitServiceCheck is the method exposed to Python scripts to submit service checks
+// SubmitServiceCheck is the method exposed to scripts to submit service checks
 //
 //export SubmitServiceCheck
 func SubmitServiceCheck(checkID *C.char, scName *C.char, status C.int, tags **C.char, hostname *C.char, message *C.char) {
 	goCheckID := C.GoString(checkID)
 
-	checkContext, err := getCheckContext()
+	checkContext, err := GetCheckContext()
 	if err != nil {
-		log.Errorf("Python check context: %v", err)
+		log.Errorf("check context: %v", err)
 		return
 	}
 
@@ -99,15 +98,15 @@ func eventParseString(value *C.char, fieldName string) string {
 	return C.GoString(value)
 }
 
-// SubmitEvent is the method exposed to Python scripts to submit events
+// SubmitEvent is the method exposed to scripts to submit events
 //
 //export SubmitEvent
 func SubmitEvent(checkID *C.char, event *C.event_t) {
 	goCheckID := C.GoString(checkID)
 
-	checkContext, err := getCheckContext()
+	checkContext, err := GetCheckContext()
 	if err != nil {
-		log.Errorf("Python check context: %v", err)
+		log.Errorf("check context: %v", err)
 		return
 	}
 
@@ -132,14 +131,14 @@ func SubmitEvent(checkID *C.char, event *C.event_t) {
 	sender.Event(_event)
 }
 
-// SubmitHistogramBucket is the method exposed to Python scripts to submit metrics
+// SubmitHistogramBucket is the method exposed to scripts to submit metrics
 //
 //export SubmitHistogramBucket
 func SubmitHistogramBucket(checkID *C.char, metricName *C.char, value C.longlong, lowerBound C.float, upperBound C.float, monotonic C.int, hostname *C.char, tags **C.char, flushFirstValue C.bool) {
 	goCheckID := C.GoString(checkID)
-	checkContext, err := getCheckContext()
+	checkContext, err := GetCheckContext()
 	if err != nil {
-		log.Errorf("Python check context: %v", err)
+		log.Errorf("check context: %v", err)
 		return
 	}
 
@@ -161,14 +160,14 @@ func SubmitHistogramBucket(checkID *C.char, metricName *C.char, value C.longlong
 	sender.HistogramBucket(_name, _value, _lowerBound, _upperBound, _monotonic, _hostname, _tags, _flushFirstValue)
 }
 
-// SubmitEventPlatformEvent is the method exposed to Python scripts to submit event platform events
+// SubmitEventPlatformEvent is the method exposed to scripts to submit event platform events
 //
 //export SubmitEventPlatformEvent
 func SubmitEventPlatformEvent(checkID *C.char, rawEventPtr *C.char, rawEventSize C.int, eventType *C.char) {
 	_checkID := C.GoString(checkID)
-	checkContext, err := getCheckContext()
+	checkContext, err := GetCheckContext()
 	if err != nil {
-		log.Errorf("Python check context: %v", err)
+		log.Errorf("check context: %v", err)
 		return
 	}
 
