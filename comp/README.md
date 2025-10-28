@@ -755,6 +755,12 @@ Package client implements a component to send process metadata to the Cluster-Ag
 
 Package networkdeviceconfig provides the component for retrieving network device configurations.
 
+### [comp/notableevents](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/notableevents)
+
+*Datadog Team*: windows-products
+
+Package notableevents provides a component that monitors notable system events and forwards them to the Datadog Event Management v2 API.
+
 ### [comp/publishermetadatacache](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/publishermetadatacache)
 
 *Datadog Team*: windows-products
