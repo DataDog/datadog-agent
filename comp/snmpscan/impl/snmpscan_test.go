@@ -10,16 +10,16 @@ package snmpscanimpl
 import (
 	"testing"
 
+	"github.com/gosnmp/gosnmp"
+	"github.com/stretchr/testify/assert"
+	"go.uber.org/fx"
+
 	"github.com/DataDog/datadog-agent/comp/core"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
 	logscomp "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx-mock"
-	"go.uber.org/fx"
-
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/gosnmp/gosnmp"
-	"github.com/stretchr/testify/assert"
 )
 
 type deps struct {
@@ -40,9 +40,9 @@ func TestSnmpScanComp(t *testing.T) {
 	snmpConnection.LocalAddr = "127.0.0.1"
 	snmpConnection.Port = 0
 
-	err = snmpScanner.Comp.RunDeviceScan(snmpConnection, "default", "127.0.0.1")
+	err = snmpScanner.Comp.RunSnmpWalk(snmpConnection, "1")
 	assert.ErrorContains(t, err, "&GoSNMP.Conn is missing. Provide a connection or use Connect()")
 
-	err = snmpScanner.Comp.RunDeviceScan(snmpConnection, "default", "127.0.0.1")
+	err = snmpScanner.Comp.RunSnmpWalk(snmpConnection, "1")
 	assert.ErrorContains(t, err, "&GoSNMP.Conn is missing. Provide a connection or use Connect()")
 }

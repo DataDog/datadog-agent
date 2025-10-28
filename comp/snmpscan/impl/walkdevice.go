@@ -10,8 +10,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/snmp/gosnmplib"
 	"github.com/gosnmp/gosnmp"
+
+	"github.com/DataDog/datadog-agent/pkg/snmp/gosnmplib"
 )
 
 // RunSnmpWalk prints every SNMP value, in the style of the unix snmpwalk command.
