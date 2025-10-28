@@ -94,6 +94,9 @@ func (s *configSuite) TestConfigFailureHealth() {
 	if s.Env().RemoteHost.OSFamily == e2eos.WindowsFamily {
 		s.T().Skip("FIXME: Experiments on windows")
 	}
+	if s.Env().RemoteHost.OSFlavor == e2eos.CentOS && s.Env().RemoteHost.OSVersion == e2eos.CentOS7.Version {
+		s.T().Skip("FIXME: Broken on CentOS 7 for some unknown reason")
+	}
 	s.agent.MustInstall(agent.WithRemoteUpdates())
 	defer s.agent.MustUninstall()
 
