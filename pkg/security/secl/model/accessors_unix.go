@@ -68,6 +68,10 @@ func (_ *Model) GetEventTypes() []eval.EventType {
 	}
 }
 func (_ *Model) GetFieldRestrictions(field eval.Field) []eval.EventType {
+	// handle legacy field mapping
+	if newField, found := SECLLegacyFields[field]; found {
+		field = newField
+	}
 	switch field {
 	case "network.destination.ip":
 		return []eval.EventType{"dns", "imds", "packet"}
@@ -97,6 +101,10 @@ func (_ *Model) GetFieldRestrictions(field eval.Field) []eval.EventType {
 	return nil
 }
 func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int) (eval.Evaluator, error) {
+	// handle legacy field mapping
+	if newField, found := SECLLegacyFields[field]; found {
+		field = newField
+	}
 	switch field {
 	case "accept.addr.family":
 		return &eval.IntEvaluator{
@@ -36597,6 +36605,10 @@ func (ev *Event) GetFields() []eval.Field {
 	}
 }
 func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kind, string, error) {
+	// handle legacy field mapping
+	if newField, found := SECLLegacyFields[field]; found {
+		field = newField
+	}
 	switch field {
 	case "accept.addr.family":
 		return "accept", reflect.Int, "int", nil
@@ -40896,10 +40908,15 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 	return "", reflect.Invalid, "", &eval.ErrFieldNotFound{Field: field}
 }
 func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
-	if strings.HasPrefix(field, "process.") || strings.HasPrefix(field, "exec.") {
+	// handle legacy field mapping
+	mappedField := field
+	if newField, found := SECLLegacyFields[field]; found {
+		mappedField = newField
+	}
+	if strings.HasPrefix(mappedField, "process.") || strings.HasPrefix(mappedField, "exec.") {
 		ev.initProcess()
 	}
-	switch field {
+	switch mappedField {
 	case "accept.addr.family":
 		return ev.setUint16FieldValue("accept.addr.family", &ev.Accept.AddrFamily, value)
 	case "accept.addr.hostname":

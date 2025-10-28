@@ -37,11 +37,19 @@ func (_ *Model) GetEventTypes() []eval.EventType {
 	}
 }
 func (_ *Model) GetFieldRestrictions(field eval.Field) []eval.EventType {
+	// handle legacy field mapping
+	if newField, found := SECLLegacyFields[field]; found {
+		field = newField
+	}
 	switch field {
 	}
 	return nil
 }
 func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int) (eval.Evaluator, error) {
+	// handle legacy field mapping
+	if newField, found := SECLLegacyFields[field]; found {
+		field = newField
+	}
 	switch field {
 	case "change_permission.new_sd":
 		return &eval.StringEvaluator{
@@ -2458,6 +2466,10 @@ func (ev *Event) GetFields() []eval.Field {
 	}
 }
 func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kind, string, error) {
+	// handle legacy field mapping
+	if newField, found := SECLLegacyFields[field]; found {
+		field = newField
+	}
 	switch field {
 	case "change_permission.new_sd":
 		return "change_permission", reflect.String, "string", nil
@@ -2801,10 +2813,15 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 	return "", reflect.Invalid, "", &eval.ErrFieldNotFound{Field: field}
 }
 func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
-	if strings.HasPrefix(field, "process.") || strings.HasPrefix(field, "exec.") {
+	// handle legacy field mapping
+	mappedField := field
+	if newField, found := SECLLegacyFields[field]; found {
+		mappedField = newField
+	}
+	if strings.HasPrefix(mappedField, "process.") || strings.HasPrefix(mappedField, "exec.") {
 		ev.initProcess()
 	}
-	switch field {
+	switch mappedField {
 	case "change_permission.new_sd":
 		return ev.setStringFieldValue("change_permission.new_sd", &ev.ChangePermission.NewSd, value)
 	case "change_permission.old_sd":
