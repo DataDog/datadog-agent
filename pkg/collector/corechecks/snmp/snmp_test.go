@@ -1003,10 +1003,10 @@ community_string: public
 
 func TestCheckID(t *testing.T) {
 	profile.SetConfdPathAndCleanProfiles()
-	check1 := newCheck(agentconfig.NewMock(t), nil)
-	check2 := newCheck(agentconfig.NewMock(t), nil)
-	check3 := newCheck(agentconfig.NewMock(t), nil)
-	checkSubnet := newCheck(agentconfig.NewMock(t), nil)
+	check1 := newCheck(agentconfig.NewMock(t), nil, nil)
+	check2 := newCheck(agentconfig.NewMock(t), nil, nil)
+	check3 := newCheck(agentconfig.NewMock(t), nil, nil)
+	checkSubnet := newCheck(agentconfig.NewMock(t), nil, nil)
 	// language=yaml
 	rawInstanceConfig1 := []byte(`
 ip_address: 1.1.1.1
