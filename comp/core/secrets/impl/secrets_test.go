@@ -768,6 +768,72 @@ func TestRefreshAddsToAuditFile(t *testing.T) {
 	}
 }
 
+func TestRefreshThrottling(t *testing.T) {
+	tel := nooptelemetry.GetCompatComponent()
+	resolver := newEnabledSecretResolver(tel)
+	resolver.backendCommand = "some_command"
+	resolver.cache = map[string]string{"api_key": "test_key"}
+	resolver.origin = handleToContext{
+		"api_key": []secretContext{
+			{
+				origin: "test",
+				path:   []string{"api_key"},
+			},
+		},
+	}
+
+	var calls int
+	resolver.fetchHookFunc = func([]string) (map[string]string, error) {
+		calls++
+		return map[string]string{"api_key": "test_value"}, nil
+	}
+
+	t.Run("throttled refresh is blocked when called too soon", func(t *testing.T) {
+		calls = 0
+		resolver.apiKeyFailureRefreshInterval = 5 * time.Second
+		resolver.lastThrottledRefresh = time.Now()
+
+		result, err := resolver.Refresh(false)
+		require.NoError(t, err)
+		assert.Empty(t, result, "expected empty result when throttled")
+		assert.Equal(t, 0, calls, "backend should not be called when throttled")
+	})
+
+	t.Run("throttled refresh succeeds after interval", func(t *testing.T) {
+		calls = 0
+		resolver.apiKeyFailureRefreshInterval = 1 * time.Millisecond
+		resolver.lastThrottledRefresh = time.Now().Add(-2 * time.Millisecond) // in the past
+
+		result, err := resolver.Refresh(false)
+		require.NoError(t, err)
+		assert.NotEmpty(t, result, "expected a result when not throttled")
+		assert.Equal(t, 1, calls, "should be called once")
+		assert.Contains(t, result, "api_key")
+	})
+
+	t.Run("bypass rate limit allows immediate refresh", func(t *testing.T) {
+		calls = 0
+		resolver.apiKeyFailureRefreshInterval = 5 * time.Second
+		resolver.lastThrottledRefresh = time.Now()
+
+		result, err := resolver.Refresh(true)
+		require.NoError(t, err)
+		assert.NotEmpty(t, result, "expected result when bypassing rate limit")
+		assert.Equal(t, 1, calls, "should be called when bypass=true")
+	})
+
+	t.Run("throttling disabled when interval is zero", func(t *testing.T) {
+		calls = 0
+		resolver.apiKeyFailureRefreshInterval = 0
+		resolver.lastThrottledRefresh = time.Now()
+
+		result, err := resolver.Refresh(false)
+		require.NoError(t, err)
+		assert.Empty(t, result, "expected empty result when throttling is disabled")
+		assert.Equal(t, 0, calls, "should not be called when feature is disabled")
+	})
+}
+
 func TestStartRefreshRoutineWithScatter(t *testing.T) {
 	testCases := []struct {
 		name                   string
