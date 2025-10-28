@@ -18,6 +18,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -1143,12 +1144,15 @@ func testKafkaFetchRaw(t *testing.T, tls bool, apiVersion int) {
 		utils.WaitForProgramsToBeTraced(t, consts.USMModuleName, GoTLSAttacherName, proxyPid, utils.ManualTracingFallbackEnabled)
 	}
 
-	for _, tt := range tests {
+	for i, tt := range tests {
 		if tt.onlyTLS && !tls {
 			continue
 		}
 
 		t.Run(tt.name, func(t *testing.T) {
+			if tt.name == "basic" {
+				tt.topic = tt.topic + "-" + strconv.Itoa(i)
+			}
 			t.Cleanup(func() {
 				cleanProtocolMaps(t, "kafka", monitor.ebpfProgram.Manager.Manager)
 			})
@@ -1546,8 +1550,10 @@ func getAndValidateKafkaStats(parentT *testing.T, t *testing.T, monitor *Monitor
 		kafkaProtocolStats, exists := protocolStats[protocols.Kafka]
 		// We might not have kafka stats, and it might be the expected case (to capture 0).
 		if exists {
-			fmt.Printf("test %q; got the following stats ->>>\n", t.Name())
 			currentStats := kafkaProtocolStats.(map[kafka.Key]*kafka.RequestStats)
+			if len(currentStats) > 0 {
+				fmt.Printf("test %q; got the following stats ->>>\n", t.Name())
+			}
 			for key, stats := range currentStats {
 				fmt.Printf("test %q; iter; key: %s; value: %v; value ptr: %p\n", t.Name(), key.String(), stats, stats)
 
