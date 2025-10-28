@@ -7,12 +7,49 @@ package viperconfig
 
 import (
 	"reflect"
+	"runtime"
+	"strings"
 )
+
+// TODO: Callers that are using SetWithoutSource improperly, need to be fixed
+var allowlistCaller = []string{
+	"comp/api/api/apiimpl/internal/config/endpoint_test.go",
+	"comp/autoscaling/datadogclient/impl/client_test.go",
+	"comp/core/autodiscovery/listeners/dbm_aurora_test.go",
+	"comp/core/ipc/impl/ipc_test.go",
+	"comp/core/profiler/impl/profiler_test.go",
+	"comp/core/workloadfilter/catalog/filter_config_test.go",
+	"comp/core/workloadmeta/collectors/internal/kubeapiserver/kubeapiserver_test.go",
+	"comp/logs/agent/config/config_keys_test.go",
+	"comp/metadata/host/hostimpl/host_test.go",
+	"comp/networkpath/npcollector/npcollectorimpl/config_test.go",
+	"comp/snmptraps/config/config_test.go",
+	"pkg/collector/corechecks/snmp/status/status_test.go",
+	"pkg/fleet/installer/packages/embedded/tmpl/main_test.go",
+	"pkg/hosttags/host_tag_provider_test.go",
+	"pkg/logs/internal/tag/local_provider_test.go",
+	"pkg/util/cloudproviders/cloudfoundry/cloudfoundry_test.go",
+	"pkg/util/kubernetes/clustername/clustername_test.go",
+}
 
 // ValdiateBasicTypes returns true if the argument is made of only basic types
 func ValidateBasicTypes(value interface{}) bool {
 	v := reflect.ValueOf(value)
-	return validate(v)
+	if validate(v) {
+		return true
+	}
+
+	// Allow existing callers that are using SetWithoutSource. Fix these later
+	for _, stackSkip := range []int{2, 3} {
+		_, absfile, _, _ := runtime.Caller(stackSkip)
+		for _, allowSource := range allowlistCaller {
+			if strings.HasSuffix(absfile, allowSource) {
+				return true
+			}
+		}
+	}
+
+	return false
 }
 
 func validate(v reflect.Value) bool {
