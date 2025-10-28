@@ -935,6 +935,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("orchestrator_explorer.terminated_resources.enabled", true)
 	config.BindEnvAndSetDefault("orchestrator_explorer.terminated_pods.enabled", true)
 	config.BindEnvAndSetDefault("orchestrator_explorer.custom_resources.ootb.enabled", true)
+	config.BindEnvAndSetDefault("orchestrator_explorer.kubelet_config_check.enabled", false, "DD_ORCHESTRATOR_EXPLORER_KUBELET_CONFIG_CHECK_ENABLED")
 
 	// Container lifecycle configuration
 	config.BindEnvAndSetDefault("container_lifecycle.enabled", true)
@@ -1323,7 +1324,7 @@ func autoscaling(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("autoscaling.workload.enabled", false)
 	config.BindEnvAndSetDefault("autoscaling.failover.enabled", false)
 	config.BindEnvAndSetDefault("autoscaling.workload.limit", 1000)
-	config.BindEnv("autoscaling.failover.metrics") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	config.BindEnvAndSetDefault("autoscaling.failover.metrics", []string{"container.memory.usage", "container.cpu.usage"})
 }
 
 func fips(config pkgconfigmodel.Setup) {

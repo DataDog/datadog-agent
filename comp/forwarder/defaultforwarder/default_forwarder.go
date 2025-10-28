@@ -77,8 +77,8 @@ type Forwarder interface {
 	SubmitContainerChecks(payload transaction.BytesPayloads, extra http.Header) (chan Response, error)
 	SubmitRTContainerChecks(payload transaction.BytesPayloads, extra http.Header) (chan Response, error)
 	SubmitConnectionChecks(payload transaction.BytesPayloads, extra http.Header) (chan Response, error)
-	SubmitOrchestratorChecks(payload transaction.BytesPayloads, extra http.Header, payloadType int) (chan Response, error)
-	SubmitOrchestratorManifests(payload transaction.BytesPayloads, extra http.Header) (chan Response, error)
+	SubmitOrchestratorChecks(payload transaction.BytesPayloads, extra http.Header, payloadType int) error
+	SubmitOrchestratorManifests(payload transaction.BytesPayloads, extra http.Header) error
 }
 
 // Compile-time check to ensure that DefaultForwarder implements the Forwarder interface
@@ -733,21 +733,22 @@ func (f *DefaultForwarder) SubmitConnectionChecks(payload transaction.BytesPaylo
 }
 
 // SubmitOrchestratorChecks sends orchestrator checks
-func (f *DefaultForwarder) SubmitOrchestratorChecks(payload transaction.BytesPayloads, extra http.Header, payloadType int) (chan Response, error) {
+func (f *DefaultForwarder) SubmitOrchestratorChecks(payload transaction.BytesPayloads, extra http.Header, payloadType int) error {
 	bumpOrchestratorPayload(f.log, payloadType)
 
 	endpoint := endpoints.OrchestratorEndpoint
 	if f.config.IsSet("orchestrator_explorer.use_legacy_endpoint") {
 		endpoint = endpoints.LegacyOrchestratorEndpoint
 	}
-
-	return f.submitProcessLikePayload(endpoint, payload, extra, true)
+	transactions := f.createHTTPTransactions(endpoint, payload, transaction.Process, extra)
+	return f.sendHTTPTransactions(transactions)
 }
 
 // SubmitOrchestratorManifests sends orchestrator manifests
-func (f *DefaultForwarder) SubmitOrchestratorManifests(payload transaction.BytesPayloads, extra http.Header) (chan Response, error) {
+func (f *DefaultForwarder) SubmitOrchestratorManifests(payload transaction.BytesPayloads, extra http.Header) error {
 	transactionsOrchestratorManifest.Add(1)
-	return f.submitProcessLikePayload(endpoints.OrchestratorManifestEndpoint, payload, extra, true)
+	transactions := f.createHTTPTransactions(endpoints.OrchestratorManifestEndpoint, payload, transaction.Process, extra)
+	return f.sendHTTPTransactions(transactions)
 }
 
 func (f *DefaultForwarder) submitProcessLikePayload(ep transaction.Endpoint, payload transaction.BytesPayloads, extra http.Header, retryable bool) (chan Response, error) {
