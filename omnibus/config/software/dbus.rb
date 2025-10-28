@@ -28,6 +28,7 @@ build do
     "-Dtools=false",
     "-Dmodular_tests=disabled",
     "--prefix=#{install_dir}/embedded",
+    "--libdir=lib",
     "-Dbuildtype=release",
   ]
 
