@@ -218,10 +218,6 @@ func (s libInfoSource) injectionType() string {
 	}
 }
 
-func (s libInfoSource) isSingleStep() bool {
-	return s.injectionType() == singleStepInstrumentationInstallType
-}
-
 // isFromLanguageDetection tells us whether this source comes from
 // the language detection reporting and annotation.
 func (s libInfoSource) isFromLanguageDetection() bool {

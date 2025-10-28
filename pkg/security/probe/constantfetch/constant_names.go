@@ -112,6 +112,7 @@ const (
 	// TODO: needed for l4_protocol resolution, see network/flow.h
 	OffsetNameFlowI4StructProto = "flowi4_proto_offset"
 	OffsetNameFlowI6StructProto = "flowi6_proto_offset"
+	OffsetNameRtnlLinkOpsKind   = "rtnl_link_ops_kind_offset"
 
 	// Interpreter constants
 	OffsetNameLinuxBinprmStructFile = "binprm_file_offset"

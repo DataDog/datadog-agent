@@ -53,11 +53,17 @@ func ToNCMPayload(namespace string, integration integrations.Integration, config
 
 // ToNetworkDeviceConfig converts the given parameters into a NetworkDeviceConfig, representing a single device's configuration in a point in time.
 func ToNetworkDeviceConfig(deviceID, deviceIP string, configType ConfigType, extractedMetadata *profile.ExtractedMetadata, tags []string, content []byte) NetworkDeviceConfig {
+	var ts int64
+	if extractedMetadata != nil && extractedMetadata.Timestamp != 0 {
+		ts = extractedMetadata.Timestamp
+	} else {
+		ts = 0
+	}
 	return NetworkDeviceConfig{
 		DeviceID:   deviceID,
 		DeviceIP:   deviceIP,
 		ConfigType: string(configType),
-		Timestamp:  extractedMetadata.Timestamp,
+		Timestamp:  ts,
 		Tags:       tags,
 		Content:    content,
 	}

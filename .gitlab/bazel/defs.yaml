@@ -1,7 +1,7 @@
 .bazel:defs:
   cache:
     - key:
-        prefix: bazel-$CI_RUNNER_DESCRIPTION
+        prefix: bazelversion-$CI_RUNNER_DESCRIPTION
         files: [ .bazelversion ]
       paths:
         - .cache/bazelisk

@@ -142,6 +142,8 @@ type Process struct {
 
 	PPid uint32 `field:"ppid"` // SECLDoc[ppid] Definition:`Parent process ID`
 
+	TracerTags []string `field:"-"` // Tags from APM tracer instrumentation
+
 	ArgsEntry *ArgsEntry `field:"-"`
 	EnvsEntry *EnvsEntry `field:"-"`
 
@@ -237,9 +239,9 @@ func SetAncestorFields(_ *ProcessCacheEntry, _ string, _ interface{}) (bool, err
 	return true, nil
 }
 
-// Hash returns a unique key for the entity
-func (pc *ProcessCacheEntry) Hash() string {
-	return strconv.Itoa(int(pc.Pid))
+// Key returns a unique key for the entity
+func (pc *ProcessCacheEntry) Key() (string, bool) {
+	return strconv.Itoa(int(pc.Pid)), true
 }
 
 // ParentScope returns the parent entity scope

@@ -390,11 +390,13 @@ func copyMap(target reflect.Value, input nodetreemodel.Node, currPath []string, 
 		if child == nil {
 			continue
 		}
+		// Convert to the target key type, supports type aliases like map[ResourceType]string
+		realkey := reflect.ValueOf(mkey).Convert(ktype)
 		if scalar, ok := child.(nodetreemodel.LeafNode); ok {
 			if mval, err := cast.ToStringE(scalar.Get()); vtype == reflect.TypeOf("") && err == nil {
-				results.SetMapIndex(reflect.ValueOf(mkey), reflect.ValueOf(mval))
+				results.SetMapIndex(realkey, reflect.ValueOf(mval))
 			} else if bval, err := cast.ToBoolE(scalar.Get()); vtype == reflect.TypeOf(true) && err == nil {
-				results.SetMapIndex(reflect.ValueOf(mkey), reflect.ValueOf(bval))
+				results.SetMapIndex(realkey, reflect.ValueOf(bval))
 			} else {
 				elem := reflect.New(vtype).Elem()
 				nextPath := append(currPath, mkey)
@@ -402,7 +404,7 @@ func copyMap(target reflect.Value, input nodetreemodel.Node, currPath []string, 
 				if err != nil {
 					return err
 				}
-				results.SetMapIndex(reflect.ValueOf(mkey), elem)
+				results.SetMapIndex(realkey, elem)
 			}
 		}
 	}

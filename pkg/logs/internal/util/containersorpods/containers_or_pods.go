@@ -168,10 +168,11 @@ func (ch *chooser) preferred() LogWhat {
 // LogContainers, sending the result to ch.choice.  If wait is true, then if no
 // choice is available yet, it will wait until a choice becomes available.
 func (ch *chooser) choose(wait bool) {
+	podman := env.IsFeaturePresent(env.Podman)
 	c := env.IsFeaturePresent(env.Docker) ||
 		env.IsFeaturePresent(env.Containerd) ||
 		env.IsFeaturePresent(env.Cri) ||
-		env.IsFeaturePresent(env.Podman)
+		podman
 	k := env.IsFeaturePresent(env.Kubernetes)
 
 	makeChoice := func(logWhat LogWhat) {
@@ -184,6 +185,12 @@ func (ch *chooser) choose(wait bool) {
 		var ready bool
 
 		switch {
+		// On Podman docker socket is not mandatory for log collection.
+		// If Podman is used w/o k8s environment make the choice earlier.
+		case podman && !k:
+			makeChoice(LogContainers)
+			return
+
 		case c && !k:
 			ready, delay = ch.dockerReady()
 			if ready {
