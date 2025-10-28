@@ -74,7 +74,7 @@ func getProfiler(t testing.TB, overrideSysProbe map[string]interface{}) profiler
 		t,
 		fx.Provide(func() log.Component { return logmock.New(t) }),
 		fx.Provide(func() config.Component {
-			return config.NewMockWithOverrides(t, map[string]interface{}{})
+			return config.NewMock(t)
 		}),
 		fx.Replace(sysprobeconfigimpl.MockParams{
 			Overrides: overrideSysProbe,
