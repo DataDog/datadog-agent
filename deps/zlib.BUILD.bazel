@@ -131,7 +131,7 @@ cc_library(
             "-Wno-implicit-function-declaration",
         ],
     }),
-    includes = ["."],
+    includes = ["zlib/include"],
     local_defines = select({
         "@platforms//os:windows": ["_CRT_NONSTDC_NO_WARNINGS"],
         "//conditions:default": [],
