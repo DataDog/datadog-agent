@@ -683,6 +683,10 @@ func metricType(ty metrics.APIMetricType) int64 {
 }
 
 func varintLen(v int) int {
+	if v == 0 {
+		return 1
+	}
+
 	n, rem := bits.Div(0, uint(bits.Len(uint(v))), 7)
 	if rem > 0 {
 		n++
