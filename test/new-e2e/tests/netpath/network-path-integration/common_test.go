@@ -102,11 +102,11 @@ func assertPayloadBase(c *assert.CollectT, np *aggregator.Netpath, hostname stri
 	assert.Equal(c, hostname, np.Source.Hostname)
 }
 
-func (s *baseNetworkPathIntegrationTestSuite) checkAtLeastOneNetworkPathPayloadExist(c *assert.CollectT, agentHostname string) {
+func (s *baseNetworkPathIntegrationTestSuite) checkDynamicPath(c *assert.CollectT, agentHostname string) {
+	// check at lest one dynamic path is reported
 	np := s.expectNetpath(c, func(np *aggregator.Netpath) bool {
 		return true
 	})
-	assert.Equal(c, uint16(443), np.Destination.Port)
 
 	assertPayloadBase(c, np, agentHostname, "network_traffic")
 

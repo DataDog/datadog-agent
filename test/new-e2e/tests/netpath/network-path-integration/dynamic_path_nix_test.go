@@ -43,6 +43,6 @@ func TestLinuxDynamicPathSuite(t *testing.T) {
 func (s *linuxDynamicPathTestSuite) TestLinuxDynamicPathMetrics() {
 	hostname := s.Env().Agent.Client.Hostname()
 	s.EventuallyWithT(func(c *assert.CollectT) {
-		s.checkAtLeastOneNetworkPathPayloadExist(c, hostname)
+		s.checkDynamicPath(c, hostname)
 	}, 5*time.Minute, 3*time.Second)
 }
