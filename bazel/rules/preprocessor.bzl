@@ -23,18 +23,6 @@ def _c_preprocessor_impl(ctx):
         feature_configuration = feature_configuration,
         action_name = C_COMPILE_ACTION_NAME,
     )
-    c_compile_variables = cc_common.create_compile_variables(
-        feature_configuration = feature_configuration,
-        cc_toolchain = cc_toolchain,
-        source_file = source.path,
-        output_file = out.path,
-        include_directories = depset(include_dirs),
-    )
-    env = cc_common.get_environment_variables(
-        feature_configuration = feature_configuration,
-        action_name = C_COMPILE_ACTION_NAME,
-        variables = c_compile_variables,
-    )
     args = ctx.actions.args()
     args.add_all(["-E", "-P", source, "-o", out])
     args.add_all(include_dirs, before_each = "-I")
