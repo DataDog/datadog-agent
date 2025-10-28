@@ -17,7 +17,8 @@ exporters:
     sending_queue:
       batch:
         flush_timeout: 200ms
-        min_size: 8192
+        min_size: 10
+        max_size: 100
         sizer: items
     traces:
       span_name_as_resource_name: true
