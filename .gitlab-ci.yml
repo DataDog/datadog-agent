@@ -253,6 +253,7 @@ variables:
   GET_SOURCES_ATTEMPTS: 2
   RESTORE_CACHE_ATTEMPTS: 2
   # Feature flags
+  FF_CLEAN_UP_FAILED_CACHE_EXTRACT: true # Delete corrupted caches, see https://gitlab.com/gitlab-org/gitlab-runner/-/merge_requests/4565
   FF_SCRIPT_SECTIONS: 1 # Prevent multiline scripts log collapsing, see https://gitlab.com/gitlab-org/gitlab-runner/-/issues/3392
   FF_KUBERNETES_HONOR_ENTRYPOINT: true # Honor the entrypoint in the Docker image when running Kubernetes jobs
   FF_TIMESTAMPS: true
