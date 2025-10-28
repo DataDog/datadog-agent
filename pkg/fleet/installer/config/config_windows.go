@@ -9,8 +9,10 @@ package config
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
@@ -26,11 +28,11 @@ func (d *Directories) GetState() (State, error) {
 	experimentPath := filepath.Join(d.ExperimentPath, deploymentIDFile)
 	stableDeploymentID, err := os.ReadFile(stablePath)
 	if err != nil && !os.IsNotExist(err) {
-		return State{}, err
+		return State{}, fmt.Errorf("error reading stable deployment ID file: %w", err)
 	}
 	experimentDeploymentID, err := os.ReadFile(experimentPath)
 	if err != nil && !os.IsNotExist(err) {
-		return State{}, err
+		return State{}, fmt.Errorf("error reading experiment deployment ID file: %w", err)
 	}
 	return State{
 		StableDeploymentID:     string(stableDeploymentID),
@@ -42,31 +44,31 @@ func (d *Directories) GetState() (State, error) {
 func (d *Directories) WriteExperiment(ctx context.Context, operations Operations) error {
 	state, err := d.GetState()
 	if err != nil {
-		return err
+		return fmt.Errorf("error getting state: %w", err)
 	}
 	if state.ExperimentDeploymentID != "" {
 		return fmt.Errorf("there is already an experiment in progress")
 	}
 	err = os.RemoveAll(d.ExperimentPath)
 	if err != nil {
-		return err
+		return fmt.Errorf("error removing experiment directory: %w", err)
 	}
 	err = os.MkdirAll(d.ExperimentPath, 0700)
 	if err != nil {
-		return err
+		return fmt.Errorf("error creating experiment directory: %w", err)
 	}
 	err = backupOrRestoreDirectory(ctx, d.StablePath, d.ExperimentPath)
 	if err != nil {
-		return err
+		return fmt.Errorf("error writing deployment ID file: %w", err)
 	}
 	operations.FileOperations = append(buildOperationsFromLegacyInstaller(d.StablePath), operations.FileOperations...)
 	err = operations.Apply(d.StablePath)
 	if err != nil {
-		return err
+		return fmt.Errorf("error applying operations: %w", err)
 	}
 	err = os.WriteFile(filepath.Join(d.ExperimentPath, deploymentIDFile), []byte(operations.DeploymentID), 0640)
 	if err != nil {
-		return err
+		return fmt.Errorf("error writing deployment ID file: %w", err)
 	}
 	return nil
 }
@@ -119,5 +121,13 @@ func backupOrRestoreDirectory(ctx context.Context, sourcePath, targetPath string
 		}
 	}
 	cmd := telemetry.CommandContext(ctx, "robocopy", sourcePath, targetPath, "*.yaml", "/E")
-	return cmd.Run()
+	err = cmd.Run()
+	var exitErr *exec.ExitError
+	if err != nil && !errors.As(err, &exitErr) {
+		return fmt.Errorf("error executing robocopy: %w", err)
+	}
+	if exitErr != nil && exitErr.ExitCode() >= 8 {
+		return fmt.Errorf("error executing robocopy: %w", err)
+	}
+	return nil
 }
