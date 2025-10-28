@@ -21,8 +21,6 @@ license "LGPL-2.1"
 license_file "COPYING.LIB"
 skip_transitive_dependency_licensing true
 
-dependency "libgpg-error"
-
 version("1.10.2") { source sha256: "3b9c02a004b68c256add99701de00b383accccf37177e0d6c58289664cce0c03" }
 
 ship_source_offer true
