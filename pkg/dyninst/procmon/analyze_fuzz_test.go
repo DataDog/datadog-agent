@@ -14,6 +14,8 @@ import (
 	"strings"
 	"syscall"
 	"testing"
+
+	"github.com/DataDog/datadog-agent/pkg/dyninst/process"
 )
 
 // createFuzzProcFS creates a proc filesystem structure for fuzzing
@@ -120,8 +122,8 @@ func FuzzAnalyzeProcess(f *testing.F) {
 		if result.exe.Path != "" {
 			if stat, statErr := os.Stat(result.exe.Path); statErr == nil {
 				if statSys, ok := stat.Sys().(*syscall.Stat_t); ok {
-					newKey := FileKey{
-						FileHandle: FileHandle{
+					newKey := process.FileKey{
+						FileHandle: process.FileHandle{
 							Dev: uint64(statSys.Dev),
 							Ino: statSys.Ino,
 						},

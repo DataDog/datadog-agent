@@ -444,7 +444,7 @@ func GetNsPids(pid uint32, task string) ([]uint32, error) {
 			// Convert string values to integers
 			nspids := make([]uint32, 0, len(fields))
 			for _, field := range fields {
-				val, err := strconv.ParseUint(field, 10, 64)
+				val, err := strconv.ParseUint(field, 10, 32)
 				if err != nil {
 					return nil, fmt.Errorf("failed to parse NSpid value: %w", err)
 				}
@@ -527,7 +527,7 @@ func GetTracerPid(pid uint32) (uint32, error) {
 			line = strings.TrimPrefix(line, "TracerPid:")
 			line = strings.TrimSpace(line)
 
-			tracerPid, err := strconv.ParseUint(line, 10, 64)
+			tracerPid, err := strconv.ParseUint(line, 10, 32)
 			if err != nil {
 				return 0, fmt.Errorf("failed to parse TracerPid value: %w", err)
 			}

@@ -34,6 +34,7 @@ import (
 	agenttelemetryfx "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/fx"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/datastreams"
 	ssistatusfx "github.com/DataDog/datadog-agent/comp/updater/ssistatus/fx"
+	workloadselectionfx "github.com/DataDog/datadog-agent/comp/workloadselection/fx"
 
 	haagentfx "github.com/DataDog/datadog-agent/comp/haagent/fx"
 	snmpscanfx "github.com/DataDog/datadog-agent/comp/snmpscan/fx"
@@ -534,6 +535,7 @@ func getSharedFxOption() fx.Option {
 		diagnosefx.Module(),
 		ipcfx.ModuleReadWrite(),
 		ssistatusfx.Module(),
+		workloadselectionfx.Module(),
 		workloadfilterfx.Module(),
 		connectivitycheckerfx.Module(),
 		configstreamfx.Module(),

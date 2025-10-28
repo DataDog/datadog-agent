@@ -1,0 +1,20 @@
+[Unit]
+Description=Datadog Security Agent
+After=network.target datadog-agent.service datadog-agent-exp.service
+BindsTo=datadog-agent.service
+Conflicts=datadog-agent-security-exp.service
+ConditionPathExists=|/etc/datadog-agent/security-agent.yaml
+ConditionPathExists=|/etc/datadog-agent/managed/datadog-agent/stable/security-agent.yaml
+
+[Service]
+Type=simple
+PIDFile=/opt/datadog-agent/run/security-agent.pid
+Restart=on-failure
+EnvironmentFile=-/etc/datadog-agent/environment
+Environment="DD_FLEET_POLICIES_DIR=/etc/datadog-agent/managed/datadog-agent/stable"
+ExecStart=/opt/datadog-agent/embedded/bin/security-agent start -c /etc/datadog-agent/datadog.yaml -c /etc/datadog-agent/security-agent.yaml --sysprobe-config /etc/datadog-agent/system-probe.yaml --pidfile /opt/datadog-agent/run/security-agent.pid
+StartLimitInterval=10
+StartLimitBurst=5
+
+[Install]
+WantedBy=multi-user.target

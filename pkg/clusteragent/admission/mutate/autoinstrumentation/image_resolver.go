@@ -15,6 +15,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/opencontainers/go-digest"
+
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/metrics"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
@@ -165,6 +167,12 @@ func isDatadoghqRegistry(registry string, datadoghqRegistries map[string]any) bo
 	return exists
 }
 
+// isValidDigest validates that a digest string follows the OCI image specification format
+func isValidDigest(digestStr string) bool {
+	_, err := digest.Parse(digestStr)
+	return err == nil
+}
+
 // updateCache processes configuration data and updates the image mappings cache.
 // This is the core logic shared by both initialization and remote config updates.
 func (r *remoteConfigImageResolver) updateCache(configs map[string]state.RawConfig) {
@@ -187,8 +195,8 @@ func parseAndValidateConfigs(configs map[string]state.RawConfig) (map[string]Rep
 			continue
 		}
 
-		if repo.RepositoryName == "" || repo.RepositoryURL == "" {
-			errors[configKey] = fmt.Errorf("missing repository_name or repository_url in config %s", configKey)
+		if repo.RepositoryName == "" {
+			errors[configKey] = fmt.Errorf("missing repository_name in config %s", configKey)
 			continue
 		}
 		validConfigs[configKey] = repo
@@ -204,6 +212,11 @@ func (r *remoteConfigImageResolver) updateCacheFromParsedConfigs(validConfigs ma
 		for _, imageInfo := range repo.Images {
 			if imageInfo.Tag == "" || imageInfo.Digest == "" {
 				log.Warnf("Skipping invalid image entry (missing tag or digest) in %s", repo.RepositoryName)
+				continue
+			}
+
+			if !isValidDigest(imageInfo.Digest) {
+				log.Warnf("Skipping invalid image entry (invalid digest format: %s) in %s", imageInfo.Digest, repo.RepositoryName)
 				continue
 			}
 
@@ -254,7 +267,6 @@ type ImageInfo struct {
 
 // RepositoryConfig represents a repository configuration from remote config.
 type RepositoryConfig struct {
-	RepositoryURL  string      `json:"repository_url"`
 	RepositoryName string      `json:"repository_name"`
 	Images         []ImageInfo `json:"images"`
 }

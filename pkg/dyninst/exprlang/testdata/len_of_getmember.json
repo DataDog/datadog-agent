@@ -1,0 +1,13 @@
+{
+  "type": "unsupported",
+  "operation": "len",
+  "argument": {
+    "getmember": [
+      {
+        "ref": "self"
+      },
+      "collectionField"
+    ]
+  },
+  "error": ""
+}

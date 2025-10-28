@@ -555,6 +555,9 @@ type AgentConfig struct {
 
 	// EnableV1TraceEndpoint enables the V1 trace endpoint, it is hidden by default
 	EnableV1TraceEndpoint bool
+
+	// SendAllInternalStats enables all internal stats to be published, otherwise some less-frequently-used stats will be omitted when zero to save costs
+	SendAllInternalStats bool
 }
 
 // RemoteClient client is used to APM Sampling Updates from a remote source.

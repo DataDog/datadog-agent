@@ -10,8 +10,7 @@ Probes:
       captureSnapshot: true
       subprogram: {subprogram: 13}
       events:
-        - ID: 24
-          Kind: Entry
+        - Kind: Entry
           Type: 184 EventRootType Probe[main.PointerChainArg]
           InjectionPoints: [{PC: "0x4a6046", Frameless: false}]
           Condition: null
@@ -25,8 +24,7 @@ Probes:
       captureSnapshot: true
       subprogram: {subprogram: 14}
       events:
-        - ID: 25
-          Kind: Entry
+        - Kind: Entry
           Type: 185 EventRootType Probe[main.PointerSmallChainArg]
           InjectionPoints: [{PC: "0x4a6090", Frameless: false}]
           Condition: null
@@ -39,13 +37,11 @@ Probes:
       captureSnapshot: true
       subprogram: {subprogram: 9}
       events:
-        - ID: 17
-          Kind: Entry
+        - Kind: Entry
           Type: 176 EventRootType Probe[main.bigMapArg]
           InjectionPoints: [{PC: "0x4a6553", Frameless: false}]
           Condition: null
-        - ID: 16
-          Kind: Return
+        - Kind: Return
           Type: 177 EventRootType Probe[main.bigMapArg]Return
           InjectionPoints: [{PC: "0x4a65de", Frameless: false}]
           Condition: null
@@ -59,8 +55,7 @@ Probes:
       captureSnapshot: true
       subprogram: {subprogram: 12}
       events:
-        - ID: 23
-          Kind: Entry
+        - Kind: Entry
           Type: 182 EventRootType Probe[main.inlined]
           InjectionPoints:
             - PC: "0x4a5e0e"
@@ -68,8 +63,7 @@ Probes:
             - PC: "0x4a642a"
               Frameless: false
           Condition: null
-        - ID: 22
-          Kind: Return
+        - Kind: Return
           Type: 183 EventRootType Probe[main.inlined]Return
           InjectionPoints: [{PC: "0x4a646a", Frameless: false}]
           Condition: null
@@ -82,13 +76,11 @@ Probes:
       captureSnapshot: true
       subprogram: {subprogram: 1}
       events:
-        - ID: 2
-          Kind: Entry
+        - Kind: Entry
           Type: 161 EventRootType Probe[main.intArg]
           InjectionPoints: [{PC: "0x4a610a", Frameless: false}]
           Condition: null
-        - ID: 1
-          Kind: Return
+        - Kind: Return
           Type: 162 EventRootType Probe[main.intArg]Return
           InjectionPoints: [{PC: "0x4a614a", Frameless: false}]
           Condition: null
@@ -101,13 +93,11 @@ Probes:
       captureSnapshot: true
       subprogram: {subprogram: 4}
       events:
-        - ID: 8
-          Kind: Entry
+        - Kind: Entry
           Type: 167 EventRootType Probe[main.intArrayArg]
           InjectionPoints: [{PC: "0x4a628a", Frameless: false}]
           Condition: null
-        - ID: 7
-          Kind: Return
+        - Kind: Return
           Type: 168 EventRootType Probe[main.intArrayArg]Return
           InjectionPoints: [{PC: "0x4a62d6", Frameless: false}]
           Condition: null
@@ -120,8 +110,7 @@ Probes:
       captureSnapshot: true
       subprogram: {subprogram: 7}
       events:
-        - ID: 13
-          Kind: Entry
+        - Kind: Entry
           Type: 173 EventRootType Probe[main.stringArrayArgFrameless]
           InjectionPoints: [{PC: "0x4a6400", Frameless: true}]
           Condition: null
@@ -134,13 +123,11 @@ Probes:
       captureSnapshot: true
       subprogram: {subprogram: 3}
       events:
-        - ID: 6
-          Kind: Entry
+        - Kind: Entry
           Type: 165 EventRootType Probe[main.intSliceArg]
           InjectionPoints: [{PC: "0x4a620a", Frameless: false}]
           Condition: null
-        - ID: 5
-          Kind: Return
+        - Kind: Return
           Type: 166 EventRootType Probe[main.intSliceArg]Return
           InjectionPoints: [{PC: "0x4a624f", Frameless: false}]
           Condition: null
@@ -153,13 +140,11 @@ Probes:
       captureSnapshot: true
       subprogram: {subprogram: 8}
       events:
-        - ID: 15
-          Kind: Entry
+        - Kind: Entry
           Type: 174 EventRootType Probe[main.mapArg]
           InjectionPoints: [{PC: "0x4a64ea", Frameless: false}]
           Condition: null
-        - ID: 14
-          Kind: Return
+        - Kind: Return
           Type: 175 EventRootType Probe[main.mapArg]Return
           InjectionPoints: [{PC: "0x4a651f", Frameless: false}]
           Condition: null
@@ -172,13 +157,11 @@ Probes:
       captureSnapshot: true
       subprogram: {subprogram: 10}
       events:
-        - ID: 19
-          Kind: Entry
+        - Kind: Entry
           Type: 178 EventRootType Probe[main.noArgs]
           InjectionPoints: [{PC: "0x4a660a", Frameless: false}]
           Condition: null
-        - ID: 18
-          Kind: Return
+        - Kind: Return
           Type: 179 EventRootType Probe[main.noArgs]Return
           InjectionPoints: [{PC: "0x4a6646", Frameless: false}]
           Condition: null
@@ -191,13 +174,11 @@ Probes:
       captureSnapshot: true
       subprogram: {subprogram: 2}
       events:
-        - ID: 4
-          Kind: Entry
+        - Kind: Entry
           Type: 163 EventRootType Probe[main.stringArg]
           InjectionPoints: [{PC: "0x4a618a", Frameless: false}]
           Condition: null
-        - ID: 3
-          Kind: Return
+        - Kind: Return
           Type: 164 EventRootType Probe[main.stringArg]Return
           InjectionPoints: [{PC: "0x4a61cf", Frameless: false}]
           Condition: null
@@ -210,13 +191,11 @@ Probes:
       captureSnapshot: true
       subprogram: {subprogram: 6}
       events:
-        - ID: 12
-          Kind: Entry
+        - Kind: Entry
           Type: 171 EventRootType Probe[main.stringArrayArg]
           InjectionPoints: [{PC: "0x4a638a", Frameless: false}]
           Condition: null
-        - ID: 11
-          Kind: Return
+        - Kind: Return
           Type: 172 EventRootType Probe[main.stringArrayArg]Return
           InjectionPoints: [{PC: "0x4a63d6", Frameless: false}]
           Condition: null
@@ -229,13 +208,11 @@ Probes:
       captureSnapshot: true
       subprogram: {subprogram: 5}
       events:
-        - ID: 10
-          Kind: Entry
+        - Kind: Entry
           Type: 169 EventRootType Probe[main.stringSliceArg]
           InjectionPoints: [{PC: "0x4a630a", Frameless: false}]
           Condition: null
-        - ID: 9
-          Kind: Return
+        - Kind: Return
           Type: 170 EventRootType Probe[main.stringSliceArg]Return
           InjectionPoints: [{PC: "0x4a634f", Frameless: false}]
           Condition: null
@@ -249,13 +226,11 @@ Probes:
       captureSnapshot: true
       subprogram: {subprogram: 11}
       events:
-        - ID: 21
-          Kind: Entry
+        - Kind: Entry
           Type: 180 EventRootType Probe[main.usesMapsOfMapsThatDoNotAppearAsArguments]
           InjectionPoints: [{PC: "0x4a6676", Frameless: false}]
           Condition: null
-        - ID: 20
-          Kind: Return
+        - Kind: Return
           Type: 181 EventRootType Probe[main.usesMapsOfMapsThatDoNotAppearAsArguments]Return
           InjectionPoints: [{PC: "0x4a682e", Frameless: false}]
           Condition: null

@@ -41,19 +41,20 @@ build do
   gopath = Pathname.new(project_dir) + '../../../..'
   flavor_arg = ENV['AGENT_FLAVOR']
   fips_args = fips_mode? ? "--fips-mode" : ""
-  if windows_target?
-    env = {
-        'GOPATH' => gopath.to_path,
-        'PATH' => "#{gopath.to_path}/bin:#{ENV['PATH']}",
-    }
-  else
-    env = {
-        'GOPATH' => gopath.to_path,
-        'PATH' => "#{gopath.to_path}/bin:#{ENV['PATH']}",
-        "LDFLAGS" => "-Wl,-rpath,#{install_dir}/embedded/lib -L#{install_dir}/embedded/lib",
-        "CGO_CFLAGS" => "-I. -I#{install_dir}/embedded/include",
-        "CGO_LDFLAGS" => "-Wl,-rpath,#{install_dir}/embedded/lib -L#{install_dir}/embedded/lib"
-    }
+  # include embedded path (mostly for `pkg-config` binary)
+  #
+  # with_embedded_path prepends the embedded path to the PATH from the global environment
+  # in particular it ignores the PATH from the environment given as argument
+  # so we need to call it before setting the PATH
+  env = with_embedded_path()
+  env = {
+    'GOPATH' => gopath.to_path,
+    'PATH' => ["#{gopath.to_path}/bin", env['PATH']].join(File::PATH_SEPARATOR),
+  }
+  unless windows_target?
+    env['LDFLAGS'] = "-Wl,-rpath,#{install_dir}/embedded/lib -L#{install_dir}/embedded/lib"
+    env['CGO_CFLAGS'] = "-I. -I#{install_dir}/embedded/include"
+    env['CGO_LDFLAGS'] = "-Wl,-rpath,#{install_dir}/embedded/lib -L#{install_dir}/embedded/lib"
   end
 
   unless ENV["OMNIBUS_GOMODCACHE"].nil? || ENV["OMNIBUS_GOMODCACHE"].empty?
@@ -61,8 +62,7 @@ build do
     env["GOMODCACHE"] = gomodcache.to_path
   end
 
-  # include embedded path (mostly for `pkg-config` binary)
-  env = with_standard_compiler_flags(with_embedded_path(env))
+  env = with_standard_compiler_flags(env)
 
   # Use msgo toolchain when fips mode is enabled
   if fips_mode?
