@@ -82,11 +82,8 @@ func (a *Agent) installLinuxInstallScript(params *installParams) error {
 		}
 	}
 
-	// reset failure from previous tests
-	_, err := a.host.RemoteHost.Execute("systemctl list-units --type=service --all | awk '/datadog-/{print $1}' | xargs -r -n1 systemctl reset-failed")
-	if err != nil {
-		return fmt.Errorf("error resetting failed services: %w", err)
-	}
+	// reset failure from previous tests (best effort)
+	_, _ = a.host.RemoteHost.Execute("systemctl list-units --type=service --all | awk '/datadog-/{print $1}' | xargs -r -n1 systemctl reset-failed")
 
 	env := map[string]string{
 		"DD_API_KEY": apiKey(),
