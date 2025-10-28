@@ -283,6 +283,7 @@ func configRequestToResultRequest(req common.ConfigRequest) common.ResultRequest
 		result.Timeout = r.Timeout
 		result.TracerouteQueries = r.TracerouteCount
 		result.E2eQueries = r.ProbeCount
+		return result
 	case common.TCPConfigRequest:
 		result.Host = r.Host
 		result.Port = r.Port
@@ -293,6 +294,7 @@ func configRequestToResultRequest(req common.ConfigRequest) common.ResultRequest
 		result.TracerouteQueries = r.TracerouteCount
 		result.E2eQueries = r.ProbeCount
 		result.TCPMethod = r.TCPMethod
+		return result
 	case common.ICMPConfigRequest:
 		result.Host = r.Host
 		result.DestinationService = r.DestinationService
@@ -301,6 +303,15 @@ func configRequestToResultRequest(req common.ConfigRequest) common.ResultRequest
 		result.Timeout = r.Timeout
 		result.TracerouteQueries = r.TracerouteCount
 		result.E2eQueries = r.ProbeCount
+		return result
+	default:
+		result.Host = ""
+		result.DestinationService = nil
+		result.SourceService = nil
+		result.MaxTTL = nil
+		result.Timeout = nil
+		result.TracerouteQueries = nil
+		result.E2eQueries = nil
 	}
 
 	return result
