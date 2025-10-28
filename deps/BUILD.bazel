@@ -18,12 +18,12 @@ filegroup(
     ] + select({
         "@platforms//os:linux": [
             "@attr",
+            "@gcrypt",
             "@libsepol//:sepol",
             "@nghttp2",
             "@pcre2",
             "@popt",
             "@zstd",
-            "@gcrypt",
         ],
         "//conditions:default": [],
     }),
