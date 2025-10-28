@@ -4,6 +4,8 @@
 
 System-probe modules are independent components that run within the system-probe process and expose functionality via HTTP endpoints. Modules are registered at initialization time and can provide various monitoring capabilities, especially those requiring kernel-level access through eBPF.
 
+See also: `.cursor/rules/system_probe_modules.mdc` for a concise rule-style overview and links to related eBPF check docs.
+
 ## Module Registration
 
 Each module is a `module.Factory` registered in `init()` with the following fields:
