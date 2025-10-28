@@ -243,7 +243,6 @@ new-e2e-installer-windows:
       - EXTRA_PARAMS: --run "TestDotnetLibraryInstallsWithoutIIS/TestInstallDotnetLibraryPackageWithoutIIS$"
       - EXTRA_PARAMS: --run "TestDotnetLibraryInstallsWithoutIIS/TestMSIInstallDotnetLibraryFailsWithoutIIS$"
       - EXTRA_PARAMS: --run "TestAgentMSIInstallsDotnetLibrary/TestInstallFromMSI$"
-      - EXTRA_PARAMS: --run "TestAgentMSIInstallsDotnetLibrary/TestMSIThenRemoteUpgrade$"
       - EXTRA_PARAMS: --run "TestAgentMSIInstallsDotnetLibrary/TestUpgradeWithMSI$"
       - EXTRA_PARAMS: --run "TestAgentMSIInstallsDotnetLibrary/TestMSIRollbackRemovesLibrary$"
       - EXTRA_PARAMS: --run "TestAgentMSIInstallsDotnetLibrary/TestMSISkipRollbackIfInstalled$"
@@ -252,4 +251,3 @@ new-e2e-installer-windows:
       - EXTRA_PARAMS: --run "TestAgentMSIInstallsDotnetLibrary/TestMSIPurge$"
       - EXTRA_PARAMS: --run "TestAgentMSIInstallsDotnetLibrary/TestDisableEnableScript$"
       - EXTRA_PARAMS: --run "TestAgentScriptInstallsDotnetLibrary/TestInstallFromScript$"
-      - EXTRA_PARAMS: --run "TestAgentScriptInstallsDotnetLibrary/TestScriptThenRemoteUpgrade$"

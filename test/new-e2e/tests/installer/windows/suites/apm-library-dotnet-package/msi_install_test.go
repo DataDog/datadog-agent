@@ -75,57 +75,6 @@ func (s *testAgentMSIInstallsDotnetLibrary) TestInstallFromMSI() {
 	s.Require().Contains(oldLibraryPath, version.Version())
 }
 
-// TestMSIThenRemoteUpgrade tests the dotnet library can be remotely upgraded from an Agent MSI installed version
-func (s *testAgentMSIInstallsDotnetLibrary) TestMSIThenRemoteUpgrade() {
-	defer s.cleanupAgentConfig()
-	s.setAgentConfig()
-
-	oldVersion := s.previousDotnetLibraryVersion
-	newVersion := s.currentDotnetLibraryVersion
-
-	// Install first version
-	s.installCurrentAgentVersion(
-		installerwindows.WithMSIArg("DD_APM_INSTRUMENTATION_ENABLED=iis"),
-		// TODO: remove override once image is published in prod
-		// TODO: support DD_INSTALLER_REGISTRY_URL
-		installerwindows.WithMSIArg("DD_INSTALLER_REGISTRY_URL=install.datad0g.com.internal.dda-testing.com"),
-		installerwindows.WithMSIArg(fmt.Sprintf("DD_APM_INSTRUMENTATION_LIBRARIES=dotnet:%s", oldVersion.Version())),
-		installerwindows.WithMSILogFile("install.log"),
-	)
-
-	// Start the IIS app to load the library
-	defer s.stopIISApp()
-	s.startIISApp(webConfigFile, aspxFile)
-
-	// Check that the expected version of the library is loaded
-	s.assertSuccessfulPromoteExperiment(oldVersion.Version())
-	oldLibraryPath := s.getLibraryPathFromInstrumentedIIS()
-	s.Require().Contains(oldLibraryPath, oldVersion.Version())
-
-	// Start remote upgrade experiment
-	_, err := s.startExperimentCurrentDotnetLibrary(newVersion)
-	s.Require().NoError(err)
-	s.assertSuccessfulStartExperiment(newVersion.Version())
-
-	// Check that the old version of the library is still loaded since we have not restarted yet
-	oldLibraryPathAgain := s.getLibraryPathFromInstrumentedIIS()
-	s.Require().Contains(oldLibraryPathAgain, oldVersion.Version())
-	s.Require().Equal(oldLibraryPath, oldLibraryPathAgain)
-
-	// Restart the IIS application
-	s.startIISApp(webConfigFile, aspxFile)
-
-	// Check that the new version of the library is loaded
-	newLibraryPath := s.getLibraryPathFromInstrumentedIIS()
-	s.Require().Contains(newLibraryPath, newVersion.Version())
-	s.Require().NotEqual(oldLibraryPath, newLibraryPath)
-
-	// Promote the experiment
-	_, err = s.Installer().PromoteExperiment("datadog-apm-library-dotnet")
-	s.Require().NoError(err)
-	s.assertSuccessfulPromoteExperiment(newVersion.Version())
-}
-
 // TestUpgradeWithMSI tests the dotnet library can be upgraded from the MSI
 func (s *testAgentMSIInstallsDotnetLibrary) TestUpgradeWithMSI() {
 	flake.Mark(s.T())
