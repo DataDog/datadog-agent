@@ -29,6 +29,7 @@ const (
 	NetworkTracerModule          types.ModuleName = "network_tracer"
 	OOMKillProbeModule           types.ModuleName = "oom_kill_probe"
 	TCPQueueLengthTracerModule   types.ModuleName = "tcp_queue_length_tracer"
+	SeccompTracerModule          types.ModuleName = "seccomp_tracer"
 	ProcessModule                types.ModuleName = "process"
 	EventMonitorModule           types.ModuleName = "event_monitor"
 	DynamicInstrumentationModule types.ModuleName = "dynamic_instrumentation"
@@ -170,6 +171,9 @@ func load() (*types.Config, error) {
 	}
 	if gpuEnabled {
 		c.EnabledModules[GPUMonitoringModule] = struct{}{}
+	}
+	if cfg.GetBool(seccompTracerNS("enabled")) {
+		c.EnabledModules[SeccompTracerModule] = struct{}{}
 	}
 	if cfg.GetBool(privilegedLogsNS("enabled")) {
 		c.EnabledModules[PrivilegedLogsModule] = struct{}{}

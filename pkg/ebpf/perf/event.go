@@ -211,6 +211,13 @@ func (e *EventHandler) BeforeInit(mgr *manager.Manager, moduleName names.ModuleN
 			return fmt.Errorf("map %q is not a ring buffer, got %q instead", e.mapName, ms.Type.String())
 		}
 
+		// Add a map spec editor to set key and value sizes to 0, to avoid "invalid argument" errors when loading the program
+		updateMapSpecEditor(mgrOpts, e.mapName, func(specEditor *manager.MapSpecEditor) {
+			specEditor.KeySize = 0
+			specEditor.ValueSize = 0
+			specEditor.EditorFlag |= manager.EditKeyValue
+		})
+
 		// the size of the ring buffer is communicated to the kernel via the max entries field
 		// of the bpf map
 		if ms.MaxEntries != uint32(e.opts.ringBufferSize) {
@@ -322,15 +329,21 @@ func (e *EventHandler) Flush() {
 	e.f.Flush()
 }
 
-// ResizeRingBuffer resizes the ring buffer by creating/updating a map spec editor
-func ResizeRingBuffer(mgrOpts *manager.Options, mapName string, bufferSize int) {
+func updateMapSpecEditor(mgrOpts *manager.Options, mapName string, editorFunc func(specEditor *manager.MapSpecEditor)) {
 	if mgrOpts.MapSpecEditors == nil {
 		mgrOpts.MapSpecEditors = make(map[string]manager.MapSpecEditor)
 	}
 	specEditor := mgrOpts.MapSpecEditors[mapName]
-	specEditor.MaxEntries = uint32(bufferSize)
-	specEditor.EditorFlag |= manager.EditMaxEntries
+	editorFunc(&specEditor)
 	mgrOpts.MapSpecEditors[mapName] = specEditor
+}
+
+// ResizeRingBuffer resizes the ring buffer by creating/updating a map spec editor
+func ResizeRingBuffer(mgrOpts *manager.Options, mapName string, bufferSize int) {
+	updateMapSpecEditor(mgrOpts, mapName, func(specEditor *manager.MapSpecEditor) {
+		specEditor.MaxEntries = uint32(bufferSize)
+		specEditor.EditorFlag |= manager.EditMaxEntries
+	})
 }
 
 func (e *EventHandler) perfLoop() {

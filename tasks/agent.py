@@ -82,6 +82,7 @@ AGENT_CORECHECKS = [
     "cisco_sdwan",
     "network_path",
     "gpu",
+    "seccomp_tracer",
     "wlan",
     "discovery",
     "versa",

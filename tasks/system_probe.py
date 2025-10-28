@@ -413,7 +413,7 @@ def ninja_gpu_ebpf_programs(nw: NinjaWriter, co_re_build_dir: Path | str):
 def ninja_container_integrations_ebpf_programs(nw: NinjaWriter, co_re_build_dir):
     container_integrations_co_re_dir = os.path.join("pkg", "collector", "corechecks", "ebpf", "c", "runtime")
     container_integrations_co_re_flags = f"-I{container_integrations_co_re_dir}"
-    container_integrations_co_re_programs = ["oom-kill", "tcp-queue-length", "ebpf"]
+    container_integrations_co_re_programs = ["oom-kill", "tcp-queue-length", "ebpf", "seccomp-tracer"]
 
     for prog in container_integrations_co_re_programs:
         infile = os.path.join(container_integrations_co_re_dir, f"{prog}-kern.c")
@@ -587,6 +587,9 @@ def ninja_cgo_type_files(nw: NinjaWriter):
             ],
             "pkg/collector/corechecks/ebpf/probe/tcpqueuelength/tcp_queue_length_kern_types.go": [
                 "pkg/collector/corechecks/ebpf/c/runtime/tcp-queue-length-kern-user.h",
+            ],
+            "pkg/collector/corechecks/ebpf/probe/seccomptracer/seccomp_tracer_kern_types.go": [
+                "pkg/collector/corechecks/ebpf/c/runtime/seccomp-tracer-kern-user.h",
             ],
             "pkg/network/usm/sharedlibraries/types.go": [
                 "pkg/network/ebpf/c/shared-libraries/types.h",
