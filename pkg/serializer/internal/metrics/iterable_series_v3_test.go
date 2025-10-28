@@ -288,7 +288,7 @@ func TestPayloadsBuilderV3_ReservedSpace(t *testing.T) {
 	require.NoError(t, pb.finishPayload())
 }
 
-func TestPaylodsBuilderV3_Tags(t *testing.T) {
+func TestPayloadsBuilderV3_Tags(t *testing.T) {
 	pb, err := newPayloadsBuilderV3(1000, 1000, 1000, noopimpl.New())
 	require.NoError(t, err)
 	for _, tags := range [][2][]string{{nil, nil}, {{"t1"}, nil}, {nil, {"t2"}}, {{"t3"}, {"t4"}}} {
