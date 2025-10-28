@@ -1,8 +1,12 @@
 # eBPF Core Checks
 
+Note: This guide covers simple, single-purpose eBPF checks under `pkg/collector/corechecks/ebpf/` ("container integration" checks). For complex/standalone features (e.g., network, GPU, dynamic instrumentation), see their dedicated packages and docs; refer to `.cursor/rules/system_probe_modules.mdc` for pointers.
+
 ## Structure
 
 Each eBPF-based check consists of three components:
+
+See also: `.cursor/rules/system_probe_modules.mdc` for system-probe module context and cross-links.
 
 1. **Probe** (`probe/<check>/`) - System-probe side eBPF implementation
    - `<check>.go` - Tracer with eBPF map management, NewTracer(), GetAndFlush(), Close()
