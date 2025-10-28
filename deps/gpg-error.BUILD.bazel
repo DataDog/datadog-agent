@@ -228,8 +228,10 @@ cc_library(
     ],
     copts = [
         "-isystem external/+_repo_rules2+gpg-error/src",
-        "-isystem bazel-out/k8-fastbuild/bin/external/+_repo_rules2+gpg-error/src",
-    ],
+    ] + select({
+        "@@//:linux_x86_64": ["-isystem bazel-out/k8-fastbuild/bin/external/+_repo_rules2+gpg-error/src"],
+        "@@//:linux_arm64": ["-isystem bazel-out/aarch64-fastbuild/bin/external/+_repo_rules2+gpg-error/src"],
+    }),
     strip_include_prefix = "src",
     # includes = [
     #     "src",
