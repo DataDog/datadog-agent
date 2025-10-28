@@ -127,9 +127,6 @@ func addEmbeddedCollectorConfigWarnings(cfg *datadogconfig.Config) {
 	if cfg.OnlyMetadata {
 		cfg.AddWarning(fmt.Errorf("only_metadata should not be enabled and is ignored in the embedded collector"))
 	}
-	if cfg.Traces.ComputeStatsBySpanKind || cfg.Traces.PeerServiceAggregation || cfg.Traces.PeerTagsAggregation || len(cfg.Traces.PeerTags) > 0 {
-		cfg.AddWarning(fmt.Errorf("inferred service related configs (compute_stats_by_span_kind, peer_service_aggregation, peer_tags_aggregation, peer_tags) should only be set in datadog connector rather than datadog exporter in the embedded collector"))
-	}
 }
 
 // createTracesExporter creates a trace exporter based on this config.
