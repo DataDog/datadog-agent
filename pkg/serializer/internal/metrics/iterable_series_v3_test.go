@@ -123,7 +123,7 @@ func TestPayloadsBuilderV3(t *testing.T) {
 	}, ps[0].GetContent())
 }
 
-func BenchmarkPaylodsBuilderV3(b *testing.B) {
+func BenchmarkPayloadsBuilderV3(b *testing.B) {
 	const ts = 1756737057.1
 	serie := &metrics.Serie{
 		Name:   "serie1",
