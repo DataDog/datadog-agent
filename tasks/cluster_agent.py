@@ -65,9 +65,7 @@ def build(
     build_context = "Dockerfiles/cluster-agent"
     policies_path = f"{build_context}/security-agent-policies"
     ctx.run(f"rm -rf {policies_path}")
-    ctx.run(f"git clone {POLICIES_REPO} {policies_path}")
-    if policies_version != "master":
-        ctx.run(f"cd {policies_path} && git checkout {policies_version}")
+    ctx.run(f"git clone --branch={policies_version} --depth=1 {POLICIES_REPO} {policies_path}")
 
 
 @task
