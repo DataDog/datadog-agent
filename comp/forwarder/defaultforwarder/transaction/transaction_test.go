@@ -188,3 +188,36 @@ func Test_truncateBodyForLog(t *testing.T) {
 		})
 	}
 }
+
+func TestTransaction403TriggersSecretRefresh(t *testing.T) {
+	var refreshCalls int
+	var bypassValue bool
+
+	secrets := secretsmock.New(t)
+	secrets.SetRefreshHook(func(bypass bool) (string, error) {
+		refreshCalls++
+		bypassValue = bypass
+		return "", nil
+	})
+
+	// test server that returns 403 for all reequests
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusForbidden)
+	}))
+	defer ts.Close()
+
+	transaction := NewHTTPTransaction()
+	transaction.Domain = ts.URL
+	transaction.Endpoint.Route = "/endpoint/test"
+	transaction.Payload = NewBytesPayloadWithoutMetaData([]byte("test payload"))
+
+	client := &http.Client{}
+	mockConfig := configmock.New(t)
+	log := logmock.New(t)
+
+	err := transaction.Process(context.Background(), mockConfig, log, secrets, client)
+
+	assert.NoError(t, err)
+	assert.Equal(t, 1, refreshCalls, "secrets.Refresh should be called once when transaction receives 403")
+	assert.False(t, bypassValue, "secrets.Refresh should be called with bypassRateLimit=false")
+}
