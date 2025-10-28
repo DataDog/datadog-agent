@@ -34,7 +34,7 @@ func TestLinuxDynamicPathSuite(t *testing.T) {
 
 }
 
-func (s *linuxDynamicPathTestSuite) TestLinuxDynamicPathMetrics() {
+func (s *linuxDynamicPathTestSuite) TestLinuxDynamicPath() {
 	hostname := s.Env().Agent.Client.Hostname()
 	s.EventuallyWithT(func(c *assert.CollectT) {
 		s.checkDynamicPath(c, hostname)
