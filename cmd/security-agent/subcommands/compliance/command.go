@@ -23,7 +23,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	secretsnoopfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx-noop"
-	logscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
 	"github.com/DataDog/datadog-agent/pkg/compliance/aptconfig"
 	"github.com/DataDog/datadog-agent/pkg/compliance/dbconfig"
 	"github.com/DataDog/datadog-agent/pkg/compliance/k8sconfig"
@@ -70,7 +69,6 @@ func complianceLoadCommand(globalParams *command.GlobalParams) *cobra.Command {
 				}),
 				core.Bundle(),
 				secretsnoopfx.Module(),
-				logscompressionfx.Module(),
 			)
 		},
 	}
