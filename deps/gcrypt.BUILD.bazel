@@ -90,7 +90,8 @@ genrule(
 genrule(
     name = "mod-source-info_h",
     outs = ["mpi/mod-source-info.h"],
-    cmd = """
+    cmd = select({
+        "@@//:linux_x86_64": """
     cat <<EOF >> $@
 static char mod_source_info[] =
   ":amd64/mpih-add1.S"
@@ -101,8 +102,20 @@ static char mod_source_info[] =
   ":amd64/mpih-lshift.S"
   ":amd64/mpih-rshift.S"
   ;
-EOF
-    """
+EOF""",
+        "@@//:linux_arm64": """
+    cat <<EOF >> $@
+static char mod_source_info[] =
+  ":aarch64/mpih-add1.S"
+  ":aarch64/mpih-sub1.S"
+  ":aarch64/mpih-mul1.S"
+  ":aarch64/mpih-mul2.S"
+  ":aarch64/mpih-mul3.S"
+  ":generic/mpih-lshift.c"
+  ":generic/mpih-rshift.c"
+  ;
+EOF""",
+    }),
 )
 
 cc_binary(
