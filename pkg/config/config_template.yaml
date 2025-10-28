@@ -903,7 +903,7 @@ api_key:
 ## @env DD_SECRET_REFRESH_ON_API_KEY_FAILURE_INTERVAL - integer - optional - default 0
 ##
 ## `secret_refresh_on_api_key_failure_interval` is the time in minutes between two secret refreshes
-## triggered by the Agent using an invalid or expired API key (HTTP erro code 403 received or the
+## triggered by the Agent using an invalid or expired API key (HTTP error code 403 received or the
 ## health probe failing). This rate limits how often the secrets are refreshed in response to errors.
 ## Set to 0 to disable the refresh.
 ##
