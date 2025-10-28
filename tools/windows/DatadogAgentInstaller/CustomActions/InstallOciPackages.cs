@@ -65,8 +65,6 @@ namespace Datadog.CustomActions
             {
                 env["DD_INSTALLER_REGISTRY_URL"] = _overrideRegistryUrl;
             }
-
-            // Add APM instrumentation configuration
             var instrumentationEnabled = _session.Property("DD_APM_INSTRUMENTATION_ENABLED");
             if (!string.IsNullOrEmpty(instrumentationEnabled))
             {
