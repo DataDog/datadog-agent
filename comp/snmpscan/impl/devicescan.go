@@ -54,7 +54,7 @@ func (s snmpScannerImpl) ScanDeviceAndSendData(connParams *snmpparse.SNMPConfig,
 		}
 		return fmt.Errorf("unable to connect to SNMP agent on %s:%d: %w", snmp.LocalAddr, snmp.Port, err)
 	}
-	err = s.runDeviceScan(snmp, namespace, deviceID)
+	err = s.runDeviceScan(snmp, namespace, deviceID, scanParams.CallInterval)
 	if err != nil {
 		// Send an error status if we can't scan the device
 		errorStatusPayload := metadata.NetworkDevicesMetadata{
@@ -87,9 +87,9 @@ func (s snmpScannerImpl) ScanDeviceAndSendData(connParams *snmpparse.SNMPConfig,
 	return nil
 }
 
-func (s snmpScannerImpl) runDeviceScan(snmpConnection *gosnmp.GoSNMP, deviceNamespace string, deviceID string) error {
+func (s snmpScannerImpl) runDeviceScan(snmpConnection *gosnmp.GoSNMP, deviceNamespace string, deviceID string, callInterval time.Duration) error {
 	// execute the scan
-	pdus, err := gatherPDUs(snmpConnection)
+	pdus, err := gatherPDUs(snmpConnection, callInterval)
 	if err != nil {
 		return err
 	}
@@ -117,9 +117,9 @@ func (s snmpScannerImpl) runDeviceScan(snmpConnection *gosnmp.GoSNMP, deviceName
 
 // gatherPDUs returns PDUs from the given SNMP device that should cover ever
 // scalar value and at least one row of every table.
-func gatherPDUs(snmp *gosnmp.GoSNMP) ([]*gosnmp.SnmpPDU, error) {
+func gatherPDUs(snmp *gosnmp.GoSNMP, callInterval time.Duration) ([]*gosnmp.SnmpPDU, error) {
 	var pdus []*gosnmp.SnmpPDU
-	err := gosnmplib.ConditionalWalk(snmp, "", false, func(dataUnit gosnmp.SnmpPDU) (string, error) {
+	err := gosnmplib.ConditionalWalk(snmp, "", false, callInterval, func(dataUnit gosnmp.SnmpPDU) (string, error) {
 		pdus = append(pdus, &dataUnit)
 		return gosnmplib.SkipOIDRowsNaive(dataUnit.Name), nil
 	})

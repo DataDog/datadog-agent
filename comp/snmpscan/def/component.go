@@ -7,6 +7,8 @@
 package snmpscan
 
 import (
+	"time"
+
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/metadata"
 	"github.com/DataDog/datadog-agent/pkg/snmp/snmpparse"
 
@@ -22,5 +24,6 @@ type Component interface {
 }
 
 type ScanParams struct {
-	ScanType metadata.ScanType
+	ScanType     metadata.ScanType
+	CallInterval time.Duration // Duration to sleep between SNMP calls
 }
