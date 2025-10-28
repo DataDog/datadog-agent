@@ -40,7 +40,7 @@ genrule(
     name = "mkerrcodes_h",
     srcs = ["src/mkerrcodes.awk", ":mkerrcodes_tmp_h"],
     tools = ["@gawk"],
-    cmd = "grep GPG_ERR_ $(location :mkerrcodes_tmp_h) | gawk -f $(location src/mkerrcodes.awk) > $@",
+    cmd = "grep GPG_ERR_ $(location :mkerrcodes_tmp_h) | $(location @gawk) -f $(location src/mkerrcodes.awk) > $@",
     outs = ["mkerrcodes.h"]
 )
 
