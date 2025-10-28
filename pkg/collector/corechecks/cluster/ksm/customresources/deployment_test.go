@@ -9,6 +9,7 @@ package customresources
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -24,7 +25,8 @@ func TestDeploymentRolloutFactory_Name(t *testing.T) {
 	client := &apiserver.APIClient{
 		Cl: fake.NewSimpleClientset(),
 	}
-	factory := NewDeploymentRolloutFactory(client)
+	tracker := NewRolloutTracker()
+	factory := NewDeploymentRolloutFactory(client, tracker)
 
 	assert.Equal(t, "deployments_extended", factory.Name())
 }
@@ -33,7 +35,8 @@ func TestDeploymentRolloutFactory_ExpectedType(t *testing.T) {
 	client := &apiserver.APIClient{
 		Cl: fake.NewSimpleClientset(),
 	}
-	factory := NewDeploymentRolloutFactory(client)
+	tracker := NewRolloutTracker()
+	factory := NewDeploymentRolloutFactory(client, tracker)
 
 	expectedType := factory.ExpectedType()
 	_, ok := expectedType.(*appsv1.Deployment)
@@ -44,7 +47,8 @@ func TestDeploymentRolloutFactory_MetricFamilyGenerators(t *testing.T) {
 	client := &apiserver.APIClient{
 		Cl: fake.NewSimpleClientset(),
 	}
-	factory := NewDeploymentRolloutFactory(client)
+	tracker := NewRolloutTracker()
+	factory := NewDeploymentRolloutFactory(client, tracker)
 
 	generators := factory.MetricFamilyGenerators()
 	require.Len(t, generators, 1)
@@ -60,7 +64,8 @@ func TestDeploymentRolloutGeneration_OngoingRollout(t *testing.T) {
 	client := &apiserver.APIClient{
 		Cl: fake.NewSimpleClientset(),
 	}
-	factory := NewDeploymentRolloutFactory(client)
+	tracker := NewRolloutTracker()
+	factory := NewDeploymentRolloutFactory(client, tracker)
 
 	// Create deployment with ongoing rollout (generation != observed generation)
 	replicas := int32(3)
@@ -92,14 +97,12 @@ func TestDeploymentRolloutGeneration_OngoingRollout(t *testing.T) {
 	assert.Equal(t, []string{"namespace", "deployment"}, metric.LabelKeys)
 	assert.Equal(t, []string{"default", "test-deployment"}, metric.LabelValues)
 
-	// Verify deployment was stored in map
-	rolloutMutex.RLock()
-	stored, exists := deploymentMap["default/test-deployment"]
-	rolloutMutex.RUnlock()
+	// Verify deployment was stored in tracker (indirectly by checking if rollout duration can be retrieved)
+	assert.EventuallyWithT(t, func(t *assert.CollectT) {
+		duration := tracker.GetRolloutDuration("default", "test-deployment")
+		assert.Greater(t, duration, 0.0, "Rollout duration should be greater than 0 for ongoing rollout")
+	}, 5*time.Second, 100*time.Millisecond)
 
-	require.True(t, exists, "Deployment should be stored for ongoing rollout")
-	assert.Equal(t, deployment.Name, stored.Name)
-	assert.Equal(t, deployment.Namespace, stored.Namespace)
 }
 
 func TestDeploymentRolloutGeneration_CompletedRollout(t *testing.T) {
@@ -107,7 +110,8 @@ func TestDeploymentRolloutGeneration_CompletedRollout(t *testing.T) {
 	client := &apiserver.APIClient{
 		Cl: fake.NewSimpleClientset(),
 	}
-	factory := NewDeploymentRolloutFactory(client)
+	tracker := NewRolloutTracker()
+	factory := NewDeploymentRolloutFactory(client, tracker)
 
 	// Create deployment with completed rollout
 	replicas := int32(3)
@@ -140,11 +144,8 @@ func TestDeploymentRolloutGeneration_CompletedRollout(t *testing.T) {
 	assert.Equal(t, []string{"default", "test-deployment"}, metric.LabelValues)
 
 	// Deployment should not be stored for completed rollout
-	rolloutMutex.RLock()
-	_, exists := deploymentMap["default/test-deployment"]
-	rolloutMutex.RUnlock()
-
-	assert.False(t, exists, "Completed deployment should not be stored")
+	duration := tracker.GetRolloutDuration("default", "test-deployment")
+	assert.Equal(t, 0.0, duration, "Completed deployment should have 0 rollout duration")
 }
 
 func TestDeploymentRolloutGeneration_OngoingRollout_ReplicasMismatch(t *testing.T) {
@@ -152,9 +153,11 @@ func TestDeploymentRolloutGeneration_OngoingRollout_ReplicasMismatch(t *testing.
 	client := &apiserver.APIClient{
 		Cl: fake.NewSimpleClientset(),
 	}
-	factory := NewDeploymentRolloutFactory(client)
+	tracker := NewRolloutTracker()
+	factory := NewDeploymentRolloutFactory(client, tracker)
 
-	// Create deployment with ongoing rollout (ready replicas != desired replicas)
+	// Create deployment with replica mismatch but same generation (NOT a rollout)
+	// This simulates node maintenance or pod rescheduling - should NOT be treated as rollout
 	replicas := int32(5)
 	deployment := &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
@@ -166,8 +169,8 @@ func TestDeploymentRolloutGeneration_OngoingRollout_ReplicasMismatch(t *testing.
 			Replicas: &replicas,
 		},
 		Status: appsv1.DeploymentStatus{
-			ObservedGeneration: 3, // Same as Generation
-			ReadyReplicas:      2, // Less than desired replicas
+			ObservedGeneration: 3, // Same as Generation - no rollout
+			ReadyReplicas:      2, // Less than desired replicas (operational issue, not rollout)
 		},
 	}
 
@@ -177,17 +180,14 @@ func TestDeploymentRolloutGeneration_OngoingRollout_ReplicasMismatch(t *testing.
 	// Generate metrics
 	metricFamily := generators[0].Generate(deployment)
 
-	// Should return dummy metric with value 1 for ongoing rollout
+	// Should return metric with value 0 for completed/no rollout
 	require.Len(t, metricFamily.Metrics, 1)
 	metric := metricFamily.Metrics[0]
-	assert.Equal(t, 1.0, metric.Value)
+	assert.Equal(t, 0.0, metric.Value)
 
-	// Verify deployment was stored in map
-	rolloutMutex.RLock()
-	_, exists := deploymentMap["default/test-deployment"]
-	rolloutMutex.RUnlock()
-
-	require.True(t, exists, "Deployment should be stored for ongoing rollout")
+	// Verify deployment was NOT stored (not a rollout - false positive case)
+	duration := tracker.GetRolloutDuration("default", "test-deployment")
+	assert.Equal(t, 0.0, duration, "False positive: replica mismatch without generation change should not be tracked as rollout")
 }
 
 func TestDeploymentRolloutGeneration_NilReplicas(t *testing.T) {
@@ -195,7 +195,8 @@ func TestDeploymentRolloutGeneration_NilReplicas(t *testing.T) {
 	client := &apiserver.APIClient{
 		Cl: fake.NewSimpleClientset(),
 	}
-	factory := NewDeploymentRolloutFactory(client)
+	tracker := NewRolloutTracker()
+	factory := NewDeploymentRolloutFactory(client, tracker)
 
 	// Create deployment with nil replicas (defaults to 1)
 	deployment := &appsv1.Deployment{

@@ -58,6 +58,7 @@ func (c *Check) Run() error {
 		Protocol:                  c.config.Protocol,
 		TCPMethod:                 c.config.TCPMethod,
 		TCPSynParisTracerouteMode: c.config.TCPSynParisTracerouteMode,
+		DisableWindowsDriver:      c.config.DisableWindowsDriver,
 		ReverseDNS:                true,
 		TracerouteQueries:         c.config.TracerouteQueries,
 		E2eQueries:                c.config.E2eQueries,
@@ -71,6 +72,12 @@ func (c *Check) Run() error {
 	if err != nil {
 		return fmt.Errorf("failed to trace path: %w", err)
 	}
+
+	err = payload.ValidateNetworkPath(&path)
+	if err != nil {
+		return fmt.Errorf("failed to validate network path: %w", err)
+	}
+
 	path.Namespace = c.config.Namespace
 	path.Origin = payload.PathOriginNetworkPathIntegration
 

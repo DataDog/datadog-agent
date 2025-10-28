@@ -48,16 +48,17 @@ const (
 // WinCrashStatus defines all of the information returned from the system
 // probe to the caller
 type WinCrashStatus struct {
-	StatusCode   int    `json:"statuscode"`
-	ErrString    string `json:"errstring"`
-	FileName     string `json:"filename"`
-	Type         int    `json:"dumptype"`
-	DateString   string `json:"datestring"`
-	Offender     string `json:"offender"`
-	BugCheck     string `json:"buckcheckcode"`
-	BugCheckArg1 string `json:"bugcheckarg1"`
-	BugCheckArg2 string `json:"bugcheckarg2"`
-	BugCheckArg3 string `json:"bugcheckarg3"`
-	BugCheckArg4 string `json:"bugcheckarg4"`
-	Callstack    string `json:"callstack"`
+	StatusCode   int      `json:"statuscode"`
+	ErrString    string   `json:"errstring"`
+	FileName     string   `json:"filename"`
+	Type         int      `json:"dumptype"`
+	DateString   string   `json:"datestring"`
+	Offender     string   `json:"offender"`
+	BugCheck     string   `json:"buckcheckcode"`
+	BugCheckArg1 string   `json:"bugcheckarg1"`
+	BugCheckArg2 string   `json:"bugcheckarg2"`
+	BugCheckArg3 string   `json:"bugcheckarg3"`
+	BugCheckArg4 string   `json:"bugcheckarg4"`
+	Frames       []string `json:"frames"`
+	AgentVersion string   `json:"agentversion"`
 }

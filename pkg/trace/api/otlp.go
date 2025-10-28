@@ -12,6 +12,7 @@ import (
 	"math"
 	"net"
 	"net/http"
+	"os"
 	"strconv"
 	"strings"
 	"sync"
@@ -23,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes/source"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/api/internal/header"
+	"github.com/DataDog/datadog-agent/pkg/trace/api/loader"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
@@ -104,7 +106,23 @@ func NewOTLPReceiver(out chan<- *Payload, cfg *config.AgentConfig, statsd statsd
 func (o *OTLPReceiver) Start() {
 	cfg := o.conf.OTLPReceiver
 	if cfg.GRPCPort != 0 {
-		ln, err := net.Listen("tcp", fmt.Sprintf("%s:%d", cfg.BindHost, cfg.GRPCPort))
+		var ln net.Listener
+		var err error
+		// When using the trace-loader, the OTLP listener might be provided as an already opened file descriptor
+		// so we try to get a listener from it, and fallback to listening on the given address if it fails
+		if grpcFDStr, ok := os.LookupEnv("DD_OTLP_CONFIG_GRPC_FD"); ok {
+			ln, err = loader.GetListenerFromFD(grpcFDStr, "otlp_conn")
+			if err == nil {
+				log.Debugf("Using OTLP listener from file descriptor %s", grpcFDStr)
+			} else {
+				log.Errorf("Error creating OTLP listener from file descriptor %s: %v", grpcFDStr, err)
+			}
+		}
+		if ln == nil {
+			// if the fd was not provided, or we failed to get a listener from it, listen on the given address
+			ln, err = loader.GetTCPListener(fmt.Sprintf("%s:%d", cfg.BindHost, cfg.GRPCPort))
+		}
+
 		if err != nil {
 			log.Criticalf("Error starting OpenTelemetry gRPC server: %v", err)
 		} else {

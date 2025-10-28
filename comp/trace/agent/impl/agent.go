@@ -42,7 +42,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/version"
 
 	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
@@ -62,7 +61,7 @@ type dependencies struct {
 	Shutdowner fx.Shutdowner
 
 	Config                config.Component
-	Secrets               option.Option[secrets.Component]
+	Secrets               secrets.Component
 	Context               context.Context
 	Params                *Params
 	TelemetryCollector    telemetry.TelemetryCollector
@@ -100,7 +99,7 @@ type component struct {
 
 	cancel             context.CancelFunc
 	config             config.Component
-	secrets            option.Option[secrets.Component]
+	secrets            secrets.Component
 	params             *Params
 	tagger             tagger.Component
 	telemetryCollector telemetry.TelemetryCollector

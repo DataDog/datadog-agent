@@ -186,6 +186,10 @@ doesn't exist or doesn't contain a PID for a running process.
 
 Package profiler provides a flare folder containing the output of various agent's pprof servers
 
+### [comp/core/remoteagent](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/remoteagent)
+
+Package remoteagent implements the remote agent component
+
 ### [comp/core/remoteagentregistry](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/remoteagentregistry)
 
 Package remoteagentregistry provides an integration point for remote agents to register and be able to report their
@@ -674,6 +678,12 @@ Package payloadmodifier defines the trace payload modifier component interface
 
 Package status implements the core status component information provider interface
 
+### [comp/trace-telemetry](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/trace-telemetry)
+
+*Datadog Team*: agent-runtimes
+
+Package tracetelemetry sends telemetry about the trace-agent and its state
+
 ## [comp/updater](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/updater) (Component Bundle)
 
 *Datadog Team*: fleet windows-products
@@ -760,6 +770,12 @@ Package client implements a component to send process metadata to the Cluster-Ag
 
 Package networkdeviceconfig provides the component for retrieving network device configurations.
 
+### [comp/publishermetadatacache](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/publishermetadatacache)
+
+*Datadog Team*: windows-products
+
+Package publishermetadatacache provides a cache for Windows Event Log publisher metadata handles
+
 ### [comp/rdnsquerier](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/rdnsquerier)
 
 *Datadog Team*: ndm-integrations
@@ -799,3 +815,9 @@ versions, installation dates, and other relevant details for inventory tracking.
 
 Package syntheticstestscheduler defines a synthetics scheduler component to run
 network tests based on remote config.
+
+### [comp/workloadselection](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/workloadselection)
+
+*Datadog Team*: injection-platform
+
+Package workloadselection listens to Remote Config to receive & apply workload selection configuration

@@ -23,6 +23,7 @@ import (
 	sprocess "github.com/DataDog/datadog-agent/pkg/security/resolvers/process"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model/usersession"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
@@ -947,10 +948,10 @@ func newProcessSerializer(ps *model.Process, e *model.Event) *ProcessSerializer 
 			}
 		}
 
-		if len(ps.ContainerID) != 0 {
+		if len(ps.ContainerContext.ContainerID) != 0 {
 			psSerializer.Container = &ContainerContextSerializer{
-				ID:        string(ps.ContainerID),
-				CreatedAt: utils.NewEasyjsonTimeIfNotZero(time.Unix(0, int64(e.GetContainerCreatedAt()))),
+				ID:        string(ps.ContainerContext.ContainerID),
+				CreatedAt: utils.NewEasyjsonTimeIfNotZero(time.Unix(0, int64(e.ProcessContext.ContainerContext.CreatedAt))),
 			}
 		}
 
@@ -979,7 +980,7 @@ func newUserSessionContextSerializer(ctx *model.UserSessionContext, e *model.Eve
 
 	return &UserSessionContextSerializer{
 		ID:          fmt.Sprintf("%x", ctx.ID),
-		SessionType: ctx.SessionType.String(),
+		SessionType: usersession.Type(ctx.SessionType).String(),
 		K8SUsername: ctx.K8SUsername,
 		K8SUID:      ctx.K8SUID,
 		K8SGroups:   ctx.K8SGroups,
@@ -1080,9 +1081,6 @@ func newPTraceEventSerializer(e *model.Event) *PTraceEventSerializer {
 		BaseEvent: model.BaseEvent{
 			FieldHandlers:  e.FieldHandlers,
 			ProcessContext: e.PTrace.Tracee,
-			ContainerContext: &model.ContainerContext{
-				ContainerID: e.PTrace.Tracee.ContainerID,
-			},
 		},
 	}
 
@@ -1481,14 +1479,14 @@ func NewEventSerializer(event *model.Event, rule *rules.Rule) *EventSerializer {
 		s.ContainerContextSerializer = &ContainerContextSerializer{
 			ID:        string(ctx.ContainerID),
 			CreatedAt: utils.NewEasyjsonTimeIfNotZero(time.Unix(0, int64(ctx.CreatedAt))),
-			Variables: newVariablesContext(event, rule, "container."),
+			Variables: newVariablesContext(event, rule, eval.ContainerScoperType),
 		}
 	}
 
-	if cgroupID := event.FieldHandlers.ResolveCGroupID(event, event.CGroupContext); cgroupID != "" {
+	if cgroupID := event.FieldHandlers.ResolveCGroupID(event, &event.ProcessContext.CGroup); cgroupID != "" {
 		s.CGroupContextSerializer = &CGroupContextSerializer{
-			ID:        string(event.CGroupContext.CGroupID),
-			Variables: newVariablesContext(event, rule, "cgroup."),
+			ID:        string(event.ProcessContext.CGroup.CGroupID),
+			Variables: newVariablesContext(event, rule, eval.CGroupScoperType),
 		}
 	}
 

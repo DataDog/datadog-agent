@@ -42,12 +42,15 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
 
-//go:embed status_templates
-var templatesFS embed.FS
-
 const auditFileBasename = "secret-audit-file.json"
 
 var newClock = clock.New
+
+//go:embed status_templates
+var templatesFS embed.FS
+
+// this is overridden by tests when needed
+var checkRightsFunc = checkRights
 
 // Provides list the provided interfaces from the secrets Component
 type Provides struct {
@@ -60,7 +63,6 @@ type Provides struct {
 
 // Requires list the required object to initializes the secrets Component
 type Requires struct {
-	Params    secrets.Params
 	Telemetry telemetry.Component
 }
 
@@ -76,10 +78,9 @@ type secretContext struct {
 type handleToContext map[string][]secretContext
 
 type secretResolver struct {
-	enabled bool
-	lock    sync.Mutex
-	cache   map[string]string
-	clk     clock.Clock
+	lock  sync.Mutex
+	cache map[string]string
+	clk   clock.Clock
 
 	// list of handles and where they were found
 	origin handleToContext
@@ -131,7 +132,6 @@ func newEnabledSecretResolver(telemetry telemetry.Component) *secretResolver {
 	return &secretResolver{
 		cache:                   make(map[string]string),
 		origin:                  make(handleToContext),
-		enabled:                 true,
 		tlmSecretBackendElapsed: telemetry.NewGauge("secret_backend", "elapsed_ms", []string{"command", "exit_code"}, "Elapsed time of secret backend invocation"),
 		tlmSecretUnmarshalError: telemetry.NewCounter("secret_backend", "unmarshal_errors_count", []string{}, "Count of errors when unmarshalling the output of the secret binary"),
 		tlmSecretResolveError:   telemetry.NewCounter("secret_backend", "resolve_errors_count", []string{"error_kind", "handle"}, "Count of errors when resolving a secret"),
@@ -143,7 +143,6 @@ func newEnabledSecretResolver(telemetry telemetry.Component) *secretResolver {
 // NewComponent returns the implementation for the secrets component
 func NewComponent(deps Requires) Provides {
 	resolver := newEnabledSecretResolver(deps.Telemetry)
-	resolver.enabled = deps.Params.Enabled
 	return Provides{
 		Comp:            resolver,
 		FlareProvider:   flaretypes.NewProvider(resolver.fillFlare),
@@ -181,7 +180,7 @@ func (r *secretResolver) HTML(_ bool, buffer io.Writer) error {
 	return status.RenderHTML(templatesFS, "infoHTML.tmpl", buffer, r.getDebugInfo(stats, false))
 }
 
-// fillFlare add the inventory payload to flares.
+// fillFlare add secrets information to flares
 func (r *secretResolver) fillFlare(fb flaretypes.FlareBuilder) error {
 	var buffer bytes.Buffer
 	stats := make(map[string]interface{})
@@ -260,9 +259,6 @@ func (r *secretResolver) registerSecretOrigin(handle string, origin string, path
 
 // Configure initializes the executable command and other options of the secrets component
 func (r *secretResolver) Configure(params secrets.ConfigParams) {
-	if !r.enabled {
-		return
-	}
 	r.backendType = params.Type
 	r.backendConfig = params.Config
 	r.backendCommand = params.Command
@@ -405,10 +401,6 @@ func (r *secretResolver) Resolve(data []byte, origin string, imageName string, k
 	r.lock.Lock()
 	defer r.lock.Unlock()
 
-	if !r.enabled {
-		log.Infof("Agent secrets is disabled by caller")
-		return nil, nil
-	}
 	if data == nil || r.backendCommand == "" {
 		return data, nil
 	}
@@ -748,14 +740,8 @@ type handlePlace struct {
 //go:embed status_templates/refresh.tmpl
 var secretRefreshTmpl string
 
-// getDebugInfo exposes debug informations about secrets to be included in a flare, status page and secret command
+// getDebugInfo exposes debug informations about secrets to be included in a flare
 func (r *secretResolver) getDebugInfo(stats map[string]interface{}, includeVersion bool) map[string]interface{} {
-	stats["enabled"] = r.enabled
-	if !r.enabled {
-		stats["message"] = "Agent secrets is disabled by caller"
-		return stats
-	}
-
 	if r.backendCommand == "" {
 		stats["backendCommandSet"] = false
 		stats["message"] = "No secret_backend_command set: secrets feature is not enabled"
@@ -781,7 +767,7 @@ func (r *secretResolver) getDebugInfo(stats map[string]interface{}, includeVersi
 	var permissionsError string
 
 	if !r.embeddedBackendPermissiveRights {
-		err := checkRights(r.backendCommand, r.commandAllowGroupExec)
+		err := checkRightsFunc(r.backendCommand, r.commandAllowGroupExec)
 		if err != nil {
 			permissions = "error: the executable does not have the correct permissions"
 			permissionsOK = false

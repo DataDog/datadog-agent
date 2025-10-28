@@ -115,3 +115,101 @@ func TestSyntheticsTestConfig_UnmarshalJSON(t *testing.T) {
 		})
 	}
 }
+
+func TestSyntheticsTestConfig_UnmarshalJSON_AllFields(t *testing.T) {
+	input := `{
+		"version": 2,
+		"type": "network",
+		"subtype": "TCP",
+		"config": {
+			"assertions": [
+				{
+					"operator": "lessThan",
+					"property": "avg",
+					"target": "100",
+					"type": "latency"
+				}
+			],
+			"request": {
+				"host": "example.com",
+				"port": 443,
+				"tcp_method": "syn",
+				"source_service": "frontend",
+				"destination_service": "backend",
+				"probe_count": 5,
+				"traceroute_count": 2,
+				"max_ttl": 30,
+				"timeout": 10
+			}
+		},
+		"org_id": 101,
+		"main_dc": "eu-west-1",
+		"public_id": "pub-12345",
+		"run_type": "on-demand",
+		"tick_every": 60
+	}`
+
+	var actual SyntheticsTestConfig
+	err := json.Unmarshal([]byte(input), &actual)
+	require.NoError(t, err)
+
+	port := 443
+	probeCount := 5
+	tracerouteCount := 2
+	maxTTL := 30
+	timeout := 10
+	src := "frontend"
+	dst := "backend"
+
+	expected := SyntheticsTestConfig{
+		Version:  2,
+		Type:     "network",
+		OrgID:    101,
+		MainDC:   "eu-west-1",
+		PublicID: "pub-12345",
+		RunType:  "on-demand",
+		Interval: 60,
+		Config: struct {
+			Assertions []Assertion   `json:"assertions"`
+			Request    ConfigRequest `json:"request"`
+		}{
+			Assertions: []Assertion{
+				{
+					Operator: OperatorLessThan,
+					Property: AssertionSubTypeAverage,
+					Target:   "100",
+					Type:     AssertionTypeLatency,
+				},
+			},
+			Request: TCPConfigRequest{
+				Host:      "example.com",
+				Port:      &port,
+				TCPMethod: payload.TCPMethod("syn"),
+				NetworkConfigRequest: NetworkConfigRequest{
+					SourceService:      &src,
+					DestinationService: &dst,
+					ProbeCount:         &probeCount,
+					TracerouteCount:    &tracerouteCount,
+					MaxTTL:             &maxTTL,
+					Timeout:            &timeout,
+				},
+			},
+		},
+	}
+
+	require.Equal(t, expected.Version, actual.Version)
+	require.Equal(t, expected.Type, actual.Type)
+	require.Equal(t, expected.OrgID, actual.OrgID)
+	require.Equal(t, expected.MainDC, actual.MainDC)
+	require.Equal(t, expected.PublicID, actual.PublicID)
+	require.Equal(t, expected.RunType, actual.RunType)
+	require.Equal(t, expected.Interval, actual.Interval)
+
+	require.Equal(t, expected.Config.Assertions, actual.Config.Assertions)
+
+	// Compare Request manually since it’s an interface
+	actualReq, ok := actual.Config.Request.(TCPConfigRequest)
+	require.True(t, ok)
+	expectedReq := expected.Config.Request.(TCPConfigRequest)
+	require.Equal(t, expectedReq, actualReq)
+}

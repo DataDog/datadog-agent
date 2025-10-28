@@ -30,7 +30,6 @@ def build(
     build_tags=None,
     race=False,
     rebuild=False,
-    major_version='7',
     go_mod="readonly",
     static=False,
     fips_mode=False,
@@ -42,12 +41,12 @@ def build(
     """
     if build_tags is None:
         build_tags = []
-    ldflags, gcflags, env = get_build_flags(ctx, major_version=major_version, static=static)
+    ldflags, gcflags, env = get_build_flags(ctx, static=static)
 
     # TODO use pkg/version for this
     main = "main."
     ld_vars = {
-        "Version": get_version(ctx, major_version=major_version),
+        "Version": get_version(ctx),
         "GoVersion": get_go_version(),
         "GitBranch": get_current_branch(ctx),
         "GitCommit": get_commit_sha(ctx, short=True),
@@ -77,6 +76,7 @@ def build(
         build_tags=build_tags,
         bin_path=agent_bin,
         env=env,
+        check_deadcode=os.getenv("DEPLOY_AGENT") == "true",
     )
 
 

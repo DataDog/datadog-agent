@@ -21,7 +21,7 @@ import (
 	"unsafe"
 )
 
-// Adjust for your arch/kernel if needed (these match your current file)
+// Flags needed by statmount
 const (
 	LSMTRoot = ^uint64(0)
 
@@ -65,7 +65,6 @@ type statmountFixed struct {
 
 // Statmount represents the data obtained from the syscall statmount()
 type Statmount struct {
-	NamespaceInode uint64
 	Mask           uint64
 	SbDevMajor     uint32
 	SbDevMinor     uint32
@@ -150,19 +149,15 @@ func statmount(req *mntIDReq, buf []byte) error {
 	return nil
 }
 
-type mountNsInoFd struct {
-	ino uint64
-	fd  int
-}
-
-func collectUniqueMountNSFDs(procfs string) ([]mountNsInoFd, error) {
+func collectUniqueMountNSFDs(procfs string) ([]int, error) {
 	seen := make(map[uint64]struct{})
-	var fds []mountNsInoFd
+	var ret []int
 
 	ents, err := os.ReadDir(procfs)
 	if err != nil {
 		return nil, err
 	}
+
 	for _, e := range ents {
 		if !e.IsDir() {
 			continue
@@ -189,34 +184,38 @@ func collectUniqueMountNSFDs(procfs string) ([]mountNsInoFd, error) {
 			continue
 		}
 		seen[ino] = struct{}{}
-		fdElem := mountNsInoFd{
-			ino: ino,
-			fd:  fd,
-		}
-		fds = append(fds, fdElem)
+		ret = append(ret, fd)
 	}
-	return fds, nil
+	return ret, nil
 }
 
-// GetAll Retrieves all the mountpoints from all the mount namespaces present in the procfs path
-func GetAll(procfs string) ([]Statmount, error) {
+// GetAll Retrieves all the mountpoints from all the mount namespaces present in the procfs path and call
+// a callback for each one
+func GetAll(procfs string, cb func(*Statmount)) error {
+	// The way this function works is the following:
+	// 1 - List procfs and collect a file descriptor for each existing mount namespace
+	// 2 - Create a goroutine that will get scheduled on its own thread, the thread is locked and unshared
+	// 3 - This thread then switches to each mount namespace and lists all the mountpoints with new api listmount
+	// 4 - Call the callback for each unique mountpoint found
+	// 5 - Finally the gorountine exists, but the thread isn't unlocked, such that the go runtime will detect it,
+	//     destroy the unshared thread and create a new clean one to replace it
+
 	nsFDs, err := collectUniqueMountNSFDs(procfs)
+
 	if err != nil {
-		return nil, fmt.Errorf("error collecting unique mount namespace file descriptors: %w", err)
+		return fmt.Errorf("error collecting unique mount namespace file descriptors: %w", err)
 	}
 	defer func() {
-		for _, inoFd := range nsFDs {
-			unix.Close(inoFd.fd)
+		for _, fd := range nsFDs {
+			unix.Close(fd)
 		}
 	}()
 
 	done := make(chan error, 1)
-	ret := make([]Statmount, 0, 255)
+	visited := map[uint64]struct{}{}
+
 	go func() {
 		runtime.LockOSThread()
-		// Lock but don't unlock, in order to force the runtime to remove this thread from the pool
-		// "If the calling goroutine exits without unlocking the thread, the thread will be terminated."
-		// Afterward, the runtime will detect this and spawn a new clean thread to replace it.
 
 		if err := unix.Unshare(unix.CLONE_FS); err != nil {
 			done <- fmt.Errorf("unshare error: %w", err)
@@ -232,7 +231,7 @@ func GetAll(procfs string) ([]Statmount, error) {
 			StatmountMntPoint |
 			StatmountFsType)
 
-		for _, inoFd := range nsFDs {
+		for _, fd := range nsFDs {
 			firstIteration := true
 			lastMountID := uint64(0)
 
@@ -244,7 +243,7 @@ func GetAll(procfs string) ([]Statmount, error) {
 					Param: 0,
 				}
 				if firstIteration {
-					if err := unix.Setns(inoFd.fd, unix.CLONE_NEWNS); err != nil {
+					if err := unix.Setns(fd, unix.CLONE_NEWNS); err != nil {
 						done <- fmt.Errorf("failed to setns: %v", err)
 						return
 					}
@@ -260,6 +259,10 @@ func GetAll(procfs string) ([]Statmount, error) {
 				}
 
 				for i := 0; i < n; i++ {
+					if _, ok := visited[ids[i]]; ok {
+						continue
+					}
+
 					req2 := mntIDReq{
 						Size:  uint32(unsafe.Sizeof(mntIDReq{})),
 						Spare: 0,
@@ -272,8 +275,8 @@ func GetAll(procfs string) ([]Statmount, error) {
 						return
 					}
 					sm := parseStatmount(buf)
-					sm.NamespaceInode = inoFd.ino
-					ret = append(ret, sm)
+					visited[sm.MntID] = struct{}{}
+					cb(&sm)
 					lastMountID = req2.MntID
 				}
 
@@ -293,7 +296,7 @@ func GetAll(procfs string) ([]Statmount, error) {
 	}()
 	err = <-done
 	if err != nil {
-		return nil, err
+		return err
 	}
-	return ret, nil
+	return nil
 }

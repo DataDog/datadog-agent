@@ -59,7 +59,6 @@ func (ic *inventorychecksImpl) getJMXChecksMetadata() (jmxMetadata map[string][]
 
 			instances := jmxIntegration["instances"].([]integration.JSONMap)
 			for _, instance := range instances {
-				configHash := jmxName
 				instanceConfig := jmxfetch.GetJSONSerializableMap(instance)
 				instanceYaml, err := yaml.Marshal(instanceConfig)
 				if err != nil {
@@ -75,8 +74,9 @@ func (ic *inventorychecksImpl) getJMXChecksMetadata() (jmxMetadata map[string][]
 					continue
 				}
 
+				configHash := fmt.Sprintf("%s-%s-%s", jmxName, fmt.Sprint(instance["host"]), fmt.Sprint(instance["port"]))
 				if instance["name"] != nil {
-					configHash = fmt.Sprintf("%s:%s", jmxName, fmt.Sprint(instance["name"]))
+					configHash = fmt.Sprintf("%s:%s", configHash, fmt.Sprint(instance["name"]))
 				}
 
 				source, ok := jmxIntegration["config.source"].(string)

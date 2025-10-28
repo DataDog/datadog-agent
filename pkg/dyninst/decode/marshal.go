@@ -30,8 +30,13 @@ type logger struct {
 }
 
 type debuggerData struct {
-	Snapshot         snapshotData `json:"snapshot"`
-	EvaluationErrors []string     `json:"evaluationErrors,omitempty"`
+	Snapshot         snapshotData      `json:"snapshot"`
+	EvaluationErrors []evaluationError `json:"evaluationErrors,omitempty"`
+}
+
+type evaluationError struct {
+	Expression string `json:"expr"`
+	Message    string `json:"message"`
 }
 
 type snapshotData struct {
@@ -59,8 +64,35 @@ type locationData struct {
 }
 
 type captureData struct {
-	Entry  *captureEvent `json:"entry,omitempty"`
-	Return *captureEvent `json:"return,omitempty"`
+	Entry  *captureEvent    `json:"entry,omitempty"`
+	Return *captureEvent    `json:"return,omitempty"`
+	Lines  *lineCaptureData `json:"lines,omitempty"`
+}
+
+type lineCaptureData struct {
+	sourceLine string
+	capture    *captureEvent
+}
+
+func (l *lineCaptureData) clear() {
+	l.sourceLine = ""
+	l.capture = nil
+}
+
+func (l *lineCaptureData) MarshalJSONTo(enc *jsontext.Encoder) error {
+	if err := writeTokens(enc,
+		jsontext.BeginObject,
+		jsontext.String(l.sourceLine)); err != nil {
+		return err
+	}
+	if err := json.MarshalEncode(enc, l.capture); err != nil {
+		return err
+	}
+	if err := writeTokens(enc, jsontext.EndObject); err != nil {
+		return err
+	}
+	return nil
+
 }
 
 type captureEvent struct {
@@ -68,7 +100,7 @@ type captureEvent struct {
 
 	rootData         []byte
 	rootType         *ir.EventRootType
-	evaluationErrors *[]string
+	evaluationErrors *[]evaluationError
 	skippedIndices   bitset
 }
 
@@ -83,7 +115,7 @@ func (ce *captureEvent) clear() {
 }
 
 func (ce *captureEvent) init(
-	ev output.Event, types map[ir.TypeID]ir.Type, evalErrors *[]string,
+	ev output.Event, types map[ir.TypeID]ir.Type, evalErrors *[]evaluationError,
 ) error {
 	var rootType *ir.EventRootType
 	var rootData []byte
@@ -141,7 +173,10 @@ func (ce *captureEvent) processExpression(
 	if int(ub) > len(ce.rootData) {
 		*ce.evaluationErrors = append(
 			*ce.evaluationErrors,
-			"could not read parameter data from root data, length mismatch",
+			evaluationError{
+				Expression: ce.rootType.Name,
+				Message:    "could not read parameter data from root data, length mismatch",
+			},
 		)
 		return errEvaluation
 	}
@@ -167,7 +202,10 @@ func (ce *captureEvent) processExpression(
 		&ce.encodingContext, enc, parameterType.GetID(), data, parameterType.GetName(),
 	)
 	if err != nil {
-		*ce.evaluationErrors = append(*ce.evaluationErrors, ce.rootType.Name+err.Error())
+		*ce.evaluationErrors = append(*ce.evaluationErrors, evaluationError{
+			Expression: ce.rootType.Name,
+			Message:    err.Error(),
+		})
 		return errEvaluation
 	}
 	return nil

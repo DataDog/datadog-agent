@@ -267,7 +267,6 @@ func (s *Serializer) buildPipelines() []metricsserializer.Pipeline {
 	failoverActiveForAutoscaling, allowlistForAutoscaling := s.getAutoscalingFailoverMetrics()
 	failoverActive := (failoverActiveForMRF && len(allowlistForMRF) > 0) || (failoverActiveForAutoscaling && len(allowlistForAutoscaling) > 0)
 
-	// Don't worry about preaggregation when failover is active
 	if failoverActive {
 		return []metricsserializer.Pipeline{
 			{
@@ -291,45 +290,6 @@ func (s *Serializer) buildPipelines() []metricsserializer.Pipeline {
 		}
 	}
 
-	preaggregationEnabled, allowlistForPreaggr := s.getPreaggregationAllowlist()
-
-	// Normal operation: preaggregation or standard routing
-	if preaggregationEnabled {
-		hasAllowlist := len(allowlistForPreaggr) > 0
-
-		if hasAllowlist {
-			// Split routing: allowlist metrics → PreaggrOnly, others → AllRegions
-			return []metricsserializer.Pipeline{
-				{
-					FilterFunc: func(metric metricsserializer.Filterable) bool {
-						_, allowed := allowlistForPreaggr[metric.GetName()]
-						return !allowed
-					},
-					Destination: transaction.AllRegions,
-				},
-				{
-					FilterFunc: func(metric metricsserializer.Filterable) bool {
-						_, allowed := allowlistForPreaggr[metric.GetName()]
-						return allowed
-					},
-					Destination: transaction.PreaggrOnly,
-				},
-			}
-		} else {
-			// Dual-ship: all metrics → both destinations
-			return []metricsserializer.Pipeline{
-				{
-					FilterFunc:  func(metric metricsserializer.Filterable) bool { return true },
-					Destination: transaction.AllRegions,
-				},
-				{
-					FilterFunc:  func(metric metricsserializer.Filterable) bool { return true },
-					Destination: transaction.PreaggrOnly,
-				},
-			}
-		}
-	}
-
 	// Default: all metrics to AllRegions
 	return []metricsserializer.Pipeline{
 		{
@@ -337,21 +297,6 @@ func (s *Serializer) buildPipelines() []metricsserializer.Pipeline {
 			Destination: transaction.AllRegions,
 		},
 	}
-}
-
-func (s *Serializer) getPreaggregationAllowlist() (bool, map[string]struct{}) {
-	preaggregationEnabled := s.config.GetBool("preaggregation.enabled")
-	var allowlist map[string]struct{}
-	if preaggregationEnabled && s.config.IsConfigured("preaggregation.metric_allowlist") {
-		rawList := s.config.GetStringSlice("preaggregation.metric_allowlist")
-		if len(rawList) > 0 {
-			allowlist = make(map[string]struct{}, len(rawList))
-			for _, allowed := range rawList {
-				allowlist[allowed] = struct{}{}
-			}
-		}
-	}
-	return preaggregationEnabled, allowlist
 }
 
 func (s *Serializer) getAutoscalingFailoverMetrics() (bool, map[string]struct{}) {

@@ -336,6 +336,9 @@ def pr_commenter(
         with open(body_file) as f:
             body = f.read()
 
+    if force_delete:
+        delete = True
+
     if not body and not delete:
         return
 

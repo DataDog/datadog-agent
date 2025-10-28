@@ -114,6 +114,7 @@ func NewDirectEventMsgSender(stopper startstop.Stopper, compression compression.
 	if err != nil {
 		return nil, fmt.Errorf("failed to create direct reported endpoints: %w", err)
 	}
+	stopper.Add(destinationsCtx)
 
 	for _, status := range endpoints.GetStatus() {
 		log.Info(status)

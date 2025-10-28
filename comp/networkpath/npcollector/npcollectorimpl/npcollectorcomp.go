@@ -48,9 +48,10 @@ func Module() fxutil.Module {
 func newNpCollector(deps dependencies) provides {
 	var collector *npCollectorImpl
 
-	configs := newConfig(deps.AgentConfig)
+	configs := newConfig(deps.AgentConfig, deps.Logger)
+	deps.Logger.Debugf("Network Path Configs: %+v", configs)
 	if configs.networkPathCollectorEnabled() {
-		deps.Logger.Debugf("Network Path Collector enabled")
+		deps.Logger.Debug("Network Path Collector enabled")
 
 		// Note that multiple components can share the same rdnsQuerier instance.  If any of them have
 		// reverse DNS enrichment enabled then the deps.RDNSQuerier component passed here will be an

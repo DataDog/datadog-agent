@@ -19,7 +19,6 @@ func TestRunAssertion(t *testing.T) {
 		stats     common.NetStats
 		wantValue string
 		valid     bool
-		wantError bool
 	}{
 		{
 			name: "PacketLoss assertion",
@@ -63,9 +62,8 @@ func TestRunAssertion(t *testing.T) {
 				Operator: common.OperatorLessThan,
 				Target:   "100",
 			},
-			stats:     common.NetStats{},
-			valid:     false,
-			wantError: true,
+			stats: common.NetStats{},
+			valid: false,
 		},
 		{
 			name: "Hops max assertion",
@@ -86,9 +84,8 @@ func TestRunAssertion(t *testing.T) {
 				Operator: common.OperatorLessThan,
 				Target:   "1",
 			},
-			stats:     common.NetStats{},
-			valid:     false,
-			wantError: true,
+			stats: common.NetStats{},
+			valid: false,
 		},
 		{
 			name: "Comparison failure",
@@ -100,25 +97,14 @@ func TestRunAssertion(t *testing.T) {
 			stats:     common.NetStats{PacketLossPercentage: 50},
 			wantValue: "50",
 			valid:     false,
-			wantError: false,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got := runAssertion(tt.assertion, tt.stats)
-
-			if tt.wantError {
-				if got.Failure.Code == "" {
-					t.Errorf("expected error, got none")
-				}
-			} else {
-				if got.Failure.Code != "" {
-					t.Errorf("expected no error, got failure=%v", got.Failure)
-				}
-				if tt.valid && !got.Valid {
-					t.Errorf("expected actual=%v, got=%v", tt.wantValue, got.Actual)
-				}
+			if got.Valid != tt.valid {
+				t.Errorf("expected valid=%v, got=%v", tt.valid, got.Valid)
 			}
 		})
 	}
@@ -126,12 +112,12 @@ func TestRunAssertion(t *testing.T) {
 
 func TestRunAssertions(t *testing.T) {
 	tests := []struct {
-		name       string
-		cfg        common.SyntheticsTestConfig
-		stats      common.NetStats
-		wantLength int
-		wantValid  int
-		wantErrors int
+		name         string
+		cfg          common.SyntheticsTestConfig
+		stats        common.NetStats
+		wantLength   int
+		wantValid    int
+		wantNotValid int
 	}{
 		{
 			name: "Single assertion success",
@@ -149,10 +135,10 @@ func TestRunAssertions(t *testing.T) {
 					},
 				},
 			},
-			stats:      common.NetStats{PacketLossPercentage: 42},
-			wantLength: 1,
-			wantValid:  1,
-			wantErrors: 0,
+			stats:        common.NetStats{PacketLossPercentage: 42},
+			wantLength:   1,
+			wantValid:    1,
+			wantNotValid: 0,
 		},
 		{
 			name: "Multiple assertions with mixed results",
@@ -184,9 +170,9 @@ func TestRunAssertions(t *testing.T) {
 				PacketLossPercentage: 42,
 				Jitter:               3.5,
 			},
-			wantLength: 3,
-			wantValid:  1,
-			wantErrors: 1,
+			wantLength:   3,
+			wantValid:    1,
+			wantNotValid: 2,
 		},
 		{
 			name: "No assertions",
@@ -198,10 +184,10 @@ func TestRunAssertions(t *testing.T) {
 					Assertions: []common.Assertion{},
 				},
 			},
-			stats:      common.NetStats{},
-			wantLength: 0,
-			wantValid:  0,
-			wantErrors: 0,
+			stats:        common.NetStats{},
+			wantLength:   0,
+			wantValid:    0,
+			wantNotValid: 0,
 		},
 	}
 
@@ -215,13 +201,13 @@ func TestRunAssertions(t *testing.T) {
 
 			errors := 0
 			for _, r := range results {
-				if r.Failure.Code != "" {
+				if !r.Valid {
 					errors++
 				}
 			}
 
-			if errors != tt.wantErrors {
-				t.Errorf("expected %d failures, got %d", tt.wantErrors, errors)
+			if errors != tt.wantNotValid {
+				t.Errorf("expected %d failures, got %d", tt.wantNotValid, errors)
 			}
 		})
 	}

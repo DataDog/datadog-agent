@@ -146,6 +146,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/cenkalti/backoff/v4"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -231,6 +232,22 @@ func (bs *BaseSuite[Env]) EventuallyWithT(condition func(*assert.CollectT), time
 		}()
 		condition(c)
 	}, timeout, interval, msgAndArgs...)
+}
+
+// EventuallyWithExponentialBackoff replaces EventuallyWithT with synchronous exponential backoff
+func (bs *BaseSuite[Env]) EventuallyWithExponentialBackoff(condition func() error, maxElapsedTime, maxInterval time.Duration, msgAndArgs ...interface{}) bool {
+	bs.Suite.T().Helper()
+
+	err := backoff.Retry(condition, backoff.NewExponentialBackOff(
+		backoff.WithInitialInterval(5*time.Second),
+		backoff.WithMultiplier(2),
+		backoff.WithMaxInterval(maxInterval),
+		backoff.WithMaxElapsedTime(maxElapsedTime),
+	))
+	if err != nil {
+		return bs.Suite.Fail(fmt.Sprintf("Condition never satisfied: %v", err), msgAndArgs...)
+	}
+	return true
 }
 
 // EventuallyWithTf is a wrapper around testify.Suite.EventuallyWithTf that catches panics to fail test without skipping TeardownSuite

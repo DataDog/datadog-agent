@@ -17,8 +17,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	winawshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host/windows"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner/parameters"
+	installer "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/unix"
 	installerwindows "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows/consts"
 	windowscommon "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
@@ -208,6 +207,7 @@ func (s *testAgentUpgradeSuite) TestExperimentForNonExistingPackageFails() {
 	// Arrange
 	s.setAgentConfig()
 	s.installCurrentAgentVersion()
+	s.Require().NoError(s.WaitForInstallerService("Running"))
 
 	// Act
 	_, err := s.Installer().StartExperiment(consts.AgentPackage, "unknown-version")
@@ -232,6 +232,7 @@ func (s *testAgentUpgradeSuite) TestExperimentCurrentVersionFails() {
 	// Arrange
 	s.setAgentConfig()
 	s.installCurrentAgentVersion()
+	s.Require().NoError(s.WaitForInstallerService("Running"))
 
 	// Act
 	_, err := s.StartExperimentCurrentVersion()
@@ -573,6 +574,7 @@ func (s *testAgentUpgradeSuite) TestUpgradeWithLocalSystemUser() {
 
 // TestDowngradeWithMissingInstallSource tests that a downgrade will succeed even if the original install source is missing
 func (s *testAgentUpgradeSuite) TestDowngradeWithMissingInstallSource() {
+	s.T().Skip("Skipping test due to removal of update install source custom action")
 	// Arrange
 	s.setAgentConfig()
 	s.installCurrentAgentVersion()
@@ -656,15 +658,7 @@ func (s *testAgentUpgradeSuite) setAgentConfigWithAltDir(path string) {
 	s.Env().RemoteHost.MkdirAll(path)
 	configPath := path + `\datadog.yaml`
 	// Ensure the API key is set for telemetry
-	apiKey := os.Getenv("DD_API_KEY")
-	if apiKey == "" {
-		var err error
-		apiKey, err = runner.GetProfile().SecretStore().Get(parameters.APIKey)
-		if apiKey == "" || err != nil {
-			apiKey = "deadbeefdeadbeefdeadbeefdeadbeef"
-		}
-	}
-
+	apiKey := installer.GetAPIKey()
 	s.Env().RemoteHost.WriteFile(configPath, []byte(`
 api_key: `+apiKey+`
 site: datadoghq.com

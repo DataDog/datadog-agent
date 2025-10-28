@@ -56,6 +56,9 @@
                 },
                 "message": {
                     "type": "string"
+                },
+                "replace_policy_id": {
+                    "type": "string"
                 }
             },
             "required": [

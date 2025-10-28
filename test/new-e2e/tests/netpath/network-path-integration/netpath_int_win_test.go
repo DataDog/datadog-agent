@@ -60,6 +60,7 @@ func (s *windowsNetworkPathIntegrationTestSuite) TestWindowsNetworkPathIntegrati
 		s.checkDatadogEUTCP(c, hostname)
 		s.checkGoogleTCPSocket(c, hostname)
 		s.checkGoogleDNSUDP(c, hostname)
+		s.checkGoogleTCPDisableWindowsDriver(c, hostname)
 
 	}, 5*time.Minute, 3*time.Second)
 }

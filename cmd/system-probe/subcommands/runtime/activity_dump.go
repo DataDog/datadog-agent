@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
+	secretsnoopfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx-noop"
 	secagent "github.com/DataDog/datadog-agent/pkg/security/agent"
 	secconfig "github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
@@ -70,9 +71,9 @@ func listCommands(_ *command.GlobalParams) []*cobra.Command {
 			return fxutil.OneShot(listActivityDumps,
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewAgentParams(""),
-					SecretParams: secrets.NewDisabledParams(),
 					LogParams:    log.ForOneShot("SYS-PROBE", "info", true)}),
 				core.Bundle(),
+				secretsnoopfx.Module(),
 			)
 		},
 	}
@@ -93,9 +94,9 @@ func stopCommands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewAgentParams(""),
-					SecretParams: secrets.NewDisabledParams(),
 					LogParams:    log.ForOneShot("SYS-PROBE", "info", true)}),
 				core.Bundle(),
+				secretsnoopfx.Module(),
 			)
 		},
 	}
@@ -146,9 +147,9 @@ func generateDumpCommands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewAgentParams(""),
-					SecretParams: secrets.NewDisabledParams(),
 					LogParams:    log.ForOneShot("SYS-PROBE", "info", true)}),
 				core.Bundle(),
+				secretsnoopfx.Module(),
 			)
 		},
 	}
@@ -224,9 +225,9 @@ func generateEncodingCommands(globalParams *command.GlobalParams) []*cobra.Comma
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewAgentParams(""),
-					SecretParams: secrets.NewDisabledParams(),
 					LogParams:    log.ForOneShot("SYS-PROBE", "info", true)}),
 				core.Bundle(),
+				secretsnoopfx.Module(),
 			)
 		},
 	}
@@ -285,9 +286,9 @@ func diffCommands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewAgentParams(""),
-					SecretParams: secrets.NewDisabledParams(),
 					LogParams:    log.ForOneShot("SYS-PROBE", "info", true)}),
 				core.Bundle(),
+				secretsnoopfx.Module(),
 			)
 		},
 	}

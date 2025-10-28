@@ -30,16 +30,17 @@ const noSmVersion uint32 = 0
 // StreamHandler is responsible for receiving events from a single CUDA stream and generating
 // kernel spans and memory allocations from them.
 type StreamHandler struct {
-	metadata           streamMetadata
-	kernelLaunches     []*enrichedKernelLaunch
-	memAllocEvents     *lru.LRU[uint64, gpuebpf.CudaMemEvent] // holds the memory allocations for the stream, will evict the oldest allocation if the cache is full
-	pendingKernelSpans chan *kernelSpan                       // holds already finalized kernel spans that still need to be collected
-	pendingMemorySpans chan *memorySpan                       // holds already finalized memory allocations that still need to be collected
-	ended              bool                                   // A marker to indicate that the stream has ended, and this handler should be flushed
-	sysCtx             *systemContext
-	config             config.StreamConfig
-	telemetry          *streamTelemetry // shared telemetry objects for stream-specific telemetry
-	lastEventKtimeNs   uint64           // The kernel-time timestamp of the last event processed by this handler
+	metadata            streamMetadata
+	kernelLaunchesMutex sync.RWMutex
+	kernelLaunches      []*enrichedKernelLaunch
+	memAllocEvents      *lru.LRU[uint64, gpuebpf.CudaMemEvent] // holds the memory allocations for the stream, will evict the oldest allocation if the cache is full
+	pendingKernelSpans  chan *kernelSpan                       // holds already finalized kernel spans that still need to be collected
+	pendingMemorySpans  chan *memorySpan                       // holds already finalized memory allocations that still need to be collected
+	ended               bool                                   // A marker to indicate that the stream has ended, and this handler should be flushed
+	sysCtx              *systemContext
+	config              config.StreamConfig
+	telemetry           *streamTelemetry // shared telemetry objects for stream-specific telemetry
+	lastEventKtimeNs    uint64           // The kernel-time timestamp of the last event processed by this handler
 }
 
 // streamMetadata contains metadata about a CUDA stream
@@ -218,7 +219,9 @@ func (sh *StreamHandler) handleKernelLaunch(event *gpuebpf.CudaKernelLaunch) {
 		}
 	}
 
+	sh.kernelLaunchesMutex.Lock()
 	sh.kernelLaunches = append(sh.kernelLaunches, enrichedLaunch)
+	sh.kernelLaunchesMutex.Unlock()
 
 	// If we've reached the kernel launch limit, trigger a sync. This stops us from just collecting
 	// kernel launches and not generating any spans if for some reason we are missing sync events.
@@ -284,6 +287,8 @@ func (sh *StreamHandler) markSynchronization(ts uint64) {
 		trySendSpan(sh, sh.pendingMemorySpans, alloc, memPools.memorySpanPool)
 	}
 
+	sh.kernelLaunchesMutex.Lock()
+	defer sh.kernelLaunchesMutex.Unlock()
 	remainingLaunches := []*enrichedKernelLaunch{}
 	for _, launch := range sh.kernelLaunches {
 		if launch.Header.Ktime_ns >= ts {
@@ -317,6 +322,9 @@ func (sh *StreamHandler) getCurrentKernelSpan(maxTime uint64) *kernelSpan {
 	if span.avgMemoryUsage == nil {
 		span.avgMemoryUsage = make(map[memAllocType]uint64)
 	}
+
+	sh.kernelLaunchesMutex.RLock()
+	defer sh.kernelLaunchesMutex.RUnlock()
 
 	for _, launch := range sh.kernelLaunches {
 		// Skip launches that happened after the max time we are interested in

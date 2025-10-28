@@ -10,6 +10,7 @@ package kubernetesadmissionevents
 import (
 	"encoding/json"
 	"fmt"
+	"regexp"
 	"testing"
 	"time"
 
@@ -40,14 +41,16 @@ const (
 	eventType      = "kubernetes_admission_events"
 )
 
+// compareText compares text while ignoring the timestamp
+func compareText(expected, actual event.Event) bool {
+	re := regexp.MustCompile(`\*\*Time:\*\*.*?(\\n|$)`)
+	expectedText := re.ReplaceAllString(expected.Text, "**Time:** <TIME>\n")
+	actualText := re.ReplaceAllString(actual.Text, "**Time:** <TIME>\n")
+	return expectedText == actualText
+}
+
 // TestKubernetesAdmissionEvents tests the KubernetesAdmissionEvents webhook.
 func TestKubernetesAdmissionEvents(t *testing.T) {
-	// Mock demultiplexer and sender
-	demultiplexerMock := createDemultiplexer(t)
-	mockSender := mocksender.NewMockSenderWithSenderManager(eventType, demultiplexerMock)
-	err := demultiplexerMock.SetSender(mockSender, eventType)
-	assert.NoError(t, err)
-
 	// Mock Datadog Config
 	datadogConfigMock := config.NewMock(t)
 	datadogConfigMock.SetWithoutSource("admission_controller.kubernetes_admission_events.enabled", true)
@@ -243,6 +246,12 @@ func TestKubernetesAdmissionEvents(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			// Mock demultiplexer and sender - create fresh instances for each test case
+			demultiplexerMock := createDemultiplexer(t)
+			mockSender := mocksender.NewMockSenderWithSenderManager(eventType, demultiplexerMock)
+			err := demultiplexerMock.SetSender(mockSender, eventType)
+			assert.NoError(t, err)
+
 			// Create the webhook
 			kubernetesAuditWebhook := NewWebhook(datadogConfigMock, demultiplexerMock, tt.supportsMatchConditions)
 			assert.True(t, kubernetesAuditWebhook.IsEnabled())
@@ -257,7 +266,7 @@ func TestKubernetesAdmissionEvents(t *testing.T) {
 			assert.NoError(t, err)
 			assert.True(t, validated)
 			if tt.expectedEmitted {
-				mockSender.AssertEvent(t, tt.expectedEvent, 1*time.Second)
+				mockSender.AssertEventWithCompareFunc(t, tt.expectedEvent, 1*time.Second, compareText)
 			} else {
 				mockSender.AssertNotCalled(t, "Event")
 			}

@@ -77,7 +77,7 @@ func (m *OOMKillCheck) Configure(senderManager sender.SenderManager, _ uint64, c
 	if err != nil {
 		return err
 	}
-	m.sysProbeClient = sysprobeclient.GetCheckClient(pkgconfigsetup.SystemProbe().GetString("system_probe_config.sysprobe_socket"))
+	m.sysProbeClient = sysprobeclient.GetCheckClient(sysprobeclient.WithSocketPath(pkgconfigsetup.SystemProbe().GetString("system_probe_config.sysprobe_socket")))
 	return m.instance.Parse(config)
 }
 

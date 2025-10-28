@@ -108,8 +108,10 @@ func (w *Webhook) Operations() []admissionregistrationv1.OperationType {
 
 // LabelSelectors returns the label selectors that specify when the webhook
 // should be invoked
-func (w *Webhook) LabelSelectors(useNamespaceSelector bool) (namespaceSelector *metav1.LabelSelector, objectSelector *metav1.LabelSelector) {
-	return common.DefaultLabelSelectors(useNamespaceSelector)
+func (w *Webhook) LabelSelectors(useNamespaceSelector bool) (*metav1.LabelSelector, *metav1.LabelSelector) {
+	return common.DefaultLabelSelectors(useNamespaceSelector, common.LabelSelectorsConfig{
+		ExcludeNamespaces: mutatecommon.DefaultDisabledNamespaces(),
+	})
 }
 
 // MatchConditions returns the Match Conditions used for fine-grained
@@ -139,9 +141,9 @@ type libInfoLanguageDetection struct {
 	injectionEnabled bool
 }
 
-func (l *libInfoLanguageDetection) containerMutator(v version) containerMutator {
+func (l *libInfoLanguageDetection) containerMutator() containerMutator {
 	return containerMutatorFunc(func(c *corev1.Container) error {
-		if !v.usesInjector() || l == nil {
+		if l == nil {
 			return nil
 		}
 
@@ -214,10 +216,6 @@ func (s libInfoSource) injectionType() string {
 	default:
 		return "unknown"
 	}
-}
-
-func (s libInfoSource) isSingleStep() bool {
-	return s.injectionType() == singleStepInstrumentationInstallType
 }
 
 // isFromLanguageDetection tells us whether this source comes from

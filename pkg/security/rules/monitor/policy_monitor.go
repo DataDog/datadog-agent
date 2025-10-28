@@ -157,6 +157,8 @@ type PolicyMetadata struct {
 	Version string `json:"version,omitempty"`
 	// Source is the source of the policy
 	Source string `json:"source"`
+	// ReplacePolicyID is the ID that this policy should replace
+	ReplacePolicyID string `json:"replace_policy_id,omitempty"`
 }
 
 // RuleState defines a loaded rule
@@ -295,18 +297,19 @@ func (e HeartbeatEvent) ToJSON() ([]byte, error) {
 }
 
 // NewPolicyMetadata returns a new policy metadata object
-func NewPolicyMetadata(name, source, version string) *PolicyMetadata {
+func NewPolicyMetadata(name, source, version, replacePolicyID string) *PolicyMetadata {
 	return &PolicyMetadata{
-		Name:    name,
-		Version: version,
-		Source:  source,
+		Name:            name,
+		Version:         version,
+		Source:          source,
+		ReplacePolicyID: replacePolicyID,
 	}
 }
 
 // NewPolicyState returns a policy state based on the policy info
-func NewPolicyState(name, source, version string, status PolicyStatus, message string) *PolicyState {
+func NewPolicyState(name, source, version, replacePolicyID string, status PolicyStatus, message string) *PolicyState {
 	return &PolicyState{
-		PolicyMetadata: *NewPolicyMetadata(name, source, version),
+		PolicyMetadata: *NewPolicyMetadata(name, source, version, replacePolicyID),
 		Status:         status,
 		Message:        message,
 	}
@@ -382,7 +385,7 @@ func RuleStateFromRule(rule *rules.PolicyRule, policy *rules.PolicyInfo, status 
 		if policy.Equals(&pInfo) {
 			continue
 		}
-		ruleState.ModifiedBy = append(ruleState.ModifiedBy, NewPolicyMetadata(pInfo.Name, pInfo.Source, pInfo.Version))
+		ruleState.ModifiedBy = append(ruleState.ModifiedBy, NewPolicyMetadata(pInfo.Name, pInfo.Source, pInfo.Version, pInfo.ReplacePolicyID))
 	}
 
 	if !rule.Accepted {
@@ -410,7 +413,7 @@ func NewPoliciesState(rs *rules.RuleSet, filteredRules []*rules.PolicyRule, err 
 	for _, rule := range rs.GetRules() {
 		for pInfo := range rule.Policies(includeInternalPolicies) {
 			if policyState, exists = mp[pInfo.Name]; !exists {
-				policyState = NewPolicyState(pInfo.Name, pInfo.Source, pInfo.Version, PolicyStatusLoaded, "")
+				policyState = NewPolicyState(pInfo.Name, pInfo.Source, pInfo.Version, pInfo.ReplacePolicyID, PolicyStatusLoaded, "")
 				mp[pInfo.Name] = policyState
 			}
 			policyState.Rules = append(policyState.Rules, RuleStateFromRule(rule.PolicyRule, pInfo, "loaded", ""))
@@ -425,7 +428,7 @@ func NewPoliciesState(rs *rules.RuleSet, filteredRules []*rules.PolicyRule, err 
 					policyName := pInfo.Name
 					if policyState, exists = mp[policyName]; !exists {
 						// if the policy is not in the map, this means that no rule from this policy was loaded successfully
-						policyState = NewPolicyState(pInfo.Name, pInfo.Source, pInfo.Version, PolicyStatusFullyRejected, "")
+						policyState = NewPolicyState(pInfo.Name, pInfo.Source, pInfo.Version, pInfo.ReplacePolicyID, PolicyStatusFullyRejected, "")
 						mp[policyName] = policyState
 					} else if policyState.Status == PolicyStatusLoaded {
 						policyState.Status = PolicyStatusPartiallyLoaded
@@ -435,7 +438,7 @@ func NewPoliciesState(rs *rules.RuleSet, filteredRules []*rules.PolicyRule, err 
 			} else if pErr, ok := err.(*rules.ErrPolicyLoad); ok {
 				policyName := pErr.Name
 				if policyState, exists = mp[policyName]; !exists {
-					mp[policyName] = NewPolicyState(pErr.Name, pErr.Source, pErr.Version, PolicyStatusError, pErr.Err.Error())
+					mp[policyName] = NewPolicyState(pErr.Name, pErr.Source, pErr.Version, "", PolicyStatusError, pErr.Err.Error())
 				} else { // this case shouldn't happen, but just in case it does let's update the policy status
 					policyState.Status = PolicyStatusError
 					if policyState.Message == "" {
@@ -451,7 +454,7 @@ func NewPoliciesState(rs *rules.RuleSet, filteredRules []*rules.PolicyRule, err 
 			policyName := pInfo.Name
 			if policyState, exists = mp[policyName]; !exists {
 				// if the policy is not in the map, this means that no rule from this policy was loaded successfully
-				policyState = NewPolicyState(pInfo.Name, pInfo.Source, pInfo.Version, PolicyStatusFullyFiltered, "")
+				policyState = NewPolicyState(pInfo.Name, pInfo.Source, pInfo.Version, pInfo.ReplacePolicyID, PolicyStatusFullyFiltered, "")
 				mp[policyName] = policyState
 			} else if policyState.Status == PolicyStatusLoaded {
 				policyState.Status = PolicyStatusPartiallyFiltered

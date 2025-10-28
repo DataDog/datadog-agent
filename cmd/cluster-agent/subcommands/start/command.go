@@ -45,6 +45,7 @@ import (
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
+	secretsfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx"
 	"github.com/DataDog/datadog-agent/comp/core/settings"
 	"github.com/DataDog/datadog-agent/comp/core/settings/settingsimpl"
 	"github.com/DataDog/datadog-agent/comp/core/status"
@@ -52,6 +53,7 @@ import (
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	localTaggerfx "github.com/DataDog/datadog-agent/comp/core/tagger/fx"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	workloadfilterfx "github.com/DataDog/datadog-agent/comp/core/workloadfilter/fx"
 	wmcatalog "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/catalog"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -86,7 +88,7 @@ import (
 	pkgcollector "github.com/DataDog/datadog-agent/pkg/collector"
 	rcclient "github.com/DataDog/datadog-agent/pkg/config/remote/client"
 	commonsettings "github.com/DataDog/datadog-agent/pkg/config/settings"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/diagnose/connectivity"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
@@ -101,6 +103,7 @@ import (
 	apicommon "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/controllers"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/cloudprovider"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
@@ -146,10 +149,10 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Supply(globalParams),
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewClusterAgentParams(globalParams.ConfFilePath),
-					SecretParams: secrets.NewEnabledParams(),
 					LogParams:    log.ForDaemon(command.LoggerName, "log_file", defaultpaths.DCALogFile),
 				}),
 				core.Bundle(),
+				secretsfx.Module(),
 				forwarder.Bundle(defaultforwarder.NewParams(defaultforwarder.WithResolvers(), defaultforwarder.WithDisableAPIKeyChecking())),
 				demultiplexerimpl.Module(demultiplexerimpl.NewDefaultParams()),
 				orchestratorForwarderImpl.Module(orchestratorForwarderImpl.NewDefaultParams()),
@@ -246,6 +249,7 @@ func start(log log.Component,
 	taggerComp tagger.Component,
 	telemetry telemetry.Component,
 	demultiplexer demultiplexer.Component,
+	filterStore workloadfilter.Component,
 	wmeta workloadmeta.Component,
 	ac autodiscovery.Component,
 	dc option.Option[datadogclient.Component],
@@ -335,7 +339,7 @@ func start(log log.Component,
 	// Getting connection to APIServer, it's done before Hostname resolution
 	// as hostname resolution may call APIServer
 	pkglog.Info("Waiting to obtain APIClient connection")
-	apiCl, err := apiserver.WaitForAPIClient(context.Background()) // make sure we can connect to the apiserver
+	apiCl, err := apiserver.WaitForAPIClient(mainCtx) // make sure we can connect to the apiserver
 	if err != nil {
 		return fmt.Errorf("Fatal error: Cannot connect to the apiserver: %v", err)
 	}
@@ -392,12 +396,15 @@ func start(log log.Component,
 		}
 		pkglog.Warn("Failed to auto-detect a Kubernetes cluster name. We recommend you set it manually via the cluster_name config option")
 	}
-	pkglog.Infof("Cluster ID: %s, Cluster Name: %s", clusterID, clusterName)
+	// determine kube distribution for that node.
+	kubeDistro := cloudprovider.DCAGetName(mainCtx)
+
+	pkglog.Infof("Cluster ID: %s, Cluster Name: %s, Kube Distribution: %s", clusterID, clusterName, kubeDistro)
 
 	// Initialize and start remote configuration client
 	var rcClient *rcclient.Client
 	rcserv, isSet := rcService.Get()
-	if pkgconfigsetup.IsRemoteConfigEnabled(config) && isSet {
+	if configUtils.IsRemoteConfigEnabled(config) && isSet {
 		var products []string
 		if config.GetBool("admission_controller.auto_instrumentation.patcher.enabled") {
 			products = append(products, state.ProductAPMTracing)
@@ -433,7 +440,7 @@ func start(log log.Component,
 
 	// Set up check collector
 	registerChecks(wmeta, taggerComp, config)
-	ac.AddScheduler("check", pkgcollector.InitCheckScheduler(option.New(collector), demultiplexer, logReceiver, taggerComp), true)
+	ac.AddScheduler("check", pkgcollector.InitCheckScheduler(option.New(collector), demultiplexer, logReceiver, taggerComp, filterStore), true)
 
 	// start the autoconfig, this will immediately run any configured check
 	ac.LoadAndRun(mainCtx)

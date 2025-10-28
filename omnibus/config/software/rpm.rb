@@ -22,14 +22,8 @@ license_file "COPYING"
 skip_transitive_dependency_licensing true
 
 dependency "config_guess"
-dependency "elfutils"
-dependency "file"
-dependency "libgpg-error"
-dependency "libgcrypt"
-dependency "popt"
 dependency "zstd"
 dependency "libsqlite3"
-dependency "libdb"
 dependency "lua"
 
 ship_source_offer true
@@ -61,6 +55,11 @@ build do
   env["LUA_LIBS"] ="-L#{install_dir}/embedded/lib -l:liblua.a -lm"
 
   configure_options = [
+    # libmagic is only required when building rpmbuild, which we don't
+    # but we need to disable the check in order to skip having to provide
+    # the dependency
+    "ac_cv_header_magic_h=yes",
+    "ac_cv_lib_magic_magic_open=yes",
     "--enable-sqlite=yes",
     "--enable-bdb-ro=yes",
     "--disable-nls",
@@ -79,6 +78,21 @@ build do
   ]
   configure(*configure_options, env: env)
 
-  make "-j #{workers}", env: env
-  make "install", env: env
+  # This is a bit ugly, but RPM lacks a direct way to only build the lib.
+  # librpm depends on rpmio (so does openscap), which depends on its misc
+  # utility library, so we build them in dependee order, and install each of
+  # them individually
+  make "-j #{workers} -C misc", env: env
+  make "-j #{workers} -C rpmio", env: env
+  make "-j #{workers} -C lib", env: env
+  make "-C misc install", env: env
+  make "-C rpmio install", env: env
+  make "-C lib install", env: env
+  # In addition to the libs, we also want to install the headers and pkg-config
+  # file.
+  # Not having the .pc file will confuse openscap as it requires on it to know
+  # the librpm version and fails to build without it
+  make "install-pkgincludeHEADERS install-pkgconfigDATA", env: env
+  # We also need to install the rpmrc file which is needed by openscap
+  make "install-rpmconfigDATA", env: env
 end

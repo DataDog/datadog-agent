@@ -35,6 +35,7 @@ import (
 	"regexp"
 	"runtime/debug"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -340,6 +341,24 @@ func generateIR(
 		return nil, err
 	}
 	issues = append(issues, probeIssues...)
+
+	// Augment return variable locations with ABI-derived information.
+	subprogrProbeMap := make(map[ir.SubprogramID][]*ir.Probe)
+	for _, probe := range probes {
+		subprogrProbeMap[probe.Subprogram.ID] = append(
+			subprogrProbeMap[probe.Subprogram.ID], probe,
+		)
+	}
+	for _, sp := range subprograms {
+		probesForSubprogram := subprogrProbeMap[sp.ID]
+		if err := augmentReturnLocationsFromABI(
+			arch, sp, probesForSubprogram,
+		); err != nil {
+			return nil, fmt.Errorf(
+				"failed to augment return locations for %q: %w", sp.Name, err,
+			)
+		}
+	}
 
 	// Finalize type information now that we have all referenced types.
 	if err := finalizeTypes(typeCatalog, materializedSubprograms); err != nil {
@@ -695,26 +714,33 @@ func materializePending(
 		}
 		// First, create variables defined directly under the subprogram/abstract DIEs.
 		variableByOffset := make(map[dwarf.Offset]*ir.Variable, len(p.variables))
+		variableByName := make(map[string]*ir.Variable, len(p.variables))
 		for _, die := range p.variables {
 			parseLocs := !p.abstract
 			var ranges []ir.PCRange
 			if parseLocs {
 				ranges = p.outOfLinePCRanges
 			}
-			isParameter := die.Tag == dwarf.TagFormalParameter
-			if !isParameter {
-				continue
-			}
 			v, err := processVariable(
-				p.unit, die, isParameter,
+				p.unit, die,
 				parseLocs, ranges,
 				loclistReader, pointerSize, tc,
 			)
 			if err != nil {
 				return nil, err
 			}
-			sp.Variables = append(sp.Variables, v)
-			variableByOffset[die.Offset] = v
+			if v != nil {
+				if pv, ok := variableByName[v.Name]; ok {
+					// Dwarf sometimes contains same variable repeated, incorrectly,
+					// which causes trouble in further probe processing.
+					// Ignore repeated entries.
+					variableByOffset[die.Offset] = pv
+					continue
+				}
+				sp.Variables = append(sp.Variables, v)
+				variableByOffset[die.Offset] = v
+				variableByName[v.Name] = v
+			}
 		}
 		// Then, propagate locations and define additional vars from inlined instances.
 		for _, inl := range p.inlined {
@@ -725,10 +751,6 @@ func materializePending(
 				ranges = inl.inlinedPCRanges.Ranges
 			}
 			for _, inlVar := range inl.variables {
-				isParameter := inlVar.Tag == dwarf.TagFormalParameter
-				if !isParameter {
-					continue
-				}
 				abstractOrigin, ok, err := maybeGetAttr[dwarf.Offset](
 					inlVar, dwarf.AttrAbstractOrigin,
 				)
@@ -738,7 +760,7 @@ func materializePending(
 				if ok {
 					baseVar, found := variableByOffset[abstractOrigin]
 					if !found {
-						return nil, fmt.Errorf("abstract variable not found for inlined variable")
+						return nil, fmt.Errorf("abstract variable not found for inlined variable @%#x", inlVar.Offset)
 					}
 					if locField := inlVar.AttrField(dwarf.AttrLocation); locField != nil {
 						locs := computeLocations(
@@ -748,19 +770,31 @@ func materializePending(
 						baseVar.Locations = append(baseVar.Locations, locs...)
 					}
 				} else {
-
 					// Fully defined var in the inlined instance.
 					v, err := processVariable(
-						p.unit, inlVar, isParameter,
+						p.unit, inlVar,
 						true /* parseLocations */, ranges,
 						loclistReader, pointerSize, tc,
 					)
 					if err != nil {
 						return nil, err
 					}
-					sp.Variables = append(sp.Variables, v)
+					if v != nil {
+						if pv, ok := variableByName[v.Name]; ok {
+							// We only need to merge locations.
+							pv.Locations = append(pv.Locations, v.Locations...)
+						} else {
+							variableByName[v.Name] = v
+							sp.Variables = append(sp.Variables, v)
+						}
+					}
 				}
 			}
+		}
+		for _, v := range sp.Variables {
+			slices.SortFunc(v.Locations, func(a, b ir.Location) int {
+				return cmp.Compare(a.Range[0], b.Range[0])
+			})
 		}
 		subprograms = append(subprograms, sp)
 	}
@@ -845,10 +879,9 @@ func createProbes(
 	skipReturnEvents bool,
 ) ([]*ir.Probe, []*ir.Subprogram, []ir.ProbeIssue, error) {
 	var (
-		probes       []*ir.Probe
-		subprograms  []*ir.Subprogram
-		issues       []ir.ProbeIssue
-		eventIDAlloc idAllocator[ir.EventID]
+		probes      []*ir.Probe
+		subprograms []*ir.Subprogram
+		issues      []ir.ProbeIssue
 	)
 
 	for _, p := range pending {
@@ -863,8 +896,7 @@ func createProbes(
 		var haveProbe bool
 		for _, cfg := range p.probesCfgs {
 			probe, iss, err := newProbe(
-				arch, cfg, sp, &eventIDAlloc, lineData, textSection,
-				skipReturnEvents,
+				arch, cfg, sp, lineData, textSection, skipReturnEvents,
 			)
 			if err != nil {
 				return nil, nil, nil, err
@@ -930,7 +962,6 @@ func processDwarf(
 		dwarf:               d,
 		subprogramIDAlloc:   idAllocator[ir.SubprogramID]{},
 		abstractSubprograms: make(map[dwarf.Offset]*abstractSubprogram),
-		inlinedSubprograms:  make(map[*dwarf.Entry][]*inlinedSubprogram),
 		pointerSize:         uint8(arch.PointerSize()),
 		typeIndexBuilder:    typeIndexBuilder,
 	}
@@ -940,38 +971,126 @@ func processDwarf(
 		return processedDwarf{}, err
 	}
 
-	// Concrete subprograms are already in v.pendingSubprograms.
-	pending := v.subprograms
+	inlinedSubprograms, err := convertAbstractSubprogramsToPending(
+		v.dwarf,
+		v.abstractSubprograms,
+		v.unitOffsets,
+		v.outOfLineSubprogramOffsets,
+		v.inlineInstances,
+		v.outOfLineInstances,
+		&v.subprogramIDAlloc,
+	)
+	if err != nil {
+		return processedDwarf{}, err
+	}
 
-	// Propagate details from each inlined instance to its abstract origin.
-	inlinedByUnit := iterMapSorted(v.inlinedSubprograms, cmpEntry)
-	for _, inlinedSubs := range inlinedByUnit {
-		for _, inlined := range inlinedSubs {
-			abs, ok := v.abstractSubprograms[inlined.abstractOrigin]
-			if !ok || !abs.issue.IsNone() {
-				continue
-			}
+	if v.goRuntimeInformation == (ir.GoModuledataInfo{}) {
+		return processedDwarf{}, fmt.Errorf("runtime.firstmoduledata not found")
+	}
+	return processedDwarf{
+		pendingSubprograms: append(v.subprograms, inlinedSubprograms...),
+		goModuledataInfo:   v.goRuntimeInformation,
+		interestingTypes:   v.interestingTypes,
+	}, nil
+}
 
-			if inlined.outOfLinePCRanges != nil {
-				// Out-of-line instance.
-				if len(abs.outOfLinePCRanges) != 0 {
-					abs.issue = ir.Issue{
-						Kind:    ir.IssueKindMalformedExecutable,
-						Message: "multiple out-of-line instances of abstract subprogram",
-					}
-				} else {
-					abs.outOfLinePCRanges = inlined.outOfLinePCRanges
+// convertAbstractSubprogramsToPending constructs the pending subprograms for the inlined
+// subprograms stored in the abstractSubprograms map.
+func convertAbstractSubprogramsToPending(
+	d *dwarf.Data,
+	abstractSubprograms map[dwarf.Offset]*abstractSubprogram,
+	unitOffsets []dwarf.Offset,
+	outOfLineSubprogramOffsets []dwarf.Offset,
+	inlineInstances []concreteSubprogramRef,
+	outOfLineInstances []concreteSubprogramRef,
+	idAllocator *idAllocator[ir.SubprogramID],
+) ([]*pendingSubprogram, error) {
+	// Prepare data for enrichment: filter refs without abstract origins and
+	// sort all data by offset to enable incremental advancement through the
+	// DWARF tree.
+	slices.Sort(unitOffsets)
+	slices.Sort(outOfLineSubprogramOffsets)
+	noAbstractOrigin := func(a concreteSubprogramRef) bool {
+		_, ok := abstractSubprograms[a.abstractOrigin]
+		return !ok
+	}
+	inlineInstances = slices.DeleteFunc(inlineInstances, noAbstractOrigin)
+	outOfLineInstances = slices.DeleteFunc(outOfLineInstances, noAbstractOrigin)
+	slices.SortFunc(inlineInstances, concreteSubprogramRef.cmpByOffset)
+	slices.SortFunc(outOfLineInstances, concreteSubprogramRef.cmpByOffset)
+
+	var inlinedInstanceError *inlinedInstanceError
+	for ctx, err := range iterConcreteSubprograms(
+		d, inlineInstances, unitOffsets, outOfLineSubprogramOffsets,
+	) {
+		switch {
+		case errors.As(err, &inlinedInstanceError):
+			abs := abstractSubprograms[inlinedInstanceError.abstractOrigin]
+			if abs.issue.IsNone() {
+				abs.issue = ir.Issue{
+					Kind:    ir.IssueKindInvalidDWARF,
+					Message: inlinedInstanceError.err.Error(),
 				}
-			} else {
-				// Inlined instance.
-				abs.inlinePCRanges = append(abs.inlinePCRanges, inlined.inlinedPCRanges)
 			}
-			abs.inlined = append(abs.inlined, inlined)
+			continue
+		case err != nil:
+			return nil, err
 		}
+		abs := abstractSubprograms[ctx.abstractOrigin]
+		if !abs.issue.IsNone() {
+			continue
+		}
+		ranges := ir.InlinePCRanges{
+			Ranges:     ctx.entryRanges,
+			RootRanges: ctx.rootRanges,
+		}
+		abs.inlined = append(abs.inlined, &inlinedSubprogram{
+			abstractOrigin:  ctx.abstractOrigin,
+			inlinedPCRanges: ranges,
+			variables:       ctx.variables,
+		})
+		abs.inlinePCRanges = append(abs.inlinePCRanges, ranges)
+	}
+
+	for ctx, err := range iterConcreteSubprograms(
+		d, outOfLineInstances, unitOffsets, nil, /* no ranges needed */
+	) {
+		switch {
+		case errors.As(err, &inlinedInstanceError):
+			abs := abstractSubprograms[inlinedInstanceError.abstractOrigin]
+			if abs.issue.IsNone() {
+				abs.issue = ir.Issue{
+					Kind:    ir.IssueKindInvalidDWARF,
+					Message: inlinedInstanceError.err.Error(),
+				}
+			}
+			continue
+		case err != nil:
+			return nil, err
+		}
+		abs := abstractSubprograms[ctx.abstractOrigin]
+		if !abs.issue.IsNone() {
+			continue
+		}
+		if len(abs.outOfLinePCRanges) != 0 {
+			abs.issue = ir.Issue{
+				Kind:    ir.IssueKindMalformedExecutable,
+				Message: "multiple out-of-line instances of abstract subprogram",
+			}
+			continue
+		}
+		outOfLine := &inlinedSubprogram{
+			abstractOrigin:    ctx.abstractOrigin,
+			outOfLinePCRanges: ctx.entryRanges,
+			variables:         ctx.variables,
+		}
+		abs.outOfLinePCRanges = append(abs.outOfLinePCRanges, ctx.entryRanges...)
+		abs.inlined = append(abs.inlined, outOfLine)
 	}
 
 	// Append the abstract sub-programs in deterministic order.
-	abstractSubs := iterMapSorted(v.abstractSubprograms, cmp.Compare)
+	var ret []*pendingSubprogram
+	abstractSubs := iterMapSorted(abstractSubprograms, cmp.Compare)
 	for _, abs := range abstractSubs {
 		// Collect abstract variable DIEs in deterministic order.
 		varVars := make([]*dwarf.Entry, 0, len(abs.variables))
@@ -985,7 +1104,7 @@ func processDwarf(
 				varVars = append(varVars, abs.variables[k])
 			}
 		}
-		pending = append(pending, &pendingSubprogram{
+		ret = append(ret, &pendingSubprogram{
 			unit:              abs.unit,
 			subprogramEntry:   nil,
 			name:              abs.name,
@@ -995,19 +1114,266 @@ func processDwarf(
 			variables:         varVars,
 			probesCfgs:        abs.probesCfgs,
 			issue:             abs.issue,
-			id:                v.subprogramIDAlloc.next(),
+			id:                idAllocator.next(),
 			abstract:          true,
 		})
 	}
 
-	if v.goRuntimeInformation == (ir.GoModuledataInfo{}) {
-		return processedDwarf{}, fmt.Errorf("runtime.firstmoduledata not found")
+	return ret, nil
+}
+
+// concreteSubprogramContext is a dwarf entry corresponding to a concrete
+// instance of an inlined subprogram, along with a reader positioned at that
+// entry, the corresponding abstractOrigin, and, if the entry corresponds to
+// an inlined instance, the root pc ranges of the out-of-line subprogram that
+// contains it.
+type concreteSubprogramContext struct {
+	abstractOrigin dwarf.Offset
+	entry          *dwarf.Entry
+	entryRanges    []ir.PCRange
+	reader         *dwarf.Reader
+	rootRanges     [][2]uint64 // nil if entry is an out-of-line instance
+	variables      []*dwarf.Entry
+}
+
+func cmpRange(a, b [2]uint64) int { return cmp.Compare(a[0], b[0]) }
+
+// validateNonOverlappingPCRanges checks that sorted PC ranges do not overlap.
+// Returns an error if any ranges overlap.
+func validateNonOverlappingPCRanges(
+	ranges []ir.PCRange, offset dwarf.Offset, context string,
+) error {
+	for i := 1; i < len(ranges); i++ {
+		if ranges[i-1][1] > ranges[i][0] {
+			return fmt.Errorf(
+				"overlapping pc ranges for %s at %#x: [%#x, %#x) and [%#x, %#x)",
+				context, offset,
+				ranges[i-1][0], ranges[i-1][1], ranges[i][0], ranges[i][1],
+			)
+		}
 	}
-	return processedDwarf{
-		pendingSubprograms: pending,
-		goModuledataInfo:   v.goRuntimeInformation,
-		interestingTypes:   v.interestingTypes,
-	}, nil
+	return nil
+}
+
+type inlinedInstanceError struct {
+	abstractOrigin dwarf.Offset
+	concreteOffset dwarf.Offset
+	err            error
+}
+
+func (e *inlinedInstanceError) Error() string {
+	return fmt.Sprintf(
+		"inlined instance error for abstract origin %#x at offset %#x: %v",
+		e.abstractOrigin, e.concreteOffset, e.err,
+	)
+}
+
+// iterConcreteSubprograms yields concrete subprogram contexts for each
+// element of refs.
+//
+// The function incrementally advances through sorted compile units and concrete
+// subprograms (if any), positioning DWARF readers and loading ranges as needed.
+//
+// Parameters must be sorted by offset:
+//   - refs: sorted by offset, then abstractOrigin
+//   - units: sorted by offset
+//   - concreteSubprograms: sorted by offset (or nil to skip range tracking)
+func iterConcreteSubprograms(
+	d *dwarf.Data,
+	refs []concreteSubprogramRef,
+	units []dwarf.Offset,
+	concreteSubprograms []dwarf.Offset,
+) iter.Seq2[concreteSubprogramContext, error] {
+	var (
+		unitIdx               int
+		concreteSubprogramIdx int
+		currentSubprogram     struct {
+			offset dwarf.Offset
+			entry  *dwarf.Entry
+			ranges [][2]uint64
+		}
+		reader          *dwarf.Reader
+		variableVisitor concreteSubprogramVariableCollector
+	)
+
+	trackConcreteSubprograms := len(concreteSubprograms) > 0
+	if trackConcreteSubprograms {
+		currentSubprogram.offset = concreteSubprograms[0]
+	}
+
+	maybeAdvanceUnitAndReader := func(refOffset dwarf.Offset) error {
+		if reader != nil &&
+			(unitIdx+1 >= len(units) || units[unitIdx+1] > refOffset) {
+			return nil // no advancement needed
+		}
+		found, _ := slices.BinarySearch(units[unitIdx:], refOffset)
+		if found == 0 {
+			return fmt.Errorf("ref %#x precedes first unit", refOffset)
+		}
+		unitIdx += found - 1
+		reader = d.Reader()
+		reader.Seek(units[unitIdx])
+		if _, err := reader.Next(); err != nil {
+			return fmt.Errorf("failed to get next entry: %w", err)
+		}
+		return nil
+	}
+
+	maybeAdvanceRootRanges := func(refOffset dwarf.Offset) error {
+		if !trackConcreteSubprograms {
+			return nil
+		}
+
+		if concreteSubprogramIdx+1 < len(concreteSubprograms) &&
+			concreteSubprograms[concreteSubprogramIdx+1] <= refOffset {
+			found, _ := slices.BinarySearch(
+				concreteSubprograms[concreteSubprogramIdx:], refOffset,
+			)
+			if found == 0 {
+				return fmt.Errorf(
+					"ref %#x precedes first concrete subprogram",
+					refOffset,
+				)
+			}
+			concreteSubprogramIdx += found - 1
+			currentSubprogram.offset = concreteSubprograms[concreteSubprogramIdx]
+			currentSubprogram.entry = nil
+			currentSubprogram.ranges = nil
+		}
+
+		if currentSubprogram.entry == nil {
+			reader.Seek(currentSubprogram.offset)
+			var err error
+			currentSubprogram.entry, err = reader.Next()
+			if err != nil {
+				return fmt.Errorf(
+					"failed to get next concrete subprogram entry: %w",
+					err,
+				)
+			}
+			if currentSubprogram.ranges, err = d.Ranges(
+				currentSubprogram.entry,
+			); err != nil {
+				return fmt.Errorf(
+					"failed to get ranges for concrete subprogram entry: %w",
+					err,
+				)
+			}
+			if len(currentSubprogram.ranges) == 0 {
+				return fmt.Errorf("no ranges for concrete subprogram entry")
+			}
+
+			slices.SortFunc(currentSubprogram.ranges, cmpRange)
+			if err := validateNonOverlappingPCRanges(
+				currentSubprogram.ranges,
+				currentSubprogram.offset,
+				"concrete subprogram",
+			); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+
+	return func(yield func(concreteSubprogramContext, error) bool) {
+		for _, ref := range refs {
+			if err := maybeAdvanceUnitAndReader(ref.offset); err != nil {
+				yield(concreteSubprogramContext{}, err)
+				return
+			}
+			if err := maybeAdvanceRootRanges(ref.offset); err != nil {
+				yield(concreteSubprogramContext{}, err)
+				return
+			}
+			reader.Seek(ref.offset)
+			entry, err := reader.Next()
+			if err != nil {
+				yield(concreteSubprogramContext{}, err)
+				return
+			}
+
+			inlinedPCRanges, err := d.Ranges(entry)
+			if err != nil {
+				if !yield(concreteSubprogramContext{}, &inlinedInstanceError{
+					abstractOrigin: ref.abstractOrigin,
+					concreteOffset: ref.offset,
+					err:            err,
+				}) {
+					return
+				}
+				continue
+			}
+			slices.SortFunc(inlinedPCRanges, func(a, b ir.PCRange) int {
+				return cmp.Compare(a[0], b[0])
+			})
+			if err := validateNonOverlappingPCRanges(
+				inlinedPCRanges, entry.Offset, "inlined subroutine",
+			); err != nil {
+				if !yield(concreteSubprogramContext{}, &inlinedInstanceError{
+					abstractOrigin: ref.abstractOrigin,
+					concreteOffset: ref.offset,
+					err:            err,
+				}) {
+					return
+				}
+				continue
+			}
+
+			variableVisitor = concreteSubprogramVariableCollector{me: entry}
+			if err := visitReader(entry, reader, &variableVisitor); err != nil {
+				if !yield(concreteSubprogramContext{}, &inlinedInstanceError{
+					abstractOrigin: ref.abstractOrigin,
+					concreteOffset: ref.offset,
+					err:            err,
+				}) {
+					return
+				}
+				continue
+			}
+			if !yield(concreteSubprogramContext{
+				reader:         reader,
+				rootRanges:     currentSubprogram.ranges,
+				abstractOrigin: ref.abstractOrigin,
+				entry:          entry,
+				entryRanges:    inlinedPCRanges,
+				variables:      variableVisitor.variableEntries,
+			}, nil) {
+				return
+			}
+		}
+	}
+}
+
+// concreteSubprogramVariableCollector is a visitor that collects variable DIEs
+// for a concrete instance of an inlined subprogram.
+type concreteSubprogramVariableCollector struct {
+	me              *dwarf.Entry
+	variableEntries []*dwarf.Entry
+}
+
+func (v *concreteSubprogramVariableCollector) push(
+	entry *dwarf.Entry,
+) (childVisitor visitor, err error) {
+	if entry == v.me {
+		return v, nil
+	}
+	switch entry.Tag {
+	case dwarf.TagFormalParameter, dwarf.TagVariable:
+		v.variableEntries = append(v.variableEntries, entry)
+		return nil, nil
+	case dwarf.TagLexDwarfBlock:
+		return v, nil
+	case dwarf.TagInlinedSubroutine:
+		return nil, nil
+	case dwarf.TagTypedef:
+		return nil, nil
+	default:
+		return v, nil
+	}
+}
+
+func (v *concreteSubprogramVariableCollector) pop(_ *dwarf.Entry, _ visitor) error {
+	return nil
 }
 
 func findUnusedConfigs(
@@ -1082,10 +1448,6 @@ func iterMapSorted[
 			}
 		}
 	}
-}
-
-func cmpEntry(a, b *dwarf.Entry) int {
-	return cmp.Compare(a.Offset, b.Offset)
 }
 
 func completeGoMapType(tc *typeCatalog, t *ir.GoMapType) error {
@@ -1398,12 +1760,32 @@ func populateEventExpressions(
 		var variableKind ir.RootExpressionKind
 		switch event.Kind {
 		case ir.EventKindEntry:
-			if !variable.IsParameter || variable.IsReturn {
+			if variable.Role != ir.VariableRoleParameter {
 				continue
 			}
 			variableKind = ir.RootExpressionKindArgument
 		case ir.EventKindReturn:
-			if !variable.IsReturn {
+			if variable.Role != ir.VariableRoleReturn {
+				continue
+			}
+			variableKind = ir.RootExpressionKindLocal
+		case ir.EventKindLine:
+			// We capture any variable that is available at any of the injection points.
+			// We rely on both locations and injection points being sorted by PC to make
+			// this check linear. The location ranges might overlap, but this sweep is
+			// still correct.
+			available := false
+			locIdx := 0
+			for _, injectionPoint := range event.InjectionPoints {
+				for locIdx < len(variable.Locations) && variable.Locations[locIdx].Range[1] <= injectionPoint.PC {
+					locIdx++
+				}
+				if locIdx < len(variable.Locations) && injectionPoint.PC >= variable.Locations[locIdx].Range[0] {
+					available = true
+					break
+				}
+			}
+			if !available {
 				continue
 			}
 			variableKind = ir.RootExpressionKindLocal
@@ -1457,6 +1839,21 @@ func populateEventExpressions(
 	return ir.Issue{}
 }
 
+// concreteSubprogramRef is a reference to a concrete instance of an inlined
+// subprogram. It can reference either an inlined instance or an out-of-line
+// instance of the inlined subprogram referenced by the abstract origin.
+type concreteSubprogramRef struct {
+	offset         dwarf.Offset
+	abstractOrigin dwarf.Offset
+}
+
+func (c concreteSubprogramRef) cmpByOffset(b concreteSubprogramRef) int {
+	return cmp.Or(
+		cmp.Compare(c.offset, b.offset),
+		cmp.Compare(c.abstractOrigin, b.abstractOrigin),
+	)
+}
+
 type rootVisitor struct {
 	pointerSize         uint8
 	interests           interests
@@ -1464,16 +1861,52 @@ type rootVisitor struct {
 	subprogramIDAlloc   idAllocator[ir.SubprogramID]
 	subprograms         []*pendingSubprogram
 	abstractSubprograms map[dwarf.Offset]*abstractSubprogram
-	// InlinedSubprograms grouped by the compilation unit entry.
-	inlinedSubprograms map[*dwarf.Entry][]*inlinedSubprogram
-	interestingTypes   []dwarf.Offset
-	typeIndexBuilder   goTypeToOffsetIndexBuilder
+
+	// Unit offsets are used to track the offsets of the top-level compile
+	// units nodes in dwarf.
+	//
+	// This is needed to properly construct DWARF readers in a way that avoids
+	// https://github.com/golang/go/issues/72778 in go 1.24 (where it is still
+	// present).
+	unitOffsets []dwarf.Offset
+
+	// Dwarf offsets of all out-of-line subprograms that contain inlined
+	// subprograms. These may either be non-inlined subprograms or out-of-line
+	// instances of inlined subprograms.
+	//
+	// This is used to find the root PC ranges for inlined instances of inlined
+	// subprograms.
+	outOfLineSubprogramOffsets []dwarf.Offset
+
+	// All concrete inlined subprogram instances. Note that there can be quite
+	// a large number of these, so we intentionally store just the offsets and
+	// the abstract origin.
+	//
+	// We need to store these because we may not yet have visited the abstract
+	// origin by the time we visit the concrete instance, and without visiting
+	// the abstract origin, we do not know the name, or whether we're interested
+	// in the instance.
+	inlineInstances []concreteSubprogramRef
+	// Similar to inlineInstances, but for out-of-line instances of inlined
+	// subprograms.
+	outOfLineInstances []concreteSubprogramRef
+
+	interestingTypes []dwarf.Offset
+	typeIndexBuilder goTypeToOffsetIndexBuilder
 
 	goRuntimeInformation ir.GoModuledataInfo
 
 	// This is used to avoid allocations of unitChildVisitor for each
 	// compile unit.
 	freeUnitChildVisitor *unitChildVisitor
+}
+
+// couldBeInteresting could possibly be interesting. If we've already visited
+// the abstract origin and we didn't put it in our map of abstract subprograms,
+// then we know this is not interesting and we don't need to index it.
+func (v *rootVisitor) couldBeInteresting(ref concreteSubprogramRef) bool {
+	return ref.abstractOrigin > ref.offset ||
+		mapContains(v.abstractSubprograms, ref.abstractOrigin)
 }
 
 // pendingSubprogram collects DWARF discovery for a subprogram without building
@@ -1517,6 +1950,7 @@ func (v *rootVisitor) getUnitVisitor(entry *dwarf.Entry) (unitVisitor *unitChild
 			root: v,
 		}
 	}
+	v.unitOffsets = append(v.unitOffsets, entry.Offset)
 	unitVisitor.unit = entry
 	return unitVisitor
 }
@@ -1543,6 +1977,11 @@ type unitChildVisitor struct {
 	// TODO: Reuse the subprogramChildVisitor.
 }
 
+func mapContains[K comparable, V any](m map[K]V, key K) bool {
+	_, ok := m[key]
+	return ok
+}
+
 func (v *unitChildVisitor) push(
 	entry *dwarf.Entry,
 ) (childVisitor visitor, err error) {
@@ -1556,11 +1995,21 @@ func (v *unitChildVisitor) push(
 		}
 		if !ok {
 			// This is expected to be an out-of-line instance of an abstract program.
-			childVisitor, err = processInlinedSubroutineEntry(v.root, v.unit, true /* outOfLineInstance */, nil, entry)
+			abstractOrigin, err := getAttr[dwarf.Offset](entry, dwarf.AttrAbstractOrigin)
 			if err != nil {
-				return nil, fmt.Errorf("unnamed, non-inline subprogram: %w", err)
+				return nil, fmt.Errorf("failed to get abstract origin for out-of-line instance: %w", err)
 			}
-			return childVisitor, nil
+			if ref := (concreteSubprogramRef{
+				offset:         entry.Offset,
+				abstractOrigin: abstractOrigin,
+			}); v.root.couldBeInteresting(ref) {
+				v.root.outOfLineInstances = append(v.root.outOfLineInstances, ref)
+			}
+
+			return &inlinedSubroutineChildVisitor{
+				root:      v.root,
+				outOfLine: true,
+			}, nil
 		}
 		probesCfgs := v.root.interests.subprograms[name]
 		inline, ok, err := maybeGetAttr[int64](entry, dwarf.AttrInline)
@@ -1585,20 +2034,11 @@ func (v *unitChildVisitor) push(
 			return nil, nil
 		}
 
-		var subprogramPCRanges []ir.PCRange
-		if len(probesCfgs) > 0 {
-			var err error
-			subprogramPCRanges, err = v.root.dwarf.Ranges(entry)
-			if err != nil {
-				return nil, fmt.Errorf("failed to parse pc ranges: %w", err)
-			}
-		}
 		return &subprogramChildVisitor{
-			root:                     v.root,
-			subprogramEntry:          entry,
-			unit:                     v.unit,
-			cachedSubprogramPCRanges: subprogramPCRanges,
-			probesCfgs:               probesCfgs,
+			root:            v.root,
+			subprogramEntry: entry,
+			unit:            v.unit,
+			probesCfgs:      probesCfgs,
 		}, nil
 
 	case dwarf.TagUnspecifiedType:
@@ -1775,29 +2215,56 @@ func findStructSizeAndMemberOffset(
 	return 0, 0, fmt.Errorf("member %q not found", memberName)
 }
 
-func (v *unitChildVisitor) pop(_ *dwarf.Entry, childVisitor visitor) error {
+func (v *unitChildVisitor) pop(entry *dwarf.Entry, childVisitor visitor) error {
 	switch t := childVisitor.(type) {
 	case nil:
 		return nil
 	case *subprogramChildVisitor:
+		if t.hasInlinedSubprograms {
+			v.root.outOfLineSubprogramOffsets = append(
+				v.root.outOfLineSubprogramOffsets, t.subprogramEntry.Offset)
+		}
 		if len(t.probesCfgs) > 0 {
 			var spName string
 			if n, ok, _ := maybeGetAttr[string](t.subprogramEntry, dwarf.AttrName); ok {
 				spName = n
+			}
+			ranges, err := v.root.dwarf.Ranges(t.subprogramEntry)
+			var issue ir.Issue
+			if err != nil {
+				issue = ir.Issue{
+					Kind:    ir.IssueKindInvalidDWARF,
+					Message: err.Error(),
+				}
+			} else {
+				slices.SortFunc(ranges, cmpRange)
+				if err := validateNonOverlappingPCRanges(
+					ranges, t.subprogramEntry.Offset, "subprogram",
+				); err != nil {
+					issue = ir.Issue{
+						Kind:    ir.IssueKindInvalidDWARF,
+						Message: err.Error(),
+					}
+				}
 			}
 			spID := v.root.subprogramIDAlloc.next()
 			v.root.subprograms = append(v.root.subprograms, &pendingSubprogram{
 				unit:              t.unit,
 				subprogramEntry:   t.subprogramEntry,
 				name:              spName,
-				outOfLinePCRanges: t.cachedSubprogramPCRanges,
+				outOfLinePCRanges: ranges,
 				variables:         t.variableEntries,
 				probesCfgs:        t.probesCfgs,
 				id:                spID,
+				issue:             issue,
 			})
 		}
 		return nil
 	case *inlinedSubroutineChildVisitor:
+		if t.outOfLine && t.hasInlinedSubprograms {
+			v.root.outOfLineSubprogramOffsets = append(
+				v.root.outOfLineSubprogramOffsets, entry.Offset)
+		}
 		return nil
 	case *abstractSubprogramVisitor:
 		return nil
@@ -1810,7 +2277,6 @@ func newProbe(
 	arch object.Architecture,
 	probeCfg ir.ProbeDefinition,
 	subprogram *ir.Subprogram,
-	eventIDAlloc *idAllocator[ir.EventID],
 	lineData map[ir.PCRange]lineData,
 	textSection *section,
 	skipReturnEvents bool,
@@ -1823,109 +2289,238 @@ func newProbe(
 		}, nil
 	}
 
-	var injectionPoints []ir.InjectionPoint
 	if subprogram.OutOfLinePCRanges == nil && len(subprogram.InlinePCRanges) == 0 {
 		return nil, ir.Issue{
 			Kind:    ir.IssueKindMalformedExecutable,
 			Message: fmt.Sprintf("subprogram %s has no pc ranges", subprogram.Name),
 		}, nil
 	}
-	var returnLocations []ir.InjectionPoint
+	var injectionPoints []ir.InjectionPoint
+	var returnEvent *ir.Event
 	if subprogram.OutOfLinePCRanges != nil {
-		pcRange := subprogram.OutOfLinePCRanges[0]
-		pc := pcRange[0]
-		loc, ok := lineData[pcRange]
-		if !ok {
-			return nil, ir.Issue{}, fmt.Errorf("missing line data for range: [0x%x, 0x%x]",
-				subprogram.OutOfLinePCRanges[0][0], subprogram.OutOfLinePCRanges[0][1])
-		}
-		if loc.err != nil {
-			return nil, ir.Issue{
-				Kind:    ir.IssueKindInvalidDWARF,
-				Message: loc.err.Error(),
-			}, nil
-		}
-		funcByteLen := pcRange[1] - pc
-		data := textSection.data.Data()
-		offset := (pc - textSection.header.Addr)
-		if offset+funcByteLen > uint64(len(data)) {
-			return nil, ir.Issue{
-				Kind:    ir.IssueKindInvalidDWARF,
-				Message: fmt.Sprintf("function body is too large: %d > %d", offset+funcByteLen, len(data)),
-			}, nil
-		}
-		body := data[offset : offset+funcByteLen]
-
-		// Disassemble the function to find return locations and determine
-		// the correct injection point.
-		result, issue := disassembleFunction(
-			arch, subprogram.Name, pc, funcByteLen, body, loc,
+		var issue ir.Issue
+		var err error
+		injectionPoints, returnEvent, issue, err = pickInjectionPoint(
+			subprogram.Name,
+			subprogram.OutOfLinePCRanges,
+			subprogram.OutOfLinePCRanges,
+			false, /* inlined */
+			probeCfg.GetWhere(),
+			arch,
+			lineData,
+			textSection,
+			injectionPoints,
+			skipReturnEvents,
 		)
-		if !issue.IsNone() {
-			return nil, issue, nil
+		if issue != (ir.Issue{}) || err != nil {
+			return nil, issue, err
 		}
-
-		returnLocations = result.returnLocations
-		injectionPC := result.injectionPC
-		topPCOffset := result.topPCOffset
-		frameless := loc.prologueEnd == 0
-
-		// Add a workaround for the fact that single-instruction functions
-		// would have the same entry and exit probes, but the ordering between
-		// them would not be well-defined, so in this extremely uncommon case
-		// the user doesn't get to see the return probe. It's okay because
-		// there literally cannot be a return value.
-		hasAssociatedReturn := !skipReturnEvents
-		if len(returnLocations) == 1 && returnLocations[0].PC == pc {
-			hasAssociatedReturn = false
-			returnLocations = returnLocations[:0]
-		}
-
-		injectionPoints = append(injectionPoints, ir.InjectionPoint{
-			PC:                  injectionPC,
-			Frameless:           frameless,
-			HasAssociatedReturn: hasAssociatedReturn,
-			TopPCOffset:         topPCOffset,
-		})
 	}
 	for _, inlined := range subprogram.InlinePCRanges {
-		loc, ok := lineData[inlined.RootRanges[0]]
-		if !ok {
-			return nil, ir.Issue{}, fmt.Errorf("missing line data for range: [0x%x, 0x%x]",
-				inlined.RootRanges[0][0], inlined.RootRanges[0][1])
+		var issue ir.Issue
+		var err error
+		injectionPoints, _, issue, err = pickInjectionPoint(
+			subprogram.Name,
+			inlined.Ranges,
+			inlined.RootRanges,
+			true, /* inlined */
+			probeCfg.GetWhere(),
+			arch,
+			lineData,
+			textSection,
+			injectionPoints,
+			skipReturnEvents,
+		)
+		if issue != (ir.Issue{}) || err != nil {
+			return nil, issue, err
 		}
-		injectionPoints = append(injectionPoints, ir.InjectionPoint{
-			PC:                  inlined.Ranges[0][0],
-			Frameless:           loc.prologueEnd == 0,
-			HasAssociatedReturn: false,
-		})
 	}
-
+	slices.SortFunc(injectionPoints, func(a, b ir.InjectionPoint) int {
+		return cmp.Compare(a.PC, b.PC)
+	})
+	var eventKind ir.EventKind
+	var sourceLine string
+	switch where := probeCfg.GetWhere().(type) {
+	case ir.FunctionWhere:
+		eventKind = ir.EventKindEntry
+	case ir.LineWhere:
+		eventKind = ir.EventKindLine
+		_, _, sourceLine = where.Line()
+	}
 	events := []*ir.Event{
 		{
-			ID:              eventIDAlloc.next(),
 			InjectionPoints: injectionPoints,
 			Condition:       nil,
-			Kind:            ir.EventKindEntry,
+			Kind:            eventKind,
+			SourceLine:      sourceLine,
 			// Will be populated after all the types have been resolved
 			// and placeholders have been filled in.
 			Type: nil,
 		},
 	}
-	if len(returnLocations) > 0 && !skipReturnEvents {
-		events = append(events, &ir.Event{
-			ID:              eventIDAlloc.next(),
-			InjectionPoints: returnLocations,
-			Kind:            ir.EventKindReturn,
-			Type:            nil,
-		})
+	if returnEvent != nil {
+		events = append(events, returnEvent)
 	}
+
 	probe := &ir.Probe{
 		ProbeDefinition: probeCfg,
 		Subprogram:      subprogram,
 		Events:          events,
 	}
 	return probe, ir.Issue{}, nil
+}
+
+// Returns a list of injection points for a given probe, as well as optional
+// return event, if required.
+func pickInjectionPoint(
+	subprogramName string,
+	ranges []ir.PCRange,
+	rootRanges []ir.PCRange,
+	inlined bool,
+	where ir.Where,
+	arch object.Architecture,
+	lineData map[ir.PCRange]lineData,
+	textSection *section,
+	buf []ir.InjectionPoint,
+	skipReturnEvents bool,
+) ([]ir.InjectionPoint, *ir.Event, ir.Issue, error) {
+	lines, ok := lineData[rootRanges[0]]
+	if !ok {
+		return buf, nil, ir.Issue{}, fmt.Errorf("missing line data for range: [0x%x, 0x%x)",
+			rootRanges[0][0], rootRanges[0][1])
+	}
+	if lines.err != nil {
+		return buf, nil, ir.Issue{
+			Kind:    ir.IssueKindInvalidDWARF,
+			Message: lines.err.Error(),
+		}, nil
+	}
+	frameless := lines.prologueEnd == 0
+	var returnEvent *ir.Event
+	switch where := where.(type) {
+	case ir.FunctionWhere:
+		if inlined {
+			buf = append(buf, ir.InjectionPoint{
+				PC:                  ranges[0][0],
+				Frameless:           frameless,
+				HasAssociatedReturn: false,
+			})
+		} else {
+			pc := ranges[0][0]
+			funcByteLen := ranges[0][1] - pc
+			data := textSection.data.Data()
+			offset := (pc - textSection.header.Addr)
+			if offset+funcByteLen > uint64(len(data)) {
+				return buf, nil, ir.Issue{
+					Kind:    ir.IssueKindInvalidDWARF,
+					Message: fmt.Sprintf("function body is too large: %d > %d", offset+funcByteLen, len(data)),
+				}, nil
+			}
+			body := data[offset : offset+funcByteLen]
+
+			// Disassemble the function to find return locations and determine
+			// the correct injection point.
+			result, issue := disassembleFunction(
+				arch, subprogramName, pc, funcByteLen, body, lines,
+			)
+			if !issue.IsNone() {
+				return buf, nil, issue, nil
+			}
+
+			returnLocations := result.returnLocations
+			injectionPC := result.injectionPC
+			topPCOffset := result.topPCOffset
+
+			// Add a workaround for the fact that single-instruction functions
+			// would have the same entry and exit probes, but the ordering between
+			// them would not be well-defined, so in this extremely uncommon case
+			// the user doesn't get to see the return probe. It's okay because
+			// there literally cannot be a return value.
+			hasAssociatedReturn := !skipReturnEvents
+			if len(returnLocations) == 1 && returnLocations[0].PC == pc {
+				hasAssociatedReturn = false
+				returnLocations = returnLocations[:0]
+			}
+
+			buf = append(buf, ir.InjectionPoint{
+				PC:                  injectionPC,
+				Frameless:           frameless,
+				HasAssociatedReturn: hasAssociatedReturn,
+				TopPCOffset:         topPCOffset,
+			})
+			if hasAssociatedReturn {
+				returnEvent = &ir.Event{
+					InjectionPoints: returnLocations,
+					Kind:            ir.EventKindReturn,
+					Type:            nil,
+				}
+			}
+		}
+	case ir.LineWhere:
+		_, _, lineStr := where.Line()
+		line, err := strconv.Atoi(lineStr)
+		if err != nil {
+			return buf, nil, ir.Issue{
+				Kind:    ir.IssueKindInvalidProbeDefinition,
+				Message: fmt.Sprintf("invalid line number: %v", lineStr),
+			}, nil
+		}
+		injectionPC, issue, err := pickLineInjectionPC(line, ranges, rootRanges, lineData)
+		if issue != (ir.Issue{}) || err != nil {
+			return buf, nil, issue, err
+		}
+		buf = append(buf, ir.InjectionPoint{
+			PC:                  injectionPC,
+			Frameless:           frameless,
+			HasAssociatedReturn: false,
+		})
+	}
+	return buf, returnEvent, ir.Issue{}, nil
+}
+
+func pickLineInjectionPC(
+	line int, ranges []ir.PCRange, rootRanges []ir.PCRange, lineData map[ir.PCRange]lineData,
+) (uint64, ir.Issue, error) {
+	nonStmtPc := uint64(0)
+	rootIdx := 0
+	for _, r := range ranges {
+		for rootIdx < len(rootRanges) && rootRanges[rootIdx][1] < r[1] {
+			rootIdx++
+		}
+		if rootIdx >= len(rootRanges) || rootRanges[rootIdx][0] > r[0] {
+			return 0, ir.Issue{}, fmt.Errorf("no root range found for range: [0x%x, 0x%x)",
+				r[0], r[1])
+		}
+		lines, ok := lineData[rootRanges[rootIdx]]
+		if !ok {
+			return 0, ir.Issue{}, fmt.Errorf("missing line data for range: [0x%x, 0x%x)",
+				r[0], r[1])
+		}
+		for _, l := range lines.lines {
+			if l.pc < r[0] {
+				continue
+			}
+			if l.pc >= r[1] {
+				break
+			}
+			if l.line == uint32(line) {
+				if l.isStatement {
+					// Statements are preferred as injection points.
+					return l.pc, ir.Issue{}, nil
+				}
+				if nonStmtPc == 0 {
+					nonStmtPc = l.pc
+				}
+			}
+		}
+	}
+	if nonStmtPc == 0 {
+		return 0, ir.Issue{
+			Kind:    ir.IssueKindInvalidProbeDefinition,
+			Message: fmt.Sprintf("no suitable injection point found for line: %v", line),
+		}, nil
+	}
+	return nonStmtPc, ir.Issue{}, nil
 }
 
 // disassemblyResult holds the results of architecture-specific function
@@ -2189,23 +2784,10 @@ type subprogramChildVisitor struct {
 	root            *rootVisitor
 	unit            *dwarf.Entry
 	subprogramEntry *dwarf.Entry
-	// Cached pc ranges of the subprogram. Calculated on demand from subprogramEntry.
-	cachedSubprogramPCRanges []ir.PCRange
-	probesCfgs               []ir.ProbeDefinition
+	probesCfgs      []ir.ProbeDefinition
 	// Discovery: collect variable DIEs for later materialization.
-	variableEntries []*dwarf.Entry
-}
-
-func (v *subprogramChildVisitor) subprogramPCRanges() ([]ir.PCRange, error) {
-	if v.cachedSubprogramPCRanges != nil {
-		return v.cachedSubprogramPCRanges, nil
-	}
-	ranges, err := v.root.dwarf.Ranges(v.subprogramEntry)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse pc ranges: %w", err)
-	}
-	v.cachedSubprogramPCRanges = ranges
-	return ranges, nil
+	variableEntries       []*dwarf.Entry
+	hasInlinedSubprograms bool
 }
 
 func (v *subprogramChildVisitor) push(
@@ -2213,11 +2795,9 @@ func (v *subprogramChildVisitor) push(
 ) (childVisitor visitor, err error) {
 	switch entry.Tag {
 	case dwarf.TagInlinedSubroutine:
-		rootPCRanges, err := v.subprogramPCRanges()
-		if err != nil {
-			return nil, err
-		}
-		return processInlinedSubroutineEntry(v.root, v.unit, false /* outOfLineInstance */, rootPCRanges, entry)
+		v.hasInlinedSubprograms = true
+		v := &inlinedSubroutineChildVisitor{root: v.root}
+		return v.push(entry)
 	case dwarf.TagFormalParameter:
 		fallthrough
 	case dwarf.TagVariable:
@@ -2241,46 +2821,9 @@ func (v *subprogramChildVisitor) push(
 
 func (v *subprogramChildVisitor) pop(_ *dwarf.Entry, _ visitor) error { return nil }
 
-func processInlinedSubroutineEntry(
-	root *rootVisitor,
-	unit *dwarf.Entry,
-	outOfLineInstance bool,
-	rootPCRanges []ir.PCRange,
-	subroutine *dwarf.Entry,
-) (childVisitor visitor, err error) {
-	abstractOrigin, err := getAttr[dwarf.Offset](subroutine, dwarf.AttrAbstractOrigin)
-	if err != nil {
-		return nil, err
-	}
-	ranges, err := root.dwarf.Ranges(subroutine)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse pc ranges %w", err)
-	}
-	sp := &inlinedSubprogram{
-		abstractOrigin: abstractOrigin,
-		rootPCRanges:   rootPCRanges,
-	}
-	if outOfLineInstance {
-		sp.outOfLinePCRanges = ranges
-		rootPCRanges = ranges
-	} else {
-		sp.inlinedPCRanges = ir.InlinePCRanges{
-			Ranges:     ranges,
-			RootRanges: rootPCRanges,
-		}
-	}
-	root.inlinedSubprograms[unit] = append(root.inlinedSubprograms[unit], sp)
-	return &inlinedSubroutineChildVisitor{
-		root:         root,
-		unit:         unit,
-		rootPCRanges: rootPCRanges,
-		sp:           sp,
-	}, nil
-}
-
 func processVariable(
 	unit, entry *dwarf.Entry,
-	isParameter, parseLocations bool,
+	parseLocations bool,
 	subprogramPCRanges []ir.PCRange,
 	loclistReader *loclist.Reader,
 	pointerSize uint8,
@@ -2289,6 +2832,9 @@ func processVariable(
 	name, err := getAttr[string](entry, dwarf.AttrName)
 	if err != nil {
 		return nil, err
+	}
+	if strings.HasPrefix(name, ".") {
+		return nil, nil
 	}
 	typeOffset, err := getAttr[dwarf.Offset](entry, dwarf.AttrType)
 	if err != nil {
@@ -2310,17 +2856,29 @@ func processVariable(
 				pointerSize,
 			)
 		}
+		slices.SortFunc(locations, func(a, b ir.Location) int {
+			return cmp.Compare(a.Range[0], b.Range[0])
+		})
 	}
+	isParameter := entry.Tag == dwarf.TagFormalParameter
+	isVariable := entry.Tag == dwarf.TagVariable
 	isReturn, _, err := maybeGetAttr[bool](entry, dwarf.AttrVarParam)
 	if err != nil {
 		return nil, err
 	}
+	var role ir.VariableRole
+	if isVariable {
+		role = ir.VariableRoleLocal
+	} else if isReturn {
+		role = ir.VariableRoleReturn
+	} else if isParameter {
+		role = ir.VariableRoleParameter
+	}
 	return &ir.Variable{
-		Name:        name,
-		Type:        typ,
-		Locations:   locations,
-		IsParameter: isParameter,
-		IsReturn:    isReturn,
+		Name:      name,
+		Type:      typ,
+		Locations: locations,
+		Role:      role,
 	}, nil
 }
 
@@ -2328,7 +2886,6 @@ type abstractSubprogram struct {
 	unit       *dwarf.Entry
 	probesCfgs []ir.ProbeDefinition
 	name       string
-	id         ir.SubprogramID
 	// Aggregated ranges from out-of-line and inlined instances.
 	outOfLinePCRanges []ir.PCRange
 	inlinePCRanges    []ir.InlinePCRanges
@@ -2368,15 +2925,13 @@ type inlinedSubprogram struct {
 	// outOfLinePCRanges are set. Otherwise, inlinedPCRanges are set.
 	outOfLinePCRanges []ir.PCRange
 	inlinedPCRanges   ir.InlinePCRanges
-	rootPCRanges      []ir.PCRange
 	variables         []*dwarf.Entry
 }
 
 type inlinedSubroutineChildVisitor struct {
-	root         *rootVisitor
-	unit         *dwarf.Entry
-	rootPCRanges []ir.PCRange
-	sp           *inlinedSubprogram
+	root                  *rootVisitor
+	outOfLine             bool
+	hasInlinedSubprograms bool
 }
 
 func (v *inlinedSubroutineChildVisitor) push(
@@ -2384,18 +2939,25 @@ func (v *inlinedSubroutineChildVisitor) push(
 ) (childVisitor visitor, err error) {
 	switch entry.Tag {
 	case dwarf.TagInlinedSubroutine:
-		return processInlinedSubroutineEntry(v.root, v.unit, false /* outOfLineInstance */, v.rootPCRanges, entry)
-	case dwarf.TagFormalParameter:
+		v.hasInlinedSubprograms = true
+		abstractOrigin, err := getAttr[dwarf.Offset](entry, dwarf.AttrAbstractOrigin)
+		if err != nil {
+			return nil, err
+		}
+		if ref := (concreteSubprogramRef{
+			offset:         entry.Offset,
+			abstractOrigin: abstractOrigin,
+		}); v.root.couldBeInteresting(ref) {
+			v.root.inlineInstances = append(v.root.inlineInstances, ref)
+		}
 		fallthrough
-	case dwarf.TagVariable:
-		v.sp.variables = append(v.sp.variables, entry)
-		return nil, nil
 	case dwarf.TagLexDwarfBlock:
 		return v, nil
-	case dwarf.TagTypedef:
-		return v, nil
+	case dwarf.TagFormalParameter, dwarf.TagVariable, dwarf.TagTypedef, dwarf.TagLabel:
+		return nil, nil
+	default:
+		return nil, fmt.Errorf("unexpected tag for inlined subroutine child: %s", entry.Tag)
 	}
-	return nil, fmt.Errorf("unexpected tag for inlined subroutine child: %s", entry.Tag)
 }
 
 func (v *inlinedSubroutineChildVisitor) pop(_ *dwarf.Entry, _ visitor) error {
@@ -2481,6 +3043,10 @@ func makeInterests(cfg []ir.ProbeDefinition) (interests, []ir.ProbeIssue) {
 		switch where := probe.GetWhere().(type) {
 		case ir.FunctionWhere:
 			methodName := where.Location()
+			i.compileUnits[compileUnitFromName(methodName)] = struct{}{}
+			i.subprograms[methodName] = append(i.subprograms[methodName], probe)
+		case ir.LineWhere:
+			methodName, _, _ := where.Line()
 			i.compileUnits[compileUnitFromName(methodName)] = struct{}{}
 			i.subprograms[methodName] = append(i.subprograms[methodName], probe)
 		default:

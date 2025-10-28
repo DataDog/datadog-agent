@@ -43,9 +43,9 @@ type Config struct {
 	ProcessSyncDisabled bool
 
 	TestingKnobs struct {
-		LoaderOptions       []loader.Option
-		ScraperOverride     func(Scraper) Scraper
-		IRGeneratorOverride func(IRGenerator) IRGenerator
+		LoaderOptions             []loader.Option
+		IRGeneratorOverride       func(IRGenerator) IRGenerator
+		ProcessSubscriberOverride func(ProcessSubscriber) ProcessSubscriber
 	}
 }
 

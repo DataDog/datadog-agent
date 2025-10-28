@@ -23,7 +23,7 @@
           {
             "function": "main.executeArrayFuncs",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/arrays.go",
-            "lineNumber": 102
+            "lineNumber": 106
           },
           {
             "function": "main.main",

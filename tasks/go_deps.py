@@ -81,6 +81,14 @@ BINARIES: dict[str, dict] = {
         "entrypoint": "cmd/otel-agent",
         "platforms": ["linux/x64", "linux/arm64"],
     },
+    "loader": {
+        "entrypoint": "cmd/loader",
+        "platforms": ["linux/x64", "linux/arm64", "darwin/x64", "darwin/arm64"],
+    },
+    "installer": {
+        "entrypoint": "cmd/installer",
+        "platforms": ["linux/x64", "linux/arm64", "win32/x64"],
+    },
 }
 
 METRIC_GO_DEPS_DIFF = "datadog.agent.go_dependencies.difference"
@@ -281,7 +289,7 @@ def compute_count_metric(
     cmd = "go list -f '{{ join .Deps \"\\n\"}}'"
     with ctx.cd(entrypoint):
         res = ctx.run(
-            f"{cmd} -tags {','.join(build_tags)}",
+            f"{cmd} -tags \"{','.join(build_tags)}\"",
             env=env,
             hide='out',  # don't hide errors
         )
@@ -346,7 +354,7 @@ def compute_binary_dependencies_list(
     cmd = "go list -f '{{ join .Deps \"\\n\"}}'"
 
     res = ctx.run(
-        f"{cmd} -tags {','.join(build_tags)}",
+        f"{cmd} -tags \"{','.join(build_tags)}\"",
         env=env,
         hide='out',  # don't hide errors
     )

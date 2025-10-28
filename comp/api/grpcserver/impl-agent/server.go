@@ -7,7 +7,7 @@ package agentimpl
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/hosttags"
@@ -25,13 +25,10 @@ import (
 	configstreamServer "github.com/DataDog/datadog-agent/comp/core/configstream/server"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	remoteagentregistry "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/def"
-	rarproto "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/proto"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
-	taggerimpl "github.com/DataDog/datadog-agent/comp/core/tagger/impl"
 	taggerProto "github.com/DataDog/datadog-agent/comp/core/tagger/proto"
 	taggerserver "github.com/DataDog/datadog-agent/comp/core/tagger/server"
 	taggerTypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
-	noopTelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl"
 	workloadmetaServer "github.com/DataDog/datadog-agent/comp/core/workloadmeta/server"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap"
 	dsdReplay "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/def"
@@ -51,7 +48,7 @@ type agentServer struct {
 type serverSecure struct {
 	pb.UnimplementedAgentSecureServer
 	taggerServer        *taggerserver.Server
-	taggerComp          tagger.Component
+	tagProcessor        option.Option[tagger.Processor]
 	workloadmetaServer  *workloadmetaServer.Server
 	configService       option.Option[rcservice.Component]
 	configServiceMRF    option.Option[rcservicemrf.Component]
@@ -123,16 +120,13 @@ func (s *serverSecure) DogstatsdSetTaggerState(_ context.Context, req *pb.Tagger
 		return &pb.TaggerStateResponse{Loaded: false}, nil
 	}
 
-	// FiXME: we should perhaps lock the capture processing while doing this...
-	mockReq := taggerimpl.MockRequires{
-		Config:    s.configComp,
-		Telemetry: noopTelemetry.GetCompatComponent(),
+	tagProcessor, isSet := s.tagProcessor.Get()
+	if !isSet || tagProcessor == nil {
+		log.Debug("Tag processor is unavailable. Cannot set tagger state.")
+		return &pb.TaggerStateResponse{Loaded: false}, errors.New("tag processor is unavailable")
 	}
-	fakeTagger := taggerimpl.NewMock(mockReq).Comp
-	if fakeTagger == nil {
-		return &pb.TaggerStateResponse{Loaded: false}, fmt.Errorf("unable to instantiate state")
-	}
-	state := make([]taggerTypes.Entity, 0, len(req.State))
+
+	state := make([]*taggerTypes.TagInfo, 0, len(req.State))
 
 	// better stores these as the native type
 	for id, entity := range req.State {
@@ -142,16 +136,18 @@ func (s *serverSecure) DogstatsdSetTaggerState(_ context.Context, req *pb.Tagger
 			continue
 		}
 
-		state = append(state, taggerTypes.Entity{
-			ID:                          *entityID,
-			HighCardinalityTags:         entity.HighCardinalityTags,
-			OrchestratorCardinalityTags: entity.OrchestratorCardinalityTags,
-			LowCardinalityTags:          entity.LowCardinalityTags,
-			StandardTags:                entity.StandardTags,
+		state = append(state, &taggerTypes.TagInfo{
+			Source:               "replay",
+			EntityID:             *entityID,
+			HighCardTags:         entity.HighCardinalityTags,
+			OrchestratorCardTags: entity.OrchestratorCardinalityTags,
+			LowCardTags:          entity.LowCardinalityTags,
+			StandardTags:         entity.StandardTags,
+			ExpiryDate:           time.Now().Add(time.Duration(req.Duration) * time.Millisecond * 2),
 		})
 	}
-	fakeTagger.LoadState(state)
 
+	tagProcessor.ProcessTagInfo(state)
 	s.pidMap.SetPidMap(req.PidMap)
 
 	log.Debugf("API: loaded state successfully")
@@ -218,15 +214,30 @@ func (s *serverSecure) RegisterRemoteAgent(_ context.Context, in *pb.RegisterRem
 		return nil, status.Error(codes.Unimplemented, "remote agent registry not enabled")
 	}
 
-	registration := rarproto.ProtobufToRemoteAgentRegistration(in)
-	recommendedRefreshIntervalSecs, err := s.remoteAgentRegistry.RegisterRemoteAgent(registration)
+	registration := &remoteagentregistry.RegistrationData{
+		AgentPID:         in.Pid,
+		AgentFlavor:      in.Flavor,
+		AgentDisplayName: in.DisplayName,
+		APIEndpointURI:   in.ApiEndpointUri,
+		Services:         in.Services,
+	}
+	sessionID, recommendedRefreshIntervalSecs, err := s.remoteAgentRegistry.RegisterRemoteAgent(registration)
 	if err != nil {
 		return nil, err
 	}
 
 	return &pb.RegisterRemoteAgentResponse{
 		RecommendedRefreshIntervalSecs: recommendedRefreshIntervalSecs,
+		SessionId:                      sessionID,
 	}, nil
+}
+
+func (s *serverSecure) RefreshRemoteAgent(_ context.Context, in *pb.RefreshRemoteAgentRequest) (*pb.RefreshRemoteAgentResponse, error) {
+	found := s.remoteAgentRegistry.RefreshRemoteAgent(in.SessionId)
+	if !found {
+		return nil, status.Error(codes.NotFound, "no remote agent found with session ID")
+	}
+	return &pb.RefreshRemoteAgentResponse{}, nil
 }
 
 func (s *serverSecure) AutodiscoveryStreamConfig(_ *emptypb.Empty, out pb.AgentSecure_AutodiscoveryStreamConfigServer) error {

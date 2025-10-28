@@ -682,7 +682,7 @@ func TestProcessLikePayloadResponseTimeout(t *testing.T) {
 }
 
 // Whilst high priority transactions are processed by the worker first,  because the transactions
-// are sent in a separate go func, the actual order the get sent will depend on the go scheduler.
+// are sent in a separate go func, the actual order they get sent will depend on the go scheduler.
 // This test ensures that we still on average send high priority transactions before low priority.
 func TestHighPriorityTransactionTendency(t *testing.T) {
 	var receivedRequests = make(map[string]struct{})
@@ -734,7 +734,7 @@ func TestHighPriorityTransactionTendency(t *testing.T) {
 			assert.Nil(t, f.SubmitHostMetadata(transaction.NewBytesPayloadsWithoutMetaData([]*[]byte{&data}), headers))
 		} else {
 			data := []byte(fmt.Sprintf("low priority %d", i))
-			assert.Nil(t, f.SubmitMetadata(transaction.NewBytesPayloadsWithoutMetaData([]*[]byte{&data}), headers))
+			assert.Nil(t, f.SubmitAgentChecksMetadata(transaction.NewBytesPayloadsWithoutMetaData([]*[]byte{&data}), headers))
 		}
 
 		// Wait so that GetCreatedAt returns a different value for each HTTPTransaction
@@ -755,7 +755,7 @@ func TestHighPriorityTransactionTendency(t *testing.T) {
 	}
 
 	// Ensure the average position of the high priorities is less than the average position of the lows.
-	assert.Greater(t, lowPosition/50, highPosition/50)
+	assert.Greater(t, lowPosition, highPosition)
 }
 
 func TestHighPriorityTransaction(t *testing.T) {
@@ -816,51 +816,4 @@ func TestHighPriorityTransaction(t *testing.T) {
 	assert.Equal(t, string(dataHighPrio), <-requestChan)
 	assert.Equal(t, string(data2), <-requestChan)
 	assert.Equal(t, string(data1), <-requestChan)
-}
-
-func TestCustomCompletionHandler(t *testing.T) {
-	highPriorityQueueFull.Set(0)
-
-	// Setup a test HTTP server
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusOK)
-	}))
-	defer srv.Close()
-
-	// Point agent configuration to it
-	cfg := mock.New(t)
-	cfg.SetWithoutSource("dd_url", srv.URL)
-
-	// Now let's create a Forwarder with a custom HTTPCompletionHandler set to it
-	done := make(chan struct{})
-	defer close(done)
-	var handler transaction.HTTPCompletionHandler = func(_ *transaction.HTTPTransaction, _ int, _ []byte, _ error) {
-		done <- struct{}{}
-	}
-	mockConfig := mock.New(t)
-	log := logmock.New(t)
-	r, err := resolver.NewSingleDomainResolvers(map[string][]configUtils.APIKeys{
-		srv.URL: {configUtils.NewAPIKeys("path", "api_key1")},
-	})
-	require.NoError(t, err)
-	options := NewOptionsWithResolvers(mockConfig, log, r)
-	options.CompletionHandler = handler
-
-	f := NewDefaultForwarder(mockConfig, log, options)
-	f.Start()
-	defer f.Stop()
-
-	data := []byte("payload_data")
-	payload := transaction.NewBytesPayloadsWithoutMetaData([]*[]byte{&data})
-	assert.Nil(t, f.SubmitV1Series(payload, http.Header{}))
-
-	// And finally let's ensure the handler gets called
-	var handlerCalled bool
-	select {
-	case <-done:
-		handlerCalled = true
-	case <-time.After(time.Second):
-	}
-
-	assert.True(t, handlerCalled)
 }

@@ -18,12 +18,12 @@
           {
             "function": "main.testDeepSlice1",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/complex.go",
-            "lineNumber": 142
+            "lineNumber": 143
           },
           {
             "function": "main.executeComplexFuncs",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/complex.go",
-            "lineNumber": 256
+            "lineNumber": 277
           },
           {
             "function": "main.main",

@@ -30,6 +30,8 @@ const (
 	systemProbeTestPipeName = `\\.\pipe\dd_system_probe_wincrash_test`
 )
 
+var mockCallStackFrames = []string{"frame1", "frame2"}
+
 func testSetup(t *testing.T) {
 	// change the hive to hku for the test
 	hive = registry.CURRENT_USER
@@ -112,7 +114,7 @@ func TestWinCrashReporting(t *testing.T) {
 			BugCheckArg2: "0x2",
 			BugCheckArg3: "0x3",
 			BugCheckArg4: "0x4",
-			Callstack:    "frame1,frame2",
+			Frames:       mockCallStackFrames,
 		}
 		check := newCheck()
 		crashCheck := check.(*WinCrashDetect)
@@ -222,7 +224,7 @@ func TestCrashReportingStates(t *testing.T) {
 		wcs.BugCheckArg2 = crashStatus.BugCheckArg2
 		wcs.BugCheckArg3 = crashStatus.BugCheckArg3
 		wcs.BugCheckArg4 = crashStatus.BugCheckArg4
-		wcs.Callstack = crashStatus.Callstack
+		wcs.Frames = crashStatus.Frames
 
 		// Signal that the artificial delay is done.
 		wg.Done()
@@ -262,7 +264,7 @@ func TestCrashReportingStates(t *testing.T) {
 			BugCheckArg2: "0x2",
 			BugCheckArg3: "0x3",
 			BugCheckArg4: "0x4",
-			Callstack:    "frame1,frame2",
+			Frames:       mockCallStackFrames,
 		}
 
 		// Test the 2-check response from crash reporting.

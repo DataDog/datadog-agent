@@ -74,6 +74,7 @@ build do
   license_file "https://raw.githubusercontent.com/DataDog/datadog-secret-backend/master/LICENSE"
 
   if windows?
+    mkdir "#{install_dir}/bin/agent"
     # Extract the zip file
     copy "#{project_dir}/datadog-secret-backend.exe", "#{install_dir}/bin/agent/secret-generic-connector.exe"
   else

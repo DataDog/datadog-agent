@@ -279,6 +279,9 @@ func (s *agentRunner) createConfigFile(conf []byte) (string, error) {
 	if !v.IsSet("log_level") {
 		v.Set("log_level", "debug")
 	}
+	if !v.IsSet("apm_config.enable_v1_trace_endpoint") {
+		v.Set("apm_config.enable_v1_trace_endpoint", true)
+	}
 
 	v.Set("cmd_port", s.agentServerListerner.Addr().(*net.TCPAddr).Port)
 

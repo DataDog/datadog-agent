@@ -74,4 +74,8 @@ cudaError_t cudaMemcpy(void *dst, const void *src, size_t count, int kind) {
     return 0;
 }
 
+cudaError_t cudaDeviceSynchronize() {
+    return 0;
+}
+
 #endif // COMMON_FUNCTIONS_H

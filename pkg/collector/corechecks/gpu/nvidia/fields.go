@@ -24,7 +24,7 @@ type fieldsCollector struct {
 	fieldMetrics []fieldValueMetric
 }
 
-func newFieldsCollector(device ddnvml.Device) (Collector, error) {
+func newFieldsCollector(device ddnvml.Device, _ *CollectorDependencies) (Collector, error) {
 	c := &fieldsCollector{
 		device: device,
 	}

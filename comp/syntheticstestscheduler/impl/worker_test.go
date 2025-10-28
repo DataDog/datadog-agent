@@ -35,6 +35,9 @@ func TestToNetpathConfig(t *testing.T) {
 	icmpTTL := 5
 	icmpTimeout := 2
 
+	tracerouteCount := 3
+	probeCount := 50
+
 	tests := []struct {
 		name        string
 		input       common.SyntheticsTestConfig
@@ -56,6 +59,8 @@ func TestToNetpathConfig(t *testing.T) {
 							DestinationService: &dst,
 							MaxTTL:             &udpTTL,
 							Timeout:            &udpTimeout,
+							ProbeCount:         &probeCount,
+							TracerouteCount:    &tracerouteCount,
 						},
 					},
 				},
@@ -65,9 +70,12 @@ func TestToNetpathConfig(t *testing.T) {
 				DestHostname:       "dns.example.com",
 				DestPort:           uint16(udpPort),
 				MaxTTL:             uint8(udpTTL),
-				Timeout:            time.Duration(udpTimeout) * time.Second,
+				Timeout:            time.Duration(float64(udpTimeout) * 0.9 / float64(udpTTL) * float64(time.Second)),
 				SourceService:      src,
 				DestinationService: dst,
+				ReverseDNS:         true,
+				TracerouteQueries:  tracerouteCount,
+				E2eQueries:         probeCount,
 			},
 			expectError: false,
 		},
@@ -87,6 +95,8 @@ func TestToNetpathConfig(t *testing.T) {
 							DestinationService: &dst,
 							MaxTTL:             &tcpTTL,
 							Timeout:            &tcpTimeout,
+							ProbeCount:         &probeCount,
+							TracerouteCount:    &tracerouteCount,
 						},
 					},
 				},
@@ -96,10 +106,13 @@ func TestToNetpathConfig(t *testing.T) {
 				DestHostname:       "web.example.com",
 				DestPort:           uint16(tcpPort),
 				MaxTTL:             uint8(tcpTTL),
-				Timeout:            time.Duration(tcpTimeout) * time.Second,
+				Timeout:            time.Duration(float64(tcpTimeout) * 0.9 / float64(tcpTTL) * float64(time.Second)),
 				TCPMethod:          payload.TCPConfigSYN,
 				SourceService:      src,
 				DestinationService: dst,
+				ReverseDNS:         true,
+				TracerouteQueries:  tracerouteCount,
+				E2eQueries:         probeCount,
 			},
 			expectError: false,
 		},
@@ -117,6 +130,8 @@ func TestToNetpathConfig(t *testing.T) {
 							DestinationService: &dst,
 							MaxTTL:             &icmpTTL,
 							Timeout:            &icmpTimeout,
+							ProbeCount:         &probeCount,
+							TracerouteCount:    &tracerouteCount,
 						},
 					},
 				},
@@ -125,9 +140,12 @@ func TestToNetpathConfig(t *testing.T) {
 				Protocol:           payload.ProtocolICMP,
 				DestHostname:       "8.8.8.8",
 				MaxTTL:             uint8(icmpTTL),
-				Timeout:            time.Duration(icmpTimeout) * time.Second,
+				Timeout:            time.Duration(float64(icmpTimeout) * 0.9 / float64(icmpTTL) * float64(time.Second)),
 				SourceService:      src,
 				DestinationService: dst,
+				ReverseDNS:         true,
+				TracerouteQueries:  tracerouteCount,
+				E2eQueries:         probeCount,
 			},
 			expectError: false,
 		},
@@ -217,6 +235,108 @@ func TestNetworkPathToTestResult(t *testing.T) {
 						},
 					},
 				},
+				triggeredAt: now.Add(-3 * time.Second),
+				startedAt:   now.Add(-2 * time.Second),
+				finishedAt:  now,
+				duration:    2 * time.Second,
+				hostname:    "agent-host",
+			},
+			expectFail:  false,
+			expectError: false,
+		},
+		{
+			name: "100% packet loss",
+			worker: workerResult{
+				tracerouteResult: payload.NetworkPath{
+					E2eProbe: payload.E2eProbe{
+						PacketsSent:          0,
+						PacketsReceived:      0,
+						PacketLossPercentage: 1,
+						Jitter:               0,
+						RTT: payload.E2eProbeRttLatency{
+							Avg: 0, Min: 0, Max: 0,
+						},
+					},
+					Traceroute: payload.Traceroute{
+						HopCount: payload.HopCountStats{Avg: 5, Min: 4, Max: 6},
+					},
+				},
+				tracerouteCfg: trCfg,
+				testCfg: SyntheticsTestCtx{
+					cfg: common.SyntheticsTestConfig{
+						PublicID: "pub-123",
+						Type:     "network",
+						Version:  1,
+						Config: struct {
+							Assertions []common.Assertion   `json:"assertions"`
+							Request    common.ConfigRequest `json:"request"`
+						}{
+							Request: common.ICMPConfigRequest{
+								Host: "8.8.8.8",
+								NetworkConfigRequest: common.NetworkConfigRequest{
+									SourceService:      &src,
+									DestinationService: &dst,
+									MaxTTL:             &icmpTTL,
+									Timeout:            &icmpTimeout,
+								},
+							},
+						},
+					},
+				},
+				triggeredAt: now.Add(-3 * time.Second),
+				startedAt:   now.Add(-2 * time.Second),
+				finishedAt:  now,
+				duration:    2 * time.Second,
+				hostname:    "agent-host",
+			},
+			expectFail:  true,
+			expectError: false,
+		},
+		{
+			name: "100% packet loss with assertion on it",
+			worker: workerResult{
+				tracerouteResult: payload.NetworkPath{
+					E2eProbe: payload.E2eProbe{
+						PacketsSent:          0,
+						PacketsReceived:      0,
+						PacketLossPercentage: 1,
+						Jitter:               0,
+						RTT: payload.E2eProbeRttLatency{
+							Avg: 0, Min: 0, Max: 0,
+						},
+					},
+					Traceroute: payload.Traceroute{
+						HopCount: payload.HopCountStats{Avg: 5, Min: 4, Max: 6},
+					},
+				},
+				tracerouteCfg: trCfg,
+				testCfg: SyntheticsTestCtx{
+					cfg: common.SyntheticsTestConfig{
+						PublicID: "pub-123",
+						Type:     "network",
+						Version:  1,
+						Config: struct {
+							Assertions []common.Assertion   `json:"assertions"`
+							Request    common.ConfigRequest `json:"request"`
+						}{
+							Request: common.ICMPConfigRequest{
+								Host: "8.8.8.8",
+								NetworkConfigRequest: common.NetworkConfigRequest{
+									SourceService:      &src,
+									DestinationService: &dst,
+									MaxTTL:             &icmpTTL,
+									Timeout:            &icmpTimeout,
+								},
+							},
+						},
+					},
+				},
+				assertionResult: []common.AssertionResult{{
+					Operator: common.OperatorIs,
+					Type:     common.AssertionTypePacketLoss,
+					Expected: "100",
+					Valid:    true,
+				}},
 				triggeredAt: now.Add(-3 * time.Second),
 				startedAt:   now.Add(-2 * time.Second),
 				finishedAt:  now,

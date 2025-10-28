@@ -47,7 +47,7 @@ func TestConsumer(t *testing.T) {
 		}
 	}
 
-	consumer, err := NewConsumer("test", program.Manager, callback)
+	consumer, err := NewBatchConsumer("test", program.Manager, callback)
 	require.NoError(t, err)
 	consumer.Start()
 
@@ -86,7 +86,7 @@ func TestInvalidBatchCountMetric(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { program.Stop(manager.CleanAll) })
 
-	consumer, err := NewConsumer("test", program.Manager, func([]uint64) {})
+	consumer, err := NewBatchConsumer("test", program.Manager, func([]uint64) {})
 	require.NoError(t, err)
 
 	// We are creating a raw sample with a data length of 4, which is smaller than sizeOfBatch

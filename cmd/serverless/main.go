@@ -18,6 +18,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
+	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
+	secretsnoopfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx-noop"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	taggernoop "github.com/DataDog/datadog-agent/comp/core/tagger/fx-noop"
 	logConfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
@@ -84,6 +86,7 @@ func main() {
 		taggernoop.Module(),
 		logscompressionfx.Module(),
 		hostnameimpl.Module(),
+		secretsnoopfx.Module(),
 	)
 
 	if err != nil {
@@ -92,14 +95,14 @@ func main() {
 	}
 }
 
-func runAgent(tagger tagger.Component, compression logscompression.Component, hostname hostname.Component) {
+func runAgent(tagger tagger.Component, compression logscompression.Component, hostname hostname.Component, secretComp secrets.Component) {
 
 	startTime := time.Now()
 
 	setupLambdaAgentOverrides()
 	setupLogger()
 	debug.OutputDatadogEnvVariablesForDebugging()
-	loadConfig()
+	loadConfig(secretComp)
 	if !setupApiKey() {
 		return
 	}
@@ -395,11 +398,11 @@ func setupApiKey() bool {
 	return true
 }
 
-func loadConfig() {
+func loadConfig(secretComp secrets.Component) {
 	ddcfg := pkgconfigsetup.GlobalConfigBuilder()
 	ddcfg.SetConfigFile(datadogConfigPath)
 	// Load datadog.yaml file into the config, so that metricAgent can pick these configurations
-	if _, err := pkgconfigsetup.LoadWithoutSecret(ddcfg, nil); err != nil {
+	if err := pkgconfigsetup.LoadDatadog(ddcfg, secretComp, nil); err != nil {
 		log.Errorf("Error happened when loading configuration from datadog.yaml for metric agent: %s", err)
 	}
 }

@@ -75,9 +75,10 @@ type SyntheticsTestConfig struct {
 	} `json:"config"`
 
 	Interval int    `json:"tick_every"`
-	OrgID    int    `json:"orgID"`
-	MainDC   string `json:"mainDC"`
-	PublicID string `json:"publicID"`
+	OrgID    int    `json:"org_id"`
+	MainDC   string `json:"main_dc"`
+	PublicID string `json:"public_id"`
+	RunType  string `json:"run_type"`
 }
 
 // Operator represents a comparison operator for assertions.
@@ -144,9 +145,11 @@ func (c *SyntheticsTestConfig) UnmarshalJSON(data []byte) error {
 			Request    json.RawMessage `json:"request"`
 		} `json:"config"`
 
-		OrgID    int    `json:"orgID"`
-		MainDC   string `json:"mainDC"`
-		PublicID string `json:"publicID"`
+		OrgID    int    `json:"org_id"`
+		MainDC   string `json:"main_dc"`
+		PublicID string `json:"public_id"`
+		RunType  string `json:"run_type"`
+		Interval int    `json:"tick_every"`
 	}
 
 	var tmp rawConfig
@@ -159,6 +162,8 @@ func (c *SyntheticsTestConfig) UnmarshalJSON(data []byte) error {
 	c.OrgID = tmp.OrgID
 	c.MainDC = tmp.MainDC
 	c.PublicID = tmp.PublicID
+	c.RunType = tmp.RunType
+	c.Interval = tmp.Interval
 	c.Config.Assertions = tmp.Config.Assertions
 
 	switch payload.Protocol(tmp.Subtype) {

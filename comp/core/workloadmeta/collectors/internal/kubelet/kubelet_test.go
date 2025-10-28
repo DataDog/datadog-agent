@@ -19,6 +19,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
@@ -161,7 +162,7 @@ func TestPodParser(t *testing.T) {
 		},
 	}
 
-	events := parsePods(referencePod, true)
+	events := util.ParseKubeletPods(referencePod, true)
 	parsedEntities := make([]workloadmeta.Entity, 0, len(events))
 	for _, event := range events {
 		parsedEntities = append(parsedEntities, event.Entity)

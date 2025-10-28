@@ -59,8 +59,13 @@ nav:
   - Test:
     - Unit tests: how-to/test/unit.md
     - Static analysis: how-to/test/static-analysis.md
+    - End-to-end tests: how-to/test/e2e.md
   - Go:
-    - Add module: how-to/go/add-module.md
+    - Add nested modules: how-to/go/modules.md
+  - Debug agents:
+    - how-to/debug-agents/index.md
+    - Linux: how-to/debug-agents/linux.md
+    - Windows: how-to/debug-agents/windows.md
   - Memory profiling:
     - Overview: how-to/memory-profiling/overview.md
     - Go: how-to/memory-profiling/go.md

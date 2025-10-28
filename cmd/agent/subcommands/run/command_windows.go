@@ -51,6 +51,7 @@ import (
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
+	secretsfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx"
 	"github.com/DataDog/datadog-agent/comp/core/settings"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
@@ -75,6 +76,7 @@ import (
 	netflowServer "github.com/DataDog/datadog-agent/comp/netflow/server"
 	otelcollector "github.com/DataDog/datadog-agent/comp/otelcol/collector/def"
 	processAgent "github.com/DataDog/datadog-agent/comp/process/agent"
+	publishermetadatacachefx "github.com/DataDog/datadog-agent/comp/publishermetadatacache/fx"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
 	softwareinventoryfx "github.com/DataDog/datadog-agent/comp/softwareinventory/fx"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
@@ -189,10 +191,10 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 			// no config file path specification in this situation
 			fx.Supply(core.BundleParams{
 				ConfigParams:         config.NewAgentParams(""),
-				SecretParams:         secrets.NewEnabledParams(),
 				SysprobeConfigParams: sysprobeconfigimpl.NewParams(),
 				LogParams:            log.ForDaemon(command.LoggerName, "log_file", defaultpaths.LogFile),
 			}),
+			secretsfx.Module(),
 			getSharedFxOption(),
 			getPlatformModules(),
 		)
@@ -242,6 +244,7 @@ func getPlatformModules() fx.Option {
 		etwimpl.Module,
 		comptraceconfig.Module(),
 		softwareinventoryfx.Module(),
+		publishermetadatacachefx.Module(),
 		fx.Replace(comptraceconfig.Params{
 			FailIfAPIKeyMissing: false,
 		}),

@@ -7,281 +7,167 @@ package secretsimpl
 
 import (
 	"bytes"
-	"errors"
-	"io"
+	"fmt"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/comp/core/status"
+	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
+	nooptelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl"
 )
 
-type mockSecretResolver struct {
-	enabled               bool
-	backendCommand        string
-	commandAllowGroupExec bool
-	origin                map[string][]secretContext
-	permissionError       error
-}
-
 func TestSecretStatusOutput(t *testing.T) {
-	require := require.New(t)
+	tel := nooptelemetry.GetCompatComponent()
+	resolver := newEnabledSecretResolver(tel)
+	resolver.Configure(secrets.ConfigParams{
+		Command:       "/path/to/command",
+		GroupExecPerm: false,
+	})
 
-	tests := []struct {
-		name       string
-		assertFunc func(provider status.Provider)
-	}{
-		{"JSON", func(provider status.Provider) {
-			stats := make(map[string]interface{})
-			provider.JSON(false, stats)
+	stats := make(map[string]interface{})
+	err := resolver.JSON(false, stats)
+	require.NoError(t, err)
+	assert.NotEmpty(t, stats)
 
-			require.NotEmpty(stats)
-			require.Contains(stats, "enabled")
-		}},
-		{"Text", func(provider status.Provider) {
-			b := new(bytes.Buffer)
-			err := provider.Text(false, b)
+	b := new(bytes.Buffer)
+	err = resolver.Text(false, b)
+	require.NoError(t, err)
+	assert.NotEmpty(t, b.String())
 
-			require.NoError(err)
-			require.NotEmpty(b.String())
-		}},
-		{"HTML", func(provider status.Provider) {
-			b := new(bytes.Buffer)
-			err := provider.HTML(false, b)
-
-			require.NoError(err)
-			require.NotEmpty(b.String())
-		}},
-	}
-
-	mockResolver := &mockSecretResolver{
-		enabled:               true,
-		backendCommand:        "/path/to/command",
-		commandAllowGroupExec: false,
-		origin: map[string][]secretContext{
-			"handle1": {
-				{
-					origin: "config.yaml",
-					path:   []string{"path", "to", "secret"},
-				},
-			},
-			"handle2": {
-				{
-					origin: "another_config.yaml",
-					path:   []string{"another", "path"},
-				},
-			},
-		},
-		permissionError: nil,
-	}
-
-	provider := &testSecretsStatus{
-		resolver: mockResolver,
-	}
-
-	for _, test := range tests {
-		t.Run(test.name, func(_ *testing.T) {
-			test.assertFunc(provider)
-		})
-	}
-}
-
-func TestSecretStatusWithDisabled(t *testing.T) {
-	require := require.New(t)
-
-	mockResolver := &mockSecretResolver{
-		enabled: false,
-	}
-
-	provider := &testSecretsStatus{
-		resolver: mockResolver,
-	}
-
-	disabledStats := make(map[string]interface{})
-	err := provider.JSON(false, disabledStats)
-	require.NoError(err)
-	require.Contains(disabledStats, "enabled")
-	require.Equal(false, disabledStats["enabled"])
-	require.NotContains(disabledStats, "executable")
+	b = new(bytes.Buffer)
+	err = resolver.HTML(false, b)
+	require.NoError(t, err)
+	assert.NotEmpty(t, b.String())
 }
 
 func TestSecretStatusWithNoBackendCommand(t *testing.T) {
-	require := require.New(t)
-
-	mockResolver := &mockSecretResolver{
-		enabled:        true,
-		backendCommand: "",
-	}
-
-	provider := &testSecretsStatus{
-		resolver: mockResolver,
-	}
+	tel := nooptelemetry.GetCompatComponent()
+	resolver := newEnabledSecretResolver(tel)
+	resolver.Configure(secrets.ConfigParams{})
 
 	stats := make(map[string]interface{})
-	err := provider.JSON(false, stats)
-	require.NoError(err)
-	require.Contains(stats, "enabled")
-	require.Equal(true, stats["enabled"])
-	require.Contains(stats, "message")
-	require.Equal("No secret_backend_command set: secrets feature is not enabled", stats["message"])
+	err := resolver.JSON(false, stats)
+	require.NoError(t, err)
+	require.Contains(t, stats, "message")
+	require.Equal(t, false, stats["backendCommandSet"])
+	require.Equal(t, "No secret_backend_command set: secrets feature is not enabled", stats["message"])
 }
 
 func TestSecretStatusHandles(t *testing.T) {
-	require := require.New(t)
-
-	mockResolver := &mockSecretResolver{
-		enabled:               true,
-		backendCommand:        "/path/to/command",
-		commandAllowGroupExec: false,
-		origin: map[string][]secretContext{
-			"handle1": {
-				{
-					origin: "config.yaml",
-					path:   []string{"path", "to", "secret"},
-				},
+	tel := nooptelemetry.GetCompatComponent()
+	resolver := newEnabledSecretResolver(tel)
+	resolver.Configure(secrets.ConfigParams{
+		Command:       "/path/to/command",
+		GroupExecPerm: false,
+	})
+	resolver.origin = map[string][]secretContext{
+		"handle1": {
+			{
+				origin: "config.yaml",
+				path:   []string{"path", "to", "secret"},
 			},
-			"handle2": {
-				{
-					origin: "another_config.yaml",
-					path:   []string{"another", "path"},
-				},
-				{
-					origin: "third_config.yaml",
-					path:   []string{"third", "path"},
-				},
+		},
+		"handle2": {
+			{
+				origin: "another_config.yaml",
+				path:   []string{"another", "path"},
+			},
+			{
+				origin: "third_config.yaml",
+				path:   []string{"third", "path"},
 			},
 		},
 	}
 
-	provider := &testSecretsStatus{
-		resolver: mockResolver,
-	}
-
 	stats := make(map[string]interface{})
-	err := provider.JSON(false, stats)
-	require.NoError(err)
+	err := resolver.JSON(false, stats)
+	require.NoError(t, err)
 
-	require.Contains(stats, "handles")
+	require.Contains(t, stats, "handles")
 	handles, ok := stats["handles"].(map[string][][]string)
-	require.True(ok)
+	assert.True(t, ok)
 
-	require.Contains(handles, "handle1")
-	require.Len(handles["handle1"], 1)
-	require.Equal("config.yaml", handles["handle1"][0][0])
-	require.Equal("path/to/secret", handles["handle1"][0][1])
-
-	require.Contains(handles, "handle2")
-	require.Len(handles["handle2"], 2)
+	assert.Equal(t, handles, map[string][][]string{
+		"handle1": {{"config.yaml", "path/to/secret"}},
+		"handle2": {
+			{"another_config.yaml", "another/path"},
+			{"third_config.yaml", "third/path"},
+		},
+	})
 }
 
 func TestSecretStatusWithPermissions(t *testing.T) {
-	require := require.New(t)
+	tel := nooptelemetry.GetCompatComponent()
+	resolver := newEnabledSecretResolver(tel)
+	resolver.Configure(secrets.ConfigParams{
+		Command: "/path/to/command",
+		//GroupExecPerm: false,
+	})
 
-	mockResolver := &mockSecretResolver{
-		enabled:               true,
-		backendCommand:        "/path/to/command",
-		commandAllowGroupExec: false,
-		permissionError:       nil,
-	}
+	defer func() { checkRightsFunc = checkRights }()
 
-	provider := &testSecretsStatus{
-		resolver: mockResolver,
-	}
+	checkRightsFunc = func(_ string, _ bool) error { return nil }
 
 	stats := make(map[string]interface{})
-	err := provider.JSON(false, stats)
-	require.NoError(err)
-	require.Contains(stats, "executable_correct_permissions")
-	require.Contains(stats, "executable_permissions_message")
-	require.Equal(true, stats["executable_correct_permissions"])
-	require.Equal("OK, the executable has the correct permissions", stats["executable_permissions_message"])
+	err := resolver.JSON(false, stats)
+	require.NoError(t, err)
+	require.Contains(t, stats, "executablePermissionsOK")
+	assert.Equal(t, true, stats["backendCommandSet"])
+	assert.Equal(t, true, stats["executablePermissionsOK"])
+	require.Contains(t, stats, "executablePermissions")
+	assert.Equal(t, "OK, the executable has the correct permissions", stats["executablePermissions"])
 
-	mockResolver.permissionError = errors.New("permission denied")
+	checkRightsFunc = func(_ string, _ bool) error { return fmt.Errorf("some error") }
 
-	statsWithError := make(map[string]interface{})
-	err = provider.JSON(false, statsWithError)
-	require.NoError(err)
-	require.Contains(statsWithError, "executable_permissions_message")
-	require.Equal(false, statsWithError["executable_correct_permissions"])
-	require.Equal("error: permission denied", statsWithError["executable_permissions_message"])
+	stats = make(map[string]interface{})
+	err = resolver.JSON(false, stats)
+	require.NoError(t, err)
+	require.Contains(t, stats, "executablePermissionsOK")
+	assert.Equal(t, true, stats["backendCommandSet"])
+	assert.Equal(t, false, stats["executablePermissionsOK"])
+	require.Contains(t, stats, "executablePermissions")
+	assert.Equal(t, "error: the executable does not have the correct permissions", stats["executablePermissions"])
+	assert.Equal(t, "some error", stats["executablePermissionsError"])
 }
 
-type testSecretsStatus struct {
-	resolver *mockSecretResolver
+func TestSecretStatusNative(t *testing.T) {
+	tel := nooptelemetry.GetCompatComponent()
+	resolver := newEnabledSecretResolver(tel)
+	resolver.Configure(secrets.ConfigParams{
+		Type: "aws.secrets",
+	})
+
+	stats := make(map[string]interface{})
+	err := resolver.JSON(false, stats)
+	require.NoError(t, err)
+	require.Contains(t, stats, "executablePermissionsOK")
+	assert.Equal(t, true, stats["backendCommandSet"])
+	assert.Equal(t, true, stats["executablePermissionsOK"])
+	require.Contains(t, stats, "executablePermissions")
+	assert.Equal(t, "OK, native secret generic connector used", stats["executablePermissions"])
 }
 
-func (s *testSecretsStatus) Name() string {
-	return "Secrets"
-}
+func TestSecretRefreshInterval(t *testing.T) {
+	tel := nooptelemetry.GetCompatComponent()
+	resolver := newEnabledSecretResolver(tel)
+	resolver.Configure(secrets.ConfigParams{
+		Type: "aws.secrets",
+	})
 
-func (s *testSecretsStatus) Section() string {
-	return "secrets"
-}
+	stats := make(map[string]interface{})
+	err := resolver.JSON(false, stats)
+	require.NoError(t, err)
+	require.False(t, stats["refreshIntervalEnabled"].(bool))
 
-func (s *testSecretsStatus) populateStatus(stats map[string]interface{}) {
-	r := s.resolver
+	resolver.Configure(secrets.ConfigParams{
+		Type:            "aws.secrets",
+		RefreshInterval: 15,
+	})
 
-	stats["enabled"] = r.enabled
-
-	if !r.enabled {
-		return
-	}
-
-	if r.backendCommand == "" {
-		stats["message"] = "No secret_backend_command set: secrets feature is not enabled"
-		return
-	}
-
-	stats["executable"] = r.backendCommand
-
-	correctPermission := true
-	permissionMsg := "OK, the executable has the correct permissions"
-	if r.permissionError != nil {
-		correctPermission = false
-		permissionMsg = "error: " + r.permissionError.Error()
-	}
-	stats["executable_correct_permissions"] = correctPermission
-	stats["executable_permissions_message"] = permissionMsg
-
-	handleMap := make(map[string][][]string)
-	orderedHandles := make([]string, 0, len(r.origin))
-	for handle := range r.origin {
-		orderedHandles = append(orderedHandles, handle)
-	}
-
-	for _, handle := range orderedHandles {
-		contexts := r.origin[handle]
-		details := make([][]string, 0, len(contexts))
-		for _, context := range contexts {
-			details = append(details, []string{context.origin, stringJoin(context.path, "/")})
-		}
-		handleMap[handle] = details
-	}
-	stats["handles"] = handleMap
-}
-
-func (s *testSecretsStatus) JSON(_ bool, stats map[string]interface{}) error {
-	s.populateStatus(stats)
-	return nil
-}
-
-func (s *testSecretsStatus) Text(_ bool, buffer io.Writer) error {
-	buffer.Write([]byte("Mock debug info"))
-	return nil
-}
-
-func (s *testSecretsStatus) HTML(_ bool, buffer io.Writer) error {
-	buffer.Write([]byte("Mock debug info"))
-	return nil
-}
-
-func stringJoin(parts []string, separator string) string {
-	result := ""
-	for i, part := range parts {
-		if i > 0 {
-			result += separator
-		}
-		result += part
-	}
-	return result
+	stats = make(map[string]interface{})
+	err = resolver.JSON(false, stats)
+	require.NoError(t, err)
+	require.True(t, stats["refreshIntervalEnabled"].(bool))
+	require.Equal(t, "15s", stats["refreshInterval"])
 }

@@ -85,9 +85,6 @@ type Config struct {
 	// EnvsWithValue lists environnement variables that will be fully exported
 	EnvsWithValue []string
 
-	// RuntimeMonitor defines if the Go runtime and system monitor should be enabled
-	RuntimeMonitor bool
-
 	// EventStreamUseRingBuffer specifies whether to use eBPF ring buffers when available
 	EventStreamUseRingBuffer bool
 
@@ -202,7 +199,6 @@ func NewConfig() (*Config, error) {
 		ERPCDentryResolutionEnabled:        getBool("erpc_dentry_resolution_enabled"),
 		MapDentryResolutionEnabled:         getBool("map_dentry_resolution_enabled"),
 		DentryCacheSize:                    getInt("dentry_cache_size"),
-		RuntimeMonitor:                     getBool("runtime_monitor.enabled"),
 		NetworkLazyInterfacePrefixes:       getStringSlice("network.lazy_interface_prefixes"),
 		NetworkClassifierPriority:          uint16(getInt("network.classifier_priority")),
 		NetworkClassifierHandle:            uint16(getInt("network.classifier_handle")),

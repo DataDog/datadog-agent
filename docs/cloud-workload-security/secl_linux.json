@@ -8,41 +8,6 @@
       "experimental": false,
       "properties": [
         {
-          "name": "cgroup.file.inode",
-          "definition": "Inode of the file",
-          "property_doc_link": "common-pathkey-inode-doc"
-        },
-        {
-          "name": "cgroup.file.mount_id",
-          "definition": "Mount ID of the file",
-          "property_doc_link": "common-pathkey-mount_id-doc"
-        },
-        {
-          "name": "cgroup.id",
-          "definition": "ID of the cgroup",
-          "property_doc_link": "common-cgroupcontext-id-doc"
-        },
-        {
-          "name": "cgroup.version",
-          "definition": "[Experimental] Version of the cgroup API",
-          "property_doc_link": "common-cgroupcontext-version-doc"
-        },
-        {
-          "name": "container.created_at",
-          "definition": "Timestamp of the creation of the container",
-          "property_doc_link": "container-created_at-doc"
-        },
-        {
-          "name": "container.id",
-          "definition": "ID of the container",
-          "property_doc_link": "container-id-doc"
-        },
-        {
-          "name": "container.tags",
-          "definition": "Tags of the container",
-          "property_doc_link": "container-tags-doc"
-        },
-        {
           "name": "event.async",
           "definition": "True if the syscall was asynchronous",
           "property_doc_link": "event-async-doc"
@@ -163,9 +128,19 @@
           "property_doc_link": "common-process-comm-doc"
         },
         {
+          "name": "process.ancestors.container.created_at",
+          "definition": "Timestamp of the creation of the container",
+          "property_doc_link": "common-containercontext-created_at-doc"
+        },
+        {
           "name": "process.ancestors.container.id",
-          "definition": "Container ID",
-          "property_doc_link": "common-process-container-id-doc"
+          "definition": "ID of the container",
+          "property_doc_link": "common-containercontext-id-doc"
+        },
+        {
+          "name": "process.ancestors.container.tags",
+          "definition": "Tags of the container",
+          "property_doc_link": "common-containercontext-tags-doc"
         },
         {
           "name": "process.ancestors.created_at",
@@ -558,6 +533,11 @@
           "property_doc_link": "common-credentials-user-doc"
         },
         {
+          "name": "process.ancestors.user_session.id",
+          "definition": "Unique identifier of the user session on the host",
+          "property_doc_link": "common-usersessioncontext-id-doc"
+        },
+        {
           "name": "process.ancestors.user_session.k8s_groups",
           "definition": "Kubernetes groups of the user that executed the process",
           "property_doc_link": "common-usersessioncontext-k8s_groups-doc"
@@ -571,6 +551,11 @@
           "name": "process.ancestors.user_session.k8s_username",
           "definition": "Kubernetes username of the user that executed the process",
           "property_doc_link": "common-usersessioncontext-k8s_username-doc"
+        },
+        {
+          "name": "process.ancestors.user_session.session_type",
+          "definition": "Type of the user session",
+          "property_doc_link": "common-usersessioncontext-session_type-doc"
         },
         {
           "name": "process.args",
@@ -653,9 +638,19 @@
           "property_doc_link": "common-process-comm-doc"
         },
         {
+          "name": "process.container.created_at",
+          "definition": "Timestamp of the creation of the container",
+          "property_doc_link": "common-containercontext-created_at-doc"
+        },
+        {
           "name": "process.container.id",
-          "definition": "Container ID",
-          "property_doc_link": "common-process-container-id-doc"
+          "definition": "ID of the container",
+          "property_doc_link": "common-containercontext-id-doc"
+        },
+        {
+          "name": "process.container.tags",
+          "definition": "Tags of the container",
+          "property_doc_link": "common-containercontext-tags-doc"
         },
         {
           "name": "process.created_at",
@@ -1093,9 +1088,19 @@
           "property_doc_link": "common-process-comm-doc"
         },
         {
+          "name": "process.parent.container.created_at",
+          "definition": "Timestamp of the creation of the container",
+          "property_doc_link": "common-containercontext-created_at-doc"
+        },
+        {
           "name": "process.parent.container.id",
-          "definition": "Container ID",
-          "property_doc_link": "common-process-container-id-doc"
+          "definition": "ID of the container",
+          "property_doc_link": "common-containercontext-id-doc"
+        },
+        {
+          "name": "process.parent.container.tags",
+          "definition": "Tags of the container",
+          "property_doc_link": "common-containercontext-tags-doc"
         },
         {
           "name": "process.parent.created_at",
@@ -1483,6 +1488,11 @@
           "property_doc_link": "common-credentials-user-doc"
         },
         {
+          "name": "process.parent.user_session.id",
+          "definition": "Unique identifier of the user session on the host",
+          "property_doc_link": "common-usersessioncontext-id-doc"
+        },
+        {
           "name": "process.parent.user_session.k8s_groups",
           "definition": "Kubernetes groups of the user that executed the process",
           "property_doc_link": "common-usersessioncontext-k8s_groups-doc"
@@ -1496,6 +1506,11 @@
           "name": "process.parent.user_session.k8s_username",
           "definition": "Kubernetes username of the user that executed the process",
           "property_doc_link": "common-usersessioncontext-k8s_username-doc"
+        },
+        {
+          "name": "process.parent.user_session.session_type",
+          "definition": "Type of the user session",
+          "property_doc_link": "common-usersessioncontext-session_type-doc"
         },
         {
           "name": "process.pid",
@@ -1528,6 +1543,11 @@
           "property_doc_link": "common-credentials-user-doc"
         },
         {
+          "name": "process.user_session.id",
+          "definition": "Unique identifier of the user session on the host",
+          "property_doc_link": "common-usersessioncontext-id-doc"
+        },
+        {
           "name": "process.user_session.k8s_groups",
           "definition": "Kubernetes groups of the user that executed the process",
           "property_doc_link": "common-usersessioncontext-k8s_groups-doc"
@@ -1541,6 +1561,11 @@
           "name": "process.user_session.k8s_username",
           "definition": "Kubernetes username of the user that executed the process",
           "property_doc_link": "common-usersessioncontext-k8s_username-doc"
+        },
+        {
+          "name": "process.user_session.session_type",
+          "definition": "Type of the user session",
+          "property_doc_link": "common-usersessioncontext-session_type-doc"
         }
       ]
     },
@@ -2611,9 +2636,19 @@
           "property_doc_link": "common-process-comm-doc"
         },
         {
+          "name": "exec.container.created_at",
+          "definition": "Timestamp of the creation of the container",
+          "property_doc_link": "common-containercontext-created_at-doc"
+        },
+        {
           "name": "exec.container.id",
-          "definition": "Container ID",
-          "property_doc_link": "common-process-container-id-doc"
+          "definition": "ID of the container",
+          "property_doc_link": "common-containercontext-id-doc"
+        },
+        {
+          "name": "exec.container.tags",
+          "definition": "Tags of the container",
+          "property_doc_link": "common-containercontext-tags-doc"
         },
         {
           "name": "exec.created_at",
@@ -3046,6 +3081,11 @@
           "property_doc_link": "common-credentials-user-doc"
         },
         {
+          "name": "exec.user_session.id",
+          "definition": "Unique identifier of the user session on the host",
+          "property_doc_link": "common-usersessioncontext-id-doc"
+        },
+        {
           "name": "exec.user_session.k8s_groups",
           "definition": "Kubernetes groups of the user that executed the process",
           "property_doc_link": "common-usersessioncontext-k8s_groups-doc"
@@ -3059,6 +3099,11 @@
           "name": "exec.user_session.k8s_username",
           "definition": "Kubernetes username of the user that executed the process",
           "property_doc_link": "common-usersessioncontext-k8s_username-doc"
+        },
+        {
+          "name": "exec.user_session.session_type",
+          "definition": "Type of the user session",
+          "property_doc_link": "common-usersessioncontext-session_type-doc"
         }
       ]
     },
@@ -3160,9 +3205,19 @@
           "property_doc_link": "common-process-comm-doc"
         },
         {
+          "name": "exit.container.created_at",
+          "definition": "Timestamp of the creation of the container",
+          "property_doc_link": "common-containercontext-created_at-doc"
+        },
+        {
           "name": "exit.container.id",
-          "definition": "Container ID",
-          "property_doc_link": "common-process-container-id-doc"
+          "definition": "ID of the container",
+          "property_doc_link": "common-containercontext-id-doc"
+        },
+        {
+          "name": "exit.container.tags",
+          "definition": "Tags of the container",
+          "property_doc_link": "common-containercontext-tags-doc"
         },
         {
           "name": "exit.created_at",
@@ -3550,6 +3605,11 @@
           "property_doc_link": "common-credentials-user-doc"
         },
         {
+          "name": "exit.user_session.id",
+          "definition": "Unique identifier of the user session on the host",
+          "property_doc_link": "common-usersessioncontext-id-doc"
+        },
+        {
           "name": "exit.user_session.k8s_groups",
           "definition": "Kubernetes groups of the user that executed the process",
           "property_doc_link": "common-usersessioncontext-k8s_groups-doc"
@@ -3563,6 +3623,11 @@
           "name": "exit.user_session.k8s_username",
           "definition": "Kubernetes username of the user that executed the process",
           "property_doc_link": "common-usersessioncontext-k8s_username-doc"
+        },
+        {
+          "name": "exit.user_session.session_type",
+          "definition": "Type of the user session",
+          "property_doc_link": "common-usersessioncontext-session_type-doc"
         }
       ]
     },
@@ -5073,9 +5138,19 @@
           "property_doc_link": "common-process-comm-doc"
         },
         {
+          "name": "ptrace.tracee.ancestors.container.created_at",
+          "definition": "Timestamp of the creation of the container",
+          "property_doc_link": "common-containercontext-created_at-doc"
+        },
+        {
           "name": "ptrace.tracee.ancestors.container.id",
-          "definition": "Container ID",
-          "property_doc_link": "common-process-container-id-doc"
+          "definition": "ID of the container",
+          "property_doc_link": "common-containercontext-id-doc"
+        },
+        {
+          "name": "ptrace.tracee.ancestors.container.tags",
+          "definition": "Tags of the container",
+          "property_doc_link": "common-containercontext-tags-doc"
         },
         {
           "name": "ptrace.tracee.ancestors.created_at",
@@ -5468,6 +5543,11 @@
           "property_doc_link": "common-credentials-user-doc"
         },
         {
+          "name": "ptrace.tracee.ancestors.user_session.id",
+          "definition": "Unique identifier of the user session on the host",
+          "property_doc_link": "common-usersessioncontext-id-doc"
+        },
+        {
           "name": "ptrace.tracee.ancestors.user_session.k8s_groups",
           "definition": "Kubernetes groups of the user that executed the process",
           "property_doc_link": "common-usersessioncontext-k8s_groups-doc"
@@ -5481,6 +5561,11 @@
           "name": "ptrace.tracee.ancestors.user_session.k8s_username",
           "definition": "Kubernetes username of the user that executed the process",
           "property_doc_link": "common-usersessioncontext-k8s_username-doc"
+        },
+        {
+          "name": "ptrace.tracee.ancestors.user_session.session_type",
+          "definition": "Type of the user session",
+          "property_doc_link": "common-usersessioncontext-session_type-doc"
         },
         {
           "name": "ptrace.tracee.args",
@@ -5563,9 +5648,19 @@
           "property_doc_link": "common-process-comm-doc"
         },
         {
+          "name": "ptrace.tracee.container.created_at",
+          "definition": "Timestamp of the creation of the container",
+          "property_doc_link": "common-containercontext-created_at-doc"
+        },
+        {
           "name": "ptrace.tracee.container.id",
-          "definition": "Container ID",
-          "property_doc_link": "common-process-container-id-doc"
+          "definition": "ID of the container",
+          "property_doc_link": "common-containercontext-id-doc"
+        },
+        {
+          "name": "ptrace.tracee.container.tags",
+          "definition": "Tags of the container",
+          "property_doc_link": "common-containercontext-tags-doc"
         },
         {
           "name": "ptrace.tracee.created_at",
@@ -6003,9 +6098,19 @@
           "property_doc_link": "common-process-comm-doc"
         },
         {
+          "name": "ptrace.tracee.parent.container.created_at",
+          "definition": "Timestamp of the creation of the container",
+          "property_doc_link": "common-containercontext-created_at-doc"
+        },
+        {
           "name": "ptrace.tracee.parent.container.id",
-          "definition": "Container ID",
-          "property_doc_link": "common-process-container-id-doc"
+          "definition": "ID of the container",
+          "property_doc_link": "common-containercontext-id-doc"
+        },
+        {
+          "name": "ptrace.tracee.parent.container.tags",
+          "definition": "Tags of the container",
+          "property_doc_link": "common-containercontext-tags-doc"
         },
         {
           "name": "ptrace.tracee.parent.created_at",
@@ -6393,6 +6498,11 @@
           "property_doc_link": "common-credentials-user-doc"
         },
         {
+          "name": "ptrace.tracee.parent.user_session.id",
+          "definition": "Unique identifier of the user session on the host",
+          "property_doc_link": "common-usersessioncontext-id-doc"
+        },
+        {
           "name": "ptrace.tracee.parent.user_session.k8s_groups",
           "definition": "Kubernetes groups of the user that executed the process",
           "property_doc_link": "common-usersessioncontext-k8s_groups-doc"
@@ -6406,6 +6516,11 @@
           "name": "ptrace.tracee.parent.user_session.k8s_username",
           "definition": "Kubernetes username of the user that executed the process",
           "property_doc_link": "common-usersessioncontext-k8s_username-doc"
+        },
+        {
+          "name": "ptrace.tracee.parent.user_session.session_type",
+          "definition": "Type of the user session",
+          "property_doc_link": "common-usersessioncontext-session_type-doc"
         },
         {
           "name": "ptrace.tracee.pid",
@@ -6438,6 +6553,11 @@
           "property_doc_link": "common-credentials-user-doc"
         },
         {
+          "name": "ptrace.tracee.user_session.id",
+          "definition": "Unique identifier of the user session on the host",
+          "property_doc_link": "common-usersessioncontext-id-doc"
+        },
+        {
           "name": "ptrace.tracee.user_session.k8s_groups",
           "definition": "Kubernetes groups of the user that executed the process",
           "property_doc_link": "common-usersessioncontext-k8s_groups-doc"
@@ -6451,6 +6571,11 @@
           "name": "ptrace.tracee.user_session.k8s_username",
           "definition": "Kubernetes username of the user that executed the process",
           "property_doc_link": "common-usersessioncontext-k8s_username-doc"
+        },
+        {
+          "name": "ptrace.tracee.user_session.session_type",
+          "definition": "Type of the user session",
+          "property_doc_link": "common-usersessioncontext-session_type-doc"
         }
       ]
     },
@@ -7237,9 +7362,19 @@
           "property_doc_link": "common-process-comm-doc"
         },
         {
+          "name": "setrlimit.target.ancestors.container.created_at",
+          "definition": "Timestamp of the creation of the container",
+          "property_doc_link": "common-containercontext-created_at-doc"
+        },
+        {
           "name": "setrlimit.target.ancestors.container.id",
-          "definition": "Container ID",
-          "property_doc_link": "common-process-container-id-doc"
+          "definition": "ID of the container",
+          "property_doc_link": "common-containercontext-id-doc"
+        },
+        {
+          "name": "setrlimit.target.ancestors.container.tags",
+          "definition": "Tags of the container",
+          "property_doc_link": "common-containercontext-tags-doc"
         },
         {
           "name": "setrlimit.target.ancestors.created_at",
@@ -7632,6 +7767,11 @@
           "property_doc_link": "common-credentials-user-doc"
         },
         {
+          "name": "setrlimit.target.ancestors.user_session.id",
+          "definition": "Unique identifier of the user session on the host",
+          "property_doc_link": "common-usersessioncontext-id-doc"
+        },
+        {
           "name": "setrlimit.target.ancestors.user_session.k8s_groups",
           "definition": "Kubernetes groups of the user that executed the process",
           "property_doc_link": "common-usersessioncontext-k8s_groups-doc"
@@ -7645,6 +7785,11 @@
           "name": "setrlimit.target.ancestors.user_session.k8s_username",
           "definition": "Kubernetes username of the user that executed the process",
           "property_doc_link": "common-usersessioncontext-k8s_username-doc"
+        },
+        {
+          "name": "setrlimit.target.ancestors.user_session.session_type",
+          "definition": "Type of the user session",
+          "property_doc_link": "common-usersessioncontext-session_type-doc"
         },
         {
           "name": "setrlimit.target.args",
@@ -7727,9 +7872,19 @@
           "property_doc_link": "common-process-comm-doc"
         },
         {
+          "name": "setrlimit.target.container.created_at",
+          "definition": "Timestamp of the creation of the container",
+          "property_doc_link": "common-containercontext-created_at-doc"
+        },
+        {
           "name": "setrlimit.target.container.id",
-          "definition": "Container ID",
-          "property_doc_link": "common-process-container-id-doc"
+          "definition": "ID of the container",
+          "property_doc_link": "common-containercontext-id-doc"
+        },
+        {
+          "name": "setrlimit.target.container.tags",
+          "definition": "Tags of the container",
+          "property_doc_link": "common-containercontext-tags-doc"
         },
         {
           "name": "setrlimit.target.created_at",
@@ -8167,9 +8322,19 @@
           "property_doc_link": "common-process-comm-doc"
         },
         {
+          "name": "setrlimit.target.parent.container.created_at",
+          "definition": "Timestamp of the creation of the container",
+          "property_doc_link": "common-containercontext-created_at-doc"
+        },
+        {
           "name": "setrlimit.target.parent.container.id",
-          "definition": "Container ID",
-          "property_doc_link": "common-process-container-id-doc"
+          "definition": "ID of the container",
+          "property_doc_link": "common-containercontext-id-doc"
+        },
+        {
+          "name": "setrlimit.target.parent.container.tags",
+          "definition": "Tags of the container",
+          "property_doc_link": "common-containercontext-tags-doc"
         },
         {
           "name": "setrlimit.target.parent.created_at",
@@ -8557,6 +8722,11 @@
           "property_doc_link": "common-credentials-user-doc"
         },
         {
+          "name": "setrlimit.target.parent.user_session.id",
+          "definition": "Unique identifier of the user session on the host",
+          "property_doc_link": "common-usersessioncontext-id-doc"
+        },
+        {
           "name": "setrlimit.target.parent.user_session.k8s_groups",
           "definition": "Kubernetes groups of the user that executed the process",
           "property_doc_link": "common-usersessioncontext-k8s_groups-doc"
@@ -8570,6 +8740,11 @@
           "name": "setrlimit.target.parent.user_session.k8s_username",
           "definition": "Kubernetes username of the user that executed the process",
           "property_doc_link": "common-usersessioncontext-k8s_username-doc"
+        },
+        {
+          "name": "setrlimit.target.parent.user_session.session_type",
+          "definition": "Type of the user session",
+          "property_doc_link": "common-usersessioncontext-session_type-doc"
         },
         {
           "name": "setrlimit.target.pid",
@@ -8602,6 +8777,11 @@
           "property_doc_link": "common-credentials-user-doc"
         },
         {
+          "name": "setrlimit.target.user_session.id",
+          "definition": "Unique identifier of the user session on the host",
+          "property_doc_link": "common-usersessioncontext-id-doc"
+        },
+        {
           "name": "setrlimit.target.user_session.k8s_groups",
           "definition": "Kubernetes groups of the user that executed the process",
           "property_doc_link": "common-usersessioncontext-k8s_groups-doc"
@@ -8615,6 +8795,11 @@
           "name": "setrlimit.target.user_session.k8s_username",
           "definition": "Kubernetes username of the user that executed the process",
           "property_doc_link": "common-usersessioncontext-k8s_username-doc"
+        },
+        {
+          "name": "setrlimit.target.user_session.session_type",
+          "definition": "Type of the user session",
+          "property_doc_link": "common-usersessioncontext-session_type-doc"
         }
       ]
     },
@@ -8978,9 +9163,19 @@
           "property_doc_link": "common-process-comm-doc"
         },
         {
+          "name": "signal.target.ancestors.container.created_at",
+          "definition": "Timestamp of the creation of the container",
+          "property_doc_link": "common-containercontext-created_at-doc"
+        },
+        {
           "name": "signal.target.ancestors.container.id",
-          "definition": "Container ID",
-          "property_doc_link": "common-process-container-id-doc"
+          "definition": "ID of the container",
+          "property_doc_link": "common-containercontext-id-doc"
+        },
+        {
+          "name": "signal.target.ancestors.container.tags",
+          "definition": "Tags of the container",
+          "property_doc_link": "common-containercontext-tags-doc"
         },
         {
           "name": "signal.target.ancestors.created_at",
@@ -9373,6 +9568,11 @@
           "property_doc_link": "common-credentials-user-doc"
         },
         {
+          "name": "signal.target.ancestors.user_session.id",
+          "definition": "Unique identifier of the user session on the host",
+          "property_doc_link": "common-usersessioncontext-id-doc"
+        },
+        {
           "name": "signal.target.ancestors.user_session.k8s_groups",
           "definition": "Kubernetes groups of the user that executed the process",
           "property_doc_link": "common-usersessioncontext-k8s_groups-doc"
@@ -9386,6 +9586,11 @@
           "name": "signal.target.ancestors.user_session.k8s_username",
           "definition": "Kubernetes username of the user that executed the process",
           "property_doc_link": "common-usersessioncontext-k8s_username-doc"
+        },
+        {
+          "name": "signal.target.ancestors.user_session.session_type",
+          "definition": "Type of the user session",
+          "property_doc_link": "common-usersessioncontext-session_type-doc"
         },
         {
           "name": "signal.target.args",
@@ -9468,9 +9673,19 @@
           "property_doc_link": "common-process-comm-doc"
         },
         {
+          "name": "signal.target.container.created_at",
+          "definition": "Timestamp of the creation of the container",
+          "property_doc_link": "common-containercontext-created_at-doc"
+        },
+        {
           "name": "signal.target.container.id",
-          "definition": "Container ID",
-          "property_doc_link": "common-process-container-id-doc"
+          "definition": "ID of the container",
+          "property_doc_link": "common-containercontext-id-doc"
+        },
+        {
+          "name": "signal.target.container.tags",
+          "definition": "Tags of the container",
+          "property_doc_link": "common-containercontext-tags-doc"
         },
         {
           "name": "signal.target.created_at",
@@ -9908,9 +10123,19 @@
           "property_doc_link": "common-process-comm-doc"
         },
         {
+          "name": "signal.target.parent.container.created_at",
+          "definition": "Timestamp of the creation of the container",
+          "property_doc_link": "common-containercontext-created_at-doc"
+        },
+        {
           "name": "signal.target.parent.container.id",
-          "definition": "Container ID",
-          "property_doc_link": "common-process-container-id-doc"
+          "definition": "ID of the container",
+          "property_doc_link": "common-containercontext-id-doc"
+        },
+        {
+          "name": "signal.target.parent.container.tags",
+          "definition": "Tags of the container",
+          "property_doc_link": "common-containercontext-tags-doc"
         },
         {
           "name": "signal.target.parent.created_at",
@@ -10298,6 +10523,11 @@
           "property_doc_link": "common-credentials-user-doc"
         },
         {
+          "name": "signal.target.parent.user_session.id",
+          "definition": "Unique identifier of the user session on the host",
+          "property_doc_link": "common-usersessioncontext-id-doc"
+        },
+        {
           "name": "signal.target.parent.user_session.k8s_groups",
           "definition": "Kubernetes groups of the user that executed the process",
           "property_doc_link": "common-usersessioncontext-k8s_groups-doc"
@@ -10311,6 +10541,11 @@
           "name": "signal.target.parent.user_session.k8s_username",
           "definition": "Kubernetes username of the user that executed the process",
           "property_doc_link": "common-usersessioncontext-k8s_username-doc"
+        },
+        {
+          "name": "signal.target.parent.user_session.session_type",
+          "definition": "Type of the user session",
+          "property_doc_link": "common-usersessioncontext-session_type-doc"
         },
         {
           "name": "signal.target.pid",
@@ -10343,6 +10578,11 @@
           "property_doc_link": "common-credentials-user-doc"
         },
         {
+          "name": "signal.target.user_session.id",
+          "definition": "Unique identifier of the user session on the host",
+          "property_doc_link": "common-usersessioncontext-id-doc"
+        },
+        {
           "name": "signal.target.user_session.k8s_groups",
           "definition": "Kubernetes groups of the user that executed the process",
           "property_doc_link": "common-usersessioncontext-k8s_groups-doc"
@@ -10356,6 +10596,11 @@
           "name": "signal.target.user_session.k8s_username",
           "definition": "Kubernetes username of the user that executed the process",
           "property_doc_link": "common-usersessioncontext-k8s_username-doc"
+        },
+        {
+          "name": "signal.target.user_session.session_type",
+          "definition": "Type of the user session",
+          "property_doc_link": "common-usersessioncontext-session_type-doc"
         },
         {
           "name": "signal.type",
@@ -11298,25 +11543,25 @@
       "examples": []
     },
     {
-      "name": "*.container.id",
-      "link": "common-process-container-id-doc",
-      "type": "string",
-      "definition": "Container ID",
+      "name": "*.created_at",
+      "link": "common-containercontext-created_at-doc",
+      "type": "int",
+      "definition": "Timestamp of the creation of the container",
       "prefixes": [
-        "exec",
-        "exit",
-        "process",
-        "process.ancestors",
-        "process.parent",
-        "ptrace.tracee",
-        "ptrace.tracee.ancestors",
-        "ptrace.tracee.parent",
-        "setrlimit.target",
-        "setrlimit.target.ancestors",
-        "setrlimit.target.parent",
-        "signal.target",
-        "signal.target.ancestors",
-        "signal.target.parent"
+        "exec.container",
+        "exit.container",
+        "process.ancestors.container",
+        "process.container",
+        "process.parent.container",
+        "ptrace.tracee.ancestors.container",
+        "ptrace.tracee.container",
+        "ptrace.tracee.parent.container",
+        "setrlimit.target.ancestors.container",
+        "setrlimit.target.container",
+        "setrlimit.target.parent.container",
+        "signal.target.ancestors.container",
+        "signal.target.container",
+        "signal.target.parent.container"
       ],
       "constants": "",
       "constants_link": "",
@@ -12002,7 +12247,6 @@
       "type": "string",
       "definition": "ID of the cgroup",
       "prefixes": [
-        "cgroup",
         "exec.cgroup",
         "exit.cgroup",
         "process.ancestors.cgroup",
@@ -12017,6 +12261,56 @@
         "signal.target.ancestors.cgroup",
         "signal.target.cgroup",
         "signal.target.parent.cgroup"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "*.id",
+      "link": "common-containercontext-id-doc",
+      "type": "string",
+      "definition": "ID of the container",
+      "prefixes": [
+        "exec.container",
+        "exit.container",
+        "process.ancestors.container",
+        "process.container",
+        "process.parent.container",
+        "ptrace.tracee.ancestors.container",
+        "ptrace.tracee.container",
+        "ptrace.tracee.parent.container",
+        "setrlimit.target.ancestors.container",
+        "setrlimit.target.container",
+        "setrlimit.target.parent.container",
+        "signal.target.ancestors.container",
+        "signal.target.container",
+        "signal.target.parent.container"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "*.id",
+      "link": "common-usersessioncontext-id-doc",
+      "type": "int",
+      "definition": "Unique identifier of the user session on the host",
+      "prefixes": [
+        "exec.user_session",
+        "exit.user_session",
+        "process.ancestors.user_session",
+        "process.parent.user_session",
+        "process.user_session",
+        "ptrace.tracee.ancestors.user_session",
+        "ptrace.tracee.parent.user_session",
+        "ptrace.tracee.user_session",
+        "setrlimit.target.ancestors.user_session",
+        "setrlimit.target.parent.user_session",
+        "setrlimit.target.user_session",
+        "signal.target.ancestors.user_session",
+        "signal.target.parent.user_session",
+        "signal.target.user_session"
       ],
       "constants": "",
       "constants_link": "",
@@ -12099,7 +12393,6 @@
       "type": "int",
       "definition": "Inode of the file",
       "prefixes": [
-        "cgroup.file",
         "cgroup_write.file",
         "chdir.file",
         "chmod.file",
@@ -12667,7 +12960,6 @@
       "type": "int",
       "definition": "Mount ID of the file",
       "prefixes": [
-        "cgroup.file",
         "cgroup_write.file",
         "chdir.file",
         "chmod.file",
@@ -13509,6 +13801,31 @@
       "examples": []
     },
     {
+      "name": "*.session_type",
+      "link": "common-usersessioncontext-session_type-doc",
+      "type": "int",
+      "definition": "Type of the user session",
+      "prefixes": [
+        "exec.user_session",
+        "exit.user_session",
+        "process.ancestors.user_session",
+        "process.parent.user_session",
+        "process.user_session",
+        "ptrace.tracee.ancestors.user_session",
+        "ptrace.tracee.parent.user_session",
+        "ptrace.tracee.user_session",
+        "setrlimit.target.ancestors.user_session",
+        "setrlimit.target.parent.user_session",
+        "setrlimit.target.user_session",
+        "signal.target.ancestors.user_session",
+        "signal.target.parent.user_session",
+        "signal.target.user_session"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
       "name": "*.size",
       "link": "common-networkcontext-size-doc",
       "type": "int",
@@ -13516,6 +13833,31 @@
       "prefixes": [
         "network",
         "packet"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "*.tags",
+      "link": "common-containercontext-tags-doc",
+      "type": "string",
+      "definition": "Tags of the container",
+      "prefixes": [
+        "exec.container",
+        "exit.container",
+        "process.ancestors.container",
+        "process.container",
+        "process.parent.container",
+        "ptrace.tracee.ancestors.container",
+        "ptrace.tracee.container",
+        "ptrace.tracee.parent.container",
+        "setrlimit.target.ancestors.container",
+        "setrlimit.target.container",
+        "setrlimit.target.parent.container",
+        "signal.target.ancestors.container",
+        "signal.target.container",
+        "signal.target.parent.container"
       ],
       "constants": "",
       "constants_link": "",
@@ -13759,7 +14101,6 @@
       "type": "int",
       "definition": "[Experimental] Version of the cgroup API",
       "prefixes": [
-        "cgroup",
         "exec.cgroup",
         "exit.cgroup",
         "process.ancestors.cgroup",
@@ -14158,42 +14499,6 @@
       "definition": "Socket Protocol",
       "prefixes": [
         "connect"
-      ],
-      "constants": "",
-      "constants_link": "",
-      "examples": []
-    },
-    {
-      "name": "container.created_at",
-      "link": "container-created_at-doc",
-      "type": "int",
-      "definition": "Timestamp of the creation of the container",
-      "prefixes": [
-        "container"
-      ],
-      "constants": "",
-      "constants_link": "",
-      "examples": []
-    },
-    {
-      "name": "container.id",
-      "link": "container-id-doc",
-      "type": "string",
-      "definition": "ID of the container",
-      "prefixes": [
-        "container"
-      ],
-      "constants": "",
-      "constants_link": "",
-      "examples": []
-    },
-    {
-      "name": "container.tags",
-      "link": "container-tags-doc",
-      "type": "string",
-      "definition": "Tags of the container",
-      "prefixes": [
-        "container"
       ],
       "constants": "",
       "constants_link": "",

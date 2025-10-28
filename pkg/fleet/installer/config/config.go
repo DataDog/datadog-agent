@@ -37,6 +37,10 @@ const (
 	FileOperationMergePatch FileOperationType = "merge-patch"
 	// FileOperationDelete deletes the config at the given path.
 	FileOperationDelete FileOperationType = "delete"
+	// FileOperationCopy copies the config at the given path to the given path.
+	FileOperationCopy FileOperationType = "copy"
+	// FileOperationMove moves the config at the given path to the given path.
+	FileOperationMove FileOperationType = "move"
 )
 
 // Directories is the directories of the config.
@@ -152,7 +156,7 @@ func (o *Operations) Apply(rootPath string) error {
 			return err
 		}
 	}
-	err = os.WriteFile(filepath.Join(rootPath, deploymentIDFile), []byte(o.DeploymentID), 0644)
+	err = os.WriteFile(filepath.Join(rootPath, deploymentIDFile), []byte(o.DeploymentID), 0640)
 	if err != nil {
 		return err
 	}
@@ -163,6 +167,7 @@ func (o *Operations) Apply(rootPath string) error {
 type FileOperation struct {
 	FileOperationType FileOperationType `json:"file_op"`
 	FilePath          string            `json:"file_path"`
+	DestinationPath   string            `json:"destination_path,omitempty"`
 	Patch             json.RawMessage   `json:"patch,omitempty"`
 }
 
@@ -171,6 +176,7 @@ func (a *FileOperation) apply(root *os.Root) error {
 		return fmt.Errorf("modifying config file %s is not allowed", a.FilePath)
 	}
 	path := strings.TrimPrefix(a.FilePath, "/")
+	destinationPath := strings.TrimPrefix(a.DestinationPath, "/")
 
 	switch a.FileOperationType {
 	case FileOperationPatch, FileOperationMergePatch:
@@ -178,7 +184,7 @@ func (a *FileOperation) apply(root *os.Root) error {
 		if err != nil {
 			return err
 		}
-		file, err := root.OpenFile(path, os.O_RDWR|os.O_CREATE, 0644)
+		file, err := root.OpenFile(path, os.O_RDWR|os.O_CREATE, 0640)
 		if err != nil {
 			return err
 		}
@@ -235,6 +241,71 @@ func (a *FileOperation) apply(root *os.Root) error {
 			return err
 		}
 		return err
+	case FileOperationCopy:
+		// TODO(go.1.25): os.Root.MkdirAll and os.Root.WriteFile are only available starting go 1.25
+		err := ensureDir(root, destinationPath)
+		if err != nil {
+			return err
+		}
+
+		srcFile, err := root.Open(path)
+		if err != nil {
+			return err
+		}
+		defer srcFile.Close()
+
+		srcContent, err := io.ReadAll(srcFile)
+		if err != nil {
+			return err
+		}
+
+		// Create the destination with os.Root to ensure the path is clean
+		destFile, err := root.Create(destinationPath)
+		if err != nil {
+			return err
+		}
+		defer destFile.Close()
+
+		_, err = destFile.Write(srcContent)
+		if err != nil {
+			return err
+		}
+		return nil
+	case FileOperationMove:
+		// TODO(go.1.25): os.Root.Rename is only available starting go 1.25 so we'll use it instead
+		err := ensureDir(root, destinationPath)
+		if err != nil {
+			return err
+		}
+
+		srcFile, err := root.Open(path)
+		if err != nil {
+			return err
+		}
+		defer srcFile.Close()
+
+		srcContent, err := io.ReadAll(srcFile)
+		if err != nil {
+			return err
+		}
+
+		// Create the destination with os.Root to ensure the path is clean
+		destFile, err := root.Create(destinationPath)
+		if err != nil {
+			return err
+		}
+		defer destFile.Close()
+
+		_, err = destFile.Write(srcContent)
+		if err != nil {
+			return err
+		}
+
+		err = root.Remove(path)
+		if err != nil {
+			return err
+		}
+		return nil
 	case FileOperationDelete:
 		err := root.Remove(path)
 		if err != nil && !os.IsNotExist(err) {

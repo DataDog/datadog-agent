@@ -40,6 +40,7 @@ func TestGetTracerouteURL(t *testing.T) {
 		protocol                  payload.Protocol
 		tcpMethod                 payload.TCPMethod
 		tcpSynParisTracerouteMode bool
+		disableWindowsDriver      bool
 		reverseDNS                bool
 		maxTTL                    uint8
 		timeout                   time.Duration
@@ -55,6 +56,7 @@ func TestGetTracerouteURL(t *testing.T) {
 			protocol:                  payload.ProtocolTCP,
 			tcpMethod:                 payload.TCPConfigPreferSACK,
 			tcpSynParisTracerouteMode: true,
+			disableWindowsDriver:      false,
 			reverseDNS:                true,
 			maxTTL:                    30,
 			timeout:                   5 * time.Second,
@@ -71,6 +73,7 @@ func TestGetTracerouteURL(t *testing.T) {
 				"reverse_dns":                   "true",
 				"traceroute_queries":            "3",
 				"e2e_queries":                   "50",
+				"disable_windows_driver":        "false",
 			},
 		},
 	}
@@ -93,6 +96,7 @@ func TestGetTracerouteURL(t *testing.T) {
 				tt.protocol,
 				tt.tcpMethod,
 				tt.tcpSynParisTracerouteMode,
+				tt.disableWindowsDriver,
 				tt.reverseDNS,
 				tt.maxTTL,
 				tt.timeout,

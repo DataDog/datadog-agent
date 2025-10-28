@@ -21,7 +21,6 @@ type AssertionResult struct {
 	Expected interface{}      `json:"expected"`
 	Actual   interface{}      `json:"actual"`
 	Valid    bool             `json:"valid"`
-	Failure  APIFailure       `json:"failure"`
 }
 
 // Compare evaluates the assertion result by comparing the actual and expected values.
@@ -121,6 +120,7 @@ type Result struct {
 	Netstats        NetStats            `json:"netstats"`
 	Netpath         payload.NetworkPath `json:"netpath"`
 	Status          string              `json:"status"`
+	RunType         string              `json:"runType"`
 }
 
 // Test represents the definition of a test including metadata and version.

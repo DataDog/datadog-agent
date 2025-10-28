@@ -45,13 +45,14 @@ import (
 	logtrace "github.com/DataDog/datadog-agent/comp/core/log/fx-trace"
 	"github.com/DataDog/datadog-agent/comp/core/pid"
 	"github.com/DataDog/datadog-agent/comp/core/pid/pidimpl"
-	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
+	secretsnoopfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx-noop"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	taggerfx "github.com/DataDog/datadog-agent/comp/core/tagger/fx"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
+	statsdotel "github.com/DataDog/datadog-agent/comp/dogstatsd/statsd/otel"
 	"github.com/DataDog/datadog-agent/comp/forwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
@@ -95,7 +96,7 @@ func runTestOTelAgent(ctx context.Context, params *subcommands.GlobalParams, pid
 		workloadmetafx.Module(workloadmeta.NewParams()),
 		fx.Supply(metricsclient.NewStatsdClientWrapper(&ddgostatsd.NoOpClient{})),
 		fx.Provide(func(client *metricsclient.StatsdClientWrapper) statsd.Component {
-			return statsd.NewOTelStatsd(client)
+			return statsdotel.NewOTelStatsd(client)
 		}),
 		sysprobeconfig.NoneModule(),
 		ipcfx.ModuleReadWrite(),
@@ -122,7 +123,7 @@ func runTestOTelAgent(ctx context.Context, params *subcommands.GlobalParams, pid
 			return h.Get
 		}),
 		hostnameinterface.MockModule(),
-		fx.Supply(option.None[secrets.Component]()),
+		secretsnoopfx.Module(),
 
 		fx.Provide(func(_ coreconfig.Component) logdef.Params {
 			return logdef.ForDaemon(params.LoggerName, "log_file", pkgconfigsetup.DefaultOTelAgentLogFile)

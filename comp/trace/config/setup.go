@@ -106,7 +106,7 @@ func prepareConfig(c corecompcfg.Component, tagger tagger.Component, ipc ipc.Com
 	if p := pkgconfigsetup.Datadog().GetProxies(); p != nil {
 		cfg.Proxy = httputils.GetProxyTransportFunc(p, c)
 	}
-	if pkgconfigsetup.IsRemoteConfigEnabled(coreConfigObject) && coreConfigObject.GetBool("remote_configuration.apm_sampling.enabled") {
+	if utils.IsRemoteConfigEnabled(coreConfigObject) && coreConfigObject.GetBool("remote_configuration.apm_sampling.enabled") {
 		client, err := remote(c, ipcAddress, ipc)
 		if err != nil {
 			log.Errorf("Error when subscribing to remote config management %v", err)
@@ -657,6 +657,13 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 	if k := "ol_proxy_config.api_version"; core.IsSet(k) {
 		c.OpenLineageProxy.APIVersion = core.GetInt(k)
 	}
+	if k := "apm_config.debug_v1_payloads"; core.IsSet(k) {
+		c.DebugV1Payloads = core.GetBool("apm_config.debug_v1_payloads")
+	}
+	if k := "apm_config.enable_v1_trace_endpoint"; core.IsSet(k) {
+		c.EnableV1TraceEndpoint = core.GetBool("apm_config.enable_v1_trace_endpoint")
+	}
+	c.SendAllInternalStats = core.GetBool("apm_config.send_all_internal_stats") // default is false
 	c.DebugServerPort = core.GetInt("apm_config.debug.port")
 	return nil
 }

@@ -39,7 +39,4 @@ def github(ctx):
     if running_in_ci():
         raise Exit(message='This task is meant to be run locally, not in CI', code=1)
 
-    if "GITHUB_TOKEN" in os.environ:
-        print(os.environ["GITHUB_TOKEN"])
-    else:
-        print(generate_local_github_token(ctx))
+    print(generate_local_github_token(ctx))

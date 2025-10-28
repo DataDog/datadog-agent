@@ -13,9 +13,9 @@ import (
 
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
+	secretsnoop "github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 // Reader is a subset of Config that only allows reading of configuration
@@ -31,26 +31,11 @@ type cfg struct {
 	warnings *pkgconfigmodel.Warnings
 }
 
-// configDependencies is an interface that mimics the fx-oriented dependencies struct
-// TODO: (components) investigate whether this interface is worth keeping, otherwise delete it and just use dependencies
-type configDependencies interface {
-	getParams() *Params
-	getSecretResolver() (secrets.Component, bool)
-}
-
 type dependencies struct {
 	fx.In
 
 	Params Params
-	Secret option.Option[secrets.Component]
-}
-
-func (d dependencies) getParams() *Params {
-	return &d.Params
-}
-
-func (d dependencies) getSecretResolver() (secrets.Component, bool) {
-	return d.Secret.Get()
+	Secret secrets.Component
 }
 
 type provides struct {
@@ -70,7 +55,10 @@ func NewServerlessConfig(path string) (Component, error) {
 		options = append(options, WithConfFilePath(path))
 	}
 
-	d := dependencies{Params: NewParams(path, options...)}
+	d := dependencies{
+		Params: NewParams(path, options...),
+		Secret: secretsnoop.NewComponent().Comp,
+	}
 	return newConfig(d)
 }
 
@@ -84,13 +72,11 @@ func newComponent(deps dependencies) (provides, error) {
 
 func newConfig(deps dependencies) (*cfg, error) {
 	config := pkgconfigsetup.GlobalConfigBuilder()
+	warnings := &pkgconfigmodel.Warnings{}
 
-	warnings, err := setupConfig(config, deps)
+	err := setupConfig(config, deps.Secret, deps.Params)
 	returnErrFct := func(e error) (*cfg, error) {
 		if e != nil && deps.Params.ignoreErrors {
-			if warnings == nil {
-				warnings = &pkgconfigmodel.Warnings{}
-			}
 			warnings.Errors = []error{e}
 			e = nil
 		}

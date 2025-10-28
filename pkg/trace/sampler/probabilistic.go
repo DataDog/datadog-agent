@@ -12,6 +12,7 @@ import (
 	"strconv"
 
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
+	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace/idx"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
 )
@@ -82,6 +83,30 @@ func (ps *ProbabilisticSampler) Sample(root *trace.Span) bool {
 	keep := hash&bitMaskHashBuckets < ps.scaledSamplingPercentage
 	if keep {
 		setMetric(root, probRateKey, ps.samplingPercentage)
+	}
+	return keep
+}
+
+// SampleV1 a trace given the chunk's root span, returns true if the trace should be kept
+func (ps *ProbabilisticSampler) SampleV1(traceID []byte, root *idx.InternalSpan) bool {
+	if !ps.enabled {
+		return false
+	}
+
+	tid := make([]byte, 16)
+	if !ps.fullTraceIDMode {
+		copy(tid, traceID[:8])
+	} else {
+		copy(tid, traceID)
+	}
+
+	hasher := fnv.New32a()
+	_, _ = hasher.Write(ps.hashSeed)
+	_, _ = hasher.Write(tid)
+	hash := hasher.Sum32()
+	keep := hash&bitMaskHashBuckets < ps.scaledSamplingPercentage
+	if keep {
+		root.SetFloat64Attribute(probRateKey, ps.samplingPercentage)
 	}
 	return keep
 }
