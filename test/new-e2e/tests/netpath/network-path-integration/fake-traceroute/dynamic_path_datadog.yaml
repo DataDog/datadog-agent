@@ -1,0 +1,4 @@
+network_path:
+  connections_monitoring:
+    enabled: true
+
