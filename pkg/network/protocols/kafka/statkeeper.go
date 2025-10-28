@@ -56,7 +56,7 @@ func (statKeeper *StatKeeper) Process(tx *EbpfTx) {
 		ConnectionKey:  tx.ConnTuple(),
 	}
 
-	fmt.Printf("kafka adding key: %s; status: %d; record count: %d\n", key.String(), tx.ErrorCode(), tx.RecordsCount())
+	fmt.Printf("kafka adding key: %s; status: %d; record count: %d; start time: %v; end: %v\n", key.String(), tx.ErrorCode(), tx.RecordsCount(), tx.Transaction.Request_started, tx.Transaction.Response_last_seen)
 	statKeeper.statsMutex.Lock()
 	defer statKeeper.statsMutex.Unlock()
 	requestStats, ok := statKeeper.stats[key]
