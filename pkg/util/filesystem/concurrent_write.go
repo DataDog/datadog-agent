@@ -52,6 +52,8 @@ func FetchArtifact[T any](ctx context.Context, location string, factory Artifact
 	}
 }
 
+var ErrCouldNotReadArtifact = errors.New("could not read artifact")
+
 // TryFetchArtifact attempts to load an artifact using the provided factory.
 // If the artifact does not exist, it return an error.
 func TryFetchArtifact[T any](location string, factory ArtifactBuilder[T]) (T, error) {
@@ -60,7 +62,7 @@ func TryFetchArtifact[T any](location string, factory ArtifactBuilder[T]) (T, er
 	// Read the artifact
 	content, err := os.ReadFile(location)
 	if err != nil {
-		return zero, fmt.Errorf("unable to read artifact: %s", err)
+		return zero, ErrCouldNotReadArtifact
 	}
 
 	// Try to load artifact

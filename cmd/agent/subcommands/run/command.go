@@ -508,6 +508,7 @@ func getSharedFxOption() fx.Option {
 		adschedulerimpl.Module(),
 		fx.Provide(func(serverDebug dogstatsddebug.Component, config config.Component) settings.Params {
 			return settings.Params{
+				// Runtime settings supported here!
 				Settings: map[string]settings.RuntimeSetting{
 					"log_level":                              commonsettings.NewLogLevelRuntimeSetting(),
 					"runtime_mutex_profile_fraction":         commonsettings.NewRuntimeMutexProfileFraction(),

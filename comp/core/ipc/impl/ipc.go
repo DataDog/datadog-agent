@@ -19,6 +19,7 @@ import (
 	pkgtoken "github.com/DataDog/datadog-agent/pkg/api/security"
 	"github.com/DataDog/datadog-agent/pkg/api/security/cert"
 	pkgapiutil "github.com/DataDog/datadog-agent/pkg/api/util"
+	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -51,6 +52,9 @@ func NewReadOnlyComponent(reqs Requires) (Provides, error) {
 	reqs.Log.Debug("Loading IPC artifacts")
 	var err error
 	token, err := pkgtoken.FetchAuthToken(reqs.Conf)
+	if err == filesystem.ErrCouldNotReadArtifact {
+		return buildIPCComponent(reqs, token, nil, nil, nil)
+	}
 	if err != nil {
 		return Provides{}, fmt.Errorf("unable to fetch auth token (please check that the Agent is running, this file is normally generated during the first run of the Agent service): %s", err)
 	}
@@ -59,7 +63,6 @@ func NewReadOnlyComponent(reqs Requires) (Provides, error) {
 	if err != nil {
 		return Provides{}, fmt.Errorf("unable to fetch IPC certificate (please check that the Agent is running, this file is normally generated during the first run of the Agent service): %s", err)
 	}
-
 	return buildIPCComponent(reqs, token, clientConfig, serverConfig, clusterClientConfig)
 }
 
@@ -151,6 +154,20 @@ func (ipc *ipcComp) GetClient() ipc.HTTPClient {
 }
 
 func buildIPCComponent(reqs Requires, token string, clientConfig, serverConfig, clusterClientConfig *tls.Config) (Provides, error) {
+	if clientConfig == nil {
+		var incorrectHTTPClient ipc.HTTPClient
+		return Provides{
+			Comp: &ipcComp{
+				logger:          reqs.Log,
+				conf:            reqs.Conf,
+				client:          incorrectHTTPClient,
+				token:           token,
+				tlsClientConfig: clientConfig,
+				tlsServerConfig: serverConfig,
+			},
+		}, nil
+	}
+
 	// printing the fingerprint of the loaded auth stack is useful to troubleshoot IPC issues
 	printAuthSignature(reqs.Log, token, clientConfig, serverConfig)
 

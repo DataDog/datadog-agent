@@ -21,6 +21,7 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	secretnoopfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx-noop"
 	ddflareextensiontypes "github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/types"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/settings"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 
@@ -187,40 +188,44 @@ func setConfigValue(_ log.Component, client ipc.HTTPClient, cliParams *cliParams
 	return nil
 }
 
-func getConfigValue(_ log.Component, client ipc.HTTPClient, cliParams *cliParams) error {
-	if len(cliParams.args) != 1 {
-		return fmt.Errorf("a single setting name must be specified")
+func getConfigValue(cfg config.Component, _ log.Component, client ipc.HTTPClient, cliParams *cliParams) error {
+	setting := cliParams.args[0]
+
+	if client == nil {
+		// local call
+		inf := cfg.Get(setting)
+		src := cfg.GetSource(setting)
+		displayConfigValue("local", setting, inf, src)
+		return nil
 	}
 
+	// remote call
 	c, err := cliParams.SettingsBuilder(client)
 	if err != nil {
 		return err
 	}
-
-	resp, err := c.GetWithSources(cliParams.args[0])
+	resp, err := c.GetWithSources(setting)
 	if err != nil {
 		return err
 	}
-
-	fmt.Printf("%s is set to: %v\n", cliParams.args[0], resp["value"])
-
-	if cliParams.source {
-		sourcesVal, ok := resp["sources_value"].([]interface{})
-		if !ok {
-			return fmt.Errorf("failed to cast sources_value to []map[interface{}]interface{}")
-		}
-
-		fmt.Printf("sources and their value:\n")
-		for _, sourceVal := range sourcesVal {
-			sourceVal, ok := sourceVal.(map[string]interface{})
-			if !ok {
-				return fmt.Errorf("failed to cast sourceVal to map[string]interface{}")
-			}
-			fmt.Printf("  %s: %v\n", sourceVal["Source"], sourceVal["Value"])
-		}
+	source := ""
+	if src, ok := resp["source"].(string); ok {
+		source = src
 	}
-
+	displayConfigValue("remote", setting, resp["value"], model.Source(source))
 	return nil
+}
+
+func displayConfigValue(kind, setting string, value interface{}, source model.Source) {
+	fmt.Printf("Kind: %s\n", kind)
+	fmt.Printf("Setting: %s\n", setting)
+	fmt.Printf("Source: %s\n", source)
+	// show the result!
+	data, err := json.MarshalIndent(value, "", "  ")
+	if err != nil {
+		return
+	}
+	fmt.Printf("%s\n", string(data))
 }
 
 func otelAgentCfg(_ log.Component, config config.Component, client ipc.HTTPClient, _ *cliParams) error {

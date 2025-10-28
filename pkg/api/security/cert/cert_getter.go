@@ -12,6 +12,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/pem"
+	"errors"
 	"fmt"
 	"net"
 	"path/filepath"
@@ -85,6 +86,9 @@ func FetchIPCCert(config configModel.Reader) (*tls.Config, *tls.Config, *tls.Con
 	}
 
 	cert, err := filesystem.TryFetchArtifact(getCertFilepath(config), &certificateFactory{}) // TODO IPC: replace this call by FetchArtifact to retry until the artifact is successfully retrieved or the context is done
+	if errors.Is(err, filesystem.ErrCouldNotReadArtifact) {
+		return nil, nil, nil, nil
+	}
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("error while fetching IPC cert: %w", err)
 	}

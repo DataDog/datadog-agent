@@ -86,6 +86,7 @@ func (s *settingsRegistry) SetRuntimeSetting(setting string, value interface{}, 
 	if _, ok := s.settings[setting]; !ok {
 		return &settings.SettingNotFoundError{Name: setting}
 	}
+	// Assign to actual config here
 	return s.settings[setting].Set(s.config, value, source)
 }
 
@@ -206,21 +207,11 @@ func (s *settingsRegistry) GetValue(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	setting := vars["setting"]
 
-	s.log.Infof("Got a request to read a setting value: %s", setting)
+	// read from config
+	val := s.config.Get(setting)
+	source := s.config.GetSource(setting)
 
-	val, err := s.GetRuntimeSetting(setting)
-	if err != nil {
-		body, _ := json.Marshal(map[string]string{"error": err.Error()})
-		switch err.(type) {
-		case *settings.SettingNotFoundError:
-			http.Error(w, string(body), http.StatusBadRequest)
-		default:
-			http.Error(w, string(body), http.StatusInternalServerError)
-		}
-		return
-	}
-
-	resp := map[string]interface{}{"value": val}
+	resp := map[string]interface{}{"value": val, "source": source}
 	if r.URL.Query().Get("sources") == "true" {
 		resp["sources_value"] = s.config.GetAllSources(setting)
 	}
