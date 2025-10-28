@@ -233,19 +233,22 @@ func TestRetryTransactions(t *testing.T) {
 	payload := transaction.NewBytesPayloadWithoutMetaData([]byte{1})
 	t1 := transaction.NewHTTPTransaction()
 	t1.Domain = "domain/"
+	t1.Endpoint.Name = "test1"
 	t1.Endpoint.Route = "test1"
 	t1.Payload = payload
 	t2 := transaction.NewHTTPTransaction()
 	t2.Domain = "domain/"
+	t2.Endpoint.Name = "test2"
 	t2.Endpoint.Route = "test2"
 	t2.Payload = payload
 
 	// Create blocks
-	forwarder.blockedList.recover(t1.GetTarget())
-	forwarder.blockedList.recover(t2.GetTarget())
+	forwarder.blockedList.recover(t1.GetTarget(), time.Now())
+	forwarder.blockedList.recover(t2.GetTarget(), time.Now())
 
 	forwarder.blockedList.errorPerEndpoint[t1.GetTarget()].until = time.Now().Add(-1 * time.Hour)
 	forwarder.blockedList.errorPerEndpoint[t2.GetTarget()].until = time.Now().Add(1 * time.Hour)
+	forwarder.blockedList.errorPerEndpoint[t2.GetTarget()].state = blocked
 
 	forwarder.requeueTransaction(t2)
 	forwarder.requeueTransaction(t2) // this second one should be dropped
@@ -263,8 +266,9 @@ func TestForwarderRetry(t *testing.T) {
 	forwarder.Start()
 	defer forwarder.Stop(false)
 
-	forwarder.blockedList.close("blocked")
+	forwarder.blockedList.close("blocked", time.Now())
 	forwarder.blockedList.errorPerEndpoint["blocked"].until = time.Now().Add(1 * time.Hour)
+	forwarder.blockedList.errorPerEndpoint["blocked"].state = blocked
 
 	ready := newTestTransactionDomainForwarder()
 	notReady := newTestTransactionDomainForwarder()
@@ -328,7 +332,7 @@ func TestForwarderRetryLimitQueue(t *testing.T) {
 	log := logmock.New(t)
 	forwarder := newDomainForwarderForTest(t, mockConfig, log, 0, false)
 	forwarder.init()
-	forwarder.blockedList.close("blocked")
+	forwarder.blockedList.close("blocked", time.Now())
 	forwarder.blockedList.errorPerEndpoint["blocked"].until = time.Now().Add(1 * time.Minute)
 
 	var transactions []*testTransaction
@@ -374,7 +378,7 @@ func TestDomainForwarderRetryQueueAllPayloadsMaxSize(t *testing.T) {
 	log := logmock.New(t)
 	secrets := secretsmock.New(t)
 	forwarder := newDomainForwarder(mockConfig, log, secrets, "test", false, false, transactionRetryQueue, 0, 10, transaction.SortByCreatedTimeAndPriority{HighPriorityFirst: true}, retry.NewPointCountTelemetry("domain"))
-	forwarder.blockedList.close("blocked")
+	forwarder.blockedList.close("blocked", time.Now())
 	forwarder.blockedList.errorPerEndpoint["blocked"].until = time.Now().Add(1 * time.Minute)
 
 	defer forwarder.Stop(true)

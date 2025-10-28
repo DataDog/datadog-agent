@@ -10,7 +10,6 @@ filegroup(
         "@libyaml",
         "@lua//:liblua",
         "@sqlite3",
-        "@xz",
         "@xz//:lzma",
         "@zlib//:libz_so",
     ] + select({
@@ -18,6 +17,7 @@ filegroup(
             "@libsepol//:sepol",
             "@nghttp2",
             "@pcre2",
+            "@popt",
         ],
         "//conditions:default": [],
     }),
