@@ -303,18 +303,10 @@ func (s *Serializer) getAutoscalingFailoverMetrics() (bool, map[string]struct{})
 	autoscalingFailoverEnabled := s.config.GetBool("autoscaling.failover.enabled") && s.config.GetBool("cluster_agent.enabled")
 	var allowlist map[string]struct{}
 	if autoscalingFailoverEnabled {
-		if s.config.IsConfigured("autoscaling.failover.metrics") {
-			rawList := s.config.GetStringSlice("autoscaling.failover.metrics")
-			allowlist = make(map[string]struct{}, len(rawList))
-			for _, allowed := range rawList {
-				allowlist[allowed] = struct{}{}
-			}
-		} else {
-			s.logger.Info("Local autoscaling.failover.enabled is set but no metrics are configured. Defaulting to container.memory.usage and container.cpu.usage")
-			allowlist = map[string]struct{}{
-				"container.memory.usage": {},
-				"container.cpu.usage":    {},
-			}
+		rawList := s.config.GetStringSlice("autoscaling.failover.metrics")
+		allowlist = make(map[string]struct{}, len(rawList))
+		for _, allowed := range rawList {
+			allowlist[allowed] = struct{}{}
 		}
 	}
 	return autoscalingFailoverEnabled, allowlist
