@@ -37,7 +37,7 @@ func (n LegacyFilterProgram) GetInitializationErrors() []error {
 func getLegacyFilterValues(entity workloadfilter.Filterable) (annotations map[string]string, name, image, namespace string) {
 	switch o := entity.(type) {
 	case *workloadfilter.Container:
-		return o.GetAnnotations(), o.GetName(), o.GetImage(), o.GetPod().GetNamespace()
+		return o.GetAnnotations(), o.GetName(), o.GetImage().GetReference(), o.GetPod().GetNamespace()
 	case *workloadfilter.Pod:
 		return o.GetAnnotations(), "", "", o.GetNamespace()
 	case *workloadfilter.Service:

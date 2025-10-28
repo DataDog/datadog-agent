@@ -385,7 +385,10 @@ func (m *Manager) unlinkProfile(profile *profile.Profile, workload *tags.Workloa
 
 func (m *Manager) onWorkloadSelectorResolvedEvent(workload *tags.Workload) {
 
-	filepathsInProcessCache := m.GetNodesInProcessCache()
+	var filepathsInProcessCache map[activity_tree.ImageProcessKey]bool
+	if m.config.RuntimeSecurity.SecurityProfileNodeEvictionTimeout > 0 {
+		filepathsInProcessCache = m.GetNodesInProcessCache()
+	}
 
 	m.profilesLock.Lock()
 	defer m.profilesLock.Unlock()

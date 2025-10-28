@@ -32,6 +32,10 @@ func TestContainerCreatedAt(t *testing.T) {
 		return kv.IsOpenSUSELeap15_3Kernel()
 	})
 
+	checkKernelCompatibility(t, "ContainerCreatedAt test not consistent on CentOS7", func(kv *kernel.Version) bool {
+		return kv.IsRH7Kernel()
+	})
+
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "test_container_created_at",
