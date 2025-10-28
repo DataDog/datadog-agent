@@ -65,10 +65,6 @@ type libsetHandler struct {
 	// callbacks is a map of the callbacks that are subscribed to this libset
 	callbacks map[*LibraryCallback]struct{}
 
-	// perfHandler is the perf handler for this libset, that will get the events from the perf buffer
-	// the lifetime of the perf handler is tied to the lifetime of the eBPF manager
-	perfHandler *perf.EventHandler
-
 	// enabled is true if the eBPF program has been enabled for this libset,
 	// which means that the perf buffer is being read and the eBPF program has been
 	// edited to enable this libset.
@@ -300,7 +296,9 @@ func (e *EbpfProgram) InitWithLibsets(libsets ...Libset) error {
 		e.libsets[libset].enabled = true
 	}
 
-	e.setupManagerAndPerfHandlers()
+	if err := e.setupManagerAndPerfHandlers(); err != nil {
+		return fmt.Errorf("cannot setup manager and perf handlers: %w", err)
+	}
 
 	if err := e.loadProgram(); err != nil {
 		return fmt.Errorf("cannot load program: %w", err)
