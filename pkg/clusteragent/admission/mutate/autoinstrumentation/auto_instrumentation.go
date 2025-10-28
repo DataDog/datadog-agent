@@ -407,28 +407,28 @@ func initContainerResourceRequirements(pod *corev1.Pod, conf initResourceRequire
 			requirements.Limits[k] = lim
 		}
 		
-		// If neither requests nor limits are configured, use auto-calculation
+		// Auto-calculate requests and limits independently
 		if _, hasReq := conf.requests[k]; !hasReq {
-			if _, hasLim := conf.limits[k]; !hasLim {
-				if maxPodLim, ok := podRequirements.Limits[k]; ok {
-					// Check minimum requirements
-					switch k {
-					case corev1.ResourceMemory:
-						if minimumMemoryLimit.Cmp(maxPodLim) == 1 {
-							decision.skipInjection = true
-							insufficientResourcesMessage += fmt.Sprintf(", %v pod_limit=%v needed=%v", k, maxPodLim.String(), minimumMemoryLimit.String())
-						}
-					case corev1.ResourceCPU:
-						if minimumCPULimit.Cmp(maxPodLim) == 1 {
-							decision.skipInjection = true
-							insufficientResourcesMessage += fmt.Sprintf(", %v pod_limit=%v needed=%v", k, maxPodLim.String(), minimumCPULimit.String())
-						}
+			if maxPodReq, ok := podRequirements.Requests[k]; ok {
+				requirements.Requests[k] = maxPodReq
+			}
+		}
+		if _, hasLim := conf.limits[k]; !hasLim {
+			if maxPodLim, ok := podRequirements.Limits[k]; ok {
+				// Check minimum requirements
+				switch k {
+				case corev1.ResourceMemory:
+					if minimumMemoryLimit.Cmp(maxPodLim) == 1 {
+						decision.skipInjection = true
+						insufficientResourcesMessage += fmt.Sprintf(", %v pod_limit=%v needed=%v", k, maxPodLim.String(), minimumMemoryLimit.String())
 					}
-					requirements.Limits[k] = maxPodLim
+				case corev1.ResourceCPU:
+					if minimumCPULimit.Cmp(maxPodLim) == 1 {
+						decision.skipInjection = true
+						insufficientResourcesMessage += fmt.Sprintf(", %v pod_limit=%v needed=%v", k, maxPodLim.String(), minimumCPULimit.String())
+					}
 				}
-				if maxPodReq, ok := podRequirements.Requests[k]; ok {
-					requirements.Requests[k] = maxPodReq
-				}
+				requirements.Limits[k] = maxPodLim
 			}
 		}
 	}
