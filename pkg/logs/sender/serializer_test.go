@@ -31,6 +31,35 @@ func TestArraySerializer(t *testing.T) {
 	assert.Equal(t, []byte("[a,b]"), payload)
 }
 
+func TestSingleObjectSerializer(t *testing.T) {
+	var messages []*message.Message
+	var payload []byte
+
+	serializer := NewSingleObjectSerializer()
+
+	// Test with single message - should serialize without array wrapping
+	messages = []*message.Message{message.NewMessage([]byte(`{"key":"value"}`), nil, "", 0)}
+	payload = serializeToBytes(t, serializer, messages)
+	serializer.Reset()
+	assert.Equal(t, []byte(`{"key":"value"}`), payload)
+
+	// Test with another single message
+	messages = []*message.Message{message.NewMessage([]byte(`{"foo":"bar"}`), nil, "", 0)}
+	payload = serializeToBytes(t, serializer, messages)
+	serializer.Reset()
+	assert.Equal(t, []byte(`{"foo":"bar"}`), payload)
+
+	// Test with multiple messages - only the last one should be written (with warning logged)
+	messages = []*message.Message{
+		message.NewMessage([]byte(`{"first":"message"}`), nil, "", 0),
+		message.NewMessage([]byte(`{"second":"message"}`), nil, "", 0),
+	}
+	payload = serializeToBytes(t, serializer, messages)
+	serializer.Reset()
+	// Should only contain the last message since single object serializer doesn't support batching
+	assert.Equal(t, []byte(`{"second":"message"}`), payload)
+}
+
 func serializeToBytes(t *testing.T, s Serializer, messages []*message.Message) []byte {
 	t.Helper()
 

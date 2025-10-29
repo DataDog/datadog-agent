@@ -1311,6 +1311,7 @@ func agent(config pkgconfigmodel.Setup) {
 
 	// Notable Events (EUDM)
 	config.BindEnvAndSetDefault("notable_events.enabled", false)
+	bindEnvAndSetLogsConfigKeys(config, "eventsv2.forwarder.")
 
 	pkgconfigmodel.AddOverrideFunc(toggleDefaultPayloads)
 }

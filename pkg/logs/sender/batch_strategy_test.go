@@ -34,7 +34,8 @@ func TestBatchStrategySendsPayloadWhenBufferIsFull(t *testing.T) {
 		"test",
 		compressionfx.NewMockCompressor().NewCompressor(compression.NoneKind, 1),
 		metrics.NewNoopPipelineMonitor(""),
-		"test")
+		"test",
+		nil)
 	s.Start()
 
 	message1 := message.NewMessage([]byte("a"), nil, "", 0)
@@ -80,7 +81,8 @@ func TestBatchStrategySendsPayloadWhenBufferIsOutdated(t *testing.T) {
 		clk,
 		compressionfx.NewMockCompressor().NewCompressor(compression.NoneKind, 1),
 		metrics.NewNoopPipelineMonitor(""),
-		"test")
+		"test",
+		nil)
 	s.Start()
 
 	for round := 0; round < 3; round++ {
@@ -117,7 +119,8 @@ func TestBatchStrategySendsPayloadWhenClosingInput(t *testing.T) {
 		clk,
 		compressionfx.NewMockCompressor().NewCompressor(compression.NoneKind, 1),
 		metrics.NewNoopPipelineMonitor(""),
-		"test")
+		"test",
+		nil)
 	s.Start()
 
 	message := message.NewMessage([]byte("a"), nil, "", 0)
@@ -152,7 +155,8 @@ func TestBatchStrategyShouldNotBlockWhenStoppingGracefully(t *testing.T) {
 		"test",
 		compressionfx.NewMockCompressor().NewCompressor(compression.NoneKind, 1),
 		metrics.NewNoopPipelineMonitor(""),
-		"test")
+		"test",
+		nil)
 	s.Start()
 	message := message.NewMessage([]byte{}, nil, "", 0)
 
@@ -186,7 +190,8 @@ func TestBatchStrategySynchronousFlush(t *testing.T) {
 		"test",
 		compressionfx.NewMockCompressor().NewCompressor(compression.NoneKind, 1),
 		metrics.NewNoopPipelineMonitor(""),
-		"test")
+		"test",
+		nil)
 	strategy.Start()
 
 	// all of these messages will get buffered
@@ -245,7 +250,8 @@ func TestBatchStrategyFlushChannel(t *testing.T) {
 		"test",
 		compressionfx.NewMockCompressor().NewCompressor(compression.NoneKind, 1),
 		metrics.NewNoopPipelineMonitor(""),
-		"test")
+		"test",
+		nil)
 	strategy.Start()
 
 	// all of these messages will get buffered
@@ -307,7 +313,8 @@ func TestBatchStrategyMRFRouting(t *testing.T) {
 		"test",
 		compressionfx.NewMockCompressor().NewCompressor(compression.NoneKind, 1),
 		metrics.NewNoopPipelineMonitor(""),
-		"test")
+		"test",
+		nil)
 	strategy.Start()
 	normalMessage := message.NewMessage([]byte("normal message"), nil, "", 0)
 

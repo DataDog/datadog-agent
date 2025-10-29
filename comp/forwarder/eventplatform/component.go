@@ -39,6 +39,8 @@ const (
 	EventTypeContainerSBOM = "container-sbom"
 	// EventTypeSoftwareInventory represents a software inventory event
 	EventTypeSoftwareInventory = "software-inventory"
+	// EventTypeEventsV2 represents an event for the Event Management v2 API
+	EventTypeEventsV2 = "eventsv2"
 )
 
 // Component is the interface of the event platform forwarder component.

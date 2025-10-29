@@ -51,6 +51,7 @@ const (
 	eventTypeDBMActivity = "dbm-activity"
 	eventTypeDBMMetadata = "dbm-metadata"
 	eventTypeDBMHealth   = "dbm-health"
+	eventTypeEventsV2    = "eventsv2"
 )
 
 func getPassthroughPipelines() []passthroughPipelineDesc {
@@ -237,6 +238,19 @@ func getPassthroughPipelines() []passthroughPipelineDesc {
 			defaultBatchMaxSize:           pkgconfigsetup.DefaultBatchMaxSize,
 			defaultInputChanSize:          pkgconfigsetup.DefaultInputChanSize,
 		},
+		{
+			eventType:                     eventplatform.EventTypeEventsV2,
+			category:                      "Event Management",
+			contentType:                   logshttp.JSONContentType,
+			endpointsConfigPrefix:         "eventsv2.forwarder.",
+			hostnameEndpointPrefix:        "event-management-intake.",
+			intakeTrackType:               "events",
+			defaultBatchMaxConcurrentSend: pkgconfigsetup.DefaultBatchMaxConcurrentSend,
+			defaultBatchMaxContentSize:    pkgconfigsetup.DefaultBatchMaxContentSize,
+			defaultBatchMaxSize:           1,
+			defaultInputChanSize:          pkgconfigsetup.DefaultInputChanSize,
+			useSingleObjectSerializer:     true,
+		},
 	}
 
 	if pkgconfigsetup.Datadog().GetBool("software_inventory.enabled") {
@@ -409,6 +423,7 @@ type passthroughPipelineDesc struct {
 	defaultInputChanSize          int
 	forceCompressionKind          string
 	forceCompressionLevel         int
+	useSingleObjectSerializer     bool
 }
 
 // newHTTPPassthroughPipeline creates a new HTTP-only event platform pipeline that sends messages directly to intake
@@ -487,6 +502,14 @@ func newHTTPPassthroughPipeline(
 	if desc.contentType == logshttp.ProtobufContentType {
 		strategy = sender.NewStreamStrategy(inputChan, senderImpl.In(), encoder)
 	} else {
+		// Select serializer based on pipeline configuration
+		var serializer sender.Serializer
+		if desc.useSingleObjectSerializer {
+			serializer = sender.NewSingleObjectSerializer()
+		} else {
+			serializer = sender.NewArraySerializer()
+		}
+
 		strategy = sender.NewBatchStrategy(
 			inputChan,
 			senderImpl.In(),
@@ -499,6 +522,7 @@ func newHTTPPassthroughPipeline(
 			encoder,
 			pipelineMonitor,
 			"0",
+			serializer,
 		)
 	}
 

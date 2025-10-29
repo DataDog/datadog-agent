@@ -26,6 +26,7 @@ func createTestBatch() *batch {
 		metrics.NewNoopPipelineMonitor(""),
 		metrics.NewNoopPipelineMonitor("").MakeUtilizationMonitor("test", "test"),
 		"test",
+		nil,
 	)
 }
 
@@ -76,6 +77,7 @@ func TestBatchAddMessageTooLarge(t *testing.T) {
 		metrics.NewNoopPipelineMonitor(""),
 		metrics.NewNoopPipelineMonitor("").MakeUtilizationMonitor("test", "test"),
 		"test",
+		nil,
 	)
 
 	// Send normal message

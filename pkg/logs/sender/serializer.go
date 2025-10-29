@@ -9,6 +9,7 @@ import (
 	"io"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // Serializer transforms a batch of messages into a payload.
@@ -60,4 +61,41 @@ func (s *arraySerializer) Finish(writer io.Writer) error {
 // Reset resets the serializer to its initial state
 func (s *arraySerializer) Reset() {
 	s.isFirstMessage = true
+}
+
+// singleObjectSerializer sends messages as individual objects without array wrapping.
+// This is used for APIs that expect single objects rather than arrays.
+// It only supports sending one message per batch.
+type singleObjectSerializer struct {
+	messageCount int
+}
+
+// NewSingleObjectSerializer creates a new singleObjectSerializer
+func NewSingleObjectSerializer() Serializer {
+	return &singleObjectSerializer{messageCount: 0}
+}
+
+// Serialize writes a single message without array wrapping.
+// If called multiple times, it will log a warning since this serializer
+// is designed for single-object APIs.
+func (s *singleObjectSerializer) Serialize(message *message.Message, writer io.Writer) error {
+	if s.messageCount > 0 {
+		// This shouldn't happen if batch_max_size is set to 1
+		// But we log it defensively
+		log.Warn("singleObjectSerializer received multiple messages in one batch, only the last will be sent")
+	}
+	s.messageCount++
+	_, err := writer.Write(message.GetContent())
+	return err
+}
+
+// Finish completes the serialization (no-op for single objects)
+func (s *singleObjectSerializer) Finish(writer io.Writer) error {
+	s.Reset()
+	return nil
+}
+
+// Reset resets the serializer to its initial state
+func (s *singleObjectSerializer) Reset() {
+	s.messageCount = 0
 }
