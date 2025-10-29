@@ -626,9 +626,9 @@ func TestRecommenderClientTLSClientCertificateReload(t *testing.T) {
 		t.Fatal("timed out waiting for reloaded client certificate")
 	}
 
-	client.certificateCache.mu.RLock()
-	entry := client.certificateCache.cache[clientCertPath]
-	client.certificateCache.mu.RUnlock()
+	client.certificateManager.mu.RLock()
+	entry := client.certificateManager.cache[clientCertPath]
+	client.certificateManager.mu.RUnlock()
 	require.NotNil(t, entry.certificate)
 	require.NotNil(t, entry.certificate.Leaf)
 	assert.Equal(t, clientCert2.Subject.CommonName, entry.certificate.Leaf.Subject.CommonName)

@@ -42,9 +42,9 @@ type recommenderClient struct {
 	tlsConfig  *TLSConfig
 	clock      clock.Clock
 
-	tlsInitOnce      sync.Once
-	tlsInitErr       error
-	certificateCache *tlsCertificateCache
+	tlsInitOnce        sync.Once
+	tlsInitErr         error
+	certificateManager *tlsCertificateManager
 }
 
 func newRecommenderClient(clk clock.Clock, podWatcher workload.PodWatcher, tlsConfig *TLSConfig) *recommenderClient {
@@ -248,11 +248,11 @@ func (r *recommenderClient) getClient() (*http.Client, error) {
 			return
 		}
 
-		if r.certificateCache == nil && r.tlsConfig != nil && r.tlsConfig.requiresClientCertificate() {
-			r.certificateCache = newTLSCertificateCache(r.clock)
+		if r.certificateManager == nil && r.tlsConfig != nil && r.tlsConfig.requiresClientCertificate() {
+			r.certificateManager = newTLSCertificateManager(r.clock)
 		}
 
-		if err := configureTransportTLS(transport, r.tlsConfig, r.certificateCache); err != nil {
+		if err := configureTransportTLS(transport, r.tlsConfig, r.certificateManager); err != nil {
 			r.tlsInitErr = err
 		}
 	})

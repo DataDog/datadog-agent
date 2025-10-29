@@ -41,7 +41,7 @@ const (
 )
 
 // configureTransportTLS updates the provided transport with a TLS configuration based on the given settings.
-func configureTransportTLS(transport *http.Transport, config *TLSConfig, cache *tlsCertificateCache) error {
+func configureTransportTLS(transport *http.Transport, config *TLSConfig, cache *tlsCertificateManager) error {
 	if config == nil {
 		return nil
 	}
@@ -84,22 +84,7 @@ func buildTLSConfig(config *TLSConfig) (*tls.Config, error) {
 	}, nil
 }
 
-// tlsCertificateCache is an expiring cache to store certificates in memory used for TLS connections.
-type tlsCertificateCache struct {
-	mu    sync.RWMutex
-	cache map[string]*tlsCacheEntry
-	clock clock.Clock
-}
-
-func newTLSCertificateCache(clk clock.Clock) *tlsCertificateCache {
-	cache := &tlsCertificateCache{
-		cache: make(map[string]*tlsCacheEntry),
-		clock: clk,
-	}
-	go cache.run()
-	return cache
-}
-
+// tlsCacheEntry represents a cached certificate entry with metadata.
 type tlsCacheEntry struct {
 	certificate *tls.Certificate
 	err         error
@@ -127,7 +112,23 @@ func (c *tlsCacheEntry) isCertificateExpired(now time.Time) bool {
 	return c.certificate != nil && c.certificate.Leaf != nil && now.After(c.certificate.Leaf.NotAfter)
 }
 
-func (c *tlsCertificateCache) GetClientCertificateReloadingFunc(certFile, keyFile string) func(*tls.CertificateRequestInfo) (*tls.Certificate, error) {
+// tlsCertificateManager is an expiring cache to store certificates in memory used for TLS connections.
+type tlsCertificateManager struct {
+	mu    sync.RWMutex
+	cache map[string]*tlsCacheEntry
+	clock clock.Clock
+}
+
+func newTLSCertificateManager(clk clock.Clock) *tlsCertificateManager {
+	manager := &tlsCertificateManager{
+		cache: make(map[string]*tlsCacheEntry),
+		clock: clk,
+	}
+	go manager.run()
+	return manager
+}
+
+func (c *tlsCertificateManager) GetClientCertificateReloadingFunc(certFile, keyFile string) func(*tls.CertificateRequestInfo) (*tls.Certificate, error) {
 	return func(*tls.CertificateRequestInfo) (*tls.Certificate, error) {
 		now := c.clock.Now()
 
@@ -157,7 +158,7 @@ func (c *tlsCertificateCache) GetClientCertificateReloadingFunc(certFile, keyFil
 	}
 }
 
-func (c *tlsCertificateCache) run() {
+func (c *tlsCertificateManager) run() {
 	ticker := time.NewTicker(certificateCacheExpirationTimeout)
 	defer ticker.Stop()
 
