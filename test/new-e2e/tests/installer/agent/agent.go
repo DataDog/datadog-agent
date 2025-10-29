@@ -8,6 +8,7 @@ package agent
 
 import (
 	"fmt"
+	"math"
 	"strings"
 	"testing"
 	"time"
@@ -76,7 +77,8 @@ func (a *Agent) MustSetExperimentTimeout(timeout time.Duration) {
 		a.host.RemoteHost.MustExecute("sudo mkdir -p /etc/systemd/system/datadog-agent-exp.service.d")
 		a.host.RemoteHost.MustExecute(fmt.Sprintf("sudo sh -c 'echo \"[Service]\nEnvironment=EXPERIMENT_TIMEOUT=%ds\" > /etc/systemd/system/datadog-agent-exp.service.d/experiment-timeout.conf'", int(timeout.Seconds())))
 	case e2eos.WindowsFamily:
-		err := windowscommon.SetRegistryDWORDValue(a.host.RemoteHost, `HKLM:\SOFTWARE\Datadog\Datadog Agent`, "WatchdogTimeout", int(timeout.Seconds()))
+		timeout := int(math.Max(1, timeout.Minutes()))
+		err := windowscommon.SetRegistryDWORDValue(a.host.RemoteHost, `HKLM:\SOFTWARE\Datadog\Datadog Agent`, "WatchdogTimeout", timeout)
 		require.NoError(a.t(), err)
 	default:
 		a.t().Fatalf("Unsupported OS family: %v", a.host.RemoteHost.OSFamily)
@@ -89,7 +91,7 @@ func (a *Agent) MustUnsetExperimentTimeout() {
 	case e2eos.LinuxFamily:
 		a.host.RemoteHost.MustExecute("sudo rm -f /etc/systemd/system/datadog-agent-exp.service.d/experiment-timeout.conf")
 	case e2eos.WindowsFamily:
-		err := windowscommon.DeleteRegistryKey(a.host.RemoteHost, `HKLM:\SOFTWARE\Datadog\Datadog Agent\WatchdogTimeout`)
+		err := windowscommon.SetRegistryDWORDValue(a.host.RemoteHost, `HKLM:\SOFTWARE\Datadog\Datadog Agent`, "WatchdogTimeout", 60)
 		require.NoError(a.t(), err)
 	default:
 		a.t().Fatalf("Unsupported OS family: %v", a.host.RemoteHost.OSFamily)

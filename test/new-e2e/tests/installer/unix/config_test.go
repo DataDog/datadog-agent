@@ -65,7 +65,7 @@ func (s *configSuite) TestConfigFailureCrash() {
 func (s *configSuite) TestConfigFailureTimeout() {
 	s.agent.MustInstall(agent.WithRemoteUpdates())
 	defer s.agent.MustUninstall()
-	s.agent.MustSetExperimentTimeout(10 * time.Second)
+	s.agent.MustSetExperimentTimeout(60 * time.Second)
 	defer s.agent.MustUnsetExperimentTimeout()
 
 	err := s.backend.StartConfigExperiment(fleetbackend.ConfigOperations{
@@ -77,6 +77,7 @@ func (s *configSuite) TestConfigFailureTimeout() {
 	require.NoError(s.T(), err)
 	require.Equal(s.T(), "debug", config["log_level"])
 
+	time.Sleep(60 * time.Second)
 	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
 		config, err := s.agent.Configuration()
 		require.NoError(c, err)
