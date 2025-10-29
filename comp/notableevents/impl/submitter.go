@@ -19,6 +19,7 @@ import (
 )
 
 // eventPayload represents a Windows Event Log event to be submitted
+// TODO(WINA-1968): TBD format for event payload, finish with intake.
 type eventPayload struct {
 	Channel string
 	EventID uint
@@ -26,9 +27,11 @@ type eventPayload struct {
 
 // submitter receives event payloads from a channel and forwards them to the event platform
 type submitter struct {
+	// in
 	eventPlatformForwarder eventplatform.Forwarder
 	inChan                 <-chan eventPayload
-	wg                     sync.WaitGroup
+	// internal
+	wg sync.WaitGroup
 }
 
 // newSubmitter creates a new submitter instance

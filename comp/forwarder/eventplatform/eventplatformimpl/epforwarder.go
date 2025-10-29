@@ -247,9 +247,10 @@ func getPassthroughPipelines() []passthroughPipelineDesc {
 			intakeTrackType:               "events",
 			defaultBatchMaxConcurrentSend: pkgconfigsetup.DefaultBatchMaxConcurrentSend,
 			defaultBatchMaxContentSize:    pkgconfigsetup.DefaultBatchMaxContentSize,
-			defaultBatchMaxSize:           1,
+			defaultBatchMaxSize:           pkgconfigsetup.DefaultBatchMaxSize,
 			defaultInputChanSize:          pkgconfigsetup.DefaultInputChanSize,
-			useStreamStrategy:             true,
+			// TODO: event-management-intake does not support batching/array, must send one event at a time
+			useStreamStrategy: true,
 		},
 	}
 
