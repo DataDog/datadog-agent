@@ -268,6 +268,8 @@
 /cmd/system-probe/subcommands/usm/      @DataDog/universal-service-monitoring
 /cmd/systray/                           @DataDog/windows-products
 /cmd/security-agent/                    @DataDog/agent-security
+/cmd/security-agent/subcommands/compliance/ @DataDog/agent-cspm
+/cmd/security-agent/subcommands/check/      @DataDog/agent-cspm
 /cmd/installer/                         @DataDog/fleet @DataDog/windows-products
 /cmd/host-profiler/                     @DataDog/opentelemetry-agent
 
