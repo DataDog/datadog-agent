@@ -1,4 +1,0 @@
-#!/usr/bin/execlineb -P
-
-foreground { /initlog.sh "starting installer" }
-/opt/entrypoints/installer
