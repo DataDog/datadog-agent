@@ -83,13 +83,6 @@ func identToEvaluator(obj *ident, opts *Opts, state *State) (interface{}, lexer.
 		return nil, obj.Pos, err
 	}
 
-	// transform extracted field to support legacy SECL fields
-	if opts.LegacyFields != nil {
-		if newField, ok := opts.LegacyFields[field]; ok {
-			field = newField
-		}
-	}
-
 	evaluator, err := state.model.GetEvaluator(field, regID, obj.Pos.Offset)
 	if err != nil {
 		return nil, obj.Pos, err
