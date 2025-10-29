@@ -8,8 +8,6 @@ package logsagentexporter
 import (
 	"bytes"
 	"context"
-	"crypto/md5"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -21,11 +19,13 @@ import (
 
 	gocache "github.com/patrickmn/go-cache"
 
-	"github.com/google/uuid"
 	"github.com/stormcat24/protodep/pkg/logger"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/plog"
 	"go.uber.org/zap"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
 
 	agentmodel "github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/endpoints"
@@ -46,6 +46,9 @@ var (
 	manifestCache     *gocache.Cache
 	manifestCacheOnce sync.Once
 	k8sTypeMap        map[string]int
+	// clusterIDCache stores the cluster ID to avoid repeated API calls
+	clusterIDCache string
+	clusterIDOnce  sync.Once
 )
 
 func init() {
@@ -140,7 +143,11 @@ func (e *Exporter) consumeK8sObjects(ctx context.Context, ld plog.Logs) (err err
 		logger.Error("Failed to get hostname from config", zap.Error(err))
 	}
 
-	clusterID := buildClusterID(e.orchestratorConfig.ClusterName)
+	clusterID := getClusterID(ctx)
+	if clusterID == "" {
+		logger.Error("Failed to get cluster ID, skipping manifest payload")
+		return nil
+	}
 
 	payload := toManifestPayload(ctx, manifests, hostname, e.orchestratorConfig.ClusterName, clusterID)
 
@@ -271,19 +278,45 @@ func sendManifestPayload(ctx context.Context, config OrchestratorConfig, payload
 	return nil
 }
 
-// ToDo: in cluster agent, we use kube-system namespace UID as cluster ID, here we only have cluster name
-// If two clusters have the same name, it will generate the same cluster ID, which is not ideal
-// Find a better way to generate cluster ID
-func buildClusterID(clusterName string) string {
-	hash := md5.New()
-	hash.Write([]byte(clusterName))
-	hashString := hex.EncodeToString(hash.Sum(nil))
-	uuid, err := uuid.FromBytes([]byte(hashString[0:16]))
-	if err != nil {
-		logger.Error("Failed to generate UUID", zap.Error(err))
-		return ""
-	}
-	return uuid.String()
+// getClusterID retrieves the cluster ID by fetching the kube-system namespace UID.
+// This matches the behavior of the cluster agent which uses the kube-system namespace UID
+// as the cluster ID to ensure uniqueness across clusters.
+// The cluster ID is cached after the first successful retrieval to avoid repeated API calls.
+func getClusterID(ctx context.Context) string {
+	clusterIDOnce.Do(func() {
+		// Create in-cluster Kubernetes client
+		config, err := rest.InClusterConfig()
+		if err != nil {
+			logger.Error("Failed to get in-cluster Kubernetes config", zap.Error(err))
+			return
+		}
+
+		// Create clientset
+		clientset, err := kubernetes.NewForConfig(config)
+		if err != nil {
+			logger.Error("Failed to create Kubernetes client", zap.Error(err))
+			return
+		}
+
+		// Fetch kube-system namespace
+		namespace, err := clientset.CoreV1().Namespaces().Get(ctx, "kube-system", metav1.GetOptions{})
+		if err != nil {
+			logger.Error("Failed to get kube-system namespace", zap.Error(err))
+			return
+		}
+
+		// Extract and cache the UID
+		clusterID := string(namespace.UID)
+		if clusterID == "" {
+			logger.Error("kube-system namespace UID is empty")
+			return
+		}
+
+		clusterIDCache = clusterID
+		logger.Info("Successfully retrieved cluster ID from kube-system namespace", zap.String("cluster_id", clusterID))
+	})
+
+	return clusterIDCache
 }
 
 func getManifestType(kind string) int {
