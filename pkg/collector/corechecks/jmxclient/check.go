@@ -186,6 +186,19 @@ func (c *Check) refreshBeans() error {
 			metadata.MetricType = "gauge"
 		}
 		c.metricMetadata[key] = metadata
+
+		// Also store with type+attribute as a fallback key for non-exact path matches
+		// This handles cases where the actual bean path differs from the configured path
+		// (e.g., due to wildcards or additional properties)
+		if req.Type != "" && req.Attribute != "" {
+			var fallbackKey string
+			if req.Key != "" {
+				fallbackKey = fmt.Sprintf("type=%s:%s.%s", req.Type, req.Attribute, req.Key)
+			} else {
+				fallbackKey = fmt.Sprintf("type=%s:%s", req.Type, req.Attribute)
+			}
+			c.metricMetadata[fallbackKey] = metadata
+		}
 	}
 
 	// Marshal to JSON in the format expected by jmxclient
@@ -208,6 +221,7 @@ func (c *Check) refreshBeans() error {
 }
 
 // processMetrics processes collected metrics and sends them to the aggregator
+// TODO(remy): this one needs to be rewritten carefully
 func (c *Check) processMetrics(beans []BeanData, sender sender.Sender) error {
 	// add instance tags
 	tags := append([]string{}, c.instanceConfig.Tags...)
@@ -232,6 +246,29 @@ func (c *Check) processMetrics(beans []BeanData, sender sender.Sender) error {
 			if !hasMetadata && bean.Attribute != "" {
 				compositeKey := fmt.Sprintf("%s:%s.%s", bean.Path, bean.Attribute, attr.Name)
 				metadata, hasMetadata = c.metricMetadata[compositeKey]
+			}
+
+			// Third try: if bean.Attribute is set and still not found, try path:bean.Attribute
+			// (for non-composite attributes where bean.Attribute contains the attribute name directly)
+			if !hasMetadata && bean.Attribute != "" {
+				simpleKey := fmt.Sprintf("%s:%s", bean.Path, bean.Attribute)
+				metadata, hasMetadata = c.metricMetadata[simpleKey]
+			}
+
+			// Fourth try: fallback using type+attribute when path doesn't match exactly
+			// This handles cases where the actual bean path differs from the configured path
+			if !hasMetadata && bean.Type != "" {
+				var typeKey string
+				if bean.Attribute != "" {
+					// For composite attributes
+					typeKey = fmt.Sprintf("type=%s:%s.%s", bean.Type, bean.Attribute, attr.Name)
+					metadata, hasMetadata = c.metricMetadata[typeKey]
+				}
+				if !hasMetadata && bean.Attribute != "" {
+					// For non-composite attributes
+					typeKey = fmt.Sprintf("type=%s:%s", bean.Type, bean.Attribute)
+					metadata, hasMetadata = c.metricMetadata[typeKey]
+				}
 			}
 
 			// Determine metric name
@@ -264,6 +301,7 @@ func (c *Check) processMetrics(beans []BeanData, sender sender.Sender) error {
 }
 
 // sendMetric sends a metric with the appropriate type to the aggregator
+// TODO(remy): why no hostname in these calls?
 func (c *Check) sendMetric(sender sender.Sender, metricType string, name string, value float64, tags []string) {
 	switch metricType {
 	case "counter":
