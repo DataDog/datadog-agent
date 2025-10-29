@@ -146,7 +146,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/cenkalti/backoff/v4"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -154,6 +153,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/cenkalti/backoff/v4"
 
 	"github.com/DataDog/test-infra-definitions/common/utils"
 	"github.com/DataDog/test-infra-definitions/components"
@@ -712,7 +713,10 @@ func (bs *BaseSuite[Env]) TearDownSuite() {
 	}
 
 	if bs.coverage {
-		bs.SaveCoverage(bs.coverageOutDir)
+		err := bs.SaveCoverage(bs.coverageOutDir)
+		if err != nil {
+			bs.T().Errorf("fatal errors were encounterned while computing coverage: %v", err)
+		}
 
 		bs.attachMetadataToCoverage(bs.coverageOutDir)
 	}
@@ -777,7 +781,7 @@ func (bs *BaseSuite[Env]) TearDownSuite() {
 // It is called by TearDownSuite if the coverage is enabled.
 // It can be manually called by the test suite if needed.
 // If a test is explicitly restarting the agent the coverage should be saved first otherwise the counters are reset after restart.
-func (bs *BaseSuite[Env]) SaveCoverage(coverageDir string) {
+func (bs *BaseSuite[Env]) SaveCoverage(coverageDir string) error {
 	if coverageEnv, ok := any(bs.env).(common.Coverageable); ok {
 		// Create coverage folder if it doesn't exist
 		rootTestName := strings.ToLower(strings.Split(bs.T().Name(), "/")[0])
@@ -789,14 +793,15 @@ func (bs *BaseSuite[Env]) SaveCoverage(coverageDir string) {
 			}
 		}
 		result, err := coverageEnv.Coverage(coverageFolder)
-		if err != nil {
-			bs.T().Logf("WARNING: Coverage failed: %v", err)
-		}
 		bs.T().Logf("Coverage result: %s", result)
+		if err != nil {
+			return err
+		}
 	} else {
 		bs.T().Logf("WARNING: Coverage is enabled but the environment does not implement the Coverageable interface")
-		return
+		return nil
 	}
+	return nil
 }
 
 func (bs *BaseSuite[Env]) attachMetadataToCoverage(coverageDir string) {
