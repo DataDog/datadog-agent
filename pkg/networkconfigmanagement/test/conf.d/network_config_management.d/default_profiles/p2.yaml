@@ -14,7 +14,7 @@ commands:
           pattern: "Building configuration..."
       redaction:
         - regex: "(username .+ (password|secret) \\d) .+"
-          replacement: "<redacted secret>"
+          replacement: "$1 <redacted secret>"
   - type: startup
     values:
       - "show startup-config"
