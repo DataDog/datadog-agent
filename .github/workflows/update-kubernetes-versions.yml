@@ -34,20 +34,21 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Install dependencies
+      - name: Install dda and dependencies
         run: |
+          brew install --cask dda
           pip install requests pyyaml
 
       - name: Fetch latest Kubernetes version
         id: fetch-versions
         run: |
-          python .github/scripts/fetch_k8s_versions.py
+          dda inv k8s-versions.fetch-versions
 
       - name: Update e2e.yml with new version
         id: update-yaml
         if: steps.fetch-versions.outputs.has_new_versions == 'true'
         run: |
-          python .github/scripts/update_e2e_yaml.py
+          dda inv k8s-versions.update-e2e-yaml
 
       - uses: peter-evans/create-pull-request@271a8d0340265f705b14b6d32b9829c1cb33d45e # v7.0.8
         name: Create pull request
