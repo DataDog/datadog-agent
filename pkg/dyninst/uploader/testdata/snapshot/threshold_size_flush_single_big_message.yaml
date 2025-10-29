@@ -1,0 +1,78 @@
+config:
+  max_items: 10
+  max_size_bytes: 5
+  max_buffer_ms: 200
+events:
+  - !enqueue {value: "a"}
+  - !enqueue {value: "over the limit"}
+  - !enqueue {value: "b"}
+  - !batch-outcome {id: 0, success: true}
+  - !batch-outcome {id: 1, success: true}
+  - !stop {} 
+---
+now: 0s
+next_flush: 200ms
+event: !enqueue {value: "a"}
+effects:
+  - !reset-timer {ts: 200ms (+200ms)}
+state:
+  batch_len: 1
+  current_size: 3
+  timer_set: true
+---
+now: 0s
+event: !enqueue {value: "over the limit"}
+effects:
+  - !send-batch {id: 0, items: 1, bytes: 3}
+  - !reset-timer {}
+  - !send-batch {id: 1, items: 1, bytes: 16}
+state:
+  batch_len: 0
+  current_size: 0
+  inflight: [0, 1]
+  timer_set: false
+---
+now: 0s
+next_flush: 200ms
+event: !enqueue {value: "b"}
+effects:
+  - !reset-timer {ts: 200ms (+200ms)}
+state:
+  batch_len: 1
+  current_size: 3
+  inflight: [0, 1]
+  timer_set: true
+---
+now: 0s
+next_flush: 200ms
+event: !batch-outcome {id: 0, success: true}
+state:
+  batch_len: 1
+  current_size: 3
+  inflight: [1]
+  timer_set: true
+metrics:
+  batches_sent: 1 (+1)
+  bytes_sent: 3 (+3)
+  items_sent: 1 (+1)
+---
+now: 0s
+next_flush: 200ms
+event: !batch-outcome {id: 1, success: true}
+state:
+  batch_len: 1
+  current_size: 3
+  timer_set: true
+metrics:
+  batches_sent: 2 (+1)
+  bytes_sent: 19 (+16)
+  items_sent: 2 (+1)
+---
+now: 0s
+event: !stop {}
+effects:
+  - !reset-timer {}
+state:
+  batch_len: 1
+  current_size: 3
+  timer_set: false

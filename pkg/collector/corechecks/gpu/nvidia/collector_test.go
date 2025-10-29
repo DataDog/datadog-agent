@@ -28,7 +28,7 @@ func TestCollectorsStillInitIfOneFails(t *testing.T) {
 
 	// On the first call, this function returns correctly. On the second it fails.
 	// We need this as we cannot rely on the order of the subsystems in the map.
-	factory := func(_ ddnvml.SafeDevice) (Collector, error) {
+	factory := func(_ ddnvml.Device, _ *CollectorDependencies) (Collector, error) {
 		if !factorySucceeded {
 			factorySucceeded = true
 			return succeedCollector, nil
@@ -38,10 +38,11 @@ func TestCollectorsStillInitIfOneFails(t *testing.T) {
 
 	nvmlMock := testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled())
 	ddnvml.WithMockNVML(t, nvmlMock)
-	deviceCache, err := ddnvml.NewDeviceCache()
+	deviceCache := ddnvml.NewDeviceCache()
+	devices, err := deviceCache.AllPhysicalDevices()
 	require.NoError(t, err)
-	deps := &CollectorDependencies{DeviceCache: deviceCache}
-	collectors, err := buildCollectors(deps, map[CollectorName]subsystemBuilder{"ok": factory, "fail": factory})
+	deps := &CollectorDependencies{NsPidCache: &NsPidCache{}}
+	collectors, err := buildCollectors(devices, deps, map[CollectorName]subsystemBuilder{"ok": factory, "fail": factory})
 	require.NotNil(t, collectors)
 	require.NoError(t, err)
 }
@@ -125,8 +126,7 @@ func TestGetDeviceTagsMapping(t *testing.T) {
 			ddnvml.WithMockNVML(t, nvmlMock)
 
 			// Execute
-			deviceCache, err := ddnvml.NewDeviceCache()
-			require.NoError(t, err)
+			deviceCache := ddnvml.NewDeviceCache()
 			tagsMapping := GetDeviceTagsMapping(deviceCache, fakeTagger)
 
 			// Assert
@@ -137,14 +137,18 @@ func TestGetDeviceTagsMapping(t *testing.T) {
 
 func TestAllCollectorsWork(t *testing.T) {
 	// This test doesn't validate the results of the collectors, it only checks that they work with
-	// the basic mock and we don't have any panics or anything.
+	// the basic mock, and we don't have any panics or anything.
 
 	nvmlMock := testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled(), testutil.WithMockAllFunctions())
 	ddnvml.WithMockNVML(t, nvmlMock)
-	deviceCache, err := ddnvml.NewDeviceCache()
+	deviceCache := ddnvml.NewDeviceCache()
+	eventsGatherer := NewDeviceEventsGatherer()
+	require.NoError(t, eventsGatherer.Start())
+	t.Cleanup(func() { require.NoError(t, eventsGatherer.Stop()) })
+	devices, err := deviceCache.AllPhysicalDevices()
 	require.NoError(t, err)
-	deps := &CollectorDependencies{DeviceCache: deviceCache}
-	collectors, err := BuildCollectors(deps)
+	deps := &CollectorDependencies{DeviceEventsGatherer: eventsGatherer, NsPidCache: &NsPidCache{}}
+	collectors, err := BuildCollectors(devices, deps)
 	require.NoError(t, err)
 	require.NotNil(t, collectors)
 
@@ -153,7 +157,9 @@ func TestAllCollectorsWork(t *testing.T) {
 	for _, collector := range collectors {
 		result, err := collector.Collect()
 		require.NoError(t, err, "collector %s failed to collect", collector.Name())
-		require.NotEmpty(t, result, "collector %s returned empty result", collector.Name())
+		if collector.Name() != deviceEvents {
+			require.NotEmpty(t, result, "collector %s returned empty result", collector.Name())
+		}
 		seenCollectors[collector.Name()] = struct{}{}
 	}
 
@@ -165,16 +171,135 @@ func TestAllCollectorsWork(t *testing.T) {
 }
 
 func TestRemoveDuplicateMetrics(t *testing.T) {
-	metrics := []Metric{
-		{Name: "metric1", Priority: 0},
-		{Name: "metric2", Priority: 1},
-		{Name: "metric1", Priority: 2},
-	}
+	t.Run("ComprehensiveScenario", func(t *testing.T) {
+		// Test the exact scenario from function comment plus additional edge cases including zero priority
+		allMetrics := map[CollectorName][]Metric{
+			sampling: {
+				{Name: "memory.usage", Priority: High, Tags: []string{"pid:1001"}},
+				{Name: "memory.usage", Priority: High, Tags: []string{"pid:1002"}},
+				{Name: "core.temp", Priority: Low}, // Zero priority (default)
+			},
+			stateless: {
+				{Name: "memory.usage", Priority: Low, Tags: []string{"pid:1003"}},
+				{Name: "fan.speed", Priority: Low}, // Zero priority (default)
+				{Name: "power.draw", Priority: Low},
+				{Name: "disk.usage", Priority: Low}, // Zero priority, unique metric
+			},
+			ebpf: {
+				{Name: "core.temp", Priority: High}, // Conflicts with CollectorA, higher priority beats zero
+				{Name: "voltage", Priority: Low},
+				{Name: "fan.speed", Priority: Low}, // Zero priority tie with CollectorB
+			},
+			field: {}, // Empty collector
+		}
 
-	deduplicated := RemoveDuplicateMetrics(metrics)
-	require.Len(t, deduplicated, 2)
-	require.ElementsMatch(t, deduplicated, []Metric{
-		{Name: "metric1", Priority: 2},
-		{Name: "metric2", Priority: 1},
+		result := RemoveDuplicateMetrics(allMetrics)
+
+		require.Len(t, result, 7) // 6 + 1 for fan.speed winner
+
+		// Check all the deterministic results
+		var memoryUsageCount, coreTempCount, powerDrawCount, voltageCount, diskUsageCount, fanSpeedCount int
+		for _, metric := range result {
+			switch metric.Name {
+			case "memory.usage":
+				require.Equal(t, High, metric.Priority)
+				memoryUsageCount++
+			case "core.temp":
+				require.Equal(t, High, metric.Priority)
+				coreTempCount++
+			case "power.draw":
+				require.Equal(t, Low, metric.Priority)
+				powerDrawCount++
+			case "voltage":
+				require.Equal(t, Low, metric.Priority)
+				voltageCount++
+			case "disk.usage":
+				require.Equal(t, Low, metric.Priority)
+				diskUsageCount++
+			case "fan.speed":
+				require.Equal(t, Low, metric.Priority) // Zero priority tie winner
+				fanSpeedCount++
+			}
+		}
+
+		require.Equal(t, 2, memoryUsageCount) // Both from CollectorA
+		require.Equal(t, 1, coreTempCount)    // CollectorC wins
+		require.Equal(t, 1, powerDrawCount)   // CollectorB unique
+		require.Equal(t, 1, voltageCount)     // CollectorC unique
+		require.Equal(t, 1, diskUsageCount)   // CollectorB unique (zero priority)
+		require.Equal(t, 1, fanSpeedCount)    // One collector wins the zero priority tie
+	})
+
+	t.Run("SingleCollectorMultipleSameName", func(t *testing.T) {
+		// Ensure intra-collector preservation - no deduplication within same collector
+		allMetrics := map[CollectorName][]Metric{
+			sampling: {
+				{Name: "memory.usage", Priority: High, Tags: []string{"pid:1001"}},
+				{Name: "memory.usage", Priority: High, Tags: []string{"pid:1002"}},
+				{Name: "memory.usage", Priority: High, Tags: []string{"pid:1003"}},
+				{Name: "cpu.usage", Priority: Low},
+			},
+		}
+
+		result := RemoveDuplicateMetrics(allMetrics)
+
+		expected := []Metric{
+			{Name: "memory.usage", Priority: High, Tags: []string{"pid:1001"}},
+			{Name: "memory.usage", Priority: High, Tags: []string{"pid:1002"}},
+			{Name: "memory.usage", Priority: High, Tags: []string{"pid:1003"}},
+			{Name: "cpu.usage", Priority: Low},
+		}
+
+		require.Len(t, result, 4)
+		require.ElementsMatch(t, result, expected)
+	})
+
+	t.Run("PriorityTie", func(t *testing.T) {
+		// Edge case: same metric name with same priority across collectors
+		// First collector (in iteration order) should win
+		allMetrics := map[CollectorName][]Metric{
+			sampling: {
+				{Name: "metric1", Priority: Low, Tags: []string{"tagA"}},
+			},
+			stateless: {
+				{Name: "metric1", Priority: Low, Tags: []string{"tagB"}},
+			},
+		}
+
+		result := RemoveDuplicateMetrics(allMetrics)
+
+		// Should have exactly 1 metric (one collector wins the tie)
+		require.Len(t, result, 1)
+		require.Equal(t, Low, result[0].Priority)
+		// Don't assert which specific tag wins since map iteration order is not guaranteed
+	})
+
+	t.Run("EmptyInputs", func(t *testing.T) {
+		// Edge case: empty inputs
+		t.Run("EmptyMap", func(t *testing.T) {
+			result := RemoveDuplicateMetrics(map[CollectorName][]Metric{})
+			require.Len(t, result, 0)
+		})
+
+		t.Run("EmptyCollectors", func(t *testing.T) {
+			allMetrics := map[CollectorName][]Metric{
+				sampling: {},
+				ebpf:     {},
+			}
+			result := RemoveDuplicateMetrics(allMetrics)
+			require.Len(t, result, 0)
+		})
+
+		t.Run("MixedEmptyAndNonEmpty", func(t *testing.T) {
+			allMetrics := map[CollectorName][]Metric{
+				sampling: {},
+				stateless: {
+					{Name: "metric1", Priority: Low},
+				},
+			}
+			result := RemoveDuplicateMetrics(allMetrics)
+			require.Len(t, result, 1)
+			require.Equal(t, "metric1", result[0].Name)
+		})
 	})
 }

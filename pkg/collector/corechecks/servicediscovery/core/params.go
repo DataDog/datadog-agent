@@ -21,15 +21,8 @@ const (
 
 // Params represents the parameters for service discovery requests.
 type Params struct {
-	HeartbeatTime time.Duration `json:"heartbeat_time"`
-	Pids          []int         `json:"pids,omitzero"`
-}
-
-// DefaultParams returns a new Params instance with default values.
-func DefaultParams() Params {
-	return Params{
-		HeartbeatTime: HeartbeatTime,
-	}
+	NewPids       []int32 `json:"new_pids,omitempty"`       // PIDs never seen before, require full service info
+	HeartbeatPids []int32 `json:"heartbeat_pids,omitempty"` // PIDs needing heartbeat refresh, minimal updates
 }
 
 // ToJSON serializes the Params to JSON bytes.
@@ -39,7 +32,7 @@ func (params Params) ToJSON() ([]byte, error) {
 
 // FromJSON deserializes JSON bytes into a Params struct.
 func FromJSON(data []byte) (Params, error) {
-	params := DefaultParams()
+	params := Params{}
 	if err := json.Unmarshal(data, &params); err != nil {
 		return params, fmt.Errorf("failed to unmarshal params: %w", err)
 	}
@@ -48,7 +41,7 @@ func FromJSON(data []byte) (Params, error) {
 
 // ParseParamsFromRequest parses parameters from JSON body.
 func ParseParamsFromRequest(req *http.Request) (Params, error) {
-	params := DefaultParams()
+	params := Params{}
 
 	if req.Body != nil {
 		body, err := io.ReadAll(req.Body)

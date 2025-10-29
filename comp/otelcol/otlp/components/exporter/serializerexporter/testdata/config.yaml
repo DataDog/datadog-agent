@@ -3,7 +3,6 @@ serializer:
   sending_queue:
     queue_size: 100
   metrics:
-    tag_cardinality: high
     apm_stats_receiver_addr: localhost:1234
     tags: "tag"
     delta_ttl: 200

@@ -23,7 +23,7 @@ import (
 // isolateTestClcRunnerClient mocks the clcRunnersClient for advanced dispatching tests in this file only
 type isolateTestClcRunnerClient struct{}
 
-func (d *isolateTestClcRunnerClient) GetVersion(_IP string) (version.Version, error) {
+func (d *isolateTestClcRunnerClient) GetVersion(string) (version.Version, error) {
 	return version.Version{}, nil
 }
 

@@ -51,6 +51,7 @@ var GitCommit string
 
 type k8sSuite struct {
 	baseSuite[environments.Kubernetes]
+	envSpecificClusterTags []string
 }
 
 func (suite *k8sSuite) SetupSuite() {
@@ -379,7 +380,7 @@ func (suite *k8sSuite) testAgentCLI() {
 }
 
 func (suite *k8sSuite) testClusterAgentCLI() {
-	leaderDcaPodName := suite.testDCALeaderElection(false) //check cluster agent leaderelection without restart
+	leaderDcaPodName := suite.testDCALeaderElection(false) // check cluster agent leaderelection without restart
 	suite.Require().NotEmpty(leaderDcaPodName, "Leader DCA pod name should not be empty")
 
 	suite.Run("cluster-agent status", func() {
@@ -388,7 +389,7 @@ func (suite *k8sSuite) testClusterAgentCLI() {
 		suite.Empty(stderr, "Standard error of `datadog-cluster-agent status` should be empty")
 		suite.Contains(stdout, "Collector")
 		suite.Contains(stdout, "Running Checks")
-		suite.Contains(stdout, "kubernetes_state_core")
+		suite.Contains(stdout, "kubernetes_apiserver")
 		if suite.Env().Agent.FIPSEnabled {
 			// Verify FIPS mode is reported as enabled
 			suite.Contains(stdout, "FIPS Mode: enabled", "Cluster agent should report FIPS Mode as enabled")
@@ -434,8 +435,8 @@ func (suite *k8sSuite) testClusterAgentCLI() {
 		stdout, stderr, err := suite.Env().KubernetesCluster.KubernetesClient.PodExec("datadog", leaderDcaPodName, "cluster-agent", []string{"datadog-cluster-agent", "checkconfig"})
 		suite.Require().NoError(err)
 		suite.Empty(stderr, "Standard error of `datadog-cluster-agent checkconfig` should be empty")
-		suite.Contains(stdout, "=== kubernetes_state_core check ===")
-		suite.Contains(stdout, "Config for instance ID: kubernetes_state_core:")
+		suite.Contains(stdout, "=== kubernetes_apiserver check ===")
+		suite.Contains(stdout, "Config for instance ID: kubernetes_apiserver:")
 		if suite.T().Failed() {
 			suite.T().Log(stdout)
 		}
@@ -448,9 +449,74 @@ func (suite *k8sSuite) testClusterAgentCLI() {
 		suite.Contains(stdout, "agents reporting ===")
 		suite.Contains(stdout, "===== Checks on ")
 		suite.Contains(stdout, "=== helm check ===")
+		suite.Contains(stdout, "=== kubernetes_state_core check ===")
 		if suite.T().Failed() {
 			suite.T().Log(stdout)
 		}
+	})
+
+	suite.Run("cluster-agent clusterchecks force rebalance", func() {
+		stdout, stderr, err := suite.Env().KubernetesCluster.KubernetesClient.PodExec("datadog", leaderDcaPodName, "cluster-agent", []string{"datadog-cluster-agent", "clusterchecks", "rebalance", "--force"})
+		suite.Require().NoError(err)
+		suite.NotContains(stdout+stderr, "advanced dispatching is not enabled", "Advanced dispatching must be enabled for force rebalance")
+		matched := regexp.MustCompile(`\d+\s+cluster checks rebalanced successfully`).MatchString(stdout)
+		suite.True(matched, "Expected 'X cluster checks rebalanced successfully' in output")
+		if suite.T().Failed() {
+			suite.T().Log(stdout)
+			suite.T().Log(stderr)
+		}
+	})
+
+	suite.Run("cluster-agent autoscaler-list --localstore", func() {
+		// First verify the command exists and autoscaling is enabled
+		checkStdout, checkStderr, checkErr := suite.Env().KubernetesCluster.KubernetesClient.PodExec(
+			"datadog",
+			leaderDcaPodName,
+			"cluster-agent",
+			[]string{"sh", "-c", "datadog-cluster-agent autoscaler-list --localstore 2>&1 || echo 'Exit code:' $?"},
+		)
+		suite.T().Logf("Initial check - stdout: %s, stderr: %s, err: %v", checkStdout, checkStderr, checkErr)
+
+		// Wait for some workload metrics to be collected in the local store
+		suite.EventuallyWithTf(func(c *assert.CollectT) {
+			// Execute the CLI command to list workload metrics from local store
+			stdout, stderr, err := suite.Env().KubernetesCluster.KubernetesClient.PodExec(
+				"datadog",
+				leaderDcaPodName,
+				"cluster-agent",
+				[]string{"datadog-cluster-agent", "autoscaler-list", "--localstore"},
+			)
+			// Assert that the command executes successfully
+			assert.NoError(c, err, "autoscaler-list command should execute successfully. stdout: %s, stderr: %s", stdout, stderr)
+			// The output should contain workload metrics information
+			// Format: Namespace: <ns>, PodOwner: <owner>, MetricName: <metric>, Datapoints: <count>
+			assert.NotEmpty(c, stdout, "workload-list --local-store should return data")
+
+			// Log full output for debugging
+			suite.T().Logf("Output:\n%s", stdout)
+
+			validEntryCount := 0
+			lines := strings.Split(stdout, "\n")
+
+			for _, line := range lines {
+				line = strings.TrimSpace(line)
+				if line == "" {
+					continue
+				}
+
+				// Each line should have the format: "Namespace: ..., PodOwner: ..., MetricName: ..., Datapoints: ..."
+				if strings.Contains(line, "Namespace:") &&
+					strings.Contains(line, "PodOwner:") &&
+					strings.Contains(line, "MetricName:") &&
+					strings.Contains(line, "Datapoints:") {
+					validEntryCount++
+					assert.NotContains(c, line, "datadog", "datadog namespace should be filtered")
+				}
+			}
+
+			suite.T().Logf("Found %d workload metric entries in local store", validEntryCount)
+			assert.GreaterOrEqual(c, validEntryCount, 10, "Should have at least 10 workload entries in local store, but got %d", validEntryCount)
+		}, 3*time.Minute, 10*time.Second, "Failed to get workload metrics from local store")
 	})
 }
 
@@ -558,7 +624,7 @@ func (suite *k8sSuite) TestNginx() {
 			},
 		},
 		Expect: testMetricExpectArgs{
-			Tags: &[]string{
+			Tags: suite.testClusterTags([]string{
 				`^cluster_name:`,
 				`^instance:My_Nginx$`,
 				`^kube_cluster_name:`,
@@ -566,7 +632,7 @@ func (suite *k8sSuite) TestNginx() {
 				`^kube_namespace:workload-nginx$`,
 				`^kube_service:nginx$`,
 				`^url:http://`,
-			},
+			}),
 		},
 	})
 
@@ -580,8 +646,9 @@ func (suite *k8sSuite) TestNginx() {
 			},
 		},
 		Expect: testMetricExpectArgs{
-			Tags: &[]string{
+			Tags: suite.testClusterTags([]string{
 				`^kube_cluster_name:`,
+				`^cluster_name:`,
 				`^orch_cluster_id:`,
 				`^kube_deployment:nginx$`,
 				`^kube_namespace:workload-nginx$`,
@@ -591,7 +658,7 @@ func (suite *k8sSuite) TestNginx() {
 				`^sub-team:contint$`,
 				`^kube_instance_tag:static$`,                            // This is applied via KSM core check instance config
 				`^stackid:` + regexp.QuoteMeta(suite.clusterName) + `$`, // Pulumi applies this via DD_TAGS env var
-			},
+			}),
 			Value: &testMetricExpectValueArgs{
 				Max: 5,
 				Min: 1,
@@ -603,6 +670,9 @@ func (suite *k8sSuite) TestNginx() {
 	suite.testLog(&testLogArgs{
 		Filter: testLogFilterArgs{
 			Service: "apps-nginx-server",
+			Tags: []string{
+				`^kube_namespace:workload-nginx$`,
+			},
 		},
 		Expect: testLogExpectArgs{
 			Tags: &[]string{
@@ -685,14 +755,15 @@ func (suite *k8sSuite) TestRedis() {
 			},
 		},
 		Expect: testMetricExpectArgs{
-			Tags: &[]string{
+			Tags: suite.testClusterTags([]string{
 				`^kube_cluster_name:`,
+				`^cluster_name:`,
 				`^orch_cluster_id:`,
 				`^kube_deployment:redis$`,
 				`^kube_namespace:workload-redis$`,
 				`^kube_instance_tag:static$`,                            // This is applied via KSM core check instance config
 				`^stackid:` + regexp.QuoteMeta(suite.clusterName) + `$`, // Pulumi applies this via DD_TAGS env var
-			},
+			}),
 			Value: &testMetricExpectValueArgs{
 				Max: 5,
 				Min: 1,
@@ -736,6 +807,30 @@ func (suite *k8sSuite) TestRedis() {
 	// Check HPA is properly scaling up and down
 	// This indirectly tests the cluster-agent external metrics server
 	suite.testHPA("workload-redis", "redis")
+}
+
+func (suite *k8sSuite) TestArgoRollout() {
+	// Check that kube_argo_rollout tag is added to metric
+	suite.testMetric(&testMetricArgs{
+		Filter: testMetricFilterArgs{
+			Name: "container.cpu.system",
+			Tags: []string{
+				`^kube_namespace:workload-argo-rollout-nginx$`,
+			},
+		},
+		Expect: testMetricExpectArgs{
+			Tags: &[]string{
+				`^container_id:`,
+				`^container_name:nginx$`,
+				`^display_container_name:nginx`,
+				`^kube_container_name:nginx$`,
+				`^kube_deployment:nginx-rollout$`,
+				`^kube_argo_rollout:nginx-rollout$`,
+				`^kube_namespace:workload-argo-rollout-nginx$`,
+			},
+			AcceptUnexpectedTags: true,
+		},
+	})
 }
 
 func (suite *k8sSuite) TestCPU() {
@@ -843,6 +938,7 @@ func (suite *k8sSuite) TestCPU() {
 				`^pod_name:stress-ng-[[:alnum:]]+-[[:alnum:]]+$`,
 				`^pod_phase:running$`,
 				`^short_image:apps-stress-ng$`,
+				`^kube_static_cpus:false$`,
 			},
 			Value: &testMetricExpectValueArgs{
 				Max: 250000000,
@@ -879,6 +975,7 @@ func (suite *k8sSuite) TestCPU() {
 				`^pod_name:stress-ng-[[:alnum:]]+-[[:alnum:]]+$`,
 				`^pod_phase:running$`,
 				`^short_image:apps-stress-ng$`,
+				`^kube_static_cpus:false$`,
 			},
 			Value: &testMetricExpectValueArgs{
 				Max: 0.2,
@@ -898,8 +995,9 @@ func (suite *k8sSuite) TestKSM() {
 			},
 		},
 		Expect: testMetricExpectArgs{
-			Tags: &[]string{
+			Tags: suite.testClusterTags([]string{
 				`^kube_cluster_name:` + regexp.QuoteMeta(suite.clusterName) + `$`,
+				`^cluster_name:` + regexp.QuoteMeta(suite.clusterName) + `$`,
 				`^orch_cluster_id:`,
 				`^kube_namespace:workload-nginx$`,
 				`^org:agent-org$`,
@@ -907,7 +1005,7 @@ func (suite *k8sSuite) TestKSM() {
 				`^mail:team-container-platform@datadoghq.com$`,
 				`^kube_instance_tag:static$`,                            // This is applied via KSM core check instance config
 				`^stackid:` + regexp.QuoteMeta(suite.clusterName) + `$`, // Pulumi applies this via DD_TAGS env var
-			},
+			}),
 			Value: &testMetricExpectValueArgs{
 				Max: 1,
 				Min: 1,
@@ -924,13 +1022,14 @@ func (suite *k8sSuite) TestKSM() {
 			},
 		},
 		Expect: testMetricExpectArgs{
-			Tags: &[]string{
+			Tags: suite.testClusterTags([]string{
 				`^kube_cluster_name:` + regexp.QuoteMeta(suite.clusterName) + `$`,
+				`^cluster_name:` + regexp.QuoteMeta(suite.clusterName) + `$`,
 				`^orch_cluster_id:`,
 				`^kube_namespace:workload-redis$`,
 				`^kube_instance_tag:static$`,                            // This is applied via KSM core check instance config
 				`^stackid:` + regexp.QuoteMeta(suite.clusterName) + `$`, // Pulumi applies this via DD_TAGS env var
-			},
+			}),
 			Value: &testMetricExpectValueArgs{
 				Max: 1,
 				Min: 1,
@@ -943,8 +1042,9 @@ func (suite *k8sSuite) TestKSM() {
 			Name: "kubernetes_state_customresource.ddm_value",
 		},
 		Expect: testMetricExpectArgs{
-			Tags: &[]string{
+			Tags: suite.testClusterTags([]string{
 				`^kube_cluster_name:` + regexp.QuoteMeta(suite.clusterName) + `$`,
+				`^cluster_name:` + regexp.QuoteMeta(suite.clusterName) + `$`,
 				`^orch_cluster_id:`,
 				`^customresource_group:datadoghq.com$`,
 				`^customresource_version:v1alpha1$`,
@@ -954,7 +1054,7 @@ func (suite *k8sSuite) TestKSM() {
 				`^ddm_name:(?:nginx|redis)$`,
 				`^kube_instance_tag:static$`,                            // This is applied via KSM core check instance config
 				`^stackid:` + regexp.QuoteMeta(suite.clusterName) + `$`, // Pulumi applies this via DD_TAGS env var
-			},
+			}),
 		},
 	})
 }
@@ -1210,7 +1310,9 @@ func (suite *k8sSuite) testAdmissionControllerPod(namespace string, name string,
 	)
 
 	if suite.Contains(hostPathVolumes, "datadog") {
-		suite.Equal("/var/run/datadog", hostPathVolumes["datadog"].Path)
+		// trim trailing '/' if exists
+		ddHostPath := strings.TrimSuffix(hostPathVolumes["datadog"].Path, "/")
+		suite.Contains("/var/run/datadog", ddHostPath)
 		suite.Contains(volumesMarkedAsSafeToEvict, "datadog")
 	}
 
@@ -1248,7 +1350,47 @@ func (suite *k8sSuite) testAdmissionControllerPod(namespace string, name string,
 			}, volumeMounts["datadog-auto-instrumentation"])
 		}
 	}
+}
 
+func (suite *k8sSuite) TestAdmissionControllerExcludesSystemNamespaces() {
+	ctx := context.Background()
+
+	suite.Run("webhooks should not mutate pods in kube-system namespace", func() {
+		// Get a pod from kube-system namespace
+		pods, err := suite.Env().KubernetesCluster.Client().CoreV1().Pods("kube-system").List(ctx, metav1.ListOptions{})
+		suite.Require().NoError(err)
+		suite.Require().NotEmpty(pods.Items, "No pods found in kube-system namespace")
+
+		// Verify the pod does NOT have admission controller mutations
+		suite.Run("should not have config env injected", func() {
+			for _, pod := range pods.Items {
+				env := make(map[string]string)
+				for _, container := range pod.Spec.Containers {
+					for _, envVar := range container.Env {
+						env[envVar.Name] = envVar.Value
+					}
+				}
+
+				// These env vars should NOT be present in kube-system pods
+				suite.NotContainsf(env, "DD_AGENT_HOST", "DD_AGENT_HOST should not be injected in kube-system resource %v", pod.Name)
+				suite.NotContainsf(env, "DD_ENTITY_ID", "DD_ENTITY_ID should not be injected in kube-system resource %v", pod.Name)
+				suite.NotContainsf(env, "DD_DOGSTATSD_URL", "DD_DOGSTATSD_URL should not be injected in kube-system resource %v", pod.Name)
+				suite.NotContainsf(env, "DD_TRACE_AGENT_URL", "DD_TRACE_AGENT_URL should not be injected in kube-system resource %v", pod.Name)
+			}
+		})
+
+		suite.Run("should not have datadog volumes mounted", func() {
+			for _, pod := range pods.Items {
+				volumeNames := make(map[string]bool)
+				for _, volume := range pod.Spec.Volumes {
+					volumeNames[volume.Name] = true
+				}
+
+				suite.NotContainsf(volumeNames, "datadog", "datadog volume should not be mounted in kube-system resource %v", pod.Name)
+				suite.NotContainsf(volumeNames, "datadog-auto-instrumentation", "APM library volume should not be mounted in kube-system resource %v", pod.Name)
+			}
+		})
+	})
 }
 
 func (suite *k8sSuite) TestContainerImage() {
@@ -1676,4 +1818,9 @@ func (suite *k8sSuite) testTrace(kubeDeployment string) {
 		}
 		require.NoErrorf(c, err, "Failed finding trace with proper tags")
 	}, 2*time.Minute, 10*time.Second, "Failed finding trace with proper tags")
+}
+
+func (suite *k8sSuite) testClusterTags(tags []string) *[]string {
+	combined := append(tags, suite.envSpecificClusterTags...)
+	return &combined
 }

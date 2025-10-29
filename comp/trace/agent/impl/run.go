@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/trace/config"
 	rc "github.com/DataDog/datadog-agent/pkg/config/remote/client"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
 	tracecfg "github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
@@ -45,7 +46,7 @@ func runAgentSidekicks(ag component) error {
 		log.Warnf("Can't setup core dumps: %v, core dumps might not be available after a crash", err)
 	}
 
-	if pkgconfigsetup.IsRemoteConfigEnabled(pkgconfigsetup.Datadog()) {
+	if configUtils.IsRemoteConfigEnabled(pkgconfigsetup.Datadog()) {
 		cf, err := newConfigFetcher(ag.ipc)
 		if err != nil {
 			ag.telemetryCollector.SendStartupError(telemetry.CantCreateRCCLient, err)
@@ -76,27 +77,25 @@ func runAgentSidekicks(ag component) error {
 		},
 	})
 
-	if secrets, ok := ag.secrets.Get(); ok {
-		// Adding a route to trigger a secrets refresh from the CLI.
-		// TODO - components: the secrets comp already export a route but it requires the API component which is not
-		// used by the trace agent. This should be removed once the trace-agent is fully componentize.
-		ag.Agent.DebugServer.AddRoute("/secret/refresh",
-			// Adding IPC middleware to the secrets refresh endpoint to check validity of auth token Header.
-			ag.ipc.HTTPMiddleware(
-				http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-					res, err := secrets.Refresh()
-					if err != nil {
-						log.Errorf("error while refresing secrets: %s", err)
-						w.Header().Set("Content-Type", "application/json")
-						body, _ := json.Marshal(map[string]string{"error": err.Error()})
-						http.Error(w, string(body), http.StatusInternalServerError)
-						return
-					}
-					w.Write([]byte(res))
-				}),
-			),
-		)
-	}
+	// Adding a route to trigger a secrets refresh from the CLI.
+	// TODO - components: the secrets comp already export a route but it requires the API component which is not
+	// used by the trace agent. This should be removed once the trace-agent is fully componentize.
+	ag.Agent.DebugServer.AddRoute("/secret/refresh",
+		// Adding IPC middleware to the secrets refresh endpoint to check validity of auth token Header.
+		ag.ipc.HTTPMiddleware(
+			http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				res, err := ag.secrets.Refresh()
+				if err != nil {
+					log.Errorf("error while refresing secrets: %s", err)
+					w.Header().Set("Content-Type", "application/json")
+					body, _ := json.Marshal(map[string]string{"error": err.Error()})
+					http.Error(w, string(body), http.StatusInternalServerError)
+					return
+				}
+				w.Write([]byte(res))
+			}),
+		),
+	)
 
 	log.Infof("Trace agent running on host %s", tracecfg.Hostname)
 	if pcfg := profilingConfig(tracecfg, ag.params.DisableInternalProfiling); pcfg != nil {

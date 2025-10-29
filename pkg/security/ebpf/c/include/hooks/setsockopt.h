@@ -3,30 +3,25 @@
 
 #include "constants/syscall_macro.h"
 #include "helpers/syscalls.h"
+#include "helpers/process.h"
 #include <uapi/linux/filter.h>
 long __attribute__((always_inline)) trace__sys_setsock_opt(u8 async, int socket_fd, int level, int optname) {
     if (is_discarded_by_pid()) {
         return 0;
     }
-    switch (optname) {
-        case SO_ATTACH_FILTER: {
-            struct policy_t policy = fetch_policy(EVENT_SETSOCKOPT);
-            struct syscall_cache_t syscall = {
-                .type = EVENT_SETSOCKOPT,
-                .policy = policy,
-                .async = async,
-                .setsockopt = {
-                    .level = level,
-                    .optname = optname,
-                }
-            };
-
-            cache_syscall(&syscall);
-            return 0;
+    struct policy_t policy = fetch_policy(EVENT_SETSOCKOPT);
+    struct syscall_cache_t syscall = {
+        .type = EVENT_SETSOCKOPT,
+        .policy = policy,
+        .async = async,
+        .setsockopt = {
+            .level = level,
+            .optname = optname,
         }
-        default:
-            return 0; // unsupported optname
-    }
+    };
+
+    cache_syscall(&syscall);
+    return 0;
 }
 
 int __attribute__((always_inline)) sys_set_sock_opt_ret(void *ctx, int retval) {
@@ -50,7 +45,7 @@ int __attribute__((always_inline)) sys_set_sock_opt_ret(void *ctx, int retval) {
     event->filter_len = syscall->setsockopt.filter_len;
     event->truncated = syscall->setsockopt.truncated;
     struct proc_cache_t *entry = fill_process_context(&event->process);
-    fill_container_context(entry, &event->container);
+    fill_cgroup_context(entry, &event->cgroup);
     fill_span_context(&event->span);
     int size_to_sent = (syscall->setsockopt.filter_size_to_send >= MAX_BPF_FILTER_SIZE )
         ? MAX_BPF_FILTER_SIZE
@@ -58,7 +53,6 @@ int __attribute__((always_inline)) sys_set_sock_opt_ret(void *ctx, int retval) {
     event->sent_size = size_to_sent;
     send_event_with_size_ptr(ctx, EVENT_SETSOCKOPT, event, (offsetof(struct setsockopt_event_t, bpf_filters_buffer) + size_to_sent));
     
-
     return 0;
 }
 
@@ -76,7 +70,10 @@ int hook_sk_attach_filter(ctx_t *ctx) {
     if (!syscall) {
         return 0;
     }
-    // We assume that optname is always SO_ATTACH_FILTER here
+    if (syscall->setsockopt.optname != SO_ATTACH_FILTER) {
+        syscall->setsockopt.fprog = 0;
+        return 0;
+    }
     struct sock_fprog *fprog = (struct sock_fprog *)CTX_PARM1(ctx);
     syscall->setsockopt.fprog = fprog;
     return 0;
@@ -89,7 +86,6 @@ int hook_security_socket_setsockopt(ctx_t *ctx) {
     if (!syscall) {
         return 0;
     }
-    // We assume that optname is always SO_ATTACH_FILTER
     struct socket *sock = (struct socket *)CTX_PARM1(ctx);
     short socket_type;
     bpf_probe_read(&socket_type, sizeof(socket_type), &sock->type);
@@ -122,6 +118,12 @@ HOOK_EXIT("release_sock")
 int rethook_release_sock(ctx_t *ctx) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_SETSOCKOPT);
     if (!syscall) {
+        return 0;
+    }
+    if (syscall->setsockopt.optname != SO_ATTACH_FILTER) {
+        syscall->setsockopt.filter_len = 0;
+        syscall->setsockopt.filter_size_to_send = 0;
+        syscall->setsockopt.truncated = 0;
         return 0;
     }
     struct sock_fprog prog;

@@ -23,6 +23,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core"
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
+	taggermock "github.com/DataDog/datadog-agent/comp/core/tagger/mock"
+	taggertypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
@@ -466,7 +468,8 @@ func TestProcessWithNoCommandline(t *testing.T) {
 	useWindowsServiceName := true
 	useImprovedAlgorithm := false
 	serviceExtractor := parser.NewServiceExtractor(serviceExtractorEnabled, useWindowsServiceName, useImprovedAlgorithm)
-	procs := fmtProcesses(procutil.NewDefaultDataScrubber(), disallowList, procMap, procMap, nil, syst2, syst1, lastRun, nil, false, serviceExtractor, nil, now)
+	taggerMock := fxutil.Test[taggermock.Mock](t, core.MockBundle(), taggerfxmock.MockModule(), workloadmetafxmock.MockModule(workloadmeta.NewParams()))
+	procs := fmtProcesses(procutil.NewDefaultDataScrubber(), disallowList, procMap, procMap, nil, syst2, syst1, lastRun, nil, false, serviceExtractor, nil, taggerMock, now)
 	assert.Len(t, procs, 1)
 
 	require.Len(t, procs[""], 1)
@@ -607,4 +610,89 @@ func TestProcessContextCollection(t *testing.T) {
 	actual, err := processCheck.run(0, false)
 	require.NoError(t, err)
 	assert.ElementsMatch(t, expected, actual.Payloads())
+}
+
+func TestProcessTaggerIntegration(t *testing.T) {
+	now := time.Now()
+	lastRun := now.Add(-5 * time.Second)
+	syst1, syst2 := cpu.TimesStat{}, cpu.TimesStat{}
+
+	// Create test processes using the proper helper function
+	proc1 := makeProcessWithCreateTime(1234, "test-process --config server.conf", now.Unix())
+	proc2 := makeProcessWithCreateTime(5678, "another-process --worker", now.Unix())
+	proc3 := makeProcessWithCreateTime(9101, "yet-another-process --worker", now.Unix())
+
+	procs := map[int32]*procutil.Process{
+		1234: proc1,
+		5678: proc2,
+		9101: proc3,
+	}
+
+	// Create tagger mock and configure it to return specific tags for our test processes
+	taggerMock := fxutil.Test[taggermock.Mock](t, core.MockBundle(), taggerfxmock.MockModule(),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()))
+
+	// Set up expected tags for process 1234
+	proc1Tags := []string{"service:web-server", "env:production", "team:backend"}
+	taggerMock.SetTags(taggertypes.NewEntityID(taggertypes.Process, "1234"), "test-source", nil, nil, proc1Tags, nil)
+
+	// Set up expected tags for process 5678 (empty tags to test that case)
+	taggerMock.SetTags(taggertypes.NewEntityID(taggertypes.Process, "5678"), "test-source", nil, nil, []string{}, nil)
+
+	// Create service extractor
+	serviceExtractorEnabled := true
+	useWindowsServiceName := false
+	useImprovedAlgorithm := false
+	serviceExtractor := parser.NewServiceExtractor(serviceExtractorEnabled, useWindowsServiceName, useImprovedAlgorithm)
+
+	// Call fmtProcesses with the tagger
+	procsByCtr := fmtProcesses(
+		procutil.NewDefaultDataScrubber(),
+		nil, // no disallow list
+		procs,
+		procs, // same as last procs for simplicity
+		nil,   // no container mapping
+		syst2,
+		syst1,
+		lastRun,
+		nil,   // no lookup probe
+		false, // don't ignore zombies
+		serviceExtractor,
+		nil, // no GPU tags
+		taggerMock,
+		now,
+	)
+
+	// Verify that we have processes in the result
+	require.Contains(t, procsByCtr, "", "Expected non-container processes")
+	processes := procsByCtr[""]
+	require.Len(t, processes, 3, "Expected 3 processes")
+
+	// Find the processes by PID and verify their tags
+	var proc1234, proc5678, proc9101 *model.Process
+	for _, p := range processes {
+		switch p.Pid {
+		case 1234:
+			proc1234 = p
+		case 5678:
+			proc5678 = p
+		case 9101:
+			proc9101 = p
+		}
+	}
+
+	require.NotNil(t, proc1234, "Process 1234 should be found")
+	require.NotNil(t, proc5678, "Process 5678 should be found")
+	require.NotNil(t, proc9101, "Process 9101 should be found")
+
+	// Verify that process 1234 has the expected tags from tagger
+	assert.Contains(t, proc1234.Tags, "service:web-server", "Process 1234 should have service tag from tagger")
+	assert.Contains(t, proc1234.Tags, "env:production", "Process 1234 should have env tag from tagger")
+	assert.Contains(t, proc1234.Tags, "team:backend", "Process 1234 should have team tag from tagger")
+
+	// Verify that process 5678 has no tags (empty tags from tagger)
+	assert.Empty(t, proc5678.Tags, "Process 5678 should have no tags")
+
+	// Verify that process 9101 has no tags (no tags in tagger)
+	assert.Empty(t, proc9101.Tags, "Process 9101 should have no tags")
 }

@@ -14,6 +14,7 @@ message SecurityEventMessage {
     repeated string Tags = 3;
     string Service = 4;
     google.protobuf.Timestamp Timestamp = 5;
+    string OriginalRuleID = 6;
 }
 
 message DumpProcessCacheParams {
@@ -123,12 +124,23 @@ message SECLVariableState {
     string Value = 2;
 }
 
+message SECLVariableStateList {
+    repeated SECLVariableState Variables = 1;
+}
+
+message ScopedVariableStore {
+    map<string, SECLVariableStateList> KeyValues = 1;
+}
+
 message Status {
     EnvironmentStatus Environment = 1;
     SelfTestsStatus SelfTests = 2;
     repeated PolicyStatus PoliciesStatus = 3;
-    repeated SECLVariableState SECLVariables = 4;
-}
+    reserved 4;
+    DirectSenderStatus DirectSenderStatus = 5;
+    repeated SECLVariableState GlobalVariables = 6;
+    map<string, ScopedVariableStore> ScopedVariables = 7;
+ }
 
 message ConstantFetcherStatus {
     repeated string Fetchers = 1;
@@ -142,6 +154,10 @@ message EnvironmentStatus {
     bool UseMmapableMaps = 4;
     bool UseRingBuffer = 5;
     bool UseFentry = 6;
+}
+
+message DirectSenderStatus {
+    repeated string Endpoints = 1;
 }
 
 /*Discarders*/
@@ -186,7 +202,7 @@ message MetadataMessage {
     uint64 Size = 13;
     string Serialization = 14;
     string CGroupID = 15;
-    string CGroupManager = 16;
+    string CGroupManager = 16 [deprecated = true];
 }
 
 message StorageRequestMessage {
@@ -257,6 +273,7 @@ message LastAnomalyTimestampMessage {
 message InstanceMessage {
     string ContainerID = 1;
     repeated string Tags = 2;
+    string CGroupID = 3;
 }
 
 message ActivityTreeStatsMessage {
@@ -268,6 +285,7 @@ message ActivityTreeStatsMessage {
     int64 IMDSNodesCount = 6;
     int64 SyscallNodesCount = 7;
     int64 FlowNodesCount = 8;
+    int64 CapabilityNodesCount = 9;
 }
 
 message event_type_state {

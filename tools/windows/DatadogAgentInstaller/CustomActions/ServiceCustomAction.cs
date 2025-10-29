@@ -50,6 +50,30 @@ namespace Datadog.CustomActions
             }
         }
 
+        public static bool IsServiceDoesNotExistError(Exception exception)
+        {
+            // Walk the exception chain to find a Win32Exception with ERROR_SERVICE_DOES_NOT_EXIST (1060)
+            var current = exception;
+            while (current != null)
+            {
+                if (current is System.ComponentModel.Win32Exception wex && wex.NativeErrorCode == 1060)
+                {
+                    return true;
+                }
+                // Fallback: some ServiceController operations surface as InvalidOperationException with a descriptive message
+                // System.ComponentModel.Win32Exception: The specified service does not exist as an installed service
+                if (current is InvalidOperationException ioe &&
+                    ioe.Message != null &&
+                    // string.Contains doesn't have a ignore-case option
+                    ioe.Message.IndexOf("does not exist", StringComparison.InvariantCultureIgnoreCase) >= 0)
+                {
+                    return true;
+                }
+                current = current.InnerException;
+            }
+            return false;
+        }
+
         public ServiceCustomAction(ISession session)
             : this(
                 session,
@@ -289,7 +313,7 @@ namespace Datadog.CustomActions
         /// Stop any existing datadog services
         /// </summary>
         /// <returns></returns>
-        private ActionResult StopDDServices(bool continueOnError)
+        public ActionResult StopDDServices(bool continueOnError)
         {
             try
             {
@@ -374,6 +398,11 @@ namespace Datadog.CustomActions
                         {
                             _session.Log($"Service {service} not found");
                         }
+                    }
+                    catch (Exception e) when (IsServiceDoesNotExistError(e))
+                    {
+                        _session.Log($"Service {service} not found");
+                        continue;
                     }
                     catch (Exception e)
                     {

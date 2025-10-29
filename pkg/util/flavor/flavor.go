@@ -34,6 +34,8 @@ const (
 	OTelAgent = "otel_agent"
 	// SystemProbe is the System Probe flavor
 	SystemProbe = "system_probe"
+	// HostProfiler is the Host Profiler flavor
+	HostProfiler = "host_profiler"
 )
 
 var agentFlavors = map[string]string{
@@ -48,6 +50,7 @@ var agentFlavors = map[string]string{
 	TraceAgent:      "Trace Agent",
 	OTelAgent:       "OpenTelemetry Collector",
 	SystemProbe:     "System Probe",
+	HostProfiler:    "Host Profiler",
 }
 
 const unknownAgent = "Unknown Agent"

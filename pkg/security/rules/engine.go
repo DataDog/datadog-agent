@@ -12,7 +12,6 @@ import (
 	"fmt"
 	"os"
 	"runtime"
-	"strings"
 	"sync"
 	"time"
 
@@ -399,49 +398,41 @@ func (e *RuleEngine) notifyAPIServer(ruleIDs []rules.RuleID, policies []*monitor
 	e.apiServer.ApplyPolicyStates(policies)
 }
 
-func (e *RuleEngine) getCommonSECLVariables(rs *rules.RuleSet) map[string]*api.SECLVariableState {
-	var seclVariables = make(map[string]*api.SECLVariableState)
-	for name, value := range rs.GetVariables() {
-		if strings.HasPrefix(name, "process.") {
-			scopedVariable := value.(eval.ScopedVariable)
-			if !scopedVariable.IsMutable() {
-				continue
-			}
+// GetSECLVariables returns the state of all current variable instances
+func (e *RuleEngine) GetSECLVariables() map[string]*api.SECLVariableState {
+	rs := e.GetRuleSet()
+	if rs == nil {
+		return nil
+	}
 
-			e.probe.Walk(func(entry *model.ProcessCacheEntry) {
-				entry.Retain()
-				defer entry.Release()
+	seclVariableStates := make(map[string]*api.SECLVariableState)
 
-				event := e.probe.PlatformProbe.NewEvent()
-				event.ProcessCacheEntry = entry
-				ctx := eval.NewContext(event)
-				scopedName := fmt.Sprintf("%s.%d", name, entry.Pid)
-				value, found := scopedVariable.GetValue(ctx)
-				if !found {
-					return
+	rs.IterVariables(func(definition eval.VariableDefinition, instances map[string]eval.VariableInstance) {
+		name := definition.VariableName(true)
+		switch definition.Scoper().Type() {
+		case eval.GlobalScoperType:
+			globalInstance, ok := instances[rules.GlobalScopeKey]
+			if ok && !globalInstance.IsExpired() { // skip variables that expired but are yet to be cleaned up
+				seclVariableStates[name] = &api.SECLVariableState{
+					Name:  name,
+					Value: fmt.Sprintf("%+v", globalInstance.GetValue()),
 				}
-
-				scopedValue := fmt.Sprintf("%+v", value)
-				seclVariables[scopedName] = &api.SECLVariableState{
+			}
+		case eval.ProcessScoperType, eval.CGroupScoperType, eval.ContainerScoperType:
+			for scopeKey, instance := range instances {
+				if instance.IsExpired() { // skip variables that expired but are yet to be cleaned up
+					continue
+				}
+				scopedName := fmt.Sprintf("%s.%s", name, scopeKey)
+				seclVariableStates[scopedName] = &api.SECLVariableState{
 					Name:  scopedName,
-					Value: scopedValue,
+					Value: fmt.Sprintf("%+v", instance.GetValue()),
 				}
-			})
-		} else if strings.Contains(name, ".") { // other scopes
-			continue
-		} else { // global variables
-			value, found := value.(eval.Variable).GetValue()
-			if !found {
-				continue
-			}
-			scopedValue := fmt.Sprintf("%+v", value)
-			seclVariables[name] = &api.SECLVariableState{
-				Name:  name,
-				Value: scopedValue,
 			}
 		}
-	}
-	return seclVariables
+	})
+
+	return seclVariableStates
 }
 
 func (e *RuleEngine) gatherDefaultPolicyProviders() []rules.PolicyProvider {
@@ -492,7 +483,7 @@ func (e *RuleEngine) RuleMatch(ctx *eval.Context, rule *rules.Rule, event eval.E
 	ev := event.(*model.Event)
 
 	// add matched rules before any auto suppression check to ensure that this information is available in activity dumps
-	if ev.ContainerContext.ContainerID != "" && (e.config.ActivityDumpTagRulesEnabled || e.config.AnomalyDetectionTagRulesEnabled) {
+	if ev.ProcessContext.Process.ContainerContext.ContainerID != "" && (e.config.ActivityDumpTagRulesEnabled || e.config.AnomalyDetectionTagRulesEnabled) {
 		ev.Rules = append(ev.Rules, model.NewMatchedRule(rule.Def.ID, rule.Def.Version, rule.Def.Tags, rule.Policy.Name, rule.Policy.Version))
 	}
 
@@ -507,9 +498,9 @@ func (e *RuleEngine) RuleMatch(ctx *eval.Context, rule *rules.Rule, event eval.E
 	}
 
 	// ensure that all the fields are resolved before sending
-	ev.FieldHandlers.ResolveContainerID(ev, ev.ContainerContext)
-	ev.FieldHandlers.ResolveContainerTags(ev, ev.ContainerContext)
-	ev.FieldHandlers.ResolveContainerCreatedAt(ev, ev.ContainerContext)
+	ev.FieldHandlers.ResolveContainerID(ev, &ev.ProcessContext.Process.ContainerContext)
+	ev.FieldHandlers.ResolveContainerTags(ev, &ev.ProcessContext.Process.ContainerContext)
+	ev.FieldHandlers.ResolveContainerCreatedAt(ev, &ev.ProcessContext.Process.ContainerContext)
 
 	// do not send event if a anomaly detection event will be sent
 	if e.config.AnomalyDetectionSilentRuleEventsEnabled && ev.IsAnomalyDetectionEvent() {
@@ -522,9 +513,9 @@ func (e *RuleEngine) RuleMatch(ctx *eval.Context, rule *rules.Rule, event eval.E
 
 	var extTagsCb func() ([]string, bool)
 
-	if ev.ContainerContext.ContainerID != "" {
+	if ev.ProcessContext.Process.ContainerContext.ContainerID != "" {
 		// copy the container ID here to avoid later data race
-		containerID := ev.ContainerContext.ContainerID
+		containerID := ev.ProcessContext.Process.ContainerContext.ContainerID
 
 		extTagsCb = func() ([]string, bool) {
 			return e.probe.GetEventTags(containerID), true
@@ -566,15 +557,19 @@ func (e *RuleEngine) getEventTypeEnabled() map[eval.EventType]bool {
 		}
 	}
 
-	if e.probe.IsNetworkEnabled() {
-		if eventTypes, exists := categories[model.NetworkCategory]; exists {
-			for _, eventType := range eventTypes {
-				switch eventType {
-				case model.RawPacketEventType.String():
-					enabled[eventType] = e.probe.IsNetworkRawPacketEnabled()
-				case model.NetworkFlowMonitorEventType.String():
-					enabled[eventType] = e.probe.IsNetworkFlowMonitorEnabled()
-				default:
+	if eventTypes, exists := categories[model.NetworkCategory]; exists {
+		for _, eventType := range eventTypes {
+			switch eventType {
+			case model.RawPacketFilterEventType.String():
+				enabled[eventType] = e.probe.IsNetworkRawPacketEnabled()
+			case model.RawPacketActionEventType.String():
+				enabled[eventType] = e.probe.IsNetworkRawPacketEnabled()
+			case model.NetworkFlowMonitorEventType.String():
+				enabled[eventType] = e.probe.IsNetworkFlowMonitorEnabled()
+			default:
+				if model.EventTypeDependsOnInterfaceTracking(eventType) {
+					enabled[eventType] = e.probe.IsNetworkEnabled()
+				} else {
 					enabled[eventType] = true
 				}
 			}

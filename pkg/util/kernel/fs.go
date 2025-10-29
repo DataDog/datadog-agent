@@ -49,7 +49,7 @@ func procFsRoot() string {
 	return "/proc"
 }
 
-// ResetProcFSRoot resets any memoization of ProcFSRoot, useful for unit tests
+// resetProcFSRoot resets any memoization of ProcFSRoot, useful for unit tests
 func resetProcFSRoot() {
 	ProcFSRoot = funcs.MemoizeNoError(procFsRoot)
 }

@@ -45,7 +45,7 @@ func (s *StatKeeper) Process(tx *EventWrapper) {
 		if len(s.stats) >= s.maxEntries {
 			return
 		}
-		requestStats = new(RequestStat)
+		requestStats = requestStatPool.Get()
 		s.stats[key] = requestStats
 	}
 	requestStats.StaticTags = uint64(tx.Tx.Tags)

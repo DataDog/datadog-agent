@@ -153,7 +153,7 @@ func TestEbpfPrebuiltFallbackDeprecation(t *testing.T) {
 	t.Run("allow_precompiled_fallback set in config", func(t *testing.T) {
 		t.Run("true", func(t *testing.T) {
 			cfg := mock.NewSystemProbe(t)
-			cfg.Set(allowPrecompiledFallbackKey, true, model.SourceDefault)
+			cfg.Set(allowPrecompiledFallbackKey, true, model.SourceAgentRuntime)
 			Adjust(cfg)
 
 			assert.True(t, cfg.GetBool(allowPrecompiledFallbackKey))
@@ -162,7 +162,7 @@ func TestEbpfPrebuiltFallbackDeprecation(t *testing.T) {
 
 		t.Run("false", func(t *testing.T) {
 			cfg := mock.NewSystemProbe(t)
-			cfg.Set(allowPrecompiledFallbackKey, false, model.SourceDefault)
+			cfg.Set(allowPrecompiledFallbackKey, false, model.SourceAgentRuntime)
 			Adjust(cfg)
 
 			assert.False(t, cfg.GetBool(allowPrecompiledFallbackKey))
@@ -175,7 +175,7 @@ func TestEbpfPrebuiltFallbackDeprecation(t *testing.T) {
 	t.Run("allow_prebuilt_fallback set in config", func(t *testing.T) {
 		t.Run("true", func(t *testing.T) {
 			cfg := mock.NewSystemProbe(t)
-			cfg.Set(allowPrebuiltFallbackKey, true, model.SourceDefault)
+			cfg.Set(allowPrebuiltFallbackKey, true, model.SourceAgentRuntime)
 			Adjust(cfg)
 
 			assert.True(t, cfg.GetBool(allowPrebuiltFallbackKey))
@@ -183,7 +183,7 @@ func TestEbpfPrebuiltFallbackDeprecation(t *testing.T) {
 
 		t.Run("false", func(t *testing.T) {
 			cfg := mock.NewSystemProbe(t)
-			cfg.Set(allowPrebuiltFallbackKey, false, model.SourceDefault)
+			cfg.Set(allowPrebuiltFallbackKey, false, model.SourceAgentRuntime)
 			Adjust(cfg)
 
 			assert.False(t, cfg.GetBool(allowPrebuiltFallbackKey))

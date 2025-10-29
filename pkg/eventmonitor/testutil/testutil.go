@@ -18,31 +18,35 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor"
 	emconfig "github.com/DataDog/datadog-agent/pkg/eventmonitor/config"
 	secconfig "github.com/DataDog/datadog-agent/pkg/security/config"
+	secmodule "github.com/DataDog/datadog-agent/pkg/security/module"
 	sysconfig "github.com/DataDog/datadog-agent/pkg/system-probe/config"
 )
 
 // PreStartCallback is a callback to register clients to the event monitor before starting it
-type PreStartCallback func(t *testing.T, evm *eventmonitor.EventMonitor)
+type PreStartCallback func(tb testing.TB, evm *eventmonitor.EventMonitor)
 
 // StartEventMonitor creates and starts an event monitor for use in tests
-func StartEventMonitor(t *testing.T, callback PreStartCallback) {
+func StartEventMonitor(tb testing.TB, callback PreStartCallback) {
 	if !sysconfig.ProcessEventDataStreamSupported() {
-		t.Skip("Process event data stream not supported on this kernel")
+		tb.Skip("Process event data stream not supported on this kernel")
 	}
 	emconfig := emconfig.NewConfig()
 	secconfig, err := secconfig.NewConfig()
-	require.NoError(t, err)
+	require.NoError(tb, err)
+
+	// disable the CWS part (similar to running USM/CNM only)
+	secmodule.DisableRuntimeSecurity(secconfig)
 
 	// Needed for the socket creation to work
-	require.NoError(t, os.MkdirAll("/opt/datadog-agent/run/", 0755))
+	require.NoError(tb, os.MkdirAll("/opt/datadog-agent/run/", 0755))
 
-	ipcComp := ipcmock.New(t)
+	ipcComp := ipcmock.New(tb)
 
 	opts := eventmonitor.Opts{}
 	evm, err := eventmonitor.NewEventMonitor(emconfig, secconfig, ipcComp, opts)
-	require.NoError(t, err)
-	require.NoError(t, evm.Init())
-	callback(t, evm)
-	require.NoError(t, evm.Start())
-	t.Cleanup(evm.Close)
+	require.NoError(tb, err)
+	require.NoError(tb, evm.Init())
+	callback(tb, evm)
+	require.NoError(tb, evm.Start())
+	tb.Cleanup(evm.Close)
 }

@@ -8,6 +8,7 @@ package defaultforwarder
 import (
 	"fmt"
 	"net/http"
+	"net/url"
 	"path"
 	"strconv"
 	"strings"
@@ -23,6 +24,7 @@ import (
 	pkgresolver "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/resolver"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
@@ -75,8 +77,8 @@ type Forwarder interface {
 	SubmitContainerChecks(payload transaction.BytesPayloads, extra http.Header) (chan Response, error)
 	SubmitRTContainerChecks(payload transaction.BytesPayloads, extra http.Header) (chan Response, error)
 	SubmitConnectionChecks(payload transaction.BytesPayloads, extra http.Header) (chan Response, error)
-	SubmitOrchestratorChecks(payload transaction.BytesPayloads, extra http.Header, payloadType int) (chan Response, error)
-	SubmitOrchestratorManifests(payload transaction.BytesPayloads, extra http.Header) (chan Response, error)
+	SubmitOrchestratorChecks(payload transaction.BytesPayloads, extra http.Header, payloadType int) error
+	SubmitOrchestratorManifests(payload transaction.BytesPayloads, extra http.Header) error
 }
 
 // Compile-time check to ensure that DefaultForwarder implements the Forwarder interface
@@ -105,7 +107,6 @@ type Options struct {
 	APIKeyValidationInterval       time.Duration
 	DomainResolvers                map[string]pkgresolver.DomainResolver
 	ConnectionResetInterval        time.Duration
-	CompletionHandler              transaction.HTTPCompletionHandler
 }
 
 // SetFeature sets forwarder features in a feature set
@@ -120,6 +121,33 @@ func ToggleFeature(features, flag Features) Features { return features ^ flag }
 // HasFeature lets you know if a specific feature flag is set in a feature set
 func HasFeature(features, flag Features) bool { return features&flag != 0 }
 
+// getObsPipelineURL returns the URL under the 'observability_pipelines_worker.' prefix for the given datatype
+func getObsPipelineURL(log log.Component, datatype string, config pkgconfigmodel.Reader) (string, error) {
+	if config.GetBool(fmt.Sprintf("observability_pipelines_worker.%s.enabled", datatype)) {
+		return getObsPipelineURLForPrefix(log, datatype, "observability_pipelines_worker", config)
+	} else if config.GetBool(fmt.Sprintf("vector.%s.enabled", datatype)) {
+		// Fallback to the `vector` config if observability_pipelines_worker is not set.
+		return getObsPipelineURLForPrefix(log, datatype, "vector", config)
+	}
+	return "", nil
+}
+
+func getObsPipelineURLForPrefix(log log.Component, datatype string, prefix string, config pkgconfigmodel.Reader) (string, error) {
+	if config.GetBool(fmt.Sprintf("%s.%s.enabled", prefix, datatype)) {
+		pipelineURL := config.GetString(fmt.Sprintf("%s.%s.url", prefix, datatype))
+		if pipelineURL == "" {
+			log.Errorf("%s.%s.enabled is set to true, but %s.%s.url is empty", prefix, datatype, prefix, datatype)
+			return "", nil
+		}
+		_, err := url.Parse(pipelineURL)
+		if err != nil {
+			return "", fmt.Errorf("could not parse %s %s endpoint: %s", prefix, datatype, err)
+		}
+		return pipelineURL, nil
+	}
+	return "", nil
+}
+
 // NewOptions creates new Options with default values
 func NewOptions(config config.Component, log log.Component, keysPerDomain map[string][]utils.APIKeys) (*Options, error) {
 
@@ -128,7 +156,7 @@ func NewOptions(config config.Component, log log.Component, keysPerDomain map[st
 		return nil, err
 	}
 
-	vectorMetricsURL, err := pkgconfigsetup.GetObsPipelineURL(pkgconfigsetup.Metrics, config)
+	vectorMetricsURL, err := getObsPipelineURL(log, pkgconfigsetup.Metrics, config)
 	if err != nil {
 		log.Error("Misconfiguration of agent observability_pipelines_worker endpoint for metrics: ", err)
 	}
@@ -244,8 +272,6 @@ type DefaultForwarder struct {
 	internalState    *atomic.Uint32
 	m                sync.Mutex // To control Start/Stop races
 
-	completionHandler transaction.HTTPCompletionHandler
-
 	agentName                       string
 	queueDurationCapacity           *retry.QueueDurationCapacity
 	retryQueueDurationCapacityMutex sync.Mutex
@@ -269,9 +295,8 @@ func NewDefaultForwarder(config config.Component, log log.Component, options *Op
 			disableAPIKeyChecking: options.DisableAPIKeyChecking,
 			validationInterval:    options.APIKeyValidationInterval,
 		},
-		completionHandler: options.CompletionHandler,
-		agentName:         agentName,
-		localForwarder:    nil,
+		agentName:      agentName,
+		localForwarder: nil,
 	}
 	var optionalRemovalPolicy *retry.FileRemovalPolicy
 	storageMaxSize := config.GetInt64("forwarder_storage_max_size_in_bytes")
@@ -328,8 +353,7 @@ func NewDefaultForwarder(config config.Component, log log.Component, options *Op
 		domain, _ := utils.AddAgentVersionToDomain(domain, "app")
 		resolver.SetBaseDomain(domain)
 
-		_, isLocal := resolver.(*pkgresolver.LocalDomainResolver)
-		if !isLocal && (resolver.GetAPIKeys() == nil || len(resolver.GetAPIKeys()) == 0) {
+		if !resolver.IsUsable() {
 			log.Errorf("No API keys for domain '%s', dropping domain ", domain)
 		} else {
 			var domainFolderPath string
@@ -353,7 +377,7 @@ func NewDefaultForwarder(config config.Component, log log.Component, options *Op
 				pointCountTelemetry)
 			f.domainResolvers[domain] = resolver
 			numberOfWorkers := options.NumberOfWorkers
-			if isLocal {
+			if resolver.IsLocal() {
 				numberOfWorkers = 1 // Local domain resolver should only have one worker
 			}
 			fwd := newDomainForwarder(
@@ -361,7 +385,7 @@ func NewDefaultForwarder(config config.Component, log log.Component, options *Op
 				log,
 				domain,
 				isMRF,
-				isLocal,
+				resolver.IsLocal(),
 				transactionContainer,
 				numberOfWorkers,
 				options.ConnectionResetInterval,
@@ -502,6 +526,7 @@ func (f *DefaultForwarder) createAdvancedHTTPTransactions(endpoint transaction.E
 	for _, payload := range payloads {
 		for domain, dr := range f.domainResolvers {
 			drDomain, destinationType := dr.Resolve(endpoint) // drDomain is the domain with agent version if not local
+
 			if payload.Destination == transaction.LocalOnly {
 				// if it is local payload, we should not send it to the remote endpoint
 				if destinationType == pkgresolver.Local && endpoint == endpoints.SeriesEndpoint {
@@ -538,10 +563,6 @@ func (f *DefaultForwarder) createAdvancedHTTPTransactions(endpoint transaction.E
 					t.Headers.Set(useragentHTTPHeaderKey, fmt.Sprintf("datadog-agent/%s", version.AgentVersion))
 					if allowArbitraryTags {
 						t.Headers.Set(arbitraryTagHTTPHeaderKey, "true")
-					}
-
-					if f.completionHandler != nil {
-						t.CompletionHandler = f.completionHandler
 					}
 
 					tlmTxInputCount.Inc(domain, endpoint.Name)
@@ -711,21 +732,22 @@ func (f *DefaultForwarder) SubmitConnectionChecks(payload transaction.BytesPaylo
 }
 
 // SubmitOrchestratorChecks sends orchestrator checks
-func (f *DefaultForwarder) SubmitOrchestratorChecks(payload transaction.BytesPayloads, extra http.Header, payloadType int) (chan Response, error) {
+func (f *DefaultForwarder) SubmitOrchestratorChecks(payload transaction.BytesPayloads, extra http.Header, payloadType int) error {
 	bumpOrchestratorPayload(f.log, payloadType)
 
 	endpoint := endpoints.OrchestratorEndpoint
 	if f.config.IsSet("orchestrator_explorer.use_legacy_endpoint") {
 		endpoint = endpoints.LegacyOrchestratorEndpoint
 	}
-
-	return f.submitProcessLikePayload(endpoint, payload, extra, true)
+	transactions := f.createHTTPTransactions(endpoint, payload, transaction.Process, extra)
+	return f.sendHTTPTransactions(transactions)
 }
 
 // SubmitOrchestratorManifests sends orchestrator manifests
-func (f *DefaultForwarder) SubmitOrchestratorManifests(payload transaction.BytesPayloads, extra http.Header) (chan Response, error) {
+func (f *DefaultForwarder) SubmitOrchestratorManifests(payload transaction.BytesPayloads, extra http.Header) error {
 	transactionsOrchestratorManifest.Add(1)
-	return f.submitProcessLikePayload(endpoints.OrchestratorManifestEndpoint, payload, extra, true)
+	transactions := f.createHTTPTransactions(endpoints.OrchestratorManifestEndpoint, payload, transaction.Process, extra)
+	return f.sendHTTPTransactions(transactions)
 }
 
 func (f *DefaultForwarder) submitProcessLikePayload(ep transaction.Endpoint, payload transaction.BytesPayloads, extra http.Header, retryable bool) (chan Response, error) {

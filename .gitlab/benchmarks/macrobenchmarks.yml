@@ -6,6 +6,7 @@ variables:
   tags: ["team:apm-k8s-tweaked-metal-datadog-agent", "specific:true"]
   timeout: 1h
   rules:
+    - !reference [.except_coverage_pipeline]
     - if: $CI_PIPELINE_SOURCE == "schedule"
       when: always
     - !reference [.on_scheduled_main]

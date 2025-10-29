@@ -22,6 +22,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/fips"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
@@ -235,6 +236,11 @@ func init() {
 	// Setting environment variables must happen as early as possible in the process lifetime to avoid data race with
 	// `getenv`. Ideally before we start any goroutines that call native code or open network connections.
 	initFIPS()
+
+	// Workaround for a hang issue in ddtrace's stack profiling v2 feature (incident-43814).
+	// The workaround disables the code path in ddtrace that can cause hangs.
+	// See: https://ddtrace.readthedocs.io/en/stable/configuration.html#DD_PROFILING_STACK_V2_ENABLED
+	os.Setenv("DD_PROFILING_STACK_V2_ENABLED", "false")
 }
 
 func expvarPythonInitErrors() interface{} {
@@ -252,9 +258,9 @@ func addExpvarPythonInitErrors(msg string) error {
 	return errors.New(msg)
 }
 
-func sendTelemetry(pythonVersion string) {
+func sendTelemetry() {
 	tags := []string{
-		fmt.Sprintf("python_version:%s", pythonVersion),
+		"python_version:3",
 	}
 	if agentVersion, err := version.Agent(); err == nil {
 		tags = append(tags,
@@ -362,7 +368,6 @@ func resolvePythonExecPath(ignoreErrors bool) (string, error) {
 
 // Initialize initializes the Python interpreter
 func Initialize(paths ...string) error {
-	pythonVersion := pkgconfigsetup.Datadog().GetString("python_version")
 	allowPathHeuristicsFailure := pkgconfigsetup.Datadog().GetBool("allow_python_path_heuristics_failure")
 
 	// Memory related RTLoader-global initialization
@@ -390,16 +395,12 @@ func Initialize(paths ...string) error {
 	csPythonExecPath := TrackedCString(pythonBinPath)
 	defer C._free(unsafe.Pointer(csPythonExecPath))
 
-	if pythonVersion == "3" {
-		log.Infof("Initializing rtloader with Python 3 %s", PythonHome)
-		rtloader = C.make3(csPythonHome, csPythonExecPath, &pyErr)
-	} else {
-		return addExpvarPythonInitErrors(fmt.Sprintf("unsuported version of python: %s", pythonVersion))
-	}
+	log.Infof("Initializing rtloader with Python 3 %s", PythonHome)
+	rtloader = C.make3(csPythonHome, csPythonExecPath, &pyErr)
 
 	if rtloader == nil {
 		err := addExpvarPythonInitErrors(
-			fmt.Sprintf("could not load runtime python for version %s: %s", pythonVersion, C.GoString(pyErr)),
+			fmt.Sprintf("could not load runtime python for version 3: %s", C.GoString(pyErr)),
 		)
 		if pyErr != nil {
 			// pyErr tracked when created in rtloader
@@ -414,7 +415,7 @@ func Initialize(paths ...string) error {
 		if pkgconfigsetup.Datadog().GetBool("telemetry.enabled") {
 			// detailed telemetry is enabled
 			interval = 1 * time.Second
-		} else if pkgconfigsetup.IsAgentTelemetryEnabled(pkgconfigsetup.Datadog()) {
+		} else if configutils.IsAgentTelemetryEnabled(pkgconfigsetup.Datadog()) {
 			// default telemetry is enabled (emitted every 15 minute)
 			interval = 15 * time.Minute
 		}
@@ -438,7 +439,6 @@ func Initialize(paths ...string) error {
 	C.initAggregatorModule(rtloader)
 	C.initUtilModule(rtloader)
 	C.initTaggerModule(rtloader)
-	initContainerFilter() // special init for the container go code
 	C.initContainersModule(rtloader)
 	C.initkubeutilModule(rtloader)
 
@@ -469,7 +469,7 @@ func Initialize(paths ...string) error {
 		log.Errorf("Could not query python information: %s", C.GoString(C.get_error(rtloader)))
 	}
 
-	sendTelemetry(pythonVersion)
+	sendTelemetry()
 
 	return nil
 }

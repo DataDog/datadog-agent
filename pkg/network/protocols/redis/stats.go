@@ -16,10 +16,16 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/types"
 	"github.com/DataDog/datadog-agent/pkg/util/intern"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	ddsync "github.com/DataDog/datadog-agent/pkg/util/sync"
 )
 
 // Interner is used to intern strings to save memory allocations.
 var Interner = intern.NewStringInterner()
+
+var (
+	requestStatPool  = ddsync.NewDefaultTypedPool[RequestStat]()
+	requestStatsPool = ddsync.NewTypedPool[RequestStats](NewRequestStats)
+)
 
 // Key is an identifier for a group of Redis transactions
 type Key struct {
@@ -65,7 +71,12 @@ func (r *RequestStat) close() {
 	if r.Latencies != nil {
 		r.Latencies.Clear()
 		protocols.SketchesPool.Put(r.Latencies)
+		r.Latencies = nil
 	}
+
+	r.Count = 0
+	r.FirstLatencySample = 0
+	r.StaticTags = 0
 }
 
 // CombineWith merges the data in 2 RequestStats objects
@@ -87,7 +98,7 @@ func (r *RequestStats) CombineWith(newStats *RequestStats) {
 func (r *RequestStats) mergeRequests(isErr bool, newStats *RequestStat) {
 	stats, exists := r.ErrorToStats[isErr]
 	if !exists {
-		stats = &RequestStat{}
+		stats = requestStatPool.Get()
 		r.ErrorToStats[isErr] = stats
 	}
 	// The other bucket (newStats) has a DDSketch object
@@ -116,7 +127,7 @@ func (r *RequestStats) mergeRequests(isErr bool, newStats *RequestStat) {
 func (r *RequestStats) AddRequest(isError bool, count int, staticTags uint64, latency float64) {
 	stats, exists := r.ErrorToStats[isError]
 	if !exists {
-		stats = &RequestStat{}
+		stats = requestStatPool.Get()
 		r.ErrorToStats[isError] = stats
 	}
 	originalCount := stats.Count
@@ -151,6 +162,8 @@ func (r *RequestStats) Close() {
 	for _, stats := range r.ErrorToStats {
 		if stats != nil {
 			stats.close()
+			requestStatPool.Put(stats)
 		}
 	}
+	clear(r.ErrorToStats)
 }

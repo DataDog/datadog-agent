@@ -108,7 +108,7 @@ static long copy_stack_loop(unsigned long i, void* _ctx) {
 // and that the static length should be used.
 #define ENQUEUE_LEN_SENTINEL __UINT32_MAX__
 
-const uint64_t FAILED_READ_OFFSET_BIT = 1LL << 63;
+static const uint64_t FAILED_READ_OFFSET_BIT = 1LL << 63;
 
 // Write the queue entry to the scratch buffer, and return the offset of the
 // data in the scratch buffer on success or 0 on failure.
@@ -183,19 +183,19 @@ scratch_buf_serialize_bounded(scratch_buf_t* scratch_buf,
 // so that we almost always hit it. The tradeoff is that even if the pointer we
 // want to dereference is only 1 byte, we'd need 1KiB of space left in the
 // buffer to get it. That seems like a reasonable tradeoff at this point.
-#define SIZE_LIST                                                              \
-  X(64)                                                                        \
-  X(256)                                                                       \
-  X(1024)                                                                      \
-  X(4096)                                                                      \
+#define SIZE_LIST \
+  X(64)           \
+  X(256)          \
+  X(1024)         \
+  X(4096)         \
   X(8192)
 
-#define X(max_size)                                                            \
-  buf_offset_t CONCAT(scratch_buf_serialize_, max_size)(                       \
-      scratch_buf_t * scratch_buf, di_data_item_header_t * data_item_header,      \
-      const uint64_t len) {                                                    \
-    return scratch_buf_serialize_bounded(scratch_buf, data_item_header, len,   \
-                                         max_size);                            \
+#define X(max_size)                                                          \
+  buf_offset_t CONCAT(scratch_buf_serialize_, max_size)(                     \
+      scratch_buf_t * scratch_buf, di_data_item_header_t * data_item_header, \
+      const uint64_t len) {                                                  \
+    return scratch_buf_serialize_bounded(scratch_buf, data_item_header, len, \
+                                         max_size);                          \
   }
 
 SIZE_LIST
@@ -206,10 +206,10 @@ buf_offset_t scratch_buf_serialize_whole(scratch_buf_t* scratch_buf,
                                          di_data_item_header_t* data_item_header,
                                          const uint64_t len) {
   // Use macro to also define the checking for the size classes.
-#define X(max_size)                                                            \
-  if (len <= max_size) {                                                       \
-    return CONCAT(scratch_buf_serialize_, max_size)(scratch_buf,               \
-                                                    data_item_header, len);    \
+#define X(max_size)                                                         \
+  if (len <= max_size) {                                                    \
+    return CONCAT(scratch_buf_serialize_, max_size)(scratch_buf,            \
+                                                    data_item_header, len); \
   }
   SIZE_LIST
 #undef X
@@ -322,7 +322,7 @@ buf_offset_t scratch_buf_serialize(scratch_buf_t* scratch_buf,
   buf_offset_t offset =
       scratch_buf_serialize_with_fallback(scratch_buf, data_item_header, len);
   if ((offset & FAILED_READ_OFFSET_BIT) == 0) {
-    LOG(5, "serialized scratch@%lld (!%d [%d]) < user@%lld", offset,
+    LOG(5, "serialized scratch@%lld (!%d [%d]) < user@%llx", offset,
         data_item_header->type, data_item_header->length,
         data_item_header->address);
     return offset;
@@ -359,19 +359,19 @@ static bool scratch_buf_dereference_inner(scratch_buf_t* scratch_buf,
         read_result);
     return false;
   };
-  LOG(5, "recorded scratch@%lld < user@%lld [%d]", real_offset, ptr, real_len);
+  LOG(5, "recorded scratch@%lld < user@%llx [%d]", real_offset, ptr, real_len);
   return true;
 }
 
-#define X(max_size)                                                            \
-  __attribute__((noinline)) bool CONCAT(scratch_buf_dereference_, max_size)(   \
-      scratch_buf_t * scratch_buf, buf_offset_t offset, uint64_t len,          \
-      target_ptr_t ptr) {                                                      \
-    if (!scratch_buf) {                                                        \
-      return false;                                                            \
-    }                                                                          \
-    return scratch_buf_dereference_inner(scratch_buf, offset, len, max_size,   \
-                                         ptr);                                 \
+#define X(max_size)                                                          \
+  __attribute__((noinline)) bool CONCAT(scratch_buf_dereference_, max_size)( \
+      scratch_buf_t * scratch_buf, buf_offset_t offset, uint64_t len,        \
+      target_ptr_t ptr) {                                                    \
+    if (!scratch_buf) {                                                      \
+      return false;                                                          \
+    }                                                                        \
+    return scratch_buf_dereference_inner(scratch_buf, offset, len, max_size, \
+                                         ptr);                               \
   }
 
 SIZE_LIST
@@ -384,10 +384,10 @@ bool scratch_buf_dereference(scratch_buf_t* scratch_buf, buf_offset_t offset,
     return false;
   }
   // Use macro to also define the checking for the size classes.
-#define X(max_size)                                                            \
-  if (len <= max_size) {                                                       \
-    return CONCAT(scratch_buf_dereference_, max_size)(scratch_buf, offset,     \
-                                                      len, ptr);               \
+#define X(max_size)                                                        \
+  if (len <= max_size) {                                                   \
+    return CONCAT(scratch_buf_dereference_, max_size)(scratch_buf, offset, \
+                                                      len, ptr);           \
   }
   SIZE_LIST
 #undef X

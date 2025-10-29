@@ -14,6 +14,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/dyninst/process"
 )
 
 func TestStateMachine(t *testing.T) {
@@ -32,8 +34,8 @@ func TestStateMachine(t *testing.T) {
 				s.update = &ProcessesUpdate{}
 			}
 			for _, pid := range procPids {
-				s.update.Processes = append(s.update.Processes, ProcessUpdate{
-					ProcessID: ProcessID{PID: int32(pid)},
+				s.update.Processes = append(s.update.Processes, process.Info{
+					ProcessID: process.ID{PID: int32(pid)},
 				})
 			}
 		}
@@ -45,7 +47,7 @@ func TestStateMachine(t *testing.T) {
 				s.update = &ProcessesUpdate{}
 			}
 			for _, pid := range procPids {
-				s.update.Removals = append(s.update.Removals, ProcessID{PID: int32(pid)})
+				s.update.Removals = append(s.update.Removals, process.ID{PID: int32(pid)})
 			}
 		}
 	}
@@ -135,6 +137,38 @@ func TestStateMachine(t *testing.T) {
 				s(exit(6)),
 				s(exit(7), rem(7), alive(5)),
 				s(exit(8), alive(5)),
+			},
+		},
+		{
+			name: "reanalysis",
+			steps: []step{
+				s(exec(9), analyze(9), alive(9)),
+				s(exec(10), alive(9, 10)),
+				s(exec(9), alive(9, 10)), // marks for reanalysis
+				s(uninteresting(9), analyze(10), alive(9, 10)),
+				s(uninteresting(10), analyze(9), alive(9)),
+				s(interesting(9), upd(9), alive(9)),
+			},
+		},
+		{
+			name: "readded while queued",
+			steps: []step{
+				s(exec(11), analyze(11), alive(11)),
+				s(exec(12), alive(11, 12)),
+				s(exec(12), alive(11, 12)),
+				s(uninteresting(11), analyze(12), alive(12)),
+				s(uninteresting(12), alive()),
+			},
+		},
+		{
+			name: "reanalyze then exit",
+			steps: []step{
+				s(exec(13), analyze(13), alive(13)),
+				s(exec(14), alive(13, 14)),
+				s(exec(13), alive(13, 14)), // marks for reanalysis
+				s(exit(13), alive(14)),     // removes from alive
+				s(interesting(13), analyze(14), alive(14)),
+				s(uninteresting(14), alive()),
 			},
 		},
 	}

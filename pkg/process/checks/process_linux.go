@@ -10,7 +10,6 @@ package checks
 import (
 	model "github.com/DataDog/agent-payload/v5/process"
 	workloadmetacomp "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/apm"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/usm"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
@@ -97,50 +96,70 @@ func (p *ProcessCheck) processesByPID() (map[int32]*procutil.Process, error) {
 // mapWLMProcToProc maps the workloadmeta process entity to an intermediate representation used in the process check
 func mapWLMProcToProc(wlmProc *workloadmetacomp.Process, stats *procutil.Stats) *procutil.Process {
 	var service *procutil.Service
-	var ports []uint16
+	var tcpPorts, udpPorts []uint16
+	portsCollected := false
 	if wlmProc.Service != nil {
 		service = &procutil.Service{
 			GeneratedName:            wlmProc.Service.GeneratedName,
 			GeneratedNameSource:      wlmProc.Service.GeneratedNameSource,
 			AdditionalGeneratedNames: wlmProc.Service.AdditionalGeneratedNames,
 			TracerMetadata:           wlmProc.Service.TracerMetadata,
-			DDService:                wlmProc.Service.DDService,
+			DDService:                wlmProc.Service.UST.Service,
 			APMInstrumentation:       wlmProc.Service.APMInstrumentation,
 		}
-		ports = wlmProc.Service.Ports
+		tcpPorts = wlmProc.Service.TCPPorts
+		udpPorts = wlmProc.Service.UDPPorts
+		portsCollected = true
 	}
 	return &procutil.Process{
-		Pid:      wlmProc.Pid,
-		Ppid:     wlmProc.Ppid,
-		NsPid:    wlmProc.NsPid,
-		Name:     wlmProc.Name,
-		Cwd:      wlmProc.Cwd,
-		Exe:      wlmProc.Exe,
-		Comm:     wlmProc.Comm,
-		Cmdline:  wlmProc.Cmdline,
-		Uids:     wlmProc.Uids,
-		Gids:     wlmProc.Gids,
-		Stats:    stats,
-		Ports:    ports,
-		Language: wlmProc.Language,
-		Service:  service,
+		Pid:            wlmProc.Pid,
+		Ppid:           wlmProc.Ppid,
+		NsPid:          wlmProc.NsPid,
+		Name:           wlmProc.Name,
+		Cwd:            wlmProc.Cwd,
+		Exe:            wlmProc.Exe,
+		Comm:           wlmProc.Comm,
+		Cmdline:        wlmProc.Cmdline,
+		Uids:           wlmProc.Uids,
+		Gids:           wlmProc.Gids,
+		Stats:          stats,
+		PortsCollected: portsCollected,
+		TCPPorts:       tcpPorts,
+		UDPPorts:       udpPorts,
+		Language:       wlmProc.Language,
+		Service:        service,
+		InjectionState: procutil.InjectionState(wlmProc.InjectionState),
 	}
 }
 
-// formatPorts converts a list of uin16 ports to a int32 PortInfo
-// TODO: because the service discovery response does not distinguish between tcp and udp currently, we currently send everything as TCP
-func formatPorts(ports []uint16) *model.PortInfo {
-	// if ports were not collected, we want to semantically indicate that no data was collected instead of
-	// returning no open ports
-	if ports == nil {
+// formatPorts converts separate TCP and UDP uint16 port lists to a int32 PortInfo
+func formatPorts(portsCollected bool, tcpPorts, udpPorts []uint16) *model.PortInfo {
+	// we want to semantically distinguish between the following cases:
+	// - ports not being collected (by setting the PortInfo to nil)
+	// - ports being collected, but no open ports for this process (a PortInfo with empty/nil ports)
+	if !portsCollected {
 		return nil
 	}
-	newPorts := make([]int32, len(ports))
-	for i, port := range ports {
-		newPorts[i] = int32(port)
+
+	var newTCPPorts []int32
+	if tcpPorts != nil {
+		newTCPPorts = make([]int32, len(tcpPorts))
+		for i, port := range tcpPorts {
+			newTCPPorts[i] = int32(port)
+		}
 	}
+
+	var newUDPPorts []int32
+	if udpPorts != nil {
+		newUDPPorts = make([]int32, len(udpPorts))
+		for i, port := range udpPorts {
+			newUDPPorts[i] = int32(port)
+		}
+	}
+
 	return &model.PortInfo{
-		Tcp: newPorts,
+		Tcp: newTCPPorts,
+		Udp: newUDPPorts,
 	}
 }
 
@@ -163,17 +182,15 @@ func serviceNameSource(source string) model.ServiceNameSource {
 	return model.ServiceNameSource_SERVICE_NAME_SOURCE_UNKNOWN
 }
 
-// apmInstrumentation maps the apm instrumentation value to the agent payload type
-func apmInstrumentation(instrumentation string) bool {
-	// the instrumentation only has 2 states we need to worry about: "provided" and "none"
-	// TODO: `injected` is not used or planned to be used in the future, so it should be removed
-	switch instrumentation {
-	case string(apm.Provided):
-		return true
-	case string(apm.None):
-		return false
+// formatInjectionState converts the internal injection state to the agent payload enum
+func formatInjectionState(state procutil.InjectionState) model.InjectionState {
+	switch state {
+	case procutil.InjectionInjected:
+		return model.InjectionState_INJECTION_INJECTED
+	case procutil.InjectionNotInjected:
+		return model.InjectionState_INJECTION_NOT_INJECTED
 	default:
-		return false
+		return model.InjectionState_INJECTION_UNKNOWN
 	}
 }
 
@@ -225,6 +242,6 @@ func formatServiceDiscovery(service *procutil.Service) *model.ServiceDiscovery {
 		DdServiceName:            ddServiceName,
 		AdditionalGeneratedNames: additionalGeneratedNames,
 		TracerMetadata:           tracerMetadata,
-		ApmInstrumentation:       apmInstrumentation(service.APMInstrumentation),
+		ApmInstrumentation:       service.APMInstrumentation,
 	}
 }

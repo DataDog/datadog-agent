@@ -28,14 +28,22 @@ type EbpfEvent struct {
 	Tuple ConnTuple
 	Tx    EbpfTx
 }
+type EbpfKeyedEvent struct {
+	Header    EbpfEvent
+	Key       EbpfKey
+	Pad_cgo_0 [4]byte
+}
+type EbpfKey struct {
+	Buf       [128]byte
+	Len       uint16
+	Truncated bool
+	Pad_cgo_0 [1]byte
+}
 type EbpfTx struct {
-	Buf                [128]byte
 	Request_started    uint64
 	Response_last_seen uint64
-	Buf_len            uint16
 	Command            uint8
 	Tags               uint8
-	Truncated          bool
 	Is_error           bool
-	Pad_cgo_0          [2]byte
+	Pad_cgo_0          [5]byte
 }

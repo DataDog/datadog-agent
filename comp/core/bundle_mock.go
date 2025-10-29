@@ -31,11 +31,10 @@ import (
 
 // team: agent-runtimes
 
-// MakeMockBundle returns a core bundle with a customized set of fx.Option including sane defaults.
-func MakeMockBundle(logParams, logger fx.Option) fxutil.BundleOptions {
+// makeMockBundle returns a core bundle with a customized set of fx.Option including sane defaults.
+func makeMockBundle(logParams, logger fx.Option) fxutil.BundleOptions {
 	return fxutil.Bundle(
-		fx.Provide(func(params BundleParams) config.Params { return params.ConfigParams }),
-		config.MockModule(),
+		fx.Provide(func(t testing.TB) config.Component { return config.NewMock(t) }),
 		logParams,
 		logger,
 		fx.Provide(func(params BundleParams) sysprobeconfigimpl.Params { return params.SysprobeConfigParams }),
@@ -47,7 +46,7 @@ func MakeMockBundle(logParams, logger fx.Option) fxutil.BundleOptions {
 
 // MockBundle defines the mock fx options for this bundle.
 func MockBundle() fxutil.BundleOptions {
-	return MakeMockBundle(
+	return makeMockBundle(
 		fx.Supply(log.Params{}),
 		fx.Provide(func(t testing.TB) log.Component { return logmock.New(t) }),
 	)

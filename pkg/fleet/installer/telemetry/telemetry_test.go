@@ -217,6 +217,7 @@ func TestRemapOnFlush(t *testing.T) {
 		require.Equal(t, int32(1), child.Error)
 		require.Equal(t, "test_error", child.Meta["error.message"])
 		require.Contains(t, child.Meta["error.stack"], "telemetry_test.go")
+		require.Equal(t, "*errors.errorString", child.Meta["error.type"])
 	}
 }
 

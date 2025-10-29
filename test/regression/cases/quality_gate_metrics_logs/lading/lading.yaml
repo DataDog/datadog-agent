@@ -43,7 +43,7 @@ generator:
       # `bytes_per_second` is understood to be a high-end use case,
       # however Agent's internal telemetry differs from lading's units: UDS
       # packets per second versus bytes per second.
-      bytes_per_second: "100 MiB"
+      bytes_per_second: "20 MiB"
       maximum_prebuild_cache_size_bytes: "500 MiB"
 
   # Log rotation file system for logs collection (following quality_gate_logs pattern)
@@ -71,5 +71,7 @@ blackhole:
       binding_addr: "127.0.0.1:9093"
 
 target_metrics:
-  - prometheus:
+  - prometheus: # core agent telemetry
       uri: "http://127.0.0.1:5000/telemetry"
+      tags:
+        sub_agent: "core"

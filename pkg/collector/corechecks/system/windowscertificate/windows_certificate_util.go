@@ -10,6 +10,7 @@ package windowscertificate
 
 import (
 	"crypto/x509"
+	"encoding/hex"
 	"fmt"
 	"strings"
 	"time"
@@ -73,6 +74,52 @@ func getCrlIssuerTags(issuer string) []string {
 	log.Debugf("CRL issuer tags: %v", issuerTags)
 
 	return issuerTags
+}
+
+// getCertThumbprint returns the thumbprint of a certificate
+// In Windows the thumbprint is the sha1 hash of the certificate's raw bytes
+//
+// https://learn.microsoft.com/en-us/windows/win32/seccrypto/certificate-thumbprint
+func getCertThumbprint(certContext *windows.CertContext) (string, error) {
+	var pcbData uint32
+
+	err := winutil.CertGetCertificateContextProperty(certContext, certHashPropID, nil, &pcbData)
+	if err != nil {
+		return "", err
+	}
+	if pcbData == 0 {
+		return "", fmt.Errorf("certificate has no SHA-1 Thumbprint")
+	}
+
+	pvData := make([]byte, pcbData)
+	err = winutil.CertGetCertificateContextProperty(certContext, certHashPropID, &pvData[0], &pcbData)
+	if err != nil {
+		return "", err
+	}
+
+	return hex.EncodeToString(pvData[:]), nil
+}
+
+// getCrlThumbprint returns the thumbprint of a CRL
+// In Windows the thumbprint is the sha1 hash of the CRL's raw bytes
+func getCrlThumbprint(pCrlContext *winutil.CRLContext) (string, error) {
+	var pcbData uint32
+
+	err := winutil.CertGetCRLContextProperty(pCrlContext, certHashPropID, nil, &pcbData)
+	if err != nil {
+		return "", err
+	}
+	if pcbData == 0 {
+		return "", fmt.Errorf("CRL has no SHA-1 Thumbprint")
+	}
+
+	pvData := make([]byte, pcbData)
+	err = winutil.CertGetCRLContextProperty(pCrlContext, certHashPropID, &pvData[0], &pcbData)
+	if err != nil {
+		return "", err
+	}
+
+	return hex.EncodeToString(pvData[:]), nil
 }
 
 func convertCertNameBlobToString(nameBlob *windows.CertNameBlob) (string, error) {

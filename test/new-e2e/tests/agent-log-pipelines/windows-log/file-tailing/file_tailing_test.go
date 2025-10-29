@@ -8,9 +8,10 @@ package windowsfiletailing
 import (
 	_ "embed"
 	"fmt"
-	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-log-pipelines/utils"
 	"testing"
 	"time"
+
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-log-pipelines/utils"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -42,7 +43,7 @@ func TestWindowsVMFileTailingSuite(t *testing.T) {
 	s := &WindowsFakeintakeSuite{}
 	options := []e2e.SuiteOption{
 		e2e.WithProvisioner(awshost.Provisioner(
-			awshost.WithEC2InstanceOptions(ec2.WithOS(testos.WindowsDefault)),
+			awshost.WithEC2InstanceOptions(ec2.WithOS(testos.WindowsServerDefault)),
 			awshost.WithAgentOptions(
 				agentparams.WithLogs(),
 				agentparams.WithIntegration("custom_logs.d", logConfig)))),

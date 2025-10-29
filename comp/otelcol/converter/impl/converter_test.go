@@ -59,24 +59,61 @@ func TestConvert(t *testing.T) {
 		agentConfig    string
 	}{
 		{
-			name:           "extensions/empty-extensions",
-			provided:       "extensions/empty-extensions/config.yaml",
-			expectedResult: "extensions/empty-extensions/config-result.yaml",
+			name:           "extensions/ddflare-and-dd/datadog",
+			provided:       "extensions/ddflare-and-dd/datadog/config.yaml",
+			expectedResult: "extensions/ddflare-and-dd/datadog/config-result.yaml",
+			agentConfig:    "extensions/ddflare-and-dd/datadog/acfg.yaml",
+		},
+
+		{
+			name:           "extensions/empty-extensions/ddflare",
+			provided:       "extensions/empty-extensions/ddflare/config.yaml",
+			expectedResult: "extensions/empty-extensions/ddflare/config-result.yaml",
 		},
 		{
-			name:           "extensions/no-extensions",
-			provided:       "extensions/no-extensions/config.yaml",
-			expectedResult: "extensions/no-extensions/config-result.yaml",
+			name:           "extensions/no-extensions/ddflare",
+			provided:       "extensions/no-extensions/ddflare/config.yaml",
+			expectedResult: "extensions/no-extensions/ddflare/config-result.yaml",
 		},
 		{
-			name:           "extensions/other-extensions",
-			provided:       "extensions/other-extensions/config.yaml",
-			expectedResult: "extensions/other-extensions/config-result.yaml",
+			name:           "extensions/other-extensions/ddflare",
+			provided:       "extensions/other-extensions/ddflare/config.yaml",
+			expectedResult: "extensions/other-extensions/ddflare/config-result.yaml",
 		},
 		{
-			name:           "extensions/no-changes",
-			provided:       "extensions/no-changes/config.yaml",
-			expectedResult: "extensions/no-changes/config.yaml",
+			name:           "extensions/no-changes/ddflare",
+			provided:       "extensions/no-changes/ddflare/config.yaml",
+			expectedResult: "extensions/no-changes/ddflare/config.yaml",
+		},
+		{
+			name:           "extensions/empty-extensions/datadog",
+			provided:       "extensions/empty-extensions/datadog/config.yaml",
+			expectedResult: "extensions/empty-extensions/datadog/config-result.yaml",
+			agentConfig:    "extensions/empty-extensions/datadog/acfg.yaml",
+		},
+		{
+			name:           "extensions/empty-extensions/dd-no-api",
+			provided:       "extensions/empty-extensions/dd-no-api/config.yaml",
+			expectedResult: "extensions/empty-extensions/dd-no-api/config-result.yaml",
+			agentConfig:    "extensions/empty-extensions/dd-no-api/acfg.yaml",
+		},
+		{
+			name:           "extensions/no-extensions/datadog",
+			provided:       "extensions/no-extensions/datadog/config.yaml",
+			expectedResult: "extensions/no-extensions/datadog/config-result.yaml",
+			agentConfig:    "extensions/no-extensions/datadog/acfg.yaml",
+		},
+		{
+			name:           "extensions/other-extensions/datadog",
+			provided:       "extensions/other-extensions/datadog/config.yaml",
+			expectedResult: "extensions/other-extensions/datadog/config-result.yaml",
+			agentConfig:    "extensions/other-extensions/datadog/acfg.yaml",
+		},
+		{
+			name:           "extensions/no-changes/datadog",
+			provided:       "extensions/no-changes/datadog/config.yaml",
+			expectedResult: "extensions/no-changes/datadog/config.yaml",
+			agentConfig:    "extensions/no-changes/datadog/acfg.yaml",
 		},
 		{
 			name:           "processors/empty-processors",

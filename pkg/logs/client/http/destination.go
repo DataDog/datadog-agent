@@ -3,7 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//nolint:revive // TODO(AML) Fix revive linter
 package http
 
 import (
@@ -58,10 +57,8 @@ var (
 	expVarInUseMsMapKey = "inUseMs"
 )
 
-// emptyJsonPayload is an empty payload used to check HTTP connectivity without sending logs.
-//
-//nolint:revive // TODO(AML) Fix revive linter
-var emptyJsonPayload = message.Payload{MessageMetas: []*message.MessageMetadata{}, Encoded: []byte("{}")}
+// emptyJSONPayload is an empty payload used to check HTTP connectivity without sending logs.
+var emptyJSONPayload = message.Payload{MessageMetas: []*message.MessageMetadata{}, Encoded: []byte("{}")}
 
 type destinationResult struct {
 	latency time.Duration
@@ -185,11 +182,11 @@ func newDestination(endpoint config.Endpoint,
 func errorToTag(err error) string {
 	if err == nil {
 		return "none"
-	} else if _, ok := err.(*client.RetryableError); ok {
-		return "retryable"
-	} else {
-		return "non-retryable"
 	}
+	if _, ok := err.(*client.RetryableError); ok {
+		return "retryable"
+	}
+	return "non-retryable"
 }
 
 // IsMRF indicates that this destination is a Multi-Region Failover destination.
@@ -378,11 +375,11 @@ func (d *Destination) unconditionalSend(payload *message.Payload) (err error) {
 	}
 	log.Tracef("Log payload sent to %s. Response resolved with protocol %s in %d ms", d.url, resp.Proto, latency)
 
-	metrics.DestinationHttpRespByStatusAndUrl.Add(strconv.Itoa(resp.StatusCode), 1)
-	metrics.TlmDestinationHttpRespByStatusAndUrl.Inc(strconv.Itoa(resp.StatusCode), d.url)
+	metrics.DestinationHTTPRespByStatusAndURL.Add(strconv.Itoa(resp.StatusCode), 1)
+	metrics.TlmDestinationHTTPRespByStatusAndURL.Inc(strconv.Itoa(resp.StatusCode), d.url)
 
 	if resp.StatusCode >= http.StatusBadRequest {
-		log.Warnf("failed to post http payload. code=%d host=%s response=%s", resp.StatusCode, d.host, string(response))
+		log.Warnf("failed to post http payload. code=%d, url=%s, EvP track type=%s, content type=%s, EvP category=%s, origin=%s, response=%s", resp.StatusCode, d.url, d.endpoint.TrackType, d.contentType, d.destMeta.EvpCategory(), d.origin, string(response))
 	}
 	if resp.StatusCode == http.StatusBadRequest ||
 		resp.StatusCode == http.StatusUnauthorized ||
@@ -396,10 +393,9 @@ func (d *Destination) unconditionalSend(payload *message.Payload) (err error) {
 		// the server could not serve the request, most likely because of an
 		// internal error. We should retry these requests.
 		return client.NewRetryableError(errServer)
-	} else {
-		d.pipelineMonitor.ReportComponentEgress(payload, d.destMeta.MonitorTag(), d.instanceID)
-		return nil
 	}
+	d.pipelineMonitor.ReportComponentEgress(payload, d.destMeta.MonitorTag(), d.instanceID)
+	return nil
 }
 
 func (d *Destination) updateRetryState(err error, isRetrying chan bool) bool {
@@ -414,15 +410,14 @@ func (d *Destination) updateRetryState(err error, isRetrying chan bool) bool {
 		d.lastRetryError = err
 
 		return true
-	} else { //nolint:revive // TODO(AML) Fix revive linter
-		d.nbErrors = d.backoff.DecError(d.nbErrors)
-		if isRetrying != nil && d.lastRetryError != nil {
-			isRetrying <- false
-		}
-		d.lastRetryError = nil
-
-		return false
 	}
+	d.nbErrors = d.backoff.DecError(d.nbErrors)
+	if isRetrying != nil && d.lastRetryError != nil {
+		isRetrying <- false
+	}
+	d.lastRetryError = nil
+
+	return false
 }
 
 func httpClientFactory(cfg pkgconfigmodel.Reader, timeoutOverride time.Duration) func() *http.Client {
@@ -505,7 +500,7 @@ func prepareCheckConnectivity(endpoint config.Endpoint, cfg pkgconfigmodel.Reade
 func completeCheckConnectivity(ctx *client.DestinationsContext, destination *Destination) error {
 	ctx.Start()
 	defer ctx.Stop()
-	return destination.unconditionalSend(&emptyJsonPayload)
+	return destination.unconditionalSend(&emptyJSONPayload)
 }
 
 // CheckConnectivity check if sending logs through HTTP works
@@ -522,7 +517,7 @@ func CheckConnectivity(endpoint config.Endpoint, cfg pkgconfigmodel.Reader) conf
 	return err == nil
 }
 
-//nolint:revive // TODO(AML) Fix revive linter
+// CheckConnectivityDiagnose checks HTTP connectivity to an endpoint and returns the URL and any errors for diagnostic purposes
 func CheckConnectivityDiagnose(endpoint config.Endpoint, cfg pkgconfigmodel.Reader) (url string, err error) {
 	ctx, destination := prepareCheckConnectivity(endpoint, cfg)
 	return destination.url, completeCheckConnectivity(ctx, destination)

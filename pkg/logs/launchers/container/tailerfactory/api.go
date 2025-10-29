@@ -5,6 +5,8 @@
 
 //go:build kubelet
 
+// Package tailerfactory implements the logic required to determine which kind
+// of tailer to use for a container-related LogSource, and to create that tailer.
 package tailerfactory
 
 // This file handles creating API tailers which access logs by querying the Kubelet's API

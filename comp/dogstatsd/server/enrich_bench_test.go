@@ -63,11 +63,11 @@ func BenchmarkMetricsExclusion(b *testing.B) {
 	}
 
 	for i := 1; i <= 512; i *= 2 {
-		blocklist := utilstrings.NewBlocklist(list[:i], false)
+		matcher := utilstrings.NewMatcher(list[:i], false)
 		b.Run(fmt.Sprintf("%d-exact", i),
 			func(b *testing.B) {
 				for i := 0; i < b.N; i++ {
-					enrichMetricSample(out, sample, "", 0, "", conf, &blocklist)
+					enrichMetricSample(out, sample, "", 0, "", conf, &matcher)
 				}
 			})
 	}

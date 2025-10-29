@@ -8,7 +8,6 @@ package djm
 
 import (
 	"context"
-	"net/http"
 	"os"
 	"testing"
 
@@ -36,6 +35,7 @@ func TestSetupCommonHostTags(t *testing.T) {
 				"DB_CLUSTER_NAME":      "example[,'job]name",
 				"DB_CLUSTER_ID":        "cluster123",
 				"DATABRICKS_WORKSPACE": "example_workspace",
+				"WORKSPACE_URL":        "https://dbc-12345678-a1b2.cloud.databricks.com/",
 			},
 			wantTags: []string{
 				"data_workload_monitoring_trial:true",
@@ -50,6 +50,7 @@ func TestSetupCommonHostTags(t *testing.T) {
 				"databricks_workspace:example_workspace",
 				"workspace:example_workspace",
 				"dd.internal.resource:databricks_cluster:cluster123",
+				"workspace_url:https://dbc-12345678-a1b2.cloud.databricks.com/",
 			},
 		},
 		{
@@ -339,302 +340,33 @@ func TestLoadLogProcessingRules(t *testing.T) {
 	}
 }
 
-func TestAddTagsToConfig(t *testing.T) {
-	tests := []struct {
-		name     string
-		tags     map[string]string
-		wantTags []string
-	}{
-		{
-			name: "Basic tags",
-			tags: map[string]string{
-				"environment": "production",
-				"team":        "data-platform",
-				"cost-center": "123456",
-			},
-			wantTags: []string{
-				"environment:production",
-				"team:data-platform",
-				"cost-center:123456",
-			},
-		},
-		{
-			name: "Tags with colons in keys",
-			tags: map[string]string{
-				"databricks:env":  "production",
-				"databricks:team": "data-platform",
-			},
-			wantTags: []string{
-				"databricks:env:production",
-				"databricks:team:data-platform",
-			},
-		},
-		{
-			name: "Tags with colons in values",
-			tags: map[string]string{
-				"environment": "prod:east",
-				"region":      "us:east-1",
-			},
-			wantTags: []string{
-				"environment:prod:east",
-				"region:us:east-1",
-			},
-		},
-		{
-			name:     "Empty tags",
-			tags:     map[string]string{},
-			wantTags: []string{},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			span, _ := telemetry.StartSpanFromContext(context.Background(), "test")
-			s := &common.Setup{
-				Span: span,
-				Config: config.Config{
-					DatadogYAML: config.DatadogConfig{},
-				},
-			}
-
-			addTagsToConfig(s, tt.tags)
-
-			assert.ElementsMatch(t, tt.wantTags, s.Config.DatadogYAML.Tags)
-		})
-	}
-}
-
-func TestFetchDatabricksCustomTags(t *testing.T) {
-	tests := []struct {
-		name string
-		env  map[string]string
-	}{
-		{
-			name: "missing token and host",
-			env:  map[string]string{},
-		},
-		{
-			name: "missing token",
-			env: map[string]string{
-				"DATABRICKS_HOST": "https://example.com",
-			},
-		},
-		{
-			name: "missing host",
-			env: map[string]string{
-				"DATABRICKS_TOKEN": "abc123",
-			},
-		},
-		{
-			name: "token and host present but no cluster ID",
-			env: map[string]string{
-				"DATABRICKS_TOKEN": "abc123",
-				"DATABRICKS_HOST":  "https://example.com",
-			},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			os.Clearenv()
-			for k, v := range tt.env {
-				require.NoError(t, os.Setenv(k, v))
-			}
-
-			span, _ := telemetry.StartSpanFromContext(context.Background(), "test")
-			output := &common.Output{}
-			s := &common.Setup{
-				Span: span,
-				Out:  output,
-				Config: config.Config{
-					DatadogYAML: config.DatadogConfig{},
-				},
-			}
-
-			// This should not panic when token or host are missing
-			fetchDatabricksCustomTags(s)
-
-			assert.Empty(t, s.Config.DatadogYAML.Tags)
-		})
-	}
-}
-
-// TestFetchDatabricksCustomTagsWithMock tests the fetchDatabricksCustomTags function
-// by mocking the HTTP client and API responses
-func TestFetchDatabricksCustomTagsWithMock(t *testing.T) {
-	// Save original functions to restore after test
-	originalFetchClusterTags := fetchClusterTagsFunc
-	originalFetchJobTags := fetchJobTagsFunc
-
-	defer func() {
-		// Restore original functions after test
-		fetchClusterTagsFunc = originalFetchClusterTags
-		fetchJobTagsFunc = originalFetchJobTags
-	}()
-
-	tests := []struct {
-		name                string
-		env                 map[string]string
-		mockClusterTags     map[string]string
-		mockClusterSparkVer string
-		mockJobTags         map[string]string
-		wantTags            []string
-	}{
-		{
-			name: "successful fetch of cluster tags",
-			env: map[string]string{
-				"DATABRICKS_TOKEN": "abc123",
-				"DATABRICKS_HOST":  "https://example.com",
-				"DB_CLUSTER_ID":    "cluster123",
-			},
-			mockClusterTags: map[string]string{
-				"environment": "production",
-				"team":        "data-platform",
-			},
-			mockClusterSparkVer: "",
-			mockJobTags:         nil,
-			wantTags: []string{
-				"environment:production",
-				"team:data-platform",
-			},
-		},
-		{
-			name: "successful fetch of cluster tags with spark version",
-			env: map[string]string{
-				"DATABRICKS_TOKEN": "abc123",
-				"DATABRICKS_HOST":  "https://example.com",
-				"DB_CLUSTER_ID":    "cluster123",
-			},
-			mockClusterTags: map[string]string{
-				"environment": "production",
-				"team":        "data-platform",
-			},
-			mockClusterSparkVer: "15.4.x-scala2.12",
-			mockJobTags:         nil,
-			wantTags: []string{
-				"environment:production",
-				"team:data-platform",
-				"runtime:15.4.x-scala2.12",
-			},
-		},
-		{
-			name: "successful fetch of job tags",
-			env: map[string]string{
-				"DATABRICKS_TOKEN": "abc123",
-				"DATABRICKS_HOST":  "https://example.com",
-				"DB_CLUSTER_NAME":  "job-123-run-456",
-			},
-			mockClusterTags:     nil,
-			mockClusterSparkVer: "",
-			mockJobTags: map[string]string{
-				"cost-center": "data-eng",
-				"project":     "analytics",
-			},
-			wantTags: []string{
-				"cost-center:data-eng",
-				"project:analytics",
-			},
-		},
-		{
-			name: "successful fetch of both cluster and job tags with spark version",
-			env: map[string]string{
-				"DATABRICKS_TOKEN": "abc123",
-				"DATABRICKS_HOST":  "https://example.com",
-				"DB_CLUSTER_ID":    "cluster123",
-				"DB_CLUSTER_NAME":  "job-123-run-456",
-			},
-			mockClusterTags: map[string]string{
-				"environment": "production",
-			},
-			mockClusterSparkVer: "15.4.x-scala2.12",
-			mockJobTags: map[string]string{
-				"project": "analytics",
-			},
-			wantTags: []string{
-				"environment:production",
-				"project:analytics",
-				"runtime:15.4.x-scala2.12",
-			},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			os.Clearenv()
-			for k, v := range tt.env {
-				require.NoError(t, os.Setenv(k, v))
-			}
-
-			// Mock the fetchClusterTags function
-			fetchClusterTagsFunc = func(_ *http.Client, _, _, _ string, _ *common.Setup) (map[string]string, error) {
-				tags := make(map[string]string)
-				// Copy the mock cluster tags
-				for k, v := range tt.mockClusterTags {
-					tags[k] = v
-				}
-				// Add spark version as runtime tag if provided
-				if tt.mockClusterSparkVer != "" {
-					tags["runtime"] = tt.mockClusterSparkVer
-				}
-				return tags, nil
-			}
-
-			// Mock the fetchJobTags function
-			fetchJobTagsFunc = func(_ *http.Client, _, _, _ string, _ *common.Setup) (map[string]string, error) {
-				return tt.mockJobTags, nil
-			}
-
-			span, ctx := telemetry.StartSpanFromContext(context.Background(), "test")
-			output := &common.Output{}
-			s := &common.Setup{
-				Ctx:  ctx,
-				Span: span,
-				Out:  output,
-				Config: config.Config{
-					DatadogYAML: config.DatadogConfig{},
-				},
-			}
-
-			fetchDatabricksCustomTags(s)
-
-			for _, tag := range tt.wantTags {
-				assert.Contains(t, s.Config.DatadogYAML.Tags, tag)
-			}
-		})
-	}
-}
-
 func TestSetupGPUIntegration(t *testing.T) {
 	tests := []struct {
 		name                   string
 		env                    map[string]string
-		expectedCollectGPUTags bool
-		expectedEnableNVML     bool
+		expectedEnableGPUM     bool
 		expectedSystemProbeGPU bool
 	}{
 		{
 			name: "GPU monitoring enabled",
 			env: map[string]string{
-				"DD_GPU_MONITORING_ENABLED": "true",
+				"DD_GPU_ENABLED": "true",
 			},
-			expectedCollectGPUTags: true,
-			expectedEnableNVML:     true,
+			expectedEnableGPUM:     true,
 			expectedSystemProbeGPU: true,
 		},
 		{
 			name: "GPU monitoring enabled with empty string value",
 			env: map[string]string{
-				"DD_GPU_MONITORING_ENABLED": "",
+				"DD_GPU_ENABLED": "",
 			},
-			expectedCollectGPUTags: false,
-			expectedEnableNVML:     false,
+			expectedEnableGPUM:     false,
 			expectedSystemProbeGPU: false,
 		},
 		{
 			name:                   "GPU monitoring not set",
 			env:                    map[string]string{},
-			expectedCollectGPUTags: false,
-			expectedEnableNVML:     false,
+			expectedEnableGPUM:     false,
 			expectedSystemProbeGPU: false,
 		},
 	}
@@ -656,23 +388,11 @@ func TestSetupGPUIntegration(t *testing.T) {
 				},
 			}
 
-			if os.Getenv("DD_GPU_MONITORING_ENABLED") == "true" {
+			if os.Getenv("DD_GPU_ENABLED") == "true" {
 				setupGPUIntegration(s)
 			}
 
-			assert.Equal(t, tt.expectedCollectGPUTags, s.Config.DatadogYAML.CollectGPUTags)
-			assert.Equal(t, tt.expectedEnableNVML, s.Config.DatadogYAML.EnableNVMLDetection)
-
-			// Check system-probe configuration
-			if tt.expectedSystemProbeGPU {
-				assert.NotNil(t, s.Config.SystemProbeYAML)
-				assert.Equal(t, tt.expectedSystemProbeGPU, s.Config.SystemProbeYAML.GPUMonitoringConfig.Enabled)
-			} else {
-				if s.Config.SystemProbeYAML != nil {
-					assert.Equal(t, tt.expectedSystemProbeGPU, s.Config.SystemProbeYAML.GPUMonitoringConfig.Enabled)
-				}
-			}
-
+			assert.Equal(t, tt.expectedEnableGPUM, s.Config.DatadogYAML.GPUCheck.Enabled)
 		})
 	}
 }

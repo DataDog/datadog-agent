@@ -12,8 +12,11 @@
 #ifndef _WIN32
 // clang-format off
 // handler stuff
+
 #ifdef HAS_BACKTRACE_LIB
-#include <execinfo.h>
+#  include <execinfo.h>
+#else
+#  warning "<execinfo.h> not found, C backtrace will not be available"
 #endif
 #include <csignal>
 #include <cstring>

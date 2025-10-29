@@ -32,6 +32,8 @@ const (
 	KillActionStatusRuleDismantled KillActionStatus = "rule_dismantled"
 	// KillActionStatusQueued indicates the kill action was queued until the end of the first rule period
 	KillActionStatusQueued KillActionStatus = "kill_queued"
+	// KillActionStatusPartiallyPerformed indicates the kill action was performed on some processes but not all
+	KillActionStatusPartiallyPerformed = "partially_performed"
 )
 
 // KillActionReport defines a kill action reports

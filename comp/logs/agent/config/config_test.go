@@ -16,6 +16,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/logs/types"
 )
 
 type ConfigTestSuite struct {
@@ -169,6 +170,43 @@ func (suite *ConfigTestSuite) TestTaggerWarmupDuration() {
 	suite.config.SetWithoutSource("logs_config.tagger_warmup_duration", 5)
 	taggerWarmupDuration = TaggerWarmupDuration(suite.config)
 	suite.Equal(5*time.Second, taggerWarmupDuration)
+}
+
+func (suite *ConfigTestSuite) TestGlobalFingerprintConfigShouldReturnConfigWithValidMap() {
+	suite.config.SetWithoutSource("logs_config.fingerprint_config.fingerprint_strategy", "line_checksum")
+	suite.config.SetWithoutSource("logs_config.fingerprint_config.count", 10)
+	suite.config.SetWithoutSource("logs_config.fingerprint_config.count_to_skip", 5)
+	suite.config.SetWithoutSource("logs_config.fingerprint_config.max_bytes", 1024)
+
+	config, err := GlobalFingerprintConfig(suite.config)
+	suite.Nil(err)
+	suite.NotNil(config)
+	suite.Equal(types.FingerprintStrategyLineChecksum, config.FingerprintStrategy)
+	suite.Equal(10, config.Count)
+	suite.Equal(5, config.CountToSkip)
+	suite.Equal(1024, config.MaxBytes)
+}
+
+func (suite *ConfigTestSuite) TestGlobalFingerprintConfigShouldReturnStrategyDisabled() {
+	suite.config.SetWithoutSource("logs_config.fingerprint_config.fingerprint_strategy", "disabled")
+	suite.config.SetWithoutSource("logs_config.fingerprint_config.count", 10)
+	suite.config.SetWithoutSource("logs_config.fingerprint_config.count_to_skip", 5)
+	suite.config.SetWithoutSource("logs_config.fingerprint_config.max_bytes", 1024)
+
+	config, err := GlobalFingerprintConfig(suite.config)
+	suite.Nil(err)
+	suite.Equal(types.FingerprintStrategyDisabled, config.FingerprintStrategy)
+}
+
+func (suite *ConfigTestSuite) TestGlobalFingerprintConfigShouldReturnErrorWithInvalidConfig() {
+	suite.config.SetWithoutSource("logs_config.fingerprint_config.fingerprint_strategy", "invalid_strategy") // Invalid: unknown strategy
+	suite.config.SetWithoutSource("logs_config.fingerprint_config.count", -1)                                // Invalid: negative value
+	suite.config.SetWithoutSource("logs_config.fingerprint_config.count_to_skip", 5)
+	suite.config.SetWithoutSource("logs_config.fingerprint_config.max_bytes", 1024)
+
+	config, err := GlobalFingerprintConfig(suite.config)
+	suite.NotNil(err)
+	suite.Nil(config)
 }
 
 func TestConfigTestSuite(t *testing.T) {
@@ -658,8 +696,8 @@ func (suite *ConfigTestSuite) TestBuildServerlessEndpoints() {
 		Port:                   0,
 		useSSL:                 true,
 		UseCompression:         true,
-		CompressionKind:        GzipCompressionKind,
-		CompressionLevel:       GzipCompressionLevel,
+		CompressionKind:        ZstdCompressionKind,
+		CompressionLevel:       ZstdCompressionLevel,
 		BackoffFactor:          pkgconfigsetup.DefaultLogsSenderBackoffFactor,
 		BackoffBase:            pkgconfigsetup.DefaultLogsSenderBackoffBase,
 		BackoffMax:             pkgconfigsetup.DefaultLogsSenderBackoffMax,

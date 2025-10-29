@@ -22,6 +22,7 @@ type Params struct {
 	// but they can (and should) be passed to the executable.
 	installerScript string
 	extraEnvVars    map[string]string
+	pipelineID      string
 }
 
 // Option is an optional function parameter type for the Params
@@ -55,6 +56,14 @@ func WithInstallerURL(installerURL string) Option {
 func WithInstallerScript(installerScript string) Option {
 	return func(params *Params) error {
 		params.installerScript = installerScript
+		return nil
+	}
+}
+
+// WithPipelineID sets the pipeline ID to fetch artifacts/scripts from.
+func WithPipelineID(id string) Option {
+	return func(params *Params) error {
+		params.pipelineID = id
 		return nil
 	}
 }

@@ -41,6 +41,10 @@ func (n *noopAutoConfig) GetAllConfigs() []integration.Config {
 	return []integration.Config{}
 }
 
+func (n *noopAutoConfig) GetUnresolvedConfigs() []integration.Config {
+	return []integration.Config{}
+}
+
 func (n *noopAutoConfig) AddListeners([]pkgconfigsetup.Listeners) {}
 
 func (n *noopAutoConfig) AddScheduler(string, scheduler.Scheduler, bool) {}

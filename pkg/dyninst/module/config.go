@@ -14,8 +14,10 @@ import (
 	"os"
 	"strconv"
 
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/actuator"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/loader"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/object"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	sysconfig "github.com/DataDog/datadog-agent/pkg/system-probe/config"
 	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
@@ -25,80 +27,94 @@ import (
 // Config is the configuration for the dynamic instrumentation module.
 type Config struct {
 	ebpf.Config
-	DynamicInstrumentationEnabled bool
-	LogUploaderURL                string
-	DiagsUploaderURL              string
+	LogUploaderURL     string
+	DiagsUploaderURL   string
+	SymDBUploadEnabled bool
+	SymDBUploaderURL   string
 
-	actuatorConstructor erasedActuatorConstructor
-}
+	// DiskCacheEnabled enables the disk cache for debug info.  If this is
+	// false, no disk cache will be used and the debug info will be stored in
+	// memory.
+	DiskCacheEnabled bool
+	// DiskCacheConfig is the configuration for the disk cache for debug info.
+	DiskCacheConfig object.DiskCacheConfig
 
-// Option is an option that can be passed to NewConfig.
-type Option interface {
-	apply(c *Config)
-}
+	// ProcessSyncDisabled disables the process sync for the module.
+	ProcessSyncDisabled bool
 
-type wrappedActuator[A Actuator[T], T ActuatorTenant] struct {
-	actuator A
-}
-
-func eraseActuator[A Actuator[T], T ActuatorTenant](a A) erasedActuator {
-	return wrappedActuator[A, T]{actuator: a}
-}
-
-func (a wrappedActuator[A, T]) Shutdown() error {
-	return a.actuator.Shutdown()
-}
-
-func (a wrappedActuator[A, T]) NewTenant(
-	name string,
-	reporter actuator.Reporter,
-	irGenerator actuator.IRGenerator,
-) ActuatorTenant {
-	return a.actuator.NewTenant(name, reporter, irGenerator)
-}
-
-type erasedActuator = Actuator[ActuatorTenant]
-
-type actuatorConstructor[A Actuator[T], T ActuatorTenant] func(*loader.Loader) A
-type erasedActuatorConstructor = actuatorConstructor[erasedActuator, ActuatorTenant]
-
-func (a actuatorConstructor[A, T]) apply(c *Config) {
-	c.actuatorConstructor = func(t *loader.Loader) erasedActuator {
-		return eraseActuator(a(t))
+	TestingKnobs struct {
+		LoaderOptions             []loader.Option
+		IRGeneratorOverride       func(IRGenerator) IRGenerator
+		ProcessSubscriberOverride func(ProcessSubscriber) ProcessSubscriber
 	}
 }
 
-// WithActuatorConstructor is an option that allows the user to provide a
-func WithActuatorConstructor[
-	A Actuator[T], T ActuatorTenant,
-](
-	f actuatorConstructor[A, T],
-) Option {
-	return actuatorConstructor[A, T](f)
+// erasedActuator is an erased type for an Actuator.
+type erasedActuator[A Actuator[AT], AT ActuatorTenant] struct {
+	a A
 }
 
-func defaultActuatorConstructor(t *loader.Loader) erasedActuator {
-	return eraseActuator(actuator.NewActuator(t))
+func (e *erasedActuator[A, AT]) NewTenant(name string, rt actuator.Runtime) ActuatorTenant {
+	return e.a.NewTenant(name, rt)
 }
 
-// NewConfig creates a new Config object
-func NewConfig(spConfig *sysconfigtypes.Config, opts ...Option) (*Config, error) {
-	var diEnabled bool
-	if spConfig != nil {
-		_, diEnabled = spConfig.EnabledModules[sysconfig.DynamicInstrumentationModule]
-	}
+func (e *erasedActuator[A, AT]) Shutdown() error {
+	return e.a.Shutdown()
+}
+
+// NewConfig creates a new Config object.
+func NewConfig(_ *sysconfigtypes.Config) (*Config, error) {
 	traceAgentURL := getTraceAgentURL(os.Getenv)
-	c := &Config{
-		Config:                        *ebpf.NewConfig(),
-		DynamicInstrumentationEnabled: diEnabled,
-		LogUploaderURL:                withPath(traceAgentURL, logUploaderPath),
-		DiagsUploaderURL:              withPath(traceAgentURL, diagsUploaderPath),
-		actuatorConstructor:           defaultActuatorConstructor,
+	cacheConfig, cacheEnabled, err := getDebugInfoDiskCacheConfig()
+	if err != nil {
+		return nil, err
 	}
-	for _, opt := range opts {
-		opt.apply(c)
+
+	c := &Config{
+		Config:             *ebpf.NewConfig(),
+		LogUploaderURL:     withPath(traceAgentURL, logUploaderPath),
+		DiagsUploaderURL:   withPath(traceAgentURL, diagsUploaderPath),
+		SymDBUploadEnabled: pkgconfigsetup.SystemProbe().GetBool("dynamic_instrumentation.symdb_upload_enabled"),
+		SymDBUploaderURL:   withPath(traceAgentURL, symdbUploaderPath),
+		DiskCacheEnabled:   cacheEnabled,
+		DiskCacheConfig:    cacheConfig,
 	}
 	return c, nil
+}
+
+const diNS = "dynamic_instrumentation"
+
+func getDebugInfoDiskCacheConfig() (
+	cacheConfig object.DiskCacheConfig, enabled bool, err error,
+) {
+	cfg := pkgconfigsetup.SystemProbe()
+	sysconfig.Adjust(cfg)
+	key := func(k string) string {
+		return sysconfig.FullKeyPath(diNS, "debug_info_disk_cache", k)
+	}
+	getUint64 := func(k string) (uint64, error) {
+		kk := key(k)
+		v := cfg.GetInt64(kk)
+		if v < 0 {
+			return 0, fmt.Errorf("%s must be non-negative, got %d", kk, v)
+		}
+		return uint64(v), nil
+	}
+
+	enabled = cfg.GetBool(key("enabled"))
+	cacheConfig.DirPath = cfg.GetString(key("dir"))
+	maxTotalBytes, err := getUint64("max_total_bytes")
+	if err != nil {
+		return object.DiskCacheConfig{}, false, err
+	}
+	cacheConfig.MaxTotalBytes = maxTotalBytes
+	requiredDiskSpaceBytes, err := getUint64("required_disk_space_bytes")
+	if err != nil {
+		return object.DiskCacheConfig{}, false, err
+	}
+	cacheConfig.RequiredDiskSpaceBytes = requiredDiskSpaceBytes
+	cacheConfig.RequiredDiskSpacePercent = cfg.GetFloat64(key("required_disk_space_percent"))
+	return
 }
 
 func withPath(u url.URL, path string) string {
@@ -113,11 +129,11 @@ const (
 	traceAgentPortEnvVar  = "DD_TRACE_AGENT_PORT"
 	defaultTraceAgentPort = "8126"
 
-	traceAgentURLEnvVar  = "DD_TRACE_AGENT_URL"
-	defaultTraceAgentURL = "http://" + defaultAgentHost + ":" + defaultTraceAgentPort
+	traceAgentURLEnvVar = "DD_TRACE_AGENT_URL"
 
 	logUploaderPath   = "/debugger/v1/input"
 	diagsUploaderPath = "/debugger/v1/diagnostics"
+	symdbUploaderPath = "/symdb/v1/input"
 )
 
 var errSchemeRequired = fmt.Errorf("scheme is required")

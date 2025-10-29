@@ -6,19 +6,104 @@
 package client
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// Login logs in to the Versa Director API, Versa Analytics API, gets CSRF
-// tokens, and a session cookie
-func (client *Client) login() error {
+type (
+	// authMethod indicates the authentication method options for
+	// the Versa integration
+	authMethod string
+
+	// AuthConfig encapsulates authentication configuration for the Versa client
+	AuthConfig struct {
+		Method       string
+		Username     string
+		Password     string
+		ClientID     string
+		ClientSecret string
+	}
+
+	// OAuthRequest encapsulates data for performing OAuth
+	OAuthRequest struct {
+		ClientID     string `json:"client_id"`
+		ClientSecret string `json:"client_secret"`
+		Username     string `json:"username"`
+		Password     string `json:"password"`
+		GrantType    string `json:"grant_type"`
+	}
+
+	// OAuthResponse encapsulates Versa OAuth responses
+	OAuthResponse struct {
+		AccessToken  string `json:"access_token"`
+		IssuedAt     string `json:"issued_at"`
+		ExpiresIn    string `json:"expires_in"`
+		TokenType    string `json:"token_type"`
+		RefreshToken string `json:"refresh_token"`
+	}
+)
+
+const (
+	// authMethodBasic specifies that Basic Auth should be used
+	// for Director API calls
+	authMethodBasic authMethod = "basic"
+	// authMethodOAuth specifies that OAuth should be used for
+	// Director API calls
+	authMethodOAuth authMethod = "oauth"
+)
+
+// Parse takes a string and attempts to parse it into a valid authMethod
+func (a *authMethod) Parse(authString string) error {
+	method := authMethod(strings.ToLower(authString))
+	switch method {
+	case authMethodBasic, authMethodOAuth:
+		*a = method
+		return nil
+	default:
+		return fmt.Errorf("invalid auth method %q, valid auth methods: %q, %q", authString, authMethodBasic, authMethodOAuth)
+	}
+}
+
+// processAuthConfig validates and parses the authentication configuration
+func processAuthConfig(config AuthConfig) (authMethod, error) {
+	if config.Username == "" {
+		return "", fmt.Errorf("username is required")
+	}
+	if config.Password == "" {
+		return "", fmt.Errorf("password is required")
+	}
+
+	// Parse and validate the auth method (if provided)
+	authMethod := authMethodBasic // default
+	if config.Method != "" {
+		err := authMethod.Parse(config.Method)
+		if err != nil {
+			return "", fmt.Errorf("invalid auth_method: %w", err)
+		}
+	}
+
+	// Validate OAuth specific requirements
+	if authMethod == authMethodOAuth {
+		if config.ClientID == "" || config.ClientSecret == "" {
+			return "", fmt.Errorf("client_id and client_secret are required for OAuth authentication")
+		}
+	}
+
+	return authMethod, nil
+}
+
+// loginSession logs in to the Versa Director API using session-based authentication
+// This allows Analytics calls to be proxied through the director
+func (client *Client) loginSession() error {
 	authPayload := url.Values{}
 	authPayload.Set("j_username", client.username)
 	authPayload.Set("j_password", client.password)
@@ -47,23 +132,102 @@ func (client *Client) login() error {
 	return nil
 }
 
-// authenticate logins if no token or token is expired
-func (client *Client) authenticate() error {
-	now := timeNow()
+// loginOAuth logs in to the Director API using OAuth
+func (client *Client) loginOAuth() error {
+	reqBody, err := json.Marshal(OAuthRequest{
+		ClientID:     client.clientID,
+		ClientSecret: client.clientSecret,
+		Username:     client.username,
+		Password:     client.password,
+		GrantType:    "password",
+	})
+	if err != nil {
+		return fmt.Errorf("failed to marshal oauth request body: %v", err)
+	}
 
+	// Request to /auth/token to perform OAuth authentication
+	req, err := client.newRequest("POST", "/auth/token", bytes.NewReader(reqBody), false)
+	if err != nil {
+		return err
+	}
+	req.Header.Add("Content-Type", "application/json")
+	req.Header.Add("Accept", "application/json")
+
+	// Execute the request
+	resp, err := client.httpClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("OAuth request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	bodyBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return fmt.Errorf("failed to read OAuth response body: %w", err)
+	}
+
+	if resp.StatusCode != 200 {
+		return fmt.Errorf("OAuth authentication failed, status code: %v: %s", resp.StatusCode, string(bodyBytes))
+	}
+
+	// Parse JSON response
+	var oauthResp OAuthResponse
+	err = json.Unmarshal(bodyBytes, &oauthResp)
+	if err != nil {
+		// If JSON parsing fails, return the raw response for debugging
+		return fmt.Errorf("failed to parse OAuth response as JSON: %v, response: %s", err, string(bodyBytes))
+	}
+
+	// Set director token and expiration on the client
+	client.directorToken = oauthResp.AccessToken
+
+	// Handle expiry
+	expiresInSeconds, err := strconv.ParseInt(oauthResp.ExpiresIn, 10, 64)
+	if err != nil {
+		return fmt.Errorf("failed to parse expires_in as integer: %v, value: %s", err, oauthResp.ExpiresIn)
+	}
+	expirationDuration := time.Duration(expiresInSeconds) * time.Second
+	client.directorTokenExpiry = timeNow().Add(expirationDuration)
+
+	log.Trace("OAuth authentication successful")
+	return nil
+}
+
+// authenticateDirector handles Director API authentication (OAuth or Basic - Basic doesn't need pre-auth)
+func (client *Client) authenticateDirector() error {
+	switch client.authMethod {
+	case authMethodBasic:
+		return nil
+	case authMethodOAuth:
+		now := timeNow()
+		client.authenticationMutex.Lock()
+		defer client.authenticationMutex.Unlock()
+
+		if client.directorToken == "" || client.directorTokenExpiry.Before(now) {
+			return client.loginOAuth()
+		}
+		return nil
+	default:
+		return fmt.Errorf("unsupported authentication method: %s", client.authMethod)
+	}
+}
+
+// authenticateSession handles session authentication for Analytics endpoints
+func (client *Client) authenticateSession() error {
+	now := timeNow()
 	client.authenticationMutex.Lock()
 	defer client.authenticationMutex.Unlock()
 
-	if client.token == "" || client.tokenExpiry.Before(now) {
-		return client.login()
+	if client.sessionToken == "" || client.sessionTokenExpiry.Before(now) {
+		return client.loginSession()
 	}
 	return nil
 }
 
-// clearAuth clears auth state
+// clearAuth clears both director and session auth state
 func (client *Client) clearAuth() {
 	client.authenticationMutex.Lock()
-	client.token = ""
+	client.directorToken = ""
+	client.sessionToken = ""
 	client.authenticationMutex.Unlock()
 }
 
@@ -99,8 +263,8 @@ func (client *Client) runGetCSRFToken() error {
 	cookies := client.httpClient.Jar.Cookies(endpointURL)
 	for _, cookie := range cookies {
 		if cookie.Name == "VD-CSRF-TOKEN" {
-			client.token = cookie.Value
-			client.tokenExpiry = timeNow().Add(time.Minute * 15)
+			client.sessionToken = cookie.Value
+			client.sessionTokenExpiry = timeNow().Add(time.Minute * 15)
 		}
 	}
 
@@ -119,9 +283,8 @@ func (client *Client) runJSpringSecurityCheck(authPayload *url.Values) error {
 		return err
 	}
 
-	// if we have a CSRF token, add it to the request
-	if client.token != "" {
-		req.Header.Add("X-CSRF-TOKEN", client.token)
+	if client.sessionToken != "" {
+		req.Header.Add("X-CSRF-TOKEN", client.sessionToken)
 	}
 	req.Header.Add("Content-Type", "application/x-www-form-urlencoded")
 	sessionRes, err := client.httpClient.Do(req)
@@ -143,8 +306,8 @@ func (client *Client) runJSpringSecurityCheck(authPayload *url.Values) error {
 	cookies := client.httpClient.Jar.Cookies(endpointURL)
 	for _, cookie := range cookies {
 		if cookie.Name == "VD-CSRF-TOKEN" {
-			client.token = cookie.Value
-			client.tokenExpiry = timeNow().Add(time.Minute * 15)
+			client.sessionToken = cookie.Value
+			client.sessionTokenExpiry = timeNow().Add(time.Minute * 15)
 		}
 	}
 
@@ -162,7 +325,7 @@ func (client *Client) runAnalyticsLogin(analyticsPayload *url.Values) error {
 	if err != nil {
 		return err
 	}
-	req.Header.Add("X-CSRF-TOKEN", client.token)
+	req.Header.Add("X-CSRF-TOKEN", client.sessionToken)
 	req.Header.Add("Content-Type", "application/x-www-form-urlencoded")
 
 	loginRes, err := client.httpClient.Do(req)

@@ -144,7 +144,7 @@ type Client struct {
 	ndmAggregator                  aggregator.NDMAggregator
 	ndmflowAggregator              aggregator.NDMFlowAggregator
 	netpathAggregator              aggregator.NetpathAggregator
-	serviceDiscoveryAggregator     aggregator.ServiceDiscoveryAggregator
+	hostAggregator                 aggregator.HostAggregator
 }
 
 // NewClient creates a new fake intake client
@@ -175,7 +175,7 @@ func NewClient(fakeIntakeURL string, opts ...Option) *Client {
 		ndmAggregator:                  aggregator.NewNDMAggregator(),
 		ndmflowAggregator:              aggregator.NewNDMFlowAggregator(),
 		netpathAggregator:              aggregator.NewNetpathAggregator(),
-		serviceDiscoveryAggregator:     aggregator.NewServiceDiscoveryAggregator(),
+		hostAggregator:                 aggregator.NewHostAggregator(),
 	}
 	for _, opt := range opts {
 		opt(client)
@@ -334,6 +334,15 @@ func (c *Client) getNetpathEvents() error {
 	return c.netpathAggregator.UnmarshallPayloads(payloads)
 }
 
+func (c *Client) getHostInfos() error {
+	payloads, err := c.getFakePayloads(intakeEndpoint)
+	if err != nil {
+		return err
+	}
+
+	return c.hostAggregator.UnmarshallPayloads(payloads)
+}
+
 // FilterMetrics fetches fakeintake on `/api/v2/series` endpoint and returns
 // metrics matching `name` and any [MatchOpt](#MatchOpt) options
 func (c *Client) FilterMetrics(name string, options ...MatchOpt[*aggregator.MetricSeries]) ([]*aggregator.MetricSeries, error) {
@@ -384,14 +393,6 @@ func (c *Client) FilterContainerImages(name string, options ...MatchOpt[*aggrega
 	}
 	// apply filters one after the other
 	return filterPayload(images, options...)
-}
-
-func (c *Client) getServiceDiscoveries() error {
-	payloads, err := c.getFakePayloads(apmTelemetryEndpoint)
-	if err != nil {
-		return err
-	}
-	return c.serviceDiscoveryAggregator.UnmarshallPayloads(payloads)
 }
 
 // GetLatestFlare queries the Fake Intake to fetch flares that were sent by a Datadog Agent and returns the latest flare as a Flare struct
@@ -722,6 +723,9 @@ func (c *Client) GetLastProcessPayloadAPIKey() (string, error) {
 	if err != nil {
 		return "", err
 	}
+	if len(payloads) == 0 {
+		return "", errors.New("no process payloads found")
+	}
 	return payloads[len(payloads)-1].APIKey, nil
 }
 
@@ -731,6 +735,10 @@ func (c *Client) GetAllProcessPayloadAPIKeys() ([]string, error) {
 	payloads, err := c.getFakePayloads(processesEndpoint)
 	if err != nil {
 		return nil, err
+	}
+
+	if len(payloads) == 0 {
+		return nil, errors.New("no process payloads found")
 	}
 
 	keysFound := make(map[string]struct{})
@@ -1065,6 +1073,26 @@ func (c *Client) GetLatestNetpathEvents() ([]*aggregator.Netpath, error) {
 	return netpaths, nil
 }
 
+// GetLatestHostInfos returns the latest host information received by the fake intake
+func (c *Client) GetLatestHostInfos() ([]*aggregator.Host, error) {
+	err := c.getHostInfos()
+
+	if err != nil {
+		return nil, err
+	}
+
+	var hostInfos []*aggregator.Host
+	for _, name := range c.hostAggregator.GetNames() {
+		payloads := c.hostAggregator.GetPayloadsByName(name)
+
+		if len(payloads) > 0 {
+			hostInfos = append(hostInfos, payloads...)
+		}
+	}
+
+	return hostInfos, nil
+}
+
 // filterPayload returns payloads matching any [MatchOpt](#MatchOpt) options
 func filterPayload[T aggregator.PayloadItem](payloads []T, options ...MatchOpt[T]) ([]T, error) {
 	// apply filters one after the other
@@ -1086,20 +1114,4 @@ func filterPayload[T aggregator.PayloadItem](payloads []T, options ...MatchOpt[T
 		}
 	}
 	return filteredPayloads, nil
-}
-
-// GetServiceDiscoveries fetches fakeintake on `api/v2/apmtelemetry` endpoint and returns
-// all received service discovery payloads
-func (c *Client) GetServiceDiscoveries() ([]*aggregator.ServiceDiscoveryPayload, error) {
-	err := c.getServiceDiscoveries()
-	if err != nil {
-		return nil, err
-	}
-
-	names := c.serviceDiscoveryAggregator.GetNames()
-	payloads := make([]*aggregator.ServiceDiscoveryPayload, 0, len(names))
-	for _, name := range names {
-		payloads = append(payloads, c.serviceDiscoveryAggregator.GetPayloadsByName(name)...)
-	}
-	return payloads, nil
 }

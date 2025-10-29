@@ -110,16 +110,10 @@ func (suite *EndpointsTestSuite) TestBuildEndpointsShouldSucceedWithDefaultAndVa
 	endpoints, err = BuildEndpoints(suite.config, HTTPConnectivityFailure, "test-track", "test-proto", "test-source")
 	suite.Nil(err)
 	endpoint = endpoints.Main
-	assert.Eventually(suite.T(), func() bool {
-		suite.Equal("azerty", endpoint.GetAPIKey())
-		return assert.Equal(suite.T(), "", endpoint.Host)
-	}, 5*time.Second, 1*time.Second)
-	assert.Eventually(suite.T(), func() bool {
-		return assert.Equal(suite.T(), 1234, endpoint.Port)
-	}, 5*time.Second, 1*time.Second)
-	assert.Eventually(suite.T(), func() bool {
-		return assert.True(suite.T(), endpoint.UseSSL())
-	}, 5*time.Second, 1*time.Second)
+	suite.Equal("azerty", endpoint.GetAPIKey())
+	suite.Equal("", endpoint.Host)
+	suite.Equal(1234, endpoint.Port)
+	suite.True(endpoint.UseSSL())
 	suite.Equal("boz:1234", endpoint.ProxyAddress)
 	suite.Equal(1, len(endpoints.Endpoints))
 }
@@ -646,17 +640,13 @@ func (suite *EndpointsTestSuite) TestMainApiKeyRotation() {
 	tcp := newTCPEndpoint(logsConfig)
 	http := newHTTPEndpoint(logsConfig)
 
-	suite.Eventually(func() bool {
-		return assert.Equal(suite.T(), "1234", tcp.GetAPIKey()) &&
-			assert.Equal(suite.T(), "1234", http.GetAPIKey())
-	}, 5*time.Second, 200*time.Millisecond)
+	suite.Equal("1234", tcp.GetAPIKey())
+	suite.Equal("1234", http.GetAPIKey())
 
 	// change API key at runtime
 	suite.config.SetWithoutSource("api_key", "5678")
-	suite.Eventually(func() bool {
-		return assert.Equal(suite.T(), "5678", tcp.GetAPIKey()) &&
-			assert.Equal(suite.T(), "5678", http.GetAPIKey())
-	}, 5*time.Second, 200*time.Millisecond)
+	suite.Equal("5678", tcp.GetAPIKey())
+	suite.Equal("5678", http.GetAPIKey())
 }
 
 func (suite *EndpointsTestSuite) TestLogCompressionKind() {
@@ -688,21 +678,13 @@ func (suite *EndpointsTestSuite) TestLogsConfigApiKeyRotation() {
 
 	// change API key at runtime
 	suite.config.SetWithoutSource("api_key", "5678")
-	assert.Eventually(suite.T(), func() bool {
-		return assert.Equal(suite.T(), "1234", tcp.GetAPIKey())
-	}, 5*time.Second, 1*time.Second)
-	assert.Eventually(suite.T(), func() bool {
-		return assert.Equal(suite.T(), "1234", http.GetAPIKey())
-	}, 5*time.Second, 1*time.Second)
+	suite.Equal("1234", tcp.GetAPIKey())
+	suite.Equal("1234", http.GetAPIKey())
 
 	// change API key at runtime
 	suite.config.SetWithoutSource("logs_config.api_key", "5678")
-	assert.Eventually(suite.T(), func() bool {
-		return assert.Equal(suite.T(), "5678", tcp.GetAPIKey())
-	}, 5*time.Second, 1*time.Second)
-	assert.Eventually(suite.T(), func() bool {
-		return assert.Equal(suite.T(), "5678", http.GetAPIKey())
-	}, 5*time.Second, 1*time.Second)
+	suite.Equal("5678", tcp.GetAPIKey())
+	suite.Equal("5678", http.GetAPIKey())
 }
 
 func (suite *EndpointsTestSuite) TestEndpointOnUpdate() {
@@ -740,11 +722,9 @@ func (suite *EndpointsTestSuite) TestEndpointOnUpdate() {
 			additionalEndpoints := additionalEndpointsLoader(mainEndpoint, logsConfig)
 			suite.Suite.Require().Len(additionalEndpoints, 2)
 
-			assert.Eventually(suite.T(), func() bool {
-				return assert.Equal(suite.T(), "1234", mainEndpoint.GetAPIKey()) &&
-					assert.Equal(suite.T(), "abcd", additionalEndpoints[0].GetAPIKey()) &&
-					assert.Equal(suite.T(), "defg", additionalEndpoints[1].GetAPIKey())
-			}, 5*time.Second, 1*time.Second)
+			suite.Equal("1234", mainEndpoint.GetAPIKey())
+			suite.Equal("abcd", additionalEndpoints[0].GetAPIKey())
+			suite.Equal("defg", additionalEndpoints[1].GetAPIKey())
 
 			// Setting new values in the config will notify the endpoints and update them
 			suite.config.SetWithoutSource("logs_config.api_key", "1234_updated")
@@ -764,29 +744,23 @@ func (suite *EndpointsTestSuite) TestEndpointOnUpdate() {
 			"is_reliable": false
 			}]`)
 
-			assert.Eventually(suite.T(), func() bool {
-				return assert.Equal(suite.T(), "1234_updated", mainEndpoint.GetAPIKey()) &&
-					assert.Equal(suite.T(), "abcd_updated", additionalEndpoints[0].GetAPIKey()) &&
-					assert.Equal(suite.T(), "defg_updated", additionalEndpoints[1].GetAPIKey())
-			}, 5*time.Second, 1*time.Second)
+			suite.Equal("1234_updated", mainEndpoint.GetAPIKey())
+			suite.Equal("abcd_updated", additionalEndpoints[0].GetAPIKey())
+			suite.Equal("defg_updated", additionalEndpoints[1].GetAPIKey())
 
 			// We trigger an unrelated update and verify that it was correctly ignored
 			suite.config.SetWithoutSource("api_key", "top_key_update")
 
-			assert.Eventually(suite.T(), func() bool {
-				return assert.Equal(suite.T(), "1234_updated", mainEndpoint.GetAPIKey()) &&
-					assert.Equal(suite.T(), "abcd_updated", additionalEndpoints[0].GetAPIKey()) &&
-					assert.Equal(suite.T(), "defg_updated", additionalEndpoints[1].GetAPIKey())
-			}, 5*time.Second, 1*time.Second)
+			suite.Equal("1234_updated", mainEndpoint.GetAPIKey())
+			suite.Equal("abcd_updated", additionalEndpoints[0].GetAPIKey())
+			suite.Equal("defg_updated", additionalEndpoints[1].GetAPIKey())
 
 			// We trigger an update with invalid types
 			suite.config.SetWithoutSource("logs_config.api_key", 0.1)
 
-			assert.Eventually(suite.T(), func() bool {
-				return assert.Equal(suite.T(), "1234_updated", mainEndpoint.GetAPIKey()) &&
-					assert.Equal(suite.T(), "abcd_updated", additionalEndpoints[0].GetAPIKey()) &&
-					assert.Equal(suite.T(), "defg_updated", additionalEndpoints[1].GetAPIKey())
-			}, 5*time.Second, 1*time.Second)
+			suite.Equal("1234_updated", mainEndpoint.GetAPIKey())
+			suite.Equal("abcd_updated", additionalEndpoints[0].GetAPIKey())
+			suite.Equal("defg_updated", additionalEndpoints[1].GetAPIKey())
 		})
 	}
 }

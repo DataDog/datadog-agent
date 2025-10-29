@@ -7,7 +7,7 @@ from tasks.libs.common.git import get_default_branch
 from tasks.libs.releasing.version import current_version
 
 
-def _add_prelude(ctx, version):
+def _add_prelude(ctx, version, release_date=None):
     res = ctx.run(f"reno new prelude-release-{version}")
     new_releasenote = res.stdout.split(' ')[-1].strip()  # get the new releasenote file path
     branch = DEFAULT_INTEGRATIONS_CORE_BRANCH
@@ -16,7 +16,7 @@ def _add_prelude(ctx, version):
         f.write(
             f"""prelude:
     |
-    Release on: {date.today()}
+    Release on: {release_date or date.today()}
 
     - Please refer to the `{version} tag on integrations-core <https://github.com/DataDog/integrations-core/blob/{branch}/AGENT_CHANGELOG.md#datadog-agent-version-{version.replace('.', '')}>`_ for the list of changes on the Core Checks
 """
@@ -27,7 +27,7 @@ def _add_prelude(ctx, version):
     print(f"git commit -m \"Add prelude for {version} release\"")
 
 
-def _add_dca_prelude(ctx, version=None):
+def _add_dca_prelude(ctx, version=None, release_date=None):
     """Release of the Cluster Agent should be pinned to a version of the Agent."""
 
     branch = get_default_branch()
@@ -39,7 +39,7 @@ def _add_dca_prelude(ctx, version=None):
         f.write(
             f"""prelude:
     |
-    Released on: {date.today()}
+    Released on: {release_date or date.today()}
     Pinned to datadog-agent v{version}: `CHANGELOG <https://github.com/{GITHUB_REPO_NAME}/blob/{branch}/CHANGELOG.rst#{version.replace('.', '')}>`_."""
         )
 

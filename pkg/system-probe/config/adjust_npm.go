@@ -12,6 +12,7 @@ import (
 	"runtime"
 
 	"github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -94,7 +95,10 @@ func adjustNetwork(cfg model.Config) {
 	})
 
 	if cfg.GetBool(evNS("network_process", "enabled")) && !ProcessEventDataStreamSupported() {
-		log.Warn("disabling process event monitoring as it is not supported for this kernel version")
+		if flavor.GetFlavor() == flavor.SystemProbe {
+			// Only log in system-probe, as we cannot reliably know this in the agent
+			log.Warn("disabling process event monitoring as it is not supported for this kernel version")
+		}
 		cfg.Set(evNS("network_process", "enabled"), false, model.SourceAgentRuntime)
 	}
 

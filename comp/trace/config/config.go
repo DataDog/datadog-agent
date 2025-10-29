@@ -66,7 +66,7 @@ type cfg struct {
 // NewConfig is the default constructor for the component, it returns
 // a component instance and an error.
 func NewConfig(deps Dependencies) (Component, error) {
-	tracecfg, err := setupConfig(deps, "")
+	tracecfg, err := setupConfigCommon(deps)
 
 	if err != nil {
 		// Allow main Agent to start with missing API key

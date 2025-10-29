@@ -60,6 +60,16 @@ func (e *RawPacketEvent) UnmarshalBinary(data []byte) (int, error) {
 			e.Source.Port = uint16(rl.SrcPort)
 			e.Destination.Port = uint16(rl.DstPort)
 		}
+	} else if layer := packet.Layer(layers.LayerTypeICMPv4); layer != nil {
+		if rl, ok := layer.(*layers.ICMPv4); ok {
+			e.L4Protocol = unix.IPPROTO_ICMP
+			e.Type = uint32(rl.TypeCode.Type())
+		}
+	} else if layer := packet.Layer(layers.LayerTypeICMPv6); layer != nil {
+		if rl, ok := layer.(*layers.ICMPv6); ok {
+			e.L4Protocol = unix.IPPROTO_ICMPV6
+			e.Type = uint32(rl.TypeCode.Type())
+		}
 	}
 
 	if layer := packet.Layer(layers.LayerTypeTLS); layer != nil {

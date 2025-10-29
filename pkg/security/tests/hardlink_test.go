@@ -14,10 +14,11 @@ import (
 	"os/exec"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
-	"github.com/stretchr/testify/assert"
 )
 
 func runHardlinkTests(t *testing.T, opts testOpts) {
@@ -185,6 +186,10 @@ func TestHardLink(t *testing.T) {
 func TestHardlinkBusybox(t *testing.T) {
 	SkipIfNotAvailable(t)
 
+	if _, err := whichNonFatal("docker"); err != nil {
+		t.Skip("Skip test where docker is unavailable")
+	}
+
 	checkKernelCompatibility(t, "Not supported on kernels < 5.12", func(kv *kernel.Version) bool {
 		return kv.Code < kernel.Kernel5_12
 	})
@@ -192,11 +197,11 @@ func TestHardlinkBusybox(t *testing.T) {
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "test_busybox_hardlink_1",
-			Expression: `open.file.path == "/bin/gunzip" && process.file.name == "cat"`,
+			Expression: `open.file.path == "/bin/gunzip" && process.file.path == "/bin/cat"`,
 		},
 		{
 			ID:         "test_busybox_hardlink_2",
-			Expression: `open.file.path == "/bin/tar" && process.file.name == "cat"`,
+			Expression: `open.file.path == "/bin/tar" && process.file.path == "/bin/cat"`,
 		},
 	}
 
@@ -209,8 +214,7 @@ func TestHardlinkBusybox(t *testing.T) {
 	// busybox uses hardlinks
 	wrapper, err := newDockerCmdWrapper(test.Root(), test.Root(), "busybox", "")
 	if err != nil {
-		t.Skip("docker not available")
-		return
+		t.Fatalf("failed to start docker wrapper: %v", err)
 	}
 
 	wrapper.Run(t, "busybox-1", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
@@ -223,6 +227,10 @@ func TestHardlinkBusybox(t *testing.T) {
 		}, func(event *model.Event, rule *rules.Rule) {
 			assert.Equal(t, "test_busybox_hardlink_1", rule.ID, "wrong rule triggered")
 			assert.Greater(t, event.Open.File.NLink, uint32(1), event.Open.File.PathnameStr)
+			assertFieldEqual(t, event, "open.file.path", "/bin/gunzip", "unexpected open.file.path field value")
+			// explicitly assert on process.file.path value here because the use of argv0 in operator overrides
+			// might cause the rule to match even though process.file.path might be resolved to an incorrect path
+			assertFieldEqual(t, event, "process.file.path", "/bin/cat", "unexpected process.file.path field value")
 		})
 
 		// check that the cache is not used (having the same path_key)
@@ -235,6 +243,10 @@ func TestHardlinkBusybox(t *testing.T) {
 		}, func(event *model.Event, rule *rules.Rule) {
 			assert.Equal(t, "test_busybox_hardlink_2", rule.ID, "wrong rule triggered: %v", event.ProcessContext.FileEvent.PathnameStr)
 			assert.Greater(t, event.Open.File.NLink, uint32(1), event.Open.File.PathnameStr)
+			assertFieldEqual(t, event, "open.file.path", "/bin/tar", "unexpected open.file.path field value")
+			// explicitly assert on process.file.path value here because the use of argv0 in operator overrides
+			// might cause the rule to match even though process.file.path might be resolved to an incorrect path
+			assertFieldEqual(t, event, "process.file.path", "/bin/cat", "unexpected process.file.path field value")
 		})
 	})
 }

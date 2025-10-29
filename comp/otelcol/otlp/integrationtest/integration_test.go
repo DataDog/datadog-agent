@@ -45,13 +45,14 @@ import (
 	logtrace "github.com/DataDog/datadog-agent/comp/core/log/fx-trace"
 	"github.com/DataDog/datadog-agent/comp/core/pid"
 	"github.com/DataDog/datadog-agent/comp/core/pid/pidimpl"
-	"github.com/DataDog/datadog-agent/comp/core/secrets"
+	secretsnoopfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx-noop"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	taggerfx "github.com/DataDog/datadog-agent/comp/core/tagger/fx"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
+	statsdotel "github.com/DataDog/datadog-agent/comp/dogstatsd/statsd/otel"
 	"github.com/DataDog/datadog-agent/comp/forwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
@@ -75,6 +76,7 @@ import (
 	traceagentcomp "github.com/DataDog/datadog-agent/comp/trace/agent/impl"
 	gzipfx "github.com/DataDog/datadog-agent/comp/trace/compression/fx-gzip"
 	traceconfig "github.com/DataDog/datadog-agent/comp/trace/config"
+	payloadmodifierfx "github.com/DataDog/datadog-agent/comp/trace/payload-modifier/fx"
 	pkgconfigenv "github.com/DataDog/datadog-agent/pkg/config/env"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -86,15 +88,15 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
-func runTestOTelAgent(ctx context.Context, params *subcommands.GlobalParams, pidfilePath string) error {
-	return fxutil.Run(
+func runTestOTelAgent(ctx context.Context, params *subcommands.GlobalParams, pidfilePath string) (*fx.App, error) {
+	return fxutil.TestRunWithApp(
 		forwarder.Bundle(defaultforwarder.NewParams()),
 		logtrace.Module(),
 		inventoryagentimpl.Module(),
 		workloadmetafx.Module(workloadmeta.NewParams()),
 		fx.Supply(metricsclient.NewStatsdClientWrapper(&ddgostatsd.NoOpClient{})),
 		fx.Provide(func(client *metricsclient.StatsdClientWrapper) statsd.Component {
-			return statsd.NewOTelStatsd(client)
+			return statsdotel.NewOTelStatsd(client)
 		}),
 		sysprobeconfig.NoneModule(),
 		ipcfx.ModuleReadWrite(),
@@ -121,7 +123,7 @@ func runTestOTelAgent(ctx context.Context, params *subcommands.GlobalParams, pid
 			return h.Get
 		}),
 		hostnameinterface.MockModule(),
-		fx.Supply(option.None[secrets.Component]()),
+		secretsnoopfx.Module(),
 
 		fx.Provide(func(_ coreconfig.Component) logdef.Params {
 			return logdef.ForDaemon(params.LoggerName, "log_file", pkgconfigsetup.DefaultOTelAgentLogFile)
@@ -166,12 +168,16 @@ func runTestOTelAgent(ctx context.Context, params *subcommands.GlobalParams, pid
 			MemProfile:  "",
 			PIDFilePath: "",
 		}),
+		payloadmodifierfx.NilModule(),
 		tracecomp.Bundle(),
 		agenttelemetryfx.Module(),
 	)
 }
 
 func TestIntegration(t *testing.T) {
+	var app *fx.App
+	var err error
+
 	// 1. Set up mock Datadog server
 	// See also https://github.com/DataDog/datadog-agent/blob/49c16e0d4deab396626238fa1d572b684475a53f/cmd/trace-agent/test/backend.go
 	apmstatsRec := &testutil.HTTPRequestRecorderWithChan{Pattern: testutil.APMStatsEndpoint, ReqChan: make(chan []byte)}
@@ -188,14 +194,14 @@ func TestIntegration(t *testing.T) {
 	}
 	pidfilePath := "test_pid"
 	go func() {
-		if err := runTestOTelAgent(context.Background(), params, pidfilePath); err != nil {
+		if app, err = runTestOTelAgent(context.Background(), params, pidfilePath); err != nil {
 			log.Fatal("failed to start otel agent ", err)
 		}
 	}()
 	waitForReadiness()
 
 	// 3. Validate that pid file was created
-	_, err := os.Stat(pidfilePath)
+	_, err = os.Stat(pidfilePath)
 	require.NoError(t, err)
 
 	// 3. Generate and send traces
@@ -242,6 +248,11 @@ func TestIntegration(t *testing.T) {
 	// Verify we don't receive more than the expected numbers
 	assert.Len(t, spans, 5)
 	assert.Len(t, stats, 10)
+
+	// Verify that DDOT stops gracefully
+	stopCtx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	defer cancel()
+	require.NoError(t, app.Stop(stopCtx))
 }
 
 func waitForReadiness() {

@@ -83,7 +83,7 @@ Invoke-BuildScript `
             New-LocalUser -Name "ddagentuser" -Description "Test user for the secrets feature on windows." -Password $Password
         }
         # Generate the datadog.yaml config file to be used in integration tests
-        & dda inv -- -e agent.generate-config --build-type="agent-py2py3" --output-file="./datadog.yaml"
+        & dda inv -- -e agent.generate-config --build-type="agent-py3" --output-file="./datadog.yaml"
         # Build inputs needed for go builds
         & .\tasks\winbuildscripts\pre-go-build.ps1
     }
@@ -124,15 +124,6 @@ Invoke-BuildScript `
     Write-Host Python-script test result is $err
     if($err -ne 0){
         Write-Host -ForegroundColor Red "Python-script test failed $err"
-        exit $err
-    }
-
-    # Run PowerShell install script unit tests
-    & powershell -ExecutionPolicy Bypass -File ".\tools\windows\DatadogAgentInstallScript\Run-Tests.ps1"
-    $err = $LASTEXITCODE
-    Write-Host PowerShell install script test result is $err
-    if($err -ne 0){
-        Write-Host -ForegroundColor Red "PowerShell install script test failed $err"
         exit $err
     }
 

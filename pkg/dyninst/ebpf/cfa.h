@@ -18,13 +18,13 @@ static inline uint64_t calculate_cfa(struct pt_regs* regs, bool frameless) {
   //                   DW_AT_name    ("a")
   //                   DW_AT_decl_line       (76)
   //                   DW_AT_type    (0x0000000000242414 "int[5]")
-  //                   DW_AT_location        (0x00087bf9: 
+  //                   DW_AT_location        (0x00087bf9:
   //                      [0x0000000000cd4cbb, 0x0000000000cd4d55): DW_OP_fbreg -56)
 
   // Target variable in testInlinedSumArray
   // 0x000450e9:       DW_TAG_formal_parameter
   //                     DW_AT_abstract_origin       (0x000000000003e970 "a")
-  //                     DW_AT_location      (0x00087c2d: 
+  //                     DW_AT_location      (0x00087c2d:
   //                        [0x0000000000cd4ce4, 0x0000000000cd4d55): DW_OP_fbreg -96)
 
   // 0000000000cd4ca0 <main.executeInlined>:
@@ -68,13 +68,13 @@ static inline uint64_t calculate_cfa(struct pt_regs* regs, bool frameless) {
   //                   DW_AT_name    ("a")
   //                   DW_AT_decl_line       (76)
   //                   DW_AT_type    (0x00000000002425fe "int[5]")
-  //                   DW_AT_location        (0x000862b8: 
+  //                   DW_AT_location        (0x000862b8:
   //                      [0x000000000084a144, 0x000000000084a1e0): DW_OP_fbreg -48)
 
   // Target variable in testInlinedSumArray
   // 0x00043395:       DW_TAG_formal_parameter
   //                     DW_AT_abstract_origin       (0x000000000003ccfe "a")
-  //                     DW_AT_location      (0x000862ec: 
+  //                     DW_AT_location      (0x000862ec:
   //                        [0x000000000084a164, 0x000000000084a1e0): DW_OP_fbreg -88)
 
   // 000000000084a120 <main.executeInlined>:
@@ -159,25 +159,25 @@ static inline uint64_t calculate_cfa(struct pt_regs* regs, bool frameless) {
   // array offset == sp == x29+8
   //   849100: c0 03 5f d6   ret
 
-  #if defined(bpf_target_arm64)
+#if defined(bpf_target_arm64)
   if (frameless) {
     return regs->DWARF_BP_REG + 8;
   } else {
     uint64_t bp;
-    if (bpf_probe_read_user(&bp, sizeof(bp), (void*)(regs->DWARF_SP_REG-8)) != 0) {
+    if (bpf_probe_read_user(&bp, sizeof(bp), (void*)(regs->DWARF_SP_REG - 8)) != 0) {
       return 0;
     }
     return bp + 8;
   }
-  #elif defined(bpf_target_x86)
+#elif defined(bpf_target_x86)
   if (frameless) {
     return regs->DWARF_SP_REG + 8;
   } else {
     return regs->DWARF_BP_REG + 16;
   }
-  #else
-      #error "Unsupported architecture"
-  #endif
+#else
+#error "Unsupported architecture"
+#endif
 }
 
 #endif // __CFA_H__

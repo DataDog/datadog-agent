@@ -23,6 +23,8 @@ type otelAgentSpanReceiverV2TestSuite struct {
 func TestOTelAgentSpanReceiverV2(t *testing.T) {
 	values := `
 datadog:
+  otelCollector:
+    useStandaloneImage: false
   logs:
     containerCollectAll: false
     containerCollectUsingFiles: false

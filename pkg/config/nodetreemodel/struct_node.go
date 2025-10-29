@@ -42,8 +42,8 @@ func (n *structNodeImpl) HasChild(name string) bool {
 	return slices.Contains(names, name)
 }
 
-func (n *structNodeImpl) Merge(InnerNode) error {
-	return fmt.Errorf("not implemented")
+func (n *structNodeImpl) Merge(InnerNode) (InnerNode, error) {
+	return nil, fmt.Errorf("not implemented")
 }
 
 // ChildrenKeys returns the list of keys of the children of the given node, if it is a map
@@ -62,18 +62,18 @@ func (n *structNodeImpl) ChildrenKeys() []string {
 	return keys
 }
 
-// SetAt is not implemented for a leaf node
-func (n *structNodeImpl) SetAt([]string, interface{}, model.Source) (bool, error) {
-	return false, fmt.Errorf("not implemented")
+// SetAt is not implemented for a struct node
+func (n *structNodeImpl) SetAt([]string, interface{}, model.Source) error {
+	return fmt.Errorf("not implemented")
 }
 
-// InsertChildNode is not implemented for a leaf node
+// InsertChildNode is not implemented for a struct node
 func (n *structNodeImpl) InsertChildNode(string, Node) {}
 
 // RemoveChild is not implemented for struct node
 func (n *structNodeImpl) RemoveChild(string) {}
 
-// Clone clones a LeafNode
+// Clone clones a StructNode
 func (n *structNodeImpl) Clone() Node {
 	return &structNodeImpl{val: n.val}
 }

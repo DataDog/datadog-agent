@@ -74,13 +74,14 @@ func (c *CRCollector) Informer() cache.SharedInformer {
 	return c.informer.Informer()
 }
 
-func (c *CRCollector) getGRV() schema.GroupVersionResource {
+// GetGRV returns group, version and resource
+func (c *CRCollector) GetGRV() schema.GroupVersionResource {
 	return c.gvr
 }
 
 // Init is used to initialize the collector.
 func (c *CRCollector) Init(rcfg *collectors.CollectorRunConfig) {
-	grv := c.getGRV()
+	grv := c.GetGRV()
 	c.informer = rcfg.OrchestratorInformerFactory.DynamicInformerFactory.ForResource(grv)
 	c.lister = c.informer.Lister()
 }
@@ -96,7 +97,7 @@ func (c *CRCollector) Run(rcfg *collectors.CollectorRunConfig) (*collectors.Coll
 	if err != nil {
 		return nil, collectors.NewListingError(err)
 	}
-	if len(list) > c.maximumCRDQuota {
+	if !c.metadata.IsGenericCollector && len(list) > c.maximumCRDQuota {
 		return nil, collectors.NewListingError(fmt.Errorf("crd collector %s/%s has reached to the limit %d, skipping it", c.metadata.Version, c.metadata.Name, c.maximumCRDQuota))
 	}
 

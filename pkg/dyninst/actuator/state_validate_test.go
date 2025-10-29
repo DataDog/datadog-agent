@@ -163,17 +163,17 @@ func validateProcess(proc *process, s *state, report func(format string, args ..
 			)
 		}
 		if proc.attachedProgram != nil &&
-			proc.attachedProgram.ir.ID != proc.currentProgram {
+			proc.attachedProgram.programID != proc.currentProgram {
 			report(
 				"process %v attachedProgram ID %v does not match currentProgram %v",
-				procKey, proc.attachedProgram.ir.ID, proc.currentProgram,
+				procKey, proc.attachedProgram.programID, proc.currentProgram,
 			)
 		}
 		if proc.attachedProgram != nil &&
-			proc.attachedProgram.procID != procKey.ProcessID {
+			proc.attachedProgram.processID != procKey.ProcessID {
 			report(
 				"process %v attachedProgram has wrong processID %v",
-				procKey, proc.attachedProgram.procID,
+				procKey, proc.attachedProgram.processID,
 			)
 		}
 
@@ -244,10 +244,10 @@ func validateProgram(
 				"program %v in Loaded state should have loadedProgram", progID,
 			)
 		}
-		if prog.loaded != nil && prog.loaded.ir.ID != progID {
+		if prog.loaded != nil && prog.loaded.programID != progID {
 			report(
 				"program %v has loadedProgram with mismatched ID %v",
-				progID, prog.loaded.ir.ID,
+				progID, prog.loaded.programID,
 			)
 		}
 

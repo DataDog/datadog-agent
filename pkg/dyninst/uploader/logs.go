@@ -101,6 +101,9 @@ func (u *LogsUploaderFactory) GetUploader(metadata LogsUploaderMetadata) *LogsUp
 		}
 		headers[key] = value
 	}
+	for _, keyVal := range u.cfg.headers {
+		addHeader(keyVal[0], keyVal[1])
+	}
 	var logsURL, name string
 	if metadata.Tags == "" {
 		logsURL = u.cfg.url.String()
@@ -111,7 +114,11 @@ func (u *LogsUploaderFactory) GetUploader(metadata LogsUploaderMetadata) *LogsUp
 		tagURL := *u.cfg.url
 		tagURL.RawQuery = query.Encode()
 		logsURL = tagURL.String()
+	}
+	if metadata.EntityID != "" {
 		addHeader(ddHeaderEntityID, metadata.EntityID)
+	}
+	if metadata.ContainerID != "" {
 		addHeader(ddHeaderContainerID, metadata.ContainerID)
 	}
 	name = fmt.Sprintf("logs:%d", uploaderID)

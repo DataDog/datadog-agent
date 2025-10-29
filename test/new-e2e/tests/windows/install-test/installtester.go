@@ -455,6 +455,7 @@ func (t *Tester) testUninstalledFilePermissions(tt *testing.T) {
 			windows.AssertEqualAccessSecurity(tt, tc.path, tc.expectedSecurity(tt), out)
 		})
 	}
+	windowsAgent.TestHasNoWorldWritablePaths(tt, t.host, []string{t.expectedConfigRoot})
 
 	// C:\Program Files\Datadog\Datadog Agent (InstallPath)
 	// doesn't exist after uninstall so don't need to test
@@ -605,6 +606,8 @@ func (t *Tester) testInstalledFilePermissions(tt *testing.T, ddAgentUserIdentity
 			"%s should not have permissions on %s", ddAgentUserIdentity, t.expectedInstallPath)
 	}
 	assert.False(tt, out.AreAccessRulesProtected, "%s should inherit access rules", t.expectedInstallPath)
+
+	windowsAgent.TestAgentHasNoWorldWritablePaths(tt, t.host)
 }
 
 // TestInstallExpectations tests the current agent installation meets the expectations provided to the Tester

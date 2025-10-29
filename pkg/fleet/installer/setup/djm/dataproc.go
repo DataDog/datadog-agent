@@ -19,9 +19,9 @@ import (
 )
 
 const (
-	dataprocInjectorVersion   = "0.43.1-1"
-	dataprocJavaTracerVersion = "1.51.1-1"
-	dataprocAgentVersion      = "7.68.2-1"
+	dataprocInjectorVersion   = "0.45.0-1"
+	dataprocJavaTracerVersion = "1.53.0-1"
+	dataprocAgentVersion      = "7.71.1-1"
 )
 
 var (
@@ -37,7 +37,9 @@ var (
 func SetupDataproc(s *common.Setup) error {
 
 	metadataClient := metadata.NewClient(nil)
-	s.Packages.Install(common.DatadogAgentPackage, dataprocAgentVersion)
+	if os.Getenv("DD_NO_AGENT_INSTALL") != "true" {
+		s.Packages.Install(common.DatadogAgentPackage, dataprocAgentVersion)
+	}
 	s.Packages.Install(common.DatadogAPMInjectPackage, dataprocInjectorVersion)
 	s.Packages.Install(common.DatadogAPMLibraryJavaPackage, dataprocJavaTracerVersion)
 

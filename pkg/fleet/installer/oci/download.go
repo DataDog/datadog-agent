@@ -219,6 +219,7 @@ func getRefAndKeychain(env *env.Env, url string) urlWithKeychain {
 		if !strings.HasSuffix(registryOverride, "/") {
 			registryOverride += "/"
 		}
+		registryOverride = formatImageRef(registryOverride)
 		ref = registryOverride + imageWithIdentifier
 	}
 	keychain := getKeychain(env.RegistryAuthOverride, env.RegistryUsername, env.RegistryPassword)
@@ -232,6 +233,11 @@ func getRefAndKeychain(env *env.Env, url string) urlWithKeychain {
 		ref:      ref,
 		keychain: keychain,
 	}
+}
+
+// formatImageRef formats the image ref by removing the http:// or https:// prefix.
+func formatImageRef(override string) string {
+	return strings.TrimPrefix(strings.TrimPrefix(override, "https://"), "http://")
 }
 
 // downloadRegistry downloads the image from a remote registry.
@@ -424,6 +430,10 @@ func isRetryableNetworkError(err error) bool {
 	}
 
 	if strings.Contains(err.Error(), "connection reset by peer") {
+		return true
+	}
+
+	if strings.Contains(err.Error(), "connectex") { // Windows
 		return true
 	}
 

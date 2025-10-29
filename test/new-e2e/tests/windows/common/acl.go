@@ -9,6 +9,7 @@ import (
 	_ "embed"
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 
@@ -408,4 +409,33 @@ func AssertEqualAccessSecurity(t *testing.T, path string, expected, actual Objec
 	assert.True(t, expected.Owner.Equal(actual.Owner), "%s owner %s should match %s", path, actual.Owner, expected.Owner)
 	assert.True(t, expected.Group.Equal(actual.Group), "%s group %s should match %s", path, actual.Group, expected.Group)
 	assert.Equal(t, expected.AreAccessRulesProtected, actual.AreAccessRulesProtected, "%s access rules protection should match", path)
+}
+
+// FindWorldWritablePaths searches for world-writable paths
+//
+// Returns a list of world-writable paths found below the given paths.
+// World-writable means accessible by Everyone (S-1-1-0), Users (S-1-5-32-545), or Authenticated Users (S-1-5-11) groups with write permissions.
+func FindWorldWritablePaths(host *components.RemoteHost, paths []string) ([]string, error) {
+	err := placeACLHelpers(host)
+	if err != nil {
+		return nil, err
+	}
+
+	// Convert paths slice to PowerShell array syntax
+	pathArray := fmt.Sprintf("@('%s')", strings.Join(paths, "','"))
+
+	// Call ConvertTo-JSON in this way to ensure that the output is a JSON array
+	cmd := fmt.Sprintf(`. %s; ConvertTo-JSON -InputObject @(Find-WorldWritableFilesInPaths -paths %s)`, aclHelpersPath, pathArray)
+	output, err := host.Execute(cmd)
+	if err != nil {
+		return nil, err
+	}
+
+	var result []string
+	err = json.Unmarshal([]byte(output), &result)
+	if err != nil {
+		return nil, fmt.Errorf("failed to unmarshal world-writable files result: %w\n%s", err, output)
+	}
+
+	return result, nil
 }

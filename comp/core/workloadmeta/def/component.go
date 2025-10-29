@@ -60,6 +60,13 @@ type Component interface {
 	// to this function.
 	GetKubernetesPodByName(podName, podNamespace string) (*KubernetesPod, error)
 
+	// ListKubernetesPods returns metadata about all known Kubernetes pods, equivalent
+	// to all entities with kind KindKubernetesPod.
+	ListKubernetesPods() []*KubernetesPod
+
+	// GetKubeletMetrics returns metadata about kubelet metrics.
+	GetKubeletMetrics() (*KubeletMetrics, error)
+
 	// GetKubernetesDeployment returns metadata about a Kubernetes deployment. It fetches
 	// the entity with kind KindKubernetesDeployment and the given ID.
 	GetKubernetesDeployment(id string) (*KubernetesDeployment, error)
@@ -104,6 +111,10 @@ type Component interface {
 	// GetGPU returns metadata about a GPU device. It fetches the entity
 	// with kind KindGPU and the given ID.
 	GetGPU(id string) (*GPU, error)
+
+	// GetKubelet returns the kubelet. It fetches the entity with kind KindKubelet.
+	// There can only be one kubelet entity so further specification is unnecessary.
+	GetKubelet() (*Kubelet, error)
 
 	// ListGPUs returns metadata about all known GPU devices, equivalent
 	// to all entities with kind KindGPU.

@@ -16,8 +16,14 @@ import (
 
 var openFlagsCapabilities = rules.FieldCapabilities{
 	{
-		Field:       "open.flags",
-		TypeBitmask: eval.ScalarValueType | eval.BitmaskValueType,
+		Field:        "open.flags",
+		TypeBitmask:  eval.ScalarValueType | eval.BitmaskValueType,
+		FilterWeight: 100,
+	},
+	{
+		Field:        "open.file.in_upper_layer",
+		TypeBitmask:  eval.ScalarValueType,
+		FilterWeight: 50,
 	},
 }
 
@@ -35,6 +41,13 @@ func openKFiltersGetter(approvers rules.Approvers) (KFilters, []eval.Field, erro
 				return nil, nil, err
 			}
 			kfilters = append(kfilters, kfilter)
+			fieldHandled = append(fieldHandled, field)
+		case "open.file.in_upper_layer":
+			activeKFilter, err := newInUpperLayerKFilter(InUpperLayerApproverKernelMapName, model.FileOpenEventType)
+			if err != nil {
+				return nil, nil, err
+			}
+			kfilters = append(kfilters, activeKFilter)
 			fieldHandled = append(fieldHandled, field)
 		}
 	}

@@ -39,6 +39,7 @@ type Service interface {
 	IsReady() bool                                               // is the service ready
 	HasFilter(workloadfilter.Scope) bool                         // whether the service is excluded by metrics or logs exclusion config
 	GetExtraConfig(string) (string, error)                       // Extra configuration values
+	GetImageName() string                                        // container image name
 
 	// FilterTemplates filters the templates which will be resolved against
 	// this service, in a map keyed by template digest.
@@ -47,7 +48,7 @@ type Service interface {
 	// with the full set of templates matching this service.  It must not rely
 	// on any non-static information except the given configs, and it must not
 	// modify the configs in the map.
-	FilterTemplates(map[string]integration.Config)
+	FilterTemplates(configs map[string]integration.Config)
 }
 
 // ServiceListener monitors running services and triggers check (un)scheduling

@@ -14,8 +14,11 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	"github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata"
+	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
+	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
 
 // This function tests both the function that converts a workloadmeta.Event into
@@ -87,6 +90,12 @@ func TestConversions(t *testing.T) {
 					ResolvedAllocatedResources: []workloadmeta.ContainerAllocatedResource{
 						{Name: "nvidia.com/gpu", ID: "gpu1"},
 					},
+					Resources: workloadmeta.ContainerResources{
+						CPURequest:    pointer.Ptr(0.5),
+						CPULimit:      pointer.Ptr(1.0),
+						MemoryRequest: pointer.Ptr[uint64](1024),
+						MemoryLimit:   pointer.Ptr[uint64](2048),
+					},
 				},
 			},
 			protoWorkloadmetaEvent: &pb.WorkloadmetaEvent{
@@ -143,6 +152,138 @@ func TestConversions(t *testing.T) {
 					},
 					ResolvedAllocatedResources: []*pb.ContainerAllocatedResource{
 						{Name: "nvidia.com/gpu", ID: "gpu1"},
+					},
+					Resources: &pb.ContainerResources{
+						CpuRequest:    pointer.Ptr(0.5),
+						CpuLimit:      pointer.Ptr(1.0),
+						MemoryRequest: pointer.Ptr[uint64](1024),
+						MemoryLimit:   pointer.Ptr[uint64](2048),
+					},
+				},
+			},
+			expectsError: false,
+		},
+		{
+			name: "event with a container with an owner",
+			workloadmetaEvent: workloadmeta.Event{
+				Type: workloadmeta.EventTypeSet,
+				Entity: &workloadmeta.Container{
+					EntityID: workloadmeta.EntityID{
+						Kind: workloadmeta.KindContainer,
+						ID:   "123",
+					},
+					EntityMeta: workloadmeta.EntityMeta{
+						Name:      "abc",
+						Namespace: "default",
+						Annotations: map[string]string{
+							"an_annotation": "an_annotation_value",
+						},
+						Labels: map[string]string{
+							"a_label": "a_label_value",
+						},
+					},
+					EnvVars: map[string]string{
+						"an_env": "an_env_val",
+					},
+					Hostname: "test_host",
+					Image: workloadmeta.ContainerImage{
+						ID:        "123",
+						RawName:   "datadog/agent:7",
+						Name:      "datadog/agent",
+						ShortName: "agent",
+						Tag:       "7",
+					},
+					NetworkIPs: map[string]string{
+						"net1": "10.0.0.1",
+						"net2": "192.168.0.1",
+					},
+					PID: 0,
+					Ports: []workloadmeta.ContainerPort{
+						{
+							Port:     2000,
+							Protocol: "tcp",
+						},
+					},
+					Runtime: workloadmeta.ContainerRuntimeContainerd,
+					State: workloadmeta.ContainerState{
+						Running:    true,
+						Status:     workloadmeta.ContainerStatusRunning,
+						Health:     workloadmeta.ContainerHealthHealthy,
+						CreatedAt:  createdAt,
+						StartedAt:  createdAt,
+						FinishedAt: time.Time{},
+						ExitCode:   nil,
+					},
+					CollectorTags: []string{
+						"tag1",
+					},
+					ResolvedAllocatedResources: []workloadmeta.ContainerAllocatedResource{
+						{Name: "nvidia.com/gpu", ID: "gpu1"},
+					},
+					Owner: &workloadmeta.EntityID{
+						Kind: workloadmeta.KindKubernetesPod,
+						ID:   "pod123",
+					},
+				},
+			},
+			protoWorkloadmetaEvent: &pb.WorkloadmetaEvent{
+				Type: pb.WorkloadmetaEventType_EVENT_TYPE_SET,
+				Container: &pb.Container{
+					EntityId: &pb.WorkloadmetaEntityId{
+						Kind: pb.WorkloadmetaKind_CONTAINER,
+						Id:   "123",
+					},
+					EntityMeta: &pb.EntityMeta{
+						Name:      "abc",
+						Namespace: "default",
+						Annotations: map[string]string{
+							"an_annotation": "an_annotation_value",
+						},
+						Labels: map[string]string{
+							"a_label": "a_label_value",
+						},
+					},
+					EnvVars: map[string]string{
+						"an_env": "an_env_val",
+					},
+					Hostname: "test_host",
+					Image: &pb.ContainerImage{
+						Id:        "123",
+						RawName:   "datadog/agent:7",
+						Name:      "datadog/agent",
+						ShortName: "agent",
+						Tag:       "7",
+					},
+					NetworkIps: map[string]string{
+						"net1": "10.0.0.1",
+						"net2": "192.168.0.1",
+					},
+					Pid: 0,
+					Ports: []*pb.ContainerPort{
+						{
+							Port:     2000,
+							Protocol: "tcp",
+						},
+					},
+					Runtime: pb.Runtime_CONTAINERD,
+					State: &pb.ContainerState{
+						Running:    true,
+						Status:     pb.ContainerStatus_CONTAINER_STATUS_RUNNING,
+						Health:     pb.ContainerHealth_CONTAINER_HEALTH_HEALTHY,
+						CreatedAt:  createdAt.Unix(),
+						StartedAt:  createdAt.Unix(),
+						FinishedAt: time.Time{}.Unix(),
+						ExitCode:   0,
+					},
+					CollectorTags: []string{
+						"tag1",
+					},
+					ResolvedAllocatedResources: []*pb.ContainerAllocatedResource{
+						{Name: "nvidia.com/gpu", ID: "gpu1"},
+					},
+					Owner: &pb.WorkloadmetaEntityId{
+						Kind: pb.WorkloadmetaKind_KUBERNETES_POD,
+						Id:   "pod123",
 					},
 				},
 			},
@@ -379,6 +520,156 @@ func TestConversions(t *testing.T) {
 			expectsError: false,
 		},
 		{
+			name: "event with a process (minimal)",
+			workloadmetaEvent: workloadmeta.Event{
+				Type: workloadmeta.EventTypeSet,
+				Entity: &workloadmeta.Process{
+					EntityID: workloadmeta.EntityID{
+						Kind: workloadmeta.KindProcess,
+						ID:   "1234",
+					},
+					Pid:            1234,
+					NsPid:          5678,
+					Ppid:           1,
+					Name:           "test_process",
+					Cwd:            "/usr/bin",
+					Exe:            "/usr/bin/test_process",
+					Comm:           "test_proc",
+					Cmdline:        []string{"test_process"},
+					Uids:           []int32{1000},
+					Gids:           []int32{1000},
+					ContainerID:    "container123",
+					CreationTime:   createdAt,
+					InjectionState: workloadmeta.InjectionUnknown,
+				},
+			},
+			protoWorkloadmetaEvent: &pb.WorkloadmetaEvent{
+				Type: pb.WorkloadmetaEventType_EVENT_TYPE_SET,
+				Process: &pb.Process{
+					EntityId: &pb.WorkloadmetaEntityId{
+						Kind: pb.WorkloadmetaKind_PROCESS,
+						Id:   "1234",
+					},
+					Pid:            1234,
+					Nspid:          5678,
+					Ppid:           1,
+					Name:           "test_process",
+					Cwd:            "/usr/bin",
+					Exe:            "/usr/bin/test_process",
+					Comm:           "test_proc",
+					Cmdline:        []string{"test_process"},
+					Uids:           []int32{1000},
+					Gids:           []int32{1000},
+					ContainerId:    "container123",
+					CreationTime:   createdAt.Unix(),
+					InjectionState: pb.InjectionState_INJECTION_UNKNOWN,
+				},
+			},
+			expectsError: false,
+		},
+		{
+			name: "event with a process (full)",
+			workloadmetaEvent: workloadmeta.Event{
+				Type: workloadmeta.EventTypeSet,
+				Entity: &workloadmeta.Process{
+					EntityID: workloadmeta.EntityID{
+						Kind: workloadmeta.KindProcess,
+						ID:   "1234",
+					},
+					Pid:          1234,
+					NsPid:        5678,
+					Ppid:         1,
+					Name:         "test_process",
+					Cwd:          "/usr/bin",
+					Exe:          "/usr/bin/test_process",
+					Comm:         "test_proc",
+					Cmdline:      []string{"test_process", "--config", "/etc/config.yaml"},
+					Uids:         []int32{0, 1000},
+					Gids:         []int32{0, 1000},
+					ContainerID:  "container123",
+					CreationTime: createdAt,
+					Language: &languagemodels.Language{
+						Name:    languagemodels.Go,
+						Version: "1.21.0",
+					},
+					InjectionState: workloadmeta.InjectionInjected,
+					Owner: &workloadmeta.EntityID{
+						Kind: workloadmeta.KindContainer,
+						ID:   "container123",
+					},
+					Service: &workloadmeta.Service{
+						GeneratedName:            "test_service",
+						GeneratedNameSource:      "process_name",
+						AdditionalGeneratedNames: []string{"alt_service_name"},
+						TracerMetadata: []tracermetadata.TracerMetadata{
+							{
+								RuntimeID:   "runtime123",
+								ServiceName: "test_service",
+							},
+						},
+						TCPPorts:           []uint16{8080, 9090},
+						UDPPorts:           []uint16{53},
+						APMInstrumentation: true,
+						UST: workloadmeta.UST{
+							Service: "test_service",
+							Env:     "test_env",
+							Version: "test_version",
+						},
+					},
+				},
+			},
+			protoWorkloadmetaEvent: &pb.WorkloadmetaEvent{
+				Type: pb.WorkloadmetaEventType_EVENT_TYPE_SET,
+				Process: &pb.Process{
+					EntityId: &pb.WorkloadmetaEntityId{
+						Kind: pb.WorkloadmetaKind_PROCESS,
+						Id:   "1234",
+					},
+					Pid:          1234,
+					Nspid:        5678,
+					Ppid:         1,
+					Name:         "test_process",
+					Cwd:          "/usr/bin",
+					Exe:          "/usr/bin/test_process",
+					Comm:         "test_proc",
+					Cmdline:      []string{"test_process", "--config", "/etc/config.yaml"},
+					Uids:         []int32{0, 1000},
+					Gids:         []int32{0, 1000},
+					ContainerId:  "container123",
+					CreationTime: createdAt.Unix(),
+					Language: &pb.Language{
+						Name:    "go",
+						Version: "1.21.0",
+					},
+					Owner: &pb.WorkloadmetaEntityId{
+						Kind: pb.WorkloadmetaKind_CONTAINER,
+						Id:   "container123",
+					},
+					Service: &pb.Service{
+						GeneratedName:            "test_service",
+						GeneratedNameSource:      "process_name",
+						AdditionalGeneratedNames: []string{"alt_service_name"},
+						TracerMetadata: []*pb.TracerMetadata{
+							{
+								RuntimeId:   "runtime123",
+								ServiceName: "test_service",
+							},
+						},
+						TcpPorts:           []int32{8080, 9090},
+						UdpPorts:           []int32{53},
+						ApmInstrumentation: true,
+						Ust: &pb.UST{
+							Service: "test_service",
+							Env:     "test_env",
+							Version: "test_version",
+						},
+					},
+					InjectionState: pb.InjectionState_INJECTION_INJECTED,
+				},
+			},
+			expectsError: false,
+		},
+		{
 			name: "invalid event",
 			workloadmetaEvent: workloadmeta.Event{
 				Type:   -1, // invalid
@@ -485,7 +776,6 @@ func TestConvertWorkloadEventToProtoWithUnpopulatedFields(t *testing.T) {
 }
 
 func TestProtobufFilterFromWorkloadmetaFilter(t *testing.T) {
-
 	filter := workloadmeta.NewFilterBuilder().
 		SetSource(workloadmeta.SourceRuntime).
 		SetEventType(workloadmeta.EventTypeSet).

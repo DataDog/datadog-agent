@@ -29,6 +29,8 @@ var (
 	DefaultProcessAgentLogFile = "C:\\ProgramData\\Datadog\\logs\\process-agent.log"
 	// DefaultOTelAgentLogFile is the default otel-agent log file
 	DefaultOTelAgentLogFile = "C:\\ProgramData\\Datadog\\logs\\otel-agent.log"
+	// DefaultHostProfilerLogFile is the default host-profiler log file
+	DefaultHostProfilerLogFile = "C:\\ProgramData\\Datadog\\logs\\host-profiler.log"
 	// DefaultSystemProbeAddress is the default address to be used for connecting to the system probe
 	DefaultSystemProbeAddress = `\\.\pipe\dd_system_probe`
 	// defaultEventMonitorAddress is the default address to be used for connecting to the event monitor
@@ -40,6 +42,8 @@ var (
 	InstallPath = "c:\\Program Files\\Datadog\\Datadog Agent"
 	// defaultStatsdSocket is the default Unix Domain Socket path on which statsd will listen
 	defaultStatsdSocket = ""
+	// defaultReceiverSocket is the default Unix Domain Socket path on which Trace agent will listen
+	defaultReceiverSocket = ""
 	//DefaultStreamlogsLogFile points to the stream logs log file that will be used if not configured
 	DefaultStreamlogsLogFile = "c:\\programdata\\datadog\\logs\\streamlogs_info\\streamlogs.log"
 )
@@ -54,11 +58,14 @@ func osinit() {
 		defaultSystemProbeLogFilePath = filepath.Join(pd, "logs", "system-probe.log")
 		DefaultProcessAgentLogFile = filepath.Join(pd, "logs", "process-agent.log")
 		DefaultUpdaterLogFile = filepath.Join(pd, "logs", "updater.log")
+		DefaultOTelAgentLogFile = filepath.Join(pd, "logs", "otel-agent.log")
+		DefaultHostProfilerLogFile = filepath.Join(pd, "logs", "host-profiler.log")
 	}
 
-	// Process Agent
+	// Agent binary
 	if _here, err := executable.Folder(); err == nil {
-		agentFilePath := filepath.Join(_here, "..", "..", "embedded", "agent.exe")
+		InstallPath = filepath.Join(_here, "..", "..")
+		agentFilePath := filepath.Join(InstallPath, "embedded", "agent.exe")
 		if _, err := os.Stat(agentFilePath); err == nil {
 			DefaultDDAgentBin = agentFilePath
 		}

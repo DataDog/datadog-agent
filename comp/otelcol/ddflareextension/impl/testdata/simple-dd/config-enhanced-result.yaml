@@ -5,9 +5,10 @@ exporters:
       fail_on_invalid_key: false
       key: "[REDACTED]"
       site: datadoghq.com
+    force_attempt_http2: true
     headers: {}
     host_metadata:
-      enabled: false
+      enabled: true
       hostname_source: config_or_system
       reporter_period: 30m0s
       tags: []
@@ -17,7 +18,6 @@ exporters:
     logs:
       batch_wait: 5
       compression_level: 6
-      dump_payloads: false
       endpoint: https://http-intake.logs.datadoghq.com
       use_compression: true
     max_idle_conns: 100
@@ -106,19 +106,21 @@ processors:
   infraattributes/dd-autoconfigured:
     allow_hostname_override: false
     cardinality: 0
-    logs:
-      log: []
-    metrics:
-      metric: []
-    traces:
-      span: []
 receivers:
   otlp:
     protocols:
       grpc: null
       http: null
   prometheus:
-    api_server: null
+    api_server: 
+      enabled: false
+      server_config:
+        cors: null
+        idle_timeout: 0s
+        read_header_timeout: 0s
+        response_headers: {}
+        tls: null
+        write_timeout: 0s
     config:
       global:
         evaluation_interval: 1m

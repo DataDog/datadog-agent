@@ -10,7 +10,6 @@ package core
 
 import (
 	"strings"
-	"time"
 
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config/setup"
 	sysconfig "github.com/DataDog/datadog-agent/pkg/system-probe/config"
@@ -27,11 +26,7 @@ const (
 
 // DiscoveryConfig holds the configuration for service discovery.
 type DiscoveryConfig struct {
-	CPUUsageUpdateDelay time.Duration
-	NetworkStatsEnabled bool
-	NetworkStatsPeriod  time.Duration
-	IgnoreComms         map[string]struct{}
-	IgnoreServices      map[string]struct{}
+	IgnoreComms map[string]struct{}
 }
 
 // NewConfig creates a new DiscoveryConfig with default values.
@@ -39,14 +34,9 @@ func NewConfig() *DiscoveryConfig {
 	cfg := ddconfig.SystemProbe()
 	sysconfig.Adjust(cfg)
 
-	conf := &DiscoveryConfig{
-		CPUUsageUpdateDelay: cfg.GetDuration(join(discoveryNS, "cpu_usage_update_delay")),
-		NetworkStatsEnabled: cfg.GetBool(join(discoveryNS, "network_stats.enabled")),
-		NetworkStatsPeriod:  cfg.GetDuration(join(discoveryNS, "network_stats.period")),
-	}
+	conf := &DiscoveryConfig{}
 
 	conf.loadIgnoredComms(cfg.GetStringSlice(join(discoveryNS, "ignored_command_names")))
-	conf.loadIgnoredServices(cfg.GetStringSlice(join(discoveryNS, "ignored_services")))
 
 	return conf
 }
@@ -66,19 +56,6 @@ func (config *DiscoveryConfig) loadIgnoredComms(comms []string) {
 		} else if len(comm) > 0 {
 			config.IgnoreComms[comm] = struct{}{}
 		}
-	}
-}
-
-// loadIgnoredServices saves names that should not be reported as a service
-func (config *DiscoveryConfig) loadIgnoredServices(services []string) {
-	if len(services) == 0 {
-		log.Debug("loading ignored services found empty services list")
-		return
-	}
-	config.IgnoreServices = make(map[string]struct{}, len(services))
-
-	for _, service := range services {
-		config.IgnoreServices[service] = struct{}{}
 	}
 }
 

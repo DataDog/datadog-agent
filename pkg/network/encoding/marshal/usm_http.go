@@ -87,7 +87,7 @@ func (e *httpEncoder) encodeData(connectionData *USMConnectionData[http.Key, *ht
 				})
 
 				staticTags |= stats.StaticTags
-				for _, dynamicTag := range stats.DynamicTags {
+				for dynamicTag := range stats.DynamicTags {
 					dynamicTags[dynamicTag] = struct{}{}
 				}
 			}

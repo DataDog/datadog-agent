@@ -56,6 +56,9 @@ func (r replicaCalculator) calculateHorizontalRecommendations(dpai model.PodAuto
 	// Get current pods for the target
 	targetRef := dpai.Spec().TargetRef
 	objectives := dpai.Spec().Objectives
+	if dpai.Spec().Fallback != nil && len(dpai.Spec().Fallback.Horizontal.Objectives) > 0 {
+		objectives = dpai.Spec().Fallback.Horizontal.Objectives
+	}
 	targetGVK, targetErr := dpai.TargetGVK()
 	if targetErr != nil {
 		return nil, fmt.Errorf("Failed to get GVK for target: %s, %s", dpai.ID(), targetErr)
@@ -80,7 +83,11 @@ func (r replicaCalculator) calculateHorizontalRecommendations(dpai model.PodAuto
 	for _, objective := range objectives {
 		recSettings, err := newResourceRecommenderSettings(objective)
 		if err != nil {
-			return nil, fmt.Errorf("Failed to get resource recommender settings: %s", err)
+			return nil, fmt.Errorf("failed to get recommender settings for objective: %s, %s", dpai.ID(), err)
+		}
+		if recSettings == nil {
+			// ControllerObjective is ignored by the local recommender
+			continue
 		}
 
 		queryResult := lStore.GetMetricsRaw(recSettings.metricName, namespace, podOwnerName, recSettings.containerName)

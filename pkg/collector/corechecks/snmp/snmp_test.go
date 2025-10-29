@@ -877,6 +877,7 @@ profiles:
         "snmp_device:1.2.3.4"
       ],
       "tags": [
+        "agent_host:my-hostname",
         "agent_version:%s",
         "autodiscovery_subnet:127.0.0.0/30",
 		"device_id:default:1.2.3.4",
@@ -1312,6 +1313,7 @@ metrics:
 }
 
 func TestReportDeviceMetadataEvenOnProfileError(t *testing.T) {
+	setupHostname(t)
 	mockConfig := configmock.New(t)
 	testDir := t.TempDir()
 	mockConfig.SetWithoutSource("run_path", testDir)
@@ -1547,6 +1549,7 @@ tags:
         "snmp_device:1.2.3.4"
       ],
       "tags": [
+        "agent_host:my-hostname",
         "agent_version:%s",
         "autodiscovery_subnet:127.0.0.0/30",
 		"device_id:default:1.2.3.4",
@@ -1673,8 +1676,13 @@ tags:
 		"1.3.6.1.2.1.1.3.0",
 		"1.3.6.1.2.1.1.5.0",
 	}).Return(nilPacket, fmt.Errorf("device failure"))
+	sess.On("Get", []string{
+		"1.3.6.1.2.1.1.1.0",
+		"1.3.6.1.2.1.1.2.0",
+	}).Return(nilPacket, fmt.Errorf("device failure"))
+	sess.On("Get", []string{"1.3.6.1.2.1.1.1.0"}).Return(nilPacket, fmt.Errorf("device failure"))
 
-	expectedErrMsg := "check device reachable: failed: no value for GetNext; failed to autodetect profile: failed to fetch sysobjectid: cannot get sysobjectid: no value; failed to fetch values: failed to fetch scalar oids with batching: failed to fetch scalar oids: fetch scalar: error getting oids `[1.3.6.1.2.1.1.1.0 1.3.6.1.2.1.1.2.0 1.3.6.1.2.1.1.3.0 1.3.6.1.2.1.1.5.0]`: device failure"
+	expectedErrMsg := "check device reachable: failed: no value for GetNext; failed to autodetect profile: failed to fetch sysobjectid: cannot get sysobjectid: no value; failed to fetch values: failed to fetch scalar oids with batching: failed to fetch scalar oids: fetch scalar: failed getting oids `[1.3.6.1.2.1.1.1.0]` using Get: device failure"
 
 	err = chk.Run()
 	assert.EqualError(t, err, expectedErrMsg)
@@ -1697,6 +1705,7 @@ tags:
         "snmp_device:1.2.3.5"
       ],
       "tags": [
+        "agent_host:my-hostname",
         "agent_version:%s",
         "autodiscovery_subnet:127.0.0.0/30",
 		"device_id:default:1.2.3.5",
@@ -2015,6 +2024,7 @@ metric_tags:
         "snmp_device:%s"
       ],
       "tags": [
+        "agent_host:my-hostname",
         "agent_version:%s",
         "autodiscovery_subnet:10.10.0.0/30",
 		"device_id:%s",

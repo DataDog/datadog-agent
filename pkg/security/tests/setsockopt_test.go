@@ -56,14 +56,12 @@ func TestSetSockOpt(t *testing.T) {
 			&& 12 in setsockopt.used_immediates`,
 		},
 		{
-			ID: "test_rule_setsockopt_truncated_filter",
-			Expression: `setsockopt.level == SOL_SOCKET 
-			&& setsockopt.optname == SO_ATTACH_FILTER 
-			&& setsockopt.socket_type == SOCK_DGRAM 
-			&& setsockopt.socket_protocol == IPPROTO_UDP 
-			&& setsockopt.socket_family == AF_INET 
-			&& setsockopt.is_filter_truncated == true
-			&& 12 in setsockopt.used_immediates`,
+			ID: "test_rule_setsockopt_reuseaddr",
+			Expression: `setsockopt.level == SOL_SOCKET
+			&& setsockopt.optname == SO_REUSEADDR
+			&& setsockopt.socket_type == SOCK_STREAM
+			&& setsockopt.socket_protocol == IPPROTO_TCP
+			&& setsockopt.socket_family == AF_INET`,
 		},
 	}
 
@@ -268,6 +266,72 @@ func TestSetSockOpt(t *testing.T) {
 			assertTriggeredRule(t, rule, "test_rule_setsockopt_tcp")
 		})
 	})
+	t.Run("setsockopt-reuseaddr", func(t *testing.T) {
+		var fd int
+
+		test.WaitSignal(t, func() error {
+			var err error
+			fd, err = syscall.Socket(syscall.AF_INET, syscall.SOCK_STREAM, 0)
+			if err != nil {
+				return err
+			}
+			defer syscall.Close(fd)
+
+			reuseAddr := 1
+			_, _, errno := syscall.Syscall6(
+				syscall.SYS_SETSOCKOPT,
+				uintptr(fd),
+				uintptr(syscall.SOL_SOCKET),
+				uintptr(syscall.SO_REUSEADDR),
+				uintptr(unsafe.Pointer(&reuseAddr)),
+				uintptr(unsafe.Sizeof(reuseAddr)),
+				0,
+			)
+
+			if errno != 0 {
+				return fmt.Errorf("setsockopt failed: %v", errno)
+			}
+
+			return nil
+		}, func(_ *model.Event, rule *rules.Rule) {
+			assertTriggeredRule(t, rule, "test_rule_setsockopt_reuseaddr")
+		})
+	})
+
+}
+
+func TestSetSockOptTruncatedFilter(t *testing.T) {
+	SkipIfNotAvailable(t)
+
+	ruleDefs := []*rules.RuleDefinition{
+		{
+			ID: "test_rule_setsockopt_truncated_filter",
+			Expression: `setsockopt.level == SOL_SOCKET 
+			&& setsockopt.optname == SO_ATTACH_FILTER 
+			&& setsockopt.socket_type == SOCK_DGRAM 
+			&& setsockopt.socket_protocol == IPPROTO_UDP 
+			&& setsockopt.socket_family == AF_INET 
+			&& setsockopt.is_filter_truncated == true
+			&& 12 in setsockopt.used_immediates`,
+		},
+		{
+			ID: "test_rule_setsockopt_truncated_filter_ebpfless",
+			Expression: `setsockopt.level == SOL_SOCKET 
+			&& setsockopt.optname == SO_ATTACH_FILTER 
+			&& setsockopt.socket_type == SOCK_DGRAM 
+			&& setsockopt.socket_protocol == IPPROTO_UDP 
+			&& setsockopt.socket_family == AF_INET
+			&& setsockopt.is_filter_truncated == false
+			&& 12 in setsockopt.used_immediates`,
+		},
+	}
+
+	test, err := newTestModule(t, nil, ruleDefs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
 	t.Run("setsockopt-TruncatedFilter", func(t *testing.T) {
 		var fd int
 
@@ -1275,7 +1339,11 @@ func TestSetSockOpt(t *testing.T) {
 
 			return nil
 		}, func(_ *model.Event, rule *rules.Rule) {
-			assertTriggeredRule(t, rule, "test_rule_setsockopt_truncated_filter")
+			if ebpfLessEnabled {
+				assertTriggeredRule(t, rule, "test_rule_setsockopt_truncated_filter_ebpfless")
+			} else {
+				assertTriggeredRule(t, rule, "test_rule_setsockopt_truncated_filter")
+			}
 		})
 	})
 

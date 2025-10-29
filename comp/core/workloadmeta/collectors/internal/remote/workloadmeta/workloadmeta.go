@@ -43,6 +43,7 @@ var supportedKinds = []workloadmeta.Kind{
 	workloadmeta.KindContainer,
 	workloadmeta.KindKubernetesPod,
 	workloadmeta.KindECSTask,
+	workloadmeta.KindProcess,
 }
 
 // Params defines the parameters of the remote workloadmeta collector.

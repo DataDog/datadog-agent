@@ -16,6 +16,7 @@ var (
 	packagesHooks = map[string]hooks{
 		"datadog-agent":              datadogAgentPackage,
 		"datadog-apm-library-dotnet": apmLibraryDotnetPackage,
+		"datadog-agent-ddot":         datadogAgentDDOTPackage,
 	}
 
 	// packageCommands is a map of package names to their command handlers

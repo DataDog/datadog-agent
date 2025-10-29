@@ -19,8 +19,6 @@ import (
 	e2eos "github.com/DataDog/test-infra-definitions/components/os"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner/parameters"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/optional"
 	installer "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/unix"
@@ -86,16 +84,8 @@ func (d *DatadogInstaller) SetBinaryPath(path string) {
 
 func (d *DatadogInstaller) execute(cmd string, options ...client.ExecuteOption) (string, error) {
 	// Ensure the API key and site are set for telemetry
-	apiKey := os.Getenv("DD_API_KEY")
-	if apiKey == "" {
-		var err error
-		apiKey, err = runner.GetProfile().SecretStore().Get(parameters.APIKey)
-		if apiKey == "" || err != nil {
-			apiKey = "deadbeefdeadbeefdeadbeefdeadbeef"
-		}
-	}
 	envVars := map[string]string{
-		"DD_API_KEY": apiKey,
+		"DD_API_KEY": installer.GetAPIKey(),
 		"DD_SITE":    "datadoghq.com",
 	}
 
@@ -287,7 +277,7 @@ func (d *DatadogInstaller) Install(opts ...MsiOption) error {
 	}
 	msiArgList := params.msiArgs[:]
 	if params.agentUser != "" {
-		msiArgList = append(msiArgList, fmt.Sprintf("DDAGENTUSER_NAME=%s", params.agentUser))
+		msiArgList = append(msiArgList, fmt.Sprintf(`DDAGENTUSER_NAME="%s"`, params.agentUser))
 	}
 	msiArgs := ""
 	if msiArgList != nil {

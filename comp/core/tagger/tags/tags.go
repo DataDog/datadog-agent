@@ -35,6 +35,8 @@ const (
 	KubeClusterName = "kube_cluster_name"
 	// OrchClusterID is the tag for the orchestrator cluster ID
 	OrchClusterID = "orch_cluster_id"
+	// KubeDistribution is the tag for the managed Kubernetes cloud provider: eks, gke, aks
+	KubeDistribution = "kube_distribution"
 
 	// ImageName is the tag for the image name
 	ImageName = "image_name"
@@ -105,6 +107,14 @@ const (
 	KubeAppManagedBy = "kube_app_managed_by"
 	// KubeAutoscalerKind is the tag reflecting if a pod is managed by an Autoscaler
 	KubeAutoscalerKind = "kube_autoscaler_kind"
+	// KubeStaticCPUsTag is the tag that describes a container's cpu management
+	// which is either true (dedicated CPUs) or false
+	KubeStaticCPUsTag = "kube_static_cpus"
+
+	// CPURestartPolicy is the tag for the container's CPU restart policy
+	CPURestartPolicy = "cpu_restart_policy"
+	// MemoryRestartPolicy is the tag for the container's memory restart policy
+	MemoryRestartPolicy = "memory_restart_policy"
 
 	// GPU related tags
 
@@ -116,12 +126,15 @@ const (
 	// comp/core/workloadmeta/def/types.go:GPU.Device for more detail on this
 	// field.
 	KubeGPUDevice = "gpu_device"
-
 	// KubeGPUUUID is the tag for the Kubernetes Resource GPU UUID
 	KubeGPUUUID = "gpu_uuid"
-
 	// GPUDriverVersion is the tag for the GPU driver version
 	GPUDriverVersion = "gpu_driver_version"
+	// GPUVirtualizationMode is the tag for the GPU virtualization mode
+	GPUVirtualizationMode = "gpu_virtualization_mode"
+
+	// KubeArgoRollout is the tag for the Argo Rollout name
+	KubeArgoRollout = "kube_argo_rollout"
 
 	// OpenshiftDeploymentConfig is the tag for the OpenShift deployment config name
 	OpenshiftDeploymentConfig = "oshift_deployment_config"

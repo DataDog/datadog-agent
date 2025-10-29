@@ -44,7 +44,6 @@ func TestUnmarshalConfig(t *testing.T) {
 	want.HTTPConfig.Timeout = 10 * time.Second
 	want.QueueBatchConfig.QueueSize = 100
 	want.Metrics.APMStatsReceiverAddr = "localhost:1234"
-	want.Metrics.TagCardinality = "high"
 	want.Metrics.Tags = "tag"
 	want.Metrics.Metrics.DeltaTTL = 200
 	want.Metrics.Metrics.Endpoint = "localhost:5678"

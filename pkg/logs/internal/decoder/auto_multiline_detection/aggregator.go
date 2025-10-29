@@ -72,11 +72,6 @@ func (b *bucket) flush() *message.Message {
 		// The current line is too long. Mark it truncated at the end.
 		content = append(content, message.TruncatedFlag...)
 		metrics.LogsTruncated.Add(1)
-		if b.message == nil || b.message.Origin == nil {
-			metrics.TlmTruncatedCount.Inc("", "")
-		} else {
-			metrics.TlmTruncatedCount.Inc(b.message.Origin.Service(), b.message.Origin.Source())
-		}
 	}
 
 	msg := b.message

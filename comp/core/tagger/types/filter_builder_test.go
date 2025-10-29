@@ -60,6 +60,7 @@ func TestFilterBuilderOps(t *testing.T) {
 					Process:                {},
 					InternalID:             {},
 					GPU:                    {},
+					Kubelet:                {},
 				},
 				cardinality: HighCardinality,
 			},

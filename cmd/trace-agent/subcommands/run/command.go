@@ -9,7 +9,6 @@ package run
 import (
 	"context"
 	"errors"
-	"fmt"
 
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
@@ -22,11 +21,9 @@ import (
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logtracefx "github.com/DataDog/datadog-agent/comp/core/log/fx-trace"
-	"github.com/DataDog/datadog-agent/comp/core/secrets"
-	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
+	secretsfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
-	remoteTaggerfx "github.com/DataDog/datadog-agent/comp/core/tagger/fx-remote"
-	taggerTypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	optionalRemoteTaggerfx "github.com/DataDog/datadog-agent/comp/core/tagger/fx-optional-remote"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
 	"github.com/DataDog/datadog-agent/comp/trace"
@@ -34,9 +31,10 @@ import (
 	traceagentimpl "github.com/DataDog/datadog-agent/comp/trace/agent/impl"
 	zstdfx "github.com/DataDog/datadog-agent/comp/trace/compression/fx-zstd"
 	"github.com/DataDog/datadog-agent/comp/trace/config"
+	payloadmodifierfx "github.com/DataDog/datadog-agent/comp/trace/payload-modifier/fx"
+	serverlessenv "github.com/DataDog/datadog-agent/pkg/serverless/env"
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 // MakeCommand returns the run subcommand for the 'trace-agent' command.
@@ -76,11 +74,7 @@ func runTraceAgentProcess(ctx context.Context, cliParams *Params, defaultConfPat
 		// to allow the agent to work as a service.
 		fx.Provide(func() context.Context { return ctx }), // fx.Supply(ctx) fails with a missing type error.
 		fx.Supply(coreconfig.NewAgentParams(cliParams.ConfPath, coreconfig.WithFleetPoliciesDirPath(cliParams.FleetPoliciesDirPath))),
-		secretsimpl.Module(),
-		fx.Provide(func(comp secrets.Component) option.Option[secrets.Component] {
-			return option.New[secrets.Component](comp)
-		}),
-		fx.Supply(secrets.NewEnabledParams()),
+		secretsfx.Module(),
 		telemetryimpl.Module(),
 		coreconfig.Module(),
 		fx.Provide(func() log.Params {
@@ -89,12 +83,18 @@ func runTraceAgentProcess(ctx context.Context, cliParams *Params, defaultConfPat
 		logtracefx.Module(),
 		autoexitimpl.Module(),
 		statsd.Module(),
-		remoteTaggerfx.Module(tagger.RemoteParams{
-			RemoteTarget: func(c coreconfig.Component) (string, error) {
-				return fmt.Sprintf(":%v", c.GetInt("cmd_port")), nil
+		optionalRemoteTaggerfx.Module(
+			tagger.OptionalRemoteParams{
+				// We disable the remote tagger *only* if we detect that the
+				// trace-agent is running in the Azure App Services (AAS)
+				// Extension. The Extension only includes a trace-agent and the
+				// dogstatsd binary, and cannot include the core agent. We know
+				// that we do not need the container tagging provided by the
+				// remote tagger in this environment, so we can use the noop
+				// tagger instead.
+				Disable: serverlessenv.IsAzureAppServicesExtension,
 			},
-			RemoteFilter: taggerTypes.NewMatchAllFilter(),
-		}),
+			tagger.NewRemoteParams()),
 		fx.Invoke(func(_ config.Component) {}),
 		// Required to avoid cyclic imports.
 		fx.Provide(func(cfg config.Component) telemetry.TelemetryCollector { return telemetry.NewCollector(cfg.Object()) }),
@@ -104,6 +104,7 @@ func runTraceAgentProcess(ctx context.Context, cliParams *Params, defaultConfPat
 			PIDFilePath: cliParams.PIDFilePath,
 		}),
 		zstdfx.Module(),
+		payloadmodifierfx.Module(),
 		trace.Bundle(),
 		ipcfx.ModuleReadWrite(),
 		configsyncimpl.Module(configsyncimpl.NewDefaultParams()),

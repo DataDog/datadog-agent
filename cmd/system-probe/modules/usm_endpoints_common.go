@@ -20,7 +20,7 @@ import (
 
 func registerUSMCommonEndpoints(nt *networkTracer, httpMux *module.Router) {
 	httpMux.HandleFunc("/debug/http_monitoring", func(w http.ResponseWriter, req *http.Request) {
-		if !coreconfig.SystemProbe().GetBool("service_monitoring_config.enable_http_monitoring") {
+		if !coreconfig.SystemProbe().GetBool("service_monitoring_config.http.enabled") {
 			writeDisabledProtocolMessage("http", w)
 			return
 		}

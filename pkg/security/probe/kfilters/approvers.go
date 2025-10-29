@@ -20,6 +20,8 @@ import (
 const (
 	// BasenameApproverKernelMapName defines the basename approver kernel map name
 	BasenameApproverKernelMapName = "basename_approvers"
+	// InUpperLayerApproverKernelMapName defines the in upper layer approver kernel map name
+	InUpperLayerApproverKernelMapName = "in_upper_layer_approvers"
 
 	// PolicyApproverType is the type of policy approver
 	PolicyApproverType = "policy"
@@ -29,6 +31,8 @@ const (
 	FlagApproverType = "flag"
 	// AUIDApproverType is the type of auid approver
 	AUIDApproverType = "auid"
+	// InUpperLayerApproverType is the type of in upper layer approver
+	InUpperLayerApproverType = "in_upper_layer"
 )
 
 type kfiltersGetter func(approvers rules.Approvers) (KFilters, []eval.Field, error)
@@ -41,6 +45,15 @@ func newBasenameKFilter(tableName string, eventType model.EventType, basename st
 		approverType: BasenameApproverType,
 		tableName:    tableName,
 		tableKey:     ebpf.NewStringMapItem(basename, BasenameFilterSize),
+		eventMask:    uint64(1 << (eventType - 1)),
+	}, nil
+}
+
+func newInUpperLayerKFilter(tableName string, eventType model.EventType) (kFilter, error) {
+	return &eventMaskKFilter{
+		approverType: InUpperLayerApproverType,
+		tableName:    tableName,
+		tableKey:     uint32(0),
 		eventMask:    uint64(1 << (eventType - 1)),
 	}, nil
 }

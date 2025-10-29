@@ -15,7 +15,6 @@ import (
 	"github.com/DataDog/test-infra-definitions/scenarios/azure/fakeintake"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 
-	installer "github.com/DataDog/datadog-agent/test/new-e2e/pkg/components/datadog-installer"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
@@ -149,19 +148,6 @@ func Run(ctx *pulumi.Context, env *environments.WindowsHost, params *Provisioner
 		env.Agent.ClientOptions = params.agentClientOptions
 	} else {
 		env.Agent = nil
-	}
-
-	if params.installerOptions != nil {
-		installer, err := installer.NewInstaller(&azureEnv, host, params.installerOptions...)
-		if err != nil {
-			return err
-		}
-		err = installer.Export(ctx, &env.Installer.Output)
-		if err != nil {
-			return err
-		}
-	} else {
-		env.Installer = nil
 	}
 
 	return nil

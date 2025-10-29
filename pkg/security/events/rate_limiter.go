@@ -43,6 +43,7 @@ var (
 		BrokenProcessLineageErrorRuleID: rate.Every(30 * time.Second),
 		EBPFLessHelloMessageRuleID:      rate.Inf, // No limit on hello message
 		InternalCoreDumpRuleID:          rate.Every(30 * time.Second),
+		FailedDNSRuleID:                 rate.Every(30 * time.Second),
 	}
 )
 

@@ -6,6 +6,7 @@
 package automultilinedetection
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -68,6 +69,30 @@ func TestJSONAggregatorProcess_MultiPart_RawDataLen(t *testing.T) {
 
 	// Second part completes the JSON
 	msg2 := newTestMessage(part2)
+	result = aggregator.Process(msg2)
+
+	assert.Equal(t, 1, len(result), "Expected one message after completion")
+	assert.Equal(t, []byte(`{"key":"value"}`), result[0].GetContent(), "Content should be compact JSON")
+	assert.Equal(t, expectedRawDataLen, result[0].RawDataLen, "Expected raw data length to be the sum of the two parts")
+}
+
+func TestJSONAggregatorProcess_MultiPart_RawDataLen_original_size_differs(t *testing.T) {
+	aggregator := NewJSONAggregator(true, 1000)
+	part1 := "{\"key\":        \n"
+	part2 := "      \"value\"}       \n"
+	expectedRawDataLen := len([]byte(part1)) + len([]byte(part2))
+
+	// First part of a JSON message with the newline stripped
+	msg1 := newTestMessage(strings.ReplaceAll(part1, "\n", ""))
+	// The original size retains the byte offset of the newline
+	msg1.RawDataLen = len([]byte(part1))
+	result := aggregator.Process(msg1)
+	assert.Equal(t, 0, len(result), "Expected no messages for first incomplete part")
+
+	// Second part completes the JSON with the newline stripped
+	msg2 := newTestMessage(strings.ReplaceAll(part2, "\n", ""))
+	// The original size retains the byte offset of the newline
+	msg2.RawDataLen = len([]byte(part2))
 	result = aggregator.Process(msg2)
 
 	assert.Equal(t, 1, len(result), "Expected one message after completion")

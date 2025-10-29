@@ -32,7 +32,7 @@ func (p *ProcessCheck) processesByPID() (map[int32]*procutil.Process, error) {
 }
 
 // formatPorts is a stub for non-linux platforms
-func formatPorts(_ []uint16) *model.PortInfo {
+func formatPorts(_ bool, _, _ []uint16) *model.PortInfo {
 	return nil
 }
 
@@ -44,4 +44,9 @@ func formatLanguage(_ *languagemodels.Language) model.Language {
 // formatServiceDiscovery is a stub for non-linux platforms
 func formatServiceDiscovery(_ *procutil.Service) *model.ServiceDiscovery {
 	return nil
+}
+
+// formatInjectionState is a stub for non-linux platforms
+func formatInjectionState(_ procutil.InjectionState) model.InjectionState {
+	return model.InjectionState_INJECTION_UNKNOWN
 }

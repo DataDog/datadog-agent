@@ -23,7 +23,7 @@ from tasks.libs.ciproviders.gitlab_api import (
 from tasks.libs.common.check_tools_version import check_tools_version
 from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.constants import GITHUB_REPO_NAME
-from tasks.libs.common.git import get_default_branch, get_file_modifications, get_staged_files
+from tasks.libs.common.git import get_file_modifications, get_staged_files
 from tasks.libs.common.utils import gitlab_section, is_pr_context, running_in_ci
 from tasks.libs.linter.gitlab import (
     ALL_GITLABCI_SUBLINTERS,
@@ -155,29 +155,37 @@ def update_go(_):
 
 # === PYTHON === #
 @task
-def python(ctx):
+def python(ctx, show_versions=False):
     """Lints Python files.
 
     See 'setup.cfg' and 'pyproject.toml' file for configuration. If
     running locally, you probably want to use the pre-commit instead.
+
+    Args:
+        show_versions: Show the versions of the linters that are being used.
     """
 
     print(
-        f"""Remember to set up pre-commit to lint your files before committing:
-    https://github.com/DataDog/datadog-agent/blob/{get_default_branch()}/docs/dev/agent_dev_env.md#pre-commit-hooks"""
+        "Remember to set up pre-commit to lint your files before committing: "
+        "https://datadoghq.dev/datadog-agent/setup/optional/#pre-commit-hooks"
     )
+
+    if show_versions:
+        print(f"ruff version: {ctx.run('ruff --version', hide=True).stdout.strip()}")
+        print(f"vulture version: {ctx.run('vulture --version', hide=True).stdout.strip()}")
+        print(f"mypy version: {ctx.run('mypy --version', hide=True).stdout.strip()}")
 
     if running_in_ci():
         # We want to the CI to fail if there are any issues
-        ctx.run("ruff format --check .")
-        ctx.run("ruff check .")
+        ctx.run("ruff format --check --diff .")
+        ctx.run("ruff check --diff .")
     else:
         # Otherwise we just need to format the files
         ctx.run("ruff format .")
         ctx.run("ruff check --fix .")
 
     ctx.run("vulture")
-    ctx.run("mypy")
+    ctx.run("mypy --warn-unused-configs")
 
 
 # === GITHUB === #

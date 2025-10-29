@@ -120,14 +120,14 @@ type Stats struct {
 	TotalHistogramBuckets    uint64
 	EventPlatformEvents      map[string]int64
 	TotalEventPlatformEvents map[string]int64
-	ExecutionTimes           [32]int64 // circular buffer of recent run durations, most recent at [(TotalRuns+31) % 32]
-	AverageExecutionTime     int64     // average run duration
-	LastExecutionTime        int64     // most recent run duration, provided for convenience
-	LastSuccessDate          int64     // most recent successful execution date, unix timestamp in seconds
-	LastError                string    // error that occurred in the last run, if any
-	LastDelay                int64     // most recent check start time delay relative to the previous check run, in seconds
-	LastWarnings             []string  // warnings that occurred in the last run, if any
-	UpdateTimestamp          int64     // latest update to this instance, unix timestamp in seconds
+	ExecutionTimes           [32]int64     // circular buffer of recent run durations, most recent at [(TotalRuns+31) % 32]
+	AverageExecutionTime     int64         // average run duration
+	LastExecutionTime        time.Duration // most recent run duration, provided for convenience
+	LastSuccessDate          int64         // most recent successful execution date, unix timestamp in seconds
+	LastError                string        // error that occurred in the last run, if any
+	LastDelay                float64       // most recent check start time delay relative to the previous check run, in seconds
+	LastWarnings             []string      // warnings that occurred in the last run, if any
+	UpdateTimestamp          time.Time     // latest update to this instance, unix timestamp in seconds
 	m                        sync.Mutex
 	Telemetry                bool // do we want telemetry on this Check
 	HASupported              bool
@@ -183,13 +183,13 @@ func (cs *Stats) Add(t time.Duration, err error, warnings []error, metricStats S
 
 	cs.LastDelay = calculateCheckDelay(time.Now(), cs, t)
 	if cs.Telemetry {
-		tlmCheckDelay.Set(float64(cs.LastDelay), cs.CheckName)
+		tlmCheckDelay.Set(cs.LastDelay, cs.CheckName)
 	}
 
 	// store execution times in Milliseconds
 	tms := t.Nanoseconds() / 1e6
 	cs.LongRunning = metricStats.LongRunningCheck
-	cs.LastExecutionTime = tms
+	cs.LastExecutionTime = t
 	cs.ExecutionTimes[cs.TotalRuns%uint64(len(cs.ExecutionTimes))] = tms
 	cs.TotalRuns++
 	if cs.Telemetry {
@@ -224,7 +224,7 @@ func (cs *Stats) Add(t time.Duration, err error, warnings []error, metricStats S
 			cs.LastWarnings = append(cs.LastWarnings, w.Error())
 		}
 	}
-	cs.UpdateTimestamp = time.Now().Unix()
+	cs.UpdateTimestamp = time.Now()
 
 	if metricStats.MetricSamples > 0 {
 		cs.MetricSamples = metricStats.MetricSamples

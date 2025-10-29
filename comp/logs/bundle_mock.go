@@ -5,7 +5,8 @@
 
 //go:build test
 
-package logs //nolint:revive // TODO(AML) Fix revive linter
+// Package logs provides the logs component bundle with mock implementations
+package logs
 
 import (
 	"github.com/DataDog/datadog-agent/comp/logs/agent/agentimpl"

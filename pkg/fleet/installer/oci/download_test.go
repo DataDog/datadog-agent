@@ -149,6 +149,9 @@ func TestGetRefAndKeychain(t *testing.T) {
 		{url: "install.datad0g.com/agent-package:latest", expectedRef: "install.datad0g.com/agent-package:latest", expectedKeychain: authn.DefaultKeychain},
 		{url: "gcr.io/datadoghq/agent-package@sha256:1234", expectedRef: "gcr.io/datadoghq/agent-package@sha256:1234", expectedKeychain: authn.DefaultKeychain},
 		{url: "install.datad0g.com/agent-package:latest", registryOverride: "fake.io", expectedRef: "fake.io/agent-package:latest", expectedKeychain: authn.DefaultKeychain},
+		{url: "install.datad0g.com/agent-package:latest", registryOverride: "http://fake.io", expectedRef: "fake.io/agent-package:latest", expectedKeychain: authn.DefaultKeychain},
+		{url: "install.datad0g.com/agent-package:latest", registryOverride: "https://fake.io", expectedRef: "fake.io/agent-package:latest", expectedKeychain: authn.DefaultKeychain},
+		{url: "install.datad0g.com/agent-package:latest", registryOverride: "https://fake.io:443", expectedRef: "fake.io:443/agent-package:latest", expectedKeychain: authn.DefaultKeychain},
 		{url: "gcr.io/datadoghq/agent-package@sha256:1234", registryOverride: "fake.io", expectedRef: "fake.io/agent-package@sha256:1234", expectedKeychain: authn.DefaultKeychain},
 		{
 			url:                "install.datad0g.com/agent-package:latest",

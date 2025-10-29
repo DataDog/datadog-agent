@@ -66,6 +66,8 @@ var probeTelemetry = struct {
 	totalVariables: metrics.NewITGauge(metrics.MetricSECLTotalVariables, []string{"type", "scope"}, "Number of instantiated variables"),
 }
 
+var probeEventZeroer = model.NewEventZeroer()
+
 // EventConsumer defines a probe event consumer
 type EventConsumer struct {
 	consumer     EventConsumerHandler

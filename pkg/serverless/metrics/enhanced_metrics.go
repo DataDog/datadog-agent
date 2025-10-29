@@ -666,11 +666,7 @@ func SendProcessEnhancedMetrics(sendMetrics chan bool, tags []string, metricAgen
 		return
 	}
 
-	fdUseData, err := proc.GetFileDescriptorUseData(pids)
-	if err != nil {
-		log.Debugf("Could not emit file descriptor enhanced metrics. %v", err)
-		return
-	}
+	fdUseData := proc.GetFileDescriptorUseData(pids)
 
 	threadsMaxData, err := proc.GetThreadsMaxData(pids)
 	if err != nil {
@@ -714,12 +710,8 @@ func SendProcessEnhancedMetrics(sendMetrics chan bool, tags []string, metricAgen
 		case <-ticker.C:
 			pids := proc.GetPidList(proc.ProcPath)
 
-			fdUseData, err := proc.GetFileDescriptorUseData(pids)
-			if err == nil {
-				fdUse = math.Max(fdUse, fdUseData.UseFileHandles)
-			} else {
-				log.Debugf("Could not update file descriptor use enhanced metric. %v", err)
-			}
+			fdUseData := proc.GetFileDescriptorUseData(pids)
+			fdUse = math.Max(fdUse, fdUseData.UseFileHandles)
 
 			threadsUseData, err := proc.GetThreadsUseData(pids)
 			if err == nil {

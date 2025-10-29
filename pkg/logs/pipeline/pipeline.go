@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//nolint:revive // TODO(AML) Fix revive linter
+// Package pipeline provides log processing pipeline functionality
 package pipeline
 
 import (
@@ -12,6 +12,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
@@ -48,7 +49,11 @@ func NewPipeline(
 
 	var encoder processor.Encoder
 	if serverlessMeta.IsEnabled() {
-		encoder = processor.JSONServerlessEncoder
+		if env.IsLambda() {
+			encoder = processor.JSONServerlessEncoder
+		} else {
+			encoder = processor.JSONServerlessInitEncoder
+		}
 	} else if endpoints.UseHTTP {
 		encoder = processor.JSONEncoder
 	} else if endpoints.UseProto {
@@ -60,7 +65,7 @@ func NewPipeline(
 
 	inputChan := make(chan *message.Message, pkgconfigsetup.Datadog().GetInt("logs_config.message_channel_size"))
 
-	processor := processor.New(inputChan, strategyInput, processingRules,
+	processor := processor.New(cfg, inputChan, strategyInput, processingRules,
 		encoder, diagnosticMessageReceiver, hostname, senderImpl.PipelineMonitor(), instanceID)
 
 	return &Pipeline{
@@ -90,7 +95,6 @@ func (p *Pipeline) Flush(ctx context.Context) {
 	p.processor.Flush(ctx) // flush messages in the processor into the sender
 }
 
-//nolint:revive // TODO(AML) Fix revive linter
 func getStrategy(
 	inputChan chan *message.Message,
 	outputChan chan *message.Payload,
@@ -107,7 +111,19 @@ func getStrategy(
 		if endpoints.Main.UseCompression {
 			encoder = compressor.NewCompressor(endpoints.Main.CompressionKind, endpoints.Main.CompressionLevel)
 		}
-		return sender.NewBatchStrategy(inputChan, outputChan, flushChan, serverlessMeta, sender.NewArraySerializer(), endpoints.BatchWait, endpoints.BatchMaxSize, endpoints.BatchMaxContentSize, "logs", encoder, pipelineMonitor, instanceID)
+
+		return sender.NewBatchStrategy(
+			inputChan,
+			outputChan,
+			flushChan,
+			serverlessMeta,
+			endpoints.BatchWait,
+			endpoints.BatchMaxSize,
+			endpoints.BatchMaxContentSize,
+			"logs",
+			encoder,
+			pipelineMonitor,
+			instanceID)
 	}
 	return sender.NewStreamStrategy(inputChan, outputChan, compressor.NewCompressor(compressioncommon.NoneKind, 0))
 }

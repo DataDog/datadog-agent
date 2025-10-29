@@ -125,7 +125,13 @@ func (p *EtcdConfigProvider) getTemplates(ctx context.Context, key string) []int
 		return nil
 	}
 
-	return utils.BuildTemplates(key, checkNames, initConfigs, instances, false, "")
+	templates, err := utils.BuildTemplates(key, checkNames, initConfigs, instances, false, "")
+	if err != nil {
+		log.Errorf("Failed to build templates for %s. Error: %s", checkNameKey, err)
+		return nil
+	}
+
+	return templates
 }
 
 // getEtcdValue retrieves content from etcd

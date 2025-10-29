@@ -100,4 +100,15 @@ module Omnibus
     expose :inspect_binary
     expose :sign_file
   end
+
+  # Open the Builder class to allow adding custom DSL methods
+  class Builder
+    #
+    # Runs a command from the root of the datadog-agent repository
+    #
+    def command_on_repo_root(*args, **kwargs)
+      command *args, **kwargs, cwd: File.join(Omnibus::Config.project_root, "..")
+    end
+    expose :command_on_repo_root
+  end
 end

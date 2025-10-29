@@ -161,8 +161,8 @@ func (og *OffsetGuesser) guess(id string) error {
 func (og *OffsetGuesser) AppendSizeofRequest(_, _ string) {
 }
 
-// AppendOffsetofRequest appends an offset request
-func (og *OffsetGuesser) AppendOffsetofRequest(id, _ string, _ ...string) {
+// AppendOffsetofRequestWithFallbacks appends an offset request
+func (og *OffsetGuesser) AppendOffsetofRequestWithFallbacks(id string, _ ...TypeFieldPair) {
 	og.res[id] = ErrorSentinel
 }
 

@@ -21,7 +21,7 @@
     - if [[ "$VERSION" == "" ]]; then VERSION="$(dda inv -- agent.version --url-safe --pipeline-id $PARENT_PIPELINE_ID)" || exit $?; fi
     - export IMG_BASE_SRC="${SRC_AGENT}:v${PARENT_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}"
     - export IMG_LINUX_SOURCES="${IMG_BASE_SRC}-7${JMX}-amd64,${IMG_BASE_SRC}-7${JMX}-arm64"
-    - export IMG_WINDOWS_SOURCES="${IMG_BASE_SRC}-7${JMX}-win1809${FLAVOR}-amd64,${IMG_BASE_SRC}-7${JMX}-winltsc2022${FLAVOR}-amd64"
+    - export IMG_WINDOWS_SOURCES="${IMG_BASE_SRC}-7${JMX}-win1809${FLAVOR}-amd64,${IMG_BASE_SRC}-7${JMX}-winltsc2022${FLAVOR}-amd64,${IMG_BASE_SRC}-7${JMX}-winltsc2025${FLAVOR}-amd64"
     - if [[ "$FLAVOR" == "-linux" ]]; then export IMG_SOURCES="${IMG_LINUX_SOURCES}"; elif [[ "$FLAVOR" == "-servercore" ]]; then export IMG_SOURCES="${IMG_WINDOWS_SOURCES}"; else export IMG_SOURCES="${IMG_LINUX_SOURCES},${IMG_WINDOWS_SOURCES}"; fi
     - export IMG_DESTINATIONS="${AGENT_REPOSITORY}:${VERSION}${FLAVOR}${JMX}"
 
@@ -54,7 +54,7 @@
     - if [[ -z "$VERSION" ]]; then VERSION="$(dda inv -- agent.version --url-safe --pipeline-id $PARENT_PIPELINE_ID)" || exit $?; fi
     - export IMG_BASE_SRC="${SRC_AGENT}:v${PARENT_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}"
     - export IMG_LINUX_SOURCES="${IMG_BASE_SRC}-7-full-amd64,${IMG_BASE_SRC}-7-full-arm64"
-    - export IMG_WINDOWS_SOURCES="${IMG_BASE_SRC}-7-jmx-win1809-amd64,${IMG_BASE_SRC}-7-jmx-winltsc2022-amd64"
+    - export IMG_WINDOWS_SOURCES="${IMG_BASE_SRC}-7-jmx-win1809-amd64,${IMG_BASE_SRC}-7-jmx-winltsc2022-amd64,${IMG_BASE_SRC}-7-jmx-winltsc2025-amd64"
     - export IMG_SOURCES="${IMG_LINUX_SOURCES},${IMG_WINDOWS_SOURCES}"
     - export IMG_DESTINATIONS="${AGENT_REPOSITORY}:${VERSION}-full"
 
@@ -78,6 +78,7 @@
           - ""
           - "-jmx"
         OS_LTSC_MAPPING:
+          - "ltsc2025:2025"
           - "ltsc2022:2022"
           - "1809:2019"
         FLAVOR:

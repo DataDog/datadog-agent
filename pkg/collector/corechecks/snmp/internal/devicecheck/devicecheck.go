@@ -142,6 +142,7 @@ type DeviceCheck struct {
 	sender                  *report.MetricSender
 	session                 session.Session
 	sessionFactory          session.Factory
+	oidBatchSizeOptimizers  *fetch.OidBatchSizeOptimizers
 	devicePinger            pinger.Pinger
 	sessionCloseErrorCount  *atomic.Uint64
 	savedDynamicTags        []string
@@ -173,6 +174,7 @@ func NewDeviceCheck(config *checkconfig.CheckConfig, ipAddress string, sessionFa
 	d := DeviceCheck{
 		config:                  newConfig,
 		sessionFactory:          sessionFactory,
+		oidBatchSizeOptimizers:  fetch.NewOidBatchSizeOptimizers(newConfig.OidBatchSize),
 		devicePinger:            devicePinger,
 		sessionCloseErrorCount:  atomic.NewUint64(0),
 		diagnoses:               diagnoses.NewDeviceDiagnoses(newConfig.DeviceID),
@@ -267,7 +269,7 @@ func (d *DeviceCheck) Run(collectionTime time.Time) error {
 		d.sender.ServiceCheck(serviceCheckName, servicecheck.ServiceCheckOK, tags, "")
 	}
 
-	metricTags := append(tags, "dd.internal.resource:ndm_device_user_tags:"+d.GetDeviceID())
+	metricTags := append(tags, "dd.internal.resource:ndm_device:"+d.GetDeviceID())
 	d.sender.Gauge(deviceReachableMetric, utils.BoolToFloat64(deviceReachable), metricTags)
 	d.sender.Gauge(deviceUnreachableMetric, utils.BoolToFloat64(!deviceReachable), metricTags)
 	if values != nil {
@@ -390,8 +392,8 @@ func (d *DeviceCheck) getValuesAndTags() (bool, profiledefinition.ProfileDefinit
 
 	tags = append(tags, profile.StaticTags...)
 
-	valuesStore, err := fetch.Fetch(d.session, d.profileCache.scalarOIDs, d.profileCache.columnOIDs, d.config.OidBatchSize,
-		d.config.BulkMaxRepetitions)
+	valuesStore, err := fetch.Fetch(d.session, d.profileCache.scalarOIDs, d.profileCache.columnOIDs,
+		d.oidBatchSizeOptimizers, d.config.BulkMaxRepetitions)
 	if log.ShouldLog(log.DebugLvl) {
 		log.Debugf("fetched values: %v", valuestore.ResultValueStoreAsString(valuesStore))
 	}

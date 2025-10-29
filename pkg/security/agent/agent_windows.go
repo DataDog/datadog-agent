@@ -8,12 +8,11 @@ package agent
 import (
 	"go.uber.org/atomic"
 
-	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
 // NewRuntimeSecurityAgent instantiates a new RuntimeSecurityAgent
-func NewRuntimeSecurityAgent(_ statsd.ClientInterface, hostname string, _ RSAOptions, _ workloadmeta.Component) (*RuntimeSecurityAgent, error) {
+func NewRuntimeSecurityAgent(_ statsd.ClientInterface, hostname string) (*RuntimeSecurityAgent, error) {
 	client, err := NewRuntimeSecurityClient()
 	if err != nil {
 		return nil, err

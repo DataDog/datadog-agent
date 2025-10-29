@@ -9,17 +9,17 @@ package crio
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 
-	"github.com/CycloneDX/cyclonedx-go"
-
+	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/sbomutil"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/sbom"
 	"github.com/DataDog/datadog-agent/pkg/sbom/collectors"
 	"github.com/DataDog/datadog-agent/pkg/sbom/collectors/crio"
 	"github.com/DataDog/datadog-agent/pkg/sbom/scanner"
-	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	crioutil "github.com/DataDog/datadog-agent/pkg/util/crio"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -54,18 +54,18 @@ func (c *collector) startSBOMCollection(ctx context.Context) error {
 		return fmt.Errorf("failed to retrieve scanner result channel")
 	}
 
-	containerImageFilter, err := collectors.NewSBOMContainerFilter()
-	if err != nil {
-		return fmt.Errorf("failed to create container filter: %w", err)
+	errs := c.sbomFilter.GetErrors()
+	if len(errs) > 0 {
+		return fmt.Errorf("failed to create container filter: %w", errors.Join(errs...))
 	}
 
-	go c.handleImageEvents(ctx, imgEventsCh, containerImageFilter)
+	go c.handleImageEvents(ctx, imgEventsCh, c.sbomFilter)
 	go c.startScanResultHandler(ctx, resultChan)
 	return nil
 }
 
 // handleImageEvents listens for container image metadata events, triggering SBOM generation for new images.
-func (c *collector) handleImageEvents(ctx context.Context, imgEventsCh <-chan workloadmeta.EventBundle, filter *containers.Filter) {
+func (c *collector) handleImageEvents(ctx context.Context, imgEventsCh <-chan workloadmeta.EventBundle, filter workloadfilter.FilterBundle) {
 	for {
 		select {
 		case <-ctx.Done():
@@ -81,12 +81,13 @@ func (c *collector) handleImageEvents(ctx context.Context, imgEventsCh <-chan wo
 }
 
 // handleEventBundle handles ContainerImageMetadata set events for which no SBOM generation attempt was done.
-func (c *collector) handleEventBundle(eventBundle workloadmeta.EventBundle, containerImageFilter *containers.Filter) {
+func (c *collector) handleEventBundle(eventBundle workloadmeta.EventBundle, containerImageFilter workloadfilter.FilterBundle) {
 	eventBundle.Acknowledge()
 	for _, event := range eventBundle.Events {
 		image := event.Entity.(*workloadmeta.ContainerImageMetadata)
 
-		if containerImageFilter != nil && containerImageFilter.IsExcluded(nil, "", image.Name, "") {
+		filterableContainer := workloadfilter.CreateContainerImage(image.Name)
+		if containerImageFilter != nil && containerImageFilter.IsExcluded(filterableContainer) {
 			continue
 		}
 
@@ -129,38 +130,18 @@ func (c *collector) processScanResult(result sbom.ScanResult) {
 		return
 	}
 
-	c.notifyStoreWithSBOMForImage(result.ImgMeta.ID, convertScanResultToSBOM(result))
-}
-
-// convertScanResultToSBOM converts an SBOM scan result to a workloadmeta SBOM.
-func convertScanResultToSBOM(result sbom.ScanResult) *workloadmeta.SBOM {
-	status := workloadmeta.Success
-	reportedError := ""
-	var report *cyclonedx.BOM
-
-	if result.Error != nil {
-		log.Errorf("SBOM generation failed for image: %v", result.Error)
-		status = workloadmeta.Failed
-		reportedError = result.Error.Error()
-	} else if bom, err := result.Report.ToCycloneDX(); err != nil {
-		log.Errorf("Failed to convert report to CycloneDX BOM.")
-		status = workloadmeta.Failed
-		reportedError = err.Error()
-	} else {
-		report = bom
+	sbom := result.ConvertScanResultToSBOM()
+	csbom, err := sbomutil.CompressSBOM(sbom)
+	if err != nil {
+		log.Errorf("Failed to compress SBOM for image %s: %v", result.ImgMeta.ID, err)
+		return
 	}
 
-	return &workloadmeta.SBOM{
-		CycloneDXBOM:       report,
-		GenerationTime:     result.CreatedAt,
-		GenerationDuration: result.Duration,
-		Status:             status,
-		Error:              reportedError,
-	}
+	c.notifyStoreWithSBOMForImage(result.ImgMeta.ID, csbom)
 }
 
 // notifyStoreWithSBOMForImage notifies the store about the SBOM for a given image.
-func (c *collector) notifyStoreWithSBOMForImage(imageID string, sbom *workloadmeta.SBOM) {
+func (c *collector) notifyStoreWithSBOMForImage(imageID string, sbom *workloadmeta.CompressedSBOM) {
 	c.store.Notify([]workloadmeta.CollectorEvent{
 		{
 			Type:   workloadmeta.EventTypeSet,

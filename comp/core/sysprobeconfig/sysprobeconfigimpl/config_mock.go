@@ -26,11 +26,6 @@ type mockDependencies struct {
 	Params MockParams
 }
 
-func (m mockDependencies) getParams() *Params {
-	p := m.Params.Params
-	return &p
-}
-
 // MockModule defines the fx options for the mock component.
 func MockModule() fxutil.Module {
 	return fxutil.Component(
@@ -81,7 +76,7 @@ func newMock(deps mockDependencies, t testing.TB) sysprobeconfig.Component {
 		setup.SystemProbe().SetWithoutSource(k, v)
 	}
 
-	syscfg, err := setupConfig(deps)
+	syscfg, err := setupConfig(deps.Params.sysProbeConfFilePath, deps.Params.fleetPoliciesDirPath)
 	if err != nil {
 		t.Fatalf("sysprobe config create: %s", err)
 	}

@@ -13,6 +13,7 @@ typedef enum {
     cuda_sync,
     cuda_set_device,
     cuda_visible_devices_set,
+    cuda_sync_device,
     cuda_event_type_count,
 } cuda_event_type_t;
 
@@ -61,6 +62,10 @@ typedef struct {
     cuda_event_header_t header;
     int device;
 } cuda_set_device_event_t;
+
+typedef struct {
+    cuda_event_header_t header;
+} cuda_sync_device_event_t;
 
 typedef struct {
     __u64 event;

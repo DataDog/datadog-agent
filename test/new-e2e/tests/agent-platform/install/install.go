@@ -82,3 +82,31 @@ func Unix(t *testing.T, client ExecutorWithRetry, options ...installparams.Optio
 		require.NoError(tt, err, "agent installation should not return any error: ", err)
 	})
 }
+
+// MacOS install the agent from install script, by default will install the agent 7 build corresponding to the CI if running in the CI, else the latest Agent 7 version
+func MacOS(t *testing.T, client ExecutorWithRetry, options ...installparams.Option) {
+	params := installparams.NewParams(options...)
+	exports := []string{}
+
+	if params.PipelineID != "" {
+		exports = append(exports, fmt.Sprintf("DD_REPO_URL=https://dd-agent-macostesting.s3.amazonaws.com/ci/datadog-agent/pipeline-%s-%s", params.PipelineID, params.Arch))
+	}
+
+	var apikey string
+	if params.APIKey == "" {
+		apikey = "aaaaaaaaaa"
+	} else {
+		apikey = params.APIKey
+	}
+	exports = append(exports, fmt.Sprintf("DD_SYSTEMDAEMON_USER_GROUP=%s:staff", params.Username))
+	exports = append(exports, "DD_SYSTEMDAEMON_INSTALL=true")
+	env := strings.Join(exports, " ")
+	// Retry curl few times
+	cmd := fmt.Sprintf(`for i in {1..5}; do curl -fsSL https://install.datadoghq.com/scripts/install_mac_os.sh -o install-script.sh && break || sleep $((2**$i)); done && for i in {1..3}; do DD_API_KEY=%s %s DD_INSTALL_ONLY=true bash install-script.sh && exit 0 || sleep $((2**$i)); done; exit 1`, apikey, env)
+
+	t.Run("Installing the agent", func(tt *testing.T) {
+		_, err := client.ExecuteWithRetry(cmd)
+		require.NoError(tt, err, "failed to install the agent: ", err)
+	})
+
+}

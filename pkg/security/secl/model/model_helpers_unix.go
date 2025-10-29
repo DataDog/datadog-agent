@@ -241,21 +241,17 @@ func (e *FileEvent) GetPathResolutionError() string {
 	return ""
 }
 
-// IsOverlayFS returns whether it is an overlay fs
-func (e *FileEvent) IsOverlayFS() bool {
-	return e.Filesystem == "overlay"
-}
-
 // MountOrigin origin of the mount
 type MountOrigin = uint32
 
 const (
-	MountOriginUnknown  MountOrigin = iota // MountOriginUnknown unknown mount origin
-	MountOriginProcfs                      // MountOriginProcfs mount point info from procfs
-	MountOriginEvent                       // MountOriginEvent mount point info from an event
-	MountOriginUnshare                     // MountOriginUnshare mount point info from an event
-	MountOriginFsmount                     // MountOriginFsmount mount point info from the fsmount syscall
-	MountOriginOpenTree                    // MountOriginOpenTree mount point created from the open_tree syscall
+	MountOriginUnknown   MountOrigin = iota // MountOriginUnknown unknown mount origin
+	MountOriginProcfs                       // MountOriginProcfs mount point info from procfs
+	MountOriginEvent                        // MountOriginEvent mount point info from an event
+	MountOriginUnshare                      // MountOriginUnshare mount point info from an event
+	MountOriginFsmount                      // MountOriginFsmount mount point info from the fsmount syscall
+	MountOriginOpenTree                     // MountOriginOpenTree mount point created from the open_tree syscall
+	MountOriginListmount                    // MountOriginListmount mount point obtained by calling `listmount`
 )
 
 // MountSource source of the mount
@@ -299,6 +295,7 @@ var MountOrigins = [...]string{
 	"unshare",
 	"fsmount",
 	"open_tree",
+	"listmount",
 }
 
 // MountOriginToString returns the string corresponding to a mount origin
@@ -309,11 +306,6 @@ func MountOriginToString(origin MountOrigin) string {
 // GetFSType returns the filesystem type of the mountpoint
 func (m *Mount) GetFSType() string {
 	return m.FSType
-}
-
-// IsOverlayFS returns whether it is an overlay fs
-func (m *Mount) IsOverlayFS() bool {
-	return m.GetFSType() == "overlay"
 }
 
 const (

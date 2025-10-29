@@ -23,5 +23,5 @@ func TestWindowsMultiProcessingLibSuite(t *testing.T) {
 	suite := &windowsMultiProcessingLibSuite{baseMultiProcessingLibSuite{
 		checksdPath: "C:/ProgramData/Datadog/checks.d/multi_pid_check.py",
 	}}
-	e2e.Run(t, suite, suite.getSuiteOptions(os.WindowsDefault)...)
+	e2e.Run(t, suite, suite.getSuiteOptions(os.WindowsServerDefault)...)
 }

@@ -8,10 +8,21 @@
 package windowscertificate
 
 import (
+	"crypto/rand"
+	"crypto/rsa"
+	"crypto/sha1"
+	"crypto/x509"
+	"crypto/x509/pkix"
+	"encoding/hex"
+	"math/big"
+	"strings"
 	"testing"
+	"time"
+	"unsafe"
 
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/sys/windows"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
@@ -389,4 +400,153 @@ func TestCRLIssuerTags(t *testing.T) {
 		"crl_issuer_OU:http://certificates.godaddy.com/repository",
 		"crl_issuer_CN:Go Daddy Secure Certification Authority",
 		"crl_issuer_SERIALNUMBER:07969287"}, tags)
+}
+
+func TestThumbprintSerialNumberTags(t *testing.T) {
+	certCheck := new(WinCertChk)
+
+	instanceConfig := []byte(`
+certificate_store: CA
+enable_crl_monitoring: true
+`)
+
+	certCheck.BuildID(integration.FakeConfigHash, instanceConfig, nil)
+	m := mocksender.NewMockSender(certCheck.ID())
+	certCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, instanceConfig, nil, "test")
+
+	m.On("Gauge", "windows_certificate.days_remaining", mock.AnythingOfType("float64"), "", mock.MatchedBy(func(tags []string) bool {
+		for _, tag := range tags {
+			if strings.HasPrefix(tag, "certificate_thumbprint:") {
+				return true
+			} else if strings.HasPrefix(tag, "certificate_serial_number:") {
+				return true
+			}
+		}
+		return false
+	}))
+	m.On("ServiceCheck", "windows_certificate.cert_expiration", mock.AnythingOfType("servicecheck.ServiceCheckStatus"), "", mock.MatchedBy(func(tags []string) bool {
+		for _, tag := range tags {
+			if strings.HasPrefix(tag, "certificate_thumbprint:") {
+				return true
+			} else if strings.HasPrefix(tag, "certificate_serial_number:") {
+				return true
+			}
+		}
+		return false
+	}), mock.AnythingOfType("string"))
+	m.On("Gauge", "windows_certificate.crl_days_remaining", mock.AnythingOfType("float64"), "", mock.MatchedBy(func(tags []string) bool {
+		for _, tag := range tags {
+			if strings.HasPrefix(tag, "crl_thumbprint:") {
+				return true
+			}
+		}
+		return false
+	}))
+	m.On("ServiceCheck", "windows_certificate.crl_expiration", mock.AnythingOfType("servicecheck.ServiceCheckStatus"), "", mock.MatchedBy(func(tags []string) bool {
+		for _, tag := range tags {
+			if strings.HasPrefix(tag, "crl_thumbprint:") {
+				return true
+			}
+		}
+		return false
+	}), mock.AnythingOfType("string"))
+	m.On("Commit").Return()
+
+	certCheck.Run()
+
+	m.AssertExpectations(t)
+	m.AssertCalled(t, "Gauge", "windows_certificate.days_remaining", mock.AnythingOfType("float64"), "", mock.AnythingOfType("[]string"))
+	m.AssertCalled(t, "ServiceCheck", "windows_certificate.cert_expiration", mock.AnythingOfType("servicecheck.ServiceCheckStatus"), "", mock.AnythingOfType("[]string"), mock.AnythingOfType("string"))
+	m.AssertCalled(t, "Gauge", "windows_certificate.crl_days_remaining", mock.AnythingOfType("float64"), "", mock.AnythingOfType("[]string"))
+	m.AssertCalled(t, "ServiceCheck", "windows_certificate.crl_expiration", mock.AnythingOfType("servicecheck.ServiceCheckStatus"), "", mock.AnythingOfType("[]string"), mock.AnythingOfType("string"))
+	m.AssertNumberOfCalls(t, "Commit", 1)
+}
+
+func TestGetCertThumbprint(t *testing.T) {
+	key, err := rsa.GenerateKey(rand.Reader, 2048)
+	require.NoError(t, err)
+
+	now := time.Now()
+	tpl := &x509.Certificate{
+		SerialNumber: big.NewInt(1),
+		Subject:      pkix.Name{CommonName: "Go Test Certificate"},
+		NotBefore:    now.Add(-5 * time.Minute),
+		NotAfter:     now.AddDate(1, 0, 0),
+		KeyUsage:     x509.KeyUsageDigitalSignature | x509.KeyUsageKeyEncipherment,
+		IsCA:         true, // self-signed
+	}
+	der, err := x509.CreateCertificate(rand.Reader, tpl, tpl, &key.PublicKey, key)
+	require.NoError(t, err)
+
+	derThumbprint := sha1.Sum(der)
+
+	certContext, err := windows.CertCreateCertificateContext(windows.X509_ASN_ENCODING, &der[0], uint32(len(der)))
+	require.NoError(t, err)
+
+	thumbprint, err := getCertThumbprint(certContext)
+	require.NoError(t, err)
+	require.Equal(t, hex.EncodeToString(derThumbprint[:]), thumbprint)
+}
+
+func TestFindCertificatesInStore_PopulatesThumbprint(t *testing.T) {
+	t.Parallel()
+
+	store := "ROOT"
+	storeName := windows.StringToUTF16Ptr(store)
+
+	// Open ROOT with the same flags the check uses
+	h, err := openCertificateStore(
+		windows.CERT_STORE_PROV_SYSTEM,
+		certStoreOpenFlags,
+		uintptr(unsafe.Pointer(storeName)),
+	)
+	require.NoError(t, err)
+	defer closeCertificateStore(h, store)
+
+	// Use a subject that exists on most Windows machines in ROOT
+	subjects := []string{"Microsoft"}
+
+	certs, err := findCertificatesInStore(h, subjects, certChainValidation{})
+	require.NoError(t, err)
+
+	// If the host has no matching certs, the test would be a no-op; ensure at least one.
+	require.NotEmpty(t, certs, "expected at least one cert in ROOT matching subject filter")
+
+	for _, c := range certs {
+		require.NotNil(t, c.Certificate)
+		require.NotEmpty(t, c.Thumbprint, "thumbprint should be populated on filtered path")
+		require.Equal(t, 40, len(c.Thumbprint), "thumbprint should be 40-char SHA1 hex")
+	}
+}
+
+func TestRun_WithSubjectFilters_EmitsThumbprintTag(t *testing.T) {
+	t.Parallel()
+
+	certCheck := new(WinCertChk)
+	instanceConfig := []byte(`
+certificate_store: ROOT
+certificate_subjects:
+  - Microsoft
+days_warning: 10
+days_critical: 5`)
+
+	certCheck.BuildID(integration.FakeConfigHash, instanceConfig, nil)
+	m := mocksender.NewMockSender(certCheck.ID())
+	require.NoError(t, certCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, instanceConfig, nil, "test"))
+
+	// Assert that Gauge gets a non-empty certificate_thumbprint tag
+	m.On("Gauge", "windows_certificate.days_remaining", mock.AnythingOfType("float64"), "", mock.MatchedBy(func(tags []string) bool {
+		for _, tag := range tags {
+			if strings.HasPrefix(tag, "certificate_thumbprint:") {
+				val := strings.TrimPrefix(tag, "certificate_thumbprint:")
+				return len(val) == 40 // SHA1 hex
+			}
+		}
+		return false
+	}))
+	m.On("ServiceCheck", "windows_certificate.cert_expiration", mock.AnythingOfType("servicecheck.ServiceCheckStatus"), "", mock.AnythingOfType("[]string"), mock.AnythingOfType("string"))
+	m.On("Commit").Return()
+
+	require.NoError(t, certCheck.Run())
+	m.AssertExpectations(t)
 }

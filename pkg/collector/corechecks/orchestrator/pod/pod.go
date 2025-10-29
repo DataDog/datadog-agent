@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/benbjohnson/clock"
 	"go.uber.org/atomic"
 
 	model "github.com/DataDog/agent-payload/v5/process"
@@ -24,6 +25,8 @@ import (
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	k8sProcessors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
+	utilTypes "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/util"
+	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	oconfig "github.com/DataDog/datadog-agent/pkg/orchestrator/config"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
@@ -167,9 +170,14 @@ func (c *Check) Run() error {
 	}
 
 	groupID := nextGroupID()
+	metadataAsTags := utils.GetMetadataAsTags(c.cfg)
+	resourceType := utilTypes.GetResourceType(utilTypes.PodName, utilTypes.PodVersion)
+	labelsAsTags := metadataAsTags.GetResourcesLabelsAsTags()[resourceType]
+	annotationsAsTags := metadataAsTags.GetResourcesAnnotationsAsTags()[resourceType]
 	ctx := &processors.K8sProcessorContext{
 		BaseProcessorContext: processors.BaseProcessorContext{
 			Cfg:              c.config,
+			Clock:            clock.New(),
 			MsgGroupID:       groupID,
 			NodeType:         orchestrator.K8sPod,
 			ClusterID:        c.clusterID,
@@ -179,8 +187,10 @@ func (c *Check) Run() error {
 			CollectorTags:    []string{"kube_api_version:v1"},
 			AgentVersion:     c.agentVersion,
 		},
-		HostName:   c.hostName,
-		SystemInfo: c.systemInfo,
+		HostName:          c.hostName,
+		SystemInfo:        c.systemInfo,
+		LabelsAsTags:      labelsAsTags,
+		AnnotationsAsTags: annotationsAsTags,
 	}
 
 	processResult, listed, processed := c.processor.Process(ctx, podList)

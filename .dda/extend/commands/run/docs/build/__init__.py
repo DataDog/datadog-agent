@@ -34,6 +34,6 @@ def cmd(app: Application, *, check: bool) -> None:
         if check:
             build_command.append("--no-directory-urls")
             app.subprocess.run(build_command, env=env_vars)
-            app.subprocess.exit_with("linkchecker --config .linkcheckerrc site", env=env_vars)
+            app.subprocess.exit_with(["linkchecker", "--config", ".linkcheckerrc", "site"], env=env_vars)
         else:
             app.subprocess.exit_with(build_command, env=env_vars)

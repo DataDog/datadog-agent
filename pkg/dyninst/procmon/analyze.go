@@ -26,7 +26,9 @@ import (
 	lru "github.com/hashicorp/golang-lru/v2"
 	"golang.org/x/time/rate"
 
+	"github.com/DataDog/datadog-agent/pkg/dyninst/htlhash"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/object"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/process"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -111,8 +113,8 @@ func analyzeProcess(
 			"failed to cast stat", fmt.Errorf("got %T", statSys),
 		)
 	}
-	fileKey := FileKey{
-		FileHandle: FileHandle{
+	fileKey := process.FileKey{
+		FileHandle: process.FileHandle{
 			Dev: uint64(st.Dev),
 			Ino: st.Ino,
 		},
@@ -149,9 +151,11 @@ func analyzeProcess(
 
 	return processAnalysis{
 		service:     ddEnv.serviceName,
-		exe:         Executable{Path: exePath, Key: fileKey},
+		version:     ddEnv.serviceVersion,
+		environment: ddEnv.environmentName,
+		exe:         process.Executable{Path: exePath, Key: fileKey},
 		interesting: true,
-		gitInfo: GitInfo{
+		gitInfo: process.GitInfo{
 			CommitSha:     ddEnv.gitCommitSha,
 			RepositoryURL: ddEnv.gitRepositoryURL,
 		},
@@ -161,12 +165,16 @@ func analyzeProcess(
 
 type ddEnvVars struct {
 	serviceName      string
+	serviceVersion   string
+	environmentName  string
 	diEnabled        bool
 	gitCommitSha     string
 	gitRepositoryURL string
 }
 
 const ddServiceEnvVar = "DD_SERVICE"
+const ddVersionEnvVar = "DD_VERSION"
+const ddEnvironmentEnvVar = "DD_ENV"
 const ddDynInstEnabledEnvVar = "DD_DYNAMIC_INSTRUMENTATION_ENABLED"
 const ddGitCommitShaEnvVar = "DD_GIT_COMMIT_SHA"
 const ddGitRepositoryURLEnvVar = "DD_GIT_REPOSITORY_URL"
@@ -203,6 +211,10 @@ func analyzeEnviron(pid int32, procfsRoot string) (ddEnvVars, error) {
 		switch unsafe.String(unsafe.SliceData(envVar), len(envVar)) {
 		case ddServiceEnvVar:
 			ddEnv.serviceName = string(val)
+		case ddVersionEnvVar:
+			ddEnv.serviceVersion = string(val)
+		case ddEnvironmentEnvVar:
+			ddEnv.environmentName = string(val)
 		case ddDynInstEnabledEnvVar:
 			ddEnv.diEnabled, _ = strconv.ParseBool(string(val))
 		case ddGitCommitShaEnvVar:
@@ -245,7 +257,7 @@ const hostCgroupNamespaceInode = 0xEFFFFFFB
 
 var containerResolverErrLogLimiter = rate.NewLimiter(rate.Every(1*time.Minute), 10)
 
-func analyzeContainerInfo(resolver ContainerResolver, pid uint32) ContainerInfo {
+func analyzeContainerInfo(resolver ContainerResolver, pid uint32) process.ContainerInfo {
 	containerID, cgroupContext, _, err := resolver.GetContainerContext(pid)
 	if err != nil {
 		if containerResolverErrLogLimiter.Allow() {
@@ -253,7 +265,7 @@ func analyzeContainerInfo(resolver ContainerResolver, pid uint32) ContainerInfo 
 				"failed to get container context for pid %d: %v", pid, err,
 			)
 		}
-		return ContainerInfo{}
+		return process.ContainerInfo{}
 	}
 	// See https://github.com/DataDog/dd-trace-go/blob/0bf59472/internal/container_linux.go#L151-L155
 	if containerID != "" {
@@ -261,20 +273,20 @@ func analyzeContainerInfo(resolver ContainerResolver, pid uint32) ContainerInfo 
 			"analyzeContainerInfo(%d): containerID: %s",
 			pid, containerID,
 		)
-		return ContainerInfo{
+		return process.ContainerInfo{
 			EntityID:    "ci-" + string(containerID),
 			ContainerID: string(containerID),
 		}
 	}
 	if cgroupContext.CGroupFile.Inode != hostCgroupNamespaceInode {
-		return ContainerInfo{
+		return process.ContainerInfo{
 			EntityID: fmt.Sprintf("in-%d", cgroupContext.CGroupFile.Inode),
 		}
 	}
 	if log.ShouldLog(log.TraceLvl) {
 		log.Tracef("analyzeContainerInfo(%d): no container info found", pid)
 	}
-	return ContainerInfo{}
+	return process.ContainerInfo{}
 }
 
 var goSections = map[string]struct{}{
@@ -298,9 +310,10 @@ func isGoElfBinaryWithDDTraceGo(f *os.File) (bool, error) {
 	}
 	defer elfFile.Close() // no-op, but why not
 
-	var symtabSection *safeelf.Section
+	var symtabSection *safeelf.SectionHeader
 	var hasDebugInfo, hasGoSections bool
-	for _, section := range elfFile.Elf.Sections {
+	sectionHeaders := elfFile.SectionHeaders()
+	for _, section := range sectionHeaders {
 		if _, ok := goSections[section.Name]; ok {
 			hasGoSections = true
 		}
@@ -325,16 +338,16 @@ func isGoElfBinaryWithDDTraceGo(f *os.File) (bool, error) {
 	// find the string table for the symbol table and then scan it for the
 	// strings corresponding to the symbols we might care about.
 	symtabStringsSectionIdx := symtabSection.Link
-	if symtabStringsSectionIdx >= uint32(len(elfFile.Elf.Sections)) {
+	if symtabStringsSectionIdx >= uint32(len(sectionHeaders)) {
 		return false, nil
 	}
-	symtabStringsSection := elfFile.Elf.Sections[symtabStringsSectionIdx]
-	symtabStrings, err := elfFile.MMap(symtabStringsSection, 0, symtabStringsSection.Size)
+	symtabStringsSection := sectionHeaders[symtabStringsSectionIdx]
+	symtabStrings, err := elfFile.SectionData(symtabStringsSection)
 	if err != nil {
 		return false, fmt.Errorf("failed to get symbols: %w", err)
 	}
 	defer symtabStrings.Close()
-	return bytes.Contains(symtabStrings.Data, ddTraceSymbolSuffix), nil
+	return bytes.Contains(symtabStrings.Data(), ddTraceSymbolSuffix), nil
 }
 
 var ddTraceSymbolSuffix = []byte("ddtrace/tracer.passProbeConfiguration")
@@ -345,32 +358,32 @@ type executableAnalyzer interface {
 	// checkFileKeyCache is used to check if the executable is interesting
 	// without loading anything about the file. If known is false, the value
 	// of interesting is meaningless.
-	checkFileKeyCache(key FileKey) (interesting bool, known bool)
+	checkFileKeyCache(key process.FileKey) (interesting bool, known bool)
 	// isInteresting is used to check if the executable is interesting.
 	// It is called after checkFileKeyCache has returned true.
 	//
 	// Note that the file will be left in an unknown state after this call.
-	isInteresting(f *os.File, key FileKey) (bool, error)
+	isInteresting(f *os.File, key process.FileKey) (bool, error)
 }
 
 // baseExecutableAnalyzer implements executableAnalyzer without any caching.
 type baseExecutableAnalyzer struct{}
 
 func (a *baseExecutableAnalyzer) checkFileKeyCache(
-	_ FileKey,
+	_ process.FileKey,
 ) (interesting bool, known bool) {
 	return false, false
 }
 
 func (a *baseExecutableAnalyzer) isInteresting(
-	f *os.File, _ FileKey,
+	f *os.File, _ process.FileKey,
 ) (bool, error) {
 	return isGoElfBinaryWithDDTraceGo(f)
 }
 
 type fileKeyCacheExecutableAnalyzer struct {
 	inner        executableAnalyzer
-	fileKeyCache *lru.Cache[FileKey, bool]
+	fileKeyCache *lru.Cache[process.FileKey, bool]
 }
 
 func newFileKeyCacheExecutableAnalyzer(
@@ -379,19 +392,19 @@ func newFileKeyCacheExecutableAnalyzer(
 ) executableAnalyzer {
 	return &fileKeyCacheExecutableAnalyzer{
 		inner:        inner,
-		fileKeyCache: mustNewLruCache[FileKey, bool](cacheSize),
+		fileKeyCache: mustNewLruCache[process.FileKey, bool](cacheSize),
 	}
 }
 
 func (a *fileKeyCacheExecutableAnalyzer) checkFileKeyCache(
-	key FileKey,
+	key process.FileKey,
 ) (interesting bool, known bool) {
 	return a.fileKeyCache.Get(key)
 }
 
 func (a *fileKeyCacheExecutableAnalyzer) isInteresting(
 	f *os.File,
-	key FileKey,
+	key process.FileKey,
 ) (bool, error) {
 	if interesting, ok := a.fileKeyCache.Get(key); ok {
 		return interesting, nil
@@ -406,7 +419,7 @@ func (a *fileKeyCacheExecutableAnalyzer) isInteresting(
 
 type htlHashCacheExecutableAnalyzer struct {
 	inner        executableAnalyzer
-	htlHashCache *lru.Cache[string, bool]
+	htlHashCache *lru.Cache[htlhash.Hash, bool]
 }
 
 func newHtlHashCacheExecutableAnalyzer(
@@ -415,15 +428,15 @@ func newHtlHashCacheExecutableAnalyzer(
 ) executableAnalyzer {
 	return &htlHashCacheExecutableAnalyzer{
 		inner:        inner,
-		htlHashCache: mustNewLruCache[string, bool](cacheSize),
+		htlHashCache: mustNewLruCache[htlhash.Hash, bool](cacheSize),
 	}
 }
 
 func (a *htlHashCacheExecutableAnalyzer) isInteresting(
 	f *os.File,
-	key FileKey,
+	key process.FileKey,
 ) (bool, error) {
-	hash, err := computeHtlHash(f)
+	hash, err := htlhash.Compute(f)
 	if err != nil {
 		return false, err
 	}
@@ -443,7 +456,7 @@ func (a *htlHashCacheExecutableAnalyzer) isInteresting(
 }
 
 func (a *htlHashCacheExecutableAnalyzer) checkFileKeyCache(
-	key FileKey,
+	key process.FileKey,
 ) (interesting bool, known bool) {
 	return a.inner.checkFileKeyCache(key)
 }

@@ -57,9 +57,10 @@ TEST_PACKAGES_LIST = [
     "./pkg/process/monitor/...",
     "./pkg/dyninst/...",
     "./pkg/gpu/...",
+    "./pkg/logs/launchers/file/",
+    "./pkg/privileged-logs/test/...",
     "./pkg/system-probe/config/...",
     "./comp/metadata/inventoryagent/...",
-    "./pkg/networkpath/traceroute/packets/...",
 ]
 TEST_PACKAGES = " ".join(TEST_PACKAGES_LIST)
 # change `timeouts` in `test/new-e2e/system-probe/test-runner/main.go` if you change them here
@@ -101,8 +102,8 @@ def get_ebpf_runtime_dir() -> Path:
     return Path("pkg/ebpf/bytecode/build/runtime")
 
 
-def ninja_define_windows_resources(ctx, nw: NinjaWriter, major_version):
-    maj_ver, min_ver, patch_ver = get_version_numeric_only(ctx, major_version=major_version).split(".")
+def ninja_define_windows_resources(ctx, nw: NinjaWriter):
+    maj_ver, min_ver, patch_ver = get_version_numeric_only(ctx).split(".")
     nw.variable("maj_ver", maj_ver)
     nw.variable("min_ver", min_ver)
     nw.variable("patch_ver", patch_ver)
@@ -230,7 +231,7 @@ def ninja_security_ebpf_programs(
         infile=infile,
         outfile=outfile,
         variables={
-            "flags": security_flags + " -DUSE_SYSCALL_WRAPPER=0",
+            "flags": security_flags,
             "kheaders": kheaders,
         },
     )
@@ -244,7 +245,7 @@ def ninja_security_ebpf_programs(
         infile=infile,
         outfile=syscall_wrapper_outfile,
         variables={
-            "flags": security_flags + " -DUSE_SYSCALL_WRAPPER=1",
+            "flags": security_flags + " -DUSE_SYSCALL_WRAPPER",
             "kheaders": kheaders,
         },
     )
@@ -258,7 +259,7 @@ def ninja_security_ebpf_programs(
         infile=infile,
         outfile=syscall_wrapper_outfile,
         variables={
-            "flags": security_flags + " -DUSE_SYSCALL_WRAPPER=1 -DUSE_FENTRY=1",
+            "flags": security_flags + " -DUSE_SYSCALL_WRAPPER -DUSE_FENTRY",
             "kheaders": kheaders,
         },
     )
@@ -424,19 +425,6 @@ def ninja_container_integrations_ebpf_programs(nw: NinjaWriter, co_re_build_dir)
         )
 
 
-def ninja_discovery_ebpf_programs(nw: NinjaWriter, co_re_build_dir):
-    dir = Path("pkg/collector/corechecks/servicediscovery/c/ebpf/runtime")
-    flags = f"-I{dir} -Ipkg/network/ebpf/c"
-    programs = ["discovery-net"]
-
-    for prog in programs:
-        infile = os.path.join(dir, f"{prog}.c")
-        outfile = os.path.join(co_re_build_dir, f"{prog}.o")
-        ninja_ebpf_co_re_program(nw, infile, outfile, {"flags": flags})
-        root, ext = os.path.splitext(outfile)
-        ninja_ebpf_co_re_program(nw, infile, f"{root}-debug{ext}", {"flags": flags + " -DDEBUG=1"})
-
-
 def ninja_dynamic_instrumentation_ebpf_programs(nw: NinjaWriter, co_re_build_dir):
     dir = Path("pkg/dyninst/ebpf")
     flags = f"-I{dir}"
@@ -473,7 +461,6 @@ def ninja_runtime_compilation_files(nw: NinjaWriter, gobin):
     runtime_compiler_files = {
         "pkg/collector/corechecks/ebpf/probe/oomkill/oom_kill.go": "oom-kill",
         "pkg/collector/corechecks/ebpf/probe/tcpqueuelength/tcp_queue_length.go": "tcp-queue-length",
-        "pkg/collector/corechecks/servicediscovery/module/network_ebpf.go": "discovery-net",
         "pkg/network/usm/compile.go": "usm",
         "pkg/network/usm/sharedlibraries/compile.go": "shared-libraries",
         "pkg/network/tracer/compile.go": "conntrack",
@@ -581,9 +568,6 @@ def ninja_cgo_type_files(nw: NinjaWriter):
             "pkg/network/protocols/events/types.go": [
                 "pkg/network/ebpf/c/protocols/events-types.h",
             ],
-            "pkg/collector/corechecks/servicediscovery/core/kern_types.go": [
-                "pkg/collector/corechecks/servicediscovery/c/ebpf/runtime/discovery-types.h",
-            ],
             "pkg/collector/corechecks/ebpf/probe/tcpqueuelength/tcp_queue_length_kern_types.go": [
                 "pkg/collector/corechecks/ebpf/c/runtime/tcp-queue-length-kern-user.h",
             ],
@@ -652,7 +636,6 @@ def ninja_cgo_type_files(nw: NinjaWriter):
 def ninja_generate(
     ctx: Context,
     ninja_path,
-    major_version='7',
     arch: str | Arch = CURRENT_ARCH,
     debug=False,
     strip_object_files=False,
@@ -667,7 +650,7 @@ def ninja_generate(
         nw = NinjaWriter(ninja_file, width=120)
 
         if is_windows:
-            ninja_define_windows_resources(ctx, nw, major_version)
+            ninja_define_windows_resources(ctx, nw)
             # messagestrings
             in_path = MESSAGESTRINGS_MC_PATH
             in_name = os.path.splitext(os.path.basename(in_path))[0]
@@ -700,7 +683,6 @@ def ninja_generate(
             ninja_runtime_compilation_files(nw, gobin)
             ninja_telemetry_ebpf_programs(nw, build_dir, co_re_build_dir)
             ninja_gpu_ebpf_programs(nw, co_re_build_dir)
-            ninja_discovery_ebpf_programs(nw, co_re_build_dir)
             ninja_dynamic_instrumentation_ebpf_programs(nw, co_re_build_dir)
 
         ninja_cgo_type_files(nw)
@@ -744,6 +726,12 @@ def build_libpcap(ctx):
                 "--disable-bluetooth",
                 "--disable-dbus",
                 "--disable-rdma",
+                "--without-dag",
+                "--without-dpdk",
+                "--without-libnl",
+                "--without-septel",
+                "--without-snf",
+                "--without-turbocap",
             ]
             ctx.run(f"./configure {' '.join(config_opts)}")
             ctx.run("make install")
@@ -777,7 +765,6 @@ def build(
     ctx,
     race=False,
     rebuild=False,
-    major_version='7',
     go_mod="readonly",
     arch: str = CURRENT_ARCH,
     bundle_ebpf=False,
@@ -796,7 +783,6 @@ def build(
     if not is_macos:
         build_object_files(
             ctx,
-            major_version=major_version,
             kernel_release=kernel_release,
             debug=debug,
             strip_object_files=strip_object_files,
@@ -806,7 +792,6 @@ def build(
 
     build_sysprobe_binary(
         ctx,
-        major_version=major_version,
         bundle_ebpf=bundle_ebpf,
         go_mod=go_mod,
         race=race,
@@ -834,7 +819,6 @@ def build_sysprobe_binary(
     ctx,
     race=False,
     rebuild=False,
-    major_version='7',
     go_mod="readonly",
     arch: str = CURRENT_ARCH,
     binary=BIN_PATH,
@@ -850,7 +834,6 @@ def build_sysprobe_binary(
     ldflags, gcflags, env = get_build_flags(
         ctx,
         install_path=install_path,
-        major_version=major_version,
         arch=arch_obj,
         static=static,
     )
@@ -892,6 +875,7 @@ def build_sysprobe_binary(
         bin_path=binary,
         gcflags=gcflags,
         ldflags=ldflags,
+        check_deadcode=os.getenv("DEPLOY_AGENT") == "true",
         coverage=os.getenv("E2E_COVERAGE_PIPELINE") == "true",
         env=env,
     )
@@ -1464,7 +1448,6 @@ def run_ninja(
     task="",
     target="",
     explain=False,
-    major_version='7',
     arch: str | Arch = CURRENT_ARCH,
     kernel_release=None,
     debug=False,
@@ -1476,7 +1459,6 @@ def run_ninja(
     ninja_generate(
         ctx,
         nf_path,
-        major_version,
         arch,
         debug,
         strip_object_files,
@@ -1596,7 +1578,6 @@ def validate_object_file_metadata(ctx: Context, build_dir: str | Path = "pkg/ebp
 @task(aliases=["object-files"])
 def build_object_files(
     ctx,
-    major_version='7',
     arch: str = CURRENT_ARCH,
     kernel_release=None,
     debug=False,
@@ -1617,7 +1598,6 @@ def build_object_files(
     run_ninja(
         ctx,
         explain=True,
-        major_version=major_version,
         kernel_release=kernel_release,
         debug=debug,
         strip_object_files=strip_object_files,
@@ -1663,7 +1643,6 @@ def build_object_files(
 
 def build_cws_object_files(
     ctx,
-    major_version='7',
     arch: str | Arch = CURRENT_ARCH,
     kernel_release=None,
     debug=False,
@@ -1674,7 +1653,6 @@ def build_cws_object_files(
     run_ninja(
         ctx,
         target="cws",
-        major_version=major_version,
         debug=debug,
         strip_object_files=strip_object_files,
         kernel_release=kernel_release,
@@ -1682,11 +1660,10 @@ def build_cws_object_files(
     )
 
 
-def clean_object_files(ctx, major_version='7', kernel_release=None, debug=False, strip_object_files=False):
+def clean_object_files(ctx, kernel_release=None, debug=False, strip_object_files=False):
     run_ninja(
         ctx,
         task="clean",
-        major_version=major_version,
         debug=debug,
         strip_object_files=strip_object_files,
         kernel_release=kernel_release,
@@ -1759,10 +1736,6 @@ def generate_minimized_btfs(ctx, source_dir, output_dir, bpf_programs):
 
         nw.rule(name="decompress_btf", command="tar -xf $in -C $target_directory")
         nw.rule(name="minimize_btf", command="bpftool gen min_core_btf $in $out $input_bpf_programs")
-        nw.rule(
-            name="compress_minimized_btf",
-            command="tar --mtime=@0 -cJf $out -C $tar_working_directory $rel_in && rm $in",
-        )
 
         for root, dirs, files in os.walk(source_dir):
             path_from_root = os.path.relpath(root, source_dir)
@@ -1793,16 +1766,6 @@ def generate_minimized_btfs(ctx, source_dir, output_dir, bpf_programs):
                     outputs=[minimized_btf_path],
                     variables={
                         "input_bpf_programs": bpf_programs,
-                    },
-                )
-
-                nw.build(
-                    rule="compress_minimized_btf",
-                    inputs=[minimized_btf_path],
-                    outputs=[f"{minimized_btf_path}.tar.xz"],
-                    variables={
-                        "tar_working_directory": os.path.join(output_dir, path_from_root),
-                        "rel_in": btf_filename,
                     },
                 )
 
@@ -2216,8 +2179,7 @@ def ninja_add_dyninst_test_programs(
             deps = (d for d in deps.split(" ") if d.startswith(progs_prefix))
             pkg_deps[pkg] = {d.removeprefix(progs_prefix) for d in deps}
 
-    # In the future, we may want to support multiple go versions.
-    go_versions = ["go1.24.3"]
+    go_versions = ["go1.23.11", "go1.24.3", "go1.25.0"]
     archs = ["amd64", "arm64"]
 
     # Avoiding cgo aids in reproducing the build environment. It's less good in

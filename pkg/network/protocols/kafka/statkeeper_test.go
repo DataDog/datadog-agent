@@ -23,7 +23,8 @@ import (
 )
 
 func BenchmarkStatKeeperSameTX(b *testing.B) {
-	cfg := &config.Config{MaxKafkaStatsBuffered: 1000}
+	cfg := config.New()
+	cfg.MaxKafkaStatsBuffered = 1000
 	tel := NewTelemetry()
 	sk := NewStatkeeper(cfg, tel)
 
@@ -78,7 +79,8 @@ func TestStatKeeper_extractTopicName(t *testing.T) {
 }
 
 func TestProcessKafkaTransactions(t *testing.T) {
-	cfg := &config.Config{MaxKafkaStatsBuffered: 1000}
+	cfg := config.New()
+	cfg.MaxKafkaStatsBuffered = 1000
 	tel := NewTelemetry()
 	sk := NewStatkeeper(cfg, tel)
 

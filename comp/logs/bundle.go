@@ -3,7 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package logs //nolint:revive // TODO(AML) Fix revive linter
+// Package logs provides the logs component bundle
+package logs
 
 import (
 	"github.com/DataDog/datadog-agent/comp/logs/agent/agentimpl"

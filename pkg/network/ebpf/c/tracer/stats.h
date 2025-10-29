@@ -17,6 +17,7 @@
 #include "ip.h"
 #include "skb.h"
 #include "pid_tgid.h"
+#include "timestamp_ms.h"
 
 #ifdef COMPILE_PREBUILT
 static __always_inline __u64 offset_rtt();
@@ -81,7 +82,7 @@ static __always_inline conn_stats_ts_t *get_conn_stats(conn_tuple_t *t, struct s
     // initialize-if-no-exist the connection stat, and load it
     conn_stats_ts_t empty = {};
     bpf_memset(&empty, 0, sizeof(conn_stats_ts_t));
-    empty.duration = bpf_ktime_get_ns();
+    empty.duration_ms = convert_ns_to_ms(bpf_ktime_get_ns());
     empty.cookie = get_sk_cookie(sk);
 
     // We skip EEXIST because of the use of BPF_NOEXIST flag. Emitting telemetry for EEXIST here spams metrics
@@ -233,7 +234,7 @@ static __always_inline void update_conn_stats(conn_tuple_t *t, size_t sent_bytes
             val->sent_packets = packets_out;
         }
     }
-    val->timestamp = ts;
+    val->timestamp_ms = convert_ns_to_ms(ts);
 
     if (dir != CONN_DIRECTION_UNKNOWN) {
         val->direction = dir;
@@ -368,37 +369,67 @@ __maybe_unused static __always_inline bool tcp_failed_connections_enabled() {
     return val > 0;
 }
 
+// get_tcp_failure returns an error code for tcp_done/tcp_close, if there was one
+static __always_inline int get_tcp_failure(struct sock *sk) {
+    int err = 0;
+    BPF_CORE_READ_INTO(&err, sk, sk_err);
+    if (err != 0) {
+        return err;
+    }
+
+    struct sock_common *skc = (struct sock_common*) sk;
+    unsigned char state = 0;
+    // the fact that this field is volatile breaks BPF_CORE_READ_INTO, so it must be cast separately
+    bpf_probe_read_kernel(&state, 1, (unsigned char*) &skc->skc_state);
+    // we are still in SYN_SENT when the socket closed, meaning the connect was cancelled
+    if (state == TCP_SYN_SENT) {
+        return TCP_CONN_FAILED_CANCELED;
+    }
+
+    return 0;
+}
+
+static __always_inline bool is_tcp_failure_recognized(int err) {
+    switch(err) {
+        case TCP_CONN_FAILED_RESET:
+        case TCP_CONN_FAILED_TIMEOUT:
+        case TCP_CONN_FAILED_REFUSED:
+        case TCP_CONN_FAILED_EHOSTUNREACH:
+        case TCP_CONN_FAILED_ENETUNREACH:
+        case TCP_CONN_FAILED_CANCELED:
+            return true;
+        default:
+            return false;
+    }
+}
+
+static __always_inline void report_unrecognized_tcp_failure(int err) {
+    // initialize if no-exist
+    __u64 one = 1;
+    bpf_map_update_with_telemetry(tcp_failure_telemetry, &err, &one, BPF_NOEXIST, -EEXIST);
+    __u64 *count = bpf_map_lookup_elem(&tcp_failure_telemetry, &err);
+    if (count != NULL) {
+        __sync_fetch_and_add(count, one);
+    }
+}
+
 // handle_tcp_failure handles TCP connection failures on the socket pointer and adds them to the connection tuple
 // returns an integer to the caller indicating if there was a failure or not
 static __always_inline bool handle_tcp_failure(struct sock *sk, conn_tuple_t *t) {
     if (!tcp_failed_connections_enabled()) {
         return false;
     }
-    int err = 0;
-    BPF_CORE_READ_INTO(&err, sk, sk_err);
-
-    switch (err) {
-        case 0:
-            return false; // no error
-        case TCP_CONN_FAILED_RESET:
-        case TCP_CONN_FAILED_TIMEOUT:
-        case TCP_CONN_FAILED_REFUSED:
-        case TCP_CONN_FAILED_EHOSTUNREACH:
-        case TCP_CONN_FAILED_ENETUNREACH:
-        {
-            tcp_stats_t stats = { .failure_reason = err };
-            update_tcp_stats(t, stats);
-            return true;
-        }
-    }
-    // initialize if no-exist
-    __u64 one = 1;
-    bpf_map_update_with_telemetry(tcp_failure_telemetry, &err, &one, BPF_NOEXIST, -EEXIST);
-    __u64 *count = bpf_map_lookup_elem(&tcp_failure_telemetry, &err);
-    if (count == NULL) {
+    int err = get_tcp_failure(sk);
+    if (err == 0) {
         return false;
     }
-    __sync_fetch_and_add(count, one);
+    if (is_tcp_failure_recognized(err)) {
+        tcp_stats_t stats = { .failure_reason = err };
+        update_tcp_stats(t, stats);
+        return true;
+    }
+
+    report_unrecognized_tcp_failure(err);
 
     return false;
 }

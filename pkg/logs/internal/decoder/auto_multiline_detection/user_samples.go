@@ -7,7 +7,6 @@
 package automultilinedetection
 
 import (
-	"encoding/json"
 	"regexp"
 
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
@@ -37,7 +36,6 @@ type UserSamples struct {
 func NewUserSamples(cfgRdr model.Reader, sourceSamples []*config.AutoMultilineSample) *UserSamples {
 	tokenizer := NewTokenizer(0)
 	configSamples := make([]config.AutoMultilineSample, 0)
-	var err error
 
 	if sourceSamples != nil {
 		for _, sample := range sourceSamples {
@@ -45,18 +43,9 @@ func NewUserSamples(cfgRdr model.Reader, sourceSamples []*config.AutoMultilineSa
 			configSamples = append(configSamples, *sample)
 		}
 	} else {
-		rawMainSamples := cfgRdr.Get("logs_config.auto_multi_line_detection_custom_samples")
-		if rawMainSamples != nil {
-			if str, ok := rawMainSamples.(string); ok && str != "" {
-				err = json.Unmarshal([]byte(str), &configSamples)
-			} else {
-				err = structure.UnmarshalKey(cfgRdr, "logs_config.auto_multi_line_detection_custom_samples", &configSamples)
-			}
-
-			if err != nil {
-				log.Error("Failed to unmarshal main config custom samples: ", err)
-				configSamples = make([]config.AutoMultilineSample, 0)
-			}
+		err := structure.UnmarshalKey(cfgRdr, "logs_config.auto_multi_line_detection_custom_samples", &configSamples, structure.EnableStringUnmarshal)
+		if err != nil {
+			log.Error("Failed to unmarshal main config custom samples: ", err)
 		}
 
 		legacyAdditionalPatterns := cfgRdr.GetStringSlice("logs_config.auto_multi_line_extra_patterns")

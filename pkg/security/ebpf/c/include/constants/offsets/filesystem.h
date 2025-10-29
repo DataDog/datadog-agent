@@ -203,16 +203,18 @@ struct dentry *__attribute__((always_inline)) get_path_dentry(struct path *path)
     return dentry;
 }
 
-u32  __attribute__((always_inline)) get_dentry_nlink(struct dentry* dentry) {
-    struct inode *d_inode = get_dentry_inode(dentry);
-
+u32 __attribute__((always_inline)) get_inode_nlink(struct inode *inode) {
     u64 inode_nlink_offset;
     LOAD_CONSTANT("inode_nlink_offset", inode_nlink_offset);
 
     int nlink = 0;
-    bpf_probe_read(&nlink, sizeof(nlink), (void *)d_inode + inode_nlink_offset);
+    bpf_probe_read(&nlink, sizeof(nlink), (void *)inode + inode_nlink_offset);
 
     return nlink;
+}
+
+u32 __attribute__((always_inline)) get_dentry_nlink(struct dentry *dentry) {
+    return get_inode_nlink(get_dentry_inode(dentry));
 }
 
 struct dentry *__attribute__((always_inline)) get_file_dentry(struct file *file) {
@@ -288,13 +290,18 @@ static __attribute__((always_inline)) int is_overlayfs(struct dentry *dentry) {
     return get_sb_magic(sb) == OVERLAYFS_SUPER_MAGIC;
 }
 
-int __attribute__((always_inline)) get_ovl_lower_ino_direct(struct dentry *dentry) {
+struct inode * __attribute__((always_inline)) get_ovl_lower_inode_direct(struct dentry *dentry) {
     struct inode *d_inode = get_dentry_inode(dentry);
 
     // escape from the embedded vfs_inode to reach ovl_inode
     struct inode *lower;
     bpf_probe_read(&lower, sizeof(lower), (char *)d_inode + get_sizeof_inode() + 8);
 
+    return lower;
+}
+
+int __attribute__((always_inline)) get_ovl_lower_ino_direct(struct dentry *dentry) {
+    struct inode *lower = get_ovl_lower_inode_direct(dentry);
     return get_inode_ino(lower);
 }
 
@@ -377,11 +384,19 @@ int __attribute__((always_inline)) get_ovl_lower_nlink_from_ovl_path(struct dent
     return get_dentry_nlink(lower);
 }
 
+int __attribute__((always_inline)) get_ovl_lower_nlink_direct(struct dentry *dentry) {
+    struct inode *lower = get_ovl_lower_inode_direct(dentry);
+    return get_inode_nlink(lower);
+};
+
 int __attribute__((always_inline)) get_ovl_lower_nlink(struct dentry *dentry) {
-    if (get_ovl_path_in_inode() == 2) {
+    switch (get_ovl_path_in_inode()) {
+    case 2:
         return get_ovl_lower_nlink_from_ovl_entry(dentry);
+    case 1:
+        return get_ovl_lower_nlink_from_ovl_path(dentry);
     }
-    return get_ovl_lower_nlink_from_ovl_path(dentry);
+    return get_ovl_lower_nlink_direct(dentry);
 }
 
 int __always_inline get_overlayfs_layer(struct dentry *dentry) {

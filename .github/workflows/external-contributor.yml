@@ -13,7 +13,7 @@ jobs:
     name: Handle Fork PRs
     runs-on: ubuntu-latest
     permissions:
-      id-token: write # This is required for getting the required OIDC token from GitHub
+      pull-requests: write
     if: github.event.pull_request.head.repo.full_name != github.repository
     steps:
       - name: Checkout repository
@@ -26,17 +26,12 @@ jobs:
         uses: ./.github/actions/install-dda
         with:
           features: legacy-tasks
-      - uses: DataDog/dd-octo-sts-action@acaa02eee7e3bb0839e4272dacb37b8f3b58ba80 # v1.0.3
-        id: octo-sts
-        with:
-          scope: DataDog/datadog-agent
-          policy: self.external-contributor.modify-pr
       - name: Set label on external contributor PRs
         run: |
           dda inv -- -e github.handle-community-pr --repo="$GH_REPO" --pr-id="$NUMBER" --labels="$LABELS"
         env:
-          GH_TOKEN: ${{ steps.octo-sts.outputs.token }}
-          GITHUB_TOKEN: ${{ steps.octo-sts.outputs.token }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SLACK_DATADOG_AGENT_BOT_TOKEN: ${{ secrets.SLACK_DATADOG_AGENT_BOT_TOKEN }}
           GH_REPO: ${{ github.repository }}
           NUMBER: ${{ github.event.number }}

@@ -26,14 +26,14 @@ var (
 	CardinalityTagPrefix = constants.CardinalityTagPrefix
 	jmxCheckNamePrefix   = "dd.internal.jmx_check_name:"
 
-	tlmBlockedPoints = telemetry.NewSimpleCounter("dogstatsd", "listener_blocked_points", "How many points were blocked")
+	tlmFilteredPoints = telemetry.NewSimpleCounter("dogstatsd", "listener_filtered_points", "How many points were filtered out")
 )
 
 // enrichConfig contains static parameters used in various enrichment
 // procedures for metrics, events and service checks.
 type enrichConfig struct {
-	// TODO(remy): this metric prefix / prefix blocklist
-	// is independent from the metric name blocklist, that's
+	// TODO(remy): this metric prefix / prefix filter list
+	// is independent from the metric names filter list, that's
 	// confusing and should be merged in the same implemnetation instead.
 	metricPrefix              string
 	metricPrefixBlacklist     []string
@@ -135,7 +135,7 @@ func tsToFloatForSamples(ts time.Time) float64 {
 	return float64(ts.Unix())
 }
 
-func enrichMetricSample(dest []metrics.MetricSample, ddSample dogstatsdMetricSample, origin string, processID uint32, listenerID string, conf enrichConfig, blocklist *utilstrings.Blocklist) []metrics.MetricSample {
+func enrichMetricSample(dest []metrics.MetricSample, ddSample dogstatsdMetricSample, origin string, processID uint32, listenerID string, conf enrichConfig, filterList *utilstrings.Matcher) []metrics.MetricSample {
 	metricName := ddSample.name
 	tags, hostnameFromTags, extractedOrigin, metricSource := extractTagsMetadata(ddSample.tags, origin, processID, ddSample.localData, ddSample.externalData, ddSample.cardinality, conf)
 
@@ -143,8 +143,8 @@ func enrichMetricSample(dest []metrics.MetricSample, ddSample dogstatsdMetricSam
 		metricName = conf.metricPrefix + metricName
 	}
 
-	if blocklist != nil && blocklist.Test(metricName) {
-		tlmBlockedPoints.Inc()
+	if filterList != nil && filterList.Test(metricName) {
+		tlmFilteredPoints.Inc()
 		return []metrics.MetricSample{}
 	}
 

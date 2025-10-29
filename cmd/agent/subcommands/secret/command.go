@@ -20,6 +20,7 @@ import (
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	ipchttp "github.com/DataDog/datadog-agent/comp/core/ipc/httphelpers"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	secretnoopfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx-noop"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -42,6 +43,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			return fxutil.OneShot(showSecretInfo,
 				fx.Supply(command.GetDefaultCoreBundleParams(cliParams.GlobalParams)),
 				core.Bundle(),
+				secretnoopfx.Module(),
 				ipcfx.ModuleReadOnly(),
 			)
 		},
@@ -54,6 +56,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			return fxutil.OneShot(secretRefresh,
 				fx.Supply(command.GetDefaultCoreBundleParams(cliParams.GlobalParams)),
 				core.Bundle(),
+				secretnoopfx.Module(),
 				ipcfx.ModuleReadOnly(),
 			)
 		},
@@ -93,9 +96,12 @@ func secretRefresh(config config.Component, _ log.Component, client ipc.HTTPClie
 		fmt.Println("APM agent refresh:")
 		res, err = traceAgentSecretRefresh(config, client)
 		if err != nil {
-			return err
+			// the trace-agent might not be running
+			// so we handle the error in a non-fatal way
+			fmt.Println(err.Error())
+		} else {
+			fmt.Println(string(res))
 		}
-		fmt.Println(string(res))
 	}
 
 	{

@@ -358,7 +358,11 @@ func metricSourceToOriginCategory(ms metrics.MetricSource) int32 {
 		metrics.MetricSourceSupabase,
 		metrics.MetricSourceKeda,
 		metrics.MetricSourceDuckdb,
-		metrics.MetricSourceResilience4j:
+		metrics.MetricSourceResilience4j,
+		metrics.MetricSourceBentoMl,
+		metrics.MetricSourceHuggingFaceTgi,
+		metrics.MetricSourceIbmSpectrumLsf,
+		metrics.MetricSourceDatadogOperator:
 		return 11 // integrationMetrics
 	case metrics.MetricSourceGPU:
 		return 72 // ref: https://github.com/DataDog/dd-source/blob/276882b71d84785ec89c31973046ab66d5a01807/domains/metrics/shared/libs/proto/origin/origin.proto#L427
@@ -1074,6 +1078,8 @@ func metricSourceToOriginService(ms metrics.MetricSource) int32 {
 		return 427
 	case metrics.MetricSourceSupabase:
 		return 428
+	case metrics.MetricSourceDatadogOperator:
+		return 456
 	case metrics.MetricSourceVelero:
 		return 458
 	case metrics.MetricSourceCelery:
@@ -1115,6 +1121,12 @@ func metricSourceToOriginService(ms metrics.MetricSource) int32 {
 		return 483
 	case metrics.MetricSourceWindowsCertificateStore:
 		return 484
+	case metrics.MetricSourceBentoMl:
+		return 494
+	case metrics.MetricSourceHuggingFaceTgi:
+		return 495
+	case metrics.MetricSourceIbmSpectrumLsf:
+		return 496
 	default:
 		return 0
 	}

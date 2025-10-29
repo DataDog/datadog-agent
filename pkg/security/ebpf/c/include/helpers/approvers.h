@@ -29,6 +29,8 @@ void __attribute__((always_inline)) monitor_event_approved(u64 event_type, u32 a
         __sync_fetch_and_add(&stats->event_approved_by_flag, 1);
     } else if (approver_type == AUID_APPROVER_TYPE) {
         __sync_fetch_and_add(&stats->event_approved_by_auid, 1);
+    } else if (approver_type == IN_UPPER_LAYER_APPROVER_TYPE) {
+        __sync_fetch_and_add(&stats->event_approved_by_in_upper_layer, 1);
     }
 }
 
@@ -73,6 +75,16 @@ enum SYSCALL_STATE __attribute__((always_inline)) approve_by_basename(struct den
     struct event_mask_filter_t *filter = bpf_map_lookup_elem(&basename_approvers, &basename);
     if (filter && filter->event_mask & (1 << (event_type - 1))) {
         monitor_event_approved(event_type, BASENAME_APPROVER_TYPE);
+        return APPROVED;
+    }
+    return DISCARDED;
+}
+
+enum SYSCALL_STATE __attribute__((always_inline)) approve_by_in_upper_layer(u64 event_type, struct file_t *file) {
+    u32 key = 0;
+    struct event_mask_filter_t *filter = bpf_map_lookup_elem(&in_upper_layer_approvers, &key);
+    if (filter && filter->event_mask & (1 << (event_type - 1)) && (file->flags & UPPER_LAYER) > 0) {
+        monitor_event_approved(event_type, IN_UPPER_LAYER_APPROVER_TYPE);
         return APPROVED;
     }
     return DISCARDED;
@@ -247,6 +259,9 @@ enum SYSCALL_STATE __attribute__((always_inline)) open_approvers(struct syscall_
     }
     if (state == DISCARDED) {
         state = approve_by_auid(syscall, EVENT_OPEN);
+    }
+    if (state == DISCARDED) {
+        state = approve_by_in_upper_layer(EVENT_OPEN, &syscall->open.file);
     }
 
     return state;

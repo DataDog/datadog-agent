@@ -135,6 +135,19 @@ func TestMapMetrics(t *testing.T) {
 			expectedUnknownMetricType:                 1,
 			expectedUnsupportedAggregationTemporality: 2,
 		},
+		{
+			name:     "with-infer-delta-interval",
+			otlpfile: "test/otlp/mixed/interval.json",
+			ddogfile: "test/datadog/mixed/interval_inferred.json",
+			options: []TranslatorOption{
+				WithInferDeltaInterval(),
+			},
+		},
+		{
+			name:     "with-infer-delta-interval",
+			otlpfile: "test/otlp/mixed/interval.json",
+			ddogfile: "test/datadog/mixed/interval_not_inferred.json",
+		},
 	}
 
 	for _, testinstance := range tests {
