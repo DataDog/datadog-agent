@@ -59,6 +59,7 @@ const (
 	envIastEnabled               = "DD_IAST_ENABLED"
 	envDataJobsEnabled           = "DD_DATA_JOBS_ENABLED"
 	envAppsecScaEnabled          = "DD_APPSEC_SCA_ENABLED"
+	envInfrastructureMode        = "DD_INFRASTRUCTURE_MODE"
 )
 
 // Windows MSI options
@@ -184,6 +185,8 @@ type Env struct {
 	HTTPSProxy string
 	NoProxy    string
 
+	InfrastructureMode string
+
 	IsCentos6 bool
 
 	IsFromDaemon bool
@@ -275,6 +278,8 @@ func FromEnv() *Env {
 		HTTPSProxy: getProxySetting(envDDHTTPSProxy, envHTTPSProxy),
 		NoProxy:    getProxySetting(envDDNoProxy, envNoProxy),
 
+		InfrastructureMode: os.Getenv(envInfrastructureMode),
+
 		IsCentos6:    DetectCentos6(),
 		IsFromDaemon: os.Getenv(envIsFromDaemon) == "true",
 	}
@@ -355,6 +360,7 @@ func (e *Env) ToEnv() []string {
 	env = appendStringEnv(env, envHTTPProxy, e.HTTPProxy, "")
 	env = appendStringEnv(env, envHTTPSProxy, e.HTTPSProxy, "")
 	env = appendStringEnv(env, envNoProxy, e.NoProxy, "")
+	env = appendStringEnv(env, envInfrastructureMode, e.InfrastructureMode, "")
 	if e.IsFromDaemon {
 		env = append(env, envIsFromDaemon+"=true")
 		// This is a bit of a hack; as we should properly redirect the log level

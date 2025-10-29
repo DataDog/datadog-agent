@@ -497,6 +497,7 @@ namespace WixSetup.Datadog_Agent
                            "DD_APM_INSTRUMENTATION_ENABLED=[DD_APM_INSTRUMENTATION_ENABLED]," +
                            "DD_APM_INSTRUMENTATION_LIBRARIES=[DD_APM_INSTRUMENTATION_LIBRARIES]," +
                            "DD_REMOTE_UPDATES=[DD_REMOTE_UPDATES]," +
+                           "DD_INFRASTRUCTURE_MODE=[DD_INFRASTRUCTURE_MODE]," +
                            "FLEET_INSTALL=[FLEET_INSTALL]");
 
             RollbackOciPackages = new CustomAction<CustomActions>(
