@@ -614,6 +614,5 @@ fruit:
 	assert.Equal(t, 2, ntmConf.GetInt("fruit.apple.core.seeds"))
 	assert.Equal(t, "", ntmConf.GetString("fruit.banana.peel.color"))
 	assert.Equal(t, 5, ntmConf.GetInt("fruit.cherry.seed.num"))
-	// TODO: difference, unknown key doesn't get stored
-	assert.Equal(t, 0, ntmConf.GetInt("fruit.donut.dozen"))
+	assert.Equal(t, 12, ntmConf.GetInt("fruit.donut.dozen"))
 }

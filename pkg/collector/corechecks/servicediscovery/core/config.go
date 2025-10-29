@@ -10,7 +10,6 @@ package core
 
 import (
 	"strings"
-	"time"
 
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config/setup"
 	sysconfig "github.com/DataDog/datadog-agent/pkg/system-probe/config"
@@ -27,9 +26,7 @@ const (
 
 // DiscoveryConfig holds the configuration for service discovery.
 type DiscoveryConfig struct {
-	NetworkStatsEnabled bool
-	NetworkStatsPeriod  time.Duration
-	IgnoreComms         map[string]struct{}
+	IgnoreComms map[string]struct{}
 }
 
 // NewConfig creates a new DiscoveryConfig with default values.
@@ -37,10 +34,7 @@ func NewConfig() *DiscoveryConfig {
 	cfg := ddconfig.SystemProbe()
 	sysconfig.Adjust(cfg)
 
-	conf := &DiscoveryConfig{
-		NetworkStatsEnabled: cfg.GetBool(join(discoveryNS, "network_stats.enabled")),
-		NetworkStatsPeriod:  cfg.GetDuration(join(discoveryNS, "network_stats.period")),
-	}
+	conf := &DiscoveryConfig{}
 
 	conf.loadIgnoredComms(cfg.GetStringSlice(join(discoveryNS, "ignored_command_names")))
 

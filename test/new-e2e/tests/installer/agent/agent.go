@@ -60,9 +60,33 @@ func (a *Agent) runCommand(command string, args ...string) (string, error) {
 	err := retry.Do(func() error {
 		_, err := a.host.RemoteHost.Execute(fmt.Sprintf("%s config --all", baseCommand))
 		return err
-	}, retry.Attempts(10), retry.Delay(1*time.Second))
+	}, retry.Attempts(10), retry.Delay(1*time.Second), retry.DelayType(retry.FixedDelay))
 	if err != nil {
 		return "", fmt.Errorf("error waiting for agent to be ready: %w", err)
 	}
 	return a.host.RemoteHost.Execute(fmt.Sprintf("%s %s %s", baseCommand, command, strings.Join(args, " ")))
+}
+
+// MustSetExperimentTimeout sets the agent experiment timeout for config and upgrades.
+func (a *Agent) MustSetExperimentTimeout(timeout time.Duration) {
+	switch a.host.RemoteHost.OSFamily {
+	case e2eos.LinuxFamily:
+		a.host.RemoteHost.MustExecute("sudo mkdir -p /etc/systemd/system/datadog-agent-exp.service.d")
+		a.host.RemoteHost.MustExecute(fmt.Sprintf("sudo sh -c 'echo \"[Service]\nEnvironment=EXPERIMENT_TIMEOUT=%ds\" > /etc/systemd/system/datadog-agent-exp.service.d/experiment-timeout.conf'", int(timeout.Seconds())))
+	case e2eos.WindowsFamily:
+
+	default:
+		a.t().Fatalf("Unsupported OS family: %v", a.host.RemoteHost.OSFamily)
+	}
+}
+
+// MustUnsetExperimentTimeout unsets the agent experiment timeout for config and upgrades.
+func (a *Agent) MustUnsetExperimentTimeout() {
+	switch a.host.RemoteHost.OSFamily {
+	case e2eos.LinuxFamily:
+		a.host.RemoteHost.MustExecute("sudo rm -f /etc/systemd/system/datadog-agent-exp.service.d/experiment-timeout.conf")
+	case e2eos.WindowsFamily:
+	default:
+		a.t().Fatalf("Unsupported OS family: %v", a.host.RemoteHost.OSFamily)
+	}
 }

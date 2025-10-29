@@ -31,7 +31,7 @@ func ConditionalWalk(session *gosnmp.GoSNMP, rootOID string, useBulk bool, walkF
 	}
 
 	if !strings.HasPrefix(rootOID, ".") {
-		rootOID = string(".") + rootOID
+		rootOID = "." + rootOID
 	}
 
 	oid := rootOID
