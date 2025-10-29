@@ -24,8 +24,8 @@ pub fn check_implementation(check: &AgentCheck) -> Result<(), Box<dyn Error>> {
     let mut peer_cert: Option<CertificateDer> = None;
 
     // parse the url given by the configuration
-    let full_url_str: String = check.instance.get("url")?;
-    let url = Url::from(&full_url_str);
+    let url_str: String = check.instance.get("url")?;
+    let url = Url::from(&url_str);
     
     let mut service_checks = Vec::<(String, ServiceCheckStatus, String)>::new();
     
@@ -52,14 +52,16 @@ pub fn check_implementation(check: &AgentCheck) -> Result<(), Box<dyn Error>> {
     // set the port to 443 if none were given
     let addr = format!("{}:{}", url.path.clone(), url.port.unwrap_or("443".to_string()))
         .to_socket_addrs()?
-        .next().unwrap();
+        .next().unwrap(); // TODO: refactor the unwrap to catch the panic case
 
+    // TODO: refactor the match statement nesting
     match TcpStream::connect_timeout(&addr, Duration::from_secs(5)) {
         Ok(mut sock) => {                
             // Create the TLS stream
             let mut stream = Stream::new(&mut conn, &mut sock);
 
             // http request header
+            // TODO: use another crate to avoid writing the HTTP request like `ureq` or `reqwest`
             let request_header = format!(
                 "GET / HTTP/1.1\r\n\
                 Host: {}\r\n\
@@ -100,10 +102,10 @@ pub fn check_implementation(check: &AgentCheck) -> Result<(), Box<dyn Error>> {
                             let response = String::from_utf8(response_raw)?;
 
                             // status code
-                            let first_line = response.lines().nth(0).unwrap();
+                            let first_line = response.lines().nth(0).unwrap(); // TODO: refactor the unwrap to catch the panic case
                             let status_code: u32 = first_line
                                 .split_whitespace()
-                                .nth(1).unwrap()
+                                .nth(1).unwrap() // TODO: refactor the unwrap to catch the panic case
                                 .parse()?;
 
                             // check for client or server http error
@@ -201,6 +203,7 @@ pub fn check_implementation(check: &AgentCheck) -> Result<(), Box<dyn Error>> {
     }
 
     // get certificate expiration info
+    // TODO: do it only if the URL scheme is HTTPS
     let (status, days_left, seconds_left, msg) = match peer_cert {
         Some(cert) => inspect_cert(&cert),
         None => (

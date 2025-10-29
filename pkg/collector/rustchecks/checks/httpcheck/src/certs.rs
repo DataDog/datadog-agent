@@ -18,7 +18,7 @@ pub fn inspect_cert(cert: &CertificateDer) -> (ServiceCheckStatus, Option<u64>, 
             let expiration_timestamp = x509.validity().not_after.timestamp() as u64;
             let current_timestamp = SystemTime::now()
                 .duration_since(UNIX_EPOCH)
-                .unwrap()
+                .unwrap() // TODO: refactor the unwrap to catch the panic case
                 .as_secs();
 
             let seconds_left = expiration_timestamp - current_timestamp;
