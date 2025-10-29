@@ -13,7 +13,6 @@ import json
 
 class AttrUsage:
     def __init__(self):
-        self.foo = 0
         self.licenses = {}
 
     def load(self, usage_map):
