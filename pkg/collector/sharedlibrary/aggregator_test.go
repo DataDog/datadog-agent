@@ -3,7 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// this file is identical to pkg/collector/python/aggregator_test.go besides the function names
+// this file is identical to pkg/collector/python/aggregator_test.go
+
+//go:build test
 
 package sharedlibrary
 
