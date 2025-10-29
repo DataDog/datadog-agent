@@ -69,8 +69,10 @@ func (_ *Model) GetEventTypes() []eval.EventType {
 }
 func (_ *Model) GetFieldRestrictions(field eval.Field) []eval.EventType {
 	// handle legacy field mapping
-	if newField, found := SECLLegacyFields[field]; found {
-		field = newField
+	if defaultLegacyFields != nil {
+		if newField, found := defaultLegacyFields[field]; found {
+			field = newField
+		}
 	}
 	switch field {
 	case "network.destination.ip":
@@ -101,10 +103,6 @@ func (_ *Model) GetFieldRestrictions(field eval.Field) []eval.EventType {
 	return nil
 }
 func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int) (eval.Evaluator, error) {
-	// handle legacy field mapping
-	if newField, found := SECLLegacyFields[field]; found {
-		field = newField
-	}
 	switch field {
 	case "accept.addr.family":
 		return &eval.IntEvaluator{
@@ -34454,7 +34452,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 	return nil, &eval.ErrFieldNotFound{Field: field}
 }
 func (ev *Event) GetFields() []eval.Field {
-	return []eval.Field{
+	fields := []eval.Field{
 		"accept.addr.family",
 		"accept.addr.hostname",
 		"accept.addr.ip",
@@ -36603,11 +36601,21 @@ func (ev *Event) GetFields() []eval.Field {
 		"utimes.retval",
 		"utimes.syscall.path",
 	}
+	// Add legacy field names if mapping is available
+	if defaultLegacyFields != nil {
+		for legacyField := range defaultLegacyFields {
+			fields = append(fields, legacyField)
+		}
+	}
+	return fields
 }
 func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kind, string, error) {
+	originalField := field
 	// handle legacy field mapping
-	if newField, found := SECLLegacyFields[field]; found {
-		field = newField
+	if defaultLegacyFields != nil {
+		if newField, found := defaultLegacyFields[field]; found {
+			field = newField
+		}
 	}
 	switch field {
 	case "accept.addr.family":
@@ -40905,13 +40913,15 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 	case "utimes.syscall.path":
 		return "utimes", reflect.String, "string", nil
 	}
-	return "", reflect.Invalid, "", &eval.ErrFieldNotFound{Field: field}
+	return "", reflect.Invalid, "", &eval.ErrFieldNotFound{Field: originalField}
 }
 func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	// handle legacy field mapping
 	mappedField := field
-	if newField, found := SECLLegacyFields[field]; found {
-		mappedField = newField
+	if defaultLegacyFields != nil {
+		if newField, found := defaultLegacyFields[field]; found {
+			mappedField = newField
+		}
 	}
 	if strings.HasPrefix(mappedField, "process.") || strings.HasPrefix(mappedField, "exec.") {
 		ev.initProcess()

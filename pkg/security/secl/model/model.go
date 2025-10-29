@@ -19,9 +19,28 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model/utils"
 )
 
+var (
+	// defaultLegacyFields holds the default legacy field mapping for backward compatibility
+	// It is set by SetLegacyFields when the model is initialized with the correct mapping for the platform
+	defaultLegacyFields map[eval.Field]eval.Field
+)
+
+// SetDefaultLegacyFields sets the default legacy field mapping used by the accessors
+func SetDefaultLegacyFields(legacyFields map[eval.Field]eval.Field) {
+	defaultLegacyFields = legacyFields
+}
+
 // Model describes the data model for the runtime security agent events
 type Model struct {
 	ExtraValidateFieldFnc func(field eval.Field, fieldValue eval.FieldValue) error
+	legacyFields          map[eval.Field]eval.Field
+}
+
+// SetLegacyFields sets the legacy field mapping for backwards compatibility
+func (m *Model) SetLegacyFields(legacyFields map[eval.Field]eval.Field) {
+	m.legacyFields = legacyFields
+	// Also set as default for accessors
+	SetDefaultLegacyFields(legacyFields)
 }
 
 // Releasable represents an object than can be released
