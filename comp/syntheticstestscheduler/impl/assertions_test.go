@@ -46,7 +46,7 @@ func TestRunAssertion(t *testing.T) {
 			name: "Latency avg assertion",
 			assertion: common.Assertion{
 				Type:     common.AssertionTypeLatency,
-				Property: common.AssertionSubTypeAverage,
+				Property: &[]common.AssertionSubType{common.AssertionSubTypeAverage}[0],
 				Operator: common.OperatorLessThan,
 				Target:   "100",
 			},
@@ -58,7 +58,7 @@ func TestRunAssertion(t *testing.T) {
 			name: "Latency unsupported property",
 			assertion: common.Assertion{
 				Type:     common.AssertionTypeLatency,
-				Property: "median",
+				Property: &[]common.AssertionSubType{"median"}[0],
 				Operator: common.OperatorLessThan,
 				Target:   "100",
 			},
@@ -69,7 +69,7 @@ func TestRunAssertion(t *testing.T) {
 			name: "Hops max assertion",
 			assertion: common.Assertion{
 				Type:     common.AssertionTypeNetworkHops,
-				Property: common.AssertionSubTypeMax,
+				Property: &[]common.AssertionSubType{common.AssertionSubTypeMax}[0],
 				Operator: common.OperatorLessThan,
 				Target:   "15",
 			},
