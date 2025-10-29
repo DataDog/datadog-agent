@@ -334,7 +334,7 @@ func TestNetworkPathToTestResult(t *testing.T) {
 				assertionResult: []common.AssertionResult{{
 					Operator: common.OperatorIs,
 					Type:     common.AssertionTypePacketLoss,
-					Expected: "100",
+					Expected: "1",
 					Valid:    true,
 				}},
 				triggeredAt: now.Add(-3 * time.Second),
@@ -402,8 +402,9 @@ func TestNetworkPathToTestResult(t *testing.T) {
 			require.NotNil(t, got)
 			require.Equal(t, tt.worker.testCfg.cfg.PublicID, got.Test.ID)
 			require.Equal(t, "test-result-id-123", got.Result.ID)
-			require.Equal(t, tt.worker.tracerouteCfg.DestHostname, got.Result.Request.Host)
-			require.Equal(t, int(tt.worker.tracerouteCfg.DestPort), got.Result.Request.Port)
+			require.Equal(t, tt.worker.testCfg.cfg.Config.Request.(common.ICMPConfigRequest).Host, got.Result.Config.Request.Host)
+			require.Nil(t, got.Result.Config.Request.Port)
+			require.NotNil(t, got.Result.Netpath.Destination.Port)
 
 			if tt.expectFail {
 				require.Equal(t, "failed", got.Result.Status)
