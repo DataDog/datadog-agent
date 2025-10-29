@@ -23,6 +23,7 @@ type Component interface {
 	ScanDeviceAndSendData(connParams *snmpparse.SNMPConfig, namespace string, scanParams ScanParams) error
 }
 
+// ScanParams contains options for a device scan
 type ScanParams struct {
 	ScanType     metadata.ScanType
 	CallInterval time.Duration // Duration to sleep between SNMP calls
