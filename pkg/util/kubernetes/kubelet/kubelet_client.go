@@ -8,6 +8,7 @@
 package kubelet
 
 import (
+	"bytes"
 	"context"
 	"crypto/tls"
 	"errors"
@@ -53,9 +54,10 @@ type kubeletClientConfig struct {
 }
 
 type kubeletClient struct {
-	client     http.Client
-	kubeletURL string
-	config     kubeletClientConfig
+	client          http.Client
+	kubeletURL      string
+	config          kubeletClientConfig
+	ressponseBuffer *bytes.Buffer
 }
 
 func newForConfig(config kubeletClientConfig, timeout time.Duration) (*kubeletClient, error) {
@@ -112,9 +114,10 @@ func newForConfig(config kubeletClientConfig, timeout time.Duration) (*kubeletCl
 	}
 
 	return &kubeletClient{
-		client:     httpClient,
-		kubeletURL: fmt.Sprintf("%s://%s", config.scheme, config.baseURL),
-		config:     config,
+		client:          httpClient,
+		kubeletURL:      fmt.Sprintf("%s://%s", config.scheme, config.baseURL),
+		config:          config,
+		ressponseBuffer: bytes.NewBuffer(make([]byte, 0, 64*1024)),
 	}, nil
 }
 
@@ -184,13 +187,17 @@ func (kc *kubeletClient) query(ctx context.Context, path string) ([]byte, int, e
 
 	defer response.Body.Close()
 
-	b, err := io.ReadAll(response.Body)
+	kc.ressponseBuffer.Reset()
+	_, err = io.Copy(kc.ressponseBuffer, response.Body)
 	if err != nil {
-		log.Debugf("Fail to read request %s body: %s", req.URL.String(), err)
+		log.Errorf("Fail to read request %s body: %s", req.URL.String(), err)
 		return nil, 0, err
 	}
 
-	log.Tracef("Successfully queried %s, status code: %d, body len: %d", req.URL.String(), response.StatusCode, len(b))
+	b := make([]byte, kc.ressponseBuffer.Len())
+
+	// Read can only return EOF or nil, don't check for errors
+	kc.ressponseBuffer.Read(b) ////nolint:errcheck
 	return b, response.StatusCode, nil
 }
 

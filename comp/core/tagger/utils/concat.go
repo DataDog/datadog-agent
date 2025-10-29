@@ -5,22 +5,16 @@
 
 package utils
 
+import "slices"
+
 // ConcatenateTags is a fast way to concatenate multiple tag
 // arrays in a single one.
-func ConcatenateTags(slices ...[]string) []string {
-	if len(slices) == 1 {
-		return slices[0]
+func ConcatenateTags(tags ...[]string) []string {
+	if len(tags) <= 0 {
+		return []string{}
 	}
-	var totalLen int
-	for _, s := range slices {
-		totalLen += len(s)
-	}
-	result := make([]string, totalLen)
-	var i int
-	for _, s := range slices {
-		i += copy(result[i:], s)
-	}
-	return result
+
+	return slices.Concat(tags...)
 }
 
 // ConcatenateStringTags adds string tags to existing tag array

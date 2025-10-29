@@ -20,29 +20,36 @@ type MetricFamily struct {
 	Samples model.Vector
 }
 
+var (
+	parser = expfmt.NewTextParser(model.LegacyValidation)
+)
+
 // ParseMetricsWithFilter parses prometheus-formatted metrics from the input data, ignoring lines which contain
 // text that matches the passed in filter.
 func ParseMetricsWithFilter(data []byte, filter []string) ([]*MetricFamily, error) {
 	// return ParseMetrics(data)
 	reader := NewReader(data, filter)
-	parser := expfmt.NewTextParser(model.LegacyValidation)
 	mf, err := parser.TextToMetricFamilies(reader)
 	if err != nil {
 		return nil, err
 	}
 
 	var metrics []*MetricFamily
-	for _, family := range mf {
-		samples, err := expfmt.ExtractSamples(&expfmt.DecodeOptions{Timestamp: model.Now()}, family)
+	for k := range mf {
+		f := mf[k]
+		samples, err := expfmt.ExtractSamples(&expfmt.DecodeOptions{Timestamp: model.Now()}, f)
 		if err != nil {
 			return nil, err
 		}
 		metricFam := &MetricFamily{
-			Name:    *family.Name,
-			Type:    family.Type.String(),
+			Name:    *f.Name,
+			Type:    f.Type.String(),
 			Samples: samples,
 		}
 		metrics = append(metrics, metricFam)
+
+		// free the entry we don't need it anymore
+		delete(mf, k)
 	}
 	return metrics, nil
 }
