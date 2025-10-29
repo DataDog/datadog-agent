@@ -24,6 +24,9 @@ func copyDirectory(ctx context.Context, sourcePath, targetPath string) error {
 		filepath.Join(sourcePath, "managed", "datadog-agent", "stable"),
 	)
 	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
 		return err
 	}
 	// 2. Get the version from the stable symlink
