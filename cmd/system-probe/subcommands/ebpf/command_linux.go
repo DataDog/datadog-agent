@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"runtime"
 	"strconv"
 
 	"github.com/cilium/ebpf"
@@ -171,10 +172,41 @@ type mapEntry struct {
 	Value []string `json:"value"`
 }
 
+type perCPUValue struct {
+	CPU   int      `json:"cpu"`
+	Value []string `json:"value"`
+}
+
+type perCPUMapEntry struct {
+	Key    []string      `json:"key"`
+	Values []perCPUValue `json:"values"`
+}
+
+// isPerCPUMap checks if the map type is a PerCPU variant
+func isPerCPUMap(mapType ebpf.MapType) bool {
+	return mapType == ebpf.PerCPUArray ||
+		mapType == ebpf.PerCPUHash ||
+		mapType == ebpf.LRUCPUHash
+}
+
 func dumpMapJSON(m *ebpf.Map, info *ebpf.MapInfo, w io.Writer) error {
-	iter := m.Iterate()
+	// Detect if this is a PerCPU map type
+	isPerCPU := isPerCPUMap(info.Type)
+
+	// Allocate buffers
 	keyBuf := make([]byte, info.KeySize)
+
+	iter := m.Iterate()
+
+	if isPerCPU {
+		return dumpPerCPUMapJSON(iter, keyBuf, info.ValueSize, w)
+	}
+
 	valueBuf := make([]byte, info.ValueSize)
+	return dumpRegularMapJSON(iter, keyBuf, valueBuf, w)
+}
+
+func dumpRegularMapJSON(iter *ebpf.MapIterator, keyBuf, valueBuf []byte, w io.Writer) error {
 
 	var entries []mapEntry
 
@@ -225,6 +257,87 @@ func dumpMapJSON(m *ebpf.Map, info *ebpf.MapInfo, w io.Writer) error {
 		fmt.Fprintf(w, "%s", valueJSON)
 
 		fmt.Fprintf(w, "\n}")
+	}
+	fmt.Fprintf(w, "]\n")
+
+	return nil
+}
+
+func dumpPerCPUMapJSON(iter *ebpf.MapIterator, keyBuf []byte, valueSize uint32, w io.Writer) error {
+	numCPUs := runtime.NumCPU()
+
+	// For PerCPU maps, Next() expects a slice of byte slices (one per CPU)
+	valueBuf := make([][]byte, numCPUs)
+	for i := range valueBuf {
+		valueBuf[i] = make([]byte, valueSize)
+	}
+
+	var entries []perCPUMapEntry
+
+	for iter.Next(&keyBuf, valueBuf) {
+		// Convert key bytes to array of hex strings
+		keyHex := make([]string, len(keyBuf))
+		for i, b := range keyBuf {
+			keyHex[i] = fmt.Sprintf("0x%02x", b)
+		}
+
+		// Convert per-CPU values to hex strings
+		perCPUValues := make([]perCPUValue, numCPUs)
+		for cpu := 0; cpu < numCPUs; cpu++ {
+			// Convert this CPU's value bytes to hex strings
+			cpuValueHex := make([]string, len(valueBuf[cpu]))
+			for i, b := range valueBuf[cpu] {
+				cpuValueHex[i] = fmt.Sprintf("0x%02x", b)
+			}
+
+			perCPUValues[cpu] = perCPUValue{
+				CPU:   cpu,
+				Value: cpuValueHex,
+			}
+		}
+
+		entries = append(entries, perCPUMapEntry{
+			Key:    keyHex,
+			Values: perCPUValues,
+		})
+	}
+
+	if err := iter.Err(); err != nil {
+		return fmt.Errorf("iteration error: %w", err)
+	}
+
+	// Custom JSON formatting to match bpftool
+	fmt.Fprintf(w, "[")
+	for i, entry := range entries {
+		if i > 0 {
+			fmt.Fprintf(w, ",")
+		}
+		fmt.Fprintf(w, "{\n\t\"key\": ")
+
+		// Marshal key array compactly
+		keyJSON, err := json.Marshal(entry.Key)
+		if err != nil {
+			return fmt.Errorf("failed to marshal key: %w", err)
+		}
+		fmt.Fprintf(w, "%s", keyJSON)
+
+		fmt.Fprintf(w, ",\n\t\"values\": [")
+
+		// Output per-CPU values
+		for j, cpuVal := range entry.Values {
+			if j > 0 {
+				fmt.Fprintf(w, ",")
+			}
+			fmt.Fprintf(w, "\n\t\t{\"cpu\": %d,\"value\": ", cpuVal.CPU)
+
+			valueJSON, err := json.Marshal(cpuVal.Value)
+			if err != nil {
+				return fmt.Errorf("failed to marshal value: %w", err)
+			}
+			fmt.Fprintf(w, "%s}", valueJSON)
+		}
+
+		fmt.Fprintf(w, "\n\t]\n}")
 	}
 	fmt.Fprintf(w, "]\n")
 

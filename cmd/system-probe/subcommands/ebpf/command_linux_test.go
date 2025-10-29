@@ -353,6 +353,93 @@ func TestJSONCompactArrayFormat(t *testing.T) {
 	require.Contains(t, output, ",\n\t\"value\":")
 }
 
+func TestDumpPerCPUArrayMap(t *testing.T) {
+	require.NoError(t, rlimit.RemoveMemlock())
+
+	// Create a PerCPU array map
+	spec := &ebpf.MapSpec{
+		Type:       ebpf.PerCPUArray,
+		KeySize:    4, // uint32 index
+		ValueSize:  8, // 8 bytes per CPU
+		MaxEntries: 2,
+	}
+
+	m, err := ebpf.NewMapWithOptions(spec, ebpf.MapOptions{})
+	require.NoError(t, err)
+	defer m.Close()
+
+	// Put values at index 0 - need to provide values for all CPUs
+	// The cilium/ebpf library expects a slice of values (one per CPU)
+	index0 := uint32(0)
+	// Create values for each CPU (we don't know exact CPU count, but library handles this)
+	values := [][]byte{
+		{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08},
+		{0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18},
+		{0x21, 0x22, 0x23, 0x24, 0x25, 0x26, 0x27, 0x28},
+		{0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37, 0x38},
+	}
+	require.NoError(t, m.Put(&index0, values))
+
+	info, err := m.Info()
+	require.NoError(t, err)
+
+	// This should work without errors
+	var buf bytes.Buffer
+	err = dumpMapJSON(m, info, &buf)
+	require.NoError(t, err, "PerCPU map dump should not fail")
+
+	// The output should be valid JSON
+	require.NotEmpty(t, buf.String())
+
+	// Note: We can't use the regular mapEntry struct because PerCPU maps
+	// should have a different structure with "values" instead of "value"
+	// For now, just verify it's valid JSON
+	var result interface{}
+	err = json.Unmarshal(buf.Bytes(), &result)
+	require.NoError(t, err, "Output should be valid JSON")
+}
+
+func TestDumpPerCPUHashMap(t *testing.T) {
+	require.NoError(t, rlimit.RemoveMemlock())
+
+	// Create a PerCPU hash map
+	spec := &ebpf.MapSpec{
+		Type:       ebpf.PerCPUHash,
+		KeySize:    4,
+		ValueSize:  8, // 8 bytes per CPU
+		MaxEntries: 10,
+	}
+
+	m, err := ebpf.NewMapWithOptions(spec, ebpf.MapOptions{})
+	require.NoError(t, err)
+	defer m.Close()
+
+	// Put values with a specific key - need values for all CPUs
+	key := []byte{0xaa, 0xbb, 0xcc, 0xdd}
+	values := [][]byte{
+		{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08},
+		{0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18},
+		{0x21, 0x22, 0x23, 0x24, 0x25, 0x26, 0x27, 0x28},
+		{0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37, 0x38},
+	}
+	require.NoError(t, m.Put(key, values))
+
+	info, err := m.Info()
+	require.NoError(t, err)
+
+	// This should work without errors
+	var buf bytes.Buffer
+	err = dumpMapJSON(m, info, &buf)
+	require.NoError(t, err, "PerCPU hash map dump should not fail")
+
+	// The output should be valid JSON
+	require.NotEmpty(t, buf.String())
+
+	var result interface{}
+	err = json.Unmarshal(buf.Bytes(), &result)
+	require.NoError(t, err, "Output should be valid JSON")
+}
+
 func findSubcommand(parent *cobra.Command, name string) *cobra.Command {
 	for _, cmd := range parent.Commands() {
 		if cmd.Name() == name {
