@@ -8,6 +8,7 @@ package marshal
 import (
 	"maps"
 	"math"
+	"os"
 
 	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/twmb/murmur3"
@@ -130,6 +131,8 @@ func FormatConnection(builder *model.ConnectionBuilder, conn network.ConnectionS
 		builder.AddTags(t)
 	}
 	builder.SetTagsChecksum(tagChecksum)
+
+	builder.SetSystemProbeConn(uint32(os.Getpid()) == conn.Pid)
 }
 
 // FormatCompilationTelemetry converts telemetry from its internal representation to a protobuf message

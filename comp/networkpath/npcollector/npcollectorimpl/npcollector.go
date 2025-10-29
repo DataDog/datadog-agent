@@ -229,6 +229,11 @@ func (s *npCollectorImpl) shouldScheduleNetworkPathForConn(conn *model.Connectio
 		s.statsdClient.Incr(netpathConnsSkippedMetricName, []string{"reason:skip_intra_host"}, 1) //nolint:errcheck
 		return false
 	}
+	if conn.SystemProbeConn {
+		s.logger.Errorf("skip system probe conn: %+v", conn)
+		s.statsdClient.Incr(netpathConnsSkippedMetricName, []string{"reason:skip_system_probe_conn"}, 1) //nolint:errcheck
+		return false
+	}
 	if conn.Direction != model.ConnectionDirection_outgoing {
 		s.statsdClient.Incr(netpathConnsSkippedMetricName, []string{"reason:skip_incoming"}, 1) //nolint:errcheck
 		return false
