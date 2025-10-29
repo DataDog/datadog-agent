@@ -302,6 +302,11 @@ func Diagnose() []diagnose.Diagnosis {
 	var diagnoses []diagnose.Diagnosis
 
 	for _, desc := range getPassthroughPipelines() {
+		// TODO: event-management-intake does not support the empty payload sent here
+		if desc.eventType == eventplatform.EventTypeEventManagement {
+			log.Debugf("Skipping diagnosis for event-management-intake because it does not support the empty payload")
+			continue
+		}
 		configKeys := config.NewLogsConfigKeys(desc.endpointsConfigPrefix, pkgconfigsetup.Datadog())
 		endpoints, err := config.BuildHTTPEndpointsWithConfig(pkgconfigsetup.Datadog(), configKeys, desc.hostnameEndpointPrefix, desc.intakeTrackType, config.DefaultIntakeProtocol, config.DefaultIntakeOrigin)
 		if err != nil {
