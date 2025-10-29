@@ -56,7 +56,7 @@ func TestSubmitter_DrainChannelAndPayloadFormat(t *testing.T) {
 
 	// Verify sent messages
 	sentMessages := forwarder.Purge()
-	eventsV2Messages := sentMessages[eventplatform.EventTypeEventsV2]
+	eventsV2Messages := sentMessages[eventplatform.EventTypeEventManagement]
 	require.Len(t, eventsV2Messages, numEvents, "Expected %d events to be sent", numEvents)
 
 	// Verify structure for each event

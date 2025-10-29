@@ -1311,7 +1311,10 @@ func agent(config pkgconfigmodel.Setup) {
 
 	// Notable Events (EUDM)
 	config.BindEnvAndSetDefault("notable_events.enabled", false)
-	bindEnvAndSetLogsConfigKeys(config, "eventsv2.forwarder.")
+
+	// Event Management v2 API
+	// https://docs.datadoghq.com/api/latest/events#post-an-event
+	bindEnvAndSetLogsConfigKeys(config, "event_management.forwarder.")
 
 	pkgconfigmodel.AddOverrideFunc(toggleDefaultPayloads)
 }

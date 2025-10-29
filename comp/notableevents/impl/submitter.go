@@ -108,7 +108,7 @@ func (s *submitter) submitEvent(payload eventPayload) error {
 	msg := message.NewMessage(jsonData, nil, "", time.Now().UnixNano())
 
 	// Submit to event platform using the eventsv2 event type
-	if err := s.eventPlatformForwarder.SendEventPlatformEventBlocking(msg, eventplatform.EventTypeEventsV2); err != nil {
+	if err := s.eventPlatformForwarder.SendEventPlatformEventBlocking(msg, eventplatform.EventTypeEventManagement); err != nil {
 		return fmt.Errorf("failed to send event to platform: %w", err)
 	}
 

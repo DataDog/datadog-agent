@@ -51,7 +51,6 @@ const (
 	eventTypeDBMActivity = "dbm-activity"
 	eventTypeDBMMetadata = "dbm-metadata"
 	eventTypeDBMHealth   = "dbm-health"
-	eventTypeEventsV2    = "eventsv2"
 )
 
 func getPassthroughPipelines() []passthroughPipelineDesc {
@@ -239,10 +238,10 @@ func getPassthroughPipelines() []passthroughPipelineDesc {
 			defaultInputChanSize:          pkgconfigsetup.DefaultInputChanSize,
 		},
 		{
-			eventType:                     eventplatform.EventTypeEventsV2,
+			eventType:                     eventplatform.EventTypeEventManagement,
 			category:                      "Event Management",
 			contentType:                   logshttp.JSONContentType,
-			endpointsConfigPrefix:         "eventsv2.forwarder.",
+			endpointsConfigPrefix:         "event_management.forwarder.",
 			hostnameEndpointPrefix:        "event-management-intake.",
 			intakeTrackType:               "events",
 			defaultBatchMaxConcurrentSend: pkgconfigsetup.DefaultBatchMaxConcurrentSend,
