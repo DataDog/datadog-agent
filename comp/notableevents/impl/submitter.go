@@ -13,32 +13,58 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
+	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // eventPayload represents a Windows Event Log event to be submitted
-// TODO(WINA-1968): TBD format for event payload, finish with intake.
 type eventPayload struct {
 	Channel string
 	EventID uint
 }
 
-// submitter receives event payloads from a channel and forwards them to the event platform
+// eventsForwarder is an abstraction that supports both default and event platform forwarders
+type eventsForwarder interface {
+	submitEvent(jsonData []byte) error
+}
+
+// epForwarderAdapter adapts the event platform forwarder to the eventsForwarder interface
+type epForwarderAdapter struct {
+	forwarder eventplatform.Forwarder
+}
+
+// submitEvent sends an event using the event platform forwarder
+func (a *epForwarderAdapter) submitEvent(jsonData []byte) error {
+	msg := message.NewMessage(jsonData, nil, "", time.Now().UnixNano())
+	return a.forwarder.SendEventPlatformEventBlocking(msg, eventplatform.EventTypeEventsV2)
+}
+
+// defaultForwarderAdapter adapts the default forwarder to the eventsForwarder interface
+type defaultForwarderAdapter struct {
+	forwarder defaultforwarder.Forwarder
+}
+
+// submitEvent sends an event using the default forwarder
+func (a *defaultForwarderAdapter) submitEvent(jsonData []byte) error {
+	payload := transaction.NewBytesPayloadsWithoutMetaData([]*[]byte{&jsonData})
+	return a.forwarder.SubmitEvents(payload, nil)
+}
+
+// submitter receives event payloads from a channel and forwards them using the configured forwarder
 type submitter struct {
-	// in
-	eventPlatformForwarder eventplatform.Forwarder
-	inChan                 <-chan eventPayload
-	// internal
-	wg sync.WaitGroup
+	forwarder eventsForwarder
+	inChan    <-chan eventPayload
+	wg        sync.WaitGroup
 }
 
 // newSubmitter creates a new submitter instance
-func newSubmitter(forwarder eventplatform.Forwarder, inChan <-chan eventPayload) *submitter {
+func newSubmitter(fwd eventsForwarder, inChan <-chan eventPayload) *submitter {
 	return &submitter{
-		eventPlatformForwarder: forwarder,
-		inChan:                 inChan,
+		forwarder: fwd,
+		inChan:    inChan,
 	}
 }
 
@@ -104,11 +130,8 @@ func (s *submitter) submitEvent(payload eventPayload) error {
 
 	log.Debugf("Submitting notable event: channel=%s, event_id=%d", payload.Channel, payload.EventID)
 
-	// Create message for event platform
-	msg := message.NewMessage(jsonData, nil, "", time.Now().UnixNano())
-
-	// Submit to event platform using the eventsv2 event type
-	if err := s.eventPlatformForwarder.SendEventPlatformEventBlocking(msg, eventplatform.EventTypeEventsV2); err != nil {
+	// Submit using the configured forwarder (either default or event platform)
+	if err := s.forwarder.submitEvent(jsonData); err != nil {
 		return fmt.Errorf("failed to send event to platform: %w", err)
 	}
 
