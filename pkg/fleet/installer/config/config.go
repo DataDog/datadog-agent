@@ -464,7 +464,7 @@ func buildOperationsFromLegacyConfigFile(fullFilePath, fullRootPath, managedDirS
 	// Add the delete operation for the old file
 	ops = append(ops, FileOperation{
 		FileOperationType: FileOperationType(FileOperationDelete),
-		FilePath:          "/" + strings.TrimPrefix(managedFilePath, "/"),
+		FilePath:          "/" + filepath.Join("managed", "datadog-agent", "stable", fPath),
 	})
 
 	return ops, nil
