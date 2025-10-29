@@ -24,6 +24,7 @@ const (
 	dotnet language = "dotnet"
 	ruby   language = "ruby"
 	php    language = "php"
+	nginx  language = "nginx"
 )
 
 // language is lang-library we might be injecting.
@@ -37,6 +38,11 @@ func (l language) defaultLibInfo(registry, ctrName string) libInfo {
 func (l language) libImageName(registry, tag string) string {
 	if tag == defaultVersionMagicString {
 		tag = l.defaultLibVersion()
+	}
+
+	if l == nginx {
+		registry = "datadog"
+		return fmt.Sprintf("%s/ingress-nginx-injection:%s", registry, tag)
 	}
 
 	return fmt.Sprintf("%s/dd-lib-%s-init:%s", registry, l, tag)
@@ -126,6 +132,7 @@ var supportedLanguages = []language{
 	dotnet,
 	ruby,
 	php, // PHP only works with injection v2, no environment variables are set in any case
+	nginx,
 }
 
 func defaultSupportedLanguagesMap() map[language]bool {
@@ -156,6 +163,7 @@ var languageVersions = map[language]string{
 	ruby:   "v2", // https://datadoghq.atlassian.net/browse/APMON-1066
 	js:     "v5", // https://datadoghq.atlassian.net/browse/APMON-1065
 	php:    "v1", // https://datadoghq.atlassian.net/browse/APMON-1128
+	nginx:  "v1",
 }
 
 func (l language) defaultLibVersion() string {
@@ -221,6 +229,12 @@ func (i libInfo) initContainers(resolver ImageResolver) []initContainer {
 			`sh copy-lib.sh %s && echo $(date +%%s) >> %s`,
 			mounts[0].MountPath, tsFilePath,
 		),
+	}
+
+	if i.lang == nginx {
+		args = []string{
+			fmt.Sprintf("sh /datadog/init_module.sh %s", mounts[0].MountPath),
+		}
 	}
 
 	if resolver != nil {
