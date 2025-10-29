@@ -990,3 +990,81 @@ cel_workload_exclude:
 		assert.Equal(t, false, filterBundle.IsExcluded(container))
 	})
 }
+
+func TestCELProcessLogsFiltering(t *testing.T) {
+	yamlConfig := `
+cel_workload_exclude:
+- products: ["global"]
+  rules:
+    processes:
+      - "process.args.exists(arg, arg == 'ignore-me')"
+- products: ["logs"]
+  rules:
+    processes:
+      - "process.name == 'nginx'"
+      - "process.cmdline.contains('-jar app.jar')"
+      - "process.name == 'redis-server' && process.log_file.startsWith('/private/')"
+`
+
+	mockConfig := configmock.NewFromYAML(t, yamlConfig)
+	filterStore := newFilterStoreObject(t, mockConfig)
+
+	filterBundle := filterStore.GetProcessFilters([][]workloadfilter.ProcessFilter{{
+		workloadfilter.ProcessCELLogs,
+		workloadfilter.ProcessCELGlobal}})
+	assert.Nil(t, filterBundle.GetErrors())
+
+	t.Run("CEL exclude process by name", func(t *testing.T) {
+		process := workloadmetafilter.CreateProcess(&workloadmeta.Process{
+			Name:    "nginx",
+			Cmdline: []string{"nginx", "-g", "daemon off;"},
+		})
+		assert.Equal(t, workloadfilter.Excluded, filterBundle.GetResult(process))
+	})
+
+	t.Run("CEL exclude process by cmdline", func(t *testing.T) {
+		process := workloadmetafilter.CreateProcess(&workloadmeta.Process{
+			Name:    "java",
+			Cmdline: []string{"java", "-jar", "app.jar"},
+		})
+		assert.Equal(t, workloadfilter.Excluded, filterBundle.GetResult(process))
+	})
+
+	t.Run("CEL exclude process by args", func(t *testing.T) {
+		process := workloadmetafilter.CreateProcess(&workloadmeta.Process{
+			Name:    "foobar",
+			Cmdline: []string{"ignore-me", "--foo", "bar"},
+		})
+		assert.Equal(t, workloadfilter.Excluded, filterBundle.GetResult(process))
+	})
+
+	t.Run("CEL with no matching rule", func(t *testing.T) {
+		process := workloadmetafilter.CreateProcess(&workloadmeta.Process{
+			Name:    "redis-server",
+			Cmdline: []string{"/usr/bin/redis-server"},
+		})
+		assert.Equal(t, workloadfilter.Unknown, filterBundle.GetResult(process))
+	})
+
+	t.Run("CEL with non-excluded log file", func(t *testing.T) {
+		process := workloadmetafilter.CreateProcess(&workloadmeta.Process{
+			Name:    "redis-server",
+			Cmdline: []string{"/usr/bin/redis-server"},
+		})
+		process.SetLogFile("/public/foo.log")
+		filterBundle := filterStore.GetProcessFilters([][]workloadfilter.ProcessFilter{{workloadfilter.ProcessCELLogs}})
+		assert.Nil(t, filterBundle.GetErrors())
+		assert.Equal(t, workloadfilter.Unknown, filterBundle.GetResult(process))
+	})
+
+	t.Run("CEL exclude log file", func(t *testing.T) {
+		process := workloadmetafilter.CreateProcess(&workloadmeta.Process{
+			Name:    "redis-server",
+			Cmdline: []string{"/usr/bin/redis-server"},
+		})
+		process.SetLogFile("/private/foo.log")
+		filterBundle := filterStore.GetProcessFilters([][]workloadfilter.ProcessFilter{{workloadfilter.ProcessCELLogs}})
+		assert.Nil(t, filterBundle.GetErrors())
+		assert.Equal(t, workloadfilter.Excluded, filterBundle.GetResult(process))
+	})
+}

@@ -12,6 +12,7 @@ import (
 	"net"
 	"net/netip"
 	"reflect"
+	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
@@ -19,12 +20,57 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model/utils"
 )
 
+var (
+	// defaultLegacyFields holds the default legacy field mapping for backward compatibility
+	// It is set by SetLegacyFields when the model is initialized with the correct mapping for the platform
+	defaultLegacyFields   map[eval.Field]eval.Field
+	defaultLegacyFieldsMu sync.RWMutex
+)
+
+// SetDefaultLegacyFields sets the default legacy field mapping used by the accessors
+func SetDefaultLegacyFields(legacyFields map[eval.Field]eval.Field) {
+	defaultLegacyFieldsMu.Lock()
+	defer defaultLegacyFieldsMu.Unlock()
+	defaultLegacyFields = legacyFields
+}
+
+// GetDefaultLegacyFields returns the field mapped from a legacy field if it exists
+func GetDefaultLegacyFields(field eval.Field) (eval.Field, bool) {
+	defaultLegacyFieldsMu.RLock()
+	defer defaultLegacyFieldsMu.RUnlock()
+	if defaultLegacyFields == nil {
+		return "", false
+	}
+	newField, found := defaultLegacyFields[field]
+	return newField, found
+}
+
+// GetDefaultLegacyFieldsKeys returns all legacy field keys
+func GetDefaultLegacyFieldsKeys() []eval.Field {
+	defaultLegacyFieldsMu.RLock()
+	defer defaultLegacyFieldsMu.RUnlock()
+	if defaultLegacyFields == nil {
+		return nil
+	}
+	keys := make([]eval.Field, 0, len(defaultLegacyFields))
+	for key := range defaultLegacyFields {
+		keys = append(keys, key)
+	}
+	return keys
+}
+
 // Model describes the data model for the runtime security agent events
 type Model struct {
 	ExtraValidateFieldFnc func(field eval.Field, fieldValue eval.FieldValue) error
+	legacyFields          map[eval.Field]eval.Field
 }
 
-var containerContextZero ContainerContext
+// SetLegacyFields sets the legacy field mapping for backwards compatibility
+func (m *Model) SetLegacyFields(legacyFields map[eval.Field]eval.Field) {
+	m.legacyFields = legacyFields
+	// Also set as default for accessors
+	SetDefaultLegacyFields(legacyFields)
+}
 
 // Releasable represents an object than can be released
 type Releasable struct {
@@ -154,7 +200,6 @@ type BaseEvent struct {
 
 	// context shared with all event types
 	ProcessContext         *ProcessContext        `field:"process"`
-	ContainerContext       *ContainerContext      `field:"container"`
 	SecurityProfileContext SecurityProfileContext `field:"-"`
 
 	// internal usage
@@ -265,8 +310,8 @@ func (e *Event) GetTags() []string {
 	tags := []string{"type:" + e.GetType()}
 
 	// should already be resolved at this stage
-	if len(e.ContainerContext.Tags) > 0 {
-		tags = append(tags, e.ContainerContext.Tags...)
+	if e.ProcessContext != nil && len(e.ProcessContext.Process.ContainerContext.Tags) > 0 {
+		tags = append(tags, e.ProcessContext.Process.ContainerContext.Tags...)
 	}
 	return tags
 }
@@ -445,7 +490,7 @@ type ProcessCacheEntry struct {
 
 // IsContainerRoot returns whether this is a top level process in the container ID
 func (pc *ProcessCacheEntry) IsContainerRoot() bool {
-	return pc.ContainerID != "" && pc.Ancestor != nil && pc.Ancestor.ContainerID == ""
+	return pc.Process.ContainerContext.ContainerID != "" && pc.Ancestor != nil && pc.Ancestor.ContainerContext.ContainerID == ""
 }
 
 // Reset the entry

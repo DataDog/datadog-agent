@@ -649,8 +649,16 @@ func (rs *RuleSet) innerAddExpandedRule(parsingContext *ast.ParsingContext, pRul
 					return model.UnknownCategory, fmt.Errorf("field '%s' with event type `%s` is not compatible with '%s' rules", field, fieldEventType, ruleEventType)
 				}
 
+				// Map legacy field before calling GetEvaluator
+				mappedField := field
+				if rs.evalOpts.LegacyFields != nil {
+					if newField, found := rs.evalOpts.LegacyFields[field]; found {
+						mappedField = newField
+					}
+				}
+
 				if _, found := rs.fieldEvaluators[field]; !found {
-					evaluator, err := rs.model.GetEvaluator(field, "", 0)
+					evaluator, err := rs.model.GetEvaluator(mappedField, "", 0)
 					if err != nil {
 						return model.UnknownCategory, err
 					}
@@ -1128,7 +1136,7 @@ func (rs *RuleSet) LoadPolicies(loader *PolicyLoader, opts PolicyLoaderOpts) ([]
 	rs.policies = policies
 
 	for _, policy := range policies {
-		if len(policy.macros) == 0 && len(policy.rules) == 0 && (policy.Info.Name != DefaultPolicyName && !policy.Info.IsInternal) {
+		if len(policy.Macros) == 0 && len(policy.Rules) == 0 && (policy.Info.Name != DefaultPolicyName && !policy.Info.IsInternal) {
 			errs = multierror.Append(errs, &ErrPolicyLoad{
 				Name:    policy.Info.Name,
 				Version: policy.Info.Version,
@@ -1218,6 +1226,13 @@ func NewRuleSet(model eval.Model, eventCtor func() eval.Event, opts *Opts, evalO
 
 	if evalOpts.VariableStore == nil {
 		evalOpts.VariableStore = eval.NewVariableStore()
+	}
+
+	// Set legacy fields mapping on the model if it has the method
+	if setter, ok := model.(interface {
+		SetLegacyFields(map[eval.Field]eval.Field)
+	}); ok {
+		setter.SetLegacyFields(evalOpts.LegacyFields)
 	}
 
 	return &RuleSet{
