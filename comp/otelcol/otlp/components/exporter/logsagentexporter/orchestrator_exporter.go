@@ -313,7 +313,7 @@ func getClusterID(ctx context.Context) string {
 		}
 
 		clusterIDCache = clusterID
-		logger.Info("Successfully retrieved cluster ID from kube-system namespace", zap.String("cluster_id", clusterID))
+		logger.Info("Successfully retrieved cluster ID from kube-system namespace " + clusterID)
 	})
 
 	return clusterIDCache
