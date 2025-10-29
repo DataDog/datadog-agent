@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"math/rand"
 	"net"
+	os "os"
 	"slices"
 	"strings"
 	"time"
@@ -107,6 +108,9 @@ func New(telemetryComp telemetryComponent.Component, hostnameService hostname.Co
 // complete implementation.
 func (r *Runner) RunTraceroute(ctx context.Context, cfg config.Config) (payload.NetworkPath, error) {
 	defer tracerouteRunnerTelemetry.runs.Inc()
+
+	sysprobePID := os.Getpid()
+	log.Debugf("sysprobePID: %d", sysprobePID)
 
 	maxTTL := cfg.MaxTTL
 	if maxTTL == 0 {

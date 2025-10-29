@@ -278,6 +278,9 @@ func (s *npCollectorImpl) ScheduleConns(conns *model.Connections) {
 		s.logger.Errorf("Failed to get VPC subnets to skip: %s", err)
 		return
 	}
+	connsJsonStr, _ := json.Marshal(conns)
+	s.logger.Tracef("connsJsonStr: %s", connsJsonStr)
+
 	startTime := s.TimeNowFn()
 	_ = s.statsdClient.Count(common.NetworkPathCollectorMetricPrefix+"schedule.conns_received", int64(len(conns.Conns)), []string{}, 1)
 	for _, conn := range conns.Conns {
