@@ -34,8 +34,9 @@ type cliParams struct {
 	// args are the positional command-line arguments
 	args []string
 
-	verbose bool
-	json    bool
+	verbose    bool
+	json       bool
+	prettyJSON bool
 }
 
 type instance struct {
@@ -80,6 +81,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	}
 	configCheckCommand.Flags().BoolVarP(&cliParams.verbose, "verbose", "v", false, "print additional debug info")
 	configCheckCommand.Flags().BoolVarP(&cliParams.json, "json", "j", false, "print out raw json")
+	configCheckCommand.Flags().BoolVarP(&cliParams.prettyJSON, "pretty-json", "p", false, "pretty print json")
 
 	return []*cobra.Command{configCheckCommand}
 }
@@ -112,7 +114,7 @@ func fullConfigCmd(cliParams *cliParams, _ log.Component, client ipc.HTTPClient)
 	var b bytes.Buffer
 	color.Output = &b
 
-	if cliParams.json {
+	if cliParams.json || cliParams.prettyJSON {
 		jsonConfigs := make([]jsonConfig, len(cr.Configs))
 
 		// gather and filter every check config
@@ -120,12 +122,18 @@ func fullConfigCmd(cliParams *cliParams, _ log.Component, client ipc.HTTPClient)
 			jsonConfigs[i] = convertCheckConfigToJSON(config.Config, config.InstanceIDs)
 		}
 
-		configs, err := json.MarshalIndent(jsonConfigs, "", "  ")
+		var jsonConfigsBytes []byte
+
+		if cliParams.prettyJSON {
+			jsonConfigsBytes, err = json.MarshalIndent(jsonConfigs, "", "  ")
+		} else {
+			jsonConfigsBytes, err = json.Marshal(jsonConfigs)
+		}
 		if err != nil {
 			return err
 		}
 
-		fmt.Fprintln(color.Output, string(configs))
+		fmt.Fprintln(color.Output, string(jsonConfigsBytes))
 
 	} else {
 		flare.PrintConfigCheck(color.Output, cr, cliParams.verbose)
@@ -162,14 +170,24 @@ func singleCheckCmd(cliParams *cliParams, _ log.Component, client ipc.HTTPClient
 			var b bytes.Buffer
 			color.Output = &b
 
-			if cliParams.json {
+			if cliParams.prettyJSON {
+				// pretty json print
 				config, err := json.MarshalIndent(convertCheckConfigToJSON(configResponse.Config, configResponse.InstanceIDs), "", "  ")
 				if err != nil {
 					return err
 				}
 
 				fmt.Fprintln(color.Output, string(config))
+			} else if cliParams.json {
+				// raw json print
+				config, err := json.Marshal(convertCheckConfigToJSON(configResponse.Config, configResponse.InstanceIDs))
+				if err != nil {
+					return err
+				}
+
+				fmt.Fprintln(color.Output, string(config))
 			} else {
+				// flare format print
 				flare.PrintConfigWithInstanceIDs(color.Output, configResponse.Config, configResponse.InstanceIDs, "")
 			}
 
