@@ -22,6 +22,14 @@ const (
 	STARTUP ConfigType = "startup"
 )
 
+// ConfigSource represents where the config was retrieved from (in the case of the integration, it's always via CLI commands"
+type ConfigSource string
+
+const (
+	// CLI represents the source the config was retrieved
+	CLI ConfigSource = "cli"
+)
+
 // NCMPayload contains network devices configuration payload sent to EvP / backend
 type NCMPayload struct {
 	Namespace        string                `json:"namespace"`
@@ -31,12 +39,13 @@ type NCMPayload struct {
 
 // NetworkDeviceConfig contains network device configuration for a single device
 type NetworkDeviceConfig struct {
-	DeviceID   string   `json:"device_id"`
-	DeviceIP   string   `json:"device_ip"`
-	ConfigType string   `json:"config_type"`
-	Timestamp  int64    `json:"timestamp"`
-	Tags       []string `json:"tags"`
-	Content    string   `json:"content"`
+	DeviceID     string   `json:"device_id"`
+	DeviceIP     string   `json:"device_ip"`
+	ConfigType   string   `json:"config_type"`
+	ConfigSource string   `json:"config_source"`
+	Timestamp    int64    `json:"timestamp"`
+	Tags         []string `json:"tags"`
+	Content      string   `json:"content"`
 }
 
 // ToNCMPayload converts the given parameters into a NCMPayload (sent to event platform / backend).
@@ -57,11 +66,12 @@ func ToNetworkDeviceConfig(deviceID, deviceIP string, configType ConfigType, ext
 		ts = 0
 	}
 	return NetworkDeviceConfig{
-		DeviceID:   deviceID,
-		DeviceIP:   deviceIP,
-		ConfigType: string(configType),
-		Timestamp:  ts,
-		Tags:       tags,
-		Content:    string(content),
+		DeviceID:     deviceID,
+		DeviceIP:     deviceIP,
+		ConfigType:   string(configType),
+		ConfigSource: string(CLI),
+		Timestamp:    ts,
+		Tags:         tags,
+		Content:      string(content),
 	}
 }

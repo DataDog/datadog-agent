@@ -33,12 +33,13 @@ func TestNCMSender_SendNCMConfig_Success(t *testing.T) {
 	// Create test payload
 	configs := []ncmreport.NetworkDeviceConfig{
 		{
-			DeviceID:   "default:10.0.0.1",
-			DeviceIP:   "10.0.0.1",
-			ConfigType: string(ncmreport.RUNNING),
-			Timestamp:  mockClock.Now().Unix(),
-			Tags:       []string{"device_ip:10.0.0.1"},
-			Content:    "version 15.1\nhostname Router1",
+			DeviceID:     "default:10.0.0.1",
+			DeviceIP:     "10.0.0.1",
+			ConfigType:   string(ncmreport.RUNNING),
+			ConfigSource: string(ncmreport.CLI),
+			Timestamp:    mockClock.Now().Unix(),
+			Tags:         []string{"device_ip:10.0.0.1"},
+			Content:      "version 15.1\nhostname Router1",
 		},
 	}
 
@@ -59,6 +60,7 @@ func TestNCMSender_SendNCMConfig_Success(t *testing.T) {
       "device_id": "default:10.0.0.1",
       "device_ip": "10.0.0.1",
       "config_type": "running",
+      "config_source": "cli",
       "timestamp": 1754043600,
       "tags": ["device_ip:10.0.0.1"],
       "content": "version 15.1\nhostname Router1"
