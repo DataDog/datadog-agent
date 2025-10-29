@@ -89,6 +89,8 @@ exporters:
       key: ${env:DD_API_KEY}
     traces:
       trace_buffer: 100
+    sending_queue:
+      batch:
 service:
   pipelines:
     traces:

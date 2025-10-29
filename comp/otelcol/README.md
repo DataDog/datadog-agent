@@ -86,6 +86,8 @@ exporters:
     api:
       key: ${env:DD_API_KEY}
       site: ${env:DD_SITE}
+    sending_queue:
+      batch:
 processors:
   infraattributes:
   # using the sampler

@@ -186,6 +186,8 @@ config:
         key: ${env:DD_API_KEY}
       traces:
         trace_buffer: 500
+      sending_queue:
+        batch:
   service:
     pipelines:
       metrics:

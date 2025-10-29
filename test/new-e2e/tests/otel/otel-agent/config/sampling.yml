@@ -14,6 +14,8 @@ exporters:
     hostname: "otelcol-docker"
     api:
       key: ${env:DD_API_KEY}
+    sending_queue:
+      batch:
 processors:
   probabilistic_sampler:
     sampling_percentage: 50
