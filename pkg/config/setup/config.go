@@ -1330,9 +1330,6 @@ func autoscaling(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("autoscaling.workload.external_recommender.tls.ca_file", "")
 	config.BindEnvAndSetDefault("autoscaling.workload.external_recommender.tls.cert_file", "")
 	config.BindEnvAndSetDefault("autoscaling.workload.external_recommender.tls.key_file", "")
-	config.BindEnvAndSetDefault("autoscaling.workload.external_recommender.tls.server_name", "")
-	config.BindEnvAndSetDefault("autoscaling.workload.external_recommender.tls.min_version", "")
-	config.BindEnvAndSetDefault("autoscaling.workload.external_recommender.tls.insecure_skip_verify", false)
 	config.BindEnvAndSetDefault("autoscaling.failover.metrics", []string{"container.memory.usage", "container.cpu.usage"})
 }
 

@@ -100,18 +100,14 @@ func buildExternalRecommenderTLSConfig(cfg config.Component) *external.TLSConfig
 	caFile := cfg.GetString("autoscaling.workload.external_recommender.tls.ca_file")
 	certFile := cfg.GetString("autoscaling.workload.external_recommender.tls.cert_file")
 	keyFile := cfg.GetString("autoscaling.workload.external_recommender.tls.key_file")
-	serverName := cfg.GetString("autoscaling.workload.external_recommender.tls.server_name")
-	insecureSkipVerify := cfg.GetBool("autoscaling.workload.external_recommender.tls.insecure_skip_verify")
 
 	if caFile == "" && certFile == "" && keyFile == "" {
 		return nil
 	}
 
 	return &external.TLSConfig{
-		CAFile:             caFile,
-		CertFile:           certFile,
-		KeyFile:            keyFile,
-		ServerName:         serverName,
-		InsecureSkipVerify: insecureSkipVerify,
+		CAFile:   caFile,
+		CertFile: certFile,
+		KeyFile:  keyFile,
 	}
 }

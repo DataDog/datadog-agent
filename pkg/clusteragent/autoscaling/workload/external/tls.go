@@ -22,11 +22,9 @@ import (
 
 // TLSConfig represents the TLS configuration used for external recommender calls.
 type TLSConfig struct {
-	CAFile             string
-	CertFile           string
-	KeyFile            string
-	ServerName         string
-	InsecureSkipVerify bool
+	CAFile   string
+	CertFile string
+	KeyFile  string
 }
 
 func (c *TLSConfig) requiresClientCertificate() bool {
@@ -39,6 +37,7 @@ const (
 	certificateErrorCacheTimeout      = 1 * time.Minute
 	certificateLoadRetryAttempts      = 5
 	certificateLoadRetrySleep         = 50 * time.Millisecond
+	minTlsVersion                     = tls.VersionTLS12
 )
 
 // configureTransportTLS updates the provided transport with a TLS configuration based on the given settings.
@@ -80,10 +79,8 @@ func buildTLSConfig(config *TLSConfig) (*tls.Config, error) {
 	}
 
 	return &tls.Config{
-		MinVersion:         tls.VersionTLS12,
-		ServerName:         config.ServerName,
-		RootCAs:            rootCA,
-		InsecureSkipVerify: config.InsecureSkipVerify,
+		MinVersion: minTlsVersion,
+		RootCAs:    rootCA,
 	}, nil
 }
 
