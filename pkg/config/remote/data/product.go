@@ -38,6 +38,8 @@ const (
 	ProductContainerAutoscalingValues = "CONTAINER_AUTOSCALING_VALUES"
 	// ProductClusterAutoscalingValues receives values for cluster autoscaling
 	ProductClusterAutoscalingValues = "CLUSTER_AUTOSCALING_VALUES"
+	// ProductKubeActions receives Kubernetes actions to execute
+	ProductKubeActions = "KUBERNETES_ACTIONS"
 	// ProductDataStreamsLiveMessages is to capture messages from Kafka
 	ProductDataStreamsLiveMessages = "DSM_LIVE_MESSAGES"
 	// ProductDataStreamsKafkaActions is to execute Kafka actions remotely
