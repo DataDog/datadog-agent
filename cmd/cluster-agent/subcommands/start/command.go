@@ -82,11 +82,13 @@ import (
 	apidca "github.com/DataDog/datadog-agent/pkg/clusteragent/api"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/provider"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/kubeactions"
 	pkgclusterchecks "github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks"
 	clusteragentMetricsStatus "github.com/DataDog/datadog-agent/pkg/clusteragent/metricsstatus"
 	orchestratorStatus "github.com/DataDog/datadog-agent/pkg/clusteragent/orchestrator"
 	pkgcollector "github.com/DataDog/datadog-agent/pkg/collector"
 	rcclient "github.com/DataDog/datadog-agent/pkg/config/remote/client"
+	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	commonsettings "github.com/DataDog/datadog-agent/pkg/config/settings"
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/diagnose/connectivity"
@@ -412,6 +414,9 @@ func start(log log.Component,
 		if config.GetBool("autoscaling.workload.enabled") {
 			products = append(products, state.ProductContainerAutoscalingSettings, state.ProductContainerAutoscalingValues)
 		}
+		if config.GetBool("kubeactions.enabled") {
+			products = append(products, string(data.ProductKubeActions))
+		}
 		if config.GetBool("admission_controller.auto_instrumentation.enabled") || config.GetBool("apm_config.instrumentation.enabled") {
 			products = append(products, state.ProductGradualRollout)
 		}
@@ -493,6 +498,19 @@ func start(log log.Component,
 		} else {
 			return fmt.Errorf("Error while starting workload autoscaling: %v", err)
 		}
+	}
+
+	// Kubernetes Actions Product
+	if config.GetBool("kubeactions.enabled") {
+		if rcClient == nil {
+			return fmt.Errorf("Remote config is disabled or failed to initialize, remote config is a required dependency for kubeactions")
+		}
+
+		namespace := config.GetString("kubeactions.persistent_store.namespace")
+		if _, err := kubeactions.Setup(mainCtx, apiCl.Cl, namespace, le.IsLeader, rcClient); err != nil {
+			return fmt.Errorf("Error while starting kubernetes actions: %v", err)
+		}
+		log.Info("Kubernetes actions subsystem started successfully")
 	}
 
 	// Compliance
