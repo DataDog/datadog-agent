@@ -99,23 +99,3 @@ func (s *baseIISSuite) assertSuccessfulPromoteExperiment(version string) {
 		}).
 		WithExperimentVersionEqual("")
 }
-
-func (s *baseIISSuite) startExperimentWithCustomPackage(opts ...installerwindows.PackageOption) (string, error) {
-	packageConfig, err := installerwindows.NewPackageConfig(opts...)
-	s.Require().NoError(err)
-	packageConfig, err = installerwindows.CreatePackageSourceIfLocal(s.Env().RemoteHost, packageConfig)
-	s.Require().NoError(err)
-
-	// Set catalog so daemon can find the package
-	_, err = s.Installer().SetCatalog(installerwindows.Catalog{
-		Packages: []installerwindows.PackageEntry{
-			{
-				Package: packageConfig.Name,
-				Version: packageConfig.Version,
-				URL:     packageConfig.URL(),
-			},
-		},
-	})
-	s.Require().NoError(err)
-	return s.Installer().StartExperiment("datadog-apm-library-dotnet", packageConfig.Version)
-}
