@@ -11,12 +11,12 @@ package mock
 import (
 	"testing"
 
-	"github.com/gosnmp/gosnmp"
-
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	snmpscan "github.com/DataDog/datadog-agent/comp/snmpscan/def"
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/metadata"
 	"github.com/DataDog/datadog-agent/pkg/snmp/snmpparse"
+
+	"github.com/gosnmp/gosnmp"
 )
 
 type snmpScanMock struct {

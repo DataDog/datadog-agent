@@ -7,10 +7,10 @@
 package snmpscan
 
 import (
-	"github.com/gosnmp/gosnmp"
-
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/metadata"
 	"github.com/DataDog/datadog-agent/pkg/snmp/snmpparse"
+
+	"github.com/gosnmp/gosnmp"
 )
 
 // team: ndm-core

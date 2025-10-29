@@ -9,11 +9,11 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/gosnmp/gosnmp"
-
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/metadata"
 	"github.com/DataDog/datadog-agent/pkg/snmp/gosnmplib"
 	"github.com/DataDog/datadog-agent/pkg/snmp/snmpparse"
+
+	"github.com/gosnmp/gosnmp"
 )
 
 func (s snmpScannerImpl) ScanDeviceAndSendData(connParams *snmpparse.SNMPConfig, namespace string, scanType metadata.ScanType) error {
