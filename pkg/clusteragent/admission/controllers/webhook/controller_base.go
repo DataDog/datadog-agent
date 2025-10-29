@@ -189,7 +189,7 @@ func generateAutoInstrumentationWebhook(wmeta workloadmeta.Component, datadogCon
 		return nil, fmt.Errorf("failed to create auto instrumentation config: %v", err)
 	}
 
-	apm, err := autoinstrumentation.NewMutatorWithFilter(config, wmeta, imageResolver)
+	apm, err := autoinstrumentation.NewTargetMutator(config, wmeta, imageResolver)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create auto instrumentation namespace mutator: %v", err)
 	}

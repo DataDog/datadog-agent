@@ -3,6 +3,7 @@ load("@rules_pkg//pkg:mappings.bzl", "pkg_filegroup", "pkg_files", "pkg_mklink")
 _SPECS = [
     struct(os = "linux", format = "{}.so.{}", link_suffix = ""),
     struct(os = "macos", format = "{}.{}.dylib", link_suffix = ".dylib"),
+    struct(os = "windows", format = "{}.dll", link_suffix = None),
 ]
 
 def _gen_targets(base_name, src, libname, version, prefix, spec):
@@ -18,18 +19,19 @@ def _gen_targets(base_name, src, libname, version, prefix, spec):
         target_compatible_with = target_compatible_with,
     )
 
-    parts = target[:len(target) - len(spec.link_suffix)].split(".")
-    for _ in range(version.count(".") + 1):
-        parts = parts[:-1]
-        targets.append("{}_link".format(targets[-1]))
-        link = "{}{}".format(".".join(parts), spec.link_suffix)
-        pkg_mklink(
-            name = targets[-1],
-            link_name = "{}{}".format(prefix, link),
-            target = target,
-            target_compatible_with = target_compatible_with,
-        )
-        target = link
+    if spec.link_suffix != None:
+        parts = target[:len(target) - len(spec.link_suffix)].split(".")
+        for _ in range(version.count(".") + 1):
+            parts = parts[:-1]
+            targets.append("{}_link".format(targets[-1]))
+            link = "{}{}".format(".".join(parts), spec.link_suffix)
+            pkg_mklink(
+                name = targets[-1],
+                link_name = "{}{}".format(prefix, link),
+                target = target,
+                target_compatible_with = target_compatible_with,
+            )
+            target = link
 
     pkg_filegroup(name = name, srcs = targets, target_compatible_with = target_compatible_with)
     return ":{}".format(name)

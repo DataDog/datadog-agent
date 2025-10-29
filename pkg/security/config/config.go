@@ -181,6 +181,8 @@ type RuntimeSecurityConfig struct {
 	PolicyMonitorReportInternalPolicies bool
 	// SocketPath is the path to the socket that is used to communicate with the security agent
 	SocketPath string
+	// SocketPath is the path to the socket that is used to communicate with system-probe
+	CmdSocketPath string
 	// EventServerBurst defines the maximum burst of events that can be sent over the grpc server
 	EventServerBurst int
 	// EventServerRate defines the grpc server rate at which events can be sent
@@ -418,6 +420,9 @@ type RuntimeSecurityConfig struct {
 	// IMDSIPv4 is used to provide a custom IP address for the IMDS endpoint
 	IMDSIPv4 uint32
 
+	// EventGRPCServer defines which process should be used to send events and activity dumps
+	EventGRPCServer string
+
 	// SendPayloadsFromSystemProbe defines when the event and activity dumps are sent directly from system-probe
 	SendPayloadsFromSystemProbe bool
 
@@ -503,6 +508,7 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 		WindowsWriteEventRateLimiterPeriod:     pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.windows_write_event_rate_limiter_period"),
 
 		SocketPath:           pkgconfigsetup.SystemProbe().GetString("runtime_security_config.socket"),
+		CmdSocketPath:        pkgconfigsetup.SystemProbe().GetString("runtime_security_config.cmd_socket"),
 		EventServerBurst:     pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.event_server.burst"),
 		EventServerRate:      pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.event_server.rate"),
 		EventServerRetention: pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.event_server.retention"),
@@ -627,6 +633,9 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 
 		// IMDS
 		IMDSIPv4: parseIMDSIPv4(),
+
+		// event
+		EventGRPCServer: pkgconfigsetup.SystemProbe().GetString("runtime_security_config.event_gprc_server"),
 
 		// direct sender
 		SendPayloadsFromSystemProbe: pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.direct_send_from_system_probe"),

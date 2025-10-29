@@ -16,6 +16,8 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/dyninst/process"
 )
 
 // TestProcessMonitorCloseWhileAnalyzing tests that the process monitor can be
@@ -78,11 +80,11 @@ type blockingAnalyzer struct {
 
 var _ executableAnalyzer = (*blockingAnalyzer)(nil)
 
-func (a *blockingAnalyzer) checkFileKeyCache(FileKey) (interesting bool, known bool) {
+func (a *blockingAnalyzer) checkFileKeyCache(process.FileKey) (interesting bool, known bool) {
 	return false, false
 }
 
-func (a *blockingAnalyzer) isInteresting(*os.File, FileKey) (bool, error) {
+func (a *blockingAnalyzer) isInteresting(*os.File, process.FileKey) (bool, error) {
 	req := make(chan struct{})
 	a.analyzeChan <- req
 	<-req

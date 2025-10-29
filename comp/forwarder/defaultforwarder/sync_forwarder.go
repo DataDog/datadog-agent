@@ -158,11 +158,11 @@ func (f *SyncForwarder) SubmitConnectionChecks(payload transaction.BytesPayloads
 }
 
 // SubmitOrchestratorChecks sends orchestrator checks
-func (f *SyncForwarder) SubmitOrchestratorChecks(payload transaction.BytesPayloads, extra http.Header, payloadType int) (chan Response, error) {
+func (f *SyncForwarder) SubmitOrchestratorChecks(payload transaction.BytesPayloads, extra http.Header, payloadType int) error {
 	return f.defaultForwarder.SubmitOrchestratorChecks(payload, extra, payloadType)
 }
 
 // SubmitOrchestratorManifests sends orchestrator manifests
-func (f *SyncForwarder) SubmitOrchestratorManifests(payload transaction.BytesPayloads, extra http.Header) (chan Response, error) {
+func (f *SyncForwarder) SubmitOrchestratorManifests(payload transaction.BytesPayloads, extra http.Header) error {
 	return f.defaultForwarder.SubmitOrchestratorManifests(payload, extra)
 }

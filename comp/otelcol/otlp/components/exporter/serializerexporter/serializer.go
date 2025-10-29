@@ -122,6 +122,8 @@ func InitSerializer(logger *zap.Logger, cfg *ExporterConfig, sourceProvider sour
 		fxutil.FxAgentBase(),
 		fx.Provide(func() config.Component {
 			pkgconfig := create.NewConfig("DD")
+			pkgconfigsetup.InitConfig(pkgconfig)
+			pkgconfig.BuildSchema()
 
 			// Set the API Key
 			pkgconfig.Set("api_key", string(cfg.API.Key), pkgconfigmodel.SourceFile)
