@@ -281,7 +281,7 @@ func (s *infraBasicSuite) TestCheckSchedulingBehavior() {
 }
 
 // TestAdditionalCheckWorks verifies that checks can be added via infra_basic_additional_checks
-// and that regex patterns work. This test also verifies the static custom_.* pattern.
+// and that the hardcoded custom_ prefix pattern works.
 func (s *infraBasicSuite) TestAdditionalCheckWorks() {
 	// HTTP check configuration
 	httpCheckConfig := `
@@ -293,14 +293,14 @@ instances:
     timeout: 1
 `
 
-	// Custom check configuration (tests static custom_.* pattern)
+	// Custom check configuration (tests hardcoded custom_ prefix)
 	customCheckConfig := `
 init_config:
 instances:
   - {}
 `
 
-	// Agent configuration with additional checks including a regex pattern
+	// Agent configuration with additional checks (exact name matching)
 	agentConfigWithAdditionalCheck := `
 api_key: "00000000000000000000000000000000"
 site: "datadoghq.com"
@@ -313,10 +313,10 @@ process_config:
 telemetry:
   enabled: true
 infra_basic_additional_checks:
-  - "^http_.*"
+  - "http_check"
 `
 
-	s.T().Logf("Updating environment to test regex patterns and custom checks")
+	s.T().Logf("Updating environment to test additional checks and custom_ prefix")
 
 	// Determine the correct path for the custom check Python file based on OS
 	customCheckPath := "/etc/datadog-agent/checks.d/custom_mycheck.py"
@@ -335,35 +335,35 @@ infra_basic_additional_checks:
 		),
 	))
 
-	s.T().Run("regex_pattern_in_config", func(t *testing.T) {
+	s.T().Run("additional_check_in_config", func(t *testing.T) {
 		t.Run("via_status_api", func(t *testing.T) {
-			t.Logf("Verifying http_check matches ^http_.* pattern via status API...")
+			t.Logf("Verifying http_check is allowed via infra_basic_additional_checks...")
 
 			assert.EventuallyWithT(t, func(c *assert.CollectT) {
 				s.verifyCheckSchedulingViaStatusAPI(c, []string{"http_check"}, true)
-			}, 1*time.Minute, 10*time.Second, "http_check should match ^http_.* pattern")
+			}, 1*time.Minute, 10*time.Second, "http_check should be allowed via infra_basic_additional_checks")
 		})
 
 		t.Run("via_cli", func(t *testing.T) {
-			t.Logf("Testing http_check matches ^http_.* pattern via CLI...")
+			t.Logf("Testing http_check is allowed via infra_basic_additional_checks...")
 			ran := s.verifyCheckRuns("http_check")
-			assert.True(t, ran, "http_check must match ^http_.* regex pattern")
+			assert.True(t, ran, "http_check must be allowed via infra_basic_additional_checks")
 		})
 	})
 
-	s.T().Run("static_custom_pattern", func(t *testing.T) {
+	s.T().Run("hardcoded_custom_prefix", func(t *testing.T) {
 		t.Run("via_status_api", func(t *testing.T) {
-			t.Logf("Verifying custom_mycheck matches static custom_.* pattern via status API...")
+			t.Logf("Verifying custom_mycheck is allowed via hardcoded custom_ prefix...")
 
 			assert.EventuallyWithT(t, func(c *assert.CollectT) {
 				s.verifyCheckSchedulingViaStatusAPI(c, []string{"custom_mycheck"}, true)
-			}, 1*time.Minute, 10*time.Second, "custom_mycheck should match static custom_.* pattern")
+			}, 1*time.Minute, 10*time.Second, "custom_mycheck should be allowed via hardcoded custom_ prefix")
 		})
 
 		t.Run("via_cli", func(t *testing.T) {
-			t.Logf("Testing custom_mycheck matches static custom_.* pattern via CLI...")
+			t.Logf("Testing custom_mycheck is allowed via hardcoded custom_ prefix...")
 			ran := s.verifyCheckRuns("custom_mycheck")
-			assert.True(t, ran, "custom_mycheck must match static custom_.* pattern")
+			assert.True(t, ran, "custom_mycheck must be allowed via hardcoded custom_ prefix")
 		})
 	})
 }

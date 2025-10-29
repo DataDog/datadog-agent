@@ -1272,6 +1272,34 @@ func agent(config pkgconfigmodel.Setup) {
 	// The possible values are: full, basic.
 	config.BindEnvAndSetDefault("infrastructure_mode", "full")
 
+	// Infrastructure basic mode - allowed checks (UNDOCUMENTED)
+	// Note: All checks starting with "custom_" are always allowed.
+	config.BindEnvAndSetDefault("infra_basic_allowed_checks", []string{
+		"cpu",
+		"agent_telemetry",
+		"agentcrashdetect",
+		"disk",
+		"file_handle",
+		"filehandles",
+		"io",
+		"load",
+		"memory",
+		"network",
+		"ntp",
+		"process",
+		"service_discovery",
+		"system",
+		"system_core",
+		"system_swap",
+		"telemetry",
+		"telemetryCheck",
+		"uptime",
+		"win32_event_log",
+		"wincrashdetect",
+		"winkmem",
+		"winproc",
+	})
+
 	// Infrastructure basic mode - additional checks
 	// When infrastructure_mode is set to "basic", only a limited set of checks are allowed to run.
 	// This setting allows customers to add additional checks to the allowlist beyond the default set.
