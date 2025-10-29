@@ -57,10 +57,6 @@ type factory struct {
 type TelemetryStore struct {
 	// OTLPIngestMetrics tracks hosts running OTLP ingest on metrics
 	OTLPIngestMetrics telemetry.Gauge
-	// OTLPIngestLogsRequests tracks the number of requests for running OTLP ingest on Logs
-	OTLPIngestLogsRequests telemetry.Counter
-	// OTLPIngestLogsEvents tracks the number of events for running OTLP ingest on Logs
-	OTLPIngestLogsEvents telemetry.Counter
 	// DDOTMetrics tracks hosts running DDOT and ingest metrics
 	DDOTMetrics telemetry.Gauge
 	// DDOTTraces tracks hosts running DDOT and ingest traces
