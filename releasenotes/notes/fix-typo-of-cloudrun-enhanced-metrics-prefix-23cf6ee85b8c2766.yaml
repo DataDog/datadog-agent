@@ -6,9 +6,6 @@
 #
 # Each section note must be formatted as reStructuredText.
 ---
-upgrade:
+fixes:
   - |
-    Replace batch processor with exporter helper for OTLP ingest
-    due to the upcoming end-of-life for batch processor.
-    More details: https://github.com/open-telemetry/opentelemetry-collector/issues/8122
-    
+    Fix cloudRunPrefix from 'gpc.run' to 'gcp.run'.
