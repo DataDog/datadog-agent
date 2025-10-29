@@ -615,6 +615,9 @@ func TestRecommenderClientTLSClientCertificateReload(t *testing.T) {
 	writePEM(t, clientCertPath, clientCert2PEM)
 	writePEM(t, clientKeyPath, clientKey2PEM)
 
+	// Manually trigger certificate reload (in production, the background goroutine does this)
+	client.certificateManager.reloadCertificate()
+
 	result, err = client.GetReplicaRecommendation(context.Background(), "test-cluster", dpa.Build())
 	require.NoError(t, err)
 	require.NotNil(t, result)
@@ -627,12 +630,12 @@ func TestRecommenderClientTLSClientCertificateReload(t *testing.T) {
 	}
 
 	client.certificateManager.mu.RLock()
-	entry := client.certificateManager.cache[clientCertPath]
+	certificate := client.certificateManager.certificate
 	client.certificateManager.mu.RUnlock()
-	require.NotNil(t, entry.certificate)
-	require.NotNil(t, entry.certificate.Leaf)
-	assert.Equal(t, clientCert2.Subject.CommonName, entry.certificate.Leaf.Subject.CommonName)
-	assert.Equal(t, clientCert2.SerialNumber.String(), entry.certificate.Leaf.SerialNumber.String())
+	require.NotNil(t, certificate)
+	require.NotNil(t, certificate.Leaf)
+	assert.Equal(t, clientCert2.Subject.CommonName, certificate.Leaf.Subject.CommonName)
+	assert.Equal(t, clientCert2.SerialNumber.String(), certificate.Leaf.SerialNumber.String())
 }
 
 func generateTestCA(t *testing.T, clk clock.Clock) (*x509.Certificate, crypto.Signer, []byte) {

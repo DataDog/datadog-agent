@@ -32,12 +32,11 @@ func (c *TLSConfig) requiresClientCertificate() bool {
 }
 
 const (
-	certificateCacheTimeout           = 10 * time.Minute
-	certificateCacheExpirationTimeout = 10 * time.Minute
-	certificateErrorCacheTimeout      = 1 * time.Minute
-	certificateLoadRetryAttempts      = 5
-	certificateLoadRetrySleep         = 50 * time.Millisecond
-	minTlsVersion                     = tls.VersionTLS12
+	certificateCacheTimeout      = 10 * time.Minute
+	certificateErrorCacheTimeout = 1 * time.Minute
+	certificateLoadRetryAttempts = 5
+	certificateLoadRetrySleep    = 50 * time.Millisecond
+	minTlsVersion                = tls.VersionTLS12
 )
 
 // configureTransportTLS updates the provided transport with a TLS configuration based on the given settings.
@@ -53,12 +52,12 @@ func configureTransportTLS(transport *http.Transport, config *TLSConfig, cache *
 
 	if config.requiresClientCertificate() {
 		if cache == nil {
-			return errors.New("tls certificate cache is required when using client certificates")
+			return errors.New("tls certificate manager is required when using client certificates")
 		}
 		if config.CertFile == "" || config.KeyFile == "" {
 			return errors.New("both cert file and key file must be provided for client TLS configuration")
 		}
-		tlsConfig.GetClientCertificate = cache.GetClientCertificateReloadingFunc(config.CertFile, config.KeyFile)
+		tlsConfig.GetClientCertificate = cache.GetClientCertificateReloadingFunc()
 	}
 
 	transport.TLSClientConfig = tlsConfig
@@ -84,94 +83,82 @@ func buildTLSConfig(config *TLSConfig) (*tls.Config, error) {
 	}, nil
 }
 
-// tlsCacheEntry represents a cached certificate entry with metadata.
-type tlsCacheEntry struct {
+// tlsCertificateManager manages a single certificate/key pair with automatic reloading.
+type tlsCertificateManager struct {
+	mu          sync.RWMutex
+	certFile    string
+	keyFile     string
 	certificate *tls.Certificate
 	err         error
 	lastUpdate  time.Time
-	lastAccess  time.Time
+	clock       clock.Clock
 }
 
-func (c *tlsCacheEntry) shouldReload(now time.Time) bool {
-	if c.err != nil {
-		return now.After(c.lastUpdate.Add(certificateErrorCacheTimeout))
-	}
-
-	if c.certificate != nil && c.isCertificateExpired(now) {
-		return true
-	}
-
-	return c.isExpired(now, certificateCacheTimeout)
-}
-
-func (c *tlsCacheEntry) isExpired(now time.Time, duration time.Duration) bool {
-	return now.After(c.lastUpdate.Add(duration))
-}
-
-func (c *tlsCacheEntry) isCertificateExpired(now time.Time) bool {
-	return c.certificate != nil && c.certificate.Leaf != nil && now.After(c.certificate.Leaf.NotAfter)
-}
-
-// tlsCertificateManager is an expiring cache to store certificates in memory used for TLS connections.
-type tlsCertificateManager struct {
-	mu    sync.RWMutex
-	cache map[string]*tlsCacheEntry
-	clock clock.Clock
-}
-
-func newTLSCertificateManager(clk clock.Clock) *tlsCertificateManager {
+func newTLSCertificateManager(clk clock.Clock, certFile, keyFile string) *tlsCertificateManager {
 	manager := &tlsCertificateManager{
-		cache: make(map[string]*tlsCacheEntry),
-		clock: clk,
+		certFile: certFile,
+		keyFile:  keyFile,
+		clock:    clk,
 	}
+	// Load certificate immediately
+	manager.reloadCertificate()
+	// Start background reloader
 	go manager.run()
 	return manager
 }
 
-func (c *tlsCertificateManager) GetClientCertificateReloadingFunc(certFile, keyFile string) func(*tls.CertificateRequestInfo) (*tls.Certificate, error) {
+func (c *tlsCertificateManager) GetClientCertificateReloadingFunc() func(*tls.CertificateRequestInfo) (*tls.Certificate, error) {
 	return func(*tls.CertificateRequestInfo) (*tls.Certificate, error) {
-		now := c.clock.Now()
-
 		c.mu.RLock()
-		entry, ok := c.cache[certFile]
-		c.mu.RUnlock()
-
-		if !ok || entry.shouldReload(now) {
-			certificate, err := retryLoadingX509Keypair(certificateLoadRetryAttempts, certificateLoadRetrySleep, certFile, keyFile)
-
-			c.mu.Lock()
-			entry = &tlsCacheEntry{
-				certificate: certificate,
-				err:         err,
-				lastUpdate:  now,
-				lastAccess:  now,
-			}
-			c.cache[certFile] = entry
-			c.mu.Unlock()
-		} else {
-			c.mu.Lock()
-			entry.lastAccess = now
-			c.mu.Unlock()
-		}
-
-		return entry.certificate, entry.err
+		defer c.mu.RUnlock()
+		return c.certificate, c.err
 	}
 }
 
 func (c *tlsCertificateManager) run() {
-	ticker := time.NewTicker(certificateCacheExpirationTimeout)
+	ticker := time.NewTicker(1 * time.Minute)
 	defer ticker.Stop()
 
 	for range ticker.C {
-		c.mu.Lock()
-		now := c.clock.Now()
-		for key, entry := range c.cache {
-			if now.After(entry.lastAccess.Add(certificateCacheExpirationTimeout)) {
-				delete(c.cache, key)
-			}
+		if c.shouldReload() {
+			c.reloadCertificate()
 		}
-		c.mu.Unlock()
 	}
+}
+
+func (c *tlsCertificateManager) shouldReload() bool {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	now := c.clock.Now()
+
+	// Reload if there was an error and enough time has passed
+	if c.err != nil {
+		return now.After(c.lastUpdate.Add(certificateErrorCacheTimeout))
+	}
+
+	// Reload if certificate is expired
+	if c.certificate != nil && c.certificate.Leaf != nil && now.After(c.certificate.Leaf.NotAfter) {
+		return true
+	}
+
+	// Reload periodically
+	return now.After(c.lastUpdate.Add(certificateCacheTimeout))
+}
+
+func (c *tlsCertificateManager) reloadCertificate() {
+	certificate, err := retryLoadingX509Keypair(
+		certificateLoadRetryAttempts,
+		certificateLoadRetrySleep,
+		c.certFile,
+		c.keyFile,
+	)
+
+	c.mu.Lock()
+	c.certificate = certificate
+	c.err = err
+	c.lastUpdate = c.clock.Now()
+	c.mu.Unlock()
 }
 
 func retryLoadingX509Keypair(attempts int, sleep time.Duration, certFile, keyFile string) (*tls.Certificate, error) {

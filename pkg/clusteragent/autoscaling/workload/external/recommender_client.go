@@ -249,7 +249,7 @@ func (r *recommenderClient) getClient() (*http.Client, error) {
 		}
 
 		if r.certificateManager == nil && r.tlsConfig != nil && r.tlsConfig.requiresClientCertificate() {
-			r.certificateManager = newTLSCertificateManager(r.clock)
+			r.certificateManager = newTLSCertificateManager(r.clock, r.tlsConfig.CertFile, r.tlsConfig.KeyFile)
 		}
 
 		if err := configureTransportTLS(transport, r.tlsConfig, r.certificateManager); err != nil {
