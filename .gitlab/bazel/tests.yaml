@@ -26,4 +26,3 @@ bazel:tests:macos-arm64:
 
 bazel:tests:windows-amd64:
   extends: [ .bazel:tests, .bazel:ext:windows ]
-  tags: [ "windows-v2:2025", "specific:true" ]

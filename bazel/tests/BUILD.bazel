@@ -5,8 +5,12 @@ package(default_visibility = ["//visibility:public"])
 py_test(
     name = "does_python_work",
     srcs = ["does_python_work.py"],
+    data = [
+        "//:python_version",
+    ],
     visibility = ["//visibility:private"],
     deps = [
         "@py_dev_requirements//invoke",
+        "@rules_python//python/runfiles",
     ],
 )
