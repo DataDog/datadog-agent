@@ -42,15 +42,12 @@ receivers:
   otlp:
 
 processors:
+  batch:
+    timeout: 10s
   infraattributes:
 
 exporters:
   serializer:
-    sending_queue:
-      batch:
-        flush_timeout: 10000ms
-        min_size: 10
-        max_size: 100
 
 service:
   telemetry:
@@ -59,7 +56,7 @@ service:
   pipelines:
     metrics:
       receivers: [otlp]
-      processors: [infraattributes]
+      processors: [batch, infraattributes]
       exporters: [serializer]
 `
 
@@ -69,15 +66,12 @@ receivers:
   otlp:
 
 processors:
+  batch:
+    timeout: 10s
   infraattributes:
 
 exporters:
   logsagent:
-    sending_queue:
-      batch:
-        flush_timeout: 10000ms
-        min_size: 10
-        max_size: 100
 
 service:
   telemetry:
@@ -86,6 +80,6 @@ service:
   pipelines:
     logs:
       receivers: [otlp]
-      processors: [infraattributes]
+      processors: [infraattributes, batch]
       exporters: [logsagent]
 `
