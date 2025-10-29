@@ -12,6 +12,7 @@ import (
 	"net"
 	"net/netip"
 	"reflect"
+	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
@@ -22,12 +23,40 @@ import (
 var (
 	// defaultLegacyFields holds the default legacy field mapping for backward compatibility
 	// It is set by SetLegacyFields when the model is initialized with the correct mapping for the platform
-	defaultLegacyFields map[eval.Field]eval.Field
+	defaultLegacyFields   map[eval.Field]eval.Field
+	defaultLegacyFieldsMu sync.RWMutex
 )
 
 // SetDefaultLegacyFields sets the default legacy field mapping used by the accessors
 func SetDefaultLegacyFields(legacyFields map[eval.Field]eval.Field) {
+	defaultLegacyFieldsMu.Lock()
+	defer defaultLegacyFieldsMu.Unlock()
 	defaultLegacyFields = legacyFields
+}
+
+// GetDefaultLegacyFields returns the field mapped from a legacy field if it exists
+func GetDefaultLegacyFields(field eval.Field) (eval.Field, bool) {
+	defaultLegacyFieldsMu.RLock()
+	defer defaultLegacyFieldsMu.RUnlock()
+	if defaultLegacyFields == nil {
+		return "", false
+	}
+	newField, found := defaultLegacyFields[field]
+	return newField, found
+}
+
+// GetDefaultLegacyFieldsKeys returns all legacy field keys
+func GetDefaultLegacyFieldsKeys() []eval.Field {
+	defaultLegacyFieldsMu.RLock()
+	defer defaultLegacyFieldsMu.RUnlock()
+	if defaultLegacyFields == nil {
+		return nil
+	}
+	keys := make([]eval.Field, 0, len(defaultLegacyFields))
+	for key := range defaultLegacyFields {
+		keys = append(keys, key)
+	}
+	return keys
 }
 
 // Model describes the data model for the runtime security agent events

@@ -69,10 +69,8 @@ func (_ *Model) GetEventTypes() []eval.EventType {
 }
 func (_ *Model) GetFieldRestrictions(field eval.Field) []eval.EventType {
 	// handle legacy field mapping
-	if defaultLegacyFields != nil {
-		if newField, found := defaultLegacyFields[field]; found {
-			field = newField
-		}
+	if newField, found := GetDefaultLegacyFields(field); found {
+		field = newField
 	}
 	switch field {
 	case "network.destination.ip":
@@ -36602,20 +36600,17 @@ func (ev *Event) GetFields() []eval.Field {
 		"utimes.syscall.path",
 	}
 	// Add legacy field names if mapping is available
-	if defaultLegacyFields != nil {
-		for legacyField := range defaultLegacyFields {
-			fields = append(fields, legacyField)
-		}
+	legacyKeys := GetDefaultLegacyFieldsKeys()
+	if legacyKeys != nil {
+		fields = append(fields, legacyKeys...)
 	}
 	return fields
 }
 func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kind, string, error) {
 	originalField := field
 	// handle legacy field mapping
-	if defaultLegacyFields != nil {
-		if newField, found := defaultLegacyFields[field]; found {
-			field = newField
-		}
+	if newField, found := GetDefaultLegacyFields(field); found {
+		field = newField
 	}
 	switch field {
 	case "accept.addr.family":
@@ -40918,10 +40913,8 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	// handle legacy field mapping
 	mappedField := field
-	if defaultLegacyFields != nil {
-		if newField, found := defaultLegacyFields[field]; found {
-			mappedField = newField
-		}
+	if newField, found := GetDefaultLegacyFields(field); found {
+		mappedField = newField
 	}
 	if strings.HasPrefix(mappedField, "process.") || strings.HasPrefix(mappedField, "exec.") {
 		ev.initProcess()
