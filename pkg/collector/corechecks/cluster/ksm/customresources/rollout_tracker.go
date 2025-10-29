@@ -70,17 +70,19 @@ type RolloutTracker struct {
 	deploymentMap       map[string]*appsv1.Deployment
 	deploymentStartTime map[string]time.Time // Track when each rollout started
 	replicaSetMap       map[string]*ReplicaSetInfo
+	deploymentMutex     sync.RWMutex
 
 	// StatefulSet tracking
 	statefulSetMap        map[string]*appsv1.StatefulSet
 	statefulSetStartTime  map[string]time.Time // Track when each rollout started
 	controllerRevisionMap map[string]*ControllerRevisionInfo
+	statefulSetMutex      sync.RWMutex
 
 	// DaemonSet tracking
 	daemonSetMap                   map[string]*appsv1.DaemonSet
 	daemonSetStartTime             map[string]time.Time // Track when each rollout started
 	daemonSetControllerRevisionMap map[string]*ControllerRevisionInfo
-	mutex                          sync.RWMutex
+	daemonSetMutex                 sync.RWMutex
 }
 
 // NewRolloutTracker creates a new RolloutTracker instance
@@ -105,8 +107,8 @@ func NewRolloutTracker() *RolloutTracker {
 
 // StoreReplicaSet stores a ReplicaSet for deployment rollout tracking
 func (rt *RolloutTracker) StoreReplicaSet(rs *appsv1.ReplicaSet, ownerName, ownerUID string) {
-	rt.mutex.Lock()
-	defer rt.mutex.Unlock()
+	rt.deploymentMutex.Lock()
+	defer rt.deploymentMutex.Unlock()
 
 	key := rs.Namespace + "/" + rs.Name
 	rt.replicaSetMap[key] = &ReplicaSetInfo{
@@ -121,8 +123,8 @@ func (rt *RolloutTracker) StoreReplicaSet(rs *appsv1.ReplicaSet, ownerName, owne
 
 // GetRolloutDuration calculates rollout duration using stored maps
 func (rt *RolloutTracker) GetRolloutDuration(namespace, deploymentName string) float64 {
-	rt.mutex.RLock()
-	defer rt.mutex.RUnlock()
+	rt.deploymentMutex.RLock()
+	defer rt.deploymentMutex.RUnlock()
 
 	deploymentKey := namespace + "/" + deploymentName
 
@@ -156,8 +158,8 @@ func (rt *RolloutTracker) GetRolloutDuration(namespace, deploymentName string) f
 
 // StoreDeployment stores a deployment for rollout tracking
 func (rt *RolloutTracker) StoreDeployment(dep *appsv1.Deployment) {
-	rt.mutex.Lock()
-	defer rt.mutex.Unlock()
+	rt.deploymentMutex.Lock()
+	defer rt.deploymentMutex.Unlock()
 
 	key := dep.Namespace + "/" + dep.Name
 
@@ -174,8 +176,8 @@ func (rt *RolloutTracker) StoreDeployment(dep *appsv1.Deployment) {
 
 // CleanupDeployment removes a deployment and its ReplicaSets from tracking
 func (rt *RolloutTracker) CleanupDeployment(namespace, name string) {
-	rt.mutex.Lock()
-	defer rt.mutex.Unlock()
+	rt.deploymentMutex.Lock()
+	defer rt.deploymentMutex.Unlock()
 
 	key := namespace + "/" + name
 
@@ -195,8 +197,8 @@ func (rt *RolloutTracker) CleanupDeployment(namespace, name string) {
 
 // CleanupReplicaSet removes a deleted ReplicaSet from tracking
 func (rt *RolloutTracker) CleanupReplicaSet(namespace, name string) {
-	rt.mutex.Lock()
-	defer rt.mutex.Unlock()
+	rt.deploymentMutex.Lock()
+	defer rt.deploymentMutex.Unlock()
 
 	key := namespace + "/" + name
 
@@ -206,8 +208,8 @@ func (rt *RolloutTracker) CleanupReplicaSet(namespace, name string) {
 // HasActiveRollout checks if we're tracking a rollout for the given deployment's current generation
 func (rt *RolloutTracker) HasActiveRollout(d *appsv1.Deployment) bool {
 	key := d.Namespace + "/" + d.Name
-	rt.mutex.RLock()
-	defer rt.mutex.RUnlock()
+	rt.deploymentMutex.RLock()
+	defer rt.deploymentMutex.RUnlock()
 
 	storedDep, exists := rt.deploymentMap[key]
 	if !exists {
@@ -231,8 +233,8 @@ func (rt *RolloutTracker) HasRolloutCondition(d *appsv1.Deployment) bool {
 
 // StoreControllerRevision stores a ControllerRevision for StatefulSet rollout tracking
 func (rt *RolloutTracker) StoreControllerRevision(cr *appsv1.ControllerRevision, ownerName, ownerUID string) {
-	rt.mutex.Lock()
-	defer rt.mutex.Unlock()
+	rt.statefulSetMutex.Lock()
+	defer rt.statefulSetMutex.Unlock()
 
 	key := cr.Namespace + "/" + cr.Name
 	rt.controllerRevisionMap[key] = &ControllerRevisionInfo{
@@ -248,8 +250,8 @@ func (rt *RolloutTracker) StoreControllerRevision(cr *appsv1.ControllerRevision,
 
 // GetStatefulSetRolloutDuration calculates StatefulSet rollout duration using stored maps
 func (rt *RolloutTracker) GetStatefulSetRolloutDuration(namespace, statefulSetName string) float64 {
-	rt.mutex.RLock()
-	defer rt.mutex.RUnlock()
+	rt.statefulSetMutex.RLock()
+	defer rt.statefulSetMutex.RUnlock()
 
 	statefulSetKey := namespace + "/" + statefulSetName
 
@@ -283,8 +285,8 @@ func (rt *RolloutTracker) GetStatefulSetRolloutDuration(namespace, statefulSetNa
 
 // StoreStatefulSet stores a StatefulSet for rollout tracking
 func (rt *RolloutTracker) StoreStatefulSet(sts *appsv1.StatefulSet) {
-	rt.mutex.Lock()
-	defer rt.mutex.Unlock()
+	rt.statefulSetMutex.Lock()
+	defer rt.statefulSetMutex.Unlock()
 
 	key := sts.Namespace + "/" + sts.Name
 
@@ -301,8 +303,8 @@ func (rt *RolloutTracker) StoreStatefulSet(sts *appsv1.StatefulSet) {
 
 // CleanupStatefulSet removes a StatefulSet and its ControllerRevisions from tracking
 func (rt *RolloutTracker) CleanupStatefulSet(namespace, name string) {
-	rt.mutex.Lock()
-	defer rt.mutex.Unlock()
+	rt.statefulSetMutex.Lock()
+	defer rt.statefulSetMutex.Unlock()
 
 	key := namespace + "/" + name
 
@@ -320,8 +322,8 @@ func (rt *RolloutTracker) CleanupStatefulSet(namespace, name string) {
 
 // CleanupControllerRevision removes a deleted ControllerRevision from tracking
 func (rt *RolloutTracker) CleanupControllerRevision(namespace, name string) {
-	rt.mutex.Lock()
-	defer rt.mutex.Unlock()
+	rt.statefulSetMutex.Lock()
+	defer rt.statefulSetMutex.Unlock()
 
 	key := namespace + "/" + name
 	delete(rt.controllerRevisionMap, key)
@@ -330,8 +332,8 @@ func (rt *RolloutTracker) CleanupControllerRevision(namespace, name string) {
 // HasActiveStatefulSetRollout checks if we're tracking a rollout for the given StatefulSet's current generation
 func (rt *RolloutTracker) HasActiveStatefulSetRollout(sts *appsv1.StatefulSet) bool {
 	key := sts.Namespace + "/" + sts.Name
-	rt.mutex.RLock()
-	defer rt.mutex.RUnlock()
+	rt.statefulSetMutex.RLock()
+	defer rt.statefulSetMutex.RUnlock()
 
 	storedSts, exists := rt.statefulSetMap[key]
 	if !exists {
@@ -393,8 +395,8 @@ func (rt *RolloutTracker) HasStatefulSetRolloutCondition(sts *appsv1.StatefulSet
 
 // StoreDaemonSet stores a DaemonSet for rollout tracking
 func (rt *RolloutTracker) StoreDaemonSet(ds *appsv1.DaemonSet) {
-	rt.mutex.Lock()
-	defer rt.mutex.Unlock()
+	rt.daemonSetMutex.Lock()
+	defer rt.daemonSetMutex.Unlock()
 
 	key := ds.Namespace + "/" + ds.Name
 
@@ -411,8 +413,8 @@ func (rt *RolloutTracker) StoreDaemonSet(ds *appsv1.DaemonSet) {
 
 // StoreDaemonSetControllerRevision stores a ControllerRevision for DaemonSet rollout tracking
 func (rt *RolloutTracker) StoreDaemonSetControllerRevision(cr *appsv1.ControllerRevision, ownerName, ownerUID string) {
-	rt.mutex.Lock()
-	defer rt.mutex.Unlock()
+	rt.daemonSetMutex.Lock()
+	defer rt.daemonSetMutex.Unlock()
 
 	key := cr.Namespace + "/" + cr.Name
 	rt.daemonSetControllerRevisionMap[key] = &ControllerRevisionInfo{
@@ -428,8 +430,8 @@ func (rt *RolloutTracker) StoreDaemonSetControllerRevision(cr *appsv1.Controller
 
 // GetDaemonSetRolloutDuration calculates DaemonSet rollout duration using stored maps
 func (rt *RolloutTracker) GetDaemonSetRolloutDuration(namespace, daemonSetName string) float64 {
-	rt.mutex.RLock()
-	defer rt.mutex.RUnlock()
+	rt.daemonSetMutex.RLock()
+	defer rt.daemonSetMutex.RUnlock()
 
 	daemonSetKey := namespace + "/" + daemonSetName
 
@@ -463,8 +465,8 @@ func (rt *RolloutTracker) GetDaemonSetRolloutDuration(namespace, daemonSetName s
 
 // CleanupDaemonSet removes a DaemonSet and its ControllerRevisions from tracking
 func (rt *RolloutTracker) CleanupDaemonSet(namespace, name string) {
-	rt.mutex.Lock()
-	defer rt.mutex.Unlock()
+	rt.daemonSetMutex.Lock()
+	defer rt.daemonSetMutex.Unlock()
 
 	key := namespace + "/" + name
 	// Remove DaemonSet
@@ -481,8 +483,8 @@ func (rt *RolloutTracker) CleanupDaemonSet(namespace, name string) {
 
 // CleanupDaemonSetControllerRevision removes a deleted ControllerRevision from tracking
 func (rt *RolloutTracker) CleanupDaemonSetControllerRevision(namespace, name string) {
-	rt.mutex.Lock()
-	defer rt.mutex.Unlock()
+	rt.daemonSetMutex.Lock()
+	defer rt.daemonSetMutex.Unlock()
 
 	key := namespace + "/" + name
 	delete(rt.daemonSetControllerRevisionMap, key)
@@ -491,8 +493,8 @@ func (rt *RolloutTracker) CleanupDaemonSetControllerRevision(namespace, name str
 // HasActiveDaemonSetRollout checks if we're tracking a rollout for the given DaemonSet's current generation
 func (rt *RolloutTracker) HasActiveDaemonSetRollout(ds *appsv1.DaemonSet) bool {
 	key := ds.Namespace + "/" + ds.Name
-	rt.mutex.RLock()
-	defer rt.mutex.RUnlock()
+	rt.daemonSetMutex.RLock()
+	defer rt.daemonSetMutex.RUnlock()
 
 	storedDs, exists := rt.daemonSetMap[key]
 	if !exists {
