@@ -249,7 +249,7 @@ func getPassthroughPipelines() []passthroughPipelineDesc {
 			defaultBatchMaxContentSize:    pkgconfigsetup.DefaultBatchMaxContentSize,
 			defaultBatchMaxSize:           1,
 			defaultInputChanSize:          pkgconfigsetup.DefaultInputChanSize,
-			useSingleObjectSerializer:     true,
+			useStreamStrategy:             true,
 		},
 	}
 
@@ -424,6 +424,7 @@ type passthroughPipelineDesc struct {
 	forceCompressionKind          string
 	forceCompressionLevel         int
 	useSingleObjectSerializer     bool
+	useStreamStrategy             bool
 }
 
 // newHTTPPassthroughPipeline creates a new HTTP-only event platform pipeline that sends messages directly to intake
@@ -499,7 +500,7 @@ func newHTTPPassthroughPipeline(
 
 	var strategy sender.Strategy
 
-	if desc.contentType == logshttp.ProtobufContentType {
+	if desc.useStreamStrategy || desc.contentType == logshttp.ProtobufContentType {
 		strategy = sender.NewStreamStrategy(inputChan, senderImpl.In(), encoder)
 	} else {
 		// Select serializer based on pipeline configuration
