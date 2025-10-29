@@ -116,9 +116,6 @@ func loadYamlInto(dest InnerNode, source model.Source, inData map[string]interfa
 		schemaChild, err := schema.GetChild(key)
 		if err != nil {
 			warnings = append(warnings, fmt.Errorf("unknown key from YAML: %s", currPath))
-			if !allowDynamicSchema {
-				continue
-			}
 
 			// if the key is not defined in the schema, we can still add it to the destination
 			if value == nil || isScalar(value) || isSlice(value) {
