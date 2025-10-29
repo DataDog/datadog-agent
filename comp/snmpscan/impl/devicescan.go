@@ -7,15 +7,86 @@ package snmpscanimpl
 
 import (
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/snmp/snmpparse"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/metadata"
 	"github.com/DataDog/datadog-agent/pkg/snmp/gosnmplib"
+	"github.com/DataDog/datadog-agent/pkg/snmp/snmpparse"
+
 	"github.com/gosnmp/gosnmp"
 )
 
-func (s snmpScannerImpl) RunDeviceScan(snmpConnection *gosnmp.GoSNMP, deviceNamespace string, deviceID string) error {
+func (s snmpScannerImpl) ScanDeviceAndSendData(connParams *snmpparse.SNMPConfig, namespace string, scanType metadata.ScanType) error {
+	// Establish connection
+	snmp, err := snmpparse.NewSNMP(connParams, s.log)
+	if err != nil {
+		return err
+	}
+	deviceID := namespace + ":" + connParams.IPAddress
+	// Since the snmp connection can take a while, start by sending an in progress status for the start of the scan
+	// before connecting to the agent
+	inProgressStatusPayload := metadata.NetworkDevicesMetadata{
+		DeviceScanStatus: &metadata.ScanStatusMetadata{
+			DeviceID:   deviceID,
+			ScanStatus: metadata.ScanStatusInProgress,
+			ScanType:   scanType,
+		},
+		CollectTimestamp: time.Now().Unix(),
+		Namespace:        namespace,
+	}
+	if err = s.sendPayload(inProgressStatusPayload); err != nil {
+		return fmt.Errorf("unable to send in progress status: %v", err)
+	}
+	if err = snmp.Connect(); err != nil {
+		// Send an error status if we can't connect to the agent
+		errorStatusPayload := metadata.NetworkDevicesMetadata{
+			DeviceScanStatus: &metadata.ScanStatusMetadata{
+				DeviceID:   deviceID,
+				ScanStatus: metadata.ScanStatusError,
+				ScanType:   scanType,
+			},
+			CollectTimestamp: time.Now().Unix(),
+			Namespace:        namespace,
+		}
+		if sendErr := s.sendPayload(errorStatusPayload); sendErr != nil {
+			return fmt.Errorf("unable to send error status: %v", sendErr)
+		}
+		return fmt.Errorf("unable to connect to SNMP agent on %s:%d: %w", snmp.LocalAddr, snmp.Port, err)
+	}
+	err = s.runDeviceScan(snmp, namespace, deviceID)
+	if err != nil {
+		// Send an error status if we can't scan the device
+		errorStatusPayload := metadata.NetworkDevicesMetadata{
+			DeviceScanStatus: &metadata.ScanStatusMetadata{
+				DeviceID:   deviceID,
+				ScanStatus: metadata.ScanStatusError,
+				ScanType:   scanType,
+			},
+			CollectTimestamp: time.Now().Unix(),
+			Namespace:        namespace,
+		}
+		if sendErr := s.sendPayload(errorStatusPayload); sendErr != nil {
+			return fmt.Errorf("unable to send error status: %v", sendErr)
+		}
+		return fmt.Errorf("unable to perform device scan: %v", err)
+	}
+	// Send a completed status if the scan was successful
+	completedStatusPayload := metadata.NetworkDevicesMetadata{
+		DeviceScanStatus: &metadata.ScanStatusMetadata{
+			DeviceID:   deviceID,
+			ScanStatus: metadata.ScanStatusCompleted,
+			ScanType:   scanType,
+		},
+		CollectTimestamp: time.Now().Unix(),
+		Namespace:        namespace,
+	}
+	if err = s.sendPayload(completedStatusPayload); err != nil {
+		return fmt.Errorf("unable to send completed status: %v", err)
+	}
+	return nil
+}
+
+func (s snmpScannerImpl) runDeviceScan(snmpConnection *gosnmp.GoSNMP, deviceNamespace string, deviceID string) error {
 	// execute the scan
 	pdus, err := gatherPDUs(snmpConnection)
 	if err != nil {
@@ -34,7 +105,7 @@ func (s snmpScannerImpl) RunDeviceScan(snmpConnection *gosnmp.GoSNMP, deviceName
 
 	metadataPayloads := metadata.BatchDeviceScan(deviceNamespace, time.Now(), metadata.PayloadMetadataBatchSize, deviceOids)
 	for _, payload := range metadataPayloads {
-		err := s.SendPayload(payload)
+		err := s.sendPayload(payload)
 		if err != nil {
 			return err
 		}
@@ -55,74 +126,4 @@ func gatherPDUs(snmp *gosnmp.GoSNMP) ([]*gosnmp.SnmpPDU, error) {
 		return nil, err
 	}
 	return pdus, nil
-}
-
-func (s snmpScannerImpl) ScanDeviceAndSendData(connParams *snmpparse.SNMPConfig, namespace string, scanType metadata.ScanType) error {
-	// Establish connection
-	snmp, err := snmpparse.NewSNMP(connParams, s.log)
-	if err != nil {
-		return err
-	}
-	deviceID := namespace + ":" + connParams.IPAddress
-	// Since the snmp connection can take a while, start by sending an in progress status for the start of the scan
-	// before connecting to the agent
-	inProgressStatusPayload := metadata.NetworkDevicesMetadata{
-		DeviceScanStatus: &metadata.ScanStatusMetadata{
-			DeviceID:   deviceID,
-			ScanStatus: metadata.ScanStatusInProgress,
-			ScanType:   scanType,
-		},
-		CollectTimestamp: time.Now().Unix(),
-		Namespace:        namespace,
-	}
-	if err = s.SendPayload(inProgressStatusPayload); err != nil {
-		return fmt.Errorf("unable to send in progress status: %v", err)
-	}
-	if err = snmp.Connect(); err != nil {
-		// Send an error status if we can't connect to the agent
-		errorStatusPayload := metadata.NetworkDevicesMetadata{
-			DeviceScanStatus: &metadata.ScanStatusMetadata{
-				DeviceID:   deviceID,
-				ScanStatus: metadata.ScanStatusError,
-				ScanType:   scanType,
-			},
-			CollectTimestamp: time.Now().Unix(),
-			Namespace:        namespace,
-		}
-		if err = s.SendPayload(errorStatusPayload); err != nil {
-			return fmt.Errorf("unable to send error status: %v", err)
-		}
-		return fmt.Errorf("unable to connect to SNMP agent on %s:%d: %w", snmp.LocalAddr, snmp.Port, err)
-	}
-	err = s.RunDeviceScan(snmp, namespace, deviceID)
-	if err != nil {
-		// Send an error status if we can't scan the device
-		errorStatusPayload := metadata.NetworkDevicesMetadata{
-			DeviceScanStatus: &metadata.ScanStatusMetadata{
-				DeviceID:   deviceID,
-				ScanStatus: metadata.ScanStatusError,
-				ScanType:   scanType,
-			},
-			CollectTimestamp: time.Now().Unix(),
-			Namespace:        namespace,
-		}
-		if err = s.SendPayload(errorStatusPayload); err != nil {
-			return fmt.Errorf("unable to send error status: %v", err)
-		}
-		return fmt.Errorf("unable to perform device scan: %v", err)
-	}
-	// Send a completed status if the scan was successful
-	completedStatusPayload := metadata.NetworkDevicesMetadata{
-		DeviceScanStatus: &metadata.ScanStatusMetadata{
-			DeviceID:   deviceID,
-			ScanStatus: metadata.ScanStatusCompleted,
-			ScanType:   scanType,
-		},
-		CollectTimestamp: time.Now().Unix(),
-		Namespace:        namespace,
-	}
-	if err = s.SendPayload(completedStatusPayload); err != nil {
-		return fmt.Errorf("unable to send completed status: %v", err)
-	}
-	return nil
 }

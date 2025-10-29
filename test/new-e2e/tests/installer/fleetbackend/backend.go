@@ -96,6 +96,17 @@ func (b *Backend) PromoteConfigExperiment() error {
 	return nil
 }
 
+// StopConfigExperiment stops a config experiment for the given package.
+func (b *Backend) StopConfigExperiment() error {
+	b.t().Logf("Stopping config experiment")
+	output, err := b.runDaemonCommandWithRestart("stop-config-experiment", "datadog-agent")
+	if err != nil {
+		return fmt.Errorf("%w, output: %s", err, output)
+	}
+	b.t().Logf("Config experiment stopped")
+	return nil
+}
+
 // RemoteConfigStatusPackage returns the status of the remote config for a given package.
 func (b *Backend) RemoteConfigStatusPackage(packageName string) (RemoteConfigStatePackage, error) {
 	status, err := b.RemoteConfigStatus()
@@ -125,7 +136,12 @@ func (b *Backend) RemoteConfigStatus() (RemoteConfigState, error) {
 }
 
 func (b *Backend) runDaemonCommandWithRestart(command string, args ...string) (string, error) {
-	originalPID, err := b.getDaemonPID()
+	var originalPID int
+	err := retry.Do(func() error {
+		var err error
+		originalPID, err = b.getDaemonPID()
+		return err
+	}, retry.Attempts(10), retry.Delay(1*time.Second), retry.DelayType(retry.FixedDelay))
 	if err != nil {
 		return "", err
 	}
@@ -142,7 +158,7 @@ func (b *Backend) runDaemonCommandWithRestart(command string, args ...string) (s
 			return fmt.Errorf("daemon PID %d is still running", newPID)
 		}
 		return nil
-	}, retry.Attempts(10), retry.Delay(1*time.Second))
+	}, retry.Attempts(10), retry.Delay(1*time.Second), retry.DelayType(retry.FixedDelay))
 	if err != nil {
 		return "", fmt.Errorf("error waiting for daemon to restart: %w", err)
 	}
@@ -184,14 +200,34 @@ func (b *Backend) getDaemonPID() (int, error) {
 	var err error
 	switch b.host.RemoteHost.OSFamily {
 	case e2eos.LinuxFamily:
-		pid, err = b.host.RemoteHost.Execute(`systemctl show -p MainPID datadog-agent-installer | cut -d= -f2`)
+		// bugfix for https://major.io/p/systemd-in-fedora-22-failed-to-restart-service-access-denied/
+		if b.host.RemoteHost.OSFlavor == e2eos.CentOS && b.host.RemoteHost.OSVersion == e2eos.CentOS7.Version {
+			_, err := b.host.RemoteHost.Execute("sudo systemctl daemon-reexec")
+			if err != nil {
+				return 0, fmt.Errorf("error reexecuting systemd: %w", err)
+			}
+		}
+		pid, err = b.host.RemoteHost.Execute(`sudo systemctl show -p MainPID datadog-agent-installer.service | cut -d= -f2`)
+		pidExp, errExp := b.host.RemoteHost.Execute(`sudo systemctl show -p MainPID datadog-agent-installer-exp.service | cut -d= -f2`)
+		pid = strings.TrimSpace(pid)
+		pidExp = strings.TrimSpace(pidExp)
+		if err != nil || errExp != nil {
+			return 0, fmt.Errorf("error getting daemon PID: %w, %w", err, errExp)
+		}
+		if pidExp != "0" {
+			pid = pidExp
+		}
 	case e2eos.WindowsFamily:
 		pid, err = b.host.RemoteHost.Execute(`(Get-CimInstance Win32_Service -Filter "Name='Datadog Installer'").ProcessId`)
+		pid = strings.TrimSpace(pid)
 	default:
 		return 0, fmt.Errorf("unsupported OS family: %v", b.host.RemoteHost.OSFamily)
 	}
 	if err != nil {
 		return 0, err
 	}
-	return strconv.Atoi(strings.TrimSpace(pid))
+	if pid == "0" {
+		return 0, fmt.Errorf("daemon PID is 0")
+	}
+	return strconv.Atoi(pid)
 }
