@@ -10,7 +10,6 @@ import (
 	"context"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
@@ -49,12 +48,11 @@ type factory struct {
 	logsAgentChannel chan *message.Message
 	gatewayUsage     otel.GatewayUsage
 	reporter         *inframetadata.Reporter
-	telemetry        telemetry.Component
 }
 
 // NewFactoryWithType creates a new logsagentexporter factory with the given type.
-func NewFactoryWithType(logsAgentChannel chan *message.Message, typ component.Type, gatewayUsage otel.GatewayUsage, reporter *inframetadata.Reporter, telemetry telemetry.Component) exp.Factory {
-	f := &factory{logsAgentChannel: logsAgentChannel, gatewayUsage: gatewayUsage, reporter: reporter, telemetry: telemetry}
+func NewFactoryWithType(logsAgentChannel chan *message.Message, typ component.Type, gatewayUsage otel.GatewayUsage, reporter *inframetadata.Reporter) exp.Factory {
+	f := &factory{logsAgentChannel: logsAgentChannel, gatewayUsage: gatewayUsage, reporter: reporter}
 
 	return exp.NewFactory(
 		typ,
@@ -70,8 +68,8 @@ func NewFactoryWithType(logsAgentChannel chan *message.Message, typ component.Ty
 }
 
 // NewFactory creates a new logsagentexporter factory. Should only be used in Agent OTLP ingestion pipelines.
-func NewFactory(logsAgentChannel chan *message.Message, gatewayUsage otel.GatewayUsage, telemetry telemetry.Component) exp.Factory {
-	return NewFactoryWithType(logsAgentChannel, component.MustNewType(TypeStr), gatewayUsage, nil, telemetry)
+func NewFactory(logsAgentChannel chan *message.Message, gatewayUsage otel.GatewayUsage) exp.Factory {
+	return NewFactoryWithType(logsAgentChannel, component.MustNewType(TypeStr), gatewayUsage, nil)
 }
 
 func (f *factory) createLogsExporter(
@@ -90,7 +88,7 @@ func (f *factory) createLogsExporter(
 		return nil, err
 	}
 
-	exporter, err := NewExporterWithGatewayUsage(set.TelemetrySettings, cfg, logSource, f.logsAgentChannel, attributesTranslator, f.gatewayUsage, f.telemetry)
+	exporter, err := NewExporterWithGatewayUsage(set.TelemetrySettings, cfg, logSource, f.logsAgentChannel, attributesTranslator, f.gatewayUsage)
 	if err != nil {
 		return nil, err
 	}
