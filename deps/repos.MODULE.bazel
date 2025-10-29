@@ -193,3 +193,14 @@ http_archive(
     strip_prefix = "unixODBC-2.3.9",
     url = "https://www.unixodbc.org/unixODBC-2.3.9.tar.gz",
 )
+
+http_archive(
+    name = "libxml2",
+    build_file = "//deps:libxml2.BUILD.bazel",
+    sha256 = "c008bac08fd5c7b4a87f7b8a71f283fa581d80d80ff8d2efd3b26224c39bc54c",
+    url = "https://download.gnome.org/sources/libxml2/2.15/libxml2-2.15.1.tar.xz",
+    strip_prefix = "libxml2-2.15.1",
+    files = {
+        "config-linux-x86_64.h": "//deps:libxml2/config-linux-x86_64.h",
+    },
+)
