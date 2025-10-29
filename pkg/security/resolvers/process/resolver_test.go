@@ -893,6 +893,6 @@ func TestCGroupContext(t *testing.T) {
 		}, nil)
 
 		assert.Equal(t, cgroupID, node.ProcessCacheEntry.CGroup.CGroupID)
-		assert.Equal(t, containerID, node.ProcessCacheEntry.ContainerID)
+		assert.Equal(t, containerID, node.ProcessCacheEntry.ContainerContext.ContainerID)
 	})
 }
