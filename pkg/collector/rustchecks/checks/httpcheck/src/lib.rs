@@ -1,5 +1,5 @@
 use rust_check_core::{generate_ffi, AgentCheck, ServiceCheckStatus};
-use std::error::Error;
+use std::{error::Error, ffi::CStr};
 
 mod url;
 use url::Url;
@@ -16,6 +16,9 @@ use std::time::Duration;
 use rustls::{KeyLogFile, ClientConnection, RootCertStore, Stream};
 use rustls::pki_types::{CertificateDer, ServerName};
 use webpki_roots::TLS_SERVER_ROOTS;
+
+/// Shared library check version
+const VERSION: &'static CStr = c"0.1.0";
 
 /// Check implementation
 pub fn check_implementation(check: &AgentCheck) -> Result<(), Box<dyn Error>> {
@@ -238,7 +241,7 @@ pub fn check_implementation(check: &AgentCheck) -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-generate_ffi!(check_implementation);
+generate_ffi!(check_implementation, VERSION);
 
 #[cfg(test)]
 mod test {

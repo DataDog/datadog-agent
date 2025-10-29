@@ -1,7 +1,7 @@
 /// Macro used to generate all the check FFI code
 #[macro_export]
 macro_rules! generate_ffi {
-    ($check_impl:ident) => {
+    ($check_impl:ident, $version:ident) => {
         /// Entrypoint of the check
         #[unsafe(no_mangle)]
         pub extern "C" fn Run(check_id_str: *mut std::ffi::c_char, init_config_str: *mut std::ffi::c_char, instance_config_str: *mut std::ffi::c_char, aggregator_ptr: *mut rust_check_core::Aggregator, error_handler: *mut *mut std::ffi::c_char) {
@@ -28,6 +28,11 @@ macro_rules! generate_ffi {
 
             // run the custom implementation
             $check_impl(&check)
+        }
+
+        /// Get the check version
+        pub extern "C" fn get_version() -> *const std::ffi::c_char {
+            $version.as_ptr()
         }
     }
 }

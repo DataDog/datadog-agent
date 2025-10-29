@@ -1,5 +1,8 @@
 use rust_check_core::{generate_ffi, AgentCheck};
-use std::error::Error;
+use std::{error::Error, ffi::CStr};
+
+/// Shared library check version
+const VERSION: &'static CStr = c"0.1.0";
 
 /// Check implementation
 pub fn check_implementation(check: &AgentCheck) -> Result<(), Box<dyn Error>> {
@@ -8,7 +11,7 @@ pub fn check_implementation(check: &AgentCheck) -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-generate_ffi!(check_implementation);
+generate_ffi!(check_implementation, VERSION);
 
 #[cfg(test)]
 mod test {
