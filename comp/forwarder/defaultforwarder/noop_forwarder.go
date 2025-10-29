@@ -40,11 +40,6 @@ func (f NoopForwarder) SubmitSeries(_ transaction.BytesPayloads, _ http.Header) 
 	return nil
 }
 
-// SubmitEvents does nothing.
-func (f NoopForwarder) SubmitEvents(_ transaction.BytesPayloads, _ http.Header) error {
-	return nil
-}
-
 // SubmitSketchSeries does nothing.
 func (f NoopForwarder) SubmitSketchSeries(_ transaction.BytesPayloads, _ http.Header) error {
 	return nil

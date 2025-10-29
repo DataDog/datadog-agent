@@ -66,7 +66,6 @@ type Forwarder interface {
 	SubmitV1Intake(payload transaction.BytesPayloads, kind transaction.Kind, extra http.Header) error
 	SubmitV1CheckRuns(payload transaction.BytesPayloads, extra http.Header) error
 	SubmitSeries(payload transaction.BytesPayloads, extra http.Header) error
-	SubmitEvents(payload transaction.BytesPayloads, extra http.Header) error
 	SubmitSketchSeries(payload transaction.BytesPayloads, extra http.Header) error
 	SubmitHostMetadata(payload transaction.BytesPayloads, extra http.Header) error
 	SubmitAgentChecksMetadata(payload transaction.BytesPayloads, extra http.Header) error
@@ -666,12 +665,6 @@ func (f *DefaultForwarder) SubmitV1Series(payloads transaction.BytesPayloads, ex
 // SubmitSeries will send timeseries to the v2 endpoint
 func (f *DefaultForwarder) SubmitSeries(payloads transaction.BytesPayloads, extra http.Header) error {
 	transactions := f.createHTTPTransactions(endpoints.SeriesEndpoint, payloads, transaction.Series, extra)
-	return f.sendHTTPTransactions(transactions)
-}
-
-// SubmitEvents will send events to the v2 endpoint
-func (f *DefaultForwarder) SubmitEvents(payloads transaction.BytesPayloads, extra http.Header) error {
-	transactions := f.createHTTPTransactions(endpoints.EventsEndpoint, payloads, transaction.Events, extra)
 	return f.sendHTTPTransactions(transactions)
 }
 

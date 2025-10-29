@@ -423,7 +423,6 @@ type passthroughPipelineDesc struct {
 	defaultInputChanSize          int
 	forceCompressionKind          string
 	forceCompressionLevel         int
-	useSingleObjectSerializer     bool
 	useStreamStrategy             bool
 }
 
@@ -503,14 +502,6 @@ func newHTTPPassthroughPipeline(
 	if desc.useStreamStrategy || desc.contentType == logshttp.ProtobufContentType {
 		strategy = sender.NewStreamStrategy(inputChan, senderImpl.In(), encoder)
 	} else {
-		// Select serializer based on pipeline configuration
-		var serializer sender.Serializer
-		if desc.useSingleObjectSerializer {
-			serializer = sender.NewSingleObjectSerializer()
-		} else {
-			serializer = sender.NewArraySerializer()
-		}
-
 		strategy = sender.NewBatchStrategy(
 			inputChan,
 			senderImpl.In(),
@@ -523,7 +514,6 @@ func newHTTPPassthroughPipeline(
 			encoder,
 			pipelineMonitor,
 			"0",
-			serializer,
 		)
 	}
 

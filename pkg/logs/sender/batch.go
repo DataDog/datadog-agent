@@ -47,17 +47,12 @@ func makeBatch(
 	pipelineMonitor metrics.PipelineMonitor,
 	utilization metrics.UtilizationMonitor,
 	instanceID string,
-	serializer Serializer,
 ) *batch {
 	var encodedPayload bytes.Buffer
 	compressor := compression.NewStreamCompressor(&encodedPayload)
 	wc := newWriterWithCounter(compressor)
 	buffer := NewMessageBuffer(maxBatchSize, maxContentSize)
-
-	// Use provided serializer, or default to array serializer
-	if serializer == nil {
-		serializer = NewArraySerializer()
-	}
+	serializer := NewArraySerializer()
 
 	batch := &batch{
 		buffer:          buffer,

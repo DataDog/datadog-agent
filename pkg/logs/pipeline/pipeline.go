@@ -123,8 +123,7 @@ func getStrategy(
 			"logs",
 			encoder,
 			pipelineMonitor,
-			instanceID,
-			nil)
+			instanceID)
 	}
 	return sender.NewStreamStrategy(inputChan, outputChan, compressor.NewCompressor(compressioncommon.NoneKind, 0))
 }

@@ -14,7 +14,6 @@ import (
 	configcomp "github.com/DataDog/datadog-agent/comp/core/config"
 	logcomp "github.com/DataDog/datadog-agent/comp/core/log/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
-	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	notableevents "github.com/DataDog/datadog-agent/comp/notableevents/def"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -26,7 +25,6 @@ type Requires struct {
 	Config        configcomp.Component
 	Log           logcomp.Component
 	EventPlatform eventplatform.Component
-	DefaultFwd    defaultforwarder.Component
 }
 
 // Provides defines what this component provides
@@ -50,31 +48,12 @@ func NewComponent(reqs Requires) Provides {
 		}
 	}
 
-	// Select forwarder based on configuration
-	var fwd eventsForwarder
-	useDefaultForwarder := reqs.Config.GetBool("notable_events.use_default_forwarder")
-
-	if useDefaultForwarder {
-		// Use default forwarder
-		if reqs.DefaultFwd == nil {
-			log.Error("Default forwarder not available but notable_events.use_default_forwarder is true")
-			return Provides{
-				Comp: &notableEventsComponent{},
-			}
+	forwarder, ok := reqs.EventPlatform.Get()
+	if !ok {
+		log.Error("Failed to get event platform forwarder")
+		return Provides{
+			Comp: &notableEventsComponent{},
 		}
-		fwd = &defaultForwarderAdapter{forwarder: reqs.DefaultFwd}
-		log.Info("Using default forwarder for notable events")
-	} else {
-		// Use event platform forwarder (existing behavior)
-		epFwd, ok := reqs.EventPlatform.Get()
-		if !ok {
-			log.Error("Event platform forwarder not available")
-			return Provides{
-				Comp: &notableEventsComponent{},
-			}
-		}
-		fwd = &epForwarderAdapter{forwarder: epFwd}
-		log.Info("Using event platform forwarder for notable events")
 	}
 
 	// Create the event channel (unbuffered for backpressure)
@@ -82,7 +61,7 @@ func NewComponent(reqs Requires) Provides {
 
 	// Create collector and submitter
 	collector := newCollector(eventChan)
-	submitter := newSubmitter(fwd, eventChan)
+	submitter := newSubmitter(forwarder, eventChan)
 
 	comp := &notableEventsComponent{
 		collector: collector,

@@ -35,7 +35,6 @@ type batchStrategy struct {
 	maxContentSize int
 	compression    compression.Compressor
 	batches        map[string]*batch
-	serializer     Serializer
 
 	// Telemetry
 	pipelineMonitor metrics.PipelineMonitor
@@ -56,9 +55,8 @@ func NewBatchStrategy(
 	compression compression.Compressor,
 	pipelineMonitor metrics.PipelineMonitor,
 	instanceID string,
-	serializer Serializer,
 ) Strategy {
-	return newBatchStrategyWithClock(inputChan, outputChan, flushChan, serverlessMeta, batchWait, maxBatchSize, maxContentSize, pipelineName, clock.New(), compression, pipelineMonitor, instanceID, serializer)
+	return newBatchStrategyWithClock(inputChan, outputChan, flushChan, serverlessMeta, batchWait, maxBatchSize, maxContentSize, pipelineName, clock.New(), compression, pipelineMonitor, instanceID)
 }
 
 func newBatchStrategyWithClock(
@@ -74,13 +72,7 @@ func newBatchStrategyWithClock(
 	compression compression.Compressor,
 	pipelineMonitor metrics.PipelineMonitor,
 	instanceID string,
-	serializer Serializer,
 ) Strategy {
-	// Default to array serializer if none provided (backward compatibility)
-	if serializer == nil {
-		serializer = NewArraySerializer()
-	}
-
 	return &batchStrategy{
 		inputChan:       inputChan,
 		outputChan:      outputChan,
@@ -97,7 +89,6 @@ func newBatchStrategyWithClock(
 		maxContentSize:  maxContentSize,
 		instanceID:      instanceID,
 		batches:         make(map[string]*batch),
-		serializer:      serializer,
 	}
 }
 
@@ -147,7 +138,7 @@ func (s *batchStrategy) getBatch(key string) *batch {
 	}
 
 	log.Debugf("Creating batch for key: %s", key)
-	s.batches[key] = makeBatch(s.compression, s.maxBatchSize, s.maxContentSize, s.pipelineName, s.serverlessMeta, s.pipelineMonitor, s.utilization, s.instanceID, s.serializer)
+	s.batches[key] = makeBatch(s.compression, s.maxBatchSize, s.maxContentSize, s.pipelineName, s.serverlessMeta, s.pipelineMonitor, s.utilization, s.instanceID)
 	return s.batches[key]
 }
 
