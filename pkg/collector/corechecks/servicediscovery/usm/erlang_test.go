@@ -172,20 +172,38 @@ func Test_detectErlangAppName(t *testing.T) {
 			expected: "rabbitmq",
 		},
 		{
-			name: "Case insensitive erl - uppercase ERL",
+			name: "Uppercase ERL is not treated as erl",
 			cmdline: []string{
 				"-progname", "ERL",
 				"-home", "/var/lib/rabbitmq",
 			},
-			expected: "rabbitmq",
+			expected: "ERL",
 		},
 		{
-			name: "Case insensitive erl - mixed case Erl",
+			name: "Mixed case Erl is not treated as erl",
 			cmdline: []string{
 				"-progname", "Erl",
 				"-home", "/var/lib/ejabberd",
 			},
-			expected: "ejabberd",
+			expected: "Erl",
+		},
+		{
+			name: "progname as last argument without value",
+			cmdline: []string{
+				"-root", "/usr/lib/erlang",
+				"-home", "/var/lib/myapp",
+				"-progname",
+			},
+			expected: "",
+		},
+		{
+			name: "home as last argument without value",
+			cmdline: []string{
+				"-root", "/usr/lib/erlang",
+				"-progname", "erl",
+				"-home",
+			},
+			expected: "",
 		},
 	}
 

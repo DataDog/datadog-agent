@@ -51,13 +51,13 @@ func detectErlangAppName(cmdline []string) string {
 	}
 
 	// Apply heuristics according to requirements.
-	// Compare progname case-insensitively to handle edge cases.
-	if progname != "" && !strings.EqualFold(progname, "erl") {
+	// Use exact comparison for progname
+	if progname != "" && progname != "erl" {
 		return progname
 	}
 
 	// Only use home if progname is explicitly "erl"
-	if strings.EqualFold(progname, "erl") && home != "" {
+	if progname == "erl" && home != "" {
 		// Extract the last component of the home path
 		base := filepath.Base(home)
 		if base != "" && base != "." && base != "/" {
