@@ -16,6 +16,7 @@ namespace Datadog.CustomActions
         private readonly string _site;
         private readonly string _apiKey;
         private readonly string _overrideRegistryUrl;
+        private readonly string _remoteUpdates;
         private readonly RollbackDataStore _rollbackDataStore;
 
         public InstallOciPackages(ISession session)
@@ -65,6 +66,8 @@ namespace Datadog.CustomActions
             {
                 env["DD_INSTALLER_REGISTRY_URL"] = _overrideRegistryUrl;
             }
+
+            // Add APM instrumentation configuration
             var instrumentationEnabled = _session.Property("DD_APM_INSTRUMENTATION_ENABLED");
             if (!string.IsNullOrEmpty(instrumentationEnabled))
             {
