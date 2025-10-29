@@ -10,9 +10,7 @@ import json
 import os
 import re
 import sys
-from typing import Dict, List, Optional, Tuple
 
-from invoke.context import Context
 from invoke.exceptions import Exit
 from invoke.tasks import task
 
@@ -42,13 +40,12 @@ def _check_dependencies():
 
     if missing:
         raise Exit(
-            f"Missing required dependencies: {', '.join(missing)}\n"
-            f"Install with: pip install {' '.join(missing)}",
-            code=1
+            f"Missing required dependencies: {', '.join(missing)}\n" f"Install with: pip install {' '.join(missing)}",
+            code=1,
         )
 
 
-def _parse_version(version_str: str) -> Optional[Tuple[int, int, int]]:
+def _parse_version(version_str: str) -> tuple[int, int, int] | None:
     """
     Parse a Kubernetes version string like 'v1.34.0' into a tuple (1, 34, 0).
     Returns None if the version string is invalid.
@@ -59,7 +56,7 @@ def _parse_version(version_str: str) -> Optional[Tuple[int, int, int]]:
     return None
 
 
-def _get_docker_hub_tags() -> List[Dict]:
+def _get_docker_hub_tags() -> list[dict]:
     """
     Fetch all tags from Docker Hub for kindest/node.
     Returns a list of tag objects with name and images information.
@@ -77,12 +74,12 @@ def _get_docker_hub_tags() -> List[Dict]:
             url = data.get('next')  # Pagination
 
         except requests.exceptions.RequestException as e:
-            raise Exit(f"Error fetching tags from Docker Hub: {e}", code=1)
+            raise Exit(f"Error fetching tags from Docker Hub: {e}", code=1) from e
 
     return all_tags
 
 
-def _extract_index_digest(tag_data: Dict) -> Optional[str]:
+def _extract_index_digest(tag_data: dict) -> str | None:
     """
     Extract the index digest (manifest list digest) from tag data.
     The index digest is the digest field at the root level of the tag data.
@@ -90,7 +87,7 @@ def _extract_index_digest(tag_data: Dict) -> Optional[str]:
     return tag_data.get('digest')
 
 
-def _get_latest_k8s_versions() -> Dict[str, Dict[str, str]]:
+def _get_latest_k8s_versions() -> dict[str, dict[str, str]]:
     """
     Fetch and parse the latest Kubernetes version from Docker Hub.
     Returns a dictionary with only the single latest version.
@@ -119,26 +116,26 @@ def _get_latest_k8s_versions() -> Dict[str, Dict[str, str]]:
     return {}
 
 
-def _load_existing_versions(versions_file: str) -> Dict[str, Dict[str, str]]:
+def _load_existing_versions(versions_file: str) -> dict[str, dict[str, str]]:
     """Load previously stored versions from file."""
     if os.path.exists(versions_file):
         try:
             with open(versions_file) as f:
                 return json.load(f)
-        except (json.JSONDecodeError, IOError) as e:
+        except (OSError, json.JSONDecodeError) as e:
             print(f"Warning: Could not load existing versions: {e}", file=sys.stderr)
     return {}
 
 
-def _save_versions(versions: Dict[str, Dict[str, str]], versions_file: str) -> None:
+def _save_versions(versions: dict[str, dict[str, str]], versions_file: str) -> None:
     """Save versions to file for future comparison."""
     with open(versions_file, 'w') as f:
         json.dump(versions, f, indent=2)
 
 
 def _find_new_versions(
-    current: Dict[str, Dict[str, str]], previous: Dict[str, Dict[str, str]]
-) -> Dict[str, Dict[str, str]]:
+    current: dict[str, dict[str, str]], previous: dict[str, dict[str, str]]
+) -> dict[str, dict[str, str]]:
     """Find versions that are new or have different digests."""
     new_versions = {}
 
@@ -219,7 +216,7 @@ def _find_matrix_section(content: str) -> tuple:
     return None, None, None
 
 
-def _parse_existing_k8s_versions(content: str) -> List[Dict[str, str]]:
+def _parse_existing_k8s_versions(content: str) -> list[dict[str, str]]:
     """
     Parse existing Kubernetes versions from the matrix section.
     Returns a list of dicts with 'version' and 'digest' keys.
@@ -252,7 +249,7 @@ def _create_matrix_entry(version: str, digest: str, indent: int) -> str:
     return f'{spaces}- EXTRA_PARAMS: "--run TestKindSuite -c ddinfra:kubernetesVersion={version}@{digest}"'
 
 
-def _update_e2e_yaml_file(new_versions: Dict[str, Dict[str, str]]) -> tuple:
+def _update_e2e_yaml_file(new_versions: dict[str, dict[str, str]]) -> tuple:
     """
     Update the e2e.yml file with new Kubernetes versions.
     Returns (success: bool, added_versions: List[str])
