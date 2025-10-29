@@ -19,6 +19,7 @@ import (
 
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/types/known/structpb"
+	"k8s.io/utils/clock"
 
 	kubeAutoscaling "github.com/DataDog/agent-payload/v5/autoscaling/kubernetes"
 
@@ -39,13 +40,14 @@ type recommenderClient struct {
 	podWatcher workload.PodWatcher
 	client     *http.Client
 	tlsConfig  *TLSConfig
+	clock      clock.Clock
 
 	tlsInitOnce      sync.Once
 	tlsInitErr       error
 	certificateCache *tlsCertificateCache
 }
 
-func newRecommenderClient(podWatcher workload.PodWatcher, tlsConfig *TLSConfig) *recommenderClient {
+func newRecommenderClient(clk clock.Clock, podWatcher workload.PodWatcher, tlsConfig *TLSConfig) *recommenderClient {
 	client := &http.Client{}
 	if transport := cloneDefaultTransport(); transport != nil {
 		client.Transport = transport
@@ -55,6 +57,7 @@ func newRecommenderClient(podWatcher workload.PodWatcher, tlsConfig *TLSConfig) 
 		podWatcher: podWatcher,
 		client:     client,
 		tlsConfig:  tlsConfig,
+		clock:      clk,
 	}
 }
 
@@ -246,7 +249,7 @@ func (r *recommenderClient) getClient() (*http.Client, error) {
 		}
 
 		if r.certificateCache == nil && r.tlsConfig != nil && r.tlsConfig.requiresClientCertificate() {
-			r.certificateCache = newTLSCertificateCache()
+			r.certificateCache = newTLSCertificateCache(r.clock)
 		}
 
 		if err := configureTransportTLS(transport, r.tlsConfig, r.certificateCache); err != nil {

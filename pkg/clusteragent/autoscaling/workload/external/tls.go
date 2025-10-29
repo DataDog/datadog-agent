@@ -16,6 +16,8 @@ import (
 	"os"
 	"sync"
 	"time"
+
+	"k8s.io/utils/clock"
 )
 
 // TLSConfig represents the TLS configuration used for external recommender calls.
@@ -89,11 +91,13 @@ func buildTLSConfig(config *TLSConfig) (*tls.Config, error) {
 type tlsCertificateCache struct {
 	mu    sync.RWMutex
 	cache map[string]*tlsCacheEntry
+	clock clock.Clock
 }
 
-func newTLSCertificateCache() *tlsCertificateCache {
+func newTLSCertificateCache(clk clock.Clock) *tlsCertificateCache {
 	cache := &tlsCertificateCache{
 		cache: make(map[string]*tlsCacheEntry),
+		clock: clk,
 	}
 	go cache.run()
 	return cache
@@ -128,7 +132,7 @@ func (c *tlsCacheEntry) isCertificateExpired(now time.Time) bool {
 
 func (c *tlsCertificateCache) GetClientCertificateReloadingFunc(certFile, keyFile string) func(*tls.CertificateRequestInfo) (*tls.Certificate, error) {
 	return func(*tls.CertificateRequestInfo) (*tls.Certificate, error) {
-		now := time.Now()
+		now := c.clock.Now()
 
 		c.mu.RLock()
 		entry, ok := c.cache[certFile]
@@ -162,7 +166,7 @@ func (c *tlsCertificateCache) run() {
 
 	for range ticker.C {
 		c.mu.Lock()
-		now := time.Now()
+		now := c.clock.Now()
 		for key, entry := range c.cache {
 			if now.After(entry.lastAccess.Add(certificateCacheExpirationTimeout)) {
 				delete(c.cache, key)

@@ -90,7 +90,7 @@ func StartWorkloadAutoscaling(
 	}
 
 	externalTLSConfig := buildExternalRecommenderTLSConfig(pkgconfigsetup.Datadog())
-	externalRecommender := external.NewRecommender(podWatcher, store, clusterName, externalTLSConfig)
+	externalRecommender := external.NewRecommender(clock, podWatcher, store, clusterName, externalTLSConfig)
 	go externalRecommender.Run(ctx)
 
 	return podPatcher, nil

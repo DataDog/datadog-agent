@@ -9,8 +9,10 @@ package external
 
 import (
 	"testing"
+	"time"
 
 	corev1 "k8s.io/api/core/v1"
+	clock "k8s.io/utils/clock/testing"
 
 	"github.com/samber/lo"
 	"github.com/stretchr/testify/assert"
@@ -153,7 +155,8 @@ func TestBuildWorkloadRecommendationRequest_Table(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			client := newRecommenderClient(workload.NewPodWatcher(nil, nil), nil)
+			fakeClock := clock.NewFakeClock(time.Now())
+			client := newRecommenderClient(fakeClock, workload.NewPodWatcher(nil, nil), nil)
 			req, err := client.buildWorkloadRecommendationRequest(tc.cluster, tc.dpa.Build(), tc.dpa.CustomRecommenderConfiguration)
 			assert.NoError(t, err)
 			assert.Equal(t, tc.expectReq, req)

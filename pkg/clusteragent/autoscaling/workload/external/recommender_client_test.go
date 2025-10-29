@@ -30,6 +30,8 @@ import (
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/utils/clock"
+	clocktesting "k8s.io/utils/clock/testing"
 
 	kubeAutoscaling "github.com/DataDog/agent-payload/v5/autoscaling/kubernetes"
 	datadoghqcommon "github.com/DataDog/datadog-operator/api/datadoghq/common"
@@ -117,7 +119,6 @@ func TestRecommenderClient_GetReplicaRecommendation(t *testing.T) {
 			},
 			serverResponse: &kubeAutoscaling.WorkloadRecommendationReply{
 				TargetReplicas: 3,
-				Timestamp:      timestamppb.New(time.Now()),
 			},
 		},
 		{
@@ -157,7 +158,6 @@ func TestRecommenderClient_GetReplicaRecommendation(t *testing.T) {
 			},
 			serverResponse: &kubeAutoscaling.WorkloadRecommendationReply{
 				TargetReplicas: 5,
-				Timestamp:      timestamppb.New(time.Now()),
 			},
 		},
 		{
@@ -210,7 +210,6 @@ func TestRecommenderClient_GetReplicaRecommendation(t *testing.T) {
 			},
 			serverResponse: &kubeAutoscaling.WorkloadRecommendationReply{
 				TargetReplicas: 5,
-				Timestamp:      timestamppb.New(time.Now()),
 			},
 		},
 		{
@@ -389,6 +388,11 @@ func TestRecommenderClient_GetReplicaRecommendation(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			fakeClock := clocktesting.NewFakeClock(time.Now())
+			if tt.serverResponse != nil && tt.serverResponse.Timestamp == nil && tt.serverResponse.Error == nil {
+				tt.serverResponse.Timestamp = timestamppb.New(fakeClock.Now())
+			}
+
 			server := startHTTPServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				// Verify request method and headers
 				assert.Equal(t, http.MethodPost, r.Method)
@@ -452,7 +456,7 @@ func TestRecommenderClient_GetReplicaRecommendation(t *testing.T) {
 			pw := workload.NewPodWatcher(nil, nil)
 			pw.HandleEvent(newFakeWLMPodEvent(tt.dpa.Namespace, tt.dpa.Spec.TargetRef.Name, "pod1", []string{"container-name1"}))
 
-			client := newRecommenderClient(pw, nil)
+			client := newRecommenderClient(fakeClock, pw, nil)
 			client.client = server.Client()
 
 			result, err := client.GetReplicaRecommendation(context.Background(), "test-cluster", tt.dpa.Build())
@@ -473,16 +477,19 @@ func TestRecommenderClient_GetReplicaRecommendation(t *testing.T) {
 }
 
 func TestRecommenderClientTLSClientCertificateReload(t *testing.T) {
-	caCert, caKey, caPEM := generateTestCA(t)
+	fakeClock := clocktesting.NewFakeClock(time.Now())
+
+	caCert, caKey, caPEM := generateTestCA(t, fakeClock)
 	serverCertPEM, serverKeyPEM, _ := generateSignedCertificate(
 		t,
+		fakeClock,
 		caCert,
 		caKey,
 		"server",
 		[]x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
 		[]string{"localhost"},
 		[]net.IP{net.ParseIP("127.0.0.1")},
-		time.Now().Add(6*time.Hour),
+		fakeClock.Now().Add(6*time.Hour),
 	)
 
 	serverTLSCert, err := tls.X509KeyPair(serverCertPEM, serverKeyPEM)
@@ -492,23 +499,25 @@ func TestRecommenderClientTLSClientCertificateReload(t *testing.T) {
 
 	clientCert1PEM, clientKey1PEM, _ := generateSignedCertificate(
 		t,
+		fakeClock,
 		caCert,
 		caKey,
 		"client-1",
 		[]x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth},
 		nil,
 		nil,
-		time.Now().Add(3*time.Hour),
+		fakeClock.Now().Add(3*time.Hour),
 	)
 	clientCert2PEM, clientKey2PEM, clientCert2 := generateSignedCertificate(
 		t,
+		fakeClock,
 		caCert,
 		caKey,
 		"client-2",
 		[]x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth},
 		nil,
 		nil,
-		time.Now().Add(4*time.Hour),
+		fakeClock.Now().Add(4*time.Hour),
 	)
 
 	tempDir := t.TempDir()
@@ -522,7 +531,7 @@ func TestRecommenderClientTLSClientCertificateReload(t *testing.T) {
 
 	responsePayload, err := protojson.Marshal(&kubeAutoscaling.WorkloadRecommendationReply{
 		TargetReplicas: 3,
-		Timestamp:      timestamppb.New(time.Now()),
+		Timestamp:      timestamppb.New(fakeClock.Now()),
 	})
 	require.NoError(t, err)
 
@@ -577,7 +586,7 @@ func TestRecommenderClientTLSClientCertificateReload(t *testing.T) {
 	pw := workload.NewPodWatcher(nil, nil)
 	pw.HandleEvent(newFakeWLMPodEvent(dpa.Namespace, dpa.Spec.TargetRef.Name, "pod1", []string{"container"}))
 
-	client := newRecommenderClient(pw, &TLSConfig{
+	client := newRecommenderClient(fakeClock, pw, &TLSConfig{
 		CAFile:   caPath,
 		CertFile: clientCertPath,
 		KeyFile:  clientKeyPath,
@@ -600,11 +609,8 @@ func TestRecommenderClientTLSClientCertificateReload(t *testing.T) {
 	}
 	client.client.CloseIdleConnections()
 
-	client.certificateCache.mu.Lock()
-	entry, ok := client.certificateCache.cache[clientCertPath]
-	require.True(t, ok)
-	entry.lastUpdate = time.Now().Add(-certificateCacheTimeout - time.Second)
-	client.certificateCache.mu.Unlock()
+	// Advance the fake clock to simulate cache expiration
+	fakeClock.Step(certificateCacheTimeout + time.Second)
 
 	writePEM(t, clientCertPath, clientCert2PEM)
 	writePEM(t, clientKeyPath, clientKey2PEM)
@@ -621,7 +627,7 @@ func TestRecommenderClientTLSClientCertificateReload(t *testing.T) {
 	}
 
 	client.certificateCache.mu.RLock()
-	entry = client.certificateCache.cache[clientCertPath]
+	entry := client.certificateCache.cache[clientCertPath]
 	client.certificateCache.mu.RUnlock()
 	require.NotNil(t, entry.certificate)
 	require.NotNil(t, entry.certificate.Leaf)
@@ -629,7 +635,7 @@ func TestRecommenderClientTLSClientCertificateReload(t *testing.T) {
 	assert.Equal(t, clientCert2.SerialNumber.String(), entry.certificate.Leaf.SerialNumber.String())
 }
 
-func generateTestCA(t *testing.T) (*x509.Certificate, crypto.Signer, []byte) {
+func generateTestCA(t *testing.T, clk clock.Clock) (*x509.Certificate, crypto.Signer, []byte) {
 	t.Helper()
 
 	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
@@ -638,8 +644,8 @@ func generateTestCA(t *testing.T) (*x509.Certificate, crypto.Signer, []byte) {
 	template := &x509.Certificate{
 		SerialNumber:          randomSerial(t),
 		Subject:               pkix.Name{CommonName: "test-ca"},
-		NotBefore:             time.Now().Add(-time.Hour),
-		NotAfter:              time.Now().Add(24 * time.Hour),
+		NotBefore:             clk.Now().Add(-time.Hour),
+		NotAfter:              clk.Now().Add(24 * time.Hour),
 		KeyUsage:              x509.KeyUsageCertSign | x509.KeyUsageCRLSign,
 		IsCA:                  true,
 		BasicConstraintsValid: true,
@@ -655,7 +661,7 @@ func generateTestCA(t *testing.T) (*x509.Certificate, crypto.Signer, []byte) {
 	return cert, key, pemBytes
 }
 
-func generateSignedCertificate(t *testing.T, caCert *x509.Certificate, caKey crypto.Signer, commonName string, extKeyUsage []x509.ExtKeyUsage, dnsNames []string, ips []net.IP, notAfter time.Time) ([]byte, []byte, *x509.Certificate) {
+func generateSignedCertificate(t *testing.T, clk clock.Clock, caCert *x509.Certificate, caKey crypto.Signer, commonName string, extKeyUsage []x509.ExtKeyUsage, dnsNames []string, ips []net.IP, notAfter time.Time) ([]byte, []byte, *x509.Certificate) {
 	t.Helper()
 
 	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
@@ -664,7 +670,7 @@ func generateSignedCertificate(t *testing.T, caCert *x509.Certificate, caKey cry
 	template := &x509.Certificate{
 		SerialNumber:          randomSerial(t),
 		Subject:               pkix.Name{CommonName: commonName},
-		NotBefore:             time.Now().Add(-time.Hour),
+		NotBefore:             clk.Now().Add(-time.Hour),
 		NotAfter:              notAfter,
 		KeyUsage:              x509.KeyUsageDigitalSignature | x509.KeyUsageKeyEncipherment,
 		ExtKeyUsage:           extKeyUsage,
