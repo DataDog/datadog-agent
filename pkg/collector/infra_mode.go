@@ -38,7 +38,7 @@ var infraBasicAllowedChecks = map[string]struct{}{
 }
 
 // GetAllowedChecks returns the map of allowed checks for infra basic mode,
-// including any additional checks specified in the configuration via 'infra_mode_additional_checks'
+// including any additional checks specified in the configuration via 'allowed_additional_integrations'
 // when running in full mode, all checks are allowed (returns an empty map)
 func GetAllowedChecks(cfg pkgconfigmodel.Reader) map[string]struct{} {
 	if cfg.GetString("infrastructure_mode") != "basic" {
@@ -52,7 +52,7 @@ func GetAllowedChecks(cfg pkgconfigmodel.Reader) map[string]struct{} {
 	}
 
 	// Add any additional checks from config
-	additionalChecks := cfg.GetStringSlice("infra_mode_additional_checks")
+	additionalChecks := cfg.GetStringSlice("allowed_additional_integrations")
 	for _, check := range additionalChecks {
 		allowedMap[check] = struct{}{}
 	}
@@ -75,6 +75,6 @@ func IsCheckAllowed(checkName string, cfg pkgconfigmodel.Reader) bool {
 	}
 
 	// Check if it's in the additional checks from config
-	additionalChecks := cfg.GetStringSlice("infra_mode_additional_checks")
+	additionalChecks := cfg.GetStringSlice("allowed_additional_integrations")
 	return slices.Contains(additionalChecks, checkName)
 }
