@@ -135,6 +135,11 @@ func (tf *MockedForwarder) SubmitSeries(payload transaction.BytesPayloads, extra
 	return tf.Called(payload, extra).Error(0)
 }
 
+// SubmitEvents updates the internal mock struct
+func (tf *MockedForwarder) SubmitEvents(payload transaction.BytesPayloads, extra http.Header) error {
+	return tf.Called(payload, extra).Error(0)
+}
+
 // SubmitV1Intake updates the internal mock struct
 func (tf *MockedForwarder) SubmitV1Intake(payload transaction.BytesPayloads, _ transaction.Kind, extra http.Header) error {
 	return tf.Called(payload, extra).Error(0)
