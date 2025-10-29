@@ -314,12 +314,12 @@ var (
 	// MetricCGroupResolverFallbackFailed is the name of the metric used to report the number of failed fallbacks
 	// Tags: -
 	MetricCGroupResolverFallbackFailed = newRuntimeMetric(".cgroup_resolver.fallback_failed")
-	// MetricCGroupResolverAddPIDCgroupPresent is the name of the metric used to report the number of calls of ADDPid() with an empty cgroup context
+	// MetricCGroupResolverAddPIDCgroupPresent is the name of the metric used to report the number of calls of ADDPid() with an cgroup context
 	// Tags: -
-	MetricCGroupResolverAddPIDCgroupPresent = newRuntimeMetric(".cgroup_resolver.addpid_cgroup_empty")
-	// MetricCGroupResolverAddPIDCgroupAbsent is the name of the metric used to report the number of calls of ADDPid() with an empty cgroup context
+	MetricCGroupResolverAddPIDCgroupPresent = newRuntimeMetric(".cgroup_resolver.addpid_cgroup_present")
+	// MetricCGroupResolverAddPIDCgroupAbsent is the name of the metric used to report the number of calls of ADDPid() with no cgroup context
 	// Tags: -
-	MetricCGroupResolverAddPIDCgroupAbsent = newRuntimeMetric(".cgroup_resolver.addpid_cgroup_empty")
+	MetricCGroupResolverAddPIDCgroupAbsent = newRuntimeMetric(".cgroup_resolver.addpid_cgroup_absent")
 
 	// Security Profile metrics
 
