@@ -6,6 +6,7 @@
 //go:build !windows
 
 // Package processcollector implements the remote process collector for Workloadmeta on Windows.
+// This collector is not used on non-Windows platforms.
 package processcollector
 
 import (
