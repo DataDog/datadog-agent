@@ -49,6 +49,7 @@ type ResolverInterface interface {
 	AddPID(*model.ProcessCacheEntry)
 	DelPID(uint32)
 	GetWorkload(containerutils.ContainerID) (*cgroupModel.CacheEntry, bool)
+	GetWorkloadByCGroupID(containerutils.CGroupID) (*cgroupModel.CacheEntry, bool)
 	Len() int
 	RegisterListener(Event, utils.Listener[*cgroupModel.CacheEntry]) error
 }
@@ -201,12 +202,12 @@ func (cr *Resolver) cleanupPidsWithMultipleCgroups(pids []uint32, currentCgroup 
 
 func (cr *Resolver) pushNewCacheEntry(process *model.ProcessCacheEntry) {
 	// create new entry now
-	newCGroup := cgroupModel.NewCacheEntry(process.ContainerID, &process.CGroup, process.Pid)
+	newCGroup := cgroupModel.NewCacheEntry(process.ContainerContext.ContainerID, &process.CGroup, process.Pid)
 	newCGroup.CreatedAt = uint64(process.ProcessContext.ExecTime.UnixNano())
 
 	// add the new CGroup to the cache
-	if process.ContainerID != "" {
-		cr.containerWorkloads.Add(process.ContainerID, newCGroup)
+	if process.ContainerContext.ContainerID != "" {
+		cr.containerWorkloads.Add(process.ContainerContext.ContainerID, newCGroup)
 	} else {
 		cr.hostWorkloads.Add(process.CGroup.CGroupID, newCGroup)
 	}
@@ -225,7 +226,7 @@ func (cr *Resolver) resolvePidCgroupFallback(process *model.ProcessCacheEntry) b
 		process.CGroup.CGroupFile.MountID = cgroup.CGroupFileMountID
 		process.CGroup.CGroupFile.Inode = cgroup.CGroupFileInode
 		process.CGroup.CGroupID = cgroup.CGroupID
-		process.ContainerID = cid
+		process.ContainerContext.ContainerID = cid
 		seclog.Infof("Fallback to resolve cgroup for pid %d: %s", process.Pid, cgroup.CGroupID)
 		return true
 	}
@@ -243,7 +244,7 @@ func (cr *Resolver) resolvePidCgroupFallback(process *model.ProcessCacheEntry) b
 			process.CGroup.CGroupFile.MountID = cgroup.CGroupFile.MountID
 			process.CGroup.CGroupFile.Inode = cgroup.CGroupFile.Inode
 			process.CGroup.CGroupID = cgroup.CGroupID
-			process.ContainerID = containerutils.FindContainerID(cgroup.CGroupID)
+			process.ContainerContext.ContainerID = containerutils.FindContainerID(cgroup.CGroupID)
 			seclog.Infof("Fallback to resolve cgroup for pid %d from parent: %d", process.Pid, process.PPid)
 			return true
 		}
@@ -255,7 +256,7 @@ func (cr *Resolver) resolvePidCgroupFallback(process *model.ProcessCacheEntry) b
 		process.CGroup.CGroupFile.MountID = cgroup.CGroupFileMountID
 		process.CGroup.CGroupFile.Inode = cgroup.CGroupFileInode
 		process.CGroup.CGroupID = cgroup.CGroupID
-		process.ContainerID = cid
+		process.ContainerContext.ContainerID = cid
 		seclog.Infof("Fallback to resolve parent cgroup for ppid %d: %s", process.PPid, cgroup.CGroupID)
 		return true
 	}
@@ -344,6 +345,18 @@ func (cr *Resolver) GetWorkload(id containerutils.ContainerID) (*cgroupModel.Cac
 	defer cr.Unlock()
 
 	return cr.containerWorkloads.Get(id)
+}
+
+// GetWorkloadByCGroupID returns the workload referenced by the provided cgroup ID
+func (cr *Resolver) GetWorkloadByCGroupID(cgroupID containerutils.CGroupID) (*cgroupModel.CacheEntry, bool) {
+	if cgroupID == "" {
+		return nil, false
+	}
+
+	cr.Lock()
+	defer cr.Unlock()
+
+	return cr.hostWorkloads.Get(cgroupID)
 }
 
 // DelPID removes a PID from the cgroup resolver

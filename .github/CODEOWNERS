@@ -29,6 +29,9 @@
 /MODULE.bazel*                          @DataDog/agent-build
 # Temporary during Bazel migration
 /**/BUILD.bazel                         @DataDog/agent-build
+# This should really be to a team that does not exist yet. It would cover supply chain in general.
+# For now, agent-build are the experts in that.
+/third_party/                           @DataDog/agent-build
 
 /CHANGELOG.rst                          @DataDog/agent-delivery
 /CHANGELOG-DCA.rst                      @DataDog/container-integrations @DataDog/container-platform
@@ -334,7 +337,6 @@
 /comp/updater @DataDog/fleet @DataDog/windows-products
 /comp/agent/cloudfoundrycontainer @DataDog/agent-integrations
 /comp/agent/jmxlogger @DataDog/agent-metric-pipelines
-/comp/aggregator/diagnosesendermanager @DataDog/agent-configuration
 /comp/checks/agentcrashdetect @DataDog/windows-products
 /comp/checks/windowseventlog @DataDog/windows-products
 /comp/checks/winregistry @DataDog/windows-products
@@ -372,6 +374,7 @@
 /comp/haagent @DataDog/ndm-core
 /comp/languagedetection/client @DataDog/container-platform
 /comp/networkdeviceconfig @DataDog/network-device-monitoring
+/comp/notableevents @DataDog/windows-products
 /comp/publishermetadatacache @DataDog/windows-products
 /comp/rdnsquerier @DataDog/ndm-integrations
 /comp/serializer/logscompression @DataDog/agent-log-pipelines
@@ -379,6 +382,7 @@
 /comp/snmpscan @DataDog/ndm-core
 /comp/softwareinventory @DataDog/windows-products
 /comp/syntheticstestscheduler @DataDog/synthetics-executing
+/comp/workloadselection @DataDog/injection-platform
 # END COMPONENTS
 
 # Additional notification to  @iglendd about Agent Telemetry changes for optional approval and governance acknowledgement
@@ -587,6 +591,7 @@
 /pkg/process/                           @DataDog/container-experiences
 /pkg/process/util/address*.go           @DataDog/cloud-network-monitoring
 /pkg/process/checks/net*.go             @DataDog/cloud-network-monitoring
+/pkg/process/events/consumer/           @DataDog/agent-security
 /pkg/process/metadata/parser/           @DataDog/universal-service-monitoring @DataDog/container-experiences @DataDog/cloud-network-monitoring
 /pkg/process/metadata/parser/*windows*  @DataDog/universal-service-monitoring @DataDog/container-experiences @DataDog/cloud-network-monitoring @DataDog/windows-products
 /pkg/process/monitor/                   @DataDog/universal-service-monitoring

@@ -44,12 +44,6 @@ Package demultiplexer defines the aggregator demultiplexer
 
 Package demultiplexerendpoint component provides the /dogstatsd-contexts-dump API endpoint that can register via Fx value groups.
 
-### [comp/aggregator/diagnosesendermanager](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/aggregator/diagnosesendermanager)
-
-*Datadog Team*: agent-configuration
-
-Package diagnosesendermanager defines the sender manager for the local diagnose check
-
 ## [comp/api](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/api) (Component Bundle)
 
 *Datadog Team*: agent-runtimes
@@ -761,6 +755,12 @@ Package client implements a component to send process metadata to the Cluster-Ag
 
 Package networkdeviceconfig provides the component for retrieving network device configurations.
 
+### [comp/notableevents](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/notableevents)
+
+*Datadog Team*: windows-products
+
+Package notableevents provides a component that monitors notable system events and forwards them to the Datadog Event Management v2 API.
+
 ### [comp/publishermetadatacache](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/publishermetadatacache)
 
 *Datadog Team*: windows-products
@@ -806,3 +806,9 @@ versions, installation dates, and other relevant details for inventory tracking.
 
 Package syntheticstestscheduler defines a synthetics scheduler component to run
 network tests based on remote config.
+
+### [comp/workloadselection](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/workloadselection)
+
+*Datadog Team*: injection-platform
+
+Package workloadselection listens to Remote Config to receive & apply workload selection configuration

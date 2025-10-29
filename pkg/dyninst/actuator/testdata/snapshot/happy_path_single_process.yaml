@@ -24,6 +24,10 @@ state:
     1001: <nil> -> WaitingForProgram (prog 1)
   programs:
     1: <nil> -> Loading (proc 1001)
+  stats:
+    numProcesses: 0 -> 1
+    numPrograms: 0 -> 1
+    numWaitingForProgram: 0 -> 1
 ---
 event: !loaded {program_id: 1}
 effects:
@@ -35,6 +39,10 @@ state:
     1001: WaitingForProgram (prog 1) -> Attaching (prog 1)
   programs:
     1: Loading (proc 1001) -> Loaded (proc 1001)
+  stats:
+    loaded: 0 -> 1
+    numAttaching: 0 -> 1
+    numWaitingForProgram: 1 -> 0
 ---
 event: !attached {program_id: 1, process_id: 1001}
 state:
@@ -44,3 +52,7 @@ state:
     1001: Attaching (prog 1) -> Attached (prog 1)
   programs:
     1: Loaded (proc 1001)
+  stats:
+    attached: 0 -> 1
+    numAttached: 0 -> 1
+    numAttaching: 1 -> 0

@@ -254,7 +254,7 @@ CWS_INSTRUMENTATION_TAGS = {"netgo", "osusergo"}
 
 OTEL_AGENT_TAGS = {"otlp", "zlib", "zstd"}
 
-LOADER_TAGS = {"otlp"}
+LOADER_TAGS = set()
 
 FULL_HOST_PROFILER_TAGS = set()
 

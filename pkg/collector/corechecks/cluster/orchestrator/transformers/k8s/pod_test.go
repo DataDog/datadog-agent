@@ -565,6 +565,31 @@ func TestExtractPod(t *testing.T) {
 				},
 			},
 		},
+		"pod with unified tags": {
+			input: v1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{
+						"tags.datadoghq.com/env":     "production",
+						"tags.datadoghq.com/version": "7.70.0",
+						"tags.datadoghq.com/service": "my-service",
+					},
+				},
+			},
+			expected: model.Pod{
+				Metadata: &model.Metadata{
+					Labels: []string{
+						"tags.datadoghq.com/env:production",
+						"tags.datadoghq.com/version:7.70.0",
+						"tags.datadoghq.com/service:my-service",
+					},
+				},
+				Tags: []string{
+					"env:production",
+					"version:7.70.0",
+					"service:my-service",
+				},
+			},
+		},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {

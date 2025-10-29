@@ -24,8 +24,6 @@ type Model struct {
 	ExtraValidateFieldFnc func(field eval.Field, fieldValue eval.FieldValue) error
 }
 
-var containerContextZero ContainerContext
-
 // Releasable represents an object than can be released
 type Releasable struct {
 	onReleaseCallbacks []func() `field:"-"`
@@ -54,9 +52,10 @@ type ContainerContext struct {
 	Resolved    bool                       `field:"-"`
 }
 
-// Hash returns a unique key for the entity
-func (c *ContainerContext) Hash() string {
-	return string(c.ContainerID)
+// Key returns a unique key for the entity
+func (c *ContainerContext) Key() (string, bool) {
+	cID := string(c.ContainerID)
+	return cID, cID != ""
 }
 
 // ParentScope returns the parent entity scope
@@ -153,7 +152,6 @@ type BaseEvent struct {
 
 	// context shared with all event types
 	ProcessContext         *ProcessContext        `field:"process"`
-	ContainerContext       *ContainerContext      `field:"container"`
 	SecurityProfileContext SecurityProfileContext `field:"-"`
 
 	// internal usage
@@ -264,8 +262,8 @@ func (e *Event) GetTags() []string {
 	tags := []string{"type:" + e.GetType()}
 
 	// should already be resolved at this stage
-	if len(e.ContainerContext.Tags) > 0 {
-		tags = append(tags, e.ContainerContext.Tags...)
+	if e.ProcessContext != nil && len(e.ProcessContext.Process.ContainerContext.Tags) > 0 {
+		tags = append(tags, e.ProcessContext.Process.ContainerContext.Tags...)
 	}
 	return tags
 }
@@ -293,6 +291,14 @@ func (e *Event) ResolveEventTime() time.Time {
 // ResolveService uses the field handler
 func (e *Event) ResolveService() string {
 	return e.FieldHandlers.ResolveService(e, &e.BaseEvent)
+}
+
+// GetProcessTracerTags returns the value of the field, resolving if necessary
+func (e *Event) GetProcessTracerTags() []string {
+	if e.BaseEvent.ProcessContext == nil {
+		return []string{}
+	}
+	return e.BaseEvent.ProcessContext.Process.TracerTags
 }
 
 // UserSessionContext describes the user session context
@@ -436,7 +442,7 @@ type ProcessCacheEntry struct {
 
 // IsContainerRoot returns whether this is a top level process in the container ID
 func (pc *ProcessCacheEntry) IsContainerRoot() bool {
-	return pc.ContainerID != "" && pc.Ancestor != nil && pc.Ancestor.ContainerID == ""
+	return pc.Process.ContainerContext.ContainerID != "" && pc.Ancestor != nil && pc.Ancestor.ContainerContext.ContainerID == ""
 }
 
 // Reset the entry
