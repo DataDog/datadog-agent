@@ -67,6 +67,7 @@ ALL_TAGS = {
     "zlib",
     "zstd",
     "cel",
+    "cws_instrumentation_injector_only",  # used for building cws-instrumentation with only the injector code
 }
 
 ### Tag inclusion lists
