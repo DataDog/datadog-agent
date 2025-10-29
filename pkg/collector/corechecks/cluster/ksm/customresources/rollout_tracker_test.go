@@ -729,7 +729,6 @@ func TestNodeMigrationScenario(t *testing.T) {
 
 	key := sts.Namespace + "/" + sts.Name
 	tracker.statefulSetMap[key] = sts.DeepCopy()
-	tracker.statefulSetAccessTime[key] = time.Now()
 	tracker.statefulSetStartTime[key] = time.Now().Add(-2 * time.Hour)
 
 	// Test: Should NOT detect as ongoing rollout (all conditions stable)
@@ -797,7 +796,6 @@ func TestStatefulSetNodeMigrationScenario(t *testing.T) {
 	// Store the StatefulSet as if it was tracked from a real rollout
 	key := sts.Namespace + "/" + sts.Name
 	tracker.statefulSetMap[key] = sts.DeepCopy()
-	tracker.statefulSetAccessTime[key] = time.Now()
 	tracker.statefulSetStartTime[key] = time.Now().Add(-2 * time.Hour)
 
 	// Test: Should detect as ongoing rollout for StatefulSets during node migration
@@ -845,7 +843,6 @@ func TestDeploymentNodeMigrationScenario(t *testing.T) {
 	// Store the Deployment as if it was tracked from a real rollout days ago
 	key := deployment.Namespace + "/" + deployment.Name
 	tracker.deploymentMap[key] = deployment.DeepCopy()
-	tracker.deploymentAccessTime[key] = time.Now()
 	// Simulate old rollout start time (2 hours ago - for duration calculation)
 	tracker.deploymentStartTime[key] = time.Now().Add(-2 * time.Hour)
 
