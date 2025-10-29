@@ -14,10 +14,12 @@ import (
 
 	"github.com/avast/retry-go/v4"
 	"github.com/goccy/go-yaml"
+	"github.com/stretchr/testify/require"
 
 	e2eos "github.com/DataDog/test-infra-definitions/components/os"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
+	windowscommon "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
 )
 
 // Agent is a cross platform wrapper around the agent commands for use in tests.
@@ -74,7 +76,8 @@ func (a *Agent) MustSetExperimentTimeout(timeout time.Duration) {
 		a.host.RemoteHost.MustExecute("sudo mkdir -p /etc/systemd/system/datadog-agent-exp.service.d")
 		a.host.RemoteHost.MustExecute(fmt.Sprintf("sudo sh -c 'echo \"[Service]\nEnvironment=EXPERIMENT_TIMEOUT=%ds\" > /etc/systemd/system/datadog-agent-exp.service.d/experiment-timeout.conf'", int(timeout.Seconds())))
 	case e2eos.WindowsFamily:
-
+		err := windowscommon.SetRegistryDWORDValue(a.host.RemoteHost, `HKLM:\SOFTWARE\Datadog\Datadog Agent`, "WatchdogTimeout", int(timeout.Seconds()))
+		require.NoError(a.t(), err)
 	default:
 		a.t().Fatalf("Unsupported OS family: %v", a.host.RemoteHost.OSFamily)
 	}
@@ -86,6 +89,8 @@ func (a *Agent) MustUnsetExperimentTimeout() {
 	case e2eos.LinuxFamily:
 		a.host.RemoteHost.MustExecute("sudo rm -f /etc/systemd/system/datadog-agent-exp.service.d/experiment-timeout.conf")
 	case e2eos.WindowsFamily:
+		err := windowscommon.DeleteRegistryKey(a.host.RemoteHost, `HKLM:\SOFTWARE\Datadog\Datadog Agent\WatchdogTimeout`)
+		require.NoError(a.t(), err)
 	default:
 		a.t().Fatalf("Unsupported OS family: %v", a.host.RemoteHost.OSFamily)
 	}
