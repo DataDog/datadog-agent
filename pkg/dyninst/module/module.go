@@ -8,6 +8,7 @@
 package module
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -21,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dyninst/dispatcher"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/irgen"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/loader"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/module/tombstone"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/object"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/process"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/procscrape"
@@ -38,6 +40,8 @@ type Module struct {
 
 	store       *processStore
 	diagnostics *diagnosticsManager
+
+	cancel context.CancelFunc
 
 	shutdown struct {
 		sync.Once
@@ -60,11 +64,21 @@ func NewModule(
 	if override := config.TestingKnobs.IRGeneratorOverride; override != nil {
 		deps.IRGenerator = override(deps.IRGenerator)
 	}
-	m := newUnstartedModule(deps)
+	m := newUnstartedModule(deps, config.ProbeTombstoneFilePath)
 	m.shutdown.realDependencies = realDeps
 
-	if realDeps.processSubscriber != nil {
-		realDeps.processSubscriber.Start()
+	ctx, cancel := context.WithCancel(context.Background())
+	m.cancel = cancel
+
+	if deps.ProcessSubscriber != nil {
+		// Start the subscriber in a separate goroutine since WaitOutTombstone()
+		// may block.
+		go func() {
+			// Wait for a while if we're recovering from a crash.
+			tombstone.WaitOutTombstone(ctx, config.ProbeTombstoneFilePath, config.TestingKnobs.TombstoneSleepKnobs)
+
+			deps.ProcessSubscriber.Start()
+		}()
 	}
 	return m, nil
 }
@@ -72,7 +86,13 @@ func NewModule(
 // TODO: make this configurable.
 const bufferedMessagesByteLimit = 512 << 10
 
-func newUnstartedModule(deps dependencies) *Module {
+// tombstoneFilePath is the path to the tombstone file left behind to detect
+// crashes while loading programs. If empty, tombstone files are not
+// created.
+//
+// tombstoneFilePath is the path to the tombstone file left behind to detect
+// crashes while loading programs. If empty, tombstone files are not created.
+func newUnstartedModule(deps dependencies, tombstoneFilePath string) *Module {
 	// A zero-value symdbManager is valid and disabled.
 	if deps.symdbManager == nil {
 		deps.symdbManager = &symdbManager{}
@@ -93,6 +113,7 @@ func newUnstartedModule(deps dependencies) *Module {
 		logsFactory:              logsUploader,
 		procRuntimeIDbyProgramID: &sync.Map{},
 		bufferedMessageTracker:   bufferedMessagesTracker,
+		tombstoneFilePath:        tombstoneFilePath,
 	}
 	tenant := deps.Actuator.NewTenant("dyninst", runtime)
 
@@ -101,6 +122,7 @@ func newUnstartedModule(deps dependencies) *Module {
 		diagnostics: diagnostics,
 		symdb:       deps.symdbManager,
 		tenant:      tenant,
+		cancel:      func() {}, // This gets overwritten in NewModule
 	}
 	if deps.ProcessSubscriber != nil {
 		deps.ProcessSubscriber.Subscribe(m.handleProcessesUpdate)
@@ -280,6 +302,7 @@ func (m *Module) Register(router *module.Router) error {
 func (m *Module) Close() {
 	m.shutdown.Once.Do(func() {
 		log.Debugf("closing dynamic instrumentation module")
+		m.cancel()
 		m.shutdown.realDependencies.shutdown()
 	})
 }
