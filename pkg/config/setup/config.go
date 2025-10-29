@@ -641,6 +641,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("ecs_task_cache_ttl", 3*time.Minute)
 	config.BindEnvAndSetDefault("ecs_task_collection_rate", 35)
 	config.BindEnvAndSetDefault("ecs_task_collection_burst", 60)
+	config.BindEnvAndSetDefault("ecs_deployment_mode", "auto")
 
 	// GCE
 	config.BindEnvAndSetDefault("collect_gce_tags", true)
@@ -1144,7 +1145,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	setupProcesses(config)
 
 	// Installer configuration
-	config.BindEnvAndSetDefault("remote_updates", false)
+	config.BindEnvAndSetDefault("remote_updates", true)
 	config.BindEnvAndSetDefault("installer.mirror", "")
 	config.BindEnvAndSetDefault("installer.registry.url", "")
 	config.BindEnvAndSetDefault("installer.registry.auth", "")
