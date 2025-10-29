@@ -1,0 +1,80 @@
+"""BUILD file for libyaml."""
+
+load("@@//bazel/rules:so_symlink.bzl", "so_symlink")
+load("@bazel_skylib//rules:expand_template.bzl", "expand_template")
+load("@rules_pkg//pkg:install.bzl", "pkg_install")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_files")
+
+VERSION = "0.2.5"
+
+cc_library(
+    name = "libyaml",
+    srcs = [
+        "src/api.c",
+        "src/dumper.c",
+        "src/emitter.c",
+        "src/loader.c",
+        "src/parser.c",
+        "src/reader.c",
+        "src/scanner.c",
+        "src/writer.c",
+        "src/yaml_private.h",
+    ],
+    hdrs = ["include/yaml.h"],
+    copts = ["-w"],
+    includes = ["include"],
+    local_defines = [
+        "YAML_VERSION_MAJOR=0",
+        "YAML_VERSION_MINOR=2",
+        "YAML_VERSION_PATCH=5",
+        'YAML_VERSION_STRING=\\"0.2.5\\"',
+    ],
+    visibility = ["//visibility:public"],
+)
+
+cc_shared_library(
+    name = "libyaml_so",
+    deps = [":libyaml"],
+    features = select({
+        "@platforms//os:macos": ["-macos_default_link_flags"],
+        "//conditions:default": [],
+    }),
+    visibility = ["//visibility:public"],
+)
+
+so_symlink(
+    name = "lib_files",
+    src = ":libyaml_so",
+    libname = "libyaml",
+    version = VERSION,
+)
+
+pkg_files(
+    name = "headers",
+    srcs = ["include/yaml.h"],
+    prefix = "include",
+)
+
+expand_template(
+    name = "gen_pkgconfig",
+    out = "libyaml.pc",
+    substitutions = {
+        "{{VERSION}}": VERSION,
+    },
+    template = "@@//deps/libyaml:libyaml.pc.in",
+)
+
+pkg_files(
+    name = "pkgconfig",
+    srcs = [":gen_pkgconfig"],
+    prefix = "lib/pkgconfig",
+)
+
+pkg_install(
+    name = "install",
+    srcs = [
+        ":lib_files",
+        ":headers",
+        ":pkgconfig",
+    ],
+)
