@@ -353,8 +353,7 @@ func NewDefaultForwarder(config config.Component, log log.Component, options *Op
 		domain, _ := utils.AddAgentVersionToDomain(domain, "app")
 		resolver.SetBaseDomain(domain)
 
-		_, isLocal := resolver.(*pkgresolver.LocalDomainResolver)
-		if !isLocal && (resolver.GetAPIKeys() == nil || len(resolver.GetAPIKeys()) == 0) {
+		if !resolver.IsUsable() {
 			log.Errorf("No API keys for domain '%s', dropping domain ", domain)
 		} else {
 			var domainFolderPath string
@@ -378,7 +377,7 @@ func NewDefaultForwarder(config config.Component, log log.Component, options *Op
 				pointCountTelemetry)
 			f.domainResolvers[domain] = resolver
 			numberOfWorkers := options.NumberOfWorkers
-			if isLocal {
+			if resolver.IsLocal() {
 				numberOfWorkers = 1 // Local domain resolver should only have one worker
 			}
 			fwd := newDomainForwarder(
@@ -386,7 +385,7 @@ func NewDefaultForwarder(config config.Component, log log.Component, options *Op
 				log,
 				domain,
 				isMRF,
-				isLocal,
+				resolver.IsLocal(),
 				transactionContainer,
 				numberOfWorkers,
 				options.ConnectionResetInterval,
