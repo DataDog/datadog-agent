@@ -107,17 +107,18 @@ func (f *Fingerprinter) ComputeFingerprint(file *File) (*types.Fingerprint, erro
 
 	// Check per-source config first (takes precedence over global config)
 	if fileFingerprintConfig != nil && fileFingerprintConfig.FingerprintStrategy != "" {
-		if fileFingerprintConfig.FingerprintStrategy == types.FingerprintStrategyDisabled {
-			return newInvalidFingerprint(fileFingerprintConfig), nil
-		}
-
 		// Convert from config.FingerprintConfig to types.FingerprintConfig
+		// Do this BEFORE checking if disabled so Source field is always set
 		fingerprintConfig := &types.FingerprintConfig{
 			FingerprintStrategy: types.FingerprintStrategy(fileFingerprintConfig.FingerprintStrategy),
 			Count:               fileFingerprintConfig.Count,
 			CountToSkip:         fileFingerprintConfig.CountToSkip,
 			MaxBytes:            fileFingerprintConfig.MaxBytes,
 			Source:              types.FingerprintConfigSourcePerSource,
+		}
+
+		if fileFingerprintConfig.FingerprintStrategy == types.FingerprintStrategyDisabled {
+			return newInvalidFingerprint(fingerprintConfig), nil
 		}
 
 		return computeFingerprint(file.Path, fingerprintConfig)

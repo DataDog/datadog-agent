@@ -1456,7 +1456,7 @@ func (suite *FingerprintTestSuite) TestComputeFingerprintPreservesConfigWhenDisa
 	fingerprint, err := fingerprinter.ComputeFingerprint(file)
 	suite.Nil(err)
 	suite.NotNil(fingerprint)
-	suite.Equal(types.InvalidFingerprintValue, fingerprint.Value, "Fingerprint value should be invalid when disabled")
+	suite.Equal(types.InvalidFingerprintValue, int(fingerprint.Value), "Fingerprint value should be invalid when disabled")
 	suite.NotNil(fingerprint.Config, "Config should be preserved even when disabled")
 	suite.Equal(types.FingerprintStrategyDisabled, fingerprint.Config.FingerprintStrategy)
 	suite.Equal(types.FingerprintConfigSourcePerSource, fingerprint.Config.Source, "Config should show it was disabled at per-source level")
@@ -1468,6 +1468,7 @@ func (suite *FingerprintTestSuite) TestComputeFingerprintWithEnabledConfig() {
 	globalConfig := types.FingerprintConfig{
 		FingerprintStrategy: types.FingerprintStrategyByteChecksum,
 		Count:               1024,
+		Source:              types.FingerprintConfigSourceGlobal,
 	}
 	fingerprinter := NewFingerprinter(globalConfig)
 
@@ -1482,6 +1483,7 @@ func (suite *FingerprintTestSuite) TestComputeFingerprintWithEnabledConfig() {
 		FingerprintStrategy: types.FingerprintStrategyByteChecksum,
 		Count:               100,
 		CountToSkip:         0,
+		Source:              types.FingerprintConfigSourcePerSource,
 	}
 	sourceConfig := &config.LogsConfig{
 		Type:              config.FileType,
