@@ -372,6 +372,10 @@ var defaultProfiles = `
             - version
             - command
             - host
+	    - name: runtime.datadog_agent_otlp_logs_requests
+		- name: runtime.datadog_agent_otlp_logs_events
+		- name: runtime.datadog_agent_otlp_metrics_requests
+		- name: runtime.datadog_agent_otlp_metrics_events
     schedule:
       start_after: 30
       iterations: 0

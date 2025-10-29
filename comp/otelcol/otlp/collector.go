@@ -88,7 +88,7 @@ func getComponents(
 	}
 
 	if logsAgentChannel != nil {
-		exporterFactories = append(exporterFactories, logsagentexporter.NewFactory(logsAgentChannel, otel.NewDisabledGatewayUsage()))
+		exporterFactories = append(exporterFactories, logsagentexporter.NewFactory(logsAgentChannel, otel.NewDisabledGatewayUsage(), telemetry))
 	}
 
 	exporters, err := otelcol.MakeFactoryMap[exporter.Factory](exporterFactories...)

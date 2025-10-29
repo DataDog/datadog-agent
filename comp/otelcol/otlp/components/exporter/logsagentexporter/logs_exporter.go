@@ -11,6 +11,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/serializerexporter"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/inframetadata"
@@ -26,6 +28,7 @@ import (
 
 // Exporter defines fields for the logs agent exporter
 type Exporter struct {
+	telemetryStore   serializerexporter.TelemetryStore
 	set              component.TelemetrySettings
 	logsAgentChannel chan *message.Message
 	logSource        *sources.LogSource
@@ -43,7 +46,7 @@ func NewExporter(
 	logsAgentChannel chan *message.Message,
 	attributesTranslator *attributes.Translator,
 ) (*Exporter, error) {
-	return NewExporterWithGatewayUsage(set, cfg, logSource, logsAgentChannel, attributesTranslator, otel.NewDisabledGatewayUsage())
+	return NewExporterWithGatewayUsage(set, cfg, logSource, logsAgentChannel, attributesTranslator, otel.NewDisabledGatewayUsage(), nil)
 }
 
 // NewExporterWithGatewayUsage initializes a new logs agent exporter with the given parameters
@@ -54,12 +57,27 @@ func NewExporterWithGatewayUsage(
 	logsAgentChannel chan *message.Message,
 	attributesTranslator *attributes.Translator,
 	gatewaysUsage otel.GatewayUsage,
+	telemetry telemetry.Component,
 ) (*Exporter, error) {
 	translator, err := logsmapping.NewTranslator(set, attributesTranslator, cfg.OtelSource)
 	if err != nil {
 		return nil, err
 	}
-
+	store := serializerexporter.TelemetryStore{}
+	if telemetry != nil {
+		store.OTLPIngestLogsEvents = telemetry.NewCounter(
+			"runtime",
+			"datadog_agent_otlp_ingest_logs_events",
+			[]string{},
+			"Counter metric of OTLP Log events in OTLP ingestion",
+		)
+		store.OTLPIngestLogsRequests = telemetry.NewCounter(
+			"runtime",
+			"datadog_agent_otlp_ingest_logs_requests",
+			[]string{},
+			"Counter metric of OTLP Log requests in OTLP ingestion",
+		)
+	}
 	return &Exporter{
 		set:              set,
 		logsAgentChannel: logsAgentChannel,
@@ -67,11 +85,15 @@ func NewExporterWithGatewayUsage(
 		translator:       translator,
 		gatewaysUsage:    gatewaysUsage,
 		cfg:              cfg,
+		telemetryStore:   store,
 	}, nil
 }
 
 // ConsumeLogs maps logs from OTLP to DD format and ingests them through the exporter channel
 func (e *Exporter) ConsumeLogs(ctx context.Context, ld plog.Logs) (err error) {
+	if e.telemetryStore.OTLPIngestLogsRequests != nil {
+		e.telemetryStore.OTLPIngestLogsRequests.Add(1)
+	}
 	defer func() {
 		if err != nil {
 			newErr, scrubbingErr := scrubber.ScrubString(err.Error())
@@ -94,6 +116,9 @@ func (e *Exporter) ConsumeLogs(ctx context.Context, ld plog.Logs) (err error) {
 	}
 
 	payloads := e.translator.MapLogs(ctx, ld, e.gatewaysUsage.GetHostFromAttributesHandler())
+	if e.telemetryStore.OTLPIngestLogsEvents != nil {
+		e.telemetryStore.OTLPIngestLogsEvents.Add(float64(len(payloads)))
+	}
 	for _, ddLog := range payloads {
 		tags := strings.Split(ddLog.GetDdtags(), ",")
 		// Tags are set in the message origin instead
