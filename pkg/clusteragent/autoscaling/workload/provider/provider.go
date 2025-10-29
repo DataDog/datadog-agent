@@ -17,6 +17,7 @@ import (
 	"k8s.io/client-go/tools/record"
 	"k8s.io/utils/clock"
 
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling"
@@ -38,7 +39,6 @@ func StartWorkloadAutoscaling(
 	rcClient workload.RcClient,
 	wlm workloadmeta.Component,
 	senderManager sender.SenderManager,
-	externalTLSConfig *external.TLSConfig,
 ) (workload.PodPatcher, error) {
 	if apiCl == nil {
 		return nil, fmt.Errorf("Impossible to start workload autoscaling without valid APIClient")
@@ -89,8 +89,29 @@ func StartWorkloadAutoscaling(
 		go localRecommender.Run(ctx)
 	}
 
+	externalTLSConfig := buildExternalRecommenderTLSConfig(pkgconfigsetup.Datadog())
 	externalRecommender := external.NewRecommender(podWatcher, store, clusterName, externalTLSConfig)
 	go externalRecommender.Run(ctx)
 
 	return podPatcher, nil
+}
+
+func buildExternalRecommenderTLSConfig(cfg config.Component) *external.TLSConfig {
+	caFile := cfg.GetString("autoscaling.workload.external_recommender.tls.ca_file")
+	certFile := cfg.GetString("autoscaling.workload.external_recommender.tls.cert_file")
+	keyFile := cfg.GetString("autoscaling.workload.external_recommender.tls.key_file")
+	serverName := cfg.GetString("autoscaling.workload.external_recommender.tls.server_name")
+	insecureSkipVerify := cfg.GetBool("autoscaling.workload.external_recommender.tls.insecure_skip_verify")
+
+	if caFile == "" && certFile == "" && keyFile == "" {
+		return nil
+	}
+
+	return &external.TLSConfig{
+		CAFile:             caFile,
+		CertFile:           certFile,
+		KeyFile:            keyFile,
+		ServerName:         serverName,
+		InsecureSkipVerify: insecureSkipVerify,
+	}
 }

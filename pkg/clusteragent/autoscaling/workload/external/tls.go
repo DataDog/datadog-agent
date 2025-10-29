@@ -24,8 +24,6 @@ type TLSConfig struct {
 	CertFile           string
 	KeyFile            string
 	ServerName         string
-	MinVersion         string
-	MaxVersion         string
 	InsecureSkipVerify bool
 }
 
@@ -37,14 +35,9 @@ const (
 	certificateCacheTimeout           = 10 * time.Minute
 	certificateCacheExpirationTimeout = 10 * time.Minute
 	certificateErrorCacheTimeout      = 1 * time.Minute
+	certificateLoadRetryAttempts      = 5
+	certificateLoadRetrySleep         = 50 * time.Millisecond
 )
-
-var tlsVersions = map[string]uint16{
-	"TLS13": tls.VersionTLS13,
-	"TLS12": tls.VersionTLS12,
-	"TLS11": tls.VersionTLS11,
-	"TLS10": tls.VersionTLS10,
-}
 
 // configureTransportTLS updates the provided transport with a TLS configuration based on the given settings.
 func configureTransportTLS(transport *http.Transport, config *TLSConfig, cache *tlsCertificateCache) error {
@@ -72,24 +65,6 @@ func configureTransportTLS(transport *http.Transport, config *TLSConfig, cache *
 }
 
 func buildTLSConfig(config *TLSConfig) (*tls.Config, error) {
-	var minVersion uint16
-	if config.MinVersion != "" {
-		var ok bool
-		minVersion, ok = tlsVersions[config.MinVersion]
-		if !ok {
-			return nil, fmt.Errorf("unknown minimum TLS version: %s", config.MinVersion)
-		}
-	}
-
-	var maxVersion uint16
-	if config.MaxVersion != "" {
-		var ok bool
-		maxVersion, ok = tlsVersions[config.MaxVersion]
-		if !ok {
-			return nil, fmt.Errorf("unknown maximum TLS version: %s", config.MaxVersion)
-		}
-	}
-
 	var rootCA *x509.CertPool
 	if config.CAFile != "" {
 		caPEM, err := os.ReadFile(config.CAFile)
@@ -103,8 +78,7 @@ func buildTLSConfig(config *TLSConfig) (*tls.Config, error) {
 	}
 
 	return &tls.Config{
-		MinVersion:         minVersion,
-		MaxVersion:         maxVersion,
+		MinVersion:         tls.VersionTLS12,
 		ServerName:         config.ServerName,
 		RootCAs:            rootCA,
 		InsecureSkipVerify: config.InsecureSkipVerify,
@@ -161,7 +135,7 @@ func (c *tlsCertificateCache) GetClientCertificateReloadingFunc(certFile, keyFil
 		c.mu.RUnlock()
 
 		if !ok || entry.shouldReload(now) {
-			certificate, err := retryLoadingX509Keypair(5, 50*time.Millisecond, certFile, keyFile)
+			certificate, err := retryLoadingX509Keypair(certificateLoadRetryAttempts, certificateLoadRetrySleep, certFile, keyFile)
 
 			c.mu.Lock()
 			entry = &tlsCacheEntry{
