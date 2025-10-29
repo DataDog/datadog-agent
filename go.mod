@@ -180,12 +180,12 @@ require (
 	github.com/DataDog/datadog-agent/pkg/version v0.72.0-rc.5
 	github.com/DataDog/datadog-go/v5 v5.8.1
 	github.com/DataDog/datadog-operator/api v0.0.0-20251002125833-f01ea1d12a3f
-	github.com/DataDog/datadog-traceroute v0.1.28
+	github.com/DataDog/datadog-traceroute v0.1.29
 	github.com/DataDog/dd-otel-host-profiler v0.4.1-0.20251013140043-83a1f38427f0
 	github.com/DataDog/dd-trace-go/v2 v2.2.2 // indirect
 	github.com/DataDog/ebpf-manager v0.7.14
 	github.com/DataDog/go-libddwaf/v4 v4.3.2
-	github.com/DataDog/go-sqllexer v0.1.8
+	github.com/DataDog/go-sqllexer v0.1.9
 	github.com/DataDog/gopsutil v1.2.2
 	github.com/DataDog/nikos v1.12.12
 	github.com/DataDog/sketches-go v1.4.7
@@ -986,7 +986,7 @@ replace github.com/vishvananda/netlink => github.com/DataDog/netlink v1.0.1-0.20
 // Use custom Trivy fork to reduce binary size
 // Pull in replacements needed by upstream Trivy
 // Maps to Trivy fork https://github.com/DataDog/trivy/commits/djc/main-dd-060
-replace github.com/aquasecurity/trivy => github.com/DataDog/trivy v0.0.0-20250722083937-c6ac58f23994
+replace github.com/aquasecurity/trivy => github.com/DataDog/trivy v0.0.0-20251024065956-6fa645cdca17
 
 // Prevent dependencies to be bumped by Trivy
 // github.com/DataDog/aptly@v1.5.3 depends on gopenpgp/v2, so we use latest version of go-crypto before the move to gopenpgp/v3
