@@ -88,7 +88,7 @@ func (s *CheckScheduler) Schedule(configs []integration.Config) {
 		for _, c := range checks {
 			// Check if this check is allowed in infra basic mode
 			if !IsCheckAllowed(c.String(), setup.Datadog()) {
-				log.Infof("Check %s is not allowed in infra basic mode, skipping", c.String())
+				log.Warnf("Check %s is not allowed in infrastructure basic mode, skipping", c.String())
 				continue
 			}
 			_, err := coll.RunCheck(c)
