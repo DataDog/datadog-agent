@@ -214,7 +214,8 @@ c:
 			"a": &leafNodeImpl{val: "orange", source: model.SourceFile},
 			"c": &innerNode{
 				children: map[string]Node{
-					"d": &leafNodeImpl{val: 1234, source: model.SourceFile},
+					"d":       &leafNodeImpl{val: 1234, source: model.SourceFile},
+					"unknown": &leafNodeImpl{val: "key", source: model.SourceFile},
 				},
 			},
 		},

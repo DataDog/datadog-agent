@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sys/unix"
 
@@ -45,6 +46,13 @@ func TestGetTracerMetadata(t *testing.T) {
 		require.Equal(t, "my-env", trm.ServiceEnv)
 		require.Equal(t, "my-version", trm.ServiceVersion)
 		require.Equal(t, uint8(1), trm.SchemaVersion)
+
+		tags := trm.GetTags()
+		assert.Equal(t, []string{
+			"service:my-service",
+			"env:my-env",
+			"version:my-version",
+		}, tags)
 	})
 
 	t.Run("go_v2", func(t *testing.T) {
@@ -63,12 +71,26 @@ func TestGetTracerMetadata(t *testing.T) {
 		require.Equal(t, "d7827075-010c-4e21-a663-daa3cd34e6f2", trm.ContainerID)
 		require.Equal(t, uint8(2), trm.SchemaVersion)
 		require.NoError(t, err)
+
+		tags := trm.GetTags()
+		assert.Equal(t, []string{
+			"service:test-go",
+			"env:prod",
+			"version:abc123",
+			"entrypoint.basedir:exe",
+			"entrypoint.name:gotrace",
+			"entrypoint.type:executable",
+			"entrypoint.workdir:gotrace",
+		}, tags)
 	})
 
 	t.Run("invalid data", func(t *testing.T) {
 		createTracerMemfd(t, []byte("invalid data"))
-		_, err := GetTracerMetadata(pid, procfs)
+		trm, err := GetTracerMetadata(pid, procfs)
 		require.Error(t, err)
+
+		tags := trm.GetTags()
+		assert.Empty(t, tags)
 	})
 }
 

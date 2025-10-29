@@ -195,8 +195,9 @@ func (p *ClusterProcessor) Process(ctx processors.ProcessorContext, list interfa
 					Tags: pctx.GetCollectorTags(),
 				},
 			},
-			Tags:         pctx.Cfg.ExtraTags,
-			AgentVersion: ctx.GetAgentVersion(),
+			Tags:            pctx.Cfg.ExtraTags,
+			AgentVersion:    ctx.GetAgentVersion(),
+			OriginCollector: model.OriginCollector_datadogAgent,
 		},
 	}
 	processResult = processors.ProcessResult{

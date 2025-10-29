@@ -43,10 +43,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dyninst/actuator"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/dyninsttest"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
-	di_module "github.com/DataDog/datadog-agent/pkg/dyninst/module"
-	"github.com/DataDog/datadog-agent/pkg/dyninst/procmon"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/module"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/process"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/rcjson"
-	"github.com/DataDog/datadog-agent/pkg/dyninst/rcscrape"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/testprogs"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/uploader"
 )
@@ -63,8 +62,7 @@ type testState struct {
 	symdbServer *httptest.Server
 	symdbURL    string
 
-	module     *di_module.Module
-	subscriber *mockSubscriber
+	module     *module.Module
 	serviceCmd *exec.Cmd
 	servicePID uint32
 
@@ -159,6 +157,10 @@ type e2eTestConfig struct {
 	addSymdb bool
 }
 
+type subscribeFunc func(func(process.ProcessesUpdate))
+
+func (f subscribeFunc) Subscribe(cb func(process.ProcessesUpdate)) { f(cb) }
+
 func runE2ETest(t *testing.T, cfg e2eTestConfig) {
 	tmpDir, cleanup := dyninsttest.PrepTmpDir(t, strings.ReplaceAll(t.Name(), "/", "_"))
 	defer cleanup()
@@ -188,16 +190,37 @@ func runE2ETest(t *testing.T, cfg e2eTestConfig) {
 	sampleServicePath := testprogs.MustGetBinary(t, cfg.binary, cfg.cfg)
 	serverPort := ts.startSampleService(t, sampleServicePath)
 
-	ts.initializeModule(t)
-	symdbProcStates := make(map[procmon.ProcessID]bool)
+	subscriber := &mockSubscriber{}
+	modCfg, err := module.NewConfig(nil)
+	require.NoError(t, err)
+
+	modCfg.SymDBUploadEnabled = true
+	modCfg.LogUploaderURL = ts.backendServer.URL + "/logs"
+	modCfg.DiagsUploaderURL = ts.backendServer.URL + "/diags"
+	modCfg.SymDBUploaderURL = ts.symdbURL
+	modCfg.ProcessSyncDisabled = true
+
+	symdbProcStates := make(map[process.ID]bool)
 	if cfg.addSymdb {
-		ts.module.SetScraperUpdatesCallback(
-			func(updates []rcscrape.ProcessUpdate) {
-				u := updates[0]
-				symdbProcStates[u.ProcessID] = u.ShouldUploadSymDB
+		modCfg.TestingKnobs.ProcessSubscriberOverride = func(
+			subscriber module.ProcessSubscriber,
+		) module.ProcessSubscriber {
+			return subscribeFunc(func(callback func(process.ProcessesUpdate)) {
+				subscriber.Subscribe(func(update process.ProcessesUpdate) {
+					if len(update.Updates) > 0 {
+						u := update.Updates[0]
+						symdbProcStates[u.ProcessID] = u.ShouldUploadSymDB
+					}
+					callback(update)
+				})
 			})
+		}
 	}
-	ts.subscriber.NotifyExec(ts.servicePID)
+
+	ts.module, err = module.NewModule(modCfg, subscriber)
+	require.NoError(t, err)
+	t.Cleanup(ts.module.Close)
+	subscriber.NotifyExec(ts.servicePID)
 
 	expectedProbeIDs := []string{"look_at_the_request", "http_handler"}
 	waitForProbeStatus(
@@ -207,7 +230,7 @@ func runE2ETest(t *testing.T, cfg e2eTestConfig) {
 
 	assertSymdb := func(c *assert.CollectT, expEnabled bool) {
 		assert.Len(c, symdbProcStates, 1)
-		var procID procmon.ProcessID
+		var procID process.ID
 		var enabled bool
 		for procID, enabled = range symdbProcStates {
 			break
@@ -289,7 +312,7 @@ func runE2ETest(t *testing.T, cfg e2eTestConfig) {
 	)
 	require.NoError(t, ts.serviceCmd.Process.Signal(os.Interrupt))
 	require.NoError(t, ts.serviceCmd.Wait())
-	ts.subscriber.NotifyExit(ts.servicePID)
+	subscriber.NotifyExit(ts.servicePID)
 	require.Empty(t, ts.module.DiagnosticsStates())
 }
 
@@ -578,22 +601,6 @@ func waitForServicePort(t *testing.T, stdoutPath string) int {
 			}
 		}
 	}
-}
-
-func (ts *testState) initializeModule(t *testing.T) {
-	ts.subscriber = &mockSubscriber{}
-	cfg, err := di_module.NewConfig(nil)
-	require.NoError(t, err)
-
-	cfg.SymDBUploadEnabled = true
-	cfg.LogUploaderURL = ts.backendServer.URL + "/logs"
-	cfg.DiagsUploaderURL = ts.backendServer.URL + "/diags"
-	cfg.SymDBUploaderURL = ts.symdbURL
-	cfg.ProcessSyncDisabled = true
-
-	ts.module, err = di_module.NewModule(cfg, ts.subscriber)
-	require.NoError(t, err)
-	t.Cleanup(ts.module.Close)
 }
 
 func sendTestRequests(t *testing.T, serverPort int, numRequests int) {
