@@ -283,9 +283,8 @@ func (cr *Resolver) AddPID(process *model.ProcessCacheEntry) {
 			// all fallback failed :/
 			cr.fallbackFailed.Inc()
 			return
-		} else {
-			cr.fallbackSucceed.Inc()
 		}
+		cr.fallbackSucceed.Inc()
 	} else {
 		cr.addPidCgroupPresent.Inc()
 	}
