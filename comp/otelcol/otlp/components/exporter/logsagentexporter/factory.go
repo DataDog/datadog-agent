@@ -38,7 +38,7 @@ const (
 type Config struct {
 	OtelSource    string
 	LogSourceName string
-	QueueSettings exporterhelper.QueueBatchConfig `mapstructure:"sending_queue"`
+	QueueSettings exporterhelper.QueueBatchConfig
 
 	// HostMetadata defines the host metadata specific configuration
 	HostMetadata datadogconfig.HostMetadataConfig `mapstructure:"host_metadata"`

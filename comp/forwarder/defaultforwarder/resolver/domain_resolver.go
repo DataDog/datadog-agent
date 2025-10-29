@@ -155,7 +155,7 @@ func NewSingleDomainResolver(domain string, apiKeys []utils.APIKeys) (DomainReso
 	// when the config changes.
 	for key := range apiKeys {
 		if apiKeys[key].ConfigSettingPath == "" {
-			return nil, fmt.Errorf("Api key for %v does not specify a config setting path", domain)
+			return nil, fmt.Errorf("API key for %v does not specify a config setting path", domain)
 		}
 	}
 
@@ -306,7 +306,7 @@ func NewMultiDomainResolver(domain string, apiKeys []utils.APIKeys) (DomainResol
 	// when the config changes.
 	for key := range apiKeys {
 		if apiKeys[key].ConfigSettingPath == "" {
-			return nil, fmt.Errorf("Api key for %v does not specify a config setting path", domain)
+			return nil, fmt.Errorf("API key for %v does not specify a config setting path", domain)
 		}
 	}
 
