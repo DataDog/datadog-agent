@@ -12,6 +12,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
@@ -20,7 +21,7 @@ import (
 type ErrorMsgSet map[string]struct{}
 
 // ConfigProviderFactory is any function capable to create a ConfigProvider instance
-type ConfigProviderFactory func(providerConfig *pkgconfigsetup.ConfigurationProviders, wmeta workloadmeta.Component, taggerComp tagger.Component, telemetryStore *telemetry.Store) (ConfigProvider, error)
+type ConfigProviderFactory func(providerConfig *pkgconfigsetup.ConfigurationProviders, wmeta workloadmeta.Component, taggerComp tagger.Component, filterComp workloadfilter.Component, telemetryStore *telemetry.Store) (ConfigProvider, error)
 
 // ConfigProvider represents a source of `integration.Config` values
 // that can either be applied immediately or resolved for a service and
