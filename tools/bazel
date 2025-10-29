@@ -13,14 +13,22 @@ if [ -z "${CI_PROJECT_DIR:-}" ]; then
   exit 2 # should not reach here
 fi
 
-# In CI: externalize `--repo_contents_cache` to the job's sibling temporary directory created alongside $CI_PROJECT_DIR
-# - https://github.com/bazelbuild/bazel/issues/26384 for why
-# - https://docs.gitlab.com/runner/configuration/advanced-configuration/ for `RUNNER_TEMP_PROJECT_DIR`
-# - https://sissource.ethz.ch/sispub/gitlab-ci-euler-image/-/blob/main/entrypoint.sh#L43 for inspiration
-ext_repo_contents_cache=$RUNNER_TEMP_PROJECT_DIR/bazel-repo-contents-cache
-if [ -e "$BAZEL_REPO_CONTENTS_CACHE" ] && ! ([ "$(uname -s)" = "Linux" ] && [ "$(uname -m)" = "x86_64" ]); then
-  rm >&2 -frv "$ext_repo_contents_cache"
-  mv "$BAZEL_REPO_CONTENTS_CACHE" "$ext_repo_contents_cache"
+# In CI
+if [[ "$BAZEL_REPO_CONTENTS_CACHE" = "$CI_PROJECT_DIR"* ]]; then
+  # Ephemeral runner: externalize `--repo_contents_cache` to the job's temp directory created alongside $CI_PROJECT_DIR
+  # - https://github.com/bazelbuild/bazel/issues/26384 for why
+  # - https://docs.gitlab.com/runner/configuration/advanced-configuration/ for `RUNNER_TEMP_PROJECT_DIR`
+  # - https://sissource.ethz.ch/sispub/gitlab-ci-euler-image/-/blob/main/entrypoint.sh#L43 for inspiration
+  is_persistent_runner=false
+  ext_repo_contents_cache=$RUNNER_TEMP_PROJECT_DIR/bazel-repo-contents-cache
+  if [ -e "$BAZEL_REPO_CONTENTS_CACHE" ]; then
+    >&2 rm -frv "$ext_repo_contents_cache"
+    mv "$BAZEL_REPO_CONTENTS_CACHE" "$ext_repo_contents_cache"
+  fi
+else
+  # Persistent runner: honor `$BAZEL_REPO_CONTENTS_CACHE` since it already points to an external path
+  is_persistent_runner=true
+  ext_repo_contents_cache=$BAZEL_REPO_CONTENTS_CACHE
 fi
 
 # Pass CI-specific options through `.user.bazelrc` so any nested `bazel run` and next `bazel shutdown` also honor them
@@ -31,18 +39,18 @@ common --repo_contents_cache=$ext_repo_contents_cache
 build --disk_cache=$BAZEL_DISK_CACHE
 EOF
 
-trap '
-  # Stop `bazel` (if still running) to close files and proceed with cleanup
-  "$BAZEL_REAL" shutdown --ui_event_filters=-info || true
-  rm "$CI_PROJECT_DIR/user.bazelrc"
-
-  # Reintegrate `--repo_contents_cache` to original directory
-  # Skip on Linux x86_64 to avoid issues with persistent runners
-  if [ -e "$ext_repo_contents_cache" ] && ! ([ "$(uname -s)" = "Linux" ] && [ "$(uname -m)" = "x86_64" ]); then
-    rm >&2 -frv "$BAZEL_REPO_CONTENTS_CACHE"
-    mv "$ext_repo_contents_cache" "$BAZEL_REPO_CONTENTS_CACHE"
-  fi
-' EXIT
-
-# Payload: execute `bazel` - done
+# Payload: execute `bazel`, failing fast
 "$BAZEL_REAL" "$@"
+
+# Skip cleanup for persistent runners
+[ $is_persistent_runner = true ] && exit 0
+
+# Stop `bazel` (if still running) to close files and proceed with cleanup
+"$BAZEL_REAL" shutdown --ui_event_filters=-info || true
+rm "$CI_PROJECT_DIR/user.bazelrc"
+
+# Reintegrate `--repo_contents_cache` to original directory
+if [ -e "$ext_repo_contents_cache" ]; then
+  >&2 rm -frv "$BAZEL_REPO_CONTENTS_CACHE"
+  mv "$ext_repo_contents_cache" "$BAZEL_REPO_CONTENTS_CACHE"
+fi

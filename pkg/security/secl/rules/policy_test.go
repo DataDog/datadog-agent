@@ -418,8 +418,12 @@ func TestActionSetVariableTTL(t *testing.T) {
 	event.Type = uint32(model.FileOpenEventType)
 	processCacheEntry := &model.ProcessCacheEntry{}
 	processCacheEntry.Retain()
-	event.ContainerContext = &model.ContainerContext{
-		ContainerID: "0123456789abcdef",
+	event.ProcessContext = &model.ProcessContext{
+		Process: model.Process{
+			ContainerContext: model.ContainerContext{
+				ContainerID: "0123456789abcdef",
+			},
+		},
 	}
 	event.ProcessCacheEntry = processCacheEntry
 	event.SetFieldValue("open.file.path", "/tmp/test")
@@ -2245,8 +2249,12 @@ func TestActionSetVariableLength(t *testing.T) {
 	event.Type = uint32(model.FileOpenEventType)
 	processCacheEntry := &model.ProcessCacheEntry{}
 	processCacheEntry.Retain()
-	event.ContainerContext = &model.ContainerContext{
-		ContainerID: "0123456789abcdef",
+	event.ProcessContext = &model.ProcessContext{
+		Process: model.Process{
+			ContainerContext: model.ContainerContext{
+				ContainerID: "0123456789abcdef",
+			},
+		},
 	}
 	event.ProcessCacheEntry = processCacheEntry
 	event.SetFieldValue("open.file.path", "/tmp/test")
@@ -2344,8 +2352,8 @@ rules:
 					Source: PolicyProviderTypeRC,
 					Type:   CustomPolicyType,
 				},
-				rules:  map[string][]*PolicyRule{},
-				macros: map[string][]*PolicyMacro{},
+				Rules:  map[string][]*PolicyRule{},
+				Macros: map[string][]*PolicyMacro{},
 			},
 			wantErr: assert.NoError,
 		},
@@ -2385,7 +2393,7 @@ broken
 					Source: PolicyProviderTypeRC,
 					Type:   CustomPolicyType,
 				},
-				rules: map[string][]*PolicyRule{
+				Rules: map[string][]*PolicyRule{
 					"rule_test": {
 						{
 							Def: &RuleDefinition{
@@ -2402,7 +2410,7 @@ broken
 						},
 					},
 				},
-				macros: map[string][]*PolicyMacro{},
+				Macros: map[string][]*PolicyMacro{},
 			},
 			wantErr: assert.NoError,
 		},
@@ -2426,7 +2434,7 @@ broken
 					Source: PolicyProviderTypeRC,
 					Type:   CustomPolicyType,
 				},
-				rules: map[string][]*PolicyRule{
+				Rules: map[string][]*PolicyRule{
 					"rule_test": {
 						{
 							Def: &RuleDefinition{
@@ -2443,7 +2451,7 @@ broken
 						},
 					},
 				},
-				macros: map[string][]*PolicyMacro{},
+				Macros: map[string][]*PolicyMacro{},
 			},
 			wantErr: assert.NoError,
 		},
