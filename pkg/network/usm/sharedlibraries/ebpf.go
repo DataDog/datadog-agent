@@ -169,8 +169,8 @@ func (e *EbpfProgram) setupManagerAndPerfHandlers() error {
 	numCPUs, err := kernel.PossibleCPUs()
 	if err != nil {
 		numCPUs = 1
-
 	}
+
 	perfBufferSize := perCPUBufferPages * os.Getpagesize()
 	ringBufferSize := common.ToPowerOf2(perfBufferSize * numCPUs)
 
