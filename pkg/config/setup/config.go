@@ -935,6 +935,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("orchestrator_explorer.terminated_resources.enabled", true)
 	config.BindEnvAndSetDefault("orchestrator_explorer.terminated_pods.enabled", true)
 	config.BindEnvAndSetDefault("orchestrator_explorer.custom_resources.ootb.enabled", true)
+	config.BindEnvAndSetDefault("orchestrator_explorer.kubelet_config_check.enabled", false, "DD_ORCHESTRATOR_EXPLORER_KUBELET_CONFIG_CHECK_ENABLED")
 
 	// Container lifecycle configuration
 	config.BindEnvAndSetDefault("container_lifecycle.enabled", true)
@@ -1074,14 +1075,16 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	// Datadog security agent (runtime)
 	config.BindEnvAndSetDefault("runtime_security_config.enabled", false)
 	if runtime.GOOS == "windows" {
-		config.BindEnvAndSetDefault("runtime_security_config.socket", "localhost:3334")
+		config.BindEnvAndSetDefault("runtime_security_config.socket", "localhost:3335")
 	} else {
 		config.BindEnvAndSetDefault("runtime_security_config.socket", filepath.Join(InstallPath, "run/runtime-security.sock"))
 	}
+	config.BindEnvAndSetDefault("runtime_security_config.cmd_socket", "")
 	config.BindEnvAndSetDefault("runtime_security_config.use_secruntime_track", true)
 	bindEnvAndSetLogsConfigKeys(config, "runtime_security_config.endpoints.")
 	bindEnvAndSetLogsConfigKeys(config, "runtime_security_config.activity_dump.remote_storage.endpoints.")
 	config.BindEnvAndSetDefault("runtime_security_config.direct_send_from_system_probe", false)
+	config.BindEnvAndSetDefault("runtime_security_config.event_gprc_server", "")
 
 	// trace-agent's evp_proxy
 	config.BindEnv("evp_proxy_config.enabled")              //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
@@ -1308,6 +1311,9 @@ func agent(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("software_inventory.interval", 10)
 	bindEnvAndSetLogsConfigKeys(config, "software_inventory.forwarder.")
 
+	// Notable Events (EUDM)
+	config.BindEnvAndSetDefault("notable_events.enabled", false)
+
 	pkgconfigmodel.AddOverrideFunc(toggleDefaultPayloads)
 }
 
@@ -1323,7 +1329,7 @@ func autoscaling(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("autoscaling.workload.enabled", false)
 	config.BindEnvAndSetDefault("autoscaling.failover.enabled", false)
 	config.BindEnvAndSetDefault("autoscaling.workload.limit", 1000)
-	config.BindEnv("autoscaling.failover.metrics") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	config.BindEnvAndSetDefault("autoscaling.failover.metrics", []string{"container.memory.usage", "container.cpu.usage"})
 }
 
 func fips(config pkgconfigmodel.Setup) {

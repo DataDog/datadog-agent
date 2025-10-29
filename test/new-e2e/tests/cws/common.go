@@ -70,7 +70,7 @@ func (a *agentSuite) Test00RulesetLoadedDefaultFile() {
 
 func (a *agentSuite) Test01RulesetLoadedDefaultRC() {
 	assert.EventuallyWithT(a.T(), func(c *assert.CollectT) {
-		testRulesetLoaded(c, a, "remote-config", "default.policy")
+		testRulesetLoaded(c, a, "remote-config", "threat-detection.policy")
 	}, 4*time.Minute, 10*time.Second)
 }
 

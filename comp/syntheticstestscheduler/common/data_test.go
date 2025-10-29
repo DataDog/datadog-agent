@@ -176,7 +176,7 @@ func TestSyntheticsTestConfig_UnmarshalJSON_AllFields(t *testing.T) {
 			Assertions: []Assertion{
 				{
 					Operator: OperatorLessThan,
-					Property: AssertionSubTypeAverage,
+					Property: &[]AssertionSubType{AssertionSubTypeAverage}[0],
 					Target:   "100",
 					Type:     AssertionTypeLatency,
 				},
