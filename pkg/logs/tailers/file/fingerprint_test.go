@@ -1287,7 +1287,6 @@ func TestFingerprintConfigInfo(t *testing.T) {
 	testCases := []struct {
 		name           string
 		config         *types.FingerprintConfig
-		source         string
 		expectedOutput []string
 	}{
 		{
@@ -1297,8 +1296,8 @@ func TestFingerprintConfigInfo(t *testing.T) {
 				Count:               10,
 				CountToSkip:         5,
 				MaxBytes:            1024,
+				Source:              types.FingerprintConfigSourcePerSource,
 			},
-			source: "per-source",
 			expectedOutput: []string{
 				"Source: per-source",
 				"Strategy: line_checksum",
@@ -1314,8 +1313,8 @@ func TestFingerprintConfigInfo(t *testing.T) {
 				Count:               512,
 				CountToSkip:         0,
 				MaxBytes:            0,
+				Source:              types.FingerprintConfigSourcePerSource,
 			},
-			source: "per-source",
 			expectedOutput: []string{
 				"Source: per-source",
 				"Strategy: byte_checksum",
@@ -1330,8 +1329,8 @@ func TestFingerprintConfigInfo(t *testing.T) {
 				Count:               1,
 				CountToSkip:         0,
 				MaxBytes:            10000,
+				Source:              types.FingerprintConfigSourceGlobal,
 			},
-			source: "global",
 			expectedOutput: []string{
 				"Source: global",
 				"Strategy: line_checksum",
@@ -1347,8 +1346,8 @@ func TestFingerprintConfigInfo(t *testing.T) {
 				Count:               2048,
 				CountToSkip:         100,
 				MaxBytes:            0,
+				Source:              types.FingerprintConfigSourceGlobal,
 			},
-			source: "global",
 			expectedOutput: []string{
 				"Source: global",
 				"Strategy: byte_checksum",
@@ -1363,8 +1362,8 @@ func TestFingerprintConfigInfo(t *testing.T) {
 				Count:               0,
 				CountToSkip:         0,
 				MaxBytes:            0,
+				Source:              types.FingerprintConfigSourcePerSource,
 			},
-			source: "per-source",
 			expectedOutput: []string{
 				"Source: per-source",
 				"Strategy: disabled",
@@ -1374,20 +1373,11 @@ func TestFingerprintConfigInfo(t *testing.T) {
 			name: "disabled_strategy_global",
 			config: &types.FingerprintConfig{
 				FingerprintStrategy: types.FingerprintStrategyDisabled,
+				Source:              types.FingerprintConfigSourceGlobal,
 			},
-			source: "global",
 			expectedOutput: []string{
 				"Source: global",
 				"Strategy: disabled",
-			},
-		},
-		{
-			name:   "nil_config",
-			config: nil,
-			source: "none",
-			expectedOutput: []string{
-				"Source: none",
-				"Strategy: not configured",
 			},
 		},
 		{
@@ -1397,8 +1387,8 @@ func TestFingerprintConfigInfo(t *testing.T) {
 				Count:               0,
 				CountToSkip:         0,
 				MaxBytes:            0,
+				Source:              types.FingerprintConfigSourcePerSource,
 			},
-			source: "per-source",
 			expectedOutput: []string{
 				"Source: per-source",
 				"Strategy: line_checksum",
@@ -1411,7 +1401,7 @@ func TestFingerprintConfigInfo(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			info := NewFingerprintConfigInfo(tc.config, tc.source)
+			info := NewFingerprintConfigInfo(tc.config)
 
 			// Test InfoKey
 			if info.InfoKey() != "Fingerprint Config" {
@@ -1431,5 +1421,114 @@ func TestFingerprintConfigInfo(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// TestComputeFingerprintPreservesConfigWhenDisabled tests that disabled configs are preserved in fingerprint
+func (suite *FingerprintTestSuite) TestComputeFingerprintPreservesConfigWhenDisabled() {
+	globalConfig := types.FingerprintConfig{
+		FingerprintStrategy: types.FingerprintStrategyByteChecksum,
+		Count:               1024,
+	}
+	fingerprinter := NewFingerprinter(globalConfig)
+
+	// Write test data
+	_, err := suite.testFile.WriteString("test data for fingerprinting\n")
+	suite.Nil(err)
+	suite.testFile.Sync()
+
+	// Test with disabled per-source config
+	disabledConfig := &types.FingerprintConfig{
+		FingerprintStrategy: types.FingerprintStrategyDisabled,
+		Count:               500,
+	}
+	sourceConfig := &config.LogsConfig{
+		Type:              config.FileType,
+		Path:              suite.testPath,
+		FingerprintConfig: disabledConfig,
+	}
+	source := sources.NewLogSource("test", sourceConfig)
+	file := &File{
+		Path:   suite.testPath,
+		Source: sources.NewReplaceableSource(source),
+	}
+
+	fingerprint, err := fingerprinter.ComputeFingerprint(file)
+	suite.Nil(err)
+	suite.NotNil(fingerprint)
+	suite.Equal(types.InvalidFingerprintValue, fingerprint.Value, "Fingerprint value should be invalid when disabled")
+	suite.NotNil(fingerprint.Config, "Config should be preserved even when disabled")
+	suite.Equal(types.FingerprintStrategyDisabled, fingerprint.Config.FingerprintStrategy)
+	suite.Equal(types.FingerprintConfigSourcePerSource, fingerprint.Config.Source, "Config should show it was disabled at per-source level")
+	suite.Equal(500, fingerprint.Config.Count, "Config values should be preserved")
+}
+
+// TestComputeFingerprintWithEnabledConfig tests fingerprinting with enabled config includes Source field
+func (suite *FingerprintTestSuite) TestComputeFingerprintWithEnabledConfig() {
+	globalConfig := types.FingerprintConfig{
+		FingerprintStrategy: types.FingerprintStrategyByteChecksum,
+		Count:               1024,
+	}
+	fingerprinter := NewFingerprinter(globalConfig)
+
+	// Write test data
+	testData := "test data for fingerprinting\n"
+	_, err := suite.testFile.WriteString(testData)
+	suite.Nil(err)
+	suite.testFile.Sync()
+
+	// Test with per-source config
+	perSourceConfig := &types.FingerprintConfig{
+		FingerprintStrategy: types.FingerprintStrategyByteChecksum,
+		Count:               100,
+		CountToSkip:         0,
+	}
+	sourceConfig := &config.LogsConfig{
+		Type:              config.FileType,
+		Path:              suite.testPath,
+		FingerprintConfig: perSourceConfig,
+	}
+	source := sources.NewLogSource("test", sourceConfig)
+	file := &File{
+		Path:   suite.testPath,
+		Source: sources.NewReplaceableSource(source),
+	}
+
+	fingerprint, err := fingerprinter.ComputeFingerprint(file)
+	suite.Nil(err)
+	suite.NotNil(fingerprint)
+	suite.NotEqual(types.InvalidFingerprintValue, fingerprint.Value, "Fingerprint should have valid value")
+	suite.NotNil(fingerprint.Config)
+	suite.Equal(types.FingerprintStrategyByteChecksum, fingerprint.Config.FingerprintStrategy)
+	suite.Equal(types.FingerprintConfigSourcePerSource, fingerprint.Config.Source, "Per-source config should have Source='per-source'")
+
+	// Test with global config (no per-source config)
+	sourceConfig2 := &config.LogsConfig{
+		Type: config.FileType,
+		Path: suite.testPath,
+	}
+	source2 := sources.NewLogSource("test2", sourceConfig2)
+	file2 := &File{
+		Path:   suite.testPath,
+		Source: sources.NewReplaceableSource(source2),
+	}
+
+	fingerprint2, err2 := fingerprinter.ComputeFingerprint(file2)
+	suite.Nil(err2)
+	suite.NotNil(fingerprint2)
+	suite.NotEqual(types.InvalidFingerprintValue, fingerprint2.Value)
+	suite.NotNil(fingerprint2.Config)
+	suite.Equal(types.FingerprintStrategyByteChecksum, fingerprint2.Config.FingerprintStrategy)
+	suite.Equal(types.FingerprintConfigSourceGlobal, fingerprint2.Config.Source, "Global config should have Source='global'")
+}
+
+// TestDefaultConfigsHaveSource tests that default fallback configs have Source set
+func TestDefaultConfigsHaveSource(t *testing.T) {
+	if defaultBytesConfig.Source != types.FingerprintConfigSourceDefault {
+		t.Errorf("defaultBytesConfig should have Source='default', got '%s'", defaultBytesConfig.Source)
+	}
+
+	if defaultLinesConfig.Source != types.FingerprintConfigSourceDefault {
+		t.Errorf("defaultLinesConfig should have Source='default', got '%s'", defaultLinesConfig.Source)
 	}
 }

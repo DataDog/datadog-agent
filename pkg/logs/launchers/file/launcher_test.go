@@ -1369,3 +1369,44 @@ func (suite *BaseLauncherTestSuite) TestLauncherDoesNotCreateTailerForRotatedUnd
 func getScanKey(path string, source *sources.LogSource) string {
 	return filetailer.NewFile(path, source, false).GetScanKey()
 }
+
+// TestTailerReceivesConfigWhenDisabled tests that tailers receive fingerprint config even when disabled
+func (suite *LauncherTestSuite) TestTailerReceivesConfigWhenDisabled() {
+	// Create a source with disabled fingerprinting
+	disabledConfig := &types.FingerprintConfig{
+		FingerprintStrategy: types.FingerprintStrategyDisabled,
+		Count:               500,
+	}
+	sourceConfig := &config.LogsConfig{
+		Type:              config.FileType,
+		Path:              suite.testPath,
+		FingerprintConfig: disabledConfig,
+	}
+	source := sources.NewLogSource("test_disabled", sourceConfig)
+	suite.s.addSource(source)
+	suite.s.activeSources = append(suite.s.activeSources, source)
+
+	// Write some data to the file
+	f, err := os.Create(suite.testPath)
+	suite.Nil(err)
+	_, err = f.WriteString("test data\n")
+	suite.Nil(err)
+	f.Close()
+
+	// Scan for files
+	suite.s.resolveActiveTailers(suite.s.fileProvider.FilesToTail(context.Background(), suite.s.validatePodContainerID, suite.s.activeSources, suite.s.registry))
+
+	// Verify tailer was created
+	scanKey := getScanKey(suite.testPath, source)
+	tailerInstance, exists := suite.s.tailers.Get(scanKey)
+	suite.True(exists, "Tailer should be created even with disabled fingerprinting")
+
+	// Verify the tailer has the fingerprint config
+	fingerprint := tailerInstance.GetFingerprint()
+	suite.NotNil(fingerprint, "Tailer should have fingerprint")
+	suite.NotNil(fingerprint.Config, "Fingerprint should have config")
+	suite.Equal(types.FingerprintStrategyDisabled, fingerprint.Config.FingerprintStrategy, "Config should show disabled strategy")
+	suite.Equal(types.FingerprintConfigSourcePerSource, fingerprint.Config.Source, "Config should show per-source origin")
+	suite.Equal(500, fingerprint.Config.Count, "Config values should be preserved")
+	suite.Equal(types.InvalidFingerprintValue, fingerprint.Value, "Fingerprint value should be invalid when disabled")
+}

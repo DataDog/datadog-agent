@@ -23,6 +23,7 @@ var defaultBytesConfig = &types.FingerprintConfig{
 	FingerprintStrategy: types.FingerprintStrategyByteChecksum,
 	Count:               1024,
 	CountToSkip:         0,
+	Source:              types.FingerprintConfigSourceDefault,
 }
 
 // DefaultLinesConfig provides a sensible default configuration for line-based fingerprinting
@@ -31,6 +32,7 @@ var defaultLinesConfig = &types.FingerprintConfig{
 	Count:               1,
 	CountToSkip:         0,
 	MaxBytes:            10000,
+	Source:              types.FingerprintConfigSourceDefault,
 }
 
 // Fingerprinter is a struct that contains the fingerprinting configuration
@@ -41,7 +43,6 @@ type Fingerprinter struct {
 // FingerprintConfigInfo holds fingerprint configuration for status display
 type FingerprintConfigInfo struct {
 	config *types.FingerprintConfig
-	source string
 }
 
 // NewFingerprinter creates a new Fingerprinter with the given configuration
@@ -75,7 +76,7 @@ func (f *Fingerprinter) ShouldFileFingerprint(file *File) bool {
 	}
 
 	// Now, check global config
-	globalConfig := f.GetFingerprintConfig()
+	globalConfig := f.GetGlobalFingerprintConfig()
 	if globalConfig == nil {
 		return false
 	}
@@ -90,7 +91,7 @@ func (f *Fingerprinter) ShouldFileFingerprint(file *File) bool {
 // ComputeFingerprintFromConfig computes the fingerprint for the given file path using a specific config
 func (f *Fingerprinter) ComputeFingerprintFromConfig(filepath string, fingerprintConfig *types.FingerprintConfig) (*types.Fingerprint, error) {
 	if fingerprintConfig != nil && fingerprintConfig.FingerprintStrategy == types.FingerprintStrategyDisabled {
-		return newInvalidFingerprint(nil), nil
+		return newInvalidFingerprint(fingerprintConfig), nil
 	}
 	return computeFingerprint(filepath, fingerprintConfig)
 }
@@ -107,7 +108,7 @@ func (f *Fingerprinter) ComputeFingerprint(file *File) (*types.Fingerprint, erro
 	// Check per-source config first (takes precedence over global config)
 	if fileFingerprintConfig != nil && fileFingerprintConfig.FingerprintStrategy != "" {
 		if fileFingerprintConfig.FingerprintStrategy == types.FingerprintStrategyDisabled {
-			return newInvalidFingerprint(nil), nil
+			return newInvalidFingerprint(fileFingerprintConfig), nil
 		}
 
 		// Convert from config.FingerprintConfig to types.FingerprintConfig
@@ -116,6 +117,7 @@ func (f *Fingerprinter) ComputeFingerprint(file *File) (*types.Fingerprint, erro
 			Count:               fileFingerprintConfig.Count,
 			CountToSkip:         fileFingerprintConfig.CountToSkip,
 			MaxBytes:            fileFingerprintConfig.MaxBytes,
+			Source:              types.FingerprintConfigSourcePerSource,
 		}
 
 		return computeFingerprint(file.Path, fingerprintConfig)
@@ -123,7 +125,7 @@ func (f *Fingerprinter) ComputeFingerprint(file *File) (*types.Fingerprint, erro
 
 	// If per-source config exists but no strategy is set, or no per-source config exists,
 	// fall back to global config
-	fingerprintConfig := f.GetFingerprintConfig()
+	fingerprintConfig := f.GetGlobalFingerprintConfig()
 	if fingerprintConfig == nil {
 		return newInvalidFingerprint(nil), nil
 	}
@@ -141,7 +143,7 @@ func computeFingerprint(filePath string, fingerprintConfig *types.FingerprintCon
 	fpFile, err := opener.OpenLogFile(filePath)
 	if err != nil {
 		log.Warnf("could not open file for fingerprinting %s: %v", filePath, err)
-		return newInvalidFingerprint(nil), err
+		return newInvalidFingerprint(fingerprintConfig), err
 	}
 	defer fpFile.Close()
 
@@ -243,9 +245,36 @@ func computeFingerPrintByLines(fpFile *os.File, filePath string, fingerprintConf
 	return &types.Fingerprint{Value: checksum, Config: fingerprintConfig}, nil
 }
 
-// GetFingerprintConfig returns the fingerprint configuration
-func (f *Fingerprinter) GetFingerprintConfig() *types.FingerprintConfig {
-	return &f.FingerprintConfig
+// GetGlobalFingerprintConfig returns the fingerprint configuration with Source set to global
+func (f *Fingerprinter) GetGlobalFingerprintConfig() *types.FingerprintConfig {
+	config := f.FingerprintConfig
+	config.Source = types.FingerprintConfigSourceGlobal
+	return &config
+}
+
+// GetEffectiveConfigForFile returns the fingerprint configuration that applies to a file
+// for status display purposes. This returns the config even when fingerprinting is disabled.
+func (f *Fingerprinter) GetEffectiveConfigForFile(file *File) *types.FingerprintConfig {
+	if file == nil {
+		return nil
+	}
+
+	fileFingerprintConfig := file.Source.Config().FingerprintConfig
+
+	// Check per-source config first (takes precedence over global config)
+	if fileFingerprintConfig != nil && fileFingerprintConfig.FingerprintStrategy != "" {
+		// Convert from config.FingerprintConfig to types.FingerprintConfig
+		return &types.FingerprintConfig{
+			FingerprintStrategy: types.FingerprintStrategy(fileFingerprintConfig.FingerprintStrategy),
+			Count:               fileFingerprintConfig.Count,
+			CountToSkip:         fileFingerprintConfig.CountToSkip,
+			MaxBytes:            fileFingerprintConfig.MaxBytes,
+			Source:              types.FingerprintConfigSourcePerSource,
+		}
+	}
+
+	// Fall back to global config
+	return f.GetGlobalFingerprintConfig()
 }
 
 // InfoKey returns the key for this info
@@ -258,21 +287,26 @@ func (f *FingerprintConfigInfo) InfoKey() string {
 func (f *FingerprintConfigInfo) Info() []string {
 	if f.config == nil {
 		return []string{
-			"Source: " + f.source,
+			"Source: none",
 			"Strategy: not configured",
 		}
 	}
 
+	source := "none"
+	if f.config.Source != "" {
+		source = string(f.config.Source)
+	}
+
 	if f.config.FingerprintStrategy == types.FingerprintStrategyDisabled {
 		return []string{
-			"Source: " + f.source,
+			fmt.Sprintf("Source: %s", source),
 			"Strategy: disabled",
 		}
 	}
 
 	info := []string{
-		"Source: " + f.source,
-		"Strategy: " + string(f.config.FingerprintStrategy),
+		fmt.Sprintf("Source: %s", source),
+		fmt.Sprintf("Strategy: %s", f.config.FingerprintStrategy),
 	}
 
 	// Add Count and CountToSkip for all strategies except disabled
@@ -288,10 +322,9 @@ func (f *FingerprintConfigInfo) Info() []string {
 	return info
 }
 
-// NewFingerprintConfigInfo creates a new FingerprintConfigInfo
-func NewFingerprintConfigInfo(config *types.FingerprintConfig, source string) *FingerprintConfigInfo {
+// NewFingerprintConfigInfo creates a new FingerprintConfigInfo from a FingerprintConfig
+func NewFingerprintConfigInfo(config *types.FingerprintConfig) *FingerprintConfigInfo {
 	return &FingerprintConfigInfo{
 		config: config,
-		source: source,
 	}
 }
