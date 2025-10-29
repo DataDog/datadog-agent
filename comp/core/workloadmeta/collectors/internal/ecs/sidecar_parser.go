@@ -20,23 +20,22 @@ import (
 // initializeSidecarMode sets up the collector for sidecar deployment mode.
 //
 // In sidecar mode, the agent runs alongside a single task and monitors only that task.
-// This mode uses V2 or V4 metadata API depending on the launch type:
+// This mode initializes V2 metadata API as a baseline/fallback, then attempts to use V4
+// for detailed task collection if enabled:
 //
-//   - Fargate: Uses V2 metadata endpoint (basic task info)
+//   - V2 metadata endpoint: Always initialized as fallback (basic task info)
 //     See: v2parser.go - parseTaskFromV2Endpoint()
 //
-//   - EC2 with detailed collection: Uses V4 metadata endpoint (detailed task info)
+//   - V4 metadata endpoint: Used when task collection is enabled (detailed task info)
 //     See: v4parser.go - parseTaskFromV4EndpointSidecar()
 func (c *collector) initializeSidecarMode(_ context.Context) error {
 	var err error
 
-	// Sidecar mode uses v2 or v4 API
-	if c.actualLaunchType == workloadmeta.ECSLaunchTypeFargate {
-		// Fargate uses v2 API
-		c.metaV2, err = ecsmeta.V2()
-		if err != nil {
-			return err
-		}
+	// Initialize V2 metadata client for sidecar mode
+	// This is used as a fallback when V4 is unavailable or task collection is disabled
+	c.metaV2, err = ecsmeta.V2()
+	if err != nil {
+		return err
 	}
 
 	// Try to initialize v4 for detailed task collection

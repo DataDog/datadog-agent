@@ -327,20 +327,24 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	// Otherwise, Python is loaded when the collector is initialized.
 	config.BindEnvAndSetDefault("python_lazy_loading", true)
 
-	// If false, the core check will be skipped.
-	config.BindEnvAndSetDefault("disk_check.use_core_loader", false)
-	config.BindEnvAndSetDefault("network_check.use_core_loader", false)
-
 	// If true, then the go loader will be prioritized over the python loader.
 	config.BindEnvAndSetDefault("prioritize_go_check_loader", true)
 
 	// If true, then new version of disk v2 check will be used.
-	// Otherwise, the old version of disk check will be used (maintaining backward compatibility).
-	config.BindEnvAndSetDefault("use_diskv2_check", false)
+	// Otherwise, the python version of disk check will be used.
+	config.BindEnvAndSetDefault("use_diskv2_check", true)
+	config.BindEnvAndSetDefault("disk_check.use_core_loader", true)
 
-	// If true, then new version of network v2 check will be used.
-	// Otherwise, the old version of network check will be used (maintaining backward compatibility).
-	config.BindEnvAndSetDefault("use_networkv2_check", false)
+	// the darwin and bsd network check has not been ported from python
+	if runtime.GOOS == "linux" || runtime.GOOS == "windows" {
+		// If true, then new version of network v2 check will be used.
+		// Otherwise, the python version of network check will be used.
+		config.BindEnvAndSetDefault("use_networkv2_check", true)
+		config.BindEnvAndSetDefault("network_check.use_core_loader", true)
+	} else {
+		config.BindEnvAndSetDefault("use_networkv2_check", false)
+		config.BindEnvAndSetDefault("network_check.use_core_loader", false)
+	}
 
 	// if/when the default is changed to true, make the default platform
 	// dependent; default should remain false on Windows to maintain backward
@@ -1076,14 +1080,16 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	// Datadog security agent (runtime)
 	config.BindEnvAndSetDefault("runtime_security_config.enabled", false)
 	if runtime.GOOS == "windows" {
-		config.BindEnvAndSetDefault("runtime_security_config.socket", "localhost:3334")
+		config.BindEnvAndSetDefault("runtime_security_config.socket", "localhost:3335")
 	} else {
 		config.BindEnvAndSetDefault("runtime_security_config.socket", filepath.Join(InstallPath, "run/runtime-security.sock"))
 	}
+	config.BindEnvAndSetDefault("runtime_security_config.cmd_socket", "")
 	config.BindEnvAndSetDefault("runtime_security_config.use_secruntime_track", true)
 	bindEnvAndSetLogsConfigKeys(config, "runtime_security_config.endpoints.")
 	bindEnvAndSetLogsConfigKeys(config, "runtime_security_config.activity_dump.remote_storage.endpoints.")
 	config.BindEnvAndSetDefault("runtime_security_config.direct_send_from_system_probe", false)
+	config.BindEnvAndSetDefault("runtime_security_config.event_gprc_server", "")
 
 	// trace-agent's evp_proxy
 	config.BindEnv("evp_proxy_config.enabled")              //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
@@ -1143,7 +1149,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	setupProcesses(config)
 
 	// Installer configuration
-	config.BindEnvAndSetDefault("remote_updates", false)
+	config.BindEnvAndSetDefault("remote_updates", true)
 	config.BindEnvAndSetDefault("installer.mirror", "")
 	config.BindEnvAndSetDefault("installer.registry.url", "")
 	config.BindEnvAndSetDefault("installer.registry.auth", "")
@@ -1310,6 +1316,9 @@ func agent(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("software_inventory.interval", 10)
 	bindEnvAndSetLogsConfigKeys(config, "software_inventory.forwarder.")
 
+	// Notable Events (EUDM)
+	config.BindEnvAndSetDefault("notable_events.enabled", false)
+
 	pkgconfigmodel.AddOverrideFunc(toggleDefaultPayloads)
 }
 
@@ -1325,7 +1334,7 @@ func autoscaling(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("autoscaling.workload.enabled", false)
 	config.BindEnvAndSetDefault("autoscaling.failover.enabled", false)
 	config.BindEnvAndSetDefault("autoscaling.workload.limit", 1000)
-	config.BindEnv("autoscaling.failover.metrics") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	config.BindEnvAndSetDefault("autoscaling.failover.metrics", []string{"container.memory.usage", "container.cpu.usage"})
 }
 
 func fips(config pkgconfigmodel.Setup) {
