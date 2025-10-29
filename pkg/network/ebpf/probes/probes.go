@@ -184,7 +184,7 @@ const (
 	// ConntrackHashInsert is the probe for new conntrack entries
 	ConntrackHashInsert ProbeFuncName = "kprobe__nf_conntrack_hash_insert"
 	// ConntrackHashCheckInsertReturn is the kretprobe for nf_conntrack_hash_check_insert (no kprobe needed since ct is a parameter)
-	ConntrackHashCheckInsertReturn ProbeFuncName = "kretprobe__nf_conntrack_hash_check_insert"
+	ConntrackHashCheckInsertReturn ProbeFuncName = "kretprobe_nf_conntrack_hash_check_insert"
 	// ConntrackConfirmEntry is the kprobe for __nf_conntrack_confirm entry
 	ConntrackConfirmEntry ProbeFuncName = "kprobe__nf_conntrack_confirm"
 	// ConntrackConfirmReturn is the kretprobe for __nf_conntrack_confirm return

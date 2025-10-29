@@ -33,12 +33,18 @@ int BPF_BYPASSABLE_KPROBE(kprobe__nf_conntrack_hash_insert, struct nf_conn *ct) 
     increment_hash_insert_count();
     log_debug("JMW(runtime)kprobe/__nf_conntrack_hash_insert: netns: %u", get_netns(ct));
 
+    u32 status = 0;
+    BPF_CORE_READ_INTO(&status, ct, status);
+    // JMWWAS if (!(status&IPS_CONFIRMED) || !(status&IPS_NAT_MASK)) {
+    // JMW see https://github.com/DataDog/datadog-agent/pull/41848/files,
+    if (!(status&IPS_NAT_MASK)) {
+        return 0;
+    }
+
     conntrack_tuple_t orig = {}, reply = {};
     if (nf_conn_to_conntrack_tuples(ct, &orig, &reply) != 0) {
         return 0;
     }
-    // Note: For hash_insert, we track all connections, not just NAT
-    // The NAT filtering happens in the other probes
 
     bpf_map_update_with_telemetry(conntrack, &orig, &reply, BPF_ANY);
     bpf_map_update_with_telemetry(conntrack, &reply, &orig, BPF_ANY);
@@ -51,18 +57,18 @@ int BPF_BYPASSABLE_KPROBE(kprobe__nf_conntrack_hash_insert, struct nf_conn *ct) 
 
 // Second probe: Track nf_conntrack_hash_check_insert - kretprobe only
 // We can access ct from PT_REGS_PARM1 even in the kretprobe since it was passed as an argument
-SEC("kretprobe/__nf_conntrack_hash_check_insert")
-int BPF_BYPASSABLE_KPROBE(kretprobe__nf_conntrack_hash_check_insert, struct nf_conn *ct) {
+SEC("kretprobe/nf_conntrack_hash_check_insert")
+int BPF_BYPASSABLE_KPROBE(kretprobe_nf_conntrack_hash_check_insert, struct nf_conn *ct) {
     int ret = PT_REGS_RC(ctx);
     
     // Only process successful insertions (ret == 0 means success)
     if (ret != 0) {
-        log_debug("JMW(runtime)kretprobe/__nf_conntrack_hash_check_insert: failed, ret=%d", ret);
+        log_debug("JMW(runtime)kretprobe/nf_conntrack_hash_check_insert: failed, ret=%d", ret);
         return 0;
     }
     
     increment_hash_check_insert_success_count();
-    log_debug("JMW(runtime)kretprobe/__nf_conntrack_hash_check_insert: success, ct: %p, netns: %u", ct, get_netns(ct));
+    log_debug("JMW(runtime)kretprobe/nf_conntrack_hash_check_insert: success, ct: %p, netns: %u", ct, get_netns(ct));
     
     // You can add to conntrack2 map here if needed:
     // conntrack_tuple_t orig = {}, reply = {};
@@ -97,6 +103,7 @@ int BPF_BYPASSABLE_KPROBE(kprobe__nf_conntrack_confirm) {
 
     // Extract ct from skb using nf_ct_get()
     struct nf_conn *ct = NULL;
+    // JMW what happens if we try to call nf_ct_get() from here?
     // Note: nf_ct_get() is typically inlined, so we need to access the skb fields directly
     // The conntrack info is stored in skb->_nfct
     u64 nfct = 0;
@@ -111,15 +118,13 @@ int BPF_BYPASSABLE_KPROBE(kprobe__nf_conntrack_confirm) {
     if (!ct)
         return 0;
 
-    // // Filter: Only track NAT connections
-    // u32 status = 0;
-    // BPF_CORE_READ_INTO(&status, ct, status);
-    // if (!(status & IPS_NAT_MASK)) {
-        // log_debug("JMW(runtime)kprobe/__nf_conntrack_confirm: not a NAT connection, ct: %p, netns: %u, status: %x", ct, get_netns(ct), status);
-        // return 0;
-    // }
+    u32 status = 0;
+    BPF_CORE_READ_INTO(&status, ct, status);
+    if (!(status&IPS_CONFIRMED) || !(status&IPS_NAT_MASK)) {
+        log_debug("JMW(runtime)kprobe/__nf_conntrack_confirm: not IPS_CONFIRMED or not IPS_NAT_MASK, ct: %p, netns: %u, status: %x", ct, get_netns(ct), status);
+        return 0;
+    }
 
-    // Note: same as with the original hash_insert probe, we don't filter out non-NAT connections here.
     // Store ct pointer using pid_tgid for correlation with return probe
     u64 ct_ptr = (u64)ct;
     bpf_map_update_with_telemetry(pending_confirms, &pid_tgid, &ct_ptr, BPF_ANY);
