@@ -110,6 +110,13 @@ func (d *Directories) RemoveExperiment(ctx context.Context) error {
 // backupOrRestoreDirectory copies YAML files from source to target.
 // It preserves the directory structure and file permissions.
 func backupOrRestoreDirectory(ctx context.Context, sourcePath, targetPath string) error {
+	_, err := os.Stat(sourcePath)
+	if err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("error checking if source directory exists: %w", err)
+	}
+	if os.IsNotExist(err) {
+		return nil
+	}
 	deploymentID, err := os.ReadFile(filepath.Join(sourcePath, deploymentIDFile))
 	if err != nil && !os.IsNotExist(err) {
 		return fmt.Errorf("error reading deployment ID file: %w", err)
