@@ -14,5 +14,5 @@ import (
 
 // GetFxOptions returns the FX framework options for the collector
 func GetFxOptions() fx.Option {
-	return fx.Options()
+	return nil
 }
