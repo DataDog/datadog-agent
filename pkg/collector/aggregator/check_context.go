@@ -60,6 +60,9 @@ func InitializeCheckContext(senderManager sender.SenderManager, logReceiver opti
 	checkContextMutex.Unlock()
 }
 
+// releaseCheckContext is only used in test files
+//
+//nolint:unused
 func releaseCheckContext() {
 	checkContextMutex.Lock()
 	checkCtx = nil
