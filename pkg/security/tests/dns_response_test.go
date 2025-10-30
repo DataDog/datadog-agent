@@ -143,7 +143,7 @@ func TestDNSResponseDiscarder(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-
+	defer test.Close()
 	defer justBind().Close()
 
 	t.Run("noerror-packet-is-discarded", func(_ *testing.T) {
