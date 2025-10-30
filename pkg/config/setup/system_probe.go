@@ -129,6 +129,7 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 
 	cfg.BindEnvAndSetDefault(join(spNS, "debug_port"), 0)
 	cfg.BindEnvAndSetDefault(join(spNS, "telemetry_enabled"), false, "DD_TELEMETRY_ENABLED")
+	cfg.BindEnvAndSetDefault(join(spNS, "telemetry_perf_buffer_emit_per_cpu"), false)
 	cfg.BindEnvAndSetDefault(join(spNS, "health_port"), int64(0), "DD_SYSTEM_PROBE_HEALTH_PORT")
 
 	cfg.BindEnvAndSetDefault(join(spNS, "internal_profiling.enabled"), false, "DD_SYSTEM_PROBE_INTERNAL_PROFILING_ENABLED")
@@ -366,8 +367,6 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	// Discovery config
 	cfg.BindEnv(join(discoveryNS, "enabled")) //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 	cfg.BindEnvAndSetDefault(join(discoveryNS, "cpu_usage_update_delay"), "60s")
-	cfg.BindEnvAndSetDefault(join(discoveryNS, "network_stats.enabled"), true)
-	cfg.BindEnvAndSetDefault(join(discoveryNS, "network_stats.period"), "60s")
 	cfg.BindEnvAndSetDefault(join(discoveryNS, "ignored_command_names"), []string{"chronyd", "cilium-agent", "containerd", "dhclient", "dockerd", "kubelet", "livenessprobe", "local-volume-pr", "sshd", "systemd"})
 	cfg.BindEnvAndSetDefault(join(discoveryNS, "service_collection_interval"), "60s")
 
@@ -390,6 +389,7 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	cfg.BindEnvAndSetDefault(join(gpuNS, "attacher_detailed_logs"), false)
 	cfg.BindEnvAndSetDefault(join(gpuNS, "ringbuffer_flush_interval"), 1*time.Second)
 	cfg.BindEnvAndSetDefault(join(gpuNS, "device_cache_refresh_interval"), 5*time.Second)
+	cfg.BindEnvAndSetDefault(join(gpuNS, "cgroup_reapply_delay"), 30*time.Second)
 
 	// gpu - stream config
 	cfg.BindEnvAndSetDefault(join(gpuNS, "streams", "max_kernel_launches"), 1000)

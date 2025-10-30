@@ -8,9 +8,10 @@
 package compliance
 
 import (
+	"testing"
+
 	"github.com/DataDog/datadog-agent/cmd/security-agent/subcommands/check"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"testing"
 
 	"github.com/stretchr/testify/require"
 
@@ -78,41 +79,6 @@ func TestLoadSubcommand(t *testing.T) {
 			Commands(&command.GlobalParams{}),
 			test.cliInput,
 			loadRun,
-			test.check,
-		)
-	}
-}
-
-func TestCommand_kubeapiserver(t *testing.T) {
-	tests := []struct {
-		name     string
-		cliInput []string
-		check    func(cliParams *eventCliParams, params core.BundleParams)
-	}{
-		{
-			name:     "compliance event tags",
-			cliInput: []string{"compliance", "event", "--tags", "test:tag"},
-			check: func(cliParams *eventCliParams, params core.BundleParams) {
-				require.Equal(t, command.LoggerName, params.LoggerName(), "logger name not matching")
-				require.Equal(t, "info", params.LogLevelFn(nil), "params.LogLevelFn not matching")
-				require.Equal(t, []string{"test:tag"}, cliParams.event.Tags, "tags arg input not matching")
-			},
-		},
-	}
-
-	for _, test := range tests {
-		rootCommand := Commands(&command.GlobalParams{})[0]
-
-		var subcommandNames []string
-		for _, subcommand := range rootCommand.Commands() {
-			subcommandNames = append(subcommandNames, subcommand.Use)
-		}
-		require.Equal(t, []string{"check", "event", "load <conf-type>"}, subcommandNames, "subcommand missing")
-
-		fxutil.TestOneShotSubcommand(t,
-			Commands(&command.GlobalParams{}),
-			test.cliInput,
-			eventRun,
 			test.check,
 		)
 	}
