@@ -13,13 +13,13 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"runtime"
 	"strconv"
 
 	"github.com/cilium/ebpf"
 	"github.com/spf13/cobra"
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/command"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
 func makeEbpfCommand(globalParams *command.GlobalParams) *cobra.Command {
@@ -264,7 +264,10 @@ func dumpRegularMapJSON(iter *ebpf.MapIterator, keyBuf, valueBuf []byte, w io.Wr
 }
 
 func dumpPerCPUMapJSON(iter *ebpf.MapIterator, keyBuf []byte, valueSize uint32, w io.Writer) error {
-	numCPUs := runtime.NumCPU()
+	numCPUs, err := kernel.PossibleCPUs()
+	if err != nil {
+		return fmt.Errorf("failed to get number of CPUs: %w", err)
+	}
 
 	// For PerCPU maps, Next() expects a slice of byte slices (one per CPU)
 	valueBuf := make([][]byte, numCPUs)
