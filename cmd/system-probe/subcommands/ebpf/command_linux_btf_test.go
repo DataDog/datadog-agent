@@ -26,6 +26,13 @@ import (
 
 // TestBTFMapDumping tests that maps with BTF type information are dumped with structured data
 func TestBTFMapDumping(t *testing.T) {
+	// BTF was introduced in Linux kernel 4.18
+	kversion, err := kernel.HostVersion()
+	require.NoError(t, err)
+	if minVersion := kernel.VersionCode(4, 18, 0); kversion < minVersion {
+		t.Skipf("BTF not supported on kernels < %s (current: %s)", minVersion, kversion)
+	}
+
 	require.NoError(t, rlimit.RemoveMemlock())
 
 	// Get eBPF config which has the correct BPFDir
