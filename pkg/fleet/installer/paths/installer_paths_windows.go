@@ -86,8 +86,8 @@ func init() {
 		DatadogDataDir, _ = getProgramDataDirForProduct("Datadog Agent")
 	}
 	AgentConfigDir = DatadogDataDir
-	AgentConfigDirExp = filepath.Join(DatadogDataDir, "ConfigBackup")
 	DatadogInstallerData = filepath.Join(DatadogDataDir, "Installer")
+	AgentConfigDirExp = filepath.Join(DatadogInstallerData, "ConfigBackup")
 	PackagesPath = filepath.Join(DatadogInstallerData, "packages")
 	ConfigsPath = filepath.Join(DatadogInstallerData, "managed")
 	RootTmpDir = filepath.Join(DatadogInstallerData, "tmp")
