@@ -161,6 +161,11 @@ func TestProgramLifecycleFlow(t *testing.T) {
 	require.NoError(t, sink2.HandleEvent(makeFakeEvent(header, []byte("event"))))
 	require.Equal(t, map[string]int{"probe-1": 2}, collectEmitting())
 
+	// Send the same update and make sure no new diagnostic is sent. This
+	// exercises a bug in the previous implementation of the diagnostic tracker.
+	numDiagnostics := len(deps.diagUploader.messages)
+	deps.sendUpdates(processUpdate)
+	require.Equal(t, numDiagnostics, len(deps.diagUploader.messages))
 	require.NoError(t, loaded2.Close())
 }
 

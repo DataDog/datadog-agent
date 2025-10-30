@@ -35,6 +35,7 @@ def build(
     fips_mode=False,
     no_strip_binary=False,
     arch_suffix=False,
+    injector_only=False,
 ):
     """
     Build cws-instrumentation
@@ -56,6 +57,9 @@ def build(
     ldflags += ' '.join([f"-X '{main + key}={value}'" for key, value in ld_vars.items()])
     build_tags += get_default_build_tags(build="cws-instrumentation")
     build_tags = add_fips_tags(build_tags, fips_mode)
+
+    if injector_only:
+        build_tags.append("cws_instrumentation_injector_only")
 
     agent_bin = BIN_PATH
     if arch_suffix:

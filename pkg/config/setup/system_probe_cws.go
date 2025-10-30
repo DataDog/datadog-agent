@@ -126,6 +126,7 @@ func initCWSSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 
 	// CWS - SysCtl
 	cfg.BindEnvAndSetDefault("runtime_security_config.sysctl.enabled", true)
+	cfg.BindEnvAndSetDefault("runtime_security_config.sysctl.ebpf.enabled", true)
 	cfg.BindEnvAndSetDefault("runtime_security_config.sysctl.snapshot.enabled", true)
 	cfg.BindEnvAndSetDefault("runtime_security_config.sysctl.snapshot.period", "1h")
 	cfg.BindEnvAndSetDefault("runtime_security_config.sysctl.snapshot.ignored_base_names", []string{"netdev_rss_key", "stable_secret"})

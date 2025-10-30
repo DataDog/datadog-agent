@@ -169,13 +169,16 @@ func disableCloseOnExec(t *testing.T, f *os.File) {
 
 func startProcessWithFile(t *testing.T, f *os.File) *exec.Cmd {
 	ctx, cancel := context.WithCancel(context.Background())
-	t.Cleanup(func() { cancel() })
 
 	// Disable close-on-exec so that the process gets it
 	t.Cleanup(func() { f.Close() })
 	disableCloseOnExec(t, f)
 
 	cmd := exec.CommandContext(ctx, "sleep", "1000")
+	t.Cleanup(func() {
+		cancel()
+		_ = cmd.Wait()
+	})
 	err := cmd.Start()
 	require.NoError(t, err)
 	f.Close()

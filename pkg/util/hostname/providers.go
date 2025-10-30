@@ -137,7 +137,7 @@ var (
 // The order if this list matters:
 // * Config (`hostname')
 // * Config (`hostname_file')
-// * Fargate
+// * Fargate/Sidecar (strips hostname for Fargate and managed instances in sidecar mode)
 // * GCE
 // * Azure
 // * FQDN
@@ -172,8 +172,8 @@ func saveHostname(cacheHostnameKey string, hostname string, providerName string,
 	}
 
 	cache.Cache.Set(cacheHostnameKey, data, cache.NoExpiration)
-	// We don't have a hostname on fargate. 'fromFargate' will return an empty hostname and we don't want to show it
-	// in the status page.
+	// We don't have a hostname in sidecar mode (Fargate, managed instances).
+	// 'fromFargate' will return an empty hostname and we don't want to show it in the status page.
 	if providerName != "" && providerName != fargateProviderName && !legacyHostnameResolution {
 		hostnameProvider.Set(providerName)
 	}

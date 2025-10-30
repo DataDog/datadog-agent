@@ -581,6 +581,17 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("cluster_agent.language_detection.cleanup.language_ttl", "30m")
 	// language annotation cleanup period
 	config.BindEnvAndSetDefault("cluster_agent.language_detection.cleanup.period", "10m")
+
+	// AppSec Injector in the cluster agent ( Experimental )
+	config.BindEnvAndSetDefault("cluster_agent.appsec.injector.enabled", false)
+	config.BindEnvAndSetDefault("cluster_agent.appsec.injector.base_backoff", "5m")
+	config.BindEnvAndSetDefault("cluster_agent.appsec.injector.max_backoff", "1h")
+	config.BindEnvAndSetDefault("cluster_agent.appsec.injector.labels", map[string]string{})
+	config.BindEnvAndSetDefault("cluster_agent.appsec.injector.annotations", map[string]string{})
+	config.BindEnvAndSetDefault("cluster_agent.appsec.injector.processor.service.name", "")
+	config.BindEnvAndSetDefault("cluster_agent.appsec.injector.processor.service.namespace", "")
+	config.BindEnvAndSetDefault("cluster_agent.appsec.injector.istio.namespace", "istio-system")
+
 	config.BindEnvAndSetDefault("cluster_agent.kube_metadata_collection.enabled", false)
 	// list of kubernetes resources for which we collect metadata
 	// each resource is specified in the format `{group}/{version}/{resource}` or `{group}/{resource}`
@@ -1146,6 +1157,13 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	// TTL refresh period represents how frequently actively detected languages are refreshed by reporting them again to the language detection handler in the cluster agent
 	config.BindEnvAndSetDefault("language_detection.reporting.refresh_period", "20m")
 
+	// Appsec Proxy Config Injection (Experimental)
+	config.BindEnvAndSetDefault("appsec.proxy.enabled", false)
+	config.BindEnvAndSetDefault("appsec.proxy.processor.port", "443")
+	config.BindEnvAndSetDefault("appsec.proxy.processor.address", "")
+	config.BindEnvAndSetDefault("appsec.proxy.auto_detect", true)
+	config.BindEnvAndSetDefault("appsec.proxy.proxies", []string{})
+
 	setupProcesses(config)
 
 	// Installer configuration
@@ -1283,7 +1301,7 @@ func agent(config pkgconfigmodel.Setup) {
 	// Infrastructure basic mode - additional checks
 	// When infrastructure_mode is set to "basic", only a limited set of checks are allowed to run.
 	// This setting allows customers to add additional checks to the allowlist beyond the default set.
-	config.BindEnvAndSetDefault("infra_basic_additional_checks", []string{})
+	config.BindEnvAndSetDefault("allowed_additional_integrations", []string{})
 
 	// Configuration for TLS for outgoing connections
 	config.BindEnvAndSetDefault("min_tls_version", "tlsv1.2")

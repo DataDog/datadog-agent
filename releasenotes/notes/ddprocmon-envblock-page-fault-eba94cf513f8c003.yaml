@@ -1,0 +1,8 @@
+
+---
+upgrade:
+  - |
+    Upgraded the WDK version used by ddprocmon.
+fixes:
+  - |
+    Fixed potential page fault and BSOD when trying to read environment variables from Windows user mode processes.

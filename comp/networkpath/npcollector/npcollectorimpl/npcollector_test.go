@@ -1743,6 +1743,18 @@ func Test_npCollectorImpl_shouldScheduleNetworkPathForConn(t *testing.T) {
 			connectionExcluded: false,
 		},
 		{
+			name:   "exclusion: exclude system probe conn",
+			domain: "abc",
+			conn: &model.Connection{
+				Type:            model.ConnectionType_tcp,
+				Laddr:           &model.Addr{Ip: "10.0.0.1", Port: int32(30000)},
+				Raddr:           &model.Addr{Ip: "10.0.0.2", Port: int32(123)},
+				Direction:       model.ConnectionDirection_outgoing,
+				SystemProbeConn: true,
+			},
+			shouldSchedule: false,
+		},
+		{
 			name:   "FILTERS: excluded domain to test that filters works",
 			domain: "google.com",
 			filters: `

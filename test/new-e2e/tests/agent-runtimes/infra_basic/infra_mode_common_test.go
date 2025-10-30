@@ -276,7 +276,7 @@ func (s *infraBasicSuite) TestCheckSchedulingBehavior() {
 	})
 }
 
-// TestAdditionalCheckWorks verifies that a check can be added via infra_basic_additional_checks.
+// TestAdditionalCheckWorks verifies that a check can be added via allowed_additional_integrations.
 // This test dynamically updates the environment to add a check not in the default allow list.
 func (s *infraBasicSuite) TestAdditionalCheckWorks() {
 	// Use http_check as an example of a check not in the default allow list
@@ -304,7 +304,7 @@ process_config:
   enabled: false
 telemetry:
   enabled: true
-infra_basic_additional_checks:
+allowed_additional_integrations:
   - http_check
 `
 
@@ -331,6 +331,6 @@ infra_basic_additional_checks:
 		// Verify the additional check can be run via CLI
 		t.Logf("Testing additional check %s via CLI...", additionalCheckName)
 		ran := s.verifyCheckRuns(additionalCheckName)
-		assert.True(t, ran, "Check %s must be runnable via CLI in basic mode when added via infra_basic_additional_checks", additionalCheckName)
+		assert.True(t, ran, "Check %s must be runnable via CLI in basic mode when added via allowed_additional_integrations", additionalCheckName)
 	})
 }

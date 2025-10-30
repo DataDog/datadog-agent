@@ -15,6 +15,10 @@ build:windows --strategy=standalone # Valid values are: [dynamic_worker, standal
 # Disabling them for now.
 build:windows --noexperimental_convenience_symlinks
 
+# Make sure we support the minimum macos version we advertise
+# https://docs.datadoghq.com/agent/supported_platforms/?tab=macos
+# https://bazel.build/reference/command-line-reference#flag--macos_minimum_os
+build:macos --macos_minimum_os=11.0
 
 # datadog-agent virtually isolates caching instance from its parent (which is remote-caching).
 # If entry isn't found in datadog-agent, it will be searched in remote-caching.

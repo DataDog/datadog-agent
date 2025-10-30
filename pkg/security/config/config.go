@@ -361,6 +361,8 @@ type RuntimeSecurityConfig struct {
 
 	// SysCtlEnabled defines if the sysctl event should be enabled
 	SysCtlEnabled bool
+	// SysCtlEBPFEnabled defines if the sysctl eBPF collection should be enabled
+	SysCtlEBPFEnabled bool
 	// SysCtlSnapshotEnabled defines if the sysctl snapshot feature should be enabled
 	SysCtlSnapshotEnabled bool
 	// SysCtlSnapshotPeriod defines at which time interval a new snapshot of sysctl parameters should be sent
@@ -579,6 +581,7 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 
 		// SysCtl config parameter
 		SysCtlEnabled:                        pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.sysctl.enabled"),
+		SysCtlEBPFEnabled:                    pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.sysctl.ebpf.enabled"),
 		SysCtlSnapshotEnabled:                pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.sysctl.snapshot.enabled"),
 		SysCtlSnapshotPeriod:                 pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.sysctl.snapshot.period"),
 		SysCtlSnapshotIgnoredBaseNames:       pkgconfigsetup.SystemProbe().GetStringSlice("runtime_security_config.sysctl.snapshot.ignored_base_names"),
@@ -668,6 +671,16 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 // IsRuntimeEnabled returns true if any feature is enabled. Has to be applied in config package too
 func (c *RuntimeSecurityConfig) IsRuntimeEnabled() bool {
 	return c.RuntimeEnabled || c.FIMEnabled
+}
+
+// IsSysctlEventEnabled returns whether the sysctl event is enabled
+func (c *RuntimeSecurityConfig) IsSysctlEventEnabled() bool {
+	return c.SysCtlEnabled && c.SysCtlEBPFEnabled
+}
+
+// IsSysctlSnapshotEnabled returns whether the sysctl snapshot feature is enabled
+func (c *RuntimeSecurityConfig) IsSysctlSnapshotEnabled() bool {
+	return c.SysCtlEnabled && c.SysCtlSnapshotEnabled
 }
 
 // parseIMDSIPv4 returns the uint32 representation of the IMDS IP set by the configuration

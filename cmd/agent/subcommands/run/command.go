@@ -388,8 +388,11 @@ func getSharedFxOption() fx.Option {
 		)),
 		core.Bundle(),
 		flareprofiler.Module(),
-		fx.Provide(func() flaretypes.Provider {
-			return flaretypes.NewProvider(hostSbom.FlareProvider)
+		fx.Provide(func(cfg config.Component) flaretypes.Provider {
+			provider := &hostSbom.FlareProvider{
+				Config: cfg,
+			}
+			return flaretypes.NewProvider(provider.ProvideFlare)
 		}),
 		lsof.Module(),
 		// Enable core agent specific features like persistence-to-disk

@@ -49,14 +49,17 @@ func FuzzDecoder(f *testing.F) {
 	})
 }
 
+type (
+	captures      struct{ Entry struct{ Arguments any } }
+	debugger      struct{ Snapshot struct{ Captures captures } }
+	eventCaptures struct{ Debugger debugger }
+)
+
 // TestDecoderManually is a test that manually constructs an event and decodes
 // it.
 //
 // This makes it easy to assert properties of the decoder's internal state.
 func TestDecoderManually(t *testing.T) {
-	type captures struct{ Entry struct{ Arguments any } }
-	type debugger struct{ Snapshot struct{ Captures captures } }
-	type eventCaptures struct{ Debugger debugger }
 	for _, c := range cases {
 		t.Run(c.probeName, func(t *testing.T) {
 			irProg := generateIrForProbes(t, "simple", c.probeName)
@@ -807,6 +810,46 @@ func TestDecoderFailsOnEvaluationError(t *testing.T) {
 	)
 	require.NoError(t, err)
 	require.Contains(t, string(out), "no decoder type found")
+}
+
+func TestDecoderIsRobustToDataItemDecodingErrors(t *testing.T) {
+	c := cases[0]
+	irProg := generateIrForProbes(t, "simple", c.probeName)
+	decoder, err := NewDecoder(irProg, &noopTypeNameResolver{}, time.Now())
+	require.NoError(t, err)
+	eventData := simpleStringArgEvent(t, irProg)
+	event := output.Event(eventData)
+	eventHeader, err := output.Event(eventData).Header()
+	require.NoError(t, err)
+	newItemOffset := eventHeader.Data_byte_len
+	eventHeader.Data_byte_len += uint32(unsafe.Sizeof(output.DataItemHeader{}) + 8)
+	for range unsafe.Sizeof(output.DataItemHeader{}) + 8 {
+		event = append(event, 0)
+	}
+	dataItemHeader := (*output.DataItemHeader)(unsafe.Pointer(&event[newItemOffset]))
+	dataItemHeader.Type = uint32(ir.TypeID(1))
+	dataItemHeader.Length = 424242 // too long
+	dataItemHeader.Address = 0xdeadbeef
+	var items []output.DataItem
+	var itemErr error
+	for item, err := range event.DataItems() {
+		if err != nil {
+			itemErr = err
+			break
+		}
+		items = append(items, item)
+	}
+	require.Regexp(t, "not enough bytes to read data item", itemErr)
+
+	buf, probe, err := decoder.Decode(Event{
+		EntryOrLine: event,
+		ServiceName: "foo",
+	}, &noopSymbolicator{}, []byte{})
+	require.NoError(t, err)
+	require.Equal(t, c.probeName, probe.GetID())
+	var e eventCaptures
+	require.NoError(t, json.Unmarshal(buf, &e))
+	require.Equal(t, c.expected, e.Debugger.Snapshot.Captures.Entry.Arguments)
 }
 
 // TestDecoderFailsOnEvaluationErrorAndRetainsPassedBuffer tests that the decoder
