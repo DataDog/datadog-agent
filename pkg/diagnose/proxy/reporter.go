@@ -1,6 +1,8 @@
 package proxy
 
-// Run executes config-only lints. Probes remain off unless noNetwork=false.
+// Run executes config lints and, if enabled, minimal network probes.
+// - Config lints always run.
+// - When noNetwork == false, we also attempt a TCP dial to the HTTPS proxy.
 func Run(noNetwork bool) Result {
 	eff := ComputeEffective()
 	findings := []Finding{}
@@ -34,6 +36,7 @@ func Run(noNetwork bool) Result {
 		}
 	}
 
+	// Minimal active probe path (off by default)
 	if !noNetwork {
 		findings = append(findings, ProbeProxyConnectivity(eff)...)
 		findings = append(findings, ProbeEndpointsConnectivity(eff, eps)...)
