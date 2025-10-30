@@ -8,6 +8,7 @@
 package config
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -128,13 +129,15 @@ func backupOrRestoreDirectory(ctx context.Context, sourcePath, targetPath string
 		}
 	}
 	cmd := telemetry.CommandContext(ctx, "robocopy", sourcePath, targetPath, "*.yaml", "/MIR")
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
 	err = cmd.Run()
 	var exitErr *exec.ExitError
 	if err != nil && !errors.As(err, &exitErr) {
 		return fmt.Errorf("error executing robocopy: %w", err)
 	}
 	if exitErr != nil && exitErr.ExitCode() >= 8 {
-		return fmt.Errorf("error executing robocopy: %w", err)
+		return fmt.Errorf("error executing robocopy: %w\n%s", err, stderr.String())
 	}
 	return nil
 }
