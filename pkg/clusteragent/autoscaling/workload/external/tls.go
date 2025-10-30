@@ -36,7 +36,7 @@ const (
 	certificateErrorCacheTimeout = 1 * time.Minute
 	certificateLoadRetryAttempts = 5
 	certificateLoadRetrySleep    = 50 * time.Millisecond
-	minTlsVersion                = tls.VersionTLS12
+	minTLSVersion                = tls.VersionTLS12
 )
 
 // configureTransportTLS updates the provided transport with a TLS configuration based on the given settings.
@@ -78,7 +78,7 @@ func buildTLSConfig(config *TLSConfig) (*tls.Config, error) {
 	}
 
 	return &tls.Config{
-		MinVersion: minTlsVersion,
+		MinVersion: minTLSVersion,
 		RootCAs:    rootCA,
 	}, nil
 }
