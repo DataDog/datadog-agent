@@ -327,10 +327,10 @@ func configureDDOTServicePermissions(s *mgr.Service) {
 	}
 	defer windows.LocalFree(windows.Handle(uintptr(unsafe.Pointer(secDesc))))
 
-	const DACL_SECURITY_INFORMATION = 0x00000004
+	const daclSecurityInformation = 0x00000004
 	r2, _, e2 := procSet.Call(
 		uintptr(s.Handle),
-		uintptr(uint32(DACL_SECURITY_INFORMATION)),
+		uintptr(uint32(daclSecurityInformation)),
 		uintptr(unsafe.Pointer(secDesc)),
 	)
 	if r2 == 0 {
