@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package logsagentexporter
+package serializerexporter
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
@@ -11,16 +11,16 @@ import (
 
 // These metrics are for measuring the current volume of traffic customers are sending through OTLP collectors (Agent, DDOT)
 var (
-	OTLPIngestLogsEvents = telemetry.NewCounter(
+	OTLPIngestMetricsEvents = telemetry.NewCounter(
 		"runtime",
-		"datadog_agent_otlp_logs_events",
+		"datadog_agent_otlp_metrics_events",
 		nil,
-		"Counter metric of OTLP Log events in OTLP ingestion",
+		"Counter metric of OTLP Metric events in OTLP ingestion",
 	)
-	OTLPIngestLogsRequests = telemetry.NewCounter(
+	OTLPIngestMetricsRequests = telemetry.NewCounter(
 		"runtime",
-		"datadog_agent_otlp_logs_requests",
+		"datadog_agent_otlp_metrics_requests",
 		nil,
-		"Counter metric of OTLP Log requests in OTLP ingestion",
+		"Counter metric of OTLP Metric requests in OTLP ingestion",
 	)
 )
