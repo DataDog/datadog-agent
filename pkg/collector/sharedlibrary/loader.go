@@ -65,5 +65,13 @@ func (sl *SharedLibraryCheckLoader) Load(senderManager sender.SenderManager, con
 		return c, err
 	}
 
+	// check version
+	version, err := sl.loader.Version(libHandles.version)
+	if err != nil {
+		return c, err
+	}
+
+	c.version = version
+
 	return c, nil
 }

@@ -24,12 +24,22 @@ handles_t load_shared_library(const char *lib_path, const char **error) {
 		return lib_handles;
     }
 
-    // get symbol pointers of 'Run' and 'Free' functions
+    // get pointer of 'Run' symbol
     lib_handles.run = (run_function_t *)GetProcAddress(lib_handles.lib, "Run");
     if (!lib_handles.run) {
         char error_msg[256];
         int error_code = GetLastError();
         snprintf(error_msg, sizeof(error_msg), "unable to get shared library 'Run' symbol, error code: %d", error_code);
+		*error = strdup(error_msg);
+		return lib_handles;
+    }
+
+    // get pointer of 'Version' symbol
+    lib_handles.version = (version_function_t *)GetProcAddress(lib_handles.lib, "Version");
+    if (!lib_handles.version) {
+        char error_msg[256];
+        int error_code = GetLastError();
+        snprintf(error_msg, sizeof(error_msg), "unable to get shared library 'Version' symbol, error code: %d", error_code);
 		*error = strdup(error_msg);
 		return lib_handles;
     }
@@ -70,8 +80,19 @@ handles_t load_shared_library(const char *lib_path, const char **error) {
 		return lib_handles;
     }
 
-    // get symbol pointer of 'Run' function
+    // get pointer of 'Run' symbol
     lib_handles.run = (run_function_t *)dlsym(lib_handles.lib, "Run");
+    
+    // catch symbol errors and close the library if there are any
+    dlsym_error = dlerror();
+    if (dlsym_error) {
+		dlclose(lib_handles.lib);
+		*error = strdup(dlsym_error);
+		return lib_handles;
+    }
+
+    // get pointer of 'Version' symbol
+    lib_handles.version = (version_function_t *)dlsym(lib_handles.lib, "Version");
     
     // catch symbol errors and close the library if there are any
     dlsym_error = dlerror();
@@ -102,13 +123,24 @@ void close_shared_library(void *lib_handle, const char **error) {
 }
 #endif
 
-void run_shared_library(run_function_t *run_handle, char *check_id, char *init_config, char *instance_config, aggregator_t *aggregator, const char **error) {
-    // verify `Run` handle
-    if (!run_handle) {
+void run_shared_library(run_function_t *run_ptr, char *check_id, char *init_config, char *instance_config, aggregator_t *aggregator, const char **error) {
+    // verify `Run` pointer
+    if (!run_ptr) {
         *error = strdup("pointer to 'Run' symbol of the shared library is NULL");
         return;
     }
 
     // run the shared library check and put any errors string in the `error` variable
-    (run_handle)(check_id, init_config, instance_config, aggregator, error);
+    (run_ptr)(check_id, init_config, instance_config, aggregator, error);
+}
+
+const char *get_version_shared_library(version_function_t *version_ptr, const char **error) {
+    // verify `Version` pointer
+    if (!version_ptr) {
+        *error = strdup("pointer to 'Version' symbol of the shared library is NULL");
+        return NULL;
+    }
+
+    // retrieve the version of the shared library check and put any errors string in the `error` variable
+    return (version_ptr)(error);
 }

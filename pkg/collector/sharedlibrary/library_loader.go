@@ -53,15 +53,17 @@ func getLibExtension() string {
 
 // store handles for loading, running checks
 type libraryHandles struct {
-	lib unsafe.Pointer
-	run *C.run_function_t
+	lib     unsafe.Pointer
+	run     *C.run_function_t
+	version *C.version_function_t
 }
 
 // libraryLoader is an interface that handles opening, running and closing shared libraries
 type libraryLoader interface {
 	Load(name string) (libraryHandles, error)
-	Run(runHandle *C.run_function_t, checkID string, initConfig string, instanceConfig string) error
 	Close(libHandle unsafe.Pointer) error
+	Run(runPtr *C.run_function_t, checkID string, initConfig string, instanceConfig string) error
+	Version(versionPtr *C.version_function_t) (string, error)
 }
 
 // SharedLibraryLoader is an interface to load/close shared libraries and run their `Run` symbol
@@ -84,31 +86,10 @@ func (l *sharedLibraryLoader) Load(name string) (libraryHandles, error) {
 	cLibHandles := C.load_shared_library(cLibPath, &cErr)
 	if cErr != nil {
 		defer C.free(unsafe.Pointer(cErr))
-		return libraryHandles{}, fmt.Errorf("failed to load shared library at %q", libPath)
+		return libraryHandles{}, fmt.Errorf("failed to load shared library at %q: %s", libPath, C.GoString(cErr))
 	}
 
 	return (libraryHandles)(cLibHandles), nil
-}
-
-func (l *sharedLibraryLoader) Run(runHandle *C.run_function_t, checkID string, initConfig string, instanceConfig string) error {
-	cID := C.CString(checkID)
-	defer C.free(unsafe.Pointer(cID))
-
-	cInitConfig := C.CString(initConfig)
-	defer C.free(unsafe.Pointer(cInitConfig))
-
-	cInstanceConfig := C.CString(instanceConfig)
-	defer C.free(unsafe.Pointer(cInstanceConfig))
-
-	var cErr *C.char
-
-	C.run_shared_library(runHandle, cID, cInitConfig, cInstanceConfig, l.aggregator, &cErr)
-	if cErr != nil {
-		defer C.free(unsafe.Pointer(cErr))
-		return fmt.Errorf("Run failed: %s", C.GoString(cErr))
-	}
-
-	return nil
 }
 
 func (l *sharedLibraryLoader) Close(libHandle unsafe.Pointer) error {
@@ -121,6 +102,40 @@ func (l *sharedLibraryLoader) Close(libHandle unsafe.Pointer) error {
 	}
 
 	return nil
+}
+
+func (l *sharedLibraryLoader) Run(runPtr *C.run_function_t, checkID string, initConfig string, instanceConfig string) error {
+	cID := C.CString(checkID)
+	defer C.free(unsafe.Pointer(cID))
+
+	cInitConfig := C.CString(initConfig)
+	defer C.free(unsafe.Pointer(cInitConfig))
+
+	cInstanceConfig := C.CString(instanceConfig)
+	defer C.free(unsafe.Pointer(cInstanceConfig))
+
+	var cErr *C.char
+
+	C.run_shared_library(runPtr, cID, cInitConfig, cInstanceConfig, l.aggregator, &cErr)
+	if cErr != nil {
+		defer C.free(unsafe.Pointer(cErr))
+		return fmt.Errorf("Run failed: %s", C.GoString(cErr))
+	}
+
+	return nil
+}
+
+func (l *sharedLibraryLoader) Version(versionPtr *C.version_function_t) (string, error) {
+	var cErr *C.char
+
+	cLibVersion := C.get_version_shared_library(versionPtr, &cErr)
+	if cErr != nil {
+		defer C.free(unsafe.Pointer(cErr))
+		return "", fmt.Errorf("Failed to get version: %s", C.GoString(cErr))
+	}
+
+	return C.GoString(cLibVersion), nil
+
 }
 
 func newSharedLibraryLoader(folderPath string) *sharedLibraryLoader {
@@ -137,10 +152,14 @@ func (ml *mockSharedLibraryLoader) Load(_ string) (libraryHandles, error) {
 	return libraryHandles{}, nil
 }
 
+func (ml *mockSharedLibraryLoader) Close(_ unsafe.Pointer) error {
+	return nil
+}
+
 func (ml *mockSharedLibraryLoader) Run(_ *C.run_function_t, _ string, _ string, _ string) error {
 	return nil
 }
 
-func (ml *mockSharedLibraryLoader) Close(_ unsafe.Pointer) error {
-	return nil
+func (ml *mockSharedLibraryLoader) Version(_ *C.version_function_t) (string, error) {
+	return "", nil
 }

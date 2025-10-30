@@ -60,19 +60,25 @@ typedef struct aggregator_s {
     cb_submit_event_platform_event_t cb_submit_event_platform_event;
 } aggregator_t;
 
-// run function callback, entrypoint of checks
+// run function, entrypoint of checks
 // (check_id, init_config, instance_config, callbacks, error)
 typedef void (run_function_t)(char *, char *, char *, const aggregator_t *, const char **);
 
+// shared library check version function
+// (error)
+typedef const char *(version_function_t)(const char **);
+
 // handles_t contains pointers to shared library and its Run symbol
 typedef struct handles_s {
-    void *lib;              // handle to the shared library
-    run_function_t *run;    // handle to the run function symbol
+    void *lib;                   // handle to the shared library
+    run_function_t *run;         // pointer to the `Run` symbol
+    version_function_t *version; // pointer to the `Version` symbol
 } handles_t;
 
 // shared library interface functions
 handles_t load_shared_library(const char *lib_path, const char **error);
 void close_shared_library(void *lib_handle, const char **error);
-void run_shared_library(run_function_t *run_handle, char *check_id, char *init_config, char *instance_config, aggregator_t *aggregator, const char **error);
+void run_shared_library(run_function_t *run_ptr, char *check_id, char *init_config, char *instance_config, aggregator_t *aggregator, const char **error);
+const char *get_version_shared_library(version_function_t *get_version_ptr, const char **error);
 
 #endif
