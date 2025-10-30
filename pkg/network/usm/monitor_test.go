@@ -669,14 +669,18 @@ func cleanMaps(t *testing.T, protocolName string, maps map[string]*ebpf.Map) {
 		if !strings.Contains(name, protocolName) || strings.Contains(name, fmt.Sprintf("%s_batch", protocolName)) {
 			continue
 		}
-		cleanMapEntries(t, m)
+		if protocolName == "kafka" {
+			t.Logf("Cleaning map %q in test %q", name, t.Name())
+		}
+		cleanMapEntries(t, name, m)
 	}
 }
 
-func cleanMapEntries(t *testing.T, m *ebpf.Map) {
+func cleanMapEntries(t *testing.T, name string, m *ebpf.Map) {
 	switch m.Type() {
 	case ebpf.Hash, ebpf.Array, ebpf.PerCPUHash, ebpf.PerCPUArray:
 	default:
+		t.Logf("Skipping map %q; type: %v; test: %q", name, m.Type(), t.Name())
 		return
 	}
 
@@ -696,6 +700,10 @@ func cleanMapEntries(t *testing.T, m *ebpf.Map) {
 		updateEntries(t, m, keys, emptyValue)
 	default:
 		deleteEntries(t, m, keys)
+	}
+
+	if keys = getAllKeys(t, m); len(keys) > 0 {
+		t.Logf("failed (1) fully cleaning %q; have keys: %#v; test: %q", name, keys, t.Name())
 	}
 }
 

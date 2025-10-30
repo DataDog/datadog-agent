@@ -741,6 +741,7 @@ func (can *CannedClientServer) runServer(t *testing.T) {
 
 		for msgs := range can.control {
 			if prevconn != nil {
+				t.Logf("closing can conn: test %q; laddr %v; raddr %v", can.t.Name(), prevconn.LocalAddr(), prevconn.RemoteAddr())
 				prevconn.Close()
 			}
 			conn, err = listener.Accept()
@@ -763,6 +764,7 @@ func (can *CannedClientServer) runServer(t *testing.T) {
 		}
 
 		if prevconn != nil {
+			t.Logf("closing can conn: test %q; laddr %v; raddr %v", can.t.Name(), prevconn.LocalAddr(), prevconn.RemoteAddr())
 			prevconn.Close()
 		}
 	}()
