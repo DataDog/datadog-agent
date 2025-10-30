@@ -24,19 +24,30 @@ func copyDirectory(ctx context.Context, sourcePath, targetPath string) error {
 	if err != nil {
 		return fmt.Errorf("failed to copy directory: %w", err)
 	}
-	// 1. Eval stable symlink in sourcePath
-	stableSymlinkPath, err := filepath.EvalSymlinks(
-		filepath.Join(sourcePath, "managed", "datadog-agent", "stable"),
-	)
+	existingStablePath := filepath.Join(sourcePath, "managed", "datadog-agent", "stable")
+	// 1. Check if stable is a symlink or not
+	info, err := os.Stat(existingStablePath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return err
+	}
+	// If it's not a symlink, we can return early
+	if info.Mode()&os.ModeSymlink == 0 {
+		return nil
+	}
+	// 2. Eval stable symlink in sourcePath
+	stableSymlinkPath, err := filepath.EvalSymlinks(existingStablePath)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return nil
 		}
 		return fmt.Errorf("failed to eval stable symlink: %w", err)
 	}
-	// 2. Get the version from the stable symlink
+	// 3. Get the version from the stable symlink
 	stablePath := filepath.Base(stableSymlinkPath)
-	// 3. Delete stable and experiment symlinks in targetPath
+	// 4. Delete stable and experiment symlinks in targetPath
 	err = os.Remove(filepath.Join(targetPath, "managed", "datadog-agent", "stable"))
 	if err != nil && !os.IsNotExist(err) {
 		return fmt.Errorf("failed to remove stable symlink: %w", err)
@@ -45,7 +56,7 @@ func copyDirectory(ctx context.Context, sourcePath, targetPath string) error {
 	if err != nil && !os.IsNotExist(err) {
 		return fmt.Errorf("failed to remove experiment symlink: %w", err)
 	}
-	// 4. Rename targetPath/managed/datadog-agent/<version> to targetPath/managed/datadog-agent/stable
+	// 5. Rename targetPath/managed/datadog-agent/<version> to targetPath/managed/datadog-agent/stable
 	err = os.Rename(
 		filepath.Join(targetPath, "managed", "datadog-agent", stablePath),
 		filepath.Join(targetPath, "managed", "datadog-agent", "stable"),
