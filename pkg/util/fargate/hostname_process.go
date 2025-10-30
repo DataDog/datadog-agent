@@ -70,5 +70,5 @@ func getECSManagedInstancesHost(ctx context.Context) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return fmt.Sprintf("ecs_managed_instance_task:%s", taskMeta.TaskARN), nil
+	return fmt.Sprintf("fargate_task:%s", taskMeta.TaskARN), nil
 }
