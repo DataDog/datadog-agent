@@ -12,6 +12,7 @@ import (
 	"os"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/util/opener"
+	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -40,14 +41,45 @@ func (t *Tailer) DidRotate() (bool, error) {
 	}
 
 	fileSize := fi1.Size()
+	cachedSize := t.cachedFileSize.Load()
+
+	// Check for disagreements between cache-based and offset-based rotation detection
+	cacheIndicatesGrowth := cachedSize > 0 && fileSize > cachedSize
+	offsetIndicatesUnreadData := lastReadOffset < fileSize
+
+	if cacheIndicatesGrowth && !offsetIndicatesUnreadData {
+		// Cache grew but offset suggests we're caught up - we likely missed a rotation
+		metrics.TlmRotationSizeMismatch.Inc("cache")
+		log.Debugf("Rotation size mismatch detected: cache grew (old=%d, new=%d) but offset=%d >= fileSize=%d",
+			cachedSize, fileSize, lastReadOffset, fileSize)
+	} else if !cacheIndicatesGrowth && offsetIndicatesUnreadData && cachedSize > 0 {
+		// Offset suggests unread data but cache didn't grow - potential false positive
+		metrics.TlmRotationSizeMismatch.Inc("offset")
+		log.Debugf("Rotation size mismatch detected: offset=%d < fileSize=%d but cache didn't grow (old=%d, new=%d)",
+			lastReadOffset, fileSize, cachedSize, fileSize)
+	}
+
+	// Track size differences when size-based rotation is detected
+	if cachedSize > 0 && fileSize != cachedSize {
+		sizeDiff := fileSize - cachedSize
+		if sizeDiff < 0 {
+			sizeDiff = -sizeDiff
+		}
+		metrics.TlmRotationSizeDifferences.Observe(float64(sizeDiff))
+	}
+
+	// Update cached file size for next check
+	t.cachedFileSize.Store(fileSize)
 
 	recreated := !os.SameFile(fi1, fi2)
 	truncated := fileSize < lastReadOffset
 
 	if recreated {
 		log.Debugf("File rotation detected due to recreation, f1: %+v, f2: %+v", fi1, fi2)
+		metrics.TlmRotationsNix.Inc("new_file")
 	} else if truncated {
 		log.Debugf("File rotation detected due to size change, lastReadOffset=%d, fileSize=%d", lastReadOffset, fileSize)
+		metrics.TlmRotationsNix.Inc("truncated")
 	}
 
 	return recreated || truncated, nil

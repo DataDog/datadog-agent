@@ -100,6 +100,22 @@ var (
 	LogsTruncated = expvar.Int{}
 	// TlmTruncatedCount tracks the count of times a log is truncated
 	TlmTruncatedCount = telemetry.NewCounter("logs", "truncated", []string{"service", "source"}, "Count the number of times a log is truncated")
+
+	// TlmLogLineSizes is a distribution of post-framer log line sizes
+	TlmLogLineSizes = telemetry.NewHistogram("logs", "log_line_sizes",
+		nil, "Distribution of post-framer log line sizes before line parsers/handlers are applied", []float64{64, 256, 1024, 4096, 16384, 65536, 262144, 1048576})
+
+	// TlmRotationsNix tracks file rotations by type (new_file vs truncated, *nix only)
+	TlmRotationsNix = telemetry.NewCounter("logs", "rotations_nix",
+		[]string{"rotation_type"}, "Count of file rotations by detection type (new_file or truncated), for *nix only")
+
+	// TlmRotationSizeMismatch tracks disagreements between cache and offset-based rotation detection
+	TlmRotationSizeMismatch = telemetry.NewCounter("logs", "rotation_size_mismatch",
+		[]string{"detector"}, "Count of disagreements between cache and offset-based rotation detection (detector indicates which detected the rotation)")
+
+	// TlmRotationSizeDifferences is a distribution of size differences when rotation is detected
+	TlmRotationSizeDifferences = telemetry.NewHistogram("logs", "rotation_size_differences",
+		nil, "Distribution of file size differences between old and new cache sizes when size-based rotation is detected", []float64{0, 1024, 10240, 102400, 1048576, 10485760, 104857600, 1073741824})
 )
 
 func init() {

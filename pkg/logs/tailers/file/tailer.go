@@ -100,6 +100,9 @@ type Tailer struct {
 	// didFileRotate is true when we are tailing a file after it has been rotated
 	didFileRotate *atomic.Bool
 
+	// cachedFileSize stores the file size from the last scan, used for rotation detection metrics
+	cachedFileSize *atomic.Int64
+
 	// stop is monitored by the readForever component, and causes it to stop reading
 	// and close the channel to the decoder.
 	stop chan struct{}
@@ -186,6 +189,7 @@ func NewTailer(opts *TailerOptions) *Tailer {
 		stopForward:            stopForward,
 		isFinished:             atomic.NewBool(false),
 		didFileRotate:          atomic.NewBool(false),
+		cachedFileSize:         atomic.NewInt64(0),
 		info:                   opts.Info,
 		bytesRead:              bytesRead,
 		movingSum:              movingSum,
@@ -365,6 +369,8 @@ func (t *Tailer) forwardMessages() {
 	}()
 	for output := range t.decoder.OutputChan {
 		offset := t.decodedOffset.Load() + int64(output.RawDataLen)
+		// Track post-framer log line sizes
+		metrics.TlmLogLineSizes.Observe(float64(output.RawDataLen))
 		identifier := t.Identifier()
 		if t.didFileRotate.Load() {
 			offset = 0
