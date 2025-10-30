@@ -170,14 +170,15 @@ func TestProcPidMapperCgroupV1(t *testing.T) {
 var (
 	cgroupV2ProcCgroup       = `0::/kubepods/burstable/pod15513b48-e7a5-48fc-b9e3-92f713f36504/a51a9f7d073f848e7fc59e56e8f11524f330a2175a4ed26327da2dfe0d28015f`
 	cgroupV2ProcCgroupNoHost = `0::../../../kubepods-burstable.slice/kubepods-burstable-pod562c01d6_6aba_49fe_ae52_61c40c04eca4.slice/docker-a51a9f7d073f848e7fc59e56e8f11524f330a2175a4ed26327da2dfe0d28015f.scope`
+	subCgroupV2NoHost        = `0::/system.slice/docker-a51a9f7d073f848e7fc59e56e8f11524f330a2175a4ed26327da2dfe0d28015f.scope/sensor.falcon`
 )
 
 func TestProcPidMapperCgroupV2(t *testing.T) {
 	fakeFsPath := t.TempDir()
 	paths := []string{
 		"proc/420",
-		"proc/421",
 		"proc/430",
+		"proc/440",
 	}
 
 	for _, p := range paths {
@@ -196,10 +197,11 @@ func TestProcPidMapperCgroupV2(t *testing.T) {
 	}
 	assert.NoError(t, os.WriteFile(filepath.Join(fakeFsPath, "/proc/420/cgroup"), []byte(cgroupV2ProcCgroup), 0o640))
 	assert.NoError(t, os.WriteFile(filepath.Join(fakeFsPath, "/proc/430/cgroup"), []byte(cgroupV2ProcCgroupNoHost), 0o640))
+	assert.NoError(t, os.WriteFile(filepath.Join(fakeFsPath, "/proc/440/cgroup"), []byte(subCgroupV2NoHost), 0o640))
 
 	pids, err := cgFooV2.GetPIDs(0)
 	assert.NoError(t, err)
-	assert.ElementsMatch(t, []int{420, 430}, pids)
+	assert.ElementsMatch(t, []int{420, 430, 440}, pids)
 }
 
 func TestIdentiferFromCgroupReferences(t *testing.T) {
