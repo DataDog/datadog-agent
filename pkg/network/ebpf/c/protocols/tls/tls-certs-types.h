@@ -1,6 +1,9 @@
 #ifndef __TLS_CERTS_TYPES_H
 #define __TLS_CERTS_TYPES_H
 
+// macros to split pid_tgid to pid and tgid
+#define PID_FROM(pid_tgid) ((__u32) pid_tgid)
+#define TGID_FROM(pid_tgid) ((__u32) (pid_tgid >> 32))
 
 #ifndef TEST_BUILD_NO_EBPF
 

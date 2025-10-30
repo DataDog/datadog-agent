@@ -18,6 +18,7 @@
 
 static __always_inline void SSL_report_cert(conn_stats_ts_t *stats) {
     __u64 pid_tgid = bpf_get_current_pid_tgid();
+
     void **ssl_ctx_mapval = bpf_map_lookup_elem(&ssl_certs_statem_args, &pid_tgid);
     // we are not inside SSL_do_handshake, skip
     if (ssl_ctx_mapval == NULL) {
@@ -40,7 +41,7 @@ static __always_inline void SSL_report_cert(conn_stats_ts_t *stats) {
     // we don't need the handshake state anymore now that we've used it
     bpf_map_delete_elem(&ssl_handshake_state, &ssl_ctx);
 
-    log_debug("SSL_report_cert: pid_tgid=%llx reported cert id=%x", pid_tgid, cert_id);
+    log_debug("SSL_report_cert: pid=%u tgid=%u reported cert id=%x", PID_FROM(pid_tgid), TGID_FROM(pid_tgid), cert_id);
 }
 
 
@@ -71,13 +72,14 @@ static __always_inline void SSL_add_cert(void *ssl_ctx, data_t data) {
 
 SEC("uprobe/i2d_X509")
 int BPF_BYPASSABLE_UPROBE(uprobe__i2d_X509) {
-    u64 pid_tgid = bpf_get_current_pid_tgid();
+    __u64 pid_tgid = bpf_get_current_pid_tgid();
+
     __u8 **out = (__u8**)PT_REGS_PARM2(ctx);
     if (!out) {
         // they're just testing the length of the cert by passing in a null pointer, skip
         return 0;
     }
-    log_debug("uprobe/i2d_X509: pid_tgid=%llx", pid_tgid);
+    log_debug("uprobe/i2d_X509: pid=%u tgid=%u", PID_FROM(pid_tgid), TGID_FROM(pid_tgid));
 
     // i2d_X509 has two behaviors:
     // 1. if *out is NULL, it will allocate a new buffer for the output
@@ -103,8 +105,7 @@ int BPF_BYPASSABLE_UPROBE(uprobe__i2d_X509) {
 
 SEC("uretprobe/i2d_X509")
 int BPF_BYPASSABLE_URETPROBE(uretprobe__i2d_X509) {
-    u64 pid_tgid = bpf_get_current_pid_tgid();
-    log_debug("uretprobe/i2d_X509: pid_tgid=%llx", pid_tgid);
+    __u64 pid_tgid = bpf_get_current_pid_tgid();
 
     int data_len = (int)PT_REGS_RC(ctx);
     if (data_len < 0) {
@@ -116,7 +117,7 @@ int BPF_BYPASSABLE_URETPROBE(uretprobe__i2d_X509) {
     if (!args) {
         return 0;
     }
-    log_debug("uretprobe/i2d_X509: data_len=%d", data_len);
+    log_debug("uretprobe/i2d_X509: pid=%u tgid=%u data_len=%d", PID_FROM(pid_tgid), TGID_FROM(pid_tgid), data_len);
 
     void **ssl_ctx_mapval = bpf_map_lookup_elem(&ssl_certs_statem_args, &pid_tgid);
     // we are not inside the SSL state machine, skip
@@ -147,8 +148,8 @@ SEC("raw_tracepoint/sched_process_exit")
 int raw_tracepoint__sched_process_exit_ssl_cert(void *ctx) {
     CHECK_BPF_PROGRAM_BYPASSED()
 
-    u64 pid_tgid = bpf_get_current_pid_tgid();
-    log_debug("raw_tracepoint/sched_process_exit: pid_tgid=%llx", pid_tgid);
+    __u64 pid_tgid = bpf_get_current_pid_tgid();
+    log_debug("raw_tracepoint/sched_process_exit: pid=%u tgid=%u", PID_FROM(pid_tgid), TGID_FROM(pid_tgid));
 
     bpf_map_delete_elem(&ssl_certs_statem_args, &pid_tgid);
     bpf_map_delete_elem(&ssl_certs_i2d_X509_args, &pid_tgid);

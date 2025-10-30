@@ -17,14 +17,15 @@
 
 
 static __always_inline void enter_state_machine(const char *probe, void *ssl_ctx) {
-    u64 pid_tgid = bpf_get_current_pid_tgid();
-    log_debug("%s: pid_tgid=%llx", probe, pid_tgid);
+    __u64 pid_tgid = bpf_get_current_pid_tgid();
+    log_debug("%s: pid=%u tgid=%u", probe, PID_FROM(pid_tgid), TGID_FROM(pid_tgid));
+
     bpf_map_update_with_telemetry(ssl_certs_statem_args, &pid_tgid, &ssl_ctx, BPF_ANY);
 }
 
 static __always_inline void exit_state_machine(const char *probe) {
-    u64 pid_tgid = bpf_get_current_pid_tgid();
-    log_debug("%s: pid_tgid=%llx", probe, pid_tgid);
+    __u64 pid_tgid = bpf_get_current_pid_tgid();
+    log_debug("%s: pid=%u tgid=%u", probe, PID_FROM(pid_tgid), TGID_FROM(pid_tgid));
     bpf_map_delete_elem(&ssl_certs_statem_args, &pid_tgid);
 }
 
