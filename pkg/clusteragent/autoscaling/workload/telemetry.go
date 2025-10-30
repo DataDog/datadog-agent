@@ -378,10 +378,10 @@ func trackVerticalStatus(podAutoscaler *datadoghq.DatadogPodAutoscaler) {
 		telemetryStatusVerticalDesiredPodMemoryRequest.Delete(labels...)
 
 		// Delete all container-specific metrics using partial match
-		deleteGaugeLinkedToDPA(telemetryStatusVerticalDesiredContainerCPURequest, labels[0], labels[1], labels[2])
-		deleteGaugeLinkedToDPA(telemetryStatusVerticalDesiredContainerMemoryRequest, labels[0], labels[1], labels[2])
-		deleteGaugeLinkedToDPA(telemetryStatusVerticalDesiredContainerCPULimit, labels[0], labels[1], labels[2])
-		deleteGaugeLinkedToDPA(telemetryStatusVerticalDesiredContainerMemoryLimit, labels[0], labels[1], labels[2])
+		deleteGaugeLinkedToDPA(telemetryStatusVerticalDesiredContainerCPURequest, labels[0], labels[2])
+		deleteGaugeLinkedToDPA(telemetryStatusVerticalDesiredContainerMemoryRequest, labels[0], labels[2])
+		deleteGaugeLinkedToDPA(telemetryStatusVerticalDesiredContainerCPULimit, labels[0], labels[2])
+		deleteGaugeLinkedToDPA(telemetryStatusVerticalDesiredContainerMemoryLimit, labels[0], labels[2])
 	}
 }
 
@@ -417,7 +417,7 @@ func trackContainerResource(metric telemetry.Gauge, resourceList corev1.Resource
 
 func setHorizontalScaleAppliedRecommendations(toReplicas float64, ns, targetName, autoscalerName, source string) {
 	// Clear previous values to prevent gauge from reporting old values for different sources
-	deleteGaugeLinkedToDPA(telemetryHorizontalScaleAppliedRecommendations, ns, targetName, autoscalerName)
+	deleteGaugeLinkedToDPA(telemetryHorizontalScaleAppliedRecommendations, ns, autoscalerName)
 
 	telemetryHorizontalScaleAppliedRecommendations.Set(
 		toReplicas,
@@ -429,12 +429,10 @@ func setHorizontalScaleAppliedRecommendations(toReplicas float64, ns, targetName
 	)
 }
 
-func deleteGaugeLinkedToDPA(metric telemetry.Gauge, ns, targetName, autoscalerName string) {
+func deleteGaugeLinkedToDPA(metric telemetry.Gauge, ns, autoscalerName string) {
 	tags := map[string]string{
-		"namespace":        ns,
-		"target_name":      targetName,
-		"autoscaler_name":  autoscalerName,
-		le.JoinLeaderLabel: le.JoinLeaderValue,
+		"namespace":       ns,
+		"autoscaler_name": autoscalerName,
 	}
 
 	metric.DeletePartialMatch(tags)
