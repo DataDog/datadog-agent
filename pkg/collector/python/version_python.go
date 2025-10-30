@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build python
+
 // Package python implements the layer to interact with the Python interpreter.
 package python
 
@@ -25,7 +27,7 @@ func GetPythonInfo() string {
 		return x.(string)
 	}
 
-	return "n/a"
+	return "unused"
 }
 
 // GetPythonVersion returns the embedded python version as provided by the embedded Python interpreter.
