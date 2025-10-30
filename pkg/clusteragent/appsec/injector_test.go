@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-//go:build kubeapiserver
+//go:build kubeapiserver && test
 
 package appsec
 
@@ -15,6 +15,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/dynamic"
@@ -50,12 +51,12 @@ func (m *mockInjectionPattern) Namespace() string {
 	return m.namespace
 }
 
-func (m *mockInjectionPattern) Added(context.Context, string, string) error {
+func (m *mockInjectionPattern) Added(context.Context, *unstructured.Unstructured) error {
 	m.addedCalls++
 	return m.addedErr
 }
 
-func (m *mockInjectionPattern) Deleted(context.Context, string, string) error {
+func (m *mockInjectionPattern) Deleted(context.Context, *unstructured.Unstructured) error {
 	m.deletedCalls++
 	return m.deletedErr
 }
@@ -114,10 +115,14 @@ func TestProcessWorkItem_Added(t *testing.T) {
 	)
 	defer queue.ShutDown()
 
+	testObj := &unstructured.Unstructured{}
+	testObj.SetName("test-resource")
+	testObj.SetNamespace("default")
+	testObj.SetGroupVersionKind(mockPattern.resource.GroupVersion().WithKind("TestResource"))
+
 	item := workItem{
-		name:      "test-resource",
-		namespace: "default",
-		typ:       workItemAdded,
+		obj: testObj,
+		typ: workItemAdded,
 	}
 
 	queue.Add(item)
@@ -162,10 +167,14 @@ func TestProcessWorkItem_Deleted(t *testing.T) {
 	)
 	defer queue.ShutDown()
 
+	testObj := &unstructured.Unstructured{}
+	testObj.SetName("test-resource")
+	testObj.SetNamespace("default")
+	testObj.SetGroupVersionKind(mockPattern.resource.GroupVersion().WithKind("TestResource"))
+
 	item := workItem{
-		name:      "test-resource",
-		namespace: "default",
-		typ:       workItemDeleted,
+		obj: testObj,
+		typ: workItemDeleted,
 	}
 
 	queue.Add(item)
@@ -211,10 +220,14 @@ func TestProcessWorkItem_ErrorRetry(t *testing.T) {
 	)
 	defer queue.ShutDown()
 
+	testObj := &unstructured.Unstructured{}
+	testObj.SetName("test-resource")
+	testObj.SetNamespace("default")
+	testObj.SetGroupVersionKind(mockPattern.resource.GroupVersion().WithKind("TestResource"))
+
 	item := workItem{
-		name:      "test-resource",
-		namespace: "default",
-		typ:       workItemAdded,
+		obj: testObj,
+		typ: workItemAdded,
 	}
 
 	queue.Add(item)
@@ -265,10 +278,14 @@ func TestProcessWorkItem_NotLeader(t *testing.T) {
 	)
 	defer queue.ShutDown()
 
+	testObj := &unstructured.Unstructured{}
+	testObj.SetName("test-resource")
+	testObj.SetNamespace("default")
+	testObj.SetGroupVersionKind(mockPattern.resource.GroupVersion().WithKind("TestResource"))
+
 	item := workItem{
-		name:      "test-resource",
-		namespace: "default",
-		typ:       workItemAdded,
+		obj: testObj,
+		typ: workItemAdded,
 	}
 
 	queue.Add(item)

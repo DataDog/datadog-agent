@@ -235,9 +235,8 @@ func TestIntegration_EventHandler_AddEvent(t *testing.T) {
 		obj := createAction.GetObject().(*unstructured.Unstructured)
 
 		addedItems = append(addedItems, workItem{
-			name:      obj.GetName(),
-			namespace: obj.GetNamespace(),
-			typ:       workItemAdded,
+			obj: obj,
+			typ: workItemAdded,
 		})
 
 		return false, nil, nil
