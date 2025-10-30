@@ -312,8 +312,8 @@ process_config:
   enabled: false
 telemetry:
   enabled: true
-infra_basic_additional_checks:
-  - "http_check"
+allowed_additional_integrations:
+  - http_check
 `
 
 	s.T().Logf("Updating environment to test additional checks and custom_ prefix")
