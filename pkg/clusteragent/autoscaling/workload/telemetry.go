@@ -60,6 +60,40 @@ var (
 		"Tracks the value of replicas applied by the horizontal scaling recommendation",
 		commonOpts,
 	)
+	// telemetryHorizontalScaleConstraintsMinReplicas tracks the minReplicas constraint value
+	telemetryHorizontalScaleConstraintsMinReplicas = telemetry.NewGaugeWithOpts(
+		subsystem,
+		"horizontal_scaling_constraints_min_replicas",
+		[]string{"namespace", "target_name", "autoscaler_name", le.JoinLeaderLabel},
+		"Tracks the minReplicas constraint value from DatadogPodAutoscaler.spec.constraints",
+		commonOpts,
+	)
+	// telemetryHorizontalScaleConstraintsMaxReplicas tracks the maxReplicas constraint value
+	telemetryHorizontalScaleConstraintsMaxReplicas = telemetry.NewGaugeWithOpts(
+		subsystem,
+		"horizontal_scaling_constraints_max_replicas",
+		[]string{"namespace", "target_name", "autoscaler_name", le.JoinLeaderLabel},
+		"Tracks the maxReplicas constraint value from DatadogPodAutoscaler.spec.constraints",
+		commonOpts,
+	)
+
+	// telemetryStatusHorizontalCurrentReplicas tracks the current replicas value
+	telemetryStatusHorizontalCurrentReplicas = telemetry.NewGaugeWithOpts(
+		subsystem,
+		"status_current_replicas",
+		[]string{"namespace", "target_name", "autoscaler_name", le.JoinLeaderLabel},
+		"Tracks the current replicas value from DatadogPodAutoscaler.status.currentReplicas",
+		commonOpts,
+	)
+
+	// telemetryStatusHorizontalDesiredReplicas tracks the desired replicas value
+	telemetryStatusHorizontalDesiredReplicas = telemetry.NewGaugeWithOpts(
+		subsystem,
+		"status_desired_replicas",
+		[]string{"namespace", "target_name", "autoscaler_name", le.JoinLeaderLabel},
+		"Tracks the current replicas value from DatadogPodAutoscaler.status.horizontal.desiredReplicas",
+		commonOpts,
+	)
 
 	// telemetryVerticalRolloutTriggered tracks the number of patch requests sent by the patcher to the kubernetes api server
 	telemetryVerticalRolloutTriggered = telemetry.NewCounterWithOpts(
@@ -109,9 +143,13 @@ var (
 		telemetryReceivedRecommendationsVersion,
 		telemetryHorizontalScaleAppliedRecommendations,
 		telemetryHorizontalScaleReceivedRecommendations,
+		telemetryHorizontalScaleConstraintsMinReplicas,
+		telemetryHorizontalScaleConstraintsMaxReplicas,
 		telemetryVerticalScaleReceivedRecommendationsLimits,
 		telemetryVerticalScaleReceivedRecommendationsRequests,
 		autoscalingStatusConditions,
+		telemetryStatusHorizontalCurrentReplicas,
+		telemetryStatusHorizontalDesiredReplicas,
 	}
 )
 
@@ -202,13 +240,55 @@ func deletePodAutoscalerTelemetry(ns, autoscalerName string) {
 }
 
 func trackLocalFallbackEnabled(currentSource datadoghqcommon.DatadogPodAutoscalerValueSource, podAutoscalerInternal model.PodAutoscalerInternal) {
+	labels := getAutoscalerLabels(podAutoscalerInternal)
+
 	var value float64
 	if currentSource == datadoghqcommon.DatadogPodAutoscalerLocalValueSource {
 		value = 1
 	} else {
 		value = 0
 	}
-	telemetryLocalFallbackEnabled.Set(value, podAutoscalerInternal.Namespace(), podAutoscalerInternal.Spec().TargetRef.Name, podAutoscalerInternal.Name(), le.JoinLeaderValue)
+	telemetryLocalFallbackEnabled.Set(value, labels...)
+}
+
+func trackDPATelemetry(podAutoscaler *datadoghq.DatadogPodAutoscaler) {
+	trackHorizontalConstraints(podAutoscaler)
+	trackHorizontalStatus(podAutoscaler)
+}
+
+func trackHorizontalConstraints(podAutoscaler *datadoghq.DatadogPodAutoscaler) {
+	labels := getAutoscalerLabels(podAutoscaler)
+	spec := podAutoscaler.Spec
+
+	// Track minReplicas or delete if not set
+	var minReplicas *int32
+	if spec.Constraints != nil {
+		minReplicas = spec.Constraints.MinReplicas
+	}
+	setOrDeleteGauge(telemetryHorizontalScaleConstraintsMinReplicas, minReplicas, labels...)
+
+	// Track maxReplicas or delete if not set
+	if spec.Constraints != nil && spec.Constraints.MaxReplicas > 0 {
+		maxReplicas := spec.Constraints.MaxReplicas
+		telemetryHorizontalScaleConstraintsMaxReplicas.Set(float64(maxReplicas), labels...)
+	} else {
+		telemetryHorizontalScaleConstraintsMaxReplicas.Delete(labels...)
+	}
+}
+
+func trackHorizontalStatus(podAutoscaler *datadoghq.DatadogPodAutoscaler) {
+	labels := getAutoscalerLabels(podAutoscaler)
+
+	// Track current replicas
+	setOrDeleteGauge(telemetryStatusHorizontalCurrentReplicas, podAutoscaler.Status.CurrentReplicas, labels...)
+
+	// Track desired replicas
+	if podAutoscaler.Status.Horizontal != nil {
+		desiredReplicas := podAutoscaler.Status.Horizontal.Target.Replicas
+		telemetryStatusHorizontalDesiredReplicas.Set(float64(desiredReplicas), labels...)
+	} else {
+		telemetryStatusHorizontalDesiredReplicas.Delete(labels...)
+	}
 }
 
 func setHorizontalScaleAppliedRecommendations(toReplicas float64, ns, targetName, autoscalerName, source string) {
@@ -234,4 +314,37 @@ func unsetHorizontalScaleAppliedRecommendations(ns, targetName, autoscalerName s
 	}
 
 	telemetryHorizontalScaleAppliedRecommendations.DeletePartialMatch(tags)
+}
+
+// getAutoscalerLabels extracts common labels from a DatadogPodAutoscaler or PodAutoscalerInternal
+func getAutoscalerLabels[T *datadoghq.DatadogPodAutoscaler | model.PodAutoscalerInternal](autoscaler T) []string {
+	var namespace, targetName, name string
+
+	// TODO the internal model can be improve t
+	switch a := any(autoscaler).(type) {
+	case *datadoghq.DatadogPodAutoscaler:
+		namespace = a.Namespace
+		targetName = a.Spec.TargetRef.Name
+		name = a.Name
+	case model.PodAutoscalerInternal:
+		namespace = a.Namespace()
+		targetName = a.Spec().TargetRef.Name
+		name = a.Name()
+	}
+
+	return []string{
+		namespace,
+		targetName,
+		name,
+		le.JoinLeaderValue,
+	}
+}
+
+// setOrDeleteGauge sets a gauge metric with the provided value if it's not nil, otherwise deletes it
+func setOrDeleteGauge(metric telemetry.Gauge, value *int32, labels ...string) {
+	if value != nil {
+		metric.Set(float64(*value), labels...)
+	} else {
+		metric.Delete(labels...)
+	}
 }

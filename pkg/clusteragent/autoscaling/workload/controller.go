@@ -363,6 +363,9 @@ func (c *Controller) handleScaling(ctx context.Context, podAutoscaler *datadoghq
 	podAutoscalerInternal.SetActiveScalingValues(currentTime, desiredHorizontalScalingSource, desiredVerticalScalingSource)
 	c.updateLocalFallbackEnabled(podAutoscalerInternal, desiredHorizontalScalingSource)
 
+	// Track Datadog Pod Autoscaler configuration and status
+	trackDPATelemetry(podAutoscaler)
+
 	// TODO: While horizontal scaling is in progress we should not start vertical scaling
 	// While vertical scaling is in progress we should only allow horizontal scale up
 	horizontalRes, err := c.horizontalController.sync(ctx, podAutoscaler, podAutoscalerInternal)
