@@ -45,3 +45,8 @@ func (h *Handler) Run(_ context.Context) error {
 func GetStats() (*types.Stats, error) {
 	return nil, ErrNotCompiled
 }
+
+// GetNodeTypeCounts not implemented
+func GetNodeTypeCounts() (clcRunnerCount, nodeAgentCount int, err error) {
+	return 0, 0, ErrNotCompiled
+}
