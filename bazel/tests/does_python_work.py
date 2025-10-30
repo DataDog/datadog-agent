@@ -12,7 +12,7 @@ class TestCase(unittest.TestCase):
     def test_do_we_have_expected_python(self):
         """Are we using .python-version?"""
         print("Python version:", sys.version)
-        print("os:", sys.platform, ", arch:", platform.processor)
+        print("os:", sys.platform, ", arch:", platform.processor())
         r = Runfiles.Create()
         data_path = r.Rlocation("_main/.python-version")
         with open(data_path) as f:
