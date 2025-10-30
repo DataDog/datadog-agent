@@ -444,7 +444,10 @@ func testServicesCaptureWrappedCommands(t *testing.T, script string, commandWrap
 		// command line arguments of the process to make sure we are looking at
 		// the right process.
 		cmdline, err := proc.Cmdline()
-		require.NoError(t, err)
+		require.NoError(collect, err)
+		// There's a risk of race if we try to read the command line while the
+		// process still hasn't full execed.
+		require.NotEmpty(collect, cmdline)
 		if cmdline == strings.Join(commandLineArgs, " ") && len(commandWrapper) > 0 {
 			var children []*process.Process
 			children, err = proc.Children()
