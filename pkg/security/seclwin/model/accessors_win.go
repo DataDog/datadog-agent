@@ -35,6 +35,10 @@ func (_ *Model) GetEventTypes() []eval.EventType {
 	}
 }
 func (_ *Model) GetFieldRestrictions(field eval.Field) []eval.EventType {
+	// handle legacy field mapping
+	if newField, found := GetDefaultLegacyFields(field); found {
+		field = newField
+	}
 	switch field {
 	}
 	return nil
@@ -2283,7 +2287,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 	return nil, &eval.ErrFieldNotFound{Field: field}
 }
 func (ev *Event) GetFields() []eval.Field {
-	return []eval.Field{
+	fields := []eval.Field{
 		"change_permission.new_sd",
 		"change_permission.old_sd",
 		"change_permission.path",
@@ -2454,8 +2458,19 @@ func (ev *Event) GetFields() []eval.Field {
 		"write.file.path",
 		"write.file.path.length",
 	}
+	// Add legacy field names if mapping is available
+	legacyKeys := GetDefaultLegacyFieldsKeys()
+	if legacyKeys != nil {
+		fields = append(fields, legacyKeys...)
+	}
+	return fields
 }
 func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kind, string, error) {
+	originalField := field
+	// handle legacy field mapping
+	if newField, found := GetDefaultLegacyFields(field); found {
+		field = newField
+	}
 	switch field {
 	case "change_permission.new_sd":
 		return "change_permission", reflect.String, "string", nil
@@ -2796,13 +2811,18 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 	case "write.file.path.length":
 		return "write", reflect.Int, "int", nil
 	}
-	return "", reflect.Invalid, "", &eval.ErrFieldNotFound{Field: field}
+	return "", reflect.Invalid, "", &eval.ErrFieldNotFound{Field: originalField}
 }
 func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
-	if strings.HasPrefix(field, "process.") || strings.HasPrefix(field, "exec.") {
+	// handle legacy field mapping
+	mappedField := field
+	if newField, found := GetDefaultLegacyFields(field); found {
+		mappedField = newField
+	}
+	if strings.HasPrefix(mappedField, "process.") || strings.HasPrefix(mappedField, "exec.") {
 		ev.initProcess()
 	}
-	switch field {
+	switch mappedField {
 	case "change_permission.new_sd":
 		return ev.setStringFieldValue("change_permission.new_sd", &ev.ChangePermission.NewSd, value)
 	case "change_permission.old_sd":

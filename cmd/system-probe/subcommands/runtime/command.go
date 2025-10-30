@@ -312,7 +312,7 @@ func discardersCommands(_ *command.GlobalParams) []*cobra.Command {
 
 // nolint: deadcode, unused
 func dumpProcessCache(_ log.Component, _ config.Component, _ secrets.Component, processCacheDumpArgs *processCacheDumpCliParams) error {
-	client, err := secagent.NewRuntimeSecurityClient()
+	client, err := secagent.NewRuntimeSecurityCmdClient()
 	if err != nil {
 		return fmt.Errorf("unable to create a runtime security client instance: %w", err)
 	}
@@ -330,7 +330,7 @@ func dumpProcessCache(_ log.Component, _ config.Component, _ secrets.Component, 
 
 //nolint:unused // TODO(SEC) Fix unused linter
 func dumpNetworkNamespace(_ log.Component, _ config.Component, _ secrets.Component, dumpNetworkNamespaceArgs *dumpNetworkNamespaceCliParams) error {
-	client, err := secagent.NewRuntimeSecurityClient()
+	client, err := secagent.NewRuntimeSecurityCmdClient()
 	if err != nil {
 		return fmt.Errorf("unable to create a runtime security client instance: %w", err)
 	}
@@ -356,7 +356,7 @@ func checkPolicies(_ log.Component, _ config.Component, args *checkPoliciesCliPa
 			return errors.New("unable to evaluator loaded policies using the windows model")
 		}
 
-		client, err := secagent.NewRuntimeSecurityClient()
+		client, err := secagent.NewRuntimeSecurityCmdClient()
 		if err != nil {
 			return fmt.Errorf("unable to create a runtime security client instance: %w", err)
 		}
@@ -371,7 +371,7 @@ func checkPolicies(_ log.Component, _ config.Component, args *checkPoliciesCliPa
 	}, os.Stdout)
 }
 
-func checkPoliciesLoaded(client secagent.SecurityModuleClientWrapper, writer io.Writer) error {
+func checkPoliciesLoaded(client secagent.SecurityModuleCmdClientWrapper, writer io.Writer) error {
 	output, err := client.GetRuleSetReport()
 	if err != nil {
 		return fmt.Errorf("unable to send request to system-probe: %w", err)
@@ -403,7 +403,7 @@ func evalRule(_ log.Component, _ config.Component, _ secrets.Component, evalArgs
 
 // nolint: deadcode, unused
 func runRuntimeSelfTest(_ log.Component, _ config.Component, _ secrets.Component) error {
-	client, err := secagent.NewRuntimeSecurityClient()
+	client, err := secagent.NewRuntimeSecurityCmdClient()
 	if err != nil {
 		return fmt.Errorf("unable to create a runtime security client instance: %w", err)
 	}
@@ -423,7 +423,7 @@ func runRuntimeSelfTest(_ log.Component, _ config.Component, _ secrets.Component
 }
 
 func reloadRuntimePolicies(_ log.Component, _ config.Component, _ secrets.Component) error {
-	client, err := secagent.NewRuntimeSecurityClient()
+	client, err := secagent.NewRuntimeSecurityCmdClient()
 	if err != nil {
 		return fmt.Errorf("unable to create a runtime security client instance: %w", err)
 	}
@@ -606,7 +606,7 @@ func downloadPolicy(log log.Component, config config.Component, _ secrets.Compon
 
 // nolint: deadcode, unused
 func dumpDiscarders(_ log.Component, _ config.Component, _ secrets.Component) error {
-	runtimeSecurityClient, err := secagent.NewRuntimeSecurityClient()
+	runtimeSecurityClient, err := secagent.NewRuntimeSecurityCmdClient()
 	if err != nil {
 		return fmt.Errorf("unable to create a runtime security client instance: %w", err)
 	}

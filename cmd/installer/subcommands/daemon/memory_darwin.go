@@ -3,14 +3,12 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build !docker
+package daemon
 
-// Package ecsfargate provides the ecsfargate colletor for workloadmeta
-package ecsfargate
+import "runtime/debug"
 
-import "go.uber.org/fx"
-
-// GetFxOptions returns the FX framework options for the collector
-func GetFxOptions() fx.Option {
-	return nil
+// releaseMemory releases memory to the OS
+func releaseMemory() {
+	// Release the memory garbage collected by the Go runtime to OS
+	debug.FreeOSMemory()
 }

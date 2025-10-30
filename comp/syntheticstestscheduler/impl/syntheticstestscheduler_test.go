@@ -312,6 +312,98 @@ func Test_SyntheticsTestScheduler_OnConfigUpdate(t *testing.T) {
 				"main_dc": "us1.staging.dog",
 				"public_id": "puf-1"
 			}`},
+	}, {
+		name: "previous config with one test- update with test with different version",
+		updateJSON: map[string]string{"datadog/2/SYNTHETICS_TEST/config-1/aaa111": `{
+					"version": 2,
+					"type": "network",
+					"subtype": "TCP",
+					"config": {
+						"assertions": [],
+						"request": {
+							"host": "example.com",
+							"port": 443,
+							"tcp_method": "SYN",
+							"probe_count": 3,
+							"traceroute_count": 1,
+							"max_ttl": 30,
+							"timeout": 5,
+							"source_service": "frontend",
+							"destination_service": "backend"
+						}
+					},
+					"org_id": 12345,
+					"main_dc": "us1.staging.dog",
+					"public_id": "puf-1"
+				}`},
+		previousJSON: map[string]string{"datadog/2/SYNTHETICS_TEST/config-1/aaa111": `{
+					"version": 1,
+					"type": "network",
+					"subtype": "TCP",
+					"config": {
+						"assertions": [],
+						"request": {
+							"host": "example.com",
+							"port": 443,
+							"tcp_method": "SACK",
+							"probe_count": 3,
+							"traceroute_count": 3,
+							"max_ttl": 30,
+							"timeout": 5,
+							"source_service": "frontend",
+							"destination_service": "backend"
+						}
+					},
+					"org_id": 12345,
+					"main_dc": "us1.staging.dog",
+					"public_id": "puf-1"
+				}`},
+	}, {
+		name: "previous config with one test- update with same version (nextRun should be preserved)",
+		updateJSON: map[string]string{"datadog/2/SYNTHETICS_TEST/config-1/aaa111": `{
+					"version": 1,
+					"type": "network",
+					"subtype": "TCP",
+					"config": {
+						"assertions": [],
+						"request": {
+							"host": "example.com",
+							"port": 443,
+							"tcp_method": "SYN",
+							"probe_count": 3,
+							"traceroute_count": 1,
+							"max_ttl": 30,
+							"timeout": 5,
+							"source_service": "frontend",
+							"destination_service": "backend"
+						}
+					},
+					"org_id": 12345,
+					"main_dc": "us1.staging.dog",
+					"public_id": "puf-1"
+				}`},
+		previousJSON: map[string]string{"datadog/2/SYNTHETICS_TEST/config-1/aaa111": `{
+					"version": 1,
+					"type": "network",
+					"subtype": "TCP",
+					"config": {
+						"assertions": [],
+						"request": {
+							"host": "example.com",
+							"port": 443,
+							"tcp_method": "SACK",
+							"probe_count": 3,
+							"traceroute_count": 3,
+							"max_ttl": 30,
+							"timeout": 5,
+							"source_service": "frontend",
+							"destination_service": "backend"
+						}
+					},
+					"org_id": 12345,
+					"main_dc": "us1.staging.dog",
+					"public_id": "puf-1"
+				}`},
 	},
 	}
 
@@ -320,9 +412,14 @@ func Test_SyntheticsTestScheduler_OnConfigUpdate(t *testing.T) {
 			testDir := t.TempDir()
 			mockConfig := configmock.New(t)
 			mockConfig.SetWithoutSource("run_path", testDir)
-			now := time.Now()
+			firstUpdateTime := time.Now()
+			secondUpdateTime := firstUpdateTime.Add(5 * time.Minute)
+			isFirstUpdate := true
 			timeNowFn := func() time.Time {
-				return now
+				if isFirstUpdate {
+					return firstUpdateTime
+				}
+				return secondUpdateTime
 			}
 
 			scheduler := newSyntheticsTestScheduler(configs, nil, l, nil, timeNowFn, &teststatsd.Client{})
@@ -334,10 +431,24 @@ func Test_SyntheticsTestScheduler_OnConfigUpdate(t *testing.T) {
 
 			// Execute previous config
 			previousConfigs := map[string]state.RawConfig{}
+			previousParsedConfigs := map[string]common.SyntheticsTestConfig{}
 			for pathID, pConfig := range tt.previousJSON {
 				previousConfigs[pathID] = state.RawConfig{Config: []byte(pConfig)}
+				var prevCfg common.SyntheticsTestConfig
+				err = json.Unmarshal([]byte(pConfig), &prevCfg)
+				assert.Nil(t, err)
+				previousParsedConfigs[prevCfg.PublicID] = prevCfg
 			}
 			scheduler.onConfigUpdate(previousConfigs, func(_ string, _ state.ApplyStatus) {})
+
+			// Store the nextRun values after previous config to check if they're preserved
+			previousNextRuns := map[string]time.Time{}
+			for pubID, state := range scheduler.state.tests {
+				previousNextRuns[pubID] = state.nextRun
+			}
+
+			// Switch to second update time
+			isFirstUpdate = false
 
 			// Execute update
 			configs := map[string]state.RawConfig{}
@@ -352,15 +463,31 @@ func Test_SyntheticsTestScheduler_OnConfigUpdate(t *testing.T) {
 
 			assert.Equal(t, expectedApplied, applied)
 
+			// Build expected state based on the logic
 			cfg := map[string]*runningTestState{}
 			for _, v := range tt.updateJSON {
 				var newUpdate common.SyntheticsTestConfig
 				err = json.Unmarshal([]byte(v), &newUpdate)
 				assert.Nil(t, err)
+
+				expectedNextRun := secondUpdateTime
+				expectedLastRun := time.Time{}
+
+				// If the test existed before
+				if prevCfg, existed := previousParsedConfigs[newUpdate.PublicID]; existed {
+					// If version didn't change, nextRun should be preserved
+					if newUpdate.Version <= prevCfg.Version {
+						expectedNextRun = previousNextRuns[newUpdate.PublicID]
+					}
+					// If version changed (increased), nextRun should be updated to secondUpdateTime
+					// (which is already set above)
+				}
+				// If it's a new test, nextRun should be secondUpdateTime (already set above)
+
 				cfg[newUpdate.PublicID] = &runningTestState{
 					cfg:     newUpdate,
-					lastRun: time.Time{},
-					nextRun: now,
+					lastRun: expectedLastRun,
+					nextRun: expectedNextRun,
 				}
 			}
 

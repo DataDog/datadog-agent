@@ -49,7 +49,7 @@ func TestDownloadCommand(t *testing.T) {
 	}
 }
 
-func newMockRSClient(t *testing.T) secagent.SecurityModuleClientWrapper {
+func newMockRSClient(t *testing.T) secagent.SecurityModuleCmdClientWrapper {
 	m := mocks.NewSecurityModuleClientWrapper(t)
 	m.On("GetRuleSetReport").Return(&api.GetRuleSetReportMessage{
 		RuleSetReportMessage: &api.RuleSetReportMessage{
@@ -94,7 +94,7 @@ func newMockRSClient(t *testing.T) secagent.SecurityModuleClientWrapper {
 func Test_checkPoliciesLoaded(t *testing.T) {
 	type args struct {
 		args   *checkPoliciesCliParams
-		client secagent.SecurityModuleClientWrapper
+		client secagent.SecurityModuleCmdClientWrapper
 	}
 	tests := []struct {
 		name               string
