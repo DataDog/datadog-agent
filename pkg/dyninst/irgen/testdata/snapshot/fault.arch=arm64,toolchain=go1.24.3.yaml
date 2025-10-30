@@ -289,7 +289,6 @@ Types:
     - __kind: EventRootType
       ID: 112
       Name: Probe[main.callMe]Return
-      Expressions: []
     - __kind: ArrayType
       ID: 92
       Name: '[0]uint8'

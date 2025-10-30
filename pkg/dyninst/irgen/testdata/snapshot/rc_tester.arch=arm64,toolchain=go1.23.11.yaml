@@ -621,7 +621,29 @@ Types:
     - __kind: EventRootType
       ID: 235
       Name: Probe[main.HandleHTTP]Return
-      Expressions: []
+      ByteSize: 17
+      PresenceBitsetSize: 1
+      Expressions:
+        - Name: '&buf'
+          Offset: 1
+          Kind: local
+          Expression:
+            Type: 107 PointerType *bytes.Buffer
+            Operations:
+                - __kind: LocationOp
+                  Variable: {subprogram: 1, index: 3, name: '&buf'}
+                  Offset: 0
+                  ByteSize: 8
+        - Name: '&buf'
+          Offset: 9
+          Kind: local
+          Expression:
+            Type: 107 PointerType *bytes.Buffer
+            Operations:
+                - __kind: LocationOp
+                  Variable: {subprogram: 1, index: 3, name: '&buf'}
+                  Offset: 0
+                  ByteSize: 8
     - __kind: EventRootType
       ID: 236
       Name: Probe[main.LookAtTheRequest]
@@ -641,7 +663,6 @@ Types:
     - __kind: EventRootType
       ID: 237
       Name: Probe[main.LookAtTheRequest]Return
-      Expressions: []
     - __kind: ArrayType
       ID: 85
       Name: '[10]runtime.heldLockInfo'

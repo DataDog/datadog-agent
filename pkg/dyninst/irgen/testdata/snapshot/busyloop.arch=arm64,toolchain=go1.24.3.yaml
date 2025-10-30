@@ -214,7 +214,6 @@ Types:
     - __kind: EventRootType
       ID: 111
       Name: Probe[main.noop]
-      Expressions: []
     - __kind: ArrayType
       ID: 92
       Name: '[0]uint8'

@@ -51,18 +51,7 @@
         },
         "captures": {
           "lines": {
-            "249": {
-              "locals": {
-                "a": {
-                  "type": "int",
-                  "value": "55"
-                },
-                "b": {
-                  "type": "int",
-                  "value": "89"
-                }
-              }
-            }
+            "249": {}
           }
         }
       }
@@ -121,18 +110,7 @@
         },
         "captures": {
           "lines": {
-            "249": {
-              "locals": {
-                "a": {
-                  "type": "int",
-                  "value": "55"
-                },
-                "b": {
-                  "type": "int",
-                  "value": "89"
-                }
-              }
-            }
+            "249": {}
           }
         }
       }
@@ -191,18 +169,7 @@
         },
         "captures": {
           "lines": {
-            "249": {
-              "locals": {
-                "a": {
-                  "type": "int",
-                  "value": "55"
-                },
-                "b": {
-                  "type": "int",
-                  "value": "89"
-                }
-              }
-            }
+            "249": {}
           }
         }
       }
@@ -261,18 +228,7 @@
         },
         "captures": {
           "lines": {
-            "249": {
-              "locals": {
-                "a": {
-                  "type": "int",
-                  "value": "55"
-                },
-                "b": {
-                  "type": "int",
-                  "value": "89"
-                }
-              }
-            }
+            "249": {}
           }
         }
       }
@@ -331,18 +287,7 @@
         },
         "captures": {
           "lines": {
-            "249": {
-              "locals": {
-                "a": {
-                  "type": "int",
-                  "value": "55"
-                },
-                "b": {
-                  "type": "int",
-                  "value": "89"
-                }
-              }
-            }
+            "249": {}
           }
         }
       }
@@ -401,18 +346,7 @@
         },
         "captures": {
           "lines": {
-            "249": {
-              "locals": {
-                "a": {
-                  "type": "int",
-                  "value": "55"
-                },
-                "b": {
-                  "type": "int",
-                  "value": "89"
-                }
-              }
-            }
+            "249": {}
           }
         }
       }
@@ -471,18 +405,7 @@
         },
         "captures": {
           "lines": {
-            "249": {
-              "locals": {
-                "a": {
-                  "type": "int",
-                  "value": "55"
-                },
-                "b": {
-                  "type": "int",
-                  "value": "89"
-                }
-              }
-            }
+            "249": {}
           }
         }
       }
@@ -541,18 +464,7 @@
         },
         "captures": {
           "lines": {
-            "249": {
-              "locals": {
-                "a": {
-                  "type": "int",
-                  "value": "55"
-                },
-                "b": {
-                  "type": "int",
-                  "value": "89"
-                }
-              }
-            }
+            "249": {}
           }
         }
       }
@@ -611,18 +523,7 @@
         },
         "captures": {
           "lines": {
-            "249": {
-              "locals": {
-                "a": {
-                  "type": "int",
-                  "value": "55"
-                },
-                "b": {
-                  "type": "int",
-                  "value": "89"
-                }
-              }
-            }
+            "249": {}
           }
         }
       }
@@ -681,18 +582,7 @@
         },
         "captures": {
           "lines": {
-            "249": {
-              "locals": {
-                "a": {
-                  "type": "int",
-                  "value": "55"
-                },
-                "b": {
-                  "type": "int",
-                  "value": "89"
-                }
-              }
-            }
+            "249": {}
           }
         }
       }

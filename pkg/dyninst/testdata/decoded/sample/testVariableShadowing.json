@@ -51,18 +51,7 @@
         },
         "captures": {
           "lines": {
-            "208": {
-              "locals": {
-                "x": {
-                  "type": "int",
-                  "value": "1"
-                },
-                "~r0": {
-                  "type": "int",
-                  "notCapturedReason": "unavailable"
-                }
-              }
-            }
+            "208": {}
           }
         }
       }

@@ -232,7 +232,6 @@ Types:
     - __kind: EventRootType
       ID: 115
       Name: Probe[main.noop]
-      Expressions: []
     - __kind: ArrayType
       ID: 92
       Name: '[10]runtime.heldLockInfo'

@@ -768,11 +768,10 @@ Types:
     - __kind: EventRootType
       ID: 178
       Name: Probe[main.bigMapArg]Return
-      Expressions: []
     - __kind: EventRootType
       ID: 183
       Name: Probe[main.inlined]
-      ByteSize: 9
+      ByteSize: 17
       PresenceBitsetSize: 1
       Expressions:
         - Name: x
@@ -785,10 +784,19 @@ Types:
                   Variable: {subprogram: 12, index: 0, name: x}
                   Offset: 0
                   ByteSize: 8
+        - Name: x
+          Offset: 9
+          Kind: argument
+          Expression:
+            Type: 9 BaseType int
+            Operations:
+                - __kind: LocationOp
+                  Variable: {subprogram: 12, index: 0, name: x}
+                  Offset: 0
+                  ByteSize: 8
     - __kind: EventRootType
       ID: 184
       Name: Probe[main.inlined]Return
-      Expressions: []
     - __kind: EventRootType
       ID: 162
       Name: Probe[main.intArg]
@@ -808,7 +816,6 @@ Types:
     - __kind: EventRootType
       ID: 163
       Name: Probe[main.intArg]Return
-      Expressions: []
     - __kind: EventRootType
       ID: 168
       Name: Probe[main.intArrayArg]
@@ -828,7 +835,6 @@ Types:
     - __kind: EventRootType
       ID: 169
       Name: Probe[main.intArrayArg]Return
-      Expressions: []
     - __kind: EventRootType
       ID: 166
       Name: Probe[main.intSliceArg]
@@ -848,7 +854,6 @@ Types:
     - __kind: EventRootType
       ID: 167
       Name: Probe[main.intSliceArg]Return
-      Expressions: []
     - __kind: EventRootType
       ID: 175
       Name: Probe[main.mapArg]
@@ -868,15 +873,12 @@ Types:
     - __kind: EventRootType
       ID: 176
       Name: Probe[main.mapArg]Return
-      Expressions: []
     - __kind: EventRootType
       ID: 179
       Name: Probe[main.noArgs]
-      Expressions: []
     - __kind: EventRootType
       ID: 180
       Name: Probe[main.noArgs]Return
-      Expressions: []
     - __kind: EventRootType
       ID: 164
       Name: Probe[main.stringArg]
@@ -896,7 +898,6 @@ Types:
     - __kind: EventRootType
       ID: 165
       Name: Probe[main.stringArg]Return
-      Expressions: []
     - __kind: EventRootType
       ID: 174
       Name: Probe[main.stringArrayArgFrameless]
@@ -932,7 +933,6 @@ Types:
     - __kind: EventRootType
       ID: 173
       Name: Probe[main.stringArrayArg]Return
-      Expressions: []
     - __kind: EventRootType
       ID: 170
       Name: Probe[main.stringSliceArg]
@@ -952,15 +952,13 @@ Types:
     - __kind: EventRootType
       ID: 171
       Name: Probe[main.stringSliceArg]Return
-      Expressions: []
     - __kind: EventRootType
       ID: 181
       Name: Probe[main.usesMapsOfMapsThatDoNotAppearAsArguments]
-      Expressions: []
     - __kind: EventRootType
       ID: 182
       Name: Probe[main.usesMapsOfMapsThatDoNotAppearAsArguments]Return
-      ByteSize: 9
+      ByteSize: 25
       PresenceBitsetSize: 1
       Expressions:
         - Name: ~r0
@@ -971,6 +969,26 @@ Types:
             Operations:
                 - __kind: LocationOp
                   Variable: {subprogram: 11, index: 0, name: ~r0}
+                  Offset: 0
+                  ByteSize: 8
+        - Name: ~r0
+          Offset: 9
+          Kind: local
+          Expression:
+            Type: 116 GoMapType map[uint8]map[int]main.aStructNotUsedAsAnArgument
+            Operations:
+                - __kind: LocationOp
+                  Variable: {subprogram: 11, index: 0, name: ~r0}
+                  Offset: 0
+                  ByteSize: 8
+        - Name: m
+          Offset: 17
+          Kind: local
+          Expression:
+            Type: 121 GoMapType map[string]map[int]main.aStructNotUsedAsAnArgument
+            Operations:
+                - __kind: LocationOp
+                  Variable: {subprogram: 11, index: 1, name: m}
                   Offset: 0
                   ByteSize: 8
     - __kind: ArrayType

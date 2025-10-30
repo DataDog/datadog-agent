@@ -307,7 +307,6 @@ Types:
     - __kind: EventRootType
       ID: 116
       Name: Probe[main.callMe]Return
-      Expressions: []
     - __kind: ArrayType
       ID: 92
       Name: '[10]runtime.heldLockInfo'

@@ -88,8 +88,26 @@ func TestPopulateProbeExpressionTemplateIssues(t *testing.T) {
 					Variables: []*ir.Variable{
 						{
 							Name: "foobar",
+							Role: ir.VariableRoleParameter,
+							Locations: []ir.Location{
+								{
+									Range: ir.PCRange([2]uint64{0, 12}),
+								},
+							},
+							Type: &ir.BaseType{
+								TypeCommon: ir.TypeCommon{
+									ByteSize: 8,
+								},
+							},
 						},
 					},
+				},
+				Events: []*ir.Event{
+					{
+						Kind: ir.EventKindEntry,
+						InjectionPoints: []ir.InjectionPoint{
+							{PC: 6},
+						}},
 				},
 				Template: &ir.Template{
 					Segments: []ir.TemplateSegment{
@@ -97,7 +115,7 @@ func TestPopulateProbeExpressionTemplateIssues(t *testing.T) {
 							JSON:                 json.RawMessage(`{"ref": "foobar"}`),
 							DSL:                  "foobar",
 							EventKind:            1,
-							EventExpressionIndex: 0,
+							EventExpressionIndex: -1,
 						},
 					},
 				},
@@ -108,7 +126,7 @@ func TestPopulateProbeExpressionTemplateIssues(t *testing.T) {
 					JSON:                 json.RawMessage(`{"ref": "foobar"}`),
 					DSL:                  "foobar",
 					EventKind:            1,
-					EventExpressionIndex: 0,
+					EventExpressionIndex: 1,
 				},
 			},
 		},
@@ -120,8 +138,26 @@ func TestPopulateProbeExpressionTemplateIssues(t *testing.T) {
 					Variables: []*ir.Variable{
 						{
 							Name: "foobar",
+							Role: ir.VariableRoleParameter,
+							Locations: []ir.Location{
+								{
+									Range: ir.PCRange([2]uint64{0, 12}),
+								},
+							},
+							Type: &ir.BaseType{
+								TypeCommon: ir.TypeCommon{
+									ByteSize: 8,
+								},
+							},
 						},
 					},
+				},
+				Events: []*ir.Event{
+					{
+						Kind: ir.EventKindEntry,
+						InjectionPoints: []ir.InjectionPoint{
+							{PC: 6},
+						}},
 				},
 				Template: &ir.Template{
 					Segments: []ir.TemplateSegment{
@@ -136,26 +172,38 @@ func TestPopulateProbeExpressionTemplateIssues(t *testing.T) {
 			},
 			expectedReturnedIssue: ir.Issue{},
 			expectedSegments: []ir.TemplateSegment{
-				ir.IssueSegment("could not evaluate template segment: nonexistentVariable (probe: non-existent-variable-probe)"),
+				ir.IssueSegment("unknown variable referenced by template: nonexistentVariable (probe: non-existent-variable-probe )"),
 			},
 		},
 		{
 			name: "malformed template",
 			probe: ir.Probe{
-				Events: []*ir.Event{
-					{
-						Kind: ir.EventKindEntry,
-						Type: &ir.EventRootType{},
-					},
-				},
 				Subprogram: &ir.Subprogram{
 					Variables: []*ir.Variable{
 						{
 							Name: "foobar",
+							Role: ir.VariableRoleParameter,
+							Locations: []ir.Location{
+								{
+									Range: ir.PCRange([2]uint64{0, 12}),
+								},
+							},
+							Type: &ir.BaseType{
+								TypeCommon: ir.TypeCommon{
+									ByteSize: 8,
+								},
+							},
 						},
 					},
 				},
 				ProbeDefinition: probeDef{id: "bad-jsons"},
+				Events: []*ir.Event{
+					{
+						Kind: ir.EventKindEntry,
+						InjectionPoints: []ir.InjectionPoint{
+							{PC: 6},
+						}},
+				},
 				Template: &ir.Template{
 					Segments: []ir.TemplateSegment{
 						ir.JSONSegment{
@@ -169,7 +217,7 @@ func TestPopulateProbeExpressionTemplateIssues(t *testing.T) {
 			},
 			expectedReturnedIssue: ir.Issue{},
 			expectedSegments: []ir.TemplateSegment{
-				ir.IssueSegment("malformed template segment: bad-json (internal error)"),
+				ir.IssueSegment("invalid json for template segment (unexpected internal error)"),
 			},
 		},
 		{
@@ -178,10 +226,53 @@ func TestPopulateProbeExpressionTemplateIssues(t *testing.T) {
 				ProbeDefinition: probeDef{id: "multi-var-probe"},
 				Subprogram: &ir.Subprogram{
 					Variables: []*ir.Variable{
-						{Name: "var1"},
-						{Name: "var2"},
-						{Name: "var3"},
+						{
+							Name: "var1",
+							Role: ir.VariableRoleParameter,
+							Type: &ir.BaseType{
+								TypeCommon: ir.TypeCommon{
+									ByteSize: 8,
+								},
+							},
+							Locations: []ir.Location{
+								{
+									Range: ir.PCRange([2]uint64{0, 12}),
+								},
+							}},
+						{
+							Name: "var2",
+							Role: ir.VariableRoleParameter,
+							Type: &ir.BaseType{
+								TypeCommon: ir.TypeCommon{
+									ByteSize: 8,
+								},
+							},
+							Locations: []ir.Location{
+								{
+									Range: ir.PCRange([2]uint64{0, 12}),
+								},
+							}},
+						{
+							Name: "var3",
+							Role: ir.VariableRoleParameter,
+							Type: &ir.BaseType{
+								TypeCommon: ir.TypeCommon{
+									ByteSize: 8,
+								},
+							},
+							Locations: []ir.Location{
+								{
+									Range: ir.PCRange([2]uint64{0, 12}),
+								},
+							}},
 					},
+				},
+				Events: []*ir.Event{
+					{
+						Kind: ir.EventKindEntry,
+						InjectionPoints: []ir.InjectionPoint{
+							{PC: 6},
+						}},
 				},
 				Template: &ir.Template{
 					Segments: []ir.TemplateSegment{
@@ -214,21 +305,22 @@ func TestPopulateProbeExpressionTemplateIssues(t *testing.T) {
 					JSON:                 json.RawMessage(`{"ref": "var1"}`),
 					DSL:                  "var1",
 					EventKind:            1,
-					EventExpressionIndex: 0,
+					EventExpressionIndex: 3,
 				},
+
 				ir.StringSegment(" "),
 				ir.JSONSegment{
 					JSON:                 json.RawMessage(`{"ref": "var2"}`),
 					DSL:                  "var2",
 					EventKind:            1,
-					EventExpressionIndex: 0,
+					EventExpressionIndex: 4,
 				},
 				ir.StringSegment(" "),
 				ir.JSONSegment{
 					JSON:                 json.RawMessage(`{"ref": "var3"}`),
 					DSL:                  "var3",
 					EventKind:            1,
-					EventExpressionIndex: 0,
+					EventExpressionIndex: 5,
 				},
 			},
 		},
@@ -238,8 +330,27 @@ func TestPopulateProbeExpressionTemplateIssues(t *testing.T) {
 				ProbeDefinition: probeDef{id: "string-only-probe"},
 				Subprogram: &ir.Subprogram{
 					Variables: []*ir.Variable{
-						{Name: "somevar"},
+						{
+							Name: "somevar",
+							Role: ir.VariableRoleParameter,
+							Type: &ir.BaseType{
+								TypeCommon: ir.TypeCommon{
+									ByteSize: 8,
+								},
+							},
+							Locations: []ir.Location{
+								{
+									Range: ir.PCRange([2]uint64{0, 12}),
+								},
+							}},
 					},
+				},
+				Events: []*ir.Event{
+					{
+						Kind: ir.EventKindEntry,
+						InjectionPoints: []ir.InjectionPoint{
+							{PC: 6},
+						}},
 				},
 				Template: &ir.Template{
 					Segments: []ir.TemplateSegment{
@@ -260,8 +371,28 @@ func TestPopulateProbeExpressionTemplateIssues(t *testing.T) {
 				ProbeDefinition: probeDef{id: "empty-template-probe"},
 				Subprogram: &ir.Subprogram{
 					Variables: []*ir.Variable{
-						{Name: "var1"},
+						{
+							Name: "var1",
+							Role: ir.VariableRoleParameter,
+							Locations: []ir.Location{
+								{
+									Range: ir.PCRange([2]uint64{0, 12}),
+								},
+							},
+							Type: &ir.BaseType{
+								TypeCommon: ir.TypeCommon{
+									ByteSize: 8,
+								},
+							},
+						},
 					},
+				},
+				Events: []*ir.Event{
+					{
+						Kind: ir.EventKindEntry,
+						InjectionPoints: []ir.InjectionPoint{
+							{PC: 6},
+						}},
 				},
 				Template: &ir.Template{
 					Segments: []ir.TemplateSegment{},
@@ -276,8 +407,28 @@ func TestPopulateProbeExpressionTemplateIssues(t *testing.T) {
 				ProbeDefinition: probeDef{id: "repeated-var-probe"},
 				Subprogram: &ir.Subprogram{
 					Variables: []*ir.Variable{
-						{Name: "foo"},
+						{
+							Name: "foo",
+							Role: ir.VariableRoleParameter,
+							Locations: []ir.Location{
+								{
+									Range: ir.PCRange([2]uint64{0, 12}),
+								},
+							},
+							Type: &ir.BaseType{
+								TypeCommon: ir.TypeCommon{
+									ByteSize: 8,
+								},
+							},
+						},
 					},
+				},
+				Events: []*ir.Event{
+					{
+						Kind: ir.EventKindEntry,
+						InjectionPoints: []ir.InjectionPoint{
+							{PC: 6},
+						}},
 				},
 				Template: &ir.Template{
 					Segments: []ir.TemplateSegment{
@@ -292,7 +443,7 @@ func TestPopulateProbeExpressionTemplateIssues(t *testing.T) {
 							JSON:                 json.RawMessage(`{"ref": "foo"}`),
 							DSL:                  "foo",
 							EventKind:            1,
-							EventExpressionIndex: 0,
+							EventExpressionIndex: 1,
 						},
 						ir.StringSegment(" total"),
 					},
@@ -304,14 +455,14 @@ func TestPopulateProbeExpressionTemplateIssues(t *testing.T) {
 					JSON:                 json.RawMessage(`{"ref": "foo"}`),
 					DSL:                  "foo",
 					EventKind:            1,
-					EventExpressionIndex: 0,
+					EventExpressionIndex: 1,
 				},
 				ir.StringSegment(" items, "),
 				ir.JSONSegment{
 					JSON:                 json.RawMessage(`{"ref": "foo"}`),
 					DSL:                  "foo",
 					EventKind:            1,
-					EventExpressionIndex: 0,
+					EventExpressionIndex: 2,
 				},
 				ir.StringSegment(" total"),
 			},
@@ -322,7 +473,28 @@ func TestPopulateProbeExpressionTemplateIssues(t *testing.T) {
 				ProbeDefinition: probeDef{id: "partial-match-probe"},
 				Subprogram: &ir.Subprogram{
 					Variables: []*ir.Variable{
-						{Name: "exists"},
+						{
+							Name: "exists",
+							Role: ir.VariableRoleParameter,
+							Locations: []ir.Location{
+								{
+									Range: ir.PCRange([2]uint64{0, 12}),
+								},
+							},
+							Type: &ir.BaseType{
+								TypeCommon: ir.TypeCommon{
+									ByteSize: 8,
+								},
+							},
+						},
+					},
+				},
+				Events: []*ir.Event{
+					{
+						Kind: ir.EventKindEntry,
+						InjectionPoints: []ir.InjectionPoint{
+							{PC: 6},
+						},
 					},
 				},
 				Template: &ir.Template{
@@ -331,9 +503,8 @@ func TestPopulateProbeExpressionTemplateIssues(t *testing.T) {
 							JSON:                 json.RawMessage(`{"ref": "exists"}`),
 							DSL:                  "exists",
 							EventKind:            1,
-							EventExpressionIndex: 0,
+							EventExpressionIndex: 1,
 						},
-						ir.StringSegment(" "),
 						ir.JSONSegment{
 							JSON:                 json.RawMessage(`{"ref": "missing"}`),
 							DSL:                  "missing",
@@ -349,10 +520,9 @@ func TestPopulateProbeExpressionTemplateIssues(t *testing.T) {
 					JSON:                 json.RawMessage(`{"ref": "exists"}`),
 					DSL:                  "exists",
 					EventKind:            1,
-					EventExpressionIndex: 0,
+					EventExpressionIndex: 1,
 				},
-				ir.StringSegment(" "),
-				ir.IssueSegment("could not evaluate template segment: missing (probe: partial-match-probe)"),
+				ir.IssueSegment("unknown variable referenced by template: missing (probe: partial-match-probe )"),
 			},
 		},
 		{
@@ -361,6 +531,13 @@ func TestPopulateProbeExpressionTemplateIssues(t *testing.T) {
 				ProbeDefinition: probeDef{id: "no-vars-probe"},
 				Subprogram: &ir.Subprogram{
 					Variables: []*ir.Variable{},
+				},
+				Events: []*ir.Event{
+					{
+						Kind: ir.EventKindEntry,
+						InjectionPoints: []ir.InjectionPoint{
+							{PC: 6},
+						}},
 				},
 				Template: &ir.Template{
 					Segments: []ir.TemplateSegment{
@@ -375,7 +552,7 @@ func TestPopulateProbeExpressionTemplateIssues(t *testing.T) {
 			},
 			expectedReturnedIssue: ir.Issue{},
 			expectedSegments: []ir.TemplateSegment{
-				ir.IssueSegment("could not evaluate template segment: anything (probe: no-vars-probe)"),
+				ir.IssueSegment("unknown variable referenced by template: anything (probe: no-vars-probe )"),
 			},
 		},
 		{
@@ -384,7 +561,30 @@ func TestPopulateProbeExpressionTemplateIssues(t *testing.T) {
 				ProbeDefinition: probeDef{id: "complex-expr-probe"},
 				Subprogram: &ir.Subprogram{
 					Variables: []*ir.Variable{
-						{Name: "data"},
+						{
+							Name: "data",
+							Role: ir.VariableRoleParameter,
+							Locations: []ir.Location{
+								{
+									Range: ir.PCRange([2]uint64{0, 12}),
+								},
+							},
+							Type: &ir.BaseType{
+								TypeCommon: ir.TypeCommon{
+									ByteSize: 8,
+								},
+							},
+						},
+					},
+				},
+				Events: []*ir.Event{
+					{
+						Kind: ir.EventKindEntry,
+						InjectionPoints: []ir.InjectionPoint{
+							{
+								PC: 6,
+							},
+						},
 					},
 				},
 				Template: &ir.Template{
@@ -393,8 +593,8 @@ func TestPopulateProbeExpressionTemplateIssues(t *testing.T) {
 						ir.JSONSegment{
 							JSON:                 json.RawMessage(`{"ref": "data"}`),
 							DSL:                  "data",
-							EventKind:            1,
-							EventExpressionIndex: 0,
+							EventKind:            ir.EventKindEntry,
+							EventExpressionIndex: -1,
 						},
 					},
 				},
@@ -406,7 +606,7 @@ func TestPopulateProbeExpressionTemplateIssues(t *testing.T) {
 					JSON:                 json.RawMessage(`{"ref": "data"}`),
 					DSL:                  "data",
 					EventKind:            1,
-					EventExpressionIndex: 0,
+					EventExpressionIndex: 1,
 				},
 			},
 		},
@@ -422,4 +622,123 @@ func TestPopulateProbeExpressionTemplateIssues(t *testing.T) {
 			require.Equal(t, tc.expectedSegments, tc.probe.Template.Segments)
 		})
 	}
+}
+
+func FuzzPopulateProbeExpressionsJSON(f *testing.F) {
+	// Seed corpus with various PC ranges, injection points, and JSON inputs
+
+	// Injection point inside range
+	f.Add(uint64(0), uint64(10), uint64(5), []byte(`{"ref": "foobar"}`))      // injectionPoint in middle
+	f.Add(uint64(100), uint64(200), uint64(150), []byte(`{"ref": "foobar"}`)) // injectionPoint in middle
+
+	// Injection point at boundaries
+	f.Add(uint64(0), uint64(10), uint64(0), []byte(`{"ref": "foobar"}`))   // injectionPoint == pclow
+	f.Add(uint64(0), uint64(10), uint64(10), []byte(`{"ref": "foobar"}`))  // injectionPoint == pchigh
+	f.Add(uint64(50), uint64(50), uint64(50), []byte(`{"ref": "foobar"}`)) // All equal (point range)
+
+	// Injection point outside range (before)
+	f.Add(uint64(10), uint64(20), uint64(5), []byte(`{"ref": "foobar"}`))   // injectionPoint < pclow
+	f.Add(uint64(100), uint64(200), uint64(0), []byte(`{"ref": "foobar"}`)) // injectionPoint far before
+
+	// Injection point outside range (after)
+	f.Add(uint64(10), uint64(20), uint64(25), []byte(`{"ref": "foobar"}`))     // injectionPoint > pchigh
+	f.Add(uint64(100), uint64(200), uint64(1000), []byte(`{"ref": "foobar"}`)) // injectionPoint far after
+
+	// Boundary values with injection points
+	f.Add(uint64(0), uint64(0), uint64(0), []byte(`{"ref": "foobar"}`))                                                    // All zero
+	f.Add(uint64(0xFFFFFFFFFFFFFFFF), uint64(0xFFFFFFFFFFFFFFFF), uint64(0xFFFFFFFFFFFFFFFF), []byte(`{"ref": "foobar"}`)) // All max
+	f.Add(uint64(0), uint64(0xFFFFFFFFFFFFFFFF), uint64(0x8000000000000000), []byte(`{"ref": "foobar"}`))                  // Full range, mid injection
+
+	// Invalid/reversed ranges with various injection points
+	f.Add(uint64(20), uint64(10), uint64(15), []byte(`{"ref": ""}`)) // Reversed range, injection in "between"
+	f.Add(uint64(20), uint64(10), uint64(5), []byte(`{"ref": ""}`))  // Reversed range, injection before both
+	f.Add(uint64(20), uint64(10), uint64(25), []byte(`{"ref": ""}`)) // Reversed range, injection after both
+	f.Add(uint64(5), uint64(3), uint64(4), []byte(`{"ref": ""}`))    // Reversed range, injection in numerical middle
+
+	// Empty/minimal JSON with injection point variations
+	f.Add(uint64(0), uint64(100), uint64(50), []byte(`{}`))  // Inside range
+	f.Add(uint64(0), uint64(100), uint64(0), []byte(`{}`))   // At pclow
+	f.Add(uint64(0), uint64(100), uint64(100), []byte(`{}`)) // At pchigh
+	f.Add(uint64(0), uint64(100), uint64(200), []byte(`{}`)) // Outside range
+
+	// Unknown/malformed operations with injection points
+	f.Add(uint64(0), uint64(50), uint64(25), []byte(`{"unknown": "op"}`))                                          // Inside range
+	f.Add(uint64(0xFFFFFFFF), uint64(0xFFFFFFFF00000000), uint64(0xFFFFFFFF80000000), []byte(`{"unknown": "op"}`)) // Large range, mid injection
+
+	// Malformed JSON with injection point edge cases
+	f.Add(uint64(0), uint64(10), uint64(5), []byte(`{"" foo " }}}}`)) // Inside range
+	f.Add(uint64(10), uint64(5), uint64(7), []byte(`{`))              // Reversed range with partial JSON
+	f.Add(uint64(0), uint64(10), uint64(15), []byte(`}`))             // Outside range
+
+	// Non-object JSON with various injection points
+	f.Add(uint64(0), uint64(10), uint64(5), []byte(`[]`))                        // Inside range
+	f.Add(uint64(0), uint64(0), uint64(1), []byte(`null`))                       // Outside point range
+	f.Add(uint64(1000000), uint64(1000001), uint64(1000000), []byte(`"string"`)) // At pclow
+	f.Add(uint64(0), uint64(0xFFFFFFFFFFFFFFFF), uint64(0), []byte(`123`))       // At start of full range
+
+	f.Fuzz(func(t *testing.T, pclow, pchigh, injectionPoint uint64, jsonInput []byte) {
+		// Create a probe with a JSONSegment containing the fuzzy JSON input
+		probe := &ir.Probe{
+			ProbeDefinition: probeDef{id: "fuzz-test-probe"},
+			Subprogram: &ir.Subprogram{
+				Variables: []*ir.Variable{
+					{
+						Name: "foobar",
+						Role: ir.VariableRoleParameter,
+						Locations: []ir.Location{
+							{
+								Range: ir.PCRange([2]uint64{pclow, pchigh}),
+							},
+						},
+						Type: &ir.BaseType{
+							TypeCommon: ir.TypeCommon{
+								ByteSize: 8,
+							},
+						},
+					},
+				},
+			},
+			Events: []*ir.Event{
+				{
+					Kind: ir.EventKindEntry,
+					InjectionPoints: []ir.InjectionPoint{
+						{PC: injectionPoint},
+					},
+				},
+			},
+			Template: &ir.Template{
+				Segments: []ir.TemplateSegment{
+					ir.JSONSegment{
+						JSON:                 json.RawMessage(jsonInput),
+						DSL:                  string(jsonInput),
+						EventKind:            1,
+						EventExpressionIndex: -1,
+					},
+				},
+			},
+		}
+
+		// Call populateProbeExpressions with fuzzy input
+		// The function should not panic regardless of input
+		_ = populateProbeExpressions(probe, &typeCatalog{
+			typesByID: make(map[ir.TypeID]ir.Type),
+			idAlloc:   idAllocator[ir.TypeID]{},
+		})
+
+		// Verify that the function either:
+		// 1. Successfully processed the segment, or
+		// 2. Replaced it with an IssueSegment
+		// Either way, it should not panic
+		if len(probe.Template.Segments) > 0 {
+			// Just verify we can access the segment without panic
+			seg := probe.Template.Segments[0]
+			switch seg.(type) {
+			case ir.JSONSegment:
+			case ir.IssueSegment:
+			case ir.StringSegment:
+			default:
+				t.Error("segment type is invalid")
+			}
+		}
+	})
 }
