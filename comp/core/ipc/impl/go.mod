@@ -1,6 +1,8 @@
 module github.com/DataDog/datadog-agent/comp/core/ipc/impl
 
-go 1.24.9
+go 1.24.0
+
+toolchain go1.24.9
 
 require (
 	github.com/DataDog/datadog-agent/comp/core/config v0.72.0-rc.5

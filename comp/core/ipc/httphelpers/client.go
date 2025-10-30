@@ -42,13 +42,23 @@ func NewClient(authToken string, clientTLSConfig *tls.Config, config pkgconfigmo
 	}
 
 	if vsockAddr := config.GetString("vsock_addr"); vsockAddr != "" {
-		tr.DialContext = func(_ context.Context, _ string, _ string) (net.Conn, error) {
+		tr.DialContext = func(_ context.Context, _ string, address string) (net.Conn, error) {
+			_, sPort, err := net.SplitHostPort(address)
+			if err != nil {
+				return nil, err
+			}
+
+			port, err := strconv.Atoi(sPort)
+			if err != nil {
+				return nil, fmt.Errorf("invalid port for vsock listener: %v", err)
+			}
+
 			cid, err := socket.ParseVSockAddress(vsockAddr)
 			if err != nil {
 				return nil, err
 			}
 
-			conn, err := vsock.Dial(cid, uint32(config.GetInt("cmd_port")), &vsock.Config{})
+			conn, err := vsock.Dial(cid, uint32(port), &vsock.Config{})
 			if err != nil {
 				return nil, err
 			}
