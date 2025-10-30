@@ -26,7 +26,7 @@ func copyDirectory(ctx context.Context, sourcePath, targetPath string) error {
 	}
 	existingStablePath := filepath.Join(sourcePath, "managed", "datadog-agent", "stable")
 	// 1. Check if stable is a symlink or not
-	info, err := os.Stat(existingStablePath)
+	info, err := os.Lstat(existingStablePath)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return nil
