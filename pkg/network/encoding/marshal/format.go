@@ -8,7 +8,6 @@ package marshal
 import (
 	"maps"
 	"math"
-	"os"
 
 	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/twmb/murmur3"
@@ -50,8 +49,7 @@ func mergeDynamicTags(dynamicTags ...map[string]struct{}) (out map[string]struct
 }
 
 // FormatConnection converts a ConnectionStats into an model.Connection
-func FormatConnection(builder *model.ConnectionBuilder, conn network.ConnectionStats, routes map[network.Via]RouteIdx,
-	usmEncoders []usmEncoder, dnsFormatter *dnsFormatter, ipc ipCache, tagsSet *network.TagsSet) {
+func FormatConnection(builder *model.ConnectionBuilder, conn network.ConnectionStats, routes map[network.Via]RouteIdx, usmEncoders []usmEncoder, dnsFormatter *dnsFormatter, ipc ipCache, tagsSet *network.TagsSet, sysProbePid uint32) {
 
 	builder.SetPid(int32(conn.Pid))
 
@@ -132,7 +130,7 @@ func FormatConnection(builder *model.ConnectionBuilder, conn network.ConnectionS
 	}
 	builder.SetTagsChecksum(tagChecksum)
 
-	builder.SetSystemProbeConn(uint32(os.Getpid()) == conn.Pid)
+	builder.SetSystemProbeConn(sysProbePid == conn.Pid)
 }
 
 // FormatCompilationTelemetry converts telemetry from its internal representation to a protobuf message

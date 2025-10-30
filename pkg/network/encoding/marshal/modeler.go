@@ -6,6 +6,7 @@
 package marshal
 
 import (
+	"os"
 	"sync"
 
 	model "github.com/DataDog/agent-payload/v5/process"
@@ -15,8 +16,10 @@ import (
 )
 
 var (
-	cfgOnce  = sync.Once{}
-	agentCfg *model.AgentConfiguration
+	cfgOnce         = sync.Once{}
+	agentCfg        *model.AgentConfiguration
+	sysProbePidOnce = sync.Once{}
+	sysProbePid     = uint32(0)
 )
 
 // ConnectionsModeler contains all the necessary structs for modeling a connection.
@@ -26,6 +29,7 @@ type ConnectionsModeler struct {
 	ipc          ipCache
 	routeIndex   map[network.Via]RouteIdx
 	tagsSet      *network.TagsSet
+	sysProbePid  uint32
 }
 
 // NewConnectionsModeler initializes the connection modeler with encoders, dns formatter for
@@ -35,12 +39,16 @@ type ConnectionsModeler struct {
 // rather than just individual batches.
 func NewConnectionsModeler(conns *network.Connections) *ConnectionsModeler {
 	ipc := make(ipCache, len(conns.Conns)/2)
+	sysProbePidOnce.Do(func() {
+		sysProbePid = uint32(os.Getpid())
+	})
 	return &ConnectionsModeler{
 		usmEncoders:  initializeUSMEncoders(conns),
 		ipc:          ipc,
 		dnsFormatter: newDNSFormatter(conns, ipc),
 		routeIndex:   make(map[network.Via]RouteIdx),
 		tagsSet:      network.NewTagsSet(),
+		sysProbePid:  sysProbePid,
 	}
 }
 
@@ -63,7 +71,7 @@ func (c *ConnectionsModeler) modelConnections(builder *model.ConnectionsBuilder,
 
 	for _, conn := range conns.Conns {
 		builder.AddConns(func(builder *model.ConnectionBuilder) {
-			FormatConnection(builder, conn, c.routeIndex, c.usmEncoders, c.dnsFormatter, c.ipc, c.tagsSet)
+			FormatConnection(builder, conn, c.routeIndex, c.usmEncoders, c.dnsFormatter, c.ipc, c.tagsSet, c.sysProbePid)
 		})
 	}
 
