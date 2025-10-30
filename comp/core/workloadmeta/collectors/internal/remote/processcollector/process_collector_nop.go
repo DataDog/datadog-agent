@@ -3,12 +3,15 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build !docker
+//go:build !windows
 
-// Package ecsfargate provides the ecsfargate colletor for workloadmeta
-package ecsfargate
+// Package processcollector implements the remote process collector for Workloadmeta on Windows.
+// This collector is not used on non-Windows platforms.
+package processcollector
 
-import "go.uber.org/fx"
+import (
+	"go.uber.org/fx"
+)
 
 // GetFxOptions returns the FX framework options for the collector
 func GetFxOptions() fx.Option {
