@@ -8,6 +8,7 @@
 package external
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -156,7 +157,8 @@ func TestBuildWorkloadRecommendationRequest_Table(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			fakeClock := clock.NewFakeClock(time.Now())
-			client := newRecommenderClient(fakeClock, workload.NewPodWatcher(nil, nil), nil)
+			client, err := newRecommenderClient(context.Background(), fakeClock, workload.NewPodWatcher(nil, nil), nil)
+			assert.NoError(t, err)
 			req, err := client.buildWorkloadRecommendationRequest(tc.cluster, tc.dpa.Build(), tc.dpa.CustomRecommenderConfiguration)
 			assert.NoError(t, err)
 			assert.Equal(t, tc.expectReq, req)

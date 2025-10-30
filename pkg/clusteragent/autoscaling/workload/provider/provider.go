@@ -90,13 +90,16 @@ func StartWorkloadAutoscaling(
 	}
 
 	externalTLSConfig := buildExternalRecommenderTLSConfig(pkgconfigsetup.Datadog())
-	externalRecommender := external.NewRecommender(clock, podWatcher, store, clusterName, externalTLSConfig)
+	externalRecommender, err := external.NewRecommender(ctx, clock, podWatcher, store, clusterName, externalTLSConfig)
+	if err != nil {
+		return nil, fmt.Errorf("Unable to start workload autoscaling external recommender: %w", err)
+	}
 	go externalRecommender.Run(ctx)
 
 	return podPatcher, nil
 }
 
-func buildExternalRecommenderTLSConfig(cfg config.Component) *external.TLSConfig {
+func buildExternalRecommenderTLSConfig(cfg config.Component) *external.TLSFilesConfig {
 	caFile := cfg.GetString("autoscaling.workload.external_recommender.tls.ca_file")
 	certFile := cfg.GetString("autoscaling.workload.external_recommender.tls.cert_file")
 	keyFile := cfg.GetString("autoscaling.workload.external_recommender.tls.key_file")
@@ -105,7 +108,7 @@ func buildExternalRecommenderTLSConfig(cfg config.Component) *external.TLSConfig
 		return nil
 	}
 
-	return &external.TLSConfig{
+	return &external.TLSFilesConfig{
 		CAFile:   caFile,
 		CertFile: certFile,
 		KeyFile:  keyFile,

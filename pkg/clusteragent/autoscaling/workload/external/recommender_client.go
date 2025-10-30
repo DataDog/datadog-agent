@@ -14,7 +14,6 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"sync"
 	"time"
 
 	"google.golang.org/protobuf/encoding/protojson"
@@ -32,33 +31,24 @@ import (
 )
 
 const (
-	watermarkTolerance = 5
-	apiTimeoutSeconds  = 10
+	apiTimeoutSeconds = 10
 )
 
 type recommenderClient struct {
 	podWatcher workload.PodWatcher
 	client     *http.Client
-	tlsConfig  *TLSConfig
-	clock      clock.Clock
-
-	tlsInitOnce        sync.Once
-	tlsInitErr         error
-	certificateManager *tlsCertificateManager
 }
 
-func newRecommenderClient(clk clock.Clock, podWatcher workload.PodWatcher, tlsConfig *TLSConfig) *recommenderClient {
-	client := &http.Client{}
-	if transport := cloneDefaultTransport(); transport != nil {
-		client.Transport = transport
+func newRecommenderClient(ctx context.Context, clock clock.Clock, podWatcher workload.PodWatcher, tlsConfig *TLSFilesConfig) (*recommenderClient, error) {
+	client, err := createHttpClient(ctx, tlsConfig, clock)
+	if err != nil {
+		return nil, fmt.Errorf("error creating HTTP client: %w", err)
 	}
 
 	return &recommenderClient{
 		podWatcher: podWatcher,
 		client:     client,
-		tlsConfig:  tlsConfig,
-		clock:      clk,
-	}
+	}, nil
 }
 
 func (r *recommenderClient) GetReplicaRecommendation(ctx context.Context, clusterName string, dpa model.PodAutoscalerInternal) (*model.HorizontalScalingValues, error) {
@@ -90,11 +80,6 @@ func (r *recommenderClient) GetReplicaRecommendation(ctx context.Context, cluste
 	ctx, cancel := context.WithTimeout(ctx, apiTimeoutSeconds*time.Second)
 	defer cancel()
 
-	client, err := r.getClient()
-	if err != nil {
-		return nil, fmt.Errorf("error configuring HTTP client: %w", err)
-	}
-
 	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, u.String(), bytes.NewReader(payload))
 	if err != nil {
 		return nil, fmt.Errorf("error creating request: %w", err)
@@ -102,7 +87,7 @@ func (r *recommenderClient) GetReplicaRecommendation(ctx context.Context, cluste
 
 	httpReq.Header.Set("Content-Type", "application/json")
 	httpReq.Header.Set("User-Agent", "datadog-cluster-agent")
-	resp, err := client.Do(httpReq)
+	resp, err := r.client.Do(httpReq)
 
 	defer func() {
 		if resp != nil && resp.Body != nil {
@@ -230,44 +215,16 @@ func (r *recommenderClient) getReadyReplicas(dpa model.PodAutoscalerInternal) *i
 	return pointer.Ptr(r.podWatcher.GetReadyPodsForOwner(podOwner))
 }
 
-func (r *recommenderClient) getClient() (*http.Client, error) {
-	if r.client.Transport == nil {
-		if transport := cloneDefaultTransport(); transport != nil {
-			r.client.Transport = transport
+func createHttpClient(ctx context.Context, tlsConfig *TLSFilesConfig, clock clock.Clock) (*http.Client, error) {
+	tr := http.DefaultTransport.(*http.Transport).Clone()
+	if tlsConfig != nil {
+		tlsClientConfig, err := createTLSClientConfig(ctx, tlsConfig, clock)
+		if err != nil {
+			return nil, err
 		}
+		tr.TLSClientConfig = tlsClientConfig
 	}
+	client := &http.Client{Transport: tr}
 
-	if r.tlsConfig == nil {
-		return r.client, nil
-	}
-
-	r.tlsInitOnce.Do(func() {
-		transport, ok := r.client.Transport.(*http.Transport)
-		if !ok {
-			r.tlsInitErr = fmt.Errorf("http client transport must be *http.Transport, got %T", r.client.Transport)
-			return
-		}
-
-		if r.certificateManager == nil && r.tlsConfig != nil && r.tlsConfig.requiresClientCertificate() {
-			r.certificateManager = newTLSCertificateManager(r.clock, r.tlsConfig.CertFile, r.tlsConfig.KeyFile)
-		}
-
-		if err := configureTransportTLS(transport, r.tlsConfig, r.certificateManager); err != nil {
-			r.tlsInitErr = err
-		}
-	})
-
-	if r.tlsInitErr != nil {
-		return nil, r.tlsInitErr
-	}
-
-	return r.client, nil
-}
-
-func cloneDefaultTransport() *http.Transport {
-	if defaultTransport, ok := http.DefaultTransport.(*http.Transport); ok {
-		return defaultTransport.Clone()
-	}
-
-	return &http.Transport{}
+	return client, nil
 }

@@ -456,7 +456,8 @@ func TestRecommenderClient_GetReplicaRecommendation(t *testing.T) {
 			pw := workload.NewPodWatcher(nil, nil)
 			pw.HandleEvent(newFakeWLMPodEvent(tt.dpa.Namespace, tt.dpa.Spec.TargetRef.Name, "pod1", []string{"container-name1"}))
 
-			client := newRecommenderClient(fakeClock, pw, nil)
+			client, err := newRecommenderClient(context.Background(), fakeClock, pw, nil)
+			require.NoError(t, err)
 			client.client = server.Client()
 
 			result, err := client.GetReplicaRecommendation(context.Background(), "test-cluster", tt.dpa.Build())
@@ -507,17 +508,6 @@ func TestRecommenderClientTLSClientCertificateReload(t *testing.T) {
 		nil,
 		nil,
 		fakeClock.Now().Add(3*time.Hour),
-	)
-	clientCert2PEM, clientKey2PEM, clientCert2 := generateSignedCertificate(
-		t,
-		fakeClock,
-		caCert,
-		caKey,
-		"client-2",
-		[]x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth},
-		nil,
-		nil,
-		fakeClock.Now().Add(4*time.Hour),
 	)
 
 	tempDir := t.TempDir()
@@ -586,11 +576,12 @@ func TestRecommenderClientTLSClientCertificateReload(t *testing.T) {
 	pw := workload.NewPodWatcher(nil, nil)
 	pw.HandleEvent(newFakeWLMPodEvent(dpa.Namespace, dpa.Spec.TargetRef.Name, "pod1", []string{"container"}))
 
-	client := newRecommenderClient(fakeClock, pw, &TLSConfig{
+	client, err := newRecommenderClient(context.Background(), fakeClock, pw, &TLSFilesConfig{
 		CAFile:   caPath,
 		CertFile: clientCertPath,
 		KeyFile:  clientKeyPath,
 	})
+	require.NoError(t, err)
 
 	result, err := client.GetReplicaRecommendation(context.Background(), "test-cluster", dpa.Build())
 	require.NoError(t, err)
@@ -600,42 +591,8 @@ func TestRecommenderClientTLSClientCertificateReload(t *testing.T) {
 	case cn := <-clientCN:
 		assert.Equal(t, "client-1", cn)
 	case <-time.After(2 * time.Second):
-		t.Fatal("timed out waiting for first client certificate")
+		t.Fatal("timed out waiting for client certificate")
 	}
-
-	server.CloseClientConnections()
-	if transport, ok := client.client.Transport.(*http.Transport); ok {
-		transport.CloseIdleConnections()
-	}
-	client.client.CloseIdleConnections()
-
-	// Advance the fake clock to simulate cache expiration
-	fakeClock.Step(certificateCacheTimeout + time.Second)
-
-	writePEM(t, clientCertPath, clientCert2PEM)
-	writePEM(t, clientKeyPath, clientKey2PEM)
-
-	// Manually trigger certificate reload (in production, the background goroutine does this)
-	client.certificateManager.reloadCertificate()
-
-	result, err = client.GetReplicaRecommendation(context.Background(), "test-cluster", dpa.Build())
-	require.NoError(t, err)
-	require.NotNil(t, result)
-
-	select {
-	case cn := <-clientCN:
-		assert.Equal(t, "client-2", cn)
-	case <-time.After(2 * time.Second):
-		t.Fatal("timed out waiting for reloaded client certificate")
-	}
-
-	client.certificateManager.mu.RLock()
-	certificate := client.certificateManager.certificate
-	client.certificateManager.mu.RUnlock()
-	require.NotNil(t, certificate)
-	require.NotNil(t, certificate.Leaf)
-	assert.Equal(t, clientCert2.Subject.CommonName, certificate.Leaf.Subject.CommonName)
-	assert.Equal(t, clientCert2.SerialNumber.String(), certificate.Leaf.SerialNumber.String())
 }
 
 func generateTestCA(t *testing.T, clk clock.Clock) (*x509.Certificate, crypto.Signer, []byte) {

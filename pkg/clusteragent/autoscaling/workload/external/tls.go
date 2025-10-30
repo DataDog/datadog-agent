@@ -8,11 +8,10 @@
 package external
 
 import (
+	"context"
 	"crypto/tls"
 	"crypto/x509"
-	"errors"
 	"fmt"
-	"net/http"
 	"os"
 	"sync"
 	"time"
@@ -20,15 +19,11 @@ import (
 	"k8s.io/utils/clock"
 )
 
-// TLSConfig represents the TLS configuration used for external recommender calls.
-type TLSConfig struct {
+// TLSFilesConfig represents the TLS configuration used for external recommender calls.
+type TLSFilesConfig struct {
 	CAFile   string
 	CertFile string
 	KeyFile  string
-}
-
-func (c *TLSConfig) requiresClientCertificate() bool {
-	return c != nil && (c.CertFile != "" || c.KeyFile != "")
 }
 
 const (
@@ -39,32 +34,23 @@ const (
 	minTLSVersion                = tls.VersionTLS12
 )
 
-// configureTransportTLS updates the provided transport with a TLS configuration based on the given settings.
-func configureTransportTLS(transport *http.Transport, config *TLSConfig, cache *tlsCertificateManager) error {
-	if config == nil {
-		return nil
-	}
-
+// createTLSClientConfig creates a TLS configuration based on the given settings.
+func createTLSClientConfig(ctx context.Context, config *TLSFilesConfig, clock clock.Clock) (*tls.Config, error) {
 	tlsConfig, err := buildTLSConfig(config)
 	if err != nil {
-		return fmt.Errorf("failed to build TLS config: %w", err)
+		return nil, fmt.Errorf("failed to build TLS config: %w", err)
 	}
 
-	if config.requiresClientCertificate() {
-		if cache == nil {
-			return errors.New("tls certificate manager is required when using client certificates")
-		}
-		if config.CertFile == "" || config.KeyFile == "" {
-			return errors.New("both cert file and key file must be provided for client TLS configuration")
-		}
-		tlsConfig.GetClientCertificate = cache.GetClientCertificateReloadingFunc()
+	if config.CertFile != "" && config.KeyFile != "" {
+		// Create a certificate manager that will reload the certificate periodically for seamless updates
+		manager := newTLSCertificateManager(ctx, clock, config.CertFile, config.KeyFile)
+		tlsConfig.GetClientCertificate = manager.getClientCertificateReloadingFunc()
 	}
 
-	transport.TLSClientConfig = tlsConfig
-	return nil
+	return tlsConfig, nil
 }
 
-func buildTLSConfig(config *TLSConfig) (*tls.Config, error) {
+func buildTLSConfig(config *TLSFilesConfig) (*tls.Config, error) {
 	var rootCA *x509.CertPool
 	if config.CAFile != "" {
 		caPEM, err := os.ReadFile(config.CAFile)
@@ -92,9 +78,10 @@ type tlsCertificateManager struct {
 	err         error
 	lastUpdate  time.Time
 	clock       clock.Clock
+	ticker      clock.Ticker
 }
 
-func newTLSCertificateManager(clk clock.Clock, certFile, keyFile string) *tlsCertificateManager {
+func newTLSCertificateManager(ctx context.Context, clk clock.Clock, certFile, keyFile string) *tlsCertificateManager {
 	manager := &tlsCertificateManager{
 		certFile: certFile,
 		keyFile:  keyFile,
@@ -103,11 +90,11 @@ func newTLSCertificateManager(clk clock.Clock, certFile, keyFile string) *tlsCer
 	// Load certificate immediately
 	manager.reloadCertificate()
 	// Start background reloader
-	go manager.run()
+	go manager.run(ctx)
 	return manager
 }
 
-func (c *tlsCertificateManager) GetClientCertificateReloadingFunc() func(*tls.CertificateRequestInfo) (*tls.Certificate, error) {
+func (c *tlsCertificateManager) getClientCertificateReloadingFunc() func(*tls.CertificateRequestInfo) (*tls.Certificate, error) {
 	return func(*tls.CertificateRequestInfo) (*tls.Certificate, error) {
 		c.mu.RLock()
 		defer c.mu.RUnlock()
@@ -115,13 +102,18 @@ func (c *tlsCertificateManager) GetClientCertificateReloadingFunc() func(*tls.Ce
 	}
 }
 
-func (c *tlsCertificateManager) run() {
+func (c *tlsCertificateManager) run(ctx context.Context) {
 	ticker := time.NewTicker(1 * time.Minute)
 	defer ticker.Stop()
 
-	for range ticker.C {
-		if c.shouldReload() {
-			c.reloadCertificate()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			if c.shouldReload() {
+				c.reloadCertificate()
+			}
 		}
 	}
 }
