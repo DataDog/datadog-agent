@@ -31,7 +31,7 @@ macro_rules! generate_ffi {
         }
 
         /// Get the check version
-        pub extern "C" fn get_version() -> *const std::ffi::c_char {
+        pub extern "C" fn Version() -> *const std::ffi::c_char {
             $version.as_ptr()
         }
     }
