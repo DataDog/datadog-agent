@@ -18,3 +18,4 @@ e2e_pre_test:
     TEAM: "agent-devx"
     # override to use latest stable agent
     E2E_PIPELINE_ID: ""
+    E2E_COVERAGE_PIPELINE: "false"
