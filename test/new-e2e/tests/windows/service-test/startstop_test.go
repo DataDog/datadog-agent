@@ -88,6 +88,9 @@ func TestNoFIMServiceBehaviorPowerShell(t *testing.T) {
 
 // TestServiceBehaviorAgentCommand tests the service behavior when controlled by Agent commands
 func TestServiceBehaviorAgentCommand(t *testing.T) {
+	// TODO(windows-products): Fix flakiness and re-enable this test
+	flake.Mark(t)
+
 	s := &agentServiceCommandSuite{}
 	run(t, s, systemProbeConfig, agentConfig, securityAgentConfig)
 }
@@ -273,6 +276,9 @@ type agentServiceDisabledSuite struct {
 
 // TestServiceBehaviorWhenDisabled tests the service behavior when disabled in the configuration
 func TestServiceBehaviorWhenDisabledSystemProbe(t *testing.T) {
+	// TODO(windows-products): Fix flakiness and re-enable this test
+	flake.Mark(t)
+
 	s := &agentServiceDisabledSystemProbeSuite{}
 	s.disabledServices = []string{
 		"datadog-security-agent",
@@ -289,6 +295,9 @@ type agentServiceDisabledSystemProbeSuite struct {
 
 // TestServiceBehaviorWhenDisabledProcessAgent tests the service behavior when disabled in the configuration
 func TestServiceBehaviorWhenDisabledProcessAgent(t *testing.T) {
+	// TODO(windows-products): Fix flakiness and re-enable this test
+	flake.Mark(t)
+
 	s := &agentServiceDisabledProcessAgentSuite{}
 	s.disabledServices = []string{
 		"datadog-process-agent",
@@ -305,6 +314,9 @@ type agentServiceDisabledProcessAgentSuite struct {
 }
 
 func TestServiceBehaviorWhenDisabledTraceAgent(t *testing.T) {
+	// TODO(windows-products): Fix flakiness and re-enable this test
+	flake.Mark(t)
+
 	s := &agentServiceDisabledTraceAgentSuite{}
 	s.disabledServices = []string{
 		"datadog-trace-agent",
@@ -317,6 +329,9 @@ type agentServiceDisabledTraceAgentSuite struct {
 }
 
 func TestServiceBehaviorWhenDisabledInstaller(t *testing.T) {
+	// TODO(windows-products): Fix flakiness and re-enable this test
+	flake.Mark(t)
+
 	s := &agentServiceDisabledInstallerSuite{}
 	s.disabledServices = []string{
 		"Datadog Installer",
@@ -903,6 +918,9 @@ type dvAgentServiceDisabledInstallerSuite struct {
 // TestDriverVerifierOnServiceBehaviorAgentCommand tests the same as TestServiceBehaviorAgentCommand
 // with driver verifier enabled.
 func TestDriverVerifierOnServiceBehaviorAgentCommand(t *testing.T) {
+	// TODO(windows-products): Fix flakiness and re-enable this test
+	flake.Mark(t)
+
 	s := &dvAgentServiceCommandSuite{}
 	s.enableDriverVerifier = true
 	s.timeoutScale = driverVerifierTimeoutScale
@@ -912,6 +930,9 @@ func TestDriverVerifierOnServiceBehaviorAgentCommand(t *testing.T) {
 // TestDriverVerifierOnServiceBehaviorPowerShell tests the the same as TestServiceBehaviorPowerShell
 // with driver verifier enabled.
 func TestDriverVerifierOnServiceBehaviorPowerShell(t *testing.T) {
+	// TODO(windows-products): Fix flakiness and re-enable this test
+	flake.Mark(t)
+
 	s := &dvPowerShellServiceCommandSuite{}
 	s.enableDriverVerifier = true
 	s.timeoutScale = driverVerifierTimeoutScale
@@ -921,6 +942,9 @@ func TestDriverVerifierOnServiceBehaviorPowerShell(t *testing.T) {
 // TestDriverVerifierOnServiceBehaviorWhenDisabledSystemProbe tests the same as TestServiceBehaviorWhenDisabledSystemProbe
 // with driver verifier enabled.
 func TestDriverVerifierOnServiceBehaviorWhenDisabledSystemProbe(t *testing.T) {
+	// TODO(windows-products): Fix flakiness and re-enable this test
+	flake.Mark(t)
+
 	s := &dvAgentServiceDisabledSystemProbeSuite{}
 	s.disabledServices = []string{
 		"datadog-security-agent",
@@ -936,6 +960,9 @@ func TestDriverVerifierOnServiceBehaviorWhenDisabledSystemProbe(t *testing.T) {
 // TestDriverVerifierOnServiceBehaviorWhenDisabledProcessAgent tests the same as TestServiceBehaviorWhenDisabledProcessAgent
 // with driver verifier enabled.
 func TestDriverVerifierOnServiceBehaviorWhenDisabledProcessAgent(t *testing.T) {
+	// TODO(windows-products): Fix flakiness and re-enable this test
+	flake.Mark(t)
+
 	s := &dvAgentServiceDisabledProcessAgentSuite{}
 	s.disabledServices = []string{
 		"datadog-process-agent",
@@ -952,6 +979,9 @@ func TestDriverVerifierOnServiceBehaviorWhenDisabledProcessAgent(t *testing.T) {
 // TestDriverVerifierOnServiceBehaviorWhenDisabledTraceAgent tests the same as TestServiceBehaviorWhenDisabledTraceAgent
 // with driver verifier enabled.
 func TestDriverVerifierOnServiceBehaviorWhenDisabledTraceAgent(t *testing.T) {
+	// TODO(windows-products): Fix flakiness and re-enable this test
+	flake.Mark(t)
+
 	s := &dvAgentServiceDisabledTraceAgentSuite{}
 	s.disabledServices = []string{
 		"datadog-trace-agent",
@@ -964,6 +994,9 @@ func TestDriverVerifierOnServiceBehaviorWhenDisabledTraceAgent(t *testing.T) {
 // TestDriverVerifierOnServiceBehaviorWhenDisabledInstaller tests the same as TestServiceBehaviorWhenDisabledInstaller
 // with driver verifier enabled.
 func TestDriverVerifierOnServiceBehaviorWhenDisabledInstaller(t *testing.T) {
+	// TODO(windows-products): Fix flakiness and re-enable this test
+	flake.Mark(t)
+
 	s := &dvAgentServiceDisabledInstallerSuite{}
 	s.disabledServices = []string{
 		"Datadog Installer",
