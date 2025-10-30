@@ -6,7 +6,10 @@ API_KEY_FROM_CONFIG=""
 
 if [[ -f "$CONFIG_FILE" ]]; then
     # Extract api_key from config file, handling both plain and ENC[...] formats
-    API_KEY_FROM_CONFIG=$(grep -E "^[[:space:]]*api_key[[:space:]]*:" "$CONFIG_FILE" | sed 's/^[[:space:]]*api_key[[:space:]]*:[[:space:]]*//' | sed 's/[[:space:]]*$//')
+    API_KEY_FROM_CONFIG=$(python3 2>/dev/null -c "
+import yaml
+print(yaml.safe_load(open('$CONFIG_FILE')).get('api_key') or '')  # null -> None -> ''
+")
 fi
 
 # Don't allow starting without an apikey set
