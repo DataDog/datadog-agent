@@ -188,9 +188,14 @@ func NewSSLCertsProgram(mgr *manager.Manager, cfg *config.Config) (*SSLCertsProg
 		ScanProcessesInterval:          30 * time.Second,
 		EnableDetailedLogging:          false,
 	}
-	err := program.setupHandshakeStateMapCleaner()
+	err := program.setupHandshakeStateMapCleaner(cfg)
 	if err != nil {
 		return nil, fmt.Errorf("error creating handshake map cleaner: %w", err)
+	}
+
+	err = program.setupSSLCertInfoMapCleaner(cfg)
+	if err != nil {
+		return nil, fmt.Errorf("error creating cert info map cleaner: %w", err)
 	}
 
 	program.attacher, err = uprobes.NewUprobeAttacher(CNMModuleName, CNMTLSAttacherName, attacherConfig, mgr, uprobes.NopOnAttachCallback, &uprobes.NativeBinaryInspector{}, monitor.GetProcessMonitor())
@@ -210,7 +215,7 @@ const (
 	certItemTTL = 2 * time.Minute
 )
 
-func (p *SSLCertsProgram) setupHandshakeStateMapCleaner() error {
+func (p *SSLCertsProgram) setupHandshakeStateMapCleaner(cfg *config.Config) error {
 	mapObj, _, err := p.ebpfManager.GetMap(probes.SSLHandshakeStateMap)
 	if err != nil {
 		return fmt.Errorf("setupHandshakeStateMapCleaner failed to get map: %w", err)
@@ -221,7 +226,7 @@ func (p *SSLCertsProgram) setupHandshakeStateMapCleaner() error {
 		return fmt.Errorf("setupHandshakeStateMapCleaner failed to create cleaner: %w", err)
 	}
 
-	p.handshakeStateMapCleaner.Start(30*time.Second, nil, nil, func(now int64, _ uint64, val netebpf.SSLHandshakeState) bool {
+	p.handshakeStateMapCleaner.Start(cfg.CertCollectionMapCleanerInterval, nil, nil, func(now int64, _ uint64, val netebpf.SSLHandshakeState) bool {
 		ts := int64(val.Item.Timestamp)
 		expired := ts > 0 && now-ts > handshakeStateTTL.Nanoseconds()
 		return expired
@@ -230,7 +235,7 @@ func (p *SSLCertsProgram) setupHandshakeStateMapCleaner() error {
 	return nil
 }
 
-func (p *SSLCertsProgram) setupSSLCertInfoMapCleaner() error {
+func (p *SSLCertsProgram) setupSSLCertInfoMapCleaner(cfg *config.Config) error {
 	mapObj, _, err := p.ebpfManager.GetMap(probes.SSLCertInfoMap)
 	if err != nil {
 		return fmt.Errorf("setupSSLCertInfoMapCleaner failed to get map: %w", err)
@@ -241,7 +246,7 @@ func (p *SSLCertsProgram) setupSSLCertInfoMapCleaner() error {
 		return fmt.Errorf("setupSSLCertInfoMapCleaner failed to create cleaner: %w", err)
 	}
 
-	p.sslCertInfoMapCleaner.Start(30*time.Second, nil, nil, func(now int64, _ uint32, val netebpf.CertItem) bool {
+	p.sslCertInfoMapCleaner.Start(cfg.CertCollectionMapCleanerInterval, nil, nil, func(now int64, _ uint32, val netebpf.CertItem) bool {
 		ts := int64(val.Timestamp)
 		expired := ts > 0 && now-ts > certItemTTL.Nanoseconds()
 		return expired
