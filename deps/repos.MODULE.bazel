@@ -204,3 +204,15 @@ http_archive(
         "config-linux-x86_64.h": "//deps:libxml2/config-linux-x86_64.h",
     },
 )
+
+http_archive(
+    name = "libxslt",
+    build_file = "//deps:libxslt.BUILD.bazel",
+    sha256 = "5a3d6b383ca5afc235b171118e90f5ff6aa27e9fea3303065231a6d403f0183a",
+    url = "https://download.gnome.org/sources/libxslt/1.1/libxslt-1.1.43.tar.xz",
+    strip_prefix = "libxslt-1.1.43",
+    files = {
+        "config-linux-x86_64.h": "//deps:libxslt/config-linux-x86_64.h",
+        "config-linux-arm64.h": "//deps:libxslt/config-linux-arm64.h",
+    },
+)
