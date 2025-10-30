@@ -25,9 +25,9 @@ var (
 		"garbage_collect":           0.05,
 		"HTTPClient":                0.05,
 		"agent.startup":             0.0,
-		"get_states":                0.0,
-		"installer.get_states":      0.0,
-		"installer.get-states":      0.0,
+		"get_states":                0.01,
+		"installer.get_states":      0.01,
+		"installer.get-states":      0.01,
 	}
 )
 
