@@ -24,6 +24,9 @@ import (
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/system"
+	"github.com/DataDog/datadog-agent/pkg/util/system/socket"
+
+	"github.com/mdlayher/vsock"
 )
 
 type ipcClient struct {
@@ -36,6 +39,22 @@ type ipcClient struct {
 func NewClient(authToken string, clientTLSConfig *tls.Config, config pkgconfigmodel.Reader) ipc.HTTPClient {
 	tr := &http.Transport{
 		TLSClientConfig: clientTLSConfig,
+	}
+
+	if vsockAddr := config.GetString("vsock_addr"); vsockAddr != "" {
+		tr.DialContext = func(_ context.Context, _ string, _ string) (net.Conn, error) {
+			cid, err := socket.ParseVSockAddress(vsockAddr)
+			if err != nil {
+				return nil, err
+			}
+
+			conn, err := vsock.Dial(cid, uint32(config.GetInt("cmd_port")), &vsock.Config{})
+			if err != nil {
+				return nil, err
+			}
+
+			return conn, err
+		}
 	}
 
 	return &ipcClient{
