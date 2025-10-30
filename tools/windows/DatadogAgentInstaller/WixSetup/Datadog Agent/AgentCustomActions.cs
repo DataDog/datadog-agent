@@ -20,8 +20,6 @@ namespace WixSetup.Datadog_Agent
 
         public ManagedAction SetupInstaller { get; set; }
 
-        public ManagedAction UpdateInstallSource { get; set; }
-
         public ManagedAction EnsureGeneratedFilesRemoved { get; }
 
         public ManagedAction WriteConfig { get; }
@@ -65,6 +63,8 @@ namespace WixSetup.Datadog_Agent
         public ManagedAction InstallOciPackages { get; }
 
         public ManagedAction RollbackOciPackages { get; }
+
+        public ManagedAction PurgeOciPackages { get; }
 
         public ManagedAction WriteInstallInfo { get; }
 
@@ -322,23 +322,6 @@ namespace WixSetup.Datadog_Agent
                 .SetProperties(
                     "PROJECTLOCATION=[PROJECTLOCATION], FLEET_INSTALL=[FLEET_INSTALL], DATABASE=[DATABASE]");
 
-            UpdateInstallSource = new CustomAction<CustomActions>(
-                    new Id(nameof(UpdateInstallSource)),
-                    CustomActions.UpdateInstallSource,
-                    Return.check,
-                    // The built-in RegisterProduct action normally sets the install source,
-                    // so our action must come after it to take effect.
-                    When.Before,
-                    Step.InstallFinalize,
-                    Conditions.FirstInstall | Conditions.Upgrading
-                )
-            {
-                Execute = Execute.deferred,
-                Impersonate = false
-            }
-                .SetProperties(
-                    "PROJECTLOCATION=[PROJECTLOCATION], FLEET_INSTALL=[FLEET_INSTALL], DATABASE=[DATABASE], AgentFlavor=[AgentFlavor]");
-
             // Cleanup leftover files on uninstall
             CleanupOnUninstall = new CustomAction<CustomActions>(
                     new Id(nameof(CleanupOnUninstall)),
@@ -512,7 +495,9 @@ namespace WixSetup.Datadog_Agent
                            "SITE=[SITE]," +
                            "DD_INSTALLER_REGISTRY_URL=[DD_INSTALLER_REGISTRY_URL]," +
                            "DD_APM_INSTRUMENTATION_ENABLED=[DD_APM_INSTRUMENTATION_ENABLED]," +
-                           "DD_APM_INSTRUMENTATION_LIBRARIES=[DD_APM_INSTRUMENTATION_LIBRARIES]");
+                           "DD_APM_INSTRUMENTATION_LIBRARIES=[DD_APM_INSTRUMENTATION_LIBRARIES]," +
+                           "DD_REMOTE_UPDATES=[DD_REMOTE_UPDATES]," +
+                           "FLEET_INSTALL=[FLEET_INSTALL]");
 
             RollbackOciPackages = new CustomAction<CustomActions>(
                     new Id(nameof(RollbackOciPackages)),
@@ -520,13 +505,35 @@ namespace WixSetup.Datadog_Agent
                     Return.ignore,
                     When.Before,
                     new Step(InstallOciPackages.Id),
-                    Condition.NOT(Conditions.Uninstalling | Conditions.RemovingForUpgrade)
+                    // Only rollback on first install.
+                    // On rollback we run `purge` to cleanup the OCI packages, this is
+                    // not suitable for upgrade rollback. Upgrade rollback will require
+                    // tracking which version of each package to rollback to. As well as
+                    // their registry url/auth/etc., which is currently not available.
+                    Conditions.FirstInstall
                 )
             {
                 Execute = Execute.rollback,
                 Impersonate = false
             }
                 .SetProperties("PROJECTLOCATION=[PROJECTLOCATION],SITE=[SITE],APIKEY=[APIKEY]");
+
+            PurgeOciPackages = new CustomAction<CustomActions>(
+                    new Id(nameof(PurgeOciPackages)),
+                    CustomActions.PurgeOciPackages,
+                    // Check the return value to prevent removing datadog-installer.exe if purge fails.
+                    // We will need to use the datadog-installer.exe to cleanup packages if purge fails.
+                    // To skip purging entirely, set the PURGE property to 0.
+                    Return.check,
+                    When.Before,
+                    new Step(CleanupOnUninstall.Id),
+                    Conditions.Uninstalling
+                )
+            {
+                Execute = Execute.deferred,
+                Impersonate = false
+            }
+                .SetProperties("PROJECTLOCATION=[PROJECTLOCATION],SITE=[SITE],APIKEY=[APIKEY],PURGE=[PURGE]");
 
             WriteInstallInfo = new CustomAction<CustomActions>(
                     new Id(nameof(WriteInstallInfo)),

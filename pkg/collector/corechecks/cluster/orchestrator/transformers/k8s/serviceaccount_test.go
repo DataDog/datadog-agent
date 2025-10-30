@@ -33,7 +33,66 @@ func TestExtractServiceAccount(t *testing.T) {
 	}{
 		"standard": {
 			input: corev1.ServiceAccount{
-				AutomountServiceAccountToken: pointer.Ptr(true),
+				AutomountServiceAccountToken: pointer.Ptr(false),
+				ImagePullSecrets: []corev1.LocalObjectReference{
+					{
+						Name: "registry-key",
+					},
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Annotations: map[string]string{
+						"annotation": "my-annotation",
+					},
+					CreationTimestamp: creationTime,
+					Labels: map[string]string{
+						"app": "my-app",
+					},
+					Name:            "service-account",
+					Namespace:       "namespace",
+					ResourceVersion: "1234",
+					UID:             types.UID("e42e5adc-0749-11e8-a2b8-000c29dea4f6"),
+				},
+				Secrets: []corev1.ObjectReference{
+					{
+						Name: "default-token-uudge",
+					},
+				},
+			},
+			labelsAsTags: map[string]string{
+				"app": "application",
+			},
+			annotationsAsTags: map[string]string{
+				"annotation": "annotation_key",
+			},
+			expected: model.ServiceAccount{
+				AutomountServiceAccountToken: false,
+				ImagePullSecrets: []*model.TypedLocalObjectReference{
+					{
+						Name: "registry-key",
+					},
+				},
+				Metadata: &model.Metadata{
+					Annotations:       []string{"annotation:my-annotation"},
+					CreationTimestamp: creationTime.Unix(),
+					Labels:            []string{"app:my-app"},
+					Name:              "service-account",
+					Namespace:         "namespace",
+					ResourceVersion:   "1234",
+					Uid:               "e42e5adc-0749-11e8-a2b8-000c29dea4f6",
+				},
+				Secrets: []*model.ObjectReference{
+					{
+						Name: "default-token-uudge",
+					},
+				},
+				Tags: []string{
+					"application:my-app",
+					"annotation_key:my-annotation",
+				},
+			},
+		},
+		"missing service account token automount": {
+			input: corev1.ServiceAccount{
 				ImagePullSecrets: []corev1.LocalObjectReference{
 					{
 						Name: "registry-key",

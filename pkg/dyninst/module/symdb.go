@@ -15,10 +15,11 @@ import (
 	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/object"
-	"github.com/DataDog/datadog-agent/pkg/dyninst/procmon"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/process"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/symdb"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/symdb/uploader"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 // symdbManager deals with uploading symbols to the SymDB backend.
@@ -51,11 +52,11 @@ type symdbManager struct {
 type symdbManagerInterface interface {
 	queueUpload(runtimeID procRuntimeID, executablePath string) error
 	removeUpload(runtimeID procRuntimeID)
-	removeUploadByPID(pid procmon.ProcessID)
+	removeUploadByPID(pid process.ID)
 }
 
 type processKey struct {
-	pid     procmon.ProcessID
+	pid     process.ID
 	service string
 	version string
 }
@@ -160,7 +161,7 @@ func (m *symdbManager) queueUpload(runtimeID procRuntimeID, executablePath strin
 	// service/version, we'll upload multiple times with the difference
 	// service/version tags.
 	key := processKey{
-		pid:     runtimeID.ProcessID,
+		pid:     runtimeID.ID,
 		service: runtimeID.service,
 		version: runtimeID.version,
 	}
@@ -185,7 +186,7 @@ func (m *symdbManager) queueUpload(runtimeID procRuntimeID, executablePath strin
 // in progress or queued, the call is a no-op.
 func (m *symdbManager) removeUpload(runtimeID procRuntimeID) {
 	key := processKey{
-		pid:     runtimeID.ProcessID,
+		pid:     runtimeID.ID,
 		service: runtimeID.service,
 		version: runtimeID.version,
 	}
@@ -232,7 +233,7 @@ func (m *symdbManager) removeUploadInner(key processKey) {
 }
 
 // removeUploadByPID removes the queued upload(s) for the given process ID.
-func (m *symdbManager) removeUploadByPID(pid procmon.ProcessID) {
+func (m *symdbManager) removeUploadByPID(pid process.ID) {
 	// Find all the requests with this pid -- in theory there could be more than one, with
 	// different service/version tags.
 	m.mu.Lock()
@@ -357,7 +358,7 @@ func (m *symdbManager) performUpload(ctx context.Context, procID processKey, run
 			return context.Cause(ctx)
 		}
 
-		scope := uploader.ConvertPackageToScope(pkg)
+		scope := uploader.ConvertPackageToScope(pkg, version.AgentVersion)
 		uploadBuffer = append(uploadBuffer, scope)
 		bufferFuncs += pkg.Stats().NumFunctions
 		if err := maybeFlush(false /* force */); err != nil {

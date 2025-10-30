@@ -107,7 +107,7 @@ func setupSerializer(config pkgconfigmodel.Config, cfg *ExporterConfig) {
 	for _, v := range strings.Split(proxyConfig.NoProxy, ",") {
 		noProxy = append(noProxy, v)
 	}
-	config.Set("proxy.no_proxy", noProxy, pkgconfigmodel.SourceEnvVar)
+	config.Set("proxy.no_proxy", noProxy, pkgconfigmodel.SourceAgentRuntime)
 }
 
 // InitSerializer initializes the serializer and forwarder for sending metrics. Should only be used in OSS Datadog exporter or in tests.
@@ -122,6 +122,8 @@ func InitSerializer(logger *zap.Logger, cfg *ExporterConfig, sourceProvider sour
 		fxutil.FxAgentBase(),
 		fx.Provide(func() config.Component {
 			pkgconfig := create.NewConfig("DD")
+			pkgconfigsetup.InitConfig(pkgconfig)
+			pkgconfig.BuildSchema()
 
 			// Set the API Key
 			pkgconfig.Set("api_key", string(cfg.API.Key), pkgconfigmodel.SourceFile)
@@ -131,8 +133,12 @@ func InitSerializer(logger *zap.Logger, cfg *ExporterConfig, sourceProvider sour
 			}
 			setupSerializer(pkgconfig, cfg)
 			setupForwarder(pkgconfig)
-			pkgconfig.Set("logging_frequency", int64(500), pkgconfigmodel.SourceDefault)
 			pkgconfig.Set("skip_ssl_validation", cfg.ClientConfig.InsecureSkipVerify, pkgconfigmodel.SourceFile)
+
+			// Disable regular "Successfully posted payload" logs, since flushing is user-controlled and may happen frequently.
+			// Successful export operations can be monitored with exporterhelper metrics.
+			pkgconfig.Set("logging_frequency", int64(0), pkgconfigmodel.SourceAgentRuntime)
+
 			return pkgconfig
 		}),
 		fx.Provide(func(log *zap.Logger) (logdef.Component, error) {

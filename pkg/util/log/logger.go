@@ -6,8 +6,6 @@
 package log
 
 import (
-	"io"
-
 	"github.com/cihub/seelog"
 )
 
@@ -22,14 +20,4 @@ func Default() LoggerInterface {
 // Disabled returns a disabled logger
 func Disabled() LoggerInterface {
 	return seelog.Disabled
-}
-
-// LoggerFromWriterWithMinLevelAndFormat creates a new logger from a writer, a minimum log level and a format.
-func LoggerFromWriterWithMinLevelAndFormat(output io.Writer, minLevel LogLevel, format string) (LoggerInterface, error) {
-	return seelog.LoggerFromWriterWithMinLevelAndFormat(output, seelog.LogLevel(minLevel), format)
-}
-
-// LoggerFromWriterWithMinLevel creates a new logger from a writer and a minimum log level.
-func LoggerFromWriterWithMinLevel(output io.Writer, minLevel LogLevel) (LoggerInterface, error) {
-	return seelog.LoggerFromWriterWithMinLevel(output, seelog.LogLevel(minLevel))
 }

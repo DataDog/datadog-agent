@@ -1,12 +1,10 @@
 syntax = "proto3";
 
 import "google/protobuf/timestamp.proto";
-
+import "google/protobuf/empty.proto";
 option go_package = "pkg/security/proto/api";
 
 package api;
-
-message GetEventParams {}
 
 message SecurityEventMessage {
     string RuleID = 1;
@@ -47,7 +45,6 @@ message SecurityConfigMessage {
 message FilterReport{
     repeated ApproverReport Approvers = 1;
 }
-
 
 message RuleSetReportMessage{
     FilterReport Filters = 1;
@@ -251,8 +248,6 @@ message TranscodingRequestMessage {
     repeated StorageRequestMessage Storage = 2;
 }
 
-message ActivityDumpStreamParams {}
-
 message ActivityDumpStreamMessage {
     WorkloadSelectorMessage Selector = 1;
     bytes Header = 2;
@@ -335,8 +330,12 @@ message SecurityProfileSaveMessage {
     string File = 2;
 }
 
-service SecurityModule {
-    rpc GetEvents(GetEventParams) returns (stream SecurityEventMessage) {}
+service SecurityModuleEvent {
+    rpc GetEventStream(google.protobuf.Empty) returns (stream SecurityEventMessage) {}
+    rpc GetActivityDumpStream(google.protobuf.Empty) returns (stream ActivityDumpStreamMessage) {}
+}
+
+service SecurityModuleCmd {
     rpc DumpProcessCache(DumpProcessCacheParams) returns (SecurityDumpProcessCacheMessage) {}
     rpc GetConfig(GetConfigParams) returns (SecurityConfigMessage) {}
     rpc GetStatus(GetStatusParams) returns (Status) {}
@@ -351,9 +350,13 @@ service SecurityModule {
     rpc ListActivityDumps(ActivityDumpListParams) returns (ActivityDumpListMessage) {}
     rpc StopActivityDump(ActivityDumpStopParams) returns (ActivityDumpStopMessage) {}
     rpc TranscodingRequest(TranscodingRequestParams) returns (TranscodingRequestMessage) {}
-    rpc GetActivityDumpStream(ActivityDumpStreamParams) returns (stream ActivityDumpStreamMessage) {}
 
     // Security Profiles
     rpc ListSecurityProfiles(SecurityProfileListParams) returns (SecurityProfileListMessage) {}
     rpc SaveSecurityProfile(SecurityProfileSaveParams) returns (SecurityProfileSaveMessage) {}
+}
+
+service SecurityAgentAPI {
+    rpc SendEvent(stream SecurityEventMessage) returns (google.protobuf.Empty) {}
+    rpc SendActivityDumpStream(stream ActivityDumpStreamMessage) returns (google.protobuf.Empty) {}
 }

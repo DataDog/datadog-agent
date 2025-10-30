@@ -7,14 +7,14 @@
 
 package rcscrape
 
-import "github.com/DataDog/datadog-agent/pkg/dyninst/procmon"
+import "github.com/DataDog/datadog-agent/pkg/dyninst/process"
 
 // GetTrackedProcesses returns the set of processes that the scraper is
 // tracking. This is a utility function for testing.
-func (s *Scraper) GetTrackedProcesses() []procmon.ProcessID {
+func (s *Scraper) GetTrackedProcesses() []process.ID {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	var processes []procmon.ProcessID
+	var processes []process.ID
 	for pid := range s.mu.processes {
 		processes = append(processes, pid)
 	}

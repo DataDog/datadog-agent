@@ -722,7 +722,7 @@ else
     # of upgrade, let's not start the agent or it would fail because the api key
     # is missing
     if ! $sudo_cmd grep -q -E '^api_key: .+' "$config_file"; then
-      printf "\033[31mThe $nice_flavor won't start automatically at the end of the script because the Api key is missing, please add one in datadog.yaml and start the $nice_flavor manually.\n\033[0m\n"
+      printf "\033[31mThe $nice_flavor won't start automatically at the end of the script because the API key is missing, please add one in datadog.yaml and start the $nice_flavor manually.\n\033[0m\n"
       no_start=true
     fi
   fi
