@@ -58,7 +58,7 @@ func (d *Directories) WriteExperiment(ctx context.Context, operations Operations
 	if err != nil {
 		return fmt.Errorf("error creating experiment directory: %w", err)
 	}
-	err = backupOrRestoreDirectory(ctx, d.StablePath, d.ExperimentPath)
+	err = backupOrRestoreDirectory(ctx, d.StablePath, d.ExperimentPath, false)
 	if err != nil {
 		return fmt.Errorf("error writing deployment ID file: %w", err)
 	}
@@ -97,7 +97,7 @@ func (d *Directories) PromoteExperiment(_ context.Context) error {
 
 // RemoveExperiment removes the experiment from the directories.
 func (d *Directories) RemoveExperiment(ctx context.Context) error {
-	err := backupOrRestoreDirectory(ctx, d.ExperimentPath, d.StablePath)
+	err := backupOrRestoreDirectory(ctx, d.ExperimentPath, d.StablePath, true)
 	if err != nil {
 		return fmt.Errorf("error backing up stable directory: %w", err)
 	}
@@ -110,7 +110,7 @@ func (d *Directories) RemoveExperiment(ctx context.Context) error {
 
 // backupOrRestoreDirectory copies YAML files from source to target.
 // It preserves the directory structure and file permissions.
-func backupOrRestoreDirectory(ctx context.Context, sourcePath, targetPath string) error {
+func backupOrRestoreDirectory(ctx context.Context, sourcePath, targetPath string, ignoreSourceSubdirectories bool) error {
 	_, err := os.Stat(sourcePath)
 	if err != nil && !os.IsNotExist(err) {
 		return fmt.Errorf("error checking if source directory exists: %w", err)
@@ -128,15 +128,16 @@ func backupOrRestoreDirectory(ctx context.Context, sourcePath, targetPath string
 			return fmt.Errorf("error writing deployment ID file: %w", err)
 		}
 	}
-	cmd := telemetry.CommandContext(
-		ctx,
-		"robocopy",
+	cmdArgs := []string{
 		sourcePath,
 		targetPath,
 		"*.yaml",
 		"/MIR",
-		"/XD", sourcePath, // source can be a subdirectory of target, ignore it in the copy
-	)
+	}
+	if ignoreSourceSubdirectories {
+		cmdArgs = append(cmdArgs, "/XD", sourcePath)
+	}
+	cmd := telemetry.CommandContext(ctx, "robocopy", cmdArgs...)
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
 	err = cmd.Run()
