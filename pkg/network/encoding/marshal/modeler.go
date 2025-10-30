@@ -111,4 +111,5 @@ func (c *ConnectionsModeler) modelConnections(builder *model.ConnectionsBuilder,
 	for _, asset := range conns.PrebuiltAssets {
 		builder.AddPrebuiltEBPFAssets(asset)
 	}
+
 }
