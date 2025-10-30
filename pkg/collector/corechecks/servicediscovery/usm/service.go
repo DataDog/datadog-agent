@@ -32,11 +32,7 @@ type DetectorContextMap map[int]interface{}
 
 // DetectorContextMap keys enum
 const (
-	// NodePackageJSONPath The path to the Node service's package.json
-	NodePackageJSONPath = iota
-	// ServiceSubFS The SubdirFS instance package.json path is valid in.
-	ServiceSubFS = iota
-	// The pointer to the Process instance of the service
+	// ServiceProc is the pointer to the Process instance of the service
 	ServiceProc = iota
 )
 
@@ -291,6 +287,8 @@ var executableDetectors = map[string]detectorCreatorFn{
 	"gunicorn": newGunicornDetector,
 	"puma":     newRailsDetector,
 	"sudo":     newSimpleDetector,
+	"beam.smp": newErlangDetector,
+	"beam":     newErlangDetector,
 }
 
 // ExtractServiceMetadata attempts to detect ServiceMetadata from the given process.

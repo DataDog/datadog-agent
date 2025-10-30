@@ -1,7 +1,7 @@
 .bazel:defs:
   cache:
     - key:
-        prefix: bazel-$CI_RUNNER_DESCRIPTION
+        prefix: bazelversion-$CI_RUNNER_DESCRIPTION
         files: [ .bazelversion ]
       paths:
         - .cache/bazelisk
@@ -22,6 +22,12 @@
     BAZEL_OUTPUT_USER_ROOT: "$XDG_CACHE_HOME/bazel"
     BAZEL_REPO_CONTENTS_CACHE: "$BAZEL_OUTPUT_USER_ROOT/repo-contents"
     XDG_CACHE_HOME: "$CI_PROJECT_DIR/.cache"
+
+.bazel:persistent-runner:linux-amd64:
+  cache: []
+  variables:
+    XDG_CACHE_HOME: /data/bzl
+  tags: [ "linux-persistent:amd64", "specific:true" ]
 
 .bazel:ext:windows:
   extends: .windows_docker_default

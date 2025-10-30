@@ -47,6 +47,7 @@ func (r probeDefinition) GetTags() []string { return nil }
 func (r probeDefinition) GetThrottleConfig() ir.ThrottleConfig {
 	return probeThrottleConfig{}
 }
+func (r probeDefinition) GetTemplate() ir.TemplateDefinition { return nil }
 
 type probeCaptureConfig struct{}
 
