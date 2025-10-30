@@ -29,9 +29,11 @@ def get_slack_channel_for_directory(directory_path: str) -> str:
     """
     try:
         # Assert that the path is either relative or had the expected prefix
-        assert (
-            not directory_path.startswith('/') or directory_path.startswith("/go/src/github.com/DataDog/datadog-agent/")
-        ), f"Expected relative path or path starting with '/go/src/github.com/DataDog/datadog-agent/', got: {directory_path}"
+        assert not directory_path.startswith('/') or directory_path.startswith(
+            "/go/src/github.com/DataDog/datadog-agent/"
+        ), (
+            f"Expected relative path or path starting with '/go/src/github.com/DataDog/datadog-agent/', got: {directory_path}"
+        )
 
         # Remove the leading datadog-agent prefix if it exists
         rel_path = directory_path.removeprefix("/go/src/github.com/DataDog/datadog-agent/")
@@ -58,7 +60,9 @@ def get_slack_channel_for_directory(directory_path: str) -> str:
 
 
 @task
-def build_and_upload_fuzz(ctx, team="chaos-platform", core_count=None, duration=None, proc_count=None, fuzz_memory=None):
+def build_and_upload_fuzz(
+    ctx, team="chaos-platform", core_count=None, duration=None, proc_count=None, fuzz_memory=None
+):
     """
     This builds and uploads fuzz targets to the internal fuzzing infrastructure.
     It needs to be passed the -fuzz flag in order to build the fuzz with efficient coverage guidance.
@@ -118,12 +122,14 @@ def build_and_upload_fuzz(ctx, team="chaos-platform", core_count=None, duration=
             print(f'Starting fuzzer for {pkgname} ({func})...')
             # Start new fuzzer
             run_payload = {
-                "app": pkgname, # required
-                "version": git_sha, # required
-                "type": "go-native-fuzz", # required
-                "function": func, # required
-                "team": team, # Optional, but in this repository we always want to set it.
-                "slack_channel": get_slack_channel_for_directory(directory), # Optional, but in this repository we always want to set it as we have an up to date mapping.
+                "app": pkgname,  # required
+                "version": git_sha,  # required
+                "type": "go-native-fuzz",  # required
+                "function": func,  # required
+                "team": team,  # Optional, but in this repository we always want to set it.
+                "slack_channel": get_slack_channel_for_directory(
+                    directory
+                ),  # Optional, but in this repository we always want to set it as we have an up to date mapping.
             }
 
             # Optional parameters where we want the backend to set the values.
