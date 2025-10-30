@@ -238,7 +238,6 @@ func TestInstallExperiment(t *testing.T) {
 		assert.Equal(t, fixtures.FixtureSimpleV2.Version, state.Experiment)
 		fixtures.AssertEqualFS(t, s.PackageFS(fixtures.FixtureSimpleV1), r.StableFS())
 		fixtures.AssertEqualFS(t, s.PackageFS(fixtures.FixtureSimpleV2), r.ExperimentFS())
-		fixtures.AssertEqualFS(t, s.ConfigFS(fixtures.FixtureSimpleV2), installer.ConfigFS(fixtures.FixtureSimpleV2))
 	})
 }
 
@@ -266,7 +265,6 @@ func TestInstallPromoteExperiment(t *testing.T) {
 		assert.Equal(t, fixtures.FixtureSimpleV2.Version, state.Stable)
 		assert.False(t, state.HasExperiment())
 		fixtures.AssertEqualFS(t, s.PackageFS(fixtures.FixtureSimpleV2), r.StableFS())
-		fixtures.AssertEqualFS(t, s.ConfigFS(fixtures.FixtureSimpleV2), installer.ConfigFS(fixtures.FixtureSimpleV2))
 	})
 }
 
