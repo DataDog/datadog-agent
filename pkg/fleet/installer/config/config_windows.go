@@ -58,9 +58,18 @@ func (d *Directories) WriteExperiment(ctx context.Context, operations Operations
 	if err != nil {
 		return fmt.Errorf("error creating experiment directory: %w", err)
 	}
-	err = backupOrRestoreDirectory(ctx, d.StablePath, d.ExperimentPath, false)
+	experimentBackupPath, err := os.MkdirTemp("", "experiment-backup")
+	if err != nil {
+		return fmt.Errorf("error creating experiment backup directory: %w", err)
+	}
+	defer os.RemoveAll(experimentBackupPath)
+	err = backupOrRestoreDirectory(ctx, d.StablePath, experimentBackupPath)
 	if err != nil {
 		return fmt.Errorf("error writing deployment ID file: %w", err)
+	}
+	err = os.Rename(d.ExperimentPath, experimentBackupPath)
+	if err != nil {
+		return fmt.Errorf("error renaming experiment directory: %w", err)
 	}
 	operations.FileOperations = append(buildOperationsFromLegacyInstaller(d.StablePath), operations.FileOperations...)
 	err = operations.Apply(d.StablePath)
@@ -97,7 +106,24 @@ func (d *Directories) PromoteExperiment(_ context.Context) error {
 
 // RemoveExperiment removes the experiment from the directories.
 func (d *Directories) RemoveExperiment(ctx context.Context) error {
-	err := backupOrRestoreDirectory(ctx, d.ExperimentPath, d.StablePath, true)
+	_, err := os.Stat(d.ExperimentPath)
+	if err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("error checking for experiment directory: %w", err)
+	}
+	if os.IsNotExist(err) {
+		return nil
+	}
+	tmpDir, err := os.MkdirTemp("", "experiment-backup")
+	if err != nil {
+		return fmt.Errorf("error creating experiment backup directory: %w", err)
+	}
+	defer os.RemoveAll(tmpDir)
+	experimentBackupPath := filepath.Join(tmpDir, "backup")
+	err = os.Rename(d.ExperimentPath, experimentBackupPath)
+	if err != nil {
+		return fmt.Errorf("error renaming experiment directory: %w", err)
+	}
+	err = backupOrRestoreDirectory(ctx, experimentBackupPath, d.StablePath)
 	if err != nil {
 		return fmt.Errorf("error backing up stable directory: %w", err)
 	}
@@ -110,7 +136,7 @@ func (d *Directories) RemoveExperiment(ctx context.Context) error {
 
 // backupOrRestoreDirectory copies YAML files from source to target.
 // It preserves the directory structure and file permissions.
-func backupOrRestoreDirectory(ctx context.Context, sourcePath, targetPath string, ignoreSourceSubdirectories bool) error {
+func backupOrRestoreDirectory(ctx context.Context, sourcePath, targetPath string) error {
 	_, err := os.Stat(sourcePath)
 	if err != nil && !os.IsNotExist(err) {
 		return fmt.Errorf("error checking if source directory exists: %w", err)
@@ -128,16 +154,14 @@ func backupOrRestoreDirectory(ctx context.Context, sourcePath, targetPath string
 			return fmt.Errorf("error writing deployment ID file: %w", err)
 		}
 	}
-	cmdArgs := []string{
+	cmd := telemetry.CommandContext(
+		ctx,
+		"robocopy",
 		sourcePath,
 		targetPath,
 		"*.yaml",
 		"/MIR",
-	}
-	if ignoreSourceSubdirectories {
-		cmdArgs = append(cmdArgs, "/XD", sourcePath)
-	}
-	cmd := telemetry.CommandContext(ctx, "robocopy", cmdArgs...)
+	)
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
 	err = cmd.Run()
