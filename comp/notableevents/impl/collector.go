@@ -181,7 +181,6 @@ func (c *collector) processEvent(renderCtx evtapi.EventRenderContextHandle, even
 
 	log.Debugf("Collected notable event: channel=%s, event_id=%d", c.channelPath, eventID)
 
-	// TODO(WINA-1968): submit event to intake
 	payload := eventPayload{
 		Channel:  c.channelPath,
 		Provider: providerName,
