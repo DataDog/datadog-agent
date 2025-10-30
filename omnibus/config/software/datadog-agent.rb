@@ -148,7 +148,7 @@ build do
     move 'bin/installer/installer.exe', "#{install_dir}/datadog-installer.exe"
   end
 
-  unless windows_target?
+  if linux_target?
     command "dda inv -- -e loader.build --install-path=#{install_dir}", :env => env, :live_stream => Omnibus.logger.live_stream(:info)
     copy "bin/trace-loader/trace-loader", "#{install_dir}/embedded/bin"
   end
