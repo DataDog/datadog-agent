@@ -10,6 +10,7 @@ package nvml
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"time"
 
 	"go.uber.org/fx"
@@ -36,6 +37,7 @@ type collector struct {
 	catalog                 workloadmeta.AgentType
 	store                   workloadmeta.Component
 	seenUUIDs               map[string]struct{}
+	seenPIDs                map[int32]*workloadmeta.EntityID // PID -> GPU EntityID
 	reportedDriverNotLoaded bool
 }
 
@@ -154,6 +156,7 @@ func NewCollector() (workloadmeta.CollectorProvider, error) {
 			id:        collectorID,
 			catalog:   workloadmeta.NodeAgent,
 			seenUUIDs: map[string]struct{}{},
+			seenPIDs:  make(map[int32]*workloadmeta.EntityID),
 		},
 	}, nil
 }
@@ -215,6 +218,7 @@ func (c *collector) Pull(_ context.Context) error {
 
 	// add/update current devices
 	currentUUIDs := map[string]struct{}{}
+	currentPIDs := make(map[int32]*workloadmeta.EntityID) // PID -> GPU EntityID
 	var events []workloadmeta.CollectorEvent
 	for _, dev := range allDevices {
 		gpu, err := c.getGPUDeviceInfo(dev)
@@ -230,6 +234,19 @@ func (c *collector) Pull(_ context.Context) error {
 		}
 		events = append(events, event)
 		currentUUIDs[dev.GetDeviceInfo().UUID] = struct{}{}
+
+		// Track PIDs for this GPU
+		gpuEntityID := &workloadmeta.EntityID{
+			Kind: workloadmeta.KindGPU,
+			ID:   gpu.EntityID.ID,
+		}
+		for _, pid := range gpu.ActivePIDs {
+			pid32 := int32(pid)
+			// If PID is already tracked, keep the first GPU we encounter
+			if _, exists := currentPIDs[pid32]; !exists {
+				currentPIDs[pid32] = gpuEntityID
+			}
+		}
 	}
 
 	// remove previous devices that are no more available
@@ -251,6 +268,49 @@ func (c *collector) Pull(_ context.Context) error {
 	}
 
 	c.seenUUIDs = currentUUIDs
+
+	// Create or update Process entities for current PIDs
+	for pid, gpuEntityID := range currentPIDs {
+		previousGPU := c.seenPIDs[pid]
+		// Send Set event if PID is new or GPU changed
+		if previousGPU == nil || previousGPU.ID != gpuEntityID.ID {
+			process := &workloadmeta.Process{
+				EntityID: workloadmeta.EntityID{
+					Kind: workloadmeta.KindProcess,
+					ID:   strconv.Itoa(int(pid)),
+				},
+				Pid: pid,
+				GPU: gpuEntityID,
+			}
+			events = append(events, workloadmeta.CollectorEvent{
+				Source: workloadmeta.SourceNVML,
+				Type:   workloadmeta.EventTypeSet,
+				Entity: process,
+			})
+		}
+	}
+
+	// Unset Process entities for PIDs that are no longer using any GPU
+	for pid := range c.seenPIDs {
+		if _, stillActive := currentPIDs[pid]; !stillActive {
+			events = append(events, workloadmeta.CollectorEvent{
+				Source: workloadmeta.SourceNVML,
+				Type:   workloadmeta.EventTypeUnset,
+				Entity: &workloadmeta.Process{
+					EntityID: workloadmeta.EntityID{
+						Kind: workloadmeta.KindProcess,
+						ID:   strconv.Itoa(int(pid)),
+					},
+				},
+			})
+		}
+	}
+
+	// Update seenPIDs
+	c.seenPIDs = make(map[int32]*workloadmeta.EntityID, len(currentPIDs))
+	for pid, gpuEntityID := range currentPIDs {
+		c.seenPIDs[pid] = gpuEntityID
+	}
 
 	c.store.Notify(events)
 
