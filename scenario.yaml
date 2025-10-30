@@ -1,18 +1,17 @@
 helm:
+  charts:
+    - chartName: "ingress-nginx"
+      installName: "ingress-nginx"
+      repo: "https://kubernetes.github.io/ingress-nginx"
+      namespace: "ingress-nginx"
   apps:
     - name: python
       namespace: application
       values:
-        # env:
-        #   - name: DD_TRACE_DEBUG
-        #     value: "true"
-        #   - name: DD_APM_INSTRUMENTATION_DEBUG
-        #     value: "true"
         image:
           repository: registry.ddbuild.io/ci/injector-dev/python
           tag: 2cd78ded
         podLabels:
-          language: nginx
           tags.datadoghq.com/env: local
         service:
           port: "8080"
@@ -21,17 +20,16 @@ helm:
     cluster_agent:
       version: 7.64.0
       build: {}
-    injector: 0.37.0
+    injector:
+      version: 0.37.0
+      build: {}
   config:
     datadog:
       apm:
         instrumentation:
           enabled: true
           targets:
-            - ddTraceVersions:
+            - name: "ingress-nginx"
+              ddTraceVersions:
                 nginx: "v1.11.3"
                 python: "v3"
-              name: python
-              podSelector:
-                matchLabels:
-                  language: nginx
