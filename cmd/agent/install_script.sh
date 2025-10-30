@@ -65,12 +65,12 @@ function report(){
     "$report_failure_url"; then
    printf 'A notification has been sent to Datadog with the contents of %s\n' "$logfile"
   else
-    printf "Unable to send the notification (curl v7.18 or newer is required)"
+    printf 'Unable to send the notification (curl v7.18 or newer is required)'
   fi
 }
 
 function on_read_error() {
-  printf "Timed out or input EOF reached, assuming 'No'\n"
+  printf 'Timed out or input EOF reached, assuming '\''No'\''\n'
   yn="n"
 }
 
@@ -125,7 +125,7 @@ Troubleshooting and basic usage information for the %s are available at:
             fallback_msg
             break;;
           * )
-            printf "Please answer yes or no.\n"
+            printf 'Please answer yes or no.\n'
             ;;
         esac
     done
@@ -341,7 +341,7 @@ fi
 if [ ! "$apikey" ]; then
   # if it's an upgrade, then we will use the transition script
   if [ ! "$upgrade" ] && [ ! -e "$config_file" ]; then
-    printf "\033[31mAPI key not available in DD_API_KEY environment variable.\033[0m\n"
+    printf '\033[31mAPI key not available in DD_API_KEY environment variable.\033[0m\n'
     exit 1;
   fi
 fi
@@ -357,9 +357,9 @@ KNOWN_DISTRIBUTION="(Debian|Ubuntu|RedHat|CentOS|openSUSE|Amazon|Arista|SUSE|Roc
 DISTRIBUTION=$(lsb_release -d 2>/dev/null | grep -Eo $KNOWN_DISTRIBUTION  || grep -Eo $KNOWN_DISTRIBUTION /etc/issue 2>/dev/null || grep -Eo $KNOWN_DISTRIBUTION /etc/Eos-release 2>/dev/null || grep -m1 -Eo $KNOWN_DISTRIBUTION /etc/os-release 2>/dev/null || uname -s)
 
 if [ "$DISTRIBUTION" = "Darwin" ]; then
-    printf "\033[31mThis script does not support installing on the Mac.
+    printf '\033[31mThis script does not support installing on the Mac.
 
-Please use the 1-step script available at https://app.datadoghq.com/account/settings/agent/latest?platform=macos.\033[0m\n"
+Please use the 1-step script available at https://app.datadoghq.com/account/settings/agent/latest?platform=macos.\033[0m\n'
     exit 1;
 
 elif [ -f /etc/debian_version ] || [ "$DISTRIBUTION" == "Debian" ] || [ "$DISTRIBUTION" == "Ubuntu" ]; then
@@ -469,8 +469,8 @@ elif [ "$OS" = "Debian" ]; then
     apt_trusted_d_keyring="/etc/apt/trusted.gpg.d/datadog-archive-keyring.gpg"
     apt_usr_share_keyring="/usr/share/keyrings/datadog-archive-keyring.gpg"
 
-    printf "\033[34m\n* Installing apt-transport-https, curl and gnupg\n\033[0m\n"
-    $sudo_cmd apt-get update || printf "\033[31m'apt-get update' failed, the script will not install the latest version of apt-transport-https.\033[0m\n"
+    printf '\033[34m\n* Installing apt-transport-https, curl and gnupg\n\033[0m\n'
+    $sudo_cmd apt-get update || printf '\033[31m'\''apt-get update'\'' failed, the script will not install the latest version of apt-transport-https.\033[0m\n'
     # installing curl might trigger install of additional version of libssl; this will fail the installation process,
     # see https://unix.stackexchange.com/q/146283 for reference - we use DEBIAN_FRONTEND=noninteractive to fix that
     if [ -z "$sudo_cmd" ]; then
@@ -481,7 +481,7 @@ elif [ "$OS" = "Debian" ]; then
     else
         $sudo_cmd DEBIAN_FRONTEND=noninteractive apt-get install -y apt-transport-https curl gnupg
     fi
-    printf "\033[34m\n* Installing APT package sources for Datadog\n\033[0m\n"
+    printf '\033[34m\n* Installing APT package sources for Datadog\n\033[0m\n'
     $sudo_cmd sh -c "echo 'deb [signed-by=${apt_usr_share_keyring}] https://${apt_url}/ ${apt_repo_version}' > /etc/apt/sources.list.d/datadog.list"
 
     if [ ! -f $apt_usr_share_keyring ]; then
@@ -556,7 +556,7 @@ elif [ "$OS" = "SUSE" ]; then
   remove_rpm_gpg_keys "$sudo_cmd" "${RPM_GPG_KEYS_TO_REMOVE[@]}"
   UNAME_M=$(uname -m)
   if [ "$UNAME_M"  == "i686" ] || [ "$UNAME_M"  == "i386" ] || [ "$UNAME_M"  == "x86" ]; then
-      printf "\033[31mThe Datadog Agent installer is only available for 64 bit SUSE Enterprise machines.\033[0m\n"
+      printf '\033[31mThe Datadog Agent installer is only available for 64 bit SUSE Enterprise machines.\033[0m\n'
       exit;
   elif [ "$UNAME_M"  == "aarch64" ]; then
       ARCHI="aarch64"
@@ -688,10 +688,10 @@ elif [ "$OS" = "SUSE" ]; then
   done
 
 else
-    printf "\033[31mYour OS or distribution are not supported by this install script.
+    printf '\033[31mYour OS or distribution are not supported by this install script.
 Please follow the instructions on the Agent setup page:
 
-    https://app.datadoghq.com/account/settings/agent/latest?platform=overview\033[0m\n"
+    https://app.datadoghq.com/account/settings/agent/latest?platform=overview\033[0m\n'
     exit;
 fi
 
@@ -705,7 +705,7 @@ if [ "$upgrade" ] && [ "$agent_flavor" != "datadog-dogstatsd" ]; then
     $sudo_cmd chown -R dd-agent:dd-agent "$etcdir"
     $sudo_cmd find "$etcdir/" -type f -exec chmod 640 {} \;
   else
-    printf "\033[31mYou don't have a datadog.conf file to convert.\n\033[0m\n"
+    printf '\033[31mYou don'\''t have a datadog.conf file to convert.\n\033[0m\n'
   fi
 fi
 
@@ -831,7 +831,7 @@ declare -a monitoring_services
 monitoring_services=( "datadog-agent" )
 
 if [ $no_start ]; then
-  printf "\033[34m\n  * DD_INSTALL_ONLY environment variable set.\033[0m\n"
+  printf '\033[34m\n  * DD_INSTALL_ONLY environment variable set.\033[0m\n'
 fi
 
 for current_service in "${services[@]}"; do
@@ -872,14 +872,14 @@ for current_service in "${services[@]}"; do
   printf '\033[32m  Your %s is running and functioning properly.\n\033[0m' "$nice_current_flavor"
 
   if [[ "${monitoring_services[*]}" =~ ${current_service} ]]; then
-    printf "\033[32m  It will continue to run in the background and submit metrics to Datadog.\n\033[0m"
+    printf '\033[32m  It will continue to run in the background and submit metrics to Datadog.\n\033[0m'
   fi
 
-  printf "\033[32m  If you ever want to stop the %s run:
+  printf '\033[32m  If you ever want to stop the %s run:
 
       %s
 
   And to run it again run:
 
-      %s\033[0m\n\n" "$nice_current_flavor" "$stop_instructions" "$start_instructions"
+      %s\033[0m\n\n' "$nice_current_flavor" "$stop_instructions" "$start_instructions"
 done
