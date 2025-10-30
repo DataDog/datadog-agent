@@ -276,29 +276,36 @@ func (c *WorkloadMetaCollector) handleContainer(ev workloadmeta.Event) []*types.
 func (c *WorkloadMetaCollector) handleProcess(ev workloadmeta.Event) []*types.TagInfo {
 	process := ev.Entity.(*workloadmeta.Process)
 
-	// Only create tags if the process has service metadata with UST information
-	if process.Service == nil {
-		return nil
-	}
-
 	tagList := taglist.NewTagList()
 
 	// Add Unified Service Tagging tags if present in the service metadata
-	if process.Service.UST.Service != "" {
-		tagList.AddStandard(tags.Service, process.Service.UST.Service)
-	}
-	if process.Service.UST.Env != "" {
-		tagList.AddStandard(tags.Env, process.Service.UST.Env)
-	}
-	if process.Service.UST.Version != "" {
-		tagList.AddStandard(tags.Version, process.Service.UST.Version)
+	if process.Service != nil {
+		if process.Service.UST.Service != "" {
+			tagList.AddStandard(tags.Service, process.Service.UST.Service)
+		}
+		if process.Service.UST.Env != "" {
+			tagList.AddStandard(tags.Env, process.Service.UST.Env)
+		}
+		if process.Service.UST.Version != "" {
+			tagList.AddStandard(tags.Version, process.Service.UST.Version)
+		}
+
+		for _, tracerMeta := range process.Service.TracerMetadata {
+			tagList.AddStandard(tags.Service, tracerMeta.ServiceName)
+			tagList.AddStandard(tags.Env, tracerMeta.ServiceEnv)
+			tagList.AddStandard(tags.Version, tracerMeta.ServiceVersion)
+			parseProcessTags(tagList, tracerMeta.ProcessTags)
+		}
 	}
 
-	for _, tracerMeta := range process.Service.TracerMetadata {
-		tagList.AddStandard(tags.Service, tracerMeta.ServiceName)
-		tagList.AddStandard(tags.Env, tracerMeta.ServiceEnv)
-		tagList.AddStandard(tags.Version, tracerMeta.ServiceVersion)
-		parseProcessTags(tagList, tracerMeta.ProcessTags)
+	// Add GPU tags if the process has a GPU reference
+	if process.GPU != nil {
+		gpu, err := c.store.GetGPU(process.GPU.ID)
+		if err != nil {
+			log.Debugf("cannot get GPU entity for process %s: %s", process.EntityID.ID, err)
+		} else if gpu != nil {
+			c.extractGPUTags(gpu, tagList)
+		}
 	}
 
 	low, orch, high, standard := tagList.Compute()
@@ -710,12 +717,7 @@ func (c *WorkloadMetaCollector) handleGPU(ev workloadmeta.Event) []*types.TagInf
 	gpu := ev.Entity.(*workloadmeta.GPU)
 
 	tagList := taglist.NewTagList()
-
-	tagList.AddLow(tags.KubeGPUVendor, strings.ToLower(gpu.Vendor))
-	tagList.AddLow(tags.KubeGPUDevice, strings.ToLower(strings.ReplaceAll(gpu.Device, " ", "_")))
-	tagList.AddLow(tags.KubeGPUUUID, strings.ToLower(gpu.ID))
-	tagList.AddLow(tags.GPUDriverVersion, gpu.DriverVersion)
-	tagList.AddLow(tags.GPUVirtualizationMode, gpu.VirtualizationMode)
+	c.extractGPUTags(gpu, tagList)
 
 	low, orch, high, standard := tagList.Compute()
 
@@ -735,6 +737,15 @@ func (c *WorkloadMetaCollector) handleGPU(ev workloadmeta.Event) []*types.TagInf
 	}
 
 	return tagInfos
+}
+
+// extractGPUTags extracts GPU tags from a GPU entity and adds them to the provided tagList
+func (c *WorkloadMetaCollector) extractGPUTags(gpu *workloadmeta.GPU, tagList *taglist.TagList) {
+	tagList.AddLow(tags.KubeGPUVendor, strings.ToLower(gpu.Vendor))
+	tagList.AddLow(tags.KubeGPUDevice, strings.ToLower(strings.ReplaceAll(gpu.Device, " ", "_")))
+	tagList.AddLow(tags.KubeGPUUUID, strings.ToLower(gpu.ID))
+	tagList.AddLow(tags.GPUDriverVersion, gpu.DriverVersion)
+	tagList.AddLow(tags.GPUVirtualizationMode, gpu.VirtualizationMode)
 }
 
 func (c *WorkloadMetaCollector) extractTagsFromPodLabels(pod *workloadmeta.KubernetesPod, tagList *taglist.TagList) {
