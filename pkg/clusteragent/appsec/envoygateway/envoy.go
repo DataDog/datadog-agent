@@ -13,10 +13,11 @@ import (
 	stdErrors "errors"
 	"fmt"
 
+	egv1a1 "github.com/envoyproxy/gateway/api/v1alpha1"
+	gwapiv1 "sigs.k8s.io/gateway-api/apis/v1"
+
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	appsecconfig "github.com/DataDog/datadog-agent/pkg/clusteragent/appsec/config"
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/appsec/vendored/envoygateway/v1alpha1"
-	gwapiv1 "github.com/DataDog/datadog-agent/pkg/clusteragent/appsec/vendored/gatewayapi/v1"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -211,8 +212,8 @@ func (e *envoyGatewayInjectionPattern) createEnvoyExtensionPolicy(ctx context.Co
 	return nil
 }
 
-func (e *envoyGatewayInjectionPattern) newPolicy(namespace string) v1alpha1.EnvoyExtensionPolicy {
-	return v1alpha1.EnvoyExtensionPolicy{
+func (e *envoyGatewayInjectionPattern) newPolicy(namespace string) egv1a1.EnvoyExtensionPolicy {
+	return egv1a1.EnvoyExtensionPolicy{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: "gateway.envoyproxy.io/v1alpha1",
 			Kind:       "EnvoyExtensionPolicy",
@@ -223,33 +224,33 @@ func (e *envoyGatewayInjectionPattern) newPolicy(namespace string) v1alpha1.Envo
 			Labels:      e.config.CommonLabels,
 			Annotations: e.config.CommonAnnotations,
 		},
-		Spec: v1alpha1.EnvoyExtensionPolicySpec{
-			PolicyTargetReferences: v1alpha1.PolicyTargetReferences{
-				TargetSelectors: []v1alpha1.TargetSelector{
+		Spec: egv1a1.EnvoyExtensionPolicySpec{
+			PolicyTargetReferences: egv1a1.PolicyTargetReferences{
+				TargetSelectors: []egv1a1.TargetSelector{
 					{
 						Kind:  "Gateway",
-						Group: ptr.To[gwapiv1.Group]("gateway.networking.k8s.io"),
+						Group: ptr.To(gwapiv1.Group("gateway.networking.k8s.io")),
 					},
 				},
 			},
-			ExtProc: []v1alpha1.ExtProc{
+			ExtProc: []egv1a1.ExtProc{
 				{
 					FailOpen: ptr.To(true),
-					BackendCluster: v1alpha1.BackendCluster{
-						BackendRefs: []v1alpha1.BackendRef{
+					BackendCluster: egv1a1.BackendCluster{
+						BackendRefs: []egv1a1.BackendRef{
 							{
 								BackendObjectReference: gwapiv1.BackendObjectReference{
 									Name:      gwapiv1.ObjectName(e.config.Processor.ServiceName),
-									Namespace: ptr.To[gwapiv1.Namespace](gwapiv1.Namespace(e.config.Processor.Namespace)),
-									Port:      ptr.To[gwapiv1.PortNumber](gwapiv1.PortNumber(e.config.Processor.Port)),
+									Namespace: ptr.To(gwapiv1.Namespace(e.config.Processor.Namespace)),
+									Port:      ptr.To(gwapiv1.PortNumber(e.config.Processor.Port)),
 								},
 							},
 						},
 					},
-					ProcessingMode: &v1alpha1.ExtProcProcessingMode{
+					ProcessingMode: &egv1a1.ExtProcProcessingMode{
 						AllowModeOverride: true,
-						Request:           &v1alpha1.ProcessingModeOptions{},
-						Response:          &v1alpha1.ProcessingModeOptions{},
+						Request:           &egv1a1.ProcessingModeOptions{},
+						Response:          &egv1a1.ProcessingModeOptions{},
 					},
 				},
 			},

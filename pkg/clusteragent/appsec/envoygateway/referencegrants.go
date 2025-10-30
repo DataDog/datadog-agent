@@ -13,8 +13,9 @@ import (
 	"fmt"
 	"slices"
 
+	gwapiv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
+
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/appsec/vendored/gatewayapi/v1beta1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -43,7 +44,7 @@ type grantManager struct {
 
 // createGrant is called by AddNamespaceToGrant if the ReferenceGrant does not already exist
 func (g *grantManager) createGrant(ctx context.Context, dstNamespace string) error {
-	grant := v1beta1.ReferenceGrant{
+	grant := gwapiv1beta1.ReferenceGrant{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: "gateway.networking.k8s.io/v1beta1",
 			Kind:       "ReferenceGrant",
@@ -54,17 +55,17 @@ func (g *grantManager) createGrant(ctx context.Context, dstNamespace string) err
 			Labels:      g.commonLabels,
 			Annotations: g.commonAnnotations,
 		},
-		Spec: v1beta1.ReferenceGrantSpec{
-			From: []v1beta1.ReferenceGrantFrom{
+		Spec: gwapiv1beta1.ReferenceGrantSpec{
+			From: []gwapiv1beta1.ReferenceGrantFrom{
 				{
 					Group:     "gateway.envoyproxy.io",
 					Kind:      "EnvoyExtensionPolicy",
-					Namespace: v1beta1.Namespace(dstNamespace),
+					Namespace: gwapiv1beta1.Namespace(dstNamespace),
 				}},
-			To: []v1beta1.ReferenceGrantTo{
+			To: []gwapiv1beta1.ReferenceGrantTo{
 				{
 					Kind: "Service",
-					Name: ptr.To[v1beta1.ObjectName](v1beta1.ObjectName(g.serviceName)),
+					Name: ptr.To(gwapiv1beta1.ObjectName(g.serviceName)),
 				},
 			},
 		},
@@ -101,17 +102,17 @@ func (g *grantManager) AddNamespaceToGrant(ctx context.Context, namespace string
 	}
 
 	// Namespace not present, we need to patch the ReferenceGrant
-	grantPatch := v1beta1.ReferenceGrant{
+	grantPatch := gwapiv1beta1.ReferenceGrant{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: "gateway.networking.k8s.io/v1beta1",
 			Kind:       "ReferenceGrant",
 		},
-		Spec: v1beta1.ReferenceGrantSpec{
-			From: []v1beta1.ReferenceGrantFrom{
+		Spec: gwapiv1beta1.ReferenceGrantSpec{
+			From: []gwapiv1beta1.ReferenceGrantFrom{
 				{
 					Group:     "gateway.envoyproxy.io",
 					Kind:      "EnvoyExtensionPolicy",
-					Namespace: v1beta1.Namespace(namespace),
+					Namespace: gwapiv1beta1.Namespace(namespace),
 				}},
 		},
 	}
@@ -160,14 +161,14 @@ func (g *grantManager) RemoveNamespaceToGrant(ctx context.Context, namespace str
 		return err
 	}
 
-	var grant v1beta1.ReferenceGrant
+	var grant gwapiv1beta1.ReferenceGrant
 	if err = runtime.DefaultUnstructuredConverter.FromUnstructured(unstructuredGrant.Object, &grant); err != nil {
 		return err
 	}
 
 	// Check if the namespace is present
-	index := slices.IndexFunc(grant.Spec.From, func(item v1beta1.ReferenceGrantFrom) bool {
-		return item.Namespace == v1beta1.Namespace(namespace)
+	index := slices.IndexFunc(grant.Spec.From, func(item gwapiv1beta1.ReferenceGrantFrom) bool {
+		return item.Namespace == gwapiv1beta1.Namespace(namespace)
 	})
 
 	if index == -1 {

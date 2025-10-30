@@ -15,10 +15,14 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	appsecconfig "github.com/DataDog/datadog-agent/pkg/clusteragent/appsec/config"
 
+	"google.golang.org/protobuf/types/known/structpb"
+	istionetworkingv1alpha3 "istio.io/api/networking/v1alpha3"
+	istiov1alpha3 "istio.io/client-go/pkg/apis/networking/v1alpha3"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/tools/record"
@@ -162,9 +166,14 @@ func (i *istioInjectionPattern) Deleted(ctx context.Context, obj *unstructured.U
 func (i *istioInjectionPattern) createEnvoyFilter(ctx context.Context, namespace string) error {
 	filter := i.newFilter(namespace)
 
-	_, err := i.client.Resource(filterGVR).
+	unstructuredFilter, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&filter)
+	if err != nil {
+		return fmt.Errorf("failed to convert EnvoyFilter to unstructured: %w", err)
+	}
+
+	_, err = i.client.Resource(filterGVR).
 		Namespace(namespace).
-		Create(ctx, &filter, metav1.CreateOptions{})
+		Create(ctx, &unstructured.Unstructured{Object: unstructuredFilter}, metav1.CreateOptions{})
 	if errors.IsAlreadyExists(err) {
 		i.logger.Debug("Envoy Filter already exists")
 		return nil
@@ -179,106 +188,113 @@ func (i *istioInjectionPattern) createEnvoyFilter(ctx context.Context, namespace
 	return nil
 }
 
-func (i *istioInjectionPattern) newFilter(namespace string) unstructured.Unstructured {
+func (i *istioInjectionPattern) newFilter(namespace string) istiov1alpha3.EnvoyFilter {
 	const clusterName = "datadog_appsec_ext_proc_cluster"
 	processorAddress := fmt.Sprintf("%s.%s.svc", i.config.Processor.ServiceName, i.config.Processor.Namespace)
 
-	return unstructured.Unstructured{
-		Object: map[string]any{
-			"apiVersion": "networking.istio.io/v1alpha3",
-			"kind":       "EnvoyFilter",
-			"metadata": map[string]any{
-				"name":        envoyFilterName,
-				"namespace":   namespace,
-				"labels":      i.config.CommonLabels,
-				"annotations": i.config.CommonAnnotations,
-			},
-			"spec": map[string]any{
-				"configPatches": []any{
-					i.buildHTTPFilterPatch(clusterName),
-					i.buildClusterPatch(clusterName, processorAddress),
-				},
+	httpFilterPatch, err := i.buildHTTPFilterPatch(clusterName)
+	if err != nil {
+		i.logger.Errorf("Failed to build HTTP filter patch: %v", err)
+		// Return empty filter on error - caller will handle
+	}
+
+	clusterPatch, err := i.buildClusterPatch(clusterName, processorAddress)
+	if err != nil {
+		i.logger.Errorf("Failed to build cluster patch: %v", err)
+		// Return empty filter on error - caller will handle
+	}
+
+	return istiov1alpha3.EnvoyFilter{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: "networking.istio.io/v1alpha3",
+			Kind:       "EnvoyFilter",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:        envoyFilterName,
+			Namespace:   namespace,
+			Labels:      i.config.CommonLabels,
+			Annotations: i.config.CommonAnnotations,
+		},
+		Spec: istionetworkingv1alpha3.EnvoyFilter{
+			ConfigPatches: []*istionetworkingv1alpha3.EnvoyFilter_EnvoyConfigObjectPatch{
+				httpFilterPatch,
+				clusterPatch,
 			},
 		},
 	}
 }
 
 // buildHTTPFilterPatch creates the HTTP_FILTER patch for the ext_proc filter
-func (i *istioInjectionPattern) buildHTTPFilterPatch(clusterName string) map[string]any {
-	return map[string]any{
-		"applyTo": "HTTP_FILTER",
-		"match": map[string]any{
-			"context": "GATEWAY",
-			"listener": map[string]any{
-				"filterChain": map[string]any{
-					"filter": map[string]any{
-						"name": "envoy.filters.network.http_connection_manager",
-						"subFilter": map[string]any{
-							"name": "envoy.filters.http.router",
-						},
+func (i *istioInjectionPattern) buildHTTPFilterPatch(clusterName string) (*istionetworkingv1alpha3.EnvoyFilter_EnvoyConfigObjectPatch, error) {
+	patchValue, err := structpb.NewStruct(map[string]any{
+		"name": "envoy.filters.http.ext_proc",
+		"typed_config": map[string]any{
+			"@type": "type.googleapis.com/envoy.extensions.filters.http.ext_proc.v3.ExternalProcessor",
+			"grpc_service": map[string]any{
+				"envoy_grpc": map[string]any{
+					"cluster_name": clusterName,
+				},
+				"initial_metadata": []any{
+					map[string]any{
+						"key":   "x-datadog-envoy-integration",
+						"value": "1",
 					},
 				},
 			},
+			"failure_mode_allow": true,
+			"processing_mode": map[string]any{
+				"request_header_mode":  "SEND",
+				"response_header_mode": "SEND",
+			},
+			"allow_mode_override": true,
 		},
-		"patch": map[string]any{
-			"operation": "INSERT_BEFORE",
-			"value": map[string]any{
-				"name": "envoy.filters.http.ext_proc",
-				"typed_config": map[string]any{
-					"@type": "type.googleapis.com/envoy.extensions.filters.http.ext_proc.v3.ExternalProcessor",
-					"grpc_service": map[string]any{
-						"envoy_grpc": map[string]any{
-							"cluster_name": clusterName,
-						},
-						"initial_metadata": []any{
-							map[string]any{
-								"key":   "x-datadog-envoy-integration",
-								"value": "1",
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to create patch value struct: %w", err)
+	}
+
+	return &istionetworkingv1alpha3.EnvoyFilter_EnvoyConfigObjectPatch{
+		ApplyTo: istionetworkingv1alpha3.EnvoyFilter_HTTP_FILTER,
+		Match: &istionetworkingv1alpha3.EnvoyFilter_EnvoyConfigObjectMatch{
+			Context: istionetworkingv1alpha3.EnvoyFilter_GATEWAY,
+			ObjectTypes: &istionetworkingv1alpha3.EnvoyFilter_EnvoyConfigObjectMatch_Listener{
+				Listener: &istionetworkingv1alpha3.EnvoyFilter_ListenerMatch{
+					FilterChain: &istionetworkingv1alpha3.EnvoyFilter_ListenerMatch_FilterChainMatch{
+						Filter: &istionetworkingv1alpha3.EnvoyFilter_ListenerMatch_FilterMatch{
+							Name: "envoy.filters.network.http_connection_manager",
+							SubFilter: &istionetworkingv1alpha3.EnvoyFilter_ListenerMatch_SubFilterMatch{
+								Name: "envoy.filters.http.router",
 							},
 						},
 					},
-					"failure_mode_allow": true,
-					"processing_mode": map[string]any{
-						"request_header_mode":  "SEND",
-						"response_header_mode": "SEND",
-					},
-					"allow_mode_override": true,
 				},
 			},
 		},
-	}
+		Patch: &istionetworkingv1alpha3.EnvoyFilter_Patch{
+			Operation: istionetworkingv1alpha3.EnvoyFilter_Patch_INSERT_BEFORE,
+			Value:     patchValue,
+		},
+	}, nil
 }
 
 // buildClusterPatch creates the CLUSTER patch for the Datadog External Processing service
-func (i *istioInjectionPattern) buildClusterPatch(clusterName, processorAddress string) map[string]any {
-	return map[string]any{
-		"applyTo": "CLUSTER",
-		"match": map[string]any{
-			"context": "GATEWAY",
-			"cluster": map[string]any{
-				"service": "*",
-			},
-		},
-		"patch": map[string]any{
-			"operation": "ADD",
-			"value": map[string]any{
-				"name":                   clusterName,
-				"type":                   "STRICT_DNS",
-				"lb_policy":              "ROUND_ROBIN",
-				"http2_protocol_options": map[string]any{},
-				"load_assignment": map[string]any{
-					"cluster_name": clusterName,
-					"endpoints": []any{
+func (i *istioInjectionPattern) buildClusterPatch(clusterName, processorAddress string) (*istionetworkingv1alpha3.EnvoyFilter_EnvoyConfigObjectPatch, error) {
+	patchValue, err := structpb.NewStruct(map[string]any{
+		"name":                   clusterName,
+		"type":                   "STRICT_DNS",
+		"lb_policy":              "ROUND_ROBIN",
+		"http2_protocol_options": map[string]any{},
+		"load_assignment": map[string]any{
+			"cluster_name": clusterName,
+			"endpoints": []any{
+				map[string]any{
+					"lb_endpoints": []any{
 						map[string]any{
-							"lb_endpoints": []any{
-								map[string]any{
-									"endpoint": map[string]any{
-										"address": map[string]any{
-											"socket_address": map[string]any{
-												"address":    processorAddress,
-												"port_value": i.config.Processor.Port,
-											},
-										},
+							"endpoint": map[string]any{
+								"address": map[string]any{
+									"socket_address": map[string]any{
+										"address":    processorAddress,
+										"port_value": i.config.Processor.Port,
 									},
 								},
 							},
@@ -287,7 +303,26 @@ func (i *istioInjectionPattern) buildClusterPatch(clusterName, processorAddress 
 				},
 			},
 		},
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to create cluster patch value struct: %w", err)
 	}
+
+	return &istionetworkingv1alpha3.EnvoyFilter_EnvoyConfigObjectPatch{
+		ApplyTo: istionetworkingv1alpha3.EnvoyFilter_CLUSTER,
+		Match: &istionetworkingv1alpha3.EnvoyFilter_EnvoyConfigObjectMatch{
+			Context: istionetworkingv1alpha3.EnvoyFilter_GATEWAY,
+			ObjectTypes: &istionetworkingv1alpha3.EnvoyFilter_EnvoyConfigObjectMatch_Cluster{
+				Cluster: &istionetworkingv1alpha3.EnvoyFilter_ClusterMatch{
+					Service: "*",
+				},
+			},
+		},
+		Patch: &istionetworkingv1alpha3.EnvoyFilter_Patch{
+			Operation: istionetworkingv1alpha3.EnvoyFilter_Patch_ADD,
+			Value:     patchValue,
+		},
+	}, nil
 }
 
 // New returns a new InjectionPattern for Envoy Gateway
