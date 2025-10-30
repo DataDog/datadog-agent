@@ -31,6 +31,9 @@ type Config struct {
 	DiagsUploaderURL   string
 	SymDBUploadEnabled bool
 	SymDBUploaderURL   string
+	// The directory for the persistent cache tracking SymDB uploads. If empty,
+	// no cache will be used.
+	SymDBCacheDir string
 
 	// DiskCacheEnabled enables the disk cache for debug info.  If this is
 	// false, no disk cache will be used and the debug info will be stored in
@@ -76,6 +79,7 @@ func NewConfig(_ *sysconfigtypes.Config) (*Config, error) {
 		DiagsUploaderURL:   withPath(traceAgentURL, diagsUploaderPath),
 		SymDBUploadEnabled: pkgconfigsetup.SystemProbe().GetBool("dynamic_instrumentation.symdb_upload_enabled"),
 		SymDBUploaderURL:   withPath(traceAgentURL, symdbUploaderPath),
+		SymDBCacheDir:      "/var/tmp/datadog-agent/system-probe/dynamic-instrumentation/symdb_uploads",
 		DiskCacheEnabled:   cacheEnabled,
 		DiskCacheConfig:    cacheConfig,
 	}
