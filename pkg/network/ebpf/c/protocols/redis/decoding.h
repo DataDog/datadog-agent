@@ -143,81 +143,55 @@ static __always_inline void process_redis_request(pktbuf_t pkt, conn_tuple_t *co
     // Read method length
     const u16 method_len = get_key_len(pkt);
 
-    // Declare transaction at function scope to help verifier
-    redis_transaction_t transaction = {};
-
-    // Handle PING command (length 4)
-    if (method_len == PING_METHOD_LEN) {
-        char method[PING_METHOD_LEN + 1] = {};
-        if (pktbuf_load_bytes_from_current_offset(pkt, method, PING_METHOD_LEN) < 0) {
-            return;
-        }
-        pktbuf_advance(pkt, PING_METHOD_LEN);
-
-        // Read CRLF after method
-        if (!read_crlf(pkt)) {
-            return;
-        }
-
-        convert_ping_to_upper_case(method);
-
-        if (bpf_memcmp(method, REDIS_CMD_PING, PING_METHOD_LEN) == 0) {
-            // Initialize transaction only after validation passes
-            transaction.tags = tags;
-            transaction.request_started = bpf_ktime_get_ns();
-            transaction.command = REDIS_PING;
-            // PING doesn't have a key, so skip key reading and store transaction directly
-            bpf_map_update_with_telemetry(redis_in_flight, conn_tuple, &transaction, BPF_ANY);
-            return;
-        }
+    if (method_len < MIN_METHOD_LEN || method_len > MAX_METHOD_LEN) {
         return;
     }
 
-    // Handle GET/SET commands (length 3)
-    if (method_len == METHOD_LEN) {
-        char method[METHOD_LEN + 1] = {};
-        if (pktbuf_load_bytes_from_current_offset(pkt, method, METHOD_LEN) < 0) {
-            return;
-        }
-        pktbuf_advance(pkt, METHOD_LEN);
+    char method[MAX_METHOD_LEN + 1] = {};
+    if (pktbuf_load_bytes_from_current_offset(pkt, method, MAX_METHOD_LEN + 1) < 0) {
+        return;
+    }
+    pktbuf_advance(pkt, method_len);
 
-        // Read CRLF after method
-        if (!read_crlf(pkt)) {
-            return;
-        }
+    // Read CRLF after method
+    if (!read_crlf(pkt)) {
+        return;
+    }
+    convert_method_to_upper_case(method);
 
-        convert_method_to_upper_case(method);
+    // Declare transaction at function scope to help verifier
+    redis_transaction_t transaction = {};
+    transaction.tags = tags;
+    transaction.request_started = bpf_ktime_get_ns();
+    bool should_extract_key = false;
+    if (bpf_memcmp(method, REDIS_CMD_SET, sizeof(REDIS_CMD_SET)-1) == 0) {
+        transaction.command = REDIS_SET;
+        should_extract_key = true;
+    } else if (bpf_memcmp(method, REDIS_CMD_GET, sizeof(REDIS_CMD_GET)-1) == 0) {
+        transaction.command = REDIS_GET;
+        should_extract_key = true;
+    } else if (bpf_memcmp(method, REDIS_CMD_PING, sizeof(REDIS_CMD_PING)-1) == 0) {
+        transaction.command = REDIS_PING;
+    } else {
+        return;
+    }
 
-        if (bpf_memcmp(method, REDIS_CMD_SET, METHOD_LEN) == 0) {
-            transaction.command = REDIS_SET;
-        } else if (bpf_memcmp(method, REDIS_CMD_GET, METHOD_LEN) == 0) {
-            transaction.command = REDIS_GET;
-        } else {
-            return;
-        }
-
-        // Initialize transaction only after validation passes
-        transaction.tags = tags;
-        transaction.request_started = bpf_ktime_get_ns();
-
+    if (should_extract_key && is_redis_with_key_monitoring_enabled()) {
         // Read key name (only for GET/SET, not PING)
         __u16 len = get_key_len(pkt);
         if (len == 0) {
             return;
         }
-
-        if (is_redis_with_key_monitoring_enabled()) {
-            redis_key_data_t key = {
-                .len = len,
-            };
-            if (!read_key_name(pkt, key.buf, sizeof(key.buf), &key.len, &key.truncated)) {
-                return;
-            }
-            bpf_map_update_with_telemetry(redis_key_in_flight, conn_tuple, &key, BPF_ANY);
+        redis_key_data_t key = {
+            .len = len,
+        };
+        if (!read_key_name(pkt, key.buf, sizeof(key.buf), &key.len, &key.truncated)) {
+            return;
         }
-
-        bpf_map_update_with_telemetry(redis_in_flight, conn_tuple, &transaction, BPF_ANY);
+        bpf_map_update_with_telemetry(redis_key_in_flight, conn_tuple, &key, BPF_ANY);
     }
+
+    bpf_map_update_with_telemetry(redis_in_flight, conn_tuple, &transaction, BPF_ANY);
 }
 
 

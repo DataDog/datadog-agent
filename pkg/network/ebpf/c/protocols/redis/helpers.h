@@ -30,17 +30,8 @@ static __always_inline bool check_supported_ascii_and_crlf(const char* buf, __u3
 }
 
 static __always_inline __maybe_unused void convert_method_to_upper_case(char* method) {
-    #pragma unroll (METHOD_LEN)
-    for (int i = 0; i < METHOD_LEN; i++) {
-        if ('a' <= method[i] && method[i] <= 'z') {
-            method[i] = method[i] - 'a' + 'A';
-        }
-    }
-}
-
-static __always_inline __maybe_unused void convert_ping_to_upper_case(char* method) {
-    #pragma unroll (PING_METHOD_LEN)
-    for (int i = 0; i < PING_METHOD_LEN; i++) {
+    #pragma unroll (MAX_METHOD_LEN)
+    for (int i = 0; i < MAX_METHOD_LEN; i++) {
         if ('a' <= method[i] && method[i] <= 'z') {
             method[i] = method[i] - 'a' + 'A';
         }

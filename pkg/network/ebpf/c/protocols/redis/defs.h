@@ -25,8 +25,8 @@
 #define RESP3_SET_PREFIX '~'
 #define RESP3_PUSH_PREFIX '>'
 #define RESP_FIELD_TERMINATOR_LEN 2 // CRLF terminator: \r\n
-#define METHOD_LEN 3 // GET and SET have length 3.
-#define PING_METHOD_LEN 4 // PING has length 4.
+#define MIN_METHOD_LEN (sizeof(REDIS_CMD_GET) - 1)
+#define MAX_METHOD_LEN (sizeof(REDIS_CMD_PING) - 1)
 #define MAX_DIGITS_KEY_LEN_PREFIX 3 // Since we clamp key length to 128, when reading key length prefix, we only need to read up to 3 digits.
 #define MAX_KEY_LEN 128
 #define MIN_PARAM_COUNT 1 // PING command has 1 parameter (just the command itself)
