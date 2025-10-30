@@ -6,6 +6,7 @@
 package config
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"strings"
@@ -506,4 +507,205 @@ func TestOperationApply_MoveMissingSource(t *testing.T) {
 
 	err = op.apply(root)
 	assert.Error(t, err)
+}
+
+func writeConfigV2(t *testing.T, v2Dir string) {
+	managedDir := filepath.Join(v2Dir, "managed", "datadog-agent")
+	err := os.MkdirAll(managedDir, 0755)
+	assert.NoError(t, err)
+	err = os.MkdirAll(filepath.Join(managedDir, "v2"), 0755)
+	assert.NoError(t, err)
+	assert.NoError(t, os.WriteFile(filepath.Join(managedDir, "v2", "datadog.yaml"), []byte("log_level: debug\n"), 0644))
+	assert.NoError(t, os.WriteFile(filepath.Join(managedDir, "v2", "application_monitoring.yaml"), []byte("enabled: true\n"), 0644))
+	assert.NoError(t, os.MkdirAll(filepath.Join(managedDir, "v2", "conf.d", "mycheck.d"), 0755))
+	assert.NoError(t, os.WriteFile(filepath.Join(managedDir, "v2", "conf.d", "mycheck.d", "config.yaml"), []byte("foo: bar\n"), 0644))
+
+	// Create the stable and experiment symlinks
+	err = os.Symlink(filepath.Join(managedDir, "v2"), filepath.Join(managedDir, "stable"))
+	assert.NoError(t, err)
+	err = os.Symlink(filepath.Join(managedDir, "v2"), filepath.Join(managedDir, "experiment"))
+	assert.NoError(t, err)
+}
+
+func assertConfigV2(t *testing.T, v2Dir string) {
+	// /managed/datadog-agent/stable -> /etc/datadog-agent/managed/datadog-agent/v2
+	// /managed/datadog-agent/experiment -> /etc/datadog-agent/managed/datadog-agent/v2
+	// /managed/datadog-agent/v2/
+	//     datadog.yaml
+	//     application_monitoring.yaml
+	//     conf.d/mycheck.d/config.yaml
+	managedDir := filepath.Join(v2Dir, "managed", "datadog-agent")
+	info, err := os.Lstat(filepath.Join(managedDir, "v2"))
+	assert.NoError(t, err)
+	assert.True(t, info.Mode()&os.ModeDir != 0)
+	info, err = os.Stat(filepath.Join(managedDir, "v2", "datadog.yaml"))
+	assert.NoError(t, err)
+	assert.True(t, info.Mode()&os.ModeSymlink == 0)
+	info, err = os.Lstat(filepath.Join(managedDir, "v2", "application_monitoring.yaml"))
+	assert.NoError(t, err)
+	assert.True(t, info.Mode()&os.ModeSymlink == 0)
+	info, err = os.Lstat(filepath.Join(managedDir, "v2", "conf.d", "mycheck.d", "config.yaml"))
+	assert.NoError(t, err)
+	assert.True(t, info.Mode()&os.ModeSymlink == 0)
+
+	info, err = os.Lstat(filepath.Join(managedDir, "stable"))
+	assert.NoError(t, err)
+	assert.True(t, info.Mode()&os.ModeSymlink != 0)
+	info, err = os.Lstat(filepath.Join(managedDir, "experiment"))
+	assert.NoError(t, err)
+	assert.True(t, info.Mode()&os.ModeSymlink != 0)
+
+	// v2Dir/conf.d/mychecks.d/config.yaml does not exists
+	_, err = os.Lstat(filepath.Join(v2Dir, "conf.d", "mycheck.d", "config.yaml"))
+	assert.Error(t, err)
+	assert.True(t, os.IsNotExist(err))
+}
+
+func assertConfigV3(t *testing.T, v3Dir string) {
+	// Check the content of the v3 directory
+	// /managed/datadog-agent/stable
+	//     application_monitoring.yaml
+	// No more symlinks
+	managedDir := filepath.Join(v3Dir, "managed", "datadog-agent")
+	_, err := os.Stat(filepath.Join(managedDir, "experiment"))
+	assert.Error(t, err)
+	assert.True(t, os.IsNotExist(err))
+
+	_, err = os.Stat(filepath.Join(managedDir, "v2"))
+	assert.Error(t, err)
+	assert.True(t, os.IsNotExist(err))
+
+	stableInfo, err := os.Lstat(filepath.Join(managedDir, "stable"))
+	assert.NoError(t, err)
+	assert.True(t, stableInfo.Mode()&os.ModeSymlink == 0)
+
+	// Check the files are not here anymore, except application_monitoring.yaml
+	_, err = os.Lstat(filepath.Join(managedDir, "stable", "datadog.yaml"))
+	assert.Error(t, err)
+	assert.True(t, os.IsNotExist(err))
+	info, err := os.Lstat(filepath.Join(managedDir, "stable", "application_monitoring.yaml"))
+	assert.NoError(t, err)
+	assert.True(t, info.Mode()&os.ModeSymlink == 0)
+	_, err = os.Lstat(filepath.Join(managedDir, "stable", "conf.d", "mycheck.d", "config.yaml"))
+	assert.Error(t, err)
+	assert.True(t, os.IsNotExist(err))
+
+	// v3Dir/conf.d/mychecks.d/config.yaml exists
+	_, err = os.Lstat(filepath.Join(v3Dir, "conf.d", "mycheck.d", "config.yaml"))
+	assert.NoError(t, err)
+	assert.True(t, info.Mode()&os.ModeSymlink == 0)
+}
+
+func TestConfigV2ToV3(t *testing.T) {
+	stableDir := t.TempDir()
+	managedDir := filepath.Join(stableDir, "managed", "datadog-agent")
+	err := os.MkdirAll(managedDir, 0755)
+	assert.NoError(t, err)
+
+	// Create a v2 tree
+	writeConfigV2(t, stableDir)
+	assertConfigV2(t, stableDir) // Make sure it's correct
+
+	// Convert v2 to v3
+	newDir := t.TempDir()
+	dirs := &Directories{
+		StablePath:     stableDir,
+		ExperimentPath: newDir,
+	}
+
+	state, err := dirs.GetState()
+	assert.NoError(t, err)
+	assert.Equal(t, "", state.StableDeploymentID)
+	assert.Equal(t, "", state.ExperimentDeploymentID)
+
+	err = dirs.WriteExperiment(context.Background(), Operations{
+		DeploymentID: "experiment-456",
+		FileOperations: []FileOperation{
+			{FileOperationType: FileOperationMergePatch, FilePath: "/datadog.yaml", Patch: []byte(`{"log_level": "info"}`)},
+		},
+	})
+	assert.NoError(t, err)
+
+	state, err = dirs.GetState()
+	assert.NoError(t, err)
+	assert.Equal(t, "", state.StableDeploymentID) // Still empty
+	assert.Equal(t, "experiment-456", state.ExperimentDeploymentID)
+
+	assertConfigV2(t, stableDir) // Make sure nothing changed
+	assertConfigV3(t, newDir)
+
+	// Promote
+	err = dirs.PromoteExperiment(context.Background())
+	assert.NoError(t, err)
+	assertConfigV3(t, stableDir) // Make sure it changed
+
+	state, err = dirs.GetState()
+	assert.NoError(t, err)
+	assert.Equal(t, "experiment-456", state.StableDeploymentID) // Still empty
+	assert.Equal(t, "", state.ExperimentDeploymentID)
+}
+
+func TestConfigV2Rollback(t *testing.T) {
+	stableDir := t.TempDir()
+	managedDir := filepath.Join(stableDir, "managed", "datadog-agent")
+	err := os.MkdirAll(managedDir, 0755)
+	assert.NoError(t, err)
+
+	// Create a v2 tree
+	writeConfigV2(t, stableDir)
+	assertConfigV2(t, stableDir) // Make sure it's correct
+
+	// Convert v2 to v3
+	newDir := t.TempDir()
+	dirs := &Directories{
+		StablePath:     stableDir,
+		ExperimentPath: newDir,
+	}
+
+	err = dirs.WriteExperiment(context.Background(), Operations{
+		DeploymentID: "experiment-456",
+		FileOperations: []FileOperation{
+			{FileOperationType: FileOperationMergePatch, FilePath: "/datadog.yaml", Patch: []byte(`{"log_level": "info"}`)},
+		},
+	})
+	assert.NoError(t, err)
+
+	assertConfigV2(t, stableDir) // Make sure nothing changed
+	assertConfigV3(t, newDir)
+
+	state, err := dirs.GetState()
+	assert.NoError(t, err)
+	assert.Equal(t, "", state.StableDeploymentID) // Still empty
+	assert.Equal(t, "experiment-456", state.ExperimentDeploymentID)
+
+	// Rollback
+	err = dirs.RemoveExperiment(context.Background())
+	assert.NoError(t, err)
+	assertConfigV2(t, stableDir) // Make sure it's still v2
+
+	// Write again
+	err = dirs.WriteExperiment(context.Background(), Operations{
+		DeploymentID: "experiment-789",
+		FileOperations: []FileOperation{
+			{FileOperationType: FileOperationMergePatch, FilePath: "/datadog.yaml", Patch: []byte(`{"log_level": "info"}`)},
+		},
+	})
+	assert.NoError(t, err)
+	assertConfigV2(t, stableDir) // Make sure it's still v2
+	assertConfigV3(t, newDir)
+
+	state, err = dirs.GetState()
+	assert.NoError(t, err)
+	assert.Equal(t, "", state.StableDeploymentID) // Still empty
+	assert.Equal(t, "experiment-789", state.ExperimentDeploymentID)
+
+	// Promote
+	err = dirs.PromoteExperiment(context.Background())
+	assert.NoError(t, err)
+	assertConfigV3(t, stableDir) // Make sure it changed
+
+	state, err = dirs.GetState()
+	assert.NoError(t, err)
+	assert.Equal(t, "experiment-789", state.StableDeploymentID)
+	assert.Equal(t, "", state.ExperimentDeploymentID)
 }
