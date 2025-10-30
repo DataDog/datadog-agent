@@ -111,7 +111,7 @@ func registerInstrumentation(lc compdef.Lifecycle) error {
 	mp := metric.NewMeterProvider(metric.WithReader(metric.NewPeriodicReader(exp)))
 
 	lc.Append(compdef.Hook{
-		OnStart: func(ctx context.Context) error {
+		OnStart: func(_ context.Context) error {
 			return runtime.Start(runtime.WithMeterProvider(mp))
 		},
 		OnStop: func(ctx context.Context) error {
