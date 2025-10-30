@@ -5,8 +5,8 @@
 
 //go:build docker
 
-// Package ecsfargate implements the ECS Fargate Workloadmeta collector.
-package ecsfargate
+// Package ecs implements the ECS Workloadmeta collector.
+package ecs
 
 import (
 	"context"
@@ -19,15 +19,17 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+// parseTaskFromV2Endpoint parses a single task from the v2 metadata endpoint (Fargate basic metadata)
 func (c *collector) parseTaskFromV2Endpoint(ctx context.Context) ([]workloadmeta.CollectorEvent, error) {
 	task, err := c.metaV2.GetTask(ctx)
 	if err != nil {
 		return nil, err
 	}
-	return c.parseV2Task(task), nil
+	return c.parseV2TaskWithLaunchType(task), nil
 }
 
-func (c *collector) parseV2Task(task *v2.Task) []workloadmeta.CollectorEvent {
+// parseV2TaskWithLaunchType parses a v2 task and applies the correct launch type
+func (c *collector) parseV2TaskWithLaunchType(task *v2.Task) []workloadmeta.CollectorEvent {
 	events := []workloadmeta.CollectorEvent{}
 	seen := make(map[workloadmeta.EntityID]struct{})
 
@@ -45,19 +47,19 @@ func (c *collector) parseV2Task(task *v2.Task) []workloadmeta.CollectorEvent {
 
 	seen[entityID] = struct{}{}
 
-	taskContainers, containerEvents := c.parseTaskContainers(task, seen)
+	taskContainers, containerEvents := c.parseV2TaskContainers(task, seen)
 	taskRegion, taskAccountID := util.ParseRegionAndAWSAccountID(task.TaskARN)
 	entity := &workloadmeta.ECSTask{
 		EntityID: entityID,
 		EntityMeta: workloadmeta.EntityMeta{
 			Name: taskID,
 		},
-		ClusterName:  parseClusterName(task.ClusterName),
+		ClusterName:  c.parseClusterName(task.ClusterName),
 		Region:       taskRegion,
 		AWSAccountID: taskAccountID,
 		Family:       task.Family,
 		Version:      task.Version,
-		LaunchType:   workloadmeta.ECSLaunchTypeFargate,
+		LaunchType:   c.actualLaunchType, // Use detected launch type, not hardcoded
 		Containers:   taskContainers,
 
 		// the AvailabilityZone metadata is only available for
@@ -65,47 +67,44 @@ func (c *collector) parseV2Task(task *v2.Task) []workloadmeta.CollectorEvent {
 		AvailabilityZone: task.AvailabilityZone,
 	}
 
+	// Use appropriate source based on deployment mode
+	source := workloadmeta.SourceRuntime
+	if c.deploymentMode == deploymentModeDaemon {
+		source = workloadmeta.SourceNodeOrchestrator
+	}
+
 	events = append(events, containerEvents...)
 	events = append(events, workloadmeta.CollectorEvent{
-		Source: workloadmeta.SourceRuntime,
+		Source: source,
 		Type:   workloadmeta.EventTypeSet,
 		Entity: entity,
 	})
 
-	for seenID := range c.seen {
-		if _, ok := seen[seenID]; ok {
-			continue
-		}
-
-		var entity workloadmeta.Entity
-		switch seenID.Kind {
-		case workloadmeta.KindECSTask:
-			entity = &workloadmeta.ECSTask{EntityID: seenID}
-		case workloadmeta.KindContainer:
-			entity = &workloadmeta.Container{EntityID: seenID}
-		default:
-			log.Errorf("cannot handle expired entity of kind %q, skipping", seenID.Kind)
-			continue
-		}
-
-		events = append(events, workloadmeta.CollectorEvent{
-			Type:   workloadmeta.EventTypeUnset,
-			Source: workloadmeta.SourceRuntime,
-			Entity: entity,
-		})
-	}
-
+	// Handle unseen entities
+	events = c.handleUnseenEntities(events, seen, source)
 	c.seen = seen
 
 	return events
 }
 
-func (c *collector) parseTaskContainers(
+// parseV2TaskContainers extracts containers from a v2 task
+func (c *collector) parseV2TaskContainers(
 	task *v2.Task,
 	seen map[workloadmeta.EntityID]struct{},
 ) ([]workloadmeta.OrchestratorContainer, []workloadmeta.CollectorEvent) {
 	taskContainers := make([]workloadmeta.OrchestratorContainer, 0, len(task.Containers))
 	events := make([]workloadmeta.CollectorEvent, 0, len(task.Containers))
+
+	source := workloadmeta.SourceRuntime
+	if c.deploymentMode == deploymentModeDaemon {
+		source = workloadmeta.SourceNodeOrchestrator
+	}
+
+	// Determine container runtime based on actual launch type
+	containerRuntime := workloadmeta.ContainerRuntime("")
+	if c.actualLaunchType == workloadmeta.ECSLaunchTypeFargate {
+		containerRuntime = workloadmeta.ContainerRuntimeECSFargate
+	}
 
 	for _, container := range task.Containers {
 		containerID := container.DockerID
@@ -151,7 +150,7 @@ func (c *collector) parseTaskContainers(
 		}
 
 		events = append(events, workloadmeta.CollectorEvent{
-			Source: workloadmeta.SourceRuntime,
+			Source: source,
 			Type:   workloadmeta.EventTypeSet,
 			Entity: &workloadmeta.Container{
 				EntityID: entityID,
@@ -160,13 +159,13 @@ func (c *collector) parseTaskContainers(
 					Labels: container.Labels,
 				},
 				Image:      image,
-				Runtime:    workloadmeta.ContainerRuntimeECSFargate,
+				Runtime:    containerRuntime,
 				NetworkIPs: ips,
 				State: workloadmeta.ContainerState{
 					StartedAt: startedAt,
 					CreatedAt: createdAt,
 					Running:   container.KnownStatus == "RUNNING",
-					Status:    parseStatus(container.KnownStatus),
+					Status:    c.parseStatus(container.KnownStatus),
 				},
 			},
 		})
