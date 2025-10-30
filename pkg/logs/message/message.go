@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
+	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/statefulpb"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -40,8 +41,8 @@ type Payload struct {
 	UnencodedSize int
 	// Indicates if this payload is a snapshot for stream rotation
 	IsSnapshot bool
-	// For gRPC sender: array of Datum protobuf objects
-	GRPCDatums []any // Will hold []*grpc.Datum, using any to avoid import cycle
+	// For gRPC sender: the encoded payload to be sent
+	GRPCEncoded *statefulpb.StatefulBatch
 }
 
 // NewPayload creates a new payload with the given message metadata, encoded content, encoding type and unencoded size
@@ -133,7 +134,7 @@ type MessageContent struct { //nolint:revive
 	// structured content
 	structuredContent StructuredContent
 	// gRPC protobuf datum (for gRPC sender)
-	grpcDatum any // Will hold *grpc.Datum, using any to avoid import cycle
+	grpcDatum *statefulpb.Datum
 	State     MessageContentState
 }
 
@@ -206,13 +207,13 @@ func (m *MessageContent) SetEncoded(content []byte) {
 }
 
 // SetGRPCDatum sets the gRPC Datum for the MessageContent (for gRPC sender)
-func (m *MessageContent) SetGRPCDatum(datum any) {
+func (m *MessageContent) SetGRPCDatum(datum *statefulpb.Datum) {
 	m.grpcDatum = datum
 	m.State = StateEncoded // gRPC datum is considered encoded
 }
 
 // GetGRPCDatum returns the gRPC Datum if set
-func (m *MessageContent) GetGRPCDatum() any {
+func (m *MessageContent) GetGRPCDatum() *statefulpb.Datum {
 	return m.grpcDatum
 }
 

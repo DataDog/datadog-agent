@@ -13,7 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
-	grpc "github.com/DataDog/datadog-agent/pkg/logs/sender/grpc"
+	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/statefulpb"
 )
 
 // TestGRPCEncoder tests that GRPCEncoder creates valid protobuf structures
@@ -27,16 +27,11 @@ func TestGRPCEncoder(t *testing.T) {
 	require.NoError(t, err, "GRPCEncoder should encode message without error")
 
 	// Verify the message has a gRPC datum
-	grpcDatumAny := msg.GetGRPCDatum()
-	require.NotNil(t, grpcDatumAny, "Message should have gRPC datum after encoding")
-
-	// Type assert to *grpc.Datum
-	datum, ok := grpcDatumAny.(*grpc.Datum)
-	require.True(t, ok, "gRPC datum should be *grpc.Datum type")
-	require.NotNil(t, datum, "Datum should not be nil")
+	grpcDatum := msg.GetGRPCDatum()
+	require.NotNil(t, grpcDatum, "Message should have gRPC datum after encoding")
 
 	// Verify datum contains a Log
-	log := datum.GetLogs()
+	log := grpcDatum.GetLogs()
 	require.NotNil(t, log, "Datum should contain a Log")
 
 	// Verify log structure
@@ -69,13 +64,10 @@ func TestGRPCEncoderWithDifferentContent(t *testing.T) {
 			err := GRPCEncoder.Encode(msg, "test-hostname")
 			require.NoError(t, err, "Should encode without error")
 
-			grpcDatumAny := msg.GetGRPCDatum()
-			require.NotNil(t, grpcDatumAny, "Should have gRPC datum")
+			grpcDatum := msg.GetGRPCDatum()
+			require.NotNil(t, grpcDatum, "Should have gRPC datum")
 
-			datum, ok := grpcDatumAny.(*grpc.Datum)
-			require.True(t, ok, "Should be *grpc.Datum")
-
-			log := datum.GetLogs()
+			log := grpcDatum.GetLogs()
 			require.NotNil(t, log, "Should have log")
 
 			// For binary content, toValidUtf8 may modify it, so we check it's not empty
@@ -116,11 +108,11 @@ func TestMessageGRPCDatumMethods(t *testing.T) {
 	assert.Nil(t, msg.GetGRPCDatum(), "New message should not have gRPC datum")
 
 	// Create a test datum
-	datum := &grpc.Datum{
-		Data: &grpc.Datum_Logs{
-			Logs: &grpc.Log{
+	datum := &statefulpb.Datum{
+		Data: &statefulpb.Datum_Logs{
+			Logs: &statefulpb.Log{
 				Timestamp: uint64(time.Now().UnixNano()),
-				Content: &grpc.Log_Raw{
+				Content: &statefulpb.Log_Raw{
 					Raw: "test content",
 				},
 			},
@@ -144,22 +136,22 @@ func TestMessageGRPCDatumMethods(t *testing.T) {
 // TestPayloadGRPCDatums tests that payloads can hold gRPC datums
 func TestPayloadGRPCDatums(t *testing.T) {
 	// Create some test datums
-	datum1 := &grpc.Datum{
-		Data: &grpc.Datum_Logs{
-			Logs: &grpc.Log{
+	datum1 := &statefulpb.Datum{
+		Data: &statefulpb.Datum_Logs{
+			Logs: &statefulpb.Log{
 				Timestamp: uint64(time.Now().UnixNano()),
-				Content: &grpc.Log_Raw{
+				Content: &statefulpb.Log_Raw{
 					Raw: "message 1",
 				},
 			},
 		},
 	}
 
-	datum2 := &grpc.Datum{
-		Data: &grpc.Datum_Logs{
-			Logs: &grpc.Log{
+	datum2 := &statefulpb.Datum{
+		Data: &statefulpb.Datum_Logs{
+			Logs: &statefulpb.Log{
 				Timestamp: uint64(time.Now().UnixNano()),
-				Content: &grpc.Log_Raw{
+				Content: &statefulpb.Log_Raw{
 					Raw: "message 2",
 				},
 			},
@@ -172,17 +164,14 @@ func TestPayloadGRPCDatums(t *testing.T) {
 		Encoded:       []byte{},
 		Encoding:      "",
 		UnencodedSize: 0,
-		GRPCDatums:    []any{datum1, datum2},
+		GRPCData:      []*statefulpb.Datum{datum1, datum2},
 	}
 
 	// Verify payload structure
-	assert.Len(t, payload.GRPCDatums, 2, "Payload should contain 2 gRPC datums")
+	assert.Len(t, payload.GRPCData, 2, "Payload should contain 2 gRPC datums")
 
 	// Verify each datum can be retrieved and used
-	for i, datumAny := range payload.GRPCDatums {
-		datum, ok := datumAny.(*grpc.Datum)
-		require.True(t, ok, "Should be *grpc.Datum")
-
+	for i, datum := range payload.GRPCData {
 		log := datum.GetLogs()
 		require.NotNil(t, log, "Should have log")
 

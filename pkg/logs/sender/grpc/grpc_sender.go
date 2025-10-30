@@ -11,7 +11,6 @@ import (
 	"crypto/tls"
 	"fmt"
 	"time"
-	"unsafe"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -24,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	"github.com/DataDog/datadog-agent/pkg/logs/sender"
+	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/statefulpb"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 
@@ -36,7 +36,7 @@ type headerCredentials struct {
 }
 
 // GetRequestMetadata adds required headers to each RPC call
-func (h *headerCredentials) GetRequestMetadata(ctx context.Context, uri ...string) (map[string]string, error) {
+func (h *headerCredentials) GetRequestMetadata(_ context.Context, _ ...string) (map[string]string, error) {
 	headers := map[string]string{
 		"dd-api-key": h.endpoint.GetAPIKey(),
 	}
@@ -60,10 +60,10 @@ func (h *headerCredentials) RequireTransportSecurity() bool {
 	return false // We handle TLS separately via WithTransportCredentials
 }
 
-// GRPCSender implements PipelineComponent interface for gRPC log transmission.
+// Sender implements PipelineComponent interface for gRPC log transmission.
 // It manages multiple StreamWorker instances (one per pipeline) using round-robin distribution.
-// It is similar to Sender/Worker architecture
-type GRPCSender struct {
+// This is similar to the setup in pkg/logs/sender.Sender and pkg/logs/sender.Worker
+type Sender struct {
 	// Configuration
 	endpoint            config.Endpoint
 	destinationsContext *client.DestinationsContext
@@ -73,7 +73,7 @@ type GRPCSender struct {
 	// Pipeline integration
 	pipelineMonitor metrics.PipelineMonitor
 
-	// Stream management (similar to Sender's workers and queues)
+	// Stream management (similar to pkg/logs/sender.Sender's workers and queues)
 	workers []*StreamWorker
 	queues  []chan *message.Payload
 	idx     *atomic.Uint32
@@ -86,7 +86,7 @@ type GRPCSender struct {
 
 	// gRPC connection management (shared across all streams)
 	conn   *grpc.ClientConn
-	client StatefulLogsServiceClient
+	client statefulpb.StatefulLogsServiceClient
 }
 
 // NewGRPCSender creates a new gRPC sender that implements PipelineComponent
@@ -97,7 +97,7 @@ func NewGRPCSender(
 	endpoints *config.Endpoints,
 	destinationsCtx *client.DestinationsContext,
 	pipelineMonitor metrics.PipelineMonitor,
-) *GRPCSender {
+) *Sender {
 
 	// For now, use the first reliable endpoint
 	// TODO: Support multiple endpoints with failover
@@ -118,7 +118,7 @@ func NewGRPCSender(
 	// Get stream lifetime from config
 	streamLifetime := config.StreamLifetime(cfg)
 
-	sender := &GRPCSender{
+	sender := &Sender{
 		endpoint:            endpoint,
 		destinationsContext: destinationsCtx,
 		cfg:                 cfg,
@@ -170,7 +170,7 @@ func NewGRPCSender(
 }
 
 // createConnection establishes the shared gRPC connection
-func (s *GRPCSender) createConnection() error {
+func (s *Sender) createConnection() error {
 	log.Infof("Creating gRPC connection to %s:%d", s.endpoint.Host, s.endpoint.Port)
 
 	// Build connection options
@@ -210,7 +210,7 @@ func (s *GRPCSender) createConnection() error {
 	}
 
 	s.conn = conn
-	s.client = NewStatefulLogsServiceClient(conn)
+	s.client = statefulpb.NewStatefulLogsServiceClient(conn)
 
 	log.Infof("Successfully created gRPC connection to %s", address)
 	return nil
@@ -219,13 +219,13 @@ func (s *GRPCSender) createConnection() error {
 // PipelineComponent interface implementation
 
 // In returns the input channel using round-robin distribution (same as Sender.In())
-func (s *GRPCSender) In() chan *message.Payload {
+func (s *Sender) In() chan *message.Payload {
 	idx := s.idx.Inc() % uint32(len(s.queues))
 	return s.queues[idx]
 }
 
 // PipelineMonitor returns the pipeline monitor
-func (s *GRPCSender) PipelineMonitor() metrics.PipelineMonitor {
+func (s *Sender) PipelineMonitor() metrics.PipelineMonitor {
 	return s.pipelineMonitor
 }
 
@@ -233,7 +233,7 @@ func (s *GRPCSender) PipelineMonitor() metrics.PipelineMonitor {
 // that owns the given input channel. This enables 1:1 mapping between processors and workers.
 // This is ugly and temporary, until we have a proper way to link worker's signal channel to
 // the processor.
-func (s *GRPCSender) GetSignalChannelForInputChannel(inputChan chan *message.Payload) chan any {
+func (s *Sender) GetSignalChannelForInputChannel(inputChan chan *message.Payload) chan StreamRotateSignal {
 	// Find the worker that owns this input channel
 	worker := s.channelToWorkerMap[inputChan]
 	if worker == nil {
@@ -242,11 +242,16 @@ func (s *GRPCSender) GetSignalChannelForInputChannel(inputChan chan *message.Pay
 
 	// Convert the typed channel to chan any using unsafe conversion
 	// This is safe because both channels have the same underlying type
-	return *(*chan any)(unsafe.Pointer(&worker.signalStreamRotate))
+	return worker.signalStreamRotate
+}
+
+// TODO: due to the way the pipeline is setup/configured we need to be able to pass this output channel to the strategy.
+func (s *Sender) GetWorkerOutputChannelForInputChannel(inputChan chan *message.Payload) chan *message.Payload {
+	return s.channelToWorkerMap[inputChan].outputChan
 }
 
 // Start starts all StreamWorker instances (same pattern as Sender.Start())
-func (s *GRPCSender) Start() {
+func (s *Sender) Start() {
 	log.Infof("Starting gRPC sender with %d workers", len(s.workers))
 
 	for _, worker := range s.workers {
@@ -257,7 +262,7 @@ func (s *GRPCSender) Start() {
 }
 
 // Stop stops all StreamWorker instances and closes the connection
-func (s *GRPCSender) Stop() {
+func (s *Sender) Stop() {
 	log.Info("Stopping gRPC sender")
 
 	// Stop all workers (same pattern as Sender.Stop())

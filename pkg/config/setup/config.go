@@ -2666,6 +2666,7 @@ func bindEnvAndSetLogsConfigKeys(config pkgconfigmodel.Setup, prefix string) {
 	config.BindEnvAndSetDefault(prefix+"sender_recovery_reset", false)
 	config.BindEnvAndSetDefault(prefix+"stream_lifetime", DefaultLogsStreamLifetime)
 	config.BindEnvAndSetDefault(prefix+"use_v2_api", true)
+	// config.BindEnvAndSetDefault(prefix+"use_grpc", false)
 	config.SetKnown(prefix + "dev_mode_no_ssl") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 }
 

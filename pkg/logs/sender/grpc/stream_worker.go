@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/sender"
+	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/statefulpb"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -36,8 +37,11 @@ import (
 type RotationType int
 
 const (
+	// RotationTypeNone is the initial state, no rotation has happened yet
 	RotationTypeNone RotationType = iota
+	// RotationTypeHard is used when a stream rotation is started due to an error
 	RotationTypeHard
+	// RotationTypeGraceful is used when stream rotation is started due to stream lifetime expiration
 	RotationTypeGraceful
 )
 
@@ -55,7 +59,7 @@ type ReceiverSignal struct {
 
 // StreamInfo holds all stream-related information
 type StreamInfo struct {
-	Stream StatefulLogsService_LogsStreamClient
+	Stream statefulpb.StatefulLogsService_LogsStreamClient
 	Ctx    context.Context
 	Cancel context.CancelFunc
 }
@@ -68,19 +72,18 @@ type StreamWorker struct {
 	destinationsContext *client.DestinationsContext
 
 	// Pipeline integration
-	inputChan  chan *message.Payload
-	outputChan chan *message.Payload // For auditor acknowledgments
-	sink       sender.Sink           // For getting auditor channel
+	inputChan  chan *message.Payload // IN: payloads from sender.Strategy
+	outputChan chan *message.Payload // OUT: paylaods back to sender.Strategy to handle retry logic (including re-encoding)
+	sink       sender.Sink           // OUT: auditor channel for acknowledgments
 
 	// gRPC connection management (shared with other streams)
-	client StatefulLogsServiceClient
+	client statefulpb.StatefulLogsServiceClient
 
 	// Stream management
 	currentStream  *StreamInfo
 	generationID   uint64
 	recvFailureCh  chan ReceiverSignal // Signal receiver failure with generationID
 	streamLifetime time.Duration
-	batchIDCounter uint32
 
 	// Rotation management
 	inRotation    bool
@@ -103,7 +106,7 @@ type StreamWorker struct {
 func NewStreamWorker(
 	workerID string,
 	destinationsCtx *client.DestinationsContext,
-	client StatefulLogsServiceClient,
+	client statefulpb.StatefulLogsServiceClient,
 	sink sender.Sink,
 	streamLifetime time.Duration,
 ) *StreamWorker {
@@ -111,7 +114,7 @@ func NewStreamWorker(
 		workerID:            workerID,
 		destinationsContext: destinationsCtx,
 		inputChan:           make(chan *message.Payload, 100), // Buffered input
-		outputChan:          nil,                              // Will be set in Start()
+		outputChan:          make(chan *message.Payload, 100), // Buffered output
 		sink:                sink,                             // For getting auditor channel
 		client:              client,
 		recvFailureCh:       make(chan ReceiverSignal), // Unbuffered receiver failure signal
@@ -130,16 +133,6 @@ func NewStreamWorker(
 // Start begins the supervisor goroutine
 func (s *StreamWorker) Start() {
 	log.Infof("Starting gRPC stream worker %s", s.workerID)
-	s.outputChan = s.sink.Channel()
-
-	// Create initial stream
-	if stream, err := s.createNewStream(); err == nil {
-		s.currentStream = stream
-		log.Infof("Worker %s: Created initial stream (generation %d)", s.workerID, s.generationID)
-		go s.receiverLoop(stream, s.generationID)
-	} else {
-		log.Errorf("Worker %s: Failed to create initial stream: %v", s.workerID, err)
-	}
 
 	// Start supervisor/sender goroutine (master)
 	go s.supervisorLoop()
@@ -184,7 +177,7 @@ func (s *StreamWorker) supervisorLoop() {
 					// switch to the new stream
 					s.finishGracefulRotate(streamTimer)
 				}
-				// If payload is not a snapshot, we continously send them to
+				// If payload is not a snapshot, we continuously send them to
 				// the old stream.
 			}
 
@@ -196,7 +189,8 @@ func (s *StreamWorker) supervisorLoop() {
 			}
 
 		case signal := <-s.recvFailureCh:
-			if signal.GenerationID != s.generationID {
+			currentGen := s.generationID
+			if signal.GenerationID != currentGen {
 				// Signal from old stream generation, we must have rotated.
 				// - In case of hard rotation, this is timing thing, old receiver is reporting
 				//   the same transport failure as previously detected by the supervisor. since
@@ -206,7 +200,7 @@ func (s *StreamWorker) supervisorLoop() {
 				//   If there really were acks that we missed because drained stream died, we rely on
 				//   the upstream to detect and resend them
 				log.Infof("Worker %s: Ignoring signal from old generation %d (current: %d)",
-					s.workerID, signal.GenerationID, s.generationID)
+					s.workerID, signal.GenerationID, currentGen)
 				continue
 			}
 
@@ -256,7 +250,8 @@ func (s *StreamWorker) sendStreamRotateSignal(rt RotationType) {
 
 // beginHardRotate immediately closes and recreates the stream
 func (s *StreamWorker) beginHardRotate() {
-	log.Infof("Worker %s: Beginning hard rotation (generation %d)", s.workerID, s.generationID)
+	currentGen := s.generationID
+	log.Infof("Worker %s: Beginning hard rotation (generation %d)", s.workerID, currentGen)
 
 	// Signal "hard rotate" to upstream
 	s.sendStreamRotateSignal(RotationTypeHard)
@@ -264,15 +259,6 @@ func (s *StreamWorker) beginHardRotate() {
 	// Close current stream
 	s.closeStream(s.currentStream)
 	s.currentStream = nil
-
-	// Create new stream
-	if streamInfo, err := s.createNewStream(); err == nil {
-		s.currentStream = streamInfo
-		// Start new receiver goroutine with new stream
-		go s.receiverLoop(streamInfo, s.generationID)
-	} else {
-		log.Errorf("Worker %s: Failed to create new stream during hard rotation: %v", s.workerID, err)
-	}
 
 	// Set rotation state
 	s.inRotation = true
@@ -290,7 +276,8 @@ func (s *StreamWorker) finishHardRotate(streamTimer *time.Timer) {
 
 // beginGracefulRotate starts graceful rotation by signaling upstream
 func (s *StreamWorker) beginGracefulRotate() {
-	log.Infof("Worker %s: Beginning graceful rotation (generation %d)", s.workerID, s.generationID)
+	currentGen := s.generationID
+	log.Infof("Worker %s: Beginning graceful rotation (generation %d)", s.workerID, currentGen)
 
 	// Signal "graceful rotate" to upstream
 	s.sendStreamRotateSignal(RotationTypeGraceful)
@@ -307,16 +294,6 @@ func (s *StreamWorker) finishGracefulRotate(streamTimer *time.Timer) {
 	// Move current stream to drained
 	s.drainedStream = s.currentStream
 	s.currentStream = nil
-
-	// Create new stream
-	if streamInfo, err := s.createNewStream(); err == nil {
-		s.currentStream = streamInfo
-		log.Infof("Worker %s: Graceful rotation completed, new stream created (generation %d)", s.workerID, s.generationID)
-		// Start new receiver goroutine with new stream
-		go s.receiverLoop(streamInfo, s.generationID)
-	} else {
-		log.Errorf("Worker %s: Failed to create new stream during graceful rotation: %v", s.workerID, err)
-	}
 
 	// Start drain timer (10 seconds) - automatically closes drained stream when it expires
 	drainedStreamToClose := s.drainedStream
@@ -337,7 +314,9 @@ func (s *StreamWorker) finishGracefulRotate(streamTimer *time.Timer) {
 func (s *StreamWorker) createNewStream() (*StreamInfo, error) {
 	// Increment generation for new stream
 	s.generationID++
-	log.Infof("Worker %s: Creating new stream (generation %d)", s.workerID, s.generationID)
+	currentGen := s.generationID
+
+	log.Infof("Worker %s: Creating new stream (generation %d)", s.workerID, currentGen)
 
 	// Create per-stream context derived from destinations context
 	ctx, cancel := context.WithCancel(s.destinationsContext.Context())
@@ -346,11 +325,11 @@ func (s *StreamWorker) createNewStream() (*StreamInfo, error) {
 	stream, err := s.client.LogsStream(ctx)
 	if err != nil {
 		cancel() // Clean up context on error
-		log.Errorf("Worker %s: Failed to create gRPC stream (generation %d): %v", s.workerID, s.generationID, err)
+		log.Errorf("Worker %s: Failed to create gRPC stream (generation %d): %v", s.workerID, currentGen, err)
 		return nil, fmt.Errorf("failed to create stream: %w", err)
 	}
 
-	log.Infof("Worker %s: Successfully created gRPC stream (generation %d)", s.workerID, s.generationID)
+	log.Infof("Worker %s: Successfully created gRPC stream (generation %d)", s.workerID, currentGen)
 	return &StreamInfo{
 		Stream: stream,
 		Ctx:    ctx,
@@ -361,7 +340,7 @@ func (s *StreamWorker) createNewStream() (*StreamInfo, error) {
 // closeStream safely closes a stream and cancels its context
 func (s *StreamWorker) closeStream(streamInfo *StreamInfo) {
 	if streamInfo != nil {
-		streamInfo.Stream.CloseSend()
+		_ = streamInfo.Stream.CloseSend() // Per docs, this always returns nil
 		streamInfo.Cancel()
 	}
 }
@@ -369,13 +348,22 @@ func (s *StreamWorker) closeStream(streamInfo *StreamInfo) {
 // sendPayload sends a payload through the current stream
 func (s *StreamWorker) sendPayload(payload *message.Payload) error {
 	if s.currentStream == nil {
-		return fmt.Errorf("no active stream")
+		stream, err := s.createNewStream()
+		if err != nil {
+			return fmt.Errorf("failed to create new stream: %w", err)
+		}
+		s.currentStream = stream
+		log.Infof("Worker %s: Created stream (generation %d)", s.workerID, s.generationID)
+		go s.receiverLoop(stream, s.generationID)
 	}
 
 	batch := s.payloadToBatch(payload)
 
+	log.Infof("Worker %s (generation %d): Sending payload: %v", s.workerID, s.generationID, payload)
+
 	// Send the batch (headers were sent at stream creation time)
 	if err := s.currentStream.Stream.Send(batch); err != nil {
+		log.Errorf("Worker %s (generation %d): Failed to send payload: %v", s.workerID, s.generationID, err)
 		return fmt.Errorf("failed to send batch: %w", err)
 	}
 
@@ -455,12 +443,12 @@ func (s *StreamWorker) signalRecvFailure(generationID uint64, err error) {
 }
 
 // handleIrrecoverableError blocks the receiver when encountering terminal errors
-func (s *StreamWorker) handleIrrecoverableError(reason string) {
+func (s *StreamWorker) handleIrrecoverableError(_ string) {
 	// TODO: Implement proper blocking logic with exponential backoff and cancellable sleep
 }
 
 // handleBatchStatus processes a normal BatchStatus response
-func (s *StreamWorker) handleBatchStatus(response *BatchStatus) {
+func (s *StreamWorker) handleBatchStatus(response *statefulpb.BatchStatus) {
 	batchID := uint32(response.BatchId)
 
 	// Find the specific payload for this batch ID
@@ -472,11 +460,11 @@ func (s *StreamWorker) handleBatchStatus(response *BatchStatus) {
 	s.pendingPayloadsMu.Unlock()
 
 	if exists {
-		if response.Status == BatchStatus_OK {
+		if response.Status == statefulpb.BatchStatus_OK {
 			// Handle acknowledgments - send successful payloads to auditor
-			if s.outputChan != nil {
+			if auditOutput := s.sink.Channel(); auditOutput != nil {
 				select {
-				case s.outputChan <- payload:
+				case auditOutput <- payload:
 					// Successfully sent to auditor
 				default:
 					log.Warnf("Worker %s: Auditor channel full, dropping ack for batch %d", s.workerID, batchID)
@@ -492,24 +480,6 @@ func (s *StreamWorker) handleBatchStatus(response *BatchStatus) {
 
 // payloadToBatch converts a message payload to a StatefulBatch
 // The payload.GRPCDatums contains array of *grpc.Datum objects
-func (s *StreamWorker) payloadToBatch(payload *message.Payload) *StatefulBatch {
-	s.batchIDCounter++
-	batchID := s.batchIDCounter
-
-	batch := &StatefulBatch{
-		BatchId: batchID,
-		Data:    make([]*Datum, 0, payload.Count()),
-	}
-
-	// Use the GRPCDatums array from the payload (much cleaner!)
-	if payload.GRPCDatums != nil {
-		for _, datumInterface := range payload.GRPCDatums {
-			// Type assert to *Datum (should always work since we set it in grpcStreamStrategy)
-			if datum, ok := datumInterface.(*Datum); ok {
-				batch.Data = append(batch.Data, datum)
-			}
-		}
-	}
-
-	return batch
+func (s *StreamWorker) payloadToBatch(payload *message.Payload) *statefulpb.StatefulBatch {
+	return payload.GRPCEncoded
 }
