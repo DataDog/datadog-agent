@@ -65,6 +65,7 @@ type OTLPReceiver struct {
 	timing             timing.Reporter
 	grpcMaxRecvMsgSize int
 	isStopped          atomic.Bool
+	mu                 sync.RWMutex
 }
 
 // NewOTLPReceiver returns a new OTLPReceiver which sends any incoming traces down the out channel.
@@ -153,6 +154,9 @@ func (o *OTLPReceiver) Start() {
 
 // Stop stops any running server.
 func (o *OTLPReceiver) Stop() {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+
 	if !o.isStopped.CompareAndSwap(false, true) {
 		log.Warn("Stop called on already stopped OTLPReceiver")
 		return
@@ -250,6 +254,9 @@ func (o *OTLPReceiver) SetOTelAttributeTranslator(attrstrans *attributes.Transla
 
 // ReceiveResourceSpans processes the given rspans and returns the source that it identified from processing them.
 func (o *OTLPReceiver) ReceiveResourceSpans(ctx context.Context, rspans ptrace.ResourceSpans, httpHeader http.Header, hostFromAttributesHandler attributes.HostFromAttributesHandler) (source.Source, error) {
+	o.mu.RLock()
+	defer o.mu.RUnlock()
+
 	if o.isStopped.Load() {
 		return source.Source{}, errors.New("OTLPReceiver in trace agent is already stopped")
 	}
