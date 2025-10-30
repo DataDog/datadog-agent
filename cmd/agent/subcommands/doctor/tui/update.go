@@ -308,6 +308,19 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.loading = false
 		m.lastUpdate = time.Now()
 
+		// Adjust selected service index if service list changed
+		if len(m.status.Services) > 0 {
+			// Clamp selectedServiceIdx to valid range
+			if m.selectedServiceIdx >= len(m.status.Services) {
+				m.selectedServiceIdx = len(m.status.Services) - 1
+			}
+			if m.selectedServiceIdx < 0 {
+				m.selectedServiceIdx = 0
+			}
+		} else {
+			m.selectedServiceIdx = 0
+		}
+
 		// Update time series data for all services
 		m.updateTimeSeriesData()
 

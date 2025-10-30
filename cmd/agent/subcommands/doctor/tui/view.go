@@ -317,6 +317,11 @@ func (m model) renderServiceDetailsSection() string {
 		return subduedStyle.Render("No service selected")
 	}
 
+	// Bounds check for selected service index
+	if m.selectedServiceIdx < 0 || m.selectedServiceIdx >= len(m.status.Services) {
+		return subduedStyle.Render("No service selected")
+	}
+
 	// Get selected service
 	selectedService := m.status.Services[m.selectedServiceIdx]
 	serviceName := selectedService.Name

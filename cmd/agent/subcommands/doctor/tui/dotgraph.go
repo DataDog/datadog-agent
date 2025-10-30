@@ -184,21 +184,28 @@ func shouldFillCell(row int, value, avg, max float64) bool {
 // graphWidth specifies the width of each individual graph (number of time columns)
 func renderServiceDotGraphs(sts *serviceTimeSeries, graphWidth, infoBlockWidth int) string {
 	// Get the visible window for each telemetry type
-	// metricsWindow := getVisibleWindow(sts.metrics.values, graphWidth)
-	// logsWindow := getVisibleWindow(sts.logs.values, graphWidth)
-	// tracesWindow := getVisibleWindow(sts.traces.values, graphWidth)
+	var metricsWindow, logsWindow, tracesWindow []float64
+	if graphWidth > 0 {
+		metricsWindow = getVisibleWindow(sts.metrics.values, graphWidth)
+		logsWindow = getVisibleWindow(sts.logs.values, graphWidth)
+		tracesWindow = getVisibleWindow(sts.traces.values, graphWidth)
+	} else {
+		metricsWindow = sts.metrics.values
+		logsWindow = sts.logs.values
+		tracesWindow = sts.traces.values
+	}
 
 	// Calculate averages and max for visible window only
-	metricsAvg := getWindowAverage(sts.metrics.values)
-	metricsMax := getWindowMax(sts.metrics.values)
+	metricsAvg := getWindowAverage(metricsWindow)
+	metricsMax := getWindowMax(metricsWindow)
 	metricsCurrent := getCurrentValue(sts.metrics.values)
 
-	logsAvg := getWindowAverage(sts.logs.values)
-	logsMax := getWindowMax(sts.logs.values)
+	logsAvg := getWindowAverage(logsWindow)
+	logsMax := getWindowMax(logsWindow)
 	logsCurrent := getCurrentValue(sts.logs.values)
 
-	tracesAvg := getWindowAverage(sts.traces.values)
-	tracesMax := getWindowMax(sts.traces.values)
+	tracesAvg := getWindowAverage(tracesWindow)
+	tracesMax := getWindowMax(tracesWindow)
 	tracesCurrent := getCurrentValue(sts.traces.values)
 
 	// Render each graph (6 rows each)
