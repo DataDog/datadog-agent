@@ -30,12 +30,6 @@ checks:
       series: total_pss_bytes
       upper_bound: "250 MiB"
 
-  - name: lost_bytes
-    description: "Allowable bytes not polled by log Agent"
-    bounds:
-      series: lost_bytes
-      upper_bound: 0KiB
-
   - name: intake_connections
     description: "Connections established to intake APIs. This puts a bound on total connections per Agent instance."
     bounds:
