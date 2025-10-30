@@ -372,9 +372,9 @@ func (p *EBPFProbe) sanityChecks() error {
 		p.config.Probe.NetworkFlowMonitorEnabled = false
 	}
 
-	if p.config.RuntimeSecurity.SysCtlEnabled && p.isCgroupSysCtlNotSupported() {
+	if p.config.RuntimeSecurity.IsSysctlEventEnabled() && p.isCgroupSysCtlNotSupported() {
 		seclog.Warnf("The sysctl tracking feature of CWS requires a more recent kernel with support for the cgroup/sysctl program type, setting runtime_security_config.sysctl.enabled to false")
-		p.config.RuntimeSecurity.SysCtlEnabled = false
+		p.config.RuntimeSecurity.SysCtlEBPFEnabled = false
 	}
 
 	if p.config.Probe.CapabilitiesMonitoringEnabled && !p.isCapabilitiesMonitoringSupported() {
@@ -779,7 +779,7 @@ func (p *EBPFProbe) Start() error {
 	// start new tc classifier loop
 	go p.startSetupNewTCClassifierLoop()
 
-	if p.config.RuntimeSecurity.SysCtlEnabled && p.config.RuntimeSecurity.SysCtlSnapshotEnabled {
+	if p.config.RuntimeSecurity.IsSysctlSnapshotEnabled() {
 		// start sysctl snapshot loop
 		go p.startSysCtlSnapshotLoop()
 	}
@@ -1905,7 +1905,7 @@ func (p *EBPFProbe) validEventTypeForConfig(eventType string) bool {
 	case model.NetworkFlowMonitorEventType.String():
 		return p.probe.IsNetworkFlowMonitorEnabled()
 	case model.SyscallsEventType.String():
-		return p.probe.IsSysctlEventEnabled()
+		return p.config.RuntimeSecurity.IsSysctlEventEnabled()
 	}
 	return true
 }
@@ -2760,7 +2760,7 @@ func (p *EBPFProbe) initManagerOptionsExcludedFunctions() error {
 		p.managerOptions.AdditionalExcludedFunctionCollector = afBasedExcluder
 	}
 
-	if !p.config.RuntimeSecurity.SysCtlEnabled {
+	if !(p.config.RuntimeSecurity.SysCtlEnabled && p.config.RuntimeSecurity.SysCtlEBPFEnabled) {
 		p.managerOptions.ExcludedFunctions = append(p.managerOptions.ExcludedFunctions, probes.SysCtlProbeFunctionName)
 	}
 
