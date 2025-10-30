@@ -174,13 +174,18 @@ func (c *collector) processEvent(renderCtx evtapi.EventRenderContextHandle, even
 	if err != nil {
 		return fmt.Errorf("failed to get event ID: %w", err)
 	}
+	providerName, err := vals.String(evtapi.EvtSystemProviderName)
+	if err != nil {
+		return fmt.Errorf("failed to get provider name: %w", err)
+	}
 
 	log.Debugf("Collected notable event: channel=%s, event_id=%d", c.channelPath, eventID)
 
 	// TODO(WINA-1968): submit event to intake
 	payload := eventPayload{
-		Channel: c.channelPath,
-		EventID: uint(eventID),
+		Channel:  c.channelPath,
+		Provider: providerName,
+		EventID:  uint(eventID),
 	}
 	c.outChan <- payload
 

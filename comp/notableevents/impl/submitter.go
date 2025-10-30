@@ -21,8 +21,9 @@ import (
 // eventPayload represents a Windows Event Log event to be submitted
 // TODO(WINA-1968): TBD format for event payload, finish with intake.
 type eventPayload struct {
-	Channel string
-	EventID uint
+	Channel  string
+	Provider string
+	EventID  uint
 }
 
 // submitter receives event payloads from a channel and forwards them to the event platform
@@ -74,20 +75,22 @@ func (s *submitter) submitEvent(payload eventPayload) error {
 		"data": map[string]interface{}{
 			"type": "event",
 			"attributes": map[string]interface{}{
-				"title":    fmt.Sprintf("[TEST] Windows Event - %s Channel - Event ID %d", payload.Channel, payload.EventID),
+				"title":    fmt.Sprintf("System Error - Event ID %d - %s", payload.EventID, payload.Provider),
 				"category": "alert",
 				"attributes": map[string]interface{}{
-					"status":   "ok",
+					"status":   "error",
 					"priority": "5",
 					"custom": map[string]interface{}{
 						"channel":  payload.Channel,
+						"provider": payload.Provider,
 						"event_id": payload.EventID,
 						"source":   "windows_event_log",
 					},
 				},
-				"message": fmt.Sprintf("[TEST] Windows Event Log detected event %d in %s channel", payload.EventID, payload.Channel),
+				"message": fmt.Sprintf("Windows Event Log detected event %d from %s", payload.EventID, payload.Provider),
 				"tags": []string{
 					fmt.Sprintf("channel:%s", payload.Channel),
+					fmt.Sprintf("provider:%s", payload.Provider),
 					fmt.Sprintf("event_id:%d", payload.EventID),
 					"source:windows_event_log",
 				},
