@@ -51,14 +51,14 @@ func getLibExtension() string {
 	}
 }
 
-// store handles for loading, running checks
+// librayHandles stores everything needed for a shared library check
 type libraryHandles struct {
 	lib     unsafe.Pointer
 	run     *C.run_function_t
 	version *C.version_function_t
 }
 
-// libraryLoader is an interface that handles opening, running and closing shared libraries
+// libraryLoader is an interface to load/close checks' shared libraries and call their symbols
 type libraryLoader interface {
 	Load(name string) (libraryHandles, error)
 	Close(libHandle unsafe.Pointer) error
@@ -66,7 +66,6 @@ type libraryLoader interface {
 	Version(versionPtr *C.version_function_t) (string, error)
 }
 
-// SharedLibraryLoader is an interface to load/close shared libraries and run their `Run` symbol
 type sharedLibraryLoader struct {
 	folderPath string
 	aggregator *C.aggregator_t
@@ -161,5 +160,5 @@ func (ml *mockSharedLibraryLoader) Run(_ *C.run_function_t, _ string, _ string, 
 }
 
 func (ml *mockSharedLibraryLoader) Version(_ *C.version_function_t) (string, error) {
-	return "", nil
+	return "mock_version", nil
 }

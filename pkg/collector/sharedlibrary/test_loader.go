@@ -45,7 +45,7 @@ func testCreateFakeCheck(t *testing.T) {
 
 	assert.Nil(t, err)
 	assert.Equal(t, "fake_check", check.(*SharedLibraryCheck).name)
-	assert.Equal(t, "unversioned", check.(*SharedLibraryCheck).version)
+	assert.Equal(t, "mock_version", check.(*SharedLibraryCheck).version)
 	assert.Equal(t, "fake_check:/path/to/conf/fake_check.yaml", check.(*SharedLibraryCheck).source)
 }
 

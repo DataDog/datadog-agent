@@ -20,7 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// SharedLibraryCheck represents a shared library check, implements `Check` interface
+// SharedLibraryCheck is the definition of shared library checks
 //
 //nolint:revive
 type SharedLibraryCheck struct {
@@ -29,8 +29,8 @@ type SharedLibraryCheck struct {
 	version        string
 	interval       time.Duration
 	name           string
-	libraryLoader  libraryLoader
-	libHandles     libraryHandles // handles to the shared library and its symbols
+	libraryLoader  libraryLoader  // component that handles FFI
+	libHandles     libraryHandles // handle to the shared library and pointers to its symbols
 	source         string
 	initConfig     string // json string of check common config
 	instanceConfig string // json string of specific instance config
@@ -83,17 +83,14 @@ func (c *SharedLibraryCheck) runCheckImpl(commitMetrics bool) error {
 // Stop does nothing
 func (c *SharedLibraryCheck) Stop() {}
 
-// Cancel closes the associated shared library and unschedules the check
+// Cancel closes the associated shared library and prevents the check from running
 func (c *SharedLibraryCheck) Cancel() {
 	err := c.libraryLoader.Close(c.libHandles.lib)
-
 	if err != nil {
 		log.Errorf("Cancel of check %q failed: %s", c.name, err)
 	}
 
 	c.cancelled = true
-
-	// TODO: unschedule check
 }
 
 // String representation (for debug and logging)
