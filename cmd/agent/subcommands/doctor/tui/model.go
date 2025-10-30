@@ -12,10 +12,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
-	"sync"
+	"strings"
 	"time"
 
 	"github.com/charmbracelet/bubbles/spinner"
+	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
@@ -34,6 +35,8 @@ const (
 	MainView ViewMode = iota
 	// ServicesView shows the services list with their stats
 	ServicesView
+	// ServiceDetailView shows detailed view for a specific service with metrics and log tail
+	ServiceDetailView
 	// // LogsDetailView shows detailed logs information
 	// LogsDetailView
 )
@@ -77,6 +80,11 @@ type model struct {
 	logLines        []string    // Buffered log lines for the selected source
 	maxLogLines     int         // Maximum number of log lines to keep
 
+	// Service detail view state
+	selectedServiceForDetail string              // Service name being viewed in detail
+	allLogsStreamFetcher     *logFetcher         // Single log fetcher for all logs
+	serviceLogLinesBySource  map[string][]string // Map of service name -> log lines
+
 	// Time-series data for dot graph visualization
 	serviceTimeSeries map[string]*serviceTimeSeries // Service name -> time series data
 	maxTimeSeriesLen  int                           // Maximum number of time buckets to track
@@ -91,36 +99,35 @@ type model struct {
 	previousFailureCounts  map[string]int64               // Endpoint URL -> previous failure count (for detecting failures)
 	previousRequeuedCounts map[string]int64               // Endpoint URL -> previous requeue count (for detecting requeues)
 	previousErrorCounts    map[string]int64               // Endpoint URL -> previous error count (for detecting errors)
+
+	// Flare state
+	sendingFlare    bool            // True when flare is being sent
+	flareResult     string          // Result message from flare command (empty, success, or error)
+	flareEmailMode  bool            // True when prompting for email input
+	flareEmailInput textinput.Model // Text input for email address
 }
 
 type logFetcher struct {
-	sync.Mutex
-
-	// transitive data
+	sourceName  string // Name of the log source (for routing messages)
 	filtersJSON []byte
 	url         string
 	client      ipc.HTTPClient
 
-	logChunkChan chan []byte
-	cmdCtx       context.Context // context used for long running command
-	cmdCncl      func()          // context cancel function used for long running command
-
-	buf     bytes.Buffer
-	scanner *bufio.Scanner
-	wg      sync.WaitGroup
+	msgChan chan tea.Msg       // Channel for sending messages to Bubbletea
+	cancel  context.CancelFunc // Function to cancel the streaming
+	done    chan struct{}      // Signals when stream is fully stopped
 }
 
 func newLogFetcher(sourceName string, client ipc.HTTPClient) (*logFetcher, error) {
-	buf := bytes.Buffer{}
-
 	ipcAddress, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
 	if err != nil {
 		return nil, err
 	}
 
-	// Create filters for the specific source
-	filters := map[string]string{
-		"name": sourceName,
+	// Create filters - if sourceName is empty, get all logs, otherwise filter by source name
+	filters := map[string]string{}
+	if sourceName != "" {
+		filters["name"] = sourceName
 	}
 	filtersJSON, err := json.Marshal(filters)
 	if err != nil {
@@ -134,59 +141,137 @@ func newLogFetcher(sourceName string, client ipc.HTTPClient) (*logFetcher, error
 	}
 	url := fmt.Sprintf("https://%v:%v/agent/stream-logs", ipcAddress, cmdPort)
 
-	// creating new context
-	ctx, cncl := context.WithCancel(context.Background())
 	return &logFetcher{
-		client:       client,
-		filtersJSON:  filtersJSON,
-		url:          url,
-		logChunkChan: make(chan []byte),
-		cmdCtx:       ctx,
-		cmdCncl:      cncl,
-		buf:          buf,
-		scanner:      bufio.NewScanner(&buf),
+		sourceName:  sourceName,
+		client:      client,
+		filtersJSON: filtersJSON,
+		url:         url,
+		msgChan:     make(chan tea.Msg, 10), // Buffered channel to prevent blocking
+		done:        make(chan struct{}),
 	}, nil
 }
 
-func (lc *logFetcher) ListenCmd() tea.Cmd {
-	return func() tea.Msg {
-		lc.wg.Add(1)
-		defer lc.wg.Done()
-		log.Printf("starting to stream log from %v\n", lc.url)
-		lc.client.PostChunk(lc.url, "application/json", bytes.NewBuffer(lc.filtersJSON),
+// StartStreaming starts the log streaming in a background goroutine and returns a command
+// that continuously receives messages from the stream
+func (lc *logFetcher) StartStreaming() tea.Cmd {
+	// Create context for cancellation
+	ctx, cancel := context.WithCancel(context.Background())
+	lc.cancel = cancel
+
+	// Start the HTTP streaming in a goroutine
+	go func() {
+		defer close(lc.done)
+		defer close(lc.msgChan)
+
+		log.Printf("Starting log stream for source %s from %s\n", lc.sourceName, lc.url)
+
+		// Buffer for accumulating data
+		var buf bytes.Buffer
+		scanner := bufio.NewScanner(&buf)
+
+		// Start streaming HTTP request
+		err := lc.client.PostChunk(lc.url, "application/json", bytes.NewBuffer(lc.filtersJSON),
 			func(chunk []byte) {
-				lc.logChunkChan <- chunk
-				log.Printf("Recieved chunk from %v\n", lc.url)
+				// Process each chunk received
+				buf.Write(chunk)
+				scanner = bufio.NewScanner(&buf)
+
+				// Map of service -> messages for this chunk
+				serviceMessages := make(map[string][]string)
+
+				for scanner.Scan() {
+					line := scanner.Text()
+					// Extract service and message from the diagnostic format
+					// Format: "... | Service: <service> | ... | Message: <actual message>"
+					serviceName, message := extractLogFields(line)
+					if message != "" {
+						serviceMessages[serviceName] = append(serviceMessages[serviceName], message)
+					}
+				}
+
+				// Send one message per service that had logs in this chunk
+				for service, messages := range serviceMessages {
+					if len(messages) > 0 {
+						log.Printf("Received %d log lines for service %s\n", len(messages), service)
+						// Send message to Bubbletea (non-blocking due to buffered channel)
+						select {
+						case lc.msgChan <- logMsg{
+							sourceName: service, // Now contains actual service name
+							logLines:   messages,
+						}:
+						case <-ctx.Done():
+							log.Printf("Stream cancelled\n")
+							return
+						}
+					}
+				}
+
+				// Clear processed data from buffer
+				buf.Reset()
+				for scanner.Scan() {
+					buf.WriteString(scanner.Text() + "\n")
+				}
 			},
-			httphelpers.WithContext(lc.cmdCtx))
-		return nil
-	}
-}
+			httphelpers.WithContext(ctx))
 
-func (lc *logFetcher) WaitCmd() tea.Cmd {
-	return func() tea.Msg {
-		lc.wg.Add(1)
-		defer lc.wg.Done()
-		logChunk, ok := <-lc.logChunkChan
-		if !ok {
-			return nil
-		}
-		lc.Lock()
-		defer lc.Unlock()
-		log.Printf("Adding chunk to buffer %v\n", lc.url)
-
-		lc.buf.Write(logChunk)
-		res := []string{}
-		for lc.scanner.Scan() {
-			res = append(res, lc.scanner.Text())
-		}
-		if len(res) > 0 {
-			log.Printf("Returning logMsg %v\n", lc.url)
-			return logMsg{
-				logLines: res,
+		if err != nil {
+			log.Printf("Stream error for source %s: %v\n", lc.sourceName, err)
+			select {
+			case lc.msgChan <- streamErrorMsg{err: err}:
+			case <-ctx.Done():
 			}
 		}
-		return nil
+	}()
+
+	// Return a command that waits for messages from the stream
+	return lc.readNextMessage()
+}
+
+// extractLogFields extracts service name and message content from the diagnostic log format
+// Format: "Integration Name: ... | Service: <service> | ... | Message: <actual message>\n"
+// Returns (serviceName, message)
+func extractLogFields(formattedLine string) (string, string) {
+	// Extract service
+	const servicePrefix = "Service: "
+	serviceIdx := strings.Index(formattedLine, servicePrefix)
+	var serviceName string
+	if serviceIdx != -1 {
+		// Find the end of the service field (next pipe or end of string)
+		serviceStart := serviceIdx + len(servicePrefix)
+		serviceEnd := strings.Index(formattedLine[serviceStart:], " |")
+		if serviceEnd != -1 {
+			serviceName = strings.TrimSpace(formattedLine[serviceStart : serviceStart+serviceEnd])
+		} else {
+			serviceName = strings.TrimSpace(formattedLine[serviceStart:])
+		}
+	}
+
+	// Extract message
+	const messagePrefix = "Message: "
+	messageIdx := strings.Index(formattedLine, messagePrefix)
+	var message string
+	if messageIdx != -1 {
+		// Extract everything after "Message: "
+		message = strings.TrimSpace(formattedLine[messageIdx+len(messagePrefix):])
+	} else {
+		// If format doesn't match, return the whole line as message
+		message = formattedLine
+	}
+
+	return serviceName, message
+}
+
+// readNextMessage returns a command that waits for the next message from the stream
+func (lc *logFetcher) readNextMessage() tea.Cmd {
+	return func() tea.Msg {
+		// Block waiting for next message from the stream goroutine
+		msg, ok := <-lc.msgChan
+		if !ok {
+			// Channel closed, stream ended
+			log.Printf("Stream ended for source %s\n", lc.sourceName)
+			return nil
+		}
+		return msg
 	}
 }
 
@@ -195,13 +280,13 @@ func (lc *logFetcher) Close() {
 		return
 	}
 
-	// First stop context
-	lc.cmdCncl()
-	// wait before closing the channel
-	lc.wg.Wait()
+	// Cancel the context to stop the HTTP stream
+	if lc.cancel != nil {
+		lc.cancel()
+	}
 
-	// Then close channel
-	close(lc.logChunkChan)
+	// Wait for the stream goroutine to finish
+	<-lc.done
 }
 
 // payloadAnimation represents a single payload moving along the wire
@@ -226,6 +311,13 @@ func newModel(client ipcdef.HTTPClient) model {
 	s.Spinner = spinner.Dot
 	s.Style = spinnerStyle
 
+	// Create email input for flare
+	emailInput := textinput.New()
+	emailInput.Placeholder = "your.email@example.com"
+	emailInput.Focus()
+	emailInput.CharLimit = 100
+	emailInput.Width = 50
+
 	return model{
 		client:     client,
 		status:     nil,
@@ -238,14 +330,17 @@ func newModel(client ipcdef.HTTPClient) model {
 		quitting:   false,
 		viewMode:   MainView,
 		// selectedPanel:      0,
-		selectedLogIdx:     0,
-		selectedServiceIdx: 0,
-		scrollOffset:       0,
-		logLines:           []string{},
-		maxLogLines:        100, // Keep last 100 log lines
-		streamingSource:    "",
-		serviceTimeSeries:  make(map[string]*serviceTimeSeries),
-		maxTimeSeriesLen:   60, // Track last 60 time buckets (2 seconds per refresh = 2 minutes)
+		selectedLogIdx:           0,
+		selectedServiceIdx:       0,
+		scrollOffset:             0,
+		logLines:                 []string{},
+		maxLogLines:              100, // Keep last 100 log lines
+		streamingSource:          "",
+		selectedServiceForDetail: "",
+		allLogsStreamFetcher:     nil,
+		serviceLogLinesBySource:  make(map[string][]string),
+		serviceTimeSeries:        make(map[string]*serviceTimeSeries),
+		maxTimeSeriesLen:         60, // Track last 60 time buckets (2 seconds per refresh = 2 minutes)
 		// otherTimeSeries:    newServiceTimeSeries(60), // "other" service for unattributed activity
 		endpointPayloads:       make(map[string][]*payloadAnimation),
 		endpointFlashState:     make(map[string]*flashState),
@@ -255,5 +350,9 @@ func newModel(client ipcdef.HTTPClient) model {
 		previousFailureCounts:  make(map[string]int64),
 		previousRequeuedCounts: make(map[string]int64),
 		previousErrorCounts:    make(map[string]int64),
+		sendingFlare:           false,
+		flareResult:            "",
+		flareEmailMode:         false,
+		flareEmailInput:        emailInput,
 	}
 }

@@ -32,15 +32,67 @@ func (m model) View() string {
 		return m.renderLoading()
 	}
 
-	// Render based on view mode
+	// Render the base view
+	var baseView string
 	switch m.viewMode {
+	case ServiceDetailView:
+		baseView = m.renderServiceDetailView()
 	// case ServicesView:
-	// 	return m.renderServicesView()
+	// 	baseView = m.renderServicesView()
 	// case LogsDetailView:
-	// 	return m.renderLogsDetailView()
+	// 	baseView = m.renderLogsDetailView()
 	default:
-		return m.renderMainView()
+		baseView = m.renderMainView()
 	}
+
+	// Show email input overlay if in email mode
+	if m.flareEmailMode {
+		return m.renderEmailInputOverlay(baseView)
+	}
+
+	return baseView
+}
+
+// renderEmailInputOverlay displays an email input dialog overlay on top of the base view
+func (m model) renderEmailInputOverlay(baseView string) string {
+	// Create a dialog box for email input
+	dialogWidth := 60
+	dialogHeight := 8
+
+	title := titleStyle.Render("Send Flare to Datadog Support")
+	prompt := subduedStyle.Render("Please enter your email address:")
+	input := m.flareEmailInput.View()
+	hint := subduedStyle.Render("Press Enter to confirm, Esc to cancel")
+
+	dialogContent := lipgloss.JoinVertical(
+		lipgloss.Left,
+		title,
+		"",
+		prompt,
+		input,
+		"",
+		hint,
+	)
+
+	// Create dialog box with border
+	dialog := lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(lipgloss.Color("1")). // Red border to match flare button
+		Padding(1, 2).
+		Width(dialogWidth).
+		Height(dialogHeight).
+		Render(dialogContent)
+
+	// Overlay the dialog on top of the base view
+	return lipgloss.Place(
+		m.width,
+		m.height,
+		lipgloss.Center,
+		lipgloss.Center,
+		dialog,
+		lipgloss.WithWhitespaceChars(" "),
+		lipgloss.WithWhitespaceForeground(lipgloss.Color("0")), // Dark background
+	)
 }
 
 // renderError displays a full-screen error message when agent is not reachable
@@ -182,6 +234,12 @@ func (m model) renderFooter() string {
 	var shortcuts []string
 
 	switch m.viewMode {
+	case ServiceDetailView:
+		shortcuts = []string{
+			keyStyle.Render("esc") + " back to main",
+			keyStyle.Render("r") + " refresh",
+			keyStyle.Render("q") + " quit",
+		}
 	// case LogsDetailView:
 	// 	shortcuts = []string{
 	// 		keyStyle.Render("↑/↓") + " navigate",
@@ -199,12 +257,176 @@ func (m model) renderFooter() string {
 		shortcuts = []string{
 			keyStyle.Render("←/→") + " switch panel",
 			keyStyle.Render("↑/↓") + " scroll services",
+			keyStyle.Render("enter") + " service detail",
+			keyStyle.Render("f") + " send flare",
 			keyStyle.Render("r") + " refresh",
 			keyStyle.Render("q") + " quit",
 		}
 	}
 
 	return footerStyle.Render(strings.Join(shortcuts, " • "))
+}
+
+// renderServiceDetailView renders the full-screen service detail view with metrics and logs
+func (m model) renderServiceDetailView() string {
+	if m.status == nil {
+		return "No data available"
+	}
+
+	// Get the service name being viewed
+	serviceName := m.selectedServiceForDetail
+
+	// Calculate panel dimensions
+	// Right panel will be split horizontally: upper half for metrics, lower half for logs
+	rightPanelWidth := m.width / 2
+	if m.width < minWidthForHorizontalSplit {
+		rightPanelWidth = m.width
+	}
+
+	contentHeight := m.height - 6 // Account for header and footer
+	metricsHeight := contentHeight / 2
+	logsHeight := contentHeight - metricsHeight
+
+	// Left panel: Services list (same as main view)
+	leftPanelWidth := m.width - rightPanelWidth
+	servicesPanel := m.renderServicesPanel(leftPanelWidth, contentHeight, true)
+
+	// Right panel: Metrics + Logs split vertically
+	metricsPanel := m.renderServiceMetricsPanel(serviceName, rightPanelWidth, metricsHeight)
+	logsPanel := m.renderServiceLogsPanel(serviceName, rightPanelWidth, logsHeight)
+
+	rightPanel := lipgloss.JoinVertical(
+		lipgloss.Left,
+		metricsPanel,
+		logsPanel,
+	)
+
+	// Join panels horizontally or vertically based on width
+	var panels string
+	if m.width >= minWidthForHorizontalSplit {
+		panels = lipgloss.JoinHorizontal(lipgloss.Top, servicesPanel, rightPanel)
+	} else {
+		panels = lipgloss.JoinVertical(lipgloss.Left, servicesPanel, rightPanel)
+	}
+
+	// Add header and footer
+	header := m.renderHeader()
+	footer := m.renderFooter()
+
+	return lipgloss.JoinVertical(
+		lipgloss.Left,
+		header,
+		panels,
+		footer,
+	)
+}
+
+// renderServiceMetricsPanel renders the upper half showing service metrics and checks
+func (m model) renderServiceMetricsPanel(serviceName string, width, height int) string {
+	displayServiceName := serviceName
+	if serviceName == "" {
+		displayServiceName = "other (unattributed)"
+	}
+
+	title := fmt.Sprintf("service: %s - metrics", displayServiceName)
+
+	var content strings.Builder
+
+	// Find the service data
+	var serviceData *doctordef.ServiceStats
+	for i := range m.status.Services {
+		if m.status.Services[i].Name == serviceName {
+			serviceData = &m.status.Services[i]
+			break
+		}
+	}
+
+	if serviceData != nil {
+		// Show aggregate rates
+		content.WriteString(subduedStyle.Render("Aggregate Rates:") + "\n")
+		content.WriteString(fmt.Sprintf("  %s\n", formatKeyValue("Metrics", fmt.Sprintf("%.2f/s", serviceData.MetricsRate))))
+		content.WriteString(fmt.Sprintf("  %s\n", formatKeyValue("Logs", fmt.Sprintf("%.2f bytes/s", serviceData.LogsRate))))
+		content.WriteString(fmt.Sprintf("  %s\n", formatKeyValue("Traces", fmt.Sprintf("%.2f/s", serviceData.TracesRate))))
+		content.WriteString("\n")
+	}
+
+	// Find checks for this service
+	var serviceChecks []doctordef.CheckInfo
+	for _, check := range m.status.Ingestion.Checks.CheckList {
+		if check.Service == serviceName {
+			serviceChecks = append(serviceChecks, check)
+		}
+	}
+
+	// Render checks
+	content.WriteString(subduedStyle.Render("Checks:") + "\n")
+	if len(serviceChecks) == 0 {
+		content.WriteString(subduedStyle.Render("  No checks found"))
+	} else {
+		for _, check := range serviceChecks {
+			statusSymbol := "✓"
+			statusColor := successStyle
+			switch check.Status {
+			case "error":
+				statusSymbol = "✗"
+				statusColor = errorStyle
+			case "warning":
+				statusSymbol = "⚠"
+				statusColor = warningStyle
+			}
+			content.WriteString(fmt.Sprintf("  %s %s\n",
+				statusColor.Render(statusSymbol),
+				valueStyle.Render(check.Name)))
+		}
+	}
+
+	return panelStyle.
+		BorderForeground(colorBorder).
+		Width(width - panelBorderWidth).
+		Height(height).
+		Render(titleStyle.Render(title) + "\n\n" + content.String())
+}
+
+// renderServiceLogsPanel renders the lower half showing streaming logs for the selected service
+func (m model) renderServiceLogsPanel(serviceName string, width, height int) string {
+	displayServiceName := serviceName
+	if serviceName == "" {
+		displayServiceName = "other (unattributed)"
+	}
+
+	title := fmt.Sprintf("service: %s - logs (streaming)", displayServiceName)
+
+	var content strings.Builder
+
+	// Get logs for this service from the single stream
+	logLines, hasLogs := m.serviceLogLinesBySource[serviceName]
+
+	if !hasLogs || len(logLines) == 0 {
+		content.WriteString(subduedStyle.Render("Waiting for logs..."))
+	} else {
+		// Calculate available lines
+		availableLines := height - 4 // Account for title and padding
+		if availableLines < 1 {
+			availableLines = 1
+		}
+
+		// Show last N lines
+		startIdx := 0
+		if len(logLines) > availableLines {
+			startIdx = len(logLines) - availableLines
+		}
+
+		for _, line := range logLines[startIdx:] {
+			truncatedLine := truncate(line, width-6)
+			content.WriteString(valueStyle.Render(truncatedLine) + "\n")
+		}
+	}
+
+	return panelStyle.
+		BorderForeground(colorBorder).
+		Width(width - panelBorderWidth).
+		Height(height).
+		Render(titleStyle.Render(title) + "\n\n" + content.String())
 }
 
 // // renderIngestionPanel renders the left panel showing ingestion status
@@ -311,96 +533,72 @@ func (m model) renderAgentPanel(width, height int, isSelected bool) string {
 		Render(titleStyle.Render(title) + "\n\n" + content)
 }
 
-// renderServiceDetailsSection renders details for the currently selected service
-func (m model) renderServiceDetailsSection() string {
-	if m.status == nil || len(m.status.Services) == 0 {
-		return subduedStyle.Render("No service selected")
+// renderComponentHealthSection renders unhealthy components
+// Returns empty string if all components are healthy
+func (m model) renderComponentHealthSection() string {
+	if m.status == nil {
+		return ""
 	}
 
-	// Bounds check for selected service index
-	if m.selectedServiceIdx < 0 || m.selectedServiceIdx >= len(m.status.Services) {
-		return subduedStyle.Render("No service selected")
-	}
-
-	// Get selected service
-	selectedService := m.status.Services[m.selectedServiceIdx]
-	serviceName := selectedService.Name
-	displayServiceName := serviceName
-	if serviceName == "" {
-		displayServiceName = "other"
+	unhealthy := m.status.Agent.Health.Unhealthy
+	if len(unhealthy) == 0 {
+		return ""
 	}
 
 	var result strings.Builder
-	result.WriteString(highlightStyle.Render(fmt.Sprintf("Selected: %s", displayServiceName)))
-	result.WriteString("\n\n")
-
-	// Find checks for this service
-	var serviceChecks []doctordef.CheckInfo
-	for _, check := range m.status.Ingestion.Checks.CheckList {
-		if check.Service == serviceName {
-			serviceChecks = append(serviceChecks, check)
-		}
-	}
-
-	// Find logs for this service
-	var serviceLogs []doctordef.LogSource
-	for _, log := range m.status.Ingestion.Logs.Integrations {
-		if log.Service == serviceName {
-			serviceLogs = append(serviceLogs, log)
-		}
-	}
-
-	// Render checks
-	result.WriteString(subduedStyle.Render("Checks:"))
-	result.WriteString("\n")
-	if len(serviceChecks) == 0 {
-		result.WriteString(subduedStyle.Render("  No checks found"))
-	} else {
-		for _, check := range serviceChecks {
-			statusSymbol := "✓"
-			statusColor := successStyle
-			switch check.Status {
-			case "error":
-				statusSymbol = "✗"
-				statusColor = errorStyle
-			case "warning":
-				statusSymbol = "⚠"
-				statusColor = warningStyle
-			}
-			result.WriteString(fmt.Sprintf("  %s %s\n",
-				statusColor.Render(statusSymbol),
-				valueStyle.Render(check.Name)))
-		}
-	}
-
-	// Render logs
-	result.WriteString("\n")
-	result.WriteString(subduedStyle.Render("Logs:"))
-	result.WriteString("\n")
-	if len(serviceLogs) == 0 {
-		result.WriteString(subduedStyle.Render("  No log sources found"))
-	} else {
-		for _, log := range serviceLogs {
-			for _, input := range log.Inputs {
-				result.WriteString(fmt.Sprintf("  • %s\n", valueStyle.Render(truncate(input, 40))))
-			}
-		}
+	for _, component := range unhealthy {
+		result.WriteString(fmt.Sprintf("%s %s\n",
+			errorStyle.Render("✗"),
+			valueStyle.Render(component)))
 	}
 
 	return result.String()
 }
 
-// renderAgentPanelContent renders the complete Agent Panel with service details, logo, metadata, and connectivity
+// renderUnattributedChecksSection renders checks that are not associated with any service
+// Returns empty string if there are no unattributed checks
+func (m model) renderUnattributedChecksSection() string {
+	if m.status == nil {
+		return ""
+	}
+
+	// Filter unattributed checks (where Service is empty)
+	var unattributedChecks []doctordef.CheckInfo
+	for _, check := range m.status.Ingestion.Checks.CheckList {
+		if check.Service == "" {
+			unattributedChecks = append(unattributedChecks, check)
+		}
+	}
+
+	if len(unattributedChecks) == 0 {
+		return ""
+	}
+
+	var result strings.Builder
+	for _, check := range unattributedChecks {
+		statusSymbol := "✓"
+		statusColor := successStyle
+		switch check.Status {
+		case "error":
+			statusSymbol = "✗"
+			statusColor = errorStyle
+		case "warning":
+			statusSymbol = "⚠"
+			statusColor = warningStyle
+		}
+		result.WriteString(fmt.Sprintf("%s %s\n",
+			statusColor.Render(statusSymbol),
+			valueStyle.Render(check.Name)))
+	}
+
+	return result.String()
+}
+
+// renderAgentPanelContent renders the complete Agent Panel with agent info, connectivity, health, and unattributed checks
 func (m model) renderAgentPanelContent(width, height int) string {
 	if m.status == nil {
 		return "No data available"
 	}
-
-	// Top section: Service details with max width
-	serviceDetails := lipgloss.NewStyle().
-		MaxWidth(width).
-		MaxHeight(height / 2).
-		Render(m.renderServiceDetailsSection())
 
 	// Render Infos section with width constraint
 	infosSection := lipgloss.NewStyle().
@@ -412,15 +610,87 @@ func (m model) renderAgentPanelContent(width, height int) string {
 	connectivity := m.renderConnectivitySection(width, connectivityHeight)
 	connectivityWithSeparator := subduedStyle.Render("─── Connectivity ───") + "\n" + connectivity
 
-	// Combine all sections vertically: service details + middle section
+	// Render component health section (only unhealthy components)
+	healthSection := m.renderComponentHealthSection()
+	healthWithSeparator := ""
+	if healthSection != "" {
+		healthWithSeparator = "\n\n" + subduedStyle.Render("─── Component Health ───") + "\n" + healthSection
+	}
+
+	// Render unattributed checks section
+	unattributedSection := m.renderUnattributedChecksSection()
+	unattributedWithSeparator := ""
+	if unattributedSection != "" {
+		unattributedWithSeparator = "\n\n" + subduedStyle.Render("─── Unattributed Checks ───") + "\n" + unattributedSection
+	}
+
+	// Render flare button at the bottom
+	flareButton := m.renderFlareButton(width)
+
+	// Combine all sections vertically
 	return lipgloss.JoinVertical(
 		lipgloss.Left,
-		serviceDetails,
-		"\n",
 		infosSection,
 		"\n",
 		connectivityWithSeparator,
+		healthWithSeparator,
+		unattributedWithSeparator,
+		"\n\n",
+		flareButton,
 	)
+}
+
+// renderFlareButton renders the flare button at the bottom right of the agent panel
+func (m model) renderFlareButton(width int) string {
+	var buttonText string
+	var buttonStyle lipgloss.Style
+
+	if m.sendingFlare {
+		// Show "Sending flare..." with spinner
+		buttonText = " Sending flare... "
+		buttonStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("15")). // White
+			Background(lipgloss.Color("3")).  // Yellow/orange
+			Bold(true).
+			Padding(0, 1)
+	} else if m.flareResult != "" {
+		// Show result message temporarily
+		if strings.Contains(m.flareResult, "success") || strings.Contains(m.flareResult, "Success") {
+			buttonText = " Flare sent successfully! "
+			buttonStyle = lipgloss.NewStyle().
+				Foreground(lipgloss.Color("15")). // White
+				Background(lipgloss.Color("2")).  // Green
+				Bold(true).
+				Padding(0, 1)
+		} else {
+			buttonText = " Flare failed "
+			buttonStyle = lipgloss.NewStyle().
+				Foreground(lipgloss.Color("15")). // White
+				Background(lipgloss.Color("1")).  // Red
+				Bold(true).
+				Padding(0, 1)
+		}
+	} else {
+		// Normal state - show button with hint
+		buttonText = " You need help? Send a flare (press 'f') "
+		buttonStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("15")). // White text
+			Background(lipgloss.Color("1")).  // Red background
+			Bold(true).
+			Padding(0, 1)
+	}
+
+	styledButton := buttonStyle.Render(buttonText)
+
+	// Right-align the button
+	buttonWidth := lipgloss.Width(styledButton)
+	if buttonWidth >= width {
+		return styledButton
+	}
+
+	// Add padding to right-align
+	padding := width - buttonWidth
+	return strings.Repeat(" ", padding) + styledButton
 }
 
 // renderAgentInfoSection renders the agent info section with metadata (no logo)

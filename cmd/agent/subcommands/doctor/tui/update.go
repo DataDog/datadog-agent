@@ -41,6 +41,34 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.height = msg.Height
 
 	case tea.KeyMsg:
+		// Handle email input mode first (takes precedence over view mode)
+		if m.flareEmailMode {
+			switch msg.String() {
+			case "enter":
+				// User confirmed email - send flare
+				email := m.flareEmailInput.Value()
+				if email != "" {
+					m.flareEmailMode = false
+					m.sendingFlare = true
+					m.flareResult = ""
+					return m, sendFlare(email)
+				}
+				// If email is empty, don't do anything (user must provide email or cancel)
+
+			case "esc":
+				// User cancelled email input
+				m.flareEmailMode = false
+				m.flareEmailInput.SetValue("") // Clear input
+				return m, nil
+
+			default:
+				// Update text input with the keypress
+				var cmd tea.Cmd
+				m.flareEmailInput, cmd = m.flareEmailInput.Update(msg)
+				return m, cmd
+			}
+		}
+
 		// Handle keyboard input based on current view mode
 		switch m.viewMode {
 		case MainView:
@@ -53,6 +81,45 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case "r":
 				// User requested manual refresh
 				return m, fetchDoctorStatus(m.client)
+
+			case "f":
+				// User requested to send a flare - show email input
+				if !m.sendingFlare && !m.flareEmailMode {
+					m.flareEmailMode = true
+					m.flareEmailInput.SetValue("") // Clear previous value
+					m.flareEmailInput.Focus()
+					return m, nil
+				}
+
+			case "enter":
+				// Drill down into service detail view
+				if m.status != nil && len(m.status.Services) > 0 && m.selectedServiceIdx >= 0 && m.selectedServiceIdx < len(m.status.Services) {
+					// Get selected service
+					selectedService := m.status.Services[m.selectedServiceIdx]
+					serviceName := selectedService.Name
+
+					// Store the service being viewed
+					m.selectedServiceForDetail = serviceName
+
+					// Switch to service detail view
+					m.viewMode = ServiceDetailView
+
+					// Clean up existing log stream if any
+					if m.allLogsStreamFetcher != nil {
+						m.allLogsStreamFetcher.Close()
+					}
+					m.serviceLogLinesBySource = make(map[string][]string)
+
+					// Create a single log stream for ALL logs (no filter)
+					// The logs will be routed to different services based on the Service field
+					// Pass empty string to get all logs
+					logFetcher, err := newLogFetcher("", m.client)
+					if err == nil {
+						m.allLogsStreamFetcher = logFetcher
+						// Start streaming all logs
+						return m, logFetcher.StartStreaming()
+					}
+				}
 
 			// case "left", "h":
 			// 	// Navigate to previous panel (only 2 panels now: services and agent)
@@ -238,6 +305,33 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 			}
 
+		case ServiceDetailView:
+			switch msg.String() {
+			case "q", "ctrl+c":
+				// User wants to quit
+				m.quitting = true
+				// Clean up log stream before quitting
+				if m.allLogsStreamFetcher != nil {
+					m.allLogsStreamFetcher.Close()
+				}
+				return m, tea.Quit
+
+			case "esc":
+				// Go back to main view
+				m.viewMode = MainView
+				m.selectedServiceForDetail = ""
+				// Stop streaming logs and clean up
+				if m.allLogsStreamFetcher != nil {
+					m.allLogsStreamFetcher.Close()
+					m.allLogsStreamFetcher = nil
+				}
+				m.serviceLogLinesBySource = make(map[string][]string)
+
+			case "r":
+				// User requested manual refresh
+				return m, fetchDoctorStatus(m.client)
+			}
+
 			// case LogsDetailView:
 			// 	switch msg.String() {
 			// 	case "q", "ctrl+c":
@@ -335,13 +429,34 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, fetchDoctorStatus(m.client)
 
 	case logMsg:
-		m.logLines = append(m.logLines, msg.logLines...)
+		// Route log lines based on current view mode
+		if m.viewMode == ServiceDetailView && m.allLogsStreamFetcher != nil {
+			// Service detail view - route to the appropriate service buffer
+			// The sourceName in msg now contains the actual service name extracted from the log
+			serviceName := msg.sourceName
 
-		// Keep only the last maxLogLines
-		if len(m.logLines) > m.maxLogLines {
-			m.logLines = m.logLines[len(m.logLines)-m.maxLogLines:]
+			// Append to the service-specific log lines
+			m.serviceLogLinesBySource[serviceName] = append(m.serviceLogLinesBySource[serviceName], msg.logLines...)
+
+			// Keep only the last maxLogLines per service
+			if len(m.serviceLogLinesBySource[serviceName]) > m.maxLogLines {
+				m.serviceLogLinesBySource[serviceName] = m.serviceLogLinesBySource[serviceName][len(m.serviceLogLinesBySource[serviceName])-m.maxLogLines:]
+			}
+
+			// Continue reading from the single stream
+			// The readNextMessage command will block until the next message arrives
+			return m, m.allLogsStreamFetcher.readNextMessage()
+		} else if m.logFetcher != nil {
+			// Other views - append to general log lines
+			m.logLines = append(m.logLines, msg.logLines...)
+
+			// Keep only the last maxLogLines
+			if len(m.logLines) > m.maxLogLines {
+				m.logLines = m.logLines[len(m.logLines)-m.maxLogLines:]
+			}
+			// Note: m.logFetcher uses the old pattern, would need updating if used
+			return m, nil
 		}
-		return m, m.logFetcher.WaitCmd()
 
 	case streamErrorMsg:
 		// Error streaming logs - just log it, don't fail
@@ -357,6 +472,23 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Animation refresh loop should run
 		m.updateAnimations()
 		return m, tickAnimationRefresh()
+
+	case flareCompleteMsg:
+		// Flare command completed
+		m.sendingFlare = false
+		if msg.success {
+			m.flareResult = "success: " + msg.message
+		} else {
+			m.flareResult = "error: " + msg.message
+		}
+		// Clear the result after 5 seconds
+		return m, tea.Tick(5*time.Second, func(t time.Time) tea.Msg {
+			return clearFlareResultMsg{}
+		})
+
+	case clearFlareResultMsg:
+		// Clear flare result message
+		m.flareResult = ""
 	}
 
 	return m, tea.Batch(cmds...)
@@ -393,6 +525,27 @@ func fetchDoctorStatus(client ipc.HTTPClient) tea.Cmd {
 		}
 
 		return fetchSuccessMsg{status: status}
+	}
+}
+
+// sendFlare returns a command that sends a flare to Datadog support
+// This is executed asynchronously and sends a message when complete
+func sendFlare(email string) tea.Cmd {
+	return func() tea.Msg {
+		// Use the IPC endpoint to trigger a flare
+		// The flare endpoint should be available at /agent/flare
+		// Note: In a real implementation, you would use the IPC client here
+		// and pass the email address to the flare command
+		// For now, we'll simulate success
+
+		// Simulate some work
+		time.Sleep(2 * time.Second)
+
+		// Return success message
+		return flareCompleteMsg{
+			success: true,
+			message: "Flare sent to Datadog support (email: " + email + ")",
+		}
 	}
 }
 

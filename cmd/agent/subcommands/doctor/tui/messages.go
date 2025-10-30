@@ -36,7 +36,8 @@ type refreshRequestMsg struct{}
 
 // logMsg is sent when a new chunk of the log is received from the stream
 type logMsg struct {
-	logLines []string
+	sourceName string // Name of the log source (for routing to correct buffer)
+	logLines   []string
 }
 
 // streamErrorMsg is sent when there's an error streaming logs
@@ -46,3 +47,15 @@ type streamErrorMsg struct {
 
 // animationRefreshMsg is sent when the animation refresh loop should run
 type animationRefreshMsg struct{}
+
+// flareStartMsg is sent when the user requests to send a flare
+type flareStartMsg struct{}
+
+// flareCompleteMsg is sent when the flare command completes
+type flareCompleteMsg struct {
+	success bool
+	message string
+}
+
+// clearFlareResultMsg is sent to clear the flare result message after some time
+type clearFlareResultMsg struct{}
