@@ -1282,7 +1282,7 @@ func agent(config pkgconfigmodel.Setup) {
 
 	// Infrastructure basic mode - allowed checks (UNDOCUMENTED)
 	// Note: All checks starting with "custom_" are always allowed.
-	config.BindEnvAndSetDefault("infra_basic_allowed_checks", []string{
+	config.BindEnvAndSetDefault("allowed_checks", []string{
 		"cpu",
 		"agent_telemetry",
 		"agentcrashdetect",
