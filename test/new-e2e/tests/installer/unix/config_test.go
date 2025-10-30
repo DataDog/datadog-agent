@@ -7,6 +7,7 @@
 package installer
 
 import (
+	"fmt"
 	"time"
 
 	e2eos "github.com/DataDog/test-infra-definitions/components/os"
@@ -45,6 +46,33 @@ func (s *configSuite) TestConfig() {
 	config, err = s.agent.Configuration()
 	require.NoError(s.T(), err)
 	require.Equal(s.T(), "debug", config["log_level"])
+}
+
+func (s *configSuite) TestMultipleConfigs() {
+	s.agent.MustInstall(agent.WithRemoteUpdates())
+	defer s.agent.MustUninstall()
+
+	for i := 0; i < 3; i++ {
+		err := s.backend.StartConfigExperiment(fleetbackend.ConfigOperations{
+			DeploymentID:   fmt.Sprintf("123-%d", i),
+			FileOperations: []fleetbackend.FileOperation{
+				{
+					FileOperationType: fleetbackend.FileOperationMergePatch, 
+					FilePath: "/datadog.yaml", Patch: []byte(fmt.Sprintf(`{"extra_tags": ["debug:step-%d"]}`, i))
+				},
+			},
+		})
+		require.NoError(s.T(), err)
+		config, err := s.agent.Configuration()
+		require.NoError(s.T(), err)
+		require.Equal(s.T(), []string{fmt.Sprintf("debug:step-%d", i)}, config["extra_tags"])
+		err = s.backend.PromoteConfigExperiment()
+		require.NoError(s.T(), err)
+
+		config, err = s.agent.Configuration()
+		require.NoError(s.T(), err)
+		require.Equal(s.T(), []string{fmt.Sprintf("debug:step-%d", i)}, config["extra_tags"])
+	}
 }
 
 func (s *configSuite) TestConfigFailureCrash() {
