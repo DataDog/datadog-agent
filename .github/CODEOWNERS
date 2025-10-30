@@ -265,6 +265,7 @@
 /cmd/system-probe/main_windows*.go      @DataDog/windows-products
 /cmd/system-probe/subcommands/runtime/  @DataDog/agent-security
 /cmd/system-probe/subcommands/usm/      @DataDog/universal-service-monitoring
+/cmd/system-probe/subcommands/ebpf/     @DataDog/ebpf-platform @DataDog/universal-service-monitoring
 /cmd/systray/                           @DataDog/windows-products
 /cmd/security-agent/                    @DataDog/agent-security
 /cmd/security-agent/subcommands/compliance/ @DataDog/agent-cspm
@@ -657,7 +658,6 @@
 /comp/core/workloadmeta/collectors/internal/nvml             @DataDog/ebpf-platform
 /comp/core/workloadmeta/collectors/internal/podman           @DataDog/container-platform @DataDog/container-integrations
 /comp/core/workloadmeta/collectors/internal/process          @DataDog/container-experiences @DataDog/container-platform
-/comp/core/workloadmeta/collectors/internal/processlanguage  @DataDog/container-experiences @DataDog/container-platform
 /comp/core/tagger/collectors            @DataDog/container-platform @DataDog/container-integrations
 /pkg/sbom/                              @DataDog/agent-security @DataDog/container-integrations
 /pkg/networkpath/                       @DataDog/cloud-network-monitoring
