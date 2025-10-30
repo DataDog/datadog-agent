@@ -12,6 +12,7 @@ import (
 	"math"
 	"net"
 	"slices"
+	"strings"
 	"time"
 
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
@@ -183,6 +184,8 @@ type RuntimeSecurityConfig struct {
 	SocketPath string
 	// SocketPath is the path to the socket that is used to communicate with system-probe
 	CmdSocketPath string
+	// UseVsock specifies whether to use AF_VSOCK sockets
+	UseVsock bool
 	// EventServerBurst defines the maximum burst of events that can be sent over the grpc server
 	EventServerBurst int
 	// EventServerRate defines the grpc server rate at which events can be sent
@@ -511,6 +514,7 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 
 		SocketPath:           pkgconfigsetup.SystemProbe().GetString("runtime_security_config.socket"),
 		CmdSocketPath:        pkgconfigsetup.SystemProbe().GetString("runtime_security_config.cmd_socket"),
+		UseVsock:             pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.use_vsock"),
 		EventServerBurst:     pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.event_server.burst"),
 		EventServerRate:      pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.event_server.rate"),
 		EventServerRetention: pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.event_server.retention"),
@@ -806,4 +810,22 @@ func parseHashAlgorithmStringSlice(algorithms []string) []model.HashAlgorithm {
 		}
 	}
 	return output
+}
+
+// GetFamilyAddress returns the address famility to use for system-probe <-> security-agent communication
+func GetFamilyAddress(path string) string {
+	if strings.HasPrefix(path, "/") {
+		return "unix"
+	}
+	return "tcp"
+}
+
+// GetSocketAddress returns the address famility to use for system-probe <-> security-agent communication
+func GetSocketAddress(path string) (string, string) {
+	if strings.HasPrefix(path, "/") {
+		return "unix", path
+	} else if strings.HasPrefix(path, "vsock:") {
+		return "vsock", strings.TrimPrefix(path, "vsock:")
+	}
+	return "tcp", path
 }
