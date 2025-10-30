@@ -40,7 +40,7 @@ type recommenderClient struct {
 }
 
 func newRecommenderClient(ctx context.Context, clock clock.Clock, podWatcher workload.PodWatcher, tlsConfig *TLSFilesConfig) (*recommenderClient, error) {
-	client, err := createHttpClient(ctx, tlsConfig, clock)
+	client, err := createHTTPClient(ctx, tlsConfig, clock)
 	if err != nil {
 		return nil, fmt.Errorf("error creating HTTP client: %w", err)
 	}
@@ -215,7 +215,7 @@ func (r *recommenderClient) getReadyReplicas(dpa model.PodAutoscalerInternal) *i
 	return pointer.Ptr(r.podWatcher.GetReadyPodsForOwner(podOwner))
 }
 
-func createHttpClient(ctx context.Context, tlsConfig *TLSFilesConfig, clock clock.Clock) (*http.Client, error) {
+func createHTTPClient(ctx context.Context, tlsConfig *TLSFilesConfig, clock clock.Clock) (*http.Client, error) {
 	tr := http.DefaultTransport.(*http.Transport).Clone()
 	if tlsConfig != nil {
 		tlsClientConfig, err := createTLSClientConfig(ctx, tlsConfig, clock)

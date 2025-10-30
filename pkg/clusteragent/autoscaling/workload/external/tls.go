@@ -78,7 +78,6 @@ type tlsCertificateManager struct {
 	err         error
 	lastUpdate  time.Time
 	clock       clock.Clock
-	ticker      clock.Ticker
 }
 
 func newTLSCertificateManager(ctx context.Context, clk clock.Clock, certFile, keyFile string) *tlsCertificateManager {
