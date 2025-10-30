@@ -9,7 +9,6 @@ package dns
 
 import (
 	"bytes"
-	"runtime"
 	"syscall"
 	"time"
 
@@ -273,12 +272,8 @@ func getDefaultRecordedQueryTypes() map[layers.DNSType]struct{} {
 	// recordedRecordTypes defines a map of DNS types that we'll capture by default.
 	// add additional types here to change the default.
 	defaultRecordedQueryTypes := map[layers.DNSType]struct{}{
-		layers.DNSTypeA: {},
-	}
-	if runtime.GOOS == "linux" {
-		// ipv6 DNS is current not support on Windows
-		// TODO: Add layers.DNSTypeAAAA for windows once supported
-		defaultRecordedQueryTypes[layers.DNSTypeAAAA] = struct{}{}
+		layers.DNSTypeA:    {},
+		layers.DNSTypeAAAA: {},
 	}
 	return defaultRecordedQueryTypes
 }
