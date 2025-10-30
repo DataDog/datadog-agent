@@ -400,17 +400,12 @@ func buildOperationsFromLegacyInstaller(rootPath string) []FileOperation {
 			return nil
 		}
 
-		// Ignore application_monitoring.yaml as we need to keep it in the managed directory
-		if strings.HasSuffix(path, "application_monitoring.yaml") {
-			return nil
-		}
-
-		ops, err := buildOperationsFromLegacyConfigFile(path, realRootPath, managedDirSubPath)
+		op, err := buildOperationsFromLegacyConfigFile(path, realRootPath, managedDirSubPath)
 		if err != nil {
 			return err
 		}
 
-		allOps = append(allOps, ops...)
+		allOps = append(allOps, op)
 		return nil
 	})
 	if err != nil {
@@ -420,16 +415,14 @@ func buildOperationsFromLegacyInstaller(rootPath string) []FileOperation {
 	return allOps
 }
 
-func buildOperationsFromLegacyConfigFile(fullFilePath, fullRootPath, managedDirSubPath string) ([]FileOperation, error) {
-	var ops []FileOperation
-
+func buildOperationsFromLegacyConfigFile(fullFilePath, fullRootPath, managedDirSubPath string) (FileOperation, error) {
 	// Read the stable config file
 	stableDatadogYAML, err := os.ReadFile(fullFilePath)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return ops, nil
+			return FileOperation{}, nil
 		}
-		return ops, err
+		return FileOperation{}, err
 	}
 
 	// Since the config is YAML, we need to convert it to JSON
@@ -438,34 +431,35 @@ func buildOperationsFromLegacyConfigFile(fullFilePath, fullRootPath, managedDirS
 	var stableDatadogJSON interface{}
 	err = yaml.Unmarshal(stableDatadogYAML, &stableDatadogJSON)
 	if err != nil {
-		return ops, err
+		return FileOperation{}, err
 	}
 	stableDatadogJSONBytes, err := json.Marshal(stableDatadogJSON)
 	if err != nil {
-		return ops, err
+		return FileOperation{}, err
 	}
 
 	managedFilePath, err := filepath.Rel(fullRootPath, fullFilePath)
 	if err != nil {
-		return ops, err
+		return FileOperation{}, err
 	}
 	fPath, err := filepath.Rel(managedDirSubPath, managedFilePath)
 	if err != nil {
-		return ops, err
+		return FileOperation{}, err
 	}
 
-	// Add the merge patch operation
-	ops = append(ops, FileOperation{
+	op := FileOperation{
 		FileOperationType: FileOperationType(FileOperationMergePatch),
 		FilePath:          "/" + strings.TrimPrefix(fPath, "/"),
 		Patch:             stableDatadogJSONBytes,
-	})
+	}
+	if fPath == "application_monitoring.yaml" {
+		// Copy in managed directory
+		op = FileOperation{
+			FileOperationType: FileOperationMergePatch,
+			FilePath:          "/" + filepath.Join("managed", "datadog-agent", "stable", fPath),
+			Patch:             stableDatadogJSONBytes,
+		}
+	}
 
-	// Add the delete operation for the old file
-	ops = append(ops, FileOperation{
-		FileOperationType: FileOperationType(FileOperationDelete),
-		FilePath:          "/" + filepath.Join("managed", "datadog-agent", "stable", fPath),
-	})
-
-	return ops, nil
+	return op, nil
 }

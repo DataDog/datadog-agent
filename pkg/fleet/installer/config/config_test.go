@@ -280,18 +280,13 @@ func TestBuildOperationsFromLegacyConfigFile(t *testing.T) {
 	err = os.WriteFile(filepath.Join(managedDir, "datadog.yaml"), legacyConfig, 0644)
 	assert.NoError(t, err)
 
-	ops, err := buildOperationsFromLegacyConfigFile(filepath.Join(managedDir, "datadog.yaml"), tmpDir, legacyPathPrefix)
+	op, err := buildOperationsFromLegacyConfigFile(filepath.Join(managedDir, "datadog.yaml"), tmpDir, legacyPathPrefix)
 	assert.NoError(t, err)
-	assert.Len(t, ops, 2)
 
 	// Check merge patch operation
-	assert.Equal(t, FileOperationMergePatch, ops[0].FileOperationType)
-	assert.Equal(t, "/datadog.yaml", ops[0].FilePath)
-	assert.Equal(t, string(legacyConfig), string(ops[0].Patch))
-
-	// Check delete operation
-	assert.Equal(t, FileOperationDelete, ops[1].FileOperationType)
-	assert.Equal(t, filepath.Join(legacyPathPrefix, "datadog.yaml"), strings.TrimPrefix(strings.TrimPrefix(ops[1].FilePath, "/"), "\\"))
+	assert.Equal(t, FileOperationMergePatch, op.FileOperationType)
+	assert.Equal(t, "/datadog.yaml", op.FilePath)
+	assert.Equal(t, string(legacyConfig), string(op.Patch))
 }
 
 func TestBuildOperationsFromLegacyInstaller(t *testing.T) {
@@ -309,7 +304,7 @@ func TestBuildOperationsFromLegacyInstaller(t *testing.T) {
 	ops := buildOperationsFromLegacyInstaller(tmpDir)
 
 	// Should have 4 operations: 2 merge patches + 2 deletes
-	assert.Len(t, ops, 4)
+	assert.Len(t, ops, 2)
 
 	// Check that we have operations for both files
 	filePaths := make(map[string]bool)
@@ -318,8 +313,6 @@ func TestBuildOperationsFromLegacyInstaller(t *testing.T) {
 	}
 	assert.True(t, filePaths["datadog.yaml"])
 	assert.True(t, filePaths["security-agent.yaml"])
-	assert.True(t, filePaths[filepath.Join("managed", "datadog-agent", "stable", "datadog.yaml")])
-	assert.True(t, filePaths[filepath.Join("managed", "datadog-agent", "stable", "security-agent.yaml")])
 }
 
 func TestBuildOperationsFromLegacyConfigFileKeepApplicationMonitoring(t *testing.T) {
@@ -334,7 +327,11 @@ func TestBuildOperationsFromLegacyConfigFileKeepApplicationMonitoring(t *testing
 	assert.NoError(t, err)
 
 	ops := buildOperationsFromLegacyInstaller(tmpDir)
-	assert.Len(t, ops, 0)
+	assert.Len(t, ops, 1)
+
+	assert.Equal(t, FileOperationMergePatch, ops[0].FileOperationType)
+	assert.Equal(t, "/"+filepath.Join("managed", "datadog-agent", "stable", "application_monitoring.yaml"), ops[0].FilePath)
+	assert.Equal(t, string(legacyConfig), string(ops[0].Patch))
 }
 
 func TestOperationApply_Copy(t *testing.T) {
