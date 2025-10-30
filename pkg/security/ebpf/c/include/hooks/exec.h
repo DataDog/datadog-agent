@@ -101,6 +101,7 @@ int __attribute__((always_inline)) handle_do_fork(ctx_t *ctx) {
     struct syscall_cache_t syscall = {
         .type = EVENT_FORK,
         .fork.is_thread = 1,
+        .fork.parent_pid = bpf_get_current_pid_tgid() >> 32,
     };
 
     u32 kthread_key = 0;
@@ -253,6 +254,19 @@ int __attribute__((always_inline)) sched_process_fork_common(void *ctx, u32 pid,
     pop_syscall(EVENT_FORK);
 
     return 0;
+}
+
+HOOK_EXIT("get_task_pid")
+int rethook_get_task_pid(ctx_t *ctx) {
+    struct syscall_cache_t *syscall = peek_syscall(EVENT_FORK);
+    if (!syscall) {
+        return 0;
+    }
+
+    struct pid *pid = (struct pid *)CTX_PARMRET(ctx);
+    u32 pidnr = get_root_nr_from_pid_struct(pid);
+
+    return sched_process_fork_common(ctx, pidnr, syscall->fork.parent_pid);
 }
 
 SEC("tracepoint/sched/sched_process_fork")
