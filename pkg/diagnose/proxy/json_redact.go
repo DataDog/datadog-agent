@@ -1,13 +1,15 @@
 package proxy
 
-// Optional helpers for callers who want redacted JSON.
-// The CLI prints redacted values already via RedactURL; JSON output
-// currently returns the raw values (common Agent behavior).
+import (
+	"encoding/json"
+)
 
-func RedactEffectiveForJSON(e Effective) Effective {
-	out := e
-	out.HTTP.Value = RedactURL(e.HTTP.Value)
-	out.HTTPS.Value = RedactURL(e.HTTPS.Value)
-	// NO_PROXY is not redacted (doesn't carry credentials)
-	return out
+// make an alias to avoid infinite recursion in MarshalJSON
+type valueWithSourceAlias ValueWithSource
+
+func (v ValueWithSource) MarshalJSON() ([]byte, error) {
+	alias := valueWithSourceAlias(v)
+	// Redact only on output; keep runtime value intact elsewhere.
+	alias.Value = RedactURL(v.Value)
+	return json.Marshal(alias)
 }
