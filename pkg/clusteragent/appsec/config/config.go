@@ -25,8 +25,6 @@ const (
 	AppsecProcessorResourceAnnotation = "appsec.datadoghq.com/processor"
 	// AppsecProcessorProxyTypeAnnotation is the annotation key used to store the type of proxy used for AppSec injection
 	AppsecProcessorProxyTypeAnnotation = "appsec.datadoghq.com/proxy-type"
-
-	defaultIstioNamespace = "istio-system"
 )
 
 // ProxyType represents the type of proxy supported by the AppSec Injection Proxy feature
