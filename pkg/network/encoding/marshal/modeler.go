@@ -16,8 +16,9 @@ import (
 )
 
 var (
-	cfgOnce         = sync.Once{}
-	agentCfg        *model.AgentConfiguration
+	cfgOnce  = sync.Once{}
+	agentCfg *model.AgentConfiguration
+
 	sysProbePidOnce = sync.Once{}
 	sysProbePid     = uint32(0)
 )
