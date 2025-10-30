@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
@@ -138,13 +139,16 @@ type errorWithCode struct {
 func getRCStatus() (remoteConfigState, error) {
 	var response remoteConfigState
 
-	installerBinary, err := os.Executable()
+	// The simplest thing here is to call ourselves with the daemon command
+	ourselves, err := os.Executable()
 	if err != nil {
 		return response, fmt.Errorf("error getting executable path: %w", err)
 	}
+	installerBinary := filepath.Join(ourselves, "../../bin/agent/agent")
 	stdout := new(bytes.Buffer)
 	stderr := new(bytes.Buffer)
 	cmd := exec.Command(installerBinary, "daemon", "rc-status")
+	cmd.Env = append(os.Environ(), "DD_BUNDLED_AGENT=installer")
 	cmd.Stdout = stdout
 	cmd.Stderr = stderr
 	err = cmd.Run()
