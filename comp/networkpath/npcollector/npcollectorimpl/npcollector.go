@@ -283,8 +283,8 @@ func (s *npCollectorImpl) ScheduleConns(conns *model.Connections) {
 		return
 	}
 	if utillog.ShouldLog(utillog.TraceLvl) {
-		connsJsonStr, _ := json.Marshal(conns)
-		s.logger.Tracef("all connections: %s", connsJsonStr)
+		connsJSONStr, _ := json.Marshal(conns)
+		s.logger.Tracef("all connections: %s", connsJSONStr)
 	}
 
 	startTime := s.TimeNowFn()
