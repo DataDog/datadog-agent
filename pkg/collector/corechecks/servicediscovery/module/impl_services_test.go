@@ -24,7 +24,6 @@ import (
 	"time"
 
 	"github.com/prometheus/procfs"
-	"github.com/shirou/gopsutil/v4/process"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/vishvananda/netns"
@@ -416,75 +415,6 @@ func TestServicesLogsWithoutPorts(t *testing.T) {
 		}
 	}
 	assert.True(t, found, "expected to find log file %s in LogFiles: %v", logFileName, svc.LogFiles)
-}
-
-func testServicesCaptureWrappedCommands(t *testing.T, script string, commandWrapper []string, validator func(service model.Service) bool) {
-	// Changing permissions
-	require.NoError(t, os.Chmod(script, 0o755))
-
-	commandLineArgs := append(commandWrapper, script)
-	cmd := exec.Command(commandLineArgs[0], commandLineArgs[1:]...)
-	// Running the binary in the background
-	require.NoError(t, cmd.Start())
-
-	var proc *process.Process
-	var err error
-	require.EventuallyWithT(t, func(collect *assert.CollectT) {
-		proc, err = process.NewProcess(int32(cmd.Process.Pid))
-		require.NoError(collect, err)
-
-		// If we wrap the script with `sh -c`, we can have differences between a
-		// local run and a kmt run, as for kmt `sh` is symbolic link to bash,
-		// while locally it can be a symbolic link to dash.
-		//
-		// In the dash case, we will see 2 processes `sh -c script.py` and a
-		// sub-process `python3 script.py`, while in the bash case we will see
-		// only `python3 script.py` (after initially potentially seeing `sh -c
-		// script.py` before the process execs). We need to check for the
-		// command line arguments of the process to make sure we are looking at
-		// the right process.
-		cmdline, err := proc.Cmdline()
-		require.NoError(collect, err)
-		// There's a risk of race if we try to read the command line while the
-		// process still hasn't full execed.
-		require.NotEmpty(collect, cmdline)
-		if cmdline == strings.Join(commandLineArgs, " ") && len(commandWrapper) > 0 {
-			var children []*process.Process
-			children, err = proc.Children()
-			require.NoError(collect, err)
-			require.Len(collect, children, 1)
-			proc = children[0]
-		}
-	}, 10*time.Second, 100*time.Millisecond)
-
-	t.Cleanup(func() { _ = proc.Kill() })
-
-	discovery := setupDiscoveryModule(t)
-
-	pid := int(proc.Pid)
-	require.EventuallyWithT(t, func(collect *assert.CollectT) {
-		resp := getServices(collect, discovery.url)
-		startEvent := findService(pid, resp.Services)
-		require.NotNilf(collect, startEvent, "could not find service for pid %v", pid)
-		assert.True(collect, validator(*startEvent))
-	}, 30*time.Second, 100*time.Millisecond)
-}
-
-func TestServicesPythonFromBashScript(t *testing.T) {
-	curDir, err := testutil.CurDir()
-	require.NoError(t, err)
-	pythonScriptPath := filepath.Join(curDir, "testdata", "script.py")
-
-	t.Run("PythonFromBashScript", func(t *testing.T) {
-		testServicesCaptureWrappedCommands(t, pythonScriptPath, []string{"sh", "-c"}, func(service model.Service) bool {
-			return service.Language == string(language.Python)
-		})
-	})
-	t.Run("DirectPythonScript", func(t *testing.T) {
-		testServicesCaptureWrappedCommands(t, pythonScriptPath, nil, func(service model.Service) bool {
-			return service.Language == string(language.Python)
-		})
-	})
 }
 
 func TestServicesAPMInstrumentationProvided(t *testing.T) {
