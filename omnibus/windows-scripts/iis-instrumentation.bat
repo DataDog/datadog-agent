@@ -4,7 +4,7 @@
 setlocal enabledelayedexpansion
 
 :: Parse command line arguments
-set "uninstall_flag="
+set "action_flag="
 
 :: Try to get installer path from registry, fallback to default
 set "installerPath="
@@ -26,17 +26,49 @@ for %%A in (%*) do (
         goto usage
     )
     if /i "!arg!" == "--uninstall" (
-        set "uninstall_flag=true"
+        if defined action_flag (
+            echo Error: Only one action flag can be used at a time.
+            goto usage
+        )
+        set "action_flag=uninstall"
+    )
+    if /i "!arg!" == "--enable" (
+        if defined action_flag (
+            echo Error: Only one action flag can be used at a time.
+            goto usage
+        )
+        set "action_flag=enable"
+    )
+    if /i "!arg!" == "--disable" (
+        if defined action_flag (
+            echo Error: Only one action flag can be used at a time.
+            goto usage
+        )
+        set "action_flag=disable"
     )
 )
 
-if defined uninstall_flag (
+:: Run command based on selected flag
+if /i "%action_flag%"=="uninstall" (
     echo Running APM uninstall command...
     "%installerPath%" remove datadog-apm-library-dotnet
-) else (
-    goto usage
+    exit /b 0
 )
-exit /b 0
+
+if /i "%action_flag%"=="enable" (
+    echo Enabling APM instrumentation...
+    "%installerPath%" apm instrument iis
+    exit /b 0
+)
+
+if /i "%action_flag%"=="disable" (
+    echo Disabling APM instrumentation...
+    "%installerPath%" apm uninstrument iis
+    exit /b 0
+)
+
+:: No recognized flag
+goto usage
 
 :: Display usage/help
 :usage
@@ -47,5 +79,7 @@ echo.
 echo Options:
 echo   --help^|-h         OPTIONAL Display this message
 echo   --uninstall        OPTIONAL Remove installation
+echo   --enable           OPTIONAL Enable instrumentation
+echo   --disable          OPTIONAL Enable instrumentation
 echo.
 goto :EOF
