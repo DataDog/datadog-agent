@@ -27,5 +27,5 @@ func IsCheckAllowed(checkName string, cfg pkgconfigmodel.Reader) bool {
 	}
 
 	// Check if it's in the allowed checks (default + additional)
-	return slices.Contains(append(cfg.GetStringSlice("allowed_checks"), cfg.GetStringSlice("allowed_additional_integrations")...), checkName)
+	return slices.Contains(append(cfg.GetStringSlice("allowed_checks"), cfg.GetStringSlice("allowed_additional_checks")...), checkName)
 }

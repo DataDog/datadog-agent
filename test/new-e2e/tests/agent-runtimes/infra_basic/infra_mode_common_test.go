@@ -312,7 +312,7 @@ process_config:
   enabled: false
 telemetry:
   enabled: true
-allowed_additional_integrations:
+allowed_additional_checks:
   - http_check
 `
 
