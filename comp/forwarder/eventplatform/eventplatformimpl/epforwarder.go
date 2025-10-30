@@ -248,7 +248,7 @@ func getPassthroughPipelines() []passthroughPipelineDesc {
 			defaultBatchMaxContentSize:    pkgconfigsetup.DefaultBatchMaxContentSize,
 			defaultBatchMaxSize:           pkgconfigsetup.DefaultBatchMaxSize,
 			defaultInputChanSize:          pkgconfigsetup.DefaultInputChanSize,
-			// TODO: event-management-intake does not support batching/array, must send one event at a time
+			// TODO(ECT-4272): event-management-intake does not support batching/array, must send one event at a time
 			useStreamStrategy: true,
 		},
 	}
@@ -302,7 +302,7 @@ func Diagnose() []diagnose.Diagnosis {
 	var diagnoses []diagnose.Diagnosis
 
 	for _, desc := range getPassthroughPipelines() {
-		// TODO: event-management-intake does not support the empty payload sent here
+		// TODO(ECT-4273): event-management-intake does not support the empty payload sent here
 		if desc.eventType == eventplatform.EventTypeEventManagement {
 			log.Debugf("Skipping diagnosis for event-management-intake because it does not support the empty payload")
 			continue
