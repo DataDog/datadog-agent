@@ -236,7 +236,6 @@
 /cmd/agent/dist/conf.d/snmp.d/          @DataDog/ndm-core
 /cmd/agent/dist/conf.d/win32_event_log.d/ @DataDog/windows-products
 /cmd/agent/dist/conf.d/windows_certificate.d/ @DataDog/windows-products
-/cmd/agent/installer.go                 @DataDog/fleet
 /cmd/agent/install*.sh                  @DataDog/agent-onboarding @DataDog/agent-build
 /cmd/cluster-agent/                     @DataDog/container-platform
 /cmd/cluster-agent/subcommands/autoscalerlist   @DataDog/container-autoscaling @DataDog/container-integrations
@@ -268,6 +267,8 @@
 /cmd/system-probe/subcommands/usm/      @DataDog/universal-service-monitoring
 /cmd/systray/                           @DataDog/windows-products
 /cmd/security-agent/                    @DataDog/agent-security
+/cmd/security-agent/subcommands/compliance/ @DataDog/agent-cspm
+/cmd/security-agent/subcommands/check/      @DataDog/agent-cspm
 /cmd/installer/                         @DataDog/fleet @DataDog/windows-products
 /cmd/host-profiler/                     @DataDog/opentelemetry-agent
 
@@ -650,7 +651,6 @@
 /comp/core/workloadmeta/collectors/internal/crio             @DataDog/container-platform @DataDog/container-integrations
 /comp/core/workloadmeta/collectors/internal/docker           @DataDog/container-platform @DataDog/container-integrations
 /comp/core/workloadmeta/collectors/internal/ecs              @DataDog/container-platform @DataDog/container-integrations
-/comp/core/workloadmeta/collectors/internal/ecsfargate       @DataDog/container-platform @DataDog/container-integrations
 /comp/core/workloadmeta/collectors/internal/kubeapiserver    @DataDog/container-platform @DataDog/container-integrations
 /comp/core/workloadmeta/collectors/internal/kubelet          @DataDog/container-platform @DataDog/container-integrations
 /comp/core/workloadmeta/collectors/internal/kubemetadata     @DataDog/container-platform @DataDog/container-integrations
