@@ -150,8 +150,8 @@ github.com/DataDog/datadog-go/v5 v5.8.1 h1:+GOES5W9zpKlhwHptZVW2C0NLVf7ilr7pHkDc
 github.com/DataDog/datadog-go/v5 v5.8.1/go.mod h1:K9kcYBlxkcPP8tvvjZZKs/m1edNAUFzBbdpTUKfCsuw=
 github.com/DataDog/datadog-operator/api v0.0.0-20251002125833-f01ea1d12a3f h1:O+Ls4K2v4lQpGum7yYWM3aRZ3vJ/Ibvk/Ma/NqXwtWI=
 github.com/DataDog/datadog-operator/api v0.0.0-20251002125833-f01ea1d12a3f/go.mod h1:E+dFku5SVIXDUj6apiBdDAzrUOR3xLz1bMgUOGjRAVQ=
-github.com/DataDog/datadog-traceroute v0.1.28 h1:aakZepsIXOy0kcDNHkiHMnbIVn0cY8it6gzx/8+rmmU=
-github.com/DataDog/datadog-traceroute v0.1.28/go.mod h1:PU0w0AsVMEapWPgaqXEtBuDUlPQGlnHsaADsXVMKMts=
+github.com/DataDog/datadog-traceroute v0.1.29 h1:l6vQHYORtdoZn3xriLorsHe9QuNja6Sr4JyJ2WDwi3Q=
+github.com/DataDog/datadog-traceroute v0.1.29/go.mod h1:PU0w0AsVMEapWPgaqXEtBuDUlPQGlnHsaADsXVMKMts=
 github.com/DataDog/dd-otel-host-profiler v0.4.1-0.20251013140043-83a1f38427f0 h1:OEDWHLCabNtLF+OkbI1DlVLkxxK9QUVQUSIt8uZ3VY8=
 github.com/DataDog/dd-otel-host-profiler v0.4.1-0.20251013140043-83a1f38427f0/go.mod h1:KsvZuiis+8Ix3r+FEIew7LvryZeeIDrYyiTPMR14GOY=
 github.com/DataDog/dd-trace-go/v2 v2.2.2 h1:t7RCS6et5z+xrvM9dqUPtCGoNOWTj0pcApzbktMZi2k=
@@ -168,8 +168,8 @@ github.com/DataDog/go-libddwaf/v4 v4.3.2 h1:YGvW2Of1C4e1yU+p7iibmhN2zEOgi9XEchbh
 github.com/DataDog/go-libddwaf/v4 v4.3.2/go.mod h1:/AZqP6zw3qGJK5mLrA0PkfK3UQDk1zCI2fUNCt4xftE=
 github.com/DataDog/go-runtime-metrics-internal v0.0.4-0.20250721125240-fdf1ef85b633 h1:ZRLR9Lbym748e8RznWzmSoK+OfV+8qW6SdNYA4/IqdA=
 github.com/DataDog/go-runtime-metrics-internal v0.0.4-0.20250721125240-fdf1ef85b633/go.mod h1:YFoTl1xsMzdSRFIu33oCSPS/3+HZAPGpO3oOM96wXCM=
-github.com/DataDog/go-sqllexer v0.1.8 h1:ku9DpghFHeyyviR28W/3R4cCJwzpsuC08YIoltnx5ds=
-github.com/DataDog/go-sqllexer v0.1.8/go.mod h1:GGpo1h9/BVSN+6NJKaEcJ9Jn44Hqc63Rakeb+24Mjgo=
+github.com/DataDog/go-sqllexer v0.1.9 h1:0R8FnSHGXRtZo70UxgCneL7Yu4PurswUAMb5N3kOIrI=
+github.com/DataDog/go-sqllexer v0.1.9/go.mod h1:vOw7Ia7z+z6nl3zGZlLIZe0vQlPtCPR906WIPBJadxc=
 github.com/DataDog/go-tuf v1.1.1-0.5.2 h1:YWvghV4ZvrQsPcUw8IOUMSDpqc3W5ruOIC+KJxPknv0=
 github.com/DataDog/go-tuf v1.1.1-0.5.2/go.mod h1:zBcq6f654iVqmkk8n2Cx81E1JnNTMOAx1UEO/wZR+P0=
 github.com/DataDog/gohai v0.0.0-20230524154621-4316413895ee h1:tXibLZk3G6HncIFJKaNItsdzcrk4YqILNDZlXPTNt4k=
@@ -190,8 +190,8 @@ github.com/DataDog/nikos v1.12.12 h1:72YrdzMeQT3wcXIDgiS1ClU53SzUdR7uAbp5FSSpo5k
 github.com/DataDog/nikos v1.12.12/go.mod h1:kZGOhfE76+nXS7V5PAlIw3MRxWKM70ynET4VeuZ4U4k=
 github.com/DataDog/sketches-go v1.4.7 h1:eHs5/0i2Sdf20Zkj0udVFWuCrXGRFig2Dcfm5rtcTxc=
 github.com/DataDog/sketches-go v1.4.7/go.mod h1:eAmQ/EBmtSO+nQp7IZMZVRPT4BQTmIc5RZQ+deGlTPM=
-github.com/DataDog/trivy v0.0.0-20250722083937-c6ac58f23994 h1:kWy9qnN1+GGCzoJ/Q6V9UtOKNJKvryuGOc8Ib3dm/wc=
-github.com/DataDog/trivy v0.0.0-20250722083937-c6ac58f23994/go.mod h1:PTxRTPpO/cM2OqNLPPKVGtLhEBhORyrXT6mAjplzsRA=
+github.com/DataDog/trivy v0.0.0-20251024065956-6fa645cdca17 h1:1fYy7TyoALua6eTlzbSDep4NzWI0d2RC0LoHqQ4zBos=
+github.com/DataDog/trivy v0.0.0-20251024065956-6fa645cdca17/go.mod h1:PTxRTPpO/cM2OqNLPPKVGtLhEBhORyrXT6mAjplzsRA=
 github.com/DataDog/viper v1.14.1-0.20251008075154-b33ffa9792d9 h1:uX4ZqokylxBI67r+AN09CiFY+s8Frmf33YZlyqIMBc4=
 github.com/DataDog/viper v1.14.1-0.20251008075154-b33ffa9792d9/go.mod h1:QGomve/3EbYfi58jADS97U2OKfsxqh2pWemuT0azbdk=
 github.com/DataDog/watermarkpodautoscaler/apis v0.0.0-20250108152814-82e58d0231d1 h1:9hiwoIk8FOsXDkdcdgNJ48iYaPfn+/7bXEwAnnfKjTc=

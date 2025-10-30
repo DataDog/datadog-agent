@@ -67,13 +67,13 @@ ALL_TAGS = {
     "zlib",
     "zstd",
     "cel",
+    "cws_instrumentation_injector_only",  # used for building cws-instrumentation with only the injector code
 }
 
 ### Tag inclusion lists
 
 # AGENT_TAGS lists the tags needed when building the agent.
 AGENT_TAGS = {
-    "bundle_installer",
     "consul",
     "containerd",
     "no_dynamic_plugins",
@@ -127,6 +127,10 @@ AGENT_HEROKU_TAGS = AGENT_TAGS.difference(
         "systemd",
         "trivy",
         "cel",
+    }
+).union(
+    {
+        "bundle_installer",
     }
 )
 
