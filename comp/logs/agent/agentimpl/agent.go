@@ -26,6 +26,7 @@ import (
 	statusComponent "github.com/DataDog/datadog-agent/comp/core/status"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform/def"
 	"github.com/DataDog/datadog-agent/comp/logs/agent"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	flareController "github.com/DataDog/datadog-agent/comp/logs/agent/flare"
@@ -37,6 +38,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
+	health "github.com/DataDog/datadog-agent/pkg/logs/health"
 	"github.com/DataDog/datadog-agent/pkg/logs/launchers"
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
@@ -84,6 +86,7 @@ type dependencies struct {
 	SchedulerProviders []schedulers.Scheduler `group:"log-agent-scheduler"`
 	Tagger             tagger.Component
 	Compression        logscompression.Component
+	HealthPlatform     healthplatform.Component
 }
 
 type provides struct {
@@ -121,7 +124,7 @@ type logAgent struct {
 	schedulerProviders        []schedulers.Scheduler
 	integrationsLogs          integrations.Component
 	compression               logscompression.Component
-
+	healthManager             *health.Manager
 	// make sure this is done only once, when we're ready
 	prepareSchedulers sync.Once
 
@@ -153,6 +156,7 @@ func newLogsAgent(deps dependencies) provides {
 			integrationsLogs:   integrationsLogs,
 			tagger:             deps.Tagger,
 			compression:        deps.Compression,
+			healthManager:      health.NewManager(deps.Log, deps.Config, deps.HealthPlatform),
 		}
 		deps.Lc.Append(fx.Hook{
 			OnStart: logsAgent.start,
@@ -254,6 +258,7 @@ func (a *logAgent) startPipeline() {
 		a.pipelineProvider,
 		a.diagnosticMessageReceiver,
 		a.launchers,
+		a.healthManager,
 	)
 	starter.Start()
 	a.startSchedulers()
@@ -279,6 +284,7 @@ func (a *logAgent) stop(context.Context) error {
 
 	stopper := startstop.NewSerialStopper(
 		a.schedulers,
+		a.healthManager,
 		a.launchers,
 		a.pipelineProvider,
 		a.auditor,
