@@ -447,7 +447,7 @@ func TestInjectAutoInstruConfigV2(t *testing.T) {
 				tt.expectedInstallType = "k8s_single_step"
 			}
 
-			mutator, err := NewNamespaceMutator(config, wmeta, imageResolver)
+			mutator, err := NewTargetMutator(config, wmeta, imageResolver)
 			require.NoError(t, err)
 
 			err = mutator.core.injectTracers(tt.pod, tt.libInfo)
@@ -581,7 +581,7 @@ func TestMutatorCoreNewInjector(t *testing.T) {
 	)
 	config, err := NewConfig(mockConfig)
 	require.NoError(t, err)
-	m, err := NewNamespaceMutator(config, wmeta, imageResolver)
+	m, err := NewTargetMutator(config, wmeta, imageResolver)
 	require.NoError(t, err)
 	core := m.core
 
@@ -618,14 +618,12 @@ func TestExtractLibInfo(t *testing.T) {
 
 	var mockConfig model.Config
 	tests := []struct {
-		name                   string
-		pod                    *corev1.Pod
-		deployments            []common.MockDeployment
-		assertExtractedLibInfo func(*testing.T, extractedPodLibInfo)
-		containerRegistry      string
-		expectedLibsToInject   []libInfo
-		expectedPodEligible    *bool
-		setupConfig            func()
+		name                 string
+		pod                  *corev1.Pod
+		containerRegistry    string
+		expectedLibsToInject []libInfo
+		expectedPodEligible  *bool
+		setupConfig          func()
 	}{
 		{
 			name:              "java",
@@ -669,13 +667,11 @@ func TestExtractLibInfo(t *testing.T) {
 			},
 		},
 		{
-			name:                "python with unlabelled injection off",
-			pod:                 common.FakePodWithAnnotation("admission.datadoghq.com/python-lib.version", "v1"),
-			containerRegistry:   "registry",
-			expectedPodEligible: pointer.Ptr(false),
-			expectedLibsToInject: []libInfo{
-				defaultLibInfoWithVersion(python, "v1"),
-			},
+			name:                 "python with unlabelled injection off",
+			pod:                  common.FakePodWithAnnotation("admission.datadoghq.com/python-lib.version", "v1"),
+			containerRegistry:    "registry",
+			expectedPodEligible:  pointer.Ptr(false),
+			expectedLibsToInject: []libInfo{},
 			setupConfig: func() {
 				mockConfig.SetWithoutSource("admission_controller.mutate_unlabelled", false)
 			},
@@ -756,6 +752,25 @@ func TestExtractLibInfo(t *testing.T) {
 			pod:                  common.FakePodWithAnnotation("admission.datadoghq.com/all-lib.version", "latest"),
 			containerRegistry:    "registry",
 			expectedPodEligible:  pointer.Ptr(false),
+			expectedLibsToInject: []libInfo{},
+			setupConfig: func() {
+				mockConfig.SetWithoutSource("admission_controller.mutate_unlabelled", false)
+			},
+		},
+		{
+			name: "all with mutate_unlabelled off, but labelled admission enabled",
+			pod: &corev1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Annotations: map[string]string{
+						"admission.datadoghq.com/all-lib.version": "latest",
+					},
+					Labels: map[string]string{
+						"admission.datadoghq.com/enabled": "true",
+					},
+				},
+			},
+			containerRegistry:    "registry",
+			expectedPodEligible:  pointer.Ptr(true),
 			expectedLibsToInject: allLatestDefaultLibs,
 			setupConfig: func() {
 				mockConfig.SetWithoutSource("admission_controller.mutate_unlabelled", false)
@@ -781,61 +796,41 @@ func TestExtractLibInfo(t *testing.T) {
 			},
 		},
 		{
-			name:                 "all with mutate_unlabelled off",
-			pod:                  common.FakePodWithAnnotation("admission.datadoghq.com/all-lib.version", "latest"),
+			name: "all with mutate_unlabelled off, but labelled admission enabled",
+			pod: &corev1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Annotations: map[string]string{
+						"admission.datadoghq.com/all-lib.version": "latest",
+					},
+					Labels: map[string]string{
+						"admission.datadoghq.com/enabled": "true",
+					},
+				},
+			},
+			containerRegistry:    "registry",
+			expectedPodEligible:  pointer.Ptr(true),
+			expectedLibsToInject: allLatestDefaultLibs,
+			setupConfig: func() {
+				mockConfig.SetWithoutSource("admission_controller.mutate_unlabelled", false)
+			},
+		},
+		{
+			name: "java with mutate_unlabelled on and labelled admission disabled",
+			pod: &corev1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Annotations: map[string]string{
+						"admission.datadoghq.com/java-lib.version": "v1",
+					},
+					Labels: map[string]string{
+						"admission.datadoghq.com/enabled": "false",
+					},
+				},
+			},
 			containerRegistry:    "registry",
 			expectedPodEligible:  pointer.Ptr(false),
-			expectedLibsToInject: allLatestDefaultLibs,
+			expectedLibsToInject: []libInfo{},
 			setupConfig: func() {
-				mockConfig.SetWithoutSource("admission_controller.mutate_unlabelled", false)
-			},
-		},
-		{
-			name: "all with mutate_unlabelled off, but labelled admission enabled",
-			pod: &corev1.Pod{
-				ObjectMeta: metav1.ObjectMeta{
-					Annotations: map[string]string{
-						"admission.datadoghq.com/all-lib.version": "latest",
-					},
-					Labels: map[string]string{
-						"admission.datadoghq.com/enabled": "true",
-					},
-				},
-			},
-			containerRegistry:    "registry",
-			expectedPodEligible:  pointer.Ptr(true),
-			expectedLibsToInject: allLatestDefaultLibs,
-			setupConfig: func() {
-				mockConfig.SetWithoutSource("admission_controller.mutate_unlabelled", false)
-			},
-		},
-		{
-			name:                 "all with mutate_unlabelled off",
-			pod:                  common.FakePodWithAnnotation("admission.datadoghq.com/all-lib.version", "latest"),
-			containerRegistry:    "registry",
-			expectedPodEligible:  pointer.Ptr(false),
-			expectedLibsToInject: allLatestDefaultLibs,
-			setupConfig: func() {
-				mockConfig.SetWithoutSource("admission_controller.mutate_unlabelled", false)
-			},
-		},
-		{
-			name: "all with mutate_unlabelled off, but labelled admission enabled",
-			pod: &corev1.Pod{
-				ObjectMeta: metav1.ObjectMeta{
-					Annotations: map[string]string{
-						"admission.datadoghq.com/all-lib.version": "latest",
-					},
-					Labels: map[string]string{
-						"admission.datadoghq.com/enabled": "true",
-					},
-				},
-			},
-			containerRegistry:    "registry",
-			expectedPodEligible:  pointer.Ptr(true),
-			expectedLibsToInject: allLatestDefaultLibs,
-			setupConfig: func() {
-				mockConfig.SetWithoutSource("admission_controller.mutate_unlabelled", false)
+				mockConfig.SetWithoutSource("admission_controller.mutate_unlabelled", true)
 			},
 		},
 		{
@@ -918,74 +913,6 @@ func TestExtractLibInfo(t *testing.T) {
 			},
 		},
 		{
-			name: "pod with lang-detection deployment and default libs",
-			pod: common.FakePodSpec{
-				ParentKind: "replicaset",
-				ParentName: "deployment-123",
-			}.Create(),
-			deployments: []common.MockDeployment{
-				{
-					ContainerName:  "pod",
-					DeploymentName: "deployment",
-					Namespace:      "ns",
-					Languages:      languageSetOf("python"),
-				},
-			},
-			containerRegistry: "registry",
-			assertExtractedLibInfo: func(t *testing.T, i extractedPodLibInfo) {
-				t.Helper()
-				require.Equal(t, &libInfoLanguageDetection{
-					libs: []libInfo{
-						python.defaultLibInfo("registry", "pod"),
-					},
-					injectionEnabled: true,
-				}, i.languageDetection)
-			},
-			expectedLibsToInject: []libInfo{
-				python.defaultLibInfo("registry", "pod"),
-			},
-			setupConfig: func() {
-				mockConfig.SetWithoutSource("apm_config.instrumentation.enabled", true)
-				mockConfig.SetWithoutSource("apm_config.instrumentation.lib_versions", defaultLibraries)
-				mockConfig.SetWithoutSource("language_detection.enabled", true)
-				mockConfig.SetWithoutSource("language_detection.reporting.enabled", true)
-				mockConfig.SetWithoutSource("admission_controller.auto_instrumentation.inject_auto_detected_libraries", true)
-			},
-		},
-		{
-			name: "pod with lang-detection deployment and libs set",
-			pod: common.FakePodSpec{
-				ParentKind: "replicaset",
-				ParentName: "deployment-123",
-			}.Create(),
-			deployments: []common.MockDeployment{
-				{
-					ContainerName:  "pod",
-					DeploymentName: "deployment",
-					Namespace:      "ns",
-					Languages:      languageSetOf("python"),
-				},
-			},
-			containerRegistry: "registry",
-			assertExtractedLibInfo: func(t *testing.T, i extractedPodLibInfo) {
-				t.Helper()
-				require.Equal(t, &libInfoLanguageDetection{
-					libs:             []libInfo{python.defaultLibInfo("registry", "pod")},
-					injectionEnabled: true,
-				}, i.languageDetection)
-			},
-			expectedLibsToInject: []libInfo{
-				java.defaultLibInfo("registry", ""),
-			},
-			setupConfig: func() {
-				mockConfig.SetWithoutSource("apm_config.instrumentation.enabled", true)
-				mockConfig.SetWithoutSource("apm_config.instrumentation.lib_versions", defaultLibrariesFor("java"))
-				mockConfig.SetWithoutSource("language_detection.enabled", true)
-				mockConfig.SetWithoutSource("language_detection.reporting.enabled", true)
-				mockConfig.SetWithoutSource("admission_controller.auto_instrumentation.inject_auto_detected_libraries", true)
-			},
-		},
-		{
 			name:              "php",
 			pod:               common.FakePodWithAnnotation("admission.datadoghq.com/php-lib.version", "v1"),
 			containerRegistry: "registry",
@@ -1008,7 +935,7 @@ func TestExtractLibInfo(t *testing.T) {
 				mockConfig.SetWithoutSource(k, v)
 			}
 
-			wmeta := common.FakeStoreWithDeployment(t, tt.deployments)
+			wmeta := common.FakeStoreWithDeployment(t, nil)
 			mockConfig = configmock.New(t)
 			for k, v := range overrides {
 				mockConfig.SetWithoutSource(k, v)
@@ -1020,18 +947,19 @@ func TestExtractLibInfo(t *testing.T) {
 
 			config, err := NewConfig(mockConfig)
 			require.NoError(t, err)
-			mutator, err := NewNamespaceMutator(config, wmeta, imageResolver)
+			mutator, err := NewTargetMutator(config, wmeta, imageResolver)
 			require.NoError(t, err)
 
 			if tt.expectedPodEligible != nil {
-				require.Equal(t, *tt.expectedPodEligible, mutator.isPodEligible(tt.pod))
+				require.Equal(t, *tt.expectedPodEligible, mutator.ShouldMutatePod(tt.pod))
 			}
 
-			extracted := mutator.extractLibInfo(tt.pod)
-			if tt.assertExtractedLibInfo != nil {
-				tt.assertExtractedLibInfo(t, extracted)
+			libVersions := []libInfo{}
+			internalTarget := mutator.getTarget(tt.pod)
+			if internalTarget != nil {
+				libVersions = internalTarget.libVersions
 			}
-			require.ElementsMatch(t, tt.expectedLibsToInject, extracted.libs)
+			require.ElementsMatch(t, tt.expectedLibsToInject, libVersions)
 		})
 	}
 }
@@ -1743,7 +1671,7 @@ func TestInjectLibInitContainer(t *testing.T) {
 			// N.B. this is a bit hacky but consistent.
 			config.initSecurityContext = tt.secCtx
 
-			mutator, err := NewNamespaceMutator(config, wmeta, imageResolver)
+			mutator, err := NewTargetMutator(config, wmeta, imageResolver)
 			require.NoError(t, err)
 
 			c := tt.lang.libInfo("", tt.image).initContainers(imageResolver)[0]
@@ -2017,14 +1945,20 @@ func TestShouldInject(t *testing.T) {
 				workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 			)
 
+			// Explicitly adding an annotation because we are testing the enabled label, mutateUnlabelled, and the
+			// interactions with apm enabled. Users need an explicit annotation for local library injection to work.
+			tt.pod.Annotations = map[string]string{
+				fmt.Sprintf(customLibAnnotationKeyFormat, "java"): "v1",
+			}
+
 			mockConfig = configmock.New(t)
 			tt.setupConfig()
 
 			config, err := NewConfig(mockConfig)
 			require.NoError(t, err)
-			mutator, err := NewNamespaceMutator(config, wmeta, imageResolver)
+			mutator, err := NewTargetMutator(config, wmeta, imageResolver)
 			require.NoError(t, err)
-			require.Equal(t, tt.want, mutator.isPodEligible(tt.pod), "expected webhook.isPodEligible() to be %t", tt.want)
+			require.Equal(t, tt.want, mutator.ShouldMutatePod(tt.pod), "expected webhook.isPodEligible() to be %t", tt.want)
 		})
 	}
 }
