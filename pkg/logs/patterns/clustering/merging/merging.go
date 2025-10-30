@@ -9,8 +9,6 @@
 package merging
 
 import (
-	"strings"
-
 	"github.com/DataDog/datadog-agent/pkg/logs/patterns/token"
 )
 
@@ -35,7 +33,7 @@ func ShouldProtectPosition(position int, tokenType token.TokenType) bool {
 
 // CanMergeTokenLists checks if two TokenLists can be merged into a unified pattern.
 // Returns true only if all token positions are either identical or mergeable according
-// to their mergeability levels and protection rules.
+// to their comparison results and protection rules.
 func CanMergeTokenLists(tl1, tl2 *token.TokenList) bool {
 	if tl1.Length() != tl2.Length() {
 		return false
@@ -45,20 +43,20 @@ func CanMergeTokenLists(tl1, tl2 *token.TokenList) bool {
 		tok1 := &tl1.Tokens[i]
 		tok2 := &tl2.Tokens[i]
 
-		level := tok1.GetMergeabilityLevel(tok2)
+		result := tok1.Compare(tok2)
 
-		// If tokens match exactly, continue
-		if level == token.FitsAsItIs {
-			continue
-		}
-
-		// If tokens can't merge at all, reject
-		if !level.IsMergeable() {
+		// If tokens conflict, reject
+		if result == token.Conflict {
 			return false
 		}
 
-		// Check protection rules - if position is protected and tokens differ, reject
-		if ShouldProtectPosition(i, tok1.Type) {
+		// If tokens are identical, continue
+		if result == token.Identical {
+			continue
+		}
+
+		// For wildcard result, check protection rules
+		if result == token.Wildcard && ShouldProtectPosition(i, tok1.Type) {
 			return false
 		}
 	}
@@ -70,7 +68,7 @@ func CanMergeTokenLists(tl1, tl2 *token.TokenList) bool {
 // with wildcards at positions where tokens differ but are mergeable.
 // Returns nil if the TokenLists cannot be merged.
 func MergeTokenLists(tl1, tl2 *token.TokenList) *token.TokenList {
-	if !CanMergeTokenLists(tl1, tl2) {
+	if tl1.Length() != tl2.Length() {
 		return nil
 	}
 
@@ -80,97 +78,26 @@ func MergeTokenLists(tl1, tl2 *token.TokenList) *token.TokenList {
 		tok1 := &tl1.Tokens[i]
 		tok2 := &tl2.Tokens[i]
 
-		level := tok1.GetMergeabilityLevel(tok2)
+		result := tok1.Compare(tok2)
 
-		if level == token.FitsAsItIs {
-			// Tokens are identical, keep as-is
-			merged.Add(*tok1)
-			continue
-		}
+		switch result {
+		case token.Conflict:
+			return nil // Abort entire merge
 
-		// Handle different merge types
-		switch level {
-		case token.MergeableWithWiderRange:
-			// Special handling for structured tokens (e.g., dates with partial wildcards)
-			if tok1.Type == token.TokenDate && tok1.DateInfo != nil && tok2.DateInfo != nil {
-				merged.Add(createPartialDateWildcard(tok1.DateInfo, tok2.DateInfo))
-			} else {
-				// Fallback to full wildcard
-				merged.AddWildcardToken(tok1.Type)
+		case token.Identical:
+			merged.Add(*tok1) // Keep same
+
+		case token.Wildcard:
+			// Check protection rules before wildcarding
+			if ShouldProtectPosition(i, tok1.Type) {
+				return nil // Abort: protected position cannot be wildcarded
 			}
-		case token.MergeableAsWildcard:
-			// Create a full wildcard for this position
-			merged.AddWildcardToken(tok1.Type)
-		default:
-			// Shouldn't reach here if CanMergeTokenLists passed, but be defensive
-			merged.Add(*tok1)
+			// Create wildcard, preserving the first token's value as representative
+			merged.AddToken(tok1.Type, tok1.Value, token.IsWildcard)
 		}
 	}
 
 	return merged
-}
-
-// createPartialDateWildcard creates a date token with wildcards in differing components.
-// This allows for more precise patterns like "2024-01-* 10:30:45" instead of just "*".
-func createPartialDateWildcard(d1, d2 *token.DateComponents) token.Token {
-	// Create a pattern where differing components become wildcards
-	var pattern strings.Builder
-
-	switch d1.Format {
-	case "RFC3339", "ISO8601":
-		// Format: YYYY-MM-DDTHH:MM:SS
-		if d1.Year == d2.Year {
-			pattern.WriteString(d1.Year)
-		} else {
-			pattern.WriteString("*")
-		}
-		pattern.WriteString("-")
-
-		if d1.Month == d2.Month {
-			pattern.WriteString(d1.Month)
-		} else {
-			pattern.WriteString("*")
-		}
-		pattern.WriteString("-")
-
-		if d1.Day == d2.Day {
-			pattern.WriteString(d1.Day)
-		} else {
-			pattern.WriteString("*")
-		}
-		pattern.WriteString("T")
-
-		if d1.Hour == d2.Hour {
-			pattern.WriteString(d1.Hour)
-		} else {
-			pattern.WriteString("*")
-		}
-		pattern.WriteString(":")
-
-		if d1.Minute == d2.Minute {
-			pattern.WriteString(d1.Minute)
-		} else {
-			pattern.WriteString("*")
-		}
-		pattern.WriteString(":")
-
-		if d1.Second == d2.Second {
-			pattern.WriteString(d1.Second)
-		} else {
-			pattern.WriteString("*")
-		}
-
-	default:
-		// For other formats, just use a full wildcard
-		return token.NewWildcardToken(token.TokenDate)
-	}
-
-	return token.Token{
-		Type:       token.TokenDate,
-		Value:      pattern.String(),
-		IsWildcard: true,
-		DateInfo:   d1, // Keep the first date's structure for reference
-	}
 }
 
 // FindMergeableGroups analyzes a list of TokenLists and groups them by mergeability.

@@ -129,7 +129,7 @@ func (c *Cluster) GeneratePattern() *token.TokenList {
 	for i := 0; i < pattern.Length(); i++ {
 		tok := pattern.Tokens[i]
 
-		if tok.IsWildcard {
+		if tok.Wildcard == token.IsWildcard {
 			c.WildcardMap[i] = true
 
 			// Special handling for path wildcards
@@ -201,7 +201,12 @@ func (c *Cluster) GetPatternString() string {
 
 	var parts []string
 	for _, tok := range c.Pattern.Tokens {
-		parts = append(parts, tok.Value)
+		// Use "*" for wildcard positions, actual value otherwise
+		if tok.Wildcard == token.IsWildcard {
+			parts = append(parts, "*")
+		} else {
+			parts = append(parts, tok.Value)
+		}
 	}
 	return strings.Join(parts, "")
 }

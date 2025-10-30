@@ -36,98 +36,54 @@ const (
 	TokenDate
 )
 
-// MergeabilityLevel represents how two tokens can be merged
-type MergeabilityLevel int
+// WildcardStatus describes a token's relationship to wildcards
+type WildcardStatus int
 
 const (
-	Unmergeable MergeabilityLevel = iota
-	MergeableAsNewType
-	MergeableAsWildcard
-	MergeableWithWiderRange
-	Fits
-	FitsAsItIs
+	// NotWildcard - This token cannot become a wildcard
+	// Examples: dates, whitespace
+	NotWildcard WildcardStatus = iota
+
+	// PotentialWildcard - This token can become a wildcard
+	// Examples: all words ("connection", "user123"), HTTP methods, IPs, numbers
+	// Note: First word position is protected during merge
+	PotentialWildcard
+
+	// IsWildcard - This token is already a wildcard
+	// Example: wildcard position in a pattern
+	IsWildcard
 )
 
-// IsMergeable returns true if the mergeability level allows merging
-func (m MergeabilityLevel) IsMergeable() bool {
-	return m > Unmergeable
-}
+// MergeResult describes the result of comparing two tokens
+type MergeResult int
 
-// Compare returns the comparison result with another mergeability level
-func (m1 MergeabilityLevel) Compare(m2 MergeabilityLevel) int {
-	return int(m1) - int(m2)
-}
+const (
+	// Conflict - Tokens cannot merge, abort pattern creation
+	// Examples: different types, generic words with different values
+	Conflict MergeResult = iota
 
-// DateComponents represents parsed components of a date token
-type DateComponents struct {
-	Year   string
-	Month  string
-	Day    string
-	Hour   string
-	Minute string
-	Second string
-	Format string // Original format pattern
-}
+	// Identical - Tokens are the same, keep as-is
+	// Examples: "Error" vs "Error", wildcard vs any value of same type
+	Identical
+
+	// Wildcard - Tokens can merge into wildcard
+	// Examples: "connection" vs "replication", "user123" vs "admin456", "GET" vs "POST"
+	Wildcard
+)
 
 // Token represents a single token in a log message
 type Token struct {
-	Type             TokenType
-	Value            string
-	IsWildcard       bool
-	PossiblyWildcard bool // Indicates if this token can merge into a wildcard during batch consolidation
-
-	// Advanced token structure information
-	DateInfo *DateComponents // For TokenDate - parsed date components
+	Type     TokenType
+	Value    string
+	Wildcard WildcardStatus // NotWildcard, PotentialWildcard, or IsWildcard
 }
 
-// NewToken creates a new token with the given type and value
-func NewToken(tokenType TokenType, value string) Token {
+// NewToken creates a token with the specified wildcard status
+func NewToken(tokenType TokenType, value string, wildcard WildcardStatus) Token {
 	return Token{
-		Type:             tokenType,
-		Value:            value,
-		IsWildcard:       false,
-		PossiblyWildcard: false,
-	}
-}
-
-// NewTokenWithFlags creates a new token with explicit wildcard flags
-func NewTokenWithFlags(tokenType TokenType, value string, isWildcard, possiblyWildcard bool) Token {
-	return Token{
-		Type:             tokenType,
-		Value:            value,
-		IsWildcard:       isWildcard,
-		PossiblyWildcard: possiblyWildcard,
-	}
-}
-
-// NewWildcardToken creates a wildcard token of the given type
-func NewWildcardToken(tokenType TokenType) Token {
-	return Token{
-		Type:             tokenType,
-		Value:            "*",
-		IsWildcard:       true,
-		PossiblyWildcard: true,
-	}
-}
-
-// NewPossiblyWildcardToken creates a token that can potentially become a wildcard
-func NewPossiblyWildcardToken(tokenType TokenType, value string) Token {
-	return Token{
-		Type:             tokenType,
-		Value:            value,
-		IsWildcard:       false,
-		PossiblyWildcard: true,
-	}
-}
-
-// NewDateToken creates a date token with parsed components
-func NewDateToken(value string, dateInfo *DateComponents) Token {
-	return Token{
-		Type:             TokenDate,
-		Value:            value,
-		IsWildcard:       false,
-		PossiblyWildcard: false,
-		DateInfo:         dateInfo,
+		Type:     tokenType,
+		Value:    value,
+		Wildcard: wildcard,
 	}
 }
 
@@ -177,72 +133,41 @@ func (tt TokenType) String() string {
 
 // String returns a string representation of the token
 func (t *Token) String() string {
-	if t.IsWildcard {
-		return fmt.Sprintf("%s(*)", t.Type)
-	}
 	return fmt.Sprintf("%s(%s)", t.Type, t.Value)
 }
 
-// GetMergeabilityLevel determines how this token can merge with another token
-func (t1 *Token) GetMergeabilityLevel(t2 *Token) MergeabilityLevel {
-	// Same token type and value
-	if t1.Type == t2.Type && t1.Value == t2.Value {
-		return FitsAsItIs
+// Compare checks if two tokens can merge and returns the result
+func (t1 *Token) Compare(t2 *Token) MergeResult {
+	// Different types cannot merge
+	if t1.Type != t2.Type {
+		return Conflict
 	}
 
-	// Same token type but different values
-	if t1.Type == t2.Type {
-		// Special handling for structured date tokens
-		if t1.Type == TokenDate && t1.DateInfo != nil && t2.DateInfo != nil {
-			return getDateMergeabilityLevel(t1.DateInfo, t2.DateInfo)
+	// Identical value
+	if t1.Value == t2.Value {
+		return Identical
+	}
+
+	// t1 is wildcard - matches any value of same type
+	if t1.Wildcard == IsWildcard {
+		return Identical
+	}
+
+	// Different values - check if they can merge into wildcard
+	// Whitespace never wildcards (structural)
+	if t1.Type == TokenWhitespace {
+		return Conflict
+	}
+
+	// Words only wildcard if both are PotentialWildcard
+	if t1.Type == TokenWord {
+		if t1.Wildcard == PotentialWildcard && t2.Wildcard == PotentialWildcard {
+			return Wildcard
 		}
-
-		// For Word tokens, only merge if both have possiblyWildcard flag
-		// This prevents generic words like "bob" and "cat" from merging
-		if t1.Type == TokenWord {
-			if t1.PossiblyWildcard && t2.PossiblyWildcard {
-				return MergeableAsWildcard
-			}
-			// Generic words without numeric patterns don't merge
-			return Unmergeable
-		}
-
-		// For non-Word tokens (HttpMethod, HttpStatus, AbsolutePath, Numeric, etc.)
-		// they are mergeable by default since they represent structured data
-		// e.g., "GET" vs "POST", "/api" vs "/users", "200" vs "404"
-		return MergeableAsWildcard
+		return Conflict
 	}
 
-	// Different token types
-	return Unmergeable
+	// Structured types (HTTP, IP, Numeric, Date, etc.) wildcard if same type
+	// Same TokenDate type means same format structure (e.g., both RFC3339)
+	return Wildcard
 }
-
-// getDateMergeabilityLevel determines how two date tokens can merge based on their structure
-func getDateMergeabilityLevel(d1, d2 *DateComponents) MergeabilityLevel {
-	// Must have same format to be mergeable - different formats = different log sources
-	if d1.Format != d2.Format {
-		return Unmergeable
-	}
-
-	// Simple rule: Only merge if same date, different time (same log source over time)
-	// Everything else is likely different log sources and shouldn't merge
-	sameDate := d1.Year == d2.Year && d1.Month == d2.Month && d1.Day == d2.Day
-	sameTime := d1.Hour == d2.Hour && d1.Minute == d2.Minute && d1.Second == d2.Second
-
-	if sameDate && sameTime {
-		return FitsAsItIs
-	}
-
-	if sameDate && !sameTime {
-		// Same date, different time = same log source at different times
-		return MergeableWithWiderRange
-	}
-
-	// Different dates = different log sources/periods = don't merge
-	return Unmergeable
-}
-
-// NOTE: MergeWith() and createPartialDateWildcard() have been moved to the
-// clustering/merging package. Token now only provides data comparison via
-// GetMergeabilityLevel(), while merge execution is handled as business logic
-// in the merging package.

@@ -98,6 +98,7 @@ func (rm *RuleManager) RemoveRule(name string) bool {
 }
 
 // ApplyRules applies terminal rules in priority order to classify a token
+// Returns TokenWord if no rule matches (generic word fallback)
 func (rm *RuleManager) ApplyRules(value string) token.TokenType {
 	for _, rule := range rm.rules {
 		if rule.Pattern.MatchString(value) {
@@ -288,8 +289,8 @@ func GetPredefinedRules() []*TerminalRule {
 			TokenType:   token.TokenDate,
 			Priority:    PriorityHigh,
 			Category:    "time",
-			Description: "Matches RFC3339 datetime format with nanosecond precision",
-			Examples:    []string{"2006-01-02T15:04:05.999999999Z07:00", "2024-12-25T14:30:00.123456789+02:00"},
+			Description: "Supplementary pattern from multiline handler for edge-case RFC3339 formats",
+			Examples:    []string{"2024-12-25T14:30:00.123456789Z07:00"},
 		},
 		{
 			Name:        "StandardTimestamp",
@@ -317,8 +318,8 @@ func GetPredefinedRules() []*TerminalRule {
 			TokenType:   token.TokenDate,
 			Priority:    PriorityMedium,
 			Category:    "time",
-			Description: "Matches RFC1123Z datetime format with numeric timezone",
-			Examples:    []string{"Mon, 02 Jan 2006 15:04:05 -0700", "Wed, 25 Dec 2024 14:30:00 +0200"},
+			Description: "Supplementary pattern from multiline handler for RFC1123Z edge cases",
+			Examples:    []string{"Mon, 02 Jan 2006 15:04:05 -0700", "Wed, 25 Dec 2024 14:30:00 -0800"},
 		},
 		{
 			Name:        "RFC850DateTime",
@@ -344,8 +345,8 @@ func GetPredefinedRules() []*TerminalRule {
 			TokenType:   token.TokenDate,
 			Priority:    PriorityMedium,
 			Category:    "time",
-			Description: "Matches RFC822Z datetime format with numeric timezone",
-			Examples:    []string{"02 Jan 06 15:04 -0700", "25 Dec 24 14:30 +0200"},
+			Description: "Supplementary pattern from multiline handler for RFC822Z edge cases",
+			Examples:    []string{"02 Jan 06 15:04 -0700", "25 Dec 24 14:30 -0800"},
 		},
 
 		// Medium Priority - Unix/System Formats

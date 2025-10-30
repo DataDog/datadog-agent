@@ -8,7 +8,6 @@
 package automaton
 
 import (
-	"regexp"
 	"unicode"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/patterns/token"
@@ -55,7 +54,7 @@ func (t *Tokenizer) Tokenize() *token.TokenList {
 		}
 	}
 
-	t.flushBuffer()
+	t.handleLastToken()
 	t.classifyTokens()
 
 	return token.NewTokenListWithTokens(t.tokens)
@@ -69,18 +68,26 @@ func (t *Tokenizer) classifyTokens() {
 			continue
 		}
 
-		classifiedType := t.classifyToken(tok.Value)
-		if classifiedType == token.TokenUnknown {
+		// Skip classification for punctuation (already marked as NotWildcard in createSpecialToken)
+		if tok.Wildcard == token.NotWildcard {
 			continue
 		}
 
-		// Update token type
+		classifiedType := t.classifyToken(tok.Value)
+
+		// If classification returns TokenWord or TokenUnknown, keep current state
+		// TokenWord = "generic word, no specific classification"
+		// TokenUnknown = "should not happen, but keep current state"
+		if classifiedType == token.TokenWord || classifiedType == token.TokenUnknown {
+			continue
+		}
+
+		// Update token type to the more specific classification
 		t.tokens[i].Type = classifiedType
 
-		// Parse date components for date tokens
-		if classifiedType == token.TokenDate {
-			t.tokens[i].DateInfo = parseDateComponents(tok.Value)
-		}
+		// Set wildcard potential based on classified type
+		t.tokens[i].Wildcard = getWildcardPotential(classifiedType)
+
 	}
 }
 
@@ -186,209 +193,23 @@ func (t *Tokenizer) classifyToken(value string) token.TokenType {
 	return globalTrie.Match(value)
 }
 
-// parseDateComponents extracts structural information from date strings
-// Uses the same comprehensive patterns as the multiline aggregation package
-func parseDateComponents(dateStr string) *token.DateComponents {
-	// Comprehensive date patterns from multiline aggregation package
-	patterns := []struct {
-		regex  *regexp.Regexp
-		format string
-		parser func([]string) *token.DateComponents
-	}{
-		// RFC3339: 2006-01-02T15:04:05Z07:00
-		{
-			regexp.MustCompile(`^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(\.\d+)?(Z|[\+\-]\d{2}:?\d{2})?`),
-			"RFC3339",
-			func(matches []string) *token.DateComponents {
-				return &token.DateComponents{
-					Year: matches[1], Month: matches[2], Day: matches[3],
-					Hour: matches[4], Minute: matches[5], Second: matches[6],
-					Format: "RFC3339",
-				}
-			},
-		},
-		// Standard timestamp: 2021-07-08 05:08:19,214
-		{
-			regexp.MustCompile(`^(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2}):(\d{2})(,\d+)?`),
-			"YYYY-MM-DD HH:mm:ss",
-			func(matches []string) *token.DateComponents {
-				return &token.DateComponents{
-					Year: matches[1], Month: matches[2], Day: matches[3],
-					Hour: matches[4], Minute: matches[5], Second: matches[6],
-					Format: "YYYY-MM-DD HH:mm:ss",
-				}
-			},
-		},
-		// Date only: 2021-01-31 (with strict month/day validation)
-		{
-			regexp.MustCompile(`^(\d{4})-(1[012]|0?[1-9])-([12][0-9]|3[01]|0?[1-9])`),
-			"YYYY-MM-DD",
-			func(matches []string) *token.DateComponents {
-				return &token.DateComponents{
-					Year: matches[1], Month: matches[2], Day: matches[3],
-					Format: "YYYY-MM-DD",
-				}
-			},
-		},
-		// Slash format: 2023/02/20 14:33:24
-		{
-			regexp.MustCompile(`^(\d{4})/(\d{2})/(\d{2}) (\d{2}):(\d{2}):(\d{2})`),
-			"YYYY/MM/DD HH:mm:ss",
-			func(matches []string) *token.DateComponents {
-				return &token.DateComponents{
-					Year: matches[1], Month: matches[2], Day: matches[3],
-					Hour: matches[4], Minute: matches[5], Second: matches[6],
-					Format: "YYYY/MM/DD HH:mm:ss",
-				}
-			},
-		},
-		// Java SimpleFormatter: January 31, 2021 2:30:45 PM
-		{
-			regexp.MustCompile(`^([A-Za-z_]+) (\d+), (\d{4}) (\d+):(\d+):(\d+) (AM|PM)`),
-			"Month DD, YYYY HH:mm:ss AM/PM",
-			func(matches []string) *token.DateComponents {
-				return &token.DateComponents{
-					Month: matches[1], Day: matches[2], Year: matches[3],
-					Hour: matches[4], Minute: matches[5], Second: matches[6],
-					Format: "Month DD, YYYY HH:mm:ss AM/PM",
-				}
-			},
-		},
-		// ANSIC: Mon Jan _2 15:04:05 2006
-		{
-			regexp.MustCompile(`^([A-Za-z_]+) ([A-Za-z_]+) +(\d+) (\d+):(\d+):(\d+) (\d+)`),
-			"ANSIC",
-			func(matches []string) *token.DateComponents {
-				return &token.DateComponents{
-					Month: matches[2], Day: matches[3], Year: matches[7],
-					Hour: matches[4], Minute: matches[5], Second: matches[6],
-					Format: "ANSIC",
-				}
-			},
-		},
-		// UnixDate: Mon Jan _2 15:04:05 MST 2006
-		{
-			regexp.MustCompile(`^([A-Za-z_]+) ([A-Za-z_]+) +(\d+) (\d+):(\d+):(\d+)( [A-Za-z_]+ (\d+))?`),
-			"UnixDate",
-			func(matches []string) *token.DateComponents {
-				year := matches[7]
-				if year == "" && len(matches) > 8 {
-					year = matches[8]
-				}
-				return &token.DateComponents{
-					Month: matches[2], Day: matches[3], Year: year,
-					Hour: matches[4], Minute: matches[5], Second: matches[6],
-					Format: "UnixDate",
-				}
-			},
-		},
-		// RubyDate: Mon Jan 02 15:04:05 -0700 2006
-		{
-			regexp.MustCompile(`^([A-Za-z_]+) ([A-Za-z_]+) (\d+) (\d+):(\d+):(\d+) ([\-\+]\d+) (\d+)`),
-			"RubyDate",
-			func(matches []string) *token.DateComponents {
-				return &token.DateComponents{
-					Month: matches[2], Day: matches[3], Year: matches[8],
-					Hour: matches[4], Minute: matches[5], Second: matches[6],
-					Format: "RubyDate",
-				}
-			},
-		},
-		// RFC822: 02 Jan 06 15:04 MST
-		{
-			regexp.MustCompile(`^(\d+) ([A-Za-z_]+) (\d+) (\d+):(\d+) ([A-Za-z_]+)`),
-			"RFC822",
-			func(matches []string) *token.DateComponents {
-				return &token.DateComponents{
-					Day: matches[1], Month: matches[2], Year: matches[3],
-					Hour: matches[4], Minute: matches[5],
-					Format: "RFC822",
-				}
-			},
-		},
-		// RFC822Z: 02 Jan 06 15:04 -0700
-		{
-			regexp.MustCompile(`^(\d+) ([A-Za-z_]+) (\d+) (\d+):(\d+) (-\d+)`),
-			"RFC822Z",
-			func(matches []string) *token.DateComponents {
-				return &token.DateComponents{
-					Day: matches[1], Month: matches[2], Year: matches[3],
-					Hour: matches[4], Minute: matches[5],
-					Format: "RFC822Z",
-				}
-			},
-		},
-		// RFC850: Monday, 02-Jan-06 15:04:05 MST
-		{
-			regexp.MustCompile(`^([A-Za-z_]+), (\d+)-([A-Za-z_]+)-(\d+) (\d+):(\d+):(\d+) ([A-Za-z_]+)`),
-			"RFC850",
-			func(matches []string) *token.DateComponents {
-				return &token.DateComponents{
-					Day: matches[2], Month: matches[3], Year: matches[4],
-					Hour: matches[5], Minute: matches[6], Second: matches[7],
-					Format: "RFC850",
-				}
-			},
-		},
-		// RFC1123: Mon, 02 Jan 2006 15:04:05 MST
-		{
-			regexp.MustCompile(`^([A-Za-z_]+), (\d+) ([A-Za-z_]+) (\d+) (\d+):(\d+):(\d+) ([A-Za-z_]+)`),
-			"RFC1123",
-			func(matches []string) *token.DateComponents {
-				return &token.DateComponents{
-					Day: matches[2], Month: matches[3], Year: matches[4],
-					Hour: matches[5], Minute: matches[6], Second: matches[7],
-					Format: "RFC1123",
-				}
-			},
-		},
-		// RFC1123Z: Mon, 02 Jan 2006 15:04:05 -0700
-		{
-			regexp.MustCompile(`^([A-Za-z_]+), (\d+) ([A-Za-z_]+) (\d+) (\d+):(\d+):(\d+) (-\d+)`),
-			"RFC1123Z",
-			func(matches []string) *token.DateComponents {
-				return &token.DateComponents{
-					Day: matches[2], Month: matches[3], Year: matches[4],
-					Hour: matches[5], Minute: matches[6], Second: matches[7],
-					Format: "RFC1123Z",
-				}
-			},
-		},
-		// RFC3339Nano: 2006-01-02T15:04:05.999999999Z07:00
-		{
-			regexp.MustCompile(`^(\d+)-(\d+)-(\d+)([A-Za-z_]+)(\d+):(\d+):(\d+)\.(\d+)([A-Za-z_]+)(\d+):(\d+)`),
-			"RFC3339Nano",
-			func(matches []string) *token.DateComponents {
-				return &token.DateComponents{
-					Year: matches[1], Month: matches[2], Day: matches[3],
-					Hour: matches[5], Minute: matches[6], Second: matches[7],
-					Format: "RFC3339Nano",
-				}
-			},
-		},
+// getWildcardPotential determines if a token type can potentially become a wildcard
+// Returns either NotWildcard (0%) or PotentialWildcard (50%)
+// Note: IsWildcard (100%) is only set during pattern merging, never during tokenization
+func getWildcardPotential(tokenType token.TokenType) token.WildcardStatus {
+	// Only whitespace cannot become a wildcard
+	if tokenType == token.TokenWhitespace {
+		return token.NotWildcard
 	}
 
-	for _, pattern := range patterns {
-		if matches := pattern.regex.FindStringSubmatch(dateStr); matches != nil {
-			return pattern.parser(matches)
-		}
-	}
-
-	return nil // Couldn't parse
+	// Everything else can potentially become wildcards
+	// Dates wildcard if they have the same format (both TokenDate means same structure)
+	return token.PotentialWildcard
 }
 
-// hasNumericPattern checks if a word contains numbers
-func hasNumericPattern(word string) bool {
-	return regexp.MustCompile(`\d`).MatchString(word)
-}
-
-// shouldSetPossiblyWildcard determines if a token should have the possiblyWildcard flag
-// Words with numeric patterns (user123, admin456) can be wildcarded during merging
-func shouldSetPossiblyWildcard(tokenType token.TokenType, value string) bool {
-	return tokenType == token.TokenWord && hasNumericPattern(value)
-}
-
+// ================================================
 // Helper functions
+// ================================================
 
 // isURLScheme checks if current buffer looks like a URL scheme
 func (t *Tokenizer) isURLScheme() bool {
@@ -414,52 +235,55 @@ func (t *Tokenizer) bufferToString() string {
 	return string(t.buffer)
 }
 
-func (t *Tokenizer) flushBuffer() {
+func (t *Tokenizer) handleLastToken() {
 	if len(t.buffer) > 0 {
-		// Create remaining content as word token
-		t.createWordToken()
+		// Create token from remaining buffer content based on current state
+		switch t.state {
+		case StateNumeric:
+			t.createNumericToken()
+		case StateWhitespace:
+			t.createWhitespaceToken()
+		case StateSpecial:
+			t.createSpecialToken()
+		default:
+			t.createWordToken()
+		}
 	}
 }
 
+// ================================================
 // Token creation methods
+// ================================================
 
 func (t *Tokenizer) createWordToken() {
 	value := t.bufferToString()
-	tokenType := t.classifyToken(value)
-
-	tok := token.NewTokenWithFlags(tokenType, value, false, shouldSetPossiblyWildcard(tokenType, value))
+	// Create as basic Word type - classification happens later in classifyTokens()
+	tok := token.NewToken(token.TokenWord, value, token.PotentialWildcard)
 	t.tokens = append(t.tokens, tok)
 	t.clearBuffer()
 }
 
 func (t *Tokenizer) createNumericToken() {
 	value := t.bufferToString()
-	t.tokens = append(t.tokens, token.Token{
-		Type:             token.TokenNumeric,
-		Value:            value,
-		PossiblyWildcard: true, // Numeric tokens can be merged (25 vs 62 → *)
-	})
+	// Numeric tokens are potential wildcards - will be classified later
+	tok := token.NewToken(token.TokenNumeric, value, token.PotentialWildcard)
+	t.tokens = append(t.tokens, tok)
 	t.clearBuffer()
 }
 
 func (t *Tokenizer) createWhitespaceToken() {
 	value := t.bufferToString()
-	t.tokens = append(t.tokens, token.Token{
-		Type:             token.TokenWhitespace,
-		Value:            value,
-		PossiblyWildcard: false, // Whitespace tokens are not mergeable
-	})
+	// Whitespace never becomes wildcard
+	tok := token.NewToken(token.TokenWhitespace, value, token.NotWildcard)
+	t.tokens = append(t.tokens, tok)
 	t.clearBuffer()
 }
 
 func (t *Tokenizer) createSpecialToken() {
 	value := t.bufferToString()
-	tokenType := t.classifyToken(value)
-
-	t.tokens = append(t.tokens, token.Token{
-		Type:             tokenType,
-		Value:            value,
-		PossiblyWildcard: shouldSetPossiblyWildcard(tokenType, value),
-	})
+	// Special characters (punctuation, symbols) should not wildcard - only merge if identical
+	// Examples: ":", "[", "@" - structural markers that must stay consistent
+	tok := token.NewToken(token.TokenWord, value, token.NotWildcard)
+	t.tokens = append(t.tokens, tok)
 	t.clearBuffer()
 }

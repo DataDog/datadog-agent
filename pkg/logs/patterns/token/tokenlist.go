@@ -31,18 +31,8 @@ func (tl *TokenList) Add(tokens ...Token) {
 }
 
 // AddToken creates and adds a new token with the given type and value
-func (tl *TokenList) AddToken(tokenType TokenType, value string) {
-	tl.Tokens = append(tl.Tokens, NewToken(tokenType, value))
-}
-
-// AddWildcardToken creates and adds a wildcard token of the given type
-func (tl *TokenList) AddWildcardToken(tokenType TokenType) {
-	tl.Tokens = append(tl.Tokens, NewWildcardToken(tokenType))
-}
-
-// AddPossiblyWildcardToken creates and adds a token that can potentially become a wildcard
-func (tl *TokenList) AddPossiblyWildcardToken(tokenType TokenType, value string) {
-	tl.Tokens = append(tl.Tokens, NewPossiblyWildcardToken(tokenType, value))
+func (tl *TokenList) AddToken(tokenType TokenType, value string, wildcard WildcardStatus) {
+	tl.Tokens = append(tl.Tokens, NewToken(tokenType, value, wildcard))
 }
 
 // Length returns the number of tokens
