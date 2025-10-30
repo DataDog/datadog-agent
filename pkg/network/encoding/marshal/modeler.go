@@ -19,8 +19,9 @@ var (
 	cfgOnce  = sync.Once{}
 	agentCfg *model.AgentConfiguration
 
-	sysProbePidOnce = sync.Once{}
-	sysProbePid     = uint32(0)
+	getSysProbePid = sync.OnceValue(func() uint32 {
+		return uint32(os.Getpid())
+	})
 )
 
 // ConnectionsModeler contains all the necessary structs for modeling a connection.
@@ -40,16 +41,13 @@ type ConnectionsModeler struct {
 // rather than just individual batches.
 func NewConnectionsModeler(conns *network.Connections) *ConnectionsModeler {
 	ipc := make(ipCache, len(conns.Conns)/2)
-	sysProbePidOnce.Do(func() {
-		sysProbePid = uint32(os.Getpid())
-	})
 	return &ConnectionsModeler{
 		usmEncoders:  initializeUSMEncoders(conns),
 		ipc:          ipc,
 		dnsFormatter: newDNSFormatter(conns, ipc),
 		routeIndex:   make(map[network.Via]RouteIdx),
 		tagsSet:      network.NewTagsSet(),
-		sysProbePid:  sysProbePid,
+		sysProbePid:  getSysProbePid(),
 	}
 }
 
