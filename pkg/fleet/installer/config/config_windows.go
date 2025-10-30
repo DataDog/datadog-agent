@@ -67,7 +67,7 @@ func (d *Directories) WriteExperiment(ctx context.Context, operations Operations
 	if err != nil {
 		return fmt.Errorf("error writing deployment ID file: %w", err)
 	}
-	err = os.Rename(d.ExperimentPath, experimentBackupPath)
+	err = os.Rename(experimentBackupPath, d.ExperimentPath)
 	if err != nil {
 		return fmt.Errorf("error renaming experiment directory: %w", err)
 	}
