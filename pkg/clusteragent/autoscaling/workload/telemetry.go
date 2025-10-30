@@ -28,14 +28,19 @@ var (
 	autoscalingQueueMetricsProvider = workqueuetelemetry.NewQueueMetricsProvider()
 	commonOpts                      = telemetry.Options{NoDoubleUnderscoreSep: true}
 
+	// Common label definitions for DPA metrics
+	dpaLabels          = []string{"namespace", "target_name", "autoscaler_name", le.JoinLeaderLabel}
+	dpaContainerLabels = []string{"namespace", "target_name", "autoscaler_name", "target_container_name", le.JoinLeaderLabel}
+
 	// telemetryReceivedRecommendationsVersion tracks the version of the received recommendations by the config retriever
 	telemetryReceivedRecommendationsVersion = telemetry.NewGaugeWithOpts(
 		subsystem,
 		"received_recommendations_version",
-		[]string{"namespace", "target_name", "autoscaler_name", le.JoinLeaderLabel},
+		dpaLabels,
 		"Tracks the version of the received recommendations by the config retriever",
 		commonOpts,
 	)
+
 	// telemetryHorizontalScaleActions tracks the number of horizontal scaling attempts
 	telemetryHorizontalScaleActions = telemetry.NewCounterWithOpts(
 		subsystem,
@@ -64,7 +69,7 @@ var (
 	telemetryHorizontalScaleConstraintsMinReplicas = telemetry.NewGaugeWithOpts(
 		subsystem,
 		"horizontal_scaling_constraints_min_replicas",
-		[]string{"namespace", "target_name", "autoscaler_name", le.JoinLeaderLabel},
+		dpaLabels,
 		"Tracks the minReplicas constraint value from DatadogPodAutoscaler.spec.constraints",
 		commonOpts,
 	)
@@ -72,7 +77,7 @@ var (
 	telemetryHorizontalScaleConstraintsMaxReplicas = telemetry.NewGaugeWithOpts(
 		subsystem,
 		"horizontal_scaling_constraints_max_replicas",
-		[]string{"namespace", "target_name", "autoscaler_name", le.JoinLeaderLabel},
+		dpaLabels,
 		"Tracks the maxReplicas constraint value from DatadogPodAutoscaler.spec.constraints",
 		commonOpts,
 	)
@@ -81,7 +86,7 @@ var (
 	telemetryStatusHorizontalCurrentReplicas = telemetry.NewGaugeWithOpts(
 		subsystem,
 		"status_current_replicas",
-		[]string{"namespace", "target_name", "autoscaler_name", le.JoinLeaderLabel},
+		dpaLabels,
 		"Tracks the current replicas value from DatadogPodAutoscaler.status.currentReplicas",
 		commonOpts,
 	)
@@ -90,8 +95,62 @@ var (
 	telemetryStatusHorizontalDesiredReplicas = telemetry.NewGaugeWithOpts(
 		subsystem,
 		"status_desired_replicas",
-		[]string{"namespace", "target_name", "autoscaler_name", le.JoinLeaderLabel},
+		dpaLabels,
 		"Tracks the current replicas value from DatadogPodAutoscaler.status.horizontal.desiredReplicas",
+		commonOpts,
+	)
+
+	// telemetryStatusVerticalDesiredPodCPURequest tracks the sum of CPU requests for all containers
+	telemetryStatusVerticalDesiredPodCPURequest = telemetry.NewGaugeWithOpts(
+		subsystem,
+		"status_vertical_desired_pod_cpu_request",
+		dpaLabels,
+		"Tracks the sum of CPU requests (in millicores) from DatadogPodAutoscaler.status.vertical.target.podCPURequest",
+		commonOpts,
+	)
+
+	// telemetryStatusVerticalDesiredPodMemoryRequest tracks the sum of memory requests for all containers
+	telemetryStatusVerticalDesiredPodMemoryRequest = telemetry.NewGaugeWithOpts(
+		subsystem,
+		"status_vertical_desired_pod_memory_request",
+		dpaLabels,
+		"Tracks the sum of memory requests (in bytes) from DatadogPodAutoscaler.status.vertical.target.podMemoryRequest",
+		commonOpts,
+	)
+
+	// telemetryStatusVerticalDesiredContainerCPURequest tracks CPU requests per container
+	telemetryStatusVerticalDesiredContainerCPURequest = telemetry.NewGaugeWithOpts(
+		subsystem,
+		"status_vertical_desired_container_cpu_request",
+		dpaContainerLabels,
+		"Tracks CPU requests (in millicores) per container from DatadogPodAutoscaler.status.vertical.target.desiredResources",
+		commonOpts,
+	)
+
+	// telemetryStatusVerticalDesiredContainerMemoryRequest tracks memory requests per container
+	telemetryStatusVerticalDesiredContainerMemoryRequest = telemetry.NewGaugeWithOpts(
+		subsystem,
+		"status_vertical_desired_container_memory_request",
+		dpaContainerLabels,
+		"Tracks memory requests (in bytes) per container from DatadogPodAutoscaler.status.vertical.target.desiredResources",
+		commonOpts,
+	)
+
+	// telemetryStatusVerticalDesiredContainerCPULimit tracks CPU limits per container
+	telemetryStatusVerticalDesiredContainerCPULimit = telemetry.NewGaugeWithOpts(
+		subsystem,
+		"status_vertical_desired_container_cpu_limit",
+		dpaContainerLabels,
+		"Tracks CPU limits (in millicores) per container from DatadogPodAutoscaler.status.vertical.target.desiredResources",
+		commonOpts,
+	)
+
+	// telemetryStatusVerticalDesiredContainerMemoryLimit tracks memory limits per container
+	telemetryStatusVerticalDesiredContainerMemoryLimit = telemetry.NewGaugeWithOpts(
+		subsystem,
+		"status_vertical_desired_container_memory_limit",
+		dpaContainerLabels,
+		"Tracks memory limits (in bytes) per container from DatadogPodAutoscaler.status.vertical.target.desiredResources",
 		commonOpts,
 	)
 
@@ -133,7 +192,7 @@ var (
 	telemetryLocalFallbackEnabled = telemetry.NewGaugeWithOpts(
 		subsystem,
 		"local_fallback_enabled",
-		[]string{"namespace", "target_name", "autoscaler_name", le.JoinLeaderLabel},
+		dpaLabels,
 		"Tracks whether local fallback recommendations are being used",
 		commonOpts,
 	)
@@ -150,6 +209,12 @@ var (
 		autoscalingStatusConditions,
 		telemetryStatusHorizontalCurrentReplicas,
 		telemetryStatusHorizontalDesiredReplicas,
+		telemetryStatusVerticalDesiredPodCPURequest,
+		telemetryStatusVerticalDesiredPodMemoryRequest,
+		telemetryStatusVerticalDesiredContainerCPURequest,
+		telemetryStatusVerticalDesiredContainerMemoryRequest,
+		telemetryStatusVerticalDesiredContainerCPULimit,
+		telemetryStatusVerticalDesiredContainerMemoryLimit,
 	}
 )
 
@@ -254,6 +319,7 @@ func trackLocalFallbackEnabled(currentSource datadoghqcommon.DatadogPodAutoscale
 func trackDPATelemetry(podAutoscaler *datadoghq.DatadogPodAutoscaler) {
 	trackHorizontalConstraints(podAutoscaler)
 	trackHorizontalStatus(podAutoscaler)
+	trackVerticalStatus(podAutoscaler)
 }
 
 func trackHorizontalConstraints(podAutoscaler *datadoghq.DatadogPodAutoscaler) {
@@ -291,9 +357,67 @@ func trackHorizontalStatus(podAutoscaler *datadoghq.DatadogPodAutoscaler) {
 	}
 }
 
+func trackVerticalStatus(podAutoscaler *datadoghq.DatadogPodAutoscaler) {
+	labels := getAutoscalerLabels(podAutoscaler)
+
+	if podAutoscaler.Status.Vertical != nil && podAutoscaler.Status.Vertical.Target != nil {
+		target := podAutoscaler.Status.Vertical.Target
+
+		// Track pod-level CPU and memory requests
+		telemetryStatusVerticalDesiredPodCPURequest.Set(float64(target.PodCPURequest.MilliValue()), labels...)
+		telemetryStatusVerticalDesiredPodMemoryRequest.Set(float64(target.PodMemoryRequest.Value()), labels...)
+
+		// Track per-container resources
+		for _, containerResources := range target.DesiredResources {
+			containerLabels := append(labels[:len(labels)-1], containerResources.Name, le.JoinLeaderValue)
+			trackContainerResources(containerResources, containerLabels)
+		}
+	} else {
+		// Delete all metrics if vertical status is not set
+		telemetryStatusVerticalDesiredPodCPURequest.Delete(labels...)
+		telemetryStatusVerticalDesiredPodMemoryRequest.Delete(labels...)
+
+		// Delete all container-specific metrics using partial match
+		deleteGaugeLinkedToDPA(telemetryStatusVerticalDesiredContainerCPURequest, labels[0], labels[1], labels[2])
+		deleteGaugeLinkedToDPA(telemetryStatusVerticalDesiredContainerMemoryRequest, labels[0], labels[1], labels[2])
+		deleteGaugeLinkedToDPA(telemetryStatusVerticalDesiredContainerCPULimit, labels[0], labels[1], labels[2])
+		deleteGaugeLinkedToDPA(telemetryStatusVerticalDesiredContainerMemoryLimit, labels[0], labels[1], labels[2])
+	}
+}
+
+// trackContainerResources tracks all resources (requests and limits) for a single container
+func trackContainerResources(containerResources datadoghqcommon.DatadogPodAutoscalerContainerResources, containerLabels []string) {
+	// Track CPU request
+	trackContainerResource(telemetryStatusVerticalDesiredContainerCPURequest, containerResources.Requests, corev1.ResourceCPU, true, containerLabels...)
+
+	// Track memory request
+	trackContainerResource(telemetryStatusVerticalDesiredContainerMemoryRequest, containerResources.Requests, corev1.ResourceMemory, false, containerLabels...)
+
+	// Track CPU limit (optional)
+	trackContainerResource(telemetryStatusVerticalDesiredContainerCPULimit, containerResources.Limits, corev1.ResourceCPU, true, containerLabels...)
+
+	// Track memory limit (optional)
+	trackContainerResource(telemetryStatusVerticalDesiredContainerMemoryLimit, containerResources.Limits, corev1.ResourceMemory, false, containerLabels...)
+}
+
+// trackContainerResource tracks a specific resource (CPU or memory) with optional delete if not present
+func trackContainerResource(metric telemetry.Gauge, resourceList corev1.ResourceList, resourceName corev1.ResourceName, isMilliValue bool, labels ...string) {
+	if quantity, ok := resourceList[resourceName]; ok {
+		var value float64
+		if isMilliValue {
+			value = float64(quantity.MilliValue())
+		} else {
+			value = float64(quantity.Value())
+		}
+		metric.Set(value, labels...)
+	} else {
+		metric.Delete(labels...)
+	}
+}
+
 func setHorizontalScaleAppliedRecommendations(toReplicas float64, ns, targetName, autoscalerName, source string) {
 	// Clear previous values to prevent gauge from reporting old values for different sources
-	unsetHorizontalScaleAppliedRecommendations(ns, targetName, autoscalerName)
+	deleteGaugeLinkedToDPA(telemetryHorizontalScaleAppliedRecommendations, ns, targetName, autoscalerName)
 
 	telemetryHorizontalScaleAppliedRecommendations.Set(
 		toReplicas,
@@ -305,7 +429,7 @@ func setHorizontalScaleAppliedRecommendations(toReplicas float64, ns, targetName
 	)
 }
 
-func unsetHorizontalScaleAppliedRecommendations(ns, targetName, autoscalerName string) {
+func deleteGaugeLinkedToDPA(metric telemetry.Gauge, ns, targetName, autoscalerName string) {
 	tags := map[string]string{
 		"namespace":        ns,
 		"target_name":      targetName,
@@ -313,7 +437,7 @@ func unsetHorizontalScaleAppliedRecommendations(ns, targetName, autoscalerName s
 		le.JoinLeaderLabel: le.JoinLeaderValue,
 	}
 
-	telemetryHorizontalScaleAppliedRecommendations.DeletePartialMatch(tags)
+	metric.DeletePartialMatch(tags)
 }
 
 // getAutoscalerLabels extracts common labels from a DatadogPodAutoscaler or PodAutoscalerInternal
