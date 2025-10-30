@@ -1,0 +1,60 @@
+package proxy
+
+// Run executes config-only lints. Probes remain off unless noNetwork=false.
+func Run(noNetwork bool) Result {
+	eff := ComputeEffective()
+	findings := []Finding{}
+
+	// Config lints
+	findings = append(findings, LintAll(eff)...)
+	findings = append(findings, lintURLShapes(eff)...)
+	findings = append(findings, lintConflicts(eff)...)
+
+	// Config-only endpoint evaluation (privacy-safe)
+	eps := EffectiveEndpoints()
+	matrix := EvaluateNoProxy(eff, eps)
+	if matrix == nil {
+		// ensure endpoint_matrix is always [] in JSON, never null
+		matrix = []EndpointCheck{}
+	}
+
+	for _, row := range matrix {
+		if row.Bypassed {
+			findings = append(findings, Finding{
+				Code:        "no_proxy.endpoint_bypassed",
+				Severity:    SeverityYellow,
+				Description: row.Endpoint.Name + " endpoint will bypass the proxy due to NO_PROXY",
+				Action:      "Remove or narrow the NO_PROXY token if unintended.",
+				Evidence: map[string]string{
+					"endpoint": row.Endpoint.Name,
+					"host":     row.Host,
+					"token":    row.Matched,
+				},
+			})
+		}
+	}
+
+	if !noNetwork {
+		findings = append(findings, ProbeProxyConnectivity(eff)...)
+		findings = append(findings, ProbeEndpointsConnectivity(eff, eps)...)
+	}
+
+	// Summary rollup
+	summary := SeverityGreen
+	for _, f := range findings {
+		if f.Severity == SeverityRed {
+			summary = SeverityRed
+			break
+		}
+		if f.Severity == SeverityYellow && summary == SeverityGreen {
+			summary = SeverityYellow
+		}
+	}
+
+	return Result{
+		Summary:        summary,
+		Effective:      eff,
+		Findings:       findings,
+		EndpointMatrix: matrix,
+	}
+}
