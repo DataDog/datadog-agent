@@ -127,7 +127,7 @@ func backupOrRestoreDirectory(ctx context.Context, sourcePath, targetPath string
 			return fmt.Errorf("error writing deployment ID file: %w", err)
 		}
 	}
-	cmd := telemetry.CommandContext(ctx, "robocopy", sourcePath, targetPath, "*.yaml", "/E")
+	cmd := telemetry.CommandContext(ctx, "robocopy", sourcePath, targetPath, "*.yaml", "/MIR")
 	err = cmd.Run()
 	var exitErr *exec.ExitError
 	if err != nil && !errors.As(err, &exitErr) {
