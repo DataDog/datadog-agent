@@ -208,13 +208,20 @@ func installDDOTPackage(s *common.Setup) {
 // installAPMPackages installs the APM packages
 func installAPMPackages(s *common.Setup) {
 	// Injector install
-	_, apmInstrumentationEnabled := os.LookupEnv("DD_APM_INSTRUMENTATION_ENABLED")
+	apmInstrumentationMethod, apmInstrumentationEnabled := os.LookupEnv("DD_APM_INSTRUMENTATION_ENABLED")
 	if apmInstrumentationEnabled {
-		if runtime.GOOS != "windows" {
+		if runtime.GOOS == "windows" {
+			switch apmInstrumentationMethod {
+			case env.APMInstrumentationEnabledHost:
+				s.Packages.Install(common.DatadogAPMInjectPackage, defaultInjectorVersion)
+			case env.APMInstrumentationEnabledIIS:
+				// we don't need to install anything for IIS
+			default:
+				// we do nothing in unless it is host or IIS
+			}
+		} else {
 			s.Packages.Install(common.DatadogAPMInjectPackage, defaultInjectorVersion)
 		}
-		// the "host" options will be added to windows
-		// this will then install the IIS agent package
 	}
 
 	// Libraries install
