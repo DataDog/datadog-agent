@@ -1054,18 +1054,40 @@ func (s *CoreAgentService) ClientGetConfigs(_ context.Context, request *pbgo.Cli
 		}
 	}
 
-	// We may not have any update to send to the client, but we may still need
-	// to notify subscriptions that have never seen this client.
+	// The rest of the method works to serve the client's request while keeping
+	// subscriptions consistent if they need any additional files. The protocol
+	// is as follows:
+	//
+	//	 1) Check if the client needs a TUF targets update, or if there are any
+	//	 subscriptions that need a complete view of any products for this
+	//   client.
+	//	   a) No update is needed and no subscriptions need a complete view,
+	//	      return an empty response.
+	//	   b) Update is needed or subscriptions need a complete view, continue.
+	//	 2) Compute two sets of configs:
+	//	   * responseConfigs — files the client is missing vs its cache.
+	//	   * subscriptionOnlyConfigs — extra files required to give some
+	//	     products a complete first view of this client, but not needed
+	//	     for the client's response.
+	//	 3) Fetch all the files needed for both sets from the uptane client.
+	//	 4) Split the response files from allFiles.
+	//	 5) Notify subscriptions with the relevant files.
+	//	 6) Return the client's response.
+	//	   a) If there is no TUF update to ship, return an empty response.
+	//	   b) Otherwise, include new TUF metadata and the client's needed files.
+
+	// (1) Check if either the client or any subscriptions need anything.
 	hasUpdate := tufVersions.DirectorTargets != request.Client.State.TargetsVersion
-	interestedSubs, needCompleteProducts := s.mu.subscriptions.interestedSubscriptions(
+	interestedSubs, productsNeededForSubs := s.mu.subscriptions.interestedSubscriptions(
 		request.Client,
 	)
-	// If there's no update, and no products that require a full update, return
-	// an empty response; we know all subscriptions have already been notified.
-	if !hasUpdate && len(needCompleteProducts) == 0 {
+
+	if !hasUpdate && len(productsNeededForSubs) == 0 {
+		// (1.a) Neither the client nor any subscriptions need anything.
 		return &pbgo.ClientGetConfigsResponse{}, nil
 	}
 
+	// (2) Build responseConfigs and subscriptionOnlyConfigs.
 	roots, err := getNewDirectorRoots(s.mu.uptane, request.Client.State.RootVersion, tufVersions.DirectorRoot)
 	if err != nil {
 		return nil, err
@@ -1079,56 +1101,47 @@ func (s *CoreAgentService) ClientGetConfigs(_ context.Context, request *pbgo.Cli
 	if err != nil {
 		return nil, err
 	}
-
 	cachedTargetsMap, err := makeFileMetaMap(request.CachedTargetFiles)
 	if err != nil {
 		return nil, err
 	}
-
-	// Compute the set of configs that are explicitly needed for subscriptions.
-	subscriptionConfigs := make(map[string]struct{})
+	var subscriptionOnlyConfigs map[string]struct{}
 	for _, config := range matchedClientConfigs {
-		if _, ok := needCompleteProducts[productFromPath(config)]; ok {
-			subscriptionConfigs[config] = struct{}{}
+		if _, ok := productsNeededForSubs[productFromPath(config)]; ok {
+			if subscriptionOnlyConfigs == nil {
+				subscriptionOnlyConfigs = make(map[string]struct{})
+			}
+			subscriptionOnlyConfigs[config] = struct{}{}
 		}
 	}
-
-	// Compute the set of configs that are needed for the client.
 	responseConfigs := filtered(matchedClientConfigs, func(config string) bool {
 		return tufutil.FileMetaEqual(
 			cachedTargetsMap[config],
 			directorTargets[config].FileMeta,
 		) != nil
 	})
-
-	// Make neededForSubscriptions only contain the configs that are not needed
-	// for the client.
 	for _, config := range responseConfigs {
-		delete(subscriptionConfigs, config)
+		delete(subscriptionOnlyConfigs, config)
 	}
 
-	allConfigs := slices.AppendSeq(responseConfigs, maps.Keys(subscriptionConfigs))
-
-	// Sort the configs to ensure a consistent order (helps with tests).
+	// (3) Fetch all the files needed for both sets from the uptane client.
+	allConfigs := slices.AppendSeq(responseConfigs, maps.Keys(subscriptionOnlyConfigs))
 	slices.Sort(allConfigs)
-	var allFiles []*pbgo.File
-	if len(allConfigs) > 0 {
-		allFiles, err = getTargetFiles(s.mu.uptane, allConfigs)
-		if err != nil {
-			return nil, err
-		}
-		// Move the extra files needed just for subscriptions to the end.
-		slices.SortStableFunc(allFiles, func(a, b *pbgo.File) int {
-			return cmp.Compare(
-				boolToInt(contains(subscriptionConfigs, a.Path)),
-				boolToInt(contains(subscriptionConfigs, b.Path)),
-			)
-		})
+	allFiles, err := getTargetFiles(s.mu.uptane, allConfigs)
+	if err != nil {
+		return nil, err
 	}
-	responseFiles := allFiles[:len(responseConfigs)]
 
-	// Notify subscriptions with all files (including cached ones for first-time
-	// subscriptions).
+	// (4) Move the extra files needed just for subscriptions to the end.
+	slices.SortStableFunc(allFiles, func(a, b *pbgo.File) int {
+		return cmp.Compare(
+			boolToInt(contains(subscriptionOnlyConfigs, a.Path)),
+			boolToInt(contains(subscriptionOnlyConfigs, b.Path)),
+		)
+	})
+
+	// (5) Notify subscriptions with the relevant files.
+	responseFiles := allFiles[:len(responseConfigs)]
 	if len(interestedSubs) > 0 {
 		s.mu.subscriptions.notify(
 			interestedSubs,
@@ -1138,10 +1151,13 @@ func (s *CoreAgentService) ClientGetConfigs(_ context.Context, request *pbgo.Cli
 			allFiles,
 		)
 	}
+
+	// (6.a) If there is no TUF update to ship, return an empty response.
 	if !hasUpdate {
 		return &pbgo.ClientGetConfigsResponse{}, nil
 	}
 
+	// (6.b) Fill out and return the client's response.
 	targetsRaw, err := s.mu.uptane.TargetsMeta()
 	if err != nil {
 		return nil, err
@@ -1335,11 +1351,41 @@ func (s *CoreAgentService) CreateConfigSubscription(
 	if err := stream.SendHeader(metadata.MD{}); err != nil {
 		return err
 	}
-	popUpdate := func() *pbgo.ConfigSubscriptionResponse {
-		s.mu.Lock()
-		defer s.mu.Unlock()
-		return s.mu.subscriptions.popUpdate(subID)
-	}
+
+	ctx, cancel := context.WithCancel(stream.Context())
+	var wg sync.WaitGroup
+	defer wg.Wait()
+	defer cancel()
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		popUpdate := func() *pbgo.ConfigSubscriptionResponse {
+			s.mu.Lock()
+			defer s.mu.Unlock()
+			return s.mu.subscriptions.popUpdate(subID)
+		}
+		for {
+			if ctx.Err() != nil {
+				return
+			}
+			if update := popUpdate(); update != nil {
+				if err := stream.Send(update); err != nil {
+					log.Debugf("subscription %d: failed to send update: %v", subID, err)
+					return
+				}
+				// Go back around to see if there are any more updates to send.
+				continue
+			}
+			select {
+			case <-updateSignal:
+			case <-ctx.Done():
+			}
+		}
+	}()
+
+	// Process incoming TRACK/UNTRACK requests from the client (receiver
+	// goroutine). This is the current goroutine (gRPC handler).
 	setTrackedClientsLocked := func() {
 		n := 0
 		for _, s := range s.mu.subscriptions.subs {
@@ -1368,35 +1414,6 @@ func (s *CoreAgentService) CreateConfigSubscription(
 		s.mu.subscriptions.subs[subID].untrack(runtimeID)
 		setTrackedClientsLocked()
 	}
-	ctx, cancel := context.WithCancel(stream.Context())
-	var wg sync.WaitGroup
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-
-		for {
-			if ctx.Err() != nil {
-				return
-			}
-			if update := popUpdate(); update != nil {
-				if err := stream.Send(update); err != nil {
-					log.Debugf("subscription %d: failed to send update: %v", subID, err)
-					return
-				}
-				// Go back around to see if there are any more updates to send.
-				continue
-			}
-			select {
-			case <-updateSignal:
-			case <-ctx.Done():
-			}
-		}
-	}()
-	defer wg.Wait()
-	defer cancel()
-
-	// Process incoming TRACK/UNTRACK requests from the client (receiver
-	// goroutine). This is the current goroutine (gRPC handler).
 	for {
 		req, err := stream.Recv()
 		if err != nil {

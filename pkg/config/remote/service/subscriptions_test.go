@@ -322,18 +322,18 @@ func TestSubscriptionGetsConfigRemovalUpdate(t *testing.T) {
 			Once(),
 	)
 
-	uptaneClient.On("TargetFiles", mock.Anything).
-		Run(func(args mock.Arguments) {
-			require.ElementsMatch(
-				t,
-				[]string{configPath},
-				args.Get(0).([]string),
-			)
-		}).
-		Return(map[string][]byte{
-			configPath: []byte("config"),
-		}, nil).
-		Once()
+	mock.InOrder(
+		uptaneClient.
+			On("TargetFiles", []string{configPath}).
+			Return(map[string][]byte{
+				configPath: []byte("config"),
+			}, nil).
+			Once(),
+		uptaneClient.
+			On("TargetFiles", []string(nil)).
+			Return(map[string][]byte(nil), nil).
+			Once(),
+	)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
