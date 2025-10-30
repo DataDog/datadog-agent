@@ -600,27 +600,75 @@ func (m model) renderAgentPanelContent(width, height int) string {
 		return "No data available"
 	}
 
+	// Calculate fixed heights for each section
+	// Infos section: ~7 lines (title + 5 info fields)
+	// Connectivity separator: 1 line
+	// Flare button: 1 line
+	// Spacing: ~3 lines
+	const infosHeight = 7
+	const connectivitySeparatorHeight = 1
+	const flareButtonHeight = 1
+	const spacingHeight = 3
+
+	fixedHeight := infosHeight + connectivitySeparatorHeight + flareButtonHeight + spacingHeight
+	remainingHeight := height - fixedHeight
+
+	// Ensure we have at least some space for dynamic sections
+	if remainingHeight < 5 {
+		remainingHeight = 5
+	}
+
 	// Render Infos section with width constraint
 	infosSection := lipgloss.NewStyle().
 		MaxWidth(width).
 		Render(m.renderAgentInfoSection())
 
+	// Calculate height allocation for dynamic sections
+	// Give most space to connectivity, rest to health/checks
+	connectivityHeight := remainingHeight * 2 / 3
+	if connectivityHeight < 3 {
+		connectivityHeight = 3
+	}
+
 	// Render connectivity section with separator and width constraint
-	connectivityHeight := 10 // Estimated height for connectivity display
 	connectivity := m.renderConnectivitySection(width, connectivityHeight)
 	connectivityWithSeparator := subduedStyle.Render("─── Connectivity ───") + "\n" + connectivity
+
+	// Calculate remaining height for health and unattributed checks
+	healthAndChecksHeight := remainingHeight - connectivityHeight
 
 	// Render component health section (only unhealthy components)
 	healthSection := m.renderComponentHealthSection()
 	healthWithSeparator := ""
-	if healthSection != "" {
+	if healthSection != "" && healthAndChecksHeight > 0 {
+		// Truncate health section if needed
+		healthLines := strings.Split(healthSection, "\n")
+		maxHealthLines := healthAndChecksHeight / 2
+		if maxHealthLines < 1 {
+			maxHealthLines = 1
+		}
+		if len(healthLines) > maxHealthLines {
+			healthLines = healthLines[:maxHealthLines]
+			healthSection = strings.Join(healthLines, "\n") + "..."
+		}
 		healthWithSeparator = "\n\n" + subduedStyle.Render("─── Component Health ───") + "\n" + healthSection
+		healthAndChecksHeight -= (len(healthLines) + 3) // Account for separator and spacing
 	}
 
 	// Render unattributed checks section
 	unattributedSection := m.renderUnattributedChecksSection()
 	unattributedWithSeparator := ""
-	if unattributedSection != "" {
+	if unattributedSection != "" && healthAndChecksHeight > 0 {
+		// Truncate unattributed checks if needed
+		checkLines := strings.Split(unattributedSection, "\n")
+		maxCheckLines := healthAndChecksHeight
+		if maxCheckLines < 1 {
+			maxCheckLines = 1
+		}
+		if len(checkLines) > maxCheckLines {
+			checkLines = checkLines[:maxCheckLines]
+			unattributedSection = strings.Join(checkLines, "\n") + "..."
+		}
 		unattributedWithSeparator = "\n\n" + subduedStyle.Render("─── Unattributed Checks ───") + "\n" + unattributedSection
 	}
 
@@ -628,7 +676,7 @@ func (m model) renderAgentPanelContent(width, height int) string {
 	flareButton := m.renderFlareButton(width)
 
 	// Combine all sections vertically
-	return lipgloss.JoinVertical(
+	content := lipgloss.JoinVertical(
 		lipgloss.Left,
 		infosSection,
 		"\n",
@@ -638,6 +686,12 @@ func (m model) renderAgentPanelContent(width, height int) string {
 		"\n\n",
 		flareButton,
 	)
+
+	// Ensure content doesn't exceed height by using MaxHeight
+	return lipgloss.NewStyle().
+		MaxWidth(width).
+		MaxHeight(height).
+		Render(content)
 }
 
 // renderFlareButton renders the flare button at the bottom right of the agent panel
