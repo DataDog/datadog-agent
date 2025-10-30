@@ -14,6 +14,8 @@ receivers:
             - targets: ['0.0.0.0:8888']
 exporters:
   datadog:
+    sending_queue:
+      batch:
     traces:
       span_name_as_resource_name: true
       endpoint: "http://127.0.0.1:9091"
