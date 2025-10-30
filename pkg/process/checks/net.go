@@ -142,7 +142,7 @@ func (c *ConnectionsCheck) IsEnabled() bool {
 	}
 
 	_, npmModuleEnabled := c.syscfg.EnabledModules[sysconfig.NetworkTracerModule]
-	return npmModuleEnabled && c.syscfg.Enabled
+	return npmModuleEnabled && c.syscfg.Enabled && !c.sysprobeYamlConfig.GetBool("network_config.direct_send")
 }
 
 // SupportsRunOptions returns true if the check supports RunOptions
