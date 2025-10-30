@@ -67,9 +67,8 @@ typedef struct {
 } cert_item_t;
 
 typedef struct {
-    cert_id_t cert_id;
-
     cert_item_t cert_item;
+    cert_id_t cert_id;
 } ssl_handshake_state_t;
 
 typedef struct {

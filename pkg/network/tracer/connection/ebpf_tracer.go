@@ -877,7 +877,7 @@ func (t *ebpfTracer) getSSLCertInfo(certID uint32, refreshTimestamp bool) unique
 	if refreshTimestamp {
 		err := t.refreshCertTimestamp(certID, certItem)
 		if err != nil {
-			log.Warnf("getSSLCertInfoAndRefresh failed to refreshCert: %w", err)
+			log.Warnf("getSSLCertInfoAndRefresh failed to refreshCert: %s", err)
 		}
 	}
 

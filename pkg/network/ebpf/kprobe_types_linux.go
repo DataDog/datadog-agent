@@ -136,8 +136,9 @@ type CertValidity struct {
 	After  [12]uint8
 }
 type SSLHandshakeState struct {
-	Id   uint32
-	Item CertItem
+	Item      CertItem
+	Id        uint32
+	Pad_cgo_0 [4]byte
 }
 
 type _Ctype_struct_sock uint64
