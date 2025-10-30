@@ -963,7 +963,7 @@ func (s *UDPServer) Run(payloadSize int) error {
 			}
 			ret := s.onMessage(buf, n)
 			if ret != nil {
-				_, err = s.ln.WriteTo(ret, addr)
+				_, err = ln.WriteTo(ret, addr)
 				if err != nil {
 					if !errors.Is(err, net.ErrClosed) {
 						fmt.Printf("writeto: %s\n", err)
