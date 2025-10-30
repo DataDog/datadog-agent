@@ -1,0 +1,19 @@
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: EnvoyExtensionPolicy
+metadata:
+  name: datadog-appsec-extproc
+spec:
+  targetSelectors:
+    - kind: Gateway
+      group: gateway.networking.k8s.io
+  extProc:
+    - failOpen: true
+      backendRefs:
+        - name: datadog-aap-extproc-service
+          port: 443
+          namespace: datadog
+      processingMode:
+        allowModeOverride: true
+        request: {}
+        response: {}
+
