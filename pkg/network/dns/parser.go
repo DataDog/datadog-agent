@@ -110,6 +110,7 @@ func (p *dnsParser) ParseInto(data []byte, t *translation, pktInfo *dnsPacketInf
 	}
 
 	if err != nil {
+		log.Warnf("ParseInto error: %s", err)
 		return err
 	}
 
