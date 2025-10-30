@@ -1149,7 +1149,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	setupProcesses(config)
 
 	// Installer configuration
-	config.BindEnvAndSetDefault("remote_updates", true)
+	config.BindEnvAndSetDefault("remote_updates", false)
 	config.BindEnvAndSetDefault("installer.mirror", "")
 	config.BindEnvAndSetDefault("installer.registry.url", "")
 	config.BindEnvAndSetDefault("installer.registry.auth", "")
