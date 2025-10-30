@@ -72,23 +72,23 @@ func newTestEnvoyExtensionPolicy(namespace string) *unstructured.Unstructured {
 // newTestReferenceGrant creates a test ReferenceGrant unstructured object
 func newTestReferenceGrant(namespace, fromNamespace string) *unstructured.Unstructured {
 	grant := &unstructured.Unstructured{
-		Object: map[string]interface{}{
+		Object: map[string]any{
 			"apiVersion": "gateway.networking.k8s.io/v1beta1",
 			"kind":       "ReferenceGrant",
-			"metadata": map[string]interface{}{
+			"metadata": map[string]any{
 				"name":      referenceGrantName,
 				"namespace": namespace,
 			},
-			"spec": map[string]interface{}{
-				"from": []interface{}{
-					map[string]interface{}{
+			"spec": map[string]any{
+				"from": []any{
+					map[string]any{
 						"group":     "gateway.envoyproxy.io",
 						"kind":      "EnvoyExtensionPolicy",
 						"namespace": fromNamespace,
 					},
 				},
-				"to": []interface{}{
-					map[string]interface{}{
+				"to": []any{
+					map[string]any{
 						"kind": "Service",
 						"name": "appsec-processor",
 					},
@@ -152,6 +152,79 @@ func TestAdded_SuccessfulCreation(t *testing.T) {
 
 	assert.Equal(t, config.Processor.Namespace, createdGrant.GetNamespace())
 	assert.Equal(t, referenceGrantName, createdGrant.GetName())
+}
+
+func TestAdded_SuccessfulCreationSecondGateway(t *testing.T) {
+	ctx := context.Background()
+	logger := logmock.New(t)
+	scheme := runtime.NewScheme()
+	client := dynamicfake.NewSimpleDynamicClient(scheme)
+
+	config := appsecconfig.Config{
+		Product: appsecconfig.Product{
+			Processor: appsecconfig.Processor{
+				ServiceName: "appsec-processor",
+				Namespace:   "datadog",
+				Port:        8080,
+			},
+		},
+		Injection: appsecconfig.Injection{
+			CommonLabels:      map[string]string{"app": "datadog"},
+			CommonAnnotations: map[string]string{"managed-by": "datadog"},
+		},
+	}
+
+	pattern := newTestEnvoyGatewayPattern(t, client, logger, config)
+	gateway1 := newTestGateway("test-ns1", "test-gateway")
+	gateway2 := newTestGateway("test-ns2", "test-gateway")
+
+	// Track created resources
+	var createdPolicy *unstructured.Unstructured
+	var createdGrant *unstructured.Unstructured
+
+	var countPolicyCreate int
+	var countRefGrantCreate int
+	var countRefGrantPatch int
+
+	client.PrependReactor("create", "envoyextensionpolicies", func(action k8stesting.Action) (handled bool, ret runtime.Object, err error) {
+		createAction := action.(k8stesting.CreateAction)
+		createdPolicy = createAction.GetObject().(*unstructured.Unstructured)
+		countPolicyCreate++
+		return false, createdPolicy, nil
+	})
+
+	client.PrependReactor("create", "referencegrants", func(action k8stesting.Action) (handled bool, ret runtime.Object, err error) {
+		createAction := action.(k8stesting.CreateAction)
+		createdGrant = createAction.GetObject().(*unstructured.Unstructured)
+		countRefGrantCreate++
+		return false, createdGrant, nil
+	})
+
+	client.PrependReactor("patch", "referencegrants", func(_ k8stesting.Action) (handled bool, ret runtime.Object, err error) {
+		countRefGrantPatch++
+		return false, createdGrant, nil
+	})
+
+	// Execute
+	err1 := pattern.Added(ctx, gateway1)
+	err2 := pattern.Added(ctx, gateway2)
+
+	// Verify
+	require.NoError(t, err1)
+	require.NoError(t, err2)
+	assert.NotNil(t, createdPolicy, "EnvoyExtensionPolicy should be created")
+	assert.NotNil(t, createdGrant, "ReferenceGrant should be created")
+
+	assert.Equal(t, "test-ns2", createdPolicy.GetNamespace())
+	assert.Equal(t, extProcName, createdPolicy.GetName())
+	assert.Equal(t, "gateway.envoyproxy.io/v1alpha1", createdPolicy.GetAPIVersion())
+
+	assert.Equal(t, config.Processor.Namespace, createdGrant.GetNamespace())
+	assert.Equal(t, referenceGrantName, createdGrant.GetName())
+
+	assert.Equal(t, 2, countPolicyCreate)
+	assert.Equal(t, 1, countRefGrantCreate)
+	assert.Equal(t, 2, countRefGrantPatch)
 }
 
 func TestAdded_PolicyAlreadyExists(t *testing.T) {

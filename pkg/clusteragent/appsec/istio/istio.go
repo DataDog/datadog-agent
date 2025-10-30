@@ -132,7 +132,7 @@ func (i *istioInjectionPattern) Deleted(ctx context.Context, obj *unstructured.U
 		return nil // Not an Istio gateway class, skip
 	}
 
-	namespace := obj.GetNamespace()
+	namespace := i.config.IstioNamespace
 	name := obj.GetName()
 	i.logger.Debugf("Processing deleted gatewayclass for istio: %s", name)
 	_, err = i.client.Resource(filterGVR).Namespace(namespace).Get(ctx, envoyFilterName, metav1.GetOptions{})

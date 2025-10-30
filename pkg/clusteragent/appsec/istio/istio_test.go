@@ -303,7 +303,7 @@ func TestDeleted_SuccessfulDeletion(t *testing.T) {
 	scheme := runtime.NewScheme()
 
 	// Pre-create the EnvoyFilter
-	existingFilter := newTestEnvoyFilter("test-ns")
+	existingFilter := newTestEnvoyFilter("istio-system")
 	client := dynamicfake.NewSimpleDynamicClient(scheme, existingFilter)
 
 	config := appsecconfig.Config{
@@ -321,7 +321,7 @@ func TestDeleted_SuccessfulDeletion(t *testing.T) {
 
 	pattern := newTestIstioPattern(client, logger, config)
 	gwClass := newTestGatewayClass("istio", istioGatewayControllerName)
-	gwClass.SetNamespace("test-ns")
+	gwClass.SetNamespace(config.IstioNamespace)
 
 	deletedResources := []string{}
 
@@ -497,7 +497,7 @@ func TestDeleted_FilterDeletionError(t *testing.T) {
 	scheme := runtime.NewScheme()
 
 	// Pre-create the EnvoyFilter
-	existingFilter := newTestEnvoyFilter("test-ns")
+	existingFilter := newTestEnvoyFilter("istio-system")
 	client := dynamicfake.NewSimpleDynamicClient(scheme, existingFilter)
 
 	config := appsecconfig.Config{
@@ -515,7 +515,7 @@ func TestDeleted_FilterDeletionError(t *testing.T) {
 
 	pattern := newTestIstioPattern(client, logger, config)
 	gwClass := newTestGatewayClass("istio", istioGatewayControllerName)
-	gwClass.SetNamespace("test-ns")
+	gwClass.SetNamespace(config.IstioNamespace)
 
 	// Simulate error when deleting filter
 	client.PrependReactor("delete", "envoyfilters", func(_ k8stesting.Action) (handled bool, ret runtime.Object, err error) {

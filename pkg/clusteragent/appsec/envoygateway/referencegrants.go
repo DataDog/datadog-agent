@@ -101,28 +101,17 @@ func (g *grantManager) AddNamespaceToGrant(ctx context.Context, namespace string
 		return nil
 	}
 
-	// Namespace not present, we need to patch the ReferenceGrant
-	grantPatch := gwapiv1beta1.ReferenceGrant{
-		TypeMeta: metav1.TypeMeta{
-			APIVersion: "gateway.networking.k8s.io/v1beta1",
-			Kind:       "ReferenceGrant",
+	jsonPatch := []map[string]any{{
+		"op":   "add",
+		"path": "/spec/from",
+		"value": gwapiv1beta1.ReferenceGrantFrom{
+			Group:     "gateway.envoyproxy.io",
+			Kind:      "EnvoyExtensionPolicy",
+			Namespace: gwapiv1beta1.Namespace(namespace),
 		},
-		Spec: gwapiv1beta1.ReferenceGrantSpec{
-			From: []gwapiv1beta1.ReferenceGrantFrom{
-				{
-					Group:     "gateway.envoyproxy.io",
-					Kind:      "EnvoyExtensionPolicy",
-					Namespace: gwapiv1beta1.Namespace(namespace),
-				}},
-		},
-	}
+	}}
 
-	unstructuredGrantPatch, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&grantPatch)
-	if err != nil {
-		return err
-	}
-
-	patchData, err := runtime.Encode(unstructured.UnstructuredJSONScheme, &unstructured.Unstructured{Object: unstructuredGrantPatch})
+	jsonPatchBytes, err := json.Marshal(jsonPatch)
 	if err != nil {
 		return err
 	}
@@ -130,7 +119,7 @@ func (g *grantManager) AddNamespaceToGrant(ctx context.Context, namespace string
 	// TODO: handle case where more than 64 namespaces are present as this is the limit of "from" entries in a ReferenceGrant
 	_, err = g.client.Resource(referenceGrantGVR).
 		Namespace(g.namespace).
-		Patch(ctx, referenceGrantName, types.MergePatchType, patchData, metav1.PatchOptions{})
+		Patch(ctx, referenceGrantName, types.JSONPatchType, jsonPatchBytes, metav1.PatchOptions{})
 
 	if errors.IsNotFound(err) {
 		g.logger.Debug("ReferenceGrant not found, creating it")
