@@ -1,0 +1,95 @@
+# Agent specific openssl3 build.
+
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load("@rules_license//rules:license.bzl", "license")
+load(
+    "lib_contents.bzl",
+    "HDRS",
+    "HDRS_DARWIN_ARM64",
+    "HDRS_LINUX_ARM64",
+    "LIB_CURLU_SRCS_DARWIN_ARM64",
+    "LIB_CURLU_SRCS_LINUX_ARM64",
+)
+
+package(
+    default_package_metadata = [":license"],
+    default_visibility = ["//visibility:private"],
+)
+
+license(
+    name = "license",
+    # The "curl" license is a designated type.
+    license_kinds = ["@rules_license//licenses/spdx:curl"],
+    license_text = "COPYING",
+    visibility = ["//visibility:public"],
+)
+
+exports_files([
+    "LICENSE.txt",
+])
+
+VERSION = "8.16.0"
+SONAME = "libcurl.so.%s" % VERSION
+
+LOCAL_DEFINES = [
+    "-DHAVE_CONFIG_H",
+]
+
+XLOCAL_DEFINES = [
+    "-DOPENSSLDIR='\"/opt/datadog/embedded/ssl/cacerts\"'",
+    "-DENGINESDIR='\"/opt/datadog/embedded/lib/engines-3\"'",
+    "-DMODULESDIR='\"/opt/datadog/embedded/lib/ossl-modules\"'",
+    "-DBSAES_ASM",
+    "-DECP_NISTZ256_ASM",
+    "-DECP_SM2P256_ASM",
+    "-DKECCAK1600_ASM",
+    "-DOPENSSL_CPUID_OBJ",
+    "-DSHA1_ASM",
+    "-DSHA256_ASM",
+    "-DSHA512_ASM",
+    "-DSM4_ASM",
+    "-DVPAES_ASM",
+    "-DVPSM4_ASM",
+    "-DL_ENDIAN",
+    "-DOPENSSL_PIC",
+]
+
+ARCH_HDRS_COND = {
+    "@platforms//os:linux": HDRS_LINUX_ARM64,
+    "@platforms//os:macos": HDRS_DARWIN_ARM64,
+}
+
+cc_library(
+    name = "libcurl",
+    srcs = ["lib/curl_config.h"] + HDRS + select(ARCH_HDRS_COND) + select({
+        "@platforms//os:linux": LIB_CURLU_SRCS_LINUX_ARM64,
+        "@platforms//os:macos": LIB_CURLU_SRCS_DARWIN_ARM64,
+    }),
+    # Using includes because -I just does not work with bzlmod.
+    # But yuch. What we need is to  port local_incudes concept from Google out
+    # to rules_cc.
+    includes = [
+        "include",
+    ],
+    local_defines = ["HAVE_CONFIG_H"],
+    copts = [
+        "-Wno-implicit-function-declaration",
+        "-Wno-int-conversion",
+        "-I.",
+    ] + select({
+        "@platforms//os:linux": [
+            "-fPIC",
+            "-O3",
+        ],
+        "@platforms//os:macos": [
+            "-fPIC",
+            "-O3",
+        ],
+    }),
+    visibility = ["//visibility:public"],
+    deps = [
+        "@nghttp2//:nghttp2",
+        "@openssl//:openssl",
+        "@zlib//:zlib",
+    ],
+)
