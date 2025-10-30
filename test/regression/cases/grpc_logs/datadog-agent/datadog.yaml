@@ -23,8 +23,9 @@ process_config:
 telemetry:
   enabled: true
   checks: "*"
-# enable_payloads:
-#   series: false
-#   events: false
-#   service_checks: false
-#   sketches: false
+
+enable_payloads:
+  series: false
+  events: false
+  service_checks: false
+  sketches: false
