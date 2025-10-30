@@ -230,7 +230,6 @@ func (s *npCollectorImpl) shouldScheduleNetworkPathForConn(conn *model.Connectio
 		return false
 	}
 	if conn.SystemProbeConn {
-		s.logger.Tracef("skip system probe conn: %+v", conn)
 		s.statsdClient.Incr(netpathConnsSkippedMetricName, []string{"reason:skip_system_probe_conn"}, 1) //nolint:errcheck
 		return false
 	}
