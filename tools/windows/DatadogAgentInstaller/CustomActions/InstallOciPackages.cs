@@ -79,7 +79,11 @@ namespace Datadog.CustomActions
             {
                 env["DD_APM_INSTRUMENTATION_LIBRARIES"] = libraries;
             }
-
+            var apmVersion = _session.Property("DD_INSTALLER_DEFAULT_PKG_VERSION_DATADOG_APM_INJECT");
+            if (!string.IsNullOrEmpty(apmVersion))
+            {
+                env["DD_INSTALLER_DEFAULT_PKG_VERSION_DATADOG_APM_INJECT"] = apmVersion;
+            }
             return env;
         }
         private Dictionary<string, string> PurgeEnvironmentVariables()
