@@ -761,17 +761,17 @@ Package networkdeviceconfig provides the component for retrieving network device
 
 Package notableevents provides a component that monitors notable system events and forwards them to the Datadog Event Management v2 API.
 
-### [comp/publishermetadatacache](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/publishermetadatacache)
-
-*Datadog Team*: windows-products
-
-Package publishermetadatacache provides a cache for Windows Event Log publisher metadata handles
-
 ### [comp/privateactionrunner](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/privateactionrunner)
 
 *Datadog Team*: action-platform
 
 Package privateactionrunner allows you to //TODO
+
+### [comp/publishermetadatacache](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/publishermetadatacache)
+
+*Datadog Team*: windows-products
+
+Package publishermetadatacache provides a cache for Windows Event Log publisher metadata handles
 
 ### [comp/rdnsquerier](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/rdnsquerier)
 
