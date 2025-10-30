@@ -14,13 +14,13 @@ var (
 	OTLPIngestLogsEvents = telemetry.NewCounter(
 		"runtime",
 		"datadog_agent_otlp_logs_events",
-		nil,
+		[]string{},
 		"Counter metric of OTLP Log events in OTLP ingestion",
 	)
 	OTLPIngestLogsRequests = telemetry.NewCounter(
 		"runtime",
 		"datadog_agent_otlp_logs_requests",
-		nil,
+		[]string{},
 		"Counter metric of OTLP Log requests in OTLP ingestion",
 	)
 )

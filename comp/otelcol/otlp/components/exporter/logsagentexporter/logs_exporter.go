@@ -72,7 +72,7 @@ func NewExporterWithGatewayUsage(
 
 // ConsumeLogs maps logs from OTLP to DD format and ingests them through the exporter channel
 func (e *Exporter) ConsumeLogs(ctx context.Context, ld plog.Logs) (err error) {
-	OTLPIngestLogsRequests.Add(1)
+	OTLPIngestLogsRequests.Inc()
 	defer func() {
 		if err != nil {
 			newErr, scrubbingErr := scrubber.ScrubString(err.Error())
