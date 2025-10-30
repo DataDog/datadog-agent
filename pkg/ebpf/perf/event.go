@@ -211,13 +211,6 @@ func (e *EventHandler) BeforeInit(mgr *manager.Manager, moduleName names.ModuleN
 			return fmt.Errorf("map %q is not a ring buffer, got %q instead", e.mapName, ms.Type.String())
 		}
 
-		// Add a map spec editor to set key and value sizes to 0, to avoid "invalid argument" errors when loading the program
-		updateMapSpecEditor(mgrOpts, e.mapName, func(specEditor *manager.MapSpecEditor) {
-			specEditor.KeySize = 0
-			specEditor.ValueSize = 0
-			specEditor.EditorFlag |= manager.EditKeyValue
-		})
-
 		// the size of the ring buffer is communicated to the kernel via the max entries field
 		// of the bpf map
 		if ms.MaxEntries != uint32(e.opts.ringBufferSize) {
