@@ -315,6 +315,7 @@ cc_library(
         ":gcrypt_h",
     ] + _RAND_COMMON_SRCS,
     textual_hdrs = _RAND_TEXTUAL_HDRS,
+    includes = ["."],
     deps = [
         "@gpg-error//:libgpg-error",
         ":libcompat",
@@ -599,6 +600,7 @@ cc_library(
             "cipher/camellia-aarch64.S",
         ],
     }),
+    includes = ["."],
     deps = [
         "@gpg-error//:libgpg-error",
         ":libcompat",
