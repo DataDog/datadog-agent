@@ -41,7 +41,7 @@ func (s *testAgentMSIInstallsAPMInject) TestInstallFromMSI() {
 		// TODO: remove override once image is published in prod
 		installerwindows.WithMSIArg("DD_INSTALLER_REGISTRY_URL=install.datad0g.com"),
 		installerwindows.WithMSIArg(fmt.Sprintf("DD_INSTALLER_DEFAULT_PKG_VERSION_DATADOG_APM_INJECT=%s", s.currentAPMInjectVersion.PackageVersion())),
-		installerwindows.WithMSIArg("DD_APM_INSTRUMENTATION_LIBRARIES=java:1"),
+		installerwindows.WithMSIArg("DD_APM_INSTRUMENTATION_LIBRARIES=dotnet:3,java:1"),
 		installerwindows.WithMSILogFile("install.log"),
 	)
 
@@ -59,7 +59,7 @@ func (s *testAgentMSIInstallsAPMInject) TestEnableDisable() {
 		// TODO: remove override once image is published in prod
 		installerwindows.WithMSIArg("DD_INSTALLER_REGISTRY_URL=install.datad0g.com"),
 		installerwindows.WithMSIArg(fmt.Sprintf("DD_INSTALLER_DEFAULT_PKG_VERSION_DATADOG_APM_INJECT=%s", s.currentAPMInjectVersion.PackageVersion())),
-		installerwindows.WithMSIArg("DD_APM_INSTRUMENTATION_LIBRARIES=java:1"),
+		installerwindows.WithMSIArg("DD_APM_INSTRUMENTATION_LIBRARIES=dotnet:3,java:1"),
 		installerwindows.WithMSILogFile("install.log"),
 	)
 
