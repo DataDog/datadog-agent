@@ -17,6 +17,7 @@ namespace Datadog.CustomActions
         private readonly string _apiKey;
         private readonly string _overrideRegistryUrl;
         private readonly string _remoteUpdates;
+        private readonly string _infrastructureMode;
         private readonly RollbackDataStore _rollbackDataStore;
 
         public InstallOciPackages(ISession session)
@@ -27,6 +28,7 @@ namespace Datadog.CustomActions
             _apiKey = session.Property("APIKEY");
             _overrideRegistryUrl = session.Property("DD_INSTALLER_REGISTRY_URL");
             _remoteUpdates = session.Property("DD_REMOTE_UPDATES");
+            _infrastructureMode = session.Property("DD_INFRASTRUCTURE_MODE");
             _installerExecutable = System.IO.Path.Combine(installDir, "bin", "datadog-installer.exe");
             _rollbackDataStore = new RollbackDataStore(session, "InstallOciPackages", new FileSystemServices(), new ServiceController());
         }
@@ -84,6 +86,12 @@ namespace Datadog.CustomActions
             {
                 env["DD_INSTALLER_DEFAULT_PKG_VERSION_DATADOG_APM_INJECT"] = apmVersion;
             }
+
+            if (!string.IsNullOrEmpty(_infrastructureMode))
+            {
+                env["DD_INFRASTRUCTURE_MODE"] = _infrastructureMode;
+            }
+
             return env;
         }
         private Dictionary<string, string> PurgeEnvironmentVariables()
