@@ -263,40 +263,36 @@ func (s *Serializer) getFailoverAllowlist() (bool, map[string]struct{}) {
 }
 
 func (s *Serializer) buildPipelines() []metricsserializer.Pipeline {
+	pipelines := []metricsserializer.Pipeline{}
+
 	failoverActiveForMRF, allowlistForMRF := s.getFailoverAllowlist()
-	failoverActiveForAutoscaling, allowlistForAutoscaling := s.getAutoscalingFailoverMetrics()
-	failoverActive := (failoverActiveForMRF && len(allowlistForMRF) > 0) || (failoverActiveForAutoscaling && len(allowlistForAutoscaling) > 0)
-
-	if failoverActive {
-		return []metricsserializer.Pipeline{
-			{
-				FilterFunc:  func(metric metricsserializer.Filterable) bool { return true },
-				Destination: transaction.PrimaryOnly,
+	if failoverActiveForMRF && len(allowlistForMRF) > 0 {
+		pipelines = append(pipelines, metricsserializer.Pipeline{
+			FilterFunc: func(metric metricsserializer.Filterable) bool {
+				_, allowed := allowlistForMRF[metric.GetName()]
+				return allowed
 			},
-			{
-				FilterFunc: func(metric metricsserializer.Filterable) bool {
-					_, allowed := allowlistForMRF[metric.GetName()]
-					return allowed
-				},
-				Destination: transaction.SecondaryOnly,
-			},
-			{
-				FilterFunc: func(metric metricsserializer.Filterable) bool {
-					_, allowed := allowlistForAutoscaling[metric.GetName()]
-					return allowed
-				},
-				Destination: transaction.LocalOnly,
-			},
-		}
-	}
-
-	// Default: all metrics to AllRegions
-	return []metricsserializer.Pipeline{
-		{
+			Destination: transaction.SecondaryOnly,
+		})
+	} else {
+		pipelines = append(pipelines, metricsserializer.Pipeline{
 			FilterFunc:  func(metric metricsserializer.Filterable) bool { return true },
-			Destination: transaction.AllRegions,
-		},
+			Destination: transaction.PrimaryOnly,
+		})
 	}
+
+	failoverActiveForAutoscaling, allowlistForAutoscaling := s.getAutoscalingFailoverMetrics()
+	if failoverActiveForAutoscaling && len(allowlistForAutoscaling) > 0 {
+		pipelines = append(pipelines, metricsserializer.Pipeline{
+			FilterFunc: func(metric metricsserializer.Filterable) bool {
+				_, allowed := allowlistForAutoscaling[metric.GetName()]
+				return allowed
+			},
+			Destination: transaction.LocalOnly,
+		})
+	}
+
+	return pipelines
 }
 
 func (s *Serializer) getAutoscalingFailoverMetrics() (bool, map[string]struct{}) {
