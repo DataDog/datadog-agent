@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	taggertypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	workloadfilterfxmock "github.com/DataDog/datadog-agent/comp/core/workloadfilter/fx-mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata"
@@ -180,7 +181,8 @@ func (p *processLogConfigProvider) processEventsNoVerifyReadable(evBundle worklo
 }
 
 func TestProcessLogProviderEvents(t *testing.T) {
-	provider, err := NewProcessLogConfigProvider(nil, nil, nil, nil)
+	filter := workloadfilterfxmock.SetupMockFilter(t)
+	provider, err := NewProcessLogConfigProvider(nil, nil, nil, filter, nil)
 	require.NoError(t, err)
 
 	p, ok := provider.(*processLogConfigProvider)
@@ -246,7 +248,8 @@ func TestProcessLogProviderEvents(t *testing.T) {
 
 // TestProcessLogProviderNoLogFile tests that a process without a log file doesn't generate a config
 func TestProcessLogProviderNoLogFile(t *testing.T) {
-	provider, err := NewProcessLogConfigProvider(nil, nil, nil, nil)
+	filter := workloadfilterfxmock.SetupMockFilter(t)
+	provider, err := NewProcessLogConfigProvider(nil, nil, nil, filter, nil)
 	require.NoError(t, err)
 
 	p, ok := provider.(*processLogConfigProvider)
@@ -281,7 +284,8 @@ func TestProcessLogProviderNoLogFile(t *testing.T) {
 }
 
 func TestProcessLogProviderMultipleLogSources(t *testing.T) {
-	provider, err := NewProcessLogConfigProvider(nil, nil, nil, nil)
+	filter := workloadfilterfxmock.SetupMockFilter(t)
+	provider, err := NewProcessLogConfigProvider(nil, nil, nil, filter, nil)
 	require.NoError(t, err)
 
 	p, ok := provider.(*processLogConfigProvider)
@@ -331,7 +335,8 @@ func TestProcessLogProviderMultipleLogSources(t *testing.T) {
 
 // TestProcessLogProviderMultipleProcesses creates multiple processes and checks that they are all scheduled and unscheduled correctly.
 func TestProcessLogProviderMultipleProcesses(t *testing.T) {
-	provider, err := NewProcessLogConfigProvider(nil, nil, nil, nil)
+	filter := workloadfilterfxmock.SetupMockFilter(t)
+	provider, err := NewProcessLogConfigProvider(nil, nil, nil, filter, nil)
 	require.NoError(t, err)
 
 	p, ok := provider.(*processLogConfigProvider)
@@ -423,7 +428,8 @@ func TestProcessLogProviderMultipleProcesses(t *testing.T) {
 
 // TestProcessLogProviderReferenceCounting tests the reference counting behavior for multiple processes using the same log file
 func TestProcessLogProviderReferenceCounting(t *testing.T) {
-	provider, err := NewProcessLogConfigProvider(nil, nil, nil, nil)
+	filter := workloadfilterfxmock.SetupMockFilter(t)
+	provider, err := NewProcessLogConfigProvider(nil, nil, nil, filter, nil)
 	require.NoError(t, err)
 
 	p, ok := provider.(*processLogConfigProvider)
@@ -535,7 +541,8 @@ func TestProcessLogProviderReferenceCounting(t *testing.T) {
 
 // TestProcessLogProviderUnscheduleNonExistent tests that unscheduling a non-existent config does not panic.
 func TestProcessLogProviderUnscheduleNonExistent(t *testing.T) {
-	provider, err := NewProcessLogConfigProvider(nil, nil, nil, nil)
+	filter := workloadfilterfxmock.SetupMockFilter(t)
+	provider, err := NewProcessLogConfigProvider(nil, nil, nil, filter, nil)
 	require.NoError(t, err)
 
 	p, ok := provider.(*processLogConfigProvider)
@@ -572,7 +579,8 @@ func TestProcessLogProviderUnscheduleNonExistent(t *testing.T) {
 
 // Test that when a process has multiple log files, we get one config for each
 func TestProcessLogProviderOneProcessMultipleLogFiles(t *testing.T) {
-	provider, err := NewProcessLogConfigProvider(nil, nil, nil, nil)
+	filter := workloadfilterfxmock.SetupMockFilter(t)
+	provider, err := NewProcessLogConfigProvider(nil, nil, nil, filter, nil)
 	require.NoError(t, err)
 
 	p, ok := provider.(*processLogConfigProvider)
@@ -635,7 +643,8 @@ func TestProcessLogProviderOneProcessMultipleLogFiles(t *testing.T) {
 // TestProcessLogProviderProcessLogFilesChange tests that when a process's log files change in a Set event,
 // the old configs are unscheduled and new ones are scheduled correctly
 func TestProcessLogProviderProcessLogFilesChange(t *testing.T) {
-	provider, err := NewProcessLogConfigProvider(nil, nil, nil, nil)
+	filter := workloadfilterfxmock.SetupMockFilter(t)
+	provider, err := NewProcessLogConfigProvider(nil, nil, nil, filter, nil)
 	require.NoError(t, err)
 
 	p, ok := provider.(*processLogConfigProvider)
@@ -784,7 +793,8 @@ func TestProcessLogProviderProcessLogFilesChange(t *testing.T) {
 func TestProcessLogProviderFileReadabilityVerification(t *testing.T) {
 	skipOnWindows(t)
 
-	provider, err := NewProcessLogConfigProvider(nil, nil, nil, nil)
+	filter := workloadfilterfxmock.SetupMockFilter(t)
+	provider, err := NewProcessLogConfigProvider(nil, nil, nil, filter, nil)
 	require.NoError(t, err)
 
 	p, ok := provider.(*processLogConfigProvider)
@@ -879,7 +889,8 @@ func TestProcessLogProviderFileReadabilityWithPermissionDenied(t *testing.T) {
 		t.Skip("Skipping permission test when running as root")
 	}
 
-	provider, err := NewProcessLogConfigProvider(nil, nil, nil, nil)
+	filter := workloadfilterfxmock.SetupMockFilter(t)
+	provider, err := NewProcessLogConfigProvider(nil, nil, nil, filter, nil)
 	require.NoError(t, err)
 
 	p, ok := provider.(*processLogConfigProvider)
@@ -1135,7 +1146,8 @@ func TestProcessLogProviderAgentExclude(t *testing.T) {
 		mockConfig := configmock.New(t)
 		mockConfig.SetWithoutSource("logs_config.process_exclude_agent", excludeAgent)
 
-		provider, err := NewProcessLogConfigProvider(nil, nil, nil, nil)
+		filter := workloadfilterfxmock.SetupMockFilter(t)
+		provider, err := NewProcessLogConfigProvider(nil, nil, nil, filter, nil)
 		require.NoError(t, err)
 		p, ok := provider.(*processLogConfigProvider)
 		require.True(t, ok)
@@ -1360,7 +1372,8 @@ func TestProcessLogProviderIsAgentProcess(t *testing.T) {
 func TestProcessLogProviderWithUSTTags(t *testing.T) {
 	mockTagger := taggerfxmock.SetupFakeTagger(t)
 
-	provider, err := NewProcessLogConfigProvider(nil, nil, mockTagger, nil)
+	filter := workloadfilterfxmock.SetupMockFilter(t)
+	provider, err := NewProcessLogConfigProvider(nil, nil, mockTagger, filter, nil)
 	require.NoError(t, err)
 
 	p, ok := provider.(*processLogConfigProvider)
