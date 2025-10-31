@@ -48,7 +48,35 @@ func (s *testAgentMSIInstallsAPMInject) TestInstallFromMSI() {
 	// Verify the package is installed
 	s.assertSuccessfulPromoteExperiment()
 
-	s.assertDriverInjections()
+	s.assertDriverInjections(true)
+}
+
+// TestInstallFromMSI tests the Agent MSI can install the APM inject package with host instrumentation
+func (s *testAgentMSIInstallsAPMInject) TestEnableDisable() {
+	// Act
+	s.installCurrentAgentVersion(
+		installerwindows.WithMSIArg("DD_APM_INSTRUMENTATION_ENABLED=host"),
+		// TODO: remove override once image is published in prod
+		installerwindows.WithMSIArg("DD_INSTALLER_REGISTRY_URL=install.datad0g.com"),
+		installerwindows.WithMSIArg(fmt.Sprintf("DD_INSTALLER_DEFAULT_PKG_VERSION_DATADOG_APM_INJECT=%s", s.currentAPMInjectVersion.PackageVersion())),
+		installerwindows.WithMSIArg("DD_APM_INSTRUMENTATION_LIBRARIES=java:1"),
+		installerwindows.WithMSILogFile("install.log"),
+	)
+
+	// Verify the package is installed
+	s.assertSuccessfulPromoteExperiment(s.currentAPMInjectVersion.Version())
+
+	s.assertDriverInjections(true)
+
+	output, err := s.Env().RemoteHost.Execute(`&"C:\Program Files\Datadog\Datadog Agent\bin\scripts\host-instrumentation.bat" --disable`)
+	s.Require().NoErrorf(err, "failed to run disable script: %s", output)
+
+	s.assertDriverInjections(false)
+
+	output, err = s.Env().RemoteHost.Execute(`&"C:\Program Files\Datadog\Datadog Agent\bin\scripts\host-instrumentation.bat" --enable`)
+	s.Require().NoErrorf(err, "failed to run enable script: %s", output)
+
+	s.assertDriverInjections(true)
 }
 
 // installCurrentAgentVersionWithAPMInject installs the current agent version with APM inject via script

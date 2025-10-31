@@ -40,13 +40,23 @@ func (s *baseSuite) assertSuccessfulPromoteExperiment() {
 	s.Require().NoError(s.WaitForServicesWithBackoff("Running", backoff.NewConstantBackOff(30*time.Second), "ddinjector"))
 }
 
-func (s *baseSuite) assertDriverInjections() {
-	// to check we set DD_INJECT_LOG_SINKS, DD_INJECT_LOG_LEVEL and run any application
-	// we should then see logs like this:
-	//INFO>1761855931 unknown dd_inject[8292]: [C:\Users\Administrator\auto_inject\src\windows\java.c:89] Instrumenting Java
-	//INFO>1761855932 unknown dd_inject[8292]: [C:\Users\Administrator\auto_inject\src\windows\java.c:133] Java instrumentation completed
-	//INFO>1761855932 unknown dd_inject[8292]: [C:\Users\Administrator\auto_inject\src\windows\dotnet.c:12] Instrumenting .NET
-	//INFO>1761855932 unknown dd_inject[8292]: [C:\Users\Administrator\auto_inject\src\windows\dotnet.c:91] .NET tracing enabled
-	// TODO write this function as injection seems to be causing issues
+func (s *baseSuite) assertDriverInjections(enabled bool) {
+	script := `
+# We copy where.exe to another directory because System32 is ignored by the driver
+$dst = "$env:TEMP\where.exe"
+Copy-Item "C:\Windows\System32\where.exe" $dst -Force
 
+$env:DD_INJECT_LOG_SINKS = "stdout"
+$env:DD_INJECT_LOG_LEVEL = "debug"
+
+& $dst
+`
+	host := s.Env().RemoteHost
+	output, err := host.Execute(script)
+	s.Require().NoError(err)
+	if enabled {
+		s.Require().Contains(output, "Instrumenting Java")
+	} else {
+		s.Require().NotContains(output, "Instrumenting Java")
+	}
 }

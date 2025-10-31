@@ -50,7 +50,7 @@ func (s *testAgentScriptInstallsAPMInject) TestInstallFromScript() {
 	// Verify the package is installed
 	s.assertSuccessfulPromoteExperiment()
 
-	s.assertDriverInjections()
+	s.assertDriverInjections(true)
 }
 
 // installCurrentAgentVersionWithAPMInject installs the current agent version with APM inject via script
