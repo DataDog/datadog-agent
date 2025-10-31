@@ -54,22 +54,9 @@ func (d *Directories) WriteExperiment(ctx context.Context, operations Operations
 	if err != nil {
 		return fmt.Errorf("error removing experiment directory: %w", err)
 	}
-	err = os.MkdirAll(d.ExperimentPath, 0700)
-	if err != nil {
-		return fmt.Errorf("error creating experiment directory: %w", err)
-	}
-	experimentBackupPath, err := os.MkdirTemp("", "experiment-backup")
-	if err != nil {
-		return fmt.Errorf("error creating experiment backup directory: %w", err)
-	}
-	defer os.RemoveAll(experimentBackupPath)
-	err = backupOrRestoreDirectory(ctx, d.StablePath, experimentBackupPath)
+	err = backupOrRestoreDirectory(ctx, d.StablePath, d.ExperimentPath)
 	if err != nil {
 		return fmt.Errorf("error writing deployment ID file: %w", err)
-	}
-	err = os.Rename(experimentBackupPath, d.ExperimentPath)
-	if err != nil {
-		return fmt.Errorf("error renaming experiment directory: %w", err)
 	}
 	operations.FileOperations = append(buildOperationsFromLegacyInstaller(d.StablePath), operations.FileOperations...)
 	err = operations.Apply(d.StablePath)
@@ -113,17 +100,7 @@ func (d *Directories) RemoveExperiment(ctx context.Context) error {
 	if os.IsNotExist(err) {
 		return nil
 	}
-	tmpDir, err := os.MkdirTemp("", "experiment-backup")
-	if err != nil {
-		return fmt.Errorf("error creating experiment backup directory: %w", err)
-	}
-	defer os.RemoveAll(tmpDir)
-	experimentBackupPath := filepath.Join(tmpDir, "backup")
-	err = os.Rename(d.ExperimentPath, experimentBackupPath)
-	if err != nil {
-		return fmt.Errorf("error renaming experiment directory: %w", err)
-	}
-	err = backupOrRestoreDirectory(ctx, experimentBackupPath, d.StablePath)
+	err = backupOrRestoreDirectory(ctx, d.ExperimentPath, d.StablePath)
 	if err != nil {
 		return fmt.Errorf("error backing up stable directory: %w", err)
 	}
