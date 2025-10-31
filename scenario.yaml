@@ -4,6 +4,9 @@ helm:
       installName: "ingress-nginx"
       repo: "https://kubernetes.github.io/ingress-nginx"
       namespace: "ingress-nginx"
+      values:
+        - key: "controller.resources.requests.memory"
+          value: "100Mi"
   apps:
     - name: python
       namespace: application
@@ -31,5 +34,5 @@ helm:
           targets:
             - name: "ingress-nginx"
               ddTraceVersions:
-                nginx: "v1.11.3"
+                nginx: "v1.13.3"
                 python: "v3"
