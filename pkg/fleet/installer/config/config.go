@@ -222,7 +222,7 @@ func (a *FileOperation) apply(root *os.Root, rootPath string) error {
 		return nil
 	case FileOperationDeleteAll:
 		// TODO(go.1.25): os.Root.RemoveAll is only available starting go 1.25 so we'll use it instead
-		// We can't get teh actual path from os.Root and do RemoveAll in 1.25
+		// We can't get the path from os.Root, so we have to use the rootPath.
 		err := os.RemoveAll(filepath.Join(rootPath, path))
 		if err != nil && !os.IsNotExist(err) {
 			return err
