@@ -1,5 +1,9 @@
 # CHANGELOG - datadog-secret-backend
 
+## 1.3.2 / 2025-10-31
+
+* Bump go version to `1.25.3`
+
 ## 1.3.1 / 2025-10-27
 
 * Allow for the passing in of the VAULT_ADDR env var
