@@ -46,7 +46,7 @@ func (sl *SharedLibraryCheckLoader) String() string {
 
 // Load returns a Shared Library check
 func (sl *SharedLibraryCheckLoader) Load(senderManager sender.SenderManager, config integration.Config, instance integration.Data, _instanceIndex int) (check.Check, error) {
-	// load the library and get pointers to it and its 'Run' symbol through the library loader
+	// load the library and get pointers to its symbols through the library loader
 	libHandles, err := sl.loader.Load(config.Name)
 	if err != nil {
 		return nil, err
@@ -61,17 +61,18 @@ func (sl *SharedLibraryCheckLoader) Load(senderManager sender.SenderManager, con
 	// Set the check ID
 	configDigest := config.FastDigest()
 
+	// pass the configuration to the check
 	if err := c.Configure(senderManager, configDigest, instance, config.InitConfig, config.Source); err != nil {
 		return c, err
 	}
 
-	// check version
+	// check version -- fallback to "unversioned" version if the version cannot be retrieved from the library
 	version, err := sl.loader.Version(libHandles.version)
 	if err != nil {
-		return c, err
+		c.version = "unversioned"
+	} else {
+		c.version = version
 	}
-
-	c.version = version
 
 	return c, nil
 }

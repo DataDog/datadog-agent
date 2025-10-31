@@ -71,7 +71,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/stats"
 	"github.com/DataDog/datadog-agent/pkg/collector/python"
-	_ "github.com/DataDog/datadog-agent/pkg/collector/sharedlibrary" // init shared libraries loader
+	_ "github.com/DataDog/datadog-agent/pkg/collector/sharedlibrary" // init shared library checks loader
 	"github.com/DataDog/datadog-agent/pkg/commonchecks"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"

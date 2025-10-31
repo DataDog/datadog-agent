@@ -51,7 +51,7 @@ func getLibExtension() string {
 	}
 }
 
-// librayHandles stores everything needed for a shared library check
+// libraryHandles stores everything needed for a shared library check
 type libraryHandles struct {
 	lib     unsafe.Pointer
 	run     *C.run_function_t

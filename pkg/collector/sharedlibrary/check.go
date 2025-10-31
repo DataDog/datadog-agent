@@ -29,8 +29,8 @@ type SharedLibraryCheck struct {
 	version        string
 	interval       time.Duration
 	name           string
-	libraryLoader  libraryLoader  // component that handles FFI
-	libHandles     libraryHandles // handle to the shared library and pointers to its symbols
+	libraryLoader  libraryLoader  // FFI handler
+	libHandles     libraryHandles // handle to the associated shared library and pointers to its symbols
 	source         string
 	initConfig     string // json string of check common config
 	instanceConfig string // json string of specific instance config
@@ -64,7 +64,6 @@ func (c *SharedLibraryCheck) runCheckImpl(commitMetrics bool) error {
 
 	// run the check through the library loader
 	err := c.libraryLoader.Run(c.libHandles.run, string(c.id), c.initConfig, c.instanceConfig)
-
 	if err != nil {
 		return fmt.Errorf("Run failed: %s", err)
 	}
@@ -87,7 +86,7 @@ func (c *SharedLibraryCheck) Stop() {}
 func (c *SharedLibraryCheck) Cancel() {
 	err := c.libraryLoader.Close(c.libHandles.lib)
 	if err != nil {
-		log.Errorf("Cancel of check %q failed: %s", c.name, err)
+		log.Errorf("Cancel failed: %s", err)
 	}
 
 	c.cancelled = true
@@ -148,11 +147,8 @@ func (c *SharedLibraryCheck) Configure(_senderManager sender.SenderManager, inte
 		c.interval = time.Duration(commonOptions.MinCollectionInterval) * time.Second
 	}
 
-	c.version = "unversioned"
-
-	// configurations
+	// configuration fields
 	c.source = source
-
 	c.initConfig = string(initConfig)
 	c.instanceConfig = string(instanceConfig)
 

@@ -34,15 +34,8 @@ handles_t load_shared_library(const char *lib_path, const char **error) {
 		return lib_handles;
     }
 
-    // get pointer of 'Version' symbol
+    // try to get pointer of 'Version' symbol (not required)
     lib_handles.version = (version_function_t *)GetProcAddress(lib_handles.lib, "Version");
-    if (!lib_handles.version) {
-        char error_msg[256];
-        int error_code = GetLastError();
-        snprintf(error_msg, sizeof(error_msg), "unable to get shared library 'Version' symbol, error code: %d", error_code);
-		*error = strdup(error_msg);
-		return lib_handles;
-    }
 
     return lib_handles;
 }
@@ -91,15 +84,13 @@ handles_t load_shared_library(const char *lib_path, const char **error) {
 		return lib_handles;
     }
 
-    // get pointer of 'Version' symbol
+    // try to get pointer of 'Version' symbol (not required)
     lib_handles.version = (version_function_t *)dlsym(lib_handles.lib, "Version");
     
-    // catch symbol errors and close the library if there are any
+    // set the pointer to NULL is there's an error, the 'Version' symbol is not required
     dlsym_error = dlerror();
     if (dlsym_error) {
-		dlclose(lib_handles.lib);
-		*error = strdup(dlsym_error);
-		return lib_handles;
+		lib_handles.version = NULL;
     }
 
     return lib_handles;
@@ -142,5 +133,6 @@ const char *get_version_shared_library(version_function_t *version_ptr, const ch
     }
 
     // retrieve the version of the shared library check and put any errors string in the `error` variable
-    return (version_ptr)(error);
+    const char *check_version = (version_ptr)(error);
+    return check_version;
 }
