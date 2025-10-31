@@ -61,7 +61,7 @@ func (s *testAgentScriptInstallsAPMInject) TestInstallFromScript() {
 	)
 
 	// Verify the package is installed
-	s.assertSuccessfulPromoteExperiment(s.currentAPMInjectVersion.PackageVersion())
+	s.assertSuccessfulPromoteExperiment()
 
 	s.assertDriverInjections()
 }
