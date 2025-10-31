@@ -212,11 +212,17 @@ build do
 
             # Check that all binaries are compatible with the minimum macOS version we support
             # https://docs.datadoghq.com/agent/supported_platforms/?tab=macos
+            allow_list = [
+              "libddwaf\\.dylib",
+              "secret-generic-connector",
+            ]
             command_on_repo_root "./omnibus/scripts/check_macos_version.sh",
+                                 live_stream: Omnibus.logger.live_stream(:info),
                                  env: {
                                    ARCH: arm_target? ? "arm64" : "x86_64",
                                    MIN_ACCEPTABLE_VERSION: "11.0",
                                    INSTALL_DIR: install_dir,
+                                   ALLOW_PATTERN: "(#{allow_list.join('|')})",
                                  }
         end
     end

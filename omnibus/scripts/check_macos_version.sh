@@ -6,6 +6,7 @@
 # INSTALL_DIR: directory with binaries to check for compatibility
 # ARCH: arm64 / x86_64
 # MIN_ACCEPTABLE_VERSION: minimum version that we accept
+# ALLOW_PATTERN: a regex to match files that are "allowed to fail"
 
 set -euo pipefail
 
@@ -27,17 +28,22 @@ satisfies_min_version() {
 
     if [ -z "${min_version:-}" ]; then
         echo "ERROR: failed to detect minimum version of $1" >&2
-        echo "vtool output: $(vtool -show-build "$1")"
+        echo "vtool output: $(vtool -show-build "$1")" >&2
         return 1
     fi
     local highest_version=$(printf '%s\n%s\n' "$min_version" "$min_acceptable_version" | sort -V | tail -1)
     if [[ "$highest_version" != "$min_acceptable_version" ]]; then
-        echo "ERROR: minimum version for $1 (${min_version}) is higher than the minimimum acceptable (${min_acceptable_version})" >&2
-        return 1
+        if [[ "$1" =~ ${ALLOW_PATTERN} ]]; then
+            echo "WARNING: minimum version for $1 (${min_version}) is higher than the minimimum acceptable (${min_acceptable_version}) (explicitly allowed)" >&2
+        else
+            echo "ERROR: minimum version for $1 (${min_version}) is higher than the minimimum acceptable (${min_acceptable_version})" >&2
+            return 1
+        fi
     fi
 }
 
 export -f satisfies_min_version
+export ALLOW_PATTERN="${ALLOW_PATTERN:-}"
 
 echo "Checking $INSTALL_DIR for compatibility with version >= $MIN_ACCEPTABLE_VERSION and architecture $ARCH..."
 
