@@ -32,10 +32,11 @@ const (
 var logLimiter = log.NewLogLimit(20, 10*time.Minute)
 
 type collector struct {
-	id        string
-	catalog   workloadmeta.AgentType
-	store     workloadmeta.Component
-	seenUUIDs map[string]struct{}
+	id                      string
+	catalog                 workloadmeta.AgentType
+	store                   workloadmeta.Component
+	seenUUIDs               map[string]struct{}
+	reportedDriverNotLoaded bool
 }
 
 func (c *collector) getGPUDeviceInfo(device ddnvml.Device) (*workloadmeta.GPU, error) {
@@ -177,6 +178,15 @@ func (c *collector) Start(_ context.Context, store workloadmeta.Component) error
 func (c *collector) Pull(_ context.Context) error {
 	lib, err := ddnvml.GetSafeNvmlLib()
 	if err != nil {
+		// Do not consider an unloaded driver as an error more than once.
+		// Some installations will have the NVIDIA libraries but not the driver. Report the error
+		// only once to avoid log spam, treat it the same as if there was no library available or
+		// there were no GPUs.
+		if ddnvml.IsDriverNotLoaded(err) && !c.reportedDriverNotLoaded {
+			c.reportedDriverNotLoaded = true
+			return nil
+		}
+
 		return fmt.Errorf("failed to get NVML library : %w", err)
 	}
 

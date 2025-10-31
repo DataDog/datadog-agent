@@ -132,6 +132,10 @@ func (s *syntheticsTestScheduler) updateRunningState(newConfig map[string]common
 				nextRun: s.timeNowFn().UTC(),
 			}
 		} else {
+			if current.cfg.Version < newTestConfig.Version {
+				current.lastRun = time.Time{}
+				current.nextRun = s.timeNowFn().UTC()
+			}
 			current.cfg = newTestConfig
 		}
 	}

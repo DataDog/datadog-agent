@@ -85,6 +85,7 @@ func ExtractPod(ctx processors.ProcessorContext, p *corev1.Pod) *model.Pod {
 	}
 
 	pctx := ctx.(*processors.K8sProcessorContext)
+	podModel.Tags = append(podModel.Tags, transformers.RetrieveUnifiedServiceTags(p.ObjectMeta.Labels)...)
 	podModel.Tags = append(podModel.Tags, transformers.RetrieveMetadataTags(p.ObjectMeta.Labels, p.ObjectMeta.Annotations, pctx.LabelsAsTags, pctx.AnnotationsAsTags)...)
 
 	return &podModel
