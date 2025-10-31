@@ -30,7 +30,7 @@ type Stats struct {
 	FlowNodes       int64
 	CapabilityNodes int64
 
-	counts map[model.EventType]*statsPerEventType
+	counts [model.MaxKernelEventType]*statsPerEventType
 }
 
 type statsPerEventType struct {
@@ -41,9 +41,7 @@ type statsPerEventType struct {
 
 // NewActivityTreeNodeStats returns a new activity tree stats
 func NewActivityTreeNodeStats() *Stats {
-	ats := &Stats{
-		counts: make(map[model.EventType]*statsPerEventType),
-	}
+	ats := &Stats{}
 
 	// generate counters
 	for i := model.EventType(0); i < model.MaxKernelEventType; i++ {
