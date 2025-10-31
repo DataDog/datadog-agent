@@ -1,4 +1,4 @@
-load("@bazel_skylib//rules:diff_test.bzl", "diff_test")
+# load("@bazel_skylib//rules:diff_test.bzl", "diff_test")
 load("//bazel/tools:generate_module_bazel.bzl", "generate_module_bazel")
 
 VERSION = "8.16.0"
@@ -13,8 +13,9 @@ generate_module_bazel(
     url = "https://curl.haxx.se/download/curl-%s.tar.gz" % VERSION,
 )
 
-diff_test(
-    name = "module_file_up_to_date_test",
-    file1 = ":curl.MODULE.bazel.new",
-    file2 = "curl.MODULE.bazel",
-)
+# TODO: Enable after python works on persistant runner machines
+# diff_test(
+#    name = "module_file_up_to_date_test",
+#    file1 = ":curl.MODULE.bazel.new",
+#    file2 = "curl.MODULE.bazel",
+# )
