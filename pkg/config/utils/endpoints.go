@@ -55,6 +55,10 @@ func NewAPIKeys(path string, keys ...string) APIKeys {
 	}
 }
 
+func newAPIKeyset(path string, keys ...string) []APIKeys {
+	return []APIKeys{NewAPIKeys(path, keys...)}
+}
+
 // GetMainEndpointBackwardCompatible implements the logic to extract the DD URL from a config, based on `site`,ddURLKey and a backward compatible key
 func GetMainEndpointBackwardCompatible(c pkgconfigmodel.Reader, prefix string, ddURLKey string, backwardKey string) string {
 	if c.IsSet(ddURLKey) && c.GetString(ddURLKey) != "" {
@@ -118,8 +122,37 @@ func DedupAPIKeys(endpoints []APIKeys) []string {
 	return dedupedAPIKeys
 }
 
+// EndpointDescriptor holds configuration about a single endpoint (aka domain) for infra pipelines.
+type EndpointDescriptor struct {
+	BaseURL string
+	APIKeys []APIKeys
+}
+
+func newEndpointDescriptor(baseURL, configKey string, apiKeys ...string) EndpointDescriptor {
+	return EndpointDescriptor{
+		BaseURL: baseURL,
+		APIKeys: newAPIKeyset(configKey, apiKeys...),
+	}
+}
+
+// EndpointDescriptorSet is a collection of all endpoints for infra pipelines keyed by base URL.
+type EndpointDescriptorSet = map[string]EndpointDescriptor
+
+// EndpointDescriptorSetFromKeysPerDomain converts legacy endpoint configuration into EndpointDescriptorSet.
+func EndpointDescriptorSetFromKeysPerDomain(keysPerDomain map[string][]APIKeys) EndpointDescriptorSet {
+	eds := EndpointDescriptorSet{}
+	for domain, apiKeys := range keysPerDomain {
+		eds[domain] = EndpointDescriptor{
+			BaseURL: domain,
+			APIKeys: apiKeys,
+		}
+	}
+
+	return eds
+}
+
 // GetMultipleEndpoints returns the api keys per domain specified in the main agent config
-func GetMultipleEndpoints(c pkgconfigmodel.Reader) (map[string][]APIKeys, error) {
+func GetMultipleEndpoints(c pkgconfigmodel.Reader) (EndpointDescriptorSet, error) {
 	ddURL := GetInfraEndpoint(c)
 	// Validating domain
 	if _, err := url.Parse(ddURL); err != nil {
@@ -127,10 +160,7 @@ func GetMultipleEndpoints(c pkgconfigmodel.Reader) (map[string][]APIKeys, error)
 	}
 
 	keysPerDomain := map[string][]APIKeys{
-		ddURL: {{
-			ConfigSettingPath: "api_key",
-			Keys:              []string{c.GetString("api_key")},
-		}},
+		ddURL: newAPIKeyset("api_key", c.GetString("api_key")),
 	}
 
 	additionalEndpoints := MakeEndpoints(c.GetStringMapStringSlice("additional_endpoints"), "additional_endpoints")
@@ -149,19 +179,21 @@ func GetMultipleEndpoints(c pkgconfigmodel.Reader) (map[string][]APIKeys, error)
 		}
 	}
 
+	eds := EndpointDescriptorSetFromKeysPerDomain(keysPerDomain)
+
 	// populate with MRF endpoints too
 	if c.GetBool("multi_region_failover.enabled") {
 		haURL, err := GetMRFInfraEndpoint(c)
 		if err != nil {
 			return nil, fmt.Errorf("could not parse MRF endpoint: %s", err)
 		}
-		keysPerDomain[haURL] = []APIKeys{{
-			ConfigSettingPath: "multi_region_failover.api_key",
-			Keys:              []string{c.GetString("multi_region_failover.api_key")},
-		}}
+		eds[haURL] = EndpointDescriptor{
+			BaseURL: haURL,
+			APIKeys: newAPIKeyset("multi_region_failover.api_key", c.GetString("multi_region_failover.api_key")),
+		}
 	}
 
-	return keysPerDomain, nil
+	return eds, nil
 }
 
 var wellKnownSitesRe = regexp.MustCompile(`(?:datadoghq|datad0g)\.(?:com|eu)$|ddog-gov\.com$`)

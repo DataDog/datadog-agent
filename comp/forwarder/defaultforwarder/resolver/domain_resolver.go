@@ -172,10 +172,15 @@ func NewSingleDomainResolver(domain string, apiKeys []utils.APIKeys) (DomainReso
 
 // NewSingleDomainResolvers converts a map of domain/api keys into a map of SingleDomainResolver
 func NewSingleDomainResolvers(keysPerDomain map[string][]utils.APIKeys) (map[string]DomainResolver, error) {
+	return NewSingleDomainResolvers2(utils.EndpointDescriptorSetFromKeysPerDomain(keysPerDomain))
+}
+
+// NewSingleDomainResolvers2 creates a set of domain resolvers from an EndpointDescriptorSet.
+func NewSingleDomainResolvers2(eds utils.EndpointDescriptorSet) (map[string]DomainResolver, error) {
 	resolvers := make(map[string]DomainResolver)
-	for domain, keys := range keysPerDomain {
+	for _, ed := range eds {
 		var err error
-		resolvers[domain], err = NewSingleDomainResolver(domain, keys)
+		resolvers[ed.BaseURL], err = NewSingleDomainResolver(ed.BaseURL, ed.APIKeys)
 		if err != nil {
 			return nil, err
 		}

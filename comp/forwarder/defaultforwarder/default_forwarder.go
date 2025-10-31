@@ -148,10 +148,17 @@ func getObsPipelineURLForPrefix(log log.Component, datatype string, prefix strin
 	return "", nil
 }
 
-// NewOptions creates new Options with default values
+// NewOptions creates a configuration for the forwarder with OPW enabled.
+//
+// Deprecated, use NewOptionsWithOPW instead.
 func NewOptions(config config.Component, log log.Component, keysPerDomain map[string][]utils.APIKeys) (*Options, error) {
 
-	resolvers, err := pkgresolver.NewSingleDomainResolvers(keysPerDomain)
+	return NewOptionsWithOPW(config, log, utils.EndpointDescriptorSetFromKeysPerDomain(keysPerDomain))
+}
+
+// NewOptionsWithOPW creates a configuration for the forwarder with OPW enabled.
+func NewOptionsWithOPW(config config.Component, log log.Component, eds utils.EndpointDescriptorSet) (*Options, error) {
+	resolvers, err := pkgresolver.NewSingleDomainResolvers2(eds)
 	if err != nil {
 		return nil, err
 	}
