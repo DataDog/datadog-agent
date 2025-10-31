@@ -125,7 +125,7 @@ python.toolchain(
     is_default = True,
     python_version = PYTHON_VERSION,
 )
-use_repo(python, "pythons_hub")
+use_repo(python, "python_"+PYTHON_VERSION.replace(".", "_"), "pythons_hub")
 
 pip = use_extension("@rules_python//python/extensions:pip.bzl", "pip")
 
@@ -139,8 +139,8 @@ pip.parse(
 use_repo(pip, "py_dev_requirements")
 
 register_toolchains("@pythons_hub//:all")
-
 register_toolchains("@rules_python//python/runtime_env_toolchains:all")
+register_toolchains("@bazel_tools//tools/python:autodetecting_toolchain")`.
 
 #########################
 ## Native dependencies ##
