@@ -90,23 +90,3 @@ func (s *testAgentMSIInstallsAPMInject) installCurrentAgentVersion(opts ...insta
 			s.Require().Contains(version, agentVersion)
 		})
 }
-
-func (s *testAgentMSIInstallsAPMInject) installPreviousAgentVersion(opts ...installerwindows.MsiOption) {
-	agentVersion := s.StableAgentVersion().Version()
-	options := []installerwindows.MsiOption{
-		installerwindows.WithOption(installerwindows.WithInstallerURL(s.StableAgentVersion().MSIPackage().URL)),
-		installerwindows.WithMSILogFile("install-previous-version.log"),
-		installerwindows.WithMSIArg(fmt.Sprintf("APIKEY=%s", installer.GetAPIKey())),
-		installerwindows.WithMSIArg("SITE=datadoghq.com"),
-	}
-	options = append(options, opts...)
-	s.Require().NoError(s.Installer().Install(options...))
-
-	// sanity check: make sure we did indeed install the stable version
-	s.Require().Host(s.Env().RemoteHost).
-		HasBinary(consts.BinaryPath).
-		// Don't check the binary signature because it could have been updated since the last stable was built
-		WithVersionMatchPredicate(func(version string) {
-			s.Require().Contains(version, agentVersion)
-		})
-}
