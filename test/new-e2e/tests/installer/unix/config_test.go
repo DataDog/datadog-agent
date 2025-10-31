@@ -66,13 +66,29 @@ func (s *configSuite) TestMultipleConfigs() {
 		require.NoError(s.T(), err)
 		config, err := s.agent.Configuration()
 		require.NoError(s.T(), err)
-		require.Equal(s.T(), []string{fmt.Sprintf("debug:step-%d", i)}, config["extra_tags"])
+		// Convert extra_tags to a slice of strings
+		extraTags := config["extra_tags"].([]interface{})
+		extraTagsStrings := make([]string, len(extraTags))
+		for i, tag := range extraTags {
+			var ok bool
+			extraTagsStrings[i], ok = tag.(string)
+			require.True(s.T(), ok, "tag %d is not a string", i)
+		}
+		require.Equal(s.T(), []string{fmt.Sprintf("debug:step-%d", i)}, extraTagsStrings)
 		err = s.backend.PromoteConfigExperiment()
 		require.NoError(s.T(), err)
 
 		config, err = s.agent.Configuration()
 		require.NoError(s.T(), err)
-		require.Equal(s.T(), []string{fmt.Sprintf("debug:step-%d", i)}, config["extra_tags"])
+		// Convert extra_tags to a slice of strings
+		extraTags = config["extra_tags"].([]interface{})
+		extraTagsStrings = make([]string, len(extraTags))
+		for i, tag := range extraTags {
+			var ok bool
+			extraTagsStrings[i], ok = tag.(string)
+			require.True(s.T(), ok, "tag %d is not a string", i)
+		}
+		require.Equal(s.T(), []string{fmt.Sprintf("debug:step-%d", i)}, extraTagsStrings)
 	}
 }
 
