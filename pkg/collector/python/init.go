@@ -21,7 +21,6 @@ import (
 	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
-	collectoraggregator "github.com/DataDog/datadog-agent/pkg/collector/aggregator"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/fips"
@@ -127,25 +126,19 @@ void initDatadogAgentModule(rtloader_t *rtloader) {
 // aggregator module
 //
 
-typedef struct aggregator_s {
-    cb_submit_metric_t cb_submit_metric;
-    cb_submit_service_check_t cb_submit_service_check;
-    cb_submit_event_t cb_submit_event;
-    cb_submit_histogram_bucket_t cb_submit_histogram_bucket;
-    cb_submit_event_platform_event_t cb_submit_event_platform_event;
-} aggregator_t;
+// callbacks from the collector aggregator package, every exported Go function can be used in any package
+void SubmitMetric(char *, metric_type_t, char *, double, char **, char *, bool);
+void SubmitServiceCheck(char *, char *, int, char **, char *, char *);
+void SubmitEvent(char *, event_t *);
+void SubmitHistogramBucket(char *, char *, long long, float, float, int, char *, char **, bool);
+void SubmitEventPlatformEvent(char *, char *, int, char *);
 
-
-void initAggregatorModule(rtloader_t *rtloader, void *aggregator_void) {
-	// the aggregator struct comes from the `aggregator` package
-	// the only way to pass it between packages is through Go, that's why we can't keep track of the pointer's type
-	aggregator_t *aggregator = (aggregator_t *)aggregator_void;
-
-	set_submit_metric_cb(rtloader, aggregator->cb_submit_metric);
-	set_submit_service_check_cb(rtloader, aggregator->cb_submit_service_check);
-	set_submit_event_cb(rtloader, aggregator->cb_submit_event);
-	set_submit_histogram_bucket_cb(rtloader, aggregator->cb_submit_histogram_bucket);
-	set_submit_event_platform_event_cb(rtloader, aggregator->cb_submit_event_platform_event);
+void initAggregatorModule(rtloader_t *rtloader) {
+	set_submit_metric_cb(rtloader, SubmitMetric);
+	set_submit_service_check_cb(rtloader, SubmitServiceCheck);
+	set_submit_event_cb(rtloader, SubmitEvent);
+	set_submit_histogram_bucket_cb(rtloader, SubmitHistogramBucket);
+	set_submit_event_platform_event_cb(rtloader, SubmitEventPlatformEvent);
 }
 
 //
@@ -445,11 +438,7 @@ func Initialize(paths ...string) error {
 	C.initCgoFree(rtloader)
 	C.initLogger(rtloader)
 	C.initDatadogAgentModule(rtloader)
-
-	// get callbacks from the `aggregator` package
-	aggregator := collectoraggregator.GetAggregator()
-	C.initAggregatorModule(rtloader, aggregator)
-
+	C.initAggregatorModule(rtloader)
 	C.initUtilModule(rtloader)
 	C.initTaggerModule(rtloader)
 	C.initContainersModule(rtloader)

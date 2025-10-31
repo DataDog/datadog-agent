@@ -24,7 +24,7 @@ import (
 )
 
 /*
-#include "aggregator_types.h"
+#include "rtloader_types.h"
 */
 import "C"
 

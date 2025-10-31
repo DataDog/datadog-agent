@@ -15,9 +15,14 @@ import (
 )
 
 /*
+#include <datadog_agent_rtloader.h>
+#cgo !windows LDFLAGS: -L${SRCDIR}/../../../rtloader/build/rtloader -ldatadog-agent-rtloader -ldl
+#cgo windows LDFLAGS: -L${SRCDIR}/../../../rtloader/build/rtloader -ldatadog-agent-rtloader -lstdc++ -static
+#cgo CFLAGS: -I "${SRCDIR}/../../../rtloader/include"  -I "${SRCDIR}/../../../rtloader/common"
+
 #include <stdbool.h>
 
-#include "aggregator_types.h"
+#include "rtloader_types.h" // may be better to not rely on RTLoader at all since it's strongly coupled to Python
 */
 import "C"
 
