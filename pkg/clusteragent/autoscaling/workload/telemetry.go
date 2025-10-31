@@ -86,15 +86,6 @@ var (
 		commonOpts,
 	)
 
-	// telemetryVerticalScaleConstraintsContainerEnabled tracks whether vertical scaling is enabled for a container
-	telemetryVerticalScaleConstraintsContainerEnabled = telemetry.NewGaugeWithOpts(
-		subsystem,
-		"vertical_scaling_constraints_container_enabled",
-		dpaSpecContainerTelemetryLabels,
-		"Tracks whether vertical scaling is enabled (1) or disabled (0) for a container from DatadogPodAutoscaler.spec.constraints.containers",
-		commonOpts,
-	)
-
 	// telemetryVerticalScaleConstraintsContainerCPURequestMin tracks minimum CPU request constraint per container
 	telemetryVerticalScaleConstraintsContainerCPURequestMin = telemetry.NewGaugeWithOpts(
 		subsystem,
@@ -252,7 +243,6 @@ var (
 		telemetryHorizontalScaleReceivedRecommendations,
 		telemetryHorizontalScaleConstraintsMinReplicas,
 		telemetryHorizontalScaleConstraintsMaxReplicas,
-		telemetryVerticalScaleConstraintsContainerEnabled,
 		telemetryVerticalScaleConstraintsContainerCPURequestMin,
 		telemetryVerticalScaleConstraintsContainerMemoryRequestMin,
 		telemetryVerticalScaleConstraintsContainerCPURequestMax,
@@ -402,7 +392,6 @@ func trackVerticalConstraints(podAutoscaler *datadoghq.DatadogPodAutoscaler) {
 
 	// Always delete all container constraint metrics and then recreate them
 	// This is needed because we can't know when a container has been removed from the constraints
-	deleteGaugeLinkedToDPA(telemetryVerticalScaleConstraintsContainerEnabled, labels[0], labels[2])
 	deleteGaugeLinkedToDPA(telemetryVerticalScaleConstraintsContainerCPURequestMin, labels[0], labels[2])
 	deleteGaugeLinkedToDPA(telemetryVerticalScaleConstraintsContainerMemoryRequestMin, labels[0], labels[2])
 	deleteGaugeLinkedToDPA(telemetryVerticalScaleConstraintsContainerCPURequestMax, labels[0], labels[2])
@@ -416,18 +405,6 @@ func trackVerticalConstraints(podAutoscaler *datadoghq.DatadogPodAutoscaler) {
 				containerName = containerConstraint.Name
 			}
 			containerLabels := append(labels[:len(labels)-1], containerName, le.JoinLeaderValue)
-
-			// Track enabled flag (defaults to true if not specified)
-			if containerConstraint.Enabled != nil {
-				if *containerConstraint.Enabled {
-					telemetryVerticalScaleConstraintsContainerEnabled.Set(1.0, containerLabels...)
-				} else {
-					telemetryVerticalScaleConstraintsContainerEnabled.Set(0.0, containerLabels...)
-				}
-			} else {
-				// Default is enabled (true)
-				telemetryVerticalScaleConstraintsContainerEnabled.Set(1.0, containerLabels...)
-			}
 
 			// Track request constraints if present
 			if containerConstraint.Requests != nil {
