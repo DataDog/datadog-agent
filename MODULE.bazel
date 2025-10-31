@@ -114,13 +114,16 @@ register_toolchains(
 # Python dependencies
 # =========================================
 
+# Keep in sync with .python-version
+PYTHON_VERSION = "3.12"
+
 bazel_dep(name = "rules_python", version = "1.6.3")
 
 python = use_extension("@rules_python//python/extensions:python.bzl", "python")
-python.defaults(python_version = "3.12")
+python.defaults(python_version = PYTHON_VERSION)
 python.toolchain(
     is_default = True,
-    python_version = "3.12",
+    python_version = PYTHON_VERSION,
 )
 use_repo(python, "pythons_hub")
 
@@ -130,12 +133,14 @@ pip = use_extension("@rules_python//python/extensions:pip.bzl", "pip")
 # TODO: Make a distinct set for modules we redistribute with the agent.
 pip.parse(
     hub_name = "py_dev_requirements",
-    python_version = "3.12",
+    python_version = PYTHON_VERSION,
     requirements_lock = "//deps:py_dev_requirements.txt",
 )
 use_repo(pip, "py_dev_requirements")
 
 register_toolchains("@pythons_hub//:all")
+
+register_toolchains("@rules_python//python/runtime_env_toolchains:all")
 
 #########################
 ## Native dependencies ##
