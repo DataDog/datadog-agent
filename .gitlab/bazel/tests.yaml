@@ -8,7 +8,7 @@
 bazel:tests:linux-amd64:
   extends: [ .bazel:tests, .bazel:persistent-runner:linux-amd64 ]
   script:
-    - bazel test //bazel/tests/... || cat /data/bzl/bazel/649c250ddb88e3a1390a686c647ce4c2/execroot/_main/bazel-out/k8-fastbuild/testlogs/bazel/tests/does_python_work/test.log
+    - bazel test //bazel/tests/... || cat /data/bzl/bazel/*/execroot/_main/bazel-out/*/testlogs/bazel/tests/does_python_work/test.log
 
 bazel:tests:linux-arm64:
   extends: [ .bazel:tests, .linux_arm64 ]
