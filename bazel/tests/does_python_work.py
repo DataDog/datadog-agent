@@ -17,7 +17,7 @@ class TestCase(unittest.TestCase):
         data_path = r.Rlocation("_main/.python-version")
         with open(data_path) as f:
             expected = f.read().strip() + "."
-            self.assertEqual(sys.version[0 : len(expected)], expected, sys.version)
+            self.assertEqual(sys.version[: len(expected)], expected, sys.version)
 
     def test_basic_python_import(self):
         e = Exit()
