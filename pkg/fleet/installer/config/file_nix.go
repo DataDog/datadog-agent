@@ -38,9 +38,9 @@ func copyDirectory(ctx context.Context, sourcePath, targetPath string) error {
 		return nil
 	}
 
-	// 2. Recursively delete targetPath/managed/
+	// 2. Recursively delete targetPath/
 	// RemoveAll removes symlinks but not the content they point to as it uses os.Remove first
-	err = os.RemoveAll(filepath.Join(targetPath, "managed", "datadog-agent"))
+	err = os.RemoveAll(filepath.Join(targetPath, "managed"))
 	if err != nil {
 		return fmt.Errorf("failed to remove managed directory: %w", err)
 	}

@@ -54,12 +54,12 @@ func (s *configSuite) TestMultipleConfigs() {
 
 	for i := 0; i < 3; i++ {
 		err := s.backend.StartConfigExperiment(fleetbackend.ConfigOperations{
-			DeploymentID:   fmt.Sprintf("123-%d", i),
+			DeploymentID: fmt.Sprintf("123-%d", i),
 			FileOperations: []fleetbackend.FileOperation{
 				{
-					FileOperationType: fleetbackend.FileOperationMergePatch, 
-					FilePath: "/datadog.yaml", 
-					Patch: []byte(fmt.Sprintf(`{"extra_tags": ["debug:step-%d"]}`, i)),
+					FileOperationType: fleetbackend.FileOperationMergePatch,
+					FilePath:          "/datadog.yaml",
+					Patch:             []byte(fmt.Sprintf(`{"extra_tags": ["debug:step-%d"]}`, i)),
 				},
 			},
 		})
