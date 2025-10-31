@@ -513,10 +513,6 @@ func (ia *inventoryagent) getPayload() marshaler.JSONMarshaler {
 
 	ia.getConfigs(data)
 
-	if !ia.conf.GetBool("inventories_diagnostics_enabled") {
-		delete(data, "diagnostics")
-	}
-
 	return &Payload{
 		Hostname:  ia.hostname,
 		Timestamp: time.Now().UnixNano(),

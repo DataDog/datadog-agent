@@ -682,6 +682,7 @@ type fakeProcessSubscriber func(process.ProcessesUpdate)
 func (f *fakeProcessSubscriber) Subscribe(cb func(process.ProcessesUpdate)) {
 	*f = cb
 }
+func (f *fakeProcessSubscriber) Start() {}
 
 // Make a redactor for the onlyOnAmd64_17 float
 // return value in the testReturnsManyFloats function. This function is expected

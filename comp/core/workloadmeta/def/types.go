@@ -122,7 +122,8 @@ const (
 	ContainerRuntimeGarden     ContainerRuntime = "garden"
 	// ECS Fargate can be considered as a runtime in the sense that we don't
 	// know the actual runtime but we need to identify it's Fargate
-	ContainerRuntimeECSFargate ContainerRuntime = "ecsfargate"
+	ContainerRuntimeECSFargate          ContainerRuntime = "ecsfargate"
+	ContainerRuntimeECSManagedInstances ContainerRuntime = "ecsmanagedinstances"
 )
 
 // ContainerRuntimeFlavor is the container runtime with respect to the OCI spect

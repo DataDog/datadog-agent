@@ -72,6 +72,10 @@ func (*fakev3or4EcsClient) GetContainer(_ context.Context) (*v3or4.Container, er
 	return nil, errors.New("unimplemented")
 }
 
+func (*fakev3or4EcsClient) GetContainerStats(_ context.Context, _ string) (*v3or4.ContainerStatsV4, error) {
+	return nil, errors.New("unimplemented")
+}
+
 // TestPull tests the Pull method
 func TestPull(t *testing.T) {
 	store := &fakeWorkloadmetaStore{}

@@ -31,6 +31,11 @@ func Module() fxutil.Module {
 type DdRcTelemetryReporter struct {
 	BypassRateLimitCounter telemetry.Counter
 	BypassTimeoutCounter   telemetry.Counter
+
+	ConfigSubscriptionsActive              telemetry.Gauge
+	ConfigSubscriptionClientsTracked       telemetry.Gauge
+	ConfigSubscriptionsConnectedCounter    telemetry.Counter
+	ConfigSubscriptionsDisconnectedCounter telemetry.Counter
 }
 
 // IncRateLimit increments the DdRcTelemetryReporter BypassRateLimitCounter counter.
@@ -44,6 +49,38 @@ func (r *DdRcTelemetryReporter) IncRateLimit() {
 func (r *DdRcTelemetryReporter) IncTimeout() {
 	if r.BypassTimeoutCounter != nil {
 		r.BypassTimeoutCounter.Inc()
+	}
+}
+
+// IncConfigSubscriptionsConnectedCounter increments the DdRcTelemetryReporter
+// ConfigSubscriptionsConnectedCounter counter.
+func (r *DdRcTelemetryReporter) IncConfigSubscriptionsConnectedCounter() {
+	if r.ConfigSubscriptionsConnectedCounter != nil {
+		r.ConfigSubscriptionsConnectedCounter.Inc()
+	}
+}
+
+// IncConfigSubscriptionsDisconnectedCounter increments the
+// DdRcTelemetryReporter ConfigSubscriptionsDisconnectedCounter counter.
+func (r *DdRcTelemetryReporter) IncConfigSubscriptionsDisconnectedCounter() {
+	if r.ConfigSubscriptionsDisconnectedCounter != nil {
+		r.ConfigSubscriptionsDisconnectedCounter.Inc()
+	}
+}
+
+// SetConfigSubscriptionsActive sets the DdRcTelemetryReporter
+// ConfigSubscriptionsActive gauge to the given value.
+func (r *DdRcTelemetryReporter) SetConfigSubscriptionsActive(value int) {
+	if r.ConfigSubscriptionsActive != nil {
+		r.ConfigSubscriptionsActive.Set(float64(value))
+	}
+}
+
+// SetConfigSubscriptionClientsTracked sets the DdRcTelemetryReporter
+// ConfigSubscriptionClientsTracked gauge to the given value.
+func (r *DdRcTelemetryReporter) SetConfigSubscriptionClientsTracked(value int) {
+	if r.ConfigSubscriptionClientsTracked != nil {
+		r.ConfigSubscriptionClientsTracked.Set(float64(value))
 	}
 }
 
@@ -63,6 +100,34 @@ func newDdRcTelemetryReporter(deps dependencies) rctelemetryreporter.Component {
 			"cache_bypass_timeout",
 			[]string{},
 			"Number of Remote Configuration cache bypass requests that timeout.",
+			commonOpts,
+		),
+		ConfigSubscriptionsActive: deps.Telemetry.NewGaugeWithOpts(
+			"remoteconfig",
+			"config_subscriptions_active",
+			[]string{},
+			"Number of Remote Configuration subscriptions active.",
+			commonOpts,
+		),
+		ConfigSubscriptionClientsTracked: deps.Telemetry.NewGaugeWithOpts(
+			"remoteconfig",
+			"config_subscription_clients_tracked",
+			[]string{},
+			"Number of Remote Configuration clients tracked by active subscriptions.",
+			commonOpts,
+		),
+		ConfigSubscriptionsConnectedCounter: deps.Telemetry.NewCounterWithOpts(
+			"remoteconfig",
+			"config_subscriptions_connected_counter",
+			[]string{},
+			"Number of Remote Configuration subscriptions connected.",
+			commonOpts,
+		),
+		ConfigSubscriptionsDisconnectedCounter: deps.Telemetry.NewCounterWithOpts(
+			"remoteconfig",
+			"config_subscriptions_disconnected_counter",
+			[]string{},
+			"Number of Remote Configuration subscriptions disconnected.",
 			commonOpts,
 		),
 	}

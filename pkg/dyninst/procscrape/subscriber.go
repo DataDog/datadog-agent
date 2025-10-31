@@ -119,7 +119,10 @@ func (s *Subscriber) Start() {
 // Close stops delivering updates and releases associated resources.
 func (s *Subscriber) Close() {
 	var notStarted bool
-	if s.start.Do(func() { notStarted = true }); notStarted {
+	if s.start.Do(func() {
+		notStarted = true
+		s.stop.Do(func() {})
+	}); notStarted {
 		return
 	}
 	s.stop.Do(func() {
