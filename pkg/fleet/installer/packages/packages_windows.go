@@ -14,6 +14,7 @@ var (
 	packagesHooks = map[string]hooks{
 		"datadog-agent":              datadogAgentPackage,
 		"datadog-apm-library-dotnet": apmLibraryDotnetPackage,
+		"datadog-apm-inject":         apmInjectPackage,
 		"datadog-agent-ddot":         datadogAgentDDOTPackage,
 	}
 
