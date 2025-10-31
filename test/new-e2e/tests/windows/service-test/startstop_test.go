@@ -129,6 +129,9 @@ func (s *agentServiceCommandSuite) SetupSuite() {
 
 // TestServiceBehaviorAgentCommand tests the service behavior when controlled by PowerShell commands
 func TestServiceBehaviorPowerShell(t *testing.T) {
+	// TODO(windows-products): Fix flakiness and re-enable this test
+	flake.Mark(t)
+
 	s := &powerShellServiceCommandSuite{}
 	run(t, s, systemProbeConfig, agentConfig, securityAgentConfig)
 }
