@@ -235,6 +235,10 @@ func (c *Controller) syncPodAutoscaler(ctx context.Context, key, ns, name string
 		return autoscaling.NoRequeue, nil
 	}
 
+	// Track Datadog Pod Autoscaler configuration and status
+	// run it only at the end of handleScaling()
+	defer trackDPATelemetry(podAutoscaler)
+
 	// Object is present in both our store and Kubernetes, we need to sync depending on ownership.
 	// Implement info sync based on ownership.
 	if podAutoscaler.Spec.Owner == datadoghqcommon.DatadogPodAutoscalerRemoteOwner {
@@ -362,9 +366,6 @@ func (c *Controller) handleScaling(ctx context.Context, podAutoscaler *datadoghq
 	desiredHorizontalScalingSource, desiredVerticalScalingSource := getActiveScalingSources(currentTime, podAutoscalerInternal)
 	podAutoscalerInternal.SetActiveScalingValues(currentTime, desiredHorizontalScalingSource, desiredVerticalScalingSource)
 	c.updateLocalFallbackEnabled(podAutoscalerInternal, desiredHorizontalScalingSource)
-
-	// Track Datadog Pod Autoscaler configuration and status
-	trackDPATelemetry(podAutoscaler)
 
 	// TODO: While horizontal scaling is in progress we should not start vertical scaling
 	// While vertical scaling is in progress we should only allow horizontal scale up

@@ -25,8 +25,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/model"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
-	le "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -88,7 +86,6 @@ func (p *autoscalingValuesProcessor) processValues(values *kubeAutoscaling.Workl
 	}
 
 	id := autoscaling.BuildObjectID(values.Namespace, values.Name)
-	podAutoscaler, _ := p.store.LockRead(id, false)
 
 	scalingValues, err := parseAutoscalingValues(timestamp, values)
 	if err != nil {
@@ -103,46 +100,6 @@ func (p *autoscalingValuesProcessor) processValues(values *kubeAutoscaling.Workl
 		receivedTimestamp: timestamp,
 		receivedVersion:   receivedVersion,
 		scalingValues:     scalingValues,
-	}
-
-	// Emit telemetry for received values
-	// Target name cannot normally be empty, but we handle it just in case
-	var targetName string
-	if podAutoscaler.Spec() != nil {
-		targetName = podAutoscaler.Spec().TargetRef.Name
-	}
-
-	// Horizontal value
-	if scalingValues.Horizontal != nil {
-		telemetryHorizontalScaleReceivedRecommendations.Set(
-			float64(scalingValues.Horizontal.Replicas),
-			podAutoscaler.Namespace(),
-			targetName,
-			podAutoscaler.Name(),
-			string(scalingValues.Horizontal.Source),
-			le.JoinLeaderValue,
-		)
-	}
-
-	// Vertical values
-	if scalingValues.Vertical != nil {
-		for _, containerResources := range scalingValues.Vertical.ContainerResources {
-			trackVerticalRecommendation(
-				telemetryVerticalScaleReceivedRecommendationsRequests,
-				podAutoscaler,
-				string(scalingValues.Vertical.Source),
-				containerResources.Requests,
-				containerResources.Name,
-			)
-
-			trackVerticalRecommendation(
-				telemetryVerticalScaleReceivedRecommendationsLimits,
-				podAutoscaler,
-				string(scalingValues.Vertical.Source),
-				containerResources.Limits,
-				containerResources.Name,
-			)
-		}
 	}
 
 	return nil
@@ -349,31 +306,4 @@ func parseResourceList(resourceList []*kubeAutoscaling.ContainerResources_Resour
 	}
 
 	return corev1ResourceList, nil
-}
-
-func trackVerticalRecommendation(
-	metric telemetry.Gauge,
-	podAutoscaler model.PodAutoscalerInternal,
-	source string,
-	resourceList corev1.ResourceList,
-	containerName string,
-) {
-	var targetName string
-	if podAutoscaler.Spec() != nil {
-		targetName = podAutoscaler.Spec().TargetRef.Name
-	}
-
-	for resource, value := range resourceList {
-		metric.Set(
-			value.AsApproximateFloat64(),
-			podAutoscaler.Namespace(),
-			targetName,
-			podAutoscaler.Name(),
-			source,
-			containerName,
-			containerName,
-			string(resource),
-			le.JoinLeaderValue,
-		)
-	}
 }
