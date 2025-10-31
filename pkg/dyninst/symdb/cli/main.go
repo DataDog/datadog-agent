@@ -254,7 +254,7 @@ func run() (retErr error) {
 		}
 
 		if up != nil {
-			scope := uploader.ConvertPackageToScope(pkg)
+			scope := uploader.ConvertPackageToScope(pkg, "cli" /* agentVersion */)
 			uploadBuffer = append(uploadBuffer, scope)
 			bufferFuncs += pkg.Stats().NumFunctions
 			if err := maybeFlush(false /* force */); err != nil {

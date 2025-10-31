@@ -18,9 +18,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/util/slices"
 	"github.com/cenkalti/backoff"
 	"go.uber.org/fx"
+
+	"github.com/DataDog/datadog-agent/pkg/util/slices"
 
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
@@ -433,6 +434,25 @@ func (ac *AutoConfig) GetTelemetryStore() *acTelemetry.Store {
 	return ac.telemetryStore
 }
 
+func (ac *AutoConfig) initializeConfiguration(config *integration.Config) error {
+	prg, celADID, compileErr, recErr := createMatchingProgram(config.CELSelector)
+	if compileErr != nil {
+		return compileErr
+	}
+
+	if len(config.ADIdentifiers) == 0 && celADID != "" {
+		// Only throw recError if no explicit ADIDs are defined
+		if recErr != nil {
+			return recErr
+		}
+		config.ADIdentifiers = []string{string(celADID)}
+	}
+
+	config.SetMatchingProgram(prg)
+
+	return nil
+}
+
 // processNewConfig store (in template cache) and resolves a given config,
 // returning the changes to be made.
 func (ac *AutoConfig) processNewConfig(config integration.Config) integration.ConfigChanges {
@@ -444,6 +464,12 @@ func (ac *AutoConfig) processNewConfig(config integration.Config) integration.Co
 		} else if err := config.AddMetrics(metrics); err != nil {
 			log.Infof("Unable to add default metrics to collect to %s check: %s", config.Name, err)
 		}
+	}
+
+	err := ac.initializeConfiguration(&config)
+	if err != nil {
+		log.Errorf("Config %s (source %s) could not initialize: %v", config.Name, config.Source, err)
+		return integration.ConfigChanges{}
 	}
 
 	changes, changedIDsOfSecretsWithConfigs := ac.cfgMgr.processNewConfig(config)

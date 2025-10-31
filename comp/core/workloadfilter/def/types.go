@@ -6,6 +6,9 @@
 package workloadfilter
 
 import (
+	"fmt"
+	"strings"
+
 	typedef "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def/proto"
 )
 
@@ -75,6 +78,42 @@ func GetAllResourceTypes() []ResourceType {
 		EndpointType,
 		ProcessType,
 	}
+}
+
+// Rules defines the rules for filtering different resource types.
+type Rules struct {
+	Containers    []string `yaml:"containers" json:"containers"`
+	Processes     []string `yaml:"processes" json:"processes"`
+	Pods          []string `yaml:"pods" json:"pods"`
+	KubeServices  []string `yaml:"kube_services" json:"kube_services"`
+	KubeEndpoints []string `yaml:"kube_endpoints" json:"kube_endpoints"`
+}
+
+// String returns a string representation of the Rules struct, only showing non-empty fields.
+func (r Rules) String() string {
+	var parts []string
+
+	if len(r.Containers) > 0 {
+		parts = append(parts, fmt.Sprintf("containers:%v", r.Containers))
+	}
+	if len(r.Processes) > 0 {
+		parts = append(parts, fmt.Sprintf("processes:%v", r.Processes))
+	}
+	if len(r.Pods) > 0 {
+		parts = append(parts, fmt.Sprintf("pods:%v", r.Pods))
+	}
+	if len(r.KubeServices) > 0 {
+		parts = append(parts, fmt.Sprintf("kube_services:%v", r.KubeServices))
+	}
+	if len(r.KubeEndpoints) > 0 {
+		parts = append(parts, fmt.Sprintf("kube_endpoints:%v", r.KubeEndpoints))
+	}
+
+	if len(parts) == 0 {
+		return ""
+	}
+
+	return "{" + strings.Join(parts, ", ") + "}"
 }
 
 // Scope defines the scope of the filters.
@@ -153,20 +192,24 @@ func (c *Container) GetAnnotations() map[string]string {
 
 // CreateContainerImage creates a Filterable Container Image object.
 // This is used only for container image filtering
-func CreateContainerImage(name string) *Container {
+func CreateContainerImage(reference string) *Container {
 	return &Container{
 		FilterContainer: &typedef.FilterContainer{
-			Image: name,
+			Image: &typedef.FilterImage{
+				Reference: reference,
+			},
 		},
 	}
 }
 
 // CreateContainer creates a Filterable Container object from a name, image and an (optional) owner.
-func CreateContainer(id, name, img string, owner Filterable) *Container {
+func CreateContainer(id, name, reference string, owner Filterable) *Container {
 	c := &typedef.FilterContainer{
-		Id:    id,
-		Name:  name,
-		Image: img,
+		Id:   id,
+		Name: name,
+		Image: &typedef.FilterImage{
+			Reference: reference,
+		},
 	}
 
 	setContainerOwner(c, owner)
@@ -253,7 +296,8 @@ type PodFilter int
 
 // Defined Pod filter kinds
 const (
-	LegacyPod PodFilter = iota
+	LegacyPodMetrics PodFilter = iota
+	LegacyPodGlobal
 	PodADAnnotationsMetrics
 	PodADAnnotations
 	// CEL-based filters
@@ -379,10 +423,17 @@ func (p *Process) Type() ResourceType {
 	return ProcessType
 }
 
+// SetLogFile updates the log file path on an existing Process.
+func (p *Process) SetLogFile(logFile string) {
+	p.FilterProcess.LogFile = logFile
+}
+
 // ProcessFilter defines the type of process filter.
 type ProcessFilter int
 
 // Defined Process filter kinds.
 const (
 	LegacyProcessExcludeList ProcessFilter = iota
+	ProcessCELLogs
+	ProcessCELGlobal
 )

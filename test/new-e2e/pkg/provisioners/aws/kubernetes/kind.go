@@ -175,7 +175,7 @@ func KindRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, params *Prov
 		if err != nil {
 			return err
 		}
-		argoHelm, err := argorollouts.NewHelmInstallation(&awsEnv, argoParams, pulumi.Provider(kubeProvider))
+		argoHelm, err := argorollouts.NewHelmInstallation(&awsEnv, argoParams, kubeProvider)
 		if err != nil {
 			return err
 		}

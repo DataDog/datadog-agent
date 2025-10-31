@@ -1,0 +1,23 @@
+{
+  "type": "unsupported",
+  "operation": "index",
+  "argument": [
+    {
+      "filter": [
+        {
+          "ref": "collection"
+        },
+        {
+          "gt": [
+            {
+              "ref": "@it"
+            },
+            2
+          ]
+        }
+      ]
+    },
+    0
+  ],
+  "error": ""
+}

@@ -28,15 +28,9 @@ source url: "https://github.com/PCRE2Project/pcre2/releases/download/pcre2-#{ver
 relative_path "pcre2-#{version}"
 
 build do
-  env = with_standard_compiler_flags(with_embedded_path)
-
-  configure_options = [
-    "--disable-static",
-    "--enable-shared",
-  ]
-
-  configure(*configure_options, env: env)
-
-  make "-j #{workers}", env: env
-  make "-j #{workers} install", env: env
+  command_on_repo_root "bazelisk run -- @pcre2//:install --destdir=#{install_dir}/embedded"
+  command_on_repo_root "bazelisk run -- //bazel/rules:replace_prefix " \
+    "--prefix #{install_dir}/embedded " \
+    "#{install_dir}/embedded/lib/pkgconfig/libpcre2*.pc " \
+    "#{install_dir}/embedded/lib/libpcre2*.so"
 end
