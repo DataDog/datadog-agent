@@ -271,7 +271,7 @@ func (s *testAgentMSIInstallsDotnetLibrary) TestMSIPurge() {
 	oldLibraryPath := s.getLibraryPathFromInstrumentedIIS()
 	s.Require().Contains(oldLibraryPath, version.Version())
 
-	// uninstall the MSI with PURGE=1
+	// uninstall the MSI, it will run purge by default
 	options := []installerwindows.MsiOption{
 		installerwindows.WithMSILogFile("uninstall.log"),
 	}
