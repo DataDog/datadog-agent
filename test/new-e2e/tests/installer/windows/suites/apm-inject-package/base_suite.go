@@ -18,7 +18,7 @@ type baseSuite struct {
 	installerwindows.BaseSuite
 }
 
-func (s *baseSuite) assertSuccessfulPromoteExperiment(version string) {
+func (s *baseSuite) assertSuccessfulPromoteExperiment() {
 	s.Require().Host(s.Env().RemoteHost).HasDatadogInstaller().Status().
 		HasPackage("datadog-apm-inject")
 	// verify the driver is running by checking the service status
