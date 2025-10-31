@@ -118,7 +118,7 @@ func postStartExperimentAPMInject(ctx HookContext) (err error) {
 		return err
 	}
 
-	// Run the installer to reinstall the stable driver
+	// Run the installer to uninstall the stable driver
 	injectorStableExec := pkgExec.NewAPMInjectExec(getAPMInjectExecutablePath(packageStablePath))
 	_, err = injectorStableExec.Uninstall(ctx.Context)
 	if err != nil {
