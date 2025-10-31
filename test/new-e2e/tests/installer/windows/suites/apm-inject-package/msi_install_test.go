@@ -7,7 +7,6 @@ package injecttests
 
 import (
 	"fmt"
-	"os"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	winawshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host/windows"
@@ -20,8 +19,6 @@ import (
 
 type testAgentMSIInstallsAPMInject struct {
 	baseSuite
-	currentAPMInjectVersion  installerwindows.PackageVersion
-	previousAPMInjectVersion installerwindows.PackageVersion
 }
 
 // TestAgentScriptInstallsAPMInject tests the usage of the install script to install the apm-inject package.
@@ -29,19 +26,6 @@ func TestAgentMSIInstallsAPMInject(t *testing.T) {
 	e2e.Run(t, &testAgentMSIInstallsAPMInject{},
 		e2e.WithProvisioner(
 			winawshost.ProvisionerNoAgentNoFakeIntake()))
-}
-
-func (s *testAgentMSIInstallsAPMInject) SetupSuite() {
-	s.baseSuite.SetupSuite()
-
-	s.currentAPMInjectVersion = installerwindows.NewVersionFromPackageVersion(os.Getenv("CURRENT_APM_INJECT_VERSION"))
-	if s.currentAPMInjectVersion.PackageVersion() == "" {
-		s.currentAPMInjectVersion = installerwindows.NewVersionFromPackageVersion("0.50.0-dev.ba30ecb.glci1208428525.g594e53fe-1")
-	}
-	s.previousAPMInjectVersion = installerwindows.NewVersionFromPackageVersion(os.Getenv("PREVIOUS_APM_INJECT_VERSION"))
-	if s.previousAPMInjectVersion.PackageVersion() == "" {
-		s.previousAPMInjectVersion = installerwindows.NewVersionFromPackageVersion("0.50.0-dev.beb48a5.glci1208433719.g08c01dc4-1")
-	}
 }
 
 func (s *testAgentMSIInstallsAPMInject) AfterTest(suiteName, testName string) {

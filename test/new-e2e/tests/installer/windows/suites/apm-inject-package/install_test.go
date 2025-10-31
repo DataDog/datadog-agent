@@ -6,6 +6,10 @@
 package injecttests
 
 import (
+	"time"
+
+	"github.com/cenkalti/backoff"
+
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	winawshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host/windows"
 	installer "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/unix"
@@ -40,10 +44,8 @@ func (s *testAPMInjectInstallSuite) AfterTest(suiteName, testName string) {
 
 // TestInstallAPMInjectPackage tests the usage of the Datadog installer to install the apm-inject package.
 func (s *testAPMInjectInstallSuite) TestExperiment() {
-	const (
-		initialVersion = "0.50.0-dev.ba30ecb.glci1208428525.g594e53fe-1"
-		upgradeVersion = "0.50.0-dev.beb48a5.glci1208433719.g08c01dc4-1"
-	)
+	initialVersion := s.previousAPMInjectVersion.PackageVersion()
+	upgradeVersion := s.currentAPMInjectVersion.PackageVersion()
 
 	// install initial version
 	output, err := s.Installer().InstallPackage("apm-inject-package",
@@ -51,6 +53,10 @@ func (s *testAPMInjectInstallSuite) TestExperiment() {
 		installer.WithRegistry("install.datad0g.com"),
 	)
 	s.Require().NoError(err, "failed to install the apm-inject package: %s", output)
+
+	// verify the driver is running
+	s.Require().NoError(s.WaitForServicesWithBackoff("Running", backoff.NewConstantBackOff(30*time.Second), "ddinjector"))
+
 	// start experiment
 	output, err = s.Installer().InstallExperiment("apm-inject-package",
 		installer.WithVersion(upgradeVersion),
@@ -61,4 +67,7 @@ func (s *testAPMInjectInstallSuite) TestExperiment() {
 	// promote experiment
 	output, err = s.Installer().PromoteExperiment("datadog-apm-inject")
 	s.Require().NoError(err, "failed to promote the apm-inject experiment: %s", output)
+
+	// verify the driver is running post promote
+	s.Require().NoError(s.WaitForServicesWithBackoff("Running", backoff.NewConstantBackOff(30*time.Second), "ddinjector"))
 }

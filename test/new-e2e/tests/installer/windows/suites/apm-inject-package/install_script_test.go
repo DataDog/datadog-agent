@@ -7,7 +7,9 @@ package injecttests
 
 import (
 	"fmt"
-	"os"
+	"time"
+
+	"github.com/cenkalti/backoff"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	winawshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host/windows"
@@ -18,8 +20,6 @@ import (
 
 type testAgentScriptInstallsAPMInject struct {
 	baseSuite
-	currentAPMInjectVersion  installerwindows.PackageVersion
-	previousAPMInjectVersion installerwindows.PackageVersion
 }
 
 // TestAgentScriptInstallsAPMInject tests the usage of the install script to install the apm-inject package.
@@ -27,19 +27,6 @@ func TestAgentScriptInstallsAPMInject(t *testing.T) {
 	e2e.Run(t, &testAgentScriptInstallsAPMInject{},
 		e2e.WithProvisioner(
 			winawshost.ProvisionerNoAgentNoFakeIntake()))
-}
-
-func (s *testAgentScriptInstallsAPMInject) SetupSuite() {
-	s.baseSuite.SetupSuite()
-
-	s.currentAPMInjectVersion = installerwindows.NewVersionFromPackageVersion(os.Getenv("CURRENT_APM_INJECT_VERSION"))
-	if s.currentAPMInjectVersion.PackageVersion() == "" {
-		s.currentAPMInjectVersion = installerwindows.NewVersionFromPackageVersion("0.50.0-dev.ba30ecb.glci1208428525.g594e53fe-1")
-	}
-	s.previousAPMInjectVersion = installerwindows.NewVersionFromPackageVersion(os.Getenv("PREVIOUS_APM_INJECT_VERSION"))
-	if s.previousAPMInjectVersion.PackageVersion() == "" {
-		s.previousAPMInjectVersion = installerwindows.NewVersionFromPackageVersion("0.50.0-dev.beb48a5.glci1208433719.g08c01dc4-1")
-	}
 }
 
 func (s *testAgentScriptInstallsAPMInject) AfterTest(suiteName, testName string) {
@@ -80,4 +67,6 @@ func (s *testAgentScriptInstallsAPMInject) installCurrentAgentVersionWithAPMInje
 		WithVersionMatchPredicate(func(version string) {
 			s.Require().Contains(version, s.CurrentAgentVersion().Version())
 		})
+
+	s.Require().NoError(s.WaitForServicesWithBackoff("Running", backoff.NewConstantBackOff(30*time.Second), "ddinjector"))
 }

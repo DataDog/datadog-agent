@@ -112,6 +112,19 @@ func postStartExperimentAPMInject(ctx HookContext) (err error) {
 	span, _ := ctx.StartSpan("start_apm_inject_experiment")
 	defer func() { span.Finish(err) }()
 
+	// Get the stable package path and remove it before installing the experiment version
+	packageStablePath, err := filepath.EvalSymlinks(getAPMInjectTargetPath("stable"))
+	if err != nil {
+		return err
+	}
+
+	// Run the installer to reinstall the stable driver
+	injectorStableExec := pkgExec.NewAPMInjectExec(getAPMInjectExecutablePath(packageStablePath))
+	_, err = injectorStableExec.Uninstall(ctx.Context)
+	if err != nil {
+		return fmt.Errorf("failed to uninstall stable APM inject driver: %w", err)
+	}
+
 	// Get the experiment package path
 	packagePath, err := filepath.EvalSymlinks(getAPMInjectTargetPath("experiment"))
 	if err != nil {
