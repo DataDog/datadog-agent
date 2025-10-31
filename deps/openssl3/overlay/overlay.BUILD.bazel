@@ -5,10 +5,17 @@ load("@rules_license//rules:license.bzl", "license")
 load(
     "lib_contents.bzl",
     "HDRS",
-    "HDRS_DARWIN64_ARM64",
+    "HDRS_DARWIN_ARM64",
     "HDRS_LINUX_ARM64",
-    "LIBCRYPTO_OBJS",
-    "OBJ_TO_SRC",
+    "LIB_APPS_SRCS_DARWIN_ARM64",
+    "LIB_COMMON_SRCS_DARWIN_ARM64",
+    "LIB_CRYPTO_SRCS_DARWIN_ARM64",
+    "LIB_CRYPTO_SRCS_LINUX_ARM64",
+    "LIB_DEFAULT_SRCS_DARWIN_ARM64",
+    "LIB_LEGACY_SRCS_DARWIN_ARM64",
+    "LIB_SSL_SRCS_DARWIN_ARM64",
+    "LIB_TEMPLATE_SRCS_DARWIN_ARM64",
+    "LIB_TESTUTIL_SRCS_DARWIN_ARM64",
 )
 
 package(
@@ -30,8 +37,6 @@ exports_files([
 VERSION = "3.5.2"
 SONAME = "libcrypto.so.%s" % VERSION
 
-LIB_CRYPTO_SRCS = [OBJ_TO_SRC.get(obj) for obj in LIBCRYPTO_OBJS if obj in OBJ_TO_SRC]
-
 LOCAL_DEFINES = [
     "-DOPENSSLDIR='\"/opt/datadog/embedded/ssl/cacerts\"'",
     "-DENGINESDIR='\"/opt/datadog/embedded/lib/engines-3\"'",
@@ -51,23 +56,21 @@ LOCAL_DEFINES = [
     "-DOPENSSL_PIC",
 ]
 
-# print(LIB_CRYPTO_SRCS)
-
 ARCH_HDRS_COND = {
     "@platforms//os:linux": [
         "linux_arm64/crypto/buildinf.h",
     ],
     "@platforms//os:macos": [
-        "darwin64_arm64/crypto/buildinf.h",
+        "darwin_arm64/crypto/buildinf.h",
     ],
     "//conditions:default": [],
 }
 
 cc_library(
     name = "libcrypto",
-    srcs = [OBJ_TO_SRC.get(obj) for obj in LIBCRYPTO_OBJS if obj in OBJ_TO_SRC] + HDRS + select({
-        "@platforms//os:macos": HDRS_DARWIN64_ARM64,
-        "@platforms//os:linux": HDRS_LINUX_ARM64,
+    srcs = HDRS + select({
+        "@platforms//os:macos": HDRS_DARWIN_ARM64 + LIB_CRYPTO_SRCS_DARWIN_ARM64,
+        "@platforms//os:linux": HDRS_LINUX_ARM64 + LIB_CRYPTO_SRCS_LINUX_ARM64,
     }) + select({
         "@platforms//cpu:aarch64": [
             # TODO: This does not compile on linux. Huh?
@@ -96,9 +99,9 @@ cc_library(
             "linux_arm64/providers/common/include",
         ],
         "@platforms//os:macos": [
-            "darwin64_arm64/crypto",
-            "darwin64_arm64/include",
-            "darwin64_arm64/providers/common/include",
+            "darwin_arm64/crypto",
+            "darwin_arm64/include",
+            "darwin_arm64/providers/common/include",
         ],
     }),
     copts = LOCAL_DEFINES + select({
