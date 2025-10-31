@@ -290,7 +290,8 @@ func TestComputeEvents(t *testing.T) {
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 	configYaml := `
 cel_workload_exclude:
-  - products: metrics
+  - products:
+      - metrics
     rules:
       containers:
         - container.image.reference.matches('not-monitored')
