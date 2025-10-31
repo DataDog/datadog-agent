@@ -110,7 +110,7 @@ func assertPayloadBase(c *assert.CollectT, np *aggregator.Netpath, hostname stri
 
 func (s *baseNetworkPathIntegrationTestSuite) checkDynamicPath(c *assert.CollectT, agentHostname string) {
 	// check at lest one dynamic path is reported
-	np := s.expectNetpath(c, func(np *aggregator.Netpath) bool {
+	np := s.expectNetpath(c, func(_ *aggregator.Netpath) bool {
 		return true
 	})
 
