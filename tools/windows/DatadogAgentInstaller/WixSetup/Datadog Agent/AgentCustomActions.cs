@@ -524,7 +524,7 @@ namespace WixSetup.Datadog_Agent
                     CustomActions.PurgeOciPackages,
                     // Check the return value to prevent removing datadog-installer.exe if purge fails.
                     // We will need to use the datadog-installer.exe to cleanup packages if purge fails.
-                    // To skip purging entirely, set the PURGE property to 0.
+                    // To skip purging entirely, set the KEEP_INSTALLED_PACKAGES property to 1.
                     Return.check,
                     When.Before,
                     new Step(CleanupOnUninstall.Id),
@@ -534,7 +534,7 @@ namespace WixSetup.Datadog_Agent
                 Execute = Execute.deferred,
                 Impersonate = false
             }
-                .SetProperties("PROJECTLOCATION=[PROJECTLOCATION],SITE=[SITE],APIKEY=[APIKEY],PURGE=[PURGE],KEEP_INSTALLED_PACKAGES=[KEEP_INSTALLED_PACKAGES],FLEET_INSTALL=[FLEET_INSTALL]");
+                .SetProperties("PROJECTLOCATION=[PROJECTLOCATION],SITE=[SITE],APIKEY=[APIKEY],KEEP_INSTALLED_PACKAGES=[KEEP_INSTALLED_PACKAGES],FLEET_INSTALL=[FLEET_INSTALL]");
 
             WriteInstallInfo = new CustomAction<CustomActions>(
                     new Id(nameof(WriteInstallInfo)),
