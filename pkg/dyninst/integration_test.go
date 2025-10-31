@@ -46,7 +46,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dyninst/loader"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/module"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/process"
-	"github.com/DataDog/datadog-agent/pkg/dyninst/procscrape"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/procsubscribe"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/testprogs"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/uploader"
 )
@@ -147,13 +147,16 @@ func testDyninst(
 	cfg.DiagsUploaderURL = testServer.getDiagsURL()
 	cfg.ProcessSyncDisabled = true
 	var sendUpdate fakeProcessSubscriber
-	cfg.TestingKnobs.ProcessSubscriberOverride = func(_ module.ProcessSubscriber) module.ProcessSubscriber {
+	cfg.TestingKnobs.ProcessSubscriberOverride = func(
+		real module.ProcessSubscriber,
+	) module.ProcessSubscriber {
+		real.(*procsubscribe.Subscriber).Close() // prevent start from doing anything
 		return &sendUpdate
 	}
 	cfg.TestingKnobs.IRGeneratorOverride = func(g module.IRGenerator) module.IRGenerator {
 		return &outputSavingIRGenerator{irGenerator: g, t: t, output: irDump}
 	}
-	m, err := module.NewModule(cfg, &fakeProcessEventSource{})
+	m, err := module.NewModule(cfg, nil)
 	require.NoError(t, err)
 	t.Cleanup(m.Close)
 
@@ -667,15 +670,6 @@ func readDiags(req *http.Request) ([]receivedDiag, error) {
 	}
 	return ret, nil
 }
-
-type fakeProcessEventSource struct{}
-
-func (f *fakeProcessEventSource) SubscribeExec(func(uint32)) func() { return noop }
-func (f *fakeProcessEventSource) SubscribeExit(func(uint32)) func() { return noop }
-
-func noop() {}
-
-var _ procscrape.EventSource = (*fakeProcessEventSource)(nil)
 
 type fakeProcessSubscriber func(process.ProcessesUpdate)
 

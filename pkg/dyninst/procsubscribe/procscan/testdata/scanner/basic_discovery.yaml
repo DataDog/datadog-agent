@@ -1,0 +1,39 @@
+# Test basic process discovery with watermark algorithm.
+# A process starts at tick 50, time advances to 200, and scan discovers it.
+- !initialize
+  current_time: 0
+  start_delay: 100
+- !create-process
+  pid: 1001
+  start_time: 50
+  tracer_metadata:
+    language: "go"
+    service: "my-service"
+    version: "1.0.0"
+    env: "production"
+- !advance-time {to: 200}
+- !scan {}
+---
+command: !initialize
+  current_time: 0
+  start_delay: 100
+---
+command: !create-process
+  pid: 1001
+  start_time: 50
+  tracer_metadata:
+    language: "go"
+    service: "my-service"
+    version: "1.0.0"
+    env: "production"
+---
+command: !advance-time {to: 200}
+---
+command: !scan {}
+new: [1001]
+state:
+  current_time: 200
+  last_watermark: 100
+  start_delay: 100
+  live: [1001]
+  processes_in_procfs: [1001]

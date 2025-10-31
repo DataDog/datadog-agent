@@ -5,7 +5,7 @@
 
 //go:build linux_bpf
 
-package procmon
+package procscan
 
 import (
 	"errors"
@@ -18,11 +18,11 @@ import (
 	"strconv"
 )
 
-// listPids lists the PIDs of the processes in the given procfs root by pages.
+// listPidsChunks lists the PIDs of the processes in the given procfs root by pages.
 //
 // It will never report an empty page, but it may report a page smaller than
 // the page size even if it is not the last page.
-func listPids(procfsRoot string, pageSize int) iter.Seq2[[]uint32, error] {
+func listPidsChunks(procfsRoot string, pageSize int) iter.Seq2[[]uint32, error] {
 	return func(yield func([]uint32, error) bool) {
 		f, err := os.Open(procfsRoot)
 		if err != nil {
@@ -54,6 +54,25 @@ func listPids(procfsRoot string, pageSize int) iter.Seq2[[]uint32, error] {
 			}
 			if !yield(pids, nil) {
 				return
+			}
+		}
+	}
+}
+
+// listPids lists the PIDs of the processes in the given procfs root.
+//
+// Internall, it paginates the procfs directory by pages of the given size.
+func listPids(procfsRoot string, pageSize int) iter.Seq2[uint32, error] {
+	return func(yield func(uint32, error) bool) {
+		for pids, err := range listPidsChunks(procfsRoot, pageSize) {
+			if err != nil {
+				yield(0, err)
+				return
+			}
+			for _, pid := range pids {
+				if !yield(pid, nil) {
+					return
+				}
 			}
 		}
 	}

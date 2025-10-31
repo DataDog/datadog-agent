@@ -5,7 +5,7 @@
 
 //go:build linux_bpf
 
-package procmon
+package procscan
 
 import (
 	"fmt"
@@ -35,7 +35,7 @@ func TestListPids(t *testing.T) {
 		require.NoError(t, os.Mkdir(filepath.Join(dir, "303"), 0o755))
 		require.NoError(t, os.Mkdir(filepath.Join(dir, "0"), 0o755)) //ignored
 
-		seq := listPids(dir, pageSize)
+		seq := listPidsChunks(dir, pageSize)
 		pages, err := collectErr(seq)
 		require.NoError(t, err)
 		require.GreaterOrEqual(t, len(pages), 2)
@@ -49,7 +49,7 @@ func TestListPids(t *testing.T) {
 		require.Equal(t, []uint32{101, 202, 303}, flat)
 	})
 	t.Run("directory error", func(t *testing.T) {
-		seq := listPids(filepath.Join(t.TempDir(), "missing"), 4)
+		seq := listPidsChunks(filepath.Join(t.TempDir(), "missing"), 4)
 		_, err := collectErr(seq)
 		require.ErrorIs(t, err, fs.ErrNotExist)
 	})
@@ -60,7 +60,7 @@ func TestListPids(t *testing.T) {
 			p := fmt.Sprintf("not-a-pid-%d", i)
 			require.NoError(t, os.Mkdir(filepath.Join(dir, p), 0o755))
 		}
-		seq := listPids(dir, pageSize)
+		seq := listPidsChunks(dir, pageSize)
 		pageCount := 0
 		seq(func(_ []uint32, pageErr error) bool {
 			pageCount++
@@ -78,7 +78,7 @@ func TestListPids(t *testing.T) {
 			p := fmt.Sprintf("%d", i+1)
 			require.NoError(t, os.Mkdir(filepath.Join(dir, p), 0o755))
 		}
-		seq := listPids(dir, pageSize)
+		seq := listPidsChunks(dir, pageSize)
 		pageCount := 0
 		seq(func(_ []uint32, pageErr error) bool {
 			pageCount++
