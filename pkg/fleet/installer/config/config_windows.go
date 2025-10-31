@@ -137,7 +137,6 @@ func backupOrRestoreDirectory(ctx context.Context, sourcePath, targetPath string
 		sourcePath,
 		targetPath,
 		"*.yaml",
-		"/MIR",
 	)
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
