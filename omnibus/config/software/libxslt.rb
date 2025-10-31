@@ -19,6 +19,9 @@ default_version "1.1.43"
 
 license "MIT"
 license_file "COPYING"
+
+dependency "libxml2"
+
 skip_transitive_dependency_licensing true
 
 # versions_list: url=https://download.gnome.org/sources/libxslt/1.1/ filter=*.tar.xz
