@@ -85,8 +85,8 @@ func NewConfig(_ *sysconfigtypes.Config) (*Config, error) {
 		DiagsUploaderURL:       withPath(traceAgentURL, diagsUploaderPath),
 		SymDBUploadEnabled:     pkgconfigsetup.SystemProbe().GetBool("dynamic_instrumentation.symdb_upload_enabled"),
 		SymDBUploaderURL:       withPath(traceAgentURL, symdbUploaderPath),
-		SymDBCacheDir:          "/var/tmp/datadog-agent/system-probe/dynamic-instrumentation/symdb_uploads",
-		ProbeTombstoneFilePath: "/var/tmp/datadog-agent/system-probe/dynamic-instrumentation/debugger_probes_tombstone.json",
+		SymDBCacheDir:          "/tmp/datadog-agent/system-probe/dynamic-instrumentation/symdb-uploads",
+		ProbeTombstoneFilePath: "/tmp/datadog-agent/system-probe/dynamic-instrumentation/debugger-probes-tombstone.json",
 		DiskCacheEnabled:       cacheEnabled,
 		DiskCacheConfig:        cacheConfig,
 	}
