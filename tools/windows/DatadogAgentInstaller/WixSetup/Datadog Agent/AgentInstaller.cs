@@ -129,6 +129,10 @@ namespace WixSetup.Datadog_Agent
                 {
                     AttributesDefinition = "Secure=yes"
                 },
+                new Property("DD_INSTALLER_DEFAULT_PKG_VERSION_DATADOG_APM_INJECT")
+                {
+                    AttributesDefinition = "Secure=yes"
+                },
                 new Property("DD_INSTALLER_REGISTRY_URL")
                 {
                     AttributesDefinition = "Secure=yes"
