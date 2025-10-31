@@ -122,6 +122,7 @@ bazel_dep(name = "rules_python", version = "1.6.3")
 python = use_extension("@rules_python//python/extensions:python.bzl", "python")
 python.defaults(python_version = PYTHON_VERSION)
 python.toolchain(
+    configure_coverage_tool = True,
     is_default = True,
     python_version = PYTHON_VERSION,
 )
@@ -139,8 +140,6 @@ pip.parse(
 use_repo(pip, "py_dev_requirements")
 
 register_toolchains("@pythons_hub//:all")
-
-register_toolchains("@rules_python//python/runtime_env_toolchains:all")
 
 #########################
 ## Native dependencies ##
