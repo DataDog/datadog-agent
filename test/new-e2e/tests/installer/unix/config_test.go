@@ -58,7 +58,8 @@ func (s *configSuite) TestMultipleConfigs() {
 			FileOperations: []fleetbackend.FileOperation{
 				{
 					FileOperationType: fleetbackend.FileOperationMergePatch, 
-					FilePath: "/datadog.yaml", Patch: []byte(fmt.Sprintf(`{"extra_tags": ["debug:step-%d"]}`, i))
+					FilePath: "/datadog.yaml", 
+					Patch: []byte(fmt.Sprintf(`{"extra_tags": ["debug:step-%d"]}`, i)),
 				},
 			},
 		})
