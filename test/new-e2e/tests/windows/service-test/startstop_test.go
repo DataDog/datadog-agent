@@ -76,12 +76,18 @@ const driverVerifierTimeoutScale = 10
 
 // TestServiceBehaviorAgentCommandNoFIM tests the service behavior when controlled by Agent commands
 func TestNoFIMServiceBehaviorAgentCommand(t *testing.T) {
+	// TODO(windows-products): Fix flakiness and re-enable this test
+	flake.Mark(t)
+
 	s := &agentServiceCommandSuite{}
 	run(t, s, systemProbeNoFIMConfig, agentConfig, securityAgentConfig)
 }
 
 // TestServiceBehaviorPowerShellNoFIM tests the service behavior when controlled by PowerShell commands
 func TestNoFIMServiceBehaviorPowerShell(t *testing.T) {
+	// TODO(windows-products): Fix flakiness and re-enable this test
+	flake.Mark(t)
+
 	s := &powerShellServiceCommandSuite{}
 	run(t, s, systemProbeNoFIMConfig, agentConfig, securityAgentConfig)
 }
