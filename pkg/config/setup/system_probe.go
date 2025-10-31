@@ -269,6 +269,7 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 
 	// TLS cert collection
 	cfg.BindEnvAndSetDefault(join(netNS, "enable_cert_collection"), false)
+	cfg.BindEnvAndSetDefault(join(netNS, "cert_collection_map_cleaner_interval"), 30*time.Second)
 
 	// windows config
 	cfg.BindEnvAndSetDefault(join(spNS, "windows.enable_monotonic_count"), false)
