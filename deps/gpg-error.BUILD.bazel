@@ -152,9 +152,16 @@ genrule(
 # - path to config.h
 # - the version in usual (ie. major.minor) format
 # - the version as hexadecimal number (0x{major}{minor}00)
-mkheader_cmds = [
-    "cp $(location :lock-obj-pub_native_h) $$(pwd) && $(location :mkheader) {} $(location src/gpg-error.h.in) $(location src/config.h) 1.47 0x012F00 > $@".format(arch)
-for arch in ["x86_64-unknown-linux-gnu", "arm-unknown-linux-gnueabi"] ]
+config_to_abi = {
+    "linux_x86_64": "x86_64-unknown-linux-gnu",
+    "linux_arm64": "arm-unknown-linux-gnueabi",
+}
+mkheader_cmds = {
+    arch: """cp $(location :lock-obj-pub_native_h) $$(pwd) && \
+            $(location :mkheader) {} $(location src/gpg-error.h.in) $(location src/config.h) \
+            1.47 0x012F00 > $@""".format(arch)
+for arch in config_to_abi.keys()
+}
 
 genrule(
     name = "gpg-error_h",
@@ -168,10 +175,7 @@ genrule(
     ],
     tools = [":mkheader"],
     outs = ["src/gpg-error.h"],
-    cmd = select({
-        "@//:linux_x86_64": mkheader_cmds[0],
-        "@//:linux_arm64": mkheader_cmds[1],
-    })
+    cmd = select({"@@//:%s" % config: mkheader_cmds[config] for config in config_to_abi.keys()})
 )
 
 cc_library(
