@@ -198,12 +198,12 @@ func (s *testAgentMSIInstallsDotnetLibrary) TestUninstallKeepsLibrary() {
 		installerwindows.WithMSIArg("DD_INSTALLER_REGISTRY_URL=install.datad0g.com.internal.dda-testing.com"),
 		installerwindows.WithMSIArg(fmt.Sprintf("DD_APM_INSTRUMENTATION_LIBRARIES=dotnet:%s", version.Version())),
 		installerwindows.WithMSILogFile("install.log"),
-		installerwindows.WithMSIArg("KEEP_INSTALLED_PACKAGES=1"),
 	)
 
 	// Uninstall the Agent
 	err := s.Installer().Uninstall(
 		installerwindows.WithMSILogFile("uninstall.log"),
+		installerwindows.WithMSIArg("KEEP_INSTALLED_PACKAGES=1"),
 	)
 	s.Require().NoError(err)
 
