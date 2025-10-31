@@ -35,8 +35,8 @@ type Stats struct {
 
 type statsPerEventType struct {
 	processedCount *atomic.Uint64
-	addedCount     map[NodeGenerationType]*atomic.Uint64
-	droppedCount   map[NodeDroppedReason]*atomic.Uint64
+	addedCount     [MaxNodeGenerationType + 1]*atomic.Uint64
+	droppedCount   [nodeDroppedReasonCount]*atomic.Uint64
 }
 
 // NewActivityTreeNodeStats returns a new activity tree stats
@@ -47,14 +47,10 @@ func NewActivityTreeNodeStats() *Stats {
 	for i := model.EventType(0); i < model.MaxKernelEventType; i++ {
 		spet := &statsPerEventType{
 			processedCount: atomic.NewUint64(0),
-			addedCount: map[NodeGenerationType]*atomic.Uint64{
-				Unknown:        atomic.NewUint64(0),
-				Runtime:        atomic.NewUint64(0),
-				Snapshot:       atomic.NewUint64(0),
-				ProfileDrift:   atomic.NewUint64(0),
-				WorkloadWarmup: atomic.NewUint64(0),
-			},
-			droppedCount: make(map[NodeDroppedReason]*atomic.Uint64),
+		}
+
+		for genType := Unknown; genType <= MaxNodeGenerationType; genType++ {
+			spet.addedCount[genType] = atomic.NewUint64(0)
 		}
 
 		for reason := minNodeDroppedReason; reason <= maxNodeDroppedReason; reason++ {
@@ -83,7 +79,8 @@ func (stats *Stats) ApproximateSize() int64 {
 func (stats *Stats) SendStats(client statsd.ClientInterface, treeType string) error {
 	treeTypeTag := fmt.Sprintf("tree_type:%s", treeType)
 
-	for evtType, count := range stats.counts {
+	for evtTypeI, count := range stats.counts {
+		evtType := model.EventType(evtTypeI)
 		evtTypeTag := fmt.Sprintf("event_type:%s", evtType)
 
 		tags := []string{evtTypeTag, treeTypeTag}
@@ -93,7 +90,8 @@ func (stats *Stats) SendStats(client statsd.ClientInterface, treeType string) er
 			}
 		}
 
-		for generationType, count := range count.addedCount {
+		for generationTypeI, count := range count.addedCount {
+			generationType := NodeGenerationType(generationTypeI)
 			tags := []string{evtTypeTag, generationType.Tag(), treeTypeTag}
 			if value := count.Swap(0); value > 0 {
 				if err := client.Count(metrics.MetricActivityDumpEventAdded, int64(value), tags, 1.0); err != nil {
@@ -102,7 +100,8 @@ func (stats *Stats) SendStats(client statsd.ClientInterface, treeType string) er
 			}
 		}
 
-		for reason, count := range count.droppedCount {
+		for reasonI, count := range count.droppedCount {
+			reason := NodeDroppedReason(reasonI)
 			tags := []string{evtTypeTag, fmt.Sprintf("reason:%s", reason), treeTypeTag}
 			if value := count.Swap(0); value > 0 {
 				if err := client.Count(metrics.MetricActivityDumpEventDropped, int64(value), tags, 1.0); err != nil {
