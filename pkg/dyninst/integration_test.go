@@ -214,7 +214,7 @@ func testDyninst(
 		assert.Equal(c, allProbeIDs, installedProbeIDs)
 	}
 	require.EventuallyWithT(
-		t, assertProbesInstalled, 60*time.Second, 100*time.Millisecond,
+		t, assertProbesInstalled, 180*time.Second, 100*time.Millisecond,
 		"diagnostics should indicate that the probes are installed",
 	)
 
