@@ -71,3 +71,33 @@ func (s *testAPMInjectInstallSuite) TestExperiment() {
 	// verify the driver is running post promote
 	s.Require().NoError(s.WaitForServicesWithBackoff("Running", backoff.NewConstantBackOff(30*time.Second), "ddinjector"))
 }
+
+// TestInstallAPMInjectPackage tests the usage of the Datadog installer to install the apm-inject package.
+func (s *testAPMInjectInstallSuite) TestStopExperiment() {
+	initialVersion := s.previousAPMInjectVersion.PackageVersion()
+	upgradeVersion := s.currentAPMInjectVersion.PackageVersion()
+
+	// install initial version
+	output, err := s.Installer().InstallPackage("apm-inject-package",
+		installer.WithVersion(initialVersion),
+		installer.WithRegistry("install.datad0g.com"),
+	)
+	s.Require().NoError(err, "failed to install the apm-inject package: %s", output)
+
+	// verify the driver is running
+	s.Require().NoError(s.WaitForServicesWithBackoff("Running", backoff.NewConstantBackOff(30*time.Second), "ddinjector"))
+
+	// start experiment
+	output, err = s.Installer().InstallExperiment("apm-inject-package",
+		installer.WithVersion(upgradeVersion),
+		installer.WithRegistry("install.datad0g.com"),
+	)
+	s.Require().NoError(err, "failed to start the apm-inject experiment: %s", output)
+
+	// stop experiment
+	output, err = s.Installer().StopExperiment("datadog-apm-inject")
+	s.Require().NoError(err, "failed to stop the apm-inject experiment: %s", output)
+
+	// verify the driver is running as we should be on stable now
+	s.Require().NoError(s.WaitForServicesWithBackoff("Running", backoff.NewConstantBackOff(30*time.Second), "ddinjector"))
+}
