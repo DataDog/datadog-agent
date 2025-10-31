@@ -42,9 +42,9 @@ func (s *baseSuite) assertSuccessfulPromoteExperiment() {
 
 func (s *baseSuite) assertDriverInjections(enabled bool) {
 	script := `
-# We copy where.exe to another directory because System32 is ignored by the driver
+# We copy whoami.exe to another directory because System32 is ignored by the driver
 $dst = "$env:TEMP\where.exe"
-Copy-Item "C:\Windows\System32\where.exe" $dst -Force
+Copy-Item "C:\Windows\System32\whoami.exe" $dst -Force
 
 $env:DD_INJECT_LOG_SINKS = "stdout"
 $env:DD_INJECT_LOG_LEVEL = "debug"

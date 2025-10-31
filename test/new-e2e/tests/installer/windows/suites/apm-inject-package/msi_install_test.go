@@ -51,7 +51,7 @@ func (s *testAgentMSIInstallsAPMInject) TestInstallFromMSI() {
 	s.assertDriverInjections(true)
 }
 
-// TestInstallFromMSI tests the Agent MSI can install the APM inject package with host instrumentation
+// TestEnableDisable tests that the enable and disable commands work
 func (s *testAgentMSIInstallsAPMInject) TestEnableDisable() {
 	// Act
 	s.installCurrentAgentVersion(
