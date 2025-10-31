@@ -101,7 +101,10 @@ cc_library(
     ],
     deps = [
         "@libxml2",
-    ]
+    ],
+    copts = [
+        "-O2",
+    ],
 )
 
 cc_shared_library(
@@ -183,7 +186,10 @@ cc_library(
     deps = [
         "@libxml2",
         ":libxslt",
-    ]
+    ],
+    copts = [
+        "-O2",
+    ],
 )
 
 cc_shared_library(
