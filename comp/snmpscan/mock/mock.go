@@ -13,7 +13,6 @@ import (
 
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	snmpscan "github.com/DataDog/datadog-agent/comp/snmpscan/def"
-	"github.com/DataDog/datadog-agent/pkg/networkdevice/metadata"
 	"github.com/DataDog/datadog-agent/pkg/snmp/snmpparse"
 
 	"github.com/gosnmp/gosnmp"
@@ -38,6 +37,6 @@ func New(_ *testing.T) Provides {
 func (m snmpScanMock) RunSnmpWalk(_ *gosnmp.GoSNMP, _ string) error {
 	return nil
 }
-func (m snmpScanMock) ScanDeviceAndSendData(_ *snmpparse.SNMPConfig, _ string, _ metadata.ScanType) error {
+func (m snmpScanMock) ScanDeviceAndSendData(_ *snmpparse.SNMPConfig, _ string, _ snmpscan.ScanParams) error {
 	return nil
 }
