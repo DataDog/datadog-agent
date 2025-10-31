@@ -1,13 +1,11 @@
-
-
 .lint_windows_base:
   stage: lint
   needs: ["go_deps", "go_tools_deps"]
   extends: .windows_docker_default
   before_script:
-    - Remove-Item Env:\AWS_ACCESS_KEY_ID,Env:\AWS_SECRET_ACCESS_KEY,Env:\AWS_SESSION_TOKEN,Env:\AWS_PROFILE,Env:\AWS_DEFAULT_PROFILE -ErrorAction SilentlyContinue
+    - try { Remove-Item Env:\AWS_ACCESS_KEY_ID,Env:\AWS_SECRET_ACCESS_KEY,Env:\AWS_SESSION_TOKEN,Env:\AWS_PROFILE,Env:\AWS_DEFAULT_PROFILE -ErrorAction SilentlyContinue } catch { }; $LASTEXITCODE = 0
     - $paths = @("$env:USERPROFILE\.aws\credentials", "$env:USERPROFILE\.aws\config", "C:\Windows\System32\config\systemprofile\.aws\credentials", "C:\Windows\System32\config\systemprofile\.aws\config")
-    - foreach ($p in $paths) { if (Test-Path $p) { Remove-Item $p -Force -ErrorAction SilentlyContinue } }
+    - foreach ($p in $paths) { try { if (Test-Path $p) { Remove-Item $p -Force -ErrorAction SilentlyContinue } } catch { } }; $LASTEXITCODE = 0
     - aws sts get-caller-identity
   script:
     - $ErrorActionPreference = "Stop"
