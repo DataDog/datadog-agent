@@ -11,6 +11,7 @@ import (
 
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	privateactionrunner "github.com/DataDog/datadog-agent/comp/privateactionrunner/def"
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/runners"
 )
 
 // Requires defines the dependencies for the privateactionrunner component
@@ -25,20 +26,27 @@ type Provides struct {
 }
 
 type privateactionrunnerImpl struct {
+	WorkflowRunner *runners.WorkflowRunner
 }
 
 // NewComponent creates a new privateactionrunner component
 func NewComponent(reqs Requires) (Provides, error) {
-	provides := Provides{
-		Comp: &privateactionrunnerImpl{},
+	runner := &privateactionrunnerImpl{
+		WorkflowRunner: runners.NewWorkflowRunner(),
 	}
-	return provides, nil
+	reqs.Lifecycle.Append(compdef.Hook{
+		OnStart: runner.Start,
+		OnStop:  runner.Stop,
+	})
+	return Provides{
+		Comp: runner,
+	}, nil
 }
 
-func (p *privateactionrunnerImpl) Start(_ context.Context) error {
-	return nil
+func (p *privateactionrunnerImpl) Start(ctx context.Context) error {
+	return p.WorkflowRunner.Start(ctx)
 }
 
-func (p *privateactionrunnerImpl) Stop(_ context.Context) error {
-	return nil
+func (p *privateactionrunnerImpl) Stop(ctx context.Context) error {
+	return p.WorkflowRunner.Close(ctx)
 }
