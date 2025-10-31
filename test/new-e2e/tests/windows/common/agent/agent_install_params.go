@@ -49,6 +49,8 @@ type InstallAgentParams struct {
 	ProcessEnabled          string `installer_arg:"PROCESS_ENABLED"`
 	ProcessDiscoveryEnabled string `installer_arg:"PROCESS_DISCOVERY_ENABLED"`
 	APMEnabled              string `installer_arg:"APM_ENABLED"`
+	RemoteUpdates           string `installer_arg:"DD_REMOTE_UPDATES"`
+	InfrastructureMode      string `installer_arg:"DD_INFRASTRUCTURE_MODE"`
 }
 
 // InstallAgentOption is an optional function parameter type for InstallAgentParams options
@@ -324,6 +326,22 @@ func WithAddLocal(addLocal string) InstallAgentOption {
 func WithIntegrationsPersistence(IntegrationsPersistence string) InstallAgentOption {
 	return func(i *InstallAgentParams) error {
 		i.IntegrationsPersistence = IntegrationsPersistence
+		return nil
+	}
+}
+
+// WithRemoteUpdates specifies the DD_REMOTE_UPDATES parameter.
+func WithRemoteUpdates(remoteUpdates string) InstallAgentOption {
+	return func(i *InstallAgentParams) error {
+		i.RemoteUpdates = remoteUpdates
+		return nil
+	}
+}
+
+// WithInfrastructureMode specifies the DD_INFRASTRUCTURE_MODE parameter.
+func WithInfrastructureMode(infrastructureMode string) InstallAgentOption {
+	return func(i *InstallAgentParams) error {
+		i.InfrastructureMode = infrastructureMode
 		return nil
 	}
 }

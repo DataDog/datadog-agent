@@ -44,6 +44,7 @@ func (e *diagnosticTracker) mark(runtimeID string, probeID string, probeVersion 
 			"mark %s: probeId %v (version %v) marked for runtimeId %v",
 			e.name, probeID, probeVersion, runtimeID,
 		)
+		byProbeID.CompareAndSwap(probeID, prevVersion, probeVersion)
 	}
 	return first
 }
