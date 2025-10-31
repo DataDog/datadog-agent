@@ -198,30 +198,13 @@ const (
 type Destination int
 
 const (
-	// AllRegions indicates the transaction should be sent to all regions (default behavior)
-	AllRegions = iota
-	// PrimaryOnly indicates the transaction should be sent to the primary region during MRF
-	PrimaryOnly
-	// SecondaryOnly indicates the transaction should be sent to the secondary region during MRF
+	// PrimaryOnly indicates the transaction should be sent to the primary region when MRF is not active.
+	PrimaryOnly = iota
+	// SecondaryOnly indicates the transaction should be sent to the secondary region when MRF is active.
 	SecondaryOnly
 	// LocalOnly indicates the transaction should be sent to the local endpoint (cluster-agent) only
 	LocalOnly
 )
-
-func (d Destination) String() string {
-	switch d {
-	case AllRegions:
-		return "AllRegions"
-	case PrimaryOnly:
-		return "PrimaryOnly"
-	case SecondaryOnly:
-		return "SecondaryOnly"
-	case LocalOnly:
-		return "LocalOnly"
-	default:
-		return "Unknown"
-	}
-}
 
 // HTTPTransaction represents one Payload for one Endpoint on one Domain.
 type HTTPTransaction struct {

@@ -83,7 +83,7 @@ func BenchmarkSeries(b *testing.B) {
 			FilterFunc: func(_ metricsserializer.Filterable) bool {
 				return true
 			},
-			Destination: transaction.AllRegions,
+			Destination: transaction.PrimaryOnly,
 		}}
 		return iterableSeries.MarshalSplitCompressPipelines(mockConfig, compressor, pipeline)
 	}

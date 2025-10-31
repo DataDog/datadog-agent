@@ -266,13 +266,13 @@ func fromTransactionPriorityProto(priority TransactionPriorityProto) (transactio
 func fromTransactionDestinationProto(destination TransactionDestinationProto) (transaction.Destination, error) {
 	switch destination {
 	case TransactionDestinationProto_ALL_REGIONS:
-		return transaction.AllRegions, nil
+		return transaction.PrimaryOnly, nil
 	case TransactionDestinationProto_PRIMARY_ONLY:
 		return transaction.PrimaryOnly, nil
 	case TransactionDestinationProto_SECONDARY_ONLY:
 		return transaction.SecondaryOnly, nil
 	default:
-		return transaction.AllRegions, fmt.Errorf("Unsupported destination %v", destination)
+		return transaction.PrimaryOnly, fmt.Errorf("Unsupported destination %v", destination)
 	}
 }
 
@@ -298,8 +298,6 @@ func toTransactionPriorityProto(priority transaction.Priority) (TransactionPrior
 
 func toTransactionDestinationProto(destination transaction.Destination) (TransactionDestinationProto, error) {
 	switch destination {
-	case transaction.AllRegions:
-		return TransactionDestinationProto_ALL_REGIONS, nil
 	case transaction.PrimaryOnly:
 		return TransactionDestinationProto_PRIMARY_ONLY, nil
 	case transaction.SecondaryOnly:
