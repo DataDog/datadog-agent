@@ -139,9 +139,9 @@ func (c *collector) fillProcesses(gpuDeviceInfo *workloadmeta.GPU, device ddnvml
 		if logLimiter.ShouldLog() {
 			log.Warnf("%v for %d", err, gpuDeviceInfo.Index)
 		}
-		return
 	}
 
+	// Process any processes that are available, even if we had errors
 	for _, proc := range procs {
 		gpuDeviceInfo.ActivePIDs = append(gpuDeviceInfo.ActivePIDs, int(proc.Pid))
 	}

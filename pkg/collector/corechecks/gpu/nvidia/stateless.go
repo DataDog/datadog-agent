@@ -10,10 +10,11 @@ package nvidia
 import (
 	"fmt"
 
-	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
-	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	"github.com/hashicorp/go-multierror"
+
+	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
+	"github.com/DataDog/datadog-agent/pkg/metrics"
 )
 
 // nvlinkSample handles NVLink metrics collection logic
@@ -84,23 +85,21 @@ func processMemorySample(device ddnvml.Device, nsPidCache *NsPidCache) ([]Metric
 	var processMetrics []Metric
 	var allPidTags []string
 
-	if err == nil {
-		// Create PID tag for this process
-		for _, proc := range procs {
-			pidTags := []string{
-				fmt.Sprintf("pid:%d", proc.Pid),
-				fmt.Sprintf("nspid:%d", nsPidCache.GetNsPidOrHostPid(proc.Pid, true)),
-			}
-			allPidTags = append(allPidTags, pidTags...)
-
-			processMetrics = append(processMetrics, Metric{
-				Name:     "process.memory.usage",
-				Value:    float64(proc.UsedGpuMemory),
-				Type:     metrics.GaugeType,
-				Priority: High,
-				Tags:     pidTags,
-			})
+	// Process any processes that are available, even if we had errors
+	for _, proc := range procs {
+		pidTags := []string{
+			fmt.Sprintf("pid:%d", proc.Pid),
+			fmt.Sprintf("nspid:%d", nsPidCache.GetNsPidOrHostPid(proc.Pid, true)),
 		}
+		allPidTags = append(allPidTags, pidTags...)
+
+		processMetrics = append(processMetrics, Metric{
+			Name:     "process.memory.usage",
+			Value:    float64(proc.UsedGpuMemory),
+			Type:     metrics.GaugeType,
+			Priority: High,
+			Tags:     pidTags,
+		})
 	}
 
 	// Add device memory limit

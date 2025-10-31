@@ -108,27 +108,28 @@ func processUtilizationSample(device ddnvml.Device, lastTimestamp uint64, nsPidC
 		if errors.As(err, &nvmlErr) && errors.Is(nvmlErr.NvmlErrorCode, nvml.ERROR_NOT_FOUND) {
 			err = nil // Clear the error for NOT_FOUND case
 		}
-	} else {
-		for _, sample := range processSamples {
-			// Create PID tag for this process
-			pidTags := []string{
-				fmt.Sprintf("pid:%d", sample.Pid),
-				fmt.Sprintf("nspid:%d", nsPidCache.GetNsPidOrHostPid(sample.Pid, true)),
-			}
-			allPidTags = append(allPidTags, pidTags...)
+	}
 
-			allMetrics = append(allMetrics,
-				Metric{Name: "process.sm_active", Value: float64(sample.SmUtil), Type: ddmetrics.GaugeType, Tags: pidTags},
-				Metric{Name: "process.dram_active", Value: float64(sample.MemUtil), Type: ddmetrics.GaugeType, Tags: pidTags},
-				Metric{Name: "process.encoder_utilization", Value: float64(sample.EncUtil), Type: ddmetrics.GaugeType, Tags: pidTags},
-				Metric{Name: "process.decoder_utilization", Value: float64(sample.DecUtil), Type: ddmetrics.GaugeType, Tags: pidTags},
-			)
-
-			if sample.SmUtil > maxSmUtil {
-				maxSmUtil = sample.SmUtil
-			}
-			sumSmUtil += sample.SmUtil
+	// Process any utilization samples that are available, even if we had errors
+	for _, sample := range processSamples {
+		// Create PID tag for this process
+		pidTags := []string{
+			fmt.Sprintf("pid:%d", sample.Pid),
+			fmt.Sprintf("nspid:%d", nsPidCache.GetNsPidOrHostPid(sample.Pid, true)),
 		}
+		allPidTags = append(allPidTags, pidTags...)
+
+		allMetrics = append(allMetrics,
+			Metric{Name: "process.sm_active", Value: float64(sample.SmUtil), Type: ddmetrics.GaugeType, Tags: pidTags},
+			Metric{Name: "process.dram_active", Value: float64(sample.MemUtil), Type: ddmetrics.GaugeType, Tags: pidTags},
+			Metric{Name: "process.encoder_utilization", Value: float64(sample.EncUtil), Type: ddmetrics.GaugeType, Tags: pidTags},
+			Metric{Name: "process.decoder_utilization", Value: float64(sample.DecUtil), Type: ddmetrics.GaugeType, Tags: pidTags},
+		)
+
+		if sample.SmUtil > maxSmUtil {
+			maxSmUtil = sample.SmUtil
+		}
+		sumSmUtil += sample.SmUtil
 	}
 
 	// Device-wide sm_active metric
