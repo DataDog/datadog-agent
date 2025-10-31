@@ -104,6 +104,7 @@ func getDefaultArtifactOption(opts sbom.ScanOptions) artifact.Option {
 		Parallel:          parallel,
 		SBOMSources:       []string{},
 		DisabledHandlers:  DefaultDisabledHandlers(),
+		FileChecksumJar:   true,
 		WalkerOption: walker.Option{
 			ErrorCallback: func(_ string, err error) error {
 				if errors.Is(err, fs.ErrPermission) || errors.Is(err, fs.ErrNotExist) {
@@ -162,10 +163,6 @@ func getDefaultArtifactOption(opts sbom.ScanOptions) artifact.Option {
 			"/var/run/**",
 			"/var/tmp/**",
 		)
-	}
-
-	if slices.Contains(opts.Analyzers, LanguagesAnalyzers) {
-		option.FileChecksum = true
 	}
 
 	return option
@@ -239,7 +236,8 @@ func NewCollector(cfg config.Component, wmeta option.Option[workloadmeta.Compone
 func NewCollectorForCLI() *Collector {
 	return &Collector{
 		config: collectorConfig{
-			maxCacheSize: math.MaxInt,
+			maxCacheSize:        math.MaxInt,
+			computeDependencies: true,
 		},
 		marshaler: cyclonedx.NewMarshaler(""),
 

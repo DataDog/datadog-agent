@@ -1,13 +1,13 @@
 module github.com/DataDog/datadog-agent/test/new-e2e
 
-go 1.24.0
+go 1.24.9
 
 // Do not upgrade Pulumi plugins to versions different from `test-infra-definitions`.
 // The plugin versions NEED to be aligned.
 // TODO: Implement hard check in CI
 
 require (
-	github.com/DataDog/agent-payload/v5 v5.0.171
+	github.com/DataDog/agent-payload/v5 v5.0.172
 	github.com/DataDog/datadog-agent/pkg/util/option v0.67.0
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.61.0
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.67.0
@@ -21,7 +21,7 @@ require (
 	// `TEST_INFRA_DEFINITIONS_BUILDIMAGES` matches the commit sha in the module version
 	// Example: 	github.com/DataDog/test-infra-definitions v0.0.0-YYYYMMDDHHmmSS-0123456789AB
 	// => TEST_INFRA_DEFINITIONS_BUILDIMAGES: 0123456789AB
-	github.com/DataDog/test-infra-definitions v0.0.6-0.20251015184611-078230fb0e47
+	github.com/DataDog/test-infra-definitions v0.0.6-0.20251030085244-f068acd734c6
 	github.com/aws/aws-sdk-go-v2 v1.39.2
 	github.com/aws/aws-sdk-go-v2/config v1.31.12
 	github.com/aws/aws-sdk-go-v2/service/ec2 v1.256.0
@@ -37,8 +37,8 @@ require (
 	github.com/pkg/sftp v1.13.9
 	github.com/pulumi/pulumi-aws/sdk/v6 v6.66.2
 	github.com/pulumi/pulumi-awsx/sdk/v2 v2.19.0
-	github.com/pulumi/pulumi-kubernetes/sdk/v4 v4.19.0
-	github.com/pulumi/pulumi/sdk/v3 v3.145.0
+	github.com/pulumi/pulumi-kubernetes/sdk/v4 v4.23.0
+	github.com/pulumi/pulumi/sdk/v3 v3.190.0
 	github.com/samber/lo v1.51.0
 	github.com/stretchr/testify v1.11.1
 	github.com/xeipuuv/gojsonschema v1.2.0
@@ -49,9 +49,9 @@ require (
 	gopkg.in/zorkian/go-datadog-api.v2 v2.30.0
 	k8s.io/api v0.32.3
 	k8s.io/apimachinery v0.32.3
-	k8s.io/cli-runtime v0.31.2
+	k8s.io/cli-runtime v0.32.2
 	k8s.io/client-go v0.32.3
-	k8s.io/kubectl v0.31.2
+	k8s.io/kubectl v0.32.2
 )
 
 require (
@@ -104,7 +104,7 @@ require (
 	github.com/docker/go-units v0.5.0 // indirect
 	github.com/emicklei/go-restful/v3 v3.12.1 // indirect
 	github.com/emirpasic/gods v1.18.1 // indirect
-	github.com/exponent-io/jsonpath v0.0.0-20151013193312-d6023ce2651d // indirect
+	github.com/exponent-io/jsonpath v0.0.0-20210407135951-1de76d718b3f // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect
 	github.com/fsnotify/fsnotify v1.9.0 // indirect
 	github.com/go-errors/errors v1.4.2 // indirect
@@ -172,11 +172,11 @@ require (
 	github.com/pkg/term v1.1.0 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/pulumi/appdash v0.0.0-20231130102222-75f619a67231 // indirect
-	github.com/pulumi/esc v0.11.1 // indirect
+	github.com/pulumi/esc v0.17.0 // indirect
 	github.com/pulumi/pulumi-command/sdk v1.0.1 // indirect
-	github.com/pulumi/pulumi-docker/sdk/v4 v4.5.8 // indirect
+	github.com/pulumi/pulumi-docker/sdk/v4 v4.9.0 // indirect
 	github.com/pulumi/pulumi-libvirt/sdk v0.5.4 // indirect
-	github.com/pulumi/pulumi-random/sdk/v4 v4.16.8 // indirect
+	github.com/pulumi/pulumi-random/sdk/v4 v4.18.4 // indirect
 	github.com/pulumi/pulumi-tls/sdk/v4 v4.11.1 // indirect
 	github.com/pulumiverse/pulumi-time/sdk v0.1.0
 	github.com/rivo/uniseg v0.4.7 // indirect
@@ -204,7 +204,6 @@ require (
 	go.opentelemetry.io/otel v1.38.0 // indirect
 	go.opentelemetry.io/otel/metric v1.38.0 // indirect
 	go.opentelemetry.io/otel/trace v1.38.0 // indirect
-	go.starlark.net v0.0.0-20231101134539-556fd59b42f6 // indirect
 	go.uber.org/atomic v1.11.0 // indirect
 	golang.org/x/exp v0.0.0-20251009144603-d2f985daa21b
 	golang.org/x/mod v0.29.0 // indirect
@@ -221,15 +220,15 @@ require (
 	gopkg.in/tomb.v1 v1.0.0-20141024135613-dd632973f1e7 // indirect
 	gopkg.in/warnings.v0 v0.1.2 // indirect
 	gopkg.in/yaml.v3 v3.0.1
-	k8s.io/component-base v0.32.1 // indirect
+	k8s.io/component-base v0.32.2 // indirect
 	k8s.io/klog/v2 v2.130.1 // indirect
-	k8s.io/kube-openapi v0.0.0-20241105132330-32ad38e42d3f // indirect
-	k8s.io/utils v0.0.0-20241104100929-3ea5e8cea738 // indirect
+	k8s.io/kube-openapi v0.0.0-20241212222426-2c72e554b1e7 // indirect
+	k8s.io/utils v0.0.0-20241210054802-24370beab758 // indirect
 	lukechampine.com/frand v1.5.1 // indirect
-	sigs.k8s.io/json v0.0.0-20241010143419-9aa6b5e7a4b3 // indirect
-	sigs.k8s.io/kustomize/api v0.17.2 // indirect
-	sigs.k8s.io/kustomize/kyaml v0.17.1 // indirect
-	sigs.k8s.io/structured-merge-diff/v4 v4.5.0 // indirect
+	sigs.k8s.io/json v0.0.0-20241014173422-cfa47c3a1cc8 // indirect
+	sigs.k8s.io/kustomize/api v0.18.0 // indirect
+	sigs.k8s.io/kustomize/kyaml v0.18.1 // indirect
+	sigs.k8s.io/structured-merge-diff/v4 v4.7.0 // indirect
 	sigs.k8s.io/yaml v1.6.0 // indirect
 )
 
@@ -263,7 +262,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/log v0.67.0 // indirect
 	github.com/DataDog/go-libddwaf/v4 v4.3.2 // indirect
 	github.com/DataDog/go-runtime-metrics-internal v0.0.4-0.20250721125240-fdf1ef85b633 // indirect
-	github.com/DataDog/go-sqllexer v0.1.8 // indirect
+	github.com/DataDog/go-sqllexer v0.1.9 // indirect
 	github.com/DataDog/go-tuf v1.1.1-0.5.2 // indirect
 	github.com/DataDog/sketches-go v1.4.7 // indirect
 	github.com/Masterminds/semver/v3 v3.4.0 // indirect

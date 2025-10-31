@@ -2,6 +2,11 @@ load("@com_github_bazelbuild_buildtools//buildifier:def.bzl", "buildifier", "bui
 
 exclude_patterns = [
     "./.*",  # all "hidden" directories at the root of the workspace: ./.bazelbsp, ./.cache, ./.git, etc.
+    # Exclude folders that include copies of upstream code we need to import.
+    # Our intent is usually to upstream our changes over time, so keeping the
+    # style as the upstream has it makes merging it back easier.
+    "./third_party/*",
+    "./deps/*/overlay/*",
 ]
 
 buildifier(

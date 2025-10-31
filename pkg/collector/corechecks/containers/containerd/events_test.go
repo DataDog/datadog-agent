@@ -293,7 +293,7 @@ cel_workload_exclude:
   - products: metrics
     rules:
       containers:
-        - container.image.matches('not-monitored')
+        - container.image.reference.matches('not-monitored')
 container_exclude: image:dd-agent
 container_exclude_metrics: image:dd-metric-exclude
 container_exclude_logs: image:dd-log-exclude

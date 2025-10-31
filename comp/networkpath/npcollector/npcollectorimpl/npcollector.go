@@ -229,6 +229,10 @@ func (s *npCollectorImpl) shouldScheduleNetworkPathForConn(conn *model.Connectio
 		s.statsdClient.Incr(netpathConnsSkippedMetricName, []string{"reason:skip_intra_host"}, 1) //nolint:errcheck
 		return false
 	}
+	if conn.SystemProbeConn {
+		s.statsdClient.Incr(netpathConnsSkippedMetricName, []string{"reason:skip_system_probe_conn"}, 1) //nolint:errcheck
+		return false
+	}
 	if conn.Direction != model.ConnectionDirection_outgoing {
 		s.statsdClient.Incr(netpathConnsSkippedMetricName, []string{"reason:skip_incoming"}, 1) //nolint:errcheck
 		return false
@@ -278,6 +282,11 @@ func (s *npCollectorImpl) ScheduleConns(conns *model.Connections) {
 		s.logger.Errorf("Failed to get VPC subnets to skip: %s", err)
 		return
 	}
+	if utillog.ShouldLog(utillog.TraceLvl) {
+		connsJSONStr, _ := json.Marshal(conns)
+		s.logger.Tracef("all connections: %s", connsJSONStr)
+	}
+
 	startTime := s.TimeNowFn()
 	_ = s.statsdClient.Count(common.NetworkPathCollectorMetricPrefix+"schedule.conns_received", int64(len(conns.Conns)), []string{}, 1)
 	for _, conn := range conns.Conns {

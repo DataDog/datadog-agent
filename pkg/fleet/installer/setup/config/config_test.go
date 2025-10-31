@@ -504,3 +504,42 @@ func TestWriteConfigWithoutEOLAtEnd(t *testing.T) {
 		"dd_url":           "https://custom.datadoghq.com",
 	}, datadog)
 }
+
+func TestInfrastructureModeConfig(t *testing.T) {
+	tempDir := t.TempDir()
+
+	cfg := Config{}
+	cfg.DatadogYAML.APIKey = "test_key"
+	cfg.DatadogYAML.InfrastructureMode = "basic"
+
+	err := WriteConfigs(cfg, tempDir)
+	assert.NoError(t, err)
+
+	datadog := readDatadogYAML(t, tempDir)
+	assert.Equal(t, map[string]interface{}{
+		"api_key":             "test_key",
+		"infrastructure_mode": "basic",
+	}, datadog)
+}
+
+func TestInfrastructureModeMerge(t *testing.T) {
+	tempDir := t.TempDir()
+	existing := `---
+api_key: "key"
+infrastructure_mode: "full"
+`
+	writeInitialDatadogConfig(t, tempDir, existing)
+
+	cfg := Config{}
+	cfg.DatadogYAML.APIKey = "key"
+	cfg.DatadogYAML.InfrastructureMode = "end_user_device"
+
+	err := WriteConfigs(cfg, tempDir)
+	assert.NoError(t, err)
+
+	datadog := readDatadogYAML(t, tempDir)
+	assert.Equal(t, map[string]interface{}{
+		"api_key":             "key",
+		"infrastructure_mode": "end_user_device",
+	}, datadog)
+}

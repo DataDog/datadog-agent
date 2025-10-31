@@ -15,6 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dyninst/actuator"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/loader"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/module/tombstone"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/uploader"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/uprobe"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -32,6 +33,10 @@ type runtimeImpl struct {
 	logsFactory              erasedLogsUploaderFactory
 	procRuntimeIDbyProgramID *sync.Map
 	bufferedMessageTracker   *bufferedMessageTracker
+	// tombstoneFilePath is the path to the tombstone file left behind to detect
+	// crashes while loading programs. If empty, tombstone files are not
+	// created.
+	tombstoneFilePath string
 }
 
 type irGenFailedError struct {
@@ -52,6 +57,27 @@ func (rt *runtimeImpl) Load(
 	processID actuator.ProcessID,
 	probes []ir.ProbeDefinition,
 ) (_ actuator.LoadedProgram, retErr error) {
+	if rt.tombstoneFilePath != "" {
+		// Write a tombstone file so that, if we crash in the middle of loading a
+		// program, we don't attempt to load it again for a while.
+		err := tombstone.WriteTombstoneFile(
+			rt.tombstoneFilePath,
+			// ErrorNumber starts at 1 meaning that, if the file is found after
+			// crashing now, it will mean that we crashed for the first time because
+			// of this program.
+			1)
+		if err != nil {
+			log.Warnf("failed to create tombstone file %s: %v", rt.tombstoneFilePath, err)
+		} else {
+			defer func() {
+				err := tombstone.Remove(rt.tombstoneFilePath)
+				if err != nil {
+					log.Warnf("failed to remove tombstone file: %v", err)
+				}
+			}()
+		}
+	}
+
 	runtimeID, ok := rt.store.updateOnLoad(processID, executable, programID)
 	if !ok {
 		return nil, nil
@@ -176,7 +202,7 @@ type loadedProgramImpl struct {
 func (l *loadedProgramImpl) Attach(processID actuator.ProcessID, executable actuator.Executable) (actuator.AttachedProgram, error) {
 	attached, err := l.runtime.attacher.Attach(l.loadedProgram, executable, processID)
 	if err != nil {
-		log.Errorf("rcscrape: failed to attach to process %v: %v", processID, err)
+		log.Errorf("failed to attach to process %v: %v", processID, err)
 		l.runtime.reportAttachError(l.programID, l.runtimeID, l.ir, err)
 		return nil, err
 	}

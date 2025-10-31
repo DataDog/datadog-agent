@@ -36,6 +36,7 @@ service:
       exporters: [otlp]
 `
 
+// TODO(OTAGENT-636): make sending_queue batch configurable
 // defaultMetricsConfig is the metrics OTLP pipeline configuration.
 const defaultMetricsConfig string = `
 receivers:
@@ -48,9 +49,6 @@ exporters:
   serializer:
     sending_queue:
       batch:
-        flush_timeout: 10000ms
-        min_size: 10
-        max_size: 100
 
 service:
   telemetry:
@@ -63,6 +61,7 @@ service:
       exporters: [serializer]
 `
 
+// TODO(OTAGENT-636): make sending_queue batch configurable
 // defaultLogsConfig is the logs OTLP pipeline configuration.
 const defaultLogsConfig string = `
 receivers:
@@ -75,9 +74,6 @@ exporters:
   logsagent:
     sending_queue:
       batch:
-        flush_timeout: 10000ms
-        min_size: 10
-        max_size: 100
 
 service:
   telemetry:

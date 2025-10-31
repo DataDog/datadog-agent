@@ -25,9 +25,11 @@ func CreateContainer(rawContainer container.Summary, resolvedImageName string, o
 	}
 
 	c := &typedef.FilterContainer{
-		Id:    rawContainer.ID,
-		Name:  containerName,
-		Image: resolvedImageName,
+		Id:   rawContainer.ID,
+		Name: containerName,
+		Image: &typedef.FilterImage{
+			Reference: resolvedImageName,
+		},
 	}
 
 	if owner != nil {

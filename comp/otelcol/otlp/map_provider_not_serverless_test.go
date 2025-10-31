@@ -10,14 +10,18 @@ package otlp
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/confmap"
 	"go.opentelemetry.io/collector/otelcol"
 
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
+	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/logsagentexporter"
+	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/serializerexporter"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/internal/configutils"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/testutil"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
@@ -132,11 +136,7 @@ func TestNewMap(t *testing.T) {
 							},
 						},
 						"sending_queue": map[string]any{
-							"batch": map[string]any{
-								"flush_timeout": "10000ms",
-								"min_size":      10,
-								"max_size":      100,
-							},
+							"batch": nil,
 						},
 					},
 				},
@@ -212,11 +212,7 @@ func TestNewMap(t *testing.T) {
 							},
 						},
 						"sending_queue": map[string]any{
-							"batch": map[string]any{
-								"flush_timeout": "10000ms",
-								"min_size":      10,
-								"max_size":      100,
-							},
+							"batch": nil,
 						},
 					},
 				},
@@ -331,11 +327,7 @@ func TestNewMap(t *testing.T) {
 							},
 						},
 						"sending_queue": map[string]any{
-							"batch": map[string]any{
-								"flush_timeout": "10000ms",
-								"min_size":      10,
-								"max_size":      100,
-							},
+							"batch": nil,
 						},
 					},
 				},
@@ -443,11 +435,7 @@ func TestNewMap(t *testing.T) {
 							},
 						},
 						"sending_queue": map[string]any{
-							"batch": map[string]any{
-								"flush_timeout": "10000ms",
-								"min_size":      10,
-								"max_size":      100,
-							},
+							"batch": nil,
 						},
 					},
 					"debug": map[string]any{
@@ -519,11 +507,7 @@ func TestNewMap(t *testing.T) {
 							},
 						},
 						"sending_queue": map[string]any{
-							"batch": map[string]any{
-								"flush_timeout": "10000ms",
-								"min_size":      10,
-								"max_size":      100,
-							},
+							"batch": nil,
 						},
 					},
 					"debug": map[string]any{
@@ -584,11 +568,7 @@ func TestNewMap(t *testing.T) {
 					},
 					"logsagent": map[string]any{
 						"sending_queue": map[string]any{
-							"batch": map[string]any{
-								"flush_timeout": "10000ms",
-								"min_size":      10,
-								"max_size":      100,
-							},
+							"batch": nil,
 						},
 					},
 				},
@@ -665,20 +645,12 @@ func TestNewMap(t *testing.T) {
 							},
 						},
 						"sending_queue": map[string]any{
-							"batch": map[string]any{
-								"flush_timeout": "10000ms",
-								"min_size":      10,
-								"max_size":      100,
-							},
+							"batch": nil,
 						},
 					},
 					"logsagent": map[string]any{
 						"sending_queue": map[string]any{
-							"batch": map[string]any{
-								"flush_timeout": "10000ms",
-								"min_size":      10,
-								"max_size":      100,
-							},
+							"batch": nil,
 						},
 					},
 				},
@@ -760,20 +732,12 @@ func TestNewMap(t *testing.T) {
 							},
 						},
 						"sending_queue": map[string]any{
-							"batch": map[string]any{
-								"flush_timeout": "10000ms",
-								"min_size":      10,
-								"max_size":      100,
-							},
+							"batch": nil,
 						},
 					},
 					"logsagent": map[string]any{
 						"sending_queue": map[string]any{
-							"batch": map[string]any{
-								"flush_timeout": "10000ms",
-								"min_size":      10,
-								"max_size":      100,
-							},
+							"batch": nil,
 						},
 					},
 				},
@@ -839,11 +803,7 @@ func TestNewMap(t *testing.T) {
 					},
 					"logsagent": map[string]any{
 						"sending_queue": map[string]any{
-							"batch": map[string]any{
-								"flush_timeout": "10000ms",
-								"min_size":      10,
-								"max_size":      100,
-							},
+							"batch": nil,
 						},
 					},
 				},
@@ -909,20 +869,12 @@ func TestNewMap(t *testing.T) {
 							},
 						},
 						"sending_queue": map[string]any{
-							"batch": map[string]any{
-								"flush_timeout": "10000ms",
-								"min_size":      10,
-								"max_size":      100,
-							},
+							"batch": nil,
 						},
 					},
 					"logsagent": map[string]any{
 						"sending_queue": map[string]any{
-							"batch": map[string]any{
-								"flush_timeout": "10000ms",
-								"min_size":      10,
-								"max_size":      100,
-							},
+							"batch": nil,
 						},
 					},
 				},
@@ -983,11 +935,7 @@ func TestNewMap(t *testing.T) {
 					},
 					"logsagent": map[string]any{
 						"sending_queue": map[string]any{
-							"batch": map[string]any{
-								"flush_timeout": "10000ms",
-								"min_size":      10,
-								"max_size":      100,
-							},
+							"batch": nil,
 						},
 					},
 				},
@@ -1051,11 +999,7 @@ func TestNewMap(t *testing.T) {
 							},
 						},
 						"sending_queue": map[string]any{
-							"batch": map[string]any{
-								"flush_timeout": "10000ms",
-								"min_size":      10,
-								"max_size":      100,
-							},
+							"batch": nil,
 						},
 					},
 					"debug": map[string]any{
@@ -1063,11 +1007,7 @@ func TestNewMap(t *testing.T) {
 					},
 					"logsagent": map[string]any{
 						"sending_queue": map[string]any{
-							"batch": map[string]any{
-								"flush_timeout": "10000ms",
-								"min_size":      10,
-								"max_size":      100,
-							},
+							"batch": nil,
 						},
 					},
 				},
@@ -1142,11 +1082,7 @@ func TestNewMap(t *testing.T) {
 							},
 						},
 						"sending_queue": map[string]any{
-							"batch": map[string]any{
-								"flush_timeout": "10000ms",
-								"min_size":      10,
-								"max_size":      100,
-							},
+							"batch": nil,
 						},
 					},
 					"debug": map[string]any{
@@ -1154,11 +1090,7 @@ func TestNewMap(t *testing.T) {
 					},
 					"logsagent": map[string]any{
 						"sending_queue": map[string]any{
-							"batch": map[string]any{
-								"flush_timeout": "10000ms",
-								"min_size":      10,
-								"max_size":      100,
-							},
+							"batch": nil,
 						},
 					},
 				},
@@ -1232,6 +1164,24 @@ func TestUnmarshal(t *testing.T) {
 	components, err := getComponents(serializermock.NewMetricSerializer(t), make(chan *message.Message), fakeTagger, hostnameimpl.NewHostnameService(), nil)
 	require.NoError(t, err)
 
-	_, err = provider.Get(context.Background(), components)
+	svccfg, err := provider.Get(context.Background(), components)
 	require.NoError(t, err)
+
+	scfgRaw := svccfg.Exporters[component.MustNewID(serializerexporter.TypeStr)]
+	require.NotNil(t, scfgRaw)
+	scfg, ok := scfgRaw.(*serializerexporter.ExporterConfig)
+	require.True(t, ok, "failed to cast serializerexporter.ExporterConfig")
+	sBatchCfg := scfg.QueueBatchConfig.Batch.Get()
+	assert.Equal(t, 200*time.Millisecond, sBatchCfg.FlushTimeout)
+	assert.Equal(t, int64(8192), sBatchCfg.MinSize)
+	assert.Equal(t, int64(0), sBatchCfg.MaxSize)
+
+	lcfgRaw := svccfg.Exporters[component.MustNewID(logsagentexporter.TypeStr)]
+	require.NotNil(t, lcfgRaw)
+	lcfg, ok := lcfgRaw.(*logsagentexporter.Config)
+	require.True(t, ok, "failed to cast logsagentexporter.Config")
+	lBatchCfg := lcfg.QueueSettings.Batch.Get()
+	assert.Equal(t, 200*time.Millisecond, lBatchCfg.FlushTimeout)
+	assert.Equal(t, int64(8192), lBatchCfg.MinSize)
+	assert.Equal(t, int64(0), lBatchCfg.MaxSize)
 }

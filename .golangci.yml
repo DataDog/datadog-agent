@@ -287,9 +287,6 @@ issues:
     - path: comp/core/workloadmeta/collectors/internal/process/process_collector.go
       linters:
         - pkgconfigusage
-    - path: comp/core/workloadmeta/collectors/internal/processlanguage/process_collector.go
-      linters:
-        - pkgconfigusage
     - path: comp/core/workloadmeta/collectors/internal/remote/generic.go
       linters:
         - pkgconfigusage

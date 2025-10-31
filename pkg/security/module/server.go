@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
+	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/mailru/easyjson"
 	"go.uber.org/atomic"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -128,8 +129,9 @@ func mergeJSON(j1, j2 []byte) ([]byte, error) {
 // APIServer represents a gRPC server in charge of receiving events sent by
 // the runtime security system-probe module and forwards them to Datadog
 type APIServer struct {
-	api.UnimplementedSecurityModuleServer
-	msgs               chan *api.SecurityEventMessage
+	api.UnimplementedSecurityModuleEventServer
+	api.UnimplementedSecurityModuleCmdServer
+	events             chan *api.SecurityEventMessage
 	activityDumps      chan *api.ActivityDumpStreamMessage
 	expiredEventsLock  sync.RWMutex
 	expiredEvents      map[rules.RuleID]*atomic.Int64
@@ -156,10 +158,12 @@ type APIServer struct {
 
 	stopChan chan struct{}
 	stopper  startstop.Stopper
+
+	securityAgentAPIClient *SecurityAgentAPIClient
 }
 
-// GetActivityDumpStream waits for activity dumps and forwards them to the stream
-func (a *APIServer) GetActivityDumpStream(_ *api.ActivityDumpStreamParams, stream api.SecurityModule_GetActivityDumpStreamServer) error {
+// GetActivityDumpStream transfers dumps to the security-agent. Communication security-agent -> system-probe
+func (a *APIServer) GetActivityDumpStream(_ *empty.Empty, stream api.SecurityModuleEvent_GetActivityDumpStreamServer) error {
 	for {
 		select {
 		case <-stream.Context().Done():
@@ -188,8 +192,8 @@ func (a *APIServer) SendActivityDump(imageName string, imageTag string, header [
 	a.activityDumpSender.Send(dump, a.expireDump)
 }
 
-// GetEvents waits for security events
-func (a *APIServer) GetEvents(_ *api.GetEventParams, stream api.SecurityModule_GetEventsServer) error {
+// GetEventStream transfers events to the security-agent. Communication security-agent -> system-probe
+func (a *APIServer) GetEventStream(_ *empty.Empty, stream api.SecurityModuleEvent_GetEventStreamServer) error {
 	if prev := a.connEstablished.Swap(true); !prev {
 		// should always be non nil
 		if a.cwsConsumer != nil {
@@ -203,7 +207,7 @@ func (a *APIServer) GetEvents(_ *api.GetEventParams, stream api.SecurityModule_G
 			return nil
 		case <-a.stopChan:
 			return nil
-		case msg := <-a.msgs:
+		case msg := <-a.events:
 			if err := stream.Send(msg); err != nil {
 				return err
 			}
@@ -357,6 +361,19 @@ func (a *APIServer) start(ctx context.Context) {
 
 // Start the api server, starts to consume the msg queue
 func (a *APIServer) Start(ctx context.Context) {
+	if a.securityAgentAPIClient != nil {
+		seclog.Infof("starting to send events to security agent")
+
+		go a.securityAgentAPIClient.SendEvents(ctx, a.events, func() {
+			if prev := a.connEstablished.Swap(true); !prev {
+				// should always be non nil
+				if a.cwsConsumer != nil {
+					a.cwsConsumer.onAPIConnectionEstablished()
+				}
+			}
+		})
+		go a.securityAgentAPIClient.SendActivityDumps(ctx, a.activityDumps)
+	}
 	go a.start(ctx)
 }
 
@@ -746,7 +763,7 @@ func NewAPIServer(cfg *config.RuntimeSecurityConfig, probe *sprobe.Probe, msgSen
 	}
 
 	as := &APIServer{
-		msgs:            make(chan *api.SecurityEventMessage, cfg.EventServerBurst*3),
+		events:          make(chan *api.SecurityEventMessage, cfg.EventServerBurst*3),
 		activityDumps:   make(chan *api.ActivityDumpStreamMessage, model.MaxTracedCgroupsCount*2),
 		expiredEvents:   make(map[rules.RuleID]*atomic.Int64),
 		expiredDumps:    atomic.NewInt64(0),
@@ -763,6 +780,16 @@ func NewAPIServer(cfg *config.RuntimeSecurityConfig, probe *sprobe.Probe, msgSen
 		containerFilter: containerFilter,
 	}
 
+	if !cfg.SendPayloadsFromSystemProbe && cfg.EventGRPCServer == "security-agent" {
+		seclog.Infof("setting up security agent api client")
+
+		securityAgentAPIClient, err := NewSecurityAgentAPIClient(cfg)
+		if err != nil {
+			return nil, err
+		}
+		as.securityAgentAPIClient = securityAgentAPIClient
+	}
+
 	as.collectOSReleaseData()
 
 	if as.msgSender == nil {
@@ -776,7 +803,7 @@ func NewAPIServer(cfg *config.RuntimeSecurityConfig, probe *sprobe.Probe, msgSen
 		}
 
 		if as.msgSender == nil {
-			as.msgSender = NewChanMsgSender(as.msgs)
+			as.msgSender = NewChanMsgSender(as.events)
 		}
 	}
 

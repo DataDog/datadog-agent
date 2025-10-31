@@ -104,7 +104,7 @@ func EKSRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, params *Provi
 		if err != nil {
 			return err
 		}
-		argoHelm, err := argorollouts.NewHelmInstallation(&awsEnv, argoParams, pulumi.Provider(cluster.KubeProvider))
+		argoHelm, err := argorollouts.NewHelmInstallation(&awsEnv, argoParams, cluster.KubeProvider)
 		if err != nil {
 			return err
 		}

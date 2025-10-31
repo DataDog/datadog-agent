@@ -166,14 +166,13 @@ func ReadConfigFormats() []ConfigFormatWrapper {
 		return []ConfigFormatWrapper{}
 	}
 
-	cachedFormats, found := reader.cache.Get("configFormats")
+	_, found := reader.cache.Get("configFormats")
 	if !found {
 		reader.readAndCacheAll()
-	} else {
-		cachedFormats, found = reader.cache.Get("configFormats")
-		if !found {
-			return []ConfigFormatWrapper{}
-		}
+	}
+	cachedFormats, found := reader.cache.Get("configFormats")
+	if !found {
+		return []ConfigFormatWrapper{}
 	}
 
 	typedCachedFormats, ok := cachedFormats.([]ConfigFormatWrapper)

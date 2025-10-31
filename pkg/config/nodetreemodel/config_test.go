@@ -1647,27 +1647,31 @@ fruit:
       inner(#ptr<000007>)
       > num
           leaf(#ptr<000008>), val:"1", source:environment-variable
-tree(#ptr<000009>) source=default
+  > donut
+      leaf(#ptr<000009>), val:12, source:file
+tree(#ptr<000010>) source=default
 > fruit
-  inner(#ptr<000010>)
+  inner(#ptr<000011>)
   > apple
     inner(#ptr<000002>)
     > core
       inner(#ptr<000003>)
       > seeds
           leaf(#ptr<000004>), val:2, source:default
-tree(#ptr<000011>) source=file
+tree(#ptr<000012>) source=file
 > fruit
-  inner(#ptr<000012>)
+  inner(#ptr<000013>)
   > apple
-      leaf(#ptr<000013>), val:<nil>, source:file
+      leaf(#ptr<000014>), val:<nil>, source:file
   > banana
       leaf(#ptr<000005>), val:<nil>, source:file
   > cherry
-      leaf(#ptr<000014>), val:<nil>, source:file
-tree(#ptr<000015>) source=environment-variable
+      leaf(#ptr<000015>), val:<nil>, source:file
+  > donut
+      leaf(#ptr<000009>), val:12, source:file
+tree(#ptr<000016>) source=environment-variable
 > fruit
-  inner(#ptr<000016>)
+  inner(#ptr<000017>)
   > cherry
     inner(#ptr<000006>)
     > seed

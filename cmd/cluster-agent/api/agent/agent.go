@@ -26,6 +26,7 @@ import (
 	dcametadata "github.com/DataDog/datadog-agent/comp/metadata/clusteragent/def"
 	clusterchecksmetadata "github.com/DataDog/datadog-agent/comp/metadata/clusterchecks/def"
 
+	"github.com/DataDog/datadog-agent/pkg/api/coverage"
 	autoscalingWorkload "github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload"
 	localautoscalingworkload "github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/loadstore"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -65,6 +66,9 @@ func SetupHandlers(r *mux.Router, wmeta workloadmeta.Component, ac autodiscovery
 	}).Methods("GET")
 	r.HandleFunc("/metadata/cluster-agent", dcametadataComp.WritePayloadAsJSON).Methods("GET")
 	r.HandleFunc("/metadata/cluster-checks", clusterChecksMetadataComp.WritePayloadAsJSON).Methods("GET")
+
+	// Special handler to compute running agent Code coverage
+	coverage.SetupCoverageHandler(r)
 }
 
 func getStatus(w http.ResponseWriter, r *http.Request, statusComponent status.Component) {

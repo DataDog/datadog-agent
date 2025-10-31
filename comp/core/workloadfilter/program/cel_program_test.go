@@ -70,7 +70,7 @@ func TestCELFieldConfigurationErrors(t *testing.T) {
 		},
 		{
 			name:        "Valid logical expression",
-			expr:        `container.name == "nginx" || container.image == "nginx:latest"`,
+			expr:        `container.name == "nginx" || container.image.reference == "nginx:latest"`,
 			expectError: false,
 		},
 		{

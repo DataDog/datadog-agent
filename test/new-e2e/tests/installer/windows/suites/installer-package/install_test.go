@@ -48,6 +48,7 @@ func (s *testInstallerSuite) TestInstalls() {
 
 func (s *testInstallerSuite) startServiceWithConfigFileUpdatesDisabled() {
 	// Arrange
+	s.Require().NoError(common.StopService(s.Env().RemoteHost, consts.ServiceName)) // Stop the service if it's running
 	s.Env().RemoteHost.CopyFileFromFS(fixturesFS, "fixtures/sample_config_disabled", consts.ConfigPath)
 
 	// Act
@@ -69,6 +70,7 @@ func (s *testInstallerSuite) startServiceWithConfigFileUpdatesDisabled() {
 
 func (s *testInstallerSuite) startServiceWithConfigFileUpdatesEnabled() {
 	// Arrange
+	s.Require().NoError(common.StopService(s.Env().RemoteHost, consts.ServiceName)) // Stop the service if it's running
 	s.Env().RemoteHost.CopyFileFromFS(fixturesFS, "fixtures/sample_config_enabled", consts.ConfigPath)
 
 	// Act

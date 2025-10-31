@@ -23,7 +23,6 @@ import (
 	sysconfig "github.com/DataDog/datadog-agent/pkg/system-probe/config"
 
 	manager "github.com/DataDog/ebpf-manager"
-	"github.com/cilium/ebpf"
 
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -356,11 +355,8 @@ func (p *Probe) setupSharedBuffer(o *manager.Options) {
 	ringBufferSize := toPowerOf2(numPages * os.Getpagesize())
 
 	o.MapSpecEditors[cudaEventsRingbuf] = manager.MapSpecEditor{
-		Type:       ebpf.RingBuf,
 		MaxEntries: uint32(ringBufferSize),
-		KeySize:    0,
-		ValueSize:  0,
-		EditorFlag: manager.EditType | manager.EditMaxEntries | manager.EditKeyValue,
+		EditorFlag: manager.EditMaxEntries,
 	}
 
 	o.ConstantEditors = append(o.ConstantEditors, manager.ConstantEditor{
