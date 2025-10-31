@@ -39,13 +39,13 @@ func (v *linuxSharedLibrarySuite) copyLibrary(sourceLibPath string) {
 		sourceLibPath,
 		v.Env().RemoteHost.JoinPath("/", "tmp", v.libraryName),
 	)
-	out := v.Env().RemoteHost.MustExecute("sudo cp " + v.Env().RemoteHost.JoinPath("/", "tmp", v.libraryName) + " " + v.Env().RemoteHost.JoinPath(v.checksdPath, v.libraryName)) // TODO: replace by a specific RemoteHost function?
+	out := v.Env().RemoteHost.MustExecute("sudo cp " + v.Env().RemoteHost.JoinPath("/", "tmp", v.libraryName) + " " + v.Env().RemoteHost.JoinPath(v.checksdPath, v.libraryName))
 	// should not output anything, otherwise it's an error
 	require.Empty(v.T(), out)
 }
 
 func (v *linuxSharedLibrarySuite) removeLibrary() {
-	out := v.Env().RemoteHost.MustExecute("sudo rm " + v.Env().RemoteHost.JoinPath(v.checksdPath, v.libraryName)) // TODO: replace by a specific RemoteHost function?
+	out := v.Env().RemoteHost.MustExecute("sudo rm " + v.Env().RemoteHost.JoinPath(v.checksdPath, v.libraryName))
 	// should not output anything, otherwise it's an error
 	require.Empty(v.T(), out)
 }
