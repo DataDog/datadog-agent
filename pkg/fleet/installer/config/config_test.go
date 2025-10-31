@@ -36,7 +36,7 @@ func TestOperationApply_Patch(t *testing.T) {
 		Patch:             []byte(patchJSON),
 	}
 
-	err = op.apply(root)
+	err = op.apply(root, tmpDir)
 	assert.NoError(t, err)
 
 	// Check file content
@@ -69,7 +69,7 @@ func TestOperationApply_MergePatch(t *testing.T) {
 		Patch:             []byte(mergePatch),
 	}
 
-	err = op.apply(root)
+	err = op.apply(root, tmpDir)
 	assert.NoError(t, err)
 
 	updated, err := os.ReadFile(filePath)
@@ -97,7 +97,7 @@ func TestOperationApply_Delete(t *testing.T) {
 		FilePath:          "/datadog.yaml",
 	}
 
-	err = op.apply(root)
+	err = op.apply(root, tmpDir)
 	assert.NoError(t, err)
 	_, err = os.Stat(filePath)
 	assert.Error(t, err)
@@ -121,7 +121,7 @@ func TestOperationApply_EmptyYAMLFile(t *testing.T) {
 		Patch:             []byte(patchJSON),
 	}
 
-	err = op.apply(root)
+	err = op.apply(root, tmpDir)
 	assert.NoError(t, err)
 
 	// Check that the file now contains the patched value
@@ -148,7 +148,7 @@ func TestOperationApply_NoFile(t *testing.T) {
 		Patch:             []byte(patchJSON),
 	}
 
-	err = op.apply(root)
+	err = op.apply(root, tmpDir)
 	assert.NoError(t, err)
 
 	filePath := filepath.Join(tmpDir, "datadog.yaml")
@@ -177,7 +177,7 @@ func TestOperationApply_DisallowedFile(t *testing.T) {
 		Patch:             []byte(patchJSON),
 	}
 
-	err = op.apply(root)
+	err = op.apply(root, tmpDir)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "not allowed")
 }
@@ -205,7 +205,7 @@ func TestOperationApply_NestedConfigFile(t *testing.T) {
 		Patch:             []byte(patchJSON),
 	}
 
-	err = op.apply(root)
+	err = op.apply(root, tmpDir)
 	assert.NoError(t, err)
 
 	updated, err := os.ReadFile(filePath)
@@ -240,8 +240,10 @@ func TestBuildOperationsFromLegacyConfigFile(t *testing.T) {
 
 func TestBuildOperationsFromLegacyInstaller(t *testing.T) {
 	tmpDir := t.TempDir()
-	managedDir := filepath.Join(tmpDir, legacyPathPrefix)
+	managedDir := filepath.Join(tmpDir, filepath.Join("managed", "datadog-agent", "aaa-bbb-ccc"))
 	err := os.MkdirAll(managedDir, 0755)
+	assert.NoError(t, err)
+	err = os.Symlink(managedDir, filepath.Join(tmpDir, legacyPathPrefix))
 	assert.NoError(t, err)
 
 	// Create legacy config files
@@ -252,8 +254,8 @@ func TestBuildOperationsFromLegacyInstaller(t *testing.T) {
 
 	ops := buildOperationsFromLegacyInstaller(tmpDir)
 
-	// Should have 4 operations: 2 merge patches + 2 deletes
-	assert.Len(t, ops, 2)
+	// Should have 3 operations: 2 merge patches + 1 delete all
+	assert.Len(t, ops, 3)
 
 	// Check that we have operations for both files
 	filePaths := make(map[string]bool)
@@ -262,25 +264,30 @@ func TestBuildOperationsFromLegacyInstaller(t *testing.T) {
 	}
 	assert.True(t, filePaths["datadog.yaml"])
 	assert.True(t, filePaths["security-agent.yaml"])
+	assert.Equal(t, FileOperationDeleteAll, ops[2].FileOperationType)
+	assert.Equal(t, "/managed", ops[2].FilePath)
 }
 
 func TestBuildOperationsFromLegacyConfigFileKeepApplicationMonitoring(t *testing.T) {
 	tmpDir := t.TempDir()
-	managedDir := filepath.Join(tmpDir, legacyPathPrefix)
+	managedDir := filepath.Join(tmpDir, filepath.Join("managed", "datadog-agent", "aaa-bbb-ccc"))
 	err := os.MkdirAll(managedDir, 0755)
 	assert.NoError(t, err)
+	err = os.Symlink(managedDir, filepath.Join(tmpDir, legacyPathPrefix))
+	assert.NoError(t, err)
 
-	// Create a legacy config file
 	legacyConfig := []byte("{\"bar\":123,\"foo\":\"legacy_value\"}")
 	err = os.WriteFile(filepath.Join(managedDir, "application_monitoring.yaml"), legacyConfig, 0644)
 	assert.NoError(t, err)
 
 	ops := buildOperationsFromLegacyInstaller(tmpDir)
-	assert.Len(t, ops, 1)
+	assert.Len(t, ops, 2)
 
 	assert.Equal(t, FileOperationMergePatch, ops[0].FileOperationType)
 	assert.Equal(t, "/"+filepath.Join("managed", "datadog-agent", "stable", "application_monitoring.yaml"), ops[0].FilePath)
 	assert.Equal(t, string(legacyConfig), string(ops[0].Patch))
+	assert.Equal(t, FileOperationDeleteAll, ops[1].FileOperationType)
+	assert.Equal(t, "/managed", ops[1].FilePath)
 }
 
 func TestOperationApply_Copy(t *testing.T) {
@@ -303,7 +310,7 @@ func TestOperationApply_Copy(t *testing.T) {
 		DestinationPath:   "/security-agent.yaml",
 	}
 
-	err = op.apply(root)
+	err = op.apply(root, tmpDir)
 	assert.NoError(t, err)
 
 	// Check that source file still exists
@@ -336,7 +343,7 @@ func TestOperationApply_Move(t *testing.T) {
 		DestinationPath:   "/otel-config.yaml",
 	}
 
-	err = op.apply(root)
+	err = op.apply(root, tmpDir)
 	assert.NoError(t, err)
 
 	// Check that source file no longer exists
@@ -371,7 +378,7 @@ func TestOperationApply_CopyWithNestedDestination(t *testing.T) {
 		DestinationPath:   "/conf.d/mycheck.d/config.yaml",
 	}
 
-	err = op.apply(root)
+	err = op.apply(root, tmpDir)
 	assert.NoError(t, err)
 
 	// Check that nested directories were created
@@ -405,7 +412,7 @@ func TestOperationApply_MoveWithNestedDestination(t *testing.T) {
 		DestinationPath:   "/conf.d/mycheck.d/config.yaml",
 	}
 
-	err = op.apply(root)
+	err = op.apply(root, tmpDir)
 	assert.NoError(t, err)
 
 	// Check that nested directories were created
@@ -436,7 +443,7 @@ func TestOperationApply_CopyMissingSource(t *testing.T) {
 		DestinationPath:   "/security-agent.yaml",
 	}
 
-	err = op.apply(root)
+	err = op.apply(root, tmpDir)
 	assert.Error(t, err)
 }
 
@@ -453,6 +460,6 @@ func TestOperationApply_MoveMissingSource(t *testing.T) {
 		DestinationPath:   "/otel-config.yaml",
 	}
 
-	err = op.apply(root)
+	err = op.apply(root, tmpDir)
 	assert.Error(t, err)
 }

@@ -29,6 +29,8 @@ const (
 	FileOperationMergePatch FileOperationType = "merge-patch"
 	// FileOperationDelete deletes the config at the given path.
 	FileOperationDelete FileOperationType = "delete"
+	// FileOperationDeleteAll deletes the config at the given path and all its subdirectories.
+	FileOperationDeleteAll FileOperationType = "delete-all"
 	// FileOperationCopy copies the config at the given path to the given path.
 	FileOperationCopy FileOperationType = "copy"
 	// FileOperationMove moves the config at the given path to the given path.
@@ -60,7 +62,8 @@ func (o *Operations) Apply(rootPath string) error {
 		return err
 	}
 	for _, operation := range o.FileOperations {
-		err := operation.apply(root)
+		// TODO (go.1.25): we won't need rootPath in 1.25
+		err := operation.apply(root, rootPath)
 		if err != nil {
 			return err
 		}
@@ -76,7 +79,7 @@ type FileOperation struct {
 	Patch             json.RawMessage   `json:"patch,omitempty"`
 }
 
-func (a *FileOperation) apply(root *os.Root) error {
+func (a *FileOperation) apply(root *os.Root, rootPath string) error {
 	if !configNameAllowed(a.FilePath) {
 		return fmt.Errorf("modifying config file %s is not allowed", a.FilePath)
 	}
@@ -217,6 +220,14 @@ func (a *FileOperation) apply(root *os.Root) error {
 			return err
 		}
 		return nil
+	case FileOperationDeleteAll:
+		// TODO(go.1.25): os.Root.RemoveAll is only available starting go 1.25 so we'll use it instead
+		// We can't get teh actual path from os.Root and do RemoveAll in 1.25
+		err := os.RemoveAll(filepath.Join(rootPath, path))
+		if err != nil && !os.IsNotExist(err) {
+			return err
+		}
+		return nil
 	default:
 		return fmt.Errorf("unknown operation type: %s", a.FileOperationType)
 	}
@@ -284,6 +295,21 @@ func buildOperationsFromLegacyInstaller(rootPath string) []FileOperation {
 		return allOps
 	}
 
+	// Check if stable is a symlink or not. If it's not we can return early
+	// because the migration is already done
+	existingStablePath := filepath.Join(rootPath, legacyPathPrefix)
+	info, err := os.Lstat(existingStablePath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return allOps
+		}
+		return allOps
+	}
+	// If it's not a symlink, we can return early
+	if info.Mode()&os.ModeSymlink == 0 {
+		return allOps
+	}
+
 	// Eval legacyPathPrefix symlink from rootPath
 	// /etc/datadog-agent/managed/datadog-agent/aaaa-bbbb-cccc
 	stableDirPath, err := filepath.EvalSymlinks(filepath.Join(realRootPath, legacyPathPrefix))
@@ -317,6 +343,12 @@ func buildOperationsFromLegacyInstaller(rootPath string) []FileOperation {
 		return []FileOperation{}
 	}
 
+	// Recursively delete targetPath/
+	// RemoveAll removes symlinks but not the content they point to as it uses os.Remove first
+	allOps = append(allOps, FileOperation{
+		FileOperationType: FileOperationDeleteAll,
+		FilePath:          "/managed",
+	})
 	return allOps
 }
 
