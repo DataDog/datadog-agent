@@ -307,10 +307,10 @@ func (s *testAgentMSIInstallsDotnetLibrary) TestMSIPurgeDisabled() {
 	oldLibraryPath := s.getLibraryPathFromInstrumentedIIS()
 	s.Require().Contains(oldLibraryPath, version.Version())
 
-	// uninstall the MSI with PURGE=1
+	// uninstall the MSI with KEEP_INSTALLED_PACKAGES=1 (equivalent to PURGE=0)
 	options := []installerwindows.MsiOption{
 		installerwindows.WithMSILogFile("uninstall.log"),
-		installerwindows.WithMSIArg("PURGE=0"),
+		installerwindows.WithMSIArg("KEEP_INSTALLED_PACKAGES=1"),
 	}
 	s.Require().NoError(s.Installer().Uninstall(options...))
 

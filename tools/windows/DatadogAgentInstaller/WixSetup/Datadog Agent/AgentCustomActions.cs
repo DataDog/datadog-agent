@@ -534,7 +534,7 @@ namespace WixSetup.Datadog_Agent
                 Execute = Execute.deferred,
                 Impersonate = false
             }
-                .SetProperties("PROJECTLOCATION=[PROJECTLOCATION],SITE=[SITE],APIKEY=[APIKEY],PURGE=[PURGE],FLEET_INSTALL=[FLEET_INSTALL]");
+                .SetProperties("PROJECTLOCATION=[PROJECTLOCATION],SITE=[SITE],APIKEY=[APIKEY],PURGE=[PURGE],KEEP_INSTALLED_PACKAGES=[KEEP_INSTALLED_PACKAGES],FLEET_INSTALL=[FLEET_INSTALL]");
 
             WriteInstallInfo = new CustomAction<CustomActions>(
                     new Id(nameof(WriteInstallInfo)),
