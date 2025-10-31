@@ -69,11 +69,15 @@ pkg_files(
 
 expand_template(
     name = "gen_pkgconfig",
-    out = "libyaml.pc",
+    out = "yaml-0.1.pc",
     substitutions = {
-        "{{VERSION}}": VERSION,
+        "@PACKAGE_VERSION@": VERSION,
+        "@prefix@": "##PREFIX##",
+        "@exec_prefix@": "${prefix}",
+        "@includedir@": "${prefix}/include",
+        "@libdir@": "${prefix}/lib",
     },
-    template = "@@//deps/libyaml:libyaml.pc.in",
+    template = "yaml-0.1.pc.in",
 )
 
 pkg_files(

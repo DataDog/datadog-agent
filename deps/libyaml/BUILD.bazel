@@ -1,3 +1,0 @@
-"""Package delimiter."""
-
-exports_files(["libyaml.pc.in"])
