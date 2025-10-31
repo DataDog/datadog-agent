@@ -114,7 +114,7 @@ func (s *baseNetworkPathIntegrationTestSuite) checkDynamicPath(c *assert.Collect
 		return np.Origin == payload.PathOriginNetworkTraffic
 	})
 
-	assertPayloadBase(c, np, agentHostname, payload.PathOriginNetworkTraffic)
+	assertPayloadBase(c, np, agentHostname, "abc")
 
 	require.NotEmpty(c, np.Traceroute.Runs)
 	assert.NotEmpty(c, np.Traceroute.Runs[0].Hops)
