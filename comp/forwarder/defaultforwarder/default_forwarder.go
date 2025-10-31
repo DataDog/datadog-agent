@@ -343,10 +343,8 @@ func NewDefaultForwarder(config config.Component, log log.Component, options *Op
 	domainForwarderSort := transaction.SortByCreatedTimeAndPriority{HighPriorityFirst: true}
 	transactionContainerSort := transaction.SortByCreatedTimeAndPriority{HighPriorityFirst: false}
 
-	for domain, resolver := range options.DomainResolvers {
-		domain, _ := utils.AddAgentVersionToDomain(domain, "app")
-		resolver.SetBaseDomain(domain)
-
+	for _, resolver := range options.DomainResolvers {
+		domain := resolver.GetBaseDomain()
 		if !resolver.IsUsable() {
 			log.Errorf("No API keys for domain '%s', dropping domain ", domain)
 		} else {
@@ -377,7 +375,7 @@ func NewDefaultForwarder(config config.Component, log log.Component, options *Op
 			fwd := newDomainForwarder(
 				config,
 				log,
-				domain,
+				resolver.GetBaseDomain(),
 				resolver.IsMRF(),
 				resolver.IsLocal(),
 				transactionContainer,

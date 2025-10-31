@@ -129,10 +129,14 @@ type EndpointDescriptor struct {
 	IsMRF   bool
 }
 
-func newEndpointDescriptor(baseURL, configKey string, apiKeys ...string) EndpointDescriptor {
+// newEndpointDescriptor creates new EndpointDescriptor with minimal configuration and defaults filled in.
+//
+// Users must validate domain to be a valid URL first.
+func newEndpointDescriptor(domain string, apiKeys []APIKeys) EndpointDescriptor {
+	baseURL, _ := AddAgentVersionToDomain(domain, "app")
 	return EndpointDescriptor{
 		BaseURL: baseURL,
-		APIKeys: newAPIKeyset(configKey, apiKeys...),
+		APIKeys: apiKeys,
 	}
 }
 
@@ -143,10 +147,7 @@ type EndpointDescriptorSet = map[string]EndpointDescriptor
 func EndpointDescriptorSetFromKeysPerDomain(keysPerDomain map[string][]APIKeys) EndpointDescriptorSet {
 	eds := EndpointDescriptorSet{}
 	for domain, apiKeys := range keysPerDomain {
-		eds[domain] = EndpointDescriptor{
-			BaseURL: domain,
-			APIKeys: apiKeys,
-		}
+		eds[domain] = newEndpointDescriptor(domain, apiKeys)
 	}
 
 	return eds
@@ -188,11 +189,9 @@ func GetMultipleEndpoints(c pkgconfigmodel.Reader) (EndpointDescriptorSet, error
 		if err != nil {
 			return nil, fmt.Errorf("could not parse MRF endpoint: %s", err)
 		}
-		eds[haURL] = EndpointDescriptor{
-			BaseURL: haURL,
-			APIKeys: newAPIKeyset("multi_region_failover.api_key", c.GetString("multi_region_failover.api_key")),
-			IsMRF:   true,
-		}
+		ed := newEndpointDescriptor(haURL, newAPIKeyset("multi_region_failover.api_key", c.GetString("multi_region_failover.api_key")))
+		ed.IsMRF = true
+		eds[haURL] = ed
 	}
 
 	return eds, nil

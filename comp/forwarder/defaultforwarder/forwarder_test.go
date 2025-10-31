@@ -83,7 +83,7 @@ func TestNewDefaultForwarder(t *testing.T) {
 	assert.NotNil(t, forwarder2)
 	assert.Equal(t, 1, forwarder2.NumberOfWorkers)
 	require.Len(t, forwarder2.domainForwarders, 2) // 1 remote domain, 1 dca domain
-	domainResolver, _ := resolver.NewSingleDomainResolvers(validKeysPerDomain)
+	domainResolver, _ := resolver.NewSingleDomainResolvers2(configUtils.EndpointDescriptorSetFromKeysPerDomain(validKeysPerDomain))
 	domainResolver[localDomain] = resolver.NewLocalDomainResolver(localDomain, localAuth)
 	assert.Equal(t, domainResolver, forwarder2.domainResolvers)
 	assert.Equal(t, forwarder2.internalState.Load(), Stopped)
@@ -294,11 +294,13 @@ func TestCreateHTTPTransactionsWithDifferentResolvers(t *testing.T) {
 }
 
 func TestCreateHTTPTransactionsWithOverrides(t *testing.T) {
-	resolvers := make(map[string]resolver.DomainResolver)
-	r, err := resolver.NewMultiDomainResolver(testDomain, []configUtils.APIKeys{configUtils.NewAPIKeys("path", "api-key-1")})
+	endpoints := configUtils.EndpointDescriptorSetFromKeysPerDomain(map[string][]configUtils.APIKeys{
+		testDomain: {configUtils.NewAPIKeys("path", "api-key-1")},
+	})
+	resolvers, err := resolver.NewSingleDomainResolvers2(endpoints)
 	require.NoError(t, err)
-	r.RegisterAlternateDestination("observability_pipelines_worker.tld", "diverted", resolver.Vector)
-	resolvers[testDomain] = r
+	require.NotNil(t, resolvers[testDomain])
+	resolvers[testDomain].RegisterAlternateDestination("observability_pipelines_worker.tld", "diverted", resolver.Vector)
 	mockConfig := mock.New(t)
 	log := logmock.New(t)
 	forwarder := NewDefaultForwarder(mockConfig, log, NewOptionsWithResolvers(mockConfig, log, resolvers))

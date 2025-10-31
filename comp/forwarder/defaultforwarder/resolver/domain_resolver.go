@@ -186,9 +186,9 @@ func NewSingleDomainResolvers(keysPerDomain map[string][]utils.APIKeys) (map[str
 // NewSingleDomainResolvers2 creates a set of domain resolvers from an EndpointDescriptorSet.
 func NewSingleDomainResolvers2(eds utils.EndpointDescriptorSet) (map[string]DomainResolver, error) {
 	resolvers := make(map[string]DomainResolver)
-	for _, ed := range eds {
+	for domain, ed := range eds {
 		var err error
-		resolvers[ed.BaseURL], err = NewSingleDomainResolver2(ed)
+		resolvers[domain], err = NewSingleDomainResolver2(ed)
 		if err != nil {
 			return nil, err
 		}
@@ -244,11 +244,6 @@ func (r *domainResolver) GetAPIKeysInfo() ([]utils.APIKeys, int) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	return r.apiKeys, r.keyVersion
-}
-
-// SetBaseDomain sets the only destination available for a SingleDomainResolver
-func (r *domainResolver) SetBaseDomain(domain string) {
-	r.domain = domain
 }
 
 // UpdateAPIKeys updates the api keys at the given config path and sets the deduped keys to the new list.
@@ -355,6 +350,10 @@ func (r *domainResolver) GetAlternateDomains() []string {
 // The resolver will match transaction.Endpoint.Name against forwarderName to check if the request shall
 // be diverted.
 func (r *domainResolver) RegisterAlternateDestination(domain string, forwarderName string, dType DestinationType) {
+	if r.overrides == nil {
+		r.overrides = map[string]destination{}
+	}
+
 	d := destination{
 		domain: domain,
 		dType:  dType,
