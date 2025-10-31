@@ -3315,6 +3315,9 @@ TEXTUAL_HEADERS = [
     "engines/e_ossltest_err.c",
     "ms/applink.c",
     "providers/implementations/macs/blake2_mac_impl.c",
+]
+
+TEXTUAL_HEADERS_TEST = [
     "test/radix/quic_bindings.c",
     "test/radix/quic_ops.c",
     "test/radix/quic_tests.c",

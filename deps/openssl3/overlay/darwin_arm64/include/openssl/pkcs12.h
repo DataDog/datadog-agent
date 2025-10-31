@@ -242,7 +242,7 @@ void *PKCS12_item_decrypt_d2i(const X509_ALGOR *algor, const ASN1_ITEM *it,
 void *PKCS12_item_decrypt_d2i_ex(const X509_ALGOR *algor, const ASN1_ITEM *it,
                                  const char *pass, int passlen,
                                  const ASN1_OCTET_STRING *oct, int zbuf,
-                                 OSSL_LIB_CTX *libctx, 
+                                 OSSL_LIB_CTX *libctx,
                                  const char *propq);
 ASN1_OCTET_STRING *PKCS12_item_i2d_encrypt(X509_ALGOR *algor,
                                            const ASN1_ITEM *it,
