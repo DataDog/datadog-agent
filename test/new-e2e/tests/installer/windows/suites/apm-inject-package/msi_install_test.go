@@ -64,7 +64,7 @@ func (s *testAgentMSIInstallsAPMInject) TestEnableDisable() {
 	)
 
 	// Verify the package is installed
-	s.assertSuccessfulPromoteExperiment(s.currentAPMInjectVersion.Version())
+	s.assertSuccessfulPromoteExperiment()
 
 	s.assertDriverInjections(true)
 
