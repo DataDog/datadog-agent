@@ -274,7 +274,6 @@ func (s *testAgentMSIInstallsDotnetLibrary) TestMSIPurge() {
 	// uninstall the MSI with PURGE=1
 	options := []installerwindows.MsiOption{
 		installerwindows.WithMSILogFile("uninstall.log"),
-		installerwindows.WithMSIArg("PURGE=1"),
 	}
 	s.Require().NoError(s.Installer().Uninstall(options...))
 
@@ -284,6 +283,44 @@ func (s *testAgentMSIInstallsDotnetLibrary) TestMSIPurge() {
 	s.startIISApp(webConfigFile, aspxFile)
 	newLibraryPath := s.getLibraryPathFromInstrumentedIIS()
 	s.Require().Empty(newLibraryPath)
+}
+
+func (s *testAgentMSIInstallsDotnetLibrary) TestMSIPurgeDisabled() {
+	// Arrange
+	version := s.currentDotnetLibraryVersion
+
+	// Act
+	s.installCurrentAgentVersion(
+		installerwindows.WithMSIArg("DD_APM_INSTRUMENTATION_ENABLED=iis"),
+		// TODO: remove override once image is published in prod
+		installerwindows.WithMSIArg("DD_INSTALLER_REGISTRY_URL=install.datad0g.com.internal.dda-testing.com"),
+		installerwindows.WithMSIArg(fmt.Sprintf("DD_APM_INSTRUMENTATION_LIBRARIES=dotnet:%s", version.Version())),
+		installerwindows.WithMSILogFile("install.log"),
+	)
+	// Start the IIS app to load the library
+	defer s.stopIISApp()
+	s.startIISApp(webConfigFile, aspxFile)
+
+	// Assert
+	s.assertSuccessfulPromoteExperiment(version.Version())
+	// Check that the expected version of the library is loaded
+	oldLibraryPath := s.getLibraryPathFromInstrumentedIIS()
+	s.Require().Contains(oldLibraryPath, version.Version())
+
+	// uninstall the MSI with PURGE=1
+	options := []installerwindows.MsiOption{
+		installerwindows.WithMSILogFile("uninstall.log"),
+		installerwindows.WithMSIArg("PURGE=0"),
+	}
+	s.Require().NoError(s.Installer().Uninstall(options...))
+
+	// verify it is installed
+	// Restart the IIS application
+	s.startIISApp(webConfigFile, aspxFile)
+
+	// Check that the version of the library is still loaded
+	newLibraryPath := s.getLibraryPathFromInstrumentedIIS()
+	s.Require().Contains(newLibraryPath, version.Version())
 }
 
 // TestDisableEnableScript validates that the enable and disable commands work
