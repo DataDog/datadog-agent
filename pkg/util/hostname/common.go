@@ -10,7 +10,6 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"strings"
 
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
@@ -47,28 +46,6 @@ func fromConfig(ctx context.Context, _ string) (string, error) {
 	}
 	warnIfNotCanonicalHostname(ctx, configName)
 	return configName, nil
-}
-
-func fromHostnameFile(ctx context.Context, _ string) (string, error) {
-	// Try `hostname_file` config option next
-	hostnameFilepath := pkgconfigsetup.Datadog().GetString("hostname_file")
-	if hostnameFilepath == "" {
-		return "", fmt.Errorf("'hostname_file' configuration is not enabled")
-	}
-
-	fileContent, err := os.ReadFile(hostnameFilepath)
-	if err != nil {
-		return "", fmt.Errorf("Could not read hostname from %s: %v", hostnameFilepath, err)
-	}
-
-	hostname := strings.TrimSpace(string(fileContent))
-
-	err = validate.ValidHostname(hostname)
-	if err != nil {
-		return "", err
-	}
-	warnIfNotCanonicalHostname(ctx, hostname)
-	return hostname, nil
 }
 
 func fromFargate(_ context.Context, _ string) (string, error) {

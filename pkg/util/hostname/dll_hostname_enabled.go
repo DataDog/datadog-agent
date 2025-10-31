@@ -13,6 +13,9 @@ import (
 	"context"
 	"fmt"
 	"unsafe"
+
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 /*
@@ -20,37 +23,72 @@ import (
 #include <stdlib.h>
 
 // FFI functions provided by the shared library
-extern char* dd_dll_os_hostname();
+extern char* dd_hostname(const char* provider, const char* hostname_file);
 extern void dd_dll_free(char*);
 */
 import "C"
 
-// getOSHostnameFromDLL attempts to resolve the OS hostname via the external DLL implementation.
-func getOSHostnameFromDLL(ctx context.Context, currentHostname string) (string, error) {
-	ptr := C.dd_dll_os_hostname()
+// dllResolveHostname calls the Rust FFI resolver with the given provider key
+// (e.g., "os", "fqdn"), validates the returned pointer and string, and
+// returns the resolved hostname or an error.
+func dllResolveHostname(providerName string, hostnameFile string) (string, error) {
+	cProvider := C.CString(providerName)
+	defer C.free(unsafe.Pointer(cProvider))
+
+	var cHostnameFile *C.char
+	if hostnameFile != "" {
+		cHostnameFile = C.CString(hostnameFile)
+		defer C.free(unsafe.Pointer(cHostnameFile))
+	}
+
+	ptr := C.dd_hostname(cProvider, cHostnameFile)
 	if ptr == nil {
-		return "", fmt.Errorf("DLL hostname resolver returned null")
+		return "", fmt.Errorf("dll %s resolver returned null", providerName)
 	}
 	defer C.dd_dll_free((*C.char)(unsafe.Pointer(ptr)))
 
 	hostname := C.GoString((*C.char)(unsafe.Pointer(ptr)))
 	if hostname == "" {
-		return "", fmt.Errorf("dll hostname resolver returned empty hostname")
+		return "", fmt.Errorf("dll %s resolver returned empty hostname", providerName)
 	}
 
-	err := fmt.Errorf("Hostname: %q", hostname)
-	panic(err)
+	log.Infof("Resolved a hostname thorugh the DLL (provider: %s): %s", providerName, hostname)
 	return hostname, nil
 }
 
-// getDLLProviders returns the providers backed by the DLL resolver when enabled.
-func getDLLProviders() []provider {
-	return []provider{
-		{
-			name:             "dll_os",
-			cb:               getOSHostnameFromDLL,
-			stopIfSuccessful: false,
-			expvarName:       "dll_os",
-		},
+// fromDLLOS attempts to resolve the OS hostname via the external DLL implementation.
+func fromDLLOS(ctx context.Context, currentHostname string) (string, error) {
+	return dllResolveHostname("os", "")
+}
+
+// fromDLLFQDN attempts to resolve the FQDN via the external DLL implementation.
+func fromDLLFQDN(ctx context.Context, currentHostname string) (string, error) {
+	if !osHostnameUsable(ctx) {
+		return "", fmt.Errorf("FQDN hostname is not usable")
+	}
+	if !pkgconfigsetup.Datadog().GetBool("hostname_fqdn") {
+		return "", fmt.Errorf("'hostname_fqdn' configuration is not enabled")
+	}
+
+	return dllResolveHostname("fqdn", "")
+}
+
+// getDLLOSProvider returns the providers backed by the DLL resolver when enabled.
+func getDLLOSProvider() provider {
+	return provider{
+		name:             "dll_os",
+		cb:               fromDLLOS,
+		stopIfSuccessful: false,
+		expvarName:       "dll_os",
+	}
+}
+
+// getDLLFQDNProvider returns the DLL-backed FQDN provider to be placed alongside the Go FQDN provider.
+func getDLLFQDNProvider() provider {
+	return provider{
+		name:             "dll_fqdn",
+		cb:               fromDLLFQDN,
+		stopIfSuccessful: false,
+		expvarName:       "dll_fqdn",
 	}
 }

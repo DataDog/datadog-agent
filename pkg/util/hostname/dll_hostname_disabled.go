@@ -7,18 +7,38 @@
 
 package hostname
 
-import (
-	"context"
-	"fmt"
-)
+import "fmt"
 
-// getDLLProviders returns no providers when DLL hostname is disabled.
-func getDLLProviders() []provider {
-	panic("not using things!")
-	return nil
+func dllResolveHostname(providerName string, hostnameFile string) (string, error) {
+	return "", fmt.Errorf("DLL hostname resolution is disabled")
 }
 
-// getOSHostnameFromDLL attempts to resolve the OS hostname via the external DLL implementation.
-func getOSHostnameFromDLL(ctx context.Context, currentHostname string) (string, error) {
-	return "", fmt.Errorf("DLL OS-based hostname resolver disabled")
+// getDLLProviders returns no providers when DLL hostname is disabled.
+func getDLLOSProvider() provider {
+	return provider{
+		name:             "dll_os_disabled",
+		cb:               nil,
+		stopIfSuccessful: false,
+		expvarName:       "dll_os_disabled",
+	}
+}
+
+// getDLLFQDNProvider returns no providers when DLL hostname is disabled.
+func getDLLFQDNProvider() provider {
+	return provider{
+		name:             "dll_fqdn_disabled",
+		cb:               nil,
+		stopIfSuccessful: false,
+		expvarName:       "dll_fqdn_disabled",
+	}
+}
+
+// getDLLHostnameFileProvider returns no providers when DLL hostname is disabled.
+func getDLLHostnameFileProvider() provider {
+	return provider{
+		name:             "dll_hostname_file_disabled",
+		cb:               nil,
+		stopIfSuccessful: true,
+		expvarName:       "dll_hostname_file_disabled",
+	}
 }

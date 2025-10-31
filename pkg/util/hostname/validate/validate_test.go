@@ -11,22 +11,55 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestIsLocal(t *testing.T) {
-	assert.False(t, isLocal("datadoghq.com"))
-	assert.True(t, isLocal("LOCALHOST"))
-	assert.True(t, isLocal("localhost.localdomain"))
-	assert.True(t, isLocal("localhost6.localdomain6"))
-	assert.True(t, isLocal("ip6-localhost"))
-}
-
 func TestValidHostname(t *testing.T) {
-	var err error
-	err = ValidHostname("")
-	assert.NotNil(t, err)
-	err = ValidHostname("localhost")
-	assert.NotNil(t, err)
-	err = ValidHostname(strings.Repeat("a", 256))
-	assert.NotNil(t, err)
-	err = ValidHostname("data🐕hq.com")
-	assert.NotNil(t, err)
+	tests := []struct {
+		hostname      string
+		shouldBeValid bool
+	}{
+		{
+			hostname:      "datadoghq.com",
+			shouldBeValid: true,
+		},
+		{
+			hostname:      "",
+			shouldBeValid: false,
+		},
+		{
+			hostname:      "localhost",
+			shouldBeValid: false,
+		},
+		{
+			hostname:      "data🐕hq.com",
+			shouldBeValid: false,
+		},
+		{
+			hostname:      strings.Repeat("a", 256),
+			shouldBeValid: false,
+		},
+		{
+			hostname:      "LOCALHOST", // Localhost identifiers are not valid
+			shouldBeValid: false,
+		},
+		{
+			hostname:      "localhost.localdomain", // Localhost identifiers are not valid
+			shouldBeValid: false,
+		},
+		{
+			hostname:      "localhost6.localdomain6", // Localhost identifiers are not valid
+			shouldBeValid: false,
+		},
+		{
+			hostname:      "ip6-localhost", // Localhost identifiers are not valid
+			shouldBeValid: false,
+		},
+	}
+
+	for _, tt := range tests {
+		err := ValidHostname(tt.hostname)
+		if tt.shouldBeValid {
+			assert.Nil(t, err)
+		} else {
+			assert.NotNil(t, err)
+		}
+	}
 }

@@ -6,46 +6,34 @@
 // Package validate provides hostname validation helpers
 package validate
 
+/*
+#cgo LDFLAGS: -L${SRCDIR}/../rustlib/target/release -ldd_dll_hostname
+#include <stdlib.h>
+extern int dd_valid_hostname_code(const char* input);
+*/
+import "C"
+
 import (
 	"fmt"
-	"regexp"
-	"slices"
-	"strings"
-
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-)
-
-const maxLength = 255
-
-var (
-	validHostnameRfc1123 = regexp.MustCompile(`^(([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9\-]*[a-zA-Z0-9])\.)*([A-Za-z0-9]|[A-Za-z0-9][A-Za-z0-9\-]*[A-Za-z0-9])$`)
-	localhostIdentifiers = []string{
-		"localhost",
-		"localhost.localdomain",
-		"localhost6.localdomain6",
-		"ip6-localhost",
-	}
+	"unsafe"
 )
 
 // ValidHostname determines whether the passed string is a valid hostname.
-// In case it's not, the returned error contains the details of the failure.
+// It delegates to the rustlib validator and returns a descriptive error on failure.
 func ValidHostname(hostname string) error {
-	if hostname == "" {
+	cIn := C.CString(hostname)
+	defer C.free(unsafe.Pointer(cIn))
+	code := C.dd_valid_hostname_code(cIn)
+	switch int(code) {
+	case 0:
+		return nil
+	case 1:
 		return fmt.Errorf("hostname is empty")
-	} else if isLocal(hostname) {
+	case 2:
 		return fmt.Errorf("%s is a local hostname", hostname)
-	} else if len(hostname) > maxLength {
-		log.Errorf("ValidHostname: name exceeded the maximum length of %d characters", maxLength)
-		return fmt.Errorf("name exceeded the maximum length of %d characters", maxLength)
-	} else if !validHostnameRfc1123.MatchString(hostname) {
-		log.Errorf("ValidHostname: %s is not RFC1123 compliant", hostname)
+	case 3:
+		return fmt.Errorf("name exceeded the maximum length of 255 characters")
+	default:
 		return fmt.Errorf("%s is not RFC1123 compliant", hostname)
 	}
-	return nil
-}
-
-// check whether the name is in the list of local hostnames
-func isLocal(name string) bool {
-	name = strings.ToLower(name)
-	return slices.Contains(localhostIdentifiers, name)
 }

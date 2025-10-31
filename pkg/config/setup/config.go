@@ -607,6 +607,9 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	// the entity id, typically set by dca admisson controller config mutator, used for external origin detection
 	config.SetKnown("entity_id") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 
+	// Flag(s) for controlling if the hostname resolution should be done over DLL-based or Go-local implementation
+	config.BindEnvAndSetDefault("use_dll_hostname_resolution.file.enabled", false)
+
 	// Metadata endpoints
 
 	// Defines the maximum size of hostame gathered from EC2, GCE, Azure, Alibaba, Oracle and Tencent cloud metadata

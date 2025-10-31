@@ -5,55 +5,47 @@
 
 package validate
 
+/*
+#cgo LDFLAGS: -L${SRCDIR}/../rustlib/target/release -ldd_dll_hostname
+#include <stdlib.h>
+extern char* dd_normalize_host(const char* input);
+extern char* dd_clean_hostname_dir(const char* input);
+extern void dd_dll_free(char*);
+*/
+import "C"
+
 import (
-	"bytes"
 	"fmt"
-	"regexp"
-)
-
-var (
-	// Filter to clean the directory name from invalid file name characters
-	directoryNameFilter = regexp.MustCompile(`[^a-zA-Z0-9_-]+`)
-)
-
-const (
-	// Maximum size for a directory name
-	directoryToHostnameMaxSize = 32
+	"unsafe"
 )
 
 // NormalizeHost applies a liberal policy on host names.
 func NormalizeHost(host string) (string, error) {
-	var buf bytes.Buffer
-
-	// hosts longer than 253 characters are illegal
-	if len(host) > 253 {
-		return "", fmt.Errorf("hostname is too long, should contain less than 253 characters")
-	}
-
-	for _, r := range host {
-		switch r {
-		// has null rune just toss the whole thing
-		case '\x00':
+	// Explicitly reject null runes to mirror previous Go behavior
+	for i := 0; i < len(host); i++ {
+		if host[i] == 0 { // '\x00'
 			return "", fmt.Errorf("hostname cannot contain null character")
-		// drop these characters entirely
-		case '\n', '\r', '\t':
-			continue
-		// replace characters that are generally used for xss with '-'
-		case '>', '<':
-			buf.WriteByte('-')
-		default:
-			buf.WriteRune(r)
 		}
 	}
 
-	return buf.String(), nil
+	cIn := C.CString(host)
+	defer C.free(unsafe.Pointer(cIn))
+	out := C.dd_normalize_host(cIn)
+	if out == nil {
+		return "", fmt.Errorf("invalid hostname")
+	}
+	defer C.dd_dll_free(out)
+	return C.GoString(out), nil
 }
 
-// CleanHostnameDir returns a hostname normalized to be uses as a directory name.
+// CleanHostnameDir returns a hostname normalized to be uses as a directory name. Used by the Flare logic.
 func CleanHostnameDir(hostname string) string {
-	hostname = directoryNameFilter.ReplaceAllString(hostname, "_")
-	if len(hostname) > directoryToHostnameMaxSize {
-		return hostname[:directoryToHostnameMaxSize]
+	cIn := C.CString(hostname)
+	defer C.free(unsafe.Pointer(cIn))
+	out := C.dd_clean_hostname_dir(cIn)
+	if out == nil {
+		return ""
 	}
-	return hostname
+	defer C.dd_dll_free(out)
+	return C.GoString(out)
 }
