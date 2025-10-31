@@ -8,5 +8,5 @@
 ---
 other:
   - |
-    During Windows MSI uninstallation, OCI packages are now purged by default.
-    To retain OCI packages, set PURGE=0 when running the MSI uninstall.
+    During Windows MSI uninstallation, OCI packages are now uninstalled by default.
+    To retain OCI packages, set KEEP_INSTALLED_PACKAGES=1 when running the MSI uninstall.
