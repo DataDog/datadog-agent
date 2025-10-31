@@ -7,6 +7,8 @@
 package privateactionrunnerimpl
 
 import (
+	"context"
+
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	privateactionrunner "github.com/DataDog/datadog-agent/comp/privateactionrunner/def"
 )
@@ -22,10 +24,21 @@ type Provides struct {
 	Comp privateactionrunner.Component
 }
 
+type privateactionrunnerImpl struct {
+}
+
 // NewComponent creates a new privateactionrunner component
 func NewComponent(reqs Requires) (Provides, error) {
-	// TODO: Implement the privateactionrunner component
-
-	provides := Provides{}
+	provides := Provides{
+		Comp: &privateactionrunnerImpl{},
+	}
 	return provides, nil
+}
+
+func (p *privateactionrunnerImpl) Start(_ context.Context) error {
+	return nil
+}
+
+func (p *privateactionrunnerImpl) Stop(_ context.Context) error {
+	return nil
 }

@@ -3,12 +3,15 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-// Package privateactionrunner ... /* TODO: detailed doc comment for the component */
+// Package privateactionrunner provides a component that enables private actions executions
 package privateactionrunner
 
-// team: /* TODO: add team name */
+import "context"
+
+// team: action-platform
 
 // Component is the component type.
 type Component interface {
-	/* TODO: define Component interface */
+	Start(_ context.Context) error
+	Stop(_ context.Context) error
 }

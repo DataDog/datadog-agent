@@ -14,8 +14,28 @@ import (
 	privateactionrunner "github.com/DataDog/datadog-agent/comp/privateactionrunner/def"
 )
 
-// Mock returns a mock for privateactionrunner component.
-func Mock(t *testing.T) privateactionrunner.Component {
-	// TODO: Implement the privateactionrunner mock
+type mock struct {
+	Logger log.Component
+}
+
+// Start implements the privateactionrunner.Component interface
+func (m mock) Start(_ context.Context) error {
 	return nil
+}
+
+// Stop implements the privateactionrunner.Component interface
+func (m mock) Stop(_ context.Context) error {
+	return nil
+}
+
+// Provides that defines the output of mocked privateactionrunner component
+type Provides struct {
+	comp privateactionrunner.Component
+}
+
+// New returns a mock privateactionrunner
+func New(*testing.T) Provides {
+	return Provides{
+		comp: mock{},
+	}
 }
