@@ -153,14 +153,8 @@ func (s *Servicedef) IsEnabled() bool {
 
 // ShouldStop checks to see if a service should be stopped
 func (s *Servicedef) ShouldStop() bool {
-	// Always stop OTEL on core shutdown, regardless of config
-	if s.serviceName == "datadog-otel-agent" {
-		return true
-	}
-	if !s.IsEnabled() {
-		log.Infof("Service %s is disabled, not stopping", s.name)
-		return false
-	}
+	// Note: to stop service without checking s.IsEnabled()
+
 	if !s.shouldShutdown {
 		log.Infof("Service %s is not configured to stop, not stopping", s.name)
 		return false
