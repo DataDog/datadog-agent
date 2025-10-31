@@ -214,7 +214,7 @@ build do
             # https://docs.datadoghq.com/agent/supported_platforms/?tab=macos
             allow_list = [
               "libddwaf\\.dylib",
-              "secret-generic-connector",
+              #"secret-generic-connector", ## comment out for testing
             ]
             command_on_repo_root "./omnibus/scripts/check_macos_version.sh",
                                  live_stream: Omnibus.logger.live_stream(:info),
