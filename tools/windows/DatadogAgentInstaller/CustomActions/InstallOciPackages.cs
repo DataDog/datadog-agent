@@ -36,7 +36,7 @@ namespace Datadog.CustomActions
         private bool ShouldPurge()
         {
             var purge = _session.Property("PURGE");
-            return !string.IsNullOrEmpty(purge) && purge == "1";
+            return string.IsNullOrEmpty(purge) || purge != "0";
         }
 
         private bool ShouldInstall()
@@ -148,7 +148,7 @@ namespace Datadog.CustomActions
         {
             if (!ShouldPurge())
             {
-                _session.Log("Skipping purge as PURGE is not set to 1");
+                _session.Log("Skipping purge as PURGE is set to 0");
                 return ActionResult.Success;
             }
             try
