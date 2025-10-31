@@ -44,10 +44,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dyninst/dyninsttest"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/module"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/module/tombstone"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/process"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/rcjson"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/testprogs"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/uploader"
+	"github.com/DataDog/datadog-agent/pkg/util/backoff"
 )
 
 type testState struct {
@@ -157,9 +159,18 @@ type e2eTestConfig struct {
 	addSymdb bool
 }
 
-type subscribeFunc func(func(process.ProcessesUpdate))
+type fakeSubscriber struct {
+	subscribeFunc func(func(process.ProcessesUpdate))
+	startFunc     func()
+}
 
-func (f subscribeFunc) Subscribe(cb func(process.ProcessesUpdate)) { f(cb) }
+func (f *fakeSubscriber) Subscribe(cb func(process.ProcessesUpdate)) {
+	f.subscribeFunc(cb)
+}
+
+func (f *fakeSubscriber) Start() {
+	f.startFunc()
+}
 
 func runE2ETest(t *testing.T, cfg e2eTestConfig) {
 	tmpDir, cleanup := dyninsttest.PrepTmpDir(t, strings.ReplaceAll(t.Name(), "/", "_"))
@@ -200,26 +211,32 @@ func runE2ETest(t *testing.T, cfg e2eTestConfig) {
 	modCfg.SymDBUploaderURL = ts.symdbURL
 	modCfg.ProcessSyncDisabled = true
 
+	started := make(chan struct{})
 	symdbProcStates := make(map[process.ID]bool)
-	if cfg.addSymdb {
-		modCfg.TestingKnobs.ProcessSubscriberOverride = func(
-			subscriber module.ProcessSubscriber,
-		) module.ProcessSubscriber {
-			return subscribeFunc(func(callback func(process.ProcessesUpdate)) {
+	modCfg.TestingKnobs.ProcessSubscriberOverride = func(
+		subscriber module.ProcessSubscriber,
+	) module.ProcessSubscriber {
+		return &fakeSubscriber{
+			subscribeFunc: func(callback func(process.ProcessesUpdate)) {
 				subscriber.Subscribe(func(update process.ProcessesUpdate) {
-					if len(update.Updates) > 0 {
+					if cfg.addSymdb && len(update.Updates) > 0 {
 						u := update.Updates[0]
 						symdbProcStates[u.ProcessID] = u.ShouldUploadSymDB
 					}
 					callback(update)
 				})
-			})
+			},
+			startFunc: func() {
+				subscriber.Start()
+				close(started)
+			},
 		}
 	}
 
 	ts.module, err = module.NewModule(modCfg, subscriber)
 	require.NoError(t, err)
 	t.Cleanup(ts.module.Close)
+	<-started
 	subscriber.NotifyExec(ts.servicePID)
 
 	expectedProbeIDs := []string{"look_at_the_request", "http_handler"}
@@ -879,4 +896,98 @@ func (m *mockBackend) getLogPayloads() [][]byte {
 	ret := m.logPayloads
 	m.logPayloads = nil
 	return ret
+}
+
+// Test that starting the module waits on a tombstone file.
+func TestWaitOnTombstone(t *testing.T) {
+	dyninsttest.SkipIfKernelNotSupported(t)
+	cfg := e2eTestConfig{
+		cfg:       testprogs.MustGetCommonConfigs(t)[0],
+		binary:    "",
+		rewrite:   false,
+		useDocker: false,
+		addSymdb:  false,
+	}
+	tmpDir, cleanup := dyninsttest.PrepTmpDir(t, strings.ReplaceAll(t.Name(), "/", "_"))
+	defer cleanup()
+	ts := &testState{tmpDir: tmpDir, useDocker: cfg.useDocker}
+	diagCh := make(chan []byte, 10)
+	ts.backend = &mockBackend{diagPayloadCh: diagCh}
+	ts.backendServer = httptest.NewServer(ts.backend)
+	t.Cleanup(ts.backendServer.Close)
+
+	ts.rc = dyninsttest.NewMockAgentRCServer()
+	ts.rcServer = httptest.NewServer(ts.rc)
+	t.Cleanup(ts.rcServer.Close)
+	t.Cleanup(ts.rc.Close)
+
+	subscriber := &mockSubscriber{}
+	modCfg, err := module.NewConfig(nil)
+	require.NoError(t, err)
+	modCfg.ProcessSyncDisabled = true
+
+	started := make(chan struct{})
+	modCfg.TestingKnobs.ProcessSubscriberOverride = func(
+		subscriber module.ProcessSubscriber,
+	) module.ProcessSubscriber {
+		return &fakeSubscriber{
+			subscribeFunc: func(func(process.ProcessesUpdate)) {},
+			startFunc: func() {
+				subscriber.Start()
+				close(started)
+			},
+		}
+	}
+	unblockSleep := make(chan struct{})
+	modCfg.TestingKnobs.TombstoneSleepKnobs = tombstone.WaitTestingKnobs{
+		BackoffPolicy: &ShortWaitPolicy{},
+		OnSleep: func() {
+			<-unblockSleep
+		},
+	}
+
+	// Write a tombstone file, simulating a previous crash.
+	dir := t.TempDir()
+	tombstonePath := filepath.Join(dir, "tombstone.json")
+	modCfg.ProbeTombstoneFilePath = tombstonePath
+	require.NoError(t, tombstone.WriteTombstoneFile(tombstonePath, 1 /* errorNumber */))
+
+	// Instantiate the module. This will start the ProcessSubscriber
+	// asynchronously; we'll check that the starting only happens after a sleep.
+	ts.module, err = module.NewModule(modCfg, subscriber)
+	require.NoError(t, err)
+	t.Cleanup(ts.module.Close)
+
+	// Check that ProcessSubscriber.Start is not called before the sleep is done.
+	select {
+	case <-started:
+		t.Fatalf("unexpected start")
+	case <-time.After(10 * time.Millisecond):
+	}
+
+	// Unblock the sleep.
+	close(unblockSleep)
+
+	// Check that ProcessSubscriber.Start is called soon after.
+	select {
+	case <-started:
+	case <-time.After(time.Second):
+		t.Fatalf("ProcessSubscriber.Start not called in a timely manner")
+	}
+}
+
+type ShortWaitPolicy struct{}
+
+var _ backoff.Policy = &ShortWaitPolicy{}
+
+func (s *ShortWaitPolicy) IncError(int) int {
+	return 0
+}
+
+func (s *ShortWaitPolicy) DecError(int) int {
+	return 0
+}
+
+func (s *ShortWaitPolicy) GetBackoffDuration(int) time.Duration {
+	return time.Millisecond
 }
