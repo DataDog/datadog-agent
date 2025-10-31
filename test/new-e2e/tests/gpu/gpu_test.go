@@ -156,7 +156,10 @@ func runGpuHostSuite(t *testing.T, gpuSystem systemName) {
 
 func (s *gpuHostSuite) SetupSuite() {
 	// The base suite needs the capabilities struct, so set it before calling the base SetupSuite
-	s.caps = &hostCapabilities{&s.BaseSuite}
+	s.caps = &hostCapabilities{
+		suite:             &s.BaseSuite,
+		containerIDToName: make(map[string]string),
+	}
 	s.gpuBaseSuite.SetupSuite()
 }
 
@@ -217,7 +220,10 @@ func runGpuK8sSuite(t *testing.T, gpuSystem systemName) {
 
 func (s *gpuK8sSuite) SetupSuite() {
 	// The base suite needs the capabilities struct, so set it before calling the base SetupSuite
-	s.caps = &kubernetesCapabilities{&s.BaseSuite}
+	s.caps = &kubernetesCapabilities{
+		suite:          &s.BaseSuite,
+		containerToJob: make(map[string]string),
+	}
 	s.gpuBaseSuite.SetupSuite()
 }
 
@@ -355,9 +361,13 @@ func (v *gpuBaseSuite[Env]) TestVectorAddProgramDetected() {
 	// seems it's always the same error code.
 	flake.MarkOnLog(v.T(), errMsgNoCudaCapableDevice)
 	flake.MarkOnLog(v.T(), "error code CUDA-capable device(s) is/are busy or unavailable")
-	_ = v.runCudaDockerWorkload()
+	containerID := v.runCudaDockerWorkload()
 
 	v.EventuallyWithT(func(c *assert.CollectT) {
+		// Check for workload errors first
+		err := v.caps.CheckWorkloadErrors(containerID)
+		assert.NoError(c, err, "workload job should not have errors")
+
 		// We are not including "gpu.memory", as that represents the "current
 		// memory usage" and that might be zero at the time it's checked
 		metricNames := []string{"gpu.process.core.usage"}
