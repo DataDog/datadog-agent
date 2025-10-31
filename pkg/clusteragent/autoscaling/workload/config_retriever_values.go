@@ -25,11 +25,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/model"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
-<<<<<<< HEAD
-=======
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	le "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection/metrics"
->>>>>>> 611e0f5efb (update DPA telemetry after pull request comments)
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -91,6 +88,7 @@ func (p *autoscalingValuesProcessor) processValues(values *kubeAutoscaling.Workl
 	}
 
 	id := autoscaling.BuildObjectID(values.Namespace, values.Name)
+	podAutoscaler, _ := p.store.LockRead(id, false)
 
 	scalingValues, err := parseAutoscalingValues(timestamp, values)
 	if err != nil {

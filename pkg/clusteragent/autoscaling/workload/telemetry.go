@@ -38,7 +38,7 @@ var (
 	telemetryReceivedRecommendationsVersion = telemetry.NewGaugeWithOpts(
 		subsystem,
 		"received_recommendations_version",
-		dpaLabels,
+		dpaTelemetryLabels,
 		"Tracks the version of the received recommendations by the config retriever",
 		commonOpts,
 	)
