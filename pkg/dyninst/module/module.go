@@ -242,7 +242,7 @@ func makeRealDependencies(
 
 	approximateBootTime := time.Now().Add(time.Duration(-ts.Nano()))
 	ret.decoderFactory = decoderFactory{approximateBootTime: approximateBootTime}
-	ret.symdbManager = newSymdbManager(symdbUploaderURL, ret.objectLoader)
+	ret.symdbManager = newSymdbManager(symdbUploaderURL, ret.objectLoader, config.SymDBCacheDir)
 	ret.attacher = &defaultAttacher{}
 	ret.programCompiler = &stackMachineCompiler{}
 	return ret, nil
