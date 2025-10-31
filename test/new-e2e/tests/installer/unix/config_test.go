@@ -48,9 +48,6 @@ func (s *configSuite) TestConfig() {
 }
 
 func (s *configSuite) TestConfigFailureCrash() {
-	if s.Env().RemoteHost.OSFamily == e2eos.WindowsFamily {
-		s.T().Skip("FIXME: Experiments on windows")
-	}
 	s.agent.MustInstall(agent.WithRemoteUpdates())
 	defer s.agent.MustUninstall()
 
@@ -66,12 +63,9 @@ func (s *configSuite) TestConfigFailureCrash() {
 }
 
 func (s *configSuite) TestConfigFailureTimeout() {
-	if s.Env().RemoteHost.OSFamily == e2eos.WindowsFamily {
-		s.T().Skip("FIXME: Experiments on windows")
-	}
 	s.agent.MustInstall(agent.WithRemoteUpdates())
 	defer s.agent.MustUninstall()
-	s.agent.MustSetExperimentTimeout(10 * time.Second)
+	s.agent.MustSetExperimentTimeout(60 * time.Second)
 	defer s.agent.MustUnsetExperimentTimeout()
 
 	err := s.backend.StartConfigExperiment(fleetbackend.ConfigOperations{
@@ -83,6 +77,7 @@ func (s *configSuite) TestConfigFailureTimeout() {
 	require.NoError(s.T(), err)
 	require.Equal(s.T(), "debug", config["log_level"])
 
+	time.Sleep(60 * time.Second)
 	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
 		config, err := s.agent.Configuration()
 		require.NoError(c, err)
@@ -91,9 +86,6 @@ func (s *configSuite) TestConfigFailureTimeout() {
 }
 
 func (s *configSuite) TestConfigFailureHealth() {
-	if s.Env().RemoteHost.OSFamily == e2eos.WindowsFamily {
-		s.T().Skip("FIXME: Experiments on windows")
-	}
 	if s.Env().RemoteHost.OSFlavor == e2eos.CentOS && s.Env().RemoteHost.OSVersion == e2eos.CentOS7.Version {
 		s.T().Skip("FIXME: Broken on CentOS 7 for some unknown reason")
 	}
