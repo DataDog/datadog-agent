@@ -27,7 +27,7 @@ jobs:
     - uses: wangyoucao577/go-release-action@v1
       with:
         github_token: ${{ secrets.GITHUB_TOKEN }}
-        goversion: 1.24.6
+        goversion: 1.25.3
         goos: ${{ matrix.goos }}
         goarch: ${{ matrix.goarch }}
         asset_name: datadog-secret-backend-${{ matrix.goos }}-${{ matrix.goarch }}
