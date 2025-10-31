@@ -22,6 +22,8 @@ import (
 
 const (
 	subsystem = "autoscaling_workload"
+
+	allContainerLabelContainerNameValue = "all_containers"
 )
 
 var (
@@ -409,7 +411,11 @@ func trackVerticalConstraints(podAutoscaler *datadoghq.DatadogPodAutoscaler) {
 	if spec.Constraints != nil && len(spec.Constraints.Containers) > 0 {
 		// Track per-container constraints
 		for _, containerConstraint := range spec.Constraints.Containers {
-			containerLabels := append(labels[:len(labels)-1], containerConstraint.Name, le.JoinLeaderValue)
+			containerName := allContainerLabelContainerNameValue
+			if containerConstraint.Name != "" {
+				containerName = containerConstraint.Name
+			}
+			containerLabels := append(labels[:len(labels)-1], containerName, le.JoinLeaderValue)
 
 			// Track enabled flag (defaults to true if not specified)
 			if containerConstraint.Enabled != nil {
