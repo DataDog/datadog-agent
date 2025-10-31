@@ -344,19 +344,6 @@ func NewDefaultForwarder(config config.Component, log log.Component, options *Op
 	transactionContainerSort := transaction.SortByCreatedTimeAndPriority{HighPriorityFirst: false}
 
 	for domain, resolver := range options.DomainResolvers {
-		isMRF := false
-		if config.GetBool("multi_region_failover.enabled") {
-			log.Infof("MRF is enabled, checking site: %v ", domain)
-			siteURL, err := utils.GetMRFInfraEndpoint(config)
-			if err != nil {
-				log.Error("Error building MRF infra endpoint: ", err)
-			}
-			if domain == siteURL {
-				log.Infof("MRF domain '%s', configured ", domain)
-				isMRF = true
-			}
-
-		}
 		domain, _ := utils.AddAgentVersionToDomain(domain, "app")
 		resolver.SetBaseDomain(domain)
 
@@ -391,7 +378,7 @@ func NewDefaultForwarder(config config.Component, log log.Component, options *Op
 				config,
 				log,
 				domain,
-				isMRF,
+				resolver.IsMRF(),
 				resolver.IsLocal(),
 				transactionContainer,
 				numberOfWorkers,

@@ -57,6 +57,8 @@ type domainResolver struct {
 
 	overrides           map[string]destination
 	alternateDomainList []string
+
+	isMRF bool
 }
 
 // OnUpdateConfig adds a hook into the config which will listen for updates to the API keys
@@ -149,24 +151,30 @@ func updateAdditionalEndpoints(resolver DomainResolver, setting string, config c
 	}
 }
 
-// NewSingleDomainResolver creates a SingleDomainResolver with its destination domain & API keys
+// NewSingleDomainResolver creates a DomainResolver with its destination domain & API keys
 func NewSingleDomainResolver(domain string, apiKeys []utils.APIKeys) (DomainResolver, error) {
+	return NewSingleDomainResolver2(utils.EndpointDescriptor{BaseURL: domain, APIKeys: apiKeys})
+}
+
+// NewSingleDomainResolver2 creates a DomainResolver from an endpoint configuration object.
+func NewSingleDomainResolver2(descriptor utils.EndpointDescriptor) (DomainResolver, error) {
 	// Ensure all API keys have a config setting path so we can keep track to ensure they are updated
 	// when the config changes.
-	for key := range apiKeys {
-		if apiKeys[key].ConfigSettingPath == "" {
-			return nil, fmt.Errorf("API key for %v does not specify a config setting path", domain)
+	for _, keys := range descriptor.APIKeys {
+		if keys.ConfigSettingPath == "" {
+			return nil, fmt.Errorf("API key for %v does not specify a config setting path", descriptor.BaseURL)
 		}
 	}
 
-	deduped := utils.DedupAPIKeys(apiKeys)
+	deduped := utils.DedupAPIKeys(descriptor.APIKeys)
 
 	return &domainResolver{
-		domain:         domain,
-		apiKeys:        apiKeys,
+		domain:         descriptor.BaseURL,
+		apiKeys:        descriptor.APIKeys,
 		keyVersion:     0,
 		dedupedAPIKeys: deduped,
 		mu:             sync.Mutex{},
+		isMRF:          descriptor.IsMRF,
 	}, nil
 }
 
@@ -180,7 +188,7 @@ func NewSingleDomainResolvers2(eds utils.EndpointDescriptorSet) (map[string]Doma
 	resolvers := make(map[string]DomainResolver)
 	for _, ed := range eds {
 		var err error
-		resolvers[ed.BaseURL], err = NewSingleDomainResolver(ed.BaseURL, ed.APIKeys)
+		resolvers[ed.BaseURL], err = NewSingleDomainResolver2(ed)
 		if err != nil {
 			return nil, err
 		}
@@ -388,4 +396,9 @@ func (r *domainResolver) IsUsable() bool {
 // IsLocal returns true if the domain corresponds to another agent.
 func (r *domainResolver) IsLocal() bool {
 	return r.destinationType == Local
+}
+
+// IsMRF returns true when the domain is used as the target for multi region failover.
+func (r *domainResolver) IsMRF() bool {
+	return r.isMRF
 }

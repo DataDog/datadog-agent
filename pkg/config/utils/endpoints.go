@@ -126,6 +126,7 @@ func DedupAPIKeys(endpoints []APIKeys) []string {
 type EndpointDescriptor struct {
 	BaseURL string
 	APIKeys []APIKeys
+	IsMRF   bool
 }
 
 func newEndpointDescriptor(baseURL, configKey string, apiKeys ...string) EndpointDescriptor {
@@ -190,6 +191,7 @@ func GetMultipleEndpoints(c pkgconfigmodel.Reader) (EndpointDescriptorSet, error
 		eds[haURL] = EndpointDescriptor{
 			BaseURL: haURL,
 			APIKeys: newAPIKeyset("multi_region_failover.api_key", c.GetString("multi_region_failover.api_key")),
+			IsMRF:   true,
 		}
 	}
 
