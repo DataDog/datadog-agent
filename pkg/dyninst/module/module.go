@@ -25,8 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dyninst/module/tombstone"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/object"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/process"
-	"github.com/DataDog/datadog-agent/pkg/dyninst/procscrape"
-	"github.com/DataDog/datadog-agent/pkg/dyninst/rcscrape"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/procsubscribe"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/uploader"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/utils"
@@ -51,9 +50,10 @@ type Module struct {
 
 // NewModule creates a new dynamic instrumentation module.
 func NewModule(
-	config *Config, processEventSource procscrape.EventSource,
+	config *Config,
+	remoteConfigSubscriber procsubscribe.RemoteConfigSubscriber,
 ) (_ *Module, err error) {
-	realDeps, err := makeRealDependencies(config, processEventSource)
+	realDeps, err := makeRealDependencies(config, remoteConfigSubscriber)
 	if err != nil {
 		return nil, err
 	}
@@ -131,17 +131,17 @@ func newUnstartedModule(deps dependencies, tombstoneFilePath string) *Module {
 }
 
 type realDependencies struct {
-	logUploader       *uploader.LogsUploaderFactory
-	diagsUploader     *uploader.DiagnosticsUploader
-	actuator          *actuator.Actuator
-	dispatcher        *dispatcher.Dispatcher
-	loader            *loader.Loader
-	attacher          *defaultAttacher
-	scraper           *rcscrape.Scraper
-	symdbManager      *symdbManager
-	processSubscriber *procscrape.Subscriber
-	decoderFactory    decoderFactory
-	programCompiler   *stackMachineCompiler
+	logUploader    *uploader.LogsUploaderFactory
+	diagsUploader  *uploader.DiagnosticsUploader
+	actuator       *actuator.Actuator
+	dispatcher     *dispatcher.Dispatcher
+	loader         *loader.Loader
+	attacher       *defaultAttacher
+	symdbManager   *symdbManager
+	procSubscriber *procsubscribe.Subscriber
+
+	decoderFactory  decoderFactory
+	programCompiler *stackMachineCompiler
 
 	objectLoader object.Loader
 	irGenerator  IRGenerator
@@ -150,7 +150,7 @@ type realDependencies struct {
 func (c *realDependencies) asDependencies() dependencies {
 	return dependencies{
 		Actuator:            &erasedActuator[*actuator.Actuator, *actuator.Tenant]{a: c.actuator},
-		ProcessSubscriber:   c.processSubscriber,
+		ProcessSubscriber:   c.procSubscriber,
 		Dispatcher:          c.dispatcher,
 		DecoderFactory:      c.decoderFactory,
 		IRGenerator:         c.irGenerator,
@@ -186,14 +186,14 @@ func (c *realDependencies) shutdown() {
 	if c.symdbManager != nil {
 		c.symdbManager.stop()
 	}
-	if c.processSubscriber != nil {
-		c.processSubscriber.Close()
+	if c.procSubscriber != nil {
+		c.procSubscriber.Close()
 	}
 }
 
 func makeRealDependencies(
 	config *Config,
-	procEventSource procscrape.EventSource,
+	remoteConfigSubscriber procsubscribe.RemoteConfigSubscriber,
 ) (_ realDependencies, retErr error) {
 	var ret realDependencies
 	defer func() {
@@ -254,12 +254,8 @@ func makeRealDependencies(
 		return ret, fmt.Errorf("error getting monotonic time: %w", err)
 	}
 	ret.dispatcher = dispatcher.NewDispatcher(ret.loader.OutputReader())
-	ret.scraper = rcscrape.NewScraper(ret.actuator, ret.dispatcher, ret.loader)
-	if procEventSource == nil {
-		return ret, fmt.Errorf("missing process subscriber dependency")
-	}
-	ret.processSubscriber = procscrape.NewSubscriber(
-		ret.scraper, procEventSource, config.ProcessSyncDisabled,
+	ret.procSubscriber = procsubscribe.NewRemoteConfigProcessSubscriber(
+		remoteConfigSubscriber,
 	)
 
 	approximateBootTime := time.Now().Add(time.Duration(-ts.Nano()))

@@ -12,6 +12,7 @@ import (
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
+	ssluprobes "github.com/DataDog/datadog-agent/pkg/network/tracer/connection/ssl-uprobes"
 	"github.com/DataDog/datadog-agent/pkg/util/slices"
 )
 
@@ -86,6 +87,10 @@ func initManager(mgr *ddebpf.Manager, runtimeTracer bool) error {
 		{Name: probes.TCPRecvMsgArgsMap},
 		{Name: probes.ClassificationProgsMap},
 		{Name: probes.TCPCloseProgsMap},
+		{Name: probes.SSLCertsStatemArgsMap},
+		{Name: probes.SSLCertsI2DX509ArgsMap},
+		{Name: probes.SSLHandshakeStateMap},
+		{Name: probes.SSLCertInfoMap},
 	}
 
 	var funcNameToProbe = func(funcName probes.ProbeFuncName) *manager.Probe {
@@ -97,7 +102,17 @@ func initManager(mgr *ddebpf.Manager, runtimeTracer bool) error {
 		}
 	}
 
+	var funcNameToSSLProbe = func(funcName probes.ProbeFuncName) *manager.Probe {
+		return &manager.Probe{
+			ProbeIdentificationPair: ssluprobes.IDPairFromFuncName(funcName),
+		}
+	}
+
 	mgr.Probes = append(mgr.Probes, slices.Map(mainProbes, funcNameToProbe)...)
+
+	mgr.Probes = append(mgr.Probes, slices.Map(ssluprobes.OpenSSLUProbes, funcNameToSSLProbe)...)
+	mgr.Probes = append(mgr.Probes, ssluprobes.GetSchedExitProbeSSL())
+
 	mgr.Probes = append(mgr.Probes, slices.Map(batchProbes, funcNameToProbe)...)
 	mgr.Probes = append(mgr.Probes, slices.Map([]probes.ProbeFuncName{
 		probes.SKBFreeDatagramLocked,
