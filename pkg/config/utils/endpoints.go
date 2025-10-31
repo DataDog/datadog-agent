@@ -55,25 +55,6 @@ func NewAPIKeys(path string, keys ...string) APIKeys {
 	}
 }
 
-// mergeAdditionalEndpoints merges additional endpoints into keysPerDomain
-func mergeAdditionalEndpoints(keysPerDomain, additionalEndpoints map[string][]APIKeys) (map[string][]APIKeys, error) {
-	for domain, apiKeys := range additionalEndpoints {
-		// Validating domain
-		_, err := url.Parse(domain)
-		if err != nil {
-			return nil, fmt.Errorf("could not parse url from 'additional_endpoints' %s: %s", domain, err)
-		}
-
-		if _, ok := keysPerDomain[domain]; ok {
-			keysPerDomain[domain] = append(keysPerDomain[domain], apiKeys...)
-		} else {
-			keysPerDomain[domain] = apiKeys
-		}
-	}
-
-	return keysPerDomain, nil
-}
-
 // GetMainEndpointBackwardCompatible implements the logic to extract the DD URL from a config, based on `site`,ddURLKey and a backward compatible key
 func GetMainEndpointBackwardCompatible(c pkgconfigmodel.Reader, prefix string, ddURLKey string, backwardKey string) string {
 	if c.IsSet(ddURLKey) && c.GetString(ddURLKey) != "" {
@@ -154,19 +135,33 @@ func GetMultipleEndpoints(c pkgconfigmodel.Reader) (map[string][]APIKeys, error)
 
 	additionalEndpoints := MakeEndpoints(c.GetStringMapStringSlice("additional_endpoints"), "additional_endpoints")
 
+	for domain, apiKeys := range additionalEndpoints {
+		// Validating domain
+		_, err := url.Parse(domain)
+		if err != nil {
+			return nil, fmt.Errorf("could not parse url from 'additional_endpoints' %s: %s", domain, err)
+		}
+
+		if _, ok := keysPerDomain[domain]; ok {
+			keysPerDomain[domain] = append(keysPerDomain[domain], apiKeys...)
+		} else {
+			keysPerDomain[domain] = apiKeys
+		}
+	}
+
 	// populate with MRF endpoints too
 	if c.GetBool("multi_region_failover.enabled") {
 		haURL, err := GetMRFInfraEndpoint(c)
 		if err != nil {
 			return nil, fmt.Errorf("could not parse MRF endpoint: %s", err)
 		}
-		additionalEndpoints[haURL] = []APIKeys{{
+		keysPerDomain[haURL] = []APIKeys{{
 			ConfigSettingPath: "multi_region_failover.api_key",
 			Keys:              []string{c.GetString("multi_region_failover.api_key")},
 		}}
 	}
 
-	return mergeAdditionalEndpoints(keysPerDomain, additionalEndpoints)
+	return keysPerDomain, nil
 }
 
 var wellKnownSitesRe = regexp.MustCompile(`(?:datadoghq|datad0g)\.(?:com|eu)$|ddog-gov\.com$`)
