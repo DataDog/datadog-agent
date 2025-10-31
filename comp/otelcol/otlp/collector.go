@@ -139,6 +139,8 @@ type PipelineConfig struct {
 	Debug map[string]interface{}
 	// Metrics contains configuration options for the serializer metrics exporter
 	Metrics map[string]interface{}
+	// MetricsBatch contains configuration options for the sending queue batch
+	MetricsBatch map[string]interface{}
 }
 
 // shouldSetLoggingSection returns whether debug logging is enabled.

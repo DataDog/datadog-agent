@@ -43,7 +43,8 @@ func buildMetricsMap(cfg PipelineConfig) (*confmap.Conf, error) {
 		return nil, err
 	}
 	smap := map[string]interface{}{
-		buildKey("exporters", "serializer", "metrics"): cfg.Metrics,
+		buildKey("exporters", "serializer", "metrics"):                cfg.Metrics,
+		buildKey("exporters", "serializer", "sending_queue", "batch"): cfg.MetricsBatch,
 	}
 	{
 		configMap := confmap.NewFromStringMap(smap)

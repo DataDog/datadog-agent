@@ -19,6 +19,7 @@ const (
 	OTLPReceiverSection       = OTLPSection + "." + OTLPReceiverSubSectionKey
 	OTLPMetrics               = OTLPSection + ".metrics"
 	OTLPMetricsEnabled        = OTLPMetrics + ".enabled"
+	OTLPMetricsBatch          = OTLPMetrics + ".batch"
 	OTLPDebug                 = OTLPSection + "." + "debug"
 )
 
@@ -76,6 +77,9 @@ func OTLP(config pkgconfigmodel.Setup) {
 	config.BindEnv("otlp_config.metrics.sums.cumulative_monotonic_mode")          //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv' // TODO OTLP team: add default value
 	config.BindEnv("otlp_config.metrics.sums.initial_cumulative_monotonic_value") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv' // TODO OTLP team: add default value
 	config.BindEnv("otlp_config.metrics.summaries.mode")                          //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv' // TODO OTLP team: add default value
+	config.BindEnv("otlp_config.metrics.batch.min_size")                          //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv' // TODO OTLP team: add default value
+	config.BindEnv("otlp_config.metrics.batch.max_size")                          //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv' // TODO OTLP team: add default value
+	config.BindEnv("otlp_config.metrics.batch.flush_timeout")                     //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv' // TODO OTLP team: add default value
 
 	// Debug settings
 	config.BindEnv("otlp_config.debug.verbosity") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
