@@ -23,6 +23,7 @@ func Benchmark_cStringArrayToSlice(b *testing.B) {
 	cArray := testHelperSliceToCStringArray(slice)
 
 	b.ReportAllocs()
+	b.ResetTimer()
 
 	for b.Loop() {
 		stringsSink = cStringArrayToSlice(cArray)
