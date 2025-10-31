@@ -69,6 +69,7 @@ var (
 		"DD_PROXY_HTTP",
 		"DD_PROXY_HTTPS",
 		"DD_PROXY_NO_PROXY",
+		"DD_INFRASTRUCTURE_MODE",
 	}
 )
 
@@ -146,9 +147,18 @@ func setConfigSecurityProducts(s *common.Setup) {
 
 // setConfigInstallerDaemon sets the daemon in the configuration
 func setConfigInstallerDaemon(s *common.Setup) {
-	s.Config.DatadogYAML.RemoteUpdates = true
-	if val, ok := os.LookupEnv("DD_REMOTE_UPDATES"); ok && strings.ToLower(val) == "false" {
+	if runtime.GOOS == "windows" {
+		// on windows this needs to default to false
+		// as setup is the entry point for FIPS installations as well
 		s.Config.DatadogYAML.RemoteUpdates = false
+		if val, ok := os.LookupEnv("DD_REMOTE_UPDATES"); ok && strings.ToLower(val) == "true" {
+			s.Config.DatadogYAML.RemoteUpdates = true
+		}
+	} else {
+		s.Config.DatadogYAML.RemoteUpdates = true
+		if val, ok := os.LookupEnv("DD_REMOTE_UPDATES"); ok && strings.ToLower(val) == "false" {
+			s.Config.DatadogYAML.RemoteUpdates = false
+		}
 	}
 }
 
