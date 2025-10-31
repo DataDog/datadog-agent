@@ -7,6 +7,7 @@ package injecttests
 
 import (
 	"fmt"
+	"os"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	winawshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host/windows"
@@ -17,6 +18,8 @@ import (
 
 type testAgentScriptInstallsAPMInject struct {
 	baseSuite
+	currentAPMInjectVersion  installerwindows.PackageVersion
+	previousAPMInjectVersion installerwindows.PackageVersion
 }
 
 // TestAgentScriptInstallsAPMInject tests the usage of the install script to install the apm-inject package.
@@ -28,6 +31,15 @@ func TestAgentScriptInstallsAPMInject(t *testing.T) {
 
 func (s *testAgentScriptInstallsAPMInject) SetupSuite() {
 	s.baseSuite.SetupSuite()
+
+	s.currentAPMInjectVersion = installerwindows.NewVersionFromPackageVersion(os.Getenv("CURRENT_APM_INJECT_VERSION"))
+	if s.currentAPMInjectVersion.PackageVersion() == "" {
+		s.currentAPMInjectVersion = installerwindows.NewVersionFromPackageVersion("0.50.0-dev.ba30ecb.glci1208428525.g594e53fe-1")
+	}
+	s.previousAPMInjectVersion = installerwindows.NewVersionFromPackageVersion(os.Getenv("PREVIOUS_APM_INJECT_VERSION"))
+	if s.previousAPMInjectVersion.PackageVersion() == "" {
+		s.previousAPMInjectVersion = installerwindows.NewVersionFromPackageVersion("0.50.0-dev.beb48a5.glci1208433719.g08c01dc4-1")
+	}
 }
 
 func (s *testAgentScriptInstallsAPMInject) AfterTest(suiteName, testName string) {
@@ -42,14 +54,16 @@ func (s *testAgentScriptInstallsAPMInject) TestInstallFromScript() {
 		installerwindows.WithExtraEnvVars(map[string]string{
 			"DD_APM_INSTRUMENTATION_ENABLED": "host",
 			// TODO: remove override once image is published in prod
-			"DD_INSTALLER_REGISTRY_URL":                           "install.datad0g.com.internal.dda-testing.com",
-			"DD_INSTALLER_DEFAULT_PKG_VERSION_DATADOG_APM_INJECT": "38f904a56919109d573951718671bdd72f1b4b87",
-			"DD_INSTALLER_REGISTRY_URL_DATADOG_APM_INJECT":        "installtesting.datad0g.com",
+			"DD_INSTALLER_REGISTRY_URL":                           "install.datad0g.com",
+			"DD_INSTALLER_DEFAULT_PKG_VERSION_DATADOG_APM_INJECT": s.currentAPMInjectVersion.PackageVersion(),
+			"DD_APM_INSTRUMENTATION_LIBRARIES":                    "java:1",
 		}),
 	)
 
 	// Verify the package is installed
-	s.assertSuccessfulInstall()
+	s.assertSuccessfulPromoteExperiment(s.currentAPMInjectVersion.PackageVersion())
+
+	s.assertDriverInjections()
 }
 
 // installCurrentAgentVersionWithAPMInject installs the current agent version with APM inject via script

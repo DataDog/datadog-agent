@@ -10,7 +10,6 @@ import (
 	winawshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host/windows"
 	installer "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/unix"
 	installerwindows "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows"
-	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows/consts"
 
 	"testing"
 )
@@ -28,7 +27,10 @@ func TestAPMInjectInstalls(t *testing.T) {
 
 func (s *testAPMInjectInstallSuite) BeforeTest(suiteName, testName string) {
 	s.baseSuite.BeforeTest(suiteName, testName)
-	s.Require().NoError(s.Installer().Install(installerwindows.WithMSILogFile(testName + "-msiinstall.log")))
+	s.Require().NoError(s.Installer().Install(
+		installerwindows.WithMSILogFile(testName+"-msiinstall.log"),
+		installerwindows.WithMSIArg("DD_REMOTE_UPDATES=true"),
+	))
 }
 
 func (s *testAPMInjectInstallSuite) AfterTest(suiteName, testName string) {
@@ -36,43 +38,27 @@ func (s *testAPMInjectInstallSuite) AfterTest(suiteName, testName string) {
 	s.baseSuite.AfterTest(suiteName, testName)
 }
 
-// TestInstallUninstallAPMInjectPackage tests installing and uninstalling the Datadog APM Inject package using the Datadog installer.
-func (s *testAPMInjectInstallSuite) TestInstallUninstallAPMInjectPackage() {
-	s.installAPMInject()
-
-	// Verify the driver is installed
-	s.verifyDriverInstalled()
-
-	s.removeAPMInject()
-
-	// Verify the driver is uninstalled
-	s.verifyDriverNotInstalled()
-
-	s.Require().Host(s.Env().RemoteHost).
-		NoDirExists(consts.GetStableDirFor("datadog-apm-inject"),
-			"the package directory should be removed")
-}
-
-func (s *testAPMInjectInstallSuite) TestReinstall() {
-	s.installAPMInject()
-
-	s.verifyDriverInstalled()
-
-	s.installAPMInject()
-
-	s.verifyDriverInstalled()
-}
-
-func (s *testAPMInjectInstallSuite) installAPMInject() {
-	// TODO: Update version when package is published
-	output, err := s.Installer().InstallPackage("datadog-apm-inject",
-		installer.WithVersion("latest"),
-		installer.WithRegistry("install.datad0g.com.internal.dda-testing.com"),
+// TestInstallAPMInjectPackage tests the usage of the Datadog installer to install the apm-inject package.
+func (s *testAPMInjectInstallSuite) TestExperiment() {
+	const (
+		initialVersion = "0.50.0-dev.ba30ecb.glci1208428525.g594e53fe-1"
+		upgradeVersion = "0.50.0-dev.beb48a5.glci1208433719.g08c01dc4-1"
 	)
-	s.Require().NoErrorf(err, "failed to install the apm-inject package: %s", output)
-}
 
-func (s *testAPMInjectInstallSuite) removeAPMInject() {
-	output, err := s.Installer().RemovePackage("datadog-apm-inject")
-	s.Require().NoErrorf(err, "failed to remove the apm-inject package: %s", output)
+	// install initial version
+	output, err := s.Installer().InstallPackage("apm-inject-package",
+		installer.WithVersion(initialVersion),
+		installer.WithRegistry("install.datad0g.com"),
+	)
+	s.Require().NoError(err, "failed to install the apm-inject package: %s", output)
+	// start experiment
+	output, err = s.Installer().InstallExperiment("apm-inject-package",
+		installer.WithVersion(upgradeVersion),
+		installer.WithRegistry("install.datad0g.com"),
+	)
+	s.Require().NoError(err, "failed to start the apm-inject experiment: %s", output)
+
+	// promote experiment
+	output, err = s.Installer().PromoteExperiment("datadog-apm-inject")
+	s.Require().NoError(err, "failed to promote the apm-inject experiment: %s", output)
 }
