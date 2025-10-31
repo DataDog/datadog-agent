@@ -128,6 +128,7 @@ type secretResolver struct {
 	// Secret refresh throttling
 	apiKeyFailureRefreshInterval time.Duration
 	lastThrottledRefresh         time.Time
+	throttledRefreshMutex        sync.Mutex
 }
 
 var _ secrets.Component = (*secretResolver)(nil)
@@ -622,21 +623,24 @@ func (r *secretResolver) processSecretResponse(secretResponse map[string]string,
 // Refresh the secrets after they have been Resolved by fetching them from the backend again.
 // bypassRateLimit is used for API Key refresh on 403 errors.
 func (r *secretResolver) Refresh(bypassRateLimit bool) (string, error) {
-	r.lock.Lock()
-	defer r.lock.Unlock()
-
 	if !bypassRateLimit {
 		// check if api key refresh on 403 is enabled
 		if r.apiKeyFailureRefreshInterval == 0 {
 			return "", nil
 		}
 
+		// this extra lock is needed to prevent the `secret refresh` command from hanging in edge cases
+		r.throttledRefreshMutex.Lock()
+		defer r.throttledRefreshMutex.Unlock()
 		// throttle if last refresh was less than apiKeyFailureRefreshInterval ago
 		if time.Since(r.lastThrottledRefresh) < r.apiKeyFailureRefreshInterval {
 			return "", nil
 		}
 		r.lastThrottledRefresh = time.Now()
 	}
+
+	r.lock.Lock()
+	defer r.lock.Unlock()
 
 	// get handles from the cache that match the allowlist
 	newHandles := maps.Keys(r.cache)
