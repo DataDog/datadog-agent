@@ -142,8 +142,6 @@ register_toolchains("@pythons_hub//:all")
 
 register_toolchains("@rules_python//python/runtime_env_toolchains:all")
 
-register_toolchains("@bazel_tools//tools/python:autodetecting_toolchain")
-
 #########################
 ## Native dependencies ##
 #########################
