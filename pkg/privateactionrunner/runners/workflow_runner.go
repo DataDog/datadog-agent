@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
+// Package runners implements entrypoint for privateactionrunner execution
 package runners
 
 import "context"
@@ -17,11 +18,11 @@ func NewWorkflowRunner() *WorkflowRunner {
 }
 
 // Start begins the workflow runner execution.
-func (n *WorkflowRunner) Start(ctx context.Context) error {
+func (n *WorkflowRunner) Start(_ context.Context) error {
 	return nil
 }
 
 // Close stops the workflow runner and cleans up resources.
-func (n *WorkflowRunner) Close(ctx context.Context) error {
+func (n *WorkflowRunner) Close(_ context.Context) error {
 	return nil
 }
