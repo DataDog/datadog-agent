@@ -64,6 +64,10 @@ func (s *syntheticsTestScheduler) flushLoop(ctx context.Context) {
 
 // flush enqueues tests whose nextRun is due.
 func (s *syntheticsTestScheduler) flush(flushTime time.Time) {
+	if !s.running {
+		return
+	}
+
 	s.state.mu.Lock()
 	defer s.state.mu.Unlock()
 	var testsToRun []*runningTestState
@@ -75,13 +79,14 @@ func (s *syntheticsTestScheduler) flush(flushTime time.Time) {
 	}
 
 	for _, rt := range testsToRun {
+		if !s.running {
+			return
+		}
 		s.log.Debugf("enqueuing test %s", rt.cfg.PublicID)
 		s.syntheticsTestProcessingChan <- SyntheticsTestCtx{
 			nextRun: flushTime,
 			cfg:     rt.cfg,
 		}
-
-		rt.lastRun = rt.nextRun
 		rt.nextRun = rt.nextRun.Add(time.Duration(rt.cfg.Interval) * time.Second)
 	}
 }
@@ -93,7 +98,11 @@ func (s *syntheticsTestScheduler) runWorker(ctx context.Context, workerID int) {
 		case <-ctx.Done():
 			s.log.Debugf("worker %d stopping", workerID)
 			return
-		case syntheticsTestCtx := <-s.syntheticsTestProcessingChan:
+		case syntheticsTestCtx, ok := <-s.syntheticsTestProcessingChan:
+			if !ok {
+				s.log.Debugf("worker %d stopping: processing channel closed", workerID)
+				return
+			}
 			tracerouteCfg, err := toNetpathConfig(syntheticsTestCtx.cfg)
 			if err != nil {
 				s.log.Debugf("[worker%d] error interpreting test config: %s", workerID, err)
@@ -260,61 +269,53 @@ func (s *syntheticsTestScheduler) sendSyntheticsTestResult(w *workerResult) (str
 func runTraceroute(ctx context.Context, cfg config.Config, telemetry telemetry.Component) (payload.NetworkPath, error) {
 	tr, err := traceroute.New(cfg, telemetry)
 	if err != nil {
-		return payload.NetworkPath{}, fmt.Errorf("new traceroute error: %s", err)
+		return payload.NetworkPath{}, fmt.Errorf("new traceroute error: %w", err)
 	}
 	path, err := tr.Run(ctx)
 	if err != nil {
-		return payload.NetworkPath{}, fmt.Errorf("run traceroute error: %s", err)
+		return payload.NetworkPath{}, fmt.Errorf("run traceroute error: %w", err)
 	}
 	return path, nil
 }
 
-// configRequestToResultRequest converts a ConfigRequest interface to a Result Request struct.
-func configRequestToResultRequest(req common.ConfigRequest) common.ResultRequest {
-	result := common.ResultRequest{}
-
+// configRequestToResultRequest converts a ConfigRequest to a ResultRequest.
+func configRequestToResultRequest(req common.ConfigRequest) (common.ResultRequest, error) {
 	switch r := req.(type) {
 	case common.UDPConfigRequest:
-		result.Host = r.Host
-		result.Port = r.Port
-		result.DestinationService = r.DestinationService
-		result.SourceService = r.SourceService
-		result.MaxTTL = r.MaxTTL
-		result.Timeout = r.Timeout
-		result.TracerouteQueries = r.TracerouteCount
-		result.E2eQueries = r.ProbeCount
-		return result
+		return common.ResultRequest{
+			Host:              r.Host,
+			Port:              r.Port,
+			SourceService:     r.SourceService,
+			MaxTTL:            r.MaxTTL,
+			Timeout:           r.Timeout,
+			TracerouteQueries: r.TracerouteCount,
+			E2eQueries:        r.ProbeCount,
+		}, nil
 	case common.TCPConfigRequest:
-		result.Host = r.Host
-		result.Port = r.Port
-		result.DestinationService = r.DestinationService
-		result.SourceService = r.SourceService
-		result.MaxTTL = r.MaxTTL
-		result.Timeout = r.Timeout
-		result.TracerouteQueries = r.TracerouteCount
-		result.E2eQueries = r.ProbeCount
-		result.TCPMethod = r.TCPMethod
-		return result
+		return common.ResultRequest{
+			Host:               r.Host,
+			Port:               r.Port,
+			DestinationService: r.DestinationService,
+			SourceService:      r.SourceService,
+			MaxTTL:             r.MaxTTL,
+			Timeout:            r.Timeout,
+			TracerouteQueries:  r.TracerouteCount,
+			E2eQueries:         r.ProbeCount,
+			TCPMethod:          r.TCPMethod,
+		}, nil
 	case common.ICMPConfigRequest:
-		result.Host = r.Host
-		result.DestinationService = r.DestinationService
-		result.SourceService = r.SourceService
-		result.MaxTTL = r.MaxTTL
-		result.Timeout = r.Timeout
-		result.TracerouteQueries = r.TracerouteCount
-		result.E2eQueries = r.ProbeCount
-		return result
+		return common.ResultRequest{
+			Host:               r.Host,
+			DestinationService: r.DestinationService,
+			SourceService:      r.SourceService,
+			MaxTTL:             r.MaxTTL,
+			Timeout:            r.Timeout,
+			TracerouteQueries:  r.TracerouteCount,
+			E2eQueries:         r.ProbeCount,
+		}, nil
 	default:
-		result.Host = ""
-		result.DestinationService = nil
-		result.SourceService = nil
-		result.MaxTTL = nil
-		result.Timeout = nil
-		result.TracerouteQueries = nil
-		result.E2eQueries = nil
+		return common.ResultRequest{}, fmt.Errorf("unknown config request: %q", r)
 	}
-
-	return result
 }
 
 // networkPathToTestResult converts a workerResult into the public TestResult structure.
@@ -339,6 +340,10 @@ func (s *syntheticsTestScheduler) networkPathToTestResult(w *workerResult) (*com
 	w.tracerouteResult.Origin = "synthetics"
 	w.tracerouteResult.Timestamp = w.finishedAt.UnixMilli()
 
+	cfgRequest, err := configRequestToResultRequest(w.testCfg.cfg.Config.Request)
+	if err != nil {
+		return nil, err
+	}
 	result := common.Result{
 		ID:              testResultID,
 		InitialID:       testResultID,
@@ -349,7 +354,7 @@ func (s *syntheticsTestScheduler) networkPathToTestResult(w *workerResult) (*com
 		Assertions:      w.assertionResult,
 		Config: common.Config{
 			Assertions: w.testCfg.cfg.Config.Assertions,
-			Request:    configRequestToResultRequest(w.testCfg.cfg.Config.Request),
+			Request:    cfgRequest,
 		},
 		Netstats: common.NetStats{
 			PacketsSent:          w.tracerouteResult.E2eProbe.PacketsSent,

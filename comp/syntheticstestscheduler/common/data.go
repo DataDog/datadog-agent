@@ -104,7 +104,7 @@ type AssertionType string
 
 const (
 	// AssertionTypeNetworkHops represents a network hops assertion.
-	AssertionTypeNetworkHops AssertionType = "networkHops"
+	AssertionTypeNetworkHops AssertionType = "multiNetworkHop"
 	// AssertionTypeLatency represents a latency assertion.
 	AssertionTypeLatency AssertionType = "latency"
 	// AssertionTypePacketLoss represents a packet loss percentage assertion.

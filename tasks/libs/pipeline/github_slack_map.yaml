@@ -24,7 +24,7 @@
 '@datadog/apm-onboarding': '#apm-onboarding'
 '@datadog/apm-trace-storage': '#apm-trace-storage'
 '@datadog/asm-go': '#k9-library-go'
-'@datadog/container-app': '#container-app'
+'@datadog/container-app': '#kubernetes-experiences'
 '@datadog/agent-onboarding': '#agent-onboarding-ops'
 '@datadog/container-autoscaling': '#container-autoscaling'
 '@datadog/container-integrations': '#container-integrations'

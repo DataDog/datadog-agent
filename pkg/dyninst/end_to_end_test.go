@@ -11,6 +11,7 @@ import (
 	"archive/tar"
 	"bufio"
 	"bytes"
+	"context"
 	"crypto/sha256"
 	"embed"
 	"encoding/hex"
@@ -38,6 +39,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/test/bufconn"
 
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/actuator"
@@ -46,9 +50,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dyninst/module"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/module/tombstone"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/process"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/procsubscribe"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/rcjson"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/testprogs"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/uploader"
+	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/util/backoff"
 )
 
@@ -172,6 +178,16 @@ func (f *fakeSubscriber) Start() {
 	f.startFunc()
 }
 
+type agentServiceImpl struct {
+	*dyninsttest.MockAgentRCServer
+
+	unimplementedAgentSecureServer
+}
+
+type unimplementedAgentSecureServer struct {
+	pbgo.UnimplementedAgentSecureServer
+}
+
 func runE2ETest(t *testing.T, cfg e2eTestConfig) {
 	tmpDir, cleanup := dyninsttest.PrepTmpDir(t, strings.ReplaceAll(t.Name(), "/", "_"))
 	defer cleanup()
@@ -186,6 +202,23 @@ func runE2ETest(t *testing.T, cfg e2eTestConfig) {
 	ts.rcServer = httptest.NewServer(ts.rc)
 	t.Cleanup(ts.rcServer.Close)
 	t.Cleanup(ts.rc.Close)
+	bufConn := bufconn.Listen(1024)
+	s := grpc.NewServer(
+		grpc.Creds(insecure.NewCredentials()),
+	)
+	pbgo.RegisterAgentSecureServer(s, &agentServiceImpl{MockAgentRCServer: ts.rc})
+	go func() { _ = s.Serve(bufConn) }()
+	t.Cleanup(func() { s.Stop() })
+	client, err := grpc.NewClient(
+		"passthrough://bufnet",
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		grpc.WithContextDialer(func(context.Context, string) (net.Conn, error) {
+			return bufConn.Dial()
+		}),
+	)
+	require.NoError(t, err)
+	t.Cleanup(func() { client.Close() })
+	rcSubscriberClient := pbgo.NewAgentSecureClient(client)
 
 	symDBRequests := atomic.Uint64{}
 	ts.symdbServer = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -201,7 +234,6 @@ func runE2ETest(t *testing.T, cfg e2eTestConfig) {
 	sampleServicePath := testprogs.MustGetBinary(t, cfg.binary, cfg.cfg)
 	serverPort := ts.startSampleService(t, sampleServicePath)
 
-	subscriber := &mockSubscriber{}
 	modCfg, err := module.NewConfig(nil)
 	require.NoError(t, err)
 
@@ -233,11 +265,10 @@ func runE2ETest(t *testing.T, cfg e2eTestConfig) {
 		}
 	}
 
-	ts.module, err = module.NewModule(modCfg, subscriber)
+	ts.module, err = module.NewModule(modCfg, rcSubscriberClient)
 	require.NoError(t, err)
 	t.Cleanup(ts.module.Close)
 	<-started
-	subscriber.NotifyExec(ts.servicePID)
 
 	expectedProbeIDs := []string{"look_at_the_request", "http_handler"}
 	waitForProbeStatus(
@@ -289,11 +320,11 @@ func runE2ETest(t *testing.T, cfg e2eTestConfig) {
 	}
 
 	assertModuleStats(t, actuator.Metrics{
-		NumProcesses: 2,
-		NumPrograms:  2,
-		NumAttached:  2,
-		Loaded:       2,
-		Attached:     2,
+		NumProcesses: 1,
+		NumPrograms:  1,
+		NumAttached:  1,
+		Loaded:       1,
+		Attached:     1,
 	})
 
 	// Clear the remote config.
@@ -305,12 +336,12 @@ func runE2ETest(t *testing.T, cfg e2eTestConfig) {
 			assertSymdb(c, false)
 		}
 		assertModuleStats(c, actuator.Metrics{
-			NumProcesses: 1,
-			NumPrograms:  1,
-			NumAttached:  1,
+			NumProcesses: 0,
+			NumPrograms:  0,
+			NumAttached:  0,
 
-			Loaded:   2,
-			Attached: 2,
+			Loaded:   1,
+			Attached: 1,
 			Detached: 1,
 			Unloaded: 1,
 		})
@@ -329,8 +360,9 @@ func runE2ETest(t *testing.T, cfg e2eTestConfig) {
 	)
 	require.NoError(t, ts.serviceCmd.Process.Signal(os.Interrupt))
 	require.NoError(t, ts.serviceCmd.Wait())
-	subscriber.NotifyExit(ts.servicePID)
-	require.Empty(t, ts.module.DiagnosticsStates())
+	require.EventuallyWithT(t, func(c *assert.CollectT) {
+		assert.Empty(c, ts.module.DiagnosticsStates())
+	}, 10*time.Second, 100*time.Millisecond, "diagnostics states should be empty")
 }
 
 func makeRemoteConfigUpdate(t *testing.T, probes []ir.ProbeDefinition, addSymdb bool) map[string][]byte {
@@ -341,7 +373,7 @@ func makeRemoteConfigUpdate(t *testing.T, probes []ir.ProbeDefinition, addSymdb 
 		rcs[path] = content
 	}
 	if addSymdb {
-		payload := []byte(`{"uploadSymbols": true}`)
+		payload := []byte(`{"upload_symbols": true}`)
 		p := createRemoteConfigPath("LIVE_DEBUGGING_SYMBOL_DB", "symDb", payload)
 		rcs[p] = payload
 	}
@@ -800,54 +832,6 @@ func saveExpectations(t *testing.T, content []byte, expectationsPath string) {
 	t.Logf("golden file saved to %s", tmpFile.Name())
 }
 
-type mockSubscriber struct {
-	mu   sync.Mutex
-	exec func(uint32)
-	exit func(uint32)
-}
-
-func (m *mockSubscriber) SubscribeExec(cb func(uint32)) func() {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	m.exec = cb
-	return func() {
-		m.mu.Lock()
-		defer m.mu.Unlock()
-		m.exec = nil
-	}
-}
-
-func (m *mockSubscriber) SubscribeExit(cb func(uint32)) func() {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	m.exit = cb
-	return func() {
-		m.mu.Lock()
-		defer m.mu.Unlock()
-		m.exit = nil
-	}
-}
-
-func (m *mockSubscriber) NotifyExec(pid uint32) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	if m.exec != nil {
-		m.exec(pid)
-	}
-}
-
-func (m *mockSubscriber) NotifyExit(pid uint32) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	if m.exit != nil {
-		m.exit(pid)
-	}
-}
-
-func (m *mockSubscriber) Sync() error {
-	return nil
-}
-
 type mockBackend struct {
 	mu            sync.Mutex
 	logPayloads   [][]byte
@@ -901,27 +885,7 @@ func (m *mockBackend) getLogPayloads() [][]byte {
 // Test that starting the module waits on a tombstone file.
 func TestWaitOnTombstone(t *testing.T) {
 	dyninsttest.SkipIfKernelNotSupported(t)
-	cfg := e2eTestConfig{
-		cfg:       testprogs.MustGetCommonConfigs(t)[0],
-		binary:    "",
-		rewrite:   false,
-		useDocker: false,
-		addSymdb:  false,
-	}
-	tmpDir, cleanup := dyninsttest.PrepTmpDir(t, strings.ReplaceAll(t.Name(), "/", "_"))
-	defer cleanup()
-	ts := &testState{tmpDir: tmpDir, useDocker: cfg.useDocker}
-	diagCh := make(chan []byte, 10)
-	ts.backend = &mockBackend{diagPayloadCh: diagCh}
-	ts.backendServer = httptest.NewServer(ts.backend)
-	t.Cleanup(ts.backendServer.Close)
 
-	ts.rc = dyninsttest.NewMockAgentRCServer()
-	ts.rcServer = httptest.NewServer(ts.rc)
-	t.Cleanup(ts.rcServer.Close)
-	t.Cleanup(ts.rc.Close)
-
-	subscriber := &mockSubscriber{}
 	modCfg, err := module.NewConfig(nil)
 	require.NoError(t, err)
 	modCfg.ProcessSyncDisabled = true
@@ -930,6 +894,9 @@ func TestWaitOnTombstone(t *testing.T) {
 	modCfg.TestingKnobs.ProcessSubscriberOverride = func(
 		subscriber module.ProcessSubscriber,
 	) module.ProcessSubscriber {
+		if sub, ok := subscriber.(*procsubscribe.Subscriber); ok {
+			sub.Close() // prevent start from doing anything
+		}
 		return &fakeSubscriber{
 			subscribeFunc: func(func(process.ProcessesUpdate)) {},
 			startFunc: func() {
@@ -954,9 +921,9 @@ func TestWaitOnTombstone(t *testing.T) {
 
 	// Instantiate the module. This will start the ProcessSubscriber
 	// asynchronously; we'll check that the starting only happens after a sleep.
-	ts.module, err = module.NewModule(modCfg, subscriber)
+	m, err := module.NewModule(modCfg, nil)
 	require.NoError(t, err)
-	t.Cleanup(ts.module.Close)
+	t.Cleanup(m.Close)
 
 	// Check that ProcessSubscriber.Start is not called before the sleep is done.
 	select {

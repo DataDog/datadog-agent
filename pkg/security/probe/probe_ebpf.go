@@ -2369,6 +2369,10 @@ func (p *EBPFProbe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.FilterReport, err
 		return nil, err
 	}
 
+	if err := applyDNSDefaultDropMaskFromRules(p.Manager, rs); err != nil {
+		seclog.Warnf("failed to apply DNS default-drop mask: %v", err)
+	}
+
 	for eventType, report := range filterReport.ApproverReports {
 		if err := p.setApprovers(eventType, report.Approvers); err != nil {
 			seclog.Errorf("Error while adding approvers fallback in-kernel policy to `%s` for `%s`: %s", kfilters.PolicyModeAccept, eventType, err)
