@@ -14,7 +14,10 @@ from pathlib import Path
 from invoke import task
 from invoke.exceptions import Exit
 
-from tasks.build_tags import build_tags, filter_incompatible_tags, get_build_tags, get_default_build_tags
+from tasks.build_tags import (
+    build_tags,
+    compute_build_tags_for_flavor,
+)
 from tasks.commands.docker import AGENT_REPOSITORY_PATH, DockerCLI
 from tasks.flavor import AgentFlavor
 from tasks.libs.common.color import Color, color_message
@@ -51,13 +54,9 @@ def setup(
         print(f'{", ".join(build_tags[flavor].keys())} \n')
         return
 
-    build_include = (
-        get_default_build_tags(build=target, flavor=flavor, platform='linux')
-        if build_include is None
-        else filter_incompatible_tags(build_include.split(","))
+    use_tags = compute_build_tags_for_flavor(
+        build=target, flavor=flavor, build_include=build_include, build_exclude=build_exclude, platform='linux'
     )
-    build_exclude = [] if build_exclude is None else build_exclude.split(",")
-    use_tags = get_build_tags(build_include, build_exclude)
     use_tags.append("test")  # always include the test tag for autocompletion in vscode
 
     if not os.path.exists(DEVCONTAINER_DIR):
