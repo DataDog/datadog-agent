@@ -202,7 +202,7 @@ type loadedProgramImpl struct {
 func (l *loadedProgramImpl) Attach(processID actuator.ProcessID, executable actuator.Executable) (actuator.AttachedProgram, error) {
 	attached, err := l.runtime.attacher.Attach(l.loadedProgram, executable, processID)
 	if err != nil {
-		log.Errorf("rcscrape: failed to attach to process %v: %v", processID, err)
+		log.Errorf("failed to attach to process %v: %v", processID, err)
 		l.runtime.reportAttachError(l.programID, l.runtimeID, l.ir, err)
 		return nil, err
 	}

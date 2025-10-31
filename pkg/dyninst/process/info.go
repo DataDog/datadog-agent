@@ -5,8 +5,8 @@
 
 //go:build linux_bpf
 
-// Package process provides shared process-related types used by procmon,
-// rcscrape, and other dyninst components.
+// Package process provides shared process-related types used by dynamic
+// instrumentation components.
 package process
 
 import (
