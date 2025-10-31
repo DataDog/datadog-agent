@@ -88,7 +88,7 @@ func (s *baseNetworkPathIntegrationTestSuite) expectNetpath(c *assert.CollectT, 
 	return np
 }
 
-func assertPayloadBase(c *assert.CollectT, np *aggregator.Netpath, hostname string, origin string) {
+func assertPayloadBase(c *assert.CollectT, np *aggregator.Netpath, hostname string, origin payload.PathOrigin) {
 	if isNetpathDebugMode() {
 		// Print payloads when debug mode, this helps debugging tests during development time
 		tcpPathJSON, err := json.Marshal(np)
@@ -96,7 +96,7 @@ func assertPayloadBase(c *assert.CollectT, np *aggregator.Netpath, hostname stri
 		fmt.Println("NETWORK PATH PAYLOAD: ", string(tcpPathJSON))
 	}
 
-	assert.Equal(c, payload.PathOrigin(origin), np.Origin)
+	assert.Equal(c, origin, np.Origin)
 	assert.NotEmpty(c, np.PathtraceID)
 	assert.Equal(c, "default", np.Namespace)
 
@@ -110,11 +110,11 @@ func assertPayloadBase(c *assert.CollectT, np *aggregator.Netpath, hostname stri
 
 func (s *baseNetworkPathIntegrationTestSuite) checkDynamicPath(c *assert.CollectT, agentHostname string) {
 	// check at lest one dynamic path is reported
-	np := s.expectNetpath(c, func(_ *aggregator.Netpath) bool {
-		return true
+	np := s.expectNetpath(c, func(np *aggregator.Netpath) bool {
+		return np.Origin == payload.PathOriginNetworkTraffic
 	})
 
-	assertPayloadBase(c, np, agentHostname, "network_traffic")
+	assertPayloadBase(c, np, agentHostname, payload.PathOriginNetworkTraffic)
 
 	require.NotEmpty(c, np.Traceroute.Runs)
 	assert.NotEmpty(c, np.Traceroute.Runs[0].Hops)
@@ -126,7 +126,7 @@ func (s *baseNetworkPathIntegrationTestSuite) checkDatadogEUTCP(c *assert.Collec
 	})
 	assert.Equal(c, uint16(443), np.Destination.Port)
 
-	assertPayloadBase(c, np, agentHostname, "network_path_integration")
+	assertPayloadBase(c, np, agentHostname, payload.PathOriginNetworkPathIntegration)
 
 	require.NotEmpty(c, np.Traceroute.Runs)
 	assert.NotEmpty(c, np.Traceroute.Runs[0].Hops)
@@ -136,7 +136,7 @@ func (s *baseNetworkPathIntegrationTestSuite) checkGoogleDNSUDP(c *assert.Collec
 	np := s.expectNetpath(c, func(np *aggregator.Netpath) bool {
 		return np.Destination.Hostname == "8.8.8.8" && np.Protocol == "UDP"
 	})
-	assertPayloadBase(c, np, agentHostname, "network_path_integration")
+	assertPayloadBase(c, np, agentHostname, payload.PathOriginNetworkPathIntegration)
 
 	require.NotEmpty(c, np.Traceroute.Runs)
 	assert.NotEmpty(c, np.Traceroute.Runs[0].Hops)
@@ -147,7 +147,7 @@ func (s *baseNetworkPathIntegrationTestSuite) checkGoogleTCPSocket(c *assert.Col
 		return np.Destination.Hostname == "8.8.8.8" && np.Protocol == "TCP"
 	})
 
-	assertPayloadBase(c, np, agentHostname, "network_path_integration")
+	assertPayloadBase(c, np, agentHostname, payload.PathOriginNetworkPathIntegration)
 
 	assert.NotZero(c, np.Destination.Port)
 	require.NotEmpty(c, np.Traceroute.Runs)
@@ -170,7 +170,7 @@ func (s *baseNetworkPathIntegrationTestSuite) checkGoogleTCPDisableWindowsDriver
 		return np.Destination.Hostname == "1.1.1.1" && np.Protocol == "TCP"
 	})
 
-	assertPayloadBase(c, np, agentHostname, "network_path_integration")
+	assertPayloadBase(c, np, agentHostname, payload.PathOriginNetworkPathIntegration)
 
 	assert.NotZero(c, np.Destination.Port)
 	require.NotEmpty(c, np.Traceroute.Runs)
