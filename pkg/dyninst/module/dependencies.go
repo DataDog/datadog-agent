@@ -45,6 +45,7 @@ type dependencies struct {
 // ProcessSubscriber emits combined process lifecycle updates and configuration
 // updates.
 type ProcessSubscriber interface {
+	Start()
 	Subscribe(callback func(process.ProcessesUpdate))
 }
 

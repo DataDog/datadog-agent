@@ -44,7 +44,8 @@ func TestHappyPathEndToEnd(t *testing.T) {
 	deps := newFakeTestingDependencies(t)
 	deps.irGenerator.program = createTestProgram()
 	processUpdate := createTestProcessConfig()
-	_ = module.NewUnstartedModule(deps.toDeps())
+	tombstoneFilePath := "" // don't use tombstone files
+	_ = module.NewUnstartedModule(deps.toDeps(), tombstoneFilePath)
 	deps.sendUpdates(processUpdate)
 
 	require.Len(t, deps.actuator.tenant.updates, 1)
@@ -83,7 +84,8 @@ func TestProgramLifecycleFlow(t *testing.T) {
 	processUpdate.GitInfo = process.GitInfo{CommitSha: "commit-123", RepositoryURL: "https://github.com/test/test"}
 	procID := processUpdate.ProcessID
 
-	_ = module.NewUnstartedModule(deps.toDeps())
+	tombstoneFilePath := "" // don't use tombstone files
+	_ = module.NewUnstartedModule(deps.toDeps(), tombstoneFilePath)
 
 	collectVersions := func(status uploader.Status) map[string]int {
 		return collectDiagnosticVersions(deps.diagUploader, status)
@@ -176,7 +178,8 @@ func TestIRGenerationFailure(t *testing.T) {
 	deps := newFakeTestingDependencies(t)
 	deps.irGenerator.err = irErr
 	processUpdate := createTestProcessConfig()
-	_ = module.NewUnstartedModule(deps.toDeps())
+	tombstoneFilePath := "" // don't use tombstone files
+	_ = module.NewUnstartedModule(deps.toDeps(), tombstoneFilePath)
 	deps.sendUpdates(processUpdate)
 
 	_, err := deps.actuator.tenant.rt.Load(
@@ -205,7 +208,8 @@ func TestAttachmentFailure(t *testing.T) {
 	processUpdate := createTestProcessConfig()
 	deps.irGenerator.program = createTestProgram()
 	deps.attacher.err = errors.New("attachment failed")
-	_ = module.NewUnstartedModule(deps.toDeps())
+	tombstoneFilePath := "" // don't use tombstone files
+	_ = module.NewUnstartedModule(deps.toDeps(), tombstoneFilePath)
 
 	deps.sendUpdates(processUpdate)
 
@@ -237,7 +241,8 @@ func TestLoadingFailure(t *testing.T) {
 	processUpdate := createTestProcessConfig()
 	deps.irGenerator.program = createTestProgram()
 	deps.kernelLoader.err = errors.New("loading failed")
-	_ = module.NewUnstartedModule(deps.toDeps())
+	tombstoneFilePath := "" // don't use tombstone files
+	_ = module.NewUnstartedModule(deps.toDeps(), tombstoneFilePath)
 
 	deps.sendUpdates(processUpdate)
 
@@ -267,7 +272,8 @@ func TestDecoderCreationFailure(t *testing.T) {
 	processUpdate := createTestProcessConfig()
 	deps.decoderFactory.err = errors.New("decoder creation failed")
 	deps.irGenerator.program = createTestProgram()
-	_ = module.NewUnstartedModule(deps.toDeps())
+	tombstoneFilePath := "" // don't use tombstone files
+	_ = module.NewUnstartedModule(deps.toDeps(), tombstoneFilePath)
 
 	deps.sendUpdates(processUpdate)
 
@@ -295,7 +301,8 @@ func TestEventDecodingSuccess(t *testing.T) {
 	processUpdate := createTestProcessConfig()
 	deps.decoderFactory.decoder = decoder
 	deps.irGenerator.program = createTestProgram()
-	_ = module.NewUnstartedModule(deps.toDeps())
+	tombstoneFilePath := "" // don't use tombstone files
+	_ = module.NewUnstartedModule(deps.toDeps(), tombstoneFilePath)
 
 	deps.sendUpdates(processUpdate)
 
@@ -331,7 +338,8 @@ func TestEventDecodingFailure(t *testing.T) {
 	processUpdate := createTestProcessConfig()
 	deps.decoderFactory.decoder = decoder
 	deps.irGenerator.program = createTestProgram()
-	_ = module.NewUnstartedModule(deps.toDeps())
+	tombstoneFilePath := "" // don't use tombstone files
+	_ = module.NewUnstartedModule(deps.toDeps(), tombstoneFilePath)
 
 	deps.sendUpdates(processUpdate)
 
@@ -366,7 +374,8 @@ func TestDecoderErrorHandling(t *testing.T) {
 	deps.irGenerator.program = createTestProgram()
 	td := deps.toDeps()
 	td.DecoderFactory = factory
-	_ = module.NewUnstartedModule(td)
+	tombstoneFilePath := "" // don't use tombstone files
+	_ = module.NewUnstartedModule(td, tombstoneFilePath)
 
 	deps.sendUpdates(processUpdate)
 	received := collectDiagnosticVersions(deps.diagUploader, uploader.StatusReceived)
@@ -409,7 +418,8 @@ func TestProcessRemoval(t *testing.T) {
 	removals := []process.ID{processUpdate.ProcessID}
 	td := deps.toDeps()
 	td.IRGenerator = irgen.NewGenerator()
-	_ = module.NewUnstartedModule(td)
+	tombstoneFilePath := "" // don't use tombstone files
+	_ = module.NewUnstartedModule(td, tombstoneFilePath)
 
 	deps.sendUpdates(processUpdate)
 	require.Len(t, deps.actuator.tenant.updates, 1)
@@ -447,7 +457,8 @@ func TestMultipleProcesses(t *testing.T) {
 
 	td := deps.toDeps()
 	td.IRGenerator = irgen.NewGenerator()
-	_ = module.NewUnstartedModule(td)
+	tombstoneFilePath := "" // don't use tombstone files
+	_ = module.NewUnstartedModule(td, tombstoneFilePath)
 
 	deps.sendUpdates(processUpdate1, processUpdate2)
 
@@ -485,7 +496,8 @@ func TestProbeIssueReporting(t *testing.T) {
 
 	deps.decoderFactory.decoder = decoder
 	deps.irGenerator.program = program
-	_ = module.NewUnstartedModule(deps.toDeps())
+	tombstoneFilePath := "" // don't use tombstone files
+	_ = module.NewUnstartedModule(deps.toDeps(), tombstoneFilePath)
 
 	deps.sendUpdates(processUpdate)
 
@@ -529,7 +541,8 @@ func TestNoSuccessfulProbes(t *testing.T) {
 	bin := testprogs.MustGetBinary(t, "simple", testprogs.MustGetCommonConfigs(t)[0])
 	processUpdate.Executable = process.Executable{Path: bin}
 
-	_ = module.NewUnstartedModule(deps)
+	tombstoneFilePath := "" // don't use tombstone files
+	_ = module.NewUnstartedModule(deps, tombstoneFilePath)
 
 	fakeDeps.sendUpdates(processUpdate)
 
@@ -565,6 +578,7 @@ type fakeProcessSubscriber func(process.ProcessesUpdate)
 func (f *fakeProcessSubscriber) Subscribe(cb func(process.ProcessesUpdate)) {
 	*f = cb
 }
+func (f *fakeProcessSubscriber) Start() {}
 
 type fakeActuatorTenant struct {
 	name    string
