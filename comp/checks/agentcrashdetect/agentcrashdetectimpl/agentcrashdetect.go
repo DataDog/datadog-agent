@@ -44,6 +44,7 @@ var (
 	ddDrivers = map[string]struct{}{
 		"ddnpm":       {}, // NPM/USM driver, used for network monitoring
 		"ddprocmon":   {}, // process monitoring driver, used for CWS
+		"ddinjector":  {}, // application tracing driver, used for APM
 		"crashdriver": {}, // this entry exists only for testing purposes.
 	}
 	// system probe enabled flags indicating we should be enabled

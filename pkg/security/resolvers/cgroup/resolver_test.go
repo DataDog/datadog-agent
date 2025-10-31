@@ -52,8 +52,10 @@ func createTestProcess(pid, ppid uint32, containerID containerutils.ContainerID)
 				PIDContext: model.PIDContext{
 					Pid: pid,
 				},
-				PPid:        ppid,
-				ContainerID: containerID,
+				PPid: ppid,
+				ContainerContext: model.ContainerContext{
+					ContainerID: containerID,
+				},
 				CGroup: model.CGroupContext{
 					CGroupID: "",
 					CGroupFile: model.PathKey{
@@ -91,7 +93,7 @@ func TestResolvePidCgroupFallback_SuccessDirectResolution(t *testing.T) {
 	assert.Equal(t, containerutils.CGroupID("test-cgroup-id"), process.CGroup.CGroupID)
 	assert.Equal(t, uint32(42), process.CGroup.CGroupFile.MountID)
 	assert.Equal(t, uint64(9876), process.CGroup.CGroupFile.Inode)
-	assert.Equal(t, containerutils.ContainerID("container-123"), process.ContainerID)
+	assert.Equal(t, containerutils.ContainerID("container-123"), process.ContainerContext.ContainerID)
 
 	mockFS.AssertExpectations(t)
 }
@@ -196,7 +198,7 @@ func TestResolvePidCgroupFallback_SuccessFromParentProc(t *testing.T) {
 	assert.Equal(t, containerutils.CGroupID("parent-cgroup-id"), process.CGroup.CGroupID)
 	assert.Equal(t, uint32(567), process.CGroup.CGroupFile.MountID)
 	assert.Equal(t, uint64(8888), process.CGroup.CGroupFile.Inode)
-	assert.Equal(t, containerutils.ContainerID("parent-container-456"), process.ContainerID)
+	assert.Equal(t, containerutils.ContainerID("parent-container-456"), process.ContainerContext.ContainerID)
 
 	mockFS.AssertExpectations(t)
 }
@@ -267,7 +269,7 @@ func TestResolvePidCgroupFallback_HistoryFoundButCgroupMissing(t *testing.T) {
 	assert.Equal(t, containerutils.CGroupID("fallback-cgroup-id"), process.CGroup.CGroupID)
 	assert.Equal(t, uint32(789), process.CGroup.CGroupFile.MountID)
 	assert.Equal(t, uint64(7777), process.CGroup.CGroupFile.Inode)
-	assert.Equal(t, containerutils.ContainerID("fallback-container-789"), process.ContainerID)
+	assert.Equal(t, containerutils.ContainerID("fallback-container-789"), process.ContainerContext.ContainerID)
 
 	mockFS.AssertExpectations(t)
 }

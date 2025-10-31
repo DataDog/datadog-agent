@@ -35,6 +35,7 @@ def build(
     fips_mode=False,
     no_strip_binary=False,
     arch_suffix=False,
+    injector_only=False,
 ):
     """
     Build cws-instrumentation
@@ -57,6 +58,9 @@ def build(
     build_tags += get_default_build_tags(build="cws-instrumentation")
     build_tags = add_fips_tags(build_tags, fips_mode)
 
+    if injector_only:
+        build_tags.append("cws_instrumentation_injector_only")
+
     agent_bin = BIN_PATH
     if arch_suffix:
         arch = CONTAINER_PLATFORM_MAPPING.get(platform.machine().lower())
@@ -76,6 +80,7 @@ def build(
         build_tags=build_tags,
         bin_path=agent_bin,
         env=env,
+        check_deadcode=os.getenv("DEPLOY_AGENT") == "true",
     )
 
 

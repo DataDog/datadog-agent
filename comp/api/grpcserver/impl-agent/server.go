@@ -256,3 +256,12 @@ func (s *serverSecure) StreamConfigEvents(in *pb.ConfigStreamRequest, out pb.Age
 func init() {
 	grpclog.SetLoggerV2(grpc.NewLogger())
 }
+
+func (s *serverSecure) CreateConfigSubscription(stream pb.AgentSecure_CreateConfigSubscriptionServer) error {
+	rcService, isSet := s.configService.Get()
+	if !isSet || rcService == nil {
+		log.Debug(rcNotInitializedErr.Error())
+		return rcNotInitializedErr
+	}
+	return rcService.CreateConfigSubscription(stream)
+}
