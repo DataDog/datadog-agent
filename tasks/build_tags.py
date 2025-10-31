@@ -67,6 +67,7 @@ ALL_TAGS = {
     "zlib",
     "zstd",
     "cel",
+    "cws_instrumentation_injector_only",  # used for building cws-instrumentation with only the injector code
 }
 
 ### Tag inclusion lists
@@ -259,6 +260,8 @@ OTEL_AGENT_TAGS = {"otlp", "zlib", "zstd"}
 
 LOADER_TAGS = set()
 
+FULL_HOST_PROFILER_TAGS = set()
+
 # AGENT_TEST_TAGS lists the tags that have to be added to run tests
 AGENT_TEST_TAGS = AGENT_TAGS.union({"clusterchecks"})
 
@@ -304,6 +307,7 @@ build_tags = {
         "sbomgen": SBOMGEN_TAGS,
         "otel-agent": OTEL_AGENT_TAGS,
         "loader": LOADER_TAGS,
+        "full-host-profiler": FULL_HOST_PROFILER_TAGS,
         # Test setups
         "test": AGENT_TEST_TAGS.union(UNIT_TEST_TAGS).difference(UNIT_TEST_EXCLUDE_TAGS),
         "lint": AGENT_TEST_TAGS.union(PROCESS_AGENT_TAGS).union(UNIT_TEST_TAGS).difference(UNIT_TEST_EXCLUDE_TAGS),
