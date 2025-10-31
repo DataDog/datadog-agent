@@ -224,14 +224,28 @@ func installAPMPackages(s *common.Setup) {
 		}
 	}
 
-	// Libraries install
-	_, installAllAPMLibraries := s.Env.ApmLibraries["all"]
-	for _, library := range common.ApmLibraries {
-		lang := packageToLanguage(library)
-		_, installLibrary := s.Env.ApmLibraries[lang]
-		if (installAllAPMLibraries || len(s.Env.ApmLibraries) == 0 && apmInstrumentationEnabled) || installLibrary {
-			s.Packages.Install(library, getLibraryVersion(s.Env, library))
+	if runtime.GOOS == "windows" {
+		// Libraries install
+		_, installAllAPMLibraries := s.Env.ApmLibraries["all"]
+		for _, library := range common.ApmLibraries {
+			lang := packageToLanguage(library)
+			_, installLibrary := s.Env.ApmLibraries[lang]
+			// windows does not have all libraries so if non are specified we should not install all of them
+			if (installAllAPMLibraries && apmInstrumentationEnabled) || installLibrary {
+				s.Packages.Install(library, getLibraryVersion(s.Env, library))
+			}
 		}
+	} else {
+		// Libraries install
+		_, installAllAPMLibraries := s.Env.ApmLibraries["all"]
+		for _, library := range common.ApmLibraries {
+			lang := packageToLanguage(library)
+			_, installLibrary := s.Env.ApmLibraries[lang]
+			if (installAllAPMLibraries || len(s.Env.ApmLibraries) == 0 && apmInstrumentationEnabled) || installLibrary {
+				s.Packages.Install(library, getLibraryVersion(s.Env, library))
+			}
+		}
+
 	}
 }
 
