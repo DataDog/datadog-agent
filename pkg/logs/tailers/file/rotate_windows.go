@@ -10,6 +10,7 @@ package file
 import (
 	"fmt"
 
+	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -37,6 +38,35 @@ func (t *Tailer) DidRotate() (bool, error) {
 	// increased, so the check that size < offset is valid as long as size is
 	// polled before the offset.
 	sz := st.Size()
+	cachedSize := t.cachedFileSize.Load()
+
+	// Check for disagreements between cache-based and offset-based rotation detection
+	cacheIndicatesGrowth := cachedSize > 0 && sz > cachedSize
+	offsetIndicatesUnreadData := offset < sz
+
+	if cacheIndicatesGrowth && !offsetIndicatesUnreadData {
+		// Cache grew but offset suggests we're caught up - we likely missed a rotation
+		metrics.TlmRotationSizeMismatch.Inc("cache")
+		log.Debugf("Rotation size mismatch detected: cache grew (old=%d, new=%d) but offset=%d >= fileSize=%d",
+			cachedSize, sz, offset, sz)
+	} else if !cacheIndicatesGrowth && offsetIndicatesUnreadData && cachedSize > 0 {
+		// Offset suggests unread data but cache didn't grow - potential false positive
+		metrics.TlmRotationSizeMismatch.Inc("offset")
+		log.Debugf("Rotation size mismatch detected: offset=%d < fileSize=%d but cache didn't grow (old=%d, new=%d)",
+			offset, sz, cachedSize, sz)
+	}
+
+	// Track size differences when size-based rotation is detected
+	if cachedSize > 0 && sz != cachedSize {
+		sizeDiff := sz - cachedSize
+		if sizeDiff < 0 {
+			sizeDiff = -sizeDiff
+		}
+		metrics.TlmRotationSizeDifferences.Observe(float64(sizeDiff))
+	}
+
+	// Update cached file size for next check
+	t.cachedFileSize.Store(sz)
 
 	if sz < offset {
 		log.Debugf("File rotation detected due to size change, lastReadOffset=%d, fileSize=%d", offset, sz)

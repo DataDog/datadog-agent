@@ -103,7 +103,7 @@ var (
 
 	// TlmLogLineSizes is a distribution of post-framer log line sizes
 	TlmLogLineSizes = telemetry.NewHistogram("logs", "log_line_sizes",
-		nil, "Distribution of post-framer log line sizes before line parsers/handlers are applied", []float64{64, 256, 1024, 4096, 16384, 65536, 262144, 1048576})
+		nil, "Distribution of post-framer log line sizes before line parsers/handlers are applied", []float64{32, 128, 512, 2048, 8192, 32768, 131072, 524288, 2097152})
 
 	// TlmRotationsNix tracks file rotations by type (new_file vs truncated, *nix only)
 	TlmRotationsNix = telemetry.NewCounter("logs", "rotations_nix",
@@ -115,7 +115,7 @@ var (
 
 	// TlmRotationSizeDifferences is a distribution of size differences when rotation is detected
 	TlmRotationSizeDifferences = telemetry.NewHistogram("logs", "rotation_size_differences",
-		nil, "Distribution of file size differences between old and new cache sizes when size-based rotation is detected", []float64{0, 1024, 10240, 102400, 1048576, 10485760, 104857600, 1073741824})
+		nil, "Distribution of file size differences between old and new cache sizes when size-based rotation is detected", []float64{256, 1024, 4096, 16384, 65536, 262144, 1048576, 10485760, 104857600})
 )
 
 func init() {
