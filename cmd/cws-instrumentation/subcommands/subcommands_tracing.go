@@ -8,8 +8,11 @@
 // Package subcommands is used to list the subcommands of CWS injector
 package subcommands
 
-import "github.com/DataDog/datadog-agent/cmd/cws-instrumentation/subcommands/tracecmd"
+import (
+	"github.com/DataDog/datadog-agent/cmd/cws-instrumentation/subcommands/spawnercmd"
+	"github.com/DataDog/datadog-agent/cmd/cws-instrumentation/subcommands/tracecmd"
+)
 
 func init() {
-	CWSInjectorSubcommands = append(CWSInjectorSubcommands, tracecmd.Command)
+	CWSInjectorSubcommands = append(CWSInjectorSubcommands, tracecmd.Command, spawnercmd.Command)
 }
