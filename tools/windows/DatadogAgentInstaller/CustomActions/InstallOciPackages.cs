@@ -151,6 +151,12 @@ namespace Datadog.CustomActions
                 _session.Log("Skipping purge as PURGE is set to 0");
                 return ActionResult.Success;
             }
+            var fleetInstall = _session.Property("FLEET_INSTALL");
+            if (!string.IsNullOrEmpty(fleetInstall) && fleetInstall == "1")
+            {
+                _session.Log("Skipping purge as FLEET_INSTALL is set to 1");
+                return ActionResult.Success;
+            }
             try
             {
                 _session.Log("Running datadog-installer purge");
