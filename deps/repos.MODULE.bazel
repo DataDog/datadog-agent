@@ -202,6 +202,7 @@ http_archive(
     strip_prefix = "libxml2-2.15.1",
     files = {
         "config-linux-x86_64.h": "//deps:libxml2/config-linux-x86_64.h",
+        "config-linux-arm64.h": "//deps:libxml2/config-linux-arm64.h",
     },
 )
 
