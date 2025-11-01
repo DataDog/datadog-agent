@@ -1,3 +1,4 @@
+
 // Test eBPF program for BTF dumping tests
 // This program creates various maps with BTF type information
 
@@ -69,5 +70,18 @@ struct {
     __type(value, enum connection_state);
     __uint(max_entries, 10);
 } enum_map SEC(".maps");
+
+// Minimal eBPF program required for proper compilation and testing.
+// This program ensures the object file has:
+// 1. A .BTF.ext section - required by bpftool during BTF minimization in CI
+//    (maps-only objects lack this section, causing "section .BTF.ext not found" errors)
+// 2. A source map - required by pkg/ebpf/verifier tests which validate all .o files
+//    have source line information for verifier error messages
+// The program itself does nothing and is never loaded; it exists solely to satisfy
+// these build and test requirements for the BTF map dumping test.
+SEC("kprobe/dummy")
+int kprobe__dummy(void *ctx) {
+    return 0;
+}
 
 char _license[] SEC("license") = "GPL";

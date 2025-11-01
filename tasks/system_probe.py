@@ -390,14 +390,12 @@ def ninja_test_ebpf_programs(nw: NinjaWriter, build_dir):
     for prog in test_programs:
         ninja_test_ebpf_program(nw, build_dir, ebpf_c_dir, test_flags, prog)
 
+    # System-probe subcommand test programs
+    subcommand_test_c_dir = os.path.join("cmd", "system-probe", "subcommands", "ebpf", "testdata")
+    subcommand_test_programs = ["btf_test"]
 
-def ninja_system_probe_subcommand_test_ebpf_programs(nw: NinjaWriter, build_dir):
-    ebpf_c_dir = os.path.join("cmd", "system-probe", "subcommands", "ebpf", "testdata")
-    test_flags = "-g -DDEBUG=1"
-    test_programs = ["btf_test"]
-
-    for prog in test_programs:
-        ninja_test_ebpf_program(nw, build_dir, ebpf_c_dir, test_flags, prog)
+    for prog in subcommand_test_programs:
+        ninja_test_ebpf_program(nw, build_dir, subcommand_test_c_dir, test_flags, prog)
 
 
 def ninja_kernel_bugs_ebpf_programs(nw: NinjaWriter):
@@ -685,7 +683,6 @@ def ninja_generate(
             ninja_define_co_re_compiler(nw, arch=arch)
             ninja_network_ebpf_programs(nw, build_dir, co_re_build_dir)
             ninja_test_ebpf_programs(nw, co_re_build_dir)
-            ninja_system_probe_subcommand_test_ebpf_programs(nw, build_dir)
             ninja_kernel_bugs_ebpf_programs(nw)
             ninja_kernel_bug_binaries(nw, arch)
             ninja_security_ebpf_programs(nw, build_dir, debug, kernel_release, arch=arch)
