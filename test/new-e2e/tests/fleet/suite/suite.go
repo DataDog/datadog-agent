@@ -7,6 +7,7 @@
 package suite
 
 import (
+	"regexp"
 	"testing"
 
 	e2eos "github.com/DataDog/test-infra-definitions/components/os"
@@ -66,8 +67,9 @@ func Run(t *testing.T, f func() e2e.Suite[environments.Host], platforms []e2eos.
 		s := f()
 		t.Run(platform.String(), func(t *testing.T) {
 			t.Parallel()
+			name := regexp.MustCompile("[^a-zA-Z0-9]+").ReplaceAllString(t.Name(), "_")
 			opts = append(opts, awshost.WithEC2InstanceOptions(ec2.WithOS(platform)), awshost.WithoutAgent())
-			e2e.Run(t, s, e2e.WithProvisioner(awshost.Provisioner(opts...)), e2e.WithStackName(t.Name()))
+			e2e.Run(t, s, e2e.WithProvisioner(awshost.Provisioner(opts...)), e2e.WithStackName(name))
 		})
 	}
 }
