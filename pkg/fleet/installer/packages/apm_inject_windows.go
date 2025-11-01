@@ -182,6 +182,48 @@ func postStopExperimentAPMInject(ctx HookContext) (err error) {
 	return nil
 }
 
+func instrumentAPMInject(ctx context.Context) (err error) {
+	span, ctx := telemetry.StartSpanFromContext(ctx, "instrument_apm_inject")
+	defer func() { span.Finish(err) }()
+
+	// Get the stable package path
+	packagePath, err := filepath.EvalSymlinks(getAPMInjectTargetPath("stable"))
+	if err != nil {
+		return err
+	}
+
+	// Run the installer to install the stable driver
+	injectorExec := pkgExec.NewAPMInjectExec(getAPMInjectExecutablePath(packagePath))
+	injectorExec.WithDDInjectorPackage(packagePath)
+	injectorExec.WithDDAgentVersion(version.AgentPackageVersion)
+	_, err = injectorExec.Install(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to install stable APM inject driver: %w", err)
+	}
+	return nil
+}
+
+func uninstrumentAPMInject(ctx context.Context) (err error) {
+	span, ctx := telemetry.StartSpanFromContext(ctx, "uninstrument_apm_inject")
+	defer func() { span.Finish(err) }()
+
+	// Get the stable package path
+	packagePath, err := filepath.EvalSymlinks(getAPMInjectTargetPath("stable"))
+	if err != nil {
+		return err
+	}
+
+	// Run the installer to install the stable driver
+	injectorExec := pkgExec.NewAPMInjectExec(getAPMInjectExecutablePath(packagePath))
+	injectorExec.WithDDInjectorPackage(packagePath)
+	injectorExec.WithDDAgentVersion(version.AgentPackageVersion)
+	_, err = injectorExec.Uninstall(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to uninstall stable APM inject driver: %w", err)
+	}
+	return nil
+}
+
 // InstrumentAPMInjector instruments the APM injector for IIS on Windows
 func InstrumentAPMInjector(ctx context.Context, method string) (err error) {
 	span, ctx := telemetry.StartSpanFromContext(ctx, "instrument_injector")
@@ -190,6 +232,11 @@ func InstrumentAPMInjector(ctx context.Context, method string) (err error) {
 	switch method {
 	case env.APMInstrumentationEnabledIIS:
 		err = instrumentDotnetLibrary(ctx, "stable")
+		if err != nil {
+			return err
+		}
+	case env.APMInstrumentationEnabledHost:
+		err = instrumentAPMInject(ctx)
 		if err != nil {
 			return err
 		}
@@ -209,6 +256,11 @@ func UninstrumentAPMInjector(ctx context.Context, method string) (err error) {
 	switch method {
 	case env.APMInstrumentationEnabledIIS:
 		err = uninstrumentDotnetLibrary(ctx, "stable")
+		if err != nil {
+			return err
+		}
+	case env.APMInstrumentationEnabledHost:
+		err = uninstrumentAPMInject(ctx)
 		if err != nil {
 			return err
 		}
