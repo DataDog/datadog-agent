@@ -246,6 +246,9 @@ func (c *BatchConsumer[V]) process(b *Batch, syncing bool) {
 	ptr := pointerToElement[V](b, begin)
 	events := unsafe.Slice(ptr, length)
 
+	if c.proto == "kafka" {
+		fmt.Printf("processing %d events from cpu %d; end: %d; begin: %d; syncing: %v", len(events), cpu, end, begin, syncing)
+	}
 	c.callback(events)
 }
 
