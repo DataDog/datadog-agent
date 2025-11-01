@@ -685,7 +685,7 @@ def ninja_generate(
             ninja_define_co_re_compiler(nw, arch=arch)
             ninja_network_ebpf_programs(nw, build_dir, co_re_build_dir)
             ninja_test_ebpf_programs(nw, co_re_build_dir)
-            ninja_system_probe_subcommand_test_ebpf_programs(nw, co_re_build_dir)
+            ninja_system_probe_subcommand_test_ebpf_programs(nw, build_dir)
             ninja_kernel_bugs_ebpf_programs(nw)
             ninja_kernel_bug_binaries(nw, arch)
             ninja_security_ebpf_programs(nw, build_dir, debug, kernel_release, arch=arch)
