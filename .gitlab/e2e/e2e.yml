@@ -656,7 +656,8 @@ new-e2e-apm:
 new-e2e-fleet-config:
   extends: .new_e2e_fleet_template
   variables:
-    TARGETS: ./tests/fleet/config
+    TARGETS: ./tests/fleet
+    EXTRA_PARAMS: --run TestFleetConfig
 
 new-e2e-installer-script:
   extends: .new_e2e_template
