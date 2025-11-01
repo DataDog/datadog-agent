@@ -32,8 +32,6 @@ var (
 	}
 	// WindowsPlatforms is the list of supported Windows platforms.
 	WindowsPlatforms = []e2eos.Descriptor{
-		e2eos.WindowsClient10,
-		e2eos.WindowsClient11,
 		e2eos.WindowsServer2016,
 		e2eos.WindowsServer2019,
 		e2eos.WindowsServer2022,
