@@ -390,12 +390,12 @@ def ninja_test_ebpf_programs(nw: NinjaWriter, build_dir):
     for prog in test_programs:
         ninja_test_ebpf_program(nw, build_dir, ebpf_c_dir, test_flags, prog)
 
-    # System-probe subcommand test programs
-    subcommand_test_c_dir = os.path.join("cmd", "system-probe", "subcommands", "ebpf", "testdata")
-    subcommand_test_programs = ["btf_test"]
+    # System-probe ebpf subcommand test programs
+    ebpf_subcommand_test_c_dir = os.path.join("cmd", "system-probe", "subcommands", "ebpf", "testdata")
+    ebpf_subcommand_test_programs = ["btf_test"]
 
-    for prog in subcommand_test_programs:
-        ninja_test_ebpf_program(nw, build_dir, subcommand_test_c_dir, test_flags, prog)
+    for prog in ebpf_subcommand_test_programs:
+        ninja_test_ebpf_program(nw, build_dir, ebpf_subcommand_test_c_dir, test_flags, prog)
 
 
 def ninja_kernel_bugs_ebpf_programs(nw: NinjaWriter):
