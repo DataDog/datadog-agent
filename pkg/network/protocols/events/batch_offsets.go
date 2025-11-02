@@ -56,6 +56,7 @@ func (o *offsetManager) Get(cpu int, batch *Batch, syncing bool) (begin, end int
 		return 0, 0
 	}
 
+	fmt.Printf("[batch-offsets] Get begin for batch idx: %d; cpu: %d; len: %d; cap: %d; event_size: %d; dropped events: %d; failed_flushes: %d\n", batch.Idx, batch.Cpu, batch.Len, batch.Cap, batch.Event_size, batch.Dropped_events, batch.Failed_flushes)
 	if batchComplete(batch) {
 		state.nextBatchID = batchID + 1
 	}
