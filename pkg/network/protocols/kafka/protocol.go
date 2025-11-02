@@ -8,6 +8,7 @@
 package kafka
 
 import (
+	"fmt"
 	"io"
 	"time"
 	"unsafe"
@@ -400,7 +401,8 @@ func (p *protocol) GetStats() (*protocols.ProtocolStats, func()) {
 			Type:  protocols.Kafka,
 			Stats: stats,
 		}, func() {
-			for _, s := range stats {
+			for key, s := range stats {
+				fmt.Printf("deleting key %s\n", key.String())
 				s.Close()
 				requestStatsPool.Put(s)
 			}

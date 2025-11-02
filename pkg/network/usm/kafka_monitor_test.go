@@ -18,6 +18,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -245,7 +246,7 @@ func (s *KafkaProtocolParsingSuite) testKafkaProtocolParsing(t *testing.T, tls b
 				_, err = req.RequestWith(ctxTimeout, client.Client)
 				require.NoError(t, err)
 
-				getAndValidateKafkaStats(t, monitor, fixCount(2), topicName, kafkaParsingValidation{
+				getAndValidateKafkaStats(t, t, monitor, fixCount(2), topicName, kafkaParsingValidation{
 					expectedNumberOfProduceRequests: fixCount(1),
 					expectedNumberOfFetchRequests:   fixCount(1),
 					expectedAPIVersionProduce:       expectedAPIVersionProduce,
@@ -283,7 +284,7 @@ func (s *KafkaProtocolParsingSuite) testKafkaProtocolParsing(t *testing.T, tls b
 				defer cancel()
 				require.NoError(t, client.Client.ProduceSync(ctxTimeout, record).FirstErr(), "record had a produce error while synchronously producing")
 
-				getAndValidateKafkaStats(t, monitor, fixCount(1), topicName, kafkaParsingValidation{
+				getAndValidateKafkaStats(t, t, monitor, fixCount(1), topicName, kafkaParsingValidation{
 					expectedNumberOfProduceRequests: fixCount(1),
 					expectedNumberOfFetchRequests:   0,
 					expectedAPIVersionProduce:       expectedAPIVersionProduce,
@@ -324,7 +325,7 @@ func (s *KafkaProtocolParsingSuite) testKafkaProtocolParsing(t *testing.T, tls b
 					cancel()
 				}
 
-				getAndValidateKafkaStats(t, monitor, fixCount(1), topicName, kafkaParsingValidation{
+				getAndValidateKafkaStats(t, t, monitor, fixCount(1), topicName, kafkaParsingValidation{
 					expectedNumberOfProduceRequests: fixCount(numberOfIterations),
 					expectedNumberOfFetchRequests:   0,
 					expectedAPIVersionProduce:       expectedAPIVersionProduce,
@@ -374,7 +375,7 @@ func (s *KafkaProtocolParsingSuite) testKafkaProtocolParsing(t *testing.T, tls b
 				_, err = req.RequestWith(ctxTimeout, client.Client)
 				require.NoError(t, err)
 
-				getAndValidateKafkaStats(t, monitor, fixCount(2), topicName, kafkaParsingValidation{
+				getAndValidateKafkaStats(t, t, monitor, fixCount(2), topicName, kafkaParsingValidation{
 					expectedNumberOfProduceRequests: fixCount(2),
 					expectedNumberOfFetchRequests:   fixCount(2),
 					expectedAPIVersionProduce:       expectedAPIVersionProduce,
@@ -439,7 +440,7 @@ func (s *KafkaProtocolParsingSuite) testKafkaProtocolParsing(t *testing.T, tls b
 				_, err = req.RequestWith(ctxTimeout, client.Client)
 				require.NoError(t, err)
 
-				getAndValidateKafkaStats(t, monitor, fixCount(2), topicName, kafkaParsingValidation{
+				getAndValidateKafkaStats(t, t, monitor, fixCount(2), topicName, kafkaParsingValidation{
 					expectedNumberOfProduceRequests: fixCount(5 + 2*2),
 					expectedNumberOfFetchRequests:   fixCount(5 + 2*2),
 					expectedAPIVersionProduce:       expectedAPIVersionProduce,
@@ -676,7 +677,7 @@ type CannedClientServer struct {
 	t        *testing.T
 }
 
-func newCannedClientServer(t *testing.T, tls bool) *CannedClientServer {
+func newCannedClientServer(tls bool) *CannedClientServer {
 	return &CannedClientServer{
 		control:  make(chan []Message, 100),
 		done:     make(chan bool, 1),
@@ -688,11 +689,10 @@ func newCannedClientServer(t *testing.T, tls bool) *CannedClientServer {
 		// trace.
 		address: "127.0.0.1:8082",
 		tls:     tls,
-		t:       t,
 	}
 }
 
-func (can *CannedClientServer) runServer() {
+func (can *CannedClientServer) runServer(t *testing.T) {
 	var listener net.Listener
 	var err error
 	var f *os.File
@@ -701,7 +701,7 @@ func (can *CannedClientServer) runServer() {
 		crtPath := filepath.Join(curDir, "../protocols/http/testutil/testdata/cert.pem.0")
 		keyPath := filepath.Join(curDir, "../protocols/http/testutil/testdata/server.key")
 		cer, err2 := tls.LoadX509KeyPair(crtPath, keyPath)
-		require.NoError(can.t, err2)
+		require.NoError(t, err2)
 
 		config := &tls.Config{Certificates: []tls.Certificate{cer}}
 
@@ -716,9 +716,9 @@ func (can *CannedClientServer) runServer() {
 	} else {
 		listener, err = net.Listen("tcp", can.address)
 	}
-	require.NoError(can.t, err)
+	require.NoError(t, err)
 
-	can.t.Cleanup(func() {
+	t.Cleanup(func() {
 		close(can.control)
 		<-can.done
 	})
@@ -731,7 +731,7 @@ func (can *CannedClientServer) runServer() {
 		}()
 
 		conn, err := listener.Accept()
-		require.NoError(can.t, err)
+		require.NoError(t, err)
 		conn.Close()
 
 		// Delay close of connections to work around the known issue of races
@@ -741,16 +741,18 @@ func (can *CannedClientServer) runServer() {
 
 		for msgs := range can.control {
 			if prevconn != nil {
+				t.Logf("closing can conn: test %q; laddr %v; raddr %v", can.t.Name(), prevconn.LocalAddr(), prevconn.RemoteAddr())
 				prevconn.Close()
 			}
 			conn, err = listener.Accept()
-			require.NoError(can.t, err)
+			require.NoError(t, err)
+			t.Logf("new can conn: test %q; laddr %v; raddr %v", can.t.Name(), conn.LocalAddr(), conn.RemoteAddr())
 
 			reader := bufio.NewReader(conn)
 			for _, msg := range msgs {
 				if len(msg.request) > 0 {
 					_, err := io.ReadFull(reader, msg.request)
-					require.NoError(can.t, err)
+					require.NoError(t, err)
 				}
 
 				if len(msg.response) > 0 {
@@ -762,25 +764,27 @@ func (can *CannedClientServer) runServer() {
 		}
 
 		if prevconn != nil {
+			t.Logf("closing can conn: test %q; laddr %v; raddr %v", can.t.Name(), prevconn.LocalAddr(), prevconn.RemoteAddr())
 			prevconn.Close()
 		}
 	}()
 }
 
-func (can *CannedClientServer) runProxy() int {
-	proxyProcess, cancel := proxy.NewExternalUnixControlProxyServer(can.t, can.unixPath, can.address, can.tls, false)
-	can.t.Cleanup(cancel)
-	require.NoError(can.t, proxy.WaitForConnectionReady(can.unixPath))
+func (can *CannedClientServer) runProxy(t *testing.T) int {
+	proxyProcess, cancel := proxy.NewExternalUnixControlProxyServer(t, can.unixPath, can.address, can.tls, false)
+	t.Cleanup(cancel)
+	require.NoError(t, proxy.WaitForConnectionReady(can.unixPath))
 
 	return proxyProcess.Process.Pid
 }
 
-func (can *CannedClientServer) runClient(msgs []Message) {
+func (can *CannedClientServer) runClient(t *testing.T, msgs []Message) {
+	can.t = t
 	can.control <- msgs
 
 	conn, err := net.Dial("unix", can.unixPath)
-	require.NoError(can.t, err)
-	can.t.Cleanup(func() { _ = conn.Close() })
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = conn.Close() })
 
 	// Safety measure to avoid blocking forever in the case of bugs.
 	conn.SetDeadline(time.Now().Add(30 * time.Second))
@@ -804,7 +808,7 @@ func (can *CannedClientServer) runClient(msgs []Message) {
 
 		if len(msg.response) > 0 {
 			_, err := io.ReadFull(reader, msg.response)
-			require.NoError(can.t, err)
+			require.NoError(t, err)
 		}
 	}
 }
@@ -1133,21 +1137,24 @@ func testKafkaFetchRaw(t *testing.T, tls bool, apiVersion int) {
 		},
 	}
 
-	can := newCannedClientServer(t, tls)
-	can.runServer()
-	proxyPid := can.runProxy()
+	can := newCannedClientServer(tls)
+	can.runServer(t)
+	proxyPid := can.runProxy(t)
 
 	monitor := setupUSMTLSMonitor(t, getDefaultTestConfiguration(tls), useExistingConsumer)
 	if tls {
 		utils.WaitForProgramsToBeTraced(t, consts.USMModuleName, GoTLSAttacherName, proxyPid, utils.ManualTracingFallbackEnabled)
 	}
 
-	for _, tt := range tests {
+	for i, tt := range tests {
 		if tt.onlyTLS && !tls {
 			continue
 		}
 
 		t.Run(tt.name, func(t *testing.T) {
+			if tt.name == "basic" {
+				tt.topic = tt.topic + "-" + strconv.Itoa(i)
+			}
 			t.Cleanup(func() {
 				cleanProtocolMaps(t, "kafka", monitor.ebpfProgram.Manager.Manager)
 			})
@@ -1167,12 +1174,12 @@ func testKafkaFetchRaw(t *testing.T, tls bool, apiVersion int) {
 				telemetry.OptStatsd)
 			beforeEvents := counter.Get()
 
-			can.runClient(msgs)
+			can.runClient(t, msgs)
 
 			if tt.produceFetchValidationWithErrorCode != nil {
 				getAndValidateKafkaStatsWithErrorCodes(t, monitor, 1, tt.topic, *tt.produceFetchValidationWithErrorCode)
 			} else {
-				getAndValidateKafkaStats(t, monitor, 1, tt.topic, kafkaParsingValidation{
+				getAndValidateKafkaStats(t, t, monitor, 1, tt.topic, kafkaParsingValidation{
 					expectedNumberOfFetchRequests: tt.numFetchedRecords,
 					expectedAPIVersionFetch:       apiVersion,
 					tlsEnabled:                    tls,
@@ -1203,12 +1210,13 @@ func testKafkaFetchRaw(t *testing.T, tls bool, apiVersion int) {
 
 		for groupIdx, group := range groups {
 			name := fmt.Sprintf("split/%s/group%d", tt.name, groupIdx)
+			parentT := t
 			t.Run(name, func(t *testing.T) {
 				t.Cleanup(func() {
 					cleanProtocolMaps(t, "kafka", monitor.ebpfProgram.Manager.Manager)
 				})
 
-				can.runClient(group.msgs)
+				can.runClient(t, group.msgs)
 
 				if tt.produceFetchValidationWithErrorCode != nil {
 					tmp := kafkaParsingValidationWithErrorCodes{
@@ -1221,7 +1229,7 @@ func testKafkaFetchRaw(t *testing.T, tls bool, apiVersion int) {
 					tmp.expectedNumberOfFetchRequests = tempFetchValidation
 					getAndValidateKafkaStatsWithErrorCodes(t, monitor, 1, tt.topic, tmp)
 				} else {
-					getAndValidateKafkaStats(t, monitor, 1, tt.topic, kafkaParsingValidation{
+					getAndValidateKafkaStats(parentT, t, monitor, 1, tt.topic, kafkaParsingValidation{
 						expectedNumberOfFetchRequests: tt.numFetchedRecords * group.numSets,
 						expectedAPIVersionFetch:       apiVersion,
 						tlsEnabled:                    tls,
@@ -1359,9 +1367,9 @@ func testKafkaProduceRaw(t *testing.T, tls bool, apiVersion int) {
 		},
 	}
 
-	can := newCannedClientServer(t, tls)
-	can.runServer()
-	proxyPid := can.runProxy()
+	can := newCannedClientServer(tls)
+	can.runServer(t)
+	proxyPid := can.runProxy(t)
 
 	monitor := setupUSMTLSMonitor(t, getDefaultTestConfiguration(tls), useExistingConsumer)
 	if tls {
@@ -1378,9 +1386,9 @@ func testKafkaProduceRaw(t *testing.T, tls bool, apiVersion int) {
 			resp := tt.buildResponse(tt.topic)
 			msgs = appendMessages(msgs, 99, &req, &resp)
 
-			can.runClient(msgs)
+			can.runClient(t, msgs)
 
-			getAndValidateKafkaStats(t, monitor, 1, tt.topic, kafkaParsingValidation{
+			getAndValidateKafkaStats(t, t, monitor, 1, tt.topic, kafkaParsingValidation{
 				expectedNumberOfProduceRequests: tt.numProducedRecords,
 				expectedAPIVersionProduce:       apiVersion,
 				tlsEnabled:                      tls,
@@ -1400,9 +1408,9 @@ func testKafkaProduceRaw(t *testing.T, tls bool, apiVersion int) {
 					cleanProtocolMaps(t, "kafka", monitor.ebpfProgram.Manager.Manager)
 				})
 
-				can.runClient(group.msgs)
+				can.runClient(t, group.msgs)
 
-				getAndValidateKafkaStats(t, monitor, 1, tt.topic, kafkaParsingValidation{
+				getAndValidateKafkaStats(t, t, monitor, 1, tt.topic, kafkaParsingValidation{
 					expectedNumberOfProduceRequests: tt.numProducedRecords * group.numSets,
 					expectedAPIVersionProduce:       apiVersion,
 					tlsEnabled:                      tls,
@@ -1536,7 +1544,7 @@ func (i *PrintableInt) Add(other int) {
 	*i = PrintableInt(other + i.Load())
 }
 
-func getAndValidateKafkaStats(t *testing.T, monitor *Monitor, expectedStatsCount int, topicName string, validation kafkaParsingValidation, errorCode int32) map[kafka.Key]*kafka.RequestStats {
+func getAndValidateKafkaStats(parentT *testing.T, t *testing.T, monitor *Monitor, expectedStatsCount int, topicName string, validation kafkaParsingValidation, errorCode int32) map[kafka.Key]*kafka.RequestStats {
 	kafkaStats := make(map[kafka.Key]*kafka.RequestStats)
 	assert.EventuallyWithT(t, func(collect *assert.CollectT) {
 		protocolStats, cleaners := monitor.GetProtocolStats()
@@ -1545,7 +1553,12 @@ func getAndValidateKafkaStats(t *testing.T, monitor *Monitor, expectedStatsCount
 		// We might not have kafka stats, and it might be the expected case (to capture 0).
 		if exists {
 			currentStats := kafkaProtocolStats.(map[kafka.Key]*kafka.RequestStats)
+			if len(currentStats) > 0 {
+				fmt.Printf("test %q; got the following stats ->>>\n", t.Name())
+			}
 			for key, stats := range currentStats {
+				fmt.Printf("test %q; iter; key: %s; value: %v; value ptr: %p\n", t.Name(), key.String(), stats, stats)
+
 				prevStats, ok := kafkaStats[key]
 				if ok && prevStats != nil {
 					prevStats.CombineWith(stats)
@@ -1559,6 +1572,14 @@ func getAndValidateKafkaStats(t *testing.T, monitor *Monitor, expectedStatsCount
 			validateProduceFetchCount(collect, kafkaStats, topicName, validation, errorCode)
 		}
 	}, time.Second*5, time.Millisecond*10)
+	fmt.Printf("test name: %q; >>>>>>>>>>>>\n", t.Name())
+	parentT.Logf("test name: %q; >>>>>>>>>>>>", t.Name())
+	for key, value := range kafkaStats {
+		fmt.Printf("test name: %q; kafka key: %s; value: %v; value ptr: %p\n", t.Name(), key.String(), value, value)
+		parentT.Logf("test name: %q; kafka key: %s; value: %v; value ptr: %p", t.Name(), key.String(), value, value)
+	}
+	fmt.Printf("test name: %q; <<<<<<<<<<<<\n", t.Name())
+	parentT.Logf("test name: %q; <<<<<<<<<<<<", t.Name())
 	if t.Failed() {
 		ebpftest.DumpMapsTestHelper(t, monitor.ebpfProgram.Manager.Manager.DumpMaps, "kafka_in_flight", "kafka_batches", "kafka_response", "kafka_telemetry")
 		t.FailNow()
