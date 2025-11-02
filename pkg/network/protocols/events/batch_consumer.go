@@ -74,6 +74,7 @@ func NewBatchConsumer[V any](proto string, ebpf *manager.Manager, callback func(
 	}
 
 	offsets := newOffsetManager(numCPUs)
+	offsets.debug = proto == "kafka"
 	batchReader, err := newBatchReader(offsets, batchMap, numCPUs)
 	if err != nil {
 		return nil, err
@@ -247,7 +248,7 @@ func (c *BatchConsumer[V]) process(b *Batch, syncing bool) {
 	events := unsafe.Slice(ptr, length)
 
 	if c.proto == "kafka" {
-		fmt.Printf("processing %d events from cpu %d; end: %d; begin: %d; syncing: %v", len(events), cpu, end, begin, syncing)
+		fmt.Printf("processing %d events from cpu %d; end: %d; begin: %d; syncing: %v\n", len(events), cpu, end, begin, syncing)
 	}
 	c.callback(events)
 }

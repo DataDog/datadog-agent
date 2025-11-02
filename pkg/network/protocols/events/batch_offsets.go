@@ -9,6 +9,7 @@
 package events
 
 import (
+	"fmt"
 	"sync"
 )
 
@@ -17,6 +18,7 @@ import (
 type offsetManager struct {
 	mux        sync.Mutex
 	stateByCPU []*cpuReadState
+	debug      bool
 }
 
 type cpuReadState struct {
@@ -44,6 +46,9 @@ func (o *offsetManager) Get(cpu int, batch *Batch, syncing bool) (begin, end int
 	o.mux.Lock()
 	defer o.mux.Unlock()
 	state := o.stateByCPU[cpu]
+	if o.debug {
+		fmt.Printf("[batch-offsets] Get state for cpu %d; state: %#v\n", cpu, state)
+	}
 	batchID := int(batch.Idx)
 
 	if batchID < state.nextBatchID {
@@ -59,6 +64,9 @@ func (o *offsetManager) Get(cpu int, batch *Batch, syncing bool) (begin, end int
 	// usually this is 0, but if we've done a partial read of this batch
 	// we need to take that into account
 	if int(batch.Idx) == state.partialBatchID {
+		if o.debug {
+			fmt.Printf("[batch-offsets] using partial begin data for cpu %d; begin: %#v\n", cpu, state.partialOffset)
+		}
 		begin = state.partialOffset
 	}
 
@@ -71,8 +79,14 @@ func (o *offsetManager) Get(cpu int, batch *Batch, syncing bool) (begin, end int
 	// it's complete) we need to keep track of which entries we're reading
 	// so we avoid reading the same entries again
 	if syncing {
+		if o.debug {
+			fmt.Printf("[batch-offsets] overriding syncing data for cpu %d; state before: %#v\n", cpu, state)
+		}
 		state.partialBatchID = int(batch.Idx)
 		state.partialOffset = end
+		if o.debug {
+			fmt.Printf("[batch-offsets] overriding syncing data for cpu %d; state after: %#v\n", cpu, state)
+		}
 	}
 
 	return
