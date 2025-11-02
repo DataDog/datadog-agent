@@ -141,7 +141,7 @@ namespace WixSetup.Datadog_Agent
                 {
                     AttributesDefinition = "Secure=yes"
                 },
-                new Property("PURGE")
+                new Property("KEEP_INSTALLED_PACKAGES")
                 {
                     AttributesDefinition = "Secure=yes"
                 },
