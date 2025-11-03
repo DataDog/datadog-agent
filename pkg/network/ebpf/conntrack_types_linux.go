@@ -16,14 +16,15 @@ type ConntrackTuple struct {
 }
 
 type ConntrackTelemetry struct {
-	Registers                                    uint64
-	Hash_insert_count                            uint64
-	Hash_insert_entry_count                      uint64
-	Hash_check_insert_success_count              uint64
-	Confirm_entry_count                          uint64
-	Confirm_return_count                         uint64
-	Confirm_return_success_count                 uint64
-	Confirm_return_no_matching_entry_probe_count uint64
-	Confirm_return_not_accepted_count            uint64
-	Confirm_return_not_confirmed_count           uint64
+	Registers                                           uint64
+	Hash_insert_count                                   uint64
+	Hash_insert_entry_count                             uint64
+	Hash_check_insert_success_count                     uint64
+	Confirm_entry_count                                 uint64
+	Confirm_return_count                                uint64
+	Confirm_return_success_count                        uint64
+	Confirm_return_no_matching_entry_probe_count        uint64
+	Confirm_return_not_accepted_count                   uint64
+	Confirm_return_not_confirmed_count                  uint64
+	Confirm_return_failed_to_get_conntrack_tuples_count uint64
 }

@@ -97,7 +97,7 @@ int BPF_BYPASSABLE_KPROBE(kretprobe_nf_conntrack_hash_check_insert, struct nf_co
 SEC("kprobe/__nf_conntrack_confirm") // JMWCONNTRACK
 int BPF_BYPASSABLE_KPROBE(kprobe__nf_conntrack_confirm) {
     increment_confirm_entry_count();
-    log_debug("JMW(runtime)confirm: entry")
+    log_debug("JMW(runtime)confirm: entry");
     struct sk_buff *skb = (struct sk_buff *)PT_REGS_PARM1(ctx); // skb is 1st parameter
     u64 pid_tgid = bpf_get_current_pid_tgid();
 
@@ -142,7 +142,7 @@ int BPF_BYPASSABLE_KPROBE(kprobe__nf_conntrack_confirm) {
 SEC("kretprobe/__nf_conntrack_confirm") // JMWCONNTRACK
 int BPF_BYPASSABLE_KPROBE(kretprobe__nf_conntrack_confirm) {
     increment_confirm_return_count();
-    log_debug("JMW(runtime)confirm_return: entry")
+    log_debug("JMW(runtime)confirm_return: entry");
     int ret = PT_REGS_RC(ctx);
     u64 pid_tgid = bpf_get_current_pid_tgid();
 
