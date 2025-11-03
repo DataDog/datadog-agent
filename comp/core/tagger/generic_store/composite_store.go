@@ -6,7 +6,10 @@
 package genericstore
 
 import (
+	"fmt"
+
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 type compositeObjectStore[T any] struct {
@@ -25,10 +28,22 @@ func newCompositeObjectStore[T any]() types.ObjectStore[T] {
 func (os *compositeObjectStore[T]) Get(entityID types.EntityID) (object T, found bool) {
 	submap, found := os.data[entityID.GetPrefix()]
 	if !found {
+		log.Debug(fmt.Sprintf("Entity not found: %s", entityID.String()))
+		for key := range os.data {
+			log.Debug(fmt.Sprintf("os.data Key: %s", key))
+		}
 		return
 	}
 
 	object, found = submap[entityID.GetID()]
+	if !found {
+		log.Debug(fmt.Sprintf("Entity not found: %s", entityID.String()))
+		for key := range os.data {
+			log.Debug(fmt.Sprintf("submap Key: %s", key))
+		}
+	}
+	log.Debug(fmt.Sprintf("Entity found: %s", entityID.String()))
+
 	return
 }
 

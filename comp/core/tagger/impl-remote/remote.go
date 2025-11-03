@@ -269,15 +269,18 @@ func stop(remoteTagger *remoteTagger) error {
 
 // Tag returns tags for a given entity at the desired cardinality.
 func (t *remoteTagger) Tag(entityID types.EntityID, cardinality types.TagCardinality) ([]string, error) {
+	t.log.Debug(fmt.Sprintf("Tagging entity: %s, cardinality: %v", entityID.String(), cardinality))
 	if cardinality == types.ChecksConfigCardinality {
 		cardinality = t.checksCardinality
 	}
 	entity := t.store.getEntity(entityID)
 	if entity != nil {
+		t.log.Debug(fmt.Sprintf("Entity found: %s, tags: %v", entityID.String(), entity.GetTags(cardinality)))
 		t.telemetryStore.QueriesByCardinality(cardinality).Success.Inc()
 		return entity.GetTags(cardinality), nil
 	}
 
+	t.log.Debug(fmt.Sprintf("Entity NOT found: %s", entityID.String()))
 	t.telemetryStore.QueriesByCardinality(cardinality).EmptyTags.Inc()
 
 	return []string{}, nil

@@ -6,11 +6,13 @@
 package remoteimpl
 
 import (
+	"fmt"
 	"sync"
 
 	genericstore "github.com/DataDog/datadog-agent/comp/core/tagger/generic_store"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const remoteSource = "remote"
@@ -63,10 +65,11 @@ func (s *tagStore) getEntity(entityID types.EntityID) *types.Entity {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
 
+	log.Debug(fmt.Sprintf("Getting entity: %s", entityID.String()))
 	if entity, present := s.store.Get(entityID); present {
+		log.Debug(fmt.Sprintf("Entity found: %s, tags: %v", entityID.String(), entity.GetTags(types.ChecksConfigCardinality)))
 		return entity
 	}
-
 	return nil
 }
 
