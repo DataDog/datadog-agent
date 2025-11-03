@@ -127,9 +127,9 @@ int BPF_BYPASSABLE_KPROBE(kprobe__nf_conntrack_confirm) {
     BPF_CORE_READ_INTO(&status, ct, status);
     if (!(status&IPS_NAT_MASK)) {
         log_debug("JMW(runtime)kprobe/__nf_conntrack_confirm: not IPS_NAT_MASK");
-        //log_debug("JMW(runtime)kprobe/__nf_conntrack_confirm: ct=%p", ct);
-        //log_debug("JMW(runtime)kprobe/__nf_conntrack_confirm: netns=%u", get_netns(ct));
-        //log_debug("JMW(runtime)kprobe/__nf_conntrack_confirm: status=%x", status);
+        log_debug("JMW(runtime)kprobe/__nf_conntrack_confirm: ct=%p", ct);
+        log_debug("JMW(runtime)kprobe/__nf_conntrack_confirm: netns=%u", get_netns(ct));
+        log_debug("JMW(runtime)kprobe/__nf_conntrack_confirm: status=%x", status);
         return 0;
     }
 
@@ -138,9 +138,9 @@ int BPF_BYPASSABLE_KPROBE(kprobe__nf_conntrack_confirm) {
     bpf_map_update_with_telemetry(pending_confirms, &pid_tgid, &ct_ptr, BPF_ANY);
 
     log_debug("JMW(runtime)kprobe/__nf_conntrack_confirm: added to pending_confirms");
-    //log_debug("JMW(runtime)kprobe/__nf_conntrack_confirm: pid_tgid=%llu", pid_tgid);
-    //log_debug("JMW(runtime)kprobe/__nf_conntrack_confirm: ct=%p", ct);
-    //log_debug("JMW(runtime)kprobe/__nf_conntrack_confirm: netns=%u", get_netns(ct));
+    log_debug("JMW(runtime)kprobe/__nf_conntrack_confirm: pid_tgid=%llu", pid_tgid);
+    log_debug("JMW(runtime)kprobe/__nf_conntrack_confirm: ct=%p", ct);
+    log_debug("JMW(runtime)kprobe/__nf_conntrack_confirm: netns=%u", get_netns(ct));
 
     return 0;
 }
@@ -164,8 +164,8 @@ int BPF_BYPASSABLE_KPROBE(kretprobe__nf_conntrack_confirm) {
 
     struct nf_conn *ct = (struct nf_conn *)*ct_ptr;
 
-    //log_debug("JMW(runtime)kretprobe/__nf_conntrack_confirm: ret=%d", ret);
-    //log_debug("JMW(runtime)kretprobe/__nf_conntrack_confirm: ct=%p", ct);
+    log_debug("JMW(runtime)kretprobe/__nf_conntrack_confirm: ret=%d", ret);
+    log_debug("JMW(runtime)kretprobe/__nf_conntrack_confirm: ct=%p", ct);
 
     // Clean up the pending entry regardless of success/failure
     bpf_map_delete_elem(&pending_confirms, &pid_tgid);
@@ -183,9 +183,9 @@ int BPF_BYPASSABLE_KPROBE(kretprobe__nf_conntrack_confirm) {
     if (!(status&IPS_CONFIRMED)) {
         increment_confirm_return_not_confirmed_count();
         log_debug("JMW(runtime)kretprobe/__nf_conntrack_confirm: not IPS_CONFIRMED");
-        //log_debug("JMW(runtime)kretprobe/__nf_conntrack_confirm: ct=%p", ct);
-        //log_debug("JMW(runtime)kretprobe/__nf_conntrack_confirm: netns=%u", get_netns(ct));
-        //log_debug("JMW(runtime)kretprobe/__nf_conntrack_confirm: status=%x", status);
+        log_debug("JMW(runtime)kretprobe/__nf_conntrack_confirm: ct=%p", ct);
+        log_debug("JMW(runtime)kretprobe/__nf_conntrack_confirm: netns=%u", get_netns(ct));
+        log_debug("JMW(runtime)kretprobe/__nf_conntrack_confirm: status=%x", status);
         return 0;
     }
 
@@ -195,8 +195,8 @@ int BPF_BYPASSABLE_KPROBE(kretprobe__nf_conntrack_confirm) {
     conntrack_tuple_t orig = {}, reply = {};
     if (nf_conn_to_conntrack_tuples(ct, &orig, &reply) != 0) {
         log_debug("JMW(runtime)kretprobe/__nf_conntrack_confirm: failed to get conntrack tuples");
-        //log_debug("JMW(runtime)kretprobe/__nf_conntrack_confirm: ct=%p", ct);
-        //log_debug("JMW(runtime)kretprobe/__nf_conntrack_confirm: netns=%u", get_netns(ct));
+        log_debug("JMW(runtime)kretprobe/__nf_conntrack_confirm: ct=%p", ct);
+        log_debug("JMW(runtime)kretprobe/__nf_conntrack_confirm: netns=%u", get_netns(ct));
         return 0;
     }
 
@@ -206,8 +206,8 @@ int BPF_BYPASSABLE_KPROBE(kretprobe__nf_conntrack_confirm) {
     //increment_telemetry_registers_count();
 
     log_debug("JMW(runtime)kretprobe/__nf_conntrack_confirm: added to conntrack2");
-    //log_debug("JMW(runtime)kretprobe/__nf_conntrack_confirm: ct=%p", ct);
-    //log_debug("JMW(runtime)kretprobe/__nf_conntrack_confirm: netns=%u", get_netns(ct));
+    log_debug("JMW(runtime)kretprobe/__nf_conntrack_confirm: ct=%p", ct);
+    log_debug("JMW(runtime)kretprobe/__nf_conntrack_confirm: netns=%u", get_netns(ct));
 
     return 0;
 }
