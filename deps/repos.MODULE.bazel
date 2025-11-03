@@ -211,3 +211,15 @@ http_archive(
     strip_prefix = "unixODBC-2.3.9",
     url = "https://www.unixodbc.org/unixODBC-2.3.9.tar.gz",
 )
+
+http_archive(
+    name = "python3",
+    sha256 = "6c9d80839cfa20024f34d9a6dd31ae2a9cd97ff5e980e969209746037a5153b2",
+    url = "https://python.org/ftp/python/3.13.7/Python-3.13.7.tgz",
+    strip_prefix = "Python-3.13.7",
+    files = {
+        "config-linux-x86_64.h": "//deps:python3/config-linux-x86_64.h",
+        "config-linux-arm64.h": "//deps:python3/config-linux-arm64.h",
+        "BUILD.bazel": "//deps:python3/overlay.BUILD.bazel",
+    },
+)
