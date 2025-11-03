@@ -1,5 +1,6 @@
 bazel:run-buildifier-test:
-  extends: [ .bazel:defs, .lint ]
+  extends: [ .bazel:defs, .bazel:runner:linux-amd64 ]
+  stage: lint
   script:
     - bazel run //bazel/buildifier:test
   after_script:
