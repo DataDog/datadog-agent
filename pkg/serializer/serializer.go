@@ -249,7 +249,7 @@ func (s *Serializer) SendIterableSeries(serieSource metrics.SerieSource) error {
 	return s.Forwarder.SubmitSeries(seriesBytesPayloads, extraHeaders)
 }
 
-func (s *Serializer) getFailoverAllowlist() (bool, map[string]struct{}) {
+func (s *Serializer) getMRFFailoverAllowlist() (bool, map[string]struct{}) {
 	failoverActive := s.config.GetBool("multi_region_failover.enabled") && s.config.GetBool("multi_region_failover.failover_metrics")
 	var allowlist map[string]struct{}
 	if failoverActive && s.config.IsSet("multi_region_failover.metric_allowlist") {
@@ -263,40 +263,39 @@ func (s *Serializer) getFailoverAllowlist() (bool, map[string]struct{}) {
 }
 
 func (s *Serializer) buildPipelines() []metricsserializer.Pipeline {
-	failoverActiveForMRF, allowlistForMRF := s.getFailoverAllowlist()
-	failoverActiveForAutoscaling, allowlistForAutoscaling := s.getAutoscalingFailoverMetrics()
-	failoverActive := (failoverActiveForMRF && len(allowlistForMRF) > 0) || (failoverActiveForAutoscaling && len(allowlistForAutoscaling) > 0)
+	// Always send full metrics set to the primary region (even if "fail-over" is active).
+	// MRF works more like conditional dual-shipping.
+	//
+	// Do not use AllRegions for metrics to avoid a situation when MRF
+	// is enabled while an AllRegions payload is in the queue, and
+	// unfiltered payload gets forwarded to the secondary destination.
+	pipelines := []metricsserializer.Pipeline{{
+		FilterFunc:  func(metric metricsserializer.Filterable) bool { return true },
+		Destination: transaction.PrimaryOnly,
+	}}
 
-	if failoverActive {
-		return []metricsserializer.Pipeline{
-			{
-				FilterFunc:  func(metric metricsserializer.Filterable) bool { return true },
-				Destination: transaction.PrimaryOnly,
+	// If MRF is active, also send a filtered set to the secondary region.
+	if active, allowList := s.getMRFFailoverAllowlist(); active && len(allowList) > 0 {
+		pipelines = append(pipelines, metricsserializer.Pipeline{
+			FilterFunc: func(metric metricsserializer.Filterable) bool {
+				_, allowed := allowList[metric.GetName()]
+				return allowed
 			},
-			{
-				FilterFunc: func(metric metricsserializer.Filterable) bool {
-					_, allowed := allowlistForMRF[metric.GetName()]
-					return allowed
-				},
-				Destination: transaction.SecondaryOnly,
-			},
-			{
-				FilterFunc: func(metric metricsserializer.Filterable) bool {
-					_, allowed := allowlistForAutoscaling[metric.GetName()]
-					return allowed
-				},
-				Destination: transaction.LocalOnly,
-			},
-		}
+			Destination: transaction.SecondaryOnly,
+		})
 	}
 
-	// Default: all metrics to AllRegions
-	return []metricsserializer.Pipeline{
-		{
-			FilterFunc:  func(metric metricsserializer.Filterable) bool { return true },
-			Destination: transaction.AllRegions,
-		},
+	if active, allowList := s.getAutoscalingFailoverMetrics(); active && len(allowList) > 0 {
+		pipelines = append(pipelines, metricsserializer.Pipeline{
+			FilterFunc: func(metric metricsserializer.Filterable) bool {
+				_, allowed := allowList[metric.GetName()]
+				return allowed
+			},
+			Destination: transaction.LocalOnly,
+		})
 	}
+
+	return pipelines
 }
 
 func (s *Serializer) getAutoscalingFailoverMetrics() (bool, map[string]struct{}) {
