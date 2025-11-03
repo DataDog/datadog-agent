@@ -323,6 +323,13 @@ func buildOperationsFromLegacyInstaller(rootPath string) []FileOperation {
 		return allOps
 	}
 
+	// Recursively delete targetPath/
+	// RemoveAll removes symlinks but not the content they point to as it uses os.Remove first
+	allOps = append(allOps, FileOperation{
+		FileOperationType: FileOperationDeleteAll,
+		FilePath:          "/managed",
+	})
+
 	err = filepath.Walk(stableDirPath, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
@@ -343,12 +350,6 @@ func buildOperationsFromLegacyInstaller(rootPath string) []FileOperation {
 		return []FileOperation{}
 	}
 
-	// Recursively delete targetPath/
-	// RemoveAll removes symlinks but not the content they point to as it uses os.Remove first
-	allOps = append(allOps, FileOperation{
-		FileOperationType: FileOperationDeleteAll,
-		FilePath:          "/managed",
-	})
 	return allOps
 }
 
