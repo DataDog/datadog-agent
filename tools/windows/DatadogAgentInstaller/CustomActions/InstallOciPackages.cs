@@ -17,6 +17,7 @@ namespace Datadog.CustomActions
         private readonly string _apiKey;
         private readonly string _overrideRegistryUrl;
         private readonly string _remoteUpdates;
+        private readonly string _infrastructureMode;
         private readonly RollbackDataStore _rollbackDataStore;
 
         public InstallOciPackages(ISession session)
@@ -27,14 +28,17 @@ namespace Datadog.CustomActions
             _apiKey = session.Property("APIKEY");
             _overrideRegistryUrl = session.Property("DD_INSTALLER_REGISTRY_URL");
             _remoteUpdates = session.Property("DD_REMOTE_UPDATES");
+            _infrastructureMode = session.Property("DD_INFRASTRUCTURE_MODE");
             _installerExecutable = System.IO.Path.Combine(installDir, "bin", "datadog-installer.exe");
             _rollbackDataStore = new RollbackDataStore(session, "InstallOciPackages", new FileSystemServices(), new ServiceController());
         }
 
         private bool ShouldPurge()
         {
-            var purge = _session.Property("PURGE");
-            return !string.IsNullOrEmpty(purge) && purge == "1";
+            var keepInstalledPackages = _session.Property("KEEP_INSTALLED_PACKAGES");
+            // KEEP_INSTALLED_PACKAGES=1 means don't purge (keep packages)
+            // Default behavior (when not set or set to 0) is to purge
+            return string.IsNullOrEmpty(keepInstalledPackages) || keepInstalledPackages != "1";
         }
 
         private bool ShouldInstall()
@@ -78,6 +82,16 @@ namespace Datadog.CustomActions
             if (!string.IsNullOrEmpty(libraries))
             {
                 env["DD_APM_INSTRUMENTATION_LIBRARIES"] = libraries;
+            }
+            var apmVersion = _session.Property("DD_INSTALLER_DEFAULT_PKG_VERSION_DATADOG_APM_INJECT");
+            if (!string.IsNullOrEmpty(apmVersion))
+            {
+                env["DD_INSTALLER_DEFAULT_PKG_VERSION_DATADOG_APM_INJECT"] = apmVersion;
+            }
+
+            if (!string.IsNullOrEmpty(_infrastructureMode))
+            {
+                env["DD_INFRASTRUCTURE_MODE"] = _infrastructureMode;
             }
 
             return env;
@@ -141,7 +155,13 @@ namespace Datadog.CustomActions
         {
             if (!ShouldPurge())
             {
-                _session.Log("Skipping purge as PURGE is not set to 1");
+                _session.Log("Skipping purge as KEEP_INSTALLED_PACKAGES is set to 1");
+                return ActionResult.Success;
+            }
+            var fleetInstall = _session.Property("FLEET_INSTALL");
+            if (!string.IsNullOrEmpty(fleetInstall) && fleetInstall == "1")
+            {
+                _session.Log("Skipping purge as FLEET_INSTALL is set to 1");
                 return ActionResult.Success;
             }
             try
