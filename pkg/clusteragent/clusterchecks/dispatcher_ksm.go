@@ -171,8 +171,10 @@ func (d *dispatcher) getAvailableRunners() []string {
 	return runners
 }
 
-// validateClusterTaggerForKSM validates that cluster tagger is enabled for KSM resource sharding
-// Returns true (with warnings if cluster tagger is disabled)
+// validateClusterTaggerForKSM validates that cluster tagger is enabled for KSM resource sharding.
+// Returns true if cluster tagger is enabled, false if disabled.
+// Logs warnings if cluster tagger is disabled, informing users about missing cross-resource tags.
+// Sharding always proceeds regardless of return value - this only informs the caller of the status.
 func (d *dispatcher) validateClusterTaggerForKSM() bool {
 	// When KSM is sharded by resource type, the Cluster Tagger provides cross-resource tags:
 	// - Pod metrics get deployment/replicaset/daemonset/statefulset tags
@@ -186,25 +188,19 @@ func (d *dispatcher) validateClusterTaggerForKSM() bool {
 	// The key config that triggers pod/deployment collection is:
 	// cluster_agent.collect_kubernetes_tags
 	//
-	// Sharding works WITHOUT cluster tagger, but cross-resource tags will be missing.
-	// Namespace-level tags (from kubernetesResourcesLabelsAsTags) work independently.
+	// Sharding works WITHOUT cluster tagger, but cross-resource owner tags will be missing.
+	// These features work independently of cluster tagger:
+	// - podLabelsAsTags (from kubernetes_pod_labels_as_tags)
+	// - Namespace-level tags (from kubernetesResourcesLabelsAsTags)
 
-	if !pkgconfigsetup.Datadog().GetBool("cluster_agent.collect_kubernetes_tags") {
-		log.Warnf("cluster_agent.collect_kubernetes_tags is disabled. KSM sharding will proceed but cross-resource owner tags will be missing.")
-		log.Warnf("Pod metrics will NOT have: kube_deployment, kube_replica_set, kube_daemon_set, kube_stateful_set, kube_job, kube_cronjob tags.")
-		log.Warnf("Namespace-level tags (from kubernetesResourcesLabelsAsTags) will still work correctly.")
-		log.Warnf("Enable cluster_agent.collect_kubernetes_tags for full cross-resource tagging functionality.")
+	clusterTaggerEnabled := pkgconfigsetup.Datadog().GetBool("cluster_agent.collect_kubernetes_tags")
+
+	if !clusterTaggerEnabled {
+		log.Info("cluster_agent.collect_kubernetes_tags is disabled. KSM sharding will proceed but some cross-resource owner tags will be missing.")
 		// Note: We proceed with sharding even without cluster tagger.
 		// Basic KSM monitoring and namespace-level correlation will still work.
+	} else {
+		log.Info("KSM resource sharding is enabled with cluster tagger support")
 	}
-
-	// Verify remote tagger is enabled for CLC runners (should be default)
-	// This allows runners to query the Cluster Agent's tagger
-	if !pkgconfigsetup.Datadog().GetBool("clc_runner_remote_tagger_enabled") {
-		log.Warnf("clc_runner_remote_tagger_enabled is disabled. KSM sharding requires it for cross-resource tagging.")
-		log.Warnf("Cross-resource tags may be missing. Consider enabling clc_runner_remote_tagger_enabled.")
-	}
-
-	log.Info("Cluster Tagger validation completed for KSM resource sharding")
-	return true
+	return clusterTaggerEnabled
 }
