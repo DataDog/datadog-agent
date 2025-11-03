@@ -66,8 +66,10 @@ type incrementalFileReader struct {
 	mu                 sync.Mutex
 	ino                uint64
 	readFromJournalctl bool
-	// chan to stop journalctl
+	// chan to stop reading
 	stopReading chan struct{} // make(chan struct{}, 1)
+	// Lecteur de journal pour la lecture avec journalctl
+	journalReader *JournalReader
 }
 
 // SSHSessionKey describes the key to a ssh session in the LRU
@@ -213,7 +215,6 @@ func (r *Resolver) startReading() {
 	defer ticker.Stop()
 
 	if !r.sshLogReader.readFromJournalctl {
-		// For now we only read from the ssh log file
 		for {
 			select {
 			case <-r.sshLogReader.stopReading:
@@ -228,12 +229,30 @@ func (r *Resolver) startReading() {
 
 			}
 		}
+	} else {
+		for {
+			select {
+			case <-r.sshLogReader.stopReading:
+				if r.sshLogReader.journalReader != nil {
+					r.sshLogReader.journalReader.Stop()
+				}
+				return
+			case <-ticker.C:
+				if r.sshLogReader.journalReader != nil {
+					err := r.sshLogReader.journalReader.ReadEntries(&r.SSHSessionParsed)
+					if err != nil {
+						seclog.Errorf("failed to read journalctl: %v", err)
+					}
+				}
+			}
+		}
 	}
 }
 
 // parseSSHLogLine parse the ssh log line
 // Does not return any error and just automatically updates the LRU when a new session is found
 func parseSSHLogLine(line string, sshSessionParsed *sshSessionParsed) {
+	fmt.Printf("line: %s\n", line)
 	type SSHLogLine struct {
 		Date      string
 		Hostname  string
@@ -378,9 +397,10 @@ func (ifr *incrementalFileReader) close(closeReader bool) error {
 		err = ifr.f.Close()
 		ifr.f = nil
 	}
-	if closeReader {
-		// Stop the reader
-		ifr.stopReading <- struct{}{}
+	if ifr.journalReader != nil {
+		fmt.Printf("STOPPING JOURNAL READER\n")
+		ifr.journalReader.Stop()
+		ifr.journalReader = nil
 	}
 
 	return err
@@ -448,11 +468,32 @@ func (r *Resolver) StartSSHUserSessionResolver() error {
 			break
 		}
 	}
-	// If there is no log file, we use journalctl (atm we do nothing)
+	// Initialize the SSH log reader
+	r.sshLogReader = &incrementalFileReader{
+		path:        path,
+		stopReading: make(chan struct{}, 1),
+	}
+	// If there is no log file, we use journalctl
 	if path == "" {
-		// // Don't want to continue in case there is no log file
-		// TODO : use journalctl instead
-		seclog.Warnf("no ssh log file found")
+		r.sshLogReader.readFromJournalctl = true
+
+		// Créer le journal adapter
+		journal, err := NewSDJournalAdapter()
+		if err != nil {
+			return fmt.Errorf("impossible de créer le journal adapter: %w", err)
+		}
+
+		r.sshJournalReader = &sshJournalReader{
+			journal:     journal,
+			stopReading: make(chan struct{}, 1),
+			parser:      parseSSHLogLine,
+		}
+
+		if err := r.sshJournalReader.Start(""); err != nil {
+			return fmt.Errorf("impossible de démarrer le journal reader: %w", err)
+		}
+
+		go r.startReading()
 		return nil
 	}
 	// Initialize the SSH log reader
@@ -483,12 +524,12 @@ func (r *Resolver) StartSSHUserSessionResolver() error {
 // Close closes the resolver
 func (r *Resolver) Close() {
 	r.Lock()
-
+	r.sshLogReader.mu.Lock()
+	defer r.sshLogReader.mu.Unlock()
+	r.sshLogReader.stopReading <- struct{}{}
 	defer r.Unlock()
 
 	if r.sshLogReader != nil {
-		r.sshLogReader.mu.Lock()
-		defer r.sshLogReader.mu.Unlock()
 		_ = r.sshLogReader.close(true)
 	}
 }
