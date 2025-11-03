@@ -236,7 +236,8 @@ func NewCollector(cfg config.Component, wmeta option.Option[workloadmeta.Compone
 func NewCollectorForCLI() *Collector {
 	return &Collector{
 		config: collectorConfig{
-			maxCacheSize: math.MaxInt,
+			maxCacheSize:        math.MaxInt,
+			computeDependencies: true,
 		},
 		marshaler: cyclonedx.NewMarshaler(""),
 

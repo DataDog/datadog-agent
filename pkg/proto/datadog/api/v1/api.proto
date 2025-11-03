@@ -43,6 +43,8 @@ service AgentSecure {
 
     rpc GetConfigStateHA(google.protobuf.Empty) returns (datadog.config.GetStateConfigResponse);
 
+    rpc CreateConfigSubscription(stream datadog.config.ConfigSubscriptionRequest) returns (stream datadog.config.ConfigSubscriptionResponse);
+
     rpc ResetConfigState(google.protobuf.Empty) returns (datadog.config.ResetStateConfigResponse);
 
     // Subscribes to added, removed, or changed entities in the Workloadmeta and
