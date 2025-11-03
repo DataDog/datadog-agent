@@ -157,10 +157,6 @@ Enhancement Notes
   mode configures the SQL obfuscator to only normalize the values,
   without obfuscating them.
 
-- Agents are now built with Go ``1.24.7``.
-
-- Agents are now built with Go ``1.24.8``.
-
 - Agents are now built with Go ``1.24.9``.
 
 - Windows: Cache event publisher metadata to avoid repeated expensive calls to EvtOpenPublisherMetadata.
