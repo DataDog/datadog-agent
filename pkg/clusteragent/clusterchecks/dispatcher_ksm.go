@@ -9,6 +9,7 @@ package clusterchecks
 
 import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	cctypes "github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -71,42 +72,26 @@ func (d *dispatcher) scheduleKSMCheck(config integration.Config) bool {
 	// Schedule resource-sharded configs using dispatcher's logic
 	// Advanced dispatching will distribute based on its algorithm
 	totalSharded := 0
-	assignmentMap := make(map[string]int) // Track which runner gets how many configs
 	shardedDigests := make([]string, 0, len(shardedConfigs))
 
-	for i, cfg := range shardedConfigs {
+	for _, cfg := range shardedConfigs {
 		patchedCfg, err := d.patchConfiguration(cfg)
 		if err != nil {
 			log.Warnf("Cannot patch resource-sharded KSM config %s: %s", cfg.Digest(), err)
 			continue
 		}
 
-		// Get the target node before adding
-		targetNode := d.getNodeToScheduleCheck()
-		log.Infof("Assigning resource-sharded KSM config %d/%d (digest: %s) to node: %s",
-			i+1, len(shardedConfigs), patchedCfg.Digest(), targetNode)
-
-		// Use d.add() which respects advanced dispatching settings
+		// Use d.add() which handles node selection and logging
 		if d.add(patchedCfg) {
 			totalSharded++
 			shardedDigests = append(shardedDigests, patchedCfg.Digest())
-			if targetNode != "" {
-				assignmentMap[targetNode]++
-			}
 		}
 	}
 
 	if totalSharded > 0 {
 		log.Infof("Successfully sharded KSM check into %d resource-grouped checks", totalSharded)
-
-		// Log distribution details
-		log.Infof("Distribution across %d runners:", len(assignmentMap))
-		for runner, count := range assignmentMap {
-			log.Infof("  Runner %s: %d configs", runner, count)
-		}
-
 		if d.advancedDispatching.Load() {
-			log.Infof("Using advanced dispatching (will rebalance periodically)")
+			log.Infof("Advanced dispatching enabled - configs will be rebalanced periodically")
 		}
 	} else {
 		log.Warnf("KSM sharding enabled but no checks were distributed - check runner availability")
@@ -119,7 +104,11 @@ func (d *dispatcher) scheduleKSMCheck(config integration.Config) bool {
 }
 
 // isAlreadySharded checks if a KSM config was already sharded
+// Thread-safe: protected by ksmShardingMutex
 func (d *dispatcher) isAlreadySharded(config integration.Config) bool {
+	d.ksmShardingMutex.Lock()
+	defer d.ksmShardingMutex.Unlock()
+
 	if d.ksmShardedConfig.Name != "" && d.ksmShardedConfig.Digest() == config.Digest() {
 		return true
 	}
@@ -127,13 +116,18 @@ func (d *dispatcher) isAlreadySharded(config integration.Config) bool {
 }
 
 // markAsSharded marks a KSM config as having been sharded and tracks the sharded digests
+// Thread-safe: protected by ksmShardingMutex
 func (d *dispatcher) markAsSharded(config integration.Config, shardedDigests []string) {
+	d.ksmShardingMutex.Lock()
+	defer d.ksmShardingMutex.Unlock()
+
 	d.ksmShardedConfig = config
 	d.ksmShardedDigests = shardedDigests
 }
 
 // unscheduleKSMCheck removes all sharded KSM configs if this is a sharded KSM check
 // Returns true if sharded configs were removed, false otherwise
+// Thread-safe: protected by ksmShardingMutex
 func (d *dispatcher) unscheduleKSMCheck(config integration.Config) bool {
 	if !d.ksmSharding.IsEnabled() || !d.ksmSharding.IsKSMCheck(config) {
 		return false
@@ -143,30 +137,41 @@ func (d *dispatcher) unscheduleKSMCheck(config integration.Config) bool {
 		return false
 	}
 
-	log.Infof("Unscheduling sharded KSM check %s (removing %d shards)", config.Digest(), len(d.ksmShardedDigests))
+	// Atomically read the digests and clear tracking
+	// We must hold the lock to avoid TOCTOU race between checking and reading digests
+	d.ksmShardingMutex.Lock()
+	digestsCopy := make([]string, len(d.ksmShardedDigests))
+	copy(digestsCopy, d.ksmShardedDigests)
+	digestCount := len(digestsCopy)
 
-	// Remove all sharded configs
-	for _, digest := range d.ksmShardedDigests {
+	// Clear the tracking while holding the lock
+	d.ksmShardedConfig = integration.Config{}
+	d.ksmShardedDigests = nil
+	d.ksmShardingMutex.Unlock()
+
+	log.Infof("Unscheduling sharded KSM check %s (removing %d shards)", config.Digest(), digestCount)
+
+	// Remove all sharded configs (outside the lock since this is expensive)
+	for _, digest := range digestsCopy {
 		log.Debugf("Removing KSM shard with digest %s", digest)
 		d.removeConfig(digest)
 	}
-
-	// Clear the tracking
-	d.ksmShardedConfig = integration.Config{}
-	d.ksmShardedDigests = nil
 
 	log.Infof("Successfully unscheduled all sharded KSM configs")
 	return true
 }
 
 // getAvailableRunners returns list of available cluster check runner node names
+// Only returns nodes with NodeTypeCLCRunner, filtering out NodeTypeNodeAgent
 func (d *dispatcher) getAvailableRunners() []string {
 	d.store.RLock()
 	defer d.store.RUnlock()
 
 	var runners []string
-	for nodeName := range d.store.nodes {
-		runners = append(runners, nodeName)
+	for nodeName, node := range d.store.nodes {
+		if node.nodetype == cctypes.NodeTypeCLCRunner {
+			runners = append(runners, nodeName)
+		}
 	}
 	return runners
 }

@@ -135,7 +135,7 @@ func TestGetAvailableRunners(t *testing.T) {
 	runners := d.getAvailableRunners()
 	assert.Empty(t, runners)
 
-	// Add some runners
+	// Add some CLC runners
 	d.store.Lock()
 	d.store.nodes["runner-1"] = &nodeStore{name: "runner-1", nodetype: cctypes.NodeTypeCLCRunner}
 	d.store.nodes["runner-2"] = &nodeStore{name: "runner-2", nodetype: cctypes.NodeTypeCLCRunner}
@@ -144,6 +144,17 @@ func TestGetAvailableRunners(t *testing.T) {
 
 	runners = d.getAvailableRunners()
 	assert.Len(t, runners, 3)
+	assert.ElementsMatch(t, []string{"runner-1", "runner-2", "runner-3"}, runners)
+
+	// Add node agents - should be filtered out
+	d.store.Lock()
+	d.store.nodes["node-agent-1"] = &nodeStore{name: "node-agent-1", nodetype: cctypes.NodeTypeNodeAgent}
+	d.store.nodes["node-agent-2"] = &nodeStore{name: "node-agent-2", nodetype: cctypes.NodeTypeNodeAgent}
+	d.store.Unlock()
+
+	// Should still only return CLC runners, not node agents
+	runners = d.getAvailableRunners()
+	assert.Len(t, runners, 3, "Should only count CLC runners, not node agents")
 	assert.ElementsMatch(t, []string{"runner-1", "runner-2", "runner-3"}, runners)
 }
 
