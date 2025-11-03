@@ -22,8 +22,8 @@ import (
 	"go.uber.org/zap"
 )
 
-var _ extensioncapabilities.ConfigWatcher = (*ddExtension)(nil)
-var _ http.Handler = (*ddExtension)(nil)
+var _ extensioncapabilities.ConfigWatcher = (*DDExtension)(nil)
+var _ http.Handler = (*DDExtension)(nil)
 
 // Response is the response struct for API queries
 type Response struct {
@@ -31,7 +31,7 @@ type Response struct {
 }
 
 // ddExtension is a basic OpenTelemetry Collector extension.
-type ddExtension struct {
+type DDExtension struct {
 	cfg       *Config
 	config    string
 	telemetry component.TelemetrySettings
@@ -44,7 +44,7 @@ type ddExtension struct {
 
 // This method is called during the startup process by the Collector's Service right after
 // calling Start.
-func (ext *ddExtension) NotifyConfig(_ context.Context, conf *confmap.Conf) error {
+func (ext *DDExtension) NotifyConfig(_ context.Context, conf *confmap.Conf) error {
 	if conf == nil {
 		msg := "received a nil config in ddExtension.NotifyConfig"
 		return errors.New(msg)
@@ -60,9 +60,9 @@ func (ext *ddExtension) NotifyConfig(_ context.Context, conf *confmap.Conf) erro
 }
 
 // NewExtension creates a new instance of the extension.
-func NewExtension(cfg *Config, ipcComp ipc.Component, telemetry component.TelemetrySettings) (*ddExtension, error) {
+func NewExtension(cfg *Config, ipcComp ipc.Component, telemetry component.TelemetrySettings) (*DDExtension, error) {
 	var err error
-	ext := &ddExtension{
+	ext := &DDExtension{
 		cfg:       cfg,
 		telemetry: telemetry,
 	}
@@ -73,7 +73,7 @@ func NewExtension(cfg *Config, ipcComp ipc.Component, telemetry component.Teleme
 	return ext, nil
 }
 
-func (ext *ddExtension) ServeHTTP(w http.ResponseWriter, _ *http.Request) {
+func (ext *DDExtension) ServeHTTP(w http.ResponseWriter, _ *http.Request) {
 	j, err := json.MarshalIndent(Response{
 		Config: ext.config,
 	}, "", "  ")
@@ -89,7 +89,7 @@ func (ext *ddExtension) ServeHTTP(w http.ResponseWriter, _ *http.Request) {
 }
 
 // Start is called when the extension is started.
-func (ext *ddExtension) Start(_ context.Context, host component.Host) error {
+func (ext *DDExtension) Start(_ context.Context, host component.Host) error {
 	ext.telemetry.Logger.Info("Starting DD Extension HTTP server", zap.String("url", ext.cfg.HTTPConfig.Endpoint))
 
 	go func() {
@@ -103,6 +103,6 @@ func (ext *ddExtension) Start(_ context.Context, host component.Host) error {
 }
 
 // Shutdown is called when the extension is shut down.
-func (ext *ddExtension) Shutdown(ctx context.Context) error {
+func (ext *DDExtension) Shutdown(ctx context.Context) error {
 	return ext.server.shutdown(ctx)
 }

@@ -27,7 +27,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func getTestExtension(optIpc ipc.Component) (*ddExtension, error) {
+func getTestExtension(optIpc ipc.Component) (*DDExtension, error) {
 	telemetry := component.TelemetrySettings{}
 	cfg := &Config{
 		HTTPConfig: &confighttp.ServerConfig{
