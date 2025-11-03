@@ -8,7 +8,7 @@ TEAMS = (
     'container-platform',
     'documentation',
     'agent-security',
-    'container-app',
+    'kubernetes-experiences',
     'agent-all',
     'processes',
     'agent-devx',

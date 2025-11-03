@@ -18,7 +18,7 @@
 '@datadog/agent-log-pipelines': AGNTLOG
 '@datadog/agent-runtimes': AGENTRUN
 '@datadog/agent-configuration': AGENTCFG
-'@datadog/container-app': CAP
+'@datadog/kubernetes-experiences': CAP
 '@datadog/metrics-aggregation': AGGR
 '@datadog/serverless': SVLS
 '@datadog/remote-config': RC
