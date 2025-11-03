@@ -1,0 +1,578 @@
+load("@bazel_skylib//rules:expand_template.bzl", "expand_template")
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load("@rules_cc//cc:cc_shared_library.bzl", "cc_shared_library")
+load("@rules_license//rules:license.bzl", "license")
+load("@rules_pkg//pkg:install.bzl", "pkg_install")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_files")
+load("@@//bazel/rules:so_symlink.bzl", "so_symlink")
+load("@bazel_skylib//rules:copy_file.bzl", "copy_file")
+
+_VERSION = "3.13.7"
+
+license(
+    name = "license",
+    license_kinds = ["@rules_license//licenses/spdx:Python-2.0"],
+    license_text = "LICENSE",
+    visibility = ["//visibility:public"],
+)
+
+copy_file(
+    name = "copy_pyconfig",
+    src = select({
+        "@//:linux_arm64": "config-linux-arm64.h",
+        "@//:linux_x86_64": "config-linux-x86_64.h",
+        "@//:macos_arm64": "config-osx-arm64.h",
+        "@//:macos_x86_64": "config-osx-x86_64.h",
+    }),
+    out = "pyconfig.h",  # minimize the number of exported include paths
+)
+
+COMMON_DEFINES = [
+    "NDEBUG",
+]
+
+PY_CORE_DEFINES = [
+    "Py_BUILD_CORE",
+]
+
+PY_BUILTIN_MODULE_DEFINES = [
+    "Py_BUILD_CORE_BUILTIN",
+]
+
+_COMMON_INCLUDE_DIRS = [
+    "Include/internal",
+    "Objects",
+    "Include",
+    "Python",
+]
+
+expand_template(
+    name = "modules_setup_bootstrap",
+    template = "Modules/Setup.bootstrap.in",
+    out = "Modules/Setup.bootstrap",
+    substitutions = {
+        "@MODULE_PWD_TRUE@": "",
+    },
+)
+
+expand_template(
+    name = "modules_setup_stdlib",
+    template = "Modules/Setup.stdlib.in",
+    out = "Modules/Setup.stdlib",
+    substitutions = {
+        "@MODULE_BUILDTYPE@": "shared",
+        "@MODULE_ARRAY_TRUE@": "",
+        "@MODULE__ASYNCIO_TRUE@": "",
+        "@MODULE__BISECT_TRUE@": "",
+        "@MODULE__CONTEXTVARS_TRUE@": "",
+        "@MODULE__CSV_TRUE@": "",
+        "@MODULE__HEAPQ_TRUE@": "",
+        "@MODULE__JSON_TRUE@": "",
+        "@MODULE__LSPROF_TRUE@": "",
+        "@MODULE__OPCODE_TRUE@": "",
+        "@MODULE__PICKLE_TRUE@": "",
+        "@MODULE__QUEUE_TRUE@": "",
+        "@MODULE__RANDOM_TRUE@": "",
+        "@MODULE__STRUCT_TRUE@": "",
+        "@MODULE__INTERPRETERS_TRUE@": "",
+        "@MODULE__INTERPCHANNELS_TRUE@": "",
+        "@MODULE__INTERPQUEUES_TRUE@": "",
+        "@MODULE__ZONEINFO_TRUE@": "",
+        "@MODULE_MATH_TRUE@": "",
+        "@MODULE_CMATH_TRUE@": "",
+        "@MODULE__STATISTICS_TRUE@": "",
+        "@MODULE__DATETIME_TRUE@": "",
+        "@MODULE__DECIMAL_TRUE@": "",
+        "@MODULE_BINASCII_TRUE@": "",
+        "@MODULE__BZ2_TRUE@": "",
+        "@MODULE__LZMA_TRUE@": "",
+        "@MODULE_ZLIB_TRUE@": "",
+        "@MODULE__DBM_TRUE@": "#",
+        "@MODULE__GDBM_TRUE@": "#",
+        "@MODULE_READLINE_TRUE@": "#",
+        "@MODULE__MD5_TRUE@": "",
+        "@MODULE__SHA1_TRUE@": "",
+        "@MODULE__SHA2_TRUE@": "",
+        "@MODULE__SHA3_TRUE@": "",
+        "@MODULE__BLAKE2_TRUE@": "",
+        "@MODULE_PYEXPAT_TRUE@": "",
+        "@MODULE__ELEMENTTREE_TRUE@": "",
+        "@MODULE__CODECS_CN_TRUE@": "",
+        "@MODULE__CODECS_HK_TRUE@": "",
+        "@MODULE__CODECS_ISO2022_TRUE@": "",
+        "@MODULE__CODECS_JP_TRUE@": "",
+        "@MODULE__CODECS_KR_TRUE@": "",
+        "@MODULE__CODECS_TW_TRUE@": "",
+        "@MODULE__MULTIBYTECODEC_TRUE@": "",
+        "@MODULE_UNICODEDATA_TRUE@": "",
+        "@MODULE_FCNTL_TRUE@": "",
+        "@MODULE_GRP_TRUE@": "",
+        "@MODULE_MMAP_TRUE@": "",
+        "@MODULE__POSIXSUBPROCESS_TRUE@": "",
+        "@MODULE_RESOURCE_TRUE@": "",
+        "@MODULE_SELECT_TRUE@": "",
+        "@MODULE__SOCKET_TRUE@": "",
+        "@MODULE_SYSLOG_TRUE@": "",
+        "@MODULE_TERMIOS_TRUE@": "",
+        "@MODULE__POSIXSHMEM_TRUE@": "",
+        "@MODULE__MULTIPROCESSING_TRUE@": "",
+        "@MODULE__CTYPES_TRUE@": "",
+        "@MODULE__CURSES_TRUE@": "",
+        "@MODULE__CURSES_PANEL_TRUE@": "",
+        "@MODULE__SQLITE3_TRUE@": "",
+        "@MODULE__SSL_TRUE@": "",
+        "@MODULE__HASHLIB_TRUE@": "",
+        "@MODULE__UUID_TRUE@": "",
+        "@MODULE__TKINTER_TRUE@": "",
+        "@MODULE__SCPROXY_TRUE@": "#",
+        "@MODULE_XXSUBTYPE_TRUE@": "",
+        "@MODULE__XXTESTFUZZ_TRUE@": "",
+        "@MODULE__TESTBUFFER_TRUE@": "",
+        "@MODULE__TESTINTERNALCAPI_TRUE@": "",
+        "@MODULE__TESTCAPI_TRUE@": "",
+        "@MODULE__TESTLIMITEDCAPI_TRUE@": "",
+        "@MODULE__TESTCLINIC_TRUE@": "",
+        "@MODULE__TESTCLINIC_LIMITED_TRUE@": "",
+        "@MODULE__TESTIMPORTMULTIPLE_TRUE@": "",
+        "@MODULE__TESTMULTIPHASE_TRUE@": "",
+        "@MODULE__TESTSINGLEPHASE_TRUE@": "",
+        "@MODULE__TESTEXTERNALINSPECTION_TRUE@": "",
+        "@MODULE__CTYPES_TEST_TRUE@": "",
+        "@MODULE_XXLIMITED_TRUE@": "",
+        "@MODULE_XXLIMITED_35_TRUE@": "",
+        "@MODULE__CTYPES_MALLOC_CLOSURE@": "",
+    },
+)
+
+genrule(
+    name = "config_c",
+    tools = ["Modules/makesetup"],
+    srcs = [
+        "Modules/config.c.in",
+        ":modules_setup_bootstrap",
+        ":modules_setup_stdlib",
+    ],
+    cmd = "$(location Modules/makesetup) -c $(location Modules/config.c.in) -s Modules $(location :modules_setup_bootstrap) $(location :modules_setup_stdlib)",
+    outs = ["Modules/config.c"],
+)
+
+# The filegroups below follow the naming patterns in cpython/Makefile.pre.in
+# For instance PEGEN_OBJS -> pegen_srcs
+filegroup(
+    name = "pegen_srcs",
+    srcs = [
+        "Parser/pegen.c",
+        "Parser/pegen_errors.c",
+        "Parser/action_helpers.c",
+        "Parser/parser.c",
+        "Parser/string_parser.c",
+        "Parser/peg_api.c",
+    ]
+)
+
+filegroup(
+    name = "tokenizer_srcs",
+    srcs = [
+        "Parser/lexer/buffer.c",
+        "Parser/lexer/lexer.c",
+        "Parser/lexer/state.c",
+        "Parser/tokenizer/file_tokenizer.c",
+        "Parser/tokenizer/readline_tokenizer.c",
+        "Parser/tokenizer/string_tokenizer.c",
+        "Parser/tokenizer/utf8_tokenizer.c",
+        "Parser/tokenizer/helpers.c",
+    ],
+)
+
+filegroup(
+    name = "pegen_headers",
+    srcs = [
+        "Include/internal/pycore_parser.h",
+        "Parser/pegen.h",
+        "Parser/string_parser.h",
+    ]
+)
+
+filegroup(
+    name = "tokenizer_headers",
+    srcs = [
+        "Parser/lexer/buffer.h",
+        "Parser/lexer/lexer.h",
+        "Parser/lexer/state.h",
+        "Parser/tokenizer/tokenizer.h",
+        "Parser/tokenizer/helpers.h",
+    ]
+)
+
+filegroup(
+    name = "parser_srcs",
+    srcs = [
+        ":pobjs_srcs",
+        ":pegen_srcs",
+        ":tokenizer_srcs",
+        "Parser/myreadline.c",
+    ],
+)
+
+filegroup(
+    name = "parser_headers",
+    srcs = [
+        ":pegen_headers",
+        ":tokenizer_headers",
+    ]
+)
+
+filegroup(
+    name = "python_srcs",
+    srcs = [
+        "Python/_contextvars.c",
+        "Python/_warnings.c",
+        "Python/Python-ast.c",
+        "Python/Python-tokenize.c",
+        "Python/asdl.c",
+        "Python/assemble.c",
+        "Python/ast.c",
+        "Python/ast_preprocess.c",
+        "Python/ast_unparse.c",
+        "Python/bltinmodule.c",
+        "Python/brc.c",
+        "Python/ceval.c",
+        "Python/codecs.c",
+        "Python/codegen.c",
+        "Python/compile.c",
+        "Python/context.c",
+        "Python/critical_section.c",
+        "Python/crossinterp.c",
+        "Python/dynamic_annotations.c",
+        "Python/errors.c",
+        "Python/flowgraph.c",
+        "Python/frame.c",
+        "Python/frozenmain.c",
+        "Python/future.c",
+        "Python/gc.c",
+        "Python/gc_free_threading.c",
+        "Python/gc_gil.c",
+        "Python/getargs.c",
+        "Python/getcompiler.c",
+        "Python/getcopyright.c",
+        "Python/getplatform.c",
+        "Python/getversion.c",
+        "Python/ceval_gil.c",
+        "Python/hamt.c",
+        "Python/hashtable.c",
+        "Python/import.c",
+        "Python/importdl.c",
+        "Python/index_pool.c",
+        "Python/initconfig.c",
+        "Python/interpconfig.c",
+        "Python/instrumentation.c",
+        "Python/instruction_sequence.c",
+        "Python/intrinsics.c",
+        "Python/jit.c",
+        "Python/legacy_tracing.c",
+        "Python/lock.c",
+        "Python/marshal.c",
+        "Python/modsupport.c",
+        "Python/mysnprintf.c",
+        "Python/mystrtoul.c",
+        "Python/object_stack.c",
+        "Python/optimizer.c",
+        "Python/optimizer_analysis.c",
+        "Python/optimizer_symbols.c",
+        "Python/parking_lot.c",
+        "Python/pathconfig.c",
+        "Python/preconfig.c",
+        "Python/pyarena.c",
+        "Python/pyctype.c",
+        "Python/pyfpe.c",
+        "Python/pyhash.c",
+        "Python/pylifecycle.c",
+        "Python/pymath.c",
+        "Python/pystate.c",
+        "Python/pythonrun.c",
+        "Python/pytime.c",
+        "Python/qsbr.c",
+        "Python/bootstrap_hash.c",
+        "Python/specialize.c",
+        "Python/stackrefs.c",
+        "Python/structmember.c",
+        "Python/symtable.c",
+        "Python/sysmodule.c",
+        "Python/thread.c",
+        "Python/traceback.c",
+        "Python/tracemalloc.c",
+        "Python/uniqueid.c",
+        "Python/getopt.c",
+        "Python/pystrcmp.c",
+        "Python/pystrtod.c",
+        "Python/pystrhex.c",
+        "Python/dtoa.c",
+        "Python/formatter_unicode.c",
+        "Python/fileutils.c",
+        "Python/suggestions.c",
+        "Python/perf_trampoline.c",
+        "Python/perf_jit_trampoline.c",
+    ] + select({
+        "@platforms//os:linux": ["Python/dynload_shlib.c"]
+    })
+)
+
+filegroup(
+    name = "object_srcs",
+    srcs = [
+        "Objects/abstract.c",
+        "Objects/boolobject.c",
+        "Objects/bytes_methods.c",
+        "Objects/bytearrayobject.c",
+        "Objects/bytesobject.c",
+        "Objects/call.c",
+        "Objects/capsule.c",
+        "Objects/cellobject.c",
+        "Objects/classobject.c",
+        "Objects/codeobject.c",
+        "Objects/complexobject.c",
+        "Objects/descrobject.c",
+        "Objects/enumobject.c",
+        "Objects/exceptions.c",
+        "Objects/genericaliasobject.c",
+        "Objects/genobject.c",
+        "Objects/fileobject.c",
+        "Objects/floatobject.c",
+        "Objects/frameobject.c",
+        "Objects/funcobject.c",
+        "Objects/iterobject.c",
+        "Objects/listobject.c",
+        "Objects/longobject.c",
+        "Objects/dictobject.c",
+        "Objects/odictobject.c",
+        "Objects/memoryobject.c",
+        "Objects/methodobject.c",
+        "Objects/moduleobject.c",
+        "Objects/namespaceobject.c",
+        "Objects/object.c",
+        "Objects/obmalloc.c",
+        "Objects/picklebufobject.c",
+        "Objects/rangeobject.c",
+        "Objects/setobject.c",
+        "Objects/sliceobject.c",
+        "Objects/structseq.c",
+        "Objects/tupleobject.c",
+        "Objects/typeobject.c",
+        "Objects/typevarobject.c",
+        "Objects/unicodeobject.c",
+        "Objects/unicodectype.c",
+        "Objects/unionobject.c",
+        "Objects/weakrefobject.c",
+    ] + select({
+        "@platforms//os:linux": ["Python/asm_trampoline.S"],
+        "//conditions:default": [],
+    }) + glob(["Objects/*.h"])
+)
+
+filegroup(
+    name = "modules_srcs",
+    srcs = [
+        "Modules/config.c",
+        "Modules/main.c",
+        "Modules/gcmodule.c",
+    ]
+)
+
+filegroup(
+    name = "library_srcs_omit_frozen",
+    srcs = [
+        "Modules/getbuildinfo.c",
+        ":parser_srcs",
+        ":object_srcs",
+        ":python_srcs",
+        ":modules_srcs",
+    ],
+)
+
+filegroup(
+    name = "mimalloc_headers",
+    srcs = [
+        "Include/internal/pycore_mimalloc.h",
+        "Include/internal/mimalloc/mimalloc.h",
+        "Include/internal/mimalloc/mimalloc/atomic.h",
+        "Include/internal/mimalloc/mimalloc/internal.h",
+        "Include/internal/mimalloc/mimalloc/prim.h",
+        "Include/internal/mimalloc/mimalloc/track.h",
+        "Include/internal/mimalloc/mimalloc/types.h",
+    ]
+)
+
+cc_library(
+    name = "mimalloc",
+    srcs = [
+        "Objects/obmalloc.c",
+        ":mimalloc_headers",
+        ":python_headers",
+    ],
+    textual_hdrs = [
+        "Objects/mimalloc/alloc.c",
+        "Objects/mimalloc/alloc-aligned.c",
+        "Objects/mimalloc/alloc-posix.c",
+        "Objects/mimalloc/arena.c",
+        "Objects/mimalloc/bitmap.c",
+        "Objects/mimalloc/bitmap.h",
+        "Objects/mimalloc/heap.c",
+        "Objects/mimalloc/init.c",
+        "Objects/mimalloc/options.c",
+        "Objects/mimalloc/os.c",
+        "Objects/mimalloc/page.c",
+        "Objects/mimalloc/random.c",
+        "Objects/mimalloc/segment.c",
+        "Objects/mimalloc/segment-map.c",
+        "Objects/mimalloc/stats.c",
+        "Objects/mimalloc/prim/prim.c",
+        # No need for a select here, the inclusion is conditionnal
+        "Objects/mimalloc/prim/unix/prim.c",
+        "Objects/mimalloc/prim/osx/prim.c",
+        "Objects/mimalloc/page-queue.c",
+        "Objects/mimalloc/alloc-override.c",
+        "Objects/mimalloc/static.c",
+    ],
+    includes = _COMMON_INCLUDE_DIRS + [
+        "Include/internal/mimalloc",
+        "Objects/mimalloc",
+    ],
+    local_defines = PY_CORE_DEFINES
+)
+
+cc_library(
+    name = "modules_getpath",
+    srcs = [
+        "Modules/getpath.c",
+    ],
+    local_defines = [
+        'PYTHONPATH=\\"\\"',
+        "PREFIX=/opt/datadog-agent/embedded",
+        "EXEC_PREFIX=/opt/datadog-agent/embedded",
+        "VERSION=" + _VERSION,
+        'VPATH=\\"..\\"',
+        '-DPLATLIBDIR=\\"lib\\"',
+        #FIXME this is not correct when building for macOS
+        '-DPYTHONFRAMEWORK=\\"\\"',
+    ]
+)
+
+filegroup(
+    name = "library_srcs",
+    srcs = [
+        ":library_srcs_omit_frozen",
+        "Python/frozen.c",
+    ]
+)
+
+filegroup(
+    name = "bytestr_headers",
+    srcs = [
+        "Objects/stringlib/count.h",
+        "Objects/stringlib/ctype.h",
+        "Objects/stringlib/fastsearch.h",
+        "Objects/stringlib/find.h",
+        "Objects/stringlib/join.h",
+        "Objects/stringlib/partition.h",
+        "Objects/stringlib/split.h",
+        "Objects/stringlib/stringdefs.h",
+        "Objects/stringlib/transmogrify.h",
+    ],
+)
+
+filegroup(
+    name = "unicode_headers",
+    srcs = [
+        "Objects/stringlib/asciilib.h",
+        "Objects/stringlib/codecs.h",
+        "Objects/stringlib/count.h",
+        "Objects/stringlib/fastsearch.h",
+        "Objects/stringlib/find.h",
+        "Objects/stringlib/find_max_char.h",
+        "Objects/stringlib/localeutil.h",
+        "Objects/stringlib/partition.h",
+        "Objects/stringlib/replace.h",
+        "Objects/stringlib/split.h",
+        "Objects/stringlib/ucs1lib.h",
+        "Objects/stringlib/ucs2lib.h",
+        "Objects/stringlib/ucs4lib.h",
+        "Objects/stringlib/undef.h",
+        "Objects/stringlib/unicode_format.h",
+    ],
+)
+
+filegroup(
+    name = "stringlib_other_headers",
+    srcs = [
+        "Objects/stringlib/eq.h",
+    ]
+)
+
+filegroup(
+    name = "stringlib_clinic_headers",
+    srcs = glob(["Objects/stringlib/clinic/*.h"]),
+)
+
+filegroup(
+    name = "objects_clinic_headers",
+    srcs = glob(["Objects/clinic/*.h"]),
+)
+
+filegroup(
+    name = "python_headers",
+    srcs = glob([
+        "Include/*.h",
+        "Include/cpython/*.h",
+        "Include/internal/*.h",
+    ]) + [
+        ":copy_pyconfig",
+        ":pegen_headers",
+        ":tokenizer_headers",
+        ":parser_headers",
+        ":bytestr_headers",
+        ":unicode_headers",
+        ":objects_clinic_headers",
+        ":stringlib_clinic_headers",
+        ":stringlib_other_headers",
+    ]
+)
+
+filegroup(
+    name = "bootstrap_headers",
+    srcs = [
+        "Python/frozen_modules/importlib._bootstrap.h",
+        "Python/frozen_modules/importlib._bootstrap_external.h",
+        "Python/frozen_modules/zipimport.h",
+    ],
+)
+
+cc_binary(
+    name = "freeze_module",
+    srcs = [
+        "Programs/_freeze_module.c",
+        "Modules/getpath_noop.c",
+        ":python_headers",
+        ":library_srcs_omit_frozen",
+        "Objects/typeslots.inc",
+    ],
+    local_defines = COMMON_DEFINES + PY_CORE_DEFINES,
+    includes = _COMMON_INCLUDE_DIRS,
+    deps = [
+        ":mimalloc",
+    ]
+)
+
+cc_binary(
+    name = "bootstrap_python",
+    srcs = [
+        "Programs/_bootstrap_python.c",
+        ":library_srcs_omit_frozen",
+        ":modules_getpath",
+        ":bootstrap_headers",
+        ":python_headers",
+    ],
+)
+
+cc_library(
+    name = "libpython3",
+)
