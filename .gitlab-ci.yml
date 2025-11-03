@@ -752,7 +752,6 @@ workflow:
         - comp/process/**/*
         - pkg/process/**/*
         - comp/core/workloadmeta/collectors/internal/process/**/*
-        - comp/core/workloadmeta/collectors/internal/processlanguage/**/*
         - comp/core/workloadmeta/collectors/internal/remote/processcollector/**/*
       compare_to: $COMPARE_TO_BRANCH
 
