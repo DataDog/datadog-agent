@@ -181,7 +181,7 @@ require (
 	github.com/DataDog/datadog-traceroute v0.1.29
 	github.com/DataDog/dd-otel-host-profiler v0.4.1-0.20251013140043-83a1f38427f0
 	github.com/DataDog/dd-trace-go/v2 v2.2.2 // indirect
-	github.com/DataDog/ebpf-manager v0.7.14
+	github.com/DataDog/ebpf-manager v0.7.15
 	github.com/DataDog/go-libddwaf/v4 v4.3.2
 	github.com/DataDog/go-sqllexer v0.1.9
 	github.com/DataDog/gopsutil v1.2.2
