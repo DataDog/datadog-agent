@@ -173,8 +173,8 @@ func GetMultipleEndpoints(c pkgconfigmodel.Reader) (EndpointDescriptorSet, error
 			return nil, fmt.Errorf("could not parse url from 'additional_endpoints' %s: %s", domain, err)
 		}
 
-		if _, ok := keysPerDomain[domain]; ok {
-			keysPerDomain[domain] = append(keysPerDomain[domain], apiKeys...)
+		if oldAPIKeys, ok := keysPerDomain[domain]; ok {
+			keysPerDomain[domain] = append(oldAPIKeys, apiKeys...)
 		} else {
 			keysPerDomain[domain] = apiKeys
 		}
