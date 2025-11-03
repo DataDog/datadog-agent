@@ -228,7 +228,7 @@ func (c *collector) Pull(_ context.Context) error {
 		}
 
 		event := workloadmeta.CollectorEvent{
-			Source: workloadmeta.SourceRuntime,
+			Source: workloadmeta.SourceNVML,
 			Type:   workloadmeta.EventTypeSet,
 			Entity: gpu,
 		}
@@ -256,7 +256,7 @@ func (c *collector) Pull(_ context.Context) error {
 		}
 
 		events = append(events, workloadmeta.CollectorEvent{
-			Source: workloadmeta.SourceRuntime,
+			Source: workloadmeta.SourceNVML,
 			Type:   workloadmeta.EventTypeUnset,
 			Entity: &workloadmeta.GPU{
 				EntityID: workloadmeta.EntityID{
