@@ -6,6 +6,13 @@ load("@rules_pkg//pkg:install.bzl", "pkg_install")
 
 package(default_visibility = ["//visibility:private"])
 
+license(
+    name = "license",
+    license_kinds = ["@rules_license//licenses/spdx:LGPL-2.1"],
+    license_text = "COPYING.LIB",
+    visibility = ["//visibility:public"],
+)
+
 copy_file(
     name = "copy_config_h",
     src = select({
