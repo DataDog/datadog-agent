@@ -74,7 +74,7 @@ func TestSubmitter_DrainChannelAndPayloadFormat(t *testing.T) {
 		require.True(t, ok, "Data should have 'attributes' field")
 		_, ok = attributes["title"].(string)
 		require.True(t, ok, "Attributes should have 'title' field")
-		assert.Equal(t, "alert", attributes["category"], "Category should be 'change'")
+		assert.Equal(t, "alert", attributes["category"], "Category should be 'alert'")
 		nestedAttrs, ok := attributes["attributes"].(map[string]interface{})
 		require.True(t, ok, "Attributes should have nested 'attributes' field")
 		assert.Equal(t, "error", nestedAttrs["status"], "Status should be 'error'")
