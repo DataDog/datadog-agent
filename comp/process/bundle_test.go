@@ -15,6 +15,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/delegatedauth"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
@@ -41,6 +42,7 @@ import (
 	rdnsquerier "github.com/DataDog/datadog-agent/comp/rdnsquerier/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/collector/python"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 var mockCoreBundleParams = core.BundleParams{
@@ -120,6 +122,10 @@ func TestBundleOneShot(t *testing.T) {
 		sysprobeconfigimpl.MockModule(),
 		telemetryimpl.MockModule(),
 		hostnameimpl.MockModule(),
+		// Provide None for optional delegated auth component in tests
+		fx.Provide(func() option.Option[delegatedauth.Component] {
+			return option.None[delegatedauth.Component]()
+		}),
 		Bundle(),
 	)
 	require.NoError(t, err)
