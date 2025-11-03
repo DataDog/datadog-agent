@@ -119,6 +119,8 @@ func BuildEndpointsWithConfig(coreConfig pkgconfigmodel.Reader, logsConfig *Logs
 			"please use '%s' and '%s' instead", logsConfig.getConfigKey("logs_dd_url"), logsConfig.getConfigKey("logs_no_ssl"))
 	}
 
+	mrfEnabled := coreConfig.GetBool("multi_region_failover.enabled")
+
 	// logs_config.logs_dd_url might specify a HTTP(S) proxy. Never fall back to TCP in this case.
 	haveHTTPProxy := false
 	if logsDDURL, defined := logsConfig.logsDDURL(); defined {
