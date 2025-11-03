@@ -17,7 +17,7 @@
 // Primary probe: Track all conntrack insertions
 SEC("kprobe/__nf_conntrack_hash_insert") // JMWCONNTRACK
 int BPF_BYPASSABLE_KPROBE(kprobe__nf_conntrack_hash_insert, struct nf_conn *ct) {
-    increment_hash_insert_count();
+    increment_hash_insert_entry_count();
     log_debug("kprobe/__nf_conntrack_hash_insert: netns: %u", get_netns(ct));
     log_debug("JMWTEST prebuilt kprobe/__nf_conntrack_hash_insert");
 
@@ -29,6 +29,7 @@ int BPF_BYPASSABLE_KPROBE(kprobe__nf_conntrack_hash_insert, struct nf_conn *ct) 
 
     bpf_map_update_with_telemetry(conntrack, &orig, &reply, BPF_ANY);
     bpf_map_update_with_telemetry(conntrack, &reply, &orig, BPF_ANY);
+    increment_hash_insert_count();
     increment_telemetry_registers_count();
 
     return 0;
@@ -151,6 +152,7 @@ int BPF_BYPASSABLE_KPROBE(kprobe_ctnetlink_fill_info) {
 
     bpf_map_update_with_telemetry(conntrack, &orig, &reply, BPF_ANY);
     bpf_map_update_with_telemetry(conntrack, &reply, &orig, BPF_ANY);
+    increment_hash_insert_count();
     increment_telemetry_registers_count();
 
     return 0;

@@ -108,6 +108,15 @@ static __always_inline void increment_hash_insert_count() {
     __sync_fetch_and_add(&val->hash_insert_count, 1);
 }
 
+static __always_inline void increment_hash_insert_entry_count() {
+    u64 key = 0;
+    conntrack_telemetry_t *val = bpf_map_lookup_elem(&conntrack_telemetry, &key);
+    if (val == NULL) {
+        return;
+    }
+    __sync_fetch_and_add(&val->hash_insert_entry_count, 1);
+}
+
 static __always_inline void increment_hash_check_insert_success_count() {
     u64 key = 0;
     conntrack_telemetry_t *val = bpf_map_lookup_elem(&conntrack_telemetry, &key);
