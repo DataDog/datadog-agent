@@ -10,6 +10,7 @@ package clusterchecks
 import (
 	"context"
 	"fmt"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -40,8 +41,9 @@ type dispatcher struct {
 	excludedChecksFromDispatching    map[string]struct{}
 	rebalancingPeriod                time.Duration
 	ksmSharding                      *KSMShardingManager
-	ksmShardedConfig                 integration.Config
-	ksmShardedDigests                []string // Track digests of sharded configs for cleanup
+	ksmShardingMutex                 sync.Mutex                 // Protects ksmShardedConfig and ksmShardedDigests
+	ksmShardedConfig                 integration.Config         // Protected by ksmShardingMutex
+	ksmShardedDigests                []string                   // Track digests of sharded configs for cleanup, protected by ksmShardingMutex
 }
 
 func newDispatcher(tagger tagger.Component) *dispatcher {
