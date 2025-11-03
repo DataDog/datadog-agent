@@ -178,7 +178,7 @@ func NewSingleDomainResolver2(descriptor utils.EndpointDescriptor) (DomainResolv
 	}, nil
 }
 
-// NewSingleDomainResolvers converts a map of domain/api keys into a map of SingleDomainResolver
+// NewSingleDomainResolvers converts a map of domain/api keys into a map of DomainResolver
 func NewSingleDomainResolvers(keysPerDomain map[string][]utils.APIKeys) (map[string]DomainResolver, error) {
 	return NewSingleDomainResolvers2(utils.EndpointDescriptorSetFromKeysPerDomain(keysPerDomain))
 }
