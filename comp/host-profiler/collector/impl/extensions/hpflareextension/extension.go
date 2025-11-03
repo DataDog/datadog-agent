@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-// Package hpflareextensionimpl defines the OpenTelemetry Extension implementation.
-package hpflareextensionimpl
+// Package hpflareextension defines the OpenTelemetry Extension implementation.
+package hpflareextension
 
 import (
 	"context"
@@ -14,7 +14,6 @@ import (
 	"net/http"
 
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
-	extensionDef "github.com/DataDog/datadog-agent/comp/host-profiler/hpflareextension/def"
 	"github.com/goccy/go-yaml"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/component/componentstatus"
@@ -24,6 +23,7 @@ import (
 )
 
 var _ extensioncapabilities.ConfigWatcher = (*ddExtension)(nil)
+var _ http.Handler = (*ddExtension)(nil)
 
 // Response is the response struct for API queries
 type Response struct {
@@ -60,7 +60,7 @@ func (ext *ddExtension) NotifyConfig(_ context.Context, conf *confmap.Conf) erro
 }
 
 // NewExtension creates a new instance of the extension.
-func NewExtension(cfg *Config, ipcComp ipc.Component, telemetry component.TelemetrySettings) (extensionDef.Component, error) {
+func NewExtension(cfg *Config, ipcComp ipc.Component, telemetry component.TelemetrySettings) (*ddExtension, error) {
 	var err error
 	ext := &ddExtension{
 		cfg:       cfg,

@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-// Package hpflareextensionimpl defines the OpenTelemetry Extension implementation.
-package hpflareextensionimpl
+// Package hpflareextension defines the OpenTelemetry Extension implementation.
+package hpflareextension
 
 import (
 	"context"
@@ -15,7 +15,6 @@ import (
 
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
-	hpflareextension "github.com/DataDog/datadog-agent/comp/host-profiler/hpflareextension/def"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -28,7 +27,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func getTestExtension(optIpc ipc.Component) (hpflareextension.Component, error) {
+func getTestExtension(optIpc ipc.Component) (*ddExtension, error) {
 	telemetry := component.TelemetrySettings{}
 	cfg := &Config{
 		HTTPConfig: &confighttp.ServerConfig{
@@ -58,11 +57,9 @@ func getResponseToHandlerRequest(t *testing.T, ipc ipc.Component, tokenOverride 
 	rr := httptest.NewRecorder()
 
 	// Create an instance of your handler
-	ext, err := getTestExtension(ipc)
+	ddExt, err := getTestExtension(ipc)
 	require.NoError(t, err)
 
-	ddExt, ok := ext.(*ddExtension)
-	assert.True(t, ok)
 	ddExt.telemetry.Logger = zap.New(zap.NewNop().Core())
 
 	host := componenttest.NewNopHost()
@@ -82,7 +79,6 @@ func getResponseToHandlerRequest(t *testing.T, ipc ipc.Component, tokenOverride 
 
 	return rr
 }
-
 
 func TestExtensionHTTPHandler(t *testing.T) {
 	ipc := ipcmock.New(t)

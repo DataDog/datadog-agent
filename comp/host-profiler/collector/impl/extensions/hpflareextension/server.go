@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-// Package hpflareextensionimpl defines the server for opentelemetry flare extensions.
-package hpflareextensionimpl
+// Package hpflareextension defines the server for opentelemetry flare extensions.
+package hpflareextension
 
 import (
 	"context"

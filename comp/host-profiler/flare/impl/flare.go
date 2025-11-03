@@ -12,7 +12,7 @@ import (
 
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
-	hpflareextension "github.com/DataDog/datadog-agent/comp/host-profiler/hpflareextension/impl"
+	"github.com/DataDog/datadog-agent/comp/host-profiler/collector/impl/extensions/hpflareextension"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -80,5 +80,5 @@ func (c *flareImpl) requestOtelConfigInfo() ([]byte, error) {
 	}
 
 	// todo(mackjmr): Make port configurable once we have agreement on hostprofiler config.
-	return  c.client.Get("https://localhost:7778")
+	return c.client.Get("https://localhost:7778")
 }

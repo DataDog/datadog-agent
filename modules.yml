@@ -89,8 +89,6 @@ modules:
     used_by_otel: true
   comp/forwarder/orchestrator/orchestratorinterface:
     used_by_otel: true
-  comp/host-profiler/hpflareextension/def: default
-  comp/host-profiler/hpflareextension/impl: default
   comp/logs/agent/config:
     used_by_otel: true
   comp/netflow/payload: default
