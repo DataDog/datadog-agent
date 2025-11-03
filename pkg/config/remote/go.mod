@@ -7,7 +7,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/config/model v0.64.1
 	github.com/DataDog/datadog-agent/pkg/proto v0.64.0-devel
 	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.61.0
-	github.com/DataDog/datadog-agent/pkg/trace v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/pkg/trace v0.71.2
 	github.com/DataDog/datadog-agent/pkg/util/backoff v0.61.0
 	github.com/DataDog/datadog-agent/pkg/util/grpc v0.60.0
 	github.com/DataDog/datadog-agent/pkg/util/http v0.61.0
@@ -120,7 +120,7 @@ require (
 	golang.org/x/oauth2 v0.32.0 // indirect
 	golang.org/x/sys v0.37.0 // indirect
 	golang.org/x/text v0.30.0 // indirect
-	golang.org/x/time v0.14.0 // indirect
+	golang.org/x/time v0.14.0
 	google.golang.org/api v0.239.0 // indirect
 	google.golang.org/genproto v0.0.0-20250505200425-f936aa4a68b2 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20250825161204-c5933d9347a5 // indirect
