@@ -119,10 +119,7 @@ func (e *DockerHost) generateAndDownloadCoverageForContainer(outputDir string) (
 		// Execute coverage command in the Docker container
 		stdout, err := e.Docker.Client.ExecuteCommandWithErr(e.Agent.ContainerName, target.CoverageCommand...)
 		if err != nil {
-			outStr = append(outStr, fmt.Sprintf("Error: %v\n", err))
-			if target.Required {
-				errs = append(errs, fmt.Errorf("error while executing coverage command: %w", err))
-			}
+			outStr, errs = updateErrorOutput(target, outStr, errs, err.Error())
 			continue
 		}
 
@@ -130,10 +127,7 @@ func (e *DockerHost) generateAndDownloadCoverageForContainer(outputDir string) (
 		re := regexp.MustCompile(`(?m)Coverage written to (.+)$`)
 		matches := re.FindStringSubmatch(stdout)
 		if len(matches) < 2 {
-			outStr = append(outStr, fmt.Sprintf("Error: output does not contain the path to the coverage folder, output: %s", stdout))
-			if target.Required {
-				errs = append(errs, fmt.Errorf("output does not contain the path to the coverage folder: %s", stdout))
-			}
+			outStr, errs = updateErrorOutput(target, outStr, errs, fmt.Sprintf("output does not contain the path to the coverage folder, output: %s", stdout))
 			continue
 		}
 
@@ -145,10 +139,7 @@ func (e *DockerHost) generateAndDownloadCoverageForContainer(outputDir string) (
 		// Download the coverage folder from the Docker container
 		err = e.Docker.Client.DownloadFile(e.Agent.ContainerName, coveragePath, localCoverageDir)
 		if err != nil {
-			outStr = append(outStr, fmt.Sprintf("Error: error while downloading coverage folder: %v\n", err))
-			if target.Required {
-				errs = append(errs, fmt.Errorf("error while downloading coverage folder: %w", err))
-			}
+			outStr, errs = updateErrorOutput(target, outStr, errs, err.Error())
 			continue
 		}
 

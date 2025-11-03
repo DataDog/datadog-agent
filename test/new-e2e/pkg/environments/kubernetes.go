@@ -302,28 +302,19 @@ func (e *Kubernetes) generateAndDownloadCoverageForPod(pod v1.Pod, podType podTy
 		stdout, stderr, err := e.KubernetesCluster.KubernetesClient.PodExec(pod.Namespace, pod.Name, target.AgentName, target.CoverageCommand)
 		output := strings.Join([]string{stdout, stderr}, "\n")
 		if err != nil {
-			outStr = append(outStr, fmt.Sprintf("Error: %v", err))
-			if target.Required {
-				errs = append(errs, fmt.Errorf("error while executing coverage command: %w", err))
-			}
+			outStr, errs = updateErrorOutput(target, outStr, errs, err.Error())
 			continue
 		}
 		// find coverage folder in command output
 		re := regexp.MustCompile(`(?m)Coverage written to (.+)$`)
 		matches := re.FindStringSubmatch(output)
 		if len(matches) < 2 {
-			outStr = append(outStr, fmt.Sprintf("Error: output does not contain the path to the coverage folder, output: %s", output))
-			if target.Required {
-				errs = append(errs, fmt.Errorf("output does not contain the path to the coverage folder: %s", output))
-			}
+			outStr, errs = updateErrorOutput(target, outStr, errs, fmt.Sprintf("output does not contain the path to the coverage folder, output: %s", output))
 			continue
 		}
 		err = e.KubernetesCluster.KubernetesClient.DownloadFromPod(pod.Namespace, pod.Name, target.AgentName, matches[1], fmt.Sprintf("%s/coverage", outputDir))
 		if err != nil {
-			outStr = append(outStr, fmt.Sprintf("Error: error while getting folder:%v", err))
-			if target.Required {
-				errs = append(errs, fmt.Errorf("error while getting folder: %w", err))
-			}
+			outStr, errs = updateErrorOutput(target, outStr, errs, err.Error())
 			continue
 		}
 		outStr = append(outStr, fmt.Sprintf("Downloaded coverage folder: %s", matches[1]))

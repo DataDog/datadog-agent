@@ -5,10 +5,3 @@
 
 // Package environments contains the definitions of the different environments that can be used in a test.
 package environments
-
-// CoverageTargetSpec defines the name of the agent, the command to run to generate the coverage and if the coverage is required
-type CoverageTargetSpec struct {
-	AgentName       string
-	CoverageCommand []string
-	Required        bool
-}

@@ -712,7 +712,7 @@ func (bs *BaseSuite[Env]) TearDownSuite() {
 		return
 	}
 
-	if bs.coverage && !bs.params.disabledCoverage {
+	if bs.coverage && !bs.params.disableCoverage {
 		err := bs.SaveCoverage(bs.coverageOutDir)
 		if err != nil {
 			bs.T().Errorf("fatal errors were encounterned while computing coverage: %v", err)

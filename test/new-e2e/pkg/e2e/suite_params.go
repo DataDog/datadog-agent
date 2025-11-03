@@ -24,7 +24,7 @@ type suiteParams struct {
 
 	skipDeleteOnFailure bool
 
-	disabledCoverage bool
+	disableCoverage bool
 
 	provisioners provisioners.ProvisionerMap
 }
@@ -85,6 +85,6 @@ func WithPulumiProvisioner[Env any](runFunc provisioners.PulumiEnvRunFunc[Env], 
 // It is called by the test suite if needed. When the test suite it not compatibale with built-in coverage computation
 func WithSkipCoverage() SuiteOption {
 	return func(options *suiteParams) {
-		options.disabledCoverage = true
+		options.disableCoverage = true
 	}
 }

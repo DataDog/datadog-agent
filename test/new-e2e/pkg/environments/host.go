@@ -172,29 +172,19 @@ func (e *Host) Coverage(outputDir string) (string, error) {
 		outStr = append(outStr, fmt.Sprintf("==== %s ====", target.AgentName))
 		output, err := e.RemoteHost.Execute(strings.Join(target.CoverageCommand, " "))
 		if err != nil {
-			outStr = append(outStr, fmt.Sprintf("%s: %v", target.AgentName, err))
-			if target.Required {
-				errs = append(errs, fmt.Errorf("error while executing coverage command: %w", err))
-			}
+			outStr, errs = updateErrorOutput(target, outStr, errs, err.Error())
 			continue
 		}
 		// find coverage folder in command output
 		re := regexp.MustCompile(`(?m)Coverage written to (.+)$`)
 		matches := re.FindStringSubmatch(output)
 		if len(matches) < 2 {
-			outStr = append(outStr, fmt.Sprintf("%s: output does not contain the path to the coverage folder, output: %s", target.AgentName, output))
-			if target.Required {
-				errs = append(errs, fmt.Errorf("output does not contain the path to the coverage folder: %s", output))
-			}
+			outStr, errs = updateErrorOutput(target, outStr, errs, fmt.Sprintf("output does not contain the path to the coverage folder, output: %s", output))
 			continue
 		}
-		outStr = append(outStr, fmt.Sprintf("Coverage folder: %s", matches[1]))
 		err = e.RemoteHost.GetFolder(matches[1], filepath.Join(outputDir, filepath.Base(matches[1])))
 		if err != nil {
-			outStr = append(outStr, fmt.Sprintf("%s: error while getting folder:%v", target.AgentName, err))
-			if target.Required {
-				errs = append(errs, fmt.Errorf("error while getting folder: %w", err))
-			}
+			outStr, errs = updateErrorOutput(target, outStr, errs, err.Error())
 			continue
 		}
 		outStr = append(outStr, fmt.Sprintf("Downloaded coverage folder: %s", matches[1]))
