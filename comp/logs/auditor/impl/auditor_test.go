@@ -91,7 +91,7 @@ func (suite *AuditorTestSuite) TestAuditorFlushesAndRecoversRegistry() {
 	suite.NoError(suite.a.flushRegistry())
 	r, err := os.ReadFile(suite.testRegistryPath)
 	suite.NoError(err)
-	suite.Equal("{\"Version\":2,\"Registry\":{\"testpath\":{\"LastUpdated\":\"2006-01-12T01:01:01.000000001Z\",\"Offset\":\"42\",\"TailingMode\":\"end\",\"IngestionTimestamp\":0,\"Fingerprint\":{\"Value\":0,\"Config\":null}}}}", string(r))
+	suite.Equal("{\"Version\":2,\"Registry\":{\"testpath\":{\"LastUpdated\":\"2006-01-12T01:01:01.000000001Z\",\"Offset\":\"42\",\"TailingMode\":\"end\",\"IngestionTimestamp\":0,\"Fingerprint\":{\"Value\":0,\"Config\":null,\"BytesUsed\":0}}}}", string(r))
 
 	suite.a.registry = make(map[string]*RegistryEntry)
 	suite.a.registry = suite.a.recoverRegistry()
@@ -140,7 +140,7 @@ func (suite *AuditorTestSuite) TestAuditorFlushesAndRecoversRegistryWithFingerpr
 
 	r, err := os.ReadFile(suite.testRegistryPath)
 	suite.NoError(err)
-	expectedJSON := `{"Version":2,"Registry":{"file:/var/log/test.log":{"LastUpdated":"2024-07-18T01:01:01.000000001Z","Offset":"150","TailingMode":"end","IngestionTimestamp":0,"Fingerprint":{"Value":12345,"Config":{"fingerprint_strategy":"line_checksum","count":1,"count_to_skip":0,"max_bytes":1000}}}}}`
+	expectedJSON := `{"Version":2,"Registry":{"file:/var/log/test.log":{"LastUpdated":"2024-07-18T01:01:01.000000001Z","Offset":"150","TailingMode":"end","IngestionTimestamp":0,"Fingerprint":{"Value":12345,"Config":{"fingerprint_strategy":"line_checksum","count":1,"count_to_skip":0,"max_bytes":1000},"BytesUsed":0}}}}`
 	suite.Equal(expectedJSON, string(r))
 
 	suite.a.registry = make(map[string]*RegistryEntry)

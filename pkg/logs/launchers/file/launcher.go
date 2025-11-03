@@ -227,16 +227,21 @@ func (s *Launcher) resolveActiveTailers(files []*tailer.File) {
 			var err error
 
 			if s.fingerprinter.ShouldFileFingerprint(file) {
+				log.Debugf("Pass 1: Checking rotation for %s via fingerprint", file.Path)
 				didRotate, err = tailered.DidRotateViaFingerprint(s.fingerprinter)
+				log.Debugf("Pass 1: DidRotateViaFingerprint for %s returned: didRotate=%v, err=%v", file.Path, didRotate, err)
 				if err != nil {
 					didRotate = false
 				}
 				if didRotate {
+					log.Debugf("Pass 1: Rotation detected for %s, calling rotateTailerWithoutRestart", file.Path)
 					s.rotateTailerWithoutRestart(tailered, file)
 					continue
 				}
 			} else {
+				log.Debugf("Pass 1: Checking rotation for %s via filesystem (fingerprinting disabled)", file.Path)
 				didRotate, err = tailered.DidRotate()
+				log.Debugf("Pass 1: DidRotate for %s returned: didRotate=%v, err=%v", file.Path, didRotate, err)
 
 				if err != nil {
 					log.Debugf("failed to detect log rotation: %v", err)
@@ -253,6 +258,7 @@ func (s *Launcher) resolveActiveTailers(files []*tailer.File) {
 			}
 		} else {
 			// Defer any files that are not tailed for the 2nd pass
+			log.Debugf("Pass 1: File %s not currently tailed, deferring to Pass 2", file.Path)
 			continue
 		}
 
@@ -262,6 +268,10 @@ func (s *Launcher) resolveActiveTailers(files []*tailer.File) {
 	s.flarecontroller.SetAllFiles(allFiles)
 
 	for _, tailer := range s.tailers.All() {
+		if s.isRotatedTailer(tailer) {
+			log.Debugf("Pass 1: Tailer %s is draining a rotated file; skipping stop", tailer.GetID())
+			continue
+		}
 		// stop all tailers which have not been selected
 		_, shouldTail := filesTailed[tailer.GetID()]
 		if !shouldTail {
@@ -275,43 +285,66 @@ func (s *Launcher) resolveActiveTailers(files []*tailer.File) {
 	lastIterationOldInfo := s.oldInfoMap
 	s.oldInfoMap = make(map[string]*oldTailerInfo)
 	// Pass 2 - Create new tailers for files that need to be tailed
+	log.Debugf("Pass 2: Starting, checking %d files", len(files))
 	for _, file := range files {
 		scanKey := file.GetScanKey()
 		_, isTailed := s.tailers.Get(scanKey)
 		if isTailed {
+			log.Debugf("Pass 2: File %s already tailed, skipping", file.Path)
 			filesTailed[scanKey] = true
 			continue
 		}
 
+		log.Debugf("Pass 2: Considering file %s for tailing", file.Path)
+
 		// Check if we have stored info for this file from a previous rotation
 		oldInfo, hasOldInfo := lastIterationOldInfo[scanKey]
+		log.Debugf("Pass 2: File %s hasOldInfo=%v", file.Path, hasOldInfo)
+
 		var fingerprint *types.Fingerprint
 		var err error
 		if s.fingerprinter.ShouldFileFingerprint(file) {
+			log.Debugf("Pass 2: Computing fingerprint for %s", file.Path)
 			// Check if this specific file should be fingerprinted
 			fingerprint, err = s.fingerprinter.ComputeFingerprint(file)
-			// Skip files with invalid fingerprints (Value == 0)
-			if (fingerprint != nil && !fingerprint.ValidFingerprint()) || err != nil {
-				// If fingerprint is invalid, persist the old info back into the map for future attempts
-				if hasOldInfo {
-					s.oldInfoMap[scanKey] = oldInfo
-				}
+			if err != nil {
+				log.Debugf("Pass 2: Error computing fingerprint for %s: %v, skipping", file.Path, err)
+				// Skip on errors
 				continue
 			}
+			if fingerprint != nil {
+				log.Debugf("Pass 2: Computed fingerprint for %s: valid=%v, value=0x%x, bytesUsed=%d",
+					file.Path, fingerprint.IsValidFingerprint(), fingerprint.Value, fingerprint.BytesUsed)
+			} else {
+				log.Debugf("Pass 2: Fingerprint for %s is nil", file.Path)
+			}
+			// Allow tailing with invalid fingerprints (empty files) to capture partial fingerprints when written
+		} else {
+			log.Debugf("Pass 2: Fingerprinting disabled for %s", file.Path)
 		}
 
 		if hasOldInfo {
-			if s.startNewTailerWithStoredInfo(file, config.Beginning, oldInfo, fingerprint) {
+			log.Debugf("Pass 2: Starting tailer for %s WITH stored info", file.Path)
+			if s.startNewTailerWithStoredInfo(file, config.ForceBeginning, oldInfo, fingerprint) {
+				// hasOldInfo is true when restarting a tailer after a file rotation, so start tailer from the beginning
+				log.Debugf("Pass 2: Successfully started tailer for %s with stored info", file.Path)
 				filesTailed[scanKey] = true
+			} else {
+				log.Debugf("Pass 2: Failed to start tailer for %s with stored info", file.Path)
 			}
 		} else {
+			log.Debugf("Pass 2: Starting tailer for %s WITHOUT stored info", file.Path)
 			// Normal case - no stored info
 			if s.startNewTailer(file, config.Beginning, fingerprint) {
+				log.Debugf("Pass 2: Successfully started tailer for %s", file.Path)
 				filesTailed[scanKey] = true
+			} else {
+				log.Debugf("Pass 2: Failed to start tailer for %s", file.Path)
 			}
 		}
 	}
-	log.Debugf("After starting new tailers, there are %d tailers running. Limit is %d.\n", tailersLen, s.tailingLimit)
+	log.Debugf("Pass 2: Completed")
+	log.Debugf("After starting new tailers, there are %d tailers running. Limit is %d.\n", s.tailers.Count(), s.tailingLimit)
 
 	// Check how many file handles the Agent process has open and log a warning if the process is coming close to the OS file limit
 	fileStats, err := procfilestats.GetProcessFileStats()
@@ -322,13 +355,28 @@ func (s *Launcher) resolveActiveTailers(files []*tailer.File) {
 
 // cleanUpRotatedTailers removes any rotated tailers that have stopped from the list
 func (s *Launcher) cleanUpRotatedTailers() {
+	if len(s.rotatedTailers) > 0 {
+		log.Debugf("Rotation cleanup: checking %d tracked tailers", len(s.rotatedTailers))
+	}
 	pendingTailers := []*tailer.Tailer{}
 	for _, tailer := range s.rotatedTailers {
-		if !tailer.IsFinished() {
-			pendingTailers = append(pendingTailers, tailer)
+		if tailer.IsFinished() {
+			log.Debugf("Rotation cleanup: tailer %s finished draining rotated file (bytesRead=%d)", tailer.GetID(), tailer.Source().BytesRead.Get())
+			continue
 		}
+		log.Debugf("Rotation cleanup: tailer %s still draining rotated file (bytesRead=%d)", tailer.GetID(), tailer.Source().BytesRead.Get())
+		pendingTailers = append(pendingTailers, tailer)
 	}
 	s.rotatedTailers = pendingTailers
+}
+
+func (s *Launcher) isRotatedTailer(candidate *tailer.Tailer) bool {
+	for _, rotated := range s.rotatedTailers {
+		if rotated == candidate {
+			return true
+		}
+	}
+	return false
 }
 
 // addSource keeps track of the new source and launch new tailers for this source.
@@ -377,14 +425,16 @@ func (s *Launcher) launchTailers(source *sources.LogSource) {
 			tailer.ReplaceSource(source)
 			continue
 		}
-
 		var fingerprint *types.Fingerprint
 		// Check if this specific file should be fingerprinted
 		if s.fingerprinter.ShouldFileFingerprint(file) {
 			fingerprint, err = s.fingerprinter.ComputeFingerprint(file)
-			if err != nil || !fingerprint.ValidFingerprint() {
+			if err != nil {
+				// Skip on errors
 				continue
 			}
+			// Allow tailing with invalid fingerprints (empty files) to capture partial fingerprints when written
+			// TODO: distinctions btw types of invalid fingerprints (empty files, invalid fingerprints, etc.)?
 		}
 
 		mode, isSet := config.TailingModeFromString(source.Config.TailingMode)
@@ -522,7 +572,13 @@ func (s *Launcher) stopTailer(tailer *tailer.Tailer) {
 
 func (s *Launcher) rotateTailerWithoutRestart(oldTailer *tailer.Tailer, file *tailer.File) bool {
 	log.Info("Log rotation happened to ", file.Path)
+	log.Debugf("Pass 1: rotateTailerWithoutRestart invoked for %s (tailerID=%s, bytesRead=%d)", file.Path, oldTailer.GetID(), oldTailer.Source().BytesRead.Get())
 	oldTailer.StopAfterFileRotation()
+
+	// Remove the rotated tailer from the active container so a fresh tailer can
+	// be created for the new file while this one finishes draining the old file.
+	s.tailers.Remove(oldTailer)
+	log.Debugf("Pass 1: Removed rotated tailer for %s from active container to allow drain", file.Path)
 
 	oldRegexPattern := oldTailer.GetDetectedPattern()
 	oldInfoRegistry := oldTailer.GetInfo()
@@ -533,10 +589,11 @@ func (s *Launcher) rotateTailerWithoutRestart(oldTailer *tailer.Tailer, file *ta
 			InfoRegistry: oldInfoRegistry,
 			Pattern:      oldRegexPattern,
 		}
-		s.oldInfoMap[file.Path] = regexAndRegistry
+		s.oldInfoMap[file.GetScanKey()] = regexAndRegistry
 	}
 
 	s.rotatedTailers = append(s.rotatedTailers, oldTailer)
+	log.Debugf("Pass 1: Tracking %d rotated tailers after handling %s", len(s.rotatedTailers), file.Path)
 
 	return false // Will return false regardless and we will let scan() handle it
 }
