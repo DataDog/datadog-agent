@@ -97,6 +97,10 @@ namespace WixSetup.Datadog_Agent
                 {
                     AttributesDefinition = "Secure=yes",
                 },
+                new Property("DD_INFRASTRUCTURE_MODE")
+                {
+                    AttributesDefinition = "Secure=yes"
+                },
                 // Custom WindowsBuild property since MSI caps theirs at 9600
                 new Property("DDAGENT_WINDOWSBUILD")
                 {
@@ -125,17 +129,23 @@ namespace WixSetup.Datadog_Agent
                 {
                     AttributesDefinition = "Secure=yes"
                 },
+                new Property("DD_INSTALLER_DEFAULT_PKG_VERSION_DATADOG_APM_INJECT")
+                {
+                    AttributesDefinition = "Secure=yes"
+                },
                 new Property("DD_INSTALLER_REGISTRY_URL")
                 {
                     AttributesDefinition = "Secure=yes"
                 },
-                // DDOT flags replaced by generic DD_OCI_* path
-                // Generic OCI install list (semicolon-separated URLs)
-                new Property("DD_OCI_INSTALL")
+                new Property("DD_REMOTE_UPDATES")
                 {
                     AttributesDefinition = "Secure=yes"
                 },
-                new Property("DD_OCI_REMOVE")
+                new Property("DD_OTEL_OCI_INSTALL")
+                {
+                    AttributesDefinition = "Secure=yes"
+                },
+                new Property("KEEP_INSTALLED_PACKAGES")
                 {
                     AttributesDefinition = "Secure=yes"
                 },

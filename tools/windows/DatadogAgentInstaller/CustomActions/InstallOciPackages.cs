@@ -5,7 +5,10 @@ using Datadog.CustomActions.Rollback;
 using Microsoft.Deployment.WindowsInstaller;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
+using System.Text.RegularExpressions;
+using Newtonsoft.Json;
 
 namespace Datadog.CustomActions
 {
@@ -17,6 +20,8 @@ namespace Datadog.CustomActions
         private readonly string _site;
         private readonly string _apiKey;
         private readonly string _overrideRegistryUrl;
+        private readonly string _remoteUpdates;
+        private readonly string _infrastructureMode;
         private readonly RollbackDataStore _rollbackDataStore;
 
         public InstallOciPackages(ISession session)
@@ -26,48 +31,37 @@ namespace Datadog.CustomActions
             _site = session.Property("SITE");
             _apiKey = session.Property("APIKEY");
             _overrideRegistryUrl = session.Property("DD_INSTALLER_REGISTRY_URL");
+            _remoteUpdates = session.Property("DD_REMOTE_UPDATES");
+            _infrastructureMode = session.Property("DD_INFRASTRUCTURE_MODE");
             _installerExecutable = System.IO.Path.Combine(installDir, "bin", "datadog-installer.exe");
             _rollbackDataStore = new RollbackDataStore(session, "InstallOciPackages", new FileSystemServices(), new ServiceController());
         }
 
-
-        private string PackageName(string language)
+        private bool ShouldPurge()
         {
-            return $"datadog-apm-library-{language}";
+            var keepInstalledPackages = _session.Property("KEEP_INSTALLED_PACKAGES");
+            // KEEP_INSTALLED_PACKAGES=1 means don't purge (keep packages)
+            // Default behavior (when not set or set to 0) is to purge
+            return string.IsNullOrEmpty(keepInstalledPackages) || keepInstalledPackages != "1";
         }
 
-        private string OciImageName(string language)
+        private bool ShouldInstall()
         {
-            return $"apm-library-{language}-package";
-        }
-
-        private string PackageUrl(string language, string version)
-        {
-            if (_site == "datad0g.com")
-            {
-                return $"oci://install.datad0g.com/{OciImageName(language)}:{version}";
-            }
-            else
-            {
-                return $"oci://install.datadoghq.com/{OciImageName(language)}:{version}";
-            }
-        }
-
-        private NameVersionPair ParseVersion(string library)
-        {
-            library = library.Trim();
-            var index = library.IndexOf(':');
-            if (index == -1)
-            {
-                return new NameVersionPair(library, string.Empty);
-            }
-
-            return new NameVersionPair(library.Substring(0, index), library.Substring(index + 1));
+            var fleetInstall = _session.Property("FLEET_INSTALL");
+            return string.IsNullOrEmpty(fleetInstall) || fleetInstall != "1";
         }
 
         private Dictionary<string, string> InstallerEnvironmentVariables()
         {
             var env = new Dictionary<string, string>();
+
+            // Skip agent installation - we only want the OCI packages
+            env["DD_NO_AGENT_INSTALL"] = "true";
+
+            if (!string.IsNullOrEmpty(_remoteUpdates))
+            {
+                env["DD_REMOTE_UPDATES"] = _remoteUpdates;
+            }
             if (!string.IsNullOrEmpty(_apiKey))
             {
                 env["DD_API_KEY"] = _apiKey;
@@ -80,78 +74,127 @@ namespace Datadog.CustomActions
             {
                 env["DD_INSTALLER_REGISTRY_URL"] = _overrideRegistryUrl;
             }
-            // propagate MSI path properties so subprocesses resolve paths consistently
-            var projectLocation = _session.Property("PROJECTLOCATION");
-            if (!string.IsNullOrEmpty(projectLocation))
+
+            // Add APM instrumentation configuration
+            var instrumentationEnabled = _session.Property("DD_APM_INSTRUMENTATION_ENABLED");
+            if (!string.IsNullOrEmpty(instrumentationEnabled))
             {
-                env["DD_PROJECTLOCATION"] = projectLocation;
+                env["DD_APM_INSTRUMENTATION_ENABLED"] = instrumentationEnabled;
             }
-            var applicationDataDirectory = _session.Property("APPLICATIONDATADIRECTORY");
-            if (!string.IsNullOrEmpty(applicationDataDirectory))
+
+            var libraries = _session.Property("DD_APM_INSTRUMENTATION_LIBRARIES");
+            if (!string.IsNullOrEmpty(libraries))
             {
-                env["DD_APPLICATIONDATADIRECTORY"] = applicationDataDirectory;
+                env["DD_APM_INSTRUMENTATION_LIBRARIES"] = libraries;
+            }
+            var apmVersion = _session.Property("DD_INSTALLER_DEFAULT_PKG_VERSION_DATADOG_APM_INJECT");
+            if (!string.IsNullOrEmpty(apmVersion))
+            {
+                env["DD_INSTALLER_DEFAULT_PKG_VERSION_DATADOG_APM_INJECT"] = apmVersion;
+            }
+
+            if (!string.IsNullOrEmpty(_infrastructureMode))
+            {
+                env["DD_INFRASTRUCTURE_MODE"] = _infrastructureMode;
+            }
+
+            return env;
+        }
+        private Dictionary<string, string> PurgeEnvironmentVariables()
+        {
+            var env = new Dictionary<string, string> { { "DD_NO_AGENT_UNINSTALL", "true" } };
+            if (!string.IsNullOrEmpty(_apiKey))
+            {
+                env["DD_API_KEY"] = _apiKey;
+            }
+            if (!string.IsNullOrEmpty(_site))
+            {
+                env["DD_SITE"] = _site;
             }
             return env;
         }
 
         private ActionResult InstallPackages()
         {
+            if (!ShouldInstall())
+            {
+                _session.Log("Skipping install as FLEET_INSTALL is set to 1");
+                return ActionResult.Success;
+            }
             try
             {
-                _session.Log("Installing OCI packages");
-                var env = InstallerEnvironmentVariables();
-
-                // Generic path: DD_OCI_INSTALL=oci://...;oci://...
-                var genericList = _session.Property("DD_OCI_INSTALL");
-                if (!string.IsNullOrEmpty(genericList))
-                {
-                    var urls = genericList.Split(new[] { ';' }, StringSplitOptions.RemoveEmptyEntries);
-                    foreach (var raw in urls)
-                    {
-                        var url = raw.Trim();
-                        using (var proc = _session.RunCommand(_installerExecutable, $"install {url}", env))
-                        {
-                            if (proc.ExitCode != 0)
-                            {
-                                throw new Exception($"'datadog-installer install {url}' failed with exit code: {proc.ExitCode}");
-                            }
-                        }
-                    }
-                    return ActionResult.Success;
-                }
-
-                // Legacy APM mode (backward compatibility)
+                _session.Log("Running datadog-installer setup");
                 var instrumentationEnabled = _session.Property("DD_APM_INSTRUMENTATION_ENABLED");
                 var librariesRaw = _session.Property("DD_APM_INSTRUMENTATION_LIBRARIES");
                 _session.Log($"instrumentationEnabled: {instrumentationEnabled}");
-                if (string.IsNullOrEmpty(instrumentationEnabled) || string.IsNullOrEmpty(librariesRaw))
+
+                // add purge command to the rollback data store
+                // this will only be run on first install, not on upgrade
+                // if install command fails we still wanna purge our packages
+                _rollbackDataStore.Add(new InstallerPackageRollback("purge"));
+
+                // If DD_OTEL_OCI_INSTALL is provided, validate and install DDOT explicitly
+                var ddotInstallTargetRaw = _session.Property("DD_OTEL_OCI_INSTALL");
+                if (!string.IsNullOrEmpty(ddotInstallTargetRaw))
                 {
-                    _session.Log("No DD_OCI_INSTALL and APM instrumentation not requested; skipping");
-                    return ActionResult.Success;
-                }
-                if (instrumentationEnabled != "iis")
-                {
-                    _session.Log("Only DD_APM_INSTRUMENTATION_ENABLED=iis is supported");
-                    return ActionResult.Failure;
-                }
-                var libraries = librariesRaw.Split(',');
-                foreach (var library in libraries)
-                {
-                    var libWithVersion = ParseVersion(library);
-                    if (!IsPackageInstalled(libWithVersion.Name))
+                    _session.Log($"DD_OTEL_OCI_INSTALL provided: {ddotInstallTargetRaw}");
+                    var expectedTag = GetExpectedAgentOciTag();
+                    if (string.IsNullOrEmpty(expectedTag))
                     {
-                        _rollbackDataStore.Add(
-                            new InstallerPackageRollback($"remove {PackageName(libWithVersion.Name)}"));
+                        _session.Log("Failed to determine expected Agent version tag");
+                        return ActionResult.Failure;
                     }
 
-                    InstallPackage(libWithVersion.Name, libWithVersion.Version);
+                    if (!TryNormalizeDdOtUrl(ddotInstallTargetRaw, expectedTag, out var normalizedUrl, out var normalizeErr))
+                    {
+                        _session.Log($"Failed to normalize DD_OTEL_OCI_INSTALL: {normalizeErr}");
+                        return ActionResult.Failure;
+                    }
+
+                    _session.Log($"Installing DDOT from: {normalizedUrl}");
+                    var env = InstallerEnvironmentVariables();
+                    var installArgs = $"install \"{normalizedUrl}\"";
+                    using (var procInstall = _session.RunCommand(_installerExecutable, installArgs, env))
+                    {
+                        if (procInstall.ExitCode != 0)
+                        {
+                            _session.Log($"'datadog-installer {installArgs}' failed with exit code: {procInstall.ExitCode}");
+                            return ActionResult.Failure;
+                        }
+                    }
+
+                    // Post-install verification: ensure ddot stable equals expectedTag
+                    var statesJson = RunAndCapture(_installerExecutable, "get-states", env, out var exitCodeStates);
+                    if (exitCodeStates != 0 || string.IsNullOrEmpty(statesJson))
+                    {
+                        _session.Log("Failed to retrieve installer states for verification");
+                        return ActionResult.Failure;
+                    }
+                    if (!IsDdotVersionExpected(statesJson, expectedTag))
+                    {
+                        _session.Log($"DDOT installed version does not match expected tag {expectedTag}. Removing package.");
+                        using (var procRemove = _session.RunCommand(_installerExecutable, "remove datadog-ddot", env))
+                        {
+                            // ignore remove failures; we still fail the action
+                        }
+                        return ActionResult.Failure;
+                    }
+                }
+
+                // Run the installer setup command with the flavor
+                using (var proc = _session.RunCommand(_installerExecutable, "setup --flavor=default", InstallerEnvironmentVariables()))
+                {
+                    if (proc.ExitCode != 0)
+                    {
+                        throw new Exception($"'datadog-installer setup --flavor=default' failed with exit code: {proc.ExitCode}");
+                    }
                 }
 
                 return ActionResult.Success;
             }
             catch (Exception ex)
             {
-                _session.Log("Error while installing oci package: " + ex.Message);
+                _session.Log("Error while running installer setup: " + ex.Message);
                 return ActionResult.Failure;
             }
             finally
@@ -160,41 +203,224 @@ namespace Datadog.CustomActions
             }
         }
 
+        private static string NormalizeAgentVersionToOciTag(string raw)
+        {
+            if (string.IsNullOrEmpty(raw))
+            {
+                return raw;
+            }
+            var v = raw.Trim();
+            v = v.Replace('+', '.');
+            v = v.Replace('~', '-');
+            if (!v.EndsWith("-1", StringComparison.Ordinal))
+            {
+                v = v + "-1";
+            }
+            return v;
+        }
+
+        private string GetExpectedAgentOciTag()
+        {
+            try
+            {
+                var output = RunAndCapture(_installerExecutable, "version", null, out var exitCode);
+                if (exitCode != 0)
+                {
+                    _session.Log($"datadog-installer version returned exit {exitCode}");
+                    return null;
+                }
+                return NormalizeAgentVersionToOciTag(output);
+            }
+            catch (Exception e)
+            {
+                _session.Log($"Error determining installer version: {e.Message}");
+                return null;
+            }
+        }
+
+        private static bool TryNormalizeDdOtUrl(string input, string expectedTag, out string normalized, out string error)
+        {
+            normalized = null;
+            error = null;
+            if (string.IsNullOrEmpty(input))
+            {
+                error = "empty input";
+                return false;
+            }
+
+            // Local path support -> convert to file:/// URI
+            if (!input.StartsWith("oci://", StringComparison.OrdinalIgnoreCase) &&
+                !input.StartsWith("file://", StringComparison.OrdinalIgnoreCase))
+            {
+                // If it looks like a Windows path or UNC, treat as local
+                if (Path.IsPathRooted(input) || input.StartsWith("\\\\"))
+                {
+                    var uriPath = input.Replace('\\', '/');
+                    if (!uriPath.StartsWith("/"))
+                    {
+                        uriPath = "/" + uriPath;
+                    }
+                    normalized = $"file://{uriPath}";
+                    return true;
+                }
+                error = "unsupported URL format (expected oci:// or file:// or absolute path)";
+                return false;
+            }
+
+            if (input.StartsWith("file://", StringComparison.OrdinalIgnoreCase))
+            {
+                normalized = input;
+                return true; // version will be verified post-install
+            }
+
+            // oci:// URL normalization
+            var url = input;
+            var lastSlash = url.LastIndexOf('/') + 1;
+            if (lastSlash <= 0 || lastSlash >= url.Length)
+            {
+                error = "invalid oci url";
+                return false;
+            }
+
+            // Enforce canonical image name: ddot-package
+            var endOfName = url.Length;
+            var atPos = url.IndexOf('@', lastSlash);
+            if (atPos != -1)
+            {
+                endOfName = atPos;
+            }
+            var colonPos = url.IndexOf(':', lastSlash);
+            if (colonPos != -1 && (atPos == -1 || colonPos < atPos))
+            {
+                endOfName = colonPos;
+            }
+            var imageName = url.Substring(lastSlash, endOfName - lastSlash);
+            if (!imageName.Equals("ddot-package", StringComparison.OrdinalIgnoreCase))
+            {
+                error = "invalid ddot image name; expected 'ddot-package'";
+                return false;
+            }
+
+            // Tag handling
+            lastSlash = url.LastIndexOf('/') + 1;
+            colonPos = url.IndexOf(':', lastSlash);
+            atPos = url.IndexOf('@', lastSlash);
+            if (colonPos == -1 && atPos == -1)
+            {
+                // No tag provided -> append expected tag
+                url = url + ":" + expectedTag;
+            }
+            else if (colonPos != -1)
+            {
+                var tagEnd = atPos == -1 ? url.Length : atPos;
+                var tag = url.Substring(colonPos + 1, tagEnd - (colonPos + 1));
+                if (!string.Equals(tag, expectedTag, StringComparison.Ordinal))
+                {
+                    error = $"provided tag '{tag}' does not match expected '{expectedTag}'";
+                    return false;
+                }
+            }
+
+            normalized = url;
+            return true;
+        }
+
+        private static string RunAndCapture(string fileName, string arguments, IDictionary<string, string> environment, out int exitCode)
+        {
+            var psi = new ProcessStartInfo
+            {
+                CreateNoWindow = true,
+                UseShellExecute = false,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                FileName = fileName,
+                Arguments = arguments
+            };
+            if (environment != null)
+            {
+                foreach (var kvp in environment)
+                {
+                    psi.Environment[kvp.Key] = kvp.Value;
+                }
+            }
+            using (var proc = new Process { StartInfo = psi })
+            {
+                proc.Start();
+                var stdout = proc.StandardOutput.ReadToEnd();
+                var stderr = proc.StandardError.ReadToEnd();
+                proc.WaitForExit();
+                exitCode = proc.ExitCode;
+                return stdout.Trim();
+            }
+        }
+
+        private static bool IsDdotVersionExpected(string statesJson, string expectedTag)
+        {
+            try
+            {
+                var root = JsonConvert.DeserializeObject<InstallerStates>(statesJson);
+                if (root?.States != null && root.States.TryGetValue("datadog-ddot", out var state))
+                {
+                    return string.Equals(state.Stable, expectedTag, StringComparison.Ordinal);
+                }
+            }
+            catch
+            {
+                // fall through to return false
+            }
+            return false;
+        }
+
+        private class InstallerStates
+        {
+            public Dictionary<string, PackageState> States { get; set; }
+        }
+
+        private class PackageState
+        {
+            public string Stable { get; set; }
+            public string Experiment { get; set; }
+        }
+
+        private ActionResult PurgePackages()
+        {
+            if (!ShouldPurge())
+            {
+                _session.Log("Skipping purge as KEEP_INSTALLED_PACKAGES is set to 1");
+                return ActionResult.Success;
+            }
+            var fleetInstall = _session.Property("FLEET_INSTALL");
+            if (!string.IsNullOrEmpty(fleetInstall) && fleetInstall == "1")
+            {
+                _session.Log("Skipping purge as FLEET_INSTALL is set to 1");
+                return ActionResult.Success;
+            }
+            try
+            {
+                _session.Log("Running datadog-installer purge");
+                var env = PurgeEnvironmentVariables();
+                using (var proc = _session.RunCommand(_installerExecutable, "purge", env))
+                {
+                    if (proc.ExitCode != 0)
+                    {
+                        _session.Log($"'datadog-installer purge' failed with exit code: {proc.ExitCode}");
+                        return ActionResult.Failure;
+                    }
+                }
+                return ActionResult.Success;
+            }
+            catch (Exception ex)
+            {
+                _session.Log("Error while running installer purge: " + ex.Message);
+                return ActionResult.Failure;
+            }
+        }
+
         private ActionResult RollbackState()
         {
             _rollbackDataStore.Load();
             _rollbackDataStore.Restore();
             return ActionResult.Success;
-        }
-
-        private bool IsPackageInstalled(string library)
-        {
-            var packageName = PackageName(library);
-            using (var proc = _session.RunCommand(_installerExecutable, $"is-installed {packageName}", InstallerEnvironmentVariables()))
-            {
-                if (proc.ExitCode == 10)
-                {
-                    return false;
-                }
-
-                if (proc.ExitCode != 0)
-                {
-                    throw new Exception($"'datadog-installer is-installed {packageName}' failed with exit code: {proc.ExitCode}");
-                }
-                return true;
-            }
-        }
-
-        private void InstallPackage(string library, string version)
-        {
-            var ociImageName = OciImageName(library);
-            using (var proc = _session.RunCommand(_installerExecutable, $"install  {PackageUrl(library, version)}", InstallerEnvironmentVariables()))
-            {
-                if (proc.ExitCode != 0)
-                {
-                    throw new Exception($"'datadog-installer install {ociImageName}' failed with exit code: {proc.ExitCode}");
-                }
-            }
         }
 
         public static ActionResult InstallPackages(Session session)
@@ -207,53 +433,9 @@ namespace Datadog.CustomActions
             return new InstallOciPackages(new SessionWrapper(session)).RollbackState();
         }
 
-        private ActionResult UninstallGeneric()
+        public static ActionResult PurgePackages(Session session)
         {
-            try
-            {
-                var removeList = _session.Property("DD_OCI_REMOVE");
-                if (string.IsNullOrEmpty(removeList))
-                {
-                    _session.Log("No DD_OCI_REMOVE specified; skipping generic OCI uninstall");
-                    return ActionResult.Success;
-                }
-                var env = InstallerEnvironmentVariables();
-                var names = removeList.Split(new[] { ';' }, StringSplitOptions.RemoveEmptyEntries);
-                foreach (var raw in names)
-                {
-                    var name = raw.Trim();
-                    using (var proc = _session.RunCommand(_installerExecutable, $"remove {name}", env))
-                    {
-                        if (proc.ExitCode != 0)
-                        {
-                            throw new Exception($"'datadog-installer remove {name}' failed with exit code: {proc.ExitCode}");
-                        }
-                    }
-                }
-                return ActionResult.Success;
-            }
-            catch (Exception ex)
-            {
-                _session.Log("Error while uninstalling oci packages: " + ex.Message);
-                return ActionResult.Failure;
-            }
-        }
-
-        public static ActionResult UninstallOciPackages(Session session)
-        {
-            return new InstallOciPackages(new SessionWrapper(session)).UninstallGeneric();
-        }
-
-        private class NameVersionPair
-        {
-            public NameVersionPair(string name, string version)
-            {
-                Name = name;
-                Version = version;
-            }
-
-            public string Name { get; }
-            public string Version { get; }
+            return new InstallOciPackages(new SessionWrapper(session)).PurgePackages();
         }
     }
 }

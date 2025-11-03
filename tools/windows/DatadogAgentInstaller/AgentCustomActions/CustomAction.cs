@@ -222,10 +222,9 @@ namespace Datadog.AgentCustomActions
         }
 
         [CustomAction]
-        public static ActionResult UninstallOciPackages(Session session)
+        public static ActionResult PurgeOciPackages(Session session)
         {
-            return Datadog.CustomActions.InstallOciPackages.UninstallOciPackages(session);
+            return Datadog.CustomActions.InstallOciPackages.PurgePackages(session);
         }
-
     }
 }
