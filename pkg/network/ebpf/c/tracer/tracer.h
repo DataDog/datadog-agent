@@ -179,4 +179,16 @@ typedef struct {
     __u64 timestamp;
 } pid_ts_t;
 
+typedef struct {
+    __u64 trace_id[2];
+    __u64 span_id;
+} span_id_t;
+
+#define MAX_CONN_SPAN_LENGTH 10
+
+typedef struct {
+    span_id_t span_id[MAX_CONN_SPAN_LENGTH];
+    __u16 len;
+    __u16 overflow_count;
+} conn_span_t;
 #endif

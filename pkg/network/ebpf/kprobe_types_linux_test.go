@@ -75,3 +75,11 @@ func TestCgoAlignment_TLSTagsWrapper(t *testing.T) {
 func TestCgoAlignment_NetTimeMs(t *testing.T) {
 	ebpftest.TestCgoAlignment[NetTimeMs](t)
 }
+
+func TestCgoAlignment_ConnSpan(t *testing.T) {
+	ebpftest.TestCgoAlignment[ConnSpan](t)
+}
+
+func TestCgoAlignment_SpanId(t *testing.T) {
+	ebpftest.TestCgoAlignment[SpanId](t)
+}

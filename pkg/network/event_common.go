@@ -248,6 +248,18 @@ func (c ConnectionTuple) String() string {
 	)
 }
 
+type Span struct {
+	TraceId [2]uint64
+	SpanId  uint64
+}
+
+const maxConnSpanLength = 10
+
+type ConnSpan struct {
+	Spans         []Span
+	OverflowCount uint16
+}
+
 // ConnectionStats stores statistics for a single connection.  Field order in the struct should be 8-byte aligned
 type ConnectionStats struct {
 	// move pointer fields first to reduce number of bytes GC has to scan
@@ -274,6 +286,9 @@ type ConnectionStats struct {
 	StaticTags      uint64
 	ProtocolStack   protocols.Stack
 	TLSTags         tls.Tags
+
+	// Used for SpanId mapping
+	Spans ConnSpan
 
 	// keep these fields last because they are 1 byte each and otherwise inflate the struct size due to alignment
 	SPortIsEphemeral EphemeralPortType

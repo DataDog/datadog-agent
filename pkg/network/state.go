@@ -1255,6 +1255,8 @@ func (ac *aggregateConnection) merge(c *ConnectionStats) {
 
 	// no need to hold on to dns stats on the aggregated connection
 	c.DNSStats = nil
+
+	ac.Spans = c.Spans
 }
 
 func (a *connectionAggregator) finalize() {
@@ -1289,6 +1291,9 @@ func (ns *networkState) mergeConnectionStats(a, b *ConnectionStats) (collision b
 
 	a.ProtocolStack.MergeWith(b.ProtocolStack)
 	a.TLSTags.MergeWith(b.TLSTags)
+
+	a.Spans.Spans = append(a.Spans.Spans, b.Spans.Spans...)
+	a.Spans.OverflowCount += b.Spans.OverflowCount
 
 	return false
 }

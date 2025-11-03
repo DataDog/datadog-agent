@@ -88,6 +88,7 @@ func convertMsToNs(t netebpf.NetTimeMs) uint64 {
 func (c *ConnectionStats) FromConn(ct *netebpf.Conn) {
 	c.FromTupleAndStats(&ct.Tup, &ct.Conn_stats)
 	c.FromTCPStats(&ct.Tcp_stats)
+
 }
 
 // FromTupleAndStats populates relevant fields on ConnectionStats from the arguments

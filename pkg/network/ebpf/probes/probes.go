@@ -247,4 +247,6 @@ const (
 	ClassificationProgsMap BPFMapName = "classification_progs"
 	// TCPCloseProgsMap is the map storing the programs to run on TCP close events
 	TCPCloseProgsMap BPFMapName = "tcp_close_progs"
+	// ConnSpansMap is the map storing the flow to span id mapping
+	ConnSpansMap BPFMapName = "conn_spans"
 )

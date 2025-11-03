@@ -89,7 +89,7 @@ var EbpfTracerTelemetry = struct {
 }{
 	telemetry.NewGauge(connTracerModuleName, "connections", []string{"ip_proto", "family"}, "Gauge measuring the number of active connections in the EBPF map"),
 	prometheus.NewDesc(connTracerModuleName+"__tcp_sent_miscounts", "Counter measuring the number of miscounted tcp sends in the EBPF map", nil, nil),
-	prometheus.NewDesc(connTracerModuleName+"__unbatched_tcp_close", "Counter measuring the number of missed TCP close events in the EBPF map", nil, nil),
+	prometheus.NewDesc(connTracerModuleName+"__unbatched_tcp_close", "Counter measuring the number of missed TCP close eventOs in the EBPF map", nil, nil),
 	prometheus.NewDesc(connTracerModuleName+"__unbatched_udp_close", "Counter measuring the number of missed UDP close events in the EBPF map", nil, nil),
 	prometheus.NewDesc(connTracerModuleName+"__udp_sends_processed", "Counter measuring the number of processed UDP sends in EBPF", nil, nil),
 	prometheus.NewDesc(connTracerModuleName+"__udp_sends_missed", "Counter measuring failures to process UDP sends in EBPF", nil, nil),
@@ -131,6 +131,7 @@ type ebpfTracer struct {
 	tcpRetransmits          *maps.GenericMap[netebpf.ConnTuple, uint32]
 	ebpfTelemetryMap        *maps.GenericMap[uint32, netebpf.Telemetry]
 	tcpFailuresTelemetryMap *maps.GenericMap[int32, uint64]
+	connSpans               *maps.GenericMap[uint32, netebpf.ConnSpan]
 	config                  *config.Config
 
 	// tcp_close events
@@ -172,6 +173,7 @@ func newEbpfTracer(config *config.Config, _ telemetryComponent.Component) (Trace
 			probes.ConnectionTupleToSocketSKBConnMap: {MaxEntries: config.MaxTrackedConnections, EditorFlag: manager.EditMaxEntries},
 			probes.TCPOngoingConnectPid:              {MaxEntries: config.MaxTrackedConnections, EditorFlag: manager.EditMaxEntries},
 			probes.TCPRecvMsgArgsMap:                 {MaxEntries: config.MaxTrackedConnections / 32, EditorFlag: manager.EditMaxEntries},
+			probes.ConnSpansMap:                      {MaxEntries: config.MaxTrackedConnections, EditorFlag: manager.EditMaxEntries},
 		},
 		ConstantEditors: []manager.ConstantEditor{
 			boolConst("tcpv6_enabled", config.CollectTCPv6Conns),
@@ -208,7 +210,7 @@ func newEbpfTracer(config *config.Config, _ telemetryComponent.Component) (Trace
 		lastTCPFailureTelemetry: make(map[int32]uint64),
 	}
 
-	connCloseEventHandler, err := initClosedConnEventHandler(config, tr.closedPerfCallback, connPool, extractor)
+	connCloseEventHandler, err := initClosedConnEventHandler(config, tr.closedPerfCallback, connPool, extractor, func() *maps.GenericMap[uint32, netebpf.ConnSpan] { return tr.connSpans })
 	if err != nil {
 		return nil, err
 	}
@@ -285,11 +287,15 @@ func newEbpfTracer(config *config.Config, _ telemetryComponent.Component) (Trace
 	if err != nil {
 		log.Warnf("error retrieving tcp failure telemetry map: %s", err)
 	}
+	tr.connSpans, err = maps.GetMap[uint32, netebpf.ConnSpan](m.Manager, probes.ConnSpansMap)
+	if err != nil {
+		log.Warnf("error retriving conn spans map: %s", err)
+	}
 
 	return tr, nil
 }
 
-func initClosedConnEventHandler(config *config.Config, closedCallback func(*network.ConnectionStats), pool ddsync.Pool[network.ConnectionStats], extractor *batchExtractor) (*perf.EventHandler, error) {
+func initClosedConnEventHandler(config *config.Config, closedCallback func(*network.ConnectionStats), pool ddsync.Pool[network.ConnectionStats], extractor *batchExtractor, connSpansProvider func() *maps.GenericMap[uint32, netebpf.ConnSpan]) (*perf.EventHandler, error) {
 	connHasher := newCookieHasher()
 	singleConnHandler := encoding.BinaryUnmarshalCallback(pool.Get, func(b *network.ConnectionStats, err error) {
 		if err != nil {
@@ -301,6 +307,7 @@ func initClosedConnEventHandler(config *config.Config, closedCallback func(*netw
 		}
 		if b != nil {
 			connHasher.Hash(b)
+			b.Spans = getSpans(connSpansProvider(), uint32(b.Cookie))
 		}
 		closedCallback(b)
 	})
@@ -480,6 +487,9 @@ func (t *ebpfTracer) GetConnections(buffer *network.ConnectionBuffer, filter fun
 		if retrans, ok := t.getTCPRetransmits(key, seen); ok && conn.Type == network.TCP {
 			conn.Monotonic.Retransmits = retrans
 		}
+
+		spans := getSpans(t.connSpans, stats.Cookie)
+		conn.Spans = spans
 
 		*buffer.Next() = *conn
 	}
@@ -754,6 +764,24 @@ func (t *ebpfTracer) getTCPRetransmits(tuple *netebpf.ConnTuple, seen map[netebp
 
 	tuple.Pid = pid
 	return retransmits, true
+}
+
+func getSpans(connSpans *maps.GenericMap[uint32, netebpf.ConnSpan], cookie uint32) network.ConnSpan {
+	var ebpfSpan netebpf.ConnSpan
+	var spans network.ConnSpan
+	if err := connSpans.Lookup(&cookie, &ebpfSpan); err == nil {
+		spans.Spans = make([]network.Span, ebpfSpan.Len)
+		for _, ebpfSpan := range ebpfSpan.Span_id {
+			var span network.Span
+			span.TraceId[0] = ebpfSpan.Trace_id[0]
+			span.TraceId[1] = ebpfSpan.Trace_id[1]
+			span.SpanId = ebpfSpan.Span_id
+			spans.Spans = append(spans.Spans, span)
+		}
+		spans.OverflowCount = ebpfSpan.Overflow_count
+	}
+	return spans
+
 }
 
 // getTCPStats reads tcp related stats for the given ConnTuple

@@ -130,6 +130,15 @@ func FormatConnection(builder *model.ConnectionBuilder, conn network.ConnectionS
 		builder.AddTags(t)
 	}
 	builder.SetTagsChecksum(tagChecksum)
+
+	for _, s := range conn.Spans.Spans {
+		builder.AddSpans(func(w *model.SpanBuilder) {
+			w.SetTraceID_high(s.TraceId[0])
+			w.SetTraceID(s.TraceId[1])
+			w.SetSpanID(s.SpanId)
+		})
+	}
+	builder.SetSpanOverflowCount(uint32(conn.Spans.OverflowCount))
 }
 
 // FormatCompilationTelemetry converts telemetry from its internal representation to a protobuf message

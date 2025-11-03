@@ -116,6 +116,16 @@ type TLSTagsWrapper struct {
 type NetTimeMs struct {
 	Timestamp [3]uint16
 }
+type ConnSpan struct {
+	Span_id        [10]SpanId
+	Len            uint16
+	Overflow_count uint16
+	Pad_cgo_0      [4]byte
+}
+type SpanId struct {
+	Trace_id [2]uint64
+	Span_id  uint64
+}
 
 type _Ctype_struct_sock uint64
 type _Ctype_struct_msghdr uint64
