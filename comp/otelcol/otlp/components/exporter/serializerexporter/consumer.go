@@ -234,45 +234,29 @@ func (c *serializerConsumer) addGatewayUsage(hostname string, params exporter.Se
 			MType:          metrics.APIGaugeType,
 			SourceTypeName: "System",
 		})
-
-		if coatUsageMetric == nil {
-			return
-		}
-
-		switch c.ipath {
-		case ddot:
-			for host := range c.hosts {
-				coatUsageMetric.Set(value, buildInfo.Version, buildInfo.Command, host, "")
-			}
-			for ecsFargateTag := range c.ecsFargateTags {
-				taskArn := strings.Split(ecsFargateTag, ":")[1]
-				coatUsageMetric.Set(value, buildInfo.Version, buildInfo.Command, "", taskArn)
-			}
-		case agentOTLPIngest:
-		case ossCollector:
-			params.Logger.Fatal("wrong consumer implementation used in OSS datadog exporter, should use collectorConsumer")
-		default:
-			params.Logger.Fatal("ingestion path unset or unknown", zap.Int("ingestion path enum", int(c.ipath)))
-		}
 	} else {
-		if coatUsageMetric == nil {
-			return
+		value = 0
+	}
+
+	if coatUsageMetric == nil {
+		return
+	}
+
+	switch c.ipath {
+	case ddot:
+		for host := range c.hosts {
+			coatUsageMetric.Set(value, buildInfo.Version, buildInfo.Command, host, "")
 		}
-		switch c.ipath {
-		case ddot:
-			for host := range c.hosts {
-				coatUsageMetric.Set(0, buildInfo.Version, buildInfo.Command, host, "")
-			}
-			for ecsFargateTag := range c.ecsFargateTags {
-				taskArn := strings.Split(ecsFargateTag, ":")[1]
-				coatUsageMetric.Set(0, buildInfo.Version, buildInfo.Command, "", taskArn)
-			}
-		case agentOTLPIngest:
-		case ossCollector:
-			params.Logger.Fatal("wrong consumer implementation used in OSS datadog exporter, should use collectorConsumer")
-		default:
-			params.Logger.Fatal("ingestion path unset or unknown", zap.Int("ingestion path enum", int(c.ipath)))
+		for ecsFargateTag := range c.ecsFargateTags {
+			taskArn := strings.Split(ecsFargateTag, ":")[1]
+			coatUsageMetric.Set(value, buildInfo.Version, buildInfo.Command, "", taskArn)
 		}
+	case agentOTLPIngest:
+		params.Logger.Info("unexpected GW operation at OTLP Ingest, will not export COAT metric")
+	case ossCollector:
+		params.Logger.Fatal("wrong consumer implementation used in OSS datadog exporter, should use collectorConsumer")
+	default:
+		params.Logger.Fatal("ingestion path unset or unknown", zap.Int("ingestion path enum", int(c.ipath)))
 	}
 }
 
