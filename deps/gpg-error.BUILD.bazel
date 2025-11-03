@@ -231,6 +231,7 @@ cc_library(
         "HAVE_CONFIG_H",
         "LOCALEDIR=NULL",
     ],
+    copts = ["-O2"],
     includes = ["src"],
     visibility = ["//visibility:public"],
 )

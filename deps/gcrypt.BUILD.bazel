@@ -43,6 +43,7 @@ cc_library(
         "src/gcrypt-int.h",
         ":gcrypt_h",
     ],
+    copts = ["-O2"],
     hdrs = [
         "compat/libcompat.h",
     ],
