@@ -42,26 +42,19 @@ func (d *dispatcher) scheduleKSMCheck(config integration.Config) bool {
 	}
 
 	// Check if we have any cluster check runners available
-	// IMPORTANT: Without CLC runners, sharded KSM checks cannot run and will become "dangling"
-	// This prevents silent failures where sharding is enabled but no runners are deployed
+	// Note: Even with 0 or 1 runners, we still create shards
+	// Rebalancing will handle distribution as runners come online
 	runners := d.getAvailableRunners()
-	if len(runners) == 0 {
-		log.Errorf("KSM sharding is enabled but no cluster check runners (CLC runners) are available.")
-		log.Errorf("Enable clusterChecksRunner in your Helm chart or set clc_runner_enabled: true in agent config.")
-		log.Errorf("Without CLC runners, KSM checks will NOT run. Falling back to normal scheduling to prevent silent failure.")
-		return false
-	}
+	runnerCount := len(runners)
 
-	// With only 1 runner, sharding provides no benefit (no parallelization)
-	if len(runners) == 1 {
-		log.Infof("Only 1 cluster check runner available. KSM sharding requires at least 2 runners for benefit. Using normal scheduling.")
-		return false
+	if runnerCount == 0 {
+		log.Warnf("KSM sharding is enabled but no cluster check runners (CLC runners) are currently available.")
 	}
 
 	// Create sharded configs based on resource groups
-	// The number of shards will adapt to the number of available runners
-	log.Infof("Creating resource-sharded KSM configs for %d CLC runners", len(runners))
-	shardedConfigs, err := d.ksmSharding.CreateShardedKSMConfigs(config, len(runners))
+	// Always do sharding (pods, nodes, others) regardless of current runner count
+	// Rebalancing will automatically distribute shards optimally as runners scale up/down
+	shardedConfigs, err := d.ksmSharding.CreateShardedKSMConfigs(config, runnerCount)
 	if err != nil {
 		log.Warnf("Failed to create resource-sharded KSM configs: %v, falling back to normal scheduling", err)
 		return false
@@ -70,8 +63,8 @@ func (d *dispatcher) scheduleKSMCheck(config integration.Config) bool {
 	log.Infof("Created %d resource-sharded KSM configs", len(shardedConfigs))
 
 	// Schedule resource-sharded configs using dispatcher's logic
-	// Advanced dispatching will distribute based on its algorithm
-	totalSharded := 0
+	// Shards are created and tracked regardless of current runner availability
+	// They will be picked up by runners as they come online (via dangling configs)
 	shardedDigests := make([]string, 0, len(shardedConfigs))
 
 	for _, cfg := range shardedConfigs {
@@ -81,19 +74,17 @@ func (d *dispatcher) scheduleKSMCheck(config integration.Config) bool {
 			continue
 		}
 
-		// Use d.add() which handles node selection and logging
-		if d.add(patchedCfg) {
-			totalSharded++
-			shardedDigests = append(shardedDigests, patchedCfg.Digest())
-		}
+		// Add the shard (will go to dangling if no runners available)
+		d.add(patchedCfg)
+		shardedDigests = append(shardedDigests, patchedCfg.Digest())
 	}
 
-	if totalSharded == 0 {
-		log.Warnf("KSM sharding enabled but no checks were distributed - falling back to normal scheduling")
+	if len(shardedDigests) == 0 {
+		log.Errorf("KSM sharding enabled but failed to create any shards - falling back to normal scheduling")
 		return false
 	}
 
-	log.Infof("Successfully sharded KSM check into %d resource-grouped checks", totalSharded)
+	log.Infof("Successfully sharded KSM check into %d resource-grouped checks", len(shardedDigests))
 
 	// Store that we've sharded this config to avoid re-sharding
 	d.markAsSharded(config, shardedDigests)
