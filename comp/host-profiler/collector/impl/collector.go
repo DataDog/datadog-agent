@@ -108,7 +108,12 @@ func registerInstrumentation(lc compdef.Lifecycle) error {
 	if err != nil {
 		return err
 	}
-	mp := metric.NewMeterProvider(metric.WithReader(metric.NewPeriodicReader(exp)))
+
+	// Add go.schedule.duration
+	rp := runtime.NewProducer()
+
+	reader := metric.NewPeriodicReader(exp, metric.WithProducer(rp))
+	mp := metric.NewMeterProvider(metric.WithReader(reader))
 
 	lc.Append(compdef.Hook{
 		OnStart: func(_ context.Context) error {
