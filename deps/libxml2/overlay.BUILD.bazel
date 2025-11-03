@@ -120,7 +120,6 @@ cc_library(
     ],
     includes = [
         "include/libxml",
-        #tmp
         "include",
         "codegen",
     ],
