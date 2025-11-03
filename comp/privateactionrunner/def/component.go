@@ -6,12 +6,8 @@
 // Package privateactionrunner provides a component that enables private actions executions
 package privateactionrunner
 
-import "context"
-
 // team: action-platform
 
 // Component is the component type.
 type Component interface {
-	Start(_ context.Context) error
-	Stop(_ context.Context) error
 }
