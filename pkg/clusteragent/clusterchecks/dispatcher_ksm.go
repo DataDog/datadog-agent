@@ -88,14 +88,12 @@ func (d *dispatcher) scheduleKSMCheck(config integration.Config) bool {
 		}
 	}
 
-	if totalSharded > 0 {
-		log.Infof("Successfully sharded KSM check into %d resource-grouped checks", totalSharded)
-		if d.advancedDispatching.Load() {
-			log.Infof("Advanced dispatching enabled - configs will be rebalanced periodically")
-		}
-	} else {
-		log.Warnf("KSM sharding enabled but no checks were distributed - check runner availability")
+	if totalSharded == 0 {
+		log.Warnf("KSM sharding enabled but no checks were distributed - falling back to normal scheduling")
+		return false
 	}
+
+	log.Infof("Successfully sharded KSM check into %d resource-grouped checks", totalSharded)
 
 	// Store that we've sharded this config to avoid re-sharding
 	d.markAsSharded(config, shardedDigests)

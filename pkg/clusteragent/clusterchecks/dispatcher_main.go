@@ -106,16 +106,16 @@ func newDispatcher(tagger tagger.Component) *dispatcher {
 	}
 
 	d.rebalancingPeriod = pkgconfigsetup.Datadog().GetDuration("cluster_checks.rebalance_period")
-
-	// Check if advanced dispatching is enabled in config
 	advancedDispatchingEnabled := pkgconfigsetup.Datadog().GetBool("cluster_checks.advanced_dispatching_enabled")
-	if advancedDispatchingEnabled {
-		d.clcRunnersClient, err = clusteragent.GetCLCRunnerClient()
-		if err != nil {
-			log.Warnf("Cannot create CLC runners client, advanced dispatching will be disabled: %v", err)
-		} else {
-			d.advancedDispatching.Store(true)
-		}
+	if !advancedDispatchingEnabled {
+		return d
+	}
+
+	d.clcRunnersClient, err = clusteragent.GetCLCRunnerClient()
+	if err != nil {
+		log.Warnf("Cannot create CLC runners client, advanced dispatching will be disabled: %v", err)
+	} else {
+		d.advancedDispatching.Store(true)
 	}
 
 	// Initialize KSM sharding (requires advanced dispatching)
