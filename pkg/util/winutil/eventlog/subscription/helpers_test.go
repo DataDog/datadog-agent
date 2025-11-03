@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	evtapi "github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/api"
+	evtbookmark "github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/bookmark"
 	eventlog_test "github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/test"
 
 	"github.com/stretchr/testify/assert"
@@ -55,4 +56,18 @@ func ReadNumEvents(t testing.TB, _ eventlog_test.APITester, sub PullSubscription
 	}
 
 	return eventRecords, nil
+}
+
+// bookmarkXMLFromEvent creates a bookmark XML from an event record
+func bookmarkXMLFromEvent(api evtapi.API, event *evtapi.EventRecord) (string, error) {
+	bookmark, err := evtbookmark.New(evtbookmark.WithWindowsEventLogAPI(api))
+	if err != nil {
+		return "", err
+	}
+	defer bookmark.Close()
+	err = bookmark.Update(event.EventRecordHandle)
+	if err != nil {
+		return "", err
+	}
+	return bookmark.Render()
 }
