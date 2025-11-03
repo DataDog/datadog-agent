@@ -86,6 +86,14 @@ func (a *FileOperation) apply(root *os.Root, rootPath string) error {
 	path := strings.TrimPrefix(a.FilePath, "/")
 	destinationPath := strings.TrimPrefix(a.DestinationPath, "/")
 
+	fmt.Println("path", path)
+	fmt.Println("destinationPath", destinationPath)
+	fmt.Println("rootPath", rootPath)
+	fmt.Println("a.FileOperationType", a.FileOperationType)
+	fmt.Println("a.Patch", string(a.Patch))
+	fmt.Println("a.FilePath", a.FilePath)
+	fmt.Println("--------------------------------")
+
 	switch a.FileOperationType {
 	case FileOperationPatch, FileOperationMergePatch:
 		err := ensureDir(root, path)
@@ -323,6 +331,13 @@ func buildOperationsFromLegacyInstaller(rootPath string) []FileOperation {
 		return allOps
 	}
 
+	// Recursively delete targetPath/
+	// RemoveAll removes symlinks but not the content they point to as it uses os.Remove first
+	allOps = append(allOps, FileOperation{
+		FileOperationType: FileOperationDeleteAll,
+		FilePath:          "/managed",
+	})
+
 	err = filepath.Walk(stableDirPath, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
@@ -343,12 +358,6 @@ func buildOperationsFromLegacyInstaller(rootPath string) []FileOperation {
 		return []FileOperation{}
 	}
 
-	// Recursively delete targetPath/
-	// RemoveAll removes symlinks but not the content they point to as it uses os.Remove first
-	allOps = append(allOps, FileOperation{
-		FileOperationType: FileOperationDeleteAll,
-		FilePath:          "/managed",
-	})
 	return allOps
 }
 
