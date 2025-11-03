@@ -8,4 +8,4 @@
 ---
 features:
   - |
-    Add hpflare extension, which provides flare information for the host-profiler.
+    Adds the hpflare extension, which provides flare information for the host-profiler.
