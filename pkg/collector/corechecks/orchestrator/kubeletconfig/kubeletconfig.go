@@ -13,11 +13,10 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/twmb/murmur3"
 	"go.uber.org/atomic"
 
 	model "github.com/DataDog/agent-payload/v5/process"
-	"github.com/twmb/murmur3"
-
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
@@ -199,13 +198,14 @@ func (c *Check) Run() error {
 
 	msg := []model.MessageBody{
 		&model.CollectorManifest{
-			ClusterName:  c.config.KubeClusterName,
-			ClusterId:    c.clusterID,
-			GroupId:      nextGroupID(),
-			HostName:     c.hostName,
-			Manifests:    []*model.Manifest{manifest},
-			Tags:         c.config.ExtraTags,
-			AgentVersion: c.agentVersion,
+			ClusterName:     c.config.KubeClusterName,
+			ClusterId:       c.clusterID,
+			GroupId:         nextGroupID(),
+			HostName:        c.hostName,
+			Manifests:       []*model.Manifest{manifest},
+			Tags:            c.config.ExtraTags,
+			AgentVersion:    c.agentVersion,
+			OriginCollector: model.OriginCollector_datadogAgent,
 		},
 	}
 

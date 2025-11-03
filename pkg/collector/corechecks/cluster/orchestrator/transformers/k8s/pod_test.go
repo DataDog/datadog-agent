@@ -600,6 +600,8 @@ func TestExtractPod(t *testing.T) {
 			actual := ExtractPod(pctx, &tc.input)
 			sort.Strings(actual.Tags)
 			sort.Strings(tc.expected.Tags)
+			sort.Strings(actual.Metadata.Labels)
+			sort.Strings(tc.expected.Metadata.Labels)
 			assert.Equal(t, &tc.expected, actual)
 		})
 	}

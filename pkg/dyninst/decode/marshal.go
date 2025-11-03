@@ -10,15 +10,18 @@ package decode
 import (
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/go-json-experiment/json"
 	"github.com/go-json-experiment/json/jsontext"
 	"github.com/google/uuid"
+	"golang.org/x/time/rate"
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/gosym"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/output"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/symbol"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 type logger struct {
@@ -114,6 +117,8 @@ func (ce *captureEvent) clear() {
 	ce.skippedIndices.reset(0)
 }
 
+var dataItemDecodingLogLimiter = rate.NewLimiter(rate.Every(10*time.Minute), 10)
+
 func (ce *captureEvent) init(
 	ev output.Event, types map[ir.TypeID]ir.Type, evalErrors *[]evaluationError,
 ) error {
@@ -121,7 +126,19 @@ func (ce *captureEvent) init(
 	var rootData []byte
 	for item, err := range ev.DataItems() {
 		if err != nil {
-			return fmt.Errorf("error getting data items: %w", err)
+			if rootType == nil {
+				return fmt.Errorf("error getting first data item: %w", err)
+			}
+			// If we have trouble decoding a data item, we still want to try
+			// to emit a message. We shouldn't have this problem, but we
+			// don't know why it happens and it's better to log about it than
+			// to bail out completely.
+			if dataItemDecodingLogLimiter.Allow() {
+				log.Errorf("error getting data items (%d): %v", len(ce.dataItems), err)
+			} else {
+				log.Tracef("error getting data items (%d): %v", len(ce.dataItems), err)
+			}
+			break
 		}
 		if rootType == nil {
 			var ok bool

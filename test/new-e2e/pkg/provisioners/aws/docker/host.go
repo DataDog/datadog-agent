@@ -164,6 +164,32 @@ func Run(ctx *pulumi.Context, env *environments.DockerHost, runParams RunParams)
 
 	params := runParams.ProvisionerParams
 
+	// Create FakeIntake if required
+	if params.fakeintakeOptions != nil {
+		fakeIntake, err := fakeintake.NewECSFargateInstance(awsEnv, params.name, params.fakeintakeOptions...)
+		if err != nil {
+			return err
+		}
+		err = fakeIntake.Export(ctx, &env.FakeIntake.FakeintakeOutput)
+		if err != nil {
+			return err
+		}
+
+		// Normally if FakeIntake is enabled, Agent is enabled, but just in case
+		if params.agentOptions != nil {
+			// Prepend in case it's overridden by the user
+			newOpts := []dockeragentparams.Option{dockeragentparams.WithFakeintake(fakeIntake)}
+			params.agentOptions = append(newOpts, params.agentOptions...)
+
+			// Add the fakeintake dependency to the VM options, this is not strictly required but added to make sure we destroy the VM first and then the fakeintake, to avoid agent sending data to a reused IP
+			params.vmOptions = append(params.vmOptions, ec2.WithPulumiResourceOptions(utils.PulumiDependsOn(fakeIntake)))
+		}
+
+	} else {
+		// Suite inits all fields by default, so we need to explicitly set it to nil
+		env.FakeIntake = nil
+	}
+
 	host, err := ec2.NewVM(awsEnv, params.name, params.vmOptions...)
 	if err != nil {
 		return err
@@ -187,28 +213,6 @@ func Run(ctx *pulumi.Context, env *environments.DockerHost, runParams RunParams)
 	err = manager.Export(ctx, &env.Docker.ManagerOutput)
 	if err != nil {
 		return err
-	}
-
-	// Create FakeIntake if required
-	if params.fakeintakeOptions != nil {
-		fakeIntake, err := fakeintake.NewECSFargateInstance(awsEnv, params.name, params.fakeintakeOptions...)
-		if err != nil {
-			return err
-		}
-		err = fakeIntake.Export(ctx, &env.FakeIntake.FakeintakeOutput)
-		if err != nil {
-			return err
-		}
-
-		// Normally if FakeIntake is enabled, Agent is enabled, but just in case
-		if params.agentOptions != nil {
-			// Prepend in case it's overridden by the user
-			newOpts := []dockeragentparams.Option{dockeragentparams.WithFakeintake(fakeIntake)}
-			params.agentOptions = append(newOpts, params.agentOptions...)
-		}
-	} else {
-		// Suite inits all fields by default, so we need to explicitly set it to nil
-		env.FakeIntake = nil
 	}
 
 	for _, hook := range params.preAgentInstallHooks {
