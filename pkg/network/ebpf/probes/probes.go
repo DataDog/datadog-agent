@@ -42,6 +42,8 @@ const (
 	NetDevQueueRawTracepoint ProbeFuncName = "raw_tracepoint__net__net_dev_queue"
 	// NetDevQueueTracepoint is the tracepoint version of the same probe attach on kernels less than 4.17
 	NetDevQueueTracepoint ProbeFuncName = "tracepoint__net__net_dev_queue"
+	// DevQueueXmitNitKprobe is the kprobe fallback for net_dev_queue tracepoint on kernels < 4.15
+	DevQueueXmitNitKprobe ProbeFuncName = "kprobe__dev_queue_xmit_nit"
 
 	// TCPSendMsg traces the tcp_sendmsg() system call
 	TCPSendMsg ProbeFuncName = "kprobe__tcp_sendmsg"

@@ -50,11 +50,12 @@ type syntheticsTestScheduler struct {
 }
 
 // newSyntheticsTestScheduler creates a scheduler and initializes its state.
-func newSyntheticsTestScheduler(configs *schedulerConfigs, forwarder eventplatform.Forwarder, logger log.Component, hostNameService hostname.Component, timeFunc func() time.Time, statsd ddgostatsd.ClientInterface) *syntheticsTestScheduler {
+func newSyntheticsTestScheduler(configs *schedulerConfigs, forwarder eventplatform.Forwarder, logger log.Component, hostNameService hostname.Component, timeFunc func() time.Time, statsd ddgostatsd.ClientInterface, telemetryComp telemetry.Component) *syntheticsTestScheduler {
 	scheduler := &syntheticsTestScheduler{
 		epForwarder:                  forwarder,
 		log:                          logger,
 		hostNameService:              hostNameService,
+		telemetry:                    telemetryComp,
 		state:                        runningState{tests: map[string]*runningTestState{}},
 		workersDone:                  make(chan struct{}),
 		flushLoopDone:                make(chan struct{}),
@@ -79,7 +80,6 @@ func newSyntheticsTestScheduler(configs *schedulerConfigs, forwarder eventplatfo
 // runningTestState represents in-memory runtime data for a scheduled test.
 type runningTestState struct {
 	cfg     common.SyntheticsTestConfig
-	lastRun time.Time
 	nextRun time.Time
 }
 
@@ -128,10 +128,12 @@ func (s *syntheticsTestScheduler) updateRunningState(newConfig map[string]common
 		if !exists {
 			s.state.tests[pubID] = &runningTestState{
 				cfg:     newTestConfig,
-				lastRun: time.Time{},
 				nextRun: s.timeNowFn().UTC(),
 			}
 		} else {
+			if current.cfg.Version < newTestConfig.Version {
+				current.nextRun = s.timeNowFn().UTC()
+			}
 			current.cfg = newTestConfig
 		}
 	}
@@ -170,6 +172,9 @@ func (s *syntheticsTestScheduler) stop() {
 
 	// Signal stop
 	s.cancel()
+
+	// Close the processing channel to unblock workers immediately
+	close(s.syntheticsTestProcessingChan)
 
 	// Wait for workers to stop
 	<-s.workersDone

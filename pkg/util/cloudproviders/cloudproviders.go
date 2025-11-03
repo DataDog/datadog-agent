@@ -12,7 +12,8 @@ import (
 	"sync"
 
 	logcomp "github.com/DataDog/datadog-agent/comp/core/log/def"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	configsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/util/hostname/validate"
 	"github.com/DataDog/datadog-agent/pkg/util/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	utilsort "github.com/DataDog/datadog-agent/pkg/util/sort"
@@ -100,8 +101,17 @@ type cloudProviderAliasesDetector struct {
 }
 
 // getValidHostAliases is an alias from pkg config
-func getValidHostAliases(ctx context.Context) ([]string, error) {
-	return pkgconfigsetup.GetValidHostAliases(ctx, pkgconfigsetup.Datadog())
+func getValidHostAliases(_ context.Context) ([]string, error) {
+	aliases := []string{}
+	for _, alias := range configsetup.Datadog().GetStringSlice("host_aliases") {
+		if err := validate.ValidHostname(alias); err == nil {
+			aliases = append(aliases, alias)
+		} else {
+			log.Warnf("skipping invalid host alias '%s': %s", alias, err)
+		}
+	}
+
+	return aliases, nil
 }
 
 var hostAliasesDetectors = []cloudProviderAliasesDetector{

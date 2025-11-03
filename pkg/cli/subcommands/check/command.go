@@ -54,7 +54,6 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/defaults"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
-	"github.com/DataDog/datadog-agent/comp/forwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl"
@@ -175,7 +174,7 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 				dualTaggerfx.Module(common.DualTaggerParams()),
 				workloadfilterfx.Module(),
 				autodiscoveryimpl.Module(),
-				forwarder.Bundle(defaultforwarder.NewParams(defaultforwarder.WithNoopForwarder())),
+				defaultforwarder.NoopModule(),
 				inventorychecksimpl.Module(),
 				logscompression.Module(),
 				metricscompression.Module(),
@@ -297,7 +296,7 @@ func run(
 	//  so the subcommand can't read the RC database if the agent is also running.
 	commonchecks.RegisterChecks(wmeta, filterStore, tagger, config, telemetry, nil, nil)
 
-	common.LoadComponents(secretResolver, wmeta, tagger, ac, pkgconfigsetup.Datadog().GetString("confd_path"))
+	common.LoadComponents(secretResolver, wmeta, tagger, filterStore, ac, pkgconfigsetup.Datadog().GetString("confd_path"))
 	ac.LoadAndRun(context.Background())
 
 	// Create the CheckScheduler, but do not attach it to
