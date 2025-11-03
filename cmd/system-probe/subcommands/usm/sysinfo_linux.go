@@ -18,6 +18,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/command"
 	sysconfigcomponent "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
+	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
+	"github.com/DataDog/datadog-agent/pkg/languagedetection/privileged"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
@@ -56,6 +58,7 @@ type SystemInfo struct {
 	Architecture  string
 	Hostname      string
 	Processes     []*procutil.Process
+	Languages     []languagemodels.Language
 }
 
 // runSysinfoWithConfig is the main implementation of the sysinfo command with configuration.
@@ -98,9 +101,33 @@ func runSysinfoWithConfig(_ sysconfigcomponent.Component, _ *command.GlobalParam
 		sort.Slice(sysInfo.Processes, func(i, j int) bool {
 			return sysInfo.Processes[i].Pid < sysInfo.Processes[j].Pid
 		})
+
+		// Detect languages for all processes
+		// Create language detector
+		detector := privileged.NewLanguageDetector()
+
+		// Convert to languagemodels.Process interface (already implemented by procutil.Process)
+		languageProcs := make([]languagemodels.Process, len(sysInfo.Processes))
+		for i, p := range sysInfo.Processes {
+			languageProcs[i] = p
+		}
+
+		// Detect languages (returns array in same order as input)
+		sysInfo.Languages = detector.DetectWithPrivileges(languageProcs)
 	}
 
 	return outputSysinfoHumanReadable(sysInfo, maxCmdlineLength, maxNameLength)
+}
+
+// formatLanguage formats a language for display
+func formatLanguage(lang languagemodels.Language) string {
+	if lang.Name == "" {
+		return "-"
+	}
+	if lang.Version != "" {
+		return fmt.Sprintf("%s/%s", lang.Name, lang.Version)
+	}
+	return string(lang.Name)
 }
 
 // outputSysinfoHumanReadable prints system info in a text-based format.
@@ -115,10 +142,10 @@ func outputSysinfoHumanReadable(info *SystemInfo, maxCmdlineLength, maxNameLengt
 
 	fmt.Printf("Running Processes: %d\n", len(info.Processes))
 	fmt.Println()
-	fmt.Println("PID     | PPID    | Name                      | Command")
-	fmt.Println("--------|---------|---------------------------|--------------------------------------------------")
+	fmt.Println("PID     | PPID    | Name                      | Language     | Command")
+	fmt.Println("--------|---------|---------------------------|--------------|--------------------------------------------------")
 
-	for _, p := range info.Processes {
+	for i, p := range info.Processes {
 		// Truncate fields based on configuration (0 means unlimited)
 		name := p.Name
 		if maxNameLength > 0 && len(name) > maxNameLength {
@@ -128,7 +155,21 @@ func outputSysinfoHumanReadable(info *SystemInfo, maxCmdlineLength, maxNameLengt
 		if maxCmdlineLength > 0 && len(cmdline) > maxCmdlineLength {
 			cmdline = cmdline[:maxCmdlineLength-3] + "..."
 		}
-		fmt.Printf("%-7d | %-7d | %-25s | %s\n", p.Pid, p.Ppid, name, cmdline)
+
+		// Get language for this process (Languages array matches Processes array order)
+		var langStr string
+		if i < len(info.Languages) {
+			langStr = formatLanguage(info.Languages[i])
+		} else {
+			langStr = "-"
+		}
+
+		// Truncate language to max 12 chars to keep table aligned
+		if len(langStr) > 12 {
+			langStr = langStr[:12]
+		}
+
+		fmt.Printf("%-7d | %-7d | %-25s | %-12s | %s\n", p.Pid, p.Ppid, name, langStr, cmdline)
 	}
 
 	return nil
