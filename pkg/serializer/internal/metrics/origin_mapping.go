@@ -67,6 +67,7 @@ func metricSourceToOriginCategory(ms metrics.MetricSource) int32 {
 		// Core Checks
 		metrics.MetricSourceInternal,
 		metrics.MetricSourceContainer,
+		metrics.MetricSourceContainerd,
 		metrics.MetricSourceCri,
 		metrics.MetricSourceDocker,
 		metrics.MetricSourceNTP,
