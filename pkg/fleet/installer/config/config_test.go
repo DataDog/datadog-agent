@@ -266,8 +266,8 @@ func TestBuildOperationsFromLegacyInstaller(t *testing.T) {
 	}
 	assert.True(t, filePaths["datadog.yaml"])
 	assert.True(t, filePaths["security-agent.yaml"])
-	assert.Equal(t, FileOperationDeleteAll, ops[2].FileOperationType)
-	assert.Equal(t, "/managed", ops[2].FilePath)
+	assert.Equal(t, FileOperationDeleteAll, ops[0].FileOperationType)
+	assert.Equal(t, "/managed", ops[0].FilePath)
 }
 
 func TestBuildOperationsFromLegacyConfigFileKeepApplicationMonitoring(t *testing.T) {
@@ -285,11 +285,11 @@ func TestBuildOperationsFromLegacyConfigFileKeepApplicationMonitoring(t *testing
 	ops := buildOperationsFromLegacyInstaller(tmpDir)
 	assert.Len(t, ops, 2)
 
-	assert.Equal(t, FileOperationMergePatch, ops[0].FileOperationType)
-	assert.Equal(t, "/"+filepath.Join("managed", "datadog-agent", "stable", "application_monitoring.yaml"), ops[0].FilePath)
-	assert.Equal(t, string(legacyConfig), string(ops[0].Patch))
-	assert.Equal(t, FileOperationDeleteAll, ops[1].FileOperationType)
-	assert.Equal(t, "/managed", ops[1].FilePath)
+	assert.Equal(t, FileOperationDeleteAll, ops[0].FileOperationType)
+	assert.Equal(t, "/managed", ops[0].FilePath)
+	assert.Equal(t, FileOperationMergePatch, ops[1].FileOperationType)
+	assert.Equal(t, "/"+filepath.Join("managed", "datadog-agent", "stable", "application_monitoring.yaml"), ops[1].FilePath)
+	assert.Equal(t, string(legacyConfig), string(ops[1].Patch))
 }
 
 func TestOperationApply_Copy(t *testing.T) {
