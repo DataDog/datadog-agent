@@ -35,6 +35,8 @@ const (
 	manifestCacheTTL = 3 * time.Minute
 	// manifestCachePurge is the interval for purging expired cache entries
 	manifestCachePurge = 30 * time.Second
+	// maxManifestsPerPayload is the maximum number of manifests to send in a single payload
+	maxManifestsPerPayload = 100
 )
 
 var (
@@ -165,11 +167,35 @@ func (e *Exporter) consumeK8sObjects(ctx context.Context, ld plog.Logs) (err err
 		logger.Error("Failed to get hostname from config", zap.Error(err))
 	}
 
-	payload := toManifestPayload(ctx, manifests, hostname, e.orchestratorConfig.ClusterName, clusterID)
+	// Chunk manifests into batches of maxManifestsPerPayload and send each chunk separately
+	// to ensure the backend can handle the load
+	totalManifests := len(manifests)
+	logger.Info("Sending manifests in chunks",
+		zap.Int("total_manifests", totalManifests),
+		zap.Int("chunk_size", maxManifestsPerPayload))
 
-	if err := sendManifestPayload(ctx, e.orchestratorConfig, payload, hostname, clusterID); err != nil {
-		logger.Error("Failed to send collector manifest", zap.Error(err))
+	for i := 0; i < totalManifests; i += maxManifestsPerPayload {
+		end := i + maxManifestsPerPayload
+		if end > totalManifests {
+			end = totalManifests
+		}
+
+		chunk := manifests[i:end]
+		logger.Info("Sending manifest chunk",
+			zap.Int("chunk_start", i),
+			zap.Int("chunk_end", end),
+			zap.Int("chunk_size", len(chunk)))
+
+		payload := toManifestPayload(ctx, chunk, hostname, e.orchestratorConfig.ClusterName, clusterID)
+
+		if err := sendManifestPayload(ctx, e.orchestratorConfig, payload, hostname, clusterID); err != nil {
+			logger.Error("Failed to send collector manifest chunk",
+				zap.Int("chunk_start", i),
+				zap.Int("chunk_end", end),
+				zap.Error(err))
+		}
 	}
+
 	return nil
 }
 
