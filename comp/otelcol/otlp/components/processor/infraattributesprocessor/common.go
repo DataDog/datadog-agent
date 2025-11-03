@@ -66,6 +66,7 @@ func (p infraTagsProcessor) ProcessTags(
 	entityIDs := entityIDsFromAttributes(resourceAttributes)
 	tagMap := make(map[string]string)
 
+	logger.Debug("Getting tags for entity IDs", zap.Any("entityIDs", entityIDs))
 	// Get all unique tags from resource attributes and global tags
 	for _, entityID := range entityIDs {
 		entityTags, err := p.tagger.Tag(entityID, cardinality)
@@ -73,6 +74,7 @@ func (p infraTagsProcessor) ProcessTags(
 			logger.Error("Cannot get tags for entity", zap.String("entityID", entityID.String()), zap.Error(err))
 			continue
 		}
+		logger.Debug("Tags for entity ID", zap.String("entityID", entityID.String()), zap.Any("entityTags", entityTags))
 		for _, tag := range entityTags {
 			k, v := splitTag(tag)
 			_, hasTag := tagMap[k]
@@ -85,7 +87,9 @@ func (p infraTagsProcessor) ProcessTags(
 	if err != nil {
 		logger.Error("Cannot get global tags", zap.Error(err))
 	}
+	logger.Debug("Global tags", zap.Any("globalTags", globalTags))
 	for _, tag := range globalTags {
+		logger.Debug("Global tag", zap.String("tag", tag))
 		k, v := splitTag(tag)
 		_, hasTag := tagMap[k]
 		if k != "" && v != "" && !hasTag {
