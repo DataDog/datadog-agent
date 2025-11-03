@@ -60,7 +60,7 @@ type ValidMetricConfigMocked struct{}
 func (m *ValidMetricConfigMocked) GetMultipleEndpoints() (utils.EndpointDescriptorSet, error) {
 	return utils.EndpointDescriptorSet{
 		"http://localhost:8888": utils.EndpointDescriptor{
-			BaseURL: "http://localhost:8888",
+			BaseURL:   "http://localhost:8888",
 			APIKeySet: []utils.APIKeys{utils.NewAPIKeys("api_key", "value")},
 		},
 	}, nil

@@ -205,9 +205,9 @@ additional_endpoints:
 
 	expectedMultipleEndpoints := EndpointDescriptorSet{
 		"https://app.datadoghq.com": newEndpointDescriptor("https://app.datadoghq.com", []APIKeys{
-				NewAPIKeys("api_key", "fakeapikey"),
-				NewAPIKeys("additional_endpoints", "fakeapikey2", "fakeapikey"),
-			}),
+			NewAPIKeys("api_key", "fakeapikey"),
+			NewAPIKeys("additional_endpoints", "fakeapikey2", "fakeapikey"),
+		}),
 		"https://foo.datadoghq.com": newEndpointDescriptor("https://foo.datadoghq.com", newAPIKeyset("additional_endpoints", "someapikey", "someotherapikey", "someapikey")),
 	}
 
