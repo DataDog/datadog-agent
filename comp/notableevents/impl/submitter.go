@@ -21,9 +21,10 @@ import (
 // eventPayload represents a Windows Event Log event to be submitted
 // TODO(WINA-1968): TBD format for event payload, finish with intake.
 type eventPayload struct {
-	Channel  string
-	Provider string
-	EventID  uint
+	Channel   string
+	Provider  string
+	EventID   uint
+	Timestamp time.Time
 }
 
 // submitter receives event payloads from a channel and forwards them to the event platform
@@ -70,7 +71,7 @@ func (s *submitter) run() {
 // submitEvent creates a message and submits it to the event platform
 func (s *submitter) submitEvent(payload eventPayload) error {
 	// Create Event Management v2 API payload
-	timestamp := time.Now().In(time.UTC).Format("2006-01-02T15:04:05.000000Z")
+	timestamp := payload.Timestamp.In(time.UTC).Format("2006-01-02T15:04:05.000000Z")
 	eventData := map[string]interface{}{
 		"data": map[string]interface{}{
 			"type": "event",
