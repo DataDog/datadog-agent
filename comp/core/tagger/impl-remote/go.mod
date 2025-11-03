@@ -28,6 +28,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.61.0
 	github.com/DataDog/datadog-agent/pkg/util/grpc v0.60.0
 	github.com/DataDog/datadog-agent/pkg/util/http v0.61.0
+	github.com/DataDog/datadog-agent/pkg/util/log v0.64.1
 	github.com/cenkalti/backoff v2.2.1+incompatible
 	github.com/google/uuid v1.6.0
 	github.com/pkg/errors v0.9.1
@@ -63,7 +64,6 @@ require (
 	github.com/DataDog/datadog-agent/pkg/template v0.65.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/executable v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.61.0 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/log v0.64.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/log/setup v0.62.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/option v0.64.0-devel // indirect
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.61.0 // indirect
