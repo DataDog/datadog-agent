@@ -124,15 +124,15 @@ func DedupAPIKeys(endpoints []APIKeys) []string {
 
 // EndpointDescriptor holds configuration about a single endpoint (aka domain) for infra pipelines.
 type EndpointDescriptor struct {
-	BaseURL string
-	APIKeys []APIKeys
-	IsMRF   bool
+	BaseURL    string
+	APIKeySet  []APIKeys
+	IsMRF      bool
 }
 
-func newEndpointDescriptor(baseURL, configKey string, apiKeys ...string) EndpointDescriptor {
+func newEndpointDescriptor(baseURL string, apiKeySet []APIKeys) EndpointDescriptor {
 	return EndpointDescriptor{
 		BaseURL: baseURL,
-		APIKeys: newAPIKeyset(configKey, apiKeys...),
+		APIKeySet: apiKeySet,
 	}
 }
 
@@ -142,11 +142,8 @@ type EndpointDescriptorSet = map[string]EndpointDescriptor
 // EndpointDescriptorSetFromKeysPerDomain converts legacy endpoint configuration into EndpointDescriptorSet.
 func EndpointDescriptorSetFromKeysPerDomain(keysPerDomain map[string][]APIKeys) EndpointDescriptorSet {
 	eds := EndpointDescriptorSet{}
-	for domain, apiKeys := range keysPerDomain {
-		eds[domain] = EndpointDescriptor{
-			BaseURL: domain,
-			APIKeys: apiKeys,
-		}
+	for domain, keyset := range keysPerDomain {
+		eds[domain] = newEndpointDescriptor(domain, keyset)
 	}
 
 	return eds
@@ -188,11 +185,11 @@ func GetMultipleEndpoints(c pkgconfigmodel.Reader) (EndpointDescriptorSet, error
 		if err != nil {
 			return nil, fmt.Errorf("could not parse MRF endpoint: %s", err)
 		}
-		eds[haURL] = EndpointDescriptor{
-			BaseURL: haURL,
-			APIKeys: newAPIKeyset("multi_region_failover.api_key", c.GetString("multi_region_failover.api_key")),
-			IsMRF:   true,
-		}
+		ed := newEndpointDescriptor(
+			haURL,
+			newAPIKeyset("multi_region_failover.api_key", c.GetString("multi_region_failover.api_key")))
+		ed.IsMRF = true
+		eds[haURL] = ed
 	}
 
 	return eds, nil

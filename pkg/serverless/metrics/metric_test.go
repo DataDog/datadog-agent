@@ -61,7 +61,7 @@ func (m *ValidMetricConfigMocked) GetMultipleEndpoints() (utils.EndpointDescript
 	return utils.EndpointDescriptorSet{
 		"http://localhost:8888": utils.EndpointDescriptor{
 			BaseURL: "http://localhost:8888",
-			APIKeys: []utils.APIKeys{utils.NewAPIKeys("api_key", "value")},
+			APIKeySet: []utils.APIKeys{utils.NewAPIKeys("api_key", "value")},
 		},
 	}, nil
 }
