@@ -416,40 +416,6 @@ namespace Datadog.CustomActions
             }
         }
 
-        private ActionResult PurgePackages()
-        {
-            if (!ShouldPurge())
-            {
-                _session.Log("Skipping purge as KEEP_INSTALLED_PACKAGES is set to 1");
-                return ActionResult.Success;
-            }
-            var fleetInstall = _session.Property("FLEET_INSTALL");
-            if (!string.IsNullOrEmpty(fleetInstall) && fleetInstall == "1")
-            {
-                _session.Log("Skipping purge as FLEET_INSTALL is set to 1");
-                return ActionResult.Success;
-            }
-            try
-            {
-                _session.Log("Running datadog-installer purge");
-                var env = PurgeEnvironmentVariables();
-                using (var proc = _session.RunCommand(_installerExecutable, "purge", env))
-                {
-                    if (proc.ExitCode != 0)
-                    {
-                        _session.Log($"'datadog-installer purge' failed with exit code: {proc.ExitCode}");
-                        return ActionResult.Failure;
-                    }
-                }
-                return ActionResult.Success;
-            }
-            catch (Exception ex)
-            {
-                _session.Log("Error while running installer purge: " + ex.Message);
-                return ActionResult.Failure;
-            }
-        }
-
         private ActionResult RollbackState()
         {
             _rollbackDataStore.Load();
