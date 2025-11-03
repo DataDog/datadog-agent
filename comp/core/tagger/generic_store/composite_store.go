@@ -37,12 +37,12 @@ func (os *compositeObjectStore[T]) Get(entityID types.EntityID) (object T, found
 
 	object, found = submap[entityID.GetID()]
 	if !found {
-		log.Debug(fmt.Sprintf("Entity not found: %s", entityID.String()))
-		for key := range os.data {
+		log.Debug(fmt.Sprintf("Entity not found: %s", entityID.GetID()))
+		for key := range submap {
 			log.Debug(fmt.Sprintf("submap Key: %s", key))
 		}
 	}
-	log.Debug(fmt.Sprintf("Entity found: %s", entityID.String()))
+	log.Debug(fmt.Sprintf("Entity found: %s", entityID.GetID()))
 
 	return
 }
