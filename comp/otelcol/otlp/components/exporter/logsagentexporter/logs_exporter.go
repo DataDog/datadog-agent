@@ -72,7 +72,12 @@ func NewExporterWithGatewayUsage(
 
 // ConsumeLogs maps logs from OTLP to DD format and ingests them through the exporter channel
 func (e *Exporter) ConsumeLogs(ctx context.Context, ld plog.Logs) (err error) {
-	OTLPIngestLogsRequests.Inc()
+	otelSource := e.cfg.OtelSource
+	if otelSource == "datadog_agent" {
+		OTLPIngestAgentLogsRequests.Inc()
+	} else if otelSource == "otel_agent" {
+		OTLPIngestDDOTLogsRequests.Inc()
+	}
 	defer func() {
 		if err != nil {
 			newErr, scrubbingErr := scrubber.ScrubString(err.Error())
@@ -95,7 +100,11 @@ func (e *Exporter) ConsumeLogs(ctx context.Context, ld plog.Logs) (err error) {
 	}
 
 	payloads := e.translator.MapLogs(ctx, ld, e.gatewaysUsage.GetHostFromAttributesHandler())
-	OTLPIngestLogsEvents.Add(float64(len(payloads)))
+	if otelSource == "datadog_agent" {
+		OTLPIngestAgentLogsEvents.Add(float64(len(payloads)))
+	} else if otelSource == "otel_agent" {
+		OTLPIngestDDOTLogsEvents.Add(float64(len(payloads)))
+	}
 	for _, ddLog := range payloads {
 		tags := strings.Split(ddLog.GetDdtags(), ",")
 		// Tags are set in the message origin instead

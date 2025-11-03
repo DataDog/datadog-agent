@@ -7,17 +7,19 @@ import (
 	"context"
 	"net/http"
 
+	"go.uber.org/zap"
+
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	traceagent "github.com/DataDog/datadog-agent/comp/trace/agent/def"
 	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes/source"
 	"github.com/DataDog/datadog-agent/pkg/util/otel"
-	"go.uber.org/zap"
 
-	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/inframetadata"
 	datadogconfig "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog/config"
 	"go.opentelemetry.io/collector/consumer"
 	"go.opentelemetry.io/collector/exporter"
 	"go.opentelemetry.io/collector/pdata/ptrace"
+
+	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/inframetadata"
 )
 
 type traceExporter struct {
@@ -62,13 +64,23 @@ func (exp *traceExporter) consumeTraces(
 	ctx context.Context,
 	td ptrace.Traces,
 ) (err error) {
+
+	// Track DDOT trace requests
+	OTLPIngestDDOTTracesRequests.Inc()
 	rspans := td.ResourceSpans()
 	hosts := make(map[string]struct{})
 	ecsFargateArns := make(map[string]struct{})
 	header := make(http.Header)
 	header[headerComputedStats] = []string{"true"}
+	traceEvents := 0
 	for i := 0; i < rspans.Len(); i++ {
 		rspan := rspans.At(i)
+		for j := 0; j < rspan.ScopeSpans().Len(); j++ {
+			sspans := rspan.ScopeSpans().At(j)
+			for k := 0; k < sspans.Spans().Len(); k++ {
+				traceEvents += sspans.Spans().At(k).Events().Len()
+			}
+		}
 		res := rspan.Resource()
 		if exp.cfg.HostMetadata.Enabled && exp.reporter != nil {
 			err := exp.reporter.ConsumeResource(res)
@@ -85,7 +97,8 @@ func (exp *traceExporter) consumeTraces(
 		case source.InvalidKind:
 		}
 	}
-
+	// Track DDOT trace events
+	OTLPIngestDDOTTracesEvents.Add(float64(traceEvents))
 	exp.exportUsageMetrics(hosts, ecsFargateArns)
 	return nil
 }
