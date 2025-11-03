@@ -15,7 +15,7 @@ from invoke import task
 from invoke.exceptions import Exit
 
 from tasks.build_tags import build_tags, filter_incompatible_tags, get_build_tags, get_default_build_tags
-from tasks.commands.docker import AGENT_REPOSITORY_PATH, DockerCLI
+from tasks.commands.docker import DockerCLI
 from tasks.flavor import AgentFlavor
 from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.utils import is_installed
@@ -88,7 +88,7 @@ def setup(
         "--security-opt",
         "seccomp=unconfined",
         "-w",
-        "/workspaces/datadog-agent",
+        "/workspaces/${localWorkspaceFolderBasename}",
         "--name",
         "datadog-agent-devcontainer",
     ]
@@ -122,10 +122,10 @@ def setup(
         }
     }
 
-    # onCreateCommond runs the install-tools and deps tasks only when the devcontainer is created and not each time
+    # onCreateCommand runs the install-tools and deps tasks only when the devcontainer is created and not each time
     # the container is started
     devcontainer["onCreateCommand"] = (
-        f"git config --global --add safe.directory {AGENT_REPOSITORY_PATH} && dda inv -- -e install-tools && dda inv -- -e deps"
+        "git config --global --add safe.directory /workspaces/${localWorkspaceFolderBasename} && dda inv -- -e install-tools && dda inv -- -e deps"
     )
 
     devcontainer["containerEnv"] = {
