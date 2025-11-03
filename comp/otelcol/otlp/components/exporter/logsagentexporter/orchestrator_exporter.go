@@ -123,6 +123,11 @@ func (e *Exporter) consumeK8sObjects(ctx context.Context, ld plog.Logs) (err err
 
 			for k := 0; k < scopeLogs.LogRecords().Len(); k++ {
 				logRecord := scopeLogs.LogRecords().At(k)
+				// dump
+				logRecord.Attributes().Range(func(key string, value pcommon.Value) bool {
+					fmt.Println("aurele-debug2: key", key, "value", value.AsString())
+					return true
+				})
 
 				// Convert Kubernetes resource manifest to orchestrator payload format
 				manifest, err := toManifest(ctx, logRecord, resource)
