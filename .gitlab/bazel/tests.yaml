@@ -1,0 +1,35 @@
+.bazel:tests:
+  extends: .bazel:defs
+  rules:
+    - !reference [ .except_mergequeue ]
+    - when: on_success
+  stage: source_test
+
+bazel:tests:linux-amd64:
+  extends: [ .bazel:tests, .bazel:persistent-runner:linux-amd64 ]
+  script:
+    - bazel test //bazel/tests/...
+
+bazel:tests:linux-arm64:
+  extends: [ .bazel:tests, .linux_arm64 ]
+  script:
+    - bazel test //bazel/tests/...
+
+bazel:tests:macos-amd64:
+  extends: .bazel:tests
+  tags: [ "macos:ventura-amd64", "specific:true" ]
+  script:
+    - bazel test //bazel/tests/...
+
+bazel:tests:macos-arm64:
+  extends: .bazel:tests
+  tags: [ "macos:ventura-arm64", "specific:true" ]
+  script:
+    - bazel test //bazel/tests/...
+
+bazel:tests:windows-amd64:
+  extends: [ .bazel:tests, .bazel:ext:windows ]
+  variables:
+    ARCH: x64
+    SCRIPT: |-
+      bazel test //bazel/tests/...
