@@ -124,19 +124,19 @@ func DedupAPIKeys(endpoints []APIKeys) []string {
 
 // EndpointDescriptor holds configuration about a single endpoint (aka domain) for infra pipelines.
 type EndpointDescriptor struct {
-	BaseURL string
-	APIKeys []APIKeys
-	IsMRF   bool
+	BaseURL    string
+	APIKeySet  []APIKeys
+	IsMRF      bool
 }
 
 // newEndpointDescriptor creates new EndpointDescriptor with minimal configuration and defaults filled in.
 //
 // Users must validate domain to be a valid URL first.
-func newEndpointDescriptor(domain string, apiKeys []APIKeys) EndpointDescriptor {
+func newEndpointDescriptor(domain string, apiKeySet []APIKeys) EndpointDescriptor {
 	baseURL, _ := AddAgentVersionToDomain(domain, "app")
 	return EndpointDescriptor{
 		BaseURL: baseURL,
-		APIKeys: apiKeys,
+		APIKeySet: apiKeySet,
 	}
 }
 
@@ -146,8 +146,8 @@ type EndpointDescriptorSet = map[string]EndpointDescriptor
 // EndpointDescriptorSetFromKeysPerDomain converts legacy endpoint configuration into EndpointDescriptorSet.
 func EndpointDescriptorSetFromKeysPerDomain(keysPerDomain map[string][]APIKeys) EndpointDescriptorSet {
 	eds := EndpointDescriptorSet{}
-	for domain, apiKeys := range keysPerDomain {
-		eds[domain] = newEndpointDescriptor(domain, apiKeys)
+	for domain, keyset := range keysPerDomain {
+		eds[domain] = newEndpointDescriptor(domain, keyset)
 	}
 
 	return eds
@@ -174,8 +174,8 @@ func GetMultipleEndpoints(c pkgconfigmodel.Reader) (EndpointDescriptorSet, error
 			return nil, fmt.Errorf("could not parse url from 'additional_endpoints' %s: %s", domain, err)
 		}
 
-		if _, ok := keysPerDomain[domain]; ok {
-			keysPerDomain[domain] = append(keysPerDomain[domain], apiKeys...)
+		if oldAPIKeys, ok := keysPerDomain[domain]; ok {
+			keysPerDomain[domain] = append(oldAPIKeys, apiKeys...)
 		} else {
 			keysPerDomain[domain] = apiKeys
 		}
@@ -189,7 +189,9 @@ func GetMultipleEndpoints(c pkgconfigmodel.Reader) (EndpointDescriptorSet, error
 		if err != nil {
 			return nil, fmt.Errorf("could not parse MRF endpoint: %s", err)
 		}
-		ed := newEndpointDescriptor(haURL, newAPIKeyset("multi_region_failover.api_key", c.GetString("multi_region_failover.api_key")))
+		ed := newEndpointDescriptor(
+			haURL,
+			newAPIKeyset("multi_region_failover.api_key", c.GetString("multi_region_failover.api_key")))
 		ed.IsMRF = true
 		eds[haURL] = ed
 	}

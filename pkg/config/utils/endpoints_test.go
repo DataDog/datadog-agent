@@ -24,10 +24,11 @@ func TestSecretBackendWithMultipleEndpoints(t *testing.T) {
 	conf := mock.NewFromFile(t, "./tests/datadog_secrets.yaml")
 
 	expectedKeysPerDomain := EndpointDescriptorSet{
-		"https://app.datadoghq.com.": newEndpointDescriptor("https://app.datadoghq.com.", []APIKeys{
-			NewAPIKeys("api_key", "someapikey"),
-			NewAPIKeys("additional_endpoints", "someotherapikey"),
-		}),
+		"https://app.datadoghq.com.": newEndpointDescriptor(
+			"https://app.datadoghq.com.", []APIKeys{
+				NewAPIKeys("api_key", "someapikey"),
+				NewAPIKeys("additional_endpoints", "someotherapikey"),
+			}),
 	}
 	keysPerDomain, err := GetMultipleEndpoints(conf)
 	assert.NoError(t, err)
