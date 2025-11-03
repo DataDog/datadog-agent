@@ -61,6 +61,7 @@ int BPF_BYPASSABLE_KPROBE(kretprobe_nf_conntrack_hash_check_insert, struct nf_co
 }
 
 
+// JMW these need to have the same flag checks as runtime
 // Third probe: Track confirmed NAT connections (entry)
 SEC("kprobe/__nf_conntrack_confirm") // JMWCONNTRACK
 int BPF_BYPASSABLE_KPROBE(kprobe__nf_conntrack_confirm) {
