@@ -24,4 +24,5 @@ type ConntrackTelemetry struct {
 	Confirm_return_success_count                 uint64
 	Confirm_return_no_matching_entry_probe_count uint64
 	Confirm_return_not_accepted_count            uint64
+	Confirm_return_not_confirmed_count           uint64
 }

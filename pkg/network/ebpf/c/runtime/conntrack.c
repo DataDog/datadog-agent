@@ -120,8 +120,8 @@ int BPF_BYPASSABLE_KPROBE(kprobe__nf_conntrack_confirm) {
 
     u32 status = 0;
     BPF_CORE_READ_INTO(&status, ct, status);
-    if (!(status&IPS_CONFIRMED) || !(status&IPS_NAT_MASK)) {
-        log_debug("JMW(runtime)kprobe/__nf_conntrack_confirm: not IPS_CONFIRMED or not IPS_NAT_MASK, ct: %p, netns: %u, status: %x", ct, get_netns(ct), status);
+    if (!(status&IPS_NAT_MASK)) {
+        log_debug("JMW(runtime)kprobe/__nf_conntrack_confirm: not IPS_NAT_MASK, ct: %p, netns: %u, status: %x", ct, get_netns(ct), status);
         return 0;
     }
 
@@ -161,6 +161,16 @@ int BPF_BYPASSABLE_KPROBE(kretprobe__nf_conntrack_confirm) {
     // Only process if returned NF_ACCEPT (1)
     if (ret != 1) { // NF_ACCEPT = 1
         increment_confirm_return_not_accepted_count();
+        return 0;
+    }
+
+    // JMW check flags before adding to conntrack2 map
+    // Similar to kprobe__nf_conntrack_hash_insert
+    u32 status = 0;
+    BPF_CORE_READ_INTO(&status, ct, status);
+    if (!(status&IPS_CONFIRMED)) {
+        increment_confirm_return_not_confirmed_count();
+        log_debug("JMW(runtime)kretprobe/__nf_conntrack_confirm: not IPS_CONFIRMED, ct: %p, netns: %u, status: %x", ct, get_netns(ct), status);
         return 0;
     }
 
