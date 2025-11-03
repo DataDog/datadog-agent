@@ -55,7 +55,8 @@ cc_library(
     local_defines = [
         "HAVE_CONFIG_H",
         'SYSCONFDIR=\\"/opt/datadog-agent/embedded/etc\\"',
-    ]
+    ],
+    visibility = ["//visibility:public"],
 )
 
 cc_shared_library(
@@ -67,6 +68,7 @@ cc_shared_library(
     user_link_flags = [
         "-Wl,--version-script=$(location exports)",
     ],
+    visibility = ["//visibility:public"],
 )
 
 so_symlink(
