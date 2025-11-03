@@ -543,9 +543,14 @@ func WithDevEnvOverrides(prefix string) PackageOption {
 
 // SetConfigExperiment sets the config catalog for the Datadog Installer daemon.
 func (d *DatadogInstaller) SetConfigExperiment(config ConfigExperiment) (string, error) {
-	serializedConfig, err := json.Marshal(map[string]ConfigExperiment{
-		config.ID: config,
-	})
+	// Convert ConfigExperiment to installerConfig format
+	installerConfig := map[string]interface{}{
+		config.ID: map[string]interface{}{
+			"deployment_id":   config.ID,
+			"file_operations": convertFilesToOperations(config.Files),
+		},
+	}
+	serializedConfig, err := json.Marshal(installerConfig)
 	if err != nil {
 		return "", err
 	}
@@ -558,12 +563,20 @@ func (d *DatadogInstaller) SetConfigExperiment(config ConfigExperiment) (string,
 // It first sets the config catalog and then starts the experiment.
 func (d *DatadogInstaller) StartConfigExperiment(packageName string, config ConfigExperiment) (string, error) {
 	// First set the config catalog
-	_, err := d.SetConfigExperiment(config)
+	//_, err := d.SetConfigExperiment(config)
+	operations := map[string]interface{}{
+		"deployment_id":   config.ID,
+		"file_operations": convertFilesToOperations(config.Files),
+	}
+
+	serializedOps, err := json.Marshal(operations)
 	if err != nil {
 		return "", err
 	}
 	// Then start the config experiment
-	return d.execute(fmt.Sprintf("daemon start-config-experiment %s %s", packageName, config.ID))
+	opsStr := strings.ReplaceAll(string(serializedOps), `"`, `\"`)
+	return d.execute(fmt.Sprintf("daemon start-config-experiment %s '%s'", packageName, opsStr))
+	//return d.execute(fmt.Sprintf("daemon start-config-experiment %s %s", packageName, config.ID))
 }
 
 // PromoteConfigExperiment promotes a config experiment through the daemon.
@@ -633,4 +646,17 @@ func (d *DatadogInstallerGA) StopExperiment(packageName string) (string, error) 
 		return out, ignoreEOF(err)
 	}
 	return out, err
+}
+
+// convertFilesToOperations converts ConfigExperimentFiles to file operations
+func convertFilesToOperations(files []ConfigExperimentFile) []map[string]interface{} {
+	operations := make([]map[string]interface{}, len(files))
+	for i, file := range files {
+		operations[i] = map[string]interface{}{
+			"file_op":   "merge-patch",
+			"file_path": file.Path,
+			"patch":     file.Contents,
+		}
+	}
+	return operations
 }

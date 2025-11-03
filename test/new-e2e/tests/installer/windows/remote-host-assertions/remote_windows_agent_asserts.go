@@ -8,8 +8,9 @@ package assertions
 import (
 	"strings"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclient"
 	"gopkg.in/yaml.v2"
+
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclient"
 )
 
 // RemoteWindowsAgentAssertions is a type that extends the SuiteAssertions to add assertions
@@ -31,7 +32,9 @@ type RemoteWindowsAgentConfigAssertions struct {
 // fetches the full config and unmarshals it into a map.
 func (r *RemoteWindowsAgentAssertions) RuntimeConfig() *RemoteWindowsAgentConfigAssertions {
 	r.context.T().Helper()
-	output, err := r.agentClient.ConfigWithError()
+	output, err := r.agentClient.ConfigWithError(
+		agentclient.WithArgs([]string{"--all"}),
+	)
 	r.require.NoError(err)
 
 	var config map[interface{}]interface{}
