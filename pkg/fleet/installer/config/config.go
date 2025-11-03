@@ -98,24 +98,29 @@ func (a *FileOperation) apply(root *os.Root, rootPath string) error {
 	case FileOperationPatch, FileOperationMergePatch:
 		err := ensureDir(root, path)
 		if err != nil {
+			fmt.Println("error ensuring dir", err)
 			return err
 		}
 		file, err := root.OpenFile(path, os.O_RDWR|os.O_CREATE, 0640)
 		if err != nil {
+			fmt.Println("error opening file", err)
 			return err
 		}
 		defer file.Close()
 		previousYAMLBytes, err := io.ReadAll(file)
 		if err != nil {
+			fmt.Println("error reading file", err)
 			return err
 		}
 		previous := make(map[string]any)
 		err = yaml.Unmarshal(previousYAMLBytes, &previous)
 		if err != nil {
+			fmt.Println("error unmarshalling file", err)
 			return err
 		}
 		previousJSONBytes, err := json.Marshal(previous)
 		if err != nil {
+			fmt.Println("error marshalling file", err)
 			return err
 		}
 		var newJSONBytes []byte
@@ -123,37 +128,45 @@ func (a *FileOperation) apply(root *os.Root, rootPath string) error {
 		case FileOperationPatch:
 			patch, err := patch.DecodePatch(a.Patch)
 			if err != nil {
+				fmt.Println("error applying patch", err)
 				return err
 			}
 			newJSONBytes, err = patch.Apply(previousJSONBytes)
 			if err != nil {
+				fmt.Println("error merging patch", err)
 				return err
 			}
 		case FileOperationMergePatch:
 			newJSONBytes, err = patch.MergePatch(previousJSONBytes, a.Patch)
 			if err != nil {
+				fmt.Println("error merging patch", err)
 				return err
 			}
 		}
 		var current map[string]any
 		err = yaml.Unmarshal(newJSONBytes, &current)
 		if err != nil {
+			fmt.Println("error unmarshalling file", err)
 			return err
 		}
 		currentYAMLBytes, err := yaml.Marshal(current)
 		if err != nil {
+			fmt.Println("error marshalling file", err)
 			return err
 		}
 		err = file.Truncate(0)
 		if err != nil {
+			fmt.Println("error truncating file", err)
 			return err
 		}
 		_, err = file.Seek(0, io.SeekStart)
 		if err != nil {
+			fmt.Println("error seeking file", err)
 			return err
 		}
 		_, err = file.Write(currentYAMLBytes)
 		if err != nil {
+			fmt.Println("error writing file", err)
 			return err
 		}
 		return err
