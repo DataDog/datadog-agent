@@ -291,10 +291,12 @@ func scanDevice(connParams *snmpparse.SNMPConfig, args argsType, snmpScanner snm
 		ScanType: metadata.ManualScan,
 	})
 	if err != nil {
-		fmt.Printf("Unable to perform device scan for device %s : %e", deviceID, err)
+		fmt.Printf("Unable to perform device scan for device %s: %v\n", deviceID, err)
+		return err
 	}
+
 	fmt.Printf("Completed scan successfully for device: %s\n", deviceID)
-	return err
+	return nil
 }
 
 // snmpWalk prints every SNMP value, in the style of the unix snmpwalk command.
