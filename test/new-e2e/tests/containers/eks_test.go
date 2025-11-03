@@ -9,12 +9,12 @@ import (
 	"regexp"
 	"testing"
 
-	"github.com/DataDog/test-infra-definitions/components/datadog/apps"
-	"github.com/DataDog/test-infra-definitions/components/datadog/kubernetesagentparams"
-	tifeks "github.com/DataDog/test-infra-definitions/scenarios/aws/eks"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/kubernetesagentparams"
+	tifeks "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/eks"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
-	awskubernetes "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/kubernetes"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
+	awskubernetes "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/kubernetes"
 )
 
 type eksSuite struct {

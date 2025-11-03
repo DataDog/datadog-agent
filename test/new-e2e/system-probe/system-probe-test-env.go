@@ -21,12 +21,12 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/microVMs/microvms"
 	"github.com/DataDog/datadog-api-client-go/v2/api/datadogV1"
-	"github.com/DataDog/test-infra-definitions/scenarios/aws/microVMs/microvms"
 	"golang.org/x/term"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/infra"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/infra"
 	"github.com/DataDog/datadog-agent/test/new-e2e/system-probe/connector/metric"
 
 	"github.com/pulumi/pulumi/sdk/v3/go/auto"
@@ -206,7 +206,7 @@ func NewTestEnv(name, x86InstanceType, armInstanceType string, opts *EnvOpts) (*
 		runner.AWSKeyPairName:            auto.ConfigValue{Value: opts.SSHKeyName},
 		// Its fine to hardcode the password here, since the remote ec2 instances do not have
 		// any password on sudo. This secret configuration was introduced in the test-infra-definitions
-		// scenario for dev environments: https://github.com/DataDog/test-infra-definitions/pull/159
+		// scenario for dev environments: https://github.com/DataDog/datadog-agent/test/e2e-framework/pull/159
 		"sudo-password-remote":                   auto.ConfigValue{Value: "", Secret: true},
 		"sudo-password-local":                    auto.ConfigValue{Value: sudoPassword, Secret: true},
 		"ddinfra:aws/defaultARMInstanceType":     auto.ConfigValue{Value: armInstanceType},

@@ -10,23 +10,23 @@ import (
 
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 
-	tifEcs "github.com/DataDog/test-infra-definitions/scenarios/aws/ecs"
+	tifEcs "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ecs"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners"
-	envecs "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/ecs"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners"
+	envecs "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/ecs"
 
-	npmtools "github.com/DataDog/test-infra-definitions/components/datadog/apps/npm-tools"
-	"github.com/DataDog/test-infra-definitions/components/datadog/ecsagentparams"
-	"github.com/DataDog/test-infra-definitions/components/docker"
-	ecsComp "github.com/DataDog/test-infra-definitions/components/ecs"
+	npmtools "github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps/npm-tools"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/ecsagentparams"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/docker"
+	ecsComp "github.com/DataDog/datadog-agent/test/e2e-framework/components/ecs"
 
 	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 
-	"github.com/DataDog/test-infra-definitions/resources/aws"
-	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 )
 
 type ecsHttpbinEnv struct {

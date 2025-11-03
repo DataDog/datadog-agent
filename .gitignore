@@ -246,3 +246,7 @@ go.work.sum
 
 # CLAUDE override file for personal use
 CLAUDE_PERSONAL.md
+
+# microVM datadog.yaml
+!test/e2e-framework/scenarios/aws/microVMs/microvms/files/datadog.yaml
+!test/e2e-framework/scenarios/aws/microVMs/microvms/files/system-probe.yaml
