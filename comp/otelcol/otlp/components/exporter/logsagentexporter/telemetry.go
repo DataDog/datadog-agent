@@ -25,13 +25,13 @@ var (
 	)
 	OTLPIngestDDOTLogsEvents = telemetry.NewCounter(
 		"runtime",
-		"ddot_otlp_log_events",
+		"ddot_otlp_logs_events",
 		[]string{},
 		"Counter metric of OTLP Log events in OTLP ingestion for DDOT",
 	)
 	OTLPIngestDDOTLogsRequests = telemetry.NewCounter(
 		"runtime",
-		"ddot_otlp_log_requests",
+		"ddot_otlp_logs_requests",
 		[]string{},
 		"Counter metric of OTLP Log requests in OTLP ingestion for DDOT",
 	)
