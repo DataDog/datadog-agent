@@ -7,6 +7,14 @@ Release Notes
 7.72.0
 ======
 
+.. _Release Notes_7.72.0_Known Issues:
+
+Known Issues
+------------
+
+- This version does not work properly on versions of macOS older than 13.3, due to a dependency (libz) issue. There is currently no workaround and the recommendation at this time is to downgrade to Agent v7.71.2 or upgrade to v7.72.1 when it becomes available.
+
+
 .. _Release Notes_7.72.0_Prelude:
 
 Prelude
@@ -297,14 +305,6 @@ Bug Fixes
   Removes overlapping filter in the Windows NPM driver. 
 
 - Warns when Logs Agent log configuration is null and handles gracefully, instead of panicking.
-
-
-.. _Release Notes_7.72.0_Known Issues:
-
-Known Issues
-------------
-
-- This version does not work properly on versions of macOS older than 13.3, due to a dependency (libz) issue. There is currently no workaround and the recommendation at this time is to downgrade to Agent v7.71.2 or upgrade to v7.72.1 when it becomes available.
 
 
 .. _Release Notes_7.72.0_Other Notes:
