@@ -449,7 +449,7 @@ func (s *Launcher) startNewTailerWithStoredInfo(file *tailer.File, m config.Tail
 	}
 
 	// Create decoder with stored pattern if available
-	var decoderInstance *decoder.Decoder
+	var decoderInstance decoder.Decoder
 	if oldInfo.Pattern != nil {
 		decoderInstance = decoder.NewDecoderFromSourceWithPattern(file.Source, oldInfo.Pattern, tailerInfo)
 	} else {

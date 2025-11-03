@@ -101,7 +101,7 @@ func (t *Tailer) readAvailable() (int, error) {
 		// logs pipeline.
 		timer := time.NewTimer(t.windowsOpenFileTimeout)
 		select {
-		case t.decoder.InputChan <- decoder.NewInput(inBuf[:n]):
+		case t.decoder.InputChan() <- decoder.NewInput(inBuf[:n]):
 			timer.Stop()
 		case <-timer.C:
 			// The windowsOpenFileTimeout expired, and we want to avoid
@@ -114,7 +114,7 @@ func (t *Tailer) readAvailable() (int, error) {
 			f = nil
 
 			// blocking send to the decoder
-			t.decoder.InputChan <- decoder.NewInput(inBuf[:n])
+			t.decoder.InputChan() <- decoder.NewInput(inBuf[:n])
 		}
 	}
 }
