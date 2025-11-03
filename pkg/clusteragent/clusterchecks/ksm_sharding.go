@@ -12,6 +12,7 @@ import (
 	"sort"
 
 	"gopkg.in/yaml.v2"
+	"k8s.io/kube-state-metrics/v2/pkg/options"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -74,11 +75,16 @@ func (m *KSMShardingManager) AnalyzeKSMConfig(config integration.Config) ([]Reso
 
 	instance := instances[0]
 
-	// If no collectors specified, KSM collects everything
-	// For safety, we don't shard when collecting everything
+	// If no collectors specified, KSM defaults to collecting all resources (options.DefaultResources)
+	// See kubernetes_state.go:384-387 for the same fallback logic
+	// We use the same defaults for sharding to provide a seamless experience
+	var collectorsToShard []string
 	if len(instance.Collectors) == 0 {
-		log.Info("KSM config has no collectors specified (collecting all), sharding disabled for safety")
-		return nil, fmt.Errorf("no collectors specified, sharding disabled")
+		defaultCollectors := options.DefaultResources.AsSlice()
+		log.Infof("KSM config has no collectors specified. Using default collectors for sharding: %v", defaultCollectors)
+		collectorsToShard = defaultCollectors
+	} else {
+		collectorsToShard = instance.Collectors
 	}
 
 	// Categorize collectors: pods, nodes, everything else
@@ -86,7 +92,7 @@ func (m *KSMShardingManager) AnalyzeKSMConfig(config integration.Config) ([]Reso
 	var nodeCollectors []string
 	var otherCollectors []string
 
-	for _, collector := range instance.Collectors {
+	for _, collector := range collectorsToShard {
 		switch collector {
 		case "pods":
 			podCollectors = append(podCollectors, collector)
