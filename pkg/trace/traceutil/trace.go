@@ -156,3 +156,36 @@ func ComputeTopLevel(trace pb.Trace) {
 		}
 	}
 }
+
+// ComputeTopLevelV1 updates all the spans top-level attribute.
+//
+// A span is considered top-level if:
+//   - it's a root span
+//   - OR its parent is unknown (other part of the code, distributed trace)
+//   - OR its parent belongs to another service (in that case it's a "local root"
+//     being the highest ancestor of other spans belonging to this service and
+//     attached to it).
+func ComputeTopLevelV1(trace *idx.InternalTraceChunk) {
+	spanIDToIndex := make(map[uint64]int, len(trace.Spans))
+	for i, span := range trace.Spans {
+		spanIDToIndex[span.SpanID()] = i
+	}
+	for _, span := range trace.Spans {
+		if span.ParentID() == 0 {
+			// span is a root span
+			span.SetFloat64Attribute(topLevelKey, 1)
+			continue
+		}
+		parentIndex, ok := spanIDToIndex[span.ParentID()]
+		if !ok {
+			// span has no parent in chunk
+			span.SetFloat64Attribute(topLevelKey, 1)
+			continue
+		}
+		if trace.Spans[parentIndex].Service() != span.Service() {
+			// parent is not in the same service
+			span.SetFloat64Attribute(topLevelKey, 1)
+			continue
+		}
+	}
+}

@@ -52,7 +52,7 @@ func TestConvertToIdx_ErrorFieldIsBool(t *testing.T) {
 				},
 			}
 
-			result := convertToIdx(payload)
+			result := ConvertToIdx(payload)
 
 			require.Len(t, result.Chunks, 1)
 			require.Len(t, result.Chunks[0].Spans, 1)
@@ -129,7 +129,7 @@ func TestConvertToIdx_KindFieldMatchesOTELSpec(t *testing.T) {
 				},
 			}
 
-			result := convertToIdx(payload)
+			result := ConvertToIdx(payload)
 
 			require.Len(t, result.Chunks, 1)
 			require.Len(t, result.Chunks[0].Spans, 1)
@@ -163,7 +163,7 @@ func TestConvertToIdx_PromotedFieldsNotInAttributes(t *testing.T) {
 		},
 	}
 
-	result := convertToIdx(payload)
+	result := ConvertToIdx(payload)
 
 	require.Len(t, result.Chunks, 1)
 	require.Len(t, result.Chunks[0].Spans, 1)
@@ -231,13 +231,42 @@ func TestConvertToIdx_EnvFieldPromoted(t *testing.T) {
 		},
 	}
 
-	result := convertToIdx(payload)
+	result := ConvertToIdx(payload)
 
 	require.Len(t, result.Chunks, 1)
 	require.Len(t, result.Chunks[0].Spans, 1)
 	span := result.Chunks[0].Spans[0]
 
 	assert.Equal(t, "staging", span.Env())
+	assert.Equal(t, "staging", result.Env())
+}
+
+// Test that env field is correctly promoted at span level
+func TestConvertToIdx_HostnameFieldPromoted(t *testing.T) {
+	payload := &pb.TracerPayload{
+		Chunks: []*pb.TraceChunk{
+			{
+				Spans: []*pb.Span{
+					{
+						Service:  "test-service",
+						Name:     "test-span",
+						Resource: "test-resource",
+						TraceID:  123,
+						SpanID:   456,
+						Meta: map[string]string{
+							"_dd.hostname": "test-hostname",
+						},
+					},
+				},
+			},
+		},
+	}
+
+	result := ConvertToIdx(payload)
+
+	require.Len(t, result.Chunks, 1)
+	require.Len(t, result.Chunks[0].Spans, 1)
+	assert.Equal(t, "test-hostname", result.Hostname())
 }
 
 // Test that version field is correctly promoted at span level
@@ -261,13 +290,11 @@ func TestConvertToIdx_VersionFieldPromoted(t *testing.T) {
 		},
 	}
 
-	result := convertToIdx(payload)
+	result := ConvertToIdx(payload)
 
 	require.Len(t, result.Chunks, 1)
 	require.Len(t, result.Chunks[0].Spans, 1)
-	span := result.Chunks[0].Spans[0]
-
-	assert.Equal(t, "2.0.1", span.Version())
+	assert.Equal(t, "2.0.1", result.AppVersion())
 }
 
 // Test that component field is correctly promoted at span level
@@ -291,7 +318,7 @@ func TestConvertToIdx_ComponentFieldPromoted(t *testing.T) {
 		},
 	}
 
-	result := convertToIdx(payload)
+	result := ConvertToIdx(payload)
 
 	require.Len(t, result.Chunks, 1)
 	require.Len(t, result.Chunks[0].Spans, 1)

@@ -15,11 +15,15 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
 )
 
-// convertToIdx converts a TracerPayload to the new string indexed TracerPayload format
-func convertToIdx(payload *pb.TracerPayload) *idx.InternalTracerPayload {
+// ConvertToIdx converts a TracerPayload to the new string indexed TracerPayload format
+func ConvertToIdx(payload *pb.TracerPayload) *idx.InternalTracerPayload {
 	stringTable := idx.NewStringTable()
 	payloadAttrs := convertAttributesMap(payload.Tags, stringTable)
 	idxChunks := make([]*idx.InternalTraceChunk, len(payload.Chunks))
+	payloadEnv := ""
+	payloadHostname := ""
+	payloadAppVersion := ""
+	payloadGitCommitSha := ""
 	for chunkIndex, chunk := range payload.Chunks {
 		if chunk == nil || len(chunk.Spans) == 0 {
 			continue
@@ -77,6 +81,22 @@ func convertToIdx(payload *pb.TracerPayload) *idx.InternalTracerPayload {
 				}
 			}
 			env := span.Meta["env"]
+			if env != "" && payloadEnv == "" {
+				// Take the first env found in any chunk and set it as the env for the tracer payload
+				payloadEnv = env
+			}
+			if spanHost, ok := span.Meta["_dd.hostname"]; ok && payloadHostname == "" {
+				// Take the first hostname found in any chunk and set it as the hostname for the tracer payload
+				payloadHostname = spanHost
+			}
+			if spanVersion, ok := span.Meta["version"]; ok && payloadAppVersion == "" {
+				// Take the first app version found in any chunk and set it as the version for the tracer payload
+				payloadAppVersion = spanVersion
+			}
+			if spanGitCommitSha, ok := span.Meta["_dd.git.commit.sha"]; ok && payloadGitCommitSha == "" {
+				// Take the first git commit sha found in any chunk and set it as the git commit sha for the tracer payload
+				payloadGitCommitSha = spanGitCommitSha
+			}
 			version := span.Meta["version"]
 			component := span.Meta["component"]
 			kindStr := span.Meta["kind"]
@@ -141,14 +161,24 @@ func convertToIdx(payload *pb.TracerPayload) *idx.InternalTracerPayload {
 		Attributes: payloadAttrs,
 		Chunks:     idxChunks,
 	}
+	if payload.Hostname != "" {
+		payloadHostname = payload.Hostname
+	}
+	if payload.Env != "" {
+		payloadEnv = payload.Env
+	}
+	if payload.AppVersion != "" {
+		payloadAppVersion = payload.AppVersion
+	}
 	idxPayload.SetContainerID(payload.ContainerID)
 	idxPayload.SetLanguageName(payload.LanguageName)
 	idxPayload.SetLanguageVersion(payload.LanguageVersion)
 	idxPayload.SetTracerVersion(payload.TracerVersion)
 	idxPayload.SetRuntimeID(payload.RuntimeID)
-	idxPayload.SetEnv(payload.Env)
-	idxPayload.SetHostname(payload.Hostname)
-	idxPayload.SetAppVersion(payload.AppVersion)
+	idxPayload.SetEnv(payloadEnv)
+	idxPayload.SetHostname(payloadHostname)
+	idxPayload.SetAppVersion(payloadAppVersion)
+	idxPayload.SetStringAttribute("_dd.git.commit.sha", payloadGitCommitSha) // For improved compatibility, we copy the git commit sha to a payload level attribute
 	return idxPayload
 }
 

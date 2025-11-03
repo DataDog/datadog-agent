@@ -506,7 +506,7 @@ func decodeTracerPayload(v Version, req *http.Request, cIDProvider IDProvider, l
 			Chunks:          traceChunksFromSpans(spans),
 			TracerVersion:   tracerVersion,
 		}
-		return convertToIdx(oldPayload), nil
+		return ConvertToIdx(oldPayload), nil
 	case v05:
 		buf := getBuffer()
 		defer putBuffer(buf)
@@ -524,7 +524,7 @@ func decodeTracerPayload(v Version, req *http.Request, cIDProvider IDProvider, l
 			Chunks:          traceChunksFromTraces(traces),
 			TracerVersion:   tracerVersion,
 		}
-		return convertToIdx(oldPayload), err
+		return ConvertToIdx(oldPayload), err
 	case V07:
 		buf := getBuffer()
 		defer putBuffer(buf)
@@ -533,7 +533,7 @@ func decodeTracerPayload(v Version, req *http.Request, cIDProvider IDProvider, l
 		}
 		var tracerPayload pb.TracerPayload
 		_, err = tracerPayload.UnmarshalMsg(buf.Bytes())
-		return convertToIdx(&tracerPayload), err
+		return ConvertToIdx(&tracerPayload), err
 	case V10:
 		buf := getBuffer()
 		defer putBuffer(buf)
@@ -566,7 +566,7 @@ func decodeTracerPayload(v Version, req *http.Request, cIDProvider IDProvider, l
 			Chunks:          traceChunksFromTraces(traces),
 			TracerVersion:   tracerVersion,
 		}
-		return convertToIdx(oldPayload), nil
+		return ConvertToIdx(oldPayload), nil
 	}
 }
 

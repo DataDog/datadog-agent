@@ -1553,7 +1553,7 @@ func TestGetProcessTags(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			result := getProcessTags(tc.header, convertToIdx(tc.payload))
+			result := getProcessTags(tc.header, ConvertToIdx(tc.payload))
 			if result != tc.expected {
 				t.Errorf("expected %q, got %q", tc.expected, result)
 			}
