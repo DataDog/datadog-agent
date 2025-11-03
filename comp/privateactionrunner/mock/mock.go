@@ -9,8 +9,10 @@
 package mock
 
 import (
+	"context"
 	"testing"
 
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	privateactionrunner "github.com/DataDog/datadog-agent/comp/privateactionrunner/def"
 )
 
