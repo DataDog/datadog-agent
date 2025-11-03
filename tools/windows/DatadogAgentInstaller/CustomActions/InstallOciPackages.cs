@@ -170,9 +170,14 @@ namespace Datadog.CustomActions
                         _session.Log("Failed to retrieve installer states for verification");
                         return ActionResult.Failure;
                     }
-                    if (!IsDdotVersionExpected(statesJson, expectedTag))
+                    if (!IsDdotVersionExpected(statesJson, out var installedStable))
                     {
-                        _session.Log($"DDOT installed version does not match expected tag {expectedTag}. Removing package.");
+                        _session.Log("Could not find DDOT package state in get-states output");
+                        return ActionResult.Failure;
+                    }
+                    if (!string.Equals(installedStable, expectedTag, StringComparison.Ordinal))
+                    {
+                        _session.Log($"DDOT installed stable '{installedStable}' does not match expected '{expectedTag}'. Removing package.");
                         using (var procRemove = _session.RunCommand(_installerExecutable, "remove datadog-ddot", env))
                         {
                             // ignore remove failures; we still fail the action
@@ -354,19 +359,25 @@ namespace Datadog.CustomActions
             }
         }
 
-        private static bool IsDdotVersionExpected(string statesJson, string expectedTag)
+        private static bool IsDdotVersionExpected(string statesJson, out string stable)
         {
+            stable = null;
             try
             {
                 var root = JsonConvert.DeserializeObject<InstallerStates>(statesJson);
-                if (root?.States != null && root.States.TryGetValue("datadog-ddot", out var state))
+                if (root?.States == null)
                 {
-                    return string.Equals(state.Stable, expectedTag, StringComparison.Ordinal);
+                    return false;
+                }
+                if (root.States.TryGetValue("datadog-agent-ddot", out var state) && !string.IsNullOrEmpty(state.Stable))
+                {
+                    stable = state.Stable;
+                    return true;
                 }
             }
             catch
             {
-                // fall through to return false
+                // ignore
             }
             return false;
         }
