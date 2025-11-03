@@ -16,7 +16,6 @@ import (
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
 	hpflareextension "github.com/DataDog/datadog-agent/comp/host-profiler/hpflareextension/def"
-	"github.com/DataDog/datadog-agent/pkg/util/option"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -29,7 +28,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func getTestExtension(optIpc option.Option[ipc.Component]) (hpflareextension.Component, error) {
+func getTestExtension(optIpc ipc.Component) (hpflareextension.Component, error) {
 	telemetry := component.TelemetrySettings{}
 	cfg := &Config{
 		HTTPConfig: &confighttp.ServerConfig{
@@ -59,10 +58,11 @@ func getResponseToHandlerRequest(t *testing.T, ipc ipc.Component, tokenOverride 
 	rr := httptest.NewRecorder()
 
 	// Create an instance of your handler
-	ext, err := getTestExtension(option.New(ipc))
+	ext, err := getTestExtension(ipc)
 	require.NoError(t, err)
 
-	ddExt := ext.(*ddExtension)
+	ddExt, ok := ext.(*ddExtension)
+	assert.True(t, ok)
 	ddExt.telemetry.Logger = zap.New(zap.NewNop().Core())
 
 	host := componenttest.NewNopHost()
@@ -83,14 +83,6 @@ func getResponseToHandlerRequest(t *testing.T, ipc ipc.Component, tokenOverride 
 	return rr
 }
 
-func TestNewExtension(t *testing.T) {
-	ext, err := getTestExtension(option.None[ipc.Component]())
-	assert.NoError(t, err)
-	assert.NotNil(t, ext)
-
-	_, ok := ext.(*ddExtension)
-	assert.True(t, ok)
-}
 
 func TestExtensionHTTPHandler(t *testing.T) {
 	ipc := ipcmock.New(t)

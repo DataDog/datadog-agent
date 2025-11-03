@@ -13,7 +13,7 @@ import (
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	hpflareextension "github.com/DataDog/datadog-agent/comp/host-profiler/hpflareextension/impl"
-	"github.com/DataDog/datadog-agent/pkg/trace/log"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // Can be overridden for tests
@@ -55,7 +55,6 @@ func (c *flareImpl) fillFlare(fb flaretypes.FlareBuilder) error {
 
 	var responseInfo hpflareextension.Response
 	if err := json.Unmarshal(responseBytes, &responseInfo); err != nil {
-		fmt.Println("ICI: ", err)
 		msg := fmt.Sprintf("could not read sources from host-profiler response: %s, error: %v", responseBytes, err)
 		log.Error(msg)
 		fb.AddFile("host-profiler/host-profiler.log", []byte(msg))
@@ -81,10 +80,5 @@ func (c *flareImpl) requestOtelConfigInfo() ([]byte, error) {
 	}
 
 	// todo(mackjmr): Make port configurable once we have agreement on hostprofiler config.
-	data, err := c.client.Get("https://localhost:7778")
-	if err != nil {
-		return nil, err
-	}
-
-	return data, nil
+	return  c.client.Get("https://localhost:7778")
 }

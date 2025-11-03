@@ -11,7 +11,6 @@ import (
 
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/config/confighttp"
-	"go.opentelemetry.io/collector/confmap"
 )
 
 var (
@@ -30,16 +29,6 @@ func (c *Config) Validate() error {
 
 	if c.HTTPConfig == nil || c.HTTPConfig.Endpoint == "" {
 		return errHTTPEndpointRequired
-	}
-
-	return nil
-}
-
-// Unmarshal a confmap.Conf into the config struct.
-func (c *Config) Unmarshal(conf *confmap.Conf) error {
-	err := conf.Unmarshal(c)
-	if err != nil {
-		return err
 	}
 
 	return nil

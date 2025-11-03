@@ -15,13 +15,15 @@ import (
 
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	extensionDef "github.com/DataDog/datadog-agent/comp/host-profiler/hpflareextension/def"
-	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/goccy/go-yaml"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/component/componentstatus"
 	"go.opentelemetry.io/collector/confmap"
+	"go.opentelemetry.io/collector/extension/extensioncapabilities"
 	"go.uber.org/zap"
 )
+
+var _ extensioncapabilities.ConfigWatcher = (*ddExtension)(nil)
 
 // Response is the response struct for API queries
 type Response struct {
@@ -58,7 +60,7 @@ func (ext *ddExtension) NotifyConfig(_ context.Context, conf *confmap.Conf) erro
 }
 
 // NewExtension creates a new instance of the extension.
-func NewExtension(cfg *Config, ipcComp option.Option[ipc.Component], telemetry component.TelemetrySettings) (extensionDef.Component, error) {
+func NewExtension(cfg *Config, ipcComp ipc.Component, telemetry component.TelemetrySettings) (extensionDef.Component, error) {
 	var err error
 	ext := &ddExtension{
 		cfg:       cfg,

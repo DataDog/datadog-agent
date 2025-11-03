@@ -15,7 +15,6 @@ import (
 	"go.opentelemetry.io/collector/extension"
 
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
-	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 const (
@@ -24,18 +23,13 @@ const (
 
 type ddExtensionFactory struct {
 	extension.Factory
-	ipcComp option.Option[ipc.Component]
-}
-
-// NewFactory creates a factory for Datadog Flare Extension for use with OCB and OSS Collector
-func NewFactory() extension.Factory {
-	return &ddExtensionFactory{}
+	ipcComp ipc.Component
 }
 
 // NewFactoryForAgent creates a factory for Datadog Flare Extension for use with Agent
 func NewFactoryForAgent(ipcComp ipc.Component) extension.Factory {
 	return &ddExtensionFactory{
-		ipcComp: option.New(ipcComp),
+		ipcComp: ipcComp,
 	}
 }
 

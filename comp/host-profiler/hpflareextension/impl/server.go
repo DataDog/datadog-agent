@@ -19,7 +19,6 @@ import (
 
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	pkgtoken "github.com/DataDog/datadog-agent/pkg/api/security"
-	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 type server struct {
@@ -27,7 +26,7 @@ type server struct {
 	listener net.Listener
 }
 
-func newServer(endpoint string, handler http.Handler, optIpcComp option.Option[ipc.Component]) (*server, error) {
+func newServer(endpoint string, handler http.Handler, ipcComp ipc.Component) (*server, error) {
 	r := mux.NewRouter()
 	r.Handle("/", handler)
 
@@ -36,18 +35,8 @@ func newServer(endpoint string, handler http.Handler, optIpcComp option.Option[i
 		Handler: r,
 	}
 
-	if ipcComp, ok := optIpcComp.Get(); ok {
-		// Use the TLS configuration from the IPC component if available
-		s.TLSConfig = ipcComp.GetTLSServerConfig()
-		r.Use(ipcComp.HTTPMiddleware)
-	} else {
-		// Use generated self-signed certificate if running outside of the Agent
-		tlsConfig, err := generateSelfSignedCert()
-		if err != nil {
-			return nil, err
-		}
-		s.TLSConfig = &tlsConfig
-	}
+	s.TLSConfig = ipcComp.GetTLSServerConfig()
+	r.Use(ipcComp.HTTPMiddleware)
 
 	listener, err := net.Listen("tcp", endpoint)
 	if err != nil {

@@ -94,9 +94,7 @@ func NewExtraFactoriesWithoutAgentCore() ExtraFactories {
 
 // GetExtensions returns the extensions for the collector.
 func (e extraFactoriesWithoutAgentCore) GetExtensions() []extension.Factory {
-	return []extension.Factory{
-		hpflareextension.NewFactory(),
-	}
+	return []extension.Factory{}
 }
 
 // GetProcessors returns the processors for the collector.

@@ -48,7 +48,7 @@ func TestUnmarshal(t *testing.T) {
 
 	myConfMap := confmap.NewFromStringMap(m)
 
-	err := cfg.Unmarshal(myConfMap)
+	err := myConfMap.Unmarshal(cfg)
 	assert.NoError(t, err)
 
 	err = cfg.Validate()
