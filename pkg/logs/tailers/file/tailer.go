@@ -103,6 +103,10 @@ type Tailer struct {
 	// cachedFileSize stores the file size from the last scan, used for rotation detection metrics
 	cachedFileSize *atomic.Int64
 
+	// rotation mismatch flags ensure we only report telemetry once per continuous mismatch condition
+	rotationMismatchCacheActive  *atomic.Bool
+	rotationMismatchOffsetActive *atomic.Bool
+
 	// stop is monitored by the readForever component, and causes it to stop reading
 	// and close the channel to the decoder.
 	stop chan struct{}
@@ -174,28 +178,30 @@ func NewTailer(opts *TailerOptions) *Tailer {
 	opts.Info.Register(movingSum)
 
 	t := &Tailer{
-		file:                   opts.File,
-		outputChan:             opts.OutputChan,
-		decoder:                opts.Decoder,
-		tagProvider:            tagProvider,
-		lastReadOffset:         atomic.NewInt64(0),
-		decodedOffset:          atomic.NewInt64(0),
-		sleepDuration:          opts.SleepDuration,
-		closeTimeout:           closeTimeout,
-		windowsOpenFileTimeout: windowsOpenFileTimeout,
-		stop:                   make(chan struct{}, 1),
-		done:                   make(chan struct{}, 1),
-		forwardContext:         forwardContext,
-		stopForward:            stopForward,
-		isFinished:             atomic.NewBool(false),
-		didFileRotate:          atomic.NewBool(false),
-		cachedFileSize:         atomic.NewInt64(0),
-		info:                   opts.Info,
-		bytesRead:              bytesRead,
-		movingSum:              movingSum,
-		fingerprint:            opts.Fingerprint,
-		CapacityMonitor:        opts.CapacityMonitor,
-		registry:               opts.Registry,
+		file:                         opts.File,
+		outputChan:                   opts.OutputChan,
+		decoder:                      opts.Decoder,
+		tagProvider:                  tagProvider,
+		lastReadOffset:               atomic.NewInt64(0),
+		decodedOffset:                atomic.NewInt64(0),
+		sleepDuration:                opts.SleepDuration,
+		closeTimeout:                 closeTimeout,
+		windowsOpenFileTimeout:       windowsOpenFileTimeout,
+		stop:                         make(chan struct{}, 1),
+		done:                         make(chan struct{}, 1),
+		forwardContext:               forwardContext,
+		stopForward:                  stopForward,
+		isFinished:                   atomic.NewBool(false),
+		didFileRotate:                atomic.NewBool(false),
+		cachedFileSize:               atomic.NewInt64(0),
+		rotationMismatchCacheActive:  atomic.NewBool(false),
+		rotationMismatchOffsetActive: atomic.NewBool(false),
+		info:                         opts.Info,
+		bytesRead:                    bytesRead,
+		movingSum:                    movingSum,
+		fingerprint:                  opts.Fingerprint,
+		CapacityMonitor:              opts.CapacityMonitor,
+		registry:                     opts.Registry,
 	}
 
 	if fileRotated {

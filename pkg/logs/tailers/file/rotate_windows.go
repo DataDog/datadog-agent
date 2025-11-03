@@ -44,16 +44,28 @@ func (t *Tailer) DidRotate() (bool, error) {
 	cacheIndicatesGrowth := cachedSize > 0 && sz > cachedSize
 	offsetIndicatesUnreadData := offset < sz
 
-	if cacheIndicatesGrowth && !offsetIndicatesUnreadData {
+	cacheMismatch := cacheIndicatesGrowth && !offsetIndicatesUnreadData
+	if cacheMismatch {
 		// Cache grew but offset suggests we're caught up - we likely missed a rotation
-		metrics.TlmRotationSizeMismatch.Inc("cache")
-		log.Debugf("Rotation size mismatch detected: cache grew (old=%d, new=%d) but offset=%d >= fileSize=%d",
-			cachedSize, sz, offset, sz)
-	} else if !cacheIndicatesGrowth && offsetIndicatesUnreadData && cachedSize > 0 {
+		if t.rotationMismatchCacheActive.CompareAndSwap(false, true) {
+			metrics.TlmRotationSizeMismatch.Inc("cache")
+			log.Debugf("Rotation size mismatch detected: cache grew (old=%d, new=%d) but offset=%d >= fileSize=%d",
+				cachedSize, sz, offset, sz)
+		}
+	} else {
+		t.rotationMismatchCacheActive.Store(false)
+	}
+
+	offsetMismatch := !cacheIndicatesGrowth && offsetIndicatesUnreadData && cachedSize > 0
+	if offsetMismatch {
 		// Offset suggests unread data but cache didn't grow - potential false positive
-		metrics.TlmRotationSizeMismatch.Inc("offset")
-		log.Debugf("Rotation size mismatch detected: offset=%d < fileSize=%d but cache didn't grow (old=%d, new=%d)",
-			offset, sz, cachedSize, sz)
+		if t.rotationMismatchOffsetActive.CompareAndSwap(false, true) {
+			metrics.TlmRotationSizeMismatch.Inc("offset")
+			log.Debugf("Rotation size mismatch detected: offset=%d < fileSize=%d but cache didn't grow (old=%d, new=%d)",
+				offset, sz, cachedSize, sz)
+		}
+	} else {
+		t.rotationMismatchOffsetActive.Store(false)
 	}
 
 	// Track size differences when size-based rotation is detected
