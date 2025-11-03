@@ -83,9 +83,12 @@ func TestScheduleKSMCheck_NoRunners(t *testing.T) {
 
 	config := createTestKSMConfig([]string{"pods", "nodes"})
 
-	// No runners in store
+	// No runners in store - sharding still succeeds, shards go to dangling state
 	result := d.scheduleKSMCheck(config)
-	assert.False(t, result, "Should return false when no runners are available")
+	assert.True(t, result, "Should still create shards even with no runners (they become dangling)")
+
+	// Verify shards were created and tracked
+	assert.NotEmpty(t, d.ksmShardedDigests, "Should track sharded config digests")
 }
 
 func TestScheduleKSMCheck_AlreadySharded(t *testing.T) {

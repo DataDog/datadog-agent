@@ -167,10 +167,11 @@ func (m *KSMShardingManager) ShouldShardKSMCheck(config integration.Config) bool
 }
 
 // CreateShardedKSMConfigs creates sharded KSM configurations based on resource groups
-// The number of shards adapts to the number of available runners for optimal distribution
-// - 2 runners: Creates 2 shards (pods separate, others combined)
-// - 3+ runners: Creates 3 shards (pods, nodes, others)
-// Returns array of sharded configs
+// Creates one shard per resource group present in the config:
+// - If config has pods collectors: creates pods shard
+// - If config has nodes collectors: creates nodes shard
+// - If config has other collectors: creates others shard
+// Number of shards is independent of runner count - rebalancing handles distribution
 func (m *KSMShardingManager) CreateShardedKSMConfigs(
 	baseConfig integration.Config,
 	numRunners int,
@@ -185,9 +186,8 @@ func (m *KSMShardingManager) CreateShardedKSMConfigs(
 		return nil, fmt.Errorf("no resource groups to shard")
 	}
 
-	// Adapt sharding strategy based on number of runners
-	groups = m.adaptGroupsForRunners(groups, numRunners)
-
+	// Always create shards (pods, nodes, others) regardless of runner count
+	// Rebalancing will handle optimal distribution as runners scale up/down
 	var shardedConfigs []integration.Config
 
 	// Create a config for each resource group
@@ -196,52 +196,9 @@ func (m *KSMShardingManager) CreateShardedKSMConfigs(
 		shardedConfigs = append(shardedConfigs, shardConfig)
 	}
 
-	log.Infof("Created %d resource-sharded KSM configs for %d runners", len(shardedConfigs), numRunners)
+	log.Infof("Created %d resource-sharded KSM configs (current runners: %d)", len(shardedConfigs), numRunners)
 
 	return shardedConfigs, nil
-}
-
-// adaptGroupsForRunners adapts the resource groups based on the number of available runners
-// Strategy:
-// - 2 runners: Combine nodes + others (keep pods separate as highest cardinality)
-// - 3+ runners: Keep all 3 groups separate
-func (m *KSMShardingManager) adaptGroupsForRunners(groups []ResourceGroup, numRunners int) []ResourceGroup {
-	// If we have 3 or more runners, or 3 or fewer groups, use groups as-is
-	if numRunners >= 3 || len(groups) <= 2 {
-		return groups
-	}
-
-	// For 2 runners with 3 groups: combine nodes + others, keep pods separate
-	// This optimizes for the highest cardinality (pods) getting its own runner
-	var podsGroup *ResourceGroup
-	var combinedCollectors []string
-
-	for _, group := range groups {
-		if group.Name == "pods" {
-			podsGroup = &group
-		} else {
-			combinedCollectors = append(combinedCollectors, group.Collectors...)
-		}
-	}
-
-	adapted := []ResourceGroup{}
-
-	// Add pods group first (highest priority)
-	if podsGroup != nil {
-		adapted = append(adapted, *podsGroup)
-	}
-
-	// Add combined group for everything else
-	if len(combinedCollectors) > 0 {
-		adapted = append(adapted, ResourceGroup{
-			Name:        "nodes_and_others",
-			Collectors:  combinedCollectors,
-			Description: "Nodes and other resource types (combined for 2 runners)",
-		})
-	}
-
-	log.Infof("Adapted %d resource groups to %d shards for %d runners", len(groups), len(adapted), numRunners)
-	return adapted
 }
 
 // createKSMConfigForResourceGroup creates a KSM config for a specific resource group

@@ -266,10 +266,10 @@ func TestCreateShardedKSMConfigs(t *testing.T) {
 			expectError:    false,
 		},
 		{
-			name:           "all three groups with 2 runners - adaptive sharding",
+			name:           "all three groups with 2 runners - always 3 shards",
 			config:         createKSMConfig([]string{"pods", "nodes", "deployments", "services"}),
 			numRunners:     2,
-			expectedShards: 2, // pods separate, nodes+others combined
+			expectedShards: 3, // Always create 3 shards (pods, nodes, others) regardless of runner count
 			expectError:    false,
 		},
 		{
