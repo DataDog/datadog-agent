@@ -945,7 +945,7 @@ func (t *Tracer) logConntrackProbeCounters(ebpfCt *ebpfConntracker) {
 	}
 
 	// Log all probe counters
-	log.Infof("JMW PROBE COUNTERS: hash_insert_entry=%d, hash_insert=%d, hash_check_insert_success=%d, confirm_entry=%d, confirm_return=%d, confirm_return_success=%d, confirm_return_no_matching_entry_probe=%d, confirm_return_not_accepted=%d, confirm_return_not_confirmed=%d, confirm_return_failed_to_get_conntrack_tuples=%d",
+	log.Infof("JMW PROBE COUNTERS: hash_insert_entry=%d, hash_insert=%d, hash_check_insert_success=%d, confirm_entry=%d, confirm_return=%d, confirm_return_success=%d, confirm_return_no_matching_entry_probe=%d, confirm_return_not_accepted=%d, confirm_return_not_confirmed=%d, confirm_return_failed_to_get_conntrack_tuples=%d, hash_insert_regular_exists=%d, hash_insert_reverse_exists=%d",
 		telemetry.Hash_insert_entry_count,
 		telemetry.Hash_insert_count,
 		telemetry.Hash_check_insert_success_count,
@@ -955,7 +955,9 @@ func (t *Tracer) logConntrackProbeCounters(ebpfCt *ebpfConntracker) {
 		telemetry.Confirm_return_no_matching_entry_probe_count,
 		telemetry.Confirm_return_not_accepted_count,
 		telemetry.Confirm_return_not_confirmed_count,
-		telemetry.Confirm_return_failed_to_get_conntrack_tuples_count)
+		telemetry.Confirm_return_failed_to_get_conntrack_tuples_count,
+		telemetry.Hash_insert_regular_exists_count,
+		telemetry.Hash_insert_reverse_exists_count)
 
 	// Log registers count (existing telemetry)
 	log.Infof("JMW CONNTRACK REGISTERS: %d", telemetry.Registers)

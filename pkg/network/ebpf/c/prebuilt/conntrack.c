@@ -28,9 +28,20 @@ int BPF_BYPASSABLE_KPROBE(kprobe__nf_conntrack_hash_insert, struct nf_conn *ct) 
     }
     RETURN_IF_NOT_NAT(&orig, &reply);
 
-    bpf_map_update_with_telemetry(conntrack, &orig, &reply, BPF_ANY);
-    bpf_map_update_with_telemetry(conntrack, &reply, &orig, BPF_ANY);
-    increment_hash_insert_count();
+    long ret1 = bpf_map_update_with_telemetry(conntrack, &orig, &reply, BPF_NOEXIST);
+    long ret2 = bpf_map_update_with_telemetry(conntrack, &reply, &orig, BPF_NOEXIST);
+    
+    if (ret1 == -EEXIST) {
+        increment_hash_insert_regular_exists();
+    }
+    if (ret2 == -EEXIST) {
+        increment_hash_insert_reverse_exists();
+    }
+    
+    // Only increment hash_insert_count if at least one entry was actually added
+    if (ret1 == 0 || ret2 == 0) {
+        increment_hash_insert_count();
+    }
     increment_telemetry_registers_count();
 
     return 0;
