@@ -11,11 +11,6 @@ _EXSLT_VERSION = "0.8.25"
 
 license(
     name = "license",
-    # TODO(aiuto): The omnibus script claimed this is a BSD-2-Clause license.
-    # That is incorrect, but probably close enough from the point of view of
-    # how we use it. For now we will go with a correct designation and worry
-    # about the BSD declaration when we rewrite the license gathering code.
-    # This is the current SPDX known version of the bzip2 license.
     license_kinds = ["@rules_license//licenses/spdx:MIT"],
     license_text = "Copyright",
     visibility = ["//visibility:public"],
