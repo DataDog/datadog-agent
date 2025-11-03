@@ -104,11 +104,33 @@ func (c *ntmConfig) readConfigurationContent(target InnerNode, source model.Sour
 	return nil
 }
 
+// buildNestedMap converts keys with dots into a nested structure
+// for example:
+//
+//	buildNestedMap(["a", "b", "c"], 123) => {"a": {"b": {"c": 123}}}
+func buildNestedMap(keyParts []string, bottomValue interface{}) map[string]interface{} {
+	res := map[string]interface{}{}
+	nextKey := keyParts[0]
+	if len(keyParts) == 1 {
+		res[nextKey] = bottomValue
+	} else {
+		res[nextKey] = buildNestedMap(keyParts[1:], bottomValue)
+	}
+	return res
+}
+
 // loadYamlInto traverses input data parsed from YAML, checking if each node is defined by the schema.
 // If found, the value from the YAML blob is imported into the 'dest' tree. Otherwise, a warning will be created.
 func loadYamlInto(dest InnerNode, source model.Source, inData map[string]interface{}, atPath string, schema InnerNode, allowDynamicSchema bool) []error {
 	warnings := []error{}
 	for key, value := range inData {
+		// If the key contains a dot, it represents a nested key
+		if strings.Contains(key, ".") {
+			parts := strings.Split(key, ".")
+			key = parts[0]
+			value = buildNestedMap(parts[1:], value)
+		}
+
 		key = strings.ToLower(key)
 		currPath := joinKey(atPath, key)
 

@@ -158,7 +158,7 @@
 /.gitlab/common/                                     @DataDog/agent-devx
 /.gitlab/common/test_infra_version.yml               @DataDog/agent-devx
 
-/.gitlab/e2e/e2e.yml                                 @DataDog/container-integrations @DataDog/agent-devx
+/.gitlab/e2e/e2e.yml                                 @DataDog/container-integrations @DataDog/agent-devx @DataDog/fleet
 /.gitlab/container_build/fakeintake.yml              @DataDog/agent-e2e-testing @DataDog/agent-devx
 /.gitlab/binary_build/fakeintake.yml                 @DataDog/agent-e2e-testing @DataDog/agent-devx
 
@@ -767,6 +767,7 @@
 /test/new-e2e/tests/windows                   @DataDog/windows-products @DataDog/windows-products
 /test/new-e2e/tests/apm                       @DataDog/agent-apm
 /test/new-e2e/tests/remote-config             @DataDog/remote-config
+/test/new-e2e/tests/fleet                     @DataDog/fleet @DataDog/windows-products
 /test/new-e2e/tests/installer                 @DataDog/fleet @DataDog/windows-products
 /test/new-e2e/tests/installer/script          @DataDog/fleet @DataDog/data-jobs-monitoring
 # windows-products primary owner for windows tests so we get failure notifications

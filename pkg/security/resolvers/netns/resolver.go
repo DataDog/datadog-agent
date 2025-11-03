@@ -133,7 +133,7 @@ func (nn *NetworkNamespace) getNamespaceHandleDup() (*os.File, error) {
 	}
 
 	// duplicate the file descriptor to avoid race conditions with the resync
-	dup, err := unix.Dup(int(nn.handle.Fd()))
+	dup, err := unix.FcntlInt(uintptr(nn.handle.Fd()), unix.F_DUPFD_CLOEXEC, 0)
 	if err != nil {
 		return nil, err
 	}

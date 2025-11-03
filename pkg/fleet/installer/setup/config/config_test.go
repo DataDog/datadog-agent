@@ -92,6 +92,47 @@ env: "old_env"
 	}, datadog)
 }
 
+// Tests that existing API key is not overwritten if not provided again to setup command
+func TestKeepExistingAPIKey(t *testing.T) {
+	tempDir := t.TempDir()
+	existing := `---
+api_key: "0987654321"
+hostname: "old_hostname"
+env: "old_env"
+`
+	writeInitialDatadogConfig(t, tempDir, existing)
+	config := Config{}
+
+	err := WriteConfigs(config, tempDir)
+	assert.NoError(t, err)
+
+	datadog := readDatadogYAML(t, tempDir)
+	assert.Equal(t, map[string]interface{}{
+		"api_key":  "0987654321",
+		"hostname": "old_hostname",
+		"env":      "old_env",
+	}, datadog)
+}
+
+// Test that config can handle values in the secret management format
+func TestAPIKeyHasSecretsFormat(t *testing.T) {
+	tempDir := t.TempDir()
+	existing := `---
+api_key: ENC[My-Secrets;prodApiKey]
+`
+	writeInitialDatadogConfig(t, tempDir, existing)
+	config := Config{}
+	config.DatadogYAML.APIKey = "ENC[My-Secrets;prodApiKey2]"
+
+	err := WriteConfigs(config, tempDir)
+	assert.NoError(t, err)
+
+	datadog := readDatadogYAML(t, tempDir)
+	assert.Equal(t, map[string]interface{}{
+		"api_key": "ENC[My-Secrets;prodApiKey2]",
+	}, datadog)
+}
+
 func TestIntegrationConfigInstanceSpark(t *testing.T) {
 	tempDir := t.TempDir()
 	config := Config{
