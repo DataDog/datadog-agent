@@ -19,6 +19,7 @@ import (
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/errors"
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -33,12 +34,13 @@ const (
 var logLimiter = log.NewLogLimit(20, 10*time.Minute)
 
 type collector struct {
-	id                      string
-	catalog                 workloadmeta.AgentType
-	store                   workloadmeta.Component
-	seenUUIDs               map[string]struct{}
-	seenPIDs                map[int32]*workloadmeta.EntityID // PID -> GPU EntityID
-	reportedDriverNotLoaded bool
+	id                                 string
+	catalog                            workloadmeta.AgentType
+	store                              workloadmeta.Component
+	seenUUIDs                          map[string]struct{}
+	seenPIDs                           map[int32]*workloadmeta.EntityID // PID -> GPU EntityID
+	reportedDriverNotLoaded            bool
+	integrateWithWorkloadmetaProcesses bool
 }
 
 func (c *collector) getGPUDeviceInfo(device ddnvml.Device) (*workloadmeta.GPU, error) {
@@ -173,6 +175,7 @@ func (c *collector) Start(_ context.Context, store workloadmeta.Component) error
 	}
 
 	c.store = store
+	c.integrateWithWorkloadmetaProcesses = pkgconfigsetup.Datadog().GetBool("gpu.integrate_with_workloadmeta_processes")
 
 	return nil
 }
@@ -218,14 +221,16 @@ func (c *collector) Pull(_ context.Context) error {
 
 	// add/update current devices
 	currentUUIDs := map[string]struct{}{}
-	currentPIDs := make(map[int32]*workloadmeta.EntityID) // PID -> GPU EntityID
+	currentPIDs := make(map[int32]string) // PID -> GPU EntityID
 	var events []workloadmeta.CollectorEvent
+	var wmetaGpus []*workloadmeta.GPU
 	for _, dev := range allDevices {
 		gpu, err := c.getGPUDeviceInfo(dev)
 		gpu.DriverVersion = driverVersion
 		if err != nil {
 			return err
 		}
+		wmetaGpus = append(wmetaGpus, gpu)
 
 		event := workloadmeta.CollectorEvent{
 			Source: workloadmeta.SourceNVML,
@@ -235,16 +240,13 @@ func (c *collector) Pull(_ context.Context) error {
 		events = append(events, event)
 		currentUUIDs[dev.GetDeviceInfo().UUID] = struct{}{}
 
-		// Track PIDs for this GPU
-		gpuEntityID := &workloadmeta.EntityID{
-			Kind: workloadmeta.KindGPU,
-			ID:   gpu.EntityID.ID,
-		}
-		for _, pid := range gpu.ActivePIDs {
-			pid32 := int32(pid)
-			// If PID is already tracked, keep the first GPU we encounter
-			if _, exists := currentPIDs[pid32]; !exists {
-				currentPIDs[pid32] = gpuEntityID
+		if c.integrateWithWorkloadmetaProcesses {
+			for _, pid := range gpu.ActivePIDs {
+				pid32 := int32(pid)
+				// If PID is already tracked, keep the first GPU we encounter
+				if _, exists := currentPIDs[pid32]; !exists {
+					currentPIDs[pid32] = gpu.EntityID.ID
+				}
 			}
 		}
 	}
