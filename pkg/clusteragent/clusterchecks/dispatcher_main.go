@@ -105,7 +105,7 @@ func newDispatcher(tagger tagger.Component) *dispatcher {
 
 	d.rebalancingPeriod = pkgconfigsetup.Datadog().GetDuration("cluster_checks.rebalance_period")
 
-	// Check if advanced dispatching is enabled first
+	// Check if advanced dispatching is enabled in config
 	advancedDispatchingEnabled := pkgconfigsetup.Datadog().GetBool("cluster_checks.advanced_dispatching_enabled")
 	if advancedDispatchingEnabled {
 		d.clcRunnersClient, err = clusteragent.GetCLCRunnerClient()
@@ -116,17 +116,16 @@ func newDispatcher(tagger tagger.Component) *dispatcher {
 		}
 	}
 
-	// Initialize KSM sharding (requires advanced dispatching and cluster tagger)
+	// Initialize KSM sharding (requires advanced dispatching)
 	ksmShardingEnabled := pkgconfigsetup.Datadog().GetBool("cluster_checks.ksm_sharding_enabled")
 	if ksmShardingEnabled {
+		// Validate advanced dispatching is actually enabled
 		if !d.advancedDispatching.Load() {
-			log.Errorf("KSM resource sharding requires advanced dispatching (cluster_checks.advanced_dispatching_enabled=true). Disabling KSM sharding.")
-			ksmShardingEnabled = false
-		} else if !d.validateClusterTaggerForKSM() {
-			// Validation failed, disable KSM sharding
+			log.Warn("KSM resource sharding requires advanced dispatching (cluster_checks.advanced_dispatching_enabled=true). Disabling KSM sharding.")
 			ksmShardingEnabled = false
 		} else {
-			log.Info("KSM resource sharding is enabled with cluster tagger support")
+			// Validate cluster tagger (logs only and always allows sharding to proceed)
+			d.validateClusterTaggerForKSM()
 		}
 	}
 
