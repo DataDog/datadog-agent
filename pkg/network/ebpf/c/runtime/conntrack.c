@@ -52,9 +52,7 @@ int BPF_BYPASSABLE_KPROBE(kprobe__nf_conntrack_hash_insert, struct nf_conn *ct) 
     increment_hash_insert_count();
     increment_telemetry_registers_count();
 
-    log_debug("JMW(runtime)kprobe/__nf_conntrack_hash_insert: added to conntrack");
-    log_debug("JMW(runtime)kprobe/__nf_conntrack_hash_insert: ct=%p", ct);
-    log_debug("JMW(runtime)kprobe/__nf_conntrack_hash_insert: netns=%u", get_netns(ct));
+    log_debug("JMW(runtime)hash_insert: added to conntrack ct=%p", ct);
 
     return 0;
 }
@@ -67,14 +65,12 @@ int BPF_BYPASSABLE_KPROBE(kretprobe_nf_conntrack_hash_check_insert, struct nf_co
     
     // Only process successful insertions (ret == 0 means success)
     if (ret != 0) {
-        log_debug("JMW(runtime)kretprobe/nf_conntrack_hash_check_insert: failed, ret=%d", ret);
+        log_debug("JMW(runtime)hash_check_insert: failed, ret=%d", ret);
         return 0;
     }
     
     increment_hash_check_insert_success_count();
-    log_debug("JMW(runtime)kretprobe/nf_conntrack_hash_check_insert: success");
-    log_debug("JMW(runtime)kretprobe/nf_conntrack_hash_check_insert: ct=%p", ct);
-    log_debug("JMW(runtime)kretprobe/nf_conntrack_hash_check_insert: netns=%u", get_netns(ct));
+    log_debug("JMW(runtime)hash_check_insert: ct=%p", ct);
     
     // You can add to conntrack2 map here if needed:
     // conntrack_tuple_t orig = {}, reply = {};
@@ -101,6 +97,7 @@ int BPF_BYPASSABLE_KPROBE(kretprobe_nf_conntrack_hash_check_insert, struct nf_co
 SEC("kprobe/__nf_conntrack_confirm") // JMWCONNTRACK
 int BPF_BYPASSABLE_KPROBE(kprobe__nf_conntrack_confirm) {
     increment_confirm_entry_count();
+    log_debug("JMW(runtime)confirm: entry")
     struct sk_buff *skb = (struct sk_buff *)PT_REGS_PARM1(ctx); // skb is 1st parameter
     u64 pid_tgid = bpf_get_current_pid_tgid();
 
@@ -127,10 +124,7 @@ int BPF_BYPASSABLE_KPROBE(kprobe__nf_conntrack_confirm) {
     u32 status = 0;
     BPF_CORE_READ_INTO(&status, ct, status);
     if (!(status&IPS_NAT_MASK)) {
-        log_debug("JMW(runtime)kprobe/__nf_conntrack_confirm: not IPS_NAT_MASK");
-        log_debug("JMW(runtime)kprobe/__nf_conntrack_confirm: ct=%p", ct);
-        log_debug("JMW(runtime)kprobe/__nf_conntrack_confirm: netns=%u", get_netns(ct));
-        log_debug("JMW(runtime)kprobe/__nf_conntrack_confirm: status=%x", status);
+        log_debug("JMW(runtime)confirm: not IPS_NAT_MASK ct=%p status=%x", ct, status);
         return 0;
     }
 
@@ -138,10 +132,7 @@ int BPF_BYPASSABLE_KPROBE(kprobe__nf_conntrack_confirm) {
     u64 ct_ptr = (u64)ct;
     bpf_map_update_with_telemetry(pending_confirms, &pid_tgid, &ct_ptr, BPF_ANY);
 
-    log_debug("JMW(runtime)kprobe/__nf_conntrack_confirm: added to pending_confirms");
-    log_debug("JMW(runtime)kprobe/__nf_conntrack_confirm: pid_tgid=%llu", pid_tgid);
-    log_debug("JMW(runtime)kprobe/__nf_conntrack_confirm: ct=%p", ct);
-    log_debug("JMW(runtime)kprobe/__nf_conntrack_confirm: netns=%u", get_netns(ct));
+    log_debug("JMW(runtime)confirm: added to pending_confirms: ct=%p pid_tgid=%llu", ct, pid_tgid);
 
     return 0;
 }
@@ -151,22 +142,20 @@ int BPF_BYPASSABLE_KPROBE(kprobe__nf_conntrack_confirm) {
 SEC("kretprobe/__nf_conntrack_confirm") // JMWCONNTRACK
 int BPF_BYPASSABLE_KPROBE(kretprobe__nf_conntrack_confirm) {
     increment_confirm_return_count();
+    log_debug("JMW(runtime)confirm_return: entry")
     int ret = PT_REGS_RC(ctx);
     u64 pid_tgid = bpf_get_current_pid_tgid();
 
     // Look up the ct pointer from entry probe
     u64 *ct_ptr = bpf_map_lookup_elem(&pending_confirms, &pid_tgid);
     if (!ct_ptr) {
-        // No matching entry probe - this can happen if entry was filtered out
+        // No matching entry probe - this can happen if entry was filtered out JMWWHAT
         increment_confirm_return_no_matching_entry_probe_count();
-        //log_debug("JMW(runtime)kretprobe/__nf_conntrack_confirm: no matching entry probe, pid_tgid: %llu", pid_tgid);
+        log_debug("JMW(runtime)confirm_return: no matching pending_confirms entry, pid_tgid: %llu", pid_tgid);
         return 0;
     }
 
     struct nf_conn *ct = (struct nf_conn *)*ct_ptr;
-
-    log_debug("JMW(runtime)kretprobe/__nf_conntrack_confirm: ret=%d", ret);
-    log_debug("JMW(runtime)kretprobe/__nf_conntrack_confirm: ct=%p", ct);
 
     // Clean up the pending entry regardless of success/failure
     bpf_map_delete_elem(&pending_confirms, &pid_tgid);
@@ -174,6 +163,7 @@ int BPF_BYPASSABLE_KPROBE(kretprobe__nf_conntrack_confirm) {
     // Only process if returned NF_ACCEPT (1)
     if (ret != 1) { // NF_ACCEPT = 1
         increment_confirm_return_not_accepted_count();
+        log_debug("JMW(runtime)confirm_return: not NF_ACCEPT ct=%p ret=%d", ct, ret);
         return 0;
     }
 
@@ -183,10 +173,7 @@ int BPF_BYPASSABLE_KPROBE(kretprobe__nf_conntrack_confirm) {
     BPF_CORE_READ_INTO(&status, ct, status);
     if (!(status&IPS_CONFIRMED)) {
         increment_confirm_return_not_confirmed_count();
-        log_debug("JMW(runtime)kretprobe/__nf_conntrack_confirm: not IPS_CONFIRMED");
-        log_debug("JMW(runtime)kretprobe/__nf_conntrack_confirm: ct=%p", ct);
-        log_debug("JMW(runtime)kretprobe/__nf_conntrack_confirm: netns=%u", get_netns(ct));
-        log_debug("JMW(runtime)kretprobe/__nf_conntrack_confirm: status=%x", status);
+        log_debug("JMW(runtime)confirm_return: not IPS_CONFIRMED ct=%p status=%x", ct, status);
         return 0;
     }
 
@@ -194,9 +181,7 @@ int BPF_BYPASSABLE_KPROBE(kretprobe__nf_conntrack_confirm) {
     conntrack_tuple_t orig = {}, reply = {};
     if (nf_conn_to_conntrack_tuples(ct, &orig, &reply) != 0) {
         increment_confirm_return_failed_to_get_conntrack_tuples_count();
-        log_debug("JMW(runtime)kretprobe/__nf_conntrack_confirm: failed to get conntrack tuples");
-        log_debug("JMW(runtime)kretprobe/__nf_conntrack_confirm: ct=%p", ct);
-        log_debug("JMW(runtime)kretprobe/__nf_conntrack_confirm: netns=%u", get_netns(ct));
+        log_debug("JMW(runtime)confirm_return: failed_tuples ct=%p", ct);
         return 0;
     }
 
@@ -204,11 +189,8 @@ int BPF_BYPASSABLE_KPROBE(kretprobe__nf_conntrack_confirm) {
     bpf_map_update_with_telemetry(conntrack2, &orig, &reply, BPF_ANY);
     bpf_map_update_with_telemetry(conntrack2, &reply, &orig, BPF_ANY);
     increment_confirm_return_success_count();
+    log_debug("JMW(runtime)confirm_return: added ct=%p", ct);
     //increment_telemetry_registers_count();
-
-    log_debug("JMW(runtime)kretprobe/__nf_conntrack_confirm: added to conntrack2");
-    log_debug("JMW(runtime)kretprobe/__nf_conntrack_confirm: ct=%p", ct);
-    log_debug("JMW(runtime)kretprobe/__nf_conntrack_confirm: netns=%u", get_netns(ct));
 
     return 0;
 }
