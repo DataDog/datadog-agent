@@ -101,6 +101,11 @@ func (e *Exporter) consumeK8sObjects(ctx context.Context, ld plog.Logs) (err err
 	var clusterID string
 	if ld.ResourceLogs().Len() > 0 {
 		firstResource := ld.ResourceLogs().At(0).Resource()
+		// dump
+		firstResource.Attributes().Range(func(key string, value pcommon.Value) bool {
+			fmt.Println("aurele-debug: key", key, "value", value.AsString())
+			return true
+		})
 		if clusterUIDAttr, ok := firstResource.Attributes().Get("k8s.cluster.uid"); ok {
 			clusterID = clusterUIDAttr.AsString()
 			logger.Info("Extracted cluster UID from resource attributes", zap.String("clusterID", clusterID))
