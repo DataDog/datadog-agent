@@ -110,10 +110,18 @@ func TestAnalyzeKSMConfig(t *testing.T) {
 			expectError: false,
 		},
 		{
-			name:           "empty collectors list",
-			config:         createKSMConfig([]string{}),
-			expectedGroups: nil,
-			expectError:    true,
+			name:   "empty collectors list - uses defaults",
+			config: createKSMConfig([]string{}),
+			// When collectors is empty, should use options.DefaultResources which includes:
+			// pods, nodes, deployments, services, configmaps, secrets, etc.
+			// Should create 3 groups: pods, nodes, others
+			expectedGroups: []ResourceGroup{
+				{Name: "pods", Collectors: []string{"pods"}},
+				{Name: "nodes", Collectors: []string{"nodes"}},
+				// others will contain all remaining default resources
+				// We just check it exists and has multiple collectors
+			},
+			expectError: false,
 		},
 		{
 			name: "not a KSM check",
@@ -135,6 +143,22 @@ func TestAnalyzeKSMConfig(t *testing.T) {
 			}
 
 			require.NoError(t, err)
+
+			// Special case for empty collectors - uses defaults
+			if tt.name == "empty collectors list - uses defaults" {
+				// Should have 3 groups: pods, nodes, others
+				assert.Equal(t, 3, len(groups))
+				assert.Equal(t, "pods", groups[0].Name)
+				assert.Equal(t, []string{"pods"}, groups[0].Collectors)
+				assert.Equal(t, "nodes", groups[1].Name)
+				assert.Equal(t, []string{"nodes"}, groups[1].Collectors)
+				assert.Equal(t, "others", groups[2].Name)
+				// others should have multiple default collectors
+				assert.Greater(t, len(groups[2].Collectors), 0, "others group should have collectors from DefaultResources")
+				return
+			}
+
+			// Normal validation for explicit collectors
 			assert.Equal(t, len(tt.expectedGroups), len(groups))
 
 			for i, expectedGroup := range tt.expectedGroups {
@@ -165,10 +189,10 @@ func TestShouldShardKSMCheck(t *testing.T) {
 			expected: false,
 		},
 		{
-			name:     "empty collectors",
+			name:     "empty collectors - uses defaults and shards",
 			enabled:  true,
 			config:   createKSMConfig([]string{}),
-			expected: false,
+			expected: true, // Should shard when using default collectors (includes pods, nodes, others)
 		},
 		{
 			name:     "single group - pods only",
@@ -256,11 +280,11 @@ func TestCreateShardedKSMConfigs(t *testing.T) {
 			expectError:    false,
 		},
 		{
-			name:           "empty collectors",
+			name:           "empty collectors - uses defaults and creates 3 shards",
 			config:         createKSMConfig([]string{}),
 			numRunners:     3,
-			expectedShards: 0,
-			expectError:    true,
+			expectedShards: 3, // Should create 3 shards: pods, nodes, others
+			expectError:    false,
 		},
 	}
 

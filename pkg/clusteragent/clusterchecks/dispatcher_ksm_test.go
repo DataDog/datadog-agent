@@ -167,7 +167,7 @@ func TestValidateClusterTaggerForKSM_MissingClusterTags(t *testing.T) {
 	d := &dispatcher{}
 
 	result := d.validateClusterTaggerForKSM()
-	assert.True(t, result, "Validation should pass with warnings when cluster_agent.collect_kubernetes_tags is disabled")
+	assert.False(t, result, "Should return false when cluster_agent.collect_kubernetes_tags is disabled (but sharding still proceeds)")
 }
 
 func TestValidateClusterTaggerForKSM_MissingRemoteTagger(t *testing.T) {
