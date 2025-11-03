@@ -157,12 +157,11 @@ func outputSysinfoHumanReadable(info *SystemInfo, maxCmdlineLength, maxNameLengt
 		}
 
 		// Get language for this process (Languages array matches Processes array order)
-		var langStr string
+		lang := languagemodels.Language{}
 		if i < len(info.Languages) {
-			langStr = formatLanguage(info.Languages[i])
-		} else {
-			langStr = "-"
+			lang = info.Languages[i]
 		}
+		langStr := formatLanguage(lang)
 
 		// Truncate language to max 12 chars to keep table aligned
 		if len(langStr) > 12 {
