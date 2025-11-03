@@ -4,6 +4,7 @@
 startup --max_idle_secs=28800
 
 common --enable_platform_specific_config # Supported OS identifiers are linux, macos, windows, freebsd, and openbsd
+common --@rules_python//python/config_settings:bootstrap_impl=script # https://github.com/bazel-contrib/rules_python/blob/main/BZLMOD_SUPPORT.md
 
 build --verbose_failures
 # Do not leak local environment variables into the build context
