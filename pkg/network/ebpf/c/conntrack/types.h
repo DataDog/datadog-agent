@@ -31,6 +31,7 @@ typedef struct {
     __u64 confirm_return_no_matching_entry_probe_count;
     __u64 confirm_return_not_accepted_count;
     __u64 confirm_return_not_confirmed_count;
+    __u64 confirm_return_failed_to_get_conntrack_tuples_count;
 } conntrack_telemetry_t;
 
 

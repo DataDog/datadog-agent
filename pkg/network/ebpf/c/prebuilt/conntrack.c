@@ -23,6 +23,7 @@ int BPF_BYPASSABLE_KPROBE(kprobe__nf_conntrack_hash_insert, struct nf_conn *ct) 
 
     conntrack_tuple_t orig = {}, reply = {};
     if (nf_conn_to_conntrack_tuples(ct, &orig, &reply) != 0) {
+        increment_confirm_return_failed_to_get_conntrack_tuples_count();
         return 0;
     }
     RETURN_IF_NOT_NAT(&orig, &reply);
@@ -145,6 +146,7 @@ int BPF_BYPASSABLE_KPROBE(kprobe_ctnetlink_fill_info) {
 
     conntrack_tuple_t orig = {}, reply = {};
     if (nf_conn_to_conntrack_tuples(ct, &orig, &reply) != 0) {
+        increment_confirm_return_failed_to_get_conntrack_tuples_count();
         return 0;
     }
 

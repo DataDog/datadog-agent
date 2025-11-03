@@ -181,6 +181,15 @@ static __always_inline void increment_confirm_return_not_confirmed_count() {
     __sync_fetch_and_add(&val->confirm_return_not_confirmed_count, 1);
 }
 
+static __always_inline void increment_confirm_return_failed_to_get_conntrack_tuples_count() {
+    u64 key = 0;
+    conntrack_telemetry_t *val = bpf_map_lookup_elem(&conntrack_telemetry, &key);
+    if (val == NULL) {
+        return;
+    }
+    __sync_fetch_and_add(&val->confirm_return_failed_to_get_conntrack_tuples_count, 1);
+}
+
 
 
 
