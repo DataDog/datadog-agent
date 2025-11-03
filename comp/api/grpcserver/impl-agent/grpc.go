@@ -10,7 +10,6 @@ import (
 	"net/http"
 
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
-	grpc_auth "github.com/grpc-ecosystem/go-grpc-middleware/auth"
 
 	grpc "github.com/DataDog/datadog-agent/comp/api/grpcserver/def"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
@@ -82,14 +81,12 @@ type server struct {
 }
 
 func (s *server) BuildServer() http.Handler {
-	authInterceptor := grpcutil.StaticAuthInterceptor(s.IPC.GetAuthToken())
-
 	maxMessageSize := s.configComp.GetInt("cluster_agent.cluster_tagger.grpc_max_message_size")
 
 	// Use the convenience function that combines metrics and auth interceptors
 	opts := grpcutil.ServerOptionsWithMetricsAndAuth(
-		grpc_auth.UnaryServerInterceptor(authInterceptor),
-		grpc_auth.StreamServerInterceptor(authInterceptor),
+		grpcutil.RequireClientCert,
+		grpcutil.RequireClientCertStream,
 		googleGrpc.Creds(credentials.NewTLS(s.IPC.GetTLSServerConfig())),
 		googleGrpc.MaxRecvMsgSize(maxMessageSize),
 		googleGrpc.MaxSendMsgSize(maxMessageSize),
