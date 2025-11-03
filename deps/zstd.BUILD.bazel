@@ -73,11 +73,13 @@ cc_library(
         "ZSTD_BUILD_SHARED=ON",
         "ZSTD_BUILD_STATIC=OFF",
     ],
+    visibility = ["//visibility:public"],
 )
 
 cc_shared_library(
     name = "zstd",
     deps = [":libzstd"],
+    visibility = ["//visibility:public"],
 )
 
 so_symlink(
