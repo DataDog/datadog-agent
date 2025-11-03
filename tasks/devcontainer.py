@@ -22,7 +22,7 @@ from tasks.libs.common.utils import is_installed
 
 DEVCONTAINER_DIR = ".devcontainer"
 DEVCONTAINER_FILE = "devcontainer.json"
-DEVCONTAINER_NAME = "datadog_agent_devcontainer"
+DEVCONTAINER_NAME = "datadog-agent-devcontainer"
 DEVCONTAINER_IMAGE = "registry.ddbuild.io/ci/datadog-agent-devenv:1-arm64"
 
 
@@ -71,7 +71,7 @@ def setup(
 
     local_build_tags = ",".join(use_tags)
 
-    devcontainer["name"] = "Datadog-Agent-DevEnv"
+    devcontainer["name"] = "Datadog Agent Development Container"
     if image:
         devcontainer["image"] = image
         if devcontainer.get("build"):
@@ -90,7 +90,7 @@ def setup(
         "-w",
         "/workspaces/datadog-agent",
         "--name",
-        "datadog_agent_devcontainer",
+        "datadog-agent-devcontainer",
     ]
     devcontainer["features"] = {}
     devcontainer["remoteUser"] = "datadog"

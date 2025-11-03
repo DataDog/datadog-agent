@@ -43,6 +43,7 @@ func init() {
 	registerFeature(Kubernetes)
 	registerFeature(ECSEC2)
 	registerFeature(ECSFargate)
+	registerFeature(ECSManagedInstances)
 	registerFeature(EKSFargate)
 	registerFeature(KubeOrchestratorExplorer)
 	registerFeature(ECSOrchestratorExplorer)
@@ -61,6 +62,7 @@ func IsAnyContainerFeaturePresent() bool {
 		IsFeaturePresent(Kubernetes) ||
 		IsFeaturePresent(ECSEC2) ||
 		IsFeaturePresent(ECSFargate) ||
+		IsFeaturePresent(ECSManagedInstances) ||
 		IsFeaturePresent(EKSFargate) ||
 		IsFeaturePresent(CloudFoundry) ||
 		IsFeaturePresent(Podman)
@@ -190,6 +192,15 @@ func isCriSupported() bool {
 func detectAWSEnvironments(features FeatureMap, cfg model.Reader) {
 	if IsECSFargate() {
 		features[ECSFargate] = struct{}{}
+		if cfg.GetBool("orchestrator_explorer.enabled") &&
+			cfg.GetBool("ecs_task_collection_enabled") {
+			features[ECSOrchestratorExplorer] = struct{}{}
+		}
+		return
+	}
+
+	if IsECSManagedInstances() {
+		features[ECSManagedInstances] = struct{}{}
 		if cfg.GetBool("orchestrator_explorer.enabled") &&
 			cfg.GetBool("ecs_task_collection_enabled") {
 			features[ECSOrchestratorExplorer] = struct{}{}
