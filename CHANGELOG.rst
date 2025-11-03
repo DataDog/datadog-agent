@@ -40,7 +40,7 @@ Upgrade Notes
   If you have a cached or modified copy of ``Install-Datadog.ps1``, then you must merge
   the latest changes, or migrate to use the executable setup instead. See the features section for more information.
   
-  ``Install-Datadog.ps1`` is now a light wrapper for downloading and executing ``datadog-installer-86_64.exe``. The rest of
+  ``Install-Datadog.ps1`` is now a light wrapper for downloading and executing ``datadog-installer-x86_64.exe``. The rest of
   the setup responsibility has been moved into the executable.
 
 
