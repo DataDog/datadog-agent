@@ -164,7 +164,6 @@ func entityIDsFromAttributes(attrs pcommon.Map) []types.EntityID {
 	// Prefixes come from pkg/util/kubernetes/kubelet and pkg/util/containers.
 	if containerID, ok := attrs.Get(string(conventions.ContainerIDKey)); ok {
 		entityIDs = append(entityIDs, types.NewEntityID(types.ContainerID, containerID.AsString()))
-		entityIDs = append(entityIDs, types.NewEntityID(types.ContainerID, strings.TrimPrefix("//", containerID.AsString())))
 	}
 	if ociManifestDigest, ok := attrs.Get(string(conventions22.OciManifestDigestKey)); ok {
 		splitImageID := strings.SplitN(ociManifestDigest.AsString(), "@sha256:", 2)
