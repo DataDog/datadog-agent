@@ -17,14 +17,14 @@ import (
 
 	"k8s.io/apimachinery/pkg/fields"
 
-	"github.com/DataDog/test-infra-definitions/components/datadog/kubernetesagentparams"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/kubernetesagentparams"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	awskubernetes "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/kubernetes"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
+	awskubernetes "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/kubernetes"
 )
 
 type cspmTestSuite struct {

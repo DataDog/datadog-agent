@@ -9,7 +9,7 @@ package svcmanager
 import (
 	"fmt"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
 )
 
 // SystemCtl struct for the Systemctl service manager

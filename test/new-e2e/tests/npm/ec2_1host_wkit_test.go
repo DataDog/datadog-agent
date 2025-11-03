@@ -8,17 +8,17 @@ package npm
 import (
 	"testing"
 
-	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
-	"github.com/DataDog/test-infra-definitions/components/docker"
-	"github.com/DataDog/test-infra-definitions/resources/aws"
-	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/docker"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners"
-	awsHostWindows "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host/windows"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners"
+	awsHostWindows "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host/windows"
 )
 
 type hostHttpbinEnvWindows struct {

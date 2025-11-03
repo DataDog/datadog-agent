@@ -14,12 +14,12 @@ import (
 	"testing"
 	"time"
 
-	infraCommon "github.com/DataDog/test-infra-definitions/common"
+	infraCommon "github.com/DataDog/datadog-agent/test/e2e-framework/common"
 
 	"github.com/DataDog/datadog-agent/pkg/version"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner/parameters"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner/parameters"
 	windowsCommon "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
 
 	"github.com/cenkalti/backoff/v4"

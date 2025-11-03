@@ -10,17 +10,17 @@ import (
 	"math"
 	"slices"
 
-	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 	gocmp "github.com/google/go-cmp/cmp"
 	gocmpopts "github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/stretchr/testify/require"
 
-	e2eos "github.com/DataDog/test-infra-definitions/components/os"
+	e2eos "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/testcommon/check"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
+	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/testcommon/check"
 	checkUtils "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-runtimes/checks/common"
 )
 

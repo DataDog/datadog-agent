@@ -9,10 +9,10 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/DataDog/test-infra-definitions/components/activedirectory"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/activedirectory"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
-	winawshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host/windows"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
+	winawshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host/windows"
 	installerwindows "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows/consts"
 	windowscommon "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"

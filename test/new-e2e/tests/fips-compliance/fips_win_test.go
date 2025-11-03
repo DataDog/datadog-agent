@@ -10,13 +10,13 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
 
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
+	awsHostWindows "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host/windows"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client"
 	fakeintakeclient "github.com/DataDog/datadog-agent/test/fakeintake/client"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	awsHostWindows "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host/windows"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
 	windowsCommon "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
 	windowsAgent "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/components/fipsmode"

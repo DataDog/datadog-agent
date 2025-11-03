@@ -8,10 +8,10 @@ package examples
 import (
 	"testing"
 
-	gcphost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/gcp/host/linux"
+	gcphost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/gcp/host/linux"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
 )
 
 type gcpVMSuite struct {

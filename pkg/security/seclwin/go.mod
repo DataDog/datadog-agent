@@ -9,16 +9,13 @@ require (
 	github.com/charlievieth/strcase v0.0.5 // indirect
 	github.com/jellydator/ttlcache/v3 v3.4.0 // indirect
 	golang.org/x/sync v0.17.0 // indirect
-	golang.org/x/sys v0.37.0 // indirect
+	golang.org/x/sys v0.36.0 // indirect
 )
 
 // This section was automatically added by 'dda inv modules.add-all-replace' command, do not edit manually
 
 replace (
 	github.com/DataDog/datadog-agent/comp/api/api/def => ../../../comp/api/api/def
-	github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def => ../../../comp/core/agenttelemetry/def
-	github.com/DataDog/datadog-agent/comp/core/agenttelemetry/fx => ../../../comp/core/agenttelemetry/fx
-	github.com/DataDog/datadog-agent/comp/core/agenttelemetry/impl => ../../../comp/core/agenttelemetry/impl
 	github.com/DataDog/datadog-agent/comp/core/config => ../../../comp/core/config
 	github.com/DataDog/datadog-agent/comp/core/configsync => ../../../comp/core/configsync
 	github.com/DataDog/datadog-agent/comp/core/flare/builder => ../../../comp/core/flare/builder
@@ -140,6 +137,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/telemetry => ../../../pkg/telemetry
 	github.com/DataDog/datadog-agent/pkg/template => ../../../pkg/template
 	github.com/DataDog/datadog-agent/pkg/trace => ../../../pkg/trace
+	github.com/DataDog/datadog-agent/pkg/trace/stats/oteltest => ../../../pkg/trace/stats/oteltest
 	github.com/DataDog/datadog-agent/pkg/util/backoff => ../../../pkg/util/backoff
 	github.com/DataDog/datadog-agent/pkg/util/buf => ../../../pkg/util/buf
 	github.com/DataDog/datadog-agent/pkg/util/cache => ../../../pkg/util/cache
@@ -153,11 +151,9 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/util/flavor => ../../../pkg/util/flavor
 	github.com/DataDog/datadog-agent/pkg/util/fxutil => ../../../pkg/util/fxutil
 	github.com/DataDog/datadog-agent/pkg/util/grpc => ../../../pkg/util/grpc
-	github.com/DataDog/datadog-agent/pkg/util/hostinfo => ../../../pkg/util/hostinfo
 	github.com/DataDog/datadog-agent/pkg/util/hostname/validate => ../../../pkg/util/hostname/validate
 	github.com/DataDog/datadog-agent/pkg/util/http => ../../../pkg/util/http
 	github.com/DataDog/datadog-agent/pkg/util/json => ../../../pkg/util/json
-	github.com/DataDog/datadog-agent/pkg/util/jsonquery => ../../../pkg/util/jsonquery
 	github.com/DataDog/datadog-agent/pkg/util/log => ../../../pkg/util/log
 	github.com/DataDog/datadog-agent/pkg/util/log/setup => ../../../pkg/util/log/setup
 	github.com/DataDog/datadog-agent/pkg/util/option => ../../../pkg/util/option
@@ -177,6 +173,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/util/uuid => ../../../pkg/util/uuid
 	github.com/DataDog/datadog-agent/pkg/util/winutil => ../../../pkg/util/winutil
 	github.com/DataDog/datadog-agent/pkg/version => ../../../pkg/version
+	github.com/DataDog/datadog-agent/test/e2e-framework => ../../../test/e2e-framework
 	github.com/DataDog/datadog-agent/test/fakeintake => ../../../test/fakeintake
 	github.com/DataDog/datadog-agent/test/new-e2e => ../../../test/new-e2e
 	github.com/DataDog/datadog-agent/test/otel => ../../../test/otel

@@ -177,6 +177,7 @@ use (
 	pkg/util/uuid
 	pkg/util/winutil
 	pkg/version
+	test/e2e-framework
 	test/fakeintake
 	test/new-e2e
 	test/otel

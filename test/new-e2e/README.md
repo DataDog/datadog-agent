@@ -1,6 +1,8 @@
 # E2E Tests
 
-This folder contains tests and utilities to write and run agent end to end tests based on [test-infra-definitions](https://github.com/DataDog/test-infra-definitions).
+This folder contains tests and utilities to write and run agent end to end tests based on [test-infra-definitions](https://github.com/DataDog/datadog-agent/test/e2e-framework)
+
+For Datadog employees, running tests locally, please refer to "Getting Started with E2E" documentation on Confluence. 
 
 ## Documentation
 
