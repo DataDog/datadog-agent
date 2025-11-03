@@ -19,6 +19,7 @@ filegroup(
         "@platforms//os:linux": [
             "@attr",
             "@gcrypt",
+            "@gpg-error",
             "@libsepol//:sepol",
             "@nghttp2",
             "@pcre2",
