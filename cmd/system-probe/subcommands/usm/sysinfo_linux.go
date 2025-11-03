@@ -27,6 +27,7 @@ import (
 const (
 	defaultMaxCmdlineLength = 50
 	defaultMaxNameLength    = 25
+	maxLanguageLength       = 12 // Maximum width for language column to maintain table alignment
 )
 
 // makeSysinfoCommand returns the "usm sysinfo" cobra command.
@@ -51,14 +52,19 @@ func makeSysinfoCommand(globalParams *command.GlobalParams) *cobra.Command {
 	return cmd
 }
 
+// ProcessInfo combines process information with detected language
+type ProcessInfo struct {
+	Process  *procutil.Process
+	Language languagemodels.Language
+}
+
 // SystemInfo holds system information relevant to USM
 type SystemInfo struct {
 	KernelVersion string
 	OSType        string
 	Architecture  string
 	Hostname      string
-	Processes     []*procutil.Process
-	Languages     []languagemodels.Language
+	Processes     []*ProcessInfo
 }
 
 // runSysinfoWithConfig is the main implementation of the sysinfo command with configuration.
@@ -94,26 +100,30 @@ func runSysinfoWithConfig(_ sysconfigcomponent.Component, _ *command.GlobalParam
 		fmt.Fprintf(os.Stderr, "Warning: unable to list processes: %v\n", err)
 	} else {
 		// Convert map to sorted slice by PID
-		sysInfo.Processes = make([]*procutil.Process, 0, len(procs))
+		procList := make([]*procutil.Process, 0, len(procs))
 		for _, proc := range procs {
-			sysInfo.Processes = append(sysInfo.Processes, proc)
+			procList = append(procList, proc)
 		}
-		sort.Slice(sysInfo.Processes, func(i, j int) bool {
-			return sysInfo.Processes[i].Pid < sysInfo.Processes[j].Pid
+		sort.Slice(procList, func(i, j int) bool {
+			return procList[i].Pid < procList[j].Pid
 		})
 
 		// Detect languages for all processes
-		// Create language detector
 		detector := privileged.NewLanguageDetector()
-
-		// Convert to languagemodels.Process interface (already implemented by procutil.Process)
-		languageProcs := make([]languagemodels.Process, len(sysInfo.Processes))
-		for i, p := range sysInfo.Processes {
+		languageProcs := make([]languagemodels.Process, len(procList))
+		for i, p := range procList {
 			languageProcs[i] = p
 		}
+		languages := detector.DetectWithPrivileges(languageProcs)
 
-		// Detect languages (returns array in same order as input)
-		sysInfo.Languages = detector.DetectWithPrivileges(languageProcs)
+		// Combine processes with their detected languages
+		sysInfo.Processes = make([]*ProcessInfo, len(procList))
+		for i, proc := range procList {
+			sysInfo.Processes[i] = &ProcessInfo{
+				Process:  proc,
+				Language: languages[i],
+			}
+		}
 	}
 
 	return outputSysinfoHumanReadable(sysInfo, maxCmdlineLength, maxNameLength)
@@ -145,30 +155,26 @@ func outputSysinfoHumanReadable(info *SystemInfo, maxCmdlineLength, maxNameLengt
 	fmt.Println("PID     | PPID    | Name                      | Language     | Command")
 	fmt.Println("--------|---------|---------------------------|--------------|--------------------------------------------------")
 
-	for i, p := range info.Processes {
+	for _, procInfo := range info.Processes {
+		proc := procInfo.Process
+
 		// Truncate fields based on configuration (0 means unlimited)
-		name := p.Name
+		name := proc.Name
 		if maxNameLength > 0 && len(name) > maxNameLength {
 			name = name[:maxNameLength-3] + "..."
 		}
-		cmdline := formatCmdline(p.Cmdline)
+		cmdline := formatCmdline(proc.Cmdline)
 		if maxCmdlineLength > 0 && len(cmdline) > maxCmdlineLength {
 			cmdline = cmdline[:maxCmdlineLength-3] + "..."
 		}
 
-		// Get language for this process (Languages array matches Processes array order)
-		lang := languagemodels.Language{}
-		if i < len(info.Languages) {
-			lang = info.Languages[i]
-		}
-		langStr := formatLanguage(lang)
-
-		// Truncate language to max 12 chars to keep table aligned
-		if len(langStr) > 12 {
-			langStr = langStr[:12]
+		// Format the detected language
+		langStr := formatLanguage(procInfo.Language)
+		if len(langStr) > maxLanguageLength {
+			langStr = langStr[:maxLanguageLength]
 		}
 
-		fmt.Printf("%-7d | %-7d | %-25s | %-12s | %s\n", p.Pid, p.Ppid, name, langStr, cmdline)
+		fmt.Printf("%-7d | %-7d | %-25s | %-12s | %s\n", proc.Pid, proc.Ppid, name, langStr, cmdline)
 	}
 
 	return nil
