@@ -14,7 +14,6 @@ import (
 	"net/http"
 
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -29,22 +28,13 @@ const (
 	applicationJSON     = "application/json"
 )
 
-func getSite(cfg pkgconfigmodel.Reader) string {
-	site := pkgconfigsetup.DefaultSite
-	if cfg.GetString("site") != "" {
-		site = cfg.GetString("site")
-	}
-
-	return utils.BuildURLWithPrefix("https://", site)
-}
-
 // GetAPIKey actually performs the cloud auth exchange and returns an API key. It is called be each individual provider
 func GetAPIKey(cfg pkgconfigmodel.Reader, _, delegatedAuthProof string) (*string, error) {
-	site := getSite(cfg)
 	var apiKey *string
 
-	log.Infof("Fetching api key for site %s", site)
+	site := utils.GetInfraEndpoint(cfg)
 	url := fmt.Sprintf(tokenURLEndpoint, site)
+	log.Infof("Fetching api key for url %s", url)
 
 	transport := httputils.CreateHTTPTransport(cfg)
 	client := &http.Client{
