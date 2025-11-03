@@ -223,11 +223,11 @@ func (a *FileOperation) apply(root *os.Root) error {
 }
 
 func ensureDir(root *os.Root, filePath string) error {
-	dir := path.Dir(filePath)
+	dir := path.Dir(strings.TrimPrefix(filePath, "/"))
 	if dir == "." {
 		return nil
 	}
-	for part := range strings.SplitSeq(dir, "/") {
+	for part := range strings.SplitSeq(filepath.ToSlash(dir), "/") {
 		if part == "" {
 			continue
 		}
