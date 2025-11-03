@@ -135,6 +135,8 @@ type PipelineConfig struct {
 	TracesEnabled bool
 	// LogsEnabled states whether OTLP logs support is enabled.
 	LogsEnabled bool
+	// LogsBatch contains configuration options for the logs sending queue batch
+	LogsBatch map[string]interface{}
 	// Debug contains debug configurations.
 	Debug map[string]interface{}
 	// Metrics contains configuration options for the serializer metrics exporter

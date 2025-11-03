@@ -45,6 +45,9 @@ func FromAgentConfig(cfg config.Reader) (PipelineConfig, error) {
 	if !metricsEnabled && !tracesEnabled && !logsEnabled {
 		errs = append(errs, fmt.Errorf("at least one OTLP signal needs to be enabled"))
 	}
+
+	logsBatchConfig := configcheck.ReadConfigSection(cfg, coreconfig.OTLPLogsBatch)
+
 	metricsConfig := configcheck.ReadConfigSection(cfg, coreconfig.OTLPMetrics)
 	metricsConfigMap := metricsConfig.ToStringMap()
 
@@ -73,6 +76,7 @@ func FromAgentConfig(cfg config.Reader) (PipelineConfig, error) {
 		LogsEnabled:        logsEnabled,
 		Metrics:            mc,
 		MetricsBatch:       metricsBatchConfig.ToStringMap(),
+		LogsBatch:          logsBatchConfig.ToStringMap(),
 		Debug:              debugConfig.ToStringMap(),
 	}, multierr.Combine(errs...)
 }

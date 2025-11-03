@@ -613,7 +613,7 @@ func TestNewMap(t *testing.T) {
 					},
 					"logsagent": map[string]any{
 						"sending_queue": map[string]any{
-							"batch": nil,
+							"batch": map[string]any{},
 						},
 					},
 				},
@@ -642,6 +642,11 @@ func TestNewMap(t *testing.T) {
 				TracesEnabled:      true,
 				MetricsEnabled:     true,
 				LogsEnabled:        true,
+				LogsBatch: map[string]interface{}{
+					"min_size":      100,
+					"max_size":      200,
+					"flush_timeout": "10s",
+				},
 				Metrics: map[string]any{
 					"delta_ttl":                              2000,
 					"resource_attributes_as_tags":            true,
@@ -704,7 +709,11 @@ func TestNewMap(t *testing.T) {
 					},
 					"logsagent": map[string]any{
 						"sending_queue": map[string]any{
-							"batch": nil,
+							"batch": map[string]any{
+								"min_size":      100,
+								"max_size":      200,
+								"flush_timeout": "10s",
+							},
 						},
 					},
 				},
@@ -738,6 +747,11 @@ func TestNewMap(t *testing.T) {
 				TracesEnabled:      true,
 				MetricsEnabled:     true,
 				LogsEnabled:        true,
+				LogsBatch: map[string]interface{}{
+					"min_size":      100,
+					"max_size":      200,
+					"flush_timeout": "10s",
+				},
 				Metrics: map[string]any{
 					"delta_ttl":                              2000,
 					"resource_attributes_as_tags":            true,
@@ -800,7 +814,11 @@ func TestNewMap(t *testing.T) {
 					},
 					"logsagent": map[string]any{
 						"sending_queue": map[string]any{
-							"batch": nil,
+							"batch": map[string]any{
+								"min_size":      100,
+								"max_size":      200,
+								"flush_timeout": "10s",
+							},
 						},
 					},
 				},
@@ -833,6 +851,11 @@ func TestNewMap(t *testing.T) {
 				TracePort:          5003,
 				TracesEnabled:      true,
 				LogsEnabled:        true,
+				LogsBatch: map[string]interface{}{
+					"min_size":      100,
+					"max_size":      200,
+					"flush_timeout": "10s",
+				},
 				Debug: map[string]any{
 					"verbosity": "none",
 				},
@@ -866,7 +889,11 @@ func TestNewMap(t *testing.T) {
 					},
 					"logsagent": map[string]any{
 						"sending_queue": map[string]any{
-							"batch": nil,
+							"batch": map[string]any{
+								"min_size":      100,
+								"max_size":      200,
+								"flush_timeout": "10s",
+							},
 						},
 					},
 				},
@@ -894,6 +921,11 @@ func TestNewMap(t *testing.T) {
 				TracePort:          5003,
 				MetricsEnabled:     true,
 				LogsEnabled:        true,
+				LogsBatch: map[string]interface{}{
+					"min_size":      100,
+					"max_size":      200,
+					"flush_timeout": "10s",
+				},
 				Metrics: map[string]any{
 					"delta_ttl":                              1500,
 					"resource_attributes_as_tags":            false,
@@ -946,7 +978,11 @@ func TestNewMap(t *testing.T) {
 					},
 					"logsagent": map[string]any{
 						"sending_queue": map[string]any{
-							"batch": nil,
+							"batch": map[string]any{
+								"min_size":      100,
+								"max_size":      200,
+								"flush_timeout": "10s",
+							},
 						},
 					},
 				},
@@ -974,6 +1010,11 @@ func TestNewMap(t *testing.T) {
 				TracePort:          5003,
 				TracesEnabled:      true,
 				LogsEnabled:        true,
+				LogsBatch: map[string]interface{}{
+					"min_size":      100,
+					"max_size":      200,
+					"flush_timeout": "10s",
+				},
 				Debug: map[string]any{
 					"verbosity": "normal",
 				},
@@ -1007,7 +1048,11 @@ func TestNewMap(t *testing.T) {
 					},
 					"logsagent": map[string]any{
 						"sending_queue": map[string]any{
-							"batch": nil,
+							"batch": map[string]any{
+								"min_size":      100,
+								"max_size":      200,
+								"flush_timeout": "10s",
+							},
 						},
 					},
 				},
@@ -1035,6 +1080,11 @@ func TestNewMap(t *testing.T) {
 				TracePort:          5003,
 				MetricsEnabled:     true,
 				LogsEnabled:        true,
+				LogsBatch: map[string]interface{}{
+					"min_size":      100,
+					"max_size":      200,
+					"flush_timeout": "10s",
+				},
 				Metrics: map[string]any{
 					"delta_ttl":                   1500,
 					"resource_attributes_as_tags": false,
@@ -1088,7 +1138,11 @@ func TestNewMap(t *testing.T) {
 					},
 					"logsagent": map[string]any{
 						"sending_queue": map[string]any{
-							"batch": nil,
+							"batch": map[string]any{
+								"min_size":      100,
+								"max_size":      200,
+								"flush_timeout": "10s",
+							},
 						},
 					},
 				},
@@ -1117,6 +1171,11 @@ func TestNewMap(t *testing.T) {
 				TracesEnabled:      true,
 				MetricsEnabled:     true,
 				LogsEnabled:        true,
+				LogsBatch: map[string]interface{}{
+					"min_size":      100,
+					"max_size":      200,
+					"flush_timeout": "10s",
+				},
 				Metrics: map[string]any{
 					"delta_ttl":                   2000,
 					"resource_attributes_as_tags": true,
@@ -1180,7 +1239,11 @@ func TestNewMap(t *testing.T) {
 					},
 					"logsagent": map[string]any{
 						"sending_queue": map[string]any{
-							"batch": nil,
+							"batch": map[string]any{
+								"min_size":      100,
+								"max_size":      200,
+								"flush_timeout": "10s",
+							},
 						},
 					},
 				},
