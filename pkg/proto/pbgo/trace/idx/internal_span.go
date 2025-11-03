@@ -563,7 +563,21 @@ func (s *InternalSpan) DebugString() string {
 	str += fmt.Sprintf("Start: %d, ", s.span.Start)
 	str += fmt.Sprintf("Duration: %d, ", s.span.Duration)
 	str += fmt.Sprintf("Error: %t, ", s.span.Error)
-	str += fmt.Sprintf("Attributes: %v, ", s.span.Attributes)
+
+	// Build attributes string with resolved keys and values
+	str += "Attributes: {"
+	first := true
+	for keyRef, value := range s.span.Attributes {
+		if !first {
+			str += ", "
+		}
+		first = false
+		keyStr := s.Strings.Get(keyRef)
+		valueStr := value.AsString(s.Strings)
+		str += fmt.Sprintf("%s: %s", keyStr, valueStr)
+	}
+	str += "}, "
+
 	str += fmt.Sprintf("Type: (%s, at %d), ", s.Type(), s.span.TypeRef)
 	str += fmt.Sprintf("Links: %v, ", s.Links())
 	str += fmt.Sprintf("Events: %v, ", s.Events())
