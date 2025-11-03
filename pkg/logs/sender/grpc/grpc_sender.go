@@ -192,9 +192,10 @@ func (s *GRPCSender) createConnection() error {
 	}
 
 	// Configure keepalive
+	// Note: Increased Time from 30s to 5min to avoid "too_many_pings" errors from intake
 	keepaliveParams := keepalive.ClientParameters{
-		Time:                30 * time.Second,
-		Timeout:             5 * time.Second,
+		Time:                5 * time.Minute,  // Send ping every 5 minutes (was 30s)
+		Timeout:             10 * time.Second, // Wait 10 seconds for response (was 5s)
 		PermitWithoutStream: true,
 	}
 	opts = append(opts, grpc.WithKeepaliveParams(keepaliveParams))

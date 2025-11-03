@@ -12,21 +12,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/patterns/token"
 )
 
-// ShouldProtectPosition determines if a position should never be wildcarded.
-// Protection rules ensure pattern quality by preventing wildcarding of
-// semantically important positions.
-func ShouldProtectPosition(position int, tokenType token.TokenType) bool {
-	// Rule 1: Never wildcard the first word token
-	// The first word typically indicates the action/command and is semantically critical
-	// e.g., "Login successful" vs "Error occurred" should not merge to "* *"
+// shouldProtectPosition determines if a the token is the first word token and should be wildcarded.
+func shouldProtectPosition(position int, tokenType token.TokenType) bool {
 	if position == 0 && tokenType == token.TokenWord {
 		return true
 	}
-
-	// Future: Add more protection rules
-	// - Never wildcard HTTP methods?
-	// - Never wildcard severity levels?
-	// - Protect first N tokens?
 
 	return false
 }
@@ -56,7 +46,7 @@ func CanMergeTokenLists(tl1, tl2 *token.TokenList) bool {
 		}
 
 		// For wildcard result, check protection rules
-		if result == token.Wildcard && ShouldProtectPosition(i, tok1.Type) {
+		if result == token.Wildcard && shouldProtectPosition(i, tok1.Type) {
 			return false
 		}
 	}
@@ -89,8 +79,8 @@ func MergeTokenLists(tl1, tl2 *token.TokenList) *token.TokenList {
 
 		case token.Wildcard:
 			// Check protection rules before wildcarding
-			if ShouldProtectPosition(i, tok1.Type) {
-				return nil // Abort: protected position cannot be wildcarded
+			if shouldProtectPosition(i, tok1.Type) {
+				return nil
 			}
 			// Create wildcard, preserving the first token's value as representative
 			merged.AddToken(tok1.Type, tok1.Value, token.IsWildcard)

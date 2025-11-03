@@ -8,23 +8,21 @@ package automaton
 import (
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/DataDog/datadog-agent/pkg/logs/patterns/token"
 )
 
+// TestNewRuleManager tests the creation of a new rule manager
 func TestNewRuleManager(t *testing.T) {
 	rm := NewRuleManager()
 
-	if rm.rules == nil {
-		t.Error("Expected rules slice to be initialized")
-	}
-	if rm.categories == nil {
-		t.Error("Expected categories map to be initialized")
-	}
-	if len(rm.rules) != 0 {
-		t.Errorf("Expected empty rules slice, got %d rules", len(rm.rules))
-	}
+	assert.NotNil(t, rm.rules, "Expected rules slice to be initialized")
+	assert.NotNil(t, rm.categories, "Expected categories map to be initialized")
+	assert.Equal(t, 0, len(rm.rules), "Expected empty rules slice")
 }
 
+// TestRuleManager_AddRule tests the addition of a new rule
 func TestRuleManager_AddRule(t *testing.T) {
 	rm := NewRuleManager()
 
@@ -38,29 +36,17 @@ func TestRuleManager_AddRule(t *testing.T) {
 		[]string{"192.168.1.1", "10.0.0.1"},
 	)
 
-	if err != nil {
-		t.Fatalf("Failed to add rule: %v", err)
-	}
-
-	if len(rm.rules) != 1 {
-		t.Errorf("Expected 1 rule, got %d", len(rm.rules))
-	}
+	assert.NoError(t, err, "Failed to add rule")
+	assert.Equal(t, 1, len(rm.rules), "Expected 1 rule")
 
 	rule := rm.rules[0]
-	if rule.Name != "TestIPv4" {
-		t.Errorf("Expected rule name 'TestIPv4', got '%s'", rule.Name)
-	}
-	if rule.TokenType != token.TokenIPv4 {
-		t.Errorf("Expected token type TokenIPv4, got %v", rule.TokenType)
-	}
-	if rule.Priority != 100 {
-		t.Errorf("Expected priority 100, got %d", rule.Priority)
-	}
-	if rule.Category != "network" {
-		t.Errorf("Expected category 'network', got '%s'", rule.Category)
-	}
+	assert.Equal(t, "TestIPv4", rule.Name, "Expected rule name 'TestIPv4'")
+	assert.Equal(t, token.TokenIPv4, rule.TokenType, "Expected token type TokenIPv4")
+	assert.Equal(t, 100, rule.Priority, "Expected priority 100")
+	assert.Equal(t, "network", rule.Category, "Expected category 'network'")
 }
 
+// TestRuleManager_AddRule_InvalidPattern tests the addition of a new rule with an invalid regex pattern
 func TestRuleManager_AddRule_InvalidPattern(t *testing.T) {
 	rm := NewRuleManager()
 
@@ -74,11 +60,10 @@ func TestRuleManager_AddRule_InvalidPattern(t *testing.T) {
 		[]string{},
 	)
 
-	if err == nil {
-		t.Error("Expected error for invalid regex pattern")
-	}
+	assert.Error(t, err, "Expected error for invalid regex pattern")
 }
 
+// TestRuleManager_AddRule_InvalidExample tests the addition of a new rule with an invalid example
 func TestRuleManager_AddRule_InvalidExample(t *testing.T) {
 	rm := NewRuleManager()
 
@@ -92,57 +77,59 @@ func TestRuleManager_AddRule_InvalidExample(t *testing.T) {
 		[]string{"123", "abc"}, // "abc" doesn't match ^\d+$
 	)
 
-	if err == nil {
-		t.Error("Expected error for example that doesn't match pattern")
-	}
+	assert.Error(t, err, "Expected error for example that doesn't match pattern")
 }
 
+// TestRuleManager_AddRule_Duplicate tests the addition of a duplicate rule
+func TestRuleManager_AddRule_Duplicate(t *testing.T) {
+	rm := NewRuleManager()
+
+	// Add first rule
+	err := rm.AddRule("TestRule", `^\d+$`, "test", "Numeric", token.TokenNumeric, 50, []string{"123"})
+	assert.NoError(t, err, "Failed to add first rule")
+
+	// Try to add duplicate rule
+	err = rm.AddRule("TestRule", `^[a-z]+$`, "test", "Alpha", token.TokenWord, 50, []string{"abc"})
+	assert.Error(t, err, "Expected error when adding duplicate rule name")
+	assert.Contains(t, err.Error(), "already exists", "Expected 'already exists' error")
+}
+
+// TestRuleManager_RemoveRule tests the removal of a rule
 func TestRuleManager_RemoveRule(t *testing.T) {
 	rm := NewRuleManager()
 
 	// Add a rule first
 	rm.AddRule("TestRule", `^\d+$`, "test", "Test", token.TokenNumeric, 50, []string{"123"})
 
-	if len(rm.rules) != 1 {
-		t.Fatalf("Expected 1 rule before removal")
-	}
+	assert.Equal(t, 1, len(rm.rules), "Expected 1 rule before removal")
 
 	// Remove the rule
 	removed := rm.RemoveRule("TestRule")
-	if !removed {
-		t.Error("Expected RemoveRule to return true")
-	}
-
-	if len(rm.rules) != 0 {
-		t.Errorf("Expected 0 rules after removal, got %d", len(rm.rules))
-	}
+	assert.True(t, removed, "Expected RemoveRule to return true")
+	assert.Equal(t, 0, len(rm.rules), "Expected 0 rules after removal")
 
 	// Try to remove non-existent rule
 	removed = rm.RemoveRule("NonExistent")
-	if removed {
-		t.Error("Expected RemoveRule to return false for non-existent rule")
-	}
+	assert.False(t, removed, "Expected RemoveRule to return false for non-existent rule")
 }
 
+// TestRuleManager_GetRule tests the retrieval of a rule by name
 func TestRuleManager_GetRule(t *testing.T) {
 	rm := NewRuleManager()
 
 	rm.AddRule("TestRule", `^\d+$`, "test", "Test", token.TokenNumeric, 50, []string{"123"})
 
 	rule := rm.GetRule("TestRule")
-	if rule == nil {
-		t.Fatal("Expected to find rule 'TestRule'")
-	}
-	if rule.Name != "TestRule" {
-		t.Errorf("Expected rule name 'TestRule', got '%s'", rule.Name)
+	assert.NotNil(t, rule, "Expected to find rule 'TestRule'")
+	if rule != nil {
+		assert.Equal(t, "TestRule", rule.Name, "Expected rule name 'TestRule'")
 	}
 
 	notFound := rm.GetRule("NonExistent")
-	if notFound != nil {
-		t.Error("Expected nil for non-existent rule")
-	}
+	assert.Nil(t, notFound, "Expected nil for non-existent rule")
 }
 
+// TestRuleManager_PriorityOrdering tests the ordering of rules by priority
 func TestRuleManager_PriorityOrdering(t *testing.T) {
 	rm := NewRuleManager()
 
@@ -152,24 +139,19 @@ func TestRuleManager_PriorityOrdering(t *testing.T) {
 	rm.AddRule("Medium", `medium`, "test", "Medium priority", token.TokenWord, 50, []string{"medium"})
 
 	rules := rm.ListRules()
-	if len(rules) != 3 {
-		t.Fatalf("Expected 3 rules, got %d", len(rules))
-	}
+	assert.Equal(t, 3, len(rules), "Expected 3 rules")
 
 	// Should be ordered by priority (highest first)
 	expectedOrder := []string{"High", "Medium", "Low"}
 	expectedPriorities := []int{100, 50, 10}
 
 	for i, rule := range rules {
-		if rule.Name != expectedOrder[i] {
-			t.Errorf("Rule %d: expected name '%s', got '%s'", i, expectedOrder[i], rule.Name)
-		}
-		if rule.Priority != expectedPriorities[i] {
-			t.Errorf("Rule %d: expected priority %d, got %d", i, expectedPriorities[i], rule.Priority)
-		}
+		assert.Equal(t, expectedOrder[i], rule.Name, "Rule %d name mismatch", i)
+		assert.Equal(t, expectedPriorities[i], rule.Priority, "Rule %d priority mismatch", i)
 	}
 }
 
+// TestRuleManager_ApplyRules tests the application of rules to a value
 func TestRuleManager_ApplyRules(t *testing.T) {
 	rm := NewRuleManager()
 
@@ -190,12 +172,11 @@ func TestRuleManager_ApplyRules(t *testing.T) {
 
 	for _, test := range tests {
 		result := rm.ApplyRules(test.input)
-		if result != test.expected {
-			t.Errorf("ApplyRules('%s'): expected %v, got %v", test.input, test.expected, result)
-		}
+		assert.Equal(t, test.expected, result, "ApplyRules('%s') mismatch", test.input)
 	}
 }
 
+// TestRuleManager_GetRulesByCategory tests the retrieval of rules by category
 func TestRuleManager_GetRulesByCategory(t *testing.T) {
 	rm := NewRuleManager()
 
@@ -204,21 +185,16 @@ func TestRuleManager_GetRulesByCategory(t *testing.T) {
 	rm.AddRule("Numeric", `num`, "numeric", "Number", token.TokenNumeric, 50, []string{"num"})
 
 	networkRules := rm.GetRulesByCategory("network")
-	if len(networkRules) != 2 {
-		t.Errorf("Expected 2 network rules, got %d", len(networkRules))
-	}
+	assert.Equal(t, 2, len(networkRules), "Expected 2 network rules")
 
 	numericRules := rm.GetRulesByCategory("numeric")
-	if len(numericRules) != 1 {
-		t.Errorf("Expected 1 numeric rule, got %d", len(numericRules))
-	}
+	assert.Equal(t, 1, len(numericRules), "Expected 1 numeric rule")
 
 	emptyRules := rm.GetRulesByCategory("nonexistent")
-	if len(emptyRules) != 0 {
-		t.Errorf("Expected 0 rules for nonexistent category, got %d", len(emptyRules))
-	}
+	assert.Equal(t, 0, len(emptyRules), "Expected 0 rules for nonexistent category")
 }
 
+// TestRuleManager_GetCategories tests the retrieval of categories
 func TestRuleManager_GetCategories(t *testing.T) {
 	rm := NewRuleManager()
 
@@ -227,19 +203,18 @@ func TestRuleManager_GetCategories(t *testing.T) {
 	rm.AddRule("Rule3", `r3`, "network", "Rule 3", token.TokenWord, 50, []string{"r3"})
 
 	categories := rm.GetCategories()
-	if len(categories) != 2 {
-		t.Errorf("Expected 2 categories, got %d", len(categories))
-	}
+	assert.Equal(t, 2, len(categories), "Expected 2 categories")
 
 	// Categories should be sorted
 	expectedCategories := []string{"network", "time"}
 	for i, expected := range expectedCategories {
-		if i >= len(categories) || categories[i] != expected {
-			t.Errorf("Expected category %d to be '%s', got '%s'", i, expected, categories[i])
+		if assert.Less(t, i, len(categories), "Category %d should exist", i) {
+			assert.Equal(t, expected, categories[i], "Expected category %d to be '%s'", i, expected)
 		}
 	}
 }
 
+// TestRuleManager_GetRuleStats tests the retrieval of rule statistics
 func TestRuleManager_GetRuleStats(t *testing.T) {
 	rm := NewRuleManager()
 
@@ -249,29 +224,18 @@ func TestRuleManager_GetRuleStats(t *testing.T) {
 
 	stats := rm.GetRuleStats()
 
-	if stats.TotalRules != 3 {
-		t.Errorf("Expected TotalRules=3, got %d", stats.TotalRules)
-	}
-	if stats.Categories != 2 {
-		t.Errorf("Expected Categories=2, got %d", stats.Categories)
-	}
-	if stats.ByCategory["network"] != 2 {
-		t.Errorf("Expected 2 network rules, got %d", stats.ByCategory["network"])
-	}
-	if stats.ByCategory["numeric"] != 1 {
-		t.Errorf("Expected 1 numeric rule, got %d", stats.ByCategory["numeric"])
-	}
-	if stats.ByTokenType[token.TokenIPv4] != 1 {
-		t.Errorf("Expected 1 IPv4 token rule, got %d", stats.ByTokenType[token.TokenIPv4])
-	}
+	assert.Equal(t, 3, stats.TotalRules, "Expected TotalRules=3")
+	assert.Equal(t, 2, stats.Categories, "Expected Categories=2")
+	assert.Equal(t, 2, stats.ByCategory["network"], "Expected 2 network rules")
+	assert.Equal(t, 1, stats.ByCategory["numeric"], "Expected 1 numeric rule")
+	assert.Equal(t, 1, stats.ByTokenType[token.TokenIPv4], "Expected 1 IPv4 token rule")
 }
 
+// TestGetPredefinedRules tests the retrieval of predefined rules
 func TestGetPredefinedRules(t *testing.T) {
 	rules := GetPredefinedRules()
 
-	if len(rules) == 0 {
-		t.Error("Expected predefined rules to be non-empty")
-	}
+	assert.NotEqual(t, 0, len(rules), "Expected predefined rules to be non-empty")
 
 	// Check that we have the expected rule types
 	foundRules := make(map[string]bool)
@@ -279,226 +243,45 @@ func TestGetPredefinedRules(t *testing.T) {
 		foundRules[rule.Name] = true
 
 		// Validate rule structure
-		if rule.Pattern == nil {
-			t.Errorf("Rule '%s' has nil pattern", rule.Name)
-		}
-		if rule.Name == "" {
-			t.Error("Found rule with empty name")
-		}
-		if rule.Category == "" {
-			t.Errorf("Rule '%s' has empty category", rule.Name)
-		}
-		if len(rule.Examples) == 0 {
-			t.Errorf("Rule '%s' has no examples", rule.Name)
-		}
+		assert.NotNil(t, rule.Pattern, "Rule '%s' has nil pattern", rule.Name)
+		assert.NotEqual(t, "", rule.Name, "Found rule with empty name")
+		assert.NotEqual(t, "", rule.Category, "Rule '%s' has empty category", rule.Name)
+		assert.NotEqual(t, 0, len(rule.Examples), "Rule '%s' has no examples", rule.Name)
 
 		// Test examples against pattern
 		for _, example := range rule.Examples {
-			if !rule.Pattern.MatchString(example) {
-				t.Errorf("Rule '%s': example '%s' doesn't match pattern", rule.Name, example)
-			}
+			assert.True(t, rule.Pattern.MatchString(example),
+				"Rule '%s': example '%s' doesn't match pattern", rule.Name, example)
 		}
 	}
 
 	expectedRules := []string{"IPv4Address", "EmailAddress", "URI", "HTTPStatus", "Numeric"}
 	for _, expected := range expectedRules {
-		if !foundRules[expected] {
-			t.Errorf("Expected predefined rule '%s' not found", expected)
-		}
+		assert.True(t, foundRules[expected], "Expected predefined rule '%s' not found", expected)
 	}
 }
 
+// TestRuleManager_LoadPredefinedRules tests the loading of predefined rules
 func TestRuleManager_LoadPredefinedRules(t *testing.T) {
 	rm := NewRuleManager()
 
 	err := rm.LoadPredefinedRules()
-	if err != nil {
-		t.Fatalf("Failed to load predefined rules: %v", err)
-	}
+	assert.NoError(t, err, "Failed to load predefined rules")
 
 	rules := rm.ListRules()
-	if len(rules) == 0 {
-		t.Error("Expected predefined rules to be loaded")
-	}
+	assert.NotEqual(t, 0, len(rules), "Expected predefined rules to be loaded")
 
 	// Verify some key rules exist
 	ipv4Rule := rm.GetRule("IPv4Address")
-	if ipv4Rule == nil {
-		t.Error("Expected IPv4Address rule to be loaded")
-	}
+	assert.NotNil(t, ipv4Rule, "Expected IPv4Address rule to be loaded")
 
 	emailRule := rm.GetRule("EmailAddress")
-	if emailRule == nil {
-		t.Error("Expected EmailAddress rule to be loaded")
-	}
+	assert.NotNil(t, emailRule, "Expected EmailAddress rule to be loaded")
 
 	// Test that rules are working
 	result := rm.ApplyRules("192.168.1.1")
-	if result != token.TokenIPv4 {
-		t.Errorf("Expected IPv4 token for '192.168.1.1', got %v", result)
-	}
+	assert.Equal(t, token.TokenIPv4, result, "Expected IPv4 token for '192.168.1.1'")
 
 	result = rm.ApplyRules("test@example.com")
-	if result != token.TokenEmail {
-		t.Errorf("Expected Email token for 'test@example.com', got %v", result)
-	}
-}
-
-// Test the priority management functions
-func TestRuleManager_GetRuleByPriority(t *testing.T) {
-	rm := NewRuleManager()
-
-	rm.AddRule("High1", `high1`, "test", "High 1", token.TokenWord, 100, []string{"high1"})
-	rm.AddRule("High2", `high2`, "test", "High 2", token.TokenWord, 100, []string{"high2"})
-	rm.AddRule("Medium", `medium`, "test", "Medium", token.TokenWord, 50, []string{"medium"})
-
-	highRules := rm.GetRuleByPriority(100)
-	if len(highRules) != 2 {
-		t.Errorf("Expected 2 rules with priority 100, got %d", len(highRules))
-	}
-
-	mediumRules := rm.GetRuleByPriority(50)
-	if len(mediumRules) != 1 {
-		t.Errorf("Expected 1 rule with priority 50, got %d", len(mediumRules))
-	}
-
-	noRules := rm.GetRuleByPriority(999)
-	if len(noRules) != 0 {
-		t.Errorf("Expected 0 rules with priority 999, got %d", len(noRules))
-	}
-}
-
-func TestRuleManager_GetHighestPriorityRules(t *testing.T) {
-	rm := NewRuleManager()
-
-	// Empty rule manager
-	highRules := rm.GetHighestPriorityRules()
-	if len(highRules) != 0 {
-		t.Errorf("Expected 0 highest priority rules for empty manager, got %d", len(highRules))
-	}
-
-	rm.AddRule("High1", `high1`, "test", "High 1", token.TokenWord, 100, []string{"high1"})
-	rm.AddRule("High2", `high2`, "test", "High 2", token.TokenWord, 100, []string{"high2"})
-	rm.AddRule("Medium", `medium`, "test", "Medium", token.TokenWord, 50, []string{"medium"})
-
-	highRules = rm.GetHighestPriorityRules()
-	if len(highRules) != 2 {
-		t.Errorf("Expected 2 highest priority rules, got %d", len(highRules))
-	}
-
-	for _, rule := range highRules {
-		if rule.Priority != 100 {
-			t.Errorf("Expected priority 100, got %d", rule.Priority)
-		}
-	}
-}
-
-func TestRuleManager_UpdateRulePriority(t *testing.T) {
-	rm := NewRuleManager()
-
-	rm.AddRule("TestRule", `test`, "test", "Test", token.TokenWord, 50, []string{"test"})
-
-	err := rm.UpdateRulePriority("TestRule", 100)
-	if err != nil {
-		t.Fatalf("Failed to update rule priority: %v", err)
-	}
-
-	rule := rm.GetRule("TestRule")
-	if rule == nil {
-		t.Fatal("Rule not found after priority update")
-	}
-	if rule.Priority != 100 {
-		t.Errorf("Expected priority 100, got %d", rule.Priority)
-	}
-
-	// Test updating non-existent rule
-	err = rm.UpdateRulePriority("NonExistent", 200)
-	if err == nil {
-		t.Error("Expected error when updating non-existent rule")
-	}
-}
-
-func TestRuleManager_CategoryDescription(t *testing.T) {
-	rm := NewRuleManager()
-
-	// Test empty description
-	desc := rm.GetCategoryDescription("network")
-	if desc != "" {
-		t.Errorf("Expected empty description for non-existent category, got '%s'", desc)
-	}
-
-	// Set category description
-	rm.SetCategoryDescription("network", "Network-related rules")
-	desc = rm.GetCategoryDescription("network")
-	if desc != "Network-related rules" {
-		t.Errorf("Expected 'Network-related rules', got '%s'", desc)
-	}
-
-	// Add a rule to existing category and check description is preserved
-	rm.AddRule("IPv4", `ipv4`, "network", "IPv4", token.TokenIPv4, 100, []string{"ipv4"})
-	desc = rm.GetCategoryDescription("network")
-	if desc != "Network-related rules" {
-		t.Errorf("Expected description to be preserved, got '%s'", desc)
-	}
-
-	// Update existing category description
-	rm.SetCategoryDescription("network", "Updated network description")
-	desc = rm.GetCategoryDescription("network")
-	if desc != "Updated network description" {
-		t.Errorf("Expected 'Updated network description', got '%s'", desc)
-	}
-}
-
-// Test global functions that provide external access to terminal rules
-func TestGlobalTerminalRuleFunctions(t *testing.T) {
-	// Test GetTerminalRules
-	rules := GetTerminalRules()
-	if len(rules) == 0 {
-		t.Error("Expected GetTerminalRules to return non-empty list")
-	}
-
-	// Test GetRulesByCategory
-	networkRules := GetRulesByCategory("network")
-	if len(networkRules) == 0 {
-		t.Error("Expected GetRulesByCategory('network') to return rules")
-	}
-
-	// Test GetRuleCategories
-	categories := GetRuleCategories()
-	if len(categories) == 0 {
-		t.Error("Expected GetRuleCategories to return non-empty list")
-	}
-
-	// Test AddTerminalRule
-	err := AddTerminalRule(
-		"TestGlobalRule",
-		`^test$`,
-		"test",
-		"Global test rule",
-		token.TokenWord,
-		25,
-		[]string{"test"},
-	)
-	if err != nil {
-		t.Errorf("Failed to add terminal rule: %v", err)
-	}
-
-	// Verify the rule was added
-	allRules := GetTerminalRules()
-	found := false
-	for _, rule := range allRules {
-		if rule.Name == "TestGlobalRule" {
-			found = true
-			break
-		}
-	}
-	if !found {
-		t.Error("TestGlobalRule not found after adding")
-	}
-
-	// Test GetRuleStats
-	stats := GetRuleStats()
-	if stats.TotalRules == 0 {
-		t.Error("Expected GetRuleStats to return non-zero total rules")
-	}
+	assert.Equal(t, token.TokenEmail, result, "Expected Email token for 'test@example.com'")
 }

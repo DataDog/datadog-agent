@@ -99,7 +99,7 @@ func (c *Cluster) GeneratePattern() *token.TokenList {
 				primaryGroup = group
 			}
 		}
-		// TODO: Log warning that cluster is heterogeneous and we're only using primary group
+		// TODO: Need to handle semantic mergeability of different patterns in the group
 	} else {
 		primaryGroup = groups[0]
 	}
@@ -146,7 +146,7 @@ func (c *Cluster) GeneratePattern() *token.TokenList {
 	return c.Pattern
 }
 
-// GetWildcardPositions returns wildcard positions.
+// GetWildcardPositions returns wildcard token positions (indices in token array).
 func (c *Cluster) GetWildcardPositions() []int {
 	if c.Pattern == nil {
 		c.GeneratePattern()
@@ -160,6 +160,34 @@ func (c *Cluster) GetWildcardPositions() []int {
 	return positions
 }
 
+// GetWildcardCharPositions returns character positions where wildcards appear in the pattern string.
+// This is used for stateful encoding where the intake needs to know where to insert dynamic values.
+func (c *Cluster) GetWildcardCharPositions() []int {
+	if c.Pattern == nil {
+		c.GeneratePattern()
+	}
+
+	var charPositions []int
+	currentPos := 0
+
+	for _, tok := range c.Pattern.Tokens {
+		// Clean the token value for proper length calculation
+		cleaned := sanitizeForTemplate(tok.Value)
+
+		if tok.Wildcard == token.IsWildcard {
+			// Record the current character position for this wildcard
+			charPositions = append(charPositions, currentPos)
+			// Wildcard is represented as "*" (1 character)
+			currentPos += 1
+		} else if cleaned != "" {
+			// Add the length of the cleaned token value
+			currentPos += len(cleaned)
+		}
+	}
+
+	return charPositions
+}
+
 // HasWildcards returns true if this cluster contains wildcard positions.
 func (c *Cluster) HasWildcards() bool {
 	if c.Pattern == nil {
@@ -167,6 +195,31 @@ func (c *Cluster) HasWildcards() bool {
 	}
 
 	return len(c.WildcardMap) > 0
+}
+
+// GetWildcardValues extracts the actual values from the most recent token list that correspond to wildcard positions
+func (c *Cluster) GetWildcardValues() []string {
+	if c.Pattern == nil {
+		c.GeneratePattern()
+	}
+
+	// Get the most recent token list
+	if len(c.TokenLists) == 0 {
+		return nil
+	}
+	lastTokenList := c.TokenLists[len(c.TokenLists)-1]
+
+	// Extract values at wildcard positions
+	var values []string
+	for i, tok := range c.Pattern.Tokens {
+		if tok.Wildcard == token.IsWildcard {
+			if i < len(lastTokenList.Tokens) {
+				values = append(values, lastTokenList.Tokens[i].Value)
+			}
+		}
+	}
+
+	return values
 }
 
 // ExtractWildcardValues extracts the wildcard values from a specific TokenList
@@ -205,10 +258,27 @@ func (c *Cluster) GetPatternString() string {
 		if tok.Wildcard == token.IsWildcard {
 			parts = append(parts, "*")
 		} else {
-			parts = append(parts, tok.Value)
+			// Only use printable ASCII/UTF-8 characters in the template
+			cleaned := sanitizeForTemplate(tok.Value)
+			if cleaned != "" {
+				parts = append(parts, cleaned)
+			}
 		}
 	}
 	return strings.Join(parts, "")
+}
+
+// sanitizeForTemplate removes non-printable characters from template strings
+func sanitizeForTemplate(s string) string {
+	runes := []rune(s)
+	result := make([]rune, 0, len(runes))
+	for _, r := range runes {
+		// Keep only printable characters (space and above, excluding DEL)
+		if r >= ' ' && r != 0x7F && r < 0xFFFD {
+			result = append(result, r)
+		}
+	}
+	return string(result)
 }
 
 // GetPatternID returns the pattern ID for this cluster

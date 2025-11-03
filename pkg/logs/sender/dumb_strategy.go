@@ -8,7 +8,7 @@ package sender
 
 import (
 	"bytes"
-	"encoding/json"
+	"encoding/gob"
 	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
@@ -34,13 +34,21 @@ type dumbStrategy struct {
 	buffer   []*message.Message
 }
 
-// Simple pattern payload for POC - just the essential fields
-type PatternPayload struct {
-	PatternID   uint64 `json:"pattern_id"`
-	Pattern     string `json:"pattern"`
-	ParamCount  int    `json:"param_count"`
-	WildcardPos []int  `json:"wildcard_positions"`
-	// OriginalMsg string `json:"original_message"` // For debugging and double checking if pattern is correct base on the original message. Might remove it after POC. Protobuf might not be happy with this.
+// PatternData is a simple intermediate format for patterns (avoids import cycles with grpc package)
+// stream_worker will convert this to protobuf PatternDefine or PatternUpdate
+type PatternData struct {
+	PatternID  uint64
+	Template   string
+	ParamCount uint32
+	PosList    []uint32
+	IsUpdate   bool // true for PatternUpdate, false for PatternDefine
+}
+
+// LogData represents a log with pattern reference and wildcard values
+type LogData struct {
+	PatternID      uint64
+	WildcardValues []string
+	Timestamp      uint64
 }
 
 // NewDumbStrategy returns a strategy that sends one message per payload using the
@@ -117,152 +125,148 @@ func (s *dumbStrategy) flushBuffer() {
 }
 
 func (s *dumbStrategy) processMessage(m *message.Message) {
-	content := m.GetContent()
+	// Use rendered content for pattern extraction (plain text), not encoded content (binary)
+	content := m.GetRenderedContent()
 	if len(content) == 0 {
 		return
 	}
 
+	// Debug: Check content
+	previewLen := 100
+	if len(content) < previewLen {
+		previewLen = len(content)
+	}
+	log.Infof("🔍 Tokenizing rendered content (first %d chars): %q", previewLen, content[:previewLen])
+
+	contentStr := bytesToString(content)
+
 	// Simple pattern extraction for POC
-	tokenList := automaton.TokenizeString(bytesToString(content))
+	tokenList := automaton.TokenizeString(contentStr)
 	if tokenList != nil && !tokenList.IsEmpty() {
-		if cluster := s.clusterManager.Add(tokenList); cluster != nil {
+		cluster, changeType := s.clusterManager.Add(tokenList)
+		if cluster != nil {
 			cluster.GeneratePattern()
 
-			// Build simple pattern payload
-			payload, err := s.buildSimplePatternPayload(m, cluster)
-			if err != nil {
-				log.Warn("Failed to build payload", err)
-				return
+			// Log pattern changes
+			switch changeType {
+			case clustering.PatternNew:
+				log.Infof("📝 NEW pattern discovered: PatternID=%d, Template='%s', Size=%d",
+					cluster.GetPatternID(), cluster.GetPatternString(), cluster.Size())
+			case clustering.PatternUpdated:
+				log.Infof("🔄 Pattern UPDATED: PatternID=%d, Template='%s', Size=%d",
+					cluster.GetPatternID(), cluster.GetPatternString(), cluster.Size())
+			case clustering.PatternNoChange:
+				log.Debugf("Pattern matched: PatternID=%d", cluster.GetPatternID())
 			}
 
-			s.outputChan <- payload
+			// Step 1: Send pattern change (define/update) if needed
+			if changeType == clustering.PatternNew || changeType == clustering.PatternUpdated {
+				patternPayload, err := s.buildPatternChangePayload(m, cluster, changeType)
+				if err != nil {
+					log.Warn("Failed to build pattern change payload", err)
+					return
+				}
+				log.Debugf("⏫ Queuing pattern payload (changeType=%v, patternID=%d) to outputChan", changeType, cluster.GetPatternID())
+				s.outputChan <- patternPayload
+				log.Debugf("✅ Pattern payload queued successfully")
+			}
+
+			// Step 2: Send log with pattern reference + wildcard values
+			logPayload, err := s.buildLogPayload(m, cluster)
+			if err != nil {
+				log.Warn("Failed to build log payload", err)
+				return
+			}
+			log.Debugf("⏫ Queuing log payload (patternID=%d) to outputChan", cluster.GetPatternID())
+			s.outputChan <- logPayload
+			log.Debugf("✅ Log payload queued successfully")
 		}
 	}
 }
 
-// Simple pattern payload builder for POC
-func (s *dumbStrategy) buildSimplePatternPayload(m *message.Message, cluster *clustering.Cluster) (*message.Payload, error) {
-	patternPayload := PatternPayload{
-		PatternID:   cluster.GetPatternID(),
-		Pattern:     cluster.GetPatternString(),
-		ParamCount:  len(cluster.GetWildcardPositions()),
-		WildcardPos: cluster.GetWildcardPositions(),
-		// OriginalMsg: bytesToString(m.GetContent()), // Keep for POC debugging
+// buildPatternChangePayload creates a payload for PatternDefine or PatternUpdate
+func (s *dumbStrategy) buildPatternChangePayload(m *message.Message, cluster *clustering.Cluster, changeType clustering.PatternChangeType) (*message.Payload, error) {
+	// Get character positions where wildcards appear in the template string
+	charPos := cluster.GetWildcardCharPositions()
+	posList := make([]uint32, len(charPos))
+	for i, pos := range charPos {
+		posList[i] = uint32(pos)
 	}
 
-	// Use existing serialization with compression - intake handles decompression
-	return s.serializePayload(patternPayload, m)
+	// Create pattern data
+	patternData := &PatternData{
+		PatternID:  cluster.GetPatternID(),
+		Template:   cluster.GetPatternString(),
+		ParamCount: uint32(len(charPos)),
+		PosList:    posList,
+		IsUpdate:   changeType == clustering.PatternUpdated,
+	}
+
+	// Serialize to binary format
+	return s.serializePattern(patternData, m)
 }
 
-// ========== COMMENTED OUT COMPLEX LOGIC FOR POC ==========
-/*
-func (s *dumbStrategy) buildPayload(m *message.Message) (*message.Payload, error) {
-	if s.cluster != nil && s.cluster.NeedsSending() {
-		// Pattern needs to be sent (new or updated)
-		if s.cluster.IsNewPattern() {
-			return s.buildPatternCreationPayload(m)
-		} else if s.cluster.WasUpdatedSinceLastSent() {
-			return s.buildPatternUpdatePayload(m)
-		}
-	} else if s.cluster != nil {
-		// Pattern already sent, just send wildcards
-		return s.buildWildcardPayload(m)
+// buildLogPayload creates a payload for Log with StructuredLog (pattern_id + wildcard values)
+func (s *dumbStrategy) buildLogPayload(m *message.Message, cluster *clustering.Cluster) (*message.Payload, error) {
+	// Extract wildcard values from the cluster
+	wildcardValues := cluster.GetWildcardValues()
+
+	// Create log data
+	logData := &LogData{
+		PatternID:      cluster.GetPatternID(),
+		WildcardValues: wildcardValues,
+		Timestamp:      uint64(m.IngestionTimestamp),
 	}
 
-	// No pattern, send raw message (fallback)
-	return s.buildRawPayload(m)
+	// Serialize to binary format
+	return s.serializeLog(logData, m)
 }
 
-func (s *dumbStrategy) buildPatternCreationPayload(m *message.Message) (*message.Payload, error) {
-	patternPayload := PatternPayload{
-		StateChange: "pattern_create",
-		PatternID:   s.cluster.GetPatternID(),
-		Pattern:     s.cluster.GetPatternString(),
-		ParamCount:  len(s.cluster.GetWildcardPositions()),
-		WildcardPos: s.cluster.GetWildcardPositions(),
-		OriginalMsg: bytesToString(m.GetContent()),
-	}
+// serializePattern serializes pattern data using gob encoding
+func (s *dumbStrategy) serializePattern(pattern *PatternData, m *message.Message) (*message.Payload, error) {
+	var buf bytes.Buffer
+	encoder := gob.NewEncoder(&buf)
 
-	s.cluster.MarkAsSent()
-	return s.serializePayload(patternPayload, m)
-}
-
-func (s *dumbStrategy) buildPatternUpdatePayload(m *message.Message) (*message.Payload, error) {
-	patternPayload := PatternPayload{
-		StateChange: "pattern_update",
-		PatternID:   s.cluster.GetPatternID(),
-		Pattern:     s.cluster.GetPatternString(),
-		ParamCount:  len(s.cluster.GetWildcardPositions()),
-		WildcardPos: s.cluster.GetWildcardPositions(),
-	}
-
-	s.cluster.MarkAsSent()
-	return s.serializePayload(patternPayload, m)
-}
-
-func (s *dumbStrategy) buildWildcardPayload(m *message.Message) (*message.Payload, error) {
-	// Extract wildcard values from the current message
-	tokenList := automaton.TokenizeString(bytesToString(m.GetContent()))
-	var wildcardValues []string
-	if tokenList != nil {
-		wildcardValues = s.cluster.ExtractWildcardValues(tokenList)
-	}
-
-	patternPayload := struct {
-		PatternID     uint64   `json:"pattern_id"`
-		DynamicValues []string `json:"dynamic_values"`
-	}{
-		PatternID:     s.cluster.GetPatternID(),
-		DynamicValues: wildcardValues,
-	}
-
-	return s.serializePayload(patternPayload, m)
-}
-
-func (s *dumbStrategy) buildRawPayload(m *message.Message) (*message.Payload, error) {
-	rawPayload := struct {
-		Message string `json:"raw_message"`
-	}{
-		Message: bytesToString(m.GetContent()),
-	}
-
-	return s.serializePayload(rawPayload, m)
-}
-*/
-
-func (s *dumbStrategy) serializePayload(payload interface{}, m *message.Message) (*message.Payload, error) {
-	s.serializer.Reset()
-
-	patternBytes, err := json.Marshal(payload)
-	if err != nil {
+	if err := encoder.Encode(pattern); err != nil {
 		return nil, err
 	}
-
-	// Compress the JSON data directly
-	var encodedPayload bytes.Buffer
-	compressor := s.compression.NewStreamCompressor(&encodedPayload)
-
-	if _, err := compressor.Write(patternBytes); err != nil {
-		compressor.Close()
-		return nil, err
-	}
-
-	if err := compressor.Close(); err != nil {
-		return nil, err
-	}
-
-	// Potentially seed some log payload instead here
 
 	// Create payload with original message metadata
 	metaCopy := m.MessageMetadata
-	// Add pattern indicator to processing tags instead of encoding
-	metaCopy.ProcessingTags = append(metaCopy.ProcessingTags, "data_type:pattern")
+	// Add pattern change indicator to processing tags
+	if pattern.IsUpdate {
+		metaCopy.ProcessingTags = append(metaCopy.ProcessingTags, "data_type:pattern_update")
+	} else {
+		metaCopy.ProcessingTags = append(metaCopy.ProcessingTags, "data_type:pattern_define")
+	}
 
 	return message.NewPayload(
 		[]*message.MessageMetadata{&metaCopy}, // original message metadata with pattern tag
-		encodedPayload.Bytes(),                // compressed pattern payload (sent as-is like HTTP/TCP)
-		s.compression.ContentEncoding(),       // regular "gzip" or "zstd"
-		len(patternBytes),                     // uncompressed pattern JSON size
+		buf.Bytes(),                           // gob-encoded pattern data
+		"",                                    // no content encoding - gRPC handles compression
+		buf.Len(),                             // gob size
+	), nil
+}
+
+// serializeLog serializes log data using gob encoding
+func (s *dumbStrategy) serializeLog(logData *LogData, m *message.Message) (*message.Payload, error) {
+	var buf bytes.Buffer
+	encoder := gob.NewEncoder(&buf)
+
+	if err := encoder.Encode(logData); err != nil {
+		return nil, err
+	}
+
+	// Create payload with original message metadata
+	metaCopy := m.MessageMetadata
+	// Add log with pattern reference indicator
+	metaCopy.ProcessingTags = append(metaCopy.ProcessingTags, "data_type:log_with_pattern")
+
+	return message.NewPayload(
+		[]*message.MessageMetadata{&metaCopy}, // original message metadata with log tag
+		buf.Bytes(),                           // gob-encoded log data
+		"",                                    // no content encoding - gRPC handles compression
+		buf.Len(),                             // gob size
 	), nil
 }
 

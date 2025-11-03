@@ -6,7 +6,9 @@
 package grpc
 
 import (
+	"bytes"
 	"context"
+	"encoding/gob"
 	"errors"
 	"fmt"
 	"io"
@@ -97,6 +99,10 @@ type StreamWorker struct {
 	pendingPayloads   map[uint32]*message.Payload // batchID -> payload
 	pendingPayloadsMu sync.Mutex                  // Protects pendingPayloads map
 
+	// Poor man's snapshot: cache pattern payloads for re-sending after rotation
+	patternCache   []*message.Payload // Recently sent pattern define/update payloads
+	patternCacheMu sync.Mutex         // Protects patternCache
+
 	// Control
 	stopChan chan struct{}
 	done     chan struct{}
@@ -125,6 +131,7 @@ func NewStreamWorker(
 		rotationType:        RotationTypeNone,
 		signalStreamRotate:  make(chan StreamRotateSignal, 1),  // Size-1 buffer for drop-old semantics
 		pendingPayloads:     make(map[uint32]*message.Payload), // Initialize batch tracking map
+		patternCache:        make([]*message.Payload, 0, 100),  // Cache for pattern payloads
 		stopChan:            make(chan struct{}),
 		done:                make(chan struct{}),
 	}
@@ -528,30 +535,50 @@ func (s *StreamWorker) payloadToBatch(payload *message.Payload) *StatefulBatch {
 		Data:    make([]*Datum, 0, payload.Count()),
 	}
 
-	// Check if this is a pattern payload by looking at metadata tags
-	isPattern := false
+	// Check payload type by looking at metadata tags
+	payloadType := ""
 	for _, meta := range payload.MessageMetas {
 		for _, tag := range meta.ProcessingTags {
-			if tag == "data_type:pattern" {
-				isPattern = true
+			if tag == "data_type:pattern_define" || tag == "data_type:pattern_update" || tag == "data_type:log_with_pattern" {
+				payloadType = tag
 				break
 			}
 		}
-		if isPattern {
+		if payloadType != "" {
 			break
 		}
 	}
 
-	if isPattern {
-		// Handle pattern payload - hardcode for POC testing
-		datum := s.createHardcodedPatternDatum()
-		if datum != nil {
+	switch payloadType {
+	case "data_type:pattern_define", "data_type:pattern_update":
+		// Handle pattern change (define or update)
+		datum, err := s.decodePatternDatum(payload)
+		if err != nil {
+			log.Errorf("Worker %s: Failed to decode pattern: %v", s.workerID, err)
+		} else if datum != nil {
 			batch.Data = append(batch.Data, datum)
+			if payloadType == "data_type:pattern_define" {
+				log.Infof("📤 Worker %s: Sending PatternDefine (ID=%d, template='%s')",
+					s.workerID, datum.GetPatternDefine().PatternId, datum.GetPatternDefine().Template)
+			} else {
+				log.Infof("📤 Worker %s: Sending PatternUpdate (ID=%d, template='%s')",
+					s.workerID, datum.GetPatternUpdate().PatternId, datum.GetPatternUpdate().NewTemplate)
+			}
 		}
-		// Commented out to reduce log noise
-		// log.Infof("📤 PATTERN BATCH SENT: %v", batch)
-	} else {
-		// Handle regular log payload
+
+	case "data_type:log_with_pattern":
+		// Handle log with pattern reference + wildcard values
+		datum, err := s.decodeLogDatum(payload)
+		if err != nil {
+			log.Errorf("Worker %s: Failed to decode log: %v", s.workerID, err)
+		} else if datum != nil {
+			batch.Data = append(batch.Data, datum)
+			log.Debugf("📤 Worker %s: Sending Log with pattern_id=%d, %d wildcard values",
+				s.workerID, datum.GetLogs().GetStructured().PatternId, len(datum.GetLogs().GetStructured().DynamicValues))
+		}
+
+	default:
+		// Handle regular log payload (no pattern)
 		datum := &Datum{
 			Data: &Datum_Logs{
 				Logs: &Log{
@@ -567,26 +594,96 @@ func (s *StreamWorker) payloadToBatch(payload *message.Payload) *StatefulBatch {
 	return batch
 }
 
-// PatternPayload represents the JSON structure from dumb_strategy
-type PatternPayload struct {
-	PatternID   uint64 `json:"pattern_id"`
-	Pattern     string `json:"pattern"`
-	ParamCount  int    `json:"param_count"`
-	WildcardPos []int  `json:"wildcard_positions"`
+// PatternData matches the structure from dumb_strategy (sender package)
+// We define it here to avoid import cycles
+type PatternData struct {
+	PatternID  uint64
+	Template   string
+	ParamCount uint32
+	PosList    []uint32
+	IsUpdate   bool
 }
 
-// createHardcodedPatternDatum creates a hardcoded pattern for POC testing
-func (s *StreamWorker) createHardcodedPatternDatum() *Datum {
-	// log.Infof("Worker %s: Sending hardcoded pattern for POC testing", s.workerID)
+// LogData matches the structure from dumb_strategy (sender package)
+type LogData struct {
+	PatternID      uint64
+	WildcardValues []string
+	Timestamp      uint64
+}
 
+// decodePatternDatum decodes a pattern payload from gob format to protobuf (PatternDefine or PatternUpdate)
+func (s *StreamWorker) decodePatternDatum(payload *message.Payload) (*Datum, error) {
+	// Decode gob-encoded PatternData
+	var patternData PatternData
+	decoder := gob.NewDecoder(bytes.NewReader(payload.Encoded))
+
+	if err := decoder.Decode(&patternData); err != nil {
+		return nil, fmt.Errorf("failed to decode pattern data: %w", err)
+	}
+
+	// Convert to protobuf PatternDefine or PatternUpdate
+	if patternData.IsUpdate {
+		patternUpdate := &PatternUpdate{
+			PatternId:   patternData.PatternID,
+			NewTemplate: patternData.Template,
+			ParamCount:  patternData.ParamCount,
+			PosList:     patternData.PosList,
+		}
+		return &Datum{
+			Data: &Datum_PatternUpdate{
+				PatternUpdate: patternUpdate,
+			},
+		}, nil
+	}
+
+	patternDefine := &PatternDefine{
+		PatternId:  patternData.PatternID,
+		Template:   patternData.Template,
+		ParamCount: patternData.ParamCount,
+		PosList:    patternData.PosList,
+	}
 	return &Datum{
 		Data: &Datum_PatternDefine{
-			PatternDefine: &PatternDefine{
-				PatternId:  12345,
-				Template:   "User * logged in from *",
-				ParamCount: 2,
-				PosList:    []uint32{1, 4},
+			PatternDefine: patternDefine,
+		},
+	}, nil
+}
+
+// decodeLogDatum decodes a log payload from gob format to protobuf Log with StructuredLog
+func (s *StreamWorker) decodeLogDatum(payload *message.Payload) (*Datum, error) {
+	// Decode gob-encoded LogData
+	var logData LogData
+	decoder := gob.NewDecoder(bytes.NewReader(payload.Encoded))
+
+	if err := decoder.Decode(&logData); err != nil {
+		return nil, fmt.Errorf("failed to decode log data: %w", err)
+	}
+
+	// Convert wildcard values to DynamicValue protobuf
+	dynamicValues := make([]*DynamicValue, len(logData.WildcardValues))
+	for i, val := range logData.WildcardValues {
+		dynamicValues[i] = &DynamicValue{
+			Value: &DynamicValue_StringValue{
+				StringValue: val,
+			},
+		}
+	}
+
+	// Create StructuredLog
+	structuredLog := &StructuredLog{
+		PatternId:     logData.PatternID,
+		DynamicValues: dynamicValues,
+	}
+
+	// Wrap in Log and Datum
+	return &Datum{
+		Data: &Datum_Logs{
+			Logs: &Log{
+				Timestamp: logData.Timestamp,
+				Content: &Log_Structured{
+					Structured: structuredLog,
+				},
 			},
 		},
-	}
+	}, nil
 }

@@ -8,9 +8,11 @@
 package automaton
 
 import (
+	"fmt"
 	"unicode"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/patterns/token"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // TokenizerState represents the current state of the FSA
@@ -22,6 +24,15 @@ const (
 	StateNumeric                   // Pure numbers
 	StateWhitespace                // Spaces, tabs, newlines
 	StateSpecial                   // Operators, punctuation, symbols
+)
+
+const (
+	// These numbers could be ran with some more testing on more log samples to optimize these values.
+	// tokenizerBufferCapacity is the initial capacity for the rune buffer.
+	tokenizerBufferCapacity = 128
+
+	// tokenizerTokensCapacity is the initial capacity for the tokens slice.
+	tokenizerTokensCapacity = 24
 )
 
 // Tokenizer implements a finite state automaton for log tokenization
@@ -41,8 +52,8 @@ func NewTokenizer(input string) *Tokenizer {
 		pos:    0,
 		length: len(input),
 		state:  StateStart,
-		buffer: make([]rune, 0, 64),        // Pre-allocate buffer
-		tokens: make([]token.Token, 0, 32), // Pre-allocate tokens slice
+		buffer: make([]rune, 0, tokenizerBufferCapacity),
+		tokens: make([]token.Token, 0, tokenizerTokensCapacity),
 	}
 }
 
@@ -60,35 +71,46 @@ func (t *Tokenizer) Tokenize() *token.TokenList {
 	return token.NewTokenListWithTokens(t.tokens)
 }
 
-// classifyTokens applies terminal rules for token classification
+// classifyTokens upgrades generic tokens to specific types.
+// The FSA first creates generic tokens (TokenWord, TokenNumeric), then this function uses
+// pattern matching to identify structured types:
+//   - "192.168.1.1" → TokenNumeric upgraded to TokenIPv4
+//   - "user@example.com" → TokenWord upgraded to TokenEmail
+//   - "GET" → TokenWord upgraded to TokenHttpMethod
 func (t *Tokenizer) classifyTokens() {
 	for i, tok := range t.tokens {
-		// Only classify word-like and numeric tokens that might be structured
-		if tok.Type != token.TokenWord && tok.Type != token.TokenNumeric {
+		// Skip if not eligible for classification
+		if !t.shouldClassify(&tok) {
 			continue
 		}
 
-		// Skip classification for punctuation (already marked as NotWildcard in createSpecialToken)
-		if tok.Wildcard == token.NotWildcard {
+		// identify specific structured types (IP, Email, Date, HTTP, etc.)
+		// fallback to word token if can't upgrade to specific type
+		classifiedType, err := t.classifyToken(tok.Value)
+		if err != nil {
+			log.Warnf("Failed to classify token '%s': %v. Falling back to word token type", tok.Value, err)
 			continue
 		}
 
-		classifiedType := t.classifyToken(tok.Value)
-
-		// If classification returns TokenWord or TokenUnknown, keep current state
-		// TokenWord = "generic word, no specific classification"
-		// TokenUnknown = "should not happen, but keep current state"
-		if classifiedType == token.TokenWord || classifiedType == token.TokenUnknown {
+		// fallback to word token if can't upgrade to specific type
+		if classifiedType == token.TokenWord {
 			continue
 		}
 
-		// Update token type to the more specific classification
+		// Upgrade token to the more specific type
 		t.tokens[i].Type = classifiedType
-
-		// Set wildcard potential based on classified type
 		t.tokens[i].Wildcard = getWildcardPotential(classifiedType)
-
 	}
+}
+
+// shouldClassify determines if a token is eligible for pattern-based classification.
+// Returns true only for generic Word/Numeric tokens that are PotentialWildcard.
+// Excludes: whitespace, punctuation (NotWildcard)
+func (t *Tokenizer) shouldClassify(tok *token.Token) bool {
+	isGenericType := tok.Type == token.TokenWord || tok.Type == token.TokenNumeric
+	canVary := tok.Wildcard != token.NotWildcard
+
+	return isGenericType && canVary
 }
 
 // processNextToken advances the automaton by one token
@@ -149,7 +171,7 @@ func (t *Tokenizer) handleWordState(char rune) bool {
 }
 
 // handleNumericState processes numeric tokens
-// Allows digits and special chars for dates (2024-01-15), times (10:30:45), IPs (192.168.1.1)
+// Allows digits and special chars for dates (2024-01-15), times (10:30:45) or IPs (192.168.1.1)
 func (t *Tokenizer) handleNumericState(char rune) bool {
 	switch {
 	case unicode.IsDigit(char), char == '.', char == '-', char == '/', char == ':':
@@ -187,10 +209,12 @@ func (t *Tokenizer) handleSpecialState(char rune) bool {
 	return true
 }
 
-// classifyToken attempts to classify a single token's type using terminal rules
-// Takes a token value and returns a more specific type if a rule matches, or TokenUnknown
-func (t *Tokenizer) classifyToken(value string) token.TokenType {
-	return globalTrie.Match(value)
+// classifyToken attempts to classify a single token's type using terminal rules.
+func (t *Tokenizer) classifyToken(value string) (token.TokenType, error) {
+	if len(value) == 0 {
+		return token.TokenUnknown, fmt.Errorf("cannot classify empty srting token value")
+	}
+	return globalTrie.Match(value), nil
 }
 
 // getWildcardPotential determines if a token type can potentially become a wildcard
@@ -203,7 +227,6 @@ func getWildcardPotential(tokenType token.TokenType) token.WildcardStatus {
 	}
 
 	// Everything else can potentially become wildcards
-	// Dates wildcard if they have the same format (both TokenDate means same structure)
 	return token.PotentialWildcard
 }
 

@@ -15,6 +15,10 @@ import (
 )
 
 // Priority constants for rule evaluation order
+//
+// Rules are sorted by priority (highest first) and evaluated sequentially until the first match.
+// Priority is based on the specificity of the pattern. The more specific the pattern, the higher the priority.
+// Higher priority = evaluated first = more specific classification.
 const (
 	PriorityHigh   = 3 // Very specific patterns like IPv4, IPv6, Email
 	PriorityMedium = 2 // Structured patterns like URI, Dates, HTTPStatus
@@ -55,11 +59,25 @@ func NewRuleManager() *RuleManager {
 
 // AddRule adds a new terminal rule
 func (rm *RuleManager) AddRule(name, pattern, category, description string, tokenType token.TokenType, priority int, examples []string) error {
+	// Check for duplicate rule name
+	if rm.GetRule(name) != nil {
+		return fmt.Errorf("rule '%s' already exists", name)
+	}
+
+	// Compile and validate regex pattern
 	regex, err := regexp.Compile(pattern)
 	if err != nil {
 		return fmt.Errorf("invalid regex pattern '%s': %v", pattern, err)
 	}
 
+	// Validate examples match the pattern
+	for _, example := range examples {
+		if !regex.MatchString(example) {
+			return fmt.Errorf("example '%s' does not match pattern '%s'", example, pattern)
+		}
+	}
+
+	// Create and insert rule
 	rule := &TerminalRule{
 		Name:        name,
 		Pattern:     regex,
@@ -68,12 +86,6 @@ func (rm *RuleManager) AddRule(name, pattern, category, description string, toke
 		Category:    category,
 		Description: description,
 		Examples:    examples,
-	}
-
-	for _, example := range examples {
-		if !regex.MatchString(example) {
-			return fmt.Errorf("example '%s' does not match pattern '%s'", example, pattern)
-		}
 	}
 
 	rm.insertRuleByPriority(rule)
@@ -130,7 +142,9 @@ func (rm *RuleManager) LoadPredefinedRules() error {
 	return nil
 }
 
+// ================================================
 // Helper methods
+// ================================================
 
 func (rm *RuleManager) insertRuleByPriority(rule *TerminalRule) {
 	// Insert in priority order (higher priority first)
@@ -213,30 +227,6 @@ func (rm *RuleManager) GetCategories() []string {
 	}
 	sort.Strings(categories)
 	return categories
-}
-
-// ValidateRule checks if a rule would work correctly
-func (rm *RuleManager) ValidateRule(name, pattern string, examples []string) error {
-	regex, err := regexp.Compile(pattern)
-	if err != nil {
-		return fmt.Errorf("invalid regex: %v", err)
-	}
-
-	// Check for conflicts with existing rules
-	for _, existing := range rm.rules {
-		if existing.Name == name {
-			return fmt.Errorf("rule '%s' already exists", name)
-		}
-	}
-
-	// Validate examples
-	for _, example := range examples {
-		if !regex.MatchString(example) {
-			return fmt.Errorf("example '%s' does not match pattern", example)
-		}
-	}
-
-	return nil
 }
 
 // GetRuleStats returns statistics about the rule system
@@ -492,78 +482,4 @@ func GetPredefinedRules() []*TerminalRule {
 	}
 
 	return rules
-}
-
-// GetRuleByPriority returns rules with a specific priority
-func (rm *RuleManager) GetRuleByPriority(priority int) []*TerminalRule {
-	result := make([]*TerminalRule, 0)
-	for _, rule := range rm.rules {
-		if rule.Priority == priority {
-			result = append(result, rule)
-		}
-	}
-	return result
-}
-
-// GetHighestPriorityRules returns rules with the highest priority
-func (rm *RuleManager) GetHighestPriorityRules() []*TerminalRule {
-	if len(rm.rules) == 0 {
-		return []*TerminalRule{}
-	}
-
-	highestPriority := rm.rules[0].Priority
-	result := make([]*TerminalRule, 0)
-
-	for _, rule := range rm.rules {
-		if rule.Priority == highestPriority {
-			result = append(result, rule)
-		} else {
-			break // Rules are sorted by priority
-		}
-	}
-	return result
-}
-
-// UpdateRulePriority changes the priority of an existing rule
-func (rm *RuleManager) UpdateRulePriority(name string, newPriority int) error {
-	rule := rm.GetRule(name)
-	if rule == nil {
-		return fmt.Errorf("rule '%s' not found", name)
-	}
-
-	// Remove the rule and re-add with new priority
-	if !rm.RemoveRule(name) {
-		return fmt.Errorf("failed to remove rule '%s'", name)
-	}
-
-	return rm.AddRule(
-		rule.Name,
-		rule.Pattern.String(),
-		rule.Category,
-		rule.Description,
-		rule.TokenType,
-		newPriority,
-		rule.Examples,
-	)
-}
-
-// GetCategoryDescription returns the description for a category
-func (rm *RuleManager) GetCategoryDescription(category string) string {
-	if cat, exists := rm.categories[category]; exists {
-		return cat.Description
-	}
-	return ""
-}
-
-// SetCategoryDescription updates the description for a category
-func (rm *RuleManager) SetCategoryDescription(category, description string) {
-	if rm.categories[category] == nil {
-		rm.categories[category] = &RuleCategory{
-			Name:        category,
-			Description: description,
-			Rules:       make([]*TerminalRule, 0),
-		}
-	} else {
-		rm.categories[category].Description = description
-	}
 }
