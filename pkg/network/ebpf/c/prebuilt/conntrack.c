@@ -17,13 +17,13 @@
 // Primary probe: Track all conntrack insertions
 SEC("kprobe/__nf_conntrack_hash_insert") // JMWCONNTRACK
 int BPF_BYPASSABLE_KPROBE(kprobe__nf_conntrack_hash_insert, struct nf_conn *ct) {
-    increment_hash_insert_entry_count();
+    increment_kprobe__nf_conntrack_hash_insert_entry_count();
     log_debug("kprobe/__nf_conntrack_hash_insert: netns: %u", get_netns(ct));
     log_debug("JMWTEST prebuilt kprobe/__nf_conntrack_hash_insert");
 
     conntrack_tuple_t orig = {}, reply = {};
     if (nf_conn_to_conntrack_tuples(ct, &orig, &reply) != 0) {
-        increment_confirm_return_failed_to_get_conntrack_tuples_count();
+        increment_nf_conntrack_hash_insert_failed_to_get_conntrack_tuples_count();
         return 0;
     }
     RETURN_IF_NOT_NAT(&orig, &reply);
@@ -32,15 +32,15 @@ int BPF_BYPASSABLE_KPROBE(kprobe__nf_conntrack_hash_insert, struct nf_conn *ct) 
     long ret2 = bpf_map_update_with_telemetry(conntrack, &reply, &orig, BPF_NOEXIST);
     
     if (ret1 == -EEXIST) {
-        increment_hash_insert_regular_exists();
+        increment_nf_conntrack_hash_insert_regular_exists();
     }
     if (ret2 == -EEXIST) {
-        increment_hash_insert_reverse_exists();
+        increment_nf_conntrack_hash_insert_reverse_exists();
     }
     
     // Only increment hash_insert_count if at least one entry was actually added
     if (ret1 == 0 || ret2 == 0) {
-        increment_hash_insert_count();
+        increment_nf_conntrack_hash_insert_count();
     }
     increment_telemetry_registers_count();
 
@@ -59,7 +59,7 @@ int BPF_BYPASSABLE_KPROBE(kretprobe_nf_conntrack_hash_check_insert, struct nf_co
         return 0;
     }
     
-    increment_hash_check_insert_success_count();
+    increment_kretprobe_nf_conntrack_hash_check_insert_count();
     log_debug("kretprobe/nf_conntrack_hash_check_insert: success, ct: %p, netns: %u", ct, get_netns(ct));
     
     // You can add to conntrack2 map here if needed:
@@ -78,7 +78,7 @@ int BPF_BYPASSABLE_KPROBE(kretprobe_nf_conntrack_hash_check_insert, struct nf_co
 // Third probe: Track confirmed NAT connections (entry)
 SEC("kprobe/__nf_conntrack_confirm") // JMWCONNTRACK
 int BPF_BYPASSABLE_KPROBE(kprobe__nf_conntrack_confirm) {
-    increment_confirm_entry_count();
+    increment_kprobe__nf_conntrack_confirm_entry_count();
     struct sk_buff *skb = (struct sk_buff *)PT_REGS_PARM1(ctx); // skb is 1st parameter
     u64 ct_ptr;
     u8 val = 1;
@@ -121,7 +121,7 @@ int BPF_BYPASSABLE_KPROBE(kprobe__nf_conntrack_confirm) {
 // Fourth probe: Track confirmed NAT connections (return)
 SEC("kretprobe/__nf_conntrack_confirm") // JMWCONNTRACK
 int BPF_BYPASSABLE_KPROBE(kretprobe__nf_conntrack_confirm) {
-    increment_confirm_return_count();
+    increment_kretprobe__nf_conntrack_confirm_entry_count();
     int ret = PT_REGS_RC(ctx);
 
     log_debug("kretprobe/__nf_conntrack_confirm: ret=%d", ret);
@@ -129,11 +129,11 @@ int BPF_BYPASSABLE_KPROBE(kretprobe__nf_conntrack_confirm) {
 
     // Only process if returned NF_ACCEPT (1)
     if (ret != 1) { // NF_ACCEPT = 1
-        increment_confirm_return_not_accepted_count();
+        increment_kretprobe__nf_conntrack_confirm_not_accepted_count();
         return 0;
     }
 
-    increment_confirm_return_success_count();
+    increment_kretprobe__nf_conntrack_confirm_success_count();
 
     // For prebuilt version, we can't easily correlate entry/exit
     // So we'll just count successful returns
@@ -157,7 +157,7 @@ int BPF_BYPASSABLE_KPROBE(kprobe_ctnetlink_fill_info) {
 
     conntrack_tuple_t orig = {}, reply = {};
     if (nf_conn_to_conntrack_tuples(ct, &orig, &reply) != 0) {
-        increment_confirm_return_failed_to_get_conntrack_tuples_count();
+        increment_kprobe_ctnetlink_fill_info_failed_to_get_conntrack_tuples_count();
         return 0;
     }
 
@@ -165,7 +165,7 @@ int BPF_BYPASSABLE_KPROBE(kprobe_ctnetlink_fill_info) {
 
     bpf_map_update_with_telemetry(conntrack, &orig, &reply, BPF_ANY);
     bpf_map_update_with_telemetry(conntrack, &reply, &orig, BPF_ANY);
-    increment_hash_insert_count();
+    increment_kprobe_ctnetlink_fill_info_added_count();
     increment_telemetry_registers_count();
 
     return 0;

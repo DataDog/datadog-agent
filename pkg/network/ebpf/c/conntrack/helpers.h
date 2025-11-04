@@ -99,161 +99,231 @@ static __always_inline void increment_telemetry_registers_count() {
     __sync_fetch_and_add(&val->registers, 1);
 }
 
-static __always_inline void increment_hash_insert_count() {
+static __always_inline void increment_nf_conntrack_hash_insert_count() {
     u64 key = 0;
     conntrack_telemetry_t *val = bpf_map_lookup_elem(&conntrack_telemetry, &key);
     if (val == NULL) {
         return;
     }
-    __sync_fetch_and_add(&val->hash_insert_count, 1);
+    __sync_fetch_and_add(&val->kprobe__nf_conntrack_hash_insert_count, 1);
 }
 
-static __always_inline void increment_hash_insert_entry_count() {
+static __always_inline void increment_kprobe__nf_conntrack_hash_insert_entry_count() {
     u64 key = 0;
     conntrack_telemetry_t *val = bpf_map_lookup_elem(&conntrack_telemetry, &key);
     if (val == NULL) {
         return;
     }
-    __sync_fetch_and_add(&val->hash_insert_entry_count, 1);
+    __sync_fetch_and_add(&val->kprobe__nf_conntrack_hash_insert_entry_count, 1);
 }
 
-static __always_inline void increment_hash_check_insert_success_count() {
+static __always_inline void increment_kretprobe_nf_conntrack_hash_check_insert_count() {
     u64 key = 0;
     conntrack_telemetry_t *val = bpf_map_lookup_elem(&conntrack_telemetry, &key);
     if (val == NULL) {
         return;
     }
-    __sync_fetch_and_add(&val->hash_check_insert_success_count, 1);
+    __sync_fetch_and_add(&val->kretprobe_nf_conntrack_hash_check_insert_count, 1);
 }
 
 
-static __always_inline void increment_confirm_entry_count() {
+static __always_inline void increment_kprobe__nf_conntrack_confirm_entry_count() {
     u64 key = 0;
     conntrack_telemetry_t *val = bpf_map_lookup_elem(&conntrack_telemetry, &key);
     if (val == NULL) {
         return;
     }
-    __sync_fetch_and_add(&val->confirm_entry_count, 1);
+    __sync_fetch_and_add(&val->kprobe__nf_conntrack_confirm_entry_count, 1);
 }
 
-static __always_inline void increment_confirm_return_count() {
+static __always_inline void increment_kretprobe__nf_conntrack_confirm_entry_count() {
     u64 key = 0;
     conntrack_telemetry_t *val = bpf_map_lookup_elem(&conntrack_telemetry, &key);
     if (val == NULL) {
         return;
     }
-    __sync_fetch_and_add(&val->confirm_return_count, 1);
+    __sync_fetch_and_add(&val->kretprobe__nf_conntrack_confirm_entry_count, 1);
 }
 
-static __always_inline void increment_confirm_return_success_count() {
+static __always_inline void increment_kretprobe__nf_conntrack_confirm_success_count() {
     u64 key = 0;
     conntrack_telemetry_t *val = bpf_map_lookup_elem(&conntrack_telemetry, &key);
     if (val == NULL) {
         return;
     }
-    __sync_fetch_and_add(&val->confirm_return_success_count, 1);
+    __sync_fetch_and_add(&val->kretprobe__nf_conntrack_confirm_success_count, 1);
 }
 
-static __always_inline void increment_confirm_return_no_matching_entry_probe_count() {
+static __always_inline void increment_kretprobe__nf_conntrack_confirm_no_matching_entry_probe_count() {
     u64 key = 0;
     conntrack_telemetry_t *val = bpf_map_lookup_elem(&conntrack_telemetry, &key);
     if (val == NULL) {
         return;
     }
-    __sync_fetch_and_add(&val->confirm_return_no_matching_entry_probe_count, 1);
+    __sync_fetch_and_add(&val->kretprobe__nf_conntrack_confirm_no_matching_entry_probe_count, 1);
 }
 
-static __always_inline void increment_confirm_return_not_accepted_count() {
+static __always_inline void increment_kretprobe__nf_conntrack_confirm_not_accepted_count() {
     u64 key = 0;
     conntrack_telemetry_t *val = bpf_map_lookup_elem(&conntrack_telemetry, &key);
     if (val == NULL) {
         return;
     }
-    __sync_fetch_and_add(&val->confirm_return_not_accepted_count, 1);
+    __sync_fetch_and_add(&val->kretprobe__nf_conntrack_confirm_not_accepted_count, 1);
 }
 
-static __always_inline void increment_confirm_return_not_confirmed_count() {
+static __always_inline void increment_kretprobe__nf_conntrack_confirm_not_confirmed_count() {
     u64 key = 0;
     conntrack_telemetry_t *val = bpf_map_lookup_elem(&conntrack_telemetry, &key);
     if (val == NULL) {
         return;
     }
-    __sync_fetch_and_add(&val->confirm_return_not_confirmed_count, 1);
+    __sync_fetch_and_add(&val->kretprobe__nf_conntrack_confirm_not_confirmed_count, 1);
 }
 
-static __always_inline void increment_confirm_return_failed_to_get_conntrack_tuples_count() {
+static __always_inline void increment_kretprobe__nf_conntrack_confirm_failed_to_get_conntrack_tuples_count() {
     u64 key = 0;
     conntrack_telemetry_t *val = bpf_map_lookup_elem(&conntrack_telemetry, &key);
     if (val == NULL) {
         return;
     }
-    __sync_fetch_and_add(&val->confirm_return_failed_to_get_conntrack_tuples_count, 1);
+    __sync_fetch_and_add(&val->kretprobe__nf_conntrack_confirm_failed_to_get_conntrack_tuples_count, 1);
 }
 
-static __always_inline void increment_hash_insert_regular_exists() {
+static __always_inline void increment_nf_conntrack_hash_insert_regular_exists() {
     u64 key = 0;
     conntrack_telemetry_t *val = bpf_map_lookup_elem(&conntrack_telemetry, &key);
     if (val == NULL) {
         return;
     }
-    __sync_fetch_and_add(&val->hash_insert_regular_exists_count, 1);
+    __sync_fetch_and_add(&val->kprobe__nf_conntrack_hash_insert_regular_exists_count, 1);
 }
 
-static __always_inline void increment_hash_insert_reverse_exists() {
+static __always_inline void increment_nf_conntrack_hash_insert_reverse_exists() {
     u64 key = 0;
     conntrack_telemetry_t *val = bpf_map_lookup_elem(&conntrack_telemetry, &key);
     if (val == NULL) {
         return;
     }
-    __sync_fetch_and_add(&val->hash_insert_reverse_exists_count, 1);
+    __sync_fetch_and_add(&val->kprobe__nf_conntrack_hash_insert_reverse_exists_count, 1);
 }
 
-static __always_inline void increment_confirm_entry_skb_null_count() {
+static __always_inline void increment_kprobe__nf_conntrack_confirm_skb_null_count() {
     u64 key = 0;
     conntrack_telemetry_t *val = bpf_map_lookup_elem(&conntrack_telemetry, &key);
     if (val == NULL) {
         return;
     }
-    __sync_fetch_and_add(&val->confirm_entry_skb_null_count, 1);
+    __sync_fetch_and_add(&val->kprobe__nf_conntrack_confirm_skb_null_count, 1);
 }
 
-static __always_inline void increment_confirm_entry_nfct_null_count() {
+static __always_inline void increment_kprobe__nf_conntrack_confirm_nfct_null_count() {
     u64 key = 0;
     conntrack_telemetry_t *val = bpf_map_lookup_elem(&conntrack_telemetry, &key);
     if (val == NULL) {
         return;
     }
-    __sync_fetch_and_add(&val->confirm_entry_nfct_null_count, 1);
+    __sync_fetch_and_add(&val->kprobe__nf_conntrack_confirm_nfct_null_count, 1);
 }
 
-static __always_inline void increment_confirm_entry_ct_null_count() {
+static __always_inline void increment_kprobe__nf_conntrack_confirm_ct_null_count() {
     u64 key = 0;
     conntrack_telemetry_t *val = bpf_map_lookup_elem(&conntrack_telemetry, &key);
     if (val == NULL) {
         return;
     }
-    __sync_fetch_and_add(&val->confirm_entry_ct_null_count, 1);
+    __sync_fetch_and_add(&val->kprobe__nf_conntrack_confirm_ct_null_count, 1);
 }
 
-static __always_inline void increment_confirm_entry_not_nat_count() {
+static __always_inline void increment_kprobe__nf_conntrack_confirm_not_nat_count() {
     u64 key = 0;
     conntrack_telemetry_t *val = bpf_map_lookup_elem(&conntrack_telemetry, &key);
     if (val == NULL) {
         return;
     }
-    __sync_fetch_and_add(&val->confirm_entry_not_nat_count, 1);
+    __sync_fetch_and_add(&val->kprobe__nf_conntrack_confirm_not_nat_count, 1);
 }
 
-static __always_inline void increment_confirm_entry_pending_added_count() {
+static __always_inline void increment_kprobe__nf_conntrack_confirm_pending_added_count() {
     u64 key = 0;
     conntrack_telemetry_t *val = bpf_map_lookup_elem(&conntrack_telemetry, &key);
     if (val == NULL) {
         return;
     }
-    __sync_fetch_and_add(&val->confirm_entry_pending_added_count, 1);
+    __sync_fetch_and_add(&val->kprobe__nf_conntrack_confirm_pending_added_count, 1);
 }
 
+static __always_inline void increment_nf_conntrack_hash_insert_failed_to_get_conntrack_tuples_count() {
+    u64 key = 0;
+    conntrack_telemetry_t *val = bpf_map_lookup_elem(&conntrack_telemetry, &key);
+    if (val == NULL) {
+        return;
+    }
+    __sync_fetch_and_add(&val->kprobe__nf_conntrack_hash_insert_failed_to_get_conntrack_tuples_count, 1);
+}
 
+static __always_inline void increment_kprobe_ctnetlink_fill_info_failed_to_get_conntrack_tuples_count() {
+    u64 key = 0;
+    conntrack_telemetry_t *val = bpf_map_lookup_elem(&conntrack_telemetry, &key);
+    if (val == NULL) {
+        return;
+    }
+    __sync_fetch_and_add(&val->kprobe_ctnetlink_fill_info_failed_to_get_conntrack_tuples_count, 1);
+}
+
+static __always_inline void increment_kprobe_ctnetlink_fill_info_regular_exists_count() {
+    u64 key = 0;
+    conntrack_telemetry_t *val = bpf_map_lookup_elem(&conntrack_telemetry, &key);
+    if (val == NULL) {
+        return;
+    }
+    __sync_fetch_and_add(&val->kprobe_ctnetlink_fill_info_regular_exists_count, 1);
+}
+
+static __always_inline void increment_kprobe_ctnetlink_fill_info_reverse_exists_count() {
+    u64 key = 0;
+    conntrack_telemetry_t *val = bpf_map_lookup_elem(&conntrack_telemetry, &key);
+    if (val == NULL) {
+        return;
+    }
+    __sync_fetch_and_add(&val->kprobe_ctnetlink_fill_info_reverse_exists_count, 1);
+}
+
+static __always_inline void increment_kprobe_ctnetlink_fill_info_added_count() {
+    u64 key = 0;
+    conntrack_telemetry_t *val = bpf_map_lookup_elem(&conntrack_telemetry, &key);
+    if (val == NULL) {
+        return;
+    }
+    __sync_fetch_and_add(&val->kprobe_ctnetlink_fill_info_added_count, 1);
+}
+
+static __always_inline void increment_kprobe_ctnetlink_fill_info_regular_exists2_count() {
+    u64 key = 0;
+    conntrack_telemetry_t *val = bpf_map_lookup_elem(&conntrack_telemetry, &key);
+    if (val == NULL) {
+        return;
+    }
+    __sync_fetch_and_add(&val->kprobe_ctnetlink_fill_info_regular_exists2_count, 1);
+}
+
+static __always_inline void increment_kprobe_ctnetlink_fill_info_reverse_exists2_count() {
+    u64 key = 0;
+    conntrack_telemetry_t *val = bpf_map_lookup_elem(&conntrack_telemetry, &key);
+    if (val == NULL) {
+        return;
+    }
+    __sync_fetch_and_add(&val->kprobe_ctnetlink_fill_info_reverse_exists2_count, 1);
+}
+
+static __always_inline void increment_kprobe_ctnetlink_fill_info_added2_count() {
+    u64 key = 0;
+    conntrack_telemetry_t *val = bpf_map_lookup_elem(&conntrack_telemetry, &key);
+    if (val == NULL) {
+        return;
+    }
+    __sync_fetch_and_add(&val->kprobe_ctnetlink_fill_info_added_2_count, 1);
+}
 
 
 #endif /* __CONNTRACK_HELPERS_H */
