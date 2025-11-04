@@ -20,7 +20,6 @@ typedef struct {
     __u32 _pad;
 } conntrack_tuple_t;
 
-// JMWRENAMED
 typedef struct {
     __u64 registers;
     __u64 kprobe__nf_conntrack_hash_insert_entry_count;
