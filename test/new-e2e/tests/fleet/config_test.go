@@ -16,7 +16,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	"github.com/DataDog/datadog-agent/test/new-e2e/tests/fleet/fleetbackend"
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/fleet/backend"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/fleet/suite"
 )
 
@@ -36,9 +36,9 @@ func (s *configSuite) TestConfig() {
 	s.Agent.MustInstall()
 	defer s.Agent.MustUninstall()
 
-	err := s.Backend.StartConfigExperiment(fleetbackend.ConfigOperations{
+	err := s.Backend.StartConfigExperiment(backend.ConfigOperations{
 		DeploymentID:   "123",
-		FileOperations: []fleetbackend.FileOperation{{FileOperationType: fleetbackend.FileOperationMergePatch, FilePath: "/datadog.yaml", Patch: []byte(`{"log_level": "debug"}`)}},
+		FileOperations: []backend.FileOperation{{FileOperationType: backend.FileOperationMergePatch, FilePath: "/datadog.yaml", Patch: []byte(`{"log_level": "debug"}`)}},
 	})
 	require.NoError(s.T(), err)
 	config, err := s.Agent.Configuration()
@@ -56,9 +56,9 @@ func (s *configSuite) TestConfigFailureCrash() {
 	s.Agent.MustInstall()
 	defer s.Agent.MustUninstall()
 
-	err := s.Backend.StartConfigExperiment(fleetbackend.ConfigOperations{
+	err := s.Backend.StartConfigExperiment(backend.ConfigOperations{
 		DeploymentID:   "123",
-		FileOperations: []fleetbackend.FileOperation{{FileOperationType: fleetbackend.FileOperationMergePatch, FilePath: "/datadog.yaml", Patch: []byte(`{"log_level": "ENC[invalid_secret]"}`)}},
+		FileOperations: []backend.FileOperation{{FileOperationType: backend.FileOperationMergePatch, FilePath: "/datadog.yaml", Patch: []byte(`{"log_level": "ENC[invalid_secret]"}`)}},
 	})
 	require.NoError(s.T(), err)
 
@@ -73,9 +73,9 @@ func (s *configSuite) TestConfigFailureTimeout() {
 	s.Agent.MustSetExperimentTimeout(60 * time.Second)
 	defer s.Agent.MustUnsetExperimentTimeout()
 
-	err := s.Backend.StartConfigExperiment(fleetbackend.ConfigOperations{
+	err := s.Backend.StartConfigExperiment(backend.ConfigOperations{
 		DeploymentID:   "123",
-		FileOperations: []fleetbackend.FileOperation{{FileOperationType: fleetbackend.FileOperationMergePatch, FilePath: "/datadog.yaml", Patch: []byte(`{"log_level": "debug"}`)}},
+		FileOperations: []backend.FileOperation{{FileOperationType: backend.FileOperationMergePatch, FilePath: "/datadog.yaml", Patch: []byte(`{"log_level": "debug"}`)}},
 	})
 	require.NoError(s.T(), err)
 	config, err := s.Agent.Configuration()
@@ -97,9 +97,9 @@ func (s *configSuite) TestConfigFailureHealth() {
 	s.Agent.MustInstall()
 	defer s.Agent.MustUninstall()
 
-	err := s.Backend.StartConfigExperiment(fleetbackend.ConfigOperations{
+	err := s.Backend.StartConfigExperiment(backend.ConfigOperations{
 		DeploymentID:   "123",
-		FileOperations: []fleetbackend.FileOperation{{FileOperationType: fleetbackend.FileOperationMergePatch, FilePath: "/datadog.yaml", Patch: []byte(`{"log_level": "debug"}`)}},
+		FileOperations: []backend.FileOperation{{FileOperationType: backend.FileOperationMergePatch, FilePath: "/datadog.yaml", Patch: []byte(`{"log_level": "debug"}`)}},
 	})
 	require.NoError(s.T(), err)
 	config, err := s.Agent.Configuration()

@@ -14,7 +14,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	"github.com/DataDog/datadog-agent/test/new-e2e/tests/fleet/fleetbackend"
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/fleet/backend"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/fleet/suite"
 )
 
@@ -36,7 +36,7 @@ func (s *upgradeSuite) TestUpgradeFailureTimeout() {
 	s.Agent.MustSetExperimentTimeout(60 * time.Second)
 	defer s.Agent.MustUnsetExperimentTimeout()
 
-	targetVersion := s.Backend.Catalog().Latest("datadog-agent", fleetbackend.BranchStable)
+	targetVersion := s.Backend.Catalog().Latest(backend.BranchStable, "datadog-agent")
 	originalVersion, err := s.Agent.Version()
 	s.Require().NoError(err)
 	err = s.Backend.StartExperiment("datadog-agent", targetVersion)
@@ -57,7 +57,7 @@ func (s *upgradeSuite) TestUpgradeFailureHealth() {
 	s.Agent.MustInstall()
 	defer s.Agent.MustUninstall()
 
-	targetVersion := s.Backend.Catalog().Latest("datadog-agent", fleetbackend.BranchStable)
+	targetVersion := s.Backend.Catalog().Latest(backend.BranchStable, "datadog-agent")
 	originalVersion, err := s.Agent.Version()
 	s.Require().NoError(err)
 	err = s.Backend.StartExperiment("datadog-agent", targetVersion)
