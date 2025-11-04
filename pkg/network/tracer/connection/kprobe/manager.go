@@ -17,6 +17,7 @@ import (
 
 var mainProbes = []probes.ProbeFuncName{
 	probes.NetDevQueueTracepoint,
+	probes.DevQueueXmitNitKprobe, // kprobe fallback for net_dev_queue on kernels < 4.15
 	probes.ProtocolClassifierEntrySocketFilter,
 	probes.ProtocolClassifierTLSClientSocketFilter,
 	probes.ProtocolClassifierTLSServerSocketFilter,

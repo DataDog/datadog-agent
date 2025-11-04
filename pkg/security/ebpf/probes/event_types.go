@@ -109,7 +109,12 @@ func GetSelectorsPerEventType(fentry bool) map[eval.EventType][]manager.ProbesSe
 		"*": {
 			// Exec probes
 			&manager.AllOf{Selectors: []manager.ProbesSelector{
-				&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "sched_process_fork"}},
+				&manager.OneOf{
+					Selectors: []manager.ProbesSelector{
+						&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "sched_process_fork"}},
+						hookFunc("rethook_get_task_pid"),
+					},
+				},
 				hookFunc("hook_do_exit"),
 				&manager.BestEffort{Selectors: []manager.ProbesSelector{
 					hookFunc("hook_prepare_binprm"),
