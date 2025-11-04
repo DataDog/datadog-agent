@@ -30,6 +30,7 @@ import (
 )
 
 var (
+	// Debug bla bla
 	Debug bool
 )
 
