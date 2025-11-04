@@ -116,6 +116,8 @@ func (e *Exporter) consumeK8sObjects(ctx context.Context, ld plog.Logs) (err err
 		}
 	}
 
+	var totalNodes int = 0
+
 	for i := 0; i < ld.ResourceLogs().Len(); i++ {
 		resourceLogs := ld.ResourceLogs().At(i)
 		resource := resourceLogs.Resource()
@@ -127,10 +129,6 @@ func (e *Exporter) consumeK8sObjects(ctx context.Context, ld plog.Logs) (err err
 
 		for j := 0; j < resourceLogs.ScopeLogs().Len(); j++ {
 			scopeLogs := resourceLogs.ScopeLogs().At(j)
-			scopeLogs.Scope().Attributes().Range(func(key string, value pcommon.Value) bool {
-				fmt.Println("aurele-debug4: key", key, "value", value.AsString())
-				return true
-			})
 
 			for k := 0; k < scopeLogs.LogRecords().Len(); k++ {
 				logRecord := scopeLogs.LogRecords().At(k)
@@ -145,6 +143,10 @@ func (e *Exporter) consumeK8sObjects(ctx context.Context, ld plog.Logs) (err err
 				if err != nil {
 					logger.Error("Failed to convert to manifest", zap.Error(err))
 					continue
+				}
+
+				if manifest.Kind == "Node" {
+					totalNodes++
 				}
 
 				// Check cache to avoid sending the same manifest multiple times within 3 minutes
@@ -163,6 +165,20 @@ func (e *Exporter) consumeK8sObjects(ctx context.Context, ld plog.Logs) (err err
 
 				manifests = append(manifests, manifest)
 			}
+		}
+	}
+
+	// Send a Cluster manifest once all nodes have been collected
+	if totalNodes > 0 {
+		logger.Info("Creating Cluster manifest after collecting nodes", zap.Int("total_nodes", totalNodes))
+		clusterManifest := createClusterManifest(clusterID, totalNodes)
+
+		// Check cache for the cluster manifest too
+		if !shouldSkipManifest(clusterManifest) {
+			manifests = append(manifests, clusterManifest)
+			logger.Info("Added Cluster manifest to payload",
+				zap.String("uid", clusterManifest.Uid),
+				zap.Int("total_nodes", totalNodes))
 		}
 	}
 
@@ -259,6 +275,40 @@ func toManifestPayload(ctx context.Context, manifests []*agentmodel.Manifest, ho
 		Manifests:       manifests,
 		Tags:            buildCommonTags(),
 		OriginCollector: agentmodel.OriginCollector_datadogExporter,
+	}
+}
+
+// createClusterManifest creates a Cluster manifest to be sent after all nodes have been collected.
+// This is used to trigger cluster-level processing in the backend after node collection is complete.
+func createClusterManifest(clusterID string, nodeCount int) *agentmodel.Manifest {
+	// Create a minimal cluster resource
+	cluster := map[string]interface{}{
+		"apiVersion": "virtual.datadoghq.com/v1",
+		"kind":       "Cluster",
+		"metadata": map[string]interface{}{
+			"uid":             clusterID,
+			"resourceVersion": fmt.Sprintf("cluster-%d", time.Now().Unix()),
+			"name":            "cluster",
+			"annotations": map[string]interface{}{
+				"node-count": strconv.Itoa(nodeCount),
+				"synthetic":  "true",
+			},
+		},
+	}
+
+	content, _ := json.Marshal(cluster)
+
+	return &agentmodel.Manifest{
+		Type:            int32(getManifestType("Cluster")),
+		ResourceVersion: fmt.Sprintf("fake-%d", time.Now().Unix()),
+		Uid:             clusterID,
+		Content:         content,
+		ContentType:     "application/json",
+		Version:         "v1",
+		Tags:            append(buildCommonTags(), "synthetic:true", fmt.Sprintf("node_count:%d", nodeCount)),
+		IsTerminated:    false,
+		ApiVersion:      "virtual.datadoghq.com/v1",
+		Kind:            "Cluster",
 	}
 }
 
