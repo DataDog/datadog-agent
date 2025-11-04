@@ -71,7 +71,7 @@ type Config struct {
 
 // DatadogConfig represents the configuration to write in /etc/datadog-agent/datadog.yaml
 type DatadogConfig struct {
-	APIKey               string                     `yaml:"api_key"`
+	APIKey               string                     `yaml:"api_key,omitempty"`
 	Hostname             string                     `yaml:"hostname,omitempty"`
 	Site                 string                     `yaml:"site,omitempty"`
 	Proxy                DatadogConfigProxy         `yaml:"proxy,omitempty"`
