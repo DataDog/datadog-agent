@@ -124,9 +124,9 @@ func DedupAPIKeys(endpoints []APIKeys) []string {
 
 // EndpointDescriptor holds configuration about a single endpoint (aka domain) for infra pipelines.
 type EndpointDescriptor struct {
-	BaseURL    string
-	APIKeySet  []APIKeys
-	IsMRF      bool
+	BaseURL   string
+	APIKeySet []APIKeys
+	IsMRF     bool
 }
 
 // newEndpointDescriptor creates new EndpointDescriptor with minimal configuration and defaults filled in.
@@ -135,7 +135,7 @@ type EndpointDescriptor struct {
 func newEndpointDescriptor(domain string, apiKeySet []APIKeys) EndpointDescriptor {
 	baseURL, _ := AddAgentVersionToDomain(domain, "app")
 	return EndpointDescriptor{
-		BaseURL: baseURL,
+		BaseURL:   baseURL,
 		APIKeySet: apiKeySet,
 	}
 }
