@@ -951,8 +951,15 @@ func (t *Tracer) logConntrackProbeCounters(ebpfCt *ebpfConntracker) {
 		telemetry.Hash_insert_reverse_exists_count,
 		telemetry.Hash_insert_count)
 
-	log.Infof("JMW PROBE COUNTERS: confirm_entry=%d, confirm_return=%d, confirm_return_no_matching_entry_probe=%d, confirm_return_not_accepted=%d, confirm_return_not_confirmed=%d, confirm_return_failed_to_get_conntrack_tuples=%d, confirm_return_success=%d",
+	log.Infof("JMW PROBE COUNTERS: confirm_entry=%d, confirm_entry_skb_null=%d, confirm_entry_nfct_null=%d, confirm_entry_ct_null=%d, confirm_entry_not_nat=%d, confirm_entry_pending_added=%d",
 		telemetry.Confirm_entry_count,
+		telemetry.Confirm_entry_skb_null_count,
+		telemetry.Confirm_entry_nfct_null_count,
+		telemetry.Confirm_entry_ct_null_count,
+		telemetry.Confirm_entry_not_nat_count,
+		telemetry.Confirm_entry_pending_added_count)
+
+	log.Infof("JMW PROBE COUNTERS: confirm_return=%d, confirm_return_no_matching_entry_probe=%d, confirm_return_not_accepted=%d, confirm_return_not_confirmed=%d, confirm_return_failed_to_get_conntrack_tuples=%d, confirm_return_success=%d",
 		telemetry.Confirm_return_count,
 		telemetry.Confirm_return_no_matching_entry_probe_count,
 		telemetry.Confirm_return_not_accepted_count,
