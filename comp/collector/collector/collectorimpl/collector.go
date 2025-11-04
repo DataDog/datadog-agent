@@ -33,7 +33,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/runner"
 	"github.com/DataDog/datadog-agent/pkg/collector/runner/expvars"
 	"github.com/DataDog/datadog-agent/pkg/collector/scheduler"
-	_ "github.com/DataDog/datadog-agent/pkg/collector/sharedlibrary" // init shared library checks loader
+	"github.com/DataDog/datadog-agent/pkg/collector/sharedlibrary"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	collectorStatus "github.com/DataDog/datadog-agent/pkg/status/collector"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -137,6 +137,10 @@ func newCollector(deps dependencies) *collectorImpl {
 
 	if !deps.Config.GetBool("python_lazy_loading") {
 		python.InitPython(common.GetPythonPaths()...)
+	}
+
+	if deps.Config.GetBool("shared_library_check.enabled") {
+		sharedlibrary.InitSharedLibraryChecksLoader()
 	}
 
 	deps.Lc.Append(fx.Hook{
