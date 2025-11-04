@@ -6,6 +6,7 @@
 package gosnmplib
 
 import (
+	"context"
 	"strconv"
 	"strings"
 	"time"
@@ -26,7 +27,7 @@ const (
 // a next OID to walk from. Use e.g. SkipOIDRowsNaive to skip over additional
 // rows.
 // This code is adapated directly from gosnmp's walk function.
-func ConditionalWalk(session *gosnmp.GoSNMP, rootOID string, useBulk bool, callInterval time.Duration, walkFn func(dataUnit gosnmp.SnmpPDU) (string, error)) error {
+func ConditionalWalk(ctx context.Context, session *gosnmp.GoSNMP, rootOID string, useBulk bool, callInterval time.Duration, walkFn func(dataUnit gosnmp.SnmpPDU) (string, error)) error {
 	if rootOID == "" || rootOID == "." {
 		rootOID = baseOID
 	}
@@ -45,6 +46,13 @@ func ConditionalWalk(session *gosnmp.GoSNMP, rootOID string, useBulk bool, callI
 
 RequestLoop:
 	for {
+		select {
+		case <-ctx.Done():
+			session.Logger.Printf("ConditionalWalk cancelled after %d requests", requests)
+			return ctx.Err()
+		default:
+		}
+
 		if callInterval > 0 {
 			time.Sleep(callInterval)
 		}

@@ -9,6 +9,7 @@ package snmpscanmanagerimpl
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"sync"
 	"time"
 
@@ -55,9 +56,6 @@ func NewComponent(reqs Requires) (Provides, error) {
 		scanner:     reqs.Scanner,
 		agentConfig: reqs.Config,
 		httpClient:  reqs.HttpClient,
-
-		scanQueue:   make(chan snmpscanmanager.ScanRequest, scanQueueSize),
-		deviceScans: make(deviceScansByIP),
 	}
 	scanManager.loadCache()
 
@@ -85,23 +83,36 @@ type snmpScanManagerImpl struct {
 
 	scanQueue   chan snmpscanmanager.ScanRequest
 	deviceScans deviceScansByIP
-	mu          sync.Mutex
+
+	ctx        context.Context
+	cancelFunc context.CancelFunc
+	wg         sync.WaitGroup
+	mtx        sync.Mutex
 }
 
 func (m *snmpScanManagerImpl) start() {
+	m.scanQueue = make(chan snmpscanmanager.ScanRequest, scanQueueSize)
+	m.deviceScans = make(deviceScansByIP)
+
+	m.ctx, m.cancelFunc = context.WithCancel(context.Background())
+
 	for i := 0; i < scanWorkers; i++ {
+		m.wg.Add(1)
 		go m.scanWorker()
 	}
 }
 
 func (m *snmpScanManagerImpl) stop() {
 	close(m.scanQueue)
+
+	m.cancelFunc()
+	m.wg.Wait()
 }
 
 // RequestScan queues a new scan request when the device has not been already scanned
 func (m *snmpScanManagerImpl) RequestScan(req snmpscanmanager.ScanRequest) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
+	m.mtx.Lock()
+	defer m.mtx.Unlock()
 
 	if m.agentConfig.GetBool("network_devices.default_scan.disabled") {
 		return
@@ -126,6 +137,8 @@ func (m *snmpScanManagerImpl) RequestScan(req snmpscanmanager.ScanRequest) {
 }
 
 func (m *snmpScanManagerImpl) scanWorker() {
+	defer m.wg.Done()
+
 	for req := range m.scanQueue {
 		err := m.processScanRequest(req)
 		if err != nil {
@@ -135,6 +148,12 @@ func (m *snmpScanManagerImpl) scanWorker() {
 }
 
 func (m *snmpScanManagerImpl) processScanRequest(req snmpscanmanager.ScanRequest) error {
+	select {
+	case <-m.ctx.Done():
+		return nil
+	default:
+	}
+
 	instanceConfig, err := snmpparse.GetParamsFromAgent(req.DeviceIP, m.agentConfig, m.httpClient)
 	if err != nil {
 		m.log.Errorf("Error getting instance config for device %s: %v", req.DeviceIP, err)
@@ -146,11 +165,16 @@ func (m *snmpScanManagerImpl) processScanRequest(req snmpscanmanager.ScanRequest
 		return err
 	}
 
-	err = m.scanner.ScanDeviceAndSendData(instanceConfig, req.Namespace, snmpscan.ScanParams{
-		ScanType:     metadata.DefaultScan,
-		CallInterval: snmpCallInterval,
-	})
+	err = m.scanner.ScanDeviceAndSendData(m.ctx, instanceConfig, req.Namespace,
+		snmpscan.ScanParams{
+			ScanType:     metadata.DefaultScan,
+			CallInterval: snmpCallInterval,
+		})
 	if err != nil {
+		if errors.Is(err, context.Canceled) {
+			return nil
+		}
+
 		m.log.Errorf("Error processing scan request for device %s: %v", req.DeviceIP, err)
 		m.setDeviceScan(deviceScan{
 			DeviceIP:   req.DeviceIP,
@@ -171,8 +195,8 @@ func (m *snmpScanManagerImpl) processScanRequest(req snmpscanmanager.ScanRequest
 }
 
 func (m *snmpScanManagerImpl) loadCache() {
-	m.mu.Lock()
-	defer m.mu.Unlock()
+	m.mtx.Lock()
+	defer m.mtx.Unlock()
 
 	cacheValue, err := persistentcache.Read(cacheKey)
 	if err != nil {
@@ -196,8 +220,8 @@ func (m *snmpScanManagerImpl) loadCache() {
 }
 
 func (m *snmpScanManagerImpl) writeCache() {
-	m.mu.Lock()
-	defer m.mu.Unlock()
+	m.mtx.Lock()
+	defer m.mtx.Unlock()
 
 	var deviceScans []deviceScan
 	for _, scan := range m.deviceScans {
@@ -219,8 +243,8 @@ func (m *snmpScanManagerImpl) writeCache() {
 }
 
 func (m *snmpScanManagerImpl) setDeviceScan(deviceScan deviceScan) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
+	m.mtx.Lock()
+	defer m.mtx.Unlock()
 
 	m.deviceScans[deviceScan.DeviceIP] = deviceScan
 }
