@@ -92,7 +92,7 @@ var legacyConvertArrayToMap = func(c *mapstructure.DecoderConfig) {
 // Else the viper/legacy version is used.
 func UnmarshalKey(cfg model.Reader, key string, target interface{}, opts ...UnmarshalKeyOption) error {
 	nodetreemodel := os.Getenv("DD_CONF_NODETREEMODEL")
-	if nodetreemodel == "enable" || nodetreemodel == "unmarshal" {
+	if nodetreemodel == "enable" || nodetreemodel == "unmarshal" || true {
 		return unmarshalKeyReflection(cfg, key, target, opts...)
 	}
 
