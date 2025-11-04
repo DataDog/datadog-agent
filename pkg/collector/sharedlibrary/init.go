@@ -33,8 +33,6 @@ func init() {
 		loaders.RegisterLoader(factory)
 
 		log.Infof("Shared library checks are enabled. Looking for shared libraries in %q.", libFolderPath)
-		log.Warn("Shared library checks are still experimental. Be careful when using it, breaking changes can be made.")
-	} else {
-		log.Info("Shared library checks are disabled.")
+		log.Warn("Shared library checks are still experimental. Be careful when using it, breaking changes may be made.")
 	}
 }
