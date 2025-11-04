@@ -34,6 +34,7 @@ var moduleOrder = []types.ModuleName{
 	config.SoftwareInventoryModule,
 	config.PrivilegedLogsModule,
 	config.InjectorModule,
+	config.NoisyNeighborModule,
 }
 
 // nolint: deadcode, unused // may be unused with certain build tag combinations
