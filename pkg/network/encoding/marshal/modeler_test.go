@@ -48,7 +48,7 @@ func TestConnectionModelerAgentConfiguration(t *testing.T) {
 			mock.NewSystemProbe(t)
 			cfgOnce = sync.Once{}
 			conns := &network.Connections{}
-			mod := NewConnectionsModeler(conns)
+			mod, _ := NewConnectionsModeler(conns)
 			streamer := NewProtoTestStreamer[*model.Connections]()
 			builder := model.NewConnectionsBuilder(streamer)
 			expected := &model.AgentConfiguration{
