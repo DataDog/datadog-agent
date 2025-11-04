@@ -8,6 +8,8 @@ package telemetry
 
 import (
 	"net/http"
+	"regexp"
+	"slices"
 )
 
 // team: agent-runtimes
@@ -54,4 +56,51 @@ type Component interface {
 
 	// Gather exposes metrics from the general or default telemetry registry (see options.DefaultMetric)
 	Gather(defaultGather bool) ([]*MetricFamily, error)
+
+	// GatherText exposes metrics from the general or default telemetry registry (see options.DefaultMetric) in text format
+	GatherText(defaultGather bool, filter MetricFilter) (string, error)
+}
+
+// MetricFilter is a function that filters metrics based on their name
+// It returns true if the metric should be included, false if it should be excluded
+type MetricFilter func(*MetricFamily) bool
+
+// NoFilter returns a MetricFilter that includes all metrics
+// This is not recommended since it will heavily impact costs
+func NoFilter(*MetricFamily) bool {
+	return true
+}
+
+// StaticMetricFilter filters metrics based on their name
+// It returns true if the metric name is in the list, false otherwise
+func StaticMetricFilter(metricNames ...string) MetricFilter {
+	return func(mf *MetricFamily) bool {
+		return slices.Contains(metricNames, *mf.Name)
+	}
+}
+
+// RegexMetricFilter filters metrics based on their name using regular expressions
+// It returns true if the metric name matches at least one of the regular expressions, false otherwise
+func RegexMetricFilter(regexes ...regexp.Regexp) MetricFilter {
+	return func(mf *MetricFamily) bool {
+		for _, regex := range regexes {
+			if regex.MatchString(*mf.Name) {
+				return true
+			}
+		}
+		return false
+	}
+}
+
+// BatchMetricFilter combines multiple MetricFilters into a single MetricFilter
+// It returns true if at least one of the filters return true, false otherwise
+func BatchMetricFilter(filters ...MetricFilter) MetricFilter {
+	return func(mf *MetricFamily) bool {
+		for _, filter := range filters {
+			if filter(mf) {
+				return true
+			}
+		}
+		return false
+	}
 }

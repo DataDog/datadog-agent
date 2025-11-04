@@ -104,8 +104,8 @@ func TestGetTelemetry(t *testing.T) {
 	require.NotNil(t, bazMetric)
 	assert.Equal(t, bazMetric.GetType(), io_prometheus_client.MetricType_GAUGE)
 	assert.Equal(t, bazMetric.GetMetric()[0].GetGauge().GetValue(), 3.0)
-	assert.Equal(t, bazMetric.GetMetric()[0].GetLabel()[0].GetValue(), "1")
-	assert.Equal(t, bazMetric.GetMetric()[0].GetLabel()[1].GetValue(), "two")
+	assert.Equal(t, bazMetric.GetMetric()[0].GetLabel()[1].GetValue(), "1")
+	assert.Equal(t, bazMetric.GetMetric()[0].GetLabel()[2].GetValue(), "two")
 }
 
 func TestStatusProvider(t *testing.T) {
