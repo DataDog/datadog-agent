@@ -915,7 +915,20 @@ func (w *workloadmeta) notifyChannel(name string, ch chan wmdef.EventBundle, eve
 		Ch:     make(chan struct{}),
 		Events: events,
 	}
-	ch <- bundle
+
+	// Send with timeout to prevent indefinite blocking
+	select {
+	case ch <- bundle:
+		// Successfully sent
+	case <-time.After(eventBundleChTimeout):
+		// Timeout sending to channel - subscriber not reading
+		log.Warnf("collector %q channel send timed out after %v, subscriber may be blocked. bundle size: %d", name, eventBundleChTimeout, len(bundle.Events))
+		telemetry.NotificationsSent.Inc(name, telemetry.StatusError)
+		// Close acknowledgment channel to prevent resource leak
+		close(bundle.Ch)
+		return
+	}
+
 	if wait {
 		select {
 		case <-bundle.Ch:
