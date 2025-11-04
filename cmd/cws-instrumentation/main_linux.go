@@ -14,7 +14,7 @@ import (
 )
 
 func main() {
-	rootCmd := command.MakeCommand(subcommands.CWSInjectorSubcommands())
+	rootCmd := command.MakeCommand(subcommands.CWSInjectorSubcommands)
 
 	if err := rootCmd.Execute(); err != nil {
 		// the error has already been printed

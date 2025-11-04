@@ -35,9 +35,19 @@ var defaultLinesConfig = &types.FingerprintConfig{
 	Source:              types.FingerprintConfigSourceDefault,
 }
 
-// Fingerprinter is a struct that contains the fingerprinting configuration
-type Fingerprinter struct {
-	FingerprintConfig types.FingerprintConfig
+// Fingerprinter is an interface that defines the methods for fingerprinting files
+type Fingerprinter interface {
+	// ShouldFileFingerprint returns whether or not a given file should be fingerprinted to detect rotation and truncation
+	ShouldFileFingerprint(file *File) bool
+	// ComputeFingerprint computes the fingerprint for the given file path
+	ComputeFingerprint(file *File) (*types.Fingerprint, error)
+	// ComputeFingerprintFromConfig computes the fingerprint for the given file path using a specific config
+	ComputeFingerprintFromConfig(filepath string, fingerprintConfig *types.FingerprintConfig) (*types.Fingerprint, error)
+}
+
+// fingerprinterImpl is a struct that contains the fingerprinting configuration
+type fingerprinterImpl struct {
+	globalConfig types.FingerprintConfig
 }
 
 // FingerprintConfigInfo holds fingerprint configuration for status display
@@ -46,9 +56,9 @@ type FingerprintConfigInfo struct {
 }
 
 // NewFingerprinter creates a new Fingerprinter with the given configuration
-func NewFingerprinter(fingerprintConfig types.FingerprintConfig) *Fingerprinter {
-	return &Fingerprinter{
-		FingerprintConfig: fingerprintConfig,
+func NewFingerprinter(fingerprintConfig types.FingerprintConfig) Fingerprinter {
+	return &fingerprinterImpl{
+		globalConfig: fingerprintConfig,
 	}
 }
 
@@ -62,7 +72,7 @@ func newInvalidFingerprint(config *types.FingerprintConfig) *types.Fingerprint {
 var crc64Table = crc64.MakeTable(crc64.ISO)
 
 // ShouldFileFingerprint returns whether or not a given file should be fingerprinted to detect rotation and truncation
-func (f *Fingerprinter) ShouldFileFingerprint(file *File) bool {
+func (f *fingerprinterImpl) ShouldFileFingerprint(file *File) bool {
 	fileFingerprintConfig := file.Source.Config().FingerprintConfig
 
 	// Check per-source config first (takes precedence over global config)
@@ -76,20 +86,11 @@ func (f *Fingerprinter) ShouldFileFingerprint(file *File) bool {
 	}
 
 	// Now, check global config
-	globalConfig := f.GetGlobalFingerprintConfig()
-	if globalConfig == nil {
-		return false
-	}
-
-	if globalConfig.FingerprintStrategy == types.FingerprintStrategyDisabled {
-		return false
-	}
-
-	return true
+	return f.globalConfig.FingerprintStrategy != types.FingerprintStrategyDisabled
 }
 
 // ComputeFingerprintFromConfig computes the fingerprint for the given file path using a specific config
-func (f *Fingerprinter) ComputeFingerprintFromConfig(filepath string, fingerprintConfig *types.FingerprintConfig) (*types.Fingerprint, error) {
+func (f *fingerprinterImpl) ComputeFingerprintFromConfig(filepath string, fingerprintConfig *types.FingerprintConfig) (*types.Fingerprint, error) {
 	if fingerprintConfig != nil && fingerprintConfig.FingerprintStrategy == types.FingerprintStrategyDisabled {
 		return newInvalidFingerprint(fingerprintConfig), nil
 	}
@@ -97,7 +98,7 @@ func (f *Fingerprinter) ComputeFingerprintFromConfig(filepath string, fingerprin
 }
 
 // ComputeFingerprint computes the fingerprint for the given file path
-func (f *Fingerprinter) ComputeFingerprint(file *File) (*types.Fingerprint, error) {
+func (f *fingerprinterImpl) ComputeFingerprint(file *File) (*types.Fingerprint, error) {
 	if file == nil {
 		log.Warnf("file is nil, skipping fingerprinting")
 		return newInvalidFingerprint(nil), nil
@@ -126,13 +127,7 @@ func (f *Fingerprinter) ComputeFingerprint(file *File) (*types.Fingerprint, erro
 
 	// If per-source config exists but no strategy is set, or no per-source config exists,
 	// fall back to global config
-	fingerprintConfig := f.GetGlobalFingerprintConfig()
-	if fingerprintConfig == nil {
-		return newInvalidFingerprint(nil), nil
-	}
-
-	// Use the global config directly since it's already the right type
-	return computeFingerprint(file.Path, fingerprintConfig)
+	return computeFingerprint(file.Path, &f.globalConfig)
 }
 
 // computeFingerprint computes the fingerprint for the given file path
@@ -246,16 +241,9 @@ func computeFingerPrintByLines(fpFile *os.File, filePath string, fingerprintConf
 	return &types.Fingerprint{Value: checksum, Config: fingerprintConfig}, nil
 }
 
-// GetGlobalFingerprintConfig returns the fingerprint configuration with Source set to global
-func (f *Fingerprinter) GetGlobalFingerprintConfig() *types.FingerprintConfig {
-	config := f.FingerprintConfig
-	config.Source = types.FingerprintConfigSourceGlobal
-	return &config
-}
-
 // GetEffectiveConfigForFile returns the fingerprint configuration that applies to a file
 // for status display purposes. This returns the config even when fingerprinting is disabled.
-func (f *Fingerprinter) GetEffectiveConfigForFile(file *File) *types.FingerprintConfig {
+func (f *fingerprinterImpl) GetEffectiveConfigForFile(file *File) *types.FingerprintConfig {
 	if file == nil {
 		return nil
 	}
@@ -275,7 +263,7 @@ func (f *Fingerprinter) GetEffectiveConfigForFile(file *File) *types.Fingerprint
 	}
 
 	// Fall back to global config
-	return f.GetGlobalFingerprintConfig()
+	return &f.globalConfig
 }
 
 // InfoKey returns the key for this info

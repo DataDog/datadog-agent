@@ -122,7 +122,8 @@ const (
 	ContainerRuntimeGarden     ContainerRuntime = "garden"
 	// ECS Fargate can be considered as a runtime in the sense that we don't
 	// know the actual runtime but we need to identify it's Fargate
-	ContainerRuntimeECSFargate ContainerRuntime = "ecsfargate"
+	ContainerRuntimeECSFargate          ContainerRuntime = "ecsfargate"
+	ContainerRuntimeECSManagedInstances ContainerRuntime = "ecsmanagedinstances"
 )
 
 // ContainerRuntimeFlavor is the container runtime with respect to the OCI spect
@@ -162,8 +163,9 @@ type ECSLaunchType string
 
 // Defined ECSLaunchTypes
 const (
-	ECSLaunchTypeEC2     ECSLaunchType = "ec2"
-	ECSLaunchTypeFargate ECSLaunchType = "fargate"
+	ECSLaunchTypeEC2              ECSLaunchType = "ec2"
+	ECSLaunchTypeFargate          ECSLaunchType = "fargate"
+	ECSLaunchTypeManagedInstances ECSLaunchType = "managed_instances"
 )
 
 // AgentType defines the workloadmeta agent type
