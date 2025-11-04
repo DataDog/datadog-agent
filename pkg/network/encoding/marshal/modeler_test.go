@@ -6,11 +6,13 @@
 package marshal
 
 import (
+	"fmt"
 	"strconv"
 	"sync"
 	"testing"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -66,4 +68,25 @@ func TestConnectionModelerAgentConfiguration(t *testing.T) {
 			assert.Equal(t, expected, actual.AgentConfiguration)
 		})
 	}
+}
+
+func TestConnectionModelerError(t *testing.T) {
+	// ARRANGE
+	originalRootNSPID := kernel.RootNSPID
+	defer func() { // restore original kernel.RootNSPID memoized function
+		kernel.RootNSPID = originalRootNSPID
+	}()
+
+	kernel.RootNSPID = func() (int, error) {
+		return 0, fmt.Errorf("some RootNSPID error")
+	}
+	mock.NewSystemProbe(t)
+
+	// ACT
+	conns := &network.Connections{}
+	mod, err := NewConnectionsModeler(conns)
+
+	// ASSERT
+	require.EqualError(t, err, "failed to get root namespace PID: some RootNSPID error")
+	assert.Nil(t, mod)
 }
