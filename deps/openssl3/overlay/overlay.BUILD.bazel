@@ -37,23 +37,32 @@ exports_files([
 VERSION = "3.5.2"
 SONAME = "libcrypto.so.%s" % VERSION
 
+# These are found by examining the output of configure / make
 LOCAL_DEFINES = [
-    "-DOPENSSLDIR='\"/opt/datadog/embedded/ssl/cacerts\"'",
-    "-DENGINESDIR='\"/opt/datadog/embedded/lib/engines-3\"'",
-    "-DMODULESDIR='\"/opt/datadog/embedded/lib/ossl-modules\"'",
-    "-DBSAES_ASM",
-    "-DECP_NISTZ256_ASM",
-    "-DECP_SM2P256_ASM",
-    "-DKECCAK1600_ASM",
-    "-DOPENSSL_CPUID_OBJ",
-    "-DSHA1_ASM",
-    "-DSHA256_ASM",
-    "-DSHA512_ASM",
-    "-DSM4_ASM",
-    "-DVPAES_ASM",
-    "-DVPSM4_ASM",
-    "-DL_ENDIAN",
-    "-DOPENSSL_PIC",
+    "OPENSSLDIR='\"/usr/local/ssl\"'",
+    "ENGINESDIR='\"/usr/local/lib/engines-3\"'",
+    "MODULESDIR='\"/usr/local/lib/ossl-modules\"'",
+    "_REENTRANT",
+    "BSAES_ASM",
+    "ECP_NISTZ256_ASM",
+    "ECP_SM2P256_ASM",
+    "KECCAK1600_ASM",
+    "L_ENDIAN",
+    "OPENSSL_CPUID_OBJ",
+    "OPENSSL_PIC",
+    "SHA1_ASM",
+    "SHA256_ASM",
+    "SHA512_ASM",
+    "SM4_ASM",
+    "VPAES_ASM",
+    "VPSM4_ASM",
+]
+
+DARWIN_ARM64_DEFINES = [
+    "OPENSSL_BN_ASM_MONT",
+    "OPENSSL_SM3_ASM",
+    "POLY1305_ASM",
+    "ZLIB",
 ]
 
 ARCH_HDRS_COND = {
@@ -104,13 +113,20 @@ cc_library(
             "darwin_arm64/providers/common/include",
         ],
     }),
-    copts = LOCAL_DEFINES + select({
+    local_defines = LOCAL_DEFINES + select({
+        "@platforms//os:macos": DARWIN_ARM64_DEFINES,
+    }),
+    copts = select({
         "@platforms//os:linux": [
             "-fPIC",
+            # O3 and NDEBUG a pair you should consider together, that is why
+            # it is a copt rather than define.
+            "-DNDEBUG",
             "-O3",
         ],
         "@platforms//os:macos": [
             "-fPIC",
+            "-DNDEBUG",
             "-O3",
         ],
     }),
@@ -126,28 +142,9 @@ cc_library(
 )
 
 """Grabbed from live build.
-
 sm2_sig.d.tmp -c -o providers/implementations/signature/libdefault-lib-sm2_sig.o ../openssl-3.5.2-pristine/providers/implementations/signature/sm2_sig.c
 cc  -I. -Icrypto -Iinclude -Iproviders/implementations/include -Iproviders/common/include -Iproviders/fips/include -I../openssl-3.5.2-pristine -I../openssl-3.5.2-pristine/crypto -I../openssl-3.5.2-pristine/include -I../openssl-3.5.2-pristine/providers/implementations/include -I../openssl-3.5.2-pristine/providers/common/include -I../openssl-3.5.2-pristine/providers/fips/include
--DBSAES_ASM
--DECP_NISTZ256_ASM
--DECP_SM2P256_ASM
--DKECCAK1600_ASM
--DOPENSSL_CPUID_OBJ
--DSHA1_ASM
--DSHA256_ASM
--DSHA512_ASM
--DSM4_ASM
--DVPAES_ASM
--DVPSM4_ASM -fPIC -arch arm64 -O3 -Wall
--DL_ENDIAN
--DOPENSSL_PIC
 -DOPENSSLDIR="\"/opt/datadog/embedded/ssl\""
--DENGINESDIR="\"/opt/datadog/embedded/lib/engines-3\""
--DMODULESDIR="\"/opt/datadog/embedded/lib/ossl-modules\""
 -D_REENTRANT
 -DOPENSSL_BUILDING_OPENSSL
--DZLIB
--DNDEBUG
- -I/opt/datadog/embedded/include  -MMD -MF providers/implementations/skeymgmt/libdefault-lib-aes_skmgmt.d.tmp -c -o providers/implementations/skeymgmt/libdefault-lib-aes_skmgmt.o ../openssl-3.5.2-pristine/providers/implementations/skeymgmt/aes_skmgmt.c
 """
