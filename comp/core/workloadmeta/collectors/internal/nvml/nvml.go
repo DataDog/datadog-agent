@@ -151,15 +151,21 @@ func (c *collector) fillProcesses(gpuDeviceInfo *workloadmeta.GPU, device ddnvml
 	}
 }
 
+// newCollector creates a new collector with the default values, useful for testing.
+func newCollector(store workloadmeta.Component) *collector {
+	return &collector{
+		id:        collectorID,
+		catalog:   workloadmeta.NodeAgent,
+		seenUUIDs: map[string]struct{}{},
+		seenPIDs:  make(map[int][]string),
+		store:     store,
+	}
+}
+
 // NewCollector returns a kubelet CollectorProvider that instantiates its collector
 func NewCollector() (workloadmeta.CollectorProvider, error) {
 	return workloadmeta.CollectorProvider{
-		Collector: &collector{
-			id:        collectorID,
-			catalog:   workloadmeta.NodeAgent,
-			seenUUIDs: map[string]struct{}{},
-			seenPIDs:  make(map[int][]string),
-		},
+		Collector: newCollector(nil),
 	}, nil
 }
 
@@ -295,6 +301,7 @@ func (c *collector) createProcessEvents(currentPIDs map[int][]string) []workload
 					Kind: workloadmeta.KindProcess,
 					ID:   strconv.Itoa(int(pid)),
 				},
+				Pid:  int32(pid),
 				GPUs: gpuEntityIDs,
 			},
 		})
