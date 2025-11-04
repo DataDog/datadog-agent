@@ -11,6 +11,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log/types"
 )
 
+// LoggerInterface provides basic logging methods that can be used from outside the log package.
 type LoggerInterface = types.LoggerInterface
 
 // Default returns a default logger
