@@ -9,13 +9,19 @@ package fleetbackend
 import (
 	"encoding/json"
 	"fmt"
+	"os"
+	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
 	e2eos "github.com/DataDog/test-infra-definitions/components/os"
 	"github.com/avast/retry-go/v4"
+	"github.com/google/go-containerregistry/pkg/crane"
+	v1 "github.com/google/go-containerregistry/pkg/v1"
+	"golang.org/x/mod/semver"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 )
@@ -107,6 +113,42 @@ func (b *Backend) StopConfigExperiment() error {
 	return nil
 }
 
+// StartExperiment starts an update experiment for the given package.
+func (b *Backend) StartExperiment(pkg string, version string) error {
+	b.t().Logf("Starting update experiment for package %s version %s", pkg, version)
+	err := b.setCatalog()
+	if err != nil {
+		return fmt.Errorf("error setting catalog: %w", err)
+	}
+	output, err := b.runDaemonCommandWithRestart("start-experiment", pkg, version)
+	if err != nil {
+		return fmt.Errorf("%w, output: %s", err, output)
+	}
+	b.t().Logf("Experiment started")
+	return nil
+}
+
+func (b *Backend) PromoteExperiment(pkg string) error {
+	b.t().Logf("Promoting update experiment for package %s", pkg)
+	output, err := b.runDaemonCommandWithRestart("promote-experiment", pkg)
+	if err != nil {
+		return fmt.Errorf("%w, output: %s", err, output)
+	}
+	b.t().Logf("Experiment promoted")
+	return nil
+}
+
+// StopExperiment stops an update experiment for the given package.
+func (b *Backend) StopExperiment(pkg string) error {
+	b.t().Logf("Stopping update experiment for package %s", pkg)
+	output, err := b.runDaemonCommandWithRestart("stop-experiment", pkg)
+	if err != nil {
+		return fmt.Errorf("%w, output: %s", err, output)
+	}
+	b.t().Logf("Experiment stopped")
+	return nil
+}
+
 // RemoteConfigStatusPackage returns the status of the remote config for a given package.
 func (b *Backend) RemoteConfigStatusPackage(packageName string) (RemoteConfigStatePackage, error) {
 	status, err := b.RemoteConfigStatus()
@@ -133,6 +175,139 @@ func (b *Backend) RemoteConfigStatus() (RemoteConfigState, error) {
 		return RemoteConfigState{}, err
 	}
 	return remoteConfigState, nil
+}
+
+// Branch is the branch of the package.
+type Branch string
+
+const (
+	// BranchStable is the stable branch of the package.
+	BranchStable Branch = "stable"
+	// BranchTesting is the testing branch of the package.
+	BranchTesting Branch = "testing"
+)
+
+type catalogEntry struct {
+	Package string `json:"package"`
+	Version string `json:"version"`
+	URL     string `json:"url"`
+
+	branch Branch
+}
+
+// Catalog is the catalog of available packages.
+type Catalog struct {
+	packages []catalogEntry
+}
+
+// Latest returns the latest version for a given package and branch.
+func (c *Catalog) Latest(pkg string, branch Branch) string {
+	return c.LatestMinus(pkg, branch, 0)
+}
+
+// LatestMinus returns the version that is N versions behind the latest, for a given package and branch.
+func (c *Catalog) LatestMinus(pkg string, branch Branch, minus int) string {
+	var currentMinor string
+	for _, entry := range c.packages {
+		if entry.Package != pkg || entry.branch != branch {
+			continue
+		}
+		if currentMinor == "" {
+			currentMinor = semver.MajorMinor(entry.Version)
+		}
+		if semver.MajorMinor(entry.Version) != currentMinor {
+			minus--
+		}
+		if minus == 0 {
+			return entry.Version
+		}
+	}
+	panic(fmt.Errorf("package %s %s %d not found", pkg, branch, minus))
+}
+
+func (b *Backend) setCatalog() error {
+	b.t().Logf("Setting catalog")
+	catalog := b.Catalog()
+	serializedCatalog, err := json.Marshal(struct {
+		Packages []catalogEntry `json:"packages"`
+	}{
+		Packages: catalog.packages,
+	})
+	if err != nil {
+		return err
+	}
+	output, err := b.runDaemonCommand("set-catalog", string(serializedCatalog))
+	if err != nil {
+		return fmt.Errorf("%w, output: %s", err, output)
+	}
+	return nil
+}
+
+var cachedCatalog *Catalog
+var cachedCatalogOnce sync.Once
+
+// Catalog returns the catalog.
+func (b *Backend) Catalog() *Catalog {
+	cachedCatalogOnce.Do(func() {
+		catalog, err := b.getCatalog()
+		if err != nil {
+			b.t().Fatalf("error getting catalog: %v", err)
+			return
+		}
+		cachedCatalog = catalog
+	})
+	return cachedCatalog
+}
+
+func (b *Backend) getCatalog() (*Catalog, error) {
+	var catalog Catalog
+
+	urls := []string{fmt.Sprintf("installtesting.datad0g.com/agent-package:pipeline-%s", os.Getenv("E2E_PIPELINE_ID"))}
+	var prodTags []string
+	err := retry.Do(func() error {
+		var err error
+		prodTags, err = getImagesTags("install.datadoghq.com/agent-package")
+		return err
+	}, retry.Attempts(10), retry.Delay(1*time.Second), retry.DelayType(retry.FixedDelay))
+	if err != nil {
+		return nil, err
+	}
+	for _, tag := range prodTags {
+		urls = append(urls, fmt.Sprintf("install.datadoghq.com/agent-package:%s", tag))
+	}
+	for _, url := range urls {
+		var version string
+		err := retry.Do(func() error {
+			var err error
+			version, err = getImageVersion(url)
+			return err
+		}, retry.Attempts(10), retry.Delay(1*time.Second), retry.DelayType(retry.FixedDelay))
+		if err != nil {
+			return nil, err
+		}
+		var branch Branch
+		switch {
+		case strings.HasPrefix(url, "installtesting.datad0g.com"):
+			url = strings.Replace(url, "installtesting.datad0g.com", "installtesting.datad0g.com.internal.dda-testing.com", 1)
+			branch = BranchTesting
+		case strings.HasPrefix(url, "install.datadoghq.com"):
+			url = strings.Replace(url, "install.datadoghq.com", "install.datadoghq.com.internal.dda-testing.com", 1)
+			branch = BranchStable
+		default:
+			return nil, fmt.Errorf("unsupported URL: %s", url)
+		}
+		catalog.packages = append(catalog.packages, catalogEntry{
+			Package: "datadog-agent",
+			Version: version,
+			URL:     fmt.Sprintf("oci://%s", url),
+			branch:  branch,
+		})
+	}
+	sort.Slice(catalog.packages, func(i, j int) bool {
+		return semver.Compare("v"+catalog.packages[i].Version, "v"+catalog.packages[j].Version) > 0
+	})
+	cachedCatalog = &catalog
+	return cachedCatalog, nil
 }
 
 func (b *Backend) runDaemonCommandWithRestart(command string, args ...string) (string, error) {
@@ -230,4 +405,32 @@ func (b *Backend) getDaemonPID() (int, error) {
 		return 0, fmt.Errorf("daemon PID is 0")
 	}
 	return strconv.Atoi(pid)
+}
+
+func getImageVersion(ref string) (string, error) {
+	p := v1.Platform{
+		OS:           "linux",
+		Architecture: "amd64",
+	}
+	raw, err := crane.Manifest(ref, crane.WithPlatform(&p))
+	if err != nil {
+		return "", err
+	}
+	var m v1.Manifest
+	if err := json.Unmarshal(raw, &m); err != nil {
+		return "", err
+	}
+	version, ok := m.Annotations["com.datadoghq.package.version"]
+	if !ok {
+		return "", fmt.Errorf("com.datadoghq.package.version annotation not found in manifest")
+	}
+	return version, nil
+}
+
+func getImagesTags(src string) ([]string, error) {
+	tags, err := crane.ListTags(src)
+	if err != nil {
+		return nil, err
+	}
+	return tags, nil
 }

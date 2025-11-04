@@ -16,7 +16,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	"github.com/DataDog/datadog-agent/test/new-e2e/tests/fleet/agent"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/fleet/fleetbackend"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/fleet/suite"
 )
@@ -34,7 +33,7 @@ func TestFleetConfig(t *testing.T) {
 }
 
 func (s *configSuite) TestConfig() {
-	s.Agent.MustInstall(agent.WithRemoteUpdates())
+	s.Agent.MustInstall()
 	defer s.Agent.MustUninstall()
 
 	err := s.Backend.StartConfigExperiment(fleetbackend.ConfigOperations{
@@ -54,7 +53,7 @@ func (s *configSuite) TestConfig() {
 }
 
 func (s *configSuite) TestConfigFailureCrash() {
-	s.Agent.MustInstall(agent.WithRemoteUpdates())
+	s.Agent.MustInstall()
 	defer s.Agent.MustUninstall()
 
 	err := s.Backend.StartConfigExperiment(fleetbackend.ConfigOperations{
@@ -69,7 +68,7 @@ func (s *configSuite) TestConfigFailureCrash() {
 }
 
 func (s *configSuite) TestConfigFailureTimeout() {
-	s.Agent.MustInstall(agent.WithRemoteUpdates())
+	s.Agent.MustInstall()
 	defer s.Agent.MustUninstall()
 	s.Agent.MustSetExperimentTimeout(60 * time.Second)
 	defer s.Agent.MustUnsetExperimentTimeout()
@@ -95,7 +94,7 @@ func (s *configSuite) TestConfigFailureHealth() {
 	if s.Env().RemoteHost.OSFlavor == e2eos.CentOS && s.Env().RemoteHost.OSVersion == e2eos.CentOS7.Version {
 		s.T().Skip("FIXME: Broken on CentOS 7 for some unknown reason")
 	}
-	s.Agent.MustInstall(agent.WithRemoteUpdates())
+	s.Agent.MustInstall()
 	defer s.Agent.MustUninstall()
 
 	err := s.Backend.StartConfigExperiment(fleetbackend.ConfigOperations{
