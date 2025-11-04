@@ -136,11 +136,9 @@ func TestSQLObfuscationMode(t *testing.T) {
 }
 
 func TestInECSManagedInstancesSidecar(t *testing.T) {
-	os.Setenv("DD_ECS_DEPLOYMENT_MODE", "sidecar")
-	os.Setenv("AWS_EXECUTION_ENV", "AWS_ECS_MANAGED_INSTANCES")
+	t.Setenv("DD_ECS_DEPLOYMENT_MODE", "sidecar")
+	t.Setenv("AWS_EXECUTION_ENV", "AWS_ECS_MANAGED_INSTANCES")
 	isSidecar := inECSManagedInstancesSidecar()
-	os.Unsetenv("DD_ECS_DEPLOYMENT_MODE")
-	os.Unsetenv("AWS_EXECUTION_ENV")
 
 	assert.True(t, isSidecar)
 }
