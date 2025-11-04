@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/agent"
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
 	traceconfig "github.com/DataDog/datadog-agent/pkg/trace/config"
+	"github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/DataDog/datadog-agent/pkg/trace/stats"
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/trace/timing"
@@ -144,10 +145,12 @@ func (p *TraceAgent) Ingest(ctx context.Context, traces ptrace.Traces) {
 	rspanss := traces.ResourceSpans()
 	for i := 0; i < rspanss.Len(); i++ {
 		rspans := rspanss.At(i)
-		p.OTLPReceiver.ReceiveResourceSpans(ctx, rspans, http.Header{}, nil)
+		_, err := p.OTLPReceiver.ReceiveResourceSpans(ctx, rspans, http.Header{}, nil)
 		// ...the call transforms the OTLP Spans into a Datadog payload and sends the result
 		// down the p.pchan channel
-
+		if err != nil {
+			log.Warn(err)
+		}
 	}
 }
 

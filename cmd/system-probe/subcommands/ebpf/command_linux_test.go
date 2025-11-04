@@ -211,14 +211,21 @@ func TestDumpLargeKeyValue(t *testing.T) {
 	require.NoError(t, err)
 
 	require.Len(t, entries, 1)
-	require.Len(t, entries[0].Key, 64, "Key should have 64 bytes")
-	require.Len(t, entries[0].Value, 128, "Value should have 128 bytes")
+
+	// Type assert to hex array format (since map has no BTF)
+	keyArray, ok := entries[0].Key.([]interface{})
+	require.True(t, ok, "Key should be an array")
+	require.Len(t, keyArray, 64, "Key should have 64 bytes")
+
+	valueArray, ok := entries[0].Value.([]interface{})
+	require.True(t, ok, "Value should be an array")
+	require.Len(t, valueArray, 128, "Value should have 128 bytes")
 
 	// Verify some byte values
-	require.Equal(t, "0x00", entries[0].Key[0])
-	require.Equal(t, "0x3f", entries[0].Key[63]) // 63 in hex
-	require.Equal(t, "0x00", entries[0].Value[0])
-	require.Equal(t, "0xfe", entries[0].Value[127]) // 127*2 = 254
+	require.Equal(t, "0x00", keyArray[0])
+	require.Equal(t, "0x3f", keyArray[63]) // 63 in hex
+	require.Equal(t, "0x00", valueArray[0])
+	require.Equal(t, "0xfe", valueArray[127]) // 127*2 = 254
 }
 
 func TestFindMapByNameNotFound(t *testing.T) {

@@ -237,6 +237,21 @@ func getPassthroughPipelines() []passthroughPipelineDesc {
 			defaultBatchMaxSize:           pkgconfigsetup.DefaultBatchMaxSize,
 			defaultInputChanSize:          pkgconfigsetup.DefaultInputChanSize,
 		},
+		{
+			eventType:                     eventplatform.EventTypeEventManagement,
+			category:                      "Event Management",
+			contentType:                   logshttp.JSONContentType,
+			endpointsConfigPrefix:         "event_management.forwarder.",
+			hostnameEndpointPrefix:        "event-management-intake.",
+			intakeTrackType:               "events",
+			defaultBatchMaxConcurrentSend: pkgconfigsetup.DefaultBatchMaxConcurrentSend,
+			defaultBatchMaxContentSize:    pkgconfigsetup.DefaultBatchMaxContentSize,
+			defaultBatchMaxSize:           pkgconfigsetup.DefaultBatchMaxSize,
+			defaultInputChanSize:          pkgconfigsetup.DefaultInputChanSize,
+			//nolint:misspell
+			// TODO(ECT-4272): event-management-intake does not support batching/array, must send one event at a time
+			useStreamStrategy: true,
+		},
 	}
 
 	if pkgconfigsetup.Datadog().GetBool("software_inventory.enabled") {
@@ -288,6 +303,12 @@ func Diagnose() []diagnose.Diagnosis {
 	var diagnoses []diagnose.Diagnosis
 
 	for _, desc := range getPassthroughPipelines() {
+		//nolint:misspell
+		// TODO(ECT-4273): event-management-intake does not support the empty payload sent here
+		if desc.eventType == eventplatform.EventTypeEventManagement {
+			log.Debugf("Skipping diagnosis for event-management-intake because it does not support the empty payload")
+			continue
+		}
 		configKeys := config.NewLogsConfigKeys(desc.endpointsConfigPrefix, pkgconfigsetup.Datadog())
 		endpoints, err := config.BuildHTTPEndpointsWithConfig(pkgconfigsetup.Datadog(), configKeys, desc.hostnameEndpointPrefix, desc.intakeTrackType, config.DefaultIntakeProtocol, config.DefaultIntakeOrigin)
 		if err != nil {
@@ -409,6 +430,7 @@ type passthroughPipelineDesc struct {
 	defaultInputChanSize          int
 	forceCompressionKind          string
 	forceCompressionLevel         int
+	useStreamStrategy             bool
 }
 
 // newHTTPPassthroughPipeline creates a new HTTP-only event platform pipeline that sends messages directly to intake
@@ -484,7 +506,7 @@ func newHTTPPassthroughPipeline(
 
 	var strategy sender.Strategy
 
-	if desc.contentType == logshttp.ProtobufContentType {
+	if desc.useStreamStrategy || desc.contentType == logshttp.ProtobufContentType {
 		strategy = sender.NewStreamStrategy(inputChan, senderImpl.In(), encoder)
 	} else {
 		strategy = sender.NewBatchStrategy(

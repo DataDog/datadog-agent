@@ -132,6 +132,7 @@ build do
     copy 'bin/agent/dist', "#{install_dir}/bin/agent"
     mkdir "#{install_dir}/bin/scripts/"
     copy "#{project_dir}/omnibus/windows-scripts/iis-instrumentation.bat", "#{install_dir}/bin/scripts/"
+    copy "#{project_dir}/omnibus/windows-scripts/host-instrumentation.bat", "#{install_dir}/bin/scripts/"
     mkdir Omnibus::Config.package_dir() unless Dir.exists?(Omnibus::Config.package_dir())
   end
 
@@ -148,7 +149,7 @@ build do
     move 'bin/installer/installer.exe', "#{install_dir}/datadog-installer.exe"
   end
 
-  unless windows_target?
+  if linux_target?
     command "dda inv -- -e loader.build --install-path=#{install_dir}", :env => env, :live_stream => Omnibus.logger.live_stream(:info)
     copy "bin/trace-loader/trace-loader", "#{install_dir}/embedded/bin"
   end

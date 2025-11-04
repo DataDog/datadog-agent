@@ -211,6 +211,7 @@ expand_template(
     substitutions = {
         "{{VERSION}}": VERSION,
     },
+    visibility = ["//visibility:public"],
 )
 
 pkg_files(

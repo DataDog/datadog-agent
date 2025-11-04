@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	"github.com/DataDog/datadog-agent/comp/core/workloadfilter/impl/parse"
+	"github.com/DataDog/datadog-agent/pkg/config/structure"
 )
 
 // FilterConfig holds all configuration values needed for filter initialization
@@ -127,7 +128,7 @@ func loadCELConfig(cfg config.Component) ([]workloadfilter.RuleBundle, error) {
 	var celConfig []workloadfilter.RuleBundle
 
 	// First try the standard UnmarshalKey method (input defined in datadog.yaml)
-	err := cfg.UnmarshalKey("cel_workload_exclude", &celConfig)
+	err := structure.UnmarshalKey(cfg, "cel_workload_exclude", &celConfig)
 	if err == nil {
 		return celConfig, nil
 	}
