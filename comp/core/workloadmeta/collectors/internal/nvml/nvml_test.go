@@ -25,7 +25,7 @@ func TestPull(t *testing.T) {
 	wmetaMock := testutil.GetWorkloadMetaMock(t)
 	nvmlMock := testutil.GetBasicNvmlMock()
 
-	c := newCollector(wmetaMock)
+	c := newCollector(wmetaMock, nil)
 
 	ddnvml.WithMockNVML(t, nvmlMock)
 
@@ -88,7 +88,7 @@ func TestGpuProcessInfoUpdate(t *testing.T) {
 	wmetaMock := testutil.GetWorkloadMetaMock(t)
 	nvmlMock := testutil.GetBasicNvmlMock()
 
-	c := newCollector(wmetaMock)
+	c := newCollector(wmetaMock, nil)
 
 	ddnvml.WithMockNVML(t, nvmlMock)
 
@@ -136,7 +136,7 @@ func TestProcessEntities(t *testing.T) {
 		return processInfo[uuid], nvml.SUCCESS
 	}))
 
-	c := newCollector(wmetaMock)
+	c := newCollector(wmetaMock, nil)
 	c.integrateWithWorkloadmetaProcesses = true
 
 	ddnvml.WithMockNVML(t, nvmlMock)
@@ -225,7 +225,7 @@ func TestProcessEntityMerging(t *testing.T) {
 			return procinfo, nvml.SUCCESS
 		}))
 
-	c := newCollector(wmetaMock)
+	c := newCollector(wmetaMock, nil)
 	c.integrateWithWorkloadmetaProcesses = true
 
 	ddnvml.WithMockNVML(t, nvmlMock)
