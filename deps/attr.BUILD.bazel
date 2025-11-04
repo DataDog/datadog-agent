@@ -50,7 +50,8 @@ cc_library(
     include_prefix = "attr",
     strip_include_prefix = "include",
     copts = [
-        "-include $(location libattr/libattr.h)"
+        "-include $(location libattr/libattr.h)",
+        "-O2",
     ],
     local_defines = [
         "HAVE_CONFIG_H",
