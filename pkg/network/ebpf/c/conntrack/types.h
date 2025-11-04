@@ -44,7 +44,10 @@ typedef struct {
     __u64 kprobe_ctnetlink_fill_info_failed_to_get_conntrack_tuples_count;
     __u64 kprobe_ctnetlink_fill_info_regular_exists_count;
     __u64 kprobe_ctnetlink_fill_info_reverse_exists_count;
-    __u64 kprobe_ctnetlink_fill_info_count;
+    __u64 kprobe_ctnetlink_fill_info_added_count;
+    __u64 kprobe_ctnetlink_fill_info_regular_exists2_count;
+    __u64 kprobe_ctnetlink_fill_info_reverse_exists2_count;
+    __u64 kprobe_ctnetlink_fill_info_added_2_count;
 } conntrack_telemetry_t;
 
 
