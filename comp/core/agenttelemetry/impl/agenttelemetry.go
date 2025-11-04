@@ -505,13 +505,14 @@ func (a *atel) loadPayloads(profiles []*Profile) (*senderSession, error) {
 // run runs the agent telemetry for a given profile. It is triggered by the runner
 // according to the profiles schedule.
 func (a *atel) run(profiles []*Profile) {
+	fmt.Println("WACKTEST")
 	a.logComp.Info("Starting agent telemetry run")
 	session, err := a.loadPayloads(profiles)
 	if err != nil {
 		a.logComp.Errorf("failed to load agent telemetry session: %s", err)
 		return
 	}
-
+	fmt.Println("WACKTEST2")
 	err = a.sender.flushSession(session)
 	if err != nil {
 		a.logComp.Errorf("failed to flush agent telemetry session: %s", err)
@@ -603,6 +604,7 @@ func (a *atel) StartStartupSpan(operationName string) (*installertelemetry.Span,
 
 // start is called by FX when the application starts.
 func (a *atel) start() error {
+	fmt.Println("WACKTEST33")
 	a.logComp.Infof("Starting agent telemetry for %d schedules and %d profiles", len(a.atelCfg.schedule), len(a.atelCfg.Profiles))
 
 	a.cancelCtx, a.cancel = context.WithCancel(context.Background())
