@@ -39,8 +39,7 @@
 '@datadog/database-monitoring': DBMON
 '@datadog/data-streams-monitoring': DSMON
 '@datadog/agent-cspm': SEC
-'@datadog/telemetry-and-analytics': AIT
-'@datadog/apm-trace-storage': APMTS
+'@datadog/apm-trace-storage': TDH
 '@datadog/asm-go': APPSEC
 '@datadog/agent-delivery': BARX
 '@datadog/agent-build': ABLD
