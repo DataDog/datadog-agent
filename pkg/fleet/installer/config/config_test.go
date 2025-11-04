@@ -218,55 +218,90 @@ func TestOperationApply_NestedConfigFile(t *testing.T) {
 	assert.Equal(t, 42, updatedMap["baz"])
 }
 
-func TestDirectories_GetState(t *testing.T) {
-	tmpDir := t.TempDir()
-	stablePath := filepath.Join(tmpDir, "stable")
-	experimentPath := filepath.Join(tmpDir, "experiment")
+func TestEnsureDir(t *testing.T) {
+	t.Run("simple directory", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		root, err := os.OpenRoot(tmpDir)
+		assert.NoError(t, err)
+		defer root.Close()
 
-	err := os.MkdirAll(stablePath, 0755)
-	assert.NoError(t, err)
-	err = os.MkdirAll(experimentPath, 0755)
-	assert.NoError(t, err)
+		err = ensureDir(root, filepath.Join("subdir", "file.txt"))
+		assert.NoError(t, err)
 
-	dirs := &Directories{
-		StablePath:     stablePath,
-		ExperimentPath: experimentPath,
-	}
+		// Verify directory was created
+		_, err = os.Stat(filepath.Join(tmpDir, "subdir"))
+		assert.NoError(t, err)
+	})
 
-	// Test with no deployment IDs
-	state, err := dirs.GetState()
-	assert.NoError(t, err)
-	assert.Equal(t, "", state.StableDeploymentID)
-	assert.Equal(t, "", state.ExperimentDeploymentID)
+	t.Run("nested directories", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		root, err := os.OpenRoot(tmpDir)
+		assert.NoError(t, err)
+		defer root.Close()
 
-	// Test with stable deployment ID only
-	err = os.WriteFile(filepath.Join(stablePath, deploymentIDFile), []byte("stable-123"), 0644)
-	assert.NoError(t, err)
+		err = ensureDir(root, "/"+filepath.Join("level1", "level2", "level3", "file.txt"))
+		assert.NoError(t, err)
 
-	state, err = dirs.GetState()
-	assert.NoError(t, err)
-	assert.Equal(t, "stable-123", state.StableDeploymentID)
-	assert.Equal(t, "", state.ExperimentDeploymentID)
+		// Verify all directories were created
+		_, err = os.Stat(filepath.Join(tmpDir, "level1", "level2", "level3"))
+		assert.NoError(t, err)
+	})
 
-	// Test with both deployment IDs
-	err = os.WriteFile(filepath.Join(experimentPath, deploymentIDFile), []byte("experiment-456"), 0644)
-	assert.NoError(t, err)
+	t.Run("directory already exists", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		existingDir := filepath.Join(tmpDir, "existing")
+		err := os.MkdirAll(existingDir, 0755)
+		assert.NoError(t, err)
 
-	state, err = dirs.GetState()
-	assert.NoError(t, err)
-	assert.Equal(t, "stable-123", state.StableDeploymentID)
-	assert.Equal(t, "experiment-456", state.ExperimentDeploymentID)
+		root, err := os.OpenRoot(tmpDir)
+		assert.NoError(t, err)
+		defer root.Close()
 
-	// Test with symlinked experiment (should clear experiment deployment ID)
-	err = os.Remove(filepath.Join(experimentPath, deploymentIDFile))
-	assert.NoError(t, err)
-	err = os.Symlink(filepath.Join(stablePath, deploymentIDFile), filepath.Join(experimentPath, deploymentIDFile))
-	assert.NoError(t, err)
+		// Should not error when directory already exists
+		err = ensureDir(root, "/"+filepath.Join("existing", "file.txt"))
+		assert.NoError(t, err)
+	})
 
-	state, err = dirs.GetState()
-	assert.NoError(t, err)
-	assert.Equal(t, "stable-123", state.StableDeploymentID)
-	assert.Equal(t, "", state.ExperimentDeploymentID)
+	t.Run("file in current directory", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		root, err := os.OpenRoot(tmpDir)
+		assert.NoError(t, err)
+		defer root.Close()
+
+		// No directory to create, should return immediately
+		err = ensureDir(root, "file.txt")
+		assert.NoError(t, err)
+	})
+
+	t.Run("partially existing path", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		partialDir := filepath.Join(tmpDir, "existing")
+		err := os.MkdirAll(partialDir, 0755)
+		assert.NoError(t, err)
+
+		root, err := os.OpenRoot(tmpDir)
+		assert.NoError(t, err)
+		defer root.Close()
+
+		// Create new subdirectories under existing one
+		err = ensureDir(root, filepath.Join("existing", "new1", "new2", "file.txt"))
+		assert.NoError(t, err)
+
+		// Verify all directories exist
+		_, err = os.Stat(filepath.Join(tmpDir, "existing", "new1", "new2"))
+		assert.NoError(t, err)
+	})
+
+	t.Run("path traversal", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		root, err := os.OpenRoot(tmpDir)
+		assert.NoError(t, err)
+		defer root.Close()
+
+		err = ensureDir(root, "/"+filepath.Join("..", "existing", "file.txt"))
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "path escape")
+	})
 }
 
 func TestBuildOperationsFromLegacyConfigFile(t *testing.T) {

@@ -103,7 +103,7 @@ func NewInstaller(env *env.Env) (Installer, error) {
 		packages:   pkgs,
 		config: &config.Directories{
 			StablePath:     paths.AgentConfigDir,
-			ExperimentPath: paths.AgentConfigDir + "-exp",
+			ExperimentPath: paths.AgentConfigDirExp,
 		},
 		hooks: packages.NewHooks(env, pkgs),
 

@@ -104,7 +104,7 @@ func (t *Tailer) DidRotate() (bool, error) {
 // - renamed and recreated
 // - removed and recreated
 // - truncated
-func (t *Tailer) DidRotateViaFingerprint(fingerprinter *Fingerprinter) (bool, error) {
+func (t *Tailer) DidRotateViaFingerprint(fingerprinter Fingerprinter) (bool, error) {
 	newFingerprint, err := fingerprinter.ComputeFingerprint(t.file)
 
 	// If computing the fingerprint led to an error there was likely an IO issue, handle this appropriately below.
