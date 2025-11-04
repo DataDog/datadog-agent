@@ -3169,9 +3169,11 @@ func TestHandleProcess(t *testing.T) {
 					ID:   pid,
 				},
 				Pid: 12345,
-				GPU: &workloadmeta.EntityID{
-					Kind: workloadmeta.KindGPU,
-					ID:   gpuUUID,
+				GPUs: []workloadmeta.EntityID{
+					{
+						Kind: workloadmeta.KindGPU,
+						ID:   gpuUUID,
+					},
 				},
 			},
 			expectedTagInfo: &types.TagInfo{
@@ -3197,9 +3199,11 @@ func TestHandleProcess(t *testing.T) {
 					ID:   pid,
 				},
 				Pid: 12345,
-				GPU: &workloadmeta.EntityID{
-					Kind: workloadmeta.KindGPU,
-					ID:   gpuUUID,
+				GPUs: []workloadmeta.EntityID{
+					{
+						Kind: workloadmeta.KindGPU,
+						ID:   gpuUUID,
+					},
 				},
 				Service: &workloadmeta.Service{
 					UST: workloadmeta.UST{
@@ -3239,9 +3243,11 @@ func TestHandleProcess(t *testing.T) {
 					ID:   pid,
 				},
 				Pid: 12345,
-				GPU: &workloadmeta.EntityID{
-					Kind: workloadmeta.KindGPU,
-					ID:   "non-existent-gpu",
+				GPUs: []workloadmeta.EntityID{
+					{
+						Kind: workloadmeta.KindGPU,
+						ID:   "non-existent-gpu",
+					},
 				},
 				Service: &workloadmeta.Service{
 					UST: workloadmeta.UST{
