@@ -49,6 +49,8 @@ func (t *Tailer) DidRotate() (bool, error) {
 	switch {
 	case cacheIndicatesGrowth && !offsetIndicatesUnread:
 		if t.rotationMismatchCacheActive.CompareAndSwap(false, true) {
+			// Cache says "file grew" but offset says "we've read everything"
+      		// This means cache detected potential rotation evidence but offset didn't (potential false negative rotation detection)
 			metrics.TlmRotationSizeMismatch.Inc("cache")
 			log.Debugf("Rotation size mismatch: cache observed growth (old=%d, new=%d) but offset=%d >= fileSize=%d",
 				cachedSize, fileSize, lastReadOffset, fileSize)
@@ -56,6 +58,8 @@ func (t *Tailer) DidRotate() (bool, error) {
 		t.rotationMismatchOffsetActive.Store(false)
 	case offsetIndicatesUnread && !cacheIndicatesGrowth && cachedSize > 0:
 		if t.rotationMismatchOffsetActive.CompareAndSwap(false, true) {
+			// Offset says "unread data" but cache says "no growth"
+      		// This means offset detected potential rotation evidence but cache didn't (potential false positive rotation detection)
 			metrics.TlmRotationSizeMismatch.Inc("offset")
 			log.Debugf("Rotation size mismatch: offset=%d < fileSize=%d but cache did not observe growth (old=%d, new=%d)",
 				lastReadOffset, fileSize, cachedSize, fileSize)
