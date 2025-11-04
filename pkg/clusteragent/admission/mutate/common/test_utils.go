@@ -330,8 +330,8 @@ type MockMutator struct {
 	Called bool
 }
 
-// MutatePod satifies the mutator interface.
-func (m *MockMutator) MutatePod(pod *corev1.Pod, _ string, _ dynamic.Interface) (bool, error) {
+// MutatePod satisfies the mutator interface.
+func (m *MockMutator) MutatePod(_ *corev1.Pod, _ string, _ dynamic.Interface) (bool, error) {
 	m.Called = true
 	if m.ShoudErr {
 		return false, fmt.Errorf("error")
@@ -341,7 +341,7 @@ func (m *MockMutator) MutatePod(pod *corev1.Pod, _ string, _ dynamic.Interface) 
 }
 
 // FakeMutator provides a new mock of the mutator.
-func FakeMutator(t *testing.T, shouldErr bool) *MockMutator {
+func FakeMutator(_ *testing.T, shouldErr bool) *MockMutator {
 	return &MockMutator{
 		ShouldMutate: true,
 		ShoudErr:     shouldErr,

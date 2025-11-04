@@ -22,7 +22,7 @@ import (
 
 func TestNewWebhookConfig(t *testing.T) {
 	tests := map[string]struct {
-		config   map[string]interface{}
+		config   map[string]any
 		expected *autoinstrumentation.WebhookConfig
 	}{
 		"defaults load as expected": {
@@ -32,7 +32,7 @@ func TestNewWebhookConfig(t *testing.T) {
 			},
 		},
 		"disabled configuration is disabled": {
-			config: map[string]interface{}{
+			config: map[string]any{
 				"admission_controller.auto_instrumentation.enabled": false,
 			},
 			expected: &autoinstrumentation.WebhookConfig{
@@ -41,7 +41,7 @@ func TestNewWebhookConfig(t *testing.T) {
 			},
 		},
 		"updated endpoint is updated": {
-			config: map[string]interface{}{
+			config: map[string]any{
 				"admission_controller.auto_instrumentation.endpoint": "/foo",
 			},
 			expected: &autoinstrumentation.WebhookConfig{
@@ -120,7 +120,7 @@ func TestWebhookEndpoint(t *testing.T) {
 
 func TestWebhookLabelSelectors(t *testing.T) {
 	tests := map[string]struct {
-		config                    map[string]interface{}
+		config                    map[string]any
 		useNamespaceSelector      bool
 		expectedSelector          *metav1.LabelSelector
 		expectedNamespaceSelector *metav1.LabelSelector
