@@ -127,6 +127,10 @@ func (e *Exporter) consumeK8sObjects(ctx context.Context, ld plog.Logs) (err err
 
 		for j := 0; j < resourceLogs.ScopeLogs().Len(); j++ {
 			scopeLogs := resourceLogs.ScopeLogs().At(j)
+			scopeLogs.Scope().Attributes().Range(func(key string, value pcommon.Value) bool {
+				fmt.Println("aurele-debug4: key", key, "value", value.AsString())
+				return true
+			})
 
 			for k := 0; k < scopeLogs.LogRecords().Len(); k++ {
 				logRecord := scopeLogs.LogRecords().At(k)
