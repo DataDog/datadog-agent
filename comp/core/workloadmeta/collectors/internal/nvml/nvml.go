@@ -17,9 +17,9 @@ import (
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/errors"
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -41,6 +41,7 @@ type collector struct {
 	seenPIDs                           map[int][]string // PID -> GPU UUIDs
 	reportedDriverNotLoaded            bool
 	integrateWithWorkloadmetaProcesses bool
+	config                             config.Component
 }
 
 func (c *collector) getGPUDeviceInfo(device ddnvml.Device) (*workloadmeta.GPU, error) {
@@ -152,20 +153,21 @@ func (c *collector) fillProcesses(gpuDeviceInfo *workloadmeta.GPU, device ddnvml
 }
 
 // newCollector creates a new collector with the default values, useful for testing.
-func newCollector(store workloadmeta.Component) *collector {
+func newCollector(store workloadmeta.Component, config config.Component) *collector {
 	return &collector{
 		id:        collectorID,
 		catalog:   workloadmeta.NodeAgent,
 		seenUUIDs: map[string]struct{}{},
 		seenPIDs:  make(map[int][]string),
 		store:     store,
+		config:    config,
 	}
 }
 
 // NewCollector returns a kubelet CollectorProvider that instantiates its collector
-func NewCollector() (workloadmeta.CollectorProvider, error) {
+func NewCollector(config config.Component) (workloadmeta.CollectorProvider, error) {
 	return workloadmeta.CollectorProvider{
-		Collector: newCollector(nil),
+		Collector: newCollector(nil, config),
 	}, nil
 }
 
@@ -181,7 +183,7 @@ func (c *collector) Start(_ context.Context, store workloadmeta.Component) error
 	}
 
 	c.store = store
-	c.integrateWithWorkloadmetaProcesses = pkgconfigsetup.Datadog().GetBool("gpu.integrate_with_workloadmeta_processes")
+	c.integrateWithWorkloadmetaProcesses = c.config.GetBool("gpu.integrate_with_workloadmeta_processes")
 
 	return nil
 }
