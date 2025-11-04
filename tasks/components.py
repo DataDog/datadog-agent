@@ -32,8 +32,8 @@ class Component:
     version: int
 
     def __post_init__(self):
-        self.def_file = pathlib.Path(self.def_file).as_posix()
-        self.path = pathlib.Path(self.path).as_posix()
+        self.def_file = to_posix_path(self.def_file)
+        self.path = to_posix_path(self.path)
 
 
 # Bundle represents a bundle of components, defined using:
@@ -47,7 +47,7 @@ class Bundle:
     components: list
 
     def __post_init__(self):
-        self.path = pathlib.Path(self.path).as_posix()
+        self.path = to_posix_path(self.path)
 
 
 def find_team(content: Iterable[str]) -> str | None:
