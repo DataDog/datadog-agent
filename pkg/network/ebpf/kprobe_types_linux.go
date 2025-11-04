@@ -116,6 +116,30 @@ type TLSTagsWrapper struct {
 type NetTimeMs struct {
 	Timestamp [3]uint16
 }
+type CertItem struct {
+	Timestamp uint64
+	Serial    CertSerial
+	Domain    CertDomain
+	Validity  CertValidity
+	Pad_cgo_0 [2]byte
+}
+type CertSerial struct {
+	Len  uint8
+	Data [20]uint8
+}
+type CertDomain struct {
+	Len  uint8
+	Data [64]uint8
+}
+type CertValidity struct {
+	Before [12]uint8
+	After  [12]uint8
+}
+type SSLHandshakeState struct {
+	Item      CertItem
+	Id        uint32
+	Pad_cgo_0 [4]byte
+}
 
 type _Ctype_struct_sock uint64
 type _Ctype_struct_msghdr uint64

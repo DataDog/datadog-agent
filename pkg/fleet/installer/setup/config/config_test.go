@@ -92,6 +92,47 @@ env: "old_env"
 	}, datadog)
 }
 
+// Tests that existing API key is not overwritten if not provided again to setup command
+func TestKeepExistingAPIKey(t *testing.T) {
+	tempDir := t.TempDir()
+	existing := `---
+api_key: "0987654321"
+hostname: "old_hostname"
+env: "old_env"
+`
+	writeInitialDatadogConfig(t, tempDir, existing)
+	config := Config{}
+
+	err := WriteConfigs(config, tempDir)
+	assert.NoError(t, err)
+
+	datadog := readDatadogYAML(t, tempDir)
+	assert.Equal(t, map[string]interface{}{
+		"api_key":  "0987654321",
+		"hostname": "old_hostname",
+		"env":      "old_env",
+	}, datadog)
+}
+
+// Test that config can handle values in the secret management format
+func TestAPIKeyHasSecretsFormat(t *testing.T) {
+	tempDir := t.TempDir()
+	existing := `---
+api_key: ENC[My-Secrets;prodApiKey]
+`
+	writeInitialDatadogConfig(t, tempDir, existing)
+	config := Config{}
+	config.DatadogYAML.APIKey = "ENC[My-Secrets;prodApiKey2]"
+
+	err := WriteConfigs(config, tempDir)
+	assert.NoError(t, err)
+
+	datadog := readDatadogYAML(t, tempDir)
+	assert.Equal(t, map[string]interface{}{
+		"api_key": "ENC[My-Secrets;prodApiKey2]",
+	}, datadog)
+}
+
 func TestIntegrationConfigInstanceSpark(t *testing.T) {
 	tempDir := t.TempDir()
 	config := Config{
@@ -502,5 +543,44 @@ func TestWriteConfigWithoutEOLAtEnd(t *testing.T) {
 		"api_key":          "key",
 		"existing_setting": "value_no_eol",
 		"dd_url":           "https://custom.datadoghq.com",
+	}, datadog)
+}
+
+func TestInfrastructureModeConfig(t *testing.T) {
+	tempDir := t.TempDir()
+
+	cfg := Config{}
+	cfg.DatadogYAML.APIKey = "test_key"
+	cfg.DatadogYAML.InfrastructureMode = "basic"
+
+	err := WriteConfigs(cfg, tempDir)
+	assert.NoError(t, err)
+
+	datadog := readDatadogYAML(t, tempDir)
+	assert.Equal(t, map[string]interface{}{
+		"api_key":             "test_key",
+		"infrastructure_mode": "basic",
+	}, datadog)
+}
+
+func TestInfrastructureModeMerge(t *testing.T) {
+	tempDir := t.TempDir()
+	existing := `---
+api_key: "key"
+infrastructure_mode: "full"
+`
+	writeInitialDatadogConfig(t, tempDir, existing)
+
+	cfg := Config{}
+	cfg.DatadogYAML.APIKey = "key"
+	cfg.DatadogYAML.InfrastructureMode = "end_user_device"
+
+	err := WriteConfigs(cfg, tempDir)
+	assert.NoError(t, err)
+
+	datadog := readDatadogYAML(t, tempDir)
+	assert.Equal(t, map[string]interface{}{
+		"api_key":             "key",
+		"infrastructure_mode": "end_user_device",
 	}, datadog)
 }

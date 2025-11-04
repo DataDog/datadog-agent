@@ -44,12 +44,6 @@ Package demultiplexer defines the aggregator demultiplexer
 
 Package demultiplexerendpoint component provides the /dogstatsd-contexts-dump API endpoint that can register via Fx value groups.
 
-### [comp/aggregator/diagnosesendermanager](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/aggregator/diagnosesendermanager)
-
-*Datadog Team*: agent-configuration
-
-Package diagnosesendermanager defines the sender manager for the local diagnose check
-
 ## [comp/api](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/api) (Component Bundle)
 
 *Datadog Team*: agent-runtimes
@@ -760,6 +754,18 @@ Package client implements a component to send process metadata to the Cluster-Ag
 *Datadog Team*: network-device-monitoring
 
 Package networkdeviceconfig provides the component for retrieving network device configurations.
+
+### [comp/notableevents](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/notableevents)
+
+*Datadog Team*: windows-products
+
+Package notableevents provides a component that monitors notable system events and forwards them to the Datadog Event Management v2 API.
+
+### [comp/privateactionrunner](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/privateactionrunner)
+
+*Datadog Team*: action-platform
+
+Package privateactionrunner provides a component that enables private actions executions
 
 ### [comp/publishermetadatacache](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/publishermetadatacache)
 

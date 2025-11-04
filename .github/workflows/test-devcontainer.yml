@@ -128,7 +128,7 @@ jobs:
 
     - name: Grant the datadog user access to host Docker socket
       run: |
-        docker exec -u root datadog_agent_devcontainer sh -lc '
+        docker exec -u root datadog-agent-devcontainer sh -lc '
           set -e
           sock=/var/run/docker.sock
           gid=$(stat -c %g "$sock")
