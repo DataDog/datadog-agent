@@ -1,40 +1,39 @@
 load("@rules_pkg//pkg:mappings.bzl", "pkg_filegroup", "pkg_files", "pkg_mklink")
 
 _SPECS = [
-    struct(os = "linux", format = "{}.so.{}", link_suffix = ""),
-    struct(os = "macos", format = "{}.{}.dylib", link_suffix = ".dylib"),
-    struct(os = "windows", format = "{}.dll", link_suffix = None),
+    struct(os = "linux", format = "{}.so{}"),
+    struct(os = "macos", format = "{}{}.dylib"),
+    struct(os = "windows", format = "{}.dll"),  # w/o version
 ]
 
 def _gen_targets(base_name, src, libname, version, prefix, spec):
     name = "{}_{}".format(base_name, spec.os)
-    target_compatible_with = ["@platforms//os:{}".format(spec.os)]
+    platform = "@platforms//os:{}".format(spec.os)
+    target = spec.format.format(libname, ".{}".format(version))  # dot full version
     targets = ["{}_lib".format(name)]
-    target = spec.format.format(libname, version)
     pkg_files(
         name = targets[-1],
         srcs = [src],
         prefix = prefix,
         renames = {src: target},
-        target_compatible_with = target_compatible_with,
+        target_compatible_with = [platform],
     )
 
-    if spec.link_suffix != None:
-        parts = target[:len(target) - len(spec.link_suffix)].split(".")
-        for _ in range(version.count(".") + 1):
-            parts = parts[:-1]
-            targets.append("{}_link".format(targets[-1]))
-            link = "{}{}".format(".".join(parts), spec.link_suffix)
-            pkg_mklink(
-                name = targets[-1],
-                link_name = "{}{}".format(prefix, link),
-                target = target,
-                target_compatible_with = target_compatible_with,
-            )
-            target = link
+    for link_version in (".{}".format(version.partition(".")[0]), ""):  # dot major (soname), no version (linker name)
+        link = spec.format.format(libname, link_version)
+        if link == target:  # DLL w/o version or dot major already present in lib name: do not link onto itself
+            continue
+        targets.append("{}_link".format(targets[-1]))
+        pkg_mklink(
+            name = targets[-1],
+            link_name = "{}{}".format(prefix, link),
+            target = target,
+            target_compatible_with = [platform],
+        )
+        target = link
 
-    pkg_filegroup(name = name, srcs = targets, target_compatible_with = target_compatible_with)
-    return ":{}".format(name)
+    pkg_filegroup(name = name, srcs = targets, target_compatible_with = [platform])
+    return platform, ":{}".format(name)
 
 def so_symlink(name, src, libname, version, prefix = "lib/"):
     """Creates shared library symlink chain following Unix conventions.
@@ -55,8 +54,5 @@ def so_symlink(name, src, libname, version, prefix = "lib/"):
     """
     native.alias(
         name = name,
-        actual = select({
-            "@platforms//os:{}".format(spec.os): _gen_targets(name, src, libname, version, prefix, spec)
-            for spec in _SPECS
-        }),
+        actual = select(dict([_gen_targets(name, src, libname, version, prefix, spec) for spec in _SPECS])),
     )
