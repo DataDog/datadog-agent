@@ -43,6 +43,33 @@ func (s *Server) StreamEntities(in *pb.WorkloadmetaStreamRequest, out pb.AgentSe
 	}
 
 	workloadmetaEventsChannel := s.wmeta.Subscribe("stream-client", workloadmeta.NormalPriority, filter)
+
+	// Drain channel before unsubscribe to unblock any goroutines waiting to send
+	defer func() {
+		//  1. workloadmetaEventsChannel - The main event channel which is closed by Unsubscribe()
+		//  2. bundle.Ch - The acknowledgment channel inside each EventBundle which is closed here
+		drained := 0
+		timeout := time.After(100 * time.Millisecond)
+		for {
+			select {
+			case bundle, ok := <-workloadmetaEventsChannel:
+				if !ok {
+					return
+				}
+				drained++
+				// Close acknowledgment channel to prevent resource leak
+				if bundle.Ch != nil {
+					close(bundle.Ch)
+				}
+			case <-timeout:
+				if drained > 0 {
+					log.Infof("Drained %d unprocessed events from stream-client channel before unsubscribe", drained)
+				}
+				return
+			}
+		}
+	}()
+
 	defer s.wmeta.Unsubscribe(workloadmetaEventsChannel)
 
 	ticker := time.NewTicker(workloadmetaKeepAliveInterval)
@@ -72,6 +99,11 @@ func (s *Server) StreamEntities(in *pb.WorkloadmetaStreamRequest, out pb.AgentSe
 			}
 
 			if len(protobufEvents) > 0 {
+				// Check if client disconnected before attempting send
+				if out.Context().Err() != nil {
+					return out.Context().Err()
+				}
+
 				err := grpc.DoWithTimeout(func() error {
 					return out.Send(&pb.WorkloadmetaStreamResponse{
 						Events: protobufEvents,
