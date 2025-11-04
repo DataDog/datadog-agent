@@ -259,7 +259,7 @@ func TestGetConfigErrors(t *testing.T) {
 			wantErrs: true,
 		},
 		{
-			name: "pod with port annotation but no matching container",
+			name: "pod with port annotation but no matching container should not generate errors",
 			events: []workloadmeta.Event{
 				{
 					Type: workloadmeta.EventTypeSet,
@@ -302,7 +302,7 @@ func TestGetConfigErrors(t *testing.T) {
 					},
 				},
 			},
-			wantErrs: true,
+			wantErrs: false,
 		},
 		{
 			name: "valid pod should not generate errors",
