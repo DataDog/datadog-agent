@@ -9,15 +9,14 @@ package noisyneighbor
 
 import (
 	"fmt"
-	"net/http"
 	"time"
 
 	"gopkg.in/yaml.v2"
 
-	sysprobeclient "github.com/DataDog/datadog-agent/cmd/system-probe/api/client"
-	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	sysprobeclient "github.com/DataDog/datadog-agent/pkg/system-probe/api/client"
+	sysconfig "github.com/DataDog/datadog-agent/pkg/system-probe/config"
 
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
@@ -38,7 +37,7 @@ type NoisyNeighborCheck struct {
 	core.CheckBase
 	config         *NoisyNeighborConfig
 	tagger         tagger.Component
-	sysProbeClient *http.Client
+	sysProbeClient *sysprobeclient.CheckClient
 }
 
 // Factory creates a new check factory
@@ -74,7 +73,7 @@ func (n *NoisyNeighborCheck) Configure(senderManager sender.SenderManager, _ uin
 	if err := n.config.Parse(config); err != nil {
 		return fmt.Errorf("noisy_neighbor check config: %s", err)
 	}
-	n.sysProbeClient = sysprobeclient.Get(pkgconfigsetup.SystemProbe().GetString("system_probe_config.sysprobe_socket"))
+	n.sysProbeClient = sysprobeclient.GetCheckClient(sysprobeclient.WithSocketPath(pkgconfigsetup.SystemProbe().GetString("system_probe_config.sysprobe_socket")))
 	return nil
 }
 
@@ -100,7 +99,7 @@ func (n *NoisyNeighborCheck) Run() error {
 		if containerID != "host" {
 			entityID := types.NewEntityID(types.ContainerID, containerID)
 			if !entityID.Empty() {
-				tags, err = n.tagger.Tag(entityID, n.tagger.ChecksCardinality())
+				tags, err = n.tagger.Tag(entityID, types.ChecksConfigCardinality)
 				if err != nil {
 					log.Errorf("Error collecting tags for container %s: %s", containerID, err)
 				}
@@ -114,7 +113,7 @@ func (n *NoisyNeighborCheck) Run() error {
 		if prevContainerID != "host" {
 			entityID := types.NewEntityID(types.ContainerID, prevContainerID)
 			if !entityID.Empty() {
-				prevTags, err := n.tagger.Tag(entityID, n.tagger.ChecksCardinality())
+				prevTags, err := n.tagger.Tag(entityID, types.ChecksConfigCardinality)
 				if err != nil {
 					log.Errorf("Error collecting tags for prev container %s: %s", prevContainerID, err)
 				} else {

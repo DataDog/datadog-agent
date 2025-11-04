@@ -19,7 +19,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/perf"
 	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
-	"github.com/DataDog/datadog-agent/pkg/util/encoding"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	ddsync "github.com/DataDog/datadog-agent/pkg/util/sync"
@@ -57,16 +56,18 @@ func NewProbe(cfg *ddebpf.Config) (*Probe, error) {
 	// TODO noisy: figure out what you want these sizes to be. ringbuf size must be power of 2
 	ringbufSize := 8 * os.Getpagesize()
 	chanSize := 100
-	handler := encoding.BinaryUnmarshalCallback(p.runqPool.Get, func(e *runqEvent, err error) {
-		if err != nil {
-			if e != nil {
-				p.runqPool.Put(e)
-			}
-			log.Debug(err.Error())
+	handler := func(data []byte) {
+		if len(data) == 0 {
+			return
+		}
+		e := p.runqPool.Get()
+		if err := e.UnmarshalBinary(data); err != nil {
+			p.runqPool.Put(e)
+			log.Debugf("failed to unmarshal runq event: %v", err)
 			return
 		}
 		p.handleEvent(e)
-	})
+	}
 	eventHandler, err := perf.NewEventHandler("runq_events", handler,
 		perf.UseRingBuffers(ringbufSize, chanSize),
 		perf.SendTelemetry(cfg.InternalTelemetryEnabled),
