@@ -41,7 +41,6 @@ type collector struct {
 	seenPIDs                           map[int][]string // PID -> GPU UUIDs
 	reportedDriverNotLoaded            bool
 	integrateWithWorkloadmetaProcesses bool
-	config                             config.Component
 }
 
 func (c *collector) getGPUDeviceInfo(device ddnvml.Device) (*workloadmeta.GPU, error) {
@@ -154,14 +153,19 @@ func (c *collector) fillProcesses(gpuDeviceInfo *workloadmeta.GPU, device ddnvml
 
 // newCollector creates a new collector with the default values, useful for testing.
 func newCollector(store workloadmeta.Component, config config.Component) *collector {
-	return &collector{
+	collector := &collector{
 		id:        collectorID,
 		catalog:   workloadmeta.NodeAgent,
 		seenUUIDs: map[string]struct{}{},
 		seenPIDs:  make(map[int][]string),
 		store:     store,
-		config:    config,
 	}
+
+	if config != nil {
+		collector.integrateWithWorkloadmetaProcesses = config.GetBool("gpu.integrate_with_workloadmeta_processes")
+	}
+
+	return collector
 }
 
 // NewCollector returns a kubelet CollectorProvider that instantiates its collector
@@ -183,7 +187,6 @@ func (c *collector) Start(_ context.Context, store workloadmeta.Component) error
 	}
 
 	c.store = store
-	c.integrateWithWorkloadmetaProcesses = c.config.GetBool("gpu.integrate_with_workloadmeta_processes")
 
 	return nil
 }
