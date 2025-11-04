@@ -22,7 +22,6 @@
       dd-pkg promote \
         --build-pipeline-id $PARENT_PIPELINE_ID \
         --release-product $RELEASE_PRODUCT \
-        --key-id $PIPELINE_KEY_ALIAS \
         --release-version $RELEASE_VERSION \
         --target-repo $TARGET_REPO \
         --target-channel $BUCKET_BRANCH \
