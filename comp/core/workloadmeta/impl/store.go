@@ -916,7 +916,6 @@ func (w *workloadmeta) notifyChannel(name string, ch chan wmdef.EventBundle, eve
 		Events: events,
 	}
 	ch <- bundle
-
 	if wait {
 		select {
 		case <-bundle.Ch:
