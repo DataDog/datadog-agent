@@ -9,6 +9,5 @@
 fixes:
   - |
     Fixed a deadlock in the workloadmeta event pipeline where goroutines could block
-    indefinitely when sending events to subscribers. This occurred when a subscriber
-    (such as stream-client) was processing an event while new events arrived, causing
-    the channel buffer to fill and subsequent sends to block forever.
+    indefinitely when sending events to subscribers. Added a timeout to channel send
+    operations to prevent blocking when a subscriber's channel buffer is full.
