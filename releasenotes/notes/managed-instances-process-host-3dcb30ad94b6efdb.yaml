@@ -1,4 +1,4 @@
 ---
 fixes:
   - |
-    Fixes live process and containers for agents running as a sidecar in AWS ECS Managed Instances.
+    Fixes live process and containers for Agents running as a sidecar in Amazon ECS Managed Instances.
