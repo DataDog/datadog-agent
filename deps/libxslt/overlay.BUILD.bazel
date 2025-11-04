@@ -138,7 +138,8 @@ expand_template(
         "@LIBXSLT_CFLAGS@": "",
         "@XSLT_LIBDIR@": "-L${libdir}",
         "@XSLT_PRIVATE_LIBS@": "",
-    }
+    },
+    visibility = ["//visibility:public"],
 )
 
 expand_template(
@@ -219,7 +220,8 @@ expand_template(
         "@LIBEXSLT_CFLAGS@": "",
         "@EXSLT_LIBDIR@": "-L${libdir}",
         "@EXSLT_PRIVATE_LIBS@": "",
-    }
+    },
+    visibility = ["//visibility:public"],
 )
 
 pkg_files(
