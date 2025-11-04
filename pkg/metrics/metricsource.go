@@ -35,6 +35,7 @@ const (
 	MetricSourceInternal
 	MetricSourceContainer
 	MetricSourceContainerd
+	MetricSourceControlM
 	MetricSourceCri
 	MetricSourceDocker
 	MetricSourceNTP
@@ -102,9 +103,11 @@ const (
 	MetricSourcePhpOpcache
 	MetricSourcePhpApcu
 	MetricSourceOpenPolicyAgent
+	MetricSourcePaloAltoPanorama
 	MetricSourceOctopusDeploy
 	MetricSourceOctoprint
 	MetricSourceNvml
+	MetricSourceNutanix
 	MetricSourceNs1
 	MetricSourceNnSdwan
 	MetricSourceNextcloud
@@ -255,6 +258,7 @@ const (
 	MetricSourceOpenstackController
 	MetricSourceOracle
 	MetricSourcePdhCheck
+	MetricSourcePerfect
 	MetricSourcePgbouncer
 	MetricSourcePhpFpm
 	MetricSourcePostfix
@@ -310,6 +314,7 @@ const (
 	MetricSourceAppgateSDP
 	MetricSourceAnyscale
 	MetricSourceMilvus
+	MetricSourceN8N
 	MetricSourceNvidiaNim
 	MetricSourceQuarkus
 	MetricSourceVelero
@@ -436,6 +441,8 @@ func (ms MetricSource) String() string {
 		return "container"
 	case MetricSourceContainerd:
 		return "containerd"
+	case MetricSourceControlM:
+		return "controlm"
 	case MetricSourceCri:
 		return "cri"
 	case MetricSourceDocker:
@@ -690,6 +697,8 @@ func (ms MetricSource) String() string {
 		return "oracle"
 	case MetricSourcePdhCheck:
 		return "pdh_check"
+	case MetricSourcePerfect:
+		return "perfect"
 	case MetricSourcePgbouncer:
 		return "pgbouncer"
 	case MetricSourcePhpFpm:
@@ -888,12 +897,16 @@ func (ms MetricSource) String() string {
 		return "ns1"
 	case MetricSourceNvml:
 		return "nvml"
+	case MetricSourceNutanix:
+		return "nutanix"
 	case MetricSourceOctoprint:
 		return "octoprint"
 	case MetricSourceOctopusDeploy:
 		return "octopus_deploy"
 	case MetricSourceOpenPolicyAgent:
 		return "open_policy_agent"
+	case MetricSourcePaloAltoPanorama:
+		return "palo_alto_panorama"
 	case MetricSourcePhpApcu:
 		return "php_apcu"
 	case MetricSourcePhpOpcache:
@@ -966,6 +979,8 @@ func (ms MetricSource) String() string {
 		return "aws_neuron"
 	case MetricSourceMilvus:
 		return "milvus"
+	case MetricSourceN8N:
+		return "n8n"
 	case MetricSourceQuarkus:
 		return "quarkus"
 	case MetricSourceVelero:
@@ -1134,6 +1149,8 @@ func CheckNameToMetricSource(name string) MetricSource {
 		return MetricSourceContainer
 	case "containerd":
 		return MetricSourceContainerd
+	case "controlm":
+		return MetricSourceControlM
 	case "cri":
 		return MetricSourceCri
 	case "docker":
@@ -1384,6 +1401,8 @@ func CheckNameToMetricSource(name string) MetricSource {
 		return MetricSourceOracle
 	case "pdh_check":
 		return MetricSourcePdhCheck
+	case "perfect":
+		return MetricSourcePerfect
 	case "pgbouncer":
 		return MetricSourcePgbouncer
 	case "php_fpm":
@@ -1586,10 +1605,14 @@ func CheckNameToMetricSource(name string) MetricSource {
 		return MetricSourceNs1
 	case "nvml":
 		return MetricSourceNvml
+	case "nutanix":
+		return MetricSourceNutanix
 	case "octoprint":
 		return MetricSourceOctoprint
 	case "open_policy_agent":
 		return MetricSourceOpenPolicyAgent
+	case "palo_alto_panorama":
+		return MetricSourcePaloAltoPanorama
 	case "php_apcu":
 		return MetricSourcePhpApcu
 	case "php_opcache":
@@ -1670,6 +1693,8 @@ func CheckNameToMetricSource(name string) MetricSource {
 		return MetricSourceTibcoEMS
 	case "milvus":
 		return MetricSourceMilvus
+	case "n8n":
+		return MetricSourceN8N
 	case "quarkus":
 		return MetricSourceQuarkus
 	case "velero":
