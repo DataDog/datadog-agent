@@ -10,6 +10,8 @@ import (
 	"path"
 	"runtime"
 	"unsafe"
+
+	_ "github.com/DataDog/datadog-agent/pkg/collector/aggregator" // import submit functions
 )
 
 /*
