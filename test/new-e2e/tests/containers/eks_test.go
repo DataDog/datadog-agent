@@ -14,6 +14,7 @@ import (
 	sceneks "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/eks"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners"
 	proveks "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/kubernetes/eks"
 )
 
@@ -22,21 +23,27 @@ type eksSuite struct {
 }
 
 func TestEKSSuite(t *testing.T) {
-	e2e.Run(t, &eksSuite{}, e2e.WithProvisioner(proveks.Provisioner(
-		proveks.WithRunOptions(
-			sceneks.WithEKSOptions(
-				sceneks.WithLinuxNodeGroup(),
-				sceneks.WithWindowsNodeGroup(),
-				sceneks.WithBottlerocketNodeGroup(),
-				sceneks.WithLinuxARMNodeGroup(),
-				sceneks.WithUseAL2023Nodes(),
+	newProvisioner := func(helmValues string) provisioners.Provisioner {
+		return proveks.Provisioner(
+			proveks.WithRunOptions(
+				sceneks.WithEKSOptions(
+					sceneks.WithLinuxNodeGroup(),
+					sceneks.WithWindowsNodeGroup(),
+					sceneks.WithBottlerocketNodeGroup(),
+					sceneks.WithLinuxARMNodeGroup(),
+					sceneks.WithUseAL2023Nodes(),
+				),
+				sceneks.WithDeployDogstatsd(),
+				sceneks.WithDeployTestWorkload(),
+				sceneks.WithAgentOptions(
+					kubernetesagentparams.WithDualShipping(),
+					kubernetesagentparams.WithHelmValues(helmValues),
+				),
+				sceneks.WithDeployArgoRollout(),
 			),
-			sceneks.WithDeployDogstatsd(),
-			sceneks.WithDeployTestWorkload(),
-			sceneks.WithAgentOptions(kubernetesagentparams.WithDualShipping()),
-			sceneks.WithDeployArgoRollout(),
-		),
-	)))
+		)
+	}
+	e2e.Run(t, &eksSuite{k8sSuite{newProvisioner: newProvisioner}}, e2e.WithProvisioner(newProvisioner("")))
 }
 
 func (suite *eksSuite) SetupSuite() {
