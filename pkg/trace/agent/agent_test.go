@@ -822,24 +822,29 @@ func dropped(c *pb.TraceChunk) *pb.TraceChunk {
 }
 
 func TestConcentratorInput(t *testing.T) {
-	rootSpan := &pb.Span{SpanID: 3, TraceID: 5, Service: "a", Name: "name", Resource: "resource", Metrics: map[string]float64{"_top_level": 1.0, "_dd.rare": 1.0}}
+	rootSpan := &pb.Span{SpanID: 2, TraceID: 5, Service: "a", Name: "name", Resource: "resource", Metrics: map[string]float64{"_top_level": 1.0, "_dd.rare": 1.0}}
 	rootSpanWithTracerTags := &pb.Span{SpanID: 3, TraceID: 5, Service: "a", Name: "name", Resource: "resource", Meta: map[string]string{"_dd.hostname": "host", "env": "env", "version": "version"}, Metrics: map[string]float64{"_top_level": 1.0, "_dd.rare": 1.0}}
-	// rootSpanEvent := &pb.Span{SpanID: 3, TraceID: 5, Service: "a", Metrics: map[string]float64{"_dd1.sr.eausr": 1.00}}
-	// span := &pb.Span{SpanID: 3, TraceID: 5, ParentID: 27, Service: "a"}
-	buildExpected := func(inRoot *pb.Span, includeTracerTags bool) stats.InputV1 {
-		st := idx.NewStringTable()
-		root := idx.NewInternalSpan(st, &idx.Span{SpanID: inRoot.SpanID, ServiceRef: st.Add(inRoot.Service), NameRef: st.Add(inRoot.Name), ResourceRef: st.Add(inRoot.Resource)})
+	rootSpanEvent := &pb.Span{SpanID: 5, TraceID: 5, Name: "name", Resource: "resource", Service: "a", Metrics: map[string]float64{"_top_level": 1.0, "_dd.rare": 1.0, "_dd.analyzed": 1, "_dd1.sr.eausr": 1.00}}
+	span := &pb.Span{SpanID: 4, TraceID: 5, Name: "name", Resource: "resource", ParentID: 3, Service: "a", Metrics: map[string]float64{"_top_level": 1.0}}
+	convertSpan := func(st *idx.StringTable, span *pb.Span) *idx.InternalSpan {
+		root := idx.NewInternalSpan(st, &idx.Span{SpanID: span.SpanID, ServiceRef: st.Add(span.Service), NameRef: st.Add(span.Name), ResourceRef: st.Add(span.Resource), ParentID: span.ParentID})
 		root.SetSpanKind(idx.SpanKind_SPAN_KIND_INTERNAL)
-		if inRoot.Meta != nil {
-			for k, v := range inRoot.Meta {
+		if span.Meta != nil {
+			for k, v := range span.Meta {
 				root.SetStringAttribute(k, v)
 			}
 		}
-		if inRoot.Metrics != nil {
-			for k, v := range inRoot.Metrics {
+		if span.Metrics != nil {
+			for k, v := range span.Metrics {
 				root.SetFloat64Attribute(k, v)
 			}
 		}
+		return root
+	}
+
+	buildExpected := func(inRoot *pb.Span, expectedTracerHostname, expectedAppVersion, expectedTracerEnv, expectedContainerID string) stats.InputV1 {
+		st := idx.NewStringTable()
+		root := convertSpan(st, inRoot)
 		tracerTags := stats.InputV1{
 			Traces: []traceutil.ProcessedTraceV1{
 				{
@@ -848,18 +853,62 @@ func TestConcentratorInput(t *testing.T) {
 				},
 			},
 		}
-		if includeTracerTags {
-			tracerTags.Traces[0].TracerHostname = "banana"
-			tracerTags.Traces[0].AppVersion = "camembert"
-			tracerTags.Traces[0].TracerEnv = "apple"
+		if expectedTracerHostname != "" {
+			tracerTags.Traces[0].TracerHostname = expectedTracerHostname
+		}
+		if expectedAppVersion != "" {
+			tracerTags.Traces[0].AppVersion = expectedAppVersion
+		}
+		if expectedTracerEnv != "" {
+			tracerTags.Traces[0].TracerEnv = expectedTracerEnv
+		}
+		if expectedContainerID != "" {
+			tracerTags.ContainerID = expectedContainerID
 		}
 		return tracerTags
 	}
+
+	manyChunksStrings := idx.NewStringTable()
+	rootSpanWithTracerTagsV1 := convertSpan(manyChunksStrings, rootSpanWithTracerTags)
+	rootSpanV1 := convertSpan(manyChunksStrings, rootSpan)
+	rootSpanEventV1Expected := convertSpan(manyChunksStrings, rootSpanEvent)
+	rootSpanEventV1Expected.DeleteAttribute("_dd1.sr.eausr") // this attribute should be deleted by the agent
+	spanV1 := convertSpan(manyChunksStrings, span)
+	manyChunksExpected := stats.InputV1{
+		Traces: []traceutil.ProcessedTraceV1{
+			{
+				Root:           rootSpanWithTracerTagsV1,
+				TraceChunk:     spansToChunkV1(rootSpanWithTracerTagsV1, spanV1),
+				TracerHostname: "host",
+				AppVersion:     "version",
+				TracerEnv:      "env",
+			},
+			{
+				Root:           rootSpanV1,
+				TraceChunk:     spansToChunkV1(rootSpanV1),
+				TracerHostname: "host",
+				AppVersion:     "version",
+				TracerEnv:      "env",
+			},
+			{
+				Root:           rootSpanEventV1Expected,
+				TraceChunk:     spansToChunkV1(rootSpanEventV1Expected, spanV1),
+				TracerHostname: "host",
+				AppVersion:     "version",
+				TracerEnv:      "env",
+			}},
+	}
+
+	expectedSampled := idx.InternalTracerPayload{
+		Chunks: []*idx.InternalTraceChunk{spansToChunkV1(rootSpanWithTracerTagsV1, spanV1), spansToChunkV1(rootSpanEventV1Expected)},
+	}
+	expectedSampled.Chunks[1].DroppedTrace = true // Second chunk is marked dropped due to analytics event
+
 	tts := []struct {
 		name            string
 		in              *api.Payload
 		expected        stats.InputV1
-		expectedSampled *pb.TracerPayload
+		expectedSampled *idx.InternalTracerPayload
 		withFargate     bool
 		features        string
 	}{
@@ -873,7 +922,7 @@ func TestConcentratorInput(t *testing.T) {
 					Chunks:     []*pb.TraceChunk{spansToChunk(rootSpan)},
 				},
 			},
-			expected: buildExpected(rootSpan, true),
+			expected: buildExpected(rootSpan, "banana", "camembert", "apple", ""),
 		},
 		{
 			name: "tracer payload tags in span",
@@ -882,83 +931,53 @@ func TestConcentratorInput(t *testing.T) {
 					Chunks: []*pb.TraceChunk{spansToChunk(rootSpanWithTracerTags)},
 				},
 			},
-			expected: buildExpected(rootSpanWithTracerTags, false),
+			expected: buildExpected(rootSpanWithTracerTags, "host", "version", "env", ""),
 		},
-		// {
-		// 	name: "no tracer tags",
-		// 	in: &api.Payload{
-		// 		TracerPayload: &pb.TracerPayload{
-		// 			Chunks: []*pb.TraceChunk{spansToChunk(rootSpan)},
-		// 		},
-		// 	},
-		// 	expected: buildExpected(rootSpan),
-		// },
-		// {
-		// 	name: "containerID with fargate orchestrator",
-		// 	in: &api.Payload{
-		// 		TracerPayload: &pb.TracerPayload{
-		// 			Chunks:      []*pb.TraceChunk{spansToChunk(rootSpan)},
-		// 			ContainerID: "aaah",
-		// 		},
-		// 	},
-		// 	withFargate: true,
-		// 	expected:    buildExpected(rootSpan),
-		// 	//ContainerID: "aaah",
-		// },
-		// {
-		// 	name: "client computed stats",
-		// 	in: &api.Payload{
-		// 		TracerPayload: &pb.TracerPayload{
-		// 			Chunks:      []*pb.TraceChunk{spansToChunk(rootSpan)},
-		// 			ContainerID: "feature_disabled",
-		// 		},
-		// 		ClientComputedStats: true,
-		// 	},
-		// 	expected: stats.InputV1{},
-		// },
-		// {
-		// 	name: "many chunks",
-		// 	in: &api.Payload{
-		// 		TracerPayload: &pb.TracerPayload{
-		// 			Chunks: []*pb.TraceChunk{
-		// 				spansToChunk(rootSpanWithTracerTags, span),
-		// 				spansToChunk(rootSpan),
-		// 				spansToChunk(rootSpanEvent, span),
-		// 			},
-		// 		},
-		// 	},
-		// 	expected: stats.Input{
-		// 		Traces: []traceutil.ProcessedTrace{
-		// 			{
-		// 				Root:           rootSpanWithTracerTags,
-		// 				TraceChunk:     spansToChunk(rootSpanWithTracerTags, span),
-		// 				TracerHostname: "host",
-		// 				AppVersion:     "version",
-		// 				TracerEnv:      "env",
-		// 			},
-		// 			{
-		// 				Root:           rootSpan,
-		// 				TraceChunk:     spansToChunk(rootSpan),
-		// 				TracerHostname: "host",
-		// 				AppVersion:     "version",
-		// 				TracerEnv:      "env",
-		// 			},
-		// 			{
-		// 				Root:           rootSpanEvent,
-		// 				TraceChunk:     spansToChunk(rootSpanEvent, span),
-		// 				TracerHostname: "host",
-		// 				AppVersion:     "version",
-		// 				TracerEnv:      "env",
-		// 			},
-		// 		},
-		// 	},
-		// 	expectedSampled: &pb.TracerPayload{
-		// 		Chunks:     []*pb.TraceChunk{spansToChunk(rootSpanWithTracerTags, span), dropped(spansToChunk(rootSpanEvent))},
-		// 		Env:        "env",
-		// 		Hostname:   "host",
-		// 		AppVersion: "version",
-		// 	},
-		// },
+		{
+			name: "no tracer tags",
+			in: &api.Payload{
+				TracerPayload: &pb.TracerPayload{
+					Chunks: []*pb.TraceChunk{spansToChunk(rootSpan)},
+				},
+			},
+			expected: buildExpected(rootSpan, "", "", "", ""),
+		},
+		{
+			name: "containerID with fargate orchestrator",
+			in: &api.Payload{
+				TracerPayload: &pb.TracerPayload{
+					Chunks:      []*pb.TraceChunk{spansToChunk(rootSpan)},
+					ContainerID: "aaah",
+				},
+			},
+			withFargate: true,
+			expected:    buildExpected(rootSpan, "", "", "", "aaah"),
+		},
+		{
+			name: "client computed stats",
+			in: &api.Payload{
+				TracerPayload: &pb.TracerPayload{
+					Chunks:      []*pb.TraceChunk{spansToChunk(rootSpan)},
+					ContainerID: "feature_disabled",
+				},
+				ClientComputedStats: true,
+			},
+			expected: stats.InputV1{},
+		},
+		{
+			name: "many chunks",
+			in: &api.Payload{
+				TracerPayload: &pb.TracerPayload{
+					Chunks: []*pb.TraceChunk{
+						spansToChunk(rootSpanWithTracerTags, span),
+						spansToChunk(rootSpan),
+						spansToChunk(rootSpanEvent, span),
+					},
+				},
+			},
+			expected:        manyChunksExpected,
+			expectedSampled: &expectedSampled,
+		},
 	}
 
 	for _, tc := range tts {
@@ -985,7 +1004,10 @@ func TestConcentratorInput(t *testing.T) {
 			if tc.expectedSampled != nil && len(tc.expectedSampled.Chunks) > 0 {
 				payloads := agent.TraceWriterV1.(*mockTraceWriter).payloadsV1
 				assert.NotEmpty(t, payloads, "no payloads were written")
-				assert.Equal(t, tc.expectedSampled, payloads[0].TracerPayload)
+				require.Len(t, payloads[0].TracerPayload.Chunks, len(tc.expectedSampled.Chunks))
+				for i, expectedSampledChunk := range tc.expectedSampled.Chunks {
+					assertInternalTraceChunkEqual(t, expectedSampledChunk, payloads[0].TracerPayload.Chunks[i])
+				}
 			}
 		})
 	}
@@ -993,7 +1015,20 @@ func TestConcentratorInput(t *testing.T) {
 
 func TestConcentratorInputV1(t *testing.T) {
 	rootSpan := func(strs *idx.StringTable) *idx.InternalSpan {
-		return idx.NewInternalSpan(strs, &idx.Span{SpanID: 3, ServiceRef: strs.Add("a"), NameRef: strs.Add("name"), ResourceRef: strs.Add("resource")})
+		return idx.NewInternalSpan(strs, &idx.Span{SpanID: 3, ServiceRef: strs.Add("a"), NameRef: strs.Add("name"), ResourceRef: strs.Add("resource"),
+			Attributes: map[uint32]*idx.AnyValue{
+				strs.Add("_top_level"): {
+					Value: &idx.AnyValue_DoubleValue{
+						DoubleValue: 1.0,
+					},
+				},
+				strs.Add("_dd.rare"): {
+					Value: &idx.AnyValue_DoubleValue{
+						DoubleValue: 1.0,
+					},
+				},
+			},
+		})
 	}
 	tts := []struct {
 		name            string
@@ -1176,7 +1211,7 @@ func assertInternalSpanEqual(t *testing.T, expected *idx.InternalSpan, actual *i
 	assert.Equal(t, expected.Duration(), actual.Duration())
 	assert.Equal(t, expected.Error(), actual.Error())
 	assert.Equal(t, expected.Kind(), actual.Kind())
-	require.Equal(t, len(expected.Attributes()), len(actual.Attributes()), "expected %d attributes, got %s", len(expected.Attributes()), actual.DebugString())
+	require.Equal(t, len(expected.Attributes()), len(actual.Attributes()), "expected %s span attrs, got %s", expected.DebugString(), actual.DebugString())
 	assertAttributesEqual(t, expected.Strings, expected.Attributes(), actual.Strings, actual.Attributes())
 	require.Equal(t, len(expected.Events()), len(actual.Events()))
 	for i, expectedEvent := range expected.Events() {

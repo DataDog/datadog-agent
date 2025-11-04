@@ -15,6 +15,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
 )
 
+// isPromotedTag returns true if the key is a promoted tag that should be set as a field instead of an attribute
+func isPromotedTag(key string) bool {
+	return key == "env" || key == "version" || key == "component" || key == "span.kind"
+}
+
 // ConvertToIdx converts a TracerPayload to the new string indexed TracerPayload format
 func ConvertToIdx(payload *pb.TracerPayload) *idx.InternalTracerPayload {
 	stringTable := idx.NewStringTable()
@@ -39,6 +44,9 @@ func ConvertToIdx(payload *pb.TracerPayload) *idx.InternalTracerPayload {
 		for spanIndex, span := range chunk.Spans {
 			spanAttrs := make(map[uint32]*idx.AnyValue, len(span.Meta)+len(span.Metrics)+len(span.MetaStruct))
 			for k, v := range span.Meta {
+				if isPromotedTag(k) {
+					continue
+				}
 				spanAttrs[stringTable.Add(k)] = &idx.AnyValue{
 					Value: &idx.AnyValue_StringValueRef{
 						StringValueRef: stringTable.Add(v),
@@ -46,6 +54,9 @@ func ConvertToIdx(payload *pb.TracerPayload) *idx.InternalTracerPayload {
 				}
 			}
 			for k, v := range span.Metrics {
+				if isPromotedTag(k) {
+					continue
+				}
 				spanAttrs[stringTable.Add(k)] = &idx.AnyValue{
 					Value: &idx.AnyValue_DoubleValue{
 						DoubleValue: v,
@@ -53,6 +64,9 @@ func ConvertToIdx(payload *pb.TracerPayload) *idx.InternalTracerPayload {
 				}
 			}
 			for k, v := range span.MetaStruct {
+				if isPromotedTag(k) {
+					continue
+				}
 				spanAttrs[stringTable.Add(k)] = &idx.AnyValue{
 					Value: &idx.AnyValue_BytesValue{
 						BytesValue: v,
