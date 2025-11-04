@@ -445,7 +445,7 @@ func GetPredefinedRules() []*TerminalRule {
 		{
 			Name:        "HTTPStatus",
 			Pattern:     regexp.MustCompile(`^[1-5][0-9][0-9]$`),
-			TokenType:   token.TokenHttpStatus,
+			TokenType:   token.TokenHTTPStatus,
 			Priority:    PriorityMedium,
 			Category:    "http",
 			Description: "Matches HTTP status codes",

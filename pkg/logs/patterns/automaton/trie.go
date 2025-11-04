@@ -8,7 +8,6 @@
 package automaton
 
 import (
-	"regexp"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/patterns/token"
@@ -23,8 +22,7 @@ type TrieNode struct {
 
 // Trie implements a prefix tree for token classification
 type Trie struct {
-	root          *TrieNode
-	terminalRules []*TerminalRule
+	root *TrieNode
 }
 
 // GlobalRuleManager manages terminal rules
@@ -48,7 +46,6 @@ func NewTrie() *Trie {
 		root: &TrieNode{
 			children: make(map[rune]*TrieNode),
 		},
-		terminalRules: make([]*TerminalRule, 0),
 	}
 }
 
@@ -106,67 +103,28 @@ func (trie *Trie) AddExactPattern(pattern string, tokenType token.TokenType) {
 	node.tokenType = tokenType
 }
 
-// AddTerminalRule adds a regex-based pattern rule
-func (trie *Trie) AddTerminalRule(pattern string, tokenType token.TokenType, priority int) error {
-	regex, err := regexp.Compile(pattern)
-	if err != nil {
-		return err
-	}
-
-	rule := &TerminalRule{
-		Name:        "AnonymousRule",
-		Pattern:     regex,
-		TokenType:   tokenType,
-		Priority:    priority,
-		Category:    "default",
-		Description: "Anonymous terminal rule",
-		Examples:    []string{},
-	}
-
-	inserted := false
-	for i, existing := range trie.terminalRules {
-		if priority > existing.Priority {
-			trie.terminalRules = append(trie.terminalRules[:i], append([]*TerminalRule{rule}, trie.terminalRules[i:]...)...)
-			inserted = true
-			break
-		}
-	}
-
-	if !inserted {
-		trie.terminalRules = append(trie.terminalRules, rule)
-	}
-
-	return nil
-}
-
-// buildPredefinedPatterns populates the trie with predefined patterns
+// buildPredefinedPatterns populates the trie with exact-match patterns
+// for fast classification of known strings (HTTP methods, severity levels, whitespace).
+// Regex-based terminal rules are handled by globalRuleManager via LoadPredefinedRules().
 func (trie *Trie) buildPredefinedPatterns() {
+	// HTTP methods - exact string matching
 	httpMethods := []string{"GET", "POST", "PUT", "DELETE", "HEAD", "OPTIONS", "PATCH", "TRACE", "CONNECT"}
 	for _, method := range httpMethods {
-		trie.AddExactPattern(method, token.TokenHttpMethod)
+		trie.AddExactPattern(method, token.TokenHTTPMethod)
 	}
 
+	// Severity levels - exact string matching (both uppercase and lowercase)
 	severityLevels := []string{"TRACE", "DEBUG", "INFO", "WARN", "WARNING", "ERROR", "FATAL", "PANIC", "EMERGENCY", "ALERT", "CRITICAL", "NOTICE"}
 	for _, level := range severityLevels {
 		trie.AddExactPattern(level, token.TokenSeverityLevel)
 		trie.AddExactPattern(strings.ToLower(level), token.TokenSeverityLevel)
 	}
 
+	// Whitespace - exact character matching
 	trie.AddExactPattern(" ", token.TokenWhitespace)
 	trie.AddExactPattern("\t", token.TokenWhitespace)
 	trie.AddExactPattern("\n", token.TokenWhitespace)
 	trie.AddExactPattern("\r\n", token.TokenWhitespace)
-
-	trie.AddTerminalRule(`^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$`, token.TokenIPv4, PriorityHigh)
-	trie.AddTerminalRule(`^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$`, token.TokenEmail, PriorityHigh)
-	trie.AddTerminalRule(`^https?://[^\s]+$`, token.TokenURI, PriorityMedium)
-	trie.AddTerminalRule(`^\d{4}-\d{2}-\d{2}`, token.TokenDate, PriorityMedium)
-	trie.AddTerminalRule(`^\d{2}/\d{2}/\d{4}`, token.TokenDate, PriorityMedium)
-	trie.AddTerminalRule(`^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}`, token.TokenDate, PriorityMedium)
-	trie.AddTerminalRule(`^[1-5][0-9][0-9]$`, token.TokenHttpStatus, PriorityMedium)
-	trie.AddTerminalRule(`^/[^\s]+$`, token.TokenAbsolutePath, PriorityMedium)
-	trie.AddTerminalRule(`^([0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}$`, token.TokenIPv6, PriorityHigh)
-	trie.AddTerminalRule(`^\d+$`, token.TokenNumeric, PriorityLow)
 }
 
 // TokenizeString is the main entry point
@@ -179,36 +137,9 @@ func TokenizeString(input string) *token.TokenList {
 	return tokenizer.Tokenize()
 }
 
-// Helper functions
-
-// GetTerminalRules returns all terminal rules
-func GetTerminalRules() []*TerminalRule {
-	return globalRuleManager.ListRules()
-}
-
-// GetRulesByCategory returns rules by category
-func GetRulesByCategory(category string) []*TerminalRule {
-	return globalRuleManager.GetRulesByCategory(category)
-}
-
-// GetRuleCategories returns all rule categories
-func GetRuleCategories() []string {
-	return globalRuleManager.GetCategories()
-}
-
-// AddTerminalRule adds a new terminal rule
-func AddTerminalRule(name, pattern, category, description string, tokenType token.TokenType, priority int, examples []string) error {
-	return globalRuleManager.AddRule(name, pattern, category, description, tokenType, priority, examples)
-}
-
-// GetRuleStats returns rule statistics
-func GetRuleStats() RuleStats {
-	return globalRuleManager.GetRuleStats()
-}
-
 // Statistics
 
-// Stats returns trie statistics
+// TrieStats is the stats of the trie
 type TrieStats struct {
 	ExactPatterns int
 	TerminalRules int
@@ -216,13 +147,19 @@ type TrieStats struct {
 	MaxDepth      int
 }
 
-// GetStats returns trie statistics
+// GetStats returns trie statistics for testing purposes
 func (trie *Trie) GetStats() TrieStats {
 	nodeCount, maxDepth := trie.countNodes(trie.root, 0)
 
+	// Terminal rules are managed by globalRuleManager, not the trie itself
+	terminalRuleCount := 0
+	if globalRuleManager != nil {
+		terminalRuleCount = len(globalRuleManager.rules)
+	}
+
 	return TrieStats{
 		ExactPatterns: trie.countExactPatterns(trie.root),
-		TerminalRules: len(trie.terminalRules),
+		TerminalRules: terminalRuleCount,
 		TrieNodes:     nodeCount,
 		MaxDepth:      maxDepth,
 	}
@@ -254,67 +191,4 @@ func (trie *Trie) countExactPatterns(node *TrieNode) int {
 	}
 
 	return count
-}
-
-// Validation helpers
-
-// validateIPv4 validates IPv4 addresses
-func validateIPv4(value string) bool {
-	parts := strings.Split(value, ".")
-	if len(parts) != 4 {
-		return false
-	}
-
-	for _, part := range parts {
-		if len(part) == 0 || len(part) > 3 {
-			return false
-		}
-
-		// Convert to number and check range
-		num := 0
-		for _, char := range part {
-			if char < '0' || char > '9' {
-				return false
-			}
-			num = num*10 + int(char-'0')
-		}
-
-		if num > 255 {
-			return false
-		}
-	}
-	return true
-}
-
-// validateEmail validates email addresses
-func validateEmail(value string) bool {
-	atCount := strings.Count(value, "@")
-	if atCount != 1 {
-		return false
-	}
-
-	parts := strings.Split(value, "@")
-	if len(parts) != 2 || len(parts[0]) == 0 || len(parts[1]) == 0 {
-		return false
-	}
-
-	return strings.Contains(parts[1], ".")
-}
-
-// validateDate validates date strings
-func validateDate(value string) bool {
-	hasDateChars := strings.Contains(value, "-") || strings.Contains(value, ":") || strings.Contains(value, "/")
-	if !hasDateChars {
-		return false
-	}
-
-	hasDigits := false
-	for _, char := range value {
-		if char >= '0' && char <= '9' {
-			hasDigits = true
-			break
-		}
-	}
-
-	return hasDigits && len(value) >= 8 && len(value) <= 64
 }

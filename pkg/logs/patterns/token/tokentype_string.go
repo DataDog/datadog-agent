@@ -17,13 +17,13 @@ func _() {
 	_ = x[TokenEmail-6]
 	_ = x[TokenURI-7]
 	_ = x[TokenAbsolutePath-8]
-	_ = x[TokenHttpMethod-9]
-	_ = x[TokenHttpStatus-10]
+	_ = x[TokenHTTPMethod-9]
+	_ = x[TokenHTTPStatus-10]
 	_ = x[TokenSeverityLevel-11]
 	_ = x[TokenDate-12]
 }
 
-const _TokenType_name = "UnknownWordNumericWhitespaceIPv4IPv6EmailURIAbsolutePathHttpMethodHttpStatusSeverityLevelDate"
+const _TokenType_name = "UnknownWordNumericWhitespaceIPv4IPv6EmailURIAbsolutePathHTTPMethodHTTPStatusSeverityLevelDate"
 
 var _TokenType_index = [...]uint8{0, 7, 11, 18, 28, 32, 36, 41, 44, 56, 66, 76, 89, 93}
 
