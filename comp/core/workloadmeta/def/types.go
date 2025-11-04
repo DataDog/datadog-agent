@@ -1720,8 +1720,8 @@ type Process struct {
 	// Owner will temporarily duplicate the ContainerID field until the new collector is enabled so we can then remove the ContainerID field
 	Owner *EntityID // Owner is a reference to a container in WLM
 
-	// GPU is a reference to a GPU entity in WLM that this process is using
-	GPU *EntityID
+	// GPUs is a reference to a list of GPU entities in WLM that this process is using
+	GPUs []EntityID
 
 	// Service contains service discovery information for this process
 	Service *Service

@@ -299,13 +299,14 @@ func (c *WorkloadMetaCollector) handleProcess(ev workloadmeta.Event) []*types.Ta
 	}
 
 	// Add GPU tags if the process has a GPU reference
-	if process.GPU != nil {
-		gpu, err := c.store.GetGPU(process.GPU.ID)
+	for _, gpuEntityID := range process.GPUs {
+		gpu, err := c.store.GetGPU(gpuEntityID.ID)
 		if err != nil {
 			log.Debugf("cannot get GPU entity for process %s: %s", process.EntityID.ID, err)
-		} else if gpu != nil {
-			c.extractGPUTags(gpu, tagList)
+			continue
 		}
+
+		c.extractGPUTags(gpu, tagList)
 	}
 
 	low, orch, high, standard := tagList.Compute()
