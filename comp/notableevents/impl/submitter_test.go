@@ -51,9 +51,6 @@ func TestSubmitter_DrainChannelAndPayloadFormat(t *testing.T) {
 	close(eventChan)
 	sub.stop()
 
-	// Small delay to ensure messages are processed
-	// time.Sleep(100 * time.Millisecond)
-
 	// Verify sent messages
 	sentMessages := forwarder.Purge()
 	eventsV2Messages := sentMessages[eventplatform.EventTypeEventManagement]
@@ -74,6 +71,8 @@ func TestSubmitter_DrainChannelAndPayloadFormat(t *testing.T) {
 		require.True(t, ok, "Data should have 'attributes' field")
 		_, ok = attributes["title"].(string)
 		require.True(t, ok, "Attributes should have 'title' field")
+		_, ok = attributes["host"].(string)
+		require.True(t, ok, "Attributes should have 'host' field")
 		assert.Equal(t, "alert", attributes["category"], "Category should be 'alert'")
 		nestedAttrs, ok := attributes["attributes"].(map[string]interface{})
 		require.True(t, ok, "Attributes should have nested 'attributes' field")

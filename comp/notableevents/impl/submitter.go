@@ -77,16 +77,13 @@ func (s *submitter) submitEvent(payload eventPayload) error {
 	// Get hostname
 	hostnameValue := s.hostname.GetSafe(context.TODO())
 
+	// Create base tags for the event
 	tags := []string{
 		fmt.Sprintf("channel:%s", payload.Channel),
 		fmt.Sprintf("provider:%s", payload.Provider),
 		fmt.Sprintf("event_id:%d", payload.EventID),
 		"source:windows_event_log",
 	}
-	//nolint:misspell
-	// TODO(ECT-4182): Add host field to payload when it is supported by the intake
-	// the tag doesn't do what we want, but its better than nothing for now
-	tags = append(tags, "host:"+hostnameValue)
 
 	// Create Event Management v2 API payload
 	timestamp := payload.Timestamp.In(time.UTC).Format("2006-01-02T15:04:05.000000Z")
@@ -94,6 +91,7 @@ func (s *submitter) submitEvent(payload eventPayload) error {
 		"data": map[string]interface{}{
 			"type": "event",
 			"attributes": map[string]interface{}{
+				"host":     hostnameValue,
 				"title":    fmt.Sprintf("System Error - Event ID %d - %s", payload.EventID, payload.Provider),
 				"category": "alert",
 				"attributes": map[string]interface{}{
