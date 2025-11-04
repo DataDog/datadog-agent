@@ -15,9 +15,9 @@ import (
 	"strings"
 	"time"
 
+	model "github.com/DataDog/agent-payload/v5/process"
 	"google.golang.org/grpc"
 
-	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
