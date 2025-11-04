@@ -151,11 +151,6 @@ func updateAdditionalEndpoints(resolver DomainResolver, setting string, config c
 	}
 }
 
-// NewSingleDomainResolver creates a DomainResolver with its destination domain & API keys
-func NewSingleDomainResolver(domain string, apiKeys []utils.APIKeys) (DomainResolver, error) {
-	return NewSingleDomainResolver2(utils.EndpointDescriptor{BaseURL: domain, APIKeySet: apiKeys})
-}
-
 // NewSingleDomainResolver2 creates a DomainResolver from an endpoint configuration object.
 func NewSingleDomainResolver2(descriptor utils.EndpointDescriptor) (DomainResolver, error) {
 	// Ensure all API keys have a config setting path so we can keep track to ensure they are updated
