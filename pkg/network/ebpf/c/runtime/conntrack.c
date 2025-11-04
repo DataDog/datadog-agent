@@ -112,8 +112,10 @@ int BPF_BYPASSABLE_KPROBE(kprobe__nf_conntrack_confirm) {
     struct sk_buff *skb = (struct sk_buff *)PT_REGS_PARM1(ctx); // skb is 1st parameter
     u64 pid_tgid = bpf_get_current_pid_tgid();
 
-    if (!skb)
+    if (!skb) {
+        increment_confirm_entry_skb_null_count();
         return 0;
+    }
 
     // Extract ct from skb using nf_ct_get()
     struct nf_conn *ct = NULL;
@@ -122,19 +124,24 @@ int BPF_BYPASSABLE_KPROBE(kprobe__nf_conntrack_confirm) {
     // The conntrack info is stored in skb->_nfct
     u64 nfct = 0;
     BPF_CORE_READ_INTO(&nfct, skb, _nfct);
-    if (!nfct)
+    if (!nfct) {
+        increment_confirm_entry_nfct_null_count();
         return 0;
+    }
     
     // Extract ct pointer from nfct (lower 3 bits contain ctinfo, upper bits contain ct pointer)
     // Standard Linux kernel mask is ~7UL to clear the lower 3 bits
     ct = (struct nf_conn *)(nfct & ~7UL);
 
-    if (!ct)
+    if (!ct) {
+        increment_confirm_entry_ct_null_count();
         return 0;
+    }
 
     u32 status = 0;
     BPF_CORE_READ_INTO(&status, ct, status);
     if (!(status&IPS_NAT_MASK)) {
+        increment_confirm_entry_not_nat_count();
         log_debug("JMW(runtime)confirm: not IPS_NAT_MASK ct=%p status=%x", ct, status);
         return 0;
     }
@@ -142,7 +149,7 @@ int BPF_BYPASSABLE_KPROBE(kprobe__nf_conntrack_confirm) {
     // Store ct pointer using pid_tgid for correlation with return probe
     u64 ct_ptr = (u64)ct;
     bpf_map_update_with_telemetry(pending_confirms, &pid_tgid, &ct_ptr, BPF_ANY);
-
+    increment_confirm_entry_pending_added_count();
     log_debug("JMW(runtime)confirm: added to pending_confirms: ct=%p pid_tgid=%llu", ct, pid_tgid);
 
     return 0;

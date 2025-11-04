@@ -29,4 +29,9 @@ type ConntrackTelemetry struct {
 	Confirm_return_failed_to_get_conntrack_tuples_count uint64
 	Hash_insert_regular_exists_count                    uint64
 	Hash_insert_reverse_exists_count                    uint64
+	Confirm_entry_skb_null_count                        uint64
+	Confirm_entry_nfct_null_count                       uint64
+	Confirm_entry_ct_null_count                         uint64
+	Confirm_entry_not_nat_count                         uint64
+	Confirm_entry_pending_added_count                   uint64
 }

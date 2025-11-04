@@ -34,6 +34,11 @@ typedef struct {
     __u64 confirm_return_failed_to_get_conntrack_tuples_count;
     __u64 hash_insert_regular_exists_count;
     __u64 hash_insert_reverse_exists_count;
+    __u64 confirm_entry_skb_null_count;
+    __u64 confirm_entry_nfct_null_count;
+    __u64 confirm_entry_ct_null_count;
+    __u64 confirm_entry_not_nat_count;
+    __u64 confirm_entry_pending_added_count;
 } conntrack_telemetry_t;
 
 
