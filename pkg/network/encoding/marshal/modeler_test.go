@@ -12,6 +12,7 @@ import (
 
 	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/network"
@@ -48,7 +49,8 @@ func TestConnectionModelerAgentConfiguration(t *testing.T) {
 			mock.NewSystemProbe(t)
 			cfgOnce = sync.Once{}
 			conns := &network.Connections{}
-			mod, _ := NewConnectionsModeler(conns)
+			mod, err := NewConnectionsModeler(conns)
+			require.NoError(t, err)
 			streamer := NewProtoTestStreamer[*model.Connections]()
 			builder := model.NewConnectionsBuilder(streamer)
 			expected := &model.AgentConfiguration{

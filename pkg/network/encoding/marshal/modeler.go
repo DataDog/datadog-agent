@@ -7,7 +7,6 @@ package marshal
 
 import (
 	"fmt"
-	"os"
 	"sync"
 
 	model "github.com/DataDog/agent-payload/v5/process"
@@ -20,10 +19,6 @@ import (
 var (
 	cfgOnce  = sync.Once{}
 	agentCfg *model.AgentConfiguration
-
-	getSysProbePid = sync.OnceValue(func() uint32 {
-		return uint32(os.Getpid())
-	})
 )
 
 // ConnectionsModeler contains all the necessary structs for modeling a connection.
