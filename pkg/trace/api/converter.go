@@ -13,6 +13,7 @@ import (
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace/idx"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
+	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 )
 
 // isPromotedTag returns true if the key is a promoted tag that should be set as a field instead of an attribute
@@ -40,6 +41,7 @@ func ConvertToIdx(payload *pb.TracerPayload) *idx.InternalTracerPayload {
 			log.Errorf("Unable to convert trace to idx, failed to determine 128-bit trace ID from incoming span defaulting to nil: %v", err)
 		}
 		chunkAttrs := convertAttributesMap(chunk.Tags, stringTable)
+		chunkPriority := int32(sampler.PriorityNone)
 		idxSpans := make([]*idx.InternalSpan, len(chunk.Spans))
 		for spanIndex, span := range chunk.Spans {
 			spanAttrs := make(map[uint32]*idx.AnyValue, len(span.Meta)+len(span.Metrics)+len(span.MetaStruct))
@@ -56,6 +58,9 @@ func ConvertToIdx(payload *pb.TracerPayload) *idx.InternalTracerPayload {
 			for k, v := range span.Metrics {
 				if isPromotedTag(k) {
 					continue
+				}
+				if k == "_sampling_priority_v1" {
+					chunkPriority = int32(v)
 				}
 				spanAttrs[stringTable.Add(k)] = &idx.AnyValue{
 					Value: &idx.AnyValue_DoubleValue{
@@ -159,9 +164,13 @@ func ConvertToIdx(payload *pb.TracerPayload) *idx.InternalTracerPayload {
 				log.Warnf("Found invalid sampling mechanism %s: %v, Decision maker will be ignored", decisionMaker, err)
 			}
 		}
+		if chunkPriority == int32(sampler.PriorityNone) && chunk.Priority != int32(sampler.PriorityNone) {
+			// If the chunk has a priority set and none on any internal span then use the chunk's priority
+			chunkPriority = chunk.Priority
+		}
 		idxChunks[chunkIndex] = &idx.InternalTraceChunk{
 			Strings:      stringTable,
-			Priority:     int32(chunk.Priority),
+			Priority:     chunkPriority,
 			Attributes:   chunkAttrs,
 			Spans:        idxSpans,
 			DroppedTrace: chunk.DroppedTrace,

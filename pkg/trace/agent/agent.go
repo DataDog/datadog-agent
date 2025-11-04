@@ -766,19 +766,24 @@ func (a *Agent) runSamplersV1(now time.Time, ts *info.TagStats, pt traceutil.Pro
 
 	if a.conf.ProbabilisticSamplerEnabled {
 		samplerName = sampler.NameProbabilistic
+		probKeep := false
 		if rare {
 			samplerName = sampler.NameRare
-			return true, true
+			probKeep = true
 		}
 		if a.ProbabilisticSampler.SampleV1(pt.TraceChunk.TraceID, pt.Root) {
 			pt.TraceChunk.SetSamplingMechanism(probabilitySamplingV1)
-			return true, true
-		}
-		if traceContainsErrorV1(pt.TraceChunk.Spans, false) {
+			probKeep = true
+		} else if traceContainsErrorV1(pt.TraceChunk.Spans, false) {
 			samplerName = sampler.NameError
-			return a.ErrorsSampler.SampleV1(now, pt.TraceChunk, pt.Root, pt.TracerEnv), true
+			probKeep = a.ErrorsSampler.SampleV1(now, pt.TraceChunk, pt.Root, pt.TracerEnv)
 		}
-		return false, true
+		if probKeep {
+			pt.TraceChunk.Priority = int32(sampler.PriorityAutoKeep)
+		} else {
+			pt.TraceChunk.Priority = int32(sampler.PriorityAutoDrop)
+		}
+		return probKeep, true
 	}
 
 	priority, hasPriority := sampler.GetSamplingPriorityV1(pt.TraceChunk)

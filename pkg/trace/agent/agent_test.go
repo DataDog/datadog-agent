@@ -113,6 +113,7 @@ func (c *mockConcentrator) Reset() []stats.Input {
 	defer c.mu.Unlock()
 	ret := c.stats
 	c.stats = nil
+	c.statsV1 = nil
 	return ret
 }
 
@@ -1536,7 +1537,7 @@ func TestClientComputedStats(t *testing.T) {
 			ClientComputedStats: false,
 		})
 		mco := agnt.Concentrator.(*mockConcentrator)
-		assert.Len(t, mco.stats, 1)
+		assert.Len(t, mco.statsV1, 1)
 	})
 }
 
@@ -2168,6 +2169,9 @@ func TestSampleTrace(t *testing.T) {
 		if decisionMaker != "" {
 			chunk.SetStringAttribute("_dd.p.dm", decisionMaker)
 			chunk.Spans[0].SetStringAttribute("_dd.p.dm", decisionMaker)
+			samplingMechanism, err := strconv.ParseUint(strings.TrimPrefix(decisionMaker, "-"), 10, 32)
+			require.NoError(t, err)
+			chunk.SetSamplingMechanism(uint32(samplingMechanism))
 		}
 		pt := traceutil.ProcessedTraceV1{TraceChunk: chunk, Root: root}
 		return pt
@@ -2657,12 +2661,14 @@ func TestPartialSamplingFree(t *testing.T) {
 	assert.Greater(t, m.HeapInuse, uint64(50*1e6))
 
 	agnt.Concentrator.(*mockConcentrator).Reset()
+	// The big strings from the partial flush will be cleaned up when we flush the old payload
+	// To simulate that we explicitly call RemoveUnusedStrings on the payload as the real TraceWriterV1 does
+	assert.Len(t, agnt.TraceWriterV1.(*mockTraceWriter).payloadsV1, 1)
+	agnt.TraceWriterV1.(*mockTraceWriter).payloadsV1[0].TracerPayload.RemoveUnusedStrings()
 	// big chunk should be cleaned as unsampled and passed through stats
 	runtime.GC()
 	runtime.ReadMemStats(&m)
 	assert.Less(t, m.HeapInuse, uint64(50*1e6))
-
-	assert.Len(t, agnt.TraceWriterV1.(*mockTraceWriter).payloadsV1, 1)
 }
 
 func TestEventProcessorFromConf(t *testing.T) {
