@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Fixes live process and containers for agents running as a sidecar in AWS ECS Managed Instances.
