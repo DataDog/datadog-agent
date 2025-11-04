@@ -61,6 +61,7 @@ func (o *Operations) Apply(rootPath string) error {
 	if err != nil {
 		return err
 	}
+	defer root.Close()
 	for _, operation := range o.FileOperations {
 		// TODO (go.1.25): we won't need rootPath in 1.25
 		err := operation.apply(root, rootPath)
@@ -255,10 +256,21 @@ func ensureDir(root *os.Root, filePath string) error {
 		}
 
 		// Open the directory for the next iteration
-		currentRoot, err = currentRoot.OpenRoot(part)
+		nextRoot, err := currentRoot.OpenRoot(part)
 		if err != nil {
 			return err
 		}
+
+		// Close the previous root if it's not the original root
+		if currentRoot != root {
+			currentRoot.Close()
+		}
+		currentRoot = nextRoot
+	}
+
+	// Close the final root if it's not the original root
+	if currentRoot != root {
+		currentRoot.Close()
 	}
 	return nil
 }
