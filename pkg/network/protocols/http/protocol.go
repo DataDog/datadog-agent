@@ -29,6 +29,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+var (
+	Debug bool
+)
+
 type protocol struct {
 	cfg               *config.Config
 	telemetry         *Telemetry
@@ -254,6 +258,9 @@ func (p *protocol) DumpMaps(w io.Writer, mapName string, currentMap *ebpf.Map) {
 func (p *protocol) processHTTP(events []EbpfEvent) {
 	for i := range events {
 		tx := &events[i]
+		if Debug {
+			fmt.Printf("HTTP | Processing tx %s\n", tx.String())
+		}
 		p.telemetry.Count(tx)
 		p.statkeeper.Process(tx)
 	}
@@ -296,6 +303,11 @@ func (p *protocol) GetStats() (*protocols.ProtocolStats, func()) {
 	p.consumer.Sync()
 	p.telemetry.Log()
 	stats := p.statkeeper.GetAndResetAllStats()
+	if Debug {
+		for key, value := range stats {
+			fmt.Printf("HTTP | Reporting stat %s; value: %#v\n", key.String(), value.Data)
+		}
+	}
 	return &protocols.ProtocolStats{
 			Type:  protocols.HTTP,
 			Stats: stats,
