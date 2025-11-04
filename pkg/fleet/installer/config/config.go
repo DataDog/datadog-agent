@@ -278,13 +278,16 @@ var (
 )
 
 func configNameAllowed(file string) bool {
+	// Normalize path to use forward slashes for consistent matching on all platforms
+	normalizedFile := filepath.ToSlash(file)
+
 	// Matching everything under the legacy /managed directory
-	if strings.HasPrefix(file, "/managed") {
+	if strings.HasPrefix(normalizedFile, "/managed") {
 		return true
 	}
 
 	for _, allowedFile := range allowedConfigFiles {
-		match, err := filepath.Match(allowedFile, file)
+		match, err := filepath.Match(allowedFile, normalizedFile)
 		if err != nil {
 			return false
 		}
