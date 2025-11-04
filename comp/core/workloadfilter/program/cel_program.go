@@ -8,6 +8,8 @@
 package program
 
 import (
+	"time"
+
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -23,6 +25,8 @@ type CELProgram struct {
 
 var _ FilterProgram = &CELProgram{}
 
+var logLimiter = log.NewLogLimit(20, 10*time.Minute)
+
 // Evaluate evaluates the filter program for a Result (Included, Excluded, or Unknown)
 func (p CELProgram) Evaluate(entity workloadfilter.Filterable) workloadfilter.Result {
 	if p.Exclude != nil {
@@ -34,7 +38,9 @@ func (p CELProgram) Evaluate(entity workloadfilter.Filterable) workloadfilter.Re
 					return workloadfilter.Excluded
 				}
 			} else {
-				log.Debugf(`filter '%s' from 'cel_workload_exclude' failed to convert value to bool: %v`, p.Name, out.Value())
+				if logLimiter.ShouldLog() {
+					log.Warnf(`filter '%s' from 'cel_workload_exclude' failed to convert value to bool: %v`, p.Name, out.Value())
+				}
 			}
 		} else {
 			log.Debugf(`filter '%s' from 'cel_workload_exclude' failed to evaluate: %v`, p.Name, err)
