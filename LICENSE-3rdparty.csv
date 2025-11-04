@@ -220,7 +220,6 @@ core,github.com/DataDog/sketches-go/ddsketch/mapping,Apache-2.0,"Copyright 2021 
 core,github.com/DataDog/sketches-go/ddsketch/pb/sketchpb,Apache-2.0,"Copyright 2021 Datadog, Inc"
 core,github.com/DataDog/sketches-go/ddsketch/stat,Apache-2.0,"Copyright 2021 Datadog, Inc"
 core,github.com/DataDog/sketches-go/ddsketch/store,Apache-2.0,"Copyright 2021 Datadog, Inc"
-core,github.com/DataDog/viper,MIT,Copyright (c) 2014 Steve Francia
 core,github.com/DataDog/watermarkpodautoscaler/apis/datadoghq/v1alpha1,Apache-2.0,"Copyright 2016-present Datadog, Inc"
 core,github.com/DataDog/zstd,BSD-3-Clause,"Copyright (c) 2016, Datadog <info@datadoghq.com>"
 core,github.com/DataDog/zstd_0,BSD-3-Clause,"Copyright (c) 2016, Datadog <info@datadoghq.com>"
@@ -1470,7 +1469,6 @@ core,github.com/lxn/walk,BSD-3-Clause,Copyright (c) 2010 The Walk Authors. All r
 core,github.com/lxn/win,BSD-3-Clause,Copyright (c) 2010 The win Authors. All rights reserved.
 core,github.com/magefile/mage/mg,Apache-2.0,Copyright 2017 the Mage authors
 core,github.com/magefile/mage/sh,Apache-2.0,Copyright 2017 the Mage authors
-core,github.com/magiconair/properties,BSD-2-Clause,"Copyright (c) 2013-2020, Frank Schroeder"
 core,github.com/mailru/easyjson,MIT,Copyright (c) 2016 Mail.Ru Group
 core,github.com/mailru/easyjson/bootstrap,MIT,Copyright (c) 2016 Mail.Ru Group
 core,github.com/mailru/easyjson/buffer,MIT,Copyright (c) 2016 Mail.Ru Group
@@ -1982,7 +1980,6 @@ core,github.com/package-url/packageurl-go,MIT,Copyright (c) the purl authors
 core,github.com/pahanini/go-grpc-bidirectional-streaming-example/src/proto,MIT,Copyright (c) 2017 Pavel Tetyaev
 core,github.com/patrickmn/go-cache,MIT,Alex Edwards <ajmedwards@gmail.com> | Copyright (c) 2012-2017 Patrick Mylund Nielsen and the go-cache contributors | Dustin Sallings <dustin@spy.net> | Jason Mooberry <jasonmoo@me.com> | Sergey Shepelev <temotor@gmail.com>
 core,github.com/pborman/uuid,BSD-3-Clause,"Copyright (c) 2009,2014 Google Inc. All rights reserved | Paul Borman <borman@google.com>"
-core,github.com/pelletier/go-toml,MIT,"Copyright (c) 2013 - 2021 Thomas Pelletier, Eric Anderton"
 core,github.com/philhofer/fwd,MIT,"Copyright (c) 2014-2015, Philip Hofer"
 core,github.com/pierrec/lz4/v4,BSD-3-Clause,"Copyright (c) 2015, Pierre Curto"
 core,github.com/pierrec/lz4/v4/internal/lz4block,BSD-3-Clause,"Copyright (c) 2015, Pierre Curto"
@@ -2231,7 +2228,6 @@ core,github.com/spf13/afero/internal/common,Apache-2.0,Copyright 2013 tsuru auth
 core,github.com/spf13/afero/mem,Apache-2.0,Copyright 2013 tsuru authors. All rights reserved. | Copyright © 2014 Steve Francia <spf@spf13.com>.
 core,github.com/spf13/cast,MIT,Copyright (c) 2014 Steve Francia
 core,github.com/spf13/cobra,Apache-2.0,Copyright © 2013 Steve Francia <spf@spf13.com>.
-core,github.com/spf13/jwalterweatherman,MIT,Copyright (c) 2014 Steve Francia
 core,github.com/spf13/pflag,BSD-3-Clause,Copyright (c) 2012 Alex Ogier. All rights reserved | Copyright (c) 2012 The Go Authors. All rights reserved
 core,github.com/stackitcloud/stackit-sdk-go/core/auth,Apache-2.0,Copyright 2025 Schwarz IT KG
 core,github.com/stackitcloud/stackit-sdk-go/core/clients,Apache-2.0,Copyright 2025 Schwarz IT KG

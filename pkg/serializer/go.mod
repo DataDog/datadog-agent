@@ -54,8 +54,6 @@ require (
 	github.com/DataDog/datadog-agent/pkg/config/nodetreemodel v0.64.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/setup v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/structure v0.61.0 // indirect
-	github.com/DataDog/datadog-agent/pkg/config/teeconfig v0.64.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/config/viperconfig v0.72.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/fips v0.0.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/orchestrator/model v0.59.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/status/health v0.61.0 // indirect
@@ -77,7 +75,6 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.61.0 // indirect
 	github.com/DataDog/mmh3 v0.0.0-20210722141835-012dc69a9e49 // indirect
 	github.com/DataDog/sketches-go v1.4.7 // indirect
-	github.com/DataDog/viper v1.15.0 // indirect
 	github.com/DataDog/zstd v1.5.7 // indirect
 	github.com/DataDog/zstd_0 v0.0.0-20210310093942-586c1286621f // indirect
 	github.com/Microsoft/go-winio v0.6.2 // indirect
@@ -88,7 +85,6 @@ require (
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/ebitengine/purego v0.9.1 // indirect
 	github.com/fatih/color v1.18.0 // indirect
-	github.com/fsnotify/fsnotify v1.9.0 // indirect
 	github.com/go-ole/go-ole v1.3.0 // indirect
 	github.com/go-viper/mapstructure/v2 v2.5.0 // indirect
 	github.com/gofrs/flock v0.13.0 // indirect
@@ -109,7 +105,6 @@ require (
 	github.com/mohae/deepcopy v0.0.0-20170929034955-c48cc78d4826 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
 	github.com/patrickmn/go-cache v2.1.0+incompatible // indirect
-	github.com/pelletier/go-toml v1.9.5 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/power-devops/perfstat v0.0.0-20240221224432-82ca36839d55 // indirect
 	github.com/prometheus/client_golang v1.23.2 // indirect
@@ -119,7 +114,6 @@ require (
 	github.com/shirou/gopsutil/v4 v4.25.12 // indirect
 	github.com/spf13/cast v1.10.0 // indirect
 	github.com/spf13/cobra v1.10.2 // indirect
-	github.com/spf13/jwalterweatherman v1.1.0 // indirect
 	github.com/spf13/pflag v1.0.10 // indirect
 	github.com/stretchr/objx v0.5.2 // indirect
 	github.com/tklauser/go-sysconf v0.3.16 // indirect
@@ -224,7 +218,6 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/config/structure => ../../pkg/config/structure
 	github.com/DataDog/datadog-agent/pkg/config/teeconfig => ../../pkg/config/teeconfig
 	github.com/DataDog/datadog-agent/pkg/config/utils => ../../pkg/config/utils
-	github.com/DataDog/datadog-agent/pkg/config/viperconfig => ../../pkg/config/viperconfig
 	github.com/DataDog/datadog-agent/pkg/errors => ../../pkg/errors
 	github.com/DataDog/datadog-agent/pkg/fips => ../../pkg/fips
 	github.com/DataDog/datadog-agent/pkg/fleet/installer => ../../pkg/fleet/installer

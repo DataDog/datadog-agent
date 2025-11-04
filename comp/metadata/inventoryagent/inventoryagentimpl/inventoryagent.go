@@ -17,7 +17,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/viper"
 	"go.uber.org/fx"
 	"gopkg.in/yaml.v2"
 
@@ -37,6 +36,7 @@ import (
 	sysprobeConfigFetcher "github.com/DataDog/datadog-agent/pkg/config/fetcher/sysprobe"
 	"github.com/DataDog/datadog-agent/pkg/config/fetcher/tracers"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/config/nodetreemodel"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/fips"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
@@ -209,8 +209,9 @@ func (ia *inventoryagent) getCorrectConfig(name string, localConf model.Reader, 
 	// We query the configuration from another agent itself to have accurate data. If the other process isn't
 	// available we fallback on the current configuration.
 	if remoteConfig, err := configFetcher(localConf, ia.client); err == nil {
-		cfg := viper.New()
+		cfg := nodetreemodel.NewNodeTreeConfig("inventoryagent", "", nil)
 		cfg.SetConfigType("yaml")
+		cfg.BuildSchema()
 		if err = cfg.ReadConfig(strings.NewReader(remoteConfig)); err != nil {
 			ia.log.Errorf("Could not parse '%s' configuration: %s", name, err)
 		} else {

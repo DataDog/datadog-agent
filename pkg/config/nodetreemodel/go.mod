@@ -8,7 +8,6 @@ replace github.com/spf13/cast => github.com/DataDog/cast v1.8.0
 require (
 	github.com/DataDog/datadog-agent/pkg/config/helper v0.73.0-devel.0.20251030121902-cd89eab046d6
 	github.com/DataDog/datadog-agent/pkg/config/model v0.72.2
-	github.com/DataDog/datadog-agent/pkg/config/viperconfig v0.72.2
 	github.com/DataDog/datadog-agent/pkg/util/log v0.72.2
 	github.com/mohae/deepcopy v0.0.0-20170929034955-c48cc78d4826
 	github.com/spf13/cast v1.10.0
@@ -21,7 +20,6 @@ require (
 	github.com/DataDog/datadog-agent/pkg/template v0.64.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.72.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/version v0.72.2 // indirect
-	github.com/DataDog/viper v1.15.0 // indirect
 	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/fsnotify/fsnotify v1.9.0 // indirect
@@ -119,7 +117,6 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/config/structure => ../../../pkg/config/structure
 	github.com/DataDog/datadog-agent/pkg/config/teeconfig => ../../../pkg/config/teeconfig
 	github.com/DataDog/datadog-agent/pkg/config/utils => ../../../pkg/config/utils
-	github.com/DataDog/datadog-agent/pkg/config/viperconfig => ../../../pkg/config/viperconfig
 	github.com/DataDog/datadog-agent/pkg/errors => ../../../pkg/errors
 	github.com/DataDog/datadog-agent/pkg/fips => ../../../pkg/fips
 	github.com/DataDog/datadog-agent/pkg/fleet/installer => ../../../pkg/fleet/installer

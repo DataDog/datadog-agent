@@ -95,7 +95,6 @@ use (
 	pkg/config/structure
 	pkg/config/teeconfig
 	pkg/config/utils
-	pkg/config/viperconfig
 	pkg/errors
 	pkg/fips
 	pkg/fleet/installer
