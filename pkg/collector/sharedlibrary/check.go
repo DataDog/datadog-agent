@@ -95,7 +95,7 @@ func (c *Check) String() string {
 	return c.name
 }
 
-// Version is always an empty string
+// Version returns the check version (either given by the shared library or "unversioned" otherwise)
 func (c *Check) Version() string {
 	return c.version
 }

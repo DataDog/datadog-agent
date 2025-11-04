@@ -20,11 +20,11 @@ import (
 #include "ffi.h"
 
 // functions from the Python package
-extern void SubmitMetric(char *, metric_type_t, char *, double, char **, char *, bool);
-extern void SubmitServiceCheck(char *, char *, int, char **, char *, char *);
-extern void SubmitEvent(char *, event_t *);
-extern void SubmitHistogramBucket(char *, char *, long long, float, float, int, char *, char **, bool);
-extern void SubmitEventPlatformEvent(char *, char *, int, char *);
+void SubmitMetric(char *, metric_type_t, char *, double, char **, char *, bool);
+void SubmitServiceCheck(char *, char *, int, char **, char *, char *);
+void SubmitEvent(char *, event_t *);
+void SubmitHistogramBucket(char *, char *, long long, float, float, int, char *, char **, bool);
+void SubmitEventPlatformEvent(char *, char *, int, char *);
 
 // the callbacks are aggregated in this file as it's the only one which uses it
 const aggregator_t aggregator = {
@@ -77,13 +77,13 @@ type sharedLibraryLoader struct {
 // Load looks for a shared library with the corresponding name and check if it has a `Run` symbol.
 // If that's the case, then the method will return handles for both.
 func (l *sharedLibraryLoader) Load(name string) (libraryHandles, error) {
-	var cErr *C.char
-
 	// the prefix "libdatadog-agent-" is required to avoid possible name conflicts with other shared libraries in the include path
 	libPath := path.Join(l.folderPath, "libdatadog-agent-"+name+getLibExtension())
 
 	cLibPath := C.CString(libPath)
 	defer C.free(unsafe.Pointer(cLibPath))
+
+	var cErr *C.char
 
 	cLibHandles := C.load_shared_library(cLibPath, &cErr)
 	if cErr != nil {
