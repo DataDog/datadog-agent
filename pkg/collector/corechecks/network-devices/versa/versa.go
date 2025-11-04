@@ -484,6 +484,13 @@ func (v *VersaCheck) getOrCreateClient() (*client.Client, error) {
 	if v.client != nil && v.ID() == v.prevCheckID {
 		log.Trace("No config change, re-using existing Versa client...")
 		return v.client, nil
+	} else if v.client != nil {
+		// if the config has changed and the client exists,
+		// close the client to revoke the existing OAuth key
+		err := v.client.Close()
+		if err != nil {
+			log.Debugf("failed to close outdated Versa client: %v", err)
+		}
 	}
 	log.Trace("Config change detected, creating new Versa client...")
 
