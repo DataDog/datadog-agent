@@ -12,16 +12,20 @@ import (
 	"testing"
 
 	snmpscanmanager "github.com/DataDog/datadog-agent/comp/snmpscanmanager/def"
+
+	"github.com/stretchr/testify/mock"
 )
 
-type snmpScanManagerMock struct {
+// SnmpScanManagerMock mocks snmpscanmanager.Component
+type SnmpScanManagerMock struct {
+	mock.Mock
 }
 
-// Mock returns a mock for snmpscanmanager component.
+// Mock returns a mock for snmpscanmanager component
 func Mock(_ *testing.T) snmpscanmanager.Component {
-	scanManager := &snmpScanManagerMock{}
-	return scanManager
+	return &SnmpScanManagerMock{}
 }
 
-func (m *snmpScanManagerMock) RequestScan(_ snmpscanmanager.ScanRequest) {
+func (m *SnmpScanManagerMock) RequestScan(req snmpscanmanager.ScanRequest) {
+	m.Called(req)
 }
