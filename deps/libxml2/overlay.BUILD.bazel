@@ -169,7 +169,8 @@ expand_template(
         "@XML_INCLUDEDIR@": "-I${includedir}",
         "@XML_PC_CFLAGS_PRIVATE@": "",
         "@XML_STATIC_CFLAGS@": "",
-    }
+    },
+    visibility = ["//visibility:public"],
 )
 
 pkg_files(
