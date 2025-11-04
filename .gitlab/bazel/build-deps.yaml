@@ -13,7 +13,8 @@ bazel:build-deps:linux-amd64:
 bazel:build-deps:linux-arm64:
   extends: [ .bazel:build-deps, .bazel:runner:linux-arm64 ]
   script:
-    - bazel build //deps/...
+    - bazel build @openssl//:openssl --sandbox_debug --logging=5 || echo ====== || cat bazel-out/*/bin/external/+_repo_rules+openssl/openssl_foreign_cc/wrapper_build_script.sh || echo ======= || cat /root/.cache/bazel/_bazel_root/*/execroot/_main/bazel-out/_tmp/actions/stdout-2 || echo === END LOGS
+    - bazel query //deps/...
 
 bazel:build-deps:macos-amd64:
   extends: [ .bazel:build-deps, .bazel:runner:macos-amd64 ]

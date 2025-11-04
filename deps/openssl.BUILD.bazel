@@ -21,11 +21,17 @@ configure_make(
         "@platforms//os:windows": "perl.exe ./Configure",
     }),
     configure_options = select({
-        "@//:macos_arm64": [
-            "darwin64-arm64-cc",
+        "@@//:linux_arm64": [
+            "linux-aarch64",
         ],
-        "@//:macos_x86_64": [
-            "darwin64-x86_64-cc",
+        "@@//:linux_x86_64": [
+            "linux-x86_64",
+        ],
+        "@@//:macos_arm64": [
+            "darwin64-arm64",
+        ],
+        "@@//:macos_x86_64": [
+            "darwin64-x86_64",
         ],
         "//conditions:default": [],
     }) + [

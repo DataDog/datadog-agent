@@ -147,3 +147,6 @@ register_toolchains("@pythons_hub//:all")
 
 # Make our 3rd parties depencency repositories known
 include("//deps:repos.MODULE.bazel")
+
+# Blocked on the way openssl depens on liblzma
+include("//deps/curl:curl.MODULE.bazel")
