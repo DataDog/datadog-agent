@@ -10,6 +10,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+
 	"net/http"
 	"net/url"
 	"strconv"
@@ -18,6 +19,9 @@ import (
 	"time"
 
 	gocache "github.com/patrickmn/go-cache"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
 
 	"github.com/stormcat24/protodep/pkg/logger"
 	"go.opentelemetry.io/collector/pdata/pcommon"
@@ -45,6 +49,8 @@ var (
 	manifestCache     *gocache.Cache
 	manifestCacheOnce sync.Once
 	k8sTypeMap        map[string]int
+	clusterIDCache    string
+	clusterIDOnce     sync.Once
 )
 
 func init() {
@@ -99,21 +105,10 @@ func (e *Exporter) consumeK8sObjects(ctx context.Context, ld plog.Logs) (err err
 	var manifests []*agentmodel.Manifest
 	fmt.Println("aurele-debug: consumeK8sObjects ")
 
-	// Extract cluster UID from the first resource (it should be consistent across all resources)
-	var clusterID string
-	if ld.ResourceLogs().Len() > 0 {
-		firstResource := ld.ResourceLogs().At(0).Resource()
-		// dump
-		firstResource.Attributes().Range(func(key string, value pcommon.Value) bool {
-			fmt.Println("aurele-debug: key", key, "value", value.AsString())
-			return true
-		})
-		if clusterUIDAttr, ok := firstResource.Attributes().Get("k8s.cluster.uid"); ok {
-			clusterID = clusterUIDAttr.AsString()
-			logger.Info("Extracted cluster UID from resource attributes", zap.String("clusterID", clusterID))
-		} else {
-			logger.Warn("k8s.cluster.uid attribute not found in resource attributes")
-		}
+	clusterID := getClusterID(ctx)
+	if clusterID == "" {
+		logger.Error("Failed to get cluster ID, skipping manifest payload")
+		return nil
 	}
 
 	var totalNodes int = 0
@@ -121,22 +116,12 @@ func (e *Exporter) consumeK8sObjects(ctx context.Context, ld plog.Logs) (err err
 	for i := 0; i < ld.ResourceLogs().Len(); i++ {
 		resourceLogs := ld.ResourceLogs().At(i)
 		resource := resourceLogs.Resource()
-		// dump
-		resource.Attributes().Range(func(key string, value pcommon.Value) bool {
-			fmt.Println("aurele-debug3: key", key, "value", value.AsString())
-			return true
-		})
 
 		for j := 0; j < resourceLogs.ScopeLogs().Len(); j++ {
 			scopeLogs := resourceLogs.ScopeLogs().At(j)
 
 			for k := 0; k < scopeLogs.LogRecords().Len(); k++ {
 				logRecord := scopeLogs.LogRecords().At(k)
-				// dump
-				logRecord.Attributes().Range(func(key string, value pcommon.Value) bool {
-					fmt.Println("aurele-debug2: key", key, "value", value.AsString())
-					return true
-				})
 
 				// Convert Kubernetes resource manifest to orchestrator payload format
 				manifest, err := toManifest(ctx, logRecord, resource)
@@ -217,6 +202,47 @@ func (e *Exporter) consumeK8sObjects(ctx context.Context, ld plog.Logs) (err err
 	}
 
 	return nil
+}
+
+// getClusterID retrieves the cluster ID by fetching the kube-system namespace UID.
+// This matches the behavior of the cluster agent which uses the kube-system namespace UID
+// as the cluster ID to ensure uniqueness across clusters.
+// The cluster ID is cached after the first successful retrieval to avoid repeated API calls.
+func getClusterID(ctx context.Context) string {
+	clusterIDOnce.Do(func() {
+		// Create in-cluster Kubernetes client
+		config, err := rest.InClusterConfig()
+		if err != nil {
+			logger.Error("Failed to get in-cluster Kubernetes config", zap.Error(err))
+			return
+		}
+
+		// Create clientset
+		clientset, err := kubernetes.NewForConfig(config)
+		if err != nil {
+			logger.Error("Failed to create Kubernetes client", zap.Error(err))
+			return
+		}
+
+		// Fetch kube-system namespace
+		namespace, err := clientset.CoreV1().Namespaces().Get(ctx, "kube-system", metav1.GetOptions{})
+		if err != nil {
+			logger.Error("Failed to get kube-system namespace", zap.Error(err))
+			return
+		}
+
+		// Extract and cache the UID
+		clusterID := string(namespace.UID)
+		if clusterID == "" {
+			logger.Error("kube-system namespace UID is empty")
+			return
+		}
+
+		clusterIDCache = clusterID
+		logger.Info("Successfully retrieved cluster ID from kube-system namespace", zap.String("cluster_id", clusterID))
+	})
+
+	return clusterIDCache
 }
 
 func toManifest(ctx context.Context, logRecord plog.LogRecord, resource pcommon.Resource) (*agentmodel.Manifest, error) {
