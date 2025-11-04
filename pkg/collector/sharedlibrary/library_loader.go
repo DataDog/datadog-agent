@@ -10,6 +10,8 @@ import (
 	"path"
 	"runtime"
 	"unsafe"
+
+	_ "github.com/DataDog/datadog-agent/pkg/collector/python" // get submit functions, should be replaced by another package do avoid coupling with the Python package
 )
 
 /*
@@ -17,6 +19,7 @@ import (
 
 #include "ffi.h"
 
+// functions from the Python package
 extern void SubmitMetric(char *, metric_type_t, char *, double, char **, char *, bool);
 extern void SubmitServiceCheck(char *, char *, int, char **, char *, char *);
 extern void SubmitEvent(char *, event_t *);
