@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/processor/infraattributesprocessor"
 	traceagent "github.com/DataDog/datadog-agent/comp/trace/agent/def"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/processor/attributesprocessor"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/processor/cumulativetodeltaprocessor"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/processor/k8sattributesprocessor"
 
 	"go.opentelemetry.io/collector/confmap"
@@ -26,6 +27,7 @@ import (
 	"go.opentelemetry.io/collector/extension"
 	"go.opentelemetry.io/collector/otelcol"
 	"go.opentelemetry.io/collector/processor"
+	"go.opentelemetry.io/collector/receiver/otlpreceiver"
 )
 
 // ExtraFactories is an interface that provides extra factories for the collector.
@@ -107,7 +109,7 @@ func (e extraFactoriesWithoutAgentCore) GetConverters() []confmap.ConverterFacto
 // createFactories creates a function that returns the factories for the collector.
 func createFactories(extraFactories ExtraFactories) func() (otelcol.Factories, error) {
 	return func() (otelcol.Factories, error) {
-		recvMap, err := otelcol.MakeFactoryMap(receiver.NewFactory())
+		recvMap, err := otelcol.MakeFactoryMap(receiver.NewFactory(), otlpreceiver.NewFactory())
 		if err != nil {
 			return otelcol.Factories{}, err
 		}
@@ -120,7 +122,7 @@ func createFactories(extraFactories ExtraFactories) func() (otelcol.Factories, e
 			return otelcol.Factories{}, err
 		}
 
-		processorFactories := []processor.Factory{attributesprocessor.NewFactory()}
+		processorFactories := []processor.Factory{attributesprocessor.NewFactory(), cumulativetodeltaprocessor.NewFactory()}
 		processorFactories = append(processorFactories, extraFactories.GetProcessors()...)
 		processors, err := otelcol.MakeFactoryMap(processorFactories...)
 		if err != nil {
