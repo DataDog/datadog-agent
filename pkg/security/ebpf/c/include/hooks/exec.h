@@ -282,8 +282,8 @@ int sched_process_fork(struct _tracepoint_sched_process_fork *args) {
     return sched_process_fork_common(args, pid, parent_pid);
 }
 
-
-int __attribute__((always_inline)) coredump_common() {
+HOOK_ENTRY("do_coredump")
+int hook_do_coredump(ctx_t *ctx) {
     u64 key = bpf_get_current_pid_tgid();
     u8 in_coredump = 1;
 
