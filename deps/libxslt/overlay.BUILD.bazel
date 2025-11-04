@@ -1,8 +1,8 @@
-load("@rules_license//rules:license.bzl", "license")
+load("@@//bazel/rules:so_symlink.bzl", "so_symlink")
 load("@bazel_skylib//rules:copy_file.bzl", "copy_file")
 load("@bazel_skylib//rules:expand_template.bzl", "expand_template")
-load("@@//bazel/rules:so_symlink.bzl", "so_symlink")
 load("@rules_cc//cc:defs.bzl", "cc_library", "cc_shared_library")
+load("@rules_license//rules:license.bzl", "license")
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_files")
 
@@ -92,7 +92,7 @@ cc_library(
         ":copy_config_h",
     ],
     includes = [
-        "."
+        ".",
     ],
     deps = [
         "@libxml2",
@@ -107,7 +107,7 @@ cc_shared_library(
     deps = [":libxslt"],
     additional_linker_inputs = ["libxslt/libxslt.syms"],
     user_link_flags = [
-        "-Wl,--version-script=$(location libxslt/libxslt.syms)"
+        "-Wl,--version-script=$(location libxslt/libxslt.syms)",
     ],
 )
 
@@ -151,7 +151,7 @@ expand_template(
         "@LIBEXSLT_VERSION_NUMBER@": "825",
         "@LIBEXSLT_VERSION_EXTRA@": "",
         "@WITH_CRYPTO@": "0",
-    }
+    },
 )
 
 _PUBLIC_EXSLT_HDRS = [
@@ -177,7 +177,7 @@ cc_library(
         "libexslt/strings.c",
     ],
     includes = [
-        "."
+        ".",
     ],
     deps = [
         "@libxml2",
