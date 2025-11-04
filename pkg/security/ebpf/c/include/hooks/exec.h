@@ -292,11 +292,6 @@ int __attribute__((always_inline)) coredump_common() {
     return 0;
 }
 
-HOOK_ENTRY("do_coredump")
-int hook_do_coredump(ctx_t *ctx) {
-    return coredump_common();
-}
-
 int __attribute__((always_inline)) handle_do_exit(ctx_t *ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
     u32 tgid = pid_tgid >> 32;

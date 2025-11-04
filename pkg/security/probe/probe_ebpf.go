@@ -2459,10 +2459,6 @@ func (p *EBPFProbe) initManagerOptionsExcludedFunctions() error {
 		p.managerOptions.ExcludedFunctions = append(p.managerOptions.ExcludedFunctions, probes.SysCtlProbeFunctionName)
 	}
 
-	if !p.config.Probe.CapabilitiesMonitoringEnabled {
-		p.managerOptions.ExcludedFunctions = append(p.managerOptions.ExcludedFunctions, probes.GetCapabilitiesMonitoringProgramFunctions()...)
-	}
-
 	// on kernel before 4.15, you can only attach one eBPF program per tracepoint
 	// to prevent conflicts with other eBPF using programs, we exclude our sched_process_fork tracepoint program
 	// and use the get_task_pid kretprobe fallback instead
