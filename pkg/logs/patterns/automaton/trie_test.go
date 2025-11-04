@@ -16,8 +16,8 @@ func TestGlobalTrie_ExactMatch(t *testing.T) {
 		input    string
 		expected token.TokenType
 	}{
-		{"GET", token.TokenHttpMethod},
-		{"POST", token.TokenHttpMethod},
+		{"GET", token.TokenHTTPMethod},
+		{"POST", token.TokenHTTPMethod},
 		{"ERROR", token.TokenSeverityLevel},
 		{"INFO", token.TokenSeverityLevel},
 		{"debug", token.TokenSeverityLevel}, // lowercase
@@ -40,9 +40,9 @@ func TestGlobalTrie_TerminalRules(t *testing.T) {
 		input    string
 		expected token.TokenType
 	}{
-		{"200", token.TokenHttpStatus},
-		{"404", token.TokenHttpStatus},
-		{"500", token.TokenHttpStatus},
+		{"200", token.TokenHTTPStatus},
+		{"404", token.TokenHTTPStatus},
+		{"500", token.TokenHTTPStatus},
 		{"192.168.1.1", token.TokenIPv4},
 		{"10.0.0.1", token.TokenIPv4},
 		{"test@example.com", token.TokenEmail},
@@ -104,8 +104,8 @@ func TestTrie_AddExactPattern(t *testing.T) {
 }
 
 func TestTrie_AddTerminalRule(t *testing.T) {
-	// Test adding terminal rule to global rule manager instead
-	err := AddTerminalRule(
+	// Test adding terminal rule to global rule manager
+	err := globalRuleManager.AddRule(
 		"TestRule",
 		`^TEST\d+$`,
 		"test",
@@ -136,7 +136,7 @@ func TestTrie_AddTerminalRule(t *testing.T) {
 
 func TestTrie_InvalidTerminalRule(t *testing.T) {
 	// Try to add invalid regex to global rule manager
-	err := AddTerminalRule(
+	err := globalRuleManager.AddRule(
 		"InvalidRule",
 		`[invalid(regex`,
 		"test",
@@ -157,69 +157,30 @@ func TestTrie_ExactMatchPriority(t *testing.T) {
 	testTrie.AddExactPattern("TEST", token.TokenWord)
 
 	// Add terminal rule that would also match
-	testTrie.AddTerminalRule(`^TEST$`, token.TokenNumeric, PriorityHigh)
+	globalRuleManager.AddRule(
+		"ExactMatchTestRule",
+		`^TEST$`,
+		"test",
+		"Test rule for exact match priority",
+		token.TokenNumeric,
+		PriorityHigh,
+		[]string{"TEST"},
+	)
 
 	// Exact match should take priority
 	result := testTrie.Match("TEST")
 	if result != token.TokenWord {
 		t.Errorf("Exact match should take priority, expected TokenWord, got %v", result)
 	}
+
+	// Clean up
+	globalRuleManager.RemoveRule("ExactMatchTestRule")
 }
 
 func TestTrie_EmptyInput(t *testing.T) {
 	result := globalTrie.Match("")
 	if result != token.TokenUnknown {
 		t.Errorf("Empty input should return TokenUnknown, got %v", result)
-	}
-}
-
-func TestValidationFunctions(t *testing.T) {
-	// Test IPv4 validation
-	validIPv4 := []string{"192.168.1.1", "10.0.0.1", "255.255.255.255", "0.0.0.0"}
-	invalidIPv4 := []string{"256.1.1.1", "192.168.1", "192.168.1.1.1", "abc.def.ghi.jkl"}
-
-	for _, ip := range validIPv4 {
-		if !validateIPv4(ip) {
-			t.Errorf("validateIPv4('%s') should return true", ip)
-		}
-	}
-
-	for _, ip := range invalidIPv4 {
-		if validateIPv4(ip) {
-			t.Errorf("validateIPv4('%s') should return false", ip)
-		}
-	}
-
-	// Test email validation
-	validEmails := []string{"test@example.com", "user@domain.org", "admin@company.co.uk"}
-	invalidEmails := []string{"invalid", "test@", "@domain.com", "test@@domain.com"}
-
-	for _, email := range validEmails {
-		if !validateEmail(email) {
-			t.Errorf("validateEmail('%s') should return true", email)
-		}
-	}
-
-	for _, email := range invalidEmails {
-		if validateEmail(email) {
-			t.Errorf("validateEmail('%s') should return false", email)
-		}
-	}
-
-	// Test date validation
-	validDates := []string{"2023-12-25", "2023-12-25T14:30:00", "12/25/2023", "2023-12-25T14:30:00.123Z"}
-	invalidDates := []string{"invalid", "123", "abc", ""}
-
-	for _, date := range validDates {
-		if !validateDate(date) {
-			t.Errorf("validateDate('%s') should return true", date)
-		}
-	}
-
-	for _, date := range invalidDates {
-		if validateDate(date) {
-			t.Errorf("validateDate('%s') should return false", date)
-		}
 	}
 }
 

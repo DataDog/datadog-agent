@@ -81,13 +81,13 @@ func TestTokenList_PositionSignature(t *testing.T) {
 
 	// Non-empty token list
 	tokens := []Token{
-		{Type: TokenHttpMethod, Value: "GET"},
+		{Type: TokenHTTPMethod, Value: "GET"},
 		{Type: TokenWhitespace, Value: " "},
 		{Type: TokenAbsolutePath, Value: "/api"},
 	}
 	tl := NewTokenListWithTokens(tokens)
 
-	expectedPosition := "HttpMethod|Whitespace|AbsolutePath"
+	expectedPosition := "HTTPMethod|Whitespace|AbsolutePath"
 	if positionSignature(tl) != expectedPosition {
 		t.Errorf("Expected position signature '%s', got '%s'", expectedPosition, positionSignature(tl))
 	}
@@ -96,7 +96,7 @@ func TestTokenList_PositionSignature(t *testing.T) {
 func TestTokenList_Signature(t *testing.T) {
 	// Test that TokenList.Signature() creates a proper signature
 	tokens := []Token{
-		{Type: TokenHttpMethod, Value: "GET"},
+		{Type: TokenHTTPMethod, Value: "GET"},
 		{Type: TokenWhitespace, Value: " "},
 		{Type: TokenAbsolutePath, Value: "/api"},
 	}
@@ -112,18 +112,4 @@ func TestTokenList_Signature(t *testing.T) {
 	if sig.Position == "" {
 		t.Error("Signature position should not be empty")
 	}
-}
-
-// Helper function to check if string contains substring
-func containsSubstring(str, substr string) bool {
-	return len(str) >= len(substr) && findSubstring(str, substr) >= 0
-}
-
-func findSubstring(str, substr string) int {
-	for i := 0; i <= len(str)-len(substr); i++ {
-		if str[i:i+len(substr)] == substr {
-			return i
-		}
-	}
-	return -1
 }

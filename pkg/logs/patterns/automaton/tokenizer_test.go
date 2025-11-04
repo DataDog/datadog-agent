@@ -26,11 +26,11 @@ func TestTokenizer_SimpleTokenization(t *testing.T) {
 
 	// Verify token types
 	expectedTypes := []token.TokenType{
-		token.TokenHttpMethod,   // GET
+		token.TokenHTTPMethod,   // GET
 		token.TokenWhitespace,   // space
 		token.TokenAbsolutePath, // /api
 		token.TokenWhitespace,   // space
-		token.TokenHttpStatus,   // 200
+		token.TokenHTTPStatus,   // 200
 	}
 
 	for i, expected := range expectedTypes {
@@ -199,9 +199,9 @@ func TestArchitectureCompliance(t *testing.T) {
 
 	for i := range tokenList.Tokens {
 		switch tokenList.Tokens[i].Type {
-		case token.TokenHttpMethod:
+		case token.TokenHTTPMethod:
 			httpMethod = &tokenList.Tokens[i]
-		case token.TokenHttpStatus:
+		case token.TokenHTTPStatus:
 			httpStatus = &tokenList.Tokens[i]
 		case token.TokenAbsolutePath:
 			path = &tokenList.Tokens[i]
@@ -224,7 +224,7 @@ func TestArchitectureCompliance(t *testing.T) {
 	signature := token.NewSignature(tokenList)
 	assert.False(t, signature.IsEmpty(), "Signature generation failed")
 
-	expectedPosition := "HttpMethod|Whitespace|AbsolutePath|Whitespace|HttpStatus"
+	expectedPosition := "HTTPMethod|Whitespace|AbsolutePath|Whitespace|HTTPStatus"
 	assert.Equal(t, expectedPosition, signature.Position, "Signature position mismatch")
 }
 
@@ -239,9 +239,9 @@ func TestComplexLogScenarios(t *testing.T) {
 			name:  "HTTP Request",
 			input: "GET /api/users 200",
 			expected: []token.TokenType{
-				token.TokenHttpMethod, token.TokenWhitespace,
+				token.TokenHTTPMethod, token.TokenWhitespace,
 				token.TokenAbsolutePath, token.TokenWhitespace,
-				token.TokenHttpStatus,
+				token.TokenHTTPStatus,
 			},
 		},
 		{

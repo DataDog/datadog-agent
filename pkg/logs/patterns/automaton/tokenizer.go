@@ -19,11 +19,11 @@ import (
 type TokenizerState int
 
 const (
-	StateStart      TokenizerState = iota
-	StateWord                      // Letters, digits, and common separators for structured tokens
-	StateNumeric                   // Pure numbers
-	StateWhitespace                // Spaces, tabs, newlines
-	StateSpecial                   // Operators, punctuation, symbols
+	StateStart      TokenizerState = iota // StateStart is the initial state
+	StateWord                             // StateWord is letters, digits, and common separators for structured tokens
+	StateNumeric                          // StateNumeric is pure numbers
+	StateWhitespace                       // StateWhitespace is spaces, tabs, newlines
+	StateSpecial                          // StateSpecial is operators, punctuation, symbols
 )
 
 const (
@@ -76,7 +76,7 @@ func (t *Tokenizer) Tokenize() *token.TokenList {
 // pattern matching to identify structured types:
 //   - "192.168.1.1" → TokenNumeric upgraded to TokenIPv4
 //   - "user@example.com" → TokenWord upgraded to TokenEmail
-//   - "GET" → TokenWord upgraded to TokenHttpMethod
+//   - "GET" → TokenWord upgraded to TokenHTTPMethod
 func (t *Tokenizer) classifyTokens() {
 	for i, tok := range t.tokens {
 		// Skip if not eligible for classification
@@ -209,7 +209,7 @@ func (t *Tokenizer) handleSpecialState(char rune) bool {
 	return true
 }
 
-// classifyToken attempts to classify a single token's type using terminal rules.
+// classifyToken attempts to classify a single token's type using trie and terminal rules.
 func (t *Tokenizer) classifyToken(value string) (token.TokenType, error) {
 	if len(value) == 0 {
 		return token.TokenUnknown, fmt.Errorf("cannot classify empty srting token value")

@@ -19,16 +19,16 @@ func TestNewSignature(t *testing.T) {
 
 	// Non-empty TokenList
 	tokens := []Token{
-		{Type: TokenHttpMethod, Value: "GET"},
+		{Type: TokenHTTPMethod, Value: "GET"},
 		{Type: TokenWhitespace, Value: " "},
 		{Type: TokenAbsolutePath, Value: "/api"},
 		{Type: TokenWhitespace, Value: " "},
-		{Type: TokenHttpStatus, Value: "200"},
+		{Type: TokenHTTPStatus, Value: "200"},
 	}
 	tl := NewTokenListWithTokens(tokens)
 	sig := NewSignature(tl)
 
-	expectedPosition := "HttpMethod|Whitespace|AbsolutePath|Whitespace|HttpStatus"
+	expectedPosition := "HTTPMethod|Whitespace|AbsolutePath|Whitespace|HTTPStatus"
 	if sig.Position != expectedPosition {
 		t.Errorf("Expected position signature '%s', got '%s'", expectedPosition, sig.Position)
 	}
@@ -120,12 +120,12 @@ func TestSignature_IsEmpty(t *testing.T) {
 func TestSignature_HasSameStructure(t *testing.T) {
 	// Same structure, different values
 	tokens1 := []Token{
-		{Type: TokenHttpMethod, Value: "GET"},
+		{Type: TokenHTTPMethod, Value: "GET"},
 		{Type: TokenWhitespace, Value: " "},
 		{Type: TokenAbsolutePath, Value: "/api"},
 	}
 	tokens2 := []Token{
-		{Type: TokenHttpMethod, Value: "POST"},
+		{Type: TokenHTTPMethod, Value: "POST"},
 		{Type: TokenWhitespace, Value: " "},
 		{Type: TokenAbsolutePath, Value: "/users"},
 	}
@@ -192,7 +192,7 @@ func TestComputeHash(t *testing.T) {
 func TestSignature_ConsistentHashing(t *testing.T) {
 	// Test that identical TokenLists produce identical signatures with same hash
 	tokens := []Token{
-		{Type: TokenHttpMethod, Value: "GET"},
+		{Type: TokenHTTPMethod, Value: "GET"},
 		{Type: TokenWhitespace, Value: " "},
 		{Type: TokenAbsolutePath, Value: "/api"},
 	}
