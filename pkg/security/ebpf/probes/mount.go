@@ -79,7 +79,20 @@ func getMountProbes(fentry bool) []*manager.Probe {
 			UID: SecurityAgentUID,
 		},
 		SyscallFuncName: "mount",
-	}, fentry, EntryAndExit, true)...)
+	}, fentry, Entry, true)...)
+	mountExit := ExpandSyscallProbes(&manager.Probe{
+		ProbeIdentificationPair: manager.ProbeIdentificationPair{
+			UID: SecurityAgentUID,
+		},
+		SyscallFuncName: "mount",
+	}, fentry, Exit, true)
+
+	for _, e := range mountExit {
+		e.KeepProgramSpec = true
+	}
+
+	mountProbes = append(mountProbes, mountExit...)
+
 	mountProbes = append(mountProbes, ExpandSyscallProbes(&manager.Probe{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID: SecurityAgentUID,

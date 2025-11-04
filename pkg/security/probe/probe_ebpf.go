@@ -190,6 +190,8 @@ type EBPFProbe struct {
 
 	// PrCtl and name truncation
 	MetricNameTruncated *atomic.Uint64
+
+	mountExitCloneSelectors []manager.ProbesSelector
 }
 
 // GetUseRingBuffers returns p.useRingBuffers
@@ -455,6 +457,43 @@ func (p *EBPFProbe) VerifyEnvironment() *multierror.Error {
 	return err
 }
 
+func (p *EBPFProbe) addMountExitClones() error {
+	// find the active mount exit probe
+	var src manager.ProbeIdentificationPair
+	for _, pr := range p.Manager.GetProbes() {
+		if pr.IsRunning() && strings.Contains(pr.EBPFFuncName, "mount") &&
+			(strings.HasPrefix(pr.EBPFFuncName, "kretprobe__") || strings.HasPrefix(pr.EBPFFuncName, "fexit/")) {
+			src = pr.ProbeIdentificationPair // UID: SecurityAgentUID, EBPFFuncName: actual symbol
+			fmt.Println("Found matching probe:", pr.EBPFFuncName)
+			break
+		}
+	}
+	if src.EBPFFuncName == "" {
+		return fmt.Errorf("no active mount() exit program found to add hooks")
+	}
+
+	selectors := make([]manager.ProbesSelector, 0, 32)
+	for i := 0; i < 32; i++ {
+		np := &manager.Probe{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				UID:          fmt.Sprintf("%s_mount_exit_add_%d", probes.SecurityAgentUID, i),
+				EBPFFuncName: src.EBPFFuncName,
+			},
+		}
+		np.KprobeAttachMethod = manager.AttachKprobeWithKprobeEvents
+		np.KProbeMaxActive = 32
+
+		err := p.Manager.CloneProgram(probes.SecurityAgentUID, np, p.managerOptions.ConstantEditors, nil)
+		if err != nil {
+			fmt.Printf("AddHook %d failed: %w\n", i, err)
+		}
+
+		selectors = append(selectors, &manager.ProbeSelector{ProbeIdentificationPair: np.ProbeIdentificationPair})
+	}
+	p.mountExitCloneSelectors = selectors
+	return nil
+}
+
 func (p *EBPFProbe) initEBPFManager() error {
 	loader := ebpf.NewProbeLoader(p.config.Probe, p.useSyscallWrapper, p.useRingBuffers, p.useFentry)
 	defer loader.Close()
@@ -485,6 +524,16 @@ func (p *EBPFProbe) initEBPFManager() error {
 	p.applyDefaultFilterPolicies()
 
 	needRawSyscalls := p.isNeededForActivityDump(model.SyscallsEventType.String())
+
+	if err != nil {
+		seclog.Warnf("%v", err)
+	}
+
+	if err := p.updateProbes(defaultEventTypes, needRawSyscalls); err != nil {
+		return err
+	}
+
+	err = p.addMountExitClones()
 
 	if err := p.updateProbes(defaultEventTypes, needRawSyscalls); err != nil {
 		return err
@@ -2022,6 +2071,10 @@ func (p *EBPFProbe) updateProbes(ruleSetEventTypes []eval.EventType, needRawSysc
 
 	if err := enabledEventsMap.Put(ebpf.ZeroUint32MapItem, enabledEvents); err != nil {
 		return fmt.Errorf("failed to set enabled events: %w", err)
+	}
+
+	if len(p.mountExitCloneSelectors) > 0 {
+		activatedProbes = append(activatedProbes, p.mountExitCloneSelectors...)
 	}
 
 	if err = p.Manager.UpdateActivatedProbes(activatedProbes); err != nil {
