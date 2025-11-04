@@ -37,6 +37,7 @@ func (v *sharedLibrarySuite) getSuiteOptions() []e2e.SuiteOption {
 		awshost.Provisioner(
 			awshost.WithAgentOptions(
 				agentparams.WithIntegration("example.d", exampleCheckYaml),
+				agentparams.WithAgentConfig("shared_library_check.enabled: true"),
 			),
 			awshost.WithEC2InstanceOptions(ec2.WithOS(v.descriptor)),
 		),
