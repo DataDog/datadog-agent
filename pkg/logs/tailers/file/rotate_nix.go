@@ -50,14 +50,14 @@ func (t *Tailer) DidRotate() (bool, error) {
 	case cacheIndicatesGrowth && !offsetIndicatesUnread:
 		if t.rotationMismatchCacheActive.CompareAndSwap(false, true) {
 			metrics.TlmRotationSizeMismatch.Inc("cache")
-			log.Infof("Rotation size mismatch: cache observed growth (old=%d, new=%d) but offset=%d >= fileSize=%d",
+			log.Debugf("Rotation size mismatch: cache observed growth (old=%d, new=%d) but offset=%d >= fileSize=%d",
 				cachedSize, fileSize, lastReadOffset, fileSize)
 		}
 		t.rotationMismatchOffsetActive.Store(false)
 	case offsetIndicatesUnread && !cacheIndicatesGrowth && cachedSize > 0:
 		if t.rotationMismatchOffsetActive.CompareAndSwap(false, true) {
 			metrics.TlmRotationSizeMismatch.Inc("offset")
-			log.Infof("Rotation size mismatch: offset=%d < fileSize=%d but cache did not observe growth (old=%d, new=%d)",
+			log.Debugf("Rotation size mismatch: offset=%d < fileSize=%d but cache did not observe growth (old=%d, new=%d)",
 				lastReadOffset, fileSize, cachedSize, fileSize)
 		}
 		t.rotationMismatchCacheActive.Store(false)
@@ -73,7 +73,6 @@ func (t *Tailer) DidRotate() (bool, error) {
 			sizeDiff = -sizeDiff
 		}
 		metrics.TlmRotationSizeDifferences.Observe(float64(sizeDiff))
-		log.Infof("Rotation size difference detected: %d", sizeDiff)
 	}
 
 	// Update cached file size for next check
@@ -83,10 +82,10 @@ func (t *Tailer) DidRotate() (bool, error) {
 	truncated := fileSize < lastReadOffset
 
 	if recreated {
-		log.Infof("File rotation detected due to recreation, f1: %+v, f2: %+v", fi1, fi2)
+		log.Debugf("File rotation detected due to recreation, f1: %+v, f2: %+v", fi1, fi2)
 		metrics.TlmRotationsNix.Inc("new_file")
 	} else if truncated {
-		log.Infof("File rotation detected due to size change, lastReadOffset=%d, fileSize=%d", lastReadOffset, fileSize)
+		log.Debugf("File rotation detected due to size change, lastReadOffset=%d, fileSize=%d", lastReadOffset, fileSize)
 		metrics.TlmRotationsNix.Inc("truncated")
 	}
 

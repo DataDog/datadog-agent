@@ -38,7 +38,6 @@ func (t *Tailer) setup(offset int64, whence int) error {
 	if st, statErr := f.Stat(); statErr == nil {
 		t.cachedFileSize.Store(st.Size())
 	} else {
-		log.Debugf("Unable to stat %s during setup: %v", t.fullpath, statErr)
 		t.cachedFileSize.Store(0)
 	}
 	f.Close()
