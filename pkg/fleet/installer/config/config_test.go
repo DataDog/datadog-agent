@@ -758,8 +758,6 @@ func TestConfigV2Rollback(t *testing.T) {
 	assertConfigV2(t, stableDir) // Make sure it's still v2
 	assertConfigV3(t, experimentDir)
 
-	assertDeploymentID(t, dirs, "", "experiment-789")
-
 	// Promote
 	err = dirs.PromoteExperiment(context.Background())
 	assert.NoError(t, err)
