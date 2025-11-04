@@ -1,7 +1,7 @@
 /// Macro used to generate all the check FFI code
 #[macro_export]
 macro_rules! generate_ffi {
-    ($check_impl:ident, $version:ident) => {
+    ($check_function:ident, $version:ident) => {
         /// Entrypoint of the check
         #[unsafe(no_mangle)]
         pub extern "C" fn Run(check_id_str: *mut std::ffi::c_char, init_config_str: *mut std::ffi::c_char, instance_config_str: *mut std::ffi::c_char, aggregator_ptr: *mut rust_check_core::Aggregator, error_handler: *mut *mut std::ffi::c_char) {
@@ -17,20 +17,20 @@ macro_rules! generate_ffi {
         fn create_and_run_check(check_id_str: *mut std::ffi::c_char, init_config_str: *mut std::ffi::c_char, instance_config_str: *mut std::ffi::c_char, aggregator_ptr: *mut rust_check_core::Aggregator) -> Result<(), Box<dyn std::error::Error>> {
             // convert C args to Rust structs
             let check_id = rust_check_core::to_rust_string(check_id_str)?;
-            
+
             let init_config = rust_check_core::to_rust_string(init_config_str)?;
             let instance_config = rust_check_core::to_rust_string(instance_config_str)?;
 
             let aggregator = rust_check_core::Aggregator::from_ptr(aggregator_ptr);
 
             // create the check instance
-            let check = rust_check_core::AgentCheck::new(&check_id, &init_config, &instance_config, aggregator)?;
+            let agent_check = rust_check_core::AgentCheck::new(&check_id, &init_config, &instance_config, aggregator)?;
 
             // run the custom implementation
-            $check_impl(&check)
+            $check_function(&agent_check)
         }
 
-        /// Get the check version
+        /// Get the version of the check
         #[unsafe(no_mangle)]
         pub extern "C" fn Version() -> *const std::ffi::c_char {
             $version.as_ptr()

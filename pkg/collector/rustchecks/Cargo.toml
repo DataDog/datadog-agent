@@ -1,5 +1,4 @@
 [workspace]
-# checks list
 members = ["core", "checks/*"]
 resolver = "2"
 
