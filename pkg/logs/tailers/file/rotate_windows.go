@@ -40,36 +40,30 @@ func (t *Tailer) DidRotate() (bool, error) {
 	sz := st.Size()
 	cachedSize := t.cachedFileSize.Load()
 
-	// Check for disagreements between cache-based and offset-based rotation detection
 	cacheIndicatesGrowth := cachedSize > 0 && sz > cachedSize
-	offsetIndicatesUnreadData := offset < sz
+	offsetIndicatesUnread := offset < sz
 
-	cacheMismatch := cacheIndicatesGrowth && !offsetIndicatesUnreadData
-	if cacheMismatch {
-		// Cache grew but offset suggests we're caught up - we likely missed a rotation
+	switch {
+	case cacheIndicatesGrowth && !offsetIndicatesUnread:
 		if t.rotationMismatchCacheActive.CompareAndSwap(false, true) {
 			metrics.TlmRotationSizeMismatch.Inc("cache")
-			log.Debugf("Rotation size mismatch detected: cache grew (old=%d, new=%d) but offset=%d >= fileSize=%d",
+			log.Debugf("Rotation size mismatch: cache observed growth (old=%d, new=%d) but offset=%d >= fileSize=%d",
 				cachedSize, sz, offset, sz)
 		}
-	} else {
-		t.rotationMismatchCacheActive.Store(false)
-	}
-
-	offsetMismatch := !cacheIndicatesGrowth && offsetIndicatesUnreadData && cachedSize > 0
-	if offsetMismatch {
-		// Offset suggests unread data but cache didn't grow - potential false positive
+		t.rotationMismatchOffsetActive.Store(false)
+	case offsetIndicatesUnread && !cacheIndicatesGrowth && cachedSize > 0:
 		if t.rotationMismatchOffsetActive.CompareAndSwap(false, true) {
 			metrics.TlmRotationSizeMismatch.Inc("offset")
-			log.Debugf("Rotation size mismatch detected: offset=%d < fileSize=%d but cache didn't grow (old=%d, new=%d)",
+			log.Debugf("Rotation size mismatch: offset=%d < fileSize=%d but cache did not observe growth (old=%d, new=%d)",
 				offset, sz, cachedSize, sz)
 		}
-	} else {
+		t.rotationMismatchCacheActive.Store(false)
+	default:
+		t.rotationMismatchCacheActive.Store(false)
 		t.rotationMismatchOffsetActive.Store(false)
 	}
 
-	// Track size differences when size-based rotation is detected
-	if cachedSize > 0 && sz != cachedSize {
+	if cacheIndicatesGrowth {
 		sizeDiff := sz - cachedSize
 		if sizeDiff < 0 {
 			sizeDiff = -sizeDiff

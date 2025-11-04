@@ -35,6 +35,12 @@ func (t *Tailer) setup(offset int64, whence int) error {
 	}
 	t.osFile = f
 	ret, _ := f.Seek(offset, whence)
+	if info, statErr := f.Stat(); statErr == nil {
+		t.cachedFileSize.Store(info.Size())
+	} else {
+		log.Debugf("Unable to stat %s during setup: %v", fullpath, statErr)
+		t.cachedFileSize.Store(0)
+	}
 	t.lastReadOffset.Store(ret)
 	t.decodedOffset.Store(ret)
 
