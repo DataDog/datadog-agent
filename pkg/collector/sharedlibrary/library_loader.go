@@ -17,19 +17,19 @@ import (
 
 #include "ffi.h"
 
-void SubmitMetricSo(char *, metric_type_t, char *, double, char **, char *, bool);
-void SubmitServiceCheckSo(char *, char *, int, char **, char *, char *);
-void SubmitEventSo(char *, event_t *);
-void SubmitHistogramBucketSo(char *, char *, long long, float, float, int, char *, char **, bool);
-void SubmitEventPlatformEventSo(char *, char *, int, char *);
+extern void SubmitMetric(char *, metric_type_t, char *, double, char **, char *, bool);
+extern void SubmitServiceCheck(char *, char *, int, char **, char *, char *);
+extern void SubmitEvent(char *, event_t *);
+extern void SubmitHistogramBucket(char *, char *, long long, float, float, int, char *, char **, bool);
+extern void SubmitEventPlatformEvent(char *, char *, int, char *);
 
 // the callbacks are aggregated in this file as it's the only one which uses it
 const aggregator_t aggregator = {
-	SubmitMetricSo,
-	SubmitServiceCheckSo,
-	SubmitEventSo,
-	SubmitHistogramBucketSo,
-	SubmitEventPlatformEventSo,
+	SubmitMetric,
+	SubmitServiceCheck,
+	SubmitEvent,
+	SubmitHistogramBucket,
+	SubmitEventPlatformEvent,
 };
 
 const aggregator_t *get_aggregator() {

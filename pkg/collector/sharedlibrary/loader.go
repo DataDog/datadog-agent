@@ -27,8 +27,7 @@ type SharedLibraryCheckLoader struct {
 }
 
 // NewSharedLibraryCheckLoader creates the checks loader
-func NewSharedLibraryCheckLoader(senderManager sender.SenderManager, logReceiver option.Option[integrations.Component], tagger tagger.Component, filter workloadfilter.Component, loader libraryLoader) (*SharedLibraryCheckLoader, error) {
-	initializeCheckContext(senderManager, logReceiver, tagger, filter)
+func NewSharedLibraryCheckLoader(_ sender.SenderManager, logReceiver option.Option[integrations.Component], _ tagger.Component, _ workloadfilter.Component, loader libraryLoader) (*SharedLibraryCheckLoader, error) {
 	return &SharedLibraryCheckLoader{
 		logReceiver: logReceiver,
 		loader:      loader,
