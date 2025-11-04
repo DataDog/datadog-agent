@@ -1,33 +1,196 @@
-# Repository Guidelines
+# Datadog Agent - Project Overview for AI coding assistant
 
-## Project Structure & Module Organization
-- `cmd/` hosts the binaries: `cmd/agent` for the core Agent, `cmd/cluster-agent`, `cmd/dogstatsd`, `cmd/trace-agent`, and eBPF tooling under `cmd/system-probe`.
-- Shared Go packages live in `pkg/` (e.g., `pkg/aggregator`, `pkg/collector`, `pkg/config`), while componentized logic is in `comp/` for incremental adoption.
-- Python invoke tasks reside in `tasks/`; docs and contributor references are under `docs/` and `docs/dev/`.
-- Development configs live in `dev/dist/`; the main runtime config copies to `bin/agent/dist/datadog.yaml` after builds.
+## Project Summary
+The Datadog Agent is a comprehensive monitoring and observability agent written primarily in Go. It collects metrics, traces, logs, and security events from systems and applications, forwarding them to the Datadog platform. This is the main repository for Agent versions 6 and 7.
 
-## Build, Test, and Development Commands
-- `dda inv install-tools` installs the Go, Python, and system tools required for local builds.
-- `dda inv agent.build --build-exclude=systemd` produces the primary agent binary without systemd assets; swap in component-specific targets such as `dda inv dogstatsd.build` or `dda inv trace-agent.build` when iterating on those services.
-- `dda inv test --targets=./pkg/aggregator` scopes unit tests to a package; omit `--targets` to exercise the full suite.
-- `dda inv linter.go` runs `golangci-lint`; prefer `dda inv linter.all` before large merges to surface cross-language issues early.
+## Project Structure
 
-## Coding Style & Naming Conventions
-- Format Go sources with `gofmt` (tabs for indentation, camelCase for identifiers) and rely on `golangci-lint` to enforce project rules.
-- Python tooling in `tasks/` follows PEP 8; run `dda inv linter.python` if you touch those scripts.
-- Favor descriptive package paths (`pkg/network/`, `comp/core/telemetry`) and snake_case filenames for YAML configs.
+### Core Directories
+- `/cmd/` - Entry points for various agent components
+  - `agent/` - Main agent binary
+  - `cluster-agent/` - Kubernetes cluster agent
+  - `dogstatsd/` - StatsD metrics daemon
+  - `trace-agent/` - APM trace collection agent
+  - `system-probe/` - System-level monitoring (eBPF)
+  - `security-agent/` - Security monitoring
+  - `process-agent/` - Process monitoring
 
-## Testing Guidelines
-- Go tests use the standard framework; function names must follow `TestXxx`. Table-driven subtests are preferred for coverage clarity.
-- Python checks leverage `pytest`; mirror module names with `test_*.py` files.
-- Investigate coverage gaps with `dda inv test --targets=<pkg> --coverage` and document notable exclusions in the PR.
+- `/pkg/` - Core Go packages and libraries
+  - `aggregator/` - Metrics aggregation
+  - `collector/` - Check scheduling and execution
+  - `config/` - Configuration management
+  - `logs/` - Log collection and processing
+  - `metrics/` - Metrics types and handling
+  - `network/` - Network monitoring
+  - `security/` - Security monitoring components
+  - `trace/` - APM tracing components
 
-## Commit & Pull Request Guidelines
-- Recent history shows conventional prefixes (`feat:`, `fix:`, `docs:`) and ticket tags (`[CXP-####]`); follow that pattern and keep subjects under 72 characters.
-- Reference issues in the body, outline testing performed, and attach logs or screenshots when UI or observability output changes.
-- Pull requests should describe scope, risks, and rollout considerations; note configuration updates so reviewers can flag downstream impacts.
+- `/comp/` - Component-based architecture modules
+  - `core/` - Core components
+  - `metadata/` - Metadata collection
+  - `logs/` - Log components
+  - `trace/` - Trace components
 
-## Security & Configuration Tips
-- Never commit secrets; use the secret backend or redacted fixtures for tests.
-- Store experimental configuration under `dev/` and guard runtime features with the appropriate Go build tags (see `tasks/build_tags.py`).
-- Review changes touching `system-probe` or `security-agent` with dedicated owners—these components ship kernel-space code and warrant extra scrutiny.
+- `/tasks/` - Python invoke tasks for development
+  - Build, test, lint, and deployment automation
+
+- `/rtloader/` - Runtime loader for Python checks
+
+## Development Workflow
+
+### Common Commands
+
+#### Building
+
+```bash
+# install dda on mac OS
+brew install --cask dda
+
+# Install development tools
+dda inv install-tools
+
+# Build the main agent
+dda inv agent.build --build-exclude=systemd
+
+# Build specific components
+dda inv dogstatsd.build
+dda inv trace-agent.build
+dda inv system-probe.build
+```
+
+#### Testing
+```bash
+# Run all tests
+dda inv test
+
+# Test specific package
+dda inv test --targets=./pkg/aggregator
+
+# Run Go linters
+dda inv linter.go
+
+# Run all linters
+dda inv linter.all
+```
+
+#### Running Locally
+```bash
+# Create dev config with testing API key
+echo "api_key: 0000001" > dev/dist/datadog.yaml
+
+# Run the agent
+./bin/agent/agent run -c bin/agent/dist/datadog.yaml
+```
+
+### Development Configuration
+The development configuration file should be placed at `dev/dist/datadog.yaml`. After building, it gets copied to `bin/agent/dist/datadog.yaml`.
+
+## Key Components
+
+### Check System
+- Checks are Python or Go modules that collect metrics
+- Located in `cmd/agent/dist/checks/`
+- Can be autodiscovered via Kubernetes annotations/labels
+
+### Configuration
+- Main config: `datadog.yaml`
+- Check configs: `conf.d/<check_name>.d/conf.yaml`
+- Supports environment variable overrides with `DD_` prefix
+
+## Testing Strategy
+
+### Unit Tests
+- Go tests using standard `go test`
+- Python tests using pytest
+- Run with `dda inv test --targets=<package>`
+
+### End-to-End Tests
+- E2E framework in `test/new-e2e/`
+
+### Linting
+- Go: golangci-lint via `dda inv linter.go`
+- Python: various linters via `dda inv linter.python`
+- YAML: yamllint
+- Shell: shellcheck
+
+## Build System
+
+### Invoke Tasks
+The project uses Python's Invoke framework with custom tasks. Main task categories:
+- `agent.*` - Core agent tasks
+- `test` - Testing tasks
+- `linter.*` - Linting tasks
+- `docker.*` - Docker image tasks
+- `release.*` - Release management
+
+### Build Tags
+Go build tags control feature inclusion, some examples are:
+- `kubeapiserver` - Kubernetes API server support
+- `containerd` - containerd support
+- `docker` - Docker support
+- `ebpf` - eBPF support
+- `python` - Python check support
+- and MANY more, refer to ./tasks/build_tags.py for a full reference.
+
+## Important Files
+
+### Configuration
+- `datadog.yaml` - Main agent configuration
+- `modules.yml` - Go module definitions
+- `release.json` - Release version information
+- `.gitlab-ci.yml` - CI/CD pipeline configuration
+
+### Documentation
+- `/docs/` - Internal documentation
+- `/docs/dev/` - Developer guides
+- `README.md` - Project overview
+- `CONTRIBUTING.md` - Contribution guidelines
+
+## CI/CD Pipeline
+
+### GitLab CI
+- Primary CI system
+- Defined in `.gitlab-ci.yml` and `.gitlab/` directory
+- Runs tests, builds, and deployments
+
+### GitHub Actions
+- Secondary CI for specific workflows
+- Tests about the pull-request settings or repository configuration
+- Release automation workflows
+
+## Security Considerations
+
+### Sensitive Data
+- Never commit API keys or secrets
+- Use secret backend for credentials
+
+## Module System
+The project uses Go modules with multiple sub-modules.
+TODO: Describe specific strategies for managing modules, including any invoke
+tasks.
+
+## Platform Support
+- **Linux**: Full support (amd64, arm64)
+- **Windows**: Full support (Server 2016+, Windows 10+)
+- **macOS**: Supported
+- **AIX**: No support in this codebase
+- **Container**: Docker, Kubernetes, ECS, containerd, and more
+
+## Best Practices
+
+1. **Always run linters before committing**: `dda inv linter.go`
+2. **Always test your changes**: `dda inv test --targets=<your_package>`
+3. **Follow Go conventions**: Use gofmt, follow project structure
+4. **Update documentation**: Keep docs in sync with code changes
+6. **Check for security implications**: Review security-sensitive changes carefully
+
+## Troubleshooting Development Issues
+
+### Common Build Issues
+- **Missing tools**: Run `dda inv install-tools`
+- **CMake errors**: Remove `dda inv rtloader.clean`
+
+### Testing Issues
+- **Flaky tests**: Check `flakes.yaml` for known issues
+- **Coverage issues**: Use `--coverage` flag
+
