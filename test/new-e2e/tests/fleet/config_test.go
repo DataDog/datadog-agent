@@ -55,11 +55,11 @@ func (s *configSuite) TestConfig() {
 }
 
 func (s *configSuite) TestMultipleConfigs() {
-	s.agent.MustInstall(agent.WithRemoteUpdates())
-	defer s.agent.MustUninstall()
+	s.Agent.MustInstall(agent.WithRemoteUpdates())
+	defer s.Agent.MustUninstall()
 
 	for i := 0; i < 3; i++ {
-		err := s.backend.StartConfigExperiment(fleetbackend.ConfigOperations{
+		err := s.Backend.StartConfigExperiment(fleetbackend.ConfigOperations{
 			DeploymentID: fmt.Sprintf("123-%d", i),
 			FileOperations: []fleetbackend.FileOperation{
 				{
@@ -70,7 +70,7 @@ func (s *configSuite) TestMultipleConfigs() {
 			},
 		})
 		require.NoError(s.T(), err)
-		config, err := s.agent.Configuration()
+		config, err := s.Agent.Configuration()
 		require.NoError(s.T(), err)
 		// Convert extra_tags to a slice of strings
 		extraTags := config["extra_tags"].([]interface{})
@@ -81,10 +81,10 @@ func (s *configSuite) TestMultipleConfigs() {
 			require.True(s.T(), ok, "tag %d is not a string", i)
 		}
 		require.Equal(s.T(), []string{fmt.Sprintf("debug:step-%d", i)}, extraTagsStrings)
-		err = s.backend.PromoteConfigExperiment()
+		err = s.Backend.PromoteConfigExperiment()
 		require.NoError(s.T(), err)
 
-		config, err = s.agent.Configuration()
+		config, err = s.Agent.Configuration()
 		require.NoError(s.T(), err)
 		// Convert extra_tags to a slice of strings
 		extraTags = config["extra_tags"].([]interface{})
