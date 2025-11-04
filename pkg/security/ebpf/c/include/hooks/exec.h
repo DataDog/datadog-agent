@@ -101,6 +101,7 @@ int __attribute__((always_inline)) handle_do_fork(ctx_t *ctx) {
     struct syscall_cache_t syscall = {
         .type = EVENT_FORK,
         .fork.is_thread = 1,
+        .fork.parent_pid = bpf_get_current_pid_tgid() >> 32,
     };
 
     u32 kthread_key = 0;
@@ -167,16 +168,7 @@ int hook__do_fork(ctx_t *ctx) {
     return handle_do_fork(ctx);
 }
 
-SEC("tracepoint/sched/sched_process_fork")
-int sched_process_fork(struct _tracepoint_sched_process_fork *args) {
-    u64 sched_process_fork_parent_pid_offset;
-    LOAD_CONSTANT("sched_process_fork_parent_pid_offset", sched_process_fork_parent_pid_offset);
-    u64 sched_process_fork_child_pid_offset;
-    LOAD_CONSTANT("sched_process_fork_child_pid_offset", sched_process_fork_child_pid_offset);
-
-    u32 pid = 0, parent_pid = 0;
-    bpf_probe_read(&pid, sizeof(pid), (void *)args + sched_process_fork_child_pid_offset);
-    bpf_probe_read(&parent_pid, sizeof(parent_pid), (void *)args + sched_process_fork_parent_pid_offset);
+int __attribute__((always_inline)) sched_process_fork_common(void *ctx, u32 pid, u32 parent_pid) {
     // ignore the rest if kworker
     struct syscall_cache_t *syscall = peek_syscall(EVENT_FORK);
     if (!syscall || syscall->fork.is_kthread || parent_pid == 2) {
@@ -254,15 +246,43 @@ int sched_process_fork(struct _tracepoint_sched_process_fork *args) {
     bpf_map_update_elem(&pid_cache, &pid, &on_stack_pid_entry, BPF_ANY);
 
     // [activity_dump] inherit tracing state
-    inherit_traced_state(args, ppid, pid, &event->cgroup);
+    inherit_traced_state(ctx, ppid, pid, &event->cgroup);
 
     // send the entry to maintain userspace cache
-    send_event_ptr(args, EVENT_FORK, event);
+    send_event_ptr(ctx, EVENT_FORK, event);
 
     pop_syscall(EVENT_FORK);
 
     return 0;
 }
+
+HOOK_EXIT("get_task_pid")
+int rethook_get_task_pid(ctx_t *ctx) {
+    struct syscall_cache_t *syscall = peek_syscall(EVENT_FORK);
+    if (!syscall) {
+        return 0;
+    }
+
+    struct pid *pid = (struct pid *)CTX_PARMRET(ctx);
+    u32 pidnr = get_root_nr_from_pid_struct(pid);
+
+    return sched_process_fork_common(ctx, pidnr, syscall->fork.parent_pid);
+}
+
+SEC("tracepoint/sched/sched_process_fork")
+int sched_process_fork(struct _tracepoint_sched_process_fork *args) {
+    u64 sched_process_fork_parent_pid_offset;
+    LOAD_CONSTANT("sched_process_fork_parent_pid_offset", sched_process_fork_parent_pid_offset);
+    u64 sched_process_fork_child_pid_offset;
+    LOAD_CONSTANT("sched_process_fork_child_pid_offset", sched_process_fork_child_pid_offset);
+
+    u32 pid = 0, parent_pid = 0;
+    bpf_probe_read(&pid, sizeof(pid), (void *)args + sched_process_fork_child_pid_offset);
+    bpf_probe_read(&parent_pid, sizeof(parent_pid), (void *)args + sched_process_fork_parent_pid_offset);
+
+    return sched_process_fork_common(args, pid, parent_pid);
+}
+
 
 int __attribute__((always_inline)) coredump_common() {
     u64 key = bpf_get_current_pid_tgid();

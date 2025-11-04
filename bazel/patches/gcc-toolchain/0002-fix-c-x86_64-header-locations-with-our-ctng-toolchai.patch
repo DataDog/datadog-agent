@@ -1,7 +1,7 @@
 From efa6a5f60fdff0102a2f71993358efd1993a1e9b Mon Sep 17 00:00:00 2001
 From: =?UTF-8?q?Hugo=20Beauz=C3=A9e-Luyssen?= <hugo.beauzee@datadoghq.com>
 Date: Wed, 15 Oct 2025 09:57:35 +0200
-Subject: [PATCH] fix c++ x86_64 header locations with our ctng toolchain
+Subject: [PATCH 2/3] fix c++ x86_64 header locations with our ctng toolchain
 
 We always prefix the headers with the triplet, not only for arm
 ---

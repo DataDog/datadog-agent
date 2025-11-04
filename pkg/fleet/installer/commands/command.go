@@ -12,7 +12,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
-	"runtime"
+	"path/filepath"
 	"strings"
 	"syscall"
 	"time"
@@ -24,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/config"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/setup"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
@@ -121,10 +122,7 @@ type telemetryConfigFields struct {
 
 // telemetryConfig is a best effort to get the API key / site from `datadog.yaml`.
 func telemetryConfig() telemetryConfigFields {
-	configPath := "/etc/datadog-agent/datadog.yaml"
-	if runtime.GOOS == "windows" {
-		configPath = "C:\\ProgramData\\Datadog\\datadog.yaml"
-	}
+	configPath := filepath.Join(paths.AgentConfigDir, "datadog.yaml")
 	rawConfig, err := os.ReadFile(configPath)
 	if err != nil {
 		return telemetryConfigFields{}

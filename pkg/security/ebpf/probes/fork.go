@@ -3,5 +3,10 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package oteltest has the end-to-end comparison test on OTel APM stats
-package oteltest
+//go:build linux
+
+// Package probes holds probes related files
+package probes
+
+// SchedProcessForkTracepointName is the function name of the sched_process_fork tracepoint
+const SchedProcessForkTracepointName = "sched_process_fork"
