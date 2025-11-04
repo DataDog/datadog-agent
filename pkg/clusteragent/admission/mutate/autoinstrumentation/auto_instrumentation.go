@@ -26,8 +26,6 @@ const (
 	volumeName = "datadog-auto-instrumentation"
 	mountPath  = "/datadog-lib"
 
-	webhookName = "lib_injection"
-
 	// apmInjectionErrorAnnotationKey this annotation is added when the apm auto-instrumentation admission controller failed to mutate the Pod.
 	apmInjectionErrorAnnotationKey = "apm.datadoghq.com/injection-error"
 )
