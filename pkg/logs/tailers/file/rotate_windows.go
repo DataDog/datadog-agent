@@ -43,12 +43,22 @@ func (t *Tailer) DidRotate() (bool, error) {
 	cacheIndicatesGrowth := cachedSize > 0 && sz > cachedSize
 	offsetIndicatesUnread := offset < sz
 
+	var recordCacheSizeDiff bool
+
 	switch {
 	case cacheIndicatesGrowth && !offsetIndicatesUnread:
-		if t.rotationMismatchCacheActive.CompareAndSwap(false, true) {
-			metrics.TlmRotationSizeMismatch.Inc("cache")
-			log.Debugf("Rotation size mismatch: cache observed growth (old=%d, new=%d) but offset=%d >= fileSize=%d",
-				cachedSize, sz, offset, sz)
+		offsetAdvance := offset - cachedSize
+		cacheGrowth := sz - cachedSize
+
+		if offsetAdvance > cacheGrowth {
+			if t.rotationMismatchCacheActive.CompareAndSwap(false, true) {
+				metrics.TlmRotationSizeMismatch.Inc("cache")
+				log.Debugf("Rotation size mismatch: offset advanced %d bytes but file only grew %d bytes (cached=%d, current=%d, offset=%d)",
+					offsetAdvance, cacheGrowth, cachedSize, sz, offset)
+				recordCacheSizeDiff = true
+			}
+		} else {
+			t.rotationMismatchCacheActive.Store(false)
 		}
 		t.rotationMismatchOffsetActive.Store(false)
 	case offsetIndicatesUnread && !cacheIndicatesGrowth && cachedSize > 0:
@@ -63,7 +73,7 @@ func (t *Tailer) DidRotate() (bool, error) {
 		t.rotationMismatchOffsetActive.Store(false)
 	}
 
-	if cacheIndicatesGrowth {
+	if recordCacheSizeDiff {
 		sizeDiff := sz - cachedSize
 		if sizeDiff < 0 {
 			sizeDiff = -sizeDiff
