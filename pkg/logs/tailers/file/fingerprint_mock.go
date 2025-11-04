@@ -64,3 +64,11 @@ func (f *FingerprinterMock) ComputeFingerprintFromConfig(filepath string, _ *typ
 	}
 	return nil, fmt.Errorf("no fingerprint set for file %s", filepath)
 }
+
+// GetEffectiveConfigForFile returns nil for the mock implementation
+func (f *FingerprinterMock) GetEffectiveConfigForFile(file *File) *types.FingerprintConfig {
+	if fingerprint, ok := f.fingerprints[file.Path]; ok && fingerprint.Config != nil {
+		return fingerprint.Config
+	}
+	return nil
+}

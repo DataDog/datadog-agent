@@ -43,6 +43,8 @@ type Fingerprinter interface {
 	ComputeFingerprint(file *File) (*types.Fingerprint, error)
 	// ComputeFingerprintFromConfig computes the fingerprint for the given file path using a specific config
 	ComputeFingerprintFromConfig(filepath string, fingerprintConfig *types.FingerprintConfig) (*types.Fingerprint, error)
+	// GetEffectiveConfigForFile returns the fingerprint configuration that applies to a file for status display purposes
+	GetEffectiveConfigForFile(file *File) *types.FingerprintConfig
 }
 
 // fingerprinterImpl is a struct that contains the fingerprinting configuration
