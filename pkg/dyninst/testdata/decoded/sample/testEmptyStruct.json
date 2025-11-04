@@ -18,12 +18,12 @@
           {
             "function": "main.testEmptyStruct",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/structs.go",
-            "lineNumber": 96
+            "lineNumber": 124
           },
           {
             "function": "main.executeStructFuncs",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/structs.go",
-            "lineNumber": 162
+            "lineNumber": 190
           },
           {
             "function": "main.main",

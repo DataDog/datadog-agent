@@ -1,6 +1,7 @@
 #ifndef __HTTP_USM_EVENTS_H
 #define __HTTP_USM_EVENTS_H
 
+#include "protocols/direct_consumer.h"
 #include "protocols/events.h"
 #include "protocols/http/types.h"
 
@@ -8,5 +9,8 @@
 #define HTTP_BATCH_SIZE (MAX_BATCH_SIZE(http_event_t))
 
 USM_EVENTS_INIT(http, http_event_t, HTTP_BATCH_SIZE);
+
+// Initialize DirectConsumer utilities for HTTP protocol
+USM_DIRECT_CONSUMER_INIT(http, http_event_t, http_batch_events)
 
 #endif

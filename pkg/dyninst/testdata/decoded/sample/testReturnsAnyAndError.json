@@ -1,0 +1,194 @@
+[
+  {
+    "service": "sample",
+    "ddsource": "dd_debugger",
+    "logger": {
+      "name": "",
+      "method": "main.testReturnsAnyAndError",
+      "version": 0,
+      "thread_id": "[goid]",
+      "thread_name": ""
+    },
+    "debugger": {
+      "snapshot": {
+        "id": "[id]",
+        "timestamp": "[ts]",
+        "language": "go",
+        "stack": [
+          {
+            "function": "main.testReturnsAnyAndError",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/returns.go",
+            "lineNumber": 46
+          },
+          {
+            "function": "main.executeReturns",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/returns.go",
+            "lineNumber": 380
+          },
+          {
+            "function": "main.main",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
+            "lineNumber": 50
+          },
+          {
+            "function": "runtime.main",
+            "fileName": "runtime/proc.go",
+            "lineNumber": "[lineNumber]"
+          },
+          {
+            "function": "runtime.goexit",
+            "fileName": "runtime/asm_[arch].s",
+            "lineNumber": "[lineNumber]"
+          }
+        ],
+        "probe": {
+          "id": "testReturnsAnyAndError",
+          "location": {
+            "method": "main.testReturnsAnyAndError"
+          }
+        },
+        "captures": {
+          "entry": {
+            "arguments": {
+              "v": {
+                "type": "interface {}",
+                "fields": {
+                  "data": {
+                    "type": "int",
+                    "value": "42"
+                  }
+                }
+              },
+              "failed": {
+                "type": "bool",
+                "value": "true"
+              }
+            }
+          },
+          "return": {
+            "locals": {
+              "~r0": {
+                "type": "interface {}",
+                "fields": {
+                  "data": {
+                    "isNull": true
+                  }
+                }
+              },
+              "~r1": {
+                "type": "error",
+                "fields": {
+                  "data": {
+                    "type": "*errors.errorString",
+                    "address": "[addr]",
+                    "fields": {
+                      "s": {
+                        "type": "string",
+                        "value": "error"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "timestamp": "[ts]",
+    "duration": "[duration]"
+  },
+  {
+    "service": "sample",
+    "ddsource": "dd_debugger",
+    "logger": {
+      "name": "",
+      "method": "main.testReturnsAnyAndError",
+      "version": 0,
+      "thread_id": "[goid]",
+      "thread_name": ""
+    },
+    "debugger": {
+      "snapshot": {
+        "id": "[id]",
+        "timestamp": "[ts]",
+        "language": "go",
+        "stack": [
+          {
+            "function": "main.testReturnsAnyAndError",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/returns.go",
+            "lineNumber": 51
+          },
+          {
+            "function": "main.executeReturns",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/returns.go",
+            "lineNumber": 381
+          },
+          {
+            "function": "main.main",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
+            "lineNumber": 50
+          },
+          {
+            "function": "runtime.main",
+            "fileName": "runtime/proc.go",
+            "lineNumber": "[lineNumber]"
+          },
+          {
+            "function": "runtime.goexit",
+            "fileName": "runtime/asm_[arch].s",
+            "lineNumber": "[lineNumber]"
+          }
+        ],
+        "probe": {
+          "id": "testReturnsAnyAndError",
+          "location": {
+            "method": "main.testReturnsAnyAndError"
+          }
+        },
+        "captures": {
+          "entry": {
+            "arguments": {
+              "v": {
+                "type": "interface {}",
+                "fields": {
+                  "data": {
+                    "type": "int",
+                    "value": "42"
+                  }
+                }
+              },
+              "failed": {
+                "type": "bool",
+                "value": "false"
+              }
+            }
+          },
+          "return": {
+            "locals": {
+              "~r0": {
+                "type": "interface {}",
+                "fields": {
+                  "data": {
+                    "type": "int",
+                    "value": "1042"
+                  }
+                }
+              },
+              "~r1": {
+                "type": "error",
+                "fields": {
+                  "data": {
+                    "isNull": true
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "timestamp": "[ts]",
+    "duration": "[duration]"
+  }
+]

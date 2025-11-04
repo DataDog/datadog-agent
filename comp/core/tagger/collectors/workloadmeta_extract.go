@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/util/fargate"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -127,6 +128,12 @@ func (c *WorkloadMetaCollector) processEvents(evBundle workloadmeta.EventBundle)
 
 		switch ev.Type {
 		case workloadmeta.EventTypeSet:
+			if entityID.Kind == workloadmeta.KindKubeletMetrics ||
+				entityID.Kind == workloadmeta.KindKubelet {
+				// No tags. Ignore
+				continue
+			}
+
 			taggerEntityID := common.BuildTaggerEntityID(entityID)
 
 			// keep track of children of this entity from previous
@@ -244,6 +251,15 @@ func (c *WorkloadMetaCollector) handleContainer(ev workloadmeta.Event) []*types.
 		tagList.AddLow(tags.KubeGPUVendor, gpuVendor)
 	}
 
+	// resize policy tags
+	if container.ResizePolicy.CPURestartPolicy != "" {
+		tagList.AddLow(tags.CPURestartPolicy, container.ResizePolicy.CPURestartPolicy)
+	}
+
+	if container.ResizePolicy.MemoryRestartPolicy != "" {
+		tagList.AddLow(tags.MemoryRestartPolicy, container.ResizePolicy.MemoryRestartPolicy)
+	}
+
 	low, orch, high, standard := tagList.Compute()
 	return []*types.TagInfo{
 		{
@@ -276,6 +292,13 @@ func (c *WorkloadMetaCollector) handleProcess(ev workloadmeta.Event) []*types.Ta
 	}
 	if process.Service.UST.Version != "" {
 		tagList.AddStandard(tags.Version, process.Service.UST.Version)
+	}
+
+	for _, tracerMeta := range process.Service.TracerMetadata {
+		tagList.AddStandard(tags.Service, tracerMeta.ServiceName)
+		tagList.AddStandard(tags.Env, tracerMeta.ServiceEnv)
+		tagList.AddStandard(tags.Version, tracerMeta.ServiceVersion)
+		parseProcessTags(tagList, tracerMeta.ProcessTags)
 	}
 
 	low, orch, high, standard := tagList.Compute()
@@ -550,7 +573,11 @@ func (c *WorkloadMetaCollector) handleECSTask(ev workloadmeta.Event) []*types.Ta
 		})
 	}
 
-	if task.LaunchType == workloadmeta.ECSLaunchTypeFargate {
+	// For Fargate and Managed Instances in sidecar mode, add task-level tags to global entity
+	// These deployments don't report a hostname (task is the unit of identity)
+	// IsFargateInstance() returns true for both ECS Fargate and managed instances in sidecar mode
+	if task.LaunchType == workloadmeta.ECSLaunchTypeFargate ||
+		(task.LaunchType == workloadmeta.ECSLaunchTypeManagedInstances && fargate.IsFargateInstance()) {
 		low, orch, high, standard := taskTags.Compute()
 		tagInfos = append(tagInfos, &types.TagInfo{
 			Source:               taskSource,
@@ -565,8 +592,10 @@ func (c *WorkloadMetaCollector) handleECSTask(ev workloadmeta.Event) []*types.Ta
 	// Global tags only updated when a valid ClusterName is provided
 	// There exist edge cases in the metadata API returning a task without cluster info
 	if task.ClusterName != "" {
-		// add global cluster tags to EC2
-		if task.LaunchType == workloadmeta.ECSLaunchTypeEC2 {
+		// Add global cluster tags for EC2 and Managed Instances in daemon mode
+		// In daemon mode, the hostname is the EC2 instance, so we only add cluster tags (not task-specific tags)
+		if task.LaunchType == workloadmeta.ECSLaunchTypeEC2 ||
+			(task.LaunchType == workloadmeta.ECSLaunchTypeManagedInstances && !fargate.IsFargateInstance()) {
 			tagInfos = append(tagInfos, &types.TagInfo{
 				Source:               taskSource,
 				EntityID:             types.GetGlobalEntityID(),
@@ -686,6 +715,7 @@ func (c *WorkloadMetaCollector) handleGPU(ev workloadmeta.Event) []*types.TagInf
 	tagList.AddLow(tags.KubeGPUDevice, strings.ToLower(strings.ReplaceAll(gpu.Device, " ", "_")))
 	tagList.AddLow(tags.KubeGPUUUID, strings.ToLower(gpu.ID))
 	tagList.AddLow(tags.GPUDriverVersion, gpu.DriverVersion)
+	tagList.AddLow(tags.GPUVirtualizationMode, gpu.VirtualizationMode)
 
 	low, orch, high, standard := tagList.Compute()
 
@@ -969,5 +999,38 @@ func parseContainerADTagsLabels(tags *taglist.TagList, labelValue string) {
 			continue
 		}
 		tags.AddHigh(tagParts[0], tagParts[1])
+	}
+}
+
+// parseProcessTags parses comma-separated process tags from TracerMetadata
+// and adds them to the provided tagList as low cardinality tags
+func parseProcessTags(tags *taglist.TagList, processTags string) {
+	if processTags == "" {
+		return
+	}
+
+	for tag := range strings.SplitSeq(processTags, ",") {
+		tag = strings.TrimSpace(tag)
+		if tag == "" {
+			continue
+		}
+
+		// Split each tag into key:value format
+		key, value, ok := strings.Cut(tag, ":")
+		if !ok {
+			log.Debugf("Process tag %q is not in k:v format, skipping", tag)
+			continue
+		}
+
+		key = strings.TrimSpace(key)
+		value = strings.TrimSpace(value)
+
+		if key == "" || value == "" {
+			log.Debugf("Process tag %q has empty key or value, skipping", tag)
+			continue
+		}
+
+		// Add as low cardinality tag since these are application-level metadata
+		tags.AddLow(key, value)
 	}
 }

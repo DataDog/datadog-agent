@@ -80,7 +80,7 @@ func BenchmarkSeries(b *testing.B) {
 	pb := func(series metrics.Series) (transaction.BytesPayloads, error) {
 		iterableSeries := metricsserializer.CreateIterableSeries(metricsserializer.CreateSerieSource(series))
 		pipeline := []metricsserializer.Pipeline{{
-			FilterFunc: func(_ *metrics.Serie) bool {
+			FilterFunc: func(_ metricsserializer.Filterable) bool {
 				return true
 			},
 			Destination: transaction.AllRegions,

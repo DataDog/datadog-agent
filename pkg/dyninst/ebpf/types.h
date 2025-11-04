@@ -9,8 +9,12 @@ typedef struct probe_params {
   uint32_t pointer_chasing_limit;
   uint32_t collection_size_limit;
   uint32_t string_size_limit;
+  uint32_t probe_id;
   bool frameless;
-  bool __padding[3];
+  bool has_associated_return;
+  char kind; // actually an event_kind_t
+  char top_pc_offset;
+  char __padding[4];
 } probe_params_t;
 
 typedef struct throttler_params {
@@ -31,6 +35,13 @@ typedef struct type_info {
   uint32_t enqueue_pc;
   uint32_t __padding;
 } type_info_t;
+
+// To be kept in sync with the ir/event_kind.go file.
+typedef enum event_kind {
+  EVENT_KIND_INVALID = 0,
+  EVENT_KIND_ENTRY = 1,
+  EVENT_KIND_RETURN = 2,
+} event_kind_t;
 
 typedef enum sm_opcode {
   SM_OP_INVALID = 0,

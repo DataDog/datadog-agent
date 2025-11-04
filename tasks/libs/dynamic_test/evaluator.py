@@ -431,7 +431,7 @@ class DatadogDynTestEvaluator(DynTestEvaluator):
         """
         escaped_job_name = job_name.replace('"', '\\"')
         events = get_ci_test_events(
-            f'@ci.pipeline.name:DataDog/datadog-agent @ci.pipeline.id:{self.pipeline_id} @ci.job.name:"{escaped_job_name}"',
+            f'env:prod @ci.pipeline.name:DataDog/datadog-agent @ci.pipeline.id:{self.pipeline_id} @ci.job.name:"{escaped_job_name}"',
             3,
         )
 
@@ -446,6 +446,7 @@ class DatadogDynTestEvaluator(DynTestEvaluator):
             # Only consider root tests, not sub-tests
             if not test_attrs.get("name") or len(test_attrs.get("name").split("/")) > 1:
                 continue
+
             tests.append(
                 ExecutedTest(
                     name=test_attrs.get("name"),

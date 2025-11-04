@@ -120,7 +120,9 @@ static __always_inline int cleanup_conn(void *ctx, conn_tuple_t *tup, struct soc
     // the conn_stats_ts_t object up to now. we re-use this field
     // for the duration since we would overrun stack size limits
     // if we added another field
-    conn.conn_stats.duration = bpf_ktime_get_ns() - conn.conn_stats.duration;
+    __u64 start_ns = convert_ms_to_ns(conn.conn_stats.duration_ms);
+    __u64 delta_ns = bpf_ktime_get_ns() - start_ns;
+    conn.conn_stats.duration_ms = convert_ns_to_ms(delta_ns);
 
     if (is_batching_enabled()) {
         // Batch TCP closed connections before generating a perf event

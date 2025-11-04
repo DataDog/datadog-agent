@@ -10,8 +10,7 @@ package user
 
 import (
 	"fmt"
-	"os/user"
-	"strconv"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/user"
 	"syscall"
 )
 
@@ -27,25 +26,17 @@ func IsRoot() bool {
 // Note that we actually only set dd-agent as the effective user, not the real user, in oder to
 // escalate privileges back when needed.
 func RootToDatadogAgent() error {
-	datadogAgentGroup, err := user.LookupGroup("dd-agent")
+	gid, err := user.GetGroupID("dd-agent")
 	if err != nil {
 		return fmt.Errorf("failed to lookup dd-agent group: %s", err)
-	}
-	gid, err := strconv.Atoi(datadogAgentGroup.Gid)
-	if err != nil {
-		return fmt.Errorf("failed to convert dd-agent group ID to int: %s", err)
 	}
 	err = syscall.Setegid(gid)
 	if err != nil {
 		return fmt.Errorf("failed to setegid: %s", err)
 	}
-	datadogAgentUser, err := user.Lookup("dd-agent")
+	uid, err := user.GetUserID("dd-agent")
 	if err != nil {
 		return fmt.Errorf("failed to lookup dd-agent user: %s", err)
-	}
-	uid, err := strconv.Atoi(datadogAgentUser.Uid)
-	if err != nil {
-		return fmt.Errorf("failed to convert dd-agent user ID to int: %s", err)
 	}
 	err = syscall.Seteuid(uid)
 	if err != nil {

@@ -13,11 +13,11 @@ import (
 	"strconv"
 	"time"
 
+	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	"github.com/docker/docker/api/types/events"
 	"github.com/docker/docker/api/types/filters"
 
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -27,7 +27,7 @@ const eventSendBuffer = 5
 
 // SubscribeToEvents allows a package to subscribe to events from the event stream.
 // A unique subscriber name should be provided.
-func (d *DockerUtil) SubscribeToEvents(name string, filter *containers.Filter) (<-chan *ContainerEvent, <-chan *ImageEvent, error) {
+func (d *DockerUtil) SubscribeToEvents(name string, filter workloadfilter.FilterBundle) (<-chan *ContainerEvent, <-chan *ImageEvent, error) {
 	sub, err := d.eventState.subscribe(name, filter)
 	if err != nil {
 		return nil, nil, err
@@ -37,7 +37,7 @@ func (d *DockerUtil) SubscribeToEvents(name string, filter *containers.Filter) (
 	return sub.containerEventsChan, sub.imageEventsChan, err
 }
 
-func (e *eventStreamState) subscribe(name string, filter *containers.Filter) (*eventSubscriber, error) {
+func (e *eventStreamState) subscribe(name string, filter workloadfilter.FilterBundle) (*eventSubscriber, error) {
 	e.RLock()
 	if _, found := e.subscribers[name]; found {
 		e.RUnlock()

@@ -23,17 +23,17 @@ func DualTaggerParams() (tagger.DualParams, tagger.RemoteParams) {
 			UseRemote: func(c config.Component) bool {
 				return pkgconfigsetup.IsCLCRunner(c) && c.GetBool("clc_runner_remote_tagger_enabled")
 			},
-		}, tagger.RemoteParams{
-			RemoteTarget: func(config.Component) (string, error) {
+		}, tagger.NewRemoteParams(
+			tagger.WithRemoteTarget(func(config.Component) (string, error) {
 				target, err := utils.GetClusterAgentEndpoint()
 				if err != nil {
 					return "", err
 				}
 				return strings.TrimPrefix(target, "https://"), nil
-			},
-			RemoteFilter: types.NewFilterBuilder().Exclude(types.KubernetesPodUID).Build(types.HighCardinality),
+			}),
+			tagger.WithRemoteFilter(types.NewFilterBuilder().Exclude(types.KubernetesPodUID).Build(types.HighCardinality)),
 
-			OverrideTLSConfigGetter: pkgapiutil.GetCrossNodeClientTLSConfig,
-			OverrideAuthTokenGetter: security.GetClusterAgentAuthToken,
-		}
+			tagger.WithOverrideTLSConfigGetter(pkgapiutil.GetCrossNodeClientTLSConfig),
+			tagger.WithOverrideAuthTokenGetter(security.GetClusterAgentAuthToken),
+		)
 }

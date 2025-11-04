@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"os"
 	"regexp"
+	"runtime"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
@@ -19,7 +20,7 @@ import (
 )
 
 const (
-	defaultInjectorVersion = "0.40.0-1"
+	defaultInjectorVersion = "0"
 )
 
 var (
@@ -68,6 +69,7 @@ var (
 		"DD_PROXY_HTTP",
 		"DD_PROXY_HTTPS",
 		"DD_PROXY_NO_PROXY",
+		"DD_INFRASTRUCTURE_MODE",
 	}
 )
 
@@ -103,6 +105,7 @@ func SetupDefaultScript(s *common.Setup) error {
 		return fmt.Errorf("failed to setup APM SSI script: %w", err)
 	}
 
+	s.NoConfig = false
 	return nil
 }
 
@@ -144,9 +147,18 @@ func setConfigSecurityProducts(s *common.Setup) {
 
 // setConfigInstallerDaemon sets the daemon in the configuration
 func setConfigInstallerDaemon(s *common.Setup) {
-	s.Config.DatadogYAML.RemoteUpdates = true
-	if val, ok := os.LookupEnv("DD_REMOTE_UPDATES"); ok && strings.ToLower(val) == "false" {
+	if runtime.GOOS == "windows" {
+		// on windows this needs to default to false
+		// as setup is the entry point for FIPS installations as well
 		s.Config.DatadogYAML.RemoteUpdates = false
+		if val, ok := os.LookupEnv("DD_REMOTE_UPDATES"); ok && strings.ToLower(val) == "true" {
+			s.Config.DatadogYAML.RemoteUpdates = true
+		}
+	} else {
+		s.Config.DatadogYAML.RemoteUpdates = true
+		if val, ok := os.LookupEnv("DD_REMOTE_UPDATES"); ok && strings.ToLower(val) == "false" {
+			s.Config.DatadogYAML.RemoteUpdates = false
+		}
 	}
 }
 
@@ -197,9 +209,20 @@ func installDDOTPackage(s *common.Setup) {
 // installAPMPackages installs the APM packages
 func installAPMPackages(s *common.Setup) {
 	// Injector install
-	_, apmInstrumentationEnabled := os.LookupEnv("DD_APM_INSTRUMENTATION_ENABLED")
+	apmInstrumentationMethod, apmInstrumentationEnabled := os.LookupEnv("DD_APM_INSTRUMENTATION_ENABLED")
 	if apmInstrumentationEnabled {
-		s.Packages.Install(common.DatadogAPMInjectPackage, defaultInjectorVersion)
+		if runtime.GOOS == "windows" {
+			switch apmInstrumentationMethod {
+			case env.APMInstrumentationEnabledHost:
+				s.Packages.Install(common.DatadogAPMInjectPackage, defaultInjectorVersion)
+			case env.APMInstrumentationEnabledIIS:
+				// we don't need to install anything for IIS
+			default:
+				// we do nothing in unless it is host or IIS
+			}
+		} else {
+			s.Packages.Install(common.DatadogAPMInjectPackage, defaultInjectorVersion)
+		}
 	}
 
 	// Libraries install

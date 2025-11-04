@@ -6,12 +6,14 @@
 package filters
 
 import (
+	"math/rand/v2"
 	"regexp"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
+	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace/idx"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 )
 
@@ -221,6 +223,104 @@ func TestReplacer(t *testing.T) {
 				assert.Equal(tt, v, root.SpanEvents[0].Attributes[k])
 			}
 		}
+	})
+
+	t.Run("traces v1", func(tt *testing.T) {
+		for _, testCase := range []struct {
+			rules     [][3]string
+			got, want map[string]string
+		}{
+			{
+				rules: [][3]string{
+					{"http.url", "(token/)([^/]*)", "${1}?"},
+					{"http.url", "guid", "[REDACTED]"},
+					{"custom.tag", "(/foo/bar/).*", "${1}extra"},
+					{"a", "b", "c"},
+				},
+				got: map[string]string{
+					"http.url":   "some/guid/token/abcdef/abc",
+					"custom.tag": "/foo/bar/foo",
+				},
+				want: map[string]string{
+					"http.url":   "some/[REDACTED]/token/?/abc",
+					"custom.tag": "/foo/bar/extra",
+				},
+			},
+			{
+				rules: [][3]string{
+					{"*", "(token/)([^/]*)", "${1}?"},
+					{"*", "this", "that"},
+					{"http.url", "guid", "[REDACTED]"},
+					{"custom.tag", "(/foo/bar/).*", "${1}extra"},
+					{"resource.name", "prod", "stage"},
+				},
+				got: map[string]string{
+					"resource.name": "this is prod",
+					"http.url":      "some/[REDACTED]/token/abcdef/abc",
+					"other.url":     "some/guid/token/abcdef/abc",
+					"custom.tag":    "/foo/bar/foo",
+					"_special":      "this should not be changed",
+				},
+				want: map[string]string{
+					"resource.name": "that is stage",
+					"http.url":      "some/[REDACTED]/token/?/abc",
+					"other.url":     "some/guid/token/?/abc",
+					"custom.tag":    "/foo/bar/extra",
+					"_special":      "this should not be changed",
+				},
+			},
+		} {
+			rules := parseRulesFromString(testCase.rules)
+			tr := NewReplacer(rules)
+
+			// Create a new InternalTraceChunk
+			chunk := &idx.InternalTraceChunk{
+				Spans:   make([]*idx.InternalSpan, 1),
+				Strings: idx.NewStringTable(),
+			}
+
+			// Create spans with the test data
+			span := newTestSpanV1EmptyAttributes(chunk.Strings)
+			for k, v := range testCase.got {
+				if k == "resource.name" {
+					span.SetResource(v)
+				} else {
+					span.SetAttributeFromString(k, v)
+				}
+			}
+			chunk.Spans[0] = span
+
+			// Apply the replacer
+			tr.ReplaceV1(chunk)
+
+			// Verify results
+			for _, span := range chunk.Spans {
+				for k, v := range testCase.want {
+					switch k {
+					case "resource.name":
+						assert.Equal(tt, v, span.Resource())
+					default:
+						if val, ok := span.GetAttributeAsString(k); ok {
+							assert.Equal(tt, v, val)
+						}
+					}
+				}
+			}
+		}
+	})
+}
+
+// GetTestSpan returns a Span with different fields set
+func newTestSpanV1EmptyAttributes(strings *idx.StringTable) *idx.InternalSpan {
+	return idx.NewInternalSpan(strings, &idx.Span{
+		SpanID:      rand.Uint64(),
+		ParentID:    1111,
+		ServiceRef:  strings.Add("django"),
+		NameRef:     strings.Add("django.controller"),
+		ResourceRef: strings.Add("GET /some/raclette"),
+		Start:       1448466874000000000,
+		Duration:    10000000,
+		Attributes:  map[uint32]*idx.AnyValue{},
 	})
 }
 

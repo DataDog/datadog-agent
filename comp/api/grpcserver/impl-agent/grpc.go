@@ -9,6 +9,7 @@ package agentimpl
 import (
 	"net/http"
 
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	grpc_auth "github.com/grpc-ecosystem/go-grpc-middleware/auth"
 
 	grpc "github.com/DataDog/datadog-agent/comp/api/grpcserver/def"
@@ -21,7 +22,6 @@ import (
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	remoteagentregistry "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/def"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
-	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	taggerserver "github.com/DataDog/datadog-agent/comp/core/tagger/server"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -52,6 +52,7 @@ type Requires struct {
 	RcServiceMRF        option.Option[rcservicemrf.Component]
 	IPC                 ipc.Component
 	Tagger              tagger.Component
+	TagProcessor        option.Option[tagger.Processor]
 	Cfg                 config.Component
 	AutoConfig          autodiscovery.Component
 	WorkloadMeta        workloadmeta.Component
@@ -64,7 +65,8 @@ type Requires struct {
 
 type server struct {
 	IPC                 ipc.Component
-	taggerComp          tagger.Component
+	tagger              tagger.Component
+	tagProcessor        option.Option[tagger.Processor]
 	workloadMeta        workloadmeta.Component
 	configService       option.Option[rcservice.Component]
 	configServiceMRF    option.Option[rcservicemrf.Component]
@@ -100,8 +102,8 @@ func (s *server) BuildServer() http.Handler {
 	pb.RegisterAgentSecureServer(grpcServer, &serverSecure{
 		configService:    s.configService,
 		configServiceMRF: s.configServiceMRF,
-		taggerServer:     taggerserver.NewServer(s.taggerComp, s.telemetry, maxEventSize, s.configComp.GetInt("remote_tagger.max_concurrent_sync")),
-		taggerComp:       s.taggerComp,
+		taggerServer:     taggerserver.NewServer(s.tagger, s.telemetry, maxEventSize, s.configComp.GetInt("remote_tagger.max_concurrent_sync")),
+		tagProcessor:     s.tagProcessor,
 		// TODO(components): decide if workloadmetaServer should be componentized itself
 		workloadmetaServer:  workloadmetaServer.NewServer(s.workloadMeta),
 		dogstatsdServer:     s.dogstatsdServer,
@@ -128,7 +130,8 @@ func NewComponent(reqs Requires) (Provides, error) {
 			IPC:                 reqs.IPC,
 			configService:       reqs.RcService,
 			configServiceMRF:    reqs.RcServiceMRF,
-			taggerComp:          reqs.Tagger,
+			tagger:              reqs.Tagger,
+			tagProcessor:        reqs.TagProcessor,
 			workloadMeta:        reqs.WorkloadMeta,
 			dogstatsdServer:     reqs.DogstatsdServer,
 			capture:             reqs.Capture,

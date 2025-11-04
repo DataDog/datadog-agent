@@ -349,8 +349,9 @@ if windows_target?
     windows_symbol_stripping_file bin
   end
 
-  # We need to strip the debug symbols from the rtloader files
+  # We need to strip the debug symbols from the rtloader files and from the installer
   windows_symbol_stripping_file "#{install_dir}\\bin\\agent\\libdatadog-agent-three.dll"
+  windows_symbol_stripping_file "#{install_dir}\\datadog-installer.exe"
 
   if windows_signing_enabled?
     # Sign additional binaries from here.
@@ -362,7 +363,7 @@ if windows_target?
       "#{python_3_embedded}\\python.exe",
       "#{python_3_embedded}\\pythonw.exe",
       "#{python_3_embedded}\\python3.dll",
-      "#{python_3_embedded}\\python312.dll",
+      "#{python_3_embedded}\\python313.dll",
     ]
     OPENSSL_BINARIES = [
       "#{python_3_embedded}\\DLLs\\libcrypto-3-x64.dll",
@@ -373,7 +374,8 @@ if windows_target?
 
     BINARIES_TO_SIGN = GO_BINARIES + PYTHON_BINARIES + OPENSSL_BINARIES + [
       "#{install_dir}\\bin\\agent\\ddtray.exe",
-      "#{install_dir}\\bin\\agent\\libdatadog-agent-three.dll"
+      "#{install_dir}\\bin\\agent\\libdatadog-agent-three.dll",
+      "#{install_dir}\\datadog-installer.exe",
     ]
 
     BINARIES_TO_SIGN.each do |bin|

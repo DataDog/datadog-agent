@@ -7,7 +7,6 @@ This guide will help you to develop and contribute code to the project.
 * [Custom checks developer guide](checks/README.md)
   * [Python builtin modules](checks/builtins)
 * [Agent IPC API](agent_api.md)
-* [How to build the Agent binaries](agent_build.md)
 * [How to build the Agent packages][agent-omnibus]
 * [Testing guide][testing]
 * [Troubleshooting Memory Guide][memory]
@@ -29,5 +28,5 @@ This guide will help you to develop and contribute code to the project.
 [memory]: agent_memory.md
 [caveats]: caveats.md
 [contributing]: ../public/guidelines/contributing.md
-[agent-omnibus]: agent_omnibus.md
+[agent-omnibus]: ../public/how-to/build/distributions.md
 [tools]: tools.md

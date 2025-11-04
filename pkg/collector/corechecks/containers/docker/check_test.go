@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build docker
+//go:build docker && cel
 
 package docker
 
@@ -48,6 +48,9 @@ func TestDockerCheckGenericPart(t *testing.T) {
 		"cID100": mock.GetFullSampleContainerEntry(),
 		"cID101": mock.GetFullSampleContainerEntry(),
 	}
+
+	fakeTagger.SetTags(types.NewEntityID("container_id", "cID100"), "foo", []string{"container_id:cID100"}, nil, nil, nil)
+	fakeTagger.SetTags(types.NewEntityID("container_id", "cID101"), "foo", []string{"container_id:cID101"}, nil, nil, nil)
 
 	// Inject mock processor in check
 	mockSender, processor, _ := generic.CreateTestProcessor(containersMeta, containersStats, metricsAdapter{}, getProcessorFilter(nil, nil), fakeTagger, false)
@@ -158,6 +161,13 @@ func TestDockerCustomPart(t *testing.T) {
 			State:   string(workloadmeta.ContainerStatusRunning),
 		},
 		{
+			ID:      "be2584a7d1a2a3ae9f9c688e9ce7a88991c028507fec7c70a660b705bd2a5b92",
+			Names:   []string{"agent-excluded-cel"},
+			Image:   "sha256:e575decbf7f4b920edabf5c86f948da776ffa26b5ceed591668ad6086c08a87f",
+			ImageID: "sha256:e575decbf7f4b920edabf5c86f948da776ffa26b5ceed591668ad6086c08a87f",
+			State:   string(workloadmeta.ContainerStatusRunning),
+		},
+		{
 			ID:      "e2d5394a5321d4a59497f53552a0131b2aafe64faba37f4738e78c531289fc45",
 			Names:   []string{"agent-dead"},
 			Image:   "datadog/agent",
@@ -193,9 +203,17 @@ func TestDockerCustomPart(t *testing.T) {
 		},
 	}
 
-	mockConfig := configmock.New(t)
-	mockConfig.SetWithoutSource("container_exclude", "name:agent-excluded")
-	mockConfig.SetWithoutSource("container_exclude_logs", "name:agent2 image:datadog/agent") // shouldn't be applied to metrics
+	yamlConfig := `
+cel_workload_exclude:
+  - product: metrics
+    rules:
+      containers:
+        - 'container.name.matches("agent-excluded-cel")'
+container_exclude: name:agent-excluded
+container_exclude_logs: name:agent2 image:datadog/agent
+`
+
+	configmock.NewFromYAML(t, yamlConfig)
 	mockFilterStore := workloadfilterfxmock.SetupMockFilter(t)
 
 	// Create Docker check
@@ -210,7 +228,7 @@ func TestDockerCustomPart(t *testing.T) {
 		},
 		eventTransformer: newBundledTransformer("testhostname", []string{}, fakeTagger),
 		dockerHostname:   "testhostname",
-		filterStore:      mockFilterStore,
+		containerFilter:  mockFilterStore.GetContainerSharedMetricFilters(),
 		store:            fxutil.Test[workloadmetamock.Mock](t, core.MockBundle(), workloadmetafxmock.MockModule(workloadmeta.NewParams())),
 		tagger:           fakeTagger,
 	}
@@ -228,7 +246,7 @@ func TestDockerCustomPart(t *testing.T) {
 	mockSender.AssertMetric(t, "Gauge", "docker.containers.running", 1, "", []string{"app:foo"})
 	mockSender.AssertMetric(t, "Gauge", "docker.containers.stopped", 1, "", []string{"docker_image:datadog/agent:latest", "image_name:datadog/agent", "image_tag:latest", "short_image:agent"})
 
-	mockSender.AssertMetric(t, "Gauge", "docker.containers.running.total", 4, "", nil)
+	mockSender.AssertMetric(t, "Gauge", "docker.containers.running.total", 5, "", nil)
 	mockSender.AssertMetric(t, "Gauge", "docker.containers.stopped.total", 1, "", nil)
 
 	// Tags between `docker.containers.running` and `docker.image.*` may be different because `docker.image.*` never uses the tagger
@@ -287,11 +305,11 @@ func TestContainersRunning(t *testing.T) {
 
 	// Create Docker check
 	check := DockerCheck{
-		instance:       &DockerConfig{},
-		dockerHostname: "testhostname",
-		filterStore:    workloadfilterfxmock.SetupMockFilter(t),
-		store:          fxutil.Test[workloadmetamock.Mock](t, core.MockBundle(), workloadmetafxmock.MockModule(workloadmeta.NewParams())),
-		tagger:         fakeTagger,
+		instance:        &DockerConfig{},
+		dockerHostname:  "testhostname",
+		containerFilter: workloadfilterfxmock.SetupMockFilter(t).GetContainerSharedMetricFilters(),
+		store:           fxutil.Test[workloadmetamock.Mock](t, core.MockBundle(), workloadmetafxmock.MockModule(workloadmeta.NewParams())),
+		tagger:          fakeTagger,
 	}
 
 	err := check.runDockerCustom(mockSender, &dockerClient, dockerClient.FakeContainerList)
@@ -306,6 +324,10 @@ func TestContainersRunning(t *testing.T) {
 
 func TestProcess_CPUSharesMetric(t *testing.T) {
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
+
+	fakeTagger.SetTags(types.NewEntityID("container_id", "cID100"), "foo", []string{"container_id:cID100"}, nil, nil, nil)
+	fakeTagger.SetTags(types.NewEntityID("container_id", "cID101"), "foo", []string{"container_id:cID101"}, nil, nil, nil)
+	fakeTagger.SetTags(types.NewEntityID("container_id", "cID102"), "foo", []string{"container_id:cID102"}, nil, nil, nil)
 
 	containersMeta := []*workloadmeta.Container{
 		generic.CreateContainerMeta("docker", "cID100"),

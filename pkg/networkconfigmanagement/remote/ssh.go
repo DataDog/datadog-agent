@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/profile"
 	"golang.org/x/crypto/ssh"
 
 	ncmconfig "github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/config"
@@ -23,6 +24,7 @@ import (
 type SSHClient struct {
 	client *ssh.Client
 	device *ncmconfig.DeviceInstance // Device configuration for authentication
+	prof   *profile.NCMProfile
 }
 
 // SSHSession implements Session using an SSH session
@@ -44,6 +46,11 @@ func NewSSHClient(device *ncmconfig.DeviceInstance) *SSHClient {
 	return &SSHClient{
 		device: device,
 	}
+}
+
+// SetProfile sets the NCM profile for the device for the client to know which commands to be able to run
+func (c *SSHClient) SetProfile(profile *profile.NCMProfile) {
+	c.prof = profile
 }
 
 // redial attempts to re-establish the SSH connection to the device
@@ -112,25 +119,47 @@ func (s *SSHSession) CombinedOutput(cmd string) ([]byte, error) {
 }
 
 // RetrieveRunningConfig retrieves the running configuration for the device connected via SSH
-func (c *SSHClient) RetrieveRunningConfig() (string, error) {
-	commands := []string{"show running-config"}
-	return c.retrieveConfiguration(commands)
+func (c *SSHClient) RetrieveRunningConfig() ([]byte, error) {
+	commands, err := c.prof.GetCommandValues(profile.Running)
+	if err != nil {
+		return []byte{}, err
+	}
+	config, err := c.retrieveConfiguration(commands)
+	if err != nil {
+		return []byte{}, err
+	}
+	err = c.prof.ValidateOutput(profile.Running, config)
+	if err != nil {
+		return []byte{}, err
+	}
+	return config, err
 }
 
 // RetrieveStartupConfig retrieves the startup configuration for the device connected via SSH
-func (c *SSHClient) RetrieveStartupConfig() (string, error) {
-	commands := []string{"show startup-config"}
+func (c *SSHClient) RetrieveStartupConfig() ([]byte, error) {
+	commands, err := c.prof.GetCommandValues(profile.Startup)
+	if err != nil {
+		return []byte{}, err
+	}
+	config, err := c.retrieveConfiguration(commands)
+	if err != nil {
+		return []byte{}, err
+	}
+	err = c.prof.ValidateOutput(profile.Startup, config)
+	if err != nil {
+		return []byte{}, err
+	}
 	return c.retrieveConfiguration(commands)
 }
 
 // retrieveConfiguration retrieves the configuration for a given network device using multiple commands
-func (c *SSHClient) retrieveConfiguration(commands []string) (string, error) {
-	var results []string
+func (c *SSHClient) retrieveConfiguration(commands []string) ([]byte, error) {
+	var result []byte
 
 	for _, cmd := range commands {
 		session, err := c.NewSession()
 		if err != nil {
-			return "", fmt.Errorf("failed to create session for command %s: %w", cmd, err)
+			return []byte{}, fmt.Errorf("failed to create session for command %s: %w", cmd, err)
 		}
 
 		log.Debugf("Executing command: %s", cmd)
@@ -138,13 +167,14 @@ func (c *SSHClient) retrieveConfiguration(commands []string) (string, error) {
 		session.Close()
 
 		if err != nil {
-			return "", fmt.Errorf("command %s failed: %w", cmd, err)
+			return []byte{}, fmt.Errorf("command %s failed: %w", cmd, err)
 		}
 
-		results = append(results, string(output))
+		result = append(result, output...)
+		result = append(result, '\n')
 	}
 
-	return strings.Join(results, "\n"), nil
+	return result, nil
 }
 
 // Close closes the SSH client connection

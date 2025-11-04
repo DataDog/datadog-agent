@@ -26,7 +26,7 @@ import (
 	"go.uber.org/atomic"
 
 	"github.com/DataDog/viper"
-	"github.com/mitchellh/mapstructure"
+	mapstructure "github.com/go-viper/mapstructure/v2"
 	"github.com/mohae/deepcopy"
 
 	"github.com/DataDog/datadog-agent/pkg/config/model"
@@ -137,12 +137,8 @@ func (c *safeConfig) Set(key string, newValue interface{}, source model.Source) 
 // SetWithoutSource sets the given value using source Unknown, may only be called from tests
 func (c *safeConfig) SetWithoutSource(key string, value interface{}) {
 	c.assertIsTest("SetWithoutSource")
-	v := reflect.ValueOf(value)
-	if v.Kind() == reflect.Pointer {
-		v = v.Elem()
-	}
-	if v.Kind() == reflect.Struct {
-		panic("SetWithoutSource cannot assign struct to a setting")
+	if !ValidateBasicTypes(value) {
+		panic(fmt.Errorf("SetWithoutSource can only be called with basic types (int, string, slice, map, etc), got %v", value))
 	}
 	c.Set(key, value, model.SourceUnknown)
 }
@@ -194,7 +190,7 @@ func (c *safeConfig) mergeViperInstances(key string) {
 func (c *safeConfig) SetKnown(key string) {
 	c.Lock()
 	defer c.Unlock()
-	c.Viper.SetKnown(key)
+	c.Viper.SetKnown(key) //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 }
 
 // IsKnown returns whether a key is known
@@ -588,8 +584,8 @@ func (c *safeConfig) BindEnv(key string, envvars ...string) {
 	}
 
 	newKeys := append([]string{key}, envvars...)
-	_ = c.configSources[model.SourceEnvVar].BindEnv(newKeys...)
-	_ = c.Viper.BindEnv(newKeys...)
+	_ = c.configSources[model.SourceEnvVar].BindEnv(newKeys...) //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	_ = c.Viper.BindEnv(newKeys...)                             //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 }
 
 // SetEnvKeyReplacer wraps Viper for concurrent access
@@ -879,7 +875,7 @@ func (c *safeConfig) GetEnvVars() []string {
 // BindEnvAndSetDefault implements the Config interface
 func (c *safeConfig) BindEnvAndSetDefault(key string, val interface{}, envvars ...string) {
 	c.SetDefault(key, val)
-	c.BindEnv(key, envvars...) //nolint:errcheck
+	c.BindEnv(key, envvars...) //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv' //nolint:errcheck
 }
 
 func (c *safeConfig) Warnings() *model.Warnings {

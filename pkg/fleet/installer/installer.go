@@ -102,8 +102,8 @@ func NewInstaller(env *env.Env) (Installer, error) {
 		downloader: oci.NewDownloader(env, env.HTTPClient()),
 		packages:   pkgs,
 		config: &config.Directories{
-			StablePath:     filepath.Join(paths.DefaultUserConfigsDir, "datadog-agent"),
-			ExperimentPath: filepath.Join(paths.DefaultUserConfigsDir, "datadog-agent-exp"),
+			StablePath:     paths.AgentConfigDir,
+			ExperimentPath: paths.AgentConfigDirExp,
 		},
 		hooks: packages.NewHooks(env, pkgs),
 
@@ -310,7 +310,10 @@ func (i *installerImpl) doInstall(ctx context.Context, url string, args []string
 	}
 	err = checkAvailableDiskSpace(i.packages, pkg)
 	if err != nil {
-		return fmt.Errorf("not enough disk space: %w", err)
+		return installerErrors.Wrap(
+			installerErrors.ErrNotEnoughDiskSpace,
+			fmt.Errorf("not enough disk space: %w", err),
+		)
 	}
 	tmpDir, err := i.packages.MkdirTemp()
 	if err != nil {
@@ -590,9 +593,15 @@ func (i *installerImpl) Purge(ctx context.Context) {
 	//         failing the uninstall.
 	//       We can't workaround this by moving removePackage to the end of purge,
 	//       as the daemon may be running and holding locks on files that need to be removed.
-	err = i.hooks.PreRemove(ctx, packageDatadogAgent, packages.PackageTypeOCI, false)
-	if err != nil {
-		log.Warnf("could not remove agent: %v", err)
+	//
+	// Note: If DD_NO_AGENT_UNINSTALL is set, then the agent will not be uninstalled.
+	//       This is used to prevent the agent from being uninstalled when purge is
+	//       called from within the MSI.
+	if uninstallAgent, ok := os.LookupEnv("DD_NO_AGENT_UNINSTALL"); !ok || strings.ToLower(uninstallAgent) != "true" {
+		err = i.hooks.PreRemove(ctx, packageDatadogAgent, packages.PackageTypeOCI, false)
+		if err != nil {
+			log.Warnf("could not remove agent: %v", err)
+		}
 	}
 	// TODO: wont need this when Linux packages are merged
 	if runtime.GOOS != "windows" {
@@ -676,12 +685,25 @@ func (i *installerImpl) InstrumentAPMInjector(ctx context.Context, method string
 	i.m.Lock()
 	defer i.m.Unlock()
 
-	injectorInstalled, err := i.IsInstalled(ctx, packageAPMInjector)
-	if err != nil {
-		return fmt.Errorf("could not check if APM injector is installed: %w", err)
-	}
-	if !injectorInstalled {
-		return fmt.Errorf("APM injector is not installed")
+	var err error
+	if runtime.GOOS == "windows" && method == env.APMInstrumentationEnabledIIS {
+		var isDotnetInstalled bool
+		isDotnetInstalled, err = i.IsInstalled(ctx, packageAPMLibraryDotnet)
+		if err != nil {
+			return fmt.Errorf("could not check if APM dotnet library is installed: %w", err)
+		}
+		if !isDotnetInstalled {
+			return fmt.Errorf("APM dotnet library is not installed")
+		}
+	} else {
+		var isInjectorInstalled bool
+		isInjectorInstalled, err = i.IsInstalled(ctx, packageAPMInjector)
+		if err != nil {
+			return fmt.Errorf("could not check if APM injector is installed: %w", err)
+		}
+		if !isInjectorInstalled {
+			return fmt.Errorf("APM injector is not installed")
+		}
 	}
 
 	err = packages.InstrumentAPMInjector(ctx, method)
@@ -696,17 +718,30 @@ func (i *installerImpl) UninstrumentAPMInjector(ctx context.Context, method stri
 	i.m.Lock()
 	defer i.m.Unlock()
 
-	injectorInstalled, err := i.IsInstalled(ctx, packageAPMInjector)
-	if err != nil {
-		return fmt.Errorf("could not check if APM injector is installed: %w", err)
-	}
-	if !injectorInstalled {
-		return fmt.Errorf("APM injector is not installed")
+	var err error
+	if runtime.GOOS == "windows" && method == env.APMInstrumentationEnabledIIS {
+		var isDotnetInstalled bool
+		isDotnetInstalled, err = i.IsInstalled(ctx, packageAPMLibraryDotnet)
+		if err != nil {
+			return fmt.Errorf("could not check if APM dotnet library is installed: %w", err)
+		}
+		if !isDotnetInstalled {
+			return fmt.Errorf("APM dotnet library is not installed")
+		}
+	} else {
+		var isInjectorInstalled bool
+		isInjectorInstalled, err = i.IsInstalled(ctx, packageAPMInjector)
+		if err != nil {
+			return fmt.Errorf("could not check if APM injector is installed: %w", err)
+		}
+		if !isInjectorInstalled {
+			return fmt.Errorf("APM injector is not installed")
+		}
 	}
 
 	err = packages.UninstrumentAPMInjector(ctx, method)
 	if err != nil {
-		return fmt.Errorf("could not instrument APM: %w", err)
+		return fmt.Errorf("could not uninstrument APM: %w", err)
 	}
 	return nil
 }

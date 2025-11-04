@@ -1,7 +1,6 @@
-import os
 import sys
 import traceback
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from invoke import Context, task
 from invoke.exceptions import Exit
@@ -17,8 +16,8 @@ class IntegrationTest:
     """
 
     prefix: str
-    dir: str = None
-    extra_args: str = None
+    dir: str = ""
+    extra_args: str = ""
 
 
 @dataclass
@@ -30,7 +29,7 @@ class IntegrationTestsConfig:
     name: str
     go_build_tags: list[str]
     tests: list[IntegrationTest]
-    env: dict[str, str] = None
+    env: dict[str, str] = field(default_factory=dict)
     is_windows_supported: bool = True
 
 
@@ -63,7 +62,6 @@ def containerized_integration_tests(
     ctx: Context,
     integration_tests_config: IntegrationTestsConfig,
     race=False,
-    remote_docker=False,
     go_mod="readonly",
     timeout="",
 ):
@@ -73,18 +71,10 @@ def containerized_integration_tests(
         "go_mod": go_mod,
         "go_build_tags": " ".join(integration_tests_config.go_build_tags),
         "race_opt": "-race" if race else "",
-        "exec_opts": "",
         "timeout_opt": f"-timeout {timeout}" if timeout else "",
     }
 
-    # since Go 1.13, the -exec flag of go test could add some parameters such as -test.timeout
-    # to the call, we don't want them because while calling invoke below, invoke
-    # thinks that the parameters are for it to interpret.
-    # we're calling an intermediate script which only pass the binary name to the invoke task.
-    if remote_docker:
-        test_args["exec_opts"] = f"-exec \"{os.getcwd()}/test/integration/dockerize_tests.sh\""
-
-    go_cmd = 'go test {timeout_opt} -mod={go_mod} {race_opt} -tags "{go_build_tags}" {exec_opts}'.format(**test_args)  # noqa: FS002
+    go_cmd = 'go test {timeout_opt} -mod={go_mod} {race_opt} -tags "{go_build_tags}"'.format(**test_args)  # noqa: FS002
 
     for it in integration_tests_config.tests:
         if it.dir:
@@ -95,7 +85,7 @@ def containerized_integration_tests(
 
 
 @task(iterable=["only"])
-def integration_tests(ctx, race=False, remote_docker=False, timeout="", only: list[str] | None = None):
+def integration_tests(ctx, race=False, timeout="", only: list[str] | None = None):
     """
     Run all the available integration tests
 
@@ -109,7 +99,7 @@ def integration_tests(ctx, race=False, remote_docker=False, timeout="", only: li
 
     if sys.platform == 'win32':
         tests["Agent Core"] = lambda: containerized_integration_tests(
-            ctx, CORE_AGENT_WINDOWS_IT_CONF, race=race, remote_docker=remote_docker, timeout=timeout
+            ctx, CORE_AGENT_WINDOWS_IT_CONF, race=race, timeout=timeout
         )
 
     if only:

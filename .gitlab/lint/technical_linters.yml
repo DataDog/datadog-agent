@@ -46,7 +46,7 @@ lint_components:
 lint_python:
   extends: .lint
   script:
-    - dda inv -- -e linter.python
+    - dda inv -- -e linter.python --show-versions
 
 lint_update_go:
   extends: .lint

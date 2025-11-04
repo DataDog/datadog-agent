@@ -276,6 +276,24 @@ func TestHorizontalControllerSyncPrerequisites(t *testing.T) {
 	assert.Equal(t, autoscaling.NoRequeue, result)
 	assert.NoError(t, err)
 
+	// Test case: Fallback scaling direction unset
+	fakePai.Spec.Fallback = &datadoghq.DatadogFallbackPolicy{
+		Horizontal: datadoghq.DatadogPodAutoscalerHorizontalFallbackPolicy{},
+	}
+	fakePai.Spec.ApplyPolicy = &datadoghq.DatadogPodAutoscalerApplyPolicy{
+		Mode: datadoghq.DatadogPodAutoscalerApplyModeApply,
+	}
+	result, err = f.testScalingDecision(horizontalScalingTestArgs{
+		fakePai:         fakePai,
+		dataSource:      datadoghqcommon.DatadogPodAutoscalerLocalValueSource,
+		currentReplicas: 6,
+		statusReplicas:  6,
+		recReplicas:     7,
+		scaleReplicas:   7,
+	})
+	assert.Equal(t, autoscaling.NoRequeue, result)
+	assert.NoError(t, err)
+
 	// Tests disabled until we add back Manual capability in the CRD
 	// // Test case: Automatic scaling values disabled by policy
 	// fakePai.Spec.ApplyPolicy = &datadoghq.DatadogPodAutoscalerApplyPolicy{

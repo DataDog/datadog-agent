@@ -8,17 +8,21 @@
 package modules
 
 import (
+	"context"
 	"errors"
 	"fmt"
 
+	"google.golang.org/grpc"
+
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	dimod "github.com/DataDog/datadog-agent/pkg/dyninst/module"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
-	ebpf_process "github.com/DataDog/datadog-agent/pkg/ebpf/process"
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor"
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor/consumers"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/config"
 	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
+	ddgrpc "github.com/DataDog/datadog-agent/pkg/util/grpc"
 )
 
 func init() { registerModule(DynamicInstrumentation) }
@@ -30,20 +34,30 @@ var godiProcessEventConsumer *consumers.ProcessConsumer
 var DynamicInstrumentation = &module.Factory{
 	Name:             config.DynamicInstrumentationModule,
 	ConfigNamespaces: []string{},
-	Fn: func(agentConfiguration *sysconfigtypes.Config, _ module.FactoryDependencies) (module.Module, error) {
+	Fn: func(agentConfiguration *sysconfigtypes.Config, deps module.FactoryDependencies) (module.Module, error) {
 		if godiProcessEventConsumer == nil {
 			return nil, errors.New("process event consumer not initialized")
 		}
-		godiSubscriber, err := ebpf_process.NewMonitor(godiProcessEventConsumer)
-		if err != nil {
-			return nil, err
-		}
-
 		config, err := dimod.NewConfig(agentConfiguration)
 		if err != nil {
 			return nil, fmt.Errorf("invalid dynamic instrumentation module configuration: %w", err)
 		}
-		m, err := dimod.NewModule(config, godiSubscriber)
+		ipcAddress, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
+		if err != nil {
+			return nil, fmt.Errorf("failed to get ipc address: %w", err)
+		}
+		client, err := ddgrpc.GetDDAgentSecureClient(
+			context.Background(),
+			ipcAddress,
+			pkgconfigsetup.GetIPCPort(),
+			deps.Ipc.GetTLSClientConfig().Clone(),
+			grpc.WithPerRPCCredentials(ddgrpc.NewBearerTokenAuth(deps.Ipc.GetAuthToken())),
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create gRPC client for RC subscription: %w", err)
+		}
+
+		m, err := dimod.NewModule(config, client)
 		if err != nil {
 			if errors.Is(err, ebpf.ErrNotImplemented) {
 				return nil, module.ErrNotEnabled

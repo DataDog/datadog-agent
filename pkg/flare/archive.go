@@ -26,6 +26,7 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/flare/common"
 	"github.com/DataDog/datadog-agent/pkg/flare/priviledged"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
@@ -121,7 +122,7 @@ func provideInstallInfo(fb flaretypes.FlareBuilder) error {
 }
 
 func (r *RemoteFlareProvider) provideRemoteConfig(fb flaretypes.FlareBuilder) error {
-	if pkgconfigsetup.IsRemoteConfigEnabled(pkgconfigsetup.Datadog()) {
+	if configUtils.IsRemoteConfigEnabled(pkgconfigsetup.Datadog()) {
 		if err := r.exportRemoteConfig(fb); err != nil {
 			log.Errorf("Could not export remote-config state: %s", err)
 		}

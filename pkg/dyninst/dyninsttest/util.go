@@ -69,20 +69,8 @@ func SetupLogging() {
 	if logLevel == "" {
 		logLevel = "debug"
 	}
-	const defaultFormat = "%l %Date(15:04:05.000000000) @%File:%Line| %Msg%n"
-	var format string
-	switch formatFromEnv := os.Getenv("DD_LOG_FORMAT"); formatFromEnv {
-	case "":
-		format = defaultFormat
-	case "json":
-		format = `{"time":%Ns,"level":"%Level","msg":"%Msg","path":"%RelFile","func":"%Func","line":%Line}%n`
-	case "json-short":
-		format = `{"t":%Ns,"l":"%Lev","m":"%Msg"}%n`
-	default:
-		format = formatFromEnv
-	}
-	logger, err := log.LoggerFromWriterWithMinLevelAndFormat(
-		os.Stderr, log.TraceLvl, format,
+	logger, err := log.LoggerFromWriterWithMinLevelAndDynTestFormat(
+		os.Stderr, log.TraceLvl, os.Getenv("DD_LOG_FORMAT"),
 	)
 	if err != nil {
 		panic(fmt.Errorf("failed to create logger: %w", err))
@@ -111,13 +99,14 @@ func GenerateIr(
 	tempDir string,
 	binPath string,
 	cfgName string,
+	options ...irgen.Option,
 ) (*object.ElfFileWithDwarf, *ir.Program) {
 	probes := testprogs.MustGetProbeDefinitions(t, cfgName)
 
 	obj, err := object.OpenElfFileWithDwarf(binPath)
 	require.NoError(t, err)
 
-	irp, err := irgen.GenerateIR(1, obj, probes)
+	irp, err := irgen.GenerateIR(1, obj, probes, options...)
 	require.NoError(t, err)
 	require.Empty(t, irp.Issues)
 

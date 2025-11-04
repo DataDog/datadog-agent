@@ -37,7 +37,7 @@ func TestWindowsTestSuite(t *testing.T) {
 	e2e.Run(t, &windowsTestSuite{},
 		e2e.WithProvisioner(
 			awshost.Provisioner(
-				awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsDefault)),
+				awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsServerDefault)),
 				awshost.WithAgentOptions(agentparams.WithAgentConfig(processCheckConfigStr)),
 			),
 		),
@@ -74,7 +74,7 @@ func (s *windowsTestSuite) TestAPIKeyRefresh() {
 
 	s.UpdateEnv(
 		awshost.Provisioner(
-			awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsDefault)),
+			awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsServerDefault)),
 			awshost.WithAgentOptions(
 				agentParams...,
 			),
@@ -121,7 +121,7 @@ func (s *windowsTestSuite) TestAPIKeyRefreshAdditionalEndpoints() {
 
 	s.UpdateEnv(
 		awshost.Provisioner(
-			awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsDefault)),
+			awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsServerDefault)),
 			awshost.WithAgentOptions(
 				agentParams...,
 			),
@@ -180,7 +180,7 @@ func assertProcessCheck(t *testing.T, env *environments.Host, withIOStats bool, 
 
 func (s *windowsTestSuite) TestProtectedProcessCheck() {
 	s.UpdateEnv(awshost.Provisioner(
-		awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsDefault)),
+		awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsServerDefault)),
 		awshost.WithAgentOptions(agentparams.WithAgentConfig(processCheckConfigStr)),
 	))
 	// MsMpEng.exe is a protected process so we can't access any command line arguments
@@ -189,7 +189,7 @@ func (s *windowsTestSuite) TestProtectedProcessCheck() {
 
 func (s *windowsTestSuite) TestProtectedProcessChecksInCoreAgent() {
 	t := s.T()
-	s.UpdateEnv(awshost.Provisioner(awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsDefault)),
+	s.UpdateEnv(awshost.Provisioner(awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsServerDefault)),
 		awshost.WithAgentOptions(agentparams.WithAgentConfig(processCheckInCoreAgentConfigStr))))
 	// MsMpEng.exe is a protected process so we can't access any command line arguments
 	assertProcessCheck(t, s.Env(), false, false, "MsMpEng.exe", []string{"MsMpEng.exe"})
@@ -204,7 +204,7 @@ func (s *windowsTestSuite) TestProtectedProcessChecksInCoreAgent() {
 func (s *windowsTestSuite) TestProcessDiscoveryCheck() {
 	t := s.T()
 	s.UpdateEnv(awshost.Provisioner(
-		awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsDefault)),
+		awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsServerDefault)),
 		awshost.WithAgentOptions(agentparams.WithAgentConfig(processDiscoveryCheckConfigStr)),
 	))
 
@@ -225,7 +225,7 @@ func (s *windowsTestSuite) TestProcessDiscoveryCheck() {
 
 func (s *windowsTestSuite) TestUnprotectedProcessCheckIO() {
 	s.UpdateEnv(awshost.Provisioner(
-		awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsDefault)),
+		awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsServerDefault)),
 		awshost.WithAgentOptions(agentparams.WithAgentConfig(processCheckConfigStr), agentparams.WithSystemProbeConfig(systemProbeConfigStr)),
 	))
 
@@ -254,7 +254,7 @@ func (s *windowsTestSuite) TestManualProcessDiscoveryCheck() {
 
 func (s *windowsTestSuite) TestManualUnprotectedProcessCheckWithIO() {
 	s.UpdateEnv(awshost.Provisioner(
-		awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsDefault)),
+		awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsServerDefault)),
 		awshost.WithAgentOptions(agentparams.WithAgentConfig(processCheckConfigStr), agentparams.WithSystemProbeConfig(systemProbeConfigStr)),
 	))
 

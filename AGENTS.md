@@ -41,7 +41,11 @@ The Datadog Agent is a comprehensive monitoring and observability agent written 
 ### Common Commands
 
 #### Building
+
 ```bash
+# install dda on mac OS
+brew install --cask dda
+
 # Install development tools
 dda inv install-tools
 

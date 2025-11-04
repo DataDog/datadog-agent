@@ -242,3 +242,60 @@ func TestStartServerlessTraceAgentFunctionTags(t *testing.T) {
 		})
 	}
 }
+
+func TestServerlessTraceAgentDisableTraceStats(t *testing.T) {
+	tests := []struct {
+		name       string
+		envValue   string
+		expectNoop bool
+	}{
+		{
+			name:       "trace stats enabled by default",
+			envValue:   "",
+			expectNoop: false,
+		},
+		{
+			name:       "trace stats disabled with true",
+			envValue:   "true",
+			expectNoop: true,
+		},
+		{
+			name:       "trace stats enabled with false",
+			envValue:   "false",
+			expectNoop: false,
+		},
+		{
+			name:       "trace stats enabled with other value",
+			envValue:   "yes",
+			expectNoop: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			setupTraceAgentTest(t)
+
+			if tt.envValue != "" {
+				t.Setenv(disableTraceStatsEnvVar, tt.envValue)
+			}
+
+			agent := StartServerlessTraceAgent(StartServerlessTraceAgentArgs{
+				Enabled:    true,
+				LoadConfig: &LoadConfig{Path: "./testdata/valid.yml"},
+			})
+			defer agent.Stop()
+
+			assert.NotNil(t, agent)
+			assert.IsType(t, &serverlessTraceAgent{}, agent)
+
+			// Access the underlying agent to check concentrator type
+			serverlessAgent := agent.(*serverlessTraceAgent)
+			if tt.expectNoop {
+				assert.IsType(t, &noopConcentrator{}, serverlessAgent.ta.Concentrator)
+			} else {
+				// Should not be noop concentrator
+				assert.NotEqual(t, &noopConcentrator{}, serverlessAgent.ta.Concentrator)
+			}
+		})
+	}
+}

@@ -34,6 +34,9 @@ const (
 	// IssueKindInvalidDWARF is an issue that was encountered while processing
 	// a probe definition that uses an invalid DWARF.
 	IssueKindInvalidDWARF
+	// IssueKindDisassemblyFailed is an issue that was encountered while
+	// disassembling an instruction.
+	IssueKindDisassemblyFailed
 )
 
 // Issue is an issue that was encountered while processing a probe.

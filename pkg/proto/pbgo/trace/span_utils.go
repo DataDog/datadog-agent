@@ -5,6 +5,12 @@
 
 package trace
 
+import (
+	binary "encoding/binary"
+	"encoding/hex"
+	"strconv"
+)
+
 // spanCopiedFields records the fields that are copied in ShallowCopy.
 // This should match exactly the fields set in (*Span).ShallowCopy.
 // This is used by tests to enforce the correctness of ShallowCopy.
@@ -52,4 +58,28 @@ func (s *Span) ShallowCopy() *Span {
 		SpanLinks:  s.SpanLinks,
 		SpanEvents: s.SpanEvents,
 	}
+}
+
+// Get128BitTraceID returns the 128-bit trace ID for the span.
+func (s *Span) Get128BitTraceID() ([]byte, error) {
+	// If it's an otel span the whole trace ID is in otel.trace
+	if tid, ok := s.Meta["otel.trace_id"]; ok {
+		bs, err := hex.DecodeString(tid)
+		if err != nil {
+			return nil, err
+		}
+		return bs, nil
+	}
+	tid := make([]byte, 16)
+	binary.BigEndian.PutUint64(tid[8:], s.TraceID)
+	// Get hex encoded upper bits for datadog spans
+	// If no value is found we can use the default `0` value as that's what will have been propagated
+	if upper, ok := s.Meta["_dd.p.tid"]; ok {
+		u, err := strconv.ParseUint(upper, 16, 64)
+		if err != nil {
+			return nil, err
+		}
+		binary.BigEndian.PutUint64(tid[:8], u)
+	}
+	return tid, nil
 }

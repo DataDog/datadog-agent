@@ -44,12 +44,6 @@ Package demultiplexer defines the aggregator demultiplexer
 
 Package demultiplexerendpoint component provides the /dogstatsd-contexts-dump API endpoint that can register via Fx value groups.
 
-### [comp/aggregator/diagnosesendermanager](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/aggregator/diagnosesendermanager)
-
-*Datadog Team*: agent-configuration
-
-Package diagnosesendermanager defines the sender manager for the local diagnose check
-
 ## [comp/api](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/api) (Component Bundle)
 
 *Datadog Team*: agent-runtimes
@@ -186,6 +180,10 @@ doesn't exist or doesn't contain a PID for a running process.
 
 Package profiler provides a flare folder containing the output of various agent's pprof servers
 
+### [comp/core/remoteagent](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/remoteagent)
+
+Package remoteagent implements the remote agent component
+
 ### [comp/core/remoteagentregistry](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/remoteagentregistry)
 
 Package remoteagentregistry provides an integration point for remote agents to register and be able to report their
@@ -300,6 +298,16 @@ Package orchestrator implements the orchestrator forwarder component.
 
 Package orchestratorinterface defines the interface for the orchestrator forwarder component.
 
+## [comp/host-profiler](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/host-profiler) (Component Bundle)
+
+*Datadog Team*: opentelemetry-agent profiling-full-host
+
+Package hostprofiler implements the "host-profiler" bundle,
+
+### [comp/host-profiler/collector](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/host-profiler/collector)
+
+Package collector defines the host profiler collector component.
+
 ## [comp/logs](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/logs) (Component Bundle)
 
 *Datadog Team*: agent-log-pipelines
@@ -345,6 +353,12 @@ by the Agent.
 *Datadog Team*: container-platform
 
 Package clusteragent is the metadata provider for datadog-cluster-agent process
+
+### [comp/metadata/clusterchecks](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/metadata/clusterchecks)
+
+*Datadog Team*: container-platform
+
+Package clusterchecks provides the clusterchecks metadata component
 
 ### [comp/metadata/haagent](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/metadata/haagent)
 
@@ -395,15 +409,6 @@ Package runner implements a component to generate metadata payload at the right 
 ### [comp/metadata/securityagent](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/metadata/securityagent)
 
 Package securityagent is the metadata provider for security-agent process
-
-### [comp/metadata/softwareinventory](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/metadata/softwareinventory)
-
-*Datadog Team*: windows-products
-
-Package softwareinventory defines the interface for the inventory software component.
-This component collects and reports software inventory information from the host system.
-It provides metadata about installed software applications, including their names,
-versions, installation dates, and other relevant details for inventory tracking.
 
 ### [comp/metadata/systemprobe](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/metadata/systemprobe)
 
@@ -667,6 +672,12 @@ Package payloadmodifier defines the trace payload modifier component interface
 
 Package status implements the core status component information provider interface
 
+### [comp/trace-telemetry](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/trace-telemetry)
+
+*Datadog Team*: agent-runtimes
+
+Package tracetelemetry sends telemetry about the trace-agent and its state
+
 ## [comp/updater](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/updater) (Component Bundle)
 
 *Datadog Team*: fleet windows-products
@@ -744,6 +755,18 @@ Package client implements a component to send process metadata to the Cluster-Ag
 
 Package networkdeviceconfig provides the component for retrieving network device configurations.
 
+### [comp/notableevents](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/notableevents)
+
+*Datadog Team*: windows-products
+
+Package notableevents provides a component that monitors notable system events and forwards them to the Datadog Event Management v2 API.
+
+### [comp/publishermetadatacache](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/publishermetadatacache)
+
+*Datadog Team*: windows-products
+
+Package publishermetadatacache provides a cache for Windows Event Log publisher metadata handles
+
 ### [comp/rdnsquerier](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/rdnsquerier)
 
 *Datadog Team*: ndm-integrations
@@ -767,3 +790,25 @@ Package metricscompression provides the component for metrics compression
 *Datadog Team*: ndm-core
 
 Package snmpscan is a light component that can be used to perform a scan or a walk of a particular device
+
+### [comp/softwareinventory](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/softwareinventory)
+
+*Datadog Team*: windows-products
+
+Package softwareinventory defines the interface for the inventory software component.
+This component collects and reports software inventory information from the host system.
+It provides metadata about installed software applications, including their names,
+versions, installation dates, and other relevant details for inventory tracking.
+
+### [comp/syntheticstestscheduler](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/syntheticstestscheduler)
+
+*Datadog Team*: synthetics-executing
+
+Package syntheticstestscheduler defines a synthetics scheduler component to run
+network tests based on remote config.
+
+### [comp/workloadselection](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/workloadselection)
+
+*Datadog Team*: injection-platform
+
+Package workloadselection listens to Remote Config to receive & apply workload selection configuration

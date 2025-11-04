@@ -373,6 +373,18 @@ func waitForPendingStateChange(ctx context.Context, service *mgr.Service, curren
 	return currentState, nil
 }
 
+// WaitForPendingStateChange opens the service by name and waits until it leaves the given pending state.
+// It returns the new state or an error on timeout/failure.
+func WaitForPendingStateChange(ctx context.Context, serviceName string, currentState svc.State) (svc.State, error) {
+	manager, service, err := openManagerService(serviceName, windows.SERVICE_QUERY_STATUS)
+	if err != nil {
+		return currentState, err
+	}
+	defer closeManagerService(manager, service)
+
+	return waitForPendingStateChange(ctx, service, currentState)
+}
+
 // RestartService stops a service and thenif the stop was successful starts it again
 func RestartService(serviceName string) error {
 	restartFlags := uint32(windows.SERVICE_ENUMERATE_DEPENDENTS | windows.SERVICE_START |

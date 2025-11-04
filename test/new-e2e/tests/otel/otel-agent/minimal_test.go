@@ -38,6 +38,8 @@ var sources string
 func TestOTelAgentMinimal(t *testing.T) {
 	values := `
 datadog:
+  otelCollector:
+    useStandaloneImage: false
   logs:
     containerCollectAll: false
     containerCollectUsingFiles: false
@@ -122,7 +124,6 @@ func (s *minimalTestSuite) TestCoreAgentConfigCmd() {
       exporters:
       - datadog
       processors:
-      - batch
       - infraattributes/dd-autoconfigured
       receivers:
       - otlp
@@ -130,7 +131,6 @@ func (s *minimalTestSuite) TestCoreAgentConfigCmd() {
       exporters:
       - datadog
       processors:
-      - batch
       - infraattributes/dd-autoconfigured
       receivers:
       - otlp
@@ -146,7 +146,6 @@ func (s *minimalTestSuite) TestCoreAgentConfigCmd() {
       exporters:
       - datadog/connector
       processors:
-      - batch
       - infraattributes/dd-autoconfigured
       receivers:
       - otlp
@@ -154,7 +153,6 @@ func (s *minimalTestSuite) TestCoreAgentConfigCmd() {
       exporters:
       - datadog
       processors:
-      - batch
       - infraattributes/dd-autoconfigured
       receivers:
       - otlp`

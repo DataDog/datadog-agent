@@ -41,22 +41,25 @@ func FuzzDecoder(f *testing.F) {
 	}
 	f.Fuzz(func(t *testing.T, item []byte) {
 		_, _, _ = decoder.Decode(Event{
-			Event:       output.Event(item),
+			EntryOrLine: output.Event(item),
 			ServiceName: "foo",
 		}, &noopSymbolicator{}, []byte{})
-		require.Empty(t, decoder.dataItems)
-		require.Empty(t, decoder.currentlyEncoding)
+		require.Empty(t, decoder.entry.dataItems)
+		require.Empty(t, decoder.entry.currentlyEncoding)
 	})
 }
+
+type (
+	captures      struct{ Entry struct{ Arguments any } }
+	debugger      struct{ Snapshot struct{ Captures captures } }
+	eventCaptures struct{ Debugger debugger }
+)
 
 // TestDecoderManually is a test that manually constructs an event and decodes
 // it.
 //
 // This makes it easy to assert properties of the decoder's internal state.
 func TestDecoderManually(t *testing.T) {
-	type captures struct{ Entry struct{ Arguments any } }
-	type debugger struct{ Snapshot struct{ Captures captures } }
-	type eventCaptures struct{ Debugger debugger }
 	for _, c := range cases {
 		t.Run(c.probeName, func(t *testing.T) {
 			irProg := generateIrForProbes(t, "simple", c.probeName)
@@ -64,7 +67,7 @@ func TestDecoderManually(t *testing.T) {
 			decoder, err := NewDecoder(irProg, &noopTypeNameResolver{}, time.Now())
 			require.NoError(t, err)
 			buf, probe, err := decoder.Decode(Event{
-				Event:       output.Event(item),
+				EntryOrLine: output.Event(item),
 				ServiceName: "foo",
 			}, &noopSymbolicator{}, []byte{})
 			require.NoError(t, err)
@@ -72,8 +75,11 @@ func TestDecoderManually(t *testing.T) {
 			var e eventCaptures
 			require.NoError(t, json.Unmarshal(buf, &e))
 			require.Equal(t, c.expected, e.Debugger.Snapshot.Captures.Entry.Arguments)
-			require.Empty(t, decoder.dataItems)
-			require.Empty(t, decoder.currentlyEncoding)
+			require.Empty(t, decoder.entry.dataItems)
+			require.Empty(t, decoder.entry.currentlyEncoding)
+			require.Nil(t, decoder.entry.rootType)
+			require.Nil(t, decoder.entry.rootData)
+			require.Zero(t, decoder.entry.evaluationErrors)
 			require.Zero(t, decoder.snapshotMessage)
 		})
 	}
@@ -87,7 +93,7 @@ func BenchmarkDecoder(b *testing.B) {
 			require.NoError(b, err)
 			symbolicator := &noopSymbolicator{}
 			event := Event{
-				Event:       output.Event(c.eventConstructor(b, irProg)),
+				EntryOrLine: output.Event(c.eventConstructor(b, irProg)),
 				ServiceName: "foo",
 			}
 			b.ResetTimer()
@@ -159,7 +165,7 @@ func simpleStringArgEvent(t testing.TB, irProg *ir.Program) []byte {
 	})
 	require.NotEqual(t, -1, probe)
 	events := irProg.Probes[probe].Events
-	require.Len(t, events, 1)
+	require.GreaterOrEqual(t, len(events), 1)
 	eventType := events[0].Type
 	var stringType *ir.GoStringHeaderType
 	for _, t := range irProg.Types {
@@ -231,7 +237,7 @@ func simpleMapArgEvent(t testing.TB, irProg *ir.Program) []byte {
 	})
 	require.NotEqual(t, -1, probe)
 	events := irProg.Probes[probe].Events
-	require.Len(t, events, 1)
+	require.GreaterOrEqual(t, len(events), 1)
 	eventType := events[0].Type
 
 	var (
@@ -440,7 +446,7 @@ func simpleBigMapArgEvent(t testing.TB, irProg *ir.Program) []byte {
 	})
 	require.NotEqual(t, -1, probe)
 	events := irProg.Probes[probe].Events
-	require.Len(t, events, 1)
+	require.GreaterOrEqual(t, len(events), 1)
 	eventType := events[0].Type
 
 	var (
@@ -742,7 +748,9 @@ type panicDecoderType struct {
 
 var _ decoderType = (*panicDecoderType)(nil)
 
-func (t *panicDecoderType) encodeValueFields(*Decoder, *jsontext.Encoder, []byte) error {
+func (t *panicDecoderType) encodeValueFields(
+	*encodingContext, *jsontext.Encoder, []byte,
+) error {
 	panic("boom")
 }
 
@@ -766,7 +774,7 @@ func TestDecoderPanics(t *testing.T) {
 	stringID := stringType.GetID()
 	decoder.decoderTypes[stringID] = &panicDecoderType{decoder.decoderTypes[stringID]}
 	_, _, err = decoder.Decode(Event{
-		Event:       output.Event(input),
+		EntryOrLine: output.Event(input),
 		ServiceName: "foo"},
 		&noopSymbolicator{},
 		[]byte{},
@@ -795,13 +803,53 @@ func TestDecoderFailsOnEvaluationError(t *testing.T) {
 	stringID := stringType.GetID()
 	delete(decoder.decoderTypes, stringID)
 	out, _, err := decoder.Decode(Event{
-		Event:       output.Event(input),
+		EntryOrLine: output.Event(input),
 		ServiceName: "foo"},
 		&noopSymbolicator{},
 		[]byte{},
 	)
 	require.NoError(t, err)
 	require.Contains(t, string(out), "no decoder type found")
+}
+
+func TestDecoderIsRobustToDataItemDecodingErrors(t *testing.T) {
+	c := cases[0]
+	irProg := generateIrForProbes(t, "simple", c.probeName)
+	decoder, err := NewDecoder(irProg, &noopTypeNameResolver{}, time.Now())
+	require.NoError(t, err)
+	eventData := simpleStringArgEvent(t, irProg)
+	event := output.Event(eventData)
+	eventHeader, err := output.Event(eventData).Header()
+	require.NoError(t, err)
+	newItemOffset := eventHeader.Data_byte_len
+	eventHeader.Data_byte_len += uint32(unsafe.Sizeof(output.DataItemHeader{}) + 8)
+	for range unsafe.Sizeof(output.DataItemHeader{}) + 8 {
+		event = append(event, 0)
+	}
+	dataItemHeader := (*output.DataItemHeader)(unsafe.Pointer(&event[newItemOffset]))
+	dataItemHeader.Type = uint32(ir.TypeID(1))
+	dataItemHeader.Length = 424242 // too long
+	dataItemHeader.Address = 0xdeadbeef
+	var items []output.DataItem
+	var itemErr error
+	for item, err := range event.DataItems() {
+		if err != nil {
+			itemErr = err
+			break
+		}
+		items = append(items, item)
+	}
+	require.Regexp(t, "not enough bytes to read data item", itemErr)
+
+	buf, probe, err := decoder.Decode(Event{
+		EntryOrLine: event,
+		ServiceName: "foo",
+	}, &noopSymbolicator{}, []byte{})
+	require.NoError(t, err)
+	require.Equal(t, c.probeName, probe.GetID())
+	var e eventCaptures
+	require.NoError(t, json.Unmarshal(buf, &e))
+	require.Equal(t, c.expected, e.Debugger.Snapshot.Captures.Entry.Arguments)
 }
 
 // TestDecoderFailsOnEvaluationErrorAndRetainsPassedBuffer tests that the decoder
@@ -835,7 +883,7 @@ func TestDecoderFailsOnEvaluationErrorAndRetainsPassedBuffer(t *testing.T) {
 	// by each iteration of the loop. It's expected/possible that consumers
 	// of the decoder API will call Decode every time with the same buffer.
 	out, _, err := decoder.Decode(Event{
-		Event:       output.Event(input),
+		EntryOrLine: output.Event(input),
 		ServiceName: "foo"},
 		&noopSymbolicator{},
 		buf,

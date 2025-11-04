@@ -231,7 +231,7 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 	httpHeaderKeyReplacer := matchYAMLKeyPrefixSuffix(
 		`x-`,
 		`key`,
-		[]string{"x-api-key", "x-dreamfactory-api-key", "x-functions-key", "x-lz-api-key", "x-octopus-apikey", "x-pm-partner-key", "x-rapidapi-key", "x-sungard-idp-api-key", "x-vtex-api-appkey"},
+		[]string{"x-api-key", "x-dreamfactory-api-key", "x-functions-key", "x-lz-api-key", "x-octopus-apikey", "x-pm-partner-key", "x-rapidapi-key", "x-sungard-idp-api-key", "x-vtex-api-appkey", "x-seel-api-key", "x-goog-api-key", "x-sonar-passcode"},
 		[]byte(`$1 "********"`),
 	)
 	httpHeaderKeyReplacer.LastUpdated = parseVersion("7.70.2")
@@ -240,7 +240,7 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 	httpHeaderTokenReplacer := matchYAMLKeyPrefixSuffix(
 		`x-`,
 		`token`,
-		[]string{"x-auth-token", "x-rundeck-auth-token"},
+		[]string{"x-auth-token", "x-rundeck-auth-token", "x-consul-token", "x-datadog-monitor-token", "x-vault-token", "x-vtex-api-apptoken", "x-static-token"},
 		[]byte(`$1 "********"`),
 	)
 	httpHeaderTokenReplacer.LastUpdated = parseVersion("7.70.2")
@@ -254,10 +254,19 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 	)
 	httpHeaderAuthReplacer.LastUpdated = parseVersion("7.70.2")
 
+	// HTTP header-style API keys with "secret" suffix
+	httpHeaderSecretReplacer := matchYAMLKeyPrefixSuffix(
+		`x-`,
+		`secret`,
+		[]string{"x-api-secret", "x-ibm-client-secret", "x-chalk-client-secret"},
+		[]byte(`$1 "********"`),
+	)
+	httpHeaderSecretReplacer.LastUpdated = parseVersion("7.70.2")
+
 	// Exact key matches for specific API keys and auth tokens
 	exactKeyReplacer := matchYAMLKey(
-		`(auth-tenantid|authority|cainzapp-api-key|cms-svc-api-key|lodauth|sec-websocket-key|statuskey)`,
-		[]string{"auth-tenantid", "authority", "cainzapp-api-key", "cms-svc-api-key", "lodauth", "sec-websocket-key", "statuskey"},
+		`(auth-tenantid|authority|cainzapp-api-key|cms-svc-api-key|lodauth|sec-websocket-key|statuskey|cookie|private-token|kong-admin-token|accesstoken|session_token)`,
+		[]string{"auth-tenantid", "authority", "cainzapp-api-key", "cms-svc-api-key", "lodauth", "sec-websocket-key", "statuskey", "cookie", "private-token", "kong-admin-token", "accesstoken", "session_token"},
 		[]byte(`$1 "********"`),
 	)
 	exactKeyReplacer.LastUpdated = parseVersion("7.70.2")
@@ -269,6 +278,7 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 	scrubber.AddReplacer(SingleLine, httpHeaderKeyReplacer)
 	scrubber.AddReplacer(SingleLine, httpHeaderTokenReplacer)
 	scrubber.AddReplacer(SingleLine, httpHeaderAuthReplacer)
+	scrubber.AddReplacer(SingleLine, httpHeaderSecretReplacer)
 	scrubber.AddReplacer(SingleLine, exactKeyReplacer)
 	scrubber.AddReplacer(SingleLine, apiKeyReplacerYAML)
 	scrubber.AddReplacer(SingleLine, apiKeyReplacer)

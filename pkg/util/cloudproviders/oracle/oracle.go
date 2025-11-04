@@ -11,6 +11,7 @@ import (
 	"time"
 
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/cachedfetch"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 )
@@ -35,7 +36,7 @@ func IsRunningOn(ctx context.Context) bool {
 var instanceIDFetcher = cachedfetch.Fetcher{
 	Name: "Oracle InstanceID",
 	Attempt: func(ctx context.Context) (interface{}, error) {
-		if !pkgconfigsetup.IsCloudProviderEnabled(CloudProviderName, pkgconfigsetup.Datadog()) {
+		if !configutils.IsCloudProviderEnabled(CloudProviderName, pkgconfigsetup.Datadog()) {
 			return "", fmt.Errorf("Oracle cloud provider is disabled by configuration")
 		}
 
@@ -70,4 +71,21 @@ func GetNTPHosts(ctx context.Context) []string {
 	}
 
 	return nil
+}
+
+var ccridFetcher = cachedfetch.Fetcher{
+	Name: "Oracle Host CCRID",
+	Attempt: func(ctx context.Context) (interface{}, error) {
+		endpoint := metadataURL + "/opc/v2/instance/id"
+		res, err := httputils.Get(ctx, endpoint, map[string]string{"Authorization": "Bearer Oracle"}, timeout, pkgconfigsetup.Datadog())
+		if err != nil {
+			return "", fmt.Errorf("Oracle CCRID: unable to query metadata endpoint: %s", err)
+		}
+		return res, nil
+	},
+}
+
+// GetHostCCRID return the CCRID for the current instance
+func GetHostCCRID(ctx context.Context) (string, error) {
+	return ccridFetcher.FetchString(ctx)
 }

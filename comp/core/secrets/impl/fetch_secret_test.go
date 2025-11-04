@@ -341,3 +341,11 @@ func TestFetchSecretBackendVersionTimeout(t *testing.T) {
 	_, err := resolver.fetchSecretBackendVersion()
 	assert.Error(t, err)
 }
+
+func TestFetchSecretBackendVersionNoBackendType(t *testing.T) {
+	tel := nooptelemetry.GetCompatComponent()
+	resolver := newEnabledSecretResolver(tel)
+	_, err := resolver.fetchSecretBackendVersion()
+	assert.Error(t, err)
+	assert.ErrorContains(t, err, "secret_backend_type")
+}

@@ -156,7 +156,7 @@ func (e *Kubernetes) getAgentCoverageCommands(podType podType) map[string][]stri
 		}
 	} else if podType == podTypeClusterAgent {
 		return map[string][]string{
-			"cluster-agent": {"cluster-agent", "coverage", "generate"},
+			"cluster-agent": {"datadog-cluster-agent", "coverage", "generate"},
 		}
 	}
 	return map[string][]string{

@@ -42,8 +42,8 @@ const (
 
 type protocol struct {
 	cfg                 *config.Config
-	eventsConsumer      *events.Consumer[EbpfEvent]
-	keyedEventsConsumer *events.Consumer[EbpfKeyedEvent]
+	eventsConsumer      *events.BatchConsumer[EbpfEvent]
+	keyedEventsConsumer *events.BatchConsumer[EbpfKeyedEvent]
 	mapCleaner          *ddebpf.MapCleaner[netebpf.ConnTuple, EbpfTx]
 	statskeeper         *StatsKeeper
 	mgr                 *manager.Manager
@@ -164,7 +164,7 @@ func (p *protocol) ConfigureOptions(opts *manager.Options) {
 
 func (p *protocol) PreStart() (err error) {
 	if p.cfg.RedisTrackResources {
-		p.keyedEventsConsumer, err = events.NewConsumer(
+		p.keyedEventsConsumer, err = events.NewBatchConsumer(
 			keyedEventStream,
 			p.mgr,
 			p.processKeyedRedis,
@@ -174,7 +174,7 @@ func (p *protocol) PreStart() (err error) {
 		}
 		p.keyedEventsConsumer.Start()
 	} else {
-		p.eventsConsumer, err = events.NewConsumer(
+		p.eventsConsumer, err = events.NewBatchConsumer(
 			name,
 			p.mgr,
 			p.processRedis,

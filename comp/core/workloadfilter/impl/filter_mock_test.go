@@ -66,7 +66,8 @@ func TestNewMock_UsesMockConfig(t *testing.T) {
 		},
 		nil,
 	)
-	res := provides.Comp.IsContainerExcluded(container, [][]workloadfilter.ContainerFilter{{workloadfilter.LegacyContainerGlobal}})
+	filterBundle := provides.Comp.GetContainerFilters([][]workloadfilter.ContainerFilter{{workloadfilter.LegacyContainerGlobal}})
+	res := filterBundle.IsExcluded(container)
 	assert.Equal(t, false, res, "Container should be included based on mock config")
 
 	// Verify that the mock config is used
@@ -78,6 +79,6 @@ func TestNewMock_UsesMockConfig(t *testing.T) {
 		},
 		nil,
 	)
-	res = provides.Comp.IsContainerExcluded(container, [][]workloadfilter.ContainerFilter{{workloadfilter.LegacyContainerGlobal}})
+	res = filterBundle.IsExcluded(container)
 	assert.Equal(t, true, res, "Container should be excluded based on mock config")
 }

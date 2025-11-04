@@ -222,7 +222,9 @@ const (
 	ExpectedPythonVersion2 = "2.7.18"
 	// ExpectedPythonVersion3 is the expected python 3 version
 	// Bump this version when the version in omnibus/config/software/python3.rb changes
-	ExpectedPythonVersion3 = "3.12.11"
+	ExpectedPythonVersion3 = "3.13.7"
+	// ExpectedUnloadedPython is the status value for uninitialized lazy loaded python runtime
+	ExpectedUnloadedPython = "unused"
 )
 
 // SetAgentPythonMajorVersion set the python major version in the agent config and restarts the agent
@@ -231,6 +233,8 @@ func SetAgentPythonMajorVersion(t *testing.T, client *TestClient, majorVersion s
 		configFilePath := client.Helper.GetConfigFolder() + client.Helper.GetConfigFileName()
 		err := client.SetConfig(configFilePath, "python_version", majorVersion)
 		require.NoError(tt, err, "failed to set python version: ", err)
+		err = client.SetConfig(configFilePath, "python_lazy_loading", "false")
+		require.NoError(tt, err, "failed to disable python lazy loading", err)
 
 		_, err = client.SvcManager.Restart(client.Helper.GetServiceName())
 		require.NoError(tt, err, "agent should be able to restart after editing python version")
@@ -260,13 +264,18 @@ func CheckApmEnabled(t *testing.T, client *TestClient) {
 		_, err = client.SvcManager.Restart(client.Helper.GetServiceName())
 		require.NoError(tt, err)
 
+		apmProcessName := "(trace-loader)|(trace-agent)"
+		if client.Host.OSFamily == componentos.WindowsFamily {
+			apmProcessName = "trace-agent"
+		}
+
 		var boundPort boundport.BoundPort
 		if !assert.EventuallyWithT(tt, func(c *assert.CollectT) {
-			boundPort, _ = AssertPortBoundByService(c, client, 8126, "trace-agent")
+			boundPort, _ = AssertPortBoundByService(c, client, 8126, "trace-agent", apmProcessName)
 		}, 1*time.Minute, 500*time.Millisecond) {
 			err := fmt.Errorf("port 8126 should be bound when APM is enabled")
-			if err != nil && client.Host.OSFamily == componentos.LinuxFamily {
-				err = fmt.Errorf("%w\n%s", err, ReadJournalCtl(t, client, "trace-agent\\|datadog-agent-trace"))
+			if client.Host.OSFamily == componentos.LinuxFamily {
+				err = fmt.Errorf("%w\n%s", err, ReadJournalCtl(t, client, "trace-loader\\|trace-agent\\|datadog-agent-trace"))
 			}
 			t.Fatalf("%s", err.Error())
 		}
@@ -292,7 +301,7 @@ func CheckApmDisabled(t *testing.T, client *TestClient) {
 		// PowerShell Restart-Service may restart trace-agent if it was already running, and
 		// trace-agent will run for a bit before exiting.
 		require.Eventually(tt, func() bool {
-			return !AgentProcessIsRunning(client, "trace-agent")
+			return !AgentProcessIsRunning(client, "trace-agent") && !AgentProcessIsRunning(client, "trace-loader")
 		}, 1*time.Minute, 500*time.Millisecond, "trace-agent should not be running ", err)
 	})
 }
@@ -333,6 +342,9 @@ func CheckSystemProbeBehavior(t *testing.T, client *TestClient) {
 		if client.Host.OSFlavor == componentos.CentOS {
 			tt.Skip("System-probe is broken on CentOS 7")
 		}
+		if client.Host.OSFlavor == componentos.Ubuntu && client.Host.OSVersion == "14-04" {
+			tt.Skip("System-probe is flaky on Ubuntu 14.04")
+		}
 		err := client.SetConfig(client.Helper.GetConfigFolder()+"system-probe.yaml", "system_probe_config.enabled", "true")
 		require.NoError(tt, err)
 
@@ -344,6 +356,9 @@ func CheckSystemProbeBehavior(t *testing.T, client *TestClient) {
 		if client.Host.OSFlavor == componentos.CentOS {
 			tt.Skip("System-probe is broken on CentOS 7")
 		}
+		if client.Host.OSFlavor == componentos.Ubuntu && client.Host.OSVersion == "14-04" {
+			tt.Skip("System-probe is flaky on Ubuntu 14.04")
+		}
 		require.Eventually(tt, func() bool {
 			return AgentProcessIsRunning(client, "system-probe")
 		}, 1*time.Minute, 500*time.Millisecond, "system-probe should be running ")
@@ -352,6 +367,9 @@ func CheckSystemProbeBehavior(t *testing.T, client *TestClient) {
 	t.Run("ebpf programs are unpacked and valid", func(tt *testing.T) {
 		if client.Host.OSFlavor == componentos.CentOS {
 			tt.Skip("System-probe is broken on CentOS 7")
+		}
+		if client.Host.OSFlavor == componentos.Ubuntu && client.Host.OSVersion == "14-04" {
+			tt.Skip("System-probe is flaky on Ubuntu 14.04")
 		}
 		ebpfPath := "/opt/datadog-agent/embedded/share/system-probe/ebpf"
 		output, err := client.Host.Execute(fmt.Sprintf("find %s -name '*.o'", ebpfPath))

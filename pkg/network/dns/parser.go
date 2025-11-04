@@ -9,6 +9,7 @@ package dns
 
 import (
 	"bytes"
+	"runtime"
 	"syscall"
 	"time"
 
@@ -26,12 +27,6 @@ const maxIPBufferSize = 200
 var (
 	errTruncated      = errors.New("the packet is truncated")
 	errSkippedPayload = errors.New("the packet does not contain relevant DNS response")
-
-	// recordedRecordTypes defines a map of DNS types that we'll capture by default.
-	// add additional types here to change the default.
-	defaultRecordedQueryTypes = map[layers.DNSType]struct{}{
-		layers.DNSTypeA: {},
-	}
 
 	// map for translating config strings back to the typed value
 	queryTypeStrings = map[string]layers.DNSType{
@@ -251,7 +246,7 @@ func (p *dnsParser) isWantedQueryType(checktype layers.DNSType) bool {
 
 func getRecordedQueryTypes(cfg *config.Config) map[layers.DNSType]struct{} {
 	if len(cfg.RecordedQueryTypes) <= 0 {
-		return defaultRecordedQueryTypes
+		return getDefaultRecordedQueryTypes()
 	}
 	queryTypes := make(map[layers.DNSType]struct{})
 	//
@@ -269,9 +264,23 @@ func getRecordedQueryTypes(cfg *config.Config) map[layers.DNSType]struct{} {
 	}
 	if len(queryTypes) <= 0 {
 		log.Warnf("No known query types provided in config, reverting to default")
-		return defaultRecordedQueryTypes
+		return getDefaultRecordedQueryTypes()
 	}
 	return queryTypes
+}
+
+func getDefaultRecordedQueryTypes() map[layers.DNSType]struct{} {
+	// recordedRecordTypes defines a map of DNS types that we'll capture by default.
+	// add additional types here to change the default.
+	defaultRecordedQueryTypes := map[layers.DNSType]struct{}{
+		layers.DNSTypeA: {},
+	}
+	if runtime.GOOS == "linux" {
+		// ipv6 DNS is current not support on Windows
+		// TODO: Add layers.DNSTypeAAAA for windows once supported
+		defaultRecordedQueryTypes[layers.DNSTypeAAAA] = struct{}{}
+	}
+	return defaultRecordedQueryTypes
 }
 
 // inplaceASCIILower is an optimized, replace inplace version of bytes.ToLower

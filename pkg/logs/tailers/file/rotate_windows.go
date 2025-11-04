@@ -52,7 +52,7 @@ func (t *Tailer) DidRotate() (bool, error) {
 // - renamed and recreated
 // - removed and recreated
 // - truncated
-func (t *Tailer) DidRotateViaFingerprint(fingerprinter *Fingerprinter) (bool, error) {
+func (t *Tailer) DidRotateViaFingerprint(fingerprinter Fingerprinter) (bool, error) {
 	newFingerprint, err := fingerprinter.ComputeFingerprint(t.file)
 
 	// If computing the fingerprint led to an error there was likely an IO issue, handle this appropriately below.
@@ -66,5 +66,10 @@ func (t *Tailer) DidRotateViaFingerprint(fingerprinter *Fingerprinter) (bool, er
 
 	// If fingerprints are different, it means the file was rotated.
 	// This is also true if the new fingerprint is invalid (Value=0), which means the file was truncated.
-	return !t.fingerprint.Equals(newFingerprint), nil
+	rotated := !t.fingerprint.Equals(newFingerprint)
+	if rotated {
+		log.Debugf("File rotation detected via fingerprint mismatch for %s (old: 0x%x, new: 0x%x)",
+			t.file.Path, t.fingerprint.Value, newFingerprint.Value)
+	}
+	return rotated, nil
 }

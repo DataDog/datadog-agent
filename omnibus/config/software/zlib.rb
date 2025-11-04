@@ -17,60 +17,9 @@
 name "zlib"
 default_version "1.3.1"
 
-version "1.3.1" do
-  source sha256: "9a93b2b7dfdac77ceba5a558a580e74667dd6fede4585b91eefb60f03b72df23"
-end
-
-source url: "https://zlib.net/fossils/zlib-#{version}.tar.gz",
-       extract: :seven_zip
-
-relative_path "zlib-#{version}"
-
 build do
   license "Zlib"
   license_file "https://gist.githubusercontent.com/remh/77877aa00b45c1ebc152/raw/372a65de9f4c4ed376771b8d2d0943da83064726/zlib.license"
 
-  if windows?
-    env = with_standard_compiler_flags(with_embedded_path, bfd_flags: true)
-
-    patch source: "zlib-windows-relocate.patch", env: env
-
-    # We can't use the top-level Makefile. Instead, the developers have made
-    # an organic, artisanal, hand-crafted Makefile.gcc for us which takes a few
-    # variables.
-    env["BINARY_PATH"] = "/bin"
-    env["LIBRARY_PATH"] = "/lib"
-    env["INCLUDE_PATH"] = "/include"
-    env["DESTDIR"] = "#{install_dir}/embedded"
-
-    make_args = [
-      "-fwin32/Makefile.gcc",
-      "SHARED_MODE=1",
-      "CFLAGS=\"#{env["CFLAGS"]} -Wall\"",
-      "ASFLAGS=\"#{env["CFLAGS"]} -Wall\"",
-      "LDFLAGS=\"#{env["LDFLAGS"]}\"",
-      "ARFLAGS=\"rcs #{env["ARFLAGS"]}\"",
-      "RCFLAGS=\"--define GCC_WINDRES #{env["RCFLAGS"]}\"",
-    ]
-
-    # On windows, msys make 3.81 doesn't support -j.
-    make(*make_args, env: env)
-    make("install", *make_args, env: env)
-  else
-    # We omit the omnibus path here because it breaks mac_os_x builds by picking
-    # up the embedded libtool instead of the system libtool which the zlib
-    # configure script cannot handle.
-    # TODO: Do other OSes need this?  Is this strictly a mac thing?
-    env = with_standard_compiler_flags
-    if solaris_10?
-      # For some reason zlib needs this flag on solaris (cargocult warning?)
-      env["CFLAGS"] << " -DNO_VIZ"
-    end
-
-    env["CFLAGS"] << " -fPIC"
-    cmake env: env
-
-    delete "#{install_dir}/embedded/lib/libz.a"
-    delete "#{install_dir}/embedded/share/man/man3/zlib.3"
-  end
+  command_on_repo_root "bazelisk run -- @zlib//:install --destdir='#{install_dir}/embedded'"
 end

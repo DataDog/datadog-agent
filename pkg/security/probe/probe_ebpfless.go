@@ -366,9 +366,9 @@ func (p *EBPFLessProbe) handleSyscallMsg(cl *client, syscallMsg *ebpfless.Syscal
 	}
 
 	// container context
-	event.ContainerContext.ContainerID = containerutils.ContainerID(syscallMsg.ContainerID)
+	event.ProcessContext.ContainerContext.ContainerID = containerutils.ContainerID(syscallMsg.ContainerID)
 	if containerContext, exists := p.containerContexts[syscallMsg.ContainerID]; exists {
-		event.ContainerContext.CreatedAt = containerContext.CreatedAt
+		event.ProcessContext.ContainerContext.CreatedAt = containerContext.CreatedAt
 	}
 
 	// copy span context if any
@@ -696,9 +696,10 @@ func (p *EBPFLessProbe) GetEventTags(containerID containerutils.ContainerID) []s
 }
 
 func (p *EBPFLessProbe) zeroEvent() *model.Event {
-	p.event.Zero()
+	probeEventZeroer(p.event)
 	p.event.FieldHandlers = p.fieldHandlers
 	p.event.Origin = EBPFLessOrigin
+	p.event.ProcessContext = &model.ProcessContext{}
 	return p.event
 }
 

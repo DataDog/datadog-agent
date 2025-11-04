@@ -237,6 +237,7 @@ func (w *TraceWriter) WriteChunks(pkg *SampledChunks) {
 		w.flushPayloads(toflush)
 	}
 }
+
 func (w *TraceWriter) resetBuffer() {
 	w.bufferedSize = 0
 	w.tracerPayloads = make([]*pb.TracerPayload, 0, len(w.tracerPayloads))

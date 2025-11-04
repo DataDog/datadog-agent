@@ -17,7 +17,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
-	"github.com/DataDog/datadog-agent/pkg/dyninst/procmon"
+	procinfo "github.com/DataDog/datadog-agent/pkg/dyninst/process"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/rcjson"
 )
 
@@ -106,8 +106,8 @@ func (ye yamlEvent) MarshalYAML() (rv any, err error) {
 
 	case eventProgramAttached:
 		return encodeNodeTag("!attached", map[string]int{
-			"program_id": int(ev.program.ir.ID),
-			"process_id": int(ev.program.procID.PID),
+			"program_id": int(ev.program.programID),
+			"process_id": int(ev.program.processID.PID),
 		})
 
 	case eventProgramAttachingFailed:
@@ -189,17 +189,19 @@ func (ye *yamlEvent) UnmarshalYAML(node *yaml.Node) error {
 			}
 
 			updated = append(updated, ProcessUpdate{
-				ProcessID: ProcessID{PID: int32(proc.ProcessID.PID)},
-				Executable: Executable{
-					Path: proc.Executable.Path,
-					Key: procmon.FileKey{
-						FileHandle: procmon.FileHandle{
-							Dev: proc.Executable.Key.FileHandle.Dev,
-							Ino: proc.Executable.Key.FileHandle.Ino,
-						},
-						LastModified: syscall.Timespec{
-							Sec:  proc.Executable.Key.FileCookie.Sec,
-							Nsec: proc.Executable.Key.FileCookie.Nsec,
+				Info: procinfo.Info{
+					ProcessID: ProcessID{PID: int32(proc.ProcessID.PID)},
+					Executable: Executable{
+						Path: proc.Executable.Path,
+						Key: procinfo.FileKey{
+							FileHandle: procinfo.FileHandle{
+								Dev: proc.Executable.Key.FileHandle.Dev,
+								Ino: proc.Executable.Key.FileHandle.Ino,
+							},
+							LastModified: syscall.Timespec{
+								Sec:  proc.Executable.Key.FileCookie.Sec,
+								Nsec: proc.Executable.Key.FileCookie.Nsec,
+							},
 						},
 					},
 				},
@@ -229,7 +231,7 @@ func (ye *yamlEvent) UnmarshalYAML(node *yaml.Node) error {
 		ye.event = eventProgramLoaded{
 			programID: ir.ProgramID(eventData.ProgramID),
 			loaded: &loadedProgram{
-				ir: &ir.Program{ID: ir.ProgramID(eventData.ProgramID)},
+				programID: ir.ProgramID(eventData.ProgramID),
 			},
 		}
 
@@ -256,8 +258,10 @@ func (ye *yamlEvent) UnmarshalYAML(node *yaml.Node) error {
 		}
 		ye.event = eventProgramAttached{
 			program: &attachedProgram{
-				ir:     &ir.Program{ID: ir.ProgramID(eventData.ProgramID)},
-				procID: ProcessID{PID: int32(eventData.ProcessID)},
+				loadedProgram: &loadedProgram{
+					programID: ir.ProgramID(eventData.ProgramID),
+				},
+				processID: ProcessID{PID: int32(eventData.ProcessID)},
 			},
 		}
 

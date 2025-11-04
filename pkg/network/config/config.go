@@ -200,6 +200,12 @@ type Config struct {
 	// ExpectedTagsDuration is the duration for which we add host and container tags to our payloads, to handle the race
 	// in the backend for processing host/container tags and resolving them in our own pipelines.
 	ExpectedTagsDuration time.Duration
+
+	// EnableCertCollection enables the collection of TLS certificates via userspace probing
+	EnableCertCollection bool
+
+	// CertCollectionMapCleanerInterval is the interval between eBPF map cleaning for TLS cert collection
+	CertCollectionMapCleanerInterval time.Duration
 }
 
 // New creates a config for the network tracer
@@ -278,6 +284,9 @@ func New() *Config {
 		EnableFentry:   cfg.GetBool(sysconfig.FullKeyPath(netNS, "enable_fentry")),
 
 		ExpectedTagsDuration: cfg.GetDuration(sysconfig.FullKeyPath(spNS, "expected_tags_duration")),
+
+		EnableCertCollection:             cfg.GetBool(sysconfig.FullKeyPath(netNS, "enable_cert_collection")),
+		CertCollectionMapCleanerInterval: cfg.GetDuration(sysconfig.FullKeyPath(netNS, "cert_collection_map_cleaner_interval")),
 	}
 
 	if !c.CollectTCPv4Conns {

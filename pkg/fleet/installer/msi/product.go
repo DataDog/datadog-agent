@@ -12,7 +12,10 @@ import (
 	"errors"
 	"fmt"
 
+	"golang.org/x/sys/windows"
 	"golang.org/x/sys/windows/registry"
+
+	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 )
 
 // Product represents a software from the Windows Registry
@@ -21,10 +24,22 @@ type Product struct {
 	Code string
 	// UninstallString is the string that can be executed to uninstall the software. May be empty.
 	UninstallString string
+	// Features is a list of features installed by the product.
+	Features []string
 }
 
-// FindProductCode looks for the productName in the registry and returns information about it
+// FindProductCode finds the first product with the specified display name
 func FindProductCode(productName string) (*Product, error) {
+	products, err := FindUninstallProductCodes(productName)
+	if err != nil {
+		return nil, err
+	}
+	return products[0], nil
+}
+
+// FindUninstallProductCodes looks for the productName in the registry and returns information about it
+func FindUninstallProductCodes(productName string) ([]*Product, error) {
+	var products []*Product
 	rootPath := "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall"
 	reg, err := registry.OpenKey(registry.LOCAL_MACHINE, rootPath, registry.ENUMERATE_SUB_KEYS)
 	if err != nil {
@@ -38,10 +53,13 @@ func FindProductCode(productName string) (*Product, error) {
 	for _, key := range keys {
 		product, err := processKey(rootPath, key, productName)
 		if err == nil && product != nil {
-			return product, nil
+			products = append(products, product)
 		}
 	}
-	return nil, fmt.Errorf("product not found")
+	if len(products) == 0 {
+		return nil, fmt.Errorf("no products found with name: %s", productName)
+	}
+	return products, nil
 }
 
 // IsProductInstalled returns true if the given productName is installed
@@ -97,4 +115,74 @@ func processKey(rootPath, key, name string) (*Product, error) {
 	}
 
 	return nil, nil
+}
+
+// FindAllProductCodes looks for all products with the given productName using the Windows Installer API
+// It enumerates through all products and checks if the product name matches the given productName.
+func FindAllProductCodes(productName string) ([]Product, error) {
+	var products []Product
+
+	err := winutil.EnumerateMsiProducts(winutil.MSIINSTALLCONTEXT_MACHINE, func(productCode []uint16, _ uint32, _ string) error {
+		// Get display name and check if it matches
+		displayName, err := winutil.GetMsiProductInfo("ProductName", productCode)
+		if err != nil {
+			return err // or continue with warning
+		}
+		if displayName == productName {
+			features, err := GetProductFeatures(productCode)
+			if err != nil {
+				features = append(features, fmt.Sprintf("error getting features: %v", err))
+			}
+			product := Product{
+				Code:     windows.UTF16ToString(productCode[:]),
+				Features: features,
+			}
+			products = append(products, product)
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	if len(products) == 0 {
+		return nil, fmt.Errorf("no products found")
+	}
+
+	return products, nil
+}
+
+// GetProductFeatures enumberates all features for a given product code and returns them as a list of strings.
+func GetProductFeatures(productCode []uint16) ([]string, error) {
+	var features []string
+	var index uint32
+	bufferSize := uint32(windows.MAX_PATH)
+
+	for {
+		featureBuf := make([]uint16, bufferSize)
+		parentBuf := make([]uint16, bufferSize)
+
+		ret := winutil.MsiEnumFeatures(&productCode[0], index, &featureBuf[0], &parentBuf[0])
+
+		if errors.Is(ret, windows.ERROR_NO_MORE_ITEMS) {
+			break
+		}
+		if errors.Is(ret, windows.ERROR_MORE_DATA) {
+			bufferSize++
+			continue
+		}
+		if !errors.Is(ret, windows.ERROR_SUCCESS) {
+			return nil, fmt.Errorf("error enumerating features: %w", ret)
+		}
+
+		// Just use UTF16ToString which will find the null terminator automatically
+		// This ignores the potentially corrupted bufLen value
+		feature := windows.UTF16ToString(featureBuf)
+		if feature != "" { // Only add non-empty features
+			features = append(features, feature)
+		}
+		index++
+	}
+
+	return features, nil
 }

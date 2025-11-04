@@ -65,7 +65,7 @@ func TestPytorchBatchedKernels(t *testing.T) {
 	cfg.StreamConfig.MaxActiveStreams = 1000
 
 	handlers := newStreamCollection(ctx, telemetryMock, cfg)
-	consumer := newCudaEventConsumer(ctx, handlers, nil, cfg, telemetryMock)
+	consumer := newCudaEventConsumer(ctx, handlers, nil, &mockFlusher{}, cfg, telemetryMock)
 	require.NotNil(t, consumer)
 
 	// Setup the visibleDevicesCache so that we don't get warnings

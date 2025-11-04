@@ -19,6 +19,20 @@ const (
 	dataItemHeaderSize = int(unsafe.Sizeof(DataItemHeader{}))
 )
 
+// EventPairingExpectation returns the event pairing expectation.
+type EventPairingExpectation uint8
+
+// This must be kept in sync with the event_pairing_expectation enum in the
+// ebpf/framing.h file.
+const (
+	EventPairingExpectationNone                  EventPairingExpectation = 0
+	EventPairingExpectationEntryPairingExpected  EventPairingExpectation = 1
+	EventPairingExpectationReturnPairingExpected EventPairingExpectation = 2
+	EventPairingExpectationCallMapFull           EventPairingExpectation = 3
+	EventPairingExpectationCallCountExceeded     EventPairingExpectation = 4
+	EventPairingExpectationBufferFull            EventPairingExpectation = 5
+)
+
 const (
 	// DataItemFailedReadMask is a mask on the type field of a data item header that
 	// can be used to check if a data item was marked as a failed read.
@@ -156,8 +170,8 @@ func (e Event) DataItems() iter.Seq2[DataItem, error] {
 			dataLen := int(header.Length)
 			if idx+dataLen > len(e) {
 				yield(DataItem{}, fmt.Errorf(
-					"not enough bytes to read data item: %d < %d",
-					len(e), idx+int(header.Length),
+					"not enough bytes to read data item (%d bytes): %d < %d",
+					header.Length, len(e), idx+int(header.Length),
 				))
 				return
 			}

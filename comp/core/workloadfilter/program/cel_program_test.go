@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build cel
+
 package program
 
 import (
@@ -68,7 +70,7 @@ func TestCELFieldConfigurationErrors(t *testing.T) {
 		},
 		{
 			name:        "Valid logical expression",
-			expr:        `container.name == "nginx" || container.image == "nginx:latest"`,
+			expr:        `container.name == "nginx" || container.image.reference == "nginx:latest"`,
 			expectError: false,
 		},
 		{

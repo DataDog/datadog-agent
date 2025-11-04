@@ -107,7 +107,7 @@ func TestWorkerRetry(t *testing.T) {
 	mock.AssertNumberOfCalls(t, "Process", 1)
 	mock.AssertNumberOfCalls(t, "GetTarget", 1)
 	assert.Equal(t, mock, retryTransaction)
-	assert.True(t, w.blockedList.isBlock("error_url"))
+	assert.True(t, w.blockedList.isBlockForSend("error_url", time.Now()))
 }
 
 func TestWorkerRetryBlockedTransaction(t *testing.T) {
@@ -121,7 +121,7 @@ func TestWorkerRetryBlockedTransaction(t *testing.T) {
 	mock := newTestTransaction()
 	mock.On("GetTarget").Return("error_url").Times(1)
 
-	w.blockedList.close("error_url")
+	w.blockedList.close("error_url", time.Now())
 	w.Start()
 	highPrio <- mock
 	retryTransaction := <-requeue
@@ -130,7 +130,7 @@ func TestWorkerRetryBlockedTransaction(t *testing.T) {
 	mock.AssertNumberOfCalls(t, "Process", 0)
 	mock.AssertNumberOfCalls(t, "GetTarget", 1)
 	assert.Equal(t, mock, retryTransaction)
-	assert.True(t, w.blockedList.isBlock("error_url"))
+	assert.True(t, w.blockedList.isBlockForSend("error_url", time.Now()))
 }
 
 func TestWorkerResetConnections(t *testing.T) {

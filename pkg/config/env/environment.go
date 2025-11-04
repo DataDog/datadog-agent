@@ -8,6 +8,7 @@ package env
 import (
 	"os"
 
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 )
 
@@ -47,6 +48,10 @@ func IsECS() bool {
 		return false
 	}
 
+	if IsECSManagedInstances() {
+		return false
+	}
+
 	if os.Getenv("AWS_CONTAINER_CREDENTIALS_RELATIVE_URI") != "" ||
 		os.Getenv("ECS_CONTAINER_METADATA_URI") != "" ||
 		os.Getenv("ECS_CONTAINER_METADATA_URI_V4") != "" {
@@ -65,6 +70,29 @@ func IsECSFargate() bool {
 	return os.Getenv("ECS_FARGATE") != "" || os.Getenv("AWS_EXECUTION_ENV") == "AWS_ECS_FARGATE"
 }
 
+// IsECSManagedInstances returns whether the Agent is running in ECS Managed Instances
+func IsECSManagedInstances() bool {
+	return os.Getenv("AWS_EXECUTION_ENV") == "AWS_ECS_MANAGED_INSTANCES"
+}
+
+// IsECSSidecarMode returns true if the agent is running in ECS sidecar mode.
+// This includes Fargate (always sidecar) and Managed Instances when explicitly configured as sidecar.
+func IsECSSidecarMode(cfg model.Reader) bool {
+	// Fargate is always sidecar mode
+	if IsECSFargate() {
+		return true
+	}
+
+	// Managed Instances can be sidecar if explicitly configured
+	if IsECSManagedInstances() {
+		deploymentMode := cfg.GetString("ecs_deployment_mode")
+		// In auto mode, managed instances default to daemon, so only return true for explicit "sidecar"
+		return deploymentMode == "sidecar"
+	}
+
+	return false
+}
+
 // IsHostProcAvailable returns whether host proc is available or not
 func IsHostProcAvailable() bool {
 	if IsContainerized() {
@@ -81,7 +109,7 @@ func IsHostSysAvailable() bool {
 	return true
 }
 
-// IsServerless returns whether the Agent is running in a Lambda function
-func IsServerless() bool {
+// IsLambda returns whether the Agent is running in a Lambda function
+func IsLambda() bool {
 	return os.Getenv("AWS_LAMBDA_FUNCTION_NAME") != ""
 }

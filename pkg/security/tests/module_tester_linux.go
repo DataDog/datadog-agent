@@ -55,6 +55,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/serializers"
 	"github.com/DataDog/datadog-agent/pkg/security/tests/statsdclient"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
+	grpcutils "github.com/DataDog/datadog-agent/pkg/security/utils/grpc"
 	utilkernel "github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -112,6 +113,8 @@ event_monitoring_config:
 
 runtime_security_config:
   enabled: {{ .RuntimeSecurityEnabled }}
+  socket: /tmp/runtime-security.sock
+  cmd_socket: /tmp/runtime-security-cmd.sock
   internal_monitoring:
     enabled: true
 {{ if gt .EventServerRetention 0 }}
@@ -124,12 +127,10 @@ runtime_security_config:
     enabled: true
     rate_limiter:
       enabled: {{ .OnDemandRateLimiterEnabled}}
-  socket: /tmp/test-runtime-security.sock
   sbom:
     enabled: {{ .SBOMEnabled }}
     host:
       enabled: {{ .HostSBOMEnabled }}
-    use_v2_collector: {{ .SBOMUseV2Collector }}
   activity_dump:
     enabled: {{ .EnableActivityDump }}
     syscall_monitor:
@@ -169,6 +170,7 @@ runtime_security_config:
     max_image_tags: {{ .SecurityProfileMaxImageTags }}
     dir: {{ .SecurityProfileDir }}
     watch_dir: {{ .SecurityProfileWatchDir }}
+    node_eviction_timeout: {{ .SecurityProfileNodeEvictionTimeout }}
     auto_suppression:
       enabled: {{ .EnableAutoSuppression }}
       event_types: {{range .AutoSuppressionEventTypes}}
@@ -248,6 +250,7 @@ type testModule struct {
 	ruleEngine    *rulesmodule.RuleEngine
 	tracePipe     *tracePipeLogger
 	msgSender     *fakeMsgSender
+	grpcServer    *grpcutils.Server
 }
 
 //nolint:deadcode,unused
@@ -590,6 +593,12 @@ func (tm *testModule) validateExecEvent(tb *testing.T, kind wrapperType, validat
 	}
 }
 
+func (tm *testModule) sendStats() {
+	// send twice to collect stats from both buffers
+	tm.eventMonitor.SendStats()
+	tm.eventMonitor.SendStats()
+}
+
 func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []*rules.RuleDefinition, fopts ...optFunc) (_ *testModule, err error) {
 	defer func() {
 		if err != nil && testMod != nil {
@@ -723,7 +732,7 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 		testMod.cleanup()
 	}
 
-	emconfig, secconfig, err := genTestConfigs(commonCfgDir, opts.staticOpts)
+	emconfig, secconfig, err := genTestConfigs(t, commonCfgDir, opts.staticOpts)
 	if err != nil {
 		return nil, err
 	}
@@ -741,6 +750,7 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 		statsdClient:  statsdClient,
 		proFile:       proFile,
 		eventHandlers: eventHandlers{},
+		grpcServer:    grpcutils.NewServer("unix", "/tmp/runtime-security.sock"),
 	}
 
 	emopts := eventmonitor.Opts{
@@ -755,6 +765,11 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 			EBPFLessEnabled:          ebpfLessEnabled,
 			DNSPort:                  opts.staticOpts.dnsPort,
 		},
+	}
+
+	// fake the security agent
+	if err := testMod.grpcServer.Start(); err != nil {
+		return nil, fmt.Errorf("failed to create module: %w", err)
 	}
 
 	if opts.staticOpts.tagger != nil {
@@ -1022,6 +1037,8 @@ func (tm *testModule) CloseWithOptions(zombieCheck bool) {
 		tm.msgSender.flush()
 	}
 
+	tm.grpcServer.Stop()
+
 	if logStatusMetrics {
 		tm.t.Logf("%s exit stats: %s", tm.t.Name(), GetEBPFStatusMetrics(tm.probe))
 	}
@@ -1057,11 +1074,9 @@ func initLogger() error {
 
 func swapLogLevel(logLevel log.LogLevel) (log.LogLevel, error) {
 	if logger == nil {
-		logFormat := "[%Date(2006-01-02 15:04:05.000)] [%LEVEL] %Func:%Line %Msg\n"
-
 		var err error
 
-		logger, err = log.LoggerFromWriterWithMinLevelAndFormat(os.Stdout, logLevel, logFormat)
+		logger, err = log.LoggerFromWriterWithMinLevelAndDateFuncLineMsgFormat(os.Stdout, logLevel)
 		if err != nil {
 			return 0, err
 		}
@@ -1381,7 +1396,7 @@ func (tm *testModule) StartADockerGetDump() (*dockerCmdWrapper, *activityDumpIde
 	if managers == nil {
 		return nil, nil, errors.New("No manager")
 	}
-	managers.SnapshotTracedCgroups()
+	managers.SyncTracedCgroups()
 
 	dockerInstance, err := tm.StartADocker()
 	if err != nil {
@@ -1718,9 +1733,6 @@ func (tm *testModule) StopAllActivityDumps() error {
 	if err != nil {
 		return err
 	}
-	if len(dumps) == 0 {
-		return nil
-	}
 	for _, dump := range dumps {
 		_ = tm.StopActivityDump(dump.Name)
 	}
@@ -1731,6 +1743,19 @@ func (tm *testModule) StopAllActivityDumps() error {
 	if len(dumps) != 0 {
 		return errors.New("Didn't manage to stop all activity dumps")
 	}
+
+	// CRITICAL: Blacklist all currently traced cgroups BEFORE clearing
+	// This prevents them from being re-traced by kernel events
+	p, ok := tm.probe.PlatformProbe.(*sprobe.EBPFProbe)
+	if ok {
+		if managers := p.GetProfileManager(); managers != nil {
+			// First call evictTracedCgroup for all active dumps to blacklist them
+			managers.EvictAllTracedCgroups()
+			// Then clear everything
+			managers.ClearTracedCgroups()
+		}
+	}
+
 	return nil
 }
 

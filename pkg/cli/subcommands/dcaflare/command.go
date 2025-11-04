@@ -24,7 +24,7 @@ import (
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	ipchttp "github.com/DataDog/datadog-agent/comp/core/ipc/httphelpers"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
+	secretsfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx"
 	"github.com/DataDog/datadog-agent/pkg/config/settings"
 	settingshttp "github.com/DataDog/datadog-agent/pkg/config/settings/http"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -87,10 +87,10 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewClusterAgentParams(globalParams.ConfFilePath),
-					SecretParams: secrets.NewEnabledParams(),
 					LogParams:    log.ForOneShot(LoggerName, DefaultLogLevel, true),
 				}),
 				core.Bundle(),
+				secretsfx.Module(),
 				diagnosefx.Module(),
 				ipcfx.ModuleInsecure(),
 			)
@@ -166,7 +166,7 @@ func run(cliParams *cliParams, _ config.Component, diagnoseComponent diagnose.Co
 	}
 
 	if cliParams.profiling >= 30 {
-		settingsClient := settingshttp.NewHTTPSClient(ipc.GetClient(), urlstr, "datadog-cluster-agent", ipchttp.WithLeaveConnectionOpen)
+		settingsClient := settingshttp.NewSecureClient(ipc.GetClient(), urlstr, "datadog-cluster-agent", ipchttp.WithLeaveConnectionOpen)
 
 		profilingOpts := settings.ProfilingOpts{
 			ProfileMutex:         cliParams.profileMutex,

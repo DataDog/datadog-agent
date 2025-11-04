@@ -111,6 +111,13 @@ func CreateTargetDir() (string, error) {
 
 // WaitForResult wait for self test results
 func (t *SelfTester) WaitForResult(cb func(success []eval.RuleID, fails []eval.RuleID)) {
+	t.Lock()
+	isClosed := t.isClosed
+	t.Unlock()
+	if isClosed {
+		return
+	}
+
 	for timeout := range t.selfTestRunning {
 		timer := time.After(timeout)
 
@@ -149,6 +156,11 @@ func (t *SelfTester) WaitForResult(cb func(success []eval.RuleID, fails []eval.R
 		}
 
 		t.Lock()
+		if t.isClosed {
+			t.Unlock()
+			return
+		}
+
 		for _, selfTest := range t.selfTests {
 			id := selfTest.GetRuleDefinition().ID
 
@@ -234,9 +246,8 @@ func (t *SelfTester) endSelfTests() {
 }
 
 type selfTestEvent struct {
-	RuleID   eval.RuleID
-	Filepath string
-	Event    *serializers.EventSerializer
+	RuleID eval.RuleID
+	Event  *serializers.EventSerializer
 }
 
 // IsExpectedEvent sends an event to the tester

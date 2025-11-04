@@ -16,12 +16,12 @@ import (
 	pkgcontainersimage "github.com/DataDog/datadog-agent/pkg/util/containers/image"
 )
 
-func getProcessorFilter(filterStore workloadfilter.Component, store workloadmeta.Component) generic.ContainerFilter {
+func getProcessorFilter(containerFilter workloadfilter.FilterBundle, store workloadmeta.Component) generic.ContainerFilter {
 	// Reject all containers that are not run by Containerd
 	return generic.ANDContainerFilter{
 		Filters: []generic.ContainerFilter{
 			generic.RuntimeContainerFilter{Runtime: workloadmeta.ContainerRuntimeContainerd},
-			generic.LegacyContainerFilter{FilterStore: filterStore, Store: store},
+			generic.LegacyContainerFilter{ContainerFilter: containerFilter, Store: store},
 		},
 	}
 }

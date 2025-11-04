@@ -7,6 +7,7 @@
 package macos
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -48,5 +49,10 @@ func (m *macosInstallSuite) TestInstallAgent() {
 	m.EventuallyWithT(func(c *assert.CollectT) {
 		_, err := macosTestClient.Execute("/usr/local/bin/datadog-agent status")
 		assert.NoError(c, err)
-	}, 10*time.Second, 1*time.Second)
+	}, 20*time.Second, 1*time.Second)
+
+	// check that there is no world-writable files or directories in /opt/datadog-agent
+	worldWritableFiles, err := macosTestClient.Execute("sudo find /opt/datadog-agent \\( -type f -o -type d \\) -perm -002")
+	assert.NoError(m.T(), err)
+	assert.Empty(m.T(), strings.TrimSpace(worldWritableFiles))
 }

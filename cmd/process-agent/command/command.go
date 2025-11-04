@@ -16,7 +16,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -158,7 +157,6 @@ func SetHostMountEnv(logger log.Component) {
 func GetCoreBundleParamsForOneShot(globalParams *GlobalParams) core.BundleParams {
 	return core.BundleParams{
 		ConfigParams:         configComponent.NewAgentParams(globalParams.ConfFilePath, configComponent.WithExtraConfFiles(globalParams.ExtraConfFilePath)),
-		SecretParams:         secrets.NewEnabledParams(),
 		SysprobeConfigParams: sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(globalParams.SysProbeConfFilePath)),
 		LogParams:            OneShotLogParams,
 	}

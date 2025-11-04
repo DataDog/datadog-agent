@@ -17,7 +17,6 @@ import (
 	"net/http"
 
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
-	ipchttp "github.com/DataDog/datadog-agent/comp/core/ipc/httphelpers"
 	settingsComponent "github.com/DataDog/datadog-agent/comp/core/settings"
 	"github.com/DataDog/datadog-agent/pkg/config/settings"
 )
@@ -87,15 +86,11 @@ type httpsClient struct {
 }
 
 func (c *httpsClient) DoGet(url string) (body []byte, e error) {
-	opt := []ipc.RequestOption{ipchttp.WithLeaveConnectionOpen}
-	opt = append(opt, c.clientOptions...)
-	return c.c.Get(url, opt...)
+	return c.c.Get(url, c.clientOptions...)
 }
 
 func (c *httpsClient) DoPost(url string, contentType string, body io.Reader) (resp []byte, e error) {
-	opt := []ipc.RequestOption{ipchttp.WithLeaveConnectionOpen}
-	opt = append(opt, c.clientOptions...)
-	return c.c.Post(url, contentType, body, opt...)
+	return c.c.Post(url, contentType, body, c.clientOptions...)
 }
 
 type runtimeSettingsClient struct {
@@ -113,8 +108,9 @@ func NewHTTPClient(c *http.Client, baseURL string, targetProcessName string, cli
 	}
 }
 
-// NewHTTPSClient returns a client setup to interact with the standard runtime settings HTTPS API, taking advantage of the auth component
-func NewHTTPSClient(c ipc.HTTPClient, baseURL string, targetProcessName string, clientOptions ...ipc.RequestOption) settings.Client {
+// NewSecureClient returns a client setup to interact with the standard runtime settings HTTPS API, taking advantage of the ipc component
+// The authentication with the server will be handle automatically and transparently
+func NewSecureClient(c ipc.HTTPClient, baseURL string, targetProcessName string, clientOptions ...ipc.RequestOption) settings.Client {
 	return &runtimeSettingsClient{
 		c:                 &httpsClient{c, clientOptions},
 		baseURL:           baseURL,
@@ -136,7 +132,7 @@ func (rc *runtimeSettingsClient) doGet(url string, formatError bool) (string, er
 			return "", errors.New(e)
 		}
 		if formatError {
-			return "", fmt.Errorf("Could not reach %s: %v \nMake sure the %s is running before requesting the runtime configuration and contact support if you continue having issues", rc.targetProcessName, err, rc.targetProcessName)
+			return "", fmt.Errorf("Could not reach %s: %w \nMake sure the %s is running before requesting the runtime configuration and contact support if you continue having issues", rc.targetProcessName, err, rc.targetProcessName)
 		}
 		return "", err
 	}
@@ -145,6 +141,14 @@ func (rc *runtimeSettingsClient) doGet(url string, formatError bool) (string, er
 
 func (rc *runtimeSettingsClient) FullConfig() (string, error) {
 	r, err := rc.doGet(rc.baseURL, true)
+	if err != nil {
+		return "", err
+	}
+	return string(r), nil
+}
+
+func (rc *runtimeSettingsClient) FullConfigWithoutDefaults() (string, error) {
+	r, err := rc.doGet(fmt.Sprintf("%s/without-defaults", rc.baseURL), true)
 	if err != nil {
 		return "", err
 	}

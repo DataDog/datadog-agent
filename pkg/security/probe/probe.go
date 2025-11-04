@@ -66,6 +66,8 @@ var probeTelemetry = struct {
 	totalVariables: metrics.NewITGauge(metrics.MetricSECLTotalVariables, []string{"type", "scope"}, "Number of instantiated variables"),
 }
 
+var probeEventZeroer = model.NewEventZeroer()
+
 // EventConsumer defines a probe event consumer
 type EventConsumer struct {
 	consumer     EventConsumerHandler
@@ -427,11 +429,6 @@ func (p *Probe) IsNetworkRawPacketEnabled() bool {
 // IsNetworkFlowMonitorEnabled returns whether the network flow monitor is enabled
 func (p *Probe) IsNetworkFlowMonitorEnabled() bool {
 	return p.IsNetworkEnabled() && p.Config.Probe.NetworkFlowMonitorEnabled
-}
-
-// IsSysctlEventEnabled returns whether the sysctl event is enabled
-func (p *Probe) IsSysctlEventEnabled() bool {
-	return p.Config.RuntimeSecurity.SysCtlEnabled
 }
 
 // IsActivityDumpEnabled returns whether activity dump is enabled

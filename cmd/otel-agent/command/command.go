@@ -19,6 +19,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/DataDog/datadog-agent/cmd/otel-agent/subcommands"
+	"github.com/DataDog/datadog-agent/cmd/otel-agent/subcommands/controlsvc"
 	"github.com/DataDog/datadog-agent/cmd/otel-agent/subcommands/run"
 	"github.com/DataDog/datadog-agent/cmd/otel-agent/subcommands/status"
 	"github.com/DataDog/datadog-agent/pkg/cli/subcommands/version"
@@ -58,6 +59,9 @@ func makeCommands(globalParams *subcommands.GlobalParams) *cobra.Command {
 		version.MakeCommand("otel-agent"),
 		status.MakeCommand(globalConfGetter),
 	}
+
+	// Add Windows service control commands (noop on non-Windows via stub)
+	commands = append(commands, controlsvc.Commands(globalParams)...)
 
 	otelAgentCmd := *commands[0] // root cmd is `run()`; indexed at 0
 	otelAgentCmd.Use = "otel-agent [command]"
@@ -104,7 +108,7 @@ func flags(reg *featuregate.Registry, cfgs *subcommands.GlobalParams) *flag.Flag
 
 	flagSet.Func("set",
 		"Set arbitrary component config property. The component has to be defined in the config file and the flag"+
-			" has a higher precedence. Array config properties are overridden and maps are joined. Example --set=processors.batch.timeout=2s",
+			" has a higher precedence. Array config properties are overridden and maps are joined. Example --set=exporters.debug.verbosity=detailed",
 		func(s string) error {
 			idx := strings.Index(s, "=")
 			if idx == -1 {

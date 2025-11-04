@@ -23,15 +23,15 @@ const defaultChanSize = 100
 
 // NewTestProcessConsumer creates a new ProcessConsumer for testing, registering itself with an event monitor
 // created for testing. This function should be called in tests that require a ProcessConsumer.
-func NewTestProcessConsumer(t *testing.T) *consumers.ProcessConsumer {
+func NewTestProcessConsumer(tb testing.TB) *consumers.ProcessConsumer {
 	var pc *consumers.ProcessConsumer
 	// Set fake hostname to avoid fetching it from the core agent.
 	hostnameutils.SetCachedHostname("test-hostname")
-	eventtestutil.StartEventMonitor(t, func(t *testing.T, evm *eventmonitor.EventMonitor) {
+	eventtestutil.StartEventMonitor(tb, func(tb testing.TB, evm *eventmonitor.EventMonitor) {
 		var err error
 		eventTypes := []consumers.ProcessConsumerEventTypes{consumers.ExecEventType, consumers.ExitEventType}
 		pc, err = consumers.NewProcessConsumer("test", defaultChanSize, eventTypes, evm)
-		require.NoError(t, err, "failed to create process consumer")
+		require.NoError(tb, err, "failed to create process consumer")
 	})
 
 	return pc

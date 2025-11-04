@@ -19,7 +19,7 @@ import (
 
 // encodeSwissMapTables traverses the table pointer slice and encodes the data items for each table.
 func (s *goSwissMapHeaderType) encodeSwissMapTables(
-	d *Decoder,
+	c *encodingContext,
 	enc *jsontext.Encoder,
 	tablePtrSliceDataItem []byte,
 ) (totalElementsEncoded int, err error) {
@@ -29,8 +29,10 @@ func (s *goSwissMapHeaderType) encodeSwissMapTables(
 		startIdx := i * 8
 		endIdx := startIdx + 8
 		if endIdx > uint32(len(tablePtrSliceDataItem)) {
-			return totalElementsEncoded, fmt.Errorf("table pointer %d extends beyond data bounds: need %d bytes, have %d",
-				i, endIdx, len(tablePtrSliceDataItem))
+			return totalElementsEncoded, fmt.Errorf(
+				"table pointer %d extends beyond data bounds: need %d bytes, have %d",
+				i, endIdx, len(tablePtrSliceDataItem),
+			)
 		}
 		addrs = append(addrs, binary.NativeEndian.Uint64(tablePtrSliceDataItem[startIdx:endIdx]))
 	}
@@ -39,10 +41,7 @@ func (s *goSwissMapHeaderType) encodeSwissMapTables(
 	slices.Sort(addrs)
 	addrs = slices.Compact(addrs)
 	for _, addr := range addrs {
-		tableDataItem, ok := d.dataItems[typeAndAddr{
-			irType: uint32(s.tableTypeID),
-			addr:   addr,
-		}]
+		tableDataItem, ok := c.getPtr(addr, s.tableTypeID)
 		if !ok {
 			continue
 		}
@@ -54,10 +53,7 @@ func (s *goSwissMapHeaderType) encodeSwissMapTables(
 		groupsData := tableData[s.groupFieldOffset : s.groupFieldOffset+uint32(s.groupFieldSize)]
 		groupsPtrData := groupsData[s.dataFieldOffset : s.dataFieldOffset+uint32(s.dataFieldSize)]
 		groupsPtr := binary.NativeEndian.Uint64(groupsPtrData)
-		groupsArrayDataItem, ok := d.dataItems[typeAndAddr{
-			irType: uint32(s.groupSliceTypeID),
-			addr:   groupsPtr,
-		}]
+		groupsArrayDataItem, ok := c.getPtr(groupsPtr, s.groupSliceTypeID)
 		if !ok {
 			if log.ShouldLog(log.TraceLvl) {
 				groupsPtr := groupsPtr
@@ -73,7 +69,7 @@ func (s *goSwissMapHeaderType) encodeSwissMapTables(
 		numberOfGroups := uint32(len(groupsArrayData)) / s.elementTypeSize
 		for i := range numberOfGroups {
 			singleGroupData := groupsArrayData[s.elementTypeSize*i : s.elementTypeSize*(i+1)]
-			elementsEncoded, err := s.encodeSwissMapGroup(d, enc, singleGroupData)
+			elementsEncoded, err := s.encodeSwissMapGroup(c, enc, singleGroupData)
 			if err != nil {
 				return totalElementsEncoded, err
 			}
@@ -84,7 +80,7 @@ func (s *goSwissMapHeaderType) encodeSwissMapTables(
 }
 
 func (s *goSwissMapHeaderType) encodeSwissMapGroup(
-	d *Decoder,
+	c *encodingContext,
 	enc *jsontext.Encoder,
 	groupData []byte,
 ) (valuesEncoded int, err error) {
@@ -102,10 +98,14 @@ func (s *goSwissMapHeaderType) encodeSwissMapGroup(
 		if err := writeTokens(enc, jsontext.BeginArray); err != nil {
 			return valuesEncoded, err
 		}
-		if err := d.encodeValue(enc, s.keyTypeID, keyData, s.keyTypeName); err != nil {
+		if err := encodeValue(
+			c, enc, s.keyTypeID, keyData, s.keyTypeName,
+		); err != nil {
 			return valuesEncoded, err
 		}
-		if err := d.encodeValue(enc, s.valueTypeID, valueData, s.valueTypeName); err != nil {
+		if err := encodeValue(
+			c, enc, s.valueTypeID, valueData, s.valueTypeName,
+		); err != nil {
 			return valuesEncoded, err
 		}
 		if err := writeTokens(enc, jsontext.EndArray); err != nil {

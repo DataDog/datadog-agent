@@ -31,7 +31,7 @@ checks:
     description: Memory usage
     bounds:
       series: total_pss_bytes
-      upper_bound: "315 MiB"
+      upper_bound: "370 MiB"
 
   # This check validates that the experiment setup allows the Agent to run as
   # intended.

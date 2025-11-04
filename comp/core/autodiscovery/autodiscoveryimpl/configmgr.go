@@ -48,6 +48,9 @@ type configManager interface {
 
 	// getActiveConfigs returns the currently active configs
 	getActiveConfigs() map[string]integration.Config
+
+	// getActiveServices returns the currently active services
+	getActiveServices() map[string]listeners.Service
 }
 
 // serviceAndADIDs bundles a service and its associated AD identifiers.
@@ -195,7 +198,7 @@ func (cm *reconcilingConfigManager) processNewConfig(config integration.Config) 
 
 	// Execute the steps outlined in the comment on reconcilingConfigManager:
 	//
-	//  1. update orctiveConfigs / activeServices
+	//  1. update activeConfigs / activeServices
 	cm.activeConfigs[digest] = config
 
 	var changes integration.ConfigChanges
@@ -208,7 +211,6 @@ func (cm *reconcilingConfigManager) processNewConfig(config integration.Config) 
 				matchingServices[svcID] = struct{}{}
 			}
 		}
-
 		//  3. update serviceResolutions, generating changes
 		for svcID := range matchingServices {
 			changes.Merge(cm.reconcileService(svcID))
@@ -307,6 +309,17 @@ func (cm *reconcilingConfigManager) getActiveConfigs() map[string]integration.Co
 	return res
 }
 
+func (cm *reconcilingConfigManager) getActiveServices() map[string]listeners.Service {
+	cm.m.Lock()
+	defer cm.m.Unlock()
+
+	res := make(map[string]listeners.Service, len(cm.activeServices))
+	for k, v := range cm.activeServices {
+		res[k] = v.svc
+	}
+	return res
+}
+
 // reconcileService calculates the current set of resolved templates for the
 // given service and calculates the difference from what is currently recorded
 // in cm.serviceResolutions.  It updates cm.serviceResolutions and returns the
@@ -342,6 +355,8 @@ func (cm *reconcilingConfigManager) reconcileService(svcID string) integration.C
 	// allow the service to filter those templates, unless we are removing
 	// the service, in which case no resolutions are expected.
 	if svc != nil {
+		// Warning: this must be called with the configs stored in cm.activeConfigs
+		// which contain the compiled matchingProgram for the config template.
 		svc.FilterTemplates(expectedResolutions)
 	}
 

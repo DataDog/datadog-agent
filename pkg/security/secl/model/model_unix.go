@@ -33,10 +33,8 @@ const (
 func (m *Model) NewEvent() eval.Event {
 	return &Event{
 		BaseEvent: BaseEvent{
-			ContainerContext: &ContainerContext{},
-			Os:               runtime.GOOS,
+			Os: runtime.GOOS,
 		},
-		CGroupContext: &CGroupContext{},
 	}
 }
 
@@ -44,12 +42,10 @@ func (m *Model) NewEvent() eval.Event {
 func NewFakeEvent() *Event {
 	return &Event{
 		BaseEvent: BaseEvent{
-			FieldHandlers:    &FakeFieldHandlers{},
-			ContainerContext: &ContainerContext{},
-			ProcessContext:   &ProcessContext{},
-			Os:               runtime.GOOS,
+			FieldHandlers:  &FakeFieldHandlers{},
+			ProcessContext: &ProcessContext{},
+			Os:             runtime.GOOS,
 		},
-		CGroupContext: &CGroupContext{},
 	}
 }
 
@@ -60,8 +56,6 @@ func (fh *FakeFieldHandlers) ResolveProcessCacheEntryFromPID(pid uint32) *Proces
 
 // Event represents an event sent from the kernel
 // genaccessors
-// gengetter: GetContainerCreatedAt
-// gengetter: GetContainerId
 // gengetter: GetExecCmdargv
 // gengetter: GetExecFilePath
 // gengetter: GetExecFilePath)
@@ -89,7 +83,6 @@ type Event struct {
 	// context
 	SpanContext    SpanContext    `field:"-"`
 	NetworkContext NetworkContext `field:"network" restricted_to:"dns,imds,packet"` // [7.36] [Network] Network context
-	CGroupContext  *CGroupContext `field:"cgroup"`
 
 	// fim events
 	Chmod       ChmodEvent    `field:"chmod" event:"chmod"`             // [7.27] [File] A file's permissions were changed
@@ -142,6 +135,7 @@ type Event struct {
 	IMDS               IMDSEvent               `field:"imds" event:"imds"`                                 // [7.55] [Network] An IMDS event was captured
 	RawPacket          RawPacketEvent          `field:"packet" event:"packet"`                             // [7.60] [Network] A raw network packet was captured
 	NetworkFlowMonitor NetworkFlowMonitorEvent `field:"network_flow_monitor" event:"network_flow_monitor"` // [7.63] [Network] A network monitor event was sent
+	FailedDNS          FailedDNSEvent          `field:"failed_dns" event:"failed_dns"`                     // [7.7X] [Network] A DNS packet failed to be decoded
 
 	// on-demand events
 	OnDemand OnDemandEvent `field:"ondemand" event:"ondemand"`
@@ -155,16 +149,24 @@ type Event struct {
 	NetDevice        NetDeviceEvent        `field:"-"`
 	VethPair         VethPairEvent         `field:"-"`
 	UnshareMountNS   UnshareMountNSEvent   `field:"-"`
+	TracerMemfdSeal  TracerMemfdSealEvent  `field:"-"`
 }
 
-var eventZero = Event{CGroupContext: &CGroupContext{}, BaseEvent: BaseEvent{ContainerContext: &ContainerContext{}, Os: runtime.GOOS}}
-var cgroupContextZero CGroupContext
+// NewEventZeroer returns a function that can be used to zero an Event
+func NewEventZeroer() func(*Event) {
+	var eventZero = Event{BaseEvent: BaseEvent{Os: runtime.GOOS}}
 
-// Zero the event
-func (e *Event) Zero() {
-	*e = eventZero
-	*e.BaseEvent.ContainerContext = containerContextZero
-	*e.CGroupContext = cgroupContextZero
+	return func(e *Event) {
+		*e = eventZero
+	}
+}
+
+// GetContainerID returns event's process container ID if any
+func (e *Event) GetContainerID() string {
+	if e.ProcessContext == nil {
+		return ""
+	}
+	return string(e.ProcessContext.Process.ContainerContext.ContainerID)
 }
 
 // CGroupContext holds the cgroup context of an event
@@ -188,9 +190,10 @@ func (cg *CGroupContext) Merge(cg2 *CGroupContext) {
 	}
 }
 
-// Hash returns a unique key for the entity
-func (cg *CGroupContext) Hash() string {
-	return string(cg.CGroupID)
+// Key returns a unique key for the entity
+func (cg *CGroupContext) Key() (string, bool) {
+	cgrpID := string(cg.CGroupID)
+	return cgrpID, cgrpID != ""
 }
 
 // ParentScope returns the parent entity scope
@@ -315,8 +318,8 @@ type Process struct {
 
 	FileEvent FileEvent `field:"file,check:IsNotKworker"`
 
-	CGroup      CGroupContext              `field:"cgroup"`                                         // SECLDoc[cgroup] Definition:`CGroup`
-	ContainerID containerutils.ContainerID `field:"container.id,handler:ResolveProcessContainerID"` // SECLDoc[container.id] Definition:`Container ID`
+	CGroup           CGroupContext    `field:"cgroup"`    // SECLDoc[cgroup] Definition:`CGroup`
+	ContainerContext ContainerContext `field:"container"` // SECLDoc[container] Definition:`Container`
 
 	SpanID  uint64        `field:"-"`
 	TraceID utils.TraceID `field:"-"`
@@ -345,6 +348,8 @@ type Process struct {
 	UserSession UserSessionContext `field:"user_session"` // SECLDoc[user_session] Definition:`User Session context of this process`
 
 	AWSSecurityCredentials []AWSSecurityCredentials `field:"-"`
+
+	TracerTags []string `field:"-"` // Tags from APM tracer instrumentation
 
 	ArgsID uint64 `field:"-"`
 	EnvsID uint64 `field:"-"`
@@ -394,9 +399,9 @@ func SetAncestorFields(pce *ProcessCacheEntry, subField string, _ interface{}) (
 	return true, nil
 }
 
-// Hash returns a unique key for the entity
-func (pc *ProcessCacheEntry) Hash() string {
-	return fmt.Sprintf("%d/%s", pc.Pid, pc.Comm)
+// Key returns a unique key for the entity
+func (pc *ProcessCacheEntry) Key() (string, bool) {
+	return fmt.Sprintf("%d/%s", pc.Pid, pc.Comm), true
 }
 
 // ParentScope returns the parent entity scope
@@ -453,7 +458,11 @@ type FileEvent struct {
 
 	PkgName       string `field:"package.name,handler:ResolvePackageName"`                    // SECLDoc[package.name] Definition:`[Experimental] Name of the package that provided this file`
 	PkgVersion    string `field:"package.version,handler:ResolvePackageVersion"`              // SECLDoc[package.version] Definition:`[Experimental] Full version of the package that provided this file`
+	PkgEpoch      int    `field:"package.epoch,handler:ResolvePackageEpoch"`                  // SECLDoc[package.epoch] Definition:`[Experimental] Epoch of the package that provided this file`
+	PkgRelease    string `field:"package.release,handler:ResolvePackageRelease"`              // SECLDoc[package.release] Definition:`[Experimental] Release of the package that provided this file`
 	PkgSrcVersion string `field:"package.source_version,handler:ResolvePackageSourceVersion"` // SECLDoc[package.source_version] Definition:`[Experimental] Full version of the source package of the package that provided this file`
+	PkgSrcEpoch   int    `field:"package.source_epoch,handler:ResolvePackageSourceEpoch"`     // SECLDoc[package.source_epoch] Definition:`[Experimental] Epoch of the source package of the package that provided this file`
+	PkgSrcRelease string `field:"package.source_release,handler:ResolvePackageSourceRelease"` // SECLDoc[package.source_release] Definition:`[Experimental] Release of the source package of the package that provided this file`
 
 	HashState HashState `field:"-"`
 	Hashes    []string  `field:"hashes,handler:ResolveHashesFromEvent,opts:skip_ad,weight:999"` // SECLDoc[hashes] Definition:`[Experimental] List of cryptographic hashes computed for this file`
@@ -505,18 +514,20 @@ type ArgsEnvsEvent struct {
 
 // Mount represents a mountpoint (used by MountEvent, FsmountEvent and UnshareMountNSEvent)
 type Mount struct {
-	MountID        uint32  `field:"-"`
-	Device         uint32  `field:"-"`
-	ParentPathKey  PathKey `field:"-"`
-	RootPathKey    PathKey `field:"-"`
-	BindSrcMountID uint32  `field:"-"`
-	FSType         string  `field:"fs_type"` // SECLDoc[fs_type] Definition:`Type of the mounted file system`
-	MountPointStr  string  `field:"-"`
-	RootStr        string  `field:"-"`
-	Path           string  `field:"-"`
-	Origin         uint32  `field:"-"`
-	Detached       bool    `field:"detached"` // SECLDoc[detached] Definition:`Mount is detached from the VFS`
-	Visible        bool    `field:"visible"`  // SECLDoc[visible] Definition:`Mount is not visible in the VFS`
+	MountID        uint32   `field:"-"`
+	MountIDUnique  uint64   `field:"-"`
+	Device         uint32   `field:"-"`
+	ParentPathKey  PathKey  `field:"-"`
+	Children       []uint32 `field:"-"`
+	RootPathKey    PathKey  `field:"-"`
+	BindSrcMountID uint32   `field:"-"`
+	FSType         string   `field:"fs_type"` // SECLDoc[fs_type] Definition:`Type of the mounted file system`
+	MountPointStr  string   `field:"-"`
+	RootStr        string   `field:"-"`
+	Path           string   `field:"-"`
+	Origin         uint32   `field:"-"`
+	Detached       bool     `field:"detached"` // SECLDoc[detached] Definition:`Mount is detached from the VFS`
+	Visible        bool     `field:"visible"`  // SECLDoc[visible] Definition:`Mount is not visible in the VFS`
 }
 
 // MountEvent represents a mount event
@@ -1037,4 +1048,10 @@ type PrCtlEvent struct {
 	Option          int    `field:"option"`            // SECLDoc[option] Definition:`prctl option`
 	NewName         string `field:"new_name"`          // SECLDoc[new_name] Definition:`New name of the process`
 	IsNameTruncated bool   `field:"is_name_truncated"` // SECLDoc[is_name_truncated] Definition:`Indicates that the name field is truncated`
+}
+
+// TracerMemfdSealEvent represents a tracer memfd seal event
+type TracerMemfdSealEvent struct {
+	SyscallEvent
+	Fd uint32
 }

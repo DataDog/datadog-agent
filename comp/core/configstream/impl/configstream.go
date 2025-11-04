@@ -229,23 +229,19 @@ func (cs *configStream) handleConfigUpdate(event *pb.ConfigEvent) {
 func (cs *configStream) createConfigSnapshot() (*pb.ConfigEvent, uint64, error) {
 	allSettings, sequenceID := cs.config.AllSettingsWithSequenceID()
 
-	// Note: AllSettings returns a map[string]interface{}. The inner values may be a type that structpb.NewValue is not able to
-	// handle (ex: map[string]string), so we perform a hacky operation by marshalling the data into a JSON string first.
-	data, err := json.Marshal(allSettings)
+	// Sanitize all settings to ensure compatibility with structpb.NewValue
+	sanitizedSettings, err := sanitizeValue(allSettings)
 	if err != nil {
+		cs.log.Errorf("Failed to sanitize config settings while creating snapshot: %v", err)
 		return nil, 0, err
 	}
 
-	var intermediateMap map[string]interface{}
-	if err := json.Unmarshal(data, &intermediateMap); err != nil {
-		return nil, 0, err
-	}
-
+	intermediateMap := sanitizedSettings.(map[string]interface{})
 	settings := make([]*pb.ConfigSetting, 0, len(intermediateMap))
 	for setting, value := range intermediateMap {
 		pbValue, err := structpb.NewValue(value)
 		if err != nil {
-			cs.log.Warnf("Failed to convert setting '%s' to structpb.Value: %v", setting, err)
+			cs.log.Errorf("Failed to convert setting '%s' to structpb.Value: %v", setting, err)
 			continue
 		}
 		source := cs.config.GetSource(setting).String()
@@ -268,17 +264,54 @@ func (cs *configStream) createConfigSnapshot() (*pb.ConfigEvent, uint64, error) 
 	return snapshot, sequenceID, nil
 }
 
+// sanitizeMapForJSON recursively converts map[interface{}]interface{} to map[string]interface{}
+// to make the data structure JSON-serializable.
+func sanitizeMapForJSON(data interface{}) interface{} {
+	switch v := data.(type) {
+	case map[interface{}]interface{}:
+		result := make(map[string]interface{})
+		for key, value := range v {
+			stringKey := fmt.Sprintf("%v", key) // Convert any key type to string
+			result[stringKey] = sanitizeMapForJSON(value)
+		}
+		return result
+
+	case map[string]interface{}:
+		result := make(map[string]interface{})
+		for key, value := range v {
+			result[key] = sanitizeMapForJSON(value)
+		}
+		return result
+
+	case []interface{}:
+		result := make([]interface{}, len(v))
+		for i, item := range v {
+			result[i] = sanitizeMapForJSON(item)
+		}
+		return result
+
+	default:
+		// Primitive types (string, int, bool, etc.) - return as-is
+		return v
+	}
+}
+
 // sanitizeValue is a workaround for `structpb.NewValue`, which cannot handle
-// complex types like `map[string]string`. Marshalling to JSON and back converts
-// the value into a `structpb` compatible format.
+// complex types like `map[string]string` or `map[interface{}]interface{}`.
+// It first converts interface{} maps to string maps, then marshals to JSON and back
+// to convert the value into a `structpb` compatible format.
 func sanitizeValue(value interface{}) (interface{}, error) {
-	data, err := json.Marshal(value)
+	// First sanitize to ensure JSON compatibility (handles map[interface{}]interface{})
+	sanitized := sanitizeMapForJSON(value)
+
+	// Then do the JSON round-trip for structpb compatibility
+	data, err := json.Marshal(sanitized)
 	if err != nil {
 		return nil, err
 	}
-	var sanitized interface{}
-	if err := json.Unmarshal(data, &sanitized); err != nil {
+	var result interface{}
+	if err := json.Unmarshal(data, &result); err != nil {
 		return nil, err
 	}
-	return sanitized, nil
+	return result, nil
 }

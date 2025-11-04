@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build docker
+//go:build docker && cel
 
 package docker
 
@@ -16,7 +16,8 @@ import (
 	"github.com/docker/docker/api/types/events"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/DataDog/datadog-agent/pkg/util/containers"
+	workloadfilterfxmock "github.com/DataDog/datadog-agent/comp/core/workloadfilter/fx-mock"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 )
 
 func TestProcessContainerEvent(t *testing.T) {
@@ -25,11 +26,20 @@ func TestProcessContainerEvent(t *testing.T) {
 	// Dummy timestamp for events
 	timestamp := time.Now().Truncate(10 * time.Millisecond)
 
-	// Container filter
-	filter, err := containers.NewFilter(containers.GlobalFilter, []string{},
-		[]string{"name:excluded_name", "image:excluded_image"})
+	configYaml := `
+cel_workload_exclude:
+  - products:
+      - global
+    rules:
+      containers:
+       - container.name == 'excluded_cel_name'
+container_exclude: name:excluded_name image:excluded_image
+`
 
-	assert.Nil(err)
+	// Container filter
+	configmock.NewFromYAML(t, configYaml)
+	mockFilterStore := workloadfilterfxmock.SetupMockFilter(t)
+	filter := mockFilterStore.GetContainerSharedMetricFilters()
 
 	dockerUtil := &DockerUtil{
 		cfg: &Config{},
@@ -117,6 +127,21 @@ func TestProcessContainerEvent(t *testing.T) {
 				},
 			},
 			err: nil,
+		},
+		{
+			// Ignore excluded container name via cel
+			source: events.Message{
+				Type: "container",
+				Actor: events.Actor{
+					ID: "test_id",
+					Attributes: map[string]string{
+						"name":  "excluded_cel_name",
+						"image": "test_image",
+					},
+				},
+			},
+			event: nil,
+			err:   nil,
 		},
 		{
 			// Ignore excluded container name

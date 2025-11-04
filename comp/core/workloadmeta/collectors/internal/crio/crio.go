@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"os"
 
+	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	"go.uber.org/fx"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -29,6 +30,12 @@ const (
 	componentName = "workloadmeta-crio"
 )
 
+type dependencies struct {
+	fx.In
+
+	Filter workloadfilter.Component
+}
+
 type collector struct {
 	id             string
 	client         crio.Client
@@ -37,16 +44,18 @@ type collector struct {
 	seenContainers map[workloadmeta.EntityID]struct{}
 	seenImages     map[workloadmeta.EntityID]struct{}
 	sbomScanner    *scanner.Scanner //nolint: unused
+	sbomFilter     workloadfilter.FilterBundle
 }
 
 // NewCollector initializes a new CRI-O collector.
-func NewCollector() (workloadmeta.CollectorProvider, error) {
+func NewCollector(deps dependencies) (workloadmeta.CollectorProvider, error) {
 	return workloadmeta.CollectorProvider{
 		Collector: &collector{
 			id:             collectorID,
 			seenContainers: make(map[workloadmeta.EntityID]struct{}),
 			seenImages:     make(map[workloadmeta.EntityID]struct{}),
 			catalog:        workloadmeta.NodeAgent | workloadmeta.ProcessAgent,
+			sbomFilter:     deps.Filter.GetContainerSBOMFilters(),
 		},
 	}, nil
 }

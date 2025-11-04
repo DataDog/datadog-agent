@@ -22,7 +22,7 @@ func TestWindowsDiskSuite(t *testing.T) {
 	t.Parallel()
 	suite := &windowsDiskCheckSuite{
 		diskCheckSuite{
-			descriptor:            e2eos.WindowsDefault,
+			descriptor:            e2eos.WindowsServerDefault,
 			metricCompareFraction: 0.02,
 			metricCompareDecimals: 1,
 			// system.disk.used and system.disk.utilized are highly flaky. Their values ​​may vary between both executions, so we do not compare them.

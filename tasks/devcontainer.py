@@ -15,14 +15,14 @@ from invoke import task
 from invoke.exceptions import Exit
 
 from tasks.build_tags import build_tags, filter_incompatible_tags, get_build_tags, get_default_build_tags
-from tasks.commands.docker import AGENT_REPOSITORY_PATH, DockerCLI
+from tasks.commands.docker import DockerCLI
 from tasks.flavor import AgentFlavor
 from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.utils import is_installed
 
 DEVCONTAINER_DIR = ".devcontainer"
 DEVCONTAINER_FILE = "devcontainer.json"
-DEVCONTAINER_NAME = "datadog_agent_devcontainer"
+DEVCONTAINER_NAME = "datadog-agent-devcontainer"
 DEVCONTAINER_IMAGE = "registry.ddbuild.io/ci/datadog-agent-devenv:1-arm64"
 
 
@@ -71,7 +71,7 @@ def setup(
 
     local_build_tags = ",".join(use_tags)
 
-    devcontainer["name"] = "Datadog-Agent-DevEnv"
+    devcontainer["name"] = "Datadog Agent Development Container"
     if image:
         devcontainer["image"] = image
         if devcontainer.get("build"):
@@ -88,9 +88,9 @@ def setup(
         "--security-opt",
         "seccomp=unconfined",
         "-w",
-        "/workspaces/datadog-agent",
+        "/workspaces/${localWorkspaceFolderBasename}",
         "--name",
-        "datadog_agent_devcontainer",
+        "datadog-agent-devcontainer",
     ]
     devcontainer["features"] = {}
     devcontainer["remoteUser"] = "datadog"
@@ -122,10 +122,10 @@ def setup(
         }
     }
 
-    # onCreateCommond runs the install-tools and deps tasks only when the devcontainer is created and not each time
+    # onCreateCommand runs the install-tools and deps tasks only when the devcontainer is created and not each time
     # the container is started
     devcontainer["onCreateCommand"] = (
-        f"git config --global --add safe.directory {AGENT_REPOSITORY_PATH} && dda inv -- -e install-tools && dda inv -- -e deps"
+        "git config --global --add safe.directory /workspaces/${localWorkspaceFolderBasename} && dda inv -- -e install-tools && dda inv -- -e deps"
     )
 
     devcontainer["containerEnv"] = {
@@ -133,6 +133,18 @@ def setup(
     }
 
     configure_skaffold(devcontainer, SkaffoldProfile(skaffoldProfile))
+
+    # Add per user configuration
+    user_config_path = Path.home() / ".devcontainer" / "agent_overrides.json"
+    if os.path.exists(user_config_path):
+        with open(user_config_path) as sf:
+            user_config = json.load(sf)
+            more_mounts = user_config.get("mounts")
+            if more_mounts:
+                devcontainer["mounts"].append(more_mounts)
+            more_create = user_config.get("onCreate")
+            if more_create:
+                devcontainer["onCreateCommand"] = devcontainer["onCreateCommand"] + " && " + " && ".join(more_create)
 
     with open(fullpath, "w") as sf:
         json.dump(devcontainer, sf, indent=4, sort_keys=False, separators=(',', ': '))

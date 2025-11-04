@@ -9,12 +9,14 @@ import (
 	"fmt"
 	"reflect"
 
+	adtypes "github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/types"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
 	taggercommon "github.com/DataDog/datadog-agent/comp/core/tagger/common"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
-	filter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
+	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
+	workloadmetafilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/util/workloadmeta"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
@@ -22,9 +24,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// service implements the Service interface and stores data collected from
-// workloadmeta.Store.
-type service struct {
+// WorkloadService implements the Service interface and stores data collected from
+// workloadmeta.Store. Covers containers and kubernetes pods.
+type WorkloadService struct {
 	entity          workloadmeta.Entity
 	tagsHash        string
 	adIdentifiers   []string
@@ -38,13 +40,15 @@ type service struct {
 	metricsExcluded bool
 	logsExcluded    bool
 	tagger          tagger.Component
+	wmeta           workloadmeta.Component
+	imageName       string
 }
 
-var _ Service = &service{}
+var _ Service = &WorkloadService{}
 
 // Equal returns whether the two service are equal
-func (s *service) Equal(o Service) bool {
-	s2, ok := o.(*service)
+func (s *WorkloadService) Equal(o Service) bool {
+	s2, ok := o.(*WorkloadService)
 	if !ok {
 		return false
 	}
@@ -61,7 +65,7 @@ func (s *service) Equal(o Service) bool {
 }
 
 // GetServiceID returns the AD entity ID of the service.
-func (s *service) GetServiceID() string {
+func (s *WorkloadService) GetServiceID() string {
 	switch e := s.entity.(type) {
 	case *workloadmeta.Container:
 		return containers.BuildEntityName(string(e.Runtime), e.ID)
@@ -75,27 +79,32 @@ func (s *service) GetServiceID() string {
 }
 
 // GetADIdentifiers returns the service's AD identifiers.
-func (s *service) GetADIdentifiers() []string {
-	return s.adIdentifiers
+func (s *WorkloadService) GetADIdentifiers() []string {
+	switch s.entity.(type) {
+	case *workloadmeta.Container:
+		return append(s.adIdentifiers, string(adtypes.CelContainerIdentifier))
+	default:
+		return s.adIdentifiers
+	}
 }
 
 // GetHosts returns the service's IPs for each host.
-func (s *service) GetHosts() (map[string]string, error) {
+func (s *WorkloadService) GetHosts() (map[string]string, error) {
 	return s.hosts, nil
 }
 
 // GetPorts returns the ports exposed by the service's containers.
-func (s *service) GetPorts() ([]ContainerPort, error) {
+func (s *WorkloadService) GetPorts() ([]ContainerPort, error) {
 	return s.ports, nil
 }
 
 // GetTags returns the tags associated with the service.
-func (s *service) GetTags() ([]string, error) {
+func (s *WorkloadService) GetTags() ([]string, error) {
 	return s.tagger.Tag(taggercommon.BuildTaggerEntityID(s.entity.GetID()), types.ChecksConfigCardinality)
 }
 
 // GetTagsWithCardinality returns the tags with given cardinality.
-func (s *service) GetTagsWithCardinality(cardinality string) ([]string, error) {
+func (s *WorkloadService) GetTagsWithCardinality(cardinality string) ([]string, error) {
 	checkCard, err := types.StringToTagCardinality(cardinality)
 	if err == nil {
 		return s.tagger.Tag(taggercommon.BuildTaggerEntityID(s.entity.GetID()), checkCard)
@@ -105,27 +114,27 @@ func (s *service) GetTagsWithCardinality(cardinality string) ([]string, error) {
 }
 
 // GetPid returns the process ID of the service.
-func (s *service) GetPid() (int, error) {
+func (s *WorkloadService) GetPid() (int, error) {
 	return s.pid, nil
 }
 
 // GetHostname returns the service's hostname.
-func (s *service) GetHostname() (string, error) {
+func (s *WorkloadService) GetHostname() (string, error) {
 	return s.hostname, nil
 }
 
 // IsReady returns whether the service is ready.
-func (s *service) IsReady() bool {
+func (s *WorkloadService) IsReady() bool {
 	return s.ready
 }
 
 // HasFilter returns whether the service should not collect certain data (logs
 // or metrics) due to filtering applied by filter.
-func (s *service) HasFilter(fs filter.Scope) bool {
+func (s *WorkloadService) HasFilter(fs workloadfilter.Scope) bool {
 	switch fs {
-	case filter.MetricsFilter:
+	case workloadfilter.MetricsFilter:
 		return s.metricsExcluded
-	case filter.LogsFilter:
+	case workloadfilter.LogsFilter:
 		return s.logsExcluded
 	default:
 		return false
@@ -133,17 +142,33 @@ func (s *service) HasFilter(fs filter.Scope) bool {
 }
 
 // FilterTemplates implements Service#FilterTemplates.
-func (s *service) FilterTemplates(configs map[string]integration.Config) {
+func (s *WorkloadService) FilterTemplates(configs map[string]integration.Config) {
 	// These two overrides are handled in
 	// comp/core/autodiscovery/configresolver/configresolver.go
 	s.filterTemplatesEmptyOverrides(configs)
 	s.filterTemplatesOverriddenChecks(configs)
 	s.filterTemplatesContainerCollectAll(configs)
+	filterTemplatesMatched(s, configs)
+}
+
+// GetFilterableEntity returns the filterable entity of the service
+func (s *WorkloadService) GetFilterableEntity() workloadfilter.Filterable {
+	switch e := s.entity.(type) {
+	case *workloadmeta.Container:
+		var pod *workloadmeta.KubernetesPod
+		if s.wmeta != nil {
+			pod, _ = s.wmeta.GetKubernetesPodForContainer(e.ID)
+		}
+		return workloadmetafilter.CreateContainer(e, workloadmetafilter.CreatePod(pod))
+	case *workloadmeta.KubernetesPod:
+		// unsupported pod filtering: only endpoint checks are scheduled on pods
+	}
+	return nil
 }
 
 // filterTemplatesEmptyOverrides drops file-based templates if this service is a container
 // or pod and has an empty check_names label/annotation.
-func (s *service) filterTemplatesEmptyOverrides(configs map[string]integration.Config) {
+func (s *WorkloadService) filterTemplatesEmptyOverrides(configs map[string]integration.Config) {
 	// Empty check names on k8s annotations or container labels override the check config from file
 	// Used to deactivate unneeded OOTB autodiscovery checks defined in files
 	// The checkNames slice is considered empty also if it contains one single empty string
@@ -162,7 +187,7 @@ func (s *service) filterTemplatesEmptyOverrides(configs map[string]integration.C
 
 // filterTemplatesOverriddenChecks drops file-based templates if this service's
 // labels/annotations specify a check of the same name.
-func (s *service) filterTemplatesOverriddenChecks(configs map[string]integration.Config) {
+func (s *WorkloadService) filterTemplatesOverriddenChecks(configs map[string]integration.Config) {
 	for digest, config := range configs {
 		if config.Provider != names.File {
 			continue // only override file configs
@@ -183,7 +208,7 @@ func (s *service) filterTemplatesOverriddenChecks(configs map[string]integration
 // filterTemplatesContainerCollectAll drops the container-collect-all template
 // added by the config provider (AddContainerCollectAllConfigs) if the service
 // has any other templates containing logs config.
-func (s *service) filterTemplatesContainerCollectAll(configs map[string]integration.Config) {
+func (s *WorkloadService) filterTemplatesContainerCollectAll(configs map[string]integration.Config) {
 	if !pkgconfigsetup.Datadog().GetBool("logs_config.container_collect_all") {
 		return
 	}
@@ -207,11 +232,16 @@ func (s *service) filterTemplatesContainerCollectAll(configs map[string]integrat
 }
 
 // GetExtraConfig returns extra configuration associated with the service.
-func (s *service) GetExtraConfig(key string) (string, error) {
+func (s *WorkloadService) GetExtraConfig(key string) (string, error) {
 	result, found := s.extraConfig[key]
 	if !found {
 		return "", fmt.Errorf("extra config %q is not supported", key)
 	}
 
 	return result, nil
+}
+
+// GetImageName returns the image name for the monitored container
+func (s *WorkloadService) GetImageName() string {
+	return s.imageName
 }

@@ -140,7 +140,9 @@ type ObfuscationConfig struct {
 
 func obfuscationMode(conf *AgentConfig, sqllexerEnabled bool) obfuscate.ObfuscationMode {
 	if conf.SQLObfuscationMode != "" {
-		if conf.SQLObfuscationMode == string(obfuscate.ObfuscateOnly) || conf.SQLObfuscationMode == string(obfuscate.ObfuscateAndNormalize) {
+		if conf.SQLObfuscationMode == string(obfuscate.ObfuscateOnly) ||
+			conf.SQLObfuscationMode == string(obfuscate.NormalizeOnly) ||
+			conf.SQLObfuscationMode == string(obfuscate.ObfuscateAndNormalize) {
 			return obfuscate.ObfuscationMode(conf.SQLObfuscationMode)
 		}
 		log.Warnf("Invalid SQL obfuscator mode %s, falling back to default", conf.SQLObfuscationMode)
@@ -415,8 +417,6 @@ type AgentConfig struct {
 	// case, the sender will drop failed payloads when it is unable to enqueue
 	// them for another retry.
 	MaxSenderRetries int
-	// HTTP client used in writer connections. If nil, default client values will be used.
-	HTTPClientFunc func() *http.Client `json:"-"`
 	// HTTP Transport used in writer connections. If nil, default transport values will be used.
 	HTTPTransportFunc func() *http.Transport `json:"-"`
 	// ClientStatsFlushInterval specifies the frequency at which the client stats aggregator will flush its buffer.
@@ -549,6 +549,15 @@ type AgentConfig struct {
 
 	MRFFailoverAPMDefault bool
 	MRFFailoverAPMRC      *bool // failover_apm set by remoteconfig. `nil` if not configured
+
+	// DebugV1Payloads enables debug logging for V1 payloads when they fail to decode
+	DebugV1Payloads bool
+
+	// EnableV1TraceEndpoint enables the V1 trace endpoint, it is hidden by default
+	EnableV1TraceEndpoint bool
+
+	// SendAllInternalStats enables all internal stats to be published, otherwise some less-frequently-used stats will be omitted when zero to save costs
+	SendAllInternalStats bool
 }
 
 // RemoteClient client is used to APM Sampling Updates from a remote source.
@@ -692,10 +701,6 @@ func (c *AgentConfig) UpdateAPIKey(val string) {
 // NewHTTPClient returns a new http.Client to be used for outgoing connections to the
 // Datadog API.
 func (c *AgentConfig) NewHTTPClient() *ResetClient {
-	// If a custom HTTPClientFunc been set, use it. Otherwise use default client values
-	if c.HTTPClientFunc != nil {
-		return NewResetClient(c.ConnectionResetInterval, c.HTTPClientFunc)
-	}
 	return NewResetClient(c.ConnectionResetInterval, func() *http.Client {
 		return &http.Client{
 			Timeout:   10 * time.Second,

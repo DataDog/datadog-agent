@@ -9,15 +9,16 @@ package containerd
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
+	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/sbom"
 	"github.com/DataDog/datadog-agent/pkg/sbom/collectors"
 	"github.com/DataDog/datadog-agent/pkg/sbom/collectors/containerd"
 	"github.com/DataDog/datadog-agent/pkg/sbom/scanner"
-	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -49,9 +50,10 @@ func (c *collector) startSBOMCollection(ctx context.Context) error {
 	if scanner == nil {
 		return fmt.Errorf("error retrieving global containerd scanner")
 	}
-	containersFilters, err := collectors.NewSBOMContainerFilter()
-	if err != nil {
-		return fmt.Errorf("failed to create container filter: %w", err)
+
+	errs := c.filterSBOMContainers.GetErrors()
+	if len(errs) > 0 {
+		return fmt.Errorf("failed to create container filter: %w", errors.Join(errs...))
 	}
 
 	resultChan := scanner.Channel()
@@ -69,7 +71,7 @@ func (c *collector) startSBOMCollection(ctx context.Context) error {
 					// closed channel case
 					return
 				}
-				c.handleEventBundle(ctx, eventBundle, containersFilters)
+				c.handleEventBundle(ctx, eventBundle, c.filterSBOMContainers)
 			}
 		}
 	}()
@@ -80,12 +82,13 @@ func (c *collector) startSBOMCollection(ctx context.Context) error {
 }
 
 // handleEventBundle handles ContainerImageMetadata set events for which no SBOM generation attempt was done.
-func (c *collector) handleEventBundle(ctx context.Context, eventBundle workloadmeta.EventBundle, containerImageFilter *containers.Filter) {
+func (c *collector) handleEventBundle(ctx context.Context, eventBundle workloadmeta.EventBundle, containerImageFilter workloadfilter.FilterBundle) {
 	eventBundle.Acknowledge()
 	for _, event := range eventBundle.Events {
 		image := event.Entity.(*workloadmeta.ContainerImageMetadata)
 
-		if containerImageFilter != nil && containerImageFilter.IsExcluded(nil, "", image.Name, "") {
+		filterableContainer := workloadfilter.CreateContainerImage(image.Name)
+		if containerImageFilter != nil && containerImageFilter.IsExcluded(filterableContainer) {
 			continue
 		}
 

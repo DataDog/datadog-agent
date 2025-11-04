@@ -306,7 +306,7 @@
           {
             "function": "main.testInlinedPrint",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/inlined.go",
-            "lineNumber": 13
+            "lineNumber": 15
           },
           {
             "function": "main.forceOutOfLine",
@@ -352,6 +352,7 @@
         }
       }
     },
-    "timestamp": "[ts]"
+    "timestamp": "[ts]",
+    "duration": "[duration]"
   }
 ]

@@ -173,6 +173,10 @@ func serializeProgram(
 				Collection_size_limit: f.CollectionSizeLimit,
 				String_size_limit:     f.StringSizeLimit,
 				Frameless:             f.Frameless,
+				Has_associated_return: f.HasAssociatedReturn,
+				Kind:                  int8(f.EventKind),
+				Probe_id:              f.ProbeID,
+				Top_pc_offset:         int8(f.TopPCOffset),
 			})
 			serialized.bpfAttachPoints = append(serialized.bpfAttachPoints, BPFAttachPoint{
 				PC:     f.InjectionPC,

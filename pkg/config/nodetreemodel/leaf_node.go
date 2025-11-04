@@ -65,6 +65,12 @@ func (n *leafNodeImpl) Get() interface{} {
 	return n.val
 }
 
+// ReplaceValue replaces the value in the leaf node
+func (n *leafNodeImpl) ReplaceValue(v interface{}) error {
+	n.val = v
+	return nil
+}
+
 // Source returns the source for this leaf
 func (n *leafNodeImpl) Source() model.Source {
 	return n.source

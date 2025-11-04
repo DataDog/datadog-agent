@@ -35,7 +35,7 @@ func TestWindowsNetworkPathIntegrationSuite(t *testing.T) {
 			agentparams.WithSystemProbeConfig(string(sysProbeConfig)),
 			agentparams.WithIntegration("network_path.d", string(networkPathIntegrationWindows)),
 		),
-		awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsDefault)),
+		awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsServerDefault)),
 	)))
 }
 
@@ -60,6 +60,7 @@ func (s *windowsNetworkPathIntegrationTestSuite) TestWindowsNetworkPathIntegrati
 		s.checkDatadogEUTCP(c, hostname)
 		s.checkGoogleTCPSocket(c, hostname)
 		s.checkGoogleDNSUDP(c, hostname)
+		s.checkGoogleTCPDisableWindowsDriver(c, hostname)
 
 	}, 5*time.Minute, 3*time.Second)
 }

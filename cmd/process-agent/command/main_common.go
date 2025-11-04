@@ -25,7 +25,7 @@ import (
 	logcomp "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/pid"
 	"github.com/DataDog/datadog-agent/comp/core/pid/pidimpl"
-	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
+	secretsfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx"
 	"github.com/DataDog/datadog-agent/comp/core/settings"
 	"github.com/DataDog/datadog-agent/comp/core/settings/settingsimpl"
 	"github.com/DataDog/datadog-agent/comp/core/status"
@@ -34,7 +34,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	remoteTaggerfx "github.com/DataDog/datadog-agent/comp/core/tagger/fx-remote"
-	taggerTypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	wmcatalogremote "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/catalog-remote"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
@@ -58,7 +57,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	commonsettings "github.com/DataDog/datadog-agent/pkg/config/settings"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/process/metadata/workloadmeta/collector"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
@@ -107,7 +106,6 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 					sysprobeconfigimpl.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath),
 				),
 				ConfigParams: config.NewAgentParams(globalParams.ConfFilePath, config.WithExtraConfFiles(globalParams.ExtraConfFilePath), config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
-				SecretParams: secrets.NewEnabledParams(),
 				LogParams:    DaemonLogParams,
 			},
 		),
@@ -129,6 +127,7 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 
 		// Provide core components
 		core.Bundle(),
+		secretsfx.Module(),
 
 		// Provide process agent bundle so fx knows where to find components
 		process.Bundle(),
@@ -152,7 +151,7 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 		// Provide statsd client module
 		compstatsd.Module(),
 		fx.Provide(func(config config.Component, statsd compstatsd.Component) (ddgostatsd.ClientInterface, error) {
-			return statsd.CreateForHostPort(pkgconfigsetup.GetBindHost(config), config.GetInt("dogstatsd_port"))
+			return statsd.CreateForHostPort(configutils.GetBindHost(config), config.GetInt("dogstatsd_port"))
 		}),
 
 		// Provide configsync module
@@ -169,12 +168,7 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 			AgentType: workloadmeta.Remote,
 		}),
 
-		remoteTaggerfx.Module(tagger.RemoteParams{
-			RemoteTarget: func(c config.Component) (string, error) {
-				return fmt.Sprintf(":%v", c.GetInt("cmd_port")), nil
-			},
-			RemoteFilter: taggerTypes.NewMatchAllFilter(),
-		}),
+		remoteTaggerfx.Module(tagger.NewRemoteParams()),
 
 		// Provides specific features to our own fx wrapper (logging, lifecycle, shutdowner)
 		fxutil.FxAgentBase(),

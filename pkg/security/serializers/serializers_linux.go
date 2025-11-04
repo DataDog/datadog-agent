@@ -23,6 +23,7 @@ import (
 	sprocess "github.com/DataDog/datadog-agent/pkg/security/resolvers/process"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model/usersession"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
@@ -74,6 +75,16 @@ type FileSerializer struct {
 	PackageName string `json:"package_name,omitempty"`
 	// System package version
 	PackageVersion string `json:"package_version,omitempty"`
+	// System package epoch
+	PackageEpoch int `json:"package_epoch,omitempty"`
+	// System package release
+	PackageRelease string `json:"package_release,omitempty"`
+	// System package source version
+	PackageSrcVersion string `json:"package_source_version,omitempty"`
+	// System package source epoch
+	PackageSrcEpoch int `json:"package_source_epoch,omitempty"`
+	// System package source release
+	PackageSrcRelease string `json:"package_source_release,omitempty"`
 	// List of cryptographic hashes of the file
 	Hashes []string `json:"hashes,omitempty"`
 	// State of the hashes or reason why they weren't computed
@@ -814,6 +825,11 @@ func newFileSerializer(fe *model.FileEvent, e *model.Event, forceInode uint64, m
 		InUpperLayer:        getInUpperLayer(&fe.FileFields),
 		PackageName:         e.FieldHandlers.ResolvePackageName(e, fe),
 		PackageVersion:      e.FieldHandlers.ResolvePackageVersion(e, fe),
+		PackageEpoch:        e.FieldHandlers.ResolvePackageEpoch(e, fe),
+		PackageRelease:      e.FieldHandlers.ResolvePackageRelease(e, fe),
+		PackageSrcVersion:   e.FieldHandlers.ResolvePackageSourceVersion(e, fe),
+		PackageSrcEpoch:     e.FieldHandlers.ResolvePackageSourceEpoch(e, fe),
+		PackageSrcRelease:   e.FieldHandlers.ResolvePackageSourceRelease(e, fe),
 		HashState:           fe.HashState.String(),
 		MountPath:           fe.MountPath,
 		MountSource:         model.MountSourceToString(fe.MountSource),
@@ -932,10 +948,10 @@ func newProcessSerializer(ps *model.Process, e *model.Event) *ProcessSerializer 
 			}
 		}
 
-		if len(ps.ContainerID) != 0 {
+		if len(ps.ContainerContext.ContainerID) != 0 {
 			psSerializer.Container = &ContainerContextSerializer{
-				ID:        string(ps.ContainerID),
-				CreatedAt: utils.NewEasyjsonTimeIfNotZero(time.Unix(0, int64(e.GetContainerCreatedAt()))),
+				ID:        string(ps.ContainerContext.ContainerID),
+				CreatedAt: utils.NewEasyjsonTimeIfNotZero(time.Unix(0, int64(e.ProcessContext.ContainerContext.CreatedAt))),
 			}
 		}
 
@@ -964,7 +980,7 @@ func newUserSessionContextSerializer(ctx *model.UserSessionContext, e *model.Eve
 
 	return &UserSessionContextSerializer{
 		ID:          fmt.Sprintf("%x", ctx.ID),
-		SessionType: ctx.SessionType.String(),
+		SessionType: usersession.Type(ctx.SessionType).String(),
 		K8SUsername: ctx.K8SUsername,
 		K8SUID:      ctx.K8SUID,
 		K8SGroups:   ctx.K8SGroups,
@@ -1065,9 +1081,6 @@ func newPTraceEventSerializer(e *model.Event) *PTraceEventSerializer {
 		BaseEvent: model.BaseEvent{
 			FieldHandlers:  e.FieldHandlers,
 			ProcessContext: e.PTrace.Tracee,
-			ContainerContext: &model.ContainerContext{
-				ContainerID: e.PTrace.Tracee.ContainerID,
-			},
 		},
 	}
 
@@ -1466,14 +1479,14 @@ func NewEventSerializer(event *model.Event, rule *rules.Rule) *EventSerializer {
 		s.ContainerContextSerializer = &ContainerContextSerializer{
 			ID:        string(ctx.ContainerID),
 			CreatedAt: utils.NewEasyjsonTimeIfNotZero(time.Unix(0, int64(ctx.CreatedAt))),
-			Variables: newVariablesContext(event, rule, "container."),
+			Variables: newVariablesContext(event, rule, eval.ContainerScoperType),
 		}
 	}
 
-	if cgroupID := event.FieldHandlers.ResolveCGroupID(event, event.CGroupContext); cgroupID != "" {
+	if cgroupID := event.FieldHandlers.ResolveCGroupID(event, &event.ProcessContext.CGroup); cgroupID != "" {
 		s.CGroupContextSerializer = &CGroupContextSerializer{
-			ID:        string(event.CGroupContext.CGroupID),
-			Variables: newVariablesContext(event, rule, "cgroup."),
+			ID:        string(event.ProcessContext.CGroup.CGroupID),
+			Variables: newVariablesContext(event, rule, eval.CGroupScoperType),
 		}
 	}
 
