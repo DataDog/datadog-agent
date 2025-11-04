@@ -48,20 +48,20 @@ func newForwarder(dep dependencies) (provides, error) {
 
 func createOptions(params Params, config config.Component, log log.Component) (*Options, error) {
 	var options *Options
-	keysPerDomain, err := utils.GetMultipleEndpoints(config)
+	endpoints, err := utils.GetMultipleEndpoints(config)
 	if err != nil {
 		log.Error("Misconfiguration of agent endpoints: ", err)
 		return nil, fmt.Errorf("Misconfiguration of agent endpoints: %s", err)
 	}
 
 	if !params.withResolver {
-		options, err = NewOptions(config, log, keysPerDomain)
+		options, err = NewOptionsWithOPW(config, log, endpoints)
 		if err != nil {
 			log.Error("Error creating forwarder options: ", err)
 			return nil, fmt.Errorf("Error creating forwarder options: %s", err)
 		}
 	} else {
-		r, err := resolver.NewSingleDomainResolvers(keysPerDomain)
+		r, err := resolver.NewSingleDomainResolvers2(endpoints)
 		if err != nil {
 			log.Error("Error creating resolver: ", err)
 			return nil, fmt.Errorf("Error creating resolver: %s", err)

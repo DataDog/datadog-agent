@@ -26,10 +26,12 @@ while [[ $retry_count -lt $max_retries ]]; do
     if [ -n "$result" ]; then
         echo "$result"
         exit 0
+    else
+        echo "$error" >&2
     fi
     if [[ "$error" =~ "Unable to locate credentials" ]]; then
-        # See 5th row in https://docs.google.com/spreadsheets/d/1JvdN0N-RdNEeOJKmW_ByjBsr726E3ZocCKU8QoYchAc
-        >&2 echo "Permanent error: unable to locate credentials, not retrying"
+        # This error needs a restart of the job
+        echo "Permanent error: unable to locate credentials, not retrying" >&2
         exit 42
     fi
     retry_count="$((retry_count+1))"

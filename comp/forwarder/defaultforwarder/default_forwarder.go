@@ -150,10 +150,17 @@ func getObsPipelineURLForPrefix(log log.Component, datatype string, prefix strin
 	return "", nil
 }
 
-// NewOptions creates new Options with default values
+// NewOptions creates a configuration for the forwarder with OPW enabled.
+//
+// Deprecated, use NewOptionsWithOPW instead.
 func NewOptions(config config.Component, log log.Component, keysPerDomain map[string][]utils.APIKeys) (*Options, error) {
 
-	resolvers, err := pkgresolver.NewSingleDomainResolvers(keysPerDomain)
+	return NewOptionsWithOPW(config, log, utils.EndpointDescriptorSetFromKeysPerDomain(keysPerDomain))
+}
+
+// NewOptionsWithOPW creates a configuration for the forwarder with OPW enabled.
+func NewOptionsWithOPW(config config.Component, log log.Component, eds utils.EndpointDescriptorSet) (*Options, error) {
+	resolvers, err := pkgresolver.NewSingleDomainResolvers2(eds)
 	if err != nil {
 		return nil, err
 	}
@@ -341,19 +348,6 @@ func NewDefaultForwarderWithSecrets(config config.Component, log log.Component, 
 	transactionContainerSort := transaction.SortByCreatedTimeAndPriority{HighPriorityFirst: false}
 
 	for domain, resolver := range options.DomainResolvers {
-		isMRF := false
-		if config.GetBool("multi_region_failover.enabled") {
-			log.Infof("MRF is enabled, checking site: %v ", domain)
-			siteURL, err := utils.GetMRFInfraEndpoint(config)
-			if err != nil {
-				log.Error("Error building MRF infra endpoint: ", err)
-			}
-			if domain == siteURL {
-				log.Infof("MRF domain '%s', configured ", domain)
-				isMRF = true
-			}
-
-		}
 		domain, _ := utils.AddAgentVersionToDomain(domain, "app")
 		resolver.SetBaseDomain(domain)
 
@@ -389,7 +383,7 @@ func NewDefaultForwarderWithSecrets(config config.Component, log log.Component, 
 				log,
 				secrets,
 				domain,
-				isMRF,
+				resolver.IsMRF(),
 				resolver.IsLocal(),
 				transactionContainer,
 				numberOfWorkers,
