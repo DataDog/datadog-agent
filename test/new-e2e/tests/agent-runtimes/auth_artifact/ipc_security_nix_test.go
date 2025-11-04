@@ -46,5 +46,7 @@ func TestIPCSecurityLinuxSuite(t *testing.T) {
 				agentparams.WithSecurityAgentConfig(securityAgentConfig),
 			),
 			awshost.WithAgentClientOptions(agentclientparams.WithSkipWaitForAgentReady()),
-		)))
+		)),
+		e2e.WithSkipCoverage(), // Test Suite is not compatible with built-in coverage computation, because auth tokens are removed at the end of the test
+	)
 }
