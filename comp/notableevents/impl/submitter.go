@@ -8,11 +8,13 @@
 package notableeventsimpl
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"sync"
 	"time"
 
+	hostname "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -31,15 +33,17 @@ type eventPayload struct {
 type submitter struct {
 	// in
 	eventPlatformForwarder eventplatform.Forwarder
+	hostname               hostname.Component
 	inChan                 <-chan eventPayload
 	// internal
 	wg sync.WaitGroup
 }
 
 // newSubmitter creates a new submitter instance
-func newSubmitter(forwarder eventplatform.Forwarder, inChan <-chan eventPayload) *submitter {
+func newSubmitter(forwarder eventplatform.Forwarder, inChan <-chan eventPayload, hostname hostname.Component) *submitter {
 	return &submitter{
 		eventPlatformForwarder: forwarder,
+		hostname:               hostname,
 		inChan:                 inChan,
 	}
 }
@@ -70,6 +74,20 @@ func (s *submitter) run() {
 
 // submitEvent creates a message and submits it to the event platform
 func (s *submitter) submitEvent(payload eventPayload) error {
+	// Get hostname
+	hostnameValue := s.hostname.GetSafe(context.TODO())
+
+	tags := []string{
+		fmt.Sprintf("channel:%s", payload.Channel),
+		fmt.Sprintf("provider:%s", payload.Provider),
+		fmt.Sprintf("event_id:%d", payload.EventID),
+		"source:windows_event_log",
+	}
+	//nolint:misspell
+	// TODO(ECT-4182): Add host field to payload when it is supported by the intake
+	// the tag doesn't do what we want, but its better than nothing for now
+	tags = append(tags, "host:"+hostnameValue)
+
 	// Create Event Management v2 API payload
 	timestamp := payload.Timestamp.In(time.UTC).Format("2006-01-02T15:04:05.000000Z")
 	eventData := map[string]interface{}{
@@ -88,13 +106,8 @@ func (s *submitter) submitEvent(payload eventPayload) error {
 						"source":   "windows_event_log",
 					},
 				},
-				"message": fmt.Sprintf("Windows Event Log detected event %d from %s", payload.EventID, payload.Provider),
-				"tags": []string{
-					fmt.Sprintf("channel:%s", payload.Channel),
-					fmt.Sprintf("provider:%s", payload.Provider),
-					fmt.Sprintf("event_id:%d", payload.EventID),
-					"source:windows_event_log",
-				},
+				"message":   fmt.Sprintf("Windows Event Log detected event %d from %s", payload.EventID, payload.Provider),
+				"tags":      tags,
 				"timestamp": timestamp,
 			},
 		},

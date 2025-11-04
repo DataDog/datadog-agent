@@ -33,7 +33,7 @@ func TestSubmitter_DrainChannelAndPayloadFormat(t *testing.T) {
 	eventChan := make(chan eventPayload)
 
 	// Create submitter with forwarder
-	sub := newSubmitter(forwarder, eventChan)
+	sub := newSubmitter(forwarder, eventChan, hostname)
 
 	// Start submitter
 	sub.start()
