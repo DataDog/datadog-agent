@@ -228,6 +228,24 @@ namespace Datadog.CustomActions
         {
             try
             {
+                // Prefer deriving the tag from the MSI filename to match pipeline tags exactly
+                var originalDatabase = _session.Property("ORIGINALDATABASE");
+                if (!string.IsNullOrEmpty(originalDatabase))
+                {
+                    var file = Path.GetFileName(originalDatabase);
+                    if (!string.IsNullOrEmpty(file))
+                    {
+                        var m = Regex.Match(file, "^datadog-agent-(.+)-x86_64\\.msi$", RegexOptions.IgnoreCase);
+                        if (m.Success)
+                        {
+                            var tag = m.Groups[1].Value;
+                            _session.Log($"Derived DDOT tag from MSI filename: {tag}");
+                            return tag;
+                        }
+                    }
+                }
+
+                // Fallback: use installer version normalization
                 var output = RunAndCapture(_installerExecutable, "version", null, out var exitCode);
                 if (exitCode != 0)
                 {
