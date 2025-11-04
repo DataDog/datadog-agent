@@ -40,7 +40,6 @@ import (
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
-	"github.com/DataDog/datadog-agent/pkg/config/mock"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -178,7 +177,7 @@ type AutoConfigTestSuite struct {
 
 // SetupSuite saves the original listener registry
 func (suite *AutoConfigTestSuite) SetupSuite() {
-	cfg := mock.New(suite.T())
+	cfg := configmock.New(suite.T())
 	pkglogsetup.SetupLogger(
 		pkglogsetup.LoggerName("test"),
 		"debug",
