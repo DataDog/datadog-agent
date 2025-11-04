@@ -34,6 +34,8 @@ type ConntrackTelemetry struct {
 	Kretprobe__nf_conntrack_confirm_not_accepted_count                    uint64
 	Kretprobe__nf_conntrack_confirm_not_confirmed_count                   uint64
 	Kretprobe__nf_conntrack_confirm_failed_to_get_conntrack_tuples_count  uint64
+	Kretprobe__nf_conntrack_confirm_regular_exists_count                  uint64
+	Kretprobe__nf_conntrack_confirm_reverse_exists_count                  uint64
 	Kretprobe__nf_conntrack_confirm_success_count                         uint64
 	Kprobe_ctnetlink_fill_info_failed_to_get_conntrack_tuples_count       uint64
 	Kprobe_ctnetlink_fill_info_regular_exists_count                       uint64
@@ -42,6 +44,4 @@ type ConntrackTelemetry struct {
 	Kprobe_ctnetlink_fill_info_regular_exists2_count                      uint64
 	Kprobe_ctnetlink_fill_info_reverse_exists2_count                      uint64
 	Kprobe_ctnetlink_fill_info_added_2_count                              uint64
-	Kretprobe__nf_conntrack_confirm_regular_exists_count                  uint64
-	Kretprobe__nf_conntrack_confirm_reverse_exists_count                  uint64
 }
