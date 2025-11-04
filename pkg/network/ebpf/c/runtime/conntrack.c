@@ -30,7 +30,6 @@
 // Primary probe: Track all conntrack insertions
 SEC("kprobe/__nf_conntrack_hash_insert") // JMWCONNTRACK
 int BPF_BYPASSABLE_KPROBE(kprobe__nf_conntrack_hash_insert, struct nf_conn *ct) {
-    // JMWRENAMETO increment_kprobe__nf_conntrack_hash_insert_entry_count();
     increment_kprobe__nf_conntrack_hash_insert_entry_count();
     log_debug("JMW(runtime)kprobe__nf_conntrack_hash_insert: ct: %p netns: %u", ct, get_netns(ct));
 
@@ -44,7 +43,6 @@ int BPF_BYPASSABLE_KPROBE(kprobe__nf_conntrack_hash_insert, struct nf_conn *ct) 
 
     conntrack_tuple_t orig = {}, reply = {};
     if (nf_conn_to_conntrack_tuples(ct, &orig, &reply) != 0) {
-        // JMWRENAMETO increment_nf_conntrack_hash_insert_failed_to_get_conntrack_tuples_count()
         increment_nf_conntrack_hash_insert_failed_to_get_conntrack_tuples_count();
         return 0;
     }
@@ -53,17 +51,14 @@ int BPF_BYPASSABLE_KPROBE(kprobe__nf_conntrack_hash_insert, struct nf_conn *ct) 
     long ret2 = bpf_map_update_with_telemetry(conntrack, &reply, &orig, BPF_NOEXIST);
 
     if (ret1 == -EEXIST) {
-      // JMWRENAMETO increment_nf_conntrack_hash_insert_regular_exists()
         increment_nf_conntrack_hash_insert_regular_exists();
     }
     if (ret2 == -EEXIST) {
-      // JMWRENAMETO increment_nf_conntrack_hash_insert_reverse_exists()
         increment_nf_conntrack_hash_insert_reverse_exists();
     }
 
     // Only increment hash_insert_count if at least one entry was actually added
     if (ret1 == 0 || ret2 == 0) {
-        // JMWRENAMETO increment_nf_conntrack_hash_insert_count()
         increment_nf_conntrack_hash_insert_count();
         log_debug("JMW(runtime)kprobe__nf_conntrack_hash_insert: added to conntrack ct=%p", ct);
     }
@@ -84,7 +79,6 @@ int BPF_BYPASSABLE_KPROBE(kretprobe_nf_conntrack_hash_check_insert, struct nf_co
         return 0;
     }
 
-    // JMWRENAMETO increment_kretprobe_nf_conntrack_hash_check_insert_count()
     increment_kretprobe_nf_conntrack_hash_check_insert_count();
     log_debug("JMW(runtime)hash_check_insert: ct=%p", ct);
 
@@ -112,14 +106,12 @@ int BPF_BYPASSABLE_KPROBE(kretprobe_nf_conntrack_hash_check_insert, struct nf_co
 // Entry probe: Store NAT connection info for correlation with return probe
 SEC("kprobe/__nf_conntrack_confirm") // JMWCONNTRACK
 int BPF_BYPASSABLE_KPROBE(kprobe__nf_conntrack_confirm) {
-    // JMWRENAMETO increment_kprobe__nf_conntrack_confirm_entry_count()
     increment_kprobe__nf_conntrack_confirm_entry_count();
     log_debug("JMW(runtime)confirm: entry");
     struct sk_buff *skb = (struct sk_buff *)PT_REGS_PARM1(ctx); // skb is 1st parameter
     u64 pid_tgid = bpf_get_current_pid_tgid();
 
     if (!skb) {
-        // JMWRENAMETO increment_kprobe__nf_conntrack_confirm_skb_null_count()
         increment_kprobe__nf_conntrack_confirm_skb_null_count();
         return 0;
     }
@@ -133,7 +125,6 @@ int BPF_BYPASSABLE_KPROBE(kprobe__nf_conntrack_confirm) {
     u64 nfct = 0;
     BPF_CORE_READ_INTO(&nfct, skb, _nfct);
     if (!nfct) {
-        // JMWRENAMETO increment_kprobe__nf_conntrack_confirm_nfct_null_count()
         increment_kprobe__nf_conntrack_confirm_nfct_null_count();
         return 0;
     }
@@ -143,7 +134,6 @@ int BPF_BYPASSABLE_KPROBE(kprobe__nf_conntrack_confirm) {
     ct = (struct nf_conn *)(nfct & ~7UL);
 
     if (!ct) {
-        // JMWRENAMETO increment_kprobe__nf_conntrack_confirm_ct_null_count()
         increment_kprobe__nf_conntrack_confirm_ct_null_count();
         return 0;
     }
@@ -151,7 +141,6 @@ int BPF_BYPASSABLE_KPROBE(kprobe__nf_conntrack_confirm) {
     u32 status = 0;
     BPF_CORE_READ_INTO(&status, ct, status);
     if (!(status&IPS_NAT_MASK)) {
-        // JMWRENAMETO increment_kprobe__nf_conntrack_confirm_not_nat_count()
         increment_kprobe__nf_conntrack_confirm_not_nat_count();
         log_debug("JMW(runtime)confirm: not IPS_NAT_MASK ct=%p status=%x", ct, status);
         return 0;
@@ -160,7 +149,6 @@ int BPF_BYPASSABLE_KPROBE(kprobe__nf_conntrack_confirm) {
     // Store ct pointer using pid_tgid for correlation with return probe
     u64 ct_ptr = (u64)ct;
     bpf_map_update_with_telemetry(pending_confirms, &pid_tgid, &ct_ptr, BPF_ANY);
-    // JMWRENAMETO increment_kprobe__nf_conntrack_confirm_pending_added_count()
     increment_kprobe__nf_conntrack_confirm_pending_added_count();
     log_debug("JMW(runtime)confirm: added to pending_confirms: ct=%p pid_tgid=%llu", ct, pid_tgid);
 
@@ -171,7 +159,6 @@ int BPF_BYPASSABLE_KPROBE(kprobe__nf_conntrack_confirm) {
 // Return probe: Process successful confirmations and populate conntrack2 map
 SEC("kretprobe/__nf_conntrack_confirm") // JMWCONNTRACK
 int BPF_BYPASSABLE_KPROBE(kretprobe__nf_conntrack_confirm) {
-    // JMWRENAMETO increment_kretprobe__nf_conntrack_confirm_entry_count()
     increment_kretprobe__nf_conntrack_confirm_entry_count();
     log_debug("JMW(runtime)kretprobe__nf_conntrack_confirm: entry");
     int ret = PT_REGS_RC(ctx);
@@ -181,7 +168,6 @@ int BPF_BYPASSABLE_KPROBE(kretprobe__nf_conntrack_confirm) {
     u64 *ct_ptr = bpf_map_lookup_elem(&pending_confirms, &pid_tgid);
     if (!ct_ptr) {
         // No matching entry probe - this can happen if entry was filtered out JMWWHAT
-        // JMWRENAMETO increment_kretprobe__nf_conntrack_confirm_no_matching_entry_probe_count()
         increment_kretprobe__nf_conntrack_confirm_no_matching_entry_probe_count();
         log_debug("JMW(runtime)kretprobe__nf_conntrack_confirm: no matching pending_confirms entry, pid_tgid: %llu", pid_tgid);
         return 0;
@@ -194,7 +180,6 @@ int BPF_BYPASSABLE_KPROBE(kretprobe__nf_conntrack_confirm) {
 
     // Only process if returned NF_ACCEPT (1)
     if (ret != 1) { // NF_ACCEPT = 1
-        // JMWRENAMETO increment_kretprobe__nf_conntrack_confirm_not_accepted_count()
         increment_kretprobe__nf_conntrack_confirm_not_accepted_count();
         log_debug("JMW(runtime)kretprobe__nf_conntrack_confirm: not NF_ACCEPT ct=%p ret=%d", ct, ret);
         return 0;
@@ -205,7 +190,6 @@ int BPF_BYPASSABLE_KPROBE(kretprobe__nf_conntrack_confirm) {
     u32 status = 0;
     BPF_CORE_READ_INTO(&status, ct, status);
     if (!(status&IPS_CONFIRMED)) {
-        // JMWRENAMETO increment_kretprobe__nf_conntrack_confirm_not_confirmed_count()
         increment_kretprobe__nf_conntrack_confirm_not_confirmed_count();
         log_debug("JMW(runtime)kretprobe__nf_conntrack_confirm: not IPS_CONFIRMED ct=%p status=%x", ct, status);
         return 0;
@@ -214,16 +198,15 @@ int BPF_BYPASSABLE_KPROBE(kretprobe__nf_conntrack_confirm) {
     // Successfully confirmed NAT connection - add to conntrack2 map
     conntrack_tuple_t orig = {}, reply = {};
     if (nf_conn_to_conntrack_tuples(ct, &orig, &reply) != 0) {
-        // JMWRENAMETO increment_kretprobe__nf_conntrack_confirm_failed_to_get_conntrack_tuples_count()
         increment_kretprobe__nf_conntrack_confirm_failed_to_get_conntrack_tuples_count();
         log_debug("JMW(runtime)kretprobe__nf_conntrack_confirm: failed_tuples ct=%p", ct);
         return 0;
     }
 
     // Add both directions to conntrack2 map
+    //JMW
     bpf_map_update_with_telemetry(conntrack2, &orig, &reply, BPF_ANY);
     bpf_map_update_with_telemetry(conntrack2, &reply, &orig, BPF_ANY);
-    // JMWRENAMETO increment_kretprobe__nf_conntrack_confirm_success_count()
     increment_kretprobe__nf_conntrack_confirm_success_count();
     log_debug("JMW(runtime)kretprobe__nf_conntrack_confirm: added ct=%p", ct);
 
@@ -250,7 +233,6 @@ int BPF_BYPASSABLE_KPROBE(kprobe_ctnetlink_fill_info) {
 
     conntrack_tuple_t orig = {}, reply = {};
     if (nf_conn_to_conntrack_tuples(ct, &orig, &reply) != 0) {
-        // JMWRENAMETO increment_kprobe_ctnetlink_fill_info_failed_to_get_conntrack_tuples_count()
         increment_kprobe_ctnetlink_fill_info_failed_to_get_conntrack_tuples_count();
         return 0;
     }
@@ -259,17 +241,14 @@ int BPF_BYPASSABLE_KPROBE(kprobe_ctnetlink_fill_info) {
     long ret2 = bpf_map_update_with_telemetry(conntrack, &reply, &orig, BPF_NOEXIST);
 
     if (ret1 == -EEXIST) {
-        // JMWRENAMETO increment_kprobe_ctnetlink_fill_info_regular_exists_count()
         increment_kprobe_ctnetlink_fill_info_regular_exists_count();
     }
     if (ret2 == -EEXIST) {
-        // JMWRENAMETO increment_kprobe_ctnetlink_fill_info_reverse_exists_count()
         increment_kprobe_ctnetlink_fill_info_reverse_exists_count();
     }
 
     // Only increment hash_insert_count if at least one entry was actually added
     if (ret1 == 0 || ret2 == 0) {
-        // JMWRENAMETO increment_kprobe_ctnetlink_fill_info_added_count()
         increment_kprobe_ctnetlink_fill_info_added_count();
     }
     increment_telemetry_registers_count();
@@ -278,17 +257,14 @@ int BPF_BYPASSABLE_KPROBE(kprobe_ctnetlink_fill_info) {
     ret2 = bpf_map_update_with_telemetry(conntrack2, &reply, &orig, BPF_NOEXIST);
 
     if (ret1 == -EEXIST) {
-        // JMWRENAMETO increment_kprobe_ctnetlink_fill_info_regular_exists2_count()
         increment_kprobe_ctnetlink_fill_info_regular_exists2_count();
     }
     if (ret2 == -EEXIST) {
-        // JMWRENAMETO increment_kprobe_ctnetlink_fill_info_reverse_exists2_count()
         increment_kprobe_ctnetlink_fill_info_reverse_exists2_count();
     }
 
     // Only increment hash_insert_count if at least one entry was actually added
     if (ret1 == 0 || ret2 == 0) {
-        // JMWRENAMETO increment_kprobe_ctnetlink_fill_info_added2_count()
         increment_kprobe_ctnetlink_fill_info_added2_count();
     }
 

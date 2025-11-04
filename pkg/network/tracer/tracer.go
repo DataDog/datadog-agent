@@ -945,31 +945,32 @@ func (t *Tracer) logConntrackProbeCounters(ebpfCt *ebpfConntracker) {
 	}
 
 	// Log probe counters
-	log.Infof("JMW PROBE COUNTERS: hash_insert_entry=%d, hash_insert_regular_exists=%d, hash_insert_reverse_exists=%d, hash_insert=%d",
-		telemetry.Hash_insert_entry_count,
-		telemetry.Hash_insert_regular_exists_count,
-		telemetry.Hash_insert_reverse_exists_count,
-		telemetry.Hash_insert_count)
+	log.Infof("JMW PROBE COUNTERS 1: hash_insert_entry=%d, failed_to_get_conntrack_tuples=%d, hash_insert_regular_exists=%d, hash_insert_reverse_exists=%d, hash_insert=%d",
+		telemetry.Kprobe__nf_conntrack_hash_insert_entry_count,
+		telemetry.Kprobe__nf_conntrack_hash_insert_failed_to_get_conntrack_tuples_count,
+		telemetry.Kprobe__nf_conntrack_hash_insert_regular_exists_count,
+		telemetry.Kprobe__nf_conntrack_hash_insert_reverse_exists_count,
+		telemetry.Kprobe__nf_conntrack_hash_insert_count)
 
-	log.Infof("JMW PROBE COUNTERS: confirm_entry=%d, confirm_entry_skb_null=%d, confirm_entry_nfct_null=%d, confirm_entry_ct_null=%d, confirm_entry_not_nat=%d, confirm_entry_pending_added=%d",
-		telemetry.Confirm_entry_count,
-		telemetry.Confirm_entry_skb_null_count,
-		telemetry.Confirm_entry_nfct_null_count,
-		telemetry.Confirm_entry_ct_null_count,
-		telemetry.Confirm_entry_not_nat_count,
-		telemetry.Confirm_entry_pending_added_count)
-
-	log.Infof("JMW PROBE COUNTERS: confirm_return=%d, confirm_return_no_matching_entry_probe=%d, confirm_return_not_accepted=%d, confirm_return_not_confirmed=%d, confirm_return_failed_to_get_conntrack_tuples=%d, confirm_return_success=%d",
-		telemetry.Confirm_return_count,
-		telemetry.Confirm_return_no_matching_entry_probe_count,
-		telemetry.Confirm_return_not_accepted_count,
-		telemetry.Confirm_return_not_confirmed_count,
-		telemetry.Confirm_return_failed_to_get_conntrack_tuples_count,
-		telemetry.Confirm_return_success_count)
-
-	if telemetry.Hash_check_insert_success_count > 0 {
-		log.Infof("JMW PROBE COUNTERS: hash_check_insert_success=%d", telemetry.Hash_check_insert_success_count)
+	if telemetry.Kretprobe_nf_conntrack_hash_check_insert_count > 0 {
+		log.Infof("JMW PROBE COUNTERS 2: hash_check_insert_success=%d", telemetry.Kretprobe_nf_conntrack_hash_check_insert_count)
 	}
+
+	log.Infof("JMW PROBE COUNTERS 3: kprobe__nf_conntrack_confirm entry=%d, skb_null=%d, nfct_null=%d, ct_null=%d, not_nat=%d, pending_added=%d",
+		telemetry.Kprobe__nf_conntrack_confirm_entry_count,
+		telemetry.Kprobe__nf_conntrack_confirm_skb_null_count,
+		telemetry.Kprobe__nf_conntrack_confirm_nfct_null_count,
+		telemetry.Kprobe__nf_conntrack_confirm_ct_null_count,
+		telemetry.Kprobe__nf_conntrack_confirm_not_nat_count,
+		telemetry.Kprobe__nf_conntrack_confirm_pending_added_count)
+
+	log.Infof("JMW PROBE COUNTERS 3: kretprobe__nf_conntrack_confirm entry=%d, no_matching_entry_probe=%d, not_accepted=%d, not_confirmed=%d, failed_to_get_conntrack_tuples=%d, success=%d",
+		telemetry.Kretprobe__nf_conntrack_confirm_entry_count,
+		telemetry.Kretprobe__nf_conntrack_confirm_no_matching_entry_probe_count,
+		telemetry.Kretprobe__nf_conntrack_confirm_not_accepted_count,
+		telemetry.Kretprobe__nf_conntrack_confirm_not_confirmed_count,
+		telemetry.Kretprobe__nf_conntrack_confirm_failed_to_get_conntrack_tuples_count,
+		telemetry.Kretprobe__nf_conntrack_confirm_success_count)
 
 	// Log registers count (existing telemetry)
 	log.Infof("JMW CONNTRACK REGISTERS: %d", telemetry.Registers)

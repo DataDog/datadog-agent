@@ -16,22 +16,30 @@ type ConntrackTuple struct {
 }
 
 type ConntrackTelemetry struct {
-	Registers                                           uint64
-	Hash_insert_count                                   uint64
-	Hash_insert_entry_count                             uint64
-	Hash_check_insert_success_count                     uint64
-	Confirm_entry_count                                 uint64
-	Confirm_return_count                                uint64
-	Confirm_return_success_count                        uint64
-	Confirm_return_no_matching_entry_probe_count        uint64
-	Confirm_return_not_accepted_count                   uint64
-	Confirm_return_not_confirmed_count                  uint64
-	Confirm_return_failed_to_get_conntrack_tuples_count uint64
-	Hash_insert_regular_exists_count                    uint64
-	Hash_insert_reverse_exists_count                    uint64
-	Confirm_entry_skb_null_count                        uint64
-	Confirm_entry_nfct_null_count                       uint64
-	Confirm_entry_ct_null_count                         uint64
-	Confirm_entry_not_nat_count                         uint64
-	Confirm_entry_pending_added_count                   uint64
+	Registers                                                             uint64
+	Kprobe__nf_conntrack_hash_insert_entry_count                          uint64
+	Kprobe__nf_conntrack_hash_insert_failed_to_get_conntrack_tuples_count uint64
+	Kprobe__nf_conntrack_hash_insert_regular_exists_count                 uint64
+	Kprobe__nf_conntrack_hash_insert_reverse_exists_count                 uint64
+	Kprobe__nf_conntrack_hash_insert_count                                uint64
+	Kretprobe_nf_conntrack_hash_check_insert_count                        uint64
+	Kprobe__nf_conntrack_confirm_entry_count                              uint64
+	Kprobe__nf_conntrack_confirm_skb_null_count                           uint64
+	Kprobe__nf_conntrack_confirm_nfct_null_count                          uint64
+	Kprobe__nf_conntrack_confirm_ct_null_count                            uint64
+	Kprobe__nf_conntrack_confirm_not_nat_count                            uint64
+	Kprobe__nf_conntrack_confirm_pending_added_count                      uint64
+	Kretprobe__nf_conntrack_confirm_entry_count                           uint64
+	Kretprobe__nf_conntrack_confirm_no_matching_entry_probe_count         uint64
+	Kretprobe__nf_conntrack_confirm_not_accepted_count                    uint64
+	Kretprobe__nf_conntrack_confirm_not_confirmed_count                   uint64
+	Kretprobe__nf_conntrack_confirm_failed_to_get_conntrack_tuples_count  uint64
+	Kretprobe__nf_conntrack_confirm_success_count                         uint64
+	Kprobe_ctnetlink_fill_info_failed_to_get_conntrack_tuples_count       uint64
+	Kprobe_ctnetlink_fill_info_regular_exists_count                       uint64
+	Kprobe_ctnetlink_fill_info_reverse_exists_count                       uint64
+	Kprobe_ctnetlink_fill_info_added_count                                uint64
+	Kprobe_ctnetlink_fill_info_regular_exists2_count                      uint64
+	Kprobe_ctnetlink_fill_info_reverse_exists2_count                      uint64
+	Kprobe_ctnetlink_fill_info_added_2_count                              uint64
 }
