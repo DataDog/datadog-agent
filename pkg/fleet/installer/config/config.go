@@ -223,19 +223,28 @@ func (a *FileOperation) apply(root *os.Root) error {
 }
 
 func ensureDir(root *os.Root, filePath string) error {
-	dir := path.Dir(filePath)
+	// Normalize path to forward slashes and remove leading slash
+	normalizedPath := filepath.ToSlash(strings.TrimPrefix(filePath, "/"))
+
+	// Get the directory part
+	dir := path.Dir(normalizedPath)
 	if dir == "." {
 		return nil
 	}
+	currentRoot := root
 	for part := range strings.SplitSeq(dir, "/") {
 		if part == "" {
 			continue
 		}
-		err := root.Mkdir(part, 0755)
+
+		// Try to create the directory
+		err := currentRoot.Mkdir(part, 0755)
 		if err != nil && !os.IsExist(err) {
 			return err
 		}
-		root, err = root.OpenRoot(part)
+
+		// Open the directory for the next iteration
+		currentRoot, err = currentRoot.OpenRoot(part)
 		if err != nil {
 			return err
 		}
