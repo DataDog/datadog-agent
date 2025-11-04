@@ -30,10 +30,10 @@ type RemoteWindowsAgentConfigAssertions struct {
 //
 // The `config get` subcommand only supports a small set of keys, so this method
 // fetches the full config and unmarshals it into a map.
-func (r *RemoteWindowsAgentAssertions) RuntimeConfig() *RemoteWindowsAgentConfigAssertions {
+func (r *RemoteWindowsAgentAssertions) RuntimeConfig(commandArgs ...string) *RemoteWindowsAgentConfigAssertions {
 	r.context.T().Helper()
 	output, err := r.agentClient.ConfigWithError(
-		agentclient.WithArgs([]string{"--all"}),
+		agentclient.WithArgs(commandArgs),
 	)
 	r.require.NoError(err)
 

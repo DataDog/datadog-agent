@@ -43,7 +43,7 @@ func (s *testAgentConfigSuite) TestConfigUpgradeSuccessful() {
 	// assert that setup was successful
 	s.AssertSuccessfulConfigPromoteExperiment("empty")
 	s.Require().Host(s.Env().RemoteHost).
-		HasARunningDatadogAgentService().RuntimeConfig().
+		HasARunningDatadogAgentService().RuntimeConfig("--all").
 		WithValueEqual("log_to_console", true)
 
 	// Act
@@ -61,14 +61,14 @@ func (s *testAgentConfigSuite) TestConfigUpgradeSuccessful() {
 	s.mustStartConfigExperiment(config)
 
 	s.Require().Host(s.Env().RemoteHost).
-		HasARunningDatadogAgentService().RuntimeConfig().
+		HasARunningDatadogAgentService().RuntimeConfig("--all").
 		WithValueEqual("log_to_console", false)
 
 	// Promote config experiment
 	s.mustPromoteConfigExperiment(config)
 
 	s.Require().Host(s.Env().RemoteHost).
-		HasARunningDatadogAgentService().RuntimeConfig().
+		HasARunningDatadogAgentService().RuntimeConfig("--all").
 		WithValueEqual("log_to_console", false)
 }
 
@@ -83,7 +83,7 @@ func (s *testAgentConfigSuite) TestConfigUpgradeFailure() {
 	// assert that setup was successful
 	s.AssertSuccessfulConfigPromoteExperiment("empty")
 	s.Require().Host(s.Env().RemoteHost).
-		HasARunningDatadogAgentService().RuntimeConfig().
+		HasARunningDatadogAgentService().RuntimeConfig("--all").
 		WithValueEqual("log_level", "debug")
 
 	// Act
@@ -116,7 +116,7 @@ func (s *testAgentConfigSuite) TestConfigUpgradeFailure() {
 
 	// Config should be reverted to the stable config
 	s.Require().Host(s.Env().RemoteHost).
-		HasARunningDatadogAgentService().RuntimeConfig().
+		HasARunningDatadogAgentService().RuntimeConfig("--all").
 		WithValueEqual("log_level", "debug")
 
 	// backend will send stop experiment now
@@ -216,7 +216,7 @@ func (s *testAgentConfigSuite) TestRevertsConfigExperimentWhenServiceDies() {
 	s.mustStartConfigExperiment(config)
 
 	s.Require().Host(s.Env().RemoteHost).
-		HasARunningDatadogAgentService().RuntimeConfig().
+		HasARunningDatadogAgentService().RuntimeConfig("--all").
 		WithValueEqual("log_to_console", false)
 
 	// Stop the agent service to trigger watchdog rollback
@@ -226,7 +226,7 @@ func (s *testAgentConfigSuite) TestRevertsConfigExperimentWhenServiceDies() {
 	s.AssertSuccessfulConfigStopExperiment()
 
 	s.Require().Host(s.Env().RemoteHost).
-		HasARunningDatadogAgentService().RuntimeConfig().
+		HasARunningDatadogAgentService().RuntimeConfig("--all").
 		WithValueEqual("log_to_console", true)
 
 	// backend will send stop experiment now
@@ -262,7 +262,7 @@ func (s *testAgentConfigSuite) TestRevertsConfigExperimentWhenTimeout() {
 	s.mustStartConfigExperiment(config)
 
 	s.Require().Host(s.Env().RemoteHost).
-		HasARunningDatadogAgentService().RuntimeConfig().
+		HasARunningDatadogAgentService().RuntimeConfig("--all").
 		WithValueEqual("log_to_console", false)
 
 	// wait for the timeout
@@ -272,7 +272,7 @@ func (s *testAgentConfigSuite) TestRevertsConfigExperimentWhenTimeout() {
 	s.AssertSuccessfulConfigStopExperiment()
 
 	s.Require().Host(s.Env().RemoteHost).
-		HasARunningDatadogAgentService().RuntimeConfig().
+		HasARunningDatadogAgentService().RuntimeConfig("--all").
 		WithValueEqual("log_to_console", true)
 
 	// backend will send stop experiment now
@@ -330,7 +330,7 @@ func (s *testAgentConfigSuite) TestManagedConfigActiveAfterUpgrade() {
 
 	// Verify the runtime config values are still preserved after upgrade
 	s.Require().Host(s.Env().RemoteHost).
-		HasARunningDatadogAgentService().RuntimeConfig().
+		HasARunningDatadogAgentService().RuntimeConfig("--all").
 		WithValueEqual("log_to_console", false)
 }
 
