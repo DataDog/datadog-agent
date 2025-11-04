@@ -8,16 +8,13 @@
 package program
 
 import (
-	"os"
-
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/google/cel-go/cel"
 )
 
-// CELProgram is a structure that holds two CEL programs:
-// one for inclusion (higher priority) and one for exclusion (lower priority).
+// CELProgram is a structure that holds a CEL program for exclusion.
 type CELProgram struct {
 	Name                 string
 	Exclude              cel.Program
@@ -37,14 +34,10 @@ func (p CELProgram) Evaluate(entity workloadfilter.Filterable) workloadfilter.Re
 					return workloadfilter.Excluded
 				}
 			} else {
-				log.Criticalf(`filter '%s' from 'cel_workload_exclude' failed to convert value to bool: %v`, p.Name, out.Value())
-				log.Flush()
-				os.Exit(1)
+				log.Debugf(`filter '%s' from 'cel_workload_exclude' failed to convert value to bool: %v`, p.Name, out.Value())
 			}
 		} else {
-			log.Criticalf(`filter '%s' from 'cel_workload_exclude' failed to convert evaluate: %v`, p.Name, out.Value())
-			log.Flush()
-			os.Exit(1)
+			log.Debugf(`filter '%s' from 'cel_workload_exclude' failed to evaluate: %v`, p.Name, err)
 		}
 	}
 
