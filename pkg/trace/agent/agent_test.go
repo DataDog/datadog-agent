@@ -8,6 +8,7 @@ package agent
 import (
 	"bytes"
 	"context"
+	"encoding/binary"
 	"fmt"
 	"io"
 	"math"
@@ -3606,7 +3607,7 @@ func TestSpanSampling(t *testing.T) {
 				assert.Len(t, chunk.Spans, len(payload.Chunks[0].Spans))
 				for i, after := range chunk.Spans {
 					before := payload.Chunks[0].Spans[i]
-					assert.Equal(t, before.TraceID, chunk.TraceID)
+					assert.Equal(t, before.TraceID, binary.BigEndian.Uint64(chunk.TraceID[8:]))
 					assert.Equal(t, before.SpanID, after.SpanID())
 					assert.Equal(t, before.Name, after.Name())
 				}
@@ -3651,7 +3652,7 @@ func TestSpanSampling(t *testing.T) {
 				// The span sampler discarded all but the sampled spans.
 				assert.Len(t, chunk.Spans, 1)
 				span := chunk.Spans[0]
-				assert.Equal(t, uint64(1), chunk.TraceID)
+				assert.Equal(t, uint64(1), binary.BigEndian.Uint64(chunk.TraceID[8:]))
 				assert.Equal(t, uint64(1), span.SpanID())
 				assert.Equal(t, "parent", span.Name())
 			},
@@ -3695,7 +3696,7 @@ func TestSpanSampling(t *testing.T) {
 				// The span sampler discarded all but the sampled spans.
 				assert.Len(t, chunk.Spans, 1)
 				span := chunk.Spans[0]
-				assert.Equal(t, uint64(1), chunk.TraceID)
+				assert.Equal(t, uint64(1), binary.BigEndian.Uint64(chunk.TraceID[8:]))
 				assert.Equal(t, uint64(2), span.SpanID())
 				assert.Equal(t, "child", span.Name())
 			},
@@ -3739,7 +3740,7 @@ func TestSpanSampling(t *testing.T) {
 				// The span sampler discarded all but the sampled spans.
 				assert.Len(t, chunk.Spans, 1)
 				span := chunk.Spans[0]
-				assert.Equal(t, uint64(1), chunk.TraceID)
+				assert.Equal(t, uint64(1), binary.BigEndian.Uint64(chunk.TraceID[8:]))
 				assert.Equal(t, uint64(2), span.SpanID())
 				assert.Equal(t, "child", span.Name())
 			},
@@ -3788,7 +3789,7 @@ func TestSpanSampling(t *testing.T) {
 				assert.Len(t, chunk.Spans, len(payload.Chunks[0].Spans))
 				for i, after := range chunk.Spans {
 					before := payload.Chunks[0].Spans[i]
-					assert.Equal(t, before.TraceID, chunk.TraceID)
+					assert.Equal(t, before.TraceID, binary.BigEndian.Uint64(chunk.TraceID[8:]))
 					assert.Equal(t, before.SpanID, after.SpanID())
 					assert.Equal(t, before.Name, after.Name())
 				}
@@ -3819,8 +3820,8 @@ func TestSpanSampling(t *testing.T) {
 			sampledChunks := traceAgent.TraceWriterV1.(*mockTraceWriter).payloadsV1[0]
 			tc.checks(t, tc.payload, sampledChunks.TracerPayload.Chunks)
 			mco := traceAgent.Concentrator.(*mockConcentrator)
-			require.Len(t, mco.stats, 1)
-			stats := mco.stats[0]
+			require.Len(t, mco.statsV1, 1)
+			stats := mco.statsV1[0]
 			assert.Equal(t, len(tc.payload.Chunks[0].Spans), len(stats.Traces[0].TraceChunk.Spans))
 		})
 	}
