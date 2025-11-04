@@ -97,7 +97,6 @@ require (
 	github.com/DataDog/datadog-agent/pkg/config/mock v0.76.0-devel // indirect
 	github.com/DataDog/datadog-agent/pkg/config/nodetreemodel v0.76.0-devel // indirect
 	github.com/DataDog/datadog-agent/pkg/config/structure v0.76.0-devel // indirect
-	github.com/DataDog/datadog-agent/pkg/config/teeconfig v0.76.0-devel // indirect
 	github.com/DataDog/datadog-agent/pkg/config/utils v0.76.0-devel // indirect
 	github.com/DataDog/datadog-agent/pkg/config/viperconfig v0.76.0-devel // indirect
 	github.com/DataDog/datadog-agent/pkg/fips v0.76.0-devel // indirect
