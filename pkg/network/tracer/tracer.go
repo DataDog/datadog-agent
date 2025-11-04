@@ -964,12 +964,14 @@ func (t *Tracer) logConntrackProbeCounters(ebpfCt *ebpfConntracker) {
 		telemetry.Kprobe__nf_conntrack_confirm_not_nat_count,
 		telemetry.Kprobe__nf_conntrack_confirm_pending_added_count)
 
-	log.Infof("JMW PROBE COUNTERS 3: kretprobe__nf_conntrack_confirm entry=%d, no_matching_entry_probe=%d, not_accepted=%d, not_confirmed=%d, failed_to_get_conntrack_tuples=%d, success=%d",
+	log.Infof("JMW PROBE COUNTERS 3: kretprobe__nf_conntrack_confirm entry=%d, no_matching_entry_probe=%d, not_accepted=%d, not_confirmed=%d, failed_to_get_conntrack_tuples=%d, regular_exists=%d, reverse_exists=%d, success=%d",
 		telemetry.Kretprobe__nf_conntrack_confirm_entry_count,
 		telemetry.Kretprobe__nf_conntrack_confirm_no_matching_entry_probe_count,
 		telemetry.Kretprobe__nf_conntrack_confirm_not_accepted_count,
 		telemetry.Kretprobe__nf_conntrack_confirm_not_confirmed_count,
 		telemetry.Kretprobe__nf_conntrack_confirm_failed_to_get_conntrack_tuples_count,
+		telemetry.Kretprobe__nf_conntrack_confirm_regular_exists_count,
+		telemetry.Kretprobe__nf_conntrack_confirm_reverse_exists_count,
 		telemetry.Kretprobe__nf_conntrack_confirm_success_count)
 
 	// Log registers count (existing telemetry)

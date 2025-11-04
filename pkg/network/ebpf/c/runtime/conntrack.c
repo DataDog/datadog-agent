@@ -205,10 +205,21 @@ int BPF_BYPASSABLE_KPROBE(kretprobe__nf_conntrack_confirm) {
 
     // Add both directions to conntrack2 map
     //JMW
-    bpf_map_update_with_telemetry(conntrack2, &orig, &reply, BPF_ANY);
-    bpf_map_update_with_telemetry(conntrack2, &reply, &orig, BPF_ANY);
-    increment_kretprobe__nf_conntrack_confirm_success_count();
-    log_debug("JMW(runtime)kretprobe__nf_conntrack_confirm: added ct=%p", ct);
+    long ret1 = bpf_map_update_with_telemetry(conntrack2, &orig, &reply, BPF_NOEXIST);
+    long ret2 = bpf_map_update_with_telemetry(conntrack2, &reply, &orig, BPF_NOEXIST);
+    
+    if (ret1 == -EEXIST) {
+        increment_kretprobe__nf_conntrack_confirm_regular_exists();
+    }
+    if (ret2 == -EEXIST) {
+        increment_kretprobe__nf_conntrack_confirm_reverse_exists();
+    }
+    
+    // Only increment success_count if at least one entry was actually added
+    if (ret1 == 0 || ret2 == 0) {
+        increment_kretprobe__nf_conntrack_confirm_success_count();
+        log_debug("JMW(runtime)kretprobe__nf_conntrack_confirm: added ct=%p", ct);
+    }
 
     return 0;
 }

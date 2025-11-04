@@ -325,5 +325,23 @@ static __always_inline void increment_kprobe_ctnetlink_fill_info_added2_count() 
     __sync_fetch_and_add(&val->kprobe_ctnetlink_fill_info_added_2_count, 1);
 }
 
+static __always_inline void increment_kretprobe__nf_conntrack_confirm_regular_exists() {
+    u64 key = 0;
+    conntrack_telemetry_t *val = bpf_map_lookup_elem(&conntrack_telemetry, &key);
+    if (val == NULL) {
+        return;
+    }
+    __sync_fetch_and_add(&val->kretprobe__nf_conntrack_confirm_regular_exists_count, 1);
+}
+
+static __always_inline void increment_kretprobe__nf_conntrack_confirm_reverse_exists() {
+    u64 key = 0;
+    conntrack_telemetry_t *val = bpf_map_lookup_elem(&conntrack_telemetry, &key);
+    if (val == NULL) {
+        return;
+    }
+    __sync_fetch_and_add(&val->kretprobe__nf_conntrack_confirm_reverse_exists_count, 1);
+}
+
 
 #endif /* __CONNTRACK_HELPERS_H */

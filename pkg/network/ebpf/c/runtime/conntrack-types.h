@@ -48,6 +48,8 @@ typedef struct {
     __u64 kprobe_ctnetlink_fill_info_regular_exists2_count;
     __u64 kprobe_ctnetlink_fill_info_reverse_exists2_count;
     __u64 kprobe_ctnetlink_fill_info_added_2_count;
+    __u64 kretprobe__nf_conntrack_confirm_regular_exists_count;
+    __u64 kretprobe__nf_conntrack_confirm_reverse_exists_count;
 } conntrack_telemetry_t;
 
 
