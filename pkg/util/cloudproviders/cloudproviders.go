@@ -143,7 +143,7 @@ func GetHostAliases(ctx context.Context) ([]string, string) {
 
 	for _, hostAliasesDetector := range hostAliasesDetectors {
 		wg.Add(1)
-		go func(cloudAliasesDetector cloudProviderAliasesDetector) {
+		go func(hostAliasesDetector cloudProviderAliasesDetector) {
 			defer wg.Done()
 
 			cloudAliases, err := hostAliasesDetector.callback(ctx)
