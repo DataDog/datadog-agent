@@ -1,6 +1,6 @@
 github.com/BurntSushi/toml v0.3.1/go.mod h1:xHWCNGjB5oqiDr8zfno3MHue2Ht5sIBksp03qcyfWMU=
-github.com/DataDog/agent-payload/v5 v5.0.171 h1:o9vSLDPNeg5PSpVUciSVnGOvfzQ3Uw7ucp0TPv60oN4=
-github.com/DataDog/agent-payload/v5 v5.0.171/go.mod h1:9PtvPKsgZVTTvqgYtcwB4bjXAkxYzC2wzSXSadPRHv8=
+github.com/DataDog/agent-payload/v5 v5.0.172 h1:GeWUr6O6Ev0JhxiK53ktgK0oDaVpT4zMEJz7+KSjohc=
+github.com/DataDog/agent-payload/v5 v5.0.172/go.mod h1:9PtvPKsgZVTTvqgYtcwB4bjXAkxYzC2wzSXSadPRHv8=
 github.com/DataDog/datadog-api-client-go/v2 v2.47.0 h1:bhPu0F6BGUGBaDw4h576asJcffFatYufy8w3/39prqA=
 github.com/DataDog/datadog-api-client-go/v2 v2.47.0/go.mod h1:d3tOEgUd2kfsr9uuHQdY+nXrWp4uikgTgVCPdKNK30U=
 github.com/DataDog/datadog-go/v5 v5.8.1 h1:+GOES5W9zpKlhwHptZVW2C0NLVf7ilr7pHkDcbNvpIc=
@@ -425,8 +425,6 @@ go.opentelemetry.io/collector/pipeline/xpipeline v0.138.0 h1:Y8blByFwDqhnEa4kOTA
 go.opentelemetry.io/collector/pipeline/xpipeline v0.138.0/go.mod h1:TOtck/PIWC89dI9+aYouX39boc7d+rGHP82SuH0xxN0=
 go.opentelemetry.io/collector/processor v1.44.0 h1:jB+vfkYSR9f7HJlGJrtncld9dmnPWndCoTHZ0Wz4nvg=
 go.opentelemetry.io/collector/processor v1.44.0/go.mod h1:BV0s5J7TH2YrVErfYAXvq3Z2ChJZdE84pY+sk1X55kw=
-go.opentelemetry.io/collector/processor/batchprocessor v0.138.0 h1:HW1OjjyI4E0BI8KHMhpfvQgHi8nNAveRieLOSeGkLEU=
-go.opentelemetry.io/collector/processor/batchprocessor v0.138.0/go.mod h1:/tTWrJKIMqdrulz5tQA4XW0w1kePp4hwmvCQypj7qFI=
 go.opentelemetry.io/collector/processor/processorhelper v0.138.0 h1:Affdz4mJdjE6iJMWO6IpLcorBr1E+HFbo3/ok194Qc4=
 go.opentelemetry.io/collector/processor/processorhelper v0.138.0/go.mod h1:QS6FzV/0/4kN3VPIYA+FPMuKkJnXnxvGKdllz2Fuopw=
 go.opentelemetry.io/collector/processor/processortest v0.138.0 h1:WSHPESV1NqPHlt9ShzTlc9y7ZLf83223fyfC4wzJoZg=
