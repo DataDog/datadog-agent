@@ -16,40 +16,7 @@
 
 #include <stdbool.h>
 
-// metric types
-typedef enum {
-    GAUGE = 0,
-    RATE,
-    COUNT,
-    MONOTONIC_COUNT,
-    COUNTER,
-    HISTOGRAM,
-    HISTORATE
-} metric_type_t;
-
-typedef struct event_s {
-    char *title;
-    char *text;
-    long ts;
-    char *priority;
-    char *host;
-    char **tags;
-    char *alert_type;
-    char *aggregation_key;
-    char *source_type_name;
-    char *event_type;
-} event_t;
-
-// (id, metric_type, metric_name, value, tags, hostname, flush_first_value)
-typedef void (*cb_submit_metric_t)(char *, metric_type_t, char *, double, char **, char *, bool);
-// (id, sc_name, status, tags, hostname, message)
-typedef void (*cb_submit_service_check_t)(char *, char *, int, char **, char *, char *);
-// (id, event)
-typedef void (*cb_submit_event_t)(char *, event_t *);
-// (id, metric_name, value, lower_bound, upper_bound, monotonic, hostname, tags, flush_first_value)
-typedef void (*cb_submit_histogram_bucket_t)(char *, char *, long long, float, float, int, char *, char **, bool);
-// (id, event, event_type)
-typedef void (*cb_submit_event_platform_event_t)(char *, char *, int, char *);
+#include "rtloader_types.h"
 
 // aggregator_t stores every callback used by shared libraries checks
 typedef struct aggregator_s {

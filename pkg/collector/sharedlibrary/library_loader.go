@@ -10,21 +10,20 @@ import (
 	"path"
 	"runtime"
 	"unsafe"
-
-	_ "github.com/DataDog/datadog-agent/pkg/collector/python" // get submit functions, should be replaced by another package do avoid coupling with the Python package
 )
 
 /*
 #include <stdlib.h>
 
+#cgo CFLAGS: -I "${SRCDIR}/../../../rtloader/include"
 #include "ffi.h"
 
 // functions from the Python package
-void SubmitMetric(char *, metric_type_t, char *, double, char **, char *, bool);
-void SubmitServiceCheck(char *, char *, int, char **, char *, char *);
-void SubmitEvent(char *, event_t *);
-void SubmitHistogramBucket(char *, char *, long long, float, float, int, char *, char **, bool);
-void SubmitEventPlatformEvent(char *, char *, int, char *);
+extern void SubmitMetric(char *, metric_type_t, char *, double, char **, char *, bool);
+extern void SubmitServiceCheck(char *, char *, int, char **, char *, char *);
+extern void SubmitEvent(char *, event_t *);
+extern void SubmitHistogramBucket(char *, char *, long long, float, float, int, char *, char **, bool);
+extern void SubmitEventPlatformEvent(char *, char *, int, char *);
 
 // the callbacks are aggregated in this file as it's the only one which uses it
 const aggregator_t aggregator = {
