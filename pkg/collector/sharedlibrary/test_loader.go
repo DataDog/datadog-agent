@@ -44,9 +44,9 @@ func testCreateFakeCheck(t *testing.T) {
 	runtime.SetFinalizer(check, nil)
 
 	assert.Nil(t, err)
-	assert.Equal(t, "fake_check", check.(*SharedLibraryCheck).name)
-	assert.Equal(t, "mock_version", check.(*SharedLibraryCheck).version)
-	assert.Equal(t, "fake_check:/path/to/conf/fake_check.yaml", check.(*SharedLibraryCheck).source)
+	assert.Equal(t, "fake_check", check.(*Check).name)
+	assert.Equal(t, "mock_version", check.(*Check).version)
+	assert.Equal(t, "fake_check:/path/to/conf/fake_check.yaml", check.(*Check).source)
 }
 
 func testLoadWithMissingLibrary(t *testing.T) {

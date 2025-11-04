@@ -69,7 +69,7 @@ func testCancelCheck(t *testing.T) {
 }
 
 // NewSharedLibraryFakeCheck creates a fake SharedLibraryCheck
-func NewSharedLibraryFakeCheck(senderManager sender.SenderManager) (*SharedLibraryCheck, error) {
+func NewSharedLibraryFakeCheck(senderManager sender.SenderManager) (*Check, error) {
 	c, err := NewSharedLibraryCheck(senderManager, "fake_check", newSharedLibraryLoader("fake/library/folder/path"), getMockLibraryHandles())
 
 	// Remove check finalizer that may trigger race condition while testing

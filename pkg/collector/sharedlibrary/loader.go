@@ -18,33 +18,29 @@ import (
 // SharedLibraryCheckLoaderName is the name of the Shared Library loader
 const SharedLibraryCheckLoaderName string = "sharedlibrary"
 
-// SharedLibraryCheckLoader is a specific loader for checks living in this package
-//
-//nolint:revive
-type SharedLibraryCheckLoader struct {
-	logReceiver option.Option[integrations.Component]
-	loader      libraryLoader
+// CheckLoader is a specific loader for checks living in this package
+type CheckLoader struct {
+	loader libraryLoader
 }
 
 // NewSharedLibraryCheckLoader creates the checks loader
-func NewSharedLibraryCheckLoader(_ sender.SenderManager, logReceiver option.Option[integrations.Component], _ tagger.Component, _ workloadfilter.Component, loader libraryLoader) (*SharedLibraryCheckLoader, error) {
-	return &SharedLibraryCheckLoader{
-		logReceiver: logReceiver,
-		loader:      loader,
+func NewSharedLibraryCheckLoader(_ sender.SenderManager, _ option.Option[integrations.Component], _ tagger.Component, _ workloadfilter.Component, loader libraryLoader) (*CheckLoader, error) {
+	return &CheckLoader{
+		loader: loader,
 	}, nil
 }
 
 // Name returns Shared Library loader name
-func (*SharedLibraryCheckLoader) Name() string {
+func (*CheckLoader) Name() string {
 	return SharedLibraryCheckLoaderName
 }
 
-func (sl *SharedLibraryCheckLoader) String() string {
+func (sl *CheckLoader) String() string {
 	return "Shared Library Loader"
 }
 
 // Load returns a Shared Library check
-func (sl *SharedLibraryCheckLoader) Load(senderManager sender.SenderManager, config integration.Config, instance integration.Data, _instanceIndex int) (check.Check, error) {
+func (sl *CheckLoader) Load(senderManager sender.SenderManager, config integration.Config, instance integration.Data, _instanceIndex int) (check.Check, error) {
 	// load the library and get pointers to its symbols through the library loader
 	libHandles, err := sl.loader.Load(config.Name)
 	if err != nil {

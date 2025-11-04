@@ -20,10 +20,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// SharedLibraryCheck is the definition of shared library checks
-//
-//nolint:revive
-type SharedLibraryCheck struct {
+// Check is the definition of shared library checks
+type Check struct {
 	senderManager  sender.SenderManager
 	id             checkid.ID
 	version        string
@@ -37,9 +35,9 @@ type SharedLibraryCheck struct {
 	cancelled      bool
 }
 
-// NewSharedLibraryCheck conveniently creates a SharedLibraryCheck instance
-func NewSharedLibraryCheck(senderManager sender.SenderManager, name string, libraryLoader libraryLoader, libHandles libraryHandles) (*SharedLibraryCheck, error) {
-	check := &SharedLibraryCheck{
+// NewSharedLibraryCheck conveniently creates a Check instance
+func NewSharedLibraryCheck(senderManager sender.SenderManager, name string, libraryLoader libraryLoader, libHandles libraryHandles) (*Check, error) {
+	check := &Check{
 		senderManager: senderManager,
 		interval:      defaults.DefaultCheckInterval,
 		name:          name,
@@ -51,13 +49,13 @@ func NewSharedLibraryCheck(senderManager sender.SenderManager, name string, libr
 }
 
 // Run a shared library check
-func (c *SharedLibraryCheck) Run() error {
+func (c *Check) Run() error {
 	return c.runCheckImpl(true)
 }
 
 // runCheckImpl runs the check implementation with its Run symbol
 // This function is created to allow passing the commitMetrics parameter (not possible due to the Check interface)
-func (c *SharedLibraryCheck) runCheckImpl(commitMetrics bool) error {
+func (c *Check) runCheckImpl(commitMetrics bool) error {
 	if c.cancelled {
 		return fmt.Errorf("check %s is already cancelled", c.name)
 	}
@@ -80,10 +78,10 @@ func (c *SharedLibraryCheck) runCheckImpl(commitMetrics bool) error {
 }
 
 // Stop does nothing
-func (c *SharedLibraryCheck) Stop() {}
+func (c *Check) Stop() {}
 
 // Cancel closes the associated shared library and prevents the check from running
-func (c *SharedLibraryCheck) Cancel() {
+func (c *Check) Cancel() {
 	err := c.libraryLoader.Close(c.libHandles.lib)
 	if err != nil {
 		log.Errorf("Cancel failed: %s", err)
@@ -93,47 +91,47 @@ func (c *SharedLibraryCheck) Cancel() {
 }
 
 // String representation (for debug and logging)
-func (c *SharedLibraryCheck) String() string {
+func (c *Check) String() string {
 	return c.name
 }
 
 // Version is always an empty string
-func (c *SharedLibraryCheck) Version() string {
+func (c *Check) Version() string {
 	return c.version
 }
 
 // IsTelemetryEnabled is not enabled
-func (c *SharedLibraryCheck) IsTelemetryEnabled() bool {
+func (c *Check) IsTelemetryEnabled() bool {
 	return false
 }
 
 // ConfigSource returns the source of the configuration for this check
-func (c *SharedLibraryCheck) ConfigSource() string {
+func (c *Check) ConfigSource() string {
 	return c.source
 }
 
 // Loader returns the check loader
-func (c *SharedLibraryCheck) Loader() string {
+func (c *Check) Loader() string {
 	return SharedLibraryCheckLoaderName
 }
 
 // InitConfig returns the init_config configuration for the check
-func (c *SharedLibraryCheck) InitConfig() string {
+func (c *Check) InitConfig() string {
 	return c.initConfig
 }
 
 // InstanceConfig returns the instance configuration for the check.
-func (c *SharedLibraryCheck) InstanceConfig() string {
+func (c *Check) InstanceConfig() string {
 	return c.instanceConfig
 }
 
 // GetWarnings returns nothing
-func (c *SharedLibraryCheck) GetWarnings() []error {
+func (c *Check) GetWarnings() []error {
 	return []error{}
 }
 
 // Configure the shared library check from YAML data
-func (c *SharedLibraryCheck) Configure(_senderManager sender.SenderManager, integrationConfigDigest uint64, instanceConfig integration.Data, initConfig integration.Data, source string) error {
+func (c *Check) Configure(_senderManager sender.SenderManager, integrationConfigDigest uint64, instanceConfig integration.Data, initConfig integration.Data, source string) error {
 	c.id = checkid.BuildID(c.String(), integrationConfigDigest, instanceConfig, initConfig)
 
 	commonOptions := integration.CommonInstanceConfig{}
@@ -156,7 +154,7 @@ func (c *SharedLibraryCheck) Configure(_senderManager sender.SenderManager, inte
 }
 
 // GetSenderStats returns the stats from the last run of the check
-func (c *SharedLibraryCheck) GetSenderStats() (stats.SenderStats, error) {
+func (c *Check) GetSenderStats() (stats.SenderStats, error) {
 	sender, err := c.senderManager.GetSender(c.ID())
 	if err != nil {
 		return stats.SenderStats{}, fmt.Errorf("Failed to retrieve a Sender instance: %v", err)
@@ -165,21 +163,21 @@ func (c *SharedLibraryCheck) GetSenderStats() (stats.SenderStats, error) {
 }
 
 // Interval returns the interval between each check execution
-func (c *SharedLibraryCheck) Interval() time.Duration {
+func (c *Check) Interval() time.Duration {
 	return c.interval
 }
 
 // ID returns the ID of the check
-func (c *SharedLibraryCheck) ID() checkid.ID {
+func (c *Check) ID() checkid.ID {
 	return checkid.ID(c.id)
 }
 
 // GetDiagnoses returns nothing
-func (c *SharedLibraryCheck) GetDiagnoses() ([]diagnose.Diagnosis, error) {
+func (c *Check) GetDiagnoses() ([]diagnose.Diagnosis, error) {
 	return nil, nil
 }
 
 // IsHASupported does not apply to shared library checks
-func (c *SharedLibraryCheck) IsHASupported() bool {
+func (c *Check) IsHASupported() bool {
 	return false
 }
