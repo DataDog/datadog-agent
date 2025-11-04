@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-//go:build linux
+//go:build linux && linux_bpf
 
 package modules
 
@@ -13,17 +13,19 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
-	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
-	sysconfigtypes "github.com/DataDog/datadog-agent/cmd/system-probe/config/types"
-	"github.com/DataDog/datadog-agent/cmd/system-probe/utils"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/noisyneighbor"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
+	"github.com/DataDog/datadog-agent/pkg/system-probe/config"
+	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
+	"github.com/DataDog/datadog-agent/pkg/system-probe/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+func init() { registerModule(NoisyNeighbor) }
+
 // NoisyNeighbor Factory
-var NoisyNeighbor = module.Factory{
+var NoisyNeighbor = &module.Factory{
 	Name:             config.NoisyNeighborModule,
 	ConfigNamespaces: []string{"noisy_neighbor"},
 	Fn: func(_ *sysconfigtypes.Config, _ module.FactoryDependencies) (module.Module, error) {
@@ -59,10 +61,10 @@ func (n noisyNeighborModule) GetStats() map[string]interface{} {
 // Register implements module.Module.Register
 func (n noisyNeighborModule) Register(httpMux *module.Router) error {
 	// Limit concurrency to one as the probe check is not thread safe (mainly in the entry count buffers)
-	httpMux.HandleFunc("/check", utils.WithConcurrencyLimit(1, func(w http.ResponseWriter, _ *http.Request) {
+	httpMux.HandleFunc("/check", utils.WithConcurrencyLimit(1, func(w http.ResponseWriter, req *http.Request) {
 		n.lastCheck.Store(time.Now().Unix())
 		stats := n.Probe.GetAndFlush()
-		utils.WriteAsJSON(w, stats)
+		utils.WriteAsJSON(w, stats, utils.GetPrettyPrintFromQueryParams(req))
 	}))
 
 	return nil
