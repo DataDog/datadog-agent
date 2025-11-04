@@ -124,7 +124,6 @@ func (s *minimalTestSuite) TestCoreAgentConfigCmd() {
       exporters:
       - datadog
       processors:
-      - batch
       - infraattributes/dd-autoconfigured
       receivers:
       - otlp
@@ -132,7 +131,6 @@ func (s *minimalTestSuite) TestCoreAgentConfigCmd() {
       exporters:
       - datadog
       processors:
-      - batch
       - infraattributes/dd-autoconfigured
       receivers:
       - otlp
@@ -148,7 +146,6 @@ func (s *minimalTestSuite) TestCoreAgentConfigCmd() {
       exporters:
       - datadog/connector
       processors:
-      - batch
       - infraattributes/dd-autoconfigured
       receivers:
       - otlp
@@ -156,7 +153,6 @@ func (s *minimalTestSuite) TestCoreAgentConfigCmd() {
       exporters:
       - datadog
       processors:
-      - batch
       - infraattributes/dd-autoconfigured
       receivers:
       - otlp`

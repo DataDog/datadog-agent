@@ -53,12 +53,11 @@ func ConfigsForPod(pc *types.PrometheusCheck, pod *workloadmeta.KubernetesPod, w
 			return nil, fmt.Errorf("port in annotation %q is not an integer", portAnnotationString)
 		}
 
+		// There are valid cases where there is an annotation with a port but no
+		// container with that port in the spec. This can happen with Istio
+		// sidecars. Scraping still works, so don't return an error. In that
+		// case, containerWithPortInAnnotation will be empty.
 		containerWithPortInAnnotation = findContainerWithPort(podContainers, portNumber)
-
-		// If port annotation exists but no container matches
-		if containerWithPortInAnnotation == "" {
-			return nil, fmt.Errorf("no container matches port in annotation: %d", portNumber)
-		}
 	}
 
 	for _, container := range podContainers {
@@ -67,7 +66,7 @@ func ConfigsForPod(pc *types.PrometheusCheck, pod *workloadmeta.KubernetesPod, w
 			continue
 		}
 
-		if hasPortAnnotation && container.Name != containerWithPortInAnnotation {
+		if hasPortAnnotation && containerWithPortInAnnotation != "" && container.Name != containerWithPortInAnnotation {
 			continue
 		}
 
