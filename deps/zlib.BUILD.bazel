@@ -142,7 +142,6 @@ cc_library(
 
 cc_shared_library(
     name = "libz_so",
-    shared_lib_name = "libz.so",
     win_def_file = "win32/zlib.def",
     deps = [":zlib"],
     visibility = ["//visibility:public"],
