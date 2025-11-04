@@ -7,6 +7,7 @@
 package installer
 
 import (
+	"fmt"
 	"time"
 
 	e2eos "github.com/DataDog/test-infra-definitions/components/os"
@@ -45,6 +46,50 @@ func (s *configSuite) TestConfig() {
 	config, err = s.agent.Configuration()
 	require.NoError(s.T(), err)
 	require.Equal(s.T(), "debug", config["log_level"])
+}
+
+func (s *configSuite) TestMultipleConfigs() {
+	s.Agent.MustInstall(agent.WithRemoteUpdates())
+	defer s.Agent.MustUninstall()
+
+	for i := 0; i < 3; i++ {
+		err := s.Backend.StartConfigExperiment(fleetbackend.ConfigOperations{
+			DeploymentID: fmt.Sprintf("123-%d", i),
+			FileOperations: []fleetbackend.FileOperation{
+				{
+					FileOperationType: fleetbackend.FileOperationMergePatch,
+					FilePath:          "/datadog.yaml",
+					Patch:             []byte(fmt.Sprintf(`{"extra_tags": ["debug:step-%d"]}`, i)),
+				},
+			},
+		})
+		require.NoError(s.T(), err)
+		config, err := s.Agent.Configuration()
+		require.NoError(s.T(), err)
+		// Convert extra_tags to a slice of strings
+		extraTags := config["extra_tags"].([]interface{})
+		extraTagsStrings := make([]string, len(extraTags))
+		for i, tag := range extraTags {
+			var ok bool
+			extraTagsStrings[i], ok = tag.(string)
+			require.True(s.T(), ok, "tag %d is not a string", i)
+		}
+		require.Equal(s.T(), []string{fmt.Sprintf("debug:step-%d", i)}, extraTagsStrings)
+		err = s.Backend.PromoteConfigExperiment()
+		require.NoError(s.T(), err)
+
+		config, err = s.Agent.Configuration()
+		require.NoError(s.T(), err)
+		// Convert extra_tags to a slice of strings
+		extraTags = config["extra_tags"].([]interface{})
+		extraTagsStrings = make([]string, len(extraTags))
+		for i, tag := range extraTags {
+			var ok bool
+			extraTagsStrings[i], ok = tag.(string)
+			require.True(s.T(), ok, "tag %d is not a string", i)
+		}
+		require.Equal(s.T(), []string{fmt.Sprintf("debug:step-%d", i)}, extraTagsStrings)
+	}
 }
 
 func (s *configSuite) TestConfigFailureCrash() {
