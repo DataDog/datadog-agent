@@ -230,11 +230,23 @@ func formatServiceDiscovery(service *procutil.Service) *model.ServiceDiscovery {
 		})
 	}
 
+	var resources []*model.Resource
+	for _, logPath := range service.LogFiles {
+		resources = append(resources, &model.Resource{
+			Resource: &model.Resource_Logs{
+				Logs: &model.LogResource{
+					Path: logPath,
+				},
+			},
+		})
+	}
+
 	return &model.ServiceDiscovery{
 		GeneratedServiceName:     generatedServiceName,
 		DdServiceName:            ddServiceName,
 		AdditionalGeneratedNames: additionalGeneratedNames,
 		TracerMetadata:           tracerMetadata,
 		ApmInstrumentation:       service.APMInstrumentation,
+		Resources:                resources,
 	}
 }
