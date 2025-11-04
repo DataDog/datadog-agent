@@ -654,18 +654,8 @@ func assertConfigV3(t *testing.T, v3Dir *string) {
 func assertDeploymentID(t *testing.T, dirs *Directories, stableDeploymentID string, experimentDeploymentID string) {
 	state, err := dirs.GetState()
 	assert.NoError(t, err)
-	if runtime.GOOS == "windows" {
-		// On windows, we write in the sable path directly, so the deployment ID is the same as the stable path.
-		if experimentDeploymentID != "" {
-			assert.Equal(t, experimentDeploymentID, state.StableDeploymentID)
-		} else {
-			assert.Equal(t, stableDeploymentID, state.StableDeploymentID)
-		}
-		assert.Equal(t, "", state.ExperimentDeploymentID)
-	} else {
-		assert.Equal(t, stableDeploymentID, state.StableDeploymentID)
-		assert.Equal(t, experimentDeploymentID, state.ExperimentDeploymentID)
-	}
+	assert.Equal(t, stableDeploymentID, state.StableDeploymentID)
+	assert.Equal(t, experimentDeploymentID, state.ExperimentDeploymentID)
 }
 
 func TestConfigV2ToV3(t *testing.T) {
