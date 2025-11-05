@@ -73,7 +73,6 @@ func getManifestCache() *gocache.Cache {
 // Returns true if the manifest should be skipped (cache hit with same resourceVersion).
 // This follows the same pattern as pkg/orchestrator.SkipKubernetesResource.
 func shouldSkipManifest(manifest *agentmodel.Manifest) bool {
-	return false
 	if manifest == nil || manifest.Uid == "" {
 		return false
 	}
@@ -129,12 +128,12 @@ func (e *Exporter) consumeK8sObjects(ctx context.Context, ld plog.Logs) (err err
 				logRecord := scopeLogs.LogRecords().At(k)
 
 				//dump raw log record
-				logger.Info("consumeK8sObjects", zap.Any("logRecord", logRecord.Body().AsString()))
+				logger.Info("consumeK8sObjectslog", zap.Any("logRecord", logRecord.Body().AsString()))
 
 				// Convert Kubernetes resource manifest to orchestrator payload format
 				manifest, err := toManifest(ctx, logRecord, resource)
 				if err != nil {
-					logger.Error("Failed to convert to manifest", zap.Error(err))
+					logger.Error("Failed to convert to manifest: "+err.Error(), zap.Error(err))
 					continue
 				}
 
@@ -253,18 +252,107 @@ func getClusterID(ctx context.Context) string {
 	return clusterIDCache
 }
 
+// toManifest converts a log record from k8sobjectsreceiver to an orchestrator manifest.
+// The receiver supports two modes:
+//   - Pull mode: k8s object is directly in the log body as JSON
+//   - Watch mode: log body contains an "object" field with the k8s resource, and a "type" field for event type
 func toManifest(ctx context.Context, logRecord plog.LogRecord, resource pcommon.Resource) (*agentmodel.Manifest, error) {
+	// Try to parse the body to detect the mode
+	var bodyMap map[string]interface{}
+	if err := json.Unmarshal([]byte(logRecord.Body().AsString()), &bodyMap); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal log body: %w", err)
+	}
+
+	// Check if this is a watch log (body contains "object" field)
+	if objectField, hasObject := bodyMap["object"]; hasObject {
+		// Watch log: body has structure like {"object": {...}, "type": "ADDED"}
+		return watchLogToManifest(ctx, objectField, bodyMap, logRecord, resource)
+	}
+
+	// Pull log: body directly contains the k8s object
+	return pullLogToManifestFromMap(ctx, bodyMap, logRecord, resource)
+}
+
+// watchLogToManifest handles logs from k8sobjectsreceiver in watch mode.
+// Structure of watch mode logs - Body is a JSON string containing:
+//
+//	{
+//	  "object": {...k8s resource...},
+//	  "type": "ADDED" | "MODIFIED" | "DELETED"
+//	}
+func watchLogToManifest(ctx context.Context, objectField interface{}, bodyMap map[string]interface{}, logRecord plog.LogRecord, resource pcommon.Resource) (*agentmodel.Manifest, error) {
+	// Convert the object field to a k8s resource map
+	k8sResource, ok := objectField.(map[string]interface{})
+	if !ok {
+		return nil, fmt.Errorf("object field in body is not a map, got type: %T", objectField)
+	}
+
+	// Extract event type from body
+	eventType := ""
+	if typeField, hasType := bodyMap["type"]; hasType {
+		if typeStr, ok := typeField.(string); ok {
+			eventType = typeStr
+		}
+	}
+
+	// Reuse common logic to build manifest
+	// Event types from k8s watch: ADDED, MODIFIED, DELETED
+	isTerminated := eventType == "DELETED"
+
+	return buildManifestFromK8sResource(ctx, k8sResource, resource, logRecord, isTerminated)
+}
+
+// pullLogToManifest handles logs from k8sobjectsreceiver in pull mode.
+// Structure of pull mode logs:
+//   - Body: JSON string containing the k8s resource directly (e.g., {"apiVersion":"v1","kind":"Pod",...})
+//   - Attributes: May contain additional metadata from the receiver
+func pullLogToManifest(ctx context.Context, logRecord plog.LogRecord, resource pcommon.Resource) (*agentmodel.Manifest, error) {
 	// Extract the Kubernetes resource data from the log record body
 	var k8sResource map[string]interface{}
 	if err := json.Unmarshal([]byte(logRecord.Body().AsString()), &k8sResource); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal k8s resource: %w", err)
+		return nil, fmt.Errorf("failed to unmarshal k8s resource from body: %w", err)
 	}
 
+	// Reuse common logic to build manifest (not a delete event in pull mode)
+	return buildManifestFromK8sResource(ctx, k8sResource, resource, logRecord, false)
+}
+
+// pullLogToManifestFromMap is a variant that works with an already-parsed body map
+func pullLogToManifestFromMap(ctx context.Context, k8sResource map[string]interface{}, logRecord plog.LogRecord, resource pcommon.Resource) (*agentmodel.Manifest, error) {
+	// Body is already parsed, just pass it to common logic
+	// Not a delete event in pull mode
+	return buildManifestFromK8sResource(ctx, k8sResource, resource, logRecord, false)
+}
+
+// buildManifestFromK8sResource is the shared logic to convert a k8s resource map to a manifest.
+// This function is used by both watchLogToManifest and pullLogToManifest to ensure consistent
+// manifest creation regardless of the source mode.
+//
+// Parameters:
+//   - k8sResource: The Kubernetes resource as a map (already unmarshaled from JSON)
+//   - resource: OTLP resource containing additional metadata
+//   - logRecord: OTLP log record for extracting tags and attributes
+//   - isTerminated: true if this represents a deleted resource (watch mode only)
+func buildManifestFromK8sResource(ctx context.Context, k8sResource map[string]interface{}, resource pcommon.Resource, logRecord plog.LogRecord, isTerminated bool) (*agentmodel.Manifest, error) {
 	// Check if the resource kind should be skipped for security reasons
 	kind, _ := k8sResource["kind"].(string)
 	if shouldSkipResourceKind(kind) {
 		return nil, fmt.Errorf("skipping unsupported resource kind: %s (contains sensitive data)", kind)
 	}
+
+	// Extract metadata
+	metadata, ok := k8sResource["metadata"].(map[string]interface{})
+	if !ok || metadata == nil {
+		return nil, fmt.Errorf("k8s resource missing metadata")
+	}
+
+	uid, _ := metadata["uid"].(string)
+	if uid == "" {
+		return nil, fmt.Errorf("k8s resource missing uid in metadata")
+	}
+
+	resourceVersion, _ := metadata["resourceVersion"].(string)
+	apiVersion, _ := k8sResource["apiVersion"].(string)
 
 	// Convert the Kubernetes resource to JSON bytes for the manifest content
 	content, err := json.Marshal(k8sResource)
@@ -272,18 +360,16 @@ func toManifest(ctx context.Context, logRecord plog.LogRecord, resource pcommon.
 		return nil, fmt.Errorf("failed to marshal k8s resource content: %w", err)
 	}
 
-	// Extract resource type and version from the Kubernetes resource
-	apiVersion, _ := k8sResource["apiVersion"].(string)
-	metadata, _ := k8sResource["metadata"].(map[string]interface{})
-	uid, _ := metadata["uid"].(string)
-	resourceVersion, _ := metadata["resourceVersion"].(string)
-
 	// Determine manifest type based on the Kubernetes resource kind
 	manifestType := getManifestType(kind)
 
 	// Build tags from resource and log record attributes
-	// ToDo: add more meaningful tags
 	tags := buildTags(resource, logRecord)
+
+	// Add source tag based on whether this is a watch or pull log
+	if isTerminated {
+		tags = append(tags, "event_type:delete", "source:watch")
+	}
 
 	// Create the manifest
 	manifest := &agentmodel.Manifest{
@@ -294,7 +380,7 @@ func toManifest(ctx context.Context, logRecord plog.LogRecord, resource pcommon.
 		ContentType:     "application/json",
 		Version:         "v1",
 		Tags:            tags,
-		IsTerminated:    false,
+		IsTerminated:    isTerminated,
 		ApiVersion:      apiVersion,
 		Kind:            kind,
 	}
