@@ -69,7 +69,7 @@ func buildLogsMap(cfg PipelineConfig) (*confmap.Conf, error) {
 	}
 
 	smap := map[string]interface{}{
-		buildKey("exporters", "logsagent", "sending_queue", "batch"): ensureNonNilMap(cfg.LogsBatch),
+		buildKey("exporters", "logsagent", "sending_queue", "batch"): ensureNonNilMap(cfg.Logs)["batch"],
 	}
 
 	{
