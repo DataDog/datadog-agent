@@ -8,4 +8,4 @@
 ---
 enhancements:
   - |
-    DDOT service stop by the core agent needs to be enforced.
+    Enforces that the DDOT service is stopped by the core Agent service.
