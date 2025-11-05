@@ -29,13 +29,8 @@ if ENV["S3_OMNIBUS_CACHE_BUCKET"]
   s3_force_path_style true
   s3_authenticated_download ENV.fetch('S3_OMNIBUS_CACHE_ANONYMOUS_ACCESS', '') == '' ? true : false
   if ENV['WINDOWS_BUILDER']
-    s3_role true
-    s3_role_arn 'arn:aws:iam::486234852809:role/ci-datadog-agent'
-    s3_role_session_name "datadog-agent-builder-job-#{ENV.fetch('CI_JOB_ID', 'unknown')}"
-    # the AssumeRole will be performed using AWS credentials provided by CI Identities
-    # instead of using the instance profile;
-    # see https://datadoghq.atlassian.net/wiki/spaces/SECENG/pages/4960814654/Fine-Grained+Cloud+IAM+Permissions+in+CI+Using+CI+Identities
-    s3_sts_creds_instance_profile false
+    s3_profile "default"
+    s3_credentials_file ENV.fetch('AWS_SHARED_CREDENTIALS_FILE', '%USERPROFILE%\.aws\credentials')
   else
     s3_instance_profile true
   end
