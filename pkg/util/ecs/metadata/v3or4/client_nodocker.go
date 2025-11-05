@@ -8,5 +8,22 @@
 //nolint:revive // TODO(CINT) Fix revive linter
 package v3or4
 
+import "context"
+
 // Client represents a client for a metadata v3 or v4 API endpoint.
 type Client struct{}
+
+// NewDefaultClient creates a new client for the default metadata v2 API endpoint.
+func NewDefaultClient() *Client {
+	return new(Client)
+}
+
+// GetTask returns the current task.
+func (c *Client) GetTask(context.Context) (*Task, error) {
+	return new(Task), nil
+}
+
+// GetTaskWithTags returns the current task, including propagated resource tags.
+func (c *Client) GetTaskWithTags(context.Context) (*Task, error) {
+	return new(Task), nil
+}
