@@ -19,6 +19,7 @@ import (
 	"github.com/stretchr/testify/mock"
 )
 
+// SnmpScanMock mocks snmpscan.Component
 type SnmpScanMock struct {
 	mock.Mock
 }
