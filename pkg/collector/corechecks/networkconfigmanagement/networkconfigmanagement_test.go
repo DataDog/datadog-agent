@@ -249,6 +249,7 @@ func TestCheck_Run_Success(t *testing.T) {
 		"device_namespace:default",
 		"device_ip:10.0.0.1",
 		"device_id:default:10.0.0.1",
+		"config_source:cli",
 		"profile:p2",
 	}
 	expectedTagsBytes, _ := json.Marshal(expectedTags)

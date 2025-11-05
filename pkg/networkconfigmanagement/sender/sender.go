@@ -70,7 +70,7 @@ func (s *NCMSender) SendNCMCheckMetrics(startTime time.Time, lastCheckTime time.
 
 // SendMetricsFromExtractedMetadata sends metrics from data extracted from the device config after processing
 func (s *NCMSender) SendMetricsFromExtractedMetadata(metadata profile.ExtractedMetadata, configType ncmreport.ConfigType) {
-	tags := s.getDeviceTags()
+	tags := append(s.getDeviceTags(), utils.GetCommonAgentTags()...)
 	switch configType {
 	case ncmreport.RUNNING:
 		tags = append(s.getDeviceTags(), ncmRunningConfigTypeTag)

@@ -189,13 +189,13 @@ func (c *Check) FindMatchingProfile() (*profile.NCMProfile, error) {
 }
 
 func (c *Check) getDeviceTags() []string {
-	// TODO: confirm what tags should be associated for a device config and/or its metrics
 	deviceID := fmt.Sprintf("%s:%s", c.checkContext.Namespace, c.checkContext.Device.IPAddress)
 	deviceTags := []string{
 		"device_namespace:" + c.checkContext.Namespace,
 		"device_ip:" + c.checkContext.Device.IPAddress,
 		"device_id:" + deviceID,
-		// TODO: device_hostname..?
+		// TODO: device_hostname - may need to be extracted from config / output to be retrieved in NCM core check
+		"config_source:cli",
 		"profile:" + c.checkContext.ProfileCache.ProfileName,
 	}
 	return slices.Clone(deviceTags)
