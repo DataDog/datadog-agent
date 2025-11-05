@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-// Package snmpscanmanager is a component that is used to manage SNMP scans
+// Package snmpscanmanager is a component that is used to manage SNMP device scans
 package snmpscanmanager
 
 // team: ndm-core
