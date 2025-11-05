@@ -127,6 +127,9 @@ func (e *Exporter) consumeK8sObjects(ctx context.Context, ld plog.Logs) (err err
 			for k := 0; k < scopeLogs.LogRecords().Len(); k++ {
 				logRecord := scopeLogs.LogRecords().At(k)
 
+				//dump raw log record
+				logger.Info("consumeK8sObjects", zap.Any("logRecord", logRecord.Body().AsString()))
+
 				// Convert Kubernetes resource manifest to orchestrator payload format
 				manifest, err := toManifest(ctx, logRecord, resource)
 				if err != nil {
