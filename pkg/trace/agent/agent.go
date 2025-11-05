@@ -74,13 +74,6 @@ type Writer interface {
 	UpdateAPIKey(oldKey, newKey string)
 }
 
-// TraceWriter provides a way to write trace chunks
-type TraceWriter interface {
-	Writer
-	// WriteChunks to be written
-	WriteChunks(pkg *writer.SampledChunks)
-}
-
 // TraceWriterV1 provides a way to write v1 trace chunks
 type TraceWriterV1 interface {
 	Writer

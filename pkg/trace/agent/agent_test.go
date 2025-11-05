@@ -64,18 +64,11 @@ func NewTestAgent(ctx context.Context, conf *config.AgentConfig, telemetryCollec
 
 type mockTraceWriter struct {
 	mu         sync.Mutex
-	payloads   []*writer.SampledChunks
 	payloadsV1 []*writer.SampledChunksV1
 	apiKey     string
 }
 
 func (m *mockTraceWriter) Stop() {}
-
-func (m *mockTraceWriter) WriteChunks(pkg *writer.SampledChunks) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	m.payloads = append(m.payloads, pkg)
-}
 
 func (m *mockTraceWriter) WriteChunksV1(pkg *writer.SampledChunksV1) {
 	m.mu.Lock()
@@ -135,23 +128,28 @@ func TestFormatTrace(t *testing.T) {
 	resource := "SELECT name FROM people WHERE age = 42"
 	rep := strings.Repeat(" AND age = 42", 25000)
 	resource = resource + rep
-	testTrace := pb.Trace{
-		&pb.Span{
-			Resource: resource,
-			Type:     "sql",
-		},
-	}
-	result := formatTrace(testTrace)[0]
 
-	assert.Equal(5000, len(result.Resource))
-	assert.NotEqual("Non-parsable SQL query", result.Resource)
-	assert.NotContains(result.Resource, "42")
-	assert.Contains(result.Resource, "SELECT name FROM people WHERE age = ?")
+	// Create InternalSpan with StringTable
+	st := idx.NewStringTable()
+	span := idx.NewInternalSpan(st, &idx.Span{
+		ResourceRef: st.Add(resource),
+		TypeRef:     st.Add("sql"),
+		Attributes:  make(map[uint32]*idx.AnyValue),
+	})
 
-	assert.Equal(25003, len(result.Meta["sql.query"])) // Ellipsis added in quantizer
-	assert.NotEqual("Non-parsable SQL query", result.Meta["sql.query"])
-	assert.NotContains(result.Meta["sql.query"], "42")
-	assert.Contains(result.Meta["sql.query"], "SELECT name FROM people WHERE age = ?")
+	result := formatTraceV1([]*idx.InternalSpan{span})[0]
+
+	assert.Equal(5000, len(result.Resource()))
+	assert.NotEqual("Non-parsable SQL query", result.Resource())
+	assert.NotContains(result.Resource(), "42")
+	assert.Contains(result.Resource(), "SELECT name FROM people WHERE age = ?")
+
+	sqlQuery, ok := result.GetAttributeAsString("sql.query")
+	assert.True(ok, "sql.query attribute should exist")
+	assert.Equal(25003, len(sqlQuery)) // Ellipsis added in quantizer
+	assert.NotEqual("Non-parsable SQL query", sqlQuery)
+	assert.NotContains(sqlQuery, "42")
+	assert.Contains(sqlQuery, "SELECT name FROM people WHERE age = ?")
 }
 
 func TestStopWaits(t *testing.T) {
@@ -2879,14 +2877,14 @@ func runTraceProcessingBenchmark(b *testing.B, c *config.AgentConfig) {
 	}
 }
 
-// Mimics behaviour of agent Process function
-func formatTrace(t pb.Trace) pb.Trace {
-	for _, span := range t {
+// formatTraceV1 mimics behaviour of agent Process function for InternalSpan
+func formatTraceV1(spans []*idx.InternalSpan) []*idx.InternalSpan {
+	for _, span := range spans {
 		a := &Agent{obfuscatorConf: &obfuscate.Config{}, conf: config.New()}
-		a.obfuscateSpan(span)
-		a.Truncate(span)
+		a.obfuscateSpanInternal(span)
+		a.TruncateV1(span)
 	}
-	return t
+	return spans
 }
 
 func BenchmarkThroughput(b *testing.B) {
@@ -2915,10 +2913,6 @@ type noopTraceWriter struct {
 func (n *noopTraceWriter) Run() {}
 
 func (n *noopTraceWriter) Stop() {}
-
-func (n *noopTraceWriter) WriteChunks(_ *writer.SampledChunks) {
-	n.count++
-}
 
 func (n *noopTraceWriter) WriteChunksV1(_ *writer.SampledChunksV1) {
 	n.count++
