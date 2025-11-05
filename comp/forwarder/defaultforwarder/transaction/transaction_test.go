@@ -11,6 +11,7 @@ import (
 	"net/http/httptest"
 	"reflect"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -190,13 +191,13 @@ func Test_truncateBodyForLog(t *testing.T) {
 }
 
 func TestTransaction403TriggersSecretRefresh(t *testing.T) {
-	var refreshCalls int
-	var bypassValue bool
+	var refreshCalls atomic.Int32
+	var bypassValue atomic.Bool
 
 	secrets := secretsmock.New(t)
 	secrets.SetRefreshHook(func(bypass bool) (string, error) {
-		refreshCalls++
-		bypassValue = bypass
+		refreshCalls.Add(1)
+		bypassValue.Store(bypass)
 		return "", nil
 	})
 
@@ -220,7 +221,7 @@ func TestTransaction403TriggersSecretRefresh(t *testing.T) {
 	assert.NoError(t, err)
 
 	assert.Eventually(t, func() bool {
-		return refreshCalls == 1
+		return refreshCalls.Load() == 1
 	}, 1*time.Second, 10*time.Millisecond, "secrets.Refresh should be called once when transaction receives 403")
-	assert.False(t, bypassValue, "secrets.Refresh should be called with bypassRateLimit=false")
+	assert.False(t, bypassValue.Load(), "secrets.Refresh should be called with bypassRateLimit=false")
 }
