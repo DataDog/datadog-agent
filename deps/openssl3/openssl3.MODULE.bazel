@@ -6,8 +6,6 @@ http_archive(
     name = "openssl3",
     files = {
         "BUILD.bazel": "//deps/openssl3:overlay/overlay.BUILD.bazel",
-        "crypto/sm4/vpsm4-armv8.S": "//deps/openssl3:overlay/crypto/sm4/vpsm4-armv8.S",
-        "crypto/sm4/vpsm4_ex-armv8.S": "//deps/openssl3:overlay/crypto/sm4/vpsm4_ex-armv8.S",
         "darwin_arm64/apps/progs.h": "//deps/openssl3:overlay/darwin_arm64/apps/progs.h",
         "darwin_arm64/crypto/aes/aesv8-armx.S": "//deps/openssl3:overlay/darwin_arm64/crypto/aes/aesv8-armx.S",
         "darwin_arm64/crypto/aes/bsaes-armv8.S": "//deps/openssl3:overlay/darwin_arm64/crypto/aes/bsaes-armv8.S",
