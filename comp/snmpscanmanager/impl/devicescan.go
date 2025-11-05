@@ -21,8 +21,8 @@ type scanStatus string
 
 const (
 	pendingStatus scanStatus = "pending"
-	failedStatus  scanStatus = "failed"
 	successStatus scanStatus = "success"
+	failedStatus  scanStatus = "failed"
 )
 
 func (ds *deviceScan) isCacheable() bool {
