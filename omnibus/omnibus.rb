@@ -30,7 +30,7 @@ if ENV["S3_OMNIBUS_CACHE_BUCKET"]
   s3_authenticated_download ENV.fetch('S3_OMNIBUS_CACHE_ANONYMOUS_ACCESS', '') == '' ? true : false
   if ENV['WINDOWS_BUILDER']
     s3_profile "default"
-    s3_credentials_file ENV.fetch('AWS_SHARED_CREDENTIALS_FILE', '%USERPROFILE%\.aws\credentials')
+    s3_credentials_file_path ENV.fetch('AWS_SHARED_CREDENTIALS_FILE', '%USERPROFILE%\.aws\credentials')
   else
     s3_instance_profile true
   end
