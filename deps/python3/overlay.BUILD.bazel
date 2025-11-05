@@ -39,6 +39,114 @@ PY_BUILTIN_MODULE_DEFINES = [
     "Py_BUILD_CORE_BUILTIN",
 ]
 
+# This list is generated mainly with this command, based on a generated Makefile:
+# cat Makefile | sed -rn 's#^Modules/([[:alnum:]_-]+)\$\(EXT_SUFFIX\):[[:space:]]+([[:alnum:][:space:]\\./_-]+).*$#"\1": {\2}#p' | sed 's/\.o[[:space:]]/.c/g'
+# Then, one needs to either come up with another script to format as "\1": {"\2"} and splitting \2 by spaces
+_MODULES = {
+    "array": ["Modules/arraymodule.c"],
+    "_asyncio": ["Modules/_asynciomodule.c"],
+    "_bisect": ["Modules/_bisectmodule.c"],
+    "_csv": ["Modules/_csv.c"],
+    "_heapq": ["Modules/_heapqmodule.c"],
+    "_json": ["Modules/_json.c"],
+    "_lsprof": ["Modules/_lsprof.c", "Modules/rotatingtree.c"],
+    "_pickle": ["Modules/_pickle.c"],
+    "_queue": ["Modules/_queuemodule.c"],
+    "_random": ["Modules/_randommodule.c"],
+    "_remote_debugging": ["Modules/_remote_debugging_module.c"],
+    "_struct": ["Modules/_struct.c"],
+    "_interpreters": ["Modules/_interpretersmodule.c"],
+    "_interpchannels": ["Modules/_interpchannelsmodule.c"],
+    "_interpqueues": ["Modules/_interpqueuesmodule.c"],
+    "_zoneinfo": ["Modules/_zoneinfo.c"],
+    "math": ["Modules/mathmodule.c"],
+    "cmath": ["Modules/cmathmodule.c"],
+    "_statistics": ["Modules/_statisticsmodule.c"],
+    "_datetime": ["Modules/_datetimemodule.c"],
+    "_decimal": ["Modules/_decimal/_decimal.c"],
+    "binascii": ["Modules/binascii.c"],
+    "_bz2": ["Modules/_bz2module.c"],
+    "_lzma": ["Modules/_lzmamodule.c"],
+    "_zstd": ["Modules/_zstd/_zstdmodule.c", "Modules/_zstd/zstddict.c", "Modules/_zstd/compressor.c", "Modules/_zstd/decompressor.c"],
+    "zlib": ["Modules/zlibmodule.c"],
+    "readline": ["Modules/readline.c"],
+    "_md5": ["Modules/md5module.c"],
+    "_sha1": ["Modules/sha1module.c"],
+    "_sha2": ["Modules/sha2module.c"],
+    "_sha3": ["Modules/sha3module.c"],
+    "_blake2": ["Modules/blake2module.c"],
+    "_hmac": ["Modules/hmacmodule.c"],
+    "pyexpat": ["Modules/pyexpat.c"],
+    "_elementtree": ["Modules/_elementtree.c"],
+    "_codecs_cn": ["Modules/cjkcodecs/_codecs_cn.c"],
+    "_codecs_hk": ["Modules/cjkcodecs/_codecs_hk.c"],
+    "_codecs_iso2022": ["Modules/cjkcodecs/_codecs_iso2022.c"],
+    "_codecs_jp": ["Modules/cjkcodecs/_codecs_jp.c"],
+    "_codecs_kr": ["Modules/cjkcodecs/_codecs_kr.c"],
+    "_codecs_tw": ["Modules/cjkcodecs/_codecs_tw.c"],
+    "_multibytecodec": ["Modules/cjkcodecs/multibytecodec.c"],
+    "unicodedata": ["Modules/unicodedata.c"],
+    "fcntl": ["Modules/fcntlmodule.c"],
+    "grp": ["Modules/grpmodule.c"],
+    "mmap": ["Modules/mmapmodule.c"],
+    "_posixsubprocess": ["Modules/_posixsubprocess.c"],
+    "resource": ["Modules/resource.c"],
+    "select": ["Modules/selectmodule.c"],
+    "_socket": ["Modules/socketmodule.c"],
+    "syslog": ["Modules/syslogmodule.c"],
+    "termios": ["Modules/termios.c"],
+    "_posixshmem": ["Modules/_multiprocessing/posixshmem.c"],
+    "_multiprocessing": ["Modules/_multiprocessing/multiprocessing.c", "Modules/_multiprocessing/semaphore.c"],
+    "_ctypes": ["Modules/_ctypes/_ctypes.c", "Modules/_ctypes/callbacks.c", "Modules/_ctypes/callproc.c", "Modules/_ctypes/stgdict.c", "Modules/_ctypes/cfield.c"],
+    "_curses": ["Modules/_cursesmodule.c"],
+    "_curses_panel": ["Modules/_curses_panel.c"],
+    "_sqlite3": ["Modules/_sqlite/blob.c", "Modules/_sqlite/connection.c", "Modules/_sqlite/cursor.c", "Modules/_sqlite/microprotocols.c", "Modules/_sqlite/module.c", "Modules/_sqlite/prepare_protocol.c", "Modules/_sqlite/row.c", "Modules/_sqlite/statement.c", "Modules/_sqlite/util.c"],
+    "_ssl": ["Modules/_ssl.c"],
+    "_hashlib": ["Modules/_hashopenssl.c"],
+    "_uuid": ["Modules/_uuidmodule.c"],
+    "_tkinter": ["Modules/_tkinter.c", "Modules/tkappinit.c"],
+    "xxsubtype": ["Modules/xxsubtype.c"],
+    "_xxtestfuzz": ["Modules/_xxtestfuzz/_xxtestfuzz.c", "Modules/_xxtestfuzz/fuzzer.c"],
+    "_testbuffer": ["Modules/_testbuffer.c"],
+    "_testinternalcapi": ["Modules/_testinternalcapi.c", "Modules/_testinternalcapi/test_lock.c", "Modules/_testinternalcapi/pytime.c", "Modules/_testinternalcapi/set.c", "Modules/_testinternalcapi/test_critical_sections.c", "Modules/_testinternalcapi/complex.c"],
+    "_testcapi": ["Modules/_testcapimodule.c", "Modules/_testcapi/vectorcall.c", "Modules/_testcapi/heaptype.c", "Modules/_testcapi/abstract.c", "Modules/_testcapi/unicode.c", "Modules/_testcapi/dict.c", "Modules/_testcapi/set.c", "Modules/_testcapi/list.c", "Modules/_testcapi/tuple.c", "Modules/_testcapi/getargs.c", "Modules/_testcapi/datetime.c", "Modules/_testcapi/docstring.c", "Modules/_testcapi/mem.c", "Modules/_testcapi/watchers.c", "Modules/_testcapi/long.c", "Modules/_testcapi/float.c", "Modules/_testcapi/complex.c", "Modules/_testcapi/numbers.c", "Modules/_testcapi/structmember.c", "Modules/_testcapi/exceptions.c", "Modules/_testcapi/code.c", "Modules/_testcapi/buffer.c", "Modules/_testcapi/pyatomic.c", "Modules/_testcapi/run.c", "Modules/_testcapi/file.c", "Modules/_testcapi/codec.c", "Modules/_testcapi/immortal.c", "Modules/_testcapi/gc.c", "Modules/_testcapi/hash.c", "Modules/_testcapi/time.c", "Modules/_testcapi/bytes.c", "Modules/_testcapi/object.c", "Modules/_testcapi/monitoring.c", "Modules/_testcapi/config.c", "Modules/_testcapi/import.c", "Modules/_testcapi/frame.c", "Modules/_testcapi/type.c", "Modules/_testcapi/function.c"],
+    "_testlimitedcapi": ["Modules/_testlimitedcapi.c", "Modules/_testlimitedcapi/abstract.c", "Modules/_testlimitedcapi/bytearray.c", "Modules/_testlimitedcapi/bytes.c", "Modules/_testlimitedcapi/codec.c", "Modules/_testlimitedcapi/complex.c", "Modules/_testlimitedcapi/dict.c", "Modules/_testlimitedcapi/eval.c", "Modules/_testlimitedcapi/float.c", "Modules/_testlimitedcapi/heaptype_relative.c", "Modules/_testlimitedcapi/import.c", "Modules/_testlimitedcapi/list.c", "Modules/_testlimitedcapi/long.c", "Modules/_testlimitedcapi/object.c", "Modules/_testlimitedcapi/pyos.c", "Modules/_testlimitedcapi/set.c", "Modules/_testlimitedcapi/sys.c", "Modules/_testlimitedcapi/tuple.c", "Modules/_testlimitedcapi/unicode.c", "Modules/_testlimitedcapi/vectorcall_limited.c", "Modules/_testlimitedcapi/version.c", "Modules/_testlimitedcapi/file.c"],
+    "_testclinic": ["Modules/_testclinic.c"],
+    "_testclinic_limited": ["Modules/_testclinic_limited.c"],
+    "_testimportmultiple": ["Modules/_testimportmultiple.c"],
+    "_testmultiphase": ["Modules/_testmultiphase.c"],
+    "_testsinglephase": ["Modules/_testsinglephase.c"],
+    "_ctypes_test": ["Modules/_ctypes/_ctypes_test.c"],
+    "xxlimited": ["Modules/xxlimited.c"],
+    "xxlimited_35": ["Modules/xxlimited_35.c"],
+    "atexit": ["Modules/atexitmodule.c"],
+    "faulthandler": ["Modules/faulthandler.c"],
+    "posix": ["Modules/posixmodule.c"],
+    "_signal": ["Modules/signalmodule.c"],
+    "_tracemalloc": ["Modules/_tracemalloc.c"],
+    "_suggestions": ["Modules/_suggestions.c"],
+    "_codecs": ["Modules/_codecsmodule.c"],
+    "_collections": ["Modules/_collectionsmodule.c"],
+    "errno": ["Modules/errnomodule.c"],
+    "_io": ["Modules/_io/_iomodule.c", "Modules/_io/iobase.c", "Modules/_io/fileio.c", "Modules/_io/bytesio.c", "Modules/_io/bufferedio.c", "Modules/_io/textio.c", "Modules/_io/stringio.c"],
+    "itertools": ["Modules/itertoolsmodule.c"],
+    "_sre": ["Modules/_sre/sre.c"],
+    "_sysconfig": ["Modules/_sysconfig.c"],
+    "_thread": ["Modules/_threadmodule.c"],
+    "time": ["Modules/timemodule.c"],
+    "_typing": ["Modules/_typingmodule.c"],
+    "_weakref": ["Modules/_weakref.c"],
+    "_abc": ["Modules/_abc.c"],
+    "_functools": ["Modules/_functoolsmodule.c"],
+    "_locale": ["Modules/_localemodule.c"],
+    "_opcode": ["Modules/_opcode.c"],
+    "_operator": ["Modules/_operator.c"],
+    "_stat": ["Modules/_stat.c"],
+    "_symtable": ["Modules/symtablemodule.c"],
+    "pwd": ["Modules/pwdmodule.c"],
+}
+
+
 _COMMON_INCLUDE_DIRS = [
     "Include/internal",
     "Objects",
@@ -152,8 +260,9 @@ genrule(
         ":modules_setup_bootstrap",
         ":modules_setup_stdlib",
     ],
-    cmd = "$(location Modules/makesetup) -c $(location Modules/config.c.in) -s Modules $(location :modules_setup_bootstrap) $(location :modules_setup_stdlib)",
-    outs = ["Modules/config.c"],
+    # -m - prevents the script from reading makefile.pre and generating a makefile
+    cmd = "$(location Modules/makesetup) -c $(location Modules/config.c.in) -m - $(location :modules_setup_bootstrap) $(location :modules_setup_stdlib) && cp config.c $@",
+    outs = ["config.c"],
 )
 
 # The filegroups below follow the naming patterns in cpython/Makefile.pre.in
@@ -225,20 +334,18 @@ filegroup(
 filegroup(
     name = "python_srcs",
     srcs = [
-        "Python/_contextvars.c",
         "Python/_warnings.c",
         "Python/Python-ast.c",
         "Python/Python-tokenize.c",
         "Python/asdl.c",
         "Python/assemble.c",
         "Python/ast.c",
-        "Python/ast_preprocess.c",
+        "Python/ast_opt.c",
         "Python/ast_unparse.c",
         "Python/bltinmodule.c",
         "Python/brc.c",
         "Python/ceval.c",
         "Python/codecs.c",
-        "Python/codegen.c",
         "Python/compile.c",
         "Python/context.c",
         "Python/critical_section.c",
@@ -262,7 +369,6 @@ filegroup(
         "Python/hashtable.c",
         "Python/import.c",
         "Python/importdl.c",
-        "Python/index_pool.c",
         "Python/initconfig.c",
         "Python/interpconfig.c",
         "Python/instrumentation.c",
@@ -294,14 +400,12 @@ filegroup(
         "Python/qsbr.c",
         "Python/bootstrap_hash.c",
         "Python/specialize.c",
-        "Python/stackrefs.c",
         "Python/structmember.c",
         "Python/symtable.c",
         "Python/sysmodule.c",
         "Python/thread.c",
         "Python/traceback.c",
         "Python/tracemalloc.c",
-        "Python/uniqueid.c",
         "Python/getopt.c",
         "Python/pystrcmp.c",
         "Python/pystrtod.c",
@@ -312,9 +416,21 @@ filegroup(
         "Python/suggestions.c",
         "Python/perf_trampoline.c",
         "Python/perf_jit_trampoline.c",
-    ] + select({
-        "@platforms//os:linux": ["Python/dynload_shlib.c"]
-    })
+    ],
+)
+
+cc_library(
+    name = "dynload_shlib",
+    srcs = ["Python/dynload_shlib.c", ":python_headers"],
+    local_defines = select({
+        "@@//:linux_x86_64": ['SOABI=\\"cpython-315-x86_64-linux-gnu\\"'],
+        "@@//:linux_arm64": ['SOABI=\\"cpython-315-aarch64-linux-gnu\\"'],
+    }) + COMMON_DEFINES + PY_CORE_DEFINES,
+    includes = _COMMON_INCLUDE_DIRS,
+    deps = [
+        ":mimalloc",
+    ]
+
 )
 
 filegroup(
@@ -372,7 +488,7 @@ filegroup(
 filegroup(
     name = "modules_srcs",
     srcs = [
-        "Modules/config.c",
+        ":config_c",
         "Modules/main.c",
         "Modules/gcmodule.c",
     ]
@@ -519,11 +635,27 @@ filegroup(
 )
 
 filegroup(
+    name = "python_clinic_headers",
+    srcs = glob(["Python/clinic/*.h"]),
+)
+
+filegroup(
+    name = "modules_clinic_headers",
+    srcs = glob(["Modules/clinic/*.h"]),
+)
+
+filegroup(
+    name = "modules_headers",
+    srcs = glob(["Modules/*.h"]),
+)
+
+filegroup(
     name = "python_headers",
     srcs = glob([
         "Include/*.h",
         "Include/cpython/*.h",
         "Include/internal/*.h",
+        "Python/*.h",
     ]) + [
         ":copy_pyconfig",
         ":pegen_headers",
@@ -534,6 +666,8 @@ filegroup(
         ":objects_clinic_headers",
         ":stringlib_clinic_headers",
         ":stringlib_other_headers",
+        ":python_clinic_headers",
+        ":modules_clinic_headers",
     ]
 )
 
@@ -555,11 +689,13 @@ cc_binary(
         ":library_srcs_omit_frozen",
         "Objects/typeslots.inc",
     ],
+    deps = select({
+        "@platforms//os:linux": [":dynload_shlib"],
+    }) + [
+        ":mimalloc",
+    ] + [":module_" + m for m in _MODULES.keys()],
     local_defines = COMMON_DEFINES + PY_CORE_DEFINES,
     includes = _COMMON_INCLUDE_DIRS,
-    deps = [
-        ":mimalloc",
-    ]
 )
 
 cc_binary(
@@ -573,6 +709,12 @@ cc_binary(
     ],
 )
 
-cc_library(
-    name = "libpython3",
-)
+[
+    cc_library(
+        name = "module_" + name,
+        srcs = srcs + [":python_headers", ":modules_headers"],
+        includes = _COMMON_INCLUDE_DIRS,
+        local_defines = COMMON_DEFINES + PY_BUILTIN_MODULE_DEFINES,
+        deps = [":mimalloc"],
+    ) for name, srcs in _MODULES.items()
+]
