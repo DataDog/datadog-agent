@@ -14,7 +14,7 @@ type deviceScansByIP map[string]deviceScan
 type deviceScan struct {
 	DeviceIP   string     `json:"device_ip"`
 	ScanStatus scanStatus `json:"scan_status"`
-	ScanEndTs  time.Time  `json:"scan_end_ts"`
+	ScanEndTs  *time.Time `json:"scan_end_ts,omitempty"`
 }
 
 type scanStatus string

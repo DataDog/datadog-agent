@@ -21,7 +21,6 @@ import (
 	snmpscanmanager "github.com/DataDog/datadog-agent/comp/snmpscanmanager/def"
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/metadata"
 	"github.com/DataDog/datadog-agent/pkg/persistentcache"
-	"github.com/DataDog/datadog-agent/pkg/snmp/snmpparse"
 )
 
 const (
@@ -40,7 +39,7 @@ type Requires struct {
 	Lifecycle  compdef.Lifecycle
 	Logger     log.Component
 	Config     config.Component
-	HttpClient ipc.HTTPClient
+	HTTPClient ipc.HTTPClient
 	Scanner    snmpscan.Component
 }
 
@@ -52,12 +51,12 @@ type Provides struct {
 // NewComponent creates a new snmpscanmanager component
 func NewComponent(reqs Requires) (Provides, error) {
 	scanManager := &snmpScanManagerImpl{
-		log:         reqs.Logger,
-		scanner:     reqs.Scanner,
-		agentConfig: reqs.Config,
-		httpClient:  reqs.HttpClient,
+		log:                reqs.Logger,
+		scanner:            reqs.Scanner,
+		agentConfig:        reqs.Config,
+		httpClient:         reqs.HTTPClient,
+		snmpConfigProvider: newSnmpConfigProvider(),
 	}
-	scanManager.loadCache()
 
 	reqs.Lifecycle.Append(compdef.Hook{
 		OnStart: func(_ context.Context) error {
@@ -76,10 +75,11 @@ func NewComponent(reqs Requires) (Provides, error) {
 }
 
 type snmpScanManagerImpl struct {
-	log         log.Component
-	scanner     snmpscan.Component
-	agentConfig config.Component
-	httpClient  ipc.HTTPClient
+	log                log.Component
+	scanner            snmpscan.Component
+	agentConfig        config.Component
+	httpClient         ipc.HTTPClient
+	snmpConfigProvider snmpConfigProvider
 
 	scanQueue   chan snmpscanmanager.ScanRequest
 	deviceScans deviceScansByIP
@@ -93,6 +93,7 @@ type snmpScanManagerImpl struct {
 func (m *snmpScanManagerImpl) start() {
 	m.scanQueue = make(chan snmpscanmanager.ScanRequest, scanQueueSize)
 	m.deviceScans = make(deviceScansByIP)
+	m.loadCache()
 
 	m.ctx, m.cancelFunc = context.WithCancel(context.Background())
 
@@ -103,9 +104,9 @@ func (m *snmpScanManagerImpl) start() {
 }
 
 func (m *snmpScanManagerImpl) stop() {
+	m.cancelFunc()
 	close(m.scanQueue)
 
-	m.cancelFunc()
 	m.wg.Wait()
 }
 
@@ -113,6 +114,12 @@ func (m *snmpScanManagerImpl) stop() {
 func (m *snmpScanManagerImpl) RequestScan(req snmpscanmanager.ScanRequest) {
 	m.mtx.Lock()
 	defer m.mtx.Unlock()
+
+	select {
+	case <-m.ctx.Done():
+		return
+	default:
+	}
 
 	if m.agentConfig.GetBool("network_devices.default_scan.disabled") {
 		return
@@ -123,13 +130,12 @@ func (m *snmpScanManagerImpl) RequestScan(req snmpscanmanager.ScanRequest) {
 		return
 	}
 
-	m.deviceScans[req.DeviceIP] = deviceScan{
-		DeviceIP:   req.DeviceIP,
-		ScanStatus: pendingStatus,
-	}
-
 	select {
 	case m.scanQueue <- req:
+		m.deviceScans[req.DeviceIP] = deviceScan{
+			DeviceIP:   req.DeviceIP,
+			ScanStatus: pendingStatus,
+		}
 		m.log.Infof("Queued scan request for device %s", req.DeviceIP)
 	default:
 		m.log.Warnf("Dropping scan request for device %s, scan queue is full", req.DeviceIP)
@@ -139,22 +145,25 @@ func (m *snmpScanManagerImpl) RequestScan(req snmpscanmanager.ScanRequest) {
 func (m *snmpScanManagerImpl) scanWorker() {
 	defer m.wg.Done()
 
-	for req := range m.scanQueue {
-		err := m.processScanRequest(req)
-		if err != nil {
-			m.log.Errorf("Error processing scan request: %v", err)
+	for {
+		select {
+		case <-m.ctx.Done():
+			return
+		case req, ok := <-m.scanQueue:
+			if !ok {
+				return
+			}
+
+			err := m.processScanRequest(req)
+			if err != nil {
+				m.log.Errorf("Error processing scan request: %v", err)
+			}
 		}
 	}
 }
 
 func (m *snmpScanManagerImpl) processScanRequest(req snmpscanmanager.ScanRequest) error {
-	select {
-	case <-m.ctx.Done():
-		return nil
-	default:
-	}
-
-	instanceConfig, err := snmpparse.GetParamsFromAgent(req.DeviceIP, m.agentConfig, m.httpClient)
+	instanceConfig, err := m.snmpConfigProvider.GetConfigFromAgent(req.DeviceIP, m.agentConfig, m.httpClient)
 	if err != nil {
 		m.log.Errorf("Error getting instance config for device %s: %v", req.DeviceIP, err)
 		m.setDeviceScan(deviceScan{
@@ -184,10 +193,11 @@ func (m *snmpScanManagerImpl) processScanRequest(req snmpscanmanager.ScanRequest
 		return err
 	}
 
+	now := time.Now()
 	m.setDeviceScan(deviceScan{
 		DeviceIP:   req.DeviceIP,
-		ScanEndTs:  time.Now(),
 		ScanStatus: successStatus,
+		ScanEndTs:  &now,
 	})
 	m.writeCache()
 
@@ -223,7 +233,7 @@ func (m *snmpScanManagerImpl) writeCache() {
 	m.mtx.Lock()
 	defer m.mtx.Unlock()
 
-	var deviceScans []deviceScan
+	deviceScans := make([]deviceScan, 0)
 	for _, scan := range m.deviceScans {
 		if scan.isCacheable() {
 			deviceScans = append(deviceScans, scan)
