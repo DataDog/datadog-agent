@@ -205,3 +205,115 @@ func TestJSONAggregatorTelemetry(t *testing.T) {
 	assert.Equal(t, initialFalse+1, metrics.TlmAutoMultilineJSONAggregatorFlush.WithValues("false").Get())
 
 }
+
+func TestHasBalancedBraces(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected bool
+	}{
+		{
+			name:     "simple single-line JSON",
+			input:    `{"key":"value"}`,
+			expected: true,
+		},
+		{
+			name:     "single-line JSON with trailing whitespace",
+			input:    `{"key":"value"}  `,
+			expected: true,
+		},
+		{
+			name:     "single-line JSON with trailing newline",
+			input:    `{"key":"value"}` + "\n",
+			expected: true,
+		},
+		{
+			name:     "incomplete JSON - unbalanced braces",
+			input:    `{"key":"value"`,
+			expected: false,
+		},
+		{
+			name:     "JSON with nested objects",
+			input:    `{"outer":{"inner":"value"}}`,
+			expected: true,
+		},
+		{
+			name:     "JSON with escaped quotes",
+			input:    `{"key":"value with \"quotes\""}`,
+			expected: true,
+		},
+		{
+			name:     "JSON with brace in string",
+			input:    `{"key":"value with } brace"}`,
+			expected: true,
+		},
+		{
+			name:     "JSON with trailing garbage",
+			input:    `{"key":"value"} garbage`,
+			expected: false,
+		},
+		{
+			name:     "empty string",
+			input:    ``,
+			expected: false,
+		},
+		{
+			name:     "not starting with brace",
+			input:    `not json`,
+			expected: false,
+		},
+		{
+			name:     "array (not object)",
+			input:    `["array"]`,
+			expected: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := isSingleLineJSON([]byte(tt.input))
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestJSONAggregatorFastPath(t *testing.T) {
+	aggregator := NewJSONAggregator(true, 1000)
+
+	// Fast path should handle single-line JSON without full parsing
+	msg := newTestMessage(`{"key":"value","number":42,"nested":{"inner":"data"}}`)
+	result := aggregator.Process(msg)
+
+	assert.Equal(t, 1, len(result), "Expected one message to be returned")
+	assert.Equal(t, []byte(`{"key":"value","number":42,"nested":{"inner":"data"}}`), result[0].GetContent(), "Content should be unchanged")
+	assert.NotContains(t, result[0].ParsingExtra.Tags, message.AggregatedJSONTag, "Should not be tagged as aggregated")
+
+	// Verify the decoder buffer is still empty (fast path bypassed it)
+	assert.True(t, aggregator.IsEmpty(), "Aggregator buffer should be empty after fast path")
+}
+
+func TestJSONAggregatorFastPathWithTrailingWhitespace(t *testing.T) {
+	aggregator := NewJSONAggregator(true, 1000)
+
+	// Single-line JSON with trailing whitespace should use fast path
+	msg := newTestMessage(`{"key":"value"}   ` + "\n\t")
+	result := aggregator.Process(msg)
+
+	assert.Equal(t, 1, len(result), "Expected one message to be returned")
+	assert.True(t, aggregator.IsEmpty(), "Aggregator buffer should be empty after fast path")
+}
+
+func TestJSONAggregatorMultilineStillWorks(t *testing.T) {
+	aggregator := NewJSONAggregator(true, 1000)
+
+	// Multiline JSON should still aggregate properly
+	msg1 := newTestMessage(`{"key":`)
+	result := aggregator.Process(msg1)
+	assert.Equal(t, 0, len(result), "Expected no messages for incomplete JSON")
+
+	msg2 := newTestMessage(`"value"}`)
+	result = aggregator.Process(msg2)
+	assert.Equal(t, 1, len(result), "Expected one message after completion")
+	assert.Equal(t, []byte(`{"key":"value"}`), result[0].GetContent(), "Content should be compacted")
+	assert.Contains(t, result[0].ParsingExtra.Tags, message.AggregatedJSONTag, "Should be tagged as aggregated")
+}

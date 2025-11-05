@@ -20,6 +20,8 @@ type JSONAggregator struct {
 	currentSize     int
 	tagCompleteJSON bool
 	maxContentSize  int
+	inBuf           *bytes.Buffer
+	outBuf          *bytes.Buffer
 }
 
 // NewJSONAggregator creates a new JSONAggregator.
@@ -29,6 +31,8 @@ func NewJSONAggregator(tagCompleteJSON bool, maxContentSize int) *JSONAggregator
 		messageBuf:      make([]*message.Message, 0),
 		tagCompleteJSON: tagCompleteJSON,
 		maxContentSize:  maxContentSize,
+		inBuf:           &bytes.Buffer{},
+		outBuf:          &bytes.Buffer{},
 	}
 }
 
@@ -44,17 +48,37 @@ func (r *JSONAggregator) Process(msg *message.Message) []*message.Message {
 		return r.Flush()
 	}
 
-	switch r.decoder.Write(msg.GetContent()) {
+	content := msg.GetContent()
+
+	// If buffer is empty and content is likely complete single-line JSON,
+	// validate and return without parsing
+	if len(r.messageBuf) == 0 && isSingleLineJSON(content) {
+		if json.Valid(content) {
+			// Already single-line JSON, return as-is
+			return []*message.Message{msg}
+		}
+		// Fall through to full parsing if validation failed
+	}
+
+	switch r.decoder.Write(content) {
 	case Incomplete:
 		break
 	case Complete:
 		r.decoder.Reset()
-		outBuf := &bytes.Buffer{}
-		inBuf := &bytes.Buffer{}
-		for _, m := range r.messageBuf {
-			inBuf.Write(m.GetContent())
+
+		// If only one message, no need to compact
+		if len(r.messageBuf) == 1 {
+			r.messageBuf = r.messageBuf[:0]
+			r.currentSize = 0
+			return []*message.Message{msg}
 		}
-		err := json.Compact(outBuf, inBuf.Bytes())
+
+		r.outBuf.Reset()
+		r.inBuf.Reset()
+		for _, m := range r.messageBuf {
+			r.inBuf.Write(m.GetContent())
+		}
+		err := json.Compact(r.outBuf, r.inBuf.Bytes())
 		if err != nil {
 			return r.Flush()
 		}
@@ -66,7 +90,7 @@ func (r *JSONAggregator) Process(msg *message.Message) []*message.Message {
 		}
 
 		r.messageBuf = r.messageBuf[:0]
-		msg.SetContent(outBuf.Bytes())
+		msg.SetContent(r.outBuf.Bytes())
 		msg.RawDataLen = r.currentSize
 		r.currentSize = 0
 
@@ -93,4 +117,64 @@ func (r *JSONAggregator) Flush() []*message.Message {
 // IsEmpty returns true if the buffer is empty.
 func (r *JSONAggregator) IsEmpty() bool {
 	return len(r.messageBuf) == 0
+}
+
+// isSingleLineJSON performs a scan (without full parsing) to determine if the message has
+// balanced braces, which indicates that the message is likely to be complete single-line JSON.
+func isSingleLineJSON(content []byte) bool {
+	if len(content) == 0 {
+		return false
+	}
+
+	// Must start with '{' to be a JSON object
+	if content[0] != '{' {
+		return false
+	}
+
+	braceCount := 0
+	inString := false
+	escaped := false
+
+	for i, b := range content {
+		if escaped {
+			escaped = false
+			continue
+		}
+
+		if b == '\\' && inString {
+			escaped = true
+			continue
+		}
+
+		if b == '"' {
+			inString = !inString
+			continue
+		}
+
+		if !inString {
+			switch b {
+			case '{':
+				braceCount++
+			case '}':
+				braceCount--
+				// If we hit balanced braces before the end, check if rest is whitespace
+				if braceCount == 0 && i < len(content)-1 {
+					return isOnlyWhitespace(content[i+1:])
+				}
+			}
+		}
+	}
+
+	// Balanced braces = likely complete single-line JSON
+	return braceCount == 0
+}
+
+// isOnlyWhitespace returns true if the data contains only whitespace characters.
+func isOnlyWhitespace(data []byte) bool {
+	for _, b := range data {
+		if b != ' ' && b != '\t' && b != '\n' && b != '\r' {
+			return false
+		}
+	}
+	return true
 }
