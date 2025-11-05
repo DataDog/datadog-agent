@@ -159,7 +159,7 @@ DOGSTATSD_TAGS = {"containerd", "grpcnotrace", "no_dynamic_plugins", "docker", "
 IOT_AGENT_TAGS = {"grpcnotrace", "jetson", "systemd", "zlib", "zstd"}
 
 # INSTALLER_TAGS lists the tags needed when building the installer
-INSTALLER_TAGS = {"docker", "ec2", "kubelet"}
+INSTALLER_TAGS = {"docker", "ec2", "kubelet", "grpcnotrace"}
 
 # PROCESS_AGENT_TAGS lists the tags necessary to build the process-agent
 PROCESS_AGENT_TAGS = {
@@ -529,12 +529,3 @@ def compute_config_build_tags(targets="all", build_include=None, build_exclude=N
     build_exclude = [] if build_exclude is None else build_exclude.split(",")
     use_tags = get_build_tags(build_include, build_exclude)
     return use_tags
-
-
-def add_fips_tags(tags: list[str], fips_mode: bool) -> list[str]:
-    is_windows_build = sys.platform == 'win32' or os.getenv("GOOS") == "windows"
-    if fips_mode:
-        tags.append("goexperiment.systemcrypto")
-    if fips_mode and not is_windows_build:
-        tags.append("requirefips")
-    return tags
