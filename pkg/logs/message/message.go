@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
+	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/statefulpb"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -74,9 +75,8 @@ type Message struct {
 
 // StatefulMessage represents a log message for gRPC stateful streaming
 // It contains a Datum (from stateful_encoding.proto) and associated metadata
-// Datum is stored as `any` to avoid import cycle with sender/grpc package
 type StatefulMessage struct {
-	Datum    any // Will hold *grpc.Datum
+	Datum    *statefulpb.Datum
 	Metadata *MessageMetadata
 }
 

@@ -2,11 +2,15 @@
 // versions:
 // 	protoc-gen-go v1.36.10
 // 	protoc        v5.29.3
-// source: stateful_encoding.proto
+// source: datadog/stateful/stateful_encoding.proto
 
-package grpc
+package statefulpb
 
 import (
+	context "context"
+	grpc "google.golang.org/grpc"
+	codes "google.golang.org/grpc/codes"
+	status "google.golang.org/grpc/status"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
@@ -52,11 +56,11 @@ func (x BatchStatus_Status) String() string {
 }
 
 func (BatchStatus_Status) Descriptor() protoreflect.EnumDescriptor {
-	return file_stateful_encoding_proto_enumTypes[0].Descriptor()
+	return file_datadog_stateful_stateful_encoding_proto_enumTypes[0].Descriptor()
 }
 
 func (BatchStatus_Status) Type() protoreflect.EnumType {
-	return &file_stateful_encoding_proto_enumTypes[0]
+	return &file_datadog_stateful_stateful_encoding_proto_enumTypes[0]
 }
 
 func (x BatchStatus_Status) Number() protoreflect.EnumNumber {
@@ -65,7 +69,7 @@ func (x BatchStatus_Status) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use BatchStatus_Status.Descriptor instead.
 func (BatchStatus_Status) EnumDescriptor() ([]byte, []int) {
-	return file_stateful_encoding_proto_rawDescGZIP(), []int{10, 0}
+	return file_datadog_stateful_stateful_encoding_proto_rawDescGZIP(), []int{10, 0}
 }
 
 type DictEntryDefine struct {
@@ -78,7 +82,7 @@ type DictEntryDefine struct {
 
 func (x *DictEntryDefine) Reset() {
 	*x = DictEntryDefine{}
-	mi := &file_stateful_encoding_proto_msgTypes[0]
+	mi := &file_datadog_stateful_stateful_encoding_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -90,7 +94,7 @@ func (x *DictEntryDefine) String() string {
 func (*DictEntryDefine) ProtoMessage() {}
 
 func (x *DictEntryDefine) ProtoReflect() protoreflect.Message {
-	mi := &file_stateful_encoding_proto_msgTypes[0]
+	mi := &file_datadog_stateful_stateful_encoding_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -103,7 +107,7 @@ func (x *DictEntryDefine) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DictEntryDefine.ProtoReflect.Descriptor instead.
 func (*DictEntryDefine) Descriptor() ([]byte, []int) {
-	return file_stateful_encoding_proto_rawDescGZIP(), []int{0}
+	return file_datadog_stateful_stateful_encoding_proto_rawDescGZIP(), []int{0}
 }
 
 func (x *DictEntryDefine) GetId() uint64 {
@@ -129,7 +133,7 @@ type DictEntryDelete struct {
 
 func (x *DictEntryDelete) Reset() {
 	*x = DictEntryDelete{}
-	mi := &file_stateful_encoding_proto_msgTypes[1]
+	mi := &file_datadog_stateful_stateful_encoding_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -141,7 +145,7 @@ func (x *DictEntryDelete) String() string {
 func (*DictEntryDelete) ProtoMessage() {}
 
 func (x *DictEntryDelete) ProtoReflect() protoreflect.Message {
-	mi := &file_stateful_encoding_proto_msgTypes[1]
+	mi := &file_datadog_stateful_stateful_encoding_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -154,7 +158,7 @@ func (x *DictEntryDelete) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DictEntryDelete.ProtoReflect.Descriptor instead.
 func (*DictEntryDelete) Descriptor() ([]byte, []int) {
-	return file_stateful_encoding_proto_rawDescGZIP(), []int{1}
+	return file_datadog_stateful_stateful_encoding_proto_rawDescGZIP(), []int{1}
 }
 
 func (x *DictEntryDelete) GetId() uint64 {
@@ -178,7 +182,7 @@ type PatternDefine struct {
 
 func (x *PatternDefine) Reset() {
 	*x = PatternDefine{}
-	mi := &file_stateful_encoding_proto_msgTypes[2]
+	mi := &file_datadog_stateful_stateful_encoding_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -190,7 +194,7 @@ func (x *PatternDefine) String() string {
 func (*PatternDefine) ProtoMessage() {}
 
 func (x *PatternDefine) ProtoReflect() protoreflect.Message {
-	mi := &file_stateful_encoding_proto_msgTypes[2]
+	mi := &file_datadog_stateful_stateful_encoding_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -203,7 +207,7 @@ func (x *PatternDefine) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PatternDefine.ProtoReflect.Descriptor instead.
 func (*PatternDefine) Descriptor() ([]byte, []int) {
-	return file_stateful_encoding_proto_rawDescGZIP(), []int{2}
+	return file_datadog_stateful_stateful_encoding_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *PatternDefine) GetPatternId() uint64 {
@@ -243,7 +247,7 @@ type PatternDelete struct {
 
 func (x *PatternDelete) Reset() {
 	*x = PatternDelete{}
-	mi := &file_stateful_encoding_proto_msgTypes[3]
+	mi := &file_datadog_stateful_stateful_encoding_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -255,7 +259,7 @@ func (x *PatternDelete) String() string {
 func (*PatternDelete) ProtoMessage() {}
 
 func (x *PatternDelete) ProtoReflect() protoreflect.Message {
-	mi := &file_stateful_encoding_proto_msgTypes[3]
+	mi := &file_datadog_stateful_stateful_encoding_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -268,7 +272,7 @@ func (x *PatternDelete) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PatternDelete.ProtoReflect.Descriptor instead.
 func (*PatternDelete) Descriptor() ([]byte, []int) {
-	return file_stateful_encoding_proto_rawDescGZIP(), []int{3}
+	return file_datadog_stateful_stateful_encoding_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *PatternDelete) GetPatternId() uint64 {
@@ -292,7 +296,7 @@ type Log struct {
 
 func (x *Log) Reset() {
 	*x = Log{}
-	mi := &file_stateful_encoding_proto_msgTypes[4]
+	mi := &file_datadog_stateful_stateful_encoding_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -304,7 +308,7 @@ func (x *Log) String() string {
 func (*Log) ProtoMessage() {}
 
 func (x *Log) ProtoReflect() protoreflect.Message {
-	mi := &file_stateful_encoding_proto_msgTypes[4]
+	mi := &file_datadog_stateful_stateful_encoding_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -317,7 +321,7 @@ func (x *Log) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Log.ProtoReflect.Descriptor instead.
 func (*Log) Descriptor() ([]byte, []int) {
-	return file_stateful_encoding_proto_rawDescGZIP(), []int{4}
+	return file_datadog_stateful_stateful_encoding_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *Log) GetTimestamp() uint64 {
@@ -378,7 +382,7 @@ type StructuredLog struct {
 
 func (x *StructuredLog) Reset() {
 	*x = StructuredLog{}
-	mi := &file_stateful_encoding_proto_msgTypes[5]
+	mi := &file_datadog_stateful_stateful_encoding_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -390,7 +394,7 @@ func (x *StructuredLog) String() string {
 func (*StructuredLog) ProtoMessage() {}
 
 func (x *StructuredLog) ProtoReflect() protoreflect.Message {
-	mi := &file_stateful_encoding_proto_msgTypes[5]
+	mi := &file_datadog_stateful_stateful_encoding_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -403,7 +407,7 @@ func (x *StructuredLog) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StructuredLog.ProtoReflect.Descriptor instead.
 func (*StructuredLog) Descriptor() ([]byte, []int) {
-	return file_stateful_encoding_proto_rawDescGZIP(), []int{5}
+	return file_datadog_stateful_stateful_encoding_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *StructuredLog) GetPatternId() uint64 {
@@ -436,7 +440,7 @@ type DynamicValue struct {
 
 func (x *DynamicValue) Reset() {
 	*x = DynamicValue{}
-	mi := &file_stateful_encoding_proto_msgTypes[6]
+	mi := &file_datadog_stateful_stateful_encoding_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -448,7 +452,7 @@ func (x *DynamicValue) String() string {
 func (*DynamicValue) ProtoMessage() {}
 
 func (x *DynamicValue) ProtoReflect() protoreflect.Message {
-	mi := &file_stateful_encoding_proto_msgTypes[6]
+	mi := &file_datadog_stateful_stateful_encoding_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -461,7 +465,7 @@ func (x *DynamicValue) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DynamicValue.ProtoReflect.Descriptor instead.
 func (*DynamicValue) Descriptor() ([]byte, []int) {
-	return file_stateful_encoding_proto_rawDescGZIP(), []int{6}
+	return file_datadog_stateful_stateful_encoding_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *DynamicValue) GetValue() isDynamicValue_Value {
@@ -551,7 +555,7 @@ type Datum struct {
 
 func (x *Datum) Reset() {
 	*x = Datum{}
-	mi := &file_stateful_encoding_proto_msgTypes[7]
+	mi := &file_datadog_stateful_stateful_encoding_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -563,7 +567,7 @@ func (x *Datum) String() string {
 func (*Datum) ProtoMessage() {}
 
 func (x *Datum) ProtoReflect() protoreflect.Message {
-	mi := &file_stateful_encoding_proto_msgTypes[7]
+	mi := &file_datadog_stateful_stateful_encoding_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -576,7 +580,7 @@ func (x *Datum) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Datum.ProtoReflect.Descriptor instead.
 func (*Datum) Descriptor() ([]byte, []int) {
-	return file_stateful_encoding_proto_rawDescGZIP(), []int{7}
+	return file_datadog_stateful_stateful_encoding_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *Datum) GetData() isDatum_Data {
@@ -676,7 +680,7 @@ type DatumSequence struct {
 
 func (x *DatumSequence) Reset() {
 	*x = DatumSequence{}
-	mi := &file_stateful_encoding_proto_msgTypes[8]
+	mi := &file_datadog_stateful_stateful_encoding_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -688,7 +692,7 @@ func (x *DatumSequence) String() string {
 func (*DatumSequence) ProtoMessage() {}
 
 func (x *DatumSequence) ProtoReflect() protoreflect.Message {
-	mi := &file_stateful_encoding_proto_msgTypes[8]
+	mi := &file_datadog_stateful_stateful_encoding_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -701,7 +705,7 @@ func (x *DatumSequence) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DatumSequence.ProtoReflect.Descriptor instead.
 func (*DatumSequence) Descriptor() ([]byte, []int) {
-	return file_stateful_encoding_proto_rawDescGZIP(), []int{8}
+	return file_datadog_stateful_stateful_encoding_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *DatumSequence) GetData() []*Datum {
@@ -714,16 +718,18 @@ func (x *DatumSequence) GetData() []*Datum {
 // data is sequence of pattern/dictionary changes + logs
 // the ordering is significant, must be processed in order
 type StatefulBatch struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	BatchId       uint32                 `protobuf:"varint,1,opt,name=batch_id,json=batchId,proto3" json:"batch_id,omitempty"`
-	Data          []byte                 `protobuf:"bytes,2,opt,name=data,proto3" json:"data,omitempty"` // Contains serialized DatumSequence
+	state   protoimpl.MessageState `protogen:"open.v1"`
+	BatchId uint32                 `protobuf:"varint,1,opt,name=batch_id,json=batchId,proto3" json:"batch_id,omitempty"`
+	// Bytes of a serialized DatumSequence. Eventually this will also be compressed.
+	// This allows for Datums to be compressed while they are buffered in memory before being acked by the server.
+	Data          []byte `protobuf:"bytes,2,opt,name=data,proto3" json:"data,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *StatefulBatch) Reset() {
 	*x = StatefulBatch{}
-	mi := &file_stateful_encoding_proto_msgTypes[9]
+	mi := &file_datadog_stateful_stateful_encoding_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -735,7 +741,7 @@ func (x *StatefulBatch) String() string {
 func (*StatefulBatch) ProtoMessage() {}
 
 func (x *StatefulBatch) ProtoReflect() protoreflect.Message {
-	mi := &file_stateful_encoding_proto_msgTypes[9]
+	mi := &file_datadog_stateful_stateful_encoding_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -748,7 +754,7 @@ func (x *StatefulBatch) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StatefulBatch.ProtoReflect.Descriptor instead.
 func (*StatefulBatch) Descriptor() ([]byte, []int) {
-	return file_stateful_encoding_proto_rawDescGZIP(), []int{9}
+	return file_datadog_stateful_stateful_encoding_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *StatefulBatch) GetBatchId() uint32 {
@@ -775,7 +781,7 @@ type BatchStatus struct {
 
 func (x *BatchStatus) Reset() {
 	*x = BatchStatus{}
-	mi := &file_stateful_encoding_proto_msgTypes[10]
+	mi := &file_datadog_stateful_stateful_encoding_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -787,7 +793,7 @@ func (x *BatchStatus) String() string {
 func (*BatchStatus) ProtoMessage() {}
 
 func (x *BatchStatus) ProtoReflect() protoreflect.Message {
-	mi := &file_stateful_encoding_proto_msgTypes[10]
+	mi := &file_datadog_stateful_stateful_encoding_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -800,7 +806,7 @@ func (x *BatchStatus) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BatchStatus.ProtoReflect.Descriptor instead.
 func (*BatchStatus) Descriptor() ([]byte, []int) {
-	return file_stateful_encoding_proto_rawDescGZIP(), []int{10}
+	return file_datadog_stateful_stateful_encoding_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *BatchStatus) GetBatchId() int32 {
@@ -817,11 +823,11 @@ func (x *BatchStatus) GetStatus() BatchStatus_Status {
 	return BatchStatus_UNKNOWN
 }
 
-var File_stateful_encoding_proto protoreflect.FileDescriptor
+var File_datadog_stateful_stateful_encoding_proto protoreflect.FileDescriptor
 
-const file_stateful_encoding_proto_rawDesc = "" +
+const file_datadog_stateful_stateful_encoding_proto_rawDesc = "" +
 	"\n" +
-	"\x17stateful_encoding.proto\x12\x06intake\"7\n" +
+	"(datadog/stateful/stateful_encoding.proto\x12\x06intake\"7\n" +
 	"\x0fDictEntryDefine\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\x04R\x02id\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value\"!\n" +
@@ -876,23 +882,23 @@ const file_stateful_encoding_proto_rawDesc = "" +
 	"\x02OK\x10\x012S\n" +
 	"\x13StatefulLogsService\x12<\n" +
 	"\n" +
-	"LogsStream\x12\x15.intake.StatefulBatch\x1a\x13.intake.BatchStatus(\x010\x01B7Z5github.com/DataDog/datadog-agent/pkg/logs/sender/grpcb\x06proto3"
+	"LogsStream\x12\x15.intake.StatefulBatch\x1a\x13.intake.BatchStatus(\x010\x01B\x1bZ\x19pkg/proto/pbgo/statefulpbb\x06proto3"
 
 var (
-	file_stateful_encoding_proto_rawDescOnce sync.Once
-	file_stateful_encoding_proto_rawDescData []byte
+	file_datadog_stateful_stateful_encoding_proto_rawDescOnce sync.Once
+	file_datadog_stateful_stateful_encoding_proto_rawDescData []byte
 )
 
-func file_stateful_encoding_proto_rawDescGZIP() []byte {
-	file_stateful_encoding_proto_rawDescOnce.Do(func() {
-		file_stateful_encoding_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_stateful_encoding_proto_rawDesc), len(file_stateful_encoding_proto_rawDesc)))
+func file_datadog_stateful_stateful_encoding_proto_rawDescGZIP() []byte {
+	file_datadog_stateful_stateful_encoding_proto_rawDescOnce.Do(func() {
+		file_datadog_stateful_stateful_encoding_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_datadog_stateful_stateful_encoding_proto_rawDesc), len(file_datadog_stateful_stateful_encoding_proto_rawDesc)))
 	})
-	return file_stateful_encoding_proto_rawDescData
+	return file_datadog_stateful_stateful_encoding_proto_rawDescData
 }
 
-var file_stateful_encoding_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_stateful_encoding_proto_msgTypes = make([]protoimpl.MessageInfo, 11)
-var file_stateful_encoding_proto_goTypes = []any{
+var file_datadog_stateful_stateful_encoding_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
+var file_datadog_stateful_stateful_encoding_proto_msgTypes = make([]protoimpl.MessageInfo, 11)
+var file_datadog_stateful_stateful_encoding_proto_goTypes = []any{
 	(BatchStatus_Status)(0), // 0: intake.BatchStatus.Status
 	(*DictEntryDefine)(nil), // 1: intake.DictEntryDefine
 	(*DictEntryDelete)(nil), // 2: intake.DictEntryDelete
@@ -906,7 +912,7 @@ var file_stateful_encoding_proto_goTypes = []any{
 	(*StatefulBatch)(nil),   // 10: intake.StatefulBatch
 	(*BatchStatus)(nil),     // 11: intake.BatchStatus
 }
-var file_stateful_encoding_proto_depIdxs = []int32{
+var file_datadog_stateful_stateful_encoding_proto_depIdxs = []int32{
 	6,  // 0: intake.Log.structured:type_name -> intake.StructuredLog
 	7,  // 1: intake.StructuredLog.dynamic_values:type_name -> intake.DynamicValue
 	3,  // 2: intake.Datum.pattern_define:type_name -> intake.PatternDefine
@@ -925,22 +931,22 @@ var file_stateful_encoding_proto_depIdxs = []int32{
 	0,  // [0:9] is the sub-list for field type_name
 }
 
-func init() { file_stateful_encoding_proto_init() }
-func file_stateful_encoding_proto_init() {
-	if File_stateful_encoding_proto != nil {
+func init() { file_datadog_stateful_stateful_encoding_proto_init() }
+func file_datadog_stateful_stateful_encoding_proto_init() {
+	if File_datadog_stateful_stateful_encoding_proto != nil {
 		return
 	}
-	file_stateful_encoding_proto_msgTypes[4].OneofWrappers = []any{
+	file_datadog_stateful_stateful_encoding_proto_msgTypes[4].OneofWrappers = []any{
 		(*Log_Structured)(nil),
 		(*Log_Raw)(nil),
 	}
-	file_stateful_encoding_proto_msgTypes[6].OneofWrappers = []any{
+	file_datadog_stateful_stateful_encoding_proto_msgTypes[6].OneofWrappers = []any{
 		(*DynamicValue_IntValue)(nil),
 		(*DynamicValue_FloatValue)(nil),
 		(*DynamicValue_StringValue)(nil),
 		(*DynamicValue_DictIndex)(nil),
 	}
-	file_stateful_encoding_proto_msgTypes[7].OneofWrappers = []any{
+	file_datadog_stateful_stateful_encoding_proto_msgTypes[7].OneofWrappers = []any{
 		(*Datum_PatternDefine)(nil),
 		(*Datum_PatternDelete)(nil),
 		(*Datum_DictEntryDefine)(nil),
@@ -951,18 +957,130 @@ func file_stateful_encoding_proto_init() {
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
-			RawDescriptor: unsafe.Slice(unsafe.StringData(file_stateful_encoding_proto_rawDesc), len(file_stateful_encoding_proto_rawDesc)),
+			RawDescriptor: unsafe.Slice(unsafe.StringData(file_datadog_stateful_stateful_encoding_proto_rawDesc), len(file_datadog_stateful_stateful_encoding_proto_rawDesc)),
 			NumEnums:      1,
 			NumMessages:   11,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
-		GoTypes:           file_stateful_encoding_proto_goTypes,
-		DependencyIndexes: file_stateful_encoding_proto_depIdxs,
-		EnumInfos:         file_stateful_encoding_proto_enumTypes,
-		MessageInfos:      file_stateful_encoding_proto_msgTypes,
+		GoTypes:           file_datadog_stateful_stateful_encoding_proto_goTypes,
+		DependencyIndexes: file_datadog_stateful_stateful_encoding_proto_depIdxs,
+		EnumInfos:         file_datadog_stateful_stateful_encoding_proto_enumTypes,
+		MessageInfos:      file_datadog_stateful_stateful_encoding_proto_msgTypes,
 	}.Build()
-	File_stateful_encoding_proto = out.File
-	file_stateful_encoding_proto_goTypes = nil
-	file_stateful_encoding_proto_depIdxs = nil
+	File_datadog_stateful_stateful_encoding_proto = out.File
+	file_datadog_stateful_stateful_encoding_proto_goTypes = nil
+	file_datadog_stateful_stateful_encoding_proto_depIdxs = nil
+}
+
+// Reference imports to suppress errors if they are not otherwise used.
+var _ context.Context
+var _ grpc.ClientConnInterface
+
+// This is a compile-time assertion to ensure that this generated file
+// is compatible with the grpc package it is being compiled against.
+const _ = grpc.SupportPackageIsVersion6
+
+// StatefulLogsServiceClient is the client API for StatefulLogsService service.
+//
+// For semantics around ctx use and closing/ending streaming RPCs, please refer to https://godoc.org/google.golang.org/grpc#ClientConn.NewStream.
+type StatefulLogsServiceClient interface {
+	LogsStream(ctx context.Context, opts ...grpc.CallOption) (StatefulLogsService_LogsStreamClient, error)
+}
+
+type statefulLogsServiceClient struct {
+	cc grpc.ClientConnInterface
+}
+
+func NewStatefulLogsServiceClient(cc grpc.ClientConnInterface) StatefulLogsServiceClient {
+	return &statefulLogsServiceClient{cc}
+}
+
+func (c *statefulLogsServiceClient) LogsStream(ctx context.Context, opts ...grpc.CallOption) (StatefulLogsService_LogsStreamClient, error) {
+	stream, err := c.cc.NewStream(ctx, &_StatefulLogsService_serviceDesc.Streams[0], "/intake.StatefulLogsService/LogsStream", opts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &statefulLogsServiceLogsStreamClient{stream}
+	return x, nil
+}
+
+type StatefulLogsService_LogsStreamClient interface {
+	Send(*StatefulBatch) error
+	Recv() (*BatchStatus, error)
+	grpc.ClientStream
+}
+
+type statefulLogsServiceLogsStreamClient struct {
+	grpc.ClientStream
+}
+
+func (x *statefulLogsServiceLogsStreamClient) Send(m *StatefulBatch) error {
+	return x.ClientStream.SendMsg(m)
+}
+
+func (x *statefulLogsServiceLogsStreamClient) Recv() (*BatchStatus, error) {
+	m := new(BatchStatus)
+	if err := x.ClientStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
+// StatefulLogsServiceServer is the server API for StatefulLogsService service.
+type StatefulLogsServiceServer interface {
+	LogsStream(StatefulLogsService_LogsStreamServer) error
+}
+
+// UnimplementedStatefulLogsServiceServer can be embedded to have forward compatible implementations.
+type UnimplementedStatefulLogsServiceServer struct {
+}
+
+func (*UnimplementedStatefulLogsServiceServer) LogsStream(StatefulLogsService_LogsStreamServer) error {
+	return status.Errorf(codes.Unimplemented, "method LogsStream not implemented")
+}
+
+func RegisterStatefulLogsServiceServer(s *grpc.Server, srv StatefulLogsServiceServer) {
+	s.RegisterService(&_StatefulLogsService_serviceDesc, srv)
+}
+
+func _StatefulLogsService_LogsStream_Handler(srv interface{}, stream grpc.ServerStream) error {
+	return srv.(StatefulLogsServiceServer).LogsStream(&statefulLogsServiceLogsStreamServer{stream})
+}
+
+type StatefulLogsService_LogsStreamServer interface {
+	Send(*BatchStatus) error
+	Recv() (*StatefulBatch, error)
+	grpc.ServerStream
+}
+
+type statefulLogsServiceLogsStreamServer struct {
+	grpc.ServerStream
+}
+
+func (x *statefulLogsServiceLogsStreamServer) Send(m *BatchStatus) error {
+	return x.ServerStream.SendMsg(m)
+}
+
+func (x *statefulLogsServiceLogsStreamServer) Recv() (*StatefulBatch, error) {
+	m := new(StatefulBatch)
+	if err := x.ServerStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
+var _StatefulLogsService_serviceDesc = grpc.ServiceDesc{
+	ServiceName: "intake.StatefulLogsService",
+	HandlerType: (*StatefulLogsServiceServer)(nil),
+	Methods:     []grpc.MethodDesc{},
+	Streams: []grpc.StreamDesc{
+		{
+			StreamName:    "LogsStream",
+			Handler:       _StatefulLogsService_LogsStream_Handler,
+			ServerStreams: true,
+			ClientStreams: true,
+		},
+	},
+	Metadata: "datadog/stateful/stateful_encoding.proto",
 }

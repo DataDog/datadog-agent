@@ -26,6 +26,7 @@ PROTO_PKGS = {
     'workloadfilter': False,
     'dogstatsdhttp': False,
     'sbom': False,
+    'stateful': False,
 }
 
 CLI_EXTRAS = {

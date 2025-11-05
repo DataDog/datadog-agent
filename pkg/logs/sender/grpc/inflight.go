@@ -9,6 +9,7 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/statefulpb"
 )
 
 // inflightTracker is a bounded FIFO queue that tracks payloads in two regions:
@@ -170,15 +171,15 @@ func (t *inflightTracker) getSnapshot() []byte {
 // snapshotState maintains the accumulated state changes for stream bootstrapping
 // It represents the state "before" the first payload in the inflight queue
 type snapshotState struct {
-	dictMap    map[uint64]*DictEntryDefine // Dictionary entries by ID
-	patternMap map[uint64]*PatternDefine   // Patterns by ID
+	dictMap    map[uint64]*statefulpb.DictEntryDefine
+	patternMap map[uint64]*statefulpb.PatternDefine
 }
 
 // newSnapshotState creates a new empty snapshot state
 func newSnapshotState() *snapshotState {
 	return &snapshotState{
-		dictMap:    make(map[uint64]*DictEntryDefine),
-		patternMap: make(map[uint64]*PatternDefine),
+		dictMap:    make(map[uint64]*statefulpb.DictEntryDefine),
+		patternMap: make(map[uint64]*statefulpb.PatternDefine),
 	}
 }
 
@@ -190,13 +191,13 @@ func (s *snapshotState) apply(extra *StatefulExtra) {
 
 	for _, datum := range extra.StateChanges {
 		switch d := datum.Data.(type) {
-		case *Datum_PatternDefine:
+		case *statefulpb.Datum_PatternDefine:
 			s.patternMap[d.PatternDefine.PatternId] = d.PatternDefine
-		case *Datum_PatternDelete:
+		case *statefulpb.Datum_PatternDelete:
 			delete(s.patternMap, d.PatternDelete.PatternId)
-		case *Datum_DictEntryDefine:
+		case *statefulpb.Datum_DictEntryDefine:
 			s.dictMap[d.DictEntryDefine.Id] = d.DictEntryDefine
-		case *Datum_DictEntryDelete:
+		case *statefulpb.Datum_DictEntryDelete:
 			delete(s.dictMap, d.DictEntryDelete.Id)
 		}
 	}
@@ -213,20 +214,20 @@ func (s *snapshotState) serialize() []byte {
 		return nil
 	}
 
-	datums := make([]*Datum, 0, totalSize)
+	datums := make([]*statefulpb.Datum, 0, totalSize)
 
 	for _, pattern := range s.patternMap {
-		datums = append(datums, &Datum{
-			Data: &Datum_PatternDefine{PatternDefine: pattern},
+		datums = append(datums, &statefulpb.Datum{
+			Data: &statefulpb.Datum_PatternDefine{PatternDefine: pattern},
 		})
 	}
 	for _, entry := range s.dictMap {
-		datums = append(datums, &Datum{
-			Data: &Datum_DictEntryDefine{DictEntryDefine: entry},
+		datums = append(datums, &statefulpb.Datum{
+			Data: &statefulpb.Datum_DictEntryDefine{DictEntryDefine: entry},
 		})
 	}
 
-	datumSeq := &DatumSequence{
+	datumSeq := &statefulpb.DatumSequence{
 		Data: datums,
 	}
 
