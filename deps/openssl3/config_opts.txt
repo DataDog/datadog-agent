@@ -1,6 +1,0 @@
-shared
-no-idea
-no-mdc2
-no-rc5
-no-ssl3
-no-gost

@@ -6,16 +6,15 @@ load(
     "lib_contents.bzl",
     "HDRS",
     "HDRS_DARWIN_ARM64",
-    # "HDRS_LINUX_ARM64",
     "LIB_APPS_SRCS_DARWIN_ARM64",
     "LIB_COMMON_SRCS_DARWIN_ARM64",
     "LIB_CRYPTO_SRCS_DARWIN_ARM64",
-    # "LIB_CRYPTO_SRCS_LINUX_ARM64",
     "LIB_DEFAULT_SRCS_DARWIN_ARM64",
     "LIB_LEGACY_SRCS_DARWIN_ARM64",
     "LIB_SSL_SRCS_DARWIN_ARM64",
     "LIB_TEMPLATE_SRCS_DARWIN_ARM64",
     "LIB_TESTUTIL_SRCS_DARWIN_ARM64",
+    "TEXTUAL_HEADERS",
 )
 
 package(
@@ -65,21 +64,10 @@ DARWIN_ARM64_DEFINES = [
     "ZLIB",
 ]
 
-ARCH_HDRS_COND = {
-    "@platforms//os:linux": [
-        "linux_arm64/crypto/buildinf.h",
-    ],
-    "@platforms//os:macos": [
-        "darwin_arm64/crypto/buildinf.h",
-    ],
-    "//conditions:default": [],
-}
-
 cc_library(
     name = "libcrypto",
     srcs = HDRS + select({
         "@platforms//os:macos": HDRS_DARWIN_ARM64 + LIB_CRYPTO_SRCS_DARWIN_ARM64,
-        # "@platforms//os:linux": HDRS_LINUX_ARM64 + LIB_CRYPTO_SRCS_LINUX_ARM64,
     }) + select({
         "@platforms//cpu:aarch64": [
             # TODO: This does not compile on linux. Huh?
@@ -88,7 +76,6 @@ cc_library(
         "//conditions:default": [
         ],
     }),
-    # + select(ARCH_HDRS_COND),
     # Yeech.  Includes polutes the build. But we can not use -I because we don't know
     # the path to the folder when building via external/openssl3/...
     # Ideal solution:
@@ -131,11 +118,11 @@ cc_library(
             "-O3",
         ],
     }),
-    textual_hdrs = [
-        "crypto/LPdir_unix.c",
-        "crypto/des/ncbc_enc.c",
-        "providers/implementations/macs/blake2_mac_impl.c",
-    ] + glob(["**/*.inc"]),
+    textual_hdrs = TEXTUAL_HEADERS + glob(["**/*.inc"]),
+    #    "crypto/LPdir_unix.c",
+    #    "crypto/des/ncbc_enc.c",
+    #    "providers/implementations/macs/blake2_mac_impl.c",
+    #] + glob(["**/*.inc"]),
     visibility = ["//visibility:public"],
     deps = [
         "@zlib//:zlib",

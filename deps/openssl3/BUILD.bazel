@@ -1,11 +1,11 @@
+load("@bazel_skylib//rules:diff_test.bzl", "diff_test")
 load("//bazel/tools:generate_module_bazel.bzl", "generate_module_bazel")
 
-# Forwarder to make this more accessible to the rest of the build.
-# TODO: We are getting biuld problems in CI
-#alias(
-#    name = "libcrypto",
-#    actual = "@openssl3//:libcrypto",
-#)
+# Forwarder to make this more accessible with //deps/... expansion.
+alias(
+    name = "libcrypto",
+    actual = "@openssl3//:libcrypto",
+)
 
 generate_module_bazel(
     name = "openssl3_module_bazel_new",
@@ -15,4 +15,11 @@ generate_module_bazel(
     strip_prefix = "openssl-3.5.4",
     tags = ["manual"],
     url = "https://www.openssl.org/source/openssl-3.5.4.tar.gz",
+)
+
+diff_test(
+    name = "module_consistency_test",
+    failure_message = "To update: cp bazel-bin/deps/openssl3/openssl3.MODULE.bazel.new openssl3.MODULE.bazel",
+    file1 = ":openssl3.MODULE.bazel.new",
+    file2 = "openssl3.MODULE.bazel",
 )
