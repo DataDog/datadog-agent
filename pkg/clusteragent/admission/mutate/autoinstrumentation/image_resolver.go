@@ -307,8 +307,12 @@ func (r *tagBasedImageResolver) Resolve(registry string, repository string, tag 
 	// TODO: Would generate a bucket tag
 	bucketTag := normalizedTag + "-" + bucket
 	log.Debugf("ERIKA: Generated bucket tag: %s", bucketTag)
-	mockBucketTag := "v2.21.12"
-	return newTagBasedImage(registry, repository, mockBucketTag), true
+	// DEV: Mocking for testing
+	if repository == "apm-inject" {
+		return newTagBasedImage(registry, repository, "0.50.0"), true
+	} else {
+		return newTagBasedImage(registry, repository, "v2.21.12"), true
+	}
 }
 
 func newTagBasedImageResolver() ImageResolver {
