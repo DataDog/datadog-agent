@@ -113,9 +113,13 @@ func (e *Exporter) consumeK8sObjects(ctx context.Context, ld plog.Logs) (err err
 
 	var totalNodes int = 0
 
+	logger.Info("consumeK8sObjects: "+strconv.Itoa(ld.ResourceLogs().Len()), zap.Int("resourceLogsLen", ld.ResourceLogs().Len()))
+
 	for i := 0; i < ld.ResourceLogs().Len(); i++ {
 		resourceLogs := ld.ResourceLogs().At(i)
 		resource := resourceLogs.Resource()
+
+		logger.Info("consumeK8sObjects", zap.Any("resource", resource.Attributes().AsRaw()))
 
 		for j := 0; j < resourceLogs.ScopeLogs().Len(); j++ {
 			scopeLogs := resourceLogs.ScopeLogs().At(j)
