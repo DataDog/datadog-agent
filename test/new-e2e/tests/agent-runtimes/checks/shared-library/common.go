@@ -8,6 +8,7 @@ package sharedlibrary
 
 import (
 	_ "embed"
+	"fmt"
 
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
 	osVM "github.com/DataDog/test-infra-definitions/components/os"
@@ -32,12 +33,18 @@ type sharedLibrarySuite struct {
 }
 
 func (v *sharedLibrarySuite) getSuiteOptions() []e2e.SuiteOption {
+	config := fmt.Sprintf(
+		`shared_library_check.enabled: true
+	shared_library_check.library_folder_path: %s`,
+		v.checksdPath,
+	)
+
 	var suiteOptions []e2e.SuiteOption
 	suiteOptions = append(suiteOptions, e2e.WithProvisioner(
 		awshost.Provisioner(
 			awshost.WithAgentOptions(
 				agentparams.WithIntegration("example.d", exampleCheckYaml),
-				agentparams.WithAgentConfig("shared_library_check.enabled: true"),
+				agentparams.WithAgentConfig(config),
 			),
 			awshost.WithEC2InstanceOptions(ec2.WithOS(v.descriptor)),
 		),
