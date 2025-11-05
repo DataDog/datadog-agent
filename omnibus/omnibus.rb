@@ -32,7 +32,10 @@ if ENV["S3_OMNIBUS_CACHE_BUCKET"]
     s3_role true
     s3_role_arn 'arn:aws:iam::486234852809:role/ci-datadog-agent'
     s3_role_session_name "datadog-agent-builder-job-#{ENV.fetch('CI_JOB_ID', 'unknown')}"
-    s3_sts_creds_instance_profile true
+    # the AssumeRole will be performed using AWS credentials provided by CI Identities
+    # instead of using the instance profile;
+    # see https://datadoghq.atlassian.net/wiki/spaces/SECENG/pages/4960814654/Fine-Grained+Cloud+IAM+Permissions+in+CI+Using+CI+Identities
+    s3_sts_creds_instance_profile false
   else
     s3_instance_profile true
   end
