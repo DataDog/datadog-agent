@@ -24,6 +24,24 @@ var (
 	tlmDroppedTooLarge = telemetry.NewCounter("logs_sender_grpc_batch_strategy", "dropped_too_large", []string{"pipeline"}, "Number of payloads dropped due to being too large")
 )
 
+// StatefulExtra holds state changes (non-Log datums) from a batch
+// Used by inflight tracker to maintain snapshot state for stream rotation
+type StatefulExtra struct {
+	StateChanges []*Datum
+}
+
+// isStateDatum returns true if the datum represents a state change
+// (pattern/dict define/delete operations)
+func isStateDatum(datum *Datum) bool {
+	switch datum.Data.(type) {
+	case *Datum_PatternDefine, *Datum_PatternDelete,
+		*Datum_DictEntryDefine, *Datum_DictEntryDelete:
+		return true
+	default:
+		return false
+	}
+}
+
 // batchStrategy contains batching logic for gRPC sender without serializer
 // It collects Datum objects from StatefulMessages and creates Payload with serialized DatumSequence
 // Note: Serverless logs are not supported in this PoC implementation
@@ -206,6 +224,14 @@ func (s *batchStrategy) sendMessagesWithDatums(messagesMetadata []*message.Messa
 		unencodedSize += msgMeta.RawDataLen
 	}
 
+	// Extract all state changes from this batch for snapshot management
+	var stateChanges []*Datum
+	for _, datum := range grpcDatums {
+		if isStateDatum(datum) {
+			stateChanges = append(stateChanges, datum)
+		}
+	}
+
 	// Create DatumSequence and marshal to bytes
 	datumSeq := &DatumSequence{
 		Data: grpcDatums,
@@ -230,6 +256,13 @@ func (s *batchStrategy) sendMessagesWithDatums(messagesMetadata []*message.Messa
 		Encoded:       compressed,
 		Encoding:      s.compression.ContentEncoding(),
 		UnencodedSize: unencodedSize,
+	}
+
+	// Store batch-level state changes in payload
+	if len(stateChanges) > 0 {
+		p.StatefulExtra = &StatefulExtra{
+			StateChanges: stateChanges,
+		}
 	}
 
 	outputChan <- p

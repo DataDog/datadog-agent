@@ -38,6 +38,8 @@ type Payload struct {
 	Encoding string
 	// The size of the unencoded payload
 	UnencodedSize int
+	// Extra information for Stateful gRPC streaming (batch-level state changes)
+	StatefulExtra any
 }
 
 // NewPayload creates a new payload with the given message metadata, encoded content, encoding type and unencoded size
