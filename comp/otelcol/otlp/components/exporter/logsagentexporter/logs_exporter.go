@@ -8,6 +8,7 @@ package logsagentexporter
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"time"
 
@@ -100,6 +101,7 @@ func (e *Exporter) ConsumeLogs(ctx context.Context, ld plog.Logs) (err error) {
 	}
 
 	payloads := e.translator.MapLogs(ctx, ld, e.gatewaysUsage.GetHostFromAttributesHandler())
+	fmt.Println("HEHEXD LOG EXPORTER", otelSource)
 	if otelSource == "datadog_agent" {
 		OTLPIngestAgentLogsEvents.Add(float64(len(payloads)))
 	} else if otelSource == "otel_agent" {
