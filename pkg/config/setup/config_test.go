@@ -1385,19 +1385,10 @@ additional_endpoints:
 	err = configAssignAtPath(config, []string{"additional_endpoints", "2"}, "cherry")
 	assert.NoError(t, err)
 
-	expectedYaml := `additional_endpoints:
-  "0": apple
-  "1": banana
-  "2": cherry
-process_config:
-  run_in_core_agent:
-    enabled: false
-use_proxy_for_cloud_metadata: true
-`
-	yamlConf, err := yaml.Marshal(config.AllSettingsWithoutDefault())
-	assert.NoError(t, err)
-	yamlText := string(yamlConf)
-	assert.Equal(t, expectedYaml, yamlText)
+	assert.Equal(t,
+		map[string]string{"0": "apple", "1": "banana", "2": "cherry"},
+		config.GetStringMapString("additional_endpoints"),
+	)
 }
 
 func TestServerlessConfigNumComponents(t *testing.T) {
@@ -1490,8 +1481,10 @@ func TestENVAdditionalKeysToScrubber(t *testing.T) {
 	// Test that the scrubber is correctly configured with the expected keys
 	cfg := newEmptyMockConf(t)
 
-	data := `scrubber.additional_keys:
-- yet_another_key
+	data := `
+scrubber:
+  additional_keys:
+  - yet_another_key
 flare_stripped_keys:
 - some_other_key`
 

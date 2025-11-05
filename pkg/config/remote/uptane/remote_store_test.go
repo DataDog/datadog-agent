@@ -7,14 +7,15 @@ package uptane
 
 import (
 	"fmt"
-	"github.com/stretchr/testify/mock"
-	"github.com/stretchr/testify/require"
 	"io"
 	"net/http"
 	"path"
 	"strconv"
 	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/go-tuf/client"
 	"github.com/stretchr/testify/assert"
@@ -104,10 +105,10 @@ func generateUpdate(baseVersion uint64) *pbgo.LatestConfigsResponse {
 }
 
 func TestRemoteStoreConfig(t *testing.T) {
-	db := newTransactionalStore(getTestDB(t))
-	defer db.commit()
+	ts := getTestTransactionalStore(t)
+	defer ts.commit()
 
-	targetStore := newTargetStore(db)
+	targetStore := newTargetStore(ts)
 	store := newRemoteStoreConfig(targetStore)
 
 	testUpdate1 := generateUpdate(1)
@@ -170,9 +171,9 @@ func TestRemoteStoreConfig(t *testing.T) {
 }
 
 func TestRemoteStoreDirector(t *testing.T) {
-	db := newTransactionalStore(getTestDB(t))
-	defer db.commit()
-	targetStore := newTargetStore(db)
+	ts := getTestTransactionalStore(t)
+	defer ts.commit()
+	targetStore := newTargetStore(ts)
 	store := newRemoteStoreDirector(targetStore)
 
 	testUpdate1 := generateUpdate(1)

@@ -327,20 +327,24 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	// Otherwise, Python is loaded when the collector is initialized.
 	config.BindEnvAndSetDefault("python_lazy_loading", true)
 
-	// If false, the core check will be skipped.
-	config.BindEnvAndSetDefault("disk_check.use_core_loader", false)
-	config.BindEnvAndSetDefault("network_check.use_core_loader", false)
-
 	// If true, then the go loader will be prioritized over the python loader.
 	config.BindEnvAndSetDefault("prioritize_go_check_loader", true)
 
 	// If true, then new version of disk v2 check will be used.
-	// Otherwise, the old version of disk check will be used (maintaining backward compatibility).
-	config.BindEnvAndSetDefault("use_diskv2_check", false)
+	// Otherwise, the python version of disk check will be used.
+	config.BindEnvAndSetDefault("use_diskv2_check", true)
+	config.BindEnvAndSetDefault("disk_check.use_core_loader", true)
 
-	// If true, then new version of network v2 check will be used.
-	// Otherwise, the old version of network check will be used (maintaining backward compatibility).
-	config.BindEnvAndSetDefault("use_networkv2_check", false)
+	// the darwin and bsd network check has not been ported from python
+	if runtime.GOOS == "linux" || runtime.GOOS == "windows" {
+		// If true, then new version of network v2 check will be used.
+		// Otherwise, the python version of network check will be used.
+		config.BindEnvAndSetDefault("use_networkv2_check", true)
+		config.BindEnvAndSetDefault("network_check.use_core_loader", true)
+	} else {
+		config.BindEnvAndSetDefault("use_networkv2_check", false)
+		config.BindEnvAndSetDefault("network_check.use_core_loader", false)
+	}
 
 	// if/when the default is changed to true, make the default platform
 	// dependent; default should remain false on Windows to maintain backward
@@ -577,6 +581,17 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("cluster_agent.language_detection.cleanup.language_ttl", "30m")
 	// language annotation cleanup period
 	config.BindEnvAndSetDefault("cluster_agent.language_detection.cleanup.period", "10m")
+
+	// AppSec Injector in the cluster agent ( Experimental )
+	config.BindEnvAndSetDefault("cluster_agent.appsec.injector.enabled", false)
+	config.BindEnvAndSetDefault("cluster_agent.appsec.injector.base_backoff", "5m")
+	config.BindEnvAndSetDefault("cluster_agent.appsec.injector.max_backoff", "1h")
+	config.BindEnvAndSetDefault("cluster_agent.appsec.injector.labels", map[string]string{})
+	config.BindEnvAndSetDefault("cluster_agent.appsec.injector.annotations", map[string]string{})
+	config.BindEnvAndSetDefault("cluster_agent.appsec.injector.processor.service.name", "")
+	config.BindEnvAndSetDefault("cluster_agent.appsec.injector.processor.service.namespace", "")
+	config.BindEnvAndSetDefault("cluster_agent.appsec.injector.istio.namespace", "istio-system")
+
 	config.BindEnvAndSetDefault("cluster_agent.kube_metadata_collection.enabled", false)
 	// list of kubernetes resources for which we collect metadata
 	// each resource is specified in the format `{group}/{version}/{resource}` or `{group}/{resource}`
@@ -641,6 +656,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("ecs_task_cache_ttl", 3*time.Minute)
 	config.BindEnvAndSetDefault("ecs_task_collection_rate", 35)
 	config.BindEnvAndSetDefault("ecs_task_collection_burst", 60)
+	config.BindEnvAndSetDefault("ecs_deployment_mode", "auto")
 
 	// GCE
 	config.BindEnvAndSetDefault("collect_gce_tags", true)
@@ -935,6 +951,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("orchestrator_explorer.terminated_resources.enabled", true)
 	config.BindEnvAndSetDefault("orchestrator_explorer.terminated_pods.enabled", true)
 	config.BindEnvAndSetDefault("orchestrator_explorer.custom_resources.ootb.enabled", true)
+	config.BindEnvAndSetDefault("orchestrator_explorer.kubelet_config_check.enabled", false, "DD_ORCHESTRATOR_EXPLORER_KUBELET_CONFIG_CHECK_ENABLED")
 
 	// Container lifecycle configuration
 	config.BindEnvAndSetDefault("container_lifecycle.enabled", true)
@@ -958,6 +975,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	bindEnvAndSetLogsConfigKeys(config, "synthetics.forwarder.")
 
 	config.BindEnvAndSetDefault("sbom.cache_directory", filepath.Join(defaultRunPath, "sbom-agent"))
+	config.BindEnvAndSetDefault("sbom.compute_dependencies", false)
 	config.BindEnvAndSetDefault("sbom.clear_cache_on_exit", false)
 	config.BindEnvAndSetDefault("sbom.cache.max_disk_size", 1000*1000*100) // used by custom cache: max disk space used by cached objects. Not equal to max disk usage
 	config.BindEnvAndSetDefault("sbom.cache.clean_interval", "1h")         // used by custom cache.
@@ -1073,14 +1091,16 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	// Datadog security agent (runtime)
 	config.BindEnvAndSetDefault("runtime_security_config.enabled", false)
 	if runtime.GOOS == "windows" {
-		config.BindEnvAndSetDefault("runtime_security_config.socket", "localhost:3334")
+		config.BindEnvAndSetDefault("runtime_security_config.socket", "localhost:3335")
 	} else {
 		config.BindEnvAndSetDefault("runtime_security_config.socket", filepath.Join(InstallPath, "run/runtime-security.sock"))
 	}
+	config.BindEnvAndSetDefault("runtime_security_config.cmd_socket", "")
 	config.BindEnvAndSetDefault("runtime_security_config.use_secruntime_track", true)
 	bindEnvAndSetLogsConfigKeys(config, "runtime_security_config.endpoints.")
 	bindEnvAndSetLogsConfigKeys(config, "runtime_security_config.activity_dump.remote_storage.endpoints.")
 	config.BindEnvAndSetDefault("runtime_security_config.direct_send_from_system_probe", false)
+	config.BindEnvAndSetDefault("runtime_security_config.event_gprc_server", "")
 
 	// trace-agent's evp_proxy
 	config.BindEnv("evp_proxy_config.enabled")              //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
@@ -1137,10 +1157,17 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	// TTL refresh period represents how frequently actively detected languages are refreshed by reporting them again to the language detection handler in the cluster agent
 	config.BindEnvAndSetDefault("language_detection.reporting.refresh_period", "20m")
 
+	// Appsec Proxy Config Injection (Experimental)
+	config.BindEnvAndSetDefault("appsec.proxy.enabled", false)
+	config.BindEnvAndSetDefault("appsec.proxy.processor.port", "443")
+	config.BindEnvAndSetDefault("appsec.proxy.processor.address", "")
+	config.BindEnvAndSetDefault("appsec.proxy.auto_detect", true)
+	config.BindEnvAndSetDefault("appsec.proxy.proxies", []string{})
+
 	setupProcesses(config)
 
 	// Installer configuration
-	config.BindEnvAndSetDefault("remote_updates", false)
+	config.BindEnvAndSetDefault("remote_updates", true)
 	config.BindEnvAndSetDefault("installer.mirror", "")
 	config.BindEnvAndSetDefault("installer.registry.url", "")
 	config.BindEnvAndSetDefault("installer.registry.auth", "")
@@ -1271,10 +1298,38 @@ func agent(config pkgconfigmodel.Setup) {
 	// The possible values are: full, basic.
 	config.BindEnvAndSetDefault("infrastructure_mode", "full")
 
+	// Infrastructure basic mode - allowed checks (UNDOCUMENTED)
+	// Note: All checks starting with "custom_" are always allowed.
+	config.BindEnvAndSetDefault("allowed_checks", []string{
+		"cpu",
+		"agent_telemetry",
+		"agentcrashdetect",
+		"disk",
+		"file_handle",
+		"filehandles",
+		"io",
+		"load",
+		"memory",
+		"network",
+		"ntp",
+		"process",
+		"service_discovery",
+		"system",
+		"system_core",
+		"system_swap",
+		"telemetry",
+		"telemetryCheck",
+		"uptime",
+		"win32_event_log",
+		"wincrashdetect",
+		"winkmem",
+		"winproc",
+	})
+
 	// Infrastructure basic mode - additional checks
 	// When infrastructure_mode is set to "basic", only a limited set of checks are allowed to run.
 	// This setting allows customers to add additional checks to the allowlist beyond the default set.
-	config.BindEnvAndSetDefault("infra_basic_additional_checks", []string{})
+	config.BindEnvAndSetDefault("allowed_additional_checks", []string{})
 
 	// Configuration for TLS for outgoing connections
 	config.BindEnvAndSetDefault("min_tls_version", "tlsv1.2")
@@ -1307,6 +1362,13 @@ func agent(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("software_inventory.interval", 10)
 	bindEnvAndSetLogsConfigKeys(config, "software_inventory.forwarder.")
 
+	// Notable Events (EUDM)
+	config.BindEnvAndSetDefault("notable_events.enabled", false)
+
+	// Event Management v2 API
+	// https://docs.datadoghq.com/api/latest/events#post-an-event
+	bindEnvAndSetLogsConfigKeys(config, "event_management.forwarder.")
+
 	pkgconfigmodel.AddOverrideFunc(toggleDefaultPayloads)
 }
 
@@ -1322,7 +1384,7 @@ func autoscaling(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("autoscaling.workload.enabled", false)
 	config.BindEnvAndSetDefault("autoscaling.failover.enabled", false)
 	config.BindEnvAndSetDefault("autoscaling.workload.limit", 1000)
-	config.BindEnv("autoscaling.failover.metrics") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	config.BindEnvAndSetDefault("autoscaling.failover.metrics", []string{"container.memory.usage", "container.cpu.usage"})
 }
 
 func fips(config pkgconfigmodel.Setup) {
@@ -1806,6 +1868,13 @@ func logsagent(config pkgconfigmodel.Setup) {
 	// https://docs.docker.com/engine/reference/commandline/dockerd/.
 	config.BindEnvAndSetDefault("logs_config.docker_path_override", "")
 
+	// Amount of time to wait for the container runtime to respond while determining what to log, containers or pods.
+	// If the container runtime doesn't respond after specified timeout, log source marked as failed
+	// which is reflected in the Agent status output for the Logs.
+	// If this such behavior undesired, set the value to a significantly large number.
+	// Timeout is in seconds.
+	config.BindEnvAndSetDefault("logs_config.container_runtime_waiting_timeout", "3s")
+
 	config.BindEnvAndSetDefault("logs_config.auditor_ttl", DefaultAuditorTTL) // in hours
 	// Timeout in milliseonds used when performing agreggation operations,
 	// including multi-line log processing rules and chunked line reaggregation.
@@ -1922,11 +1991,6 @@ func kubernetes(config pkgconfigmodel.Setup) {
 		defaultPodresourcesSocket = `\\.\pipe\kubelet-pod-resources`
 	}
 	config.BindEnvAndSetDefault("kubernetes_kubelet_podresources_socket", defaultPodresourcesSocket)
-
-	// Temporary option. When enabled, workloadmeta uses the Kubelet pod watcher
-	// to fetch pod information (old behavior). Useful as a fallback if the new
-	// behavior causes issues. This option will be removed.
-	config.BindEnvAndSetDefault("kubelet_use_pod_watcher", false)
 }
 
 func podman(config pkgconfigmodel.Setup) {
@@ -2377,8 +2441,6 @@ func setupFipsEndpoints(config pkgconfigmodel.Config) error {
 	os.Unsetenv("HTTP_PROXY")
 	os.Unsetenv("HTTPS_PROXY")
 
-	config.Set("fips.https", config.GetBool("fips.https"), pkgconfigmodel.SourceAgentRuntime)
-
 	// HTTP for now, will soon be updated to HTTPS
 	protocol := "http://"
 	if config.GetBool("fips.https") {
@@ -2411,18 +2473,7 @@ func setupFipsEndpoints(config pkgconfigmodel.Config) error {
 	setupFipsLogsConfig(config, "database_monitoring.activity.", urlFor(databasesMonitoringMetrics))
 	setupFipsLogsConfig(config, "database_monitoring.samples.", urlFor(databasesMonitoringSamples))
 
-	// Network devices
-	// Internally, Viper uses multiple storages for the configuration values and values from datadog.yaml are stored
-	// in a different place from where overrides (created with config.Set(...)) are stored.
-	// Some NDM products are using UnmarshalKey() which either uses overridden data or either configuration file data but not
-	// both at the same time (see https://github.com/spf13/viper/issues/1106)
-	//
-	// Because of that we need to put all the NDM config in the overridden data store (using Set) in order to get
-	// data from the config + data created by the FIPS mode when using UnmarshalKey()
-
-	config.Set("network_devices.snmp_traps", config.Get("network_devices.snmp_traps"), pkgconfigmodel.SourceAgentRuntime)
 	setupFipsLogsConfig(config, "network_devices.metadata.", urlFor(networkDevicesMetadata))
-	config.Set("network_devices.netflow", config.Get("network_devices.netflow"), pkgconfigmodel.SourceAgentRuntime)
 	setupFipsLogsConfig(config, "network_devices.snmp_traps.forwarder.", urlFor(networkDevicesSnmpTraps))
 	setupFipsLogsConfig(config, "network_devices.netflow.forwarder.", urlFor(networkDevicesNetflow))
 
