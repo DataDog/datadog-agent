@@ -4699,7 +4699,7 @@ api_key:
 #       mode: gauges
 
 #     # @param batch - custom object - optional
-#     # Configuration for OTLP sending queue batch.
+#     # Configuration for the OTLP sending queue (batch settings).
 #     # See https://github.com/open-telemetry/opentelemetry-collector/tree/main/exporter/exporterhelper#sending-queue-batch-settings for more details.
 #
 #     batch:
@@ -4804,7 +4804,7 @@ api_key:
 
 #       # @param max_size - integer - optional - default: 0
 #       # @env DD_OTLP_CONFIG_LOGS_BATCH_MAX_SIZE - integer - optional - default: 0
-#       # The maximum number of metrics to batch before sending.
+#       # The maximum number of logs to batch before sending.
 #
 #       max_size: 0
 
