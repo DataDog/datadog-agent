@@ -14,7 +14,6 @@ import (
 	"os"
 	"path/filepath"
 	"time"
-	"unsafe"
 
 	"gopkg.in/yaml.v3"
 
@@ -295,6 +294,13 @@ func configureDDOTServicePermissions(s *mgr.Service) {
 		return
 	}
 
+	// If the core Agent runs as LocalSystem, SY already has full control on services.
+	// No additional ACEs are required; leave the service DACL unchanged.
+	lsSid, err2 := windows.CreateWellKnownSid(windows.WinLocalSystemSid)
+	if err2 == nil && windows.EqualSid(sid, lsSid) {
+		return
+	}
+
 	// MSI parity SDDL:
 	// - (A;;GA;;;SY)   LocalSystem full control
 	// - (A;;GA;;;BA)   Builtin Administrators full control
@@ -306,35 +312,29 @@ func configureDDOTServicePermissions(s *mgr.Service) {
 		sidStr,
 	)
 
-	// Convert SDDL to a security descriptor, then apply it to the service object’s DACL.
+	// Convert SDDL, extract the DACL and apply it to the service using SetNamedSecurityInfo.
 	// Any failure logs a warning and returns; permissions alignment is best-effort and
 	// should not block installation or service availability.
-	advapi32 := windows.NewLazySystemDLL("advapi32.dll")
-	procCvt := advapi32.NewProc("ConvertStringSecurityDescriptorToSecurityDescriptorW")
-	procSet := advapi32.NewProc("SetServiceObjectSecurity")
-
-	sddlPtr, _ := windows.UTF16PtrFromString(sddl)
-	var secDesc *byte
-	r1, _, e1 := procCvt.Call(
-		uintptr(unsafe.Pointer(sddlPtr)),
-		uintptr(uint32(1)), // SDDL_REVISION_1
-		uintptr(unsafe.Pointer(&secDesc)),
-		uintptr(0),
-	)
-	if r1 == 0 || secDesc == nil {
-		log.Warnf("DDOT: failed to convert SDDL for service DACL: %v", e1)
+	sd, err := windows.SecurityDescriptorFromString(sddl)
+	if err != nil || sd == nil {
+		log.Warnf("DDOT: failed to convert SDDL for service DACL: %v", err)
 		return
 	}
-	defer windows.LocalFree(windows.Handle(uintptr(unsafe.Pointer(secDesc))))
-
-	const daclSecurityInformation = 0x00000004
-	r2, _, e2 := procSet.Call(
-		uintptr(s.Handle),
-		uintptr(uint32(daclSecurityInformation)),
-		uintptr(unsafe.Pointer(secDesc)),
-	)
-	if r2 == 0 {
-		log.Warnf("DDOT: failed to set service DACL for %q: %v", otelServiceName, e2)
+	dacl, _, err := sd.DACL()
+	if err != nil {
+		log.Warnf("DDOT: failed to retrieve DACL from security descriptor: %v", err)
+		return
+	}
+	if err := windows.SetNamedSecurityInfo(
+		s.Name,
+		windows.SE_SERVICE,
+		windows.DACL_SECURITY_INFORMATION,
+		nil, // owner unchanged
+		nil, // group unchanged
+		dacl,
+		nil, // SACL unchanged
+	); err != nil {
+		log.Warnf("DDOT: failed to set service DACL for %q: %v", s.Name, err)
 		return
 	}
 }
