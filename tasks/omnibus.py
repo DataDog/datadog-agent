@@ -50,6 +50,8 @@ def omnibus_run_task(ctx, task, target_project, base_dir, env, log_level="info",
             "overrides": " ".join(overrides),
         }
 
+        env['CI_JOB_ID'] = os.environ.get('CI_JOB_ID')
+
         with gitlab_section(f"Running omnibus task {task}", collapsed=True):
             ctx.run(cmd.format(**args), env=env, replace_env=True, err_stream=sys.stdout)
 
