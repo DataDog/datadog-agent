@@ -218,7 +218,7 @@ func (cr *Resolver) pushNewCacheEntry(process *model.ProcessCacheEntry) {
 	cr.cgroups.Add(process.CGroup.CGroupFile.Inode, &cgroupCopy)
 
 	cr.NotifyListeners(CGroupCreated, newCGroup)
-	cr.deletedCgroups.Inc()
+	cr.addedCgroups.Inc()
 }
 
 // returns false if the fallback failed
