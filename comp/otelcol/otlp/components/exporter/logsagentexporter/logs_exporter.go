@@ -74,15 +74,17 @@ func NewExporterWithGatewayUsage(
 // ConsumeLogs maps logs from OTLP to DD format and ingests them through the exporter channel
 func (e *Exporter) ConsumeLogs(ctx context.Context, ld plog.Logs) (err error) {
 	fmt.Println("WACKTEST99 consume logs")
+	e.set.Logger.Info("WACKTEST99 consume logs")
+	e.set.Logger.Info("WACKTEST100 otelSource: %s", zap.String("otelSource", e.cfg.OtelSource))
 	otelSource := e.cfg.OtelSource
 	fmt.Println("WACKTEST100 otelSource", otelSource)
-	if otelSource == "datadog_agent" {
-		fmt.Println("WACKTEST101 adding agent logs requests")
-		OTLPIngestAgentLogsRequests.Inc()
-	} else if otelSource == "otel_agent" {
-		fmt.Println("WACKTEST102 adding ddot logs requests")
-		OTLPIngestDDOTLogsRequests.Inc()
-	}
+	// if otelSource == "datadog_agent" {
+	// 	fmt.Println("WACKTEST101 adding agent logs requests")
+	// 	OTLPIngestAgentLogsRequests.Inc()
+	// } else if otelSource == "otel_agent" {
+	fmt.Println("WACKTEST102 adding ddot logs requests")
+	OTLPIngestDDOTLogsRequests.Inc()
+	//}
 	defer func() {
 		if err != nil {
 			newErr, scrubbingErr := scrubber.ScrubString(err.Error())
