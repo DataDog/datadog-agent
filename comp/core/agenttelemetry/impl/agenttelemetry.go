@@ -515,6 +515,7 @@ func (a *atel) run(profiles []*Profile) {
 	fmt.Println("WACKTEST2")
 	err = a.sender.flushSession(session)
 	if err != nil {
+		fmt.Println("WACKTEST 3 ERROR FROM FLUSH SESSION", err)
 		a.logComp.Errorf("failed to flush agent telemetry session: %s", err)
 		return
 	}

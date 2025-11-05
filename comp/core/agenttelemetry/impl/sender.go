@@ -412,15 +412,18 @@ func (ss *senderSession) flush() Payload {
 }
 
 func (s *senderImpl) flushSession(ss *senderSession) error {
+	fmt.Println("WACKTEST 4 FLUSH SESSION")
 	// There is nothing to do if there are no payloads
 	if ss.payloadCount() == 0 {
 		return nil
 	}
 
 	s.logComp.Debugf("Flushing Agent Telemetery session with %d payloads", ss.payloadCount())
-
+	fmt.Println("WACKTEST 5 FLUSH SESSION")
 	payloads := ss.flush()
+	fmt.Println("WACKTEST 6 FLUSH SESSION", payloads)
 	payloadJSON, err := json.Marshal(payloads)
+	fmt.Println("WACKTEST 7 FLUSH SESSION", payloadJSON)
 	if err != nil {
 		return fmt.Errorf("failed to marshal agent telemetry payload: %w", err)
 	}
@@ -448,6 +451,7 @@ func (s *senderImpl) flushSession(ss *senderSession) error {
 	var errs error
 	reqType := payloads.RequestType
 	bodyLen := strconv.Itoa(len(reqBody))
+	fmt.Println("WACKTEST 8 FLUSH SESSION", reqType)
 	for _, ep := range s.endpoints.Endpoints {
 		url := buildURL(ep)
 		req, err := http.NewRequest("POST", url, bytes.NewReader(reqBody))
@@ -470,11 +474,14 @@ func (s *senderImpl) flushSession(ss *senderSession) error {
 		// Log return status (and URL if unsuccessful)
 		if resp.StatusCode >= 200 && resp.StatusCode < 300 {
 			s.logComp.Debugf("Telemetery endpoint response status:%s, request type:%s, status code:%d", resp.Status, reqType, resp.StatusCode)
+			fmt.Println("WACKTEST 9 FLUSH SESSION", resp.Status, reqType, resp.StatusCode)
 		} else {
 			s.logComp.Debugf("Telemetery endpoint response status:%s, request type:%s, status code:%d, url:%s", resp.Status, reqType, resp.StatusCode, url)
+			fmt.Println("WACKTEST 10 FLUSH SESSION", resp.Status, reqType, resp.StatusCode, url)
 		}
 	}
 
+	fmt.Println("WACKTEST 11 FLUSH SESSION", errs)
 	return errs
 }
 
