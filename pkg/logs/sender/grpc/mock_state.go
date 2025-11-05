@@ -11,6 +11,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/statefulpb"
 )
 
 const nanoToMillis = 1000000
@@ -29,16 +30,16 @@ func StartMessageTranslator(inputChan chan *message.Message, outputChan chan *me
 			}
 
 			// Create the Log message using stateful_encoding.proto definitions
-			log := &Log{
+			log := &statefulpb.Log{
 				Timestamp: uint64(ts.UnixNano() / nanoToMillis),
-				Content: &Log_Raw{
+				Content: &statefulpb.Log_Raw{
 					Raw: toValidUtf8(msg.GetContent()),
 				},
 			}
 
 			// Wrap the Log in a Datum
-			datum := &Datum{
-				Data: &Datum_Logs{
+			datum := &statefulpb.Datum{
+				Data: &statefulpb.Datum_Logs{
 					Logs: log,
 				},
 			}
