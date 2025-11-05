@@ -18,5 +18,4 @@ fi
 
 ##### Starting up dogstatsd #####
 
-sync	# Fix for 'Text file busy' error
 exec "$@"
