@@ -336,6 +336,8 @@ func (s *senderImpl) addMetricPayload(
 	}
 
 	// Finally add metric to the payload
+	fmt.Println("WACKTEST4", metricName, payload)
+	fmt.Println("WACKTEST5", payload.Value)
 	metricsPayload.Metrics[metricName] = payload
 }
 
