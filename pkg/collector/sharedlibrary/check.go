@@ -131,7 +131,7 @@ func (c *Check) GetWarnings() []error {
 }
 
 // Configure the shared library check from YAML data
-func (c *Check) Configure(_senderManager sender.SenderManager, integrationConfigDigest uint64, instanceConfig integration.Data, initConfig integration.Data, source string) error {
+func (c *Check) Configure(_ sender.SenderManager, integrationConfigDigest uint64, instanceConfig integration.Data, initConfig integration.Data, source string) error {
 	c.id = checkid.BuildID(c.String(), integrationConfigDigest, instanceConfig, initConfig)
 
 	commonOptions := integration.CommonInstanceConfig{}

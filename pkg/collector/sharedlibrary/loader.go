@@ -40,7 +40,7 @@ func (sl *CheckLoader) String() string {
 }
 
 // Load returns a Shared Library check
-func (sl *CheckLoader) Load(senderManager sender.SenderManager, config integration.Config, instance integration.Data, _instanceIndex int) (check.Check, error) {
+func (sl *CheckLoader) Load(senderManager sender.SenderManager, config integration.Config, instance integration.Data, _ int) (check.Check, error) {
 	// load the library and get pointers to its symbols through the library loader
 	lib, err := sl.loader.Load(config.Name)
 	if err != nil {
@@ -53,7 +53,6 @@ func (sl *CheckLoader) Load(senderManager sender.SenderManager, config integrati
 		return c, err
 	}
 
-	// Set the check ID
 	configDigest := config.FastDigest()
 
 	// pass the configuration to the check
