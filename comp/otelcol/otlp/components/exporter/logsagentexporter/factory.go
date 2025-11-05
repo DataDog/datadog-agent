@@ -8,6 +8,7 @@ package logsagentexporter
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
@@ -95,7 +96,7 @@ func (f *factory) createLogsExporter(
 	if f.reporter != nil {
 		exporter.reporter = f.reporter
 	}
-
+	fmt.Println("WACKTEST103 factory createLogsExporter")
 	ctx, cancel := context.WithCancel(ctx)
 	// cancel() runs on shutdown
 	return exporterhelper.NewLogs(

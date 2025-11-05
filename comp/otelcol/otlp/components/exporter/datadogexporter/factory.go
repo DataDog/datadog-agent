@@ -286,7 +286,7 @@ func (f *factory) createLogsExporter(
 	if _, err := f.Reporter(set, cfg.HostMetadata.ReporterPeriod, cfg.HostMetadata.Enabled); err != nil {
 		return nil, err
 	}
-
+	fmt.Println("WACKTEST104 factory createLogsExporter with otel_agent")
 	lf := logsagentexporter.NewFactoryWithType(logch, Type, f.gatewayUsage, f.reporter)
 	lc := &logsagentexporter.Config{
 		OtelSource:    "otel_agent",
