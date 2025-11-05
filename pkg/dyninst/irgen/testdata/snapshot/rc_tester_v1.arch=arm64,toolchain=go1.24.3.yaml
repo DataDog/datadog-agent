@@ -603,29 +603,6 @@ Types:
     - __kind: EventRootType
       ID: 212
       Name: Probe[main.HandleHTTP]Return
-      ByteSize: 17
-      PresenceBitsetSize: 1
-      Expressions:
-        - Name: '&buf'
-          Offset: 1
-          Kind: local
-          Expression:
-            Type: 110 PointerType *bytes.Buffer
-            Operations:
-                - __kind: LocationOp
-                  Variable: {subprogram: 1, index: 2, name: '&buf'}
-                  Offset: 0
-                  ByteSize: 8
-        - Name: '&buf'
-          Offset: 9
-          Kind: local
-          Expression:
-            Type: 110 PointerType *bytes.Buffer
-            Operations:
-                - __kind: LocationOp
-                  Variable: {subprogram: 1, index: 2, name: '&buf'}
-                  Offset: 0
-                  ByteSize: 8
     - __kind: EventRootType
       ID: 213
       Name: Probe[main.LookAtTheRequest]

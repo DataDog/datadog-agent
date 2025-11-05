@@ -981,7 +981,7 @@ Probes:
             - JSON: {ref: x}
               DSL: x
               EventKind: Entry
-              EventExpressionIndex: 9
+              EventExpressionIndex: 1
     - id: testInlinedPrintLine
       version: 0
       type: LOG_PROBE
@@ -1080,7 +1080,7 @@ Probes:
             - JSON: {ref: a}
               DSL: a
               EventKind: Entry
-              EventExpressionIndex: 3
+              EventExpressionIndex: 1
     - id: testInt16Array
       version: 0
       type: LOG_PROBE
@@ -1317,9 +1317,15 @@ Probes:
       probeTemplate:
         TemplateString: '{a} and {b}'
         Segments:
-            - 'unknown variable referenced by template: a (probe: testLongFunctionWithChangingStateLineC main.testLongFunctionWithChangingState)'
+            - JSON: {ref: a}
+              DSL: a
+              EventKind: Line
+              EventExpressionIndex: 2
             - ' and '
-            - 'unknown variable referenced by template: b (probe: testLongFunctionWithChangingStateLineC main.testLongFunctionWithChangingState)'
+            - JSON: {ref: b}
+              DSL: b
+              EventKind: Line
+              EventExpressionIndex: 3
     - id: testManyArgsArrayReturn
       version: 0
       type: LOG_PROBE
@@ -2175,7 +2181,7 @@ Probes:
             - JSON: {ref: result}
               DSL: result
               EventKind: Return
-              EventExpressionIndex: 3
+              EventExpressionIndex: 1
     - id: testNilPointer
       version: 0
       type: LOG_PROBE
@@ -2946,7 +2952,7 @@ Probes:
             - JSON: {ref: result2}
               DSL: result2
               EventKind: Return
-              EventExpressionIndex: 5
+              EventExpressionIndex: 2
             - JSON: {ref: i}
               DSL: i
               EventKind: Entry
@@ -2954,7 +2960,7 @@ Probes:
             - JSON: {ref: result}
               DSL: result
               EventKind: Return
-              EventExpressionIndex: 7
+              EventExpressionIndex: 3
             - JSON: {ref: i}
               DSL: i
               EventKind: Entry
@@ -2966,11 +2972,11 @@ Probes:
             - JSON: {ref: result2}
               DSL: result2
               EventKind: Return
-              EventExpressionIndex: 9
+              EventExpressionIndex: 4
             - JSON: {ref: result}
               DSL: result
               EventKind: Return
-              EventExpressionIndex: 11
+              EventExpressionIndex: 5
     - id: testSingleBool
       version: 0
       type: LOG_PROBE
@@ -3750,11 +3756,7 @@ Probes:
           Condition: null
       probeTemplate:
         TemplateString: '{nonexistentVariable}'
-        Segments:
-            - JSON: {foobar: nonexistentVariable}
-              DSL: nonexistentVariable
-              EventKind: EventKind(0)
-              EventExpressionIndex: -1
+        Segments: ['unsupported expression type: *exprlang.UnsupportedExpr']
     - id: testTemplateWithUnsupportedVariable
       version: 0
       type: LOG_PROBE
@@ -10671,21 +10673,11 @@ Types:
     - __kind: EventRootType
       ID: 1499
       Name: Probe[main.stackC]Return
-      ByteSize: 33
+      ByteSize: 17
       PresenceBitsetSize: 1
       Expressions:
         - Name: ~r0
           Offset: 1
-          Kind: local
-          Expression:
-            Type: 9 GoStringHeaderType string
-            Operations:
-                - __kind: LocationOp
-                  Variable: {subprogram: 140, index: 0, name: ~r0}
-                  Offset: 0
-                  ByteSize: 16
-        - Name: ~r0
-          Offset: 17
           Kind: local
           Expression:
             Type: 9 GoStringHeaderType string
@@ -10723,21 +10715,11 @@ Types:
     - __kind: EventRootType
       ID: 1371
       Name: Probe[main.testAnyPtr]Return
-      ByteSize: 33
+      ByteSize: 17
       PresenceBitsetSize: 1
       Expressions:
         - Name: ~r0
           Offset: 1
-          Kind: local
-          Expression:
-            Type: 9 GoStringHeaderType string
-            Operations:
-                - __kind: LocationOp
-                  Variable: {subprogram: 59, index: 1, name: ~r0}
-                  Offset: 0
-                  ByteSize: 16
-        - Name: ~r0
-          Offset: 17
           Kind: local
           Expression:
             Type: 9 GoStringHeaderType string
@@ -10775,21 +10757,11 @@ Types:
     - __kind: EventRootType
       ID: 1368
       Name: Probe[main.testAny]Return
-      ByteSize: 33
+      ByteSize: 17
       PresenceBitsetSize: 1
       Expressions:
         - Name: ~r0
           Offset: 1
-          Kind: local
-          Expression:
-            Type: 9 GoStringHeaderType string
-            Operations:
-                - __kind: LocationOp
-                  Variable: {subprogram: 57, index: 1, name: ~r0}
-                  Offset: 0
-                  ByteSize: 16
-        - Name: ~r0
-          Offset: 17
           Kind: local
           Expression:
             Type: 9 GoStringHeaderType string
@@ -10827,21 +10799,11 @@ Types:
     - __kind: EventRootType
       ID: 1471
       Name: Probe[main.testArrayArgAndReturn]Return
-      ByteSize: 49
+      ByteSize: 25
       PresenceBitsetSize: 1
       Expressions:
         - Name: ~r0
           Offset: 1
-          Kind: local
-          Expression:
-            Type: 249 ArrayType [3]int
-            Operations:
-                - __kind: LocationOp
-                  Variable: {subprogram: 121, index: 1, name: ~r0}
-                  Offset: 0
-                  ByteSize: 24
-        - Name: ~r0
-          Offset: 25
           Kind: local
           Expression:
             Type: 249 ArrayType [3]int
@@ -11627,21 +11589,11 @@ Types:
     - __kind: EventRootType
       ID: 1364
       Name: Probe[main.testFramelessArray]Return
-      ByteSize: 17
+      ByteSize: 9
       PresenceBitsetSize: 1
       Expressions:
         - Name: ~r0
           Offset: 1
-          Kind: local
-          Expression:
-            Type: 7 BaseType int
-            Operations:
-                - __kind: LocationOp
-                  Variable: {subprogram: 55, index: 1, name: ~r0}
-                  Offset: 0
-                  ByteSize: 8
-        - Name: ~r0
-          Offset: 9
           Kind: local
           Expression:
             Type: 7 BaseType int
@@ -11679,21 +11631,11 @@ Types:
     - __kind: EventRootType
       ID: 1362
       Name: Probe[main.testFrameless]Return
-      ByteSize: 17
+      ByteSize: 9
       PresenceBitsetSize: 1
       Expressions:
         - Name: ~r0
           Offset: 1
-          Kind: local
-          Expression:
-            Type: 7 BaseType int
-            Operations:
-                - __kind: LocationOp
-                  Variable: {subprogram: 54, index: 1, name: ~r0}
-                  Offset: 0
-                  ByteSize: 8
-        - Name: ~r0
-          Offset: 9
           Kind: local
           Expression:
             Type: 7 BaseType int
@@ -11812,19 +11754,6 @@ Types:
     - __kind: EventRootType
       ID: 1356
       Name: Probe[main.testInlinedBB]Return
-      ByteSize: 9
-      PresenceBitsetSize: 1
-      Expressions:
-        - Name: z
-          Offset: 1
-          Kind: local
-          Expression:
-            Type: 7 BaseType int
-            Operations:
-                - __kind: LocationOp
-                  Variable: {subprogram: 51, index: 2, name: z}
-                  Offset: 0
-                  ByteSize: 8
     - __kind: EventRootType
       ID: 1521
       Name: Probe[main.testInlinedBCA]
@@ -11846,11 +11775,11 @@ Types:
     - __kind: EventRootType
       ID: 1517
       Name: Probe[main.testInlinedPrint]
-      ByteSize: 82
-      PresenceBitsetSize: 2
+      ByteSize: 17
+      PresenceBitsetSize: 1
       Expressions:
         - Name: x
-          Offset: 2
+          Offset: 1
           Kind: argument
           Expression:
             Type: 7 BaseType int
@@ -11860,87 +11789,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
         - Name: x
-          Offset: 10
-          Kind: argument
-          Expression:
-            Type: 7 BaseType int
-            Operations:
-                - __kind: LocationOp
-                  Variable: {subprogram: 154, index: 0, name: x}
-                  Offset: 0
-                  ByteSize: 8
-        - Name: x
-          Offset: 18
-          Kind: argument
-          Expression:
-            Type: 7 BaseType int
-            Operations:
-                - __kind: LocationOp
-                  Variable: {subprogram: 154, index: 0, name: x}
-                  Offset: 0
-                  ByteSize: 8
-        - Name: x
-          Offset: 26
-          Kind: argument
-          Expression:
-            Type: 7 BaseType int
-            Operations:
-                - __kind: LocationOp
-                  Variable: {subprogram: 154, index: 0, name: x}
-                  Offset: 0
-                  ByteSize: 8
-        - Name: x
-          Offset: 34
-          Kind: argument
-          Expression:
-            Type: 7 BaseType int
-            Operations:
-                - __kind: LocationOp
-                  Variable: {subprogram: 154, index: 0, name: x}
-                  Offset: 0
-                  ByteSize: 8
-        - Name: x
-          Offset: 42
-          Kind: template_segment
-          Expression:
-            Type: 7 BaseType int
-            Operations:
-                - __kind: LocationOp
-                  Variable: {subprogram: 154, index: 0, name: x}
-                  Offset: 0
-                  ByteSize: 8
-        - Name: x
-          Offset: 50
-          Kind: template_segment
-          Expression:
-            Type: 7 BaseType int
-            Operations:
-                - __kind: LocationOp
-                  Variable: {subprogram: 154, index: 0, name: x}
-                  Offset: 0
-                  ByteSize: 8
-        - Name: x
-          Offset: 58
-          Kind: template_segment
-          Expression:
-            Type: 7 BaseType int
-            Operations:
-                - __kind: LocationOp
-                  Variable: {subprogram: 154, index: 0, name: x}
-                  Offset: 0
-                  ByteSize: 8
-        - Name: x
-          Offset: 66
-          Kind: template_segment
-          Expression:
-            Type: 7 BaseType int
-            Operations:
-                - __kind: LocationOp
-                  Variable: {subprogram: 154, index: 0, name: x}
-                  Offset: 0
-                  ByteSize: 8
-        - Name: x
-          Offset: 74
+          Offset: 9
           Kind: template_segment
           Expression:
             Type: 7 BaseType int
@@ -11987,7 +11836,7 @@ Types:
     - __kind: EventRootType
       ID: 1527
       Name: Probe[main.testInlinedSumArray]
-      ByteSize: 161
+      ByteSize: 81
       PresenceBitsetSize: 1
       Expressions:
         - Name: a
@@ -12002,26 +11851,6 @@ Types:
                   ByteSize: 40
         - Name: a
           Offset: 41
-          Kind: argument
-          Expression:
-            Type: 159 ArrayType [5]int
-            Operations:
-                - __kind: LocationOp
-                  Variable: {subprogram: 159, index: 0, name: a}
-                  Offset: 0
-                  ByteSize: 40
-        - Name: a
-          Offset: 81
-          Kind: template_segment
-          Expression:
-            Type: 159 ArrayType [5]int
-            Operations:
-                - __kind: LocationOp
-                  Variable: {subprogram: 159, index: 0, name: a}
-                  Offset: 0
-                  ByteSize: 40
-        - Name: a
-          Offset: 121
           Kind: template_segment
           Expression:
             Type: 159 ArrayType [5]int
@@ -12215,21 +12044,11 @@ Types:
     - __kind: EventRootType
       ID: 1469
       Name: Probe[main.testLargeArgAndReturn]Return
-      ByteSize: 161
+      ByteSize: 81
       PresenceBitsetSize: 1
       Expressions:
         - Name: ~r0
           Offset: 1
-          Kind: local
-          Expression:
-            Type: 248 StructureType main.largeStruct
-            Operations:
-                - __kind: LocationOp
-                  Variable: {subprogram: 120, index: 1, name: ~r0}
-                  Offset: 0
-                  ByteSize: 80
-        - Name: ~r0
-          Offset: 81
           Kind: local
           Expression:
             Type: 248 StructureType main.largeStruct
@@ -12270,9 +12089,75 @@ Types:
     - __kind: EventRootType
       ID: 1347
       Name: Probe[main.testLongFunctionWithChangingState]Line
+      ByteSize: 17
+      PresenceBitsetSize: 1
+      Expressions:
+        - Name: a
+          Offset: 1
+          Kind: local
+          Expression:
+            Type: 7 BaseType int
+            Operations:
+                - __kind: LocationOp
+                  Variable: {subprogram: 47, index: 1, name: a}
+                  Offset: 0
+                  ByteSize: 8
+        - Name: b
+          Offset: 9
+          Kind: local
+          Expression:
+            Type: 7 BaseType int
+            Operations:
+                - __kind: LocationOp
+                  Variable: {subprogram: 47, index: 2, name: b}
+                  Offset: 0
+                  ByteSize: 8
     - __kind: EventRootType
       ID: 1348
       Name: Probe[main.testLongFunctionWithChangingState]Line
+      ByteSize: 33
+      PresenceBitsetSize: 1
+      Expressions:
+        - Name: a
+          Offset: 1
+          Kind: local
+          Expression:
+            Type: 7 BaseType int
+            Operations:
+                - __kind: LocationOp
+                  Variable: {subprogram: 47, index: 1, name: a}
+                  Offset: 0
+                  ByteSize: 8
+        - Name: b
+          Offset: 9
+          Kind: local
+          Expression:
+            Type: 7 BaseType int
+            Operations:
+                - __kind: LocationOp
+                  Variable: {subprogram: 47, index: 2, name: b}
+                  Offset: 0
+                  ByteSize: 8
+        - Name: a
+          Offset: 17
+          Kind: template_segment
+          Expression:
+            Type: 7 BaseType int
+            Operations:
+                - __kind: LocationOp
+                  Variable: {subprogram: 47, index: 1, name: a}
+                  Offset: 0
+                  ByteSize: 8
+        - Name: b
+          Offset: 25
+          Kind: template_segment
+          Expression:
+            Type: 7 BaseType int
+            Operations:
+                - __kind: LocationOp
+                  Variable: {subprogram: 47, index: 2, name: b}
+                  Offset: 0
+                  ByteSize: 8
     - __kind: EventRootType
       ID: 1474
       Name: Probe[main.testManyArgsArrayReturn]
@@ -12462,21 +12347,11 @@ Types:
     - __kind: EventRootType
       ID: 1475
       Name: Probe[main.testManyArgsArrayReturn]Return
-      ByteSize: 33
+      ByteSize: 17
       PresenceBitsetSize: 1
       Expressions:
         - Name: ~r0
           Offset: 1
-          Kind: local
-          Expression:
-            Type: 111 ArrayType [2]int
-            Operations:
-                - __kind: LocationOp
-                  Variable: {subprogram: 123, index: 9, name: ~r0}
-                  Offset: 0
-                  ByteSize: 16
-        - Name: ~r0
-          Offset: 17
           Kind: local
           Expression:
             Type: 111 ArrayType [2]int
@@ -13246,21 +13121,11 @@ Types:
     - __kind: EventRootType
       ID: 1477
       Name: Probe[main.testMixedArgsStackReturn]Return
-      ByteSize: 161
+      ByteSize: 81
       PresenceBitsetSize: 1
       Expressions:
         - Name: ~r0
           Offset: 1
-          Kind: local
-          Expression:
-            Type: 248 StructureType main.largeStruct
-            Operations:
-                - __kind: LocationOp
-                  Variable: {subprogram: 124, index: 9, name: ~r0}
-                  Offset: 0
-                  ByteSize: 80
-        - Name: ~r0
-          Offset: 81
           Kind: local
           Expression:
             Type: 248 StructureType main.largeStruct
@@ -13318,7 +13183,7 @@ Types:
     - __kind: EventRootType
       ID: 1481
       Name: Probe[main.testMultipleArrayArgs]Return
-      ByteSize: 49
+      ByteSize: 25
       PresenceBitsetSize: 1
       Expressions:
         - Name: ~r0
@@ -13331,28 +13196,8 @@ Types:
                   Variable: {subprogram: 126, index: 2, name: ~r0}
                   Offset: 0
                   ByteSize: 8
-        - Name: ~r0
+        - Name: ~r1
           Offset: 9
-          Kind: local
-          Expression:
-            Type: 7 BaseType int
-            Operations:
-                - __kind: LocationOp
-                  Variable: {subprogram: 126, index: 2, name: ~r0}
-                  Offset: 0
-                  ByteSize: 8
-        - Name: ~r1
-          Offset: 17
-          Kind: local
-          Expression:
-            Type: 111 ArrayType [2]int
-            Operations:
-                - __kind: LocationOp
-                  Variable: {subprogram: 126, index: 3, name: ~r1}
-                  Offset: 0
-                  ByteSize: 16
-        - Name: ~r1
-          Offset: 33
           Kind: local
           Expression:
             Type: 111 ArrayType [2]int
@@ -13410,21 +13255,11 @@ Types:
     - __kind: EventRootType
       ID: 1473
       Name: Probe[main.testMultipleLargeArgs]Return
-      ByteSize: 161
+      ByteSize: 81
       PresenceBitsetSize: 1
       Expressions:
         - Name: ~r0
           Offset: 1
-          Kind: local
-          Expression:
-            Type: 248 StructureType main.largeStruct
-            Operations:
-                - __kind: LocationOp
-                  Variable: {subprogram: 122, index: 2, name: ~r0}
-                  Offset: 0
-                  ByteSize: 80
-        - Name: ~r0
-          Offset: 81
           Kind: local
           Expression:
             Type: 248 StructureType main.largeStruct
@@ -13556,7 +13391,7 @@ Types:
     - __kind: EventRootType
       ID: 1427
       Name: Probe[main.testMultipleNamedReturn]Return
-      ByteSize: 33
+      ByteSize: 17
       PresenceBitsetSize: 1
       Expressions:
         - Name: result
@@ -13569,28 +13404,8 @@ Types:
                   Variable: {subprogram: 103, index: 1, name: result}
                   Offset: 0
                   ByteSize: 8
-        - Name: result
+        - Name: result2
           Offset: 9
-          Kind: local
-          Expression:
-            Type: 7 BaseType int
-            Operations:
-                - __kind: LocationOp
-                  Variable: {subprogram: 103, index: 1, name: result}
-                  Offset: 0
-                  ByteSize: 8
-        - Name: result2
-          Offset: 17
-          Kind: local
-          Expression:
-            Type: 7 BaseType int
-            Operations:
-                - __kind: LocationOp
-                  Variable: {subprogram: 103, index: 2, name: result2}
-                  Offset: 0
-                  ByteSize: 8
-        - Name: result2
-          Offset: 25
           Kind: local
           Expression:
             Type: 7 BaseType int
@@ -13602,21 +13417,11 @@ Types:
     - __kind: EventRootType
       ID: 1429
       Name: Probe[main.testMultipleNamedReturn]Return
-      ByteSize: 98
-      PresenceBitsetSize: 2
+      ByteSize: 49
+      PresenceBitsetSize: 1
       Expressions:
         - Name: result
-          Offset: 2
-          Kind: local
-          Expression:
-            Type: 7 BaseType int
-            Operations:
-                - __kind: LocationOp
-                  Variable: {subprogram: 103, index: 1, name: result}
-                  Offset: 0
-                  ByteSize: 8
-        - Name: result
-          Offset: 10
+          Offset: 1
           Kind: local
           Expression:
             Type: 7 BaseType int
@@ -13626,7 +13431,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
         - Name: result2
-          Offset: 18
+          Offset: 9
           Kind: local
           Expression:
             Type: 7 BaseType int
@@ -13636,27 +13441,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
         - Name: result2
-          Offset: 26
-          Kind: local
-          Expression:
-            Type: 7 BaseType int
-            Operations:
-                - __kind: LocationOp
-                  Variable: {subprogram: 103, index: 2, name: result2}
-                  Offset: 0
-                  ByteSize: 8
-        - Name: result2
-          Offset: 34
-          Kind: template_segment
-          Expression:
-            Type: 7 BaseType int
-            Operations:
-                - __kind: LocationOp
-                  Variable: {subprogram: 103, index: 2, name: result2}
-                  Offset: 0
-                  ByteSize: 8
-        - Name: result2
-          Offset: 42
+          Offset: 17
           Kind: template_segment
           Expression:
             Type: 7 BaseType int
@@ -13666,17 +13451,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
         - Name: result
-          Offset: 50
-          Kind: template_segment
-          Expression:
-            Type: 7 BaseType int
-            Operations:
-                - __kind: LocationOp
-                  Variable: {subprogram: 103, index: 1, name: result}
-                  Offset: 0
-                  ByteSize: 8
-        - Name: result
-          Offset: 58
+          Offset: 25
           Kind: template_segment
           Expression:
             Type: 7 BaseType int
@@ -13686,17 +13461,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
         - Name: result2
-          Offset: 66
-          Kind: template_segment
-          Expression:
-            Type: 7 BaseType int
-            Operations:
-                - __kind: LocationOp
-                  Variable: {subprogram: 103, index: 2, name: result2}
-                  Offset: 0
-                  ByteSize: 8
-        - Name: result2
-          Offset: 74
+          Offset: 33
           Kind: template_segment
           Expression:
             Type: 7 BaseType int
@@ -13706,17 +13471,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
         - Name: result
-          Offset: 82
-          Kind: template_segment
-          Expression:
-            Type: 7 BaseType int
-            Operations:
-                - __kind: LocationOp
-                  Variable: {subprogram: 103, index: 1, name: result}
-                  Offset: 0
-                  ByteSize: 8
-        - Name: result
-          Offset: 90
+          Offset: 41
           Kind: template_segment
           Expression:
             Type: 7 BaseType int
@@ -13728,7 +13483,7 @@ Types:
     - __kind: EventRootType
       ID: 1431
       Name: Probe[main.testMultipleNamedReturn]Return
-      ByteSize: 33
+      ByteSize: 17
       PresenceBitsetSize: 1
       Expressions:
         - Name: result
@@ -13741,28 +13496,8 @@ Types:
                   Variable: {subprogram: 103, index: 1, name: result}
                   Offset: 0
                   ByteSize: 8
-        - Name: result
+        - Name: result2
           Offset: 9
-          Kind: local
-          Expression:
-            Type: 7 BaseType int
-            Operations:
-                - __kind: LocationOp
-                  Variable: {subprogram: 103, index: 1, name: result}
-                  Offset: 0
-                  ByteSize: 8
-        - Name: result2
-          Offset: 17
-          Kind: local
-          Expression:
-            Type: 7 BaseType int
-            Operations:
-                - __kind: LocationOp
-                  Variable: {subprogram: 103, index: 2, name: result2}
-                  Offset: 0
-                  ByteSize: 8
-        - Name: result2
-          Offset: 25
           Kind: local
           Expression:
             Type: 7 BaseType int
@@ -13774,7 +13509,7 @@ Types:
     - __kind: EventRootType
       ID: 1433
       Name: Probe[main.testMultipleNamedReturn]Return
-      ByteSize: 33
+      ByteSize: 17
       PresenceBitsetSize: 1
       Expressions:
         - Name: result
@@ -13787,28 +13522,8 @@ Types:
                   Variable: {subprogram: 103, index: 1, name: result}
                   Offset: 0
                   ByteSize: 8
-        - Name: result
+        - Name: result2
           Offset: 9
-          Kind: local
-          Expression:
-            Type: 7 BaseType int
-            Operations:
-                - __kind: LocationOp
-                  Variable: {subprogram: 103, index: 1, name: result}
-                  Offset: 0
-                  ByteSize: 8
-        - Name: result2
-          Offset: 17
-          Kind: local
-          Expression:
-            Type: 7 BaseType int
-            Operations:
-                - __kind: LocationOp
-                  Variable: {subprogram: 103, index: 2, name: result2}
-                  Offset: 0
-                  ByteSize: 8
-        - Name: result2
-          Offset: 25
           Kind: local
           Expression:
             Type: 7 BaseType int
@@ -13820,7 +13535,7 @@ Types:
     - __kind: EventRootType
       ID: 1435
       Name: Probe[main.testMultipleNamedReturn]Return
-      ByteSize: 33
+      ByteSize: 17
       PresenceBitsetSize: 1
       Expressions:
         - Name: result
@@ -13833,28 +13548,8 @@ Types:
                   Variable: {subprogram: 103, index: 1, name: result}
                   Offset: 0
                   ByteSize: 8
-        - Name: result
+        - Name: result2
           Offset: 9
-          Kind: local
-          Expression:
-            Type: 7 BaseType int
-            Operations:
-                - __kind: LocationOp
-                  Variable: {subprogram: 103, index: 1, name: result}
-                  Offset: 0
-                  ByteSize: 8
-        - Name: result2
-          Offset: 17
-          Kind: local
-          Expression:
-            Type: 7 BaseType int
-            Operations:
-                - __kind: LocationOp
-                  Variable: {subprogram: 103, index: 2, name: result2}
-                  Offset: 0
-                  ByteSize: 8
-        - Name: result2
-          Offset: 25
           Kind: local
           Expression:
             Type: 7 BaseType int
@@ -14024,6 +13719,22 @@ Types:
     - __kind: EventRootType
       ID: 1423
       Name: Probe[main.testNamedReturn]Return
+      ByteSize: 9
+      PresenceBitsetSize: 1
+      Expressions:
+        - Name: result
+          Offset: 1
+          Kind: local
+          Expression:
+            Type: 7 BaseType int
+            Operations:
+                - __kind: LocationOp
+                  Variable: {subprogram: 102, index: 1, name: result}
+                  Offset: 0
+                  ByteSize: 8
+    - __kind: EventRootType
+      ID: 1425
+      Name: Probe[main.testNamedReturn]Return
       ByteSize: 17
       PresenceBitsetSize: 1
       Expressions:
@@ -14039,52 +13750,6 @@ Types:
                   ByteSize: 8
         - Name: result
           Offset: 9
-          Kind: local
-          Expression:
-            Type: 7 BaseType int
-            Operations:
-                - __kind: LocationOp
-                  Variable: {subprogram: 102, index: 1, name: result}
-                  Offset: 0
-                  ByteSize: 8
-    - __kind: EventRootType
-      ID: 1425
-      Name: Probe[main.testNamedReturn]Return
-      ByteSize: 33
-      PresenceBitsetSize: 1
-      Expressions:
-        - Name: result
-          Offset: 1
-          Kind: local
-          Expression:
-            Type: 7 BaseType int
-            Operations:
-                - __kind: LocationOp
-                  Variable: {subprogram: 102, index: 1, name: result}
-                  Offset: 0
-                  ByteSize: 8
-        - Name: result
-          Offset: 9
-          Kind: local
-          Expression:
-            Type: 7 BaseType int
-            Operations:
-                - __kind: LocationOp
-                  Variable: {subprogram: 102, index: 1, name: result}
-                  Offset: 0
-                  ByteSize: 8
-        - Name: result
-          Offset: 17
-          Kind: template_segment
-          Expression:
-            Type: 7 BaseType int
-            Operations:
-                - __kind: LocationOp
-                  Variable: {subprogram: 102, index: 1, name: result}
-                  Offset: 0
-                  ByteSize: 8
-        - Name: result
-          Offset: 25
           Kind: template_segment
           Expression:
             Type: 7 BaseType int
@@ -14430,21 +14095,11 @@ Types:
     - __kind: EventRootType
       ID: 1417
       Name: Probe[main.testReturnsAnyAndError]Return
-      ByteSize: 258
-      PresenceBitsetSize: 2
+      ByteSize: 33
+      PresenceBitsetSize: 1
       Expressions:
         - Name: ~r0
-          Offset: 2
-          Kind: local
-          Expression:
-            Type: 155 GoEmptyInterfaceType interface {}
-            Operations:
-                - __kind: LocationOp
-                  Variable: {subprogram: 99, index: 2, name: ~r0}
-                  Offset: 0
-                  ByteSize: 16
-        - Name: ~r0
-          Offset: 18
+          Offset: 1
           Kind: local
           Expression:
             Type: 155 GoEmptyInterfaceType interface {}
@@ -14454,137 +14109,7 @@ Types:
                   Offset: 0
                   ByteSize: 16
         - Name: ~r1
-          Offset: 34
-          Kind: local
-          Expression:
-            Type: 13 GoInterfaceType error
-            Operations:
-                - __kind: LocationOp
-                  Variable: {subprogram: 99, index: 3, name: ~r1}
-                  Offset: 0
-                  ByteSize: 16
-        - Name: ~r1
-          Offset: 50
-          Kind: local
-          Expression:
-            Type: 13 GoInterfaceType error
-            Operations:
-                - __kind: LocationOp
-                  Variable: {subprogram: 99, index: 3, name: ~r1}
-                  Offset: 0
-                  ByteSize: 16
-        - Name: ~r0
-          Offset: 66
-          Kind: local
-          Expression:
-            Type: 155 GoEmptyInterfaceType interface {}
-            Operations:
-                - __kind: LocationOp
-                  Variable: {subprogram: 99, index: 2, name: ~r0}
-                  Offset: 0
-                  ByteSize: 16
-        - Name: ~r0
-          Offset: 82
-          Kind: local
-          Expression:
-            Type: 155 GoEmptyInterfaceType interface {}
-            Operations:
-                - __kind: LocationOp
-                  Variable: {subprogram: 99, index: 2, name: ~r0}
-                  Offset: 0
-                  ByteSize: 16
-        - Name: ~r1
-          Offset: 98
-          Kind: local
-          Expression:
-            Type: 13 GoInterfaceType error
-            Operations:
-                - __kind: LocationOp
-                  Variable: {subprogram: 99, index: 3, name: ~r1}
-                  Offset: 0
-                  ByteSize: 16
-        - Name: ~r1
-          Offset: 114
-          Kind: local
-          Expression:
-            Type: 13 GoInterfaceType error
-            Operations:
-                - __kind: LocationOp
-                  Variable: {subprogram: 99, index: 3, name: ~r1}
-                  Offset: 0
-                  ByteSize: 16
-        - Name: ~r0
-          Offset: 130
-          Kind: local
-          Expression:
-            Type: 155 GoEmptyInterfaceType interface {}
-            Operations:
-                - __kind: LocationOp
-                  Variable: {subprogram: 99, index: 2, name: ~r0}
-                  Offset: 0
-                  ByteSize: 16
-        - Name: ~r0
-          Offset: 146
-          Kind: local
-          Expression:
-            Type: 155 GoEmptyInterfaceType interface {}
-            Operations:
-                - __kind: LocationOp
-                  Variable: {subprogram: 99, index: 2, name: ~r0}
-                  Offset: 0
-                  ByteSize: 16
-        - Name: ~r1
-          Offset: 162
-          Kind: local
-          Expression:
-            Type: 13 GoInterfaceType error
-            Operations:
-                - __kind: LocationOp
-                  Variable: {subprogram: 99, index: 3, name: ~r1}
-                  Offset: 0
-                  ByteSize: 16
-        - Name: ~r1
-          Offset: 178
-          Kind: local
-          Expression:
-            Type: 13 GoInterfaceType error
-            Operations:
-                - __kind: LocationOp
-                  Variable: {subprogram: 99, index: 3, name: ~r1}
-                  Offset: 0
-                  ByteSize: 16
-        - Name: ~r0
-          Offset: 194
-          Kind: local
-          Expression:
-            Type: 155 GoEmptyInterfaceType interface {}
-            Operations:
-                - __kind: LocationOp
-                  Variable: {subprogram: 99, index: 2, name: ~r0}
-                  Offset: 0
-                  ByteSize: 16
-        - Name: ~r0
-          Offset: 210
-          Kind: local
-          Expression:
-            Type: 155 GoEmptyInterfaceType interface {}
-            Operations:
-                - __kind: LocationOp
-                  Variable: {subprogram: 99, index: 2, name: ~r0}
-                  Offset: 0
-                  ByteSize: 16
-        - Name: ~r1
-          Offset: 226
-          Kind: local
-          Expression:
-            Type: 13 GoInterfaceType error
-            Operations:
-                - __kind: LocationOp
-                  Variable: {subprogram: 99, index: 3, name: ~r1}
-                  Offset: 0
-                  ByteSize: 16
-        - Name: ~r1
-          Offset: 242
+          Offset: 17
           Kind: local
           Expression:
             Type: 13 GoInterfaceType error
@@ -14622,91 +14147,11 @@ Types:
     - __kind: EventRootType
       ID: 1419
       Name: Probe[main.testReturnsAny]Return
-      ByteSize: 138
-      PresenceBitsetSize: 2
+      ByteSize: 17
+      PresenceBitsetSize: 1
       Expressions:
         - Name: ~r0
-          Offset: 2
-          Kind: local
-          Expression:
-            Type: 155 GoEmptyInterfaceType interface {}
-            Operations:
-                - __kind: LocationOp
-                  Variable: {subprogram: 100, index: 1, name: ~r0}
-                  Offset: 0
-                  ByteSize: 16
-        - Name: ~r0
-          Offset: 18
-          Kind: local
-          Expression:
-            Type: 155 GoEmptyInterfaceType interface {}
-            Operations:
-                - __kind: LocationOp
-                  Variable: {subprogram: 100, index: 1, name: ~r0}
-                  Offset: 0
-                  ByteSize: 16
-        - Name: '&result'
-          Offset: 34
-          Kind: local
-          Expression:
-            Type: 98 PointerType *int
-            Operations:
-                - __kind: LocationOp
-                  Variable: {subprogram: 100, index: 3, name: '&result'}
-                  Offset: 0
-                  ByteSize: 8
-        - Name: ~r0
-          Offset: 42
-          Kind: local
-          Expression:
-            Type: 155 GoEmptyInterfaceType interface {}
-            Operations:
-                - __kind: LocationOp
-                  Variable: {subprogram: 100, index: 1, name: ~r0}
-                  Offset: 0
-                  ByteSize: 16
-        - Name: ~r0
-          Offset: 58
-          Kind: local
-          Expression:
-            Type: 155 GoEmptyInterfaceType interface {}
-            Operations:
-                - __kind: LocationOp
-                  Variable: {subprogram: 100, index: 1, name: ~r0}
-                  Offset: 0
-                  ByteSize: 16
-        - Name: ~r0
-          Offset: 74
-          Kind: local
-          Expression:
-            Type: 155 GoEmptyInterfaceType interface {}
-            Operations:
-                - __kind: LocationOp
-                  Variable: {subprogram: 100, index: 1, name: ~r0}
-                  Offset: 0
-                  ByteSize: 16
-        - Name: ~r0
-          Offset: 90
-          Kind: local
-          Expression:
-            Type: 155 GoEmptyInterfaceType interface {}
-            Operations:
-                - __kind: LocationOp
-                  Variable: {subprogram: 100, index: 1, name: ~r0}
-                  Offset: 0
-                  ByteSize: 16
-        - Name: ~r0
-          Offset: 106
-          Kind: local
-          Expression:
-            Type: 155 GoEmptyInterfaceType interface {}
-            Operations:
-                - __kind: LocationOp
-                  Variable: {subprogram: 100, index: 1, name: ~r0}
-                  Offset: 0
-                  ByteSize: 16
-        - Name: ~r0
-          Offset: 122
+          Offset: 1
           Kind: local
           Expression:
             Type: 155 GoEmptyInterfaceType interface {}
@@ -14721,21 +14166,11 @@ Types:
     - __kind: EventRootType
       ID: 1449
       Name: Probe[main.testReturnsArrayOne]Return
-      ByteSize: 17
+      ByteSize: 9
       PresenceBitsetSize: 1
       Expressions:
         - Name: ~r0
           Offset: 1
-          Kind: local
-          Expression:
-            Type: 250 ArrayType [1]int
-            Operations:
-                - __kind: LocationOp
-                  Variable: {subprogram: 110, index: 0, name: ~r0}
-                  Offset: 0
-                  ByteSize: 8
-        - Name: ~r0
-          Offset: 9
           Kind: local
           Expression:
             Type: 250 ArrayType [1]int
@@ -14763,37 +14198,17 @@ Types:
                   Variable: {subprogram: 111, index: 0, name: ~r0}
                   Offset: 0
                   ByteSize: 0
-        - Name: ~r0
-          Offset: 1
-          Kind: local
-          Expression:
-            Type: 251 ArrayType [0]int
-            Operations:
-                - __kind: LocationOp
-                  Variable: {subprogram: 111, index: 0, name: ~r0}
-                  Offset: 0
-                  ByteSize: 0
     - __kind: EventRootType
       ID: 1446
       Name: Probe[main.testReturnsArray]
     - __kind: EventRootType
       ID: 1447
       Name: Probe[main.testReturnsArray]Return
-      ByteSize: 49
+      ByteSize: 25
       PresenceBitsetSize: 1
       Expressions:
         - Name: ~r0
           Offset: 1
-          Kind: local
-          Expression:
-            Type: 249 ArrayType [3]int
-            Operations:
-                - __kind: LocationOp
-                  Variable: {subprogram: 109, index: 0, name: ~r0}
-                  Offset: 0
-                  ByteSize: 24
-        - Name: ~r0
-          Offset: 25
           Kind: local
           Expression:
             Type: 249 ArrayType [3]int
@@ -14808,21 +14223,11 @@ Types:
     - __kind: EventRootType
       ID: 1455
       Name: Probe[main.testReturnsBacktrackInt]Return
-      ByteSize: 163
-      PresenceBitsetSize: 3
+      ByteSize: 82
+      PresenceBitsetSize: 2
       Expressions:
         - Name: ~r0
-          Offset: 3
-          Kind: local
-          Expression:
-            Type: 7 BaseType int
-            Operations:
-                - __kind: LocationOp
-                  Variable: {subprogram: 113, index: 0, name: ~r0}
-                  Offset: 0
-                  ByteSize: 8
-        - Name: ~r0
-          Offset: 11
+          Offset: 2
           Kind: local
           Expression:
             Type: 7 BaseType int
@@ -14832,17 +14237,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
         - Name: ~r1
-          Offset: 19
-          Kind: local
-          Expression:
-            Type: 7 BaseType int
-            Operations:
-                - __kind: LocationOp
-                  Variable: {subprogram: 113, index: 1, name: ~r1}
-                  Offset: 0
-                  ByteSize: 8
-        - Name: ~r1
-          Offset: 27
+          Offset: 10
           Kind: local
           Expression:
             Type: 7 BaseType int
@@ -14852,17 +14247,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
         - Name: ~r2
-          Offset: 35
-          Kind: local
-          Expression:
-            Type: 7 BaseType int
-            Operations:
-                - __kind: LocationOp
-                  Variable: {subprogram: 113, index: 2, name: ~r2}
-                  Offset: 0
-                  ByteSize: 8
-        - Name: ~r2
-          Offset: 43
+          Offset: 18
           Kind: local
           Expression:
             Type: 7 BaseType int
@@ -14872,17 +14257,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
         - Name: ~r3
-          Offset: 51
-          Kind: local
-          Expression:
-            Type: 7 BaseType int
-            Operations:
-                - __kind: LocationOp
-                  Variable: {subprogram: 113, index: 3, name: ~r3}
-                  Offset: 0
-                  ByteSize: 8
-        - Name: ~r3
-          Offset: 59
+          Offset: 26
           Kind: local
           Expression:
             Type: 7 BaseType int
@@ -14892,17 +14267,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
         - Name: ~r4
-          Offset: 67
-          Kind: local
-          Expression:
-            Type: 7 BaseType int
-            Operations:
-                - __kind: LocationOp
-                  Variable: {subprogram: 113, index: 4, name: ~r4}
-                  Offset: 0
-                  ByteSize: 8
-        - Name: ~r4
-          Offset: 75
+          Offset: 34
           Kind: local
           Expression:
             Type: 7 BaseType int
@@ -14912,17 +14277,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
         - Name: ~r5
-          Offset: 83
-          Kind: local
-          Expression:
-            Type: 7 BaseType int
-            Operations:
-                - __kind: LocationOp
-                  Variable: {subprogram: 113, index: 5, name: ~r5}
-                  Offset: 0
-                  ByteSize: 8
-        - Name: ~r5
-          Offset: 91
+          Offset: 42
           Kind: local
           Expression:
             Type: 7 BaseType int
@@ -14932,17 +14287,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
         - Name: ~r6
-          Offset: 99
-          Kind: local
-          Expression:
-            Type: 7 BaseType int
-            Operations:
-                - __kind: LocationOp
-                  Variable: {subprogram: 113, index: 6, name: ~r6}
-                  Offset: 0
-                  ByteSize: 8
-        - Name: ~r6
-          Offset: 107
+          Offset: 50
           Kind: local
           Expression:
             Type: 7 BaseType int
@@ -14952,17 +14297,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
         - Name: ~r7
-          Offset: 115
-          Kind: local
-          Expression:
-            Type: 7 BaseType int
-            Operations:
-                - __kind: LocationOp
-                  Variable: {subprogram: 113, index: 7, name: ~r7}
-                  Offset: 0
-                  ByteSize: 8
-        - Name: ~r7
-          Offset: 123
+          Offset: 58
           Kind: local
           Expression:
             Type: 7 BaseType int
@@ -14972,17 +14307,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
         - Name: ~r8
-          Offset: 131
-          Kind: local
-          Expression:
-            Type: 9 GoStringHeaderType string
-            Operations:
-                - __kind: LocationOp
-                  Variable: {subprogram: 113, index: 8, name: ~r8}
-                  Offset: 0
-                  ByteSize: 16
-        - Name: ~r8
-          Offset: 147
+          Offset: 66
           Kind: local
           Expression:
             Type: 9 GoStringHeaderType string
@@ -14997,7 +14322,7 @@ Types:
     - __kind: EventRootType
       ID: 1467
       Name: Probe[main.testReturnsBoolAndUintptr]Return
-      ByteSize: 19
+      ByteSize: 10
       PresenceBitsetSize: 1
       Expressions:
         - Name: ~r0
@@ -15010,28 +14335,8 @@ Types:
                   Variable: {subprogram: 119, index: 0, name: ~r0}
                   Offset: 0
                   ByteSize: 1
-        - Name: ~r0
+        - Name: ~r1
           Offset: 2
-          Kind: local
-          Expression:
-            Type: 4 BaseType bool
-            Operations:
-                - __kind: LocationOp
-                  Variable: {subprogram: 119, index: 0, name: ~r0}
-                  Offset: 0
-                  ByteSize: 1
-        - Name: ~r1
-          Offset: 3
-          Kind: local
-          Expression:
-            Type: 1 BaseType uintptr
-            Operations:
-                - __kind: LocationOp
-                  Variable: {subprogram: 119, index: 1, name: ~r1}
-                  Offset: 0
-                  ByteSize: 8
-        - Name: ~r1
-          Offset: 11
           Kind: local
           Expression:
             Type: 1 BaseType uintptr
@@ -15098,41 +14403,11 @@ Types:
     - __kind: EventRootType
       ID: 1415
       Name: Probe[main.testReturnsError]Return
-      ByteSize: 65
+      ByteSize: 17
       PresenceBitsetSize: 1
       Expressions:
         - Name: ~r0
           Offset: 1
-          Kind: local
-          Expression:
-            Type: 13 GoInterfaceType error
-            Operations:
-                - __kind: LocationOp
-                  Variable: {subprogram: 98, index: 1, name: ~r0}
-                  Offset: 0
-                  ByteSize: 16
-        - Name: ~r0
-          Offset: 17
-          Kind: local
-          Expression:
-            Type: 13 GoInterfaceType error
-            Operations:
-                - __kind: LocationOp
-                  Variable: {subprogram: 98, index: 1, name: ~r0}
-                  Offset: 0
-                  ByteSize: 16
-        - Name: ~r0
-          Offset: 33
-          Kind: local
-          Expression:
-            Type: 13 GoInterfaceType error
-            Operations:
-                - __kind: LocationOp
-                  Variable: {subprogram: 98, index: 1, name: ~r0}
-                  Offset: 0
-                  ByteSize: 16
-        - Name: ~r0
-          Offset: 49
           Kind: local
           Expression:
             Type: 13 GoInterfaceType error
@@ -15170,7 +14445,7 @@ Types:
     - __kind: EventRootType
       ID: 1413
       Name: Probe[main.testReturnsIntAndFloat]Return
-      ByteSize: 41
+      ByteSize: 17
       PresenceBitsetSize: 1
       Expressions:
         - Name: ~r0
@@ -15183,44 +14458,14 @@ Types:
                   Variable: {subprogram: 97, index: 1, name: ~r0}
                   Offset: 0
                   ByteSize: 8
-        - Name: ~r0
-          Offset: 9
-          Kind: local
-          Expression:
-            Type: 7 BaseType int
-            Operations:
-                - __kind: LocationOp
-                  Variable: {subprogram: 97, index: 1, name: ~r0}
-                  Offset: 0
-                  ByteSize: 8
         - Name: ~r1
-          Offset: 17
+          Offset: 9
           Kind: local
           Expression:
             Type: 18 BaseType float64
             Operations:
                 - __kind: LocationOp
                   Variable: {subprogram: 97, index: 2, name: ~r1}
-                  Offset: 0
-                  ByteSize: 8
-        - Name: resultInt
-          Offset: 25
-          Kind: local
-          Expression:
-            Type: 7 BaseType int
-            Operations:
-                - __kind: LocationOp
-                  Variable: {subprogram: 97, index: 3, name: resultInt}
-                  Offset: 0
-                  ByteSize: 8
-        - Name: resultFloat
-          Offset: 33
-          Kind: local
-          Expression:
-            Type: 18 BaseType float64
-            Operations:
-                - __kind: LocationOp
-                  Variable: {subprogram: 97, index: 4, name: resultFloat}
                   Offset: 0
                   ByteSize: 8
     - __kind: EventRootType
@@ -15252,7 +14497,7 @@ Types:
     - __kind: EventRootType
       ID: 1411
       Name: Probe[main.testReturnsIntPointer]Return
-      ByteSize: 25
+      ByteSize: 9
       PresenceBitsetSize: 1
       Expressions:
         - Name: ~r0
@@ -15263,26 +14508,6 @@ Types:
             Operations:
                 - __kind: LocationOp
                   Variable: {subprogram: 96, index: 1, name: ~r0}
-                  Offset: 0
-                  ByteSize: 8
-        - Name: ~r0
-          Offset: 9
-          Kind: local
-          Expression:
-            Type: 98 PointerType *int
-            Operations:
-                - __kind: LocationOp
-                  Variable: {subprogram: 96, index: 1, name: ~r0}
-                  Offset: 0
-                  ByteSize: 8
-        - Name: '&result'
-          Offset: 17
-          Kind: local
-          Expression:
-            Type: 98 PointerType *int
-            Operations:
-                - __kind: LocationOp
-                  Variable: {subprogram: 96, index: 2, name: '&result'}
                   Offset: 0
                   ByteSize: 8
     - __kind: EventRootType
@@ -15314,7 +14539,7 @@ Types:
     - __kind: EventRootType
       ID: 1409
       Name: Probe[main.testReturnsInt]Return
-      ByteSize: 25
+      ByteSize: 9
       PresenceBitsetSize: 1
       Expressions:
         - Name: ~r0
@@ -15325,26 +14550,6 @@ Types:
             Operations:
                 - __kind: LocationOp
                   Variable: {subprogram: 95, index: 1, name: ~r0}
-                  Offset: 0
-                  ByteSize: 8
-        - Name: ~r0
-          Offset: 9
-          Kind: local
-          Expression:
-            Type: 7 BaseType int
-            Operations:
-                - __kind: LocationOp
-                  Variable: {subprogram: 95, index: 1, name: ~r0}
-                  Offset: 0
-                  ByteSize: 8
-        - Name: result
-          Offset: 17
-          Kind: local
-          Expression:
-            Type: 7 BaseType int
-            Operations:
-                - __kind: LocationOp
-                  Variable: {subprogram: 95, index: 2, name: result}
                   Offset: 0
                   ByteSize: 8
     - __kind: EventRootType
@@ -15376,7 +14581,7 @@ Types:
     - __kind: EventRootType
       ID: 1421
       Name: Probe[main.testReturnsInterface]Return
-      ByteSize: 113
+      ByteSize: 17
       PresenceBitsetSize: 1
       Expressions:
         - Name: ~r0
@@ -15387,66 +14592,6 @@ Types:
             Operations:
                 - __kind: LocationOp
                   Variable: {subprogram: 101, index: 1, name: ~r0}
-                  Offset: 0
-                  ByteSize: 16
-        - Name: ~r0
-          Offset: 17
-          Kind: local
-          Expression:
-            Type: 160 GoInterfaceType main.behavior
-            Operations:
-                - __kind: LocationOp
-                  Variable: {subprogram: 101, index: 1, name: ~r0}
-                  Offset: 0
-                  ByteSize: 16
-        - Name: b
-          Offset: 33
-          Kind: local
-          Expression:
-            Type: 160 GoInterfaceType main.behavior
-            Operations:
-                - __kind: LocationOp
-                  Variable: {subprogram: 101, index: 2, name: b}
-                  Offset: 0
-                  ByteSize: 16
-        - Name: ~r0
-          Offset: 49
-          Kind: local
-          Expression:
-            Type: 160 GoInterfaceType main.behavior
-            Operations:
-                - __kind: LocationOp
-                  Variable: {subprogram: 101, index: 1, name: ~r0}
-                  Offset: 0
-                  ByteSize: 16
-        - Name: ~r0
-          Offset: 65
-          Kind: local
-          Expression:
-            Type: 160 GoInterfaceType main.behavior
-            Operations:
-                - __kind: LocationOp
-                  Variable: {subprogram: 101, index: 1, name: ~r0}
-                  Offset: 0
-                  ByteSize: 16
-        - Name: b
-          Offset: 81
-          Kind: local
-          Expression:
-            Type: 160 GoInterfaceType main.behavior
-            Operations:
-                - __kind: LocationOp
-                  Variable: {subprogram: 101, index: 2, name: b}
-                  Offset: 0
-                  ByteSize: 16
-        - Name: b
-          Offset: 97
-          Kind: local
-          Expression:
-            Type: 160 GoInterfaceType main.behavior
-            Operations:
-                - __kind: LocationOp
-                  Variable: {subprogram: 101, index: 2, name: b}
                   Offset: 0
                   ByteSize: 16
     - __kind: EventRootType
@@ -15455,21 +14600,11 @@ Types:
     - __kind: EventRootType
       ID: 1445
       Name: Probe[main.testReturnsLargeStruct]Return
-      ByteSize: 161
+      ByteSize: 81
       PresenceBitsetSize: 1
       Expressions:
         - Name: ~r0
           Offset: 1
-          Kind: local
-          Expression:
-            Type: 248 StructureType main.largeStruct
-            Operations:
-                - __kind: LocationOp
-                  Variable: {subprogram: 108, index: 0, name: ~r0}
-                  Offset: 0
-                  ByteSize: 80
-        - Name: ~r0
-          Offset: 81
           Kind: local
           Expression:
             Type: 248 StructureType main.largeStruct
@@ -15484,7 +14619,7 @@ Types:
     - __kind: EventRootType
       ID: 1441
       Name: Probe[main.testReturnsManyFloats]Return
-      ByteSize: 155
+      ByteSize: 139
       PresenceBitsetSize: 3
       Expressions:
         - Name: ~r0
@@ -15647,28 +14782,8 @@ Types:
                   Variable: {subprogram: 106, index: 15, name: onlyOnAmd64_16}
                   Offset: 0
                   ByteSize: 8
-        - Name: onlyOnAmd64_16
+        - Name: bothArmAndAmd64
           Offset: 131
-          Kind: local
-          Expression:
-            Type: 18 BaseType float64
-            Operations:
-                - __kind: LocationOp
-                  Variable: {subprogram: 106, index: 15, name: onlyOnAmd64_16}
-                  Offset: 0
-                  ByteSize: 8
-        - Name: bothArmAndAmd64
-          Offset: 139
-          Kind: local
-          Expression:
-            Type: 18 BaseType float64
-            Operations:
-                - __kind: LocationOp
-                  Variable: {subprogram: 106, index: 16, name: bothArmAndAmd64}
-                  Offset: 0
-                  ByteSize: 8
-        - Name: bothArmAndAmd64
-          Offset: 147
           Kind: local
           Expression:
             Type: 18 BaseType float64
@@ -15702,7 +14817,7 @@ Types:
     - __kind: EventRootType
       ID: 1459
       Name: Probe[main.testReturnsMixed]Return
-      ByteSize: 81
+      ByteSize: 49
       PresenceBitsetSize: 1
       Expressions:
         - Name: ~r0
@@ -15715,18 +14830,8 @@ Types:
                   Variable: {subprogram: 115, index: 0, name: ~r0}
                   Offset: 0
                   ByteSize: 8
-        - Name: ~r0
-          Offset: 9
-          Kind: local
-          Expression:
-            Type: 7 BaseType int
-            Operations:
-                - __kind: LocationOp
-                  Variable: {subprogram: 115, index: 0, name: ~r0}
-                  Offset: 0
-                  ByteSize: 8
         - Name: ~r1
-          Offset: 17
+          Offset: 9
           Kind: local
           Expression:
             Type: 18 BaseType float64
@@ -15736,17 +14841,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
         - Name: ~r2
-          Offset: 25
-          Kind: local
-          Expression:
-            Type: 7 BaseType int
-            Operations:
-                - __kind: LocationOp
-                  Variable: {subprogram: 115, index: 2, name: ~r2}
-                  Offset: 0
-                  ByteSize: 8
-        - Name: ~r2
-          Offset: 33
+          Offset: 17
           Kind: local
           Expression:
             Type: 7 BaseType int
@@ -15756,7 +14851,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
         - Name: ~r3
-          Offset: 41
+          Offset: 25
           Kind: local
           Expression:
             Type: 18 BaseType float64
@@ -15766,17 +14861,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
         - Name: ~r4
-          Offset: 49
-          Kind: local
-          Expression:
-            Type: 9 GoStringHeaderType string
-            Operations:
-                - __kind: LocationOp
-                  Variable: {subprogram: 115, index: 4, name: ~r4}
-                  Offset: 0
-                  ByteSize: 16
-        - Name: ~r4
-          Offset: 65
+          Offset: 33
           Kind: local
           Expression:
             Type: 9 GoStringHeaderType string
@@ -15839,103 +14924,53 @@ Types:
     - __kind: EventRootType
       ID: 1439
       Name: Probe[main.testReturnsPrimitives]Return
-      ByteSize: 62
-      PresenceBitsetSize: 2
+      ByteSize: 31
+      PresenceBitsetSize: 1
       Expressions:
         - Name: ~r0
+          Offset: 1
+          Kind: local
+          Expression:
+            Type: 15 BaseType int8
+            Operations:
+                - __kind: LocationOp
+                  Variable: {subprogram: 105, index: 0, name: ~r0}
+                  Offset: 0
+                  ByteSize: 1
+        - Name: ~r1
           Offset: 2
           Kind: local
           Expression:
-            Type: 15 BaseType int8
+            Type: 102 BaseType int16
             Operations:
                 - __kind: LocationOp
-                  Variable: {subprogram: 105, index: 0, name: ~r0}
+                  Variable: {subprogram: 105, index: 1, name: ~r1}
                   Offset: 0
-                  ByteSize: 1
-        - Name: ~r0
-          Offset: 3
-          Kind: local
-          Expression:
-            Type: 15 BaseType int8
-            Operations:
-                - __kind: LocationOp
-                  Variable: {subprogram: 105, index: 0, name: ~r0}
-                  Offset: 0
-                  ByteSize: 1
-        - Name: ~r1
+                  ByteSize: 2
+        - Name: ~r2
           Offset: 4
           Kind: local
           Expression:
-            Type: 102 BaseType int16
+            Type: 10 BaseType int32
             Operations:
                 - __kind: LocationOp
-                  Variable: {subprogram: 105, index: 1, name: ~r1}
+                  Variable: {subprogram: 105, index: 2, name: ~r2}
                   Offset: 0
-                  ByteSize: 2
-        - Name: ~r1
-          Offset: 6
-          Kind: local
-          Expression:
-            Type: 102 BaseType int16
-            Operations:
-                - __kind: LocationOp
-                  Variable: {subprogram: 105, index: 1, name: ~r1}
-                  Offset: 0
-                  ByteSize: 2
-        - Name: ~r2
+                  ByteSize: 4
+        - Name: ~r3
           Offset: 8
           Kind: local
           Expression:
-            Type: 10 BaseType int32
+            Type: 12 BaseType int64
             Operations:
                 - __kind: LocationOp
-                  Variable: {subprogram: 105, index: 2, name: ~r2}
+                  Variable: {subprogram: 105, index: 3, name: ~r3}
                   Offset: 0
-                  ByteSize: 4
-        - Name: ~r2
-          Offset: 12
-          Kind: local
-          Expression:
-            Type: 10 BaseType int32
-            Operations:
-                - __kind: LocationOp
-                  Variable: {subprogram: 105, index: 2, name: ~r2}
-                  Offset: 0
-                  ByteSize: 4
-        - Name: ~r3
+                  ByteSize: 8
+        - Name: ~r4
           Offset: 16
           Kind: local
           Expression:
-            Type: 12 BaseType int64
-            Operations:
-                - __kind: LocationOp
-                  Variable: {subprogram: 105, index: 3, name: ~r3}
-                  Offset: 0
-                  ByteSize: 8
-        - Name: ~r3
-          Offset: 24
-          Kind: local
-          Expression:
-            Type: 12 BaseType int64
-            Operations:
-                - __kind: LocationOp
-                  Variable: {subprogram: 105, index: 3, name: ~r3}
-                  Offset: 0
-                  ByteSize: 8
-        - Name: ~r4
-          Offset: 32
-          Kind: local
-          Expression:
-            Type: 3 BaseType uint8
-            Operations:
-                - __kind: LocationOp
-                  Variable: {subprogram: 105, index: 4, name: ~r4}
-                  Offset: 0
-                  ByteSize: 1
-        - Name: ~r4
-          Offset: 33
-          Kind: local
-          Expression:
             Type: 3 BaseType uint8
             Operations:
                 - __kind: LocationOp
@@ -15943,17 +14978,7 @@ Types:
                   Offset: 0
                   ByteSize: 1
         - Name: ~r5
-          Offset: 34
-          Kind: local
-          Expression:
-            Type: 6 BaseType uint16
-            Operations:
-                - __kind: LocationOp
-                  Variable: {subprogram: 105, index: 5, name: ~r5}
-                  Offset: 0
-                  ByteSize: 2
-        - Name: ~r5
-          Offset: 36
+          Offset: 17
           Kind: local
           Expression:
             Type: 6 BaseType uint16
@@ -15963,17 +14988,7 @@ Types:
                   Offset: 0
                   ByteSize: 2
         - Name: ~r6
-          Offset: 38
-          Kind: local
-          Expression:
-            Type: 2 BaseType uint32
-            Operations:
-                - __kind: LocationOp
-                  Variable: {subprogram: 105, index: 6, name: ~r6}
-                  Offset: 0
-                  ByteSize: 4
-        - Name: ~r6
-          Offset: 42
+          Offset: 19
           Kind: local
           Expression:
             Type: 2 BaseType uint32
@@ -15983,17 +14998,7 @@ Types:
                   Offset: 0
                   ByteSize: 4
         - Name: ~r7
-          Offset: 46
-          Kind: local
-          Expression:
-            Type: 8 BaseType uint64
-            Operations:
-                - __kind: LocationOp
-                  Variable: {subprogram: 105, index: 7, name: ~r7}
-                  Offset: 0
-                  ByteSize: 8
-        - Name: ~r7
-          Offset: 54
+          Offset: 23
           Kind: local
           Expression:
             Type: 8 BaseType uint64
@@ -16008,21 +15013,11 @@ Types:
     - __kind: EventRootType
       ID: 1461
       Name: Probe[main.testReturnsStructWithArray]Return
-      ByteSize: 49
+      ByteSize: 25
       PresenceBitsetSize: 1
       Expressions:
         - Name: ~r0
           Offset: 1
-          Kind: local
-          Expression:
-            Type: 254 StructureType main.structWithArray
-            Operations:
-                - __kind: LocationOp
-                  Variable: {subprogram: 116, index: 0, name: ~r0}
-                  Offset: 0
-                  ByteSize: 24
-        - Name: ~r0
-          Offset: 25
           Kind: local
           Expression:
             Type: 254 StructureType main.structWithArray
@@ -16037,21 +15032,11 @@ Types:
     - __kind: EventRootType
       ID: 1457
       Name: Probe[main.testReturnsWideStruct]Return
-      ByteSize: 177
+      ByteSize: 89
       PresenceBitsetSize: 1
       Expressions:
         - Name: ~r0
           Offset: 1
-          Kind: local
-          Expression:
-            Type: 253 StructureType main.wideStruct
-            Operations:
-                - __kind: LocationOp
-                  Variable: {subprogram: 114, index: 0, name: ~r0}
-                  Offset: 0
-                  ByteSize: 88
-        - Name: ~r0
-          Offset: 89
           Kind: local
           Expression:
             Type: 253 StructureType main.wideStruct
@@ -16629,7 +15614,7 @@ Types:
     - __kind: EventRootType
       ID: 1437
       Name: Probe[main.testSomeNamedReturn]Return
-      ByteSize: 49
+      ByteSize: 25
       PresenceBitsetSize: 1
       Expressions:
         - Name: ~r0
@@ -16642,48 +15627,18 @@ Types:
                   Variable: {subprogram: 104, index: 1, name: ~r0}
                   Offset: 0
                   ByteSize: 8
-        - Name: ~r0
+        - Name: result2
           Offset: 9
           Kind: local
           Expression:
             Type: 7 BaseType int
             Operations:
                 - __kind: LocationOp
-                  Variable: {subprogram: 104, index: 1, name: ~r0}
+                  Variable: {subprogram: 104, index: 2, name: result2}
                   Offset: 0
                   ByteSize: 8
-        - Name: result2
+        - Name: ~r2
           Offset: 17
-          Kind: local
-          Expression:
-            Type: 7 BaseType int
-            Operations:
-                - __kind: LocationOp
-                  Variable: {subprogram: 104, index: 2, name: result2}
-                  Offset: 0
-                  ByteSize: 8
-        - Name: result2
-          Offset: 25
-          Kind: local
-          Expression:
-            Type: 7 BaseType int
-            Operations:
-                - __kind: LocationOp
-                  Variable: {subprogram: 104, index: 2, name: result2}
-                  Offset: 0
-                  ByteSize: 8
-        - Name: ~r2
-          Offset: 33
-          Kind: local
-          Expression:
-            Type: 7 BaseType int
-            Operations:
-                - __kind: LocationOp
-                  Variable: {subprogram: 104, index: 3, name: ~r2}
-                  Offset: 0
-                  ByteSize: 8
-        - Name: ~r2
-          Offset: 41
           Kind: local
           Expression:
             Type: 7 BaseType int
@@ -16721,7 +15676,7 @@ Types:
     - __kind: EventRootType
       ID: 1479
       Name: Probe[main.testStackArgRegReturns]Return
-      ByteSize: 49
+      ByteSize: 25
       PresenceBitsetSize: 1
       Expressions:
         - Name: ~r0
@@ -16734,48 +15689,18 @@ Types:
                   Variable: {subprogram: 125, index: 1, name: ~r0}
                   Offset: 0
                   ByteSize: 8
-        - Name: ~r0
+        - Name: ~r1
           Offset: 9
           Kind: local
           Expression:
             Type: 7 BaseType int
             Operations:
                 - __kind: LocationOp
-                  Variable: {subprogram: 125, index: 1, name: ~r0}
+                  Variable: {subprogram: 125, index: 2, name: ~r1}
                   Offset: 0
                   ByteSize: 8
-        - Name: ~r1
+        - Name: ~r2
           Offset: 17
-          Kind: local
-          Expression:
-            Type: 7 BaseType int
-            Operations:
-                - __kind: LocationOp
-                  Variable: {subprogram: 125, index: 2, name: ~r1}
-                  Offset: 0
-                  ByteSize: 8
-        - Name: ~r1
-          Offset: 25
-          Kind: local
-          Expression:
-            Type: 7 BaseType int
-            Operations:
-                - __kind: LocationOp
-                  Variable: {subprogram: 125, index: 2, name: ~r1}
-                  Offset: 0
-                  ByteSize: 8
-        - Name: ~r2
-          Offset: 33
-          Kind: local
-          Expression:
-            Type: 7 BaseType int
-            Operations:
-                - __kind: LocationOp
-                  Variable: {subprogram: 125, index: 3, name: ~r2}
-                  Offset: 0
-                  ByteSize: 8
-        - Name: ~r2
-          Offset: 41
           Kind: local
           Expression:
             Type: 7 BaseType int
@@ -17015,7 +15940,7 @@ Types:
     - __kind: EventRootType
       ID: 1483
       Name: Probe[main.testStructWithArrayArg]Return
-      ByteSize: 73
+      ByteSize: 33
       PresenceBitsetSize: 1
       Expressions:
         - Name: ~r0
@@ -17028,46 +15953,16 @@ Types:
                   Variable: {subprogram: 127, index: 1, name: ~r0}
                   Offset: 0
                   ByteSize: 8
-        - Name: ~r0
+        - Name: ~r1
           Offset: 9
           Kind: local
           Expression:
-            Type: 7 BaseType int
-            Operations:
-                - __kind: LocationOp
-                  Variable: {subprogram: 127, index: 1, name: ~r0}
-                  Offset: 0
-                  ByteSize: 8
-        - Name: ~r1
-          Offset: 17
-          Kind: local
-          Expression:
             Type: 254 StructureType main.structWithArray
             Operations:
                 - __kind: LocationOp
                   Variable: {subprogram: 127, index: 2, name: ~r1}
                   Offset: 0
                   ByteSize: 24
-        - Name: ~r1
-          Offset: 41
-          Kind: local
-          Expression:
-            Type: 254 StructureType main.structWithArray
-            Operations:
-                - __kind: LocationOp
-                  Variable: {subprogram: 127, index: 2, name: ~r1}
-                  Offset: 0
-                  ByteSize: 24
-        - Name: x
-          Offset: 65
-          Kind: local
-          Expression:
-            Type: 7 BaseType int
-            Operations:
-                - __kind: LocationOp
-                  Variable: {subprogram: 127, index: 3, name: x}
-                  Offset: 0
-                  ByteSize: 8
     - __kind: EventRootType
       ID: 1511
       Name: Probe[main.testStructWithCyclicMaps]
@@ -17689,7 +16584,7 @@ Types:
     - __kind: EventRootType
       ID: 1485
       Name: Probe[main.testZeroSizeArgAndReturn]Return
-      ByteSize: 17
+      ByteSize: 9
       PresenceBitsetSize: 1
       Expressions:
         - Name: ~r0
@@ -17702,28 +16597,8 @@ Types:
                   Variable: {subprogram: 128, index: 2, name: ~r0}
                   Offset: 0
                   ByteSize: 8
-        - Name: ~r0
+        - Name: ~r1
           Offset: 9
-          Kind: local
-          Expression:
-            Type: 7 BaseType int
-            Operations:
-                - __kind: LocationOp
-                  Variable: {subprogram: 128, index: 2, name: ~r0}
-                  Offset: 0
-                  ByteSize: 8
-        - Name: ~r1
-          Offset: 17
-          Kind: local
-          Expression:
-            Type: 251 ArrayType [0]int
-            Operations:
-                - __kind: LocationOp
-                  Variable: {subprogram: 128, index: 3, name: ~r1}
-                  Offset: 0
-                  ByteSize: 0
-        - Name: ~r1
-          Offset: 17
           Kind: local
           Expression:
             Type: 251 ArrayType [0]int

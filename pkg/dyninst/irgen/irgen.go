@@ -1738,161 +1738,221 @@ func populateProbeEventsExpressions(
 	return successful, failed
 }
 
-// expressionContext provides necessary context for creating an ir.Expression
-type expressionContext struct {
-	variable     *ir.Variable
-	segmentIndex int
+// expressionKind is the kind of an Expression.
+type expressionKind int
+
+const (
+	_ expressionKind = iota
+	// expressionKindVariableCapture represents an expression that captures a variable's value.
+	expressionKindVariableCapture
+)
+
+// expressionSpec defines how an expression should be created.
+type expressionSpec struct {
+	Kind                 expressionKind
+	Variable             *ir.Variable // for variable capture expressions.
+	TemplateSegmentIndex *int         // for expressions relevant to a template segment
 }
 
-// eventWithContexts groups an event with its expression contexts
-type eventWithContexts struct {
-	event    *ir.Event
-	contexts []*expressionContext
+// eventExpressionPlan represents all expressions needed for a single event
+type eventExpressionPlan struct {
+	Event *ir.Event
+	Specs []*expressionSpec
 }
 
-// eventInjectionPoint flattens the mapping between events and their injection points
-type eventInjectionPoint struct {
-	pc uint64
-	ev *ir.Event
-}
-
-// variableByLocation flattens the mapping of variables and their pc ranges.
-type variableByLocation struct {
-	low, high uint64
-	v         *ir.Variable
-}
-
-type variableAndEventsInScope struct {
-	events   []*ir.Event
+// variableLocation tracks a variable and it's valid location ranges
+type variableLocation struct {
 	variable *ir.Variable
+	ranges   []ir.PCRange
 }
 
-// createExpressionContexts is used to determine all expressions that need to be generated for each event
-// and map them from events to expression contexts.
-func createExpressionContexts(
-	probe *ir.Probe,
-) []*eventWithContexts {
+// eventVariable associates a variable with the event where it's in scope
+type eventVariable struct {
+	Event    *ir.Event
+	Variable *ir.Variable
+}
 
-	expressionContexts := make([]*eventWithContexts, len(probe.Events))
-	// eventToIndex maps the probes actual event to its index in expressionContexts
-	eventToIndex := make(map[*ir.Event]int, len(probe.Events))
+// eventExpressionSpec pairs an event with an expression spec
+type eventExpressionSpec struct {
+	Event *ir.Event
+	Spec  *expressionSpec
+}
 
-	eventInjectionPoints := []*eventInjectionPoint{}
-	variableLocations := []*variableByLocation{}
-	variableNamesToEvents := map[string]*variableAndEventsInScope{}
-
-	for i := range probe.Events {
-		expressionContexts[i] = &eventWithContexts{
-			event:    probe.Events[i],
-			contexts: []*expressionContext{},
-		}
-		eventToIndex[probe.Events[i]] = i
-
-		for n := range probe.Events[i].InjectionPoints {
-			eventInjectionPoints = append(eventInjectionPoints, &eventInjectionPoint{
-				pc: probe.Events[i].InjectionPoints[n].PC,
-				ev: probe.Events[i],
-			})
+// createExpressionPlans determines what expressions need to be created for each event.
+func createExpressionPlans(probe *ir.Probe) ([]*eventExpressionPlan, error) {
+	plans := make([]*eventExpressionPlan, len(probe.Events))
+	for i, event := range probe.Events {
+		plans[i] = &eventExpressionPlan{
+			Event: event,
+			Specs: []*expressionSpec{},
 		}
 	}
-
-	for i := range probe.Subprogram.Variables {
-		for n := range probe.Subprogram.Variables[i].Locations {
-			variableLocations = append(variableLocations, &variableByLocation{
-				low:  probe.Subprogram.Variables[i].Locations[n].Range[0],
-				high: probe.Subprogram.Variables[i].Locations[n].Range[1],
-				v:    probe.Subprogram.Variables[i],
-			})
-		}
+	addVariableCaptureSpecs(probe, plans)
+	if err := addTemplateSegmentSpecs(probe, plans); err != nil {
+		return nil, err
 	}
+	return plans, nil
+}
 
-	// Create expression contexts for variables
-	for i := range eventInjectionPoints {
-		for n := range variableLocations {
-			variableIsInScope := eventInjectionPoints[i].pc >= variableLocations[n].low && eventInjectionPoints[i].pc <= variableLocations[n].high
-			variableIsRelevantToThisEvent := eventKindForVariableRole(variableLocations[n].v.Role) == eventInjectionPoints[i].ev.Kind
+// addVariableCaptureSpecs adds expression specs for capturing all variables in scope
+// at each event's injection points.
+func addVariableCaptureSpecs(probe *ir.Probe, plans []*eventExpressionPlan) {
+	variablePCRanges := flattenVariableLocations(probe.Subprogram.Variables)
+	for _, plan := range plans {
+		seenVariables := make(map[*ir.Variable]bool)
+		for _, injPoint := range plan.Event.InjectionPoints {
+			for _, variablePCRange := range variablePCRanges {
 
-			if variableIsInScope && variableIsRelevantToThisEvent {
-				// This is a relevant variable, create an expression context for it
-				eventIdx := eventToIndex[eventInjectionPoints[i].ev]
-				expressionContexts[eventIdx].contexts = append(expressionContexts[eventIdx].contexts,
-					&expressionContext{
-						variable:     variableLocations[n].v,
-						segmentIndex: -1, // This has no corresponding segment
+				if variableIsInteresting(variablePCRange, injPoint.PC, plan.Event.Kind) &&
+					!seenVariables[variablePCRange.variable] {
+
+					seenVariables[variablePCRange.variable] = true
+					plan.Specs = append(plan.Specs, &expressionSpec{
+						Kind:     expressionKindVariableCapture,
+						Variable: variablePCRange.variable,
 					})
-				// Also cache the relationship between this variable and event
-				v, ok := variableNamesToEvents[variableLocations[n].v.Name]
-				if !ok {
-					variableNamesToEvents[variableLocations[n].v.Name] = &variableAndEventsInScope{
-						events:   []*ir.Event{eventInjectionPoints[i].ev},
-						variable: variableLocations[n].v,
-					}
-					continue
 				}
-				v.events = append(v.events, eventInjectionPoints[i].ev)
 			}
 		}
 	}
+}
 
-	// Create expression contexts for template segments
-	for i := range probe.Template.Segments {
-		jsonSegment, ok := probe.Template.Segments[i].(ir.JSONSegment)
+// addTemplateSegmentSpecs processes template segments and adds expression specs
+// for each segment that requires an expression.
+func addTemplateSegmentSpecs(probe *ir.Probe, plans []*eventExpressionPlan) error {
+	eventToPlans := make(map[*ir.Event]*eventExpressionPlan, len(plans))
+	for _, plan := range plans {
+		eventToPlans[plan.Event] = plan
+	}
+
+	// Map variable name to pairing of event to variable
+	varNameToEventVar := buildVariableNameIndex(plans)
+	for segIdx, segment := range probe.Template.Segments {
+		jsonSeg, ok := segment.(ir.JSONSegment)
 		if !ok {
 			// Skip string segments
 			continue
 		}
-		expr, err := exprlang.Parse(jsonSegment.JSON)
-		if err != nil {
-			probe.Template.Segments[i] = ir.IssueSegment("invalid json for template segment (unexpected internal error)")
-		}
 
-		switch e := expr.(type) {
-		case *exprlang.RefExpr:
-			// Ref expressions deal with variables, use cached data from when generating expression contexts
-			// for relevant variables.
-			eventsThisVariableIsRelevantTo, ok := variableNamesToEvents[e.Ref]
-			if !ok {
-				// This segment doesn't refer to a known variable.
-				probe.Template.Segments[i] = ir.IssueSegment(
-					fmt.Sprintf("unknown variable referenced by template: %s (probe: %s %s)",
-						e.Ref,
-						probe.GetID(),
-						probe.Subprogram.Name))
-				continue
-			}
-			for n := range eventsThisVariableIsRelevantTo.events {
-				// e.Ref is the name of the variable, find it and the events relevant to it, and create an expression context for each.
-				if eventKindForVariableRole(eventsThisVariableIsRelevantTo.variable.Role) != eventsThisVariableIsRelevantTo.events[n].Kind {
-					// This variable isn't relevant to this event (i.e. return value at entry).
-					continue
-				}
-				eventIdx := eventToIndex[eventsThisVariableIsRelevantTo.events[n]]
-				expressionContexts[eventIdx].contexts = append(expressionContexts[eventIdx].contexts,
-					&expressionContext{
-						segmentIndex: i,
-						variable:     eventsThisVariableIsRelevantTo.variable,
-					},
-				)
-			}
-			// case *exprlang.GetMemberExpr:
-			//     // `getMember` operates on a variable and a field name, this relationship should be set up somewhere in the ir.Program
-			//     // before getting to this point in irgen
+		expr, err := exprlang.Parse(jsonSeg.JSON)
+		if err != nil {
+			probe.Template.Segments[segIdx] = ir.IssueSegment("invalid json for template segment (unexpected internal error)")
+			continue
+		}
+		eventExpressionSpec, err := createSpecFromTemplateExpr(expr, segIdx, varNameToEventVar, probe)
+		if err != nil {
+			probe.Template.Segments[segIdx] = ir.IssueSegment(err.Error())
+			continue
+		}
+		if plan, ok := eventToPlans[eventExpressionSpec.Event]; ok {
+			plan.Specs = append(plan.Specs, eventExpressionSpec.Spec)
 		}
 	}
-	return expressionContexts
+	return nil
+}
+
+// createSpecFromTemplateExpr creates an expression spec from a template expression.
+func createSpecFromTemplateExpr(
+	expr exprlang.Expr,
+	segIdx int,
+	variableIndex map[string]*eventVariable,
+	probe *ir.Probe,
+) (*eventExpressionSpec, error) {
+	switch e := expr.(type) {
+	case *exprlang.RefExpr:
+		evVar, ok := variableIndex[e.Ref]
+		if !ok {
+			return nil, fmt.Errorf("unknown variable referenced by template: %s (probe: %s %s)",
+				e.Ref, probe.GetID(), probe.Subprogram.Name)
+		}
+		return &eventExpressionSpec{
+			Event: evVar.Event,
+			Spec: &expressionSpec{
+				Kind:                 expressionKindVariableCapture,
+				Variable:             evVar.Variable,
+				TemplateSegmentIndex: &segIdx,
+			},
+		}, nil
+
+	// case *exprlang.GetMemberExpr:
+	//
+	default:
+		return nil, fmt.Errorf("unsupported expression type: %T", expr)
+	}
+}
+
+// flattenVariableLocations associates variables with each PC range that it's in scope in.
+func flattenVariableLocations(variables []*ir.Variable) []*variableLocation {
+	var result []*variableLocation
+	for _, v := range variables {
+		for _, location := range v.Locations {
+			result = append(result, &variableLocation{
+				variable: v,
+				ranges:   []ir.PCRange{location.Range},
+			})
+		}
+	}
+	return result
+}
+
+func variableIsInteresting(variablePCRange *variableLocation, pc uint64, eventKind ir.EventKind) bool {
+	return variableIsInScopeAtPC(variablePCRange, pc) &&
+		variableIsRelevantForEvent(variablePCRange, eventKind)
+}
+
+func variableIsInScopeAtPC(varLoc *variableLocation, pc uint64) bool {
+	inRange := false
+	for _, r := range varLoc.ranges {
+		if pc >= r[0] && pc <= r[1] {
+			inRange = true
+			break
+		}
+	}
+	return inRange
+}
+
+func variableIsRelevantForEvent(varLoc *variableLocation, eventKind ir.EventKind) bool {
+	return eventKindForVariableRole(varLoc.variable.Role) == eventKind
+}
+
+// buildVariableNameIndex maps variable names to their associated
+// events and corresponding variables.
+func buildVariableNameIndex(
+	plans []*eventExpressionPlan,
+) map[string]*eventVariable {
+	result := make(map[string]*eventVariable)
+
+	for _, plan := range plans {
+		for _, spec := range plan.Specs {
+			if spec.Kind == expressionKindVariableCapture &&
+				spec.TemplateSegmentIndex == nil {
+				// Only track variable captures that aren't from template segments
+				result[spec.Variable.Name] = &eventVariable{
+					Event:    plan.Event,
+					Variable: spec.Variable,
+				}
+			}
+		}
+	}
+	return result
 }
 
 func populateProbeExpressions(
 	probe *ir.Probe,
 	typeCatalog *typeCatalog,
 ) ir.Issue {
-	contexts := createExpressionContexts(probe)
-	for _, eventWithContexts := range contexts {
+	plans, err := createExpressionPlans(probe)
+	if err != nil {
+		return ir.Issue{
+			Kind:    ir.IssueKindInvalidDWARF,
+			Message: fmt.Sprintf("failed to create expression plans: %v", err),
+		}
+	}
+	for _, plan := range plans {
 		if issue := populateEventExpressions(
 			probe,
 			typeCatalog,
-			eventWithContexts.event,
-			eventWithContexts.contexts,
+			plan,
 		); issue.Kind != 0 {
 			return issue
 		}
@@ -1903,33 +1963,47 @@ func populateProbeExpressions(
 func populateEventExpressions(
 	probe *ir.Probe,
 	typeCatalog *typeCatalog,
-	event *ir.Event,
-	ctxs []*expressionContext,
+	plan *eventExpressionPlan,
 ) ir.Issue {
 	var expressions []*ir.RootExpression
-	for _, ctx := range ctxs {
-		// FIXME: This assumes the `ctx` represents creating an expression for `LocationOp`, which conveys it's based around capturing a variable.
-		// We probably need different types of expressionContext's which can be used to create different expressions.
-		expressions = append(expressions, newRootExpressionLocationOpFromVariable(ctx.variable, getRootExpressionKind(ctx)))
-	}
-	issue := populateEventType(typeCatalog, event, probe, expressions)
-	if !issue.IsNone() {
-		return issue
-	}
+	for i, spec := range plan.Specs {
+		expr, err := createExpression(spec)
+		if err != nil {
+			return ir.Issue{
+				Kind:    ir.IssueKindInvalidDWARF,
+				Message: fmt.Sprintf("failed to create expression: %v", err),
+			}
+		}
+		expressions = append(expressions, expr)
 
-	// Within the template, JSONSegments need to be updated to refer to their corresponding expressions
-	for i, ctx := range ctxs {
-		if ctx.segmentIndex >= 0 {
-			// This context is for an expression generated for a template segment
-			seg := probe.Template.Segments[ctx.segmentIndex]
+		// Update template segment if needed
+		if spec.TemplateSegmentIndex != nil {
+			seg := probe.Template.Segments[*spec.TemplateSegmentIndex]
 			if jsonSeg, ok := seg.(ir.JSONSegment); ok {
-				jsonSeg.EventKind = event.Kind
+				jsonSeg.EventKind = plan.Event.Kind
 				jsonSeg.EventExpressionIndex = i
-				probe.Template.Segments[ctx.segmentIndex] = jsonSeg
+				probe.Template.Segments[*spec.TemplateSegmentIndex] = jsonSeg
 			}
 		}
 	}
+	issue := populateEventType(typeCatalog, plan.Event, probe, expressions)
+	if !issue.IsNone() {
+		return issue
+	}
 	return ir.Issue{}
+}
+
+// createExpression creates an ir.RootExpression from an expression spec.
+func createExpression(spec *expressionSpec) (*ir.RootExpression, error) {
+	switch spec.Kind {
+	case expressionKindVariableCapture:
+		return newRootExpressionLocationOpFromVariable(
+			spec.Variable,
+			getRootExpressionKind(spec),
+		), nil
+	default:
+		return nil, fmt.Errorf("unsupported expression kind: %v", spec.Kind)
+	}
 }
 
 func populateEventType(
@@ -3269,11 +3343,11 @@ func newRootExpressionLocationOpFromVariable(variable *ir.Variable, rootExpressi
 	}
 }
 
-func getRootExpressionKind(ctx *expressionContext) ir.RootExpressionKind {
-	if ctx.segmentIndex >= 0 {
+func getRootExpressionKind(spec *expressionSpec) ir.RootExpressionKind {
+	if spec.TemplateSegmentIndex != nil {
 		return ir.RootExpressionKindTemplateSegment
 	}
-	switch ctx.variable.Role {
+	switch spec.Variable.Role {
 	case ir.VariableRoleParameter:
 		return ir.RootExpressionKindArgument
 	case ir.VariableRoleReturn, ir.VariableRoleLocal:

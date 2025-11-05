@@ -815,21 +815,11 @@ Types:
     - __kind: EventRootType
       ID: 204
       Name: Probe[main.inlined]
-      ByteSize: 17
+      ByteSize: 9
       PresenceBitsetSize: 1
       Expressions:
         - Name: x
           Offset: 1
-          Kind: argument
-          Expression:
-            Type: 7 BaseType int
-            Operations:
-                - __kind: LocationOp
-                  Variable: {subprogram: 12, index: 0, name: x}
-                  Offset: 0
-                  ByteSize: 8
-        - Name: x
-          Offset: 9
           Kind: argument
           Expression:
             Type: 7 BaseType int
@@ -1002,21 +992,11 @@ Types:
     - __kind: EventRootType
       ID: 203
       Name: Probe[main.usesMapsOfMapsThatDoNotAppearAsArguments]Return
-      ByteSize: 17
+      ByteSize: 9
       PresenceBitsetSize: 1
       Expressions:
         - Name: ~r0
           Offset: 1
-          Kind: local
-          Expression:
-            Type: 120 GoMapType map[uint8]map[int]main.aStructNotUsedAsAnArgument
-            Operations:
-                - __kind: LocationOp
-                  Variable: {subprogram: 11, index: 0, name: ~r0}
-                  Offset: 0
-                  ByteSize: 8
-        - Name: ~r0
-          Offset: 9
           Kind: local
           Expression:
             Type: 120 GoMapType map[uint8]map[int]main.aStructNotUsedAsAnArgument

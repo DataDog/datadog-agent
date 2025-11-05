@@ -64,14 +64,6 @@
                 "value": "15"
               }
             }
-          },
-          "return": {
-            "locals": {
-              "z": {
-                "type": "int",
-                "value": "150"
-              }
-            }
           }
         }
       }
