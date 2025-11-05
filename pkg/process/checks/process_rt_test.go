@@ -17,7 +17,7 @@ import (
 )
 
 func TestProcessCheckRealtimeBeforeStandard(t *testing.T) {
-	processCheck, _ := processCheckWithMockProbe(t)
+	processCheck, _, _ := processCheckWithMocks(t)
 
 	// If the standard process check hasn't run yet, nothing is returned
 	expected := CombinedRunResult{}
@@ -28,7 +28,7 @@ func TestProcessCheckRealtimeBeforeStandard(t *testing.T) {
 }
 
 func TestProcessCheckRealtimeFirstRun(t *testing.T) {
-	processCheck, probe := processCheckWithMockProbe(t)
+	processCheck, probe, wmeta := processCheckWithMocks(t)
 
 	proc1 := makeProcess(1, "git clone google.com")
 	proc2 := makeProcess(2, "mine-bitcoins -all -x")
@@ -40,8 +40,8 @@ func TestProcessCheckRealtimeFirstRun(t *testing.T) {
 		1: proc1.Stats, 2: proc2.Stats, 3: proc3.Stats, 4: proc4.Stats, 5: proc5.Stats,
 	}
 
-	probe.On("ProcessesByPID", mock.Anything, mock.Anything).Return(processesByPid, nil)
 	probe.On("StatsForPIDs", mock.Anything, mock.Anything).Return(statsByPid, nil)
+	mockProcesses(processCheck.WLMProcessCollectionEnabled(), probe, wmeta, processesByPid, statsByPid)
 
 	// Run the standard process check once to populate last seen pids
 	processCheck.run(0, false)
@@ -55,7 +55,7 @@ func TestProcessCheckRealtimeFirstRun(t *testing.T) {
 }
 
 func TestProcessCheckRealtimeSecondRun(t *testing.T) {
-	processCheck, probe := processCheckWithMockProbe(t)
+	processCheck, probe, wmeta := processCheckWithMocks(t)
 
 	proc1 := makeProcess(1, "git clone google.com")
 	proc2 := makeProcess(2, "mine-bitcoins -all -x")
@@ -67,7 +67,7 @@ func TestProcessCheckRealtimeSecondRun(t *testing.T) {
 		1: proc1.Stats, 2: proc2.Stats, 3: proc3.Stats, 4: proc4.Stats, 5: proc5.Stats,
 	}
 
-	probe.On("ProcessesByPID", mock.Anything, mock.Anything).Return(processesByPid, nil)
+	mockProcesses(processCheck.WLMProcessCollectionEnabled(), probe, wmeta, processesByPid, statsByPid)
 	probe.On("StatsForPIDs", mock.Anything, mock.Anything).Return(statsByPid, nil)
 
 	// Run the standard process check once to populate last seen pids
