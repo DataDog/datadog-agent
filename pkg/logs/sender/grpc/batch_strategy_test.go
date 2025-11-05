@@ -16,6 +16,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
 
+	"github.com/DataDog/agent-payload/v5/statefulpb"
 	compressionfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
@@ -27,11 +28,11 @@ func createTestStatefulMessage(content string) *message.StatefulMessage {
 	msg := message.NewMessage([]byte(content), nil, "", 0)
 	msg.MessageMetadata.RawDataLen = len(content)
 
-	datum := &Datum{
-		Data: &Datum_Logs{
-			Logs: &Log{
+	datum := &statefulpb.Datum{
+		Data: &statefulpb.Datum_Logs{
+			Logs: &statefulpb.Log{
 				Timestamp: 12345,
-				Content: &Log_Raw{
+				Content: &statefulpb.Log_Raw{
 					Raw: content,
 				},
 			},
@@ -77,7 +78,7 @@ func TestBatchStrategySendsPayloadWhenBufferIsFull(t *testing.T) {
 	assert.Equal(t, 2, payload.UnencodedSize)
 
 	// Verify the payload contains valid DatumSequence
-	var datumSeq DatumSequence
+	var datumSeq statefulpb.DatumSequence
 	err := proto.Unmarshal(payload.Encoded, &datumSeq)
 	require.NoError(t, err)
 	assert.Equal(t, 2, len(datumSeq.Data))
@@ -123,7 +124,7 @@ func TestBatchStrategySendsPayloadWhenBufferIsOutdated(t *testing.T) {
 		assert.EqualValues(t, m.Metadata, payload.MessageMetas[0])
 
 		// Verify payload contains valid DatumSequence
-		var datumSeq DatumSequence
+		var datumSeq statefulpb.DatumSequence
 		err := proto.Unmarshal(payload.Encoded, &datumSeq)
 		require.NoError(t, err)
 		assert.Equal(t, 1, len(datumSeq.Data))
@@ -397,13 +398,7 @@ func TestBatchStrategyInvalidDatum(t *testing.T) {
 	}
 	input <- invalidMsg1
 
-	// Send message with wrong Datum type
-	msg2 := message.NewMessage([]byte("test"), nil, "", 0)
-	invalidMsg2 := &message.StatefulMessage{
-		Metadata: &msg2.MessageMetadata,
-		Datum:    "wrong type",
-	}
-	input <- invalidMsg2
+	// Note: With strongly-typed Datum field, wrong type is prevented at compile time
 
 	// Send a valid message
 	validMsg := createTestStatefulMessage("valid")
@@ -457,7 +452,7 @@ func TestBatchStrategyCompression(t *testing.T) {
 	assert.NotEmpty(t, payload.Encoded)
 
 	// Verify the payload contains valid DatumSequence (identity compression = no compression)
-	var datumSeq DatumSequence
+	var datumSeq statefulpb.DatumSequence
 	err := proto.Unmarshal(payload.Encoded, &datumSeq)
 	require.NoError(t, err)
 	assert.Equal(t, 5, len(datumSeq.Data))
@@ -496,9 +491,9 @@ func TestBatchStrategyStatefulExtra(t *testing.T) {
 		msg.MessageMetadata.RawDataLen = 0
 		return &message.StatefulMessage{
 			Metadata: &msg.MessageMetadata,
-			Datum: &Datum{
-				Data: &Datum_PatternDefine{
-					PatternDefine: &PatternDefine{
+			Datum: &statefulpb.Datum{
+				Data: &statefulpb.Datum_PatternDefine{
+					PatternDefine: &statefulpb.PatternDefine{
 						PatternId: id,
 						Template:  template,
 					},
@@ -512,9 +507,9 @@ func TestBatchStrategyStatefulExtra(t *testing.T) {
 		msg.MessageMetadata.RawDataLen = 0
 		return &message.StatefulMessage{
 			Metadata: &msg.MessageMetadata,
-			Datum: &Datum{
-				Data: &Datum_DictEntryDefine{
-					DictEntryDefine: &DictEntryDefine{
+			Datum: &statefulpb.Datum{
+				Data: &statefulpb.Datum_DictEntryDefine{
+					DictEntryDefine: &statefulpb.DictEntryDefine{
 						Id:    id,
 						Value: value,
 					},
@@ -528,9 +523,9 @@ func TestBatchStrategyStatefulExtra(t *testing.T) {
 		msg.MessageMetadata.RawDataLen = 0
 		return &message.StatefulMessage{
 			Metadata: &msg.MessageMetadata,
-			Datum: &Datum{
-				Data: &Datum_PatternDelete{
-					PatternDelete: &PatternDelete{
+			Datum: &statefulpb.Datum{
+				Data: &statefulpb.Datum_PatternDelete{
+					PatternDelete: &statefulpb.PatternDelete{
 						PatternId: id,
 					},
 				},
@@ -543,9 +538,9 @@ func TestBatchStrategyStatefulExtra(t *testing.T) {
 		msg.MessageMetadata.RawDataLen = 0
 		return &message.StatefulMessage{
 			Metadata: &msg.MessageMetadata,
-			Datum: &Datum{
-				Data: &Datum_DictEntryDelete{
-					DictEntryDelete: &DictEntryDelete{
+			Datum: &statefulpb.Datum{
+				Data: &statefulpb.Datum_DictEntryDelete{
+					DictEntryDelete: &statefulpb.DictEntryDelete{
 						Id: id,
 					},
 				},
@@ -558,11 +553,11 @@ func TestBatchStrategyStatefulExtra(t *testing.T) {
 		msg.MessageMetadata.RawDataLen = len(content)
 		return &message.StatefulMessage{
 			Metadata: &msg.MessageMetadata,
-			Datum: &Datum{
-				Data: &Datum_Logs{
-					Logs: &Log{
+			Datum: &statefulpb.Datum{
+				Data: &statefulpb.Datum_Logs{
+					Logs: &statefulpb.Log{
 						Timestamp: 12345,
-						Content: &Log_Raw{
+						Content: &statefulpb.Log_Raw{
 							Raw: content,
 						},
 					},

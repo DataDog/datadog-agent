@@ -17,6 +17,7 @@ import (
 	"google.golang.org/grpc/connectivity"
 	"google.golang.org/grpc/status"
 
+	"github.com/DataDog/agent-payload/v5/statefulpb"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
@@ -68,7 +69,7 @@ const (
 
 // streamInfo holds all stream-related information
 type streamInfo struct {
-	stream StatefulLogsService_LogsStreamClient
+	stream statefulpb.StatefulLogsService_LogsStreamClient
 	ctx    context.Context
 	cancel context.CancelFunc
 }
@@ -82,7 +83,7 @@ type streamCreationResult struct {
 // batchAck wraps a batch acknowledgment with stream identity to prevent stale signals
 type batchAck struct {
 	stream *streamInfo
-	status *BatchStatus
+	status *statefulpb.BatchStatus
 }
 
 // streamWorker manages a single gRPC bidirectional stream with Master-Slave threading model
@@ -99,7 +100,7 @@ type streamWorker struct {
 
 	// gRPC connection management (shared with other streams)
 	conn   *grpc.ClientConn
-	client StatefulLogsServiceClient
+	client statefulpb.StatefulLogsServiceClient
 
 	// Stream management
 	currentStream  *streamInfo
@@ -131,7 +132,7 @@ func newStreamWorker(
 	inputChan chan *message.Payload,
 	destinationsCtx *client.DestinationsContext,
 	conn *grpc.ClientConn,
-	client StatefulLogsServiceClient,
+	client statefulpb.StatefulLogsServiceClient,
 	sink sender.Sink,
 	endpoint config.Endpoint,
 	streamLifetime time.Duration,
@@ -146,7 +147,7 @@ func newStreamWorkerWithClock(
 	inputChan chan *message.Payload,
 	destinationsCtx *client.DestinationsContext,
 	conn *grpc.ClientConn,
-	client StatefulLogsServiceClient,
+	client statefulpb.StatefulLogsServiceClient,
 	sink sender.Sink,
 	endpoint config.Endpoint,
 	streamLifetime time.Duration,
@@ -291,7 +292,7 @@ func (s *streamWorker) sendPayloads() {
 		}
 
 		batchID := s.inflight.nextBatchID()
-		batch := s.createBatch(payload.Encoded, batchID)
+		batch := createBatch(payload.Encoded, batchID)
 
 		// TODO Send call can block, by TCP/HTTP2 flow controls
 		if err := s.currentStream.stream.Send(batch); err != nil {
@@ -316,7 +317,7 @@ func (s *streamWorker) sendSnapshot() bool {
 	}
 
 	// Create batch with batchID 0 (reserved for snapshot)
-	batch := s.createBatch(serialized, 0)
+	batch := createBatch(serialized, 0)
 
 	// Send snapshot
 	if err := s.currentStream.stream.Send(batch); err != nil {
@@ -676,7 +677,7 @@ func (s *streamWorker) signalRecvFailure(streamInfo *streamInfo) {
 
 // signalBatchAck forwards a batch acknowledgment to the supervisor
 // If the worker is stopped, returns without delivering (shutdown is in progress anyway)
-func (s *streamWorker) signalBatchAck(streamInfo *streamInfo, msg *BatchStatus) {
+func (s *streamWorker) signalBatchAck(streamInfo *streamInfo, msg *statefulpb.BatchStatus) {
 	select {
 	case s.batchAckCh <- &batchAck{stream: streamInfo, status: msg}:
 	case <-s.stopChan:
@@ -693,8 +694,8 @@ func (s *streamWorker) handleIrrecoverableError(_ string, streamInfo *streamInfo
 }
 
 // createBatch creates a StatefulBatch from serialized data and batch ID
-func (s *streamWorker) createBatch(data []byte, batchID uint32) *StatefulBatch {
-	return &StatefulBatch{
+func createBatch(data []byte, batchID uint32) *statefulpb.StatefulBatch {
+	return &statefulpb.StatefulBatch{
 		BatchId: batchID,
 		Data:    data,
 	}

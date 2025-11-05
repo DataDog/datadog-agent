@@ -10,6 +10,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/DataDog/agent-payload/v5/statefulpb"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 )
 
@@ -29,16 +30,16 @@ func StartMessageTranslator(inputChan chan *message.Message, outputChan chan *me
 			}
 
 			// Create the Log message using stateful_encoding.proto definitions
-			log := &Log{
-				Timestamp: uint64(ts.UnixNano() / nanoToMillis),
-				Content: &Log_Raw{
+			log := &statefulpb.Log{
+				Timestamp: int64(ts.UnixNano() / nanoToMillis),
+				Content: &statefulpb.Log_Raw{
 					Raw: toValidUtf8(msg.GetContent()),
 				},
 			}
 
 			// Wrap the Log in a Datum
-			datum := &Datum{
-				Data: &Datum_Logs{
+			datum := &statefulpb.Datum{
+				Data: &statefulpb.Datum_Logs{
 					Logs: log,
 				},
 			}
