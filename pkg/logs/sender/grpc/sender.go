@@ -23,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	"github.com/DataDog/datadog-agent/pkg/logs/sender"
+	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/statefulpb"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 
@@ -87,7 +88,7 @@ type Sender struct {
 
 	// gRPC connection management (shared across all streams)
 	conn   *grpc.ClientConn
-	client StatefulLogsServiceClient
+	client statefulpb.StatefulLogsServiceClient
 }
 
 // NewSender creates a new gRPC sender that implements PipelineComponent
@@ -209,7 +210,7 @@ func (s *Sender) createConnection() error {
 	}
 
 	s.conn = conn
-	s.client = NewStatefulLogsServiceClient(conn)
+	s.client = statefulpb.NewStatefulLogsServiceClient(conn)
 
 	log.Infof("Successfully created gRPC connection to %s", address)
 	return nil
