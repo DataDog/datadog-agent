@@ -4,6 +4,7 @@
 
 #ifdef _WIN32
 #    include <Windows.h>
+#    include <stdio.h>
 #else
 #    include <dlfcn.h>
 #endif
