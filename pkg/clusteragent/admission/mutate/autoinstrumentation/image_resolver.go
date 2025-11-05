@@ -10,7 +10,6 @@ package autoinstrumentation
 import (
 	"encoding/json"
 	"fmt"
-	"reflect"
 	"strings"
 	"sync"
 	"time"
@@ -282,18 +281,53 @@ func newResolvedImage(registry string, repositoryName string, imageInfo ImageInf
 	}
 }
 
+func newTagBasedImage(registry string, repository string, bucketTag string) *ResolvedImage {
+	return &ResolvedImage{
+		FullImageRef: registry + "/" + repository + ":" + bucketTag,
+	}
+}
+
+type tagBasedImageResolver struct {
+	datadoghqRegistries map[string]any
+}
+
+func getBucket() string {
+	// TODO: implement a hashing algorithm to get the bucket
+	return "1"
+}
+func (r *tagBasedImageResolver) Resolve(registry string, repository string, tag string) (*ResolvedImage, bool) {
+	if !isDatadoghqRegistry(registry, r.datadoghqRegistries) {
+		log.Debugf("Not a Datadoghq registry, not resolving")
+		return nil, false
+	}
+
+	bucket := getBucket()
+	normalizedTag := strings.TrimPrefix(tag, "v")
+	// TODO: Would generate a bucket tag
+	bucketTag := normalizedTag + "-" + bucket
+	log.Debugf("ERIKA: Generated bucket tag: %s", bucketTag)
+	mockBucketTag := "v2.21.12"
+	return newTagBasedImage(registry, repository, mockBucketTag), true
+}
+
+func newTagBasedImageResolver() ImageResolver {
+	return &tagBasedImageResolver{
+		datadoghqRegistries: map[string]any{"gcr.io/datadoghq": nil},
+	}
+}
+
 // NewImageResolver creates the appropriate ImageResolver based on whether
 // a remote config client is available.
 func NewImageResolver(rcClient RemoteConfigClient, cfg config.Component) ImageResolver {
+	return newTagBasedImageResolver()
+	// if rcClient == nil || reflect.ValueOf(rcClient).IsNil() {
+	// 	log.Debugf("No remote config client available")
+	// 	return newNoOpImageResolver()
+	// }
 
-	if rcClient == nil || reflect.ValueOf(rcClient).IsNil() {
-		log.Debugf("No remote config client available")
-		return newNoOpImageResolver()
-	}
+	// datadogRegistriesSet := cfg.GetStringMap("admission_controller.auto_instrumentation.default_dd_registries")
 
-	datadogRegistriesSet := cfg.GetStringMap("admission_controller.auto_instrumentation.default_dd_registries")
-
-	return newRemoteConfigImageResolverWithDefaultDatadoghqRegistries(rcClient, datadogRegistriesSet)
+	// return newRemoteConfigImageResolverWithDefaultDatadoghqRegistries(rcClient, datadogRegistriesSet)
 }
 
 func newRemoteConfigImageResolverWithDefaultDatadoghqRegistries(rcClient RemoteConfigClient, datadoghqRegistries map[string]any) ImageResolver {
