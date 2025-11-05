@@ -178,7 +178,7 @@ func (m *snmpScanManagerImpl) processScanRequest(req snmpscanmanager.ScanRequest
 	err = m.scanner.ScanDeviceAndSendData(m.ctx, instanceConfig, req.Namespace,
 		snmpscan.ScanParams{
 			ScanType:     metadata.DefaultScan,
-			CallInterval: snmpCallInterval,
+			CallInterval: 0,
 		})
 	if err != nil {
 		if errors.Is(err, context.Canceled) {
