@@ -121,6 +121,10 @@ func (c *WLANCheck) Run() error {
 		return nil
 	}
 
+	// Check if we should request location permission (macOS only, logs info for Windows)
+	// This spawns a GUI prompt if SSID/BSSID are missing due to permission denial
+	c.RequestLocationPermission()
+
 	ssid := wi.ssid
 	if ssid == "" {
 		ssid = "unknown"

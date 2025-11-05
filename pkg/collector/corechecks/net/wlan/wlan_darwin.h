@@ -1,6 +1,8 @@
 #ifndef WLAN_DARWIN_H
 #define WLAN_DARWIN_H
 
+#include <stdbool.h>
+
 typedef struct {
     int rssi;
     const char *ssid;
@@ -14,6 +16,7 @@ typedef struct {
 } WiFiInfo;
 
 WiFiInfo GetWiFiInformation();
-void InitLocationServices();
+bool HasLocationPermission();
+void RequestLocationPermissionGUI();
 
 #endif

@@ -13,3 +13,18 @@ import "fmt"
 func GetWiFiInfo() (wifiInfo, error) {
 	return wifiInfo{}, fmt.Errorf("wifi info only supported on macOS and Windows")
 }
+
+// HasLocationPermission is not supported on this platform
+func HasLocationPermission() bool {
+	return false
+}
+
+// RequestLocationPermissionGUI is not supported on this platform
+func RequestLocationPermissionGUI() {
+	// no-op
+}
+
+// RequestLocationPermission is a no-op on Linux
+func (c *WLANCheck) RequestLocationPermission() error {
+	return nil
+}

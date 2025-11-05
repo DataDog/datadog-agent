@@ -697,3 +697,26 @@ func GetWiFiInfo() (wifiInfo, error) {
 		phyMode:          wi.phy,
 	}, nil
 }
+
+// HasLocationPermission checks if we can access WiFi SSID/BSSID on Windows
+// Windows requires location services to be enabled for WiFi SSID/BSSID access
+// We use a heuristic: try to get WiFi info and check if SSID is available
+func HasLocationPermission() bool {
+	wi, err := getFirstConnectedWlanInfo()
+	if err != nil || wi == nil {
+		return false
+	}
+	// If we can get SSID, we likely have location permission
+	return wi.ssid != ""
+}
+
+// RequestLocationPermissionGUI is a no-op on Windows
+// Windows doesn't allow apps to programmatically request location permission
+// Users must manually enable location services in Windows Settings
+func RequestLocationPermissionGUI() {
+}
+
+// RequestLocationPermission is a no-op on Windows
+func (c *WLANCheck) RequestLocationPermission() error {
+	return nil
+}

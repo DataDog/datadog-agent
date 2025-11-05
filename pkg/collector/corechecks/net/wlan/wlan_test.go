@@ -101,7 +101,7 @@ func TestWLANErrorStoppedSender(t *testing.T) {
 	mockSender.AssertNumberOfCalls(t, "Count", 0)
 }
 
-func TestWLANEmptySSIDisUnknown(t *testing.T) {
+func TestWLANEmptySSIDOmitted(t *testing.T) {
 	// setup mocks
 	getWiFiInfo = func() (wifiInfo, error) {
 		return wifiInfo{
@@ -121,7 +121,8 @@ func TestWLANEmptySSIDisUnknown(t *testing.T) {
 		getWiFiInfo = GetWiFiInfo
 	}()
 
-	expectedTags := []string{"ssid:unknown", "bssid:test-bssid", "mac_address:hardware-address"}
+	// When SSID is empty (location permission not granted), omit ssid tag
+	expectedTags := []string{"bssid:test-bssid", "mac_address:hardware-address"}
 
 	wlanCheck := new(WLANCheck)
 	senderManager := mocksender.CreateDefaultDemultiplexer()
@@ -138,7 +139,7 @@ func TestWLANEmptySSIDisUnknown(t *testing.T) {
 	mockSender.AssertMetricTaggedWith(t, "Count", "system.wlan.channel_swap_events", expectedTags)
 }
 
-func TestWLANEmptyBSSIDisUnknown(t *testing.T) {
+func TestWLANEmptyBSSIDOmitted(t *testing.T) {
 	// setup mocks
 	getWiFiInfo = func() (wifiInfo, error) {
 		return wifiInfo{
@@ -158,7 +159,8 @@ func TestWLANEmptyBSSIDisUnknown(t *testing.T) {
 		getWiFiInfo = GetWiFiInfo
 	}()
 
-	expectedTags := []string{"ssid:test-ssid", "bssid:unknown", "mac_address:hardware-address"}
+	// When BSSID is empty (location permission not granted), omit bssid tag
+	expectedTags := []string{"ssid:test-ssid", "mac_address:hardware-address"}
 
 	wlanCheck := new(WLANCheck)
 	senderManager := mocksender.CreateDefaultDemultiplexer()
@@ -175,7 +177,7 @@ func TestWLANEmptyBSSIDisUnknown(t *testing.T) {
 	mockSender.AssertMetricTaggedWith(t, "Count", "system.wlan.channel_swap_events", expectedTags)
 }
 
-func TestWLANEmptyHardwareAddress(t *testing.T) {
+func TestWLANEmptyHardwareAddressOmitted(t *testing.T) {
 	// setup mocks
 	getWiFiInfo = func() (wifiInfo, error) {
 		return wifiInfo{
@@ -195,7 +197,8 @@ func TestWLANEmptyHardwareAddress(t *testing.T) {
 		getWiFiInfo = GetWiFiInfo
 	}()
 
-	expectedTags := []string{"ssid:test-ssid", "bssid:test-bssid", "mac_address:unknown"}
+	// When mac_address is empty, omit the tag
+	expectedTags := []string{"ssid:test-ssid", "bssid:test-bssid"}
 
 	wlanCheck := new(WLANCheck)
 
@@ -379,7 +382,8 @@ func TestWLANChannelSwapEventsWhenSSIDEmptyAndBSSIDIsTheSame(t *testing.T) {
 		getWiFiInfo = GetWiFiInfo
 	}()
 
-	expectedTags := []string{"ssid:unknown", "bssid:test-bssid", "mac_address:hardware-address"}
+	// When SSID is empty, omit ssid tag
+	expectedTags := []string{"bssid:test-bssid", "mac_address:hardware-address"}
 
 	wlanCheck := new(WLANCheck)
 
@@ -425,7 +429,7 @@ func TestWLANChannelSwapEventsWhenSSIDEmptyAndBSSIDIsTheSame(t *testing.T) {
 		}, nil
 	}
 
-	// 3nd run: change channel to 1
+	// 3nd run: change channel to 2
 	wlanCheck.Run()
 	mockSender.AssertMetric(t, "Count", "system.wlan.channel_swap_events", 1.0, "", expectedTags)
 }
@@ -659,7 +663,8 @@ func TestWLANNoRoamingOrChannelSwapEventsWhenDifferentNetwork(t *testing.T) {
 		}, nil
 	}
 
-	expectedTags = []string{"ssid:unknown", "bssid:test-bssid-3", "mac_address:hardware-address"}
+	// When SSID is empty, omit ssid tag
+	expectedTags = []string{"bssid:test-bssid-3", "mac_address:hardware-address"}
 
 	// 3rd run: ssid is empty and different from premise scan, meaning it is a different network and no
 	// 1.0 metrics for roaming or channel swap would be emitted
@@ -667,7 +672,7 @@ func TestWLANNoRoamingOrChannelSwapEventsWhenDifferentNetwork(t *testing.T) {
 	mockSender.AssertMetric(t, "Count", "system.wlan.roaming_events", 0.0, "", expectedTags)
 	mockSender.AssertMetric(t, "Count", "system.wlan.channel_swap_events", 0.0, "", expectedTags)
 
-	// now both ssid asre empty but bssid is also different
+	// now both ssid are empty but bssid is also different
 	getWiFiInfo = func() (wifiInfo, error) {
 		return wifiInfo{
 			rssi:         10,
@@ -682,7 +687,8 @@ func TestWLANNoRoamingOrChannelSwapEventsWhenDifferentNetwork(t *testing.T) {
 		}, nil
 	}
 
-	expectedTags = []string{"ssid:unknown", "bssid:test-bssid-4", "mac_address:hardware-address"}
+	// When SSID is empty, omit ssid tag
+	expectedTags = []string{"bssid:test-bssid-4", "mac_address:hardware-address"}
 
 	// 4rd run: both ssids are empty and different and bssid is different
 	wlanCheck.Run()
@@ -726,7 +732,8 @@ func TestWLANNoRoamingOrChannelSwapEventsWhenDifferentNetwork(t *testing.T) {
 		}, nil
 	}
 
-	expectedTags = []string{"ssid:ssid", "bssid:unknown", "mac_address:hardware-address"}
+	// When BSSID is empty, omit bssid tag
+	expectedTags = []string{"ssid:ssid", "mac_address:hardware-address"}
 
 	// 6rd run: if a bssid empty we cannot determine roaming or channel swap
 	wlanCheck.Run()
@@ -748,7 +755,8 @@ func TestWLANNoRoamingOrChannelSwapEventsWhenDifferentNetwork(t *testing.T) {
 		}, nil
 	}
 
-	expectedTags = []string{"ssid:ssid", "bssid:unknown", "mac_address:hardware-address"}
+	// When BSSID is empty, omit bssid tag
+	expectedTags = []string{"ssid:ssid", "mac_address:hardware-address"}
 
 	// 7rd run: if a bssid empty we cannot determine roaming or channel swap
 	wlanCheck.Run()

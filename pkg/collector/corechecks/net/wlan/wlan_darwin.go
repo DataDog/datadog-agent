@@ -10,13 +10,16 @@ package wlan
 
 /*
 #cgo CFLAGS: -I .
-#cgo LDFLAGS: -framework CoreWLAN -framework CoreLocation -framework Foundation
+#cgo LDFLAGS: -framework CoreWLAN -framework CoreLocation -framework Foundation -framework Cocoa
 #include "wlan_darwin.h"
 #include <stdlib.h>
 */
 import "C"
 import (
 	"errors"
+	"fmt"
+	"os"
+	"os/exec"
 	"unsafe"
 )
 
@@ -92,4 +95,49 @@ func GetWiFiInfo() (wifiInfo, error) {
 	}
 
 	return wifiInfo, err
+}
+
+// HasLocationPermission checks if the agent has location permission
+func HasLocationPermission() bool {
+	return bool(C.HasLocationPermission())
+}
+
+// RequestLocationPermissionGUI launches a GUI session to request location permission
+// This should be called from the agent's request-location-permission subcommand
+func RequestLocationPermissionGUI() {
+	C.RequestLocationPermissionGUI()
+}
+
+// RequestLocationPermission spawns the agent subcommand to request location permission
+func (c *WLANCheck) RequestLocationPermission() error {
+	// Get the current user's UID (agent runs as root, but we need user session)
+	uid := os.Getenv("SUDO_UID")
+	if uid == "" {
+		// Try to find the console user
+		cmd := exec.Command("/usr/bin/stat", "-f", "%u", "/dev/console")
+		output, err := cmd.Output()
+		if err != nil {
+			return fmt.Errorf("could not determine user UID: %w", err)
+		}
+		uid = string(output[:len(output)-1]) // trim newline
+	}
+
+	// Get agent binary path
+	agentPath, err := os.Executable()
+	if err != nil {
+		return fmt.Errorf("could not determine agent path: %w", err)
+	}
+
+	// Spawn the GUI as the user using launchctl asuser
+	cmd := exec.Command(
+		"/bin/launchctl",
+		"asuser",
+		uid,
+		agentPath,
+		"wlan",
+		"request-location-permission",
+	)
+
+	// Start in background - don't wait for completion
+	return cmd.Start()
 }
