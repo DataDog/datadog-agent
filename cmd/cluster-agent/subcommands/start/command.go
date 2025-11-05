@@ -367,6 +367,7 @@ func start(log log.Component,
 
 	ctx := controllers.ControllerContext{
 		InformerFactory:        apiCl.InformerFactory,
+		CRDInformerFactory:     apiCl.CustomResourceDefinitionInformerFactory,
 		DynamicClient:          apiCl.DynamicInformerCl,
 		DynamicInformerFactory: apiCl.DynamicInformerFactory,
 		Client:                 apiCl.InformerCl,

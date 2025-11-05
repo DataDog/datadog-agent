@@ -14,6 +14,7 @@ import (
 	"fmt"
 	"sync"
 
+	apiextentionsinformer "k8s.io/apiextensions-apiserver/pkg/client/informers/externalversions"
 	k8serrors "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/dynamic/dynamicinformer"
@@ -60,6 +61,10 @@ var controllerCatalog = map[controllerName]controllerFuncs{
 		func() bool { return pkgconfigsetup.Datadog().GetBool("cluster_checks.enabled") },
 		registerEndpointsInformer,
 	},
+	crdControllerName: {
+		func() bool { return true },
+		registerCRDInformer,
+	},
 }
 
 // ControllerContext holds all the attributes needed by the controllers
@@ -67,6 +72,7 @@ type ControllerContext struct {
 	informers              map[apiserver.InformerName]cache.SharedInformer
 	informersMutex         sync.Mutex
 	InformerFactory        informers.SharedInformerFactory
+	CRDInformerFactory     apiextentionsinformer.SharedInformerFactory
 	DynamicClient          dynamic.Interface
 	DynamicInformerFactory dynamicinformer.DynamicSharedInformerFactory
 	Client                 kubernetes.Interface
@@ -116,6 +122,9 @@ func StartControllers(ctx *ControllerContext) k8serrors.Aggregate {
 	// FIXME: We may want to initialize each of these controllers separately via their respective
 	// `<informer>.Run()`
 	ctx.InformerFactory.Start(ctx.StopCh)
+
+	// same goes for the apiextension informer factory
+	ctx.CRDInformerFactory.Start(ctx.StopCh)
 
 	// Wait for the cache to sync
 	if err := apiserver.SyncInformers(ctx.informers, 0); err != nil {
@@ -183,5 +192,14 @@ func registerEndpointsInformer(ctx *ControllerContext, _ chan error) {
 
 	ctx.informersMutex.Lock()
 	ctx.informers[endpointsInformer] = informer
+	ctx.informersMutex.Unlock()
+}
+
+// registerCRDInformer registers the CRD informer.
+func registerCRDInformer(ctx *ControllerContext, _ chan error) {
+	informer := ctx.CRDInformerFactory.Apiextensions().V1().CustomResourceDefinitions().Informer()
+
+	ctx.informersMutex.Lock()
+	ctx.informers[crdInformer] = informer
 	ctx.informersMutex.Unlock()
 }

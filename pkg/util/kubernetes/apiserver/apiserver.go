@@ -29,6 +29,7 @@ import (
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/discovery/cached/memory"
 
+	apiextentionsinformer "k8s.io/apiextensions-apiserver/pkg/client/informers/externalversions"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/dynamic/dynamicinformer"
 	"k8s.io/client-go/informers"
@@ -141,6 +142,9 @@ type APIClient struct {
 
 	// DynamicInformerFactory gives access to dynamic informers
 	DynamicInformerFactory dynamicinformer.DynamicSharedInformerFactory
+
+	// CustomResourceDefinitionsFactory gives access to CustomResourceDefinition informers
+	CustomResourceDefinitionInformerFactory apiextentionsinformer.SharedInformerFactory
 
 	//
 	// Internal
@@ -320,6 +324,15 @@ func (c *APIClient) GetInformerWithOptions(resyncPeriod *time.Duration, options 
 	return informers.NewSharedInformerFactoryWithOptions(c.InformerCl, *resyncPeriod, options...)
 }
 
+// GetCustomResourceDefinitionInformerWithOptions return the informer factory for customResourceDefinitions
+func (c *APIClient) GetCustomResourceDefinitionInformerWithOptions(resyncPeriod *time.Duration, options ...apiextentionsinformer.SharedInformerOption) apiextentionsinformer.SharedInformerFactory {
+	if resyncPeriod == nil {
+		resyncPeriod = &c.defaultInformerResyncPeriod
+	}
+
+	return apiextentionsinformer.NewSharedInformerFactoryWithOptions(c.CRDInformerClient, *resyncPeriod, options...)
+}
+
 func (c *APIClient) connect() error {
 	var err error
 	// Clients
@@ -379,6 +392,7 @@ func (c *APIClient) connect() error {
 
 	// Creating informers
 	c.InformerFactory = c.GetInformerWithOptions(nil)
+	c.CustomResourceDefinitionInformerFactory = c.GetCustomResourceDefinitionInformerWithOptions(nil)
 
 	if pkgconfigsetup.Datadog().GetBool("admission_controller.enabled") ||
 		pkgconfigsetup.Datadog().GetBool("compliance_config.enabled") ||
