@@ -11,8 +11,9 @@ import (
 	"runtime"
 	"testing"
 
-	workloadfilterfxmock "github.com/DataDog/datadog-agent/comp/core/workloadfilter/fx-mock"
 	"github.com/stretchr/testify/assert"
+
+	workloadfilterfxmock "github.com/DataDog/datadog-agent/comp/core/workloadfilter/fx-mock"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	nooptagger "github.com/DataDog/datadog-agent/comp/core/tagger/impl-noop"
@@ -34,7 +35,7 @@ func testCreateFakeCheck(t *testing.T) {
 	tagger := nooptagger.NewComponent()
 	filterStore := workloadfilterfxmock.SetupMockFilter(t)
 
-	loader, err := NewSharedLibraryCheckLoader(senderManager, logReceiver, tagger, filterStore, &mockSharedLibraryLoader{})
+	loader, err := NewSharedLibraryCheckLoader(senderManager, logReceiver, tagger, filterStore, &noopSharedLibraryLoader{})
 	assert.Nil(t, err)
 
 	check, err := loader.Load(senderManager, conf, conf.Instances[0], 1)
@@ -45,7 +46,7 @@ func testCreateFakeCheck(t *testing.T) {
 
 	assert.Nil(t, err)
 	assert.Equal(t, "fake_check", check.(*Check).name)
-	assert.Equal(t, "mock_version", check.(*Check).version)
+	assert.Equal(t, "noop_version", check.(*Check).version)
 	assert.Equal(t, "fake_check:/path/to/conf/fake_check.yaml", check.(*Check).source)
 }
 

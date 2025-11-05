@@ -20,7 +20,7 @@ import (
 #cgo CFLAGS: -I "${SRCDIR}/../../../rtloader/include"
 #include "ffi.h"
 
-// functions from the Python package
+// functions from the aggregator package
 extern void SubmitMetric(char *, metric_type_t, char *, double, char **, char *, bool);
 extern void SubmitServiceCheck(char *, char *, int, char **, char *, char *);
 extern void SubmitEvent(char *, event_t *);
@@ -55,17 +55,17 @@ func getLibExtension() string {
 	}
 }
 
-// libraryHandles stores everything needed for a shared library check
-type libraryHandles struct {
-	lib     unsafe.Pointer
+// library stores everything needed for a shared library check
+type library struct {
+	handle  unsafe.Pointer
 	run     *C.run_function_t
 	version *C.version_function_t
 }
 
 // libraryLoader is an interface to load/close checks' shared libraries and call their symbols
 type libraryLoader interface {
-	Load(name string) (libraryHandles, error)
-	Close(libHandle unsafe.Pointer) error
+	Load(name string) (library, error)
+	Close(lib library) error
 	Run(runPtr *C.run_function_t, checkID string, initConfig string, instanceConfig string) error
 	Version(versionPtr *C.version_function_t) (string, error)
 }
@@ -77,7 +77,7 @@ type sharedLibraryLoader struct {
 
 // Load looks for a shared library with the corresponding name and check if it has a `Run` symbol.
 // If that's the case, then the method will return handles for both.
-func (l *sharedLibraryLoader) Load(name string) (libraryHandles, error) {
+func (l *sharedLibraryLoader) Load(name string) (library, error) {
 	// the prefix "libdatadog-agent-" is required to avoid possible name conflicts with other shared libraries in the include path
 	libPath := path.Join(l.folderPath, "libdatadog-agent-"+name+getLibExtension())
 
@@ -86,19 +86,19 @@ func (l *sharedLibraryLoader) Load(name string) (libraryHandles, error) {
 
 	var cErr *C.char
 
-	cLibHandles := C.load_shared_library(cLibPath, &cErr)
+	cLib := C.load_shared_library(cLibPath, &cErr)
 	if cErr != nil {
 		defer C.free(unsafe.Pointer(cErr))
-		return libraryHandles{}, fmt.Errorf("failed to load shared library at %q: %s", libPath, C.GoString(cErr))
+		return library{}, fmt.Errorf("failed to load shared library at %q: %s", libPath, C.GoString(cErr))
 	}
 
-	return (libraryHandles)(cLibHandles), nil
+	return (library)(cLib), nil
 }
 
-func (l *sharedLibraryLoader) Close(libHandle unsafe.Pointer) error {
+func (l *sharedLibraryLoader) Close(lib library) error {
 	var cErr *C.char
 
-	C.close_shared_library(libHandle, &cErr)
+	C.close_shared_library(lib.handle, &cErr)
 	if cErr != nil {
 		defer C.free(unsafe.Pointer(cErr))
 		return fmt.Errorf("Close failed: %s", C.GoString(cErr))
@@ -146,23 +146,4 @@ func newSharedLibraryLoader(folderPath string) *sharedLibraryLoader {
 		folderPath: folderPath,
 		aggregator: C.get_aggregator(),
 	}
-}
-
-// mock of sharedLibraryLoader
-type mockSharedLibraryLoader struct{}
-
-func (ml *mockSharedLibraryLoader) Load(_ string) (libraryHandles, error) {
-	return libraryHandles{}, nil
-}
-
-func (ml *mockSharedLibraryLoader) Close(_ unsafe.Pointer) error {
-	return nil
-}
-
-func (ml *mockSharedLibraryLoader) Run(_ *C.run_function_t, _ string, _ string, _ string) error {
-	return nil
-}
-
-func (ml *mockSharedLibraryLoader) Version(_ *C.version_function_t) (string, error) {
-	return "mock_version", nil
 }

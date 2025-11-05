@@ -11,33 +11,33 @@
 #endif
 
 #ifdef _WIN32
-handles_t load_shared_library(const char *lib_path, const char **error) {
-	handles_t lib_handles;
+library_t load_shared_library(const char *lib_path, const char **error) {
+	library_t lib;
 
     // load the library
-    lib_handles.lib = LoadLibraryA(lib_path);
-    if (!lib_handles.lib) {
+    lib.handle = LoadLibraryA(lib_path);
+    if (!lib.handle) {
         char error_msg[256];
         int error_code = GetLastError();
         snprintf(error_msg, sizeof(error_msg), "unable to open shared library, error code: %d", error_code);
 		*error = strdup(error_msg);
-		return lib_handles;
+		return lib;
     }
 
     // get pointer of 'Run' symbol
-    lib_handles.run = (run_function_t *)GetProcAddress(lib_handles.lib, "Run");
-    if (!lib_handles.run) {
+    lib.run = (run_function_t *)GetProcAddress(lib.handle, "Run");
+    if (!lib.run) {
         char error_msg[256];
         int error_code = GetLastError();
         snprintf(error_msg, sizeof(error_msg), "unable to get shared library 'Run' symbol, error code: %d", error_code);
 		*error = strdup(error_msg);
-		return lib_handles;
+		return lib;
     }
 
     // try to get pointer of 'Version' symbol (not required)
-    lib_handles.version = (version_function_t *)GetProcAddress(lib_handles.lib, "Version");
+    lib.version = (version_function_t *)GetProcAddress(lib.handle, "Version");
 
-    return lib_handles;
+    return lib;
 }
 
 void close_shared_library(void *lib_handle, const char **error) {
@@ -59,41 +59,41 @@ void close_shared_library(void *lib_handle, const char **error) {
 
 #else
 
-handles_t load_shared_library(const char *lib_path, const char **error) {
-    handles_t lib_handles;
+library_t load_shared_library(const char *lib_path, const char **error) {
+    library_t lib;
     char *dlsym_error = NULL;
 
     // load the library
-    lib_handles.lib = dlopen(lib_path, RTLD_LAZY | RTLD_GLOBAL);
+    lib.handle = dlopen(lib_path, RTLD_LAZY | RTLD_GLOBAL);
     
     // catch library opening error
     dlsym_error = dlerror();
     if (dlsym_error) {
 		*error = strdup(dlsym_error);
-		return lib_handles;
+		return lib;
     }
 
     // get pointer of 'Run' symbol
-    lib_handles.run = (run_function_t *)dlsym(lib_handles.lib, "Run");
+    lib.run = (run_function_t *)dlsym(lib.handle, "Run");
     
     // catch symbol errors and close the library if there are any
     dlsym_error = dlerror();
     if (dlsym_error) {
-		dlclose(lib_handles.lib);
+		dlclose(lib.handle);
 		*error = strdup(dlsym_error);
-		return lib_handles;
+		return lib;
     }
 
     // try to get pointer of 'Version' symbol (not required)
-    lib_handles.version = (version_function_t *)dlsym(lib_handles.lib, "Version");
+    lib.version = (version_function_t *)dlsym(lib.handle, "Version");
     
     // set the pointer to NULL is there's an error, the 'Version' symbol is not required
     dlsym_error = dlerror();
     if (dlsym_error) {
-		lib_handles.version = NULL;
+		lib.version = NULL;
     }
 
-    return lib_handles;
+    return lib;
 }
 
 void close_shared_library(void *lib_handle, const char **error) {

@@ -42,13 +42,13 @@ func (sl *CheckLoader) String() string {
 // Load returns a Shared Library check
 func (sl *CheckLoader) Load(senderManager sender.SenderManager, config integration.Config, instance integration.Data, _instanceIndex int) (check.Check, error) {
 	// load the library and get pointers to its symbols through the library loader
-	libHandles, err := sl.loader.Load(config.Name)
+	lib, err := sl.loader.Load(config.Name)
 	if err != nil {
 		return nil, err
 	}
 
 	// Create the check
-	c, err := NewSharedLibraryCheck(senderManager, config.Name, sl.loader, libHandles)
+	c, err := NewSharedLibraryCheck(senderManager, config.Name, sl.loader, lib)
 	if err != nil {
 		return c, err
 	}
@@ -62,7 +62,7 @@ func (sl *CheckLoader) Load(senderManager sender.SenderManager, config integrati
 	}
 
 	// check version -- fallback to "unversioned" version if the version cannot be retrieved from the library
-	version, err := sl.loader.Version(libHandles.version)
+	version, err := sl.loader.Version(lib.version)
 	if err != nil {
 		c.version = "unversioned"
 	} else {

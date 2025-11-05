@@ -20,14 +20,14 @@ import (
 /*
 #include "ffi.h"
 
-void mock_run_symbol(char *check_id, char *init_config, char *instance_config, const aggregator_t *aggregator, const char **error) {
+void noop_run_function(char *check_id, char *init_config, char *instance_config, const aggregator_t *aggregator, const char **error) {
 	// do nothing
 }
 
-handles_t get_mock_lib_handles(void) {
+library_t get_mock_library(void) {
 	// only the symbol is required to run the check, so the library handle can be set to NULL
-	handles_t lib_handles = { NULL, mock_run_symbol };
-	return lib_handles;
+	library_t library = { NULL, noop_run_function };
+	return library;
 }
 */
 import "C"
@@ -49,7 +49,7 @@ func testRunCheckWithNullSymbol(t *testing.T) {
 	}
 
 	// set the symbol handle to NULL
-	check.libHandles.run = nil
+	check.lib.run = nil
 
 	err = check.runCheckImpl(false)
 	assert.Error(t, err, "pointer to shared library 'Run' symbol is NULL")
@@ -70,7 +70,7 @@ func testCancelCheck(t *testing.T) {
 
 // NewSharedLibraryFakeCheck creates a fake SharedLibraryCheck
 func NewSharedLibraryFakeCheck(senderManager sender.SenderManager) (*Check, error) {
-	c, err := NewSharedLibraryCheck(senderManager, "fake_check", newSharedLibraryLoader("fake/library/folder/path"), getMockLibraryHandles())
+	c, err := NewSharedLibraryCheck(senderManager, "fake_check", newSharedLibraryLoader("fake/library/folder/path"), getMockLibrary())
 
 	// Remove check finalizer that may trigger race condition while testing
 	if err == nil {
@@ -80,8 +80,6 @@ func NewSharedLibraryFakeCheck(senderManager sender.SenderManager) (*Check, erro
 	return c, err
 }
 
-func getMockLibraryHandles() libraryHandles {
-	cLibHandles := C.get_mock_lib_handles()
-
-	return (libraryHandles)(cLibHandles)
+func getMockLibrary() library {
+	return (library)(C.get_mock_library())
 }
