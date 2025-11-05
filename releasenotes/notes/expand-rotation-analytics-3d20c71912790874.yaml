@@ -8,4 +8,4 @@
 ---
 enhancements:
   - |
-    Expand logs file rotation analytics to include more detailed information via telemtry metrics.
+    Expand logs file rotation analytics to include more detailed information using telemetry metrics.
