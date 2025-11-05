@@ -18,7 +18,7 @@ macos2:
 	  --configured_dir=darwin_arm64 \
           --configured_name=darwin_arm64 \
           --overlay=overlay
-	git diff overlay/lib_contents.bzl
+	# git diff overlay/lib_contents.bzl
 
 linux1:
 	python3 add_configuration.py \
@@ -33,3 +33,8 @@ linux2:
           --configured_name=linux_arm64 \
           --overlay=overlay
 	git diff overlay/lib_contents.bzl
+
+
+gen_mod:
+	bazel build :openssl3.MODULE.bazel.new
+	diff ../../bazel-bin/deps/openssl3/openssl3.MODULE.bazel.new openssl3.MODULE.bazel

@@ -6,11 +6,11 @@ load(
     "lib_contents.bzl",
     "HDRS",
     "HDRS_DARWIN_ARM64",
-    "HDRS_LINUX_ARM64",
+    # "HDRS_LINUX_ARM64",
     "LIB_APPS_SRCS_DARWIN_ARM64",
     "LIB_COMMON_SRCS_DARWIN_ARM64",
     "LIB_CRYPTO_SRCS_DARWIN_ARM64",
-    "LIB_CRYPTO_SRCS_LINUX_ARM64",
+    # "LIB_CRYPTO_SRCS_LINUX_ARM64",
     "LIB_DEFAULT_SRCS_DARWIN_ARM64",
     "LIB_LEGACY_SRCS_DARWIN_ARM64",
     "LIB_SSL_SRCS_DARWIN_ARM64",
@@ -79,7 +79,7 @@ cc_library(
     name = "libcrypto",
     srcs = HDRS + select({
         "@platforms//os:macos": HDRS_DARWIN_ARM64 + LIB_CRYPTO_SRCS_DARWIN_ARM64,
-        "@platforms//os:linux": HDRS_LINUX_ARM64 + LIB_CRYPTO_SRCS_LINUX_ARM64,
+        # "@platforms//os:linux": HDRS_LINUX_ARM64 + LIB_CRYPTO_SRCS_LINUX_ARM64,
     }) + select({
         "@platforms//cpu:aarch64": [
             # TODO: This does not compile on linux. Huh?
@@ -87,7 +87,8 @@ cc_library(
         ],
         "//conditions:default": [
         ],
-    }) + select(ARCH_HDRS_COND),
+    }),
+    # + select(ARCH_HDRS_COND),
     # Yeech.  Includes polutes the build. But we can not use -I because we don't know
     # the path to the folder when building via external/openssl3/...
     # Ideal solution:
