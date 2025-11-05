@@ -193,3 +193,16 @@ http_archive(
     strip_prefix = "unixODBC-2.3.9",
     url = "https://www.unixodbc.org/unixODBC-2.3.9.tar.gz",
 )
+
+PYTHON_VERSION = "3.13.7"
+
+http_archive(
+    name = "cpython",
+    build_file = "//deps:cpython.BUILD.bazel",
+    files = {
+        "build_python.bat": "//deps/cpython:build_python.bat",
+    },
+    sha256 = "6c9d80839cfa20024f34d9a6dd31ae2a9cd97ff5e980e969209746037a5153b2",
+    strip_prefix = "Python-{}".format(PYTHON_VERSION),
+    url = "https://python.org/ftp/python/{0}/Python-{0}.tgz".format(PYTHON_VERSION),
+)
