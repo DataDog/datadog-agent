@@ -31,7 +31,7 @@ if ENV["S3_OMNIBUS_CACHE_BUCKET"]
   if ENV['WINDOWS_BUILDER']
     s3_role true
     s3_role_arn 'arn:aws:iam::486234852809:role/ci-datadog-agent'
-    s3_role_session_name "datadog-agent-builder-job-#{ENV['CI_JOB_ID']}"
+    s3_role_session_name "datadog-agent-builder-job-#{ENV.fetch('CI_JOB_ID', 'unknown')}"
     s3_sts_creds_instance_profile true
   else
     s3_instance_profile true
