@@ -73,6 +73,9 @@ cc_library(
         "ZSTD_BUILD_SHARED=ON",
         "ZSTD_BUILD_STATIC=OFF",
     ],
+    copts = [
+        "-O2",
+    ],
     visibility = ["//visibility:public"],
 )
 
