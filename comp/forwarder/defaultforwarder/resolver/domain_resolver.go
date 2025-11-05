@@ -397,3 +397,30 @@ func (r *domainResolver) IsLocal() bool {
 func (r *domainResolver) IsMRF() bool {
 	return r.isMRF
 }
+
+type authHeader struct {
+	key, value string
+}
+
+// Authorize configures required headers on a transaction.
+func (ah authHeader) Authorize(t *transaction.HTTPTransaction) {
+	t.Headers.Set(ah.key, ah.value)
+}
+
+// GetAuthHeaders returns
+func (r *domainResolver) GetAuthorizers() (res []authHeader) {
+	if r.IsLocal() {
+		res = append(res, authHeader{
+			key:   "Authorization",
+			value: fmt.Sprintf("bearer %s", r.authToken),
+		})
+	} else {
+		for _, key := range r.GetAPIKeys() {
+			res = append(res, authHeader{
+				key:   "DD-Api-Key",
+				value: key,
+			})
+		}
+	}
+	return
+}
