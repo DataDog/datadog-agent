@@ -73,6 +73,7 @@ func getManifestCache() *gocache.Cache {
 // Returns true if the manifest should be skipped (cache hit with same resourceVersion).
 // This follows the same pattern as pkg/orchestrator.SkipKubernetesResource.
 func shouldSkipManifest(manifest *agentmodel.Manifest) bool {
+	return false
 	if manifest == nil || manifest.Uid == "" {
 		return false
 	}
