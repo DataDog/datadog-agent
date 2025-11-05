@@ -117,6 +117,7 @@ func CreateDefaultConfig() component.Config {
 	ddcfg := datadogconfig.CreateDefaultConfig().(*datadogconfig.Config)
 	ddcfg.Traces.TracesConfig.ComputeTopLevelBySpanKind = true
 	ddcfg.Logs.Endpoint = "https://agent-http-intake.logs.datadoghq.com"
+	ddcfg.QueueSettings = exporterhelper.NewDefaultQueueConfig() // TODO: remove this line with next collector version upgrade
 	return ddcfg
 }
 

@@ -44,7 +44,9 @@ func TestIPCSecurityWindowsSuite(t *testing.T) {
 			awshost.WithEC2InstanceOptions(ec2.WithOS(e2eos.WindowsServerDefault)),
 			awshost.WithAgentOptions(agentparams.WithAgentConfig(agentConfig)),
 			awshost.WithAgentClientOptions(agentclientparams.WithSkipWaitForAgentReady()),
-		)))
+		)),
+		e2e.WithSkipCoverage(), // Test Suite is not compatible with built-in coverage computation, because auth tokens are removed at the end of the test
+	)
 }
 
 // Implementation of [path.Join] for Windows.

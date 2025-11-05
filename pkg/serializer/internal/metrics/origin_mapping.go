@@ -218,6 +218,7 @@ func metricSourceToOriginCategory(ms metrics.MetricSource) int32 {
 		metrics.MetricSourceCloudFoundryAPI,
 		metrics.MetricSourceCockroachdb,
 		metrics.MetricSourceConsul,
+		metrics.MetricSourceControlM,
 		metrics.MetricSourceCoredns,
 		metrics.MetricSourceCouch,
 		metrics.MetricSourceCouchbase,
@@ -279,6 +280,10 @@ func metricSourceToOriginCategory(ms metrics.MetricSource) int32 {
 		metrics.MetricSourceMesosSlave,
 		metrics.MetricSourceMongo,
 		metrics.MetricSourceMysql,
+		metrics.MetricSourceN8N,
+		metrics.MetricSourceNutanix,
+		metrics.MetricSourcePaloAltoPanorama,
+		metrics.MetricSourcePerfect,
 		metrics.MetricSourceNagios,
 		metrics.MetricSourceNfsstat,
 		metrics.MetricSourceNginx,
@@ -1127,6 +1132,16 @@ func metricSourceToOriginService(ms metrics.MetricSource) int32 {
 		return 495
 	case metrics.MetricSourceIbmSpectrumLsf:
 		return 496
+	case metrics.MetricSourceControlM:
+		return 500
+	case metrics.MetricSourceN8N:
+		return 501
+	case metrics.MetricSourceNutanix:
+		return 502
+	case metrics.MetricSourcePaloAltoPanorama:
+		return 503
+	case metrics.MetricSourcePerfect:
+		return 504
 	default:
 		return 0
 	}

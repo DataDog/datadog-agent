@@ -142,7 +142,6 @@ use (
 	pkg/telemetry
 	pkg/template
 	pkg/trace
-	pkg/trace/stats/oteltest
 	pkg/util/backoff
 	pkg/util/buf
 	pkg/util/cache

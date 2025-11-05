@@ -9,8 +9,9 @@ import (
 	"os"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/obfuscate"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/pkg/obfuscate"
 )
 
 const (
@@ -132,4 +133,12 @@ func TestSQLObfuscationMode(t *testing.T) {
 		cfg := New()
 		assert.Equal(t, obfuscate.ObfuscateOnly, obfuscationMode(cfg, true))
 	})
+}
+
+func TestInECSManagedInstancesSidecar(t *testing.T) {
+	t.Setenv("DD_ECS_DEPLOYMENT_MODE", "sidecar")
+	t.Setenv("AWS_EXECUTION_ENV", "AWS_ECS_MANAGED_INSTANCES")
+	isSidecar := inECSManagedInstancesSidecar()
+
+	assert.True(t, isSidecar)
 }

@@ -145,7 +145,7 @@ processors:
 receivers:
   otlp:
     protocols:
-      grpc: 
+      grpc:
         endpoint: 0.0.0.0:4317
         keepalive:
           enforcement_policy: {}
@@ -165,7 +165,7 @@ receivers:
         traces_url_path: /v1/traces
         write_timeout: 0s
   prometheus/dd-autoconfigured:
-    api_server: 
+    api_server:
       enabled: false
       server_config:
         cors: null

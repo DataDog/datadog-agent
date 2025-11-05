@@ -220,6 +220,7 @@ func TestCheck_Run_Success(t *testing.T) {
 
 	// Set up mock sender expectations
 	mockSender.On("EventPlatformEvent", mock.Anything, mock.Anything).Return().Once()
+	mockSender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	mockSender.On("Commit").Return()
 
 	// Configure the check
@@ -244,6 +245,14 @@ func TestCheck_Run_Success(t *testing.T) {
 
 	runningBytes, _ := json.Marshal([]byte(runningOutput))
 	startupBytes, _ := json.Marshal([]byte(startupOutput))
+	expectedTags := []string{
+		"device_namespace:default",
+		"device_ip:10.0.0.1",
+		"device_id:default:10.0.0.1",
+		"config_source:cli",
+		"profile:p2",
+	}
+	expectedTagsBytes, _ := json.Marshal(expectedTags)
 
 	var expectedEvent = []byte(fmt.Sprintf(`
 {
@@ -255,7 +264,7 @@ func TestCheck_Run_Success(t *testing.T) {
       "device_ip": "10.0.0.1",
       "config_type": "running",
       "timestamp": 1754043600,
-      "tags": ["device_ip:10.0.0.1"],
+      "tags": %s,
       "content": %s
     },
     {
@@ -263,19 +272,20 @@ func TestCheck_Run_Success(t *testing.T) {
       "device_ip": "10.0.0.1",
       "config_type": "startup",
       "timestamp": 0,
-      "tags": ["device_ip:10.0.0.1"],
+      "tags": %s,
       "content": %s
     }
   ],
   "collect_timestamp": 1754043600
 }
-`, runningBytes, startupBytes))
+`, expectedTagsBytes, runningBytes, expectedTagsBytes, startupBytes))
 
 	compactEvent := new(bytes.Buffer)
 	err = json.Compact(compactEvent, expectedEvent)
 	assert.NoError(t, err)
 	mockSender.AssertNumberOfCalls(t, "EventPlatformEvent", 1)
 	mockSender.AssertEventPlatformEvent(t, compactEvent.Bytes(), "ndmconfig")
+	mockSender.AssertMetricTaggedWith(t, "Gauge", "datadog.ncm.check_duration", expectedTags)
 	mockSender.AssertExpectations(t)
 }
 

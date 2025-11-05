@@ -17,6 +17,7 @@ filegroup(
         "@zlib//:libz_so",
     ] + select({
         "@platforms//os:linux": [
+            "@attr",
             "@libsepol//:sepol",
             "@nghttp2",
             "@pcre2",

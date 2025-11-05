@@ -174,13 +174,27 @@ func (c *collector) processEvent(renderCtx evtapi.EventRenderContextHandle, even
 	if err != nil {
 		return fmt.Errorf("failed to get event ID: %w", err)
 	}
+	providerName, err := vals.String(evtapi.EvtSystemProviderName)
+	if err != nil {
+		return fmt.Errorf("failed to get provider name: %w", err)
+	}
+	// TODO: get nanoseconds precision from event log
+	var timestamp time.Time
+	unixTimestamp, err := vals.Time(evtapi.EvtSystemTimeCreated)
+	if err != nil {
+		// if no timestamp default to current time
+		timestamp = time.Now().UTC()
+	} else {
+		timestamp = time.Unix(unixTimestamp, 0)
+	}
 
 	log.Debugf("Collected notable event: channel=%s, event_id=%d", c.channelPath, eventID)
 
-	// TODO(WINA-1968): submit event to intake
 	payload := eventPayload{
-		Channel: c.channelPath,
-		EventID: uint(eventID),
+		Channel:   c.channelPath,
+		Provider:  providerName,
+		EventID:   uint(eventID),
+		Timestamp: timestamp,
 	}
 	c.outChan <- payload
 

@@ -33,7 +33,7 @@ func TestDocker(t *testing.T) {
 		t.Logf("Running with fakeintake image %s", fakeintakeImage)
 		fakeintakeOpts = append(fakeintakeOpts, fakeintake.WithImageURL(fakeintakeImage))
 	}
-	e2e.Run(t, &dockerSuite{}, e2e.WithProvisioner(awsdocker.Provisioner(awsdocker.WithFakeIntakeOptions(fakeintakeOpts...))))
+	e2e.Run(t, &dockerSuite{}, e2e.WithProvisioner(awsdocker.Provisioner(awsdocker.WithFakeIntakeOptions(fakeintakeOpts...))), e2e.WithSkipCoverage())
 }
 
 func (v *dockerSuite) TestExecuteCommand() {
