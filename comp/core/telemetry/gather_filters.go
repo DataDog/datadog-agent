@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2023-present Datadog, Inc.
 
+//go:build !serverless
+
 package telemetry
 
 import (
@@ -20,7 +22,7 @@ func NoFilter(*MetricFamily) bool {
 // It returns true if the metric name is in the list, false otherwise
 func StaticMetricFilter(metricNames ...string) MetricFilter {
 	return func(mf *MetricFamily) bool {
-		return slices.Contains(metricNames, *mf.Name)
+		return slices.Contains(metricNames, mf.GetName())
 	}
 }
 
@@ -29,7 +31,7 @@ func StaticMetricFilter(metricNames ...string) MetricFilter {
 func RegexMetricFilter(regexes ...regexp.Regexp) MetricFilter {
 	return func(mf *MetricFamily) bool {
 		for _, regex := range regexes {
-			if regex.MatchString(*mf.Name) {
+			if regex.MatchString(mf.GetName()) {
 				return true
 			}
 		}
