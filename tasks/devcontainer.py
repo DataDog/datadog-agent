@@ -27,6 +27,7 @@ DEVCONTAINER_IMAGE = "registry.ddbuild.io/ci/datadog-agent-devenv:1-arm64"
 
 
 class SkaffoldProfile(Enum):
+    DEVCONTAINER = "devcontainer"
     KIND = "kind"
     MINIKUBE = "minikube"
     NONE = None
@@ -152,7 +153,7 @@ def setup(
 
 def configure_skaffold(devcontainer: dict, profile: SkaffoldProfile):
     match profile:
-        case SkaffoldProfile.KIND:
+        case SkaffoldProfile.KIND | SkaffoldProfile.DEVCONTAINER:
             devcontainer["runArgs"].append("--network=host")  # to connect to the kind api-server
             # add requires extensions
             additional_extensions = ["GoogleCloudTools.cloudcode"]

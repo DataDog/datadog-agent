@@ -5,7 +5,7 @@ Skaffold related tasks
 from invoke import UnexpectedExit, task
 from invoke.exceptions import Exit
 
-from tasks.devcontainer import DEVCONTAINER_IMAGE, DEVCONTAINER_NAME
+from tasks.devcontainer import DEVCONTAINER_IMAGE, DEVCONTAINER_NAME, SkaffoldProfile
 from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.utils import is_installed
 
@@ -48,6 +48,28 @@ def is_minikube_running(ctx) -> bool:
             raise
 
     return minikube_status.ok
+
+
+def is_kind_running(ctx) -> bool:
+    """
+    Check if kind is running
+    """
+    if not is_installed("kind"):
+        return False
+
+    try:
+        kind_status = ctx.run("kind get clusters", hide=True, warn=True)
+    except UnexpectedExit:
+        if kind_status.return_code == 1:
+            return False
+
+        # in case of any other error raise.
+        raise
+
+    if kind_status.stdout.find("No kind clusters found.") == 0:
+        return False
+
+    return True
 
 
 def generate_minikube_env(ctx) -> list:
@@ -134,15 +156,35 @@ def create(ctx, path=".") -> None:
         devcontainer_start(ctx)
 
 
-@task
-def dev(ctx) -> None:
+@task(
+    help={
+        "profile": "The skaffold profile to tuse (minikube, kind, devcontainer)",
+        "tail": "Tail all containers logs if set (very verbose, tailing all agent processes). Default False",
+        "logLevel": "Skaffold log leve (matches 'logrus' levels). Default warn",
+    },
+)
+def dev(ctx, profile: str, tail: bool = False, logLevel: str = "warn") -> None:
     """
     Start the Skaffold cluster
     """
+
+    # NONE is not a valid profile
+    skaffold_valid_profiles = [name.lower() for name in SkaffoldProfile._member_names_ if name != 'NONE']
+    if profile == "" or profile not in skaffold_valid_profiles:
+        print(
+            color_message(
+                f"{profile} not valid, please select a profile from: {skaffold_valid_profiles}",
+                Color.RED,
+            )
+        )
+        raise Exit(code=1)
+
+    skaffold_profile = SkaffoldProfile(profile)
+
     print(
         color_message(
-            "Starting the Skaffold cluster.",
-            Color.BLUE,
+            f"Starting the Skaffold cluster, profile: {skaffold_profile.value}",
+            Color.GREEN,
         )
     )
     # Check if Skaffold is installed
@@ -155,19 +197,45 @@ def dev(ctx) -> None:
         )
         raise Exit(code=1)
 
-    # Create Minikube Cluster and devcontainer if they are not running.
-    create(ctx)
+    match skaffold_profile:
+        case SkaffoldProfile.MINIKUBE:
+            # Create Minikube Cluster and devcontainer if they are not running.
+            create(ctx)
+
+        case SkaffoldProfile.KIND | SkaffoldProfile.DEVCONTAINER:
+            if not is_kind_running(ctx):
+                print(
+                    color_message(
+                        "Ensure your kind cluster is started and healthy",
+                        Color.RED,
+                    )
+                )
+
+                raise Exit(code=1)
+
+        case _:
+            print(
+                color_message(
+                    f"{skaffold_profile.value} not valid, please select a profile from: {skaffold_valid_profiles}",
+                    Color.RED,
+                )
+            )
+            raise Exit(code=1)
 
     # Create Skaffold Dev command
     skaffold_command = [
         "skaffold",
         "dev",
-        "--filename skaffold.yaml",
         "--auto-build=false",
         "--auto-deploy=false",
         "--auto-sync=false",
-        "--port-forward=true",
-        "--status-check=true",
-        "--verbosity warn",
+        "--port-forward=off",
+        f"--verbosity {logLevel}",
+        f"--tail={tail}",
+        f"--profile={skaffold_profile.value}",
     ]
-    ctx.run(" ".join(generate_minikube_env(ctx) + skaffold_command))
+
+    if skaffold_profile == SkaffoldProfile.MINIKUBE:
+        ctx.run(" ".join(generate_minikube_env(ctx) + skaffold_command))
+    else:
+        ctx.run(" ".join(skaffold_command))

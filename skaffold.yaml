@@ -16,7 +16,8 @@ deploy:
     releases:
       - name: datadog-agent
         remoteChart: datadog/datadog
-        version: 3.88.1
+        version: 3.141.0
+        # valuesFiles: ["your/custom/datadog-agent/values.yaml"]
         setValueTemplates:
           datadog:
             apiKey: "{{cmd \"bash\" \"-c\" \"echo $DD_API_KEY\"}}"
@@ -37,10 +38,32 @@ deploy:
             tag: "{{.IMAGE_TAG_agent}}"
             doNotCheckTag: true
 profiles:
+  - name: devcontainer
+    activation:
+      - kubeContext: kind
+        command: dev
+        env: "SKAFFOLD_KIND_BUILD_TYPE=devcontainer"
+    requiresAllActivations: true
+    build:
+      artifacts:
+        - image: agent
+          custom:
+            buildCommand: "docker exec -t $DEVENV_CONTAINER_NAME /bin/bash -c \"
+              export DOCKER_DEFAULT_PLATFORM=$DOCKER_DEFAULT_PLATFORM &&
+              cd go/src/github.com/DataDog/datadog-agent &&
+              dda inv agent.hacky-dev-image-build --target-image=$IMAGE_REPO:$IMAGE_TAG\""
+        - image: clusteragent
+          custom:
+            buildCommand: "docker exec -t $DEVENV_CONTAINER_NAME /bin/bash -c \"
+              export DOCKER_DEFAULT_PLATFORM=$DOCKER_DEFAULT_PLATFORM &&
+              cd go/src/github.com/DataDog/datadog-agent &&
+              dda inv cluster-agent.hacky-dev-image-build --target-image=$IMAGE_REPO:$IMAGE_TAG\""
   - name: kind
     activation:
     - kubeContext: kind
       command: dev
+      env: "SKAFFOLD_KIND_BUILD_TYPE=local"
+    requiresAllActivations: true
     build:
       artifacts:
       - image: agent
