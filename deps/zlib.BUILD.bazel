@@ -141,7 +141,7 @@ cc_library(
 )
 
 cc_shared_library(
-    name = "libz_so",
+    name = "z",
     win_def_file = "win32/zlib.def",
     deps = [":zlib"],
     visibility = ["//visibility:public"],
@@ -149,7 +149,7 @@ cc_shared_library(
 
 so_symlink(
     name = "lib_files",
-    src = ":libz_so",
+    src = ":z",
     libname = "libz",
     version = "1.3.1",
 )
