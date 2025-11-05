@@ -1,7 +1,7 @@
 syntax = "proto3";
 
 package intake;
-option go_package = "github.com/DataDog/datadog-agent/pkg/logs/sender/grpc";
+option go_package = "pkg/proto/pbgo/statefulpb";
 
 // ---------------------------------------------------------------------------
 // Dictionary-encoded
@@ -84,7 +84,10 @@ message DatumSequence {
 // the ordering is significant, must be processed in order
 message StatefulBatch {
   uint32 batch_id = 1;
-  bytes data = 2;  // Contains serialized DatumSequence
+
+  // Bytes of a serialized DatumSequence. Eventually this will also be compressed.
+  // This allows for Datums to be compressed while they are buffered in memory before being acked by the server.
+  bytes data = 2;
 }
 
 message BatchStatus {
