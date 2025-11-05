@@ -86,6 +86,7 @@ AGENT_CORECHECKS = [
     "wlan",
     "discovery",
     "versa",
+    "network_config_management",
 ]
 
 WINDOWS_CORECHECKS = [

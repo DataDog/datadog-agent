@@ -224,7 +224,7 @@ func TestEventIterator(t *testing.T) {
 			}(),
 			expectedStack:      fullStack,
 			expectedDataItems:  []DataItem{fullItems[0]},
-			expectDataItemsErr: []string{"", "not enough bytes to read data item:"},
+			expectDataItemsErr: []string{"", `not enough bytes to read data item \(8 bytes\): 108 < 112`},
 		},
 		{
 			name: "one valid data item, one truncated data item header",
