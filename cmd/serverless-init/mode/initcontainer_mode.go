@@ -9,7 +9,6 @@
 package mode
 
 import (
-	"fmt"
 	"io"
 	"os"
 	"os/exec"
@@ -33,7 +32,7 @@ func RunInit(logConfig *serverlessLog.Config) error {
 	log.Debugf("Launching subprocess %v\n", args)
 	err := execute(logConfig, args)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "ERROR: Failed to execute command: %v\n", err)
+		log.Errorf("ERROR: Failed to execute command: %v\n", err)
 		return err
 	}
 	return nil
