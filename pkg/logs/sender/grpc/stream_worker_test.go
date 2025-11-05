@@ -20,6 +20,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/proto"
 
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
@@ -146,6 +147,16 @@ func (m *mockLogsStream) getSentBatchCount() int {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	return len(m.sentBatches)
+}
+
+// Helper to get a specific sent batch by index
+func (m *mockLogsStream) getSentBatch(index int) *StatefulBatch {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if index < 0 || index >= len(m.sentBatches) {
+		return nil
+	}
+	return m.sentBatches[index]
 }
 
 // mockLogsClient implements StatefulLogsServiceClient for testing
@@ -785,5 +796,257 @@ func TestStreamWorkerErrorRecovery(t *testing.T) {
 		require.Equal(t, payload2, output)
 	case <-time.After(testTimeout):
 		t.Fatal("Message should appear in outputChan after recv error rotation and ack")
+	}
+}
+
+// Helper functions to create Datum objects for testing
+func createPatternDefine(id uint64, template string) *Datum {
+	return &Datum{
+		Data: &Datum_PatternDefine{
+			PatternDefine: &PatternDefine{
+				PatternId: id,
+				Template:  template,
+			},
+		},
+	}
+}
+
+func createPatternDelete(id uint64) *Datum {
+	return &Datum{
+		Data: &Datum_PatternDelete{
+			PatternDelete: &PatternDelete{
+				PatternId: id,
+			},
+		},
+	}
+}
+
+func createDictEntryDefine(id uint64, value string) *Datum {
+	return &Datum{
+		Data: &Datum_DictEntryDefine{
+			DictEntryDefine: &DictEntryDefine{
+				Id:    id,
+				Value: value,
+			},
+		},
+	}
+}
+
+func createDictEntryDelete(id uint64) *Datum {
+	return &Datum{
+		Data: &Datum_DictEntryDelete{
+			DictEntryDelete: &DictEntryDelete{
+				Id: id,
+			},
+		},
+	}
+}
+
+// createPayloadWithState creates a payload with state changes in StatefulExtra
+func createPayloadWithState(content string, stateChanges []*Datum) *message.Payload {
+	payload := createWorkerTestPayload(content)
+	if len(stateChanges) > 0 {
+		payload.StatefulExtra = &StatefulExtra{
+			StateChanges: stateChanges,
+		}
+	}
+	return payload
+}
+
+// verifySnapshotContents checks if a snapshot batch contains the expected state
+func verifySnapshotContents(t *testing.T, batch *StatefulBatch, expectedPatterns map[uint64]string, expectedDictEntries map[uint64]string) {
+	require.NotNil(t, batch)
+	require.Equal(t, uint32(0), batch.BatchId, "Snapshot should have batch ID 0")
+
+	// Deserialize the snapshot data (it's a DatumSequence)
+	var datumSeq DatumSequence
+	err := proto.Unmarshal(batch.Data, &datumSeq)
+	require.NoError(t, err)
+
+	// Count what we find
+	foundPatterns := make(map[uint64]string)
+	foundDictEntries := make(map[uint64]string)
+
+	for _, datum := range datumSeq.Data {
+		switch d := datum.Data.(type) {
+		case *Datum_PatternDefine:
+			foundPatterns[d.PatternDefine.PatternId] = d.PatternDefine.Template
+		case *Datum_DictEntryDefine:
+			foundDictEntries[d.DictEntryDefine.Id] = d.DictEntryDefine.Value
+		default:
+			t.Fatalf("Snapshot should only contain PatternDefine and DictEntryDefine, got: %T", datum.Data)
+		}
+	}
+
+	require.Equal(t, expectedPatterns, foundPatterns, "Snapshot patterns mismatch")
+	require.Equal(t, expectedDictEntries, foundDictEntries, "Snapshot dict entries mismatch")
+}
+
+// TestStreamWorkerSnapshot tests the snapshot functionality across stream rotations
+func TestStreamWorkerSnapshot(t *testing.T) {
+	fixture := newTestFixture(t)
+	defer fixture.cleanup()
+
+	// Override stream lifetime for this test
+	fixture.streamLifetime = time.Second
+	worker := fixture.createWorker()
+	worker.start()
+
+	// Wait for initial stream to be ready
+	var stream1 *mockLogsStream
+	require.Eventually(t, func() bool {
+		stream1 = fixture.mockClient.getCurrentStream()
+		return stream1 != nil && worker.streamState == active
+	}, testTimeout, testTickInterval, "Initial stream should be established")
+
+	// === Step 1: Send Batch 1 (5 entries) ===
+	batch1StateChanges := []*Datum{
+		createPatternDefine(1, "pattern1"),
+		createDictEntryDefine(1, "value1"),
+		createPatternDefine(2, "pattern2"),
+		createDictEntryDefine(2, "value2"),
+	}
+	batch1Payload := createPayloadWithState("log with p1/d1", batch1StateChanges)
+	fixture.inputChan <- batch1Payload
+
+	// Wait for batch 1 to be sent
+	require.Eventually(t, func() bool {
+		return stream1.getSentBatchCount() == 1
+	}, testTimeout, testTickInterval, "Batch 1 should be sent")
+
+	// === Step 2: Ack Batch 1 ===
+	stream1.sendAck(1)
+
+	// Verify batch 1 appears in outputChan
+	select {
+	case output := <-fixture.outputChan:
+		require.Equal(t, batch1Payload, output)
+	case <-time.After(testTimeout):
+		t.Fatal("Batch 1 should appear in outputChan")
+	}
+
+	// === Step 3: Send Batch 2 (6 entries) ===
+	batch2StateChanges := []*Datum{
+		createPatternDelete(1),
+		createDictEntryDelete(1),
+		createPatternDefine(3, "pattern3"),
+		createDictEntryDefine(3, "value3"),
+	}
+	batch2Payload := createPayloadWithState("log with p2/d2 and p3/d3", batch2StateChanges)
+	fixture.inputChan <- batch2Payload
+
+	// Wait for batch 2 to be sent
+	require.Eventually(t, func() bool {
+		return stream1.getSentBatchCount() == 2
+	}, testTimeout, testTickInterval, "Batch 2 should be sent")
+
+	// === Step 4: Cut stream with recv failure (before acking batch 2) ===
+	stream1.injectRecvError(io.EOF)
+
+	// Wait for stream rotation
+	var stream2 *mockLogsStream
+	require.Eventually(t, func() bool {
+		stream2 = fixture.mockClient.getCurrentStream()
+		return stream2 != nil && stream2 != stream1 && worker.streamState == active
+	}, testTimeout, testTickInterval, "Stream should rotate after recv failure")
+
+	// === Step 5: Verify snapshot on new stream ===
+	// Snapshot should contain state BEFORE batch 2: {p1, p2, d1, d2}
+	require.Eventually(t, func() bool {
+		return stream2.getSentBatchCount() >= 1
+	}, testTimeout, testTickInterval, "Snapshot should be sent on new stream")
+
+	snapshotBatch := stream2.getSentBatch(0)
+	expectedPatterns1 := map[uint64]string{
+		1: "pattern1",
+		2: "pattern2",
+	}
+	expectedDictEntries1 := map[uint64]string{
+		1: "value1",
+		2: "value2",
+	}
+	verifySnapshotContents(t, snapshotBatch, expectedPatterns1, expectedDictEntries1)
+
+	// === Step 6: Ack snapshot (batch 0) ===
+	stream2.sendAck(0)
+
+	// === Step 7: Verify Batch 2 is retransmitted ===
+	require.Eventually(t, func() bool {
+		return stream2.getSentBatchCount() == 2
+	}, testTimeout, testTickInterval, "Batch 2 should be retransmitted")
+
+	batch2Retransmitted := stream2.getSentBatch(1)
+	require.Equal(t, uint32(1), batch2Retransmitted.BatchId)
+
+	// === Step 8: Ack Batch 2 ===
+	stream2.sendAck(1)
+
+	// Verify batch 2 appears in outputChan
+	select {
+	case output := <-fixture.outputChan:
+		require.Equal(t, batch2Payload, output)
+	case <-time.After(testTimeout):
+		t.Fatal("Batch 2 should appear in outputChan")
+	}
+
+	// === Step 9: Send Batch 3 (3 entries) ===
+	batch3StateChanges := []*Datum{
+		createPatternDefine(4, "pattern4"),
+		createDictEntryDefine(4, "value4"),
+	}
+	batch3Payload := createPayloadWithState("log with p4/d4", batch3StateChanges)
+	fixture.inputChan <- batch3Payload
+
+	// Wait for batch 3 to be sent
+	require.Eventually(t, func() bool {
+		return stream2.getSentBatchCount() == 3
+	}, testTimeout, testTickInterval, "Batch 3 should be sent")
+
+	// === Step 10: Stream timer expires ===
+	fixture.mockClock.Add(time.Second)
+
+	// Worker should enter draining state (batch 3 is still inflight)
+	require.Eventually(t, func() bool {
+		return worker.streamState == draining
+	}, testTimeout, testTickInterval, "Worker should enter draining state")
+
+	// === Step 11: Drain timer expires (force rotation) ===
+	fixture.mockClock.Add(5 * time.Second) // drainTimeout is 5 seconds
+
+	// Wait for new stream to be created
+	var stream3 *mockLogsStream
+	require.Eventually(t, func() bool {
+		stream3 = fixture.mockClient.getCurrentStream()
+		return stream3 != nil && stream3 != stream2 && worker.streamState == active
+	}, testTimeout, testTickInterval, "Stream should rotate after drain timeout")
+
+	// === Step 12: Verify snapshot on new stream ===
+	// Snapshot should contain state AFTER batch 2, BEFORE batch 3: {p2, p3, d2, d3}
+	// (p1/d1 were deleted in batch 2)
+	require.Eventually(t, func() bool {
+		return stream3.getSentBatchCount() >= 1
+	}, testTimeout, testTickInterval, "Snapshot should be sent on new stream")
+
+	snapshotBatch2 := stream3.getSentBatch(0)
+	expectedPatterns2 := map[uint64]string{
+		2: "pattern2",
+		3: "pattern3",
+	}
+	expectedDictEntries2 := map[uint64]string{
+		2: "value2",
+		3: "value3",
+	}
+	verifySnapshotContents(t, snapshotBatch2, expectedPatterns2, expectedDictEntries2)
+
+	// Ack snapshot and batch 3
+	stream3.sendAck(0)
+	stream3.sendAck(1)
+
+	// Verify batch 3 appears in outputChan
+	select {
+	case output := <-fixture.outputChan:
+		require.Equal(t, batch3Payload, output)
+	case <-time.After(testTimeout):
+		t.Fatal("Batch 3 should appear in outputChan")
 	}
 }
