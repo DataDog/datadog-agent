@@ -291,7 +291,7 @@ func (s *streamWorker) sendPayloads() {
 		}
 
 		batchID := s.inflight.nextBatchID()
-		batch := s.payloadToBatch(payload, batchID)
+		batch := s.createBatch(payload.Encoded, batchID)
 
 		// TODO Send call can block, by TCP/HTTP2 flow controls
 		if err := s.currentStream.stream.Send(batch); err != nil {
@@ -305,6 +305,30 @@ func (s *streamWorker) sendPayloads() {
 	}
 }
 
+// sendSnapshot sends the snapshot state as batch 0 on a new stream
+// Returns true if successful, initiates stream rotation and returns false if failed
+func (s *streamWorker) sendSnapshot() bool {
+	serialized := s.inflight.getSnapshot()
+
+	// Snapshot is empty means no state
+	if serialized == nil {
+		return true
+	}
+
+	// Create batch with batchID 0 (reserved for snapshot)
+	batch := s.createBatch(serialized, 0)
+
+	// Send snapshot
+	if err := s.currentStream.stream.Send(batch); err != nil {
+		log.Warnf("Worker %s: Failed to send snapshot: %v, initiating stream rotation", s.workerID, err)
+		s.beginStreamRotation()
+		return false
+	}
+
+	log.Infof("Worker %s: Sent snapshot (%d bytes)", s.workerID, len(serialized))
+	return true
+}
+
 // handleBatchAck processes a BatchStatus acknowledgment from the server
 func (s *streamWorker) handleBatchAck(ack *batchAck) {
 	// Ignore stale acks from old streams
@@ -313,6 +337,11 @@ func (s *streamWorker) handleBatchAck(ack *batchAck) {
 	}
 
 	receivedBatchID := uint32(ack.status.BatchId)
+
+	// Handle snapshot/state ack (batch 0) - no payload to pop
+	if receivedBatchID == 0 {
+		return
+	}
 
 	// The two errors below should never happen if Intake is implemented
 	// correctly, but we are being defensive.
@@ -463,8 +492,12 @@ func (s *streamWorker) finishStreamRotation(streamInfo *streamInfo) {
 
 	log.Infof("Worker %s: Stream rotation complete, now active", s.workerID)
 
-	// TODO implement: transmit the snapshot state first
-	// Then send the remaining buffered payloads
+	// Send snapshot state first (batch 0)
+	if !s.sendSnapshot() {
+		return
+	}
+
+	// Then send the remaining buffered payloads (batch 1, 2, ...)
 	if s.inflight.hasUnSent() {
 		s.sendPayloads()
 	}
@@ -659,15 +692,12 @@ func (s *streamWorker) handleIrrecoverableError(_ string, streamInfo *streamInfo
 	s.signalRecvFailure(streamInfo)
 }
 
-// payloadToBatch converts a message payload to a StatefulBatch
-// The payload.Encoded contains serialized DatumSequence (from batch_strategy)
-func (s *streamWorker) payloadToBatch(payload *message.Payload, batchID uint32) *StatefulBatch {
-	batch := &StatefulBatch{
+// createBatch creates a StatefulBatch from serialized data and batch ID
+func (s *streamWorker) createBatch(data []byte, batchID uint32) *StatefulBatch {
+	return &StatefulBatch{
 		BatchId: batchID,
-		Data:    payload.Encoded,
+		Data:    data,
 	}
-
-	return batch
 }
 
 // createStoppedTimer creates a timer that is stopped and has its channel drained
