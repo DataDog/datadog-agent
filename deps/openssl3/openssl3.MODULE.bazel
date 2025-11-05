@@ -18,6 +18,7 @@ http_archive(
         "darwin_arm64/crypto/ec/ecp_nistz256-armv8.S": "//deps/openssl3:overlay/darwin_arm64/crypto/ec/ecp_nistz256-armv8.S",
         "darwin_arm64/crypto/ec/ecp_sm2p256-armv8.S": "//deps/openssl3:overlay/darwin_arm64/crypto/ec/ecp_sm2p256-armv8.S",
         "darwin_arm64/crypto/md5/md5-aarch64.S": "//deps/openssl3:overlay/darwin_arm64/crypto/md5/md5-aarch64.S",
+        "darwin_arm64/crypto/modes/aes-gcm-armv8-unroll8_64.S": "//deps/openssl3:overlay/darwin_arm64/crypto/modes/aes-gcm-armv8-unroll8_64.S",
         "darwin_arm64/crypto/modes/aes-gcm-armv8_64.S": "//deps/openssl3:overlay/darwin_arm64/crypto/modes/aes-gcm-armv8_64.S",
         "darwin_arm64/crypto/modes/ghashv8-armx.S": "//deps/openssl3:overlay/darwin_arm64/crypto/modes/ghashv8-armx.S",
         "darwin_arm64/crypto/params_idx.c": "//deps/openssl3:overlay/darwin_arm64/crypto/params_idx.c",
