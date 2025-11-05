@@ -2,6 +2,46 @@
 Release Notes
 =============
 
+.. _Release Notes_7.72.1:
+
+7.72.1
+======
+
+.. _Release Notes_7.72.1_Prelude:
+
+Prelude
+-------
+
+Release on: 2025-11-05
+
+- Please refer to the `7.72.1 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7721>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.72.1_Upgrade Notes:
+
+Upgrade Notes
+-------------
+
+- Upgraded the WDK version used by ddprocmon.
+
+
+.. _Release Notes_7.72.1_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fixed a regression with Prometheus scraping for Istio-injected containers
+  introduced in version 7.70.
+
+- Fixed potential page fault and BSOD when trying to read environment variables from Windows user mode processes.
+
+- In Agent v7.69.0, the Autodiscovery filtering mechanism began applying
+  filters defined in `container_include` to metrics and logs collection.
+  This reverts the behavior to respect only the product specific filters.
+
+- Fixes regression affecting compatibility for versions of macOS older than 13.3 (involving the libz library).
+
+
 .. _Release Notes_7.72.0:
 
 7.72.0
