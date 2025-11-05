@@ -10,6 +10,7 @@ package autoinstrumentation
 import (
 	"encoding/json"
 	"fmt"
+	"reflect"
 	"strings"
 	"sync"
 	"time"
@@ -319,15 +320,15 @@ func newTagBasedImageResolver() ImageResolver {
 // NewImageResolver creates the appropriate ImageResolver based on whether
 // a remote config client is available.
 func NewImageResolver(rcClient RemoteConfigClient, cfg config.Component) ImageResolver {
-	return newTagBasedImageResolver()
-	// if rcClient == nil || reflect.ValueOf(rcClient).IsNil() {
-	// 	log.Debugf("No remote config client available")
-	// 	return newNoOpImageResolver()
-	// }
+	// return newTagBasedImageResolver()
+	if rcClient == nil || reflect.ValueOf(rcClient).IsNil() {
+		log.Debugf("No remote config client available")
+		return newNoOpImageResolver()
+	}
 
-	// datadogRegistriesSet := cfg.GetStringMap("admission_controller.auto_instrumentation.default_dd_registries")
+	datadogRegistriesSet := cfg.GetStringMap("admission_controller.auto_instrumentation.default_dd_registries")
 
-	// return newRemoteConfigImageResolverWithDefaultDatadoghqRegistries(rcClient, datadogRegistriesSet)
+	return newRemoteConfigImageResolverWithDefaultDatadoghqRegistries(rcClient, datadogRegistriesSet)
 }
 
 func newRemoteConfigImageResolverWithDefaultDatadoghqRegistries(rcClient RemoteConfigClient, datadoghqRegistries map[string]any) ImageResolver {
