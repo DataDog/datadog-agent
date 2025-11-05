@@ -16,6 +16,7 @@ import (
 	"sort"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -482,6 +483,8 @@ func TestInvalidAPIKeyTriggersSecretRefresh(t *testing.T) {
 	fh.keysPerAPIEndpoint = map[string][]string{ts.URL: {"invalid_key"}}
 	fh.checkValidAPIKey()
 
-	assert.Equal(t, 1, refreshCalls, "secrets.Refresh should be called once when API key is invalid")
+	assert.Eventually(t, func() bool {
+		return refreshCalls == 1
+	}, 1*time.Second, 10*time.Millisecond, "secrets.Refresh should be called once when API key is invalid")
 	assert.False(t, bypassValue, "secrets.Refresh should be called with bypassRateLimit=false")
 }

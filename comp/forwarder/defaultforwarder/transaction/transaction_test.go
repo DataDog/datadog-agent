@@ -218,6 +218,9 @@ func TestTransaction403TriggersSecretRefresh(t *testing.T) {
 	err := transaction.Process(context.Background(), mockConfig, log, secrets, client)
 
 	assert.NoError(t, err)
-	assert.Equal(t, 1, refreshCalls, "secrets.Refresh should be called once when transaction receives 403")
+
+	assert.Eventually(t, func() bool {
+		return refreshCalls == 1
+	}, 1*time.Second, 10*time.Millisecond, "secrets.Refresh should be called once when transaction receives 403")
 	assert.False(t, bypassValue, "secrets.Refresh should be called with bypassRateLimit=false")
 }
