@@ -219,8 +219,9 @@ func TestRequestScan(t *testing.T) {
 			}
 
 			assert.EventuallyWithT(t, func(t *assert.CollectT) {
-				assert.Equal(t, len(tt.expectedDeviceScans), len(scanManager.deviceScans))
-				for _, actualScan := range scanManager.deviceScans {
+				actualDeviceScans := scanManager.cloneDeviceScans()
+				assert.Equal(t, len(tt.expectedDeviceScans), len(actualDeviceScans))
+				for _, actualScan := range actualDeviceScans {
 					expectedScan, exists := tt.expectedDeviceScans[actualScan.DeviceIP]
 					assert.True(t, exists)
 
@@ -413,8 +414,9 @@ func TestProcessScanRequest(t *testing.T) {
 			} else {
 				assert.NoError(t, scanErr)
 
-				assert.Equal(t, len(tt.expectedDeviceScans), len(scanManager.deviceScans))
-				for _, actualScan := range scanManager.deviceScans {
+				actualDeviceScans := scanManager.cloneDeviceScans()
+				assert.Equal(t, len(tt.expectedDeviceScans), len(actualDeviceScans))
+				for _, actualScan := range actualDeviceScans {
 					expectedScan, exists := tt.expectedDeviceScans[actualScan.DeviceIP]
 					assert.True(t, exists)
 
@@ -520,7 +522,7 @@ func TestCacheIsLoaded(t *testing.T) {
 
 			scanManager, ok := provides.Comp.(*snmpScanManagerImpl)
 			assert.True(t, ok)
-			assert.Equal(t, tt.buildExpectedDeviceScans(), scanManager.deviceScans)
+			assert.Equal(t, tt.buildExpectedDeviceScans(), scanManager.cloneDeviceScans())
 		})
 	}
 }

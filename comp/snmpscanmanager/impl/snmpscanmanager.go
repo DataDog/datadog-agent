@@ -10,6 +10,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"maps"
 	"sync"
 	"time"
 
@@ -257,4 +258,11 @@ func (m *snmpScanManagerImpl) setDeviceScan(deviceScan deviceScan) {
 	defer m.mtx.Unlock()
 
 	m.deviceScans[deviceScan.DeviceIP] = deviceScan
+}
+
+func (m *snmpScanManagerImpl) cloneDeviceScans() deviceScansByIP {
+	m.mtx.Lock()
+	defer m.mtx.Unlock()
+
+	return maps.Clone(m.deviceScans)
 }
