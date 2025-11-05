@@ -17,6 +17,7 @@
       --storage-opt "size=50GB"
       -v "$(Get-Location):c:\mnt"
       -e AWS_NETWORKING=true
+      -e CI_JOB_ID=${CI_JOB_ID}
       -e CI_PIPELINE_ID=${CI_PIPELINE_ID}
       -e CI_PROJECT_NAME=${CI_PROJECT_NAME}
       -e GOMODCACHE="c:\modcache"

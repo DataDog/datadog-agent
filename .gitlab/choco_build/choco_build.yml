@@ -17,6 +17,7 @@
       docker run --rm
       -v "$(Get-Location):c:\mnt"
       -e CI_PROJECT_NAME=${CI_PROJECT_NAME}
+      -e CI_JOB_ID=${CI_JOB_ID}
       -e CI_PIPELINE_ID=${CI_PIPELINE_ID}
       -e BUCKET_BRANCH="$BUCKET_BRANCH"
       -e AWS_NETWORKING=true
