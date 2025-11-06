@@ -5,7 +5,11 @@
 
 package log
 
-import "github.com/DataDog/datadog-agent/pkg/util/log/types"
+import (
+	"github.com/cihub/seelog"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log/types"
+)
 
 // LogLevel is the type of log levels
 //
@@ -34,9 +38,8 @@ const (
 	OffStr      = types.OffStr
 )
 
-// LogLevelFromString returns a LogLevel from a string
-//
-//nolint:revive // keeping the original function name from seelog
-func LogLevelFromString(levelStr string) (LogLevel, bool) {
-	return types.LogLevelFromString(levelStr)
+// logLevelFromString returns a LogLevel from a string
+func logLevelFromString(levelStr string) (LogLevel, bool) {
+	level, ok := seelog.LogLevelFromString(levelStr)
+	return LogLevel(level), ok
 }
