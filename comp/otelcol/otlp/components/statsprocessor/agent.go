@@ -60,7 +60,7 @@ type noopTraceWriter struct{}
 
 func (n *noopTraceWriter) Stop() {}
 
-func (n *noopTraceWriter) WriteChunks(_ *writer.SampledChunks) {}
+func (n *noopTraceWriter) WriteChunksV1(_ *writer.SampledChunksV1) {}
 
 func (n *noopTraceWriter) FlushSync() error { return nil }
 
@@ -97,7 +97,7 @@ func NewAgentWithConfig(ctx context.Context, cfg *traceconfig.AgentConfig, out c
 	// so that we can transform them to Datadog spans and receive stats.
 	a.OTLPReceiver = api.NewOTLPReceiver(pchan, cfg, metricsClient, timingReporter)
 	// we want to discard all traces that would be written out so replace traceWriter with noop
-	a.TraceWriter = &noopTraceWriter{}
+	a.TraceWriterV1 = &noopTraceWriter{}
 
 	return &TraceAgent{
 		Agent: a,
