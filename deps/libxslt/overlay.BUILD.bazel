@@ -100,6 +100,9 @@ cc_library(
     copts = [
         "-O2",
     ],
+    local_defines = [
+        "HAVE_CONFIG_H",
+    ],
 )
 
 cc_shared_library(
@@ -185,6 +188,9 @@ cc_library(
     ],
     copts = [
         "-O2",
+    ],
+    local_defines = [
+        "HAVE_CONFIG_H",
     ],
 )
 
