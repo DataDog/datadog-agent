@@ -18,7 +18,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace/idx"
 	"github.com/DataDog/datadog-agent/pkg/serverless/random"
 	"github.com/DataDog/datadog-agent/pkg/serverless/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/testutil"
@@ -174,7 +173,7 @@ func TestSetTraceTagOk(t *testing.T) {
 	agent := trace.StartServerlessTraceAgent(trace.StartServerlessTraceAgentArgs{
 		Enabled:         true,
 		LoadConfig:      &trace.LoadConfig{Path: "/does-not-exist.yml"},
-		LambdaSpanChan:  make(chan *idx.InternalSpan),
+		LambdaSpanChan:  make(chan *trace.LambdaSpan),
 		ColdStartSpanID: random.Random.Uint64(),
 	})
 	defer agent.Stop()

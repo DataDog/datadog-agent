@@ -18,7 +18,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/serverless-init/cloudservice"
 	gzip "github.com/DataDog/datadog-agent/comp/trace/compression/impl-gzip"
-	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace/idx"
 	"github.com/DataDog/datadog-agent/pkg/trace/agent"
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
@@ -225,7 +224,7 @@ func TestLambdaSpanChan(t *testing.T) {
 	cfg.Endpoints[0].APIKey = "test"
 	ctx, cancel := context.WithCancel(context.Background())
 	agnt := agent.NewAgent(ctx, cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, gzip.NewComponent())
-	lambdaSpanChan := make(chan *idx.InternalSpan)
+	lambdaSpanChan := make(chan *LambdaSpan)
 	agnt.SpanModifier = &spanModifier{
 		tags:           cfg.GlobalTags,
 		lambdaSpanChan: lambdaSpanChan,
@@ -242,14 +241,14 @@ func TestLambdaSpanChan(t *testing.T) {
 		Source:        agnt.Receiver.Stats.GetTagStats(info.Tags{}),
 	})
 	timeout := time.After(2 * time.Second)
-	var span *idx.InternalSpan
+	var span *LambdaSpan
 	select {
 	case ss := <-lambdaSpanChan:
 		span = ss
 	case <-timeout:
 		t.Fatal("timed out")
 	}
-	assert.Equal(t, "myTestService", span.Service())
+	assert.Equal(t, "myTestService", span.Span.Service())
 }
 
 func TestLambdaSpanChanWithInvalidSpan(t *testing.T) {
@@ -260,7 +259,7 @@ func TestLambdaSpanChanWithInvalidSpan(t *testing.T) {
 	cfg.Endpoints[0].APIKey = "test"
 	ctx, cancel := context.WithCancel(context.Background())
 	agnt := agent.NewAgent(ctx, cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, gzip.NewComponent())
-	lambdaSpanChan := make(chan *idx.InternalSpan)
+	lambdaSpanChan := make(chan *LambdaSpan)
 	agnt.SpanModifier = &spanModifier{
 		tags:           cfg.GlobalTags,
 		lambdaSpanChan: lambdaSpanChan,

@@ -109,7 +109,7 @@ func (l *LoadConfig) Load() (*config.AgentConfig, error) {
 type StartServerlessTraceAgentArgs struct {
 	Enabled             bool
 	LoadConfig          Load
-	LambdaSpanChan      chan<- *idx.InternalSpan
+	LambdaSpanChan      chan<- *LambdaSpan
 	ColdStartSpanID     uint64
 	AzureServerlessTags string
 	FunctionTags        string

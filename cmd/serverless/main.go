@@ -29,7 +29,6 @@ import (
 	remoteconfig "github.com/DataDog/datadog-agent/pkg/config/remote/service"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
-	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace/idx"
 	"github.com/DataDog/datadog-agent/pkg/serverless"
 	"github.com/DataDog/datadog-agent/pkg/serverless/apikey"
 	"github.com/DataDog/datadog-agent/pkg/serverless/appsec"
@@ -120,7 +119,7 @@ func runAgent(tagger tagger.Component, compression logscompression.Component, ho
 
 	logChannel := make(chan *logConfig.ChannelMessage)
 	// Channels for ColdStartCreator
-	lambdaSpanChan := make(chan *idx.InternalSpan)
+	lambdaSpanChan := make(chan *trace.LambdaSpan)
 	lambdaInitMetricChan := make(chan *serverlessLogs.LambdaInitMetric)
 	//nolint:revive // TODO(SERV) Fix revive linter
 	coldStartSpanId := random.Random.Uint64()
@@ -285,7 +284,7 @@ func setupLambdaAgentOverrides() {
 	}
 }
 
-func startColdStartSpanCreator(lambdaSpanChan chan *idx.InternalSpan, lambdaInitMetricChan chan *serverlessLogs.LambdaInitMetric, serverlessDaemon *daemon.Daemon, coldStartSpanId uint64) {
+func startColdStartSpanCreator(lambdaSpanChan chan *trace.LambdaSpan, lambdaInitMetricChan chan *serverlessLogs.LambdaInitMetric, serverlessDaemon *daemon.Daemon, coldStartSpanId uint64) {
 	coldStartSpanCreator := &trace.ColdStartSpanCreator{
 		LambdaSpanChan:       lambdaSpanChan,
 		LambdaInitMetricChan: lambdaInitMetricChan,
@@ -352,7 +351,7 @@ func startOtlpAgent(wg *sync.WaitGroup, metricAgent *metrics.ServerlessMetricAge
 
 }
 
-func startTraceAgent(wg *sync.WaitGroup, lambdaSpanChan chan *idx.InternalSpan, coldStartSpanId uint64, serverlessDaemon *daemon.Daemon, tagger tagger.Component, rcService *remoteconfig.CoreAgentService) {
+func startTraceAgent(wg *sync.WaitGroup, lambdaSpanChan chan *trace.LambdaSpan, coldStartSpanId uint64, serverlessDaemon *daemon.Daemon, tagger tagger.Component, rcService *remoteconfig.CoreAgentService) {
 	defer wg.Done()
 	traceAgent := trace.StartServerlessTraceAgent(trace.StartServerlessTraceAgentArgs{
 		Enabled:         configUtils.IsAPMEnabled(pkgconfigsetup.Datadog()),

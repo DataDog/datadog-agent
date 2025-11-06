@@ -19,21 +19,24 @@ const (
 
 type spanModifier struct {
 	tags           map[string]string
-	lambdaSpanChan chan<- *idx.InternalSpan
+	lambdaSpanChan chan<- *LambdaSpan
 	//nolint:revive // TODO(SERV) Fix revive linter
 	coldStartSpanId uint64
 	ddOrigin        string
 }
 
 // ModifySpan applies extra logic to the given span
-func (s *spanModifier) ModifySpan(_ *idx.InternalTraceChunk, span *idx.InternalSpan) {
+func (s *spanModifier) ModifySpan(chunk *idx.InternalTraceChunk, span *idx.InternalSpan) {
 	if span.Service() == "aws.lambda" {
 		// service name could be incorrectly set to 'aws.lambda' in datadog lambda libraries
 		if s.tags["service"] != "" {
 			span.SetService(s.tags["service"])
 		}
 		if s.lambdaSpanChan != nil && span.Name() == "aws.lambda" {
-			s.lambdaSpanChan <- span
+			s.lambdaSpanChan <- &LambdaSpan{
+				TraceID: chunk.TraceID[:],
+				Span:    span,
+			}
 		}
 	}
 

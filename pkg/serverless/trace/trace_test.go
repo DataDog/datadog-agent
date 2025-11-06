@@ -43,7 +43,7 @@ func createTestSpan(attrs map[string]string) *idx.InternalSpan {
 func TestStartEnabledFalse(t *testing.T) {
 	setupTraceAgentTest(t)
 
-	lambdaSpanChan := make(chan *idx.InternalSpan)
+	lambdaSpanChan := make(chan *LambdaSpan)
 	agent := StartServerlessTraceAgent(StartServerlessTraceAgentArgs{
 		LambdaSpanChan:  lambdaSpanChan,
 		ColdStartSpanID: random.Random.Uint64(),
@@ -64,7 +64,7 @@ func (l *LoadConfigMocked) Load() (*config.AgentConfig, error) {
 func TestStartEnabledTrueInvalidConfig(t *testing.T) {
 	setupTraceAgentTest(t)
 
-	lambdaSpanChan := make(chan *idx.InternalSpan)
+	lambdaSpanChan := make(chan *LambdaSpan)
 	agent := StartServerlessTraceAgent(StartServerlessTraceAgentArgs{
 		Enabled:         true,
 		LoadConfig:      &LoadConfigMocked{},
@@ -79,7 +79,7 @@ func TestStartEnabledTrueInvalidConfig(t *testing.T) {
 func TestStartEnabledTrueValidConfigInvalidPath(t *testing.T) {
 	setupTraceAgentTest(t)
 
-	lambdaSpanChan := make(chan *idx.InternalSpan)
+	lambdaSpanChan := make(chan *LambdaSpan)
 
 	configmock.SetDefaultConfigType(t, "yaml")
 	t.Setenv("DD_API_KEY", "x")
@@ -97,7 +97,7 @@ func TestStartEnabledTrueValidConfigInvalidPath(t *testing.T) {
 func TestStartEnabledTrueValidConfigValidPath(t *testing.T) {
 	setupTraceAgentTest(t)
 
-	lambdaSpanChan := make(chan *idx.InternalSpan)
+	lambdaSpanChan := make(chan *LambdaSpan)
 
 	agent := StartServerlessTraceAgent(StartServerlessTraceAgentArgs{
 		Enabled:         true,
@@ -216,7 +216,7 @@ func TestStartServerlessTraceAgentFunctionTags(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			setupTraceAgentTest(t)
 
-			lambdaSpanChan := make(chan *idx.InternalSpan)
+			lambdaSpanChan := make(chan *LambdaSpan)
 
 			agent := StartServerlessTraceAgent(StartServerlessTraceAgentArgs{
 				Enabled:         true,
