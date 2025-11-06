@@ -13,8 +13,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"net"
+	"os"
 	"os/exec"
+	"path/filepath"
+	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -95,6 +99,36 @@ func getConsoleUserUID() (string, error) {
 	return uid, nil
 }
 
+// validateSocketOwnership verifies the socket file is owned by the expected user
+func validateSocketOwnership(socketPath string) error {
+	// Extract expected UID from socket path (wifi-{UID}.sock)
+	base := filepath.Base(socketPath)
+	expectedUID := strings.TrimPrefix(base, "wifi-")
+	expectedUID = strings.TrimSuffix(expectedUID, ".sock")
+
+	// Get socket file info
+	fileInfo, err := os.Stat(socketPath)
+	if err != nil {
+		return fmt.Errorf("cannot stat socket: %w", err)
+	}
+
+	// Get socket file owner UID
+	stat, ok := fileInfo.Sys().(*syscall.Stat_t)
+	if !ok {
+		return fmt.Errorf("cannot get socket file stat")
+	}
+
+	actualUID := strconv.FormatUint(uint64(stat.Uid), 10)
+
+	// Verify ownership matches expected user
+	if actualUID != expectedUID {
+		return fmt.Errorf("socket owner mismatch: expected UID %s, got UID %s (potential hijacking attempt)", expectedUID, actualUID)
+	}
+
+	log.Debugf("Socket ownership validated: UID %s", actualUID)
+	return nil
+}
+
 // launchGUIApp attempts to launch the GUI application for the specified user
 func launchGUIApp(uid string) error {
 	// First try using launchctl to start the LaunchAgent service
@@ -122,6 +156,11 @@ func launchGUIApp(uid string) error {
 
 // fetchWiFiFromGUI connects to the GUI Unix socket and fetches WiFi data
 func fetchWiFiFromGUI(socketPath string, timeout time.Duration) (wifiInfo, error) {
+	// Validate socket ownership before connecting (security: prevent socket hijacking)
+	if err := validateSocketOwnership(socketPath); err != nil {
+		return wifiInfo{}, fmt.Errorf("socket validation failed: %w", err)
+	}
+
 	// Connect to Unix socket with timeout
 	conn, err := net.DialTimeout("unix", socketPath, timeout)
 	if err != nil {
