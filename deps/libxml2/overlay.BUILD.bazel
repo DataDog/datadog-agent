@@ -126,6 +126,9 @@ cc_library(
     copts = [
         "-O2",
     ],
+    local_defines = [
+        "NDEBUG",
+    ],
     strip_include_prefix = "include/",
     visibility = ["//visibility:public"],
 )
