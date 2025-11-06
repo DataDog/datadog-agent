@@ -1,0 +1,36 @@
+# .github/workflows/release.yaml
+
+on:
+  release:
+    types:
+      - created
+      - edited
+
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  releases-matrix:
+    name: Release Go Binary
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        # build and publish in parallel: linux/386, linux/amd64, linux/arm64, windows/386, windows/amd64, windows/arm64, darwin/amd64, darwin/arm64
+        goos: [linux, windows, darwin]
+        goarch: ["386", "amd64", "arm64"]
+        exclude:
+          - goarch: "386"
+            goos: darwin
+    steps:
+    - uses: actions/checkout@v5
+    - uses: wangyoucao577/go-release-action@v1
+      with:
+        github_token: ${{ secrets.GITHUB_TOKEN }}
+        goversion: 1.25.3
+        goos: ${{ matrix.goos }}
+        goarch: ${{ matrix.goarch }}
+        asset_name: datadog-secret-backend-${{ matrix.goos }}-${{ matrix.goarch }}
+        ldflags: -s -w -X main.appVersion=${{ github.ref_name }}
+        # Reduce the binary size by (1) disabling inlining and (2) disabling the GC write-barrier
+        build_flags: -gcflags=all=-l
