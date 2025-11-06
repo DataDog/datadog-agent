@@ -115,7 +115,7 @@ func run(secretComp secrets.Component, _ autodiscovery.Component, _ healthprobeD
 }
 
 func setup(secretComp secrets.Component, _ mode.Conf, tagger tagger.Component, compression logscompression.Component, hostname hostnameinterface.Component) (cloudservice.CloudService, *serverlessInitLog.Config, trace.ServerlessTraceAgent, *metrics.ServerlessMetricAgent, logsAgent.ServerlessLogsAgent) {
-	tracelog.SetLogger(corelogger{})
+	tracelog.SetLogger(log.NewWrapper(3))
 
 	// load proxy settings
 	pkgconfigsetup.LoadProxyFromEnv(pkgconfigsetup.Datadog())

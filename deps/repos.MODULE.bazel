@@ -146,3 +146,35 @@ http_archive(
         "config-linux-arm64.h": "//deps:attr/config-linux-arm64.h",
     }
 )
+
+http_archive(
+    name = "zstd",
+    build_file = "//deps:zstd.BUILD.bazel",
+    sha256 = "eb33e51f49a15e023950cd7825ca74a4a2b43db8354825ac24fc1b7ee09e6fa3",
+    url = "https://github.com/facebook/zstd/releases/download/v1.5.7/zstd-1.5.7.tar.gz",
+    strip_prefix = "zstd-1.5.7",
+)
+
+http_archive(
+    name = "gpg-error",
+    files = {
+        "config-linux-x86_64.h": "//deps:gpg-error/config-linux-x86_64.h",
+        "config-linux-aarch64.h": "//deps:gpg-error/config-linux-aarch64.h",
+        "BUILD.bazel": "//deps:gpg-error/gpg-error.BUILD.bazel",
+    },
+    sha256 = "82c3d2deb4ad96ad3925d6f9f124fe7205716055ab50e291116ef27975d169c0",
+    url = "https://www.gnupg.org/ftp/gcrypt/libgpg-error/libgpg-error-1.56.tar.bz2",
+    strip_prefix = "libgpg-error-1.56",
+)
+
+http_archive(
+    name = "gcrypt",
+    files = {
+        "config-linux-x86_64.h": "//deps:gcrypt/config-linux-x86_64.h",
+        "config-linux-aarch64.h": "//deps:gcrypt/config-linux-aarch64.h",
+        "BUILD.bazel": "//deps:gcrypt/gcrypt.BUILD.bazel",
+    },
+    sha256 = "6ba59dd192270e8c1d22ddb41a07d95dcdbc1f0fb02d03c4b54b235814330aac",
+    url = "https://gnupg.org/ftp/gcrypt/libgcrypt/libgcrypt-1.11.2.tar.bz2",
+    strip_prefix = "libgcrypt-1.11.2",
+)
