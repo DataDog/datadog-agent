@@ -13,7 +13,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
-	"net/netip"
+	"strconv"
 	"sync"
 	"time"
 
@@ -232,15 +232,22 @@ func start(remoteTagger *remoteTagger) error {
 		grpc.WithTransportCredentials(creds),
 		grpc.WithContextDialer(func(_ context.Context, url string) (net.Conn, error) {
 			if vsockAddr := remoteTagger.cfg.GetString("vsock_addr"); vsockAddr != "" {
+				_, sPort, err := net.SplitHostPort(url)
+				if err != nil {
+					return nil, err
+				}
+
+				port, err := strconv.Atoi(sPort)
+				if err != nil {
+					return nil, fmt.Errorf("invalid port for vsock listener: %v", err)
+				}
+
 				cid, err := socket.ParseVSockAddress(vsockAddr)
 				if err != nil {
 					return nil, err
 				}
-				addrPort, err := netip.ParseAddrPort(vsockAddr)
-				if err != nil {
-					return nil, err
-				}
-				return vsock.Dial(cid, uint32(addrPort.Port()), &vsock.Config{})
+
+				return vsock.Dial(cid, uint32(port), &vsock.Config{})
 			}
 			return net.Dial("tcp", url)
 		}),
