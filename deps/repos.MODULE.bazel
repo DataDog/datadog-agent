@@ -157,10 +157,10 @@ http_archive(
 
 http_archive(
     name = "gpg-error",
-    build_file = "//deps:gpg-error.BUILD.bazel",
     files = {
         "config-linux-x86_64.h": "//deps:gpg-error/config-linux-x86_64.h",
         "config-linux-aarch64.h": "//deps:gpg-error/config-linux-aarch64.h",
+        "BUILD.bazel": "//deps:gpg-error/gpg-error.BUILD.bazel",
     },
     sha256 = "82c3d2deb4ad96ad3925d6f9f124fe7205716055ab50e291116ef27975d169c0",
     url = "https://www.gnupg.org/ftp/gcrypt/libgpg-error/libgpg-error-1.56.tar.bz2",
@@ -169,10 +169,10 @@ http_archive(
 
 http_archive(
     name = "gcrypt",
-    build_file = "//deps:gcrypt.BUILD.bazel",
     files = {
         "config-linux-x86_64.h": "//deps:gcrypt/config-linux-x86_64.h",
         "config-linux-aarch64.h": "//deps:gcrypt/config-linux-aarch64.h",
+        "BUILD.bazel": "//deps:gcrypt/gcrypt.BUILD.bazel",
     },
     sha256 = "6ba59dd192270e8c1d22ddb41a07d95dcdbc1f0fb02d03c4b54b235814330aac",
     url = "https://gnupg.org/ftp/gcrypt/libgcrypt/libgcrypt-1.11.2.tar.bz2",
