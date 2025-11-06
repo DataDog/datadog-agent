@@ -175,7 +175,16 @@ func (w *workloadmeta) Subscribe(name string, priority wmdef.SubscriberPriority,
 
 // Unsubscribe ends a subscription to entity events and closes its channel.
 func (w *workloadmeta) Unsubscribe(ch chan wmdef.EventBundle) {
-	<-ch
+	for {
+		select {
+		case <-ch:
+			// Empty out channel
+		default:
+			// Exit if channel is empty
+			goto done
+		}
+	}
+done:
 	w.subscribersMut.Lock()
 	defer w.subscribersMut.Unlock()
 
