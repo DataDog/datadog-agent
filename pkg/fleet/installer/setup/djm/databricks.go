@@ -37,14 +37,14 @@ var (
 			Path:                   "/databricks/driver/logs/*.log",
 			Source:                 "driver_logs",
 			Service:                "databricks",
-			AutoMultiLineDetection: true,
+			AutoMultiLineDetection: config.BoolToPtr(true),
 		},
 		{
 			Type:                   "file",
 			Path:                   "/databricks/driver/logs/stderr",
 			Source:                 "driver_stderr",
 			Service:                "databricks",
-			AutoMultiLineDetection: true,
+			AutoMultiLineDetection: config.BoolToPtr(true),
 		},
 		{
 			Type:    "file",
@@ -54,7 +54,7 @@ var (
 			LogProcessingRules: []config.LogProcessingRule{
 				{Type: "multi_line", Name: "logger_multiline", Pattern: "(^\\+[-+]+\\n(\\|.*\\n)+\\+[-+]+$)|^(ERROR|INFO|DEBUG|WARN|CRITICAL|NOTSET|Traceback)"},
 			},
-			AutoMultiLineDetection: true,
+			AutoMultiLineDetection: config.BoolToPtr(true),
 		},
 	}
 	workerLogs = []config.IntegrationConfigLogs{
@@ -63,21 +63,21 @@ var (
 			Path:                   "/databricks/spark/work/*/*/*.log",
 			Source:                 "worker_logs",
 			Service:                "databricks",
-			AutoMultiLineDetection: true,
+			AutoMultiLineDetection: config.BoolToPtr(true),
 		},
 		{
 			Type:                   "file",
 			Path:                   "/databricks/spark/work/*/*/stderr",
 			Source:                 "worker_stderr",
 			Service:                "databricks",
-			AutoMultiLineDetection: true,
+			AutoMultiLineDetection: config.BoolToPtr(true),
 		},
 		{
 			Type:                   "file",
 			Path:                   "/databricks/spark/work/*/*/stdout",
 			Source:                 "worker_stdout",
 			Service:                "databricks",
-			AutoMultiLineDetection: true,
+			AutoMultiLineDetection: config.BoolToPtr(true),
 		},
 	}
 	tracerConfigDatabricks = config.APMConfigurationDefault{
@@ -100,7 +100,7 @@ func SetupDatabricks(s *common.Setup) error {
 		return fmt.Errorf("failed to get hostname: %w", err)
 	}
 	s.Config.DatadogYAML.Hostname = hostname
-	s.Config.DatadogYAML.DJM.Enabled = true
+	s.Config.DatadogYAML.DJM.Enabled = config.BoolToPtr(true)
 	s.Config.DatadogYAML.ExpectedTagsDuration = "10m"
 	s.Config.DatadogYAML.ProcessConfig.ExpvarPort = 6063 // avoid port conflict on 6062
 
@@ -129,7 +129,7 @@ func SetupDatabricks(s *common.Setup) error {
 	default:
 		setupDatabricksWorker(s)
 	}
-	if s.Config.DatadogYAML.LogsEnabled {
+	if s.Config.DatadogYAML.LogsEnabled != nil && *s.Config.DatadogYAML.LogsEnabled {
 		loadLogProcessingRules(s)
 	}
 	return nil
@@ -243,7 +243,7 @@ func setupGPUIntegration(s *common.Setup) {
 	s.Out.WriteString("Setting up GPU monitoring based on env variable GPU_MONITORING_ENABLED=true\n")
 	s.Span.SetTag("host_tag_set.gpu_monitoring_enabled", "true")
 
-	s.Config.DatadogYAML.GPUCheck.Enabled = true
+	s.Config.DatadogYAML.GPUCheck.Enabled = config.BoolToPtr(true)
 
 	// Agent must be restarted after NVML initialization, which occurs after init script execution
 	s.DelayedAgentRestartConfig.Scheduled = true
@@ -257,7 +257,7 @@ func setupDatabricksDriver(s *common.Setup) {
 
 	var sparkIntegration config.IntegrationConfig
 	if os.Getenv("DRIVER_LOGS_ENABLED") == "true" {
-		s.Config.DatadogYAML.LogsEnabled = true
+		s.Config.DatadogYAML.LogsEnabled = config.BoolToPtr(true)
 		sparkIntegration.Logs = driverLogs
 		s.Span.SetTag("host_tag_set.driver_logs_enabled", "true")
 	}
@@ -281,7 +281,7 @@ func setupDatabricksWorker(s *common.Setup) {
 	var sparkIntegration config.IntegrationConfig
 
 	if os.Getenv("WORKER_LOGS_ENABLED") == "true" {
-		s.Config.DatadogYAML.LogsEnabled = true
+		s.Config.DatadogYAML.LogsEnabled = config.BoolToPtr(true)
 		sparkIntegration.Logs = workerLogs
 		s.Span.SetTag("host_tag_set.worker_logs_enabled", "true")
 	}

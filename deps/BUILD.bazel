@@ -14,7 +14,7 @@ filegroup(
         "@patchelf",
         "@sqlite3",
         "@xz//:lzma",
-        "@zlib//:libz_so",
+        "@zlib//:z",
     ] + select({
         "@platforms//os:linux": [
             "@libsepol//:sepol",
