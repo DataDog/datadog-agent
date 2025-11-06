@@ -12,6 +12,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
+	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
@@ -120,7 +121,7 @@ func (c *WLANCheck) Run() error {
 		
 		sender.ServiceCheck(
 			"system.wlan.can_connect",
-			core.ServiceCheckCritical,
+			servicecheck.ServiceCheckCritical,
 			"",
 			nil,
 			err.Error(),
@@ -135,7 +136,7 @@ func (c *WLANCheck) Run() error {
 		
 		sender.ServiceCheck(
 			"system.wlan.can_connect",
-			core.ServiceCheckWarning,
+			servicecheck.ServiceCheckWarning,
 			"",
 			nil,
 			"WiFi interface not active",
@@ -147,7 +148,7 @@ func (c *WLANCheck) Run() error {
 	// WiFi data collected successfully - emit OK service check
 	sender.ServiceCheck(
 		"system.wlan.can_connect",
-		core.ServiceCheckOK,
+		servicecheck.ServiceCheckOK,
 		"",
 		nil,
 		"",
