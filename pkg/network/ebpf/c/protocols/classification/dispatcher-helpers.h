@@ -132,10 +132,10 @@ static __always_inline void protocol_dispatcher_entrypoint(struct __sk_buff *skb
         return;
     }
 
-#ifdef COMPILE_CORE
+#ifndef COMPILE_PREBUILT
     struct task_struct *task = (void *)bpf_get_current_task();
     skb_tup.pid = BPF_CORE_READ(task, tgid);
-#endif // COMPILE_CORE
+#endif // COMPILE_PREBUILT
 
     bool tcp_termination = is_tcp_termination(&skb_info);
     // We don't process non tcp packets, nor empty tcp packets which are not tcp termination packets.
@@ -217,10 +217,10 @@ static __always_inline void dispatch_kafka(struct __sk_buff *skb) {
         return;
     }
 
-#ifdef COMPILE_CORE
+#ifndef COMPILE_PREBUILT
     struct task_struct *task = (void *)bpf_get_current_task();
     skb_tup.pid = BPF_CORE_READ(task, tgid);
-#endif // COMPILE_CORE
+#endif // COMPILE_PREBUILT
 
     char request_fragment[CLASSIFICATION_MAX_BUFFER];
     bpf_memset(request_fragment, 0, sizeof(request_fragment));

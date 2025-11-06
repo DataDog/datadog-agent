@@ -137,10 +137,10 @@ __maybe_unused static __always_inline void protocol_classifier_entrypoint(struct
         return;
     }
 
-#ifdef COMPILE_CORE
+#ifndef COMPILE_PREBUILT
     struct task_struct *task = (void *)bpf_get_current_task();
     skb_tup.pid = BPF_CORE_READ(task, tgid);
-#endif // COMPILE_CORE
+#endif // COMPILE_PREBUILT
 
     // We support non empty TCP payloads for classification at the moment.
     if (!is_tcp(&skb_tup) || is_payload_empty(&skb_info)) {
