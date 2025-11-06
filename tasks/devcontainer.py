@@ -23,7 +23,7 @@ from tasks.libs.common.utils import is_installed
 DEVCONTAINER_DIR = ".devcontainer"
 DEVCONTAINER_FILE = "devcontainer.json"
 DEVCONTAINER_NAME = "datadog-agent-devcontainer"
-DEVCONTAINER_IMAGE = "registry.ddbuild.io/ci/datadog-agent-devenv:1-arm64"
+DEVCONTAINER_IMAGE = "datadog/agent-dev-env-linux"
 
 
 class SkaffoldProfile(Enum):
@@ -40,7 +40,7 @@ def setup(
     build_exclude=None,
     skaffoldProfile=None,
     flavor=AgentFlavor.base.name,
-    image='',
+    image=DEVCONTAINER_IMAGE,
 ):
     """
     Generate or Modify devcontainer settings file for this project.
@@ -71,6 +71,9 @@ def setup(
 
     local_build_tags = ",".join(use_tags)
 
+    # Remove explicitly for out of date devcontainer.json files using the latest developer image
+    devcontainer.pop("remoteUser", None)
+
     devcontainer["name"] = "Datadog Agent Development Container"
     if image:
         devcontainer["image"] = image
@@ -92,11 +95,18 @@ def setup(
         "--name",
         "datadog-agent-devcontainer",
     ]
+    if sys.platform != "win32":
+        # Save the current user's UID and GID to a local `.env` file
+        env_file = os.path.join(DEVCONTAINER_DIR, ".env")
+        with open(env_file, "w") as f:
+            f.write(f"UID={os.getuid()}\n")
+            f.write(f"GID={os.getgid()}\n")
+        devcontainer["runArgs"].append(f"--env-file={env_file}")
+
     devcontainer["features"] = {}
-    devcontainer["remoteUser"] = "datadog"
     devcontainer["mounts"] = [
         "source=/var/run/docker.sock,target=/var/run/docker.sock,type=bind,consistency=cached",
-        "source=${localEnv:HOME}/.ssh,target=/home/vscode/.ssh,type=bind,consistency=cached",
+        "source=${localEnv:HOME}${localEnv:USERPROFILE}/.ssh,target=/home/vscode/.ssh,type=bind,consistency=cached",
     ]
     devcontainer["customizations"] = {
         "vscode": {
@@ -125,7 +135,12 @@ def setup(
     # onCreateCommand runs the install-tools and deps tasks only when the devcontainer is created and not each time
     # the container is started
     devcontainer["onCreateCommand"] = (
-        "git config --global --add safe.directory /workspaces/${localWorkspaceFolderBasename} && dda inv -- -e install-tools && dda inv -- -e deps"
+        # SSH is used by default in other circumstances to access private repositories
+        # https://github.com/DataDog/datadog-agent-buildimages/blob/e15e4d4d7e71272c2e338260f5e7b0cdf552d72b/dev-envs/linux/ssh.sh#L31
+        "git config --global --unset url.ssh://git@github.com/.insteadOf && "
+        "git config --global --add safe.directory /workspaces/${localWorkspaceFolderBasename} && "
+        "dda inv -- -e install-tools && "
+        "dda inv -- -e deps"
     )
 
     devcontainer["containerEnv"] = {
