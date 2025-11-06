@@ -104,6 +104,7 @@ cc_library(
         "HAVE_CONFIG_H",
         "NDEBUG",
     ],
+    visibility = ["//visibility:public"],
 )
 
 cc_shared_library(
@@ -113,6 +114,7 @@ cc_shared_library(
     user_link_flags = [
         "-Wl,--version-script=$(location libxslt/libxslt.syms)",
     ],
+    visibility = ["//visibility:public"],
 )
 
 so_symlink(
@@ -194,11 +196,13 @@ cc_library(
         "HAVE_CONFIG_H",
         "NDEBUG",
     ],
+    visibility = ["//visibility:public"],
 )
 
 cc_shared_library(
     name = "exslt",
     deps = [":libexslt"],
+    visibility = ["//visibility:public"],
 )
 
 so_symlink(

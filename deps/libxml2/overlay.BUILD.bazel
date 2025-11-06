@@ -136,6 +136,7 @@ cc_library(
 cc_shared_library(
     name = "xml2",
     deps = [":libxml2"],
+    visibility = ["//visibility:public"],
 )
 
 so_symlink(
