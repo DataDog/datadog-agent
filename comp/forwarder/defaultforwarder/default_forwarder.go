@@ -7,9 +7,11 @@ package defaultforwarder
 
 import (
 	"fmt"
+	"maps"
 	"net/http"
 	"net/url"
 	"path"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -65,8 +67,6 @@ type Forwarder interface {
 	SubmitV1Series(payload transaction.BytesPayloads, extra http.Header) error
 	SubmitV1Intake(payload transaction.BytesPayloads, kind transaction.Kind, extra http.Header) error
 	SubmitV1CheckRuns(payload transaction.BytesPayloads, extra http.Header) error
-	SubmitSeries(payload transaction.BytesPayloads, extra http.Header) error
-	SubmitSketchSeries(payload transaction.BytesPayloads, extra http.Header) error
 	SubmitHostMetadata(payload transaction.BytesPayloads, extra http.Header) error
 	SubmitAgentChecksMetadata(payload transaction.BytesPayloads, extra http.Header) error
 	SubmitMetadata(payload transaction.BytesPayloads, extra http.Header) error
@@ -79,6 +79,14 @@ type Forwarder interface {
 	SubmitConnectionChecks(payload transaction.BytesPayloads, extra http.Header) (chan Response, error)
 	SubmitOrchestratorChecks(payload transaction.BytesPayloads, extra http.Header, payloadType int) error
 	SubmitOrchestratorManifests(payload transaction.BytesPayloads, extra http.Header) error
+
+	ForwarderV2
+}
+
+// ForwarderV2 is a minimalist forwarder interface that is product agnostic.
+type ForwarderV2 interface {
+	GetDomainResolvers() []pkgresolver.DomainResolver
+	SubmitTransaction(*transaction.HTTPTransaction) error
 }
 
 // Compile-time check to ensure that DefaultForwarder implements the Forwarder interface
@@ -773,4 +781,26 @@ func (f *DefaultForwarder) submitProcessLikePayload(ep transaction.Endpoint, pay
 	}()
 
 	return results, f.sendHTTPTransactions(transactions)
+}
+
+// GetDomainResolvers returns the list of resolvers used by this forwarder.
+func (f *DefaultForwarder) GetDomainResolvers() []pkgresolver.DomainResolver {
+	return slices.Collect(maps.Values(f.domainResolvers))
+}
+
+// SubmitTransaction adds a transaction to the queue for sending.
+func (f *DefaultForwarder) SubmitTransaction(t *transaction.HTTPTransaction) error {
+	t.Headers.Set(versionHTTPHeaderKey, version.AgentVersion)
+	t.Headers.Set(useragentHTTPHeaderKey, fmt.Sprintf("datadog-agent/%s", version.AgentVersion))
+
+	if f.config.GetBool("allow_arbitrary_tags") {
+		t.Headers.Set(arbitraryTagHTTPHeaderKey, "true")
+	}
+
+	tlmTxInputCount.Inc(t.Domain, t.Endpoint.Name)
+	tlmTxInputBytes.Add(float64(t.GetPayloadSize()), t.Domain, t.Endpoint.Name)
+	transactionsInputCountByEndpoint.Add(t.Endpoint.Name, 1)
+	transactionsInputBytesByEndpoint.Add(t.Endpoint.Name, int64(t.GetPayloadSize()))
+
+	return f.sendHTTPTransactions([]*transaction.HTTPTransaction{t})
 }
