@@ -36,6 +36,8 @@ extensions:
     v0.139.0
 - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/extension/datadogextension
     v0.139.0
+- gomod: github.com/open-telemetry/opentelemetry-collector-contrib/extension/storage/filestorage
+    v0.139.0
 processors:
 - gomod: go.opentelemetry.io/collector/processor/batchprocessor v0.139.0
 - gomod: go.opentelemetry.io/collector/processor/memorylimiterprocessor v0.139.0

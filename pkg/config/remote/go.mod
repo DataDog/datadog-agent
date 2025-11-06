@@ -21,7 +21,7 @@ require (
 	github.com/gorilla/websocket v1.5.4-0.20250319132907-e064f32e3674
 	github.com/pkg/errors v0.9.1
 	github.com/stretchr/testify v1.11.1
-	go.etcd.io/bbolt v1.4.2
+	go.etcd.io/bbolt v1.4.3
 	go.uber.org/atomic v1.11.0
 	google.golang.org/protobuf v1.36.10
 )

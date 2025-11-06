@@ -365,7 +365,7 @@ require (
 	github.com/xeipuuv/gojsonschema v1.2.0
 	github.com/xi2/xz v0.0.0-20171230120015-48954b6210f8
 	github.com/yusufpapurcu/wmi v1.2.4
-	go.etcd.io/bbolt v1.4.2
+	go.etcd.io/bbolt v1.4.3
 	go.etcd.io/etcd/client/v2 v2.306.0-alpha.0
 	go.mongodb.org/mongo-driver/v2 v2.1.0
 	go.opentelemetry.io/collector/component v1.45.0
@@ -867,11 +867,11 @@ require (
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
 	go.opentelemetry.io/collector v0.139.0 // indirect
 	go.opentelemetry.io/collector/client v1.45.0 // indirect
-	go.opentelemetry.io/collector/component/componentstatus v0.139.0 // indirect
+	go.opentelemetry.io/collector/component/componentstatus v0.139.0
 	go.opentelemetry.io/collector/config/configauth v1.45.0 // indirect
 	go.opentelemetry.io/collector/config/configcompression v1.45.0 // indirect
 	go.opentelemetry.io/collector/config/configgrpc v0.139.0 // indirect
-	go.opentelemetry.io/collector/config/confighttp v0.139.0 // indirect
+	go.opentelemetry.io/collector/config/confighttp v0.139.0
 	go.opentelemetry.io/collector/config/configmiddleware v1.45.0 // indirect
 	go.opentelemetry.io/collector/config/confignet v1.45.0 // indirect
 	go.opentelemetry.io/collector/config/configopaque v1.45.0 // indirect
@@ -894,7 +894,7 @@ require (
 	go.opentelemetry.io/collector/exporter/otlphttpexporter v0.139.0
 	go.opentelemetry.io/collector/exporter/xexporter v0.139.0 // indirect
 	go.opentelemetry.io/collector/extension/extensionauth v1.45.0 // indirect
-	go.opentelemetry.io/collector/extension/extensioncapabilities v0.139.0 // indirect
+	go.opentelemetry.io/collector/extension/extensioncapabilities v0.139.0
 	go.opentelemetry.io/collector/extension/extensionmiddleware v0.139.0 // indirect
 	go.opentelemetry.io/collector/extension/extensiontest v0.139.0 // indirect
 	go.opentelemetry.io/collector/extension/xextension v0.139.0 // indirect
@@ -979,6 +979,7 @@ require (
 require go.opentelemetry.io/contrib/instrumentation/runtime v0.63.0
 
 require (
+	github.com/open-telemetry/opentelemetry-collector-contrib/extension/storage/filestorage v0.139.0 // indirect
 	sigs.k8s.io/randfill v1.0.0 // indirect
 	sigs.k8s.io/structured-merge-diff/v6 v6.3.0 // indirect
 )

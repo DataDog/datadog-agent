@@ -567,6 +567,8 @@ github.com/open-telemetry/opentelemetry-collector-contrib/extension/pprofextensi
 github.com/open-telemetry/opentelemetry-collector-contrib/extension/pprofextension v0.139.0/go.mod h1:EXtGFp5LHlI8r90gZozwdWuPvUmObyxVefab5Z62X+c=
 github.com/open-telemetry/opentelemetry-collector-contrib/extension/storage v0.139.0 h1:3Hhr2s+h3nNiEkvv1G7/ETbvx+BU6z02IBB2ZbrmbNA=
 github.com/open-telemetry/opentelemetry-collector-contrib/extension/storage v0.139.0/go.mod h1:AECEAulTQeHJrwqor6BQDN9r+XevIF9FVvtAel6yDL8=
+github.com/open-telemetry/opentelemetry-collector-contrib/extension/storage/filestorage v0.139.0 h1:t1mrHR5Fo8tzQw2lo4Sv2i+jziqmp8OfOvei3ZS9Llo=
+github.com/open-telemetry/opentelemetry-collector-contrib/extension/storage/filestorage v0.139.0/go.mod h1:maMSeFOLLuXHzEYnqJDv0Xf+0jaJ9sB153ujp/77HEg=
 github.com/open-telemetry/opentelemetry-collector-contrib/internal/aws/ecsutil v0.139.0 h1:+SpPbwzNQFdZiPf22NUy7Y4wh+qH3SPh7QlAT22vQdQ=
 github.com/open-telemetry/opentelemetry-collector-contrib/internal/aws/ecsutil v0.139.0/go.mod h1:9Utc7RbUqrB+L256PyBGIIoCcQk9do3kXvTwuEKmctw=
 github.com/open-telemetry/opentelemetry-collector-contrib/internal/common v0.139.0 h1:/cGH6hlpnMCafSFpjfM7X4zJ8T+iv8SJyVpQQNLhLKY=
@@ -850,6 +852,8 @@ github.com/zeebo/assert v1.3.0 h1:g7C04CbJuIDKNPFHmsk4hwZDO5O+kntRxzaUoNXj+IQ=
 github.com/zeebo/assert v1.3.0/go.mod h1:Pq9JiuJQpG8JLJdtkwrJESF0Foym2/D9XMU5ciN/wJ0=
 github.com/zeebo/xxh3 v1.0.2 h1:xZmwmqxHZA8AI603jOQ0tMqmBr9lPeFwGg6d+xy9DC0=
 github.com/zeebo/xxh3 v1.0.2/go.mod h1:5NWz9Sef7zIDm2JHfFlcQvNekmcEl9ekUZQQKCYaDcA=
+go.etcd.io/bbolt v1.4.3 h1:dEadXpI6G79deX5prL3QRNP6JB8UxVkqo4UPnHaNXJo=
+go.etcd.io/bbolt v1.4.3/go.mod h1:tKQlpPaYCVFctUIgFKFnAlvbmB3tpy1vkTnDWohtc0E=
 go.mongodb.org/mongo-driver v1.17.4 h1:jUorfmVzljjr0FLzYQsGP8cgN/qzzxlY9Vh0C9KFXVw=
 go.mongodb.org/mongo-driver v1.17.4/go.mod h1:Hy04i7O2kC4RS06ZrhPRqj/u4DTYkFDAAccj+rVKqgQ=
 go.opentelemetry.io/auto/sdk v1.2.1 h1:jXsnJ4Lmnqd11kwkBV2LgLoFMZKizbCi5fNZ/ipaZ64=
