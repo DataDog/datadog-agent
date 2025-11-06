@@ -29,58 +29,6 @@ func NewReplacer(rules []*config.ReplaceRule) *Replacer {
 
 const hiddenTagPrefix = "_"
 
-// Replace replaces all tags matching the Replacer's rules.
-func (f Replacer) Replace(trace pb.Trace) {
-	for _, rule := range f.rules {
-		key, str, re := rule.Name, rule.Repl, rule.Re
-		for _, s := range trace {
-			switch key {
-			case "*":
-				for k := range s.Meta {
-					if !strings.HasPrefix(k, hiddenTagPrefix) {
-						s.Meta[k] = re.ReplaceAllString(s.Meta[k], str)
-					}
-				}
-				for k := range s.Metrics {
-					if !strings.HasPrefix(k, hiddenTagPrefix) {
-						f.replaceNumericTag(re, s, k, str)
-					}
-				}
-				s.Resource = re.ReplaceAllString(s.Resource, str)
-				for _, spanEvent := range s.SpanEvents {
-					if spanEvent != nil {
-						for keyAttr, val := range spanEvent.Attributes {
-							if !strings.HasPrefix(keyAttr, hiddenTagPrefix) {
-								spanEvent.Attributes[keyAttr] = f.replaceAttributeAnyValue(re, val, str)
-							}
-						}
-					}
-				}
-			case "resource.name":
-				s.Resource = re.ReplaceAllString(s.Resource, str)
-			default:
-				if s.Meta != nil {
-					if _, ok := s.Meta[key]; ok {
-						s.Meta[key] = re.ReplaceAllString(s.Meta[key], str)
-					}
-				}
-				if s.Metrics != nil {
-					if _, ok := s.Metrics[key]; ok {
-						f.replaceNumericTag(re, s, key, str)
-					}
-				}
-				for _, spanEvent := range s.SpanEvents {
-					if spanEvent != nil {
-						if val, ok := spanEvent.Attributes[key]; ok {
-							spanEvent.Attributes[key] = f.replaceAttributeAnyValue(re, val, str)
-						}
-					}
-				}
-			}
-		}
-	}
-}
-
 // ReplaceV1 replaces all tags matching the Replacer's rules.
 func (f Replacer) ReplaceV1(trace *idx.InternalTraceChunk) {
 	for _, rule := range f.rules {
