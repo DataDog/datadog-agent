@@ -14,7 +14,7 @@
           },
           {
             "type": "author",
-            "regex": "## Last commit: .* by (.*)"
+            "regex": "(?m)^## Last commit: .* by (.*?)\\s*$"
           }
         ],
         "validation": [
