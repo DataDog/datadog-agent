@@ -110,24 +110,59 @@ func (c *WLANCheck) Run() error {
 	if err != nil {
 		return err
 	}
+
+	// Attempt to get WiFi info from GUI via IPC
 	wi, err := getWiFiInfo()
 	if err != nil {
-		log.Error(err)
+		// Failed to get WiFi info - emit CRITICAL service check
+		log.Errorf("WLAN check failed: %v", err)
+		log.Error("Ensure the Datadog Agent GUI is running for WiFi metrics collection on macOS 15+")
+		
+		sender.ServiceCheck(
+			"system.wlan.can_connect",
+			core.ServiceCheckCritical,
+			"",
+			nil,
+			err.Error(),
+		)
+		sender.Commit()
 		return err
 	}
 
+	// Check if WiFi interface is active
 	if wi.phyMode == "None" {
 		log.Warn("No active Wi-Fi interface detected: PHYMode is none.")
+		
+		sender.ServiceCheck(
+			"system.wlan.can_connect",
+			core.ServiceCheckWarning,
+			"",
+			nil,
+			"WiFi interface not active",
+		)
+		sender.Commit()
 		return nil
 	}
 
+	// WiFi data collected successfully - emit OK service check
+	sender.ServiceCheck(
+		"system.wlan.can_connect",
+		core.ServiceCheckOK,
+		"",
+		nil,
+		"",
+	)
+
+	// Prepare tags
 	ssid := wi.ssid
 	if ssid == "" {
 		ssid = "unknown"
+		log.Debug("SSID is empty - this may indicate missing location permission")
 	}
 	bssid := wi.bssid
 	if bssid == "" {
 		bssid = "unknown"
+		log.Debug("BSSID is empty - this may indicate missing location permission")
 	}
 
 	macAddress := strings.ToLower(strings.ReplaceAll(wi.macAddress, " ", "_"))
@@ -135,11 +170,13 @@ func (c *WLANCheck) Run() error {
 		macAddress = "unknown"
 	}
 
-	tags := []string{}
-	tags = append(tags, "ssid:"+ssid)
-	tags = append(tags, "bssid:"+bssid)
-	tags = append(tags, "mac_address:"+macAddress)
+	tags := []string{
+		"ssid:" + ssid,
+		"bssid:" + bssid,
+		"mac_address:" + macAddress,
+	}
 
+	// Emit metrics
 	sender.Gauge("system.wlan.rssi", float64(wi.rssi), "", tags)
 	if wi.noiseValid {
 		sender.Gauge("system.wlan.noise", float64(wi.noise), "", tags)
@@ -149,6 +186,7 @@ func (c *WLANCheck) Run() error {
 		sender.Gauge("system.wlan.rxrate", float64(wi.receiveRate), "", tags)
 	}
 
+	// Emit event metrics for roaming and channel swaps
 	if c.isRoaming(&wi) {
 		sender.Count("system.wlan.roaming_events", 1.0, "", tags)
 		sender.Count("system.wlan.channel_swap_events", 0.0, "", tags)
@@ -160,7 +198,7 @@ func (c *WLANCheck) Run() error {
 		sender.Count("system.wlan.channel_swap_events", 0.0, "", tags)
 	}
 
-	// update last values
+	// Update last values for next run
 	c.lastChannel = wi.channel
 	c.lastBSSID = wi.bssid
 	c.lastSSID = wi.ssid

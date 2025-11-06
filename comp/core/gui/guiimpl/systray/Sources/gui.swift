@@ -19,11 +19,22 @@ class AgentGUI: NSObject, NSUserInterfaceValidations {
     var loginStatusEnableTitle = "Enable at login"
     var loginStatusDisableTitle = "Disable at login"
 
+    // WiFi IPC components
+    var wifiDataProvider: WiFiDataProvider?
+    var wifiIPCServer: WiFiIPCServer?
+
     override init() {
         // make sure the first evaluation of menu item validity actually updates the items
         countUpdate = numberItems
 
         super.init()
+
+        // Initialize WiFi components
+        NSLog("[AgentGUI] Initializing WiFi IPC components...")
+        wifiDataProvider = WiFiDataProvider()
+        if let provider = wifiDataProvider {
+            wifiIPCServer = WiFiIPCServer(wifiDataProvider: provider)
+        }
 
         // Create menu items
         versionItem = NSMenuItem(title: "Datadog Agent", action: nil, keyEquivalent: "")
@@ -108,6 +119,18 @@ class AgentGUI: NSObject, NSUserInterfaceValidations {
             // Start the Agent on App startup
             self.commandAgentService(command: "start", display: "starting")
         }
+
+        // Start WiFi IPC server
+        if let server = wifiIPCServer {
+            do {
+                try server.start()
+                NSLog("[AgentGUI] WiFi IPC server started successfully")
+            } catch {
+                NSLog("[AgentGUI] Failed to start WiFi IPC server: \(error.localizedDescription)")
+                NSLog("[AgentGUI] WiFi metrics will be unavailable for the agent")
+            }
+        }
+
         NSApp.run()
     }
 
@@ -181,6 +204,9 @@ class AgentGUI: NSObject, NSUserInterfaceValidations {
     }
 
     @objc func exitGUI(_ sender: Any?) {
+        // Stop WiFi IPC server before exiting
+        wifiIPCServer?.stop()
+        NSLog("[AgentGUI] WiFi IPC server stopped")
         NSApp.terminate(sender)
     }
 }
