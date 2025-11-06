@@ -6,10 +6,12 @@
 package apiimpl
 
 import (
+	"fmt"
 	"net"
 	"strconv"
 
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/util/system/socket"
 	"github.com/mdlayher/vsock"
 )
 
@@ -24,9 +26,23 @@ func getIPCAddressPort() (string, error) {
 
 // getListener returns a listening connection
 func getListener(address string) (net.Listener, error) {
-	if pkgconfigsetup.Datadog().GetString("vsock_addr") != "" {
-		port := pkgconfigsetup.Datadog().GetInt("cmd_port")
-		listener, err := vsock.Listen(uint32(port), &vsock.Config{})
+	if vsockAddr := pkgconfigsetup.Datadog().GetString("vsock_addr"); vsockAddr != "" {
+		_, sPort, err := net.SplitHostPort(address)
+		if err != nil {
+			return nil, err
+		}
+
+		port, err := strconv.Atoi(sPort)
+		if err != nil {
+			return nil, fmt.Errorf("invalid port for vsock listener: %v", err)
+		}
+
+		cid, err := socket.ParseVSockAddress(vsockAddr)
+		if err != nil {
+			return nil, err
+		}
+
+		listener, err := vsock.ListenContextID(cid, uint32(port), &vsock.Config{})
 		return listener, err
 	}
 	listener, err := net.Listen("tcp", address)
