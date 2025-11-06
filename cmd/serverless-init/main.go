@@ -146,6 +146,10 @@ func setup(secretComp secrets.Component, _ mode.Conf, tagger tagger.Component, c
 		log.Debugf("Error loading config: %v\n", err)
 	}
 
+	// Disable UDS listener for serverless environments - traces are sent via HTTP to localhost instead.
+	// This avoids noisy error logs.
+	pkgconfigsetup.Datadog().Set("apm_config.receiver_socket", "", model.SourceAgentRuntime)
+
 	origin := cloudService.GetOrigin()
 	logsAgent := serverlessInitLog.SetupLogAgent(agentLogConfig, tags, tagger, compression, hostname, origin)
 
