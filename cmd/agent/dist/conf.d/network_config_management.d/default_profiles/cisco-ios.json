@@ -9,7 +9,7 @@
         "metadata": [
           {
             "type": "timestamp",
-            "regex": "! Last configuration change at ([^\r\n]+)",
+            "regex": "(?m)^! Last configuration change at (.*?) (?:by \\S+)?$",
             "format": "15:04:05 MST Mon Jan 2 2006"
           },
           {
@@ -136,7 +136,7 @@
         "metadata": [
           {
             "type": "timestamp",
-            "regex": "! Last configuration change at ([^\r\n]+)",
+            "regex": "(?m)^! Last configuration change at (.*?) (?:by \\S+)?$",
             "format": "15:04:05 MST Mon Jan 2 2006"
           },
           {
