@@ -18,7 +18,11 @@ func removeInfraAttributesProcessor(confStringMap map[string]any) error {
 		return err
 	}
 
-	return removeFromList(confStringMap, []string{"service", "pipelines", "profiles"}, "processors", infraAttributesName())
+	err := removeFromList(confStringMap, []string{"service", "pipelines", "profiles"}, "processors", infraAttributesName())
+	if err != nil {
+		return err
+	}
+	return removeFromList(confStringMap, []string{"service", "pipelines", "metrics"}, "processors", infraAttributesName())
 }
 
 func removeDDProfilingExtension(confStringMap map[string]any) error {
