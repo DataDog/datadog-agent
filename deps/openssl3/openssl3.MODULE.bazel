@@ -80,7 +80,7 @@ http_archive(
         "darwin_arm64/providers/common/include/prov/der_slh_dsa.h": "//deps/openssl3:overlay/darwin_arm64/providers/common/include/prov/der_slh_dsa.h",
         "darwin_arm64/providers/common/include/prov/der_sm2.h": "//deps/openssl3:overlay/darwin_arm64/providers/common/include/prov/der_sm2.h",
         "darwin_arm64/providers/common/include/prov/der_wrap.h": "//deps/openssl3:overlay/darwin_arm64/providers/common/include/prov/der_wrap.h",
-        "lib_contents.bzl": "//deps/openssl3:overlay/lib_contents.bzl",
+        "darwin_arm64_lib_contents.bzl": "//deps/openssl3:overlay/darwin_arm64_lib_contents.bzl",
     },
     sha256 = "967311f84955316969bdb1d8d4b983718ef42338639c621ec4c34fddef355e99",
     strip_prefix = "openssl-3.5.4",

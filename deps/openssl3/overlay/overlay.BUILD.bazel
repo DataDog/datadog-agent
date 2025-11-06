@@ -3,7 +3,7 @@
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_license//rules:license.bzl", "license")
 load(
-    "lib_contents.bzl",
+    "darwin_arm64_lib_contents.bzl",
     "HDRS",
     "HDRS_DARWIN_ARM64",
     "LIB_CRYPTO_SRCS_DARWIN_ARM64",
