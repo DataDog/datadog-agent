@@ -99,6 +99,10 @@ func (t *noopImpl) Gather(bool) ([]*telemetry.MetricFamily, error) {
 	return nil, nil
 }
 
+func (t *noopImpl) GatherText(bool, telemetry.MetricFilter) (string, error) {
+	return "", nil
+}
+
 // GetCompatComponent returns a component wrapping telemetry global variables
 // TODO (components): Remove this when all telemetry is migrated to the component
 func GetCompatComponent() telemetry.Component {
