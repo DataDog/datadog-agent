@@ -16,7 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform/def"
-	healthcheck "github.com/DataDog/datadog-agent/comp/healthplatform/impl/health-check"
+	"github.com/DataDog/datadog-agent/comp/healthplatform/impl/remediations"
 )
 
 const (
@@ -58,6 +58,9 @@ type healthPlatformImpl struct {
 	issues    map[string][]healthplatform.Issue // Issues detected by check ID
 	issuesMux sync.RWMutex                      // Mutex for thread-safe access to issues
 
+	// Remediation management
+	remediationRegistry *remediations.Registry // Registry of remediation templates
+
 	// Metrics
 	metrics telemetryMetrics // Telemetry metrics for health platform
 }
@@ -87,8 +90,11 @@ func NewComponent(reqs Requires) (Provides, error) {
 		cancel: cancel,                         // Set context cancel function
 
 		// Health check management
-		checks:    make(map[string]healthplatform.CheckConfig), // Initialize checks map
-		checksMux: sync.RWMutex{},                              // Initialize checks mutex
+		checks: make(map[string]healthplatform.CheckConfig), // Initialize checks map
+
+		// Remediation management
+		remediationRegistry: remediations.NewRegistry(), // Initialize remediation registry with built-in templates
+		checksMux:           sync.RWMutex{},             // Initialize checks mutex
 
 		// Issue tracking
 		issues:    make(map[string][]healthplatform.Issue), // Initialize issues map
@@ -137,13 +143,14 @@ func (h *healthPlatformImpl) stop(_ context.Context) error {
 	return nil
 }
 
-// Other components will register their check on their side directly, this one will be moved later
 // RegisterDefaultChecks registers the default set of health checks
+// Currently empty as components now self-register their health checks
 func (h *healthPlatformImpl) RegisterDefaultChecks() {
 	h.checksMux.Lock()
 	defer h.checksMux.Unlock()
 
-	h.checks[healthcheck.NewDockerLogPermissionsCheckConfig().CheckID] = healthcheck.NewDockerLogPermissionsCheckConfig()
+	// Components like logs agent now register their own health checks during startup
+	// This keeps health check logic co-located with the component it monitors
 }
 
 // RegisterCheck registers a health check with the platform
@@ -162,6 +169,45 @@ func (h *healthPlatformImpl) RegisterCheck(check healthplatform.CheckConfig) err
 	h.checks[check.CheckID] = check
 	h.log.Info("Registered health check: " + check.CheckName + " (ID: " + check.CheckID + ")")
 	return nil
+}
+
+// ReportIssue reports an issue with context, and the health platform fills in all metadata and remediation
+// This is the preferred way for integrations to report issues as it keeps all issue knowledge
+// centralized in the health platform registry
+func (h *healthPlatformImpl) ReportIssue(checkID string, report healthplatform.IssueReport) error {
+	if checkID == "" {
+		return fmt.Errorf("check ID cannot be empty")
+	}
+
+	if report.IssueID == "" {
+		return fmt.Errorf("issue ID cannot be empty")
+	}
+
+	// Build complete issue from the registry using the issue ID and context
+	issue, err := h.remediationRegistry.BuildIssue(report.IssueID, report.Context)
+	if err != nil {
+		return fmt.Errorf("failed to build issue %s: %w", report.IssueID, err)
+	}
+
+	// Fill in timestamp
+	issue.DetectedAt = time.Now().Format(time.RFC3339)
+
+	// Append any additional tags from the report
+	if len(report.Tags) > 0 {
+		issue.Tags = append(issue.Tags, report.Tags...)
+	}
+
+	// Get the check name from the issue title
+	checkName := issue.Title
+
+	// Register a check that returns this issue
+	return h.RegisterCheck(healthplatform.CheckConfig{
+		CheckID:   checkID,
+		CheckName: checkName,
+		Callback: func(context.Context) ([]healthplatform.Issue, error) {
+			return []healthplatform.Issue{*issue}, nil
+		},
+	})
 }
 
 // runTicker runs the periodic ticker that executes health checks every 15 seconds

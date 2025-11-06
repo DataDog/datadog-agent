@@ -31,11 +31,13 @@ type Issue struct {
 	Severity string `json:"Severity"`
 	// DetectedAt is the timestamp when the issue was detected
 	DetectedAt string `json:"DetectedAt"`
-	// Integration indicates which integration or feature is affected
+	// Integration is the specific feature of a sub-agent/product that is affected
+	// (e.g., "docker" for docker log collection in the logs agent)
 	Integration *string `json:"Integration,omitempty"`
 	// Extra is optional complementary information
 	Extra string `json:"Extra"`
-	// IntegrationFeature indicates which integration or feature is affected
+	// IntegrationFeature is the sub-agent or product that is affected
+	// (e.g., "logs", "apm", "error-tracking", "network-monitoring")
 	IntegrationFeature string `json:"IntegrationFeature"`
 	// Remediation provides steps to fix the issue
 	Remediation *Remediation `json:"Remediation,omitempty"`
@@ -63,8 +65,10 @@ type RemediationStep struct {
 
 // Script represents a remediation script
 type Script struct {
-	// Language is the scripting language (e.g., bash, powershell)
+	// Language is the scripting language (e.g., bash, powershell, python, javascript)
 	Language string `json:"Language"`
+	// LanguageVersion is the required interpreter version (e.g., "3.8+" for Python, ">=14" for Node.js)
+	LanguageVersion string `json:"LanguageVersion,omitempty"`
 	// Filename is the suggested filename for the script
 	Filename string `json:"Filename"`
 	// RequiresRoot indicates if the script needs root privileges
@@ -111,12 +115,32 @@ type CheckConfig struct {
 	Callback func(context.Context) ([]Issue, error)
 }
 
+// IssueReport represents a lightweight issue report from an integration
+// The health platform fills in all metadata and remediation based on the issue ID
+type IssueReport struct {
+	// IssueID is the unique identifier for the type of issue
+	// The health platform registry uses this to look up all issue details
+	IssueID string
+
+	// Context provides variables for filling in templates
+	// (e.g., {"dockerDir": "/var/lib/docker", "os": "linux"})
+	Context map[string]string
+
+	// Tags are optional additional labels for filtering and categorization
+	// These are appended to the default tags from the registry
+	Tags []string
+}
+
 // Component is the health platform component interface
 type Component interface {
 	// RegisterCheck registers a health check with the platform
 	RegisterCheck(check CheckConfig) error
 
-	// GetAllIssues returns all issues from all checks
+	// ReportIssue reports an issue with context, and the health platform fills in remediation
+	// This is the preferred way for integrations to report issues
+	ReportIssue(checkID string, report IssueReport) error
+
+	// GetAllIssues returns all issues from all checks (indexed by check ID)
 	GetAllIssues() map[string][]Issue
 
 	// GetIssuesForCheck returns issues for a specific check

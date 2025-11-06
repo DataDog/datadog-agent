@@ -83,3 +83,31 @@ func (m *mockHealthPlatform) ClearAllIssues() {
 func (m *mockHealthPlatform) RunHealthChecksNow() {
 	// Mock implementation - no-op since mock doesn't run actual health checks
 }
+
+// ReportIssue reports an issue with minimal information
+// The mock implementation just registers a check with the provided issue
+func (m *mockHealthPlatform) ReportIssue(checkID string, report healthplatform.IssueReport) error {
+	if checkID == "" {
+		return nil // Mock doesn't validate
+	}
+
+	// Create a basic issue from the report for testing purposes
+	issue := healthplatform.Issue{
+		ID:                 report.IssueID,
+		Title:              report.IssueID,
+		Description:        "Mock issue",
+		Category:           "test",
+		Location:           "test",
+		Severity:           "low",
+		IntegrationFeature: "test",
+		Tags:               report.Tags,
+	}
+
+	// Store the issue
+	if m.issues[checkID] == nil {
+		m.issues[checkID] = []healthplatform.Issue{}
+	}
+	m.issues[checkID] = append(m.issues[checkID], issue)
+
+	return nil
+}
