@@ -4,7 +4,7 @@ go 1.24.0
 
 require (
 	github.com/DataDog/datadog-agent/comp/trace/compression/def v0.61.0
-	github.com/DataDog/zstd v1.5.7
+	github.com/DataDog/zstd v1.5.8-0.20251105144009-4c69ec5b93ec
 )
 
 // This section was automatically added by 'dda inv modules.add-all-replace' command, do not edit manually

@@ -1,7 +1,7 @@
 github.com/DataDog/datadog-api-client-go/v2 v2.47.0 h1:bhPu0F6BGUGBaDw4h576asJcffFatYufy8w3/39prqA=
 github.com/DataDog/datadog-api-client-go/v2 v2.47.0/go.mod h1:d3tOEgUd2kfsr9uuHQdY+nXrWp4uikgTgVCPdKNK30U=
-github.com/DataDog/zstd v1.5.7 h1:ybO8RBeh29qrxIhCA9E8gKY6xfONU9T6G6aP9DTKfLE=
-github.com/DataDog/zstd v1.5.7/go.mod h1:g4AWEaM3yOg3HYfnJ3YIawPnVdXJh9QME85blwSAmyw=
+github.com/DataDog/zstd v1.5.8-0.20251105144009-4c69ec5b93ec h1:sjyZEJw0bTGv4ayJPKyv+Igs490rnn+ace+EQG3R0MQ=
+github.com/DataDog/zstd v1.5.8-0.20251105144009-4c69ec5b93ec/go.mod h1:g4AWEaM3yOg3HYfnJ3YIawPnVdXJh9QME85blwSAmyw=
 github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc h1:U9qPSI2PIWSS1VwoXQT9A3Wy9MM3WgvqSxFWenqJduM=
