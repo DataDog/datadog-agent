@@ -47,14 +47,14 @@ func OTLP(config pkgconfigmodel.Setup) {
 	// For now do NOT add default values for any config under otlp_config.receiver, that will force the OTLP ingestion pipelines to always start
 
 	// gRPC settings
-	config.BindEnv("otlp_config.receiver.protocols.grpc.endpoint")                              //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.BindEnv("otlp_config.receiver.protocols.grpc.transport")                             //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.BindEnv("otlp_config.receiver.protocols.grpc.max_recv_msg_size_mib")                 //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.BindEnv("otlp_config.receiver.protocols.grpc.max_concurrent_streams")                //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.BindEnv("otlp_config.receiver.protocols.grpc.read_buffer_size")                      //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.BindEnv("otlp_config.receiver.protocols.grpc.write_buffer_size")                     //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.BindEnv("otlp_config.receiver.protocols.grpc.include_metadata")                      //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.BindEnv("otlp_config.receiver.protocols.grpc.keepalive.enforcement_policy.min_time") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	config.BindEnvAndSetDefault("otlp_config.receiver.protocols.grpc.endpoint", "1.2.3.4:9997")  //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	config.BindEnvAndSetDefault("otlp_config.receiver.protocols.grpc.transport", "1.2.3.4:9997") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	config.BindEnv("otlp_config.receiver.protocols.grpc.max_recv_msg_size_mib")                  //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	config.BindEnv("otlp_config.receiver.protocols.grpc.max_concurrent_streams")                 //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	config.BindEnv("otlp_config.receiver.protocols.grpc.read_buffer_size")                       //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	config.BindEnv("otlp_config.receiver.protocols.grpc.write_buffer_size")                      //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	config.BindEnv("otlp_config.receiver.protocols.grpc.include_metadata")                       //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	config.BindEnv("otlp_config.receiver.protocols.grpc.keepalive.enforcement_policy.min_time")  //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 
 	// HTTP settings
 	config.BindEnv("otlp_config.receiver.protocols.http.endpoint")              //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
