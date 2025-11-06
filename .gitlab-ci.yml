@@ -27,6 +27,7 @@ include:
   - .gitlab/internal_kubernetes_deploy/include.yml
   - .gitlab/lint/include.yml
   - .gitlab/maintenance_jobs/include.yml
+  - .gitlab/network_device_build/network_device_build.yml
   - .gitlab/notify/notify.yml
   - .gitlab/package_build/include.yml
   - .gitlab/packaging/include.yml
@@ -166,8 +167,8 @@ variables:
   # SUFFIX variable to
   CI_IMAGE_BTF_GEN: v81160646-54bee81b
   CI_IMAGE_BTF_GEN_SUFFIX: ""
-  CI_IMAGE_DOCKER_X64: v81160646-54bee81b
-  CI_IMAGE_DOCKER_X64_SUFFIX: ""
+  CI_IMAGE_DOCKER_X64: v81484398-de112921
+  CI_IMAGE_DOCKER_X64_SUFFIX: "_test_only"
   CI_IMAGE_DOCKER_ARM64: v81160646-54bee81b
   CI_IMAGE_DOCKER_ARM64_SUFFIX: ""
   CI_IMAGE_GITLAB_AGENT_DEPLOY: v81160646-54bee81b
