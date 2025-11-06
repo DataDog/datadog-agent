@@ -22,6 +22,7 @@ filegroup(
             "@nghttp2",
             "@pcre2",
             "@popt",
+            "@zstd",
         ],
         "//conditions:default": [],
     }),
