@@ -3,14 +3,14 @@ load("@rules_pkg//pkg:mappings.bzl", "pkg_filegroup", "pkg_files", "pkg_mklink")
 _SPECS = [
     struct(os = "linux", format = "{}.so{}"),
     struct(os = "macos", format = "{}{}.dylib"),
-    struct(os = "windows", format = "{}.dll"),  # w/o version
+    struct(os = "windows", format = "{}.dll"),
 ]
 
 def _gen_targets(base_name, src, libname, version, prefix, spec):
     name = "{}_{}".format(base_name, spec.os)
     platform = "@platforms//os:{}".format(spec.os)
-    target = spec.format.format(libname, ".{}".format(version))  # dot full version
-    targets = ["{}_lib".format(name)]
+    target = spec.format.format(libname, ".{}".format(version))
+    targets = ["{}_real_name".format(name)]
     pkg_files(
         name = targets[-1],
         srcs = [src],
@@ -19,11 +19,12 @@ def _gen_targets(base_name, src, libname, version, prefix, spec):
         target_compatible_with = [platform],
     )
 
-    for link_version in (".{}".format(version.partition(".")[0]), ""):  # dot major (soname), no version (linker name)
+    major = version.partition(".")[0]
+    for link_name, link_version in (("soname", ".{}".format(major)), ("linker_name", "")):
         link = spec.format.format(libname, link_version)
-        if link == target:  # DLL w/o version or dot major already present in lib name: do not link onto itself
+        if link == target:
             continue
-        targets.append("{}_link".format(targets[-1]))
+        targets.append("{}_{}".format(name, link_name))
         pkg_mklink(
             name = targets[-1],
             link_name = "{}{}".format(prefix, link),
