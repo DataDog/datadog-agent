@@ -14,7 +14,7 @@ filegroup(
         "@patchelf",
         "@sqlite3",
         "@xz//:lzma",
-        "@zlib//:libz_so",
+        "@zlib//:z",
     ] + select({
         "@platforms//os:linux": [
             "@attr",
@@ -22,6 +22,7 @@ filegroup(
             "@nghttp2",
             "@pcre2",
             "@popt",
+            "@zstd",
         ],
         "//conditions:default": [],
     }),
