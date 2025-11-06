@@ -636,7 +636,7 @@ cc_binary(
         name = "module_" + name,
         srcs = info['srcs'] + [":python_headers", ":modules_headers", ":expat_headers"] + info.get('extra_files', []),
         includes = _COMMON_INCLUDE_DIRS + info.get('includes', []),
-        local_defines = COMMON_DEFINES + PY_BUILTIN_MODULE_DEFINES,
+        local_defines = COMMON_DEFINES + PY_BUILTIN_MODULE_DEFINES + info.get('local_defines', []),
         deps = [":mimalloc"] + info.get('deps', []),
         copts = ["-std=c11"],
     ) for name, info in PYTHON_MODULES.items()
