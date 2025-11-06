@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/common"
 )
@@ -57,7 +58,7 @@ func testRawResources(key, value string) provisioners.RawResources {
 func TestCreateEnv(t *testing.T) {
 	suite := &testSuite{}
 
-	env, envFields, envValues, err := suite.createEnv()
+	env, envFields, envValues, err := environments.CreateEnv[testEnv]()
 	require.NoError(t, err)
 
 	testResources := testRawResources("myWrapper1", "myValue")

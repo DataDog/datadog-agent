@@ -154,11 +154,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/cenkalti/backoff/v4"
+
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/utils"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components"
 	"gopkg.in/zorkian/go-datadog-api.v2"
 
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner/parameters"
@@ -388,7 +391,7 @@ func (bs *BaseSuite[Env]) reconcileEnv(targetProvisioners provisioners.Provision
 	ctx, cancel := bs.providerContext(createTimeout)
 	defer cancel()
 
-	newEnv, newEnvFields, newEnvValues, err := bs.createEnv()
+	newEnv, newEnvFields, newEnvValues, err := environments.CreateEnv[Env]()
 	if err != nil {
 		return fmt.Errorf("unable to create new env: %T for stack: %s, err: %v", newEnv, bs.params.stackName, err)
 	}
@@ -463,49 +466,6 @@ func (bs *BaseSuite[Env]) reconcileEnv(targetProvisioners provisioners.Provision
 	bs.currentProvisioners = provisioners.CopyProvisioners(targetProvisioners)
 	bs.env = newEnv
 	return nil
-}
-
-func (bs *BaseSuite[Env]) createEnv() (*Env, []reflect.StructField, []reflect.Value, error) {
-	var env Env
-
-	envFields := reflect.VisibleFields(reflect.TypeOf(&env).Elem())
-	envValue := reflect.ValueOf(&env)
-
-	retainedFields := make([]reflect.StructField, 0)
-	retainedValues := make([]reflect.Value, 0)
-	for _, field := range envFields {
-		if !field.IsExported() {
-			continue
-		}
-
-		importKeyFromTag := field.Tag.Get(importKey)
-		isImportable := field.Type.Implements(reflect.TypeOf((*components.Importable)(nil)).Elem())
-		isPtrImportable := reflect.PointerTo(field.Type).Implements(reflect.TypeOf((*components.Importable)(nil)).Elem())
-
-		// Produce meaningful error in case we have an importKey but field is not importable
-		if importKeyFromTag != "" && !isImportable {
-			return nil, nil, nil, fmt.Errorf("resource named %s has %s key but does not implement Importable interface", field.Name, importKey)
-		}
-
-		if !isImportable && isPtrImportable {
-			return nil, nil, nil, fmt.Errorf("resource named %s of type %T implements Importable on pointer receiver but is not a pointer", field.Name, field.Type)
-		}
-
-		if !isImportable {
-			continue
-		}
-
-		// Create zero-value if not created (pointer to struct)
-		fieldValue := envValue.Elem().FieldByIndex(field.Index)
-		if fieldValue.IsNil() {
-			fieldValue.Set(reflect.New(fieldValue.Type().Elem()))
-		}
-
-		retainedFields = append(retainedFields, field)
-		retainedValues = append(retainedValues, fieldValue)
-	}
-
-	return &env, retainedFields, retainedValues, nil
 }
 
 func (bs *BaseSuite[Env]) buildEnvFromResources(resources provisioners.RawResources, fields []reflect.StructField, values []reflect.Value) error {
