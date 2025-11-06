@@ -129,10 +129,11 @@ func (pf *filterSelection) computeContainerAutodiscoveryFilters(cfg config.Compo
 	flist := make([][]workloadfilter.ContainerFilter, 2)
 
 	high := []workloadfilter.ContainerFilter{workloadfilter.ContainerADAnnotations}
-	low := []workloadfilter.ContainerFilter{workloadfilter.LegacyContainerGlobal, workloadfilter.ContainerCELGlobal}
+	low := []workloadfilter.ContainerFilter{workloadfilter.ContainerCELGlobal}
 
 	switch filterScope {
 	case workloadfilter.GlobalFilter:
+		low = append(low, workloadfilter.LegacyContainerGlobal)
 		if len(cfg.GetStringSlice("container_include")) == 0 {
 			low = append(low, workloadfilter.LegacyContainerACInclude)
 		}
