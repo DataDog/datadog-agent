@@ -40,14 +40,6 @@ func NewJSONAggregator(tagCompleteJSON bool, maxContentSize int) *JSONAggregator
 // If the message is an incomplete JSON message, it will be added to the buffer and processed later.
 // If the message is not a JSON message, it will be returned as is, and any buffered messages will be flushed (unmodified).
 func (r *JSONAggregator) Process(msg *message.Message) []*message.Message {
-	r.messageBuf = append(r.messageBuf, msg)
-	r.currentSize += msg.RawDataLen
-
-	// Flush if we've exceeded the max size
-	if r.currentSize > r.maxContentSize {
-		return r.Flush()
-	}
-
 	content := msg.GetContent()
 
 	// If buffer is empty and content is likely complete single-line JSON,
@@ -58,6 +50,15 @@ func (r *JSONAggregator) Process(msg *message.Message) []*message.Message {
 			return []*message.Message{msg}
 		}
 		// Fall through to full parsing if validation failed
+	}
+
+	// Not fast-path, add to buffer for aggregation
+	r.messageBuf = append(r.messageBuf, msg)
+	r.currentSize += msg.RawDataLen
+
+	// Flush if we've exceeded the max size
+	if r.currentSize > r.maxContentSize {
+		return r.Flush()
 	}
 
 	switch r.decoder.Write(content) {

@@ -30,6 +30,20 @@ func TestJSONAggregatorProcess_Complete(t *testing.T) {
 	assert.Equal(t, []byte(`{"key":"value"}`), result[0].GetContent(), "Content should be unchanged for complete JSON")
 }
 
+func TestJSONAggregatorProcess_InvalidSingleLineJSON(t *testing.T) {
+	aggregator := NewJSONAggregator(true, 1000)
+
+	// Invalid JSON with balanced braces (missing quotes around keys)
+	// This tests the case where isSingleLineJSON() returns true but json.Valid() returns false
+	msg := newTestMessage(`{timestamp:"2024-01-01",level:info,message:"test"}`)
+	result := aggregator.Process(msg)
+
+	// Should return 1 message (flushed as invalid)
+	assert.Equal(t, 1, len(result), "Expected one message to be returned for invalid JSON")
+	// Content should be unchanged since it's invalid and gets flushed
+	assert.Equal(t, []byte(`{timestamp:"2024-01-01",level:info,message:"test"}`), result[0].GetContent(), "Invalid JSON should be returned unchanged")
+}
+
 func TestJSONAggregatorProcess_Incomplete(t *testing.T) {
 	aggregator := NewJSONAggregator(true, 1000)
 
