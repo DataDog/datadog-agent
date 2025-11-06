@@ -15,6 +15,7 @@ import (
 	"strings"
 
 	"github.com/DataDog/appsec-internal-go/httpsec"
+	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace/idx"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/go-libddwaf/v4"
 	json "github.com/json-iterator/go"
@@ -77,22 +78,22 @@ type span interface {
 
 // setAppSecEnabledTags sets the AppSec-specific span tags that are expected to
 // be in service entry span when AppSec is enabled.
-func setAppSecEnabledTags(span span) {
-	span.SetMetricsTag("_dd.appsec.enabled", 1)
+func setAppSecEnabledTags(span *idx.InternalSpan) {
+	span.SetFloat64Attribute("_dd.appsec.enabled", 1)
 }
 
 // setEventSpanTags sets the security event span tags into the service entry span.
-func setEventSpanTags(span span, events []any) error {
+func setEventSpanTags(span *idx.InternalSpan, events []any) error {
 	// Set the appsec event span tag
 	val, err := makeEventsTagValue(events)
 	if err != nil {
 		return err
 	}
-	span.SetMetaTag("_dd.appsec.json", string(val))
+	span.SetStringAttribute("_dd.appsec.json", string(val))
 
 	// Set the appsec.event tag needed by the appsec backend
-	span.SetMetaTag("_dd.origin", "appsec")
-	span.SetMetaTag("appsec.event", "true")
+	span.SetStringAttribute("_dd.origin", "appsec")
+	span.SetStringAttribute("appsec.event", "true")
 	return nil
 }
 
@@ -109,26 +110,26 @@ func makeEventsTagValue(events []any) (json.RawMessage, error) {
 }
 
 // setSecurityEventsTags sets the AppSec-specific span tags when security events were found.
-func setSecurityEventsTags(span span, events []any, headers, respHeaders map[string][]string) {
+func setSecurityEventsTags(span *idx.InternalSpan, events []any, headers, respHeaders map[string][]string) {
 	if err := setEventSpanTags(span, events); err != nil {
 		log.Errorf("appsec: unexpected error while creating the appsec event tags: %v", err)
 		return
 	}
 	for h, v := range normalizeHTTPHeaders(headers) {
-		span.SetMetaTag("http.request.headers."+h, v)
+		span.SetStringAttribute("http.request.headers."+h, v)
 	}
 	for h, v := range normalizeHTTPHeaders(respHeaders) {
-		span.SetMetaTag("http.response.headers."+h, v)
+		span.SetStringAttribute("http.response.headers."+h, v)
 	}
 }
 
 // setAPISecurityEventsTags sets the AppSec-specific span tags related to API security schemas
-func setAPISecurityTags(span span, derivatives map[string]any) {
+func setAPISecurityTags(span *idx.InternalSpan, derivatives map[string]any) {
 	for key, val := range derivatives {
 		if rawVal, err := json.Marshal(val); err != nil {
 			log.Errorf("appsec: unexpected error while creating the API security tags: %v", err)
 		} else {
-			span.SetMetaTag(key, string(rawVal))
+			span.SetStringAttribute(key, string(rawVal))
 		}
 	}
 }
@@ -156,19 +157,19 @@ func normalizeHTTPHeaders(headers map[string][]string) (normalized map[string]st
 // network.client.ip span tags according to the request headers and remote
 // connection address. Note that the given request headers reqHeaders must be
 // normalized with lower-cased keys for this function to work.
-func setClientIPTags(span span, remoteAddr string, reqHeaders map[string][]string) {
+func setClientIPTags(span *idx.InternalSpan, remoteAddr string, reqHeaders map[string][]string) {
 	remoteIP, clientIP := httpsec.ClientIP(reqHeaders, false, remoteAddr, monitoredClientIPHeadersCfg)
 	tags := httpsec.ClientIPTags(remoteIP, clientIP)
 
 	for k, v := range tags {
-		span.SetMetaTag(k, v)
+		span.SetStringAttribute(k, v)
 	}
 }
 
 // setRulesMonitoringTags adds the tags related to security rules monitoring
 // It's only needed once per handle initialization as the ruleset data does not
 // change over time.
-func setRulesMonitoringTags(span span, wafDiags libddwaf.Diagnostics) {
+func setRulesMonitoringTags(span *idx.InternalSpan, wafDiags libddwaf.Diagnostics) {
 	rInfo := wafDiags.Rules
 	if rInfo == nil {
 		return
@@ -180,19 +181,19 @@ func setRulesMonitoringTags(span span, wafDiags libddwaf.Diagnostics) {
 	if err != nil {
 		log.Error("appsec: could not marshal the waf ruleset info errors to json")
 	}
-	span.SetMetaTag("_dd.appsec.event_rules.errors", string(rulesetErrors))
-	span.SetMetaTag("_dd.appsec.event_rules.loaded", strconv.Itoa(len(rInfo.Loaded)))
-	span.SetMetaTag("_dd.appsec.event_rules.error_count", strconv.Itoa(len(rInfo.Failed)))
-	span.SetMetaTag("_dd.appsec.waf.version", libddwaf.Version())
+	span.SetStringAttribute("_dd.appsec.event_rules.errors", string(rulesetErrors))
+	span.SetStringAttribute("_dd.appsec.event_rules.loaded", strconv.Itoa(len(rInfo.Loaded)))
+	span.SetStringAttribute("_dd.appsec.event_rules.error_count", strconv.Itoa(len(rInfo.Failed)))
+	span.SetStringAttribute("_dd.appsec.waf.version", libddwaf.Version())
 }
 
 // setWAFMonitoringTags adds the tags related to the monitoring of the WAF performances
-func setWAFMonitoringTags(span span, mRes *MonitorResult) {
+func setWAFMonitoringTags(span *idx.InternalSpan, mRes *MonitorResult) {
 	// Rules version is set for every request to help the backend associate Feature duration metrics with rule version
-	span.SetMetaTag("_dd.appsec.event_rules.version", mRes.Diagnostics.Version)
+	span.SetStringAttribute("_dd.appsec.event_rules.version", mRes.Diagnostics.Version)
 
 	// Report the stats sent by the Feature
 	for k, v := range mRes.Timings {
-		span.SetMetaTag("_dd.appsec."+string(k), fmt.Sprintf("%v", v))
+		span.SetStringAttribute("_dd.appsec."+string(k), fmt.Sprintf("%v", v))
 	}
 }

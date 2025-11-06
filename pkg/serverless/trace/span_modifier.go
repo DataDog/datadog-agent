@@ -6,9 +6,8 @@
 package trace
 
 import (
-	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
+	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace/idx"
 	"github.com/DataDog/datadog-agent/pkg/serverless/trace/inferredspan"
-	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -20,42 +19,38 @@ const (
 
 type spanModifier struct {
 	tags           map[string]string
-	lambdaSpanChan chan<- *pb.Span
+	lambdaSpanChan chan<- *idx.InternalSpan
 	//nolint:revive // TODO(SERV) Fix revive linter
 	coldStartSpanId uint64
 	ddOrigin        string
 }
 
 // ModifySpan applies extra logic to the given span
-func (s *spanModifier) ModifySpan(_ *pb.TraceChunk, span *pb.Span) {
-	if span.Service == "aws.lambda" {
+func (s *spanModifier) ModifySpan(_ *idx.InternalTraceChunk, span *idx.InternalSpan) {
+	if span.Service() == "aws.lambda" {
 		// service name could be incorrectly set to 'aws.lambda' in datadog lambda libraries
 		if s.tags["service"] != "" {
-			span.Service = s.tags["service"]
+			span.SetService(s.tags["service"])
 		}
-		if s.lambdaSpanChan != nil && span.Name == "aws.lambda" {
+		if s.lambdaSpanChan != nil && span.Name() == "aws.lambda" {
 			s.lambdaSpanChan <- span
 		}
 	}
 
 	// ensure all spans have tag _dd.origin in addition to span.Origin
-	if origin := span.Meta[ddOriginTagName]; origin == "" {
-		traceutil.SetMeta(span, ddOriginTagName, s.ddOrigin)
+	if origin, ok := span.GetAttributeAsString(ddOriginTagName); !ok || origin == "" {
+		span.SetStringAttribute(ddOriginTagName, s.ddOrigin)
 	}
 
-	if span.Name == "aws.lambda.load" {
-		span.ParentID = s.coldStartSpanId
+	if span.Name() == "aws.lambda.load" {
+		span.SetParentID(s.coldStartSpanId)
 	}
 
 	if inferredspan.CheckIsInferredSpan(span) {
 		log.Debug("Detected a managed service span, filtering out function tags")
 
 		// filter out existing function tags inside span metadata
-		spanMetadataTags := span.Meta
-		if spanMetadataTags != nil {
-			spanMetadataTags = inferredspan.FilterFunctionTags(spanMetadataTags)
-			span.Meta = spanMetadataTags
-		}
+		inferredspan.FilterFunctionTags(span)
 	}
 }
 

@@ -19,7 +19,7 @@ func TestConvertToIdx_ErrorFieldIsBool(t *testing.T) {
 	tests := []struct {
 		name         string
 		errorValue   int32
-		expectedBool bool
+		expectedBool bool	
 	}{
 		{
 			name:         "error is zero",

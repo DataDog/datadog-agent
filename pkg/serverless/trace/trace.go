@@ -26,7 +26,6 @@ import (
 	remoteconfig "github.com/DataDog/datadog-agent/pkg/config/remote/service"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
-	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace/idx"
 	serverlessmodifier "github.com/DataDog/datadog-agent/pkg/serverless/trace/modifier"
 	"github.com/DataDog/datadog-agent/pkg/trace/agent"
@@ -43,6 +42,7 @@ type ServerlessTraceAgent interface {
 	Stop()
 	Flush()
 	Process(p *api.Payload)
+	ProcessV1(p *api.PayloadV1)
 	SetTags(map[string]string)
 	SetTargetTPS(float64)
 	SetSpanModifier(agent.SpanModifier)
@@ -109,7 +109,7 @@ func (l *LoadConfig) Load() (*config.AgentConfig, error) {
 type StartServerlessTraceAgentArgs struct {
 	Enabled             bool
 	LoadConfig          Load
-	LambdaSpanChan      chan<- *pb.Span
+	LambdaSpanChan      chan<- *idx.InternalSpan
 	ColdStartSpanID     uint64
 	AzureServerlessTags string
 	FunctionTags        string
@@ -193,6 +193,11 @@ func (t *serverlessTraceAgent) Flush() {
 // Process processes a payload in the trace agent.
 func (t *serverlessTraceAgent) Process(p *api.Payload) {
 	t.ta.Process(p)
+}
+
+// ProcessV1 processes a V1 payload in the trace agent.
+func (t *serverlessTraceAgent) ProcessV1(p *api.PayloadV1) {
+	t.ta.ProcessV1(p)
 }
 
 type taggable interface {
@@ -309,6 +314,7 @@ type noopTraceAgent struct{}
 func (t noopTraceAgent) Stop()                               {}
 func (t noopTraceAgent) Flush()                              {}
 func (t noopTraceAgent) Process(*api.Payload)                {}
+func (t noopTraceAgent) ProcessV1(*api.PayloadV1)            {}
 func (t noopTraceAgent) SetTags(map[string]string)           {}
 func (t noopTraceAgent) SetTargetTPS(float64)                {}
 func (t noopTraceAgent) SetSpanModifier(agent.SpanModifier)  {}

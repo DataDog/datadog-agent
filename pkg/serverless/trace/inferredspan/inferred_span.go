@@ -7,7 +7,6 @@ package inferredspan
 
 import (
 	"crypto/rand"
-	"maps"
 	"math"
 	"math/big"
 	"os"
@@ -17,6 +16,7 @@ import (
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
+	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace/idx"
 	"github.com/DataDog/datadog-agent/pkg/serverless/random"
 	"github.com/DataDog/datadog-agent/pkg/serverless/tags"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -48,9 +48,6 @@ var functionTagsToIgnore = []string{
 	tags.FunctionARNKey,
 	tags.FunctionNameKey,
 	tags.ExecutedVersionKey,
-	tags.EnvKey,
-	tags.VersionKey,
-	tags.ServiceKey,
 	tags.RuntimeKey,
 	tags.MemorySizeKey,
 	tags.ArchitectureKey,
@@ -61,18 +58,19 @@ var functionTagsToIgnore = []string{
 // CheckIsInferredSpan determines if a span belongs to a managed service or not
 // _inferred_span.tag_source = "self" => managed service span
 // _inferred_span.tag_source = "lambda" or missing => lambda related span
-func CheckIsInferredSpan(span *pb.Span) bool {
-	return strings.Compare(span.Meta[tagInferredSpanTagSource], "self") == 0
+func CheckIsInferredSpan(span *idx.InternalSpan) bool {
+	source, ok := span.GetAttributeAsString(tagInferredSpanTagSource)
+	if !ok {
+		return false
+	}
+	return strings.Compare(source, "self") == 0
 }
 
 // FilterFunctionTags filters out DD tags & function specific tags
-func FilterFunctionTags(input map[string]string) map[string]string {
+func FilterFunctionTags(input *idx.InternalSpan) {
 	if input == nil {
-		return nil
+		return
 	}
-
-	output := make(map[string]string)
-	maps.Copy(output, input)
 
 	// filter out DD_TAGS & DD_EXTRA_TAGS
 	ddTags := configUtils.GetConfiguredTags(pkgconfigsetup.Datadog(), false)
@@ -83,15 +81,17 @@ func FilterFunctionTags(input map[string]string) map[string]string {
 			continue
 		}
 		tagKey := tagParts[0]
-		delete(output, tagKey)
+		input.DeleteAttribute(tagKey)
 	}
 
 	// filter out function specific tags
 	for _, tagKey := range functionTagsToIgnore {
-		delete(output, tagKey)
+		input.DeleteAttribute(tagKey)
 	}
-
-	return output
+	// Service, Env, Version are special fields on InternalSpan and cannot be deleted via DeleteAttribute
+	input.SetService("")
+	input.SetVersion("")
+	input.SetEnv("")
 }
 
 // GenerateSpanId creates a secure random span id in specific scenarios, otherwise return a pseudo random id

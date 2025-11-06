@@ -11,6 +11,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
+	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace/idx"
 	"github.com/DataDog/datadog-agent/pkg/serverless/appsec/config"
 	"github.com/DataDog/datadog-agent/pkg/serverless/invocationlifecycle"
 	serverlessMetrics "github.com/DataDog/datadog-agent/pkg/serverless/metrics"
@@ -113,39 +114,37 @@ func (lp *ProxyLifecycleProcessor) OnInvokeEnd(_ *invocationlifecycle.Invocation
 }
 
 //nolint:revive // TODO(ASM) Fix revive linter
-func (lp *ProxyLifecycleProcessor) spanModifier(lastReqId string, chunk *pb.TraceChunk, s *pb.Span) {
+func (lp *ProxyLifecycleProcessor) spanModifier(lastReqId string, chunk *idx.InternalTraceChunk, s *idx.InternalSpan) {
 	// Add relevant standalone tags to the chunk (TODO: remove per span tagging once backend handles chunk tags)
 	if config.IsStandalone() {
-		if chunk.Tags == nil {
-			chunk.Tags = make(map[string]string)
+		if chunk.Attributes == nil {
+			chunk.Attributes = make(map[uint32]*idx.AnyValue)
 		}
-		chunk.Tags["_dd.apm.enabled"] = "0"
+		chunk.SetStringAttribute("_dd.apm.enabled", "0")
 		// By the spec, only the service entry span needs to be tagged.
 		// We play it safe by tagging everything in case the service entry span gets changed by the agent
 		for _, s := range chunk.Spans {
-			(*spanWrapper)(s).SetMetricsTag("_dd.apm.enabled", 0)
+			s.SetFloat64Attribute("_dd.apm.enabled", 0)
 		}
 	}
-	if s.Name != "aws.lambda" || s.Type != "serverless" {
+	if s.Name() != "aws.lambda" || s.Type() != "serverless" {
 		return
 	}
 	//nolint:revive // TODO(ASM) Fix revive linter
-	currentReqId := s.Meta["request_id"]
+	currentReqId, ok := s.GetAttributeAsString("request_id")
 	//nolint:revive // TODO(ASM) Fix revive linter
-	if spanReqId := lastReqId; currentReqId != spanReqId {
+	if spanReqId := lastReqId; !ok || currentReqId != spanReqId {
 		log.Debugf("appsec: ignoring service entry span with an unexpected request id: expected `%s` but got `%s`", currentReqId, spanReqId)
 		return
 	}
 	log.Debugf("appsec: found service entry span of the currently monitored request id `%s`", currentReqId)
-
-	span := (*spanWrapper)(s)
 
 	if lp.invocationEvent == nil {
 		log.Debug("appsec: ignoring unsupported lamdba event")
 		// Add a span tag so we can tell if this was an unsupported event type.
 		// _dd.appsec.enabled:1 covers the supported case, which can only be set
 		// in this case because it involves ASM billing.
-		span.SetMetricsTag("_dd.appsec.unsupported_event_type", 1)
+		s.SetFloat64Attribute("_dd.appsec.unsupported_event_type", 1)
 		return // skip: unsupported event
 	}
 
@@ -256,39 +255,39 @@ func (lp *ProxyLifecycleProcessor) spanModifier(lastReqId string, chunk *pb.Trac
 	}
 
 	// Set the span tags that are always expected to be there when appsec is enabled
-	setAppSecEnabledTags(span)
+	setAppSecEnabledTags(s)
 
 	reqHeaders := ctx.requestHeaders
-	setClientIPTags(span, ctx.requestSourceIP, reqHeaders)
+	setClientIPTags(s, ctx.requestSourceIP, reqHeaders)
 
-	if ip, ok := span.GetMetaTag("http.client_ip"); ok {
+	if ip, ok := s.GetAttributeAsString("http.client_ip"); ok {
 		ctx.requestClientIP = &ip
 	}
 
-	if status, ok := span.GetMetaTag("http.status_code"); ok {
+	if status, ok := s.GetAttributeAsString("http.status_code"); ok {
 		ctx.responseStatus = &status
 	} else {
 		log.Debug("appsec: missing span tag http.status_code")
 	}
 	if ctx.requestRoute != nil {
-		span.SetMetaTag("http.route", *ctx.requestRoute)
+		s.SetStringAttribute("http.route", *ctx.requestRoute)
 	} else {
 		log.Debug("appsec: missing span tag http.route")
 	}
 
 	res := lp.appsec.Monitor(ctx.toAddresses())
 	if res != nil {
-		setWAFMonitoringTags(span, res)
+		setWAFMonitoringTags(s, res)
 
 		// Ruleset related tags are needed only once as the ruleset data does not change.
 		lp.addRulesMonitoringTagsOnce.Do(func() {
-			setRulesMonitoringTags(span, res.Diagnostics)
+			setRulesMonitoringTags(s, res.Diagnostics)
 			chunk.Priority = int32(sampler.PriorityUserKeep)
 		})
 
 		if res.Result.HasEvents() {
-			setSecurityEventsTags(span, res.Result.Events, reqHeaders, nil)
-			setAPISecurityTags(span, res.Result.Derivatives)
+			setSecurityEventsTags(s, res.Result.Events, reqHeaders, nil)
+			setAPISecurityTags(s, res.Result.Derivatives)
 			chunk.Priority = int32(sampler.PriorityUserKeep)
 		}
 	}
@@ -334,7 +333,7 @@ type appsecSpanModifier struct {
 // The resulting function will run AppSec when the span's request_id span tag
 // matches the one observed at function invocation with OnInvokeStat() through
 // the Runtime API proxy.
-func (a *appsecSpanModifier) ModifySpan(chunk *pb.TraceChunk, span *pb.Span) {
+func (a *appsecSpanModifier) ModifySpan(chunk *idx.InternalTraceChunk, span *idx.InternalSpan) {
 	if a.wrapped != nil {
 		a.wrapped.ModifySpan(chunk, span)
 	}

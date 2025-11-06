@@ -153,7 +153,7 @@ type Agent struct {
 // SpanModifier is an interface that allows to modify spans while they are
 // processed by the agent.
 type SpanModifier interface {
-	ModifySpan(*pb.TraceChunk, *pb.Span)
+	ModifySpan(*idx.InternalTraceChunk, *idx.InternalSpan)
 }
 
 // TracerPayloadModifier is an interface that allows tracer implementations to
@@ -483,10 +483,9 @@ func (a *Agent) ProcessV1(p *api.PayloadV1) {
 					span.SetStringAttribute(k, v)
 				}
 			}
-			// TODO: Skip for now as we will avoid SpanModifier for now as it's just used by serverless
-			// if a.SpanModifier != nil {
-			// 	a.SpanModifier.ModifySpan(chunk, span)
-			// }
+			if a.SpanModifier != nil {
+				a.SpanModifier.ModifySpan(chunk, span)
+			}
 			a.obfuscateSpanInternal(span)
 			a.TruncateV1(span)
 			if p.ClientComputedTopLevel {
