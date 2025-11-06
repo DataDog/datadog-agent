@@ -46,6 +46,7 @@ jobs:
       with:
         anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
         github_token: ${{ steps.octo-sts.outputs.token }}
+        allowed_non_write_users: '*' # If not set the action will always use the event actor permissions.
         claude_args : --allowedTools "Read,Write,Bash(gh issue edit:*)"
         prompt: |
           # Datadog Agent - Intelligent Issue Triage System
