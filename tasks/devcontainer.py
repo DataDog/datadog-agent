@@ -132,6 +132,13 @@ def setup(
     configure_skaffold(devcontainer, SkaffoldProfile(skaffoldProfile))
     configure_claude_code(devcontainer, claude_code)
 
+    # Skaffold helm deployement will include '.skaffold/values.yaml'
+    # so it must at least exists, it can be empty or filled by the user
+    if skaffoldProfile is not None:
+        helm_values = Path(".skaffold/values.yaml")
+        if not helm_values.exists():
+            helm_values.touch()
+
     # Add per user configuration
     user_config_path = Path.home() / ".devcontainer" / "agent_overrides.json"
     if os.path.exists(user_config_path):
