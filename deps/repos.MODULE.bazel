@@ -224,14 +224,7 @@ python_src_deps = {
 [
     http_archive(
         name = "{}_win".format(name),
-        add_prefix = "{name}-{version}".format(
-            name = name,
-            version = version,
-        ),
-        build_file_content = "filegroup(name = '{name}_win', srcs = glob(['{name}-{version}/**']), visibility = ['//visibility:public'])".format(
-            name = name,
-            version = version,
-        ),
+        build_file_content = "filegroup(name = '{name}_win', srcs = glob(['**']), visibility = ['//visibility:public'])".format(name = name),
         sha256 = sha256,
         strip_prefix = "cpython-source-deps-{name}-{version}".format(
             name = name,
@@ -254,14 +247,7 @@ python_bin_deps = {
 [
     http_archive(
         name = "{}_win".format(name),
-        add_prefix = "{name}-{version}".format(
-            name = name,
-            version = version,
-        ),
-        build_file_content = "filegroup(name = '{name}_win', srcs = glob(['{name}-{version}/**']), visibility = ['//visibility:public'])".format(
-            name = name,
-            version = version,
-        ),
+        build_file_content = "filegroup(name = '{name}_win', srcs = glob(['**']), visibility = ['//visibility:public'])".format(name = name),
         sha256 = sha256,
         strip_prefix = "cpython-bin-deps-{name}-{version}".format(
             name = name,
