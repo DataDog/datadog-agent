@@ -8,11 +8,13 @@ package zstdimpl
 
 import (
 	"bytes"
+	"errors"
 	"os"
 	"strconv"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/klauspost/compress/zstd"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/util/compression"
 )
@@ -85,4 +87,16 @@ func (s *ZstdNoCgoStrategy) ContentEncoding() string {
 func (s *ZstdNoCgoStrategy) NewStreamCompressor(output *bytes.Buffer) compression.StreamCompressor {
 	writer, _ := zstd.NewWriter(output, zstd.WithEncoderLevel(zstd.EncoderLevelFromZstd(s.level)))
 	return writer
+}
+
+// NewStreamCompressorWithDict returns a new zstd Writer with a dictionary
+func (s *ZstdNoCgoStrategy) NewStreamCompressorWithDict(_ *bytes.Buffer, _ []byte) compression.StreamCompressor {
+	// Not implemented
+	return nil
+}
+
+// TrainFromBuffer trains a dictionary from a set of samples
+func (s *ZstdNoCgoStrategy) TrainFromBuffer(_ [][]byte, _ int) ([]byte, error) {
+	// Not implemented
+	return nil, errors.New("not implemented")
 }

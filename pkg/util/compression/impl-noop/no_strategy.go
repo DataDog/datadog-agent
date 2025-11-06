@@ -8,6 +8,7 @@ package noopimpl
 
 import (
 	"bytes"
+	"errors"
 
 	"github.com/DataDog/datadog-agent/pkg/util/compression"
 )
@@ -58,4 +59,16 @@ func (n *noopStreamCompressor) Close() error {
 // Flush is a no-op
 func (n *noopStreamCompressor) Flush() error {
 	return nil
+}
+
+// NewStreamCompressorWithDict returns a new noop Writer with a dictionary
+func (s *NoopStrategy) NewStreamCompressorWithDict(_ *bytes.Buffer, _ []byte) compression.StreamCompressor {
+	// Not implemented
+	return nil
+}
+
+// TrainFromBuffer trains a dictionary from a set of samples
+func (s *NoopStrategy) TrainFromBuffer(_ [][]byte, _ int) ([]byte, error) {
+	// Not implemented
+	return nil, errors.New("not implemented")
 }

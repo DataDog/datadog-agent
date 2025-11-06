@@ -9,6 +9,7 @@ package zlibimpl
 import (
 	"bytes"
 	"compress/zlib"
+	"errors"
 	"io"
 
 	"github.com/DataDog/datadog-agent/pkg/util/compression"
@@ -69,4 +70,16 @@ func (s *ZlibStrategy) ContentEncoding() string {
 // NewStreamCompressor returns a new zlib writer
 func (s *ZlibStrategy) NewStreamCompressor(output *bytes.Buffer) compression.StreamCompressor {
 	return zlib.NewWriter(output)
+}
+
+// NewStreamCompressorWithDict returns a new zlib Writer with a dictionary
+func (s *ZlibStrategy) NewStreamCompressorWithDict(_ *bytes.Buffer, _ []byte) compression.StreamCompressor {
+	// Not implemented
+	return nil
+}
+
+// TrainFromBuffer trains a dictionary from a set of samples
+func (s *ZlibStrategy) TrainFromBuffer(_ [][]byte, _ int) ([]byte, error) {
+	// Not implemented
+	return nil, errors.New("not implemented")
 }

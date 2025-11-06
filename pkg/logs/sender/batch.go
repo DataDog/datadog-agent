@@ -10,8 +10,6 @@ import (
 	"bytes"
 	"io"
 
-	"github.com/DataDog/zstd"
-
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
@@ -82,9 +80,9 @@ func (b *batch) resetBatch() {
 
 	var compressor compression.StreamCompressor
 	if b.dict == nil {
-		compressor = zstd.NewWriterLevel(&encodedPayload, 1)
+		compressor = b.compression.NewStreamCompressor(&encodedPayload)
 	} else {
-		compressor = zstd.NewWriterLevelDict(&encodedPayload, 1, b.dict)
+		compressor = b.compression.NewStreamCompressorWithDict(&encodedPayload, b.dict)
 	}
 
 	wc := newWriterWithCounter(compressor)
@@ -103,7 +101,7 @@ func (b *batch) processMessage(m *message.Message, outputChan chan *message.Payl
 	}
 
 	if len(b.trainingSet) >= 5000 {
-		dict, err := zstd.TrainFromBuffer(b.trainingSet, 100*1024)
+		dict, err := b.compression.TrainFromBuffer(b.trainingSet, 100*1024)
 		if err != nil {
 			log.Warn("Training dictionary failed", err)
 			return // fail all future log collection
