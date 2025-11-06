@@ -23,6 +23,7 @@ import (
 	"go.opentelemetry.io/collector/processor/batchprocessor"
 	"go.opentelemetry.io/collector/receiver"
 	"go.opentelemetry.io/collector/receiver/otlpreceiver"
+	"go.opentelemetry.io/collector/service/telemetry/otelconftelemetry"
 	"go.uber.org/atomic"
 	"go.uber.org/multierr"
 	"go.uber.org/zap"
@@ -110,6 +111,7 @@ func getComponents(
 		Receivers:  receivers,
 		Processors: processors,
 		Exporters:  exporters,
+		Telemetry:  otelconftelemetry.NewFactory(),
 	}
 
 	return factories, multierr.Combine(errs...)

@@ -53,6 +53,7 @@ import (
 	"go.opentelemetry.io/collector/receiver"
 	nopreceiver "go.opentelemetry.io/collector/receiver/nopreceiver"
 	otlpreceiver "go.opentelemetry.io/collector/receiver/otlpreceiver"
+	"go.opentelemetry.io/collector/service/telemetry/otelconftelemetry"
 )
 
 func components() (otelcol.Factories, error) {
@@ -169,6 +170,8 @@ func components() (otelcol.Factories, error) {
 	factories.ConnectorModules = make(map[component.Type]string, len(factories.Connectors))
 	factories.ConnectorModules[routingconnector.NewFactory().Type()] = "github.com/open-telemetry/opentelemetry-collector-contrib/connector/routingconnector v0.139.0"
 	factories.ConnectorModules[spanmetricsconnector.NewFactory().Type()] = "github.com/open-telemetry/opentelemetry-collector-contrib/connector/spanmetricsconnector v0.139.0"
+
+	factories.Telemetry = otelconftelemetry.NewFactory()
 
 	return factories, nil
 }

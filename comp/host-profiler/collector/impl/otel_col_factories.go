@@ -28,6 +28,7 @@ import (
 	"go.opentelemetry.io/collector/otelcol"
 	"go.opentelemetry.io/collector/processor"
 	"go.opentelemetry.io/collector/receiver/otlpreceiver"
+	"go.opentelemetry.io/collector/service/telemetry/otelconftelemetry"
 )
 
 // ExtraFactories is an interface that provides extra factories for the collector.
@@ -138,6 +139,7 @@ func createFactories(extraFactories ExtraFactories) func() (otelcol.Factories, e
 			Exporters:  expMap,
 			Processors: processors,
 			Extensions: extensions,
+			Telemetry:  otelconftelemetry.NewFactory(),
 		}, nil
 	}
 }
