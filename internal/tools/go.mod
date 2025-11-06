@@ -3,6 +3,7 @@ module github.com/DataDog/datadog-agent/internal/tools
 go 1.24.0
 
 require (
+	github.com/aarzilli/whydeadcode v0.0.0-20241226171816-ed86f8ea0a6f
 	github.com/frapposelli/wwhrd v0.4.0
 	github.com/go-enry/go-license-detector/v4 v4.3.0
 	github.com/golangci/golangci-lint v1.60.3

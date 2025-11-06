@@ -73,7 +73,7 @@ require (
 
 require (
 	github.com/DataDog/datadog-agent/pkg/version v0.64.1 // indirect
-	github.com/DataDog/go-sqllexer v0.1.8 // indirect
+	github.com/DataDog/go-sqllexer v0.1.9 // indirect
 	github.com/DataDog/go-tuf v1.1.1-0.5.2 // indirect
 	github.com/DataDog/zstd v1.5.7 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
@@ -245,7 +245,6 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/tagset => ../../pkg/tagset
 	github.com/DataDog/datadog-agent/pkg/telemetry => ../../pkg/telemetry
 	github.com/DataDog/datadog-agent/pkg/template => ../../pkg/template
-	github.com/DataDog/datadog-agent/pkg/trace/stats/oteltest => ../../pkg/trace/stats/oteltest
 	github.com/DataDog/datadog-agent/pkg/util/backoff => ../../pkg/util/backoff
 	github.com/DataDog/datadog-agent/pkg/util/buf => ../../pkg/util/buf
 	github.com/DataDog/datadog-agent/pkg/util/cache => ../../pkg/util/cache
