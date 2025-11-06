@@ -1,8 +1,25 @@
 load("@bazel_skylib//rules:run_binary.bzl", "run_binary")
+load("@bazel_lib//lib:copy_to_directory.bzl", "copy_to_directory")
+
+copy_to_directory(
+    name = "externals",
+    srcs = [
+        "@bzip2_win",
+        "@mpdecimal_win",
+        "@sqlite_win",
+        "@xz_win",
+        "@zlib_win",
+        "@libffi_win",
+        "@openssl-bin_win",
+        "@tcltk_win",
+    ],
+    include_external_repositories = ["*"],
+    out = "externals",
+)
 
 run_binary(
     name = "python_win",
-    srcs = glob(["**"]),
+    srcs = glob(["**"]) + [":externals"],
     outs = [
         "LICENSE.txt",
         "TCL_LIBRARY.env",
@@ -193,6 +210,7 @@ run_binary(
     ],
     env = {
         "PROCESSOR_ARCHITECTURE": "AMD64",
+        "EXTERNALS_DIR": "$(location :externals)",
         # This sets up vs toolchain and depends on the system
         "MSBUILD": r"C:\devtools\vstudio\MSBuild\Current\Bin\MSBuild.exe",
         "GIT": r"C:\devtools\git\cmd\git.exe",
