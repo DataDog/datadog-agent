@@ -1,20 +1,20 @@
-load("@bazel_skylib//rules:run_binary.bzl", "run_binary")
 load("@bazel_lib//lib:copy_to_directory.bzl", "copy_to_directory")
+load("@bazel_skylib//rules:run_binary.bzl", "run_binary")
 
 copy_to_directory(
     name = "externals",
     srcs = [
         "@bzip2_win",
+        "@libffi_win",
         "@mpdecimal_win",
+        "@openssl-bin_win",
         "@sqlite_win",
+        "@tcltk_win",
         "@xz_win",
         "@zlib_win",
-        "@libffi_win",
-        "@openssl-bin_win",
-        "@tcltk_win",
     ],
-    include_external_repositories = ["*"],
     out = "externals",
+    include_external_repositories = ["*"],
 )
 
 run_binary(

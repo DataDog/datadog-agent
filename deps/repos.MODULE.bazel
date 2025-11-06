@@ -202,6 +202,10 @@ http_archive(
     files = {
         "build_python.bat": "//deps/cpython:build_python.bat",
     },
+    patch_strip = 1,
+    patches = [
+        "//deps/cpython:0001-customize-windows-build-script.patch",
+    ],
     sha256 = "6c9d80839cfa20024f34d9a6dd31ae2a9cd97ff5e980e969209746037a5153b2",
     strip_prefix = "Python-{}".format(PYTHON_VERSION),
     url = "https://python.org/ftp/python/{0}/Python-{0}.tgz".format(PYTHON_VERSION),
@@ -220,11 +224,23 @@ python_src_deps = {
 [
     http_archive(
         name = "{}_win".format(name),
-        build_file_content = "filegroup(name = '{name}_win', srcs = glob(['{name}-{version}/**']), visibility = ['//visibility:public'])".format(name=name, version=version),
+        add_prefix = "{name}-{version}".format(
+            name = name,
+            version = version,
+        ),
+        build_file_content = "filegroup(name = '{name}_win', srcs = glob(['{name}-{version}/**']), visibility = ['//visibility:public'])".format(
+            name = name,
+            version = version,
+        ),
         sha256 = sha256,
-        url = "https://github.com/python/cpython-source-deps/archive/{name}-{version}.zip".format(name=name, version=version),
-        strip_prefix = "cpython-source-deps-{name}-{version}".format(name=name, version=version),
-        add_prefix = "{name}-{version}".format(name=name, version=version),
+        strip_prefix = "cpython-source-deps-{name}-{version}".format(
+            name = name,
+            version = version,
+        ),
+        url = "https://github.com/python/cpython-source-deps/archive/{name}-{version}.zip".format(
+            name = name,
+            version = version,
+        ),
     )
     for name, (version, sha256) in python_src_deps.items()
 ]
@@ -238,11 +254,23 @@ python_bin_deps = {
 [
     http_archive(
         name = "{}_win".format(name),
-        build_file_content = "filegroup(name = '{name}_win', srcs = glob(['{name}-{version}/**']), visibility = ['//visibility:public'])".format(name=name, version=version),
+        add_prefix = "{name}-{version}".format(
+            name = name,
+            version = version,
+        ),
+        build_file_content = "filegroup(name = '{name}_win', srcs = glob(['{name}-{version}/**']), visibility = ['//visibility:public'])".format(
+            name = name,
+            version = version,
+        ),
         sha256 = sha256,
-        url = "https://github.com/python/cpython-bin-deps/archive/{name}-{version}.zip".format(name=name, version=version),
-        strip_prefix = "cpython-bin-deps-{name}-{version}".format(name=name, version=version),
-        add_prefix = "{name}-{version}".format(name=name, version=version),
+        strip_prefix = "cpython-bin-deps-{name}-{version}".format(
+            name = name,
+            version = version,
+        ),
+        url = "https://github.com/python/cpython-bin-deps/archive/{name}-{version}.zip".format(
+            name = name,
+            version = version,
+        ),
     )
     for name, (version, sha256) in python_bin_deps.items()
 ]
