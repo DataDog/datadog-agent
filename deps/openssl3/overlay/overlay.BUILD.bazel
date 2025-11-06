@@ -6,13 +6,7 @@ load(
     "lib_contents.bzl",
     "HDRS",
     "HDRS_DARWIN_ARM64",
-    "LIB_APPS_SRCS_DARWIN_ARM64",
-    "LIB_COMMON_SRCS_DARWIN_ARM64",
     "LIB_CRYPTO_SRCS_DARWIN_ARM64",
-    "LIB_DEFAULT_SRCS_DARWIN_ARM64",
-    "LIB_SSL_SRCS_DARWIN_ARM64",
-    "LIB_TEMPLATE_SRCS_DARWIN_ARM64",
-    "LIB_TESTUTIL_SRCS_DARWIN_ARM64",
     "TEXTUAL_HEADERS",
 )
 
@@ -68,14 +62,8 @@ DARWIN_ARM64_DEFINES = [
 cc_library(
     name = "libcrypto",
     srcs = HDRS + select({
+        # TODO: This needs to be arch specific too.
         "@platforms//os:macos": HDRS_DARWIN_ARM64 + LIB_CRYPTO_SRCS_DARWIN_ARM64,
-    }) + select({
-        "@platforms//cpu:aarch64": [
-            # TODO: This does not compile on linux. Huh?
-            # "crypto/sm4/vpsm4_ex-armv8.S",
-        ],
-        "//conditions:default": [
-        ],
     }),
     # Yeech.  Includes polutes the build. But we can not use -I because we don't know
     # the path to the folder when building via external/openssl3/...
@@ -120,20 +108,8 @@ cc_library(
         ],
     }),
     textual_hdrs = TEXTUAL_HEADERS + glob(["**/*.inc"]),
-    #    "crypto/LPdir_unix.c",
-    #    "crypto/des/ncbc_enc.c",
-    #    "providers/implementations/macs/blake2_mac_impl.c",
-    #] + glob(["**/*.inc"]),
     visibility = ["//visibility:public"],
     deps = [
         "@zlib//:zlib",
     ],
 )
-
-"""Grabbed from live build.
-sm2_sig.d.tmp -c -o providers/implementations/signature/libdefault-lib-sm2_sig.o ../openssl-3.5.2-pristine/providers/implementations/signature/sm2_sig.c
-cc  -I. -Icrypto -Iinclude -Iproviders/implementations/include -Iproviders/common/include -Iproviders/fips/include -I../openssl-3.5.2-pristine -I../openssl-3.5.2-pristine/crypto -I../openssl-3.5.2-pristine/include -I../openssl-3.5.2-pristine/providers/implementations/include -I../openssl-3.5.2-pristine/providers/common/include -I../openssl-3.5.2-pristine/providers/fips/include
--DOPENSSLDIR="\"/opt/datadog/embedded/ssl\""
--D_REENTRANT
--DOPENSSL_BUILDING_OPENSSL
-"""
