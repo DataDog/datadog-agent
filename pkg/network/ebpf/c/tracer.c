@@ -1122,7 +1122,7 @@ static __always_inline int handle_net_dev_queue(struct sk_buff* skb) {
         return 0;
     }
     sock_tup.netns = 0;
-#ifndef COMPILE_CORE
+#ifndef COMPILE_PREBUILT
     sock_tup.pid = 0;
 #endif
 

@@ -19,9 +19,9 @@
 
 static __always_inline void clean_protocol_classification(conn_tuple_t *tup) {
     conn_tuple_t conn_tuple = *tup;
-#ifndef COMPILE_CORE
+#ifndef COMPILE_PREBUILT
     conn_tuple.pid = 0;
-#endif // COMPILE_CORE
+#endif // COMPILE_PREBUILT
     conn_tuple.netns = 0;
     normalize_tuple(&conn_tuple);
     delete_protocol_stack(&conn_tuple, NULL, FLAG_TCP_CLOSE_DELETION);
