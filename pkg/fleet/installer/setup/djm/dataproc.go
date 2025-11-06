@@ -51,7 +51,7 @@ func SetupDataproc(s *common.Setup) error {
 		return fmt.Errorf("failed to get hostname: %w", err)
 	}
 	s.Config.DatadogYAML.Hostname = hostname
-	s.Config.DatadogYAML.DJM.Enabled = true
+	s.Config.DatadogYAML.DJM.Enabled = config.BoolToPtr(true)
 	if os.Getenv("DD_TRACE_DEBUG") == "true" {
 		s.Out.WriteString("Enabling Datadog Java Tracer DEBUG logs on DD_TRACE_DEBUG=true\n")
 		tracerConfigDataproc.TraceDebug = config.BoolToPtr(true)
