@@ -86,7 +86,7 @@ func main() {
 		coreconfig.Module(),
 		logscompressionfx.Module(),
 		secretsfx.Module(),
-		fx.Supply(logdef.ForOneShot(modeConf.LoggerName, "info", true)),
+		fx.Supply(logdef.ForOneShot(modeConf.LoggerName, "error", true)),
 		logfx.Module(),
 		nooptelemetry.Module(),
 		hostnameimpl.Module(),
