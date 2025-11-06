@@ -8,4 +8,4 @@
 ---
 enhancements:
   - |
-    Print serverless-init startup failures to stderr.
+    Change serverless-init default log level to error.
