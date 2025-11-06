@@ -130,6 +130,7 @@ class WiFiIPCServer {
         var isDirectory: ObjCBool = false
         if fileManager.fileExists(atPath: socketDir, isDirectory: &isDirectory) {
             if isDirectory.boolValue {
+                NSLog("[WiFiIPCServer] Socket directory exists: \(socketDir)")
                 return // Directory already exists
             }
             // Path exists but is not a directory
@@ -137,13 +138,17 @@ class WiFiIPCServer {
                          userInfo: [NSLocalizedDescriptionKey: "\(socketDir) exists but is not a directory"])
         }
 
-        // Try to create directory (may fail if we don't have permissions, which is expected)
+        // Try to create directory (may fail if we don't have permissions)
         do {
             try fileManager.createDirectory(atPath: socketDir, withIntermediateDirectories: true, attributes: nil)
             NSLog("[WiFiIPCServer] Created socket directory: \(socketDir)")
         } catch {
-            // Directory creation may fail if running without root, but that's OK if directory already exists
-            NSLog("[WiFiIPCServer] Note: Could not create \(socketDir) (may already exist or lack permissions)")
+            // Directory creation failed - log detailed error
+            NSLog("[WiFiIPCServer] ERROR: Cannot create socket directory \(socketDir)")
+            NSLog("[WiFiIPCServer] ERROR: \(error.localizedDescription)")
+            NSLog("[WiFiIPCServer] The agent installer must create this directory during installation")
+            throw NSError(domain: "WiFiIPCServer", code: 6,
+                         userInfo: [NSLocalizedDescriptionKey: "Cannot create socket directory \(socketDir). Ensure /var/run/datadog-agent exists with proper permissions. Error: \(error.localizedDescription)"])
         }
     }
 

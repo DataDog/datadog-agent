@@ -54,6 +54,13 @@ mkdir -vp "$RUN_DIR"
 chown -vR "${INSTALL_USER}:admin" "$RUN_DIR"
 chmod -v 755 "$RUN_DIR"
 
+# Create IPC directory for WiFi data exchange between GUI and agent
+WIFI_IPC_DIR=/var/run/datadog-agent
+echo "# Setting up WiFi IPC directory"
+mkdir -vp "$WIFI_IPC_DIR"
+chown -v root:wheel "$WIFI_IPC_DIR"
+chmod -v 755 "$WIFI_IPC_DIR"
+
 echo "# Copying conf"
 mkdir -vp $CONF_DIR/checks.d
 

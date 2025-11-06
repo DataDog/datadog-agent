@@ -50,17 +50,19 @@ class WiFiDataProvider: NSObject, CLLocationManagerDelegate {
 
     /// Get current WiFi information for the system
     func getWiFiInfo() -> WiFiData {
-        // Check if we need to request permission
+        // Check current authorization status and request permission if needed
         let authStatus = getAuthorizationStatus()
+
+        // Request permission if not yet determined
+        // With LSUIElement=false and .accessory activation policy, this will show the prompt
         if authStatus == .notDetermined && !permissionRequestInProgress {
-            NSLog("[WiFiDataProvider] Location permission not determined, requesting authorization...")
+            NSLog("[WiFiDataProvider] Requesting location permission...")
             permissionRequestInProgress = true
             if #available(macOS 10.15, *) {
                 locationManager.requestAlwaysAuthorization()
             }
         }
 
-        // Check current authorization status
         let isAuthorized = (authStatus == .authorizedAlways)
 
         // Get WiFi interface (this works regardless of location permission)
