@@ -107,7 +107,7 @@ func (a *Agent) installLinuxInstallScript(params *installParams) error {
 func (a *Agent) installWindowsInstallScript(params *installParams) error {
 	env := map[string]string{
 		"DD_API_KEY": apiKey(),
-		"DD_SITE":    "datad0g.com",
+		"DD_SITE":    "datadoghq.com",
 	}
 	if params.remoteUpdates {
 		env["DD_REMOTE_UPDATES"] = "true"

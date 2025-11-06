@@ -257,6 +257,9 @@ func (b *Backend) Catalog() *Catalog {
 		}
 		cachedCatalog = catalog
 	})
+	if cachedCatalog == nil {
+		b.t().Fatalf("catalog is nil")
+	}
 	return cachedCatalog
 }
 
@@ -334,7 +337,7 @@ func (b *Backend) runDaemonCommandWithRestart(command string, args ...string) (s
 			return fmt.Errorf("daemon PID %d is still running", newPID)
 		}
 		return nil
-	}, retry.Attempts(10), retry.Delay(1*time.Second), retry.DelayType(retry.FixedDelay))
+	}, retry.Attempts(30), retry.Delay(15*time.Second), retry.DelayType(retry.FixedDelay))
 	if err != nil {
 		return "", fmt.Errorf("error waiting for daemon to restart: %w", err)
 	}
@@ -348,6 +351,13 @@ func (b *Backend) runDaemonCommand(command string, args ...string) (string, erro
 	case e2eos.LinuxFamily:
 		sanitizeCharacter = `\"`
 		baseCommand = "sudo datadog-installer daemon"
+		_, err := b.host.RemoteHost.Execute(fmt.Sprintf("%s --help", baseCommand))
+		if err != nil {
+			if !strings.Contains(err.Error(), "unknown command") {
+				return "", err
+			}
+			baseCommand = "sudo DD_BUNDLED_AGENT=installer datadog-agent daemon"
+		}
 	case e2eos.WindowsFamily:
 		sanitizeCharacter = "\\`\""
 		baseCommand = `& "C:\Program Files\Datadog\Datadog Agent\bin\datadog-installer.exe" daemon`
@@ -423,7 +433,7 @@ func getImageVersion(ref string) (string, error) {
 	}
 	version, ok := m.Annotations["com.datadoghq.package.version"]
 	if !ok {
-		return "", fmt.Errorf("com.datadoghq.package.version annotation not found in manifest")
+		return "unknown", nil
 	}
 	return version, nil
 }

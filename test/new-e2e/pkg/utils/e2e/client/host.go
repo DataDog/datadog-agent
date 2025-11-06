@@ -378,7 +378,7 @@ func (h *Host) FindFiles(name string) ([]string, error) {
 	h.context.T().Logf("Finding files with name %s", name)
 	switch h.osFamily {
 	case oscomp.WindowsFamily:
-		out, err := h.Execute(fmt.Sprintf("Get-ChildItem -Path %s -Filter %s", name))
+		out, err := h.Execute(fmt.Sprintf("Get-ChildItem -Path C:\\ -Filter %s", name))
 		if err != nil {
 			return nil, err
 		}
