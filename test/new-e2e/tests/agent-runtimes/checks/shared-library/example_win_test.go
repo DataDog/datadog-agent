@@ -41,8 +41,9 @@ func (v *windowsSharedLibrarySuite) copyLibrary(sourceLibPath string) {
 }
 
 func (v *windowsSharedLibrarySuite) removeLibrary() {
-	err := v.Env().RemoteHost.Remove(v.Env().RemoteHost.JoinPath(v.checksdPath, v.libraryName))
-	require.Nil(v.T(), err)
+	out := v.Env().RemoteHost.MustExecute("sudo rm " + v.Env().RemoteHost.JoinPath(v.checksdPath, v.libraryName))
+	// should not output anything, otherwise it's an error
+	require.Empty(v.T(), out)
 }
 
 func (v *windowsSharedLibrarySuite) TestWindowsCheckExample() {
