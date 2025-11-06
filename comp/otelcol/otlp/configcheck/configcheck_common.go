@@ -71,6 +71,10 @@ var intConfigs = map[string]struct{}{
 	"otlp_config.receiver.protocols.grpc.read_buffer_size":       {},
 	"otlp_config.receiver.protocols.grpc.write_buffer_size":      {},
 	"otlp_config.receiver.protocols.http.max_request_body_size":  {},
+	"otlp_config.logs.batch.min_size":                            {},
+	"otlp_config.logs.batch.max_size":                            {},
+	"otlp_config.metrics.batch.min_size":                         {},
+	"otlp_config.metrics.batch.max_size":                         {},
 }
 
 // hasSection checks if a subsection of otlp_config section exists in a given config
