@@ -506,6 +506,7 @@ func getManifestType(kind string) int {
 func buildCommonTags() []string {
 	return []string{
 		"otel_receiver:k8sobjectsreceiver",
+		"agent_version:" + version.AgentVersion,
 	}
 }
 
@@ -515,13 +516,13 @@ func buildTags(resource pcommon.Resource, logRecord plog.LogRecord) []string {
 
 	// Add resource attributes as tags
 	resource.Attributes().Range(func(key string, value pcommon.Value) bool {
-		tags = append(tags, fmt.Sprintf("%s:%s", key, value.AsString()))
+		tags = append(tags, fmt.Sprintf("otel_%s:%s", strings.ReplaceAll(key, ".", "_"), value.AsString()))
 		return true
 	})
 
 	// Add log record attributes as tags
 	logRecord.Attributes().Range(func(key string, value pcommon.Value) bool {
-		tags = append(tags, fmt.Sprintf("%s:%s", key, value.AsString()))
+		tags = append(tags, fmt.Sprintf("otel_%s:%s", strings.ReplaceAll(key, ".", "_"), value.AsString()))
 		return true
 	})
 
