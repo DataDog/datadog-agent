@@ -605,7 +605,7 @@ func (a *atel) StartStartupSpan(operationName string) (*installertelemetry.Span,
 
 // start is called by FX when the application starts.
 func (a *atel) start() error {
-	fmt.Println("WACKTEST33 ANDREW QIAN????")
+	fmt.Println("WACKTEST33 HUH ANDREW QIAN????")
 	a.logComp.Infof("Starting agent telemetry for %d schedules and %d profiles", len(a.atelCfg.schedule), len(a.atelCfg.Profiles))
 
 	a.cancelCtx, a.cancel = context.WithCancel(context.Background())
