@@ -35,7 +35,7 @@ type sharedLibrarySuite struct {
 func (v *sharedLibrarySuite) getSuiteOptions() []e2e.SuiteOption {
 	config := fmt.Sprintf(
 		`shared_library_check.enabled: true
-	shared_library_check.library_folder_path: %s`,
+shared_library_check.library_folder_path: %s`,
 		v.checksdPath,
 	)
 

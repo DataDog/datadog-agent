@@ -41,7 +41,7 @@ func (v *windowsSharedLibrarySuite) copyLibrary(sourceLibPath string) {
 }
 
 func (v *windowsSharedLibrarySuite) removeLibrary() {
-	out := v.Env().RemoteHost.MustExecute("sudo rm " + v.Env().RemoteHost.JoinPath(v.checksdPath, v.libraryName))
+	out := v.Env().RemoteHost.Remove(v.Env().RemoteHost.JoinPath(v.checksdPath, v.libraryName))
 	// should not output anything, otherwise it's an error
 	require.Empty(v.T(), out)
 }
