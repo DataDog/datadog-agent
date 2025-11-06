@@ -15,10 +15,10 @@ require (
 	github.com/DataDog/datadog-agent/pkg/proto v0.72.0-rc.5
 	github.com/DataDog/datadog-agent/pkg/trace v0.71.0-rc.1
 	github.com/DataDog/datadog-agent/pkg/util/compression v0.72.0-rc.5
-	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog v0.138.0
+	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog v0.139.0
 )
 
-require go.opentelemetry.io/collector/extension/xextension v0.138.0 // indirect
+require go.opentelemetry.io/collector/extension/xextension v0.139.0 // indirect
 
 require go.opentelemetry.io/collector/extension/extensionauth v1.44.0 // indirect
 
@@ -30,21 +30,21 @@ require (
 	github.com/foxboron/go-tpm-keyfiles v0.0.0-20250903184740-5d135037bd4d // indirect
 	github.com/gobwas/glob v0.2.3 // indirect
 	github.com/google/go-tpm v0.9.6 // indirect
-	go.opentelemetry.io/collector/pdata/xpdata v0.138.0 // indirect
+	go.opentelemetry.io/collector/pdata/xpdata v0.139.0 // indirect
 	golang.org/x/crypto v0.43.0 // indirect
 )
 
 require (
 	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/metrics v0.72.0-rc.5 // indirect
 	go.opentelemetry.io/collector/config/configmiddleware v1.44.0 // indirect
-	go.opentelemetry.io/collector/confmap/xconfmap v0.138.0 // indirect
-	go.opentelemetry.io/collector/exporter/exporterhelper v0.138.0 // indirect
-	go.opentelemetry.io/collector/extension/extensionmiddleware v0.138.0 // indirect
+	go.opentelemetry.io/collector/confmap/xconfmap v0.139.0 // indirect
+	go.opentelemetry.io/collector/exporter/exporterhelper v0.139.0 // indirect
+	go.opentelemetry.io/collector/extension/extensionmiddleware v0.139.0 // indirect
 )
 
 require (
 	github.com/cenkalti/backoff/v5 v5.0.3 // indirect
-	go.opentelemetry.io/collector/internal/telemetry v0.138.0 // indirect
+	go.opentelemetry.io/collector/internal/telemetry v0.139.0 // indirect
 	go.opentelemetry.io/contrib/bridges/otelzap v0.13.0 // indirect
 	go.opentelemetry.io/otel/log v0.14.0 // indirect
 )
@@ -65,8 +65,8 @@ require (
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/pierrec/lz4/v4 v4.1.22 // indirect
 	github.com/twmb/murmur3 v1.1.8 // indirect
-	go.opentelemetry.io/collector/consumer/consumererror v0.138.0 // indirect
-	go.opentelemetry.io/collector/pdata/pprofile v0.138.0 // indirect
+	go.opentelemetry.io/collector/consumer/consumererror v0.139.0 // indirect
+	go.opentelemetry.io/collector/pdata/pprofile v0.139.0 // indirect
 )
 
 require (
@@ -199,7 +199,7 @@ require (
 	go.opentelemetry.io/collector/component v1.44.0 // indirect
 	go.opentelemetry.io/collector/config/configauth v1.44.0 // indirect
 	go.opentelemetry.io/collector/config/configcompression v1.44.0 // indirect
-	go.opentelemetry.io/collector/config/confighttp v0.138.0 // indirect
+	go.opentelemetry.io/collector/config/confighttp v0.139.0 // indirect
 	go.opentelemetry.io/collector/config/confignet v1.44.0 // indirect
 	go.opentelemetry.io/collector/config/configopaque v1.44.0 // indirect
 	go.opentelemetry.io/collector/config/configretry v1.44.0 // indirect
