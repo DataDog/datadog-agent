@@ -56,7 +56,22 @@ func GetWiFiInfo() (wifiInfo, error) {
 	socketPath := fmt.Sprintf("/var/run/datadog-agent/wifi-%s.sock", uid)
 	info, err := fetchWiFiFromGUI(socketPath, 2*time.Second)
 	if err != nil {
-		return wifiInfo{}, fmt.Errorf("GUI IPC unavailable: %w", err)
+		// GUI might not be running - try to launch it
+		log.Infof("GUI not responding, attempting to launch it: %v", err)
+		if launchErr := launchGUIApp(uid); launchErr != nil {
+			log.Warnf("Failed to launch GUI app: %v", launchErr)
+			return wifiInfo{}, fmt.Errorf("GUI IPC unavailable and failed to launch: %w", err)
+		}
+
+		// Wait for GUI to start and create socket
+		log.Info("Waiting for GUI to start...")
+		time.Sleep(3 * time.Second)
+
+		// Retry connection
+		info, err = fetchWiFiFromGUI(socketPath, 2*time.Second)
+		if err != nil {
+			return wifiInfo{}, fmt.Errorf("GUI IPC unavailable after launch attempt: %w", err)
+		}
 	}
 
 	return info, nil
@@ -78,6 +93,31 @@ func getConsoleUserUID() (string, error) {
 
 	log.Debugf("Console user UID: %s", uid)
 	return uid, nil
+}
+
+// launchGUIApp attempts to launch the GUI application for the specified user
+func launchGUIApp(uid string) error {
+	// First try using launchctl to start the LaunchAgent service
+	// This is the preferred method as it uses the proper LaunchAgent infrastructure
+	cmd := exec.Command("/bin/launchctl", "asuser", uid, "launchctl", "start", "com.datadoghq.gui")
+	output, err := cmd.CombinedOutput()
+	if err == nil {
+		log.Info("Successfully started GUI via LaunchAgent")
+		return nil
+	}
+
+	log.Debugf("LaunchAgent start failed (may already be loaded): %v, output: %s", err, string(output))
+
+	// Fallback: Try to open the app directly
+	// This works even if the LaunchAgent isn't loaded
+	cmd = exec.Command("/bin/launchctl", "asuser", uid, "/usr/bin/open", "-a", "Datadog Agent")
+	output, err = cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("failed to open GUI app: %w, output: %s", err, string(output))
+	}
+
+	log.Info("Successfully launched GUI app directly")
+	return nil
 }
 
 // fetchWiFiFromGUI connects to the GUI Unix socket and fetches WiFi data
