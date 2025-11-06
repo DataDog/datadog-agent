@@ -10,7 +10,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-
 	"net/http"
 	"net/url"
 	"strconv"
@@ -19,14 +18,12 @@ import (
 	"time"
 
 	gocache "github.com/patrickmn/go-cache"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/rest"
-
-	"github.com/stormcat24/protodep/pkg/logger"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/plog"
 	"go.uber.org/zap"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
 
 	agentmodel "github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/endpoints"
@@ -103,23 +100,18 @@ func shouldSkipManifest(manifest *agentmodel.Manifest) bool {
 
 func (e *Exporter) consumeK8sObjects(ctx context.Context, ld plog.Logs) (err error) {
 	var manifests []*agentmodel.Manifest
-	fmt.Println("aurele-debug: consumeK8sObjects ")
 
-	clusterID := getClusterID(ctx)
+	clusterID := getClusterID(ctx, e.set.Logger)
 	if clusterID == "" {
-		logger.Error("Failed to get cluster ID, skipping manifest payload")
+		e.set.Logger.Error("Failed to get cluster ID, skipping manifest payload")
 		return nil
 	}
 
-	var totalNodes int = 0
-
-	logger.Info("consumeK8sObjects: "+strconv.Itoa(ld.ResourceLogs().Len()), zap.Int("resourceLogsLen", ld.ResourceLogs().Len()))
+	var totalNodes int
 
 	for i := 0; i < ld.ResourceLogs().Len(); i++ {
 		resourceLogs := ld.ResourceLogs().At(i)
 		resource := resourceLogs.Resource()
-
-		logger.Info("consumeK8sObjects", zap.Any("resource", resource.Attributes().AsRaw()))
 
 		for j := 0; j < resourceLogs.ScopeLogs().Len(); j++ {
 			scopeLogs := resourceLogs.ScopeLogs().At(j)
@@ -127,13 +119,10 @@ func (e *Exporter) consumeK8sObjects(ctx context.Context, ld plog.Logs) (err err
 			for k := 0; k < scopeLogs.LogRecords().Len(); k++ {
 				logRecord := scopeLogs.LogRecords().At(k)
 
-				//dump raw log record
-				logger.Info("consumeK8sObjectslog", zap.Any("logRecord", logRecord.Body().AsString()))
-
 				// Convert Kubernetes resource manifest to orchestrator payload format
 				manifest, err := toManifest(ctx, logRecord, resource)
 				if err != nil {
-					logger.Error("Failed to convert to manifest: "+err.Error(), zap.Error(err))
+					e.set.Logger.Error("Failed to convert to manifest: "+err.Error(), zap.Error(err))
 					continue
 				}
 
@@ -143,17 +132,17 @@ func (e *Exporter) consumeK8sObjects(ctx context.Context, ld plog.Logs) (err err
 
 				// Check cache to avoid sending the same manifest multiple times within 3 minutes
 				if shouldSkipManifest(manifest) {
-					logger.Info("Skipping manifest (cache hit)",
+					e.set.Logger.Info("Skipping manifest (cache hit)",
 						zap.String("uid", manifest.Uid),
 						zap.String("kind", manifest.Kind),
 						zap.String("resourceVersion", manifest.ResourceVersion))
 					continue
-				} else {
-					logger.Info("Sending manifest",
-						zap.String("uid", manifest.Uid),
-						zap.String("kind", manifest.Kind),
-						zap.String("resourceVersion", manifest.ResourceVersion))
 				}
+
+				e.set.Logger.Info("Sending manifest",
+					zap.String("uid", manifest.Uid),
+					zap.String("kind", manifest.Kind),
+					zap.String("resourceVersion", manifest.ResourceVersion))
 
 				manifests = append(manifests, manifest)
 			}
@@ -162,13 +151,13 @@ func (e *Exporter) consumeK8sObjects(ctx context.Context, ld plog.Logs) (err err
 
 	// Send a Cluster manifest once all nodes have been collected
 	if totalNodes > 0 {
-		logger.Info("Creating Cluster manifest after collecting nodes", zap.Int("total_nodes", totalNodes))
-		clusterManifest := createClusterManifest(clusterID, totalNodes)
+		e.set.Logger.Info("Creating Cluster manifest after collecting nodes", zap.Int("total_nodes", totalNodes))
+		clusterManifest := createClusterManifest(clusterID, totalNodes, e.set.Logger)
 
 		// Check cache for the cluster manifest too
 		if !shouldSkipManifest(clusterManifest) {
 			manifests = append(manifests, clusterManifest)
-			logger.Info("Added Cluster manifest to payload",
+			e.set.Logger.Info("Added Cluster manifest to payload",
 				zap.String("uid", clusterManifest.Uid),
 				zap.Int("total_nodes", totalNodes))
 		}
@@ -176,13 +165,13 @@ func (e *Exporter) consumeK8sObjects(ctx context.Context, ld plog.Logs) (err err
 
 	hostname, err := e.orchestratorConfig.Hostname.Get(ctx)
 	if err != nil || hostname == "" {
-		logger.Error("Failed to get hostname from config", zap.Error(err))
+		e.set.Logger.Error("Failed to get hostname from config", zap.Error(err))
 	}
 
 	// Chunk manifests into batches of maxManifestsPerPayload and send each chunk separately
 	// to ensure the backend can handle the load
 	totalManifests := len(manifests)
-	logger.Info("Sending manifests in chunks",
+	e.set.Logger.Info("Sending manifests in chunks",
 		zap.Int("total_manifests", totalManifests),
 		zap.Int("chunk_size", maxManifestsPerPayload))
 
@@ -193,15 +182,15 @@ func (e *Exporter) consumeK8sObjects(ctx context.Context, ld plog.Logs) (err err
 		}
 
 		chunk := manifests[i:end]
-		logger.Info("Sending manifest chunk",
+		e.set.Logger.Info("Sending manifest chunk",
 			zap.Int("chunk_start", i),
 			zap.Int("chunk_end", end),
 			zap.Int("chunk_size", len(chunk)))
 
 		payload := toManifestPayload(ctx, chunk, hostname, e.orchestratorConfig.ClusterName, clusterID)
 
-		if err := sendManifestPayload(ctx, e.orchestratorConfig, payload, hostname, clusterID); err != nil {
-			logger.Error("Failed to send collector manifest chunk",
+		if err := sendManifestPayload(ctx, e.orchestratorConfig, payload, hostname, clusterID, e.set.Logger); err != nil {
+			e.set.Logger.Error("Failed to send collector manifest chunk",
 				zap.Int("chunk_start", i),
 				zap.Int("chunk_end", end),
 				zap.Error(err))
@@ -215,7 +204,7 @@ func (e *Exporter) consumeK8sObjects(ctx context.Context, ld plog.Logs) (err err
 // This matches the behavior of the cluster agent which uses the kube-system namespace UID
 // as the cluster ID to ensure uniqueness across clusters.
 // The cluster ID is cached after the first successful retrieval to avoid repeated API calls.
-func getClusterID(ctx context.Context) string {
+func getClusterID(ctx context.Context, logger *zap.Logger) string {
 	clusterIDOnce.Do(func() {
 		// Create in-cluster Kubernetes client
 		config, err := rest.InClusterConfig()
@@ -302,22 +291,10 @@ func watchLogToManifest(ctx context.Context, objectField interface{}, bodyMap ma
 	return buildManifestFromK8sResource(ctx, k8sResource, resource, logRecord, isTerminated)
 }
 
-// pullLogToManifest handles logs from k8sobjectsreceiver in pull mode.
+// pullLogToManifestFromMap handles logs from k8sobjectsreceiver in pull mode.
 // Structure of pull mode logs:
 //   - Body: JSON string containing the k8s resource directly (e.g., {"apiVersion":"v1","kind":"Pod",...})
 //   - Attributes: May contain additional metadata from the receiver
-func pullLogToManifest(ctx context.Context, logRecord plog.LogRecord, resource pcommon.Resource) (*agentmodel.Manifest, error) {
-	// Extract the Kubernetes resource data from the log record body
-	var k8sResource map[string]interface{}
-	if err := json.Unmarshal([]byte(logRecord.Body().AsString()), &k8sResource); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal k8s resource from body: %w", err)
-	}
-
-	// Reuse common logic to build manifest (not a delete event in pull mode)
-	return buildManifestFromK8sResource(ctx, k8sResource, resource, logRecord, false)
-}
-
-// pullLogToManifestFromMap is a variant that works with an already-parsed body map
 func pullLogToManifestFromMap(ctx context.Context, k8sResource map[string]interface{}, logRecord plog.LogRecord, resource pcommon.Resource) (*agentmodel.Manifest, error) {
 	// Body is already parsed, just pass it to common logic
 	// Not a delete event in pull mode
@@ -400,7 +377,7 @@ func toManifestPayload(ctx context.Context, manifests []*agentmodel.Manifest, ho
 
 // createClusterManifest creates a Cluster manifest to be sent after all nodes have been collected.
 // This is used to trigger cluster-level processing in the backend after node collection is complete.
-func createClusterManifest(clusterID string, nodeCount int) *agentmodel.Manifest {
+func createClusterManifest(clusterID string, nodeCount int, logger *zap.Logger) *agentmodel.Manifest {
 	// Create a minimal cluster resource
 	cluster := map[string]interface{}{
 		"apiVersion": "virtual.datadoghq.com/v1",
@@ -416,7 +393,11 @@ func createClusterManifest(clusterID string, nodeCount int) *agentmodel.Manifest
 		},
 	}
 
-	content, _ := json.Marshal(cluster)
+	content, err := json.Marshal(cluster)
+	if err != nil {
+		logger.Error("Failed to marshal cluster manifest", zap.Error(err))
+		return nil
+	}
 
 	return &agentmodel.Manifest{
 		Type:            int32(getManifestType("Cluster")),
@@ -432,7 +413,7 @@ func createClusterManifest(clusterID string, nodeCount int) *agentmodel.Manifest
 	}
 }
 
-func sendManifestPayload(ctx context.Context, config OrchestratorConfig, payload *agentmodel.CollectorManifest, hostName, clusterID string) error {
+func sendManifestPayload(ctx context.Context, config OrchestratorConfig, payload *agentmodel.CollectorManifest, hostName, clusterID string, logger *zap.Logger) error {
 	httpClient := &http.Client{
 		Timeout: 10 * time.Second,
 	}
@@ -446,7 +427,7 @@ func sendManifestPayload(ctx context.Context, config OrchestratorConfig, payload
 		logger.Warn("Failed to get agent version, using default", zap.Error(err))
 	}
 
-	endpoints := getEndpoints(config)
+	endpoints := getEndpoints(config, logger)
 
 	encoded, err := agentmodel.EncodeMessage(agentmodel.Message{
 		Header: agentmodel.MessageHeader{
@@ -506,7 +487,6 @@ func getManifestType(kind string) int {
 func buildCommonTags() []string {
 	return []string{
 		"otel_receiver:k8sobjectsreceiver",
-		"agent_version:" + version.AgentVersion,
 	}
 }
 
@@ -543,7 +523,7 @@ func shouldSkipResourceKind(kind string) bool {
 
 // getEndpoints builds the orchestrator manifest endpoint URLs from the provided configuration.
 // This follows the same pattern as the forwarder: Domain + Route (see transaction.HTTPTransaction.GetTarget)
-func getEndpoints(config OrchestratorConfig) map[string]string {
+func getEndpoints(config OrchestratorConfig, logger *zap.Logger) map[string]string {
 	// Use the same endpoint route as defined in the forwarder
 	manifestRoute := endpoints.OrchestratorManifestEndpoint.Route
 
