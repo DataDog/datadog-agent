@@ -375,7 +375,7 @@ require (
 	go.opentelemetry.io/collector/confmap/provider/envprovider v1.45.0
 	go.opentelemetry.io/collector/confmap/provider/fileprovider v1.45.0
 	go.opentelemetry.io/collector/confmap/provider/httpprovider v1.45.0
-	go.opentelemetry.io/collector/confmap/provider/httpsprovider v1.44.0
+	go.opentelemetry.io/collector/confmap/provider/httpsprovider v1.45.0
 	go.opentelemetry.io/collector/confmap/provider/yamlprovider v1.45.0
 	go.opentelemetry.io/collector/exporter v1.45.0
 	go.opentelemetry.io/collector/exporter/debugexporter v0.139.0
