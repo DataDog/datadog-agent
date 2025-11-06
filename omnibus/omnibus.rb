@@ -30,7 +30,18 @@ if ENV["S3_OMNIBUS_CACHE_BUCKET"]
   s3_authenticated_download ENV.fetch('S3_OMNIBUS_CACHE_ANONYMOUS_ACCESS', '') == '' ? true : false
   if ENV['WINDOWS_BUILDER']
     s3_profile "default"
-    s3_credentials_file_path ENV.fetch('AWS_SHARED_CREDENTIALS_FILE', '%USERPROFILE%\.aws\credentials')
+    # Get the credentials path and expand Windows environment variables
+    default_path = File.join(ENV['USERPROFILE'] || '', '.aws', 'credentials')
+    credentials_path = ENV.fetch('AWS_SHARED_CREDENTIALS_FILE', default_path)
+    s3_credentials_file_path credentials_path
+
+    # Check and log if credentials file exists
+    if File.exist?(credentials_path)
+      puts "AWS credentials file found at: #{credentials_path}"
+    else
+      puts "WARNING: AWS credentials file not found at: #{credentials_path}"
+      puts "This may cause S3 caching authentication issues."
+    end
   else
     s3_instance_profile true
   end
