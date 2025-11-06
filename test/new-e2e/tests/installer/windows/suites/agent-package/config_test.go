@@ -120,11 +120,11 @@ func (s *testAgentConfigSuite) TestConfigUpgradeFailure() {
 		WithValueEqual("log_level", "debug")
 
 	// backend will send stop experiment now
-	s.assertDaemonStaysRunning(func() {
+	s.WaitForDaemonToStop(func() {
 		_, err := s.Installer().StopConfigExperiment(consts.AgentPackage)
 		s.Require().NoError(err, "daemon should stop cleanly")
 		s.AssertSuccessfulConfigStopExperiment()
-	})
+	}, backoff.WithMaxRetries(backoff.NewConstantBackOff(30*time.Second), 10))
 }
 
 // TestConfigUpgradeNewAgents tests that config experiments can enable security agent and system probe
@@ -230,11 +230,11 @@ func (s *testAgentConfigSuite) TestRevertsConfigExperimentWhenServiceDies() {
 		WithValueEqual("log_to_console", true)
 
 	// backend will send stop experiment now
-	s.assertDaemonStaysRunning(func() {
+	s.WaitForDaemonToStop(func() {
 		_, err := s.Installer().StopConfigExperiment(consts.AgentPackage)
 		s.Require().NoError(err, "daemon should respond to request")
 		s.AssertSuccessfulConfigStopExperiment()
-	})
+	}, backoff.WithMaxRetries(backoff.NewConstantBackOff(30*time.Second), 10))
 }
 
 // TestRevertsConfigExperimentWhenTimeout tests that the watchdog will revert
@@ -276,11 +276,11 @@ func (s *testAgentConfigSuite) TestRevertsConfigExperimentWhenTimeout() {
 		WithValueEqual("log_to_console", true)
 
 	// backend will send stop experiment now
-	s.assertDaemonStaysRunning(func() {
+	s.WaitForDaemonToStop(func() {
 		_, err := s.Installer().StopConfigExperiment(consts.AgentPackage)
 		s.Require().NoError(err, "daemon should respond to request")
 		s.AssertSuccessfulConfigStopExperiment()
-	})
+	}, backoff.WithMaxRetries(backoff.NewConstantBackOff(30*time.Second), 10))
 }
 
 // TestManagedConfigActiveAfterUpgrade tests that the Agent's config is preserved after a package update.
