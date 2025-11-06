@@ -1,0 +1,30 @@
+goos: darwin
+goarch: arm64
+pkg: github.com/DataDog/datadog-agent/pkg/logs/internal/decoder/auto_multiline_detection
+cpu: Apple M4 Max
+                                        │ benchmark_results.txt │
+                                        │        sec/op         │
+JSONAggregator_SingleLineJSON-16                    495.7n ± 1%
+JSONAggregator_InvalidSingleLineJSON-16             1.074µ ± 2%
+JSONAggregator_MultilineJSON-16                     3.417µ ± 3%
+JSONAggregator_ComplexNestedJSON-16                 971.4n ± 1%
+JSONAggregator_UnbalancedBraces-16                  1.633µ ± 3%
+geomean                                             1.236µ
+
+                                        │ benchmark_results.txt │
+                                        │         B/op          │
+JSONAggregator_SingleLineJSON-16                     360.0 ± 0%
+JSONAggregator_InvalidSingleLineJSON-16            1.618Ki ± 0%
+JSONAggregator_MultilineJSON-16                    3.112Ki ± 0%
+JSONAggregator_ComplexNestedJSON-16                  504.0 ± 0%
+JSONAggregator_UnbalancedBraces-16                 3.250Ki ± 0%
+geomean                                            1.231Ki
+
+                                        │ benchmark_results.txt │
+                                        │       allocs/op       │
+JSONAggregator_SingleLineJSON-16                     3.000 ± 0%
+JSONAggregator_InvalidSingleLineJSON-16              27.00 ± 0%
+JSONAggregator_MultilineJSON-16                      96.00 ± 0%
+JSONAggregator_ComplexNestedJSON-16                  3.000 ± 0%
+JSONAggregator_UnbalancedBraces-16                   42.00 ± 0%
+geomean                                              15.78
