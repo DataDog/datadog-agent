@@ -118,7 +118,7 @@ func (c *WLANCheck) Run() error {
 		// Failed to get WiFi info - emit CRITICAL service check
 		log.Errorf("WLAN check failed: %v", err)
 		log.Error("Ensure the Datadog Agent GUI is running for WiFi metrics collection on macOS 15+")
-		
+
 		sender.ServiceCheck(
 			"system.wlan.can_connect",
 			servicecheck.ServiceCheckCritical,
@@ -133,7 +133,7 @@ func (c *WLANCheck) Run() error {
 	// Check if WiFi interface is active
 	if wi.phyMode == "None" {
 		log.Warn("No active Wi-Fi interface detected: PHYMode is none.")
-		
+
 		sender.ServiceCheck(
 			"system.wlan.can_connect",
 			servicecheck.ServiceCheckWarning,
