@@ -35,8 +35,10 @@ namespace Datadog.CustomActions
 
         private bool ShouldPurge()
         {
-            var purge = _session.Property("PURGE");
-            return !string.IsNullOrEmpty(purge) && purge == "1";
+            var keepInstalledPackages = _session.Property("KEEP_INSTALLED_PACKAGES");
+            // KEEP_INSTALLED_PACKAGES=1 means don't purge (keep packages)
+            // Default behavior (when not set or set to 0) is to purge
+            return string.IsNullOrEmpty(keepInstalledPackages) || keepInstalledPackages != "1";
         }
 
         private bool ShouldInstall()
@@ -153,7 +155,13 @@ namespace Datadog.CustomActions
         {
             if (!ShouldPurge())
             {
-                _session.Log("Skipping purge as PURGE is not set to 1");
+                _session.Log("Skipping purge as KEEP_INSTALLED_PACKAGES is set to 1");
+                return ActionResult.Success;
+            }
+            var fleetInstall = _session.Property("FLEET_INSTALL");
+            if (!string.IsNullOrEmpty(fleetInstall) && fleetInstall == "1")
+            {
+                _session.Log("Skipping purge as FLEET_INSTALL is set to 1");
                 return ActionResult.Success;
             }
             try

@@ -93,7 +93,7 @@ service:
 
 func TestConverterInfraAttributesName(t *testing.T) {
 	config := getDefaultConfig(t)
-	require.Equal(t, 3, strings.Count(config, infraAttributesName()))
+	require.Equal(t, 6, strings.Count(config, infraAttributesName()))
 }
 
 func getDefaultConfig(t *testing.T) string {

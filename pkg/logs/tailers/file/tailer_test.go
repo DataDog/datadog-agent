@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/suite"
+	"go.uber.org/goleak"
 
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/mock"
@@ -78,8 +79,8 @@ func (suite *TailerTestSuite) TearDownTest() {
 	suite.testFile.Close()
 }
 
-func TestTailerTestSuite(t *testing.T) {
-	suite.Run(t, new(TailerTestSuite))
+func TestMain(m *testing.M) {
+	goleak.VerifyTestMain(m, goleak.IgnoreCurrent())
 }
 
 func (suite *TailerTestSuite) TestStopAfterFileRotationWhenStuck() {
@@ -476,4 +477,90 @@ func toInt(str string) int {
 		return int(value)
 	}
 	return 0
+}
+
+// Test_RotationThenShutdownNoGoroutineLeak tests the following scenario:
+//  1. File rotation is detected => StopAfterFileRotation() called (goroutine sleeps)
+//  2. Agent shutdown happens => Stop() called on the rotated tailer
+//  3. Stop() signals channel and waits for completion
+//  4. StopAfterFileRotation goroutine wakes up and tries to send
+//     to validate that if there is a race condition, the goroutine will exit cleanly
+func TestNoGoLeakWithNonBlockingStop(t *testing.T) {
+	// Ignore all goroutines that exist before the test starts (background workers from logging, caching, etc.)
+	defer goleak.VerifyNone(t, goleak.IgnoreCurrent())
+
+	testDir := t.TempDir()
+	testPath := filepath.Join(testDir, "tailer.log")
+	f, err := os.Create(testPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+
+	outputChan := make(chan *message.Message, chanSize)
+	source := sources.NewReplaceableSource(sources.NewLogSource("", &config.LogsConfig{
+		Type: config.FileType,
+		Path: testPath,
+	}))
+	sleepDuration := 10 * time.Millisecond
+	info := status.NewInfoRegistry()
+
+	tailerOptions := &TailerOptions{
+		OutputChan:      outputChan,
+		File:            NewFile(testPath, source.UnderlyingSource(), false),
+		SleepDuration:   sleepDuration,
+		Decoder:         decoder.NewDecoderFromSource(source, info),
+		Info:            info,
+		CapacityMonitor: metrics.NewNoopPipelineMonitor("").GetCapacityMonitor("", ""),
+		Registry:        auditor.NewMockRegistry(),
+	}
+
+	tailer := NewTailer(tailerOptions)
+	tailer.closeTimeout = 20 * time.Millisecond // Short timeout for test
+
+	// Write some data and start tailer
+	_, err = f.WriteString("line 1\nline 2\n")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = tailer.StartFromBeginning()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Drain messages
+	<-outputChan
+	<-outputChan
+
+	// ROTATION DETECTED ...
+	// StopAfterFileRotation spawns goroutine that sleeps for closeTimeout, tries to send to the stop channel
+	tailer.StopAfterFileRotation()
+
+	// RN...
+	// - goroutine is sleeping for closeTimeout
+	// - The tailer is still running (readForever is active)
+
+	// Sleep briefly to make sure the goroutine is actually sleeping
+	time.Sleep(10 * time.Millisecond)
+
+	// Stop() is called on the rotated tailer (simulating launcher.cleanup())
+	// This will signal the stop channel, readForever drains it and exits, forwardMessages finishes and closes done channel, Stop() returns after <-t.done
+	tailer.Stop()
+
+	// RN...
+	// - tailer is fully stopped (readForever exited, done channel closed)
+	// - stop channel is empty (0/1)
+	// - StopAfterFileRotation goroutine is still sleeping (not woken up yet)
+
+	// Wait for the closeTimeout to expire
+	// The StopAfterFileRotation goroutine will wake up and try to send to the stop channel,
+	// but since readForever has already exited, there's no reader.
+	// The select/default in StopAfterFileRotation will hit the default case, allowing the goroutine to exit cleanly.
+
+	// Wait long enough for the goroutine to wake up and complete
+	// closeTimeout is 20ms, so 100ms gives us plenty of buffer for slow CI machines
+	time.Sleep(100 * time.Millisecond)
+
+	// The deferred goleak.VerifyNone() will detect if goroutine leaked
 }

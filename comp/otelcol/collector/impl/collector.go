@@ -153,6 +153,12 @@ func addFactories(reqs Requires, factories otelcol.Factories, gatewayUsage otel.
 			[]string{"version", "command", "host", "task_arn"},
 			"Usage metric of OTLP metrics in DDOT",
 		)
+		store.DDOTGWUsage = reqs.Telemetry.NewGauge(
+			"runtime",
+			"datadog_agent_ddot_gateway_usage",
+			[]string{"version", "command", "host", "task_arn"},
+			"Usage metric for GW deployments with DDOT",
+		)
 	}
 	if v, ok := reqs.LogsAgent.Get(); ok {
 		factories.Exporters[datadogexporter.Type] = datadogexporter.NewFactory(reqs.TraceAgent, reqs.Serializer, v, reqs.SourceProvider, reqs.StatsdClientWrapper, gatewayUsage, store)

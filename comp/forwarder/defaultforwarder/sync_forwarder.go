@@ -28,8 +28,8 @@ type SyncForwarder struct {
 }
 
 // NewSyncForwarder returns a new synchronous forwarder.
-func NewSyncForwarder(config config.Component, log log.Component, keysPerDomain map[string][]utils.APIKeys, timeout time.Duration) (*SyncForwarder, error) {
-	options, err := NewOptions(config, log, keysPerDomain)
+func NewSyncForwarder(config config.Component, log log.Component, endpoints utils.EndpointDescriptorSet, timeout time.Duration) (*SyncForwarder, error) {
+	options, err := NewOptionsWithOPW(config, log, endpoints)
 	if err != nil {
 		return nil, err
 	}

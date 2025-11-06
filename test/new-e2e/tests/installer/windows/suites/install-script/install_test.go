@@ -7,12 +7,14 @@ package agenttests
 
 import (
 	"fmt"
+	"path/filepath"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	winawshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host/windows"
 	installerwindows "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows/consts"
+	windowsAgent "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent"
 )
 
 type testInstallScriptSuite struct {
@@ -204,4 +206,14 @@ func (s *testInstallScriptSuite) TestInstallCurrentWithOldInstallerScript() {
 			s.Require().Contains(version, s.CurrentAgentVersion().Version())
 		})
 	s.AssertSuccessfulAgentPromoteExperiment(s.CurrentAgentVersion().PackageVersion())
+}
+
+// TestReinstallAfterMSIUninstall tests that the install script can reinstall the agent after MSI uninstallation.
+// This is a regression test for the 7.72.0 issue (WINA-2017) where reinstallation was skipped after uninstall.
+func (s *testInstallScriptSuite) TestReinstallAfterMSIUninstall() {
+	s.installCurrent()
+	s.Require().NoError(windowsAgent.UninstallAgent(s.Env().RemoteHost,
+		filepath.Join(s.SessionOutputDir(), "uninstall.log"),
+	))
+	s.installCurrent()
 }

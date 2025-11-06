@@ -61,3 +61,10 @@ func (s *testInstallScriptWithAgentUserSuite) TestInstallScriptWithAgentUser() {
 		HasAService("datadogagent").
 		WithIdentity(identity)
 }
+
+// TestInstallScriptChangesAgentUser tests that the install script changes the agent user when the Agent is already installed
+func (s *testInstallScriptWithAgentUserSuite) TestInstallScriptChangesAgentUser() {
+	s.TestInstallScriptWithAgentUser()
+	s.agentUser = s.agentUser + "2"
+	s.TestInstallScriptWithAgentUser()
+}

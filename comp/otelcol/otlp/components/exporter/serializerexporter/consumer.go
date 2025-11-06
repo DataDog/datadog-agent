@@ -84,8 +84,8 @@ type SerializerConsumer interface {
 	otlpmetrics.Consumer
 	Send(s serializer.MetricSerializer) error
 	addRuntimeTelemetryMetric(hostname string, languageTags []string)
-	addTelemetryMetric(hostname string, params exporter.Settings, usageMetric telemetry.Gauge)
-	addGatewayUsage(hostname string, gatewayUsage otel.GatewayUsage)
+	addTelemetryMetric(hostname string, params exporter.Settings, coatUsageMetric telemetry.Gauge)
+	addGatewayUsage(hostname string, params exporter.Settings, gatewayUsage otel.GatewayUsage, coatUsageMetric telemetry.Gauge)
 }
 
 type serializerConsumer struct {
@@ -173,7 +173,7 @@ func (c *serializerConsumer) ConsumeTimeSeries(_ context.Context, dimensions *ot
 }
 
 // addTelemetryMetric to know if an Agent is using OTLP metrics.
-func (c *serializerConsumer) addTelemetryMetric(agentHostname string, params exporter.Settings, usageMetric telemetry.Gauge) {
+func (c *serializerConsumer) addTelemetryMetric(agentHostname string, params exporter.Settings, coatUsageMetric telemetry.Gauge) {
 	timestamp := float64(time.Now().Unix())
 	c.series = append(c.series, &metrics.Serie{
 		Name:           "datadog.agent.otlp.metrics",
@@ -184,7 +184,7 @@ func (c *serializerConsumer) addTelemetryMetric(agentHostname string, params exp
 		SourceTypeName: "System",
 	})
 
-	if usageMetric == nil {
+	if coatUsageMetric == nil {
 		return
 	}
 
@@ -192,14 +192,14 @@ func (c *serializerConsumer) addTelemetryMetric(agentHostname string, params exp
 	switch c.ipath {
 	case ddot:
 		for host := range c.hosts {
-			usageMetric.Set(1.0, buildInfo.Version, buildInfo.Command, host, "")
+			coatUsageMetric.Set(1.0, buildInfo.Version, buildInfo.Command, host, "")
 		}
 		for ecsFargateTag := range c.ecsFargateTags {
 			taskArn := strings.Split(ecsFargateTag, ":")[1]
-			usageMetric.Set(1.0, buildInfo.Version, buildInfo.Command, "", taskArn)
+			coatUsageMetric.Set(1.0, buildInfo.Version, buildInfo.Command, "", taskArn)
 		}
 	case agentOTLPIngest:
-		usageMetric.Set(1.0, buildInfo.Version, buildInfo.Command, agentHostname)
+		coatUsageMetric.Set(1.0, buildInfo.Version, buildInfo.Command, agentHostname)
 	case ossCollector:
 		params.Logger.Fatal("wrong consumer implementation used in OSS datadog exporter, should use collectorConsumer")
 	default:
@@ -221,7 +221,9 @@ func (c *serializerConsumer) addRuntimeTelemetryMetric(hostname string, language
 	}
 }
 
-func (c *serializerConsumer) addGatewayUsage(hostname string, gatewayUsage otel.GatewayUsage) {
+func (c *serializerConsumer) addGatewayUsage(hostname string, params exporter.Settings,
+	gatewayUsage otel.GatewayUsage, coatUsageMetric telemetry.Gauge) {
+	buildInfo := params.BuildInfo
 	value, enabled := gatewayUsage.Gauge()
 	if enabled {
 		c.series = append(c.series, &metrics.Serie{
@@ -232,6 +234,29 @@ func (c *serializerConsumer) addGatewayUsage(hostname string, gatewayUsage otel.
 			MType:          metrics.APIGaugeType,
 			SourceTypeName: "System",
 		})
+	} else {
+		value = 0
+	}
+
+	if coatUsageMetric == nil {
+		return
+	}
+
+	switch c.ipath {
+	case ddot:
+		for host := range c.hosts {
+			coatUsageMetric.Set(value, buildInfo.Version, buildInfo.Command, host, "")
+		}
+		for ecsFargateTag := range c.ecsFargateTags {
+			taskArn := strings.Split(ecsFargateTag, ":")[1]
+			coatUsageMetric.Set(value, buildInfo.Version, buildInfo.Command, "", taskArn)
+		}
+	case agentOTLPIngest:
+		params.Logger.Info("unexpected GW operation at OTLP Ingest, will not export COAT metric")
+	case ossCollector:
+		params.Logger.Fatal("wrong consumer implementation used in OSS datadog exporter, should use collectorConsumer")
+	default:
+		params.Logger.Fatal("ingestion path unset or unknown", zap.Int("ingestion path enum", int(c.ipath)))
 	}
 }
 

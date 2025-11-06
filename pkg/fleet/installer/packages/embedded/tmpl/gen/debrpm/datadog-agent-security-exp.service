@@ -4,14 +4,14 @@ After=network.target datadog-agent.service datadog-agent-exp.service
 BindsTo=datadog-agent-exp.service
 Conflicts=datadog-agent-security.service
 ConditionPathExists=|/etc/datadog-agent-exp/security-agent.yaml
-ConditionPathExists=|/etc/datadog-agent/managed/datadog-agent/experiment/security-agent.yaml
+ConditionPathExists=|/etc/datadog-agent-exp/managed/datadog-agent/stable/security-agent.yaml
 
 [Service]
 Type=simple
 PIDFile=/opt/datadog-agent/run/security-agent.pid
 Restart=on-failure
 EnvironmentFile=-/etc/datadog-agent-exp/environment
-Environment="DD_FLEET_POLICIES_DIR=/etc/datadog-agent/managed/datadog-agent/experiment"
+Environment="DD_FLEET_POLICIES_DIR=/etc/datadog-agent-exp/managed/datadog-agent/stable"
 Environment="DD_INVENTORIES_FIRST_RUN_DELAY=5"
 ExecStart=/opt/datadog-agent/embedded/bin/security-agent start -c /etc/datadog-agent-exp/datadog.yaml -c /etc/datadog-agent-exp/security-agent.yaml --sysprobe-config /etc/datadog-agent-exp/system-probe.yaml --pidfile /opt/datadog-agent/run/security-agent.pid
 StartLimitInterval=10

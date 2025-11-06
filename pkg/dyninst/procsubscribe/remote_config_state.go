@@ -188,7 +188,7 @@ func (s *subscriberState) onStreamConfig(
 		}
 	}
 
-	newProbes, symdbEnabled := parseRemoteConfigFiles(runtimeID, resp.TargetFiles)
+	parsed := parseRemoteConfigFiles(runtimeID, resp.TargetFiles)
 
 	var deletedAny bool
 	for path := range entry.probesByPath {
@@ -199,7 +199,7 @@ func (s *subscriberState) onStreamConfig(
 	}
 
 	var addedAny bool
-	for path, probe := range newProbes {
+	for path, probe := range parsed.probes {
 		if p, ok := entry.probesByPath[path]; !ok {
 			addedAny = true
 		} else if ir.CompareProbeIDs(p, probe) != 0 {
@@ -209,7 +209,11 @@ func (s *subscriberState) onStreamConfig(
 	}
 
 	previousSymdbEnabled := entry.symdbEnabled
-	entry.symdbEnabled = symdbPathPresent && symdbEnabled
+	if parsed.haveSymdbFile {
+		entry.symdbEnabled = parsed.symdbEnabled
+	} else if !symdbPathPresent {
+		entry.symdbEnabled = false
+	}
 
 	needProbesUpdate := addedAny || deletedAny
 	symdbChanged := entry.symdbEnabled != previousSymdbEnabled

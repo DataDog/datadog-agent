@@ -45,39 +45,6 @@ func init() {
 	expvars.Set("UnexpectedItemDrops", &expvarsUnexpectedItemDrops)
 }
 
-// MarshalSplitCompress uses the stream compressor to marshal and compress sketch series payloads.
-// If a compressed payload is larger than the max, a new payload will be generated. This method returns a slice of
-// compressed protobuf marshaled gogen.SketchPayload objects. gogen.SketchPayload is not directly marshaled - instead
-// it's contents are marshaled individually, packed with the appropriate protobuf metadata, and compressed in stream.
-// The resulting payloads (when decompressed) are binary equal to the result of marshaling the whole object at once.
-func (sl SketchSeriesList) MarshalSplitCompress(bufferContext *marshaler.BufferContext, config config.Component, strategy compression.Component, logger log.Component) (transaction.BytesPayloads, error) {
-	var err error
-
-	pb := newPayloadsBuilder(bufferContext, config, strategy, logger)
-
-	// start things off
-	err = pb.startPayload()
-	if err != nil {
-		return nil, err
-	}
-
-	for sl.MoveNext() {
-		ss := sl.Current()
-		err = pb.marshal(ss)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	err = pb.finishPayload()
-	if err != nil {
-		logger.Debugf("Failed to finish payload with err %v", err)
-		return nil, err
-	}
-
-	return pb.payloads, nil
-}
-
 // MarshalSplitCompressPipelines uses the stream compressor to marshal and
 // compress sketch series payloads across multiple pipelines. Each pipeline
 // defines a filter function and destination, enabling selective routing of

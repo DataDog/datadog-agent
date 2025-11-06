@@ -616,3 +616,33 @@ fruit:
 	assert.Equal(t, 5, ntmConf.GetInt("fruit.cherry.seed.num"))
 	assert.Equal(t, 12, ntmConf.GetInt("fruit.donut.dozen"))
 }
+
+func TestCompareConfigUsesDotSeparatedFields(t *testing.T) {
+	configData := `
+my_feature.info.enabled: true
+second_feature:
+  info.enabled: true
+additional_endpoints:
+  https://url1.com:
+    - my_api_key
+`
+	viperConf, ntmConf := constructBothConfigs(configData, false, func(cfg model.Setup) {
+		cfg.BindEnvAndSetDefault("my_feature.info.name", "feat")
+		cfg.BindEnvAndSetDefault("my_feature.info.enabled", false)
+		cfg.BindEnvAndSetDefault("my_feature.info.version", "v2")
+		cfg.BindEnvAndSetDefault("second_feature.info.enabled", false)
+		cfg.BindEnvAndSetDefault("additional_endpoints", map[string][]string{})
+	})
+
+	assert.Equal(t, true, viperConf.Get("my_feature.info.enabled"))
+	assert.Equal(t, true, ntmConf.Get("my_feature.info.enabled"))
+
+	assert.Equal(t, true, viperConf.Get("second_feature.info.enabled"))
+	assert.Equal(t, true, ntmConf.Get("second_feature.info.enabled"))
+
+	expectEndpoints := map[string][]string{
+		"https://url1.com": {"my_api_key"},
+	}
+	assert.Equal(t, expectEndpoints, viperConf.GetStringMapStringSlice("additional_endpoints"))
+	assert.Equal(t, expectEndpoints, ntmConf.GetStringMapStringSlice("additional_endpoints"))
+}
