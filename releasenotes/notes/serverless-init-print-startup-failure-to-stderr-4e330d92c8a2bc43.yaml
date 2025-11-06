@@ -9,3 +9,7 @@
 enhancements:
   - |
     Change serverless-init default log level to error.
+  - |
+    Skip noisy Kubernetes metadata error logs in serverless-init.
+  - |
+    Change startup failure log level from debug to error.
