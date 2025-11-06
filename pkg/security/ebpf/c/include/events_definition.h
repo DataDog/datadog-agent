@@ -570,7 +570,7 @@ struct prctl_event_t {
     struct syscall_t syscall;
 
     int option;
-    int sent_size;
+    u32 sent_size;
     u32 name_truncated;
     char name[MAX_PRCTL_NAME_LEN];
 };

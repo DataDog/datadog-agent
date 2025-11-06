@@ -120,15 +120,13 @@ func AreFentryTailCallsBroken() (bool, error) {
 
 	// on recent kernels (after https://github.com/torvalds/linux/commit/fd1c98f0ef5cbcec842209776505d9e70d8fcd53)
 	// the `attach_func_proto` is in `struct bpf_map_owner`
-	if res, err := checkAttachFuncProtoBpfMapOwnerStruct(spec); err != nil {
-		if !errors.Is(err, btf.ErrNotFound) {
-			return res, err
-		}
+	res, err := checkAttachFuncProtoBpfMapOwnerStruct(spec)
+	if err != nil && errors.Is(err, btf.ErrNotFound) {
+		// on older kernels, the `attach_func_proto` is directly in `struct bpf_map`
+		// through an embedded struct
+		return checkAttachFuncProtoBpfMapEmbedStruct(spec)
 	}
-
-	// on older kernels, the `attach_func_proto` is directly in `struct bpf_map`
-	// through an embedded struct
-	return checkAttachFuncProtoBpfMapEmbedStruct(spec)
+	return res, err
 }
 
 func checkAttachFuncProtoBpfMapOwnerStruct(spec *btf.Spec) (bool, error) {
