@@ -12,9 +12,11 @@ import (
 	"github.com/DataDog/test-infra-definitions/components/datadog/apps"
 	"github.com/DataDog/test-infra-definitions/components/datadog/kubernetesagentparams"
 	tifeks "github.com/DataDog/test-infra-definitions/scenarios/aws/eks"
+	"github.com/pulumi/pulumi/sdk/v3/go/auto"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	awskubernetes "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/kubernetes"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
 )
 
 type eksSuite struct {
@@ -34,6 +36,9 @@ func TestEKSSuite(t *testing.T) {
 		awskubernetes.WithDeployTestWorkload(),
 		awskubernetes.WithAgentOptions(kubernetesagentparams.WithDualShipping()),
 		awskubernetes.WithDeployArgoRollout(),
+		awskubernetes.WithExtraConfigParams(runner.ConfigMap{
+			"ddinfra:kubernetesVersion": auto.ConfigValue{Value: "1.33"},
+		}),
 	)))
 }
 
