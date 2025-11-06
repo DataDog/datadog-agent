@@ -90,7 +90,7 @@ static __always_inline void tls_process(struct pt_regs *ctx, conn_tuple_t *t, vo
     conn_tuple_t final_tuple = {0};
     conn_tuple_t normalized_tuple = *t;
     normalize_tuple(&normalized_tuple);
-#ifndef COMPILE_PREBUILT
+#ifdef COMPILE_PREBUILT
     normalized_tuple.pid = 0;
 #endif // COMPILE_PREBUILT
     normalized_tuple.netns = 0;
@@ -197,7 +197,7 @@ static __always_inline void tls_dispatch_kafka(struct pt_regs *ctx)
 
     conn_tuple_t normalized_tuple = args->tup;
     normalize_tuple(&normalized_tuple);
-#ifndef COMPILE_PREBUILT
+#ifdef COMPILE_PREBUILT
     normalized_tuple.pid = 0;
 #endif // COMPILE_PREBUILT
     normalized_tuple.netns = 0;
@@ -221,7 +221,7 @@ static __always_inline void tls_finish(struct pt_regs *ctx, conn_tuple_t *t, boo
     conn_tuple_t final_tuple = {0};
     conn_tuple_t normalized_tuple = *t;
     normalize_tuple(&normalized_tuple);
-#ifndef COMPILE_PREBUILT
+#ifdef COMPILE_PREBUILT
     normalized_tuple.pid = 0;
 #endif // COMPILE_PREBUILT
     normalized_tuple.netns = 0;

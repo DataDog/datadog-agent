@@ -19,7 +19,7 @@
 
 static __always_inline void clean_protocol_classification(conn_tuple_t *tup) {
     conn_tuple_t conn_tuple = *tup;
-#ifndef COMPILE_PREBUILT
+#ifdef COMPILE_PREBUILT
     conn_tuple.pid = 0;
 #endif // COMPILE_PREBUILT
     conn_tuple.netns = 0;

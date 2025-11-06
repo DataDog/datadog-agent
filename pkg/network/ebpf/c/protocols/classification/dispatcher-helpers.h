@@ -135,6 +135,7 @@ static __always_inline void protocol_dispatcher_entrypoint(struct __sk_buff *skb
 #ifndef COMPILE_PREBUILT
     struct task_struct *task = (void *)bpf_get_current_task();
     skb_tup.pid = BPF_CORE_READ(task, tgid);
+    log_debug("guy: pid %d;", skb_tup.pid);
 #endif // COMPILE_PREBUILT
 
     bool tcp_termination = is_tcp_termination(&skb_info);
@@ -186,6 +187,7 @@ static __always_inline void protocol_dispatcher_entrypoint(struct __sk_buff *skb
             // For more context refer to the comments in `delete_protocol_stack`
             set_protocol_flag(stack, FLAG_USM_ENABLED);
             set_protocol(stack, cur_fragment_protocol);
+            log_debug("guy: set protocol %d; for pid %d", cur_fragment_protocol, skb_tup.pid);
         }
     }
 
