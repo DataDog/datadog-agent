@@ -241,7 +241,6 @@ run_binary(
         "TCL_VERSION": python_externals["tcltk"],
         # This sets up vs toolchain and depends on the system
         "MSBUILD": r"C:\devtools\vstudio\MSBuild\Current\Bin\MSBuild.exe",
-        "GIT": r"C:\devtools\git\cmd\git.exe",
     },
     tool = "build_python.bat",
 )
