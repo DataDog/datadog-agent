@@ -58,6 +58,64 @@
     fi
   - dd-pkg sign --key-id "${PIPELINE_KEY_ALIAS}" "${OMNIBUS_PACKAGE_DIR}"
 
+# Upload debug symbol packages to Datadog symbol server using datadog-ci to enable
+# remote symbolication when using ddprof (datadog's native profiler)
+.upload_debug_symbols: |
+  # Find debug symbol packages (dbgsym or -dbg packages)
+  DEBUG_PACKAGES=$(find $OMNIBUS_PACKAGE_DIR -name '*-dbg*.deb' 2>/dev/null || true)
+
+  if [ -n "$DEBUG_PACKAGES" ]; then
+    echo "Found debug symbol packages to upload:"
+    echo "$DEBUG_PACKAGES"
+
+    # Get Datadog API key for datadog-ci authentication
+    DATADOG_API_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_API_KEY_ORG2 token) || exit $?
+    export DATADOG_API_KEY
+
+    # Enable beta commands for elf-symbols upload
+    export DD_BETA_COMMANDS_ENABLED=1
+
+    # Verify datadog-ci is available
+    if ! command -v datadog-ci &> /dev/null; then
+      echo "WARNING: datadog-ci not found in PATH, skipping symbol upload"
+      exit 0
+    fi
+
+    # Upload each debug package using datadog-ci
+    for pkg in $DEBUG_PACKAGES; do
+      echo "Uploading symbols from: $(basename $pkg)"
+
+      # Extract package to temporary directory
+      EXTRACT_DIR=$(mktemp -d)
+      dpkg-deb -x "$pkg" "$EXTRACT_DIR" || {
+        echo "WARNING: Failed to extract package: $pkg"
+        rm -rf "$EXTRACT_DIR"
+        continue
+      }
+
+      # Upload debug symbols using datadog-ci elf-symbols upload
+      # This command scans recursively for ELF files and extracts build IDs automatically
+      DEBUG_DIR="$EXTRACT_DIR/opt/datadog-agent/.debug"
+      if [ -d "$DEBUG_DIR" ]; then
+        echo "Uploading symbols from $DEBUG_DIR"
+        datadog-ci elf-symbols upload "$DEBUG_DIR" || {
+          echo "WARNING: Symbol upload failed for $pkg (non-fatal)"
+        }
+      else
+        echo "WARNING: No .debug directory found in package at expected location"
+        echo "Searching for debug files in package:"
+        find "$EXTRACT_DIR" -type f \( -name "*.debug" -o -name "*.dbg" \) | head -10
+      fi
+
+      # Cleanup
+      rm -rf "$EXTRACT_DIR"
+    done
+
+    echo "Debug symbols upload process completed"
+  else
+    echo "No debug symbol packages matching '*-dbg*.deb' found in $OMNIBUS_PACKAGE_DIR"
+  fi
+
 # Login to docker with read-only credentials to avoid rate-limiting
 .login_to_docker_readonly:
   - DOCKER_LOGIN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $DOCKER_REGISTRY_RO user) || exit $?
