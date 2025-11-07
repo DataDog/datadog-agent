@@ -116,6 +116,7 @@ processors:
       exclude: null
       include: null
       log_record: []
+      resource: []
     metrics:
       datapoint: []
       exclude:
@@ -130,12 +131,15 @@ processors:
       include: null
       metric: []
       regexp: null
+      resource: []
     profiles:
       profile: []
     spans:
       exclude: null
       include: null
+      resource: []
     traces:
+      resource: []
       span: []
       spanevent: []
 receivers:
