@@ -23,7 +23,7 @@ import (
 
 // InitSharedLibraryChecksLoader adds the shared library checks loader to the scheduler
 func InitSharedLibraryChecksLoader() {
-	libFolderPath := pkgconfigsetup.Datadog().GetString("sharedlibrarycheck.library_folder_path")
+	libFolderPath := pkgconfigsetup.Datadog().GetString("shared_library_check.library_folder_path")
 
 	factory := func(senderManager sender.SenderManager, logReceiver option.Option[integrations.Component], tagger tagger.Component, filter workloadfilter.Component) (check.Loader, int, error) {
 		sharedLibraryLoader := ffi.NewSharedLibraryLoader(libFolderPath)
