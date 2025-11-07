@@ -3,7 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package sharedlibrary
+//go:build sharedlibrarycheck
+
+package sharedlibrarycheck
 
 import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
@@ -12,6 +14,7 @@ import (
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	"github.com/DataDog/datadog-agent/pkg/collector/sharedlibrary/ffi"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
@@ -20,11 +23,11 @@ const SharedLibraryCheckLoaderName string = "sharedlibrary"
 
 // CheckLoader is a specific loader for checks living in this package
 type CheckLoader struct {
-	loader libraryLoader
+	loader ffi.LibraryLoader
 }
 
 // NewSharedLibraryCheckLoader creates the checks loader
-func NewSharedLibraryCheckLoader(_ sender.SenderManager, _ option.Option[integrations.Component], _ tagger.Component, _ workloadfilter.Component, loader libraryLoader) (*CheckLoader, error) {
+func NewSharedLibraryCheckLoader(_ sender.SenderManager, _ option.Option[integrations.Component], _ tagger.Component, _ workloadfilter.Component, loader ffi.LibraryLoader) (*CheckLoader, error) {
 	return &CheckLoader{
 		loader: loader,
 	}, nil
@@ -61,7 +64,7 @@ func (sl *CheckLoader) Load(senderManager sender.SenderManager, config integrati
 	}
 
 	// check version -- fallback to "unversioned" version if the version cannot be retrieved from the library
-	version, err := sl.loader.Version(lib.version)
+	version, err := sl.loader.Version(lib.Version)
 	if err != nil {
 		c.version = "unversioned"
 	} else {

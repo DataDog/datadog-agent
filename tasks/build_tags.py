@@ -57,6 +57,7 @@ ALL_TAGS = {
     "sds",
     "serverless",
     "serverlessfips",  # used for FIPS mode in the serverless build in datadog-lambda-extension
+    "sharedlibrarycheck",
     "systemd",
     "systemprobechecks",  # used to include system-probe based checks in the agent build
     "test",  # used for unit-tests
@@ -97,6 +98,7 @@ AGENT_TAGS = {
     "otlp",
     "podman",
     "python",
+    "sharedlibrarycheck",
     "systemd",
     "systemprobechecks",
     "trivy",

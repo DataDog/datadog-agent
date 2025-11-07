@@ -3,9 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build test
+//go:build sharedlibrarycheck && test
 
-package sharedlibrary
+package sharedlibrarycheck
 
 import (
 	"runtime"
@@ -19,10 +19,11 @@ import (
 	nooptagger "github.com/DataDog/datadog-agent/comp/core/tagger/impl-noop"
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
+	"github.com/DataDog/datadog-agent/pkg/collector/sharedlibrary/ffi"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
-func testCreateFakeCheck(t *testing.T) {
+func TestCreateFakeCheck(t *testing.T) {
 	conf := integration.Config{
 		Name:       "fake_check",
 		Instances:  []integration.Data{integration.Data("{\"value\": 1}")},
@@ -35,7 +36,7 @@ func testCreateFakeCheck(t *testing.T) {
 	tagger := nooptagger.NewComponent()
 	filterStore := workloadfilterfxmock.SetupMockFilter(t)
 
-	loader, err := NewSharedLibraryCheckLoader(senderManager, logReceiver, tagger, filterStore, &noopSharedLibraryLoader{})
+	loader, err := NewSharedLibraryCheckLoader(senderManager, logReceiver, tagger, filterStore, &ffi.NoopSharedLibraryLoader{})
 	assert.Nil(t, err)
 
 	check, err := loader.Load(senderManager, conf, conf.Instances[0], 1)
@@ -50,7 +51,7 @@ func testCreateFakeCheck(t *testing.T) {
 	assert.Equal(t, "fake_check:/path/to/conf/fake_check.yaml", check.(*Check).source)
 }
 
-func testLoadWithMissingLibrary(t *testing.T) {
+func TestLoadWithMissingLibrary(t *testing.T) {
 	conf := integration.Config{
 		Name:       "fake_check",
 		Instances:  []integration.Data{integration.Data("{\"value\": 1}")},
@@ -62,7 +63,7 @@ func testLoadWithMissingLibrary(t *testing.T) {
 	logReceiver := option.None[integrations.Component]()
 	tagger := nooptagger.NewComponent()
 	filterStore := workloadfilterfxmock.SetupMockFilter(t)
-	sharedLibraryLoader := newSharedLibraryLoader("folder/path/without/expected/library")
+	sharedLibraryLoader := ffi.NewSharedLibraryLoader("folder/path/without/expected/library")
 
 	loader, err := NewSharedLibraryCheckLoader(senderManager, logReceiver, tagger, filterStore, sharedLibraryLoader)
 	assert.Nil(t, err)

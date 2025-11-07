@@ -3,16 +3,20 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build test
+//go:build sharedlibrarycheck && test
 
-package sharedlibrary
+package sharedlibrarycheck
 
 import "testing"
 
-func TestCreateFakeCheck(t *testing.T) {
-	testCreateFakeCheck(t)
+func TestRunCheck(t *testing.T) {
+	testRunCheck(t)
 }
 
-func TestLoadWithMissingLibrary(t *testing.T) {
-	testLoadWithMissingLibrary(t)
+func TestRunCheckWithNullSymbol(t *testing.T) {
+	testRunCheckWithNullSymbol(t)
+}
+
+func TestCancelCheck(t *testing.T) {
+	testCancelCheck(t)
 }

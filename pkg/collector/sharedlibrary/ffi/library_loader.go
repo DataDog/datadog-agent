@@ -3,7 +3,10 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package sharedlibrary
+//go:build sharedlibrarycheck
+
+// Package ffi handles shared libraries through Cgo
+package ffi
 
 import (
 	"fmt"
@@ -17,7 +20,7 @@ import (
 /*
 #include <stdlib.h>
 
-#cgo CFLAGS: -I "${SRCDIR}/../../../rtloader/include"
+#cgo CFLAGS: -I "${SRCDIR}/../../../../rtloader/include"
 #include "ffi.h"
 
 // functions from the aggregator package
@@ -55,29 +58,29 @@ func getLibExtension() string {
 	}
 }
 
-// library stores everything needed for a shared library check
-type library struct {
-	handle  unsafe.Pointer
-	run     *C.run_function_t
-	version *C.version_function_t
+// Library stores everything needed for a shared library check
+type Library struct {
+	Handle  unsafe.Pointer
+	Run     *C.run_function_t
+	Version *C.version_function_t
 }
 
-// libraryLoader is an interface to load/close checks' shared libraries and call their symbols
-type libraryLoader interface {
-	Load(name string) (library, error)
-	Close(lib library) error
+// LibraryLoader is an interface to load/close checks' shared libraries and call their symbols
+type LibraryLoader interface {
+	Load(name string) (Library, error)
+	Close(lib Library) error
 	Run(runPtr *C.run_function_t, checkID string, initConfig string, instanceConfig string) error
 	Version(versionPtr *C.version_function_t) (string, error)
 }
 
-type sharedLibraryLoader struct {
+// SharedLibraryLoader can be used to open/close shared libraries for checks
+type SharedLibraryLoader struct {
 	folderPath string
 	aggregator *C.aggregator_t
 }
 
-// Load looks for a shared library with the corresponding name and check if it has a `Run` symbol.
-// If that's the case, then the method will return handles for both.
-func (l *sharedLibraryLoader) Load(name string) (library, error) {
+// Load looks for a shared library with the corresponding name and check if it has the required symbols
+func (l *SharedLibraryLoader) Load(name string) (Library, error) {
 	// the prefix "libdatadog-agent-" is required to avoid possible name conflicts with other shared libraries in the include path
 	libPath := path.Join(l.folderPath, "libdatadog-agent-"+name+getLibExtension())
 
@@ -89,16 +92,21 @@ func (l *sharedLibraryLoader) Load(name string) (library, error) {
 	cLib := C.load_shared_library(cLibPath, &cErr)
 	if cErr != nil {
 		defer C.free(unsafe.Pointer(cErr))
-		return library{}, fmt.Errorf("failed to load shared library at %q: %s", libPath, C.GoString(cErr))
+		return Library{}, fmt.Errorf("failed to load shared library at %q: %s", libPath, C.GoString(cErr))
 	}
 
-	return (library)(cLib), nil
+	return Library{
+		Handle:  cLib.handle,
+		Run:     cLib.run,
+		Version: cLib.version,
+	}, nil
 }
 
-func (l *sharedLibraryLoader) Close(lib library) error {
+// Close calls `dlclose` to close the shared library
+func (l *SharedLibraryLoader) Close(lib Library) error {
 	var cErr *C.char
 
-	C.close_shared_library(lib.handle, &cErr)
+	C.close_shared_library(lib.Handle, &cErr)
 	if cErr != nil {
 		defer C.free(unsafe.Pointer(cErr))
 		return fmt.Errorf("Close failed: %s", C.GoString(cErr))
@@ -107,7 +115,8 @@ func (l *sharedLibraryLoader) Close(lib library) error {
 	return nil
 }
 
-func (l *sharedLibraryLoader) Run(runPtr *C.run_function_t, checkID string, initConfig string, instanceConfig string) error {
+// Run calls the `Run` symbol of the shared library to execute the check's implementation
+func (l *SharedLibraryLoader) Run(runPtr *C.run_function_t, checkID string, initConfig string, instanceConfig string) error {
 	cID := C.CString(checkID)
 	defer C.free(unsafe.Pointer(cID))
 
@@ -128,7 +137,8 @@ func (l *sharedLibraryLoader) Run(runPtr *C.run_function_t, checkID string, init
 	return nil
 }
 
-func (l *sharedLibraryLoader) Version(versionPtr *C.version_function_t) (string, error) {
+// Version calls the `Version` symbol to retrieve the check version directly from the shared library
+func (l *SharedLibraryLoader) Version(versionPtr *C.version_function_t) (string, error) {
 	var cErr *C.char
 
 	cLibVersion := C.get_version_shared_library(versionPtr, &cErr)
@@ -141,8 +151,9 @@ func (l *sharedLibraryLoader) Version(versionPtr *C.version_function_t) (string,
 
 }
 
-func newSharedLibraryLoader(folderPath string) *sharedLibraryLoader {
-	return &sharedLibraryLoader{
+// NewSharedLibraryLoader creates a new SharedLibraryLoader that will look at shared libraries in a specific folder
+func NewSharedLibraryLoader(folderPath string) *SharedLibraryLoader {
+	return &SharedLibraryLoader{
 		folderPath: folderPath,
 		aggregator: C.get_aggregator(),
 	}

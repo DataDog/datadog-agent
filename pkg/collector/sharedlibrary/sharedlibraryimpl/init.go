@@ -3,8 +3,10 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package sharedlibrary implements the layer to interact shared library-based checks.
-package sharedlibrary
+//go:build sharedlibrarycheck
+
+// Package sharedlibrarycheck implements the layer to interact shared library-based checks
+package sharedlibrarycheck
 
 import (
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
@@ -13,6 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/loaders"
+	"github.com/DataDog/datadog-agent/pkg/collector/sharedlibrary/ffi"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
@@ -20,10 +23,10 @@ import (
 
 // InitSharedLibraryChecksLoader adds the shared library checks loader to the scheduler
 func InitSharedLibraryChecksLoader() {
-	libFolderPath := pkgconfigsetup.Datadog().GetString("shared_library_check.library_folder_path")
+	libFolderPath := pkgconfigsetup.Datadog().GetString("sharedlibrarycheck.library_folder_path")
 
 	factory := func(senderManager sender.SenderManager, logReceiver option.Option[integrations.Component], tagger tagger.Component, filter workloadfilter.Component) (check.Loader, int, error) {
-		sharedLibraryLoader := newSharedLibraryLoader(libFolderPath)
+		sharedLibraryLoader := ffi.NewSharedLibraryLoader(libFolderPath)
 		loader, err := NewSharedLibraryCheckLoader(senderManager, logReceiver, tagger, filter, sharedLibraryLoader)
 		priority := 40
 		return loader, priority, err

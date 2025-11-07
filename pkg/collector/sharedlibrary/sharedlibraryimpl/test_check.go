@@ -3,9 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build test
+//go:build sharedlibrarycheck && test
 
-package sharedlibrary
+package sharedlibrarycheck
 
 import (
 	"runtime"
@@ -15,22 +15,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
+	"github.com/DataDog/datadog-agent/pkg/collector/sharedlibrary/ffi"
 )
-
-/*
-#include "ffi.h"
-
-void noop_run_function(char *check_id, char *init_config, char *instance_config, const aggregator_t *aggregator, const char **error) {
-	// do nothing
-}
-
-library_t get_mock_library(void) {
-	// only the symbol is required to run the check, so the library handle can be set to NULL
-	library_t library = { NULL, noop_run_function };
-	return library;
-}
-*/
-import "C"
 
 func testRunCheck(t *testing.T) {
 	check, err := NewSharedLibraryFakeCheck(aggregator.NewNoOpSenderManager())
@@ -49,7 +35,7 @@ func testRunCheckWithNullSymbol(t *testing.T) {
 	}
 
 	// set the symbol handle to NULL
-	check.lib.run = nil
+	check.lib.Run = nil
 
 	err = check.runCheckImpl(false)
 	assert.Error(t, err, "pointer to shared library 'Run' symbol is NULL")
@@ -70,7 +56,7 @@ func testCancelCheck(t *testing.T) {
 
 // NewSharedLibraryFakeCheck creates a fake SharedLibraryCheck
 func NewSharedLibraryFakeCheck(senderManager sender.SenderManager) (*Check, error) {
-	c, err := NewSharedLibraryCheck(senderManager, "fake_check", newSharedLibraryLoader("fake/library/folder/path"), getMockLibrary())
+	c, err := NewSharedLibraryCheck(senderManager, "fake_check", ffi.NewSharedLibraryLoader("fake/library/folder/path"), getNoopLibrary())
 
 	// Remove check finalizer that may trigger race condition while testing
 	if err == nil {
@@ -80,6 +66,6 @@ func NewSharedLibraryFakeCheck(senderManager sender.SenderManager) (*Check, erro
 	return c, err
 }
 
-func getMockLibrary() library {
-	return (library)(C.get_mock_library())
+func getNoopLibrary() ffi.Library {
+	return ffi.Library{}
 }

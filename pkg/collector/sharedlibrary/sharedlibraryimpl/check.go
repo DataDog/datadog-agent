@@ -3,7 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package sharedlibrary
+//go:build sharedlibrarycheck
+
+package sharedlibrarycheck
 
 import (
 	"fmt"
@@ -17,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check/defaults"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/stats"
+	"github.com/DataDog/datadog-agent/pkg/collector/sharedlibrary/ffi"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -27,8 +30,8 @@ type Check struct {
 	version        string
 	interval       time.Duration
 	name           string
-	libraryLoader  libraryLoader // FFI handler
-	lib            library       // handle of the associated shared library and pointers to its symbols
+	libraryLoader  ffi.LibraryLoader // FFI handler
+	lib            ffi.Library       // handle of the associated shared library and pointers to its symbols
 	source         string
 	initConfig     string // json string of check common config
 	instanceConfig string // json string of specific instance config
@@ -36,7 +39,7 @@ type Check struct {
 }
 
 // NewSharedLibraryCheck conveniently creates a Check instance
-func NewSharedLibraryCheck(senderManager sender.SenderManager, name string, libraryLoader libraryLoader, lib library) (*Check, error) {
+func NewSharedLibraryCheck(senderManager sender.SenderManager, name string, libraryLoader ffi.LibraryLoader, lib ffi.Library) (*Check, error) {
 	check := &Check{
 		senderManager: senderManager,
 		interval:      defaults.DefaultCheckInterval,
@@ -61,7 +64,7 @@ func (c *Check) runCheckImpl(commitMetrics bool) error {
 	}
 
 	// run the check through the library loader
-	err := c.libraryLoader.Run(c.lib.run, string(c.id), c.initConfig, c.instanceConfig)
+	err := c.libraryLoader.Run(c.lib.Run, string(c.id), c.initConfig, c.instanceConfig)
 	if err != nil {
 		return fmt.Errorf("Run failed: %s", err)
 	}
