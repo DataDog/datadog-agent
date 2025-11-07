@@ -10,12 +10,14 @@ import (
 )
 
 var (
+	// OTLPIngestAgentTracesEvents is COAT metric for tracking OTLP trace events (spans) in the agent.
 	OTLPIngestAgentTracesEvents = telemetry.NewCounter(
 		"runtime",
 		"datadog_agent_otlp_traces_events",
 		[]string{},
 		"Counter metric of OTLP Trace events in OTLP ingestion with the Datadog agent",
 	)
+	// OTLPIngestAgentTracesRequests is Coat metric for tracking OTLP trace requests in the agent.
 	OTLPIngestAgentTracesRequests = telemetry.NewCounter(
 		"runtime",
 		"datadog_agent_otlp_traces_requests",
