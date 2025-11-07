@@ -1,5 +1,15 @@
 # CHANGELOG - datadog-secret-backend
 
+## 1.3.3 / 2025-11-07
+
+* Fixing k8s login issue by handling authentication manually 
+* Bump github.com/aws/aws-sdk-go-v2/config to 1.31.17
+* Bump github.com/aws/aws-sdk-go-v2/service/secretsmanager to 1.39.11
+* Bump github.com/aws/aws-sdk-go-v2/service/sts to 1.39.1
+* Bump github.com/aws/aws-sdk-go-v2/service/ssm to 1.66.4
+* Bump github.com/aws/aws-sdk-go-v2/credentials to 1.18.21
+* Bump github.com/Azure/azure-sdk-for-go/sdk/azcore to 1.20.0 
+
 ## 1.3.2 / 2025-10-31
 
 * Bump go version to `1.25.3`
