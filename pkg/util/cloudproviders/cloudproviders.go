@@ -239,33 +239,17 @@ func GetInstanceType(ctx context.Context, detectedCloud string) string {
 		return instanceType
 	}
 
-	// Try each known instance type detector concurrently
-	var wg sync.WaitGroup
-	m := sync.Mutex{}
-	instanceType := ""
-
-	for _, detector := range hostInstanceTypeDetectors {
-		wg.Add(1)
-		go func(detector cloudProviderInstanceTypeDetector) {
-			defer wg.Done()
-
-			it, err := detector(ctx)
-			if err == nil && it != "" {
-				m.Lock()
-				// record the first successful one
-				if instanceType == "" {
-					instanceType = it
-				}
-				m.Unlock()
-			}
-		}(detector)
+	for name, detector := range hostInstanceTypeDetectors {
+		instanceType, err := detector(ctx)
+		if err != nil || instanceType == "" {
+			log.Debugf("Could not fetch instance type for %s: %v", name, err)
+			continue
+		}
+		return instanceType
 	}
-	wg.Wait()
 
-	if instanceType == "" {
-		log.Infof("No instance type found for cloud provider: %q", detectedCloud)
-	}
-	return instanceType
+	log.Infof("No instance type found for cloud provider: %q", detectedCloud)
+	return ""
 }
 
 // GetPublicIPv4 returns the public IPv4 from different providers

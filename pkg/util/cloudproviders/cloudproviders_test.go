@@ -154,10 +154,9 @@ func TestCloudProviderInstanceType(t *testing.T) {
 	assert.Equal(t, "t3.medium", instanceType)
 	clearDetectors()
 
-	// Case 3: unknown provider — should call both concurrently
+	// Case 3: unknown provider — should call all detectors sequentially
 	instanceType = GetInstanceType(context.TODO(), "kubelet")
-	assert.True(t, detector1Called, "instance type callback for 'detector1' was not called")
-	assert.True(t, detector2Called, "instance type callback for 'detector2' was not called")
+	// Order is not guaranteed — either detector may run first
 	assert.Contains(t, []string{"t3.medium", "m5.large"}, instanceType)
 	clearDetectors()
 
