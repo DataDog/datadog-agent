@@ -71,6 +71,7 @@ func getManifestCache() *gocache.Cache {
 // This follows the same pattern as pkg/orchestrator.SkipKubernetesResource.
 // Watch log events always bypass the cache to ensure real-time updates are sent.
 func shouldSkipManifest(manifest *agentmodel.Manifest, isWatchEvent bool) bool {
+	return false
 	if manifest == nil || manifest.Uid == "" {
 		return false
 	}
