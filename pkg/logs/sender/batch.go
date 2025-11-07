@@ -83,6 +83,7 @@ func (b *batch) resetBatch() {
 		compressor = b.compression.NewStreamCompressor(&encodedPayload)
 	} else {
 		compressor = b.compression.NewStreamCompressorWithDict(&encodedPayload, b.dict)
+		log.Debugf("Using dictionary for pipeline %s", b.pipelineName)
 	}
 
 	wc := newWriterWithCounter(compressor)
@@ -108,6 +109,7 @@ func (b *batch) processMessage(m *message.Message, outputChan chan *message.Payl
 		}
 		b.dict = dict
 		b.trainingSet = nil
+		log.Debugf("Trained dictionary for pipeline %s", b.pipelineName)
 	}
 	added, err := b.addMessage(m)
 	if err != nil {
