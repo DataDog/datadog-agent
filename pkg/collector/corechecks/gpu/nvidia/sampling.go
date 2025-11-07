@@ -95,7 +95,7 @@ func processSample(device ddnvml.Device, metricName string, samplingType nvml.Sa
 
 // processUtilizationSample handles process utilization sampling logic
 func processUtilizationSample(device ddnvml.Device, lastTimestamp uint64) ([]Metric, uint64, error) {
-	currentTime := uint64(time.Now().Unix())
+	currentTime := uint64(time.Now().UnixMicro())
 	processSamples, err := device.GetProcessUtilization(lastTimestamp)
 
 	var allMetrics []Metric
@@ -186,7 +186,7 @@ func newStatefulCollector(name CollectorName, device ddnvml.Device, apiCalls []a
 	}
 
 	// Initialize timestamps for sampling collectors
-	currentTime := uint64(time.Now().Unix())
+	currentTime := uint64(time.Now().UnixMicro())
 	for _, apiCall := range c.supportedAPIs {
 		c.lastTimestamps[apiCall.Name] = currentTime
 	}
