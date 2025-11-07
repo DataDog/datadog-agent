@@ -191,7 +191,7 @@ func newStatefulCollector(name CollectorName, device ddnvml.Device, apiCalls []a
 	}
 
 	// Initialize timestamps for sampling collectors
-	currentTime := uint64(time.Now().Unix())
+	currentTime := uint64(time.Now().UnixMicro())
 	for _, apiCall := range c.supportedAPIs {
 		c.lastTimestamps[apiCall.Name] = currentTime
 	}
