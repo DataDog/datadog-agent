@@ -31,12 +31,7 @@ def postprocess(modules):
     del modules["_curses_panel"]
 
 
-def main(argv):
-    if len(argv) != 3:
-        print(f'usage: {argv[0]} /path/to/python/makefile output.bzl', file=sys.stderr)
-        sys.exit(1)
-    makefile = sys.argv[1]
-    output = sys.argv[2]
+def gen_modules_list(makefile: str):
     modules = {}
     with open(makefile) as m:
         for line in m.readlines():
@@ -48,10 +43,34 @@ def main(argv):
             modules[module_name] = {"srcs": sources}
 
     postprocess(modules)
+    return modules
+
+
+def gen_core_modules_list(makefile):
+    with open(makefile) as m:
+        for line in m.readlines():
+            if not line.startswith('MODOBJS='):
+                continue
+            objects = line[len('MODOBJS=') :].strip().split()
+            modules = [str(pathlib.Path(o).with_suffix('.c')) for o in objects]
+            return modules
+    return []
+
+
+def main(argv):
+    if len(argv) != 3:
+        print(f'usage: {argv[0]} /path/to/python/makefile output.bzl', file=sys.stderr)
+        sys.exit(1)
+    makefile = sys.argv[1]
+    output = sys.argv[2]
+    core_modules = gen_core_modules_list(makefile)
+    modules = gen_modules_list(makefile)
 
     with open(output, 'w') as o:
         o.write(f"#Generated with {' '.join(sys.argv)}\n")
-        o.write("PYTHON_MODULES = ")
+        o.write("PYTHON_CORE_MODULES_SRCS =")
+        json.dump(core_modules, o, indent=4)
+        o.write("\nPYTHON_MODULES = ")
         json.dump(modules, o, indent=4)
 
 

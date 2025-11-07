@@ -7,7 +7,7 @@ load("@rules_pkg//pkg:mappings.bzl", "pkg_files")
 load("@@//bazel/rules:so_symlink.bzl", "so_symlink")
 load("@bazel_skylib//rules:copy_file.bzl", "copy_file")
 
-load("@@//deps:python3/modules.bzl", "PYTHON_MODULES")
+load("@@//deps:python3/modules.bzl", "PYTHON_MODULES", "PYTHON_CORE_MODULES_SRCS")
 
 _VERSION = "3.13.7"
 
@@ -47,6 +47,10 @@ _COMMON_INCLUDE_DIRS = [
     "Include",
     "Python",
     ".",
+]
+
+COMMON_COPTS = [
+    "-std=c11"
 ]
 
 expand_template(
@@ -398,7 +402,7 @@ filegroup(
         ":object_srcs",
         ":python_srcs",
         ":modules_srcs",
-    ],
+    ] + PYTHON_CORE_MODULES_SRCS,
 )
 
 filegroup(
@@ -665,6 +669,7 @@ cc_binary(
     linkopts = select({
         "@platforms//os:linux": ["-lutil"],
     }),
+    copts = COMMON_COPTS,
     deps = select({
         "@platforms//os:linux": [":dynload_shlib"],
     }) + [
@@ -683,6 +688,16 @@ cc_binary(
         ":bootstrap_headers",
         ":python_headers",
     ],
+    linkopts = select({
+        "@platforms//os:linux": ["-lutil"],
+    }),
+    deps = select({
+        "@platforms//os:linux": [":dynload_shlib"],
+    }) + [
+        ":mimalloc",
+    ] + [":module_" + m for m in PYTHON_MODULES.keys()],
+    local_defines = COMMON_DEFINES + PY_CORE_DEFINES,
+    includes = _COMMON_INCLUDE_DIRS,
 )
 
 [
@@ -692,7 +707,7 @@ cc_binary(
             includes = _COMMON_INCLUDE_DIRS + info.get('includes', []),
             local_defines = COMMON_DEFINES + PY_BUILTIN_MODULE_DEFINES + info.get('local_defines', []),
             deps = [":mimalloc"] + info.get('deps', []),
-            copts = ["-std=c11"],
+            copts = COMMON_COPTS,
             linkshared=True,
         )
     if info.get('force_cc_binary', "no") == "yes" else
@@ -702,7 +717,7 @@ cc_binary(
             includes = _COMMON_INCLUDE_DIRS + info.get('includes', []),
             local_defines = COMMON_DEFINES + PY_BUILTIN_MODULE_DEFINES + info.get('local_defines', []),
             deps = [":mimalloc"] + info.get('deps', []),
-            copts = ["-std=c11"],
+            copts = COMMON_COPTS,
             textual_hdrs = info.get('textual_hdrs', []),
         )
     for name, info in PYTHON_MODULES.items()

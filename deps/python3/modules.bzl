@@ -1,4 +1,36 @@
 #Generated with ./deps/python3/gen_modules.py /home/hugo.beauzee/dev/cpython/build-native/Makefile deps/python3/modules.bzl
+PYTHON_CORE_MODULES_SRCS =[
+    "Modules/atexitmodule.c",
+    "Modules/faulthandler.c",
+    "Modules/posixmodule.c",
+    "Modules/signalmodule.c",
+    "Modules/_tracemalloc.c",
+    "Modules/_suggestions.c",
+    "Modules/_codecsmodule.c",
+    "Modules/_collectionsmodule.c",
+    "Modules/errnomodule.c",
+    "Modules/_io/_iomodule.c",
+    "Modules/_io/iobase.c",
+    "Modules/_io/fileio.c",
+    "Modules/_io/bytesio.c",
+    "Modules/_io/bufferedio.c",
+    "Modules/_io/textio.c",
+    "Modules/_io/stringio.c",
+    "Modules/itertoolsmodule.c",
+    "Modules/_sre/sre.c",
+    "Modules/_sysconfig.c",
+    "Modules/_threadmodule.c",
+    "Modules/timemodule.c",
+    "Modules/_typingmodule.c",
+    "Modules/_weakref.c",
+    "Modules/_abc.c",
+    "Modules/_functoolsmodule.c",
+    "Modules/_localemodule.c",
+    "Modules/_operator.c",
+    "Modules/_stat.c",
+    "Modules/symtablemodule.c",
+    "Modules/pwdmodule.c"
+]
 PYTHON_MODULES = {
     "array": {
         "srcs": [
