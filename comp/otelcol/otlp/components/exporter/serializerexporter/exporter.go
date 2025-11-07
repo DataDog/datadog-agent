@@ -203,15 +203,6 @@ func (e *Exporter) ConsumeMetrics(ctx context.Context, ld pmetric.Metrics) error
 		}
 	}
 	consumer := e.createConsumer(e.extraTags, e.apmReceiverAddr, e.params.BuildInfo)
-	eventCount := 0
-	for i := 0; i < ld.ResourceMetrics().Len(); i++ {
-		rm := ld.ResourceMetrics().At(i)
-		for j := 0; j < rm.ScopeMetrics().Len(); j++ {
-			sm := rm.ScopeMetrics().At(j)
-			eventCount += sm.Metrics().Len()
-		}
-	}
-
 	rmt, err := e.tr.MapMetrics(ctx, ld, consumer, e.gatewayUsage.GetHostFromAttributesHandler())
 	if err != nil {
 		return err
