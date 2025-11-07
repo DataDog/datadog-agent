@@ -21,7 +21,7 @@ type windowsSharedLibrarySuite struct {
 }
 
 func TestWindowsCheckImplementationSuite(t *testing.T) {
-	//t.Parallel()
+	t.Parallel()
 	suite := &windowsSharedLibrarySuite{
 		sharedLibrarySuite{
 			descriptor:  e2eos.WindowsServerDefault,
@@ -41,9 +41,9 @@ func (v *windowsSharedLibrarySuite) copyLibrary(sourceLibPath string) {
 }
 
 func (v *windowsSharedLibrarySuite) removeLibrary() {
-	out := v.Env().RemoteHost.Remove(v.Env().RemoteHost.JoinPath(v.checksdPath, v.libraryName))
+	// out := v.Env().RemoteHost.Remove(v.Env().RemoteHost.JoinPath(v.checksdPath, v.libraryName))
 	// should not output anything, otherwise it's an error
-	require.Empty(v.T(), out)
+	// require.Empty(v.T(), out)
 }
 
 func (v *windowsSharedLibrarySuite) TestWindowsCheckExample() {

@@ -21,7 +21,7 @@ type linuxSharedLibrarySuite struct {
 }
 
 func TestLinuxCheckImplementationSuite(t *testing.T) {
-	//t.Parallel()
+	t.Parallel()
 	suite := &linuxSharedLibrarySuite{
 		sharedLibrarySuite{
 			descriptor:  e2eos.UbuntuDefault,
