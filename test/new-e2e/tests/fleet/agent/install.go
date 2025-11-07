@@ -81,9 +81,11 @@ func (a *Agent) installLinuxInstallScript(params *installParams) error {
 			return fmt.Errorf("error reexecuting systemd: %w", err)
 		}
 	}
-
-	// reset failure from previous tests (best effort)
-	_, _ = a.host.RemoteHost.Execute("systemctl list-units --type=service --all | awk '/datadog-/{print $1}' | xargs -r -n1 systemctl reset-failed")
+	// reset failure from previous tests
+	_, err := a.host.RemoteHost.Execute("sudo systemctl list-units --type=service --all | awk '/datadog-/{print $1}' | xargs -r -n1 sudo systemctl reset-failed")
+	if err != nil {
+		return fmt.Errorf("error resetting failed units: %w", err)
+	}
 
 	env := map[string]string{
 		"DD_API_KEY": apiKey(),
@@ -100,7 +102,7 @@ func (a *Agent) installLinuxInstallScript(params *installParams) error {
 		env["TESTING_YUM_VERSION_PATH"] = fmt.Sprintf("testing/pipeline-%s-a7/7", os.Getenv("E2E_PIPELINE_ID"))
 		env["DD_APM_INSTRUMENTATION_PIPELINE_ID"] = os.Getenv("E2E_PIPELINE_ID")
 	}
-	_, err := a.host.RemoteHost.Execute(fmt.Sprintf(`bash -c "$(curl -L %s)"`, linuxInstallScriptURL), client.WithEnvVariables(env))
+	_, err = a.host.RemoteHost.Execute(fmt.Sprintf(`bash -c "$(curl -L %s)"`, linuxInstallScriptURL), client.WithEnvVariables(env))
 	return err
 }
 

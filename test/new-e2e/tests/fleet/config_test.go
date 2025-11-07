@@ -10,7 +10,6 @@ import (
 	"testing"
 	"time"
 
-	e2eos "github.com/DataDog/test-infra-definitions/components/os"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -91,9 +90,6 @@ func (s *configSuite) TestConfigFailureTimeout() {
 }
 
 func (s *configSuite) TestConfigFailureHealth() {
-	if s.Env().RemoteHost.OSFlavor == e2eos.CentOS && s.Env().RemoteHost.OSVersion == e2eos.CentOS7.Version {
-		s.T().Skip("FIXME: Broken on CentOS 7 for some unknown reason")
-	}
 	s.Agent.MustInstall()
 	defer s.Agent.MustUninstall()
 
