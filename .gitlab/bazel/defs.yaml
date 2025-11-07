@@ -27,7 +27,7 @@
   cache: []
   variables:
     XDG_CACHE_HOME: /data/bzl
-  tags: [ "linux-persistent:amd64", "specific:true" ]
+  tags: [ "k8s-persistent:amd64", "specific:true" ]
 
 .bazel:runner:linux-arm64:
   extends: .linux_arm64
