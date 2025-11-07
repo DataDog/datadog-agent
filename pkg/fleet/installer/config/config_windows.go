@@ -139,11 +139,14 @@ func backupOrRestoreDirectory(ctx context.Context, sourcePath, targetPath string
 	cmd := telemetry.CommandContext(
 		ctx,
 		"robocopy",
+		"/MIR",
 		sourcePath,
 		targetPath,
 		"*.yaml",
 	)
+	var stdout bytes.Buffer
 	var stderr bytes.Buffer
+	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 	err = cmd.Run()
 	var exitErr *exec.ExitError
@@ -151,7 +154,7 @@ func backupOrRestoreDirectory(ctx context.Context, sourcePath, targetPath string
 		return fmt.Errorf("error executing robocopy: %w", err)
 	}
 	if exitErr != nil && exitErr.ExitCode() >= 8 {
-		return fmt.Errorf("error executing robocopy: %w\n%s", err, stderr.String())
+		return fmt.Errorf("error executing robocopy: %w\n%s\n%s", err, stdout.String(), stderr.String())
 	}
 	return nil
 }
