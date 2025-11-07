@@ -47,7 +47,10 @@ func newLeafNode(v interface{}, source model.Source) Node {
 	count := allocatorLeafNodeCount
 	if allocatorLeafNodeCount < 1024 {
 		allocatorLeafNodeCount++
-		return &allocatorBufferLeafNodes[count]
+		node := &allocatorBufferLeafNodes[count]
+		node.val = v
+		node.source = source
+		return node
 	}
 	return &leafNodeImpl{val: v, source: source}
 }
