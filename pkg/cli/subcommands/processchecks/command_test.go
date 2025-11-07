@@ -26,6 +26,7 @@ import (
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
+	workloadfilterfxmock "github.com/DataDog/datadog-agent/comp/core/workloadfilter/fx-mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/npcollectorimpl"
@@ -63,6 +64,7 @@ func TestCommand(t *testing.T) {
 			secretsfx.Module(),
 
 			workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+			workloadfilterfxmock.MockModule(),
 			fx.Provide(func() tagger.Component { return taggerfxmock.SetupFakeTagger(t) }),
 			rdnsquerierfxmock.MockModule(),
 			npcollectorimpl.MockModule(),
