@@ -15,7 +15,7 @@ from invoke import task
 from invoke.exceptions import Exit
 
 from tasks.build_tags import build_tags, filter_incompatible_tags, get_build_tags, get_default_build_tags
-from tasks.commands.docker import AGENT_REPOSITORY_PATH, DockerCLI
+from tasks.commands.docker import DockerCLI
 from tasks.flavor import AgentFlavor
 from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.utils import is_installed
@@ -41,6 +41,7 @@ def setup(
     skaffoldProfile=None,
     flavor=AgentFlavor.base.name,
     image='',
+    claude_code=False,
 ):
     """
     Generate or Modify devcontainer settings file for this project.
@@ -88,15 +89,15 @@ def setup(
         "--security-opt",
         "seccomp=unconfined",
         "-w",
-        "/workspaces/datadog-agent",
+        "/workspaces/${localWorkspaceFolderBasename}",
         "--name",
         "datadog-agent-devcontainer",
     ]
     devcontainer["features"] = {}
     devcontainer["remoteUser"] = "datadog"
     devcontainer["mounts"] = [
-        "source=/var/run/docker.sock,target=/var/run/docker.sock,type=bind,consistency=cached",
-        "source=${localEnv:HOME}/.ssh,target=/home/vscode/.ssh,type=bind,consistency=cached",
+        "source=/var/run/docker.sock,target=/var/run/docker.sock,type=bind",
+        "source=${localEnv:HOME}/.ssh,target=/home/datadog/.ssh,type=bind",
     ]
     devcontainer["customizations"] = {
         "vscode": {
@@ -122,10 +123,10 @@ def setup(
         }
     }
 
-    # onCreateCommond runs the install-tools and deps tasks only when the devcontainer is created and not each time
+    # onCreateCommand runs the install-tools and deps tasks only when the devcontainer is created and not each time
     # the container is started
     devcontainer["onCreateCommand"] = (
-        f"git config --global --add safe.directory {AGENT_REPOSITORY_PATH} && dda inv -- -e install-tools && dda inv -- -e deps"
+        "git config --global --add safe.directory /workspaces/${localWorkspaceFolderBasename} && dda inv -- -e install-tools && dda inv -- -e deps"
     )
 
     devcontainer["containerEnv"] = {
@@ -133,6 +134,7 @@ def setup(
     }
 
     configure_skaffold(devcontainer, SkaffoldProfile(skaffoldProfile))
+    configure_claude_code(devcontainer, claude_code)
 
     # Add per user configuration
     user_config_path = Path.home() / ".devcontainer" / "agent_overrides.json"
@@ -148,6 +150,19 @@ def setup(
 
     with open(fullpath, "w") as sf:
         json.dump(devcontainer, sf, indent=4, sort_keys=False, separators=(',', ': '))
+
+
+def configure_claude_code(devcontainer: dict, claude_code: bool):
+    if claude_code:
+        # create folder .devcontainer/claude-data/.claude if not exists
+        claude_data_path = Path.home() / ".devcontainer" / "claude-data"
+        Path(claude_data_path).mkdir(parents=True, exist_ok=True)
+        devcontainer["mounts"].append(
+            "source=${localWorkspaceFolder}/.devcontainer/claude-data/,target=/home/datadog/.claude,type=bind"
+        )
+
+        devcontainer["features"]["ghcr.io/devcontainers/features/node:1"] = {}
+        devcontainer["features"]["ghcr.io/anthropics/devcontainer-features/claude-code:1.0"] = {}
 
 
 def configure_skaffold(devcontainer: dict, profile: SkaffoldProfile):
