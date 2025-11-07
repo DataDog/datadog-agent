@@ -123,11 +123,26 @@ if [ ! -f "/tmp/install-ddagent/system-wide" ]; then
   # For non-script installs, prompt user to grant location permission
   if [ -z "$SCRIPT_INSTALL" ]; then
     echo "# Prompting for location permission..."
-    # Open System Settings to Location Services
-    sudo -u "$INSTALL_USER" open "x-apple.systempreferences:com.apple.preference.security?Privacy_LocationServices"
 
-    # Show dialog asking user to grant permission
-    sudo -u "$INSTALL_USER" osascript -e 'tell app "System Events" to display dialog "Datadog Agent requires Location permission to collect WiFi network information (SSID/BSSID).\n\nPlease:\n1. In the System Settings window that just opened, scroll down to find \"Datadog Agent\"\n2. Enable the toggle switch next to \"Datadog Agent\"\n3. Click OK below when done" buttons {"OK"} default button "OK" with title "Enable Location Permission" with icon caution'
+    # Check if GUI is available (detect if we're in SSH/headless mode)
+    # GUI is available if we can connect to the window server
+    if sudo -u "$INSTALL_USER" /usr/bin/python3 -c "import Quartz; Quartz.CGSessionCopyCurrentDictionary()" 2>/dev/null; then
+      echo "# GUI environment detected, showing permission prompt to user"
+
+      # Open System Settings to Location Services (fail silently if it can't open)
+      if ! sudo -u "$INSTALL_USER" open "x-apple.systempreferences:com.apple.preference.security?Privacy_LocationServices" 2>/dev/null; then
+        echo "# Warning: Could not open System Settings (this is expected in headless environments)"
+      fi
+
+      # Show dialog asking user to grant permission (fail silently if dialog can't be shown)
+      if ! sudo -u "$INSTALL_USER" osascript -e 'tell app "System Events" to display dialog "Datadog Agent requires Location permission to collect WiFi network information (SSID/BSSID).\n\nPlease:\n1. In the System Settings window that just opened, scroll down to find \"Datadog Agent\"\n2. Enable the toggle switch next to \"Datadog Agent\"\n3. Click OK below when done" buttons {"OK"} default button "OK" with title "Enable Location Permission" with icon caution' 2>/dev/null; then
+        echo "# Warning: Could not show permission dialog (this is expected in headless environments)"
+      fi
+    else
+      echo "# Headless/SSH environment detected, skipping GUI permission prompt"
+      echo "# Note: To enable WiFi data collection (SSID/BSSID), manually grant Location permission:"
+      echo "#   System Settings -> Privacy & Security -> Location Services -> Enable 'Datadog Agent'"
+    fi
   fi
 fi
 
