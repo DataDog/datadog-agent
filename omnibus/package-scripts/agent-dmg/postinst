@@ -119,7 +119,16 @@ if [ ! -f "/tmp/install-ddagent/system-wide" ]; then
   sudo -Hu "$INSTALL_USER" launchctl load -w "$USER_HOME/Library/LaunchAgents/com.datadoghq.agent.plist"
   # Load the tray app service (this will start it due to RunAtLoad: true)
   sudo -Hu "$INSTALL_USER" launchctl load -w "$USER_HOME/Library/LaunchAgents/com.datadoghq.gui.plist"
-  # Note: No need to explicitly open the app - LaunchAgent with RunAtLoad: true handles it
+
+  # For non-script installs, prompt user to grant location permission
+  if [ -z "$SCRIPT_INSTALL" ]; then
+    echo "# Prompting for location permission..."
+    # Open System Settings to Location Services
+    sudo -u "$INSTALL_USER" open "x-apple.systempreferences:com.apple.preference.security?Privacy_LocationServices"
+
+    # Show dialog asking user to grant permission
+    sudo -u "$INSTALL_USER" osascript -e 'tell app "System Events" to display dialog "Datadog Agent requires Location permission to collect WiFi network information (SSID/BSSID).\n\nPlease:\n1. In the System Settings window that just opened, scroll down to find \"Datadog Agent\"\n2. Enable the toggle switch next to \"Datadog Agent\"\n3. Click OK below when done" buttons {"OK"} default button "OK" with title "Enable Location Permission" with icon caution'
+  fi
 fi
 
 # A little debriefing won't hurt
