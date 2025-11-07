@@ -71,9 +71,9 @@ func TestGetPendingConns(t *testing.T) {
 	batch.Len++
 	updateBatch()
 
+	pendingConns = pendingConns[:0]
 	// We should now get only the connection that hasn't been processed before
 	go manager.Flush()
-	pendingConns = pendingConns[:0]
 	<-flushDone
 	assert.GreaterOrEqual(t, len(pendingConns), 1)
 	var found bool
