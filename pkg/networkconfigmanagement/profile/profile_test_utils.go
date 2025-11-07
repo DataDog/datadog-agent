@@ -35,8 +35,8 @@ func loadFixture(profileName string) Fixture {
 		panic(fmt.Sprintf("could not load expected data fixture for profile: %s, error: %s", profileName, err))
 	}
 	return Fixture{
-		Initial:  initial,
-		Expected: expected,
+		Initial:  normalizeOutput(initial),
+		Expected: normalizeOutput(expected),
 	}
 }
 

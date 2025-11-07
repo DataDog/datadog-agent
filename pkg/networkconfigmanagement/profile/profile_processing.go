@@ -8,6 +8,7 @@
 package profile
 
 import (
+	"bytes"
 	"fmt"
 	"regexp"
 	"strconv"
@@ -64,18 +65,23 @@ type ExtractedMetadata struct {
 
 // ProcessCommandOutput is for applying redactions, validating, and extracting metadata from a configuration pulled from a device
 func (p *NCMProfile) ProcessCommandOutput(ct CommandType, output []byte) ([]byte, *ExtractedMetadata, error) {
-	if err := p.ValidateOutput(ct, output); err != nil {
+	normalizedOutput := normalizeOutput(output)
+	if err := p.ValidateOutput(ct, normalizedOutput); err != nil {
 		return []byte{}, nil, err
 	}
-	redactedOutput, err := p.applyRedactions(ct, output)
+	redactedOutput, err := p.applyRedactions(ct, normalizedOutput)
 	if err != nil {
 		return []byte{}, nil, err
 	}
-	metadata, err := p.extractMetadata(ct, output)
+	metadata, err := p.extractMetadata(ct, normalizedOutput)
 	if err != nil {
 		return []byte{}, nil, err
 	}
 	return redactedOutput, metadata, nil
+}
+
+func normalizeOutput(output []byte) []byte {
+	return bytes.ReplaceAll(output, []byte{'\r', '\n'}, []byte{'\n'})
 }
 
 func (p *NCMProfile) extractMetadata(ct CommandType, output []byte) (*ExtractedMetadata, error) {
