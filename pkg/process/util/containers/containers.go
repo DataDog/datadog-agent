@@ -15,11 +15,10 @@ import (
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
+	workloadmetafilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/util/workloadmeta"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics/provider"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
@@ -83,12 +82,12 @@ func GetSharedContainerProvider() (ContainerProvider, error) {
 type containerProvider struct {
 	metricsProvider metrics.Provider
 	metadataStore   workloadmeta.Component
-	filter          *containers.Filter
+	filter          workloadfilter.FilterBundle
 	tagger          tagger.Component
 }
 
 // NewContainerProvider returns a ContainerProvider instance
-func NewContainerProvider(provider metrics.Provider, metadataStore workloadmeta.Component, filter *containers.Filter, tagger tagger.Component) ContainerProvider {
+func NewContainerProvider(provider metrics.Provider, metadataStore workloadmeta.Component, filter workloadfilter.FilterBundle, tagger tagger.Component) ContainerProvider {
 	return &containerProvider{
 		metricsProvider: provider,
 		metadataStore:   metadataStore,
@@ -98,8 +97,9 @@ func NewContainerProvider(provider metrics.Provider, metadataStore workloadmeta.
 }
 
 // NewDefaultContainerProvider returns a ContainerProvider built with default metrics provider and metadata provider
-func NewDefaultContainerProvider(wmeta workloadmeta.Component, tagger tagger.Component, _ workloadfilter.Component) ContainerProvider {
-	containerFilter, err := containers.GetSharedMetricFilter()
+func NewDefaultContainerProvider(wmeta workloadmeta.Component, tagger tagger.Component, filterStore workloadfilter.Component) ContainerProvider {
+	containerFilter := filterStore.GetContainerSharedMetricFilters()
+	err := containerFilter.GetErrors()
 	if err != nil {
 		log.Warnf("Can't get container include/exclude filter, no filtering will be applied: %v", err)
 	}
@@ -116,12 +116,11 @@ func (p *containerProvider) GetContainers(cacheValidity time.Duration, previousC
 	rateStats := make(map[string]*ContainerRateMetrics)
 	pidToCid := make(map[int]string)
 	for _, container := range containersMetadata {
-		var annotations map[string]string
-		if pod, err := p.metadataStore.GetKubernetesPodForContainer(container.ID); err == nil {
-			annotations = pod.Annotations
-		}
+		pod, _ := p.metadataStore.GetKubernetesPodForContainer(container.ID)
+		filterablePod := workloadmetafilter.CreatePod(pod)
+		filterableContainer := workloadmetafilter.CreateContainer(container, filterablePod)
 
-		if p.filter != nil && p.filter.IsExcluded(annotations, container.Name, container.Image.RawName, container.Labels[kubernetes.CriContainerNamespaceLabel]) {
+		if p.filter.IsExcluded(filterableContainer) {
 			continue
 		}
 
@@ -205,12 +204,11 @@ func (p *containerProvider) GetPidToCid(cacheValidity time.Duration) map[int]str
 	containersMetadata := p.metadataStore.ListContainersWithFilter(workloadmeta.GetRunningContainers)
 	pidToCid := make(map[int]string)
 	for _, container := range containersMetadata {
-		var annotations map[string]string
-		if pod, err := p.metadataStore.GetKubernetesPodForContainer(container.ID); err == nil {
-			annotations = pod.Annotations
-		}
+		pod, _ := p.metadataStore.GetKubernetesPodForContainer(container.ID)
+		filterablePod := workloadmetafilter.CreatePod(pod)
+		filterableContainer := workloadmetafilter.CreateContainer(container, filterablePod)
 
-		if p.filter != nil && p.filter.IsExcluded(annotations, container.Name, container.Image.RawName, container.Labels[kubernetes.CriContainerNamespaceLabel]) {
+		if p.filter.IsExcluded(filterableContainer) {
 			continue
 		}
 
