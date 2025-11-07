@@ -153,7 +153,7 @@ func (s *Servicedef) IsEnabled() bool {
 
 // ShouldStop checks to see if a service should be stopped
 func (s *Servicedef) ShouldStop() bool {
-	// Note: to stop service without checking s.IsEnabled()
+	// Note: we do not check if the service is enabled as service like DDOT have a could be brought up individually and should still be shutdown
 
 	if !s.shouldShutdown {
 		log.Infof("Service %s is not configured to stop, not stopping", s.name)
