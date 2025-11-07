@@ -135,6 +135,12 @@ def create(ctx, path=".") -> None:
     if not is_devcontainer_running(ctx):
         devcontainer_start(ctx)
 
+    # Skaffold helm deployement will include '.skaffold/values.yaml'
+    # so it must at least exists, it can be empty or filled by the user
+    helmValues = Path(".skaffold/values.yaml")
+    if not helmValues.exists():
+        helmValues.touch()
+
 
 @task(
     help={
@@ -161,10 +167,6 @@ def dev(ctx, tail: bool = False, logLevel: str = "warn") -> None:
             )
         )
         raise Exit(code=1)
-
-    helmValues = Path(".skaffold/values.yaml")
-    if not helmValues.exists():
-        helmValues.touch()
 
     # Create Skaffold Dev command
     skaffold_command = [
