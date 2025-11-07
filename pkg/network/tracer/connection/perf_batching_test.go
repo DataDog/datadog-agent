@@ -28,10 +28,8 @@ const (
 
 func TestGetPendingConns(t *testing.T) {
 	var pendingConns []*network.ConnectionStats
-	flushDone := make(chan struct{})
 	manager := newTestBatchManager(t, func(conn *network.ConnectionStats) {
 		if conn == nil {
-			flushDone <- struct{}{}
 			return
 		}
 		pendingConns = append(pendingConns, conn)
@@ -50,8 +48,7 @@ func TestGetPendingConns(t *testing.T) {
 	}
 	updateBatch()
 
-	go manager.Flush()
-	<-flushDone
+	manager.Flush()
 	assert.GreaterOrEqual(t, len(pendingConns), 2)
 	for _, pid := range []uint32{pidMax + 1, pidMax + 2} {
 		found := false
@@ -73,8 +70,7 @@ func TestGetPendingConns(t *testing.T) {
 
 	pendingConns = pendingConns[:0]
 	// We should now get only the connection that hasn't been processed before
-	go manager.Flush()
-	<-flushDone
+	manager.Flush()
 	assert.GreaterOrEqual(t, len(pendingConns), 1)
 	var found bool
 	for _, p := range pendingConns {
