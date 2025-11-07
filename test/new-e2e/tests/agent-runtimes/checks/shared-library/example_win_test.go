@@ -34,10 +34,7 @@ func TestWindowsCheckImplementationSuite(t *testing.T) {
 }
 
 func (v *windowsSharedLibrarySuite) copyLibrary(sourceLibPath string) {
-	v.Env().RemoteHost.CopyFile(
-		sourceLibPath,
-		v.Env().RemoteHost.JoinPath(v.checksdPath, v.libraryName),
-	)
+	v.Env().RemoteHost.CopyFile(sourceLibPath, v.Env().RemoteHost.JoinPath(v.checksdPath, v.libraryName))
 }
 
 func (v *windowsSharedLibrarySuite) removeLibrary() {
