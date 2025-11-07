@@ -75,8 +75,10 @@ func (e *Exporter) ConsumeLogs(ctx context.Context, ld plog.Logs) (err error) {
 	otelSource := e.cfg.OtelSource
 	if otelSource == "datadog_agent" {
 		OTLPIngestAgentLogsRequests.Inc()
+		OTLPIngestAgentLogsEvents.Add(float64(ld.LogRecordCount()))
 	} else if otelSource == "otel_agent" {
 		OTLPIngestDDOTLogsRequests.Inc()
+		OTLPIngestDDOTLogsEvents.Add(float64(ld.LogRecordCount()))
 	}
 	defer func() {
 		if err != nil {
@@ -100,11 +102,6 @@ func (e *Exporter) ConsumeLogs(ctx context.Context, ld plog.Logs) (err error) {
 	}
 
 	payloads := e.translator.MapLogs(ctx, ld, e.gatewaysUsage.GetHostFromAttributesHandler())
-	if otelSource == "datadog_agent" {
-		OTLPIngestAgentLogsEvents.Add(float64(len(payloads)))
-	} else if otelSource == "otel_agent" {
-		OTLPIngestDDOTLogsEvents.Add(float64(len(payloads)))
-	}
 	for _, ddLog := range payloads {
 		tags := strings.Split(ddLog.GetDdtags(), ",")
 		// Tags are set in the message origin instead

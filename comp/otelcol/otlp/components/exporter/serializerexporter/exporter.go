@@ -189,10 +189,12 @@ func (e *Exporter) ConsumeMetrics(ctx context.Context, ld pmetric.Metrics) error
 	switch e.ipath {
 	case agentOTLPIngest:
 		OTLPIngestAgentMetricsRequests.Add(1)
+		OTLPIngestAgentMetricsEvents.Add(float64(ld.MetricCount()))
 	case ddot:
 		OTLPIngestDDOTMetricsRequests.Add(1)
+		OTLPIngestDDOTMetricsEvents.Add(float64(ld.MetricCount()))
 	}
-
+	ld.MetricCount()
 	if e.hostmetadata.Enabled {
 		// Consume resources for host metadata
 		for i := 0; i < ld.ResourceMetrics().Len(); i++ {
@@ -208,14 +210,6 @@ func (e *Exporter) ConsumeMetrics(ctx context.Context, ld pmetric.Metrics) error
 			sm := rm.ScopeMetrics().At(j)
 			eventCount += sm.Metrics().Len()
 		}
-	}
-
-	// Track events based on ingestion path
-	switch e.ipath {
-	case agentOTLPIngest:
-		OTLPIngestAgentMetricsEvents.Add(float64(eventCount))
-	case ddot:
-		OTLPIngestDDOTMetricsEvents.Add(float64(eventCount))
 	}
 
 	rmt, err := e.tr.MapMetrics(ctx, ld, consumer, e.gatewayUsage.GetHostFromAttributesHandler())

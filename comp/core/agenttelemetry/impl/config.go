@@ -392,8 +392,8 @@ var defaultProfiles = `
 
     schedule:
       start_after: 30
-      iterations: 0
-      period: 900
+      iterations: 100
+      period: 20
   - name: trace-agent
     metric:
       exclude:
