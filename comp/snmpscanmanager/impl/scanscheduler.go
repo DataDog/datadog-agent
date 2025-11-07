@@ -13,64 +13,68 @@ import (
 )
 
 type scanScheduler interface {
-	QueueScan(scanTask scanTask)
+	QueueScanTask(scanTask scanTask)
 	PopDueScans(now time.Time) []snmpscanmanager.ScanRequest
 }
 
 type scanSchedulerImpl struct {
-	scanQueue scanPriorityQueue
+	taskQueue scanTaskPriorityQueue
 }
 
-type scanPriorityQueue []*scanTask
+type scanTaskPriorityQueue []*scanTask
 
 type scanTask struct {
 	req     snmpscanmanager.ScanRequest
 	nextRun time.Time
 }
 
-func newScanScheduler(scanQueue scanPriorityQueue) scanScheduler {
-	sc := &scanSchedulerImpl{
-		scanQueue: scanQueue,
+func newScanScheduler(taskQueue scanTaskPriorityQueue) scanScheduler {
+	if taskQueue == nil {
+		taskQueue = make(scanTaskPriorityQueue, 0)
 	}
-	heap.Init(&sc.scanQueue)
+
+	sc := &scanSchedulerImpl{
+		taskQueue: taskQueue,
+	}
+	heap.Init(&sc.taskQueue)
 	return sc
 }
 
-func (sc *scanSchedulerImpl) QueueScan(scanTask scanTask) {
-	heap.Push(&sc.scanQueue, &scanTask)
+func (sc *scanSchedulerImpl) QueueScanTask(scanTask scanTask) {
+	heap.Push(&sc.taskQueue, &scanTask)
 }
 
 func (sc *scanSchedulerImpl) PopDueScans(now time.Time) []snmpscanmanager.ScanRequest {
 	var dueScans []snmpscanmanager.ScanRequest
-	for sc.scanQueue.Len() > 0 {
-		nextTask := sc.scanQueue[0]
+	for sc.taskQueue.Len() > 0 {
+		nextTask := sc.taskQueue[0]
 		if nextTask.nextRun.After(now) {
 			break
 		}
 
-		dueScanTask := heap.Pop(&sc.scanQueue).(*scanTask)
+		dueScanTask := heap.Pop(&sc.taskQueue).(*scanTask)
 		dueScans = append(dueScans, dueScanTask.req)
 	}
 	return dueScans
 }
 
-func (pq scanPriorityQueue) Len() int {
+func (pq scanTaskPriorityQueue) Len() int {
 	return len(pq)
 }
 
-func (pq scanPriorityQueue) Less(i1, i2 int) bool {
+func (pq scanTaskPriorityQueue) Less(i1, i2 int) bool {
 	return pq[i1].nextRun.Before(pq[i2].nextRun)
 }
 
-func (pq scanPriorityQueue) Swap(i1, i2 int) {
+func (pq scanTaskPriorityQueue) Swap(i1, i2 int) {
 	pq[i1], pq[i2] = pq[i2], pq[i1]
 }
 
-func (pq *scanPriorityQueue) Push(x interface{}) {
+func (pq *scanTaskPriorityQueue) Push(x interface{}) {
 	*pq = append(*pq, x.(*scanTask))
 }
 
-func (pq *scanPriorityQueue) Pop() interface{} {
+func (pq *scanTaskPriorityQueue) Pop() interface{} {
 	old := *pq
 	*pq = old[:len(old)-1]
 	return old[len(old)-1]
