@@ -9,6 +9,8 @@
     - !reference [.needs_new_e2e_template]
   before_script:
     - !reference [.retrieve_linux_go_e2e_deps]
+    - !reference [.retrieve_linux_go_tools_deps]
+    - dda inv -- -e install-tools
     # Setup AWS Credentials
     - mkdir -p ~/.aws
     - |
@@ -121,6 +123,7 @@
 .needs_new_e2e_template:
   - go_e2e_deps
   - go_e2e_test_binaries
+  - go_tools_deps
   - job: new-e2e-base-coverage
     optional: true
 
