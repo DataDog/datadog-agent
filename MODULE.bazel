@@ -142,7 +142,6 @@ pip.parse(
 use_repo(pip, "py_dev_requirements")
 
 register_toolchains("@pythons_hub//:all")
-# register_toolchains("@rules_python//python/runtime_env_toolchains:all")
 
 #########################
 ## Native dependencies ##
