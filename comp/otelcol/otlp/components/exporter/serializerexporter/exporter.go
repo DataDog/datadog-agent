@@ -86,6 +86,7 @@ type Exporter struct {
 	gatewayUsage      otel.GatewayUsage
 	coatUsageMetric   telemetry.Gauge
 	coatGWUsageMetric telemetry.Gauge
+	ipath             ingestionPath
 }
 
 // TODO: expose the same function in OSS exporter and remove this
@@ -154,6 +155,7 @@ func NewExporter(
 	gatewayUsage otel.GatewayUsage,
 	coatUsageMetric telemetry.Gauge,
 	coatGWUsageMetric telemetry.Gauge,
+	ipath ingestionPath,
 ) (*Exporter, error) {
 	var extraTags []string
 	if cfg.Metrics.Tags != "" {
@@ -176,12 +178,21 @@ func NewExporter(
 		gatewayUsage:      gatewayUsage,
 		coatUsageMetric:   coatUsageMetric,
 		coatGWUsageMetric: coatGWUsageMetric,
+		ipath:             ipath,
 	}, nil
 }
 
 // ConsumeMetrics translates OTLP metrics into the Datadog format and sends
 func (e *Exporter) ConsumeMetrics(ctx context.Context, ld pmetric.Metrics) error {
-	OTLPIngestMetricsRequests.Add(1)
+
+	// Track requests based on ingestion path
+	switch e.ipath {
+	case agentOTLPIngest:
+		OTLPIngestAgentMetricsRequests.Add(1)
+	case ddot:
+		OTLPIngestDDOTMetricsRequests.Add(1)
+	}
+
 	if e.hostmetadata.Enabled {
 		// Consume resources for host metadata
 		for i := 0; i < ld.ResourceMetrics().Len(); i++ {
@@ -198,7 +209,15 @@ func (e *Exporter) ConsumeMetrics(ctx context.Context, ld pmetric.Metrics) error
 			eventCount += sm.Metrics().Len()
 		}
 	}
-	OTLPIngestMetricsEvents.Add(float64(eventCount))
+
+	// Track events based on ingestion path
+	switch e.ipath {
+	case agentOTLPIngest:
+		OTLPIngestAgentMetricsEvents.Add(float64(eventCount))
+	case ddot:
+		OTLPIngestDDOTMetricsEvents.Add(float64(eventCount))
+	}
+
 	rmt, err := e.tr.MapMetrics(ctx, ld, consumer, e.gatewayUsage.GetHostFromAttributesHandler())
 	if err != nil {
 		return err

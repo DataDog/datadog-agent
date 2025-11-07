@@ -9,18 +9,30 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 )
 
-// These metrics are for measuring the current volume of traffic customers are sending through OTLP collectors (Agent, DDOT)
+// These metrics are for measuring the current volume of traffic for OTLP Metric ingestion.
 var (
-	OTLPIngestMetricsEvents = telemetry.NewCounter(
+	OTLPIngestAgentMetricsEvents = telemetry.NewCounter(
 		"runtime",
 		"datadog_agent_otlp_metrics_events",
-		nil,
-		"Counter metric of OTLP Metric events in OTLP ingestion",
+		[]string{},
+		"Counter metric of OTLP Metric events in OTLP ingestion for the Datadog agent",
 	)
-	OTLPIngestMetricsRequests = telemetry.NewCounter(
+	OTLPIngestAgentMetricsRequests = telemetry.NewCounter(
 		"runtime",
 		"datadog_agent_otlp_metrics_requests",
-		nil,
-		"Counter metric of OTLP Metric requests in OTLP ingestion",
+		[]string{},
+		"Counter metric of OTLP Metric requests in OTLP ingestion for the Datadog agent",
+	)
+	OTLPIngestDDOTMetricsEvents = telemetry.NewCounter(
+		"runtime",
+		"ddot_otlp_metrics_events",
+		[]string{},
+		"Counter metric of OTLP Metric events in OTLP ingestion for DDOT",
+	)
+	OTLPIngestDDOTMetricsRequests = telemetry.NewCounter(
+		"runtime",
+		"ddot_otlp_metrics_requests",
+		[]string{},
+		"Counter metric of OTLP Metric requests in OTLP ingestion for DDOT",
 	)
 )
