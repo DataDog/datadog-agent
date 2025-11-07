@@ -10,7 +10,6 @@ import (
 	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
-	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace/idx"
 	"github.com/DataDog/datadog-agent/pkg/serverless/appsec/config"
 	"github.com/DataDog/datadog-agent/pkg/serverless/invocationlifecycle"
@@ -350,27 +349,6 @@ func (a *appsecSpanModifier) SetTags(tags map[string]string) {
 	if tagger, ok := a.wrapped.(taggable); ok {
 		tagger.SetTags(tags)
 	}
-}
-
-type spanWrapper pb.Span
-
-func (s *spanWrapper) SetMetaTag(tag string, value string) {
-	if s.Meta == nil {
-		s.Meta = make(map[string]string)
-	}
-	s.Meta[tag] = value
-}
-
-func (s *spanWrapper) SetMetricsTag(tag string, value float64) {
-	if s.Metrics == nil {
-		s.Metrics = make(map[string]float64)
-	}
-	s.Metrics[tag] = value
-}
-
-func (s *spanWrapper) GetMetaTag(tag string) (value string, exists bool) {
-	value, exists = s.Meta[tag]
-	return
 }
 
 type bytesStringer []byte

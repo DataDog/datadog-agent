@@ -69,13 +69,6 @@ func init() {
 	sort.Strings(collectedHTTPHeaders[:])
 }
 
-// span interface expected by this package to set span tags.
-type span interface {
-	SetMetaTag(tag string, value string)
-	SetMetricsTag(tag string, value float64)
-	GetMetaTag(tag string) (value string, exists bool)
-}
-
 // setAppSecEnabledTags sets the AppSec-specific span tags that are expected to
 // be in service entry span when AppSec is enabled.
 func setAppSecEnabledTags(span *idx.InternalSpan) {

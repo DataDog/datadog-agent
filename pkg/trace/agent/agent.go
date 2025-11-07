@@ -39,10 +39,6 @@ import (
 )
 
 const (
-	// tagHostname specifies the hostname of the tracer.
-	// DEPRECATED: Tracer hostname is now specified as a TracerPayload field.
-	tagHostname = "_dd.hostname"
-
 	// tagInstallID, tagInstallType, and tagInstallTime are included in the first trace sent by the agent,
 	// and used to track successful onboarding onto APM.
 	tagInstallID   = "_dd.install.id"
@@ -329,12 +325,6 @@ func (a *Agent) loop() {
 }
 
 // setRootSpanTags sets up any necessary tags on the root span.
-func (a *Agent) setRootSpanTags(root *pb.Span) {
-	clientSampleRate := sampler.GetGlobalRate(root)
-	sampler.SetClientRate(root, clientSampleRate)
-}
-
-// setRootSpanTags sets up any necessary tags on the root span.
 func (a *Agent) setRootSpanTagsV1(root *idx.InternalSpan) {
 	clientSampleRate := sampler.GetGlobalRateV1(root)
 	sampler.SetClientRateV1(root, clientSampleRate)
@@ -554,7 +544,7 @@ func processedTraceV1(p *api.PayloadV1, chunk *idx.InternalTraceChunk, root *idx
 		TracerEnv:              p.TracerPayload.Env(),
 		TracerHostname:         p.TracerPayload.Hostname(),
 		ClientDroppedP0sWeight: float64(p.ClientDroppedP0s) / float64(len(p.TracerPayload.Chunks)),
-		GitCommitSha:           "",
+		GitCommitSha:           gitCommitSha,
 	}
 	pt.ImageTag = imageTag
 	if payloadGitCommitSha, ok := p.TracerPayload.GetAttributeAsString("_dd.git.commit.sha"); ok {
@@ -563,15 +553,9 @@ func processedTraceV1(p *api.PayloadV1, chunk *idx.InternalTraceChunk, root *idx
 	return pt
 }
 
-// newChunksArray creates a new array which will point only to sampled chunks.
+// newChunksArrayV1 creates a new array which will point only to sampled chunks.
 // The underlying array behind TracePayload.Chunks points to unsampled chunks
 // preventing them from being collected by the GC.
-func newChunksArray(chunks []*pb.TraceChunk) []*pb.TraceChunk {
-	newChunks := make([]*pb.TraceChunk, len(chunks))
-	copy(newChunks, chunks)
-	return newChunks
-}
-
 func newChunksArrayV1(chunks []*idx.InternalTraceChunk) []*idx.InternalTraceChunk {
 	newChunks := make([]*idx.InternalTraceChunk, len(chunks))
 	copy(newChunks, chunks)

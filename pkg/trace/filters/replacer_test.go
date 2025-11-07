@@ -267,18 +267,6 @@ func replaceFilterTestSpan(tags map[string]string) *pb.Span {
 	return span
 }
 
-// replaceFilterTestSpan creates a span with a span event with the provided attributes
-func replaceFilterTestSpanEvent(attributes map[string]*pb.AttributeAnyValue) *pb.Span {
-	span := &pb.Span{SpanEvents: []*pb.SpanEvent{
-		{
-			TimeUnixNano: 0,
-			Name:         "foo",
-			Attributes:   attributes,
-		},
-	}}
-	return span
-}
-
 // TestReplaceFilterTestSpan tests the replaceFilterTestSpan test
 // helper function.
 func TestReplaceFilterTestSpan(t *testing.T) {

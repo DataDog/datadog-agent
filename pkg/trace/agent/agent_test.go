@@ -816,11 +816,6 @@ func spansToChunkV1(spans ...*idx.InternalSpan) *idx.InternalTraceChunk {
 	)
 }
 
-func dropped(c *pb.TraceChunk) *pb.TraceChunk {
-	c.DroppedTrace = true
-	return c
-}
-
 func TestConcentratorInput(t *testing.T) {
 	rootSpan := &pb.Span{SpanID: 2, TraceID: 5, Service: "a", Name: "name", Resource: "resource", Metrics: map[string]float64{"_top_level": 1.0, "_dd.rare": 1.0}}
 	rootSpanWithTracerTags := &pb.Span{SpanID: 3, TraceID: 5, Service: "a", Name: "name", Resource: "resource", Meta: map[string]string{"_dd.hostname": "host", "env": "env", "version": "version"}, Metrics: map[string]float64{"_top_level": 1.0, "_dd.rare": 1.0}}
