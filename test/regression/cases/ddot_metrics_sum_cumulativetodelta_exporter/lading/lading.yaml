@@ -5,7 +5,7 @@ generator:
       headers:
         content-type: "application/x-protobuf"
       target_uri: "http://127.0.0.1:4318/v1/metrics"
-      bytes_per_second: "6 MiB"
+      bytes_per_second: "3 MiB"
       parallel_connections: 5
       method:
         post:
@@ -18,7 +18,7 @@ generator:
                   sum_cumulative: 100
               contexts:
                 total_contexts:
-                  constant: 10000              
+                  constant: 10000
 
 blackhole:
   - http:

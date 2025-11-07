@@ -54,28 +54,6 @@ func (s *MacroStore) Contains(id string) bool {
 	return s.Get(id) != nil
 }
 
-// VariableStore represents a store of SECL variables
-type VariableStore struct {
-	Variables map[string]SECLVariable
-}
-
-// Add adds a variable
-func (s *VariableStore) Add(name string, variable SECLVariable) *VariableStore {
-	if s.Variables == nil {
-		s.Variables = make(map[string]SECLVariable)
-	}
-	s.Variables[name] = variable
-	return s
-}
-
-// Get returns the variable
-func (s *VariableStore) Get(name string) SECLVariable {
-	if s == nil || s.Variables == nil {
-		return nil
-	}
-	return s.Variables[name]
-}
-
 // Opts are the options to be passed to the evaluator
 type Opts struct {
 	LegacyFields  map[Field]Field
@@ -92,14 +70,15 @@ func (o *Opts) WithConstants(constants map[string]interface{}) *Opts {
 }
 
 // WithVariables set variables
-func (o *Opts) WithVariables(variables map[string]SECLVariable) *Opts {
+func (o *Opts) WithVariables(variables map[string]StaticVariable) *Opts {
 	if o.VariableStore == nil {
-		o.VariableStore = &VariableStore{}
+		o.VariableStore = NewVariableStore()
 	}
 
 	for n, v := range variables {
-		o.VariableStore.Add(n, v)
+		o.VariableStore.AddStaticVariable(VariableName(n), v)
 	}
+
 	return o
 }
 
@@ -131,11 +110,11 @@ func (o *Opts) AddMacro(macro *Macro) *Opts {
 }
 
 // AddVariable add a variable
-func (o *Opts) AddVariable(name string, variable SECLVariable) *Opts {
+func (o *Opts) AddVariable(name string, variable StaticVariable) *Opts {
 	if o.VariableStore == nil {
-		o.VariableStore = &VariableStore{}
+		o.VariableStore = NewVariableStore()
 	}
-	o.VariableStore.Add(name, variable)
+	o.VariableStore.AddStaticVariable(VariableName(name), variable)
 	return o
 }
 

@@ -30,10 +30,10 @@ func TestNewInstrumentationConfig(t *testing.T) {
 			shouldErr:  false,
 			expected: &InstrumentationConfig{
 				Enabled:            true,
-				EnabledNamespaces:  []string{"default"},
+				EnabledNamespaces:  []string{"application"},
 				DisabledNamespaces: []string{},
 				LibVersions: map[string]string{
-					"python": "default",
+					"python": "v3",
 				},
 				InjectorImageTag: "foo",
 			},

@@ -8,9 +8,7 @@
 package kubelet
 
 import (
-	"encoding/json"
 	"fmt"
-	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -37,25 +35,6 @@ process_cpu_seconds_total 127923.04
 	metric, err = ParseMetricFromRaw(rawData, "process_cpu_seconds_total")
 	assert.Empty(t, err)
 	assert.Equal(t, "process_cpu_seconds_total 127923.04", metric)
-}
-
-func loadPodsFixture(path string) ([]*Pod, error) {
-	raw, err := os.ReadFile(path)
-	if err != nil {
-		return nil, err
-	}
-	var podList PodList
-	err = json.Unmarshal(raw, &podList)
-	if err != nil {
-		return nil, err
-	}
-	for _, pod := range podList.Items {
-		allContainers := make([]ContainerStatus, 0, len(pod.Status.InitContainers)+len(pod.Status.Containers))
-		allContainers = append(allContainers, pod.Status.InitContainers...)
-		allContainers = append(allContainers, pod.Status.Containers...)
-		pod.Status.AllContainers = allContainers
-	}
-	return podList.Items, nil
 }
 
 func TestKubeContainerIDToTaggerEntityID(t *testing.T) {

@@ -12,7 +12,7 @@ import (
 	"gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 )
 
 const (
@@ -372,6 +372,11 @@ var defaultProfiles = `
             - version
             - command
             - host
+        - name: runtime.datadog_agent_ddot_gateway_usage
+          aggregate_tags:
+            - version
+            - command
+            - host
     schedule:
       start_after: 30
       iterations: 0
@@ -590,7 +595,7 @@ func compileConfig(cfg *Config) error {
 // Parse agent telemetry config
 func parseConfig(cfg config.Component) (*Config, error) {
 	// Is it enabled?
-	if !pkgconfigsetup.IsAgentTelemetryEnabled(cfg) {
+	if !configutils.IsAgentTelemetryEnabled(cfg) {
 		return &Config{
 			Enabled: false,
 		}, nil
@@ -602,7 +607,7 @@ func parseConfig(cfg config.Component) (*Config, error) {
 	atCfgMap := cfg.GetStringMap("agent_telemetry")
 	if len(atCfgMap) > 0 {
 		// Reconvert to string and back to object.
-		// Config.UnmarshalKey() is better but it did not work in some cases
+		// structure.UnmarshalKey() is better but it did not work in some cases
 		atCfgBytes, err := yaml.Marshal(atCfgMap)
 		if err != nil {
 			return nil, err

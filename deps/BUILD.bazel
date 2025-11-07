@@ -1,24 +1,48 @@
+load("//bazel/rules/compliance:license_csv.bzl", "license_csv")
+
 # Do not depend on this.
 # This is a temporary target to make it easy to force build dependencies
 # before they are used by other targets.
 filegroup(
-    name = "smoketest",
+    name = "all_deps",
     srcs = [
         "@bzip2",
         "@bzip2//:bz2",
         "@libffi//:ffi",
         "@libyaml",
         "@lua//:liblua",
+        "@patchelf",
         "@sqlite3",
-        "@xz",
         "@xz//:lzma",
-        "@zlib//:libz_so",
+        "@zlib//:z",
     ] + select({
         "@platforms//os:linux": [
+            "@attr",
+            "@gcrypt",
+            "@gpg-error",
             "@libsepol//:sepol",
             "@nghttp2",
+            "@pcre2",
+            "@popt",
+            "@zstd",
+        ],
+        "//:macos_arm64": [
+            "@openssl3//:libcrypto",
         ],
         "//conditions:default": [],
     }),
     visibility = ["//visibility:private"],
+)
+
+# Gather the licenses for dependencies that not built by omnibus any more.
+license_csv(
+    name = "licenses",
+    out = "licenses.csv",
+    tags = ["manual"],
+    target = ":all_deps",
+    target_compatible_with = select({
+        "@platforms//os:linux": ["@platforms//cpu:x86_64"],
+        "@platforms//os:macos": [],
+        "@platforms//os:windows": [],
+    }),
 )

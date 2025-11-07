@@ -608,6 +608,55 @@ func TestExtractServiceMetadata(t *testing.T) {
 			expectedGeneratedNameSource: CommandLine,
 		},
 		{
+			name: "Erlang beam.smp with CouchDB progname",
+			cmdline: []string{
+				"/usr/lib/erlang/erts-12.3/bin/beam.smp",
+				"--",
+				"-root", "/usr/lib/erlang",
+				"-progname", "couchdb",
+				"-home", "/opt/couchdb",
+			},
+			expectedGeneratedName:       "couchdb",
+			expectedGeneratedNameSource: CommandLine,
+		},
+		{
+			name: "Erlang beam with RabbitMQ (erl progname, use home)",
+			cmdline: []string{
+				"/usr/lib/erlang/erts-11.2/bin/beam",
+				"--",
+				"-W", "w",
+				"-K", "true",
+				"-A", "192",
+				"-progname", "erl",
+				"-home", "/var/lib/rabbitmq",
+			},
+			expectedGeneratedName:       "rabbitmq",
+			expectedGeneratedNameSource: CommandLine,
+		},
+		{
+			name: "Erlang beam.smp with Riak progname",
+			cmdline: []string{
+				"beam.smp",
+				"--",
+				"-root", "/usr/lib/erlang",
+				"-progname", "riak",
+				"-home", "/var/lib/riak",
+			},
+			expectedGeneratedName:       "riak",
+			expectedGeneratedNameSource: CommandLine,
+		},
+		{
+			name: "Erlang beam with no useful name",
+			cmdline: []string{
+				"beam",
+				"--",
+				"-smp", "auto",
+				"-noinput",
+			},
+			expectedGeneratedName:       "beam",
+			expectedGeneratedNameSource: CommandLine,
+		},
+		{
 			name: "PHP Laravel",
 			cmdline: []string{
 				"php",

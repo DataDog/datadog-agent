@@ -465,16 +465,32 @@ func (r *repositoryFiles) cleanup(ctx context.Context) error {
 
 	// special case for the agent package
 	// remove the agent deb/rpm directory if it exists and we have upgraded to an OCI-based agent
-	stablePath, err := filepath.EvalSymlinks(filepath.Join(r.rootPath, stableVersionLink))
-	if err != nil {
-		log.Errorf("could not evaluate symlinks for stable link: %v", err)
-	}
-	if err == nil && runtime.GOOS == "linux" && pkgName == "datadog-agent" && strings.HasPrefix(stablePath, "/opt/datadog-packages/datadog-agent") {
-		if err := os.RemoveAll("/opt/datadog-agent"); err != nil {
-			log.Errorf("could not remove previous agent directory: %v", err)
+	if pkgName == "datadog-agent" && runtime.GOOS == "linux" {
+		err := removeDebRpmAgentDirectory(r.rootPath)
+		if err != nil {
+			log.Errorf("could not remove agent directory: %v", err)
 		}
 	}
 	return nil
+}
+
+func removeDebRpmAgentDirectory(rootPath string) error {
+	stableLinkPath := filepath.Join(rootPath, stableVersionLink)
+	_, err := os.Stat(stableLinkPath)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	stablePath, err := filepath.EvalSymlinks(stableLinkPath)
+	if err != nil {
+		return err
+	}
+	if !strings.HasPrefix(stablePath, "/opt/datadog-packages/datadog-agent") {
+		return nil
+	}
+	return os.RemoveAll("/opt/datadog-agent")
 }
 
 type link struct {

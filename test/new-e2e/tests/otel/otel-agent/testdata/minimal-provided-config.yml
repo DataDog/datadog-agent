@@ -32,7 +32,6 @@ exporters:
     logs:
       batch_wait: 5
       compression_level: 6
-      dump_payloads: false
       use_compression: true
     max_idle_conns: 100
     metrics:
@@ -58,6 +57,10 @@ exporters:
       randomization_factor: 0.5
     sending_queue:
       batch:
+        flush_timeout: 200ms
+        max_size: 0
+        min_size: 8192
+        sizer: {}
       block_on_overflow: false
       enabled: true
       num_consumers: 10
@@ -77,13 +80,7 @@ exporters:
       span_name_remappings: {}
       trace_buffer: 0
 extensions: {}
-processors:
-  batch:
-    metadata_cardinality_limit: 1000
-    metadata_keys: []
-    send_batch_max_size: 0
-    send_batch_size: 8192
-    timeout: 200ms
+processors: {}
 receivers:
   otlp:
     protocols:
@@ -98,6 +95,7 @@ receivers:
         cors: null
         endpoint: 0.0.0.0:4318
         idle_timeout: 0s
+        keep_alives_enabled: true
         logs_url_path: /v1/logs
         metrics_url_path: /v1/metrics
         read_header_timeout: 0s
@@ -110,30 +108,26 @@ service:
     logs:
       exporters:
         - datadog
-      processors:
-        - batch
+      processors: []
       receivers:
         - otlp
     metrics:
       exporters:
         - datadog
-      processors:
-        - batch
+      processors: []
       receivers:
         - otlp
         - datadog/connector
     traces:
       exporters:
         - datadog/connector
-      processors:
-        - batch
+      processors: []
       receivers:
         - otlp
     traces/send:
       exporters:
         - datadog
-      processors:
-        - batch
+      processors: []
       receivers:
         - otlp
   telemetry:

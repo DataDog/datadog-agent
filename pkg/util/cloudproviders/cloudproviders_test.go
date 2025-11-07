@@ -11,7 +11,10 @@ import (
 	"strings"
 	"testing"
 
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestCloudProviderAliases(t *testing.T) {
@@ -24,21 +27,24 @@ func TestCloudProviderAliases(t *testing.T) {
 
 	hostAliasesDetectors = []cloudProviderAliasesDetector{
 		{
-			name: "detector1",
+			name:       "detector1",
+			isCloudEnv: true,
 			callback: func(_ context.Context) ([]string, error) {
 				detector1Called = true
 				return []string{"alias2"}, nil
 			},
 		},
 		{
-			name: "detector2",
+			name:       "detector2",
+			isCloudEnv: true,
 			callback: func(_ context.Context) ([]string, error) {
 				detector2Called = true
 				return nil, fmt.Errorf("error from detector2")
 			},
 		},
 		{
-			name: "detector3",
+			name:       "detector3",
+			isCloudEnv: true,
 			callback: func(_ context.Context) ([]string, error) {
 				detector3Called = true
 				return []string{"alias1", "alias2"}, nil
@@ -104,4 +110,13 @@ func TestCloudProviderHostCCRID(t *testing.T) {
 	assert.False(t, detector2Called, "host alias callback for 'detector2' should not be called")
 	assert.Equal(t, "", ccrid)
 	clearDetectors()
+}
+
+func TestGetValidHostAliasesWithConfig(t *testing.T) {
+	config := configmock.New(t)
+	config.SetWithoutSource("host_aliases", []string{"foo", "-bar"})
+
+	val, err := getValidHostAliases(context.TODO())
+	require.NoError(t, err)
+	assert.EqualValues(t, []string{"foo"}, val)
 }

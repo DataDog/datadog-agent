@@ -9,7 +9,10 @@ package external
 
 import (
 	"context"
+	"fmt"
 	"time"
+
+	"k8s.io/utils/clock"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload"
@@ -31,14 +34,17 @@ type Recommender struct {
 }
 
 // NewRecommender creates a new Recommender to start fetching external recommendations
-func NewRecommender(podWatcher workload.PodWatcher, store *autoscaling.Store[model.PodAutoscalerInternal], clusterName string) *Recommender {
-	recommenderClient := newRecommenderClient(podWatcher)
+func NewRecommender(ctx context.Context, clock clock.Clock, podWatcher workload.PodWatcher, store *autoscaling.Store[model.PodAutoscalerInternal], clusterName string, tlsConfig *TLSFilesConfig) (*Recommender, error) {
+	recommenderClient, err := newRecommenderClient(ctx, clock, podWatcher, tlsConfig)
+	if err != nil {
+		return nil, fmt.Errorf("error creating recommender client: %w", err)
+	}
 
 	return &Recommender{
 		recommenderClient: recommenderClient,
 		store:             store,
 		clusterName:       clusterName,
-	}
+	}, nil
 }
 
 // Run starts the Recommender interface to generate external recommendations
