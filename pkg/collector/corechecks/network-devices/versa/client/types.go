@@ -418,19 +418,21 @@ type InterfaceMetrics struct {
 
 // LinkUsageMetrics represents the columns to parse from the LinkExtendedMetricsResponse
 type LinkUsageMetrics struct {
-	DrillKey          string
-	Site              string
-	AccessCircuit     string
-	UplinkBandwidth   string
-	DownlinkBandwidth string
-	Type              string
-	Media             string
-	IP                string
-	ISP               string
-	VolumeTx          float64
-	VolumeRx          float64
-	BandwidthTx       float64
-	BandwidthRx       float64
+	DrillKey                string
+	Site                    string
+	AccessCircuit           string
+	UplinkBandwidthString   string
+	DownlinkBandwidthString string
+	UplinkBandwidth         float64
+	DownlinkBandwidth       float64
+	Type                    string
+	Media                   string
+	IP                      string
+	ISP                     string
+	VolumeTx                float64
+	VolumeRx                float64
+	BandwidthTx             float64
+	BandwidthRx             float64
 }
 
 // SiteMetrics represents the columns to parse from the Site metrics response
