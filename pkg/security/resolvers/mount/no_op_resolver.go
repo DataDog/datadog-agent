@@ -24,8 +24,8 @@ func (mr *NoOpResolver) IsMountIDValid(_ uint32) (bool, error) {
 	return false, nil
 }
 
-// SyncCache Snapshots the current mount points of the system by reading through /proc/[pid]/mountinfo.
-func (mr *NoOpResolver) SyncCache(_ uint32) error {
+// SyncCache Snapshots the current mount points of the system by reading through /proc/.../mountinfo.
+func (mr *NoOpResolver) SyncCache() error {
 	return nil
 }
 

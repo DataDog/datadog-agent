@@ -13,22 +13,17 @@ import (
 	"fmt"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/dentry"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
-	"golang.org/x/sys/unix"
 	"path"
-	"path/filepath"
-	"slices"
 	"strings"
 	"sync"
 	"time"
 
-	"github.com/moby/sys/mountinfo"
 	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
 
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup"
-	cmodel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
@@ -51,53 +46,10 @@ type redemptionEntry struct {
 	insertedAt time.Time
 }
 
-// newMountFromMountInfo - Creates a new Mount from parsed MountInfo data
-func newMountFromMountInfo(mnt *mountinfo.Info) *model.Mount {
-	root := mnt.Root
-
-	if mnt.FSType == "btrfs" {
-		var subvol string
-		for _, opt := range strings.Split(mnt.VFSOptions, ",") {
-			name, val, ok := strings.Cut(opt, "=")
-			if ok && name == "subvol" {
-				subvol = val
-			}
-		}
-
-		if subvol != "" {
-			root = strings.TrimPrefix(root, subvol)
-		}
-
-		if root == "" {
-			root = "/"
-		}
-	}
-
-	if mnt.FSType == "cgroup2" && strings.HasPrefix(root, "/..") {
-		cfs := utils.DefaultCGroupFS()
-		root = filepath.Join(cfs.GetRootCGroupPath(), root)
-	}
-
-	// create a Mount out of the parsed MountInfo
-	return &model.Mount{
-		MountID: uint32(mnt.ID),
-		Device:  utils.Mkdev(uint32(mnt.Major), uint32(mnt.Minor)),
-		ParentPathKey: model.PathKey{
-			MountID: uint32(mnt.Parent),
-		},
-		FSType:        mnt.FSType,
-		MountPointStr: mnt.Mountpoint,
-		Path:          mnt.Mountpoint,
-		RootStr:       root,
-		Origin:        model.MountOriginProcfs,
-		Visible:       true,
-		Detached:      false,
-	}
-}
-
 // ResolverOpts defines mount resolver options
 type ResolverOpts struct {
-	UseProcFS bool
+	UseProcFS              bool
+	SnapshotUsingListMount bool
 }
 
 // Resolver represents a cache for mountpoints and the corresponding file systems
@@ -113,10 +65,10 @@ type Resolver struct {
 	fallbackLimiter *utils.Limiter[uint64]
 
 	// stats
-	cacheHitsStats *atomic.Int64
-	cacheMissStats *atomic.Int64
-	procHitsStats  *atomic.Int64
-	procMissStats  *atomic.Int64
+	cacheHitsStats atomic.Int64
+	cacheMissStats atomic.Int64
+	procHitsStats  atomic.Int64
+	procMissStats  atomic.Int64
 }
 
 // IsMountIDValid returns whether the mountID is valid
@@ -132,110 +84,114 @@ func (mr *Resolver) IsMountIDValid(mountID uint32) (bool, error) {
 	return true, nil
 }
 
-// newMountFromStatmount - Creates a new Mount from parsed MountInfo data
-func newMountFromStatmount(sm *Statmount) *model.Mount {
-	root := sm.MntRoot
-
-	if sm.FsType == "cgroup2" && strings.HasPrefix(root, "/..") {
-		cfs := utils.DefaultCGroupFS()
-		root = filepath.Join(cfs.GetRootCGroupPath(), root)
-	}
-
-	// create a Mount out of the parsed MountInfo
-	return &model.Mount{
-		MountID:       sm.MntIDOld,
-		MountIDUnique: sm.MntID,
-		Device:        utils.Mkdev(sm.SbDevMajor, sm.SbDevMinor),
-		ParentPathKey: model.PathKey{
-			MountID: sm.MntParentIDOld,
-		},
-		FSType:        sm.FsType,
-		MountPointStr: sm.MntPoint,
-		Path:          sm.MntPoint,
-		RootStr:       root,
-		Origin:        model.MountOriginListmount,
-		Visible:       true,
-		Detached:      false,
-	}
-}
-
-// HasListMount returns true if the kernel has the listmount() syscall, false otherwise
-func (mr *Resolver) HasListMount() bool {
-	_, _, errno := unix.Syscall(unix.SYS_LISTMOUNT, 0, 0, 0)
-	return errno != unix.ENOSYS
-}
-
-// SyncCacheFromListMount Snapshots the current mountpoints using the listmount api
-func (mr *Resolver) SyncCacheFromListMount() error {
-	mr.lock.Lock()
-	defer mr.lock.Unlock()
-
+// syncCacheFromListMount Snapshots the current mountpoints using the listmount api
+func (mr *Resolver) syncCacheFromListMount() error {
 	nrMounts := 0
-	err := GetAll(kernel.ProcFSRoot(), func(sm *Statmount) {
-		mr.insert(newMountFromStatmount(sm), 0, false)
+	err := GetAll(kernel.ProcFSRoot(), func(sm *model.Mount) {
+		mr.insert(sm, 0, false)
 		nrMounts++
 	})
 
 	if err != nil {
-		return fmt.Errorf("error synchronizing cache: %v", err)
+		return fmt.Errorf("error synchronizing cache from listmount: %v", err)
 	}
 	seclog.Infof("listmount sync cache found %d entries", nrMounts)
 	return nil
 }
 
-// SyncCache Snapshots the current mount points of the system by reading through /proc/[pid]/mountinfo.
-func (mr *Resolver) SyncCache(pid uint32) error {
-	mr.lock.Lock()
-	defer mr.lock.Unlock()
+// syncCacheFromProcfs Snapshots the current mountpoints using the listmount api
+func (mr *Resolver) syncCacheFromProcfs() error {
+	nrMounts := 0
+	err := GetAllProcfs(kernel.ProcFSRoot(), func(sm *model.Mount) {
+		mr.insert(sm, 0, false)
+		nrMounts++
+	})
 
-	err := mr.syncPid(pid)
-
-	// store the minimal mount ID found to use it as a reference
-	if pid == 1 {
-		for mountID := range mr.mounts.KeysIter() {
-			if mr.minMountID == 0 || mr.minMountID > mountID {
-				mr.minMountID = mountID
-			}
-		}
-	}
-
-	return err
-}
-
-func (mr *Resolver) syncPid(pid uint32) error {
-	mnts, err := kernel.ParseMountInfoFile(int32(pid))
 	if err != nil {
-		return err
+		return fmt.Errorf("error synchronizing from procfs: %v", err)
 	}
-
-	for _, mnt := range mnts {
-		if m, exists := mr.mounts.Get(uint32(mnt.ID)); m != nil && exists {
-			continue
-		}
-
-		m := newMountFromMountInfo(mnt)
-		mr.insert(m, pid, false)
-	}
-
+	seclog.Infof("procfs sync cache found %d entries", nrMounts)
 	return nil
 }
 
-// syncCache update cache with the first working pid
-func (mr *Resolver) syncCache(mountID uint32, pids []uint32) error {
+// SyncCache Snapshots the current mount points of the system by reading through /proc/[pid]/mountinfo.
+func (mr *Resolver) syncCache() error {
 	var err error
-
-	for _, pid := range pids {
-		key := uint64(mountID)<<32 | uint64(pid)
-		if !mr.fallbackLimiter.Allow(key) {
-			continue
+	if mr.opts.SnapshotUsingListMount {
+		err = mr.syncCacheFromListMount()
+		// TODO: Decide if it makes sense to fully regress to procfs when it fails only once
+		if err != nil {
+			mr.opts.SnapshotUsingListMount = false
 		}
+	}
 
-		if err = mr.syncPid(pid); err == nil {
-			return nil
+	if !mr.opts.SnapshotUsingListMount {
+		err = mr.syncCacheFromProcfs()
+	}
+
+	for mountID := range mr.mounts.KeysIter() {
+		if mr.minMountID == 0 || mr.minMountID > mountID {
+			mr.minMountID = mountID
 		}
 	}
 
 	return err
+}
+
+// syncCacheFromListMount Snapshots the current mountpoints using procfs
+func (mr *Resolver) syncPidProcfs(pid uint32) error {
+	nrMounts := 0
+	err := GetPidProcfs(kernel.ProcFSRoot(), pid, func(sm *model.Mount) {
+		mr.insert(sm, 0, false)
+		nrMounts++
+	})
+
+	if err != nil {
+		return fmt.Errorf("error synchronizing the pid procfs: %v", err)
+	}
+	seclog.Infof("procfs sync pid cache found %d entries", nrMounts)
+	return nil
+}
+
+// syncCacheFromProcfs Snapshots the mounts of the pid namespace using the listmount api
+func (mr *Resolver) syncPidListmount(pid uint32) error {
+	nrMounts := 0
+	err := GetPidListmount(kernel.ProcFSRoot(), pid, func(sm *model.Mount) {
+		mr.insert(sm, 0, false)
+		nrMounts++
+	})
+
+	if err != nil {
+		return fmt.Errorf("error synchronizing from procfs: %v", err)
+	}
+	seclog.Infof("listmount sync pid found %d entries", nrMounts)
+	return nil
+}
+
+// syncPidNamespace snapshots the namespace of the pid
+func (mr *Resolver) syncPidNamespace(pid uint32) error {
+	var err error
+	if mr.opts.SnapshotUsingListMount {
+		err = mr.syncPidListmount(pid)
+		// TODO: Decide if it makes sense to fully regress to procfs when it fails only once
+		if err != nil {
+			mr.opts.SnapshotUsingListMount = false
+		}
+	}
+
+	if !mr.opts.SnapshotUsingListMount {
+		err = mr.syncPidProcfs(pid)
+	}
+
+	return err
+}
+
+// SyncCache Snapshots the current mount points of the system by reading through /proc/[pid]/mountinfo.
+func (mr *Resolver) SyncCache() error {
+	mr.lock.Lock()
+	defer mr.lock.Unlock()
+
+	return mr.syncCache()
 }
 
 func (mr *Resolver) insertMoved(mount *model.Mount) {
@@ -558,21 +514,6 @@ func (mr *Resolver) ResolveMountPath(mountID uint32, pid uint32, containerID con
 	return mr.resolveMountPath(mountID, pid, containerID)
 }
 
-func (mr *Resolver) reSyncCache(mountID uint32, pids []uint32, containerID containerutils.ContainerID, workload *cmodel.CacheEntry) error {
-	if workload != nil {
-		pids = append(pids, workload.GetPIDs()...)
-	} else if len(containerID) == 0 && !slices.Contains(pids, 1) {
-		pids = append(pids, 1)
-	}
-
-	if err := mr.syncCache(mountID, pids); err != nil {
-		mr.procMissStats.Inc()
-		return err
-	}
-
-	return nil
-}
-
 func (mr *Resolver) resolveMountPath(mountID uint32, pid uint32, containerID containerutils.ContainerID) (string, model.MountSource, model.MountOrigin, error) {
 	if _, err := mr.IsMountIDValid(mountID); err != nil {
 		return "", model.MountSourceUnknown, model.MountOriginUnknown, err
@@ -580,7 +521,7 @@ func (mr *Resolver) resolveMountPath(mountID uint32, pid uint32, containerID con
 
 	// force a resolution here to make sure the LRU keeps doing its job and doesn't evict important entries
 	// TODO: DO NOT rely on containerID, but resolve the pid namespace instead to get namespaced PIDs
-	workload, _ := mr.cgroupsResolver.GetWorkload(containerID)
+	//workload, _ := mr.cgroupsResolver.GetWorkload(containerID)
 
 	path, source, origin, err := mr.getMountPath(mountID, pid)
 	if err == nil {
@@ -593,7 +534,7 @@ func (mr *Resolver) resolveMountPath(mountID uint32, pid uint32, containerID con
 		return "", model.MountSourceUnknown, model.MountOriginUnknown, &ErrMountNotFound{MountID: mountID}
 	}
 
-	if err := mr.reSyncCache(mountID, []uint32{pid}, containerID, workload); err != nil {
+	if err := mr.syncPidNamespace(pid); err != nil {
 		return "", model.MountSourceUnknown, model.MountOriginUnknown, err
 	}
 
@@ -620,9 +561,6 @@ func (mr *Resolver) resolveMount(mountID uint32, pid uint32, containerID contain
 		return nil, model.MountSourceUnknown, model.MountOriginUnknown, err
 	}
 
-	// force a resolution here to make sure the LRU keeps doing its job and doesn't evict important entries
-	workload, _ := mr.cgroupsResolver.GetWorkload(containerID)
-
 	mount, source, origin := mr.lookupMount(mountID)
 	if mount != nil {
 		mr.cacheHitsStats.Inc()
@@ -630,11 +568,7 @@ func (mr *Resolver) resolveMount(mountID uint32, pid uint32, containerID contain
 	}
 	mr.cacheMissStats.Inc()
 
-	if !mr.opts.UseProcFS {
-		return nil, model.MountSourceUnknown, model.MountOriginUnknown, &ErrMountNotFound{MountID: mountID}
-	}
-
-	if err := mr.reSyncCache(mountID, []uint32{pid}, containerID, workload); err != nil {
+	if err := mr.syncPidNamespace(pid); err != nil {
 		return nil, model.MountSourceUnknown, model.MountOriginUnknown, err
 	}
 
@@ -657,14 +591,6 @@ func (mr *Resolver) SendStats() error {
 	}
 
 	if err := mr.statsdClient.Count(metrics.MetricMountResolverMiss, mr.cacheMissStats.Swap(0), []string{metrics.CacheTag}, 1.0); err != nil {
-		return err
-	}
-
-	if err := mr.statsdClient.Count(metrics.MetricMountResolverHits, mr.procHitsStats.Swap(0), []string{metrics.ProcFSTag}, 1.0); err != nil {
-		return err
-	}
-
-	if err := mr.statsdClient.Count(metrics.MetricMountResolverMiss, mr.procMissStats.Swap(0), []string{metrics.ProcFSTag}, 1.0); err != nil {
 		return err
 	}
 
@@ -704,10 +630,6 @@ func NewResolver(statsdClient statsd.ClientInterface, cgroupsResolver *cgroup.Re
 		lock:            sync.RWMutex{},
 		mounts:          mounts,
 		dentryResolver:  dentryResolver,
-		cacheHitsStats:  atomic.NewInt64(0),
-		procHitsStats:   atomic.NewInt64(0),
-		cacheMissStats:  atomic.NewInt64(0),
-		procMissStats:   atomic.NewInt64(0),
 	}
 
 	redemption, err := simplelru.NewLRU(1024, func(_ uint32, entry *redemptionEntry) {
@@ -724,6 +646,10 @@ func NewResolver(statsdClient statsd.ClientInterface, cgroupsResolver *cgroup.Re
 		return nil, err
 	}
 	mr.fallbackLimiter = limiter
+
+	if mr.opts.SnapshotUsingListMount && !HasListMount() {
+		mr.opts.SnapshotUsingListMount = false
+	}
 
 	return mr, nil
 }
