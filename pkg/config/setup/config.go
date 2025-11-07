@@ -1365,6 +1365,10 @@ func agent(config pkgconfigmodel.Setup) {
 	// Notable Events (EUDM)
 	config.BindEnvAndSetDefault("notable_events.enabled", false)
 
+	// Event Management v2 API
+	// https://docs.datadoghq.com/api/latest/events#post-an-event
+	bindEnvAndSetLogsConfigKeys(config, "event_management.forwarder.")
+
 	pkgconfigmodel.AddOverrideFunc(toggleDefaultPayloads)
 }
 
@@ -1380,6 +1384,9 @@ func autoscaling(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("autoscaling.workload.enabled", false)
 	config.BindEnvAndSetDefault("autoscaling.failover.enabled", false)
 	config.BindEnvAndSetDefault("autoscaling.workload.limit", 1000)
+	config.BindEnvAndSetDefault("autoscaling.workload.external_recommender.tls.ca_file", "")
+	config.BindEnvAndSetDefault("autoscaling.workload.external_recommender.tls.cert_file", "")
+	config.BindEnvAndSetDefault("autoscaling.workload.external_recommender.tls.key_file", "")
 	config.BindEnvAndSetDefault("autoscaling.failover.metrics", []string{"container.memory.usage", "container.cpu.usage"})
 }
 

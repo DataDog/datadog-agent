@@ -2772,6 +2772,13 @@ func (p *EBPFProbe) initManagerOptionsExcludedFunctions() error {
 		p.managerOptions.ExcludedFunctions = append(p.managerOptions.ExcludedFunctions, probes.GetCapabilitiesMonitoringProgramFunctions()...)
 	}
 
+	// on kernel before 4.15, you can only attach one eBPF program per tracepoint
+	// to prevent conflicts with other eBPF using programs, we exclude our sched_process_fork tracepoint program
+	// and use the get_task_pid kretprobe fallback instead
+	if p.kernelVersion.Code < kernel.Kernel4_15 {
+		p.managerOptions.ExcludedFunctions = append(p.managerOptions.ExcludedFunctions, probes.SchedProcessForkTracepointName)
+	}
+
 	return nil
 }
 

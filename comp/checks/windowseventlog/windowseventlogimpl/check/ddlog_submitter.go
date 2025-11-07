@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/util/windowsevent"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	evtapi "github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/api"
+	evtbookmark "github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/bookmark"
 
 	"golang.org/x/sys/windows"
 )
@@ -31,7 +32,7 @@ type ddLogSubmitter struct {
 	doneCh                 <-chan struct{}
 	inCh                   <-chan *eventWithMessage
 	logsAgent              logsAgent.Component
-	bookmarkSaver          *bookmarkSaver
+	bookmarkManager        evtbookmark.Manager
 	logSource              *sources.LogSource
 	publisherMetadataCache publishermetadatacache.Component
 }
@@ -53,8 +54,8 @@ func (s *ddLogSubmitter) run(w *sync.WaitGroup) {
 			return
 		}
 
-		// bookmarkSaver manages whether or not to save/persist the bookmark
-		err = s.bookmarkSaver.updateBookmark(e.winevent)
+		// bookmarkManager manages whether or not to save/persist the bookmark
+		err = s.bookmarkManager.UpdateAndSave(e.winevent.EventRecordHandle)
 		if err != nil {
 			log.Errorf("%v", err)
 		}
