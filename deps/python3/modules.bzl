@@ -112,7 +112,8 @@ PYTHON_MODULES = {
         ],
         "deps": [
             ":mpdec"
-        ]
+        ],
+        "force_cc_binary": "yes"
     },
     "binascii": {
         "srcs": [
@@ -141,11 +142,6 @@ PYTHON_MODULES = {
         ],
         "deps": [
             "@zlib//:zlib"
-        ]
-    },
-    "readline": {
-        "srcs": [
-            "Modules/readline.c"
         ]
     },
     "_md5": {
@@ -188,11 +184,20 @@ PYTHON_MODULES = {
             "Modules/_blake2/blake2module.c",
             "Modules/_blake2/blake2b_impl.c",
             "Modules/_blake2/blake2s_impl.c"
+        ],
+        "textual_hdrs": [
+            ":blake2_hdrs"
         ]
     },
     "pyexpat": {
         "srcs": [
             "Modules/pyexpat.c"
+        ],
+        "extra_files": [
+            ":libexpat_srcs"
+        ],
+        "textual_hdrs": [
+            ":libexpat_textual_hdrs"
         ],
         "includes": [
             "Modules/expat"
@@ -201,6 +206,15 @@ PYTHON_MODULES = {
     "_elementtree": {
         "srcs": [
             "Modules/_elementtree.c"
+        ],
+        "extra_files": [
+            ":libexpat_srcs"
+        ],
+        "textual_hdrs": [
+            ":libexpat_textual_hdrs"
+        ],
+        "includes": [
+            "Modules/expat"
         ]
     },
     "_codecs_cn": {
@@ -306,50 +320,9 @@ PYTHON_MODULES = {
             "Modules/_ctypes/callproc.c",
             "Modules/_ctypes/stgdict.c",
             "Modules/_ctypes/cfield.c"
-        ]
-    },
-    "_curses": {
-        "srcs": [
-            "Modules/_cursesmodule.c"
-        ]
-    },
-    "_curses_panel": {
-        "srcs": [
-            "Modules/_curses_panel.c"
-        ]
-    },
-    "_sqlite3": {
-        "srcs": [
-            "Modules/_sqlite/blob.c",
-            "Modules/_sqlite/connection.c",
-            "Modules/_sqlite/cursor.c",
-            "Modules/_sqlite/microprotocols.c",
-            "Modules/_sqlite/module.c",
-            "Modules/_sqlite/prepare_protocol.c",
-            "Modules/_sqlite/row.c",
-            "Modules/_sqlite/statement.c",
-            "Modules/_sqlite/util.c"
-        ]
-    },
-    "_ssl": {
-        "srcs": [
-            "Modules/_ssl.c"
-        ]
-    },
-    "_hashlib": {
-        "srcs": [
-            "Modules/_hashopenssl.c"
-        ]
-    },
-    "_uuid": {
-        "srcs": [
-            "Modules/_uuidmodule.c"
-        ]
-    },
-    "_tkinter": {
-        "srcs": [
-            "Modules/_tkinter.c",
-            "Modules/tkappinit.c"
+        ],
+        "deps": [
+            "@libffi//:ffi"
         ]
     },
     "xxsubtype": {

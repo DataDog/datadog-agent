@@ -8,13 +8,27 @@ import sys
 
 def postprocess(modules):
     modules["_testcapi"]["extra_files"] = ["Modules/_testcapi_feature_macros.inc"]
-    modules["pyexpat"]["includes"] = ["Modules/expat"]
     for m in ["_md5", "_sha1", "_sha2", "_sha3"]:
         modules[m]["includes"] = ["Modules/_hacl/include"]
     modules["_bz2"]["deps"] = ["@bzip2//:bz2"]
     modules["_lzma"]["deps"] = ["@xz//:liblzma"]
     modules["_decimal"]["deps"] = [":mpdec"]
+    modules["_decimal"]["force_cc_binary"] = "yes"  # boolean causes issues with the json/starlark conversion
     modules["zlib"]["deps"] = ["@zlib//:zlib"]
+    del modules["readline"]
+    modules["_blake2"]["textual_hdrs"] = [":blake2_hdrs"]
+    del modules["_uuid"]
+    del modules["_sqlite3"]  # tmp until the target is merged in main
+    for expat_module in ["pyexpat", "_elementtree"]:
+        modules[expat_module]["extra_files"] = [":libexpat_srcs"]
+        modules[expat_module]["textual_hdrs"] = [":libexpat_textual_hdrs"]
+        modules[expat_module]["includes"] = ["Modules/expat"]
+    del modules["_tkinter"]
+    modules["_ctypes"]["deps"] = ["@libffi//:ffi"]
+    del modules["_hashlib"]  # tmp until openssl is merged in main
+    del modules["_ssl"]  # tmp until openssl is merged in main
+    del modules["_curses"]
+    del modules["_curses_panel"]
 
 
 def main(argv):

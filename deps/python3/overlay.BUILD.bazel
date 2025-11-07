@@ -46,6 +46,7 @@ _COMMON_INCLUDE_DIRS = [
     "Objects",
     "Include",
     "Python",
+    ".",
 ]
 
 expand_template(
@@ -119,12 +120,12 @@ expand_template(
         "@MODULE__POSIXSHMEM_TRUE@": "",
         "@MODULE__MULTIPROCESSING_TRUE@": "",
         "@MODULE__CTYPES_TRUE@": "",
-        "@MODULE__CURSES_TRUE@": "",
-        "@MODULE__CURSES_PANEL_TRUE@": "",
+        "@MODULE__CURSES_TRUE@": "#",
+        "@MODULE__CURSES_PANEL_TRUE@": "#",
         "@MODULE__SQLITE3_TRUE@": "",
         "@MODULE__SSL_TRUE@": "",
         "@MODULE__HASHLIB_TRUE@": "",
-        "@MODULE__UUID_TRUE@": "",
+        "@MODULE__UUID_TRUE@": "#",
         "@MODULE__TKINTER_TRUE@": "",
         "@MODULE__SCPROXY_TRUE@": "#",
         "@MODULE_XXSUBTYPE_TRUE@": "",
@@ -170,6 +171,7 @@ filegroup(
         "Parser/parser.c",
         "Parser/string_parser.c",
         "Parser/peg_api.c",
+        "Parser/token.c"
     ]
 )
 
@@ -490,6 +492,38 @@ cc_library(
     linkstatic = True,
 )
 
+filegroup(
+    name = "libexpat_srcs",
+    srcs = glob([
+        "Modules/expat/*.c",
+        "Modules/expat/*.h",
+    ], exclude=[
+        "Modules/expat/xmltok_impl.c",
+        "Modules/expat/xmltok_ns.c",
+    ])
+)
+
+filegroup(
+    name = "libexpat_textual_hdrs",
+    srcs = glob([
+        "Modules/expat/xmltok_impl.c",
+        "Modules/expat/xmltok_ns.c",
+    ])
+)
+
+filegroup(
+    name = "blake2_hdrs",
+    srcs = glob([
+        "Modules/_blake2/impl/blake2*.h",
+        "Modules/_blake2/impl/blake2*.c",
+    ], exclude=[
+        # These are the module srcs
+        "Modules/_blake2/blake2module.c",
+        "Modules/_blake2/blake2b_impl.c",
+        "Modules/_blake2/blake2s_impl.c"
+    ]),
+)
+
 cc_library(
     name = "modules_getpath",
     srcs = [
@@ -628,6 +662,9 @@ cc_binary(
         ":library_srcs_omit_frozen",
         "Objects/typeslots.inc",
     ],
+    linkopts = select({
+        "@platforms//os:linux": ["-lutil"],
+    }),
     deps = select({
         "@platforms//os:linux": [":dynload_shlib"],
     }) + [
@@ -649,13 +686,24 @@ cc_binary(
 )
 
 [
-    cc_binary(
-        name = "module_" + name,
-        srcs = info['srcs'] + [":python_headers", ":modules_headers", ":expat_headers"] + info.get('extra_files', []),
-        includes = _COMMON_INCLUDE_DIRS + info.get('includes', []),
-        local_defines = COMMON_DEFINES + PY_BUILTIN_MODULE_DEFINES + info.get('local_defines', []),
-        deps = [":mimalloc"] + info.get('deps', []),
-        copts = ["-std=c11"],
-        linkshared=True,
-    ) for name, info in PYTHON_MODULES.items()
+        cc_binary(
+            name = "module_" + name,
+            srcs = info['srcs'] + [":python_headers", ":modules_headers", ":expat_headers"] + info.get('extra_files', []),
+            includes = _COMMON_INCLUDE_DIRS + info.get('includes', []),
+            local_defines = COMMON_DEFINES + PY_BUILTIN_MODULE_DEFINES + info.get('local_defines', []),
+            deps = [":mimalloc"] + info.get('deps', []),
+            copts = ["-std=c11"],
+            linkshared=True,
+        )
+    if info.get('force_cc_binary', "no") == "yes" else
+        cc_library(
+            name = "module_" + name,
+            srcs = info['srcs'] + [":python_headers", ":modules_headers", ":expat_headers"] + info.get('extra_files', []),
+            includes = _COMMON_INCLUDE_DIRS + info.get('includes', []),
+            local_defines = COMMON_DEFINES + PY_BUILTIN_MODULE_DEFINES + info.get('local_defines', []),
+            deps = [":mimalloc"] + info.get('deps', []),
+            copts = ["-std=c11"],
+            textual_hdrs = info.get('textual_hdrs', []),
+        )
+    for name, info in PYTHON_MODULES.items()
 ]
