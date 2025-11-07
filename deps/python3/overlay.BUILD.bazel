@@ -374,6 +374,7 @@ filegroup(
         "Objects/structseq.c",
         "Objects/tupleobject.c",
         "Objects/typeobject.c",
+        "Objects/typeslots.inc",
         "Objects/typevarobject.c",
         "Objects/unicodeobject.c",
         "Objects/unicodectype.c",
@@ -528,20 +529,34 @@ filegroup(
     ]),
 )
 
+genrule(
+    name = "frozen_getpath_h",
+    srcs = ["Modules/getpath.py"],
+    tools = [":freeze_module"],
+    outs = ["Python/frozen_modules/getpath.h"],
+    cmd = "$(location :freeze_module) getpath $(location Modules/getpath.py) $@"
+)
+
 cc_library(
     name = "modules_getpath",
     srcs = [
         "Modules/getpath.c",
+        ":python_headers",
+        ":frozen_getpath_h",
     ],
     local_defines = [
         'PYTHONPATH=\\"\\"',
-        "PREFIX=/opt/datadog-agent/embedded",
-        "EXEC_PREFIX=/opt/datadog-agent/embedded",
+        'PREFIX=\\"/opt/datadog-agent/embedded\\"',
+        'EXEC_PREFIX=\\"/opt/datadog-agent/embedded\\"',
         "VERSION=" + _VERSION,
         'VPATH=\\"..\\"',
-        '-DPLATLIBDIR=\\"lib\\"',
+        'PLATLIBDIR=\\"lib\\"',
         #FIXME this is not correct when building for macOS
-        '-DPYTHONFRAMEWORK=\\"\\"',
+        'PYTHONFRAMEWORK=\\"\\"',
+    ] + COMMON_DEFINES + PY_CORE_DEFINES,
+    includes = _COMMON_INCLUDE_DIRS,
+    deps = [
+        ":mimalloc",
     ]
 )
 
@@ -648,15 +663,6 @@ filegroup(
     ]
 )
 
-filegroup(
-    name = "bootstrap_headers",
-    srcs = [
-        "Python/frozen_modules/importlib._bootstrap.h",
-        "Python/frozen_modules/importlib._bootstrap_external.h",
-        "Python/frozen_modules/zipimport.h",
-    ],
-)
-
 cc_binary(
     name = "freeze_module",
     srcs = [
@@ -679,6 +685,39 @@ cc_binary(
     includes = _COMMON_INCLUDE_DIRS,
 )
 
+filegroup(
+    name = "bootstrap_headers",
+    srcs = [
+        ":frozen_importlib_bootstrap_h",
+        ":frozen_importlib_bootstrap_external_h",
+        ":frozen_zipimport_h",
+    ],
+)
+
+genrule(
+    name = "frozen_importlib_bootstrap_h",
+    srcs = ["Lib/importlib/_bootstrap.py"],
+    tools = [":freeze_module"],
+    outs = ["Python/frozen_modules/importlib._bootstrap.h"],
+    cmd = "$(location :freeze_module) importlib._bootstrap $(location Lib/importlib/_bootstrap.py) $@"
+)
+
+genrule(
+    name = "frozen_importlib_bootstrap_external_h",
+    srcs = ["Lib/importlib/_bootstrap_external.py"],
+    tools = [":freeze_module"],
+    outs = ["Python/frozen_modules/importlib._bootstrap_external.h"],
+    cmd = "$(location :freeze_module) importlib._bootstrap_external $(location Lib/importlib/_bootstrap_external.py) $@"
+)
+
+genrule(
+    name = "frozen_zipimport_h",
+    srcs = ["Lib/zipimport.py"],
+    tools = [":freeze_module"],
+    outs = ["Python/frozen_modules/zipimport.h"],
+    cmd = "$(location :freeze_module) zipimport $(location Lib/zipimport.py) $@"
+)
+
 cc_binary(
     name = "bootstrap_python",
     srcs = [
@@ -698,6 +737,7 @@ cc_binary(
     ] + [":module_" + m for m in PYTHON_MODULES.keys()],
     local_defines = COMMON_DEFINES + PY_CORE_DEFINES,
     includes = _COMMON_INCLUDE_DIRS,
+    copts = COMMON_COPTS,
 )
 
 [
