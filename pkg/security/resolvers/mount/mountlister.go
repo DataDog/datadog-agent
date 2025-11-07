@@ -213,6 +213,7 @@ func collectUniqueMountNSFDs(procfs string) ([]int, error) {
 	return ret, nil
 }
 
+// GetPidListmount does a listmount for the mount namespace of a specific pid and calls cb() for each entry found
 func GetPidListmount(procfs string, pid uint32, cb func(*model.Mount)) error {
 	path := filepath.Join(procfs, strconv.Itoa(int(pid)), "ns", "mnt")
 	fd, err := unix.Open(path, unix.O_RDONLY|unix.O_CLOEXEC, 0)
