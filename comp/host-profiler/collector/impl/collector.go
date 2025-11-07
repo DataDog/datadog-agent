@@ -11,8 +11,12 @@ package collectorimpl
 import (
 	"context"
 
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
+
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	collector "github.com/DataDog/datadog-agent/comp/host-profiler/collector/def"
+	zapAgent "github.com/DataDog/datadog-agent/pkg/util/log/zap"
 	"go.opentelemetry.io/collector/confmap"
 	"go.opentelemetry.io/collector/confmap/provider/envprovider"
 	"go.opentelemetry.io/collector/confmap/provider/fileprovider"
@@ -88,8 +92,16 @@ func (c *collectorImpl) Run() error {
 }
 
 func newCollectorSettings(uri string, extraFactories ExtraFactories) (otelcol.CollectorSettings, error) {
+	// Replace logger to use Agent logger
+	options := []zap.Option{
+		zap.WrapCore(func(zapcore.Core) zapcore.Core {
+			return zapAgent.NewZapCore()
+		}),
+	}
+
 	return otelcol.CollectorSettings{
-		Factories: createFactories(extraFactories),
+		Factories:      createFactories(extraFactories),
+		LoggingOptions: options,
 		ConfigProviderSettings: otelcol.ConfigProviderSettings{
 			ResolverSettings: confmap.ResolverSettings{
 				URIs: []string{uri},
