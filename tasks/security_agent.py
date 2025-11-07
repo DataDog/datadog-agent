@@ -18,7 +18,8 @@ from invoke.tasks import task
 import tasks.libs.cws.backend_doc_gen as backend_doc_gen
 import tasks.libs.cws.secl_doc_gen as secl_doc_gen
 from tasks.agent import generate_config
-from tasks.build_tags import add_fips_tags, get_default_build_tags
+from tasks.build_tags import get_default_build_tags
+from tasks.flavor import AgentFlavor
 from tasks.go import run_golangci_lint
 from tasks.libs.build.ninja import NinjaWriter
 from tasks.libs.common.git import get_commit_sha, get_common_ancestor, get_current_branch
@@ -92,8 +93,9 @@ def build(
         )
 
     ldflags += ' '.join([f"-X '{main + key}={value}'" for key, value in ld_vars.items()])
-    build_tags += get_default_build_tags(build="security-agent")
-    build_tags = add_fips_tags(build_tags, fips_mode)
+    build_tags += get_default_build_tags(
+        build="security-agent", flavor=AgentFlavor.fips if fips_mode else AgentFlavor.base
+    )
 
     if os.path.exists(BIN_PATH):
         os.remove(BIN_PATH)

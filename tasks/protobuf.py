@@ -21,6 +21,7 @@ PROTO_PKGS = {
     'remoteagent': False,
     'autodiscovery': False,
     'trace/idx': False,
+    'workloadfilter': False,
 }
 
 CLI_EXTRAS = {
