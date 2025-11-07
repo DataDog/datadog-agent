@@ -732,6 +732,43 @@ func newAstFiles(cfg *packages.Config, files ...string) (*AstFiles, error) {
 	return &astFiles, nil
 }
 
+func _sortFieldsByChecks(module *common.Module, fields map[string]*common.StructField, fieldNames []string) {
+	slices.SortFunc(fieldNames, func(a string, b string) int {
+		fieldA := fields[a]
+		if fieldA.Ref != "" {
+			fieldA = fields[fieldA.Ref]
+		}
+
+		fieldB := fields[b]
+		if fieldB.Ref != "" {
+			fieldB = fields[fieldB.Ref]
+		}
+
+		checksA := getFieldHandlersChecks(module.AllFields, fieldA)
+		checksB := getFieldHandlersChecks(module.AllFields, fieldB)
+
+		if checksA == checksB {
+			return strings.Compare(a, b)
+		}
+
+		return strings.Compare(checksA, checksB)
+	})
+}
+
+func sortFieldsByChecks(module *common.Module) {
+	for fieldName, field := range module.Fields {
+		if field.Event != "" || field.IsLength {
+			continue
+		}
+		module.FieldsOrderByChecks = append(module.FieldsOrderByChecks, fieldName)
+	}
+	_sortFieldsByChecks(module, module.Fields, module.FieldsOrderByChecks)
+
+	for _, evt := range module.EventTypes {
+		_sortFieldsByChecks(module, module.Fields, evt.Fields)
+	}
+}
+
 func parseFile(modelFile string, typesFile string, pkgName string) (*common.Module, error) {
 	cfg := packages.Config{
 		Mode:       packages.NeedSyntax | packages.NeedTypes | packages.NeedImports,
@@ -771,6 +808,8 @@ func parseFile(modelFile string, typesFile string, pkgName string) (*common.Modu
 	for _, spec := range specs {
 		handleSpecRecursive(module, astFiles, spec, "", "", "", nil, nil, make(map[string]bool))
 	}
+
+	sortFieldsByChecks(module)
 
 	return module, nil
 }

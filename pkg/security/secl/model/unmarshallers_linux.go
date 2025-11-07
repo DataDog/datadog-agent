@@ -1077,6 +1077,7 @@ func (e *NetworkContext) UnmarshalBinary(data []byte) (int, error) {
 
 	e.Size = binary.NativeEndian.Uint32(data[read+40 : read+44])
 	e.NetworkDirection = binary.NativeEndian.Uint32(data[read+44 : read+48])
+	e.Type = uint32(UnspecType)
 
 	// readjust IP sizes depending on the protocol
 	switch e.L3Protocol {
