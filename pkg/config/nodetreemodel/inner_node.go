@@ -20,7 +20,7 @@ type innerNode struct {
 	children map[string]Node
 }
 
-var allocatorBufferInnerNodes [1024]innerNode
+var allocatorBufferInnerNodes [2 * 1024]innerNode
 var allocatorInnerNodeCount int
 
 func newInnerNode(children map[string]Node) *innerNode {
@@ -29,7 +29,7 @@ func newInnerNode(children map[string]Node) *innerNode {
 		contents[strings.ToLower(k)] = v
 	}
 	count := allocatorInnerNodeCount
-	if allocatorInnerNodeCount < 1024 {
+	if allocatorInnerNodeCount < 2*1024 {
 		allocatorInnerNodeCount++
 		node := &allocatorBufferInnerNodes[count]
 		node.children = contents

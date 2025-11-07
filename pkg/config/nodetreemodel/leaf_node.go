@@ -40,12 +40,12 @@ func isSlice(v interface{}) bool {
 	return rval.Kind() == reflect.Slice
 }
 
-var allocatorBufferLeafNodes [1024]leafNodeImpl
+var allocatorBufferLeafNodes [2 * 1024]leafNodeImpl
 var allocatorLeafNodeCount int
 
 func newLeafNode(v interface{}, source model.Source) Node {
 	count := allocatorLeafNodeCount
-	if allocatorLeafNodeCount < 1024 {
+	if allocatorLeafNodeCount < 2*1024 {
 		allocatorLeafNodeCount++
 		node := &allocatorBufferLeafNodes[count]
 		node.val = v
