@@ -519,7 +519,7 @@ func (f *DefaultForwarder) createAdvancedHTTPTransactions(endpoint transaction.E
 
 	for _, payload := range payloads {
 		for domain, dr := range f.domainResolvers {
-			drDomain, _ := dr.Resolve(endpoint) // drDomain is the domain with agent version if not local
+			drDomain := dr.Resolve(endpoint) // drDomain is the domain with agent version if not local
 
 			// Local failover payloads, and only them, should go to the local resolver.
 			if (payload.Destination == transaction.LocalOnly) != dr.IsLocal() {
