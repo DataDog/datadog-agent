@@ -281,6 +281,46 @@ func TestHasBalancedBraces(t *testing.T) {
 			input:    `["array"]`,
 			expected: false,
 		},
+		{
+			name:     "valid JSON with escaped JSON in value",
+			input:    `{"data":"{\"inner\":\"value\"}"}`,
+			expected: true,
+		},
+		{
+			name:     "valid JSON with escaped JSON containing braces in value",
+			input:    `{"log":"{\"message\":\"error: { not a problem }\",\"level\":\"info\"}"}`,
+			expected: true,
+		},
+		{
+			name:     "valid JSON with escaped JSON and real nested object",
+			input:    `{"outer":{"stringified":"{\"inner\":\"value\"}"},"other":"data"}`,
+			expected: true,
+		},
+		{
+			name:     "invalid - incomplete outer JSON with escaped JSON inside",
+			input:    `{"data":"{\"inner\":\"value\"}"`,
+			expected: false,
+		},
+		{
+			name:     "invalid - complete outer JSON but malformed escaped JSON string",
+			input:    `{"data":"{\"inner\":\"value}"}`,
+			expected: true, // The outer JSON is balanced, inner escaped JSON validity doesn't matter for brace counting
+		},
+		{
+			name:     "valid JSON with deeply escaped JSON",
+			input:    `{"data":"{\\\"nested\\\":\\\"{\\\\\\\"deep\\\\\\\":\\\\\\\"value\\\\\\\"}\\\"}"}`,
+			expected: true,
+		},
+		{
+			name:     "valid JSON with escaped backslash before quote",
+			input:    `{"path":"C:\\\"Program Files\\\"\\test.json"}`,
+			expected: true,
+		},
+		{
+			name:     "valid JSON with escaped JSON containing escaped quotes",
+			input:    `{"log":"{\"msg\":\"He said \\\"hello\\\"\"}"}`,
+			expected: true,
+		},
 	}
 
 	for _, tt := range tests {

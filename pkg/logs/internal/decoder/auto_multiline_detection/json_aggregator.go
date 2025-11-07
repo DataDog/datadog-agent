@@ -8,6 +8,7 @@ package automultilinedetection
 import (
 	"bytes"
 	"encoding/json"
+	"unicode"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
@@ -44,15 +45,10 @@ func (r *JSONAggregator) Process(msg *message.Message) []*message.Message {
 
 	// If buffer is empty and content is likely complete single-line JSON,
 	// validate and return without parsing
-	if len(r.messageBuf) == 0 && isSingleLineJSON(content) {
-		if json.Valid(content) {
-			// Already single-line JSON, return as-is
-			return []*message.Message{msg}
-		}
-		// Fall through to full parsing if validation failed
+	if len(r.messageBuf) == 0 && json.Valid(content) {
+		return []*message.Message{msg}
 	}
 
-	// Not fast-path, add to buffer for aggregation
 	r.messageBuf = append(r.messageBuf, msg)
 	r.currentSize += msg.RawDataLen
 
@@ -172,10 +168,12 @@ func isSingleLineJSON(content []byte) bool {
 
 // isOnlyWhitespace returns true if the data contains only whitespace characters.
 func isOnlyWhitespace(data []byte) bool {
-	for _, b := range data {
-		if b != ' ' && b != '\t' && b != '\n' && b != '\r' {
+	for len(data) > 0 {
+		r, size := utf8.DecodeRune(data)
+		if !unicode.IsSpace(r) {
 			return false
 		}
+		data = data[size:]
 	}
 	return true
 }
