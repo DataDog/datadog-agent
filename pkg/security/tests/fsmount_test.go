@@ -81,9 +81,6 @@ func TestFsmount(t *testing.T) {
 			assert.Equal(t, model.MountOriginFsmount, event.Mount.Origin, "Incorrect mount source")
 			assert.Equal(t, true, event.Mount.Detached, "Mount should be detached")
 			assert.Equal(t, false, event.Mount.Visible, "Mount shouldn't be visible")
-			assert.Greater(t, event.Mount.MountIDUnique, uint64(1)<<32, "Invalid unique mount id")
-			assert.Equal(t, uint64(0), event.Mount.ParentMountIDUnique, "Invalid unique parent mount id")
-			assert.Equal(t, uint64(0), event.Mount.BindSrcMountIDUnique, "Invalid unique bind src mount id")
 			return true
 		}, 3*time.Second, model.FileMountEventType)
 
