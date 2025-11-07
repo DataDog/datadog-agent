@@ -147,5 +147,13 @@ func RunWithEnv(ctx *pulumi.Context, awsEnv resourcesAws.Environment, env *envir
 		env.Agent = nil
 	}
 
+	// Deploy workloads
+	for _, appFunc := range params.workloadAppFuncs {
+		_, err := appFunc(&awsEnv, cluster.KubeProvider)
+		if err != nil {
+			return err
+		}
+	}
+
 	return nil
 }

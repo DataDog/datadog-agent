@@ -10,6 +10,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentwithoperatorparams"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/kubernetesagentparams"
+	kubecomp "github.com/DataDog/datadog-agent/test/e2e-framework/components/kubernetes"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/kubernetes/cilium"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws"
@@ -27,6 +28,7 @@ type RunParams struct {
 	agentOptions      []kubernetesagentparams.Option
 	fakeintakeOptions []fakeintake.Option
 	ciliumOptions     []cilium.Option
+	workloadAppFuncs  []kubecomp.WorkloadAppFunc
 
 	deployOperator     bool
 	operatorDDAOptions []agentwithoperatorparams.Option
@@ -107,6 +109,11 @@ func WithFakeintakeOptions(opts ...fakeintake.Option) RunOption {
 	return func(p *RunParams) error { p.fakeintakeOptions = append(p.fakeintakeOptions, opts...); return nil }
 }
 
+// WithoutFakeIntake disables fakeintake creation
+func WithoutFakeIntake() RunOption {
+	return func(p *RunParams) error { p.fakeintakeOptions = nil; return nil }
+}
+
 // WithCiliumOptions sets cilium options
 func WithCiliumOptions(opts ...cilium.Option) RunOption {
 	return func(p *RunParams) error { p.ciliumOptions = append(p.ciliumOptions, opts...); return nil }
@@ -130,4 +137,9 @@ func WithDeployDogstatsd() RunOption {
 // WithDeployTestWorkload enables test workloads
 func WithDeployTestWorkload() RunOption {
 	return func(p *RunParams) error { p.deployTestWorkload = true; return nil }
+}
+
+// WithWorkloadApp adds a workload app to the environment
+func WithWorkloadApp(appFunc kubecomp.WorkloadAppFunc) RunOption {
+	return func(p *RunParams) error { p.workloadAppFuncs = append(p.workloadAppFuncs, appFunc); return nil }
 }

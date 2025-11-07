@@ -57,7 +57,7 @@ func WithExtraConfigParams(configMap runner.ConfigMap) ProvisionerOption {
 	}
 }
 
-func WithRunParams(runOptions ...ec2.Option) ProvisionerOption {
+func WithRunOptions(runOptions ...ec2.Option) ProvisionerOption {
 	return func(params *ProvisionerParams) error {
 		params.runOptions = append(params.runOptions, runOptions...)
 		return nil
@@ -93,4 +93,14 @@ func Provisioner(opts ...ProvisionerOption) provisioners.TypedProvisioner[enviro
 	}, params.extraConfigParams)
 
 	return provisioner
+}
+
+func ProvisionerNoFakeIntake(opts ...ProvisionerOption) provisioners.TypedProvisioner[environments.Host] {
+	opts = append(opts, WithRunOptions(ec2.WithoutFakeIntake()))
+	return Provisioner(opts...)
+}
+
+func ProvisionerNoAgentNoFakeIntake(opts ...ProvisionerOption) provisioners.TypedProvisioner[environments.Host] {
+	opts = append(opts, WithRunOptions(ec2.WithoutAgent(), ec2.WithoutFakeIntake()))
+	return Provisioner(opts...)
 }

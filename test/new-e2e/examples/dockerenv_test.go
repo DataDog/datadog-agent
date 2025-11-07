@@ -10,6 +10,7 @@ import (
 	"regexp"
 	"testing"
 
+	scenariodocker "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2docker"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
 	awsdocker "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/docker"
@@ -21,7 +22,7 @@ type dockerSuite struct {
 }
 
 func TestDocker(t *testing.T) {
-	e2e.Run(t, &dockerSuite{}, e2e.WithProvisioner(awsdocker.Provisioner(awsdocker.WithoutFakeIntake())))
+	e2e.Run(t, &dockerSuite{}, e2e.WithProvisioner(awsdocker.Provisioner(awsdocker.WithRunOptions(scenariodocker.WithoutFakeIntake()))))
 }
 
 func (v *dockerSuite) TestExecuteCommand() {

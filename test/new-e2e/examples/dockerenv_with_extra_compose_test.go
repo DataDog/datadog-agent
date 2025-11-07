@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/dockeragentparams"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2docker"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -30,12 +31,13 @@ var fakeProcessCompose string
 func TestDockerWithExtraCompose(t *testing.T) {
 	e2e.Run(t, &dockerSuiteWithExtraCompose{}, e2e.WithProvisioner(
 		awsdocker.Provisioner(
-			awsdocker.WithoutFakeIntake(),
-			awsdocker.WithAgentOptions(
-				dockeragentparams.WithExtraComposeManifest("fakeProcess", pulumi.String(fakeProcessCompose)),
-			),
-		),
-	))
+			awsdocker.WithRunOptions(
+				ec2docker.WithoutFakeIntake(),
+				ec2docker.WithAgentOptions(
+					dockeragentparams.WithExtraComposeManifest("fakeProcess", pulumi.String(fakeProcessCompose)),
+				),
+			))),
+	)
 }
 
 func (v *dockerSuiteWithExtraCompose) TestListContainers() {

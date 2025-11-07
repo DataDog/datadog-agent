@@ -23,7 +23,7 @@ type myVMSuite struct {
 }
 
 func TestMyVMSuite(t *testing.T) {
-	e2e.Run(t, &myVMSuite{}, e2e.WithProvisioner(awshost.ProvisionerNoAgentNoFakeIntake(awshost.WithEC2InstanceOptions(ec2.WithOSArch(os.AmazonLinux2023, os.ARM64Arch)))))
+	e2e.Run(t, &myVMSuite{}, e2e.WithProvisioner(awshost.ProvisionerNoAgentNoFakeIntake(awshost.WithRunOptions(ec2.WithEC2InstanceOptions(ec2.WithOSArch(os.AmazonLinux2023, os.ARM64Arch))))))
 }
 
 func (v *myVMSuite) TestIsAmazonLinux() {

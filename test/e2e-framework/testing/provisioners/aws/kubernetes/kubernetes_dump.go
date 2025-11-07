@@ -37,7 +37,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
 
-func dumpEKSClusterState(ctx context.Context, name string) (ret string, err error) {
+func DumpEKSClusterState(ctx context.Context, name string) (ret string, err error) {
 	var out strings.Builder
 	defer func() { ret = out.String() }()
 
@@ -97,7 +97,7 @@ func dumpEKSClusterState(ctx context.Context, name string) (ret string, err erro
 	return
 }
 
-func dumpKindClusterState(ctx context.Context, name string) (ret string, err error) {
+func DumpKindClusterState(ctx context.Context, name string) (ret string, err error) {
 	var out strings.Builder
 	defer func() { ret = out.String() }()
 
