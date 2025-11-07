@@ -9,7 +9,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 )
 
-// These metrics are for measuring the current volume of traffic for OTLP Log ingestion.
+// These COAT metrics are for measuring the current volume of traffic for OTLP Log ingestion in the Agent/DDOT.
 var (
 	OTLPIngestAgentLogsEvents = telemetry.NewCounter(
 		"runtime",
