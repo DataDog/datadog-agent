@@ -267,7 +267,6 @@ core,github.com/hashicorp/hcl/json/token,MPL-2.0,"Copyright © 2014-2018 HashiCo
 core,github.com/hashicorp/vault/api,MPL-2.0,"Copyright © 2014-2018 HashiCorp, Inc"
 core,github.com/hashicorp/vault/api/auth/approle,MPL-2.0,"Copyright © 2014-2018 HashiCorp, Inc"
 core,github.com/hashicorp/vault/api/auth/aws,MPL-2.0,"Copyright © 2014-2018 HashiCorp, Inc"
-core,github.com/hashicorp/vault/api/auth/kubernetes,MPL-2.0,"Copyright © 2014-2018 HashiCorp, Inc"
 core,github.com/hashicorp/vault/api/auth/ldap,MPL-2.0,"Copyright © 2014-2018 HashiCorp, Inc"
 core,github.com/hashicorp/vault/api/auth/userpass,MPL-2.0,"Copyright © 2014-2018 HashiCorp, Inc"
 core,github.com/hhatto/gorst,GPL-2.0-or-later,"Copyright (c) 2008 John MacFarlane | Copyright (c) 2010 Michael Teichgräber | Copyright (c) 2010, Go Authors | Copyright (c) 2015 Hideo Hattori"
