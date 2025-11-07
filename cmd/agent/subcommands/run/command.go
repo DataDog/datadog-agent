@@ -114,6 +114,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl"
 	orchestratorForwarderImpl "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
+	hostProfilerFlareFx "github.com/DataDog/datadog-agent/comp/host-profiler/flare/fx"
 	langDetectionCl "github.com/DataDog/datadog-agent/comp/languagedetection/client"
 	langDetectionClimpl "github.com/DataDog/datadog-agent/comp/languagedetection/client/clientimpl"
 	"github.com/DataDog/datadog-agent/comp/logs"
@@ -443,6 +444,7 @@ func getSharedFxOption() fx.Option {
 			return option.None[logsagentpipeline.Component]()
 		}),
 		otelcol.Bundle(),
+		hostProfilerFlareFx.Module(),
 		rctelemetryreporterimpl.Module(),
 		rcserviceimpl.Module(),
 		rcservicemrfimpl.Module(),
@@ -519,7 +521,6 @@ func getSharedFxOption() fx.Option {
 					"dogstatsd_capture_duration":             internalsettings.NewDsdCaptureDurationRuntimeSetting("dogstatsd_capture_duration"),
 					"log_payloads":                           commonsettings.NewLogPayloadsRuntimeSetting(),
 					"internal_profiling_goroutines":          commonsettings.NewProfilingGoroutines(),
-					"multi_region_failover.enabled":          internalsettings.NewMultiRegionFailoverRuntimeSetting("multi_region_failover.enabled", "Enable/disable Multi-Region Failover support."),
 					"multi_region_failover.failover_metrics": internalsettings.NewMultiRegionFailoverRuntimeSetting("multi_region_failover.failover_metrics", "Enable/disable redirection of metrics to failover region."),
 					"multi_region_failover.failover_logs":    internalsettings.NewMultiRegionFailoverRuntimeSetting("multi_region_failover.failover_logs", "Enable/disable redirection of logs to failover region."),
 					"multi_region_failover.failover_apm":     internalsettings.NewMultiRegionFailoverRuntimeSetting("multi_region_failover.failover_apm", "Enable/disable redirection of APM to failover region."),

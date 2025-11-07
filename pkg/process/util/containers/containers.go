@@ -344,7 +344,7 @@ func computeContainerAddrs(container *workloadmeta.Container) []*model.Container
 
 func convertContainerRuntime(runtime workloadmeta.ContainerRuntime) string {
 	// ECSFargate is special and used to be mapped to "ECS"
-	if runtime == workloadmeta.ContainerRuntimeECSFargate {
+	if runtime == workloadmeta.ContainerRuntimeECSFargate || runtime == workloadmeta.ContainerRuntimeECSManagedInstances {
 		return "ECS"
 	}
 
