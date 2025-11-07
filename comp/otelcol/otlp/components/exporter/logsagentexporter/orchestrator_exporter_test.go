@@ -42,6 +42,7 @@ func TestShouldSkipManifest(t *testing.T) {
 	tests := []struct {
 		name           string
 		manifest       *agentmodel.Manifest
+		isWatchEvent   bool
 		setupCache     func()
 		expectedSkip   bool
 		expectedCached bool
@@ -50,6 +51,7 @@ func TestShouldSkipManifest(t *testing.T) {
 		{
 			name:         "nil manifest",
 			manifest:     nil,
+			isWatchEvent: false,
 			expectedSkip: false,
 		},
 		{
@@ -58,6 +60,7 @@ func TestShouldSkipManifest(t *testing.T) {
 				Uid:             "",
 				ResourceVersion: "v1",
 			},
+			isWatchEvent: false,
 			expectedSkip: false,
 		},
 		{
@@ -66,6 +69,7 @@ func TestShouldSkipManifest(t *testing.T) {
 				Uid:             "test-uid-1",
 				ResourceVersion: "v1",
 			},
+			isWatchEvent:   false,
 			expectedSkip:   false,
 			expectedCached: true,
 			cachedVersion:  "v1",
@@ -76,6 +80,7 @@ func TestShouldSkipManifest(t *testing.T) {
 				Uid:             "test-uid-2",
 				ResourceVersion: "v1",
 			},
+			isWatchEvent: false,
 			setupCache: func() {
 				cache := getManifestCache()
 				cache.Set("test-uid-2", "v1", manifestCacheTTL)
@@ -90,6 +95,7 @@ func TestShouldSkipManifest(t *testing.T) {
 				Uid:             "test-uid-3",
 				ResourceVersion: "v2",
 			},
+			isWatchEvent: false,
 			setupCache: func() {
 				cache := getManifestCache()
 				cache.Set("test-uid-3", "v1", manifestCacheTTL)
@@ -97,6 +103,28 @@ func TestShouldSkipManifest(t *testing.T) {
 			expectedSkip:   false,
 			expectedCached: true,
 			cachedVersion:  "v2",
+		},
+		{
+			name: "watch event - bypasses cache even with same resource version",
+			manifest: &agentmodel.Manifest{
+				Uid:             "test-uid-4",
+				ResourceVersion: "v1",
+			},
+			isWatchEvent: true,
+			setupCache: func() {
+				cache := getManifestCache()
+				cache.Set("test-uid-4", "v1", manifestCacheTTL)
+			},
+			expectedSkip: false, // Watch events always bypass cache
+		},
+		{
+			name: "watch event - new resource",
+			manifest: &agentmodel.Manifest{
+				Uid:             "test-uid-5",
+				ResourceVersion: "v1",
+			},
+			isWatchEvent: true,
+			expectedSkip: false,
 		},
 	}
 
@@ -106,11 +134,11 @@ func TestShouldSkipManifest(t *testing.T) {
 				tt.setupCache()
 			}
 
-			skip := shouldSkipManifest(tt.manifest)
+			skip := shouldSkipManifest(tt.manifest, tt.isWatchEvent)
 			assert.Equal(t, tt.expectedSkip, skip)
 
-			// Verify cache state after the operation
-			if tt.manifest != nil && tt.manifest.Uid != "" && tt.expectedCached {
+			// Verify cache state after the operation (only for non-watch events)
+			if !tt.isWatchEvent && tt.manifest != nil && tt.manifest.Uid != "" && tt.expectedCached {
 				cache := getManifestCache()
 				val, found := cache.Get(tt.manifest.Uid)
 				assert.True(t, found)
@@ -298,7 +326,6 @@ func TestBuildManifestFromK8sResource(t *testing.T) {
 				assert.Equal(t, "pod-456", m.Uid)
 				assert.True(t, m.IsTerminated)
 				assert.Contains(t, m.Tags, "event_type:delete")
-				assert.Contains(t, m.Tags, "source:watch")
 			},
 		},
 		{
@@ -353,7 +380,7 @@ func TestBuildManifestFromK8sResource(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			manifest, err := buildManifestFromK8sResource(ctx, tt.k8sResource, resource, logRecord, tt.isTerminated)
+			manifest, err := buildManifestFromK8sResource(ctx, tt.k8sResource, resource, logRecord, tt.isTerminated, tt.isTerminated)
 
 			if tt.expectError {
 				assert.Error(t, err)
@@ -377,11 +404,12 @@ func TestToManifest(t *testing.T) {
 	resource := pcommon.NewResource()
 
 	tests := []struct {
-		name          string
-		bodyJSON      string
-		expectError   bool
-		errorContains string
-		validateFn    func(*testing.T, *agentmodel.Manifest)
+		name            string
+		bodyJSON        string
+		expectError     bool
+		errorContains   string
+		expectWatchMode bool
+		validateFn      func(*testing.T, *agentmodel.Manifest)
 	}{
 		{
 			name: "pull mode - direct k8s object",
@@ -395,7 +423,8 @@ func TestToManifest(t *testing.T) {
 					"namespace": "default"
 				}
 			}`,
-			expectError: false,
+			expectError:     false,
+			expectWatchMode: false,
 			validateFn: func(t *testing.T, m *agentmodel.Manifest) {
 				assert.Equal(t, "pod-pull-123", m.Uid)
 				assert.Equal(t, "10001", m.ResourceVersion)
@@ -417,7 +446,8 @@ func TestToManifest(t *testing.T) {
 					}
 				}
 			}`,
-			expectError: false,
+			expectError:     false,
+			expectWatchMode: true,
 			validateFn: func(t *testing.T, m *agentmodel.Manifest) {
 				assert.Equal(t, "pod-watch-123", m.Uid)
 				assert.Equal(t, "10002", m.ResourceVersion)
@@ -439,7 +469,8 @@ func TestToManifest(t *testing.T) {
 					}
 				}
 			}`,
-			expectError: false,
+			expectError:     false,
+			expectWatchMode: true,
 			validateFn: func(t *testing.T, m *agentmodel.Manifest) {
 				assert.Equal(t, "deploy-watch-123", m.Uid)
 				assert.Equal(t, "Deployment", m.Kind)
@@ -460,12 +491,12 @@ func TestToManifest(t *testing.T) {
 					}
 				}
 			}`,
-			expectError: false,
+			expectError:     false,
+			expectWatchMode: true,
 			validateFn: func(t *testing.T, m *agentmodel.Manifest) {
 				assert.Equal(t, "pod-deleted-123", m.Uid)
 				assert.True(t, m.IsTerminated)
 				assert.Contains(t, m.Tags, "event_type:delete")
-				assert.Contains(t, m.Tags, "source:watch")
 			},
 		},
 		{
@@ -490,7 +521,7 @@ func TestToManifest(t *testing.T) {
 			logRecord := plog.NewLogRecord()
 			logRecord.Body().SetStr(tt.bodyJSON)
 
-			manifest, err := toManifest(ctx, logRecord, resource)
+			manifest, isWatchMode, err := toManifest(ctx, logRecord, resource)
 
 			if tt.expectError {
 				assert.Error(t, err)
@@ -502,6 +533,7 @@ func TestToManifest(t *testing.T) {
 
 			require.NoError(t, err)
 			require.NotNil(t, manifest)
+			assert.Equal(t, tt.expectWatchMode, isWatchMode, "Watch mode detection mismatch")
 			if tt.validateFn != nil {
 				tt.validateFn(t, manifest)
 			}

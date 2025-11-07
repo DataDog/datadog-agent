@@ -69,8 +69,14 @@ func getManifestCache() *gocache.Cache {
 // shouldSkipManifest checks if the manifest was already sent recently.
 // Returns true if the manifest should be skipped (cache hit with same resourceVersion).
 // This follows the same pattern as pkg/orchestrator.SkipKubernetesResource.
-func shouldSkipManifest(manifest *agentmodel.Manifest) bool {
+// Watch log events always bypass the cache to ensure real-time updates are sent.
+func shouldSkipManifest(manifest *agentmodel.Manifest, isWatchEvent bool) bool {
 	if manifest == nil || manifest.Uid == "" {
+		return false
+	}
+
+	// Watch events should always bypass the cache to ensure real-time updates
+	if isWatchEvent {
 		return false
 	}
 
@@ -120,7 +126,7 @@ func (e *Exporter) consumeK8sObjects(ctx context.Context, ld plog.Logs) (err err
 				logRecord := scopeLogs.LogRecords().At(k)
 
 				// Convert Kubernetes resource manifest to orchestrator payload format
-				manifest, err := toManifest(ctx, logRecord, resource)
+				manifest, isWatchEvent, err := toManifest(ctx, logRecord, resource)
 				if err != nil {
 					e.set.Logger.Error("Failed to convert to manifest: "+err.Error(), zap.Error(err))
 					continue
@@ -131,7 +137,8 @@ func (e *Exporter) consumeK8sObjects(ctx context.Context, ld plog.Logs) (err err
 				}
 
 				// Check cache to avoid sending the same manifest multiple times within 3 minutes
-				if shouldSkipManifest(manifest) {
+				// Watch events bypass the cache to ensure real-time updates
+				if shouldSkipManifest(manifest, isWatchEvent) {
 					e.set.Logger.Info("Skipping manifest (cache hit)",
 						zap.String("uid", manifest.Uid),
 						zap.String("kind", manifest.Kind),
@@ -154,8 +161,8 @@ func (e *Exporter) consumeK8sObjects(ctx context.Context, ld plog.Logs) (err err
 		e.set.Logger.Info("Creating Cluster manifest after collecting nodes", zap.Int("total_nodes", totalNodes))
 		clusterManifest := createClusterManifest(clusterID, totalNodes, e.set.Logger)
 
-		// Check cache for the cluster manifest too
-		if !shouldSkipManifest(clusterManifest) {
+		// Check cache for the cluster manifest too (not a watch event)
+		if !shouldSkipManifest(clusterManifest, false) {
 			manifests = append(manifests, clusterManifest)
 			e.set.Logger.Info("Added Cluster manifest to payload",
 				zap.String("uid", clusterManifest.Uid),
@@ -245,21 +252,25 @@ func getClusterID(ctx context.Context, logger *zap.Logger) string {
 // The receiver supports two modes:
 //   - Pull mode: k8s object is directly in the log body as JSON
 //   - Watch mode: log body contains an "object" field with the k8s resource, and a "type" field for event type
-func toManifest(ctx context.Context, logRecord plog.LogRecord, resource pcommon.Resource) (*agentmodel.Manifest, error) {
+//
+// Returns the manifest and a boolean indicating if it's from a watch event.
+func toManifest(ctx context.Context, logRecord plog.LogRecord, resource pcommon.Resource) (*agentmodel.Manifest, bool, error) {
 	// Try to parse the body to detect the mode
 	var bodyMap map[string]interface{}
 	if err := json.Unmarshal([]byte(logRecord.Body().AsString()), &bodyMap); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal log body: %w", err)
+		return nil, false, fmt.Errorf("failed to unmarshal log body: %w", err)
 	}
 
 	// Check if this is a watch log (body contains "object" field)
 	if objectField, hasObject := bodyMap["object"]; hasObject {
 		// Watch log: body has structure like {"object": {...}, "type": "ADDED"}
-		return watchLogToManifest(ctx, objectField, bodyMap, logRecord, resource)
+		manifest, err := watchLogToManifest(ctx, objectField, bodyMap, logRecord, resource)
+		return manifest, true, err
 	}
 
 	// Pull log: body directly contains the k8s object
-	return pullLogToManifestFromMap(ctx, bodyMap, logRecord, resource)
+	manifest, err := pullLogToManifestFromMap(ctx, bodyMap, logRecord, resource)
+	return manifest, false, err
 }
 
 // watchLogToManifest handles logs from k8sobjectsreceiver in watch mode.
@@ -288,7 +299,7 @@ func watchLogToManifest(ctx context.Context, objectField interface{}, bodyMap ma
 	// Event types from k8s watch: ADDED, MODIFIED, DELETED
 	isTerminated := eventType == "DELETED"
 
-	return buildManifestFromK8sResource(ctx, k8sResource, resource, logRecord, isTerminated)
+	return buildManifestFromK8sResource(ctx, k8sResource, resource, logRecord, isTerminated, true)
 }
 
 // pullLogToManifestFromMap handles logs from k8sobjectsreceiver in pull mode.
@@ -297,8 +308,8 @@ func watchLogToManifest(ctx context.Context, objectField interface{}, bodyMap ma
 //   - Attributes: May contain additional metadata from the receiver
 func pullLogToManifestFromMap(ctx context.Context, k8sResource map[string]interface{}, logRecord plog.LogRecord, resource pcommon.Resource) (*agentmodel.Manifest, error) {
 	// Body is already parsed, just pass it to common logic
-	// Not a delete event in pull mode
-	return buildManifestFromK8sResource(ctx, k8sResource, resource, logRecord, false)
+	// Not a delete event in pull mode, not from watch
+	return buildManifestFromK8sResource(ctx, k8sResource, resource, logRecord, false, false)
 }
 
 // buildManifestFromK8sResource is the shared logic to convert a k8s resource map to a manifest.
@@ -310,7 +321,8 @@ func pullLogToManifestFromMap(ctx context.Context, k8sResource map[string]interf
 //   - resource: OTLP resource containing additional metadata
 //   - logRecord: OTLP log record for extracting tags and attributes
 //   - isTerminated: true if this represents a deleted resource (watch mode only)
-func buildManifestFromK8sResource(ctx context.Context, k8sResource map[string]interface{}, resource pcommon.Resource, logRecord plog.LogRecord, isTerminated bool) (*agentmodel.Manifest, error) {
+//   - isWatchEvent: true if this event comes from watch mode (vs pull mode)
+func buildManifestFromK8sResource(ctx context.Context, k8sResource map[string]interface{}, resource pcommon.Resource, logRecord plog.LogRecord, isTerminated bool, isWatchEvent bool) (*agentmodel.Manifest, error) {
 	// Check if the resource kind should be skipped for security reasons
 	kind, _ := k8sResource["kind"].(string)
 	if shouldSkipResourceKind(kind) {
@@ -343,9 +355,9 @@ func buildManifestFromK8sResource(ctx context.Context, k8sResource map[string]in
 	// Build tags from resource and log record attributes
 	tags := buildTags(resource, logRecord)
 
-	// Add source tag based on whether this is a watch or pull log
+	// Add event type tag for deleted resources
 	if isTerminated {
-		tags = append(tags, "event_type:delete", "source:watch")
+		tags = append(tags, "event_type:delete")
 	}
 
 	// Create the manifest
