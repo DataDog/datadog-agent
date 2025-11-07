@@ -30,7 +30,7 @@ func newInnerNode(children map[string]Node) *innerNode {
 	}
 	count := allocatorInnerNodeCount
 	if allocatorInnerNodeCount < 1024 {
-		allocatorInnerNodeCount += 1
+		allocatorInnerNodeCount++
 		node := &allocatorBufferInnerNodes[count]
 		node.children = contents
 		return node

@@ -15,7 +15,6 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	mapstructure "github.com/go-viper/mapstructure/v2"
 	"github.com/spf13/cast"
 
 	"github.com/DataDog/datadog-agent/pkg/config/model"
@@ -60,7 +59,7 @@ var ImplicitlyConvertArrayToMapSet UnmarshalKeyOption = func(fs *featureSet) {
 	fs.convertArrayToMap = true
 }
 
-// errorUnused is a mapstructure.DecoderConfig that enables erroring on unused keys
+/* // errorUnused is a mapstructure.DecoderConfig that enables erroring on unused keys
 var errorUnused = func(cfg *mapstructure.DecoderConfig) {
 	cfg.ErrorUnused = true
 }
@@ -80,7 +79,7 @@ var legacyConvertArrayToMap = func(c *mapstructure.DecoderConfig) {
 		}
 		return newData, nil
 	}
-}
+}*/
 
 // UnmarshalKey retrieves data from the config at the given key and deserializes it
 // to be stored on the target struct.
