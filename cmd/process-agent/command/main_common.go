@@ -34,6 +34,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	remoteTaggerfx "github.com/DataDog/datadog-agent/comp/core/tagger/fx-remote"
+	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	wmcatalogremote "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/catalog-remote"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
@@ -262,6 +263,7 @@ type miscDeps struct {
 	Syscfg       sysprobeconfig.Component
 	HostInfo     hostinfo.Component
 	WorkloadMeta workloadmeta.Component
+	FilterStore  workloadfilter.Component
 	Logger       logcomp.Component
 	Tagger       tagger.Component
 	IPC          ipc.Component
@@ -279,7 +281,7 @@ func initMisc(deps miscDeps) error {
 	// Since the tagger depends on the workloadmeta collector, we can not make the tagger a dependency of workloadmeta as it would create a circular dependency.
 	// TODO: (component) - once we remove the dependency of workloadmeta component from the tagger component
 	// we can include the tagger as part of the workloadmeta component.
-	proccontainers.InitSharedContainerProvider(deps.WorkloadMeta, deps.Tagger)
+	proccontainers.InitSharedContainerProvider(deps.WorkloadMeta, deps.Tagger, deps.FilterStore)
 
 	processCollectionServer := collector.NewProcessCollector(deps.Config, deps.Syscfg, deps.IPC.GetTLSServerConfig())
 

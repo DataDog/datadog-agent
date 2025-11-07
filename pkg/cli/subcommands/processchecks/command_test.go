@@ -25,6 +25,7 @@ import (
 	secretsfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
+	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/npcollectorimpl"
@@ -68,8 +69,8 @@ func TestCommand(t *testing.T) {
 			processComponent.Bundle(),
 
 			// InitSharedContainerProvider must be called before the application starts so the workloadmeta collector can be initialized correctly.
-			fx.Invoke(func(wmeta workloadmeta.Component, tagger tagger.Component) {
-				proccontainers.InitSharedContainerProvider(wmeta, tagger)
+			fx.Invoke(func(wmeta workloadmeta.Component, tagger tagger.Component, filterStore workloadfilter.Component) {
+				proccontainers.InitSharedContainerProvider(wmeta, tagger, filterStore)
 			}),
 			fx.Provide(func() statsd.ClientInterface {
 				return &statsd.NoOpClient{}

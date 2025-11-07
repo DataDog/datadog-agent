@@ -14,6 +14,7 @@ import (
 
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
@@ -63,9 +64,9 @@ type ContainerProvider interface {
 }
 
 // InitSharedContainerProvider init shared ContainerProvider
-func InitSharedContainerProvider(wmeta workloadmeta.Component, tagger tagger.Component) ContainerProvider {
+func InitSharedContainerProvider(wmeta workloadmeta.Component, tagger tagger.Component, filterStore workloadfilter.Component) ContainerProvider {
 	initContainerProvider.Do(func() {
-		sharedContainerProvider = NewDefaultContainerProvider(wmeta, tagger)
+		sharedContainerProvider = NewDefaultContainerProvider(wmeta, tagger, filterStore)
 	})
 	return sharedContainerProvider
 }
@@ -97,7 +98,7 @@ func NewContainerProvider(provider metrics.Provider, metadataStore workloadmeta.
 }
 
 // NewDefaultContainerProvider returns a ContainerProvider built with default metrics provider and metadata provider
-func NewDefaultContainerProvider(wmeta workloadmeta.Component, tagger tagger.Component) ContainerProvider {
+func NewDefaultContainerProvider(wmeta workloadmeta.Component, tagger tagger.Component, _ workloadfilter.Component) ContainerProvider {
 	containerFilter, err := containers.GetSharedMetricFilter()
 	if err != nil {
 		log.Warnf("Can't get container include/exclude filter, no filtering will be applied: %v", err)
