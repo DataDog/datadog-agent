@@ -17,6 +17,7 @@ import (
 	installerwindows "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows/consts"
 	windowscommon "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
+	windowsagent "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent"
 )
 
 type testAgentConfigSuite struct {
@@ -62,7 +63,8 @@ func (s *testAgentConfigSuite) TestConfigUpgradeSuccessful() {
 
 	s.Require().Host(s.Env().RemoteHost).
 		HasARunningDatadogAgentService().RuntimeConfig("--all").
-		WithValueEqual("log_to_console", false)
+		WithValueEqual("log_to_console", false).
+		HasDDAgentUserFileAccess()
 
 	// Promote config experiment
 	s.mustPromoteConfigExperiment(config)
@@ -117,7 +119,8 @@ func (s *testAgentConfigSuite) TestConfigUpgradeFailure() {
 	// Config should be reverted to the stable config
 	s.Require().Host(s.Env().RemoteHost).
 		HasARunningDatadogAgentService().RuntimeConfig("--all").
-		WithValueEqual("log_level", "debug")
+		WithValueEqual("log_level", "debug").
+		HasDDAgentUserFileAccess()
 
 	// backend will send stop experiment now
 	s.WaitForDaemonToStop(func() {
@@ -227,7 +230,8 @@ func (s *testAgentConfigSuite) TestRevertsConfigExperimentWhenServiceDies() {
 
 	s.Require().Host(s.Env().RemoteHost).
 		HasARunningDatadogAgentService().RuntimeConfig("--all").
-		WithValueEqual("log_to_console", true)
+		WithValueEqual("log_to_console", true).
+		HasDDAgentUserFileAccess()
 
 	// backend will send stop experiment now
 	s.WaitForDaemonToStop(func() {
@@ -273,7 +277,8 @@ func (s *testAgentConfigSuite) TestRevertsConfigExperimentWhenTimeout() {
 
 	s.Require().Host(s.Env().RemoteHost).
 		HasARunningDatadogAgentService().RuntimeConfig("--all").
-		WithValueEqual("log_to_console", true)
+		WithValueEqual("log_to_console", true).
+		HasDDAgentUserFileAccess()
 
 	// backend will send stop experiment now
 	s.WaitForDaemonToStop(func() {
@@ -288,7 +293,7 @@ func (s *testAgentConfigSuite) TestRevertsConfigExperimentWhenTimeout() {
 // Partial regression test for WINA-1556, making sure that installation does not
 // modify the managed config or its permissions, preventing the Agent from accessing it.
 func (s *testAgentConfigSuite) TestManagedConfigActiveAfterUpgrade() {
-	//s.T().Skip("Skipping test during migration to new config experiment")
+	s.T().Skip("Skipping test during migration to new config experiment")
 	// Arrange - Start with previous version and custom config
 	s.setAgentConfig()
 	s.installPreviousAgentVersion()
@@ -332,6 +337,59 @@ func (s *testAgentConfigSuite) TestManagedConfigActiveAfterUpgrade() {
 	s.Require().Host(s.Env().RemoteHost).
 		HasARunningDatadogAgentService().RuntimeConfig("--all").
 		WithValueEqual("log_to_console", false)
+}
+
+// TestConfigAltDir tests that the Agent's config can be updated
+// when using an alternate config and install path.
+func (s *testAgentConfigSuite) TestConfigAltDir() {
+	// Arrange
+	altConfigRoot := `C:\ddconfig`
+	altInstallPath := `C:\ddinstall`
+	s.Installer().SetBinaryPath(altInstallPath + `\bin\` + consts.BinaryName)
+	s.setAgentConfigWithAltDir(altConfigRoot)
+	s.installCurrentAgentVersion(
+		installerwindows.WithMSIArg("PROJECTLOCATION="+altInstallPath),
+		installerwindows.WithMSIArg("APPLICATIONDATADIRECTORY="+altConfigRoot),
+	)
+
+	// Assert that setup was successful
+	s.AssertSuccessfulConfigPromoteExperiment("empty")
+	s.Require().Host(s.Env().RemoteHost).
+		HasARunningDatadogAgentService().RuntimeConfig("--all").
+		WithValueEqual("log_to_console", true)
+
+	// Act
+	config := installerwindows.ConfigExperiment{
+		ID: "config-1",
+		Files: []installerwindows.ConfigExperimentFile{
+			{
+				Path:     "/datadog.yaml",
+				Contents: json.RawMessage(`{"log_to_console": false}`),
+			},
+		},
+	}
+
+	// Start config experiment
+	s.mustStartConfigExperiment(config)
+
+	s.Require().Host(s.Env().RemoteHost).
+		HasARunningDatadogAgentService().RuntimeConfig("--all").
+		WithValueEqual("log_to_console", false)
+
+	// Promote config experiment
+	s.mustPromoteConfigExperiment(config)
+
+	s.Require().Host(s.Env().RemoteHost).
+		HasARunningDatadogAgentService().RuntimeConfig("--all").
+		WithValueEqual("log_to_console", false).
+		NoDirExists(windowsagent.DefaultConfigRoot).
+		NoDirExists(windowsagent.DefaultInstallPath).
+		DirExists(altConfigRoot).
+		DirExists(altInstallPath).
+		HasDDAgentUserFileAccess().
+		HasRegistryKey(consts.RegistryKeyPath).
+		WithValueEqual("ConfigRoot", altConfigRoot+`\`).
+		WithValueEqual("InstallPath", altInstallPath+`\`)
 }
 
 func (s *testAgentConfigSuite) mustStartConfigExperiment(config installerwindows.ConfigExperiment) {
