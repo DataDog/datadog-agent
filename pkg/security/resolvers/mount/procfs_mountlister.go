@@ -63,6 +63,7 @@ func newMountFromMountInfo(mnt *mountinfo.Info) *model.Mount {
 	}
 }
 
+// GetPidProcfs lists the mounts of a specific pid and calls cb() for each entry found
 func GetPidProcfs(procfs string, pid uint32, cb func(*model.Mount)) error {
 	p := filepath.Join(procfs, strconv.Itoa(int(pid)), "ns", "mnt")
 	linkTarget, err := os.Readlink(p)
@@ -90,6 +91,7 @@ func GetPidProcfs(procfs string, pid uint32, cb func(*model.Mount)) error {
 	return nil
 }
 
+// GetAllProcfs iterates over all the mount namespaces and gets all the mounts using procfs
 func GetAllProcfs(procfs string, cb func(*model.Mount)) error {
 	seen := make(map[uint64]struct{})
 
