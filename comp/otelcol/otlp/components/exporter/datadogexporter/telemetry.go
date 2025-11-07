@@ -11,18 +11,6 @@ import (
 
 // These metrics are for measuring the current volume of traffic for OTLP trace ingestion.
 var (
-	OTLPIngestAgentTracesEvents = telemetry.NewCounter(
-		"runtime",
-		"datadog_agent_otlp_traces_events",
-		[]string{},
-		"Counter metric of OTLP Trace events in OTLP ingestion with the Datadog agent",
-	)
-	OTLPIngestAgentTracesRequests = telemetry.NewCounter(
-		"runtime",
-		"datadog_agent_otlp_traces_requests",
-		[]string{},
-		"Counter metric of OTLP Trace requests in OTLP ingestion with the Datadog agent",
-	)
 	OTLPIngestDDOTTracesEvents = telemetry.NewCounter(
 		"runtime",
 		"ddot_otlp_traces_events",

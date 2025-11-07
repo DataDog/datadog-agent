@@ -65,21 +65,14 @@ func (exp *traceExporter) consumeTraces(
 	td ptrace.Traces,
 ) (err error) {
 	OTLPIngestDDOTTracesRequests.Inc()
-	OTLPIngestAgentTracesEvents.Add(float64(td.SpanCount()))
+	OTLPIngestDDOTTracesEvents.Add(float64(td.SpanCount()))
 	rspans := td.ResourceSpans()
 	hosts := make(map[string]struct{})
 	ecsFargateArns := make(map[string]struct{})
 	header := make(http.Header)
 	header[headerComputedStats] = []string{"true"}
-	traceEvents := 0
 	for i := 0; i < rspans.Len(); i++ {
 		rspan := rspans.At(i)
-		for j := 0; j < rspan.ScopeSpans().Len(); j++ {
-			sspans := rspan.ScopeSpans().At(j)
-			for k := 0; k < sspans.Spans().Len(); k++ {
-				traceEvents += sspans.Spans().At(k).Events().Len()
-			}
-		}
 		res := rspan.Resource()
 		if exp.cfg.HostMetadata.Enabled && exp.reporter != nil {
 			err := exp.reporter.ConsumeResource(res)
