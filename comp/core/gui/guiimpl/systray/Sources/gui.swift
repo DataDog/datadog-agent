@@ -164,7 +164,8 @@ class AgentGUI: NSObject, NSUserInterfaceValidations {
     }
 
     @objc func startAgent(_ sender: Any?) {
-        self.commandAgentService(command: "start", display: "starting")
+        // Verify no stale process is running before starting
+        self.waitForProcessTerminationAndStart()
     }
 
     @objc func stopAgent(_ sender: Any?) {
@@ -198,8 +199,29 @@ class AgentGUI: NSObject, NSUserInterfaceValidations {
         if self.agentRestart {
             self.agentRestart = false
             if !agentStatus {
-                self.commandAgentService(command: "start", display: "starting")
+                // Wait for process to fully terminate before restarting
+                self.waitForProcessTerminationAndStart()
             }
+        }
+    }
+
+    // Wait for agent process to fully terminate, then start
+    func waitForProcessTerminationAndStart(retries: Int = 20) {
+        // Check if agent process is still running
+        if AgentManager.isProcessStillRunning() && retries > 0 {
+            // Process still cleaning up, check again in 500ms
+            NSLog("[AgentGUI] Agent process still running, waiting for termination... (retries left: \(retries))")
+            DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(500), execute: {
+                self.waitForProcessTerminationAndStart(retries: retries - 1)
+            })
+        } else if retries > 0 {
+            // Process fully terminated, safe to start
+            NSLog("[AgentGUI] Agent process terminated, starting now...")
+            self.commandAgentService(command: "start", display: "starting")
+        } else {
+            // Timeout after 10 seconds (20 retries * 500ms)
+            NSLog("[AgentGUI] WARNING: Timeout waiting for agent termination, forcing start...")
+            self.commandAgentService(command: "start", display: "starting")
         }
     }
 
@@ -231,6 +253,21 @@ class AgentManager {
         }
 
         return false
+    }
+
+    // Check if agent process is actually running (not just launchctl status)
+    static func isProcessStillRunning() -> Bool {
+        // Check for datadog-agent process using pgrep
+        // Look for the actual agent binary, not the wrapper scripts
+        let processInfo = bashCall(command: "pgrep -f 'datadog-agent/bin/agent/agent' | head -1")
+        let hasProcess = processInfo.exitCode == 0 &&
+                        !processInfo.stdOut.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+
+        if hasProcess {
+            NSLog("[AgentManager] Agent process still running (PID: \(processInfo.stdOut.trimmingCharacters(in: .whitespacesAndNewlines)))")
+        }
+
+        return hasProcess
     }
 
     // Run the lifecycle command (start or stop) and call the callback once the desired state is achieved
