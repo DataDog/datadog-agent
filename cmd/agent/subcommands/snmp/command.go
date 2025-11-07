@@ -230,6 +230,9 @@ func setDefaultsFromAgent(connParams *snmpparse.SNMPConfig, conf config.Componen
 	if agentError != nil {
 		return agentError
 	}
+
+	connParams.Namespace = agentParams.Namespace
+
 	if connParams.Version == "" {
 		connParams.Version = agentParams.Version
 	}
@@ -283,11 +286,13 @@ func scanDevice(connParams *snmpparse.SNMPConfig, args argsType, snmpScanner snm
 		// user provided enough arguments to do this anyway.
 		_, _ = fmt.Fprintf(os.Stderr, "Warning: %v\n", agentErr)
 	}
-	namespace := conf.GetString("network_devices.namespace")
-	deviceID := namespace + ":" + connParams.IPAddress
+	if connParams.Namespace == "" {
+		connParams.Namespace = conf.GetString("network_devices.namespace")
+	}
+	deviceID := connParams.Namespace + ":" + connParams.IPAddress
 	// Start the scan
 	fmt.Printf("Launching scan for device: %s\n", deviceID)
-	err := snmpScanner.ScanDeviceAndSendData(connParams, namespace, snmpscan.ScanParams{
+	err := snmpScanner.ScanDeviceAndSendData(connParams, snmpscan.ScanParams{
 		ScanType: metadata.ManualScan,
 	})
 	if err != nil {

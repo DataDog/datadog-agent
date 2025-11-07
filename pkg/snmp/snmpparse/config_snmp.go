@@ -28,6 +28,7 @@ import (
 type SNMPConfig struct {
 
 	// General
+	Namespace string `yaml:"namespace"`
 	IPAddress string `yaml:"ip_address"`
 	Port      uint16 `yaml:"port"`
 	Version   string `yaml:"snmp_version"`
@@ -42,7 +43,7 @@ type SNMPConfig struct {
 	PrivProtocol string `yaml:"privProtocol"`
 	PrivKey      string `yaml:"privKey"`
 	Context      string `yaml:"context_name"`
-	// network
+	// Network
 	NetAddress string `yaml:"network_address"`
 	// These are omitted from the yaml because we don't let users configure
 	// them, but there are cases where we use them (e.g. the snmpwalk command)
@@ -56,14 +57,13 @@ func SetDefault(sc *SNMPConfig) {
 	sc.Version = ""
 	sc.Timeout = 2
 	sc.Retries = 3
-
 }
 
 // ParseConfigSnmp extracts all SNMPConfigs from an autodiscovery config.
 // Any loading errors are logged but not returned.
 func ParseConfigSnmp(c integration.Config) []SNMPConfig {
 	// an array containing all the snmp instances
-	var snmpconfigs []SNMPConfig
+	var snmpConfigs []SNMPConfig
 
 	for _, inst := range c.Instances {
 		instance := SNMPConfig{}
@@ -72,18 +72,18 @@ func ParseConfigSnmp(c integration.Config) []SNMPConfig {
 		if err != nil {
 			fmt.Printf("unable to get snmp config: %v", err)
 		}
-		// add the instance(type SNMPConfig) to the array snmpconfigs
-		snmpconfigs = append(snmpconfigs, instance)
+		// add the instance(type SNMPConfig) to the array snmpConfigs
+		snmpConfigs = append(snmpConfigs, instance)
 	}
 
-	return snmpconfigs
+	return snmpConfigs
 }
 
 func parseConfigSnmpMain(conf config.Component) ([]SNMPConfig, error) {
-	snmpconfigs := []SNMPConfig{}
+	snmpConfigs := []SNMPConfig{}
 	configs := []snmplistener.Config{}
-	//the UnmarshalKey stores the result in mapstructures while the snmpconfig is in yaml
-	//so for each result of the Unmarshal key we store the result in a tmp SNMPConfig{} object
+	// the UnmarshalKey stores the result in mapstructures while the snmpConfig is in yaml
+	// so for each result of the Unmarshal key we store the result in a tmp SNMPConfig{} object
 	if conf.IsSet("network_devices.autodiscovery.configs") {
 		err := structure.UnmarshalKey(conf, "network_devices.autodiscovery.configs", &configs, structure.ImplicitlyConvertArrayToMapSet)
 		if err != nil {
@@ -101,34 +101,33 @@ func parseConfigSnmpMain(conf config.Component) ([]SNMPConfig, error) {
 	}
 
 	for c := range configs {
-		snmpconfig := SNMPConfig{}
-		SetDefault(&snmpconfig)
+		snmpConfig := SNMPConfig{}
+		SetDefault(&snmpConfig)
 
-		snmpconfig.NetAddress = configs[c].Network
-		snmpconfig.Port = configs[c].Port
-		snmpconfig.Version = configs[c].Version
-		snmpconfig.Timeout = configs[c].Timeout
-		snmpconfig.Retries = configs[c].Retries
-		snmpconfig.CommunityString = configs[c].Community
-		snmpconfig.Username = configs[c].User
-		snmpconfig.AuthProtocol = configs[c].AuthProtocol
-		snmpconfig.AuthKey = configs[c].AuthKey
-		snmpconfig.PrivProtocol = configs[c].PrivProtocol
-		snmpconfig.PrivKey = configs[c].PrivKey
-		snmpconfig.Context = configs[c].ContextName
+		snmpConfig.NetAddress = configs[c].Network
+		snmpConfig.Namespace = configs[c].Namespace
+		snmpConfig.Port = configs[c].Port
+		snmpConfig.Version = configs[c].Version
+		snmpConfig.Timeout = configs[c].Timeout
+		snmpConfig.Retries = configs[c].Retries
+		snmpConfig.CommunityString = configs[c].Community
+		snmpConfig.Username = configs[c].User
+		snmpConfig.AuthProtocol = configs[c].AuthProtocol
+		snmpConfig.AuthKey = configs[c].AuthKey
+		snmpConfig.PrivProtocol = configs[c].PrivProtocol
+		snmpConfig.PrivKey = configs[c].PrivKey
+		snmpConfig.Context = configs[c].ContextName
 
-		snmpconfigs = append(snmpconfigs, snmpconfig)
-
+		snmpConfigs = append(snmpConfigs, snmpConfig)
 	}
 
-	return snmpconfigs, nil
-
+	return snmpConfigs, nil
 }
 
 // GetConfigCheckSnmp returns each SNMPConfig for all running config checks, by querying the local agent.
 // If the agent isn't running or is unreachable, this will fail.
 func GetConfigCheckSnmp(conf config.Component, client ipc.HTTPClient) ([]SNMPConfig, error) {
-	// TODO: change the URL if the snmp check is a cluster check
+	// TODO: change the URL if the SNMP check is a cluster check
 	// add /agent/config-check to cluster agent API
 	// Copy the code from comp/core/autodiscovery/autodiscoveryimpl/autoconfig.go#writeConfigCheck
 	endpoint, err := client.NewIPCEndpoint("/agent/config-check")
@@ -156,8 +155,8 @@ func GetConfigCheckSnmp(conf config.Component, client ipc.HTTPClient) ([]SNMPCon
 			snmpConfigs = append(snmpConfigs, ParseConfigSnmp(c.Config)...)
 		}
 	}
-	snmpconfigMain, _ := parseConfigSnmpMain(conf)
-	snmpConfigs = append(snmpConfigs, snmpconfigMain...)
+	snmpConfigMain, _ := parseConfigSnmpMain(conf)
+	snmpConfigs = append(snmpConfigs, snmpConfigMain...)
 
 	return snmpConfigs, nil
 
@@ -184,9 +183,9 @@ func GetIPConfig(ipAddress string, SnmpConfigList []SNMPConfig) SNMPConfig {
 	}
 
 	// check if the ip address is explicitly mentioned
-	for _, snmpIPconfig := range ipAddressConfigs {
-		if snmpIPconfig.IPAddress == ipAddress {
-			return snmpIPconfig
+	for _, snmpIPConfig := range ipAddressConfigs {
+		if snmpIPConfig.IPAddress == ipAddress {
+			return snmpIPConfig
 		}
 	}
 	// check if the ip address is a part of a network/subnet

@@ -37,6 +37,6 @@ func New(_ *testing.T) Provides {
 func (m snmpScanMock) RunSnmpWalk(_ *gosnmp.GoSNMP, _ string) error {
 	return nil
 }
-func (m snmpScanMock) ScanDeviceAndSendData(_ *snmpparse.SNMPConfig, _ string, _ snmpscan.ScanParams) error {
+func (m snmpScanMock) ScanDeviceAndSendData(_ *snmpparse.SNMPConfig, _ snmpscan.ScanParams) error {
 	return nil
 }

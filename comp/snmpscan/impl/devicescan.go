@@ -17,13 +17,13 @@ import (
 	"github.com/gosnmp/gosnmp"
 )
 
-func (s snmpScannerImpl) ScanDeviceAndSendData(connParams *snmpparse.SNMPConfig, namespace string, scanParams snmpscan.ScanParams) error {
+func (s snmpScannerImpl) ScanDeviceAndSendData(connParams *snmpparse.SNMPConfig, scanParams snmpscan.ScanParams) error {
 	// Establish connection
 	snmp, err := snmpparse.NewSNMP(connParams, s.log)
 	if err != nil {
 		return err
 	}
-	deviceID := namespace + ":" + connParams.IPAddress
+	deviceID := connParams.Namespace + ":" + connParams.IPAddress
 	// Since the snmp connection can take a while, start by sending an in progress status for the start of the scan
 	// before connecting to the agent
 	inProgressStatusPayload := metadata.NetworkDevicesMetadata{
@@ -33,7 +33,7 @@ func (s snmpScannerImpl) ScanDeviceAndSendData(connParams *snmpparse.SNMPConfig,
 			ScanType:   scanParams.ScanType,
 		},
 		CollectTimestamp: time.Now().Unix(),
-		Namespace:        namespace,
+		Namespace:        connParams.Namespace,
 	}
 	if err = s.sendPayload(inProgressStatusPayload); err != nil {
 		return fmt.Errorf("unable to send in progress status: %v", err)
@@ -47,14 +47,14 @@ func (s snmpScannerImpl) ScanDeviceAndSendData(connParams *snmpparse.SNMPConfig,
 				ScanType:   scanParams.ScanType,
 			},
 			CollectTimestamp: time.Now().Unix(),
-			Namespace:        namespace,
+			Namespace:        connParams.Namespace,
 		}
 		if sendErr := s.sendPayload(errorStatusPayload); sendErr != nil {
 			return fmt.Errorf("unable to send error status: %v", sendErr)
 		}
 		return fmt.Errorf("unable to connect to SNMP agent on %s:%d: %w", snmp.LocalAddr, snmp.Port, err)
 	}
-	err = s.runDeviceScan(snmp, namespace, deviceID, scanParams.CallInterval)
+	err = s.runDeviceScan(snmp, connParams.Namespace, deviceID, scanParams.CallInterval)
 	if err != nil {
 		// Send an error status if we can't scan the device
 		errorStatusPayload := metadata.NetworkDevicesMetadata{
@@ -64,7 +64,7 @@ func (s snmpScannerImpl) ScanDeviceAndSendData(connParams *snmpparse.SNMPConfig,
 				ScanType:   scanParams.ScanType,
 			},
 			CollectTimestamp: time.Now().Unix(),
-			Namespace:        namespace,
+			Namespace:        connParams.Namespace,
 		}
 		if sendErr := s.sendPayload(errorStatusPayload); sendErr != nil {
 			return fmt.Errorf("unable to send error status: %v", sendErr)
@@ -79,7 +79,7 @@ func (s snmpScannerImpl) ScanDeviceAndSendData(connParams *snmpparse.SNMPConfig,
 			ScanType:   scanParams.ScanType,
 		},
 		CollectTimestamp: time.Now().Unix(),
-		Namespace:        namespace,
+		Namespace:        connParams.Namespace,
 	}
 	if err = s.sendPayload(completedStatusPayload); err != nil {
 		return fmt.Errorf("unable to send completed status: %v", err)
