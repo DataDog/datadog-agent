@@ -132,6 +132,9 @@ static __always_inline void protocol_dispatcher_entrypoint(struct __sk_buff *skb
         return;
     }
 
+    if (skb_tup.dport == 9092 || skb_tup.sport == 9092) {
+        log_debug("kafka-test | sport %d | dport %d", skb_tup.sport, skb_tup.dport);
+    }
 #ifndef COMPILE_PREBUILT
     struct task_struct *task = (void *)bpf_get_current_task();
     skb_tup.pid = BPF_CORE_READ(task, tgid);
@@ -231,6 +234,7 @@ static __always_inline void dispatch_kafka(struct __sk_buff *skb) {
     const size_t final_fragment_size = payload_length < CLASSIFICATION_MAX_BUFFER ? payload_length : CLASSIFICATION_MAX_BUFFER;
     protocol_t cur_fragment_protocol = PROTOCOL_UNKNOWN;
     if (is_kafka(skb, &skb_info, request_fragment, final_fragment_size)) {
+        log_debug("guy | kafka | pid: %d", skb_tup.pid);
         cur_fragment_protocol = PROTOCOL_KAFKA;
         update_protocol_stack(&skb_tup, cur_fragment_protocol);
     }

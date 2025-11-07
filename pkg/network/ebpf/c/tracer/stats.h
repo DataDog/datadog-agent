@@ -158,7 +158,7 @@ static __always_inline void update_protocol_classification_information(conn_tupl
     conn_tuple_copy.pid = 0;
 #endif // COMPILE_PREBUILT
     normalize_tuple(&conn_tuple_copy);
-
+    log_debug("guy update_protocol_classification_information pid: %d", conn_tuple_copy.pid);
     // Using __get_protocol_stack_if_exists as `conn_tuple_copy` is already normalized.
     protocol_stack_t *protocol_stack = __get_protocol_stack_if_exists(&conn_tuple_copy);
     set_protocol_flag(protocol_stack, FLAG_NPM_ENABLED);
@@ -175,8 +175,12 @@ static __always_inline void update_protocol_classification_information(conn_tupl
 
     conn_tuple_copy = *cached_skb_conn_tup_ptr;
     normalize_tuple(&conn_tuple_copy);
+    log_debug("guy update_protocol_classification_information pid2: %d", conn_tuple_copy.pid);
+
     // Using __get_protocol_stack_if_exists as `conn_tuple_copy` is already normalized.
     protocol_stack = __get_protocol_stack_if_exists(&conn_tuple_copy);
+    log_debug("guy update_protocol_classification_information 3: %p", protocol_stack);
+
     set_protocol_flag(protocol_stack, FLAG_NPM_ENABLED);
     mark_protocol_direction(t, &conn_tuple_copy, protocol_stack);
     merge_protocol_stacks(&stats->protocol_stack, protocol_stack);
