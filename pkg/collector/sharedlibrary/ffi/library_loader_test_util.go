@@ -9,8 +9,21 @@ package ffi
 
 /*
 #cgo CFLAGS: -I "${SRCDIR}/../../../../rtloader/include"
-#cgo CFLAGS: -I "${SRCDIR}/../c"
 #include "ffi.h"
+
+void noop_run(char *check_id, char *init_config, char *instance_config, const aggregator_t *aggregator, const char **error) {
+	// do nothing
+}
+
+const char *noop_version(const char **error) {
+	// do nothing
+	return "";
+}
+
+library_t get_noop_library(void) {
+	library_t library = { NULL, noop_run, noop_version };
+	return library;
+}
 */
 import "C"
 
@@ -35,4 +48,15 @@ func (ml *NoopSharedLibraryLoader) Run(_ *C.run_function_t, _ string, _ string, 
 // Version returns "noop_version"
 func (ml *NoopSharedLibraryLoader) Version(_ *C.version_function_t) (string, error) {
 	return "noop_version", nil
+}
+
+// GetNoopLibrary returns a library with functions that do nothing
+func GetNoopLibrary() Library {
+	cLib := C.get_noop_library()
+
+	return Library{
+		Handle:  cLib.handle,
+		Run:     cLib.run,
+		Version: cLib.version,
+	}
 }

@@ -56,7 +56,7 @@ func testCancelCheck(t *testing.T) {
 
 // NewSharedLibraryFakeCheck creates a fake SharedLibraryCheck
 func NewSharedLibraryFakeCheck(senderManager sender.SenderManager) (*Check, error) {
-	c, err := NewSharedLibraryCheck(senderManager, "fake_check", ffi.NewSharedLibraryLoader("fake/library/folder/path"), getNoopLibrary())
+	c, err := NewSharedLibraryCheck(senderManager, "fake_check", ffi.NewSharedLibraryLoader("fake/library/folder/path"), ffi.GetNoopLibrary())
 
 	// Remove check finalizer that may trigger race condition while testing
 	if err == nil {
@@ -64,8 +64,4 @@ func NewSharedLibraryFakeCheck(senderManager sender.SenderManager) (*Check, erro
 	}
 
 	return c, err
-}
-
-func getNoopLibrary() ffi.Library {
-	return ffi.Library{}
 }
