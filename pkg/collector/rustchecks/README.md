@@ -1,17 +1,15 @@
 # Rust checks
 
-For more details about the implementation of Rust checks, check the [documentation](https://datadoghq.atlassian.net/wiki/spaces/ARUN/pages/5479301643/WIP+Running+shared+library-based+checks).
-
 ## Structure
 
 There are 2 folders at the root level:
-- `core`: Shared code between every Rust check. This code is statically linked to every check.
-- `checks`: Location of every Rust-based check, each has its own project.
+- `core`: Shared code between every Rust check. This code is included in each check.
+- `checks`: Folder containing every Rust-based check, each in its own project.
 
 ## Writing a Rust check
 
 To start writing a new Rust check, you have 2 options:
-- Make a copy of `example` in `checks`, which is an "Hello world" Rust check and can be used as a template.
+- Make a copy of `example` in `checks`, which is an "Hello world" Rust check that you can use as a template.
 - Create a new Rust project in `checks` and copy `lib.rs` from any checks you want.
 
 Then, follow these steps:
