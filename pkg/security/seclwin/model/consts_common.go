@@ -10,6 +10,7 @@ import (
 	"crypto/sha256"
 	"fmt"
 	"maps"
+	"math"
 	"sync"
 	"syscall"
 
@@ -973,6 +974,9 @@ func (proto NetworkProtocolType) String() string {
 }
 
 const (
+	// UnspecType is the default type
+	UnspecType NetworkProtocolType = math.MaxUint16
+
 	// ICMPTypeEchoRequest is the type for ICMP echo requests
 	ICMPTypeEchoRequest NetworkProtocolType = 8
 	// ICMPTypeEchoReply is the type for ICMP echo replies
