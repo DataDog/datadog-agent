@@ -8,6 +8,7 @@
 package receiver
 
 import (
+	"errors"
 	"strings"
 
 	"github.com/DataDog/dd-otel-host-profiler/config"
@@ -33,6 +34,11 @@ type Config struct {
 
 var _ xconfmap.Validator = (*Config)(nil)
 
+var errSymbolEndpointsRequired = errors.New("symbol_endpoints is required")
+var errSymbolEndpointsSiteRequired = errors.New("symbol_endpoints.site is required")
+var errSymbolEndpointsAPIKeyRequired = errors.New("symbol_endpoints.api_key is required")
+var errSymbolEndpointsAppKeyRequired = errors.New("symbol_endpoints.app_key is required")
+
 // Validate validates the config.
 // This is automatically called by the config parser as it implements the xconfmap.Validator interface.
 func (c *Config) Validate() error {
@@ -52,6 +58,22 @@ func (c *Config) Validate() error {
 		c.Ebpfcollector.IncludeEnvVars = strings.Join(includeEnvVars, ",")
 	}
 
+	if c.SymbolUploader.Enabled {
+		if len(c.SymbolUploader.SymbolEndpoints) == 0 {
+			return errSymbolEndpointsRequired
+		}
+		for _, endpoint := range c.SymbolUploader.SymbolEndpoints {
+			if endpoint.Site == "" {
+				return errSymbolEndpointsSiteRequired
+			}
+			if endpoint.APIKey == "" {
+				return errSymbolEndpointsAPIKeyRequired
+			}
+			if endpoint.AppKey == "" {
+				return errSymbolEndpointsAppKeyRequired
+			}
+		}
+	}
 	return nil
 }
 
