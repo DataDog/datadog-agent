@@ -95,7 +95,7 @@ func processSample(device ddnvml.Device, metricName string, samplingType nvml.Sa
 
 // processUtilizationSample handles process utilization sampling logic
 func processUtilizationSample(device ddnvml.Device, lastTimestamp uint64, nsPidCache *NsPidCache) ([]Metric, uint64, error) {
-	currentTime := uint64(time.Now().Unix())
+	currentTime := uint64(time.Now().UnixMicro())
 	processSamples, err := device.GetProcessUtilization(lastTimestamp)
 
 	var allMetrics []Metric
