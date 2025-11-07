@@ -102,6 +102,7 @@ go_e2e_deps:
       fi
     - |
       if [ ! -f pulumi_plugins.tar.xz ]; then
+        export GITHUB_TOKEN=$(dda inv github.get-token-from-app)
         # Pre-download Pulumi plugins used by e2e scenarios and components, should no longer be needed when we move test-infra-definitions to datadog-agent
         pushd ./test/new-e2e
         PULUMI_CONFIG_PASSPHRASE=dummy pulumi --non-interactive plugin install
