@@ -36,6 +36,9 @@ type batch struct {
 	pipelineMonitor metrics.PipelineMonitor
 	utilization     metrics.UtilizationMonitor
 	instanceID      string
+
+	dict        []byte
+	trainingSet [][]byte
 }
 
 func makeBatch(
@@ -74,7 +77,14 @@ func (b *batch) resetBatch() {
 	b.buffer.Clear()
 	b.serializer.Reset()
 	var encodedPayload bytes.Buffer
-	compressor := b.compression.NewStreamCompressor(&encodedPayload)
+
+	var compressor compression.StreamCompressor
+	if b.dict == nil {
+		compressor = b.compression.NewStreamCompressor(&encodedPayload)
+	} else {
+		compressor = b.compression.NewStreamCompressorWithDict(&encodedPayload, b.dict)
+		log.Debugf("Using dictionary for pipeline %s", b.pipelineName)
+	}
 
 	wc := newWriterWithCounter(compressor)
 	b.writeCounter = wc
@@ -85,6 +95,21 @@ func (b *batch) resetBatch() {
 func (b *batch) processMessage(m *message.Message, outputChan chan *message.Payload) {
 	if m.Origin != nil {
 		m.Origin.LogSource.LatencyStats.Add(m.GetLatency())
+	}
+
+	if b.dict == nil {
+		b.trainingSet = append(b.trainingSet, m.GetContent())
+	}
+
+	if len(b.trainingSet) >= 5000 {
+		dict, err := b.compression.TrainFromBuffer(b.trainingSet, 100*1024)
+		if err != nil {
+			log.Warn("Training dictionary failed", err)
+			return // fail all future log collection
+		}
+		b.dict = dict
+		b.trainingSet = nil
+		log.Debugf("Trained dictionary for pipeline %s", b.pipelineName)
 	}
 	added, err := b.addMessage(m)
 	if err != nil {

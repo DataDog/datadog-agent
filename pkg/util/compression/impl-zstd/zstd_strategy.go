@@ -55,3 +55,13 @@ func (s *ZstdStrategy) ContentEncoding() string {
 func (s *ZstdStrategy) NewStreamCompressor(output *bytes.Buffer) compression.StreamCompressor {
 	return zstd.NewWriterLevel(output, s.level)
 }
+
+// NewStreamCompressorWithDict returns a new zstd Writer with a dictionary
+func (s *ZstdStrategy) NewStreamCompressorWithDict(output *bytes.Buffer, dict []byte) compression.StreamCompressor {
+	return zstd.NewWriterLevelDict(output, s.level, dict)
+}
+
+// TrainFromBuffer trains a dictionary from a set of samples
+func (s *ZstdStrategy) TrainFromBuffer(samples [][]byte, dictSize int) ([]byte, error) {
+	return zstd.TrainFromBuffer(samples, dictSize)
+}

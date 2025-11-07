@@ -9,6 +9,7 @@ package gzipimpl
 import (
 	"bytes"
 	"compress/gzip"
+	"errors"
 	"io"
 
 	"github.com/DataDog/datadog-agent/pkg/util/compression"
@@ -124,4 +125,16 @@ func (s *GzipStrategy) NewStreamCompressor(output *bytes.Buffer) compression.Str
 	}
 
 	return writer
+}
+
+// NewStreamCompressorWithDict returns a new gzip Writer with a dictionary
+func (s *GzipStrategy) NewStreamCompressorWithDict(_ *bytes.Buffer, _ []byte) compression.StreamCompressor {
+	// Not implemented
+	return nil
+}
+
+// TrainFromBuffer trains a dictionary from a set of samples
+func (s *GzipStrategy) TrainFromBuffer(_ [][]byte, _ int) ([]byte, error) {
+	// Not implemented
+	return nil, errors.New("not implemented")
 }

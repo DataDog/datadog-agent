@@ -40,6 +40,8 @@ type Compressor interface {
 	CompressBound(sourceLen int) int
 	ContentEncoding() string
 	NewStreamCompressor(output *bytes.Buffer) StreamCompressor
+	NewStreamCompressorWithDict(output *bytes.Buffer, dict []byte) StreamCompressor
+	TrainFromBuffer(samples [][]byte, dictSize int) ([]byte, error)
 }
 
 // StreamCompressor is the interface that the compression algorithm
