@@ -146,6 +146,7 @@ new-e2e-base:
   extends: .new_e2e_template
   needs:
     - go_e2e_deps
+    - go_tools_deps
     - go_e2e_test_binaries
     - agent_deb-x64-a7
   rules:
@@ -161,7 +162,7 @@ new-e2e-base:
 # This job runs early in the pipeline and creates artifacts that can be reused by test jobs
 go_e2e_test_binaries:
   stage: binary_build
-  image: registry.ddbuild.io/ci/test-infra-definitions/runner$TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX:$TEST_INFRA_DEFINITIONS_BUILDIMAGES
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   tags: ["arch:amd64", "specific:true"]
   needs:
     - go_e2e_deps
@@ -250,6 +251,7 @@ new-e2e-containers-eks-init:
   extends: .new_e2e_template
   needs:
     - go_e2e_deps
+    - go_tools_deps
   rules:
     - !reference [.on_container_or_e2e_changes]
     - !reference [.manual]
@@ -458,6 +460,7 @@ new-e2e-npm-eks-init:
   extends: .new_e2e_template
   needs:
     - go_e2e_deps
+    - go_tools_deps
   rules:
     - !reference [.on_npm_or_e2e_changes]
     - !reference [.manual]
@@ -843,6 +846,7 @@ new-e2e-otel-eks-init:
     - !reference [.manual]
   needs:
     - go_e2e_deps
+    - go_tools_deps
   variables:
     TARGETS: ./tests/otel
     TEAM: otel
@@ -1067,7 +1071,7 @@ trigger-fips-e2e:
     strategy: depend
 
 new-e2e-cleanup-on-failure:
-  image: registry.ddbuild.io/ci/test-infra-definitions/runner$TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX:$TEST_INFRA_DEFINITIONS_BUILDIMAGES
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   tags: ["arch:amd64", "specific:true"]
   stage: e2e_cleanup
   dependencies: [go_e2e_deps]
