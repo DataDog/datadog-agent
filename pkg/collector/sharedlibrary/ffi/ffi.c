@@ -51,6 +51,10 @@ void *open_lib(const char *lib_path, char **lib_error) {
     void *lib_handle;
     char *dlsym_error = NULL;
 
+    // Calling `dlopen` again for the same shared library doesn't reopen it. The handle returned will be the same.
+    // (https://man7.org/linux/man-pages/man3/dlopen.3p.html)
+    // This is great for running multiple instances in parallel but keep in mind that the global state of the shared library
+    // is the same for all the instances.
     lib_handle = dlopen(lib_path, RTLD_NOW | RTLD_LOCAL);
     
     // catch library opening error
@@ -80,6 +84,8 @@ void *get_symbol(void *lib_handle, const char *symbol_name, char **lib_error) {
 }
 
 void close_lib(void *lib_handle, char **lib_error) {
+    // Calling `dlclose` for a shared library that has been opened multiple times doesn't close it.
+    // (https://man7.org/linux/man-pages/man3/dlclose.3p.html)
     dlclose(lib_handle);
 
     // check for closing errors
