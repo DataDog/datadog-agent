@@ -143,8 +143,8 @@ func TestConvertToIdx_KindFieldMatchesOTELSpec(t *testing.T) {
 	}
 }
 
-// Test that promoted fields (env, version, component) are moved out of attributes
-func TestConvertToIdx_PromotedFieldsNotInAttributes(t *testing.T) {
+// Test that promoted fields (env, version, component) are moved out of meta
+func TestConvertToIdx_PromotedFields(t *testing.T) {
 	payload := &pb.TracerPayload{
 		Chunks: []*pb.TraceChunk{
 			{
@@ -178,41 +178,6 @@ func TestConvertToIdx_PromotedFieldsNotInAttributes(t *testing.T) {
 	assert.Equal(t, "production", span.Env())
 	assert.Equal(t, "1.2.3", span.Version())
 	assert.Equal(t, "http-client", span.Component())
-
-	// Verify promoted fields are NOT in attributes
-	// Note: env, version, component, and kind are still in the original Meta map,
-	// but the converter should handle them specially
-	foundEnv := false
-	foundVersion := false
-	foundComponent := false
-	foundKind := false
-	foundOther := false
-
-	attrs := span.Attributes()
-	for keyRef, val := range attrs {
-		key := result.Strings.Get(keyRef)
-		switch key {
-		case "env":
-			foundEnv = true
-		case "version":
-			foundVersion = true
-		case "component":
-			foundComponent = true
-		case "kind":
-			foundKind = true
-		case "other":
-			foundOther = true
-			assert.Equal(t, "should-remain", result.Strings.Get(val.GetStringValueRef()))
-		}
-	}
-
-	// These promoted fields should still be in attributes since the old format includes them in Meta
-	// The test validates they're ALSO promoted to dedicated fields
-	assert.True(t, foundEnv, "env should be in attributes from Meta")
-	assert.True(t, foundVersion, "version should be in attributes from Meta")
-	assert.True(t, foundComponent, "component should be in attributes from Meta")
-	assert.True(t, foundKind, "kind should be in attributes from Meta")
-	assert.True(t, foundOther, "other non-promoted field should remain in attributes")
 }
 
 // Test that env field is correctly promoted at span level

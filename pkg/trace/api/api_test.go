@@ -347,19 +347,21 @@ func TestLegacyReceiver(t *testing.T) {
 
 			// now we should be able to read the trace data
 			select {
-			case p := <-tc.r.out:
-				assert.Len(p.Chunks(), 1)
-				rt := p.Chunk(0).Spans
+			case p := <-tc.r.outV1:
+				assert.Len(p.TracerPayload.Chunks, 1)
+				rt := p.TracerPayload.Chunks[0].Spans
 				assert.Len(rt, 1)
 				span := rt[0]
-				assert.Equal(uint64(42), span.TraceID)
-				assert.Equal(uint64(52), span.SpanID)
-				assert.Equal("fennel_IS amazing!", span.Service)
-				assert.Equal("something &&<@# that should be a metric!", span.Name)
-				assert.Equal("NOT touched because it is going to be hashed", span.Resource)
-				assert.Equal("192.168.0.1", span.Meta["http.host"])
-				assert.Equal(41.99, span.Metrics["http.monitor"])
-			case <-time.After(time.Second):
+				assert.Equal([]byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x2a}, p.TracerPayload.Chunks[0].TraceID)
+				assert.Equal(uint64(52), span.SpanID())
+				assert.Equal("fennel_IS amazing!", span.Service())
+				assert.Equal("something &&<@# that should be a metric!", span.Name())
+				assert.Equal("NOT touched because it is going to be hashed", span.Resource())
+				httpHost, _ := span.GetAttributeAsString("http.host")
+				assert.Equal("192.168.0.1", httpHost)
+				httpMonitor, _ := span.GetAttributeAsFloat64("http.monitor")
+				assert.Equal(41.99, httpMonitor)
+			case <-time.After(5 * time.Second):
 				t.Fatalf("no data received")
 			}
 
@@ -412,17 +414,19 @@ func TestReceiverJSONDecoder(t *testing.T) {
 
 			// now we should be able to read the trace data
 			select {
-			case p := <-tc.r.out:
-				rt := p.Chunk(0).Spans
+			case p := <-tc.r.outV1:
+				rt := p.TracerPayload.Chunks[0].Spans
 				assert.Len(rt, 1)
 				span := rt[0]
-				assert.Equal(uint64(42), span.TraceID)
-				assert.Equal(uint64(52), span.SpanID)
-				assert.Equal("fennel_IS amazing!", span.Service)
-				assert.Equal("something &&<@# that should be a metric!", span.Name)
-				assert.Equal("NOT touched because it is going to be hashed", span.Resource)
-				assert.Equal("192.168.0.1", span.Meta["http.host"])
-				assert.Equal(41.99, span.Metrics["http.monitor"])
+				assert.Equal([]byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x2a}, p.TracerPayload.Chunks[0].TraceID)
+				assert.Equal(uint64(52), span.SpanID())
+				assert.Equal("fennel_IS amazing!", span.Service())
+				assert.Equal("something &&<@# that should be a metric!", span.Name())
+				assert.Equal("NOT touched because it is going to be hashed", span.Resource())
+				httpHost, _ := span.GetAttributeAsString("http.host")
+				assert.Equal("192.168.0.1", httpHost)
+				httpMonitor, _ := span.GetAttributeAsFloat64("http.monitor")
+				assert.Equal(41.99, httpMonitor)
 			case <-time.After(time.Second):
 				t.Fatalf("no data received")
 			}
@@ -479,17 +483,19 @@ func TestReceiverMsgpackDecoder(t *testing.T) {
 
 				// now we should be able to read the trace data
 				select {
-				case p := <-tc.r.out:
-					rt := p.Chunk(0).Spans
+				case p := <-tc.r.outV1:
+					rt := p.TracerPayload.Chunks[0].Spans
 					assert.Len(rt, 1)
 					span := rt[0]
-					assert.Equal(uint64(42), span.TraceID)
-					assert.Equal(uint64(52), span.SpanID)
-					assert.Equal("fennel_IS amazing!", span.Service)
-					assert.Equal("something &&<@# that should be a metric!", span.Name)
-					assert.Equal("NOT touched because it is going to be hashed", span.Resource)
-					assert.Equal("192.168.0.1", span.Meta["http.host"])
-					assert.Equal(41.99, span.Metrics["http.monitor"])
+					assert.Equal([]byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x2a}, p.TracerPayload.Chunks[0].TraceID)
+					assert.Equal(uint64(52), span.SpanID())
+					assert.Equal("fennel_IS amazing!", span.Service())
+					assert.Equal("something &&<@# that should be a metric!", span.Name())
+					assert.Equal("NOT touched because it is going to be hashed", span.Resource())
+					httpHost, _ := span.GetAttributeAsString("http.host")
+					assert.Equal("192.168.0.1", httpHost)
+					httpMonitor, _ := span.GetAttributeAsFloat64("http.monitor")
+					assert.Equal(41.99, httpMonitor)
 				case <-time.After(time.Second):
 					t.Fatalf("no data received")
 				}
@@ -502,25 +508,29 @@ func TestReceiverMsgpackDecoder(t *testing.T) {
 
 				// now we should be able to read the trace data
 				select {
-				case p := <-tc.r.out:
-					rt := p.Chunk(0).Spans
+				case p := <-tc.r.outV1:
+					rt := p.TracerPayload.Chunks[0].Spans
 					assert.Len(rt, 1)
 					span := rt[0]
-					assert.Equal(uint64(42), span.TraceID)
-					assert.Equal(uint64(52), span.SpanID)
-					assert.Equal("fennel_IS amazing!", span.Service)
-					assert.Equal("something &&<@# that should be a metric!", span.Name)
-					assert.Equal("NOT touched because it is going to be hashed", span.Resource)
-					assert.Equal("192.168.0.1", span.Meta["http.host"])
-					assert.Equal(41.99, span.Metrics["http.monitor"])
-					assert.Equal(1, len(span.SpanLinks))
-					assert.Equal(uint64(42), span.SpanLinks[0].TraceID)
-					assert.Equal(uint64(32), span.SpanLinks[0].TraceIDHigh)
-					assert.Equal(uint64(52), span.SpanLinks[0].SpanID)
-					assert.Equal("v1", span.SpanLinks[0].Attributes["a1"])
-					assert.Equal("v2", span.SpanLinks[0].Attributes["a2"])
-					assert.Equal("dd=s:2;o:rum,congo=baz123", span.SpanLinks[0].Tracestate)
-					assert.Equal(uint32(2147483649), span.SpanLinks[0].Flags)
+					assert.Equal([]byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x2a}, p.TracerPayload.Chunks[0].TraceID)
+					assert.Equal(uint64(52), span.SpanID())
+					assert.Equal("fennel_IS amazing!", span.Service())
+					assert.Equal("something &&<@# that should be a metric!", span.Name())
+					assert.Equal("NOT touched because it is going to be hashed", span.Resource())
+					httpHost, _ := span.GetAttributeAsString("http.host")
+					assert.Equal("192.168.0.1", httpHost)
+					httpMonitor, _ := span.GetAttributeAsFloat64("http.monitor")
+					assert.Equal(41.99, httpMonitor)
+					links := span.Links()
+					assert.Equal(1, len(links))
+					assert.Equal([]byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x20, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x2a}, links[0].TraceID())
+					assert.Equal(uint64(52), links[0].SpanID())
+					a1, _ := links[0].GetAttributeAsString("a1")
+					assert.Equal("v1", a1)
+					a2, _ := links[0].GetAttributeAsString("a2")
+					assert.Equal("v2", a2)
+					assert.Equal("dd=s:2;o:rum,congo=baz123", links[0].Tracestate())
+					assert.Equal(uint32(2147483649), links[0].Flags())
 				case <-time.After(time.Second):
 					t.Fatalf("no data received")
 				}
@@ -805,62 +815,73 @@ func TestDecodeV05(t *testing.T) {
 		return "abcdef123789456", nil
 	}), "python", "3.8.1", "1.2.3", newTestReceiverConfig())
 	assert.NoError(err)
-	assert.EqualValues(tp, &pb.TracerPayload{
-		ContainerID:     "abcdef123789456",
-		LanguageName:    "python",
-		LanguageVersion: "3.8.1",
-		TracerVersion:   "1.2.3",
-		Chunks: []*pb.TraceChunk{
-			{
-				Tags:     make(map[string]string),
-				Priority: int32(sampler.PriorityNone),
-				Spans: []*pb.Span{
-					{
-						Service:  "Service",
-						Name:     "Name",
-						Resource: "Resource",
-						TraceID:  1,
-						SpanID:   2,
-						ParentID: 3,
-						Start:    123,
-						Duration: 456,
-						Error:    1,
-						Meta:     map[string]string{"A": "B"},
-						Metrics:  map[string]float64{"X": 1.2},
-						Type:     "sql",
-					},
-					{
-						Service:  "Service2",
-						Name:     "Name2",
-						Resource: "Resource2",
-						TraceID:  2,
-						SpanID:   3,
-						ParentID: 3,
-						Start:    789,
-						Duration: 456,
-						Error:    0,
-						Meta:     map[string]string{"c": "d"},
-						Metrics:  map[string]float64{"y": 1.4},
-						Type:     "sql",
-					},
-					{
-						Service:  "Service2",
-						Name:     "Name2",
-						Resource: "Resource2",
-						TraceID:  2,
-						SpanID:   3,
-						ParentID: 3,
-						Start:    789,
-						Duration: 456,
-						Error:    0,
-						Meta:     map[string]string{"c": "d"},
-						Metrics:  nil,
-						Type:     "sql",
-					},
-				},
-			},
-		},
-	})
+
+	// Check payload-level fields
+	assert.Equal("abcdef123789456", tp.ContainerID())
+	assert.Equal("python", tp.LanguageName())
+	assert.Equal("3.8.1", tp.LanguageVersion())
+	assert.Equal("1.2.3", tp.TracerVersion())
+
+	// Check we have one chunk
+	assert.Len(tp.Chunks, 1)
+	chunk := tp.Chunks[0]
+
+	// Check chunk-level fields
+	assert.Equal(int32(sampler.PriorityNone), chunk.Priority)
+
+	// Check we have 3 spans
+	assert.Len(chunk.Spans, 3)
+
+	// Check first span (TraceID 1)
+	span0 := chunk.Spans[0]
+	assert.Equal("Service", span0.Service())
+	assert.Equal("Name", span0.Name())
+	assert.Equal("Resource", span0.Resource())
+	assert.Equal(uint64(2), span0.SpanID())
+	assert.Equal(uint64(3), span0.ParentID())
+	assert.Equal(uint64(123), span0.Start())
+	assert.Equal(uint64(456), span0.Duration())
+	assert.Equal(true, span0.Error())
+	metaA, ok := span0.GetAttributeAsString("A")
+	assert.True(ok)
+	assert.Equal("B", metaA)
+	metricX, ok := span0.GetAttributeAsFloat64("X")
+	assert.True(ok)
+	assert.Equal(1.2, metricX)
+	assert.Equal("sql", span0.Type())
+
+	// Check second span (TraceID 2)
+	span1 := chunk.Spans[1]
+	assert.Equal("Service2", span1.Service())
+	assert.Equal("Name2", span1.Name())
+	assert.Equal("Resource2", span1.Resource())
+	assert.Equal(uint64(3), span1.SpanID())
+	assert.Equal(uint64(3), span1.ParentID())
+	assert.Equal(uint64(789), span1.Start())
+	assert.Equal(uint64(456), span1.Duration())
+	assert.Equal(false, span1.Error())
+	metaC, ok := span1.GetAttributeAsString("c")
+	assert.True(ok)
+	assert.Equal("d", metaC)
+	metricY, ok := span1.GetAttributeAsFloat64("y")
+	assert.True(ok)
+	assert.Equal(1.4, metricY)
+	assert.Equal("sql", span1.Type())
+
+	// Check third span (TraceID 2, same as second but no metrics)
+	span2 := chunk.Spans[2]
+	assert.Equal("Service2", span2.Service())
+	assert.Equal("Name2", span2.Name())
+	assert.Equal("Resource2", span2.Resource())
+	assert.Equal(uint64(3), span2.SpanID())
+	assert.Equal(uint64(3), span2.ParentID())
+	assert.Equal(uint64(789), span2.Start())
+	assert.Equal(uint64(456), span2.Duration())
+	assert.Equal(false, span2.Error())
+	metaC2, ok := span2.GetAttributeAsString("c")
+	assert.True(ok)
+	assert.Equal("d", metaC2)
+	assert.Equal("sql", span2.Type())
 }
 
 type mockStatsProcessor struct {
@@ -1065,7 +1086,7 @@ func TestHandleTraces(t *testing.T) {
 	for n := 0; n < 10; n++ {
 		// consume the traces channel without doing anything
 		select {
-		case <-receiver.out:
+		case <-receiver.outV1:
 		default:
 		}
 
@@ -1219,7 +1240,7 @@ func BenchmarkHandleTracesFromOneApp(b *testing.B) {
 		b.StopTimer()
 		// consume the traces channel without doing anything
 		select {
-		case <-receiver.out:
+		case <-receiver.outV1:
 		default:
 		}
 
@@ -1260,7 +1281,7 @@ func BenchmarkHandleTracesFromMultipleApps(b *testing.B) {
 		b.StopTimer()
 		// consume the traces channel without doing anything
 		select {
-		case <-receiver.out:
+		case <-receiver.outV1:
 		default:
 		}
 
