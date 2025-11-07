@@ -9,6 +9,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"unicode"
+	"unicode/utf8"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
