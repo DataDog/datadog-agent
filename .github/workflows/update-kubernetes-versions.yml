@@ -34,10 +34,13 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Install dda and dependencies
-        run: |
-          brew install --cask dda
-          pip install requests pyyaml
+      - name: Install dda
+        uses: ./.github/actions/install-dda
+        with:
+          features: legacy-tasks
+
+      - name: Install Python dependencies
+        run: pip install requests pyyaml
 
       - name: Fetch latest Kubernetes version
         id: fetch-versions
