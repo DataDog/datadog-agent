@@ -250,7 +250,7 @@ func TestMountPropagated(t *testing.T) {
 	})
 }
 
-func TestMountSnapshot(t *testing.T) {
+func testMountSnapshot(t *testing.T) {
 	SkipIfNotAvailable(t)
 
 	//      / testDrive
@@ -329,7 +329,7 @@ func TestMountSnapshot(t *testing.T) {
 	defer tmpfsMountA.unmount(0)
 	defer bindMountA.unmount(0)
 
-	test, err := newTestModule(t, nil, nil, withDynamicOpts(dynamicTestOpts{testDir: testDrive.Root()}))
+	test, err := newTestModule(t, nil, nil, withDynamicOpts(dynamicTestOpts{testDir: testDrive.Root()}), withForceReload())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -400,6 +400,19 @@ func TestMountSnapshot(t *testing.T) {
 		}
 	}
 	assert.Equal(t, 1|2|4|8, mntResolved)
+}
+
+func TestMountSnapshotListmount(t *testing.T) {
+	SkipIfNotAvailable(t)
+	t.Setenv("DD_EVENT_MONITORING_CONFIG_SNAPSHOT_USING_LISTMOUNT", "true")
+	testMountSnapshot(t)
+}
+
+func TestMountSnapshotProcfs(t *testing.T) {
+	SkipIfNotAvailable(t)
+
+	t.Setenv("DD_EVENT_MONITORING_CONFIG_SNAPSHOT_USING_LISTMOUNT", "false")
+	testMountSnapshot(t)
 }
 
 func TestMountEvent(t *testing.T) {

@@ -214,7 +214,6 @@ func collectUniqueMountNSFDs(procfs string) ([]int, error) {
 }
 
 func GetPidListmount(procfs string, pid uint32, cb func(*model.Mount)) error {
-	fmt.Println("GET PID LISTMOUNT")
 	path := filepath.Join(procfs, strconv.Itoa(int(pid)), "ns", "mnt")
 	fd, err := unix.Open(path, unix.O_RDONLY|unix.O_CLOEXEC, 0)
 	if err != nil {
