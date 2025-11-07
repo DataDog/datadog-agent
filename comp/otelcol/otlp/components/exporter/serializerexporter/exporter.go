@@ -194,7 +194,6 @@ func (e *Exporter) ConsumeMetrics(ctx context.Context, ld pmetric.Metrics) error
 		OTLPIngestDDOTMetricsRequests.Add(1)
 		OTLPIngestDDOTMetricsEvents.Add(float64(ld.MetricCount()))
 	}
-	ld.MetricCount()
 	if e.hostmetadata.Enabled {
 		// Consume resources for host metadata
 		for i := 0; i < ld.ResourceMetrics().Len(); i++ {
