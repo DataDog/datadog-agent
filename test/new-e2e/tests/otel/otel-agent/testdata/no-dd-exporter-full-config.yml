@@ -134,10 +134,10 @@ processors:
       resource: []
     profiles:
       profile: []
+      resource: []
     spans:
       exclude: null
       include: null
-      resource: []
     traces:
       resource: []
       span: []
