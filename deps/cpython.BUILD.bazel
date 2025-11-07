@@ -243,4 +243,5 @@ run_binary(
         "MSBUILD": r"C:\devtools\vstudio\MSBuild\Current\Bin\MSBuild.exe",
     },
     tool = "build_python.bat",
+    visibility = ["//visibility:public"],
 )
