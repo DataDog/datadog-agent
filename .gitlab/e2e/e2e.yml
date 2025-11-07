@@ -3,7 +3,7 @@
 # Contains test jobs based on the new-e2e tests framework
 .new_e2e_template:
   stage: e2e
-  image: registry.ddbuild.io/ci/test-infra-definitions/runner$TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX:$TEST_INFRA_DEFINITIONS_BUILDIMAGES
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   tags: ["arch:amd64", "specific:true"]
   needs:
     - !reference [.needs_new_e2e_template]
