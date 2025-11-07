@@ -82,7 +82,6 @@ func (s snmpScannerImpl) startDeviceScan(task rcclienttypes.AgentTaskConfig) err
 			ns = s.config.GetString("network_devices.namespace")
 		}
 	}
-
 	instance.Namespace = ns
 
 	return s.ScanDeviceAndSendData(instance, snmpscan.ScanParams{
