@@ -269,6 +269,7 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 
 	// TLS cert collection
 	cfg.BindEnvAndSetDefault(join(netNS, "enable_cert_collection"), false)
+	cfg.BindEnvAndSetDefault(join(netNS, "cert_collection_map_cleaner_interval"), 30*time.Second)
 
 	// windows config
 	cfg.BindEnvAndSetDefault(join(spNS, "windows.enable_monotonic_count"), false)
@@ -389,6 +390,7 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	cfg.BindEnvAndSetDefault(join(gpuNS, "attacher_detailed_logs"), false)
 	cfg.BindEnvAndSetDefault(join(gpuNS, "ringbuffer_flush_interval"), 1*time.Second)
 	cfg.BindEnvAndSetDefault(join(gpuNS, "device_cache_refresh_interval"), 5*time.Second)
+	cfg.BindEnvAndSetDefault(join(gpuNS, "cgroup_reapply_delay"), 30*time.Second)
 
 	// gpu - stream config
 	cfg.BindEnvAndSetDefault(join(gpuNS, "streams", "max_kernel_launches"), 1000)

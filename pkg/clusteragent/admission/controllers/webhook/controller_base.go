@@ -202,7 +202,7 @@ func generateAutoInstrumentationWebhook(wmeta workloadmeta.Component, datadogCon
 		configWebhook.NewMutator(configWebhook.NewMutatorConfig(datadogConfig), apm),
 		apm,
 	)
-	return autoinstrumentation.NewWebhook(config, wmeta, mutator)
+	return autoinstrumentation.NewWebhook(config.Webhook, wmeta, mutator)
 }
 
 // controllerBase acts as a base class for ControllerV1 and ControllerV1beta1.

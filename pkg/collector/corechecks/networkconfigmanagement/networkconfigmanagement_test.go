@@ -224,6 +224,7 @@ func TestCheck_Run_Success(t *testing.T) {
 
 	// Set up mock sender expectations
 	mockSender.On("EventPlatformEvent", mock.Anything, mock.Anything).Return().Once()
+	mockSender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	mockSender.On("Commit").Return()
 
 	// Configure the check
@@ -245,7 +246,13 @@ func TestCheck_Run_Success(t *testing.T) {
 
 	assert.NoError(t, err)
 	assert.True(t, mockClient.Closed, "Remote client should be closed after run")
-
+	expectedTags := []string{
+		"device_namespace:default",
+		"device_ip:10.0.0.1",
+		"device_id:default:10.0.0.1",
+		"config_source:cli",
+		"profile:p2",
+	}
 	expectedPayload := report.NCMPayload{
 		Namespace: "default",
 		Configs: []report.NetworkDeviceConfig{
@@ -255,7 +262,7 @@ func TestCheck_Run_Success(t *testing.T) {
 				ConfigType:   "running",
 				ConfigSource: "cli",
 				Timestamp:    1754043600,
-				Tags:         []string{"device_ip:10.0.0.1"},
+				Tags:         expectedTags,
 				Content:      runningOutput,
 			},
 			{
@@ -264,7 +271,7 @@ func TestCheck_Run_Success(t *testing.T) {
 				ConfigType:   "startup",
 				ConfigSource: "cli",
 				Timestamp:    0,
-				Tags:         []string{"device_ip:10.0.0.1"},
+				Tags:         expectedTags,
 				Content:      startupOutput,
 			},
 		},
@@ -274,6 +281,7 @@ func TestCheck_Run_Success(t *testing.T) {
 	assert.NoError(t, err)
 	mockSender.AssertNumberOfCalls(t, "EventPlatformEvent", 1)
 	mockSender.AssertEventPlatformEvent(t, expectedEvent, "ndmconfig")
+	mockSender.AssertMetricTaggedWith(t, "Gauge", "datadog.ncm.check_duration", expectedTags)
 	mockSender.AssertExpectations(t)
 }
 

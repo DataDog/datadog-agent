@@ -99,10 +99,9 @@ func TestProcessesByPIDWLM(t *testing.T) {
 			))
 
 			processCheck := &ProcessCheck{
-				wmeta:                   mockWLM,
-				probe:                   mockProbe,
-				useWLMProcessCollection: true,
-				clock:                   mockConstantClock,
+				wmeta: mockWLM,
+				probe: mockProbe,
+				clock: mockConstantClock,
 			}
 
 			// MOCKING

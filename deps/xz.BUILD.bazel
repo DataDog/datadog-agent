@@ -178,10 +178,6 @@ cc_library(
 cc_shared_library(
     name = "lzma",
     deps = [":liblzma"],
-    features = select({
-        "@platforms//os:macos": ["-macos_default_link_flags"],
-        "//conditions:default": [],
-    }),
     visibility = ["//visibility:public"],
 )
 
@@ -211,6 +207,7 @@ expand_template(
     substitutions = {
         "{{VERSION}}": VERSION,
     },
+    visibility = ["//visibility:public"],
 )
 
 pkg_files(

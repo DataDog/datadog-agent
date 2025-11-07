@@ -101,7 +101,7 @@ func parseProcControlGroupsData(data []byte, validateCgroupEntry func(string, st
 		data = data[nextStart:]
 	}
 
-	// return the lastest error
+	// return the latest error
 	return err
 }
 
@@ -244,6 +244,11 @@ func (cfs *CGroupFS) FindCGroupContext(tgid, pid uint32) (containerutils.Contain
 				cgroupPath = filepath.Join(cfs.rootCGroupPath, path)
 			} else {
 				cgroupPath = filepath.Join(mountpoint, ctrlDirectory, path)
+			}
+
+			if mountpoint == cgroupPath { // should not happen
+				seclog.Errorf("failed to compute cgroup path with path:%s, mountpoint:%s, rootCGroupPath:%s, ctrlDirectory:%s", path, mountpoint, cfs.rootCGroupPath, ctrlDirectory)
+				continue
 			}
 
 			if exists, err = checkPidExists(cgroupPath, pid); err == nil && exists {
