@@ -9,6 +9,7 @@
     - !reference [.needs_new_e2e_template]
   before_script:
     - !reference [.retrieve_linux_go_e2e_deps]
+    - !reference [.retrieve_linux_pulumi_plugins]
     - !reference [.retrieve_linux_go_tools_deps]
     - dda inv -- -e install-tools
     # Setup AWS Credentials
