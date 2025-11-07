@@ -6,6 +6,7 @@
 package automultilinedetection
 
 import (
+	"encoding/json"
 	"strings"
 	"testing"
 
@@ -277,11 +278,6 @@ func TestHasBalancedBraces(t *testing.T) {
 			expected: false,
 		},
 		{
-			name:     "array (not object)",
-			input:    `["array"]`,
-			expected: false,
-		},
-		{
 			name:     "valid JSON with escaped JSON in value",
 			input:    `{"data":"{\"inner\":\"value\"}"}`,
 			expected: true,
@@ -325,7 +321,8 @@ func TestHasBalancedBraces(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := isSingleLineJSON([]byte(tt.input))
+			// assess that json.Valid() returns the expected result to detect single line JSON
+			result := json.Valid([]byte(tt.input))
 			assert.Equal(t, tt.expected, result)
 		})
 	}

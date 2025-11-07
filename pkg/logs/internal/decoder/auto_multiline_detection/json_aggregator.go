@@ -8,8 +8,6 @@ package automultilinedetection
 import (
 	"bytes"
 	"encoding/json"
-	"unicode"
-	"unicode/utf8"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
@@ -115,66 +113,4 @@ func (r *JSONAggregator) Flush() []*message.Message {
 // IsEmpty returns true if the buffer is empty.
 func (r *JSONAggregator) IsEmpty() bool {
 	return len(r.messageBuf) == 0
-}
-
-// isSingleLineJSON performs a scan (without full parsing) to determine if the message has
-// balanced braces, which indicates that the message is likely to be complete single-line JSON.
-func isSingleLineJSON(content []byte) bool {
-	if len(content) == 0 {
-		return false
-	}
-
-	// Must start with '{' to be a JSON object
-	if content[0] != '{' {
-		return false
-	}
-
-	braceCount := 0
-	inString := false
-	escaped := false
-
-	for i, b := range content {
-		if escaped {
-			escaped = false
-			continue
-		}
-
-		if b == '\\' && inString {
-			escaped = true
-			continue
-		}
-
-		if b == '"' {
-			inString = !inString
-			continue
-		}
-
-		if !inString {
-			switch b {
-			case '{':
-				braceCount++
-			case '}':
-				braceCount--
-				// If we hit balanced braces before the end, check if rest is whitespace
-				if braceCount == 0 && i < len(content)-1 {
-					return isOnlyWhitespace(content[i+1:])
-				}
-			}
-		}
-	}
-
-	// Balanced braces = likely complete single-line JSON
-	return braceCount == 0
-}
-
-// isOnlyWhitespace returns true if the data contains only whitespace characters.
-func isOnlyWhitespace(data []byte) bool {
-	for len(data) > 0 {
-		r, size := utf8.DecodeRune(data)
-		if !unicode.IsSpace(r) {
-			return false
-		}
-		data = data[size:]
-	}
-	return true
 }
