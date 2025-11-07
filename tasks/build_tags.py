@@ -356,6 +356,7 @@ def compute_build_tags_for_flavor(
     build_exclude: str | None,
     flavor: AgentFlavor = AgentFlavor.base,
     include_sds: bool = False,
+    platform: str | None = None,
 ):
     """
     Given a flavor, an architecture, a list of tags to include and exclude, get the final list
@@ -367,7 +368,7 @@ def compute_build_tags_for_flavor(
     Then, remove from these the provided list of tags to exclude.
     """
     build_include = (
-        get_default_build_tags(build=build, flavor=flavor)
+        get_default_build_tags(build=build, flavor=flavor, platform=platform)
         if build_include is None
         else filter_incompatible_tags(build_include.split(","))
     )
