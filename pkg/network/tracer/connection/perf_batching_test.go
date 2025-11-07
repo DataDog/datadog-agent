@@ -84,12 +84,8 @@ func TestGetPendingConns(t *testing.T) {
 }
 
 func TestPerfBatchStateCleanup(t *testing.T) {
-	flushDone := make(chan struct{})
-	manager := newTestBatchManager(t, func(stats *network.ConnectionStats) {
-		if stats == nil {
-			flushDone <- struct{}{}
-		}
-	})
+	// Callback is no-op since this test only validates state cleanup
+	manager := newTestBatchManager(t, func(_ *network.ConnectionStats) {})
 	manager.extractor.expiredStateInterval = 100 * time.Millisecond
 
 	batch := new(netebpf.Batch)
@@ -102,15 +98,13 @@ func TestPerfBatchStateCleanup(t *testing.T) {
 	err := manager.batchMap.Put(&cpu, batch)
 	require.NoError(t, err)
 
-	go manager.Flush()
-	<-flushDone
+	manager.Flush()
 	_, ok := manager.extractor.stateByCPU[cpu].processed[batch.Id]
 	require.True(t, ok)
 	assert.Equal(t, uint16(2), manager.extractor.stateByCPU[cpu].processed[batch.Id].offset)
 
 	manager.extractor.CleanupExpiredState(time.Now().Add(manager.extractor.expiredStateInterval))
-	go manager.Flush()
-	<-flushDone
+	manager.Flush()
 
 	// state should not have been cleaned up, since no more connections have happened
 	_, ok = manager.extractor.stateByCPU[cpu].processed[batch.Id]
