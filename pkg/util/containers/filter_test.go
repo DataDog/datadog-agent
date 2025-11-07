@@ -13,8 +13,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
 type ctnDef struct {
@@ -561,16 +559,4 @@ func TestParseFilters(t *testing.T) {
 			assert.Equal(t, tc.filterErrors, filterErrors)
 		})
 	}
-}
-
-func resetConfig(cfg pkgconfigmodel.Config) {
-	cfg.SetWithoutSource("exclude_pause_container", true)
-	cfg.SetWithoutSource("container_include", []string{})
-	cfg.SetWithoutSource("container_exclude", []string{})
-	cfg.SetWithoutSource("container_include_metrics", []string{})
-	cfg.SetWithoutSource("container_exclude_metrics", []string{})
-	cfg.SetWithoutSource("container_include_logs", []string{})
-	cfg.SetWithoutSource("container_exclude_logs", []string{})
-	cfg.SetWithoutSource("ac_include", []string{})
-	cfg.SetWithoutSource("ac_exclude", []string{})
 }
