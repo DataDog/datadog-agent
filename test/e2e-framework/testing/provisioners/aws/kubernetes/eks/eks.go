@@ -4,7 +4,7 @@
 // Copyright 2016-present Datadog, Inc.
 
 // Package awskubernetes contains the provisioner for the Kubernetes based environments
-package awskubernetes
+package eks
 
 import (
 	"context"
@@ -15,12 +15,16 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners"
-
+	awskubernetes "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/kubernetes"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 )
 
+const (
+	provisionerBaseID = "aws-eks-"
+)
+
 func eksDiagnoseFunc(ctx context.Context, stackName string) (string, error) {
-	dumpResult, err := dumpEKSClusterState(ctx, stackName)
+	dumpResult, err := awskubernetes.DumpEKSClusterState(ctx, stackName)
 	if err != nil {
 		return "", err
 	}
@@ -28,7 +32,7 @@ func eksDiagnoseFunc(ctx context.Context, stackName string) (string, error) {
 }
 
 // EKSProvisioner creates a new provisioner
-func EKSProvisioner(opts ...ProvisionerOption) provisioners.TypedProvisioner[environments.Kubernetes] {
+func Provisioner(opts ...ProvisionerOption) provisioners.TypedProvisioner[environments.Kubernetes] {
 	// We ALWAYS need to make a deep copy of `params`, as the provisioner can be called multiple times.
 	// and it's easy to forget about it, leading to hard to debug issues.
 	params := getProvisionerParams(opts...)

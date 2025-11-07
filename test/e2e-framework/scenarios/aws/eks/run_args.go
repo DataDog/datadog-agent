@@ -8,7 +8,6 @@ package eks
 import (
 	"fmt"
 
-	"github.com/DataDog/datadog-agent/test/e2e-framework/common/config"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentwithoperatorparams"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/kubernetesagentparams"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/operatorparams"
@@ -19,7 +18,6 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/fakeintake"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/optional"
-	"github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes"
 )
 
 const (
@@ -34,7 +32,7 @@ type RunParams struct {
 	fakeintakeOptions  []fakeintake.Option
 	eksOptions         []Option
 	extraConfigParams  runner.ConfigMap
-	workloadAppFuncs   []WorkloadAppFunc
+	workloadAppFuncs   []kubecomp.WorkloadAppFunc
 	operatorOptions    []operatorparams.Option
 	operatorDDAOptions []agentwithoperatorparams.Option
 	ciliumOptions      []cilium.Option
@@ -59,7 +57,7 @@ func GetRunParams(opts ...RunOption) *RunParams {
 		fakeintakeOptions:  []fakeintake.Option{},
 		eksOptions:         []Option{},
 		extraConfigParams:  runner.ConfigMap{},
-		workloadAppFuncs:   []WorkloadAppFunc{},
+		workloadAppFuncs:   []kubecomp.WorkloadAppFunc{},
 		operatorOptions:    []operatorparams.Option{},
 		operatorDDAOptions: []agentwithoperatorparams.Option{},
 		ciliumOptions:      []cilium.Option{},
@@ -186,11 +184,8 @@ func WithExtraConfigParams(configMap runner.ConfigMap) RunOption {
 	}
 }
 
-// WorkloadAppFunc is a function that deploys a workload app to a kube provider
-type WorkloadAppFunc func(e config.Env, kubeProvider *kubernetes.Provider) (*kubecomp.Workload, error)
-
 // WithWorkloadApp adds a workload app to the environment
-func WithWorkloadApp(appFunc WorkloadAppFunc) RunOption {
+func WithWorkloadApp(appFunc kubecomp.WorkloadAppFunc) RunOption {
 	return func(params *RunParams) error {
 		params.workloadAppFuncs = append(params.workloadAppFuncs, appFunc)
 		return nil

@@ -4,7 +4,7 @@
 // Copyright 2016-present Datadog, Inc.
 
 // Package awskubernetes contains the provisioner for the Kubernetes based environments
-package awskubernetes
+package eks
 
 import (
 	"fmt"

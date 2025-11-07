@@ -211,5 +211,13 @@ spec:
 		}
 	}
 
+	// Deploy workloads
+	for _, appFunc := range params.workloadAppFuncs {
+		_, err := appFunc(&awsEnv, kindKubeProvider)
+		if err != nil {
+			return err
+		}
+	}
+
 	return nil
 }

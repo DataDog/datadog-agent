@@ -61,7 +61,7 @@ func WithExtraConfigParams(configMap runner.ConfigMap) ProvisionerOption {
 	}
 }
 
-func WithRunParams(runOptions ...ec2docker.Option) ProvisionerOption {
+func WithRunOptions(runOptions ...ec2docker.Option) ProvisionerOption {
 	return func(params *ProvisionerParams) error {
 		params.runOptions = append(params.runOptions, runOptions...)
 		return nil
