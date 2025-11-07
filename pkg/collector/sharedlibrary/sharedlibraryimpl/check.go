@@ -85,6 +85,11 @@ func (c *Check) Stop() {}
 
 // Cancel closes the associated shared library and prevents the check from running
 func (c *Check) Cancel() {
+	// don't close the lib again if the check is already cancelled
+	if c.cancelled {
+		return
+	}
+
 	err := c.libraryLoader.Close(c.lib)
 	if err != nil {
 		log.Errorf("Cancel failed: %s", err)

@@ -26,7 +26,7 @@ func TestLinuxCheckImplementationSuite(t *testing.T) {
 		sharedLibrarySuite{
 			descriptor:  e2eos.UbuntuDefault,
 			libraryName: "libdatadog-agent-example.so",
-			checksdPath: "/etc/datadog-agent/checks.d",
+			checksdPath: "/tmp/datadog-agent/checks.d",
 		},
 	}
 
@@ -34,18 +34,11 @@ func TestLinuxCheckImplementationSuite(t *testing.T) {
 }
 
 func (v *linuxSharedLibrarySuite) copyLibrary(sourceLibPath string) {
-	// copy the lib in a tmp folder first due to restricted permissions
-	v.Env().RemoteHost.CopyFile(
-		sourceLibPath,
-		v.Env().RemoteHost.JoinPath("/", "tmp", v.libraryName),
-	)
-	out := v.Env().RemoteHost.MustExecute("sudo cp " + v.Env().RemoteHost.JoinPath("/", "tmp", v.libraryName) + " " + v.Env().RemoteHost.JoinPath(v.checksdPath, v.libraryName))
-	// should not output anything, otherwise it's an error
-	require.Empty(v.T(), out)
+	v.Env().RemoteHost.CopyFile(sourceLibPath, v.Env().RemoteHost.JoinPath(v.checksdPath, v.libraryName))
 }
 
 func (v *linuxSharedLibrarySuite) removeLibrary() {
-	out := v.Env().RemoteHost.MustExecute("sudo rm " + v.Env().RemoteHost.JoinPath(v.checksdPath, v.libraryName))
+	out := v.Env().RemoteHost.Remove(v.Env().RemoteHost.JoinPath(v.checksdPath, v.libraryName))
 	// should not output anything, otherwise it's an error
 	require.Empty(v.T(), out)
 }

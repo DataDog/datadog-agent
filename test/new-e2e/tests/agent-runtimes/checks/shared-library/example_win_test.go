@@ -26,7 +26,7 @@ func TestWindowsCheckImplementationSuite(t *testing.T) {
 		sharedLibrarySuite{
 			descriptor:  e2eos.WindowsServerDefault,
 			libraryName: "libdatadog-agent-example.dll",
-			checksdPath: "C:\\ProgramData\\Datadog\\checks.d",
+			checksdPath: "C:\\Temp\\Datadog\\checks.d",
 		},
 	}
 
@@ -41,9 +41,9 @@ func (v *windowsSharedLibrarySuite) copyLibrary(sourceLibPath string) {
 }
 
 func (v *windowsSharedLibrarySuite) removeLibrary() {
-	// out := v.Env().RemoteHost.Remove(v.Env().RemoteHost.JoinPath(v.checksdPath, v.libraryName))
+	out := v.Env().RemoteHost.Remove(v.Env().RemoteHost.JoinPath(v.checksdPath, v.libraryName))
 	// should not output anything, otherwise it's an error
-	// require.Empty(v.T(), out)
+	require.Empty(v.T(), out)
 }
 
 func (v *windowsSharedLibrarySuite) TestWindowsCheckExample() {
