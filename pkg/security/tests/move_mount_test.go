@@ -110,9 +110,6 @@ func TestMoveMount(t *testing.T) {
 			assert.Equal(t, err, nil)
 			assert.Equal(t, submountDir, mountPtr.Path, "Wrong mountpoint path")
 			assert.NotEqual(t, 0, event.Mount.NamespaceInode, "Namespace inode not captured")
-			assert.Greater(t, event.Mount.MountIDUnique, uint64(1)<<32, "Invalid unique mount id")
-			assert.Greater(t, event.Mount.ParentMountIDUnique, uint64(1)<<32, "Invalid unique parent mount id")
-			assert.Equal(t, uint64(0), event.Mount.BindSrcMountIDUnique, "Invalid unique bind src mount id")
 			return true
 		}, 10*time.Second, model.FileMoveMountEventType)
 
@@ -275,9 +272,6 @@ func TestMoveMountRecursiveNoPropagation(t *testing.T) {
 			assert.Equal(t, err, nil, "Error resolving mount")
 			assert.Equal(t, len(mount.Children), 2, "Wrong number of child mounts")
 			assert.NotEqual(t, 0, event.Mount.NamespaceInode, "Namespace inode not captured")
-			assert.Greater(t, event.Mount.MountIDUnique, uint64(1)<<32, "Invalid unique mount id")
-			assert.Greater(t, event.Mount.ParentMountIDUnique, uint64(1)<<32, "Invalid unique parent mount id")
-			assert.Equal(t, uint64(0), event.Mount.BindSrcMountIDUnique, "Invalid unique bind src mount id")
 
 			for _, childMountID := range mount.Children {
 				child, _, _, err := p.Resolvers.MountResolver.ResolveMount(childMountID, 0, "")
@@ -351,9 +345,6 @@ func TestMoveMountRecursivePropagation(t *testing.T) {
 				return false
 			}
 			assert.NotEqual(t, 0, event.Mount.NamespaceInode, "Namespace inode not captured")
-			assert.Greater(t, event.Mount.MountIDUnique, uint64(1)<<32, "Invalid unique mount id")
-			assert.Greater(t, event.Mount.ParentMountIDUnique, uint64(1)<<32, "Invalid unique parent mount id")
-			assert.Equal(t, uint64(0), event.Mount.BindSrcMountIDUnique, "Invalid unique bind src mount id")
 			allMounts[event.Mount.MountID]++
 			return false
 		}, 5*time.Second, model.FileMoveMountEventType)

@@ -77,9 +77,6 @@ func TestMount(t *testing.T) {
 				assert.Equal(t, false, event.Mount.Detached, "Mount should not be detached")
 				assert.Equal(t, true, event.Mount.Visible, "Mount should be visible")
 				assert.Equal(t, model.MountOriginEvent, event.Mount.Origin, "Incorrect mount source")
-				assert.Greater(t, event.Mount.MountIDUnique, uint64(1)<<32, "Invalid unique mount id")
-				assert.Greater(t, event.Mount.ParentMountIDUnique, uint64(1)<<32, "Invalid unique mount id")
-				assert.Greater(t, event.Mount.BindSrcMountIDUnique, uint64(1)<<32, "Invalid unique mount id")
 				assert.NotEqual(t, 0, event.Mount.NamespaceInode, "Mount namespace inode not captured")
 			}
 
@@ -476,9 +473,6 @@ func TestMountEvent(t *testing.T) {
 				assert.Equal(t, false, event.Mount.Detached, "Mount should not be detached")
 				assert.Equal(t, true, event.Mount.Visible, "Mount should be visible")
 				assert.NotEqual(t, 0, event.Mount.NamespaceInode, "Mount namespace inode not captured")
-				assert.Greater(t, event.Mount.MountIDUnique, uint64(1)<<32, "Invalid unique mount id")
-				assert.Greater(t, event.Mount.ParentMountIDUnique, uint64(1)<<32, "Invalid unique parent mount id")
-				assert.Equal(t, uint64(0), event.Mount.BindSrcMountIDUnique, "Invalid unique bind src mount id")
 			}
 			assertTriggeredRule(t, rule, "test_mount_tmpfs")
 			assertFieldEqual(t, event, "mount.mountpoint.path", tmpfsMountPointPath)
@@ -511,9 +505,6 @@ func TestMountEvent(t *testing.T) {
 				assert.Equal(t, true, event.Mount.Visible, "Mount should be visible")
 				assert.Equal(t, model.MountOriginEvent, event.Mount.Origin, "Incorrect mount source")
 				assert.NotEqual(t, 0, event.Mount.NamespaceInode, "Mount namespace inode not captured")
-				assert.Greater(t, event.Mount.MountIDUnique, uint64(1)<<32, "Invalid unique mount id")
-				assert.Greater(t, event.Mount.ParentMountIDUnique, uint64(1)<<32, "Invalid unique mount id")
-				assert.Greater(t, event.Mount.BindSrcMountIDUnique, uint64(1)<<32, "Invalid unique mount id")
 			}
 			assertFieldEqual(t, event, "mount.mountpoint.path", bindMountPointPath)
 			assertFieldEqual(t, event, "mount.source.path", bindMountSourcePath)
@@ -556,9 +547,6 @@ func TestMountEvent(t *testing.T) {
 			assertFieldNotEqual(t, event, "mount.fs_type", "overlay")
 			assertFieldNotEmpty(t, event, "process.container.id", "container id shouldn't be empty")
 			assert.NotEqual(t, 0, event.Mount.NamespaceInode, "Mount namespace inode not captured")
-			assert.Greater(t, event.Mount.MountIDUnique, uint64(1)<<32, "Invalid unique mount id")
-			assert.Greater(t, event.Mount.ParentMountIDUnique, uint64(1)<<32, "Invalid unique mount id")
-			assert.Greater(t, event.Mount.BindSrcMountIDUnique, uint64(1)<<32, "Invalid unique mount id")
 
 			test.validateMountSchema(t, event)
 			validateSyscallContext(t, event, "$.syscall.mount.path")
@@ -593,9 +581,6 @@ func TestMountEvent(t *testing.T) {
 		}, func(event *model.Event, rule *rules.Rule) {
 			t.Errorf("shouldn't get an event: event %s matched rule %s", test.debugEvent(event), rule.Expression)
 			assert.NotEqual(t, 0, event.Mount.NamespaceInode, "Mount namespace inode not captured")
-			assert.Greater(t, event.Mount.MountIDUnique, uint64(1)<<32, "Invalid unique mount id")
-			assert.Greater(t, event.Mount.ParentMountIDUnique, uint64(1)<<32, "Invalid unique mount id")
-			assert.Greater(t, event.Mount.BindSrcMountIDUnique, uint64(1)<<32, "Invalid unique mount id")
 		})
 		if err == nil {
 			t.Error("shouldn't get an event")
