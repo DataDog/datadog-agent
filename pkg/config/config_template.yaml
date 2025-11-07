@@ -4708,7 +4708,7 @@ api_key:
 #       # @env DD_OTLP_CONFIG_METRICS_BATCH_MIN_SIZE - integer - optional - default: 8192
 #       # The minimum number of metrics to batch before sending.
 #
-#       min_size: 100
+#       min_size: 8192
 
 #       # @param max_size - integer - optional - default: 0
 #       # @env DD_OTLP_CONFIG_METRICS_BATCH_MAX_SIZE - integer - optional - default: 0
@@ -4800,7 +4800,7 @@ api_key:
 #       # @env DD_OTLP_CONFIG_LOGS_BATCH_MIN_SIZE - integer - optional - default: 8192
 #       # The minimum number of metrics to batch before sending.
 #
-#       min_size: 100
+#       min_size: 8192
 
 #       # @param max_size - integer - optional - default: 0
 #       # @env DD_OTLP_CONFIG_LOGS_BATCH_MAX_SIZE - integer - optional - default: 0
