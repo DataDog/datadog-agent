@@ -458,11 +458,28 @@ filegroup(
 cc_library(
     name = "mpdec",
     hdrs = [":mpdec_headers"],
-    srcs = glob(["Modules/_decimal/libmpdec/*.c"], exclude=[
-        "Modules/_decimal/libmpdec/bench*.c",
-        "Modules/_decimal/libmpdec/mpsignal.c"
-    ]) + [":python_headers"],
-    includes = ["Modules/_decimal/libmpdec/"],
+    # srcs = glob(["Modules/_decimal/libmpdec/*.c"], exclude=[
+    #     "Modules/_decimal/libmpdec/bench*.c",
+    #     "Modules/_decimal/libmpdec/mpsignal.c"
+    # ]) + [":python_headers"],
+    srcs = [
+        "Modules/_decimal/libmpdec/basearith.c",
+        "Modules/_decimal/libmpdec/constants.c",
+        "Modules/_decimal/libmpdec/context.c",
+        "Modules/_decimal/libmpdec/convolute.c",
+        "Modules/_decimal/libmpdec/crt.c",
+        "Modules/_decimal/libmpdec/difradix2.c",
+        "Modules/_decimal/libmpdec/fnt.c",
+        "Modules/_decimal/libmpdec/fourstep.c",
+        "Modules/_decimal/libmpdec/io.c",
+        "Modules/_decimal/libmpdec/mpalloc.c",
+        "Modules/_decimal/libmpdec/mpdecimal.c",
+        "Modules/_decimal/libmpdec/numbertheory.c",
+        "Modules/_decimal/libmpdec/sixstep.c",
+        "Modules/_decimal/libmpdec/transpose.c",
+        ":python_headers",
+    ],
+    includes = ["Modules/_decimal/libmpdec"],
     # These defines must be propagated to the dependents
     defines = [
         "CONFIG_64=1",
@@ -632,12 +649,13 @@ cc_binary(
 )
 
 [
-    cc_library(
+    cc_binary(
         name = "module_" + name,
         srcs = info['srcs'] + [":python_headers", ":modules_headers", ":expat_headers"] + info.get('extra_files', []),
         includes = _COMMON_INCLUDE_DIRS + info.get('includes', []),
         local_defines = COMMON_DEFINES + PY_BUILTIN_MODULE_DEFINES + info.get('local_defines', []),
         deps = [":mimalloc"] + info.get('deps', []),
         copts = ["-std=c11"],
+        linkshared=True,
     ) for name, info in PYTHON_MODULES.items()
 ]

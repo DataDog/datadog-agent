@@ -14,6 +14,7 @@ def postprocess(modules):
     modules["_bz2"]["deps"] = ["@bzip2//:bz2"]
     modules["_lzma"]["deps"] = ["@xz//:liblzma"]
     modules["_decimal"]["deps"] = [":mpdec"]
+    modules["zlib"]["deps"] = ["@zlib//:zlib"]
 
 
 def main(argv):

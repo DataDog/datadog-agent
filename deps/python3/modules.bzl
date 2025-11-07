@@ -108,7 +108,7 @@ PYTHON_MODULES = {
     },
     "_decimal": {
         "srcs": [
-            "Modules/_decimal/_decimal.c",
+            "Modules/_decimal/_decimal.c"
         ],
         "deps": [
             ":mpdec"
@@ -138,6 +138,9 @@ PYTHON_MODULES = {
     "zlib": {
         "srcs": [
             "Modules/zlibmodule.c"
+        ],
+        "deps": [
+            "@zlib//:zlib"
         ]
     },
     "readline": {
