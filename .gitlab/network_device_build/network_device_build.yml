@@ -1,12 +1,10 @@
 ---
 .deploy_network_devices:
-  extends: [.docker_build_amd64]
   stage: deploy_packages
   rules:
     !reference [.on_deploy]
   before_script:
     - if [[ "$VERSION" == "" ]]; then VERSION="$(dda inv agent.version --url-safe)" || exit $?; fi
-    - VERSION="${VERSION/_/~}"
     - VERSION="${VERSION}-1"
   script:
     - TAG_SUFFIX=${TAG_SUFFIX:-}
@@ -27,8 +25,8 @@
       - "*.tar"
     expire_in: 2 weeks
 
-deploy_iox_tar_agent7:
-  extends: .deploy_network_devices
+deploy_packages_tar-x64-7:
+  extends: [.deploy_network_devices, .docker_build_amd64]
   needs:
     - job: docker_build_agent7
   variables:

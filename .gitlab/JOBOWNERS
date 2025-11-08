@@ -124,7 +124,6 @@ internal_kubernetes_deploy*            @Datadog/agent-delivery
 deploy_agent*                          @DataDog/agent-delivery
 deploy_installer*                      @DataDog/agent-delivery
 deploy_ddot_oci*                       @DataDog/agent-delivery
-deploy_iox_tar*                        @DataDog/agent-delivery
 deploy_packages*                       @DataDog/agent-delivery
 deploy_staging*                        @DataDog/agent-delivery
 publish_winget*                        @DataDog/windows-products
