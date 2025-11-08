@@ -295,7 +295,11 @@ func (p *protocol) GetStats() (*protocols.ProtocolStats, func()) {
 	stats := p.statkeeper.GetAndResetAllStats()
 	if Debug {
 		for key, value := range stats {
-			fmt.Printf("HTTP | Reporting stat %s; value: %#v\n", key.String(), value.Data)
+			output := map[uint16]int{}
+			for statusCode, val := range value.Data {
+				output[statusCode] = val.Count
+			}
+			fmt.Printf("HTTP | Reporting stat %s; values: %#v\n", key.String(), output)
 		}
 	}
 	return &protocols.ProtocolStats{

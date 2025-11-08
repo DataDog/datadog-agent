@@ -23,7 +23,7 @@ import (
 	"testing"
 	"time"
 
-	sysctl "github.com/lorenzosaino/go-sysctl"
+	"github.com/lorenzosaino/go-sysctl"
 	"golang.org/x/net/netutil"
 )
 
@@ -83,6 +83,7 @@ func SetupNetIPV4TCPTimestamp(t *testing.T, enable bool) {
 // Optional TLS support using a self-signed certificate can be enabled trough the `enableTLS` argument
 // nolint
 func HTTPServer(t *testing.T, addr string, options Options) func() {
+	reqNum := 0
 	handler := func(w http.ResponseWriter, req *http.Request) {
 		if options.SlowResponse != 0 {
 			time.Sleep(options.SlowResponse)
@@ -95,6 +96,8 @@ func HTTPServer(t *testing.T, addr string, options Options) func() {
 		}
 
 		defer req.Body.Close()
+		w.Header().Add("req-num", strconv.Itoa(reqNum))
+		reqNum++
 		io.Copy(w, req.Body)
 	}
 	/* Save and recover TCP timestamp option */
