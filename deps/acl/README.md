@@ -42,5 +42,6 @@ The usual list of things
 - copy config.h to overlay/config.h.  There are no platform or arch issues, so we only need one.
 - Add all the sources from libacl.
 - And it turns out we need misc to
+- Add the minimal defines.
+  - some HAVE_ bits were tricky.
 - figure out their knotty include system.
--

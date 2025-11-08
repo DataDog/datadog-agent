@@ -12,7 +12,7 @@
 #define EXPORT __attribute__ ((visibility ("default"))) extern
 
 /* Define to 1 if you have the <attr/error_context.h> header file. */
-/* #undef HAVE_ATTR_ERROR_CONTEXT_H */
+#define HAVE_ATTR_ERROR_CONTEXT_H 1
 
 /* Define to 1 if you have the Mac OS X function CFLocaleCopyCurrent in the
    CoreFoundation framework. */
