@@ -17,7 +17,7 @@ const remoteSource = "remote"
 
 type tagStore struct {
 	mutex     sync.RWMutex
-	store     types.ObjectStore[*types.Entity]
+	store     *genericstore.CompositeObjectStore[*types.Entity]
 	telemetry map[string]float64
 
 	telemetryStore *telemetry.Store
@@ -25,7 +25,7 @@ type tagStore struct {
 
 func newTagStore(telemetryStore *telemetry.Store) *tagStore {
 	return &tagStore{
-		store:          genericstore.NewObjectStore[*types.Entity](),
+		store:          genericstore.NewCompositeObjectStore[*types.Entity](),
 		telemetry:      make(map[string]float64),
 		telemetryStore: telemetryStore,
 	}
@@ -111,5 +111,5 @@ func (s *tagStore) reset() {
 		})
 	})
 
-	s.store = genericstore.NewObjectStore[*types.Entity]()
+	s.store = genericstore.NewCompositeObjectStore[*types.Entity]()
 }

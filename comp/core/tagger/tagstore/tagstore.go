@@ -37,7 +37,7 @@ var ErrNotFound = errors.New("entity not found")
 type TagStore struct {
 	sync.RWMutex
 
-	store     types.ObjectStore[EntityTags]
+	store     *genericstore.CompositeObjectStore[EntityTags]
 	telemetry map[string]map[string]float64
 
 	subscriptionManager subscriber.SubscriptionManager
@@ -55,7 +55,7 @@ func NewTagStore(telemetryStore *telemetry.Store) *TagStore {
 func newTagStoreWithClock(clock clock.Clock, telemetryStore *telemetry.Store) *TagStore {
 	return &TagStore{
 		telemetry:           make(map[string]map[string]float64),
-		store:               genericstore.NewObjectStore[EntityTags](),
+		store:               genericstore.NewCompositeObjectStore[EntityTags](),
 		subscriptionManager: subscriber.NewSubscriptionManager(telemetryStore),
 		clock:               clock,
 		// telemetryStore is optional. If it is nil, we will not collect
