@@ -353,7 +353,16 @@ func (s *HTTPTestSuite) TestSanity() {
 	for _, tt := range testCases {
 		t.Run(tt.name, func(t *testing.T) {
 			for _, keepAliveEnabled := range []bool{true, false} {
-				t.Run(testNameHelper("with keep alive", "without keep alive", keepAliveEnabled), func(t *testing.T) {
+				tName := testNameHelper("with keep alive", "without keep alive", keepAliveEnabled)
+				t.Run(tName, func(t *testing.T) {
+					http.Debug = true
+					t.Cleanup(func() {
+						http.Debug = false
+					})
+					fmt.Printf("starting logs for %q\n", tName)
+					defer func() {
+						fmt.Printf("ending logs for %q\n", tName)
+					}()
 					monitor := setupUSMTLSMonitor(t, getHTTPCfg(), useExistingConsumer)
 
 					srvDoneFn := testutil.HTTPServer(t, tt.serverAddress, testutil.Options{EnableKeepAlive: keepAliveEnabled})
