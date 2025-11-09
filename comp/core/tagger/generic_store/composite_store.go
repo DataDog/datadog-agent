@@ -23,6 +23,7 @@ func NewCompositeObjectStore[T any]() *CompositeObjectStore[T] {
 	}
 }
 
+// Get implements the CompositeObjectStore get operation.
 func (os *CompositeObjectStore[T]) Get(entityID types.EntityID) (object T, found bool) {
 	submap, found := os.data[entityID.GetPrefix()]
 	if !found {
@@ -33,6 +34,7 @@ func (os *CompositeObjectStore[T]) Get(entityID types.EntityID) (object T, found
 	return
 }
 
+// Set implements the CompositeObjectStore set operation.
 func (os *CompositeObjectStore[T]) Set(entityID types.EntityID, object T) {
 	prefix := entityID.GetPrefix()
 	id := entityID.GetID()
@@ -47,6 +49,7 @@ func (os *CompositeObjectStore[T]) Set(entityID types.EntityID, object T) {
 	}
 }
 
+// Unset implements the CompositeObjectStore delete operation.
 func (os *CompositeObjectStore[T]) Unset(entityID types.EntityID) {
 	prefix := entityID.GetPrefix()
 	id := entityID.GetID()
@@ -59,10 +62,12 @@ func (os *CompositeObjectStore[T]) Unset(entityID types.EntityID) {
 	}
 }
 
+// Size implements the CompositeObjectStore size query.
 func (os *CompositeObjectStore[T]) Size() int {
 	return os.size
 }
 
+// ListObjects implements the CompositeObjectStore enumeration.
 func (os *CompositeObjectStore[T]) ListObjects(filter *types.Filter) []T {
 	objects := make([]T, 0, os.Size())
 
@@ -76,6 +81,7 @@ func (os *CompositeObjectStore[T]) ListObjects(filter *types.Filter) []T {
 	return objects
 }
 
+// ForEach implements the CompositeObjectStore iteration.
 func (os *CompositeObjectStore[T]) ForEach(filter *types.Filter, apply types.ApplyFunc[T]) {
 	for prefix := range filter.GetPrefixes() {
 		idToObjects := os.data[prefix]
