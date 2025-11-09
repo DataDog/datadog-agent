@@ -11,6 +11,9 @@ import (
 
 	"gopkg.in/yaml.v2"
 
+	"encoding/json"
+	"fmt"
+
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	"github.com/DataDog/datadog-agent/comp/core/workloadfilter/impl/parse"
@@ -146,4 +149,29 @@ func loadCELConfig(cfg config.Component) ([]workloadfilter.RuleBundle, error) {
 	}
 
 	return nil, err
+}
+
+// String returns a simple string representation of the FilterConfig
+func (fc *FilterConfig) String() string {
+	filterConfigMap := make(map[string]string)
+	filterConfigMap["ContainerInclude"] = strings.Join(fc.ContainerInclude, ", ")
+	filterConfigMap["ContainerExclude"] = strings.Join(fc.ContainerExclude, ", ")
+	filterConfigMap["ContainerIncludeMetrics"] = strings.Join(fc.ContainerIncludeMetrics, ", ")
+	filterConfigMap["ContainerExcludeMetrics"] = strings.Join(fc.ContainerExcludeMetrics, ", ")
+	filterConfigMap["ContainerIncludeLogs"] = strings.Join(fc.ContainerIncludeLogs, ", ")
+	filterConfigMap["ContainerExcludeLogs"] = strings.Join(fc.ContainerExcludeLogs, ", ")
+	filterConfigMap["ACInclude"] = strings.Join(fc.ACInclude, ", ")
+	filterConfigMap["ACExclude"] = strings.Join(fc.ACExclude, ", ")
+	filterConfigMap["ExcludePauseContainer"] = fmt.Sprintf("%v", fc.ExcludePauseContainer)
+	filterConfigMap["SBOMExcludePauseContainer"] = fmt.Sprintf("%v", fc.SBOMExcludePauseContainer)
+	filterConfigMap["SBOMContainerInclude"] = strings.Join(fc.SBOMContainerInclude, ", ")
+	filterConfigMap["SBOMContainerExclude"] = strings.Join(fc.SBOMContainerExclude, ", ")
+	filterConfigMap["ProcessBlacklistPatterns"] = strings.Join(fc.ProcessBlacklistPatterns, ", ")
+	filterConfigMap["CELProductRules"] = fmt.Sprintf("%v", fc.CELProductRules)
+
+	filterConfigJSON, err := json.Marshal(filterConfigMap)
+	if err != nil {
+		return ""
+	}
+	return string(filterConfigJSON)
 }

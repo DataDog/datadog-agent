@@ -183,8 +183,13 @@ func newFilter(cfg config.Component, logger logcomp.Component, telemetry coretel
 
 	// Process Filters
 	filter.registerFactory(workloadfilter.ProcessType, int(workloadfilter.LegacyProcessExcludeList), catalog.LegacyProcessExcludeProgram)
+<<<<<<< Updated upstream
 	filter.registerFactory(workloadfilter.ProcessType, int(workloadfilter.ProcessCELLogs), catalog.ProcessCELLogsProgram)
 	filter.registerFactory(workloadfilter.ProcessType, int(workloadfilter.ProcessCELGlobal), catalog.ProcessCELGlobalProgram)
+=======
+	//filter.registerFactory(workloadfilter.ProcessType, int(workloadfilter.ProcessCELLogs), catalog.ProcessCELLogsProgram)
+	//filter.registerFactory(workloadfilter.ProcessType, int(workloadfilter.ProcessCELGlobal), catalog.ProcessCELGlobalProgram)
+>>>>>>> Stashed changes
 
 	return filter, nil
 }
@@ -246,6 +251,14 @@ func (f *workloadfilterStore) GetEndpointFilters(endpointFilters [][]workloadfil
 
 func (f *workloadfilterStore) GetProcessFilters(processFilters [][]workloadfilter.ProcessFilter) workloadfilter.FilterBundle {
 	return getFilterBundle(f, workloadfilter.ProcessType, processFilters)
+}
+
+// GetFilterConfigString returns a string representation of the raw filter configuration
+func (f *workloadfilterStore) GetFilterConfigString() string {
+	if f.filterConfig == nil {
+		return "No filter configuration loaded"
+	}
+	return f.filterConfig.String()
 }
 
 // getFilterBundle constructs a filter bundle for a given resource type and filters.
