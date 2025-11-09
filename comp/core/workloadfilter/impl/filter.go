@@ -183,13 +183,9 @@ func newFilter(cfg config.Component, logger logcomp.Component, telemetry coretel
 
 	// Process Filters
 	filter.registerFactory(workloadfilter.ProcessType, int(workloadfilter.LegacyProcessExcludeList), catalog.LegacyProcessExcludeProgram)
-<<<<<<< Updated upstream
 	filter.registerFactory(workloadfilter.ProcessType, int(workloadfilter.ProcessCELLogs), catalog.ProcessCELLogsProgram)
 	filter.registerFactory(workloadfilter.ProcessType, int(workloadfilter.ProcessCELGlobal), catalog.ProcessCELGlobalProgram)
-=======
-	//filter.registerFactory(workloadfilter.ProcessType, int(workloadfilter.ProcessCELLogs), catalog.ProcessCELLogsProgram)
-	//filter.registerFactory(workloadfilter.ProcessType, int(workloadfilter.ProcessCELGlobal), catalog.ProcessCELGlobalProgram)
->>>>>>> Stashed changes
+
 
 	return filter, nil
 }
