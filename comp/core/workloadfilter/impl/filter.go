@@ -250,9 +250,6 @@ func (f *workloadfilterStore) GetProcessFilters(processFilters [][]workloadfilte
 
 // GetFilterConfigString returns a string representation of the raw filter configuration
 func (f *workloadfilterStore) GetFilterConfigString() string {
-	if f.filterConfig == nil {
-		return "No filter configuration loaded"
-	}
 	return f.filterConfig.String()
 }
 

@@ -6,18 +6,18 @@
 package catalog
 
 import (
+	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
 
 	"gopkg.in/yaml.v2"
-
-	"encoding/json"
-	"fmt"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	"github.com/DataDog/datadog-agent/comp/core/workloadfilter/impl/parse"
 	"github.com/DataDog/datadog-agent/pkg/config/structure"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // FilterConfig holds all configuration values needed for filter initialization
@@ -171,6 +171,7 @@ func (fc *FilterConfig) String() string {
 
 	filterConfigJSON, err := json.Marshal(filterConfigMap)
 	if err != nil {
+		log.Warnf("failed to marshal filter configuration: %v", err)
 		return ""
 	}
 	return string(filterConfigJSON)
