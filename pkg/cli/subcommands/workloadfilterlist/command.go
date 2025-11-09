@@ -147,9 +147,9 @@ func printFilter(name string, bundle workloadfilter.FilterBundle) {
 
 	errors := bundle.GetErrors()
 	if len(errors) > 0 {
-		fmt.Fprintf(color.Output, "%s %s failed to load:\n", color.HiRedString("✗"), name)
+		fmt.Fprintf(color.Output, "%s %s %s\n", color.HiRedString("✗"), name, color.HiRedString("failed to load"))
 		for _, err := range errors {
-			fmt.Fprintf(color.Output, "    -> %s\n", err)
+			fmt.Fprintf(color.Output, "        Error: %s\n", err)
 		}
 		return
 	}
