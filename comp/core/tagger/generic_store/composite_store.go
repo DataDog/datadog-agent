@@ -23,7 +23,7 @@ func NewCompositeObjectStore[T any]() *CompositeObjectStore[T] {
 	}
 }
 
-// Get implements the CompositeObjectStore get operation.
+// Get returns the object with the specified entity ID if it exists in the store.
 func (os *CompositeObjectStore[T]) Get(entityID types.EntityID) (object T, found bool) {
 	submap, found := os.data[entityID.GetPrefix()]
 	if !found {
@@ -34,7 +34,7 @@ func (os *CompositeObjectStore[T]) Get(entityID types.EntityID) (object T, found
 	return
 }
 
-// Set implements the CompositeObjectStore set operation.
+// Set stores the provided object under the specified entity ID.
 func (os *CompositeObjectStore[T]) Set(entityID types.EntityID, object T) {
 	prefix := entityID.GetPrefix()
 	id := entityID.GetID()
@@ -49,7 +49,7 @@ func (os *CompositeObjectStore[T]) Set(entityID types.EntityID, object T) {
 	}
 }
 
-// Unset implements the CompositeObjectStore delete operation.
+// Unset removes the object associated with the specified entity ID.
 func (os *CompositeObjectStore[T]) Unset(entityID types.EntityID) {
 	prefix := entityID.GetPrefix()
 	id := entityID.GetID()
@@ -62,12 +62,12 @@ func (os *CompositeObjectStore[T]) Unset(entityID types.EntityID) {
 	}
 }
 
-// Size implements the CompositeObjectStore size query.
+// Size returns the total number of objects in the store.
 func (os *CompositeObjectStore[T]) Size() int {
 	return os.size
 }
 
-// ListObjects implements the CompositeObjectStore enumeration.
+// ListObjects returns every object in the store matching the provided filter.
 func (os *CompositeObjectStore[T]) ListObjects(filter *types.Filter) []T {
 	objects := make([]T, 0, os.Size())
 
@@ -81,7 +81,7 @@ func (os *CompositeObjectStore[T]) ListObjects(filter *types.Filter) []T {
 	return objects
 }
 
-// ForEach implements the CompositeObjectStore iteration.
+// ForEach applies the provided function to each object in the store matching the filter.
 func (os *CompositeObjectStore[T]) ForEach(filter *types.Filter, apply types.ApplyFunc[T]) {
 	for prefix := range filter.GetPrefixes() {
 		idToObjects := os.data[prefix]
