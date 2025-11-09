@@ -87,6 +87,7 @@ func (b *incompleteBuffer) Add(tx Transaction) {
 	if !ok {
 		if len(b.data) >= b.maxEntries {
 			b.telemetry.dropped.Add(1)
+			fmt.Printf("HTTP | Incomplete buffer overflow | Dropping %s\n", tx.String())
 			return
 		}
 
@@ -99,6 +100,8 @@ func (b *incompleteBuffer) Add(tx Transaction) {
 	ebpfTX, ok := tx.(*EbpfEvent)
 	if !ok {
 		// should never happen
+		fmt.Printf("HTTP | Incomplete buffer wrong value | Dropping %s\n", tx.String())
+
 		return
 	}
 
@@ -107,9 +110,11 @@ func (b *incompleteBuffer) Add(tx Transaction) {
 	tx = ebpfTxCopy
 
 	if tx.StatusCode() == 0 {
+		fmt.Printf("HTTP | Incomplete buffer adding request: %s\n", tx.String())
 		b.telemetry.joiner.requests.Add(1)
 		parts.requests = append(parts.requests, tx)
 	} else {
+		fmt.Printf("HTTP | Incomplete buffer adding response: %s\n", tx.String())
 		b.telemetry.joiner.responses.Add(1)
 		parts.responses = append(parts.responses, tx)
 	}
@@ -132,6 +137,18 @@ func (b *incompleteBuffer) Flush() []Transaction {
 		// consider sorting data during insertion time (using a tree-like structure, for example)
 		sort.Sort(byRequestTime(parts.requests))
 		sort.Sort(byResponseTime(parts.responses))
+
+		if Debug {
+			fmt.Printf("HTTP | Flushing Incomplete | key: %s | reqs: {\n", key.String())
+			for idx, req := range parts.requests {
+				fmt.Println(idx, req.String())
+			}
+			fmt.Printf("}\n resps: {\n")
+			for idx, req := range parts.responses {
+				fmt.Println(idx, req.String())
+			}
+			fmt.Printf("}\n")
+		}
 
 		i := 0
 		j := 0
