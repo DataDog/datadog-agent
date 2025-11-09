@@ -25,6 +25,6 @@ func TestCommand(t *testing.T) {
 		commands,
 		[]string{"workloadfilter"},
 		workloadFilterList,
-		func(cliParams *cliParams, _ core.BundleParams) {
+		func(_ *cliParams, _ core.BundleParams) {
 		})
 }
