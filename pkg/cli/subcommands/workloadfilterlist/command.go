@@ -130,7 +130,14 @@ func workloadFilterList(_ log.Component, filterComponent workloadfilter.Componen
 		case "", "[]", "map[]":
 			display = color.HiYellowString("not configured")
 		default:
-			display = strings.Join(strings.Split(value, ","), ", ")
+			parts := strings.Split(display, ",")
+			trimmed := make([]string, 0)
+			for i := range parts {
+				if parts[i] != "" {
+					trimmed = append(trimmed, parts[i])
+				}
+			}
+			display = strings.Join(trimmed, ", ")
 		}
 		fmt.Fprintf(color.Output, "      %-28s %s\n", key+":", display)
 	}
