@@ -328,14 +328,14 @@ Package auditor records the log files the agent is tracking. It tracks
 filename, time last updated, offset (how far into the file the agent has
 read), and tailing mode for each log file.
 
-### [comp/logs/health](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/logs/health)
-
-Package health provides a dependency-injectible health object for kubernetes liveness checks
-
 ### [comp/logs/integrations](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/logs/integrations)
 
 Package integrations adds a go interface for integrations to register and
 send logs.
+
+### [comp/logs/kubehealth](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/logs/kubehealth)
+
+Package kubehealth provides a dependency-injectible health object for kubernetes liveness checks
 
 ### [comp/logs/streamlogs](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/logs/streamlogs)
 
@@ -760,6 +760,12 @@ Package networkdeviceconfig provides the component for retrieving network device
 *Datadog Team*: windows-products
 
 Package notableevents provides a component that monitors notable system events and forwards them to the Datadog Event Management v2 API.
+
+### [comp/privateactionrunner](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/privateactionrunner)
+
+*Datadog Team*: action-platform
+
+Package privateactionrunner provides a component that enables private actions executions
 
 ### [comp/publishermetadatacache](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/publishermetadatacache)
 

@@ -20,7 +20,8 @@ from invoke.context import Context
 from invoke.exceptions import Exit
 from invoke.tasks import task
 
-from tasks.build_tags import UNIT_TEST_TAGS, add_fips_tags, get_default_build_tags
+from tasks.build_tags import UNIT_TEST_TAGS, get_default_build_tags
+from tasks.flavor import AgentFlavor
 from tasks.libs.build.ninja import NinjaWriter
 from tasks.libs.ciproviders.gitlab_api import ReferenceTag
 from tasks.libs.common.color import color_message
@@ -389,6 +390,13 @@ def ninja_test_ebpf_programs(nw: NinjaWriter, build_dir):
 
     for prog in test_programs:
         ninja_test_ebpf_program(nw, build_dir, ebpf_c_dir, test_flags, prog)
+
+    # System-probe ebpf subcommand test programs
+    ebpf_subcommand_test_c_dir = os.path.join("cmd", "system-probe", "subcommands", "ebpf", "testdata")
+    ebpf_subcommand_test_programs = ["btf_test"]
+
+    for prog in ebpf_subcommand_test_programs:
+        ninja_test_ebpf_program(nw, build_dir, ebpf_subcommand_test_c_dir, test_flags, prog)
 
 
 def ninja_kernel_bugs_ebpf_programs(nw: NinjaWriter):
@@ -838,8 +846,9 @@ def build_sysprobe_binary(
         static=static,
     )
 
-    build_tags = get_default_build_tags(build="system-probe")
-    build_tags = add_fips_tags(build_tags, fips_mode)
+    build_tags = get_default_build_tags(
+        build="system-probe", flavor=AgentFlavor.fips if fips_mode else AgentFlavor.base
+    )
     if bundle_ebpf:
         build_tags.append(BUNDLE_TAG)
     if strip_binary:

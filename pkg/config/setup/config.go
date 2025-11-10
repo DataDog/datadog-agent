@@ -327,20 +327,24 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	// Otherwise, Python is loaded when the collector is initialized.
 	config.BindEnvAndSetDefault("python_lazy_loading", true)
 
-	// If false, the core check will be skipped.
-	config.BindEnvAndSetDefault("disk_check.use_core_loader", false)
-	config.BindEnvAndSetDefault("network_check.use_core_loader", false)
-
 	// If true, then the go loader will be prioritized over the python loader.
 	config.BindEnvAndSetDefault("prioritize_go_check_loader", true)
 
 	// If true, then new version of disk v2 check will be used.
-	// Otherwise, the old version of disk check will be used (maintaining backward compatibility).
-	config.BindEnvAndSetDefault("use_diskv2_check", false)
+	// Otherwise, the python version of disk check will be used.
+	config.BindEnvAndSetDefault("use_diskv2_check", true)
+	config.BindEnvAndSetDefault("disk_check.use_core_loader", true)
 
-	// If true, then new version of network v2 check will be used.
-	// Otherwise, the old version of network check will be used (maintaining backward compatibility).
-	config.BindEnvAndSetDefault("use_networkv2_check", false)
+	// the darwin and bsd network check has not been ported from python
+	if runtime.GOOS == "linux" || runtime.GOOS == "windows" {
+		// If true, then new version of network v2 check will be used.
+		// Otherwise, the python version of network check will be used.
+		config.BindEnvAndSetDefault("use_networkv2_check", true)
+		config.BindEnvAndSetDefault("network_check.use_core_loader", true)
+	} else {
+		config.BindEnvAndSetDefault("use_networkv2_check", false)
+		config.BindEnvAndSetDefault("network_check.use_core_loader", false)
+	}
 
 	// if/when the default is changed to true, make the default platform
 	// dependent; default should remain false on Windows to maintain backward
@@ -577,6 +581,17 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("cluster_agent.language_detection.cleanup.language_ttl", "30m")
 	// language annotation cleanup period
 	config.BindEnvAndSetDefault("cluster_agent.language_detection.cleanup.period", "10m")
+
+	// AppSec Injector in the cluster agent ( Experimental )
+	config.BindEnvAndSetDefault("cluster_agent.appsec.injector.enabled", false)
+	config.BindEnvAndSetDefault("cluster_agent.appsec.injector.base_backoff", "5m")
+	config.BindEnvAndSetDefault("cluster_agent.appsec.injector.max_backoff", "1h")
+	config.BindEnvAndSetDefault("cluster_agent.appsec.injector.labels", map[string]string{})
+	config.BindEnvAndSetDefault("cluster_agent.appsec.injector.annotations", map[string]string{})
+	config.BindEnvAndSetDefault("cluster_agent.appsec.injector.processor.service.name", "")
+	config.BindEnvAndSetDefault("cluster_agent.appsec.injector.processor.service.namespace", "")
+	config.BindEnvAndSetDefault("cluster_agent.appsec.injector.istio.namespace", "istio-system")
+
 	config.BindEnvAndSetDefault("cluster_agent.kube_metadata_collection.enabled", false)
 	// list of kubernetes resources for which we collect metadata
 	// each resource is specified in the format `{group}/{version}/{resource}` or `{group}/{resource}`
@@ -641,6 +656,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("ecs_task_cache_ttl", 3*time.Minute)
 	config.BindEnvAndSetDefault("ecs_task_collection_rate", 35)
 	config.BindEnvAndSetDefault("ecs_task_collection_burst", 60)
+	config.BindEnvAndSetDefault("ecs_deployment_mode", "auto")
 
 	// GCE
 	config.BindEnvAndSetDefault("collect_gce_tags", true)
@@ -1141,10 +1157,17 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	// TTL refresh period represents how frequently actively detected languages are refreshed by reporting them again to the language detection handler in the cluster agent
 	config.BindEnvAndSetDefault("language_detection.reporting.refresh_period", "20m")
 
+	// Appsec Proxy Config Injection (Experimental)
+	config.BindEnvAndSetDefault("appsec.proxy.enabled", false)
+	config.BindEnvAndSetDefault("appsec.proxy.processor.port", "443")
+	config.BindEnvAndSetDefault("appsec.proxy.processor.address", "")
+	config.BindEnvAndSetDefault("appsec.proxy.auto_detect", true)
+	config.BindEnvAndSetDefault("appsec.proxy.proxies", []string{})
+
 	setupProcesses(config)
 
 	// Installer configuration
-	config.BindEnvAndSetDefault("remote_updates", false)
+	config.BindEnvAndSetDefault("remote_updates", true)
 	config.BindEnvAndSetDefault("installer.mirror", "")
 	config.BindEnvAndSetDefault("installer.registry.url", "")
 	config.BindEnvAndSetDefault("installer.registry.auth", "")
@@ -1275,10 +1298,38 @@ func agent(config pkgconfigmodel.Setup) {
 	// The possible values are: full, basic.
 	config.BindEnvAndSetDefault("infrastructure_mode", "full")
 
+	// Infrastructure basic mode - allowed checks (UNDOCUMENTED)
+	// Note: All checks starting with "custom_" are always allowed.
+	config.BindEnvAndSetDefault("allowed_checks", []string{
+		"cpu",
+		"agent_telemetry",
+		"agentcrashdetect",
+		"disk",
+		"file_handle",
+		"filehandles",
+		"io",
+		"load",
+		"memory",
+		"network",
+		"ntp",
+		"process",
+		"service_discovery",
+		"system",
+		"system_core",
+		"system_swap",
+		"telemetry",
+		"telemetryCheck",
+		"uptime",
+		"win32_event_log",
+		"wincrashdetect",
+		"winkmem",
+		"winproc",
+	})
+
 	// Infrastructure basic mode - additional checks
 	// When infrastructure_mode is set to "basic", only a limited set of checks are allowed to run.
 	// This setting allows customers to add additional checks to the allowlist beyond the default set.
-	config.BindEnvAndSetDefault("infra_basic_additional_checks", []string{})
+	config.BindEnvAndSetDefault("allowed_additional_checks", []string{})
 
 	// Configuration for TLS for outgoing connections
 	config.BindEnvAndSetDefault("min_tls_version", "tlsv1.2")
@@ -1314,6 +1365,10 @@ func agent(config pkgconfigmodel.Setup) {
 	// Notable Events (EUDM)
 	config.BindEnvAndSetDefault("notable_events.enabled", false)
 
+	// Event Management v2 API
+	// https://docs.datadoghq.com/api/latest/events#post-an-event
+	bindEnvAndSetLogsConfigKeys(config, "event_management.forwarder.")
+
 	pkgconfigmodel.AddOverrideFunc(toggleDefaultPayloads)
 }
 
@@ -1329,6 +1384,9 @@ func autoscaling(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("autoscaling.workload.enabled", false)
 	config.BindEnvAndSetDefault("autoscaling.failover.enabled", false)
 	config.BindEnvAndSetDefault("autoscaling.workload.limit", 1000)
+	config.BindEnvAndSetDefault("autoscaling.workload.external_recommender.tls.ca_file", "")
+	config.BindEnvAndSetDefault("autoscaling.workload.external_recommender.tls.cert_file", "")
+	config.BindEnvAndSetDefault("autoscaling.workload.external_recommender.tls.key_file", "")
 	config.BindEnvAndSetDefault("autoscaling.failover.metrics", []string{"container.memory.usage", "container.cpu.usage"})
 }
 
