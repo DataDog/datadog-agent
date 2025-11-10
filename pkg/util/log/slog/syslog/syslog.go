@@ -69,6 +69,8 @@ type Receiver struct {
 	conn    net.Conn
 }
 
+var syslogAddrs = []string{"/dev/log", "/var/run/syslog", "/var/run/log"}
+
 func getSyslogConnection(uri *url.URL) (net.Conn, error) {
 	var conn net.Conn
 	var err error
@@ -76,9 +78,8 @@ func getSyslogConnection(uri *url.URL) (net.Conn, error) {
 	// local
 	localNetNames := []string{"unixgram", "unix"}
 	if uri == nil {
-		addrs := []string{"/dev/log", "/var/run/syslog", "/var/run/log"}
 		for _, netName := range localNetNames {
-			for _, addr := range addrs {
+			for _, addr := range syslogAddrs {
 				conn, err = net.Dial(netName, addr)
 				if err == nil { // on success
 					return conn, nil
@@ -88,7 +89,7 @@ func getSyslogConnection(uri *url.URL) (net.Conn, error) {
 	} else {
 		switch uri.Scheme {
 		case "unix", "unixgram":
-			fmt.Printf("Trying to connect to: %s", uri.Path)
+			fmt.Printf("Trying to connect to: %s\n", uri.Path)
 			for _, netName := range localNetNames {
 				conn, err = net.Dial(netName, uri.Path)
 				if err == nil {
