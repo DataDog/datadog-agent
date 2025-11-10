@@ -444,7 +444,7 @@ func TestMountResolver(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			for _, evt := range tt.args.events {
 				if evt.mount != nil {
-					mr.insert(&evt.mount.Mount, pid, false)
+					mr.insert(&evt.mount.Mount, false)
 				}
 				if evt.umount != nil {
 					mount, _, _, err := mr.ResolveMount(evt.umount.MountID, pid)
