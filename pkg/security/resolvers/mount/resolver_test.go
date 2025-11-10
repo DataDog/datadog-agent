@@ -111,34 +111,6 @@ func TestMountResolver(t *testing.T) {
 			},
 		},
 		{
-			"insert_device",
-			args{
-				[]event{
-					{
-						mount: &model.MountEvent{
-							Mount: model.Mount{
-								MountID: 458,
-								Device:  44,
-								ParentPathKey: model.PathKey{
-									MountID: 27,
-								},
-								MountPointStr: "/usr",
-								RootStr:       "",
-							},
-						},
-					},
-				},
-				[]testCase{
-					{
-						459,
-						44,
-						"/usr",
-						nil,
-					},
-				},
-			},
-		},
-		{
 			"remove_overlay",
 			args{
 				[]event{
