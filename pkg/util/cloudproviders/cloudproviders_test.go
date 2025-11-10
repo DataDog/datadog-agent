@@ -156,8 +156,7 @@ func TestCloudProviderInstanceType(t *testing.T) {
 
 	// Case 3: unknown provider — should call all detectors sequentially
 	instanceType = GetInstanceType(context.TODO(), "kubelet")
-	// Order is not guaranteed — either detector may run first
-	assert.Contains(t, []string{"t3.medium", "m5.large"}, instanceType)
+	assert.Equal(t, "", instanceType)
 	clearDetectors()
 
 	// Case 4: empty detected cloud — should fast fail
