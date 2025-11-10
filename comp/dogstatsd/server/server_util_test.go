@@ -81,6 +81,7 @@ func fulfillDepsWithConfigOverride(t testing.TB, overrides map[string]interface{
 	return fxutil.Test[serverDeps](t, fx.Options(
 		fx.Provide(func() log.Component { return logmock.New(t) }),
 		fx.Provide(func() configComponent.Component { return configComponent.NewMockWithOverrides(t, overrides) }),
+		fx.Provide(func(t testing.TB) tagger.Component { return taggerfxmock.SetupFakeTagger(t) }),
 		telemetryimpl.MockModule(),
 		hostnameimpl.MockModule(),
 		serverdebugimpl.MockModule(),
@@ -88,7 +89,6 @@ func fulfillDepsWithConfigOverride(t testing.TB, overrides map[string]interface{
 		pidmapimpl.Module(),
 		demultiplexerimpl.FakeSamplerMockModule(),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
-		taggerfxmock.MockModule(),
 		logscompression.MockModule(),
 		metricscompression.MockModule(),
 
@@ -100,6 +100,7 @@ func fulfillDepsWithConfigYaml(t testing.TB, yaml string) serverDeps {
 	return fxutil.Test[serverDeps](t, fx.Options(
 		fx.Provide(func(t testing.TB) log.Component { return logmock.New(t) }),
 		fx.Provide(func(t testing.TB) configComponent.Component { return configComponent.NewMockFromYAML(t, yaml) }),
+		fx.Provide(func(t testing.TB) tagger.Component { return taggerfxmock.SetupFakeTagger(t) }),
 		telemetryimpl.MockModule(),
 		hostnameimpl.MockModule(),
 		serverdebugimpl.MockModule(),
@@ -109,7 +110,6 @@ func fulfillDepsWithConfigYaml(t testing.TB, yaml string) serverDeps {
 		pidmapimpl.Module(),
 		demultiplexerimpl.FakeSamplerMockModule(),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
-		taggerfxmock.MockModule(),
 		Module(Params{Serverless: false}),
 	))
 }
@@ -120,6 +120,7 @@ func fulfillDepsWithInactiveServer(t *testing.T, cfg map[string]interface{}) (de
 	deps := fxutil.Test[depsWithoutServer](t, fx.Options(
 		fx.Provide(func() log.Component { return logmock.New(t) }),
 		fx.Provide(func() configComponent.Component { return configComponent.NewMockWithOverrides(t, cfg) }),
+		fx.Provide(func(t testing.TB) tagger.Component { return taggerfxmock.SetupFakeTagger(t) }),
 		telemetryimpl.MockModule(),
 		hostnameimpl.MockModule(),
 		serverdebugimpl.MockModule(),
@@ -128,7 +129,6 @@ func fulfillDepsWithInactiveServer(t *testing.T, cfg map[string]interface{}) (de
 		pidmapimpl.Module(),
 		demultiplexerimpl.FakeSamplerMockModule(),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
-		taggerfxmock.MockModule(),
 		metricscompression.MockModule(),
 		logscompression.MockModule(),
 	))

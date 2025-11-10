@@ -39,8 +39,7 @@ type MockRequires struct {
 
 // MockProvides is a struct containing the mock.
 type MockProvides struct {
-	MockComp   taggermock.Mock
-	TaggerComp tagger.Component
+	Comp taggermock.Mock
 }
 
 // NewMock instantiates a new fakeTagger.
@@ -60,14 +59,11 @@ func NewMock(req MockRequires) MockProvides {
 		localTagger.tagStore,
 	)
 
-	tagger := &fakeTagger{
-		tagger:   localTagger,
-		tagStore: tagStore,
-	}
-
 	return MockProvides{
-		MockComp:   tagger,
-		TaggerComp: tagger,
+		Comp: &fakeTagger{
+			tagger:   localTagger,
+			tagStore: tagStore,
+		},
 	}
 }
 
