@@ -67,7 +67,7 @@ func TestAccumulateTagsFor(t *testing.T) {
 		fx.Provide(func() log.Component { return mockReq.Log }),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	)
-	fakeTagger := NewMock(mockReq).Comp
+	fakeTagger := NewMock(mockReq).MockComp
 	tagStore := fakeTagger.GetTagStore()
 
 	tagStore.ProcessTagInfo([]*types.TagInfo{
@@ -103,7 +103,7 @@ func TestTag(t *testing.T) {
 		fx.Provide(func() log.Component { return mockReq.Log }),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	)
-	fakeTagger := NewMock(mockReq).Comp
+	fakeTagger := NewMock(mockReq).MockComp
 	tagStore := fakeTagger.GetTagStore()
 
 	tagStore.ProcessTagInfo([]*types.TagInfo{
@@ -147,7 +147,7 @@ func TestGenerateContainerIDFromOriginInfo(t *testing.T) {
 		fx.Provide(func() log.Component { return mockReq.Log }),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	)
-	fakeTagger := NewMock(mockReq).Comp
+	fakeTagger := NewMock(mockReq).MockComp
 
 	// Overriding the GetProvider function to use the mock metrics provider
 	mockMetricsProvider := collectormock.NewMetricsProvider()
@@ -471,7 +471,7 @@ func TestGlobalTags(t *testing.T) {
 		fx.Provide(func() log.Component { return mockReq.Log }),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	)
-	fakeTagger := NewMock(mockReq).Comp
+	fakeTagger := NewMock(mockReq).MockComp
 
 	fakeTagger.SetTags(types.NewEntityID(types.ContainerID, "bar"), "fooSource", []string{"container-low"}, []string{"container-orch"}, []string{"container-high"}, nil)
 	fakeTagger.SetGlobalTags([]string{"global-low"}, []string{"global-orch"}, []string{"global-high"}, nil)
@@ -496,7 +496,7 @@ func TestAgentTags(t *testing.T) {
 		fx.Provide(func() log.Component { return mockReq.Log }),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	)
-	fakeTagger := NewMock(mockReq).Comp
+	fakeTagger := NewMock(mockReq).MockComp
 
 	agentContainerID, podUID := "agentContainerID", "podUID"
 	mockMetricsProvider := collectormock.NewMetricsProvider()
@@ -532,7 +532,7 @@ func TestEnrichTagsOptOut(t *testing.T) {
 		fx.Provide(func() log.Component { return mockReq.Log }),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	)
-	fakeTagger := NewMock(mockReq).Comp
+	fakeTagger := NewMock(mockReq).MockComp
 
 	fakeTagger.SetTags(types.NewEntityID(types.ContainerID, "bar"), "fooSource", []string{"container-low"}, []string{"container-orch"}, nil, nil)
 
@@ -572,7 +572,7 @@ func TestEnrichTagsOrchestrator(t *testing.T) {
 		fx.Provide(func() log.Component { return mockReq.Log }),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	)
-	fakeTagger := NewMock(mockReq).Comp
+	fakeTagger := NewMock(mockReq).MockComp
 
 	fakeTagger.SetTags(types.NewEntityID(types.ContainerID, "bar"), "fooSource", []string{"container-low"}, []string{"container-orch"}, nil, nil)
 	tb := tagset.NewHashingTagsAccumulator()
@@ -591,7 +591,7 @@ func TestEnrichTags(t *testing.T) {
 		fx.Provide(func() log.Component { return mockReq.Log }),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	)
-	fakeTagger := NewMock(mockReq).Comp
+	fakeTagger := NewMock(mockReq).MockComp
 
 	containerName, initContainerName, containerID, initContainerID, podUID := "container-name", "init-container-name", "container-id", "init-container-id", "pod-uid"
 
@@ -779,7 +779,7 @@ func TestEnrichTagsContainerIDMismatch(t *testing.T) {
 		fx.Provide(func() log.Component { return mockReq.Log }),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	)
-	fakeTagger := NewMock(mockReq).Comp
+	fakeTagger := NewMock(mockReq).MockComp
 
 	localContainerID, externalContainerID, podUID := "local-container-id", "external-container-id", "pod-uid"
 	containerName := "container-name"

@@ -10,6 +10,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	logdef "github.com/DataDog/datadog-agent/comp/core/log/def"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/collectors"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	taggermock "github.com/DataDog/datadog-agent/comp/core/tagger/mock"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/origindetection"
@@ -38,7 +39,8 @@ type MockRequires struct {
 
 // MockProvides is a struct containing the mock.
 type MockProvides struct {
-	Comp taggermock.Mock
+	MockComp   taggermock.Mock
+	TaggerComp tagger.Component
 }
 
 // NewMock instantiates a new fakeTagger.
@@ -49,11 +51,23 @@ func NewMock(req MockRequires) MockProvides {
 		log.Errorf("Failed to create local tagger: %v", err)
 	}
 
+	// Initialize static global tags
+	// Note: do not run the collector
+	collectors.NewWorkloadMetaCollector(
+		localTagger.ctx,
+		localTagger.cfg,
+		localTagger.workloadStore,
+		localTagger.tagStore,
+	)
+
+	tagger := &fakeTagger{
+		tagger:   localTagger,
+		tagStore: tagStore,
+	}
+
 	return MockProvides{
-		Comp: &fakeTagger{
-			tagger:   localTagger,
-			tagStore: tagStore,
-		},
+		MockComp:   tagger,
+		TaggerComp: tagger,
 	}
 }
 

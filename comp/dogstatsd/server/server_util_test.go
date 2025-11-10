@@ -20,6 +20,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -52,6 +54,7 @@ type depsWithoutServer struct {
 	PidMap        pidmap.Component
 	Debug         serverdebug.Component
 	WMeta         option.Option[workloadmeta.Component]
+	Tagger        tagger.Component
 	Telemetry     telemetry.Component
 	Hostname      hostnameinterface.Component
 }
@@ -85,6 +88,7 @@ func fulfillDepsWithConfigOverride(t testing.TB, overrides map[string]interface{
 		pidmapimpl.Module(),
 		demultiplexerimpl.FakeSamplerMockModule(),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+		taggerfxmock.MockModule(),
 		logscompression.MockModule(),
 		metricscompression.MockModule(),
 
@@ -105,6 +109,7 @@ func fulfillDepsWithConfigYaml(t testing.TB, yaml string) serverDeps {
 		pidmapimpl.Module(),
 		demultiplexerimpl.FakeSamplerMockModule(),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+		taggerfxmock.MockModule(),
 		Module(Params{Serverless: false}),
 	))
 }
@@ -123,11 +128,12 @@ func fulfillDepsWithInactiveServer(t *testing.T, cfg map[string]interface{}) (de
 		pidmapimpl.Module(),
 		demultiplexerimpl.FakeSamplerMockModule(),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+		taggerfxmock.MockModule(),
 		metricscompression.MockModule(),
 		logscompression.MockModule(),
 	))
 
-	s := newServerCompat(deps.Config, deps.Log, deps.Hostname, deps.Replay, deps.Debug, false, deps.Demultiplexer, deps.WMeta, deps.PidMap, deps.Telemetry)
+	s := newServerCompat(deps.Config, deps.Log, deps.Hostname, deps.Replay, deps.Debug, false, deps.Demultiplexer, deps.WMeta, deps.PidMap, deps.Telemetry, deps.Tagger)
 
 	return deps, s
 }
