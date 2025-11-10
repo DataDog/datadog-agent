@@ -1,0 +1,13 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+features:
+  - |
+    Pretty printed/multi-line JSON messages are now aggregated into a single line when auto multiline
+    detection is enabled. This ensures the log is treated a structured log when processed by Datadog.
+    Aggregation can be disabled by setting ``logs_config.auto_multi_line.enable_json_aggregation`` to ``false``.

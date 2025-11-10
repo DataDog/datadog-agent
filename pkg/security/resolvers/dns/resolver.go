@@ -109,29 +109,39 @@ func (r *Resolver) HostListFromIP(addr netip.Addr) []string {
 // AddNew add new ip address to the resolver cache
 func (r *Resolver) AddNew(hostname string, ip netip.Addr) {
 	hostnames, ok := r.cache.Get(ip)
+	updated := false
 
 	if !ok {
 		r.resolverStats.cacheInsertions.Inc()
 		hostnames = []string{hostname}
+		updated = true
 	} else if !slices.Contains(hostnames, hostname) {
 		hostnames = append(hostnames, hostname)
+		updated = true
 	}
 
-	r.cache.Add(ip, hostnames)
+	if updated {
+		r.cache.Add(ip, hostnames)
+	}
 }
 
 // AddNewCname add new cname alias to the cache
 func (r *Resolver) AddNewCname(cname string, hostname string) {
 	hostnames, ok := r.cnameCache.Get(cname)
+	updated := false
 
 	if !ok {
 		r.cnameStats.cacheInsertions.Inc()
 		hostnames = []string{hostname}
+		updated = true
 	} else if !slices.Contains(hostnames, hostname) {
 		hostnames = append(hostnames, hostname)
+		updated = true
 	}
 
-	r.cnameCache.Add(cname, hostnames)
+	if updated {
+		r.cnameCache.Add(cname, hostnames)
+	}
 }
 
 // SendStats sends the DNS resolver metrics

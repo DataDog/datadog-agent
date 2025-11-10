@@ -15,13 +15,11 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -100,8 +98,8 @@ func TestCommonHeaderProviderText(t *testing.T) {
 `, pid, goVersion, arch, agentFlavor, config.GetString("confd_path"), config.GetString("additional_checksd"))
 
 	// We replace windows line break by linux so the tests pass on every OS
-	expectedResult := strings.Replace(expectedTextOutput, "\r\n", "\n", -1)
-	output := strings.Replace(buffer.String(), "\r\n", "\n", -1)
+	expectedResult := strings.ReplaceAll(expectedTextOutput, "\r\n", "\n")
+	output := strings.ReplaceAll(buffer.String(), "\r\n", "\n")
 
 	assert.Equal(t, expectedResult, output)
 }
@@ -172,11 +170,7 @@ func TestCommonHeaderProviderTextWithFipsInformation(t *testing.T) {
 		"fips.enabled": true,
 	}
 
-	config := fxutil.Test[config.Component](t, fx.Options(
-		config.MockModule(),
-		fx.Replace(config.MockParams{Overrides: overrides}),
-	))
-
+	config := config.NewMockWithOverrides(t, overrides)
 	provider := newCommonHeaderProvider(agentParams, config)
 
 	buffer := new(bytes.Buffer)
@@ -206,8 +200,8 @@ func TestCommonHeaderProviderTextWithFipsInformation(t *testing.T) {
 `, pid, goVersion, arch, agentFlavor, config.GetString("confd_path"), config.GetString("additional_checksd"))
 
 	// We replace windows line break by linux so the tests pass on every OS
-	expectedResult := strings.Replace(expectedTextOutput, "\r\n", "\n", -1)
-	output := strings.Replace(buffer.String(), "\r\n", "\n", -1)
+	expectedResult := strings.ReplaceAll(expectedTextOutput, "\r\n", "\n")
+	output := strings.ReplaceAll(buffer.String(), "\r\n", "\n")
 
 	assert.Equal(t, expectedResult, output)
 }
@@ -234,7 +228,7 @@ func TestCommonHeaderProviderHTML(t *testing.T) {
 	// We have to do this strings replacement because html/temaplte escapes the `+` sign
 	// https://github.com/golang/go/issues/42506
 	result := buffer.String()
-	unescapedResult := strings.Replace(result, "&#43;", "+", -1)
+	unescapedResult := strings.ReplaceAll(result, "&#43;", "+")
 
 	expectedHTMLOutput := fmt.Sprintf(`<div class="stat">
   <span class="stat_title">Agent Info</span>
@@ -263,8 +257,8 @@ func TestCommonHeaderProviderHTML(t *testing.T) {
 `, version.AgentVersion, agentFlavor, pid, config.GetString("confd_path"), config.GetString("additional_checksd"), goVersion, arch)
 
 	// We replace windows line break by linux so the tests pass on every OS
-	expectedResult := strings.Replace(expectedHTMLOutput, "\r\n", "\n", -1)
-	output := strings.Replace(unescapedResult, "\r\n", "\n", -1)
+	expectedResult := strings.ReplaceAll(expectedHTMLOutput, "\r\n", "\n")
+	output := strings.ReplaceAll(unescapedResult, "\r\n", "\n")
 
 	assert.Equal(t, expectedResult, output)
 }
@@ -285,11 +279,7 @@ func TestCommonHeaderProviderHTMLWithFipsInformation(t *testing.T) {
 		"fips.enabled": true,
 	}
 
-	config := fxutil.Test[config.Component](t, fx.Options(
-		config.MockModule(),
-		fx.Replace(config.MockParams{Overrides: overrides}),
-	))
-
+	config := config.NewMockWithOverrides(t, overrides)
 	provider := newCommonHeaderProvider(agentParams, config)
 
 	buffer := new(bytes.Buffer)
@@ -298,7 +288,7 @@ func TestCommonHeaderProviderHTMLWithFipsInformation(t *testing.T) {
 	// We have to do this strings replacement because html/temaplte escapes the `+` sign
 	// https://github.com/golang/go/issues/42506
 	result := buffer.String()
-	unescapedResult := strings.Replace(result, "&#43;", "+", -1)
+	unescapedResult := strings.ReplaceAll(result, "&#43;", "+")
 
 	expectedHTMLOutput := fmt.Sprintf(`<div class="stat">
   <span class="stat_title">Agent Info</span>
@@ -335,8 +325,8 @@ func TestCommonHeaderProviderHTMLWithFipsInformation(t *testing.T) {
 `, version.AgentVersion, agentFlavor, pid, config.GetString("confd_path"), config.GetString("additional_checksd"), goVersion, arch)
 
 	// We replace windows line break by linux so the tests pass on every OS
-	expectedResult := strings.Replace(expectedHTMLOutput, "\r\n", "\n", -1)
-	output := strings.Replace(unescapedResult, "\r\n", "\n", -1)
+	expectedResult := strings.ReplaceAll(expectedHTMLOutput, "\r\n", "\n")
+	output := strings.ReplaceAll(unescapedResult, "\r\n", "\n")
 
 	assert.Equal(t, expectedResult, output)
 }

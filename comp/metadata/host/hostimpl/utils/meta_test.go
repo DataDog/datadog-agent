@@ -9,16 +9,18 @@ import (
 	"context"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
+	"github.com/DataDog/datadog-agent/pkg/util/cache"
 )
 
 func TestGetMeta(t *testing.T) {
 	ctx := context.Background()
 	cfg := config.NewMock(t)
 
-	meta := getMeta(ctx, cfg)
+	meta := getMeta(ctx, cfg, hostnameimpl.NewHostnameService())
 	assert.NotEmpty(t, meta.SocketHostname)
 	assert.NotEmpty(t, meta.Timezones)
 	assert.NotEmpty(t, meta.SocketFqdn)
@@ -33,7 +35,7 @@ func TestGetMetaFromCache(t *testing.T) {
 		Timezones:      []string{"tz_test"},
 	}, cache.NoExpiration)
 
-	m := GetMetaFromCache(ctx, cfg)
+	m := GetMetaFromCache(ctx, cfg, hostnameimpl.NewHostnameService())
 	assert.Equal(t, "socket_test", m.SocketHostname)
 	assert.Equal(t, []string{"tz_test"}, m.Timezones)
 }

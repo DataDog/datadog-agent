@@ -9,10 +9,17 @@ import (
 	"fmt"
 	"testing"
 
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestGetHumanReadableFlavor(t *testing.T) {
+	// NOTE: This constructor is required to setup the global config as
+	// a "mock" config that is using the "dynamic schema". Otherwise the function
+	// SetFlavor in flavor.go will fail to modify the config due to its static schema.
+	// TODO: Improve this by making flavor into a component that doesn't use
+	// global state and doesn't call SetDefault.
+	_ = configmock.New(t)
 	for k, v := range agentFlavors {
 		t.Run(fmt.Sprintf("%s: %s", k, v), func(t *testing.T) {
 			SetFlavor(k)

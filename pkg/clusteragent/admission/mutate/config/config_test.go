@@ -15,7 +15,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/fx"
 	admiv1 "k8s.io/api/admission/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -38,6 +37,7 @@ func Test_injectionMode(t *testing.T) {
 	tests := []struct {
 		name       string
 		pod        *corev1.Pod
+		csiEnabled bool
 		globalMode string
 		want       string
 	}{
@@ -48,15 +48,29 @@ func Test_injectionMode(t *testing.T) {
 			want:       "hostip",
 		},
 		{
-			name:       "custom mode #1",
+			name:       "custom mode #1: service",
 			pod:        mutatecommon.FakePodWithLabel("admission.datadoghq.com/config.mode", "service"),
 			globalMode: "hostip",
 			want:       "service",
 		},
 		{
-			name:       "custom mode #2",
+			name:       "custom mode #2: socket",
 			pod:        mutatecommon.FakePodWithLabel("admission.datadoghq.com/config.mode", "socket"),
 			globalMode: "hostip",
+			want:       "socket",
+		},
+		{
+			name:       "custom mode #3: csi",
+			pod:        mutatecommon.FakePodWithLabel("admission.datadoghq.com/config.mode", "csi"),
+			csiEnabled: true,
+			globalMode: "hostip",
+			want:       "csi",
+		},
+		{
+			name:       "custom mode #4: csi but csi.enabled=false, should default to socket",
+			pod:        mutatecommon.FakePodWithLabel("admission.datadoghq.com/config.mode", "csi"),
+			csiEnabled: false,
+			globalMode: "csi",
 			want:       "socket",
 		},
 		{
@@ -68,7 +82,7 @@ func Test_injectionMode(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.want, injectionMode(tt.pod, tt.globalMode))
+			assert.Equal(t, tt.want, injectionMode(tt.pod, tt.globalMode, tt.csiEnabled))
 		})
 	}
 }
@@ -77,7 +91,7 @@ func TestInjectHostIP(t *testing.T) {
 	pod := mutatecommon.FakePodWithContainer("foo-pod", corev1.Container{})
 	pod = mutatecommon.WithLabels(pod, map[string]string{"admission.datadoghq.com/enabled": "true"})
 	wmeta := fxutil.Test[workloadmeta.Component](t, core.MockBundle(), workloadmetafxmock.MockModule(workloadmeta.NewParams()))
-	datadogConfig := fxutil.Test[config.Component](t, core.MockBundle())
+	datadogConfig := config.NewMock(t)
 	filter, err := NewFilter(datadogConfig)
 	require.NoError(t, err)
 	mutator := NewMutator(NewMutatorConfig(datadogConfig), filter)
@@ -92,7 +106,7 @@ func TestInjectService(t *testing.T) {
 	pod := mutatecommon.FakePodWithContainer("foo-pod", corev1.Container{})
 	pod = mutatecommon.WithLabels(pod, map[string]string{"admission.datadoghq.com/enabled": "true", "admission.datadoghq.com/config.mode": "service"})
 	wmeta := fxutil.Test[workloadmeta.Component](t, core.MockBundle(), workloadmetafxmock.MockModule(workloadmeta.NewParams()))
-	datadogConfig := fxutil.Test[config.Component](t, core.MockBundle())
+	datadogConfig := config.NewMock(t)
 	filter, err := NewFilter(datadogConfig)
 	require.NoError(t, err)
 	mutator := NewMutator(NewMutatorConfig(datadogConfig), filter)
@@ -119,13 +133,12 @@ func TestInjectEntityID(t *testing.T) {
 				Name: "cont-name",
 			})
 			pod = mutatecommon.WithLabels(pod, map[string]string{"admission.datadoghq.com/enabled": "true"})
+			datadogConfig := config.NewMockWithOverrides(t, tt.configOverrides)
 			wmeta := fxutil.Test[workloadmeta.Component](
 				t,
 				core.MockBundle(),
 				workloadmetafxmock.MockModule(workloadmeta.NewParams()),
-				fx.Replace(config.MockParams{Overrides: tt.configOverrides}),
 			)
-			datadogConfig := fxutil.Test[config.Component](t, core.MockBundle())
 			filter, err := NewFilter(datadogConfig)
 			require.NoError(t, err)
 			mutator := NewMutator(NewMutatorConfig(datadogConfig), filter)
@@ -314,14 +327,67 @@ func TestInjectExternalDataEnvVar(t *testing.T) {
 
 func TestInjectSocket(t *testing.T) {
 	tests := []struct {
-		name                 string
-		withCSIDriver        bool
-		expectedVolumeMounts []corev1.VolumeMount
-		expectedVolumes      []corev1.Volume
+		name                    string
+		withCSIDriver           bool
+		TraceHostSocketPath     string
+		DogStatsDHostSocketPath string
+		apmSocketFilePath       string
+		dsdSocketFilePath       string
+		expectedVolumeMounts    []corev1.VolumeMount
+		expectedVolumes         []corev1.Volume
+		expectedEnvs            []corev1.EnvVar
 	}{
 		{
-			name:          "no csi driver",
-			withCSIDriver: false,
+			name:                    "no csi driver (diff host dir)",
+			withCSIDriver:           false,
+			TraceHostSocketPath:     "/var/run/datadog-apm",
+			DogStatsDHostSocketPath: "/var/run/datadog-dsd",
+			apmSocketFilePath:       "/var/run/datadog/apm.sock",
+			dsdSocketFilePath:       "/var/run/datadog/dsd.socket",
+			expectedVolumes: []corev1.Volume{
+				{
+					Name: "datadog-apm",
+					VolumeSource: corev1.VolumeSource{
+						HostPath: &corev1.HostPathVolumeSource{
+							Path: "/var/run/datadog-apm",
+							Type: pointer.Ptr(corev1.HostPathDirectoryOrCreate),
+						},
+					},
+				},
+				{
+					Name: "datadog-dsd",
+					VolumeSource: corev1.VolumeSource{
+						HostPath: &corev1.HostPathVolumeSource{
+							Path: "/var/run/datadog-dsd",
+							Type: pointer.Ptr(corev1.HostPathDirectoryOrCreate),
+						},
+					},
+				},
+			},
+			expectedVolumeMounts: []corev1.VolumeMount{
+				{
+					Name:      "datadog-apm",
+					MountPath: "/var/run/datadog/apm",
+					ReadOnly:  true,
+				},
+				{
+					Name:      "datadog-dsd",
+					MountPath: "/var/run/datadog/dsd",
+					ReadOnly:  true,
+				},
+			},
+			expectedEnvs: []corev1.EnvVar{
+				mutatecommon.FakeEnvWithValue("DD_TRACE_AGENT_URL", "unix:///var/run/datadog/apm/apm.sock"),
+				mutatecommon.FakeEnvWithValue("DD_DOGSTATSD_URL", "unix:///var/run/datadog/dsd/dsd.socket"),
+			},
+		},
+		{
+			name:                    "no csi driver (same host dir)",
+			withCSIDriver:           false,
+			TraceHostSocketPath:     "/var/run/datadog",
+			DogStatsDHostSocketPath: "/var/run/datadog",
+			apmSocketFilePath:       "/var/run/datadog/apm.sock",
+			dsdSocketFilePath:       "/var/run/datadog/dsd.socket",
 			expectedVolumes: []corev1.Volume{
 				{
 					Name: "datadog",
@@ -340,20 +406,39 @@ func TestInjectSocket(t *testing.T) {
 					ReadOnly:  true,
 				},
 			},
+			expectedEnvs: []corev1.EnvVar{
+				mutatecommon.FakeEnvWithValue("DD_TRACE_AGENT_URL", "unix:///var/run/datadog/apm.sock"),
+				mutatecommon.FakeEnvWithValue("DD_DOGSTATSD_URL", "unix:///var/run/datadog/dsd.socket"),
+			},
 		},
 		{
-			name:          "with csi driver",
-			withCSIDriver: true,
+			name:              "with csi driver",
+			withCSIDriver:     true,
+			apmSocketFilePath: "/var/run/datadog/apm.sock",
+			dsdSocketFilePath: "/var/run/datadog/dsd.socket",
 			expectedVolumes: []corev1.Volume{
 				{
-					Name: "datadog",
+					Name: "datadog-dsd",
+
 					VolumeSource: corev1.VolumeSource{
 						CSI: &corev1.CSIVolumeSource{
-							Driver:   "k8s.csi.datadoghq.com",
 							ReadOnly: pointer.Ptr(true),
+							Driver:   "k8s.csi.datadoghq.com",
 							VolumeAttributes: map[string]string{
-								"path": "/var/run/datadog",
-								"mode": "local",
+								"type": string(csiDSDSocketDirectory),
+							},
+						},
+					},
+				},
+				{
+					Name: "datadog-apm",
+
+					VolumeSource: corev1.VolumeSource{
+						CSI: &corev1.CSIVolumeSource{
+							ReadOnly: pointer.Ptr(true),
+							Driver:   "k8s.csi.datadoghq.com",
+							VolumeAttributes: map[string]string{
+								"type": string(csiAPMSocketDirectory),
 							},
 						},
 					},
@@ -361,10 +446,19 @@ func TestInjectSocket(t *testing.T) {
 			},
 			expectedVolumeMounts: []corev1.VolumeMount{
 				{
-					Name:      "datadog",
-					MountPath: "/var/run/datadog",
+					Name:      "datadog-dsd",
+					MountPath: "/var/run/datadog/dsd",
 					ReadOnly:  true,
 				},
+				{
+					Name:      "datadog-apm",
+					MountPath: "/var/run/datadog/apm",
+					ReadOnly:  true,
+				},
+			},
+			expectedEnvs: []corev1.EnvVar{
+				mutatecommon.FakeEnvWithValue("DD_TRACE_AGENT_URL", "unix:///var/run/datadog/apm/apm.sock"),
+				mutatecommon.FakeEnvWithValue("DD_DOGSTATSD_URL", "unix:///var/run/datadog/dsd/dsd.socket"),
 			},
 		},
 	}
@@ -372,15 +466,22 @@ func TestInjectSocket(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			pod := mutatecommon.FakePodWithContainer("foo-pod", corev1.Container{})
-			pod = mutatecommon.WithLabels(pod, map[string]string{"admission.datadoghq.com/enabled": "true", "admission.datadoghq.com/config.mode": "socket"})
+			mode := "socket"
+			if test.withCSIDriver {
+				mode = "csi"
+			}
+
+			pod = mutatecommon.WithLabels(pod, map[string]string{"admission.datadoghq.com/enabled": "true", "admission.datadoghq.com/config.mode": mode})
 			wmeta := fxutil.Test[workloadmeta.Component](t, core.MockBundle(), workloadmetafxmock.MockModule(workloadmeta.NewParams()))
-			datadogConfig := fxutil.Test[config.Component](t, core.MockBundle(), fx.Replace(config.MockParams{
-				Overrides: map[string]interface{}{
-					"csi.enabled":                                    test.withCSIDriver,
-					"admission_controller.csi.enabled":               test.withCSIDriver,
-					"admission_controller.inject_config.csi.enabled": test.withCSIDriver,
-				},
-			}))
+
+			datadogConfig := config.NewMockWithOverrides(t, map[string]interface{}{
+				"csi.enabled":                  test.withCSIDriver,
+				"trace_agent_host_socket_path": test.TraceHostSocketPath,
+				"dogstatsd_host_socket_path":   test.DogStatsDHostSocketPath,
+				"apm_config.receiver_socket":   test.apmSocketFilePath,
+				"dogstatsd_socket":             test.dsdSocketFilePath,
+			})
+
 			filter, err := NewFilter(datadogConfig)
 			require.NoError(t, err)
 			mutator := NewMutator(NewMutatorConfig(datadogConfig), filter)
@@ -389,13 +490,21 @@ func TestInjectSocket(t *testing.T) {
 			assert.Nil(t, err)
 			assert.True(t, injected)
 
-			assert.Contains(t, pod.Spec.Containers[0].Env, mutatecommon.FakeEnvWithValue("DD_TRACE_AGENT_URL", "unix:///var/run/datadog/apm.socket"))
-			assert.Contains(t, pod.Spec.Containers[0].Env, mutatecommon.FakeEnvWithValue("DD_DOGSTATSD_URL", "unix:///var/run/datadog/dsd.socket"))
-
 			assert.ElementsMatch(t, pod.Spec.Containers[0].VolumeMounts, test.expectedVolumeMounts)
 			assert.ElementsMatch(t, pod.Spec.Volumes, test.expectedVolumes)
+			for _, want := range test.expectedEnvs {
+				assert.Contains(t, pod.Spec.Containers[0].Env, want)
+			}
+			safe := pod.Annotations[mutatecommon.K8sAutoscalerSafeToEvictVolumesAnnotation]
 
-			assert.Equal(t, "datadog", pod.Annotations[mutatecommon.K8sAutoscalerSafeToEvictVolumesAnnotation])
+			parts := strings.Split(safe, ",")
+
+			expectedNames := make([]string, 0, len(test.expectedVolumes))
+			for _, v := range test.expectedVolumes {
+				expectedNames = append(expectedNames, v.Name)
+			}
+
+			assert.ElementsMatch(t, expectedNames, parts)
 		})
 	}
 }
@@ -403,20 +512,32 @@ func TestInjectSocket(t *testing.T) {
 func TestInjectSocket_VolumeTypeSocket(t *testing.T) {
 
 	tests := []struct {
-		name                 string
-		withCSIDriver        bool
-		expectedVolumeMounts []corev1.VolumeMount
-		expectedVolumes      []corev1.Volume
+		name                      string
+		withCSIDriver             bool
+		TraceHostSocketPath       string
+		DogStatsDHostSocketPath   string
+		apmSocketFilePath         string
+		dsdSocketFilePath         string
+		expectedVolumeMounts      []corev1.VolumeMount
+		expectedVolumes           []corev1.Volume
+		globalTypeSocketVolumes   bool
+		typeSocketVolumesPodLabel bool
+		expectedEnvs              []corev1.EnvVar
 	}{
 		{
-			name:          "no csi driver",
-			withCSIDriver: false,
+			name:                    "no csi driver",
+			withCSIDriver:           false,
+			DogStatsDHostSocketPath: "/var/run/datadog-dsd",
+			TraceHostSocketPath:     "/var/run/datadog-apm",
+			apmSocketFilePath:       "/var/run/datadog/apm.sock",
+			dsdSocketFilePath:       "/var/run/datadog/dsd.socket",
+			globalTypeSocketVolumes: true,
 			expectedVolumes: []corev1.Volume{
 				{
 					Name: "datadog-dogstatsd",
 					VolumeSource: corev1.VolumeSource{
 						HostPath: &corev1.HostPathVolumeSource{
-							Path: "/var/run/datadog/dsd.socket",
+							Path: "/var/run/datadog-dsd/dsd.socket",
 							Type: pointer.Ptr(corev1.HostPathSocket),
 						},
 					},
@@ -425,7 +546,7 @@ func TestInjectSocket_VolumeTypeSocket(t *testing.T) {
 					Name: "datadog-trace-agent",
 					VolumeSource: corev1.VolumeSource{
 						HostPath: &corev1.HostPathVolumeSource{
-							Path: "/var/run/datadog/apm.socket",
+							Path: "/var/run/datadog-apm/apm.sock",
 							Type: pointer.Ptr(corev1.HostPathSocket),
 						},
 					},
@@ -434,19 +555,72 @@ func TestInjectSocket_VolumeTypeSocket(t *testing.T) {
 			expectedVolumeMounts: []corev1.VolumeMount{
 				{
 					Name:      "datadog-dogstatsd",
-					MountPath: "/var/run/datadog/dsd.socket",
+					MountPath: "/var/run/datadog/dsd/dsd.socket",
 					ReadOnly:  true,
 				},
 				{
 					Name:      "datadog-trace-agent",
-					MountPath: "/var/run/datadog/apm.socket",
+					MountPath: "/var/run/datadog/apm/apm.sock",
 					ReadOnly:  true,
 				},
 			},
+			expectedEnvs: []corev1.EnvVar{
+				mutatecommon.FakeEnvWithValue("DD_TRACE_AGENT_URL", "unix:///var/run/datadog/apm/apm.sock"),
+				mutatecommon.FakeEnvWithValue("DD_DOGSTATSD_URL", "unix:///var/run/datadog/dsd/dsd.socket"),
+			},
 		},
 		{
-			name:          "with csi driver",
-			withCSIDriver: true,
+			name:                      "pod label overrides global setting",
+			withCSIDriver:             false,
+			DogStatsDHostSocketPath:   "/var/run/datadog-dsd",
+			TraceHostSocketPath:       "/var/run/datadog-apm",
+			apmSocketFilePath:         "/var/run/datadog/apm.sock",
+			dsdSocketFilePath:         "/var/run/datadog/dsd.socket",
+			globalTypeSocketVolumes:   false,
+			typeSocketVolumesPodLabel: true,
+			expectedVolumes: []corev1.Volume{
+				{
+					Name: "datadog-dogstatsd",
+					VolumeSource: corev1.VolumeSource{
+						HostPath: &corev1.HostPathVolumeSource{
+							Path: "/var/run/datadog-dsd/dsd.socket",
+							Type: pointer.Ptr(corev1.HostPathSocket),
+						},
+					},
+				},
+				{
+					Name: "datadog-trace-agent",
+					VolumeSource: corev1.VolumeSource{
+						HostPath: &corev1.HostPathVolumeSource{
+							Path: "/var/run/datadog-apm/apm.sock",
+							Type: pointer.Ptr(corev1.HostPathSocket),
+						},
+					},
+				},
+			},
+			expectedVolumeMounts: []corev1.VolumeMount{
+				{
+					Name:      "datadog-dogstatsd",
+					MountPath: "/var/run/datadog/dsd/dsd.socket",
+					ReadOnly:  true,
+				},
+				{
+					Name:      "datadog-trace-agent",
+					MountPath: "/var/run/datadog/apm/apm.sock",
+					ReadOnly:  true,
+				},
+			},
+			expectedEnvs: []corev1.EnvVar{
+				mutatecommon.FakeEnvWithValue("DD_TRACE_AGENT_URL", "unix:///var/run/datadog/apm/apm.sock"),
+				mutatecommon.FakeEnvWithValue("DD_DOGSTATSD_URL", "unix:///var/run/datadog/dsd/dsd.socket"),
+			},
+		},
+		{
+			name:                    "with csi driver",
+			withCSIDriver:           true,
+			globalTypeSocketVolumes: true,
+			apmSocketFilePath:       "/var/run/datadog/apm.sock",
+			dsdSocketFilePath:       "/var/run/datadog/dsd.socket",
 			expectedVolumes: []corev1.Volume{
 				{
 					Name: "datadog-dogstatsd",
@@ -456,8 +630,7 @@ func TestInjectSocket_VolumeTypeSocket(t *testing.T) {
 							Driver:   "k8s.csi.datadoghq.com",
 							ReadOnly: pointer.Ptr(true),
 							VolumeAttributes: map[string]string{
-								"path": "/var/run/datadog/dsd.socket",
-								"mode": "socket",
+								"type": string(csiDSDSocket),
 							},
 						},
 					},
@@ -469,8 +642,7 @@ func TestInjectSocket_VolumeTypeSocket(t *testing.T) {
 							Driver:   "k8s.csi.datadoghq.com",
 							ReadOnly: pointer.Ptr(true),
 							VolumeAttributes: map[string]string{
-								"path": "/var/run/datadog/apm.socket",
-								"mode": "socket",
+								"type": string(csiAPMSocket),
 							},
 						},
 					},
@@ -479,37 +651,51 @@ func TestInjectSocket_VolumeTypeSocket(t *testing.T) {
 			expectedVolumeMounts: []corev1.VolumeMount{
 				{
 					Name:      "datadog-dogstatsd",
-					MountPath: "/var/run/datadog/dsd.socket",
+					MountPath: "/var/run/datadog/dsd/dsd.socket",
 					ReadOnly:  true,
 				},
 				{
 					Name:      "datadog-trace-agent",
-					MountPath: "/var/run/datadog/apm.socket",
+					MountPath: "/var/run/datadog/apm/apm.sock",
 					ReadOnly:  true,
 				},
+			},
+			expectedEnvs: []corev1.EnvVar{
+				mutatecommon.FakeEnvWithValue("DD_TRACE_AGENT_URL", "unix:///var/run/datadog/apm/apm.sock"),
+				mutatecommon.FakeEnvWithValue("DD_DOGSTATSD_URL", "unix:///var/run/datadog/dsd/dsd.socket"),
 			},
 		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			mode := "socket"
+			if test.withCSIDriver {
+				mode = "csi"
+			}
 			pod := mutatecommon.FakePodWithContainer("foo-pod", corev1.Container{})
-			pod = mutatecommon.WithLabels(pod, map[string]string{"admission.datadoghq.com/enabled": "true", "admission.datadoghq.com/config.mode": "socket"})
+
+			labels := map[string]string{"admission.datadoghq.com/enabled": "true", "admission.datadoghq.com/config.mode": mode}
+			if test.typeSocketVolumesPodLabel {
+				labels["admission.datadoghq.com/config.type_socket_volumes"] = "true"
+			}
+			pod = mutatecommon.WithLabels(pod, labels)
+
+			datadogConfig := config.NewMockWithOverrides(t, map[string]interface{}{
+				"csi.enabled":                                            test.withCSIDriver,
+				"admission_controller.csi.enabled":                       test.withCSIDriver,
+				"admission_controller.inject_config.csi.enabled":         test.withCSIDriver,
+				"admission_controller.inject_config.type_socket_volumes": test.globalTypeSocketVolumes,
+				"dogstatsd_host_socket_path":                             test.DogStatsDHostSocketPath,
+				"trace_agent_host_socket_path":                           test.TraceHostSocketPath,
+				"apm_config.receiver_socket":                             test.apmSocketFilePath,
+				"dogstatsd_socket":                                       test.dsdSocketFilePath,
+			})
 			wmeta := fxutil.Test[workloadmeta.Component](
 				t,
 				core.MockBundle(),
 				workloadmetafxmock.MockModule(workloadmeta.NewParams()),
-				fx.Replace(config.MockParams{
-					Overrides: map[string]interface{}{"admission_controller.inject_config.type_socket_volumes": true},
-				}),
 			)
-			datadogConfig := fxutil.Test[config.Component](t, core.MockBundle(), fx.Replace(config.MockParams{
-				Overrides: map[string]interface{}{
-					"csi.enabled":                                    test.withCSIDriver,
-					"admission_controller.csi.enabled":               test.withCSIDriver,
-					"admission_controller.inject_config.csi.enabled": test.withCSIDriver,
-				},
-			}))
 			filter, err := NewFilter(datadogConfig)
 			require.NoError(t, err)
 			mutator := NewMutator(NewMutatorConfig(datadogConfig), filter)
@@ -518,12 +704,11 @@ func TestInjectSocket_VolumeTypeSocket(t *testing.T) {
 			assert.Nil(t, err)
 			assert.True(t, injected)
 
-			assert.Contains(t, pod.Spec.Containers[0].Env, mutatecommon.FakeEnvWithValue("DD_TRACE_AGENT_URL", "unix:///var/run/datadog/apm.socket"))
-			assert.Contains(t, pod.Spec.Containers[0].Env, mutatecommon.FakeEnvWithValue("DD_DOGSTATSD_URL", "unix:///var/run/datadog/dsd.socket"))
-
 			assert.ElementsMatch(t, pod.Spec.Containers[0].VolumeMounts, test.expectedVolumeMounts)
 			assert.ElementsMatch(t, pod.Spec.Volumes, test.expectedVolumes)
-
+			for _, want := range test.expectedEnvs {
+				assert.Contains(t, pod.Spec.Containers[0].Env, want)
+			}
 			safeToEvictVolumes := strings.Split(pod.Annotations[mutatecommon.K8sAutoscalerSafeToEvictVolumesAnnotation], ",")
 			assert.Len(t, safeToEvictVolumes, 2)
 			assert.Contains(t, safeToEvictVolumes, "datadog-dogstatsd")
@@ -579,7 +764,7 @@ func TestInjectSocketWithConflictingVolumeAndInitContainer(t *testing.T) {
 	}
 
 	wmeta := fxutil.Test[workloadmeta.Component](t, core.MockBundle(), workloadmetafxmock.MockModule(workloadmeta.NewParams()))
-	datadogConfig := fxutil.Test[config.Component](t, core.MockBundle())
+	datadogConfig := config.NewMock(t)
 	filter, err := NewFilter(datadogConfig)
 	require.NoError(t, err)
 	mutator := NewMutator(NewMutatorConfig(datadogConfig), filter)
@@ -617,12 +802,11 @@ func TestJSONPatchCorrectness(t *testing.T) {
 			mutatecommon.WithLabels(pod, map[string]string{admCommon.EnabledLabelKey: "true"})
 			podJSON, err := json.Marshal(pod)
 			assert.NoError(t, err)
+			datadogConfig := config.NewMockWithOverrides(t, tt.overrides)
 			wmeta := fxutil.Test[workloadmeta.Component](t,
 				core.MockBundle(),
 				workloadmetafxmock.MockModule(workloadmeta.NewParams()),
-				fx.Replace(config.MockParams{Overrides: tt.overrides}),
 			)
-			datadogConfig := fxutil.Test[config.Component](t, core.MockBundle())
 			filter, err := NewFilter(datadogConfig)
 			require.NoError(t, err)
 			mutator := NewMutator(NewMutatorConfig(datadogConfig), filter)
@@ -656,7 +840,7 @@ func BenchmarkJSONPatch(b *testing.B) {
 	}
 
 	wmeta := fxutil.Test[workloadmeta.Component](b, core.MockBundle())
-	datadogConfig := fxutil.Test[config.Component](b, core.MockBundle())
+	datadogConfig := config.NewMock(b)
 	filter, err := NewFilter(datadogConfig)
 	require.NoError(b, err)
 	mutator := NewMutator(NewMutatorConfig(datadogConfig), filter)

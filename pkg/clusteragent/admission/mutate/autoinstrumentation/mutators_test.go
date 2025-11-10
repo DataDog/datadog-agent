@@ -52,7 +52,6 @@ func TestVolumeMount(t *testing.T) {
 			m2.VolumeMount,
 			{Name: "banana"},
 		}, c.VolumeMounts, "attach a volume mount")
-
 	})
 }
 

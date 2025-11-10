@@ -11,7 +11,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
@@ -87,7 +86,7 @@ func TestConvertNetworkStats(t *testing.T) {
 func TestGetContainerIDForPID(t *testing.T) {
 	// TODO(components): this test needs to rely on a workloadmeta.Component mock
 	mockStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
-		config.MockModule(),
+		fx.Provide(func() config.Component { return config.NewMock(t) }),
 		fx.Provide(func() log.Component { return logmock.New(t) }),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
@@ -133,13 +132,13 @@ func TestGetContainerIDForPID(t *testing.T) {
 func Test_fillStatsFromSpec(t *testing.T) {
 	tests := []struct {
 		name          string
-		spec          *types.ContainerJSON
+		spec          *container.InspectResponse
 		expectedStats *provider.ContainerStats
 	}{
 		{
 			name: "Empty HostConfig",
-			spec: &types.ContainerJSON{
-				ContainerJSONBase: &types.ContainerJSONBase{
+			spec: &container.InspectResponse{
+				ContainerJSONBase: &container.ContainerJSONBase{
 					HostConfig: &container.HostConfig{},
 				},
 			},
@@ -149,8 +148,8 @@ func Test_fillStatsFromSpec(t *testing.T) {
 		},
 		{
 			name: "Memory Limit set",
-			spec: &types.ContainerJSON{
-				ContainerJSONBase: &types.ContainerJSONBase{
+			spec: &container.InspectResponse{
+				ContainerJSONBase: &container.ContainerJSONBase{
 					HostConfig: &container.HostConfig{
 						Resources: container.Resources{
 							Memory: 500,

@@ -16,6 +16,39 @@ import (
 // Approvers are just filter values indexed by field
 type Approvers map[eval.Field]FilterValues
 
+// ApproverStats is a struct that contains the stats of the approvers
+type ApproverStats struct {
+	// Field used as approver and the number of rules using it
+	FieldStats map[eval.Field]int `json:"per_field_stats"`
+	// Rule that is breaking the approver discovery
+	AcceptModeRules map[eval.EventType]*Rule `json:"-"`
+}
+
+// NewApproverStats creates a new ApproverStats
+func NewApproverStats() *ApproverStats {
+	return &ApproverStats{
+		FieldStats:      make(map[eval.Field]int),
+		AcceptModeRules: make(map[eval.EventType]*Rule),
+	}
+}
+
+// Merge merges two ApproverStats. They shouldn't be merged if they are for the same event type.
+func (s *ApproverStats) Merge(other *ApproverStats) {
+	if other == nil {
+		return
+	}
+
+	for field, count := range other.FieldStats {
+		s.FieldStats[field] += count
+	}
+
+	for eventType, rule := range other.AcceptModeRules {
+		if _, exists := s.AcceptModeRules[eventType]; !exists {
+			s.AcceptModeRules[eventType] = rule
+		}
+	}
+}
+
 func partialEval(event eval.Event, ctx *eval.Context, rule *Rule, field eval.Field, value interface{}) (bool, error) {
 	var readOnlyError *eval.ErrFieldReadOnly
 	if err := event.SetFieldValue(field, value); err != nil {
@@ -27,7 +60,7 @@ func partialEval(event eval.Event, ctx *eval.Context, rule *Rule, field eval.Fie
 	return rule.PartialEval(ctx, field)
 }
 
-func isAnIntLesserEqualThanApprover(event eval.Event, ctx *eval.Context, rule *Rule, fieldCap FieldCapability, value interface{}) (bool, interface{}, error) {
+func isAnIntLesserEqualThanApprover(event eval.Event, ctx *eval.Context, rule *Rule, fieldCap *FieldCapability, value interface{}) (bool, interface{}, error) {
 	min := math.MinInt
 	if fieldCap.RangeFilterValue != nil {
 		min = fieldCap.RangeFilterValue.Min
@@ -45,7 +78,7 @@ func isAnIntLesserEqualThanApprover(event eval.Event, ctx *eval.Context, rule *R
 	return !result, RangeFilterValue{Min: min, Max: value.(int)}, err
 }
 
-func isAnIntLesserThanApprover(event eval.Event, ctx *eval.Context, rule *Rule, fieldCap FieldCapability, value interface{}) (bool, interface{}, error) {
+func isAnIntLesserThanApprover(event eval.Event, ctx *eval.Context, rule *Rule, fieldCap *FieldCapability, value interface{}) (bool, interface{}, error) {
 	min := math.MinInt
 	if fieldCap.RangeFilterValue != nil {
 		min = fieldCap.RangeFilterValue.Min
@@ -63,7 +96,7 @@ func isAnIntLesserThanApprover(event eval.Event, ctx *eval.Context, rule *Rule, 
 	return !result, RangeFilterValue{Min: min, Max: value.(int) - 1}, err
 }
 
-func isAnIntGreaterEqualThanApprover(event eval.Event, ctx *eval.Context, rule *Rule, fieldCap FieldCapability, value interface{}) (bool, interface{}, error) {
+func isAnIntGreaterEqualThanApprover(event eval.Event, ctx *eval.Context, rule *Rule, fieldCap *FieldCapability, value interface{}) (bool, interface{}, error) {
 	max := math.MaxInt
 	if fieldCap.RangeFilterValue != nil {
 		max = fieldCap.RangeFilterValue.Max
@@ -81,7 +114,7 @@ func isAnIntGreaterEqualThanApprover(event eval.Event, ctx *eval.Context, rule *
 	return !result, RangeFilterValue{Min: value.(int), Max: max}, err
 }
 
-func isAnIntGreaterThanApprover(event eval.Event, ctx *eval.Context, rule *Rule, fieldCap FieldCapability, value interface{}) (bool, interface{}, error) {
+func isAnIntGreaterThanApprover(event eval.Event, ctx *eval.Context, rule *Rule, fieldCap *FieldCapability, value interface{}) (bool, interface{}, error) {
 	max := math.MaxInt
 	if fieldCap.RangeFilterValue != nil {
 		max = fieldCap.RangeFilterValue.Max
@@ -100,7 +133,7 @@ func isAnIntGreaterThanApprover(event eval.Event, ctx *eval.Context, rule *Rule,
 }
 
 // isAnApprover returns whether the given value is an approver for the given rule
-func isAnApprover(event eval.Event, ctx *eval.Context, rule *Rule, fieldCap FieldCapability, fieldValueType eval.FieldValueType, value interface{}) (bool, eval.FieldValueType, interface{}, error) {
+func isAnApprover(event eval.Event, ctx *eval.Context, rule *Rule, fieldCap *FieldCapability, fieldValueType eval.FieldValueType, value interface{}) (bool, eval.FieldValueType, interface{}, error) {
 	if fieldValueType == eval.RangeValueType {
 		isAnApprover, approverValue, err := isAnIntLesserEqualThanApprover(event, ctx, rule, fieldCap, value)
 		if isAnApprover || err != nil {
@@ -204,10 +237,17 @@ func bitmaskCombinations(bitmasks []int) []int {
 //     * open.file.name in ["123", "456"] && open.file.name != "4.*" && open.file.name != "888"
 //     reason:
 //     * event will be approved kernel side and will be rejected userspace side
-func getApprovers(rules []*Rule, event eval.Event, fieldCaps FieldCapabilities) (Approvers, error) {
-	approvers := make(Approvers)
-
-	ctx := eval.NewContext(event)
+func getApprovers(rules []*Rule, event eval.Event, fieldCaps FieldCapabilities) (Approvers, *ApproverStats, []*Rule, error) {
+	var (
+		approvers = make(Approvers)
+		ctx       = eval.NewContext(event)
+		// Rules that are not used by the discarder mechanism
+		noDiscarderRules []*Rule
+		stats            = &ApproverStats{
+			FieldStats:      make(map[eval.Field]int),
+			AcceptModeRules: make(map[eval.EventType]*Rule),
+		}
+	)
 
 	for _, rule := range rules {
 		var (
@@ -216,6 +256,11 @@ func getApprovers(rules []*Rule, event eval.Event, fieldCaps FieldCapabilities) 
 			bestFilterWeight int
 			bestFilterMode   FilterMode
 		)
+
+		eventType, err := rule.GetEventType()
+		if err != nil {
+			return nil, stats, nil, err
+		}
 
 	LOOP:
 		for _, fieldCap := range fieldCaps {
@@ -238,7 +283,8 @@ func getApprovers(rules []*Rule, event eval.Event, fieldCaps FieldCapabilities) 
 				case eval.ScalarValueType, eval.PatternValueType, eval.GlobValueType, eval.RangeValueType:
 					isAnApprover, approverValueType, approverValue, err := isAnApprover(event, ctx, rule, fieldCap, value.Type, value.Value)
 					if err != nil {
-						return nil, err
+						stats.AcceptModeRules[eventType] = rule
+						return nil, stats, nil, err
 					}
 					if isAnApprover {
 						filterValue := FilterValue{Field: field, Value: approverValue, Type: approverValueType, Mode: fieldCap.FilterMode}
@@ -255,7 +301,8 @@ func getApprovers(rules []*Rule, event eval.Event, fieldCaps FieldCapabilities) 
 			for _, bitmask := range bitmaskCombinations(bitmasks) {
 				isAnApprover, _, _, err := isAnApprover(event, ctx, rule, fieldCap, eval.BitmaskValueType, bitmask)
 				if err != nil {
-					return nil, err
+					stats.AcceptModeRules[eventType] = rule
+					return nil, stats, nil, err
 				}
 
 				if isAnApprover {
@@ -281,20 +328,22 @@ func getApprovers(rules []*Rule, event eval.Event, fieldCaps FieldCapabilities) 
 
 		// no filter value for a rule thus no approver for the event type
 		if bestFilterValues == nil {
-			return nil, nil
+			stats.AcceptModeRules[eventType] = rule
+			return nil, stats, nil, nil
 		}
 
-		// this rule as an approver in ApproverOnly mode. Disable to rule from being used by the discarder mechanism.
-		// the goal is to have approver that are good enough to filter properly the events used by rule that would break the
+		// this rule as an approver in ApproverOnly mode. Report the rule so that it can excluded from being used by the discarder mechanism.
+		// the goal is to have approvers that are good enough to filter properly the events used by rule that would break the
 		// discarder discovery.
 		// ex: open.file.name != "" && process.auid == 1000 # this rule avoid open.file.path discarder discovery, but with a ApproverOnly on process.auid the problem disappear
 		//     open.file.filename == "/etc/passwd"
 		if bestFilterMode == ApproverOnlyMode {
-			rule.NoDiscarder = true
+			noDiscarderRules = append(noDiscarderRules, rule)
 		}
 
-		approvers[bestFilterField] = append(approvers[bestFilterField], bestFilterValues...)
+		approvers[bestFilterField] = approvers[bestFilterField].Merge(bestFilterValues...)
+		stats.FieldStats[bestFilterField]++
 	}
 
-	return approvers, nil
+	return approvers, stats, noDiscarderRules, nil
 }

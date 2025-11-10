@@ -154,6 +154,7 @@ type OracleRow struct {
 //nolint:revive // TODO(DBM) Fix revive linter
 type MetricsPayload struct {
 	Host                  string   `json:"host,omitempty"` // Host is the database hostname, not the agent hostname
+	DatabaseInstance      string   `json:"database_instance"`
 	Timestamp             float64  `json:"timestamp,omitempty"`
 	MinCollectionInterval float64  `json:"min_collection_interval,omitempty"`
 	Tags                  []string `json:"tags,omitempty"`
@@ -185,14 +186,15 @@ type FQTDBOracle struct {
 
 //nolint:revive // TODO(DBM) Fix revive linter
 type FQTPayload struct {
-	Timestamp    float64     `json:"timestamp,omitempty"`
-	Host         string      `json:"host,omitempty"` // Host is the database hostname, not the agent hostname
-	AgentVersion string      `json:"ddagentversion,omitempty"`
-	Source       string      `json:"ddsource"`
-	Tags         string      `json:"ddtags,omitempty"`
-	DBMType      string      `json:"dbm_type"`
-	FQTDB        FQTDB       `json:"db"`
-	FQTDBOracle  FQTDBOracle `json:"oracle"`
+	Timestamp        float64     `json:"timestamp,omitempty"`
+	Host             string      `json:"host,omitempty"` // Host is the database hostname, not the agent hostname
+	DatabaseInstance string      `json:"database_instance"`
+	AgentVersion     string      `json:"ddagentversion,omitempty"`
+	Source           string      `json:"ddsource"`
+	Tags             string      `json:"ddtags,omitempty"`
+	DBMType          string      `json:"dbm_type"`
+	FQTDB            FQTDB       `json:"db"`
+	FQTDBOracle      FQTDBOracle `json:"oracle"`
 }
 
 //nolint:revive // TODO(DBM) Fix revive linter
@@ -268,14 +270,15 @@ type PlanDB struct {
 
 //nolint:revive // TODO(DBM) Fix revive linter
 type PlanPayload struct {
-	Timestamp    float64    `json:"timestamp,omitempty"`
-	Host         string     `json:"host,omitempty"` // Host is the database hostname, not the agent hostname
-	AgentVersion string     `json:"ddagentversion,omitempty"`
-	Source       string     `json:"ddsource"`
-	Tags         string     `json:"ddtags,omitempty"`
-	DBMType      string     `json:"dbm_type"`
-	PlanDB       PlanDB     `json:"db"`
-	OraclePlan   OraclePlan `json:"oracle"`
+	Timestamp        float64    `json:"timestamp,omitempty"`
+	Host             string     `json:"host,omitempty"` // Host is the database hostname, not the agent hostname
+	DatabaseInstance string     `json:"database_instance"`
+	AgentVersion     string     `json:"ddagentversion,omitempty"`
+	Source           string     `json:"ddsource"`
+	Tags             string     `json:"ddtags,omitempty"`
+	DBMType          string     `json:"dbm_type"`
+	PlanDB           PlanDB     `json:"db"`
+	OraclePlan       OraclePlan `json:"oracle"`
 }
 
 //nolint:revive // TODO(DBM) Fix revive linter
@@ -614,14 +617,15 @@ func (c *Check) StatementMetrics() (int, error) {
 					CDBName: c.cdbName,
 				}
 				FQTPayload := FQTPayload{
-					Timestamp:    float64(time.Now().UnixMilli()),
-					Host:         c.dbHostname,
-					AgentVersion: c.agentVersion,
-					Source:       common.IntegrationName,
-					Tags:         c.tagsString,
-					DBMType:      "fqt",
-					FQTDB:        FQTDB,
-					FQTDBOracle:  FQTDBOracle,
+					Timestamp:        float64(time.Now().UnixMilli()),
+					Host:             c.dbHostname,
+					DatabaseInstance: c.dbInstanceIdentifier,
+					AgentVersion:     c.agentVersion,
+					Source:           common.IntegrationName,
+					Tags:             c.tagsString,
+					DBMType:          "fqt",
+					FQTDB:            FQTDB,
+					FQTDBOracle:      FQTDBOracle,
 				}
 				FQTPayloadBytes, err := json.Marshal(FQTPayload)
 				if err != nil {
@@ -798,14 +802,15 @@ func (c *Check) StatementMetrics() (int, error) {
 							tags := strings.Join(append(c.tags, fmt.Sprintf("pdb:%s", statementMetricRow.PDBName)), ",")
 
 							planPayload := PlanPayload{
-								Timestamp:    float64(time.Now().UnixMilli()),
-								Host:         c.dbHostname,
-								AgentVersion: c.agentVersion,
-								Source:       common.IntegrationName,
-								Tags:         tags,
-								DBMType:      "plan",
-								PlanDB:       planDB,
-								OraclePlan:   oraclePlan,
+								Timestamp:        float64(time.Now().UnixMilli()),
+								Host:             c.dbHostname,
+								DatabaseInstance: c.dbInstanceIdentifier,
+								AgentVersion:     c.agentVersion,
+								Source:           common.IntegrationName,
+								Tags:             tags,
+								DBMType:          "plan",
+								PlanDB:           planDB,
+								OraclePlan:       oraclePlan,
 							}
 							planPayloadBytes, err := json.Marshal(planPayload)
 							if err != nil {
@@ -847,6 +852,7 @@ func (c *Check) StatementMetrics() (int, error) {
 
 	payload := MetricsPayload{
 		Host:                  c.dbHostname,
+		DatabaseInstance:      c.dbInstanceIdentifier,
 		Timestamp:             float64(time.Now().UnixMilli()),
 		MinCollectionInterval: c.checkInterval,
 		Tags:                  c.tags,

@@ -30,7 +30,7 @@ import (
 	"k8s.io/client-go/transport"
 )
 
-const apiServerQuery = "%s/api/v1/pods?fieldSelector=spec.nodeName=%s"
+const apiServerQuery = "/api/v1/pods?fieldSelector=spec.nodeName=%s"
 
 var (
 	kubeletExpVar = expvar.NewInt("kubeletQueries")
@@ -131,19 +131,21 @@ func (kc *kubeletClient) checkConnection(ctx context.Context) error {
 	return nil
 }
 
-func (kc *kubeletClient) query(ctx context.Context, path string) ([]byte, int, error) {
-	var fullURL string
+func (kc *kubeletClient) queryWithResp(ctx context.Context, path string) (io.ReadCloser, error) {
+	_, response, err := kc.rawQuery(ctx, kc.kubeletURL, path)
 
-	// Redirect pod list requests to the API server when `useAPIServer` is enabled
-	if kc.config.useAPIServer && path == kubeletPodPath {
-		fullURL = fmt.Sprintf(apiServerQuery, kc.config.apiServerHost, url.QueryEscape(kc.config.nodeName))
-	} else {
-		fullURL = fmt.Sprintf("%s%s", kc.kubeletURL, path)
+	if err != nil {
+		return nil, err
 	}
 
-	req, err := http.NewRequestWithContext(ctx, "GET", fullURL, nil)
+	return response.Body, nil
+}
+
+func (kc *kubeletClient) rawQuery(ctx context.Context, baseURL string, path string) (*http.Request, *http.Response, error) {
+	req, err := http.NewRequestWithContext(ctx, "GET",
+		fmt.Sprintf("%s%s", baseURL, path), nil)
 	if err != nil {
-		return nil, 0, fmt.Errorf("Failed to create new request: %w", err)
+		return nil, nil, fmt.Errorf("Failed to create new request: %w", err)
 	}
 
 	response, err := kc.client.Do(req)
@@ -161,8 +163,25 @@ func (kc *kubeletClient) query(ctx context.Context, path string) ([]byte, int, e
 
 	if err != nil {
 		log.Debugf("Cannot request %s: %s", req.URL.String(), err)
+		return nil, nil, err
+	}
+
+	return req, response, nil
+}
+
+func (kc *kubeletClient) query(ctx context.Context, path string) ([]byte, int, error) {
+	// Redirect pod list requests to the API server when `useAPIServer` is enabled
+	u := kc.kubeletURL
+	if kc.config.useAPIServer && path == kubeletPodPath {
+		path = fmt.Sprintf(apiServerQuery, url.QueryEscape(kc.config.nodeName))
+		u = kc.config.apiServerHost
+	}
+
+	req, response, err := kc.rawQuery(ctx, u, path)
+	if err != nil {
 		return nil, 0, err
 	}
+
 	defer response.Body.Close()
 
 	b, err := io.ReadAll(response.Body)

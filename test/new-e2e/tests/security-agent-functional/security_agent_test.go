@@ -37,7 +37,7 @@ var (
 func TestVMSuite(t *testing.T) {
 	flake.Mark(t)
 
-	suiteParams := []e2e.SuiteOption{e2e.WithProvisioner(awshost.ProvisionerNoAgentNoFakeIntake(awshost.WithEC2InstanceOptions(ec2.WithOS(componentsos.WindowsDefault))))}
+	suiteParams := []e2e.SuiteOption{e2e.WithProvisioner(awshost.ProvisionerNoAgentNoFakeIntake(awshost.WithEC2InstanceOptions(ec2.WithOS(componentsos.WindowsServerDefault))))}
 	if *devMode {
 		suiteParams = append(suiteParams, e2e.WithDevMode())
 	}
@@ -57,6 +57,9 @@ func (v *vmSuite) SetupSuite() {
 
 func (v *vmSuite) TestSystemProbeCWSSuite() {
 	v.BaseSuite.SetupSuite()
+	// SetupSuite needs to defer CleanupOnSetupFailure() if what comes after BaseSuite.SetupSuite() can fail.
+	defer v.CleanupOnSetupFailure()
+
 	t := v.T()
 	// get the remote host
 	vm := v.Env().RemoteHost

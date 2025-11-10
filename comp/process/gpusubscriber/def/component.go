@@ -6,7 +6,7 @@
 // Package gpusubscriber subscribes to GPU events
 package gpusubscriber
 
-// team: container-intake
+// team: container-experiences
 
 // Component is the component type.
 type Component interface {

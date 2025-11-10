@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Remote Agent updates on Windows now consider MSI exit codes 3010 and 1641 to indicate success

@@ -1,0 +1,271 @@
+load("@bazel_skylib//rules:copy_file.bzl", "copy_file")
+load("@bazel_skylib//rules:expand_template.bzl", "expand_template")
+load("@rules_cc//cc:defs.bzl", "cc_library")
+load("@rules_license//rules:license.bzl", "license")
+
+package(
+    default_applicable_licenses = [":license"],
+    default_visibility = ["//visibility:private"],
+)
+
+license(
+    name = "license",
+    license_kinds = ["@rules_license//licenses/spdx:GPL-2.0"],
+    license_text = "LICENSE",
+    visibility = ["//visibility:public"],
+)
+
+exports_files([
+    "LICENSE",
+])
+
+VERSION = "3.4.8"
+
+# Base configuration shared by all platforms
+_FFICONFIG_BASE = {
+    "#undef AC_APPLE_UNIVERSAL_BUILD": "/* #undef AC_APPLE_UNIVERSAL_BUILD */",
+    "#undef EH_FRAME_FLAGS": "#define EH_FRAME_FLAGS \"a\"",
+    "#undef FFI_DEBUG": "/* #undef FFI_DEBUG */",
+    "#undef FFI_MMAP_EXEC_EMUTRAMP_PAX": "/* #undef FFI_MMAP_EXEC_EMUTRAMP_PAX */",
+    "#undef FFI_NO_RAW_API": "/* #undef FFI_NO_RAW_API */",
+    "#undef FFI_NO_STRUCTS": "/* #undef FFI_NO_STRUCTS */",
+    "#undef HAVE_ALLOCA_H": "#define HAVE_ALLOCA_H 1",
+    "#undef HAVE_ARM64E_PTRAUTH": "/* #undef HAVE_ARM64E_PTRAUTH */",
+    "#undef HAVE_AS_CFI_PSEUDO_OP": "#define HAVE_AS_CFI_PSEUDO_OP 1",
+    "#undef HAVE_AS_REGISTER_PSEUDO_OP": "/* #undef HAVE_AS_REGISTER_PSEUDO_OP */",
+    "#undef HAVE_AS_S390_ZARCH": "/* #undef HAVE_AS_S390_ZARCH */",
+    "#undef HAVE_AS_SPARC_UA_PCREL": "/* #undef HAVE_AS_SPARC_UA_PCREL */",
+    "#undef HAVE_AS_X86_64_UNWIND_SECTION_TYPE": "/* #undef HAVE_AS_X86_64_UNWIND_SECTION_TYPE */",
+    "#undef HAVE_DLFCN_H": "#define HAVE_DLFCN_H 1",
+    "#undef HAVE_HIDDEN_VISIBILITY_ATTRIBUTE": "#define HAVE_HIDDEN_VISIBILITY_ATTRIBUTE 1",
+    "#undef HAVE_INTTYPES_H": "#define HAVE_INTTYPES_H 1",
+    "#undef HAVE_LONG_DOUBLE_VARIANT": "/* #undef HAVE_LONG_DOUBLE_VARIANT */",
+    "#undef HAVE_MEMCPY": "#define HAVE_MEMCPY 1",
+    "#undef HAVE_RO_EH_FRAME": "#define HAVE_RO_EH_FRAME 1",
+    "#undef HAVE_STDINT_H": "#define HAVE_STDINT_H 1",
+    "#undef HAVE_STDIO_H": "#define HAVE_STDIO_H 1",
+    "#undef HAVE_STDLIB_H": "#define HAVE_STDLIB_H 1",
+    "#undef HAVE_STRINGS_H": "#define HAVE_STRINGS_H 1",
+    "#undef HAVE_STRING_H": "#define HAVE_STRING_H 1",
+    "#undef HAVE_SYS_STAT_H": "#define HAVE_SYS_STAT_H 1",
+    "#undef HAVE_SYS_TYPES_H": "#define HAVE_SYS_TYPES_H 1",
+    "#undef HAVE_UNISTD_H": "#define HAVE_UNISTD_H 1",
+    "#undef LT_OBJDIR": "#define LT_OBJDIR \".libs/\"",
+    "/* Name of package */\n#undef PACKAGE": "#define PACKAGE \"libffi\"",
+    "#undef PACKAGE_BUGREPORT": "#define PACKAGE_BUGREPORT \"http://github.com/libffi/libffi/issues\"",
+    "#undef PACKAGE_NAME": "#define PACKAGE_NAME \"libffi\"",
+    "#undef PACKAGE_STRING": "#define PACKAGE_STRING \"libffi 3.4.8\"",
+    "#undef PACKAGE_TARNAME": "#define PACKAGE_TARNAME \"libffi\"",
+    "#undef PACKAGE_URL": "#define PACKAGE_URL \"\"",
+    "#undef PACKAGE_VERSION": "#define PACKAGE_VERSION \"3.4.8\"",
+    "#undef SIZEOF_DOUBLE": "#define SIZEOF_DOUBLE 8",
+    "#undef SIZEOF_SIZE_T": "#define SIZEOF_SIZE_T 8",
+    "#undef STDC_HEADERS": "#define STDC_HEADERS 1",
+    "#undef USING_PURIFY": "/* #undef USING_PURIFY */",
+    "#undef VERSION": "#define VERSION \"3.4.8\"",
+    "#  undef WORDS_BIGENDIAN": "/* #  undef WORDS_BIGENDIAN */",
+}
+
+# Platform-specific overrides
+_LINUX_ARM64_OVERRIDES = {
+    "#undef FFI_EXEC_STATIC_TRAMP": "/* #undef FFI_EXEC_STATIC_TRAMP */",
+    "#undef FFI_EXEC_TRAMPOLINE_TABLE": "/* #undef FFI_EXEC_TRAMPOLINE_TABLE */",
+    "#undef FFI_MMAP_EXEC_WRIT": "/* #undef FFI_MMAP_EXEC_WRIT */",
+    "#undef HAVE_AS_X86_PCREL": "/* #undef HAVE_AS_X86_PCREL */",
+    "/* Define if you have the long double type and it is bigger than a double */\n#undef HAVE_LONG_DOUBLE": "#define HAVE_LONG_DOUBLE 1",
+    "#undef HAVE_SYS_MEMFD_H": "#define HAVE_SYS_MEMFD_H 1",
+    "#undef LIBFFI_GNU_SYMBOL_VERSIONING": "#define LIBFFI_GNU_SYMBOL_VERSIONING 1",
+    "#undef SIZEOF_LONG_DOUBLE": "#define SIZEOF_LONG_DOUBLE 16",
+    "#undef SYMBOL_UNDERSCORE": "/* #undef SYMBOL_UNDERSCORE */",
+}
+
+_LINUX_X86_64_OVERRIDES = {
+    "#undef FFI_EXEC_STATIC_TRAMP": "#define FFI_EXEC_STATIC_TRAMP 1",
+    "#undef FFI_EXEC_TRAMPOLINE_TABLE": "/* #undef FFI_EXEC_TRAMPOLINE_TABLE */",
+    "#undef FFI_MMAP_EXEC_WRIT": "/* #undef FFI_MMAP_EXEC_WRIT */",
+    "#undef HAVE_AS_X86_PCREL": "#define HAVE_AS_X86_PCREL 1",
+    "/* Define if you have the long double type and it is bigger than a double */\n#undef HAVE_LONG_DOUBLE": "/* #undef HAVE_LONG_DOUBLE */",
+    "#undef HAVE_MEMFD_CREATE": "/* #undef HAVE_MEMFD_CREATE */",
+    "#undef HAVE_SYS_MEMFD_H": "/* #undef HAVE_SYS_MEMFD_H */",
+    "#undef LIBFFI_GNU_SYMBOL_VERSIONING": "/* #undef LIBFFI_GNU_SYMBOL_VERSIONING */",
+    "#undef SIZEOF_LONG_DOUBLE": "#define SIZEOF_LONG_DOUBLE 8",
+    "#undef SYMBOL_UNDERSCORE": "#define SYMBOL_UNDERSCORE 1",
+}
+
+_MACOS_ARM64_OVERRIDES = {
+    "#undef FFI_EXEC_STATIC_TRAMP": "/* #undef FFI_EXEC_STATIC_TRAMP */",
+    "#undef FFI_EXEC_TRAMPOLINE_TABLE": "#define FFI_EXEC_TRAMPOLINE_TABLE 1",
+    "#undef FFI_MMAP_EXEC_WRIT": "/* #undef FFI_MMAP_EXEC_WRIT */",
+    "#undef HAVE_AS_X86_PCREL": "/* #undef HAVE_AS_X86_PCREL */",
+    "/* Define if you have the long double type and it is bigger than a double */\n#undef HAVE_LONG_DOUBLE": "/* #undef HAVE_LONG_DOUBLE */",
+    "#undef HAVE_MEMFD_CREATE": "/* #undef HAVE_MEMFD_CREATE */",
+    "#undef HAVE_SYS_MEMFD_H": "/* #undef HAVE_SYS_MEMFD_H */",
+    "#undef LIBFFI_GNU_SYMBOL_VERSIONING": "/* #undef LIBFFI_GNU_SYMBOL_VERSIONING */",
+    "#undef SIZEOF_LONG_DOUBLE": "#define SIZEOF_LONG_DOUBLE 8",
+    "#undef SYMBOL_UNDERSCORE": "#define SYMBOL_UNDERSCORE 1",
+}
+
+_MACOS_X86_64_OVERRIDES = {
+    "#undef FFI_EXEC_STATIC_TRAMP": "/* #undef FFI_EXEC_STATIC_TRAMP */",
+    "#undef FFI_EXEC_TRAMPOLINE_TABLE": "/* #undef FFI_EXEC_TRAMPOLINE_TABLE */",
+    "#undef FFI_MMAP_EXEC_WRIT": "#define FFI_MMAP_EXEC_WRIT 1",
+    "#undef HAVE_AS_X86_PCREL": "#define HAVE_AS_X86_PCREL 1",
+    "/* Define if you have the long double type and it is bigger than a double */\n#undef HAVE_LONG_DOUBLE": "/* #undef HAVE_LONG_DOUBLE */",
+    "#undef HAVE_MEMFD_CREATE": "/* #undef HAVE_MEMFD_CREATE */",
+    "#undef HAVE_SYS_MEMFD_H": "/* #undef HAVE_SYS_MEMFD_H */",
+    "#undef LIBFFI_GNU_SYMBOL_VERSIONING": "/* #undef LIBFFI_GNU_SYMBOL_VERSIONING */",
+    "#undef SIZEOF_LONG_DOUBLE": "#define SIZEOF_LONG_DOUBLE 8",
+    "#undef SYMBOL_UNDERSCORE": "#define SYMBOL_UNDERSCORE 1",
+}
+
+_WINDOWS_X86_64_OVERRIDES = {
+    "#undef FFI_EXEC_STATIC_TRAMP": "/* #undef FFI_EXEC_STATIC_TRAMP */",
+    "#undef FFI_EXEC_TRAMPOLINE_TABLE": "/* #undef FFI_EXEC_TRAMPOLINE_TABLE */",
+    "#undef FFI_MMAP_EXEC_WRIT": "/* #undef FFI_MMAP_EXEC_WRIT */",
+    "#undef HAVE_ALLOCA_H": "/* #undef HAVE_ALLOCA_H */",
+    "#undef HAVE_AS_X86_PCREL": "/* #undef HAVE_AS_X86_PCREL */",
+    "#undef HAVE_DLFCN_H": "/* #undef HAVE_DLFCN_H */",
+    "#undef HAVE_STRINGS_H": "/* #undef HAVE_STRINGS_H */",
+    "#undef HAVE_UNISTD_H": "/* #undef HAVE_UNISTD_H */",
+    # Windows PE/COFF doesn't support .hidden visibility attribute
+    # This prevents the HIDDEN macro from being defined in assembly files
+    "#undef HAVE_HIDDEN_VISIBILITY_ATTRIBUTE": "/* #undef HAVE_HIDDEN_VISIBILITY_ATTRIBUTE */",
+    "/* Define if you have the long double type and it is bigger than a double */\n#undef HAVE_LONG_DOUBLE": "/* #undef HAVE_LONG_DOUBLE */",
+    "#undef HAVE_MEMFD_CREATE": "/* #undef HAVE_MEMFD_CREATE */",
+    "#undef HAVE_SYS_MEMFD_H": "/* #undef HAVE_SYS_MEMFD_H */",
+    "#undef LIBFFI_GNU_SYMBOL_VERSIONING": "/* #undef LIBFFI_GNU_SYMBOL_VERSIONING */",
+    "#undef SIZEOF_LONG_DOUBLE": "#define SIZEOF_LONG_DOUBLE 8",
+    "#undef SYMBOL_UNDERSCORE": "#define SYMBOL_UNDERSCORE 1",
+}
+
+expand_template(
+    name = "ffi_h",
+    template = "include/ffi.h.in",
+    substitutions = select({
+        "@//:linux_arm64": {
+            # TODO(team:agent-build): Use a constant instead of hardcoding the version
+            "@VERSION@": VERSION,
+            "@FFI_EXEC_TRAMPOLINE_TABLE@": "0",
+            "@TARGET@": "AARCH64",
+            "@HAVE_LONG_DOUBLE@": "1",
+        },
+        # All x86_64 platforms contain
+        # exactly the same values. Therefore,
+        # no need to have separate substitutions
+        # for each x86_64 platform.
+        "@platforms//cpu:x86_64": {
+            "@VERSION@": VERSION,
+            "@FFI_EXEC_TRAMPOLINE_TABLE@": "0",
+            "@TARGET@": "X86_64",
+            "@HAVE_LONG_DOUBLE@": "0",
+        },
+        "@//:macos_arm64": {
+            "@VERSION@": VERSION,
+            "@FFI_EXEC_TRAMPOLINE_TABLE@": "1",
+            "@TARGET@": "AARCH64",
+            "@HAVE_LONG_DOUBLE@": "0",
+        },
+    }),
+    out = "ffi.h",
+)
+
+expand_template(
+    name = "fficonfig_h",
+    template = "fficonfig.h.in",
+    substitutions = select({
+        "@//:linux_arm64": _FFICONFIG_BASE | _LINUX_ARM64_OVERRIDES,
+        "@//:linux_x86_64": _FFICONFIG_BASE | _LINUX_X86_64_OVERRIDES,
+        "@//:macos_arm64": _FFICONFIG_BASE | _MACOS_ARM64_OVERRIDES,
+        "@//:macos_x86_64": _FFICONFIG_BASE | _MACOS_X86_64_OVERRIDES,
+        "@platforms//os:windows": _FFICONFIG_BASE | _WINDOWS_X86_64_OVERRIDES,
+    }),
+    out = "include/fficonfig.h",
+)
+
+copy_file(
+    name = "ffitarget_h",
+    src = select({
+        "@platforms//cpu:aarch64": "src/aarch64/ffitarget.h",
+        "@platforms//cpu:x86_64": "src/x86/ffitarget.h",
+        "//conditions:default": "@platforms//:incompatible",
+    }),
+    out = "ffitarget.h",
+)
+
+cc_library(
+    name = "libffi_include_headers",
+    hdrs = [
+        "include/ffi_cfi.h",
+        "include/ffi_common.h",
+        "include/fficonfig.h",
+        "include/tramp.h",
+    ],
+    strip_include_prefix = "include",
+    visibility = ["//visibility:private"],
+)
+
+cc_library(
+    name = "dlmalloc_header",
+    hdrs = [
+        "src/dlmalloc.c",
+    ],
+    strip_include_prefix = "src",
+    visibility = ["//visibility:private"],
+)
+
+# ffi will be prepended by lib automatically
+cc_library(
+    name = "ffi",
+    hdrs = [
+        ":ffi_h",
+        ":fficonfig_h",
+        ":ffitarget_h",
+    ],
+    srcs = [
+        "src/closures.c",
+        "src/debug.c",
+        "src/java_raw_api.c",
+        "src/prep_cif.c",
+        "src/raw_api.c",
+        "src/tramp.c",
+        "src/types.c",
+    ] + select({
+        "@platforms//cpu:aarch64": [
+            "src/aarch64/ffi.c",
+            "src/aarch64/internal.h",
+            "src/aarch64/sysv.S",
+        ],
+        # For Windows x86_64, use win64.S instead of unix64.S
+        "@//:windows_x86_64": [
+            "src/x86/asmnames.h",
+            "src/x86/ffiw64.c",
+            "src/x86/internal.h",
+            "src/x86/internal64.h",
+            "src/x86/win64.S",
+        ],
+        # For non-Windows x86_64 (Linux, macOS), use unix64.S
+        "@platforms//cpu:x86_64": [
+            "src/x86/asmnames.h",
+            "src/x86/ffi64.c",
+            "src/x86/internal.h",
+            "src/x86/internal64.h",
+            "src/x86/unix64.S",
+        ],
+        "//conditions:default": [],
+    }),
+    includes = ["."],
+    copts = ["-O3"] +
+            select({
+                # Even though -nostdinc is already set on the toolchain level
+                # we need to set it here again to avoid having errors with
+                # system headers being included using absolute paths.
+                "@platforms//os:linux": ["-nostdinc"],
+                "@platforms//os:windows": [
+                    "-DX86_WIN64",
+                    "-DFFI_BUILDING_DLL",
+                ],
+                "//conditions:default": [],
+            }),
+    implementation_deps = [":dlmalloc_header", ":libffi_include_headers"],
+    visibility = ["//visibility:public"],
+)

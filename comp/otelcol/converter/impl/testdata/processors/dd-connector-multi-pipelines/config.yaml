@@ -1,12 +1,4 @@
 receivers:
-  prometheus:
-    config:
-      scrape_configs:
-        - job_name: "otelcol"
-          scrape_interval: 60s
-          metric_name_validation_scheme: legacy
-          static_configs:
-            - targets: ["0.0.0.0:8888"]
   otlp:
     protocols:
       grpc:
@@ -20,8 +12,6 @@ exporters:
     api:
       key: "0000"
 processors:
-  batch:
-    timeout: 10s
 connectors:
   datadog/connector:
     traces:
@@ -36,6 +26,9 @@ extensions:
   ddflare/user-defined:
 
 service:
+  telemetry:
+    metrics:
+      level: none
   extensions:
     [
       pprof/user-defined,
@@ -46,17 +39,13 @@ service:
   pipelines:
     traces:
       receivers: [otlp]
-      processors: [batch]
       exporters: [datadog]
     traces/2:
       receivers: [otlp]
-      processors: [batch]
       exporters: [datadog/connector]
     metrics:
-      receivers: [otlp, datadog/connector, prometheus]
-      processors: [batch]
+      receivers: [otlp, datadog/connector]
       exporters: [datadog]
     logs:
       receivers: [otlp]
-      processors: [batch]
       exporters: [datadog]

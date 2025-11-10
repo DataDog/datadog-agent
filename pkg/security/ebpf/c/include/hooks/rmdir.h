@@ -105,7 +105,7 @@ int hook_security_inode_rmdir(ctx_t *ctx) {
         syscall->resolver.iteration = 0;
         syscall->resolver.ret = 0;
 
-        resolve_dentry(ctx, DR_KPROBE_OR_FENTRY);
+        resolve_dentry(ctx, KPROBE_OR_FENTRY_TYPE);
 
         // if the tail call fails, we need to pop the syscall cache entry
         pop_syscall_with(rmdir_predicate);
@@ -113,8 +113,7 @@ int hook_security_inode_rmdir(ctx_t *ctx) {
     return 0;
 }
 
-TAIL_CALL_TARGET("dr_security_inode_rmdir_callback")
-int tail_call_target_dr_security_inode_rmdir_callback(ctx_t *ctx) {
+TAIL_CALL_FNC(dr_security_inode_rmdir_callback, ctx_t *ctx) {
     struct syscall_cache_t *syscall = peek_syscall_with(rmdir_predicate);
     if (!syscall) {
         return 0;
@@ -147,7 +146,7 @@ int __attribute__((always_inline)) sys_rmdir_ret(void *ctx, int retval) {
         };
 
         struct proc_cache_t *entry = fill_process_context(&event.process);
-        fill_container_context(entry, &event.container);
+        fill_cgroup_context(entry, &event.cgroup);
         fill_span_context(&event.span);
 
         send_event(ctx, EVENT_RMDIR, event);
@@ -171,8 +170,7 @@ HOOK_SYSCALL_EXIT(rmdir) {
     return sys_rmdir_ret(ctx, retval);
 }
 
-SEC("tracepoint/handle_sys_rmdir_exit")
-int tracepoint_handle_sys_rmdir_exit(struct tracepoint_raw_syscalls_sys_exit_t *args) {
+TAIL_CALL_TRACEPOINT_FNC(handle_sys_rmdir_exit, struct tracepoint_raw_syscalls_sys_exit_t *args) {
     return sys_rmdir_ret(args, args->ret);
 }
 

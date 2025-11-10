@@ -30,7 +30,11 @@ func TestDump(t *testing.T) {
 		Resources: wmdef.ContainerResources{
 			GPUVendorList: []string{"nvidia"},
 		},
-		AllocatedResources: []wmdef.ContainerAllocatedResource{
+		ResizePolicy: wmdef.ContainerResizePolicy{
+			CPURestartPolicy:    "NotRequired",
+			MemoryRestartPolicy: "RestartContainer",
+		},
+		ResolvedAllocatedResources: []wmdef.ContainerAllocatedResource{
 			{Name: "nvidia.com/gpu", ID: "GPU-1234"},
 		},
 		Runtime:       wmdef.ContainerRuntimeDocker,
@@ -130,6 +134,9 @@ Started At: 0001-01-01 00:00:00 +0000 UTC
 Finished At: 0001-01-01 00:00:00 +0000 UTC
 ----------- Resources -----------
 GPUVendor: [nvidia]
+----------- Resize Policy -----------
+RestartPolicy (CPU): NotRequired
+RestartPolicy (Memory): RestartContainer
 ----------- Allocated Resources -----------
 Name: nvidia.com/gpu, ID: GPU-1234
 Hostname: 
@@ -161,6 +168,7 @@ Created At: 0001-01-01 00:00:00 +0000 UTC
 Started At: 0001-01-01 00:00:00 +0000 UTC
 Finished At: 0001-01-01 00:00:00 +0000 UTC
 ----------- Resources -----------
+----------- Resize Policy -----------
 ----------- Allocated Resources -----------
 Hostname: 
 Network IPs: 
@@ -192,6 +200,9 @@ Started At: 0001-01-01 00:00:00 +0000 UTC
 Finished At: 0001-01-01 00:00:00 +0000 UTC
 ----------- Resources -----------
 GPUVendor: [nvidia]
+----------- Resize Policy -----------
+RestartPolicy (CPU): NotRequired
+RestartPolicy (Memory): RestartContainer
 ----------- Allocated Resources -----------
 Name: nvidia.com/gpu, ID: GPU-1234
 Hostname: 

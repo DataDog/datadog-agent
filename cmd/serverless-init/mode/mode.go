@@ -54,7 +54,7 @@ func DetectMode() Conf {
 	return Conf{
 		LoggerName:     loggerNameInit,
 		Runner:         RunInit,
-		TagVersionMode: "datadog_init_version",
+		TagVersionMode: "_dd.datadog_init_version",
 		EnvDefaults:    envToSet,
 	}
 }

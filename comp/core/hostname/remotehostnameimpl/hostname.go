@@ -22,8 +22,8 @@ import (
 	cache "github.com/patrickmn/go-cache"
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/api/authtoken"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 )
 
 const (
@@ -52,18 +52,18 @@ var cachKey = "hostname"
 
 type remotehostimpl struct {
 	cache *cache.Cache
-	at    authtoken.Component
+	ipc   ipc.Component
 }
 
 type dependencies struct {
 	fx.In
-	At authtoken.Component
+	IPC ipc.Component
 }
 
 func newRemoteHostImpl(deps dependencies) hostnameinterface.Component {
 	return &remotehostimpl{
 		cache: cache.New(defaultExpire, defaultPurge),
-		at:    deps.At,
+		ipc:   deps.IPC,
 	}
 }
 
@@ -108,7 +108,7 @@ func (r *remotehostimpl) getHostnameWithContext(ctx context.Context) (string, er
 			return err
 		}
 
-		client, err := grpc.GetDDAgentClient(ctx, ipcAddress, pkgconfigsetup.GetIPCPort(), r.at.GetTLSClientConfig)
+		client, err := grpc.GetDDAgentClient(ctx, ipcAddress, pkgconfigsetup.GetIPCPort(), r.ipc.GetTLSClientConfig())
 		if err != nil {
 			return err
 		}

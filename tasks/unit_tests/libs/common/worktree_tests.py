@@ -64,7 +64,7 @@ class WorktreeMockContext(MockContext):
             re.match(r'git.*status --porcelain.*', command)
             or re.match(r'git.*reset --hard.*', command)
             or re.match(r'git.*clean -f.*', command)
-            or re.match(r'git.*branch --set-upstream-to.*', command)
+            or re.match(r'git.*branch.*', command)
             or re.match(r'cp.*', command)
         ):
             return Result(stdout='')

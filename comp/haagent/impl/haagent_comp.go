@@ -8,6 +8,7 @@ package haagentimpl
 
 import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	haagent "github.com/DataDog/datadog-agent/comp/haagent/def"
 	rctypes "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/types"
@@ -18,6 +19,7 @@ import (
 type Requires struct {
 	Logger      log.Component
 	AgentConfig config.Component
+	Hostname    hostnameinterface.Component
 }
 
 // Provides defines the output of the haagent component
@@ -29,7 +31,7 @@ type Provides struct {
 // NewComponent creates a new haagent component
 func NewComponent(reqs Requires) (Provides, error) {
 	haAgentConf := newHaAgentConfigs(reqs.AgentConfig)
-	haAgent := newHaAgentImpl(reqs.Logger, haAgentConf)
+	haAgent := newHaAgentImpl(reqs.Logger, reqs.Hostname, haAgentConf)
 	var rcListener rctypes.ListenerProvider
 	if haAgent.Enabled() {
 		reqs.Logger.Debug("Add HA Agent RCListener")

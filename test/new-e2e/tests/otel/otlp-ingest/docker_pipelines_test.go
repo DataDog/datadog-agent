@@ -7,8 +7,10 @@ package otlpingest
 
 import (
 	_ "embed"
+	"strings"
 	"testing"
 
+	"github.com/DataDog/test-infra-definitions/components/datadog/apps"
 	"github.com/DataDog/test-infra-definitions/components/datadog/dockeragentparams"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 
@@ -39,13 +41,16 @@ func TestOTLPIngestDocker(t *testing.T) {
 					dockeragentparams.WithAgentServiceEnvVariable("DD_OTLP_CONFIG_LOGS_ENABLED", pulumi.StringPtr("true")),
 					dockeragentparams.WithAgentServiceEnvVariable("DD_LOGS_CONFIG_CONTAINER_COLLECT_ALL", pulumi.StringPtr("false")),
 					dockeragentparams.WithAgentServiceEnvVariable("DD_OTLP_CONFIG_METRICS_RESOURCE_ATTRIBUTES_AS_TAGS", pulumi.StringPtr("true")),
-					dockeragentparams.WithExtraComposeManifest("calendar-rest-go", pulumi.String(otlpIngestCompose)),
+					dockeragentparams.WithExtraComposeManifest("calendar-rest-go", pulumi.String(strings.ReplaceAll(otlpIngestCompose, "{APPS_VERSION}", apps.Version))),
 				))),
 	)
 }
 
 func (s *otlpIngestDockerTestSuite) SetupSuite() {
 	s.BaseSuite.SetupSuite()
+	// SetupSuite needs to defer CleanupOnSetupFailure() if what comes after BaseSuite.SetupSuite() can fail.
+	defer s.CleanupOnSetupFailure()
+
 	utils.TestCalendarAppDocker(s)
 }
 

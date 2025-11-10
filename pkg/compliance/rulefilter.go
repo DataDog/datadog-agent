@@ -11,6 +11,7 @@ package compliance
 import (
 	"fmt"
 
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	"github.com/DataDog/datadog-agent/pkg/security/rules/filtermodel"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules/filter"
 )
@@ -21,9 +22,9 @@ type seclRuleFilter struct {
 }
 
 // newSECLRuleFilter returns a new agent version based rule filter
-func newSECLRuleFilter() (*seclRuleFilter, error) {
+func newSECLRuleFilter(ipc ipc.Component) (*seclRuleFilter, error) {
 	cfg := filtermodel.RuleFilterEventConfig{}
-	model, err := filtermodel.NewRuleFilterModel(cfg)
+	model, err := filtermodel.NewRuleFilterModel(cfg, ipc)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create default SECL rule filter: %w", err)
 	}

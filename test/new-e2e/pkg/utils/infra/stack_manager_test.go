@@ -32,7 +32,7 @@ var _ io.Writer = &mockWriter{}
 
 func (m *mockWriter) Write(p []byte) (n int, err error) {
 	m.logs = append(m.logs, string(p))
-	return 0, nil
+	return len(p), nil
 }
 
 type mockDatadogEventSender struct {
@@ -226,6 +226,70 @@ func TestStackManager(t *testing.T) {
 		assert.Contains(t, mockDatadogEventSender.events[0].Title, fmt.Sprintf("[E2E] Stack %s : timeout on Pulumi stack up", stackName))
 		assert.Contains(t, mockDatadogEventSender.events[1].Title, fmt.Sprintf("[E2E] Stack %s : error on Pulumi stack up", stackName))
 		assert.Contains(t, mockDatadogEventSender.events[2].Title, fmt.Sprintf("[E2E] Stack %s : success on Pulumi stack up", stackName))
+	})
+
+	t.Run("should-retry-good-number-of-times", func(t *testing.T) {
+		t.Parallel()
+		t.Log("Should retry good number of times")
+		mockWriter := &mockWriter{
+			logs: []string{},
+		}
+		mockDatadogEventSender := &mockDatadogEventSender{
+			events: []datadogV1.EventCreateRequest{},
+		}
+		stackName := "test-retry-good-number-of-times"
+		stackUpCounter := 0
+		stack, result, err := stackManager.GetStackNoDeleteOnFailure(
+			ctx,
+			stackName,
+			func(*pulumi.Context) error {
+				stackUpCounter++
+				if stackUpCounter > 3 {
+					return nil
+				}
+				return fmt.Errorf("error during container init: error setting cgroup config for procHooks process: unable to freeze: unknown")
+			},
+			WithLogWriter(mockWriter),
+			WithDatadogEventSender(mockDatadogEventSender),
+		)
+		assert.NoError(t, err)
+		require.NotNil(t, stack)
+		assert.NotNil(t, result)
+		defer func() {
+			err := stackManager.DeleteStack(ctx, stackName, mockWriter)
+			require.NoError(t, err)
+		}()
+	})
+
+	t.Run("should-retry-default-number-of-times", func(t *testing.T) {
+		t.Parallel()
+		t.Log("Should retry default number of times")
+		mockWriter := &mockWriter{
+			logs: []string{},
+		}
+		mockDatadogEventSender := &mockDatadogEventSender{
+			events: []datadogV1.EventCreateRequest{},
+		}
+		stackName := "test-retry-default-number-of-times"
+		stackUpCounter := 0
+		_, _, err := stackManager.GetStackNoDeleteOnFailure(
+			ctx,
+			stackName,
+			func(*pulumi.Context) error {
+				stackUpCounter++
+				if stackUpCounter > 3 {
+					return nil
+				}
+				return fmt.Errorf("random error")
+			},
+			WithLogWriter(mockWriter),
+			WithDatadogEventSender(mockDatadogEventSender),
+		)
+		assert.Error(t, err)
+		defer func() {
+			err := stackManager.DeleteStack(ctx, stackName, mockWriter)
+			require.NoError(t, err)
+		}()
 	})
 
 	t.Run("should-return-retry-strategy-on-retriable-errors", func(t *testing.T) {

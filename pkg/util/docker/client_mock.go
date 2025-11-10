@@ -11,19 +11,17 @@ import (
 	"context"
 	"time"
 
-	"github.com/docker/docker/api/types"
+	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/image"
 	"github.com/docker/docker/client"
-
-	"github.com/DataDog/datadog-agent/pkg/util/containers"
 )
 
 // MockClient is a mock implementation of docker.Client interface
 // Should probably be generated at some point
 type MockClient struct {
 	FakeRawClient                   *client.Client
-	FakeContainerList               []types.Container
+	FakeContainerList               []container.Summary
 	FakeImageNameMapping            map[string]string
 	FakeImages                      []image.Summary
 	FakeStorageStats                []*StorageStats
@@ -40,7 +38,7 @@ func (d *MockClient) RawClient() *client.Client {
 }
 
 // RawContainerList is a mock method
-func (d *MockClient) RawContainerList(context.Context, container.ListOptions) ([]types.Container, error) {
+func (d *MockClient) RawContainerList(context.Context, container.ListOptions) ([]container.Summary, error) {
 	return d.FakeContainerList, d.FakeError
 }
 
@@ -80,6 +78,6 @@ func (d *MockClient) CountVolumes(ctx context.Context) (int, int, error) {
 // LatestContainerEvents is a mock method
 //
 //nolint:revive // TODO(CINT) Fix revive linter
-func (d *MockClient) LatestContainerEvents(ctx context.Context, since time.Time, filter *containers.Filter) ([]*ContainerEvent, time.Time, error) {
+func (d *MockClient) LatestContainerEvents(ctx context.Context, since time.Time, filter workloadfilter.FilterBundle) ([]*ContainerEvent, time.Time, error) {
 	return d.FakeContainerEvents, d.FakeLastContainerEventTimestamp, d.FakeError
 }

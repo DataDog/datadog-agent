@@ -8,7 +8,6 @@
 package gpu
 
 import (
-	"os"
 	"strconv"
 	"strings"
 	"testing"
@@ -16,16 +15,32 @@ import (
 	"github.com/stretchr/testify/require"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	"github.com/DataDog/datadog-agent/pkg/ebpf/uprobes"
+	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
+	nvmltestutil "github.com/DataDog/datadog-agent/pkg/gpu/safenvml/testutil"
 	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
+	gpuutil "github.com/DataDog/datadog-agent/pkg/util/gpu"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
+func getTestSystemContext(tb testing.TB, extraOpts ...systemContextOption) *systemContext {
+	opts := []systemContextOption{
+		withProcRoot(kernel.ProcFSRoot()),
+		withWorkloadMeta(testutil.GetWorkloadMetaMock(tb)),
+		withTelemetry(testutil.GetTelemetryMock(tb)),
+	}
+
+	opts = append(opts, extraOpts...) // Allow overriding the default options
+
+	sysCtx, err := getSystemContext(opts...)
+	require.NoError(tb, err)
+	require.NotNil(tb, sysCtx)
+	return sysCtx
+}
+
 func TestFilterDevicesForContainer(t *testing.T) {
+	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled()))
 	wmetaMock := testutil.GetWorkloadMetaMock(t)
-	sysCtx, err := getSystemContext(testutil.GetBasicNvmlMock(), kernel.ProcFSRoot(), wmetaMock, testutil.GetTelemetryMock(t))
-	require.NotNil(t, sysCtx)
-	require.NoError(t, err)
+	sysCtx := getTestSystemContext(t, withWorkloadMeta(wmetaMock))
 
 	// Create a container with a single GPU and add it to the store
 	containerID := "abcdef"
@@ -39,9 +54,9 @@ func TestFilterDevicesForContainer(t *testing.T) {
 		EntityMeta: workloadmeta.EntityMeta{
 			Name: containerID,
 		},
-		AllocatedResources: []workloadmeta.ContainerAllocatedResource{
+		ResolvedAllocatedResources: []workloadmeta.ContainerAllocatedResource{
 			{
-				Name: nvidiaResourceName,
+				Name: string(gpuutil.GpuNvidiaGeneric),
 				ID:   gpuUUID,
 			},
 		},
@@ -56,7 +71,24 @@ func TestFilterDevicesForContainer(t *testing.T) {
 		EntityMeta: workloadmeta.EntityMeta{
 			Name: containerIDNoGpu,
 		},
-		AllocatedResources: nil,
+		ResolvedAllocatedResources: nil,
+	}
+
+	containerIDGke := "gke-1234567890"
+	containerGke := &workloadmeta.Container{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindContainer,
+			ID:   containerIDGke,
+		},
+		EntityMeta: workloadmeta.EntityMeta{
+			Name: containerIDGke,
+		},
+		ResolvedAllocatedResources: []workloadmeta.ContainerAllocatedResource{
+			{
+				Name: string(gpuutil.GpuNvidiaGeneric),
+				ID:   "nvidia0",
+			},
+		},
 	}
 
 	wmetaMock.Set(container)
@@ -69,36 +101,60 @@ func TestFilterDevicesForContainer(t *testing.T) {
 	require.NoError(t, err, "container should be found in the store")
 	require.NotNil(t, storeContainer, "container should be found in the store")
 
+	wmetaMock.Set(containerGke)
+	storeContainer, err = wmetaMock.GetContainer(containerIDGke)
+	require.NoError(t, err, "container should be found in the store")
+	require.NotNil(t, storeContainer, "container should be found in the store")
+
 	t.Run("NoContainer", func(t *testing.T) {
-		filtered, err := sysCtx.filterDevicesForContainer(sysCtx.gpuDevices, "")
+		allDevices, err := sysCtx.deviceCache.All()
 		require.NoError(t, err)
-		testutil.RequireDeviceListsEqual(t, filtered, sysCtx.gpuDevices) // With no container, all devices should be returned
+		filtered, err := sysCtx.filterDevicesForContainer(allDevices, "")
+		require.NoError(t, err)
+		nvmltestutil.RequireDeviceListsEqual(t, filtered, allDevices) // With no container, all devices should be returned
 	})
 
 	t.Run("NonExistentContainer", func(t *testing.T) {
-		filtered, err := sysCtx.filterDevicesForContainer(sysCtx.gpuDevices, "non-existent-at-all")
+		allDevices, err := sysCtx.deviceCache.All()
 		require.NoError(t, err)
-		testutil.RequireDeviceListsEqual(t, filtered, sysCtx.gpuDevices) // If we can't find the container, all devices should be returned
+		filtered, err := sysCtx.filterDevicesForContainer(allDevices, "non-existent-at-all")
+		require.NoError(t, err)
+		nvmltestutil.RequireDeviceListsEqual(t, filtered, allDevices) // If we can't find the container, all devices should be returned
 	})
 
 	t.Run("ContainerWithGPU", func(t *testing.T) {
-		filtered, err := sysCtx.filterDevicesForContainer(sysCtx.gpuDevices, containerID)
+		allDevices, err := sysCtx.deviceCache.All()
+		require.NoError(t, err)
+		filtered, err := sysCtx.filterDevicesForContainer(allDevices, containerID)
 		require.NoError(t, err)
 		require.Len(t, filtered, 1)
-		testutil.RequireDeviceListsEqual(t, filtered, sysCtx.gpuDevices[deviceIndex:deviceIndex+1])
+		nvmltestutil.RequireDeviceListsEqual(t, filtered, allDevices[deviceIndex:deviceIndex+1])
 	})
 
 	t.Run("ContainerWithNoGPUs", func(t *testing.T) {
-		_, err := sysCtx.filterDevicesForContainer(sysCtx.gpuDevices, containerIDNoGpu)
+		allDevices, err := sysCtx.deviceCache.All()
+		require.NoError(t, err)
+		_, err = sysCtx.filterDevicesForContainer(allDevices, containerIDNoGpu)
 		require.Error(t, err, "expected an error when filtering a container with no GPUs")
 	})
 
 	t.Run("ContainerWithNoGPUsButOnlyOneDeviceInSystem", func(t *testing.T) {
-		sysDevices := sysCtx.gpuDevices[:1]
+		allDevices, err := sysCtx.deviceCache.All()
+		require.NoError(t, err)
+		sysDevices := allDevices[:1]
 		filtered, err := sysCtx.filterDevicesForContainer(sysDevices, containerIDNoGpu)
 		require.NoError(t, err)
 		require.Len(t, filtered, 1)
-		testutil.RequireDeviceListsEqual(t, filtered, sysDevices)
+		nvmltestutil.RequireDeviceListsEqual(t, filtered, sysDevices)
+	})
+
+	t.Run("ContainerWithGKEPlugin", func(t *testing.T) {
+		allDevices, err := sysCtx.deviceCache.All()
+		require.NoError(t, err)
+		filtered, err := sysCtx.filterDevicesForContainer(allDevices, containerIDGke)
+		require.NoError(t, err)
+		require.Len(t, filtered, 1)
+		nvmltestutil.RequireDeviceListsEqual(t, filtered, allDevices[0:1])
 	})
 }
 
@@ -115,17 +171,17 @@ func TestGetCurrentActiveGpuDevice(t *testing.T) {
 	}
 	envVisibleDevicesValue := strings.Join(envVisibleDevicesStr, ",")
 
-	procFs := uprobes.CreateFakeProcFS(t, []uprobes.FakeProcFSEntry{
+	procFs := kernel.CreateFakeProcFS(t, []kernel.FakeProcFSEntry{
 		{Pid: uint32(pidNoContainer)},
 		{Pid: uint32(pidContainer)},
 		{Pid: uint32(pidContainerAndEnv), Env: map[string]string{"CUDA_VISIBLE_DEVICES": envVisibleDevicesValue}},
 		{Pid: uint32(pidNoContainerButEnv), Env: map[string]string{"CUDA_VISIBLE_DEVICES": envVisibleDevicesValue}},
 	})
 
+	// MIG makes the device selection more complex, so we disable it for these tests
+	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled()))
 	wmetaMock := testutil.GetWorkloadMetaMock(t)
-	sysCtx, err := getSystemContext(testutil.GetBasicNvmlMock(), procFs, wmetaMock, testutil.GetTelemetryMock(t))
-	require.NotNil(t, sysCtx)
-	require.NoError(t, err)
+	sysCtx := getTestSystemContext(t, withProcRoot(procFs), withWorkloadMeta(wmetaMock))
 
 	// Create a container with a single GPU and add it to the store
 	containerID := "abcdef"
@@ -143,10 +199,10 @@ func TestGetCurrentActiveGpuDevice(t *testing.T) {
 	for _, idx := range containerDeviceIndexes {
 		gpuUUID := testutil.GPUUUIDs[idx]
 		resource := workloadmeta.ContainerAllocatedResource{
-			Name: nvidiaResourceName,
+			Name: string(gpuutil.GpuNvidiaGeneric),
 			ID:   gpuUUID,
 		}
-		container.AllocatedResources = append(container.AllocatedResources, resource)
+		container.ResolvedAllocatedResources = append(container.ResolvedAllocatedResources, resource)
 	}
 
 	wmetaMock.Set(container)
@@ -160,6 +216,7 @@ func TestGetCurrentActiveGpuDevice(t *testing.T) {
 		containerID         string
 		configuredDeviceIdx []int32
 		expectedDeviceIdx   []int32
+		updatedEnvVar       string
 	}{
 		{
 			name:                "NoContainer",
@@ -189,10 +246,29 @@ func TestGetCurrentActiveGpuDevice(t *testing.T) {
 			configuredDeviceIdx: []int32{1, 2},
 			expectedDeviceIdx:   []int32{containerDeviceIndexes[envVisibleDevices[1]], containerDeviceIndexes[envVisibleDevices[2]]},
 		},
+		{
+			name:                "NoContainerAndRuntimeEnvVar",
+			pid:                 pidNoContainer,
+			configuredDeviceIdx: []int32{0},
+			expectedDeviceIdx:   []int32{1},
+			updatedEnvVar:       "1",
+		},
+		{
+			name:                "NoContainerAndRuntimeUpdatedEnvVar",
+			pid:                 pidNoContainerButEnv,
+			configuredDeviceIdx: []int32{0},
+			expectedDeviceIdx:   []int32{1},
+			updatedEnvVar:       "1",
+		},
 	}
 
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
+			if c.updatedEnvVar != "" {
+				sysCtx.setUpdatedVisibleDevicesEnvVar(c.pid, c.updatedEnvVar)
+				require.NotContains(t, sysCtx.visibleDevicesCache, c.pid, "cache not invalidated for process %d", c.pid)
+			}
+
 			for i, idx := range c.configuredDeviceIdx {
 				sysCtx.setDeviceSelection(c.pid, c.pid+i, idx)
 			}
@@ -200,55 +276,14 @@ func TestGetCurrentActiveGpuDevice(t *testing.T) {
 			for i, idx := range c.expectedDeviceIdx {
 				activeDevice, err := sysCtx.getCurrentActiveGpuDevice(c.pid, c.pid+i, func() string { return c.containerID })
 				require.NoError(t, err)
-				testutil.RequireDevicesEqual(t, sysCtx.gpuDevices[idx], activeDevice, "invalid device at index %d (real index is %d, selected index is %d)", i, idx, c.configuredDeviceIdx[i])
+				allDevices, err := sysCtx.deviceCache.All()
+				require.NoError(t, err)
+				nvmltestutil.RequireDevicesEqual(t, allDevices[idx], activeDevice, "invalid device at index %d (real index is %d, selected index is %d)", i, idx, c.configuredDeviceIdx[i])
 			}
+
+			// Note: we're explicitly not resetting the caches, as we want to test
+			// whether the functions correctly invalidate the caches when the
+			// environment variable is updated.
 		})
 	}
-}
-
-func TestBuildSymbolFileIdentifier(t *testing.T) {
-	// Create a file, then a symlink to it
-	// and check that the identifier is the same
-	// for both files.
-	dir := t.TempDir()
-	filePath := dir + "/file"
-	copyPath := dir + "/copy"
-	differentPath := dir + "/different"
-	symlinkPath := dir + "/symlink"
-
-	data := []byte("hello")
-	// create the original file
-	err := os.WriteFile(filePath, data, 0644)
-	require.NoError(t, err)
-
-	// create a symlink to the original file, which should have the same identifier
-	err = os.Symlink(filePath, symlinkPath)
-	require.NoError(t, err)
-
-	// a copy is a different inode, so it should have a different identifier
-	// even with the same size
-	err = os.WriteFile(copyPath, data, 0644)
-	require.NoError(t, err)
-
-	// a different file with different content should have a different identifier
-	// as it's different content and different inode
-	err = os.WriteFile(differentPath, []byte("different"), 0644)
-	require.NoError(t, err)
-
-	origIdentifier, err := buildSymbolFileIdentifier(filePath)
-	require.NoError(t, err)
-
-	symlinkIdentifier, err := buildSymbolFileIdentifier(symlinkPath)
-	require.NoError(t, err)
-
-	copyIdentifier, err := buildSymbolFileIdentifier(copyPath)
-	require.NoError(t, err)
-
-	differentIdentifier, err := buildSymbolFileIdentifier(differentPath)
-	require.NoError(t, err)
-
-	require.Equal(t, origIdentifier, symlinkIdentifier)
-	require.NotEqual(t, origIdentifier, copyIdentifier)
-	require.NotEqual(t, origIdentifier, differentIdentifier)
-	require.NotEqual(t, copyIdentifier, differentIdentifier)
 }

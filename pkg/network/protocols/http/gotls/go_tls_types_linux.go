@@ -32,8 +32,11 @@ type TlsConnLayout struct {
 	Tcp_conn_inner_conn_offset     uint64
 	Limited_conn_inner_conn_offset uint64
 	Conn_fd_offset                 uint64
-	Net_fd_pfd_offset              uint64
-	Fd_sysfd_offset                uint64
+	Conn_fd_family_offset          uint64
+	Conn_fd_laddr_offset           uint64
+	Conn_fd_raddr_offset           uint64
+	Tcp_addr_port_offset           uint64
+	Tcp_addr_ip_offset             uint64
 }
 type TlsOffsetsData struct {
 	Goroutine_id       GoroutineIDMetadata
@@ -46,4 +49,18 @@ type TlsOffsetsData struct {
 	Write_return_bytes Location
 	Write_return_error Location
 	Close_conn_pointer Location
+}
+type TlsFunctionsArgsKey struct {
+	Id        int64
+	Pid       uint32
+	Pad_cgo_0 [4]byte
+}
+type TlsReadArgsData struct {
+	Conn_pointer uint64
+	B_data       uint64
+}
+type TlsWriteArgsData struct {
+	Conn_pointer uint64
+	B_data       uint64
+	B_len        uint64
 }

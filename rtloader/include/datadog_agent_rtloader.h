@@ -345,7 +345,7 @@ DATADOG_AGENT_RTLOADER_API const char *get_error(const rtloader_t *);
 
     The returned error C-string must be freed by the caller.
 */
-DATADOG_AGENT_RTLOADER_API int handle_crashes(const int, char **error);
+DATADOG_AGENT_RTLOADER_API int handle_crashes(const int, const int, char **error);
 #endif
 
 // PYTHON HELPERS

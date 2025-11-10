@@ -32,7 +32,6 @@ func isJs(filepath string) bool {
 
 func (n nodeDetector) detect(args []string) (ServiceMetadata, bool) {
 	skipNext := false
-	cwd, _ := workingDirFromEnvs(n.ctx.Envs)
 	for _, a := range args {
 		if skipNext {
 			skipNext = false
@@ -45,7 +44,7 @@ func (n nodeDetector) detect(args []string) (ServiceMetadata, bool) {
 				continue
 			}
 		} else {
-			absFile := abs(path.Clean(a), cwd)
+			absFile := n.ctx.resolveWorkingDirRelativePath(path.Clean(a))
 			entryPoint := ""
 			if isJs(a) {
 				entryPoint = absFile
@@ -99,14 +98,7 @@ func (n nodeDetector) findNameFromNearestPackageJSON(absFilePath string) (string
 		up = path.Dir(current)
 	}
 
-	foundServiceName := ok && len(value) > 0
-	if foundServiceName {
-		// Save package.json path for the instrumentation detector to use.
-		n.ctx.ContextMap[NodePackageJSONPath] = currentFilePath
-		n.ctx.ContextMap[ServiceSubFS] = n.ctx.fs
-	}
-
-	return value, foundServiceName
+	return value, ok && len(value) > 0
 }
 
 // maybeExtractServiceName return true if a package.json has been found and eventually the value of its name field inside.

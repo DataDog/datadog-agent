@@ -216,13 +216,12 @@ func AgentProcessIsRunning(client *TestClient, processName string) bool {
 }
 
 // AssertPortBoundByService accepts a port and a service name and returns true if the port is bound by the service
-func AssertPortBoundByService(t assert.TestingT, client *TestClient, port int, service string) (boundport.BoundPort, bool) {
+func AssertPortBoundByService(t assert.TestingT, client *TestClient, port int, service string, processName string) (boundport.BoundPort, bool) {
 	if h, ok := t.(tHelper); ok {
 		h.Helper()
 	}
 
-	// TODO: might need to map service name to process name, this is working right now though
-	pids, err := process.FindPID(client.Host, service)
+	pids, err := process.FindPID(client.Host, processName)
 	if !assert.NoError(t, err) {
 		return nil, false
 	}
@@ -331,4 +330,26 @@ func execWithRetry(exec func(string) (string, error), cmd string) (string, error
 	}
 
 	return output, err
+}
+
+// MacOSTestClient is a helper to run commands on a Mac OS remote host for tests
+type MacOSTestClient struct {
+	host *components.RemoteHost
+}
+
+// NewMacOSTestClient creates a client to help write tests that run on a Mac OS remote host
+func NewMacOSTestClient(host *components.RemoteHost) *MacOSTestClient {
+	return &MacOSTestClient{
+		host: host,
+	}
+}
+
+// Execute runs commands on a Mac OS remote host
+func (c *MacOSTestClient) Execute(command string) (output string, err error) {
+	return c.host.Execute(command)
+}
+
+// ExecuteWithRetry execute the command with retry
+func (c *MacOSTestClient) ExecuteWithRetry(cmd string) (output string, err error) {
+	return execWithRetry(c.Execute, cmd)
 }

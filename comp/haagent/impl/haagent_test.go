@@ -6,16 +6,20 @@
 package haagentimpl
 
 import (
+	"bufio"
+	"bytes"
+	"strings"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	haagent "github.com/DataDog/datadog-agent/comp/haagent/def"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"go.uber.org/fx"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 var testRCConfigID = "datadog/2/HA_AGENT/config-62345762794c0c0b/65f17d667fb50f8ae28a3c858bdb1be9ea994f20249c119e007c520ac115c807"
@@ -26,13 +30,23 @@ func Test_Enabled(t *testing.T) {
 		name            string
 		configs         map[string]interface{}
 		expectedEnabled bool
+		expectedError   string
 	}{
 		{
 			name: "enabled",
 			configs: map[string]interface{}{
 				"ha_agent.enabled": true,
+				"config_id":        "foo",
 			},
 			expectedEnabled: true,
+		},
+		{
+			name: "disabled due to missing config_id",
+			configs: map[string]interface{}{
+				"ha_agent.enabled": true,
+			},
+			expectedEnabled: false,
+			expectedError:   "HA Agent feature requires config_id to be set",
 		},
 		{
 			name: "disabled",
@@ -44,8 +58,25 @@ func Test_Enabled(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			haAgent := newTestHaAgentComponent(t, tt.configs).Comp
+			var b bytes.Buffer
+			w := bufio.NewWriter(&b)
+			l, err := log.LoggerFromWriterWithMinLevelAndLvlFuncMsgFormat(w, log.WarnLvl)
+			assert.Nil(t, err)
+			log.SetupLogger(l, "warn")
+
+			haAgent := newTestHaAgentComponent(t, tt.configs, l).Comp.(*haAgentImpl)
+
 			assert.Equal(t, tt.expectedEnabled, haAgent.Enabled())
+			haAgent.Enabled()
+
+			l.Close() // We need to first close the logger to avoid a race-cond between seelog and out test when calling w.Flush()
+			w.Flush()
+			logs := b.String()
+			if tt.expectedError != "" {
+				assert.Equal(t, 1, strings.Count(logs, tt.expectedError), logs)
+			} else {
+				assert.Empty(t, logs)
+			}
 		})
 	}
 }
@@ -54,7 +85,7 @@ func Test_GetConfigID(t *testing.T) {
 	agentConfigs := map[string]interface{}{
 		"config_id": "my-configID-01",
 	}
-	haAgent := newTestHaAgentComponent(t, agentConfigs).Comp
+	haAgent := newTestHaAgentComponent(t, agentConfigs, nil).Comp
 	assert.Equal(t, "my-configID-01", haAgent.GetConfigID())
 }
 
@@ -62,7 +93,7 @@ func Test_GetState(t *testing.T) {
 	agentConfigs := map[string]interface{}{
 		"hostname": "my-agent-hostname",
 	}
-	haAgent := newTestHaAgentComponent(t, agentConfigs).Comp
+	haAgent := newTestHaAgentComponent(t, agentConfigs, nil).Comp
 
 	assert.Equal(t, haagent.Unknown, haAgent.GetState())
 
@@ -83,6 +114,7 @@ func Test_RCListener(t *testing.T) {
 			name: "enabled",
 			configs: map[string]interface{}{
 				"ha_agent.enabled": true,
+				"config_id":        "foo",
 			},
 			expectRCListener: true,
 		},
@@ -96,7 +128,7 @@ func Test_RCListener(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			provides := newTestHaAgentComponent(t, tt.configs)
+			provides := newTestHaAgentComponent(t, tt.configs, nil)
 			if tt.expectRCListener {
 				assert.NotNil(t, provides.RCListener.ListenerProvider)
 			} else {
@@ -181,12 +213,9 @@ func Test_haAgentImpl_onHaAgentUpdate(t *testing.T) {
 				"ha_agent.enabled": true,
 				"config_id":        testConfigID,
 			}
-			agentConfigComponent := fxutil.Test[config.Component](t, fx.Options(
-				config.MockModule(),
-				fx.Replace(config.MockParams{Overrides: agentConfigs}),
-			))
+			agentConfigComponent := config.NewMockWithOverrides(t, agentConfigs)
 
-			h := newHaAgentImpl(logmock.New(t), newHaAgentConfigs(agentConfigComponent))
+			h := newHaAgentImpl(logmock.New(t), hostnameimpl.NewHostnameService(), newHaAgentConfigs(agentConfigComponent))
 
 			if tt.initialState != "" {
 				h.state.Store(string(tt.initialState))
@@ -208,7 +237,7 @@ func Test_haAgentImpl_onHaAgentUpdate(t *testing.T) {
 
 func Test_haAgentImpl_resetAgentState(t *testing.T) {
 	// GIVEN
-	haAgent := newTestHaAgentComponent(t, nil)
+	haAgent := newTestHaAgentComponent(t, nil, nil)
 	haAgentComp := haAgent.Comp.(*haAgentImpl)
 	haAgentComp.state.Store(string(haagent.Active))
 	require.Equal(t, haagent.Active, haAgentComp.GetState())
@@ -224,7 +253,7 @@ func Test_IsActive(t *testing.T) {
 	agentConfigs := map[string]interface{}{
 		"hostname": "my-agent-hostname",
 	}
-	haAgent := newTestHaAgentComponent(t, agentConfigs).Comp
+	haAgent := newTestHaAgentComponent(t, agentConfigs, nil).Comp
 
 	haAgent.SetLeader("another-agent")
 	assert.False(t, haAgent.IsActive())

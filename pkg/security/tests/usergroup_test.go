@@ -11,6 +11,7 @@ package tests
 import (
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
@@ -18,12 +19,19 @@ import (
 func TestUserGroup(t *testing.T) {
 	SkipIfNotAvailable(t)
 
+	if _, err := whichNonFatal("docker"); err != nil {
+		t.Skip("Skip test where docker is unavailable")
+	}
+
 	if testEnvironment == DockerEnvironment {
 		t.Skip("Skip test spawning docker containers on docker")
 	}
 	if _, err := whichNonFatal("docker"); err != nil {
 		t.Skip("Skip test where docker is unavailable")
 	}
+	checkKernelCompatibility(t, "UserGroup test not consistent on CentOS7", func(kv *kernel.Version) bool {
+		return kv.IsRH7Kernel()
+	})
 
 	ruleDefs := []*rules.RuleDefinition{
 		{
@@ -135,7 +143,12 @@ func TestUserGroup(t *testing.T) {
 			if _, err := dockerWrapper.start(); err != nil {
 				t.Fatal(err)
 			}
-			defer dockerWrapper.stop()
+			t.Cleanup(func() {
+				output, err := dockerWrapper.stop()
+				if err != nil {
+					t.Errorf("failed to stop docker wrapper: %v\n%s", err, string(output))
+				}
+			})
 
 			for _, testCommand := range distroTest.testCommands {
 				i := 0

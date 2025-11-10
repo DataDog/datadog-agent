@@ -125,7 +125,7 @@ func (s *Scanner) Scan(request sbom.ScanRequest) error {
 	return nil
 }
 
-func (s *Scanner) enoughDiskSpace(opts sbom.ScanOptions) error {
+func (s *Scanner) enoughDiskSpace(opts sbom.ScanOptions, imgMeta *workloadmeta.ContainerImageMetadata) error {
 	if !opts.CheckDiskUsage {
 		return nil
 	}
@@ -137,6 +137,17 @@ func (s *Scanner) enoughDiskSpace(opts sbom.ScanOptions) error {
 
 	if usage.Available < opts.MinAvailableDisk {
 		return fmt.Errorf("not enough disk space to safely collect sbom, %d available, %d required", usage.Available, opts.MinAvailableDisk)
+	}
+
+	if imgMeta == nil || opts.OverlayFsScan || opts.UseMount {
+		return nil
+	}
+
+	// Check that we have either the minimum amount of disk space required for a scan
+	// or 20% more than the size of the image
+	sizeRequired := uint64(float64(imgMeta.SizeBytes) * 1.2)
+	if usage.Available < sizeRequired {
+		return fmt.Errorf("not enough disk space to safely collect sbom, %d available, %d required", usage.Available, sizeRequired)
 	}
 
 	return nil
@@ -282,7 +293,7 @@ func (s *Scanner) processScan(ctx context.Context, request sbom.ScanRequest, img
 // It sends a scan result wrapping an error if there is not enough space
 // If everything is correct it returns nil.
 func (s *Scanner) checkDiskSpace(imgMeta *workloadmeta.ContainerImageMetadata, collector collectors.Collector) *sbom.ScanResult {
-	err := s.enoughDiskSpace(collector.Options())
+	err := s.enoughDiskSpace(collector.Options(), imgMeta)
 	if err == nil {
 		return nil
 	}

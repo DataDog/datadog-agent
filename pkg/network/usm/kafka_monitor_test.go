@@ -34,12 +34,12 @@ import (
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
-	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/kafka"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
+	ebpftls "github.com/DataDog/datadog-agent/pkg/network/protocols/tls"
 	gotlsutils "github.com/DataDog/datadog-agent/pkg/network/protocols/tls/gotls/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/testutil/proxy"
 	usmconfig "github.com/DataDog/datadog-agent/pkg/network/usm/config"
@@ -102,19 +102,6 @@ type groupInfo struct {
 	msgs    []Message
 }
 
-// isUnsupportedUbuntu checks if the test is running on an unsupported Ubuntu version.
-// As of now, we don’t support Kafka TLS with Ubuntu 24.10, so this function identifies
-// if the current platform and version match this unsupported configuration.
-func isUnsupportedUbuntu(t *testing.T) bool {
-	platform, err := kernel.Platform()
-	require.NoError(t, err)
-	platformVersion, err := kernel.PlatformVersion()
-	require.NoError(t, err)
-	arch := kernel.Arch()
-
-	return platform == ubuntuPlatform && platformVersion == "24.10" && arch == "x86"
-}
-
 func skipTestIfKernelNotSupported(t *testing.T) {
 	currKernelVersion, err := kernel.HostVersion()
 	require.NoError(t, err)
@@ -149,10 +136,10 @@ func (s *KafkaProtocolParsingSuite) TestKafkaProtocolParsing() {
 	var versions []*kversion.Versions
 	versions = append(versions, kversion.V2_5_0())
 
-	produce10fetch12 := kversion.V3_7_0()
-	produce10fetch12.SetMaxKeyVersion(kafka.ProduceAPIKey, 10)
-	produce10fetch12.SetMaxKeyVersion(kafka.FetchAPIKey, 12)
-	versions = append(versions, produce10fetch12)
+	produce12fetch12 := kversion.V4_0_0()
+	produce12fetch12.SetMaxKeyVersion(kafka.ProduceAPIKey, 12)
+	produce12fetch12.SetMaxKeyVersion(kafka.FetchAPIKey, 12)
+	versions = append(versions, produce12fetch12)
 
 	versionName := func(version *kversion.Versions) string {
 		produce, found := version.LookupMaxKeyVersion(kafka.ProduceAPIKey)
@@ -166,9 +153,6 @@ func (s *KafkaProtocolParsingSuite) TestKafkaProtocolParsing() {
 		t.Run(name, func(t *testing.T) {
 			if mode && !gotlsutils.GoTLSSupported(t, utils.NewUSMEmptyConfig()) {
 				t.Skip("GoTLS not supported for this setup")
-			}
-			if mode && isUnsupportedUbuntu(t) {
-				t.Skip("Kafka TLS not supported on Ubuntu 24.10")
 			}
 			for _, version := range versions {
 				t.Run(versionName(version), func(t *testing.T) {
@@ -286,7 +270,7 @@ func (s *KafkaProtocolParsingSuite) testKafkaProtocolParsing(t *testing.T, tls b
 					ServerAddress: ctx.targetAddress,
 					DialFn:        dialFn,
 					CustomOptions: []kgo.Opt{
-						kgo.MaxVersions(kversion.V1_0_0()),
+						kgo.MaxVersions(version),
 						kgo.ClientID(""),
 					},
 				})
@@ -302,7 +286,7 @@ func (s *KafkaProtocolParsingSuite) testKafkaProtocolParsing(t *testing.T, tls b
 				getAndValidateKafkaStats(t, monitor, fixCount(1), topicName, kafkaParsingValidation{
 					expectedNumberOfProduceRequests: fixCount(1),
 					expectedNumberOfFetchRequests:   0,
-					expectedAPIVersionProduce:       5,
+					expectedAPIVersionProduce:       expectedAPIVersionProduce,
 					expectedAPIVersionFetch:         0,
 					tlsEnabled:                      tls,
 				}, kafkaSuccessErrorCode)
@@ -465,7 +449,7 @@ func (s *KafkaProtocolParsingSuite) testKafkaProtocolParsing(t *testing.T, tls b
 			},
 		},
 		{
-			name: "Kafka Kernel Telemetry",
+			name: "Kafka Kernel Telemetry - Topic name size buckets",
 			context: testContext{
 				serverPort:    kafkaPort,
 				targetAddress: targetAddress,
@@ -543,7 +527,7 @@ func (s *KafkaProtocolParsingSuite) testKafkaProtocolParsing(t *testing.T, tls b
 		},
 	}
 
-	proxyProcess, cancel := proxy.NewExternalUnixTransparentProxyServer(t, unixPath, serverAddress, tls)
+	proxyProcess, cancel := proxy.NewExternalUnixTransparentProxyServer(t, unixPath, serverAddress, tls, false)
 	t.Cleanup(cancel)
 	require.NoError(t, proxy.WaitForConnectionReady(unixPath))
 
@@ -784,7 +768,7 @@ func (can *CannedClientServer) runServer() {
 }
 
 func (can *CannedClientServer) runProxy() int {
-	proxyProcess, cancel := proxy.NewExternalUnixControlProxyServer(can.t, can.unixPath, can.address, can.tls)
+	proxyProcess, cancel := proxy.NewExternalUnixControlProxyServer(can.t, can.unixPath, can.address, can.tls, false)
 	can.t.Cleanup(cancel)
 	require.NoError(can.t, proxy.WaitForConnectionReady(can.unixPath))
 
@@ -1251,6 +1235,7 @@ func testKafkaFetchRaw(t *testing.T, tls bool, apiVersion int) {
 func (s *KafkaProtocolParsingSuite) TestKafkaFetchRaw() {
 	t := s.T()
 	versions := []int{4, 5, 7, 11, 12}
+	require.Contains(t, versions, kafka.DecodingMaxSupportedFetchRequestApiVersion, "The latest API version for FetchRequest should be tested")
 
 	t.Run("without TLS", func(t *testing.T) {
 		for _, version := range versions {
@@ -1263,9 +1248,6 @@ func (s *KafkaProtocolParsingSuite) TestKafkaFetchRaw() {
 	t.Run("with TLS", func(t *testing.T) {
 		if !gotlsutils.GoTLSSupported(t, utils.NewUSMEmptyConfig()) {
 			t.Skip("GoTLS not supported for this setup")
-		}
-		if isUnsupportedUbuntu(t) {
-			t.Skip("Kafka TLS not supported on Ubuntu 24.10")
 		}
 
 		for _, version := range versions {
@@ -1479,7 +1461,8 @@ func getSplitGroups(req kmsg.Request, resp kmsg.Response, formatter *kmsg.Reques
 
 func (s *KafkaProtocolParsingSuite) TestKafkaProduceRaw() {
 	t := s.T()
-	versions := []int{8, 9, 10}
+	versions := []int{8, 9, 10, 12}
+	require.Contains(t, versions, kafka.DecodingMaxSupportedProduceRequestApiVersion, "The latest API version for ProduceRequest should be tested")
 
 	t.Run("without TLS", func(t *testing.T) {
 		for _, version := range versions {
@@ -1492,9 +1475,6 @@ func (s *KafkaProtocolParsingSuite) TestKafkaProduceRaw() {
 	t.Run("with TLS", func(t *testing.T) {
 		if !gotlsutils.GoTLSSupported(t, utils.NewUSMEmptyConfig()) {
 			t.Skip("GoTLS not supported for this setup")
-		}
-		if isUnsupportedUbuntu(t) {
-			t.Skip("Kafka TLS not supported on Ubuntu 24.10")
 		}
 
 		for _, version := range versions {
@@ -1560,7 +1540,7 @@ func getAndValidateKafkaStats(t *testing.T, monitor *Monitor, expectedStatsCount
 	kafkaStats := make(map[kafka.Key]*kafka.RequestStats)
 	assert.EventuallyWithT(t, func(collect *assert.CollectT) {
 		protocolStats, cleaners := monitor.GetProtocolStats()
-		defer cleaners()
+		t.Cleanup(cleaners)
 		kafkaProtocolStats, exists := protocolStats[protocols.Kafka]
 		// We might not have kafka stats, and it might be the expected case (to capture 0).
 		if exists {
@@ -1590,7 +1570,7 @@ func getAndValidateKafkaStatsWithErrorCodes(t *testing.T, monitor *Monitor, expe
 	kafkaStats := make(map[kafka.Key]*kafka.RequestStats)
 	assert.EventuallyWithT(t, func(collect *assert.CollectT) {
 		protocolStats, cleaners := monitor.GetProtocolStats()
-		defer cleaners()
+		t.Cleanup(cleaners)
 		kafkaProtocolStats, exists := protocolStats[protocols.Kafka]
 		// We might not have kafka stats, and it might be the expected case (to capture 0).
 		if exists {
@@ -1637,12 +1617,17 @@ func validateProduceFetchCount(t *assert.CollectT, kafkaStats map[kafka.Key]*kaf
 		if !exists {
 			return
 		}
-		hasTLSTag := requestStats.StaticTags&network.ConnTagGo != 0
+		hasTLSTag := requestStats.StaticTags&ebpftls.ConnTagGo != 0
 		if hasTLSTag != validation.tlsEnabled {
 			continue
 		}
 		assert.Equal(t, topicName[:min(len(topicName), 80)], kafkaKey.TopicName.Get())
-		assert.Greater(t, requestStats.FirstLatencySample, float64(1))
+		if requestStats.Count == 1 {
+			assert.Greater(t, requestStats.FirstLatencySample, float64(1))
+		} else {
+			require.NotNil(t, requestStats.Latencies)
+			assert.Equal(t, requestStats.Latencies.GetCount(), float64(requestStats.Count))
+		}
 		switch kafkaKey.RequestAPIKey {
 		case kafka.ProduceAPIKey:
 			assert.Equal(t, uint16(validation.expectedAPIVersionProduce), kafkaKey.RequestVersion)

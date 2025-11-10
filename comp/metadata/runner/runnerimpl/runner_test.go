@@ -39,7 +39,7 @@ func TestHandleProvider(t *testing.T) {
 		fxutil.Test[dependencies](
 			t,
 			fx.Provide(func() log.Component { return logmock.New(t) }),
-			config.MockModule(),
+			fx.Provide(func() config.Component { return config.NewMock(t) }),
 			fx.Supply(NewProvider(provider)),
 		))
 
@@ -59,7 +59,7 @@ func TestHandleProviderShortTimeout(t *testing.T) {
 		fxutil.Test[dependencies](
 			t,
 			fx.Provide(func() log.Component { return logmock.New(t) }),
-			config.MockModule(),
+			fx.Provide(func() config.Component { return config.NewMock(t) }),
 			fx.Supply(NewProvider(provider)),
 		))
 
@@ -89,7 +89,7 @@ func TestHandleProviderLongTimeout(t *testing.T) {
 		fxutil.Test[dependencies](
 			t,
 			fx.Provide(func() log.Component { return logmock.New(t) }),
-			config.MockModule(),
+			fx.Provide(func() config.Component { return config.NewMock(t) }),
 			fx.Supply(NewProvider(provider)),
 		))
 
@@ -124,7 +124,7 @@ func TestRunnerCreation(t *testing.T) {
 		t,
 		fx.Supply(lc),
 		fx.Provide(func() log.Component { return logmock.New(t) }),
-		config.MockModule(),
+		fx.Provide(func() config.Component { return config.NewMock(t) }),
 		Module(),
 		// Supplying our provider by using the helper function
 		fx.Supply(NewProvider(provider)),

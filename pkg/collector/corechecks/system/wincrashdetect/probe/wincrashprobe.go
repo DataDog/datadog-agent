@@ -13,9 +13,10 @@ import (
 	"path/filepath"
 	"sync"
 
-	sysconfigtypes "github.com/DataDog/datadog-agent/cmd/system-probe/config/types"
-	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 	"golang.org/x/sys/windows/registry"
+
+	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
+	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 )
 
 type probeState uint32

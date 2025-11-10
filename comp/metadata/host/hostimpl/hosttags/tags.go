@@ -22,6 +22,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
 	ec2tags "github.com/DataDog/datadog-agent/pkg/util/ec2/tags"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/cloudprovider"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clusterinfo"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	k8s "github.com/DataDog/datadog-agent/pkg/util/kubernetes/hostinfo"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -59,8 +61,13 @@ func getProvidersDefinitions(conf model.Reader) map[string]*providerDef {
 		providers["ec2"] = &providerDef{10, ec2tags.GetTags}
 	}
 
+	if conf.GetBool("collect_ec2_instance_info") {
+		providers["ec2_instance_info"] = &providerDef{3, ec2tags.GetInstanceInfo}
+	}
+
 	if env.IsFeaturePresent(env.Kubernetes) {
 		providers["kubernetes"] = &providerDef{10, k8s.NewKubeNodeTagsProvider(conf).GetTags}
+		providers["kubernetes_cluster_agent_tags"] = &providerDef{10, clusterinfo.GetClusterAgentStaticTags}
 	}
 
 	if env.IsFeaturePresent(env.Docker) {
@@ -140,8 +147,8 @@ func Get(ctx context.Context, cached bool, conf model.Reader) *Tags {
 		hostTags = appendToHostTags(hostTags, clusterNameTags)
 	}
 
-	if clusterID, err := clustername.GetClusterID(); err == nil && clusterID != "" {
-		hostTags = appendToHostTags(hostTags, []string{tags.OrchClusterID + ":" + clusterID})
+	if kubeDistro, err := cloudprovider.GetName(ctx); err == nil && kubeDistro != "" {
+		hostTags = appendToHostTags(hostTags, []string{tags.KubeDistribution + ":" + kubeDistro})
 	}
 
 	gceTags := []string{}

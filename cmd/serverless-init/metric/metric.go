@@ -7,40 +7,32 @@
 package metric
 
 import (
-	"fmt"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	serverlessMetrics "github.com/DataDog/datadog-agent/pkg/serverless/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// AddColdStartMetric adds the coldstart metric to the demultiplexer
-//
-//nolint:revive // TODO(SERV) Fix revive linter
-func AddColdStartMetric(metricPrefix string, tags []string, _ time.Time, demux aggregator.Demultiplexer) {
-	add(fmt.Sprintf("%v.enhanced.cold_start", metricPrefix), tags, time.Now(), demux)
-}
-
-// AddShutdownMetric adds the shutdown metric to the demultiplexer
-//
-//nolint:revive // TODO(SERV) Fix revive linter
-func AddShutdownMetric(metricPrefix string, tags []string, _ time.Time, demux aggregator.Demultiplexer) {
-	add(fmt.Sprintf("%v.enhanced.shutdown", metricPrefix), tags, time.Now(), demux)
-}
-
-func add(name string, tags []string, timestamp time.Time, demux aggregator.Demultiplexer) {
-	if demux == nil {
+// Add records a distribution metric sample using the agent's extra tags plus any
+// optional tags supplied as `key:value` strings through extraTags.
+func Add(name string, value float64, source metrics.MetricSource, agent serverlessMetrics.ServerlessMetricAgent, extraTags ...string) {
+	if agent.Demux == nil {
 		log.Debugf("Cannot add metric %s, the metric agent is not running", name)
 		return
 	}
-	metricTimestamp := float64(timestamp.UnixNano()) / float64(time.Second)
-	demux.AggregateSample(metrics.MetricSample{
+	metricTimestamp := float64(time.Now().UnixNano()) / float64(time.Second)
+	tags := agent.GetExtraTags()
+	if len(extraTags) > 0 {
+		tags = append(append([]string{}, tags...), extraTags...)
+	}
+	agent.Demux.AggregateSample(metrics.MetricSample{
 		Name:       name,
-		Value:      1.0,
+		Value:      value,
 		Mtype:      metrics.DistributionType,
 		Tags:       tags,
 		SampleRate: 1,
 		Timestamp:  metricTimestamp,
+		Source:     source,
 	})
 }

@@ -120,3 +120,46 @@ def get_ci_pipeline_events(query, days):
             page_limit=5,
         )
         return response
+
+
+def get_ci_test_events(query, days):
+    """
+    Fetch test events using Datadog CI Visibility API
+    Returns all results by handling pagination automatically
+    """
+    from datadog_api_client import ApiClient, Configuration
+    from datadog_api_client.v2.api.ci_visibility_tests_api import CIVisibilityTestsApi
+
+    configuration = Configuration()
+    all_events = []
+    page_cursor = None
+
+    with ApiClient(configuration) as api_client:
+        api = CIVisibilityTestsApi(api_client)
+
+        while True:
+            # We filter jobs of a single pipeline by its id and job name
+            kwargs = {
+                "filter_query": query,
+                "page_limit": 1000,
+                "filter_from": (datetime.now() - timedelta(days=days)),
+                "filter_to": datetime.now(),
+            }
+
+            if page_cursor:
+                kwargs["page_cursor"] = page_cursor
+
+            response = api.list_ci_app_test_events(**kwargs)
+            # Add events from this page to our collection
+            if hasattr(response, 'data') and response.data:
+                all_events.extend(response.data)
+
+            # Check if there are more pages
+            if hasattr(response, 'meta') and hasattr(response.meta, 'page') and hasattr(response.meta.page, 'after'):
+                page_cursor = response.meta.page.after
+                if not page_cursor:  # No more pages
+                    break
+            else:
+                break  # No pagination metadata, assume single page
+
+    return all_events

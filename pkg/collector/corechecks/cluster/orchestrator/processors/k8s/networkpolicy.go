@@ -15,6 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/common"
 	k8sTransformers "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/transformers/k8s"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/util"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator/redact"
 )
 
@@ -58,7 +59,8 @@ func (h *NetworkPolicyHandlers) BuildMessageBody(ctx processors.ProcessorContext
 		GroupId:         pctx.MsgGroupID,
 		GroupSize:       int32(groupSize),
 		NetworkPolicies: models,
-		Tags:            append(pctx.Cfg.ExtraTags, pctx.ApiGroupVersionTag),
+		Tags:            util.ImmutableTagsJoin(pctx.Cfg.ExtraTags, pctx.GetCollectorTags()),
+		AgentVersion:    ctx.GetAgentVersion(),
 	}
 }
 
@@ -79,7 +81,7 @@ func (h *NetworkPolicyHandlers) ResourceList(ctx processors.ProcessorContext, li
 	resources = make([]interface{}, 0, len(resourceList))
 
 	for _, resource := range resourceList {
-		resources = append(resources, resource)
+		resources = append(resources, resource.DeepCopy())
 	}
 
 	return resources
@@ -97,6 +99,17 @@ func (h *NetworkPolicyHandlers) ResourceUID(ctx processors.ProcessorContext, res
 //nolint:revive // TODO(CAPP) Fix revive linter
 func (h *NetworkPolicyHandlers) ResourceVersion(ctx processors.ProcessorContext, resource, resourceModel interface{}) string {
 	return resource.(*netv1.NetworkPolicy).ResourceVersion
+}
+
+// GetMetadataTags returns the tags in the metadata model.
+//
+//nolint:revive // TODO(CAPP) Fix revive linter
+func (h *NetworkPolicyHandlers) GetMetadataTags(ctx processors.ProcessorContext, resourceMetadataModel interface{}) []string {
+	m, ok := resourceMetadataModel.(*model.NetworkPolicy)
+	if !ok {
+		return nil
+	}
+	return m.Tags
 }
 
 // ScrubBeforeExtraction is a handler called to redact the raw resource before

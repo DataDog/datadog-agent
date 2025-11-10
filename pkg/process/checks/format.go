@@ -13,12 +13,13 @@ import (
 	"math"
 	"sort"
 	"strconv"
-	"text/template"
 	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
 
 	"github.com/dustin/go-humanize"
+
+	template "github.com/DataDog/datadog-agent/pkg/template/text"
 )
 
 var (

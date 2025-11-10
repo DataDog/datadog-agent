@@ -49,7 +49,7 @@ func TestStructToMap(t *testing.T) {
 		Name         string  `json:"name"`
 		Value        float64 `json:"value"`
 		ID           *string `json:"id"`
-		privateValue float64 //nolint:structcheck
+		privateValue float64
 		JSONLessStr  string
 	}
 

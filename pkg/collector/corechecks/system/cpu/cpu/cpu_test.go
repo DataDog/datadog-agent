@@ -2,6 +2,7 @@
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
+
 //go:build !windows
 
 package cpu
@@ -103,10 +104,10 @@ func setupDefaultMocks() {
 	getContextSwitches = func() (int64, error) {
 		return 4, nil
 	}
-	getCpuInfo = func() ([]cpu.InfoStat, error) {
+	getCPUInfo = func() ([]cpu.InfoStat, error) {
 		return cpuInfo, nil
 	}
-	getCpuTimes = func(perCpu bool) ([]cpu.TimesStat, error) {
+	getCPUTimes = func(perCpu bool) ([]cpu.TimesStat, error) {
 		if perCpu {
 			return perCPUSamples, nil
 		}
@@ -134,7 +135,7 @@ func TestCPUCheckLinuxErrorReportTotalPerCPUConfigNotBoolean(t *testing.T) {
 
 func TestCPUCheckLinuxErrorStoppedSender(t *testing.T) {
 	stoppedSenderError := errors.New("demultiplexer is stopped")
-	getCpuInfo = func() ([]cpu.InfoStat, error) {
+	getCPUInfo = func() ([]cpu.InfoStat, error) {
 		return cpuInfo, nil
 	}
 	cpuCheck := createCheck()
@@ -180,7 +181,7 @@ func TestContextSwitchesOk(t *testing.T) {
 func TestNumCoresError(t *testing.T) {
 	setupDefaultMocks()
 	cpuInfoError := errors.New("cpu.Check: could not query CPU info")
-	getCpuInfo = func() ([]cpu.InfoStat, error) {
+	getCPUInfo = func() ([]cpu.InfoStat, error) {
 		return nil, cpuInfoError
 	}
 	cpuCheck := createCheck()
@@ -210,7 +211,7 @@ func TestNumCoresOk(t *testing.T) {
 func TestSystemCpuMetricsError(t *testing.T) {
 	setupDefaultMocks()
 	cpuTimesError := errors.New("cpu.Check: could not query CPU times")
-	getCpuTimes = func(bool) ([]cpu.TimesStat, error) {
+	getCPUTimes = func(bool) ([]cpu.TimesStat, error) {
 		return nil, cpuTimesError
 	}
 	cpuCheck := createCheck()
@@ -233,7 +234,7 @@ func TestSystemCpuMetricsError(t *testing.T) {
 func TestSystemCpuMetricsEmpty(t *testing.T) {
 	setupDefaultMocks()
 	expectedError := errors.New("no cpu stats retrieve (empty results)")
-	getCpuTimes = func(bool) ([]cpu.TimesStat, error) {
+	getCPUTimes = func(bool) ([]cpu.TimesStat, error) {
 		return []cpu.TimesStat{}, nil
 	}
 	cpuCheck := createCheck()
@@ -275,7 +276,7 @@ func TestSystemCpuMetricsNotReportedOnFirstCheck(t *testing.T) {
 func TestSystemCpuMetricsReportedOnSecondCheck(t *testing.T) {
 	setupDefaultMocks()
 	firstCall := true
-	getCpuTimes = func(perCpu bool) ([]cpu.TimesStat, error) {
+	getCPUTimes = func(perCpu bool) ([]cpu.TimesStat, error) {
 		if perCpu {
 			return perCPUSamples, nil
 		}
@@ -306,7 +307,7 @@ func TestSystemCpuMetricsReportedOnSecondCheck(t *testing.T) {
 func TestSystemCpuMetricsPerCpuError(t *testing.T) {
 	setupDefaultMocks()
 	cpuTimesError := errors.New("cpu.Check: could not query CPU times")
-	getCpuTimes = func(perCpu bool) ([]cpu.TimesStat, error) {
+	getCPUTimes = func(perCpu bool) ([]cpu.TimesStat, error) {
 		if perCpu {
 			return nil, cpuTimesError
 		}
@@ -335,7 +336,7 @@ func TestSystemCpuMetricsPerCpuError(t *testing.T) {
 
 func TestSystemCpuMetricsPerCpuDefault(t *testing.T) {
 	setupDefaultMocks()
-	getCpuTimes = func(perCpu bool) ([]cpu.TimesStat, error) {
+	getCPUTimes = func(perCpu bool) ([]cpu.TimesStat, error) {
 		if perCpu {
 			return perCPUSamples, nil
 		}
@@ -362,7 +363,7 @@ func TestSystemCpuMetricsPerCpuDefault(t *testing.T) {
 }
 func TestSystemCpuMetricsPerCpuFalse(t *testing.T) {
 	setupDefaultMocks()
-	getCpuTimes = func(perCpu bool) ([]cpu.TimesStat, error) {
+	getCPUTimes = func(perCpu bool) ([]cpu.TimesStat, error) {
 		if perCpu {
 			return perCPUSamples, nil
 		}
@@ -389,7 +390,7 @@ func TestSystemCpuMetricsPerCpuFalse(t *testing.T) {
 }
 func TestSystemCpuMetricsPerCpuTrue(t *testing.T) {
 	setupDefaultMocks()
-	getCpuTimes = func(perCpu bool) ([]cpu.TimesStat, error) {
+	getCPUTimes = func(perCpu bool) ([]cpu.TimesStat, error) {
 		if perCpu {
 			return perCPUSamples, nil
 		}

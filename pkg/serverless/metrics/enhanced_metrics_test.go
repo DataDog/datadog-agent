@@ -46,6 +46,7 @@ func TestGenerateEnhancedMetricsFromFunctionLogOutOfMemory(t *testing.T) {
 		Tags:       tags,
 		SampleRate: 1,
 		Timestamp:  float64(reportLogTime.UnixNano()) / float64(time.Second),
+		Source:     metrics.MetricSourceAwsLambdaEnhanced,
 	}, {
 		Name:       ErrorsMetric,
 		Value:      1.0,
@@ -53,6 +54,7 @@ func TestGenerateEnhancedMetricsFromFunctionLogOutOfMemory(t *testing.T) {
 		Tags:       tags,
 		SampleRate: 1,
 		Timestamp:  float64(reportLogTime.UnixNano()) / float64(time.Second),
+		Source:     metrics.MetricSourceAwsLambdaEnhanced,
 	}})
 }
 
@@ -99,6 +101,7 @@ func TestGenerateEnhancedMetricsFromReportLogColdStart(t *testing.T) {
 		Tags:       tags,
 		SampleRate: 1,
 		Timestamp:  float64(reportLogTime.UnixNano()) / float64(time.Second),
+		Source:     metrics.MetricSourceAwsLambdaEnhanced,
 	}, {
 		Name:       memorySizeMetric,
 		Value:      1024.0,
@@ -106,6 +109,7 @@ func TestGenerateEnhancedMetricsFromReportLogColdStart(t *testing.T) {
 		Tags:       tags,
 		SampleRate: 1,
 		Timestamp:  float64(reportLogTime.UnixNano()) / float64(time.Second),
+		Source:     metrics.MetricSourceAwsLambdaEnhanced,
 	}, {
 		Name:       billedDurationMetric,
 		Value:      0.80,
@@ -113,6 +117,7 @@ func TestGenerateEnhancedMetricsFromReportLogColdStart(t *testing.T) {
 		Tags:       tags,
 		SampleRate: 1,
 		Timestamp:  float64(reportLogTime.UnixNano()) / float64(time.Second),
+		Source:     metrics.MetricSourceAwsLambdaEnhanced,
 	}, {
 		Name:       durationMetric,
 		Value:      1.0,
@@ -120,6 +125,7 @@ func TestGenerateEnhancedMetricsFromReportLogColdStart(t *testing.T) {
 		Tags:       tags,
 		SampleRate: 1,
 		Timestamp:  float64(reportLogTime.UnixNano()) / float64(time.Second),
+		Source:     metrics.MetricSourceAwsLambdaEnhanced,
 	}, {
 		Name:       estimatedCostMetric,
 		Value:      calculateEstimatedCost(800.0, 1024.0, serverlessTags.ResolveRuntimeArch()),
@@ -127,6 +133,7 @@ func TestGenerateEnhancedMetricsFromReportLogColdStart(t *testing.T) {
 		Tags:       tags,
 		SampleRate: 1,
 		Timestamp:  float64(reportLogTime.UnixNano()) / float64(time.Second),
+		Source:     metrics.MetricSourceAwsLambdaEnhanced,
 	}, {
 		Name:       postRuntimeDurationMetric,
 		Value:      990.0,
@@ -134,6 +141,7 @@ func TestGenerateEnhancedMetricsFromReportLogColdStart(t *testing.T) {
 		Tags:       tags,
 		SampleRate: 1,
 		Timestamp:  float64(reportLogTime.UnixNano()) / float64(time.Second),
+		Source:     metrics.MetricSourceAwsLambdaEnhanced,
 	}, {
 		Name:       initDurationMetric,
 		Value:      0.1,
@@ -141,6 +149,7 @@ func TestGenerateEnhancedMetricsFromReportLogColdStart(t *testing.T) {
 		Tags:       tags,
 		SampleRate: 1,
 		Timestamp:  float64(reportLogTime.UnixNano()) / float64(time.Second),
+		Source:     metrics.MetricSourceAwsLambdaEnhanced,
 	}})
 	assert.Len(t, timedMetrics, 0)
 }
@@ -174,6 +183,7 @@ func TestGenerateEnhancedMetricsFromReportLogNoColdStart(t *testing.T) {
 		Tags:       tags,
 		SampleRate: 1,
 		Timestamp:  float64(reportLogTime.UnixNano()) / float64(time.Second),
+		Source:     metrics.MetricSourceAwsLambdaEnhanced,
 	}, {
 		Name:       memorySizeMetric,
 		Value:      1024.0,
@@ -181,6 +191,7 @@ func TestGenerateEnhancedMetricsFromReportLogNoColdStart(t *testing.T) {
 		Tags:       tags,
 		SampleRate: 1,
 		Timestamp:  float64(reportLogTime.UnixNano()) / float64(time.Second),
+		Source:     metrics.MetricSourceAwsLambdaEnhanced,
 	}, {
 		Name:       billedDurationMetric,
 		Value:      0.80,
@@ -188,6 +199,7 @@ func TestGenerateEnhancedMetricsFromReportLogNoColdStart(t *testing.T) {
 		Tags:       tags,
 		SampleRate: 1,
 		Timestamp:  float64(reportLogTime.UnixNano()) / float64(time.Second),
+		Source:     metrics.MetricSourceAwsLambdaEnhanced,
 	}, {
 		Name:       durationMetric,
 		Value:      1.0,
@@ -195,6 +207,7 @@ func TestGenerateEnhancedMetricsFromReportLogNoColdStart(t *testing.T) {
 		Tags:       tags,
 		SampleRate: 1,
 		Timestamp:  float64(reportLogTime.UnixNano()) / float64(time.Second),
+		Source:     metrics.MetricSourceAwsLambdaEnhanced,
 	}, {
 		Name:       estimatedCostMetric,
 		Value:      calculateEstimatedCost(800.0, 1024.0, serverlessTags.ResolveRuntimeArch()),
@@ -202,6 +215,7 @@ func TestGenerateEnhancedMetricsFromReportLogNoColdStart(t *testing.T) {
 		Tags:       tags,
 		SampleRate: 1,
 		Timestamp:  float64(reportLogTime.UnixNano()) / float64(time.Second),
+		Source:     metrics.MetricSourceAwsLambdaEnhanced,
 	}, {
 		Name:       postRuntimeDurationMetric,
 		Value:      990.0,
@@ -209,6 +223,7 @@ func TestGenerateEnhancedMetricsFromReportLogNoColdStart(t *testing.T) {
 		Tags:       tags,
 		SampleRate: 1,
 		Timestamp:  float64(reportLogTime.UnixNano()) / float64(time.Second),
+		Source:     metrics.MetricSourceAwsLambdaEnhanced,
 	}})
 	assert.Len(t, timedMetrics, 0)
 }
@@ -229,6 +244,7 @@ func TestSendTimeoutEnhancedMetric(t *testing.T) {
 		SampleRate: 1,
 		// compare the generated timestamp to itself because we can't know its value
 		Timestamp: generatedMetrics[0].Timestamp,
+		Source:    metrics.MetricSourceAwsLambdaEnhanced,
 	}})
 	assert.Len(t, timedMetrics, 0)
 }
@@ -249,6 +265,7 @@ func TestSendInvocationEnhancedMetric(t *testing.T) {
 		SampleRate: 1,
 		// compare the generated timestamp to itself because we can't know its value
 		Timestamp: generatedMetrics[0].Timestamp,
+		Source:    metrics.MetricSourceAwsLambdaEnhanced,
 	}})
 	assert.Len(t, timedMetrics, 0)
 }
@@ -289,6 +306,7 @@ func TestSendOutOfMemoryEnhancedMetric(t *testing.T) {
 		Tags:       tags,
 		SampleRate: 1,
 		Timestamp:  float64(mockTime.UnixNano()) / float64(time.Second),
+		Source:     metrics.MetricSourceAwsLambdaEnhanced,
 	}})
 	assert.Len(t, timedMetrics, 0)
 }
@@ -308,6 +326,7 @@ func TestSendErrorsEnhancedMetric(t *testing.T) {
 		Tags:       tags,
 		SampleRate: 1,
 		Timestamp:  float64(mockTime.UnixNano()) / float64(time.Second),
+		Source:     metrics.MetricSourceAwsLambdaEnhanced,
 	}})
 	assert.Len(t, timedMetrics, 0)
 }
@@ -375,6 +394,7 @@ func TestGenerateEnhancedMetricsFromRuntimeDoneLogNoStartDate(t *testing.T) {
 		Tags:       tags,
 		SampleRate: 1,
 		Timestamp:  float64(endTime.UnixNano()) / float64(time.Second),
+		Source:     metrics.MetricSourceAwsLambdaEnhanced,
 	}, {
 		Name:       responseDurationMetric,
 		Value:      3,
@@ -382,6 +402,7 @@ func TestGenerateEnhancedMetricsFromRuntimeDoneLogNoStartDate(t *testing.T) {
 		Tags:       tags,
 		SampleRate: 1,
 		Timestamp:  float64(endTime.UnixNano()) / float64(time.Second),
+		Source:     metrics.MetricSourceAwsLambdaEnhanced,
 	}, {
 		Name:       producedBytesMetric,
 		Value:      53,
@@ -389,6 +410,7 @@ func TestGenerateEnhancedMetricsFromRuntimeDoneLogNoStartDate(t *testing.T) {
 		Tags:       tags,
 		SampleRate: 1,
 		Timestamp:  float64(endTime.UnixNano()) / float64(time.Second),
+		Source:     metrics.MetricSourceAwsLambdaEnhanced,
 	}})
 	assert.Len(t, timedMetrics, 0)
 }
@@ -416,6 +438,7 @@ func TestGenerateEnhancedMetricsFromRuntimeDoneLogNoEndDate(t *testing.T) {
 		Tags:       tags,
 		SampleRate: 1,
 		Timestamp:  float64(endTime.UnixNano()) / float64(time.Second),
+		Source:     metrics.MetricSourceAwsLambdaEnhanced,
 	}, {
 		Name:       responseDurationMetric,
 		Value:      3,
@@ -423,6 +446,7 @@ func TestGenerateEnhancedMetricsFromRuntimeDoneLogNoEndDate(t *testing.T) {
 		Tags:       tags,
 		SampleRate: 1,
 		Timestamp:  float64(endTime.UnixNano()) / float64(time.Second),
+		Source:     metrics.MetricSourceAwsLambdaEnhanced,
 	}, {
 		Name:       producedBytesMetric,
 		Value:      53,
@@ -430,6 +454,7 @@ func TestGenerateEnhancedMetricsFromRuntimeDoneLogNoEndDate(t *testing.T) {
 		Tags:       tags,
 		SampleRate: 1,
 		Timestamp:  float64(endTime.UnixNano()) / float64(time.Second),
+		Source:     metrics.MetricSourceAwsLambdaEnhanced,
 	}})
 	assert.Len(t, timedMetrics, 0)
 }
@@ -457,6 +482,7 @@ func TestGenerateEnhancedMetricsFromRuntimeDoneLogOK(t *testing.T) {
 		Tags:       tags,
 		SampleRate: 1,
 		Timestamp:  float64(endTime.UnixNano()) / float64(time.Second),
+		Source:     metrics.MetricSourceAwsLambdaEnhanced,
 	}, {
 		Name:       responseLatencyMetric,
 		Value:      19,
@@ -464,6 +490,7 @@ func TestGenerateEnhancedMetricsFromRuntimeDoneLogOK(t *testing.T) {
 		Tags:       tags,
 		SampleRate: 1,
 		Timestamp:  float64(endTime.UnixNano()) / float64(time.Second),
+		Source:     metrics.MetricSourceAwsLambdaEnhanced,
 	}, {
 		Name:       responseDurationMetric,
 		Value:      3,
@@ -471,6 +498,7 @@ func TestGenerateEnhancedMetricsFromRuntimeDoneLogOK(t *testing.T) {
 		Tags:       tags,
 		SampleRate: 1,
 		Timestamp:  float64(endTime.UnixNano()) / float64(time.Second),
+		Source:     metrics.MetricSourceAwsLambdaEnhanced,
 	}, {
 		Name:       producedBytesMetric,
 		Value:      53,
@@ -478,6 +506,7 @@ func TestGenerateEnhancedMetricsFromRuntimeDoneLogOK(t *testing.T) {
 		Tags:       tags,
 		SampleRate: 1,
 		Timestamp:  float64(endTime.UnixNano()) / float64(time.Second),
+		Source:     metrics.MetricSourceAwsLambdaEnhanced,
 	}})
 	assert.Len(t, timedMetrics, 0)
 }
@@ -497,6 +526,7 @@ func TestGenerateCPUEnhancedMetrics(t *testing.T) {
 			Tags:       tags,
 			SampleRate: 1,
 			Timestamp:  now,
+			Source:     metrics.MetricSourceAwsLambdaEnhanced,
 		},
 		{
 			Name:       cpuUserTimeMetric,
@@ -505,6 +535,7 @@ func TestGenerateCPUEnhancedMetrics(t *testing.T) {
 			Tags:       tags,
 			SampleRate: 1,
 			Timestamp:  now,
+			Source:     metrics.MetricSourceAwsLambdaEnhanced,
 		},
 		{
 			Name:       cpuTotalTimeMetric,
@@ -513,6 +544,7 @@ func TestGenerateCPUEnhancedMetrics(t *testing.T) {
 			Tags:       tags,
 			SampleRate: 1,
 			Timestamp:  now,
+			Source:     metrics.MetricSourceAwsLambdaEnhanced,
 		}},
 		generatedMetrics,
 	)
@@ -570,6 +602,7 @@ func TestGenerateCPUUtilizationEnhancedMetrics(t *testing.T) {
 			Tags:       tags,
 			SampleRate: 1,
 			Timestamp:  now,
+			Source:     metrics.MetricSourceAwsLambdaEnhanced,
 		},
 		{
 			Name:       cpuTotalUtilizationMetric,
@@ -578,6 +611,7 @@ func TestGenerateCPUUtilizationEnhancedMetrics(t *testing.T) {
 			Tags:       tags,
 			SampleRate: 1,
 			Timestamp:  now,
+			Source:     metrics.MetricSourceAwsLambdaEnhanced,
 		},
 		{
 			Name:       numCoresMetric,
@@ -586,6 +620,7 @@ func TestGenerateCPUUtilizationEnhancedMetrics(t *testing.T) {
 			Tags:       tags,
 			SampleRate: 1,
 			Timestamp:  now,
+			Source:     metrics.MetricSourceAwsLambdaEnhanced,
 		},
 		{
 			Name:       cpuMaxUtilizationMetric,
@@ -594,6 +629,7 @@ func TestGenerateCPUUtilizationEnhancedMetrics(t *testing.T) {
 			Tags:       tags,
 			SampleRate: 1,
 			Timestamp:  now,
+			Source:     metrics.MetricSourceAwsLambdaEnhanced,
 		},
 		{
 			Name:       cpuMinUtilizationMetric,
@@ -602,6 +638,7 @@ func TestGenerateCPUUtilizationEnhancedMetrics(t *testing.T) {
 			Tags:       tags,
 			SampleRate: 1,
 			Timestamp:  now,
+			Source:     metrics.MetricSourceAwsLambdaEnhanced,
 		}},
 		generatedMetrics,
 	)
@@ -631,6 +668,7 @@ func TestGenerateNetworkEnhancedMetrics(t *testing.T) {
 			Tags:       tags,
 			SampleRate: 1,
 			Timestamp:  now,
+			Source:     metrics.MetricSourceAwsLambdaEnhanced,
 		},
 		{
 			Name:       txBytesMetric,
@@ -639,6 +677,7 @@ func TestGenerateNetworkEnhancedMetrics(t *testing.T) {
 			Tags:       tags,
 			SampleRate: 1,
 			Timestamp:  now,
+			Source:     metrics.MetricSourceAwsLambdaEnhanced,
 		},
 		{
 			Name:       totalNetworkMetric,
@@ -647,6 +686,7 @@ func TestGenerateNetworkEnhancedMetrics(t *testing.T) {
 			Tags:       tags,
 			SampleRate: 1,
 			Timestamp:  now,
+			Source:     metrics.MetricSourceAwsLambdaEnhanced,
 		}},
 		generatedMetrics,
 	)
@@ -695,6 +735,7 @@ func TestSendTmpEnhancedMetrics(t *testing.T) {
 			Tags:       tags,
 			SampleRate: 1,
 			Timestamp:  now,
+			Source:     metrics.MetricSourceAwsLambdaEnhanced,
 		},
 		{
 			Name:       tmpMaxMetric,
@@ -703,6 +744,7 @@ func TestSendTmpEnhancedMetrics(t *testing.T) {
 			Tags:       tags,
 			SampleRate: 1,
 			Timestamp:  now,
+			Source:     metrics.MetricSourceAwsLambdaEnhanced,
 		},
 	},
 		generatedMetrics,
@@ -753,6 +795,7 @@ func TestSendFdEnhancedMetrics(t *testing.T) {
 			Tags:       tags,
 			SampleRate: 1,
 			Timestamp:  now,
+			Source:     metrics.MetricSourceAwsLambdaEnhanced,
 		},
 		{
 			Name:       fdUseMetric,
@@ -761,6 +804,7 @@ func TestSendFdEnhancedMetrics(t *testing.T) {
 			Tags:       tags,
 			SampleRate: 1,
 			Timestamp:  now,
+			Source:     metrics.MetricSourceAwsLambdaEnhanced,
 		},
 	},
 		generatedMetrics,
@@ -789,6 +833,7 @@ func TestSendThreadEnhancedMetrics(t *testing.T) {
 			Tags:       tags,
 			SampleRate: 1,
 			Timestamp:  now,
+			Source:     metrics.MetricSourceAwsLambdaEnhanced,
 		},
 		{
 			Name:       threadsUseMetric,
@@ -797,6 +842,7 @@ func TestSendThreadEnhancedMetrics(t *testing.T) {
 			Tags:       tags,
 			SampleRate: 1,
 			Timestamp:  now,
+			Source:     metrics.MetricSourceAwsLambdaEnhanced,
 		},
 	},
 		generatedMetrics,

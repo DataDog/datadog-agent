@@ -22,15 +22,15 @@ var fixturesFS embed.FS
 
 func (h *Host) uploadFixtures() {
 	fixtures, err := fixturesFS.ReadDir("fixtures")
-	require.NoError(h.t, err)
-	tmpDir := h.t.TempDir()
+	require.NoError(h.t(), err)
+	tmpDir := h.t().TempDir()
 	for _, fixture := range fixtures {
 		fixturePath := filepath.Join("fixtures", fixture.Name())
 		fixtureData, err := fixturesFS.ReadFile(fixturePath)
-		require.NoError(h.t, err)
+		require.NoError(h.t(), err)
 		fixturePath = filepath.Join(tmpDir, fixture.Name())
 		err = os.WriteFile(fixturePath, fixtureData, 0644)
-		require.NoError(h.t, err)
+		require.NoError(h.t(), err)
 	}
 	h.remote.MustExecute("sudo mkdir -p /opt/fixtures")
 	h.remote.MustExecute("sudo chmod 777 /opt/fixtures")
@@ -42,7 +42,7 @@ func (h *Host) uploadFixtures() {
 		}
 	}
 
-	require.NoError(h.t, err)
+	require.NoError(h.t(), err)
 }
 
 // StartExamplePythonApp starts an example Python app
@@ -83,7 +83,7 @@ func (h *Host) StopExamplePythonAppInDocker() {
 
 // CallExamplePythonAppInDocker calls the example Python app in Docker
 func (h *Host) CallExamplePythonAppInDocker(traceID string) {
-	success := assert.Eventually(h.t, func() bool {
+	success := assert.Eventually(h.t(), func() bool {
 		_, err := h.remote.Execute(fmt.Sprintf(`curl -X GET "http://localhost:8081/" \
 		-H "X-Datadog-Trace-Id: %s" \
 		-H "X-Datadog-Parent-Id: %s" \
@@ -92,7 +92,7 @@ func (h *Host) CallExamplePythonAppInDocker(traceID string) {
 		return err == nil
 	}, time.Second*10, time.Second*1)
 	if !success {
-		h.t.Log("Error calling example Python app in Docker")
+		h.t().Log("Error calling example Python app in Docker")
 	}
 }
 
@@ -114,11 +114,17 @@ func (h *Host) RemoveBrokenDockerConfig() {
 
 // SetupFakeAgentExp sets up a fake Agent experiment with configurable options.
 func (h *Host) SetupFakeAgentExp() FakeAgent {
+	// Install an experiment to create the experiment units
+	latestAgentImageVersion := "7.66.0-devel.git.534.4e40dec.pipeline.62473533-1" // TODO use latest prod image when 7.65 is out
+	h.Run(fmt.Sprintf(`sudo datadog-installer install-experiment "oci://install.datad0g.com/agent-package:%s"`, latestAgentImageVersion))
+	h.Run("sudo systemctl stop datadog-agent-exp.service")
+	h.Run("sudo systemctl start datadog-agent.service")
+
 	vBroken := "/opt/datadog-packages/datadog-agent/vbroken"
 	h.remote.MustExecute(fmt.Sprintf("sudo mkdir -p %s/embedded/bin", vBroken))
 	h.remote.MustExecute(fmt.Sprintf("sudo mkdir -p %s/bin/agent", vBroken))
 
-	h.remote.MustExecute("sudo rm -f /opt/datadog-packages/datadog-agent/experiment") // remove symlink if it exists, next command doesn't overwrite it
+	h.remote.MustExecute("sudo rm -f /opt/datadog-packages/datadog-agent/experiment")
 	h.remote.MustExecute(fmt.Sprintf("sudo ln -sf %s /opt/datadog-packages/datadog-agent/experiment", vBroken))
 	f := FakeAgent{
 		h:    h,

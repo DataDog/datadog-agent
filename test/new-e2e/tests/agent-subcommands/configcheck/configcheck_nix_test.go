@@ -82,12 +82,6 @@ func (v *linuxConfigCheckSuite) TestDefaultInstalledChecks() {
 			InstanceID: "uptime:",
 			Settings:   "{}",
 		},
-		{
-			CheckName:  "service_discovery",
-			Filepath:   "file:/etc/datadog-agent/conf.d/service_discovery.d/conf.yaml.default",
-			InstanceID: "service_discovery:",
-			Settings:   "{}",
-		},
 	}
 
 	output := v.Env().Agent.Client.ConfigCheck()

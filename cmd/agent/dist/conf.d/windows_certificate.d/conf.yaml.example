@@ -1,0 +1,156 @@
+## All options defined here are available to all instances.
+#
+init_config:
+
+    ## @param service - string - optional
+    ## Attach the tag `service:<SERVICE>` to every metric, event, and service check emitted by this integration.
+    ##
+    ## Additionally, this sets the default `service` for every log source.
+    #
+    # service: <SERVICE>
+
+## Every instance is scheduled independently of the others.
+#
+instances:
+
+    ## @param certificate_store - string - required
+    ## The certificate store to query from when verifying the Windows certificates.
+    ## This check can only query from local machine certificates.
+    ## Enter the store name as found in `HKEY_LOCAL_MACHINE\Software\Microsoft\SystemCertificates`
+    #
+    # - certificate_store: MY
+
+    ## @param certificate_subject - list of strings - optional
+    ## A list of strings to filter by the subjects of the certificates.
+    ## For example if you have `Microsoft Root Authority` in `certificate_subjects`
+    ## and you have a certificate with subject,
+    ## "CN=Microsoft Root Authority, OU=Microsoft Corporation, OU=Copyright (c) 1997 Microsoft Corp."
+    ## then the certificate will be matched and metrics will be collected for that certificate.
+    ## If `certificate_subjects` is empty then all certificates in `certificate_store` are collected.
+    #
+    # certificate_subjects:
+    #   - <SUBJECT_1>
+    #   - <SUBJECT_2>
+
+    ## @param server - string - optional
+    ## The server with which to connect, defaulting to the local machine.
+    #
+    # server: <SERVER>
+
+    ## @param username - string - optional
+    ## The username used to connect to the `server`.
+    #
+    # username: <USERNAME>
+
+    ## @param password - string - optional
+    ## The password of `username`.
+    #
+    # password: <PASSWORD>
+
+    ## @param days_warning - integer - optional - default: 14
+    ## Number of days before certificate expiration from which the service check
+    ## `windows_certificate.cert_expiration` begins emitting WARNING.
+    #
+    # days_warning: 14
+
+    ## @param days_critical - integer - optional - default: 7
+    ## Number of days before certificate expiration from which the service check
+    ## `windows_certificate.cert_expiration` begins emitting CRITICAL.
+    #
+    # days_critical: 7
+
+    ## @param enable_crl_monitoring - boolean - optional - default: false
+    ## Enables monitoring of expiration of all Certificate Revocation Lists (CRLs) in `certificate_store`.
+    #
+    # enable_crl_monitoring: false
+
+    ## @param crl_days_warning - integer - optional - default: 0
+    ## Number of days before CRL expiration from which the service check
+    ## `windows_certificate.crl_expiration` begins emitting WARNING.
+    ## If the CRLs in the store are updated automatically, set to 0 to avoid getting WARNING alerts.
+    ## If the CRLs are updated manually, set to the number days beforehand that you would like to receive a WARNING.
+    #
+    # crl_days_warning: 0
+
+    ## Configure Certificate Chain and Certificate Chain Policy validation
+    #
+    # cert_chain_validation:
+      
+      ## @param enabled - boolean - optional - default: false
+      ## Set to `true` to enable certificate chain validation.
+      #
+      # enabled: false
+
+      ## @param policy_validation_flags - list of strings - optional
+      ## A list of certificate chain policy validation flags to ignore during validation.
+      ## These flags allow you to suppress specific validation errors that may not be relevant
+      ## to your environment or use case. Available flags include:
+      ##
+      ## Time-related flags:
+      ## - `CERT_CHAIN_POLICY_IGNORE_NOT_TIME_VALID_FLAG`: Ignore certificates that are not yet valid or have expired
+      ## - `CERT_CHAIN_POLICY_IGNORE_CTL_NOT_TIME_VALID_FLAG`: Ignore Certificate Trust Lists (CTLs) that are not time valid
+      ## - `CERT_CHAIN_POLICY_IGNORE_NOT_TIME_NESTED_FLAG`: Ignore certificates in the chain that are not time nested
+      ## - `CERT_CHAIN_POLICY_IGNORE_ALL_NOT_TIME_VALID_FLAGS`: Ignore all time-related validation errors
+      ##
+      ## Constraint and usage flags:
+      ## - `CERT_CHAIN_POLICY_IGNORE_INVALID_BASIC_CONSTRAINTS_FLAG`: Ignore invalid basic constraints
+      ## - `CERT_CHAIN_POLICY_ALLOW_UNKNOWN_CA_FLAG`: Allow unknown Certificate Authorities
+      ## - `CERT_CHAIN_POLICY_IGNORE_WRONG_USAGE_FLAG`: Ignore wrong usage errors
+      ## - `CERT_CHAIN_POLICY_IGNORE_INVALID_NAME_FLAG`: Ignore invalid name errors
+      ## - `CERT_CHAIN_POLICY_IGNORE_INVALID_POLICY_FLAG`: Ignore invalid policy errors
+      ##
+      ## Revocation-related flags:
+      ## - `CERT_CHAIN_POLICY_IGNORE_END_REV_UNKNOWN_FLAG`: Ignore end entity certificate revocation unknown errors
+      ## - `CERT_CHAIN_POLICY_IGNORE_CTL_SIGNER_REV_UNKNOWN_FLAG`: Ignore CTL signer revocation unknown errors
+      ## - `CERT_CHAIN_POLICY_IGNORE_CA_REV_UNKNOWN_FLAG`: Ignore CA certificate revocation unknown errors
+      ## - `CERT_CHAIN_POLICY_IGNORE_ROOT_REV_UNKNOWN_FLAG`: Ignore root certificate revocation unknown errors
+      ## - `CERT_CHAIN_POLICY_IGNORE_ALL_REV_UNKNOWN_FLAGS`: Ignore all revocation unknown errors
+      ##
+      ## For detailed documentation, see the following resources:
+      ##   - https://learn.microsoft.com/en-us/windows/win32/api/wincrypt/ns-wincrypt-cert_chain_policy_para
+      ##   - https://learn.microsoft.com/en-us/windows/win32/api/wincrypt/nf-wincrypt-certverifycertificatechainpolicy
+      ##
+      ## Example: To ignore time validation and revocation unknown errors:
+      ## policy_validation_flags:
+      ##   - "CERT_CHAIN_POLICY_IGNORE_ALL_NOT_TIME_VALID_FLAGS"
+      ##   - "CERT_CHAIN_POLICY_IGNORE_ALL_REV_UNKNOWN_FLAGS"
+
+    ## @param tags - list of strings - optional
+    ## A list of tags to attach to every metric and service check emitted by this instance.
+    ##
+    ## Learn more about tagging at https://docs.datadoghq.com/tagging
+    #
+    # tags:
+    #   - <KEY_1>:<VALUE_1>
+    #   - <KEY_2>:<VALUE_2>
+
+    ## @param service - string - optional
+    ## Attach the tag `service:<SERVICE>` to every metric, event, and service check emitted by this integration.
+    ##
+    ## Overrides any `service` defined in the `init_config` section.
+    #
+    # service: <SERVICE>
+
+    ## @param min_collection_interval - number - optional - default: 300
+    ## This changes the collection interval of the check. For more information, see:
+    ## https://docs.datadoghq.com/developers/write_agent_check/#collection-interval
+    #
+    # min_collection_interval: 300
+
+    ## @param empty_default_hostname - boolean - optional - default: false
+    ## This forces the check to send metrics with no hostname.
+    ##
+    ## This is useful for cluster-level checks.
+    #
+    # empty_default_hostname: false
+
+    ## @param metric_patterns - mapping - optional
+    ## A mapping of metrics to include or exclude, with each entry being a regular expression.
+    ##
+    ## Metrics defined in `exclude` will take precedence in case of overlap.
+    #
+    # metric_patterns:
+    #   include:
+    #   - <INCLUDE_REGEX>
+    #   exclude:
+    #   - <EXCLUDE_REGEX>

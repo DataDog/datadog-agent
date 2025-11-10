@@ -16,10 +16,10 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/api/authtoken"
-	authtokenmock "github.com/DataDog/datadog-agent/comp/api/authtoken/mock"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/configsync"
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
+	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
@@ -28,11 +28,11 @@ import (
 
 func TestOptionalModule(t *testing.T) {
 	handler := func(w http.ResponseWriter, _ *http.Request) {
-		w.Write([]byte(`{"key1": "value1"}`))
+		w.Write([]byte(`{"api_key": "value1"}`))
 	}
 
-	at := authtokenmock.New(t)
-	server := at.NewMockServer(http.HandlerFunc(handler))
+	ipcComp := ipcmock.New(t)
+	server := ipcComp.NewMockServer(http.HandlerFunc(handler))
 
 	url, err := url.Parse(server.URL)
 	require.NoError(t, err)
@@ -47,18 +47,18 @@ func TestOptionalModule(t *testing.T) {
 		"agent_ipc.config_refresh_interval": 1,
 	}
 	comp := fxutil.Test[configsync.Component](t, fx.Options(
-		config.MockModule(),
+		fx.Provide(func() config.Component { return config.NewMockWithOverrides(t, overrides) }),
 		fx.Supply(log.Params{}),
 		fx.Provide(func(t testing.TB) log.Component { return logmock.New(t) }),
 		telemetryimpl.MockModule(),
-		fx.Provide(func() authtoken.Component { return at }),
+		fx.Provide(func() ipc.Component { return ipcComp }),
+		fx.Provide(func(ipcComp ipc.Component) ipc.HTTPClient { return ipcComp.GetClient() }),
 		Module(Params{}),
 		fx.Populate(&cfg),
-		fx.Replace(config.MockParams{Overrides: overrides}),
 	))
 	require.True(t, comp.(configSync).enabled)
 
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		assert.Equal(t, "value1", cfg.Get("key1"))
+		assert.Equal(t, "value1", cfg.Get("api_key"))
 	}, 5*time.Second, 500*time.Millisecond)
 }

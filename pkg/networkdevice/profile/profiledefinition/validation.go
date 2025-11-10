@@ -47,6 +47,16 @@ const (
 	MetadataSymbol
 )
 
+// IsLegacyMetrics returns true if one or more metrics config is written in the legacy Python syntax
+func IsLegacyMetrics(metrics []MetricsConfig) bool {
+	for i := range metrics {
+		if metrics[i].IsLegacy() {
+			return true
+		}
+	}
+	return false
+}
+
 // ValidateEnrichProfile validates a profile and normalizes it.
 func ValidateEnrichProfile(profile *ProfileDefinition) []string {
 	NormalizeMetrics(profile.Metrics)

@@ -7,24 +7,23 @@
 package agentimpl
 
 import (
-	"context"
-	"crypto/subtle"
-	"errors"
-	"fmt"
 	"net/http"
 
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	grpc_auth "github.com/grpc-ecosystem/go-grpc-middleware/auth"
-	"github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
 
-	"github.com/DataDog/datadog-agent/comp/api/authtoken"
 	grpc "github.com/DataDog/datadog-agent/comp/api/grpcserver/def"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	configstream "github.com/DataDog/datadog-agent/comp/core/configstream/def"
+	configstreamServer "github.com/DataDog/datadog-agent/comp/core/configstream/server"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	remoteagentregistry "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/def"
-	"github.com/DataDog/datadog-agent/comp/core/secrets"
-	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	taggerserver "github.com/DataDog/datadog-agent/comp/core/tagger/server"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetaServer "github.com/DataDog/datadog-agent/comp/core/workloadmeta/server"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
@@ -33,7 +32,6 @@ import (
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcservice"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcservicemrf"
-	"github.com/DataDog/datadog-agent/pkg/api/util"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	grpcutil "github.com/DataDog/datadog-agent/pkg/util/grpc"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
@@ -52,18 +50,23 @@ type Requires struct {
 	SecretResolver      secrets.Component
 	RcService           option.Option[rcservice.Component]
 	RcServiceMRF        option.Option[rcservicemrf.Component]
-	AuthToken           authtoken.Component
+	IPC                 ipc.Component
 	Tagger              tagger.Component
+	TagProcessor        option.Option[tagger.Processor]
 	Cfg                 config.Component
 	AutoConfig          autodiscovery.Component
 	WorkloadMeta        workloadmeta.Component
 	Collector           option.Option[collector.Component]
 	RemoteAgentRegistry remoteagentregistry.Component
+	Telemetry           telemetry.Component
+	Hostname            hostnameinterface.Component
+	ConfigStream        configstream.Component
 }
 
 type server struct {
-	authToken           authtoken.Component
-	taggerComp          tagger.Component
+	IPC                 ipc.Component
+	tagger              tagger.Component
+	tagProcessor        option.Option[tagger.Processor]
 	workloadMeta        workloadmeta.Component
 	configService       option.Option[rcservice.Component]
 	configServiceMRF    option.Option[rcservicemrf.Component]
@@ -73,30 +76,34 @@ type server struct {
 	remoteAgentRegistry remoteagentregistry.Component
 	autodiscovery       autodiscovery.Component
 	configComp          config.Component
+	telemetry           telemetry.Component
+	hostname            hostnameinterface.Component
+	configStream        configstream.Component
 }
 
 func (s *server) BuildServer() http.Handler {
-	authInterceptor := grpcutil.AuthInterceptor(parseToken)
+	authInterceptor := grpcutil.StaticAuthInterceptor(s.IPC.GetAuthToken())
 
 	maxMessageSize := s.configComp.GetInt("cluster_agent.cluster_tagger.grpc_max_message_size")
 
-	opts := []googleGrpc.ServerOption{
-		googleGrpc.Creds(credentials.NewTLS(s.authToken.GetTLSServerConfig())),
-		googleGrpc.StreamInterceptor(grpc_auth.StreamServerInterceptor(authInterceptor)),
-		googleGrpc.UnaryInterceptor(grpc_auth.UnaryServerInterceptor(authInterceptor)),
+	// Use the convenience function that combines metrics and auth interceptors
+	opts := grpcutil.ServerOptionsWithMetricsAndAuth(
+		grpc_auth.UnaryServerInterceptor(authInterceptor),
+		grpc_auth.StreamServerInterceptor(authInterceptor),
+		googleGrpc.Creds(credentials.NewTLS(s.IPC.GetTLSServerConfig())),
 		googleGrpc.MaxRecvMsgSize(maxMessageSize),
 		googleGrpc.MaxSendMsgSize(maxMessageSize),
-	}
+	)
 
 	// event size should be small enough to fit within the grpc max message size
 	maxEventSize := maxMessageSize / 2
 	grpcServer := googleGrpc.NewServer(opts...)
-	pb.RegisterAgentServer(grpcServer, &agentServer{})
+	pb.RegisterAgentServer(grpcServer, &agentServer{hostname: s.hostname})
 	pb.RegisterAgentSecureServer(grpcServer, &serverSecure{
 		configService:    s.configService,
 		configServiceMRF: s.configServiceMRF,
-		taggerServer:     taggerserver.NewServer(s.taggerComp, maxEventSize, s.configComp.GetInt("remote_tagger.max_concurrent_sync")),
-		taggerComp:       s.taggerComp,
+		taggerServer:     taggerserver.NewServer(s.tagger, s.telemetry, maxEventSize, s.configComp.GetInt("remote_tagger.max_concurrent_sync")),
+		tagProcessor:     s.tagProcessor,
 		// TODO(components): decide if workloadmetaServer should be componentized itself
 		workloadmetaServer:  workloadmetaServer.NewServer(s.workloadMeta),
 		dogstatsdServer:     s.dogstatsdServer,
@@ -105,28 +112,10 @@ func (s *server) BuildServer() http.Handler {
 		remoteAgentRegistry: s.remoteAgentRegistry,
 		autodiscovery:       s.autodiscovery,
 		configComp:          s.configComp,
+		configStreamServer:  configstreamServer.NewServer(s.configComp, s.configStream),
 	})
 
 	return grpcServer
-}
-
-func (s *server) BuildGatewayMux(cmdAddr string) (http.Handler, error) {
-	dopts := []googleGrpc.DialOption{googleGrpc.WithTransportCredentials(credentials.NewTLS(s.authToken.GetTLSClientConfig()))}
-	ctx := context.Background()
-	gwmux := runtime.NewServeMux()
-	err := pb.RegisterAgentHandlerFromEndpoint(
-		ctx, gwmux, cmdAddr, dopts)
-	if err != nil {
-		return nil, fmt.Errorf("error registering agent handler from endpoint %s: %v", cmdAddr, err)
-	}
-
-	err = pb.RegisterAgentSecureHandlerFromEndpoint(
-		ctx, gwmux, cmdAddr, dopts)
-	if err != nil {
-		return nil, fmt.Errorf("error registering agent secure handler from endpoint %s: %v", cmdAddr, err)
-	}
-
-	return gwmux, nil
 }
 
 // Provides defines the output of the grpc component
@@ -138,10 +127,11 @@ type Provides struct {
 func NewComponent(reqs Requires) (Provides, error) {
 	provides := Provides{
 		Comp: &server{
-			authToken:           reqs.AuthToken,
+			IPC:                 reqs.IPC,
 			configService:       reqs.RcService,
 			configServiceMRF:    reqs.RcServiceMRF,
-			taggerComp:          reqs.Tagger,
+			tagger:              reqs.Tagger,
+			tagProcessor:        reqs.TagProcessor,
 			workloadMeta:        reqs.WorkloadMeta,
 			dogstatsdServer:     reqs.DogstatsdServer,
 			capture:             reqs.Capture,
@@ -149,20 +139,10 @@ func NewComponent(reqs Requires) (Provides, error) {
 			remoteAgentRegistry: reqs.RemoteAgentRegistry,
 			autodiscovery:       reqs.AutoConfig,
 			configComp:          reqs.Cfg,
+			telemetry:           reqs.Telemetry,
+			hostname:            reqs.Hostname,
+			configStream:        reqs.ConfigStream,
 		},
 	}
 	return provides, nil
-}
-
-// parseToken parses the token and validate it for our gRPC API, it returns an empty
-// struct and an error or nil
-func parseToken(token string) (interface{}, error) {
-	if subtle.ConstantTimeCompare([]byte(token), []byte(util.GetAuthToken())) == 0 {
-		return struct{}{}, errors.New("Invalid session token")
-	}
-
-	// Currently this empty struct doesn't add any information
-	// to the context, but we could potentially add some custom
-	// type.
-	return struct{}{}, nil
 }

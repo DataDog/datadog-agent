@@ -21,13 +21,12 @@ import (
 	"github.com/containerd/containerd"
 	"github.com/containerd/containerd/content"
 	"github.com/containerd/containerd/images/archive"
-	"github.com/containerd/containerd/leases"
 	"github.com/containerd/containerd/mount"
 	"github.com/containerd/containerd/namespaces"
-	"github.com/containerd/errdefs"
 	refdocker "github.com/distribution/reference"
-	api "github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
+	dimage "github.com/docker/docker/api/types/image"
+	dclient "github.com/docker/docker/client"
 	"github.com/docker/go-connections/nat"
 	v1 "github.com/google/go-containerregistry/pkg/v1"
 	"github.com/opencontainers/go-digest"
@@ -65,7 +64,7 @@ func (n familiarNamed) String() string {
 
 // Code ported from https://github.com/aquasecurity/trivy/blob/2206e008ea6e5f4e5c1aa7bc8fc77dae7041de6a/pkg/fanal/image/daemon/containerd.go
 func imageWriter(client *containerd.Client, img containerd.Image) imageSave {
-	return func(ctx context.Context, ref []string) (io.ReadCloser, error) {
+	return func(ctx context.Context, ref []string, _ ...dclient.ImageSaveOption) (io.ReadCloser, error) {
 		if len(ref) < 1 {
 			return nil, errors.New("no image reference")
 		}
@@ -128,12 +127,12 @@ func readImageConfig(ctx context.Context, img containerd.Image) (ocispec.Image, 
 }
 
 // ported from https://github.com/aquasecurity/trivy/blob/2206e008ea6e5f4e5c1aa7bc8fc77dae7041de6a/pkg/fanal/image/daemon/containerd.go
-func inspect(ctx context.Context, imgMeta *workloadmeta.ContainerImageMetadata, img containerd.Image) (api.ImageInspect, []v1.History, refdocker.Reference, error) {
+func inspect(ctx context.Context, imgMeta *workloadmeta.ContainerImageMetadata, img containerd.Image) (dimage.InspectResponse, []v1.History, refdocker.Reference, error) {
 	ref := familiarNamed(img.Name())
 
 	imgConfig, imgConfigDesc, err := readImageConfig(ctx, img)
 	if err != nil {
-		return api.ImageInspect{}, nil, nil, err
+		return dimage.InspectResponse{}, nil, nil, err
 	}
 
 	var lastHistory ocispec.History
@@ -143,9 +142,14 @@ func inspect(ctx context.Context, imgMeta *workloadmeta.ContainerImageMetadata, 
 
 	var history []v1.History
 	for _, h := range imgConfig.History {
+		var created time.Time
+		if h.Created != nil {
+			created = *h.Created
+		}
+
 		history = append(history, v1.History{
 			Author:     h.Author,
-			Created:    v1.Time{Time: *h.Created},
+			Created:    v1.Time{Time: created},
 			CreatedBy:  h.CreatedBy,
 			Comment:    h.Comment,
 			EmptyLayer: h.EmptyLayer,
@@ -161,14 +165,14 @@ func inspect(ctx context.Context, imgMeta *workloadmeta.ContainerImageMetadata, 
 		created = lastHistory.Created.Format(time.RFC3339Nano)
 	}
 
-	return api.ImageInspect{
+	return dimage.InspectResponse{
 		ID:          imgConfigDesc.Digest.String(),
 		RepoTags:    imgMeta.RepoTags,
 		RepoDigests: imgMeta.RepoDigests,
 		Comment:     lastHistory.Comment,
 		Created:     created,
 		Author:      lastHistory.Author,
-		Config: &container.Config{
+		ContainerConfig: &container.Config{
 			User:         imgConfig.Config.User,
 			ExposedPorts: portSet,
 			Env:          imgConfig.Config.Env,
@@ -180,7 +184,7 @@ func inspect(ctx context.Context, imgMeta *workloadmeta.ContainerImageMetadata, 
 		},
 		Architecture: imgConfig.Architecture,
 		Os:           imgConfig.OS,
-		RootFS: api.RootFS{
+		RootFS: dimage.RootFS{
 			Type: imgConfig.RootFS.Type,
 			Layers: lo.Map(imgConfig.RootFS.DiffIDs, func(d digest.Digest, _ int) string {
 				return d.String()
@@ -213,6 +217,8 @@ func (c *fakeContainerdContainer) Layers() (layers []ftypes.LayerPath) {
 // ContainerdAccessor is a function that should return a containerd client
 type ContainerdAccessor func() (cutil.ContainerdItf, error)
 
+const defaultExpiration = 1 * time.Minute
+
 // ScanContainerdImageFromSnapshotter scans containerd image directly from the snapshotter
 func (c *Collector) ScanContainerdImageFromSnapshotter(ctx context.Context, imgMeta *workloadmeta.ContainerImageMetadata, img containerd.Image, client cutil.ContainerdItf, scanOptions sbom.ScanOptions) (sbom.Report, error) {
 	fanalImage, cleanup, err := convertContainerdImage(ctx, client.RawClient(), imgMeta, img)
@@ -224,46 +230,36 @@ func (c *Collector) ScanContainerdImageFromSnapshotter(ctx context.Context, imgM
 	}
 
 	// Computing duration of containerd lease
-	deadline, _ := ctx.Deadline()
-	expiration := deadline.Sub(time.Now().Add(cleanupTimeout))
-	clClient := client.RawClient()
+	expiration := defaultExpiration
+	if deadline, ok := ctx.Deadline(); ok {
+		expiration = time.Until(deadline)
+	}
 	imageID := imgMeta.ID
 
-	mounts, err := client.Mounts(ctx, expiration, imgMeta.Namespace, img)
+	mounts, cleanLease, err := client.Mounts(ctx, expiration, imgMeta.Namespace, img)
 	if err != nil {
 		return nil, fmt.Errorf("unable to get mounts for image %s, err: %w", imgMeta.ID, err)
 	}
+	defer func() {
+		if err := cleanLease(ctx); err != nil {
+			log.Warnf("Unable to cancel containerd lease with id: %s, err: %v", imageID, err)
+		}
+	}()
 
 	layers := extractLayersFromOverlayFSMounts(mounts)
 	if len(layers) == 0 {
 		return nil, fmt.Errorf("unable to extract layers from overlayfs mounts %+v for image %s", mounts, imgMeta.ID)
 	}
 
-	ctx = namespaces.WithNamespace(ctx, imgMeta.Namespace)
-	// Adding a lease to cleanup dandling snaphots at expiration
-	ctx, done, err := clClient.WithLease(ctx,
-		leases.WithID(imageID),
-		leases.WithExpiration(expiration),
-		leases.WithLabels(map[string]string{
-			"containerd.io/gc.ref.snapshot." + containerd.DefaultSnapshotter: imageID,
-		}),
-	)
-	if err != nil && !errdefs.IsAlreadyExists(err) {
-		return nil, fmt.Errorf("unable to get a lease, err: %w", err)
+	fakeContainer, err := newFakeContainer(layers, imgMeta, fanalImage.inspect.RootFS.Layers)
+	if err != nil {
+		return nil, err
 	}
 
 	report, err := c.scanOverlayFS(ctx, layers, &fakeContainerdContainer{
-		image: fanalImage,
-		fakeContainer: &fakeContainer{
-			layerPaths: layers,
-			imgMeta:    imgMeta,
-			layerIDs:   fanalImage.inspect.RootFS.Layers,
-		},
+		image:         fanalImage,
+		fakeContainer: fakeContainer,
 	}, imgMeta, scanOptions)
-
-	if err := done(ctx); err != nil {
-		log.Warnf("Unable to cancel containerd lease with id: %s, err: %v", imageID, err)
-	}
 
 	return report, err
 }

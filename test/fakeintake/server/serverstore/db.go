@@ -20,7 +20,9 @@ import (
 )
 
 const (
-	defaultDBPath = "payloads.db"
+	// SqliteDbPathEnv sets the env variable name to read sqlite db pathß
+	SqliteDbPathEnv = "SQLITE_DB_PATH"
+	defaultDBPath   = "payloads.db"
 
 	metricsTicker = 30 * time.Second
 )
@@ -46,16 +48,24 @@ type sqlMetrics struct {
 }
 
 // newSQLStore initializes a new payloads store with an SQLite DB
-func newSQLStore() *sqlStore {
-	p := os.Getenv("SQLITE_DB_PATH")
-	if p == "" {
-		f, err := os.CreateTemp("", defaultDBPath)
-		if err != nil {
-			log.Fatal(err)
-		}
-		p = f.Name()
+func newSQLStore(userSqliteDbPath string) *sqlStore {
+	var sqliteDbPath string
+
+	envOverrideDbPath := os.Getenv(SqliteDbPathEnv)
+	if envOverrideDbPath != "" {
+		sqliteDbPath = envOverrideDbPath
+	} else if userSqliteDbPath == "" {
+		sqliteDbPath = userSqliteDbPath
+	} else {
+		sqliteDbPath = defaultDBPath
 	}
-	db, err := sql.Open("sqlite", p)
+
+	f, err := os.CreateTemp("", sqliteDbPath)
+	if err != nil {
+		log.Fatal(err)
+	}
+	sqliteDbPath = f.Name()
+	db, err := sql.Open("sqlite", sqliteDbPath)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -70,7 +80,7 @@ func newSQLStore() *sqlStore {
 	}
 
 	s := &sqlStore{
-		path:   p,
+		path:   sqliteDbPath,
 		db:     db,
 		stopCh: make(chan struct{}),
 

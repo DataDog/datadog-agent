@@ -10,6 +10,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders"
@@ -36,22 +37,23 @@ type Meta struct {
 	ClusterName               string   `json:"cluster-name,omitempty"`
 	LegacyResolutionHostname  string   `json:"legacy-resolution-hostname,omitempty"`
 	HostnameResolutionVersion int      `json:"hostname-resolution-version,omitempty"`
+	CanonicalCloudResourceID  string   `json:"ccrid,omitempty"`
 }
 
 // GetMetaFromCache returns the metadata information about the host from the cache and returns it, if the cache is
 // empty, then it queries the information directly
-func GetMetaFromCache(ctx context.Context, conf model.Reader) *Meta {
+func GetMetaFromCache(ctx context.Context, conf model.Reader, hostname hostnameinterface.Component) *Meta {
 	res, _ := cache.Get[*Meta](
 		metaCacheKey,
 		func() (*Meta, error) {
-			return getMeta(ctx, conf), nil
+			return getMeta(ctx, conf, hostname), nil
 		},
 	)
 	return res
 }
 
 // getMeta returns the metadata information about the host and refreshes the cache
-func getMeta(ctx context.Context, conf model.Reader) *Meta {
+func getMeta(ctx context.Context, conf model.Reader, hostnameComp hostnameinterface.Component) *Meta {
 	osHostname, _ := os.Hostname()
 	tzname, _ := time.Now().Zone()
 	ec2Hostname, _ := ec2.GetHostname(ctx)
@@ -59,9 +61,15 @@ func getMeta(ctx context.Context, conf model.Reader) *Meta {
 
 	var agentHostname string
 
-	hostnameData, _ := hostname.GetWithProvider(ctx)
+	hostnameData, _ := hostnameComp.GetWithProvider(ctx)
 	if conf.GetBool("hostname_force_config_as_canonical") && hostnameData.FromConfiguration() {
 		agentHostname = hostnameData.Hostname
+	}
+
+	ccrid := ""
+	hostAliases, cloudname := cloudproviders.GetHostAliases(ctx)
+	if conf.GetBool("collect_ccrid") {
+		ccrid = cloudproviders.GetHostCCRID(ctx, cloudname)
 	}
 
 	m := &Meta{
@@ -69,10 +77,11 @@ func getMeta(ctx context.Context, conf model.Reader) *Meta {
 		Timezones:                 []string{tzname},
 		SocketFqdn:                netutil.Fqdn(osHostname),
 		EC2Hostname:               ec2Hostname,
-		HostAliases:               cloudproviders.GetHostAliases(ctx),
+		HostAliases:               hostAliases,
 		InstanceID:                instanceID,
 		AgentHostname:             agentHostname,
 		HostnameResolutionVersion: 1,
+		CanonicalCloudResourceID:  ccrid,
 	}
 
 	legacyResolutionHostnameData, _ := hostname.GetWithLegacyResolutionProvider(ctx)

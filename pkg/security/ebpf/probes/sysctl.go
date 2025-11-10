@@ -15,7 +15,7 @@ func getSysCtlProbes(cgroup2MountPoint string) []*manager.Probe {
 		{
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				UID:          SecurityAgentUID,
-				EBPFFuncName: GetSysCtlProbeFunctionName(),
+				EBPFFuncName: SysCtlProbeFunctionName,
 			},
 			CGroupPath: cgroup2MountPoint,
 		},
@@ -28,7 +28,5 @@ func getSysCtlProbes(cgroup2MountPoint string) []*manager.Probe {
 	}
 }
 
-// GetSysCtlProbeFunctionName returns the function name of the cgroup/sysctl probe
-func GetSysCtlProbeFunctionName() string {
-	return "cgroup_sysctl"
-}
+// SysCtlProbeFunctionName is the function name of the cgroup/sysctl probe
+const SysCtlProbeFunctionName = "cgroup_sysctl"

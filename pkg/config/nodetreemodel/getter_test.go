@@ -15,10 +15,10 @@ import (
 )
 
 func TestGetKnownKeysLowercased(t *testing.T) {
-	cfg := NewConfig("test", "", nil)
+	cfg := NewNodeTreeConfig("test", "", nil)
 	cfg.SetDefault("a", 1234)
 	cfg.SetDefault("b.C", "test")
-	cfg.SetKnown("d.E.f")
+	cfg.SetKnown("d.E.f") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 	cfg.BuildSchema()
 
 	assert.Equal(t,
@@ -34,7 +34,7 @@ func TestGetKnownKeysLowercased(t *testing.T) {
 }
 
 func TestGet(t *testing.T) {
-	cfg := NewConfig("test", "", nil)
+	cfg := NewNodeTreeConfig("test", "", nil)
 	cfg.SetDefault("a", 1234)
 	cfg.BuildSchema()
 
@@ -51,9 +51,9 @@ func TestGet(t *testing.T) {
 }
 
 func TestGetDefaultType(t *testing.T) {
-	cfg := NewConfig("test", "", nil)
-	cfg.SetKnown("a")
-	cfg.SetKnown("b")
+	cfg := NewNodeTreeConfig("test", "", nil)
+	cfg.SetKnown("a") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	cfg.SetKnown("b") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 	cfg.BuildSchema()
 
 	cfg.ReadConfig(strings.NewReader(`---
@@ -85,7 +85,7 @@ b:
 }
 
 func TestGetInnerNode(t *testing.T) {
-	cfg := NewConfig("test", "", nil)
+	cfg := NewNodeTreeConfig("test", "", nil)
 	cfg.SetDefault("a.b.c", 1234)
 	cfg.SetDefault("a.e", 1234)
 	cfg.BuildSchema()
@@ -103,7 +103,7 @@ func TestGetInnerNode(t *testing.T) {
 }
 
 func TestGetCastToDefault(t *testing.T) {
-	cfg := NewConfig("test", "", nil)
+	cfg := NewNodeTreeConfig("test", "", nil)
 	cfg.SetDefault("a", []string{})
 	cfg.BuildSchema()
 
@@ -120,7 +120,7 @@ func TestGetCastToDefault(t *testing.T) {
 }
 
 func TestGetString(t *testing.T) {
-	cfg := NewConfig("test", "", nil)
+	cfg := NewNodeTreeConfig("test", "", nil)
 	cfg.SetDefault("a", 1234)
 	cfg.SetDefault("b", "test")
 	cfg.BuildSchema()
@@ -131,7 +131,7 @@ func TestGetString(t *testing.T) {
 }
 
 func TestGetBool(t *testing.T) {
-	cfg := NewConfig("test", "", nil)
+	cfg := NewNodeTreeConfig("test", "", nil)
 	cfg.SetDefault("a", false)
 	cfg.SetDefault("b", "true")
 	cfg.SetDefault("c", 1)
@@ -146,7 +146,7 @@ func TestGetBool(t *testing.T) {
 }
 
 func TestGetInt(t *testing.T) {
-	cfg := NewConfig("test", "", nil)
+	cfg := NewNodeTreeConfig("test", "", nil)
 	cfg.SetDefault("a", 1234)
 	cfg.SetDefault("b", "987")
 	cfg.BuildSchema()
@@ -157,7 +157,7 @@ func TestGetInt(t *testing.T) {
 }
 
 func TestGetInt32(t *testing.T) {
-	cfg := NewConfig("test", "", nil)
+	cfg := NewNodeTreeConfig("test", "", nil)
 	cfg.SetDefault("a", 1234)
 	cfg.SetDefault("b", "987")
 	cfg.BuildSchema()
@@ -168,7 +168,7 @@ func TestGetInt32(t *testing.T) {
 }
 
 func TestGetInt64(t *testing.T) {
-	cfg := NewConfig("test", "", nil)
+	cfg := NewNodeTreeConfig("test", "", nil)
 	cfg.SetDefault("a", 1234)
 	cfg.SetDefault("b", "987")
 	cfg.BuildSchema()
@@ -179,7 +179,7 @@ func TestGetInt64(t *testing.T) {
 }
 
 func TestGetFloat64(t *testing.T) {
-	cfg := NewConfig("test", "", nil)
+	cfg := NewNodeTreeConfig("test", "", nil)
 	cfg.SetDefault("a", 1234.25)
 	cfg.SetDefault("b", "987.25")
 	cfg.BuildSchema()
@@ -190,7 +190,7 @@ func TestGetFloat64(t *testing.T) {
 }
 
 func TestGetDuration(t *testing.T) {
-	cfg := NewConfig("test", "", nil)
+	cfg := NewNodeTreeConfig("test", "", nil)
 	cfg.SetDefault("a", 1234)
 	cfg.SetDefault("b", "987")
 	cfg.BuildSchema()
@@ -201,7 +201,7 @@ func TestGetDuration(t *testing.T) {
 }
 
 func TestGetStringSlice(t *testing.T) {
-	cfg := NewConfig("test", "", nil)
+	cfg := NewNodeTreeConfig("test", "", nil)
 	cfg.SetDefault("a", []string{"a", "b", "c"})
 	cfg.SetDefault("b", "a b c")
 	cfg.BuildSchema()
@@ -212,7 +212,7 @@ func TestGetStringSlice(t *testing.T) {
 }
 
 func TestGetStringMap(t *testing.T) {
-	cfg := NewConfig("test", "", nil)
+	cfg := NewNodeTreeConfig("test", "", nil)
 	cfg.SetDefault("a", map[string]interface{}{"a": 1, "b": "b", "c": nil})
 	cfg.SetDefault("b", "{\"a\": 1234}") // viper handles JSON string implicitly so we have to reproduce this behavior
 	cfg.BuildSchema()
@@ -223,7 +223,7 @@ func TestGetStringMap(t *testing.T) {
 }
 
 func TestGetStringMapString(t *testing.T) {
-	cfg := NewConfig("test", "", nil)
+	cfg := NewNodeTreeConfig("test", "", nil)
 	cfg.SetDefault("a", map[string]interface{}{"a": 123, "b": "b", "c": ""})
 	cfg.SetDefault("b", "{\"a\": \"test\"}") // viper handles JSON string implicitly so we have to reproduce this behavior
 	cfg.BuildSchema()
@@ -234,7 +234,7 @@ func TestGetStringMapString(t *testing.T) {
 }
 
 func TestGetStringMapStringSlice(t *testing.T) {
-	cfg := NewConfig("test", "", nil)
+	cfg := NewNodeTreeConfig("test", "", nil)
 	cfg.SetDefault("a", map[string][]interface{}{"a": {1, 2}, "b": {"b", "bb"}, "c": nil})
 	cfg.SetDefault("b", "{\"a\": [\"test\", \"test2\"]}") // viper handles JSON string implicitly so we have to reproduce this behavior
 	cfg.BuildSchema()
@@ -245,7 +245,7 @@ func TestGetStringMapStringSlice(t *testing.T) {
 }
 
 func TestGetSizeInBytes(t *testing.T) {
-	cfg := NewConfig("test", "", nil)
+	cfg := NewNodeTreeConfig("test", "", nil)
 	cfg.SetDefault("a", "123")
 	cfg.SetDefault("b", "1kb")
 	cfg.SetDefault("c", "1Mb")
@@ -263,7 +263,7 @@ func TestGetSizeInBytes(t *testing.T) {
 }
 
 func TestGetFloat64Slice(t *testing.T) {
-	cfg := NewConfig("test", "", nil)
+	cfg := NewNodeTreeConfig("test", "", nil)
 	cfg.SetDefault("float_list", []float64{})
 	cfg.SetDefault("string_list", []string{})
 	cfg.BuildSchema()
@@ -283,7 +283,7 @@ string_list:
 }
 
 func TestGetFloat64SliceError(t *testing.T) {
-	cfg := NewConfig("test", "", nil)
+	cfg := NewNodeTreeConfig("test", "", nil)
 	cfg.SetDefault("float_list", []float64{})
 	cfg.BuildSchema()
 	cfg.ReadConfig(strings.NewReader(`---
@@ -297,22 +297,23 @@ float_list:
 }
 
 func TestGetFloat64SliceStringFromEnv(t *testing.T) {
-	cfg := NewConfig("test", "", nil)
-	cfg.SetDefault("float_list", []string{})
+	cfg := NewNodeTreeConfig("test", "TEST", nil)
+	cfg.BindEnvAndSetDefault("float_list", []string{})
+	t.Setenv("TEST_FLOAT_LIST", "1.1 2.2 3.3")
 	cfg.BuildSchema()
-	cfg.Set("float_list", "1.1 2.2 3.3", model.SourceEnvVar)
 
 	assert.Equal(t, []float64{1.1, 2.2, 3.3}, cfg.GetFloat64Slice("float_list"))
 }
 
 func TestGetAllSources(t *testing.T) {
-	cfg := NewConfig("test", "", nil)
-	cfg.SetDefault("a", 0)
+	t.Setenv("TEST_A", "3")
+
+	cfg := NewNodeTreeConfig("test", "TEST", nil)
+	cfg.BindEnvAndSetDefault("a", 0)
 	cfg.BuildSchema()
 
 	cfg.Set("a", 1, model.SourceUnknown)
 	cfg.Set("a", 2, model.SourceFile)
-	cfg.Set("a", 3, model.SourceEnvVar)
 	cfg.Set("a", 4, model.SourceFleetPolicies)
 	cfg.Set("a", 5, model.SourceAgentRuntime)
 	cfg.Set("a", 6, model.SourceLocalConfigProcess)
@@ -325,7 +326,7 @@ func TestGetAllSources(t *testing.T) {
 			{Source: model.SourceDefault, Value: 0},
 			{Source: model.SourceUnknown, Value: 1},
 			{Source: model.SourceFile, Value: 2},
-			{Source: model.SourceEnvVar, Value: 3},
+			{Source: model.SourceEnvVar, Value: "3"},
 			{Source: model.SourceFleetPolicies, Value: 4},
 			{Source: model.SourceAgentRuntime, Value: 5},
 			{Source: model.SourceLocalConfigProcess, Value: 6},

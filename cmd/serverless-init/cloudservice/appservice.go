@@ -7,9 +7,13 @@
 package cloudservice
 
 import (
+	"fmt"
 	"maps"
 	"os"
 
+	"github.com/DataDog/datadog-agent/cmd/serverless-init/metric"
+	"github.com/DataDog/datadog-agent/pkg/metrics"
+	serverlessMetrics "github.com/DataDog/datadog-agent/pkg/serverless/metrics"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 )
 
@@ -25,6 +29,11 @@ const (
 	WebsiteStack = "WEBSITE_STACK"
 	//nolint:revive // TODO(SERV) Fix revive linter
 	AppLogsTrace = "WEBSITE_APPSERVICEAPPLOGS_TRACE_ENABLED"
+
+	// AppServiceOrigin origin tag value
+	AppServiceOrigin = "appservice"
+
+	appServicePrefix = "azure.appservice"
 )
 
 // GetTags returns a map of Azure-related tags
@@ -35,8 +44,8 @@ func (a *AppService) GetTags() map[string]string {
 	tags := map[string]string{
 		"app_name":   appName,
 		"region":     region,
-		"origin":     a.GetOrigin(),
-		"_dd.origin": a.GetOrigin(),
+		"origin":     AppServiceOrigin,
+		"_dd.origin": AppServiceOrigin,
 	}
 
 	maps.Copy(tags, traceutil.GetAppServicesTags())
@@ -44,21 +53,40 @@ func (a *AppService) GetTags() map[string]string {
 	return tags
 }
 
+// GetDefaultLogsSource returns the default logs source if `DD_SOURCE` is not set
+func (a *AppService) GetDefaultLogsSource() string {
+	return AppServiceOrigin
+}
+
 // GetOrigin returns the `origin` attribute type for the given
 // cloud service.
 func (a *AppService) GetOrigin() string {
-	return "appservice"
+	return AppServiceOrigin
 }
 
-// GetPrefix returns the prefix that we're prefixing all
-// metrics with.
-func (a *AppService) GetPrefix() string {
-	return "azure.appservice"
+// GetSource returns the metrics source
+func (a *AppService) GetSource() metrics.MetricSource {
+	return metrics.MetricSourceAzureAppServiceEnhanced
 }
 
 // Init is empty for AppService
 func (a *AppService) Init() error {
 	return nil
+}
+
+// Shutdown emits the shutdown metric for AppService
+func (a *AppService) Shutdown(agent serverlessMetrics.ServerlessMetricAgent, _ error) {
+	metric.Add(fmt.Sprintf("%s.enhanced.shutdown", appServicePrefix), 1.0, a.GetSource(), agent)
+}
+
+// GetStartMetricName returns the metric name for container start (coldstart) events
+func (a *AppService) GetStartMetricName() string {
+	return fmt.Sprintf("%s.enhanced.cold_start", appServicePrefix)
+}
+
+// ShouldForceFlushAllOnForceFlushToSerializer is false usually.
+func (a *AppService) ShouldForceFlushAllOnForceFlushToSerializer() bool {
+	return false
 }
 
 func isAppService() bool {

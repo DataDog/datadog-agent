@@ -11,6 +11,7 @@ import "debug/elf" //nolint:depguard
 type Prog = elf.Prog
 type Symbol = elf.Symbol
 type Section = elf.Section
+type SectionHeader = elf.SectionHeader
 type SectionType = elf.SectionType
 type SectionIndex = elf.SectionIndex
 
@@ -21,6 +22,7 @@ const SHF_EXECINSTR = elf.SHF_EXECINSTR
 
 const SHT_SYMTAB = elf.SHT_SYMTAB
 const SHT_DYNSYM = elf.SHT_DYNSYM
+const SHT_NOTE = elf.SHT_NOTE
 
 const ET_EXEC = elf.ET_EXEC
 const ET_DYN = elf.ET_DYN
@@ -42,3 +44,5 @@ const PF_W = elf.PF_W
 
 const STB_GLOBAL = elf.STB_GLOBAL
 const STT_FUNC = elf.STT_FUNC
+
+const SHF_COMPRESSED = elf.SHF_COMPRESSED

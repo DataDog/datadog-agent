@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger/origindetection"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/proto"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/util/grpc"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -33,14 +34,16 @@ const (
 // Server is a grpc server that streams tagger entities
 type Server struct {
 	taggerComponent tagger.Component
+	telemetry       *telemetryStore
 	maxEventSize    int
 	throttler       Throttler
 }
 
 // NewServer returns a new Server
-func NewServer(t tagger.Component, maxEventSize int, maxParallelSync int) *Server {
+func NewServer(t tagger.Component, telemetry telemetry.Component, maxEventSize int, maxParallelSync int) *Server {
 	return &Server{
 		taggerComponent: t,
+		telemetry:       newTelemetryStore(telemetry),
 		maxEventSize:    maxEventSize,
 		throttler:       NewSyncThrottler(uint32(maxParallelSync)),
 	}
@@ -83,7 +86,7 @@ func (s *Server) TaggerStreamEntities(in *pb.StreamTagsRequest, out pb.AgentSecu
 
 				if err != nil {
 					log.Warnf("error sending tagger keep-alive: %s", err)
-					s.taggerComponent.GetTaggerTelemetryStore().ServerStreamErrors.Inc()
+					s.telemetry.ServerStreamErrors.Inc()
 					timeoutRefreshError <- err
 					return
 				}
@@ -113,7 +116,7 @@ func (s *Server) TaggerStreamEntities(in *pb.StreamTagsRequest, out pb.AgentSecu
 	defer s.throttler.Release(tk)
 
 	subscription, err := s.taggerComponent.Subscribe(subscriptionID, filter)
-	log.Debugf("cluster tagger has just initiated subscription for %q at time %v", subscriptionID, time.Now().Unix())
+	log.Debugf("tagger server has just initiated subscription for %q at time %v", subscriptionID, time.Now().Unix())
 	if err != nil {
 		log.Errorf("Failed to subscribe to tagger for subscription %q", subscriptionID)
 		return err
@@ -152,14 +155,14 @@ func (s *Server) TaggerStreamEntities(in *pb.StreamTagsRequest, out pb.AgentSecu
 
 			if err := processChunksInPlace(responseEvents, s.maxEventSize, computeTagsEventInBytes, sendFunc); err != nil {
 				log.Warnf("error sending tagger event: %s", err)
-				s.taggerComponent.GetTaggerTelemetryStore().ServerStreamErrors.Inc()
+				s.telemetry.ServerStreamErrors.Inc()
 				return err
 			}
 
 			if initBurst {
 				initBurst = false
 				s.throttler.Release(tk)
-				log.Infof("cluster tagger has just finished initialization for subscription %q at time %v", subscriptionID, time.Now().Unix())
+				log.Infof("tagger server has just finished initialization for subscription %q at time %v", subscriptionID, time.Now().Unix())
 			}
 
 		case <-out.Context().Done():

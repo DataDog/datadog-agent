@@ -558,7 +558,7 @@ func TestConnRefusedSyn(t *testing.T) {
 		RecvPackets:    1,
 		Retransmits:    0,
 		TCPEstablished: 0,
-		TCPClosed:      0,
+		TCPClosed:      1,
 	}
 	require.Equal(t, expectedStats, f.conn.Monotonic)
 }
@@ -591,7 +591,7 @@ func TestConnRefusedSynAck(t *testing.T) {
 		RecvPackets:    1,
 		Retransmits:    0,
 		TCPEstablished: 0,
-		TCPClosed:      0,
+		TCPClosed:      1,
 	}
 	require.Equal(t, expectedStats, f.conn.Monotonic)
 }

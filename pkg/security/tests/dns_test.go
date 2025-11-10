@@ -65,7 +65,7 @@ func TestDNS(t *testing.T) {
 			return nil
 		}, func(event *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_rule_dns")
-			assert.Equal(t, "google.com", event.DNS.Name, "wrong domain name")
+			assert.Equal(t, "google.com", event.DNS.Question.Name, "wrong domain name")
 
 			test.validateDNSSchema(t, event)
 		})
@@ -80,7 +80,7 @@ func TestDNS(t *testing.T) {
 			return nil
 		}, func(event *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_rule_dns")
-			assert.Equal(t, "GOOGLE.COM", event.DNS.Name, "wrong domain name")
+			assert.Equal(t, "GOOGLE.COM", event.DNS.Question.Name, "wrong domain name")
 
 			test.validateDNSSchema(t, event)
 		})
@@ -94,7 +94,7 @@ func TestDNS(t *testing.T) {
 		}, func(event *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_long_query")
 			assert.Equal(t, "dns", event.GetType(), "wrong event type")
-			assert.Equal(t, longDomain, event.DNS.Name, "wrong domain name")
+			assert.Equal(t, longDomain, event.DNS.Question.Name, "wrong domain name")
 
 			test.validateDNSSchema(t, event)
 		})

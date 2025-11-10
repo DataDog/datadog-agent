@@ -9,8 +9,9 @@ import (
 	"strings"
 
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
+	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace/idx"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
-	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
+	"github.com/DataDog/datadog-agent/pkg/trace/traceutil/normalize"
 )
 
 // Truncate checks that the span resource, meta and metrics are within the max length
@@ -36,12 +37,12 @@ func (a *Agent) Truncate(s *pb.Span) {
 		if len(k) > MaxMetaKeyLen {
 			log.Debugf("span.truncate: truncating `Meta` key (max %d chars): %s", MaxMetaKeyLen, k)
 			delete(s.Meta, k)
-			k = traceutil.TruncateUTF8(k, MaxMetaKeyLen) + "..."
+			k = normalize.TruncateUTF8(k, MaxMetaKeyLen) + "..."
 			modified = true
 		}
 
 		if len(v) > MaxMetaValLen {
-			v = traceutil.TruncateUTF8(v, MaxMetaValLen) + "..."
+			v = normalize.TruncateUTF8(v, MaxMetaValLen) + "..."
 			modified = true
 		}
 
@@ -53,18 +54,52 @@ func (a *Agent) Truncate(s *pb.Span) {
 		if len(k) > MaxMetricsKeyLen {
 			log.Debugf("span.truncate: truncating `Metrics` key (max %d chars): %s", MaxMetricsKeyLen, k)
 			delete(s.Metrics, k)
-			k = traceutil.TruncateUTF8(k, MaxMetricsKeyLen) + "..."
+			k = normalize.TruncateUTF8(k, MaxMetricsKeyLen) + "..."
 
 			s.Metrics[k] = v
 		}
 	}
 }
 
+// TruncateV1 checks that the span resource, meta and metrics are within the max length
+// and modifies them if they are not
+func (a *Agent) TruncateV1(s *idx.InternalSpan) {
+	r, ok := a.TruncateResource(s.Resource())
+	if !ok {
+		log.Debugf("span.truncate: truncated `Resource` (max %d chars): %s", a.conf.MaxResourceLen, s.Resource)
+		s.SetResource(r)
+	}
+
+	s.MapStringAttributes(func(k, v string) (string, string, bool) {
+		modified := false
+		newK := k
+		newV := v
+
+		// Do not truncate structured meta tags.
+		if isStructuredMetaKey(k) {
+			return newK, newV, false
+		}
+
+		if len(k) > MaxMetaKeyLen {
+			log.Debugf("span.truncate: truncating `Meta` key (max %d chars): %s", MaxMetaKeyLen, k)
+			newK = normalize.TruncateUTF8(k, MaxMetaKeyLen) + "..."
+			modified = true
+		}
+
+		if len(v) > MaxMetaValLen {
+			newV = normalize.TruncateUTF8(v, MaxMetaValLen) + "..."
+			modified = true
+		}
+
+		return newK, newV, modified
+	})
+}
+
 const (
 	// MaxMetaKeyLen the maximum length of metadata key
 	MaxMetaKeyLen = 200
 	// MaxMetaValLen the maximum length of metadata value
-	MaxMetaValLen = 25000
+	MaxMetaValLen = 25_000
 	// MaxMetricsKeyLen the maximum length of a metric name key
 	MaxMetricsKeyLen = MaxMetaKeyLen
 )
@@ -83,5 +118,5 @@ func isStructuredMetaKey(key string) bool {
 // TruncateResource truncates a span's resource to the maximum allowed length.
 // It returns true if the input was below the max size.
 func (a *Agent) TruncateResource(r string) (string, bool) {
-	return traceutil.TruncateUTF8(r, a.conf.MaxResourceLen), len(r) <= a.conf.MaxResourceLen
+	return normalize.TruncateUTF8(r, a.conf.MaxResourceLen), len(r) <= a.conf.MaxResourceLen
 }

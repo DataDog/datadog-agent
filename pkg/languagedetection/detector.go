@@ -17,12 +17,12 @@ import (
 
 	"google.golang.org/protobuf/proto"
 
-	sysprobeclient "github.com/DataDog/datadog-agent/cmd/system-probe/api/client"
-	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/internal/detectors"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	languagepb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/languagedetection"
+	sysprobeclient "github.com/DataDog/datadog-agent/pkg/system-probe/api/client"
+	sysconfig "github.com/DataDog/datadog-agent/pkg/system-probe/config"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -100,11 +100,14 @@ func languageNameFromCommand(command string) languagemodels.LanguageName {
 
 const subsystem = "language_detection"
 
+// prometheus.DefBuckets, converted to milliseconds.
+var buckets = []float64{5, 10, 25, 50, 100, 250, 500, 1000, 2500, 5000, 10000}
+
 var (
 	detectLanguageRuntimeMs = telemetry.NewHistogram(subsystem, "detect_language_ms", nil,
-		"The amount of time it took for the call to DetectLanguage to complete.", nil)
+		"The amount of time it took for the call to DetectLanguage to complete.", buckets)
 	systemProbeLanguageDetectionMs = telemetry.NewHistogram(subsystem, "system_probe_rpc_ms", nil,
-		"The amount of time it took for the process agent to message the system probe.", nil)
+		"The amount of time it took for the process agent to message the system probe.", buckets)
 )
 
 // DetectLanguage uses a combination of commandline parsing and binary analysis to detect a process' language

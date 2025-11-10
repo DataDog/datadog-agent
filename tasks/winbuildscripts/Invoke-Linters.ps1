@@ -38,7 +38,7 @@ Invoke-BuildScript `
     & .\tasks\winbuildscripts\pre-go-build.ps1
 
     # Lint rtloader
-    & dda inv -e rtloader.format --raise-if-changed
+    & dda inv -- -e rtloader.format --raise-if-changed
     $err = $LASTEXITCODE
     Write-Host Format result is $err
     if($err -ne 0){
@@ -47,11 +47,20 @@ Invoke-BuildScript `
     }
 
     # Lint Go
-    & dda inv -e linter.go --debug
+    & dda inv -- -e linter.go --debug
     $err = $LASTEXITCODE
     Write-Host Go linter result is $err
     if($err -ne 0){
         Write-Host -ForegroundColor Red "go linter failed $err"
+        exit $err
+    }
+
+    # Lint system-probe Go
+    & dda inv -- -e linter.go --build system-probe-unit-tests --targets .\pkg
+    $err = $LASTEXITCODE
+    Write-Host system-probe Go linter result is $err
+    if($err -ne 0){
+        Write-Host -ForegroundColor Red "system-probe go linter failed $err"
         exit $err
     }
 

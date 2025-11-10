@@ -12,7 +12,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/shirou/gopsutil/v4/process"
 	"github.com/spf13/cobra"
@@ -23,16 +22,12 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	"github.com/DataDog/datadog-agent/comp/core/secrets"
-	compression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
-	logscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
-	"github.com/DataDog/datadog-agent/pkg/compliance"
+	secretsnoopfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx-noop"
 	"github.com/DataDog/datadog-agent/pkg/compliance/aptconfig"
 	"github.com/DataDog/datadog-agent/pkg/compliance/dbconfig"
 	"github.com/DataDog/datadog-agent/pkg/compliance/k8sconfig"
+	"github.com/DataDog/datadog-agent/pkg/compliance/types"
 	complianceutils "github.com/DataDog/datadog-agent/pkg/compliance/utils"
-	"github.com/DataDog/datadog-agent/pkg/security/common"
-	"github.com/DataDog/datadog-agent/pkg/security/utils/hostnameutils"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -44,19 +39,9 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	}
 
 	complianceCmd.AddCommand(check.SecurityAgentCommands(globalParams)...)
-	complianceCmd.AddCommand(complianceEventCommand(globalParams))
 	complianceCmd.AddCommand(complianceLoadCommand(globalParams))
 
 	return []*cobra.Command{complianceCmd}
-}
-
-type eventCliParams struct {
-	*command.GlobalParams
-
-	sourceName string
-	sourceType string
-	event      compliance.CheckEvent
-	data       []string
 }
 
 type loadCliParams struct {
@@ -80,11 +65,10 @@ func complianceLoadCommand(globalParams *command.GlobalParams) *cobra.Command {
 				fx.Supply(loadArgs),
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths, config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
-					SecretParams: secrets.NewEnabledParams(),
 					LogParams:    log.ForOneShot(command.LoggerName, "info", true),
 				}),
 				core.Bundle(),
-				logscompressionfx.Module(),
+				secretsnoopfx.Module(),
 			)
 		},
 	}
@@ -95,7 +79,7 @@ func complianceLoadCommand(globalParams *command.GlobalParams) *cobra.Command {
 
 func loadRun(_ log.Component, _ config.Component, loadArgs *loadCliParams) error {
 	hostroot := os.Getenv("HOST_ROOT")
-	var resourceType string
+	var resourceType types.ResourceType
 	var resource interface{}
 	ctx := context.Background()
 	switch loadArgs.confType {
@@ -144,65 +128,4 @@ func getProcMeta(hostroot string, pid int32) (*process.Process, complianceutils.
 		rootPath = "/"
 	}
 	return proc, containerID, filepath.Join(hostroot, rootPath), nil
-}
-
-func complianceEventCommand(globalParams *command.GlobalParams) *cobra.Command {
-	eventArgs := &eventCliParams{
-		GlobalParams: globalParams,
-	}
-
-	eventCmd := &cobra.Command{
-		Use:   "event",
-		Short: "Issue logs to test Security Agent compliance events",
-		RunE: func(_ *cobra.Command, _ []string) error {
-			return fxutil.OneShot(eventRun,
-				fx.Supply(eventArgs),
-				fx.Supply(core.BundleParams{
-					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths, config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
-					SecretParams: secrets.NewEnabledParams(),
-					LogParams:    log.ForOneShot(command.LoggerName, "info", true),
-				}),
-				core.Bundle(),
-				logscompressionfx.Module(),
-			)
-		},
-		Hidden: true,
-	}
-
-	eventCmd.Flags().StringVarP(&eventArgs.sourceType, "source-type", "", "compliance", "Log source name")
-	eventCmd.Flags().StringVarP(&eventArgs.sourceName, "source-name", "", "compliance-agent", "Log source name")
-	eventCmd.Flags().StringVarP(&eventArgs.event.RuleID, "rule-id", "", "", "Rule ID")
-	eventCmd.Flags().StringVarP(&eventArgs.event.ResourceID, "resource-id", "", "", "Resource ID")
-	eventCmd.Flags().StringVarP(&eventArgs.event.ResourceType, "resource-type", "", "", "Resource type")
-	eventCmd.Flags().StringSliceVarP(&eventArgs.event.Tags, "tags", "t", []string{"security:compliance"}, "Tags")
-	eventCmd.Flags().StringSliceVarP(&eventArgs.data, "data", "d", []string{}, "Data KV fields")
-
-	return eventCmd
-}
-
-func eventRun(log log.Component, eventArgs *eventCliParams, compression compression.Component) error {
-	hostnameDetected, err := hostnameutils.GetHostnameWithContextAndFallback(context.Background())
-	if err != nil {
-		return log.Errorf("Error while getting hostname, exiting: %v", err)
-	}
-
-	endpoints, dstContext, err := common.NewLogContextCompliance()
-	if err != nil {
-		return err
-	}
-
-	reporter := compliance.NewLogReporter(hostnameDetected, eventArgs.sourceName, eventArgs.sourceType, endpoints, dstContext, compression)
-	defer reporter.Stop()
-
-	eventData := make(map[string]interface{})
-	for _, d := range eventArgs.data {
-		kv := strings.SplitN(d, ":", 2)
-		if len(kv) != 2 {
-			continue
-		}
-		eventData[kv[0]] = kv[1]
-	}
-	eventArgs.event.Data = eventData
-	reporter.ReportEvent(eventData)
-	return nil
 }

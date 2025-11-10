@@ -24,6 +24,7 @@ import (
 type cipherTestCase struct {
 	cert   string
 	cipher string
+	tlsMin string
 	tlsMax string
 	want   bool
 }
@@ -56,6 +57,9 @@ func (s *fipsServer) Start(t *testing.T, tc cipherTestCase) {
 		}
 		if tc.tlsMax != "" {
 			envVars["TLS_MAX"] = fmt.Sprintf("--tls-max %s", tc.tlsMax)
+		}
+		if tc.tlsMin != "" {
+			envVars["TLS_MIN"] = fmt.Sprintf("--tls-min %s", tc.tlsMin)
 		}
 
 		cmd := fmt.Sprintf("docker-compose -f %s up --detach --wait --timeout 300", strings.TrimSpace(s.composeFiles))
@@ -99,10 +103,11 @@ var (
 		{cert: "rsa", cipher: "TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA", want: false},
 		{cert: "rsa", cipher: "TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA", want: false},
 		{cert: "rsa", cipher: "TLS_ECDHE_RSA_WITH_3DES_EDE_CBC_SHA", want: false},
-		// TODO: the below are approved for TLS 1.3 but not supported by our fips-server yet
-		//   see https://github.com/DataDog/test-infra-definitions/blob/221bbc806266eb15b90cb875deb79180e7591fbc/components/datadog/apps/fips/images/fips-server/src/tls.go#L48-L58
-		// {cert: "rsa", cipher: "TLS_AES_128_GCM_SHA256", tlsMax: "1.3", want: true},
-		// {cert: "rsa", cipher: "TLS_AES_256_GCM_SHA384", tlsMax: "1.3", want: true},
+		{cert: "rsa", cipher: "TLS_AES_128_GCM_SHA256", tlsMin: "1.3", tlsMax: "1.3", want: true},
+		// NOTE: TLS_AES_256_GCM_SHA384 is a supported TLS 1.3 cipher but we cannot test it with the E2E test because
+		//       Go does not allow configuration of TLS 1.3 cipher suites (see: https://github.com/golang/go/issues/29349)
+		//       so the fake endpoint we use for testing cannot restrict use to the AES 256 and AES 128 gets negotiated
+		// {cert: "rsa", cipher: "TLS_AES_256_GCM_SHA384", tlsMin: "1.3", tlsMax: "1.3", want: true},
 	}
 	//go:embed fixtures/e2e_fips_test.py
 	fipsTestCheck string

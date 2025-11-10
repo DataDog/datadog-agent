@@ -250,7 +250,7 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, fu
 	conns := network.NewConnections(buffer)
 	conns.DNS = t.reverseDNS.Resolve(ips)
 	conns.ConnTelemetry = t.state.GetTelemetryDelta(clientID, t.getConnTelemetry())
-	conns.HTTP = delta.HTTP
+	conns.USMData = delta.USMData
 	return conns, func() {}, nil
 }
 

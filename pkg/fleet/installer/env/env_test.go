@@ -77,6 +77,7 @@ func TestFromEnv(t *testing.T) {
 				envDDHTTPProxy:                                "http://proxy.example.com:8080",
 				envDDHTTPSProxy:                               "http://proxy.example.com:8080",
 				envDDNoProxy:                                  "localhost",
+				envInfrastructureMode:                         "basic",
 			},
 			expected: &Env{
 				APIKey:               "123456",
@@ -116,15 +117,18 @@ func TestFromEnv(t *testing.T) {
 					"dotnet": "latest",
 					"ruby":   "1.2",
 				},
-				AgentUserName: "customuser",
+				MsiParams: MsiParamsEnv{
+					AgentUserName: "customuser",
+				},
 				InstallScript: InstallScriptEnv{
 					APMInstrumentationEnabled: APMInstrumentationEnabledAll,
 				},
-				Tags:       []string{"k1:v1", "k2:v2", "k3:v3", "k4:v4"},
-				Hostname:   "hostname",
-				HTTPProxy:  "http://proxy.example.com:8080",
-				HTTPSProxy: "http://proxy.example.com:8080",
-				NoProxy:    "localhost",
+				Tags:               []string{"k1:v1", "k2:v2", "k3:v3", "k4:v4"},
+				Hostname:           "hostname",
+				HTTPProxy:          "http://proxy.example.com:8080",
+				HTTPSProxy:         "http://proxy.example.com:8080",
+				NoProxy:            "localhost",
+				InfrastructureMode: "basic",
 			},
 		},
 		{
@@ -250,11 +254,12 @@ func TestToEnv(t *testing.T) {
 					"dotnet": "latest",
 					"ruby":   "1.2",
 				},
-				Tags:       []string{"k1:v1", "k2:v2"},
-				Hostname:   "hostname",
-				HTTPProxy:  "http://proxy.example.com:8080",
-				HTTPSProxy: "http://proxy.example.com:8080",
-				NoProxy:    "localhost",
+				Tags:               []string{"k1:v1", "k2:v2"},
+				Hostname:           "hostname",
+				HTTPProxy:          "http://proxy.example.com:8080",
+				HTTPSProxy:         "http://proxy.example.com:8080",
+				NoProxy:            "localhost",
+				InfrastructureMode: "end_user_device",
 			},
 			expected: []string{
 				"DD_API_KEY=123456",
@@ -283,6 +288,7 @@ func TestToEnv(t *testing.T) {
 				"HTTP_PROXY=http://proxy.example.com:8080",
 				"HTTPS_PROXY=http://proxy.example.com:8080",
 				"NO_PROXY=localhost",
+				"DD_INFRASTRUCTURE_MODE=end_user_device",
 			},
 		},
 	}
@@ -305,7 +311,9 @@ func TestAgentUserVars(t *testing.T) {
 			name:    "not set",
 			envVars: map[string]string{},
 			expected: &Env{
-				AgentUserName: "",
+				MsiParams: MsiParamsEnv{
+					AgentUserName: "",
+				},
 			},
 		},
 		{
@@ -314,7 +322,9 @@ func TestAgentUserVars(t *testing.T) {
 				envAgentUserName: "customuser",
 			},
 			expected: &Env{
-				AgentUserName: "customuser",
+				MsiParams: MsiParamsEnv{
+					AgentUserName: "customuser",
+				},
 			},
 		},
 		{
@@ -323,7 +333,9 @@ func TestAgentUserVars(t *testing.T) {
 				envAgentUserNameCompat: "customuser",
 			},
 			expected: &Env{
-				AgentUserName: "customuser",
+				MsiParams: MsiParamsEnv{
+					AgentUserName: "customuser",
+				},
 			},
 		},
 		{
@@ -333,7 +345,9 @@ func TestAgentUserVars(t *testing.T) {
 				envAgentUserNameCompat: "otheruser",
 			},
 			expected: &Env{
-				AgentUserName: "customuser",
+				MsiParams: MsiParamsEnv{
+					AgentUserName: "customuser",
+				},
 			},
 		},
 	}
@@ -345,7 +359,7 @@ func TestAgentUserVars(t *testing.T) {
 				defer os.Unsetenv(key)
 			}
 			result := FromEnv()
-			assert.Equal(t, tt.expected.AgentUserName, result.AgentUserName)
+			assert.Equal(t, tt.expected.MsiParams.AgentUserName, result.MsiParams.AgentUserName)
 		})
 	}
 }

@@ -114,15 +114,16 @@ func TestActiveSessionHistory(t *testing.T) {
 	c, _ := newDefaultCheck(t, "", "")
 	defer c.Teardown()
 
+	var err error
 	var count uint64
-	getWrapper(&c, &count, "SELECT BANNER FROM V$VERSION WHERE BANNER LIKE '%Enterprise%Edition%'")
+	getWrapper(&c, &count, "SELECT count(*) FROM V$VERSION WHERE BANNER LIKE '%Enterprise%Edition%'")
 	if count == 0 {
 		t.Skip("Active Session History is only available in Oracle Enterprise Edition")
 	}
 	c.dbmEnabled = true
 	c.config.QuerySamples.ActiveSessionHistory = true
 
-	err := c.Run()
+	err = c.Run()
 	assert.NoError(t, err, "check run")
 
 	err = c.SampleSession()
@@ -152,4 +153,12 @@ END;`
 	require.NoError(t, err, "activity sample failed")
 
 	assert.Greater(t, c.lastSampleID, prevSamplId, "sample id should have increased")
+
+	for _, r := range c.lastOracleActivityRows {
+		assert.True(t, isValidSessionType(r.Type), "invalid session type: %s", r.Type)
+	}
+}
+
+func isValidSessionType(sessionType string) bool {
+	return sessionType == "USER" || sessionType == "BACKGROUND"
 }

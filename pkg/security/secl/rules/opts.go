@@ -12,27 +12,19 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
-// VariableProvider is the interface implemented by SECL variable providers
-// (Should be named VariableValueProvider)
-type VariableProvider interface {
-	NewSECLVariable(name string, value interface{}, opts eval.VariableOpts) (eval.SECLVariable, error)
-}
-
-// VariableProviderFactory describes a function called to instantiate a variable provider
-type VariableProviderFactory func() VariableProvider
-
 // RuleActionPerformedCb describes the callback function called after a rule action is performed
 type RuleActionPerformedCb func(r *Rule, action *ActionDefinition)
 
 // Opts defines rules set options
 type Opts struct {
-	SupportedDiscarders      map[eval.Field]bool
-	SupportedMultiDiscarders []*MultiDiscarder
-	ReservedRuleIDs          []RuleID
-	EventTypeEnabled         map[eval.EventType]bool
-	StateScopes              map[Scope]VariableProviderFactory
-	Logger                   log.Logger
-	ruleActionPerformedCb    RuleActionPerformedCb
+	SupportedDiscarders        map[eval.Field]bool
+	SupportedMultiDiscarders   []*MultiDiscarder
+	ExcludedRuleFromDiscarders map[eval.RuleID]bool
+	ReservedRuleIDs            []RuleID
+	EventTypeEnabled           map[eval.EventType]bool
+	VariableScopers            map[Scope]*eval.VariableScoper
+	Logger                     log.Logger
+	ruleActionPerformedCb      RuleActionPerformedCb
 }
 
 // WithSupportedDiscarders set supported discarders
@@ -44,6 +36,12 @@ func (o *Opts) WithSupportedDiscarders(discarders map[eval.Field]bool) *Opts {
 // WithSupportedMultiDiscarder set supported multi discarders
 func (o *Opts) WithSupportedMultiDiscarder(discarders []*MultiDiscarder) *Opts {
 	o.SupportedMultiDiscarders = discarders
+	return o
+}
+
+// WithExcludedRuleFromDiscarders set excluded rule from discarders
+func (o *Opts) WithExcludedRuleFromDiscarders(excludedRuleFromDiscarders map[eval.RuleID]bool) *Opts {
+	o.ExcludedRuleFromDiscarders = excludedRuleFromDiscarders
 	return o
 }
 
@@ -65,9 +63,9 @@ func (o *Opts) WithLogger(logger log.Logger) *Opts {
 	return o
 }
 
-// WithStateScopes set state scopes
-func (o *Opts) WithStateScopes(stateScopes map[Scope]VariableProviderFactory) *Opts {
-	o.StateScopes = stateScopes
+// WithVariableScopers sets the variable scopers
+func (o *Opts) WithVariableScopers(scopers map[Scope]*eval.VariableScoper) *Opts {
+	o.VariableScopers = scopers
 	return o
 }
 
@@ -82,7 +80,7 @@ func NewRuleOpts(eventTypeEnabled map[eval.EventType]bool) *Opts {
 	var ruleOpts Opts
 	ruleOpts.
 		WithEventTypeEnabled(eventTypeEnabled).
-		WithStateScopes(getStateScopes())
+		WithVariableScopers(DefaultVariableScopers())
 
 	return &ruleOpts
 }

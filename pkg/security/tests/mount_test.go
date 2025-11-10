@@ -64,16 +64,19 @@ func TestMount(t *testing.T) {
 	var mntID uint32
 	t.Run("mount", func(t *testing.T) {
 		err = test.GetProbeEvent(func() error {
-			// Test mount
 			if err := syscall.Mount(mntPath, dstMntPath, "bind", syscall.MS_BIND, ""); err != nil {
 				return fmt.Errorf("could not create bind mount: %w", err)
 			}
 			return nil
 		}, func(event *model.Event) bool {
 			mntID = event.Mount.MountID
-
 			if !assert.Equal(t, "mount", event.GetType(), "wrong event type") {
 				return true
+			}
+			if !ebpfLessEnabled {
+				assert.Equal(t, false, event.Mount.Detached, "Mount should not be detached")
+				assert.Equal(t, true, event.Mount.Visible, "Mount should be visible")
+				assert.Equal(t, model.MountOriginEvent, event.Mount.Origin, "Incorrect mount source")
 			}
 
 			// filter by pid
@@ -427,7 +430,7 @@ func TestMountEvent(t *testing.T) {
 		},
 		{
 			ID:         "test_mount_in_container_root",
-			Expression: `mount.mountpoint.path == "/host_root" && mount.source.path == "/" && mount.fs_type != "overlay" && container.id != ""`,
+			Expression: `mount.mountpoint.path == "/host_root" && mount.source.path == "/" && mount.fs_type != "overlay" && process.container.id != ""`,
 		},
 	}
 
@@ -464,6 +467,11 @@ func TestMountEvent(t *testing.T) {
 			}
 			return tmpfsMount.unmount(syscall.MNT_FORCE)
 		}, func(event *model.Event, rule *rules.Rule) {
+			if !ebpfLessEnabled {
+				assert.Equal(t, model.MountOriginEvent, event.Mount.Origin, "Incorrect mount source")
+				assert.Equal(t, false, event.Mount.Detached, "Mount should not be detached")
+				assert.Equal(t, true, event.Mount.Visible, "Mount should be visible")
+			}
 			assertTriggeredRule(t, rule, "test_mount_tmpfs")
 			assertFieldEqual(t, event, "mount.mountpoint.path", tmpfsMountPointPath)
 			assertFieldEqual(t, event, "mount.fs_type", "tmpfs")
@@ -490,6 +498,11 @@ func TestMountEvent(t *testing.T) {
 			return bindMount.unmount(syscall.MNT_FORCE)
 		}, func(event *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_mount_bind")
+			if !ebpfLessEnabled {
+				assert.Equal(t, false, event.Mount.Detached, "Mount should not be detached")
+				assert.Equal(t, true, event.Mount.Visible, "Mount should be visible")
+				assert.Equal(t, model.MountOriginEvent, event.Mount.Origin, "Incorrect mount source")
+			}
 			assertFieldEqual(t, event, "mount.mountpoint.path", bindMountPointPath)
 			assertFieldEqual(t, event, "mount.source.path", bindMountSourcePath)
 			assertFieldEqual(t, event, "mount.fs_type", testDrive.FSType())
@@ -503,14 +516,19 @@ func TestMountEvent(t *testing.T) {
 	})
 
 	const dockerMountDest = "/host_root"
-	wrapperTruePositive, err := newDockerCmdWrapper("/", dockerMountDest, "alpine", "")
-	if err != nil {
-		t.Skip("Skipping mounts in containers tests: Docker not available")
-		return
-	}
 
 	t.Run("mount-in-container-root", func(t *testing.T) {
 		SkipIfNotAvailable(t)
+
+		if _, err := whichNonFatal("docker"); err != nil {
+			t.Skip("Skip test where docker is unavailable")
+		}
+
+		wrapperTruePositive, err := newDockerCmdWrapper("/", dockerMountDest, "alpine", "")
+		if err != nil {
+			t.Fatalf("failed to start docker wrapper: %v", err)
+		}
+
 		test.WaitSignal(t, func() error {
 			if _, err := wrapperTruePositive.start(); err != nil {
 				return err
@@ -524,7 +542,7 @@ func TestMountEvent(t *testing.T) {
 			assertFieldEqual(t, event, "mount.mountpoint.path", "/host_root")
 			assertFieldEqual(t, event, "mount.source.path", "/")
 			assertFieldNotEqual(t, event, "mount.fs_type", "overlay")
-			assertFieldNotEmpty(t, event, "container.id", "container id shouldn't be empty")
+			assertFieldNotEmpty(t, event, "process.container.id", "container id shouldn't be empty")
 
 			test.validateMountSchema(t, event)
 			validateSyscallContext(t, event, "$.syscall.mount.path")
@@ -533,16 +551,21 @@ func TestMountEvent(t *testing.T) {
 		})
 	})
 
-	legitimateSourcePath := testDrive.Path("legitimate_source")
-	if err = os.Mkdir(legitimateSourcePath, 0755); err != nil {
-		t.Fatal(err)
-	}
-	wrapperFalsePositive, err := newDockerCmdWrapper(legitimateSourcePath, dockerMountDest, "alpine", "")
-	if err != nil {
-		t.Fatal(err)
-	}
-
 	t.Run("mount-in-container-legitimate", func(t *testing.T) {
+		if _, err := whichNonFatal("docker"); err != nil {
+			t.Skip("Skip test where docker is unavailable")
+		}
+
+		legitimateSourcePath := testDrive.Path("legitimate_source")
+		if err = os.Mkdir(legitimateSourcePath, 0755); err != nil {
+			t.Fatal(err)
+		}
+
+		wrapperFalsePositive, err := newDockerCmdWrapper(legitimateSourcePath, dockerMountDest, "alpine", "")
+		if err != nil {
+			t.Fatalf("failed to start docker wrapper: %v", err)
+		}
+
 		err = test.GetSignal(t, func() error {
 			if _, err := wrapperFalsePositive.start(); err != nil {
 				return err

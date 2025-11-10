@@ -10,7 +10,6 @@ import (
 	"context"
 	"encoding/json"
 	"expvar"
-	"fmt"
 	"maps"
 	"net/http"
 	"reflect"
@@ -21,8 +20,10 @@ import (
 
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logagent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	"github.com/DataDog/datadog-agent/comp/metadata/internal/util"
@@ -34,7 +35,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/util/uuid"
@@ -52,24 +52,18 @@ type checksMetadata map[string][]metadata
 
 // Payload handles the JSON unmarshalling of the metadata payload
 type Payload struct {
-	Hostname     string                `json:"hostname"`
-	Timestamp    int64                 `json:"timestamp"`
-	Metadata     map[string][]metadata `json:"check_metadata"`
-	LogsMetadata map[string][]metadata `json:"logs_metadata"`
-	UUID         string                `json:"uuid"`
+	Hostname      string                `json:"hostname"`
+	Timestamp     int64                 `json:"timestamp"`
+	Metadata      map[string][]metadata `json:"check_metadata"`
+	LogsMetadata  map[string][]metadata `json:"logs_metadata"`
+	FilesMetadata metadata              `json:"files_metadata"`
+	UUID          string                `json:"uuid"`
 }
 
 // MarshalJSON serialization a Payload to JSON
 func (p *Payload) MarshalJSON() ([]byte, error) {
 	type PayloadAlias Payload
 	return json.Marshal((*PayloadAlias)(p))
-}
-
-// SplitPayload implements marshaler.AbstractMarshaler#SplitPayload.
-//
-// In this case, the payload can't be split any further.
-func (p *Payload) SplitPayload(_ int) ([]marshaler.AbstractMarshaler, error) {
-	return nil, fmt.Errorf("could not split inventories host payload any more, payload is too big for intake")
 }
 
 type instanceMetadata struct {
@@ -100,6 +94,7 @@ type dependencies struct {
 	Serializer serializer.MetricSerializer
 	Coll       option.Option[collector.Component]
 	LogAgent   option.Option[logagent.Component]
+	Hostname   hostnameinterface.Component
 }
 
 type provides struct {
@@ -112,7 +107,7 @@ type provides struct {
 }
 
 func newInventoryChecksProvider(deps dependencies) provides {
-	hname, _ := hostname.Get(context.Background())
+	hname, _ := deps.Hostname.Get(context.Background())
 	ic := &inventorychecksImpl{
 		conf:     deps.Config,
 		log:      deps.Log,
@@ -254,21 +249,34 @@ func (ic *inventorychecksImpl) getPayload(withConfigs bool) marshaler.JSONMarsha
 						"error":  logSource.Status.GetError(),
 						"status": logSource.Status.String(),
 					},
-					"service":          logSource.Config.Service,
-					"source":           logSource.Config.Source,
-					"integration_name": logSource.Config.IntegrationName,
-					"tags":             tags,
+					"service":                  logSource.Config.Service,
+					"source":                   logSource.Config.Source,
+					"integration_name":         logSource.Config.IntegrationName,
+					"integration_source":       logSource.Config.IntegrationSource,
+					"integration_source_index": logSource.Config.IntegrationSourceIndex,
+					"tags":                     tags,
 				})
 			}
 		}
 	}
 
+	jmxMetadata := ic.getJMXChecksMetadata()
+	for checkName, checks := range jmxMetadata {
+		if _, ok := payloadData[checkName]; !ok {
+			payloadData[checkName] = []metadata{}
+		}
+		payloadData[checkName] = append(payloadData[checkName], checks...)
+	}
+
+	filesMetadata := ic.getFilesMetadata()
+
 	return &Payload{
-		Hostname:     ic.hostname,
-		Timestamp:    time.Now().UnixNano(),
-		Metadata:     payloadData,
-		LogsMetadata: logsMetadata,
-		UUID:         uuid.GetUUID(),
+		Hostname:      ic.hostname,
+		Timestamp:     time.Now().UnixNano(),
+		Metadata:      payloadData,
+		LogsMetadata:  logsMetadata,
+		FilesMetadata: filesMetadata,
+		UUID:          uuid.GetUUID(),
 	}
 }
 
@@ -280,4 +288,23 @@ func (ic *inventorychecksImpl) writePayloadAsJSON(w http.ResponseWriter, _ *http
 		return
 	}
 	w.Write(scrubbed)
+}
+
+func (ic *inventorychecksImpl) getFilesMetadata() metadata {
+	configFiles := providers.ReadConfigFormats()
+	if len(configFiles) == 0 {
+		ic.log.Errorf("could not read files metadata")
+		return metadata{}
+	}
+
+	filesMetadata := metadata{}
+	for _, configFile := range configFiles {
+		// Use the filename as key
+		filesMetadata[configFile.Filename] = metadata{
+			"raw_config": configFile.ConfigFormat,
+			"hash":       configFile.Hash,
+		}
+	}
+
+	return filesMetadata
 }

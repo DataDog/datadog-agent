@@ -13,6 +13,7 @@ import (
 	"net/netip"
 	"strings"
 	"time"
+	"unique"
 
 	"github.com/dustin/go-humanize"
 	"go4.org/intern"
@@ -20,11 +21,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/dns"
 	networkpayload "github.com/DataDog/datadog-agent/pkg/network/payload"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
-	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
-	"github.com/DataDog/datadog-agent/pkg/network/protocols/kafka"
-	"github.com/DataDog/datadog-agent/pkg/network/protocols/postgres"
-	"github.com/DataDog/datadog-agent/pkg/network/protocols/redis"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/tls"
+	ssluprobes "github.com/DataDog/datadog-agent/pkg/network/tracer/connection/ssl-uprobes"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
 
@@ -126,11 +124,7 @@ type Connections struct {
 	KernelHeaderFetchResult     int32
 	CORETelemetryByAsset        map[string]int32
 	PrebuiltAssets              []string
-	HTTP                        map[http.Key]*http.RequestStats
-	HTTP2                       map[http.Key]*http.RequestStats
-	Kafka                       map[kafka.Key]*kafka.RequestStats
-	Postgres                    map[postgres.Key]*postgres.RequestStat
-	Redis                       map[redis.Key]*redis.RequestStat
+	USMData                     USMProtocolsData
 }
 
 // NewConnections create a new Connections object
@@ -265,6 +259,7 @@ type ConnectionStats struct {
 	ContainerID   struct {
 		Source, Dest *intern.Value
 	}
+	CertInfo unique.Handle[ssluprobes.CertInfo]
 	DNSStats map[dns.Hostname]map[dns.QueryType]dns.Stats
 	// TCPFailures stores the number of failures for a POSIX error code
 	TCPFailures map[uint16]uint32
@@ -296,6 +291,9 @@ type Via = networkpayload.Via
 // Subnet stores info about a subnet
 type Subnet = networkpayload.Subnet
 
+// Interface has information about a network interface
+type Interface = networkpayload.Interface
+
 // IPTranslation can be associated with a connection to show the connection is NAT'd
 type IPTranslation struct {
 	ReplSrcIP   util.Address
@@ -322,6 +320,11 @@ func (c ConnectionStats) IsEmpty() bool {
 		c.Monotonic.SentPackets == 0 &&
 		c.Monotonic.Retransmits == 0 &&
 		len(c.TCPFailures) == 0
+}
+
+// HasCertInfo returns whether the connection has a TLS cert associated
+func (c ConnectionStats) HasCertInfo() bool {
+	return c.CertInfo != unique.Handle[ssluprobes.CertInfo]{}
 }
 
 // ByteKey returns a unique key for this connection represented as a byte slice

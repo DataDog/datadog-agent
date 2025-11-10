@@ -8,8 +8,12 @@ package awskubernetes
 
 import (
 	"context"
+	_ "embed"
 	"fmt"
 
+	"github.com/DataDog/test-infra-definitions/components/datadog/apps/etcd"
+	csidriver "github.com/DataDog/test-infra-definitions/components/datadog/csi-driver"
+	"github.com/DataDog/test-infra-definitions/components/kubernetes/argorollouts"
 	"github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 
@@ -46,6 +50,9 @@ const (
 	defaultVMName     = "kind"
 )
 
+//go:embed agent_helm_values.yaml
+var agentHelmValues string
+
 // KindDiagnoseFunc is the diagnose function for the Kind provisioner
 func KindDiagnoseFunc(ctx context.Context, stackName string) (string, error) {
 	dumpResult, err := dumpKindClusterState(ctx, stackName)
@@ -81,6 +88,32 @@ func KindRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, params *Prov
 	awsEnv, err := aws.NewEnvironment(ctx)
 	if err != nil {
 		return err
+	}
+
+	var fakeIntake *fakeintakeComp.Fakeintake
+	if params.fakeintakeOptions != nil {
+		fakeintakeOpts := []fakeintake.Option{fakeintake.WithLoadBalancer()}
+		params.fakeintakeOptions = append(fakeintakeOpts, params.fakeintakeOptions...)
+		fakeIntake, err = fakeintake.NewECSFargateInstance(awsEnv, params.name, params.fakeintakeOptions...)
+		if err != nil {
+			return err
+		}
+		err = fakeIntake.Export(ctx, &env.FakeIntake.FakeintakeOutput)
+		if err != nil {
+			return err
+		}
+
+		if params.agentOptions != nil {
+			newOpts := []kubernetesagentparams.Option{kubernetesagentparams.WithFakeintake(fakeIntake)}
+			params.agentOptions = append(newOpts, params.agentOptions...)
+		}
+		if params.operatorDDAOptions != nil {
+			newDdaOpts := []agentwithoperatorparams.Option{agentwithoperatorparams.WithFakeIntake(fakeIntake)}
+			params.operatorDDAOptions = append(newDdaOpts, params.operatorDDAOptions...)
+		}
+		params.vmOptions = append(params.vmOptions, ec2.WithPulumiResourceOptions(utils.PulumiDependsOn(fakeIntake)))
+	} else {
+		env.FakeIntake = nil
 	}
 
 	host, err := ec2.NewVM(awsEnv, params.name, params.vmOptions...)
@@ -136,42 +169,22 @@ func KindRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, params *Prov
 		}
 	}
 
-	var fakeIntake *fakeintakeComp.Fakeintake
-	if params.fakeintakeOptions != nil {
-		fakeintakeOpts := []fakeintake.Option{fakeintake.WithLoadBalancer()}
-		params.fakeintakeOptions = append(fakeintakeOpts, params.fakeintakeOptions...)
-		fakeIntake, err = fakeintake.NewECSFargateInstance(awsEnv, params.name, params.fakeintakeOptions...)
+	var dependsOnArgoRollout pulumi.ResourceOption
+	if params.deployArgoRollout {
+		argoParams, err := argorollouts.NewParams()
 		if err != nil {
 			return err
 		}
-		err = fakeIntake.Export(ctx, &env.FakeIntake.FakeintakeOutput)
+		argoHelm, err := argorollouts.NewHelmInstallation(&awsEnv, argoParams, kubeProvider)
 		if err != nil {
 			return err
 		}
-
-		if params.agentOptions != nil {
-			newOpts := []kubernetesagentparams.Option{kubernetesagentparams.WithFakeintake(fakeIntake)}
-			params.agentOptions = append(newOpts, params.agentOptions...)
-		}
-		if params.operatorDDAOptions != nil {
-			newDdaOpts := []agentwithoperatorparams.Option{agentwithoperatorparams.WithFakeIntake(fakeIntake)}
-			params.operatorDDAOptions = append(newDdaOpts, params.operatorDDAOptions...)
-		}
-	} else {
-		env.FakeIntake = nil
+		dependsOnArgoRollout = utils.PulumiDependsOn(argoHelm)
 	}
 
 	var dependsOnDDAgent pulumi.ResourceOption
 	if params.agentOptions != nil && !params.deployOperator {
-		helmValues := `
-datadog:
-  kubelet:
-    tlsVerify: false
-agents:
-  useHostNetwork: true
-`
-
-		newOpts := []kubernetesagentparams.Option{kubernetesagentparams.WithHelmValues(helmValues), kubernetesagentparams.WithClusterName(kindCluster.ClusterName), kubernetesagentparams.WithTags([]string{"stackid:" + ctx.Stack()})}
+		newOpts := []kubernetesagentparams.Option{kubernetesagentparams.WithHelmValues(agentHelmValues), kubernetesagentparams.WithClusterName(kindCluster.ClusterName), kubernetesagentparams.WithTags([]string{"stackid:" + ctx.Stack()})}
 		params.agentOptions = append(newOpts, params.agentOptions...)
 		agent, err := helm.NewKubernetesAgent(&awsEnv, "kind", kubeProvider, params.agentOptions...)
 		if err != nil {
@@ -233,6 +246,10 @@ agents:
 			return err
 		}
 
+		if _, err := etcd.K8sAppDefinition(&awsEnv, kubeProvider); err != nil {
+			return err
+		}
+
 		// These workloads can be deployed only if the agent is installed, they rely on CRDs installed by Agent helm chart
 		if params.agentOptions != nil {
 			if _, err := nginx.K8sAppDefinition(&awsEnv, kubeProvider, "workload-nginx", "", true, dependsOnDDAgent /* for DDM */, dependsOnVPA); err != nil {
@@ -247,6 +264,12 @@ agents:
 				return err
 			}
 		}
+
+		if params.deployArgoRollout {
+			if _, err := nginx.K8sRolloutAppDefinition(&awsEnv, kubeProvider, "workload-argo-rollout-nginx", dependsOnDDAgent, dependsOnArgoRollout); err != nil {
+				return err
+			}
+		}
 	}
 	for _, appFunc := range params.workloadAppFuncs {
 		_, err := appFunc(&awsEnv, kubeProvider)
@@ -256,6 +279,10 @@ agents:
 	}
 
 	if params.deployOperator && params.operatorDDAOptions != nil {
+		// Deploy the datadog CSI driver
+		if err := csidriver.NewDatadogCSIDriver(&awsEnv, kubeProvider, csiDriverCommitSHA); err != nil {
+			return err
+		}
 		ddaWithOperatorComp, err := agent.NewDDAWithOperator(&awsEnv, awsEnv.CommonNamer().ResourceName("kind-with-operator"), kubeProvider, params.operatorDDAOptions...)
 		if err != nil {
 			return err

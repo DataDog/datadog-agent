@@ -1,0 +1,18 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+upgrade:
+  - |
+    In order to avoid unnecessary DNS queries, the agent now uses FQDN when connecting to Datadog intakes.
+    Specifically, it adds a trailing dot at the end of the Datadog intake hostnames.
+    While most users may not notice this change, it can affect setups where connections between the agent and Datadog intakes are intercepted for deep packet inspection or TLS man-in-the-middle by proxies or firewalls.
+    Users that have such a proxy or L7 firewall should ensure that the rules for agent connections to ``*.datadoghq.com`` hosts are also valid for connections to ``*.datadoghq.com.`` (with an additional trailing dot) hosts.
+fixes:
+  - |
+    Use FQDNs when the Agent builds intake hostnames with ``DD_SITE`` to prevent generating as many DNS queries as there are entries in the ``search`` section of the ``/etc/resolv.conf` file.
+    If an intake full URL is explicitly set with a ``dd_url`` parameter, then, the parameter is used as-is and using FQDNs or not remains a user choice.

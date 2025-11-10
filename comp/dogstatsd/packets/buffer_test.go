@@ -144,6 +144,6 @@ func TestBufferFlush(t *testing.T) {
 	}
 
 	buffer.Append(packet)
-	buffer.Flush()
+	buffer.Close()
 	assert.Equal(t, 1, len(packetChannel))
 }

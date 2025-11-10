@@ -11,32 +11,16 @@ import (
 	"runtime"
 
 	"github.com/shirou/gopsutil/v4/cpu"
-	"github.com/shirou/gopsutil/v4/host"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/python"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
+	hostinfoutils "github.com/DataDog/datadog-agent/pkg/util/hostinfo"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const osName = runtime.GOOS
 
 type osVersion [3]interface{}
-
-// GetInformation returns an InfoStat object, filled in with various operating system metadata. This returns an empty
-// host.InfoStat if gopsutil fails.
-func GetInformation() *host.InfoStat {
-	info, _ := cache.Get[*host.InfoStat](
-		hostInfoCacheKey,
-		func() (*host.InfoStat, error) {
-			info, err := host.Info()
-			if err != nil {
-				log.Errorf("failed to retrieve host info: %s", err)
-				return &host.InfoStat{}, err
-			}
-			return info, err
-		})
-	return info
-}
 
 func getSystemStats() *systemStats {
 	res, _ := cache.Get[*systemStats](
@@ -59,7 +43,7 @@ func getSystemStats() *systemStats {
 				Pythonv:   python.GetPythonVersion(),
 			}
 
-			hostInfo := GetInformation()
+			hostInfo := hostinfoutils.GetInformation()
 
 			// osVersion is a legacy representation of OS version dating back to agent V5 which was in
 			// Python2. In V5 the content of this list changed based on the OS:

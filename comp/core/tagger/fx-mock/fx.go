@@ -9,10 +9,13 @@
 package fx
 
 import (
-	"go.uber.org/fx"
 	"testing"
 
+	"go.uber.org/fx"
+
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
+	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	taggerimpl "github.com/DataDog/datadog-agent/comp/core/tagger/impl"
@@ -38,5 +41,8 @@ func SetupFakeTagger(t testing.TB) taggermock.Mock {
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 		noopTelemetry.Module(),
 		MockModule(),
+		fx.Provide(func(t testing.TB) ipc.Component {
+			return ipcmock.New(t)
+		}),
 	))
 }

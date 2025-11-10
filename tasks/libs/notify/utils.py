@@ -10,9 +10,7 @@ from tasks.libs.pipeline.notifications import HELP_SLACK_CHANNEL
 PROJECT_NAME = "DataDog/datadog-agent"
 CI_VISIBILITY_JOB_URL = 'https://app.datadoghq.com/ci/pipeline-executions?query=ci_level%3Ajob%20%40ci.pipeline.name%3ADataDog%2Fdatadog-agent%20%40git.branch%3Amain%20%40ci.job.name%3A{name}{extra_flags}&agg_m=count{extra_args}'
 NOTIFICATION_DISCLAIMER = f"If there is something wrong with the notification please contact {HELP_SLACK_CHANNEL}"
-CHANNEL_BROADCAST = '#agent-devx-ops'
 PIPELINES_CHANNEL = '#datadog-agent-pipelines'
-DEPLOY_PIPELINES_CHANNEL = '#datadog-agent-deploy-pipelines'
 AWS_S3_CP_CMD = "aws s3 cp --only-show-errors --region us-east-1 --sse AES256"
 AWS_S3_LS_CMD = "aws s3api list-objects-v2 --bucket '{bucket}' --prefix '{prefix}/' --delimiter /"
 
@@ -56,15 +54,3 @@ def should_notify(pipeline_id):
 
     pipeline = get_pipeline(PROJECT_NAME, pipeline_id)
     return pipeline.source != 'pipeline' or pipeline.source == 'pipeline' and 'DDR_WORKFLOW_ID' in os.environ
-
-
-def get_pipeline_type():
-    """
-    Return the type of notification to send (related to the type of pipeline, amongst 'deploy', 'trigger' and 'merge')
-    """
-    if os.environ.get('DEPLOY_AGENT', '') == 'true':
-        return 'deploy'
-    elif os.environ.get('TRIGGERED_PIPELINE', 'false') == 'true' or 'DDR_WORKFLOW_ID' in os.environ:
-        return 'trigger'
-    else:
-        return 'merge'

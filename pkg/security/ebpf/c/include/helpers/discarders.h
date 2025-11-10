@@ -8,6 +8,17 @@
 #include "buffer_selector.h"
 #include "events.h"
 
+u16 __attribute__((always_inline)) get_dns_rcode_discarder_mask() {
+    const u32 i = 0;
+    u16 *discarder_bits = bpf_map_lookup_elem(&filtered_dns_rcodes, &i);
+
+    if(discarder_bits == NULL) {
+        return 0;
+    }
+
+    return *discarder_bits;
+}
+
 void __attribute__((always_inline)) monitor_discarder_added(u64 event_type) {
     struct bpf_map_def *discarder_stats = select_buffer(&fb_discarder_stats, &bb_discarder_stats, DISCARDER_MONITOR_KEY);
     if (discarder_stats == NULL) {

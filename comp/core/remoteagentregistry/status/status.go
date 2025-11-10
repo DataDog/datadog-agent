@@ -64,6 +64,6 @@ func (p Provider) Text(_ bool, buffer io.Writer) error {
 }
 
 // HTML renders the html output
-func (p Provider) HTML(_ bool, _ io.Writer) error {
-	return nil
+func (p Provider) HTML(_ bool, buffer io.Writer) error {
+	return status.RenderHTML(templatesFS, "remote_agents_html.tmpl", buffer, p.getStatusInfo())
 }

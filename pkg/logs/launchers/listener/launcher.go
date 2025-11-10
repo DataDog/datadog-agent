@@ -7,7 +7,7 @@ package listener
 
 import (
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
-	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
+	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/def"
 	"github.com/DataDog/datadog-agent/pkg/logs/launchers"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
@@ -34,8 +34,6 @@ func NewLauncher(frameSize int) *Launcher {
 }
 
 // Start starts the listener.
-//
-//nolint:revive // TODO(AML) Fix revive linter
 func (l *Launcher) Start(sourceProvider launchers.SourceProvider, pipelineProvider pipeline.Provider, _ auditor.Registry, _ *tailers.TailerTracker) {
 	l.pipelineProvider = pipelineProvider
 	l.tcpSources = sourceProvider.GetAddedForType(config.TCPType)

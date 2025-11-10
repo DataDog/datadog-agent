@@ -13,11 +13,17 @@ import "fmt"
 type Options struct {
 	// NoDoubleUnderscoreSep is set to true when you don't want to
 	// separate the subsystem and the name with a double underscore separator.
+	//
+	// This option is not compatible with the cross-org agent telemetry
 	NoDoubleUnderscoreSep bool
 
 	// DefaultMetric exports metric by default via built-in agent_telemetry core check.
 	DefaultMetric bool
 }
+
+// MetricFilter is a function that filters metrics based on their name
+// It returns true if the metric should be included, false if it should be excluded
+type MetricFilter func(*MetricFamily) bool
 
 // DefaultOptions for telemetry metrics which don't need to specify any option.
 var DefaultOptions = Options{

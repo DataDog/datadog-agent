@@ -10,11 +10,11 @@ package sysprobeconfigimpl
 import (
 	"go.uber.org/fx"
 
-	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
-	sysconfigtypes "github.com/DataDog/datadog-agent/cmd/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	sysconfig "github.com/DataDog/datadog-agent/pkg/system-probe/config"
+	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -38,29 +38,18 @@ type cfg struct {
 	warnings *model.Warnings
 }
 
-// sysprobeconfigDependencies is an interface that mimics the fx-oriented dependencies struct (This is copied from the main agent configuration.)
-// The goal of this interface is to be able to call setupConfig with either 'dependencies' or 'mockDependencies'.
-// TODO: (components) investigate whether this interface is worth keeping, otherwise delete it and just use dependencies
-type sysprobeconfigDependencies interface {
-	getParams() *Params
-}
-
 type dependencies struct {
 	fx.In
 
 	Params Params
 }
 
-func (d dependencies) getParams() *Params {
-	return &d.Params
-}
-
-func setupConfig(deps sysprobeconfigDependencies) (*sysconfigtypes.Config, error) {
-	return sysconfig.New(deps.getParams().sysProbeConfFilePath, deps.getParams().fleetPoliciesDirPath)
+func setupConfig(sysProbeConfFilePath string, fleetPoliciesDirPath string) (*sysconfigtypes.Config, error) {
+	return sysconfig.New(sysProbeConfFilePath, fleetPoliciesDirPath)
 }
 
 func newConfig(deps dependencies) (sysprobeconfig.Component, error) {
-	syscfg, err := setupConfig(deps)
+	syscfg, err := setupConfig(deps.Params.sysProbeConfFilePath, deps.Params.fleetPoliciesDirPath)
 	if err != nil {
 		return nil, err
 	}

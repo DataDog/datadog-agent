@@ -230,6 +230,7 @@ func TestGetCloudRunFunctionTagsWithEnvironmentVariables(t *testing.T) {
 		"location":                      "test_region",
 		"gcrfx.location":                "test_region",
 		"origin":                        "cloudrun",
+		"_dd.origin":                    "cloudrun",
 		"project_id":                    "test_project",
 		"gcrfx.project_id":              "test_project",
 		"service_name":                  "test_service",
@@ -238,8 +239,7 @@ func TestGetCloudRunFunctionTagsWithEnvironmentVariables(t *testing.T) {
 		"gcrfx.revision_name":           "test_revision",
 		"configuration_name":            "test_config",
 		"gcrfx.configuration_name":      "test_config",
-		"_dd.origin":                    "cloudrun",
-		"gcrfx.function_target":         "test_target",
+		"gcrfx.build_function_target":   "test_target",
 		"gcrfx.function_signature_type": "test_signature",
 		"gcrfx.resource_name":           "projects/test_project/locations/test_region/services/test_service/functions/test_target",
 	}, tags)

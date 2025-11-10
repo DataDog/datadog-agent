@@ -125,8 +125,8 @@ func buildRegex(matchRe string, matchType string) (*regexp.Regexp, error) {
 		if strings.Contains(matchRe, "**") {
 			return nil, fmt.Errorf("invalid wildcard match pattern `%s`, it should not contain consecutive `*`", matchRe)
 		}
-		matchRe = strings.Replace(matchRe, ".", "\\.", -1)
-		matchRe = strings.Replace(matchRe, "*", "([^.]*)", -1)
+		matchRe = strings.ReplaceAll(matchRe, ".", "\\.")
+		matchRe = strings.ReplaceAll(matchRe, "*", "([^.]*)")
 	}
 	regex, err := regexp.Compile("^" + matchRe + "$")
 	if err != nil {

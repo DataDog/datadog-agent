@@ -12,22 +12,20 @@ import (
 	"context"
 	"time"
 
-	"github.com/docker/docker/api/types"
+	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/image"
 	"github.com/docker/docker/client"
-
-	"github.com/DataDog/datadog-agent/pkg/util/containers"
 )
 
 // Client defines the interface of our custom Docker client (e.g. DockerUtil)
 type Client interface {
 	RawClient() *client.Client
-	RawContainerList(ctx context.Context, options container.ListOptions) ([]types.Container, error)
+	RawContainerList(ctx context.Context, options container.ListOptions) ([]container.Summary, error)
 	ResolveImageName(ctx context.Context, image string) (string, error)
 	Images(ctx context.Context, includeIntermediate bool) ([]image.Summary, error)
 	GetPreferredImageName(imageID string, repoTags []string, repoDigests []string) string
 	GetStorageStats(ctx context.Context) ([]*StorageStats, error)
 	CountVolumes(ctx context.Context) (int, int, error)
-	LatestContainerEvents(ctx context.Context, since time.Time, filter *containers.Filter) ([]*ContainerEvent, time.Time, error)
+	LatestContainerEvents(ctx context.Context, since time.Time, filter workloadfilter.FilterBundle) ([]*ContainerEvent, time.Time, error)
 }

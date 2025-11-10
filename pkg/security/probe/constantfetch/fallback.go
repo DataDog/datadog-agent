@@ -74,8 +74,9 @@ func computeRawsTable() map[string]uint64 {
 		OffsetNameDentryDName:                     32,
 		OffsetNameVfsmountMntSb:                   8,
 		OffsetNameSockCommonStructSKCNum:          14,
-		OffsetNameFlowI4StructProto:               18,
-		OffsetNameFlowI6StructProto:               18,
+		SizeOfPipeBuffer:                          40,
+		OffsetNamePipeBufferStructFlags:           24,
+		OffsetNameRtnlLinkOpsKind:                 16,
 	}
 }
 
@@ -121,6 +122,10 @@ func computeCallbacksTable() map[string]func(*kernel.Version) uint64 {
 		OffsetNameFileFinode:                  getFileFinodeOffset,
 		OffsetNameFileFpath:                   getFileFpathOffset,
 		OffsetNameMountMntID:                  getMountIDOffset,
+		OffsetNameDeviceStructNdNet:           getDeviceStructNdNet,
+		OffsetNameSockStructSKProtocol:        getSockStructSKProtocolOffset,
+		OffsetNameFlowI4StructProto:           getFlowiProtoOffset,
+		OffsetNameFlowI6StructProto:           getFlowiProtoOffset,
 	}
 }
 
@@ -141,8 +146,8 @@ func (f *FallbackConstantFetcher) AppendSizeofRequest(id, _ string) {
 	f.appendRequest(id)
 }
 
-// AppendOffsetofRequest appends an offset request
-func (f *FallbackConstantFetcher) AppendOffsetofRequest(id, _ string, _ ...string) {
+// AppendOffsetofRequestWithFallbacks appends an offset request
+func (f *FallbackConstantFetcher) AppendOffsetofRequestWithFallbacks(id string, _ ...TypeFieldPair) {
 	f.appendRequest(id)
 }
 
@@ -306,6 +311,8 @@ func getCredsUIDOffset(kv *kernel.Version) uint64 {
 	switch {
 	case kv.IsCOSKernel():
 		return 20
+	case kv.IsAmazonLinuxKernel() && kv.IsInRangeCloseOpen(kernel.Kernel4_14, kernel.Kernel4_15) && kv.Code.Patch() > 250:
+		return 8
 	case kv.IsAmazonLinuxKernel() && kv.IsInRangeCloseOpen(kernel.Kernel5_4, kernel.Kernel5_5) && kv.Code.Patch() > 250:
 		return 8
 	case kv.IsAmazonLinuxKernel() && kv.IsInRangeCloseOpen(kernel.Kernel5_10, kernel.Kernel5_11) && kv.Code.Patch() > 200:
@@ -966,5 +973,50 @@ func getMountIDOffset(kv *kernel.Version) uint64 {
 		return 268
 	default:
 		return 284
+	}
+}
+
+func getDeviceStructNdNet(kv *kernel.Version) uint64 {
+	switch {
+	case kv.IsRH7Kernel():
+		return 1000
+	case kv.IsAmazonLinuxKernel() && kv.IsInRangeCloseOpen(kernel.Kernel4_14, kernel.Kernel4_15):
+		return 1256
+	case kv.IsUbuntuKernel() && kv.IsInRangeCloseOpen(kernel.Kernel4_18, kernel.Kernel4_19):
+		return 1312
+	case kv.IsDebianKernel() && kv.IsInRangeCloseOpen(kernel.Kernel4_19, kernel.Kernel4_20):
+		return 1256
+	default:
+		return 1264
+	}
+}
+
+func getSockStructSKProtocolOffset(kv *kernel.Version) uint64 {
+	switch {
+	case kv.IsRH7Kernel():
+		return 337
+	case kv.IsAmazonLinuxKernel() && kv.IsInRangeCloseOpen(kernel.Kernel4_14, kernel.Kernel4_15):
+		return 505
+	case kv.IsDebianKernel() && kv.IsInRangeCloseOpen(kernel.Kernel4_19, kernel.Kernel4_20):
+		return 513
+	case kv.IsSuse12Kernel():
+		return 505
+	case kv.IsUbuntuKernel() && kv.IsInRangeCloseOpen(kernel.Kernel4_18, kernel.Kernel4_19):
+		return 505
+	default:
+		return ErrorSentinel
+	}
+}
+
+func getFlowiProtoOffset(kv *kernel.Version) uint64 {
+	switch {
+	case kv.IsRockyKernel() && kv.IsInRangeCloseOpen(kernel.Kernel5_14, kernel.Kernel5_15):
+		return 18
+	case kv.IsRH7Kernel():
+		fallthrough
+	case kv.IsInRangeCloseOpen(kernel.Kernel4_10, kernel.Kernel5_18):
+		return 14
+	default:
+		return 18
 	}
 }

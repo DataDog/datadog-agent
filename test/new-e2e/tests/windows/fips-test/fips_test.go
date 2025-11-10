@@ -18,9 +18,10 @@ import (
 	windowsCommon "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
 	windowsAgent "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent"
 
+	"testing"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"testing"
 )
 
 type fipsAgentSuite struct {
@@ -52,6 +53,9 @@ func (s *fipsAgentSuite) SetupSuite() {
 	}
 
 	s.BaseAgentInstallerSuite.SetupSuite()
+	// SetupSuite needs to defer CleanupOnSetupFailure() if what comes after BaseSuite.SetupSuite() can fail.
+	defer s.CleanupOnSetupFailure()
+
 	host := s.Env().RemoteHost
 	var err error
 
@@ -107,7 +111,7 @@ func (s *fipsAgentSuite) TestOpenSSLPaths() {
 		"MODULESDIR": fmt.Sprintf(`%sembedded3\lib\ossl-modules`, s.installPath),
 	}
 	// TODO: How to configure the version of OpenSSL?
-	opensslVersion := "3.4"
+	opensslVersion := "3.5"
 	keyPath := fmt.Sprintf(`HKLM:\SOFTWARE\Wow6432Node\OpenSSL-%s-datadog-fips-agent`, opensslVersion)
 	exists, err := windowsCommon.RegistryKeyExists(host, keyPath)
 	require.NoError(s.T(), err)

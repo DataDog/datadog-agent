@@ -4,12 +4,14 @@
 package kafka
 
 const (
-	TopicNameBuckets                     = 0xa
-	TopicNameMaxSize                     = 0x50
-	MaxSupportedProduceRequestApiVersion = 0xa
-	MinSupportedProduceRequestApiVersion = 0x1
-	MaxSupportedFetchRequestApiVersion   = 0xc
-	MinSupportedFetchRequestApiVersion   = 0x0
+	TopicNameBuckets                                   = 0xa
+	TopicNameMaxSize                                   = 0x50
+	ClassificationMaxSupportedProduceRequestApiVersion = 0xc
+	ClassificationMinSupportedProduceRequestApiVersion = 0x1
+	DecodingMaxSupportedProduceRequestApiVersion       = 0xc
+	ClassificationMaxSupportedFetchRequestApiVersion   = 0x11
+	ClassificationMinSupportedFetchRequestApiVersion   = 0x0
+	DecodingMaxSupportedFetchRequestApiVersion         = 0xc
 )
 
 type ConnTuple struct {

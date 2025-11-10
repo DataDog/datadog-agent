@@ -12,7 +12,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	"github.com/DataDog/datadog-agent/comp/core"
-	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -21,8 +20,7 @@ func TestCommand(t *testing.T) {
 		Commands(&command.GlobalParams{}),
 		[]string{"dogstatsd-replay", "-v"},
 		dogstatsdReplay,
-		func(cliParams *cliParams, _ core.BundleParams, secretParams secrets.Params) {
+		func(cliParams *cliParams, _ core.BundleParams) {
 			require.True(t, cliParams.dsdVerboseReplay)
-			require.Equal(t, false, secretParams.Enabled)
 		})
 }

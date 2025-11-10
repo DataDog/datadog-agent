@@ -177,3 +177,107 @@ func TestCloneEmpty(t *testing.T) {
 	tag := MetricTagConfig{}
 	assert.Equal(t, tag, tag.Clone())
 }
+
+func TestIsLegacyMetricsConfig(t *testing.T) {
+	mc := MetricsConfig{}
+	assert.False(t, mc.IsLegacy())
+
+	mc = MetricsConfig{
+		OID:  "1.2.3.4",
+		Name: "foo",
+	}
+	assert.False(t, mc.IsLegacy())
+
+	mc = MetricsConfig{
+		Name: "foo",
+	}
+	assert.False(t, mc.IsLegacy())
+
+	mc = MetricsConfig{
+		MIB:  "FOO-MIB",
+		OID:  "1.2.3.4",
+		Name: "foo",
+	}
+	assert.False(t, mc.IsLegacy())
+
+	mc = MetricsConfig{
+		MIB:  "FOO-MIB",
+		Name: "foo",
+	}
+	assert.True(t, mc.IsLegacy())
+
+	mc = MetricsConfig{
+		MIB: "FOO-MIB",
+		Symbol: SymbolConfig{
+			OID:  "1.2.3.4",
+			Name: "foo",
+		},
+	}
+	assert.False(t, mc.IsLegacy())
+
+	mc = MetricsConfig{
+		MIB: "FOO-MIB",
+		Symbol: SymbolConfig{
+			Name: "foo",
+		},
+	}
+	assert.True(t, mc.IsLegacy())
+
+	mc = MetricsConfig{
+		MIB: "FOO-MIB",
+		Symbols: []SymbolConfig{
+			{
+				OID:  "1.2.3.4.1",
+				Name: "foo1",
+			},
+			{
+				OID:  "1.2.3.4.2",
+				Name: "foo2",
+			},
+		},
+	}
+	assert.False(t, mc.IsLegacy())
+
+	mc = MetricsConfig{
+		MIB: "FOO-MIB",
+		Symbols: []SymbolConfig{
+			{
+				OID:  "1.2.3.4",
+				Name: "foo1",
+			},
+			{
+				Name: "foo2",
+			},
+		},
+	}
+	assert.True(t, mc.IsLegacy())
+
+	mc = MetricsConfig{
+		MIB: "FOO-MIB",
+		Symbols: []SymbolConfig{
+			{
+				Name:             "foo",
+				ConstantValueOne: true,
+			},
+			{
+				OID:  "1.2.3.4",
+				Name: "foo2",
+			},
+		},
+	}
+	assert.False(t, mc.IsLegacy())
+
+	mc = MetricsConfig{
+		MIB: "FOO-MIB",
+		Symbols: []SymbolConfig{
+			{
+				Name:             "foo1",
+				ConstantValueOne: true,
+			},
+			{
+				Name: "foo2",
+			},
+		},
+	}
+	assert.True(t, mc.IsLegacy())
+}

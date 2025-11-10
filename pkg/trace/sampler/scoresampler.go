@@ -10,6 +10,7 @@ import (
 	"time"
 
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
+	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace/idx"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-go/v5/statsd"
 )
@@ -87,6 +88,27 @@ func (s *ScoreSampler) Sample(now time.Time, trace pb.Trace, root *pb.Span, env 
 	return sampled
 }
 
+// SampleV1 counts an incoming trace and tells if it is a sample which has to be kept
+func (s *ScoreSampler) SampleV1(now time.Time, chunk *idx.InternalTraceChunk, root *idx.InternalSpan, env string) bool {
+	if s.disabled {
+		return false
+	}
+
+	// Extra safety, just in case one trace is empty
+	if len(chunk.Spans) == 0 {
+		return false
+	}
+	signature := computeSignatureWithRootAndEnvV1(chunk, root, env)
+	signature = s.shrink(signature)
+	// Update sampler state by counting this trace
+	s.countWeightedSig(now, signature, weightRootV1(root))
+
+	rate := s.getSignatureSampleRate(signature)
+
+	sampled := s.applySampleRateV1(root, chunk.LegacyTraceID(), rate)
+	return sampled
+}
+
 // UpdateTargetTPS updates the target tps
 func (s *ScoreSampler) UpdateTargetTPS(targetTPS float64) {
 	s.Sampler.updateTargetTPS(targetTPS)
@@ -104,6 +126,17 @@ func (s *ScoreSampler) applySampleRate(root *pb.Span, rate float64) bool {
 	sampled := SampleByRate(traceID, newRate)
 	if sampled {
 		setMetric(root, s.samplingRateKey, rate)
+	}
+	return sampled
+}
+
+// We use the legacy traceID here for backwards compatibility with any older version of the agent
+func (s *ScoreSampler) applySampleRateV1(root *idx.InternalSpan, traceID uint64, rate float64) bool {
+	initialRate := GetGlobalRateV1(root)
+	newRate := initialRate * rate
+	sampled := SampleByRate(traceID, newRate)
+	if sampled {
+		root.SetFloat64Attribute(s.samplingRateKey, rate)
 	}
 	return sampled
 }

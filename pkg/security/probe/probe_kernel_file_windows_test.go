@@ -117,7 +117,7 @@ func processUntil(t *testing.T, et *etwTester, target interface{}, count int) {
 
 		case n := <-et.notify:
 			switch n.(type) {
-			case *createHandleArgs, *createNewFileArgs, *cleanupArgs, *closeArgs, *writeArgs, *setDeleteArgs, *deletePathArgs, *renameArgs, *renamePath:
+			case *createArgs, *createNewFileArgs, *cleanupArgs, *closeArgs, *writeArgs, *setDeleteArgs, *deletePathArgs, *renameArgs, *renamePath:
 				et.notifications = append(et.notifications, n)
 				if reflect.TypeOf(n) == reflect.TypeOf(target) {
 					targetcount++
@@ -148,7 +148,7 @@ func processUntilAllClosed(t *testing.T, et *etwTester) {
 		case n := <-et.notify:
 			notify := false
 			switch n.(type) {
-			case *createHandleArgs, *createNewFileArgs:
+			case *createArgs, *createNewFileArgs:
 				opencount++
 				notify = true
 
@@ -235,10 +235,10 @@ func testSimpleCreate(t *testing.T, et *etwTester, testfilename string) {
 
 	assert.Equal(t, 4, len(et.notifications), "expected 4 notifications, got %d", len(et.notifications))
 
-	if c, ok := et.notifications[0].(*createHandleArgs); ok {
+	if c, ok := et.notifications[0].(*createArgs); ok {
 		assert.True(t, isSameFile(testfilename, c.fileName), "expected %s, got %s", testfilename, c.fileName)
 	} else {
-		t.Errorf("expected createHandleArgs, got %T", et.notifications[0])
+		t.Errorf("expected createArgs, got %T", et.notifications[0])
 	}
 
 	if cf, ok := et.notifications[1].(*createNewFileArgs); ok {
@@ -315,10 +315,10 @@ func testSimpleFileWrite(t *testing.T, et *etwTester, testfilename string) {
 
 	assert.Equal(t, 3, len(et.notifications), "expected 3 notifications, got %d", len(et.notifications))
 
-	if c, ok := et.notifications[0].(*createHandleArgs); ok {
+	if c, ok := et.notifications[0].(*createArgs); ok {
 		assert.True(t, isSameFile(testfilename, c.fileName), "expected %s, got %s", testfilename, c.fileName)
 	} else {
-		t.Errorf("expected createHandleArgs, got %T", et.notifications[0])
+		t.Errorf("expected createArgs, got %T", et.notifications[0])
 	}
 
 	if wa, ok := et.notifications[1].(*writeArgs); ok {
@@ -379,10 +379,10 @@ func testSimpleFileDelete(t *testing.T, et *etwTester, testfilename string) {
 			return
 		}
 	*/
-	if c, ok := et.notifications[0].(*createHandleArgs); ok {
+	if c, ok := et.notifications[0].(*createArgs); ok {
 		assert.True(t, isSameFile(testfilename, c.fileName), "expected %s, got %s", testfilename, c.fileName)
 	} else {
-		t.Errorf("expected createHandleArgs, got %T", et.notifications[0])
+		t.Errorf("expected createArgs, got %T", et.notifications[0])
 	}
 
 	if wa, ok := et.notifications[1].(*setDeleteArgs); ok {
@@ -437,10 +437,10 @@ func testSimpleFileRename(t *testing.T, et *etwTester, testfilename, testfileren
 
 	//assert.Equal(t, 4, len(et.notifications), "expected 4 notifications, got %d", len(et.notifications))
 
-	if c, ok := et.notifications[0].(*createHandleArgs); ok {
+	if c, ok := et.notifications[0].(*createArgs); ok {
 		assert.True(t, isSameFile(testfilename, c.fileName), "expected %s, got %s", testfilename, c.fileName)
 	} else {
-		t.Errorf("expected createHandleArgs, got %T", et.notifications[0])
+		t.Errorf("expected createArgs, got %T", et.notifications[0])
 	}
 
 	// there are a variable number of notifications depending on OS.  FOr some reason, at least on Win11
@@ -507,14 +507,14 @@ func testFileOpen(t *testing.T, et *etwTester, testfilename string) {
 	// we expect a handle create (12), a cleanup and a close.
 	assert.Equal(t, 3, len(et.notifications), "expected 3 notifications, got %d", len(et.notifications))
 
-	if c, ok := et.notifications[0].(*createHandleArgs); ok {
+	if c, ok := et.notifications[0].(*createArgs); ok {
 		assert.True(t, isSameFile(testfilename, c.fileName), "expected %s, got %s", testfilename, c.fileName)
 		// this should be same as sharing argument to Createfile
 		assert.Equal(t, uint32(windows.FILE_SHARE_READ), c.shareAccess, "Sharing mode did not match")
 		assert.Equal(t, expectedCreateOptions, c.createOptions, "Create options did not match")
 
 	} else {
-		t.Errorf("expected createHandleArgs, got %T", et.notifications[0])
+		t.Errorf("expected createArgs, got %T", et.notifications[0])
 	}
 
 	if cu, ok := et.notifications[1].(*cleanupArgs); ok {

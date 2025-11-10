@@ -94,6 +94,7 @@ namespace CustomActions.Tests.ProcessUserCustomActions
 
             Test.Properties.Should()
                 .Contain("DDAGENTUSER_FOUND", "true").And
+                .Contain("DDAGENTUSER_IS_SERVICE_ACCOUNT", "true").And
                 .Contain("DDAGENTUSER_SID", new SecurityIdentifier(WellKnownSidType.LocalSystemSid, null).Value).And
                 .Contain("DDAGENTUSER_PROCESSED_NAME", "SYSTEM").And
                 .Contain("DDAGENTUSER_PROCESSED_DOMAIN", "NT AUTHORITY").And

@@ -46,6 +46,7 @@ func (p metadataParser) Parse(obj interface{}) workloadmeta.Entity {
 			Namespace:   partialObjectMetadata.Namespace,
 			Labels:      partialObjectMetadata.Labels,
 			Annotations: filterMapStringKey(partialObjectMetadata.Annotations, p.annotationsFilter),
+			UID:         string(partialObjectMetadata.UID),
 		},
 		GVR: p.gvr,
 	}

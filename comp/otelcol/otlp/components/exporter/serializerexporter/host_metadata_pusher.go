@@ -7,28 +7,25 @@ package serializerexporter
 
 import (
 	"context"
-	"encoding/json"
-	"fmt"
-	"net/http"
 
-	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
-	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
-	"github.com/DataDog/opentelemetry-mapping-go/pkg/inframetadata"
-	"github.com/DataDog/opentelemetry-mapping-go/pkg/inframetadata/payload"
+	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/inframetadata"
+	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/inframetadata/payload"
+	"github.com/DataDog/datadog-agent/pkg/serializer"
 )
 
-type hostMetadataPusher struct {
-	forwarder defaultforwarder.Forwarder
+// HostMetadataPusher implements the inframetadata.Pusher interface
+type HostMetadataPusher struct {
+	s serializer.MetricSerializer
 }
 
-var _ inframetadata.Pusher = (*hostMetadataPusher)(nil)
+// NewPusher returns a new HostMetadataPusher
+func NewPusher(s serializer.MetricSerializer) *HostMetadataPusher {
+	return &HostMetadataPusher{s: s}
+}
 
-func (h *hostMetadataPusher) Push(_ context.Context, hm payload.HostMetadata) error {
-	marshaled, err := json.Marshal(hm)
-	if err != nil {
-		return fmt.Errorf("error marshaling metadata payload: %w", err)
-	}
+var _ inframetadata.Pusher = (*HostMetadataPusher)(nil)
 
-	bytesPayload := transaction.NewBytesPayloadsWithoutMetaData([]*[]byte{&marshaled})
-	return h.forwarder.SubmitHostMetadata(bytesPayload, http.Header{})
+// Push implements the Pusher.Push interface
+func (h *HostMetadataPusher) Push(_ context.Context, hm payload.HostMetadata) error {
+	return h.s.SendHostMetadata(&hm)
 }

@@ -12,6 +12,7 @@ import (
 	"strconv"
 	"strings"
 
+	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -111,7 +112,7 @@ func parseFilters(filters []string) (imageFilters, nameFilters, namespaceFilters
 	for _, filter := range filters {
 		switch {
 		case strings.HasPrefix(filter, imageFilterPrefix):
-			filter = preprocessImageFilter(filter)
+			filter = PreprocessImageFilter(filter)
 			r, err := filterToRegex(filter, imageFilterPrefix)
 			if err != nil {
 				filterErrs = append(filterErrs, err.Error())
@@ -143,10 +144,10 @@ func parseFilters(filters []string) (imageFilters, nameFilters, namespaceFilters
 	return imageFilters, nameFilters, namespaceFilters, filterErrs
 }
 
-// preprocessImageFilter modifies image filters having the format `name$`, where {name} doesn't include a colon (e.g. nginx$, ^nginx$), to
+// PreprocessImageFilter modifies image filters having the format `name$`, where {name} doesn't include a colon (e.g. nginx$, ^nginx$), to
 // `name:.*`.
 // This is done so that image filters can still match even if the matched image contains the tag or digest.
-func preprocessImageFilter(imageFilter string) string {
+func PreprocessImageFilter(imageFilter string) string {
 	regexVal := strings.TrimPrefix(imageFilter, imageFilterPrefix)
 	if strings.HasSuffix(regexVal, "$") && !strings.Contains(regexVal, ":") {
 		mutatedRegexVal := regexVal[:len(regexVal)-1] + "(@sha256)?:.*"
@@ -320,13 +321,11 @@ func NewAutodiscoveryFilter(ft FilterType) *Filter {
 	return filter
 }
 
-// IsExcluded returns a bool indicating if the container should be excluded
-// based on the filters in the containerFilter instance. Consider also using
-// Note: exclude filters are not applied to empty container names, empty
-// images and empty namespaces.
+// GetResult returns a workloadfilter.Result indicating if the container should be included, excluded or unknown.
+// Note: exclude filters are not applied to empty container names, empty images and empty namespaces.
 //
 // containerImage may or may not contain the image tag or image digest. (e.g. nginx:latest and nginx are both valid)
-func (cf Filter) IsExcluded(annotations map[string]string, containerName, containerImage, podNamespace string) bool {
+func (cf Filter) GetResult(annotations map[string]string, containerName, containerImage, podNamespace string) workloadfilter.Result {
 
 	// If containerImage doesn't include the tag or digest, add a colon so that it
 	// can match image filters
@@ -335,27 +334,27 @@ func (cf Filter) IsExcluded(annotations map[string]string, containerName, contai
 	}
 
 	if cf.isExcludedByAnnotation(annotations, containerName) {
-		return true
+		return workloadfilter.Excluded
 	}
 
 	if !cf.Enabled {
-		return false
+		return workloadfilter.Unknown
 	}
 
 	// Any includeListed take precedence on excluded
 	for _, r := range cf.ImageIncludeList {
 		if r.MatchString(containerImage) {
-			return false
+			return workloadfilter.Included
 		}
 	}
 	for _, r := range cf.NameIncludeList {
 		if r.MatchString(containerName) {
-			return false
+			return workloadfilter.Included
 		}
 	}
 	for _, r := range cf.NamespaceIncludeList {
 		if r.MatchString(podNamespace) {
-			return false
+			return workloadfilter.Included
 		}
 	}
 
@@ -363,7 +362,7 @@ func (cf Filter) IsExcluded(annotations map[string]string, containerName, contai
 	if containerImage != "" {
 		for _, r := range cf.ImageExcludeList {
 			if r.MatchString(containerImage) {
-				return true
+				return workloadfilter.Excluded
 			}
 		}
 	}
@@ -371,7 +370,7 @@ func (cf Filter) IsExcluded(annotations map[string]string, containerName, contai
 	if containerName != "" {
 		for _, r := range cf.NameExcludeList {
 			if r.MatchString(containerName) {
-				return true
+				return workloadfilter.Excluded
 			}
 		}
 	}
@@ -379,12 +378,22 @@ func (cf Filter) IsExcluded(annotations map[string]string, containerName, contai
 	if podNamespace != "" {
 		for _, r := range cf.NamespaceExcludeList {
 			if r.MatchString(podNamespace) {
-				return true
+				return workloadfilter.Excluded
 			}
 		}
 	}
 
-	return false
+	return workloadfilter.Unknown
+}
+
+// IsExcluded returns a bool indicating if the container should be excluded
+// based on the filters in the containerFilter instance.
+// Note: exclude filters are not applied to empty container names, empty
+// images and empty namespaces.
+//
+// containerImage may or may not contain the image tag or image digest. (e.g. nginx:latest and nginx are both valid)
+func (cf Filter) IsExcluded(annotations map[string]string, containerName, containerImage, podNamespace string) bool {
+	return cf.GetResult(annotations, containerName, containerImage, podNamespace) == workloadfilter.Excluded
 }
 
 // isExcludedByAnnotation identifies whether a container should be excluded
@@ -396,20 +405,21 @@ func (cf Filter) isExcludedByAnnotation(annotations map[string]string, container
 	switch cf.FilterType {
 	case GlobalFilter:
 	case MetricsFilter:
-		if isExcludedByAnnotationInner(annotations, containerName, "metrics_") {
+		if IsExcludedByAnnotationInner(annotations, containerName, "metrics_") {
 			return true
 		}
 	case LogsFilter:
-		if isExcludedByAnnotationInner(annotations, containerName, "logs_") {
+		if IsExcludedByAnnotationInner(annotations, containerName, "logs_") {
 			return true
 		}
 	default:
 		log.Warnf("unrecognized filter type: %s", cf.FilterType)
 	}
-	return isExcludedByAnnotationInner(annotations, containerName, "")
+	return IsExcludedByAnnotationInner(annotations, containerName, "")
 }
 
-func isExcludedByAnnotationInner(annotations map[string]string, containerName string, excludePrefix string) bool {
+// IsExcludedByAnnotationInner checks if an entity is excluded by annotations.
+func IsExcludedByAnnotationInner(annotations map[string]string, containerName string, excludePrefix string) bool {
 	var e bool
 	// try container-less annotations first
 	exclude, found := annotations[fmt.Sprintf(kubeAutodiscoveryAnnotation, excludePrefix)]

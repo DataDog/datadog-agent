@@ -87,7 +87,7 @@ func CreateIISSite(host *components.RemoteHost, site []IISSiteDefinition) error 
 		if ((get-iissite -name %s).State -ne "Started") {
 			New-IISSite -ErrorAction SilentlyContinue -Name %s -BindingInformation '%s' -PhysicalPath %s
 		}`
-		wintgtpath := strings.Replace(tgtpath, "/", "\\", -1)
+		wintgtpath := strings.ReplaceAll(tgtpath, "/", "\\")
 		cmd := fmt.Sprintf(script, s.Name, s.Name, s.BindingPort, wintgtpath)
 		output, err := host.Execute(cmd)
 		if err != nil {
@@ -100,7 +100,7 @@ func CreateIISSite(host *components.RemoteHost, site []IISSiteDefinition) error 
 			if ($res -eq $null) {
 				New-WebApplication -Site '%s' -Name '%s' -PhysicalPath '%s'
 			}`
-			physpath := strings.Replace(app.PhysicalPath, "/", "\\", -1)
+			physpath := strings.ReplaceAll(app.PhysicalPath, "/", "\\")
 
 			// make the physical path first since it's required
 			err := host.MkdirAll(physpath)

@@ -14,9 +14,10 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/installer/command"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/pid/pidimpl"
-	"github.com/DataDog/datadog-agent/comp/core/secrets"
+	secretsfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcservice"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcservice/rcserviceimpl"
@@ -46,11 +47,11 @@ func getCommonFxOption(global *command.GlobalParams) fx.Option {
 	return fx.Options(fx.Provide(func() context.Context { return ctx }),
 		fx.Supply(core.BundleParams{
 			ConfigParams:         config.NewAgentParams(global.ConfFilePath),
-			SecretParams:         secrets.NewEnabledParams(),
 			SysprobeConfigParams: sysprobeconfigimpl.NewParams(),
 			LogParams:            log.ForDaemon("INSTALLER", "installer.log_file", pkgconfigsetup.DefaultUpdaterLogFile),
 		}),
 		core.Bundle(),
+		secretsfx.Module(),
 		fx.Supply(&rcservice.Params{
 			Options: []service.Option{
 				service.WithDatabaseFileName("remote-config-installer.db"),
@@ -62,5 +63,6 @@ func getCommonFxOption(global *command.GlobalParams) fx.Option {
 		localapiimpl.Module(),
 		telemetryimpl.Module(),
 		fx.Supply(pidimpl.NewParams(global.PIDFilePath)),
+		ipcfx.ModuleReadWrite(),
 	)
 }

@@ -20,12 +20,11 @@ import (
 	logsConfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
-	"github.com/DataDog/datadog-agent/pkg/persistentcache"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/api"
-	"github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/bookmark"
-	"github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/session"
-	"github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/subscription"
+	evtapi "github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/api"
+	evtbookmark "github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/bookmark"
+	evtsession "github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/session"
+	evtsubscribe "github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/subscription"
 )
 
 func (c *Check) getChannelPath() (string, error) {
@@ -40,11 +39,6 @@ func (c *Check) getChannelPath() (string, error) {
 
 func (c *Check) initSubscription() error {
 	var err error
-
-	opts := []evtsubscribe.PullSubscriptionOption{}
-	if c.evtapi != nil {
-		opts = append(opts, evtsubscribe.WithWindowsEventLogAPI(c.evtapi))
-	}
 
 	// The check should have already confirmed that these options are set/valid in validateConfig
 	// but since Optional.Get returns multiple values we have to create a new name/variable anyway
@@ -70,67 +64,45 @@ func (c *Check) initSubscription() error {
 		return fmt.Errorf("query is not set")
 	}
 
-	// Check persistent cache for bookmark
-	var bookmark evtbookmark.Bookmark
-	bookmarkXML, err := persistentcache.Read(c.bookmarkPersistentCacheKey())
-	if err != nil {
-		// persistentcache.Read() does not return error if key does not exist
-		bookmarkXML = ""
-		log.Errorf("error reading bookmark from persistent cache %s, will start at %s events: %v", c.bookmarkPersistentCacheKey(), startMode, err)
-	}
-	if bookmarkXML != "" {
-		// load bookmark
-		bookmark, err = evtbookmark.New(
-			evtbookmark.WithWindowsEventLogAPI(c.evtapi),
-			evtbookmark.FromXML(bookmarkXML))
-		if err != nil {
-			log.Errorf("error loading bookmark, will start at %s events: %v", startMode, err)
-		} else {
-			opts = append(opts, evtsubscribe.WithStartAfterBookmark(bookmark))
-		}
-	}
-	if bookmark == nil {
-		// new bookmark
-		bookmark, err = evtbookmark.New(evtbookmark.WithWindowsEventLogAPI(c.evtapi))
-		if err != nil {
-			return err
-		}
-		if startMode == "oldest" {
-			opts = append(opts, evtsubscribe.WithStartAtOldestRecord())
-		}
-	}
+	// Create BookmarkManager for handling bookmark lifecycle
+	// The manager will handle loading existing bookmarks and creating new ones as needed
+	// Note: Bookmark initialization will happen in startSubscription() on first Run()
+	bookmarkSaver := newPersistentCacheSaver(c.bookmarkPersistentCacheKey())
+	c.bookmarkManager = evtbookmark.NewManager(evtbookmark.Config{
+		API:               c.evtapi,
+		Saver:             bookmarkSaver,
+		BookmarkFrequency: bookmarkFrequency,
+	})
 
-	// Batch count
-	opts = append(opts, evtsubscribe.WithEventBatchCount(uint(payloadSize)))
-
-	// session
+	// Initialize session
 	err = c.initSession()
 	if err != nil {
 		return err
 	}
 
+	// Build subscription options
+	opts := []evtsubscribe.PullSubscriptionOption{}
+	if c.evtapi != nil {
+		opts = append(opts, evtsubscribe.WithWindowsEventLogAPI(c.evtapi))
+	}
+
+	// Add bookmark saver - subscription will load/save bookmark on Start()
+	opts = append(opts, evtsubscribe.WithBookmarkSaver(bookmarkSaver))
+
+	// Add start mode - subscription will use this if no bookmark is loaded
+	opts = append(opts, evtsubscribe.WithStartMode(startMode))
+
+	// Batch count
+	opts = append(opts, evtsubscribe.WithEventBatchCount(uint(payloadSize)))
+
+	// Session
 	if c.session != nil {
 		opts = append(opts, evtsubscribe.WithSession(c.session))
 	}
 
-	// Create the subscription
-	c.sub = evtsubscribe.NewPullSubscription(
-		channelPath,
-		query,
-		opts...)
-
-	c.bookmarkSaver = &bookmarkSaver{
-		sub:               c.sub,
-		bookmark:          bookmark,
-		bookmarkFrequency: bookmarkFrequency,
-		save: func(bookmarkXML string) error {
-			err := persistentcache.Write(c.bookmarkPersistentCacheKey(), bookmarkXML)
-			if err != nil {
-				return fmt.Errorf("failed to persist bookmark: %w", err)
-			}
-			return nil
-		},
-	}
+	// Create the subscription (not started yet)
+	// Bookmark will be loaded and initialized in subscription.Start()
+	c.sub = evtsubscribe.NewPullSubscription(channelPath, query, opts...)
 
 	// Create a render context for System event values
 	c.systemRenderContext, err = c.evtapi.EvtCreateRenderContext(nil, evtapi.EvtRenderContextSystem)
@@ -138,7 +110,7 @@ func (c *Check) initSubscription() error {
 		return fmt.Errorf("failed to create system render context: %w", err)
 	}
 
-	// Create e render context for UserData/EventData event values
+	// Create a render context for UserData/EventData event values
 	// render UserData if available, otherise EventData properties are rendered.
 	c.userRenderContext, err = c.evtapi.EvtCreateRenderContext(nil, evtapi.EvtRenderContextUser)
 	if err != nil {
@@ -154,9 +126,11 @@ func (c *Check) startSubscription() error {
 		return err
 	}
 
+	// Start the subscription
+	// The subscription will handle bookmark loading and initialization internally
 	err = c.sub.Start()
 	if err != nil {
-		return fmt.Errorf("failed to start event subscription: %w", err)
+		return err
 	}
 
 	// Start collection loop in the background so we can collect/report
@@ -252,7 +226,8 @@ func (c *Check) eventMessageFilter(doneCh <-chan struct{}, inCh <-chan *eventWit
 		includedMessages:  c.includedMessages,
 		excludedMessages:  c.excludedMessages,
 		// eventlog
-		userRenderContext: c.userRenderContext,
+		userRenderContext:      c.userRenderContext,
+		publisherMetadataCache: c.publisherMetadataCache,
 	}
 	wg.Add(1)
 	go eventMessageFilter.run(wg)
@@ -265,9 +240,9 @@ func (c *Check) ddEventSubmitter(sender sender.Sender, inCh <-chan *eventWithMes
 		channelPath = val
 	}
 	ddEventSubmitter := &ddEventSubmitter{
-		sender:        sender,
-		inCh:          inCh,
-		bookmarkSaver: c.bookmarkSaver,
+		sender:          sender,
+		inCh:            inCh,
+		bookmarkManager: c.bookmarkManager,
 		// config
 		eventPriority: c.eventPriority,
 		remoteSession: c.session != nil,
@@ -283,13 +258,14 @@ func (c *Check) ddEventSubmitter(sender sender.Sender, inCh <-chan *eventWithMes
 
 func (c *Check) ddLogSubmitter(logsAgent logsAgent.Component, doneCh <-chan struct{}, inCh <-chan *eventWithMessage, wg *sync.WaitGroup) {
 	ddEventSubmitter := &ddLogSubmitter{
-		logsAgent:     logsAgent,
-		doneCh:        doneCh,
-		inCh:          inCh,
-		bookmarkSaver: c.bookmarkSaver,
+		logsAgent:       logsAgent,
+		doneCh:          doneCh,
+		inCh:            inCh,
+		bookmarkManager: c.bookmarkManager,
 		logSource: sources.NewLogSource("dd_security_events", &logsConfig.LogsConfig{
 			Source: logsSource,
 		}),
+		publisherMetadataCache: c.publisherMetadataCache,
 	}
 	wg.Add(1)
 	go ddEventSubmitter.run(wg)

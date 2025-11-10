@@ -4,9 +4,9 @@
 package datadogconnector
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/util/otel"
 	"testing"
 
+	"github.com/open-telemetry/opentelemetry-collector-contrib/processor/tailsamplingprocessor"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/connector"
 	"go.opentelemetry.io/collector/exporter"
@@ -14,12 +14,12 @@ import (
 	"go.opentelemetry.io/collector/otelcol"
 	"go.opentelemetry.io/collector/otelcol/otelcoltest"
 	"go.opentelemetry.io/collector/processor"
-	"go.opentelemetry.io/collector/processor/batchprocessor"
 	"go.opentelemetry.io/collector/receiver"
 	"go.opentelemetry.io/collector/receiver/otlpreceiver"
 
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/datadogexporter"
-	"github.com/open-telemetry/opentelemetry-collector-contrib/processor/tailsamplingprocessor"
+	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/serializerexporter"
+	"github.com/DataDog/datadog-agent/pkg/util/otel"
 )
 
 func TestExamples(t *testing.T) {
@@ -45,7 +45,6 @@ func newTestComponents(t *testing.T) otelcol.Factories {
 	require.NoError(t, err)
 	factories.Processors, err = otelcol.MakeFactoryMap[processor.Factory](
 		[]processor.Factory{
-			batchprocessor.NewFactory(),
 			tailsamplingprocessor.NewFactory(),
 		}...,
 	)
@@ -58,7 +57,7 @@ func newTestComponents(t *testing.T) otelcol.Factories {
 	require.NoError(t, err)
 	factories.Exporters, err = otelcol.MakeFactoryMap[exporter.Factory](
 		[]exporter.Factory{
-			datadogexporter.NewFactory(nil, nil, nil, nil, nil, otel.GatewayUsage{}),
+			datadogexporter.NewFactory(nil, nil, nil, nil, nil, otel.GatewayUsage{}, serializerexporter.TelemetryStore{}),
 			debugexporter.NewFactory(),
 		}...,
 	)

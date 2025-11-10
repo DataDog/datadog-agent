@@ -8,6 +8,7 @@
 package workload
 
 import (
+	"context"
 	"time"
 
 	"k8s.io/utils/clock"
@@ -18,7 +19,9 @@ import (
 )
 
 const (
-	configRetrieverStoreID string = "cr"
+	configRetrieverStoreID    string        = "cr"
+	settingsReconcileInterval time.Duration = 5 * time.Minute
+	valuesReconcileInterval   time.Duration = 5 * time.Minute
 )
 
 // RcClient is a subinterface of rcclient.Component to allow mocking
@@ -28,60 +31,83 @@ type RcClient interface {
 
 // ConfigRetriever is responsible for retrieving remote objects (Autoscaling .Spec and values)
 type ConfigRetriever struct {
-	store    *store
 	isLeader func() bool
-	clock    clock.Clock
+	clock    clock.WithTicker
+
+	settingsProcessor autoscalingSettingsProcessor
+	valuesProcessor   autoscalingValuesProcessor
+}
+
+type autoscalingProcessor interface {
+	preProcess()
+	processItem(receivedTimestamp time.Time, configKey string, rawConfig state.RawConfig) error
+	postProcess()
+	reconcile(isLeader bool)
 }
 
 // NewConfigRetriever creates a new ConfigRetriever
-func NewConfigRetriever(store *store, isLeader func() bool, rcClient RcClient) (*ConfigRetriever, error) {
+func NewConfigRetriever(ctx context.Context, clock clock.WithTicker, store *store, isLeader func() bool, rcClient RcClient) (*ConfigRetriever, error) {
 	cr := &ConfigRetriever{
-		store:    store,
 		isLeader: isLeader,
-		clock:    clock.RealClock{},
+		clock:    clock,
+
+		settingsProcessor: newAutoscalingSettingsProcessor(store),
+		valuesProcessor:   newAutoscalingValuesProcessor(store),
 	}
 
+	// Subscribe to remote config updates
 	rcClient.SubscribeIgnoreExpiration(data.ProductContainerAutoscalingSettings, func(update map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) {
-		// For autoscaling settings, we need to be able to clean up the store to handle deleted configs.
-		// Remote config guarantees that we receive all configs at once, so we can safely clean up the store after processing all configs.
-		autoscalingSettingsProcessor := newAutoscalingSettingsProcessor(cr.store)
-		cr.autoscalerUpdateCallback(cr.clock.Now(), update, applyStateCallback, autoscalingSettingsProcessor.process, autoscalingSettingsProcessor.postProcess)
+		cr.processorCallback(&cr.settingsProcessor, update, applyStateCallback)
+	})
+	rcClient.SubscribeIgnoreExpiration(data.ProductContainerAutoscalingValues, func(update map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) {
+		cr.processorCallback(&cr.valuesProcessor, update, applyStateCallback)
 	})
 
-	rcClient.SubscribeIgnoreExpiration(data.ProductContainerAutoscalingValues, func(update map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) {
-		autoscalingValuesProcessor := newAutoscalingValuesProcessor(cr.store)
-		cr.autoscalerUpdateCallback(cr.clock.Now(), update, applyStateCallback, autoscalingValuesProcessor.process, autoscalingValuesProcessor.postProcess)
-	})
+	// Add a regular reconcile for settings. Several edge cases can happen that would prevent creation or deletion of a PodAutoscaler
+	// For instance, if a leader change happens before the old persisted the update in Kubernetes.
+	go func() {
+		ticker := cr.clock.NewTicker(settingsReconcileInterval)
+		defer ticker.Stop()
+
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C():
+				cr.settingsProcessor.reconcile(cr.isLeader())
+			}
+		}
+	}()
+
+	// Add a regular reconcile for values. Similar edge cases can happen with values processing.
+	go func() {
+		ticker := cr.clock.NewTicker(valuesReconcileInterval)
+		defer ticker.Stop()
+
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C():
+				cr.valuesProcessor.reconcile(cr.isLeader())
+			}
+		}
+	}()
 
 	log.Debugf("Created new workload scaling config retriever")
 	return cr, nil
 }
 
-func (cr *ConfigRetriever) autoscalerUpdateCallback(
-	timestamp time.Time,
-	update map[string]state.RawConfig,
-	applyStateCallback func(string, state.ApplyStatus),
-	process func(time.Time, string, state.RawConfig) error,
-	postProcess func(errors []error),
-) {
-	log.Tracef("Received update from RC")
+func (cr *ConfigRetriever) processorCallback(processor autoscalingProcessor, update map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) {
+	timestamp := cr.clock.Now()
 
-	isLeader := cr.isLeader()
-	var errors []error
+	processor.preProcess()
 	for configKey, rawConfig := range update {
-		log.Debugf("Processing config key: %s, product: %s, id: %s, name: %s, version: %d, leader: %v", configKey, rawConfig.Metadata.Product, rawConfig.Metadata.ID, rawConfig.Metadata.Name, rawConfig.Metadata.Version, isLeader)
+		log.Debugf("Processing config key: %s, product: %s, id: %s, name: %s, version: %d, leader: %v", configKey, rawConfig.Metadata.Product, rawConfig.Metadata.ID, rawConfig.Metadata.Name, rawConfig.Metadata.Version, cr.isLeader())
 
-		if !isLeader {
-			applyStateCallback(configKey, state.ApplyStatus{
-				State: state.ApplyStateUnacknowledged,
-				Error: "",
-			})
-			continue
-		}
-
-		err := process(timestamp, configKey, rawConfig)
+		err := processor.processItem(timestamp, configKey, rawConfig)
 		if err != nil {
-			errors = append(errors, err)
+			log.Warnf("Error processing item from product %s for config key %s: %v", rawConfig.Metadata.Product, configKey, err)
 			applyStateCallback(configKey, state.ApplyStatus{
 				State: state.ApplyStateError,
 				Error: err.Error(),
@@ -93,9 +119,8 @@ func (cr *ConfigRetriever) autoscalerUpdateCallback(
 			})
 		}
 	}
+	processor.postProcess()
 
-	// If `process` was not called, we're not calling postProcess
-	if isLeader && postProcess != nil {
-		postProcess(errors)
-	}
+	// Reconcile the remote config state and the local store
+	processor.reconcile(cr.isLeader())
 }

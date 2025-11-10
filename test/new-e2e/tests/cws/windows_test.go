@@ -38,8 +38,8 @@ const (
 	// windowsHostnamePrefix is the prefix of the hostname of the agent
 	windowsHostnamePrefix = "cws-e2e-windows"
 
-	// securityAgentPathWindows is the path of the security-agent binary
-	securityAgentPathWindows = "C:/Program Files/Datadog/Datadog Agent/bin/agent/security-agent.exe"
+	// systemProbePathWindows is the path of the system-probe binary
+	systemProbePathWindows = "C:/Program Files/Datadog/Datadog Agent/bin/agent/system-probe.exe"
 
 	// policiesPathWindows is the path of the default runtime security policies
 	policiesPathWindows = "C:/ProgramData/Datadog/runtime-security.d/test.policy"
@@ -63,7 +63,7 @@ func TestAgentWindowsSuite(t *testing.T) {
 					agentparams.WithSecurityAgentConfig(securityAgentConfig),
 					agentparams.WithSystemProbeConfig(systemProbeConfig),
 				),
-				awshost.WithEC2InstanceOptions(ec2.WithOS(testos.WindowsDefault), ec2.WithInstanceType("t3.xlarge")),
+				awshost.WithEC2InstanceOptions(ec2.WithOS(testos.WindowsServerDefault), ec2.WithInstanceType("t3.xlarge")),
 			),
 		),
 	)
@@ -92,7 +92,7 @@ func (a *agentSuiteWindows) Test00RulesetLoadedDefaultFile() {
 
 func (a *agentSuiteWindows) Test01RulesetLoadedDefaultRC() {
 	assert.EventuallyWithT(a.T(), func(c *assert.CollectT) {
-		testRulesetLoaded(c, a, "remote-config", "default.policy")
+		testRulesetLoaded(c, a, "remote-config", "threat-detection.policy")
 	}, 4*time.Minute, 10*time.Second)
 }
 
@@ -146,24 +146,6 @@ func (a *agentSuiteWindows) Test03CreateFileSignal() {
 	isReady := a.Env().Agent.Client.IsReady()
 	assert.Equal(a.T(), isReady, true, "Agent should be ready")
 
-	// Check if system-probe has started
-	assert.EventuallyWithT(a.T(), func(c *assert.CollectT) {
-		output, err := a.Env().RemoteHost.Execute("cat C:/ProgramData/Datadog/logs/system-probe.log")
-		if !assert.NoError(c, err) {
-			return
-		}
-		assert.Contains(c, output, systemProbeStartLog, "system-probe could not start")
-	}, 30*time.Second, 1*time.Second)
-
-	// Check if security-agent has started
-	assert.EventuallyWithT(a.T(), func(c *assert.CollectT) {
-		output, err := a.Env().RemoteHost.Execute("cat C:/ProgramData/Datadog/logs/security-agent.log")
-		if !assert.NoError(c, err) {
-			return
-		}
-		assert.Contains(c, output, securityStartLog, "security-agent could not start")
-	}, 30*time.Second, 1*time.Second)
-
 	// Wait for host tags
 	time.Sleep(3 * time.Minute)
 
@@ -176,7 +158,7 @@ func (a *agentSuiteWindows) Test03CreateFileSignal() {
 
 	var policies string
 	require.EventuallyWithT(a.T(), func(c *assert.CollectT) {
-		policies = a.Env().RemoteHost.MustExecute(fmt.Sprintf("$env:DD_APP_KEY='%s'; $env:DD_API_KEY='%s'; & '%s' runtime policy download | Out-File temp.txt; Get-Content temp.txt", appKey, apiKey, securityAgentPathWindows))
+		policies = a.Env().RemoteHost.MustExecute(fmt.Sprintf("$env:DD_APP_KEY='%s'; $env:DD_API_KEY='%s'; & '%s' runtime policy download | Out-File temp.txt; Get-Content temp.txt", appKey, apiKey, systemProbePathWindows))
 		assert.NotEmpty(c, policies, "should not be empty")
 	}, 1*time.Minute, 1*time.Second)
 
@@ -189,7 +171,7 @@ func (a *agentSuiteWindows) Test03CreateFileSignal() {
 	require.Contains(a.T(), policiesFile, desc, "The policies file should contain the created rule")
 
 	// Reload policies
-	a.Env().RemoteHost.MustExecute(fmt.Sprintf("& '%s' runtime policy reload", securityAgentPathWindows))
+	a.Env().RemoteHost.MustExecute(fmt.Sprintf("& '%s' runtime policy reload", systemProbePathWindows))
 
 	// Check if the policy is loaded
 	policyName := path.Base(policiesPathWindows)

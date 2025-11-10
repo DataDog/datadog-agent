@@ -17,15 +17,19 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/core/tagger/origindetection"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
+
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/plog"
 	"go.opentelemetry.io/collector/pdata/pmetric"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"google.golang.org/protobuf/proto"
 
-	"github.com/DataDog/opentelemetry-mapping-go/pkg/inframetadata/payload"
-	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes/source"
 	"github.com/DataDog/sketches-go/ddsketch"
+
+	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/inframetadata/payload"
+	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes/source"
 
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	pkgConfigModel "github.com/DataDog/datadog-agent/pkg/config/model"
@@ -527,7 +531,7 @@ func DatadogLogServerMock(overwriteHandlerFuncs ...OverwriteHandleFunc) *Datadog
 		// logs backend doesn't have validate endpoint
 		// but adding one here for ease of testing
 		"/api/v1/validate": validateAPIKeyEndpoint,
-		"/":                server.logsEndpoint,
+		"/{$}":             server.logsEndpoint,
 	}
 	for _, f := range overwriteHandlerFuncs {
 		p, hf := f()
@@ -609,4 +613,54 @@ func ProcessLogsAgentRequest(w http.ResponseWriter, r *http.Request) JSONLogs {
 	_, err = w.Write([]byte(`{"status":"ok"}`))
 	handleError(w, err, 0)
 	return jsonLogs
+}
+
+// TestTaggerClient is used to store sample tags for testing purposes
+type TestTaggerClient struct {
+	TagMap         map[string][]string
+	ContainerIDMap map[string]string
+}
+
+var _ types.TaggerClient = (*TestTaggerClient)(nil)
+
+// NewTestTaggerClient creates and returns a new testTaggerClient with an empty string map
+func NewTestTaggerClient() *TestTaggerClient {
+	return &TestTaggerClient{
+		TagMap:         make(map[string][]string),
+		ContainerIDMap: make(map[string]string),
+	}
+}
+
+// Tag mocks taggerimpl.Tag functionality for the purpose of testing, removing dependency on Taggerimpl
+func (t *TestTaggerClient) Tag(entityID types.EntityID, _ types.TagCardinality) ([]string, error) {
+	return t.TagMap[entityID.String()], nil
+}
+
+// GlobalTags mocks taggerimpl.GlobalTags functionality for purpose of testing, removing dependency on Taggerimpl
+func (t *TestTaggerClient) GlobalTags(_ types.TagCardinality) ([]string, error) {
+	return t.TagMap[types.NewEntityID("internal", "global-entity-id").String()], nil
+}
+
+// GenerateContainerIDFromOriginInfo mocks taggerimpl.GenerateContainerIDFromOriginInfo functionality
+func (t *TestTaggerClient) GenerateContainerIDFromOriginInfo(originInfo origindetection.OriginInfo) (string, error) {
+	if originInfo.LocalData.ContainerID != "" {
+		return originInfo.LocalData.ContainerID, nil
+	}
+	if originInfo.LocalData.ProcessID != 0 {
+		if containerID, ok := t.ContainerIDMap[fmt.Sprintf("pid:%d", originInfo.LocalData.ProcessID)]; ok {
+			return containerID, nil
+		}
+	}
+	if originInfo.LocalData.Inode != 0 {
+		if containerID, ok := t.ContainerIDMap[fmt.Sprintf("inode:%d", originInfo.LocalData.Inode)]; ok {
+			return containerID, nil
+		}
+	}
+	if originInfo.ExternalData.PodUID != "" && originInfo.ExternalData.ContainerName != "" {
+		key := fmt.Sprintf("pod:%s,name:%s,init:%v", originInfo.ExternalData.PodUID, originInfo.ExternalData.ContainerName, originInfo.ExternalData.Init)
+		if containerID, ok := t.ContainerIDMap[key]; ok {
+			return containerID, nil
+		}
+	}
+	return "", fmt.Errorf("unable to resolve container ID from OriginInfo: %+v", originInfo)
 }

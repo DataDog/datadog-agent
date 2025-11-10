@@ -30,19 +30,12 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	"github.com/DataDog/datadog-agent/comp/core/secrets"
+	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
+	secretsnoopfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx-noop"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	secagent "github.com/DataDog/datadog-agent/pkg/security/agent"
-	secconfig "github.com/DataDog/datadog-agent/pkg/security/config"
-	pconfig "github.com/DataDog/datadog-agent/pkg/security/probe/config"
-	"github.com/DataDog/datadog-agent/pkg/security/probe/kfilters"
-	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
-	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
-	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
-	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
-	"github.com/DataDog/datadog-agent/pkg/security/seclog"
-	winmodel "github.com/DataDog/datadog-agent/pkg/security/seclwin/model"
-	"github.com/DataDog/datadog-agent/pkg/security/utils"
+	"github.com/DataDog/datadog-agent/pkg/security/clihelpers"
+	"github.com/DataDog/datadog-agent/pkg/security/proto/api/transform"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -92,10 +85,10 @@ func evalCommands(globalParams *command.GlobalParams) []*cobra.Command {
 			return fxutil.OneShot(evalRule,
 				fx.Supply(evalArgs),
 				fx.Supply(core.BundleParams{
-					ConfigParams: config.NewAgentParams("", config.WithConfigMissingOK(true)),
-					SecretParams: secrets.NewDisabledParams(),
-					LogParams:    log.ForOneShot("SYS-PROBE", "info", true)}),
+					ConfigParams: config.NewAgentParams(""),
+					LogParams:    log.ForOneShot("SYS-PROBE", "off", false)}),
 				core.Bundle(),
+				secretsnoopfx.Module(),
 			)
 		},
 	}
@@ -125,10 +118,10 @@ func commonCheckPoliciesCommands(globalParams *command.GlobalParams) []*cobra.Co
 			return fxutil.OneShot(checkPolicies,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
-					ConfigParams: config.NewAgentParams("", config.WithConfigMissingOK(true)),
-					SecretParams: secrets.NewDisabledParams(),
+					ConfigParams: config.NewAgentParams(""),
 					LogParams:    log.ForOneShot("SYS-PROBE", "off", false)}),
 				core.Bundle(),
+				secretsnoopfx.Module(),
 			)
 		},
 	}
@@ -149,10 +142,10 @@ func commonReloadPoliciesCommands(_ *command.GlobalParams) []*cobra.Command {
 		RunE: func(_ *cobra.Command, _ []string) error {
 			return fxutil.OneShot(reloadRuntimePolicies,
 				fx.Supply(core.BundleParams{
-					ConfigParams: config.NewAgentParams("", config.WithConfigMissingOK(true)),
-					SecretParams: secrets.NewDisabledParams(),
+					ConfigParams: config.NewAgentParams(""),
 					LogParams:    log.ForOneShot("SYS-PROBE", "info", true)}),
 				core.Bundle(),
+				secretsnoopfx.Module(),
 			)
 		},
 	}
@@ -167,10 +160,10 @@ func selfTestCommands(_ *command.GlobalParams) []*cobra.Command {
 		RunE: func(_ *cobra.Command, _ []string) error {
 			return fxutil.OneShot(runRuntimeSelfTest,
 				fx.Supply(core.BundleParams{
-					ConfigParams: config.NewAgentParams("", config.WithConfigMissingOK(true)),
-					SecretParams: secrets.NewDisabledParams(),
+					ConfigParams: config.NewAgentParams(""),
 					LogParams:    log.ForOneShot("SYS-PROBE", "info", true)}),
 				core.Bundle(),
+				secretsnoopfx.Module(),
 			)
 		},
 	}
@@ -199,9 +192,9 @@ func downloadPolicyCommands(globalParams *command.GlobalParams) []*cobra.Command
 				fx.Supply(downloadPolicyArgs),
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewAgentParams(globalParams.ConfFilePath),
-					SecretParams: secrets.NewDisabledParams(),
 					LogParams:    log.ForOneShot("SYS-PROBE", "off", false)}),
 				core.Bundle(),
+				secretsnoopfx.Module(),
 			)
 		},
 	}
@@ -234,10 +227,10 @@ func processCacheCommands(globalParams *command.GlobalParams) []*cobra.Command {
 			return fxutil.OneShot(dumpProcessCache,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
-					ConfigParams: config.NewAgentParams("", config.WithConfigMissingOK(true)),
-					SecretParams: secrets.NewDisabledParams(),
+					ConfigParams: config.NewAgentParams(""),
 					LogParams:    log.ForOneShot("SYS-PROBE", "info", true)}),
 				core.Bundle(),
+				secretsnoopfx.Module(),
 			)
 		},
 	}
@@ -273,10 +266,10 @@ func networkNamespaceCommands(globalParams *command.GlobalParams) []*cobra.Comma
 			return fxutil.OneShot(dumpNetworkNamespace,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
-					ConfigParams: config.NewAgentParams("", config.WithConfigMissingOK(true)),
-					SecretParams: secrets.NewDisabledParams(),
+					ConfigParams: config.NewAgentParams(""),
 					LogParams:    log.ForOneShot("SYS-PROBE", "info", true)}),
 				core.Bundle(),
+				secretsnoopfx.Module(),
 			)
 		},
 	}
@@ -300,10 +293,10 @@ func discardersCommands(_ *command.GlobalParams) []*cobra.Command {
 		RunE: func(_ *cobra.Command, _ []string) error {
 			return fxutil.OneShot(dumpDiscarders,
 				fx.Supply(core.BundleParams{
-					ConfigParams: config.NewAgentParams("", config.WithConfigMissingOK(true)),
-					SecretParams: secrets.NewDisabledParams(),
+					ConfigParams: config.NewAgentParams(""),
 					LogParams:    log.ForOneShot("SYS-PROBE", "info", true)}),
 				core.Bundle(),
+				secretsnoopfx.Module(),
 			)
 		},
 	}
@@ -319,7 +312,7 @@ func discardersCommands(_ *command.GlobalParams) []*cobra.Command {
 
 // nolint: deadcode, unused
 func dumpProcessCache(_ log.Component, _ config.Component, _ secrets.Component, processCacheDumpArgs *processCacheDumpCliParams) error {
-	client, err := secagent.NewRuntimeSecurityClient()
+	client, err := secagent.NewRuntimeSecurityCmdClient()
 	if err != nil {
 		return fmt.Errorf("unable to create a runtime security client instance: %w", err)
 	}
@@ -335,9 +328,9 @@ func dumpProcessCache(_ log.Component, _ config.Component, _ secrets.Component, 
 	return nil
 }
 
-// nolint: deadcode, unused
+//nolint:unused // TODO(SEC) Fix unused linter
 func dumpNetworkNamespace(_ log.Component, _ config.Component, _ secrets.Component, dumpNetworkNamespaceArgs *dumpNetworkNamespaceCliParams) error {
-	client, err := secagent.NewRuntimeSecurityClient()
+	client, err := secagent.NewRuntimeSecurityCmdClient()
 	if err != nil {
 		return fmt.Errorf("unable to create a runtime security client instance: %w", err)
 	}
@@ -357,30 +350,13 @@ func dumpNetworkNamespace(_ log.Component, _ config.Component, _ secrets.Compone
 	return nil
 }
 
-//nolint:unused // TODO(SEC) Fix unused linter
-func printStorageRequestMessage(prefix string, storage *api.StorageRequestMessage) {
-	fmt.Printf("%so file: %s\n", prefix, storage.GetFile())
-	fmt.Printf("%s  format: %s\n", prefix, storage.GetFormat())
-	fmt.Printf("%s  storage type: %s\n", prefix, storage.GetType())
-	fmt.Printf("%s  compression: %v\n", prefix, storage.GetCompression())
-}
-
-func newAgentVersionFilter() (*rules.AgentVersionFilter, error) {
-	agentVersion, err := utils.GetAgentSemverVersion()
-	if err != nil {
-		return nil, err
-	}
-
-	return rules.NewAgentVersionFilter(agentVersion)
-}
-
 func checkPolicies(_ log.Component, _ config.Component, args *checkPoliciesCliParams) error {
 	if args.evaluateAllPolicySources {
 		if args.windowsModel {
 			return errors.New("unable to evaluator loaded policies using the windows model")
 		}
 
-		client, err := secagent.NewRuntimeSecurityClient()
+		client, err := secagent.NewRuntimeSecurityCmdClient()
 		if err != nil {
 			return fmt.Errorf("unable to create a runtime security client instance: %w", err)
 		}
@@ -388,10 +364,14 @@ func checkPolicies(_ log.Component, _ config.Component, args *checkPoliciesCliPa
 
 		return checkPoliciesLoaded(client, os.Stdout)
 	}
-	return checkPoliciesLocal(args, os.Stdout)
+	return clihelpers.CheckPoliciesLocal(clihelpers.CheckPoliciesLocalParams{
+		Dir:                      args.dir,
+		EvaluateAllPolicySources: args.evaluateAllPolicySources,
+		UseWindowsModel:          args.windowsModel,
+	}, os.Stdout)
 }
 
-func checkPoliciesLoaded(client secagent.SecurityModuleClientWrapper, writer io.Writer) error {
+func checkPoliciesLoaded(client secagent.SecurityModuleCmdClientWrapper, writer io.Writer) error {
 	output, err := client.GetRuleSetReport()
 	if err != nil {
 		return fmt.Errorf("unable to send request to system-probe: %w", err)
@@ -400,7 +380,8 @@ func checkPoliciesLoaded(client secagent.SecurityModuleClientWrapper, writer io.
 		return fmt.Errorf("get policies request failed: %s", output.Error)
 	}
 
-	transformedOutput := output.GetRuleSetReportMessage().FromProtoToKFiltersRuleSetReport()
+	// extract and report the filters
+	transformedOutput := transform.FromProtoToFilterReport(output.GetRuleSetReportMessage().GetFilters())
 
 	content, _ := json.MarshalIndent(transformedOutput, "", "\t")
 	_, err = fmt.Fprintf(writer, "%s\n", string(content))
@@ -411,237 +392,18 @@ func checkPoliciesLoaded(client secagent.SecurityModuleClientWrapper, writer io.
 	return nil
 }
 
-func newFakeEvent() eval.Event {
-	return model.NewFakeEvent()
-}
-
-func newFakeWindowsEvent() eval.Event {
-	return winmodel.NewFakeEvent()
-}
-
-func newEvalOpts(winModel bool) *eval.Opts {
-	var evalOpts eval.Opts
-
-	if winModel {
-		evalOpts.
-			WithConstants(winmodel.SECLConstants()).
-			WithLegacyFields(winmodel.SECLLegacyFields).
-			WithVariables(model.SECLVariables)
-	} else {
-		evalOpts.
-			WithConstants(model.SECLConstants()).
-			WithLegacyFields(model.SECLLegacyFields).
-			WithVariables(model.SECLVariables)
-	}
-
-	return &evalOpts
-}
-
-func checkPoliciesLocal(args *checkPoliciesCliParams, writer io.Writer) error {
-	cfg := &pconfig.Config{
-		EnableKernelFilters: true,
-		EnableApprovers:     true,
-		EnableDiscarders:    true,
-		PIDCacheSize:        1,
-	}
-
-	// enabled all the rules
-	enabled := map[eval.EventType]bool{"*": true}
-
-	ruleOpts := rules.NewRuleOpts(enabled)
-	evalOpts := newEvalOpts(args.windowsModel)
-
-	ruleOpts.WithLogger(seclog.DefaultLogger)
-
-	agentVersionFilter, err := newAgentVersionFilter()
-	if err != nil {
-		return fmt.Errorf("failed to create agent version filter: %w", err)
-	}
-
-	loaderOpts := rules.PolicyLoaderOpts{
-		MacroFilters: []rules.MacroFilter{
-			agentVersionFilter,
-		},
-		RuleFilters: []rules.RuleFilter{
-			agentVersionFilter,
-		},
-	}
-
-	provider, err := rules.NewPoliciesDirProvider(args.dir)
-	if err != nil {
-		return err
-	}
-
-	loader := rules.NewPolicyLoader(provider)
-
-	var ruleSet *rules.RuleSet
-	if args.windowsModel {
-		ruleSet = rules.NewRuleSet(&winmodel.Model{}, newFakeWindowsEvent, ruleOpts, evalOpts)
-		ruleSet.SetFakeEventCtor(newFakeWindowsEvent)
-	} else {
-		ruleSet = rules.NewRuleSet(&model.Model{}, newFakeEvent, ruleOpts, evalOpts)
-		ruleSet.SetFakeEventCtor(newFakeEvent)
-	}
-	if err := ruleSet.LoadPolicies(loader, loaderOpts); err.ErrorOrNil() != nil {
-		return err
-	}
-
-	report, err := kfilters.NewApplyRuleSetReport(cfg, ruleSet)
-	if err != nil {
-		return err
-	}
-
-	content, _ := json.MarshalIndent(report, "", "\t")
-	_, err = fmt.Fprintf(writer, "%s\n", string(content))
-	if err != nil {
-		return fmt.Errorf("unable to write out report: %w", err)
-	}
-
-	return nil
-}
-
-// EvalReport defines a report of an evaluation
-type EvalReport struct {
-	Succeeded bool
-	Approvers map[string]rules.Approvers
-	Event     eval.Event
-	Error     error `json:",omitempty"`
-}
-
-// EventData defines the structure used to represent an event
-type EventData struct {
-	Type   eval.EventType
-	Values map[string]interface{}
-}
-
-func eventDataFromJSON(file string) (eval.Event, error) {
-	f, err := os.Open(file)
-	if err != nil {
-		return nil, err
-	}
-	defer f.Close()
-
-	decoder := json.NewDecoder(f)
-	decoder.UseNumber()
-
-	var eventData EventData
-	if err := decoder.Decode(&eventData); err != nil {
-		return nil, err
-	}
-
-	kind := secconfig.ParseEvalEventType(eventData.Type)
-	if kind == model.UnknownEventType {
-		return nil, errors.New("unknown event type")
-	}
-
-	event := &model.Event{
-		BaseEvent: model.BaseEvent{
-			Type:             uint32(kind),
-			FieldHandlers:    &model.FakeFieldHandlers{},
-			ContainerContext: &model.ContainerContext{},
-		},
-	}
-	event.Init()
-
-	for k, v := range eventData.Values {
-		switch v := v.(type) {
-		case json.Number:
-			value, err := v.Int64()
-			if err != nil {
-				return nil, err
-			}
-			if err := event.SetFieldValue(k, int(value)); err != nil {
-				return nil, err
-			}
-		default:
-			if err := event.SetFieldValue(k, v); err != nil {
-				return nil, err
-			}
-		}
-	}
-
-	return event, nil
-}
-
 func evalRule(_ log.Component, _ config.Component, _ secrets.Component, evalArgs *evalCliParams) error {
-	policiesDir := evalArgs.dir
-
-	// enabled all the rules
-	enabled := map[eval.EventType]bool{"*": true}
-
-	ruleOpts := rules.NewRuleOpts(enabled)
-	evalOpts := newEvalOpts(evalArgs.windowsModel)
-	ruleOpts.WithLogger(seclog.DefaultLogger)
-
-	agentVersionFilter, err := newAgentVersionFilter()
-	if err != nil {
-		return fmt.Errorf("failed to create agent version filter: %w", err)
-	}
-
-	loaderOpts := rules.PolicyLoaderOpts{
-		MacroFilters: []rules.MacroFilter{
-			agentVersionFilter,
-		},
-		RuleFilters: []rules.RuleFilter{
-			&rules.RuleIDFilter{
-				ID: evalArgs.ruleID,
-			},
-		},
-	}
-
-	provider, err := rules.NewPoliciesDirProvider(policiesDir)
-	if err != nil {
-		return err
-	}
-
-	loader := rules.NewPolicyLoader(provider)
-
-	var ruleSet *rules.RuleSet
-	if evalArgs.windowsModel {
-		ruleSet = rules.NewRuleSet(&winmodel.Model{}, newFakeWindowsEvent, ruleOpts, evalOpts)
-	} else {
-		ruleSet = rules.NewRuleSet(&model.Model{}, newFakeEvent, ruleOpts, evalOpts)
-	}
-
-	if err := ruleSet.LoadPolicies(loader, loaderOpts); err.ErrorOrNil() != nil {
-		return err
-	}
-
-	event, err := eventDataFromJSON(evalArgs.eventFile)
-	if err != nil {
-		return err
-	}
-
-	report := EvalReport{
-		Event: event,
-	}
-
-	if !evalArgs.windowsModel {
-		approvers, err := ruleSet.GetApprovers(kfilters.GetCapababilities())
-		if err != nil {
-			report.Error = err
-		} else {
-			report.Approvers = approvers
-		}
-	}
-
-	report.Succeeded = ruleSet.Evaluate(event)
-	output, err := json.MarshalIndent(report, "", "    ")
-	if err != nil {
-		return err
-	}
-	fmt.Printf("%s\n", string(output))
-
-	if !report.Succeeded {
-		os.Exit(-1)
-	}
-
-	return nil
+	return clihelpers.EvalRule(clihelpers.EvalRuleParams{
+		Dir:             evalArgs.dir,
+		UseWindowsModel: evalArgs.windowsModel,
+		RuleID:          evalArgs.ruleID,
+		EventFile:       evalArgs.eventFile,
+	})
 }
 
 // nolint: deadcode, unused
 func runRuntimeSelfTest(_ log.Component, _ config.Component, _ secrets.Component) error {
-	client, err := secagent.NewRuntimeSecurityClient()
+	client, err := secagent.NewRuntimeSecurityCmdClient()
 	if err != nil {
 		return fmt.Errorf("unable to create a runtime security client instance: %w", err)
 	}
@@ -661,7 +423,7 @@ func runRuntimeSelfTest(_ log.Component, _ config.Component, _ secrets.Component
 }
 
 func reloadRuntimePolicies(_ log.Component, _ config.Component, _ secrets.Component) error {
-	client, err := secagent.NewRuntimeSecurityClient()
+	client, err := secagent.NewRuntimeSecurityCmdClient()
 	if err != nil {
 		return fmt.Errorf("unable to create a runtime security client instance: %w", err)
 	}
@@ -844,7 +606,7 @@ func downloadPolicy(log log.Component, config config.Component, _ secrets.Compon
 
 // nolint: deadcode, unused
 func dumpDiscarders(_ log.Component, _ config.Component, _ secrets.Component) error {
-	runtimeSecurityClient, err := secagent.NewRuntimeSecurityClient()
+	runtimeSecurityClient, err := secagent.NewRuntimeSecurityCmdClient()
 	if err != nil {
 		return fmt.Errorf("unable to create a runtime security client instance: %w", err)
 	}

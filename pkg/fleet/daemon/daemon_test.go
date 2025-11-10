@@ -19,12 +19,22 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/config"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
+
+type testBoostrapper struct {
+	mock.Mock
+}
+
+func (b *testBoostrapper) InstallExperiment(ctx context.Context, env *env.Env, url string) error {
+	args := b.Called(ctx, env, url)
+	return args.Error(0)
+}
 
 type testPackageManager struct {
 	mock.Mock
@@ -94,8 +104,8 @@ func (m *testPackageManager) PromoteExperiment(ctx context.Context, pkg string) 
 	return args.Error(0)
 }
 
-func (m *testPackageManager) InstallConfigExperiment(ctx context.Context, pkg string, version string, rawConfig []byte) error {
-	args := m.Called(ctx, pkg, version, rawConfig)
+func (m *testPackageManager) InstallConfigExperiment(ctx context.Context, pkg string, operations config.Operations) error {
+	args := m.Called(ctx, pkg, operations)
 	return args.Error(0)
 }
 
@@ -126,11 +136,6 @@ func (m *testPackageManager) InstrumentAPMInjector(ctx context.Context, method s
 
 func (m *testPackageManager) UninstrumentAPMInjector(ctx context.Context, method string) error {
 	args := m.Called(ctx, method)
-	return args.Error(0)
-}
-
-func (m *testPackageManager) Postinst(ctx context.Context, pkg string, version string) error {
-	args := m.Called(ctx, pkg, version)
 	return args.Error(0)
 }
 
@@ -217,9 +222,12 @@ type testInstaller struct {
 	*daemonImpl
 	rcc *testRemoteConfigClient
 	pm  *testPackageManager
+	bm  *testBoostrapper
 }
 
 func newTestInstaller(t *testing.T) *testInstaller {
+	bm := &testBoostrapper{}
+	installExperimentFunc = bm.InstallExperiment
 	pm := &testPackageManager{}
 	pm.On("AvailableDiskSpace").Return(uint64(1000000000), nil)
 	pm.On("States", mock.Anything).Return(map[string]repository.State{}, nil)
@@ -238,6 +246,7 @@ func newTestInstaller(t *testing.T) *testInstaller {
 		daemonImpl: daemon,
 		rcc:        rcc,
 		pm:         pm,
+		bm:         bm,
 	}
 	i.Start(context.Background())
 	return i
@@ -267,7 +276,7 @@ func TestStartExperiment(t *testing.T) {
 	defer i.Stop()
 
 	testURL := "oci://example.com/test-package:1.0.0"
-	i.pm.On("InstallExperiment", mock.Anything, testURL).Return(nil).Once()
+	i.bm.On("InstallExperiment", mock.Anything, mock.Anything, testURL).Return(nil).Once()
 
 	err := i.StartExperiment(context.Background(), testURL)
 	if err != nil {
@@ -363,7 +372,7 @@ func TestRemoteRequest(t *testing.T) {
 	}
 	i.pm.On("State", mock.Anything, testStablePackage.Name).Return(repository.State{Stable: testStablePackage.Version}, nil).Once()
 	i.pm.On("ConfigState", mock.Anything, testStablePackage.Name).Return(repository.State{Stable: testStablePackage.Version}, nil).Once()
-	i.pm.On("InstallExperiment", mock.Anything, testExperimentPackage.URL).Return(nil).Once()
+	i.bm.On("InstallExperiment", mock.Anything, mock.Anything, testExperimentPackage.URL).Return(nil).Once()
 	i.rcc.SubmitRequest(testRequest)
 	i.requestsWG.Wait()
 

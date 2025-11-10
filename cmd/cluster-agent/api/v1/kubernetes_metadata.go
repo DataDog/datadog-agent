@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/gorilla/mux"
 	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
@@ -39,6 +40,7 @@ func installKubernetesMetadataEndpoints(r *mux.Router, wmeta workloadmeta.Compon
 	r.HandleFunc("/tags/namespace/{ns}", api.WithTelemetryWrapper("getNamespaceLabels", func(w http.ResponseWriter, r *http.Request) { getNamespaceLabels(w, r, wmeta) })).Methods("GET")
 	r.HandleFunc("/metadata/namespace/{ns}", api.WithTelemetryWrapper("getNamespaceMetadata", func(w http.ResponseWriter, r *http.Request) { getNamespaceMetadata(w, r, wmeta) })).Methods("GET")
 	r.HandleFunc("/cluster/id", api.WithTelemetryWrapper("getClusterID", getClusterID)).Methods("GET")
+	r.HandleFunc("/uid/node/{nodeName}", api.WithTelemetryWrapper("getNodeUID", func(w http.ResponseWriter, r *http.Request) { getNodeUID(w, r, wmeta) })).Methods("GET")
 }
 
 //nolint:revive // TODO(CINT) Fix revive linter
@@ -107,8 +109,32 @@ func getNodeLabels(w http.ResponseWriter, r *http.Request, wmeta workloadmeta.Co
 	getNodeMetadata(w, r, wmeta, func(km *workloadmeta.KubernetesMetadata) map[string]string { return km.Labels }, "labels", nil)
 }
 
+func getNodeUID(w http.ResponseWriter, r *http.Request, wmeta workloadmeta.Component) {
+	getNodeMetadata(w, r, wmeta, func(km *workloadmeta.KubernetesMetadata) map[string]string {
+		return map[string]string{"uid": string(km.UID)}
+	}, "uid", nil)
+}
+
 func getNodeAnnotations(w http.ResponseWriter, r *http.Request, wmeta workloadmeta.Component) {
-	getNodeMetadata(w, r, wmeta, func(km *workloadmeta.KubernetesMetadata) map[string]string { return km.Annotations }, "annotations", pkgconfigsetup.Datadog().GetStringSlice("kubernetes_node_annotations_as_host_aliases"))
+	// default filter includes host aliases
+	defaultFilter := pkgconfigsetup.Datadog().GetStringSlice("kubernetes_node_annotations_as_host_aliases")
+
+	// client can override filter by passing a comma delimited list query parameter
+	filters := r.URL.Query()["filter"]
+	var clientFilter []string
+	if len(filters) > 0 {
+		for _, f := range filters {
+			clientFilter = append(clientFilter, strings.TrimSpace(f))
+		}
+	}
+
+	// check whether to apply the default filter or the client supplied filter
+	finalFilter := defaultFilter
+	if len(clientFilter) > 0 {
+		finalFilter = clientFilter
+	}
+
+	getNodeMetadata(w, r, wmeta, func(km *workloadmeta.KubernetesMetadata) map[string]string { return km.Annotations }, "annotations", finalFilter)
 }
 
 // getNamespaceMetadataWithTransformerFunc is used when the node agent hits the DCA for some (or all) metadata of a specific namespace

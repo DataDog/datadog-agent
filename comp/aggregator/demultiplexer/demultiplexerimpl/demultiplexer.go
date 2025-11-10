@@ -12,8 +12,8 @@ import (
 	"go.uber.org/fx"
 
 	demultiplexerComp "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
-	"github.com/DataDog/datadog-agent/comp/aggregator/diagnosesendermanager"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
@@ -25,7 +25,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 )
 
 // Module defines the fx options for this component.
@@ -46,6 +45,7 @@ type dependencies struct {
 	HaAgent                haagent.Component
 	Compressor             compression.Component
 	Tagger                 tagger.Component
+	Hostname               hostnameinterface.Component
 
 	Params Params
 }
@@ -58,21 +58,13 @@ type provides struct {
 	fx.Out
 	Comp demultiplexerComp.Component
 
-	// Both demultiplexer.Component and diagnosesendermanager.Component expose a different instance of SenderManager.
-	// It means that diagnosesendermanager.Component must not be used when there is demultiplexer.Component instance.
-	//
-	// newDemultiplexer returns both demultiplexer.Component and diagnosesendermanager.Component (Note: demultiplexer.Component
-	// implements diagnosesendermanager.Component). This has the nice consequence of preventing having
-	// demultiplexerimpl.Module and diagnosesendermanagerimpl.Module in the same fx.App because there would
-	// be two ways to create diagnosesendermanager.Component.
-	DiagnosticSenderManager diagnosesendermanager.Component
 	SenderManager           sender.SenderManager
 	StatusProvider          status.InformationProvider
 	AggregatorDemultiplexer aggregator.Demultiplexer
 }
 
 func newDemultiplexer(deps dependencies) (provides, error) {
-	hostnameDetected, err := hostname.Get(context.TODO())
+	hostnameDetected, err := deps.Hostname.Get(context.TODO())
 	if err != nil {
 		if deps.Params.continueOnMissingHostname {
 			deps.Log.Warnf("Error getting hostname: %s", err)
@@ -102,9 +94,8 @@ func newDemultiplexer(deps dependencies) (provides, error) {
 	}})
 
 	return provides{
-		Comp:                    demultiplexer,
-		DiagnosticSenderManager: demultiplexer,
-		SenderManager:           demultiplexer,
+		Comp:          demultiplexer,
+		SenderManager: demultiplexer,
 		StatusProvider: status.NewInformationProvider(demultiplexerStatus{
 			Log: deps.Log,
 		}),
@@ -123,9 +114,4 @@ func createAgentDemultiplexerOptions(config config.Component, params Params) agg
 		options.FlushInterval = v
 	}
 	return options
-}
-
-// LazyGetSenderManager gets an instance of SenderManager lazily.
-func (demux demultiplexer) LazyGetSenderManager() (sender.SenderManager, error) {
-	return demux, nil
 }

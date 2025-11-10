@@ -8,26 +8,38 @@
 package gpu
 
 import (
+	"os"
+	"path/filepath"
+	"strconv"
 	"testing"
 	"time"
+	"unsafe"
 
-	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	"github.com/stretchr/testify/require"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/gpu/config"
+	"github.com/DataDog/datadog-agent/pkg/gpu/cuda"
 	gpuebpf "github.com/DataDog/datadog-agent/pkg/gpu/ebpf"
+	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
+	nvmltestutil "github.com/DataDog/datadog-agent/pkg/gpu/safenvml/testutil"
 	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
+type mockFlusher struct {
+}
+
+func (m *mockFlusher) Flush() {
+}
+
 func TestConsumerCanStartAndStop(t *testing.T) {
+	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled()))
 	handler := ddebpf.NewRingBufferHandler(consumerChannelSize)
 	cfg := config.New()
-	ctx, err := getSystemContext(testutil.GetBasicNvmlMock(), kernel.ProcFSRoot(), testutil.GetWorkloadMetaMock(t), testutil.GetTelemetryMock(t))
-	require.NoError(t, err)
-	streamHandlers := newStreamCollection(ctx, testutil.GetTelemetryMock(t))
-	consumer := newCudaEventConsumer(ctx, streamHandlers, handler, cfg, testutil.GetTelemetryMock(t))
+	ctx := getTestSystemContext(t, withFatbinParsingEnabled(true))
+	streamHandlers := newStreamCollection(ctx, testutil.GetTelemetryMock(t), cfg)
+	consumer := newCudaEventConsumer(ctx, streamHandlers, handler, &mockFlusher{}, cfg, testutil.GetTelemetryMock(t))
 
 	consumer.Start()
 	require.Eventually(t, func() bool { return consumer.running.Load() }, 100*time.Millisecond, 10*time.Millisecond)
@@ -37,12 +49,11 @@ func TestConsumerCanStartAndStop(t *testing.T) {
 }
 
 func TestGetStreamKeyUpdatesCorrectlyWhenChangingDevice(t *testing.T) {
-	ctx, err := getSystemContext(testutil.GetBasicNvmlMock(), kernel.ProcFSRoot(), testutil.GetWorkloadMetaMock(t), testutil.GetTelemetryMock(t))
-	require.NoError(t, err)
-
-	handlers := newStreamCollection(ctx, testutil.GetTelemetryMock(t))
-
-	consumer := newCudaEventConsumer(ctx, handlers, nil, nil, testutil.GetTelemetryMock(t))
+	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled()))
+	ctx := getTestSystemContext(t, withFatbinParsingEnabled(true))
+	cfg := config.New()
+	handlers := newStreamCollection(ctx, testutil.GetTelemetryMock(t), cfg)
+	consumer := newCudaEventConsumer(ctx, handlers, nil, &mockFlusher{}, cfg, testutil.GetTelemetryMock(t))
 
 	pid := uint32(1)
 	pidTgid := uint64(pid)<<32 + uint64(pid)
@@ -60,7 +71,7 @@ func TestGetStreamKeyUpdatesCorrectlyWhenChangingDevice(t *testing.T) {
 	}
 
 	// Configure the visible devices for our process
-	ctx.visibleDevicesCache[int(pid)] = []nvml.Device{testutil.GetDeviceMock(0), testutil.GetDeviceMock(1)}
+	ctx.visibleDevicesCache[int(pid)] = nvmltestutil.GetDDNVMLMocksWithIndexes(t, 0, 1)
 
 	stream, err := handlers.getStream(&headerStreamSpecific)
 	require.NoError(t, err)
@@ -121,20 +132,186 @@ func BenchmarkConsumer(b *testing.B) {
 			name = "fatbinParsingEnabled"
 		}
 		b.Run(name, func(b *testing.B) {
-			ctx, err := getSystemContext(testutil.GetBasicNvmlMock(), kernel.ProcFSRoot(), testutil.GetWorkloadMetaMock(b), testutil.GetTelemetryMock(b))
+			ddnvml.WithMockNVML(b, testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled()))
+			ctx, err := getSystemContext(
+				withProcRoot(kernel.ProcFSRoot()),
+				withWorkloadMeta(testutil.GetWorkloadMetaMock(b)),
+				withTelemetry(testutil.GetTelemetryMock(b)),
+				withFatbinParsingEnabled(fatbinParsingEnabled),
+			)
 			require.NoError(b, err)
-			handlers := newStreamCollection(ctx, testutil.GetTelemetryMock(b))
-
-			ctx.fatbinParsingEnabled = fatbinParsingEnabled
 
 			cfg := config.New()
-			pid := testutil.DataSampleInfos[testutil.DataSamplePytorchBatchedKernels].ActivePID
-			ctx.visibleDevicesCache[pid] = []nvml.Device{testutil.GetDeviceMock(0), testutil.GetDeviceMock(1)}
-			ctx.pidMaps[pid] = nil
+			handlers := newStreamCollection(ctx, testutil.GetTelemetryMock(b), cfg)
 
-			consumer := newCudaEventConsumer(ctx, handlers, nil, cfg, testutil.GetTelemetryMock(b))
+			pid := testutil.DataSampleInfos[testutil.DataSamplePytorchBatchedKernels].ActivePID
+			ctx.visibleDevicesCache[pid] = nvmltestutil.GetDDNVMLMocksWithIndexes(b, 0, 1)
+
+			if ctx.cudaKernelCache != nil {
+				cuda.AddKernelCacheProcMap(ctx.cudaKernelCache, pid, nil)
+
+				// If we don't start the kernel cache, the request channel will be full and we'll run into
+				// errors, falsifying the results of the benchmark
+				ctx.cudaKernelCache.Start()
+				b.Cleanup(ctx.cudaKernelCache.Stop)
+			}
+
+			consumer := newCudaEventConsumer(ctx, handlers, nil, &mockFlusher{}, cfg, testutil.GetTelemetryMock(b))
 			b.ResetTimer()
 			injectEventsToConsumer(b, consumer, events, b.N)
 		})
 	}
+}
+
+func TestConsumerProcessExitChannel(t *testing.T) {
+	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled()))
+	handler := ddebpf.NewRingBufferHandler(consumerChannelSize)
+
+	// Create fake procfs
+	pid := uint32(5001)
+	streamID := uint64(1)
+	fakeProcFS := kernel.CreateFakeProcFS(t, []kernel.FakeProcFSEntry{
+		{
+			Pid:     pid,
+			Cmdline: "test-process",
+			Command: "test-process",
+			Exe:     "/usr/bin/test-process",
+			Maps:    "00400000-00401000 r-xp 00000000 08:01 123456 /usr/bin/test-process",
+			Env:     map[string]string{"PATH": "/usr/bin", "HOME": "/home/test"},
+		}},
+		kernel.WithRealUptime(), // Required for the ktime resolver to work
+		kernel.WithRealStat(),
+	)
+
+	// Set up the fake procfs
+	kernel.WithFakeProcFS(t, fakeProcFS)
+
+	cfg := config.New()
+	ctx := getTestSystemContext(t, withFatbinParsingEnabled(true))
+	streamHandlers := newStreamCollection(ctx, testutil.GetTelemetryMock(t), cfg)
+	consumer := newCudaEventConsumer(ctx, streamHandlers, handler, &mockFlusher{}, cfg, testutil.GetTelemetryMock(t))
+
+	// Start the consumer
+	consumer.Start()
+	require.Eventually(t, func() bool { return consumer.running.Load() }, 100*time.Millisecond, 10*time.Millisecond)
+
+	// Create a test stream
+	header := &gpuebpf.CudaEventHeader{
+		Pid_tgid:  uint64(pid)<<32 + uint64(pid),
+		Stream_id: streamID,
+	}
+
+	stream, err := streamHandlers.getStream(header)
+	require.NoError(t, err)
+	require.NotNil(t, stream)
+	require.False(t, stream.ended)
+
+	// Send process exit event through the channel
+	consumer.processExitChannel <- pid
+
+	// Wait for the stream to be marked as ended
+	require.Eventually(t, func() bool { return stream.ended }, 100*time.Millisecond, 10*time.Millisecond)
+
+	// Stop the consumer
+	consumer.Stop()
+	require.Eventually(t, func() bool { return !consumer.running.Load() }, 100*time.Millisecond, 10*time.Millisecond)
+}
+
+func TestConsumerProcessExitViaCheckClosedProcesses(t *testing.T) {
+	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled()))
+	handler := ddebpf.NewRingBufferHandler(consumerChannelSize)
+
+	// Create fake procfs with a process that we will remove later
+	pid := uint32(6001)
+	streamID := uint64(1)
+	fakeProcFS := kernel.CreateFakeProcFS(t, []kernel.FakeProcFSEntry{
+		{
+			Pid:     pid,
+			Cmdline: "test-process",
+			Command: "test-process",
+			Exe:     "/usr/bin/test-process",
+			Maps:    "00400000-00401000 r-xp 00000000 08:01 123456 /usr/bin/test-process",
+			Env:     map[string]string{"PATH": "/usr/bin", "HOME": "/home/test"},
+		}},
+		kernel.WithRealUptime(), // Required for the ktime resolver to work
+		kernel.WithRealStat(),
+	)
+
+	// Set up the fake procfs
+	kernel.WithFakeProcFS(t, fakeProcFS)
+
+	cfg := config.New()
+	cfg.ScanProcessesInterval = 100 * time.Millisecond // don't wait too long
+	ctx := getTestSystemContext(t, withFatbinParsingEnabled(true))
+	streamHandlers := newStreamCollection(ctx, testutil.GetTelemetryMock(t), cfg)
+	consumer := newCudaEventConsumer(ctx, streamHandlers, handler, &mockFlusher{}, cfg, testutil.GetTelemetryMock(t))
+
+	// Start the consumer
+	consumer.Start()
+	require.Eventually(t, func() bool { return consumer.running.Load() }, 100*time.Millisecond, 10*time.Millisecond)
+
+	// Create a stream for the process
+	header := &gpuebpf.CudaEventHeader{
+		Pid_tgid:  uint64(pid)<<32 + uint64(pid),
+		Stream_id: streamID,
+	}
+
+	stream, err := streamHandlers.getStream(header)
+	require.NoError(t, err)
+	require.NotNil(t, stream)
+	require.False(t, stream.ended)
+
+	// Remove the process from fake procfs (simulate process exit) by just deleting its folder
+	os.RemoveAll(filepath.Join(fakeProcFS, strconv.Itoa(int(pid))))
+
+	// Wait for the process sync ticker to trigger checkClosedProcesses and mark the stream as ended
+	require.Eventually(t, func() bool { return stream.ended }, 5*cfg.ScanProcessesInterval, 50*time.Millisecond)
+
+	// Stop the consumer
+	consumer.Stop()
+	require.Eventually(t, func() bool { return !consumer.running.Load() }, 100*time.Millisecond, 10*time.Millisecond)
+}
+
+func TestHandleStreamEventHandlesGetStreamError(t *testing.T) {
+	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled()))
+	handler := ddebpf.NewRingBufferHandler(consumerChannelSize)
+	cfg := config.New()
+	cfg.StreamConfig.MaxActiveStreams = 0 // This will ensure that no streams are created and we will get an error when trying to get the stream
+	ctx := getTestSystemContext(t, withFatbinParsingEnabled(true))
+	streamHandlers := newStreamCollection(ctx, testutil.GetTelemetryMock(t), cfg)
+	consumer := newCudaEventConsumer(ctx, streamHandlers, handler, &mockFlusher{}, cfg, testutil.GetTelemetryMock(t))
+
+	pid := 25
+	streamID := uint64(1)
+
+	event := gpuebpf.CudaKernelLaunch{
+		Header: gpuebpf.CudaEventHeader{
+			Pid_tgid:  uint64(pid)<<32 + uint64(pid),
+			Stream_id: streamID,
+		},
+		Kernel_addr:     uint64(1),
+		Shared_mem_size: uint64(1),
+		Grid_size:       gpuebpf.Dim3{X: 1, Y: 1, Z: 1},
+		Block_size:      gpuebpf.Dim3{X: 1, Y: 1, Z: 1},
+	}
+
+	err := consumer.handleStreamEvent(&event.Header, unsafe.Pointer(&event), gpuebpf.SizeofCudaKernelLaunch)
+	require.Error(t, err)
+}
+
+func TestConsumerHandlesUnknownEventTypes(t *testing.T) {
+	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled()))
+	handler := ddebpf.NewRingBufferHandler(consumerChannelSize)
+	cfg := config.New()
+	ctx := getTestSystemContext(t, withFatbinParsingEnabled(true))
+	streamHandlers := newStreamCollection(ctx, testutil.GetTelemetryMock(t), cfg)
+	consumer := newCudaEventConsumer(ctx, streamHandlers, handler, &mockFlusher{}, cfg, testutil.GetTelemetryMock(t))
+
+	// Send an unknown event type
+	event := gpuebpf.CudaEventHeader{
+		Type: uint32(18967123),
+	}
+
+	err := consumer.handleEvent(&event, nil, 0)
+	require.Error(t, err)
 }

@@ -13,8 +13,8 @@ import (
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/flare"
+	auditornoop "github.com/DataDog/datadog-agent/comp/logs/auditor/impl-none"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/logs/launchers"
 	filelauncher "github.com/DataDog/datadog-agent/pkg/logs/launchers/file"
@@ -31,8 +31,13 @@ func SetUpLaunchers(conf configComponent.Component, sourceProvider *sources.Conf
 		return nil, nil, nil, err
 	}
 
+	fingerprintConfig, err := config.GlobalFingerprintConfig(conf)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+
 	diagnosticMessageReceiver := diagnostic.NewBufferedMessageReceiver(nil, nil)
-	pipelineProvider := pipeline.NewProcessorOnlyProvider(diagnosticMessageReceiver, processingRules, conf, nil)
+	pipelineProvider := pipeline.NewProcessorOnlyProvider(diagnosticMessageReceiver, processingRules, nil)
 
 	// setup the launchers
 	lnchrs := launchers.NewLaunchers(nil, pipelineProvider, nil, nil)
@@ -47,10 +52,12 @@ func SetUpLaunchers(conf configComponent.Component, sourceProvider *sources.Conf
 		fileScanPeriod,
 		fileWildcardSelectionMode,
 		flare.NewFlareController(),
-		nil)
+		nil,
+		*fingerprintConfig,
+	)
 	tracker := tailers.NewTailerTracker()
 
-	a := auditor.NewNullAuditor()
+	a := auditornoop.NewAuditor()
 	pipelineProvider.Start()
 	fileLauncher.Start(sourceProvider, pipelineProvider, a, tracker)
 	lnchrs.AddLauncher(fileLauncher)

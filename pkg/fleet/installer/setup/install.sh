@@ -3,6 +3,7 @@
 # Copyright 2016-present Datadog, Inc.
 #
 set -euo pipefail
+umask 0
 
 os=$(uname -s)
 arch=$(uname -m)
@@ -28,8 +29,9 @@ aarch64)
   installer_sha256="INSTALLER_ARM64_SHA256"
   ;;
 esac
-installer_domain=${DD_INSTALLER_REGISTRY_URL_INSTALLER_PACKAGE:-$([[ "$DD_SITE" == "datad0g.com" ]] && echo "install.datad0g.com" || echo "install.datadoghq.com")}
-installer_url="https://${installer_domain}/v2/installer-package/blobs/sha256:${installer_sha256}"
+site=${DD_SITE:-datadoghq.com}
+installer_domain=${DD_INSTALLER_REGISTRY_URL_INSTALLER_PACKAGE:-$([[ "$site" == "datad0g.com" ]] && echo "install.datad0g.com" || echo "install.datadoghq.com")}
+installer_url="https://${installer_domain}/v2/PACKAGE_NAME/blobs/sha256:${installer_sha256}"
 
 tmp_dir="/opt/datadog-packages/tmp"
 tmp_bin="${tmp_dir}/installer"
@@ -42,28 +44,38 @@ else
   sudo_env_cmd=(sudo -E)
 fi
 
-"${sudo_cmd[@]}" mkdir -p "$tmp_dir"
+# This migrates legacy installs by removing the legacy deb / rpm installer package
+if command -v dpkg >/dev/null && dpkg -s datadog-installer >/dev/null 2>&1; then
+  "${sudo_cmd[@]+"${sudo_cmd[@]}"}" datadog-installer purge >/dev/null 2>&1 || true
+  "${sudo_cmd[@]+"${sudo_cmd[@]}"}" dpkg --purge datadog-installer >/dev/null 2>&1 || true
+elif command -v rpm >/dev/null && rpm -q datadog-installer >/dev/null 2>&1; then
+  "${sudo_cmd[@]+"${sudo_cmd[@]}"}" datadog-installer purge >/dev/null 2>&1 || true
+  "${sudo_cmd[@]+"${sudo_cmd[@]}"}" rpm -e datadog-installer >/dev/null 2>&1 || true
+fi
+
+"${sudo_cmd[@]+"${sudo_cmd[@]}"}" mkdir -p "$tmp_dir"
 
 echo "Downloading the Datadog installer..."
 if command -v curl >/dev/null; then
-  if ! curl -L --retry 3 "$installer_url" | "${sudo_cmd[@]}" tee "$tmp_bin" >/dev/null; then
+  if ! "${sudo_cmd[@]+"${sudo_cmd[@]}"}" curl -L --retry 3 "$installer_url" --output "$tmp_bin" >/dev/null; then
     echo "Error: Download failed with curl." >&2
     exit 1
   fi
 else
-  if ! wget --tries=3 -O - "$installer_url" | "${sudo_cmd[@]}" tee "$tmp_bin" >/dev/null; then
+  if ! "${sudo_cmd[@]+"${sudo_cmd[@]}"}" wget --tries=3 -O "$tmp_bin" "$installer_url" >/dev/null; then
     echo "Error: Download failed with wget." >&2
     exit 1
   fi
 fi
-"${sudo_cmd[@]}" chmod +x "$tmp_bin"
+"${sudo_cmd[@]+"${sudo_cmd[@]}"}" chmod +x "$tmp_bin"
 
 echo "Verifying installer integrity..."
-sha256sum -c <<<"$installer_sha256  $tmp_bin"
+sha256sum -c <<<"$installer_sha256  $tmp_bin" >/dev/null
+echo "Installer integrity verified."
 
 echo "Starting the Datadog installer..."
-"${sudo_env_cmd[@]}" "$tmp_bin" setup --flavor "$flavor" "$@"
+"${sudo_env_cmd[@]+"${sudo_env_cmd[@]}"}" "$tmp_bin" setup --flavor "$flavor" "$@"
 
-"${sudo_cmd[@]}" rm -f "$tmp_bin"
+"${sudo_cmd[@]+"${sudo_cmd[@]}"}" rm -f "$tmp_bin"
 
 exit 0

@@ -10,6 +10,7 @@ package k8s
 import (
 	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/common"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/util"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	k8sTransformers "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/transformers/k8s"
@@ -59,7 +60,9 @@ func (h *RoleBindingHandlers) BuildMessageBody(ctx processors.ProcessorContext, 
 		GroupId:      pctx.MsgGroupID,
 		GroupSize:    int32(groupSize),
 		RoleBindings: models,
-		Tags:         append(pctx.Cfg.ExtraTags, pctx.ApiGroupVersionTag)}
+		Tags:         util.ImmutableTagsJoin(pctx.Cfg.ExtraTags, pctx.GetCollectorTags()),
+		AgentVersion: ctx.GetAgentVersion(),
+	}
 }
 
 // ExtractResource is a handler called to extract the resource model out of a raw resource.
@@ -79,7 +82,7 @@ func (h *RoleBindingHandlers) ResourceList(ctx processors.ProcessorContext, list
 	resources = make([]interface{}, 0, len(resourceList))
 
 	for _, resource := range resourceList {
-		resources = append(resources, resource)
+		resources = append(resources, resource.DeepCopy())
 	}
 
 	return resources
@@ -97,6 +100,17 @@ func (h *RoleBindingHandlers) ResourceUID(ctx processors.ProcessorContext, resou
 //nolint:revive // TODO(CAPP) Fix revive linter
 func (h *RoleBindingHandlers) ResourceVersion(ctx processors.ProcessorContext, resource, resourceModel interface{}) string {
 	return resource.(*rbacv1.RoleBinding).ResourceVersion
+}
+
+// GetMetadataTags returns the tags in the metadata model.
+//
+//nolint:revive // TODO(CAPP) Fix revive linter
+func (h *RoleBindingHandlers) GetMetadataTags(ctx processors.ProcessorContext, resourceMetadataModel interface{}) []string {
+	m, ok := resourceMetadataModel.(*model.RoleBinding)
+	if !ok {
+		return nil
+	}
+	return m.Tags
 }
 
 // ScrubBeforeExtraction is a handler called to redact the raw resource before

@@ -36,6 +36,15 @@ Most of the code used to extend the embedded interpreter is there.
 * Cmake version 3.15 or above
 * Go compiler with `cgo` capabilities to run the tests
 
+### Optional Requirements
+
+* [libexecinfo](https://github.com/fam007e/libexecinfo) or [libbacktrace](https://github.com/ianlancetaylor/libbacktrace)
+
+RTLoader can optionally show stack traces when a segfault happens, using `execinfo`, which is provided out of the box by the glibc.
+When building with other libc, you can install the shared libraries `libexecinfo` or `libbacktrace` instead.
+CMake should automatically pick it up so that you don't need to configure anything.
+If it doesn't, you can explicitly tell it where to find those by setting `Backtrace_LIBRARY` and `Backtrace_INCLUDE_DIR` options, eg. `-DBacktrace_LIBRARY=/usr/lib/libexecinfo.so -DBacktrace_INCLUDE_DIR=/usr/include`.
+
 ## Build
 
 RtLoader can be built using CMake. Run the configurator/generator first:

@@ -33,12 +33,6 @@ datadog:
   logs:
     containerCollectAll: false
     containerCollectUsingFiles: false
-agents:
-  containers:
-    traceAgent:
-      env:
-        - name: DD_APM_FEATURES
-          value: 'enable_operation_and_resource_name_logic_v2'
 `
 	t.Parallel()
 	e2e.Run(t, &otlpIngestOpNameV2RecvrV1TestSuite{}, e2e.WithProvisioner(awskubernetes.KindProvisioner(awskubernetes.WithAgentOptions(kubernetesagentparams.WithHelmValues(values)))))
@@ -46,6 +40,9 @@ agents:
 
 func (s *otlpIngestOpNameV2RecvrV1TestSuite) SetupSuite() {
 	s.BaseSuite.SetupSuite()
+	// SetupSuite needs to defer CleanupOnSetupFailure() if what comes after BaseSuite.SetupSuite() can fail.
+	defer s.CleanupOnSetupFailure()
+
 	utils.TestCalendarApp(s, false, utils.CalendarService)
 }
 
@@ -70,12 +67,6 @@ datadog:
   logs:
     containerCollectAll: false
     containerCollectUsingFiles: false
-agents:
-  containers:
-    traceAgent:
-      env:
-        - name: DD_APM_FEATURES
-          value: 'enable_operation_and_resource_name_logic_v2'
 `
 	t.Parallel()
 	e2e.Run(t, &otlpIngestOpNameV2RecvrV2TestSuite{}, e2e.WithProvisioner(awskubernetes.KindProvisioner(awskubernetes.WithAgentOptions(kubernetesagentparams.WithHelmValues(values)))))
@@ -83,6 +74,9 @@ agents:
 
 func (s *otlpIngestOpNameV2RecvrV2TestSuite) SetupSuite() {
 	s.BaseSuite.SetupSuite()
+	// SetupSuite needs to defer CleanupOnSetupFailure() if what comes after BaseSuite.SetupSuite() can fail.
+	defer s.CleanupOnSetupFailure()
+
 	utils.TestCalendarApp(s, false, utils.CalendarService)
 }
 
@@ -111,8 +105,6 @@ agents:
   containers:
     traceAgent:
       env:
-        - name: DD_APM_FEATURES
-          value: 'enable_operation_and_resource_name_logic_v2'
         - name: DD_OTLP_CONFIG_TRACES_SPAN_NAME_AS_RESOURCE_NAME
           value: 'true'
 `
@@ -122,6 +114,9 @@ agents:
 
 func (s *otlpIngestOpNameV2SpanAsResNameTestSuite) SetupSuite() {
 	s.BaseSuite.SetupSuite()
+	// SetupSuite needs to defer CleanupOnSetupFailure() if what comes after BaseSuite.SetupSuite() can fail.
+	defer s.CleanupOnSetupFailure()
+
 	utils.TestCalendarApp(s, false, utils.CalendarService)
 }
 
@@ -150,8 +145,6 @@ agents:
   containers:
     traceAgent:
       env:
-        - name: DD_APM_FEATURES
-          value: 'enable_operation_and_resource_name_logic_v2'
         - name: DD_OTLP_CONFIG_TRACES_SPAN_NAME_REMAPPINGS
           value: '{"calendar-rest-go.client":"mapping.output","go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp.server":"calendar.server"}'
 `
@@ -162,6 +155,9 @@ agents:
 
 func (s *otlpIngestOpNameV2RemappingTestSuite) SetupSuite() {
 	s.BaseSuite.SetupSuite()
+	// SetupSuite needs to defer CleanupOnSetupFailure() if what comes after BaseSuite.SetupSuite() can fail.
+	defer s.CleanupOnSetupFailure()
+
 	utils.TestCalendarApp(s, false, utils.CalendarService)
 }
 

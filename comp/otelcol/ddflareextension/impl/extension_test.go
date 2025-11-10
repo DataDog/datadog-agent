@@ -13,9 +13,10 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/comp/api/authtoken"
-	authtokenmock "github.com/DataDog/datadog-agent/comp/api/authtoken/mock"
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
+	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
 	ddflareextension "github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/def"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 
 	"github.com/open-telemetry/opentelemetry-collector-contrib/connector/spanmetricsconnector"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/extension/healthcheckextension"
@@ -36,7 +37,6 @@ import (
 	"go.opentelemetry.io/collector/extension/zpagesextension"
 	"go.opentelemetry.io/collector/otelcol"
 	"go.opentelemetry.io/collector/processor"
-	"go.opentelemetry.io/collector/processor/batchprocessor"
 	"go.opentelemetry.io/collector/receiver"
 	"go.opentelemetry.io/collector/receiver/nopreceiver"
 	"go.opentelemetry.io/collector/receiver/otlpreceiver"
@@ -56,16 +56,16 @@ func getExtensionTestConfig(t *testing.T) *Config {
 	}
 }
 
-func getTestExtension(t *testing.T) (ddflareextension.Component, error) {
+func getTestExtension(t *testing.T, optIpc option.Option[ipc.Component]) (ddflareextension.Component, error) {
 	c := context.Background()
 	telemetry := component.TelemetrySettings{}
 	info := component.NewDefaultBuildInfo()
 	cfg := getExtensionTestConfig(t)
 
-	return NewExtension(c, cfg, telemetry, info, true)
+	return NewExtension(c, cfg, telemetry, info, optIpc, true, false)
 }
 
-func getResponseToHandlerRequest(t *testing.T, at authtoken.Component, tokenOverride string) *httptest.ResponseRecorder {
+func getResponseToHandlerRequest(t *testing.T, ipc ipc.Component, tokenOverride string) *httptest.ResponseRecorder {
 
 	// Create a request
 	req, err := http.NewRequest("GET", "/", nil)
@@ -73,10 +73,7 @@ func getResponseToHandlerRequest(t *testing.T, at authtoken.Component, tokenOver
 		t.Fatal(err)
 	}
 
-	token, err := at.Get()
-	if err != nil {
-		t.Fatal(err)
-	}
+	token := ipc.GetAuthToken()
 	if tokenOverride != "" {
 		token = tokenOverride
 	}
@@ -87,7 +84,7 @@ func getResponseToHandlerRequest(t *testing.T, at authtoken.Component, tokenOver
 	rr := httptest.NewRecorder()
 
 	// Create an instance of your handler
-	ext, err := getTestExtension(t)
+	ext, err := getTestExtension(t, option.New(ipc))
 	require.NoError(t, err)
 
 	ddExt := ext.(*ddExtension)
@@ -114,7 +111,7 @@ func getResponseToHandlerRequest(t *testing.T, at authtoken.Component, tokenOver
 }
 
 func TestNewExtension(t *testing.T) {
-	ext, err := getTestExtension(t)
+	ext, err := getTestExtension(t, option.None[ipc.Component]())
 	assert.NoError(t, err)
 	assert.NotNil(t, ext)
 
@@ -123,9 +120,9 @@ func TestNewExtension(t *testing.T) {
 }
 
 func TestExtensionHTTPHandler(t *testing.T) {
-	at := authtokenmock.New(t)
+	ipc := ipcmock.New(t)
 
-	rr := getResponseToHandlerRequest(t, at, "")
+	rr := getResponseToHandlerRequest(t, ipc, "")
 
 	// Check the response status code
 	assert.Equalf(t, http.StatusOK, rr.Code,
@@ -154,9 +151,9 @@ func TestExtensionHTTPHandler(t *testing.T) {
 }
 
 func TestExtensionHTTPHandlerBadToken(t *testing.T) {
-	at := authtokenmock.New(t)
+	ipc := ipcmock.New(t)
 
-	rr := getResponseToHandlerRequest(t, at, "badtoken")
+	rr := getResponseToHandlerRequest(t, ipc, "badtoken")
 
 	// Check the response status code
 	assert.Equalf(t, http.StatusForbidden, rr.Code,
@@ -211,7 +208,6 @@ func components() (otelcol.Factories, error) {
 	}
 
 	factories.Processors, err = otelcol.MakeFactoryMap[processor.Factory](
-		batchprocessor.NewFactory(),
 		transformprocessor.NewFactory(),
 	)
 	if err != nil {

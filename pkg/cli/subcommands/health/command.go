@@ -7,7 +7,7 @@
 package health
 
 import (
-	"context"
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -22,8 +22,11 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
+	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
+	ipchttp "github.com/DataDog/datadog-agent/comp/core/ipc/httphelpers"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	"github.com/DataDog/datadog-agent/pkg/api/util"
+	secretsnoopfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx-noop"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
@@ -31,7 +34,9 @@ import (
 )
 
 type cliParams struct {
-	timeout int
+	timeout    int
+	JSON       bool
+	PrettyJSON bool
 }
 
 // GlobalParams contains the values of agent-global Cobra flags.
@@ -62,39 +67,34 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 					ConfigParams: config.NewAgentParams(globalParams.ConfFilePath, config.WithConfigName(globalParams.ConfigName), config.WithExtraConfFiles(globalParams.ExtraConfFilePaths), config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
 					LogParams:    log.ForOneShot(globalParams.LoggerName, "off", true)}),
 				core.Bundle(),
+				secretsnoopfx.Module(),
+				ipcfx.ModuleReadOnly(),
 			)
 		},
 	}
 
 	cmd.Flags().IntVarP(&cliParams.timeout, "timeout", "t", 20, "timeout in second to query the Agent")
+	cmd.Flags().BoolVarP(&cliParams.JSON, "json", "j", false, "print out raw json")
+	cmd.Flags().BoolVarP(&cliParams.PrettyJSON, "pretty-json", "p", false, "pretty print JSON")
 	return cmd
 }
 
-func requestHealth(_ log.Component, config config.Component, cliParams *cliParams) error {
-	c := util.GetClient()
-
-	ipcAddress, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
+func requestHealth(_ log.Component, config config.Component, cliParams *cliParams, client ipc.HTTPClient) error {
+	ipcAddress, err := pkgconfigsetup.GetIPCAddress(config)
 	if err != nil {
 		return err
 	}
 
 	var urlstr string
 	if flavor.GetFlavor() == flavor.ClusterAgent {
-		urlstr = fmt.Sprintf("https://%v:%v/status/health", ipcAddress, pkgconfigsetup.Datadog().GetInt("cluster_agent.cmd_port"))
+		urlstr = fmt.Sprintf("https://%v:%v/status/health", ipcAddress, config.GetInt("cluster_agent.cmd_port"))
 	} else {
-		urlstr = fmt.Sprintf("https://%v:%v/agent/status/health", ipcAddress, pkgconfigsetup.Datadog().GetInt("cmd_port"))
+		urlstr = fmt.Sprintf("https://%v:%v/agent/status/health", ipcAddress, config.GetInt("cmd_port"))
 	}
 
-	// Set session token
-	err = util.SetAuthToken(config)
-	if err != nil {
-		return err
-	}
+	timeout := time.Duration(cliParams.timeout) * time.Second
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(cliParams.timeout)*time.Second)
-	defer cancel()
-
-	r, err := util.DoGetWithOptions(c, urlstr, &util.ReqOptions{Ctx: ctx, Conn: util.LeaveConnectionOpen})
+	r, err := client.Get(urlstr, ipchttp.WithTimeout(timeout), ipchttp.WithCloseConnection)
 	if err != nil {
 		var errMap = make(map[string]string)
 		json.Unmarshal(r, &errMap) //nolint:errcheck
@@ -111,6 +111,18 @@ func requestHealth(_ log.Component, config config.Component, cliParams *cliParam
 		return fmt.Errorf("error unmarshalling json: %s", err)
 	}
 
+	// Handle JSON output
+	if cliParams.JSON || cliParams.PrettyJSON {
+		if cliParams.PrettyJSON {
+			var prettyJSON bytes.Buffer
+			json.Indent(&prettyJSON, r, "", "  ") //nolint:errcheck
+			r = prettyJSON.Bytes()
+		}
+		fmt.Print(string(r))
+		return nil
+	}
+
+	// Handle formatted text output
 	sort.Strings(s.Unhealthy)
 	sort.Strings(s.Healthy)
 

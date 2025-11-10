@@ -10,17 +10,20 @@ package tests
 
 import (
 	"flag"
-	"math/rand"
+	"fmt"
 	"os"
 	"testing"
-	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+var GitAncestorOnMain = "main"
+
 // TestMain is the entry points for functional tests
 func TestMain(m *testing.M) {
 	flag.Parse()
+
+	fmt.Printf("Using git ref %s as common ancestor between HEAD and main branch\n", GitAncestorOnMain)
 
 	preTestsHook()
 	retCode := m.Run()
@@ -46,6 +49,4 @@ func init() {
 	flag.StringVar(&logLevelStr, "loglevel", log.WarnStr, "log level")
 	flag.Var(&logPatterns, "logpattern", "List of log pattern")
 	flag.Var(&logTags, "logtag", "List of log tag")
-
-	rand.Seed(time.Now().UnixNano())
 }

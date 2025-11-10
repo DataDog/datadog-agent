@@ -22,10 +22,18 @@ import (
 type KillActionStatus string
 
 const (
+	// KillActionStatusError indicates the kill action failed
+	KillActionStatusError KillActionStatus = "error"
 	// KillActionStatusPerformed indicates the kill action was performed
 	KillActionStatusPerformed KillActionStatus = "performed"
 	// KillActionStatusRuleDisarmed indicates the kill action was skipped because the rule was disarmed
 	KillActionStatusRuleDisarmed KillActionStatus = "rule_disarmed"
+	// KillActionStatusRuleDismantled indicates the kill action was skipped because the rule was dismantled
+	KillActionStatusRuleDismantled KillActionStatus = "rule_dismantled"
+	// KillActionStatusQueued indicates the kill action was queued until the end of the first rule period
+	KillActionStatusQueued KillActionStatus = "kill_queued"
+	// KillActionStatusPartiallyPerformed indicates the kill action was performed on some processes but not all
+	KillActionStatusPartiallyPerformed = "partially_performed"
 )
 
 // KillActionReport defines a kill action reports

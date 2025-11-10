@@ -20,9 +20,14 @@ const (
 var (
 	globalTracer  *tracer
 	samplingRates = map[string]float64{
-		"cdn":             0.1,
-		"garbage_collect": 0.05,
-		"HTTPClient":      0.05,
+		"cdn":                       0.1,
+		"installer.garbage_collect": 0.05,
+		"garbage_collect":           0.05,
+		"HTTPClient":                0.05,
+		"agent.startup":             0.0,
+		"get_states":                0.01,
+		"installer.get_states":      0.01,
+		"installer.get-states":      0.01,
 	}
 )
 
@@ -62,8 +67,10 @@ func (t *tracer) getSpan(spanID uint64) (*Span, bool) {
 func (t *tracer) finishSpan(span *Span) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
-	delete(t.spans, span.span.SpanID)
-	t.completedSpans = append(t.completedSpans, span)
+	if _, exists := t.spans[span.span.SpanID]; exists {
+		delete(t.spans, span.span.SpanID)
+		t.completedSpans = append(t.completedSpans, span)
+	}
 }
 
 func (t *tracer) flushCompletedSpans() []*Span {
@@ -89,4 +96,13 @@ func sampledByRate(n uint64, rate float64) bool {
 		return n*uint64(1111111111111111111) < uint64(rate*math.MaxUint64)
 	}
 	return true
+}
+
+// SetSamplingRate sets the sampling rate for a given span name.
+// The rate must be between 0 and 1.
+func SetSamplingRate(name string, rate float64) {
+	if rate < 0 || rate > 1 {
+		return
+	}
+	samplingRates[name] = rate
 }

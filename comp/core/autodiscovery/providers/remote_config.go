@@ -16,6 +16,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/types"
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -23,7 +25,7 @@ import (
 
 // RemoteConfigProvider receives configuration from remote-config
 type RemoteConfigProvider struct {
-	configErrors map[string]ErrorMsgSet
+	configErrors map[string]types.ErrorMsgSet
 	configCache  map[string]integration.Config // map[entity name]map[config digest]integration.Config
 	mu           sync.RWMutex
 	upToDate     bool
@@ -41,7 +43,7 @@ var datadogConfigIDRegexp = regexp.MustCompile(`^datadog/\d+/AGENT_INTEGRATIONS/
 // NewRemoteConfigProvider creates a new RemoteConfigProvider.
 func NewRemoteConfigProvider() *RemoteConfigProvider {
 	return &RemoteConfigProvider{
-		configErrors: make(map[string]ErrorMsgSet),
+		configErrors: make(map[string]types.ErrorMsgSet),
 		configCache:  make(map[string]integration.Config),
 		upToDate:     false,
 	}
@@ -78,15 +80,32 @@ func (rc *RemoteConfigProvider) String() string {
 }
 
 // GetConfigErrors returns a map of configuration errors for each configuration path
-func (rc *RemoteConfigProvider) GetConfigErrors() map[string]ErrorMsgSet {
+func (rc *RemoteConfigProvider) GetConfigErrors() map[string]types.ErrorMsgSet {
 	rc.mu.RLock()
 	defer rc.mu.RUnlock()
 
-	errors := make(map[string]ErrorMsgSet, len(rc.configErrors))
+	errors := make(map[string]types.ErrorMsgSet, len(rc.configErrors))
 
 	maps.Copy(errors, rc.configErrors)
 
 	return errors
+}
+
+// getRemoteConfigurationAllowedIntegrations returns the list of integrations that can be scheduled
+// with remote-config
+func getRemoteConfigurationAllowedIntegrations(cfg pkgconfigmodel.Reader) map[string]bool {
+	allowList := cfg.GetStringSlice("remote_configuration.agent_integrations.allow_list")
+	allowMap := map[string]bool{}
+	for _, integration := range allowList {
+		allowMap[strings.ToLower(integration)] = true
+	}
+
+	blockList := cfg.GetStringSlice("remote_configuration.agent_integrations.block_list")
+	for _, blockedIntegration := range blockList {
+		allowMap[strings.ToLower(blockedIntegration)] = false
+	}
+
+	return allowMap
 }
 
 // IntegrationScheduleCallback is called at every AGENT_INTEGRATIONS to schedule/unschedule integrations
@@ -95,7 +114,7 @@ func (rc *RemoteConfigProvider) IntegrationScheduleCallback(updates map[string]s
 	defer rc.mu.Unlock()
 	var err error
 
-	allowedIntegration := pkgconfigsetup.GetRemoteConfigurationAllowedIntegrations(pkgconfigsetup.Datadog())
+	allowedIntegration := getRemoteConfigurationAllowedIntegrations(pkgconfigsetup.Datadog())
 
 	newCache := make(map[string]integration.Config, 0)
 	// Now schedule everything
@@ -104,7 +123,7 @@ func (rc *RemoteConfigProvider) IntegrationScheduleCallback(updates map[string]s
 		err = json.Unmarshal(intg.Config, &d)
 		if err != nil {
 			log.Errorf("Can't decode agent configuration provided by remote-config: %v", err)
-			rc.configErrors[cfgPath] = ErrorMsgSet{
+			rc.configErrors[cfgPath] = types.ErrorMsgSet{
 				err.Error(): struct{}{},
 			}
 			applyStateCallback(cfgPath, state.ApplyStatus{

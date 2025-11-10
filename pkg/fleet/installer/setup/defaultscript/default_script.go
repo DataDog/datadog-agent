@@ -10,25 +10,28 @@ import (
 	"fmt"
 	"os"
 	"regexp"
+	"runtime"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/setup/common"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/setup/config"
+	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 const (
-	defaultAgentVersion    = "7.60.1-1"
-	defaultInjectorVersion = "0.26.0-1"
+	defaultInjectorVersion = "0"
 )
 
 var (
+	// We use major version tagging
 	defaultLibraryVersions = map[string]string{
-		common.DatadogAPMLibraryJavaPackage:   "1.44.1-1",
-		common.DatadogAPMLibraryRubyPackage:   "2.8.0-1",
-		common.DatadogAPMLibraryJSPackage:     "5.30.0-1",
-		common.DatadogAPMLibraryDotNetPackage: "3.7.0-1",
-		common.DatadogAPMLibraryPythonPackage: "2.9.2-1",
-		common.DatadogAPMLibraryPHPPackage:    "1.5.1-1",
+		common.DatadogAPMLibraryJavaPackage:   "1",
+		common.DatadogAPMLibraryRubyPackage:   "2",
+		common.DatadogAPMLibraryJSPackage:     "5",
+		common.DatadogAPMLibraryDotNetPackage: "3",
+		common.DatadogAPMLibraryPythonPackage: "3",
+		common.DatadogAPMLibraryPHPPackage:    "1",
 	}
 
 	fullSemverRe = regexp.MustCompile(`^[0-9]+\.[0-9]+\.[0-9]+`)
@@ -54,6 +57,8 @@ var (
 		"DD_FIPS_MODE",
 		"DD_SYSTEM_PROBE_ENSURE_CONFIG",
 		"DD_RUNTIME_SECURITY_CONFIG_ENABLED",
+		"DD_SBOM_CONTAINER_IMAGE_ENABLED",
+		"DD_SBOM_HOST_ENABLED",
 		"DD_COMPLIANCE_CONFIG_ENABLED",
 		"DD_APM_INSTRUMENTATION_ENABLED",
 		"DD_APM_LIBRARIES",
@@ -64,6 +69,7 @@ var (
 		"DD_PROXY_HTTP",
 		"DD_PROXY_HTTPS",
 		"DD_PROXY_NO_PROXY",
+		"DD_INFRASTRUCTURE_MODE",
 	}
 )
 
@@ -87,10 +93,19 @@ func SetupDefaultScript(s *common.Setup) error {
 		s.Config.DatadogYAML.DDURL = url
 	}
 
-	// Install packages
+	// Install agent package
 	installAgentPackage(s)
-	installAPMPackages(s)
 
+	// Install DDOT package if enabled
+	installDDOTPackage(s)
+
+	// Optionally setup SSI
+	err := SetupAPMSSIScript(s)
+	if err != nil {
+		return fmt.Errorf("failed to setup APM SSI script: %w", err)
+	}
+
+	s.NoConfig = false
 	return nil
 }
 
@@ -98,30 +113,42 @@ func SetupDefaultScript(s *common.Setup) error {
 func setConfigSecurityProducts(s *common.Setup) {
 	runtimeSecurityConfigEnabled, runtimeSecurityConfigEnabledOk := os.LookupEnv("DD_RUNTIME_SECURITY_CONFIG_ENABLED")
 	complianceConfigEnabled, complianceConfigEnabledOk := os.LookupEnv("DD_COMPLIANCE_CONFIG_ENABLED")
-	if runtimeSecurityConfigEnabledOk || complianceConfigEnabledOk {
-		s.Config.SecurityAgentYAML = &common.SecurityAgentConfig{}
-		s.Config.SystemProbeYAML = &common.SystemProbeConfig{}
+	sbomContainerImageEnabled, sbomContainerImageEnabledOk := os.LookupEnv("DD_SBOM_CONTAINER_IMAGE_ENABLED")
+	sbomHostEnabled, sbomHostEnabledOk := os.LookupEnv("DD_SBOM_HOST_ENABLED")
+	if runtimeSecurityConfigEnabledOk || complianceConfigEnabledOk || sbomContainerImageEnabledOk || sbomHostEnabledOk {
+		s.Config.SecurityAgentYAML = &config.SecurityAgentConfig{}
+		s.Config.SystemProbeYAML = &config.SystemProbeConfig{}
 	}
+
 	if complianceConfigEnabledOk && strings.ToLower(complianceConfigEnabled) != "false" {
-		s.Config.SecurityAgentYAML.ComplianceConfig = common.SecurityAgentComplianceConfig{
-			Enabled: true,
-		}
+		s.Config.SecurityAgentYAML.ComplianceConfig.Enabled = config.BoolToPtr(true)
 	}
 	if runtimeSecurityConfigEnabledOk && strings.ToLower(runtimeSecurityConfigEnabled) != "false" {
-		s.Config.SecurityAgentYAML.RuntimeSecurityConfig = common.RuntimeSecurityConfig{
-			Enabled: true,
-		}
-		s.Config.SystemProbeYAML.RuntimeSecurityConfig = common.RuntimeSecurityConfig{
-			Enabled: true,
-		}
+		s.Config.SecurityAgentYAML.RuntimeSecurityConfig.Enabled = config.BoolToPtr(true)
+		s.Config.SystemProbeYAML.RuntimeSecurityConfig.Enabled = config.BoolToPtr(true)
+	}
+	if sbomContainerImageEnabledOk && strings.ToLower(sbomContainerImageEnabled) != "false" {
+		s.Config.DatadogYAML.SBOM.Enabled = config.BoolToPtr(true)
+		s.Config.DatadogYAML.SBOM.ContainerImage.Enabled = config.BoolToPtr(true)
+		s.Config.SecurityAgentYAML.RuntimeSecurityConfig.SBOM.Enabled = config.BoolToPtr(true)
+		s.Config.SecurityAgentYAML.RuntimeSecurityConfig.SBOM.ContainerImage.Enabled = config.BoolToPtr(true)
+		s.Config.SystemProbeYAML.RuntimeSecurityConfig.SBOM.Enabled = config.BoolToPtr(true)
+		s.Config.SystemProbeYAML.RuntimeSecurityConfig.SBOM.ContainerImage.Enabled = config.BoolToPtr(true)
+	}
+	if sbomHostEnabledOk && strings.ToLower(sbomHostEnabled) != "false" {
+		s.Config.DatadogYAML.SBOM.Enabled = config.BoolToPtr(true)
+		s.Config.DatadogYAML.SBOM.Host.Enabled = config.BoolToPtr(true)
+		s.Config.SecurityAgentYAML.RuntimeSecurityConfig.SBOM.Enabled = config.BoolToPtr(true)
+		s.Config.SecurityAgentYAML.RuntimeSecurityConfig.SBOM.Host.Enabled = config.BoolToPtr(true)
+		s.Config.SystemProbeYAML.RuntimeSecurityConfig.SBOM.Enabled = config.BoolToPtr(true)
+		s.Config.SystemProbeYAML.RuntimeSecurityConfig.SBOM.Host.Enabled = config.BoolToPtr(true)
 	}
 }
 
 // setConfigInstallerDaemon sets the daemon in the configuration
 func setConfigInstallerDaemon(s *common.Setup) {
-	s.Config.DatadogYAML.RemoteUpdates = true
-	if val, ok := os.LookupEnv("DD_REMOTE_UPDATES"); ok && strings.ToLower(val) == "false" {
-		s.Config.DatadogYAML.RemoteUpdates = false
+	if val, ok := os.LookupEnv("DD_REMOTE_UPDATES"); ok {
+		s.Config.DatadogYAML.RemoteUpdates = config.BoolToPtr(strings.ToLower(val) == "true")
 	}
 }
 
@@ -130,8 +157,8 @@ func setConfigInstallerRegistries(s *common.Setup) {
 	registryURL, registryURLOk := os.LookupEnv("DD_INSTALLER_REGISTRY_URL")
 	registryAuth, registryAuthOk := os.LookupEnv("DD_INSTALLER_REGISTRY_AUTH")
 	if registryURLOk || registryAuthOk {
-		s.Config.DatadogYAML.Installer = common.DatadogConfigInstaller{
-			Registry: common.DatadogConfigInstallerRegistry{
+		s.Config.DatadogYAML.Installer = config.DatadogConfigInstaller{
+			Registry: config.DatadogConfigInstallerRegistry{
 				URL:  registryURL,
 				Auth: registryAuth,
 			},
@@ -157,16 +184,35 @@ func setConfigTags(s *common.Setup) {
 func installAgentPackage(s *common.Setup) {
 	// Agent install
 	if _, ok := os.LookupEnv("DD_NO_AGENT_INSTALL"); !ok {
-		s.Packages.Install(common.DatadogAgentPackage, agentVersion(s.Env))
+		s.Packages.Install(common.DatadogAgentPackage, agentVersion())
+	}
+}
+
+// installDDOTPackage installs the DDOT package if enabled
+func installDDOTPackage(s *common.Setup) {
+	// DDOT install - check if otel-collector is enabled
+	if otelEnabled, ok := os.LookupEnv("DD_OTELCOLLECTOR_ENABLED"); ok && strings.ToLower(otelEnabled) == "true" {
+		s.Packages.Install(common.DatadogAgentDDOTPackage, agentVersion())
 	}
 }
 
 // installAPMPackages installs the APM packages
 func installAPMPackages(s *common.Setup) {
 	// Injector install
-	_, apmInstrumentationEnabled := os.LookupEnv("DD_APM_INSTRUMENTATION_ENABLED")
+	apmInstrumentationMethod, apmInstrumentationEnabled := os.LookupEnv("DD_APM_INSTRUMENTATION_ENABLED")
 	if apmInstrumentationEnabled {
-		s.Packages.Install(common.DatadogAPMInjectPackage, defaultInjectorVersion)
+		if runtime.GOOS == "windows" {
+			switch apmInstrumentationMethod {
+			case env.APMInstrumentationEnabledHost:
+				s.Packages.Install(common.DatadogAPMInjectPackage, defaultInjectorVersion)
+			case env.APMInstrumentationEnabledIIS:
+				// we don't need to install anything for IIS
+			default:
+				// we do nothing in unless it is host or IIS
+			}
+		} else {
+			s.Packages.Install(common.DatadogAPMInjectPackage, defaultInjectorVersion)
+		}
 	}
 
 	// Libraries install
@@ -174,7 +220,7 @@ func installAPMPackages(s *common.Setup) {
 	for _, library := range common.ApmLibraries {
 		lang := packageToLanguage(library)
 		_, installLibrary := s.Env.ApmLibraries[lang]
-		if (installAllAPMLibraries || len(s.Env.ApmLibraries) == 0 && apmInstrumentationEnabled) && library != common.DatadogAPMLibraryPHPPackage || installLibrary {
+		if (installAllAPMLibraries || len(s.Env.ApmLibraries) == 0 && apmInstrumentationEnabled) || installLibrary {
 			s.Packages.Install(library, getLibraryVersion(s.Env, library))
 		}
 	}
@@ -229,13 +275,15 @@ func telemetrySupportedEnvVars(s *common.Setup, envVars ...string) {
 	}
 }
 
-func agentVersion(e *env.Env) string {
-	minorVersion := e.AgentMinorVersion
-	if strings.Contains(minorVersion, ".") && !strings.HasSuffix(minorVersion, "-1") {
-		minorVersion = minorVersion + "-1"
+func agentVersion() string {
+	v := version.AgentVersion
+	if !strings.HasSuffix(v, "-1") {
+		v = v + "-1"
 	}
-	if minorVersion != "" {
-		return "7." + minorVersion
-	}
-	return defaultAgentVersion
+
+	// Adapt version to OCI registry tags
+	v = strings.ReplaceAll(v, "+", ".")
+	v = strings.ReplaceAll(v, "~", "-")
+
+	return v
 }

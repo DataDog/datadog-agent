@@ -80,9 +80,9 @@ func getContainerIDFromCgroupData(data []byte) (containerutils.ContainerID, erro
 				str = els[len(els)-1]
 			}
 		}
-		if cid, _ := containerutils.FindContainerID(containerutils.CGroupID(str)); cid != "" {
+		if cid := containerutils.FindContainerID(containerutils.CGroupID(str)); cid != "" {
 			return cid, nil
-		} else if cid, _ = containerutils.FindContainerID(containerutils.CGroupID(cgroup.path)); cid != "" {
+		} else if cid = containerutils.FindContainerID(containerutils.CGroupID(cgroup.path)); cid != "" {
 			return cid, nil
 		}
 	}
@@ -135,7 +135,6 @@ func getFullPathFromFd(process *Process, filename string, fd int32) (string, err
 			if err != nil {
 				return "", fmt.Errorf("process FD cache incomplete during path resolution: %w", err)
 			}
-
 			filename = filepath.Join(path, filename)
 		}
 	}
@@ -151,6 +150,21 @@ func getFullPathFromFilename(process *Process, filename string) (string, error) 
 		}
 	}
 	return filename, nil
+}
+
+func evalProcessSymlinks(process *Process, path string) string {
+	// if it's a /proc/self/ link, we should resolve it as if it's related to the process
+	procSelf := "/proc/self/"
+	if strings.HasPrefix(path, procSelf) {
+		newPrefix := fmt.Sprintf("/proc/%d/", process.Pid)
+		path = newPrefix + path[len(procSelf):]
+	}
+
+	newPath, err := filepath.EvalSymlinks(path)
+	if err != nil {
+		return path
+	}
+	return newPath
 }
 
 func refreshUserCache(tracer *Tracer) error {

@@ -11,17 +11,13 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-
-	"github.com/DataDog/datadog-agent/pkg/metrics/event"
-	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
-
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
-	"github.com/DataDog/datadog-agent/comp/core"
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
@@ -38,6 +34,8 @@ import (
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx-mock"
 	metricscompression "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/metrics/event"
+	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
@@ -55,6 +53,7 @@ type depsWithoutServer struct {
 	Debug         serverdebug.Component
 	WMeta         option.Option[workloadmeta.Component]
 	Telemetry     telemetry.Component
+	Hostname      hostnameinterface.Component
 }
 
 type serverDeps struct {
@@ -77,11 +76,11 @@ func fulfillDeps(t testing.TB) serverDeps {
 
 func fulfillDepsWithConfigOverride(t testing.TB, overrides map[string]interface{}) serverDeps {
 	return fxutil.Test[serverDeps](t, fx.Options(
-		core.MockBundle(),
+		fx.Provide(func() log.Component { return logmock.New(t) }),
+		fx.Provide(func() configComponent.Component { return configComponent.NewMockWithOverrides(t, overrides) }),
+		telemetryimpl.MockModule(),
+		hostnameimpl.MockModule(),
 		serverdebugimpl.MockModule(),
-		fx.Replace(configComponent.MockParams{
-			Overrides: overrides,
-		}),
 		replaymock.MockModule(),
 		pidmapimpl.Module(),
 		demultiplexerimpl.FakeSamplerMockModule(),
@@ -114,11 +113,11 @@ func fulfillDepsWithConfigYaml(t testing.TB, yaml string) serverDeps {
 // Be careful when using this functionality, as server start instantiates many internal components to non-nil values
 func fulfillDepsWithInactiveServer(t *testing.T, cfg map[string]interface{}) (depsWithoutServer, *server) {
 	deps := fxutil.Test[depsWithoutServer](t, fx.Options(
-		core.MockBundle(),
+		fx.Provide(func() log.Component { return logmock.New(t) }),
+		fx.Provide(func() configComponent.Component { return configComponent.NewMockWithOverrides(t, cfg) }),
+		telemetryimpl.MockModule(),
+		hostnameimpl.MockModule(),
 		serverdebugimpl.MockModule(),
-		fx.Replace(configComponent.MockParams{
-			Overrides: cfg,
-		}),
 		fx.Supply(Params{Serverless: false}),
 		replaymock.MockModule(),
 		pidmapimpl.Module(),
@@ -128,7 +127,7 @@ func fulfillDepsWithInactiveServer(t *testing.T, cfg map[string]interface{}) (de
 		logscompression.MockModule(),
 	))
 
-	s := newServerCompat(deps.Config, deps.Log, deps.Replay, deps.Debug, false, deps.Demultiplexer, deps.WMeta, deps.PidMap, deps.Telemetry)
+	s := newServerCompat(deps.Config, deps.Log, deps.Hostname, deps.Replay, deps.Debug, false, deps.Demultiplexer, deps.WMeta, deps.PidMap, deps.Telemetry)
 
 	return deps, s
 }

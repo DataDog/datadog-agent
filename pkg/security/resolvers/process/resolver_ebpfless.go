@@ -118,7 +118,7 @@ func (p *EBPFLessResolver) NewEntry(key CacheResolverKey, ppid uint32, file stri
 	if len(argv) > 0 {
 		entry.Process.Argv0 = argv[0]
 	}
-	entry.Process.Comm = filepath.Base(file)
+	entry.Process.Comm = entry.Process.Argv0
 	if len(entry.Process.Comm) > 16 {
 		// truncate comm to max 16 chars to be ebpf ISO
 		entry.Process.Comm = entry.Process.Comm[:16]
@@ -137,7 +137,7 @@ func (p *EBPFLessResolver) NewEntry(key CacheResolverKey, ppid uint32, file stri
 		entry.Process.FileEvent.PathnameStr = file
 		entry.Process.FileEvent.BasenameStr = filepath.Base(entry.Process.FileEvent.PathnameStr)
 	}
-	entry.Process.ContainerID = containerutils.ContainerID(ctrID)
+	entry.Process.ContainerContext.ContainerID = containerutils.ContainerID(ctrID)
 
 	entry.ExecTime = time.Unix(0, int64(ts))
 

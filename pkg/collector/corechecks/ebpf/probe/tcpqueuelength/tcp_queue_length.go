@@ -29,6 +29,10 @@ import (
 
 const (
 	statsMapName = "tcp_queue_stats"
+
+	// maxActive configures the maximum number of instances of the kretprobe-probed functions handled simultaneously.
+	// This value should be enough for typical workloads (e.g. some amount of processes blocked on the `accept` syscall).
+	maxActive = 512
 )
 
 // Tracer is the eBPF side of the TCP Queue Length check
@@ -40,7 +44,7 @@ type Tracer struct {
 // NewTracer creates a [Tracer]
 func NewTracer(cfg *ebpf.Config) (*Tracer, error) {
 	if cfg.EnableCORE {
-		probe, err := loadTCPQueueLengthCOREProbe(cfg)
+		probe, err := loadTCPQueueLengthCOREProbe()
 		if err != nil {
 			if !cfg.AllowRuntimeCompiledFallback {
 				return nil, fmt.Errorf("error loading CO-RE tcp-queue-length probe: %s. set system_probe_config.allow_runtime_compiled_fallback to true to allow fallback to runtime compilation", err)
@@ -74,6 +78,7 @@ func startTCPQueueLengthProbe(buf bytecode.AssetReader, managerOptions manager.O
 	}
 
 	managerOptions.RemoveRlimit = true
+	managerOptions.DefaultKProbeMaxActive = maxActive
 
 	if err := m.InitWithOptions(buf, managerOptions); err != nil {
 		return nil, fmt.Errorf("failed to init manager: %w", err)
@@ -82,6 +87,8 @@ func startTCPQueueLengthProbe(buf bytecode.AssetReader, managerOptions manager.O
 	if err := m.Start(); err != nil {
 		return nil, fmt.Errorf("failed to start manager: %w", err)
 	}
+
+	ebpf.AddProbeFDMappings(m)
 
 	statsMap, err := ebpfmaps.GetMap[StructStatsKey, []StructStatsValue](m, statsMapName)
 	if err != nil {
@@ -143,7 +150,7 @@ func (t *Tracer) GetAndFlush() model.TCPQueueLengthStats {
 	return result
 }
 
-func loadTCPQueueLengthCOREProbe(cfg *ebpf.Config) (*Tracer, error) {
+func loadTCPQueueLengthCOREProbe() (*Tracer, error) {
 	kv, err := kernel.HostVersion()
 	if err != nil {
 		return nil, fmt.Errorf("error detecting kernel version: %s", err)
@@ -152,13 +159,8 @@ func loadTCPQueueLengthCOREProbe(cfg *ebpf.Config) (*Tracer, error) {
 		return nil, fmt.Errorf("detected kernel version %s, but tcp-queue-length probe requires a kernel version of at least 4.8.0", kv)
 	}
 
-	filename := "tcp-queue-length.o"
-	if cfg.BPFDebug {
-		filename = "tcp-queue-length-debug.o"
-	}
-
 	var probe *Tracer
-	err = ebpf.LoadCOREAsset(filename, func(buf bytecode.AssetReader, opts manager.Options) error {
+	err = ebpf.LoadCOREAsset("tcp-queue-length.o", func(buf bytecode.AssetReader, opts manager.Options) error {
 		probe, err = startTCPQueueLengthProbe(buf, opts)
 		return err
 	})

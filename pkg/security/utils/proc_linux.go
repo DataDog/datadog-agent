@@ -24,15 +24,20 @@ import (
 	"github.com/shirou/gopsutil/v4/process"
 )
 
-// Getpid returns the current process ID in the host namespace
-func Getpid() uint32 {
-	p, err := os.Readlink(kernel.HostProc("/self"))
+// GetpidFrom returns the current process ID from the given proc root
+func GetpidFrom(procRoot string) uint32 {
+	p, err := os.Readlink(filepath.Join(procRoot, "self"))
 	if err == nil {
 		if pid, err := strconv.ParseInt(p, 10, 32); err == nil {
 			return uint32(pid)
 		}
 	}
 	return uint32(os.Getpid())
+}
+
+// Getpid returns the current process ID in the host namespace
+func Getpid() uint32 {
+	return GetpidFrom(kernel.ProcFSRoot())
 }
 
 var networkNamespacePattern = regexp.MustCompile(`net:\[(\d+)\]`)
@@ -439,7 +444,7 @@ func GetNsPids(pid uint32, task string) ([]uint32, error) {
 			// Convert string values to integers
 			nspids := make([]uint32, 0, len(fields))
 			for _, field := range fields {
-				val, err := strconv.ParseUint(field, 10, 64)
+				val, err := strconv.ParseUint(field, 10, 32)
 				if err != nil {
 					return nil, fmt.Errorf("failed to parse NSpid value: %w", err)
 				}
@@ -522,7 +527,7 @@ func GetTracerPid(pid uint32) (uint32, error) {
 			line = strings.TrimPrefix(line, "TracerPid:")
 			line = strings.TrimSpace(line)
 
-			tracerPid, err := strconv.ParseUint(line, 10, 64)
+			tracerPid, err := strconv.ParseUint(line, 10, 32)
 			if err != nil {
 				return 0, fmt.Errorf("failed to parse TracerPid value: %w", err)
 			}

@@ -133,6 +133,9 @@ type FakeDCAClient struct {
 	NodeAnnotations    map[string]string
 	NodeAnnotationsErr error
 
+	NodeUID    string
+	NodeUIDErr error
+
 	NamespaceLabels    map[string]string
 	NamespaceLabelsErr error
 
@@ -167,7 +170,11 @@ func (f *FakeDCAClient) GetNodeLabels(_ string) (map[string]string, error) {
 	panic("implement me")
 }
 
-func (f *FakeDCAClient) GetNodeAnnotations(_ string) (map[string]string, error) {
+func (f *FakeDCAClient) GetNodeAnnotations(_ string, _ ...string) (map[string]string, error) {
+	panic("implement me")
+}
+
+func (f *FakeDCAClient) GetNodeUID(_ string) (string, error) {
 	panic("implement me")
 }
 

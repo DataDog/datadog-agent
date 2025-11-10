@@ -37,7 +37,7 @@ func (m *OSOnlyFilterModel) NewEvent() eval.Event {
 }
 
 // GetEvaluator gets the evaluator
-func (m *OSOnlyFilterModel) GetEvaluator(field eval.Field, _ eval.RegisterID) (eval.Evaluator, error) {
+func (m *OSOnlyFilterModel) GetEvaluator(field eval.Field, _ eval.RegisterID, _ int) (eval.Evaluator, error) {
 	switch field {
 	case "os":
 		return &eval.StringEvaluator{

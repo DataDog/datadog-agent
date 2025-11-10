@@ -27,10 +27,17 @@ import (
 const (
 	// longestScalingRulePeriodAllowed is the maximum period allowed for a scaling rule
 	// increasing duration increase the number of events to keep in memory and to process for recommendations.
-	longestScalingRulePeriodAllowed = 30 * time.Minute
+	longestScalingRulePeriodAllowed = 60 * time.Minute
+
+	// longestStabilizationWindowAllowed is the maximum period allowed for a stabilization window
+	// increasing duration increase the number of recommendations to keep in memory.
+	longestStabilizationWindowAllowed = 60 * time.Minute
 
 	// statusRetainedActions is the number of horizontal actions kept in status
-	statusRetainedActions = 5
+	statusRetainedActions = 10
+
+	// statusRetainedRecommendations is the maximum number of horizontal recommendations kept in status
+	statusRetainedRecommendations = 60
 
 	// CustomRecommenderAnnotationKey is the key used to store custom recommender configuration in annotations
 	CustomRecommenderAnnotationKey = "autoscaling.datadoghq.com/custom-recommender"
@@ -71,6 +78,9 @@ type PodAutoscalerInternal struct {
 	// horizontalLastActions is the last horizontal action successfully taken
 	horizontalLastActions []datadoghqcommon.DatadogPodAutoscalerHorizontalAction
 
+	// horizontalLastRecommendations is the history of recommendations selected by the horizontal controller
+	horizontalLastRecommendations []datadoghqcommon.DatadogPodAutoscalerHorizontalRecommendation
+
 	// horizontalLastLimitReason is stored separately as we don't want to keep no-action events in `horizontalLastActions`
 	// i.e. when targetReplicaCount after limits == currentReplicas but we want to surface the last limiting reason anyway.
 	horizontalLastLimitReason string
@@ -104,9 +114,11 @@ type PodAutoscalerInternal struct {
 	// Parsed once from the .Spec.TargetRef
 	targetGVK schema.GroupVersionKind
 
-	// horizontalEventsRetention is the time to keep horizontal events in memory
-	// based on scale policies
+	// horizontalEventsRetention is the time to keep horizontal events in memory based on scale policies
 	horizontalEventsRetention time.Duration
+
+	// horizontalRecommendationsRetention is the time to keep horizontal recommendations in memory
+	horizontalRecommendationsRetention time.Duration
 
 	// customRecommenderConfiguration holds the configuration for custom recommenders,
 	// Parsed from annotations on the autoscaler
@@ -126,12 +138,12 @@ func NewPodAutoscalerInternal(podAutoscaler *datadoghq.DatadogPodAutoscaler) Pod
 }
 
 // NewPodAutoscalerFromSettings creates a new PodAutoscalerInternal from settings received through remote configuration
-func NewPodAutoscalerFromSettings(ns, name string, podAutoscalerSpec *datadoghq.DatadogPodAutoscalerSpec, settingsVersion uint64, settingsTimestamp time.Time) PodAutoscalerInternal {
+func NewPodAutoscalerFromSettings(ns, name string, podAutoscalerSpec *datadoghq.DatadogPodAutoscalerSpec, settingsTimestamp time.Time) PodAutoscalerInternal {
 	pda := PodAutoscalerInternal{
 		namespace: ns,
 		name:      name,
 	}
-	pda.UpdateFromSettings(podAutoscalerSpec, settingsVersion, settingsTimestamp)
+	pda.UpdateFromSettings(podAutoscalerSpec, settingsTimestamp)
 
 	return pda
 }
@@ -149,25 +161,28 @@ func (p *PodAutoscalerInternal) UpdateFromPodAutoscaler(podAutoscaler *datadoghq
 	// Resolving the target GVK is done in the controller sync to ensure proper sync and error handling
 	p.targetGVK = schema.GroupVersionKind{}
 	// Compute the horizontal events retention again in case .Spec.ApplyPolicy has changed
-	p.horizontalEventsRetention = getHorizontalEventsRetention(podAutoscaler.Spec.ApplyPolicy, longestScalingRulePeriodAllowed)
+	p.horizontalEventsRetention, p.horizontalRecommendationsRetention = getHorizontalRetentionValues(podAutoscaler.Spec.ApplyPolicy)
 	// Compute recommender configuration again in case .Annotations has changed
 	p.updateCustomRecommenderConfiguration(podAutoscaler.Annotations)
 }
 
 // UpdateFromSettings updates the PodAutoscalerInternal from a new settings
-func (p *PodAutoscalerInternal) UpdateFromSettings(podAutoscalerSpec *datadoghq.DatadogPodAutoscalerSpec, settingsVersion uint64, settingsTimestamp time.Time) {
+func (p *PodAutoscalerInternal) UpdateFromSettings(podAutoscalerSpec *datadoghq.DatadogPodAutoscalerSpec, settingsTimestamp time.Time) {
+	if p.spec == nil || p.spec.RemoteVersion == nil || *p.spec.RemoteVersion != *podAutoscalerSpec.RemoteVersion {
+		// Reset the target GVK as it might have changed
+		// Resolving the target GVK is done in the controller sync to ensure proper sync and error handling
+		p.targetGVK = schema.GroupVersionKind{}
+		// Compute the horizontal events retention again in case .Spec.ApplyPolicy has changed
+		p.horizontalEventsRetention, p.horizontalRecommendationsRetention = getHorizontalRetentionValues(podAutoscalerSpec.ApplyPolicy)
+	}
+	// From settings, we don't need to deep copy as the object is not stored anywhere else
+	// We store spec all the time to avoid having duplicate memory in the retriever state and here
+	p.spec = podAutoscalerSpec
 	p.settingsTimestamp = settingsTimestamp
-	p.spec = podAutoscalerSpec // From settings, we don't need to deep copy as the object is not stored anywhere else
-	p.spec.RemoteVersion = pointer.Ptr(settingsVersion)
-	// Reset the target GVK as it might have changed
-	// Resolving the target GVK is done in the controller sync to ensure proper sync and error handling
-	p.targetGVK = schema.GroupVersionKind{}
-	// Compute the horizontal events retention again in case .Spec.ApplyPolicy has changed
-	p.horizontalEventsRetention = getHorizontalEventsRetention(podAutoscalerSpec.ApplyPolicy, longestScalingRulePeriodAllowed)
 }
 
-// MergeScalingValues updates the PodAutoscalerInternal scaling values based on the desired source of recommendations
-func (p *PodAutoscalerInternal) MergeScalingValues(horizontalActiveSource, verticalActiveSource *datadoghqcommon.DatadogPodAutoscalerValueSource) {
+// SetActiveScalingValues updates the PodAutoscalerInternal scaling values based on the desired source of recommendations
+func (p *PodAutoscalerInternal) SetActiveScalingValues(currentTime time.Time, horizontalActiveSource, verticalActiveSource *datadoghqcommon.DatadogPodAutoscalerValueSource) {
 	// Helper function to select scaling values based on the source
 	selectScalingValues := func(source *datadoghqcommon.DatadogPodAutoscalerValueSource) ScalingValues {
 		switch {
@@ -188,6 +203,16 @@ func (p *PodAutoscalerInternal) MergeScalingValues(horizontalActiveSource, verti
 	p.scalingValues.HorizontalError = p.mainScalingValues.HorizontalError
 	p.scalingValues.VerticalError = p.mainScalingValues.VerticalError
 	p.scalingValues.Error = p.mainScalingValues.Error
+
+	// Store the recommendation in history if newer
+	if p.scalingValues.Horizontal != nil &&
+		(len(p.horizontalLastRecommendations) == 0 ||
+			p.horizontalLastRecommendations[len(p.horizontalLastRecommendations)-1].GeneratedAt.Before(pointer.Ptr(metav1.NewTime(p.scalingValues.Horizontal.Timestamp)))) {
+		p.horizontalLastRecommendations = addRecommendationToHistory(currentTime, p.horizontalRecommendationsRetention, p.horizontalLastRecommendations, datadoghqcommon.DatadogPodAutoscalerHorizontalRecommendation{
+			GeneratedAt: metav1.NewTime(p.scalingValues.Horizontal.Timestamp),
+			Replicas:    p.scalingValues.Horizontal.Replicas,
+		})
+	}
 }
 
 // UpdateFromMainValues updates the PodAutoscalerInternal from new main scaling values
@@ -291,6 +316,15 @@ func (p *PodAutoscalerInternal) UpdateFromStatus(status *datadoghqcommon.Datadog
 
 		if len(status.Horizontal.LastActions) > 0 {
 			p.horizontalLastActions = status.Horizontal.LastActions
+
+			for _, recommendation := range status.Horizontal.LastRecommendations {
+				if recommendation.Replicas != 0 {
+					p.horizontalLastRecommendations = addRecommendationToHistory(recommendation.GeneratedAt.Time, p.horizontalRecommendationsRetention, p.horizontalLastRecommendations, datadoghqcommon.DatadogPodAutoscalerHorizontalRecommendation{
+						GeneratedAt: recommendation.GeneratedAt,
+						Replicas:    recommendation.Replicas,
+					})
+				}
+			}
 		}
 	}
 
@@ -397,6 +431,11 @@ func (p *PodAutoscalerInternal) HorizontalLastActions() []datadoghqcommon.Datado
 	return p.horizontalLastActions
 }
 
+// HorizontalLastRecommendations returns the last recommendations
+func (p *PodAutoscalerInternal) HorizontalLastRecommendations() []datadoghqcommon.DatadogPodAutoscalerHorizontalRecommendation {
+	return p.horizontalLastRecommendations
+}
+
 // HorizontalLastActionError returns the last error encountered on horizontal scaling
 func (p *PodAutoscalerInternal) HorizontalLastActionError() error {
 	return p.horizontalLastActionError
@@ -472,7 +511,7 @@ func (p *PodAutoscalerInternal) BuildStatus(currentTime metav1.Time, currentStat
 	// Produce Horizontal status only if we have a desired number of replicas
 	if p.scalingValues.Horizontal != nil {
 		status.Horizontal = &datadoghqcommon.DatadogPodAutoscalerHorizontalStatus{
-			Target: &datadoghqcommon.DatadogPodAutoscalerHorizontalTargetStatus{
+			Target: &datadoghqcommon.DatadogPodAutoscalerHorizontalRecommendation{
 				Source:      p.scalingValues.Horizontal.Source,
 				GeneratedAt: metav1.NewTime(p.scalingValues.Horizontal.Timestamp),
 				Replicas:    p.scalingValues.Horizontal.Replicas,
@@ -483,6 +522,12 @@ func (p *PodAutoscalerInternal) BuildStatus(currentTime metav1.Time, currentStat
 			firstIndex := max(lenActions-statusRetainedActions, 0)
 
 			status.Horizontal.LastActions = slices.Clone(p.horizontalLastActions[firstIndex:lenActions])
+		}
+
+		if lenRecommendations := len(p.horizontalLastRecommendations); lenRecommendations > 0 {
+			firstIndex := max(lenRecommendations-statusRetainedRecommendations, 0)
+
+			status.Horizontal.LastRecommendations = slices.Clone(p.horizontalLastRecommendations[firstIndex:lenRecommendations])
 		}
 	}
 
@@ -620,6 +665,31 @@ func addHorizontalAction(currentTime time.Time, retention time.Duration, actions
 	return actions
 }
 
+// TODO: We should be able to have a single function with generics
+func addRecommendationToHistory(currentTime time.Time, retention time.Duration, history []datadoghqcommon.DatadogPodAutoscalerHorizontalRecommendation, value datadoghqcommon.DatadogPodAutoscalerHorizontalRecommendation) []datadoghqcommon.DatadogPodAutoscalerHorizontalRecommendation {
+	if retention == 0 {
+		history = history[:0]
+		history = append(history, value)
+		return history
+	}
+
+	// Find oldest event index to keep
+	cutoffTime := currentTime.Add(-retention)
+	cutoffIndex := 0
+	for i, h := range history {
+		// The first event after the cutoff time is the oldest event to keep
+		if h.GeneratedAt.After(cutoffTime) {
+			cutoffIndex = i
+			break
+		}
+	}
+
+	// We are basically removing space from the array until we reallocate
+	history = history[cutoffIndex:]
+	history = append(history, value)
+	return history
+}
+
 func newConditionFromError(trueOnError bool, currentTime metav1.Time, err error, conditionType datadoghqcommon.DatadogPodAutoscalerConditionType, existingConditions map[datadoghqcommon.DatadogPodAutoscalerConditionType]*datadoghqcommon.DatadogPodAutoscalerCondition) datadoghqcommon.DatadogPodAutoscalerCondition {
 	var condition corev1.ConditionStatus
 
@@ -659,28 +729,31 @@ func newCondition(status corev1.ConditionStatus, reason string, currentTime meta
 	return condition
 }
 
-func getHorizontalEventsRetention(policy *datadoghq.DatadogPodAutoscalerApplyPolicy, longestLookbackAllowed time.Duration) time.Duration {
-	var longestRetention time.Duration
+func getHorizontalRetentionValues(policy *datadoghq.DatadogPodAutoscalerApplyPolicy) (eventsRetention time.Duration, recommendationRetention time.Duration) {
 	if policy == nil {
-		return 0
+		return 0, 0
 	}
 
 	if policy.ScaleUp != nil {
 		scaleUpRetention := getLongestScalingRulesPeriod(policy.ScaleUp.Rules)
+		eventsRetention = max(eventsRetention, scaleUpRetention)
+
 		scaleUpStabilizationWindow := time.Second * time.Duration(policy.ScaleUp.StabilizationWindowSeconds)
-		longestRetention = max(longestRetention, scaleUpRetention, scaleUpStabilizationWindow)
+		recommendationRetention = max(recommendationRetention, scaleUpStabilizationWindow)
 	}
 
 	if policy.ScaleDown != nil {
 		scaleDownRetention := getLongestScalingRulesPeriod(policy.ScaleDown.Rules)
+		eventsRetention = max(eventsRetention, scaleDownRetention)
+
 		scaleDownStabilizationWindow := time.Second * time.Duration(policy.ScaleDown.StabilizationWindowSeconds)
-		longestRetention = max(longestRetention, scaleDownRetention, scaleDownStabilizationWindow)
+		recommendationRetention = max(recommendationRetention, scaleDownStabilizationWindow)
 	}
 
-	if longestRetention > longestLookbackAllowed {
-		return longestLookbackAllowed
-	}
-	return longestRetention
+	eventsRetention = min(eventsRetention, longestScalingRulePeriodAllowed)
+	recommendationRetention = min(recommendationRetention, longestStabilizationWindowAllowed)
+
+	return eventsRetention, recommendationRetention
 }
 
 func getLongestScalingRulesPeriod(rules []datadoghqcommon.DatadogPodAutoscalerScalingRule) time.Duration {

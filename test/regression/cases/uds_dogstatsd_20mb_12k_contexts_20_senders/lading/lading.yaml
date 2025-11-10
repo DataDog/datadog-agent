@@ -41,8 +41,7 @@ generator:
             set: 9
             histogram: 1
       bytes_per_second: "1 MiB"
-      maximum_prebuild_cache_size_bytes: "16 Mb"
-      maximum_block_size: 8192
+      maximum_prebuild_cache_size_bytes: "16 MiB"
   - unix_datagram:
       seed: [2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53,
              59, 61, 67, 71, 73, 79, 83, 89, 97, 101, 103, 107, 109, 113, 127, 132]
@@ -85,8 +84,7 @@ generator:
             set: 9
             histogram: 1
       bytes_per_second: "1 MiB"
-      maximum_prebuild_cache_size_bytes: "16 Mb"
-      maximum_block_size: 8192
+      maximum_prebuild_cache_size_bytes: "16 MiB"
   - unix_datagram:
       seed: [2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53,
              59, 61, 67, 71, 73, 79, 83, 89, 97, 101, 103, 107, 109, 113, 127, 133]
@@ -129,8 +127,7 @@ generator:
             set: 9
             histogram: 1
       bytes_per_second: "1 MiB"
-      maximum_prebuild_cache_size_bytes: "16 Mb"
-      maximum_block_size: 8192
+      maximum_prebuild_cache_size_bytes: "16 MiB"
   - unix_datagram:
       seed: [2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53,
              59, 61, 67, 71, 73, 79, 83, 89, 97, 101, 103, 107, 109, 113, 127, 134]
@@ -173,8 +170,7 @@ generator:
             set: 9
             histogram: 1
       bytes_per_second: "1 MiB"
-      maximum_prebuild_cache_size_bytes: "16 Mb"
-      maximum_block_size: 8192
+      maximum_prebuild_cache_size_bytes: "16 MiB"
   - unix_datagram:
       seed: [2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53,
              59, 61, 67, 71, 73, 79, 83, 89, 97, 101, 103, 107, 109, 113, 127, 135]
@@ -217,8 +213,7 @@ generator:
             set: 9
             histogram: 1
       bytes_per_second: "1 MiB"
-      maximum_prebuild_cache_size_bytes: "16 Mb"
-      maximum_block_size: 8192
+      maximum_prebuild_cache_size_bytes: "16 MiB"
   - unix_datagram:
       seed: [2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53,
              59, 61, 67, 71, 73, 79, 83, 89, 97, 101, 103, 107, 109, 113, 127, 136]
@@ -261,8 +256,7 @@ generator:
             set: 9
             histogram: 1
       bytes_per_second: "1 MiB"
-      maximum_prebuild_cache_size_bytes: "16 Mb"
-      maximum_block_size: 8192
+      maximum_prebuild_cache_size_bytes: "16 MiB"
   - unix_datagram:
       seed: [2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53,
              59, 61, 67, 71, 73, 79, 83, 89, 97, 101, 103, 107, 109, 113, 127, 137]
@@ -305,8 +299,7 @@ generator:
             set: 9
             histogram: 1
       bytes_per_second: "1 MiB"
-      maximum_prebuild_cache_size_bytes: "16 Mb"
-      maximum_block_size: 8192
+      maximum_prebuild_cache_size_bytes: "16 MiB"
   - unix_datagram:
       seed: [2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53,
              59, 61, 67, 71, 73, 79, 83, 89, 97, 101, 103, 107, 109, 113, 127, 138]
@@ -349,8 +342,7 @@ generator:
             set: 9
             histogram: 1
       bytes_per_second: "1 MiB"
-      maximum_prebuild_cache_size_bytes: "16 Mb"
-      maximum_block_size: 8192
+      maximum_prebuild_cache_size_bytes: "16 MiB"
   - unix_datagram:
       seed: [2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53,
              59, 61, 67, 71, 73, 79, 83, 89, 97, 101, 103, 107, 109, 113, 127, 139]
@@ -393,8 +385,7 @@ generator:
             set: 9
             histogram: 1
       bytes_per_second: "1 MiB"
-      maximum_prebuild_cache_size_bytes: "16 Mb"
-      maximum_block_size: 8192
+      maximum_prebuild_cache_size_bytes: "16 MiB"
   - unix_datagram:
       seed: [2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53,
              59, 61, 67, 71, 73, 79, 83, 89, 97, 101, 103, 107, 109, 113, 127, 140]
@@ -437,8 +428,7 @@ generator:
             set: 9
             histogram: 1
       bytes_per_second: "1 MiB"
-      maximum_prebuild_cache_size_bytes: "16 Mb"
-      maximum_block_size: 8192
+      maximum_prebuild_cache_size_bytes: "16 MiB"
   - unix_datagram:
       seed: [2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53,
              59, 61, 67, 71, 73, 79, 83, 89, 97, 101, 103, 107, 109, 113, 127, 141]
@@ -481,8 +471,7 @@ generator:
             set: 9
             histogram: 1
       bytes_per_second: "1 MiB"
-      maximum_prebuild_cache_size_bytes: "16 Mb"
-      maximum_block_size: 8192
+      maximum_prebuild_cache_size_bytes: "16 MiB"
   - unix_datagram:
       seed: [2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53,
              59, 61, 67, 71, 73, 79, 83, 89, 97, 101, 103, 107, 109, 113, 127, 142]
@@ -525,8 +514,7 @@ generator:
             set: 9
             histogram: 1
       bytes_per_second: "1 MiB"
-      maximum_prebuild_cache_size_bytes: "16 Mb"
-      maximum_block_size: 8192
+      maximum_prebuild_cache_size_bytes: "16 MiB"
   - unix_datagram:
       seed: [2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53,
              59, 61, 67, 71, 73, 79, 83, 89, 97, 101, 103, 107, 109, 113, 127, 143]
@@ -569,8 +557,7 @@ generator:
             set: 9
             histogram: 1
       bytes_per_second: "1 MiB"
-      maximum_prebuild_cache_size_bytes: "16 Mb"
-      maximum_block_size: 8192
+      maximum_prebuild_cache_size_bytes: "16 MiB"
   - unix_datagram:
       seed: [2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53,
              59, 61, 67, 71, 73, 79, 83, 89, 97, 101, 103, 107, 109, 113, 127, 144]
@@ -613,8 +600,7 @@ generator:
             set: 9
             histogram: 1
       bytes_per_second: "1 MiB"
-      maximum_prebuild_cache_size_bytes: "16 Mb"
-      maximum_block_size: 8192
+      maximum_prebuild_cache_size_bytes: "16 MiB"
   - unix_datagram:
       seed: [2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53,
              59, 61, 67, 71, 73, 79, 83, 89, 97, 101, 103, 107, 109, 113, 127, 145]
@@ -657,8 +643,7 @@ generator:
             set: 9
             histogram: 1
       bytes_per_second: "1 MiB"
-      maximum_prebuild_cache_size_bytes: "16 Mb"
-      maximum_block_size: 8192
+      maximum_prebuild_cache_size_bytes: "16 MiB"
   - unix_datagram:
       seed: [2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53,
              59, 61, 67, 71, 73, 79, 83, 89, 97, 101, 103, 107, 109, 113, 127, 146]
@@ -701,8 +686,7 @@ generator:
             set: 9
             histogram: 1
       bytes_per_second: "1 MiB"
-      maximum_prebuild_cache_size_bytes: "16 Mb"
-      maximum_block_size: 8192
+      maximum_prebuild_cache_size_bytes: "16 MiB"
   - unix_datagram:
       seed: [2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53,
              59, 61, 67, 71, 73, 79, 83, 89, 97, 101, 103, 107, 109, 113, 127, 147]
@@ -745,8 +729,7 @@ generator:
             set: 9
             histogram: 1
       bytes_per_second: "1 MiB"
-      maximum_prebuild_cache_size_bytes: "16 Mb"
-      maximum_block_size: 8192
+      maximum_prebuild_cache_size_bytes: "16 MiB"
   - unix_datagram:
       seed: [2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53,
              59, 61, 67, 71, 73, 79, 83, 89, 97, 101, 103, 107, 109, 113, 127, 148]
@@ -789,8 +772,7 @@ generator:
             set: 9
             histogram: 1
       bytes_per_second: "1 MiB"
-      maximum_prebuild_cache_size_bytes: "16 Mb"
-      maximum_block_size: 8192
+      maximum_prebuild_cache_size_bytes: "16 MiB"
   - unix_datagram:
       seed: [2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53,
              59, 61, 67, 71, 73, 79, 83, 89, 97, 101, 103, 107, 109, 113, 127, 149]
@@ -833,8 +815,7 @@ generator:
             set: 9
             histogram: 1
       bytes_per_second: "1 MiB"
-      maximum_prebuild_cache_size_bytes: "16 Mb"
-      maximum_block_size: 8192
+      maximum_prebuild_cache_size_bytes: "16 MiB"
   - unix_datagram:
       seed: [2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53,
              59, 61, 67, 71, 73, 79, 83, 89, 97, 101, 103, 107, 109, 113, 127, 149]
@@ -877,8 +858,7 @@ generator:
             set: 9
             histogram: 1
       bytes_per_second: "1 MiB"
-      maximum_prebuild_cache_size_bytes: "16 Mb"
-      maximum_block_size: 8192
+      maximum_prebuild_cache_size_bytes: "16 MiB"
 
 blackhole:
   - http:
@@ -887,5 +867,7 @@ blackhole:
       binding_addr: "127.0.0.1:9092"
 
 target_metrics:
-  - prometheus:
+  - prometheus: # core agent telemetry
         uri: "http://127.0.0.1:5000/telemetry"
+        tags:
+          sub_agent: "core"

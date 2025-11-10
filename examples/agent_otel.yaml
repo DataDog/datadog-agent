@@ -15,7 +15,7 @@ tags:
   - example:changeme
 #  - <TAG_KEY>:<TAG_VALUE>
 
-oltp_config:
+otlp_config:
   receiver:
     protocols:
       grpc:

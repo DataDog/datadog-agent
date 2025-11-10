@@ -11,8 +11,8 @@ import (
 	cmdcheck "github.com/DataDog/datadog-agent/cmd/security-agent/subcommands/check"
 	cmdcompliance "github.com/DataDog/datadog-agent/cmd/security-agent/subcommands/compliance"
 	cmdconfig "github.com/DataDog/datadog-agent/cmd/security-agent/subcommands/config"
+	cmdcoverage "github.com/DataDog/datadog-agent/cmd/security-agent/subcommands/coverage"
 	cmdflare "github.com/DataDog/datadog-agent/cmd/security-agent/subcommands/flare"
-	cmdruntime "github.com/DataDog/datadog-agent/cmd/security-agent/subcommands/runtime"
 	cmdstart "github.com/DataDog/datadog-agent/cmd/security-agent/subcommands/start"
 	cmdstatus "github.com/DataDog/datadog-agent/cmd/security-agent/subcommands/status"
 	cmdversion "github.com/DataDog/datadog-agent/cmd/security-agent/subcommands/version"
@@ -30,10 +30,10 @@ func SecurityAgentSubcommands() []command.SubcommandFactory {
 		cmdcompliance.Commands,
 		cmdconfig.Commands,
 		cmdflare.Commands,
-		cmdruntime.Commands,
 		cmdstart.Commands,
 		cmdstatus.Commands,
 		cmdversion.Commands,
 		cmdworkloadlist.Commands,
+		cmdcoverage.Commands,
 	}
 }

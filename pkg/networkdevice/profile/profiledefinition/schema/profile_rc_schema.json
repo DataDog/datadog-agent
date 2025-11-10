@@ -76,6 +76,9 @@
                             "match_value": {
                               "type": "string"
                             },
+                            "scale_factor_string": {
+                              "type": "string"
+                            },
                             "scale_factor": {
                               "type": "number"
                             },
@@ -108,6 +111,9 @@
                                 "type": "string"
                               },
                               "match_value": {
+                                "type": "string"
+                              },
+                              "scale_factor_string": {
                                 "type": "string"
                               },
                               "scale_factor": {
@@ -169,6 +175,9 @@
                           "type": "string"
                         },
                         "match_value": {
+                          "type": "string"
+                        },
+                        "scale_factor_string": {
                           "type": "string"
                         },
                         "scale_factor": {
@@ -410,6 +419,9 @@
         "match_value": {
           "type": "string"
         },
+        "scale_factor_string": {
+            "type": "string"
+        },
         "scale_factor": {
           "type": "number"
         },
@@ -442,6 +454,9 @@
         },
         "match_value": {
           "type": "string"
+        },
+        "scale_factor_string": {
+            "type": "string"
         },
         "scale_factor": {
           "type": "number"

@@ -9,23 +9,28 @@ import (
 	"context"
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
-
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.opentelemetry.io/collector/processor"
 	"go.uber.org/zap"
 )
 
 type infraAttributesSpanProcessor struct {
+	infraTags   infraTagsProcessor
 	logger      *zap.Logger
-	tagger      taggerClient
 	cardinality types.TagCardinality
+	cfg         *Config
 }
 
-func newInfraAttributesSpanProcessor(set processor.Settings, cfg *Config, tagger taggerClient) (*infraAttributesSpanProcessor, error) {
+func newInfraAttributesSpanProcessor(
+	set processor.Settings,
+	infraTags infraTagsProcessor,
+	cfg *Config,
+) (*infraAttributesSpanProcessor, error) {
 	iasp := &infraAttributesSpanProcessor{
+		infraTags:   infraTags,
 		logger:      set.Logger,
-		tagger:      tagger,
 		cardinality: cfg.Cardinality,
+		cfg:         cfg,
 	}
 	set.Logger.Info("Span Infra Attributes Processor configured")
 	return iasp, nil
@@ -35,7 +40,7 @@ func (iasp *infraAttributesSpanProcessor) processTraces(_ context.Context, td pt
 	rss := td.ResourceSpans()
 	for i := 0; i < rss.Len(); i++ {
 		resourceAttributes := rss.At(i).Resource().Attributes()
-		processInfraTags(iasp.logger, iasp.tagger, iasp.cardinality, resourceAttributes)
+		iasp.infraTags.ProcessTags(iasp.logger, iasp.cardinality, resourceAttributes, iasp.cfg.AllowHostnameOverride)
 	}
 	return td, nil
 }

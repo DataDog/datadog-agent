@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Windows: Prevent unnecessary failing access to process memory when a process is protected

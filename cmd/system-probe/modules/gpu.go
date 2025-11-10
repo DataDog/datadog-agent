@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-//go:build linux
+//go:build linux && linux_bpf && nvml
 
 package modules
 
@@ -17,12 +17,6 @@ import (
 	"strconv"
 	"time"
 
-	"go.uber.org/atomic"
-
-	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
-	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
-	sysconfigtypes "github.com/DataDog/datadog-agent/cmd/system-probe/config/types"
-	"github.com/DataDog/datadog-agent/cmd/system-probe/utils"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/uprobes"
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor"
@@ -31,9 +25,15 @@ import (
 	gpuconfig "github.com/DataDog/datadog-agent/pkg/gpu/config"
 	gpuconfigconsts "github.com/DataDog/datadog-agent/pkg/gpu/config/consts"
 	usm "github.com/DataDog/datadog-agent/pkg/network/usm/utils"
+	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
+	"github.com/DataDog/datadog-agent/pkg/system-probe/config"
+	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
+	"github.com/DataDog/datadog-agent/pkg/system-probe/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+func init() { registerModule(GPUMonitoring) }
 
 var _ module.Module = &GPUMonitoringModule{}
 var gpuMonitoringConfigNamespaces = []string{gpuconfigconsts.GPUNS}
@@ -51,34 +51,32 @@ const maxCollectedDebugEvents = 1000000
 var processConsumerEventTypes = []consumers.ProcessConsumerEventTypes{consumers.ExecEventType, consumers.ExitEventType}
 
 // GPUMonitoring Factory
-var GPUMonitoring = module.Factory{
+var GPUMonitoring = &module.Factory{
 	Name:             config.GPUMonitoringModule,
 	ConfigNamespaces: gpuMonitoringConfigNamespaces,
 	Fn: func(_ *sysconfigtypes.Config, deps module.FactoryDependencies) (module.Module, error) {
-
 		if processEventConsumer == nil {
-			return nil, fmt.Errorf("process event consumer not initialized")
+			return nil, errors.New("process event consumer not initialized")
 		}
 
 		c := gpuconfig.New()
 
 		if c.ConfigureCgroupPerms {
-			configureCgroupPermissions()
+			configureCgroupPermissions(c.CgroupReapplyDelay)
 		}
 
-		probeDeps, err := gpu.NewProbeDependencies(deps.Telemetry, processEventConsumer, deps.WMeta)
-		if err != nil {
-			return nil, fmt.Errorf("unable to create probe dependencies: %w", err)
+		probeDeps := gpu.ProbeDependencies{
+			Telemetry:      deps.Telemetry,
+			ProcessMonitor: processEventConsumer,
+			WorkloadMeta:   deps.WMeta,
 		}
-
 		p, err := gpu.NewProbe(c, probeDeps)
 		if err != nil {
 			return nil, fmt.Errorf("unable to start %s: %w", config.GPUMonitoringModule, err)
 		}
 
 		return &GPUMonitoringModule{
-			Probe:     p,
-			lastCheck: atomic.NewInt64(0),
+			Probe: p,
 		}, nil
 	},
 	NeedsEBPF: func() bool {
@@ -89,13 +87,11 @@ var GPUMonitoring = module.Factory{
 // GPUMonitoringModule is a module for GPU monitoring
 type GPUMonitoringModule struct {
 	*gpu.Probe
-	lastCheck *atomic.Int64
 }
 
 // Register registers the GPU monitoring module
 func (t *GPUMonitoringModule) Register(httpMux *module.Router) error {
 	httpMux.HandleFunc("/check", func(w http.ResponseWriter, _ *http.Request) {
-		t.lastCheck.Store(time.Now().Unix())
 		stats, err := t.Probe.GetAndFlush()
 		if err != nil {
 			log.Errorf("Error getting GPU stats: %v", err)
@@ -103,24 +99,22 @@ func (t *GPUMonitoringModule) Register(httpMux *module.Router) error {
 			return
 		}
 
-		utils.WriteAsJSON(w, stats)
+		utils.WriteAsJSON(w, stats, utils.CompactOutput)
 	})
 
-	httpMux.HandleFunc("/debug/traced-programs", usm.GetTracedProgramsEndpoint(gpu.GpuModuleName))
-	httpMux.HandleFunc("/debug/blocked-processes", usm.GetBlockedPathIDEndpoint(gpu.GpuModuleName))
-	httpMux.HandleFunc("/debug/clear-blocked", usm.GetClearBlockedEndpoint(gpu.GpuModuleName))
-	httpMux.HandleFunc("/debug/attach-pid", usm.GetAttachPIDEndpoint(gpu.GpuModuleName))
-	httpMux.HandleFunc("/debug/detach-pid", usm.GetDetachPIDEndpoint(gpu.GpuModuleName))
+	httpMux.HandleFunc("/debug/traced-programs", usm.GetTracedProgramsEndpoint(gpuconfigconsts.GpuModuleName))
+	httpMux.HandleFunc("/debug/blocked-processes", usm.GetBlockedPathIDEndpoint(gpuconfigconsts.GpuModuleName))
+	httpMux.HandleFunc("/debug/clear-blocked", usm.GetClearBlockedEndpoint(gpuconfigconsts.GpuModuleName))
+	httpMux.HandleFunc("/debug/attach-pid", usm.GetAttachPIDEndpoint(gpuconfigconsts.GpuModuleName))
+	httpMux.HandleFunc("/debug/detach-pid", usm.GetDetachPIDEndpoint(gpuconfigconsts.GpuModuleName))
 	httpMux.HandleFunc("/debug/collect-events", t.collectEventsHandler)
 
 	return nil
 }
 
-// GetStats returns the last check time
+// GetStats returns the debug stats for the GPU monitoring module
 func (t *GPUMonitoringModule) GetStats() map[string]interface{} {
-	return map[string]interface{}{
-		"last_check": t.lastCheck.Load(),
-	}
+	return t.Probe.GetDebugStats()
 }
 
 func (t *GPUMonitoringModule) collectEventsHandler(w http.ResponseWriter, r *http.Request) {
@@ -156,7 +150,7 @@ func (t *GPUMonitoringModule) collectEventsHandler(w http.ResponseWriter, r *htt
 	log.Info("Collection finished, writing response...")
 
 	for _, row := range data {
-		w.Write([]byte(row))
+		w.Write(row)
 		w.Write([]byte("\n"))
 	}
 
@@ -219,12 +213,12 @@ func getAgentPID(procRoot string) (uint32, error) {
 // configureCgroupPermissions configures the cgroup permissions to access NVIDIA
 // devices for the system-probe and agent processes, as the NVIDIA device plugin
 // sets them in a way that can be overwritten by SystemD cgroups.
-func configureCgroupPermissions() {
+func configureCgroupPermissions(reapplyDelay time.Duration) {
 	root := hostRoot()
 
 	sysprobePID := uint32(os.Getpid())
 	log.Infof("Configuring cgroup permissions for system-probe process with PID %d", sysprobePID)
-	if err := gpu.ConfigureDeviceCgroups(sysprobePID, root); err != nil {
+	if err := gpu.ConfigureDeviceCgroups(sysprobePID, root, reapplyDelay); err != nil {
 		log.Warnf("Failed to configure cgroup permissions for system-probe process: %v. gpu-monitoring module might not work properly", err)
 	}
 
@@ -236,7 +230,7 @@ func configureCgroupPermissions() {
 	}
 
 	log.Infof("Configuring cgroup permissions for agent process with PID %d", agentPID)
-	if err := gpu.ConfigureDeviceCgroups(agentPID, root); err != nil {
+	if err := gpu.ConfigureDeviceCgroups(agentPID, root, reapplyDelay); err != nil {
 		log.Warnf("Failed to configure cgroup permissions for agent process: %v. gpu-monitoring module might not work properly", err)
 	}
 }

@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build (linux && linux_bpf) || (windows && npm)
+
 // Package main - single file executable
 package main
 
@@ -14,6 +16,7 @@ import (
 	"syscall"
 	"time"
 
+	secretsnoop "github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	networkConfig "github.com/DataDog/datadog-agent/pkg/network/config"
@@ -29,8 +32,9 @@ func main() {
 		os.Exit(1)
 	}
 
-	pkgconfigsetup.Datadog().SetConfigFile(*cfgpath)
-	if _, err := pkgconfigsetup.LoadWithoutSecret(pkgconfigsetup.Datadog(), nil); err != nil {
+	ddcfg := pkgconfigsetup.GlobalConfigBuilder()
+	ddcfg.SetConfigFile(*cfgpath)
+	if err := pkgconfigsetup.LoadDatadog(ddcfg, secretsnoop.NewComponent().Comp, nil); err != nil {
 		fmt.Fprintf(os.Stderr, "%s\n", err)
 		os.Exit(1)
 	}

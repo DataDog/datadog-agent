@@ -15,7 +15,7 @@ func getIoctlProbes() []*manager.Probe {
 		{
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				UID:          SecurityAgentUID,
-				EBPFFuncName: "hook_do_vfs_ioctl",
+				EBPFFuncName: "hook_security_file_ioctl",
 			},
 		},
 	}

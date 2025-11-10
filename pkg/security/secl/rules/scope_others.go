@@ -8,6 +8,9 @@
 // Package rules holds rules related files
 package rules
 
-func getStateScopes() map[Scope]VariableProviderFactory {
-	return getCommonStateScopes()
+import "github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
+
+// DefaultVariableScopers returns the default variable scopers
+func DefaultVariableScopers() map[Scope]*eval.VariableScoper {
+	return getCommonVariableScopers()
 }

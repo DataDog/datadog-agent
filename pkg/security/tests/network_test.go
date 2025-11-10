@@ -10,17 +10,22 @@ package tests
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"net/netip"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/avast/retry-go/v4"
 	"github.com/cilium/ebpf"
 	"github.com/docker/docker/libnetwork/resolvconf"
+	"github.com/oliveagle/jsonpath"
 	"github.com/samber/lo"
 	"github.com/stretchr/testify/assert"
 
@@ -71,7 +76,7 @@ func TestNetworkCIDR(t *testing.T) {
 			return nil
 		}, func(event *model.Event, _ *rules.Rule) {
 			assert.Equal(t, "dns", event.GetType(), "wrong event type")
-			assert.Equal(t, "google.com", event.DNS.Name, "wrong domain name")
+			assert.Equal(t, "google.com", event.DNS.Question.Name, "wrong domain name")
 
 			test.validateDNSSchema(t, event)
 		})
@@ -118,12 +123,18 @@ func TestRawPacket(t *testing.T) {
 		}
 	}()
 
-	rule := &rules.RuleDefinition{
-		ID:         "test_rule_raw_packet_udp4",
-		Expression: fmt.Sprintf(`packet.filter == "ip dst %s and udp dst port %d" && process.file.name == "%s"`, testDestIP, testUDPDestPort, filepath.Base(executable)),
+	ruleDefs := []*rules.RuleDefinition{
+		{
+			ID:         "test_rule_raw_packet_udp4",
+			Expression: fmt.Sprintf(`packet.filter == "ip dst %s and udp dst port %d" && process.file.name == "%s"`, testDestIP, testUDPDestPort, filepath.Base(executable)),
+		},
+		{
+			ID:         "test_rule_raw_packet_icmp",
+			Expression: `packet.filter == "icmp and icmp[icmptype] == icmp-echo and ip dst 8.8.8.8"`,
+		},
 	}
 
-	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, withStaticOpts(testOpts{networkRawPacketEnabled: true}))
+	test, err := newTestModule(t, nil, ruleDefs, withStaticOpts(testOpts{networkRawPacketEnabled: true}))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -151,6 +162,132 @@ func TestRawPacket(t *testing.T) {
 			assertFieldEqual(t, event, "packet.l4_protocol", int(model.IPProtoUDP))
 			assertFieldEqual(t, event, "packet.destination.port", int(testUDPDestPort))
 		})
+	})
+
+	t.Run("icmp", func(t *testing.T) {
+		if _, err := whichNonFatal("docker"); err != nil {
+			t.Skip("Skip test where docker is unavailable")
+		}
+
+		wrapper, err := newDockerCmdWrapper(test.Root(), test.Root(), "busybox", "")
+		if err != nil {
+			t.Fatalf("failed to start docker wrapper: %v", err)
+		}
+
+		waitSignal := test.WaitSignalWithoutProcessContext
+
+		kv, err := kernel.NewKernelVersion()
+		if err != nil {
+			t.Errorf("failed to get kernel version: %s", err)
+			return
+		}
+
+		if !kv.HasBpfGetSocketCookieForCgroupSocket() || kv.Code < kernel.Kernel5_15 {
+			waitSignal = test.WaitSignalWithoutProcessContext
+		}
+
+		wrapper.Run(t, "ping", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+			waitSignal(t, func() error {
+				cmd := cmdFunc("/bin/ping", []string{"-c", "1", "8.8.8.8"}, nil)
+				if out, err := cmd.CombinedOutput(); err != nil {
+					return fmt.Errorf("%s: %w", out, err)
+				}
+				return nil
+			}, func(event *model.Event, rule *rules.Rule) {
+				assert.Equal(t, "test_rule_raw_packet_icmp", rule.ID, "wrong rule triggered")
+				assert.Equal(t, "8.8.8.8/32", event.NetworkContext.Destination.IPNet.String(), "wrong destination IP")
+				assert.Equal(t, uint16(model.IPProtoICMP), event.RawPacket.L4Protocol)
+				assert.Equal(t, uint32(model.ICMPTypeEchoRequest), event.RawPacket.NetworkContext.Type)
+			})
+		})
+	})
+}
+
+func TestRawPacketAction(t *testing.T) {
+	if testEnvironment == DockerEnvironment {
+		t.Skip("skipping cgroup ID test in docker")
+	}
+
+	SkipIfNotAvailable(t)
+
+	checkKernelCompatibility(t, "network feature", isRawPacketNotSupported)
+
+	rule := &rules.RuleDefinition{
+		ID:         "test_rule_raw_packet_drop",
+		Expression: `exec.file.name == "free"`,
+		Actions: []*rules.ActionDefinition{
+			{
+				NetworkFilter: &rules.NetworkFilterDefinition{
+					BPFFilter: "port 53",
+					Scope:     "cgroup",
+					Policy:    "drop",
+				},
+			},
+		},
+	}
+
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, withStaticOpts(testOpts{networkRawPacketEnabled: true}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
+	cmdWrapper, err := test.StartADocker()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cmdWrapper.stop()
+
+	t.Run("drop", func(t *testing.T) {
+		cmd := cmdWrapper.Command("nslookup", []string{"google.com"}, []string{})
+		if err := cmd.Run(); err != nil {
+			t.Error(err)
+		}
+
+		test.WaitSignal(t, func() error {
+			cmd := cmdWrapper.Command("free", []string{}, []string{})
+			return cmd.Run()
+		}, func(_ *model.Event, rule *rules.Rule) {
+			assertTriggeredRule(t, rule, "test_rule_raw_packet_drop")
+		})
+
+		err = retry.Do(func() error {
+			msg := test.msgSender.getMsg("test_rule_raw_packet_drop")
+			if msg == nil {
+				return errors.New("not found")
+			}
+			validateMessageSchema(t, string(msg.Data))
+
+			jsonPathValidation(test, msg.Data, func(_ *testModule, obj interface{}) {
+				if el, err := jsonpath.JsonPathLookup(obj, `$.agent.rule_actions[?(@.policy == 'drop')]`); err != nil || el == nil || len(el.([]interface{})) == 0 {
+					t.Errorf("element not found %s => %v", string(msg.Data), err)
+				}
+				if el, err := jsonpath.JsonPathLookup(obj, `$.agent.rule_actions[?(@.filter == 'port 53')]`); err != nil || el == nil || len(el.([]interface{})) == 0 {
+					t.Errorf("element not found %s => %v", string(msg.Data), err)
+				}
+			})
+
+			return nil
+		}, retry.Delay(200*time.Millisecond), retry.Attempts(60), retry.DelayType(retry.FixedDelay))
+		assert.NoError(t, err)
+
+		// wait for the action to be performed
+		time.Sleep(5 * time.Second)
+
+		cmd = cmdWrapper.Command("nslookup", []string{"microsoft.com"}, []string{})
+		if err = cmd.Run(); err == nil {
+			t.Error("should return an error")
+		}
+
+		err = retry.Do(func() error {
+			msg := test.msgSender.getMsg("rawpacket_action")
+			if msg == nil {
+				return errors.New("not found")
+			}
+			validateMessageSchema(t, string(msg.Data))
+
+			return nil
+		}, retry.Delay(500*time.Millisecond), retry.Attempts(30), retry.DelayType(retry.FixedDelay))
 	})
 }
 

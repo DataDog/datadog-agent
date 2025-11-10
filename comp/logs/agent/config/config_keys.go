@@ -6,7 +6,7 @@
 package config
 
 import (
-	"encoding/json"
+	"strings"
 	"time"
 
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
@@ -21,6 +21,14 @@ type LogsConfigKeys struct {
 	vectorPrefix string
 	config       pkgconfigmodel.Reader
 }
+
+// CompressionKind constants
+const (
+	GzipCompressionKind  = "gzip"
+	GzipCompressionLevel = 6
+	ZstdCompressionKind  = "zstd"
+	ZstdCompressionLevel = 1
+)
 
 // defaultLogsConfigKeys defines the default YAML keys used to retrieve logs configuration
 func defaultLogsConfigKeys(config pkgconfigmodel.Reader) *LogsConfigKeys {
@@ -110,23 +118,39 @@ func (l *LogsConfigKeys) devModeUseProto() bool {
 }
 
 func (l *LogsConfigKeys) compressionKind() string {
-	compressionKind := l.getConfig().GetString(l.getConfigKey("compression_kind"))
-	switch compressionKind {
-	case "zstd", "gzip":
-		log.Debugf("Logs agent is using: %s compression", compressionKind)
-		return compressionKind
-	default:
-		log.Warnf("Invalid compression kind: '%s', falling back to default compression: '%s' ", compressionKind, pkgconfigsetup.DefaultLogCompressionKind)
-		return pkgconfigsetup.DefaultLogCompressionKind
+	configKey := l.getConfigKey("compression_kind")
+	compressionKind := l.getConfig().GetString(configKey)
+
+	endpoints, _ := l.getAdditionalEndpoints()
+	if len(endpoints) > 0 {
+		if !l.config.IsConfigured(configKey) {
+			log.Debugf("Additional endpoints detected, pipeline: %s falling back to gzip compression for compatibility", l.prefix)
+			return GzipCompressionKind
+		}
 	}
+
+	if compressionKind == ZstdCompressionKind || compressionKind == GzipCompressionKind {
+		return compressionKind
+	}
+
+	log.Warnf("Invalid compression kind: '%s', falling back to default compression: '%s' ", compressionKind, pkgconfigsetup.DefaultLogCompressionKind)
+	return pkgconfigsetup.DefaultLogCompressionKind
 }
 
 func (l *LogsConfigKeys) compressionLevel() int {
-	if l.compressionKind() == "zstd" {
-		return l.getConfig().GetInt(l.getConfigKey("zstd_compression_level"))
+	if l.compressionKind() == ZstdCompressionKind {
+		level := l.getConfig().GetInt(l.getConfigKey("zstd_compression_level"))
+		if strings.HasPrefix(l.prefix, "logs_config.") {
+			log.Debugf("Logs pipeline is using compression zstd at level: %d", level)
+		}
+		return level
 	}
 
-	return l.getConfig().GetInt(l.getConfigKey("compression_level"))
+	level := l.getConfig().GetInt(l.getConfigKey("compression_level"))
+	if strings.HasPrefix(l.prefix, "logs_config.") {
+		log.Debugf("Logs pipeline is using compression gzip atlevel: %d", level)
+	}
+	return level
 }
 
 func (l *LogsConfigKeys) useCompression() bool {
@@ -156,17 +180,8 @@ func (l *LogsConfigKeys) connectionResetInterval() time.Duration {
 
 func (l *LogsConfigKeys) getAdditionalEndpoints() ([]unmarshalEndpoint, string) {
 	var endpoints []unmarshalEndpoint
-	var err error
 	configKey := l.getConfigKey("additional_endpoints")
-	raw := l.getConfig().Get(configKey)
-	if raw == nil {
-		return nil, ""
-	}
-	if s, ok := raw.(string); ok && s != "" {
-		err = json.Unmarshal([]byte(s), &endpoints)
-	} else {
-		err = structure.UnmarshalKey(l.getConfig(), configKey, &endpoints, structure.EnableSquash)
-	}
+	err := structure.UnmarshalKey(l.getConfig(), configKey, &endpoints, structure.EnableStringUnmarshal, structure.EnableSquash)
 	if err != nil {
 		log.Warnf("Could not parse additional_endpoints for logs: %v", err)
 	}

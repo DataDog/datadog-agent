@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    Fixes telemetry reporting in the Agent Install Script for Windows PowerShell
+    on hosts using PowerShell version less than 6 and without Internet Explorer installed,
+    such as on a Server Core installation.

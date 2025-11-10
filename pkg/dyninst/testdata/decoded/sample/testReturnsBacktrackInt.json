@@ -1,0 +1,97 @@
+[
+  {
+    "service": "sample",
+    "ddsource": "dd_debugger",
+    "logger": {
+      "name": "",
+      "method": "main.testReturnsBacktrackInt",
+      "version": 0,
+      "thread_id": "[goid]",
+      "thread_name": ""
+    },
+    "debugger": {
+      "snapshot": {
+        "id": "[id]",
+        "timestamp": "[ts]",
+        "language": "go",
+        "stack": [
+          {
+            "function": "main.testReturnsBacktrackInt",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/returns.go",
+            "lineNumber": 198
+          },
+          {
+            "function": "main.executeReturns",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/returns.go",
+            "lineNumber": 406
+          },
+          {
+            "function": "main.main",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
+            "lineNumber": 50
+          },
+          {
+            "function": "runtime.main",
+            "fileName": "runtime/proc.go",
+            "lineNumber": "[lineNumber]"
+          },
+          {
+            "function": "runtime.goexit",
+            "fileName": "runtime/asm_[arch].s",
+            "lineNumber": "[lineNumber]"
+          }
+        ],
+        "probe": {
+          "id": "testReturnsBacktrackInt",
+          "location": {
+            "method": "main.testReturnsBacktrackInt"
+          }
+        },
+        "captures": {
+          "return": {
+            "locals": {
+              "~r0": {
+                "type": "int",
+                "value": "1"
+              },
+              "~r1": {
+                "type": "int",
+                "value": "2"
+              },
+              "~r2": {
+                "type": "int",
+                "value": "3"
+              },
+              "~r3": {
+                "type": "int",
+                "value": "4"
+              },
+              "~r4": {
+                "type": "int",
+                "value": "5"
+              },
+              "~r5": {
+                "type": "int",
+                "value": "6"
+              },
+              "~r6": {
+                "type": "int",
+                "value": "7"
+              },
+              "~r7": {
+                "type": "int",
+                "value": "8"
+              },
+              "~r8": {
+                "type": "string",
+                "value": "overflow"
+              }
+            }
+          }
+        }
+      }
+    },
+    "timestamp": "[ts]",
+    "duration": "[duration]"
+  }
+]

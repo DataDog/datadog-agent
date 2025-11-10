@@ -5,7 +5,7 @@
 
 //go:build sds
 
-//nolint:revive
+// Package sds provides sensitive data scanning functionality for logs
 package sds
 
 import (

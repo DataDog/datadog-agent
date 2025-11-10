@@ -7,6 +7,7 @@ package nodetreemodel
 
 import (
 	"fmt"
+	"reflect"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config/model"
@@ -34,6 +35,11 @@ func isScalar(v interface{}) bool {
 	}
 }
 
+func isSlice(v interface{}) bool {
+	rval := reflect.ValueOf(v)
+	return rval.Kind() == reflect.Slice
+}
+
 func newLeafNode(v interface{}, source model.Source) Node {
 	return &leafNodeImpl{val: v, source: source}
 }
@@ -57,6 +63,12 @@ func (n *leafNodeImpl) GetChild(key string) (Node, error) {
 // Get returns the setting value stored by the leaf
 func (n *leafNodeImpl) Get() interface{} {
 	return n.val
+}
+
+// ReplaceValue replaces the value in the leaf node
+func (n *leafNodeImpl) ReplaceValue(v interface{}) error {
+	n.val = v
+	return nil
 }
 
 // Source returns the source for this leaf

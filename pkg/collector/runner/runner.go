@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//nolint:revive // TODO(AML) Fix revive linter
+// Package runner implements the runner component of the collector.
 package runner
 
 import (
@@ -51,6 +51,8 @@ type Runner struct {
 	checksTracker       *tracker.RunningChecksTracker // Tracker in charge of maintaining the running check list
 	scheduler           *scheduler.Scheduler          // Scheduler runner operates on
 	schedulerLock       sync.RWMutex                  // Lock around operations on the scheduler
+	utilizationMonitor  *worker.UtilizationMonitor    // Monitor in charge of checking the worker utilization
+	utilizationLogLimit *log.Limit                    // Log limiter for utilization warnings
 }
 
 // NewRunner takes the number of desired goroutines processing incoming checks.
@@ -66,6 +68,8 @@ func NewRunner(senderManager sender.SenderManager, haAgent haagent.Component) *R
 		isStaticWorkerCount: numWorkers != 0,
 		pendingChecksChan:   make(chan check.Check),
 		checksTracker:       tracker.NewRunningChecksTracker(),
+		utilizationMonitor:  worker.NewUtilizationMonitor(pkgconfigsetup.Datadog().GetFloat64("check_runner_utilization_threshold")),
+		utilizationLogLimit: log.NewLogLimit(1, pkgconfigsetup.Datadog().GetDuration("check_runner_utilization_warning_cooldown")),
 	}
 
 	if !r.isStaticWorkerCount {
@@ -73,6 +77,9 @@ func NewRunner(senderManager sender.SenderManager, haAgent haagent.Component) *R
 	}
 
 	r.ensureMinWorkers(numWorkers)
+
+	// Start monitoring worker utilization
+	go r.monitorWorkerUtilization()
 
 	return r
 }
@@ -116,7 +123,7 @@ func (r *Runner) AddWorker() {
 	}
 }
 
-// addWorker adds a new worker running in a separate goroutine
+// newWorker adds a new worker running in a separate goroutine
 func (r *Runner) newWorker() (*worker.Worker, error) {
 	worker, err := worker.NewWorker(
 		r.senderManager,
@@ -283,5 +290,31 @@ func (r *Runner) StopCheck(id checkid.ID) error {
 		return nil
 	case <-time.After(stopCheckTimeout):
 		return fmt.Errorf("timeout during stop operation on check id %s", id)
+	}
+}
+
+func (r *Runner) logWorkerUtilization() {
+	overview, err := r.utilizationMonitor.GetWorkerOverview()
+	if err != nil {
+		log.Warnf("Error getting worker utilization data: %v", err)
+		return
+	}
+
+	averageUtilization := fmt.Sprintf("%.3f", overview.AverageUtilization)
+	log.Debugf("Average worker utilization: %v", averageUtilization)
+
+	if len(overview.WorkersOverThreshold) > 0 && r.utilizationLogLimit.ShouldLog() {
+		log.Warnf("Workers over utilization threshold: %v", overview.WorkersOverThreshold)
+	}
+}
+
+func (r *Runner) monitorWorkerUtilization() {
+	interval := pkgconfigsetup.Datadog().GetDuration("check_runner_utilization_monitor_interval")
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+
+	for r.isRunning.Load() {
+		<-ticker.C
+		r.logWorkerUtilization()
 	}
 }

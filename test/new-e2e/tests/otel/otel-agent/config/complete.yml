@@ -11,6 +11,7 @@ receivers:
         - job_name: 'datadog-agent'
           fallback_scrape_protocol: PrometheusText0.0.4
           metric_name_validation_scheme: legacy
+          metric_name_escaping_scheme: underscores
           scrape_interval: 60s
           scrape_protocols:
             - PrometheusText0.0.4
@@ -25,8 +26,9 @@ exporters:
     hostname: "otelcol-docker"
     api:
       key: ${env:DD_API_KEY}
+    sending_queue:
+      batch:
 processors:
-  batch:
   infraattributes:
 connectors:
   # Use datadog connector to compute stats for pre-sampled traces
@@ -53,17 +55,17 @@ service:
   pipelines:
     traces:
       receivers: [otlp]
-      processors: [infraattributes, batch]
+      processors: [infraattributes]
       exporters: [datadog/connector]
     traces/send:
       receivers: [otlp]
-      processors: [infraattributes, batch]
+      processors: [infraattributes]
       exporters: [datadog]
     metrics:
       receivers: [otlp, datadog/connector, prometheus]
-      processors: [infraattributes, batch]
+      processors: [infraattributes]
       exporters: [datadog]
     logs:
       receivers: [otlp]
-      processors: [infraattributes, batch]
+      processors: [infraattributes]
       exporters: [datadog]

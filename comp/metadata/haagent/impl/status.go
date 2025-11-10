@@ -43,6 +43,7 @@ func (i *haagentimpl) HTML(_ bool, buffer io.Writer) error {
 }
 
 func (i *haagentimpl) populateStatus(stats map[string]interface{}) {
+	stats["enabled"] = i.haAgent.Enabled()
 	stats["ha_agent_metadata"] = i.Get()
 }
 

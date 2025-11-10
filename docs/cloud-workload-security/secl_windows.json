@@ -8,26 +8,6 @@
       "experimental": false,
       "properties": [
         {
-          "name": "container.created_at",
-          "definition": "Timestamp of the creation of the container",
-          "property_doc_link": "container-created_at-doc"
-        },
-        {
-          "name": "container.id",
-          "definition": "ID of the container",
-          "property_doc_link": "container-id-doc"
-        },
-        {
-          "name": "container.runtime",
-          "definition": "Runtime managing the container",
-          "property_doc_link": "container-runtime-doc"
-        },
-        {
-          "name": "container.tags",
-          "definition": "Tags of the container",
-          "property_doc_link": "container-tags-doc"
-        },
-        {
           "name": "event.hostname",
           "definition": "Hostname associated with the event",
           "property_doc_link": "event-hostname-doc"
@@ -43,9 +23,19 @@
           "property_doc_link": "event-os-doc"
         },
         {
+          "name": "event.rule.tags",
+          "definition": "Tags associated with the rule that's used to evaluate the event",
+          "property_doc_link": "event-rule-tags-doc"
+        },
+        {
           "name": "event.service",
           "definition": "Service associated with the event",
           "property_doc_link": "event-service-doc"
+        },
+        {
+          "name": "event.source",
+          "definition": "[Experimental] Source of the event. Can be either 'runtime' or 'snapshot'.",
+          "property_doc_link": "event-source-doc"
         },
         {
           "name": "event.timestamp",
@@ -58,9 +48,19 @@
           "property_doc_link": "common-process-cmdline-doc"
         },
         {
+          "name": "process.ancestors.container.created_at",
+          "definition": "Timestamp of the creation of the container",
+          "property_doc_link": "common-containercontext-created_at-doc"
+        },
+        {
           "name": "process.ancestors.container.id",
-          "definition": "Container ID",
-          "property_doc_link": "common-process-container-id-doc"
+          "definition": "ID of the container",
+          "property_doc_link": "common-containercontext-id-doc"
+        },
+        {
+          "name": "process.ancestors.container.tags",
+          "definition": "Tags of the container",
+          "property_doc_link": "common-containercontext-tags-doc"
         },
         {
           "name": "process.ancestors.created_at",
@@ -76,6 +76,11 @@
           "name": "process.ancestors.envs",
           "definition": "Environment variable names of the process",
           "property_doc_link": "common-process-envs-doc"
+        },
+        {
+          "name": "process.ancestors.file.extension",
+          "definition": "File's extension",
+          "property_doc_link": "common-fileevent-extension-doc"
         },
         {
           "name": "process.ancestors.file.name",
@@ -128,9 +133,19 @@
           "property_doc_link": "common-process-cmdline-doc"
         },
         {
+          "name": "process.container.created_at",
+          "definition": "Timestamp of the creation of the container",
+          "property_doc_link": "common-containercontext-created_at-doc"
+        },
+        {
           "name": "process.container.id",
-          "definition": "Container ID",
-          "property_doc_link": "common-process-container-id-doc"
+          "definition": "ID of the container",
+          "property_doc_link": "common-containercontext-id-doc"
+        },
+        {
+          "name": "process.container.tags",
+          "definition": "Tags of the container",
+          "property_doc_link": "common-containercontext-tags-doc"
         },
         {
           "name": "process.created_at",
@@ -146,6 +161,11 @@
           "name": "process.envs",
           "definition": "Environment variable names of the process",
           "property_doc_link": "common-process-envs-doc"
+        },
+        {
+          "name": "process.file.extension",
+          "definition": "File's extension",
+          "property_doc_link": "common-fileevent-extension-doc"
         },
         {
           "name": "process.file.name",
@@ -173,9 +193,19 @@
           "property_doc_link": "common-process-cmdline-doc"
         },
         {
+          "name": "process.parent.container.created_at",
+          "definition": "Timestamp of the creation of the container",
+          "property_doc_link": "common-containercontext-created_at-doc"
+        },
+        {
           "name": "process.parent.container.id",
-          "definition": "Container ID",
-          "property_doc_link": "common-process-container-id-doc"
+          "definition": "ID of the container",
+          "property_doc_link": "common-containercontext-id-doc"
+        },
+        {
+          "name": "process.parent.container.tags",
+          "definition": "Tags of the container",
+          "property_doc_link": "common-containercontext-tags-doc"
         },
         {
           "name": "process.parent.created_at",
@@ -191,6 +221,11 @@
           "name": "process.parent.envs",
           "definition": "Environment variable names of the process",
           "property_doc_link": "common-process-envs-doc"
+        },
+        {
+          "name": "process.parent.file.extension",
+          "definition": "File's extension",
+          "property_doc_link": "common-fileevent-extension-doc"
         },
         {
           "name": "process.parent.file.name",
@@ -311,6 +346,11 @@
           "property_doc_link": "common-string-length-doc"
         },
         {
+          "name": "create.file.extension",
+          "definition": "File's extension",
+          "property_doc_link": "common-fimfileevent-extension-doc"
+        },
+        {
           "name": "create.file.name",
           "definition": "File's basename",
           "property_doc_link": "common-fimfileevent-name-doc"
@@ -399,6 +439,11 @@
           "property_doc_link": "common-string-length-doc"
         },
         {
+          "name": "delete.file.extension",
+          "definition": "File's extension",
+          "property_doc_link": "common-fimfileevent-extension-doc"
+        },
+        {
           "name": "delete.file.name",
           "definition": "File's basename",
           "property_doc_link": "common-fimfileevent-name-doc"
@@ -482,9 +527,19 @@
           "property_doc_link": "common-process-cmdline-doc"
         },
         {
+          "name": "exec.container.created_at",
+          "definition": "Timestamp of the creation of the container",
+          "property_doc_link": "common-containercontext-created_at-doc"
+        },
+        {
           "name": "exec.container.id",
-          "definition": "Container ID",
-          "property_doc_link": "common-process-container-id-doc"
+          "definition": "ID of the container",
+          "property_doc_link": "common-containercontext-id-doc"
+        },
+        {
+          "name": "exec.container.tags",
+          "definition": "Tags of the container",
+          "property_doc_link": "common-containercontext-tags-doc"
         },
         {
           "name": "exec.created_at",
@@ -500,6 +555,11 @@
           "name": "exec.envs",
           "definition": "Environment variable names of the process",
           "property_doc_link": "common-process-envs-doc"
+        },
+        {
+          "name": "exec.file.extension",
+          "definition": "File's extension",
+          "property_doc_link": "common-fileevent-extension-doc"
         },
         {
           "name": "exec.file.name",
@@ -566,9 +626,19 @@
           "property_doc_link": "exit-code-doc"
         },
         {
+          "name": "exit.container.created_at",
+          "definition": "Timestamp of the creation of the container",
+          "property_doc_link": "common-containercontext-created_at-doc"
+        },
+        {
           "name": "exit.container.id",
-          "definition": "Container ID",
-          "property_doc_link": "common-process-container-id-doc"
+          "definition": "ID of the container",
+          "property_doc_link": "common-containercontext-id-doc"
+        },
+        {
+          "name": "exit.container.tags",
+          "definition": "Tags of the container",
+          "property_doc_link": "common-containercontext-tags-doc"
         },
         {
           "name": "exit.created_at",
@@ -584,6 +654,11 @@
           "name": "exit.envs",
           "definition": "Environment variable names of the process",
           "property_doc_link": "common-process-envs-doc"
+        },
+        {
+          "name": "exit.file.extension",
+          "definition": "File's extension",
+          "property_doc_link": "common-fileevent-extension-doc"
         },
         {
           "name": "exit.file.name",
@@ -694,6 +769,11 @@
           "property_doc_link": "common-string-length-doc"
         },
         {
+          "name": "rename.file.destination.extension",
+          "definition": "File's extension",
+          "property_doc_link": "common-fimfileevent-extension-doc"
+        },
+        {
           "name": "rename.file.destination.name",
           "definition": "File's basename",
           "property_doc_link": "common-fimfileevent-name-doc"
@@ -722,6 +802,11 @@
           "name": "rename.file.device_path.length",
           "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
+        },
+        {
+          "name": "rename.file.extension",
+          "definition": "File's extension",
+          "property_doc_link": "common-fimfileevent-extension-doc"
         },
         {
           "name": "rename.file.name",
@@ -842,6 +927,11 @@
           "property_doc_link": "common-string-length-doc"
         },
         {
+          "name": "write.file.extension",
+          "definition": "File's extension",
+          "property_doc_link": "common-fimfileevent-extension-doc"
+        },
+        {
           "name": "write.file.name",
           "definition": "File's basename",
           "property_doc_link": "common-fimfileevent-name-doc"
@@ -891,16 +981,16 @@
       ]
     },
     {
-      "name": "*.container.id",
-      "link": "common-process-container-id-doc",
-      "type": "string",
-      "definition": "Container ID",
+      "name": "*.created_at",
+      "link": "common-containercontext-created_at-doc",
+      "type": "int",
+      "definition": "Timestamp of the creation of the container",
       "prefixes": [
-        "exec",
-        "exit",
-        "process",
-        "process.ancestors",
-        "process.parent"
+        "exec.container",
+        "exit.container",
+        "process.ancestors.container",
+        "process.container",
+        "process.parent.container"
       ],
       "constants": "",
       "constants_link": "",
@@ -970,6 +1060,54 @@
         "process",
         "process.ancestors",
         "process.parent"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "*.extension",
+      "link": "common-fileevent-extension-doc",
+      "type": "string",
+      "definition": "File's extension",
+      "prefixes": [
+        "exec.file",
+        "exit.file",
+        "process.ancestors.file",
+        "process.file",
+        "process.parent.file"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "*.extension",
+      "link": "common-fimfileevent-extension-doc",
+      "type": "string",
+      "definition": "File's extension",
+      "prefixes": [
+        "create.file",
+        "delete.file",
+        "rename.file",
+        "rename.file.destination",
+        "write.file"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "*.id",
+      "link": "common-containercontext-id-doc",
+      "type": "string",
+      "definition": "ID of the container",
+      "prefixes": [
+        "exec.container",
+        "exit.container",
+        "process.ancestors.container",
+        "process.container",
+        "process.parent.container"
       ],
       "constants": "",
       "constants_link": "",
@@ -1198,6 +1336,22 @@
       "examples": []
     },
     {
+      "name": "*.tags",
+      "link": "common-containercontext-tags-doc",
+      "type": "string",
+      "definition": "Tags of the container",
+      "prefixes": [
+        "exec.container",
+        "exit.container",
+        "process.ancestors.container",
+        "process.container",
+        "process.parent.container"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
       "name": "*.user",
       "link": "common-process-user-doc",
       "type": "string",
@@ -1315,54 +1469,6 @@
       "examples": []
     },
     {
-      "name": "container.created_at",
-      "link": "container-created_at-doc",
-      "type": "int",
-      "definition": "Timestamp of the creation of the container",
-      "prefixes": [
-        "container"
-      ],
-      "constants": "",
-      "constants_link": "",
-      "examples": []
-    },
-    {
-      "name": "container.id",
-      "link": "container-id-doc",
-      "type": "string",
-      "definition": "ID of the container",
-      "prefixes": [
-        "container"
-      ],
-      "constants": "",
-      "constants_link": "",
-      "examples": []
-    },
-    {
-      "name": "container.runtime",
-      "link": "container-runtime-doc",
-      "type": "string",
-      "definition": "Runtime managing the container",
-      "prefixes": [
-        "container"
-      ],
-      "constants": "",
-      "constants_link": "",
-      "examples": []
-    },
-    {
-      "name": "container.tags",
-      "link": "container-tags-doc",
-      "type": "string",
-      "definition": "Tags of the container",
-      "prefixes": [
-        "container"
-      ],
-      "constants": "",
-      "constants_link": "",
-      "examples": []
-    },
-    {
       "name": "event.hostname",
       "link": "event-hostname-doc",
       "type": "string",
@@ -1399,10 +1505,34 @@
       "examples": []
     },
     {
+      "name": "event.rule.tags",
+      "link": "event-rule-tags-doc",
+      "type": "string",
+      "definition": "Tags associated with the rule that's used to evaluate the event",
+      "prefixes": [
+        ""
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
       "name": "event.service",
       "link": "event-service-doc",
       "type": "string",
       "definition": "Service associated with the event",
+      "prefixes": [
+        ""
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "event.source",
+      "link": "event-source-doc",
+      "type": "string",
+      "definition": "[Experimental] Source of the event. Can be either 'runtime' or 'snapshot'.",
       "prefixes": [
         ""
       ],
@@ -1449,6 +1579,52 @@
   ],
   "constants": [
     {
+      "name": "ABI",
+      "link": "abi",
+      "description": "ABI used for binary compilation.",
+      "all": [
+        {
+          "name": "BIT32",
+          "architecture": "all"
+        },
+        {
+          "name": "BIT64",
+          "architecture": "all"
+        },
+        {
+          "name": "UNKNOWN_ABI",
+          "architecture": "all"
+        }
+      ]
+    },
+    {
+      "name": "Architecture",
+      "link": "architecture",
+      "description": "Architecture of the binary.",
+      "all": [
+        {
+          "name": "X86",
+          "architecture": "all"
+        },
+        {
+          "name": "X86_64",
+          "architecture": "all"
+        },
+        {
+          "name": "ARM",
+          "architecture": "all"
+        },
+        {
+          "name": "ARM64",
+          "architecture": "all"
+        },
+        {
+          "name": "UNKNOWN_ARCHITECTURE",
+          "architecture": "all"
+        }
+      ]
+    },
+    {
       "name": "Boolean constants",
       "link": "boolean-constants",
       "description": "Boolean constants are the supported boolean constants.",
@@ -1459,6 +1635,120 @@
         },
         {
           "name": "false",
+          "architecture": "all"
+        }
+      ]
+    },
+    {
+      "name": "CompressionType",
+      "link": "compressiontype",
+      "description": "Compression algorithm.",
+      "all": [
+        {
+          "name": "NONE",
+          "architecture": "all"
+        },
+        {
+          "name": "GZIP",
+          "architecture": "all"
+        },
+        {
+          "name": "ZIP",
+          "architecture": "all"
+        },
+        {
+          "name": "ZSTD",
+          "architecture": "all"
+        },
+        {
+          "name": "7Z",
+          "architecture": "all"
+        },
+        {
+          "name": "BZIP2",
+          "architecture": "all"
+        },
+        {
+          "name": "XZ",
+          "architecture": "all"
+        }
+      ]
+    },
+    {
+      "name": "DNS Responses",
+      "link": "dns-responses",
+      "description": "DNS Responses are the supported response codes",
+      "all": [
+        {
+          "name": "NOERROR",
+          "architecture": "all"
+        },
+        {
+          "name": "FORMERR",
+          "architecture": "all"
+        },
+        {
+          "name": "SERVFAIL",
+          "architecture": "all"
+        },
+        {
+          "name": "NXDOMAIN",
+          "architecture": "all"
+        },
+        {
+          "name": "NOTIMP",
+          "architecture": "all"
+        },
+        {
+          "name": "REFUSED",
+          "architecture": "all"
+        },
+        {
+          "name": "YXDOMAIN",
+          "architecture": "all"
+        },
+        {
+          "name": "YXRRSET",
+          "architecture": "all"
+        },
+        {
+          "name": "NXRRSET",
+          "architecture": "all"
+        },
+        {
+          "name": "NOTAUTH",
+          "architecture": "all"
+        },
+        {
+          "name": "NOTZONE",
+          "architecture": "all"
+        },
+        {
+          "name": "BADVERS",
+          "architecture": "all"
+        },
+        {
+          "name": "BADSIG",
+          "architecture": "all"
+        },
+        {
+          "name": "BADKEY",
+          "architecture": "all"
+        },
+        {
+          "name": "BADTIME",
+          "architecture": "all"
+        },
+        {
+          "name": "BADMODE",
+          "architecture": "all"
+        },
+        {
+          "name": "BADNAME",
+          "architecture": "all"
+        },
+        {
+          "name": "BADALG",
           "architecture": "all"
         }
       ]
@@ -1833,6 +2123,53 @@
         },
         {
           "name": "Reserved",
+          "architecture": "all"
+        }
+      ]
+    },
+    {
+      "name": "FileType",
+      "link": "filetype",
+      "description": "File types.",
+      "all": [
+        {
+          "name": "EMPTY",
+          "architecture": "all"
+        },
+        {
+          "name": "SHELL_SCRIPT",
+          "architecture": "all"
+        },
+        {
+          "name": "TEXT",
+          "architecture": "all"
+        },
+        {
+          "name": "COMPRESSED",
+          "architecture": "all"
+        },
+        {
+          "name": "ENCRYPTED",
+          "architecture": "all"
+        },
+        {
+          "name": "BINARY",
+          "architecture": "all"
+        },
+        {
+          "name": "LINUX_EXECUTABLE",
+          "architecture": "all"
+        },
+        {
+          "name": "WINDOWS_EXECUTABLE",
+          "architecture": "all"
+        },
+        {
+          "name": "MACOS_EXECUTABLE",
+          "architecture": "all"
+        },
+        {
+          "name": "FILE_LESS",
           "architecture": "all"
         }
       ]
@@ -2315,6 +2652,80 @@
         },
         {
           "name": "IP_PROTO_RAW",
+          "architecture": "all"
+        }
+      ]
+    },
+    {
+      "name": "LinkageType",
+      "link": "linkagetype",
+      "description": "Linkage types.",
+      "all": [
+        {
+          "name": "NONE",
+          "architecture": "all"
+        },
+        {
+          "name": "STATIC",
+          "architecture": "all"
+        },
+        {
+          "name": "DYNAMIC",
+          "architecture": "all"
+        }
+      ]
+    },
+    {
+      "name": "Network Protocol Types",
+      "link": "network-protocol-types",
+      "description": "Types of specific network protocols.",
+      "all": [
+        {
+          "name": "ICMP_ECHO_REQUEST",
+          "architecture": "all"
+        },
+        {
+          "name": "ICMP_ECHO_REPLY",
+          "architecture": "all"
+        },
+        {
+          "name": "ICMP_ROUTER_SOLICITATION",
+          "architecture": "all"
+        },
+        {
+          "name": "ICMP_ROUTER_ADVERTISEMENT",
+          "architecture": "all"
+        },
+        {
+          "name": "ICMP_NEIGHBOR_SOLICITATION",
+          "architecture": "all"
+        },
+        {
+          "name": "ICMP_NEIGHBOR_ADVERTISEMENT",
+          "architecture": "all"
+        },
+        {
+          "name": "ICMP_V6_ECHO_REQUEST",
+          "architecture": "all"
+        },
+        {
+          "name": "ICMP_V6_ECHO_REPLY",
+          "architecture": "all"
+        },
+        {
+          "name": "ICMP_V6_ROUTER_SOLICITATION",
+          "architecture": "all"
+        },
+        {
+          "name": "ICMP_V6_ROUTER_ADVERTISEMENT",
+          "architecture": "all"
+        },
+        {
+          "name": "ICMP_V6_NEIGHBOR_SOLICITATION",
+          "architecture": "all"
+        },
+        {
+          "name": "ICMP_V6_NEIGHBOR_ADVERTISEMENT",
           "architecture": "all"
         }
       ]

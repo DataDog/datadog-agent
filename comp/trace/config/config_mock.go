@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build test
-// +build test
 
 package config
 
@@ -18,7 +17,8 @@ import (
 // newMock exported mock builder to allow modifying mocks that might be
 // supplied in tests and used for dep injection.
 func newMock(deps Dependencies, _ testing.TB) (Component, error) {
-	traceCfg, err := setupConfig(deps, "apikey")
+	deps.Config.SetWithoutSource("api_key", "apikey")
+	traceCfg, err := setupConfigCommon(deps)
 	if err != nil {
 		return nil, err
 	}
@@ -27,6 +27,7 @@ func newMock(deps Dependencies, _ testing.TB) (Component, error) {
 		warnings:    &model.Warnings{},
 		coreConfig:  deps.Config,
 		AgentConfig: traceCfg,
+		ipc:         deps.IPC,
 	}
 
 	c.SetMaxMemCPU(env.IsContainerized())

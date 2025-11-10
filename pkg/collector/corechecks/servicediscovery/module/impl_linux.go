@@ -13,29 +13,27 @@ import (
 	"io"
 	"net/http"
 	"os"
-	"path/filepath"
+	"regexp"
 	"slices"
 	"strconv"
 	"strings"
 	"sync"
-	"time"
 
-	agentPayload "github.com/DataDog/agent-payload/v5/process"
 	"github.com/shirou/gopsutil/v4/process"
 
-	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
-	sysconfigtypes "github.com/DataDog/datadog-agent/cmd/system-probe/config/types"
-	"github.com/DataDog/datadog-agent/cmd/system-probe/utils"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/apm"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/core"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/detector"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/language"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/model"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/servicetype"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/usm"
+	"github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/privileged"
 	"github.com/DataDog/datadog-agent/pkg/network"
-	"github.com/DataDog/datadog-agent/pkg/process/procutil"
-	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
+	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
+	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
+	"github.com/DataDog/datadog-agent/pkg/system-probe/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel/netns"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -43,194 +41,55 @@ import (
 
 const (
 	pathServices = "/services"
+)
 
-	// Use a low cache validity to ensure that we refresh information every time
-	// the check is run if needed. This is the same as cacheValidityNoRT in
-	// pkg/process/checks/container.go.
-	containerCacheValidity = 2 * time.Second
+var (
+	// apmInjectorRegex matches the APM auto-injector launcher.preload.so library path
+	apmInjectorRegex = regexp.MustCompile(`/opt/datadog-packages/datadog-apm-inject/[^/]+/inject/launcher\.preload\.so`)
 )
 
 // Ensure discovery implements the module.Module interface.
 var _ module.Module = &discovery{}
 
-// serviceInfo holds process data that should be cached between calls to the
-// endpoint.
-type serviceInfo struct {
-	name                       string
-	generatedName              string
-	generatedNameSource        string
-	additionalGeneratedNames   []string
-	containerServiceName       string
-	containerServiceNameSource string
-	ddServiceName              string
-	ddServiceInjected          bool
-	ports                      []uint16
-	checkedContainerData       bool
-	language                   language.Language
-	apmInstrumentation         apm.Instrumentation
-	cmdLine                    []string
-	startTimeMilli             uint64
-	rss                        uint64
-	cpuTime                    uint64
-	cpuUsage                   float64
-	containerID                string
-	lastHeartbeat              int64
-	addedToMap                 bool
-	rxBytes                    uint64
-	txBytes                    uint64
-	rxBps                      float64
-	txBps                      float64
-}
-
-// toModelService fills the model.Service struct pointed to by out, using the
-// service info to do it.
-func (i *serviceInfo) toModelService(pid int32, out *model.Service) *model.Service {
-	if i == nil {
-		log.Warn("toModelService called with nil pointer")
-		return nil
-	}
-
-	out.PID = int(pid)
-	out.Name = i.name
-	out.GeneratedName = i.generatedName
-	out.GeneratedNameSource = i.generatedNameSource
-	out.AdditionalGeneratedNames = i.additionalGeneratedNames
-	out.ContainerServiceName = i.containerServiceName
-	out.ContainerServiceNameSource = i.containerServiceNameSource
-	out.DDService = i.ddServiceName
-	out.DDServiceInjected = i.ddServiceInjected
-	out.Ports = i.ports
-	out.APMInstrumentation = string(i.apmInstrumentation)
-	out.Language = string(i.language)
-	out.Type = string(servicetype.Detect(i.ports))
-	out.RSS = i.rss
-	out.CommandLine = i.cmdLine
-	out.StartTimeMilli = i.startTimeMilli
-	out.CPUCores = i.cpuUsage
-	out.ContainerID = i.containerID
-	out.LastHeartbeat = i.lastHeartbeat
-	out.RxBytes = i.rxBytes
-	out.TxBytes = i.txBytes
-	out.RxBps = i.rxBps
-	out.TxBps = i.txBps
-
-	return out
-}
-
-type timeProvider interface {
-	Now() time.Time
-}
-
-type realTime struct{}
-
-func (realTime) Now() time.Time { return time.Now() }
-
-type pidSet map[int32]struct{}
-
-func (s pidSet) has(pid int32) bool {
-	_, present := s[pid]
-	return present
-}
-
-func (s pidSet) add(pid int32) {
-	s[pid] = struct{}{}
-}
-
-func (s pidSet) remove(pid int32) {
-	delete(s, pid)
-}
-
 // discovery is an implementation of the Module interface for the discovery module.
 type discovery struct {
-	config *discoveryConfig
+	core core.Discovery
+
+	config *core.DiscoveryConfig
 
 	mux *sync.RWMutex
 
-	// cache maps pids to data that should be cached between calls to the endpoint.
-	cache map[int32]*serviceInfo
-
-	// potentialServices stores processes that we have seen once in the previous
-	// iteration, but not yet confirmed to be a running service.
-	potentialServices pidSet
-
-	// runningServices stores services that we have previously confirmed as
-	// running.
-	runningServices pidSet
-
-	// ignorePids stores processes to be excluded from discovery
-	ignorePids pidSet
-
 	// privilegedDetector is used to detect the language of a process.
 	privilegedDetector privileged.LanguageDetector
-
-	// scrubber is used to remove potentially sensitive data from the command line
-	scrubber *procutil.DataScrubber
-
-	// lastGlobalCPUTime stores the total cpu time of the system from the last time
-	// the endpoint was called.
-	lastGlobalCPUTime uint64
-
-	// lastCPUTimeUpdate is the last time lastGlobalCPUTime was updated.
-	lastCPUTimeUpdate time.Time
-
-	lastNetworkStatsUpdate time.Time
-
-	containerProvider proccontainers.ContainerProvider
-	timeProvider      timeProvider
-	network           networkCollector
-}
-
-type networkCollectorFactory func(cfg *discoveryConfig) (networkCollector, error)
-
-func newDiscoveryWithNetwork(containerProvider proccontainers.ContainerProvider, tp timeProvider, getNetworkCollector networkCollectorFactory) *discovery {
-	cfg := newConfig()
-
-	var network networkCollector
-	if cfg.networkStatsEnabled {
-		var err error
-		network, err = getNetworkCollector(cfg)
-		if err != nil {
-			log.Warn("unable to get network collector", err)
-
-			// Do not fail on error since the collector could fail due to eBPF
-			// errors but we want the rest of our module to continue.
-			network = nil
-		}
-	}
-
-	return &discovery{
-		config:             cfg,
-		mux:                &sync.RWMutex{},
-		cache:              make(map[int32]*serviceInfo),
-		potentialServices:  make(pidSet),
-		runningServices:    make(pidSet),
-		ignorePids:         make(pidSet),
-		privilegedDetector: privileged.NewLanguageDetector(),
-		scrubber:           procutil.NewDefaultDataScrubber(),
-		containerProvider:  containerProvider,
-		timeProvider:       tp,
-		network:            network,
-	}
 }
 
 // NewDiscoveryModule creates a new discovery system probe module.
-func NewDiscoveryModule(_ *sysconfigtypes.Config, deps module.FactoryDependencies) (module.Module, error) {
-	sharedContainerProvider := proccontainers.InitSharedContainerProvider(deps.WMeta, deps.Tagger)
-	d := newDiscoveryWithNetwork(sharedContainerProvider, realTime{}, newNetworkCollector)
+func NewDiscoveryModule(_ *sysconfigtypes.Config, _ module.FactoryDependencies) (module.Module, error) {
+	cfg := core.NewConfig()
+
+	d := &discovery{
+		core: core.Discovery{
+			Config: cfg,
+		},
+		config:             cfg,
+		mux:                &sync.RWMutex{},
+		privilegedDetector: privileged.NewLanguageDetector(),
+	}
 
 	return d, nil
 }
 
 // GetStats returns the stats of the discovery module.
-func (s *discovery) GetStats() map[string]interface{} {
+func (s *discovery) GetStats() map[string]any {
 	return nil
 }
 
 // Register registers the discovery module with the provided HTTP mux.
 func (s *discovery) Register(httpMux *module.Router) error {
 	httpMux.HandleFunc("/status", s.handleStatusEndpoint)
-	httpMux.HandleFunc("/debug", s.handleDebugEndpoint)
+	httpMux.HandleFunc("/state", s.handleStateEndpoint)
 	httpMux.HandleFunc(pathServices, utils.WithConcurrencyLimit(utils.DefaultMaxConcurrentRequests, s.handleServices))
+
 	return nil
 }
 
@@ -239,12 +98,7 @@ func (s *discovery) Close() {
 	s.mux.Lock()
 	defer s.mux.Unlock()
 
-	s.cleanCache(pidSet{})
-	if s.network != nil {
-		s.network.close()
-	}
-	clear(s.cache)
-	clear(s.ignorePids)
+	s.core.Close()
 }
 
 // handleStatusEndpoint is the handler for the /status endpoint.
@@ -253,53 +107,19 @@ func (s *discovery) handleStatusEndpoint(w http.ResponseWriter, _ *http.Request)
 	_, _ = w.Write([]byte("Discovery Module is running"))
 }
 
-func (s *discovery) handleDebugEndpoint(w http.ResponseWriter, _ *http.Request) {
+// handleStateEndpoint is the handler for the /state endpoint.
+// Returns the internal state of the discovery module.
+func (s *discovery) handleStateEndpoint(w http.ResponseWriter, _ *http.Request) {
 	s.mux.Lock()
 	defer s.mux.Unlock()
 
-	services := make([]model.Service, 0)
+	state := make(map[string]interface{})
 
-	procRoot := kernel.ProcFSRoot()
-	pids, err := process.Pids()
-	if err != nil {
-		utils.WriteAsJSON(w, "could not get PIDs")
-		return
-	}
-
-	context := parsingContext{
-		procRoot:  procRoot,
-		netNsInfo: make(map[uint32]*namespaceInfo),
-	}
-
-	containers, _, pidToCid, err := s.containerProvider.GetContainers(containerCacheValidity, nil)
-	if err != nil {
-		log.Errorf("could not get containers: %s", err)
-	}
-
-	// Build mapping of Container ID to container object to avoid traversal of
-	// the containers slice for every services.
-	containersMap := make(map[string]*agentPayload.Container, len(containers))
-	for _, c := range containers {
-		containersMap[c.Id] = c
-	}
-
-	for _, pid := range pids {
-		service := s.getService(context, pid)
-		if service == nil {
-			continue
-		}
-		s.enrichContainerData(service, containersMap, pidToCid)
-
-		services = append(services, *service)
-	}
-
-	utils.WriteAsJSON(w, services)
+	utils.WriteAsJSON(w, state, utils.CompactOutput)
 }
 
-// handleServers is the handler for the /services endpoint.
-// Returns the list of currently running services.
 func (s *discovery) handleServices(w http.ResponseWriter, req *http.Request) {
-	params, err := parseParams(req.URL.Query())
+	params, err := core.ParseParamsFromRequest(req)
 	if err != nil {
 		_ = log.Errorf("invalid params to /discovery%s: %v", pathServices, err)
 		w.WriteHeader(http.StatusBadRequest)
@@ -313,39 +133,7 @@ func (s *discovery) handleServices(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	utils.WriteAsJSON(w, services)
-}
-
-const prefix = "socket:["
-
-// getSockets get a list of socket inode numbers opened by a process
-func getSockets(pid int32) ([]uint64, error) {
-	statPath := kernel.HostProc(fmt.Sprintf("%d/fd", pid))
-	d, err := os.Open(statPath)
-	if err != nil {
-		return nil, err
-	}
-	defer d.Close()
-	fnames, err := d.Readdirnames(-1)
-	if err != nil {
-		return nil, err
-	}
-	var sockets []uint64
-	for _, fd := range fnames {
-		fullPath, err := os.Readlink(filepath.Join(statPath, fd))
-		if err != nil {
-			continue
-		}
-		if strings.HasPrefix(fullPath, prefix) {
-			sock, err := strconv.ParseUint(fullPath[len(prefix):len(fullPath)-1], 10, 64)
-			if err != nil {
-				continue
-			}
-			sockets = append(sockets, sock)
-		}
-	}
-
-	return sockets, nil
+	utils.WriteAsJSON(w, services, utils.CompactOutput)
 }
 
 // socketInfo stores information related to each socket.
@@ -355,8 +143,10 @@ type socketInfo struct {
 
 // namespaceInfo stores information related to each network namespace.
 type namespaceInfo struct {
-	// listeningSockets maps socket inode numbers to socket information for listening sockets.
-	listeningSockets map[uint64]socketInfo
+	// tcpSockets maps socket inode numbers to socket information for listening TCP sockets.
+	tcpSockets map[uint64]socketInfo
+	// udpSockets maps socket inode numbers to socket information for listening UDP sockets.
+	udpSockets map[uint64]socketInfo
 }
 
 // Lifted from pkg/network/proc_net.go
@@ -477,61 +267,62 @@ func getNsInfo(pid int) (*namespaceInfo, error) {
 		log.Debugf("couldn't snapshot UDP sockets: %v", err)
 	}
 	tcpv6, err := newNetIPSocket(kernel.HostProc(fmt.Sprintf("%d/net/tcp6", pid)), tcpListen, noIgnore)
-	if err != nil {
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		// The file won't exist if IPv6 is disabled.
 		log.Debugf("couldn't snapshot TCP6 sockets: %v", err)
 	}
 	udpv6, err := newNetIPSocket(kernel.HostProc(fmt.Sprintf("%d/net/udp6", pid)), udpListen,
 		func(port uint16) bool {
 			return network.IsPortInEphemeralRange(network.AFINET6, network.UDP, port) == network.EphemeralTrue
 		})
-	if err != nil {
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
 		log.Debugf("couldn't snapshot UDP6 sockets: %v", err)
 	}
 
-	listeningSockets := make(map[uint64]socketInfo, len(tcp)+len(udp)+len(tcpv6)+len(udpv6))
-	for _, mmap := range []map[uint64]uint16{tcp, udp, tcpv6, udpv6} {
-		for inode, info := range mmap {
-			listeningSockets[inode] = socketInfo{
-				port: info,
+	tcpSockets := make(map[uint64]socketInfo, len(tcp)+len(tcpv6))
+	udpSockets := make(map[uint64]socketInfo, len(udp)+len(udpv6))
+
+	for _, ports := range []map[uint64]uint16{tcp, tcpv6} {
+		for inode, port := range ports {
+			tcpSockets[inode] = socketInfo{
+				port: port,
 			}
 		}
 	}
+
+	for _, ports := range []map[uint64]uint16{udp, udpv6} {
+		for inode, port := range ports {
+			udpSockets[inode] = socketInfo{
+				port: port,
+			}
+		}
+	}
+
 	return &namespaceInfo{
-		listeningSockets: listeningSockets,
+		tcpSockets: tcpSockets,
+		udpSockets: udpSockets,
 	}, nil
 }
 
 // parsingContext holds temporary context not preserved between invocations of
 // the endpoint.
 type parsingContext struct {
-	procRoot  string
-	netNsInfo map[uint32]*namespaceInfo
+	procRoot       string
+	netNsInfo      map[uint32]*namespaceInfo
+	readlinkBuffer []byte
 }
 
-// addIgnoredPid store excluded pid.
-func (s *discovery) addIgnoredPid(pid int32) {
-	s.ignorePids[pid] = struct{}{}
-}
-
-// shouldIgnorePid returns true if process should be excluded from handling.
-func (s *discovery) shouldIgnorePid(pid int32) bool {
-	_, found := s.ignorePids[pid]
-	return found
-}
-
-// shouldIgnoreService returns true if the service should be excluded from handling.
-func (s *discovery) shouldIgnoreService(name string) bool {
-	if len(s.config.ignoreServices) == 0 {
-		return false
+func newParsingContext() parsingContext {
+	return parsingContext{
+		procRoot:       kernel.ProcFSRoot(),
+		netNsInfo:      make(map[uint32]*namespaceInfo),
+		readlinkBuffer: make([]byte, readlinkBufferSize),
 	}
-	_, found := s.config.ignoreServices[name]
-
-	return found
 }
 
 // getServiceInfo gets the service information for a process using the
 // servicedetector module.
-func (s *discovery) getServiceInfo(pid int32) (*serviceInfo, error) {
+func (s *discovery) getServiceInfo(pid int32, openFiles openFilesInfo) (*model.Service, error) {
 	proc := &process.Process{
 		Pid: pid,
 	}
@@ -546,16 +337,21 @@ func (s *discovery) getServiceInfo(pid int32) (*serviceInfo, error) {
 		return nil, err
 	}
 
-	createTime, err := proc.CreateTime()
-	if err != nil {
-		return nil, err
+	var tracerMetadataArr []tracermetadata.TracerMetadata
+	var firstMetadata *tracermetadata.TracerMetadata
+
+	if openFiles.tracerMemfdFd != "" {
+		fdPath := kernel.HostProc(strconv.Itoa(int(pid)), "fd", openFiles.tracerMemfdFd)
+		tracerMetadata, err := tracermetadata.GetTracerMetadataFromPath(fdPath)
+		if err == nil {
+			// Currently we only get the first tracer metadata
+			tracerMetadataArr = append(tracerMetadataArr, tracerMetadata)
+			firstMetadata = &tracerMetadata
+		}
 	}
 
 	root := kernel.HostProc(strconv.Itoa(int(proc.Pid)), "root")
-	lang := language.FindInArgs(exe, cmdline)
-	if lang == "" {
-		lang = language.FindUsingPrivilegedDetector(s.privilegedDetector, proc.Pid)
-	}
+	lang := language.Detect(exe, cmdline, proc.Pid, s.privilegedDetector, firstMetadata)
 	env, err := getTargetEnvs(proc)
 	if err != nil {
 		return nil, err
@@ -570,54 +366,72 @@ func (s *discovery) getServiceInfo(pid int32) (*serviceInfo, error) {
 	ctx.ContextMap = contextMap
 
 	nameMeta := detector.GetServiceName(lang, ctx)
-	apmInstrumentation := apm.Detect(lang, ctx)
+	apmInstrumentation := apm.Detect(lang, ctx, firstMetadata)
 
-	name := nameMeta.DDService
-	if name == "" {
-		name = nameMeta.Name
+	return &model.Service{
+		PID:                      int(pid),
+		GeneratedName:            nameMeta.Name,
+		GeneratedNameSource:      string(nameMeta.Source),
+		AdditionalGeneratedNames: nameMeta.AdditionalNames,
+		TracerMetadata:           tracerMetadataArr,
+		UST: model.UST{
+			Service: env.GetDefault("DD_SERVICE", ""),
+			Env:     env.GetDefault("DD_ENV", ""),
+			Version: env.GetDefault("DD_VERSION", ""),
+		},
+		Language:           string(lang),
+		APMInstrumentation: apmInstrumentation == apm.Provided,
+	}, nil
+}
+
+// getHeartbeatServiceInfo gets minimal service information for heartbeat processes.
+// This only collects dynamic fields (ports and log files) and skips expensive operations
+// like language detection, service name generation, and APM instrumentation detection.
+func (s *discovery) getHeartbeatServiceInfo(context parsingContext, pid int32) *model.Service {
+	if s.shouldIgnoreComm(pid) {
+		return nil
 	}
 
-	cmdline, _ = s.scrubber.ScrubCommand(cmdline)
+	openFileInfo, err := getOpenFilesInfo(pid, context.readlinkBuffer)
+	if err != nil {
+		return nil
+	}
+	tcpPorts, udpPorts, err := s.getPorts(context, pid, openFileInfo.sockets)
+	if err != nil {
+		return nil
+	}
 
-	return &serviceInfo{
-		name:                     name,
-		generatedName:            nameMeta.Name,
-		generatedNameSource:      string(nameMeta.Source),
-		additionalGeneratedNames: nameMeta.AdditionalNames,
-		ddServiceName:            nameMeta.DDService,
-		language:                 lang,
-		apmInstrumentation:       apmInstrumentation,
-		ddServiceInjected:        nameMeta.DDServiceInjected,
-		cmdLine:                  truncateCmdline(lang, cmdline),
-		startTimeMilli:           uint64(createTime),
-	}, nil
+	totalPorts := len(tcpPorts) + len(udpPorts)
+	hasTracerMetadata := openFileInfo.tracerMemfdFd != ""
+	hasLogs := len(openFileInfo.logs) > 0
+	if totalPorts == 0 && !hasTracerMetadata && !hasLogs {
+		return nil
+	}
+
+	logFiles := getLogFiles(pid, openFileInfo.logs)
+
+	// Return minimal service info with only dynamic fields
+	return &model.Service{
+		PID:      int(pid),
+		TCPPorts: tcpPorts,
+		UDPPorts: udpPorts,
+		LogFiles: logFiles,
+	}
 }
 
 // maxNumberOfPorts is the maximum number of listening ports which we report per
 // service.
 const maxNumberOfPorts = 50
 
-// getService gets information for a single service.
-func (s *discovery) getService(context parsingContext, pid int32) *model.Service {
-	if s.shouldIgnorePid(pid) {
-		return nil
-	}
-	if s.shouldIgnoreComm(pid) {
-		s.addIgnoredPid(pid)
-		return nil
-	}
-
-	sockets, err := getSockets(pid)
-	if err != nil {
-		return nil
-	}
+// getPorts gets the list of open ports for the provided process.
+func (s *discovery) getPorts(context parsingContext, pid int32, sockets []uint64) ([]uint16, []uint16, error) {
 	if len(sockets) == 0 {
-		return nil
+		return nil, nil, nil
 	}
 
 	ns, err := netns.GetNetNsInoFromPid(context.procRoot, int(pid))
 	if err != nil {
-		return nil
+		return nil, nil, err
 	}
 
 	// The socket and network address information are different for each
@@ -628,427 +442,155 @@ func (s *discovery) getService(context parsingContext, pid int32) *model.Service
 	if !ok {
 		nsInfo, err = getNsInfo(int(pid))
 		if err != nil {
-			return nil
+			return nil, nil, err
 		}
 
 		context.netNsInfo[ns] = nsInfo
 	}
 
-	var ports []uint16
-	seenPorts := make(map[uint16]struct{})
+	var tcpPorts, udpPorts []uint16
+	seenTCPPorts := make(map[uint16]struct{})
+	seenUDPPorts := make(map[uint16]struct{})
+
 	for _, socket := range sockets {
-		if info, ok := nsInfo.listeningSockets[socket]; ok {
+		if info, ok := nsInfo.tcpSockets[socket]; ok {
 			port := info.port
-			if _, seen := seenPorts[port]; seen {
+			if _, seen := seenTCPPorts[port]; seen {
 				continue
 			}
+			tcpPorts = append(tcpPorts, port)
+			seenTCPPorts[port] = struct{}{}
+			continue
+		}
 
-			ports = append(ports, port)
-			seenPorts[port] = struct{}{}
+		if info, ok := nsInfo.udpSockets[socket]; ok {
+			port := info.port
+			if _, seen := seenUDPPorts[port]; seen {
+				continue
+			}
+			udpPorts = append(udpPorts, port)
+			seenUDPPorts[port] = struct{}{}
+			continue
 		}
 	}
 
-	if len(ports) == 0 {
+	// Sort the list so that non-ephemeral ports are given preference when we
+	// trim the list.
+	portCmp := func(a, b uint16) int {
+		return cmp.Compare(a, b)
+	}
+	if len(tcpPorts) > maxNumberOfPorts {
+		slices.SortFunc(tcpPorts, portCmp)
+		tcpPorts = tcpPorts[:maxNumberOfPorts]
+	}
+
+	if len(udpPorts) > maxNumberOfPorts {
+		slices.SortFunc(udpPorts, portCmp)
+		udpPorts = udpPorts[:maxNumberOfPorts]
+	}
+
+	return tcpPorts, udpPorts, nil
+}
+
+// getServices processes categorized PID lists and returns service information for each.
+// This is used by the /services endpoint which accepts explicit PID lists and bypasses
+// the port retry logic used by the /check endpoint. The caller (the Core-Agent
+// process collector) will handle the retry.
+func (s *discovery) getServices(params core.Params) (*model.ServicesResponse, error) {
+	s.mux.Lock()
+	defer s.mux.Unlock()
+	response := &model.ServicesResponse{
+		Services: make([]model.Service, 0),
+	}
+
+	context := newParsingContext()
+
+	// Process new PIDs with full service info collection
+	for _, pid := range params.NewPids {
+		// Check for APM injector even if process is not detected as a service
+		if detectAPMInjectorFromMaps(pid) {
+			response.InjectedPIDs = append(response.InjectedPIDs, int(pid))
+		}
+
+		service := s.getServiceWithoutRetry(context, pid)
+		if service == nil {
+			continue
+		}
+		response.Services = append(response.Services, *service)
+	}
+
+	// Process heartbeat PIDs with minimal updates (only ports and log files)
+	for _, pid := range params.HeartbeatPids {
+		service := s.getHeartbeatServiceInfo(context, pid)
+		if service == nil {
+			continue
+		}
+		response.Services = append(response.Services, *service)
+	}
+
+	return response, nil
+}
+
+// getServiceWithoutRetry extracts service information for a PID without port retry logic.
+// Unlike getService(), this function immediately returns nil if no ports are found,
+// rather than tracking retry attempts. This is used by the /services endpoint.
+func (s *discovery) getServiceWithoutRetry(context parsingContext, pid int32) *model.Service {
+	if s.shouldIgnoreComm(pid) {
 		return nil
 	}
 
-	if len(ports) > maxNumberOfPorts {
-		// Sort the list so that non-ephemeral ports are given preference when
-		// we trim the list.
-		portCmp := func(a, b uint16) int {
-			return cmp.Compare(a, b)
-		}
-		slices.SortFunc(ports, portCmp)
-		ports = ports[:maxNumberOfPorts]
+	openFileInfo, err := getOpenFilesInfo(pid, context.readlinkBuffer)
+	if err != nil {
+		return nil
 	}
-
-	rss, err := getRSS(pid)
+	tcpPorts, udpPorts, err := s.getPorts(context, pid, openFileInfo.sockets)
 	if err != nil {
 		return nil
 	}
 
-	var info *serviceInfo
-	cached, ok := s.cache[pid]
-	if ok {
-		info = cached
-	} else {
-		info, err = s.getServiceInfo(pid)
-		if err != nil {
-			return nil
-		}
-
-		s.cache[pid] = info
-	}
-
-	if s.shouldIgnoreService(info.name) {
-		s.addIgnoredPid(pid)
+	totalPorts := len(tcpPorts) + len(udpPorts)
+	hasTracerMetadata := openFileInfo.tracerMemfdFd != ""
+	hasLogs := len(openFileInfo.logs) > 0
+	if totalPorts == 0 && !hasTracerMetadata && !hasLogs {
 		return nil
 	}
 
-	service := &model.Service{}
-	info.toModelService(pid, service)
-	service.Ports = ports
-	service.RSS = rss
+	service, err := s.getServiceInfo(pid, openFileInfo)
+	if err != nil {
+		log.Tracef("[pid: %d] could not get service info: %v", pid, err)
+		return nil
+	}
+
+	service.TCPPorts = tcpPorts
+	service.UDPPorts = udpPorts
+	service.LogFiles = getLogFiles(pid, openFileInfo.logs)
+	service.Type = string(servicetype.Detect(tcpPorts, udpPorts))
 
 	return service
 }
 
-// cleanCache deletes dead PIDs from the cache. Note that this does not actually
-// shrink the map but should free memory for the service name strings referenced
-// from it. This function is not thread-safe and it is up to the caller to ensure
-// s.mux is locked.
-func (s *discovery) cleanCache(alivePids pidSet) {
-	for pid, info := range s.cache {
-		if alivePids.has(pid) {
-			continue
-		}
-
-		if info.addedToMap {
-			err := s.network.removePid(uint32(pid))
-			if err != nil {
-				log.Warn("unable to remove pid from network collector", pid, err)
-			}
-		}
-
-		delete(s.cache, pid)
-	}
-}
-
-func (s *discovery) updateNetworkStats(deltaSeconds float64, response *model.ServicesResponse) {
-	for pid, info := range s.cache {
-		if !info.addedToMap {
-			err := s.network.addPid(uint32(pid))
-			if err == nil {
-				info.addedToMap = true
-			} else {
-				log.Warnf("unable to add to network collector %v: %v", pid, err)
-			}
-			continue
-		}
-
-		stats, err := s.network.getStats(uint32(pid))
-		if err != nil {
-			log.Warnf("unable to get network stats %v: %v", pid, err)
-			continue
-		}
-
-		deltaRx := stats.Rx - info.rxBytes
-		deltaTx := stats.Tx - info.txBytes
-
-		info.rxBps = float64(deltaRx) / deltaSeconds
-		info.txBps = float64(deltaTx) / deltaSeconds
-
-		info.rxBytes = stats.Rx
-		info.txBytes = stats.Tx
-	}
-
-	updateResponseNetworkStats := func(services []model.Service) {
-		for i := range services {
-			service := &services[i]
-			info, ok := s.cache[int32(service.PID)]
-			if !ok {
-				continue
-			}
-
-			service.RxBps = info.rxBps
-			service.TxBps = info.txBps
-			service.RxBytes = info.rxBytes
-			service.TxBytes = info.txBytes
-		}
-	}
-
-	updateResponseNetworkStats(response.StartedServices)
-	updateResponseNetworkStats(response.HeartbeatServices)
-}
-
-func (s *discovery) maybeUpdateNetworkStats(response *model.ServicesResponse) {
-	if s.network == nil {
-		return
-	}
-
-	now := s.timeProvider.Now()
-	delta := now.Sub(s.lastNetworkStatsUpdate)
-	if delta < s.config.networkStatsPeriod {
-		return
-	}
-
-	deltaSeconds := delta.Seconds()
-
-	s.updateNetworkStats(deltaSeconds, response)
-
-	s.lastNetworkStatsUpdate = now
-}
-
-// cleanPidSets deletes dead PIDs from the provided pidSets. This function is not
-// thread-safe and it is up to the caller to ensure s.mux is locked.
-func (s *discovery) cleanPidSets(alivePids pidSet, sets ...pidSet) {
-	for _, set := range sets {
-		for pid := range set {
-			if alivePids.has(pid) {
-				continue
-			}
-
-			delete(set, pid)
-		}
-	}
-}
-
-// updateServicesCPUStats updates the CPU stats of cached services, as well as the
-// global CPU time cache for future updates. This function is not thread-safe and
-// it is up to the caller to ensure s.mux is locked.
-func (s *discovery) updateServicesCPUStats(response *model.ServicesResponse) error {
-	if time.Since(s.lastCPUTimeUpdate) < s.config.cpuUsageUpdateDelay {
-		return nil
-	}
-
-	globalCPUTime, err := getGlobalCPUTime()
+// detectAPMInjectorFromMaps reads /proc/pid/maps and checks for APM injector library
+func detectAPMInjectorFromMaps(pid int32) bool {
+	mapsPath := kernel.HostProc(strconv.Itoa(int(pid)), "maps")
+	mapsFile, err := os.Open(mapsPath)
 	if err != nil {
-		return fmt.Errorf("could not get global CPU time: %w", err)
+		return false
 	}
+	defer mapsFile.Close()
 
-	for pid, info := range s.cache {
-		_ = updateCPUCoresStats(int(pid), info, s.lastGlobalCPUTime, globalCPUTime)
-	}
-
-	updateResponseCPUStats := func(services []model.Service) {
-		for i := range services {
-			service := &services[i]
-			info, ok := s.cache[int32(service.PID)]
-			if !ok {
-				continue
-			}
-
-			service.CPUCores = info.cpuUsage
-		}
-	}
-
-	updateResponseCPUStats(response.StartedServices)
-	updateResponseCPUStats(response.HeartbeatServices)
-
-	s.lastGlobalCPUTime = globalCPUTime
-	s.lastCPUTimeUpdate = time.Now()
-
-	return nil
+	return detectAPMInjectorFromMapsReader(mapsFile)
 }
 
-func getServiceNameFromContainerTags(tags []string) (string, string) {
-	// The tags we look for service name generation, in their priority order.
-	// The map entries will be filled as we go through the containers tags.
-	tagsPriority := []struct {
-		tagName  string
-		tagValue *string
-	}{
-		{"service", nil},
-		{"app", nil},
-		{"short_image", nil},
-		{"kube_container_name", nil},
-		{"kube_deployment", nil},
-		{"kube_service", nil},
-	}
-
-	// Sort the tags to make the function deterministic
-	slices.Sort(tags)
-
-	for _, tag := range tags {
-		// Get index of separator between name and value
-		sepIndex := strings.IndexRune(tag, ':')
-		if sepIndex < 0 || sepIndex >= len(tag)-1 {
-			// Malformed tag; we skip it
-			continue
-		}
-
-		for i := range tagsPriority {
-			if tagsPriority[i].tagValue != nil {
-				// We have seen this tag before, we don't need another value.
-				continue
-			}
-
-			if tag[:sepIndex] != tagsPriority[i].tagName {
-				// Not a tag we care about; we skip it
-				continue
-			}
-
-			value := tag[sepIndex+1:]
-			tagsPriority[i].tagValue = &value
-			break
+// detectAPMInjectorFromMapsReader checks for APM injector library in the provided reader
+func detectAPMInjectorFromMapsReader(reader io.Reader) bool {
+	lr := io.LimitReader(reader, readLimit)
+	scanner := bufio.NewScanner(lr)
+	for scanner.Scan() {
+		line := scanner.Text()
+		if apmInjectorRegex.MatchString(line) {
+			return true
 		}
 	}
 
-	for _, tag := range tagsPriority {
-		if tag.tagValue == nil {
-			continue
-		}
-
-		log.Debugf("Using %v:%v tag for service name", tag.tagName, *tag.tagValue)
-		return tag.tagName, *tag.tagValue
-	}
-
-	return "", ""
-}
-
-func (s *discovery) enrichContainerData(service *model.Service, containers map[string]*agentPayload.Container, pidToCid map[int]string) {
-	id, ok := pidToCid[service.PID]
-	if !ok {
-		return
-	}
-
-	container, ok := containers[id]
-	if !ok {
-		return
-	}
-
-	service.ContainerID = id
-	service.ContainerTags = container.Tags
-
-	// We checked the container tags before, no need to do it again.
-	if service.CheckedContainerData {
-		return
-	}
-
-	tagName, serviceName := getServiceNameFromContainerTags(container.Tags)
-	service.ContainerServiceName = serviceName
-	service.ContainerServiceNameSource = tagName
-	service.CheckedContainerData = true
-
-	serviceInfo, ok := s.cache[int32(service.PID)]
-	if ok {
-		serviceInfo.containerServiceName = serviceName
-		serviceInfo.containerServiceNameSource = tagName
-		serviceInfo.checkedContainerData = true
-		serviceInfo.containerID = id
-	}
-}
-
-func (s *discovery) updateCacheInfo(response *model.ServicesResponse, now time.Time) {
-	updateCachedHeartbeat := func(service *model.Service) {
-		info, ok := s.cache[int32(service.PID)]
-		if !ok {
-			log.Warnf("could not access service info from the cache when update last heartbeat for PID %v start event", service.PID)
-			return
-		}
-
-		info.lastHeartbeat = now.Unix()
-		info.ports = service.Ports
-		info.rss = service.RSS
-	}
-
-	for i := range response.StartedServices {
-		service := &response.StartedServices[i]
-		updateCachedHeartbeat(service)
-	}
-
-	for i := range response.HeartbeatServices {
-		service := &response.HeartbeatServices[i]
-		updateCachedHeartbeat(service)
-	}
-}
-
-// handleStoppedServices verifies services previously seen and registered as
-// running are still alive. If not, it will use the latest cached information
-// about them to generate a stop event for the service. This function is not
-// thread-safe and it is up to the caller to ensure s.mux is locked.
-func (s *discovery) handleStoppedServices(response *model.ServicesResponse, alivePids pidSet) {
-	for pid := range s.runningServices {
-		if alivePids.has(pid) {
-			continue
-		}
-
-		s.runningServices.remove(pid)
-		info, ok := s.cache[pid]
-		if !ok {
-			log.Warnf("could not get service from the cache to generate a stopped service event for PID %v", pid)
-			continue
-		}
-
-		// Build service struct in place in the slice
-		response.StoppedServices = append(response.StoppedServices, model.Service{})
-		info.toModelService(pid, &response.StoppedServices[len(response.StoppedServices)-1])
-	}
-}
-
-// getStatus returns the list of currently running services.
-func (s *discovery) getServices(params params) (*model.ServicesResponse, error) {
-	s.mux.Lock()
-	defer s.mux.Unlock()
-
-	procRoot := kernel.ProcFSRoot()
-	pids, err := process.Pids()
-	if err != nil {
-		return nil, err
-	}
-
-	context := parsingContext{
-		procRoot:  procRoot,
-		netNsInfo: make(map[uint32]*namespaceInfo),
-	}
-
-	response := &model.ServicesResponse{
-		StartedServices:   make([]model.Service, 0, len(s.potentialServices)),
-		StoppedServices:   make([]model.Service, 0),
-		HeartbeatServices: make([]model.Service, 0),
-	}
-
-	alivePids := make(pidSet, len(pids))
-	containers, _, pidToCid, err := s.containerProvider.GetContainers(containerCacheValidity, nil)
-	if err != nil {
-		log.Errorf("could not get containers: %s", err)
-	}
-
-	// Build mapping of Container ID to container object to avoid traversal of
-	// the containers slice for every services.
-	containersMap := make(map[string]*agentPayload.Container, len(containers))
-	for _, c := range containers {
-		containersMap[c.Id] = c
-	}
-
-	now := s.timeProvider.Now()
-
-	for _, pid := range pids {
-		alivePids.add(pid)
-
-		service := s.getService(context, pid)
-		if service == nil {
-			continue
-		}
-		s.enrichContainerData(service, containersMap, pidToCid)
-
-		if _, ok := s.runningServices[pid]; ok {
-			if serviceHeartbeatTime := time.Unix(service.LastHeartbeat, 0); now.Sub(serviceHeartbeatTime).Truncate(time.Minute) >= params.heartbeatTime {
-				service.LastHeartbeat = now.Unix()
-				response.HeartbeatServices = append(response.HeartbeatServices, *service)
-			}
-
-			continue
-		}
-
-		if _, ok := s.potentialServices[pid]; ok {
-			// We have seen it first in the previous call of getServices, so it
-			// is confirmed to be running.
-			s.runningServices.add(pid)
-			delete(s.potentialServices, pid)
-			service.LastHeartbeat = now.Unix()
-			response.StartedServices = append(response.StartedServices, *service)
-			continue
-		}
-
-		// This is a new potential service
-		s.potentialServices.add(pid)
-		log.Debugf("[pid: %d] adding process to potential: %s", pid, service.Name)
-	}
-
-	s.updateCacheInfo(response, now)
-	s.handleStoppedServices(response, alivePids)
-
-	s.cleanCache(alivePids)
-	s.cleanPidSets(alivePids, s.ignorePids, s.potentialServices)
-
-	if err = s.updateServicesCPUStats(response); err != nil {
-		log.Warnf("updating services CPU stats: %s", err)
-	}
-
-	s.maybeUpdateNetworkStats(response)
-
-	response.RunningServicesCount = len(s.runningServices)
-
-	return response, nil
+	return false
 }

@@ -11,6 +11,7 @@ import (
 	"github.com/tinylib/msgp/msgp"
 
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
+	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace/idx"
 )
 
 const (
@@ -35,10 +36,28 @@ func HasTopLevelMetrics(metrics map[string]float64) bool {
 	return metrics[topLevelKey] == 1 || metrics[tracerTopLevelKey] == 1
 }
 
+// HasTopLevelMetricsV1 returns true if the provided metrics map indicates the span is top-level.
+func HasTopLevelMetricsV1(s *idx.InternalSpan) bool {
+	topLevel, ok := s.GetAttributeAsFloat64(topLevelKey)
+	if ok && topLevel == 1 {
+		return true
+	}
+	tracerTopLevel, ok := s.GetAttributeAsFloat64(tracerTopLevelKey)
+	return ok && tracerTopLevel == 1
+}
+
 // UpdateTracerTopLevel sets _top_level tag on spans flagged by the tracer
 func UpdateTracerTopLevel(s *pb.Span) {
 	if s.Metrics[tracerTopLevelKey] == 1 {
 		SetMetric(s, topLevelKey, 1)
+	}
+}
+
+// UpdateTracerTopLevelV1 sets _top_level tag on spans flagged by the tracer
+func UpdateTracerTopLevelV1(s *idx.InternalSpan) {
+	topLevel, ok := s.GetAttributeAsFloat64(tracerTopLevelKey)
+	if ok && topLevel == 1 {
+		s.SetFloat64Attribute(topLevelKey, 1)
 	}
 }
 
@@ -50,6 +69,12 @@ func IsMeasured(s *pb.Span) bool {
 // IsMeasuredMetrics returns true if a span should be measured (i.e., it should get trace metrics calculated).
 func IsMeasuredMetrics(metrics map[string]float64) bool {
 	return metrics[measuredKey] == 1
+}
+
+// IsMeasuredMetricsV1 returns true if a span should be measured (i.e., it should get trace metrics calculated).
+func IsMeasuredMetricsV1(s *idx.InternalSpan) bool {
+	measured, ok := s.GetAttributeAsFloat64(measuredKey)
+	return ok && measured == 1
 }
 
 // IsPartialSnapshot returns true if the span is a partial snapshot.
@@ -67,6 +92,15 @@ func IsPartialSnapshot(s *pb.Span) bool {
 func IsPartialSnapshotMetrics(metrics map[string]float64) bool {
 	v, ok := metrics[partialVersionKey]
 	return ok && v >= 0
+}
+
+// IsPartialSnapshotMetricsV1 returns true if the span is a partial snapshot.
+// These kinds of spans are partial images of long-running spans.
+// When incomplete, a partial snapshot has a metric _dd.partial_version which is a positive integer.
+// The metric usually increases each time a new version of the same span is sent by the tracer
+func IsPartialSnapshotMetricsV1(s *idx.InternalSpan) bool {
+	partialVersion, ok := s.GetAttributeAsFloat64(partialVersionKey)
+	return ok && partialVersion >= 0
 }
 
 // SetTopLevel sets the top-level attribute of the span.

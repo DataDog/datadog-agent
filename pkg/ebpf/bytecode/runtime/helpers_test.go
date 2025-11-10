@@ -17,6 +17,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel/headers"
 )
 
 func TestGetAvailableHelpers(t *testing.T) {
@@ -29,7 +30,7 @@ func TestGetAvailableHelpers(t *testing.T) {
 	}
 
 	cfg := ebpf.NewConfig()
-	opts := kernel.HeaderOptions{
+	opts := headers.HeaderOptions{
 		DownloadEnabled: cfg.EnableKernelHeaderDownload,
 		Dirs:            cfg.KernelHeadersDirs,
 		DownloadDir:     cfg.KernelHeadersDownloadDir,
@@ -37,7 +38,7 @@ func TestGetAvailableHelpers(t *testing.T) {
 		YumReposDir:     cfg.YumReposDir,
 		ZypperReposDir:  cfg.ZypperReposDir,
 	}
-	kernelHeaders := kernel.GetKernelHeaders(opts)
+	kernelHeaders := headers.GetKernelHeaders(opts)
 	fns, err := getAvailableHelpers(kernelHeaders)
 	require.NoError(t, err)
 	assert.NotEmpty(t, fns, "number of available helpers")

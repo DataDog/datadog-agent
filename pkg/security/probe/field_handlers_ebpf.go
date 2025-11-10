@@ -9,18 +9,26 @@
 package probe
 
 import (
+	"crypto/sha256"
 	"encoding/binary"
+	"fmt"
+	"net"
+	"net/netip"
 	"path"
+	"slices"
 	"strings"
 	"syscall"
 	"time"
 
-	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	"golang.org/x/net/bpf"
+
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
 	sprocess "github.com/DataDog/datadog-agent/pkg/security/resolvers/process"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
+	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
+	"github.com/DataDog/datadog-agent/pkg/security/utils/lru/simplelru"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/args"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
@@ -31,7 +39,11 @@ type EBPFFieldHandlers struct {
 	*BaseFieldHandlers
 	resolvers *resolvers.EBPFResolvers
 	onDemand  *OnDemandProbesManager
+
+	cgroupIDcache *simplelru.LRU[containerutils.CGroupID, containerutils.ContainerID]
 }
+
+const cgroupIDCacheSize = 256
 
 // NewEBPFFieldHandlers returns a new EBPFFieldHandlers
 func NewEBPFFieldHandlers(config *config.Config, resolvers *resolvers.EBPFResolvers, hostname string, onDemand *OnDemandProbesManager) (*EBPFFieldHandlers, error) {
@@ -40,10 +52,16 @@ func NewEBPFFieldHandlers(config *config.Config, resolvers *resolvers.EBPFResolv
 		return nil, err
 	}
 
+	cgroupIDcache, err := simplelru.NewLRU[containerutils.CGroupID, containerutils.ContainerID](cgroupIDCacheSize, nil)
+	if err != nil {
+		return nil, err
+	}
+
 	return &EBPFFieldHandlers{
 		BaseFieldHandlers: bfh,
 		resolvers:         resolvers,
 		onDemand:          onDemand,
+		cgroupIDcache:     cgroupIDcache,
 	}, nil
 }
 
@@ -65,10 +83,15 @@ func (fh *EBPFFieldHandlers) ResolveProcessCacheEntry(ev *model.Event, newEntryC
 	return ev.ProcessCacheEntry, true
 }
 
+// ResolveProcessCacheEntryFromPID queries the ProcessResolver to retrieve the ProcessContext of the provided PID
+func (fh *EBPFFieldHandlers) ResolveProcessCacheEntryFromPID(pid uint32) *model.ProcessCacheEntry {
+	return fh.resolvers.ProcessResolver.Resolve(pid, pid, 0, true, nil)
+}
+
 // ResolveFilePath resolves the inode to a full path
 func (fh *EBPFFieldHandlers) ResolveFilePath(ev *model.Event, f *model.FileEvent) string {
 	if !f.IsPathnameStrResolved && len(f.PathnameStr) == 0 {
-		path, mountPath, source, origin, err := fh.resolvers.PathResolver.ResolveFileFieldsPath(&f.FileFields, &ev.PIDContext, ev.ContainerContext)
+		path, mountPath, source, origin, err := fh.resolvers.PathResolver.ResolveFileFieldsPath(&f.FileFields, &ev.PIDContext, &ev.ProcessContext.ContainerContext)
 		if err != nil {
 			ev.SetPathResolutionError(f, err)
 		}
@@ -76,6 +99,11 @@ func (fh *EBPFFieldHandlers) ResolveFilePath(ev *model.Event, f *model.FileEvent
 		f.MountPath = mountPath
 		f.MountSource = source
 		f.MountOrigin = origin
+		err = fh.resolvers.PathResolver.ResolveMountAttributes(f, &ev.PIDContext, &ev.ProcessContext.ContainerContext)
+		if err != nil && f.PathResolutionError == nil {
+			seclog.Warnf("error while resolving the attributes for mountid %d: %s", f.MountID, err)
+			ev.SetPathResolutionError(f, err)
+		}
 	}
 
 	return f.PathnameStr
@@ -99,7 +127,7 @@ func (fh *EBPFFieldHandlers) ResolveFileFilesystem(ev *model.Event, f *model.Fil
 		if f.IsFileless() {
 			f.Filesystem = model.TmpFS
 		} else {
-			fs, err := fh.resolvers.MountResolver.ResolveFilesystem(f.FileFields.MountID, f.FileFields.Device, ev.PIDContext.Pid, ev.ContainerContext.ContainerID)
+			fs, err := fh.resolvers.MountResolver.ResolveFilesystem(f.FileFields.MountID, f.FileFields.Device, ev.PIDContext.Pid, ev.ProcessContext.ContainerContext.ContainerID)
 			if err != nil {
 				ev.SetPathResolutionError(f, err)
 			}
@@ -145,8 +173,11 @@ func (fh *EBPFFieldHandlers) ResolveXAttrNamespace(ev *model.Event, e *model.Set
 
 // ResolveMountPointPath resolves a mount point path
 func (fh *EBPFFieldHandlers) ResolveMountPointPath(ev *model.Event, e *model.MountEvent) string {
+	if e.Detached {
+		return "/"
+	}
 	if len(e.MountPointPath) == 0 {
-		mountPointPath, _, _, err := fh.resolvers.MountResolver.ResolveMountPath(e.MountID, 0, ev.PIDContext.Pid, ev.ContainerContext.ContainerID)
+		mountPointPath, _, _, err := fh.resolvers.MountResolver.ResolveMountPath(e.MountID, 0, ev.PIDContext.Pid, ev.ProcessContext.ContainerContext.ContainerID)
 		if err != nil {
 			e.MountPointPathResolutionError = err
 			return ""
@@ -159,7 +190,7 @@ func (fh *EBPFFieldHandlers) ResolveMountPointPath(ev *model.Event, e *model.Mou
 // ResolveMountSourcePath resolves a mount source path
 func (fh *EBPFFieldHandlers) ResolveMountSourcePath(ev *model.Event, e *model.MountEvent) string {
 	if e.BindSrcMountID != 0 && len(e.MountSourcePath) == 0 {
-		bindSourceMountPath, _, _, err := fh.resolvers.MountResolver.ResolveMountPath(e.BindSrcMountID, 0, ev.PIDContext.Pid, ev.ContainerContext.ContainerID)
+		bindSourceMountPath, _, _, err := fh.resolvers.MountResolver.ResolveMountPath(e.BindSrcMountID, 0, ev.PIDContext.Pid, ev.ProcessContext.ContainerContext.ContainerID)
 		if err != nil {
 			e.MountSourcePathResolutionError = err
 			return ""
@@ -177,7 +208,7 @@ func (fh *EBPFFieldHandlers) ResolveMountSourcePath(ev *model.Event, e *model.Mo
 // ResolveMountRootPath resolves a mount root path
 func (fh *EBPFFieldHandlers) ResolveMountRootPath(ev *model.Event, e *model.MountEvent) string {
 	if len(e.MountRootPath) == 0 {
-		mountRootPath, _, _, err := fh.resolvers.MountResolver.ResolveMountRoot(e.MountID, 0, ev.PIDContext.Pid, ev.ContainerContext.ContainerID)
+		mountRootPath, _, _, err := fh.resolvers.MountResolver.ResolveMountRoot(e.MountID, 0, ev.PIDContext.Pid, ev.ProcessContext.ContainerContext.ContainerID)
 		if err != nil {
 			e.MountRootPathResolutionError = err
 			return ""
@@ -187,43 +218,34 @@ func (fh *EBPFFieldHandlers) ResolveMountRootPath(ev *model.Event, e *model.Moun
 	return e.MountRootPath
 }
 
+func (fh *EBPFFieldHandlers) containerIDFromCgroupID(cgroupID containerutils.CGroupID) containerutils.ContainerID {
+	if containerID, ok := fh.cgroupIDcache.Get(cgroupID); ok {
+		return containerID
+	}
+
+	cid := containerutils.FindContainerID(cgroupID)
+	fh.cgroupIDcache.Add(cgroupID, cid)
+	return cid
+}
+
 // ResolveContainerContext queries the cgroup resolver to retrieve the ContainerContext of the event
 func (fh *EBPFFieldHandlers) ResolveContainerContext(ev *model.Event) (*model.ContainerContext, bool) {
-	if ev.ContainerContext.ContainerID != "" && !ev.ContainerContext.Resolved {
-		if containerContext, _ := fh.resolvers.CGroupResolver.GetWorkload(ev.ContainerContext.ContainerID); containerContext != nil {
-			if containerContext.CGroupFlags.IsContainer() {
-				ev.ContainerContext = &containerContext.ContainerContext
-			}
+	if ev.ProcessContext.ContainerContext.Resolved {
+		return &ev.ProcessContext.ContainerContext, ev.ProcessContext.ContainerContext.Resolved
+	}
 
-			ev.ContainerContext.Resolved = true
+	if ev.ProcessContext.Process.ContainerContext.ContainerID == "" {
+		ev.ProcessContext.Process.ContainerContext.ContainerID = fh.containerIDFromCgroupID(ev.ProcessContext.Process.CGroup.CGroupID)
+	}
+
+	if ev.ProcessContext.ContainerContext.ContainerID != "" {
+		if containerContext, _ := fh.resolvers.CGroupResolver.GetWorkload(ev.ProcessContext.ContainerContext.ContainerID); containerContext != nil {
+			ev.ProcessContext.ContainerContext = containerContext.ContainerContext
+			ev.ProcessContext.ContainerContext.Resolved = true
 		}
 	}
-	return ev.ContainerContext, ev.ContainerContext.Resolved
-}
 
-// ResolveContainerRuntime retrieves the container runtime managing the container
-func (fh *EBPFFieldHandlers) ResolveContainerRuntime(ev *model.Event, _ *model.ContainerContext) string {
-	if ev.CGroupContext.CGroupFlags != 0 && ev.ContainerContext.ContainerID != "" {
-		return getContainerRuntime(ev.CGroupContext.CGroupFlags)
-	}
-
-	return ""
-}
-
-// getContainerRuntime returns the container runtime managing the cgroup
-func getContainerRuntime(flags containerutils.CGroupFlags) string {
-	switch containerutils.CGroupManager(flags & containerutils.CGroupManagerMask) {
-	case containerutils.CGroupManagerCRI:
-		return string(workloadmeta.ContainerRuntimeContainerd)
-	case containerutils.CGroupManagerCRIO:
-		return string(workloadmeta.ContainerRuntimeCRIO)
-	case containerutils.CGroupManagerDocker:
-		return string(workloadmeta.ContainerRuntimeDocker)
-	case containerutils.CGroupManagerPodman:
-		return string(workloadmeta.ContainerRuntimePodman)
-	default:
-		return ""
-	}
+	return &ev.ProcessContext.ContainerContext, ev.ProcessContext.ContainerContext.Resolved
 }
 
 // ResolveRights resolves the rights of a file
@@ -234,7 +256,7 @@ func (fh *EBPFFieldHandlers) ResolveRights(_ *model.Event, e *model.FileFields) 
 // ResolveChownUID resolves the user id of a chown event to a username
 func (fh *EBPFFieldHandlers) ResolveChownUID(ev *model.Event, e *model.ChownEvent) string {
 	if len(e.User) == 0 {
-		e.User, _ = fh.resolvers.UserGroupResolver.ResolveUser(int(e.UID), ev.ContainerContext.ContainerID)
+		e.User, _ = fh.resolvers.UserGroupResolver.ResolveUser(int(e.UID), ev.ProcessContext.ContainerContext.ContainerID)
 	}
 	return e.User
 }
@@ -242,7 +264,7 @@ func (fh *EBPFFieldHandlers) ResolveChownUID(ev *model.Event, e *model.ChownEven
 // ResolveChownGID resolves the group id of a chown event to a group name
 func (fh *EBPFFieldHandlers) ResolveChownGID(ev *model.Event, e *model.ChownEvent) string {
 	if len(e.Group) == 0 {
-		e.Group, _ = fh.resolvers.UserGroupResolver.ResolveGroup(int(e.GID), ev.ContainerContext.ContainerID)
+		e.Group, _ = fh.resolvers.UserGroupResolver.ResolveGroup(int(e.GID), ev.ProcessContext.ContainerContext.ContainerID)
 	}
 	return e.Group
 }
@@ -313,7 +335,7 @@ func (fh *EBPFFieldHandlers) ResolveProcessIsThread(_ *model.Event, process *mod
 // ResolveSetuidUser resolves the user of the Setuid event
 func (fh *EBPFFieldHandlers) ResolveSetuidUser(ev *model.Event, e *model.SetuidEvent) string {
 	if len(e.User) == 0 {
-		e.User, _ = fh.resolvers.UserGroupResolver.ResolveUser(int(e.UID), ev.ContainerContext.ContainerID)
+		e.User, _ = fh.resolvers.UserGroupResolver.ResolveUser(int(e.UID), ev.ProcessContext.ContainerContext.ContainerID)
 	}
 	return e.User
 }
@@ -321,7 +343,7 @@ func (fh *EBPFFieldHandlers) ResolveSetuidUser(ev *model.Event, e *model.SetuidE
 // ResolveSetuidEUser resolves the effective user of the Setuid event
 func (fh *EBPFFieldHandlers) ResolveSetuidEUser(ev *model.Event, e *model.SetuidEvent) string {
 	if len(e.EUser) == 0 {
-		e.EUser, _ = fh.resolvers.UserGroupResolver.ResolveUser(int(e.EUID), ev.ContainerContext.ContainerID)
+		e.EUser, _ = fh.resolvers.UserGroupResolver.ResolveUser(int(e.EUID), ev.ProcessContext.ContainerContext.ContainerID)
 	}
 	return e.EUser
 }
@@ -329,7 +351,7 @@ func (fh *EBPFFieldHandlers) ResolveSetuidEUser(ev *model.Event, e *model.Setuid
 // ResolveSetuidFSUser resolves the file-system user of the Setuid event
 func (fh *EBPFFieldHandlers) ResolveSetuidFSUser(ev *model.Event, e *model.SetuidEvent) string {
 	if len(e.FSUser) == 0 {
-		e.FSUser, _ = fh.resolvers.UserGroupResolver.ResolveUser(int(e.FSUID), ev.ContainerContext.ContainerID)
+		e.FSUser, _ = fh.resolvers.UserGroupResolver.ResolveUser(int(e.FSUID), ev.ProcessContext.ContainerContext.ContainerID)
 	}
 	return e.FSUser
 }
@@ -337,7 +359,7 @@ func (fh *EBPFFieldHandlers) ResolveSetuidFSUser(ev *model.Event, e *model.Setui
 // ResolveSetgidGroup resolves the group of the Setgid event
 func (fh *EBPFFieldHandlers) ResolveSetgidGroup(ev *model.Event, e *model.SetgidEvent) string {
 	if len(e.Group) == 0 {
-		e.Group, _ = fh.resolvers.UserGroupResolver.ResolveUser(int(e.GID), ev.ContainerContext.ContainerID)
+		e.Group, _ = fh.resolvers.UserGroupResolver.ResolveUser(int(e.GID), ev.ProcessContext.ContainerContext.ContainerID)
 	}
 	return e.Group
 }
@@ -345,7 +367,7 @@ func (fh *EBPFFieldHandlers) ResolveSetgidGroup(ev *model.Event, e *model.Setgid
 // ResolveSetgidEGroup resolves the effective group of the Setgid event
 func (fh *EBPFFieldHandlers) ResolveSetgidEGroup(ev *model.Event, e *model.SetgidEvent) string {
 	if len(e.EGroup) == 0 {
-		e.EGroup, _ = fh.resolvers.UserGroupResolver.ResolveUser(int(e.EGID), ev.ContainerContext.ContainerID)
+		e.EGroup, _ = fh.resolvers.UserGroupResolver.ResolveUser(int(e.EGID), ev.ProcessContext.ContainerContext.ContainerID)
 	}
 	return e.EGroup
 }
@@ -353,7 +375,7 @@ func (fh *EBPFFieldHandlers) ResolveSetgidEGroup(ev *model.Event, e *model.Setgi
 // ResolveSetgidFSGroup resolves the file-system group of the Setgid event
 func (fh *EBPFFieldHandlers) ResolveSetgidFSGroup(ev *model.Event, e *model.SetgidEvent) string {
 	if len(e.FSGroup) == 0 {
-		e.FSGroup, _ = fh.resolvers.UserGroupResolver.ResolveUser(int(e.FSGID), ev.ContainerContext.ContainerID)
+		e.FSGroup, _ = fh.resolvers.UserGroupResolver.ResolveUser(int(e.FSGID), ev.ProcessContext.ContainerContext.ContainerID)
 	}
 	return e.FSGroup
 }
@@ -383,7 +405,7 @@ func (fh *EBPFFieldHandlers) GetProcessCacheEntry(ev *model.Event, newEntryCb fu
 // ResolveFileFieldsGroup resolves the group id of the file to a group name
 func (fh *EBPFFieldHandlers) ResolveFileFieldsGroup(ev *model.Event, e *model.FileFields) string {
 	if len(e.Group) == 0 {
-		e.Group, _ = fh.resolvers.UserGroupResolver.ResolveGroup(int(e.GID), ev.ContainerContext.ContainerID)
+		e.Group, _ = fh.resolvers.UserGroupResolver.ResolveGroup(int(e.GID), ev.ProcessContext.ContainerContext.ContainerID)
 	}
 	return e.Group
 }
@@ -403,7 +425,7 @@ func (fh *EBPFFieldHandlers) ResolveNetworkDeviceIfName(_ *model.Event, device *
 // ResolveFileFieldsUser resolves the user id of the file to a username
 func (fh *EBPFFieldHandlers) ResolveFileFieldsUser(ev *model.Event, e *model.FileFields) string {
 	if len(e.User) == 0 {
-		e.User, _ = fh.resolvers.UserGroupResolver.ResolveUser(int(e.UID), ev.ContainerContext.ContainerID)
+		e.User, _ = fh.resolvers.UserGroupResolver.ResolveUser(int(e.UID), ev.ProcessContext.ContainerContext.ContainerID)
 	}
 	return e.User
 }
@@ -442,10 +464,14 @@ func (fh *EBPFFieldHandlers) resolveSBOMFields(ev *model.Event, f *model.FileEve
 		return
 	}
 
-	if pkg := fh.resolvers.SBOMResolver.ResolvePackage(ev.ContainerContext.ContainerID, f); pkg != nil {
+	if pkg := fh.resolvers.SBOMResolver.ResolvePackage(ev.ProcessContext.ContainerContext.ContainerID, f); pkg != nil {
 		f.PkgName = pkg.Name
 		f.PkgVersion = pkg.Version
+		f.PkgEpoch = pkg.Epoch
+		f.PkgRelease = pkg.Release
 		f.PkgSrcVersion = pkg.SrcVersion
+		f.PkgSrcEpoch = pkg.SrcEpoch
+		f.PkgSrcRelease = pkg.SrcRelease
 	}
 }
 
@@ -465,12 +491,44 @@ func (fh *EBPFFieldHandlers) ResolvePackageVersion(ev *model.Event, f *model.Fil
 	return f.PkgVersion
 }
 
+// ResolvePackageEpoch resolves the epoch of the package providing this file
+func (fh *EBPFFieldHandlers) ResolvePackageEpoch(ev *model.Event, f *model.FileEvent) int {
+	if f.PkgEpoch == 0 {
+		fh.resolveSBOMFields(ev, f)
+	}
+	return f.PkgEpoch
+}
+
+// ResolvePackageRelease resolves the release of the package providing this file
+func (fh *EBPFFieldHandlers) ResolvePackageRelease(ev *model.Event, f *model.FileEvent) string {
+	if f.PkgRelease == "" {
+		fh.resolveSBOMFields(ev, f)
+	}
+	return f.PkgRelease
+}
+
 // ResolvePackageSourceVersion resolves the version of the source package of the package providing this file
 func (fh *EBPFFieldHandlers) ResolvePackageSourceVersion(ev *model.Event, f *model.FileEvent) string {
 	if f.PkgSrcVersion == "" {
 		fh.resolveSBOMFields(ev, f)
 	}
 	return f.PkgSrcVersion
+}
+
+// ResolvePackageSourceEpoch resolves the epoch of the source package of the package providing this file
+func (fh *EBPFFieldHandlers) ResolvePackageSourceEpoch(ev *model.Event, f *model.FileEvent) int {
+	if f.PkgSrcEpoch == 0 {
+		fh.resolveSBOMFields(ev, f)
+	}
+	return f.PkgSrcEpoch
+}
+
+// ResolvePackageSourceRelease resolves the release of the source package of the package providing this file
+func (fh *EBPFFieldHandlers) ResolvePackageSourceRelease(ev *model.Event, f *model.FileEvent) string {
+	if f.PkgSrcRelease == "" {
+		fh.resolveSBOMFields(ev, f)
+	}
+	return f.PkgSrcRelease
 }
 
 // ResolveModuleArgv resolves the unscrubbed args of the module as an array. Use with caution.
@@ -509,37 +567,26 @@ func (fh *EBPFFieldHandlers) ResolveHashes(eventType model.EventType, process *m
 }
 
 // ResolveCGroupID resolves the cgroup ID of the event
-func (fh *EBPFFieldHandlers) ResolveCGroupID(ev *model.Event, e *model.CGroupContext) string {
-	if len(e.CGroupID) == 0 {
+func (fh *EBPFFieldHandlers) ResolveCGroupID(ev *model.Event, cont *model.CGroupContext) string {
+	if len(cont.CGroupID) == 0 {
 		if entry, _ := fh.ResolveProcessCacheEntry(ev, nil); entry != nil {
 			if entry.CGroup.CGroupID != "" && entry.CGroup.CGroupID != "/" {
 				return string(entry.CGroup.CGroupID)
 			}
 
-			if cgroupContext, _, err := fh.resolvers.ResolveCGroupContext(e.CGroupFile, e.CGroupFlags); err == nil {
-				ev.CGroupContext = cgroupContext
+			if cgroupContext, _, err := fh.resolvers.ResolveCGroupContext(cont.CGroupFile); err == nil {
+				ev.ProcessContext.CGroup = *cgroupContext
 			}
 		}
 	}
 
-	return string(e.CGroupID)
-}
-
-// ResolveCGroupManager resolves the manager of the cgroup
-func (fh *EBPFFieldHandlers) ResolveCGroupManager(ev *model.Event, _ *model.CGroupContext) string {
-	if entry, _ := fh.ResolveProcessCacheEntry(ev, nil); entry != nil {
-		if manager := containerutils.CGroupManager(entry.CGroup.CGroupFlags); manager != 0 {
-			return manager.String()
-		}
-	}
-
-	return ""
+	return string(cont.CGroupID)
 }
 
 // ResolveCGroupVersion resolves the version of the cgroup API
 func (fh *EBPFFieldHandlers) ResolveCGroupVersion(ev *model.Event, e *model.CGroupContext) int {
 	if e.CGroupVersion == 0 {
-		if filesystem, _ := fh.resolvers.MountResolver.ResolveFilesystem(e.CGroupFile.MountID, 0, ev.PIDContext.Pid, ev.ContainerContext.ContainerID); filesystem == "cgroup2" {
+		if filesystem, _ := fh.resolvers.MountResolver.ResolveFilesystem(e.CGroupFile.MountID, 0, ev.PIDContext.Pid, ev.ProcessContext.ContainerContext.ContainerID); filesystem == "cgroup2" {
 			e.CGroupVersion = 2
 		} else {
 			e.CGroupVersion = 1
@@ -552,11 +599,7 @@ func (fh *EBPFFieldHandlers) ResolveCGroupVersion(ev *model.Event, e *model.CGro
 func (fh *EBPFFieldHandlers) ResolveContainerID(ev *model.Event, e *model.ContainerContext) string {
 	if len(e.ContainerID) == 0 {
 		if entry, _ := fh.ResolveProcessCacheEntry(ev, nil); entry != nil {
-			if entry.CGroup.CGroupFlags.IsContainer() {
-				e.ContainerID = containerutils.ContainerID(entry.ContainerID)
-			} else {
-				e.ContainerID = ""
-			}
+			e.ContainerID = containerutils.ContainerID(entry.ProcessContext.ContainerContext.ContainerID)
 			return string(e.ContainerID)
 		}
 	}
@@ -583,7 +626,7 @@ func (fh *EBPFFieldHandlers) ResolveContainerTags(_ *model.Event, e *model.Conta
 
 // ResolveProcessContainerID resolves the container ID of the event
 func (fh *EBPFFieldHandlers) ResolveProcessContainerID(ev *model.Event, _ *model.Process) string {
-	return fh.ResolveContainerID(ev, ev.ContainerContext)
+	return fh.ResolveContainerID(ev, &ev.ProcessContext.ContainerContext)
 }
 
 // ResolveProcessCreatedAt resolves process creation time
@@ -599,6 +642,99 @@ func (fh *EBPFFieldHandlers) ResolveUserSessionContext(evtCtx *model.UserSession
 			*evtCtx = *ctx
 		}
 	}
+}
+
+// ResolveFileMetadata resolves file metadata
+func (fh *EBPFFieldHandlers) ResolveFileMetadata(event *model.Event) *model.FileMetadata {
+	if !fh.resolvers.FileMetadataResolver.Enabled {
+		return nil
+	}
+	if event.Type == uint32(model.ExecEventType) {
+		if event.Exec.FileMetadata.Resolved {
+			return &event.Exec.FileMetadata
+		}
+		metadata, err := fh.resolvers.FileMetadataResolver.ResolveFileMetadata(event, &event.Exec.Process.FileEvent)
+		if err != nil || metadata == nil {
+			seclog.Errorf("failed to resolve exec binary metadata: %s", err)
+			return nil
+		}
+		event.Exec.FileMetadata = *metadata
+		event.Exec.FileMetadata.Resolved = true
+		return metadata
+	}
+	return nil
+}
+
+// ResolveFileMetadataSize resolves file metadata size
+func (fh *EBPFFieldHandlers) ResolveFileMetadataSize(event *model.Event, _ *model.FileMetadata) int {
+	fm := fh.ResolveFileMetadata(event)
+	if fm != nil {
+		return int(fm.Size)
+	}
+	return 0
+}
+
+// ResolveFileMetadataType resolves file metadata type
+func (fh *EBPFFieldHandlers) ResolveFileMetadataType(event *model.Event, _ *model.FileMetadata) int {
+	fm := fh.ResolveFileMetadata(event)
+	if fm != nil {
+		return int(fm.Type)
+	}
+	return 0
+}
+
+// ResolveFileMetadataIsExecutable resolves file metadata is_executable
+func (fh *EBPFFieldHandlers) ResolveFileMetadataIsExecutable(event *model.Event, _ *model.FileMetadata) bool {
+	fm := fh.ResolveFileMetadata(event)
+	if fm != nil {
+		return fm.IsExecutable
+	}
+	return false
+}
+
+// ResolveFileMetadataArchitecture resolves file metadata architecture
+func (fh *EBPFFieldHandlers) ResolveFileMetadataArchitecture(event *model.Event, _ *model.FileMetadata) int {
+	fm := fh.ResolveFileMetadata(event)
+	if fm != nil {
+		return int(fm.Architecture)
+	}
+	return 0
+}
+
+// ResolveFileMetadataABI resolves file metadata ABI
+func (fh *EBPFFieldHandlers) ResolveFileMetadataABI(event *model.Event, _ *model.FileMetadata) int {
+	fm := fh.ResolveFileMetadata(event)
+	if fm != nil {
+		return int(fm.ABI)
+	}
+	return 0
+}
+
+// ResolveFileMetadataIsUPXPacked resolves file metadata is_upx_packed
+func (fh *EBPFFieldHandlers) ResolveFileMetadataIsUPXPacked(event *model.Event, _ *model.FileMetadata) bool {
+	fm := fh.ResolveFileMetadata(event)
+	if fm != nil {
+		return fm.IsUPXPacked
+	}
+	return false
+}
+
+// ResolveFileMetadataCompression resolves file metadata compression
+func (fh *EBPFFieldHandlers) ResolveFileMetadataCompression(event *model.Event, _ *model.FileMetadata) int {
+	fm := fh.ResolveFileMetadata(event)
+	if fm != nil {
+		return int(fm.Compression)
+	}
+	return 0
+}
+
+// ResolveFileMetadataIsGarbleObfuscated resolves file metadata is_garble_obfuscated
+func (fh *EBPFFieldHandlers) ResolveFileMetadataIsGarbleObfuscated(event *model.Event, _ *model.FileMetadata) bool {
+	fm := fh.ResolveFileMetadata(event)
+	if fm != nil {
+		return fm.IsGarbleObfuscated
+	}
+	return false
 }
 
 // ResolveK8SUsername resolves the k8s username of the event
@@ -685,52 +821,83 @@ func (fh *EBPFFieldHandlers) ResolveOnDemandName(_ *model.Event, e *model.OnDema
 	return fh.onDemand.getHookNameFromID(int(e.ID))
 }
 
+func resolveOnDemandArgStr(e *model.OnDemandEvent, index int) string {
+	if !(1 <= index && index <= model.OnDemandParsedArgsCount) {
+		panic(fmt.Sprintf("index must be between 1 and %d", model.OnDemandParsedArgsCount))
+	}
+
+	start := (index - 1) * model.OnDemandPerArgSize
+	data := e.Data[start : start+model.OnDemandPerArgSize]
+	return model.NullTerminatedString(data)
+}
+
+func resolveOnDemandArgUint(e *model.OnDemandEvent, index int) int {
+	if !(1 <= index && index <= model.OnDemandParsedArgsCount) {
+		panic(fmt.Sprintf("index must be between 1 and %d", model.OnDemandParsedArgsCount))
+	}
+
+	start := (index - 1) * model.OnDemandPerArgSize
+	return int(binary.NativeEndian.Uint64(e.Data[start : start+8]))
+}
+
 // ResolveOnDemandArg1Str resolves the string value of the first argument of hooked function
 func (fh *EBPFFieldHandlers) ResolveOnDemandArg1Str(_ *model.Event, e *model.OnDemandEvent) string {
-	data := e.Data[0:64]
-	s := model.NullTerminatedString(data)
-	return s
+	return resolveOnDemandArgStr(e, 1)
 }
 
 // ResolveOnDemandArg1Uint resolves the uint value of the first argument of hooked function
 func (fh *EBPFFieldHandlers) ResolveOnDemandArg1Uint(_ *model.Event, e *model.OnDemandEvent) int {
-	return int(binary.NativeEndian.Uint64(e.Data[0:8]))
+	return resolveOnDemandArgUint(e, 1)
 }
 
 // ResolveOnDemandArg2Str resolves the string value of the second argument of hooked function
 func (fh *EBPFFieldHandlers) ResolveOnDemandArg2Str(_ *model.Event, e *model.OnDemandEvent) string {
-	data := e.Data[64:128]
-	s := model.NullTerminatedString(data)
-	return s
+	return resolveOnDemandArgStr(e, 2)
 }
 
 // ResolveOnDemandArg2Uint resolves the uint value of the second argument of hooked function
 func (fh *EBPFFieldHandlers) ResolveOnDemandArg2Uint(_ *model.Event, e *model.OnDemandEvent) int {
-	return int(binary.NativeEndian.Uint64(e.Data[64 : 64+8]))
+	return resolveOnDemandArgUint(e, 2)
 }
 
 // ResolveOnDemandArg3Str resolves the string value of the third argument of hooked function
 func (fh *EBPFFieldHandlers) ResolveOnDemandArg3Str(_ *model.Event, e *model.OnDemandEvent) string {
-	data := e.Data[128:192]
-	s := model.NullTerminatedString(data)
-	return s
+	return resolveOnDemandArgStr(e, 3)
 }
 
 // ResolveOnDemandArg3Uint resolves the uint value of the third argument of hooked function
 func (fh *EBPFFieldHandlers) ResolveOnDemandArg3Uint(_ *model.Event, e *model.OnDemandEvent) int {
-	return int(binary.NativeEndian.Uint64(e.Data[128 : 128+8]))
+	return resolveOnDemandArgUint(e, 3)
 }
 
 // ResolveOnDemandArg4Str resolves the string value of the fourth argument of hooked function
 func (fh *EBPFFieldHandlers) ResolveOnDemandArg4Str(_ *model.Event, e *model.OnDemandEvent) string {
-	data := e.Data[192:256]
-	s := model.NullTerminatedString(data)
-	return s
+	return resolveOnDemandArgStr(e, 4)
 }
 
 // ResolveOnDemandArg4Uint resolves the uint value of the fourth argument of hooked function
 func (fh *EBPFFieldHandlers) ResolveOnDemandArg4Uint(_ *model.Event, e *model.OnDemandEvent) int {
-	return int(binary.NativeEndian.Uint64(e.Data[192 : 192+8]))
+	return resolveOnDemandArgUint(e, 4)
+}
+
+// ResolveOnDemandArg5Str resolves the string value of the fifth argument of hooked function
+func (fh *EBPFFieldHandlers) ResolveOnDemandArg5Str(_ *model.Event, e *model.OnDemandEvent) string {
+	return resolveOnDemandArgStr(e, 5)
+}
+
+// ResolveOnDemandArg5Uint resolves the uint value of the fifth argument of hooked function
+func (fh *EBPFFieldHandlers) ResolveOnDemandArg5Uint(_ *model.Event, e *model.OnDemandEvent) int {
+	return resolveOnDemandArgUint(e, 5)
+}
+
+// ResolveOnDemandArg6Str resolves the string value of the sixth argument of hooked function
+func (fh *EBPFFieldHandlers) ResolveOnDemandArg6Str(_ *model.Event, e *model.OnDemandEvent) string {
+	return resolveOnDemandArgStr(e, 6)
+}
+
+// ResolveOnDemandArg6Uint resolves the uint value of the sixth argument of hooked function
+func (fh *EBPFFieldHandlers) ResolveOnDemandArg6Uint(_ *model.Event, e *model.OnDemandEvent) int {
+	return resolveOnDemandArgUint(e, 6)
 }
 
 // ResolveProcessNSID resolves the process namespace ID
@@ -745,4 +912,125 @@ func (fh *EBPFFieldHandlers) ResolveProcessNSID(e *model.Event) (uint64, error) 
 	}
 	e.ProcessCacheEntry.Process.NSID = nsid
 	return nsid, nil
+}
+
+func (fh *EBPFFieldHandlers) resolveHostnames(ip net.IP) []string {
+	if !fh.config.Probe.DNSResolutionEnabled {
+		return nil
+	}
+
+	nip, ok := netip.AddrFromSlice(ip)
+	if ok {
+		return fh.resolvers.DNSResolver.HostListFromIP(nip)
+	}
+	return nil
+}
+
+// ResolveConnectHostnames resolves the hostnames of a connect event
+func (fh *EBPFFieldHandlers) ResolveConnectHostnames(_ *model.Event, e *model.ConnectEvent) []string {
+	if len(e.Hostnames) == 0 {
+		e.Hostnames = fh.resolveHostnames(e.Addr.IPNet.IP)
+	}
+
+	return e.Hostnames
+}
+
+// ResolveAcceptHostnames resolves the hostnames of an accept event
+func (fh *EBPFFieldHandlers) ResolveAcceptHostnames(_ *model.Event, e *model.AcceptEvent) []string {
+	if len(e.Hostnames) == 0 {
+		e.Hostnames = fh.resolveHostnames(e.Addr.IPNet.IP)
+	}
+
+	return e.Hostnames
+}
+func parseFilter(e *model.SetSockOptEvent) []bpf.RawInstruction {
+	raw := []bpf.RawInstruction{}
+	filterSize := 8
+	sizeToRead := int(e.SizeToRead)
+	actualNumberOfFilters := sizeToRead / filterSize
+	rawFilter := e.RawFilter
+	for i := 0; i < actualNumberOfFilters; i++ {
+		offset := i * filterSize
+
+		Code := binary.NativeEndian.Uint16(rawFilter[offset : offset+2])
+		Jt := rawFilter[offset+2]
+		Jf := rawFilter[offset+3]
+		K := binary.NativeEndian.Uint32(rawFilter[offset+4 : offset+8])
+
+		raw = append(raw, bpf.RawInstruction{
+			Op: Code,
+			Jt: Jt,
+			Jf: Jf,
+			K:  K,
+		})
+	}
+	return raw
+}
+
+// ResolveSetSockOptFilterHash resolves the filter hash of a setsockopt event
+func (fh *EBPFFieldHandlers) ResolveSetSockOptFilterHash(_ *model.Event, e *model.SetSockOptEvent) string {
+	if len(e.FilterHash) == 0 {
+		h := sha256.New()
+		h.Write(e.RawFilter)
+		bs := h.Sum(nil)
+		e.FilterHash = fmt.Sprintf("%x", bs)
+		return e.FilterHash
+	}
+	return e.FilterHash
+}
+
+// ResolveSetSockOptFilterInstructions resolves the filter instructions of a setsockopt event
+func (fh *EBPFFieldHandlers) ResolveSetSockOptFilterInstructions(_ *model.Event, e *model.SetSockOptEvent) string {
+	if len(e.FilterInstructions) == 0 {
+		raw := parseFilter(e)
+
+		instructions, allDecoded := bpf.Disassemble(raw)
+		if !allDecoded {
+			seclog.Warnf("failed to decode setsockopt filter instructions: %s", e.FilterHash)
+			return ""
+		}
+
+		for i, inst := range instructions {
+			e.FilterInstructions += fmt.Sprintf("%03d: %s\n", i, inst)
+		}
+
+		return e.FilterInstructions
+	}
+	return e.FilterInstructions
+}
+
+// ResolveSetSockOptUsedImmediates resolves the immediates in the bpf filter of a setsockopt event
+func (fh *EBPFFieldHandlers) ResolveSetSockOptUsedImmediates(_ *model.Event, e *model.SetSockOptEvent) []int {
+	if e.UsedImmediates != nil {
+		return e.UsedImmediates
+	}
+	raw := parseFilter(e)
+	var kValues []int
+	for _, inst := range raw {
+		// Check if we load or branch on a magic value
+		if !slices.Contains(kValues, int(inst.K)) {
+			kValues = append(kValues, int(inst.K))
+		}
+
+	}
+	e.UsedImmediates = kValues
+	return e.UsedImmediates
+}
+
+// ResolveCapabilitiesAttempted resolves the accumulated attempted capabilities of a capabilities event
+func (fh *EBPFFieldHandlers) ResolveCapabilitiesAttempted(evt *model.Event, ce *model.CapabilitiesEvent) int {
+	attemptedCapabilities := int(ce.Attempted)
+	if pce, resolved := fh.ResolveProcessCacheEntry(evt, nil); resolved && pce != nil {
+		attemptedCapabilities |= int(pce.CapsAttempted)
+	}
+	return attemptedCapabilities
+}
+
+// ResolveCapabilitiesUsed resolves the accumulated used capabilities of a capabilities event
+func (fh *EBPFFieldHandlers) ResolveCapabilitiesUsed(evt *model.Event, ce *model.CapabilitiesEvent) int {
+	usedCapabilities := int(ce.Used)
+	if pce, resolved := fh.ResolveProcessCacheEntry(evt, nil); resolved && pce != nil {
+		usedCapabilities |= int(pce.CapsUsed)
+	}
+	return usedCapabilities
 }

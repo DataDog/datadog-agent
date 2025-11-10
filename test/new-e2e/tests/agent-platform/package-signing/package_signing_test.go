@@ -8,7 +8,6 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"regexp"
 
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
 	"github.com/stretchr/testify/assert"
@@ -20,12 +19,10 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/platforms"
 
 	"testing"
-
-	"github.com/stretchr/testify/require"
 )
 
 var (
-	osVersion = flag.String("osversion", "", "platform/os version (debian-11)")
+	osDescriptors = flag.String("osdescriptors", "", "platform/arch/os version (debian/x86_64/11)")
 )
 
 type packageSigningTestSuite struct {
@@ -61,37 +58,44 @@ type Repository struct {
 }
 
 func TestPackageSigningComponent(t *testing.T) {
-
-	platformJSON := map[string]map[string]map[string]string{}
-	err := json.Unmarshal(platforms.Content, &platformJSON)
-	require.NoErrorf(t, err, "failed to umarshall platform file: %v", err)
-
-	nonAlpha := regexp.MustCompile("[^a-zA-Z]")
-	platform := nonAlpha.ReplaceAllString(*osVersion, "")
-	if platform == "sles" {
-		platform = "suse"
+	osDesc, err := platforms.BuildOSDescriptor(*osDescriptors)
+	if err != nil {
+		t.Fatalf("failed to build os descriptor: %v", err)
 	}
-	architecture := "x86_64"
-	if platformJSON[platform][architecture][*osVersion] == "" {
-		// Fail if the image is not defined instead of silently running with default Ubuntu AMI
-		t.Fatalf("No image found for %s %s %s", platform, architecture, *osVersion)
-	}
-	ami := platformJSON[platform][architecture][*osVersion]
 
-	t.Run(fmt.Sprintf("Test package signing on %s\n", platform), func(tt *testing.T) {
+	t.Run(fmt.Sprintf("Test package signing on %s\n", platforms.PrettifyOsDescriptor(osDesc)), func(tt *testing.T) {
 		tt.Parallel()
-		osDesc := platforms.BuildOSDescriptor(platform, architecture, *osVersion)
 		e2e.Run(tt,
-			&packageSigningTestSuite{osName: platform},
+			&packageSigningTestSuite{osName: osDesc.Flavor.String()},
 			e2e.WithProvisioner(awshost.ProvisionerNoFakeIntake(
-				awshost.WithEC2InstanceOptions(ec2.WithAMI(ami, osDesc, osDesc.Architecture)),
+				awshost.WithEC2InstanceOptions(ec2.WithOS(osDesc)),
 			)),
-			e2e.WithStackName(fmt.Sprintf("pkgSigning-%s", platform)),
+			e2e.WithStackName(fmt.Sprintf("pkgSigning-%s", osDesc.Flavor.String())),
 		)
 	})
 }
 
 func (is *packageSigningTestSuite) TestPackageSigning() {
+	// Install the signing keys
+	if is.osName == "ubuntu" || is.osName == "debian" {
+		is.Env().RemoteHost.MustExecute("sudo apt-get update && sudo DEBIAN_FRONTEND=noninteractive apt-get install -y apt-transport-https curl gnupg")
+		aptUsrShareKeyring := "/usr/share/keyrings/datadog-archive-keyring.gpg"
+		is.Env().RemoteHost.MustExecute(fmt.Sprintf("sudo touch %s && sudo chmod a+r %s", aptUsrShareKeyring, aptUsrShareKeyring))
+		keys := []string{"DATADOG_APT_KEY_CURRENT.public", "DATADOG_APT_KEY_C0962C7D.public", "DATADOG_APT_KEY_F14F620E.public", "DATADOG_APT_KEY_382E94DE.public"}
+		for _, key := range keys {
+			is.Env().RemoteHost.MustExecute(fmt.Sprintf("sudo curl --retry 5 -o \"/tmp/%s\" \"https://keys.datadoghq.com/%s\"", key, key))
+			is.Env().RemoteHost.MustExecute(fmt.Sprintf("sudo cat \"/tmp/%s\" | sudo gpg --import --batch --no-default-keyring --keyring \"%s\"", key, aptUsrShareKeyring))
+		}
+		aptTrustedKeyring := "/etc/apt/trusted.gpg.d/datadog-archive-keyring.gpg"
+		is.Env().RemoteHost.MustExecute(fmt.Sprintf("sudo cp %s %s", aptUsrShareKeyring, aptTrustedKeyring))
+	} else {
+		keys := []string{"DATADOG_RPM_KEY_E09422B3.public", "DATADOG_RPM_KEY_CURRENT.public", "DATADOG_RPM_KEY_FD4BF915.public", "DATADOG_RPM_KEY_E09422B3.public"}
+		for _, key := range keys {
+			is.Env().RemoteHost.MustExecute(fmt.Sprintf("sudo curl --retry 5 -o \"/tmp/%s\" \"https://keys.datadoghq.com/%s\"", key, key))
+			is.Env().RemoteHost.MustExecute(fmt.Sprintf("sudo rpm --import /tmp/%s", key))
+		}
+	}
+
 	diagnose := is.Env().Agent.Client.Diagnose(agentclient.WithArgs([]string{"show-metadata", "package-signing"}))
 	t := is.T()
 	t.Log(diagnose)

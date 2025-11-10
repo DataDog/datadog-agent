@@ -10,10 +10,12 @@ import (
 
 	"go.uber.org/atomic"
 
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	logComponent "github.com/DataDog/datadog-agent/comp/core/log/impl"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/logs/agent"
 	flareController "github.com/DataDog/datadog-agent/comp/logs/agent/flare"
+	auditornoop "github.com/DataDog/datadog-agent/comp/logs/auditor/impl-none"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/logs/service"
@@ -22,19 +24,21 @@ import (
 )
 
 // NewServerlessLogsAgent creates a new instance of the logs agent for serverless
-func NewServerlessLogsAgent(tagger tagger.Component, compression logscompression.Component) agent.ServerlessLogsAgent {
+func NewServerlessLogsAgent(tagger tagger.Component, compression logscompression.Component, hostname hostnameinterface.Component) agent.ServerlessLogsAgent {
 
 	logsAgent := &logAgent{
 		log:     logComponent.NewTemporaryLoggerWithoutInit(),
 		config:  pkgconfigsetup.Datadog(),
 		started: atomic.NewUint32(0),
 
+		auditor:         auditornoop.NewAuditor(),
 		sources:         sources.NewLogSources(),
 		services:        service.NewServices(),
 		tracker:         tailers.NewTailerTracker(),
 		flarecontroller: flareController.NewFlareController(),
 		tagger:          tagger,
 		compression:     compression,
+		hostname:        hostname,
 	}
 	return logsAgent
 }

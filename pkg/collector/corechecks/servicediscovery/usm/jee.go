@@ -311,10 +311,7 @@ func (je jeeExtractor) extractServiceNamesForJEEServer() (serverVendor, []string
 		return vendor, nil
 	}
 	extractor := extractorCreator(je.ctx)
-	cwd, ok := workingDirFromEnvs(je.ctx.Envs)
-	if ok {
-		domainHome = abs(domainHome, cwd)
-	}
+	domainHome = je.ctx.resolveWorkingDirRelativePath(domainHome)
 
 	apps, ok := extractor.findDeployedApps(domainHome)
 	if !ok {

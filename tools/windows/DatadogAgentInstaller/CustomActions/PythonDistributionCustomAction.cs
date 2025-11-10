@@ -126,8 +126,24 @@ namespace Datadog.CustomActions
                     session.Log($"{embedded} not found, skipping decompression.");
                 }
 
-                File.Delete(Path.Combine(projectLocation, "bin", "7zr.exe"));
-                File.Delete(embedded);
+                // delete the files we don't need anymore
+                var cleanupFiles = new[] {
+                    Path.Combine(projectLocation, "bin", "7zr.exe"),
+                    embedded
+                };
+                foreach (var file in cleanupFiles)
+                {
+                    try
+                    {
+                        File.Delete(file);
+                    }
+                    catch (Exception e)
+                    {
+                        session.Log($"Error while deleting {file}: {e}");
+                        // don't fail if we can't delete the file, it's not critical
+                        // and we've seen cases where antivirus may have been holding the file open
+                    }
+                }
             }
             catch (Exception e)
             {

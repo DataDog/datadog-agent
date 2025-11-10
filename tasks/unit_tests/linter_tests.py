@@ -1,11 +1,11 @@
 import os
 import unittest
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 from codeowners import CodeOwners
-from invoke import Exit, MockContext
 
 import tasks.linter as linter
+from tasks.libs.linter.gitlab_exceptions import FailureLevel, GitlabLintFailure
 
 
 class TestIsGetParameterCall(unittest.TestCase):
@@ -73,57 +73,41 @@ class TestIsGetParameterCall(unittest.TestCase):
 
 
 class TestGitlabChangePaths(unittest.TestCase):
-    @patch("builtins.print")
-    @patch(
-        "tasks.linter.generate_gitlab_full_configuration",
-        new=MagicMock(return_value={"rules": {"changes": {"paths": ["tasks/**/*.py"]}}}),
-    )
-    def test_all_ok(self, print_mock):
-        linter.gitlab_change_paths(MockContext())
-        print_mock.assert_called_with("All rule:changes:paths from gitlab-ci are \x1b[92mvalid\x1b[0m.")
+    def test_all_ok(self):
+        linter.check_change_paths_valid_gitlab_ci_jobs(
+            [("somejob", {"rules": {"changes": {"paths": ["tasks/**/*.py"]}}})]
+        )
 
-    @patch(
-        "tasks.linter.generate_gitlab_full_configuration",
-        new=MagicMock(
-            return_value={"rules": {"changes": {"paths": ["tosks/**/*.py", "tasks/**/*.py", "tusks/**/*.py"]}}}
-        ),
-    )
     def test_bad_paths(self):
-        with self.assertRaises(Exit):
-            linter.gitlab_change_paths(MockContext())
+        with self.assertRaises(GitlabLintFailure):
+            linter.check_change_paths_valid_gitlab_ci_jobs(
+                [("somejob", {"rules": {"changes": {"paths": ["tosks/**/*.py", "tasks/**/*.py", "tusks/**/*.py"]}}})]
+            )
 
 
 class TestGitlabCIJobsNeedsRules(unittest.TestCase):
+    def empty_ci_linters_config(self) -> MagicMock:
+        mock = MagicMock()
+        mock.job_owners_jobs = set()
+        mock.path = './config.yml'
+
+        return mock
+
     def test_no_changes(self):
-        with patch("tasks.linter.get_gitlab_ci_lintable_jobs", return_value=([], {})):
-            linter.gitlab_ci_jobs_needs_rules(MockContext())
+        linter.check_needs_rules_gitlab_ci_jobs([], self.empty_ci_linters_config())
 
     def test_ok(self):
-        with (
-            patch(
-                "tasks.linter.get_gitlab_ci_lintable_jobs",
-                return_value=(
-                    [('hello', {'stage': 'lint', 'script': 'echo hello', 'needs': [], 'rules': []})],
-                    {'.gitlab-ci.yml': {'hello': {'stage': 'lint', 'script': 'echo hello', 'needs': [], 'rules': []}}},
-                ),
-            ),
-            patch("tasks.linter.CILintersConfig"),
-        ):
-            linter.gitlab_ci_jobs_needs_rules(MockContext())
+        linter.check_needs_rules_gitlab_ci_jobs(
+            [('hello', {'stage': 'lint', 'script': 'echo hello', 'needs': [], 'rules': []})],
+            self.empty_ci_linters_config(),
+        )
 
     def test_error(self):
-        with (
-            patch(
-                "tasks.linter.get_gitlab_ci_lintable_jobs",
-                return_value=(
-                    [('hello', {'stage': 'lint', 'script': 'echo hello'})],
-                    {'.gitlab-ci.yml': {'hello': {'stage': 'lint', 'script': 'echo hello'}}},
-                ),
-            ),
-            patch("tasks.linter.CILintersConfig"),
-        ):
-            with self.assertRaises(Exit):
-                linter.gitlab_ci_jobs_needs_rules(MockContext())
+        with self.assertRaises(GitlabLintFailure) as cm:
+            linter.check_needs_rules_gitlab_ci_jobs(
+                [('hello', {'stage': 'lint', 'script': 'echo hello'})], self.empty_ci_linters_config()
+            )
+        self.assertEqual(cm.exception.level, FailureLevel.ERROR)
 
 
 class TestGitlabCIJobsOwners(unittest.TestCase):
@@ -139,28 +123,25 @@ class TestGitlabCIJobsOwners(unittest.TestCase):
         /somejob        @DataDog/the-best-team
         """
 
-        linter._gitlab_ci_jobs_owners_lint(
-            ['somejob'], CodeOwners(jobowners), self.empty_ci_linters_config(), 'jobowners'
-        )
+        linter.check_owners_gitlab_ci_jobs([('somejob', {})], self.empty_ci_linters_config(), CodeOwners(jobowners))
 
     def test_one_job_glob(self):
         jobowners = """
         /my*        @DataDog/the-best-team
         """
 
-        linter._gitlab_ci_jobs_owners_lint(
-            ['myjob'], CodeOwners(jobowners), self.empty_ci_linters_config(), 'jobowners'
-        )
+        linter.check_owners_gitlab_ci_jobs([('myjob', {})], self.empty_ci_linters_config(), CodeOwners(jobowners))
 
     def test_one_job_fail(self):
         jobowners = """
         /somejob        @DataDog/the-best-team
         """
 
-        with self.assertRaises(Exit):
-            linter._gitlab_ci_jobs_owners_lint(
-                ['someotherjob'], CodeOwners(jobowners), self.empty_ci_linters_config(), 'jobowners'
+        with self.assertRaises(GitlabLintFailure) as cm:
+            linter.check_owners_gitlab_ci_jobs(
+                [('someotherjob', {})], self.empty_ci_linters_config(), CodeOwners(jobowners)
             )
+        self.assertEqual(cm.exception.level, FailureLevel.ERROR)
 
     def test_multiple_jobs(self):
         jobowners = """
@@ -168,8 +149,8 @@ class TestGitlabCIJobsOwners(unittest.TestCase):
         /my*            @DataDog/another-best-team
         """
 
-        linter._gitlab_ci_jobs_owners_lint(
-            ['somejob', 'myjob'], CodeOwners(jobowners), self.empty_ci_linters_config(), 'jobowners'
+        linter.check_owners_gitlab_ci_jobs(
+            [('somejob', {}), ('myjob', {})], self.empty_ci_linters_config(), CodeOwners(jobowners)
         )
 
     def test_multiple_jobs_fail(self):
@@ -177,10 +158,13 @@ class TestGitlabCIJobsOwners(unittest.TestCase):
         /somejob        @DataDog/the-best-team
         """
 
-        with self.assertRaises(Exit):
-            linter._gitlab_ci_jobs_owners_lint(
-                ['somejob', 'someotherjob'], CodeOwners(jobowners), self.empty_ci_linters_config(), 'jobowners'
+        with self.assertRaises(GitlabLintFailure) as cm:
+            linter.check_owners_gitlab_ci_jobs(
+                [('somejob', {}), ('someotherjob', {})],
+                self.empty_ci_linters_config(),
+                CodeOwners(jobowners),
             )
+        self.assertEqual(cm.exception.level, FailureLevel.ERROR)
 
     def test_multiple_jobs_ignore(self):
         jobowners = """
@@ -190,7 +174,9 @@ class TestGitlabCIJobsOwners(unittest.TestCase):
         config = self.empty_ci_linters_config()
         config.job_owners_jobs.add('someotherjob')
 
-        linter._gitlab_ci_jobs_owners_lint(['somejob', 'someotherjob'], CodeOwners(jobowners), config, 'jobowners')
+        with self.assertRaises(GitlabLintFailure) as cm:
+            linter.check_owners_gitlab_ci_jobs([('somejob', {}), ('someotherjob', {})], config, CodeOwners(jobowners))
+        self.assertEqual(cm.exception.level, FailureLevel.IGNORED)
 
 
 class TestGitlabCIJobsCodeowners(unittest.TestCase):
@@ -200,7 +186,7 @@ class TestGitlabCIJobsCodeowners(unittest.TestCase):
         /.*             @DataDog/another-best-team
         """
 
-        linter._gitlab_ci_jobs_codeowners_lint('/path/to/codeowners', [], CodeOwners(codeowners))
+        linter._gitlab_ci_jobs_codeowners_lint([], CodeOwners(codeowners))
 
     def test_one_file(self):
         codeowners = """
@@ -208,7 +194,7 @@ class TestGitlabCIJobsCodeowners(unittest.TestCase):
         /.*             @DataDog/another-best-team
         """
 
-        linter._gitlab_ci_jobs_codeowners_lint('/path/to/codeowners', ['somefile'], CodeOwners(codeowners))
+        linter._gitlab_ci_jobs_codeowners_lint(['somefile'], CodeOwners(codeowners))
 
     def test_multiple_files(self):
         codeowners = """
@@ -216,9 +202,7 @@ class TestGitlabCIJobsCodeowners(unittest.TestCase):
         /.*             @DataDog/another-best-team
         """
 
-        linter._gitlab_ci_jobs_codeowners_lint(
-            '/path/to/codeowners', ['somefile', '.gitlab-ci.yml'], CodeOwners(codeowners)
-        )
+        linter._gitlab_ci_jobs_codeowners_lint(['somefile', '.gitlab-ci.yml'], CodeOwners(codeowners))
 
     def test_error(self):
         codeowners = """
@@ -226,7 +210,6 @@ class TestGitlabCIJobsCodeowners(unittest.TestCase):
         /.*             @DataDog/another-best-team
         """
 
-        with self.assertRaises(Exit):
-            linter._gitlab_ci_jobs_codeowners_lint(
-                '/path/to/codeowners', ['becareful', '.gitlab-ci.yml'], CodeOwners(codeowners)
-            )
+        with self.assertRaises(GitlabLintFailure) as cm:
+            linter._gitlab_ci_jobs_codeowners_lint(['becareful', '.gitlab-ci.yml'], CodeOwners(codeowners))
+        self.assertEqual(cm.exception.level, FailureLevel.ERROR)

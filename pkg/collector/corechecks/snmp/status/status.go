@@ -12,11 +12,12 @@ import (
 	"expvar"
 	"io"
 	"net"
+	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/listeners"
 	"github.com/DataDog/datadog-agent/comp/core/status"
-	"github.com/DataDog/datadog-agent/pkg/snmp"
 )
 
 //go:embed status_templates
@@ -56,25 +57,12 @@ func (Provider) populateStatus(stats map[string]interface{}) {
 	autodiscoveryVar := expvar.Get("snmpAutodiscovery")
 
 	if autodiscoveryVar != nil {
-		autodiscoveryConfig, _ := snmp.NewListenerConfig()
-
-		var subnetConfigHashOrdered []string
-		for _, autodiscoveryConfig := range autodiscoveryConfig.Configs {
-			subnetConfigHashOrdered = append(subnetConfigHashOrdered, autodiscoveryConfig.Digest(autodiscoveryConfig.Network))
-		}
-
 		autodiscoverySubnets := getSubnetsStatus(autodiscoveryVar)
-		orderedSubnets := []subnetStatus{}
+		sort.Slice(autodiscoverySubnets, func(i1, i2 int) bool {
+			return autodiscoverySubnets[i1].subnetIndex < autodiscoverySubnets[i2].subnetIndex
+		})
 
-		for _, configHash := range subnetConfigHashOrdered {
-			for _, status := range autodiscoverySubnets {
-				if status.configHash == configHash {
-					orderedSubnets = append(orderedSubnets, status)
-					break
-				}
-			}
-		}
-		stats["autodiscoverySubnets"] = orderedSubnets
+		stats["autodiscoverySubnets"] = autodiscoverySubnets
 	}
 
 	// subnets configured in the snmp.d can not be ordered here as we can't retrieve the config here
@@ -91,7 +79,7 @@ type subnetStatus struct {
 	DevicesScanned int
 	IpsCount       int
 	DevicesFound   []string
-	configHash     string
+	subnetIndex    int
 }
 
 func getSubnetsStatus(discoveryVar expvar.Var) []subnetStatus {
@@ -102,12 +90,30 @@ func getSubnetsStatus(discoveryVar expvar.Var) []subnetStatus {
 	discoverySubnetsStatus := []subnetStatus{}
 
 	for subnetKey, autodiscoveryStatus := range discoverySubnets {
-		subnet, configHash := strings.Split(subnetKey, "|")[0], strings.Split(subnetKey, "|")[1]
+		subnetParts := strings.Split(subnetKey, "|")
+		subnet := subnetParts[0]
+
+		subnetIndex := 0
+		if len(subnetParts) > 1 {
+			indexString := subnetParts[1]
+			index, err := strconv.Atoi(indexString)
+			if err == nil {
+				subnetIndex = index
+			}
+		}
+
 		_, ipNet, _ := net.ParseCIDR(subnet)
 
 		ones, bits := ipNet.Mask.Size()
 		ipsTotalCount := 1 << (bits - ones)
-		discoverySubnetsStatus = append(discoverySubnetsStatus, subnetStatus{subnet, autodiscoveryStatus.CurrentDevice, autodiscoveryStatus.DevicesScannedCount, ipsTotalCount, autodiscoveryStatus.DevicesFoundList, configHash})
+		discoverySubnetsStatus = append(discoverySubnetsStatus, subnetStatus{
+			subnet,
+			autodiscoveryStatus.CurrentDevice,
+			autodiscoveryStatus.DevicesScannedCount,
+			ipsTotalCount,
+			autodiscoveryStatus.DevicesFoundList,
+			subnetIndex,
+		})
 	}
 
 	return discoverySubnetsStatus

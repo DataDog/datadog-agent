@@ -58,3 +58,32 @@ func toProtocolType(protoNum uint8, layerBit uint16) ProtocolType {
 		return Unknown
 	}
 }
+
+// FromProtocolType converts a ProtocolType to its corresponding protocol number.
+// It returns 0 if the ProtocolType is not supported.
+func FromProtocolType(protocolType ProtocolType) uint8 {
+	switch protocolType {
+	case HTTP:
+		return uint8((uint16(ebpfHTTP) ^ uint16(layerApplicationBit)) & uint16(0xff))
+	case HTTP2:
+		return uint8((uint16(ebpfHTTP2) ^ uint16(layerApplicationBit)) & uint16(0xff))
+	case Kafka:
+		return uint8((uint16(ebpfKafka) ^ uint16(layerApplicationBit)) & uint16(0xff))
+	case TLS:
+		return uint8((uint16(ebpfTLS) ^ uint16(layerEncryptionBit)) & uint16(0xff))
+	case Mongo:
+		return uint8((uint16(ebpfMongo) ^ uint16(layerApplicationBit)) & uint16(0xff))
+	case Postgres:
+		return uint8((uint16(ebpfPostgres) ^ uint16(layerApplicationBit)) & uint16(0xff))
+	case AMQP:
+		return uint8((uint16(ebpfAMQP) ^ uint16(layerApplicationBit)) & uint16(0xff))
+	case Redis:
+		return uint8((uint16(ebpfRedis) ^ uint16(layerApplicationBit)) & uint16(0xff))
+	case MySQL:
+		return uint8((uint16(ebpfMySQL) ^ uint16(layerApplicationBit)) & uint16(0xff))
+	case GRPC:
+		return uint8((uint16(ebpfGRPC) ^ uint16(layerAPIBit)) & uint16(0xff))
+	default:
+		return 0
+	}
+}

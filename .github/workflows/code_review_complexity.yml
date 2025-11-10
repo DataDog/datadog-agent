@@ -22,12 +22,6 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           persist-credentials: false
-      - name: Setup python
-        uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38 # v5.4.0
-        with:
-          python-version-file: .python-version
-          cache: 'pip'
-          cache-dependency-path: '.dda/version'
       - name: Install dda
         uses: ./.github/actions/install-dda
         with:
@@ -36,4 +30,4 @@ jobs:
         env:
           PR_NUMBER: ${{ github.event.pull_request.number }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: dda inv -e github.assign-codereview-label --pr-id="$PR_NUMBER"
+        run: dda inv -- -e github.assign-codereview-label --pr-id="$PR_NUMBER"

@@ -14,8 +14,9 @@ import (
 
 // MetadataProviders helps unmarshalling `metadata_providers` config param
 type MetadataProviders struct {
-	Name     string        `mapstructure:"name"`
-	Interval time.Duration `mapstructure:"interval"`
+	Name          string        `mapstructure:"name"`
+	Interval      time.Duration `mapstructure:"interval"`
+	EarlyInterval time.Duration `mapstructure:"early_interval"`
 }
 
 // GetMetadataProviders returns the "metadata_providers" set in the configuration

@@ -18,6 +18,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"runtime/debug"
 	"slices"
 	"strings"
 
@@ -42,21 +43,27 @@ func main() {
 	var filterFiles filters
 	var filterPrograms filters
 
-	debug := flag.Bool("debug", false, "Calculate statistics of debug builds")
+	debugMode := flag.Bool("debug", false, "Calculate statistics of debug builds")
 	lineComplexity := flag.Bool("line-complexity", false, "Calculate line complexity, extracting data from the verifier logs")
 	verifierLogsDir := flag.String("verifier-logs", "", "Directory containing verifier logs. If not set, no logs will be saved.")
 	summaryOutput := flag.String("summary-output", "ebpf-calculator/summary.json", "File where JSON with the summary will be written")
 	complexityDataDir := flag.String("complexity-data-dir", "ebpf-calculator/complexity-data", "Directory where the complexity data will be written")
 	flag.Var(&filterFiles, "filter-file", "Files to load ebpf programs from")
 	flag.Var(&filterPrograms, "filter-prog", "Only return statistics for programs matching one of these regex pattern")
+	memoryLimitMb := flag.Int("memory-limit-mb", 0, "Limit the memory usage of the calculator to the given number of megabytes. Set 0 to have no limit.")
 	flag.Parse()
 
 	skipDebugBuilds := func(path string) bool {
 		debugBuild := strings.Contains(path, "-debug")
-		if *debug {
+		if *debugMode {
 			return !debugBuild
 		}
 		return debugBuild
+	}
+
+	if *memoryLimitMb > 0 {
+		log.Printf("Setting memory limit to %d MB", *memoryLimitMb)
+		debug.SetMemoryLimit(int64(*memoryLimitMb * 1024 * 1024))
 	}
 
 	if err := rlimit.RemoveMemlock(); err != nil {

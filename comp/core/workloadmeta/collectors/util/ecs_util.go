@@ -9,14 +9,15 @@ package util
 
 import (
 	"context"
+	"fmt"
 	"regexp"
-	"strconv"
 	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/v3or4"
+	"github.com/DataDog/datadog-agent/pkg/util/fargate"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -47,12 +48,18 @@ func ParseV4Task(task v3or4.Task, seen map[workloadmeta.EntityID]struct{}) []wor
 	taskContainers, containerEvents := ParseV4TaskContainers(task, seen)
 	region, awsAccountID := ParseRegionAndAWSAccountID(task.TaskARN)
 
+	clusterName := parseClusterName(task.ClusterName)
+	clusterARN := BuildClusterARN(clusterName, awsAccountID, region)
+	serviceARN := BuildServiceARN(clusterName, task.ServiceName, awsAccountID, region)
+	taskDefinitionARN := BuildTaskDefinitionARN(awsAccountID, task.Family, region, task.Version)
+
 	entity := &workloadmeta.ECSTask{
 		EntityID: entityID,
 		EntityMeta: workloadmeta.EntityMeta{
 			Name: taskID,
 		},
-		ClusterName:             parseClusterName(task.ClusterName),
+		ClusterName:             clusterName,
+		ClusterARN:              clusterARN,
 		AWSAccountID:            awsAccountID,
 		Region:                  region,
 		Family:                  task.Family,
@@ -61,6 +68,8 @@ func ParseV4Task(task v3or4.Task, seen map[workloadmeta.EntityID]struct{}) []wor
 		KnownStatus:             task.KnownStatus,
 		VPCID:                   task.VPCID,
 		ServiceName:             task.ServiceName,
+		ServiceARN:              serviceARN,
+		TaskDefinitionARN:       taskDefinitionARN,
 		EphemeralStorageMetrics: task.EphemeralStorageMetrics,
 		Limits:                  task.Limits,
 		AvailabilityZone:        task.AvailabilityZone,
@@ -77,6 +86,10 @@ func ParseV4Task(task v3or4.Task, seen map[workloadmeta.EntityID]struct{}) []wor
 	if strings.ToUpper(task.LaunchType) == "FARGATE" {
 		entity.LaunchType = workloadmeta.ECSLaunchTypeFargate
 		source = workloadmeta.SourceRuntime
+	}
+	if strings.ToUpper(task.LaunchType) == "MANAGED_INSTANCES" && fargate.IsFargateInstance() {
+		source = workloadmeta.SourceRuntime
+		entity.LaunchType = workloadmeta.ECSLaunchTypeManagedInstances
 	}
 
 	events = append(events, containerEvents...)
@@ -224,6 +237,10 @@ func ParseV4TaskContainers(
 			// the logs agent does not collect logs in ECS Fargate.
 			containerEvent.Runtime = workloadmeta.ContainerRuntimeECSFargate
 		}
+		if strings.ToUpper(task.LaunchType) == "MANAGED_INSTANCES" && fargate.IsFargateInstance() {
+			source = workloadmeta.SourceRuntime
+			containerEvent.Runtime = workloadmeta.ContainerRuntimeECSManagedInstances
+		}
 
 		events = append(events, workloadmeta.CollectorEvent{
 			Source: source,
@@ -247,13 +264,13 @@ func parseTime(fieldOwner, fieldName, fieldValue string) *time.Time {
 }
 
 // ParseRegionAndAWSAccountID parses the region and AWS account ID from a task ARN.
-func ParseRegionAndAWSAccountID(taskARN string) (string, int) {
+func ParseRegionAndAWSAccountID(taskARN string) (string, string) {
 	arnParts := strings.Split(taskARN, ":")
 	if len(arnParts) < 5 {
-		return "", 0
+		return "", ""
 	}
 	if arnParts[0] != "arn" || arnParts[1] != "aws" {
-		return "", 0
+		return "", ""
 	}
 	region := arnParts[3]
 	if strings.Count(region, "-") < 2 {
@@ -264,14 +281,10 @@ func ParseRegionAndAWSAccountID(taskARN string) (string, int) {
 	// aws account id is 12 digits
 	// https://docs.aws.amazon.com/accounts/latest/reference/manage-acct-identifiers.html
 	if len(id) != 12 {
-		return region, 0
-	}
-	awsAccountID, err := strconv.Atoi(id)
-	if err != nil {
-		return region, 0
+		return region, ""
 	}
 
-	return region, awsAccountID
+	return region, id
 }
 
 func parseClusterName(cluster string) string {
@@ -280,6 +293,30 @@ func parseClusterName(cluster string) string {
 		return cluster
 	}
 	return parts[1]
+}
+
+// BuildClusterARN builds the cluster ARN from the cluster name, AWS account ID, and region
+func BuildClusterARN(clusterName, awsAccountID, region string) string {
+	if clusterName == "" || awsAccountID == "" || region == "" {
+		return ""
+	}
+	return fmt.Sprintf("arn:aws:ecs:%s:%s:cluster/%s", region, awsAccountID, clusterName)
+}
+
+// BuildServiceARN builds the service ARN from the cluster name, service name, AWS account ID, and region
+func BuildServiceARN(clusterName, serviceName, awsAccountID, region string) string {
+	if clusterName == "" || serviceName == "" || awsAccountID == "" || region == "" {
+		return ""
+	}
+	return fmt.Sprintf("arn:aws:ecs:%s:%s:service/%s/%s", region, awsAccountID, clusterName, serviceName)
+}
+
+// BuildTaskDefinitionARN builds the task definition ARN from the AWS account ID, family, region, and version
+func BuildTaskDefinitionARN(awsAccountID, family, region, version string) string {
+	if awsAccountID == "" || family == "" || region == "" || version == "" {
+		return ""
+	}
+	return fmt.Sprintf("arn:aws:ecs:%s:%s:task-definition/%s:%s", region, awsAccountID, family, version)
 }
 
 // ecsAgentRegexp is a regular expression to match ECS agent versions

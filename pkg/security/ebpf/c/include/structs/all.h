@@ -16,5 +16,6 @@
 #include "syscalls.h"
 #include "tracepoints.h"
 #include "user_sessions.h"
+#include "caps.h"
 
 #endif

@@ -7,9 +7,10 @@ package stats
 
 import (
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 	"testing"
 	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 
@@ -43,7 +44,7 @@ func TestGrainWithPeerTags(t *testing.T) {
 	sc := &SpanConcentrator{}
 	t.Run("none present", func(t *testing.T) {
 		assert := assert.New(t)
-		s, _ := sc.NewStatSpan("thing", "yo", "other", "", 0, 0, 0, 0, map[string]string{"span.kind": "client"}, map[string]float64{"_dd.measured": 1}, []string{"aws.s3.bucket", "db.instance", "db.system", "peer.service"})
+		s, _ := sc.NewStatSpanWithConfig(StatSpanConfig{"thing", "yo", "other", "", 0, 0, 0, 0, map[string]string{"span.kind": "client"}, map[string]float64{"_dd.measured": 1}, []string{"aws.s3.bucket", "db.instance", "db.system", "peer.service"}, "", ""})
 		aggr := NewAggregationFromSpan(s, "", PayloadAggregationKey{
 			Env:         "default",
 			Hostname:    "default",
@@ -73,7 +74,7 @@ func TestGrainWithPeerTags(t *testing.T) {
 					ComputeStatsBySpanKind: spanKindEnabled,
 					BucketInterval:         (time.Duration(10) * time.Second).Nanoseconds(),
 				}, time.Now().Add(-time.Minute))
-				s, _ := sci.NewStatSpan("thing", "yo", "other", "", 0, 0, 0, 0, map[string]string{"span.kind": "client", "server.address": "foo"}, nil, []string{"_dd.base_service", "server.address"})
+				s, _ := sci.NewStatSpanWithConfig(StatSpanConfig{"thing", "yo", "other", "", 0, 0, 0, 0, map[string]string{"span.kind": "client", "server.address": "foo"}, nil, []string{"_dd.base_service", "server.address"}, "", ""})
 				if spanKindEnabled {
 					assert.Equal([]string{"server.address:foo"}, s.matchingPeerTags)
 				} else {
@@ -86,7 +87,7 @@ func TestGrainWithPeerTags(t *testing.T) {
 		for _, spanKind := range []string{"client", "internal"} {
 			t.Run(spanKind, func(t *testing.T) {
 				assert := assert.New(t)
-				s, _ := sc.NewStatSpan("thing", "yo", "other", "", 0, 0, 0, 0, map[string]string{"span.kind": spanKind, "_dd.base_service": "the-real-base", "server.address": "foo"}, map[string]float64{"_dd.measured": 1}, []string{"_dd.base_service", "server.address"})
+				s, _ := sc.NewStatSpanWithConfig(StatSpanConfig{"thing", "yo", "other", "", 0, 0, 0, 0, map[string]string{"span.kind": spanKind, "_dd.base_service": "the-real-base", "server.address": "foo"}, map[string]float64{"_dd.measured": 1}, []string{"_dd.base_service", "server.address"}, "", ""})
 				if spanKind == "client" {
 					assert.Equal([]string{"_dd.base_service:the-real-base", "server.address:foo"}, s.matchingPeerTags)
 				} else {
@@ -98,7 +99,7 @@ func TestGrainWithPeerTags(t *testing.T) {
 	t.Run("partially present", func(t *testing.T) {
 		assert := assert.New(t)
 		meta := map[string]string{"span.kind": "client", "peer.service": "aws-s3", "aws.s3.bucket": "bucket-a"}
-		s, _ := sc.NewStatSpan("thing", "yo", "other", "", 0, 0, 0, 0, meta, map[string]float64{"_dd.measured": 1}, []string{"aws.s3.bucket", "db.instance", "db.system", "peer.service"})
+		s, _ := sc.NewStatSpanWithConfig(StatSpanConfig{"thing", "yo", "other", "", 0, 0, 0, 0, meta, map[string]float64{"_dd.measured": 1}, []string{"aws.s3.bucket", "db.instance", "db.system", "peer.service"}, "", ""})
 
 		aggr := NewAggregationFromSpan(s, "", PayloadAggregationKey{
 			Env:         "default",
@@ -125,7 +126,7 @@ func TestGrainWithPeerTags(t *testing.T) {
 	t.Run("peer ip quantization", func(t *testing.T) {
 		assert := assert.New(t)
 		meta := map[string]string{"span.kind": "client", "server.address": "129.49.218.65"}
-		s, _ := sc.NewStatSpan("thing", "yo", "other", "", 0, 0, 0, 0, meta, map[string]float64{"_dd.measured": 1}, []string{"server.address"})
+		s, _ := sc.NewStatSpanWithConfig(StatSpanConfig{"thing", "yo", "other", "", 0, 0, 0, 0, meta, map[string]float64{"_dd.measured": 1}, []string{"server.address"}, "", ""})
 
 		aggr := NewAggregationFromSpan(s, "", PayloadAggregationKey{
 			Env:         "default",
@@ -153,7 +154,7 @@ func TestGrainWithPeerTags(t *testing.T) {
 	t.Run("all present", func(t *testing.T) {
 		assert := assert.New(t)
 		meta := map[string]string{"span.kind": "client", "peer.service": "aws-dynamodb", "db.instance": "dynamo.test.us1", "db.system": "dynamodb"}
-		s, _ := sc.NewStatSpan("thing", "yo", "other", "", 0, 0, 0, 0, meta, map[string]float64{"_dd.measured": 1}, []string{"aws.s3.bucket", "db.instance", "db.system", "peer.service"})
+		s, _ := sc.NewStatSpanWithConfig(StatSpanConfig{"thing", "yo", "other", "", 0, 0, 0, 0, meta, map[string]float64{"_dd.measured": 1}, []string{"aws.s3.bucket", "db.instance", "db.system", "peer.service"}, "", ""})
 
 		aggr := NewAggregationFromSpan(s, "", PayloadAggregationKey{
 			Env:         "default",
@@ -184,7 +185,7 @@ func TestGrainWithSynthetics(t *testing.T) {
 	assert := assert.New(t)
 	sc := &SpanConcentrator{}
 	meta := map[string]string{traceutil.TagStatusCode: "418"}
-	s, _ := sc.NewStatSpan("thing", "yo", "other", "", 0, 0, 0, 0, meta, map[string]float64{"_dd.measured": 1}, nil)
+	s, _ := sc.NewStatSpanWithConfig(StatSpanConfig{"thing", "yo", "other", "", 0, 0, 0, 0, meta, map[string]float64{"_dd.measured": 1}, nil, "", ""})
 
 	aggr := NewAggregationFromSpan(s, "synthetics-browser", PayloadAggregationKey{
 		Hostname:    "host-id",
@@ -225,7 +226,7 @@ func BenchmarkHandleSpanRandom(b *testing.B) {
 		b.ReportAllocs()
 		for i := 0; i < b.N; i++ {
 			for _, span := range benchStatSpans {
-				sb.HandleSpan(span, 1, "", PayloadAggregationKey{"a", "b", "c", "d", "", ""})
+				sb.HandleSpan(span, 1, "", PayloadAggregationKey{Env: "a", Hostname: "b", Version: "c", ContainerID: "d"})
 			}
 		}
 	})
@@ -283,7 +284,7 @@ func BenchmarkHandleSpanRandom(b *testing.B) {
 		b.ReportAllocs()
 		for i := 0; i < b.N; i++ {
 			for _, span := range benchStatSpans {
-				sb.HandleSpan(span, 1, "", PayloadAggregationKey{"a", "b", "c", "d", "", ""})
+				sb.HandleSpan(span, 1, "", PayloadAggregationKey{Env: "a", Hostname: "b", Version: "c", ContainerID: "d"})
 			}
 		}
 	})

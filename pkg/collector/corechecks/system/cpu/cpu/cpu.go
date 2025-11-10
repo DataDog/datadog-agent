@@ -2,9 +2,9 @@
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
+
 //go:build !windows
 
-//nolint:revive // TODO(PLINT) Fix revive linter
 package cpu
 
 import (
@@ -17,23 +17,28 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
-const CheckName = "cpu"
+const (
+	// CheckName is the name of the cpu check.
+	CheckName = "cpu"
+)
 
 // For testing purpose
-var getCpuTimes = cpu.Times
-var getCpuInfo = cpu.Info
+var getCPUTimes = cpu.Times
+var getCPUInfo = cpu.Info
 var getContextSwitches = GetContextSwitches
 
 // Check doesn't need additional fields
 type Check struct {
 	core.CheckBase
-	instanceConfig cpuInstanceConfig
-	lastNbCycle    float64
-	lastTimes      cpu.TimesStat
+	instanceConfig    cpuInstanceConfig
+	lastNbCycle       float64
+	lastTimes         cpu.TimesStat
+	systemCPUUserTags []string
 }
 
 type cpuInstanceConfig struct {
@@ -47,15 +52,15 @@ func (c *Check) Run() error {
 		return err
 	}
 	c.reportContextSwitches(sender)
-	numCores, err := c.reportCpuInfo(sender)
+	numCores, err := c.reportCPUInfo(sender)
 	if err != nil {
 		return err
 	}
-	err = c.reportCpuMetricsPercent(sender, numCores)
+	err = c.reportCPUMetricsPercent(sender, numCores)
 	if err != nil {
 		return err
 	}
-	err = c.reportCpuMetricsTotal(sender)
+	err = c.reportCPUMetricsTotal(sender)
 	if err != nil {
 		return err
 	}
@@ -75,13 +80,13 @@ func (c *Check) reportContextSwitches(sender sender.Sender) {
 	}
 }
 
-func (c *Check) reportCpuInfo(sender sender.Sender) (numCores int32, err error) {
-	cpuInfo, err := getCpuInfo()
+func (c *Check) reportCPUInfo(sender sender.Sender) (numCores int32, err error) {
+	cpuInfo, err := getCPUInfo()
 	if err != nil {
 		log.Errorf("could not retrieve cpu info: %s", err.Error())
 		return 0, err
 	}
-	log.Debugf("getCpuInfo: %s", cpuInfo)
+	log.Debugf("getCPUInfo: %s", cpuInfo)
 	numCores = 0
 	for _, i := range cpuInfo {
 		numCores += i.Cores
@@ -90,13 +95,13 @@ func (c *Check) reportCpuInfo(sender sender.Sender) (numCores int32, err error) 
 	return numCores, nil
 }
 
-func (c *Check) reportCpuMetricsPercent(sender sender.Sender, numCores int32) (err error) {
-	cpuTimes, err := getCpuTimes(false)
+func (c *Check) reportCPUMetricsPercent(sender sender.Sender, numCores int32) (err error) {
+	cpuTimes, err := getCPUTimes(false)
 	if err != nil {
 		log.Errorf("could not retrieve cpu times: %s", err.Error())
 		return err
 	}
-	log.Debugf("getCpuTimes(false): %s", cpuTimes)
+	log.Debugf("getCPUTimes(false): %s", cpuTimes)
 	if len(cpuTimes) == 0 {
 		err = fmt.Errorf("no cpu stats retrieve (empty results)")
 		log.Errorf("%s", err.Error())
@@ -122,7 +127,7 @@ func (c *Check) reportCpuMetricsPercent(sender sender.Sender, numCores int32) (e
 		stolen := (t.Steal - c.lastTimes.Steal) / float64(numCores)
 		guest := (t.Guest - c.lastTimes.Guest) / float64(numCores)
 
-		sender.Gauge("system.cpu.user", user*toPercent, "", nil)
+		sender.Gauge("system.cpu.user", user*toPercent, "", c.systemCPUUserTags)
 		sender.Gauge("system.cpu.system", system*toPercent, "", nil)
 		sender.Gauge("system.cpu.interrupt", interrupt*toPercent, "", nil)
 		sender.Gauge("system.cpu.iowait", iowait*toPercent, "", nil)
@@ -135,13 +140,13 @@ func (c *Check) reportCpuMetricsPercent(sender sender.Sender, numCores int32) (e
 	return nil
 }
 
-func (c *Check) reportCpuMetricsTotal(sender sender.Sender) (err error) {
-	cpuTimes, err := getCpuTimes(c.instanceConfig.ReportTotalPerCPU)
+func (c *Check) reportCPUMetricsTotal(sender sender.Sender) (err error) {
+	cpuTimes, err := getCPUTimes(c.instanceConfig.ReportTotalPerCPU)
 	if err != nil {
 		log.Errorf("could not retrieve cpu times: %s", err.Error())
 		return err
 	}
-	log.Debugf("getCpuTimes(%t): %s", c.instanceConfig.ReportTotalPerCPU, cpuTimes)
+	log.Debugf("getCPUTimes(%t): %s", c.instanceConfig.ReportTotalPerCPU, cpuTimes)
 	for _, t := range cpuTimes {
 		tags := []string{fmt.Sprintf("core:%s", t.CPU)}
 		sender.Gauge("system.cpu.user.total", t.User, "", tags)
@@ -177,7 +182,13 @@ func Factory() option.Option[func() check.Check] {
 }
 
 func newCheck() check.Check {
+	var systemCPUUserTags []string
+	infraMode := pkgconfigsetup.Datadog().GetString("infrastructure_mode")
+	if infraMode != "full" {
+		systemCPUUserTags = []string{"infra_mode:" + infraMode}
+	}
 	return &Check{
-		CheckBase: core.NewCheckBase(CheckName),
+		CheckBase:         core.NewCheckBase(CheckName),
+		systemCPUUserTags: systemCPUUserTags,
 	}
 }

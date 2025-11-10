@@ -4,6 +4,7 @@
 package metricsclient
 
 import (
+	"sync"
 	"time"
 
 	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
@@ -12,6 +13,7 @@ import (
 // StatsdClientWrapper is an implementation of ddgostatsd.ClientInterface that delegates all operations to the encompassed ddgostatsd.ClientInterface
 type StatsdClientWrapper struct {
 	delegate ddgostatsd.ClientInterface
+	mutex    sync.Mutex
 }
 
 // NewStatsdClientWrapper returns a StatsdClientWrapper
@@ -21,6 +23,9 @@ func NewStatsdClientWrapper(cl ddgostatsd.ClientInterface) *StatsdClientWrapper 
 
 // SetDelegate sets the delegate statsd client in this StatsdClientWrapper
 func (m *StatsdClientWrapper) SetDelegate(cl ddgostatsd.ClientInterface) {
+	m.mutex.Lock()
+	defer m.mutex.Unlock()
+
 	m.delegate = cl
 }
 

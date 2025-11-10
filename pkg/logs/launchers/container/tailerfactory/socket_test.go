@@ -5,6 +5,8 @@
 
 //go:build docker
 
+// Package tailerfactory implements the logic required to determine which kind
+// of tailer to use for a container-related LogSource, and to create that tailer.
 package tailerfactory
 
 import (
@@ -35,6 +37,7 @@ func TestMakeSocketTailer_success(t *testing.T) {
 	tf := &factory{
 		pipelineProvider: pipeline.NewMockProvider(),
 		cop:              containersorpods.NewDecidedChooser(containersorpods.LogContainers),
+		dockerUtilGetter: &dockerUtilGetterImpl{},
 	}
 	source := sources.NewLogSource("test", &config.LogsConfig{
 		Type:       "docker",

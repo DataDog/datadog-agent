@@ -19,13 +19,15 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	"github.com/DataDog/datadog-agent/comp/core/secrets"
+	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
+	secretsnoopfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx-noop"
 	secagent "github.com/DataDog/datadog-agent/pkg/security/agent"
 	secconfig "github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
 	activity_tree "github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree"
 	"github.com/DataDog/datadog-agent/pkg/security/security_profile/profile"
 	"github.com/DataDog/datadog-agent/pkg/security/security_profile/storage"
+	"github.com/DataDog/datadog-agent/pkg/security/security_profile/storage/backend"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -68,10 +70,10 @@ func listCommands(_ *command.GlobalParams) []*cobra.Command {
 		RunE: func(_ *cobra.Command, _ []string) error {
 			return fxutil.OneShot(listActivityDumps,
 				fx.Supply(core.BundleParams{
-					ConfigParams: config.NewAgentParams("", config.WithConfigMissingOK(true)),
-					SecretParams: secrets.NewDisabledParams(),
+					ConfigParams: config.NewAgentParams(""),
 					LogParams:    log.ForOneShot("SYS-PROBE", "info", true)}),
 				core.Bundle(),
+				secretsnoopfx.Module(),
 			)
 		},
 	}
@@ -91,10 +93,10 @@ func stopCommands(globalParams *command.GlobalParams) []*cobra.Command {
 			return fxutil.OneShot(stopActivityDump,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
-					ConfigParams: config.NewAgentParams("", config.WithConfigMissingOK(true)),
-					SecretParams: secrets.NewDisabledParams(),
+					ConfigParams: config.NewAgentParams(""),
 					LogParams:    log.ForOneShot("SYS-PROBE", "info", true)}),
 				core.Bundle(),
+				secretsnoopfx.Module(),
 			)
 		},
 	}
@@ -144,10 +146,10 @@ func generateDumpCommands(globalParams *command.GlobalParams) []*cobra.Command {
 			return fxutil.OneShot(generateActivityDump,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
-					ConfigParams: config.NewAgentParams("", config.WithConfigMissingOK(true)),
-					SecretParams: secrets.NewDisabledParams(),
+					ConfigParams: config.NewAgentParams(""),
 					LogParams:    log.ForOneShot("SYS-PROBE", "info", true)}),
 				core.Bundle(),
+				secretsnoopfx.Module(),
 			)
 		},
 	}
@@ -222,10 +224,10 @@ func generateEncodingCommands(globalParams *command.GlobalParams) []*cobra.Comma
 			return fxutil.OneShot(generateEncodingFromActivityDump,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
-					ConfigParams: config.NewAgentParams("", config.WithConfigMissingOK(true)),
-					SecretParams: secrets.NewDisabledParams(),
+					ConfigParams: config.NewAgentParams(""),
 					LogParams:    log.ForOneShot("SYS-PROBE", "info", true)}),
 				core.Bundle(),
+				secretsnoopfx.Module(),
 			)
 		},
 	}
@@ -283,10 +285,10 @@ func diffCommands(globalParams *command.GlobalParams) []*cobra.Command {
 			return fxutil.OneShot(diffActivityDump,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
-					ConfigParams: config.NewAgentParams("", config.WithConfigMissingOK(true)),
-					SecretParams: secrets.NewDisabledParams(),
+					ConfigParams: config.NewAgentParams(""),
 					LogParams:    log.ForOneShot("SYS-PROBE", "info", true)}),
 				core.Bundle(),
+				secretsnoopfx.Module(),
 			)
 		},
 	}
@@ -449,7 +451,7 @@ func diffActivityDump(_ log.Component, _ config.Component, _ secrets.Component, 
 }
 
 func generateActivityDump(_ log.Component, _ config.Component, _ secrets.Component, activityDumpArgs *activityDumpCliParams) error {
-	client, err := secagent.NewRuntimeSecurityClient()
+	client, err := secagent.NewRuntimeSecurityCmdClient()
 	if err != nil {
 		return fmt.Errorf("unable to create a runtime security client instance: %w", err)
 	}
@@ -531,7 +533,12 @@ func generateEncodingFromActivityDump(_ log.Component, _ config.Component, _ sec
 			output.Storage = append(output.Storage, storageRequest.ToStorageRequestMessage(p.Metadata.Name))
 		case secconfig.RemoteStorage:
 			if remoteStorage == nil && remoteStorageErr == nil {
-				remoteStorage, remoteStorageErr = storage.NewActivityDumpRemoteStorage()
+				backend, err := backend.NewActivityDumpRemoteBackend()
+				if err != nil {
+					return fmt.Errorf("couldn't instantiate remote storage backend: %w", err)
+				}
+
+				remoteStorage, remoteStorageErr = storage.NewActivityDumpRemoteStorageForwarder(backend)
 				if remoteStorageErr != nil {
 					return fmt.Errorf("couldn't instantiate remote storage: %w", remoteStorageErr)
 				}
@@ -562,7 +569,7 @@ func generateEncodingFromActivityDump(_ log.Component, _ config.Component, _ sec
 }
 
 func listActivityDumps(_ log.Component, _ config.Component, _ secrets.Component) error {
-	client, err := secagent.NewRuntimeSecurityClient()
+	client, err := secagent.NewRuntimeSecurityCmdClient()
 	if err != nil {
 		return fmt.Errorf("unable to create a runtime security client instance: %w", err)
 	}
@@ -610,7 +617,7 @@ func parseStorageRequest(activityDumpArgs *activityDumpCliParams) (*api.StorageR
 }
 
 func stopActivityDump(_ log.Component, _ config.Component, _ secrets.Component, activityDumpArgs *activityDumpCliParams) error {
-	client, err := secagent.NewRuntimeSecurityClient()
+	client, err := secagent.NewRuntimeSecurityCmdClient()
 	if err != nil {
 		return fmt.Errorf("unable to create a runtime security client instance: %w", err)
 	}
@@ -626,4 +633,11 @@ func stopActivityDump(_ log.Component, _ config.Component, _ secrets.Component, 
 
 	fmt.Println("done!")
 	return nil
+}
+
+func printStorageRequestMessage(prefix string, storage *api.StorageRequestMessage) {
+	fmt.Printf("%s- file: %s\n", prefix, storage.GetFile())
+	fmt.Printf("%s  format: %s\n", prefix, storage.GetFormat())
+	fmt.Printf("%s  storage type: %s\n", prefix, storage.GetType())
+	fmt.Printf("%s  compression: %v\n", prefix, storage.GetCompression())
 }

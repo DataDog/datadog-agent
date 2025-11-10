@@ -1,17 +1,18 @@
 name: "Serverless Integration Tests"
 
 on:
-  pull_request:
-    branches-ignore:
-      - 'mq-working-branch-*'
-    paths:
-      - 'cmd/serverless/**'
-      - 'pkg/serverless/**'
-      - 'test/integration/serverless/**'
-      - '.github/workflows/serverless-integration.yml'
-      - 'go.mod'
-  schedule:
-    - cron: '0 14 * * *' # cron schedule uses UTC timezone. Run tests at the beginning of the day in US-East
+  # -- Disabled, only runs manually --
+  # pull_request:
+  #   branches-ignore:
+  #     - 'mq-working-branch-*'
+  #   paths:
+  #     - 'cmd/serverless/**'
+  #     - 'pkg/serverless/**'
+  #     - 'test/integration/serverless/**'
+  #     - '.github/workflows/serverless-integration.yml'
+  #     - 'go.mod'
+  # schedule:
+  #   - cron: '0 14 * * *' # cron schedule uses UTC timezone. Run tests at the beginning of the day in US-East
   workflow_dispatch:
 
 permissions: {}
@@ -33,7 +34,7 @@ jobs:
           persist-credentials: false
 
       - name: Set up Node 20
-        uses: actions/setup-node@1d0ff469b7ec7b3cb9d8673fde0c81c44821de2a # v4.2.0
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         with:
           node-version: 20
 
@@ -65,7 +66,7 @@ jobs:
 
       - name: Run tests if AWS credentials are available
         id: test
-        uses: nick-fields/retry@7152eba30c6575329ac0576536151aca5a72780e # v3.0.0
+        uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08 # v3.0.2
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.SERVERLESS_AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.SERVERLESS_AWS_SECRET_ACCESS_KEY }}

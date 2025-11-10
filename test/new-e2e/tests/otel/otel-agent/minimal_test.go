@@ -38,9 +38,17 @@ var sources string
 func TestOTelAgentMinimal(t *testing.T) {
 	values := `
 datadog:
+  otelCollector:
+    useStandaloneImage: false
   logs:
     containerCollectAll: false
     containerCollectUsingFiles: false
+agents:
+  containers:
+    otelAgent:
+      env:
+        - name: DD_APM_FEATURES
+          value: 'disable_operation_and_resource_name_logic_v2'
 `
 	t.Parallel()
 	e2e.Run(t, &minimalTestSuite{}, e2e.WithProvisioner(awskubernetes.KindProvisioner(awskubernetes.WithAgentOptions(kubernetesagentparams.WithHelmValues(values), kubernetesagentparams.WithOTelAgent(), kubernetesagentparams.WithOTelConfig(minimalConfig)))))
@@ -54,6 +62,9 @@ var minimalParams = utils.IAParams{
 
 func (s *minimalTestSuite) SetupSuite() {
 	s.BaseSuite.SetupSuite()
+	// SetupSuite needs to defer CleanupOnSetupFailure() if what comes after BaseSuite.SetupSuite() can fail.
+	defer s.CleanupOnSetupFailure()
+
 	utils.TestCalendarApp(s, false, utils.CalendarService)
 }
 
@@ -113,7 +124,6 @@ func (s *minimalTestSuite) TestCoreAgentConfigCmd() {
       exporters:
       - datadog
       processors:
-      - batch
       - infraattributes/dd-autoconfigured
       receivers:
       - otlp
@@ -121,7 +131,6 @@ func (s *minimalTestSuite) TestCoreAgentConfigCmd() {
       exporters:
       - datadog
       processors:
-      - batch
       - infraattributes/dd-autoconfigured
       receivers:
       - otlp
@@ -129,14 +138,14 @@ func (s *minimalTestSuite) TestCoreAgentConfigCmd() {
     metrics/dd-autoconfigured/datadog:
       exporters:
       - datadog
-      processors: []
+      processors:
+      - filter/drop-prometheus-internal-metrics/dd-autoconfigured
       receivers:
       - prometheus/dd-autoconfigured
     traces:
       exporters:
       - datadog/connector
       processors:
-      - batch
       - infraattributes/dd-autoconfigured
       receivers:
       - otlp
@@ -144,7 +153,6 @@ func (s *minimalTestSuite) TestCoreAgentConfigCmd() {
       exporters:
       - datadog
       processors:
-      - batch
       - infraattributes/dd-autoconfigured
       receivers:
       - otlp`

@@ -14,7 +14,7 @@ import (
 	acTelemetry "github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 
 	"github.com/stretchr/testify/assert"
@@ -22,7 +22,8 @@ import (
 
 func TestCollect(t *testing.T) {
 	ctx := context.Background()
-	pkgconfigsetup.Datadog().SetWithoutSource("ignore_autoconf", []string{"ignored"})
+	cfg := mock.New(t)
+	cfg.SetWithoutSource("ignore_autoconf", []string{"ignored"})
 	paths := []string{"tests", "foo/bar"}
 
 	telemetry := fxutil.Test[telemetry.Component](t, telemetryimpl.MockModule())
@@ -81,7 +82,7 @@ func TestCollect(t *testing.T) {
 	assert.Equal(t, 0, len(get("ignored")))
 
 	// total number of configurations found
-	assert.Equal(t, 17, len(configs))
+	assert.Equal(t, 18, len(configs))
 
 	// incorrect configs get saved in the Errors map (invalid.yaml & notaconfig.yaml & ad_deprecated.yaml & null_instances.yml)
 	assert.Equal(t, 4, len(provider.Errors))

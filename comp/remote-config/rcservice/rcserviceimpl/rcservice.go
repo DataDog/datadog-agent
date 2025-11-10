@@ -8,6 +8,7 @@ package rcserviceimpl
 
 import (
 	"context"
+	"expvar"
 	"fmt"
 	"time"
 
@@ -18,7 +19,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcservice"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rctelemetryreporter"
 	remoteconfig "github.com/DataDog/datadog-agent/pkg/config/remote/service"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
@@ -26,6 +26,16 @@ import (
 
 	"go.uber.org/fx"
 )
+
+var (
+	rcExpvars              = expvar.NewMap("remoteConfigStartup")
+	rcStartupFailureReason = expvar.String{}
+)
+
+func init() {
+	rcExpvars.Init()
+	rcExpvars.Set("startupFailureReason", &rcStartupFailureReason)
+}
 
 // Module conditionally provides the remote config service.
 func Module() fxutil.Module {
@@ -49,7 +59,7 @@ type dependencies struct {
 // newRemoteConfigServiceOptional conditionally creates and configures a new remote config service, based on whether RC is enabled.
 func newRemoteConfigServiceOptional(deps dependencies) option.Option[rcservice.Component] {
 	none := option.None[rcservice.Component]()
-	if !pkgconfigsetup.IsRemoteConfigEnabled(deps.Cfg) {
+	if !configUtils.IsRemoteConfigEnabled(deps.Cfg) {
 		return none
 	}
 
@@ -85,6 +95,9 @@ func newRemoteConfigService(deps dependencies) (rcservice.Component, error) {
 	if deps.Cfg.IsSet("remote_configuration.refresh_interval") {
 		options = append(options, remoteconfig.WithRefreshInterval(deps.Cfg.GetDuration("remote_configuration.refresh_interval"), "remote_configuration.refresh_interval"))
 	}
+	if deps.Cfg.IsSet("remote_configuration.org_status_refresh_interval") {
+		options = append(options, remoteconfig.WithOrgStatusRefreshInterval(deps.Cfg.GetDuration("remote_configuration.org_status_refresh_interval"), "remote_configuration.org_status_refresh_interval"))
+	}
 	if deps.Cfg.IsSet("remote_configuration.max_backoff_interval") {
 		options = append(options, remoteconfig.WithMaxBackoffInterval(deps.Cfg.GetDuration("remote_configuration.max_backoff_interval"), "remote_configuration.max_backoff_interval"))
 	}
@@ -106,8 +119,10 @@ func newRemoteConfigService(deps dependencies) (rcservice.Component, error) {
 		options...,
 	)
 	if err != nil {
+		rcStartupFailureReason.Set(err.Error())
 		return nil, fmt.Errorf("unable to create remote config service: %w", err)
 	}
+	rcStartupFailureReason.Set("")
 
 	deps.Lc.Append(fx.Hook{OnStart: func(_ context.Context) error {
 		configService.Start()

@@ -7,7 +7,11 @@ cloud_provider_metadata: []
 
 logs_enabled: true
 
-dd_url: http://127.0.0.1:9092
-telemetry.enabled: true
-telemetry.checks: '*'
-process_collection.enabled: false
+dd_url: http://127.0.0.1:9091
+telemetry:
+  enabled: true
+  checks: '*'
+process_config:
+  process_dd_url: http://localhost:9093
+  process_collection:
+    enabled: false

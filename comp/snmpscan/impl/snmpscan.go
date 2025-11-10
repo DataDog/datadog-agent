@@ -7,8 +7,10 @@
 package snmpscanimpl
 
 import (
-	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
+	"errors"
+
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
@@ -23,7 +25,8 @@ type Requires struct {
 	compdef.In
 	Logger        log.Component
 	Config        config.Component
-	Demultiplexer demultiplexer.Component
+	EventPlatform eventplatform.Component
+	Client        ipc.HTTPClient
 }
 
 // Provides defines the output of the snmpscan component
@@ -34,14 +37,15 @@ type Provides struct {
 
 // NewComponent creates a new snmpscan component
 func NewComponent(reqs Requires) (Provides, error) {
-	forwarder, err := reqs.Demultiplexer.GetEventPlatformForwarder()
-	if err != nil {
-		return Provides{}, err
+	forwarder, ok := reqs.EventPlatform.Get()
+	if !ok {
+		return Provides{}, errors.New("event platform forwarder not initialized")
 	}
 	scanner := snmpScannerImpl{
 		log:         reqs.Logger,
 		config:      reqs.Config,
 		epforwarder: forwarder,
+		client:      reqs.Client,
 	}
 	provides := Provides{
 		Comp:       scanner,
@@ -54,6 +58,7 @@ type snmpScannerImpl struct {
 	log         log.Component
 	config      config.Component
 	epforwarder eventplatform.Forwarder
+	client      ipc.HTTPClient
 }
 
 func (s snmpScannerImpl) handleAgentTask(taskType rcclienttypes.TaskType, task rcclienttypes.AgentTaskConfig) (bool, error) {
@@ -72,10 +77,11 @@ func (s snmpScannerImpl) startDeviceScan(task rcclienttypes.AgentTaskConfig) err
 			ns = "default"
 		}
 	}
-	instance, err := snmpparse.GetParamsFromAgent(deviceIP, s.config)
+	instance, err := snmpparse.GetParamsFromAgent(deviceIP, s.config, s.client)
 	if err != nil {
 		return err
 	}
-	return s.ScanDeviceAndSendData(instance, ns, metadata.RCTriggeredScan)
-
+	return s.ScanDeviceAndSendData(instance, ns, snmpscan.ScanParams{
+		ScanType: metadata.RCTriggeredScan,
+	})
 }

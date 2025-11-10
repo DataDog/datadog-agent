@@ -38,12 +38,6 @@ static __attribute__((always_inline)) u32 atoi(char *buff) {
     return res;
 }
 
-static __attribute__((always_inline)) int _isxdigit(unsigned char c) {
-    return ((c >= '0' && c <= '9') ||
-            (c >= 'a' && c <= 'f') ||
-            (c >= 'A' && c <= 'F'));
-}
-
 int __attribute__((always_inline)) parse_buf_to_bool(const char *buf) {
     u32 key = 0;
     struct selinux_write_buffer_t *copy = bpf_map_lookup_elem(&selinux_write_buffer, &key);

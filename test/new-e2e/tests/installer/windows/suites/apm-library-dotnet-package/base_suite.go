@@ -19,6 +19,9 @@ type baseIISSuite struct {
 
 func (s *baseIISSuite) SetupSuite() {
 	s.BaseSuite.SetupSuite()
+	// SetupSuite needs to defer s.CleanupOnSetupFailure() if what comes after BaseSuite.SetupSuite() can fail.
+	defer s.CleanupOnSetupFailure()
+
 	s.installIIS()
 	s.installAspNet()
 }
@@ -86,4 +89,13 @@ func (s *baseIISSuite) getLibraryPathFromInstrumentedIIS() string {
 	output, err := host.Execute(`(Invoke-WebRequest -Uri "http://localhost:8080/index.aspx" -UseBasicParsing).Content`)
 	s.Require().NoErrorf(err, "failed to get content from site: %s", output)
 	return strings.TrimSpace(output)
+}
+
+func (s *baseIISSuite) assertSuccessfulPromoteExperiment(version string) {
+	s.Require().Host(s.Env().RemoteHost).HasDatadogInstaller().Status().
+		HasPackage("datadog-apm-library-dotnet").
+		WithStableVersionMatchPredicate(func(actual string) {
+			s.Require().Contains(actual, version)
+		}).
+		WithExperimentVersionEqual("")
 }

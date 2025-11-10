@@ -16,7 +16,7 @@ if ($ghCliInstallResult.ExitCode -ne 0) {
     & 'C:\Program Files\GitHub CLI\gh.exe' repo sync https://github.com/robot-github-winget-datadog-agent/winget-pkgs.git --source microsoft/winget-pkgs
 }
 
-$rawAgentVersion = (dda inv agent.version)
+$rawAgentVersion = (dda inv -- agent.version)
 Write-Host "Detected agent version ${rawAgentVersion}"
 $m = [regex]::match($rawAgentVersion, "(\d+\.\d+\.\d+)(-rc.(\d+))?")
 if ($m) {

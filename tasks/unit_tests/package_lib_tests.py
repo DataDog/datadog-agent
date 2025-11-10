@@ -21,11 +21,10 @@ class TestProduceSizeStats(unittest.TestCase):
     @patch('tasks.libs.package.size.directory_size', new=MagicMock(return_value=250))
     def test_compute_size(self, _):
         context_mock = MockContext()
-        test_flavor, test_os, test_path, test_version, test_ref, test_branch, test_arch = (
+        test_flavor, test_os, test_path, test_ref, test_branch, test_arch = (
             "agent",
             "os",
             "/path/to/package",
-            "version",
             "gitref",
             "branch",
             "arch",
@@ -35,7 +34,6 @@ class TestProduceSizeStats(unittest.TestCase):
             flavor=test_flavor,
             package_os=test_os,
             package_path=test_path,
-            major_version=test_version,
             git_ref=test_ref,
             bucket_branch=test_branch,
             arch=test_arch,
@@ -45,7 +43,7 @@ class TestProduceSizeStats(unittest.TestCase):
         expected_tags = [
             "os:os",
             "package:datadog-agent",
-            "agent:version",
+            "agent:7",
             "git_ref:gitref",
             "bucket_branch:branch",
             "arch:arch",
@@ -82,11 +80,10 @@ class TestProduceSizeStats(unittest.TestCase):
 
     def test_compute_size_invalid_flavor(self):
         context_mock = MockContext()
-        test_flavor, test_os, test_path, test_version, test_ref, test_branch, test_arch = (
+        test_flavor, test_os, test_path, test_ref, test_branch, test_arch = (
             "invalid",
             "os",
             "/path/to/package",
-            "version",
             "gitref",
             "branch",
             "arch",
@@ -97,7 +94,6 @@ class TestProduceSizeStats(unittest.TestCase):
                 flavor=test_flavor,
                 package_os=test_os,
                 package_path=test_path,
-                major_version=test_version,
                 git_ref=test_ref,
                 bucket_branch=test_branch,
                 arch=test_arch,

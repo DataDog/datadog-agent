@@ -23,39 +23,35 @@ import (
 	"github.com/DataDog/datadog-agent/comp/agent"
 	"github.com/DataDog/datadog-agent/comp/agent/jmxlogger"
 	"github.com/DataDog/datadog-agent/comp/agent/jmxlogger/jmxloggerimpl"
-	"github.com/DataDog/datadog-agent/comp/aggregator/diagnosesendermanager"
-	"github.com/DataDog/datadog-agent/comp/aggregator/diagnosesendermanager/diagnosesendermanagerimpl"
 	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl"
 	internalAPI "github.com/DataDog/datadog-agent/comp/api/api/def"
-	authtokenimpl "github.com/DataDog/datadog-agent/comp/api/authtoken/createandfetchimpl"
 	grpcNonefx "github.com/DataDog/datadog-agent/comp/api/grpcserver/fx-none"
-	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/autodiscoveryimpl"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
+	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	remoteagentregistry "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/def"
-	"github.com/DataDog/datadog-agent/comp/core/secrets"
+	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
+	secretfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	dualTaggerfx "github.com/DataDog/datadog-agent/comp/core/tagger/fx-dual"
+	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
+	workloadfilterfx "github.com/DataDog/datadog-agent/comp/core/workloadfilter/fx"
 	wmcatalog "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/catalog"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/defaults"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
 	haagentfx "github.com/DataDog/datadog-agent/comp/haagent/fx"
-	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
 	metricscompression "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx"
-	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/cli/standalone"
-	pkgcollector "github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 type cliParams struct {
@@ -112,8 +108,8 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		}
 		params := core.BundleParams{
 			ConfigParams: config.NewAgentParams(globalParams.ConfFilePath, config.WithExtraConfFiles(globalParams.ExtraConfFilePath), config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
-			SecretParams: secrets.NewEnabledParams(),
-			LogParams:    log.ForOneShot(command.LoggerName, cliParams.jmxLogLevel, false)}
+			LogParams:    log.ForOneShot(command.LoggerName, cliParams.jmxLogLevel, false),
+		}
 		if cliParams.logFile != "" {
 			params.LogParams.LogToFile(cliParams.logFile)
 		}
@@ -122,21 +118,13 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			fx.Supply(cliParams),
 			fx.Supply(params),
 			core.Bundle(),
-			diagnosesendermanagerimpl.Module(),
-			fx.Supply(func(diagnoseSenderManager diagnosesendermanager.Component) (sender.SenderManager, error) {
-				return diagnoseSenderManager.LazyGetSenderManager()
-			}),
+			secretfx.Module(),
 			// workloadmeta setup
 			wmcatalog.GetCatalog(),
 			workloadmetafx.Module(defaults.DefaultParams()),
 			apiimpl.Module(),
 			grpcNonefx.Module(),
-			authtokenimpl.Module(),
-			// TODO(components): this is a temporary hack as the StartServer() method of the API package was previously called with nil arguments
-			// This highlights the fact that the API Server created by JMX (through ExecJmx... function) should be different from the ones created
-			// in others commands such as run.
-			fx.Supply(option.None[collector.Component]()),
-			fx.Supply(option.None[integrations.Component]()),
+			workloadfilterfx.Module(),
 			dualTaggerfx.Module(common.DualTaggerParams()),
 			autodiscoveryimpl.Module(),
 			agent.Bundle(jmxloggerimpl.NewCliParams(cliParams.logFile)),
@@ -147,10 +135,10 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			fx.Invoke(func(wmeta workloadmeta.Component, tagger tagger.Component) {
 				proccontainers.InitSharedContainerProvider(wmeta, tagger)
 			}),
-			fx.Provide(func() remoteagentregistry.Component { return nil }),
 			haagentfx.Module(),
 			logscompression.Module(),
 			metricscompression.Module(),
+			ipcfx.ModuleReadOnly(),
 		)
 	}
 
@@ -284,30 +272,21 @@ func runJmxCommandConsole(config config.Component,
 	cliParams *cliParams,
 	wmeta workloadmeta.Component,
 	ac autodiscovery.Component,
-	diagnoseSendermanager diagnosesendermanager.Component,
 	secretResolver secrets.Component,
 	agentAPI internalAPI.Component,
-	collector option.Option[collector.Component],
 	jmxLogger jmxlogger.Component,
-	logReceiver option.Option[integrations.Component],
-	tagger tagger.Component) error {
+	tagger tagger.Component,
+	filterStore workloadfilter.Component,
+	ipc ipc.Component) (err error) {
 	// This prevents log-spam from "comp/core/workloadmeta/collectors/internal/remote/process_collector/process_collector.go"
 	// It appears that this collector creates some contention in AD.
 	// Disabling it is both more efficient and gets rid of this log spam
 	config.Set("language_detection.enabled", "false", model.SourceAgentRuntime)
 
-	senderManager, err := diagnoseSendermanager.LazyGetSenderManager()
-	if err != nil {
-		return err
-	}
 	// The Autoconfig instance setup happens in the workloadmeta start hook
 	// create and setup the Collector and others.
-	common.LoadComponents(secretResolver, wmeta, ac, config.GetString("confd_path"))
+	common.LoadComponents(secretResolver, wmeta, tagger, filterStore, ac, config.GetString("confd_path"))
 	ac.LoadAndRun(context.Background())
-
-	// Create the CheckScheduler, but do not attach it to
-	// AutoDiscovery.
-	pkgcollector.InitCheckScheduler(collector, senderManager, logReceiver, tagger)
 
 	// if cliSelectedChecks is empty, then we want to fetch all check configs;
 	// otherwise, we fetch only the matching cehck configs.
@@ -324,7 +303,7 @@ func runJmxCommandConsole(config config.Component,
 		return err
 	}
 
-	err = standalone.ExecJMXCommandConsole(cliParams.command, cliParams.cliSelectedChecks, cliParams.jmxLogLevel, allConfigs, agentAPI, jmxLogger)
+	err = standalone.ExecJMXCommandConsole(cliParams.command, cliParams.cliSelectedChecks, cliParams.jmxLogLevel, allConfigs, agentAPI, jmxLogger, ipc)
 
 	if runtime.GOOS == "windows" {
 		standalone.PrintWindowsUserWarning("jmx")

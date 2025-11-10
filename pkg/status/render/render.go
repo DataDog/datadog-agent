@@ -13,9 +13,9 @@ import (
 	"fmt"
 	"io"
 	"path"
-	"text/template"
 
 	"github.com/DataDog/datadog-agent/comp/core/status"
+	template "github.com/DataDog/datadog-agent/pkg/template/text"
 )
 
 var fmap = status.TextFmap()
@@ -28,7 +28,7 @@ func FormatHPAStatus(data []byte) (string, error) {
 	}
 	var b = new(bytes.Buffer)
 	var errs []error
-	if err := ParseTemplate(b, "/custommetricsprovider.tmpl", stats); err != nil {
+	if err := parseTemplate(b, "/custommetricsprovider.tmpl", stats); err != nil {
 		errs = append(errs, err)
 	}
 	if err := renderErrors(b, errs); err != nil {
@@ -45,7 +45,7 @@ func FormatMetadataMapCLI(data []byte) (string, error) {
 	}
 	var b = new(bytes.Buffer)
 	var errs []error
-	if err := ParseTemplate(b, "/metadatamapper.tmpl", stats); err != nil {
+	if err := parseTemplate(b, "/metadatamapper.tmpl", stats); err != nil {
 		errs = append(errs, err)
 	}
 	if err := renderErrors(b, errs); err != nil {
@@ -57,8 +57,8 @@ func FormatMetadataMapCLI(data []byte) (string, error) {
 //go:embed templates
 var templatesFS embed.FS
 
-// ParseTemplate renders the text template with the data provided
-func ParseTemplate(w io.Writer, templateName string, stats interface{}) error {
+// parseTemplate renders the text template with the data provided
+func parseTemplate(w io.Writer, templateName string, stats interface{}) error {
 	tmpl, tmplErr := templatesFS.ReadFile(path.Join("templates", templateName))
 	if tmplErr != nil {
 		return tmplErr
@@ -72,7 +72,7 @@ func ParseTemplate(w io.Writer, templateName string, stats interface{}) error {
 
 func renderErrors(w io.Writer, errs []error) error {
 	if len(errs) > 0 {
-		return ParseTemplate(w, "/rendererrors.tmpl", errs)
+		return parseTemplate(w, "/rendererrors.tmpl", errs)
 	}
 	return nil
 }

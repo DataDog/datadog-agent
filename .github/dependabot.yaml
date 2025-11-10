@@ -203,7 +203,7 @@ updates:
     labels:
       - dependencies
       - dependencies-github-actions
-      - team/agent-devx-infra
+      - team/agent-devx
       - changelog/no-changelog
       - qa/no-code-change
       - dev/tooling

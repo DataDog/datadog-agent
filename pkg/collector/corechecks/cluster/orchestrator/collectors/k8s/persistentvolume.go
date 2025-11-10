@@ -11,6 +11,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	k8sProcessors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
+	utilTypes "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/util"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
@@ -39,7 +40,7 @@ type PersistentVolumeCollector struct {
 // NewPersistentVolumeCollector creates a new collector for the Kubernetes
 // PersistentVolume resource.
 func NewPersistentVolumeCollector(metadataAsTags utils.MetadataAsTags) *PersistentVolumeCollector {
-	resourceType := getResourceType(persistentVolumeName, persistentVolumeVersion)
+	resourceType := utilTypes.GetResourceType(utilTypes.PersistentVolumeName, utilTypes.PersistentVolumeVersion)
 	labelsAsTags := metadataAsTags.GetResourcesLabelsAsTags()[resourceType]
 	annotationsAsTags := metadataAsTags.GetResourcesAnnotationsAsTags()[resourceType]
 
@@ -50,10 +51,10 @@ func NewPersistentVolumeCollector(metadataAsTags utils.MetadataAsTags) *Persiste
 			IsMetadataProducer:                   true,
 			IsManifestProducer:                   true,
 			SupportsManifestBuffering:            true,
-			Name:                                 persistentVolumeName,
+			Name:                                 utilTypes.PersistentVolumeName,
 			Kind:                                 kubernetes.PersistentVolumeKind,
 			NodeType:                             orchestrator.K8sPersistentVolume,
-			Version:                              persistentVolumeVersion,
+			Version:                              utilTypes.PersistentVolumeVersion,
 			LabelsAsTags:                         labelsAsTags,
 			AnnotationsAsTags:                    annotationsAsTags,
 			SupportsTerminatedResourceCollection: true,
@@ -92,7 +93,7 @@ func (c *PersistentVolumeCollector) Run(rcfg *collectors.CollectorRunConfig) (*c
 func (c *PersistentVolumeCollector) Process(rcfg *collectors.CollectorRunConfig, list interface{}) (*collectors.CollectorRunResult, error) {
 	ctx := collectors.NewK8sProcessorContext(rcfg, c.metadata)
 
-	processResult, processed := c.processor.Process(ctx, list)
+	processResult, listed, processed := c.processor.Process(ctx, list)
 
 	if processed == -1 {
 		return nil, collectors.ErrProcessingPanic
@@ -100,7 +101,7 @@ func (c *PersistentVolumeCollector) Process(rcfg *collectors.CollectorRunConfig,
 
 	result := &collectors.CollectorRunResult{
 		Result:             processResult,
-		ResourcesListed:    len(c.processor.Handlers().ResourceList(ctx, list)),
+		ResourcesListed:    listed,
 		ResourcesProcessed: processed,
 	}
 

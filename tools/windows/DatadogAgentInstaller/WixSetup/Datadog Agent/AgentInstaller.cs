@@ -30,7 +30,7 @@ namespace WixSetup.Datadog_Agent
         // Source directories
         private const string InstallerSource = @"C:\opt\datadog-agent";
         private const string BinSource = @"C:\opt\datadog-agent\bin\agent";
-        private const string EtcSource = @"C:\omnibus-ruby\src\etc\datadog-agent";
+        private const string EtcSource = @"C:\opt\datadog-agent\etc\datadog-agent";
 
         private readonly AgentBinaries _agentBinaries;
         private readonly AgentFeatures _agentFeatures = new();
@@ -97,12 +97,16 @@ namespace WixSetup.Datadog_Agent
                 {
                     AttributesDefinition = "Secure=yes",
                 },
+                new Property("DD_INFRASTRUCTURE_MODE")
+                {
+                    AttributesDefinition = "Secure=yes"
+                },
                 // Custom WindowsBuild property since MSI caps theirs at 9600
                 new Property("DDAGENT_WINDOWSBUILD")
                 {
                     AttributesDefinition = "Secure=yes"
                 },
-                new Property("INSTALL_PYTHON_THIRD_PARTY_DEPS", "0")
+                new Property("INSTALL_PYTHON_THIRD_PARTY_DEPS", "1")
                 {
                     AttributesDefinition = "Secure=yes"
                 },
@@ -125,7 +129,19 @@ namespace WixSetup.Datadog_Agent
                 {
                     AttributesDefinition = "Secure=yes"
                 },
+                new Property("DD_INSTALLER_DEFAULT_PKG_VERSION_DATADOG_APM_INJECT")
+                {
+                    AttributesDefinition = "Secure=yes"
+                },
                 new Property("DD_INSTALLER_REGISTRY_URL")
+                {
+                    AttributesDefinition = "Secure=yes"
+                },
+                new Property("DD_REMOTE_UPDATES")
+                {
+                    AttributesDefinition = "Secure=yes"
+                },
+                new Property("KEEP_INSTALLED_PACKAGES")
                 {
                     AttributesDefinition = "Secure=yes"
                 },
@@ -573,6 +589,9 @@ namespace WixSetup.Datadog_Agent
                         AttributesDefinition = "SupportsErrors=yes; SupportsInformationals=yes; SupportsWarnings=yes; KeyPath=yes"
                     }
             );
+            var scriptsBinDir = new Dir(new Id("SCRIPTS"), "scripts",
+                 new Files($@"{InstallerSource}\bin\scripts\*")
+            );
             var securityAgentService = GenerateDependentServiceInstaller(
                 new Id("ddagentsecurityservice"),
                 Constants.SecurityAgentServiceName,
@@ -616,8 +635,7 @@ namespace WixSetup.Datadog_Agent
                         // Tell MSI not to stop the services. We handle service stop manually in StopDDServices custom action.
                         StopOn = null,
                         RemoveOn = SvcEvent.Uninstall_Wait,
-                        Start = SvcStartType.auto,
-                        DelayedAutoStart = true,
+                        Start = SvcStartType.demand,
                         ServiceSid = ServiceSid.none,
                         FirstFailureActionType = FailureActionType.restart,
                         SecondFailureActionType = FailureActionType.restart,
@@ -629,8 +647,14 @@ namespace WixSetup.Datadog_Agent
                         Account = "LocalSystem",
                         Vital = true
                     }
-                )
+                ),
+                scriptsBinDir
             );
+            // TODO(AGENTCFG-XXX): SGC is not supported in FIPS mode
+            if (_agentFlavor.FlavorName != Constants.FipsFlavor)
+            {
+                targetBinFolder.AddFile(new WixSharp.File(_agentBinaries.SecretGenericConnector));
+            }
 
             return targetBinFolder;
         }
@@ -644,7 +668,7 @@ namespace WixSetup.Datadog_Agent
                 new Dir("run"),
                 new Dir("logs"),
                 new Dir(new Id("EXAMPLECONFSLOCATION"), "conf.d",
-                    new Files($@"{EtcSource}\extra_package_files\EXAMPLECONFSLOCATION\*")
+                    new Files($@"{EtcSource}\conf.d\*")
                 ));
 
             appData.AddDir(new Dir(new Id("security.d"),

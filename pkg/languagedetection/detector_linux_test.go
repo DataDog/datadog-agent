@@ -17,10 +17,10 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
 
-	"github.com/DataDog/datadog-agent/cmd/system-probe/api/server"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	languagepb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/languagedetection"
+	"github.com/DataDog/datadog-agent/pkg/system-probe/api/server"
 )
 
 func startTestUnixServer(t *testing.T, handler http.Handler) string {

@@ -5,7 +5,6 @@
 
 //go:build ec2
 
-// Package aws contains database-monitoring specific aurora discovery logic
 package aws
 
 import (
@@ -14,6 +13,7 @@ import (
 	"hash/fnv"
 	"strconv"
 
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/rds"
 	"github.com/aws/aws-sdk-go-v2/service/rds/types"
@@ -26,15 +26,6 @@ type AuroraCluster struct {
 	Instances []*Instance
 }
 
-// Instance represents an Aurora instance
-type Instance struct {
-	Endpoint   string
-	Port       int32
-	IamEnabled bool
-	Engine     string
-	DbName     string
-}
-
 const (
 	auroraPostgresqlEngine = "aurora-postgresql"
 	auroraMysqlEngine      = "aurora-mysql"
@@ -42,7 +33,7 @@ const (
 
 // GetAuroraClusterEndpoints queries an AWS account for the endpoints of an Aurora cluster
 // requires the dbClusterIdentifier for the cluster
-func (c *Client) GetAuroraClusterEndpoints(ctx context.Context, dbClusterIdentifiers []string) (map[string]*AuroraCluster, error) {
+func (c *Client) GetAuroraClusterEndpoints(ctx context.Context, dbClusterIdentifiers []string, dbmTag string) (map[string]*AuroraCluster, error) {
 	if len(dbClusterIdentifiers) == 0 {
 		return nil, fmt.Errorf("at least one database cluster identifier is required")
 	}
@@ -67,23 +58,10 @@ func (c *Client) GetAuroraClusterEndpoints(ctx context.Context, dbClusterIdentif
 				if db.Endpoint.Address == nil || db.DBInstanceStatus == nil || strings.ToLower(*db.DBInstanceStatus) != "available" {
 					continue
 				}
-				// Add to list of instances for the cluster
-				instance := &Instance{
-					Endpoint: *db.Endpoint.Address,
-				}
-				// Set if IAM is configured for the endpoint
-				if db.IAMDatabaseAuthenticationEnabled != nil {
-					instance.IamEnabled = *db.IAMDatabaseAuthenticationEnabled
-				}
-				// Set the port, if it is known
-				if db.Endpoint.Port != nil {
-					instance.Port = *db.Endpoint.Port
-				}
-				if db.Engine != nil {
-					instance.Engine = *db.Engine
-				}
-				if db.DBName != nil {
-					instance.DbName = *db.DBName
+				instance, err := makeInstance(db, dbmTag)
+				if err != nil {
+					log.Errorf("error creating instance from DBInstance: %v", err)
+					continue
 				}
 				if _, ok := clusters[*db.DBClusterIdentifier]; !ok {
 					clusters[*db.DBClusterIdentifier] = &AuroraCluster{
@@ -106,9 +84,6 @@ func (c *Client) GetAuroraClusterEndpoints(ctx context.Context, dbClusterIdentif
 // of database instances is to first query for the cluster ids. This also means the customer
 // will only have to set a single tag on their cluster.
 func (c *Client) GetAuroraClustersFromTags(ctx context.Context, tags []string) ([]string, error) {
-	if len(tags) == 0 {
-		return nil, fmt.Errorf("at least one tag filter is required")
-	}
 	clusterIdentifiers := make([]string, 0)
 	var marker *string
 	var err error

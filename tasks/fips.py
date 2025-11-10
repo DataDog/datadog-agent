@@ -19,7 +19,7 @@ def generate_fips_e2e_pipeline(ctx, generate_config=False):
     """
 
     skipped_test_fips = {
-        "new-e2e-otel": "TestOTelAgent",  # No FIPS + OTel image exists yet so these tests will never succeed
+        "new-e2e-otel": "TestOTelAgent.*",  # No FIPS + OTel image exists yet so these tests will never succeed
         "new-e2e-amp": ".*/TestJMXFIPSMode|TestJMXFetchNixMtls",  # These tests are explicitly testing the agent when FIPS is disabled
     }
 
@@ -40,6 +40,7 @@ def generate_fips_e2e_pipeline(ctx, generate_config=False):
     for job, job_details in config.items():
         if (
             'variables' in job_details
+            and isinstance(job_details, dict)
             and 'ON_NIGHTLY_FIPS' in job_details['variables']
             and job_details['variables']['ON_NIGHTLY_FIPS'] == "true"
             and not job.startswith(".")
@@ -51,7 +52,17 @@ def generate_fips_e2e_pipeline(ctx, generate_config=False):
         remove_fields(job)
         if "needs" in job:
             job["needs"] = update_needs_parent(
-                job["needs"], deps_to_keep=["go_e2e_deps", "tests_windows_sysprobe_x64", "tests_windows_secagent_x64"]
+                job["needs"],
+                deps_to_keep=["go_e2e_deps", "tests_windows_sysprobe_x64", "tests_windows_secagent_x64"],
+                package_deps=[
+                    "agent_deb-x64-a7-fips",
+                    "agent_deb-x64-a7",
+                    "windows_msi_and_bosh_zip_x64-a7-fips",
+                    "windows_msi_and_bosh_zip_x64-a7",
+                    "agent_rpm-x64-a7",
+                    "agent_suse-x64-a7",
+                ],
+                package_deps_suffix="-fips",
             )
 
     new_jobs = {}
@@ -93,6 +104,7 @@ def e2e_running_in_fips_mode_on_nightly(ctx):
             continue
         if (
             'variables' in job_details
+            and isinstance(job_details, dict)
             and 'ON_NIGHTLY_FIPS' in job_details['variables']
             and job_details['variables']['ON_NIGHTLY_FIPS'] == "true"
         ):

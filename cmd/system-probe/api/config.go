@@ -8,14 +8,15 @@ package api
 import (
 	"github.com/gorilla/mux"
 
-	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/modules"
 	"github.com/DataDog/datadog-agent/comp/core/settings"
+	"github.com/DataDog/datadog-agent/pkg/system-probe/config"
 )
 
 // setupConfigHandlers adds the specific handlers for /config endpoints
 func setupConfigHandlers(r *mux.Router, settings settings.Component) {
 	r.HandleFunc("/config", settings.GetFullConfig(getAggregatedNamespaces()...)).Methods("GET")
+	r.HandleFunc("/config/without-defaults", settings.GetFullConfigWithoutDefaults(getAggregatedNamespaces()...)).Methods("GET")
 	r.HandleFunc("/config/by-source", settings.GetFullConfigBySource()).Methods("GET")
 	r.HandleFunc("/config/list-runtime", settings.ListConfigurable).Methods("GET")
 	r.HandleFunc("/config/{setting}", settings.GetValue).Methods("GET")
@@ -26,7 +27,7 @@ func getAggregatedNamespaces() []string {
 	namespaces := []string{
 		config.Namespace,
 	}
-	for _, m := range modules.All {
+	for _, m := range modules.All() {
 		namespaces = append(namespaces, m.ConfigNamespaces...)
 	}
 	return namespaces

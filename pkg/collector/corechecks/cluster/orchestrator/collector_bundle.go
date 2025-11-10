@@ -9,15 +9,22 @@
 package orchestrator
 
 import (
+	"context"
 	"expvar"
 	"strings"
 	"sync"
 	"time"
 
+	"k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors/inventory"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors/k8s"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/discovery"
+	utilTypes "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/util"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
@@ -30,6 +37,11 @@ import (
 const (
 	defaultExtraSyncTimeout = 60 * time.Second
 	defaultMaximumCRDs      = 100
+	datadogAPIGroup         = "datadoghq.com"
+	ArgoAPIGroup            = "argoproj.io"
+	KarpenterAPIGroup       = "karpenter.sh"
+	KarpenterAWSAPIGroup    = "karpenter.k8s.aws"
+	KarpenterAzureAPIGroup  = "karpenter.azure.com"
 )
 
 var (
@@ -67,25 +79,36 @@ type CollectorBundle struct {
 // If that's not the case then it'll select all available collectors that are
 // marked as stable.
 func NewCollectorBundle(chk *OrchestratorCheck) *CollectorBundle {
-	bundle := &CollectorBundle{
-		discoverCollectors: chk.orchestratorConfig.CollectorDiscoveryEnabled,
-		check:              chk,
-		inventory:          inventory.NewCollectorInventory(chk.cfg, chk.wlmStore, chk.tagger),
-		runCfg: &collectors.CollectorRunConfig{
-			K8sCollectorRunConfig: collectors.K8sCollectorRunConfig{
-				APIClient:                   chk.apiClient,
-				OrchestratorInformerFactory: chk.orchestratorInformerFactory,
-			},
-			ClusterID:   chk.clusterID,
-			Config:      chk.orchestratorConfig,
-			MsgGroupRef: chk.groupID,
+	runCfg := &collectors.CollectorRunConfig{
+		K8sCollectorRunConfig: collectors.K8sCollectorRunConfig{
+			APIClient:                   chk.apiClient,
+			OrchestratorInformerFactory: chk.orchestratorInformerFactory,
 		},
-		stopCh:              chk.stopCh,
-		manifestBuffer:      NewManifestBuffer(chk),
-		collectorDiscovery:  discovery.NewDiscoveryCollectorForInventory(),
-		activatedCollectors: map[string]struct{}{},
+		ClusterID:    chk.clusterID,
+		Config:       chk.orchestratorConfig,
+		MsgGroupRef:  chk.groupID,
+		AgentVersion: chk.agentVersion,
 	}
-	bundle.terminatedResourceBundle = NewTerminatedResourceBundle(chk, bundle.runCfg, bundle.manifestBuffer)
+	terminatedResourceRunCfg := &collectors.CollectorRunConfig{
+		K8sCollectorRunConfig: runCfg.K8sCollectorRunConfig,
+		ClusterID:             runCfg.ClusterID,
+		Config:                runCfg.Config,
+		MsgGroupRef:           runCfg.MsgGroupRef,
+		TerminatedResources:   true,
+	}
+	manifestBuffer := NewManifestBuffer(chk)
+
+	bundle := &CollectorBundle{
+		discoverCollectors:       chk.orchestratorConfig.CollectorDiscoveryEnabled,
+		check:                    chk,
+		inventory:                inventory.NewCollectorInventory(chk.cfg, chk.wlmStore, chk.tagger),
+		runCfg:                   runCfg,
+		stopCh:                   chk.stopCh,
+		manifestBuffer:           manifestBuffer,
+		collectorDiscovery:       discovery.NewDiscoveryCollectorForInventory(),
+		activatedCollectors:      map[string]struct{}{},
+		terminatedResourceBundle: NewTerminatedResourceBundle(chk, terminatedResourceRunCfg, manifestBuffer),
+	}
 	bundle.prepare()
 
 	return bundle
@@ -106,7 +129,7 @@ func (cb *CollectorBundle) prepareCollectors() {
 		}
 	}
 
-	defer cb.addTerminatedCollectorIfStable()
+	defer cb.importBuiltinCollectors()
 
 	if ok := cb.importCollectorsFromCheckConfig(); ok {
 		return
@@ -402,29 +425,178 @@ func (cb *CollectorBundle) GetTerminatedResourceBundle() *TerminatedResourceBund
 	return cb.terminatedResourceBundle
 }
 
-// addTerminatedCollector adds terminated pod collector if unassigned pod collector is added
-func (cb *CollectorBundle) addTerminatedCollectorIfStable() {
+// importBuiltinCollectors imports the builtin collectors into the bundle.
+func (cb *CollectorBundle) importBuiltinCollectors() {
+	// add builtin CR collectors
+	builtinCollectors := cb.getBuiltinCustomResourceCollectors()
+
+	// add terminated pod collector
+	terminatedPodCollector := cb.getTerminatedPodCollector()
+	if terminatedPodCollector != nil {
+		builtinCollectors = append(builtinCollectors, terminatedPodCollector)
+	}
+
+	// add builtin collectors and check if they are already activated
+	for _, collector := range builtinCollectors {
+		if _, ok := cb.activatedCollectors[collector.Metadata().FullName()]; ok {
+			log.Debugf("collector %s has already been added", collector.Metadata().FullName())
+			continue
+		}
+
+		cb.activatedCollectors[collector.Metadata().FullName()] = struct{}{}
+		log.Debugf("import builtin collector: %s", collector.Metadata().FullName())
+		cb.collectors = append(cb.collectors, collector)
+	}
+}
+
+// builtinCRDConfig represents the configuration for a built-in custom resource definition.
+type builtinCRDConfig struct {
+	// group is the API group name for the custom resource
+	group string
+	// kind is the resource kind name
+	kind string
+	// enabled indicates whether collection of this CRD is enabled
+	enabled bool
+	// preferredVersion is the preferred API version we want to collect for this custom resource
+	preferredVersion string
+	// fallbackVersions is a list of versions that we can fall back to in order when preferredVersion is unavailable
+	fallbackVersions []string
+}
+
+// newBuiltinCRDConfig creates a new builtinCRDConfig.
+func newBuiltinCRDConfig(group, kind string, enabled bool, preferredVersion string, fallbackVersions ...string) builtinCRDConfig {
+	return builtinCRDConfig{
+		group:            group,
+		preferredVersion: preferredVersion,
+		fallbackVersions: fallbackVersions,
+		kind:             kind,
+		enabled:          enabled,
+	}
+}
+
+// newBuiltinCRDConfigs returns the configuration for all built-in CRDs.
+func newBuiltinCRDConfigs() []builtinCRDConfig {
+	isOOTBCRDEnabled := pkgconfigsetup.Datadog().GetBool("orchestrator_explorer.custom_resources.ootb.enabled")
+
+	return []builtinCRDConfig{
+		// Datadog resources
+		newBuiltinCRDConfig(datadogAPIGroup, "datadogslos", isOOTBCRDEnabled, "v1alpha1"),
+		newBuiltinCRDConfig(datadogAPIGroup, "datadogdashboards", isOOTBCRDEnabled, "v1alpha1"),
+		newBuiltinCRDConfig(datadogAPIGroup, "datadogagentprofiles", isOOTBCRDEnabled, "v1alpha1"),
+		newBuiltinCRDConfig(datadogAPIGroup, "datadogmonitors", isOOTBCRDEnabled, "v1alpha1"),
+		newBuiltinCRDConfig(datadogAPIGroup, "datadogmetrics", isOOTBCRDEnabled, "v1alpha1"),
+		newBuiltinCRDConfig(datadogAPIGroup, "datadogpodautoscalers", isOOTBCRDEnabled, "v1alpha2"),
+		newBuiltinCRDConfig(datadogAPIGroup, "datadogagents", isOOTBCRDEnabled, "v2alpha1"),
+
+		// Argo resources
+		newBuiltinCRDConfig(ArgoAPIGroup, "rollouts", isOOTBCRDEnabled, "v1alpha1"),
+
+		// Karpenter resources (empty kind = all resources in group)
+		newBuiltinCRDConfig(KarpenterAPIGroup, "", isOOTBCRDEnabled, "v1"),
+		newBuiltinCRDConfig(KarpenterAWSAPIGroup, "", isOOTBCRDEnabled, "v1"),
+		newBuiltinCRDConfig(KarpenterAzureAPIGroup, "", isOOTBCRDEnabled, "v1beta1"),
+	}
+}
+
+// getBuiltinCustomResourceCollectors returns the list of builtin custom resource collectors.
+func (cb *CollectorBundle) getBuiltinCustomResourceCollectors() []collectors.K8sCollector {
+	// Check if the CRD collector is present, if not, return an empty list
+	// This is to ensure that we only collect CRs if the CRD collector is present
+	if !cb.hasCRDCollector() {
+		return []collectors.K8sCollector{}
+	}
+
+	crCollectors := make([]collectors.K8sCollector, 0, 10)
+	for _, builtinCustomResource := range newBuiltinCRDConfigs() {
+		crCollectors = append(crCollectors, cb.collectorsForBuiltinCRD(builtinCustomResource)...)
+	}
+
+	crCollectors = filterCRCollectorsByPermission(crCollectors, cb.isForbidden)
+
+	return crCollectors
+}
+
+// collectorsForBuiltinCRD returns the list of collectors for a built-in CRD.
+func (cb *CollectorBundle) collectorsForBuiltinCRD(builtinCustomResource builtinCRDConfig) []collectors.K8sCollector {
+	if !builtinCustomResource.enabled {
+		return nil
+	}
+
+	version, ok := cb.collectorDiscovery.OptimalVersion(builtinCustomResource.group, builtinCustomResource.preferredVersion, builtinCustomResource.fallbackVersions)
+	if !ok {
+		log.Infof("Skipping built-in CR collector: no supported version found for %s/%s (preferred: %s, fallback: %s)",
+			builtinCustomResource.group, builtinCustomResource.kind, builtinCustomResource.preferredVersion, builtinCustomResource.fallbackVersions)
+		return nil
+	}
+
+	crCollectors := make([]collectors.K8sCollector, 0, 10)
+	crs := cb.collectorDiscovery.List(builtinCustomResource.group, version, builtinCustomResource.kind)
+	for _, c := range crs {
+		collector, err := cb.collectorDiscovery.VerifyForCRDInventory(c.Kind, c.GroupVersion)
+		if err != nil {
+			log.Infof("Unsupported built-in CR collector: %s/%s: %s", c.GroupVersion, c.Kind, err)
+			continue
+		}
+
+		crCollectors = append(crCollectors, collector)
+	}
+	return crCollectors
+}
+
+// hasCRDCollector returns true if the CRD collector is present.
+func (cb *CollectorBundle) hasCRDCollector() bool {
+	for _, collector := range cb.collectors {
+		if collector.Metadata().Name == utilTypes.CrdName {
+			return true
+		}
+	}
+	return false
+}
+
+// getTerminatedPodCollector returns the terminated pod collector if the unassigned pod collector is present and the terminated pod collector is stable.
+func (cb *CollectorBundle) getTerminatedPodCollector() collectors.K8sCollector {
 	hasUnassignedPodCollector := false
 	hasTerminatedPodCollector := false
 	for _, collector := range cb.collectors {
-		if collector.Metadata().Name == "pods" {
+		if collector.Metadata().Name == utilTypes.PodName {
 			hasUnassignedPodCollector = true
 		}
-		if collector.Metadata().Name == "terminated-pods" {
+		if collector.Metadata().Name == utilTypes.TerminatedPodName {
 			hasTerminatedPodCollector = true
 		}
 	}
 
 	// add terminated pod collector if unassigned pod collector is added and terminated pod collector is stable
 	if hasUnassignedPodCollector && !hasTerminatedPodCollector {
-		terminatedPodCollector, err := cb.collectorDiscovery.VerifyForInventory("terminated-pods", "", cb.inventory)
+		terminatedPodCollector, err := cb.collectorDiscovery.VerifyForInventory(utilTypes.TerminatedPodName, "", cb.inventory)
 		if err != nil {
 			log.Warnf("Unabled to add terminated pod collector: %s", err)
-			return
+			return nil
 		}
 		if terminatedPodCollector.Metadata().IsStable {
-			cb.collectors = append(cb.collectors, terminatedPodCollector)
-			return
+			return terminatedPodCollector
 		}
 	}
+	return nil
+}
+
+// isForbidden runs a single List request to check if cluster agent is forbidden to list the given resource
+func (cb *CollectorBundle) isForbidden(gvr schema.GroupVersionResource) bool {
+	_, err := cb.runCfg.APIClient.DynamicCl.Resource(gvr).List(context.Background(), metav1.ListOptions{})
+	return errors.IsForbidden(err)
+}
+
+// filterCRCollectorsByPermission filters collectors based on permissions, keeping only those with sufficient access.
+func filterCRCollectorsByPermission(crCollectors []collectors.K8sCollector, isForbidden func(gvr schema.GroupVersionResource) bool) []collectors.K8sCollector {
+	filteredCollectors := make([]collectors.K8sCollector, 0, len(crCollectors))
+	for _, c := range crCollectors {
+		if cr, ok := c.(*k8s.CRCollector); ok {
+			if isForbidden(cr.GetGRV()) {
+				log.Infof("Skipping built-in collector due to insufficient permissions: %s", cr.GetGRV().String())
+				continue
+			}
+			filteredCollectors = append(filteredCollectors, c)
+		}
+	}
+	return filteredCollectors
 }

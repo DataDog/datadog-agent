@@ -17,26 +17,34 @@ import (
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
+	bugs "github.com/DataDog/datadog-agent/pkg/ebpf/kernelbugs"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/perf"
 	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
-	"github.com/DataDog/datadog-agent/pkg/util/fargate"
 )
 
 const probeUID = "net"
 
-// ErrorNotSupported is the error when entry tracer is not supported on an environment
-var ErrorNotSupported = errors.New("fentry tracer is only supported on Fargate")
+// ErrorDisabled is the error that occurs when enable_fentry is false
+var ErrorDisabled = errors.New("fentry tracer is disabled")
 
 // LoadTracer loads a new tracer
 func LoadTracer(config *config.Config, mgrOpts manager.Options, connCloseEventHandler *perf.EventHandler) (*ddebpf.Manager, func(), error) {
-	if !fargate.IsFargateInstance() {
-		return nil, nil, ErrorNotSupported
+	if !config.EnableFentry {
+		return nil, nil, ErrorDisabled
+	}
+
+	hasPotentialFentryDeadlock, err := bugs.HasTasksRCUExitLockSymbol()
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to check HasTasksRCUExitLockSymbol: %w", err)
+	}
+	if hasPotentialFentryDeadlock {
+		return nil, nil, fmt.Errorf("unable to load fentry because this kernel version has a potential deadlock (fixed in kernel v6.9+)")
 	}
 
 	m := ddebpf.NewManagerWithDefault(&manager.Manager{}, "network", &ebpftelemetry.ErrorsTelemetryModifier{}, connCloseEventHandler)
-	err := ddebpf.LoadCOREAsset(netebpf.ModuleFileName("tracer-fentry", config.BPFDebug), func(ar bytecode.AssetReader, o manager.Options) error {
+	err = ddebpf.LoadCOREAsset(netebpf.ModuleFileName("tracer-fentry", config.BPFDebug), func(ar bytecode.AssetReader, o manager.Options) error {
 		o.RemoveRlimit = mgrOpts.RemoveRlimit
 		o.MapSpecEditors = mgrOpts.MapSpecEditors
 		o.ConstantEditors = mgrOpts.ConstantEditors

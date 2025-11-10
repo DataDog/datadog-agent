@@ -112,10 +112,9 @@ func newSpringBootParser(ctx DetectionContext) *springBootParser {
 }
 
 // parseURI parses locations (usually specified by the property locationPropName) given the list of active profiles (specified by activeProfilesPropName)
-// and the current directory cwd.
 // It returns a couple of maps each having as key the profile name ("" stands for default one) and as value the ant patterns where the properties should be found
 // The first map returned is the locations to be found in fs while the second map contains locations on the classpath (usually inside the application jar)
-func (springBootParser) parseURI(locations []string, name string, profiles []string, cwd string) (map[string][]string, map[string][]string) {
+func (s springBootParser) parseURI(locations []string, name string, profiles []string) (map[string][]string, map[string][]string) {
 	classpaths := make(map[string][]string)
 	files := make(map[string][]string)
 	for _, current := range locations {
@@ -134,7 +133,7 @@ func (springBootParser) parseURI(locations []string, name string, profiles []str
 			if isClasspath {
 				classpaths[profile] = append(classpaths[profile], name)
 			} else {
-				files[profile] = append(files[profile], abs(name, cwd))
+				files[profile] = append(files[profile], s.ctx.resolveWorkingDirRelativePath(name))
 			}
 		}
 		if strings.HasSuffix(parts[pl-1], "/") {
@@ -296,8 +295,7 @@ func newSpringBootArchiveSourceFromReader(reader *zip.Reader, patternMap map[str
 // the jar path and the application arguments.
 // When resolving properties, it supports placeholder resolution (a = ${b} -> will lookup then b)
 func (s springBootParser) GetSpringBootAppName(jarname string) (string, bool) {
-	cwd, _ := workingDirFromEnvs(s.ctx.Envs)
-	absName := abs(jarname, cwd)
+	absName := s.ctx.resolveWorkingDirRelativePath(jarname)
 
 	file, err := s.ctx.fs.Open(absName)
 	if err != nil {
@@ -327,7 +325,6 @@ func (s springBootParser) getSpringBootAppNameFromJar(reader *zip.Reader) (strin
 type classpathSourcesCallback func(map[string][]string) map[string]*props.Combined
 
 func (s springBootParser) getSpringBootAppNameWithReader(getClasspathSources classpathSourcesCallback) (string, bool) {
-	cwd, _ := workingDirFromEnvs(s.ctx.Envs)
 	combined := &props.Combined{Sources: []props.PropertyGetter{
 		newArgumentSource(s.ctx.Args, "--"),
 		newArgumentSource(s.ctx.Args, "-D"),
@@ -350,7 +347,7 @@ func (s springBootParser) getSpringBootAppNameWithReader(getClasspathSources cla
 	if ok && len(rawProfile) > 0 {
 		profiles = strings.Split(rawProfile, ",")
 	}
-	files, classpaths := s.parseURI(locations, confname, profiles, cwd)
+	files, classpaths := s.parseURI(locations, confname, profiles)
 	fileSources := s.scanSourcesFromFileSystem(files)
 	classpathSources := getClasspathSources(classpaths)
 	//assemble by profile
@@ -386,11 +383,10 @@ func (s springBootParser) GetSpringBootLauncherAppName() (string, bool) {
 		return "", false
 	}
 
-	cwd, _ := workingDirFromEnvs(s.ctx.Envs)
 	// To limit the amount of processing, we only support the most common case
 	// of having the files in the first entry in the classpath (or in the
 	// default classpath if not explicit classpath is specified).
-	basePath := abs(classPath[0], cwd)
+	basePath := s.ctx.resolveWorkingDirRelativePath(classPath[0])
 
 	var name string
 	var ok bool

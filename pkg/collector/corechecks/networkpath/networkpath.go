@@ -51,11 +51,17 @@ func (c *Check) Run() error {
 	metricSender := metricsender.NewMetricSenderAgent(senderInstance)
 
 	cfg := config.Config{
-		DestHostname: c.config.DestHostname,
-		DestPort:     c.config.DestPort,
-		MaxTTL:       c.config.MaxTTL,
-		Timeout:      c.config.Timeout,
-		Protocol:     c.config.Protocol,
+		DestHostname:              c.config.DestHostname,
+		DestPort:                  c.config.DestPort,
+		MaxTTL:                    c.config.MaxTTL,
+		Timeout:                   c.config.Timeout,
+		Protocol:                  c.config.Protocol,
+		TCPMethod:                 c.config.TCPMethod,
+		TCPSynParisTracerouteMode: c.config.TCPSynParisTracerouteMode,
+		DisableWindowsDriver:      c.config.DisableWindowsDriver,
+		ReverseDNS:                true,
+		TracerouteQueries:         c.config.TracerouteQueries,
+		E2eQueries:                c.config.E2eQueries,
 	}
 
 	tr, err := traceroute.New(cfg, c.telemetryComp)
@@ -66,19 +72,19 @@ func (c *Check) Run() error {
 	if err != nil {
 		return fmt.Errorf("failed to trace path: %w", err)
 	}
+
+	err = payload.ValidateNetworkPath(&path)
+	if err != nil {
+		return fmt.Errorf("failed to validate network path: %w", err)
+	}
+
 	path.Namespace = c.config.Namespace
 	path.Origin = payload.PathOriginNetworkPathIntegration
 
 	// Add tags to path
 	path.Source.Service = c.config.SourceService
 	path.Destination.Service = c.config.DestinationService
-	path.Tags = c.config.Tags
-
-	// Perform reverse DNS lookup
-	path.Destination.ReverseDNSHostname = traceroute.GetHostname(path.Destination.IPAddress)
-	for i := range path.Hops {
-		path.Hops[i].Hostname = traceroute.GetHostname(path.Hops[i].IPAddress)
-	}
+	path.Tags = append(path.Tags, c.config.Tags...)
 
 	// send to EP
 	err = c.SendNetPathMDToEP(senderInstance, path)
@@ -87,6 +93,8 @@ func (c *Check) Run() error {
 	}
 
 	metricTags := append(utils.GetCommonAgentTags(), c.config.Tags...)
+
+	// TODO: Remove static path telemetry code (separate PR)
 	c.submitTelemetry(metricSender, path, metricTags, startTime)
 
 	senderInstance.Commit()

@@ -8,8 +8,6 @@
 package http
 
 import (
-	"time"
-
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 )
 
@@ -26,4 +24,4 @@ func NewIncompleteBuffer(*config.Config, *Telemetry) IncompleteBuffer {
 func (b *incompleteBuffer) Add(Transaction) {}
 
 //nolint:revive // TODO(WKIT) Fix revive linter
-func (b *incompleteBuffer) Flush(time.Time) []Transaction { return nil }
+func (b *incompleteBuffer) Flush() []Transaction { return nil }

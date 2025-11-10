@@ -13,6 +13,7 @@ import (
 
 const (
 	eksClusterNameLabelKey       = "alpha.eksctl.io/cluster-name"
+	aksClusterNameLabelKey       = "kubernetes.azure.com/cluster"
 	datadogADClusterNameLabelKey = "ad.datadoghq.com/cluster-name"
 )
 
@@ -28,6 +29,7 @@ var (
 	// We use a slice to define the default Node label key to keep the ordering
 	defaultClusterNameLabelKeyConfigs = []clusterNameLabelType{
 		{key: eksClusterNameLabelKey, shouldOverride: false},
+		{key: aksClusterNameLabelKey, shouldOverride: false},
 		{key: datadogADClusterNameLabelKey, shouldOverride: true},
 	}
 )

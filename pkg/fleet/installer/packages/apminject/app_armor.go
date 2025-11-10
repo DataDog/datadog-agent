@@ -16,7 +16,7 @@ import (
 	"os/exec"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/systemd"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/service/systemd"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -73,7 +73,7 @@ func patchBaseProfileWithDatadogInclude(filename string) error {
 		}
 	}
 
-	if err := scanner.Err(); err != nil {
+	if err = scanner.Err(); err != nil {
 		return err
 	}
 
@@ -96,8 +96,14 @@ func setupAppArmor(ctx context.Context) (err error) {
 		return nil
 	}
 
+	// check if apparmor is running properly by executing aa-status
+	if err = tracedCommand(ctx, "aa-status"); err != nil {
+		// no-op is apparmor is not running properly
+		return nil
+	}
+
 	// make sure base profile exists before we continue
-	if _, err := os.Stat(appArmorBaseProfile); errors.Is(err, os.ErrNotExist) {
+	if _, err = os.Stat(appArmorBaseProfile); errors.Is(err, os.ErrNotExist) {
 		return nil
 	}
 

@@ -12,15 +12,14 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/language"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/usm"
-	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
+	"github.com/DataDog/datadog-agent/pkg/trace/traceutil/normalize"
 )
 
 // ServiceMetadata stores metadata about a service.
 type ServiceMetadata struct {
-	Name               string
-	Language           string
-	Type               string
-	APMInstrumentation string
+	Name     string
+	Language string
+	Type     string
 }
 
 func fixAdditionalNames(additionalNames []string) []string {
@@ -36,7 +35,7 @@ func fixAdditionalNames(additionalNames []string) []string {
 
 		// lang is only used for fallback names, which we don't use since we
 		// check for errors.
-		norm, err := traceutil.NormalizeService(v, "")
+		norm, err := normalize.NormalizeService(v, "")
 		if err == nil {
 			out = append(out, norm)
 		}
@@ -54,10 +53,7 @@ func fixupMetadata(meta usm.ServiceMetadata, lang language.Language) usm.Service
 	if lang != language.Unknown {
 		langName = string(lang)
 	}
-	meta.Name, _ = traceutil.NormalizeService(meta.Name, langName)
-	if meta.DDService != "" {
-		meta.DDService, _ = traceutil.NormalizeService(meta.DDService, langName)
-	}
+	meta.Name, _ = normalize.NormalizeService(meta.Name, langName)
 
 	return meta
 }

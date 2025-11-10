@@ -12,20 +12,65 @@ import (
 	"net"
 	"net/netip"
 	"reflect"
+	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
-	"github.com/DataDog/datadog-agent/pkg/security/secl/model/usersession"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model/utils"
 )
+
+var (
+	// defaultLegacyFields holds the default legacy field mapping for backward compatibility
+	// It is set by SetLegacyFields when the model is initialized with the correct mapping for the platform
+	defaultLegacyFields   map[eval.Field]eval.Field
+	defaultLegacyFieldsMu sync.RWMutex
+)
+
+// SetDefaultLegacyFields sets the default legacy field mapping used by the accessors
+func SetDefaultLegacyFields(legacyFields map[eval.Field]eval.Field) {
+	defaultLegacyFieldsMu.Lock()
+	defer defaultLegacyFieldsMu.Unlock()
+	defaultLegacyFields = legacyFields
+}
+
+// GetDefaultLegacyFields returns the field mapped from a legacy field if it exists
+func GetDefaultLegacyFields(field eval.Field) (eval.Field, bool) {
+	defaultLegacyFieldsMu.RLock()
+	defer defaultLegacyFieldsMu.RUnlock()
+	if defaultLegacyFields == nil {
+		return "", false
+	}
+	newField, found := defaultLegacyFields[field]
+	return newField, found
+}
+
+// GetDefaultLegacyFieldsKeys returns all legacy field keys
+func GetDefaultLegacyFieldsKeys() []eval.Field {
+	defaultLegacyFieldsMu.RLock()
+	defer defaultLegacyFieldsMu.RUnlock()
+	if defaultLegacyFields == nil {
+		return nil
+	}
+	keys := make([]eval.Field, 0, len(defaultLegacyFields))
+	for key := range defaultLegacyFields {
+		keys = append(keys, key)
+	}
+	return keys
+}
 
 // Model describes the data model for the runtime security agent events
 type Model struct {
 	ExtraValidateFieldFnc func(field eval.Field, fieldValue eval.FieldValue) error
+	legacyFields          map[eval.Field]eval.Field
 }
 
-var containerContextZero ContainerContext
+// SetLegacyFields sets the legacy field mapping for backwards compatibility
+func (m *Model) SetLegacyFields(legacyFields map[eval.Field]eval.Field) {
+	m.legacyFields = legacyFields
+	// Also set as default for accessors
+	SetDefaultLegacyFields(legacyFields)
+}
 
 // Releasable represents an object than can be released
 type Releasable struct {
@@ -53,12 +98,17 @@ type ContainerContext struct {
 	CreatedAt   uint64                     `field:"created_at,handler:ResolveContainerCreatedAt,opts:gen_getters"` // SECLDoc[created_at] Definition:`Timestamp of the creation of the container``
 	Tags        []string                   `field:"tags,handler:ResolveContainerTags,opts:skip_ad,weight:9999"`    // SECLDoc[tags] Definition:`Tags of the container`
 	Resolved    bool                       `field:"-"`
-	Runtime     string                     `field:"runtime,handler:ResolveContainerRuntime"` // SECLDoc[runtime] Definition:`Runtime managing the container`
 }
 
-// Hash returns a unique key for the entity
-func (c *ContainerContext) Hash() string {
-	return string(c.ContainerID)
+// Key returns a unique key for the entity
+func (c *ContainerContext) Key() (string, bool) {
+	cID := string(c.ContainerID)
+	return cID, cID != ""
+}
+
+// ParentScope returns the parent entity scope
+func (c *ContainerContext) ParentScope() (eval.VariableScope, bool) {
+	return nil, false
 }
 
 // SecurityProfileContext holds the security context of the profile
@@ -97,6 +147,7 @@ type NetworkContext struct {
 	Destination      IPPortContext `field:"destination"`       // destination of the network packet
 	NetworkDirection uint32        `field:"network_direction"` // SECLDoc[network_direction] Definition:`Network direction of the network packet` Constants:`Network directions`
 	Size             uint32        `field:"size"`              // SECLDoc[size] Definition:`Size in bytes of the network packet`
+	Type             uint32        `field:"type"`              // SECLDoc[type] Definition:`Type of the network packet` Constants:`Network Protocol Types`
 }
 
 // IsZero returns if there is a network context
@@ -110,6 +161,26 @@ type SpanContext struct {
 	TraceID utils.TraceID `field:"-"`
 }
 
+// RuleContext defines a rule context
+type RuleContext struct {
+	Expression       string                `field:"-"`
+	MatchingSubExprs eval.MatchingSubExprs `field:"-"`
+}
+
+// FileMetadata represents file metadata
+type FileMetadata struct {
+	Size               int64 `field:"size,handler:ResolveFileMetadataSize,opts:skip_ad,weight:999"`                               // SECLDoc[size] Definition:`[Experimental] Size of the file`
+	Type               int   `field:"type,handler:ResolveFileMetadataType,opts:skip_ad,weight:999"`                               // SECLDoc[type] Definition:`[Experimental] Type of the file` Constants:`FileType`
+	IsExecutable       bool  `field:"is_executable,handler:ResolveFileMetadataIsExecutable,opts:skip_ad,weight:999"`              // SECLDoc[is_executable] Definition:`[Experimental] Tells if the file is executable or not`
+	Architecture       int   `field:"architecture,handler:ResolveFileMetadataArchitecture,opts:skip_ad,weight:999"`               // SECLDoc[architecture] Definition:`[Experimental] Architecture of the file (only for executable files)` Constants:`Architecture`
+	ABI                int   `field:"abi,handler:ResolveFileMetadataABI,opts:skip_ad,weight:999"`                                 // SECLDoc[abi] Definition:`[Experimental] ABI of the file (only for executable files)` Constants:`ABI`
+	IsUPXPacked        bool  `field:"is_upx_packed,handler:ResolveFileMetadataIsUPXPacked,opts:skip_ad,weight:999"`               // SECLDoc[is_upx_packed] Definition:`[Experimental] Tells if the binary has been packed using UPX`
+	Compression        int   `field:"compression,handler:ResolveFileMetadataCompression,opts:skip_ad,weight:999"`                 // SECLDoc[compression] Definition:`[Experimental] Compression type of the file (only for compressed files)` Constants:`CompressionType`
+	IsGarbleObfuscated bool  `field:"is_garble_obfuscated,handler:ResolveFileMetadataIsGarbleObfuscated,opts:skip_ad,weight:999"` // SECLDoc[is_garble_obfuscated] Definition:`[Experimental] Tells if the binary has been obfuscated using garble`
+	Linkage            int   `field:"-"`
+	Resolved           bool  `field:"-"`
+}
+
 // BaseEvent represents an event sent from the kernel
 type BaseEvent struct {
 	ID            string         `field:"-"`
@@ -118,15 +189,17 @@ type BaseEvent struct {
 	TimestampRaw  uint64         `field:"event.timestamp,handler:ResolveEventTimestamp"` // SECLDoc[event.timestamp] Definition:`Timestamp of the event`
 	Timestamp     time.Time      `field:"timestamp,opts:getters_only|gen_getters,handler:ResolveEventTime"`
 	Rules         []*MatchedRule `field:"-"`
+	RuleContext   RuleContext    `field:"-"`
 	ActionReports []ActionReport `field:"-"`
 	Os            string         `field:"event.os"`                                                      // SECLDoc[event.os] Definition:`Operating system of the event`
 	Origin        string         `field:"event.origin"`                                                  // SECLDoc[event.origin] Definition:`Origin of the event`
 	Service       string         `field:"event.service,handler:ResolveService,opts:skip_ad|gen_getters"` // SECLDoc[event.service] Definition:`Service associated with the event`
 	Hostname      string         `field:"event.hostname,handler:ResolveHostname"`                        // SECLDoc[event.hostname] Definition:`Hostname associated with the event`
+	RuleTags      []string       `field:"event.rule.tags"`                                               // SECLDoc[event.rule.tags] Definition:`Tags associated with the rule that's used to evaluate the event`
+	Source        string         `field:"event.source,handler:ResolveSource"`                            // SECLDoc[event.source] Definition:`[Experimental] Source of the event. Can be either 'runtime' or 'snapshot'.`
 
-	// context shared with all events
+	// context shared with all event types
 	ProcessContext         *ProcessContext        `field:"process"`
-	ContainerContext       *ContainerContext      `field:"container"`
 	SecurityProfileContext SecurityProfileContext `field:"-"`
 
 	// internal usage
@@ -200,6 +273,11 @@ func (e *Event) IsAnomalyDetectionEvent() bool {
 	return e.Flags&EventFlagsAnomalyDetectionEvent > 0
 }
 
+// IsSnapshotEvent returns true if the event is generated from a snapshot replay
+func (e *Event) IsSnapshotEvent() bool {
+	return e.Flags&EventFlagsIsSnapshot > 0
+}
+
 // AddToFlags adds a flag to the event
 func (e *Event) AddToFlags(flag uint32) {
 	e.Flags |= flag
@@ -232,8 +310,8 @@ func (e *Event) GetTags() []string {
 	tags := []string{"type:" + e.GetType()}
 
 	// should already be resolved at this stage
-	if len(e.ContainerContext.Tags) > 0 {
-		tags = append(tags, e.ContainerContext.Tags...)
+	if e.ProcessContext != nil && len(e.ProcessContext.Process.ContainerContext.Tags) > 0 {
+		tags = append(tags, e.ProcessContext.Process.ContainerContext.Tags...)
 	}
 	return tags
 }
@@ -246,21 +324,6 @@ func (e *Event) GetActionReports() []ActionReport {
 // GetWorkloadID returns an ID that represents the workload
 func (e *Event) GetWorkloadID() string {
 	return e.SecurityProfileContext.Name
-}
-
-// Retain the event
-func (e *Event) Retain() Event {
-	if e.ProcessCacheEntry != nil {
-		e.ProcessCacheEntry.Retain()
-	}
-	return *e
-}
-
-// Release the event
-func (e *Event) Release() {
-	if e.ProcessCacheEntry != nil {
-		e.ProcessCacheEntry.Release()
-	}
 }
 
 // ResolveProcessCacheEntry uses the field handler
@@ -278,12 +341,20 @@ func (e *Event) ResolveService() string {
 	return e.FieldHandlers.ResolveService(e, &e.BaseEvent)
 }
 
+// GetProcessTracerTags returns the value of the field, resolving if necessary
+func (e *Event) GetProcessTracerTags() []string {
+	if e.BaseEvent.ProcessContext == nil {
+		return []string{}
+	}
+	return e.BaseEvent.ProcessContext.Process.TracerTags
+}
+
 // UserSessionContext describes the user session context
 // Disclaimer: the `json` tags are used to parse K8s credentials from cws-instrumentation
 type UserSessionContext struct {
-	ID          uint64           `field:"-"`
-	SessionType usersession.Type `field:"-"`
-	Resolved    bool             `field:"-"`
+	ID          uint64 `field:"id"`           // SECLDoc[id] Definition:`Unique identifier of the user session on the host`
+	SessionType int    `field:"session_type"` // SECLDoc[session_type] Definition:`Type of the user session`
+	Resolved    bool   `field:"-"`
 	// Kubernetes User Session context
 	K8SUsername string              `field:"k8s_username,handler:ResolveK8SUsername" json:"username,omitempty"` // SECLDoc[k8s_username] Definition:`Kubernetes username of the user that executed the process`
 	K8SUID      string              `field:"k8s_uid,handler:ResolveK8SUID" json:"uid,omitempty"`                // SECLDoc[k8s_uid] Definition:`Kubernetes UID of the user that executed the process`
@@ -419,7 +490,7 @@ type ProcessCacheEntry struct {
 
 // IsContainerRoot returns whether this is a top level process in the container ID
 func (pc *ProcessCacheEntry) IsContainerRoot() bool {
-	return pc.ContainerID != "" && pc.Ancestor != nil && pc.Ancestor.ContainerID == ""
+	return pc.Process.ContainerContext.ContainerID != "" && pc.Ancestor != nil && pc.Ancestor.ContainerContext.ContainerID == ""
 }
 
 // Reset the entry
@@ -454,8 +525,8 @@ func (pc *ProcessCacheEntry) callReleaseCallbacks() {
 
 // Release decrement and eventually release the entry
 func (pc *ProcessCacheEntry) Release() {
-	pc.refCount--
-	if pc.refCount > 0 {
+	if pc.refCount > 1 {
+		pc.refCount--
 		return
 	}
 
@@ -541,6 +612,11 @@ type ProcessContext struct {
 	Ancestor *ProcessCacheEntry `field:"ancestors,iterator:ProcessAncestorsIterator,check:IsNotKworker"`
 }
 
+// HasResponse returns whether the DNS event has a response
+func (de *DNSEvent) HasResponse() bool {
+	return de.Response != nil
+}
+
 // ExitEvent represents a process exit event
 type ExitEvent struct {
 	*Process
@@ -548,19 +624,35 @@ type ExitEvent struct {
 	Code  uint32 `field:"code,opts:gen_getters"` // SECLDoc[code] Definition:`Exit code of the process or number of the signal that caused the process to terminate`
 }
 
-// DNSEvent represents a DNS event
+// DNSQuestion represents the dns question
+type DNSQuestion struct {
+	Name  string `field:"name,opts:length" op_override:"eval.CaseInsensitiveCmp"` // SECLDoc[name] Definition:`the queried domain name`
+	Type  uint16 `field:"type"`                                                   // SECLDoc[type] Definition:`a two octet code which specifies the DNS question type` Constants:`DNS qtypes`
+	Class uint16 `field:"class"`                                                  // SECLDoc[class] Definition:`the class looked up by the DNS question` Constants:`DNS qclasses`
+	Size  uint16 `field:"length"`                                                 // SECLDoc[length] Definition:`the total DNS request size in bytes`
+	Count uint16 `field:"count"`                                                  // SECLDoc[count] Definition:`the total count of questions in the DNS request`
+}
+
+// DNSEvent represents a DNS request event
 type DNSEvent struct {
-	ID    uint16 `field:"id"`                                                              // SECLDoc[id] Definition:`[Experimental] the DNS request ID`
-	Name  string `field:"question.name,opts:length" op_override:"eval.CaseInsensitiveCmp"` // SECLDoc[question.name] Definition:`the queried domain name`
-	Type  uint16 `field:"question.type"`                                                   // SECLDoc[question.type] Definition:`a two octet code which specifies the DNS question type` Constants:`DNS qtypes`
-	Class uint16 `field:"question.class"`                                                  // SECLDoc[question.class] Definition:`the class looked up by the DNS question` Constants:`DNS qclasses`
-	Size  uint16 `field:"question.length"`                                                 // SECLDoc[question.length] Definition:`the total DNS request size in bytes`
-	Count uint16 `field:"question.count"`                                                  // SECLDoc[question.count] Definition:`the total count of questions in the DNS request`
+	ID       uint16       `field:"id"` // SECLDoc[id] Definition:`[Experimental] the DNS request ID`
+	Question DNSQuestion  `field:"question"`
+	Response *DNSResponse `field:"response,check:HasResponse"`
+}
+
+// FailedDNSEvent represents a DNS packet that was failed to be decoded (inbound or outbound)
+type FailedDNSEvent struct {
+	Payload []byte `field:"-"`
+}
+
+// DNSResponse represents a DNS response event
+type DNSResponse struct {
+	ResponseCode uint8 `field:"code"` // SECLDoc[code] Definition:`Response code of the DNS response according to RFC 1035` Constants:`DNS Responses`
 }
 
 // Matches returns true if the two DNS events matches
 func (de *DNSEvent) Matches(new *DNSEvent) bool {
-	return de.Name == new.Name && de.Type == new.Type && de.Class == new.Class
+	return de.Question.Name == new.Question.Name && de.Question.Type == new.Question.Type && de.Question.Class == new.Question.Class
 }
 
 // IMDSEvent represents an IMDS event
@@ -596,11 +688,15 @@ type AWSSecurityCredentials struct {
 // BaseExtraFieldHandlers handlers not hold by any field
 type BaseExtraFieldHandlers interface {
 	ResolveProcessCacheEntry(ev *Event, newEntryCb func(*ProcessCacheEntry, error)) (*ProcessCacheEntry, bool)
+	ResolveProcessCacheEntryFromPID(pid uint32) *ProcessCacheEntry
 	ResolveContainerContext(ev *Event) (*ContainerContext, bool)
 }
 
 // ResolveProcessCacheEntry stub implementation
-func (dfh *FakeFieldHandlers) ResolveProcessCacheEntry(_ *Event, _ func(*ProcessCacheEntry, error)) (*ProcessCacheEntry, bool) {
+func (dfh *FakeFieldHandlers) ResolveProcessCacheEntry(ev *Event, _ func(*ProcessCacheEntry, error)) (*ProcessCacheEntry, bool) {
+	if ev.ProcessCacheEntry != nil {
+		return ev.ProcessCacheEntry, true
+	}
 	return nil, false
 }
 

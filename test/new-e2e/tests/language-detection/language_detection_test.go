@@ -54,6 +54,8 @@ func TestLanguageDetectionSuite(t *testing.T) {
 
 func (s *languageDetectionSuite) SetupSuite() {
 	s.BaseSuite.SetupSuite()
+	// SetupSuite needs to defer s.CleanupOnSetupFailure() if what comes after BaseSuite.SetupSuite() can fail.
+	defer s.CleanupOnSetupFailure()
 
 	s.installPython()
 	s.installPHP()
@@ -110,6 +112,9 @@ func (s *languageDetectionSuite) getLanguageForPid(pid string, source string) (s
 		if line == headerLine {
 			scanner.Scan() // entity line
 			scanner.Scan() // pid
+			scanner.Scan() // name
+			scanner.Scan() // exe
+			scanner.Scan() // cmdline
 			scanner.Scan() // nspid
 			scanner.Scan() // container id
 			scanner.Scan() // creation time

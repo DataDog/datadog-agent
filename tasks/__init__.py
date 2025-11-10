@@ -9,7 +9,9 @@ from invoke import Collection, Task
 
 from tasks import (
     agent,
+    agent_ci_api,
     ami,
+    auth,
     bench,
     buildimages,
     cluster_agent,
@@ -23,22 +25,26 @@ from tasks import (
     devcontainer,
     diff,
     docker_tasks,
-    docs,
     dogstatsd,
+    dyntest,
     ebpf,
     emacs,
     epforwarder,
     fakeintake,
     fips,
+    full_host_profiler,
     git,
     github_tasks,
     gitlab_helpers,
+    go,
     go_deps,
     installer,
     invoke_unit_tests,
     issue,
     kmt,
     linter,
+    loader,
+    macos,
     modules,
     msi,
     new_e2e_tests,
@@ -50,6 +56,7 @@ from tasks import (
     owners,
     package,
     pipeline,
+    pkg_template,
     pre_commit,
     process_agent,
     protobuf,
@@ -67,6 +74,7 @@ from tasks import (
     testwasher,
     trace_agent,
     vim,
+    virustotal,
     vscode,
     winbuild,
     windows_dev_env,
@@ -76,6 +84,7 @@ from tasks.build_tags import audit_tag_impact, print_default_build_tags
 from tasks.components import lint_components, lint_fxutil_oneshot_test
 from tasks.custom_task.custom_task import custom__call__
 from tasks.fuzz import fuzz
+from tasks.fuzz_infra import build_and_upload_fuzz
 from tasks.go import (
     check_go_mod_replaces,
     check_go_version,
@@ -158,19 +167,21 @@ ns.add_task(get_impacted_packages)
 ns.add_task(get_modified_packages)
 ns.add_task(send_unit_tests_stats)
 ns.add_task(mod_diffs)
+ns.add_task(build_and_upload_fuzz)
 # To deprecate
 ns.add_task(lint_go)
 
 # add namespaced tasks to the root
+ns.add_collection(auth)
 ns.add_collection(agent)
 ns.add_collection(ami)
+ns.add_collection(agent_ci_api)
 ns.add_collection(buildimages)
 ns.add_collection(cluster_agent)
 ns.add_collection(cluster_agent_cloudfoundry)
 ns.add_collection(components)
 ns.add_collection(coverage)
 ns.add_collection(debugging)
-ns.add_collection(docs)
 ns.add_collection(bench)
 ns.add_collection(trace_agent)
 ns.add_collection(docker_tasks, "docker")
@@ -178,8 +189,11 @@ ns.add_collection(dogstatsd)
 ns.add_collection(ebpf)
 ns.add_collection(emacs)
 ns.add_collection(vim)
+ns.add_collection(macos)
+ns.add_collection(dyntest)
 ns.add_collection(epforwarder)
 ns.add_collection(fips)
+ns.add_collection(go)
 ns.add_collection(go_deps)
 ns.add_collection(linter)
 ns.add_collection(msi)
@@ -187,6 +201,7 @@ ns.add_collection(git)
 ns.add_collection(github_tasks, "github")
 ns.add_collection(gitlab_helpers, "gitlab")
 ns.add_collection(issue)
+ns.add_collection(loader)
 ns.add_collection(package)
 ns.add_collection(pipeline)
 ns.add_collection(quality_gates)
@@ -195,6 +210,7 @@ ns.add_collection(notes)
 ns.add_collection(notify)
 ns.add_collection(oracle)
 ns.add_collection(otel_agent)
+ns.add_collection(full_host_profiler)
 ns.add_collection(sds)
 ns.add_collection(selinux)
 ns.add_collection(setup)
@@ -225,6 +241,8 @@ ns.add_collection(winbuild)
 ns.add_collection(windows_dev_env)
 ns.add_collection(worktree)
 ns.add_collection(sbomgen)
+ns.add_collection(pkg_template)
+ns.add_collection(virustotal)
 ns.configure(
     {
         "run": {

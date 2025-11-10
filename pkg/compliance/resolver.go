@@ -38,11 +38,6 @@ import (
 
 	yamlv2 "gopkg.in/yaml.v2"
 	yamlv3 "gopkg.in/yaml.v3"
-
-	kubemetav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	kubeunstructured "k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	kubeschema "k8s.io/apimachinery/pkg/runtime/schema"
-	kubedynamic "k8s.io/client-go/dynamic"
 )
 
 // inputsResolveTimeout is the timeout that is applied for inputs resolution of one
@@ -50,17 +45,7 @@ import (
 const inputsResolveTimeout = 5 * time.Second
 
 // DockerProvider is a function returning a Docker client.
-type DockerProvider func(context.Context) (docker.CommonAPIClient, error)
-
-// KubernetesGroupsAndResourcesProvider is a function that returns the Kubernetes groups and services
-// Note: this is the same as the ServerGroupsAndResources function defined in
-// k8s.io/client-go/discovery. It is redefined here to avoid a direct dependency
-// on k8s.io/client-go/discovery which substantially increases the size of the
-// security agent binary.
-type KubernetesGroupsAndResourcesProvider func() ([]*kubemetav1.APIGroup, []*kubemetav1.APIResourceList, error)
-
-// KubernetesProvider is a function returning a Kubernetes client.
-type KubernetesProvider func(context.Context) (kubedynamic.Interface, KubernetesGroupsAndResourcesProvider, error)
+type DockerProvider func(context.Context) (docker.APIClient, error)
 
 // LinuxAuditProvider is a function returning a Linux Audit client.
 type LinuxAuditProvider func(context.Context) (LinuxAuditClient, error)
@@ -73,7 +58,7 @@ type LinuxAuditClient interface {
 }
 
 // DefaultDockerProvider returns the default Docker client.
-func DefaultDockerProvider(ctx context.Context) (docker.CommonAPIClient, error) {
+func DefaultDockerProvider(ctx context.Context) (docker.APIClient, error) {
 	return newDockerClient(ctx)
 }
 
@@ -116,16 +101,13 @@ type Resolver interface {
 type defaultResolver struct {
 	opts ResolverOptions
 
-	procsCache         []*process.Process
-	filesCache         []fileMeta
-	pkgsCache          map[string]*packageInfo
-	kubeClusterIDCache string
-	kubeResourcesCache *[]*kubemetav1.APIResourceList
+	procsCache []*process.Process
+	filesCache []fileMeta
+	pkgsCache  map[string]*packageInfo
 
-	dockerCl                        docker.CommonAPIClient
-	kubernetesCl                    kubedynamic.Interface
-	kubernetesGroupAndResourcesFunc KubernetesGroupsAndResourcesProvider
-	linuxAuditCl                    LinuxAuditClient
+	k8sapiserverResolver *k8sapiserverResolver
+	dockerCl             docker.APIClient
+	linuxAuditCl         LinuxAuditClient
 }
 
 type fileMeta struct {
@@ -148,9 +130,7 @@ func NewResolver(ctx context.Context, opts ResolverOptions) Resolver {
 	if opts.DockerProvider != nil {
 		r.dockerCl, _ = opts.DockerProvider(ctx)
 	}
-	if opts.KubernetesProvider != nil {
-		r.kubernetesCl, r.kubernetesGroupAndResourcesFunc, _ = opts.KubernetesProvider(ctx)
-	}
+	r.k8sapiserverResolver = newK8sapiserverResolver(ctx, opts)
 	if opts.LinuxAuditProvider != nil {
 		r.linuxAuditCl, _ = opts.LinuxAuditProvider(ctx)
 	}
@@ -166,14 +146,11 @@ func (r *defaultResolver) Close() {
 		r.linuxAuditCl.Close()
 		r.linuxAuditCl = nil
 	}
-	r.kubernetesCl = nil
-	r.kubernetesGroupAndResourcesFunc = nil
+	r.k8sapiserverResolver.close()
 
 	r.procsCache = nil
 	r.filesCache = nil
 	r.pkgsCache = nil
-	r.kubeClusterIDCache = ""
-	r.kubeResourcesCache = nil
 }
 
 func (r *defaultResolver) ResolveInputs(ctx context.Context, rule *Rule) (ResolvedInputs, error) {
@@ -188,7 +165,7 @@ func (r *defaultResolver) ResolveInputs(ctx context.Context, rule *Rule) (Resolv
 	if rule.HasScope(DockerScope) && r.dockerCl == nil {
 		return nil, ErrIncompatibleEnvironment
 	}
-	if rule.HasScope(KubernetesClusterScope) && r.kubernetesCl == nil {
+	if rule.HasScope(KubernetesClusterScope) && !r.k8sapiserverResolver.isEnabled() {
 		return nil, ErrIncompatibleEnvironment
 	}
 
@@ -241,8 +218,8 @@ func (r *defaultResolver) ResolveInputs(ctx context.Context, rule *Rule) (Resolv
 			result, err = r.resolveDocker(ctx, *spec.Docker)
 		case spec.KubeApiserver != nil:
 			resultType = "kubernetes"
-			result, err = r.resolveKubeApiserver(ctx, *spec.KubeApiserver)
-			kubernetesCluster = r.resolveKubeClusterID(ctx)
+			result, err = r.k8sapiserverResolver.resolveKubeApiserver(ctx, *spec.KubeApiserver)
+			kubernetesCluster = r.k8sapiserverResolver.resolveKubeClusterID(ctx)
 		case spec.Package != nil:
 			resultType = "package"
 			result, err = r.resolvePackage(ctx, *spec.Package)
@@ -586,16 +563,14 @@ func (r *defaultResolver) resolveDocker(ctx context.Context, spec InputSpecDocke
 			return nil, err
 		}
 		for _, im := range list {
-			image, _, err := cl.ImageInspectWithRaw(ctx, im.ID)
+			image, err := cl.ImageInspect(ctx, im.ID)
 			if err != nil {
 				return nil, err
 			}
-			imageRepo := parseImageRepo(image.Config.Image)
 			resolved = append(resolved, map[string]interface{}{
-				"id":         image.ID,
-				"tags":       image.RepoTags,
-				"image_repo": imageRepo,
-				"inspect":    image,
+				"id":      image.ID,
+				"tags":    image.RepoTags,
+				"inspect": image,
 			})
 		}
 	case "container":
@@ -656,134 +631,6 @@ func (r *defaultResolver) resolveDocker(ctx context.Context, spec InputSpecDocke
 	}
 
 	return resolved, nil
-}
-
-func (r *defaultResolver) resolveKubeClusterID(ctx context.Context) string {
-	if r.kubeClusterIDCache == "" {
-		cl := r.kubernetesCl
-		if cl == nil {
-			return ""
-		}
-
-		resourceDef := cl.Resource(kubeschema.GroupVersionResource{
-			Resource: "namespaces",
-			Version:  "v1",
-		})
-		resource, err := resourceDef.Get(ctx, "kube-system", kubemetav1.GetOptions{})
-		if err != nil {
-			return ""
-		}
-		r.kubeClusterIDCache = string(resource.GetUID())
-	}
-	return r.kubeClusterIDCache
-}
-
-func (r *defaultResolver) resolveKubeApiserver(ctx context.Context, spec InputSpecKubeapiserver) (interface{}, error) {
-	cl := r.kubernetesCl
-	if cl == nil {
-		return nil, ErrIncompatibleEnvironment
-	}
-
-	if len(spec.Kind) == 0 {
-		return nil, fmt.Errorf("cannot run Kubeapiserver check, resource kind is empty")
-	}
-
-	if len(spec.APIRequest.Verb) == 0 {
-		return nil, fmt.Errorf("cannot run Kubeapiserver check, action verb is empty")
-	}
-
-	if len(spec.Version) == 0 {
-		spec.Version = "v1"
-	}
-
-	// podsecuritypolicies have been deprecated as part of Kubernetes v1.25
-
-	resourceSchema := kubeschema.GroupVersionResource{
-		Group:    spec.Group,
-		Resource: spec.Kind,
-		Version:  spec.Version,
-	}
-
-	resourceSupported, err := r.checkKubeServerResourceSupport(resourceSchema)
-	if err != nil {
-		return nil, fmt.Errorf("unable to check for Kube resource support:'%v', ns:'%s' err: %w",
-			resourceSchema, spec.Namespace, err)
-	}
-	if !resourceSupported {
-		return nil, ErrIncompatibleEnvironment
-	}
-
-	resourceDef := cl.Resource(resourceSchema)
-	var resourceAPI kubedynamic.ResourceInterface
-	if len(spec.Namespace) > 0 {
-		resourceAPI = resourceDef.Namespace(spec.Namespace)
-	} else {
-		resourceAPI = resourceDef
-	}
-
-	var items []kubeunstructured.Unstructured
-	api := spec.APIRequest
-	switch api.Verb {
-	case "get":
-		if len(api.ResourceName) == 0 {
-			return nil, fmt.Errorf("unable to use 'get' apirequest without resource name")
-		}
-		resource, err := resourceAPI.Get(ctx, spec.APIRequest.ResourceName, kubemetav1.GetOptions{})
-		if err != nil {
-			return nil, fmt.Errorf("unable to get Kube resource:'%v', ns:'%s' name:'%s', err: %v",
-				resourceSchema, spec.Namespace, api.ResourceName, err)
-		}
-		items = []kubeunstructured.Unstructured{*resource}
-	case "list":
-		list, err := resourceAPI.List(ctx, kubemetav1.ListOptions{
-			LabelSelector: spec.LabelSelector,
-			FieldSelector: spec.FieldSelector,
-		})
-		if err != nil {
-			return nil, fmt.Errorf("unable to list Kube resources:'%v', ns:'%s' name:'%s', err: %v",
-				resourceSchema, spec.Namespace, api.ResourceName, err)
-		}
-		items = list.Items
-	}
-
-	resolved := make([]interface{}, 0, len(items))
-	for _, resource := range items {
-		resolved = append(resolved, map[string]interface{}{
-			"kind":      resource.GetObjectKind().GroupVersionKind().Kind,
-			"group":     resource.GetObjectKind().GroupVersionKind().Group,
-			"version":   resource.GetObjectKind().GroupVersionKind().Version,
-			"namespace": resource.GetNamespace(),
-			"name":      resource.GetName(),
-			"resource":  resource,
-		})
-	}
-	return resolved, nil
-}
-
-func (r *defaultResolver) checkKubeServerResourceSupport(resourceSchema kubeschema.GroupVersionResource) (bool, error) {
-	if r.kubernetesGroupAndResourcesFunc == nil {
-		return true, nil
-	}
-
-	if r.kubeResourcesCache == nil {
-		_, resources, err := r.kubernetesGroupAndResourcesFunc()
-		if err != nil {
-			return false, fmt.Errorf("could not fetch kubernetes resources: %w", err)
-		}
-		r.kubeResourcesCache = &resources
-	}
-
-	groupVersion := resourceSchema.GroupVersion().String()
-	for _, list := range *r.kubeResourcesCache {
-		if groupVersion == list.GroupVersion {
-			for _, r := range list.APIResources {
-				if r.Name == resourceSchema.Resource {
-					return true, nil
-				}
-			}
-		}
-	}
-	return false, nil
 }
 
 const (

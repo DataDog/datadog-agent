@@ -8,6 +8,7 @@ package containerutils
 
 import (
 	"regexp"
+	"slices"
 	"strings"
 )
 
@@ -21,37 +22,18 @@ var containerIDPattern *regexp.Regexp
 var containerIDCoreChars = "0123456789abcdefABCDEF"
 
 func init() {
+	// when changing this pattern, make sure to also update the pre-check
+	// in pkg/security/security_profile/activity_tree/paths_reducer.go
+
 	ContainerIDPatternStr = "([0-9a-fA-F]{64})|([0-9a-fA-F]{32}-\\d+)|([0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){4})"
 	containerIDPattern = regexp.MustCompile(ContainerIDPatternStr)
 }
 
-func isSystemdScope(cgroup CGroupID) bool {
-	return strings.HasSuffix(string(cgroup), ".scope")
-}
-
-func isSystemdService(cgroup CGroupID) bool {
-	return strings.HasSuffix(string(cgroup), ".service")
-}
-
-func getSystemdCGroupFlags(cgroup CGroupID) uint64 {
-	if isSystemdScope(cgroup) {
-		return uint64(CGroupManagerSystemd) | uint64(SystemdScope)
-	} else if isSystemdService(cgroup) {
-		return uint64(CGroupManagerSystemd) | uint64(SystemdService)
-	}
-	return 0
-}
-
 // FindContainerID extracts the first sub string that matches the pattern of a container ID along with the container flags induced from the container runtime prefix
-func FindContainerID(s CGroupID) (ContainerID, uint64) {
+func FindContainerID(s CGroupID) ContainerID {
 	matches := containerIDPattern.FindAllIndex([]byte(s), -1)
 
-	var (
-		flags       CGroupFlags
-		containerID ContainerID
-	)
-
-	for _, match := range matches {
+	for _, match := range slices.Backward(matches) {
 		// first, check what's before
 		if match[0] != 0 {
 			previousChar := string(s[match[0]-1])
@@ -67,12 +49,8 @@ func FindContainerID(s CGroupID) (ContainerID, uint64) {
 			}
 		}
 
-		containerID, flags = ContainerID(s[match[0]:match[1]]), getContainerRuntime(s)
+		return ContainerID(s[match[0]:match[1]])
 	}
 
-	if containerID != "" {
-		return containerID, uint64(flags)
-	}
-
-	return "", getSystemdCGroupFlags(s)
+	return ""
 }

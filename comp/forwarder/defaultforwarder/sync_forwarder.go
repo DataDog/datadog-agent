@@ -14,6 +14,7 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/endpoints"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
+	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	utilhttp "github.com/DataDog/datadog-agent/pkg/util/http"
 )
 
@@ -27,16 +28,20 @@ type SyncForwarder struct {
 }
 
 // NewSyncForwarder returns a new synchronous forwarder.
-func NewSyncForwarder(config config.Component, log log.Component, keysPerDomain map[string][]string, timeout time.Duration) *SyncForwarder {
+func NewSyncForwarder(config config.Component, log log.Component, endpoints utils.EndpointDescriptorSet, timeout time.Duration) (*SyncForwarder, error) {
+	options, err := NewOptionsWithOPW(config, log, endpoints)
+	if err != nil {
+		return nil, err
+	}
 	return &SyncForwarder{
 		config:           config,
 		log:              log,
-		defaultForwarder: NewDefaultForwarder(config, log, NewOptions(config, log, keysPerDomain)),
+		defaultForwarder: NewDefaultForwarder(config, log, options),
 		client: &http.Client{
 			Timeout:   timeout,
 			Transport: utilhttp.CreateHTTPTransport(config),
 		},
-	}
+	}, nil
 }
 
 // Start starts the sync forwarder: nothing to do.
@@ -153,11 +158,11 @@ func (f *SyncForwarder) SubmitConnectionChecks(payload transaction.BytesPayloads
 }
 
 // SubmitOrchestratorChecks sends orchestrator checks
-func (f *SyncForwarder) SubmitOrchestratorChecks(payload transaction.BytesPayloads, extra http.Header, payloadType int) (chan Response, error) {
+func (f *SyncForwarder) SubmitOrchestratorChecks(payload transaction.BytesPayloads, extra http.Header, payloadType int) error {
 	return f.defaultForwarder.SubmitOrchestratorChecks(payload, extra, payloadType)
 }
 
 // SubmitOrchestratorManifests sends orchestrator manifests
-func (f *SyncForwarder) SubmitOrchestratorManifests(payload transaction.BytesPayloads, extra http.Header) (chan Response, error) {
+func (f *SyncForwarder) SubmitOrchestratorManifests(payload transaction.BytesPayloads, extra http.Header) error {
 	return f.defaultForwarder.SubmitOrchestratorManifests(payload, extra)
 }

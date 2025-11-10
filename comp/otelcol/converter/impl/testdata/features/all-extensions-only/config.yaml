@@ -1,0 +1,11 @@
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      exporters: [datadog/connector, datadog]
+    metrics:
+      receivers: [otlp, datadog/connector]
+      exporters: [datadog]
+    logs:
+      receivers: [otlp]
+      exporters: [datadog]

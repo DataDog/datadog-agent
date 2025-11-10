@@ -6,9 +6,11 @@
 package marshal
 
 import (
+	"fmt"
 	"sync"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/network"
@@ -21,15 +23,12 @@ var (
 
 // ConnectionsModeler contains all the necessary structs for modeling a connection.
 type ConnectionsModeler struct {
-	httpEncoder     *httpEncoder
-	http2Encoder    *http2Encoder
-	kafkaEncoder    *kafkaEncoder
-	postgresEncoder *postgresEncoder
-	redisEncoder    *redisEncoder
-	dnsFormatter    *dnsFormatter
-	ipc             ipCache
-	routeIndex      map[string]RouteIdx
-	tagsSet         *network.TagsSet
+	usmEncoders  []usmEncoder
+	dnsFormatter *dnsFormatter
+	ipc          ipCache
+	routeIndex   map[network.Via]RouteIdx
+	tagsSet      *network.TagsSet
+	sysProbePid  uint32
 }
 
 // NewConnectionsModeler initializes the connection modeler with encoders, dns formatter for
@@ -37,28 +36,27 @@ type ConnectionsModeler struct {
 // It also includes formatted connection telemetry related to all batches, not specific batches.
 // Furthermore, it stores the current agent configuration which applies to all instances related to the entire set of connections,
 // rather than just individual batches.
-func NewConnectionsModeler(conns *network.Connections) *ConnectionsModeler {
+func NewConnectionsModeler(conns *network.Connections) (*ConnectionsModeler, error) {
 	ipc := make(ipCache, len(conns.Conns)/2)
-	return &ConnectionsModeler{
-		httpEncoder:     newHTTPEncoder(conns.HTTP),
-		http2Encoder:    newHTTP2Encoder(conns.HTTP2),
-		kafkaEncoder:    newKafkaEncoder(conns.Kafka),
-		postgresEncoder: newPostgresEncoder(conns.Postgres),
-		redisEncoder:    newRedisEncoder(conns.Redis),
-		ipc:             ipc,
-		dnsFormatter:    newDNSFormatter(conns, ipc),
-		routeIndex:      make(map[string]RouteIdx),
-		tagsSet:         network.NewTagsSet(),
+	nspid, err := kernel.RootNSPID()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get root namespace PID: %w", err)
 	}
+	return &ConnectionsModeler{
+		usmEncoders:  initializeUSMEncoders(conns),
+		ipc:          ipc,
+		dnsFormatter: newDNSFormatter(conns, ipc),
+		routeIndex:   make(map[network.Via]RouteIdx),
+		tagsSet:      network.NewTagsSet(),
+		sysProbePid:  uint32(nspid),
+	}, nil
 }
 
 // Close cleans all encoders resources.
 func (c *ConnectionsModeler) Close() {
-	c.httpEncoder.Close()
-	c.http2Encoder.Close()
-	c.kafkaEncoder.Close()
-	c.postgresEncoder.Close()
-	c.redisEncoder.Close()
+	for _, encoder := range c.usmEncoders {
+		encoder.Close()
+	}
 }
 
 func (c *ConnectionsModeler) modelConnections(builder *model.ConnectionsBuilder, conns *network.Connections) {
@@ -73,7 +71,7 @@ func (c *ConnectionsModeler) modelConnections(builder *model.ConnectionsBuilder,
 
 	for _, conn := range conns.Conns {
 		builder.AddConns(func(builder *model.ConnectionBuilder) {
-			FormatConnection(builder, conn, c.routeIndex, c.httpEncoder, c.http2Encoder, c.kafkaEncoder, c.postgresEncoder, c.redisEncoder, c.dnsFormatter, c.ipc, c.tagsSet)
+			FormatConnection(builder, conn, c.routeIndex, c.usmEncoders, c.dnsFormatter, c.ipc, c.tagsSet, c.sysProbePid)
 		})
 	}
 
@@ -95,9 +93,16 @@ func (c *ConnectionsModeler) modelConnections(builder *model.ConnectionsBuilder,
 
 	for _, route := range routes {
 		builder.AddRoutes(func(w *model.RouteBuilder) {
-			w.SetSubnet(func(w *model.SubnetBuilder) {
-				w.SetAlias(route.Subnet.Alias)
-			})
+			if route.Subnet != nil {
+				w.SetSubnet(func(w *model.SubnetBuilder) {
+					w.SetAlias(route.Subnet.Alias)
+				})
+			}
+			if route.Interface != nil {
+				w.SetInterface(func(w *model.InterfaceBuilder) {
+					w.SetHardwareAddr(route.Interface.HardwareAddr)
+				})
+			}
 		})
 	}
 

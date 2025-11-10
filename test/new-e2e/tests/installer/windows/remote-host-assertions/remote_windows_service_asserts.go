@@ -18,7 +18,7 @@ type RemoteWindowsServiceAssertions struct {
 
 // WithStatus asserts that the service has the given status.
 func (r *RemoteWindowsServiceAssertions) WithStatus(expectedStatus string) *RemoteWindowsServiceAssertions {
-	r.suite.T().Helper()
+	r.context.T().Helper()
 	actualStatus, err := common.GetServiceStatus(r.remoteHost, r.serviceConfig.ServiceName)
 	r.require.NoError(err)
 	r.require.Equal(expectedStatus, actualStatus)
@@ -27,7 +27,7 @@ func (r *RemoteWindowsServiceAssertions) WithStatus(expectedStatus string) *Remo
 
 // WithIdentity asserts that the service runs under the given identity.
 func (r *RemoteWindowsServiceAssertions) WithIdentity(userIdentity common.Identity) *RemoteWindowsServiceAssertions {
-	r.suite.T().Helper()
+	r.context.T().Helper()
 	r.require.Equal(userIdentity.GetSID(), r.serviceConfig.UserSID)
 	return r
 }

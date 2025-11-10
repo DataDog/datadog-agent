@@ -31,17 +31,20 @@ const (
 
 // ListenerConfig holds global configuration for SNMP discovery
 type ListenerConfig struct {
-	Workers               int                        `mapstructure:"workers"`
-	DiscoveryInterval     int                        `mapstructure:"discovery_interval"`
-	AllowedFailures       int                        `mapstructure:"discovery_allowed_failures"`
-	Loader                string                     `mapstructure:"loader"`
-	CollectDeviceMetadata bool                       `mapstructure:"collect_device_metadata"`
-	CollectTopology       bool                       `mapstructure:"collect_topology"`
-	MinCollectionInterval uint                       `mapstructure:"min_collection_interval"`
-	Namespace             string                     `mapstructure:"namespace"`
-	UseDeviceISAsHostname bool                       `mapstructure:"use_device_id_as_hostname"`
-	Configs               []Config                   `mapstructure:"configs"`
-	PingConfig            snmpintegration.PingConfig `mapstructure:"ping"`
+	Workers                 int                        `mapstructure:"workers"`
+	DiscoveryInterval       int                        `mapstructure:"discovery_interval"`
+	AllowedFailures         int                        `mapstructure:"discovery_allowed_failures"`
+	Loader                  string                     `mapstructure:"loader"`
+	CollectDeviceMetadata   bool                       `mapstructure:"collect_device_metadata"`
+	CollectTopology         bool                       `mapstructure:"collect_topology"`
+	CollectVPN              bool                       `mapstructure:"collect_vpn"`
+	MinCollectionInterval   uint                       `mapstructure:"min_collection_interval"`
+	Namespace               string                     `mapstructure:"namespace"`
+	UseDeviceISAsHostname   bool                       `mapstructure:"use_device_id_as_hostname"`
+	Configs                 []Config                   `mapstructure:"configs"`
+	PingConfig              snmpintegration.PingConfig `mapstructure:"ping"`
+	Deduplicate             bool                       `mapstructure:"use_deduplication"`
+	UseRemoteConfigProfiles bool                       `mapstructure:"use_remote_config_profiles"`
 
 	// legacy
 	AllowedFailuresLegacy int `mapstructure:"allowed_failures"`
@@ -71,6 +74,8 @@ type Config struct {
 	CollectDeviceMetadata       bool
 	CollectTopologyConfig       *bool `mapstructure:"collect_topology"`
 	CollectTopology             bool
+	CollectVPNConfig            *bool `mapstructure:"collect_vpn"`
+	CollectVPN                  bool
 	UseDeviceIDAsHostnameConfig *bool `mapstructure:"use_device_id_as_hostname"`
 	UseDeviceIDAsHostname       bool
 	Namespace                   string   `mapstructure:"namespace"`
@@ -80,7 +85,8 @@ type Config struct {
 	// InterfaceConfigs is a map of IP to a list of snmpintegration.InterfaceConfig
 	InterfaceConfigs map[string][]snmpintegration.InterfaceConfig `mapstructure:"interface_configs"`
 
-	PingConfig snmpintegration.PingConfig `mapstructure:"ping"`
+	PingConfig              snmpintegration.PingConfig `mapstructure:"ping"`
+	UseRemoteConfigProfiles bool
 
 	// Legacy
 	NetworkLegacy      string `mapstructure:"network"`
@@ -163,6 +169,11 @@ func NewListenerConfig() (ListenerConfig, error) {
 		} else {
 			config.CollectTopology = snmpConfig.CollectTopology
 		}
+		if config.CollectVPNConfig != nil {
+			config.CollectVPN = *config.CollectVPNConfig
+		} else {
+			config.CollectVPN = snmpConfig.CollectVPN
+		}
 
 		if config.UseDeviceIDAsHostnameConfig != nil {
 			config.UseDeviceIDAsHostname = *config.UseDeviceIDAsHostnameConfig
@@ -220,8 +231,43 @@ func NewListenerConfig() (ListenerConfig, error) {
 				config.Authentications[authIndex].Retries = defaultRetries
 			}
 		}
+		config.UseRemoteConfigProfiles = snmpConfig.UseRemoteConfigProfiles
 	}
 	return snmpConfig, nil
+}
+
+// LegacyDigest returns an hash value representing the data stored in this configuration, minus the network address and authentications
+// TODO: Remove support for legacy format when Agent reaches version 7.76+: see https://github.com/DataDog/datadog-agent/pull/39459
+func (c *Config) LegacyDigest(address string) string {
+	h := fnv.New64()
+	// Hash write never returns an error
+	h.Write([]byte(address))                   //nolint:errcheck
+	h.Write([]byte(fmt.Sprintf("%d", c.Port))) //nolint:errcheck
+
+	h.Write([]byte(c.Version))         //nolint:errcheck
+	h.Write([]byte(c.Community))       //nolint:errcheck
+	h.Write([]byte(c.User))            //nolint:errcheck
+	h.Write([]byte(c.AuthKey))         //nolint:errcheck
+	h.Write([]byte(c.AuthProtocol))    //nolint:errcheck
+	h.Write([]byte(c.PrivKey))         //nolint:errcheck
+	h.Write([]byte(c.PrivProtocol))    //nolint:errcheck
+	h.Write([]byte(c.ContextEngineID)) //nolint:errcheck
+	h.Write([]byte(c.ContextName))     //nolint:errcheck
+
+	h.Write([]byte(c.Loader))    //nolint:errcheck
+	h.Write([]byte(c.Namespace)) //nolint:errcheck
+
+	// Sort the addresses to get a stable digest
+	addresses := make([]string, 0, len(c.IgnoredIPAddresses))
+	for ip := range c.IgnoredIPAddresses {
+		addresses = append(addresses, ip)
+	}
+	sort.Strings(addresses)
+	for _, ip := range addresses {
+		h.Write([]byte(ip)) //nolint:errcheck
+	}
+
+	return strconv.FormatUint(h.Sum64(), 16)
 }
 
 // Digest returns an hash value representing the data stored in this configuration, minus the network address
@@ -230,17 +276,21 @@ func (c *Config) Digest(address string) string {
 	// Hash write never returns an error
 	h.Write([]byte(address))                   //nolint:errcheck
 	h.Write([]byte(fmt.Sprintf("%d", c.Port))) //nolint:errcheck
-	h.Write([]byte(c.Version))                 //nolint:errcheck
-	h.Write([]byte(c.Community))               //nolint:errcheck
-	h.Write([]byte(c.User))                    //nolint:errcheck
-	h.Write([]byte(c.AuthKey))                 //nolint:errcheck
-	h.Write([]byte(c.AuthProtocol))            //nolint:errcheck
-	h.Write([]byte(c.PrivKey))                 //nolint:errcheck
-	h.Write([]byte(c.PrivProtocol))            //nolint:errcheck
-	h.Write([]byte(c.ContextEngineID))         //nolint:errcheck
-	h.Write([]byte(c.ContextName))             //nolint:errcheck
-	h.Write([]byte(c.Loader))                  //nolint:errcheck
-	h.Write([]byte(c.Namespace))               //nolint:errcheck
+
+	for _, authentication := range c.Authentications {
+		h.Write([]byte(authentication.Version))         //nolint:errcheck
+		h.Write([]byte(authentication.Community))       //nolint:errcheck
+		h.Write([]byte(authentication.User))            //nolint:errcheck
+		h.Write([]byte(authentication.AuthKey))         //nolint:errcheck
+		h.Write([]byte(authentication.AuthProtocol))    //nolint:errcheck
+		h.Write([]byte(authentication.PrivKey))         //nolint:errcheck
+		h.Write([]byte(authentication.PrivProtocol))    //nolint:errcheck
+		h.Write([]byte(authentication.ContextEngineID)) //nolint:errcheck
+		h.Write([]byte(authentication.ContextName))     //nolint:errcheck
+	}
+
+	h.Write([]byte(c.Loader))    //nolint:errcheck
+	h.Write([]byte(c.Namespace)) //nolint:errcheck
 
 	// Sort the addresses to get a stable digest
 	addresses := make([]string, 0, len(c.IgnoredIPAddresses))
@@ -263,57 +313,57 @@ func (c *Config) IsIPIgnored(ip net.IP) bool {
 }
 
 // BuildSNMPParams returns a valid GoSNMP struct to start making queries
-func (authentication *Authentication) BuildSNMPParams(deviceIP string, port uint16) (*gosnmp.GoSNMP, error) {
-	if authentication.Community == "" && authentication.User == "" {
+func (a *Authentication) BuildSNMPParams(deviceIP string, port uint16) (*gosnmp.GoSNMP, error) {
+	if a.Community == "" && a.User == "" {
 		return nil, errors.New("No authentication mechanism specified")
 	}
 
 	var version gosnmp.SnmpVersion
-	if authentication.Version == "1" {
+	if a.Version == "1" {
 		version = gosnmp.Version1
-	} else if authentication.Version == "2" || (authentication.Version == "" && authentication.Community != "") {
+	} else if a.Version == "2" || (a.Version == "" && a.Community != "") {
 		version = gosnmp.Version2c
-	} else if authentication.Version == "3" || (authentication.Version == "" && authentication.User != "") {
+	} else if a.Version == "3" || (a.Version == "" && a.User != "") {
 		version = gosnmp.Version3
 	} else {
-		return nil, fmt.Errorf("SNMP version not supported: %s", authentication.Version)
+		return nil, fmt.Errorf("SNMP version not supported: %s", a.Version)
 	}
 
-	authProtocol, err := gosnmplib.GetAuthProtocol(authentication.AuthProtocol)
+	authProtocol, err := gosnmplib.GetAuthProtocol(a.AuthProtocol)
 	if err != nil {
 		return nil, err
 	}
 
-	privProtocol, err := gosnmplib.GetPrivProtocol(authentication.PrivProtocol)
+	privProtocol, err := gosnmplib.GetPrivProtocol(a.PrivProtocol)
 	if err != nil {
 		return nil, err
 	}
 
 	msgFlags := gosnmp.NoAuthNoPriv
-	if authentication.PrivKey != "" {
+	if a.PrivKey != "" {
 		msgFlags = gosnmp.AuthPriv
-	} else if authentication.AuthKey != "" {
+	} else if a.AuthKey != "" {
 		msgFlags = gosnmp.AuthNoPriv
 	}
 
 	return &gosnmp.GoSNMP{
 		Target:          deviceIP,
 		Port:            port,
-		Community:       authentication.Community,
+		Community:       a.Community,
 		Transport:       "udp",
 		Version:         version,
-		Timeout:         time.Duration(authentication.Timeout) * time.Second,
-		Retries:         authentication.Retries,
+		Timeout:         time.Duration(a.Timeout) * time.Second,
+		Retries:         a.Retries,
 		SecurityModel:   gosnmp.UserSecurityModel,
 		MsgFlags:        msgFlags,
-		ContextEngineID: authentication.ContextEngineID,
-		ContextName:     authentication.ContextName,
+		ContextEngineID: a.ContextEngineID,
+		ContextName:     a.ContextName,
 		SecurityParameters: &gosnmp.UsmSecurityParameters{
-			UserName:                 authentication.User,
+			UserName:                 a.User,
 			AuthenticationProtocol:   authProtocol,
-			AuthenticationPassphrase: authentication.AuthKey,
+			AuthenticationPassphrase: a.AuthKey,
 			PrivacyProtocol:          privProtocol,
-			PrivacyPassphrase:        authentication.PrivKey,
+			PrivacyPassphrase:        a.PrivKey,
 		},
 	}, nil
 }

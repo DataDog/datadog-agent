@@ -5,7 +5,7 @@
 
 //go:build !linux
 
-// Package process implements the local process collector for Workloadmeta.
+// Package process implements the process collector for Workloadmeta.
 package process
 
 import (

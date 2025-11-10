@@ -20,8 +20,11 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
 	"github.com/DataDog/datadog-agent/comp/collector/collector/collectorimpl/internal/middleware"
-	"github.com/DataDog/datadog-agent/comp/core"
+	agenttelemetry "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	haagentmock "github.com/DataDog/datadog-agent/comp/haagent/mock"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
@@ -96,15 +99,20 @@ type CollectorTestSuite struct {
 
 func (suite *CollectorTestSuite) SetupTest() {
 	suite.c = newCollector(fxutil.Test[dependencies](suite.T(),
-		core.MockBundle(),
+		fx.Provide(func() log.Component { return logmock.New(suite.T()) }),
+		fx.Provide(func() config.Component {
+			return config.NewMockWithOverrides(suite.T(), map[string]interface{}{"check_cancel_timeout": 500 * time.Millisecond})
+		}),
+		hostnameimpl.MockModule(),
 		demultiplexerimpl.MockModule(),
 		haagentmock.Module(),
 		fx.Provide(func() option.Option[serializer.MetricSerializer] {
 			return option.None[serializer.MetricSerializer]()
 		}),
-		fx.Replace(config.MockParams{
-			Overrides: map[string]interface{}{"check_cancel_timeout": 500 * time.Millisecond},
-		})))
+		fx.Provide(func() option.Option[agenttelemetry.Component] {
+			return option.None[agenttelemetry.Component]()
+		}),
+	))
 	suite.c.start(context.TODO())
 }
 
@@ -186,7 +194,7 @@ func (suite *CollectorTestSuite) TestGet() {
 	_, found := suite.c.get("bar")
 	assert.False(suite.T(), found)
 
-	suite.c.checks["bar"] = middleware.NewCheckWrapper(NewCheck(), aggregator.NewNoOpSenderManager())
+	suite.c.checks["bar"] = middleware.NewCheckWrapper(NewCheck(), aggregator.NewNoOpSenderManager(), option.None[agenttelemetry.Component]())
 	_, found = suite.c.get("foo")
 	assert.False(suite.T(), found)
 	c, found := suite.c.get("bar")
@@ -214,7 +222,7 @@ func (suite *CollectorTestSuite) TestStarted() {
 	assert.False(suite.T(), suite.c.started())
 }
 
-func (suite *CollectorTestSuite) TestGetAllInstanceIDs() {
+func (suite *CollectorTestSuite) TestgetAllInstanceIDs() {
 	// Schedule 2 instances of TestCheck1 and 1 instance of TestCheck2
 	ch1 := NewCheckUnique("foo", "TestCheck1")
 	ch2 := NewCheckUnique("bar", "TestCheck1")
@@ -230,7 +238,7 @@ func (suite *CollectorTestSuite) TestGetAllInstanceIDs() {
 	assert.Nil(suite.T(), err)
 	assert.Equal(suite.T(), 3, len(suite.c.checks))
 
-	ids := suite.c.GetAllInstanceIDs("TestCheck1")
+	ids := suite.c.getAllInstanceIDs("TestCheck1")
 	assert.Equal(suite.T(), 2, len(ids))
 	sort.Sort(ChecksList(ids))
 	expected := []checkid.ID{"bar", "foo"}

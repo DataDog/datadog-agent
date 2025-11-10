@@ -5,12 +5,13 @@ generator:
       headers:
         content-type: "application/x-protobuf"
       target_uri: "http://127.0.0.1:4318/v1/metrics"
-      bytes_per_second: "6 Mb"
+      bytes_per_second: "6 MiB"
       parallel_connections: 5
       method:
         post:
-          maximum_prebuild_cache_size_bytes: "512 Mb"
-          variant: "opentelemetry_metrics"
+          maximum_prebuild_cache_size_bytes: "512 MiB"
+          variant:
+            opentelemetry_metrics: {}
 
 blackhole:
   - http:
@@ -19,7 +20,12 @@ blackhole:
   - http:
       binding_addr: "127.0.0.1:9092"
       body_variant: "nothing"
+  - http:
+      binding_addr: "127.0.0.1:9093"
+      body_variant: "nothing"
 
 target_metrics:
-  - prometheus:
+  - prometheus: # core agent telemetry
       uri: "http://127.0.0.1:5000/telemetry"
+      tags:
+        sub_agent: "core"

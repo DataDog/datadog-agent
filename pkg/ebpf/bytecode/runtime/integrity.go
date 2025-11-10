@@ -16,10 +16,11 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
-	"text/template"
 
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
+
+	template "github.com/DataDog/datadog-agent/pkg/template/text"
 )
 
 // This program is intended to be called from go generate.

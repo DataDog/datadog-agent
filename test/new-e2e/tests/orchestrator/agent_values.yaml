@@ -20,3 +20,6 @@ clusterAgent:
           - customresourcedefinitions
           crd_collectors:
           - datadoghq.com/v1alpha1/datadogmetrics
+  envDict:
+    DD_ORCHESTRATOR_EXPLORER_TERMINATED_RESOURCES_ENABLED: true
+    DD_ORCHESTRATOR_EXPLORER_TERMINATED_PODS_ENABLED : true

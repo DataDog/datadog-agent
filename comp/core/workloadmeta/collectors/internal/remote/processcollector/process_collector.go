@@ -3,8 +3,10 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package processcollector implements the remote process collector for
-// Workloadmeta.
+//go:build windows
+
+// Package processcollector implements the remote process collector for Workloadmeta on Windows.
+// This collector is not used on non-Windows platforms.
 package processcollector
 
 import (
@@ -17,8 +19,8 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/grpclog"
 
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/remote"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -32,7 +34,7 @@ import (
 )
 
 const (
-	collectorID       = "process-collector"
+	collectorID       = "remote-process-collector"
 	cacheValidityNoRT = 2 * time.Second
 )
 
@@ -115,14 +117,14 @@ func workloadmetaEventFromProcessEventUnset(protoEvent *pbgo.ProcessEventUnset) 
 }
 
 // NewCollector returns a remote process collector for workloadmeta if any
-func NewCollector() (workloadmeta.CollectorProvider, error) {
+func NewCollector(ipc ipc.Component) (workloadmeta.CollectorProvider, error) {
 	return workloadmeta.CollectorProvider{
 		Collector: &remote.GenericCollector{
 			CollectorID: collectorID,
 			// TODO(components): make sure StreamHandler uses the config component not pkg/config
 			StreamHandler: &streamHandler{Reader: pkgconfigsetup.Datadog()},
 			Catalog:       workloadmeta.NodeAgent,
-			Insecure:      true, // wlm extractor currently does not support TLS
+			IPC:           ipc,
 		},
 	}, nil
 }
@@ -150,7 +152,7 @@ func (s *streamHandler) IsEnabled() bool {
 		return false
 	}
 
-	return s.Reader.GetBool("language_detection.enabled") && !util.LocalProcessCollectorIsEnabled()
+	return s.Reader.GetBool("language_detection.enabled")
 }
 
 func (s *streamHandler) NewClient(cc grpc.ClientConnInterface) remote.GrpcClient {

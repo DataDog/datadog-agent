@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
+	publishermetadatacache "github.com/DataDog/datadog-agent/comp/publishermetadatacache/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
@@ -26,6 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 	evtapi "github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/api"
 	winevtapi "github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/api/windows"
+	evtbookmark "github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/bookmark"
 	evtsession "github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/session"
 	evtsubscribe "github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/subscription"
 
@@ -61,12 +63,13 @@ type Check struct {
 	ddSecurityEventsFilter eventdatafilter.Filter
 
 	// event log
-	session             evtsession.Session
-	sub                 evtsubscribe.PullSubscription
-	evtapi              evtapi.API
-	systemRenderContext evtapi.EventRenderContextHandle
-	userRenderContext   evtapi.EventRenderContextHandle
-	bookmarkSaver       *bookmarkSaver
+	session                evtsession.Session
+	sub                    evtsubscribe.PullSubscription
+	evtapi                 evtapi.API
+	systemRenderContext    evtapi.EventRenderContextHandle
+	userRenderContext      evtapi.EventRenderContextHandle
+	bookmarkManager        evtbookmark.Manager
+	publisherMetadataCache publishermetadatacache.Component
 }
 
 // Run updates sender stats, restarts the subscription if it failed, and saves the bookmark.
@@ -99,7 +102,7 @@ func (c *Check) Run() error {
 	// if the events read are less than bookmark_frequency then a bookmark won't
 	// be saved before the process exits. saving here, too, gives us a good time periodic
 	// save/persist in addition to the count periodic bookmark_frequency option.
-	err = c.bookmarkSaver.saveLastBookmark()
+	err = c.bookmarkManager.Save()
 	if err != nil {
 		c.Warnf("error saving bookmark: %v", err)
 	}
@@ -116,7 +119,7 @@ func (c *Check) fetchEventsLoop(outCh chan<- *evtapi.EventRecord, pipelineWaiter
 
 	// Save the bookmark at the end of the loop, regardless of the bookmarkFrequency
 	defer func() {
-		err := c.bookmarkSaver.saveLastBookmark()
+		err := c.bookmarkManager.Save()
 		if err != nil {
 			c.Warnf("error saving bookmark: %v", err)
 		}
@@ -290,8 +293,8 @@ func (c *Check) Cancel() {
 		c.session.Close()
 	}
 
-	if c.bookmarkSaver != nil && c.bookmarkSaver.bookmark != nil {
-		c.bookmarkSaver.bookmark.Close()
+	if c.bookmarkManager != nil {
+		c.bookmarkManager.Close()
 	}
 
 	if c.systemRenderContext != evtapi.EventRenderContextHandle(0) {
@@ -300,13 +303,14 @@ func (c *Check) Cancel() {
 }
 
 // Factory creates a new check factory
-func Factory(logsAgent option.Option[logsAgent.Component], config configComponent.Component) option.Option[func() check.Check] {
+func Factory(logsAgent option.Option[logsAgent.Component], config configComponent.Component, publisherMetadataCache publishermetadatacache.Component) option.Option[func() check.Check] {
 	return option.New(func() check.Check {
 		return &Check{
-			CheckBase:   core.NewCheckBase(CheckName),
-			logsAgent:   logsAgent,
-			agentConfig: config,
-			evtapi:      winevtapi.New(),
+			CheckBase:              core.NewCheckBase(CheckName),
+			logsAgent:              logsAgent,
+			agentConfig:            config,
+			evtapi:                 winevtapi.New(),
+			publisherMetadataCache: publisherMetadataCache,
 		}
 	})
 }

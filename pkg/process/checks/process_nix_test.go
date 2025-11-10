@@ -14,13 +14,18 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/assert"
-
 	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/shirou/gopsutil/v4/cpu"
+	"github.com/stretchr/testify/assert"
 
+	"github.com/DataDog/datadog-agent/comp/core"
+	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
+	taggermock "github.com/DataDog/datadog-agent/comp/core/tagger/mock"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/process/metadata/parser"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 func makeContainer(id string) *model.Container {
@@ -43,6 +48,7 @@ func TestBasicProcessMessages(t *testing.T) {
 		makeContainer("foo"),
 		makeContainer("bar"),
 	}
+	now := time.Now()
 	lastRun := time.Now().Add(-5 * time.Second)
 	syst1, syst2 := cpu.TimesStat{}, cpu.TimesStat{}
 	sysInfo := &model.SystemInfo{}
@@ -124,7 +130,8 @@ func TestBasicProcessMessages(t *testing.T) {
 			useWindowsServiceName := true
 			useImprovedAlgorithm := false
 			ex := parser.NewServiceExtractor(serviceExtractorEnabled, useWindowsServiceName, useImprovedAlgorithm)
-			procs := fmtProcesses(procutil.NewDefaultDataScrubber(), disallowList, tc.processes, tc.processes, tc.pidToCid, syst2, syst1, lastRun, nil, false, ex, nil)
+			taggerMock := fxutil.Test[taggermock.Mock](t, core.MockBundle(), taggerfxmock.MockModule(), workloadmetafxmock.MockModule(workloadmeta.NewParams()))
+			procs := fmtProcesses(procutil.NewDefaultDataScrubber(), disallowList, tc.processes, tc.processes, tc.pidToCid, syst2, syst1, lastRun, nil, false, ex, nil, taggerMock, now)
 			messages, totalProcs, totalContainers := createProcCtrMessages(hostInfo, procs, tc.containers, tc.maxSize, maxBatchBytes, int32(i), "nid", 0)
 
 			assert.Equal(t, tc.expectedChunks, len(messages))
@@ -230,6 +237,7 @@ func TestContainerProcessChunking(t *testing.T) {
 			procs, ctrs, pidToCid := generateCtrProcs(tc.ctrProcs)
 			procsByPid := procsToHash(procs)
 
+			now := time.Now()
 			lastRun := time.Now().Add(-5 * time.Second)
 			syst1, syst2 := cpu.TimesStat{}, cpu.TimesStat{}
 			sysInfo := &model.SystemInfo{}
@@ -238,7 +246,8 @@ func TestContainerProcessChunking(t *testing.T) {
 			useWindowsServiceName := true
 			useImprovedAlgorithm := false
 			ex := parser.NewServiceExtractor(serviceExtractorEnabled, useWindowsServiceName, useImprovedAlgorithm)
-			processes := fmtProcesses(procutil.NewDefaultDataScrubber(), nil, procsByPid, procsByPid, pidToCid, syst2, syst1, lastRun, nil, false, ex, nil)
+			taggerMock := fxutil.Test[taggermock.Mock](t, core.MockBundle(), taggerfxmock.MockModule(), workloadmetafxmock.MockModule(workloadmeta.NewParams()))
+			processes := fmtProcesses(procutil.NewDefaultDataScrubber(), nil, procsByPid, procsByPid, pidToCid, syst2, syst1, lastRun, nil, false, ex, nil, taggerMock, now)
 			messages, totalProcs, totalContainers := createProcCtrMessages(hostInfo, processes, ctrs, tc.maxSize, maxBatchBytes, int32(i), "nid", 0)
 
 			assert.Equal(t, tc.expectedProcCount, totalProcs)
@@ -381,6 +390,7 @@ func TestProcessGPUTagging(t *testing.T) {
 		makeProcess(2, "mine-bitcoins -all -x"),
 		makeProcess(3, "foo --version"),
 	}
+	now := time.Now()
 	lastRun := time.Now().Add(-5 * time.Second)
 	syst1, syst2 := cpu.TimesStat{}, cpu.TimesStat{}
 	for _, tc := range []struct {
@@ -417,7 +427,8 @@ func TestProcessGPUTagging(t *testing.T) {
 			useWindowsServiceName := true
 			useImprovedAlgorithm := false
 			ex := parser.NewServiceExtractor(serviceExtractorEnabled, useWindowsServiceName, useImprovedAlgorithm)
-			procs := fmtProcesses(procutil.NewDefaultDataScrubber(), nil, tc.processes, tc.processes, nil, syst2, syst1, lastRun, nil, false, ex, tc.pidToGPUTags)
+			taggerMock := fxutil.Test[taggermock.Mock](t, core.MockBundle(), taggerfxmock.MockModule(), workloadmetafxmock.MockModule(workloadmeta.NewParams()))
+			procs := fmtProcesses(procutil.NewDefaultDataScrubber(), nil, tc.processes, tc.processes, nil, syst2, syst1, lastRun, nil, false, ex, tc.pidToGPUTags, taggerMock, now)
 
 			assert.Len(t, procs, 1)
 			assert.Equal(t, tc.expectedProcs, len(procs[""]))

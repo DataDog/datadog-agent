@@ -16,6 +16,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
 	k8sProcessors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
+	utilTypes "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/util"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 )
 
@@ -44,7 +45,7 @@ func NewClusterCollector() *ClusterCollector {
 			IsMetadataProducer:                   true,
 			IsManifestProducer:                   true,
 			SupportsManifestBuffering:            true,
-			Name:                                 clusterName,
+			Name:                                 utilTypes.ClusterName,
 			NodeType:                             orchestrator.K8sCluster,
 			SupportsTerminatedResourceCollection: false,
 		},

@@ -28,7 +28,9 @@ int __attribute__((always_inline)) resolve_dentry_tail_call(void *ctx, struct de
         return DENTRY_INVALID;
     }
 
+#ifndef USE_FENTRY
 #pragma unroll
+#endif
     for (int i = 0; i < DR_MAX_ITERATION_DEPTH; i++) {
         bpf_probe_read(&d_parent, sizeof(d_parent), &dentry->d_parent);
 
@@ -92,36 +94,36 @@ int __attribute__((always_inline)) resolve_dentry_tail_call(void *ctx, struct de
     return DR_MAX_ITERATION_DEPTH;
 }
 
-void __attribute__((always_inline)) dentry_resolver_kern_recursive(void *ctx, int dr_type, struct dentry_resolver_input_t* resolver) {
+void __attribute__((always_inline)) dentry_resolver_kern_recursive(void *ctx, enum TAIL_CALL_PROG_TYPE prog_type, struct dentry_resolver_input_t* resolver) {
     resolver->iteration++;
     resolver->ret = resolve_dentry_tail_call(ctx, resolver);
 
     if (resolver->ret > 0) {
         if (resolver->iteration < DR_MAX_TAIL_CALL && resolver->key.ino != 0) {
-            tail_call_dr_progs(ctx, dr_type, DR_DENTRY_RESOLVER_KERN_KEY);
+            tail_call_dr_progs(ctx, prog_type, DR_DENTRY_RESOLVER_KERN_KEY);
         }
 
         resolver->ret += DR_MAX_ITERATION_DEPTH * (resolver->iteration - 1);
     }
 
     if (resolver->callback >= 0) {
-        switch (dr_type) {
-        case DR_KPROBE_OR_FENTRY:
+        switch (prog_type) {
+        case KPROBE_OR_FENTRY_TYPE:
             bpf_tail_call_compat(ctx, &dentry_resolver_kprobe_or_fentry_callbacks, resolver->callback);
             break;
-        case DR_TRACEPOINT:
+        case TRACEPOINT_TYPE:
             bpf_tail_call_compat(ctx, &dentry_resolver_tracepoint_callbacks, resolver->callback);
             break;
         }
     }
 }
 
-void __attribute__((always_inline)) dentry_resolver_kern(void *ctx, int dr_type) {
+void __attribute__((always_inline)) dentry_resolver_kern(void *ctx, enum TAIL_CALL_PROG_TYPE prog_type) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_ANY);
     if (!syscall)
         return;
 
-   dentry_resolver_kern_recursive(ctx, dr_type, &syscall->resolver);
+   dentry_resolver_kern_recursive(ctx, prog_type, &syscall->resolver);
 }
 
 struct dentry_resolver_input_t *__attribute__((always_inline)) peek_task_resolver_inputs(u64 pid_tgid, u64 type) {
@@ -140,39 +142,35 @@ struct dentry_resolver_input_t *__attribute__((always_inline)) peek_resolver_inp
     return peek_task_resolver_inputs(key, type);
 }
 
-void __attribute__((always_inline)) dentry_resolver_kern_no_syscall(void *ctx, int dr_type) {
+void __attribute__((always_inline)) dentry_resolver_kern_no_syscall(void *ctx, enum TAIL_CALL_PROG_TYPE prog_type) {
     struct dentry_resolver_input_t *inputs = peek_resolver_inputs(EVENT_ANY);
     if (!inputs)
         return;
 
-    dentry_resolver_kern_recursive(ctx, dr_type, inputs);
+    dentry_resolver_kern_recursive(ctx, prog_type, inputs);
 }
 
-SEC("tracepoint/dentry_resolver_kern")
-int tracepoint_dentry_resolver_kern(void *ctx) {
-    dentry_resolver_kern(ctx, DR_TRACEPOINT);
+TAIL_CALL_TRACEPOINT_FNC(dentry_resolver_kern, void *ctx) {
+    dentry_resolver_kern(ctx, TRACEPOINT_TYPE);
     return 0;
 }
 
-TAIL_CALL_TARGET("dentry_resolver_kern")
-int tail_call_target_dentry_resolver_kern(ctx_t *ctx) {
-    dentry_resolver_kern(ctx, DR_KPROBE_OR_FENTRY);
+TAIL_CALL_FNC(dentry_resolver_kern, ctx_t *ctx) {
+    dentry_resolver_kern(ctx, KPROBE_OR_FENTRY_TYPE);
     return 0;
 }
 
-SEC("tracepoint/dentry_resolver_kern_no_syscall")
-int tracepoint_dentry_resolver_kern_no_syscall(void *ctx) {
-    dentry_resolver_kern_no_syscall(ctx, DR_TRACEPOINT);
+TAIL_CALL_TRACEPOINT_FNC(dentry_resolver_kern_no_syscall, void *ctx) {
+    dentry_resolver_kern_no_syscall(ctx, TRACEPOINT_TYPE);
     return 0;
 }
 
-TAIL_CALL_TARGET("dentry_resolver_kern_no_syscall")
-int tail_call_target_dentry_resolver_kern_no_syscall(ctx_t *ctx) {
-    dentry_resolver_kern_no_syscall(ctx, DR_KPROBE_OR_FENTRY);
+TAIL_CALL_FNC(dentry_resolver_kern_no_syscall, ctx_t *ctx) {
+    dentry_resolver_kern_no_syscall(ctx, KPROBE_OR_FENTRY_TYPE);
     return 0;
 }
 
-int __attribute__((always_inline)) dentry_resolver_erpc_write_user(void *ctx, int dr_type) {
+int __attribute__((always_inline)) dentry_resolver_erpc_write_user(void *ctx, enum TAIL_CALL_PROG_TYPE prog_type) {
     u32 key = 0;
     u32 resolution_err = 0;
     struct path_leaf_t *map_value = 0;
@@ -185,7 +183,9 @@ int __attribute__((always_inline)) dentry_resolver_erpc_write_user(void *ctx, in
 
     state->iteration++;
 
+#ifndef USE_FENTRY
 #pragma unroll
+#endif
     for (int i = 0; i < DR_MAX_ITERATION_DEPTH; i++) {
         iteration_key = state->key;
         map_value = bpf_map_lookup_elem(&pathnames, &iteration_key);
@@ -235,7 +235,7 @@ int __attribute__((always_inline)) dentry_resolver_erpc_write_user(void *ctx, in
         }
     }
     if (state->iteration < DR_MAX_TAIL_CALL) {
-        tail_call_dr_progs(ctx, dr_type, DR_ERPC_KEY);
+        tail_call_dr_progs(ctx, prog_type, DR_ERPC_KEY);
         resolution_err = DR_ERPC_TAIL_CALL_ERROR;
     }
 
@@ -244,12 +244,11 @@ exit:
     return 0;
 }
 
-TAIL_CALL_TARGET("dentry_resolver_erpc_write_user")
-int tail_call_target_dentry_resolver_erpc_write_user(ctx_t *ctx) {
-    return dentry_resolver_erpc_write_user(ctx, DR_KPROBE_OR_FENTRY);
+TAIL_CALL_FNC(dentry_resolver_erpc_write_user, ctx_t *ctx) {
+    return dentry_resolver_erpc_write_user(ctx, KPROBE_OR_FENTRY_TYPE);
 }
 
-int __attribute__((always_inline)) dentry_resolver_erpc_mmap(void *ctx, int dr_type) {
+int __attribute__((always_inline)) dentry_resolver_erpc_mmap(void *ctx, enum TAIL_CALL_PROG_TYPE prog_type) {
     u32 key = 0;
     u32 resolution_err = 0;
     struct path_leaf_t *map_value = 0;
@@ -268,7 +267,9 @@ int __attribute__((always_inline)) dentry_resolver_erpc_mmap(void *ctx, int dr_t
 
     state->iteration++;
 
+#ifndef USE_FENTRY
 #pragma unroll
+#endif
     for (int i = 0; i < DR_MAX_ITERATION_DEPTH; i++) {
         iteration_key = state->key;
         map_value = bpf_map_lookup_elem(&pathnames, &iteration_key);
@@ -319,7 +320,7 @@ int __attribute__((always_inline)) dentry_resolver_erpc_mmap(void *ctx, int dr_t
         }
     }
     if (state->iteration < DR_MAX_TAIL_CALL) {
-        tail_call_dr_progs(ctx, dr_type, DR_ERPC_KEY);
+        tail_call_dr_progs(ctx, prog_type, DR_ERPC_KEY);
         resolution_err = DR_ERPC_TAIL_CALL_ERROR;
     }
 
@@ -328,13 +329,11 @@ exit:
     return 0;
 }
 
-TAIL_CALL_TARGET("dentry_resolver_erpc_mmap")
-int tail_call_target_dentry_resolver_erpc_mmap(ctx_t *ctx) {
-    return dentry_resolver_erpc_mmap(ctx, DR_KPROBE_OR_FENTRY);
+TAIL_CALL_FNC(dentry_resolver_erpc_mmap, ctx_t *ctx) {
+    return dentry_resolver_erpc_mmap(ctx, KPROBE_OR_FENTRY_TYPE);
 }
 
-TAIL_CALL_TARGET("dentry_resolver_ad_filter")
-int tail_call_target_dentry_resolver_ad_filter(ctx_t *ctx) {
+TAIL_CALL_FNC(dentry_resolver_ad_filter, ctx_t *ctx) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_ANY);
     if (!syscall) {
         return 0;
@@ -344,12 +343,11 @@ int tail_call_target_dentry_resolver_ad_filter(ctx_t *ctx) {
         syscall->resolver.flags |= ACTIVITY_DUMP_RUNNING;
     }
 
-    tail_call_dr_progs(ctx, DR_KPROBE_OR_FENTRY, DR_DENTRY_RESOLVER_KERN_KEY);
+    tail_call_dr_progs(ctx, KPROBE_OR_FENTRY_TYPE, DR_DENTRY_RESOLVER_KERN_KEY);
     return 0;
 }
 
-SEC("tracepoint/dentry_resolver_ad_filter")
-int tracepoint_dentry_resolver_ad_filter(void *ctx) {
+TAIL_CALL_TRACEPOINT_FNC(dentry_resolver_ad_filter, void *ctx) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_ANY);
     if (!syscall) {
         return 0;
@@ -359,7 +357,7 @@ int tracepoint_dentry_resolver_ad_filter(void *ctx) {
         syscall->resolver.flags |= ACTIVITY_DUMP_RUNNING;
     }
 
-    tail_call_dr_progs(ctx, DR_TRACEPOINT, DR_DENTRY_RESOLVER_KERN_KEY);
+    tail_call_dr_progs(ctx, TRACEPOINT_TYPE, DR_DENTRY_RESOLVER_KERN_KEY);
     return 0;
 }
 

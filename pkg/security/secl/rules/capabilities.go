@@ -14,14 +14,14 @@ import (
 type FilterMode int
 
 const (
-	// NormalMode enabled approver and discarder
-	NormalMode FilterMode = iota
+	// DefaultMode enabled approver and discarder
+	DefaultMode FilterMode = iota
 	// ApproverOnlyMode not used to generate a discarder
 	ApproverOnlyMode
 )
 
 // FieldCapabilities holds a list of field capabilities
-type FieldCapabilities []FieldCapability
+type FieldCapabilities []*FieldCapability
 
 // FieldCapability represents a field and the type of its value (scalar, pattern, bitmask, ...)
 type FieldCapability struct {
@@ -61,4 +61,11 @@ func (fcs FieldCapabilities) GetFields() []eval.Field {
 		fields = append(fields, fc.Field)
 	}
 	return fields
+}
+
+// Clone returns a copy of the FieldCapabilities
+func (fcs *FieldCapabilities) Clone() FieldCapabilities {
+	clone := make(FieldCapabilities, len(*fcs))
+	copy(clone, *fcs)
+	return clone
 }

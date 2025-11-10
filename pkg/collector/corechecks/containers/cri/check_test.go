@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
+	taggertypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/generic"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/cri"
@@ -39,9 +40,12 @@ func TestCriCheck(t *testing.T) {
 	}
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 
+	fakeTagger.SetTags(taggertypes.NewEntityID("container_id", "cID100"), "foo", []string{"container_id:cID100"}, nil, nil, nil)
+	fakeTagger.SetTags(taggertypes.NewEntityID("container_id", "cID101"), "foo", []string{"container_id:cID101"}, nil, nil, nil)
+
 	// Inject mock processor in check
 	mockCri := &crimock.MockCRIClient{}
-	mockSender, processor, _ := generic.CreateTestProcessor(containersMeta, containersStats, metricsAdapter{}, getProcessorFilter(nil, nil), fakeTagger)
+	mockSender, processor, _ := generic.CreateTestProcessor(containersMeta, containersStats, metricsAdapter{}, getProcessorFilter(nil, nil), fakeTagger, false)
 	processor.RegisterExtension("cri-custom-metrics", &criCustomMetricsExtension{criGetter: func() (cri.CRIClient, error) { return mockCri, nil }})
 
 	mockCri.On("ListContainerStats").Return(map[string]*criTypes.ContainerStats{

@@ -16,17 +16,12 @@ package noopimpl
 import (
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/origindetection"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	taggertypes "github.com/DataDog/datadog-agent/pkg/tagger/types"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 )
 
 type noopTagger struct{}
-
-func (n *noopTagger) GetTaggerTelemetryStore() *telemetry.Store {
-	return nil
-}
 
 func (n *noopTagger) Tag(types.EntityID, types.TagCardinality) ([]string, error) {
 	return nil, nil

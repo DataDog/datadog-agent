@@ -5,25 +5,41 @@
 #include "maps.h"
 #include "rate_limiter.h"
 
-void __attribute__((always_inline)) monitor_event_approved(u64 event_type, u32 approver_type) {
+struct approver_stats_t * __attribute__((always_inline)) get_active_approver_stats(u64 event_type) {
     struct bpf_map_def *approver_stats = select_buffer(&fb_approver_stats, &bb_approver_stats, APPROVER_MONITOR_KEY);
     if (approver_stats == NULL) {
-        return;
+        return NULL;
     }
 
     u32 key = event_type;
-    struct approver_stats_t *stats = bpf_map_lookup_elem(approver_stats, &key);
+    return bpf_map_lookup_elem(approver_stats, &key);
+}
+
+void __attribute__((always_inline)) monitor_event_approved(u64 event_type, u32 approver_type) {
+    struct approver_stats_t *stats = get_active_approver_stats(event_type);
     if (stats == NULL) {
         return;
     }
 
-    if (approver_type == BASENAME_APPROVER_TYPE) {
+    if (approver_type == POLICY_APPROVER_TYPE) {
+        __sync_fetch_and_add(&stats->event_approved_by_policy, 1);
+    } else if (approver_type == BASENAME_APPROVER_TYPE) {
         __sync_fetch_and_add(&stats->event_approved_by_basename, 1);
     } else if (approver_type == FLAG_APPROVER_TYPE) {
         __sync_fetch_and_add(&stats->event_approved_by_flag, 1);
     } else if (approver_type == AUID_APPROVER_TYPE) {
         __sync_fetch_and_add(&stats->event_approved_by_auid, 1);
+    } else if (approver_type == IN_UPPER_LAYER_APPROVER_TYPE) {
+        __sync_fetch_and_add(&stats->event_approved_by_in_upper_layer, 1);
     }
+}
+
+void __attribute__((always_inline)) monitor_event_rejected(u64 event_type) {
+    struct approver_stats_t *stats = get_active_approver_stats(event_type);
+    if (stats == NULL) {
+        return;
+    }
+    __sync_fetch_and_add(&stats->event_rejected, 1);
 }
 
 void get_dentry_name(struct dentry *dentry, void *buffer, size_t n);
@@ -59,6 +75,16 @@ enum SYSCALL_STATE __attribute__((always_inline)) approve_by_basename(struct den
     struct event_mask_filter_t *filter = bpf_map_lookup_elem(&basename_approvers, &basename);
     if (filter && filter->event_mask & (1 << (event_type - 1))) {
         monitor_event_approved(event_type, BASENAME_APPROVER_TYPE);
+        return APPROVED;
+    }
+    return DISCARDED;
+}
+
+enum SYSCALL_STATE __attribute__((always_inline)) approve_by_in_upper_layer(u64 event_type, struct file_t *file) {
+    u32 key = 0;
+    struct event_mask_filter_t *filter = bpf_map_lookup_elem(&in_upper_layer_approvers, &key);
+    if (filter && filter->event_mask & (1 << (event_type - 1)) && (file->flags & UPPER_LAYER) > 0) {
+        monitor_event_approved(event_type, IN_UPPER_LAYER_APPROVER_TYPE);
         return APPROVED;
     }
     return DISCARDED;
@@ -234,6 +260,9 @@ enum SYSCALL_STATE __attribute__((always_inline)) open_approvers(struct syscall_
     if (state == DISCARDED) {
         state = approve_by_auid(syscall, EVENT_OPEN);
     }
+    if (state == DISCARDED) {
+        state = approve_by_in_upper_layer(EVENT_OPEN, &syscall->open.file);
+    }
 
     return state;
 }
@@ -351,17 +380,30 @@ enum SYSCALL_STATE __attribute__((always_inline)) sysctl_approvers(struct syscal
     return DISCARDED;
 }
 
-enum SYSCALL_STATE __attribute__((always_inline)) approve_syscall_with_tgid(u32 tgid, struct syscall_cache_t *syscall, enum SYSCALL_STATE (*check_approvers)(struct syscall_cache_t *syscall)) {
-    if (syscall->policy.mode == NO_FILTER) {
-        return syscall->state = ACCEPTED;
+enum SYSCALL_STATE __attribute__((always_inline)) connect_approvers(struct syscall_cache_t *syscall) {
+    u32 key = 0;
+    struct u64_flags_filter_t *filter = bpf_map_lookup_elem(&connect_addr_family_approvers, &key);
+    if (filter == NULL || !filter->is_set) {
+        return DISCARDED;
     }
 
-    if (syscall->policy.mode == ACCEPT) {
+    if (((1 << syscall->connect.family) & filter->flags) > 0) {
+        monitor_event_approved(syscall->type, FLAG_APPROVER_TYPE);
+        return APPROVED;
+    }
+
+    return DISCARDED;
+}
+
+enum SYSCALL_STATE __attribute__((always_inline)) approve_syscall_with_tgid(u32 tgid, struct syscall_cache_t *syscall, enum SYSCALL_STATE (*check_approvers)(struct syscall_cache_t *syscall)) {
+    if (syscall->policy.mode != DENY) {
+        monitor_event_approved(syscall->type, POLICY_APPROVER_TYPE);
         return syscall->state = APPROVED;
     }
 
-    if (syscall->policy.mode == DENY) {
-        syscall->state = check_approvers(syscall);
+    syscall->state = check_approvers(syscall);
+    if (syscall->state == DISCARDED) {
+        monitor_event_rejected(syscall->type);
     }
 
     u64 *cookie = bpf_map_lookup_elem(&traced_pids, &tgid);

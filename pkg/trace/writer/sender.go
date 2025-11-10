@@ -46,16 +46,16 @@ func newSenders(cfg *config.AgentConfig, r eventRecorder, path string, climit, q
 			os.Exit(1)
 		}
 		senders[i] = newSender(&senderConfig{
-			client:       cfg.NewHTTPClient(),
-			maxConns:     int(maxConns),
-			maxQueued:    qsize,
-			maxRetries:   cfg.MaxSenderRetries,
-			url:          url,
-			apiKey:       endpoint.APIKey,
-			recorder:     r,
-			userAgent:    fmt.Sprintf("Datadog Trace Agent/%s/%s", cfg.AgentVersion, cfg.GitCommit),
-			isMRF:        endpoint.IsMRF,
-			isMRFEnabled: cfg.IsMRFEnabled,
+			client:         cfg.NewHTTPClient(),
+			maxConns:       int(maxConns),
+			maxQueued:      qsize,
+			maxRetries:     cfg.MaxSenderRetries,
+			url:            url,
+			apiKey:         endpoint.APIKey,
+			recorder:       r,
+			userAgent:      fmt.Sprintf("Datadog Trace Agent/%s/%s", cfg.AgentVersion, cfg.GitCommit),
+			isMRF:          endpoint.IsMRF,
+			MRFFailoverAPM: cfg.MRFFailoverAPM,
 		}, statsd)
 	}
 	return senders
@@ -158,8 +158,8 @@ type senderConfig struct {
 	userAgent string
 	// IsMRF determines whether this is a Multi-Region Failover endpoint.
 	isMRF bool
-	// IsMRFEnabled determines whether Multi-Region Failover is enabled.
-	isMRFEnabled func() bool
+	// MRFFailoverAPM determines whether APM data should be failed over to the secondary (MRF) DC.
+	MRFFailoverAPM func() bool
 }
 
 // sender is responsible for sending payloads to a given URL. It uses a size-limited
@@ -355,14 +355,11 @@ func (s *sender) recordEvent(t eventType, data *eventData) {
 // isEnabled returns true if the sender is enabled. Non-MRF senders are always enabled, and MRF ones
 // only when isMRFEnabled is true
 func (s *sender) isEnabled() bool {
-	if !s.cfg.isMRF {
+	if !s.cfg.isMRF || s.cfg.MRFFailoverAPM == nil {
 		return true
 	}
-	if s.cfg.isMRFEnabled == nil {
-		log.Errorf("Error checking MRF. isMRFEnabled() is not configured on domain %v", s.cfg.url)
-		return true
-	}
-	if s.cfg.isMRFEnabled() {
+	// Endpoint is MRF and MRF is enabled. Figure out if we need to failover APM data
+	if s.cfg.MRFFailoverAPM() {
 		if !s.enabled {
 			log.Infof("Sender for domain %v has been failed over to, enabling it for MRF.", s.cfg.url)
 			s.enabled = true
@@ -422,7 +419,7 @@ func (s *sender) do(req *http.Request) error {
 
 // isRetriable reports whether the give HTTP status code should be retried.
 func isRetriable(code int) bool {
-	if code == http.StatusRequestTimeout {
+	if code == http.StatusRequestTimeout || code == http.StatusTooManyRequests {
 		return true
 	}
 	// 5xx errors can be retried

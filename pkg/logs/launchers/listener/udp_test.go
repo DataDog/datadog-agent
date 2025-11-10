@@ -39,7 +39,6 @@ func TestUDPShouldReceiveMessage(t *testing.T) {
 	listener.Stop()
 }
 
-//nolint:revive // TODO(AML) Fix revive linter
 func TestUDPShouldStopWhenNotStarted(_ *testing.T) {
 	pp := mock.NewMockProvider()
 	listener := NewUDPListener(pp, sources.NewLogSource("", &config.LogsConfig{Port: udpTestPort}), 9000)

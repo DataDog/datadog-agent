@@ -7,7 +7,9 @@ package npm
 
 import (
 	_ "embed"
+	"strings"
 
+	"github.com/DataDog/test-infra-definitions/components/datadog/apps"
 	"github.com/DataDog/test-infra-definitions/components/docker"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 )
@@ -18,6 +20,6 @@ var dockerHTTPBinComposeYaml string
 func dockerHTTPBinCompose() docker.ComposeInlineManifest {
 	return docker.ComposeInlineManifest{
 		Name:    "httpbin",
-		Content: pulumi.String(dockerHTTPBinComposeYaml),
+		Content: pulumi.String(strings.ReplaceAll(dockerHTTPBinComposeYaml, "{APPS_VERSION}", apps.Version)),
 	}
 }

@@ -12,9 +12,12 @@ struct policy_t {
 // Approvers
 
 struct approver_stats_t {
+    u64 event_rejected;
+    u64 event_approved_by_policy;
     u64 event_approved_by_basename;
     u64 event_approved_by_flag;
     u64 event_approved_by_auid;
+    u64 event_approved_by_in_upper_layer;
 };
 
 struct basename_t {

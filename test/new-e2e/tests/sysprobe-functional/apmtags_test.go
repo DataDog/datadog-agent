@@ -112,6 +112,8 @@ func (v *apmvmSuite) SetupSuite() {
 
 	// this creates the VM.
 	v.BaseSuite.SetupSuite()
+	// SetupSuite needs to defer CleanupOnSetupFailure() if what comes after BaseSuite.SetupSuite() can fail.
+	defer v.CleanupOnSetupFailure()
 
 	// get the remote host
 	vm := v.Env().RemoteHost

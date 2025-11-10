@@ -26,11 +26,6 @@ jobs:
       with:
         ref: ${{ github.head_ref }}
         persist-credentials: false
-    - name: Install python
-      uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38 # v5.4.0
-      with:
-        python-version-file: .python-version
-        cache: "pip"
     - name: Install dda
       uses: ./.github/actions/install-dda
       with:
@@ -42,4 +37,4 @@ jobs:
         INPUT_VERSION: ${{ github.event.inputs.version }}
         CUTOFF_DATE: ${{ github.event.inputs.cutoff_date }}
       run: |
-        dda inv -e release.create-schedule --version "$INPUT_VERSION" --cutoff-date "$CUTOFF_DATE"
+        dda inv -- -e release.create-schedule --version "$INPUT_VERSION" --cutoff-date "$CUTOFF_DATE"

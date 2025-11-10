@@ -232,6 +232,26 @@ func (at *ActivityTree) prepareProcessNode(p *ProcessNode, data *utils.Graph, re
 		data.SubGraphs = append(data.SubGraphs, &subgraph)
 	}
 
+	if len(p.Capabilities) > 0 {
+		// create new subgraph for capabilities
+		subgraph := utils.SubGraph{
+			Nodes:     make(map[utils.GraphID]*utils.Node),
+			Title:     "Capabilities",
+			TitleSize: mediumText,
+			Color:     processCategoryClusterColor,
+		}
+
+		capabilitiesNodeID := at.prepareCapabilitiesNode(p, &subgraph)
+		subgraph.Name = "cluster_" + capabilitiesNodeID.String()
+		data.Edges = append(data.Edges, &utils.Edge{
+			From:  utils.NewGraphID(utils.NewNodeIDFromPtr(p)),
+			To:    capabilitiesNodeID,
+			Color: processCategoryColor,
+		})
+		// add subgraph
+		data.SubGraphs = append(data.SubGraphs, &subgraph)
+	}
+
 	for _, child := range p.Children {
 		childID := at.prepareProcessNode(child, data, resolver)
 		data.Edges = append(data.Edges, &utils.Edge{
@@ -249,9 +269,9 @@ func (at *ActivityTree) prepareDNSNode(n *DNSNode, data *utils.Graph, processID 
 		// save guard, this should never happen
 		return utils.GraphID{}, false
 	}
-	name := n.Requests[0].Name + " (" + (model.QType(n.Requests[0].Type).String())
+	name := n.Requests[0].Question.Name + " (" + (model.QType(n.Requests[0].Question.Type).String())
 	for _, req := range n.Requests[1:] {
-		name += ", " + model.QType(req.Type).String()
+		name += ", " + model.QType(req.Question.Type).String()
 	}
 	name += ")"
 
@@ -476,4 +496,27 @@ func (at *ActivityTree) prepareSyscallsNode(p *ProcessNode, data *utils.SubGraph
 	data.Nodes[syscallsNode.ID] = syscallsNode
 	return syscallsNode.ID
 
+}
+
+func (at *ActivityTree) prepareCapabilitiesNode(p *ProcessNode, data *utils.SubGraph) utils.GraphID {
+	label := tableHeader
+
+	for _, capabilityNode := range p.Capabilities {
+		kernelCap := model.KernelCapability(1 << capabilityNode.Capability)
+		label += "<TR><TD>" + kernelCap.String() + "</TD><TD>" + strconv.FormatBool(capabilityNode.Capable) + "</TD></TR>"
+	}
+
+	label += "</TABLE>>"
+
+	capNode := &utils.Node{
+		ID:        utils.NewGraphIDWithDescription("capabilities", utils.NewNodeIDFromPtr(p)),
+		Label:     label,
+		Size:      smallText,
+		Color:     processCategoryColor,
+		FillColor: processCategorySnapshotColor,
+		Shape:     processCategoryShape,
+		IsTable:   true,
+	}
+	data.Nodes[capNode.ID] = capNode
+	return capNode.ID
 }

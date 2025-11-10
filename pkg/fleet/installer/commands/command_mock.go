@@ -9,6 +9,7 @@ import (
 	"context"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/config"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
 )
 
@@ -100,7 +101,7 @@ func (m *installerMock) PromoteExperiment(_ context.Context, _ string) error {
 	return nil
 }
 
-func (m *installerMock) InstallConfigExperiment(_ context.Context, _ string, _ string, _ []byte) error {
+func (m *installerMock) InstallConfigExperiment(_ context.Context, _ string, _ config.Operations) error {
 	return nil
 }
 
@@ -121,10 +122,6 @@ func (m *installerMock) InstrumentAPMInjector(_ context.Context, _ string) error
 }
 
 func (m *installerMock) UninstrumentAPMInjector(_ context.Context, _ string) error {
-	return nil
-}
-
-func (m *installerMock) Postinst(_ context.Context, _ string, _ string) error {
 	return nil
 }
 

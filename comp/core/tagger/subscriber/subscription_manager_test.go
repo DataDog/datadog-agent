@@ -6,6 +6,7 @@
 package subscriber
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -20,7 +21,7 @@ import (
 
 func TestSubscriptionManager(t *testing.T) {
 
-	entityID := types.NewEntityID("foo", "bar")
+	entityID := types.NewEntityID(types.ContainerID, "bar")
 
 	events := map[string]types.EntityEvent{
 		"added": {
@@ -55,7 +56,8 @@ func TestSubscriptionManager(t *testing.T) {
 		"added-with-unmatched-prefix": {
 			EventType: types.EventTypeAdded,
 			Entity: types.Entity{
-				ID: types.NewEntityID("gee", "goo"),
+				// KubernetesDeployment prefix doesn't match any of the subscription filters used below
+				ID: types.NewEntityID(types.KubernetesDeployment, "goo"),
 			},
 		},
 	}
@@ -65,7 +67,7 @@ func TestSubscriptionManager(t *testing.T) {
 
 	// Low Cardinality Subscriber
 	lowCardSubID := "low-card-sub"
-	lowCardSubscription, err := sm.Subscribe(lowCardSubID, types.NewFilterBuilder().Include(types.EntityIDPrefix("foo")).Build(types.LowCardinality), nil)
+	lowCardSubscription, err := sm.Subscribe(lowCardSubID, types.NewFilterBuilder().Include(types.ContainerID).Build(types.LowCardinality), nil)
 	require.NoError(t, err)
 
 	sm.Notify([]types.EntityEvent{
@@ -80,7 +82,7 @@ func TestSubscriptionManager(t *testing.T) {
 
 	// Orchestrator Cardinality Subscriber
 	orchCardSubID := "orch-card-sub"
-	orchCardSubscription, err := sm.Subscribe(orchCardSubID, types.NewFilterBuilder().Include(types.EntityIDPrefix("foo")).Build(types.OrchestratorCardinality), nil)
+	orchCardSubscription, err := sm.Subscribe(orchCardSubID, types.NewFilterBuilder().Include(types.ContainerID).Build(types.OrchestratorCardinality), nil)
 	require.NoError(t, err)
 
 	sm.Notify([]types.EntityEvent{
@@ -95,7 +97,7 @@ func TestSubscriptionManager(t *testing.T) {
 
 	// High Cardinality Subscriber
 	highCardSubID := "high-card-sub"
-	highCardSubscription, err := sm.Subscribe(highCardSubID, types.NewFilterBuilder().Include(types.EntityIDPrefix("foo")).Build(types.HighCardinality), []types.EntityEvent{
+	highCardSubscription, err := sm.Subscribe(highCardSubID, types.NewFilterBuilder().Include(types.ContainerID).Build(types.HighCardinality), []types.EntityEvent{
 		events["added"],
 	})
 	require.NoError(t, err)
@@ -111,7 +113,7 @@ func TestSubscriptionManager(t *testing.T) {
 
 	// None Cardinality Subscriber
 	noneCardSubID := "none-card-sub"
-	noneCardSubscription, err := sm.Subscribe(noneCardSubID, types.NewFilterBuilder().Include(types.EntityIDPrefix("foo")).Build(types.NoneCardinality), nil)
+	noneCardSubscription, err := sm.Subscribe(noneCardSubID, types.NewFilterBuilder().Include(types.ContainerID).Build(types.NoneCardinality), nil)
 	require.NoError(t, err)
 
 	sm.Notify([]types.EntityEvent{
@@ -248,9 +250,120 @@ func TestSubscriptionManagerDuplicateSubscriberID(t *testing.T) {
 
 	// Low Cardinality Subscriber
 	lowCardSubID := "low-card-sub"
-	_, err := sm.Subscribe(lowCardSubID, types.NewFilterBuilder().Include(types.EntityIDPrefix("foo")).Build(types.LowCardinality), nil)
+	_, err := sm.Subscribe(lowCardSubID, types.NewFilterBuilder().Include(types.ContainerID).Build(types.LowCardinality), nil)
 	require.NoError(t, err)
 
-	_, err = sm.Subscribe(lowCardSubID, types.NewFilterBuilder().Include(types.EntityIDPrefix("foo")).Build(types.LowCardinality), nil)
+	_, err = sm.Subscribe(lowCardSubID, types.NewFilterBuilder().Include(types.ContainerID).Build(types.LowCardinality), nil)
 	require.Error(t, err)
+}
+
+func TestUnsubscribe(t *testing.T) {
+	tel := fxutil.Test[telemetry.Component](t, telemetryimpl.MockModule())
+	telemetryStore := taggerTelemetry.NewStore(tel)
+	sm := NewSubscriptionManager(telemetryStore)
+
+	assert.NotPanics(t, func() { sm.Unsubscribe("non-existing-id") })
+}
+
+func TestConcurrentSubscribe(t *testing.T) {
+	tel := fxutil.Test[telemetry.Component](t, telemetryimpl.MockModule())
+	telemetryStore := taggerTelemetry.NewStore(tel)
+	sm := NewSubscriptionManager(telemetryStore)
+
+	// Create concurrent subscriptions to trigger potential race condition
+	const numGoroutines = 100
+	errChan := make(chan error, numGoroutines)
+
+	for i := 0; i < numGoroutines; i++ {
+		go func(id int) {
+			subID := fmt.Sprintf("sub-%d", id)
+			filter := types.NewFilterBuilder().Include(types.ContainerID).Build(types.LowCardinality)
+			_, err := sm.Subscribe(subID, filter, nil)
+			errChan <- err
+		}(i)
+	}
+
+	// Collect all errors
+	for i := 0; i < numGoroutines; i++ {
+		err := <-errChan
+		require.NoError(t, err, "Concurrent subscription should not fail")
+	}
+}
+
+func TestInspectChannel(t *testing.T) {
+	tests := []struct {
+		name           string
+		channelBatches [][]types.EntityEvent
+		expected       subscriberChannelContent
+	}{
+		{
+			name:           "empty channel",
+			channelBatches: [][]types.EntityEvent{},
+			expected: subscriberChannelContent{
+				batches:        0,
+				totalEvents:    0,
+				eventsByPrefix: map[types.EntityIDPrefix]int{},
+				eventsByType:   map[string]int{},
+			},
+		},
+		{
+			name: "multiple batches",
+			channelBatches: [][]types.EntityEvent{
+				{
+					{
+						EventType: types.EventTypeAdded,
+						Entity: types.Entity{
+							ID: types.NewEntityID(types.ContainerID, "container-1"),
+						},
+					},
+					{
+						EventType: types.EventTypeModified,
+						Entity: types.Entity{
+							ID: types.NewEntityID(types.Process, "process-1"),
+						},
+					},
+				},
+				{
+					{
+						EventType: types.EventTypeAdded,
+						Entity: types.Entity{
+							ID: types.NewEntityID(types.ECSTask, "ecs-task-1"),
+						},
+					},
+					{
+						EventType: types.EventTypeDeleted,
+						Entity: types.Entity{
+							ID: types.NewEntityID(types.ContainerID, "container-2"),
+						},
+					},
+				},
+			},
+			expected: subscriberChannelContent{
+				batches:     2,
+				totalEvents: 4,
+				eventsByPrefix: map[types.EntityIDPrefix]int{
+					types.ContainerID: 2,
+					types.Process:     1,
+					types.ECSTask:     1,
+				},
+				eventsByType: map[string]int{
+					"Added":    2,
+					"Modified": 1,
+					"Deleted":  1,
+				},
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			ch := make(chan []types.EntityEvent, len(test.channelBatches))
+			for _, batch := range test.channelBatches {
+				ch <- batch
+			}
+
+			content := inspectChannel(ch)
+			assert.Equal(t, test.expected, content)
+		})
+	}
 }

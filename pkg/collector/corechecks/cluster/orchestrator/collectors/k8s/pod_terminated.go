@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	k8sProcessors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
+	utilTypes "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/util"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
@@ -45,7 +46,7 @@ type TerminatedPodCollector struct {
 // NewTerminatedPodCollector creates a new collector for the Kubernetes Pod
 // resource that is not assigned to any node.
 func NewTerminatedPodCollector(cfg config.Component, store workloadmeta.Component, tagger tagger.Component, metadataAsTags utils.MetadataAsTags) *TerminatedPodCollector {
-	resourceType := getResourceType(podName, podVersion)
+	resourceType := utilTypes.GetResourceType(utilTypes.PodName, utilTypes.PodVersion)
 	labelsAsTags := metadataAsTags.GetResourcesLabelsAsTags()[resourceType]
 	annotationsAsTags := metadataAsTags.GetResourcesAnnotationsAsTags()[resourceType]
 
@@ -56,10 +57,10 @@ func NewTerminatedPodCollector(cfg config.Component, store workloadmeta.Componen
 			IsMetadataProducer:                   true,
 			IsManifestProducer:                   true,
 			SupportsManifestBuffering:            true,
-			Name:                                 "terminated-pods",
+			Name:                                 utilTypes.TerminatedPodName,
 			Kind:                                 kubernetes.PodKind,
 			NodeType:                             orchestrator.K8sPod,
-			Version:                              "v1",
+			Version:                              utilTypes.PodVersion,
 			LabelsAsTags:                         labelsAsTags,
 			AnnotationsAsTags:                    annotationsAsTags,
 			SupportsTerminatedResourceCollection: true,
@@ -94,7 +95,7 @@ func (c *TerminatedPodCollector) Run(rcfg *collectors.CollectorRunConfig) (*coll
 func (c *TerminatedPodCollector) Process(rcfg *collectors.CollectorRunConfig, list interface{}) (*collectors.CollectorRunResult, error) {
 	ctx := collectors.NewK8sProcessorContext(rcfg, c.metadata)
 
-	processResult, processed := c.processor.Process(ctx, list)
+	processResult, listed, processed := c.processor.Process(ctx, list)
 
 	if processed == -1 {
 		return nil, collectors.ErrProcessingPanic
@@ -102,9 +103,15 @@ func (c *TerminatedPodCollector) Process(rcfg *collectors.CollectorRunConfig, li
 
 	result := &collectors.CollectorRunResult{
 		Result:             processResult,
-		ResourcesListed:    len(c.processor.Handlers().ResourceList(ctx, list)),
+		ResourcesListed:    listed,
 		ResourcesProcessed: processed,
 	}
 
 	return result, nil
+}
+
+// GetNodeName is used to get the node name from the resource.
+func (c *TerminatedPodCollector) GetNodeName(_ processors.ProcessorContext, resource interface{}) string {
+	r := resource.(*v1.Pod)
+	return r.Spec.NodeName
 }

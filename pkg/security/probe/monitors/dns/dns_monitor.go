@@ -27,6 +27,7 @@ import (
 type Stats struct {
 	FilteredDNSPackets  uint32
 	SameIDDifferentSize uint32
+	DiscardedDNSPackets uint32
 }
 
 // Monitor implements DNS response filtering statistics collection using a double-buffered
@@ -64,6 +65,7 @@ func (d *Monitor) SendStats() error {
 	statsAcrossAllCPUs := make([]Stats, d.numCPU)
 	var totalFilteredOnKernel int64
 	var totalSameIDDifferentSize int64
+	var discardedDNSPackets int64
 
 	err = buffer.Lookup(uint32(0), statsAcrossAllCPUs)
 	if err != nil {
@@ -73,6 +75,7 @@ func (d *Monitor) SendStats() error {
 	for _, val := range statsAcrossAllCPUs {
 		totalFilteredOnKernel += int64(val.FilteredDNSPackets)
 		totalSameIDDifferentSize += int64(val.SameIDDifferentSize)
+		discardedDNSPackets += int64(val.DiscardedDNSPackets)
 	}
 
 	var tags []string
@@ -83,6 +86,11 @@ func (d *Monitor) SendStats() error {
 
 	if err := d.statsdClient.Count(metrics.MetricDNSSameIDDifferentSize, totalSameIDDifferentSize, tags, 1.0); err != nil {
 		seclog.Tracef("couldn't set MetricDNSSameIDDifferentSize metric: %s", err)
+		return err
+	}
+
+	if err := d.statsdClient.Count(metrics.MetricDiscardedDNSPackets, discardedDNSPackets, tags, 1.0); err != nil {
+		seclog.Tracef("couldn't set MetricDiscardedDNSPackets metric: %s", err)
 		return err
 	}
 

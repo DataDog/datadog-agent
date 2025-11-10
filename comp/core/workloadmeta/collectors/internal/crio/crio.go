@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"os"
 
+	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	"go.uber.org/fx"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -29,6 +30,12 @@ const (
 	componentName = "workloadmeta-crio"
 )
 
+type dependencies struct {
+	fx.In
+
+	Filter workloadfilter.Component
+}
+
 type collector struct {
 	id             string
 	client         crio.Client
@@ -37,15 +44,18 @@ type collector struct {
 	seenContainers map[workloadmeta.EntityID]struct{}
 	seenImages     map[workloadmeta.EntityID]struct{}
 	sbomScanner    *scanner.Scanner //nolint: unused
+	sbomFilter     workloadfilter.FilterBundle
 }
 
 // NewCollector initializes a new CRI-O collector.
-func NewCollector() (workloadmeta.CollectorProvider, error) {
+func NewCollector(deps dependencies) (workloadmeta.CollectorProvider, error) {
 	return workloadmeta.CollectorProvider{
 		Collector: &collector{
 			id:             collectorID,
 			seenContainers: make(map[workloadmeta.EntityID]struct{}),
+			seenImages:     make(map[workloadmeta.EntityID]struct{}),
 			catalog:        workloadmeta.NodeAgent | workloadmeta.ProcessAgent,
+			sbomFilter:     deps.Filter.GetContainerSBOMFilters(),
 		},
 	}, nil
 }
@@ -89,43 +99,42 @@ func (c *collector) Pull(ctx context.Context) error {
 	}
 
 	seenContainers := make(map[workloadmeta.EntityID]struct{})
-	seenImages := make(map[workloadmeta.EntityID]struct{})
 	containerEvents := make([]workloadmeta.CollectorEvent, 0, len(containers))
-	imageEvents := make([]workloadmeta.CollectorEvent, 0, len(containers))
+	var imageEvents []workloadmeta.CollectorEvent
 
 	collectImages := imageMetadataCollectionIsEnabled()
 
 	for _, container := range containers {
-		// Generate container event
 		containerEvent := c.convertContainerToEvent(ctx, container)
 		seenContainers[containerEvent.Entity.GetID()] = struct{}{}
 		containerEvents = append(containerEvents, containerEvent)
-
-		// Skip image collection if the condition is not met
-		if !collectImages {
-			continue
-		}
-
-		imageEvent, err := c.generateImageEventFromContainer(ctx, container)
-		if err != nil {
-			log.Warnf("Image event generation failed for container %+v: %v", container, err)
-			continue
-		}
-
-		imageID := imageEvent.Entity.GetID()
-		seenImages[imageID] = struct{}{}
-		imageEvents = append(imageEvents, *imageEvent)
 	}
 
-	// Handle unset events for images if collecting images
 	if collectImages {
-		for seenID := range c.seenImages {
-			if _, ok := seenImages[seenID]; !ok {
-				unsetEvent := generateUnsetImageEvent(seenID)
+		// Get events for new images and IDs of all current images
+		var currentImageIDs []workloadmeta.EntityID
+		imageEvents, currentImageIDs, err = c.generateImageEventsFromImageList(ctx)
+		if err != nil {
+			log.Errorf("Image collection failed: %v", err)
+			return err
+		}
+
+		// Build new seenImages from current run
+		newSeenImages := make(map[workloadmeta.EntityID]struct{})
+		for _, imageID := range currentImageIDs {
+			newSeenImages[imageID] = struct{}{}
+		}
+
+		// Handle cleanup: send unset events for images in old seenImages but not in new
+		for oldImageID := range c.seenImages {
+			if _, stillExists := newSeenImages[oldImageID]; !stillExists {
+				unsetEvent := generateUnsetImageEvent(oldImageID)
 				imageEvents = append(imageEvents, *unsetEvent)
 			}
 		}
-		c.seenImages = seenImages
+
+		// Update seenImages for next run
+		c.seenImages = newSeenImages
 		c.store.Notify(imageEvents)
 	}
 
@@ -136,7 +145,6 @@ func (c *collector) Pull(ctx context.Context) error {
 			containerEvents = append(containerEvents, unsetEvent)
 		}
 	}
-
 	c.seenContainers = seenContainers
 	c.store.Notify(containerEvents)
 

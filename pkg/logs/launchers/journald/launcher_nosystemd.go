@@ -5,13 +5,13 @@
 
 //go:build !systemd
 
-//nolint:revive // TODO(AML) Fix revive linter
+// Package journald provides journald-based log launchers (no-op for non-systemd builds)
 package journald
 
 import (
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	flareController "github.com/DataDog/datadog-agent/comp/logs/agent/flare"
-	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
+	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/def"
 	"github.com/DataDog/datadog-agent/pkg/logs/launchers"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/tailers"
@@ -26,8 +26,6 @@ func NewLauncher(*flareController.FlareController, tagger.Component) *Launcher {
 }
 
 // Start does nothing
-//
-//nolint:revive // TODO(AML) Fix revive linter
 func (l *Launcher) Start(_ launchers.SourceProvider, _ pipeline.Provider, _ auditor.Registry, _ *tailers.TailerTracker) {
 }
 

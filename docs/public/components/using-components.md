@@ -25,37 +25,38 @@ Say you want to add a `test` command to the `agent` CLI.
 
 You would create the following file:
 
-=== ":octicons-file-code-16: cmd/agent/subcommands/test/command.go"
-    ```go
-    package test
+/// tab | :octicons-file-code-16: cmd/agent/subcommands/test/command.go
+```go
+package test
 
-    import (
+import (
     // [...]
-    )
+)
 
-    // Commands returns a slice of subcommands for the 'agent' command.
-    //
-    // The Agent uses "cobra" to create its CLI. The command method is your entrypoint. Here, you're going to create a single
-    // command.
-    func Commands(globalParams *command.GlobalParams) []*cobra.Command {
-        cmd := &cobra.Command{
-            Use:   "test",
-            Short: "a test command for the Agent",
-            Long:  ``,
-            RunE: func(_ *cobra.Command, _ []string) error {
-                return fxutil.OneShot(
-                    <callback>,
-                    <list of dependencies>.
-                )
-            },
-        }
-
-        return []*cobra.Command{cmd}
+// Commands returns a slice of subcommands for the 'agent' command.
+//
+// The Agent uses "cobra" to create its CLI. The command method is your entrypoint. Here, you're going to create a single
+// command.
+func Commands(globalParams *command.GlobalParams) []*cobra.Command {
+    cmd := &cobra.Command{
+        Use:   "test",
+        Short: "a test command for the Agent",
+        Long:  ``,
+        RunE: func(_ *cobra.Command, _ []string) error {
+            return fxutil.OneShot(
+                <callback>,
+                <list of dependencies>.
+            )
+        },
     }
-    ```
+
+    return []*cobra.Command{cmd}
+}
+```
+///
 
 The code above creates a test command that does nothing. As you can see, `fxutil.OneShot` helpers are being used. These
-helpers initialize an Fx app with all the wanted dependencies. 
+helpers initialize an Fx app with all the wanted dependencies.
 
 The next section explains how to request a
 dependency.
@@ -149,7 +150,7 @@ type custom struct {}
         myTestCallback,
         logfx.Module(),
 
-        // fx.Supply populates values into Fx. 
+        // fx.Supply populates values into Fx.
         // Any time this is needed, Fx will use it.
         fx.Supply(custom{})
     )
@@ -161,10 +162,11 @@ func myTestCallback(logger log.Component, c custom) {
 }
 ```
 
-!!! Info
-    This means that components can depend on plain types too (as long as the main entry point populates Fx options with them).
-    
+/// info
+This means that components can depend on plain types too (as long as the main entry point populates Fx options with them).
+///
+
 <!-- TODO: Provide an exmaple using fx.Provide -->
 
-<!-- TODO: 
+<!-- TODO:
 ## Using components parameters -->

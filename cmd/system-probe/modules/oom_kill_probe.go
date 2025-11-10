@@ -3,28 +3,29 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux
+//go:build linux && linux_bpf
 
 package modules
 
 import (
 	"fmt"
 	"net/http"
+	"sync/atomic"
 	"time"
 
-	"go.uber.org/atomic"
-
-	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
-	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
-	sysconfigtypes "github.com/DataDog/datadog-agent/cmd/system-probe/config/types"
-	"github.com/DataDog/datadog-agent/cmd/system-probe/utils"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/oomkill"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
+	"github.com/DataDog/datadog-agent/pkg/system-probe/config"
+	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
+	"github.com/DataDog/datadog-agent/pkg/system-probe/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+func init() { registerModule(OOMKillProbe) }
+
 // OOMKillProbe Factory
-var OOMKillProbe = module.Factory{
+var OOMKillProbe = &module.Factory{
 	Name:             config.OOMKillProbeModule,
 	ConfigNamespaces: []string{},
 	Fn: func(_ *sysconfigtypes.Config, _ module.FactoryDependencies) (module.Module, error) {
@@ -34,8 +35,7 @@ var OOMKillProbe = module.Factory{
 			return nil, fmt.Errorf("unable to start the OOM kill probe: %w", err)
 		}
 		return &oomKillModule{
-			Probe:     okp,
-			lastCheck: atomic.NewInt64(0),
+			Probe: okp,
 		}, nil
 	},
 	NeedsEBPF: func() bool {
@@ -47,14 +47,14 @@ var _ module.Module = &oomKillModule{}
 
 type oomKillModule struct {
 	*oomkill.Probe
-	lastCheck *atomic.Int64
+	lastCheck atomic.Int64
 }
 
 func (o *oomKillModule) Register(httpMux *module.Router) error {
 	httpMux.HandleFunc("/check", utils.WithConcurrencyLimit(utils.DefaultMaxConcurrentRequests, func(w http.ResponseWriter, _ *http.Request) {
 		o.lastCheck.Store(time.Now().Unix())
 		stats := o.Probe.GetAndFlush()
-		utils.WriteAsJSON(w, stats)
+		utils.WriteAsJSON(w, stats, utils.CompactOutput)
 	}))
 
 	return nil

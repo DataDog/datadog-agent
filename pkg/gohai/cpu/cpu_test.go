@@ -2,12 +2,15 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2014-present Datadog, Inc.
 
+//go:build test
+
 package cpu
 
 import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/gohai/utils"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -62,6 +65,22 @@ func TestCPUAsJSON(t *testing.T) {
 
 	var decodedCPU CPU
 	utils.RequireMarshallJSON(t, cpuInfo, &decodedCPU)
+
+	// output CPUCores, CPULogicalProcessors, Family, Mhz, Model, ModelName, Stepping, VendorID, CacheSizeKB, CacheSizeL1Bytes, CacheSizeL2Bytes, CacheSizeL3Bytes, CPUNumaNodes, CPUPkgs
+	log.Infof("CPUCores: %s", decodedCPU.CPUCores)
+	log.Infof("CPULogicalProcessors: %s", decodedCPU.CPULogicalProcessors)
+	log.Infof("Family: %s", decodedCPU.Family)
+	log.Infof("Mhz: %s", decodedCPU.Mhz)
+	log.Infof("Model: %s", decodedCPU.Model)
+	log.Infof("ModelName: %s", decodedCPU.ModelName)
+	log.Infof("Stepping: %s", decodedCPU.Stepping)
+	log.Infof("VendorID: %s", decodedCPU.VendorID)
+	log.Infof("CacheSizeKB: %s", decodedCPU.CacheSizeKB)
+	log.Infof("CacheSizeL1Bytes: %s", decodedCPU.CacheSizeL1Bytes)
+	log.Infof("CacheSizeL2Bytes: %s", decodedCPU.CacheSizeL2Bytes)
+	log.Infof("CacheSizeL3Bytes: %s", decodedCPU.CacheSizeL3Bytes)
+	log.Infof("CPUNumaNodes: %s", decodedCPU.CPUNumaNodes)
+	log.Infof("CPUPkgs: %s", decodedCPU.CPUPkgs)
 
 	utils.AssertDecodedValue(t, decodedCPU.CPUCores, &cpuInfo.CPUCores, "")
 	utils.AssertDecodedValue(t, decodedCPU.CPULogicalProcessors, &cpuInfo.CPULogicalProcessors, "")
