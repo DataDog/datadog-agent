@@ -217,6 +217,32 @@ func GetHostCCRID(ctx context.Context, detectedCloud string) string {
 	return hostCCRID
 }
 
+type cloudProviderInstanceTypeDetector func(context.Context) (string, error)
+
+var hostInstanceTypeDetectors = map[string]cloudProviderInstanceTypeDetector{
+	ec2.CloudProviderName: ec2.GetInstanceType,
+}
+
+// GetInstanceType returns the instance type from the first cloud provider that works.
+func GetInstanceType(ctx context.Context, detectedCloud string) string {
+	if detectedCloud == "" {
+		log.Infof("No instance type detected, no cloud provider detected")
+		return ""
+	}
+
+	if callback, found := hostInstanceTypeDetectors[detectedCloud]; found {
+		instanceType, err := callback(ctx)
+		if err != nil {
+			log.Debugf("Could not fetch instance type for %s: %s", detectedCloud, err)
+			return ""
+		}
+		return instanceType
+	}
+
+	log.Infof("No instance type found for cloud provider: %q", detectedCloud)
+	return ""
+}
+
 // GetPublicIPv4 returns the public IPv4 from different providers
 func GetPublicIPv4(ctx context.Context) (string, error) {
 	publicIPProvider := map[string]func(context.Context) (string, error){
