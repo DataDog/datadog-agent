@@ -85,14 +85,14 @@ func writeConfigV2(t *testing.T, v2Dir string) {
 	assert.NoError(t, err)
 }
 
-func assertConfigV2(t *testing.T, v2Dir *string) {
+func assertConfigV2(t *testing.T, v2Dir string) {
 	// /managed/datadog-agent/stable -> /etc/datadog-agent/managed/datadog-agent/v2
 	// /managed/datadog-agent/experiment -> /etc/datadog-agent/managed/datadog-agent/v2
 	// /managed/datadog-agent/v2/
 	//     datadog.yaml
 	//     application_monitoring.yaml
 	//     conf.d/mycheck.d/config.yaml
-	managedDir := filepath.Join(*v2Dir, "managed", "datadog-agent")
+	managedDir := filepath.Join(v2Dir, "managed", "datadog-agent")
 	info, err := os.Lstat(filepath.Join(managedDir, "v2"))
 	assert.NoError(t, err)
 	assert.True(t, info.Mode()&os.ModeDir != 0)
@@ -114,17 +114,17 @@ func assertConfigV2(t *testing.T, v2Dir *string) {
 	assert.True(t, info.Mode()&os.ModeSymlink != 0)
 
 	// v2Dir/conf.d/mychecks.d/config.yaml does not exists
-	_, err = os.Lstat(filepath.Join(*v2Dir, "conf.d", "mycheck.d", "config.yaml"))
+	_, err = os.Lstat(filepath.Join(v2Dir, "conf.d", "mycheck.d", "config.yaml"))
 	assert.Error(t, err)
 	assert.True(t, os.IsNotExist(err))
 }
 
-func assertConfigV3(t *testing.T, v3Dir *string) {
+func assertConfigV3(t *testing.T, v3Dir string) {
 	// Check the content of the v3 directory
 	// /managed/datadog-agent/stable
 	//     application_monitoring.yaml
 	// No more symlinks
-	managedDir := filepath.Join(*v3Dir, "managed", "datadog-agent")
+	managedDir := filepath.Join(v3Dir, "managed", "datadog-agent")
 	_, err := os.Stat(filepath.Join(managedDir, "experiment"))
 	assert.Error(t, err)
 	assert.True(t, os.IsNotExist(err))
@@ -149,7 +149,7 @@ func assertConfigV3(t *testing.T, v3Dir *string) {
 	assert.True(t, os.IsNotExist(err))
 
 	// v3Dir/conf.d/mychecks.d/config.yaml exists
-	_, err = os.Lstat(filepath.Join(*v3Dir, "conf.d", "mycheck.d", "config.yaml"))
+	_, err = os.Lstat(filepath.Join(v3Dir, "conf.d", "mycheck.d", "config.yaml"))
 	assert.NoError(t, err)
 	assert.True(t, info.Mode()&os.ModeSymlink == 0)
 }
@@ -162,20 +162,20 @@ func assertDeploymentID(t *testing.T, dirs *Directories, stableDeploymentID stri
 }
 
 func TestConfigV2ToV3(t *testing.T) {
-	stableTmpDir := t.TempDir()
-	managedDir := filepath.Join(stableTmpDir, "managed", "datadog-agent")
-	err := os.MkdirAll(managedDir, 0755)
+	stableDirPath := t.TempDir()
+	stableManagedDirPath := filepath.Join(stableDirPath, "managed", "datadog-agent")
+	err := os.MkdirAll(stableManagedDirPath, 0755)
 	assert.NoError(t, err)
 
 	// Create a v2 tree
-	writeConfigV2(t, stableTmpDir)
-	assertConfigV2(t, &stableTmpDir) // Make sure it's correct
+	writeConfigV2(t, stableDirPath)
+	assertConfigV2(t, stableDirPath) // Make sure it's correct
 
 	// Convert v2 to v3
-	newDir := t.TempDir()
+	experimentDirPath := t.TempDir()
 	dirs := &Directories{
-		StablePath:     stableTmpDir,
-		ExperimentPath: newDir,
+		StablePath:     stableDirPath,
+		ExperimentPath: experimentDirPath,
 	}
 
 	assertDeploymentID(t, dirs, "", "")
@@ -188,36 +188,34 @@ func TestConfigV2ToV3(t *testing.T) {
 	})
 	assert.NoError(t, err)
 
-	experimentDir := &newDir
-	stableDir := &stableTmpDir
 	assertDeploymentID(t, dirs, "", "experiment-456")
 
-	assertConfigV2(t, stableDir) // Make sure nothing changed
-	assertConfigV3(t, experimentDir)
+	assertConfigV2(t, stableDirPath) // Make sure nothing changed
+	assertConfigV3(t, experimentDirPath)
 
 	// Promote
 	err = dirs.PromoteExperiment(context.Background())
 	assert.NoError(t, err)
-	assertConfigV3(t, stableDir) // Make sure it changed
+	assertConfigV3(t, stableDirPath) // Make sure it changed
 
 	assertDeploymentID(t, dirs, "experiment-456", "")
 }
 
 func TestConfigV2Rollback(t *testing.T) {
-	stableTmpDir := t.TempDir()
-	managedDir := filepath.Join(stableTmpDir, "managed", "datadog-agent")
-	err := os.MkdirAll(managedDir, 0755)
+	stableDirPath := t.TempDir()
+	stableManagedDirPath := filepath.Join(stableDirPath, "managed", "datadog-agent")
+	err := os.MkdirAll(stableManagedDirPath, 0755)
 	assert.NoError(t, err)
 
 	// Create a v2 tree
-	writeConfigV2(t, stableTmpDir)
-	assertConfigV2(t, &stableTmpDir) // Make sure it's correct
+	writeConfigV2(t, stableDirPath)
+	assertConfigV2(t, stableDirPath) // Make sure it's correct
 
 	// Convert v2 to v3
-	newDir := t.TempDir()
+	experimentDirPath := t.TempDir()
 	dirs := &Directories{
-		StablePath:     stableTmpDir,
-		ExperimentPath: newDir,
+		StablePath:     stableDirPath,
+		ExperimentPath: experimentDirPath,
 	}
 
 	err = dirs.WriteExperiment(context.Background(), Operations{
@@ -228,17 +226,15 @@ func TestConfigV2Rollback(t *testing.T) {
 	})
 	assert.NoError(t, err)
 
-	experimentDir := &newDir
-	stableDir := &stableTmpDir
-	assertConfigV2(t, stableDir) // Make sure nothing changed
-	assertConfigV3(t, experimentDir)
+	assertConfigV2(t, stableDirPath) // Make sure nothing changed
+	assertConfigV3(t, experimentDirPath)
 
 	assertDeploymentID(t, dirs, "", "experiment-456")
 
 	// Rollback
 	err = dirs.RemoveExperiment(context.Background())
 	assert.NoError(t, err)
-	assertConfigV2(t, stableDir) // Make sure it's still v2
+	assertConfigV2(t, stableDirPath) // Make sure it's still v2
 
 	// Write again
 	err = dirs.WriteExperiment(context.Background(), Operations{
@@ -248,13 +244,13 @@ func TestConfigV2Rollback(t *testing.T) {
 		},
 	})
 	assert.NoError(t, err)
-	assertConfigV2(t, stableDir) // Make sure it's still v2
-	assertConfigV3(t, experimentDir)
+	assertConfigV2(t, stableDirPath) // Make sure it's still v2
+	assertConfigV3(t, experimentDirPath)
 
 	// Promote
 	err = dirs.PromoteExperiment(context.Background())
 	assert.NoError(t, err)
-	assertConfigV3(t, stableDir) // Make sure it changed
+	assertConfigV3(t, stableDirPath) // Make sure it changed
 
 	assertDeploymentID(t, dirs, "experiment-789", "")
 }
