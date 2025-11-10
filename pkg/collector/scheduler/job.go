@@ -210,6 +210,23 @@ func (jq *jobQueue) process(s *Scheduler) bool {
 				return false
 			}
 
+			// If the check is marked as run-once, remove it from the queue so it
+			// is scheduled only once. A check can opt-in by implementing the
+			// following interface:
+			//   interface { RunOnce() bool }
+			// This avoids re-enqueueing on subsequent ticks.
+			if ro, ok := interface{}(check).(interface{ RunOnce() bool }); ok {
+				log.Infof("[Scheduler] Check %s implements RunOnce(), calling it...", check.ID())
+				if ro.RunOnce() {
+					log.Infof("[Scheduler] Check %s is run-once, removing from job queue", check.ID())
+					_ = jq.removeJob(check.ID())
+				} else {
+					log.Infof("[Scheduler] Check %s RunOnce() returned false, keeping in queue", check.ID())
+				}
+			} else {
+				log.Infof("[Scheduler] Check %s does not implement RunOnce(), actual type: %T", check.ID(), check)
+			}
+
 			select {
 			// we were able to schedule a check so we're not stuck, therefore poll the health chan
 			case <-jq.health.C:

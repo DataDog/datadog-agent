@@ -160,3 +160,12 @@ func (c *CheckWrapper) GetDiagnoses() ([]diagnose.Diagnosis, error) {
 func (c *CheckWrapper) IsHASupported() bool {
 	return c.inner.IsHASupported()
 }
+
+// RunOnce returns true if the inner check should run only once (one-shot execution).
+// This method is probed by the scheduler via a type assertion.
+func (c *CheckWrapper) RunOnce() bool {
+	if ro, ok := c.inner.(interface{ RunOnce() bool }); ok {
+		return ro.RunOnce()
+	}
+	return false
+}
