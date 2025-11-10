@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build !windows
+//go:build windows
 
 package config
 
@@ -15,57 +15,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 )
-
-func TestDirectories_GetState(t *testing.T) {
-	tmpDir := t.TempDir()
-	stablePath := filepath.Join(tmpDir, "stable")
-	experimentPath := filepath.Join(tmpDir, "experiment")
-
-	err := os.MkdirAll(stablePath, 0755)
-	assert.NoError(t, err)
-	err = os.MkdirAll(experimentPath, 0755)
-	assert.NoError(t, err)
-
-	dirs := &Directories{
-		StablePath:     stablePath,
-		ExperimentPath: experimentPath,
-	}
-
-	// Test with no deployment IDs
-	state, err := dirs.GetState()
-	assert.NoError(t, err)
-	assert.Equal(t, "", state.StableDeploymentID)
-	assert.Equal(t, "", state.ExperimentDeploymentID)
-
-	// Test with stable deployment ID only
-	err = os.WriteFile(filepath.Join(stablePath, deploymentIDFile), []byte("stable-123"), 0644)
-	assert.NoError(t, err)
-
-	state, err = dirs.GetState()
-	assert.NoError(t, err)
-	assert.Equal(t, "stable-123", state.StableDeploymentID)
-	assert.Equal(t, "", state.ExperimentDeploymentID)
-
-	// Test with both deployment IDs
-	err = os.WriteFile(filepath.Join(experimentPath, deploymentIDFile), []byte("experiment-456"), 0644)
-	assert.NoError(t, err)
-
-	state, err = dirs.GetState()
-	assert.NoError(t, err)
-	assert.Equal(t, "stable-123", state.StableDeploymentID)
-	assert.Equal(t, "experiment-456", state.ExperimentDeploymentID)
-
-	// Test with symlinked experiment (should clear experiment deployment ID)
-	err = os.Remove(filepath.Join(experimentPath, deploymentIDFile))
-	assert.NoError(t, err)
-	err = os.Symlink(filepath.Join(stablePath, deploymentIDFile), filepath.Join(experimentPath, deploymentIDFile))
-	assert.NoError(t, err)
-
-	state, err = dirs.GetState()
-	assert.NoError(t, err)
-	assert.Equal(t, "stable-123", state.StableDeploymentID)
-	assert.Equal(t, "", state.ExperimentDeploymentID)
-}
 
 func writeConfigV2(t *testing.T, v2Dir string) {
 	managedDir := filepath.Join(v2Dir, "managed", "datadog-agent")
@@ -96,22 +45,17 @@ func assertConfigV2(t *testing.T, v2Dir *string) {
 	info, err := os.Lstat(filepath.Join(managedDir, "v2"))
 	assert.NoError(t, err)
 	assert.True(t, info.Mode()&os.ModeDir != 0)
-	info, err = os.Stat(filepath.Join(managedDir, "v2", "datadog.yaml"))
+	_, err = os.Stat(filepath.Join(managedDir, "v2", "datadog.yaml"))
 	assert.NoError(t, err)
-	assert.True(t, info.Mode()&os.ModeSymlink == 0)
-	info, err = os.Lstat(filepath.Join(managedDir, "v2", "application_monitoring.yaml"))
+	_, err = os.Lstat(filepath.Join(managedDir, "v2", "application_monitoring.yaml"))
 	assert.NoError(t, err)
-	assert.True(t, info.Mode()&os.ModeSymlink == 0)
-	info, err = os.Lstat(filepath.Join(managedDir, "v2", "conf.d", "mycheck.d", "config.yaml"))
+	_, err = os.Lstat(filepath.Join(managedDir, "v2", "conf.d", "mycheck.d", "config.yaml"))
 	assert.NoError(t, err)
-	assert.True(t, info.Mode()&os.ModeSymlink == 0)
 
-	info, err = os.Lstat(filepath.Join(managedDir, "stable"))
+	_, err = os.Lstat(filepath.Join(managedDir, "stable"))
 	assert.NoError(t, err)
-	assert.True(t, info.Mode()&os.ModeSymlink != 0)
-	info, err = os.Lstat(filepath.Join(managedDir, "experiment"))
+	_, err = os.Lstat(filepath.Join(managedDir, "experiment"))
 	assert.NoError(t, err)
-	assert.True(t, info.Mode()&os.ModeSymlink != 0)
 
 	// v2Dir/conf.d/mychecks.d/config.yaml does not exists
 	_, err = os.Lstat(filepath.Join(*v2Dir, "conf.d", "mycheck.d", "config.yaml"))
@@ -133,17 +77,15 @@ func assertConfigV3(t *testing.T, v3Dir *string) {
 	assert.Error(t, err)
 	assert.True(t, os.IsNotExist(err))
 
-	stableInfo, err := os.Lstat(filepath.Join(managedDir, "stable"))
+	_, err = os.Lstat(filepath.Join(managedDir, "stable"))
 	assert.NoError(t, err)
-	assert.True(t, stableInfo.Mode()&os.ModeSymlink == 0)
 
 	// Check the files are not here anymore, except application_monitoring.yaml
 	_, err = os.Lstat(filepath.Join(managedDir, "stable", "datadog.yaml"))
 	assert.Error(t, err)
 	assert.True(t, os.IsNotExist(err))
-	info, err := os.Lstat(filepath.Join(managedDir, "stable", "application_monitoring.yaml"))
+	_, err = os.Lstat(filepath.Join(managedDir, "stable", "application_monitoring.yaml"))
 	assert.NoError(t, err)
-	assert.True(t, info.Mode()&os.ModeSymlink == 0)
 	_, err = os.Lstat(filepath.Join(managedDir, "stable", "conf.d", "mycheck.d", "config.yaml"))
 	assert.Error(t, err)
 	assert.True(t, os.IsNotExist(err))
@@ -151,7 +93,6 @@ func assertConfigV3(t *testing.T, v3Dir *string) {
 	// v3Dir/conf.d/mychecks.d/config.yaml exists
 	_, err = os.Lstat(filepath.Join(*v3Dir, "conf.d", "mycheck.d", "config.yaml"))
 	assert.NoError(t, err)
-	assert.True(t, info.Mode()&os.ModeSymlink == 0)
 }
 
 func assertDeploymentID(t *testing.T, dirs *Directories, stableDeploymentID string, experimentDeploymentID string) {
@@ -188,8 +129,9 @@ func TestConfigV2ToV3(t *testing.T) {
 	})
 	assert.NoError(t, err)
 
-	experimentDir := &newDir
-	stableDir := &stableTmpDir
+	// On windows, experimentsDirPath contains the backup of the stable state
+	experimentDir := &stableTmpDir
+	stableDir := &newDir
 	assertDeploymentID(t, dirs, "", "experiment-456")
 
 	assertConfigV2(t, stableDir) // Make sure nothing changed
@@ -228,8 +170,9 @@ func TestConfigV2Rollback(t *testing.T) {
 	})
 	assert.NoError(t, err)
 
-	experimentDir := &newDir
-	stableDir := &stableTmpDir
+	// On windows, experimentsDirPath contains the backup of the stable state
+	experimentDir := &stableTmpDir
+	stableDir := &newDir
 	assertConfigV2(t, stableDir) // Make sure nothing changed
 	assertConfigV3(t, experimentDir)
 
