@@ -13,10 +13,6 @@ license(
     visibility = ["//visibility:public"],
 )
 
-exports_files([
-    "COPYING",
-])
-
 COMMON_COPTS = ["-O3"]
 COMMON_INCLUDES = [".", "include"]
 
