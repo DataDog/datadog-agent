@@ -99,8 +99,8 @@ go_e2e_deps:
   extends: .cache
   before_script:
     - dd-octo-sts version
-    - dd-octo-sts debug --scope DataDog/dd-octo-sts-sandbox --policy YOUR_POLICY
-    - dd-octo-sts token --scope DataDog/dd-octo-sts-sandbox --policy YOUR_POLICY > token.txt
+    - dd-octo-sts debug --scope DataDog/dd-octo-sts-sandbox --policy .github/chainguard/self.gitlab.read.sts.yaml
+    - dd-octo-sts token --scope DataDog/dd-octo-sts-sandbox --policy .github/chainguard/self.gitlab.read.sts.yaml > token.txt
   script:
     - |
       if [ ! -f modcache_e2e.tar.xz ]; then
@@ -109,8 +109,6 @@ go_e2e_deps:
       fi
     - |
       if [ ! -f pulumi_plugins.tar.xz ]; then
-        dd-octo-sts
-        export GITHUB_TOKEN=$(dda inv github.get-token-from-app)
         # Pre-download Pulumi plugins used by e2e scenarios and components, should no longer be needed when we move test-infra-definitions to datadog-agent
         pushd ./test/new-e2e
         PULUMI_CONFIG_PASSPHRASE=dummy pulumi --non-interactive plugin install
