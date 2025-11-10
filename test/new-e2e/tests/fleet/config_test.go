@@ -16,6 +16,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/fleet/agent"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/fleet/backend"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/fleet/suite"
 )
@@ -57,11 +58,11 @@ func (s *configSuite) TestMultipleConfigs() {
 	defer s.Agent.MustUninstall()
 
 	for i := 0; i < 3; i++ {
-		err := s.Backend.StartConfigExperiment(fleetbackend.ConfigOperations{
+		err := s.Backend.StartConfigExperiment(backend.ConfigOperations{
 			DeploymentID: fmt.Sprintf("123-%d", i),
-			FileOperations: []fleetbackend.FileOperation{
+			FileOperations: []backend.FileOperation{
 				{
-					FileOperationType: fleetbackend.FileOperationMergePatch,
+					FileOperationType: backend.FileOperationMergePatch,
 					FilePath:          "/datadog.yaml",
 					Patch:             []byte(fmt.Sprintf(`{"extra_tags": ["debug:step-%d"]}`, i)),
 				},
