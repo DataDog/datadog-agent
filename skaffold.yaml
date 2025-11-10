@@ -16,7 +16,6 @@ deploy:
     releases:
       - name: datadog-agent
         remoteChart: datadog/datadog
-        version: 3.141.0
         valuesFiles: [".skaffold/values.yaml"]
         namespace: "datadog-agent-helm"
         setValueTemplates:
