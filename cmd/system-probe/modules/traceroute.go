@@ -61,38 +61,28 @@ func (t *traceroute) Register(httpMux *module.Router) error {
 
 	// TODO: what other config should be passed as part of this request?
 	httpMux.HandleFunc("/traceroute/{host}", func(w http.ResponseWriter, req *http.Request) {
-		handleError := func(statusCode int, errString string) {
-			w.WriteHeader(statusCode)
-
-			log.Error(errString)
-			_, err := w.Write([]byte(errString))
-			if err != nil {
-				log.Errorf("unable to write traceroute error response: %s", err)
-			}
-		}
-
 		start := time.Now()
 		cfg, err := parseParams(req)
 		if err != nil {
-			handleError(http.StatusBadRequest, fmt.Sprintf("invalid params for host: %s: %s", cfg.DestHostname, err))
+			handleTracerouteReqError(w, http.StatusBadRequest, fmt.Sprintf("invalid params for host: %s: %s", cfg.DestHostname, err))
 			return
 		}
 
 		if driverError != nil && !cfg.DisableWindowsDriver {
-			handleError(http.StatusInternalServerError, fmt.Sprintf("failed to start platform driver: %s", driverError))
+			handleTracerouteReqError(w, http.StatusInternalServerError, fmt.Sprintf("failed to start platform driver: %s", driverError))
 			return
 		}
 
 		// Run traceroute
 		path, err := t.runner.RunTraceroute(context.Background(), cfg)
 		if err != nil {
-			handleError(http.StatusInternalServerError, fmt.Sprintf("unable to run traceroute for host: %s: %s", cfg.DestHostname, err.Error()))
+			handleTracerouteReqError(w, http.StatusInternalServerError, fmt.Sprintf("unable to run traceroute for host: %s: %s", cfg.DestHostname, err.Error()))
 			return
 		}
 
 		resp, err := json.Marshal(path)
 		if err != nil {
-			handleError(http.StatusInternalServerError, fmt.Sprintf("unable to marshall traceroute response: %s", err))
+			handleTracerouteReqError(w, http.StatusInternalServerError, fmt.Sprintf("unable to marshall traceroute response: %s", err))
 			return
 		}
 		_, err = w.Write(resp)
@@ -116,6 +106,15 @@ func (t *traceroute) Close() {
 	err := stopPlatformDriver()
 	if err != nil {
 		log.Errorf("failed to stop platform driver: %s", err)
+	}
+}
+
+func handleTracerouteReqError(w http.ResponseWriter, statusCode int, errString string) {
+	w.WriteHeader(statusCode)
+	log.Error(errString)
+	_, err := w.Write([]byte(errString))
+	if err != nil {
+		log.Errorf("unable to write traceroute error response: %s", err)
 	}
 }
 
