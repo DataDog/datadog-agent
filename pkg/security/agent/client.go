@@ -20,8 +20,8 @@ import (
 
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/security/common"
-	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
+	"github.com/DataDog/datadog-agent/pkg/util/system/socket"
 	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/mdlayher/vsock"
 )
@@ -198,7 +198,7 @@ func NewRuntimeSecurityCmdClient() (*RuntimeSecurityCmdClient, error) {
 		return nil, err
 	}
 
-	family, cmdSocketPath := config.GetSocketAddress(cmdSocketPath)
+	family, cmdSocketPath := socket.GetSocketAddress(cmdSocketPath)
 	if family == "unix" {
 		if runtime.GOOS == "windows" {
 			return nil, fmt.Errorf("unix sockets are not supported on Windows")
@@ -236,7 +236,7 @@ func (c *RuntimeSecurityEventClient) Close() {
 func NewRuntimeSecurityEventClient() (*RuntimeSecurityEventClient, error) {
 	socketPath := pkgconfigsetup.Datadog().GetString("runtime_security_config.socket")
 
-	family := common.GetFamilyAddress(socketPath)
+	family := socket.GetFamilyAddress(socketPath)
 	if family == "unix" {
 		if runtime.GOOS == "windows" {
 			return nil, fmt.Errorf("unix sockets are not supported on Windows")
