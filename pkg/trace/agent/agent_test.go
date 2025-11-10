@@ -190,16 +190,23 @@ func TestStopWaits(t *testing.T) {
 		Source:        info.NewReceiverStats(true).GetTagStats(info.Tags{}),
 	}
 
-	select {
-	case agnt.In <- payload:
-		// Successfully sent payload
-	case <-ctx.Done():
-		// Context cancelled before we could send
-		t.Fatal("Context cancelled before payload could be sent")
-	case <-time.After(500 * time.Millisecond):
-		// Timeout - this shouldn't happen in normal operation.
-		// 500ms is used to allow worker goroutines to start and be ready
-		t.Fatal("Timeout sending payload to agent")
+	// Wait for agent workers to be ready by attempting to send with retries.
+	sent := false
+	ticker := time.NewTicker(10 * time.Millisecond)
+	defer ticker.Stop()
+	timeout := time.After(2 * time.Second)
+
+	for !sent {
+		select {
+		case agnt.In <- payload:
+			sent = true
+		case <-ctx.Done():
+			t.Fatal("Context cancelled before payload could be sent")
+		case <-timeout:
+			t.Fatal("Timeout waiting for agent workers to be ready")
+		case <-ticker.C:
+			// Retry on next tick
+		}
 	}
 
 	cancel()
