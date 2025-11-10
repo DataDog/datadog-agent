@@ -13,8 +13,9 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/spf13/afero"
+
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder"
-	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -30,7 +31,7 @@ func (t *Tailer) setup(offset int64, whence int) error {
 	t.tags = t.buildTailerTags()
 
 	log.Info("Opening ", t.fullpath)
-	f, err := filesystem.OpenShared(t.fullpath)
+	f, err := t.fileOpener.OpenLogFile(t.fullpath)
 	if err != nil {
 		return err
 	}
@@ -55,7 +56,7 @@ func (t *Tailer) readAvailable() (int, error) {
 		return 0, io.EOF
 	}
 
-	var f *os.File
+	var f afero.File
 	defer func() {
 		if f != nil {
 			f.Close()
@@ -66,7 +67,7 @@ func (t *Tailer) readAvailable() (int, error) {
 	for {
 		if f == nil {
 			var err error
-			f, err = filesystem.OpenShared(t.fullpath)
+			f, err = t.fileOpener.OpenLogFile(t.fullpath)
 			if err != nil {
 				return bytes, err
 			}
