@@ -239,7 +239,6 @@ func ParseV4TaskContainers(
 		}
 		if strings.ToUpper(task.LaunchType) == "MANAGED_INSTANCES" && fargate.IsFargateInstance() {
 			source = workloadmeta.SourceRuntime
-			containerEvent.Runtime = workloadmeta.ContainerRuntimeECSManagedInstances
 		}
 
 		events = append(events, workloadmeta.CollectorEvent{

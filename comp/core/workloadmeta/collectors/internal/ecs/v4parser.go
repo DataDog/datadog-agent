@@ -230,14 +230,12 @@ func (c *collector) parseV4TaskForSidecar(task *v3or4.Task) []workloadmeta.Colle
 
 		// Set container runtime based on actual launch type
 		// - Fargate: Use ContainerRuntimeECSFargate
-		// - EC2: Leave empty (Docker collector will fill this in)
+		// - EC2/Managed Instances: Leave empty (Docker collector will fill this in)
 		if container, ok := taskEvents[i].Entity.(*workloadmeta.Container); ok {
 			if c.actualLaunchType == workloadmeta.ECSLaunchTypeFargate {
 				container.Runtime = workloadmeta.ContainerRuntimeECSFargate
-			} else if c.actualLaunchType == workloadmeta.ECSLaunchTypeManagedInstances && fargate.IsFargateInstance() {
-				container.Runtime = workloadmeta.ContainerRuntimeECSManagedInstances
 			} else {
-				// EC2 sidecar: don't set runtime, let Docker collector handle it
+				// EC2/Managed Instances sidecar: don't set runtime, let Docker collector handle it
 				container.Runtime = ""
 			}
 		}
