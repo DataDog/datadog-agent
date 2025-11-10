@@ -28,7 +28,7 @@ func NewFileOpener() FileOpener {
 type fileOpenerImpl struct {
 }
 
-// OpenShared utilizes an os-specific implementation to open a file in a shared mode.
+// OpenLogFile utilizes an os-specific implementation to open a log file in a shared mode.
 // On some operating systems, this will involve making an attempt to open the file via a privileged logs client.
 // If the file is not intended to attempt privilege escalation for access (e.g. it is not a log file), then the OpenShared
 // function should be used instead. This will minimize avoidable error logs for failed privilege escalation attempts.
@@ -36,7 +36,7 @@ func (f *fileOpenerImpl) OpenLogFile(path string) (afero.File, error) {
 	return internalOpener.OpenLogFile(path)
 }
 
-// OpenShared utilizes an os-specific implementation to open a file in a shared mode.
+// OpenShared utilizes an os-specific implementation to open a generic file in a shared mode.
 func (f *fileOpenerImpl) OpenShared(path string) (afero.File, error) {
 	return filesystem.OpenShared(path)
 }
