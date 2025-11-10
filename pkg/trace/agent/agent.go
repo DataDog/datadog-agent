@@ -693,7 +693,7 @@ func (a *Agent) setPayloadAttributes(p *api.Payload, root *pb.Span, chunk *pb.Tr
 		p.TracerPayload.AppVersion = version.GetAppVersionFromTrace(root, chunk)
 	}
 	if p.TracerPayload.APMMode == "" {
-		if mode := normalize.NormalizeAPMMode(root.Meta[tagAPMMode]); mode != "" {
+		if mode := normalize.APMMode(root.Meta[tagAPMMode]); mode != "" {
 			p.TracerPayload.APMMode = mode
 		}
 	}
