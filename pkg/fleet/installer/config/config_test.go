@@ -571,12 +571,6 @@ func writeConfigV2(t *testing.T, v2Dir string) {
 }
 
 func assertConfigV2(t *testing.T, v2Dir *string) {
-	if v2Dir == nil {
-		// On windows, experiments are not supported yet for configuration.
-		assert.Equal(t, "windows", runtime.GOOS)
-		return
-	}
-
 	// /managed/datadog-agent/stable -> /etc/datadog-agent/managed/datadog-agent/v2
 	// /managed/datadog-agent/experiment -> /etc/datadog-agent/managed/datadog-agent/v2
 	// /managed/datadog-agent/v2/
@@ -611,12 +605,6 @@ func assertConfigV2(t *testing.T, v2Dir *string) {
 }
 
 func assertConfigV3(t *testing.T, v3Dir *string) {
-	if v3Dir == nil {
-		// On windows, experiments are not supported yet for configuration.
-		assert.Equal(t, "windows", runtime.GOOS)
-		return
-	}
-
 	// Check the content of the v3 directory
 	// /managed/datadog-agent/stable
 	//     application_monitoring.yaml
@@ -687,6 +675,10 @@ func TestConfigV2ToV3(t *testing.T) {
 
 	experimentDir := &newDir
 	stableDir := &stableTmpDir
+	if runtime.GOOS == "windows" {
+		experimentDir = &stableTmpDir
+		stableDir = &newDir
+	}
 
 	assertDeploymentID(t, dirs, "", "experiment-456")
 
@@ -728,6 +720,10 @@ func TestConfigV2Rollback(t *testing.T) {
 
 	experimentDir := &newDir
 	stableDir := &stableTmpDir
+	if runtime.GOOS == "windows" {
+		experimentDir = &stableTmpDir
+		stableDir = &newDir
+	}
 
 	assertConfigV2(t, stableDir) // Make sure nothing changed
 	assertConfigV3(t, experimentDir)
