@@ -687,10 +687,6 @@ func TestConfigV2ToV3(t *testing.T) {
 
 	experimentDir := &newDir
 	stableDir := &stableTmpDir
-	if runtime.GOOS == "windows" {
-		experimentDir = &stableTmpDir
-		stableDir = nil
-	}
 
 	assertDeploymentID(t, dirs, "", "experiment-456")
 
@@ -732,10 +728,6 @@ func TestConfigV2Rollback(t *testing.T) {
 
 	experimentDir := &newDir
 	stableDir := &stableTmpDir
-	if runtime.GOOS == "windows" {
-		experimentDir = &stableTmpDir
-		stableDir = nil
-	}
 
 	assertConfigV2(t, stableDir) // Make sure nothing changed
 	assertConfigV3(t, experimentDir)
