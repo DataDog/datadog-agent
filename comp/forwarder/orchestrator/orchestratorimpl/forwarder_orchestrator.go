@@ -60,8 +60,9 @@ func newOrchestratorForwarder(log log.Component, config config.Component, secret
 		}
 		orchestratorForwarderOpts := defaultforwarder.NewOptionsWithResolvers(config, log, resolver)
 		orchestratorForwarderOpts.DisableAPIKeyChecking = true
+		orchestratorForwarderOpts.Secrets = secrets
 
-		forwarder := defaultforwarder.NewDefaultForwarderWithSecrets(config, log, secrets, orchestratorForwarderOpts)
+		forwarder := defaultforwarder.NewDefaultForwarder(config, log, orchestratorForwarderOpts)
 		lc.Append(fx.Hook{
 			OnStart: func(context.Context) error {
 				_ = forwarder.Start()

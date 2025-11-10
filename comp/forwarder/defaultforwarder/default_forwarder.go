@@ -20,7 +20,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
-	secretsnoop "github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/endpoints"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/internal/retry"
 	pkgresolver "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/resolver"
@@ -109,6 +108,7 @@ type Options struct {
 	APIKeyValidationInterval       time.Duration
 	DomainResolvers                map[string]pkgresolver.DomainResolver
 	ConnectionResetInterval        time.Duration
+	Secrets                        secrets.Component
 }
 
 // SetFeature sets forwarder features in a feature set
@@ -287,13 +287,13 @@ type DefaultForwarder struct {
 	secrets                         secrets.Component
 }
 
-// NewDefaultForwarderWithSecrets returns a new DefaultForwarder with secrets support for API key refresh.
-func NewDefaultForwarderWithSecrets(config config.Component, log log.Component, secrets secrets.Component, options *Options) *DefaultForwarder {
+// NewDefaultForwarder returns a new DefaultForwarder.
+func NewDefaultForwarder(config config.Component, log log.Component, options *Options) *DefaultForwarder {
 	agentName := getAgentName(options)
 	f := &DefaultForwarder{
 		config:           config,
 		log:              log,
-		secrets:          secrets,
+		secrets:          options.Secrets,
 		NumberOfWorkers:  options.NumberOfWorkers,
 		domainForwarders: map[string]*domainForwarder{},
 		domainResolvers:  map[string]pkgresolver.DomainResolver{},
@@ -301,7 +301,7 @@ func NewDefaultForwarderWithSecrets(config config.Component, log log.Component, 
 		healthChecker: &forwarderHealth{
 			log:                   log,
 			config:                config,
-			secrets:               secrets,
+			secrets:               options.Secrets,
 			domainResolvers:       options.DomainResolvers,
 			disableAPIKeyChecking: options.DisableAPIKeyChecking,
 			validationInterval:    options.APIKeyValidationInterval,
@@ -381,7 +381,7 @@ func NewDefaultForwarderWithSecrets(config config.Component, log log.Component, 
 			fwd := newDomainForwarder(
 				config,
 				log,
-				secrets,
+				options.Secrets,
 				domain,
 				resolver.IsMRF(),
 				resolver.IsLocal(),
@@ -416,15 +416,6 @@ func NewDefaultForwarderWithSecrets(config config.Component, log log.Component, 
 	}
 
 	return f
-}
-
-// NewDefaultForwarder returns a new DefaultForwarder.
-// TODO: (components) Remove this method and other exported methods in comp/forwarder.
-func NewDefaultForwarder(config config.Component, log log.Component, options *Options) *DefaultForwarder {
-	// TODO: Move Forwarder to multi-impl component layout. NewDefaultForwarder has to remain for usage in external repositories.
-	// github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog/agentcomponents depends on NewDefaultForwarder.
-	// so we need to keep NewDefaultForwarder for compatibility
-	return NewDefaultForwarderWithSecrets(config, log, secretsnoop.NewComponent().Comp, options)
 }
 
 func getAgentName(options *Options) string {

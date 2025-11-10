@@ -35,11 +35,12 @@ func NewSyncForwarder(config config.Component, log log.Component, secrets secret
 	if err != nil {
 		return nil, err
 	}
+	options.Secrets = secrets
 	return &SyncForwarder{
 		config:           config,
 		log:              log,
 		secrets:          secrets,
-		defaultForwarder: NewDefaultForwarderWithSecrets(config, log, secrets, options),
+		defaultForwarder: NewDefaultForwarder(config, log, options),
 		client: &http.Client{
 			Timeout:   timeout,
 			Transport: utilhttp.CreateHTTPTransport(config),

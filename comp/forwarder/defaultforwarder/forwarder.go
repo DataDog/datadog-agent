@@ -38,15 +38,15 @@ type provides struct {
 }
 
 func newForwarder(dep dependencies) (provides, error) {
-	options, err := createOptions(dep.Params, dep.Config, dep.Log)
+	options, err := createOptions(dep.Params, dep.Config, dep.Log, dep.Secrets)
 	if err != nil {
 		return provides{}, err
 	}
 
-	return NewForwarder(dep.Config, dep.Log, dep.Secrets, dep.Lc, true, options), nil
+	return NewForwarder(dep.Config, dep.Log, dep.Lc, true, options), nil
 }
 
-func createOptions(params Params, config config.Component, log log.Component) (*Options, error) {
+func createOptions(params Params, config config.Component, log log.Component, secrets secrets.Component) (*Options, error) {
 	var options *Options
 	endpoints, err := utils.GetMultipleEndpoints(config)
 	if err != nil {
@@ -72,6 +72,8 @@ func createOptions(params Params, config config.Component, log log.Component) (*
 	if disableAPIKeyChecking, ok := params.disableAPIKeyCheckingOverride.Get(); ok {
 		options.DisableAPIKeyChecking = disableAPIKeyChecking
 	}
+	// set the secrets component from the dependencies
+	options.Secrets = secrets
 	options.SetEnabledFeatures(params.features)
 
 	log.Infof("starting forwarder with %d endpoints", len(options.DomainResolvers))
@@ -88,8 +90,8 @@ func createOptions(params Params, config config.Component, log log.Component) (*
 // NewForwarder returns a new forwarder component.
 //
 //nolint:revive
-func NewForwarder(config config.Component, log log.Component, secrets secrets.Component, lc fx.Lifecycle, ignoreLifeCycleError bool, options *Options) provides {
-	forwarder := NewDefaultForwarderWithSecrets(config, log, secrets, options)
+func NewForwarder(config config.Component, log log.Component, lc fx.Lifecycle, ignoreLifeCycleError bool, options *Options) provides {
+	forwarder := NewDefaultForwarder(config, log, options)
 
 	lc.Append(fx.Hook{
 		OnStart: func(context.Context) error {
@@ -109,7 +111,8 @@ func NewForwarder(config config.Component, log log.Component, secrets secrets.Co
 
 func newMockForwarder(config config.Component, log log.Component, secrets secrets.Component) provides {
 	options, _ := NewOptions(config, log, nil)
+	options.Secrets = secrets
 	return provides{
-		Comp: NewDefaultForwarderWithSecrets(config, log, secrets, options),
+		Comp: NewDefaultForwarder(config, log, options),
 	}
 }
