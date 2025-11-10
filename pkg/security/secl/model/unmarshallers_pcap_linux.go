@@ -28,7 +28,7 @@ func (e *RawPacketEvent) UnmarshalBinary(data []byte) (int, error) {
 
 	e.Size = binary.NativeEndian.Uint32(data)
 	data = data[4:]
-	e.Data = data
+	e.Data = append([]byte(nil), data...)
 	e.CaptureInfo.InterfaceIndex = int(e.NetworkContext.Device.IfIndex)
 	e.CaptureInfo.Length = int(e.NetworkContext.Size)
 	e.CaptureInfo.CaptureLength = len(data)
