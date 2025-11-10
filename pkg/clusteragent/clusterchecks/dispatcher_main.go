@@ -119,6 +119,7 @@ func newDispatcher(tagger tagger.Component) *dispatcher {
 	}
 
 	// Initialize KSM sharding (requires advanced dispatching)
+	// Advanced dispatching is required for KSM sharding because it ensures shards are distributed across runners
 	ksmShardingEnabled := pkgconfigsetup.Datadog().GetBool("cluster_checks.ksm_sharding_enabled")
 	if ksmShardingEnabled {
 		// Validate advanced dispatching is actually enabled

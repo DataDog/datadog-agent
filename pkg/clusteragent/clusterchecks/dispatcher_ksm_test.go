@@ -18,60 +18,59 @@ import (
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
 
-func TestScheduleKSMCheck_Disabled(t *testing.T) {
-	d := &dispatcher{
-		ksmSharding: NewKSMShardingManager(false),
-		store:       newClusterStore(),
+func TestScheduleKSMCheck(t *testing.T) {
+	tests := []struct {
+		name                string
+		shardingEnabled     bool
+		advancedDispatching bool
+		config              integration.Config
+		expectedResult      bool
+	}{
+		{
+			name:                "sharding disabled",
+			shardingEnabled:     false,
+			advancedDispatching: true,
+			config:              createTestKSMConfig([]string{"pods", "nodes"}),
+			expectedResult:      false,
+		},
+		{
+			name:                "not a KSM check",
+			shardingEnabled:     true,
+			advancedDispatching: true,
+			config: integration.Config{
+				Name:         "prometheus",
+				ClusterCheck: true,
+			},
+			expectedResult: false,
+		},
+		{
+			name:                "advanced dispatching disabled",
+			shardingEnabled:     true,
+			advancedDispatching: false,
+			config:              createTestKSMConfig([]string{"pods", "nodes"}),
+			expectedResult:      false,
+		},
+		{
+			name:                "not shardable - only one resource group",
+			shardingEnabled:     true,
+			advancedDispatching: true,
+			config:              createTestKSMConfig([]string{"pods"}),
+			expectedResult:      false,
+		},
 	}
-	d.advancedDispatching.Store(true)
 
-	config := createTestKSMConfig([]string{"pods", "nodes"})
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			d := &dispatcher{
+				ksmSharding: NewKSMShardingManager(tt.shardingEnabled),
+				store:       newClusterStore(),
+			}
+			d.advancedDispatching.Store(tt.advancedDispatching)
 
-	result := d.scheduleKSMCheck(config)
-	assert.False(t, result, "Should return false when sharding is disabled")
-}
-
-func TestScheduleKSMCheck_NotKSMCheck(t *testing.T) {
-	d := &dispatcher{
-		ksmSharding: NewKSMShardingManager(true),
-		store:       newClusterStore(),
+			result := d.scheduleKSMCheck(tt.config)
+			assert.Equal(t, tt.expectedResult, result)
+		})
 	}
-	d.advancedDispatching.Store(true)
-
-	config := integration.Config{
-		Name:         "prometheus",
-		ClusterCheck: true,
-	}
-
-	result := d.scheduleKSMCheck(config)
-	assert.False(t, result, "Should return false for non-KSM checks")
-}
-
-func TestScheduleKSMCheck_NoAdvancedDispatching(t *testing.T) {
-	d := &dispatcher{
-		ksmSharding: NewKSMShardingManager(true),
-		store:       newClusterStore(),
-	}
-	d.advancedDispatching.Store(false)
-
-	config := createTestKSMConfig([]string{"pods", "nodes"})
-
-	result := d.scheduleKSMCheck(config)
-	assert.False(t, result, "Should return false when advanced dispatching is disabled")
-}
-
-func TestScheduleKSMCheck_NotShardable(t *testing.T) {
-	d := &dispatcher{
-		ksmSharding: NewKSMShardingManager(true),
-		store:       newClusterStore(),
-	}
-	d.advancedDispatching.Store(true)
-
-	// Config with only one group (pods only) - not shardable
-	config := createTestKSMConfig([]string{"pods"})
-
-	result := d.scheduleKSMCheck(config)
-	assert.False(t, result, "Should return false when check has only one resource group")
 }
 
 func TestScheduleKSMCheck_NoRunners(t *testing.T) {
@@ -129,72 +128,45 @@ func TestIsAlreadySharded(t *testing.T) {
 	assert.False(t, d.isAlreadySharded(differentConfig))
 }
 
-func TestGetAvailableRunners(t *testing.T) {
-	d := &dispatcher{
-		store: newClusterStore(),
+func TestValidateClusterTaggerForKSM(t *testing.T) {
+	tests := []struct {
+		name                  string
+		collectKubernetesTags bool
+		remoteTaggerEnabled   bool
+		expectedResult        bool
+	}{
+		{
+			name:                  "all features enabled",
+			collectKubernetesTags: true,
+			remoteTaggerEnabled:   true,
+			expectedResult:        true,
+		},
+		{
+			name:                  "cluster tags disabled",
+			collectKubernetesTags: false,
+			remoteTaggerEnabled:   false,
+			expectedResult:        false,
+		},
+		{
+			name:                  "remote tagger disabled - still passes with warning",
+			collectKubernetesTags: true,
+			remoteTaggerEnabled:   false,
+			expectedResult:        true,
+		},
 	}
 
-	// Initially no runners
-	runners := d.getAvailableRunners()
-	assert.Empty(t, runners)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockConfig := pkgconfigsetup.Datadog()
+			mockConfig.SetWithoutSource("cluster_agent.collect_kubernetes_tags", tt.collectKubernetesTags)
+			mockConfig.SetWithoutSource("clc_runner_remote_tagger_enabled", tt.remoteTaggerEnabled)
 
-	// Add some CLC runners
-	d.store.Lock()
-	d.store.nodes["runner-1"] = &nodeStore{name: "runner-1", nodetype: cctypes.NodeTypeCLCRunner}
-	d.store.nodes["runner-2"] = &nodeStore{name: "runner-2", nodetype: cctypes.NodeTypeCLCRunner}
-	d.store.nodes["runner-3"] = &nodeStore{name: "runner-3", nodetype: cctypes.NodeTypeCLCRunner}
-	d.store.Unlock()
+			d := &dispatcher{}
 
-	runners = d.getAvailableRunners()
-	assert.Len(t, runners, 3)
-	assert.ElementsMatch(t, []string{"runner-1", "runner-2", "runner-3"}, runners)
-
-	// Add node agents - should be filtered out
-	d.store.Lock()
-	d.store.nodes["node-agent-1"] = &nodeStore{name: "node-agent-1", nodetype: cctypes.NodeTypeNodeAgent}
-	d.store.nodes["node-agent-2"] = &nodeStore{name: "node-agent-2", nodetype: cctypes.NodeTypeNodeAgent}
-	d.store.Unlock()
-
-	// Should still only return CLC runners, not node agents
-	runners = d.getAvailableRunners()
-	assert.Len(t, runners, 3, "Should only count CLC runners, not node agents")
-	assert.ElementsMatch(t, []string{"runner-1", "runner-2", "runner-3"}, runners)
-}
-
-func TestValidateClusterTaggerForKSM_Success(t *testing.T) {
-	// Setup config with cluster tagger enabled
-	mockConfig := pkgconfigsetup.Datadog()
-	mockConfig.SetWithoutSource("cluster_agent.collect_kubernetes_tags", true)
-	mockConfig.SetWithoutSource("clc_runner_remote_tagger_enabled", true)
-
-	d := &dispatcher{}
-
-	result := d.validateClusterTaggerForKSM()
-	assert.True(t, result, "Validation should pass when cluster tagger is enabled")
-}
-
-func TestValidateClusterTaggerForKSM_MissingClusterTags(t *testing.T) {
-	// Setup config without cluster tagger
-	mockConfig := pkgconfigsetup.Datadog()
-	mockConfig.SetWithoutSource("cluster_agent.collect_kubernetes_tags", false)
-
-	d := &dispatcher{}
-
-	result := d.validateClusterTaggerForKSM()
-	assert.False(t, result, "Should return false when cluster_agent.collect_kubernetes_tags is disabled (but sharding still proceeds)")
-}
-
-func TestValidateClusterTaggerForKSM_MissingRemoteTagger(t *testing.T) {
-	// Setup config with cluster tagger enabled but remote tagger disabled
-	mockConfig := pkgconfigsetup.Datadog()
-	mockConfig.SetWithoutSource("cluster_agent.collect_kubernetes_tags", true)
-	mockConfig.SetWithoutSource("clc_runner_remote_tagger_enabled", false)
-
-	d := &dispatcher{}
-
-	// Should still pass but with warning (remote tagger is not hard requirement)
-	result := d.validateClusterTaggerForKSM()
-	assert.True(t, result, "Validation should pass even if remote tagger is disabled (with warning)")
+			result := d.validateClusterTaggerForKSM()
+			assert.Equal(t, tt.expectedResult, result)
+		})
+	}
 }
 
 func TestMarkAsSharded(t *testing.T) {

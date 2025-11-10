@@ -43,8 +43,10 @@ func (m *KSMShardingManager) IsEnabled() bool {
 }
 
 // IsKSMCheck returns true if the config is a KSM check
+// Only kubernetes_state_core (Go implementation) is supported for sharding
+// The legacy kubernetes_state (Python) check doesn't support the "collectors" parameter
 func (m *KSMShardingManager) IsKSMCheck(config integration.Config) bool {
-	return config.Name == "kubernetes_state_core" || config.Name == "kubernetes_state"
+	return config.Name == "kubernetes_state_core"
 }
 
 // AnalyzeKSMConfig analyzes a KSM configuration and returns collectors grouped by resource type
@@ -52,6 +54,12 @@ func (m *KSMShardingManager) IsKSMCheck(config integration.Config) bool {
 func (m *KSMShardingManager) AnalyzeKSMConfig(config integration.Config) ([]ResourceGroup, error) {
 	if !m.IsKSMCheck(config) {
 		return nil, fmt.Errorf("not a KSM check")
+	}
+
+	// Sharding only makes sense for cluster checks (dispatched to CLC runners)
+	// If ClusterCheck is false, the check runs locally on the DCA and doesn't need sharding
+	if !config.ClusterCheck {
+		return nil, fmt.Errorf("KSM sharding requires cluster_check: true, but got cluster_check: false")
 	}
 
 	// Parse the KSM configuration
@@ -73,10 +81,14 @@ func (m *KSMShardingManager) AnalyzeKSMConfig(config integration.Config) ([]Reso
 		return nil, fmt.Errorf("no valid KSM instances found")
 	}
 
+	if len(instances) > 1 {
+		return nil, fmt.Errorf("KSM check has %d instances configured, but sharding only supports single-instance configs", len(instances))
+	}
+
 	instance := instances[0]
 
 	// If no collectors specified, KSM defaults to collecting all resources (options.DefaultResources)
-	// See kubernetes_state.go:384-387 for the same fallback logic
+	// See kubernetes_state.go:Configure for the same fallback logic
 	// We use the same defaults for sharding to provide a seamless experience
 	var collectorsToShard []string
 	if len(instance.Collectors) == 0 {
@@ -88,16 +100,16 @@ func (m *KSMShardingManager) AnalyzeKSMConfig(config integration.Config) ([]Reso
 	}
 
 	// Categorize collectors: pods, nodes, everything else
-	var podCollectors []string
-	var nodeCollectors []string
+	var hasPods bool
+	var hasNodes bool
 	var otherCollectors []string
 
 	for _, collector := range collectorsToShard {
 		switch collector {
 		case "pods":
-			podCollectors = append(podCollectors, collector)
+			hasPods = true
 		case "nodes":
-			nodeCollectors = append(nodeCollectors, collector)
+			hasNodes = true
 		default:
 			otherCollectors = append(otherCollectors, collector)
 		}
@@ -106,18 +118,18 @@ func (m *KSMShardingManager) AnalyzeKSMConfig(config integration.Config) ([]Reso
 	// Build resource groups only for collectors that are present
 	var groups []ResourceGroup
 
-	if len(podCollectors) > 0 {
+	if hasPods {
 		groups = append(groups, ResourceGroup{
 			Name:        "pods",
-			Collectors:  podCollectors,
+			Collectors:  []string{"pods"},
 			Description: "Pod metrics (highest cardinality)",
 		})
 	}
 
-	if len(nodeCollectors) > 0 {
+	if hasNodes {
 		groups = append(groups, ResourceGroup{
 			Name:        "nodes",
-			Collectors:  nodeCollectors,
+			Collectors:  []string{"nodes"},
 			Description: "Node metrics (high cardinality)",
 		})
 	}
@@ -145,14 +157,14 @@ func (m *KSMShardingManager) ShouldShardKSMCheck(config integration.Config) bool
 
 	groups, err := m.AnalyzeKSMConfig(config)
 	if err != nil {
-		log.Debugf("KSM sharding disabled: %v", err)
+		log.Warnf("KSM sharding disabled: %v", err)
 		return false
 	}
 
 	// Only shard if we have more than 1 group
 	// (otherwise there's no benefit to sharding)
 	if len(groups) <= 1 {
-		log.Infof("KSM check has only %d resource group(s), sharding not beneficial", len(groups))
+		log.Debugf("KSM check has only %d resource group(s), sharding not beneficial", len(groups))
 		return false
 	}
 
@@ -245,33 +257,11 @@ func (m *KSMShardingManager) createKSMConfigForResourceGroup(
 	instance["collectors"] = collectors
 
 	// Enable skip_leader_election for cluster checks running on CLC runners
-	// This prevents the "Leader Election not enabled" error
 	instance["skip_leader_election"] = true
-
-	// Note: We intentionally do NOT add ksm_resource_group tag to metrics
-	// This is an internal implementation detail that would clutter user's metrics
-	// Users care about business tags (kube_namespace, pod_name, etc.), not sharding strategy
-	// For debugging, operators can see shard distribution via: agent clusterchecks
 
 	// Serialize back to YAML
 	data, _ := yaml.Marshal(instance)
 	config.Instances = []integration.Data{integration.Data(data)}
 
 	return config
-}
-
-// Helper functions
-
-func getExistingTags(instance map[string]interface{}) []string {
-	if tags, ok := instance["tags"].([]string); ok {
-		return tags
-	}
-	if tags, ok := instance["tags"].([]interface{}); ok {
-		strTags := make([]string, len(tags))
-		for i, tag := range tags {
-			strTags[i] = fmt.Sprintf("%v", tag)
-		}
-		return strTags
-	}
-	return []string{}
 }

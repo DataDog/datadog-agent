@@ -33,11 +33,11 @@ func TestIsKSMCheck(t *testing.T) {
 			expected: true,
 		},
 		{
-			name: "kubernetes_state is KSM check",
+			name: "kubernetes_state (Python) is not supported for sharding",
 			config: integration.Config{
 				Name: "kubernetes_state",
 			},
-			expected: true,
+			expected: false,
 		},
 		{
 			name: "other check is not KSM check",
@@ -131,6 +131,22 @@ func TestAnalyzeKSMConfig(t *testing.T) {
 			expectedGroups: nil,
 			expectError:    true,
 		},
+		{
+			name: "cluster_check is false",
+			config: integration.Config{
+				Name:         "kubernetes_state_core",
+				ClusterCheck: false,
+				Instances:    []integration.Data{integration.Data("collectors: [pods, nodes]")},
+			},
+			expectedGroups: nil,
+			expectError:    true,
+		},
+		{
+			name:           "multiple instances - returns error",
+			config:         createKSMConfigWithMultipleInstances(),
+			expectedGroups: nil,
+			expectError:    true,
+		},
 	}
 
 	for _, tt := range tests {
@@ -186,6 +202,16 @@ func TestShouldShardKSMCheck(t *testing.T) {
 			name:     "not a KSM check",
 			enabled:  true,
 			config:   integration.Config{Name: "prometheus"},
+			expected: false,
+		},
+		{
+			name:    "cluster_check is false",
+			enabled: true,
+			config: integration.Config{
+				Name:         "kubernetes_state_core",
+				ClusterCheck: false,
+				Instances:    []integration.Data{integration.Data("collectors: [pods, nodes]")},
+			},
 			expected: false,
 		},
 		{
@@ -356,48 +382,6 @@ func TestCreateShardedKSMConfigs_PreservesTags(t *testing.T) {
 	}
 }
 
-func TestGetExistingTags(t *testing.T) {
-	tests := []struct {
-		name     string
-		instance map[string]interface{}
-		expected []string
-	}{
-		{
-			name: "string slice tags",
-			instance: map[string]interface{}{
-				"tags": []string{"env:prod", "team:platform"},
-			},
-			expected: []string{"env:prod", "team:platform"},
-		},
-		{
-			name: "interface slice tags",
-			instance: map[string]interface{}{
-				"tags": []interface{}{"env:prod", "team:platform"},
-			},
-			expected: []string{"env:prod", "team:platform"},
-		},
-		{
-			name:     "no tags",
-			instance: map[string]interface{}{},
-			expected: []string{},
-		},
-		{
-			name: "empty tags",
-			instance: map[string]interface{}{
-				"tags": []string{},
-			},
-			expected: []string{},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := getExistingTags(tt.instance)
-			assert.Equal(t, tt.expected, result)
-		})
-	}
-}
-
 // Helper functions
 
 func createKSMConfig(collectors []string) integration.Config {
@@ -417,6 +401,35 @@ func createKSMConfigWithTags(collectors []string, tags []string) integration.Con
 	return integration.Config{
 		Name:         "kubernetes_state_core",
 		Instances:    []integration.Data{integration.Data(data)},
+		ClusterCheck: true,
+	}
+}
+
+func TestShouldShardKSMCheck_MultipleInstances(t *testing.T) {
+	manager := NewKSMShardingManager(true)
+	config := createKSMConfigWithMultipleInstances()
+
+	// Should return false and log warning about multiple instances
+	result := manager.ShouldShardKSMCheck(config)
+	assert.False(t, result, "Should not shard when multiple instances configured")
+}
+
+func createKSMConfigWithMultipleInstances() integration.Config {
+	// Create first instance with pods and nodes
+	instance1 := map[string]interface{}{
+		"collectors": []string{"pods", "nodes"},
+	}
+	data1, _ := yaml.Marshal(instance1)
+
+	// Create second instance with different collectors
+	instance2 := map[string]interface{}{
+		"collectors": []string{"deployments", "services"},
+	}
+	data2, _ := yaml.Marshal(instance2)
+
+	return integration.Config{
+		Name:         "kubernetes_state_core",
+		Instances:    []integration.Data{integration.Data(data1), integration.Data(data2)},
 		ClusterCheck: true,
 	}
 }
