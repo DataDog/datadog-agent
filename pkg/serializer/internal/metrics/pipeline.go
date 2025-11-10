@@ -80,7 +80,7 @@ type forwarder interface {
 }
 
 func (dest *PipelineDestination) send(payloads transaction.BytesPayloads, forwarder forwarder, headers http.Header) error {
-	domain, _ := dest.Resolver.Resolve(dest.Endpoint)
+	domain := dest.Resolver.Resolve(dest.Endpoint)
 	for _, auth := range dest.Resolver.GetAuthorizers() {
 		for _, payload := range payloads {
 			txn := transaction.NewHTTPTransaction()
