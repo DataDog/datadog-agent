@@ -1100,7 +1100,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	bindEnvAndSetLogsConfigKeys(config, "runtime_security_config.endpoints.")
 	bindEnvAndSetLogsConfigKeys(config, "runtime_security_config.activity_dump.remote_storage.endpoints.")
 	config.BindEnvAndSetDefault("runtime_security_config.direct_send_from_system_probe", false)
-	config.BindEnvAndSetDefault("runtime_security_config.event_gprc_server", "")
+	config.BindEnvAndSetDefault("runtime_security_config.event_grpc_server", "")
 
 	// trace-agent's evp_proxy
 	config.BindEnv("evp_proxy_config.enabled")              //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
