@@ -338,6 +338,7 @@ type SymDBProxyConfig struct {
 // It is exposed with expvar, so make sure to exclude any sensible field
 // from JSON encoding. Use New() to create an instance.
 type AgentConfig struct {
+	// Add aPMIot field on this config, allow it to be populated by the DD_APM_MODE env var
 	Features map[string]struct{}
 
 	Enabled      bool

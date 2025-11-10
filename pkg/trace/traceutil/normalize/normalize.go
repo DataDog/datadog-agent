@@ -403,3 +403,13 @@ func isValidASCIIStartChar(c byte) bool {
 func isValidASCIITagChar(c byte) bool {
 	return isValidASCIIStartChar(c) || ('0' <= c && c <= '9') || c == '.' || c == '/' || c == '-'
 }
+
+func NormalizeAPMMode(apmMode string) string {
+	switch strings.ToLower(apmMode) {
+	case "full", "end_user_device":
+		return apmMode
+	case "":
+		return "full"
+	}
+	return ""
+}

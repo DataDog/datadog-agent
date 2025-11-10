@@ -143,6 +143,7 @@ type TracerPayload struct {
 	AppVersion    string `protobuf:"bytes,10,opt,name=appVersion,proto3" json:"app_version" msg:"app_version"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
+	APMMode       string `protobuf:"bytes,11,opt,name=apm_mode,proto3" json:"apm_mode" msg:"apm_mode"`
 }
 
 func (x *TracerPayload) Reset() {

@@ -59,6 +59,9 @@ const (
 
 	// tagDecisionMaker specifies the sampling decision maker
 	tagDecisionMaker = "_dd.p.dm"
+
+	// tagAPMMode specifies whether running APM in "full" or "end_user_device" mode
+	tagAPMMode = "_dd.apm.mode"
 )
 
 // Writer is an interface that provides the base functionality of a writing component
@@ -688,6 +691,11 @@ func (a *Agent) setPayloadAttributes(p *api.Payload, root *pb.Span, chunk *pb.Tr
 	}
 	if p.TracerPayload.AppVersion == "" {
 		p.TracerPayload.AppVersion = version.GetAppVersionFromTrace(root, chunk)
+	}
+	if p.TracerPayload.APMMode == "" {
+		if mode := normalize.NormalizeAPMMode(root.Meta[tagAPMMode]); mode != "" {
+			p.TracerPayload.APMMode = mode
+		}
 	}
 }
 

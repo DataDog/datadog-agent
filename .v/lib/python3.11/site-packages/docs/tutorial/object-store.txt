@@ -1,0 +1,189 @@
+.. _tutorial-object-store:
+
+The object store
+================
+
+The objects are stored in the ``object store`` of the repository.
+
+  >>> from dulwich.repo import Repo
+  >>> repo = Repo.init("myrepo", mkdir=True)
+
+Initial commit
+--------------
+
+When you use Git, you generally add or modify content. As our repository is
+empty for now, we'll start by adding a new file::
+
+  >>> from dulwich.objects import Blob
+  >>> blob = Blob.from_string(b"My file content\n")
+  >>> print(blob.id.decode('ascii'))
+  c55063a4d5d37aa1af2b2dad3a70aa34dae54dc6
+
+Of course you could create a blob from an existing file using ``from_file``
+instead.
+
+As said in the introduction, file content is separated from file name. Let's
+give this content a name::
+
+  >>> from dulwich.objects import Tree
+  >>> tree = Tree()
+  >>> tree.add(b"spam", 0o100644, blob.id)
+
+Note that "0o100644" is the octal form for a regular file with common
+permissions. You can hardcode them or you can use the ``stat`` module.
+
+The tree state of our repository still needs to be placed in time. That's the
+job of the commit::
+
+  >>> from dulwich.objects import Commit, parse_timezone
+  >>> from time import time
+  >>> commit = Commit()
+  >>> commit.tree = tree.id
+  >>> author = b"Your Name <your.email@example.com>"
+  >>> commit.author = commit.committer = author
+  >>> commit.commit_time = commit.author_time = int(time())
+  >>> tz = parse_timezone(b'-0200')[0]
+  >>> commit.commit_timezone = commit.author_timezone = tz
+  >>> commit.encoding = b"UTF-8"
+  >>> commit.message = b"Initial commit"
+
+Note that the initial commit has no parents.
+
+At this point, the repository is still empty because all operations happen in
+memory. Let's "commit" it.
+
+  >>> object_store = repo.object_store
+  >>> object_store.add_object(blob)
+
+Now the ".git/objects" folder contains a first SHA-1 file. Let's continue
+saving the changes::
+
+  >>> object_store.add_object(tree)
+  >>> object_store.add_object(commit)
+
+Now the physical repository contains three objects but still has no branch.
+Let's create the master branch like Git would::
+
+  >>> repo.refs[b'refs/heads/master'] = commit.id
+
+The master branch now has a commit where to start. When we commit to master, we
+are also moving HEAD, which is Git's currently checked out branch:
+
+  >>> head = repo.refs[b'HEAD']
+  >>> head == commit.id
+  True
+  >>> head == repo.refs[b'refs/heads/master']
+  True
+
+How did that work? As it turns out, HEAD is a special kind of ref called a
+symbolic ref, and it points at master. Most functions on the refs container
+work transparently with symbolic refs, but we can also take a peek inside HEAD:
+
+  >>> import sys
+  >>> print(repo.refs.read_ref(b'HEAD').decode(sys.getfilesystemencoding()))
+  ref: refs/heads/master
+
+Normally, you won't need to use read_ref. If you want to change what ref HEAD
+points to, in order to check out another branch, just use set_symbolic_ref.
+
+Now our repository is officially tracking a branch named "master" referring to a
+single commit.
+
+Playing again with Git
+----------------------
+
+At this point you can come back to the shell, go into the "myrepo" folder and
+type ``git status`` to let Git confirm that this is a regular repository on
+branch "master".
+
+Git will tell you that the file "spam" is deleted, which is normal because
+Git is comparing the repository state with the current working copy. And we
+have absolutely no working copy using Dulwich because we don't need it at
+all!
+
+You can checkout the last state using ``git checkout -f``. The force flag
+will prevent Git from complaining that there are uncommitted changes in the
+working copy.
+
+The file ``spam`` appears and with no surprise contains the same bytes as the
+blob::
+
+  $ cat spam
+  My file content
+
+Changing a File and Committing it
+---------------------------------
+
+Now we have a first commit, the next one will show a difference.
+
+As seen in the introduction, it's about making a path in a tree point to a
+new blob. The old blob will remain to compute the diff. The tree is altered
+and the new commit'task is to point to this new version.
+
+Let's first build the blob::
+
+  >>> from dulwich.objects import Blob
+  >>> spam = Blob.from_string(b"My new file content\n")
+  >>> print(spam.id.decode('ascii'))
+  16ee2682887a962f854ebd25a61db16ef4efe49f
+
+An alternative is to alter the previously constructed blob object::
+
+  >>> blob.data = b"My new file content\n"
+  >>> print(blob.id.decode('ascii'))
+  16ee2682887a962f854ebd25a61db16ef4efe49f
+
+In any case, update the blob id known as "spam". You also have the
+opportunity of changing its mode::
+
+  >>> tree[b"spam"] = (0o100644, spam.id)
+
+Now let's record the change::
+
+  >>> from dulwich.objects import Commit
+  >>> from time import time
+  >>> c2 = Commit()
+  >>> c2.tree = tree.id
+  >>> c2.parents = [commit.id]
+  >>> c2.author = c2.committer = b"John Doe <john@example.com>"
+  >>> c2.commit_time = c2.author_time = int(time())
+  >>> c2.commit_timezone = c2.author_timezone = 0
+  >>> c2.encoding = b"UTF-8"
+  >>> c2.message = b'Changing "spam"'
+
+In this new commit we record the changed tree id, and most important, the
+previous commit as the parent. Parents are actually a list because a commit
+may happen to have several parents after merging branches.
+
+Let's put the objects in the object store::
+
+  >>> repo.object_store.add_object(spam)
+  >>> repo.object_store.add_object(tree)
+  >>> repo.object_store.add_object(c2)
+
+You can already ask git to introspect this commit using ``git show`` and the
+value of ``c2.id`` as an argument. You'll see the difference will the
+previous blob recorded as "spam".
+
+The diff between the previous head and the new one can be printed using
+write_tree_diff::
+
+  >>> from dulwich.patch import write_tree_diff
+  >>> from io import BytesIO
+  >>> out = BytesIO()
+  >>> write_tree_diff(out, repo.object_store, commit.tree, tree.id)
+  >>> import sys; _ = sys.stdout.write(out.getvalue().decode('ascii'))
+  diff --git a/spam b/spam
+  index c55063a..16ee268 100644
+  --- a/spam
+  +++ b/spam
+  @@ -1 +1 @@
+  -My file content
+  +My new file content
+
+You won't see it using git log because the head is still the previous
+commit. It's easy to remedy::
+
+  >>> repo.refs[b'refs/heads/master'] = c2.id
+
+Now all git tools will work as expected.
