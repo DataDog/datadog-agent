@@ -140,6 +140,7 @@ func backupOrRestoreDirectory(ctx context.Context, sourcePath, targetPath string
 		ctx,
 		"robocopy",
 		"/MIR",
+		"/SL",
 		sourcePath,
 		targetPath,
 		"*.yaml",
