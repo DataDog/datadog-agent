@@ -82,7 +82,7 @@ func (a *Agent) installLinuxInstallScript(params *installParams) error {
 		}
 	}
 	// reset failure from previous tests
-	_, err := a.host.RemoteHost.Execute("sudo systemctl list-units --type=service --all | awk '/datadog-/{print $1}' | xargs -r -n1 sudo systemctl reset-failed")
+	_, err := a.host.RemoteHost.Execute(`sudo systemctl list-units --type=service --all --no-legend --no-pager --output=json | jq -r '.[] | .unit | select(test("^datadog-.*\\.service$"))' | xargs -r -n1 sudo systemctl reset-failed`)
 	if err != nil {
 		return fmt.Errorf("error resetting failed units: %w", err)
 	}
