@@ -16,7 +16,7 @@ import (
 )
 
 // defaultMsgFormat is the default message format for the logger.
-const defaultMsgFormat = "{{Ns}} [{{Level}}] {{Msg}}\n"
+const defaultMsgFormat = "{{Ns}} [{{Level}}] {{.msg}}\n"
 
 // LoggerFromWriterWithMinLevelAndFormat creates a new logger from a writer, a minimum log level, and a template format.
 func LoggerFromWriterWithMinLevelAndFormat(output io.Writer, minLevel types.LogLevel, tmplFormat string) (types.LoggerInterface, error) {
