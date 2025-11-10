@@ -47,7 +47,7 @@ func LoggerFromWriterWithMinLevelAndLvlFuncCtxMsgFormat(output io.Writer, minLev
 
 // LoggerFromWriterWithMinLevelAndFullFormat creates a new logger from a writer, a minimum log level and the full format
 func LoggerFromWriterWithMinLevelAndFullFormat(output io.Writer, minLevel LogLevel) (LoggerInterface, error) {
-	return loggerFromWriterWithMinLevelAndFormat(output, minLevel, "{{Date \"2006-01-02 15:04:05 MST\"}} | {{LEVEL}} | (%ShortFilePath:{{.line}} in {{FuncShort}}) | {{ExtraTextContext}}{{.msg}}\n")
+	return loggerFromWriterWithMinLevelAndFormat(output, minLevel, "{{Date \"2006-01-02 15:04:05 MST\"}} | {{LEVEL}} | ({{ShortFilePath}}:{{.line}} in {{FuncShort}}) | {{ExtraTextContext}}{{.msg}}\n")
 }
 
 // LoggerFromWriterWithMinLevelAndMsgFormat creates a new logger from a writer, a minimum log level and the message

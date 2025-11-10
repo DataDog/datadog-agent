@@ -22,7 +22,9 @@ const defaultMsgFormat = "{{Ns}} [{{Level}}] {{Msg}}\n"
 func LoggerFromWriterWithMinLevelAndFormat(output io.Writer, minLevel types.LogLevel, tmplFormat string) (types.LoggerInterface, error) {
 	formatter := formatters.Template(tmplFormat)
 	fmtHandler := handlers.NewFormat(formatter, output)
-	handler := handlers.NewLevel(types.ToSlogLevel(minLevel), fmtHandler)
+	// tests often write to a buffer, which might not be thread-safe, so we wrap the writer in a locking handler
+	lockingHandler := handlers.NewLocking(fmtHandler)
+	handler := handlers.NewLevel(types.ToSlogLevel(minLevel), lockingHandler)
 	return NewWrapper(handler), nil
 }
 
