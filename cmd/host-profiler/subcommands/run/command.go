@@ -48,6 +48,7 @@ type cliParams struct {
 	*globalparams.GlobalParams
 	SyncTimeout       time.Duration
 	SyncOnInitTimeout time.Duration
+	GoRuntimeMetrics  bool
 }
 
 // MakeCommand creates the `run` command
@@ -65,13 +66,13 @@ func MakeCommand(globalConfGetter func() *globalparams.GlobalParams) []*cobra.Co
 	}
 	cmd.Flags().DurationVar(&params.SyncTimeout, "sync-timeout", 3*time.Second, "Timeout for config sync requests.")
 	cmd.Flags().DurationVar(&params.SyncOnInitTimeout, "sync-on-init-timeout", 0, "How long should config sync retry at initialization before failing.")
-
+	cmd.Flags().BoolVar(&params.GoRuntimeMetrics, "go-runtime-metrics", false, "Enable Go runtime metrics collection.")
 	return []*cobra.Command{cmd}
 }
 
 func runHostProfilerCommand(ctx context.Context, cliParams *cliParams) error {
 	var opts []fx.Option = []fx.Option{
-		hostprofiler.Bundle(collectorimpl.NewParams(cliParams.GlobalParams.ConfFilePath)),
+		hostprofiler.Bundle(collectorimpl.NewParams(cliParams.GlobalParams.ConfFilePath, cliParams.GoRuntimeMetrics)),
 		logging.DefaultFxLoggingOption(),
 	}
 
