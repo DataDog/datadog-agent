@@ -20,6 +20,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
+	scenec2 "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
@@ -62,7 +63,7 @@ func TestLinuxTestSuite(t *testing.T) {
 		agentparams.WithSystemProbeConfig(systemProbeConfigStr),
 	}
 	options := []e2e.SuiteOption{
-		e2e.WithProvisioner(awshost.Provisioner(awshost.WithAgentOptions(agentParams...))),
+		e2e.WithProvisioner(awshost.Provisioner(awshost.WithRunOptions(scenec2.WithAgentOptions(agentParams...)))),
 	}
 	e2e.Run(t, &linuxTestSuite{}, options...)
 }
@@ -171,9 +172,11 @@ func (s *linuxTestSuite) testProcessCheckWithServiceDiscovery(agentConfigStr str
 	t := s.T()
 	s.startServices()
 	defer s.stopServices()
-	s.UpdateEnv(awshost.Provisioner(awshost.WithAgentOptions(
-		agentparams.WithAgentConfig(agentConfigStr),
-		agentparams.WithSystemProbeConfig(systemProbeConfigStr))),
+	s.UpdateEnv(awshost.Provisioner(awshost.WithRunOptions(
+		scenec2.WithAgentOptions(
+			agentparams.WithAgentConfig(agentConfigStr),
+			agentparams.WithSystemProbeConfig(systemProbeConfigStr)),
+	)),
 	)
 	client := s.Env().FakeIntake.Client()
 	err := client.FlushServerAndResetAggregators()
@@ -317,9 +320,11 @@ func (s *linuxTestSuite) testProcessCheckWithServiceDiscoveryPrivilegedLogs(agen
 	t := s.T()
 	s.startServicesFromList(servicesToStart)
 	defer s.stopServicesFromList(servicesToStart)
-	s.UpdateEnv(awshost.Provisioner(awshost.WithAgentOptions(
-		agentparams.WithAgentConfig(agentConfigStr),
-		agentparams.WithSystemProbeConfig(systemProbeConfigStr))),
+	s.UpdateEnv(awshost.Provisioner(awshost.WithRunOptions(
+		scenec2.WithAgentOptions(
+			agentparams.WithAgentConfig(agentConfigStr),
+			agentparams.WithSystemProbeConfig(systemProbeConfigStr)),
+	)),
 	)
 	client := s.Env().FakeIntake.Client()
 	err := client.FlushServerAndResetAggregators()

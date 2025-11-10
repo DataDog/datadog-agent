@@ -107,7 +107,7 @@ func TestStepByStepScript(t *testing.T) {
 			e2e.Run(tt,
 				&stepByStepSuite{cwsSupported: cwsSupported, osVersion: version, osDesc: osDesc},
 				e2e.WithProvisioner(awshost.ProvisionerNoAgentNoFakeIntake(
-					awshost.WithEC2InstanceOptions(vmOpts...),
+					awshost.WithRunOptions(ec2.WithEC2InstanceOptions(vmOpts...)),
 				)),
 				e2e.WithStackName(fmt.Sprintf("step-by-step-test-%s-%s", platforms.PrettifyOsDescriptor(osDesc), *majorVersion)),
 			)

@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2docker"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/fakeintake"
 	"github.com/stretchr/testify/assert"
 
@@ -33,7 +34,7 @@ func TestDocker(t *testing.T) {
 		t.Logf("Running with fakeintake image %s", fakeintakeImage)
 		fakeintakeOpts = append(fakeintakeOpts, fakeintake.WithImageURL(fakeintakeImage))
 	}
-	e2e.Run(t, &dockerSuite{}, e2e.WithProvisioner(awsdocker.Provisioner(awsdocker.WithFakeIntakeOptions(fakeintakeOpts...))), e2e.WithSkipCoverage())
+	e2e.Run(t, &dockerSuite{}, e2e.WithProvisioner(awsdocker.Provisioner(awsdocker.WithRunOptions(ec2docker.WithFakeIntakeOptions(fakeintakeOpts...)))))
 }
 
 func (v *dockerSuite) TestExecuteCommand() {

@@ -15,6 +15,7 @@ import (
 	msiparams "github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams/msi"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
+	scenec2 "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -39,19 +40,20 @@ func TestGUIWindowsSuite(t *testing.T) {
 	t.Parallel()
 
 	e2e.Run(t, &guiWindowsSuite{}, e2e.WithProvisioner(awshost.ProvisionerNoFakeIntake(
-		awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsServerDefault)),
-		awshost.WithAgentOptions(
-			agentparams.WithAgentConfig(config),
-			agentparams.WithAdditionalInstallParameters(
-				msiparams.NewInstallParams(
-					msiparams.WithCustomInstallPath(fmt.Sprintf(`"%s"`, installPath)),
+		awshost.WithRunOptions(
+			scenec2.WithEC2InstanceOptions(ec2.WithOS(os.WindowsServerDefault)),
+			scenec2.WithAgentOptions(
+				agentparams.WithAgentConfig(config),
+				agentparams.WithAdditionalInstallParameters(
+					msiparams.NewInstallParams(
+						msiparams.WithCustomInstallPath(fmt.Sprintf(`"%s"`, installPath)),
+					),
 				),
 			),
-		),
-		awshost.WithAgentClientOptions(
-			agentclientparams.WithAuthTokenPath(authTokenFilePath),
-		),
-	)))
+			scenec2.WithAgentClientOptions(
+				agentclientparams.WithAuthTokenPath(authTokenFilePath),
+			),
+		))))
 }
 
 func (v *guiWindowsSuite) TestGUI() {

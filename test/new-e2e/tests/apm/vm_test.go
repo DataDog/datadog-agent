@@ -23,6 +23,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
+	scenec2 "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
@@ -74,11 +75,13 @@ sudo groupadd -f -r docker
 sudo usermod -a -G docker dd-agent
 `
 	opts = append(opts,
-		awshost.WithDocker(),
-		// Create the /var/run/datadog directory and ensure
-		// permissions are correct so the agent can create
-		// unix sockets for the UDS transport and communicate with the docker socket.
-		awshost.WithEC2InstanceOptions(ec2.WithUserData(setupScript)),
+		awshost.WithRunOptions(
+			scenec2.WithDocker(),
+			// Create the /var/run/datadog directory and ensure
+			// permissions are correct so the agent can create
+			// unix sockets for the UDS transport and communicate with the docker socket.
+			scenec2.WithEC2InstanceOptions(ec2.WithUserData(setupScript)),
+		),
 	)
 	return opts
 }
@@ -365,7 +368,7 @@ func (s *VMFakeintakeSuite) TestProcessTagsTrace() {
 }
 
 func (s *VMFakeintakeSuite) TestProbabilitySampler() {
-	s.UpdateEnv(awshost.Provisioner(vmProvisionerOpts(awshost.WithAgentOptions(agentparams.WithAgentConfig(vmAgentConfig(s.transport, `
+	s.UpdateEnv(awshost.Provisioner(vmProvisionerOpts(awshost.WithRunOptions(scenec2.WithAgentOptions(agentparams.WithAgentConfig(vmAgentConfig(s.transport, `
 apm_config.probabilistic_sampler.enabled: true
 apm_config.probabilistic_sampler.sampling_percentage: 50
 apm_config.probabilistic_sampler.hash_seed: 22
@@ -513,10 +516,12 @@ agent_ipc:
 
 	s.UpdateEnv(awshost.Provisioner(
 		vmProvisionerOpts(
-			awshost.WithAgentOptions(
-				agentparams.WithAgentConfig(vmAgentConfig(s.transport, extraconfig)),
-				secretsutils.WithUnixSetupScript(secretResolverPath, true),
-				agentparams.WithSkipAPIKeyInConfig(), // api_key is already provided in the config
+			awshost.WithRunOptions(
+				scenec2.WithAgentOptions(
+					agentparams.WithAgentConfig(vmAgentConfig(s.transport, extraconfig)),
+					secretsutils.WithUnixSetupScript(secretResolverPath, true),
+					agentparams.WithSkipAPIKeyInConfig(), // api_key is already provided in the config
+				),
 			),
 		)...),
 	)

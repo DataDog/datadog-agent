@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
+	scenec2 "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
@@ -31,8 +32,10 @@ func TestSslConfigSuite(t *testing.T) {
 	e2e.Run(t, &sslConfigSuite{},
 		e2e.WithProvisioner(
 			awshost.ProvisionerNoFakeIntake(
-				awshost.WithAgentOptions(
-					agentparams.WithAgentConfig(sslMismatchConfig),
+				awshost.WithRunOptions(
+					scenec2.WithAgentOptions(
+						agentparams.WithAgentConfig(sslMismatchConfig),
+					),
 				),
 			),
 		),

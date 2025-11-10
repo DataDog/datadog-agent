@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	scenec2 "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
 	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
@@ -47,12 +48,12 @@ api_key: ENC[api_key]
 
 	v.UpdateEnv(
 		awshost.Provisioner(
-			awshost.WithAgentOptions(
+			awshost.WithRunOptions(scenec2.WithAgentOptions(
 				secrets.WithUnixSetupScript("/tmp/secret.py", false),
 				agentparams.WithSkipAPIKeyInConfig(),
 				agentparams.WithAgentConfig(config),
 			),
-		),
+			)),
 	)
 
 	// Status command shows that original API Key is in use
@@ -118,12 +119,12 @@ additional_endpoints:
 	// Deploy the agent with the initial secrets
 	v.UpdateEnv(
 		awshost.Provisioner(
-			awshost.WithAgentOptions(
+			awshost.WithRunOptions(scenec2.WithAgentOptions(
 				secrets.WithUnixSetupScript("/tmp/secret.py", false),
 				agentparams.WithSkipAPIKeyInConfig(),
 				agentparams.WithAgentConfig(config),
 			),
-		),
+			)),
 	)
 
 	// Verify initial API keys in status

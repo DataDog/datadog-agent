@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
+	scenec2 "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -25,10 +26,10 @@ secret_backend_config:
     aws_region: us-east-1`
 
 	v.UpdateEnv(awshost.Provisioner(
-		awshost.WithAgentOptions(
+		awshost.WithRunOptions(scenec2.WithAgentOptions(
 			agentparams.WithSkipAPIKeyInConfig(),
 			agentparams.WithAgentConfig(config),
-		),
+		)),
 	))
 
 	assert.EventuallyWithT(v.T(), func(t *assert.CollectT) {

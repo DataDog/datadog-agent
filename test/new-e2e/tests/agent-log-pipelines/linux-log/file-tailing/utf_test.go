@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
+	scenec2 "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
@@ -38,7 +39,8 @@ type UtfSuite struct {
 func TestUtfSuite(t *testing.T) {
 	s := &UtfSuite{}
 	options := []e2e.SuiteOption{
-		e2e.WithProvisioner(awshost.Provisioner(awshost.WithAgentOptions(agentparams.WithLogs(), agentparams.WithIntegration("custom_logs.d", logConfig)))),
+		e2e.WithProvisioner(awshost.Provisioner(awshost.WithRunOptions(
+			scenec2.WithAgentOptions(agentparams.WithLogs(), agentparams.WithIntegration("custom_logs.d", logConfig))))),
 	}
 	t.Parallel()
 	e2e.Run(t, s, options...)
@@ -78,7 +80,8 @@ func (s *UtfSuite) testUtfBigEndianCollection() {
 		agentparams.WithLogs(),
 		agentparams.WithIntegration("custom_logs.d", string(utfBigEndianLogConfig)),
 	}
-	s.UpdateEnv(awshost.Provisioner(awshost.WithAgentOptions(agentOptions...)))
+	s.UpdateEnv(awshost.Provisioner(awshost.WithRunOptions(
+		scenec2.WithAgentOptions(agentOptions...))))
 
 	// generate utf-16-be log
 	content := "big endian sample log"
@@ -98,7 +101,8 @@ func (s *UtfSuite) testUtfLittleEndianCollection() {
 		agentparams.WithLogs(),
 		agentparams.WithIntegration("custom_logs.d", string(utfLittleEndianLogConfig)),
 	}
-	s.UpdateEnv(awshost.Provisioner(awshost.WithAgentOptions(agentOptions...)))
+	s.UpdateEnv(awshost.Provisioner(awshost.WithRunOptions(
+		scenec2.WithAgentOptions(agentOptions...))))
 
 	// generate utf-16-le log
 	content := "little endian sample log"

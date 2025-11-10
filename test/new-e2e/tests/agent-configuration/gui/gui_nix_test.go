@@ -12,10 +12,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
+	scenec2 "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
@@ -40,12 +40,13 @@ cmd_port: %d
 GUI_port: %d`, authTokenFilePath, agentAPIPort, guiPort)
 	// start the agent with that configuration
 	v.UpdateEnv(awshost.Provisioner(
-		awshost.WithAgentOptions(
-			agentparams.WithAgentConfig(config),
-		),
-		awshost.WithAgentClientOptions(
-			agentclientparams.WithAuthTokenPath(authTokenFilePath),
-		),
+		awshost.WithRunOptions(
+			scenec2.WithAgentOptions(
+				agentparams.WithAgentConfig(config),
+			),
+			scenec2.WithAgentClientOptions(
+				agentclientparams.WithAuthTokenPath(authTokenFilePath),
+			)),
 	))
 
 	// get auth token

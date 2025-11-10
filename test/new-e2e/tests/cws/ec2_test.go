@@ -12,6 +12,7 @@ import (
 
 	"github.com/google/uuid"
 
+	scenec2 "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
 	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
@@ -33,10 +34,12 @@ func TestAgentSuiteEC2(t *testing.T) {
 		e2e.WithStackName("cws-agentSuite-ec2"),
 		e2e.WithProvisioner(
 			awshost.ProvisionerNoFakeIntake(
-				awshost.WithAgentOptions(
-					agentparams.WithAgentConfig(agentConfig),
-					agentparams.WithSecurityAgentConfig(securityAgentConfig),
-					agentparams.WithSystemProbeConfig(systemProbeConfig),
+				awshost.WithRunOptions(
+					scenec2.WithAgentOptions(
+						agentparams.WithAgentConfig(agentConfig),
+						agentparams.WithSecurityAgentConfig(securityAgentConfig),
+						agentparams.WithSystemProbeConfig(systemProbeConfig),
+					),
 				),
 			),
 		),

@@ -35,9 +35,11 @@ func TestMacosInstallScript(t *testing.T) {
 	// Going directly through the configmap is the only way we have for now to let Pulumi know about it.
 	extraConfigMap.Set("ddinfra:aws/useMacosCompatibleSubnets", "true", false)
 	e2e.Run(t, &macosInstallSuite{}, e2e.WithProvisioner(
-		awshost.ProvisionerNoAgentNoFakeIntake(awshost.WithEC2InstanceOptions(ec2.WithOS(os.MacOSDefault)),
-			awshost.WithExtraConfigParams(extraConfigMap)),
-	))
+		awshost.ProvisionerNoAgentNoFakeIntake(
+			awshost.WithRunOptions(ec2.WithEC2InstanceOptions(ec2.WithOS(os.MacOSDefault))),
+			awshost.WithExtraConfigParams(extraConfigMap),
+		)),
+	)
 }
 
 func (m *macosInstallSuite) TestInstallAgent() {

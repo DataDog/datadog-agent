@@ -21,13 +21,12 @@ func (s *languageDetectionSuite) installPHP() {
 }
 
 func (s *languageDetectionSuite) TestPHPDetectionCoreAgent() {
-	s.UpdateEnv(awshost.ProvisionerNoFakeIntake(
-		getProvisionerOptions([]func(*agentparams.Params) error{
-			agentparams.WithAgentConfig(coreConfigStr),
-		})...,
-	))
-	pid := s.startPHP()
-	s.checkDetectedLanguage(pid, "php", "process_collector")
+
+	s.UpdateEnv(awshost.ProvisionerNoFakeIntake(getProvisionerOptions([]func(*agentparams.Params) error{
+		agentparams.WithAgentConfig(coreConfigStr),
+	})...))
+	s.startPHP()
+	s.checkDetectedLanguage("php", "php", "process_collector")
 }
 
 func (s *languageDetectionSuite) startPHP() string {

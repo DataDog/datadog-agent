@@ -14,6 +14,7 @@ import (
 	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
+	scenec2 "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -24,7 +25,7 @@ type vmSuiteEx6 struct {
 
 func TestVMSuiteEx6(t *testing.T) {
 	t.Parallel()
-	e2e.Run(t, &vmSuiteEx6{}, e2e.WithProvisioner(awshost.Provisioner(awshost.WithAgentOptions(agentparams.WithSystemProbeConfig(systemProbeConfigNPM)))))
+	e2e.Run(t, &vmSuiteEx6{}, e2e.WithProvisioner(awshost.Provisioner(awshost.WithRunOptions(scenec2.WithAgentOptions(agentparams.WithSystemProbeConfig(systemProbeConfigNPM))))))
 }
 
 func (v *vmSuiteEx6) Test1_FakeIntakeNPM() {

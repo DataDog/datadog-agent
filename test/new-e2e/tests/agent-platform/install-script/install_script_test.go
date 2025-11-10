@@ -90,7 +90,7 @@ func TestInstallScript(t *testing.T) {
 			e2e.Run(tt,
 				suite,
 				e2e.WithProvisioner(awshost.ProvisionerNoAgentNoFakeIntake(
-					awshost.WithEC2InstanceOptions(vmOpts...),
+					awshost.WithRunOptions(ec2.WithEC2InstanceOptions(vmOpts...)),
 				)),
 				e2e.WithStackName(fmt.Sprintf("install-script-test-%v-%s-%v", platforms.PrettifyOsDescriptor(osDesc), *flavor, *majorVersion)),
 			)
@@ -112,7 +112,7 @@ func DockerTest(t *testing.T) {
 			&installScriptSuiteSysVInit{arch: e2eos.ArchitectureFromString(architecture)},
 			e2e.WithProvisioner(
 				awshost.ProvisionerNoAgentNoFakeIntake(
-					awshost.WithDocker(),
+					awshost.WithRunOptions(ec2.WithDocker()),
 				),
 			),
 		)

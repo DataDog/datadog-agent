@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
+	scenec2 "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -43,13 +44,15 @@ type fakeTracerouteTestSuite struct {
 func TestFakeTracerouteSuite(t *testing.T) {
 	t.Parallel()
 	e2e.Run(t, &fakeTracerouteTestSuite{}, e2e.WithProvisioner(awshost.Provisioner(
-		awshost.WithAgentOptions(
-			agentparams.WithAgentConfig(string(datadogYaml)),
-			agentparams.WithSystemProbeConfig(string(sysProbeConfig)),
-			agentparams.WithIntegration("network_path.d", string(fakeNetworkPathYaml)),
-			agentparams.WithFile("/tmp/router_setup.sh", string(fakeRouterSetupScript), false),
-			agentparams.WithFile("/tmp/router_teardown.sh", string(fakeRouterTeardownScript), false),
-		)),
+		awshost.WithRunOptions(
+			scenec2.WithAgentOptions(
+				agentparams.WithAgentConfig(string(datadogYaml)),
+				agentparams.WithSystemProbeConfig(string(sysProbeConfig)),
+				agentparams.WithIntegration("network_path.d", string(fakeNetworkPathYaml)),
+				agentparams.WithFile("/tmp/router_setup.sh", string(fakeRouterSetupScript), false),
+				agentparams.WithFile("/tmp/router_teardown.sh", string(fakeRouterTeardownScript), false),
+			)),
+	),
 	))
 
 }

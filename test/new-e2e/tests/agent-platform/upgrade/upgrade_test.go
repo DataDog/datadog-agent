@@ -73,7 +73,7 @@ func TestUpgradeScript(t *testing.T) {
 			e2e.Run(tt,
 				suite,
 				e2e.WithProvisioner(awshost.ProvisionerNoAgentNoFakeIntake(
-					awshost.WithEC2InstanceOptions(vmOpts...),
+					awshost.WithRunOptions(ec2.WithEC2InstanceOptions(vmOpts...)),
 				)),
 				e2e.WithStackName(fmt.Sprintf("upgrade-from-%s-to-%s-test-%s-%s", *srcAgentVersion, *destAgentVersion, *flavorName, platforms.PrettifyOsDescriptor(osDesc))),
 			)

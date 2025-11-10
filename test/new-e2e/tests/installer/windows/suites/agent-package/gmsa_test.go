@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/activedirectory"
+	scenwin "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2/windows"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	winawshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host/windows"
@@ -34,9 +35,9 @@ func TestAgentUpgradesOnDCWithGMSA(t *testing.T) {
 	e2e.Run(t, &testAgentUpgradeOnDCWithGMSASuite{},
 		e2e.WithProvisioner(
 			winawshost.ProvisionerNoAgentNoFakeIntake(
-				winawshost.WithActiveDirectoryOptions(
+				winawshost.WithRunOptions(scenwin.WithActiveDirectoryOptions(
 					activedirectory.WithDomainController(TestDomain, TestPassword),
-				),
+				)),
 			),
 		),
 	)
