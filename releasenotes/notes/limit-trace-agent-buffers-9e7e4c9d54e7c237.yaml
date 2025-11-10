@@ -8,4 +8,4 @@
 ---
 fixes:
   - |
-    APM: Limit the size of the buffers used to decode the request body in the trace agent. This prevents the agent from allocating memory for requests that are too large.
+    APM: Limit the size of the buffers used to decode the request body in the Trace Agent. This prevents the Agent from allocating memory for requests that are too large.
