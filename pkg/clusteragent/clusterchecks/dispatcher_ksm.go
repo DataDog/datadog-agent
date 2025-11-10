@@ -9,7 +9,6 @@ package clusterchecks
 
 import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
-	cctypes "github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -23,8 +22,9 @@ func (d *dispatcher) scheduleKSMCheck(config integration.Config) bool {
 	}
 
 	// KSM resource sharding requires advanced dispatching for optimal distribution
+	// Without it: no rebalancing occurs and all shards might be placed on the same runner
 	if !d.advancedDispatching.Load() {
-		log.Warnf("KSM sharding is enabled but advanced dispatching is not. Advanced dispatching is recommended for KSM sharding. Falling back to normal scheduling.")
+		log.Warnf("KSM sharding is enabled but advanced dispatching is disabled. Advanced dispatching is required for proper shard distribution and rebalancing. Falling back to normal scheduling.")
 		return false
 	}
 
@@ -44,8 +44,7 @@ func (d *dispatcher) scheduleKSMCheck(config integration.Config) bool {
 	// Check if we have any cluster check runners available
 	// Note: Even with 0 or 1 runners, we still create shards
 	// Rebalancing will handle distribution as runners come online
-	runners := d.getAvailableRunners()
-	runnerCount := len(runners)
+	runnerCount, _ := d.store.CountNodeTypes()
 
 	if runnerCount == 0 {
 		log.Warnf("KSM sharding is enabled but no cluster check runners (CLC runners) are currently available.")
@@ -150,51 +149,35 @@ func (d *dispatcher) unscheduleKSMCheck(config integration.Config) bool {
 	return true
 }
 
-// getAvailableRunners returns list of available cluster check runner node names
-// Only returns nodes with NodeTypeCLCRunner, filtering out NodeTypeNodeAgent
-func (d *dispatcher) getAvailableRunners() []string {
-	d.store.RLock()
-	defer d.store.RUnlock()
-
-	var runners []string
-	for nodeName, node := range d.store.nodes {
-		if node.nodetype == cctypes.NodeTypeCLCRunner {
-			runners = append(runners, nodeName)
-		}
-	}
-	return runners
-}
-
 // validateClusterTaggerForKSM validates that cluster tagger is enabled for KSM resource sharding.
-// Returns true if cluster tagger is enabled, false if disabled.
-// Logs warnings if cluster tagger is disabled, informing users about missing cross-resource tags.
+// Returns true if Kubernetes resource collection is enabled, false if disabled.
+// Logs warnings if disabled, informing users about potential tag limitations.
 // Sharding always proceeds regardless of return value - this only informs the caller of the status.
 func (d *dispatcher) validateClusterTaggerForKSM() bool {
-	// When KSM is sharded by resource type, the Cluster Tagger provides cross-resource tags:
-	// - Pod metrics get deployment/replicaset/daemonset/statefulset tags
-	// - All metrics get namespace-level tags (team, env, etc.)
+	// KSM uses the cluster tagger only for namespace labels/annotations as tags.
+	// When cluster_agent.collect_kubernetes_tags is enabled:
+	// - DCA collects namespace objects into workloadmeta
+	// - Cluster tagger can propagate namespace labels/annotations as tags to objects in that namespace
 	//
-	// The Cluster Tagger provides this by:
-	// 1. Workloadmeta collects pods/deployments/replicasets in Cluster Agent
-	// 2. Cluster Tagger generates owner relationships and tags
-	// 3. CLC Runners query tags via Remote Tagger
+	// Note: This only works with global tag configuration (e.g., kubernetesResourcesLabelsAsTags),
+	// not with check-specific label configuration.
 	//
-	// The key config that triggers pod/deployment collection is:
-	// cluster_agent.collect_kubernetes_tags
+	// KSM does NOT use the cluster tagger for pod→deployment or other cross-resource relationships.
+	// Those relationships are handled by KSM itself through the Kubernetes API.
 	//
-	// Sharding works WITHOUT cluster tagger, but cross-resource owner tags will be missing.
-	// These features work independently of cluster tagger:
-	// - podLabelsAsTags (from kubernetes_pod_labels_as_tags)
-	// - Namespace-level tags (from kubernetesResourcesLabelsAsTags)
+	// Important: Sharding can break the label_joins option in KSM configs, because label_joins
+	// requires the related objects to be collected in the same KSM instance. If your config uses
+	// label_joins across different resource types (e.g., joining pod labels to node metrics),
+	// those resources must be in the same shard or label_joins will not work correctly.
 
-	clusterTaggerEnabled := pkgconfigsetup.Datadog().GetBool("cluster_agent.collect_kubernetes_tags")
+	collectKubernetesTags := pkgconfigsetup.Datadog().GetBool("cluster_agent.collect_kubernetes_tags")
 
-	if !clusterTaggerEnabled {
-		log.Info("cluster_agent.collect_kubernetes_tags is disabled. KSM sharding will proceed but some cross-resource owner tags will be missing.")
-		// Note: We proceed with sharding even without cluster tagger.
-		// Basic KSM monitoring and namespace-level correlation will still work.
+	if !collectKubernetesTags {
+		log.Info("cluster_agent.collect_kubernetes_tags is disabled. KSM sharding will proceed but namespace labels/annotations will not be propagated as tags to resources.")
+		// Note: We proceed with sharding. KSM metrics will still be collected, but without
+		// namespace-level label/annotation tags from the cluster tagger.
 	} else {
-		log.Info("KSM resource sharding is enabled with cluster tagger support")
+		log.Info("KSM resource sharding is enabled with namespace tag propagation (cluster_agent.collect_kubernetes_tags)")
 	}
-	return clusterTaggerEnabled
+	return collectKubernetesTags
 }
