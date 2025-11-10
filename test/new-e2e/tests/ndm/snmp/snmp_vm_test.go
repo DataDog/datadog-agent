@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	scenec2 "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners"
@@ -33,9 +34,11 @@ type snmpVMSuite struct {
 
 func snmpVMProvisioner(opts ...awshost.ProvisionerOption) provisioners.Provisioner {
 	allOpts := []awshost.ProvisionerOption{
-		awshost.WithDocker(),
-		awshost.WithAgentOptions(
-			agentparams.WithFile("/etc/datadog-agent/conf.d/snmp.d/snmp.yaml", snmpVMConfig, true),
+		awshost.WithRunOptions(
+			scenec2.WithDocker(),
+			scenec2.WithAgentOptions(
+				agentparams.WithFile("/etc/datadog-agent/conf.d/snmp.d/snmp.yaml", snmpVMConfig, true),
+			),
 		),
 	}
 	allOpts = append(allOpts, opts...)
@@ -81,10 +84,12 @@ secret_backend_arguments:
 
 	v.UpdateEnv(
 		snmpVMProvisioner(
-			awshost.WithAgentOptions(
-				agentparams.WithAgentConfig(agentConfig),
-				secretsutils.WithUnixSetupScript("/tmp/test-secret/secret-resolver.py", false),
-				agentparams.WithSkipAPIKeyInConfig(),
+			awshost.WithRunOptions(
+				scenec2.WithAgentOptions(
+					agentparams.WithAgentConfig(agentConfig),
+					secretsutils.WithUnixSetupScript("/tmp/test-secret/secret-resolver.py", false),
+					agentparams.WithSkipAPIKeyInConfig(),
+				),
 			),
 		),
 	)

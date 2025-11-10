@@ -11,6 +11,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
+	scenec2 "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
@@ -24,7 +25,7 @@ type windowsHostnameSuite struct {
 
 func TestWindowsHostnameSuite(t *testing.T) {
 	t.Parallel()
-	osOption := awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsServerDefault))
+	osOption := awshost.WithRunOptions(scenec2.WithEC2InstanceOptions(ec2.WithOS(os.WindowsServerDefault)))
 	e2e.Run(t, &windowsHostnameSuite{baseHostnameSuite: baseHostnameSuite{osOption: osOption}}, e2e.WithProvisioner(awshost.ProvisionerNoFakeIntake(osOption)))
 }
 
@@ -34,7 +35,7 @@ func (v *windowsHostnameSuite) TestAgentConfigHostnameFileOverride() {
 	v.T().Log("Setting hostname in file")
 	v.Env().RemoteHost.MustExecute(`"hostname.from.file" | Out-File -FilePath "C:/ProgramData/Datadog/hostname.txt" -Encoding ascii`)
 	v.T().Log("Testing hostname with hostname_file")
-	v.UpdateEnv(awshost.ProvisionerNoFakeIntake(v.GetOs(), awshost.WithAgentOptions(agentparams.WithAgentConfig("hostname_file: C:/ProgramData/Datadog/hostname.txt"))))
+	v.UpdateEnv(awshost.ProvisionerNoFakeIntake(v.GetOs(), awshost.WithRunOptions(scenec2.WithAgentOptions(agentparams.WithAgentConfig("hostname_file: C:/ProgramData/Datadog/hostname.txt")))))
 
 	hostname := v.Env().Agent.Client.Hostname()
 	assert.Equal(v.T(), "hostname.from.file", hostname)
@@ -45,7 +46,7 @@ func (v *windowsHostnameSuite) TestAgentConfigPreferImdsv2() {
 ec2_use_windows_prefix_detection: true`
 
 	v.T().Log("Testing hostname with ec2_prefer_imdsv2 and ec2_use_windows_prefix_detection")
-	v.UpdateEnv(awshost.ProvisionerNoFakeIntake(v.GetOs(), awshost.WithAgentOptions(agentparams.WithAgentConfig(config))))
+	v.UpdateEnv(awshost.ProvisionerNoFakeIntake(v.GetOs(), awshost.WithRunOptions(scenec2.WithAgentOptions(agentparams.WithAgentConfig(config)))))
 	// e2e metadata provider already uses IMDSv2
 	metadata := client.NewEC2Metadata(v.T(), v.Env().RemoteHost.Host, v.Env().RemoteHost.OSFamily)
 

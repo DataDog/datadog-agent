@@ -13,6 +13,7 @@ import (
 	infraos "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
+	scenwin "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2/windows"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
@@ -104,8 +105,8 @@ func proxyEnvProvisioner() provisioners.PulumiEnvRunFunc[proxyEnv] {
 		}
 
 		// Windows host using standard WindowsHost provisioner pattern
-		params := winawshost.GetProvisionerParams(winawshost.WithoutAgent(), winawshost.WithoutFakeIntake())
-		if err := winawshost.Run(ctx, &env.WindowsHost, awsEnv, params); err != nil {
+		runParams := scenwin.GetRunParams(scenwin.WithoutAgent(), scenwin.WithoutFakeIntake())
+		if err := scenwin.RunWithEnv(ctx, awsEnv, &env.WindowsHost, runParams); err != nil {
 			return err
 		}
 

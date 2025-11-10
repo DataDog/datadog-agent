@@ -100,7 +100,7 @@ func TestPersistingIntegrations(t *testing.T) {
 				// then used in places like https://github.com/DataDog/agent-linux-install-script/blob/8f5c0b4f5b60847ee7989aa2c35052382f282d5d/install_script.sh.template#L1229
 				&persistingIntegrationsSuite{srcVersion: *srcAgentVersion, osDesc: osDesc, testingKeysURL: "apttesting.datad0g.com/test-keys"},
 				e2e.WithProvisioner(awshost.ProvisionerNoAgentNoFakeIntake(
-					awshost.WithEC2InstanceOptions(vmOpts...),
+					awshost.WithRunOptions(ec2.WithEC2InstanceOptions(vmOpts...)),
 				)),
 				e2e.WithStackName(fmt.Sprintf("upgrade-persisting-integrations-%s-%s", simpleFlavorName, platforms.PrettifyOsDescriptor(osDesc))),
 			)

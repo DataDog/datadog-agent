@@ -15,7 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
-
+	scenec2 "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
 	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
@@ -61,18 +61,18 @@ func (v *configRefreshLinuxSuite) TestConfigRefresh() {
 
 	// start the agent with that configuration
 	v.UpdateEnv(awshost.Provisioner(
-		awshost.WithAgentOptions(
+		awshost.WithRunOptions(scenec2.WithAgentOptions(
 			secretsutils.WithUnixSetupScript(secretResolverPath, true),
 			agentparams.WithAgentConfig(coreconfig),
 			agentparams.WithSecurityAgentConfig(securityAgentConfig),
 			agentparams.WithSkipAPIKeyInConfig(), // api_key is already provided in the config
-		),
-		awshost.WithAgentClientOptions(
+		)),
+		awshost.WithRunOptions(scenec2.WithAgentClientOptions(
 			agentclientparams.WithAuthTokenPath(authTokenFilePath),
 			agentclientparams.WithTraceAgentOnPort(apmReceiverPort),
 			agentclientparams.WithProcessAgentOnPort(processCmdPort),
 			agentclientparams.WithSecurityAgentOnPort(securityCmdPort),
-		),
+		)),
 	))
 
 	// get auth token

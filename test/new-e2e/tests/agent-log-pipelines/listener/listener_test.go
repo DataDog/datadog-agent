@@ -8,13 +8,15 @@ package listener
 import (
 	_ "embed"
 	"fmt"
-	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-log-pipelines/utils"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-log-pipelines/utils"
+
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
 
+	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2docker"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
 	awsdocker "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/docker"
@@ -54,12 +56,13 @@ func TestTCPListener(t *testing.T) {
 		&dockerTCPSuite{},
 		e2e.WithProvisioner(
 			awsdocker.Provisioner(
-				awsdocker.WithAgentOptions(
-					dockeragentparams.WithLogs(),
-					dockeragentparams.WithExtraComposeManifest("logger", appslogger.DockerComposeManifest.Content),
-					dockeragentparams.WithExtraComposeManifest("logger-tcp", pulumi.String(tcpCompose)),
-				))),
-	)
+				awsdocker.WithRunOptions(
+					ec2docker.WithAgentOptions(
+						dockeragentparams.WithLogs(),
+						dockeragentparams.WithExtraComposeManifest("logger", appslogger.DockerComposeManifest.Content),
+						dockeragentparams.WithExtraComposeManifest("logger-tcp", pulumi.String(tcpCompose)),
+					))),
+		))
 }
 
 func TestUDPListener(t *testing.T) {
@@ -67,12 +70,13 @@ func TestUDPListener(t *testing.T) {
 		&dockerUDPSuite{},
 		e2e.WithProvisioner(
 			awsdocker.Provisioner(
-				awsdocker.WithAgentOptions(
-					dockeragentparams.WithLogs(),
-					dockeragentparams.WithExtraComposeManifest("logger", appslogger.DockerComposeManifest.Content),
-					dockeragentparams.WithExtraComposeManifest("logger-udp", pulumi.String(udpCompose)),
-				))),
-	)
+				awsdocker.WithRunOptions(
+					ec2docker.WithAgentOptions(
+						dockeragentparams.WithLogs(),
+						dockeragentparams.WithExtraComposeManifest("logger", appslogger.DockerComposeManifest.Content),
+						dockeragentparams.WithExtraComposeManifest("logger-udp", pulumi.String(udpCompose)),
+					))),
+		))
 }
 
 func assertLogsReceived(

@@ -15,6 +15,7 @@ import (
 	perms "github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams/filepermissions"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
+	scenec2 "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -29,7 +30,7 @@ type windowsRuntimeSecretSuite struct {
 func TestWindowsRuntimeSecretSuite(t *testing.T) {
 	t.Parallel()
 	e2e.Run(t, &windowsRuntimeSecretSuite{}, e2e.WithProvisioner(awshost.Provisioner(
-		awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsServerDefault)),
+		awshost.WithRunOptions(scenec2.WithEC2InstanceOptions(ec2.WithOS(os.WindowsServerDefault))),
 	)))
 }
 
@@ -46,11 +47,13 @@ secret_backend_config:
 
 	v.UpdateEnv(
 		awshost.Provisioner(
-			awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsServerDefault)),
-			awshost.WithAgentOptions(
-				agentparams.WithFileWithPermissions("C:/TestFolder/secrets.yaml", embeddedSecretFile, true, windowsPermission),
-				agentparams.WithAgentConfig(config),
-				agentparams.WithSkipAPIKeyInConfig(),
+			awshost.WithRunOptions(
+				scenec2.WithEC2InstanceOptions(ec2.WithOS(os.WindowsServerDefault)),
+				scenec2.WithAgentOptions(
+					agentparams.WithFileWithPermissions("C:/TestFolder/secrets.yaml", embeddedSecretFile, true, windowsPermission),
+					agentparams.WithAgentConfig(config),
+					agentparams.WithSkipAPIKeyInConfig(),
+				),
 			),
 		),
 	)
