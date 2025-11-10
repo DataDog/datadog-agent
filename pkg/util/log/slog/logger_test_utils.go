@@ -9,7 +9,6 @@ package slog
 
 import (
 	"io"
-	"os"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log/slog/formatters"
 	"github.com/DataDog/datadog-agent/pkg/util/log/slog/handlers"
@@ -22,8 +21,8 @@ const defaultMsgFormat = "{{Ns}} [{{Level}}] {{Msg}}\n"
 // LoggerFromWriterWithMinLevelAndFormat creates a new logger from a writer, a minimum log level, and a template format.
 func LoggerFromWriterWithMinLevelAndFormat(output io.Writer, minLevel types.LogLevel, tmplFormat string) (types.LoggerInterface, error) {
 	formatter := formatters.Template(tmplFormat)
-	fmtHandler := handlers.NewFormatHandler(formatter, output)
-	handler := handlers.NewLevelHandler(types.ToSlogLevel(minLevel), fmtHandler)
+	fmtHandler := handlers.NewFormat(formatter, output)
+	handler := handlers.NewLevel(types.ToSlogLevel(minLevel), fmtHandler)
 	return NewWrapper(handler), nil
 }
 
