@@ -25,13 +25,13 @@ func TestOneInstance(t *testing.T) {
 	// define the output
 	Exoutput := []SNMPConfig{
 		{
-			Namespace:       "my_namespace",
-			Version:         "2",
-			CommunityString: "password",
-			IPAddress:       "98.6.18.158",
-			Port:            161,
-			Timeout:         60,
-			Retries:         3,
+			Version:           "2",
+			CommunityString:   "password",
+			IPAddress:         "98.6.18.158",
+			Port:              161,
+			Timeout:           60,
+			Retries:           3,
+			NamespaceInternal: "my_namespace",
 		},
 	}
 	assertSNMP(t, input, Exoutput)
@@ -68,22 +68,22 @@ func TestSeveralInstances(t *testing.T) {
 	// define the output
 	Exoutput := []SNMPConfig{
 		{
-			Namespace:       "my_namespace1",
-			Version:         "2",
-			CommunityString: "password",
-			IPAddress:       "98.6.18.158",
-			Port:            161,
-			Timeout:         60,
-			Retries:         3,
+			Version:           "2",
+			CommunityString:   "password",
+			IPAddress:         "98.6.18.158",
+			Port:              161,
+			Timeout:           60,
+			Retries:           3,
+			NamespaceInternal: "my_namespace1",
 		},
 		{
-			Namespace:       "my_namespace2",
-			Version:         "2",
-			CommunityString: "drowssap",
-			IPAddress:       "98.6.18.159",
-			Port:            162,
-			Timeout:         30,
-			Retries:         5,
+			Version:           "2",
+			CommunityString:   "drowssap",
+			IPAddress:         "98.6.18.159",
+			Port:              162,
+			Timeout:           30,
+			Retries:           5,
+			NamespaceInternal: "my_namespace2",
 		},
 	}
 	assertSNMP(t, input, Exoutput)
@@ -97,42 +97,42 @@ func assertSNMP(t *testing.T, input integration.Config, expectedOutput []SNMPCon
 func TestGetSNMPConfig(t *testing.T) {
 	IPList := []SNMPConfig{
 		{
-			Namespace:       "my_namespace1",
-			Version:         "2",
-			CommunityString: "password",
-			IPAddress:       "98.6.18.158",
-			Port:            161,
-			Timeout:         60,
-			Retries:         3,
+			Version:           "2",
+			CommunityString:   "password",
+			IPAddress:         "98.6.18.158",
+			Port:              161,
+			Timeout:           60,
+			Retries:           3,
+			NamespaceInternal: "my_namespace1",
 		},
 		{
-			Namespace:       "my_namespace2",
-			Version:         "2",
-			CommunityString: "drowssap",
-			IPAddress:       "98.6.18.159",
-			Port:            162,
-			Timeout:         30,
-			Retries:         5,
+			Version:           "2",
+			CommunityString:   "drowssap",
+			IPAddress:         "98.6.18.159",
+			Port:              162,
+			Timeout:           30,
+			Retries:           5,
+			NamespaceInternal: "my_namespace2",
 		},
 		{
-			Namespace:       "my_namespace3",
-			Version:         "3",
-			CommunityString: "drowssap",
-			IPAddress:       "98.6.18.160",
-			Port:            172,
-			Timeout:         30,
-			Retries:         5,
+			Version:           "3",
+			CommunityString:   "drowssap",
+			IPAddress:         "98.6.18.160",
+			Port:              172,
+			Timeout:           30,
+			Retries:           5,
+			NamespaceInternal: "my_namespace3",
 		},
 	}
 	input := "98.6.18.160"
 	expectedOutput := SNMPConfig{
-		Namespace:       "my_namespace3",
-		Version:         "3",
-		CommunityString: "drowssap",
-		IPAddress:       "98.6.18.160",
-		Port:            172,
-		Timeout:         30,
-		Retries:         5,
+		Version:           "3",
+		CommunityString:   "drowssap",
+		IPAddress:         "98.6.18.160",
+		Port:              172,
+		Timeout:           30,
+		Retries:           5,
+		NamespaceInternal: "my_namespace3",
 	}
 	assertIP(t, input, IPList, expectedOutput)
 }

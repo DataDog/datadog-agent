@@ -70,21 +70,17 @@ func (s snmpScannerImpl) handleAgentTask(taskType rcclienttypes.TaskType, task r
 
 func (s snmpScannerImpl) startDeviceScan(task rcclienttypes.AgentTaskConfig) error {
 	deviceIP := task.Config.TaskArgs["ip_address"]
-	instance, err := snmpparse.GetParamsFromAgent(deviceIP, s.config, s.client)
+	instance, deviceNamespace, err := snmpparse.GetParamsFromAgent(deviceIP, s.config, s.client)
 	if err != nil {
 		return err
 	}
 
-	ns, ok := task.Config.TaskArgs["namespace"]
-	if !ok || ns == "" {
-		ns = instance.Namespace
-		if ns == "" {
-			ns = s.config.GetString("network_devices.namespace")
-		}
+	namespace, ok := task.Config.TaskArgs["namespace"]
+	if !ok || namespace == "" {
+		namespace = deviceNamespace
 	}
-	instance.Namespace = ns
 
-	return s.ScanDeviceAndSendData(instance, snmpscan.ScanParams{
+	return s.ScanDeviceAndSendData(instance, namespace, snmpscan.ScanParams{
 		ScanType: metadata.RCTriggeredScan,
 	})
 }

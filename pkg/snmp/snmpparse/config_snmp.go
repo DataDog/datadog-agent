@@ -26,9 +26,7 @@ import (
 // SNMPConfig is a generic container for configuration data specific to the SNMP
 // integration.
 type SNMPConfig struct {
-
 	// General
-	Namespace string `yaml:"namespace"`
 	IPAddress string `yaml:"ip_address"`
 	Port      uint16 `yaml:"port"`
 	Version   string `yaml:"snmp_version"`
@@ -49,6 +47,9 @@ type SNMPConfig struct {
 	// them, but there are cases where we use them (e.g. the snmpwalk command)
 	SecurityLevel           string `yaml:"-"`
 	UseUnconnectedUDPSocket bool   `yaml:"-"`
+
+	// NamespaceInternal is for internal use only and should not be used outside of this package.
+	NamespaceInternal string `yaml:"namespace"`
 }
 
 // SetDefault sets the standard default config values
@@ -105,7 +106,6 @@ func parseConfigSnmpMain(conf config.Component) ([]SNMPConfig, error) {
 		SetDefault(&snmpConfig)
 
 		snmpConfig.NetAddress = configs[c].Network
-		snmpConfig.Namespace = configs[c].Namespace
 		snmpConfig.Port = configs[c].Port
 		snmpConfig.Version = configs[c].Version
 		snmpConfig.Timeout = configs[c].Timeout
@@ -117,6 +117,7 @@ func parseConfigSnmpMain(conf config.Component) ([]SNMPConfig, error) {
 		snmpConfig.PrivProtocol = configs[c].PrivProtocol
 		snmpConfig.PrivKey = configs[c].PrivKey
 		snmpConfig.Context = configs[c].ContextName
+		snmpConfig.NamespaceInternal = configs[c].Namespace
 
 		snmpConfigs = append(snmpConfigs, snmpConfig)
 	}
@@ -159,7 +160,6 @@ func GetConfigCheckSnmp(conf config.Component, client ipc.HTTPClient) ([]SNMPCon
 	snmpConfigs = append(snmpConfigs, snmpConfigMain...)
 
 	return snmpConfigs, nil
-
 }
 
 // GetIPConfig finds the SNMPConfig for a specific IP address.
@@ -167,13 +167,13 @@ func GetConfigCheckSnmp(conf config.Component, client ipc.HTTPClient) ([]SNMPCon
 // if it isn't, but it is part of a configured subnet, then the
 // subnet config will be returned. If there are no matches, this
 // will return an empty SNMPConfig.
-func GetIPConfig(ipAddress string, SnmpConfigList []SNMPConfig) SNMPConfig {
+func GetIPConfig(ipAddress string, snmpConfigList []SNMPConfig) SNMPConfig {
 	var ipAddressConfigs []SNMPConfig
 	var netAddressConfigs []SNMPConfig
 
-	// split the SnmpConfigList to get the IP addresses separated from
+	// split the snmpConfigList to get the IP addresses separated from
 	// the network addresses
-	for _, snmpConfig := range SnmpConfigList {
+	for _, snmpConfig := range snmpConfigList {
 		if snmpConfig.IPAddress != "" {
 			ipAddressConfigs = append(ipAddressConfigs, snmpConfig)
 		}
@@ -205,15 +205,19 @@ func GetIPConfig(ipAddress string, SnmpConfigList []SNMPConfig) SNMPConfig {
 }
 
 // GetParamsFromAgent returns the SNMPConfig for a specific IP address, by querying the local agent.
-func GetParamsFromAgent(deviceIP string, conf config.Component, client ipc.HTTPClient) (*SNMPConfig, error) {
+func GetParamsFromAgent(deviceIP string, conf config.Component, client ipc.HTTPClient) (*SNMPConfig, string, error) {
 	snmpConfigList, err := GetConfigCheckSnmp(conf, client)
 	if err != nil {
-		return nil, fmt.Errorf("unable to load SNMP config from agent: %w", err)
+		return nil, "", fmt.Errorf("unable to load SNMP config from agent: %w", err)
 	}
 	instance := GetIPConfig(deviceIP, snmpConfigList)
+	namespace := instance.NamespaceInternal
+	if namespace == "" {
+		namespace = conf.GetString("network_devices.namespace")
+	}
 	if instance.IPAddress != "" {
 		instance.IPAddress = deviceIP
-		return &instance, nil
+		return &instance, namespace, nil
 	}
-	return nil, fmt.Errorf("agent has no SNMP config for IP %s", deviceIP)
+	return nil, "", fmt.Errorf("agent has no SNMP config for IP %s", deviceIP)
 }

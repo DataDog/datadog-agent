@@ -225,14 +225,7 @@ func maybeSplitIP(address string) (string, uint16, bool) {
 	return host, uint16(pnum), true
 }
 
-func setDefaultsFromAgent(connParams *snmpparse.SNMPConfig, conf config.Component, client ipc.HTTPClient) error {
-	agentParams, agentError := snmpparse.GetParamsFromAgent(connParams.IPAddress, conf, client)
-	if agentError != nil {
-		return agentError
-	}
-
-	connParams.Namespace = agentParams.Namespace
-
+func setDefaultsFromAgent(connParams *snmpparse.SNMPConfig, agentParams *snmpparse.SNMPConfig) {
 	if connParams.Version == "" {
 		connParams.Version = agentParams.Version
 	}
@@ -266,7 +259,6 @@ func setDefaultsFromAgent(connParams *snmpparse.SNMPConfig, conf config.Componen
 	if connParams.Timeout == 0 {
 		connParams.Timeout = agentParams.Timeout
 	}
-	return nil
 }
 
 func scanDevice(connParams *snmpparse.SNMPConfig, args argsType, snmpScanner snmpscan.Component, conf config.Component, client ipc.HTTPClient) error {
@@ -280,19 +272,18 @@ func scanDevice(connParams *snmpparse.SNMPConfig, args argsType, snmpScanner snm
 	}
 	// Parse port from IP address
 	connParams.IPAddress, connParams.Port, _ = maybeSplitIP(deviceAddr)
-	agentErr := setDefaultsFromAgent(connParams, conf, client)
+	agentParams, namespace, agentErr := snmpparse.GetParamsFromAgent(connParams.IPAddress, conf, client)
 	if agentErr != nil {
 		// Warn that we couldn't contact the agent, but keep going in case the
 		// user provided enough arguments to do this anyway.
 		_, _ = fmt.Fprintf(os.Stderr, "Warning: %v\n", agentErr)
+	} else {
+		setDefaultsFromAgent(connParams, agentParams)
 	}
-	if connParams.Namespace == "" {
-		connParams.Namespace = conf.GetString("network_devices.namespace")
-	}
-	deviceID := connParams.Namespace + ":" + connParams.IPAddress
+	deviceID := namespace + ":" + connParams.IPAddress
 	// Start the scan
 	fmt.Printf("Launching scan for device: %s\n", deviceID)
-	err := snmpScanner.ScanDeviceAndSendData(connParams, snmpscan.ScanParams{
+	err := snmpScanner.ScanDeviceAndSendData(connParams, namespace, snmpscan.ScanParams{
 		ScanType: metadata.ManualScan,
 	})
 	if err != nil {
@@ -318,11 +309,13 @@ func snmpWalk(connParams *snmpparse.SNMPConfig, args argsType, snmpScanner snmps
 	}
 	// Parse port from IP address
 	connParams.IPAddress, connParams.Port, _ = maybeSplitIP(deviceAddr)
-	agentErr := setDefaultsFromAgent(connParams, conf, client)
+	agentParams, _, agentErr := snmpparse.GetParamsFromAgent(connParams.IPAddress, conf, client)
 	if agentErr != nil {
 		// Warn that we couldn't contact the agent, but keep going in case the
 		// user provided enough arguments to do this anyway.
 		_, _ = fmt.Fprintf(os.Stderr, "Warning: %v\n", agentErr)
+	} else {
+		setDefaultsFromAgent(connParams, agentParams)
 	}
 	// Establish connection
 	snmp, err := snmpparse.NewSNMP(connParams, logger)

@@ -20,7 +20,7 @@ import (
 // Component is the component type.
 type Component interface {
 	RunSnmpWalk(snmpConection *gosnmp.GoSNMP, firstOid string) error
-	ScanDeviceAndSendData(connParams *snmpparse.SNMPConfig, scanParams ScanParams) error
+	ScanDeviceAndSendData(connParams *snmpparse.SNMPConfig, namespace string, scanParams ScanParams) error
 }
 
 // ScanParams contains options for a device scan
