@@ -14,11 +14,6 @@ import (
 // LoggerInterface provides basic logging methods that can be used from outside the log package.
 type LoggerInterface = types.LoggerInterface
 
-// Default returns a default logger
-func Default() LoggerInterface {
-	return seelog.Default
-}
-
 // Disabled returns a disabled logger
 func Disabled() LoggerInterface {
 	return seelog.Disabled
