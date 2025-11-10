@@ -35,6 +35,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	grpcutils "github.com/DataDog/datadog-agent/pkg/security/utils/grpc"
+	"github.com/DataDog/datadog-agent/pkg/util/system/socket"
 )
 
 const (
@@ -94,7 +95,7 @@ func NewCWSConsumer(evm *eventmonitor.EventMonitor, cfg *config.RuntimeSecurityC
 		return nil, err
 	}
 
-	family, socketPath := config.GetSocketAddress(cmdSocketPath)
+	family, socketPath := socket.GetSocketAddress(cmdSocketPath)
 	apiServer, err := NewAPIServer(cfg, evm.Probe, opts.MsgSender, evm.StatsdClient, selfTester, compression, ipc)
 	if err != nil {
 		return nil, err

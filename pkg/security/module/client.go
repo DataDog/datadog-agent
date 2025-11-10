@@ -25,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
+	"github.com/DataDog/datadog-agent/pkg/util/system/socket"
 )
 
 // SecurityAgentAPIClient is used to send request to security module
@@ -142,7 +143,7 @@ func NewSecurityAgentAPIClient(cfg *config.RuntimeSecurityConfig) (*SecurityAgen
 		return nil, errors.New("runtime_security_config.socket must be set, events will not be sent to the security agent")
 	}
 
-	family, socketPath := config.GetSocketAddress(cfg.SocketPath)
+	family, socketPath := socket.GetSocketAddress(cfg.SocketPath)
 	if family == "unix" {
 		if runtime.GOOS == "windows" {
 			return nil, fmt.Errorf("unix sockets are not supported on Windows")
