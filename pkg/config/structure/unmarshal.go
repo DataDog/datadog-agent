@@ -82,6 +82,20 @@ var legacyConvertArrayToMap = func(c *mapstructure.DecoderConfig) {
 	}
 }
 
+func convertArrayToMap(rf reflect.Kind, rt reflect.Kind, data interface{}) (interface{}, error) {
+	if rf != reflect.Slice {
+		return data, nil
+	}
+	if rt != reflect.Map {
+		return data, nil
+	}
+	newData := map[interface{}]bool{}
+	for _, i := range data.([]interface{}) {
+		newData[i] = true
+	}
+	return newData, nil
+}
+
 // UnmarshalKey retrieves data from the config at the given key and deserializes it
 // to be stored on the target struct.
 //
@@ -107,30 +121,40 @@ func UnmarshalKey(cfg model.Reader, key string, target interface{}, opts ...Unma
 			return json.Unmarshal([]byte(str), &target)
 		}
 	}
-	decodeHooks := []func(c *mapstructure.DecoderConfig){}
-	if fs.convertArrayToMap {
-		decodeHooks = append(decodeHooks, legacyConvertArrayToMap)
+
+	hooks := []mapstructure.DecodeHookFunc{
+		mapstructure.StringToTimeDurationHookFunc(),
+		mapstructure.StringToSliceHookFunc(","),
 	}
-	if fs.errorUnused {
-		decodeHooks = append(decodeHooks, errorUnused)
+	if fs.convertArrayToMap {
+		hooks = append(hooks, convertArrayToMap)
 	}
 
 	dc := &mapstructure.DecoderConfig{
 		Metadata:         nil,
 		Result:           target,
 		WeaklyTypedInput: true,
-		DecodeHook: mapstructure.ComposeDecodeHookFunc(
-			decodeHooks,
-			mapstructure.StringToTimeDurationHookFunc(),
-			mapstructure.StringToSliceHookFunc(","),
-		),
+		DecodeHook:       mapstructure.ComposeDecodeHookFunc(hooks...),
+	}
+	if fs.errorUnused {
+		dc.ErrorUnused = true
+	}
+
+	var input interface{}
+	if _, ok := cfg.(nodetreemodel.NodeTreeConfig); ok {
+		input = cfg.Get(key)
+	} else {
+		settingval, err := buildTreeFromConfigSettings(cfg, key)
+		if err != nil {
+			return err
+		}
+		input = settingval
 	}
 
 	decoder, err := mapstructure.NewDecoder(dc)
 	if err != nil {
 		return err
 	}
-	input := cfg.Get(key)
 	return decoder.Decode(input)
 }
 
@@ -140,8 +164,8 @@ func buildTreeFromConfigSettings(cfg model.Reader, key string) (interface{}, err
 	if nodetreemodel.IsNilValue(rawval) {
 		// NOTE: This returns a nil-valued-interface, which is needed to handle edge
 		// cases in the same way viper does
-		var ret map[string]interface{}
-		return ret, nil
+		//var ret map[string]interface{}
+		return nil, nil
 	}
 
 	mapval, ok := rawval.(map[string]interface{})
@@ -163,8 +187,8 @@ func buildTreeFromConfigSettings(cfg model.Reader, key string) (interface{}, err
 		if nodetreemodel.IsNilValue(inner) {
 			// NOTE: This returns a nil-valued-interface, which is needed to handle edge
 			// cases in the same way viper does
-			var ret map[string]interface{}
-			inner = ret
+			//var ret map[string]interface{}
+			inner = nil
 		}
 		tree[f] = inner
 	}
