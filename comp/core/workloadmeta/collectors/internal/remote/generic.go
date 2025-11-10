@@ -95,7 +95,6 @@ func (c *GenericCollector) Start(ctx context.Context, store workloadmeta.Compone
 	c.ctx, c.cancel = context.WithCancel(ctx)
 
 	opts := []grpc.DialOption{grpc.WithContextDialer(func(_ context.Context, url string) (net.Conn, error) {
-		// TODO(lebauce): clean this
 		if vsockAddr := pkgconfigsetup.Datadog().GetString("vsock_addr"); vsockAddr != "" {
 			cid, err := socket.ParseVSockAddress(vsockAddr)
 			if err != nil {
