@@ -12,6 +12,6 @@ import (
 
 // Disabled returns a disabled logger.
 func Disabled() types.LoggerInterface {
-	disabledHandler := handlers.NewDisabledHandler()
+	disabledHandler := handlers.NewDisabled()
 	return NewWrapper(disabledHandler)
 }

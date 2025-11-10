@@ -14,11 +14,11 @@ var _ slog.Handler = disabled{}
 
 // disabled is a slog handler which never writes anything.
 //
-// This can be replaced by slog.Disabled once we update to Go 1.25
+// This can be replaced by slog.DiscardHandler once we update to Go 1.25
 type disabled struct{}
 
-// NewDisabledHandler returns a handler which never writes anything.
-func NewDisabledHandler() slog.Handler {
+// NewDisabled returns a handler which never writes anything.
+func NewDisabled() slog.Handler {
 	return disabled{}
 }
 

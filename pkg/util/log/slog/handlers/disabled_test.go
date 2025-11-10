@@ -16,7 +16,7 @@ import (
 )
 
 func TestDisabledHandlerEnabled(t *testing.T) {
-	handler := NewDisabledHandler()
+	handler := NewDisabled()
 
 	// Should always return false for any level
 	assert.False(t, handler.Enabled(context.Background(), slog.LevelDebug))
@@ -26,7 +26,7 @@ func TestDisabledHandlerEnabled(t *testing.T) {
 }
 
 func TestDisabledHandlerHandle(t *testing.T) {
-	handler := NewDisabledHandler()
+	handler := NewDisabled()
 
 	record := slog.NewRecord(time.Now(), slog.LevelInfo, "test message", 0)
 	err := handler.Handle(context.Background(), record)
