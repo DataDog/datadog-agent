@@ -545,7 +545,7 @@ def trigger_external(ctx, owner_branch_name: str, no_verify=False):
     Trigger a pipeline from an external owner.
     """
 
-    branch_re = re.compile(r'^(?P<owner>[a-zA-Z0-9_-]+):(?P<branch_name>[a-zA-Z0-9_/-]+)$')
+    branch_re = re.compile(r'^(?P<owner>[a-zA-Z0-9_-]+):(?P<branch_name>[a-zA-Z0-9#_/-]+)$')
     match = branch_re.match(owner_branch_name)
 
     assert (
