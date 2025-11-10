@@ -15,7 +15,6 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	mapstructure "github.com/go-viper/mapstructure/v2"
 	"github.com/spf13/cast"
 
 	"github.com/DataDog/datadog-agent/pkg/config/model"
@@ -58,28 +57,6 @@ var ConvertEmptyStringToNil UnmarshalKeyOption = func(fs *featureSet) {
 // ImplicitlyConvertArrayToMapSet allows UnmarshalKey to implicitly convert an array of []interface{} to a map[interface{}]bool
 var ImplicitlyConvertArrayToMapSet UnmarshalKeyOption = func(fs *featureSet) {
 	fs.convertArrayToMap = true
-}
-
-// errorUnused is a mapstructure.DecoderConfig that enables erroring on unused keys
-var errorUnused = func(cfg *mapstructure.DecoderConfig) {
-	cfg.ErrorUnused = true
-}
-
-// legacyConvertArrayToMap convert array to map when DD_CONF_NODETREEMODEL is disabled
-var legacyConvertArrayToMap = func(c *mapstructure.DecoderConfig) {
-	c.DecodeHook = func(rf reflect.Kind, rt reflect.Kind, data interface{}) (interface{}, error) {
-		if rf != reflect.Slice {
-			return data, nil
-		}
-		if rt != reflect.Map {
-			return data, nil
-		}
-		newData := map[interface{}]bool{}
-		for _, i := range data.([]interface{}) {
-			newData[i] = true
-		}
-		return newData, nil
-	}
 }
 
 // UnmarshalKey retrieves data from the config at the given key and deserializes it
