@@ -49,7 +49,7 @@ func (mr *NoOpResolver) ResolveFilesystem(_ uint32, _ uint32) (string, error) {
 }
 
 // Insert a new mount point in the cache
-func (mr *NoOpResolver) Insert(_ model.Mount, _ uint32) error {
+func (mr *NoOpResolver) Insert(_ model.Mount) error {
 	return nil
 }
 

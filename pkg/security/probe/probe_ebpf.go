@@ -2345,7 +2345,7 @@ func (p *EBPFProbe) handleNewMount(ev *model.Event, m *model.Mount) error {
 	if ev.GetEventType() == model.FileMoveMountEventType {
 		err = p.Resolvers.MountResolver.InsertMoved(*m)
 	} else {
-		err = p.Resolvers.MountResolver.Insert(*m, 0)
+		err = p.Resolvers.MountResolver.Insert(*m)
 	}
 
 	if err != nil {

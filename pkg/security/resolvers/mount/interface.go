@@ -18,7 +18,7 @@ type ResolverInterface interface {
 	SyncCache() error
 	Delete(mountID uint32) error
 	ResolveFilesystem(mountID uint32, pid uint32) (string, error)
-	Insert(m model.Mount, pid uint32) error
+	Insert(m model.Mount) error
 	InsertMoved(m model.Mount) error
 	ResolveMountRoot(mountID uint32, pid uint32) (string, model.MountSource, model.MountOrigin, error)
 	ResolveMountPath(mountID uint32, pid uint32) (string, model.MountSource, model.MountOrigin, error)

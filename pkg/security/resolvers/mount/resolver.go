@@ -87,7 +87,7 @@ func (mr *Resolver) IsMountIDValid(mountID uint32) (bool, error) {
 func (mr *Resolver) syncCacheFromListMount() error {
 	nrMounts := 0
 	err := GetAll(kernel.ProcFSRoot(), func(sm *model.Mount) {
-		mr.insert(sm, 0, false)
+		mr.insert(sm, false)
 		nrMounts++
 	})
 
@@ -102,7 +102,7 @@ func (mr *Resolver) syncCacheFromListMount() error {
 func (mr *Resolver) syncCacheFromProcfs() error {
 	nrMounts := 0
 	err := GetAllProcfs(kernel.ProcFSRoot(), func(sm *model.Mount) {
-		mr.insert(sm, 0, false)
+		mr.insert(sm, false)
 		nrMounts++
 	})
 
@@ -141,7 +141,7 @@ func (mr *Resolver) syncCache() error {
 func (mr *Resolver) syncPidProcfs(pid uint32) error {
 	nrMounts := 0
 	err := GetPidProcfs(kernel.ProcFSRoot(), pid, func(sm *model.Mount) {
-		mr.insert(sm, 0, false)
+		mr.insert(sm, false)
 		nrMounts++
 	})
 
@@ -156,7 +156,7 @@ func (mr *Resolver) syncPidProcfs(pid uint32) error {
 func (mr *Resolver) syncPidListmount(pid uint32) error {
 	nrMounts := 0
 	err := GetPidListmount(kernel.ProcFSRoot(), pid, func(sm *model.Mount) {
-		mr.insert(sm, 0, false)
+		mr.insert(sm, false)
 		nrMounts++
 	})
 
@@ -196,7 +196,7 @@ func (mr *Resolver) SyncCache() error {
 func (mr *Resolver) insertMoved(mount *model.Mount) {
 	mount.MountPointStr, _ = mr.dentryResolver.Resolve(mount.ParentPathKey, false)
 
-	mr.insert(mount, 0, true)
+	mr.insert(mount, true)
 	_, _, _, _ = mr.getMountPath(mount.MountID, 0)
 
 	// Find all the mounts that I'm the parent of
@@ -332,7 +332,7 @@ func (mr *Resolver) ResolveFilesystem(mountID uint32, pid uint32) (string, error
 }
 
 // Insert a new mount point in the cache
-func (mr *Resolver) Insert(m model.Mount, pid uint32) error {
+func (mr *Resolver) Insert(m model.Mount) error {
 	if m.MountID == 0 {
 		return ErrMountUndefined
 	}
@@ -340,7 +340,7 @@ func (mr *Resolver) Insert(m model.Mount, pid uint32) error {
 	mr.lock.Lock()
 	defer mr.lock.Unlock()
 
-	mr.insert(&m, pid, false)
+	mr.insert(&m, false)
 
 	return nil
 }
@@ -359,7 +359,7 @@ func (mr *Resolver) InsertMoved(m model.Mount) error {
 	return nil
 }
 
-func (mr *Resolver) insert(m *model.Mount, pid uint32, moved bool) {
+func (mr *Resolver) insert(m *model.Mount, moved bool) {
 	// umount the previous one if exists
 	if prev, ok := mr.mounts.Get(m.MountID); prev != nil && ok {
 		m.Children = prev.Children
