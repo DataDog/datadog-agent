@@ -78,11 +78,11 @@ type DatadogConfig struct {
 	Env                  string                     `yaml:"env,omitempty"`
 	Tags                 []string                   `yaml:"tags,omitempty"`
 	ExtraTags            []string                   `yaml:"extra_tags,omitempty"`
-	LogsEnabled          bool                       `yaml:"logs_enabled,omitempty"`
+	LogsEnabled          *bool                      `yaml:"logs_enabled,omitempty"`
 	DJM                  DatadogConfigDJM           `yaml:"djm_config,omitempty"`
 	ProcessConfig        DatadogConfigProcessConfig `yaml:"process_config,omitempty"`
 	ExpectedTagsDuration string                     `yaml:"expected_tags_duration,omitempty"`
-	RemoteUpdates        bool                       `yaml:"remote_updates,omitempty"`
+	RemoteUpdates        *bool                      `yaml:"remote_updates,omitempty"`
 	Installer            DatadogConfigInstaller     `yaml:"installer,omitempty"`
 	DDURL                string                     `yaml:"dd_url,omitempty"`
 	LogsConfig           LogsConfig                 `yaml:"logs_config,omitempty"`
@@ -93,7 +93,7 @@ type DatadogConfig struct {
 
 // GPUCheckConfig represents the configuration for the GPU check
 type GPUCheckConfig struct {
-	Enabled     bool   `yaml:"enabled,omitempty"`
+	Enabled     *bool  `yaml:"enabled,omitempty"`
 	NvmlLibPath string `yaml:"nvml_lib_path,omitempty"`
 }
 
@@ -106,7 +106,7 @@ type DatadogConfigProxy struct {
 
 // DatadogConfigDJM represents the configuration for the Data Jobs Monitoring
 type DatadogConfigDJM struct {
-	Enabled bool `yaml:"enabled,omitempty"`
+	Enabled *bool `yaml:"enabled,omitempty"`
 }
 
 // DatadogConfigProcessConfig represents the configuration for the process agent
@@ -139,7 +139,7 @@ type IntegrationConfigLogs struct {
 	Service                string              `yaml:"service,omitempty"`
 	Source                 string              `yaml:"source,omitempty"`
 	Tags                   string              `yaml:"tags,omitempty"`
-	AutoMultiLineDetection bool                `yaml:"auto_multi_line_detection,omitempty"`
+	AutoMultiLineDetection *bool               `yaml:"auto_multi_line_detection,omitempty"`
 	LogProcessingRules     []LogProcessingRule `yaml:"log_processing_rules,omitempty"`
 }
 
@@ -178,30 +178,30 @@ type SystemProbeConfig struct {
 
 // RuntimeSecurityConfig represents the configuration for the runtime security
 type RuntimeSecurityConfig struct {
-	Enabled bool       `yaml:"enabled,omitempty"`
+	Enabled *bool      `yaml:"enabled,omitempty"`
 	SBOM    SBOMConfig `yaml:"sbom,omitempty"`
 }
 
 // SBOMConfig represents the configuration for the SBOM
 type SBOMConfig struct {
-	Enabled        bool                     `yaml:"enabled,omitempty"`
+	Enabled        *bool                    `yaml:"enabled,omitempty"`
 	ContainerImage SBOMContainerImageConfig `yaml:"container_image,omitempty"`
 	Host           SBOMHostConfig           `yaml:"host,omitempty"`
 }
 
 // SBOMContainerImageConfig represents the configuration for the SBOM container image
 type SBOMContainerImageConfig struct {
-	Enabled bool `yaml:"enabled,omitempty"`
+	Enabled *bool `yaml:"enabled,omitempty"`
 }
 
 // SBOMHostConfig represents the configuration for the SBOM host
 type SBOMHostConfig struct {
-	Enabled bool `yaml:"enabled,omitempty"`
+	Enabled *bool `yaml:"enabled,omitempty"`
 }
 
 // GPUMonitoringConfig represents the configuration for GPU monitoring
 type GPUMonitoringConfig struct {
-	Enabled bool `yaml:"enabled,omitempty"`
+	Enabled *bool `yaml:"enabled,omitempty"`
 }
 
 // SecurityAgentConfig represents the configuration to write in /etc/datadog-agent/security-agent.yaml
@@ -212,7 +212,7 @@ type SecurityAgentConfig struct {
 
 // SecurityAgentComplianceConfig represents the configuration for the compliance
 type SecurityAgentComplianceConfig struct {
-	Enabled bool `yaml:"enabled,omitempty"`
+	Enabled *bool `yaml:"enabled,omitempty"`
 }
 
 // LogsConfig represents the configuration for global log processing rules
