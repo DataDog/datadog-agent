@@ -43,12 +43,6 @@ const (
 	logDateFormat = "2006-01-02 15:04:05 MST" // see time.Format for format syntax
 )
 
-var (
-	seelogConfig          *seelogCfg.Config
-	jmxSeelogConfig       *seelogCfg.Config
-	dogstatsdSeelogConfig *seelogCfg.Config
-)
-
 func getLogDateFormat(cfg pkgconfigmodel.Reader) string {
 	if cfg.GetBool("log_format_rfc3339") {
 		return time.RFC3339
@@ -71,11 +65,7 @@ func SetupLogger(loggerName LoggerName, logLevel, logFile, syslogURI string, sys
 	if err != nil {
 		return err
 	}
-	seelogConfig, err = buildLoggerConfig(loggerName, seelogLogLevel, logFile, syslogURI, syslogRFC, logToConsole, jsonFormat, cfg)
-	if err != nil {
-		return err
-	}
-	loggerInterface, err := GenerateLoggerInterface(seelogConfig)
+	loggerInterface, err := buildLogger(loggerName, seelogLogLevel, logFile, syslogURI, syslogRFC, logToConsole, jsonFormat, cfg)
 	if err != nil {
 		return err
 	}
@@ -95,13 +85,7 @@ func SetupLogger(loggerName LoggerName, logLevel, logFile, syslogURI string, sys
 			return
 		}
 		// We create a new logger to propagate the new log level everywhere seelog is used (including dependencies)
-		seelogConfig.SetLogLevel(seelogLogLevel.String())
-		configTemplate, err := seelogConfig.Render()
-		if err != nil {
-			return
-		}
-
-		logger, err := seelog.LoggerFromConfigAsString(configTemplate)
+		logger, err := buildLogger(loggerName, seelogLogLevel, logFile, syslogURI, syslogRFC, logToConsole, jsonFormat, cfg)
 		if err != nil {
 			return
 		}
@@ -120,28 +104,16 @@ func BuildJMXLogger(logFile, syslogURI string, syslogRFC, logToConsole, jsonForm
 	// The JMX logger always logs at level "info", because JMXFetch does its
 	// own level filtering on and provides all messages to seelog at the info
 	// or error levels, via log.JMXInfo and log.JMXError.
-	var err error
-	jmxSeelogConfig, err = buildLoggerConfig(JMXLoggerName, log.InfoLvl, logFile, syslogURI, syslogRFC, logToConsole, jsonFormat, cfg)
-	if err != nil {
-		return nil, err
-	}
-	return GenerateLoggerInterface(jmxSeelogConfig)
+	return buildLogger(JMXLoggerName, log.InfoLvl, logFile, syslogURI, syslogRFC, logToConsole, jsonFormat, cfg)
 }
 
 // SetupDogstatsdLogger sets up a logger with dogstatsd logger name and log level
 // if a non empty logFile is provided, it will also log to the file
 func SetupDogstatsdLogger(logFile string, cfg pkgconfigmodel.Reader) (seelog.LoggerInterface, error) {
-	dogstatsdSeelogConfig = buildDogstatsdLoggerConfig(DogstatsDLoggerName, log.InfoLvl, logFile, cfg)
-
-	dogstatsdLoggerInterface, err := GenerateLoggerInterface(dogstatsdSeelogConfig)
-	if err != nil {
-		return nil, err
-	}
-
-	return dogstatsdLoggerInterface, nil
+	return buildDogstatsdLogger(DogstatsDLoggerName, log.InfoLvl, logFile, cfg)
 }
 
-func buildDogstatsdLoggerConfig(loggerName LoggerName, seelogLogLevel log.LogLevel, logFile string, cfg pkgconfigmodel.Reader) *seelogCfg.Config {
+func buildDogstatsdLogger(loggerName LoggerName, seelogLogLevel log.LogLevel, logFile string, cfg pkgconfigmodel.Reader) (seelog.LoggerInterface, error) {
 	config := seelogCfg.NewSeelogConfig(string(loggerName), seelogLogLevel.String(), "common", "", buildCommonFormat(loggerName, cfg), false)
 
 	// Configuring max roll for log file, if dogstatsd_log_file_max_rolls env var is not set (or set improperly ) within datadog.yaml then default value is 3
@@ -154,10 +126,10 @@ func buildDogstatsdLoggerConfig(loggerName LoggerName, seelogLogLevel log.LogLev
 	// Configure log file, log file max size, log file roll up
 	config.EnableFileLogging(logFile, cfg.GetSizeInBytes("dogstatsd_log_file_max_size"), uint(dogstatsdLogFileMaxRolls))
 
-	return config
+	return generateLoggerInterface(config)
 }
 
-func buildLoggerConfig(loggerName LoggerName, seelogLogLevel log.LogLevel, logFile, syslogURI string, syslogRFC, logToConsole, jsonFormat bool, cfg pkgconfigmodel.Reader) (*seelogCfg.Config, error) {
+func buildLogger(loggerName LoggerName, seelogLogLevel log.LogLevel, logFile, syslogURI string, syslogRFC, logToConsole, jsonFormat bool, cfg pkgconfigmodel.Reader) (seelog.LoggerInterface, error) {
 	formatID := "common"
 	if jsonFormat {
 		formatID = "json"
@@ -170,11 +142,12 @@ func buildLoggerConfig(loggerName LoggerName, seelogLogLevel log.LogLevel, logFi
 	if syslogURI != "" { // non-blank uri enables syslog
 		config.ConfigureSyslog(syslogURI)
 	}
-	return config, nil
+
+	return generateLoggerInterface(config)
 }
 
-// GenerateLoggerInterface return a logger Interface from a log config
-func GenerateLoggerInterface(logConfig *seelogCfg.Config) (seelog.LoggerInterface, error) {
+// generateLoggerInterface return a logger Interface from a log config
+func generateLoggerInterface(logConfig *seelogCfg.Config) (seelog.LoggerInterface, error) {
 	configTemplate, err := logConfig.Render()
 	if err != nil {
 		return nil, err
