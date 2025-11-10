@@ -15,7 +15,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/symlink"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
-	"github.com/DataDog/datadog-agent/pkg/trace/log"
 )
 
 const (
@@ -117,10 +116,12 @@ func isSameFile(file1, file2 string) bool {
 
 // replaceConfigDirectory replaces the contents of two directories.
 func replaceConfigDirectory(oldDir, newDir string) (err error) {
-	backupPath, err := os.MkdirTemp(filepath.Dir(oldDir), "datadog-backup")
+	backupDir, err := os.MkdirTemp(filepath.Dir(oldDir), "datadog-backup")
 	if err != nil {
 		return fmt.Errorf("could not create backup directory: %w", err)
 	}
+	defer os.RemoveAll(backupDir)
+	backupPath := filepath.Join(backupDir, filepath.Base(oldDir))
 	err = os.Rename(oldDir, backupPath)
 	if err != nil {
 		return fmt.Errorf("could not rename old directory: %w", err)
@@ -131,10 +132,6 @@ func replaceConfigDirectory(oldDir, newDir string) (err error) {
 			if rollbackErr != nil {
 				err = fmt.Errorf("%w, rollback error: %w", err, rollbackErr)
 			}
-		}
-		cleanupErr := os.RemoveAll(backupPath)
-		if cleanupErr != nil {
-			log.Errorf("could not cleanup backup directory: %w", cleanupErr)
 		}
 	}()
 	err = os.Rename(newDir, oldDir)
