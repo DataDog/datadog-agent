@@ -49,7 +49,7 @@ func Template(tmpl string) func(context.Context, slog.Record) string {
 
 			"FuncShort":     func() string { return ShortFunction(frame) },
 			"ShortFilePath": func() string { return ShortFilePath(frame) },
-			"RelFile":       func() string { return ShortFilePath(frame) }, // TODO: I don't think this is the same as seelog
+			"RelFile":       func() string { return RelFile(frame) },
 
 			"ExtraTextContext": func() string { return ExtraTextContext(r) },
 			"ExtraJSONContext": func() string { return ExtraJSONContext(r) },

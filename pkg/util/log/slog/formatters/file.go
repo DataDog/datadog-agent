@@ -6,6 +6,8 @@
 package formatters
 
 import (
+	"os"
+	"path/filepath"
 	"runtime"
 	"strings"
 )
@@ -35,4 +37,15 @@ func extractShortPathFromFullPath(fullPath string) string {
 		shortPath = strings.Join(slices[atSignIndex:], "/")
 	}
 	return shortPath
+}
+
+// RelFile removes the working directory from the full path.
+func RelFile(frame runtime.Frame) string {
+	workingDir := "/"
+	wd, err := os.Getwd()
+	if err == nil {
+		workingDir = filepath.ToSlash(wd) + "/"
+	}
+
+	return strings.TrimPrefix(frame.File, workingDir)
 }
