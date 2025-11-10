@@ -15,26 +15,15 @@ import (
 )
 
 func TestNewScanScheduler(t *testing.T) {
-	now := time.Now()
-
-	sc := newScanScheduler(nil)
+	sc := newScanScheduler()
 	assert.NotNil(t, sc)
 	assert.Equal(t, 0, len(sc.(*scanSchedulerImpl).taskQueue))
-
-	scanQueue := scanTaskPriorityQueue{
-		{req: snmpscanmanager.ScanRequest{DeviceIP: "10.0.0.1"}, nextRun: now},
-		{req: snmpscanmanager.ScanRequest{DeviceIP: "10.0.0.2"}, nextRun: now},
-	}
-
-	sc = newScanScheduler(scanQueue)
-	assert.NotNil(t, sc)
-	assert.Equal(t, len(scanQueue), len(sc.(*scanSchedulerImpl).taskQueue))
 }
 
 func TestScanScheduler_QueueScan(t *testing.T) {
 	now := time.Now()
 
-	sc := newScanScheduler(scanTaskPriorityQueue{})
+	sc := newScanScheduler()
 
 	sc.QueueScanTask(scanTask{snmpscanmanager.ScanRequest{DeviceIP: "10.0.0.1"}, now})
 	sc.QueueScanTask(scanTask{snmpscanmanager.ScanRequest{DeviceIP: "10.0.0.2"}, now})
@@ -48,7 +37,7 @@ func TestScanScheduler_QueueScan(t *testing.T) {
 func TestScanScheduler_PopDueScans(t *testing.T) {
 	now := time.Now()
 
-	sc := newScanScheduler(scanTaskPriorityQueue{})
+	sc := newScanScheduler()
 
 	sc.QueueScanTask(scanTask{snmpscanmanager.ScanRequest{DeviceIP: "10.0.0.1"},
 		now.Add(-10 * time.Minute)})
@@ -91,10 +80,10 @@ func TestScanPriorityQueue_Len(t *testing.T) {
 	assert.Equal(t, 0, pq.Len())
 
 	now := time.Now()
-	pq = append(pq, &scanTask{nextRun: now})
+	pq = append(pq, &scanTask{nextScanTs: now})
 	assert.Equal(t, 1, pq.Len())
 
-	pq = append(pq, &scanTask{nextRun: now})
+	pq = append(pq, &scanTask{nextScanTs: now})
 	assert.Equal(t, 2, pq.Len())
 }
 
@@ -103,12 +92,12 @@ func TestScanPriorityQueue_Less(t *testing.T) {
 
 	pq := scanTaskPriorityQueue{
 		&scanTask{
-			req:     snmpscanmanager.ScanRequest{DeviceIP: "10.0.0.1"},
-			nextRun: now.Add(2 * time.Minute),
+			req:        snmpscanmanager.ScanRequest{DeviceIP: "10.0.0.1"},
+			nextScanTs: now.Add(2 * time.Minute),
 		},
 		&scanTask{
-			req:     snmpscanmanager.ScanRequest{DeviceIP: "10.0.0.2"},
-			nextRun: now.Add(10 * time.Minute),
+			req:        snmpscanmanager.ScanRequest{DeviceIP: "10.0.0.2"},
+			nextScanTs: now.Add(10 * time.Minute),
 		},
 	}
 
@@ -120,12 +109,12 @@ func TestScanPriorityQueue_Swap(t *testing.T) {
 	now := time.Now()
 
 	scanTask1 := &scanTask{
-		req:     snmpscanmanager.ScanRequest{DeviceIP: "10.0.0.1"},
-		nextRun: now,
+		req:        snmpscanmanager.ScanRequest{DeviceIP: "10.0.0.1"},
+		nextScanTs: now,
 	}
 	scanTask2 := &scanTask{
-		req:     snmpscanmanager.ScanRequest{DeviceIP: "10.0.0.2"},
-		nextRun: now,
+		req:        snmpscanmanager.ScanRequest{DeviceIP: "10.0.0.2"},
+		nextScanTs: now,
 	}
 
 	pq := scanTaskPriorityQueue{scanTask1, scanTask2}
@@ -142,8 +131,8 @@ func TestScanPriorityQueue_PushPop(t *testing.T) {
 	pq := scanTaskPriorityQueue{}
 
 	st := &scanTask{
-		req:     snmpscanmanager.ScanRequest{DeviceIP: "10.0.0.1"},
-		nextRun: now,
+		req:        snmpscanmanager.ScanRequest{DeviceIP: "10.0.0.1"},
+		nextScanTs: now,
 	}
 
 	pq.Push(st)

@@ -7,6 +7,7 @@ package snmpscanmanagerimpl
 
 import (
 	"container/heap"
+	"sync"
 	"time"
 
 	snmpscanmanager "github.com/DataDog/datadog-agent/comp/snmpscanmanager/def"
@@ -19,36 +20,40 @@ type scanScheduler interface {
 
 type scanSchedulerImpl struct {
 	taskQueue scanTaskPriorityQueue
+
+	mtx sync.Mutex
 }
 
 type scanTaskPriorityQueue []*scanTask
 
 type scanTask struct {
-	req     snmpscanmanager.ScanRequest
-	nextRun time.Time
+	req        snmpscanmanager.ScanRequest
+	nextScanTs time.Time
 }
 
-func newScanScheduler(taskQueue scanTaskPriorityQueue) scanScheduler {
-	if taskQueue == nil {
-		taskQueue = make(scanTaskPriorityQueue, 0)
-	}
-
+func newScanScheduler() scanScheduler {
 	sc := &scanSchedulerImpl{
-		taskQueue: taskQueue,
+		taskQueue: scanTaskPriorityQueue{},
 	}
 	heap.Init(&sc.taskQueue)
 	return sc
 }
 
 func (sc *scanSchedulerImpl) QueueScanTask(scanTask scanTask) {
+	sc.mtx.Lock()
+	defer sc.mtx.Unlock()
+
 	heap.Push(&sc.taskQueue, &scanTask)
 }
 
 func (sc *scanSchedulerImpl) PopDueScans(now time.Time) []snmpscanmanager.ScanRequest {
+	sc.mtx.Lock()
+	defer sc.mtx.Unlock()
+
 	var dueScans []snmpscanmanager.ScanRequest
 	for sc.taskQueue.Len() > 0 {
 		nextTask := sc.taskQueue[0]
-		if nextTask.nextRun.After(now) {
+		if nextTask.nextScanTs.After(now) {
 			break
 		}
 
@@ -63,7 +68,7 @@ func (pq scanTaskPriorityQueue) Len() int {
 }
 
 func (pq scanTaskPriorityQueue) Less(i1, i2 int) bool {
-	return pq[i1].nextRun.Before(pq[i2].nextRun)
+	return pq[i1].nextScanTs.Before(pq[i2].nextScanTs)
 }
 
 func (pq scanTaskPriorityQueue) Swap(i1, i2 int) {

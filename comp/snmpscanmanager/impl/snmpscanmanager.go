@@ -31,6 +31,9 @@ const (
 	snmpCallsPerSecond = 8
 	snmpCallInterval   = time.Second / snmpCallsPerSecond
 
+	scanSchedulerCheckInterval = 10 * time.Minute
+	scanRefreshInterval        = 182 * 24 * time.Hour // 6 months
+
 	cacheKey = "snmp_scanned_devices"
 )
 
@@ -91,6 +94,7 @@ type snmpScanManagerImpl struct {
 	httpClient  ipc.HTTPClient
 
 	snmpConfigProvider snmpConfigProvider
+	scanScheduler      scanScheduler
 
 	scanQueue   chan snmpscanmanager.ScanRequest
 	deviceScans deviceScansByIP
@@ -102,6 +106,9 @@ type snmpScanManagerImpl struct {
 }
 
 func (m *snmpScanManagerImpl) start() {
+	m.wg.Add(1)
+	go m.scanSchedulerWorker()
+
 	for i := 0; i < scanWorkers; i++ {
 		m.wg.Add(1)
 		go m.scanWorker()
@@ -117,21 +124,27 @@ func (m *snmpScanManagerImpl) stop() {
 
 // RequestScan queues a new scan request when the device has not been already scanned
 func (m *snmpScanManagerImpl) RequestScan(req snmpscanmanager.ScanRequest) {
-	m.mtx.Lock()
-	defer m.mtx.Unlock()
-
 	select {
 	case <-m.ctx.Done():
 		return
 	default:
 	}
 
-	if m.agentConfig.GetBool("network_devices.default_scan.disabled") {
+	m.mtx.Lock()
+	_, exists := m.deviceScans[req.DeviceIP]
+	m.mtx.Unlock()
+	if exists {
 		return
 	}
 
-	_, exists := m.deviceScans[req.DeviceIP]
-	if exists {
+	m.queueScanRequest(req)
+}
+
+func (m *snmpScanManagerImpl) queueScanRequest(req snmpscanmanager.ScanRequest) {
+	m.mtx.Lock()
+	defer m.mtx.Unlock()
+
+	if m.agentConfig.GetBool("network_devices.default_scan.disabled") {
 		return
 	}
 
@@ -208,6 +221,8 @@ func (m *snmpScanManagerImpl) processScanRequest(req snmpscanmanager.ScanRequest
 	})
 	m.writeCache()
 
+	m.scheduleScanRefresh(req, now)
+
 	m.log.Infof("Successfully processed scan request for device '%s'", req.DeviceIP)
 
 	return nil
@@ -235,6 +250,12 @@ func (m *snmpScanManagerImpl) loadCache() {
 
 	for _, scan := range deviceScans {
 		m.deviceScans[scan.DeviceIP] = scan
+
+		if scan.isSuccess() {
+			m.scheduleScanRefresh(snmpscanmanager.ScanRequest{
+				DeviceIP: scan.DeviceIP,
+			}, *scan.ScanEndTs)
+		}
 	}
 }
 
@@ -259,6 +280,34 @@ func (m *snmpScanManagerImpl) writeCache() {
 	if err != nil {
 		m.log.Errorf("Error writing scanned devices cache: %v", err)
 	}
+}
+
+func (m *snmpScanManagerImpl) scanSchedulerWorker() {
+	defer m.wg.Done()
+
+	timeTicker := time.NewTicker(scanSchedulerCheckInterval)
+	defer timeTicker.Stop()
+
+	for {
+		select {
+		case <-m.ctx.Done():
+			return
+		case <-timeTicker.C:
+			// Queue due scans
+			now := time.Now()
+			scanReqs := m.scanScheduler.PopDueScans(now)
+			for _, scanReq := range scanReqs {
+				m.queueScanRequest(scanReq)
+			}
+		}
+	}
+}
+
+func (m *snmpScanManagerImpl) scheduleScanRefresh(req snmpscanmanager.ScanRequest, lastScanTs time.Time) {
+	m.scanScheduler.QueueScanTask(scanTask{
+		req:        req,
+		nextScanTs: lastScanTs.Add(scanRefreshInterval),
+	})
 }
 
 func (m *snmpScanManagerImpl) setDeviceScan(deviceScan deviceScan) {

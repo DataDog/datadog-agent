@@ -28,3 +28,7 @@ const (
 func (ds *deviceScan) isCacheable() bool {
 	return ds.ScanStatus == successStatus || ds.ScanStatus == failedStatus
 }
+
+func (ds *deviceScan) isSuccess() bool {
+	return ds.ScanStatus == successStatus
+}
