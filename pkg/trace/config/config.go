@@ -338,7 +338,6 @@ type SymDBProxyConfig struct {
 // It is exposed with expvar, so make sure to exclude any sensible field
 // from JSON encoding. Use New() to create an instance.
 type AgentConfig struct {
-	// Add aPMIot field on this config, allow it to be populated by the DD_APM_MODE env var
 	Features map[string]struct{}
 
 	Enabled      bool
@@ -559,6 +558,9 @@ type AgentConfig struct {
 
 	// SendAllInternalStats enables all internal stats to be published, otherwise some less-frequently-used stats will be omitted when zero to save costs
 	SendAllInternalStats bool
+
+	// APMMode specifies whether using "full" or "end_user_device" APM mode, it is "full" by default
+	APMMode string
 }
 
 // RemoteClient client is used to APM Sampling Updates from a remote source.
@@ -658,6 +660,7 @@ func New() *AgentConfig {
 		Features:               make(map[string]struct{}),
 		PeerTagsAggregation:    true,
 		ComputeStatsBySpanKind: true,
+		APMMode:                "full",
 	}
 }
 

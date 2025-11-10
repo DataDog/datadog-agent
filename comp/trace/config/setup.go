@@ -158,6 +158,17 @@ func appendEndpoints(endpoints []*config.Endpoint, cfgKey string) []*config.Endp
 	return endpoints
 }
 
+func normalizeAPMMode(mode string) string {
+	switch strings.ToLower(mode) {
+	case "full", "end_user_device":
+		return mode
+	case "":
+		return "full"
+	}
+	log.Warnf("invalid value for 'DD_APM_MODE': '%s' (defaulting to 'full')", mode)
+	return "full"
+}
+
 func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error {
 	if len(c.Endpoints) == 0 {
 		c.Endpoints = []*config.Endpoint{{}}
@@ -665,6 +676,7 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 	}
 	c.SendAllInternalStats = core.GetBool("apm_config.send_all_internal_stats") // default is false
 	c.DebugServerPort = core.GetInt("apm_config.debug.port")
+	c.APMMode = normalizeAPMMode(core.GetString("apm_config.mode"))
 	return nil
 }
 
