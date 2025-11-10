@@ -60,6 +60,7 @@ var ImplicitlyConvertArrayToMapSet UnmarshalKeyOption = func(fs *featureSet) {
 	fs.convertArrayToMap = true
 }
 
+/*
 // errorUnused is a mapstructure.DecoderConfig that enables erroring on unused keys
 var errorUnused = func(cfg *mapstructure.DecoderConfig) {
 	cfg.ErrorUnused = true
@@ -81,6 +82,7 @@ var legacyConvertArrayToMap = func(c *mapstructure.DecoderConfig) {
 		return newData, nil
 	}
 }
+*/
 
 func convertArrayToMap(rf reflect.Kind, rt reflect.Kind, data interface{}) (interface{}, error) {
 	if rf != reflect.Slice {
