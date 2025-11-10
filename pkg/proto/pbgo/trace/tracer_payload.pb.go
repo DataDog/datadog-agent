@@ -143,6 +143,8 @@ type TracerPayload struct {
 	AppVersion    string `protobuf:"bytes,10,opt,name=appVersion,proto3" json:"app_version" msg:"app_version"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
+	//APMMode specifies whether using "full" or "end_user_device" APM mode. It is unset -- and therefore ignored --by default.
+	// @gotags: json:"apm_mode" msg:"apm_mode"
 	APMMode       string `protobuf:"bytes,11,opt,name=apmMode,proto3" json:"apm_mode,omitempty" msg:"apm_mode"`
 }
 
