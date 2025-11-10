@@ -18,6 +18,7 @@ import (
 
 	"github.com/golang/protobuf/proto"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/DataDog/sketches-go/ddsketch"
@@ -66,7 +67,7 @@ func testSpan(now time.Time, spanID uint64, parentID uint64, duration, offset in
 	}
 }
 
-func toProcessedTrace(spans []*pb.Span, env, tracerHostname, appVersion, imageTag, gitCommitSha string) *traceutil.ProcessedTrace {
+func toProcessedTrace(spans []*pb.Span, env, tracerHostname, appVersion, imageTag, gitCommitSha, lang string) *traceutil.ProcessedTrace {
 	return &traceutil.ProcessedTrace{
 		TracerEnv:      env,
 		Root:           traceutil.GetRoot(spans),
@@ -75,6 +76,7 @@ func toProcessedTrace(spans []*pb.Span, env, tracerHostname, appVersion, imageTa
 		AppVersion:     appVersion,
 		ImageTag:       imageTag,
 		GitCommitSha:   gitCommitSha,
+		Lang:           lang,
 	}
 }
 
@@ -140,7 +142,7 @@ func TestTracerHostname(t *testing.T) {
 		testSpan(now, 1, 0, 50, 5, "A1", "resource1", 0, nil),
 	}
 	traceutil.ComputeTopLevel(spans)
-	testTrace := toProcessedTrace(spans, "none", "tracer-hostname", "", "", "")
+	testTrace := toProcessedTrace(spans, "none", "tracer-hostname", "", "", "", "")
 	c := NewTestConcentrator(now)
 	c.addNow(testTrace, infraTags{})
 
@@ -165,7 +167,7 @@ func TestConcentratorOldestTs(t *testing.T) {
 	}
 
 	traceutil.ComputeTopLevel(spans)
-	testTrace := toProcessedTrace(spans, "none", "", "", "", "")
+	testTrace := toProcessedTrace(spans, "none", "", "", "", "", "")
 
 	t.Run("cold", func(t *testing.T) {
 		// Running cold, all spans in the past should end up in the current time bucket.
@@ -288,7 +290,7 @@ func TestConcentratorStatsTotals(t *testing.T) {
 	}
 
 	traceutil.ComputeTopLevel(spans)
-	testTrace := toProcessedTrace(spans, "none", "", "", "", "")
+	testTrace := toProcessedTrace(spans, "none", "", "", "", "", "")
 
 	t.Run("ok", func(_ *testing.T) {
 		c.addNow(testTrace, infraTags{})
@@ -492,7 +494,7 @@ func TestConcentratorStatsCounts(t *testing.T) {
 	expectedCountValByKeyByTime[alignedNow+testBucketInterval] = []*pb.ClientGroupedStats{}
 
 	traceutil.ComputeTopLevel(spans)
-	testTrace := toProcessedTrace(spans, "none", "", "", "", "")
+	testTrace := toProcessedTrace(spans, "none", "", "", "", "", "")
 
 	c.addNow(testTrace, infraTags{})
 
@@ -540,7 +542,7 @@ func TestRootTag(t *testing.T) {
 		testSpan(now, 4, 1000, 10, 10, "A1", "resource1", 0, nil),                                   // non-root but top level span
 	}
 	traceutil.ComputeTopLevel(spans)
-	testTrace := toProcessedTrace(spans, "none", "", "", "", "")
+	testTrace := toProcessedTrace(spans, "none", "", "", "", "", "")
 	c := NewTestConcentrator(now)
 	c.spanConcentrator.computeStatsBySpanKind = true
 	c.addNow(testTrace, infraTags{})
@@ -599,7 +601,7 @@ func generateDistribution(t *testing.T, now time.Time, generator func(i int) int
 		spans = append(spans, testSpan(now, uint64(i)+1, 0, generator(i), 0, "A1", "resource1", 0, nil))
 	}
 	traceutil.ComputeTopLevel(spans)
-	c.addNow(toProcessedTrace(spans, "none", "", "", "", ""), infraTags{})
+	c.addNow(toProcessedTrace(spans, "none", "", "", "", "", ""), infraTags{})
 	stats := c.flushNow(now.UnixNano()+c.bsize*int64(c.spanConcentrator.bufferLen), false)
 	expectedFlushedTs := alignedNow
 	assert.Len(stats.Stats, 1)
@@ -648,7 +650,7 @@ func TestIgnoresPartialSpans(t *testing.T) {
 	traceutil.ComputeTopLevel(spans)
 
 	// we only have one top level but partial. We expect to ignore it when calculating stats
-	testTrace := toProcessedTrace(spans, "none", "tracer-hostname", "", "", "")
+	testTrace := toProcessedTrace(spans, "none", "tracer-hostname", "", "", "", "")
 
 	c := NewTestConcentrator(now)
 	c.addNow(testTrace, infraTags{})
@@ -663,7 +665,7 @@ func TestForceFlush(t *testing.T) {
 
 	spans := []*pb.Span{testSpan(now, 1, 0, 50, 5, "A1", "resource1", 0, nil)}
 	traceutil.ComputeTopLevel(spans)
-	testTrace := toProcessedTrace(spans, "none", "", "", "", "")
+	testTrace := toProcessedTrace(spans, "none", "", "", "", "", "")
 	c := NewTestConcentrator(now)
 	c.addNow(testTrace, infraTags{})
 
@@ -690,7 +692,7 @@ func TestWithContainerTags(t *testing.T) {
 	ctags := []string{"container_id:test_cid", "kube_container_name:k8s_container"}
 	spans := []*pb.Span{testSpan(now, 1, 0, 50, 5, "A1", "resource1", 0, map[string]string{"container_id": "cid", "kube_container_name": "k8s_container"})}
 	traceutil.ComputeTopLevel(spans)
-	testTrace := toProcessedTrace(spans, "none", "", "", "", "")
+	testTrace := toProcessedTrace(spans, "none", "", "", "", "", "")
 	conf := config.New()
 	conf.Hostname = "host"
 	conf.DefaultEnv = "env"
@@ -710,7 +712,7 @@ func TestDisabledContainerTags(t *testing.T) {
 	ctags := []string{"container_id:test_cid", "kube_container_name:k8s_container"}
 	spans := []*pb.Span{testSpan(now, 1, 0, 50, 5, "A1", "resource1", 0, map[string]string{"container_id": "cid", "kube_container_name": "k8s_container"})}
 	traceutil.ComputeTopLevel(spans)
-	testTrace := toProcessedTrace(spans, "none", "", "", "", "")
+	testTrace := toProcessedTrace(spans, "none", "", "", "", "", "")
 	conf := config.New()
 	conf.Hostname = "host"
 	conf.DefaultEnv = "env"
@@ -731,7 +733,7 @@ func TestWithProcessTags(t *testing.T) {
 	ptags := "binary_name:bin33,grpc_server:my_server"
 	spans := []*pb.Span{testSpan(now, 1, 0, 50, 5, "A1", "resource1", 0, map[string]string{"container_id": "cid", "kube_container_name": "k8s_container"})}
 	traceutil.ComputeTopLevel(spans)
-	testTrace := toProcessedTrace(spans, "none", "", "", "", "")
+	testTrace := toProcessedTrace(spans, "none", "", "", "", "", "")
 	conf := config.New()
 	conf.Hostname = "host"
 	conf.DefaultEnv = "env"
@@ -751,7 +753,7 @@ func TestDisabledProcessTags(t *testing.T) {
 	ptags := "binary_name:bin33,grpc_server:my_server"
 	spans := []*pb.Span{testSpan(now, 1, 0, 50, 5, "A1", "resource1", 0, map[string]string{"container_id": "cid", "kube_container_name": "k8s_container"})}
 	traceutil.ComputeTopLevel(spans)
-	testTrace := toProcessedTrace(spans, "none", "", "", "", "")
+	testTrace := toProcessedTrace(spans, "none", "", "", "", "", "")
 	conf := config.New()
 	conf.Hostname = "host"
 	conf.DefaultEnv = "env"
@@ -790,7 +792,7 @@ func TestPeerTags(t *testing.T) {
 	t.Run("not configured", func(_ *testing.T) {
 		spans := []*pb.Span{sp, sp2}
 		traceutil.ComputeTopLevel(spans)
-		testTrace := toProcessedTrace(spans, "none", "", "", "", "")
+		testTrace := toProcessedTrace(spans, "none", "", "", "", "", "")
 		c := NewTestConcentrator(now)
 		c.addNow(testTrace, infraTags{})
 		stats := c.flushNow(now.UnixNano()+int64(c.spanConcentrator.bufferLen)*testBucketInterval, false)
@@ -802,7 +804,7 @@ func TestPeerTags(t *testing.T) {
 	t.Run("configured", func(_ *testing.T) {
 		spans := []*pb.Span{sp, sp2}
 		traceutil.ComputeTopLevel(spans)
-		testTrace := toProcessedTrace(spans, "none", "", "", "", "")
+		testTrace := toProcessedTrace(spans, "none", "", "", "", "", "")
 		c := NewTestConcentrator(now)
 		c.peerTagKeys = []string{"db.instance", "db.system", "peer.service"}
 		c.addNow(testTrace, infraTags{})
@@ -866,7 +868,7 @@ func TestComputeStatsThroughSpanKindCheck(t *testing.T) {
 	t.Run("disabled", func(_ *testing.T) {
 		spans := []*pb.Span{sp, topLevelInternalSpan, measuredInternalSpan, clientSpan}
 		traceutil.ComputeTopLevel(spans)
-		testTrace := toProcessedTrace(spans, "none", "", "", "", "")
+		testTrace := toProcessedTrace(spans, "none", "", "", "", "", "")
 		c := NewTestConcentrator(now)
 		c.addNow(testTrace, infraTags{})
 		stats := c.flushNow(now.UnixNano()+int64(c.spanConcentrator.bufferLen)*testBucketInterval, false)
@@ -884,7 +886,7 @@ func TestComputeStatsThroughSpanKindCheck(t *testing.T) {
 	t.Run("enabled", func(_ *testing.T) {
 		spans := []*pb.Span{sp, topLevelInternalSpan, measuredInternalSpan, clientSpan}
 		traceutil.ComputeTopLevel(spans)
-		testTrace := toProcessedTrace(spans, "none", "", "", "", "")
+		testTrace := toProcessedTrace(spans, "none", "", "", "", "", "")
 		c := NewTestConcentrator(now)
 		c.spanConcentrator.computeStatsBySpanKind = true
 		c.addNow(testTrace, infraTags{})
@@ -927,7 +929,7 @@ func TestVersionData(t *testing.T) {
 	}
 	spans := []*pb.Span{sp, sp2}
 	traceutil.ComputeTopLevel(spans)
-	testTrace := toProcessedTrace(spans, "none", "", "v1.0.1", "abc", "abc123")
+	testTrace := toProcessedTrace(spans, "none", "", "v1.0.1", "abc", "abc123", "")
 	c := NewTestConcentrator(now)
 	c.addNow(testTrace, infraTags{})
 	stats := c.flushNow(now.UnixNano()+int64(c.spanConcentrator.bufferLen)*testBucketInterval, false)
@@ -937,6 +939,73 @@ func TestVersionData(t *testing.T) {
 		assert.Equal("abc", st.ImageTag)
 		assert.Equal("abc123", st.GitCommitSha)
 	}
+}
+
+func TestLangInStats(t *testing.T) {
+	t.Run("lang_propagated", func(t *testing.T) {
+		now := time.Now()
+		spans := []*pb.Span{testSpan(now, 1, 0, 50, 5, "A1", "resource1", 0, nil)}
+		traceutil.ComputeTopLevel(spans)
+
+		testTrace := toProcessedTrace(spans, "none", "", "", "", "", "python")
+		c := NewTestConcentrator(now)
+		c.addNow(testTrace, infraTags{})
+
+		stats := c.flushNow(now.UnixNano()+int64(c.spanConcentrator.bufferLen)*testBucketInterval, false)
+		require.Len(t, stats.Stats, 1)
+
+		assert.Equal(t, "python", stats.Stats[0].Lang)
+	})
+
+	t.Run("different_lang_separate_payloads", func(t *testing.T) {
+		now := time.Now()
+		c := NewTestConcentrator(now)
+
+		// Add traces with different languages
+		spans1 := []*pb.Span{testSpan(now, 1, 0, 50, 5, "A1", "resource1", 0, nil)}
+		traceutil.ComputeTopLevel(spans1)
+		testTrace1 := toProcessedTrace(spans1, "none", "", "", "", "", "go")
+
+		spans2 := []*pb.Span{testSpan(now, 2, 0, 60, 5, "A1", "resource1", 0, nil)}
+		traceutil.ComputeTopLevel(spans2)
+		testTrace2 := toProcessedTrace(spans2, "none", "", "", "", "", "python")
+
+		c.addNow(testTrace1, infraTags{})
+		c.addNow(testTrace2, infraTags{})
+
+		stats := c.flushNow(now.UnixNano()+int64(c.spanConcentrator.bufferLen)*testBucketInterval, false)
+		require.Len(t, stats.Stats, 2) // Different languages create separate payloads
+
+		// Verify both languages are present
+		languages := make(map[string]bool)
+		for _, stat := range stats.Stats {
+			languages[stat.Lang] = true
+		}
+		assert.True(t, languages["go"])
+		assert.True(t, languages["python"])
+	})
+
+	t.Run("same_lang_same_payload", func(t *testing.T) {
+		now := time.Now()
+		c := NewTestConcentrator(now)
+
+		// Add traces with same language
+		spans1 := []*pb.Span{testSpan(now, 1, 0, 50, 5, "A1", "resource1", 0, nil)}
+		traceutil.ComputeTopLevel(spans1)
+		testTrace1 := toProcessedTrace(spans1, "none", "", "", "", "", "go")
+
+		spans2 := []*pb.Span{testSpan(now, 2, 0, 60, 5, "A1", "resource1", 0, nil)}
+		traceutil.ComputeTopLevel(spans2)
+		testTrace2 := toProcessedTrace(spans2, "none", "", "", "", "", "go")
+
+		c.addNow(testTrace1, infraTags{})
+		c.addNow(testTrace2, infraTags{})
+
+		stats := c.flushNow(now.UnixNano()+int64(c.spanConcentrator.bufferLen)*testBucketInterval, false)
+		require.Len(t, stats.Stats, 1) // Same language uses same payload
+
+		assert.Equal(t, "go", stats.Stats[0].Lang)
+	})
 }
 
 func TestComputeStatsForSpanKind(t *testing.T) {
@@ -1082,7 +1151,7 @@ func BenchmarkConcentrator(b *testing.B) {
 	}
 	spans := []*pb.Span{sp, unmeasuredSpan, unmeasuredSpan, unmeasuredSpan, unmeasuredSpan, topLevelInternalSpan, measuredInternalSpan, clientSpan}
 	traceutil.ComputeTopLevel(spans)
-	testTrace := toProcessedTrace(spans, "none", "", "", "", "")
+	testTrace := toProcessedTrace(spans, "none", "", "", "", "", "")
 	// Ignore the overhead of flushing and we finish within a single bucket so no need to "start"
 	c := NewTestConcentratorWithCfg(time.Now(), cfg)
 	b.ResetTimer()

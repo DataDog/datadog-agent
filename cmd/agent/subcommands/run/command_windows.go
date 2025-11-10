@@ -36,6 +36,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/checks/agentcrashdetect/agentcrashdetectimpl"
 	"github.com/DataDog/datadog-agent/comp/checks/windowseventlog"
 	"github.com/DataDog/datadog-agent/comp/checks/windowseventlog/windowseventlogimpl"
+	notableeventsfx "github.com/DataDog/datadog-agent/comp/notableevents/fx"
 	trapserver "github.com/DataDog/datadog-agent/comp/snmptraps/server"
 	comptraceconfig "github.com/DataDog/datadog-agent/comp/trace/config"
 
@@ -48,14 +49,17 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/flare"
 	"github.com/DataDog/datadog-agent/comp/core/gui"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	"github.com/DataDog/datadog-agent/comp/core/secrets"
+	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
+	secretsfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx"
 	"github.com/DataDog/datadog-agent/comp/core/settings"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	replay "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/def"
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
@@ -73,7 +77,9 @@ import (
 	netflowServer "github.com/DataDog/datadog-agent/comp/netflow/server"
 	otelcollector "github.com/DataDog/datadog-agent/comp/otelcol/collector/def"
 	processAgent "github.com/DataDog/datadog-agent/comp/process/agent"
+	publishermetadatacachefx "github.com/DataDog/datadog-agent/comp/publishermetadatacache/fx"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
+	softwareinventoryfx "github.com/DataDog/datadog-agent/comp/softwareinventory/fx"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -100,19 +106,20 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 			config config.Component,
 			flare flare.Component,
 			telemetry telemetry.Component,
-			sysprobeconfig sysprobeconfig.Component,
+			_ sysprobeconfig.Component,
 			server dogstatsdServer.Component,
 			_ replay.Component,
 			wmeta workloadmeta.Component,
+			filterStore workloadfilter.Component,
 			taggerComp tagger.Component,
 			ac autodiscovery.Component,
 			rcclient rcclient.Component,
-			forwarder defaultforwarder.Component,
-			logsAgent option.Option[logsAgent.Component],
-			processAgent processAgent.Component,
+			_ defaultforwarder.Component,
+			_ option.Option[logsAgent.Component],
+			_ processAgent.Component,
 			_ runner.Component,
-			sharedSerializer serializer.MetricSerializer,
-			otelcollector otelcollector.Component,
+			_ serializer.MetricSerializer,
+			_ otelcollector.Component,
 			demultiplexer demultiplexer.Component,
 			_ host.Component,
 			_ inventoryagent.Component,
@@ -124,11 +131,11 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 			logsReceiver option.Option[integrations.Component],
 			_ netflowServer.Component,
 			_ trapserver.Component,
-			agentAPI internalAPI.Component,
+			_ internalAPI.Component,
 			_ packagesigning.Component,
-			statusComponent status.Component,
+			_ status.Component,
 			collector collector.Component,
-			cloudfoundrycontainer cloudfoundrycontainer.Component,
+			_ cloudfoundrycontainer.Component,
 			_ autoexit.Component,
 			_ expvarserver.Component,
 			jmxlogger jmxlogger.Component,
@@ -136,6 +143,7 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 			_ option.Option[gui.Component],
 			agenttelemetryComponent agenttelemetry.Component,
 			hostname hostnameinterface.Component,
+			ipc ipc.Component,
 		) error {
 			defer StopAgentWithDefaults()
 
@@ -143,29 +151,22 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 				log,
 				flare,
 				telemetry,
-				sysprobeconfig,
 				server,
 				wmeta,
+				filterStore,
 				taggerComp,
 				ac,
 				rcclient,
-				logsAgent,
-				processAgent,
-				forwarder,
-				sharedSerializer,
-				otelcollector,
 				demultiplexer,
-				agentAPI,
 				invChecks,
 				logsReceiver,
-				statusComponent,
 				collector,
 				config,
-				cloudfoundrycontainer,
 				jmxlogger,
 				settings,
 				agenttelemetryComponent,
 				hostname,
+				ipc,
 			)
 			if err != nil {
 				return err
@@ -191,10 +192,10 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 			// no config file path specification in this situation
 			fx.Supply(core.BundleParams{
 				ConfigParams:         config.NewAgentParams(""),
-				SecretParams:         secrets.NewEnabledParams(),
 				SysprobeConfigParams: sysprobeconfigimpl.NewParams(),
 				LogParams:            log.ForDaemon(command.LoggerName, "log_file", defaultpaths.LogFile),
 			}),
+			secretsfx.Module(),
 			getSharedFxOption(),
 			getPlatformModules(),
 		)
@@ -243,6 +244,9 @@ func getPlatformModules() fx.Option {
 		winregistryimpl.Module(),
 		etwimpl.Module,
 		comptraceconfig.Module(),
+		softwareinventoryfx.Module(),
+		publishermetadatacachefx.Module(),
+		notableeventsfx.Module(),
 		fx.Replace(comptraceconfig.Params{
 			FailIfAPIKeyMissing: false,
 		}),

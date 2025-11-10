@@ -5,11 +5,13 @@
 
 //go:build linux && nvml
 
-// Package testutil holds different utilities and stubs for testing
 package testutil
 
 import (
+	"reflect"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	nvmlmock "github.com/NVIDIA/go-nvml/pkg/nvml/mock"
@@ -83,6 +85,9 @@ var DefaultTotalMemory = uint64(1024 * 1024 * 1024)
 
 // DefaultMaxClockRates is an array of Max SM clock and Max Mem Clock rates for the default device
 var DefaultMaxClockRates = [2]uint32{1000, 2000}
+
+// DevicesWithMIGChildren is a list of device indexes that have MIG children.
+var DevicesWithMIGChildren = []int{5, 6}
 
 // MIGChildrenPerDevice is a map of device index to the number of MIG children for that device.
 var MIGChildrenPerDevice = map[int]int{
@@ -158,6 +163,22 @@ func GetDeviceMock(deviceIdx int, opts ...func(*nvmlmock.Device)) *nvmlmock.Devi
 		IsMigDeviceHandleFunc: func() (bool, nvml.Return) {
 			return false, nvml.SUCCESS
 		},
+		GetSamplesFunc: func(_ nvml.SamplingType, _ uint64) (nvml.ValueType, []nvml.Sample, nvml.Return) {
+			samples := []nvml.Sample{
+				{TimeStamp: 1000, SampleValue: [8]byte{0, 0, 0, 0, 0, 0, 0, 1}},
+				{TimeStamp: 2000, SampleValue: [8]byte{0, 0, 0, 0, 0, 0, 0, 2}},
+			}
+			return nvml.VALUE_TYPE_UNSIGNED_INT, samples, nvml.SUCCESS
+		},
+		GpmQueryDeviceSupportFunc: func() (nvml.GpmSupport, nvml.Return) {
+			return nvml.GpmSupport{IsSupportedDevice: 1}, nvml.SUCCESS
+		},
+		GetVirtualizationModeFunc: func() (nvml.GpuVirtualizationMode, nvml.Return) {
+			return nvml.GPU_VIRTUALIZATION_MODE_NONE, nvml.SUCCESS
+		},
+		GetSupportedEventTypesFunc: func() (uint64, nvml.Return) {
+			return nvml.EventTypeAll, nvml.SUCCESS
+		},
 	}
 
 	for _, opt := range opts {
@@ -220,6 +241,7 @@ func GetMIGDeviceMock(deviceIdx int, migDeviceIdx int, opts ...func(*nvmlmock.De
 
 type nvmlMockOptions struct {
 	deviceOptions  []func(*nvmlmock.Device)
+	libOptions     []func(*nvmlmock.Interface)
 	extensionsFunc func() nvml.ExtendedInterface
 }
 
@@ -233,6 +255,32 @@ func WithMIGDisabled() NvmlMockOption {
 			d.GetMigModeFunc = func() (int, int, nvml.Return) {
 				return nvml.DEVICE_MIG_DISABLE, 0, nvml.SUCCESS
 			}
+		})
+	}
+}
+
+// WithDeviceCount influences the return value of DeviceGetCount for the nvml mock
+func WithDeviceCount(count int) NvmlMockOption {
+	return func(o *nvmlMockOptions) {
+		o.libOptions = append(o.libOptions, func(lib *nvmlmock.Interface) {
+			lib.DeviceGetCountFunc = func() (int, nvml.Return) {
+				return count, nvml.SUCCESS
+			}
+			lib.DeviceGetHandleByIndexFunc = func(index int) (nvml.Device, nvml.Return) {
+				if index >= count {
+					return nil, nvml.ERROR_INVALID_ARGUMENT
+				}
+				return GetDeviceMock(index), nvml.SUCCESS
+			}
+		})
+	}
+}
+
+// WithEventSetCreate influences the definition of EventSetCreateFunc
+func WithEventSetCreate(eventSetCreate func() (nvml.EventSet, nvml.Return)) NvmlMockOption {
+	return func(o *nvmlMockOptions) {
+		o.libOptions = append(o.libOptions, func(lib *nvmlmock.Interface) {
+			lib.EventSetCreateFunc = eventSetCreate
 		})
 	}
 }
@@ -267,7 +315,28 @@ func GetBasicNvmlMockWithOptions(options ...NvmlMockOption) *nvmlmock.Interface 
 		SystemGetDriverVersionFunc: func() (string, nvml.Return) {
 			return DefaultNvidiaDriverVersion, nvml.SUCCESS
 		},
+		EventSetCreateFunc: func() (nvml.EventSet, nvml.Return) {
+			return &nvmlmock.EventSet{
+				FreeFunc: func() nvml.Return {
+					return nvml.SUCCESS
+				},
+				WaitFunc: func(v uint32) (nvml.EventData, nvml.Return) {
+					time.Sleep(time.Duration(v) * time.Millisecond)
+					return nvml.EventData{}, nvml.ERROR_TIMEOUT
+				},
+			}, nvml.SUCCESS
+		},
+		EventSetFreeFunc: func(eventSet nvml.EventSet) nvml.Return {
+			return eventSet.Free()
+		},
+		EventSetWaitFunc: func(eventSet nvml.EventSet, v uint32) (nvml.EventData, nvml.Return) {
+			return eventSet.Wait(v)
+		},
 		ExtensionsFunc: opts.extensionsFunc,
+	}
+
+	for _, opt := range opts.libOptions {
+		opt(mockNvml)
 	}
 
 	return mockNvml
@@ -287,6 +356,54 @@ func WithSymbolsMock(availableSymbols map[string]struct{}) NvmlMockOption {
 					return nvml.ERROR_NOT_FOUND
 				},
 			}
+		}
+	}
+}
+
+// WithMockAllFunctions returns an option that creates basic functions for all nvmlmock.Device.*Func attributes
+// that return nil/zero values. This is useful for ensuring all functions are mocked even if not explicitly set.
+// This is not the default behavior of the mock, as we want explicit errors if we use a function that is not mocked
+// so that we implement the mocked method explicitly, controlling the inputs and outputs. However, in some cases
+// (e.g., testing the collectors) we want to ensure that all functions are mocked without caring too much about the inputs and outputs.
+func WithMockAllFunctions() NvmlMockOption {
+	return func(o *nvmlMockOptions) {
+		o.deviceOptions = append(o.deviceOptions, WithMockAllDeviceFunctions())
+		o.libOptions = append(o.libOptions, func(i *nvmlmock.Interface) {
+			fillAllMockFunctions(i)
+		})
+	}
+}
+
+// WithMockAllDeviceFunctions returns a device option that creates basic functions for all nvmlmock.Device.*Func attributes
+// that return nil/zero values. This is useful for ensuring all functions are mocked even if not explicitly set.
+func WithMockAllDeviceFunctions() func(*nvmlmock.Device) {
+	return func(d *nvmlmock.Device) {
+		fillAllMockFunctions(d)
+	}
+}
+
+func fillAllMockFunctions[T any](obj T) {
+	// Use reflection to find all *Func fields and set them to basic implementations
+	val := reflect.ValueOf(obj).Elem()
+	typ := val.Type()
+
+	for i := 0; i < val.NumField(); i++ {
+		field := val.Field(i)
+		fieldType := typ.Field(i)
+
+		// Check if field name ends with "Func", is a function type, and is not already set
+		if strings.HasSuffix(fieldType.Name, "Func") && field.Kind() == reflect.Func && field.IsZero() {
+			// Create a basic function that returns zero values
+			funcType := field.Type()
+			funcValue := reflect.MakeFunc(funcType, func(_ []reflect.Value) []reflect.Value {
+				// Return zero values for all return types
+				results := make([]reflect.Value, funcType.NumOut())
+				for j := 0; j < funcType.NumOut(); j++ {
+					results[j] = reflect.Zero(funcType.Out(j))
+				}
+				return results
+			})
+			field.Set(funcValue)
 		}
 	}
 }

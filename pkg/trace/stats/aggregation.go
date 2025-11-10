@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
+	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace/idx"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 	"google.golang.org/genproto/googleapis/rpc/code"
@@ -42,6 +43,8 @@ type BucketsAggregationKey struct {
 	PeerTagsHash   uint64
 	IsTraceRoot    pb.Trilean
 	GRPCStatusCode string
+	HTTPMethod     string
+	HTTPEndpoint   string
 }
 
 // PayloadAggregationKey specifies the key by which a payload is aggregated.
@@ -52,6 +55,7 @@ type PayloadAggregationKey struct {
 	ContainerID     string
 	GitCommitSha    string
 	ImageTag        string
+	Lang            string
 	ProcessTagsHash uint64
 }
 
@@ -71,6 +75,14 @@ func getStatusCode(meta map[string]string, metrics map[string]float64) uint32 {
 		return 0
 	}
 	return uint32(c)
+}
+
+func getStatusCodeV1(s *idx.InternalSpan) uint32 {
+	code, ok := s.GetAttributeAsFloat64(traceutil.TagStatusCode)
+	if ok {
+		return uint32(code)
+	}
+	return 0
 }
 
 // NewAggregationFromSpan creates a new aggregation from the provided span and env
@@ -95,6 +107,8 @@ func NewAggregationFromSpan(s *StatSpan, origin string, aggKey PayloadAggregatio
 			IsTraceRoot:    isTraceRoot,
 			GRPCStatusCode: s.grpcStatusCode,
 			PeerTagsHash:   tagsFnvHash(s.matchingPeerTags),
+			HTTPMethod:     s.httpMethod,
+			HTTPEndpoint:   s.httpEndpoint,
 		},
 	}
 	return agg
@@ -137,6 +151,8 @@ func NewAggregationFromGroup(g *pb.ClientGroupedStats) Aggregation {
 			PeerTagsHash:   tagsFnvHash(g.PeerTags),
 			IsTraceRoot:    g.IsTraceRoot,
 			GRPCStatusCode: g.GRPCStatusCode,
+			HTTPMethod:     g.HTTPMethod,
+			HTTPEndpoint:   g.HTTPEndpoint,
 		},
 	}
 }
@@ -190,6 +206,35 @@ func getGRPCStatusCode(meta map[string]string, metrics map[string]float64) strin
 	for _, key := range statusCodeFields { // Check if gRPC status code is stored in metrics
 		if code, ok := metrics[key]; ok {
 			return strconv.FormatUint(uint64(code), 10)
+		}
+	}
+
+	return ""
+}
+
+func getGRPCStatusCodeV1(s *idx.InternalSpan) string {
+	// List of possible keys to check in order
+	statusCodeFields := []string{"rpc.grpc.status_code", "grpc.code", "rpc.grpc.status.code", "grpc.status.code"}
+
+	for _, key := range statusCodeFields {
+		// TODO: could optimize this to use the Attribute directly to avoid the string conversion sometimes
+		if strC, exists := s.GetAttributeAsString(key); exists && strC != "" {
+			c, err := strconv.ParseUint(strC, 10, 32)
+			if err == nil {
+				return strconv.FormatUint(c, 10)
+			}
+			strC = strings.TrimPrefix(strC, "StatusCode.") // Some tracers send status code values prefixed by "StatusCode."
+			strCUpper := strings.ToUpper(strC)
+			if statusCode, exists := grpcStatusMap[strCUpper]; exists {
+				return statusCode
+			}
+
+			// If not integer or canceled or multi-word, check for valid gRPC status string
+			if codeNum, found := code.Code_value[strCUpper]; found {
+				return strconv.Itoa(int(codeNum))
+			}
+
+			return ""
 		}
 	}
 

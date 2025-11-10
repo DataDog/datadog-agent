@@ -22,29 +22,23 @@ import (
 	"google.golang.org/protobuf/types/known/emptypb"
 
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
-	"github.com/DataDog/datadog-agent/pkg/api/security"
-	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 	agentgrpc "github.com/DataDog/datadog-agent/pkg/util/grpc"
 )
 
-func exportRemoteConfig(fb flaretypes.FlareBuilder) error {
+func (r *RemoteFlareProvider) exportRemoteConfig(fb flaretypes.FlareBuilder) error {
 	// Dump the DB
 	if err := getRemoteConfigDB(fb); err != nil {
 		return err
 	}
 
 	// Dump the state
-	token, err := security.FetchAuthToken(pkgconfigsetup.Datadog())
-	if err != nil {
-		return fmt.Errorf("couldn't get auth token: %v", err)
-	}
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	md := metadata.MD{
-		"authorization": []string{fmt.Sprintf("Bearer %s", token)},
+		"authorization": []string{fmt.Sprintf("Bearer %s", r.IPC.GetAuthToken())}, // TODO IPC: Implement a GRPC secure client
 	}
 	ctx = metadata.NewOutgoingContext(ctx, md)
 
@@ -53,7 +47,7 @@ func exportRemoteConfig(fb flaretypes.FlareBuilder) error {
 		return err
 	}
 
-	cli, err := agentgrpc.GetDDAgentSecureClient(ctx, ipcAddress, pkgconfigsetup.GetIPCPort(), apiutil.GetTLSClientConfig)
+	cli, err := agentgrpc.GetDDAgentSecureClient(ctx, ipcAddress, pkgconfigsetup.GetIPCPort(), r.IPC.GetTLSClientConfig())
 	if err != nil {
 		return err
 	}
@@ -223,5 +217,18 @@ func printRemoteConfigStateContents(w io.Writer, state *pbgo.GetStateConfigRespo
 
 	if len(state.ActiveClients) == 0 {
 		fmt.Fprintln(w, "No active clients")
+	}
+
+	if len(state.ConfigSubscriptionStates) > 0 {
+		fmt.Fprintln(w, "\nRemote config active subscriptions")
+		fmt.Fprintln(w, strings.Repeat("-", 34))
+		for _, subscription := range state.ConfigSubscriptionStates {
+			fmt.Fprintf(w, "\n- Subscription %d\n", subscription.SubscriptionId)
+			for _, trackedClient := range subscription.TrackedClients {
+				fmt.Fprintf(w, "    - Tracked client %s - Seen any: %t - Products: %s\n",
+					trackedClient.RuntimeId, trackedClient.SeenAny, trackedClient.Products.String(),
+				)
+			}
+		}
 	}
 }

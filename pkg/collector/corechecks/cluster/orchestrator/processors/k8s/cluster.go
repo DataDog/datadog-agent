@@ -58,6 +58,11 @@ func NewClusterProcessor() *ClusterProcessor {
 func (p *ClusterProcessor) Process(ctx processors.ProcessorContext, list interface{}) (processResult processors.ProcessResult, processed int, err error) {
 	processed = -1
 
+	processResult = processors.ProcessResult{
+		MetadataMessages: []model.MessageBody{},
+		ManifestMessages: []model.MessageBody{},
+	}
+
 	defer processors.RecoverOnPanic()
 
 	// Cluster information is an aggregation of node list data.
@@ -163,11 +168,12 @@ func (p *ClusterProcessor) Process(ctx processors.ProcessorContext, list interfa
 
 	metadataMessages := []model.MessageBody{
 		&model.CollectorCluster{
-			ClusterName: pctx.Cfg.KubeClusterName,
-			ClusterId:   pctx.ClusterID,
-			GroupId:     pctx.MsgGroupID,
-			Cluster:     clusterModel,
-			Tags:        util.ImmutableTagsJoin(pctx.Cfg.ExtraTags, pctx.GetCollectorTags()),
+			ClusterName:  pctx.Cfg.KubeClusterName,
+			ClusterId:    pctx.ClusterID,
+			GroupId:      pctx.MsgGroupID,
+			Cluster:      clusterModel,
+			Tags:         util.ImmutableTagsJoin(pctx.Cfg.ExtraTags, pctx.GetCollectorTags()),
+			AgentVersion: ctx.GetAgentVersion(),
 		},
 	}
 	manifestMessages := []model.MessageBody{
@@ -189,7 +195,9 @@ func (p *ClusterProcessor) Process(ctx processors.ProcessorContext, list interfa
 					Tags: pctx.GetCollectorTags(),
 				},
 			},
-			Tags: pctx.Cfg.ExtraTags,
+			Tags:            pctx.Cfg.ExtraTags,
+			AgentVersion:    ctx.GetAgentVersion(),
+			OriginCollector: model.OriginCollector_datadogAgent,
 		},
 	}
 	processResult = processors.ProcessResult{

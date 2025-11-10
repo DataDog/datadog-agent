@@ -7,7 +7,7 @@ package structure
 
 import (
 	"bytes"
-	"math"
+	"encoding/json"
 	"reflect"
 	"strings"
 	"testing"
@@ -45,7 +45,7 @@ type trapsConfig struct {
 // newEmptyMockConf returns an empty config appropriate for running tests
 // we can't use pkg/config/mock here because that package depends upon this one, so
 // this avoids a circular dependency
-func newEmptyMockConf(_ *testing.T) model.Config {
+func newEmptyMockConf(_ *testing.T) model.BuildableConfig {
 	cfg := create.NewConfig("test")
 	cfg.SetTestOnlyDynamicSchema(true)
 	return cfg
@@ -53,7 +53,7 @@ func newEmptyMockConf(_ *testing.T) model.Config {
 
 // We don't use config mock here to not create cycle dependencies (same reason why config mock are not used in
 // pkg/config/{setup/model})
-func newConfigFromYaml(t *testing.T, yaml string) model.Config {
+func newConfigFromYaml(t *testing.T, yaml string) model.BuildableConfig {
 	conf := newEmptyMockConf(t)
 	conf.SetConfigType("yaml")
 	err := conf.ReadConfig(bytes.NewBuffer([]byte(yaml)))
@@ -104,14 +104,6 @@ user:
 
 	confYaml = `
 user:
-  jobs: 30
-`
-	mockConfig = newConfigFromYaml(t, confYaml)
-	err = unmarshalKeyReflection(mockConfig, "user", &person)
-	assert.ErrorContains(t, err, `at [jobs]: []T required, but input is not an array: &{30`)
-
-	confYaml = `
-user:
   age:
   - plumber
   - teacher
@@ -128,7 +120,7 @@ user:
 `
 	mockConfig = newConfigFromYaml(t, confYaml)
 	err = unmarshalKeyReflection(mockConfig, "user", &person)
-	assert.ErrorContains(t, err, `at [tags]: cannot assign to a map from input: &{[plumber teacher]`)
+	assert.ErrorContains(t, err, `expected map at 'tags' got: [plumber teacher]`)
 
 	confYaml = `
 user:
@@ -136,7 +128,7 @@ user:
 `
 	mockConfig = newConfigFromYaml(t, confYaml)
 	err = unmarshalKeyReflection(mockConfig, "user", &person)
-	assert.ErrorContains(t, err, `at [tags]: cannot assign to a map from input: &{30`)
+	assert.ErrorContains(t, err, `expected map at 'tags' got: 30`)
 
 }
 
@@ -238,6 +230,51 @@ network_devices:
 	assert.Equal(t, trapsCfg.StopTimeout, 0)
 }
 
+type containerConfig struct {
+	Network      string                   `mapstructure:"network_address"`
+	Port         uint16                   `mapstructure:"port"`
+	InnerConfigs map[string][]innerConfig `mapstructure:"interface_configs"`
+}
+
+type innerConfig struct {
+	Name  string `mapstructure:"name"`
+	Speed int    `mapstructure:"speed"`
+}
+
+func TestUnmarshalNestedConfig(t *testing.T) {
+	confYaml := `
+container_config:
+  network_address: 127.0.0.1
+  port: 1337
+  interface_configs:
+    first:
+      - name: cat
+        speed: 4
+      - name: dog
+        speed: 5
+    second:
+      - name: eel
+        speed: 2
+`
+	mockConfig := newConfigFromYaml(t, confYaml)
+
+	var cfg = containerConfig{}
+	err := unmarshalKeyReflection(mockConfig, "container_config", &cfg)
+	assert.NoError(t, err)
+
+	assert.Equal(t, cfg.Network, "127.0.0.1")
+	assert.Equal(t, cfg.Port, uint16(1337))
+	assert.Equal(t, len(cfg.InnerConfigs), 2)
+	assert.Equal(t, len(cfg.InnerConfigs["first"]), 2)
+	assert.Equal(t, cfg.InnerConfigs["first"][0].Name, "cat")
+	assert.Equal(t, cfg.InnerConfigs["first"][0].Speed, 4)
+	assert.Equal(t, cfg.InnerConfigs["first"][1].Name, "dog")
+	assert.Equal(t, cfg.InnerConfigs["first"][1].Speed, 5)
+	assert.Equal(t, len(cfg.InnerConfigs["second"]), 1)
+	assert.Equal(t, cfg.InnerConfigs["second"][0].Name, "eel")
+	assert.Equal(t, cfg.InnerConfigs["second"][0].Speed, 2)
+}
+
 type endpoint struct {
 	Name   string `yaml:"name"`
 	APIKey string `yaml:"apikey"`
@@ -284,7 +321,7 @@ endpoints:
 	for _, tc := range testcases {
 		t.Run(tc.name, func(t *testing.T) {
 			mockConfig := newConfigFromYaml(t, tc.conf)
-			mockConfig.SetKnown("endpoints")
+			mockConfig.SetKnown("endpoints") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 
 			var endpoints = []endpoint{}
 			err := unmarshalKeyReflection(mockConfig, "endpoints", &endpoints)
@@ -299,6 +336,81 @@ endpoints:
 	}
 }
 
+func TestUnmarshalAllMapString(t *testing.T) {
+	mockConfig := newEmptyMockConf(t)
+	mockConfig.SetKnown("test") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+
+	type testString struct {
+		A string
+		B string
+	}
+	checkString := func() {
+		obj := testString{}
+		err := unmarshalKeyReflection(mockConfig, "test", &obj)
+		require.NoError(t, err)
+		assert.Equal(t, testString{A: "a", B: "b"}, obj)
+	}
+	mockConfig.Set("test", map[string]string{"a": "a", "b": "b"}, model.SourceAgentRuntime)
+	checkString()
+
+	mockConfig.Set("test", map[interface{}]string{"a": "a", "b": "b"}, model.SourceAgentRuntime)
+	checkString()
+
+	mockConfig.Set("test", map[interface{}]interface{}{"a": "a", "b": "b"}, model.SourceAgentRuntime)
+	checkString()
+
+	mockConfig.Set("test", map[string]interface{}{"a": "a", "b": "b"}, model.SourceAgentRuntime)
+	checkString()
+}
+
+func TestUnmarshalAllMapInt(t *testing.T) {
+	mockConfig := newEmptyMockConf(t)
+	mockConfig.SetKnown("test") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+
+	type testInt struct {
+		A int
+		B int
+	}
+	checkInt := func() {
+		objInt := testInt{}
+		err := unmarshalKeyReflection(mockConfig, "test", &objInt)
+		require.NoError(t, err)
+		assert.Equal(t, testInt{A: 1, B: 2}, objInt)
+	}
+	mockConfig.Set("test", map[string]int{"a": 1, "b": 2}, model.SourceAgentRuntime)
+	checkInt()
+
+	mockConfig.Set("test", map[interface{}]int{"a": 1, "b": 2}, model.SourceAgentRuntime)
+	checkInt()
+
+	mockConfig.Set("test", map[interface{}]interface{}{"a": 1, "b": 2}, model.SourceAgentRuntime)
+	checkInt()
+}
+
+func TestUnmarshalAllMapBool(t *testing.T) {
+	mockConfig := newEmptyMockConf(t)
+	mockConfig.SetKnown("test") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+
+	type testBool struct {
+		A bool
+		B bool
+	}
+	checkBool := func() {
+		objBool := testBool{}
+		err := unmarshalKeyReflection(mockConfig, "test", &objBool)
+		require.NoError(t, err)
+		assert.Equal(t, testBool{A: true, B: true}, objBool)
+	}
+	mockConfig.Set("test", map[string]bool{"a": true, "b": true}, model.SourceAgentRuntime)
+	checkBool()
+
+	mockConfig.Set("test", map[interface{}]bool{"a": true, "b": true}, model.SourceAgentRuntime)
+	checkBool()
+
+	mockConfig.Set("test", map[interface{}]interface{}{"a": true, "b": true}, model.SourceAgentRuntime)
+	checkBool()
+}
+
 type featureConfig struct {
 	Enabled bool `yaml:"enabled"`
 }
@@ -308,7 +420,6 @@ func TestUnmarshalKeyAsBool(t *testing.T) {
 		name string
 		conf string
 		want bool
-		skip bool
 	}{
 		{
 			name: "string value to true",
@@ -317,7 +428,6 @@ feature:
   enabled: "true"
 `,
 			want: true,
-			skip: false,
 		},
 		{
 			name: "yaml boolean value true",
@@ -326,7 +436,6 @@ feature:
   enabled: true
 `,
 			want: true,
-			skip: false,
 		},
 		{
 			name: "string value to false",
@@ -335,7 +444,6 @@ feature:
   enabled: "false"
 `,
 			want: false,
-			skip: false,
 		},
 		{
 			name: "yaml boolean value false",
@@ -344,7 +452,6 @@ feature:
   enabled: false
 `,
 			want: false,
-			skip: false,
 		},
 		{
 			name: "missing value is false",
@@ -353,7 +460,6 @@ feature:
   not_enabled: "the missing key should be false"
 `,
 			want: false,
-			skip: false,
 		},
 		{
 			name: "string 'y' value is true",
@@ -362,7 +468,6 @@ feature:
   enabled: y
 `,
 			want: true,
-			skip: false,
 		},
 		{
 			name: "string 'yes' value is true",
@@ -371,7 +476,6 @@ feature:
   enabled: yes
 `,
 			want: true,
-			skip: false,
 		},
 		{
 			name: "string 'on' value is true",
@@ -380,7 +484,6 @@ feature:
   enabled: on
 `,
 			want: true,
-			skip: false,
 		},
 		{
 			name: "string '1' value is true",
@@ -389,7 +492,6 @@ feature:
   enabled: "1"
 `,
 			want: true,
-			skip: false,
 		},
 		{
 			name: "int 1 value is true",
@@ -398,7 +500,6 @@ feature:
   enabled: 1
 `,
 			want: true,
-			skip: false,
 		},
 		{
 			name: "float 1.0 value is true",
@@ -407,7 +508,6 @@ feature:
   enabled: 1.0
 `,
 			want: true,
-			skip: false,
 		},
 		{
 			name: "string 'n' value is false",
@@ -416,7 +516,6 @@ feature:
   enabled: n
 `,
 			want: false,
-			skip: false,
 		},
 		{
 			name: "string 'no' value is false",
@@ -425,7 +524,6 @@ feature:
   enabled: no
 `,
 			want: false,
-			skip: false,
 		},
 		{
 			name: "string 'off' value is false",
@@ -434,7 +532,6 @@ feature:
   enabled: off
 `,
 			want: false,
-			skip: false,
 		},
 		{
 			name: "string '0' value is false",
@@ -443,7 +540,6 @@ feature:
   enabled: "0"
 `,
 			want: false,
-			skip: false,
 		},
 		{
 			name: "int 0 value is false",
@@ -452,18 +548,13 @@ feature:
   enabled: 0
 `,
 			want: false,
-			skip: false,
 		},
 	}
 
 	for _, tc := range testcases {
 		t.Run(tc.name, func(t *testing.T) {
-			if tc.skip {
-				t.Skip("Skipping test case")
-			}
-
 			mockConfig := newConfigFromYaml(t, tc.conf)
-			mockConfig.SetKnown("feature")
+			mockConfig.SetKnown("feature") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 
 			var feature = featureConfig{}
 			err := unmarshalKeyReflection(mockConfig, "feature", &feature)
@@ -490,7 +581,6 @@ func TestUnmarshalKeyAsInt(t *testing.T) {
 		name string
 		conf string
 		want uintConfig
-		skip bool
 	}{
 		{
 			name: "value int config map",
@@ -515,7 +605,6 @@ feature:
 				Fieldint32:  1234,
 				Fieldint64:  1234,
 			},
-			skip: false,
 		},
 		{
 			name: "float convert to int config map",
@@ -540,7 +629,6 @@ feature:
 				Fieldint32:  12,
 				Fieldint64:  -12,
 			},
-			skip: false,
 		},
 		{
 			name: "missing field is zero value config map",
@@ -564,7 +652,6 @@ feature:
 				Fieldint32:  1234,
 				Fieldint64:  1234,
 			},
-			skip: false,
 		},
 		{
 			name: "overflow int config map",
@@ -580,7 +667,7 @@ feature:
   int64: 1234
 `,
 			want: uintConfig{
-				Fielduint8:  math.MaxUint8, // actual 230 - unclear what this behavior should be
+				Fielduint8:  210, // 1234 % 256 due to underflow
 				Fielduint16: 1234,
 				Fielduint32: 1234,
 				Fielduint64: 1234,
@@ -589,47 +676,41 @@ feature:
 				Fieldint32:  1234,
 				Fieldint64:  1234,
 			},
-			skip: true,
 		},
 		{
 			name: "underflow int config map",
 			conf: `
 feature:
   uint8:  -123
-  uint16: 1234
-  uint32: 1234
-  uint64: 1234
-  int8:  123
-  int16: 1234
-  int32: 1234
-  int64: 1234
+  uint16: -1234
+  uint32: -1234
+  uint64: -1234
+  int8:  -123
+  int16: -1234
+  int32: -1234
+  int64: -1234
 `,
 			want: uintConfig{
-				Fielduint8:  0, // actual 133 - unclear what this behavior should be
-				Fielduint16: 1234,
-				Fielduint32: 1234,
-				Fielduint64: 1234,
-				Fieldint8:   123,
-				Fieldint16:  1234,
-				Fieldint32:  1234,
-				Fieldint64:  1234,
+				Fielduint8:  133, // negative underflows and wraps around
+				Fielduint16: 64302,
+				Fielduint32: 4294966062,
+				Fielduint64: 18446744073709550382,
+				Fieldint8:   -123,
+				Fieldint16:  -1234,
+				Fieldint32:  -1234,
+				Fieldint64:  -1234,
 			},
-			skip: true,
 		},
 	}
 
 	for _, tc := range testcases {
 		t.Run(tc.name, func(t *testing.T) {
-			if tc.skip {
-				t.Skip("Skipping test case")
-			}
-
 			mockConfig := newConfigFromYaml(t, tc.conf)
-			mockConfig.SetKnown("feature")
+			mockConfig.SetKnown("feature") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 
 			var feature = uintConfig{}
 			err := unmarshalKeyReflection(mockConfig, "feature", &feature)
-			assert.NoError(t, err, "%s failed to marshal: %s", tc.name, err)
+			assert.NoError(t, err, "%q failed to marshal: %s", tc.name, err)
 			if err != nil {
 				t.FailNow()
 			}
@@ -640,8 +721,8 @@ feature:
 			for i := 0; i < confvalues.NumField(); i++ {
 				wantType := strings.ReplaceAll(confvalues.Type().Field(i).Name, "Field", "")
 				actual := confvalues.Field(i).Type().Name()
-				assert.Equal(t, wantType, actual, "%s unexpected marshal type, want: %s got: %s", tc.name, wantType, actual)
-				assert.True(t, reflect.DeepEqual(wantvalues.Field(i).Interface(), confvalues.Field(i).Interface()), "%s marshalled values not equal, want: %s, got: %s", tc.name, wantvalues.Field(i), confvalues.Field(i))
+				assert.Equal(t, wantType, actual, "%q case %d: unexpected marshal type, want: %s got: %s", tc.name, i, wantType, actual)
+				assert.True(t, reflect.DeepEqual(wantvalues.Field(i).Interface(), confvalues.Field(i).Interface()), "%q case %d marshalled values not equal, want: %s, got: %s", tc.name, i, wantvalues.Field(i), confvalues.Field(i))
 			}
 		})
 	}
@@ -657,7 +738,6 @@ func TestUnmarshalKeyAsFloat(t *testing.T) {
 		name string
 		conf string
 		want floatConfig
-		skip bool
 	}{
 		{
 			name: "value float config map",
@@ -670,7 +750,6 @@ feature:
 				Fieldfloat32: 12.34,
 				Fieldfloat64: 12.34,
 			},
-			skip: false,
 		},
 		{
 			name: "missing field zero value float config map",
@@ -682,7 +761,6 @@ feature:
 				Fieldfloat32: 0.0,
 				Fieldfloat64: 12.34,
 			},
-			skip: false,
 		},
 		{
 			name: "converts ints to float config map",
@@ -695,7 +773,6 @@ feature:
 				Fieldfloat32: 12.0,
 				Fieldfloat64: 12.0,
 			},
-			skip: false,
 		},
 		{
 			name: "converts negatives to float config map",
@@ -708,7 +785,6 @@ feature:
 				Fieldfloat32: -12.0,
 				Fieldfloat64: -12.34,
 			},
-			skip: false,
 		},
 		{
 			name: "starting decimal to float config map",
@@ -721,18 +797,13 @@ feature:
 				Fieldfloat32: 0.34,
 				Fieldfloat64: -0.34,
 			},
-			skip: false,
 		},
 	}
 
 	for _, tc := range testcases {
 		t.Run(tc.name, func(t *testing.T) {
-			if tc.skip {
-				t.Skip("Skipping test case")
-			}
-
 			mockConfig := newConfigFromYaml(t, tc.conf)
-			mockConfig.SetKnown("feature")
+			mockConfig.SetKnown("feature") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 
 			var feature = floatConfig{}
 			err := unmarshalKeyReflection(mockConfig, "feature", &feature)
@@ -763,7 +834,6 @@ func TestUnmarshalKeyAsString(t *testing.T) {
 		name string
 		conf string
 		want stringConfig
-		skip bool
 	}{
 		{
 			name: "string value config map",
@@ -774,7 +844,6 @@ feature:
 			want: stringConfig{
 				Field: "a string",
 			},
-			skip: false,
 		},
 		{
 			name: "quoted string config map",
@@ -785,7 +854,6 @@ feature:
 			want: stringConfig{
 				Field: "12.34",
 			},
-			skip: false,
 		},
 		{
 			name: "missing field is a empty string",
@@ -796,7 +864,6 @@ feature:
 			want: stringConfig{
 				Field: string(""),
 			},
-			skip: false,
 		},
 		{
 			name: "converts yaml parsed int to match struct",
@@ -807,7 +874,6 @@ feature:
 			want: stringConfig{
 				Field: "42",
 			},
-			skip: false,
 		},
 		{
 			name: "truncates large yaml floats instead of using exponents",
@@ -818,7 +884,6 @@ feature:
 			want: stringConfig{
 				Field: "4.222222222222222",
 			},
-			skip: false,
 		},
 		{
 			name: "converts yaml parsed float to match struct",
@@ -829,7 +894,6 @@ feature:
 			want: stringConfig{
 				Field: "4.2",
 			},
-			skip: false,
 		},
 		{
 			name: "commas are part of the string and not a list",
@@ -840,7 +904,6 @@ feature:
 			want: stringConfig{
 				Field: "not, a, list",
 			},
-			skip: false,
 		},
 		{
 			name: "parses special characters",
@@ -851,7 +914,6 @@ feature:
 			want: stringConfig{
 				Field: "☺☻☹",
 			},
-			skip: false,
 		},
 		{
 			name: "does not parse invalid ascii to byte sequences",
@@ -862,7 +924,6 @@ feature:
 			want: stringConfig{
 				Field: `\xff-\xff`,
 			},
-			skip: false,
 		},
 		{
 			name: "retains string utf-8",
@@ -873,18 +934,13 @@ feature:
 			want: stringConfig{
 				Field: "日本語",
 			},
-			skip: false,
 		},
 	}
 
 	for _, tc := range testcases {
 		t.Run(tc.name, func(t *testing.T) {
-			if tc.skip {
-				t.Skip("Skipping test case")
-			}
-
 			mockConfig := newConfigFromYaml(t, tc.conf)
-			mockConfig.SetKnown("feature")
+			mockConfig.SetKnown("feature") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 
 			var feature = stringConfig{}
 			err := unmarshalKeyReflection(mockConfig, "feature", &feature)
@@ -916,7 +972,7 @@ feature:
   EnABLeD: "true"
 `
 	mockConfig := newConfigFromYaml(t, confYaml)
-	mockConfig.SetKnown("feature")
+	mockConfig.SetKnown("feature") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 
 	var feature = featureConfig{}
 	err := unmarshalKeyReflection(mockConfig, "feature", &feature)
@@ -937,7 +993,7 @@ feature:
   enabled: "true"
 `
 	mockConfig := newConfigFromYaml(t, confYaml)
-	mockConfig.SetKnown("feature")
+	mockConfig.SetKnown("feature") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 
 	// If the data from the config is missing, UnmarshalKey is a no-op, does
 	// nothing, and returns no error
@@ -954,7 +1010,7 @@ feature:
 `
 
 		mockConfig := newConfigFromYaml(t, confYaml)
-		mockConfig.SetKnown("feature")
+		mockConfig.SetKnown("feature") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 
 		feature := struct {
 			Enabled int
@@ -972,7 +1028,7 @@ feature:
 `
 
 		mockConfig := newConfigFromYaml(t, confYaml)
-		mockConfig.SetKnown("feature")
+		mockConfig.SetKnown("feature") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 
 		feature := struct {
 			Enabled float64
@@ -990,7 +1046,7 @@ feature:
 `
 
 		mockConfig := newConfigFromYaml(t, confYaml)
-		mockConfig.SetKnown("feature")
+		mockConfig.SetKnown("feature") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 
 		feature := struct {
 			Enabled bool
@@ -1008,7 +1064,7 @@ feature:
 `
 
 		mockConfig := newConfigFromYaml(t, confYaml)
-		mockConfig.SetKnown("feature")
+		mockConfig.SetKnown("feature") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 
 		feature := struct {
 			Enabled bool
@@ -1019,25 +1075,6 @@ feature:
 		assert.Contains(t, err.Error(), "could not convert \"\" to bool")
 	})
 
-	t.Run("errors on negative to uint", func(t *testing.T) {
-		t.Skip("not implemented")
-		confYaml := `
-feature:
-  enabled: -1
-`
-
-		mockConfig := newConfigFromYaml(t, confYaml)
-		mockConfig.SetKnown("feature")
-
-		feature := struct {
-			Enabled uint
-		}{}
-
-		err := unmarshalKeyReflection(mockConfig, "feature", &feature)
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "could not convert to uint")
-	})
-
 	t.Run("errors on bool to int", func(t *testing.T) {
 		confYaml := `
 feature:
@@ -1045,7 +1082,7 @@ feature:
 `
 
 		mockConfig := newConfigFromYaml(t, confYaml)
-		mockConfig.SetKnown("feature")
+		mockConfig.SetKnown("feature") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 
 		feature := struct {
 			Enabled int
@@ -1063,7 +1100,7 @@ feature:
 `
 
 		mockConfig := newConfigFromYaml(t, confYaml)
-		mockConfig.SetKnown("feature")
+		mockConfig.SetKnown("feature") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 
 		feature := struct {
 			Enabled float64
@@ -1081,7 +1118,7 @@ feature:
 `
 
 		mockConfig := newConfigFromYaml(t, confYaml)
-		mockConfig.SetKnown("feature")
+		mockConfig.SetKnown("feature") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 
 		feature := struct {
 			Enabled string
@@ -1100,7 +1137,7 @@ feature:
 `
 
 		mockConfig := newConfigFromYaml(t, confYaml)
-		mockConfig.SetKnown("feature")
+		mockConfig.SetKnown("feature") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 
 		feature := struct {
 			Enabled string
@@ -1110,6 +1147,24 @@ feature:
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "scalar required")
 	})
+}
+
+func TestUnmarshalKeyCanConvertToUint(t *testing.T) {
+	confYaml := `
+feature:
+  enabled: -1
+`
+
+	mockConfig := newConfigFromYaml(t, confYaml)
+	mockConfig.SetKnown("feature") //nolint: forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+
+	feature := struct {
+		Enabled uint
+	}{}
+
+	err := unmarshalKeyReflection(mockConfig, "feature", &feature)
+	require.NoError(t, err)
+	assert.Equal(t, uint(0xffffffffffffffff), feature.Enabled)
 }
 
 // A flag is provided as a struct tag after a field name separated by a comma that
@@ -1127,7 +1182,7 @@ feature:
 	want := "true"
 
 	mockConfig := newConfigFromYaml(t, confYaml)
-	mockConfig.SetKnown("feature")
+	mockConfig.SetKnown("feature") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 
 	t.Run("json omitempty", func(t *testing.T) {
 		feature := struct {
@@ -1228,8 +1283,6 @@ feature:
 	})
 
 	t.Run("mapstructure squash multiple flags errors without option", func(t *testing.T) {
-		t.Skip("FIXME")
-
 		feature := struct {
 			Enabled string `mapstructure:"enabled,remain,squash"`
 		}{}
@@ -1243,7 +1296,6 @@ feature:
 type expectation struct {
 	fieldName    string
 	specifierSet map[string]struct{}
-	skip         bool
 }
 
 func TestFieldNameToKey(t *testing.T) {
@@ -1266,52 +1318,42 @@ func TestFieldNameToKey(t *testing.T) {
 		{
 			fieldName:    "a",
 			specifierSet: map[string]struct{}{"omitempty": {}},
-			skip:         false,
 		},
 		{
 			fieldName:    "b",
 			specifierSet: map[string]struct{}{"omitempty": {}},
-			skip:         false,
 		},
 		{
 			fieldName:    "c",
 			specifierSet: map[string]struct{}{"flow": {}},
-			skip:         false,
 		},
 		{
 			fieldName:    "d",
 			specifierSet: map[string]struct{}{"inline": {}},
-			skip:         false,
 		},
 		{
 			fieldName:    "e",
 			specifierSet: map[string]struct{}{"inline": {}, "omitempty": {}},
-			skip:         true,
 		},
 		{
 			fieldName:    "f",
 			specifierSet: map[string]struct{}{"squash": {}},
-			skip:         false,
 		},
 		{
 			fieldName:    "g",
 			specifierSet: map[string]struct{}{"remain": {}},
-			skip:         false,
 		},
 		{
 			fieldName:    "h",
 			specifierSet: map[string]struct{}{"omitempty": {}},
-			skip:         false,
 		},
 		{
 			fieldName:    "i",
-			specifierSet: map[string]struct{}{"remain": {}, "omitempty": {}},
-			skip:         true,
+			specifierSet: map[string]struct{}{"remain": {}, "squash": {}},
 		},
 		{
 			fieldName:    "j",
 			specifierSet: map[string]struct{}{"squash": {}},
-			skip:         false,
 		},
 		{
 			fieldName:    "k",
@@ -1324,10 +1366,6 @@ func TestFieldNameToKey(t *testing.T) {
 		f := targetType.Field(i)
 
 		t.Run(string(f.Tag), func(t *testing.T) {
-			if expectedSelectorSet[i].skip {
-				t.Skip("Skipping test case")
-			}
-
 			actualName, actualSpecifiers := fieldNameToKey(f)
 
 			assert.Equal(t, actualName, expectedSelectorSet[i].fieldName)
@@ -1356,7 +1394,7 @@ service:
   apikey: abc1
 `
 	mockConfig := newConfigFromYaml(t, confYaml)
-	mockConfig.SetKnown("service")
+	mockConfig.SetKnown("service") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 	var svc = squashConfig{}
 
 	t.Run("squash flag succeeds with option", func(t *testing.T) {
@@ -1401,7 +1439,7 @@ service:
 	for _, tc := range testcases {
 		t.Run(tc.name, func(t *testing.T) {
 			mockConfig := newConfigFromYaml(t, tc.conf)
-			mockConfig.SetKnown("service")
+			mockConfig.SetKnown("service") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 
 			svc := &serviceConfig{}
 			err := unmarshalKeyReflection(mockConfig, "service", svc, ErrorUnused)
@@ -1426,7 +1464,7 @@ service:
   disabled: f
 `
 	mockConfig := newConfigFromYaml(t, confYaml)
-	mockConfig.SetKnown("service")
+	mockConfig.SetKnown("service") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 	var svc = make(map[string]string)
 
 	err := unmarshalKeyReflection(mockConfig, "service", &svc)
@@ -1447,7 +1485,7 @@ service:
   disabled: false
 `
 	mockConfig := newConfigFromYaml(t, confYaml)
-	mockConfig.SetKnown("service")
+	mockConfig.SetKnown("service") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 	var svc = make(map[string]bool)
 
 	err := unmarshalKeyReflection(mockConfig, "service", &svc)
@@ -1498,7 +1536,7 @@ feature_flags:
 	}
 
 	mockConfig := newConfigFromYaml(t, confYaml)
-	mockConfig.SetKnown("feature_flags")
+	mockConfig.SetKnown("feature_flags") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 
 	flags := FeatureFlags{}
 
@@ -1511,4 +1549,96 @@ feature_flags:
 	assert.Equal(t, true, *flags.Enabled)
 	assert.Equal(t, false, *flags.Disabled)
 	assert.Equal(t, false, *flags.Missing)
+}
+
+func TestUnmarshalKeyToInterfaceSlice(t *testing.T) {
+	confYaml := `
+network_devices:
+  snmp_traps:
+    enabled: true
+    port: 1234
+    community_strings: ["a","b","c"]
+`
+	mockConfig := newConfigFromYaml(t, confYaml)
+
+	var communityStrings []interface{}
+	err := unmarshalKeyReflection(mockConfig, "network_devices.snmp_traps.community_strings", &communityStrings)
+	assert.NoError(t, err)
+	assert.Equal(t, []interface{}{"a", "b", "c"}, communityStrings)
+
+	var actualStrings []string
+	err = unmarshalKeyReflection(mockConfig, "network_devices.snmp_traps.community_strings", &actualStrings)
+	assert.NoError(t, err)
+	assert.Equal(t, []string{"a", "b", "c"}, actualStrings)
+}
+
+func TestUnmarshalKeyFromComplexMapValue(t *testing.T) {
+	cfg := nodetreemodel.NewNodeTreeConfig("test", "", nil)
+	cfg.BindEnvAndSetDefault("kubernetes_node_annotations_as_tags", map[string]string{"cluster.k8s.io/machine": "kube_machine"})
+	cfg.BuildSchema()
+
+	var annotations map[string]string
+	err := unmarshalKeyReflection(cfg, "kubernetes_node_annotations_as_tags", &annotations)
+	require.NoError(t, err)
+	assert.Equal(t, annotations, map[string]string{"cluster.k8s.io/machine": "kube_machine"})
+}
+
+func TestUnmarshalKeyComplexMapValueFromYAML(t *testing.T) {
+	cfg := nodetreemodel.NewNodeTreeConfig("test", "", nil)
+	cfg.SetConfigType("yaml")
+	cfg.BindEnvAndSetDefault("kubernetes_node_annotations_as_tags", map[string]string{"cluster.k8s.io/machine": "kube_machine"})
+	cfg.BuildSchema()
+
+	confYaml := `kubernetes_node_annotations_as_tags:
+  cluster.k8s.io/machine: different
+`
+	err := cfg.ReadConfig(bytes.NewBuffer([]byte(confYaml)))
+	require.NoError(t, err)
+
+	var annotations map[string]string
+	err = unmarshalKeyReflection(cfg, "kubernetes_node_annotations_as_tags", &annotations)
+	require.NoError(t, err)
+	assert.Equal(t, annotations, map[string]string{"cluster.k8s.io/machine": "different"})
+}
+
+func TestUnmarshalKeyOnSliceOfMap(t *testing.T) {
+	t.Setenv("DD_TEST_VALUE", "[{\"a\": \"1\", \"b\": \"1\"}, {\"a\": \"2\", \"b\": \"2\"}]")
+	mockConfig := newEmptyMockConf(t)
+
+	mockConfig.BindEnvAndSetDefault("test_value", []map[string]int{})
+	mockConfig.ParseEnvAsSliceMapString("test_value", func(in string) []map[string]string {
+		var out []map[string]string
+		if err := json.Unmarshal([]byte(in), &out); err != nil {
+			require.FailNow(t, "can not parse JSON")
+		}
+		return out
+	})
+
+	mockConfig.BuildSchema()
+
+	data := []map[string]string{}
+	err := unmarshalKeyReflection(mockConfig, "test_value", &data)
+	assert.NoError(t, err)
+	assert.Equal(t, []map[string]string{{"a": "1", "b": "1"}, {"a": "2", "b": "2"}}, data)
+}
+
+type ResourceType string
+
+type myStruct struct {
+	Resources map[ResourceType]string
+}
+
+func TestUnmarshalMapWithTypeAlias(t *testing.T) {
+	confYaml := `
+some_config:
+  resources:
+    memory: 5g
+`
+	mockConfig := newConfigFromYaml(t, confYaml)
+	mockConfig.SetKnown("some_config.resources.memory") //nolint:forbidigo, using SetKnown to test behavior
+
+	var res myStruct
+	err := unmarshalKeyReflection(mockConfig, "some_config", &res)
+	assert.NoError(t, err)
+	assert.Equal(t, map[ResourceType]string{"memory": "5g"}, res.Resources)
 }

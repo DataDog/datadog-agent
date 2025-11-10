@@ -13,7 +13,10 @@ import (
 	"os"
 	"time"
 
+	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
+
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -24,7 +27,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 	"github.com/DataDog/datadog-agent/pkg/version"
-	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
 )
 
 // StartCompliance runs the compliance sub-agent running compliance benchmarks
@@ -37,6 +39,7 @@ func StartCompliance(log log.Component,
 	statsdClient ddgostatsd.ClientInterface,
 	wmeta workloadmeta.Component,
 	compression compression.Component,
+	ipc ipc.Component,
 ) (*compliance.Agent, error) {
 
 	enabled := config.GetBool("compliance_config.enabled")
@@ -80,7 +83,7 @@ func StartCompliance(log log.Component,
 	reporter := compliance.NewLogReporter(hostname, "compliance-agent", "compliance", endpoints, context, compression)
 	telemetrySender := telemetry.NewSimpleTelemetrySenderFromStatsd(statsdClient)
 
-	agent := compliance.NewAgent(telemetrySender, wmeta, compliance.AgentOptions{
+	agent := compliance.NewAgent(telemetrySender, wmeta, ipc, compliance.AgentOptions{
 		ResolverOptions:               resolverOptions,
 		ConfigDir:                     configDir,
 		Reporter:                      reporter,

@@ -78,6 +78,108 @@
   {{- else }}
     Status: Running
   {{- end }}
+
+  {{- with .event_monitor.cws }}
+
+  CWS (runtime security)
+  ======================
+
+    Endpoints
+    =========
+
+    {{ if .DirectSenderStatus }}
+    {{- range $endpoint := .DirectSenderStatus.Endpoints }}
+    {{ $endpoint }}
+    {{- end }}
+    {{- end }}
+
+    Self Tests
+    ==========
+
+      Last execution: {{ .SelfTests.LastTimestamp }}
+      {{ if .SelfTests.Success }}
+      Succeeded:
+        {{- range $test := .SelfTests.Success }}
+        - {{ $test }}
+        {{- end }}
+      {{- else }}
+      Succeeded: none
+      {{- end }}
+      {{ if .SelfTests.Fails }}
+      Failed:
+        {{- range $test := .SelfTests.Fails }}
+        - {{ $test }}
+        {{- end }}
+      {{- else }}
+      Failed: none
+      {{- end }}
+
+    Policies
+    ========
+      {{ range $policy := .PoliciesStatus }}
+        {{ $policy.Name }}:
+          source: {{ $policy.Source }}
+          rules:
+            {{- range $status := $policy.Status }}
+              - {{ $status.ID }}: {{ $status.Status }}{{- if $status.Error }} ({{- $status.Error }}){{- end }}
+            {{- end }}
+      {{ end }}
+
+
+    SECL Variables
+    ==============
+
+    Global variables:
+    {{ range $variable := .GlobalVariables }}
+      - {{ $variable.Name }}: {{ $variable.Value }}
+    {{- end }}
+    {{- if not .GlobalVariables }}
+        No variable found
+    {{- end }}
+
+    Scoped variables:
+    {{ range $scope, $vars := .ScopedVariables }}
+      {{ $scope }}:
+      {{ range $key, $variables := $vars.KeyValues }}
+        {{ $key }}:
+        {{- range $variable := $variables.Variables }}
+          - {{ $variable.Name }}: {{ $variable.Value }}
+        {{- end }}
+      {{ end }}
+    {{- end }}
+    {{- if not .ScopedVariables }}
+        No variable found
+    {{- end }}
+
+    {{- with .Environment }}
+
+    Environment
+    ===========
+      {{- if .Warnings }}
+      Warnings:
+        {{- range $warning := .Warnings }}
+        - {{ $warning }}
+        {{- end }}
+      {{- end }}
+      Kernel lockdown: {{ .KernelLockdown }}
+      Use eBPF mmapable maps: {{ .UseMmapableMaps }}
+      Use eBPF ring buffer: {{ .UseRingBuffer }}
+      Use fentry: {{ .UseFentry }}
+      {{ if .Constants }}
+      Available constant fetchers
+      ===========================
+        {{ range $fetcher := .Constants.Fetchers }}
+        {{ $fetcher }}
+        {{- end }}
+
+      Constants
+      =========
+        {{ range $constant := .Constants.Values }}
+        {{ $constant.ID }} = {{ $constant.Value }} (from {{ $constant.Source }})
+        {{- end }}
+    {{- end }}
+    {{- end }}
+  {{- end }}
 {{- end }}
 {{- if .process }}
 
@@ -90,5 +192,33 @@
     Status: Running
   {{- end }}
 {{- end }}
+
+{{- if .gpu }}
+
+  GPU
+  ===
+  {{- if .gpu.Error }}
+    Status: Not running
+    Error: {{ .gpu.Error }}
+  {{- else }}
+    Status: Running
+  {{- end }}
+    Discovered GPUs:
+    {{- range .gpu.active_gpus }}
+      - GPU {{ .index }}: {{ .name }} {{ .uuid }} {{ if .is_mig }}MIG{{ end }}{{ if not .in_wmeta }} (not in workloadmeta store){{ end }}
+    {{- end }}
+    CUDA Kernel Cache:
+    {{- if .gpu.kernel_cache.active }}
+      Active: {{ .gpu.kernel_cache.active }}
+      Kernels: {{ .gpu.kernel_cache.kernels }}
+    {{- else }}
+      Active: false
+    {{- end }}
+    Process Attacher:
+      Traced programs: {{ if (eq .gpu.attacher.active_processes nil) }}0{{ else }}{{ len .gpu.attacher.active_processes }}{{ end }}
+      Blocked processes: {{ if (eq .gpu.attacher.blocked_processes nil) }}0{{ else }}{{ len .gpu.attacher.blocked_processes }}{{ end }}
+    eBPF Event Consumer: {{ if .gpu.consumer_healthy }}Healthy{{ else }}Unhealthy{{ end }}
+    Last Check from Core Agent: {{ formatUnixTime .gpu.last_check }}
 {{- end }}
 
+{{- end }}

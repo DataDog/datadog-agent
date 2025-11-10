@@ -9,6 +9,7 @@
 package model
 
 import (
+	"slices"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
@@ -42,7 +43,7 @@ func hasValidLineage(pc *ProcessCacheEntry) (bool, error) {
 			return *pc.hasValidLineage, pc.lineageError
 		}
 
-		pid, ppid, ctrID = pc.Pid, pc.PPid, pc.ContainerID
+		pid, ppid, ctrID = pc.Pid, pc.PPid, pc.ContainerContext.ContainerID
 
 		if pc.IsParentMissing {
 			err = &ErrProcessMissingParentNode{PID: pid, PPID: ppid, ContainerID: string(ctrID)}
@@ -79,8 +80,8 @@ func copyProcessContext(parent, child *ProcessCacheEntry) {
 	// the proc_cache LRU ejects an entry.
 	// WARNING: this is why the user space cache should not be used to detect container breakouts. Dedicated
 	// in-kernel probes will need to be added.
-	if len(parent.ContainerID) > 0 && len(child.ContainerID) == 0 {
-		child.ContainerID = parent.ContainerID
+	if len(parent.ContainerContext.ContainerID) > 0 && len(child.ContainerContext.ContainerID) == 0 {
+		child.ContainerContext.ContainerID = parent.ContainerContext.ContainerID
 	}
 
 	if len(parent.CGroup.CGroupID) > 0 && len(child.CGroup.CGroupID) == 0 {
@@ -127,7 +128,7 @@ func (pc *ProcessCacheEntry) GetContainerPIDs() ([]uint32, []string) {
 	)
 
 	for pc != nil {
-		if pc.ContainerID == "" {
+		if pc.ContainerContext.ContainerID == "" {
 			break
 		}
 		pids = append(pids, pc.Pid)
@@ -137,6 +138,19 @@ func (pc *ProcessCacheEntry) GetContainerPIDs() ([]uint32, []string) {
 	}
 
 	return pids, paths
+}
+
+// GetAncestorsPIDs return the ancestors list PIDs
+func (pc *ProcessCacheEntry) GetAncestorsPIDs() []uint32 {
+	var pids []uint32
+
+	for pc != nil {
+		if !slices.Contains(pids, pc.Pid) {
+			pids = append(pids, pc.Pid)
+		}
+		pc = pc.Ancestor
+	}
+	return pids
 }
 
 // SetForkParent set the parent of the fork entry
@@ -154,12 +168,13 @@ func (pc *ProcessCacheEntry) Fork(childEntry *ProcessCacheEntry) {
 	childEntry.TTYName = pc.TTYName
 	childEntry.Comm = pc.Comm
 	childEntry.FileEvent = pc.FileEvent
-	childEntry.ContainerID = pc.ContainerID
+	childEntry.ContainerContext.ContainerID = pc.ContainerContext.ContainerID
 	childEntry.CGroup = pc.CGroup
 	childEntry.ExecTime = pc.ExecTime
 	childEntry.Credentials = pc.Credentials
 	childEntry.LinuxBinprm = pc.LinuxBinprm
 	childEntry.Cookie = pc.Cookie
+	childEntry.TracerTags = pc.TracerTags
 
 	childEntry.SetForkParent(pc)
 }

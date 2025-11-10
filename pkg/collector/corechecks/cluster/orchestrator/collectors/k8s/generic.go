@@ -51,6 +51,7 @@ func (r GenericResource) NewGenericCollector() (*CRCollector, error) {
 			NodeType:                             r.NodeType,
 			Version:                              r.GroupVersion,
 			SupportsTerminatedResourceCollection: true,
+			IsGenericCollector:                   true,
 		},
 		gvr:       gv.WithResource(r.Name),
 		processor: processors.NewProcessor(&k8sProcessors.CRHandlers{IsGenericResource: true}),

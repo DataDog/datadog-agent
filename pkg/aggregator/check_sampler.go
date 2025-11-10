@@ -12,6 +12,7 @@ import (
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/util"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
@@ -31,6 +32,7 @@ type CheckSampler struct {
 	lastBucketValue        map[ckey.ContextKey]int64
 	deregistered           bool
 	contextResolverMetrics bool
+	logThrottling          util.SimpleThrottler
 }
 
 // newCheckSampler returns a newly initialized CheckSampler
@@ -44,6 +46,7 @@ func newCheckSampler(expirationCount int, expireMetrics bool, contextResolverMet
 		sketchMap:              make(sketchMap),
 		lastBucketValue:        make(map[ckey.ContextKey]int64),
 		contextResolverMetrics: contextResolverMetrics,
+		logThrottling:          util.NewSimpleThrottler(5, 5*time.Minute, ""),
 	}
 }
 
@@ -76,7 +79,9 @@ func (cs *CheckSampler) newSketchSeries(ck ckey.ContextKey, points []metrics.Ske
 
 func (cs *CheckSampler) addBucket(bucket *metrics.HistogramBucket) {
 	if bucket.Value < 0 {
-		log.Warnf("Negative bucket value %d for metric %s discarding", bucket.Value, bucket.Name)
+		if !cs.logThrottling.ShouldThrottle() {
+			log.Warnf("Negative bucket value %d for metric %s discarding", bucket.Value, bucket.Name)
+		}
 		return
 	}
 	if bucket.Value == 0 {
@@ -86,10 +91,12 @@ func (cs *CheckSampler) addBucket(bucket *metrics.HistogramBucket) {
 
 	bucketRange := bucket.UpperBound - bucket.LowerBound
 	if bucketRange < 0 {
-		log.Warnf(
-			"Negative bucket range [%f-%f] for metric %s discarding",
-			bucket.LowerBound, bucket.UpperBound, bucket.Name,
-		)
+		if !cs.logThrottling.ShouldThrottle() {
+			log.Warnf(
+				"Negative bucket range [%f-%f] for metric %s discarding",
+				bucket.LowerBound, bucket.UpperBound, bucket.Name,
+			)
+		}
 		return
 	}
 
@@ -111,7 +118,9 @@ func (cs *CheckSampler) addBucket(bucket *metrics.HistogramBucket) {
 	}
 
 	if bucket.Value < 0 {
-		log.Warnf("Negative bucket delta %d for metric %s discarding", bucket.Value, bucket.Name)
+		if !cs.logThrottling.ShouldThrottle() {
+			log.Warnf("Negative bucket delta %d for metric %s discarding", bucket.Value, bucket.Name)
+		}
 		return
 	}
 	if bucket.Value == 0 {

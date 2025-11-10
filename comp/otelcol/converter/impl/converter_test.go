@@ -59,24 +59,61 @@ func TestConvert(t *testing.T) {
 		agentConfig    string
 	}{
 		{
-			name:           "extensions/empty-extensions",
-			provided:       "extensions/empty-extensions/config.yaml",
-			expectedResult: "extensions/empty-extensions/config-result.yaml",
+			name:           "extensions/ddflare-and-dd/datadog",
+			provided:       "extensions/ddflare-and-dd/datadog/config.yaml",
+			expectedResult: "extensions/ddflare-and-dd/datadog/config-result.yaml",
+			agentConfig:    "extensions/ddflare-and-dd/datadog/acfg.yaml",
+		},
+
+		{
+			name:           "extensions/empty-extensions/ddflare",
+			provided:       "extensions/empty-extensions/ddflare/config.yaml",
+			expectedResult: "extensions/empty-extensions/ddflare/config-result.yaml",
 		},
 		{
-			name:           "extensions/no-extensions",
-			provided:       "extensions/no-extensions/config.yaml",
-			expectedResult: "extensions/no-extensions/config-result.yaml",
+			name:           "extensions/no-extensions/ddflare",
+			provided:       "extensions/no-extensions/ddflare/config.yaml",
+			expectedResult: "extensions/no-extensions/ddflare/config-result.yaml",
 		},
 		{
-			name:           "extensions/other-extensions",
-			provided:       "extensions/other-extensions/config.yaml",
-			expectedResult: "extensions/other-extensions/config-result.yaml",
+			name:           "extensions/other-extensions/ddflare",
+			provided:       "extensions/other-extensions/ddflare/config.yaml",
+			expectedResult: "extensions/other-extensions/ddflare/config-result.yaml",
 		},
 		{
-			name:           "extensions/no-changes",
-			provided:       "extensions/no-changes/config.yaml",
-			expectedResult: "extensions/no-changes/config.yaml",
+			name:           "extensions/no-changes/ddflare",
+			provided:       "extensions/no-changes/ddflare/config.yaml",
+			expectedResult: "extensions/no-changes/ddflare/config.yaml",
+		},
+		{
+			name:           "extensions/empty-extensions/datadog",
+			provided:       "extensions/empty-extensions/datadog/config.yaml",
+			expectedResult: "extensions/empty-extensions/datadog/config-result.yaml",
+			agentConfig:    "extensions/empty-extensions/datadog/acfg.yaml",
+		},
+		{
+			name:           "extensions/empty-extensions/dd-no-api",
+			provided:       "extensions/empty-extensions/dd-no-api/config.yaml",
+			expectedResult: "extensions/empty-extensions/dd-no-api/config-result.yaml",
+			agentConfig:    "extensions/empty-extensions/dd-no-api/acfg.yaml",
+		},
+		{
+			name:           "extensions/no-extensions/datadog",
+			provided:       "extensions/no-extensions/datadog/config.yaml",
+			expectedResult: "extensions/no-extensions/datadog/config-result.yaml",
+			agentConfig:    "extensions/no-extensions/datadog/acfg.yaml",
+		},
+		{
+			name:           "extensions/other-extensions/datadog",
+			provided:       "extensions/other-extensions/datadog/config.yaml",
+			expectedResult: "extensions/other-extensions/datadog/config-result.yaml",
+			agentConfig:    "extensions/other-extensions/datadog/acfg.yaml",
+		},
+		{
+			name:           "extensions/no-changes/datadog",
+			provided:       "extensions/no-changes/datadog/config.yaml",
+			expectedResult: "extensions/no-changes/datadog/config.yaml",
+			agentConfig:    "extensions/no-changes/datadog/acfg.yaml",
 		},
 		{
 			name:           "processors/empty-processors",
@@ -304,6 +341,48 @@ func TestConvert(t *testing.T) {
 			provided:       "dd-core-cfg/env/empty-profiler-options/config.yaml",
 			expectedResult: "dd-core-cfg/env/empty-profiler-options/config-result.yaml",
 			agentConfig:    "dd-core-cfg/env/empty-profiler-options/acfg.yaml",
+		},
+		{
+			name:           "features/all-features",
+			provided:       "features/all-features/config.yaml",
+			expectedResult: "features/all-features/config-result.yaml",
+			agentConfig:    "features/all-features/acfg.yaml",
+		},
+		{
+			name:           "features/all-extensions-only",
+			provided:       "features/all-extensions-only/config.yaml",
+			expectedResult: "features/all-extensions-only/config-result.yaml",
+			agentConfig:    "features/all-extensions-only/acfg.yaml",
+		},
+		{
+			name:           "features/some-extensions-only",
+			provided:       "features/some-extensions-only/config.yaml",
+			expectedResult: "features/some-extensions-only/config-result.yaml",
+			agentConfig:    "features/some-extensions-only/acfg.yaml",
+		},
+		{
+			name:           "features/infraattributes-only",
+			provided:       "features/infraattributes-only/config.yaml",
+			expectedResult: "features/infraattributes-only/config-result.yaml",
+			agentConfig:    "features/infraattributes-only/acfg.yaml",
+		},
+		{
+			name:           "features/no-features",
+			provided:       "features/no-features/config.yaml",
+			expectedResult: "features/no-features/config.yaml",
+			agentConfig:    "features/no-features/acfg.yaml",
+		},
+		{
+			name:           "features/prometheus-only",
+			provided:       "features/prometheus-only/config.yaml",
+			expectedResult: "features/prometheus-only/config-result.yaml",
+			agentConfig:    "features/prometheus-only/acfg.yaml",
+		},
+		{
+			name:           "features/no-defined-features",
+			provided:       "features/no-defined-features/config.yaml",
+			expectedResult: "features/no-defined-features/config-result.yaml",
+			agentConfig:    "features/no-defined-features/acfg.yaml",
 		},
 	}
 

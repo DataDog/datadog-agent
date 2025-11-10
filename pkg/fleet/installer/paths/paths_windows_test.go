@@ -18,6 +18,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"io/fs"
+	"syscall"
 	"testing"
 )
 
@@ -92,4 +94,48 @@ func assertDACLProtected(t *testing.T, sd *windows.SECURITY_DESCRIPTOR) {
 	control, _, err := sd.Control()
 	require.NoError(t, err)
 	assert.NotZero(t, control&windows.SE_DACL_PROTECTED)
+}
+
+func TestCreateDirIfNotExists(t *testing.T) {
+	t.Run("directory does not exist", func(t *testing.T) {
+		root := t.TempDir()
+		subdir := filepath.Join(root, "newdir")
+		err := createDirIfNotExists(subdir)
+		require.NoError(t, err)
+		info, err := os.Stat(subdir)
+		require.NoError(t, err)
+		assert.True(t, info.IsDir())
+	})
+
+	t.Run("directory already exists", func(t *testing.T) {
+		root := t.TempDir()
+		subdir := filepath.Join(root, "existingdir")
+		err := os.Mkdir(subdir, 0)
+		require.NoError(t, err)
+		err = createDirIfNotExists(subdir)
+		require.NoError(t, err)
+		info, err := os.Stat(subdir)
+		require.NoError(t, err)
+		assert.True(t, info.IsDir())
+	})
+
+	t.Run("path exists but is not a directory", func(t *testing.T) {
+		root := t.TempDir()
+		file := filepath.Join(root, "notadir")
+		err := os.WriteFile(file, []byte("test"), 0)
+		require.NoError(t, err)
+		err = createDirIfNotExists(file)
+		require.Error(t, err)
+		var pathErr *fs.PathError
+		require.ErrorAs(t, err, &pathErr)
+		assert.Equal(t, syscall.ENOTDIR, pathErr.Err)
+	})
+
+	t.Run("parent directory does not exist", func(t *testing.T) {
+		root := t.TempDir()
+		subdir := filepath.Join(root, "nonexistent", "subdir")
+		err := createDirIfNotExists(subdir)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to create directory")
+	})
 }

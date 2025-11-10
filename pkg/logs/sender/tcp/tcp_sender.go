@@ -31,7 +31,7 @@ func NewTCPSender(
 	workersPerQueue int,
 ) *sender.Sender {
 	log.Debugf("Creating a new sender for component %s with %d queues, %d tcp workers", componentName, queueCount, workersPerQueue)
-	pipelineMonitor := metrics.NewTelemetryPipelineMonitor("tcp_sender")
+	pipelineMonitor := metrics.NewTelemetryPipelineMonitor()
 
 	destinationFactory := tcpDestinationFactory(endpoints, destinationsCtx, serverlessMeta, status)
 
@@ -54,7 +54,7 @@ func tcpDestinationFactory(
 	status statusinterface.Status,
 ) sender.DestinationFactory {
 	isServerless := serverlessMeta != nil
-	return func() *client.Destinations {
+	return func(_ string) *client.Destinations {
 		reliable := []client.Destination{}
 		additionals := []client.Destination{}
 		for _, endpoint := range endpoints.GetReliableEndpoints() {

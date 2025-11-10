@@ -84,9 +84,6 @@ func (c *Client) GetAuroraClusterEndpoints(ctx context.Context, dbClusterIdentif
 // of database instances is to first query for the cluster ids. This also means the customer
 // will only have to set a single tag on their cluster.
 func (c *Client) GetAuroraClustersFromTags(ctx context.Context, tags []string) ([]string, error) {
-	if len(tags) == 0 {
-		return nil, fmt.Errorf("at least one tag filter is required")
-	}
 	clusterIdentifiers := make([]string, 0)
 	var marker *string
 	var err error

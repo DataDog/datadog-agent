@@ -33,7 +33,7 @@ func (f *pkgconfigUsagePlugin) BuildAnalyzers() ([]*analysis.Analyzer, error) {
 	return []*analysis.Analyzer{
 		{
 			Name: "pkgconfigusage",
-			Doc:  "ensure github.com/DataDog/datadog-agent/pkg/config is not used inside the components folder",
+			Doc:  "ensure github.com/DataDog/datadog-agent/pkg/config/setup is not used inside the components folder",
 			Run:  f.run,
 		},
 	}, nil
@@ -52,12 +52,12 @@ func (f *pkgconfigUsagePlugin) run(pass *analysis.Pass) (interface{}, error) {
 		}
 
 		for _, imp := range file.Imports {
-			if imp.Path.Value == `"github.com/DataDog/datadog-agent/pkg/config"` {
+			if imp.Path.Value == `"github.com/DataDog/datadog-agent/pkg/config/setup"` {
 				pass.Report(analysis.Diagnostic{
 					Pos:      imp.Pos(),
 					End:      imp.End(),
 					Category: "components",
-					Message:  "github.com/DataDog/datadog-agent/pkg/config should not be used inside comp folder",
+					Message:  "github.com/DataDog/datadog-agent/pkg/config/setup should not be used inside comp folder",
 					SuggestedFixes: []analysis.SuggestedFix{
 						{
 							Message: "Use the config component instead, by declaring it as part of your component's dependencies.",

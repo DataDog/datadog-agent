@@ -60,6 +60,7 @@ func (h *StorageClassHandlers) BuildMessageBody(ctx processors.ProcessorContext,
 		GroupSize:      int32(groupSize),
 		StorageClasses: models,
 		Tags:           util.ImmutableTagsJoin(pctx.Cfg.ExtraTags, pctx.GetCollectorTags()),
+		AgentVersion:   ctx.GetAgentVersion(),
 	}
 }
 

@@ -14,6 +14,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/probe"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 )
 
 // NewSelfTester returns a new SelfTester, enabled or not
@@ -50,6 +51,7 @@ func NewSelfTester(cfg *config.RuntimeSecurityConfig, probe *probe.Probe) (*Self
 		tmpDir:          tmpDir,
 		done:            make(chan bool),
 		config:          cfg,
+		errorTimestamp:  make(map[eval.RuleID]time.Time),
 	}
 
 	return s, nil

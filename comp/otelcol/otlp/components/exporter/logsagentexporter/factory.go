@@ -13,9 +13,11 @@ import (
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
+	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/inframetadata"
+	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes"
 	"github.com/DataDog/datadog-agent/pkg/util/otel"
 
-	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
+	datadogconfig "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog/config"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/config/configretry"
 	exp "go.opentelemetry.io/collector/exporter"
@@ -36,17 +38,21 @@ const (
 type Config struct {
 	OtelSource    string
 	LogSourceName string
-	QueueSettings exporterhelper.QueueBatchConfig
+	QueueSettings exporterhelper.QueueBatchConfig `mapstructure:"sending_queue"`
+
+	// HostMetadata defines the host metadata specific configuration
+	HostMetadata datadogconfig.HostMetadataConfig `mapstructure:"host_metadata"`
 }
 
 type factory struct {
 	logsAgentChannel chan *message.Message
 	gatewayUsage     otel.GatewayUsage
+	reporter         *inframetadata.Reporter
 }
 
 // NewFactoryWithType creates a new logsagentexporter factory with the given type.
-func NewFactoryWithType(logsAgentChannel chan *message.Message, typ component.Type, gatewayUsage otel.GatewayUsage) exp.Factory {
-	f := &factory{logsAgentChannel: logsAgentChannel, gatewayUsage: gatewayUsage}
+func NewFactoryWithType(logsAgentChannel chan *message.Message, typ component.Type, gatewayUsage otel.GatewayUsage, reporter *inframetadata.Reporter) exp.Factory {
+	f := &factory{logsAgentChannel: logsAgentChannel, gatewayUsage: gatewayUsage, reporter: reporter}
 
 	return exp.NewFactory(
 		typ,
@@ -63,7 +69,7 @@ func NewFactoryWithType(logsAgentChannel chan *message.Message, typ component.Ty
 
 // NewFactory creates a new logsagentexporter factory. Should only be used in Agent OTLP ingestion pipelines.
 func NewFactory(logsAgentChannel chan *message.Message, gatewayUsage otel.GatewayUsage) exp.Factory {
-	return NewFactoryWithType(logsAgentChannel, component.MustNewType(TypeStr), gatewayUsage)
+	return NewFactoryWithType(logsAgentChannel, component.MustNewType(TypeStr), gatewayUsage, nil)
 }
 
 func (f *factory) createLogsExporter(
@@ -85,6 +91,9 @@ func (f *factory) createLogsExporter(
 	exporter, err := NewExporterWithGatewayUsage(set.TelemetrySettings, cfg, logSource, f.logsAgentChannel, attributesTranslator, f.gatewayUsage)
 	if err != nil {
 		return nil, err
+	}
+	if f.reporter != nil {
+		exporter.reporter = f.reporter
 	}
 
 	ctx, cancel := context.WithCancel(ctx)

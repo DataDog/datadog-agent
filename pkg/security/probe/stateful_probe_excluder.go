@@ -67,6 +67,10 @@ func (af *availableFunctionsBasedExcluder) ShouldExcludeFunction(name string, pr
 		return false
 	}
 
+	if strings.HasPrefix(prog.SectionName, "uprobe/") || strings.HasPrefix(prog.SectionName, "uretprobe/") {
+		return false
+	}
+
 	if strings.HasPrefix(name, "tail_call") || strings.Contains(name, "dentry_resolver") || strings.Contains(name, "callback") {
 		return false
 	}

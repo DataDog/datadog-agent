@@ -25,7 +25,7 @@ type MetricFamily struct {
 func ParseMetricsWithFilter(data []byte, filter []string) ([]*MetricFamily, error) {
 	// return ParseMetrics(data)
 	reader := NewReader(data, filter)
-	var parser expfmt.TextParser
+	parser := expfmt.NewTextParser(model.LegacyValidation)
 	mf, err := parser.TextToMetricFamilies(reader)
 	if err != nil {
 		return nil, err

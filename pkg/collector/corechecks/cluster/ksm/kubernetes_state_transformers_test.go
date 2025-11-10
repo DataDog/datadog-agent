@@ -1840,6 +1840,73 @@ func Test_validateJob(t *testing.T) {
 	}
 }
 
+func Test_initContainerResourceRequestsTransformer(t *testing.T) {
+	tests := []struct {
+		name     string
+		args     args
+		expected *metricsExpected
+	}{
+		{
+			name: "memory",
+			args: args{
+				name: "kube_pod_init_container_resource_requests",
+				metric: ksmstore.DDMetric{
+					Val: 50000000,
+					Labels: map[string]string{
+						"resource": "memory",
+						"unit":     "byte",
+					},
+				},
+				tags:     []string{"cluster_name:rick-sanchez"},
+				hostname: "garage",
+			},
+			expected: &metricsExpected{
+				name:     "kubernetes_state.initcontainer.memory_requested",
+				val:      50000000,
+				tags:     []string{"cluster_name:rick-sanchez"},
+				hostname: "garage",
+			},
+		},
+		{
+			name: "cpu",
+			args: args{
+				name: "kube_pod_init_container_resource_requests",
+				metric: ksmstore.DDMetric{
+					Val: 2,
+					Labels: map[string]string{
+						"resource": "cpu",
+						"unit":     "core",
+					},
+				},
+				tags:     []string{"cluster_name:rick-sanchez"},
+				hostname: "garage",
+			},
+			expected: &metricsExpected{
+				name:     "kubernetes_state.initcontainer.cpu_requested",
+				val:      2,
+				tags:     []string{"cluster_name:rick-sanchez"},
+				hostname: "garage",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		s := mocksender.NewMockSender("ksm")
+		s.SetupAcceptAll()
+		t.Run(tt.name, func(t *testing.T) {
+			currentTime := time.Now()
+			initContainerResourceRequestsTransformer(s, tt.args.name, tt.args.metric, tt.args.hostname, tt.args.tags, currentTime)
+			if tt.expected != nil {
+				s.AssertMetric(t, "Gauge", tt.expected.name, tt.expected.val, tt.args.hostname, tt.expected.tags)
+				s.AssertNumberOfCalls(t, "Gauge", 1)
+			} else {
+				s.AssertNotCalled(t, "Gauge")
+			}
+		})
+	}
+
+}
+
 func Test_containerResourceRequestsTransformer(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -1931,6 +1998,72 @@ func Test_containerResourceRequestsTransformer(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			currentTime := time.Now()
 			containerResourceRequestsTransformer(s, tt.args.name, tt.args.metric, tt.args.hostname, tt.args.tags, currentTime)
+			if tt.expected != nil {
+				s.AssertMetric(t, "Gauge", tt.expected.name, tt.expected.val, tt.args.hostname, tt.expected.tags)
+				s.AssertNumberOfCalls(t, "Gauge", 1)
+			} else {
+				s.AssertNotCalled(t, "Gauge")
+			}
+		})
+	}
+}
+
+func Test_initContainerResourceLimitsTransformer(t *testing.T) {
+	tests := []struct {
+		name     string
+		args     args
+		expected *metricsExpected
+	}{
+		{
+			name: "memory",
+			args: args{
+				name: "kube_pod_init_container_resource_limits",
+				metric: ksmstore.DDMetric{
+					Val: 50000000,
+					Labels: map[string]string{
+						"resource": "memory",
+						"unit":     "byte",
+					},
+				},
+				tags:     []string{"cluster_name:rick-sanchez"},
+				hostname: "garage",
+			},
+			expected: &metricsExpected{
+				name:     "kubernetes_state.initcontainer.memory_limit",
+				val:      50000000,
+				tags:     []string{"cluster_name:rick-sanchez"},
+				hostname: "garage",
+			},
+		},
+		{
+			name: "cpu",
+			args: args{
+				name: "kube_pod_init_container_resource_limits",
+				metric: ksmstore.DDMetric{
+					Val: 2,
+					Labels: map[string]string{
+						"resource": "cpu",
+						"unit":     "core",
+					},
+				},
+				tags:     []string{"cluster_name:rick-sanchez"},
+				hostname: "garage",
+			},
+			expected: &metricsExpected{
+				name:     "kubernetes_state.initcontainer.cpu_limit",
+				val:      2,
+				tags:     []string{"cluster_name:rick-sanchez"},
+				hostname: "garage",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		s := mocksender.NewMockSender("ksm")
+		s.SetupAcceptAll()
+		t.Run(tt.name, func(t *testing.T) {
+			currentTime := time.Now()
+			initContainerResourceLimitsTransformer(s, tt.args.name, tt.args.metric, tt.args.hostname, tt.args.tags, currentTime)
 			if tt.expected != nil {
 				s.AssertMetric(t, "Gauge", tt.expected.name, tt.expected.val, tt.args.hostname, tt.expected.tags)
 				s.AssertNumberOfCalls(t, "Gauge", 1)

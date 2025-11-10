@@ -2,7 +2,6 @@ import os
 import re
 import sys
 import tempfile
-import uuid
 import zipfile
 from datetime import datetime
 from time import sleep
@@ -11,11 +10,13 @@ from invoke.exceptions import Exit
 
 from tasks.libs.ciproviders.github_api import GithubAPI
 from tasks.libs.common.color import color_message
-from tasks.libs.common.git import get_default_branch
 
 
 def trigger_windows_bump_workflow(
-    repo="buildenv", workflow_name="runner-bump.yml", github_action_ref="master", new_version=None
+    repo="ci-platform-machine-images",
+    workflow_name="windows-runner-agent-bump.yml",
+    github_action_ref="main",
+    new_version=None,
 ):
     """
     Trigger a workflow to bump windows gitlab runner
@@ -25,7 +26,7 @@ def trigger_windows_bump_workflow(
         inputs["new-version"] = new_version
 
     print(
-        "Creating workflow on {} on ref {} with args:\n{}".format(  # noqa: FS002
+        "Creating workflow on {} on ref {} with args:\n{}".format(
             repo, github_action_ref, "\n".join([f"  - {k}: {inputs[k]}" for k in inputs])
         )
     )
@@ -55,119 +56,7 @@ def trigger_windows_bump_workflow(
     return recent_runs[0]
 
 
-def trigger_macos_workflow(
-    workflow_name="macos.yaml",
-    github_action_ref="master",
-    datadog_agent_ref=None,
-    major_version=None,
-    gitlab_pipeline_id=None,
-    bucket_branch=None,
-    version_cache_file_content=None,
-    concurrency_key=None,
-    fast_tests=None,
-    test_washer=False,
-    integrations_core_ref=None,
-):
-    """
-    Trigger a workflow to build a MacOS Agent.
-    """
-
-    datadog_agent_ref = datadog_agent_ref or get_default_branch()
-    inputs = {}
-
-    if datadog_agent_ref is not None:
-        inputs["datadog_agent_ref"] = datadog_agent_ref
-
-    if major_version is not None:
-        inputs["agent_major_version"] = major_version
-
-    if gitlab_pipeline_id is not None:
-        inputs["gitlab_pipeline_id"] = gitlab_pipeline_id
-
-    if bucket_branch is not None:
-        inputs["bucket_branch"] = bucket_branch
-
-    if version_cache_file_content:
-        inputs["version_cache"] = version_cache_file_content
-
-    if concurrency_key is not None:
-        inputs["concurrency_key"] = concurrency_key
-
-    if fast_tests is not None:
-        inputs["fast_tests"] = fast_tests
-
-    if integrations_core_ref is not None:
-        inputs["integrations_core_ref"] = integrations_core_ref
-
-    if test_washer:
-        inputs["test_washer"] = "true"
-
-    # Test-only input, only to be passed to the test workflow
-    if "GO_TEST_SKIP_FLAKE" in os.environ and workflow_name == "test.yaml":
-        inputs["go_test_skip_flake"] = os.environ["GO_TEST_SKIP_FLAKE"]
-
-    # The workflow trigger endpoint doesn't return anything.
-    # You need to create a workflow UUID and fetch it by yourself.
-    # See the following
-    #  - https://github.com/orgs/community/discussions/9752
-    #  - https://github.com/orgs/community/discussions/27226
-    #  - https://stackoverflow.com/questions/69479400/get-run-id-after-triggering-a-github-workflow-dispatch-event
-    workflow_id = str(uuid.uuid1())
-    inputs["id"] = workflow_id
-
-    print(
-        "Creating workflow on datadog-agent-macos-build on commit {} with args:\n{}".format(  # noqa: FS002
-            github_action_ref, "\n".join([f"  - {k}: {inputs[k]}" for k in inputs])
-        )
-    )
-    # Hack: get current time to only fetch workflows that started after now
-    now = datetime.utcnow()
-
-    gh = GithubAPI('DataDog/datadog-agent-macos-build')
-    result = gh.trigger_workflow(workflow_name, github_action_ref, inputs)
-
-    if not result:
-        print("Couldn't trigger workflow run.")
-        raise Exit(code=1)
-
-    # Thus the following hack: Send an id as input when creating a workflow on Github. The worklow will use the id and put it in the name of one of its jobs.
-    # We then fetch workflows and check if it contains the id in its job name.
-
-    # Adding another hack to check if the workflow is not waiting a concurrency to be solved before generating the workflow jobs
-    might_be_waiting = set()
-
-    MAX_WAITING_CONCURRENCY_RETRIES = 3  # Retries for up to 1h45
-    MAX_RETRIES = 30  # Retry for up to 5 minutes
-    for i in range(MAX_WAITING_CONCURRENCY_RETRIES):
-        for j in range(MAX_RETRIES):
-            print(f"Fetching triggered workflow (try {j + 1}/{MAX_RETRIES})")
-            recent_runs = gh.workflow_run_for_ref_after_date(workflow_name, github_action_ref, now)
-            for recent_run in recent_runs:
-                jobs = recent_run.jobs()
-                if jobs.totalCount >= 2:
-                    if recent_run.id in might_be_waiting:
-                        might_be_waiting.remove(recent_run.id)
-                    for job in jobs:
-                        if any(step.name == workflow_id for step in job.steps):
-                            return recent_run
-                else:
-                    might_be_waiting.add(recent_run.id)
-                    print(f"{might_be_waiting} workflows are waiting for jobs to popup...")
-                    sleep(5)
-            sleep(10)
-        if len(might_be_waiting) != 0:
-            print(f"Couldn't find a workflow with expected jobs, and {might_be_waiting} are workflows with no jobs")
-            print(
-                f"This is maybe due to a concurrency issue, retrying ({i + 1}/{MAX_WAITING_CONCURRENCY_RETRIES}) in 30 min"
-            )
-            sleep(1800)
-
-    # Something went wrong :(
-    print("Couldn't fetch workflow run that was triggered.")
-    raise Exit(code=1)
-
-
-def follow_workflow_run(run, repository="DataDog/datadog-agent-macos-build", interval=5):
+def follow_workflow_run(run, repository, interval=5):
     """
     Follow the workflow run until completion and return its conclusion.
     """
@@ -276,7 +165,7 @@ def parse_log_file(log_file):
                 return lines[line_number:]
 
 
-def download_artifacts(run, destination=".", repository="DataDog/datadog-agent-macos-build"):
+def download_artifacts(run, destination, repository):
     """
     Download all artifacts for a given job in the specified location.
     """
@@ -301,14 +190,14 @@ def download_artifacts(run, destination=".", repository="DataDog/datadog-agent-m
                 zip_ref.extractall(destination)
 
 
-def download_logs(run, destination="."):
+def download_logs(run, destination, repo):
     """
     Download all logs for the given run
     """
     print(color_message(f"Downloading logs for run {run.id}", "blue"))
 
     with tempfile.TemporaryDirectory() as tmpdir:
-        workflow = GithubAPI('DataDog/datadog-agent-macos-build')
+        workflow = GithubAPI(repo)
 
         zip_path = workflow.download_logs(run.id, tmpdir)
         # Unzip it in the target destination
@@ -328,13 +217,11 @@ def download_with_retry(
 
     retry = retry_count
 
+    assert repository is not None, "Repository must be provided for download_with_retry"
+
     while retry > 0:
         try:
-            if repository:
-                # download_artifacts with repository argument
-                download_function(run, destination, repository)
-            else:
-                download_function(run, destination)
+            download_function(run, destination, repository)
             print(color_message(f"Download successful for run {run.id} to {destination}", "blue"))
             return
         except (requests.exceptions.RequestException, ConnectionError):

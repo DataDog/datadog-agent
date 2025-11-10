@@ -18,6 +18,7 @@ const (
 type knownError struct {
 	errorMessage string
 	retryType    RetryType
+	maxRetry     int
 }
 
 func getKnownErrors() []knownError {
@@ -26,45 +27,59 @@ func getKnownErrors() []knownError {
 		{
 			errorMessage: `i\/o timeout`,
 			retryType:    ReCreate,
+			maxRetry:     stackUpMaxRetry,
 		},
 		{
 			// https://datadoghq.atlassian.net/browse/ADXT-1
 			errorMessage: `failed attempts: dial tcp :22: connect: connection refused`,
 			retryType:    ReCreate,
+			maxRetry:     stackUpMaxRetry,
 		},
 		{
 			// https://datadoghq.atlassian.net/browse/ADXT-295
 			errorMessage: `Resource provider reported that the resource did not exist while updating`,
 			retryType:    ReCreate,
+			maxRetry:     stackUpMaxRetry,
 		},
 		{
 			// https://datadoghq.atlassian.net/browse/ADXT-558
 			// https://datadoghq.atlassian.net/browse/ADXT-713
 			errorMessage: `Process exited with status \d+: running " sudo cloud-init status --wait"`,
 			retryType:    ReCreate,
+			maxRetry:     stackUpMaxRetry,
 		},
 		{
 			errorMessage: `waiting for ECS Service .+fakeintake-ecs.+ create: timeout while waiting for state to become 'tfSTABLE'`,
 			retryType:    ReCreate,
+			maxRetry:     stackUpMaxRetry,
 		},
 		{
 			errorMessage: `error while waiting for fakeintake`,
 			retryType:    ReCreate,
+			maxRetry:     stackUpMaxRetry,
 		},
 		{
 			errorMessage: `ssh: handshake failed: ssh: unable to authenticate`,
 			retryType:    ReCreate,
+			maxRetry:     stackUpMaxRetry,
 		},
 		{
 			// https://datadoghq.atlassian.net/browse/ADXT-798
 			// https://datadoghq.atlassian.net/browse/ADXT-813
 			errorMessage: `error: awsx:ecs:FargateTaskDefinition resource '.+fakeintake.+' has a problem: grpc: the client connection is closing`,
 			retryType:    ReCreate,
+			maxRetry:     stackUpMaxRetry,
 		},
 		{
 			// https://datadoghq.atlassian.net/browse/ADXT-726
 			errorMessage: `error: .*ssh: rejected: connect failed (No route to host)`,
 			retryType:    ReCreate,
+			maxRetry:     stackUpMaxRetry,
+		},
+		{
+			errorMessage: `error during container init: error setting cgroup config for procHooks process: unable to freeze: unknown`,
+			retryType:    ReUp,
+			maxRetry:     5,
 		},
 	}
 }

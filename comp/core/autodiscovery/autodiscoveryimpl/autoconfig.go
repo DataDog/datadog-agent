@@ -14,28 +14,32 @@ import (
 	"errors"
 	"net/http"
 	"sort"
+	"strconv"
 	"sync"
 	"time"
 
 	"github.com/cenkalti/backoff"
-	"go.uber.org/atomic"
 	"go.uber.org/fx"
+
+	"github.com/DataDog/datadog-agent/pkg/util/slices"
 
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/listeners"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers"
+	providerTypes "github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/types"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/scheduler"
 	autodiscoveryStatus "github.com/DataDog/datadog-agent/comp/core/autodiscovery/status"
 	acTelemetry "github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	logComp "github.com/DataDog/datadog-agent/comp/core/log/def"
-	"github.com/DataDog/datadog-agent/comp/core/secrets"
+	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
@@ -47,7 +51,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
-	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
 
 var listenerCandidateIntl = 30 * time.Second
@@ -55,13 +58,14 @@ var listenerCandidateIntl = 30 * time.Second
 // dependencies is the set of dependencies for the AutoConfig component.
 type dependencies struct {
 	fx.In
-	Lc         fx.Lifecycle
-	Config     configComponent.Component
-	Log        logComp.Component
-	TaggerComp tagger.Component
-	Secrets    secrets.Component
-	WMeta      option.Option[workloadmeta.Component]
-	Telemetry  telemetry.Component
+	Lc          fx.Lifecycle
+	Config      configComponent.Component
+	Log         logComp.Component
+	TaggerComp  tagger.Component
+	Secrets     secrets.Component
+	WMeta       option.Option[workloadmeta.Component]
+	FilterStore workloadfilter.Component
+	Telemetry   telemetry.Component
 }
 
 // AutoConfig implements the agent's autodiscovery mechanism.  It is
@@ -81,18 +85,16 @@ type AutoConfig struct {
 	store                    *store
 	cfgMgr                   configManager
 	serviceListenerFactories map[string]listeners.ServiceListenerFactory
-	providerCatalog          map[string]providers.ConfigProviderFactory
+	providerCatalog          map[string]providerTypes.ConfigProviderFactory
 	wmeta                    option.Option[workloadmeta.Component]
 	taggerComp               tagger.Component
 	logs                     logComp.Component
+	filterStore              workloadfilter.Component
 	telemetryStore           *acTelemetry.Store
 
 	// m covers the `configPollers`, `listenerCandidates`, `listeners`, and `listenerRetryStop`, but
 	// not the values they point to.
 	m sync.RWMutex
-
-	// ranOnce is set to 1 once the AutoConfig has been executed
-	ranOnce *atomic.Bool
 }
 
 const (
@@ -125,7 +127,7 @@ func newProvides(deps dependencies) provides {
 	c := newAutoConfig(deps)
 	return provides{
 		Comp:           c,
-		StatusProvider: status.NewInformationProvider(autodiscoveryStatus.GetProvider(c)),
+		StatusProvider: status.NewInformationProvider(autodiscoveryStatus.GetProvider(c, deps.FilterStore)),
 
 		Endpoint:      api.NewAgentEndpointProvider(c.(*AutoConfig).writeConfigCheck, "/config-check", "GET"),
 		FlareProvider: flaretypes.NewProvider(c.(*AutoConfig).fillFlare),
@@ -174,7 +176,7 @@ func newAutoConfig(deps dependencies) autodiscovery.Component {
 		}
 	}()
 
-	ac := createNewAutoConfig(schController, deps.Secrets, deps.WMeta, deps.TaggerComp, deps.Log, deps.Telemetry)
+	ac := createNewAutoConfig(schController, deps.Secrets, deps.WMeta, deps.TaggerComp, deps.Log, deps.Telemetry, deps.FilterStore)
 	deps.Lc.Append(fx.Hook{
 		OnStart: func(_ context.Context) error {
 			ac.start()
@@ -189,7 +191,7 @@ func newAutoConfig(deps dependencies) autodiscovery.Component {
 }
 
 // createNewAutoConfig creates an AutoConfig instance (without starting).
-func createNewAutoConfig(schedulerController *scheduler.Controller, secretResolver secrets.Component, wmeta option.Option[workloadmeta.Component], taggerComp tagger.Component, logs logComp.Component, telemetryComp telemetry.Component) *AutoConfig {
+func createNewAutoConfig(schedulerController *scheduler.Controller, secretResolver secrets.Component, wmeta option.Option[workloadmeta.Component], taggerComp tagger.Component, logs logComp.Component, telemetryComp telemetry.Component, filterStore workloadfilter.Component) *AutoConfig {
 	cfgMgr := newReconcilingConfigManager(secretResolver)
 	ac := &AutoConfig{
 		configPollers:            make([]*configPoller, 0, 9),
@@ -202,12 +204,12 @@ func createNewAutoConfig(schedulerController *scheduler.Controller, secretResolv
 		store:                    newStore(),
 		cfgMgr:                   cfgMgr,
 		schedulerController:      schedulerController,
-		ranOnce:                  atomic.NewBool(false),
 		serviceListenerFactories: make(map[string]listeners.ServiceListenerFactory),
-		providerCatalog:          make(map[string]providers.ConfigProviderFactory),
+		providerCatalog:          make(map[string]providerTypes.ConfigProviderFactory),
 		wmeta:                    wmeta,
 		taggerComp:               taggerComp,
 		logs:                     logs,
+		filterStore:              filterStore,
 		telemetryStore:           acTelemetry.NewStore(telemetryComp),
 	}
 	return ac
@@ -278,7 +280,7 @@ func (ac *AutoConfig) buildConfigCheckResponse(scrub bool) integration.ConfigChe
 		}
 
 		if scrub {
-			config = ac.scrubConfig(config)
+			config = integration.ScrubCheckConfig(config, ac.logs)
 		}
 
 		configResponses[i] = integration.ConfigResponse{
@@ -295,64 +297,16 @@ func (ac *AutoConfig) buildConfigCheckResponse(scrub bool) integration.ConfigChe
 		unresolved := ac.getUnresolvedConfigs()
 		scrubbedUnresolved := make(map[string]integration.Config, len(unresolved))
 		for id, config := range unresolved {
-			scrubbedUnresolved[id] = ac.scrubConfig(config)
+			scrubbedUnresolved[id] = integration.ScrubCheckConfig(config, ac.logs)
 		}
 		response.Unresolved = scrubbedUnresolved
 	} else {
 		response.Unresolved = ac.getUnresolvedConfigs()
 	}
 
+	response.Services = ac.getActiveServices()
+
 	return response
-}
-
-func (ac *AutoConfig) scrubConfig(config integration.Config) integration.Config {
-	scrubbedConfig := config
-	scrubbedInstances := make([]integration.Data, len(config.Instances))
-	for instanceIndex, inst := range config.Instances {
-		scrubbedData, err := scrubData(inst)
-		if err != nil {
-			ac.logs.Warnf("error scrubbing secrets from config: %s", err)
-			continue
-		}
-		scrubbedInstances[instanceIndex] = scrubbedData
-	}
-	scrubbedConfig.Instances = scrubbedInstances
-
-	if len(config.InitConfig) > 0 {
-		scrubbedData, err := scrubData(config.InitConfig)
-		if err != nil {
-			ac.logs.Warnf("error scrubbing secrets from init config: %s", err)
-			scrubbedConfig.InitConfig = []byte{}
-		} else {
-			scrubbedConfig.InitConfig = scrubbedData
-		}
-	}
-
-	if len(config.MetricConfig) > 0 {
-		scrubbedData, err := scrubData(config.MetricConfig)
-		if err != nil {
-			ac.logs.Warnf("error scrubbing secrets from metric config: %s", err)
-			scrubbedConfig.MetricConfig = []byte{}
-		} else {
-			scrubbedConfig.MetricConfig = scrubbedData
-		}
-	}
-
-	if len(config.LogsConfig) > 0 {
-		scrubbedData, err := scrubData(config.LogsConfig)
-		if err != nil {
-			ac.logs.Warnf("error scrubbing secrets from logs config: %s", err)
-			scrubbedConfig.LogsConfig = []byte{}
-		} else {
-			scrubbedConfig.LogsConfig = scrubbedData
-		}
-	}
-
-	return scrubbedConfig
-}
-
-func scrubData(data []byte) ([]byte, error) {
-	return scrubber.ScrubYaml(data)
 }
 
 // fillFlare add the config-checks log to flares.
@@ -413,7 +367,7 @@ func (ac *AutoConfig) stop() {
 // expects to be polled and at which interval or it's fine for it to be invoked only once in the
 // Agent lifetime.
 // If the config provider is polled, the routine is scheduled right away
-func (ac *AutoConfig) AddConfigProvider(provider providers.ConfigProvider, shouldPoll bool, pollInterval time.Duration) {
+func (ac *AutoConfig) AddConfigProvider(provider providerTypes.ConfigProvider, shouldPoll bool, pollInterval time.Duration) {
 	if shouldPoll && pollInterval <= 0 {
 		log.Warnf("Polling interval <= 0 for AD provider: %s, deactivating polling", provider.String())
 		shouldPoll = false
@@ -447,22 +401,6 @@ func (ac *AutoConfig) LoadAndRun(ctx context.Context) {
 			}
 		}
 	}
-
-	ac.ranOnce.Store(true)
-}
-
-// ForceRanOnceFlag sets the ranOnce flag.  This is used for testing other
-// components that depend on this value.
-func (ac *AutoConfig) ForceRanOnceFlag() {
-	ac.ranOnce.Store(true)
-}
-
-// HasRunOnce returns true if the AutoConfig has ran once.
-func (ac *AutoConfig) HasRunOnce() bool {
-	if ac == nil {
-		return false
-	}
-	return ac.ranOnce.Load()
 }
 
 // GetAllConfigs returns all resolved and non-template configs known to
@@ -480,9 +418,39 @@ func (ac *AutoConfig) GetAllConfigs() []integration.Config {
 	return configs
 }
 
+// GetUnresolvedConfigs returns all resolved and non-template configs known to
+// AutoConfig.
+func (ac *AutoConfig) GetUnresolvedConfigs() []integration.Config {
+	configMap := ac.getUnresolvedConfigs()
+	configs := make([]integration.Config, 0, len(configMap))
+	for _, config := range configMap {
+		configs = append(configs, config)
+	}
+	return configs
+}
+
 // GetTelemetryStore returns autodiscovery telemetry store.
 func (ac *AutoConfig) GetTelemetryStore() *acTelemetry.Store {
 	return ac.telemetryStore
+}
+
+func (ac *AutoConfig) initializeConfiguration(config *integration.Config) error {
+	prg, celADID, compileErr, recErr := createMatchingProgram(config.CELSelector)
+	if compileErr != nil {
+		return compileErr
+	}
+
+	if len(config.ADIdentifiers) == 0 && celADID != "" {
+		// Only throw recError if no explicit ADIDs are defined
+		if recErr != nil {
+			return recErr
+		}
+		config.ADIdentifiers = []string{string(celADID)}
+	}
+
+	config.SetMatchingProgram(prg)
+
+	return nil
 }
 
 // processNewConfig store (in template cache) and resolves a given config,
@@ -496,6 +464,12 @@ func (ac *AutoConfig) processNewConfig(config integration.Config) integration.Co
 		} else if err := config.AddMetrics(metrics); err != nil {
 			log.Infof("Unable to add default metrics to collect to %s check: %s", config.Name, err)
 		}
+	}
+
+	err := ac.initializeConfiguration(&config)
+	if err != nil {
+		log.Errorf("Config %s (source %s) could not initialize: %v", config.Name, config.Source, err)
+		return integration.ConfigChanges{}
 	}
 
 	changes, changedIDsOfSecretsWithConfigs := ac.cfgMgr.processNewConfig(config)
@@ -537,6 +511,7 @@ func (ac *AutoConfig) addListenerCandidates(listenerConfigs []pkgconfigsetup.Lis
 		factoryOptions := listeners.ServiceListernerDeps{
 			Config:    &c,
 			Telemetry: ac.telemetryStore,
+			Filter:    ac.filterStore,
 			Tagger:    ac.taggerComp,
 			Wmeta:     ac.wmeta,
 		}
@@ -622,6 +597,49 @@ func (ac *AutoConfig) getUnresolvedConfigs() map[string]integration.Config {
 	return ac.cfgMgr.getActiveConfigs()
 }
 
+// getActiveServices returns all active services and their metadata.
+func (ac *AutoConfig) getActiveServices() []integration.ServiceResponse {
+	activeSvc := ac.cfgMgr.getActiveServices()
+	serviceResp := make([]integration.ServiceResponse, 0, len(activeSvc))
+	for svcID, svc := range activeSvc {
+		hosts, err := svc.GetHosts()
+		if err != nil {
+			hosts = make(map[string]string)
+		}
+
+		containerPorts, err := svc.GetPorts()
+		ports := make([]string, 0)
+		if err == nil {
+			ports = slices.Map(containerPorts, func(port listeners.ContainerPort) string {
+				return strconv.Itoa(port.Port)
+			})
+		}
+
+		pid, err := svc.GetPid()
+		if err != nil {
+			pid = 0
+		}
+
+		hostname, err := svc.GetHostname()
+		if err != nil {
+			hostname = ""
+		}
+
+		serviceResp = append(serviceResp, integration.ServiceResponse{
+			ServiceID:      svcID,
+			ADIdentifiers:  svc.GetADIdentifiers(),
+			Hosts:          hosts,
+			Ports:          ports,
+			PID:            pid,
+			Hostname:       hostname,
+			IsReady:        svc.IsReady(),
+			FiltersLogs:    svc.HasFilter(workloadfilter.LogsFilter),
+			FiltersMetrics: svc.HasFilter(workloadfilter.MetricsFilter),
+		})
+	}
+	return serviceResp
+}
+
 // GetIDOfCheckWithEncryptedSecrets returns the ID that a checkID had before
 // decrypting its secrets.
 // Returns empty if the check with the given ID does not have any secrets.
@@ -630,7 +648,7 @@ func (ac *AutoConfig) GetIDOfCheckWithEncryptedSecrets(checkID checkid.ID) check
 }
 
 // GetProviderCatalog returns all registered ConfigProviderFactory.
-func (ac *AutoConfig) GetProviderCatalog() map[string]providers.ConfigProviderFactory {
+func (ac *AutoConfig) GetProviderCatalog() map[string]providerTypes.ConfigProviderFactory {
 	return ac.providerCatalog
 }
 
@@ -651,8 +669,8 @@ func (ac *AutoConfig) processDelService(svc listeners.Service) {
 // resulting data structure maps provider name to resource name to a set of
 // unique error messages.  The resource names do not match other identifiers
 // and are only intended for display in diagnostic tools like `agent status`.
-func (ac *AutoConfig) GetAutodiscoveryErrors() map[string]map[string]providers.ErrorMsgSet {
-	errors := map[string]map[string]providers.ErrorMsgSet{}
+func (ac *AutoConfig) GetAutodiscoveryErrors() map[string]map[string]providerTypes.ErrorMsgSet {
+	errors := map[string]map[string]providerTypes.ErrorMsgSet{}
 	for _, cp := range ac.getConfigPollers() {
 		configErrors := cp.provider.GetConfigErrors()
 		if len(configErrors) > 0 {

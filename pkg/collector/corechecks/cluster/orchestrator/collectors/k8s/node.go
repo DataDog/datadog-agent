@@ -11,6 +11,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	k8sProcessors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
+	utilTypes "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/util"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
@@ -38,7 +39,7 @@ type NodeCollector struct {
 
 // NewNodeCollector creates a new collector for the Kubernetes Node resource.
 func NewNodeCollector(metadataAsTags utils.MetadataAsTags) *NodeCollector {
-	resourceType := getResourceType(nodeName, nodeVersion)
+	resourceType := utilTypes.GetResourceType(utilTypes.NodeName, utilTypes.NodeVersion)
 	labelsAsTags := metadataAsTags.GetResourcesLabelsAsTags()[resourceType]
 	annotationsAsTags := metadataAsTags.GetResourcesAnnotationsAsTags()[resourceType]
 
@@ -49,10 +50,10 @@ func NewNodeCollector(metadataAsTags utils.MetadataAsTags) *NodeCollector {
 			IsMetadataProducer:                   true,
 			IsManifestProducer:                   true,
 			SupportsManifestBuffering:            true,
-			Name:                                 nodeName,
+			Name:                                 utilTypes.NodeName,
 			Kind:                                 kubernetes.NodeKind,
 			NodeType:                             orchestrator.K8sNode,
-			Version:                              nodeVersion,
+			Version:                              utilTypes.NodeVersion,
 			LabelsAsTags:                         labelsAsTags,
 			AnnotationsAsTags:                    annotationsAsTags,
 			SupportsTerminatedResourceCollection: true,

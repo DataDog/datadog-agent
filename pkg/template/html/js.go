@@ -195,7 +195,7 @@ func jsValEscaper(args ...any) string {
 		//     x//* error marshaling y:
 		//          second line of error message */null
 		errStr := err.Error()
-		errStr = scriptTagRe.ReplaceAllString(errStr, `\x3C${1}script`)
+		errStr = string(scriptTagRe.ReplaceAll([]byte(errStr), []byte(`\x3C${1}script`)))
 		errStr = strings.ReplaceAll(errStr, "*/", "* /")
 		errStr = strings.ReplaceAll(errStr, "<!--", `\x3C!--`)
 		return fmt.Sprintf(" /* %s */null ", errStr)

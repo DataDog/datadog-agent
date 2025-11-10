@@ -1,0 +1,16 @@
+new-e2e-agent-platform-install-script-macos-x64:
+  extends:
+    - .new_e2e_template
+  stage: e2e_install_packages
+  needs:
+    - !reference [.needs_new_e2e_template]
+    - deploy_dmg_testing-a7_x64
+  rules:
+    - !reference [.except_disable_e2e_tests]
+    - !reference [.on_scheduled_main_on_success]
+    - !reference [.manual]
+  variables:
+    TARGETS: ./tests/agent-platform/macos
+    SHOULD_RUN_IN_FLAKES_FINDER: "false"
+
+

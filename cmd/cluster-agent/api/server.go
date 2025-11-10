@@ -43,6 +43,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	dcametadata "github.com/DataDog/datadog-agent/comp/metadata/clusteragent/def"
+	clusterchecksmetadata "github.com/DataDog/datadog-agent/comp/metadata/clusterchecks/def"
+
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
@@ -58,13 +60,13 @@ var (
 )
 
 // StartServer creates the router and starts the HTTP server
-func StartServer(ctx context.Context, w workloadmeta.Component, taggerComp tagger.Component, ac autodiscovery.Component, statusComponent status.Component, settings settings.Component, cfg config.Component, ipc ipc.Component, diagnoseComponent diagnose.Component, dcametadataComp dcametadata.Component, telemetry telemetry.Component) error {
+func StartServer(ctx context.Context, w workloadmeta.Component, taggerComp tagger.Component, ac autodiscovery.Component, statusComponent status.Component, settings settings.Component, cfg config.Component, ipc ipc.Component, diagnoseComponent diagnose.Component, dcametadataComp dcametadata.Component, clusterChecksMetadataComp clusterchecksmetadata.Component, telemetry telemetry.Component) error {
 	// create the root HTTP router
 	router = mux.NewRouter()
 	apiRouter = router.PathPrefix("/api/v1").Subrouter()
 
 	// IPC REST API server
-	agent.SetupHandlers(router, w, ac, statusComponent, settings, taggerComp, diagnoseComponent, dcametadataComp)
+	agent.SetupHandlers(router, w, ac, statusComponent, settings, taggerComp, diagnoseComponent, dcametadataComp, clusterChecksMetadataComp, ipc)
 
 	// API V1 Metadata APIs
 	v1.InstallMetadataEndpoints(apiRouter, w)
@@ -77,7 +79,7 @@ func StartServer(ctx context.Context, w workloadmeta.Component, taggerComp tagge
 	series.InstallNodeMetricsEndpoints(ctx, v2ApiRouter, cfg)
 
 	// Validate token for every request
-	router.Use(validateToken)
+	router.Use(validateToken(ipc))
 
 	// get the transport we're going to use under HTTP
 	var err error
@@ -111,12 +113,14 @@ func StartServer(ctx context.Context, w workloadmeta.Component, taggerComp tagge
 	})
 
 	maxMessageSize := cfg.GetInt("cluster_agent.cluster_tagger.grpc_max_message_size")
-	opts := []grpc.ServerOption{
-		grpc.StreamInterceptor(grpc_auth.StreamServerInterceptor(authInterceptor)),
-		grpc.UnaryInterceptor(grpc_auth.UnaryServerInterceptor(authInterceptor)),
+
+	// Use the convenience function that chains metrics and auth interceptors
+	opts := grpcutil.ServerOptionsWithMetricsAndAuth(
+		grpc_auth.UnaryServerInterceptor(authInterceptor),
+		grpc_auth.StreamServerInterceptor(authInterceptor),
 		grpc.MaxSendMsgSize(maxMessageSize),
 		grpc.MaxRecvMsgSize(maxMessageSize),
-	}
+	)
 
 	grpcSrv := grpc.NewServer(opts...)
 	// event size should be small enough to fit within the grpc max message size
@@ -162,22 +166,28 @@ func StopServer() {
 
 // We only want to maintain 1 API and expose an external route to serve the cluster level metadata.
 // As we have 2 different tokens for the validation, we need to validate accordingly.
-func validateToken(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		path := r.URL.String()
-		var isValid bool
-		if !isExternalPath(path) {
-			if err := util.Validate(w, r); err == nil {
-				isValid = true
+func validateToken(ipc ipc.Component) mux.MiddlewareFunc {
+	dcaTokenValidator := util.TokenValidator(util.GetDCAAuthToken)
+	localTokenGetter := util.TokenValidator(ipc.GetAuthToken)
+
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			path := r.URL.String()
+			var isValid bool
+			// If communication is intra-pod
+			if !isExternalPath(path) {
+				if err := localTokenGetter(w, r); err == nil {
+					isValid = true
+				}
 			}
-		}
-		if !isValid {
-			if err := util.ValidateDCARequest(w, r); err != nil {
-				return
+			if !isValid {
+				if err := dcaTokenValidator(w, r); err != nil {
+					return
+				}
 			}
-		}
-		next.ServeHTTP(w, r)
-	})
+			next.ServeHTTP(w, r)
+		})
+	}
 }
 
 // isExternal returns whether the path is an endpoint used by Node Agents.
@@ -198,5 +208,6 @@ func isExternalPath(path string) bool {
 		strings.HasPrefix(path, "/api/v1/tags/cf/apps/") && len(strings.Split(path, "/")) == 7 ||
 		strings.HasPrefix(path, "/api/v1/tags/namespace/") && len(strings.Split(path, "/")) == 6 ||
 		strings.HasPrefix(path, "/api/v1/tags/node/") && len(strings.Split(path, "/")) == 6 ||
-		strings.HasPrefix(path, "/api/v1/tags/pod/") && (len(strings.Split(path, "/")) == 6 || len(strings.Split(path, "/")) == 8)
+		strings.HasPrefix(path, "/api/v1/tags/pod/") && (len(strings.Split(path, "/")) == 6 || len(strings.Split(path, "/")) == 8) ||
+		strings.HasPrefix(path, "/api/v1/uid/node/") && len(strings.Split(path, "/")) == 6
 }

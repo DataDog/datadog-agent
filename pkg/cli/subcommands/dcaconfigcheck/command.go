@@ -15,7 +15,10 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
+	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	secretsnoopfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx-noop"
 	clusterAgentFlare "github.com/DataDog/datadog-agent/pkg/flare/clusteragent"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -52,6 +55,8 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 					LogParams:    log.ForOneShot("CLUSTER", "off", true),
 				}),
 				core.Bundle(),
+				secretsnoopfx.Module(),
+				ipcfx.ModuleReadOnly(),
 			)
 		},
 	}
@@ -61,8 +66,8 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 	return cmd
 }
 
-func run(_ log.Component, _ config.Component, cliParams *cliParams) error {
-	if err := clusterAgentFlare.GetClusterAgentConfigCheck(color.Output, cliParams.verbose); err != nil {
+func run(_ log.Component, _ config.Component, cliParams *cliParams, client ipc.HTTPClient) error {
+	if err := clusterAgentFlare.GetClusterAgentConfigCheck(color.Output, cliParams.verbose, client); err != nil {
 		return fmt.Errorf("the agent ran into an error while checking config: %w", err)
 	}
 

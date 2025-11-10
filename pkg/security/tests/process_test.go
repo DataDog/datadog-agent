@@ -26,6 +26,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/process"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
@@ -33,6 +34,7 @@ import (
 	"github.com/avast/retry-go/v4"
 	"github.com/oliveagle/jsonpath"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/syndtr/gocapability/capability"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
@@ -294,7 +296,7 @@ func TestProcessContext(t *testing.T) {
 		})
 	})
 
-	test.Run(t, "args-envs", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+	test.RunMultiMode(t, "args-envs", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
 		args := []string{"-al", "--password", "secret", "--custom", "secret"}
 		envs := []string{"LD_LIBRARY_PATH=/tmp/lib", "DD_API_KEY=dd-api-key"}
 		test.WaitSignal(t, func() error {
@@ -363,7 +365,7 @@ func TestProcessContext(t *testing.T) {
 		}))
 	})
 
-	test.Run(t, "envp", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+	test.RunMultiMode(t, "envp", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
 		args := []string{"-al", "http://example.com"}
 		envs := []string{"ENVP=test"}
 
@@ -399,17 +401,22 @@ func TestProcessContext(t *testing.T) {
 	})
 
 	t.Run("args-options", func(t *testing.T) {
-		lsExecutable := which(t, "ls")
-
 		test.WaitSignal(t, func() error {
-			cmd := exec.Command(lsExecutable, "--block-size", "123")
-			return cmd.Run()
+			return runSyscallTesterFunc(context.Background(), t, syscallTester, "check", "--block-size=123")
 		}, test.validateExecEvent(t, noWrapperType, func(_ *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_rule_args_options")
 		}))
 	})
 
-	test.Run(t, "args-overflow-single", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+	t.Run("args-options-2", func(t *testing.T) {
+		test.WaitSignal(t, func() error {
+			return runSyscallTesterFunc(context.Background(), t, syscallTester, "check", "--block-size", "123")
+		}, test.validateExecEvent(t, noWrapperType, func(_ *model.Event, rule *rules.Rule) {
+			assertTriggeredRule(t, rule, "test_rule_args_options")
+		}))
+	})
+
+	test.RunMultiMode(t, "args-overflow-single", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
 		args := []string{"-al"}
 		envs := []string{"LD_LIBRARY_PATH=/tmp/lib"}
 
@@ -453,7 +460,7 @@ func TestProcessContext(t *testing.T) {
 		}))
 	})
 
-	test.Run(t, "args-overflow-list-50", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+	test.RunMultiMode(t, "args-overflow-list-50", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
 		envs := []string{"LD_LIBRARY_PATH=/tmp/lib"}
 
 		// number of args overflow
@@ -500,7 +507,7 @@ func TestProcessContext(t *testing.T) {
 		}
 	})
 
-	test.Run(t, "args-overflow-list-500", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+	test.RunMultiMode(t, "args-overflow-list-500", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
 		envs := []string{"LD_LIBRARY_PATH=/tmp/lib"}
 
 		// number of args overflow
@@ -555,7 +562,7 @@ func TestProcessContext(t *testing.T) {
 		}
 	})
 
-	test.Run(t, "envs-overflow-single", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+	test.RunMultiMode(t, "envs-overflow-single", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
 		args := []string{"-al"}
 		envs := []string{"LD_LIBRARY_PATH=/tmp/lib"}
 
@@ -602,7 +609,7 @@ func TestProcessContext(t *testing.T) {
 		}))
 	})
 
-	test.Run(t, "envs-overflow-list-50", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+	test.RunMultiMode(t, "envs-overflow-list-50", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
 		args := []string{"-al"}
 
 		// number of envs overflow
@@ -659,7 +666,7 @@ func TestProcessContext(t *testing.T) {
 		}
 	})
 
-	test.Run(t, "envs-overflow-list-500", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+	test.RunMultiMode(t, "envs-overflow-list-500", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
 		args := []string{"-al"}
 
 		// number of envs overflow
@@ -804,7 +811,7 @@ func TestProcessContext(t *testing.T) {
 		})
 	})
 
-	test.Run(t, "ancestors", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+	test.RunMultiMode(t, "ancestors", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
 		testFile, _, err := test.Path("test-process-ancestors")
 		if err != nil {
 			t.Fatal(err)
@@ -830,7 +837,7 @@ func TestProcessContext(t *testing.T) {
 		})
 	})
 
-	test.Run(t, "parent", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+	test.RunMultiMode(t, "parent", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
 		testFile, _, err := test.Path("test-process-parent")
 		if err != nil {
 			t.Fatal(err)
@@ -857,7 +864,7 @@ func TestProcessContext(t *testing.T) {
 		})
 	})
 
-	test.Run(t, "pid1", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+	test.RunMultiMode(t, "pid1", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
 		SkipIfNotAvailable(t)
 
 		testFile, _, err := test.Path("test-process-pid1")
@@ -882,7 +889,7 @@ func TestProcessContext(t *testing.T) {
 		})
 	})
 
-	test.Run(t, "service-tag", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+	test.RunMultiMode(t, "service-tag", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
 		testFile, _, err := test.Path("test-event-service")
 		if err != nil {
 			t.Fatal(err)
@@ -909,7 +916,7 @@ func TestProcessContext(t *testing.T) {
 		})
 	})
 
-	test.Run(t, "ancestors-args", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+	test.RunMultiMode(t, "ancestors-args", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
 		testFile, _, err := test.Path("test-ancestors-args")
 		if err != nil {
 			t.Fatal(err)
@@ -929,7 +936,7 @@ func TestProcessContext(t *testing.T) {
 		})
 	})
 
-	test.Run(t, "args-envs-dedup", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+	test.RunMultiMode(t, "args-envs-dedup", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
 		shell, args, envs := "sh", []string{"-x", "-c", "ls -al test123456; echo"}, []string{"DEDUP=dedup123"}
 
 		test.WaitSignal(t, func() error {
@@ -980,7 +987,7 @@ func TestProcessContext(t *testing.T) {
 		}))
 	})
 
-	test.Run(t, "self-exec", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+	test.RunMultiMode(t, "self-exec", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
 		args := []string{"self-exec", "selfexec123", "abc"}
 		envs := []string{}
 
@@ -997,7 +1004,7 @@ func TestProcessContext(t *testing.T) {
 		}))
 	})
 
-	test.Run(t, "container-id", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+	test.RunMultiMode(t, "container-id", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
 		testFile, _, err := test.Path("test-container")
 		if err != nil {
 			t.Fatal(err)
@@ -1017,15 +1024,15 @@ func TestProcessContext(t *testing.T) {
 			assert.Equal(t, "test_rule_container", rule.ID, "wrong rule triggered")
 
 			if kind == dockerWrapperType {
-				assert.Equal(t, event.Exec.Process.ContainerID, event.ProcessContext.ContainerID)
-				assert.Equal(t, event.Exec.Process.ContainerID, event.ProcessContext.Ancestor.ContainerID)
-				assert.Equal(t, event.Exec.Process.ContainerID, event.ProcessContext.Parent.ContainerID)
+				assert.Equal(t, event.Exec.Process.ContainerContext.ContainerID, event.ProcessContext.Process.ContainerContext.ContainerID)
+				assert.Equal(t, event.Exec.Process.ContainerContext.ContainerID, event.ProcessContext.Ancestor.ContainerContext.ContainerID)
+				assert.Equal(t, event.Exec.Process.ContainerContext.ContainerID, event.ProcessContext.Parent.ContainerContext.ContainerID)
 			}
 		}))
 	})
 
 	testProcessContextRule := func(t *testing.T, ruleID, filename string) {
-		test.Run(t, ruleID, func(t *testing.T, _ wrapperType, _ func(cmd string, args []string, envs []string) *exec.Cmd) {
+		t.Run(ruleID, func(t *testing.T) {
 			testFile, _, err := test.Path(filename)
 			if err != nil {
 				t.Fatal(err)
@@ -1338,9 +1345,7 @@ func TestProcessExec(t *testing.T) {
 
 	t.Run("exec-in-pthread", func(t *testing.T) {
 		test.WaitSignal(t, func() error {
-			args := []string{"exec-in-pthread", executable, "/dev/null"}
-			cmd := exec.Command(syscallTester, args...)
-			return cmd.Run()
+			return runSyscallTesterFunc(context.Background(), t, syscallTester, "exec-in-pthread", executable, "/dev/null")
 		}, test.validateExecEvent(t, noWrapperType, func(event *model.Event, _ *rules.Rule) {
 			assertFieldEqual(t, event, "exec.file.path", executable)
 			assertFieldEqual(t, event, "process.parent.file.name", "syscall_tester", "wrong process parent file name")
@@ -1487,28 +1492,31 @@ func TestProcessExecExit(t *testing.T) {
 	assert.NotEmpty(t, execPid, "exec pid not found")
 
 	// make sure that the process cache entry of the process was properly deleted from the cache
-	err = retry.Do(func() error {
-		if !ebpfLessEnabled {
-			p, ok := test.probe.PlatformProbe.(*sprobe.EBPFProbe)
-			if !ok {
-				t.Skip("not supported")
-			}
+	if !ebpfLessEnabled {
+		p, ok := test.probe.PlatformProbe.(*sprobe.EBPFProbe)
+		if !ok {
+			t.Skip("not supported")
+		}
+		err = retry.Do(func() error {
 			entry := p.Resolvers.ProcessResolver.Get(execPid)
 			if entry != nil {
 				return errors.New("the process cache entry was not deleted from the user space cache")
 			}
-		} else {
-			p, ok := test.probe.PlatformProbe.(*sprobe.EBPFLessProbe)
-			if !ok {
-				t.Skip("not supported")
-			}
+			return nil
+		})
+	} else {
+		p, ok := test.probe.PlatformProbe.(*sprobe.EBPFLessProbe)
+		if !ok {
+			t.Skip("not supported")
+		}
+		err = retry.Do(func() error {
 			entry := p.Resolvers.ProcessResolver.Resolve(process.CacheResolverKey{Pid: execPid, NSID: nsID})
 			if entry != nil {
 				return errors.New("the process cache entry was not deleted from the user space cache")
 			}
-		}
-		return nil
-	})
+			return nil
+		})
+	}
 	if err != nil {
 		t.Error(err)
 	}
@@ -1906,8 +1914,12 @@ func TestProcessExit(t *testing.T) {
 	})
 }
 
-func TestProcessBusybox(t *testing.T) {
+func TestProcessBusyboxSymlink(t *testing.T) {
 	SkipIfNotAvailable(t)
+
+	if _, err := whichNonFatal("docker"); err != nil {
+		t.Skip("Skip test where docker is unavailable")
+	}
 
 	ruleDefs := []*rules.RuleDefinition{
 		{
@@ -1936,8 +1948,7 @@ func TestProcessBusybox(t *testing.T) {
 
 	wrapper, err := newDockerCmdWrapper(test.Root(), test.Root(), "alpine", "")
 	if err != nil {
-		t.Skip("docker no available")
-		return
+		t.Fatalf("failed to start docker wrapper: %v", err)
 	}
 
 	wrapper.Run(t, "busybox-1", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
@@ -1985,6 +1996,66 @@ func TestProcessBusybox(t *testing.T) {
 			return nil
 		}, func(_ *model.Event, rule *rules.Rule) {
 			assert.Equal(t, "test_busybox_4", rule.ID, "wrong rule triggered")
+		})
+	})
+}
+
+func TestProcessBusyboxHardlink(t *testing.T) {
+	SkipIfNotAvailable(t)
+
+	if _, err := whichNonFatal("docker"); err != nil {
+		t.Skip("Skip test where docker is unavailable")
+	}
+
+	checkKernelCompatibility(t, "Not supported on kernels < 5.12", func(kv *kernel.Version) bool {
+		return kv.Code < kernel.Kernel5_12
+	})
+
+	ruleDefs := []*rules.RuleDefinition{
+		{
+			ID:         "test_busybox_hardlink_1",
+			Expression: `exec.file.path == "/bin/free" && exec.argv in ["-m"]`,
+		},
+		{
+			ID:         "test_busybox_hardlink_2",
+			Expression: `exec.file.path == "/bin/date" && exec.argv in ["-R"]`,
+		},
+	}
+
+	test, err := newTestModule(t, nil, ruleDefs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
+	// busybox uses hardlinks
+	wrapper, err := newDockerCmdWrapper(test.Root(), test.Root(), "busybox", "")
+	if err != nil {
+		t.Fatalf("failed to create docker wrapper: %v", err)
+	}
+
+	wrapper.Run(t, "busybox-1", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+		test.WaitSignal(t, func() error {
+			cmd := cmdFunc("/bin/free", []string{"-m"}, nil)
+			if out, err := cmd.CombinedOutput(); err != nil {
+				return fmt.Errorf("%s: %w", out, err)
+			}
+			return nil
+		}, func(event *model.Event, rule *rules.Rule) {
+			assert.Equal(t, "test_busybox_hardlink_1", rule.ID, "wrong rule triggered")
+			assert.Greater(t, event.Exec.FileEvent.NLink, uint32(1), event.Exec.FileEvent.PathnameStr)
+		})
+
+		// check that the cache is not used (having the same path_key)
+		test.WaitSignal(t, func() error {
+			cmd := cmdFunc("/bin/date", []string{"-R"}, nil)
+			if out, err := cmd.CombinedOutput(); err != nil {
+				return fmt.Errorf("%s: %w", out, err)
+			}
+			return nil
+		}, func(event *model.Event, rule *rules.Rule) {
+			assert.Equal(t, "test_busybox_hardlink_2", rule.ID, "wrong rule triggered")
+			assert.Greater(t, event.Exec.FileEvent.NLink, uint32(1), event.Exec.FileEvent.PathnameStr)
 		})
 	})
 }
@@ -2139,7 +2210,7 @@ chmod 755 pyscript.py
 	defer testModule.Close()
 
 	for _, test := range tests {
-		testModule.Run(t, test.name, func(t *testing.T, _ wrapperType, _ func(cmd string, args []string, envs []string) *exec.Cmd) {
+		testModule.RunMultiMode(t, test.name, func(t *testing.T, _ wrapperType, _ func(cmd string, args []string, envs []string) *exec.Cmd) {
 			scriptLocation := filepath.Join(os.TempDir(), test.scriptName)
 			if scriptWriteErr := os.WriteFile(scriptLocation, []byte(test.executedScript), 0755); scriptWriteErr != nil {
 				t.Fatalf("could not write %s: %s", scriptLocation, scriptWriteErr)
@@ -2247,7 +2318,7 @@ func TestProcessResolution(t *testing.T) {
 			assert.Equal(t, entry1.FileEvent.PathnameStr, entry2.FileEvent.PathnameStr)
 			assert.Equal(t, entry1.Pid, entry2.Pid)
 			assert.Equal(t, entry1.PPid, entry2.PPid)
-			assert.Equal(t, entry1.ContainerID, entry2.ContainerID)
+			assert.Equal(t, entry1.ProcessContext.Process.ContainerContext.ContainerID, entry2.ProcessContext.Process.ContainerContext.ContainerID)
 			if checkCookie {
 				assert.Equal(t, entry1.Cookie, entry2.Cookie)
 			}
@@ -2394,4 +2465,39 @@ func TestProcessFilelessExecution(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestSymLinkResolution(t *testing.T) {
+	SkipIfNotAvailable(t)
+
+	ruleDefs := []*rules.RuleDefinition{
+		{
+			ID:         "symlink_true_exec",
+			Expression: `exec.file.name == "true"`,
+		},
+	}
+
+	test, err := newTestModule(t, nil, ruleDefs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
+	t.Run("exec true via symlink", func(t *testing.T) {
+		tmpLink := filepath.Join(t.TempDir(), "my_symlink")
+		err := os.Symlink("/bin/true", tmpLink)
+		require.NoError(t, err)
+
+		test.WaitSignal(t, func() error {
+			cmd := exec.Command(tmpLink)
+			cmd.Stdout = io.Discard
+			cmd.Stderr = io.Discard
+			_ = cmd.Run()
+			return nil
+		}, func(event *model.Event, rule *rules.Rule) {
+			assertTriggeredRule(t, rule, "symlink_true_exec")
+			assert.True(t, event.Exec.IsThroughSymLink, "event.Process.IsThroughSymLink not matching")
+		})
+		assert.NoError(t, err)
+	})
 }

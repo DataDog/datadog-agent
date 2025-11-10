@@ -75,7 +75,7 @@ type ContainerdItf interface {
 	CallWithClientContext(namespace string, f func(context.Context) error) error
 	IsSandbox(namespace string, ctn containerd.Container) (bool, error)
 	MountImage(ctx context.Context, expiration time.Duration, namespace string, img containerd.Image, targetDir string) (func(context.Context) error, error)
-	Mounts(ctx context.Context, expiration time.Duration, namespace string, img containerd.Image) ([]mount.Mount, error)
+	Mounts(ctx context.Context, expiration time.Duration, namespace string, img containerd.Image) ([]mount.Mount, func(context.Context) error, error)
 }
 
 // ContainerdUtil is the util used to interact with the Containerd api.
@@ -390,18 +390,21 @@ func (c *ContainerdUtil) IsSandbox(namespace string, ctn containerd.Container) (
 	return labels["io.cri-containerd.kind"] == "sandbox", nil
 }
 
-// getMounts retrieves mounts and returns a function to clean the snapshot and release the lease. The lease is already released in error cases.
-func (c *ContainerdUtil) getMounts(ctx context.Context, expiration time.Duration, namespace string, img containerd.Image) ([]mount.Mount, func(context.Context) error, error) {
-	snapshotter := containerd.DefaultSnapshotter
+// Mounts retrieves mounts and returns a function to clean the snapshot and release the lease. The lease is already released in error cases.
+func (c *ContainerdUtil) Mounts(ctx context.Context, expiration time.Duration, namespace string, img containerd.Image) ([]mount.Mount, func(context.Context) error, error) {
+	snapshotter := "nydus"
 	ctx = namespaces.WithNamespace(ctx, namespace)
 
 	// Checking if image is already unpacked
 	imgUnpacked, err := img.IsUnpacked(ctx, snapshotter)
 	if err != nil {
-		return nil, nil, fmt.Errorf("unable to check if image named: %s is unpacked, err: %w", img.Name(), err)
+		snapshotter = containerd.DefaultSnapshotter
+		if imgUnpacked, err = img.IsUnpacked(ctx, snapshotter); err != nil {
+			return nil, nil, fmt.Errorf("unable to check if image named: %s is unpacked, err: %w", img.Name(), err)
+		}
 	}
 	if !imgUnpacked {
-		return nil, nil, fmt.Errorf("unable to scan image named: %s, image is not unpacked", img.Name())
+		return nil, nil, fmt.Errorf("unable to scan image named: %s, image is not unpacked for snapshotter %s", img.Name(), snapshotter)
 	}
 
 	// Getting image id
@@ -497,21 +500,9 @@ func (c *ContainerdUtil) getMounts(ctx context.Context, expiration time.Duration
 	}, nil
 }
 
-// Mounts returns the mounts for an image
-func (c *ContainerdUtil) Mounts(ctx context.Context, expiration time.Duration, namespace string, img containerd.Image) ([]mount.Mount, error) {
-	mounts, clean, err := c.getMounts(ctx, expiration, namespace, img)
-	if err != nil {
-		return nil, err
-	}
-	if err := clean(ctx); err != nil {
-		return nil, fmt.Errorf("unable to clean snapshot, err: %w", err)
-	}
-	return mounts, nil
-}
-
 // MountImage mounts an image to a directory
 func (c *ContainerdUtil) MountImage(ctx context.Context, expiration time.Duration, namespace string, img containerd.Image, targetDir string) (func(context.Context) error, error) {
-	mounts, clean, err := c.getMounts(ctx, expiration, namespace, img)
+	mounts, clean, err := c.Mounts(ctx, expiration, namespace, img)
 	if err != nil {
 		return nil, err
 	}

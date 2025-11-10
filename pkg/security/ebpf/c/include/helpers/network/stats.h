@@ -49,16 +49,19 @@ __attribute__((always_inline)) int flush_network_stats(u32 pid, struct active_fl
     // process context
     fill_network_process_context(&evt->process, pid, entry->netns);
 
+    u64 sched_cls_has_current_pid_tgid_helper = 0;
+    LOAD_CONSTANT("sched_cls_has_current_pid_tgid_helper", sched_cls_has_current_pid_tgid_helper);
+    if (sched_cls_has_current_pid_tgid_helper) {
+        // reset and fill span context
+        reset_span_context(&evt->span);
+        fill_span_context(&evt->span);
+    }
+
     // network context
     fill_network_device_context(&evt->device, entry->netns, entry->ifindex);
 
     struct proc_cache_t *proc_cache_entry = get_proc_cache(pid);
-    if (proc_cache_entry == NULL) {
-        evt->container.container_id[0] = 0;
-    } else {
-        copy_container_id_no_tracing(proc_cache_entry->container.container_id, &evt->container.container_id);
-        evt->container.cgroup_context = proc_cache_entry->container.cgroup_context;
-    }
+    fill_cgroup_context(proc_cache_entry, &evt->cgroup);
 
     evt->flows_count = 0;
 
@@ -84,8 +87,8 @@ __attribute__((always_inline)) int flush_network_stats(u32 pid, struct active_fl
         } else {
             // we copied only the flow without the stats - better to get at least the flow than nothing at all
 #if defined(DEBUG_NETWORK_FLOW)
-            bpf_printk("no stats for sp:%d sa0:%lu sa1:%lu", ns_flow_tmp.flow.sport, ns_flow_tmp.flow.saddr[0], ns_flow_tmp.flow.saddr[1]);
-            bpf_printk("             dp:%d da0:%lu da1:%lu", ns_flow_tmp.flow.dport, ns_flow_tmp.flow.daddr[0], ns_flow_tmp.flow.daddr[1]);
+            bpf_printk("no stats for sp:%d sa0:%lu sa1:%lu", ns_flow_tmp.flow.tcp_udp.sport, ns_flow_tmp.flow.saddr[0], ns_flow_tmp.flow.saddr[1]);
+            bpf_printk("             dp:%d da0:%lu da1:%lu", ns_flow_tmp.flow.tcp_udp.dport, ns_flow_tmp.flow.daddr[0], ns_flow_tmp.flow.daddr[1]);
             bpf_printk("             netns:%lu l3:%d l4:%d", ns_flow_tmp.netns, ns_flow_tmp.flow.l3_protocol, ns_flow_tmp.flow.l4_protocol);
 #endif
         }
@@ -110,6 +113,11 @@ __attribute__((always_inline)) void flush_pid_network_stats(u32 pid, void *ctx, 
 }
 
 __attribute__((always_inline)) void count_pkt(struct __sk_buff *skb, struct packet_t *pkt) {
+    // only count TCP & UDP packets for now
+    if (pkt->ns_flow.flow.l4_protocol != IPPROTO_TCP && pkt->ns_flow.flow.l4_protocol != IPPROTO_UDP) {
+        return;
+    }
+
     struct namespaced_flow_t ns_flow = pkt->translated_ns_flow;
     if (pkt->network_direction == INGRESS) {
         // EGRESS was arbitrarily chosen as "the 5-tuple order for indexing flow statistics".
@@ -135,8 +143,8 @@ __attribute__((always_inline)) void count_pkt(struct __sk_buff *skb, struct pack
     }
 
 #if defined(DEBUG_NETWORK_FLOW)
-    bpf_printk("added stats for sp:%d sa0:%lu sa1:%lu", ns_flow.flow.sport, ns_flow.flow.saddr[0], ns_flow.flow.saddr[1]);
-    bpf_printk("                dp:%d da0:%lu da1:%lu", ns_flow.flow.dport, ns_flow.flow.daddr[0], ns_flow.flow.daddr[1]);
+    bpf_printk("added stats for sp:%d sa0:%lu sa1:%lu", ns_flow.flow.tcp_udp.sport, ns_flow.flow.saddr[0], ns_flow.flow.saddr[1]);
+    bpf_printk("                dp:%d da0:%lu da1:%lu", ns_flow.flow.tcp_udp.dport, ns_flow.flow.daddr[0], ns_flow.flow.daddr[1]);
     bpf_printk("                netns:%lu l3:%d l4:%d", ns_flow.netns, ns_flow.flow.l3_protocol, ns_flow.flow.l4_protocol);
 #endif
 

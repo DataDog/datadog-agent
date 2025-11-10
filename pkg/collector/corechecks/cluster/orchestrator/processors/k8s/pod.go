@@ -136,6 +136,7 @@ func (h *PodHandlers) BuildMessageBody(ctx processors.ProcessorContext, resource
 		Tags:         util.ImmutableTagsJoin(pctx.Cfg.ExtraTags, pctx.GetCollectorTags()),
 		Info:         pctx.SystemInfo,
 		IsTerminated: ctx.IsTerminatedResources(),
+		AgentVersion: ctx.GetAgentVersion(),
 	}
 }
 

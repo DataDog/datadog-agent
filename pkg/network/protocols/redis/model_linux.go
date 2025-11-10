@@ -20,6 +20,7 @@ import (
 // We use this wrapper to avoid recomputing the same values (key name) multiple times.
 type EventWrapper struct {
 	*EbpfEvent
+	*EbpfKey
 
 	keyNameSet bool
 	keyName    *intern.StringValue
@@ -28,8 +29,8 @@ type EventWrapper struct {
 }
 
 // NewEventWrapper creates a new EventWrapper from an ebpf event.
-func NewEventWrapper(e *EbpfEvent) *EventWrapper {
-	return &EventWrapper{EbpfEvent: e}
+func NewEventWrapper(e *EbpfEvent, k *EbpfKey) *EventWrapper {
+	return &EventWrapper{EbpfEvent: e, EbpfKey: k}
 }
 
 // ConnTuple returns the connection tuple for the transaction
@@ -45,20 +46,20 @@ func (e *EventWrapper) ConnTuple() types.ConnectionKey {
 }
 
 // getFragment returns the actual query fragment from the event.
-func getFragment(e *EbpfTx) []byte {
-	if e.Buf_len == 0 {
+func getFragment(e *EbpfKey) []byte {
+	if e.Len == 0 {
 		return nil
 	}
-	if e.Buf_len > uint16(len(e.Buf)) {
+	if e.Len > uint16(len(e.Buf)) {
 		return e.Buf[:len(e.Buf)]
 	}
-	return e.Buf[:e.Buf_len]
+	return e.Buf[:e.Len]
 }
 
 // KeyName returns the key name of the key.
 func (e *EventWrapper) KeyName() *intern.StringValue {
-	if !e.keyNameSet {
-		e.keyName = Interner.Get(getFragment(&e.Tx))
+	if !e.keyNameSet && e.EbpfKey != nil {
+		e.keyName = Interner.Get(getFragment(e.EbpfKey))
 		e.keyNameSet = true
 	}
 	return e.keyName
@@ -75,7 +76,10 @@ func (e *EventWrapper) CommandType() CommandType {
 
 // RequestLatency returns the latency of the request in nanoseconds
 func (e *EventWrapper) RequestLatency() float64 {
-	if uint64(e.Tx.Request_started) == 0 || uint64(e.Tx.Response_last_seen) == 0 {
+	if e.Tx.Request_started == 0 || e.Tx.Response_last_seen == 0 {
+		return 0
+	}
+	if e.Tx.Response_last_seen < e.Tx.Request_started {
 		return 0
 	}
 	return protocols.NSTimestampToFloat(e.Tx.Response_last_seen - e.Tx.Request_started)
@@ -92,7 +96,7 @@ ebpfTx{
 func (e *EventWrapper) String() string {
 	var output strings.Builder
 	var truncatedPath string
-	if e.Tx.Truncated {
+	if e.EbpfKey != nil && e.Truncated {
 		truncatedPath = " (truncated)"
 	}
 	output.WriteString(fmt.Sprintf(template, e.CommandType(), e.KeyName().Get(), truncatedPath, e.RequestLatency()))

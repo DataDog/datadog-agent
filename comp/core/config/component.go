@@ -10,9 +10,6 @@
 // will return the same results as that package.  This is to support migration
 // to a component architecture.  When no code still uses pkg/config, that
 // package will be removed.
-//
-// The mock component does nothing at startup, beginning with an empty config.
-// It also overwrites the pkg/config.Datadog for the duration of the test.
 package config
 
 import (

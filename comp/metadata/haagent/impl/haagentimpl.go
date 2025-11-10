@@ -8,7 +8,6 @@ package haagentimpl
 
 import (
 	"encoding/json"
-	"fmt"
 	"maps"
 	"net/http"
 	"sync"
@@ -37,13 +36,6 @@ func (p *Payload) MarshalJSON() ([]byte, error) {
 	return json.Marshal((*PayloadAlias)(p))
 }
 
-// SplitPayload implements marshaler.AbstractMarshaler#SplitPayload.
-//
-// In this case, the payload can't be split any further.
-func (p *Payload) SplitPayload(_ int) ([]marshaler.AbstractMarshaler, error) {
-	return nil, fmt.Errorf("could not split inventories agent payload any more, payload is too big for intake")
-}
-
 type haagentimpl struct {
 	util.InventoryPayload
 
@@ -59,7 +51,6 @@ func (i *haagentimpl) refreshMetadata() {
 	isEnabled := i.haAgent.Enabled()
 
 	if !isEnabled {
-		i.log.Infof("HA Agent Metadata unavailable as HA Agent is disabled")
 		i.data = nil
 		return
 	}

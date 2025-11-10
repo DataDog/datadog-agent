@@ -25,8 +25,6 @@ import (
 	"github.com/DataDog/gopsutil/host"
 	// using process.AllProcesses()
 	"github.com/DataDog/gopsutil/process"
-
-	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 )
 
 var (
@@ -983,8 +981,6 @@ func TestBootTimeLocalFS(t *testing.T) {
 }
 
 func TestBootTimeRefresh(t *testing.T) {
-	// https://datadoghq.atlassian.net/browse/PROCS-3981
-	flake.Mark(t)
 	probe := getProbeWithPermission(WithBootTimeRefreshInterval(500*time.Millisecond), WithProcFSRoot("resources/test_procfs/proc/"))
 	defer probe.Close()
 

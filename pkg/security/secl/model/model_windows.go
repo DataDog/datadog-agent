@@ -20,8 +20,7 @@ import (
 func (m *Model) NewEvent() eval.Event {
 	return &Event{
 		BaseEvent: BaseEvent{
-			ContainerContext: &ContainerContext{},
-			Os:               runtime.GOOS,
+			Os: runtime.GOOS,
 		},
 	}
 }
@@ -30,11 +29,23 @@ func (m *Model) NewEvent() eval.Event {
 func NewFakeEvent() *Event {
 	return &Event{
 		BaseEvent: BaseEvent{
-			FieldHandlers:    &FakeFieldHandlers{},
-			ContainerContext: &ContainerContext{},
-			Os:               runtime.GOOS,
+			FieldHandlers: &FakeFieldHandlers{},
+			Os:            runtime.GOOS,
 		},
 	}
+}
+
+// ResolveProcessCacheEntryFromPID stub implementation
+func (fh *FakeFieldHandlers) ResolveProcessCacheEntryFromPID(pid uint32) *ProcessCacheEntry {
+	return GetPlaceholderProcessCacheEntry(pid)
+}
+
+var processContextZero = ProcessCacheEntry{}
+
+// GetPlaceholderProcessCacheEntry returns an empty process cache entry for failed process resolutions
+func GetPlaceholderProcessCacheEntry(pid uint32) *ProcessCacheEntry {
+	processContextZero.Pid = pid
+	return &processContextZero
 }
 
 // ValidateField validates the value of a field
@@ -48,8 +59,6 @@ func (m *Model) ValidateField(field eval.Field, fieldValue eval.FieldValue) erro
 
 // Event represents an event sent from the kernel
 // genaccessors
-// gengetter: GetContainerId
-// gengetter: GetContainerId
 // gengetter: GetEventService
 // gengetter: GetExecFilePath
 // gengetter: GetExitCode
@@ -81,12 +90,21 @@ type Event struct {
 	ChangePermission ChangePermissionEvent `field:"change_permission" event:"change_permission" ` // [7.55] [Registry] A permission change was made
 }
 
-var eventZero = Event{BaseEvent: BaseEvent{ContainerContext: &ContainerContext{}, Os: runtime.GOOS}}
+// NewEventZeroer returns a function that can be used to zero an Event
+func NewEventZeroer() func(*Event) {
+	var eventZero = Event{BaseEvent: BaseEvent{Os: runtime.GOOS}}
 
-// Zero the event
-func (e *Event) Zero() {
-	*e = eventZero
-	*e.BaseEvent.ContainerContext = containerContextZero
+	return func(e *Event) {
+		*e = eventZero
+	}
+}
+
+// GetContainerID returns event's process container ID if any
+func (e *Event) GetContainerID() string {
+	if e.ProcessContext == nil {
+		return ""
+	}
+	return string(e.ProcessContext.Process.ContainerContext.ContainerID)
 }
 
 // FileEvent is the common file event type
@@ -94,6 +112,7 @@ type FileEvent struct {
 	FileObject  uint64 `field:"-"`                                                                                      // handle numeric value
 	PathnameStr string `field:"path,handler:ResolveFilePath,opts:length|gen_getters" op_override:"eval.WindowsPathCmp"` // SECLDoc[path] Definition:`File's path` Example:`exec.file.path == "c:\cmd.bat"` Description:`Matches the execution of the file located at c:\cmd.bat`
 	BasenameStr string `field:"name,handler:ResolveFileBasename,opts:length" op_override:"eval.CaseInsensitiveCmp"`     // SECLDoc[name] Definition:`File's basename` Example:`exec.file.name == "cmd.bat"` Description:`Matches the execution of any file named cmd.bat.`
+	Extension   string `field:"extension,handler:ResolveFileExtension" op_override:"eval.CaseInsensitiveCmp"`           // SECLDoc[extension] Definition:`File's extension`
 }
 
 // FimFileEvent is the common file event type
@@ -102,6 +121,7 @@ type FimFileEvent struct {
 	PathnameStr     string `field:"device_path,handler:ResolveFimFilePath,opts:length" op_override:"eval.WindowsPathCmp"`  // SECLDoc[device_path] Definition:`File's path` Example:`create.file.device_path == "\device\harddisk1\cmd.bat"` Description:`Matches the creation of the file located at c:\cmd.bat`
 	UserPathnameStr string `field:"path,handler:ResolveFileUserPath,opts:length" op_override:"eval.WindowsPathCmp"`        // SECLDoc[path] Definition:`File's path` Example:`create.file.path == "c:\cmd.bat"` Description:`Matches the creation of the file located at c:\cmd.bat`
 	BasenameStr     string `field:"name,handler:ResolveFimFileBasename,opts:length" op_override:"eval.CaseInsensitiveCmp"` // SECLDoc[name] Definition:`File's basename` Example:`create.file.name == "cmd.bat"` Description:`Matches the creation of any file named cmd.bat.`
+	Extension       string `field:"extension,handler:ResolveFimFileExtension" op_override:"eval.CaseInsensitiveCmp"`       // SECLDoc[extension] Definition:`File's extension`
 }
 
 // RegistryEvent is the common registry event type
@@ -116,7 +136,7 @@ type Process struct {
 
 	FileEvent FileEvent `field:"file"`
 
-	ContainerID string `field:"container.id"` // SECLDoc[container.id] Definition:`Container ID`
+	ContainerContext ContainerContext `field:"container"` // SECLDoc[container] Definition:`Container`
 
 	ExitTime time.Time `field:"exit_time,opts:getters_only|gen_getters"`
 	ExecTime time.Time `field:"exec_time,opts:getters_only|gen_getters"`
@@ -124,6 +144,8 @@ type Process struct {
 	CreatedAt uint64 `field:"created_at,handler:ResolveProcessCreatedAt"` // SECLDoc[created_at] Definition:`Timestamp of the creation of the process`
 
 	PPid uint32 `field:"ppid"` // SECLDoc[ppid] Definition:`Parent process ID`
+
+	TracerTags []string `field:"-"` // Tags from APM tracer instrumentation
 
 	ArgsEntry *ArgsEntry `field:"-"`
 	EnvsEntry *EnvsEntry `field:"-"`
@@ -220,9 +242,9 @@ func SetAncestorFields(_ *ProcessCacheEntry, _ string, _ interface{}) (bool, err
 	return true, nil
 }
 
-// Hash returns a unique key for the entity
-func (pc *ProcessCacheEntry) Hash() string {
-	return strconv.Itoa(int(pc.Pid))
+// Key returns a unique key for the entity
+func (pc *ProcessCacheEntry) Key() (string, bool) {
+	return strconv.Itoa(int(pc.Pid)), true
 }
 
 // ParentScope returns the parent entity scope

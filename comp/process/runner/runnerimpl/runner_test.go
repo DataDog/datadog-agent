@@ -16,9 +16,10 @@ import (
 
 	model "github.com/DataDog/agent-payload/v5/process"
 
-	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
+	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -33,7 +34,7 @@ import (
 )
 
 func TestRunnerLifecycle(t *testing.T) {
-	_ = createDeps(t)
+	_ = createDeps(t, nil)
 }
 
 func TestRunnerRealtime(t *testing.T) {
@@ -43,14 +44,12 @@ func TestRunnerRealtime(t *testing.T) {
 		rtChan := make(chan types.RTResponse)
 
 		deps := createDeps(t,
+			map[string]interface{}{"process_config.disable_realtime_checks": false},
 			fx.Provide(
 				// Cast `chan types.RTResponse` to `<-chan types.RTResponse`.
 				// We can't use `fx.As` because `<-chan types.RTResponse` is not an interface.
 				func() <-chan types.RTResponse { return rtChan },
 			),
-			fx.Replace(config.MockParams{Overrides: map[string]interface{}{
-				"process_config.disable_realtime_checks": false,
-			}}),
 		)
 
 		rtChan <- types.RTResponse{
@@ -69,10 +68,7 @@ func TestRunnerRealtime(t *testing.T) {
 		rtChan := make(chan types.RTResponse, 1)
 
 		deps := createDeps(t,
-			fx.Replace(config.MockParams{Overrides: map[string]interface{}{
-				"process_config.disable_realtime_checks": true,
-			}}),
-
+			map[string]interface{}{"process_config.disable_realtime_checks": true},
 			fx.Provide(
 				// Cast `chan types.RTResponse` to `<-chan types.RTResponse`.
 				// We can't use `fx.As` because `<-chan types.RTResponse` is not an interface.
@@ -93,7 +89,7 @@ func TestRunnerRealtime(t *testing.T) {
 }
 
 func TestProvidedChecks(t *testing.T) {
-	deps := createDeps(t)
+	deps := createDeps(t, nil)
 	providedChecks := deps.Runner.GetProvidedChecks()
 
 	var checkNames []string
@@ -110,11 +106,8 @@ type Deps struct {
 	Runner runner.Component
 }
 
-func createDeps(t *testing.T, options ...fx.Option) Deps {
+func createDeps(t *testing.T, confOverrides map[string]interface{}, options ...fx.Option) Deps {
 	return fxutil.Test[Deps](t, fx.Options(
-		fx.Supply(
-			core.BundleParams{},
-		),
 		Module(),
 		submitterimpl.MockModule(),
 		hostinfoimpl.MockModule(),
@@ -123,10 +116,12 @@ func createDeps(t *testing.T, options ...fx.Option) Deps {
 		processcheckimpl.MockModule(),
 		containercheckimpl.MockModule(),
 
-		core.MockBundle(),
+		fx.Provide(func(t testing.TB) log.Component { return logmock.New(t) }),
+		fx.Provide(func(t testing.TB) config.Component { return config.NewMockWithOverrides(t, confOverrides) }),
 		workloadmetafx.Module(workloadmeta.NewParams()),
 		fx.Provide(func(t testing.TB) tagger.Component { return taggerfxmock.SetupFakeTagger(t) }),
 		fx.Options(options...),
+		sysprobeconfigimpl.MockModule(),
 	))
 }
 

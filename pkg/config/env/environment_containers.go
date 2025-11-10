@@ -43,6 +43,7 @@ func init() {
 	registerFeature(Kubernetes)
 	registerFeature(ECSEC2)
 	registerFeature(ECSFargate)
+	registerFeature(ECSManagedInstances)
 	registerFeature(EKSFargate)
 	registerFeature(KubeOrchestratorExplorer)
 	registerFeature(ECSOrchestratorExplorer)
@@ -61,6 +62,7 @@ func IsAnyContainerFeaturePresent() bool {
 		IsFeaturePresent(Kubernetes) ||
 		IsFeaturePresent(ECSEC2) ||
 		IsFeaturePresent(ECSFargate) ||
+		IsFeaturePresent(ECSManagedInstances) ||
 		IsFeaturePresent(EKSFargate) ||
 		IsFeaturePresent(CloudFoundry) ||
 		IsFeaturePresent(Podman)
@@ -197,6 +199,15 @@ func detectAWSEnvironments(features FeatureMap, cfg model.Reader) {
 		return
 	}
 
+	if IsECSManagedInstances() {
+		features[ECSManagedInstances] = struct{}{}
+		if cfg.GetBool("orchestrator_explorer.enabled") &&
+			cfg.GetBool("ecs_task_collection_enabled") {
+			features[ECSOrchestratorExplorer] = struct{}{}
+		}
+		return
+	}
+
 	if cfg.GetBool("eks_fargate") {
 		features[EKSFargate] = struct{}{}
 		features[Kubernetes] = struct{}{}
@@ -248,11 +259,7 @@ func detectPodResources(features FeatureMap, cfg model.Reader) {
 	}
 }
 
-func detectNVML(features FeatureMap, cfg model.Reader) {
-	if !cfg.GetBool("enable_nvml_detection") {
-		return
-	}
-
+func detectNVML(features FeatureMap, _ model.Reader) {
 	// Use dlopen to search for the library to avoid importing the go-nvml package here,
 	// which is 1MB in size and would increase the agent binary size, when we don't really
 	// need it for anything else.

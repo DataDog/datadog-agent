@@ -26,20 +26,20 @@ var (
 
 // mockConfig should only be used in tests
 type mockConfig struct {
-	model.Config
+	model.BuildableConfig
 }
 
 // New creates a mock for the config
-func New(t testing.TB) model.Config {
+func New(t testing.TB) model.BuildableConfig {
 	m.Lock()
 	defer m.Unlock()
 	if isConfigMocked {
 		// The configuration is already mocked.
-		return &mockConfig{setup.Datadog()}
+		return &mockConfig{setup.GlobalConfigBuilder()}
 	}
 
 	isConfigMocked = true
-	originalDatadogConfig := setup.Datadog()
+	originalDatadogConfig := setup.GlobalConfigBuilder()
 	t.Cleanup(func() {
 		m.Lock()
 		defer m.Unlock()
@@ -52,12 +52,13 @@ func New(t testing.TB) model.Config {
 	// Configuration defaults
 	setup.SetDatadog(newCfg) // nolint forbidigo legitimate use of SetDatadog
 	setup.InitConfig(newCfg)
+	newCfg.BuildSchema()
 	newCfg.SetTestOnlyDynamicSchema(true)
 	return &mockConfig{newCfg}
 }
 
 // NewFromYAML creates a mock for the config and load the give YAML
-func NewFromYAML(t testing.TB, yamlData string) model.Config {
+func NewFromYAML(t testing.TB, yamlData string) model.BuildableConfig {
 	conf := New(t)
 	conf.SetConfigType("yaml")
 	err := conf.ReadConfig(bytes.NewBuffer([]byte(yamlData)))
@@ -66,7 +67,7 @@ func NewFromYAML(t testing.TB, yamlData string) model.Config {
 }
 
 // NewFromFile creates a mock for the config and load the give YAML
-func NewFromFile(t testing.TB, yamlFilePath string) model.Config {
+func NewFromFile(t testing.TB, yamlFilePath string) model.BuildableConfig {
 	conf := New(t)
 	conf.SetConfigType("yaml")
 	conf.SetConfigFile(yamlFilePath)
@@ -76,7 +77,7 @@ func NewFromFile(t testing.TB, yamlFilePath string) model.Config {
 }
 
 // NewSystemProbe creates a mock for the system-probe config
-func NewSystemProbe(t testing.TB) model.Config {
+func NewSystemProbe(t testing.TB) model.BuildableConfig {
 	// We only check isSystemProbeConfigMocked when registering a cleanup function. 'isSystemProbeConfigMocked'
 	// avoids nested calls to Mock to reset the config to a blank state. This way we have only one mock per test and
 	// test helpers can call Mock.
@@ -85,11 +86,11 @@ func NewSystemProbe(t testing.TB) model.Config {
 		defer m.Unlock()
 		if isSystemProbeConfigMocked {
 			// The configuration is already mocked.
-			return &mockConfig{setup.SystemProbe()}
+			return &mockConfig{setup.GlobalSystemProbeConfigBuilder()}
 		}
 
 		isSystemProbeConfigMocked = true
-		originalConfig := setup.SystemProbe()
+		originalConfig := setup.GlobalSystemProbeConfigBuilder()
 		t.Cleanup(func() {
 			m.Lock()
 			defer m.Unlock()
@@ -101,9 +102,9 @@ func NewSystemProbe(t testing.TB) model.Config {
 	// Configure Datadog global configuration
 	setup.SetSystemProbe(create.NewConfig("system-probe")) // nolint forbidigo legitimate use of SetSystemProbe
 	// Configuration defaults
-	setup.InitSystemProbeConfig(setup.SystemProbe())
+	setup.InitSystemProbeConfig(setup.GlobalSystemProbeConfigBuilder())
 	setup.SystemProbe().SetTestOnlyDynamicSchema(true)
-	return &mockConfig{setup.SystemProbe()}
+	return &mockConfig{setup.GlobalSystemProbeConfigBuilder()}
 }
 
 // SetDefaultConfigType sets the config type for the mock config in use

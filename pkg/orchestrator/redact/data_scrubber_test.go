@@ -34,7 +34,7 @@ func TestMatchSimpleCommand(t *testing.T) {
 	scrubber.AddCustomSensitiveWords(customSensitiveWords)
 
 	for i := range cases {
-		cases[i].cmdline, _ = scrubber.ScrubSimpleCommand(cases[i].cmdline)
+		cases[i].cmdline, _, _ = scrubber.ScrubSimpleCommand(cases[i].cmdline, nil)
 		assert.Equal(t, cases[i].parsedCmdline, cases[i].cmdline)
 	}
 }
@@ -45,7 +45,7 @@ func TestMatchNoMatchCommand(t *testing.T) {
 	scrubber := NewDefaultDataScrubber()
 
 	for i := range cases {
-		cases[i].cmdline, _ = scrubber.ScrubSimpleCommand(cases[i].cmdline)
+		cases[i].cmdline, _, _ = scrubber.ScrubSimpleCommand(cases[i].cmdline, nil)
 		assert.Equal(t, cases[i].parsedCmdline, cases[i].cmdline)
 	}
 }
@@ -67,7 +67,7 @@ func TestMatchSimpleCommandScrubRegex(t *testing.T) {
 	scrubber.AddCustomSensitiveRegex(wildcards)
 
 	for i := range cases {
-		cases[i].cmdline, _ = scrubber.ScrubSimpleCommand(cases[i].cmdline)
+		cases[i].cmdline, _, _ = scrubber.ScrubSimpleCommand(cases[i].cmdline, nil)
 		assert.Equal(t, cases[i].parsedCmdline, cases[i].cmdline)
 	}
 }

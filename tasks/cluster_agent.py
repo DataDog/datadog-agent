@@ -12,11 +12,10 @@ import tempfile
 from invoke import task
 from invoke.exceptions import Exit
 
-from tasks.build_tags import get_default_build_tags
+from tasks.build_tags import compute_build_tags_for_flavor
 from tasks.cluster_agent_helpers import build_common, clean_common, refresh_assets_common, version_common
 from tasks.cws_instrumentation import BIN_PATH as CWS_INSTRUMENTATION_BIN_PATH
-from tasks.gointegrationtest import CLUSTER_AGENT_IT_CONF, containerized_integration_tests
-from tasks.libs.releasing.version import load_dependencies
+from tasks.libs.dependencies import get_effective_dependencies_env
 
 # constants
 BIN_PATH = os.path.join(".", "bin", "datadog-cluster-agent")
@@ -35,7 +34,6 @@ def build(
     development=True,
     skip_assets=False,
     policies_version=None,
-    major_version='7',
 ):
     """
     Build Cluster Agent
@@ -46,7 +44,7 @@ def build(
     build_common(
         ctx,
         BIN_PATH,
-        get_default_build_tags(build="cluster-agent"),
+        compute_build_tags_for_flavor(build="cluster-agent", build_include=build_include, build_exclude=build_exclude),
         "",
         rebuild,
         build_include,
@@ -54,12 +52,12 @@ def build(
         race,
         development,
         skip_assets,
-        major_version=major_version,
+        cover=os.getenv("E2E_COVERAGE_PIPELINE") == "true",
     )
 
     if policies_version is None:
         print("Loading dependencies from release.json")
-        env = load_dependencies(ctx)
+        env = get_effective_dependencies_env()
         if "SECURITY_AGENT_POLICIES_VERSION" in env:
             policies_version = env["SECURITY_AGENT_POLICIES_VERSION"]
             print(f"Security Agent polices: {policies_version}")
@@ -67,9 +65,7 @@ def build(
     build_context = "Dockerfiles/cluster-agent"
     policies_path = f"{build_context}/security-agent-policies"
     ctx.run(f"rm -rf {policies_path}")
-    ctx.run(f"git clone {POLICIES_REPO} {policies_path}")
-    if policies_version != "master":
-        ctx.run(f"cd {policies_path} && git checkout {policies_version}")
+    ctx.run(f"git clone --branch={policies_version} --depth=1 {POLICIES_REPO} {policies_path}")
 
 
 @task
@@ -86,21 +82,6 @@ def clean(ctx):
     Remove temporary objects and binary artifacts
     """
     clean_common(ctx, "datadog-cluster-agent")
-
-
-@task
-def integration_tests(ctx, race=False, remote_docker=False, go_mod="readonly", timeout=""):
-    """
-    Run integration tests for cluster-agent
-    """
-    containerized_integration_tests(
-        ctx,
-        CLUSTER_AGENT_IT_CONF,
-        race=race,
-        remote_docker=remote_docker,
-        go_mod=go_mod,
-        timeout=timeout,
-    )
 
 
 @task
@@ -152,7 +133,9 @@ def image_build(ctx, arch=None, tag=AGENT_TAG, push=False):
     shutil.copy2(latest_file, exec_path)
     shutil.copy2(latest_cws_instrumentation_file, cws_instrumentation_exec_path)
     shutil.copytree("Dockerfiles/agent/nosys-seccomp", f"{build_context}/nosys-seccomp", dirs_exist_ok=True)
-    ctx.run(f"docker build -t {tag} --platform linux/{arch} {build_context} -f {dockerfile_path}")
+    ctx.run(
+        f"docker build -t {tag} --platform linux/{arch} {build_context} -f {dockerfile_path} --build-context artifacts={build_context}"
+    )
     ctx.run(f"rm {exec_path}")
     ctx.run(f"rm -rf {cws_instrumentation_base}")
 

@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	k8sProcessors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
+	utilTypes "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/util"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
@@ -45,7 +46,7 @@ type TerminatedPodCollector struct {
 // NewTerminatedPodCollector creates a new collector for the Kubernetes Pod
 // resource that is not assigned to any node.
 func NewTerminatedPodCollector(cfg config.Component, store workloadmeta.Component, tagger tagger.Component, metadataAsTags utils.MetadataAsTags) *TerminatedPodCollector {
-	resourceType := getResourceType(podName, podVersion)
+	resourceType := utilTypes.GetResourceType(utilTypes.PodName, utilTypes.PodVersion)
 	labelsAsTags := metadataAsTags.GetResourcesLabelsAsTags()[resourceType]
 	annotationsAsTags := metadataAsTags.GetResourcesAnnotationsAsTags()[resourceType]
 
@@ -56,10 +57,10 @@ func NewTerminatedPodCollector(cfg config.Component, store workloadmeta.Componen
 			IsMetadataProducer:                   true,
 			IsManifestProducer:                   true,
 			SupportsManifestBuffering:            true,
-			Name:                                 "terminated-pods",
+			Name:                                 utilTypes.TerminatedPodName,
 			Kind:                                 kubernetes.PodKind,
 			NodeType:                             orchestrator.K8sPod,
-			Version:                              "v1",
+			Version:                              utilTypes.PodVersion,
 			LabelsAsTags:                         labelsAsTags,
 			AnnotationsAsTags:                    annotationsAsTags,
 			SupportsTerminatedResourceCollection: true,

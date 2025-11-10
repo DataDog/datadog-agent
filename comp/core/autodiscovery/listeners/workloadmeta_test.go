@@ -9,18 +9,22 @@ package listeners
 
 import (
 	"context"
+	"fmt"
+	"strings"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
 	"go.uber.org/fx"
+
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
+	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
-	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -31,7 +35,6 @@ type wlmListenerSvc struct {
 
 type testWorkloadmetaListener struct {
 	t        *testing.T
-	filters  *containerFilters
 	store    workloadmeta.Component
 	services map[string]wlmListenerSvc
 }
@@ -59,11 +62,6 @@ func (l *testWorkloadmetaListener) AddService(svcID string, svc Service, parentS
 	}
 }
 
-// IsExcluded returns if a container should be excluded
-func (l *testWorkloadmetaListener) IsExcluded(ft containers.FilterType, annotations map[string]string, name string, image string, ns string) bool {
-	return l.filters.IsExcluded(ft, annotations, name, image, ns)
-}
-
 func (l *testWorkloadmetaListener) assertServices(expectedServices map[string]wlmListenerSvc) {
 	for svcID, expectedSvc := range expectedServices {
 		actualSvc, ok := l.services[svcID]
@@ -72,34 +70,53 @@ func (l *testWorkloadmetaListener) assertServices(expectedServices map[string]wl
 			continue
 		}
 
-		assert.Equal(l.t, expectedSvc, actualSvc)
+		if diff := cmp.Diff(expectedSvc, actualSvc,
+			cmp.AllowUnexported(wlmListenerSvc{}, WorkloadService{}),
+			cmpopts.IgnoreFields(WorkloadService{}, "tagger", "wmeta")); diff != "" {
+			l.t.Errorf("service %q mismatch (-want +got):\n%s", svcID, diff)
+		}
+
+		// Compare filter values
+		filters := []workloadfilter.Scope{
+			workloadfilter.GlobalFilter,
+			workloadfilter.LogsFilter,
+			workloadfilter.MetricsFilter,
+		}
+
+		for _, filter := range filters {
+			expectedHasFilter := expectedSvc.service.HasFilter(filter)
+			actualHasFilter := actualSvc.service.HasFilter(filter)
+			if expectedHasFilter != actualHasFilter {
+				l.t.Errorf("service %q %s mismatch: want %v, got %v",
+					svcID, filter, expectedHasFilter, actualHasFilter)
+			}
+		}
 
 		delete(l.services, svcID)
 	}
 
 	if len(l.services) > 0 {
-		l.t.Errorf("got unexpected services: %+v", l.services)
+		var serviceDetails []string
+		for svcID, svc := range l.services {
+			detail := fmt.Sprintf("ID: %s, Parent: %q, Service: %s", svcID, svc.parent, svc.service)
+			serviceDetails = append(serviceDetails, detail)
+		}
+		l.t.Errorf("got unexpected services:\n%s", strings.Join(serviceDetails, "\n"))
 	}
 }
 
 func newTestWorkloadmetaListener(t *testing.T) *testWorkloadmetaListener {
-	filters := newContainerFilters()
-	if filters == nil {
-		t.Fatal("got nil containers filter")
-	}
-
 	w := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		fx.Supply(config.Params{}),
 		fx.Supply(log.Params{}),
 		fx.Provide(func() log.Component { return logmock.New(t) }),
-		config.MockModule(),
+		fx.Provide(func() config.Component { return config.NewMock(t) }),
 		fx.Supply(context.Background()),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
 
 	return &testWorkloadmetaListener{
 		t:        t,
-		filters:  filters,
 		store:    w,
 		services: make(map[string]wlmListenerSvc),
 	}

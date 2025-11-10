@@ -13,7 +13,6 @@ import (
 	"strconv"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	klogv1 "k8s.io/klog"
 	klogv2 "k8s.io/klog/v2"
 )
 
@@ -53,6 +52,5 @@ func init() {
 	// out of the log instead of having an output for each severity. having
 	// an output just for the lowest level captures the logs on all enabled
 	// severities just once.
-	klogv1.SetOutputBySeverity("INFO", log.NewKlogRedirectLogger(6))
 	klogv2.SetOutputBySeverity("INFO", log.NewKlogRedirectLogger(7))
 }

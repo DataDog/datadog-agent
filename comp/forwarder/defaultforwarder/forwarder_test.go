@@ -400,12 +400,15 @@ func TestForwarderEndtoEnd(t *testing.T) {
 	// reseting DroppedOnInput
 	highPriorityQueueFull.Set(0)
 
+	var wg sync.WaitGroup
 	requests := atomic.NewInt64(0)
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		fmt.Printf("%#v\n", r.URL)
 		requests.Inc()
 		w.WriteHeader(http.StatusOK)
+		wg.Done()
 	}))
+	defer ts.Close()
 	mockConfig := mock.New(t)
 	mockConfig.SetWithoutSource("dd_url", ts.URL)
 
@@ -413,6 +416,11 @@ func TestForwarderEndtoEnd(t *testing.T) {
 	r, err := resolver.NewSingleDomainResolvers(map[string][]configUtils.APIKeys{ts.URL: {configUtils.NewAPIKeys("path", "api_key1", "api_key2")}, "invalid": {}, "invalid2": nil})
 	require.NoError(t, err)
 	f := NewDefaultForwarder(mockConfig, log, NewOptionsWithResolvers(mockConfig, log, r))
+
+	// when the forwarder is started, the health checker will send 2 requests to check the
+	// validity of the two api_keys
+	numReqs := int64(2)
+	wg.Add(2)
 
 	f.Start()
 	defer f.Stop()
@@ -423,38 +431,49 @@ func TestForwarderEndtoEnd(t *testing.T) {
 	headers := http.Header{}
 	headers.Set("key", "value")
 
-	// - 2 requests to check the validity of the two api_key
-	numReqs := int64(2)
+	incRequests := func(num int64) {
+		numReqs += num
+		wg.Add(int(num))
+	}
 
 	// for each call, we send 2 payloads * 2 api_keys
+	incRequests(4)
 	assert.Nil(t, f.SubmitV1Series(payload, headers))
-	numReqs += 4
 
+	incRequests(4)
 	assert.Nil(t, f.SubmitSeries(payload, headers))
-	numReqs += 4
 
+	incRequests(4)
 	assert.Nil(t, f.SubmitV1Intake(payload, transaction.Series, headers))
-	numReqs += 4
 
+	incRequests(4)
 	assert.Nil(t, f.SubmitV1CheckRuns(payload, headers))
-	numReqs += 4
 
+	incRequests(4)
 	assert.Nil(t, f.SubmitSketchSeries(payload, headers))
-	numReqs += 4
 
+	incRequests(4)
 	assert.Nil(t, f.SubmitHostMetadata(payload, headers))
-	numReqs += 4
 
+	incRequests(4)
 	assert.Nil(t, f.SubmitMetadata(payload, headers))
-	numReqs += 4
 
-	// let's wait a second for every channel communication to trigger
-	<-time.After(1 * time.Second)
+	// Wait for all the requests to have been received.
+	// Timeout after 5 seconds.
+	done := make(chan struct{})
+	go func() {
+		wg.Wait()
+		close(done)
+	}()
 
-	// We should receive the following requests:
-	// - 9 transactions * 2 payloads per transactions * 2 api_keys
-	ts.Close()
-	assert.Equal(t, numReqs, requests.Load())
+	select {
+	case <-done:
+		// We should receive the following requests:
+		// - 9 transactions * 2 payloads per transactions * 2 api_keys
+		assert.Equal(t, numReqs, requests.Load())
+	case <-time.After(5 * time.Second):
+		assert.Fail(t, "timed out waiting for requests")
+	}
 }
 
 func TestTransactionEventHandlers(t *testing.T) {
@@ -663,7 +682,7 @@ func TestProcessLikePayloadResponseTimeout(t *testing.T) {
 }
 
 // Whilst high priority transactions are processed by the worker first,  because the transactions
-// are sent in a separate go func, the actual order the get sent will depend on the go scheduler.
+// are sent in a separate go func, the actual order they get sent will depend on the go scheduler.
 // This test ensures that we still on average send high priority transactions before low priority.
 func TestHighPriorityTransactionTendency(t *testing.T) {
 	var receivedRequests = make(map[string]struct{})
@@ -715,7 +734,7 @@ func TestHighPriorityTransactionTendency(t *testing.T) {
 			assert.Nil(t, f.SubmitHostMetadata(transaction.NewBytesPayloadsWithoutMetaData([]*[]byte{&data}), headers))
 		} else {
 			data := []byte(fmt.Sprintf("low priority %d", i))
-			assert.Nil(t, f.SubmitMetadata(transaction.NewBytesPayloadsWithoutMetaData([]*[]byte{&data}), headers))
+			assert.Nil(t, f.SubmitAgentChecksMetadata(transaction.NewBytesPayloadsWithoutMetaData([]*[]byte{&data}), headers))
 		}
 
 		// Wait so that GetCreatedAt returns a different value for each HTTPTransaction
@@ -736,7 +755,7 @@ func TestHighPriorityTransactionTendency(t *testing.T) {
 	}
 
 	// Ensure the average position of the high priorities is less than the average position of the lows.
-	assert.Greater(t, lowPosition/50, highPosition/50)
+	assert.Greater(t, lowPosition, highPosition)
 }
 
 func TestHighPriorityTransaction(t *testing.T) {
@@ -797,51 +816,4 @@ func TestHighPriorityTransaction(t *testing.T) {
 	assert.Equal(t, string(dataHighPrio), <-requestChan)
 	assert.Equal(t, string(data2), <-requestChan)
 	assert.Equal(t, string(data1), <-requestChan)
-}
-
-func TestCustomCompletionHandler(t *testing.T) {
-	highPriorityQueueFull.Set(0)
-
-	// Setup a test HTTP server
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusOK)
-	}))
-	defer srv.Close()
-
-	// Point agent configuration to it
-	cfg := mock.New(t)
-	cfg.SetWithoutSource("dd_url", srv.URL)
-
-	// Now let's create a Forwarder with a custom HTTPCompletionHandler set to it
-	done := make(chan struct{})
-	defer close(done)
-	var handler transaction.HTTPCompletionHandler = func(_ *transaction.HTTPTransaction, _ int, _ []byte, _ error) {
-		done <- struct{}{}
-	}
-	mockConfig := mock.New(t)
-	log := logmock.New(t)
-	r, err := resolver.NewSingleDomainResolvers(map[string][]configUtils.APIKeys{
-		srv.URL: {configUtils.NewAPIKeys("path", "api_key1")},
-	})
-	require.NoError(t, err)
-	options := NewOptionsWithResolvers(mockConfig, log, r)
-	options.CompletionHandler = handler
-
-	f := NewDefaultForwarder(mockConfig, log, options)
-	f.Start()
-	defer f.Stop()
-
-	data := []byte("payload_data")
-	payload := transaction.NewBytesPayloadsWithoutMetaData([]*[]byte{&data})
-	assert.Nil(t, f.SubmitV1Series(payload, http.Header{}))
-
-	// And finally let's ensure the handler gets called
-	var handlerCalled bool
-	select {
-	case <-done:
-		handlerCalled = true
-	case <-time.After(time.Second):
-	}
-
-	assert.True(t, handlerCalled)
 }

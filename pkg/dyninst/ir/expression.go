@@ -13,15 +13,15 @@ type Expression struct {
 	// The type of the expression.
 	Type Type
 	// The operations that make up the expression, in reverse-polish notation.
-	Operations []Op
+	Operations []ExpressionOp
 }
 
 var (
-	_ Op = (*LocationOp)(nil)
+	_ ExpressionOp = (*LocationOp)(nil)
 )
 
-// Op is an operation that can be performed on an expression.
-type Op interface {
+// ExpressionOp is an operation that can be performed on an expression.
+type ExpressionOp interface {
 	irOp() // marker
 }
 
@@ -35,7 +35,7 @@ type LocationOp struct {
 	Offset uint32
 
 	// The size of the data to extract in bytes.
-	Size uint32
+	ByteSize uint32
 }
 
 func (*LocationOp) irOp() {}

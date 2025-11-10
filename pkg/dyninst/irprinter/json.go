@@ -9,6 +9,7 @@ package irprinter
 
 import (
 	"bytes"
+	"cmp"
 	"fmt"
 	"reflect"
 	"slices"
@@ -18,6 +19,13 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
 )
+
+func must[T any](v T, err error) T {
+	if err != nil {
+		panic(err)
+	}
+	return v
+}
 
 // PrintJSON marshals the IR program to JSON.
 func PrintJSON(p *ir.Program) ([]byte, error) {
@@ -66,11 +74,35 @@ func PrintJSON(p *ir.Program) ([]byte, error) {
 			return enc.WriteToken(jsontext.String(v.String()))
 		}),
 		json.MarshalToFunc(func(enc *jsontext.Encoder, v uint64) error {
-			if v < 1_000_000 {
+			if v < 10_000 {
 				return json.SkipFunc
 			}
 			return enc.WriteToken(jsontext.String(fmt.Sprintf("0x%x", v)))
-		}))
+		}),
+		json.MarshalToFunc(func(enc *jsontext.Encoder, v ir.DynamicSizeClass) error {
+			switch v {
+			case ir.DynamicSizeSlice:
+				return enc.WriteToken(jsontext.String("slice"))
+			case ir.DynamicSizeString:
+				return enc.WriteToken(jsontext.String("string"))
+			case ir.DynamicSizeHashmap:
+				return enc.WriteToken(jsontext.String("hashmap"))
+			case ir.StaticSize:
+				return enc.WriteToken(jsontext.String("static"))
+			default:
+				return fmt.Errorf("unknown dynamic size class: %d", v)
+			}
+		}),
+		json.MarshalToFunc(func(enc *jsontext.Encoder, v ir.RootExpressionKind) error {
+			return enc.WriteToken(jsontext.String(v.String()))
+		}),
+		json.MarshalToFunc(func(enc *jsontext.Encoder, v ir.EventKind) error {
+			return enc.WriteToken(jsontext.String(v.String()))
+		}),
+		json.MarshalToFunc(func(enc *jsontext.Encoder, v ir.VariableRole) error {
+			return enc.WriteToken(jsontext.String(v.String()))
+		}),
+	)
 	probeMarshalers := json.JoinMarshalers(
 		basicMarshalers,
 		json.MarshalToFunc(func(enc *jsontext.Encoder, v *ir.Subprogram) error {
@@ -81,6 +113,49 @@ func PrintJSON(p *ir.Program) ([]byte, error) {
 			})
 		}),
 	)
+
+	// Flattens the ProbeDefinition into the probe json, keeping its
+	// fields first.
+	marshalProbe := func(enc *jsontext.Encoder, v *ir.Probe) (err error) {
+		var buf bytes.Buffer
+		if err := json.MarshalWrite(
+			&buf, v.ProbeDefinition,
+			json.WithMarshalers(probeMarshalers),
+		); err != nil {
+			return err
+		}
+		dec := jsontext.NewDecoder(&buf)
+		defer func() {
+			switch r := recover().(type) {
+			case nil:
+			case error:
+				err = r
+			default:
+				panic(r)
+			}
+		}()
+		readToken := func() jsontext.Token { return must(dec.ReadToken()) }
+		readValue := func() jsontext.Value { return must(dec.ReadValue()) }
+		writeToken := func(t jsontext.Token) { must(0, enc.WriteToken(t)) }
+		writeValue := func(v jsontext.Value) { must(0, enc.WriteValue(v)) }
+		encode := func(v any) {
+			must(0, json.MarshalEncode(enc, v, json.WithMarshalers(probeMarshalers)))
+		}
+
+		beginT := readToken()
+		writeToken(beginT)
+		for dec.PeekKind() != '}' {
+			writeToken(readToken())
+			writeValue(readValue())
+		}
+		endT := readToken()
+		writeToken(jsontext.String("subprogram"))
+		encode(v.Subprogram)
+		writeToken(jsontext.String("events"))
+		encode(v.Events)
+		writeToken(endT)
+		return nil
+	}
 	underOperationMarshalers := json.JoinMarshalers(
 		basicMarshalers,
 		json.MarshalToFunc(marshalVariable),
@@ -88,12 +163,7 @@ func PrintJSON(p *ir.Program) ([]byte, error) {
 	topLevelMarshalers := json.JoinMarshalers(
 		basicMarshalers,
 		json.MarshalToFunc(makeOperationMarshaler(underOperationMarshalers)),
-		json.MarshalToFunc(func(enc *jsontext.Encoder, v *ir.Probe) error {
-			return json.MarshalEncode(
-				enc, v,
-				json.WithMarshalers(probeMarshalers),
-			)
-		}),
+		json.MarshalToFunc(marshalProbe),
 	)
 	if err := json.MarshalEncode(
 		enc, p,
@@ -112,7 +182,12 @@ func marshalTypeMap(enc *jsontext.Encoder, tm map[ir.TypeID]ir.Type) error {
 	for id := range tm {
 		ids = append(ids, id)
 	}
-	slices.Sort(ids)
+	slices.SortFunc(ids, func(a, b ir.TypeID) int {
+		return cmp.Or(
+			cmp.Compare(tm[a].GetName(), tm[b].GetName()),
+			cmp.Compare(tm[a].GetID(), tm[b].GetID()),
+		)
+	})
 	if err := enc.WriteToken(jsontext.BeginArray); err != nil {
 		return err
 	}
@@ -213,6 +288,8 @@ var allTypes = []reflect.Type{
 	reflect.TypeOf((*ir.GoSwissMapHeaderType)(nil)),
 	reflect.TypeOf((*ir.PointerType)(nil)),
 	reflect.TypeOf((*ir.StructureType)(nil)),
+	reflect.TypeOf((*ir.VoidPointerType)(nil)),
+	reflect.TypeOf((*ir.UnresolvedPointeeType)(nil)),
 }
 
 var typeMarshalers map[reflect.Type]*typeMarshaler
@@ -237,8 +314,8 @@ func marshalTypeAsID(enc *jsontext.Encoder, t ir.Type) error {
 
 func makeOperationMarshaler(
 	marshalers *json.Marshalers,
-) func(enc *jsontext.Encoder, op ir.Op) error {
-	return func(enc *jsontext.Encoder, op ir.Op) error {
+) func(enc *jsontext.Encoder, op ir.ExpressionOp) error {
+	return func(enc *jsontext.Encoder, op ir.ExpressionOp) error {
 		switch op := op.(type) {
 		case *ir.LocationOp:
 			type locationWithKind struct {

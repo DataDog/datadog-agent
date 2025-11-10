@@ -19,7 +19,6 @@ import (
 
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
 
-	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
@@ -42,8 +41,6 @@ type languageDetectionSuite struct {
 }
 
 func TestLanguageDetectionSuite(t *testing.T) {
-	flake.Mark(t)
-
 	agentParams := []func(*agentparams.Params) error{
 		agentparams.WithAgentConfig(processConfigStr),
 	}
@@ -115,6 +112,9 @@ func (s *languageDetectionSuite) getLanguageForPid(pid string, source string) (s
 		if line == headerLine {
 			scanner.Scan() // entity line
 			scanner.Scan() // pid
+			scanner.Scan() // name
+			scanner.Scan() // exe
+			scanner.Scan() // cmdline
 			scanner.Scan() // nspid
 			scanner.Scan() // container id
 			scanner.Scan() // creation time

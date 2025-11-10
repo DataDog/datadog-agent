@@ -19,6 +19,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	ec2internal "github.com/DataDog/datadog-agent/pkg/util/ec2/internal"
@@ -230,6 +231,14 @@ func TestCollectEC2InstanceInfo(t *testing.T) {
 
 	conf.SetWithoutSource("collect_ec2_instance_info", true)
 
+	// Enable ECS EC2 feature and mock ARN fetch
+	env.SetFeatures(t, env.ECSEC2)
+	oldFetchARN := fetchContainerInstanceARN
+	fetchContainerInstanceARN = func(_ context.Context) (string, error) {
+		return "arn:aws:ecs:region:account:container-instance/ci-123", nil
+	}
+	t.Cleanup(func() { fetchContainerInstanceARN = oldFetchARN })
+
 	tags, err := GetInstanceInfo(context.Background())
 	require.NoError(t, err)
 
@@ -239,6 +248,7 @@ func TestCollectEC2InstanceInfo(t *testing.T) {
 		"aws_account:123456abcdef",
 		"image:ami-aaaaaaaaaaaaaaaaa",
 		"availability-zone:eu-west-3a",
+		"container_instance_arn:arn:aws:ecs:region:account:container-instance/ci-123",
 	}
 	assert.Equal(t, expected, tags)
 

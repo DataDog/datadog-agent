@@ -13,6 +13,7 @@ import (
 	"github.com/twmb/murmur3"
 
 	"github.com/DataDog/datadog-agent/pkg/network"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/tls"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
 
@@ -48,8 +49,7 @@ func mergeDynamicTags(dynamicTags ...map[string]struct{}) (out map[string]struct
 }
 
 // FormatConnection converts a ConnectionStats into an model.Connection
-func FormatConnection(builder *model.ConnectionBuilder, conn network.ConnectionStats, routes map[string]RouteIdx,
-	usmEncoders []usmEncoder, dnsFormatter *dnsFormatter, ipc ipCache, tagsSet *network.TagsSet) {
+func FormatConnection(builder *model.ConnectionBuilder, conn network.ConnectionStats, routes map[network.Via]RouteIdx, usmEncoders []usmEncoder, dnsFormatter *dnsFormatter, ipc ipCache, tagsSet *network.TagsSet, sysProbePid uint32) {
 
 	builder.SetPid(int32(conn.Pid))
 
@@ -122,6 +122,10 @@ func FormatConnection(builder *model.ConnectionBuilder, conn network.ConnectionS
 		staticTags |= encoderStaticTags
 		dynamicTags = mergeDynamicTags(dynamicTags, encoderDynamicTags)
 	}
+	if conn.HasCertInfo() {
+		certInfo := conn.CertInfo.Value()
+		dynamicTags = mergeDynamicTags(dynamicTags, certInfo.GetDynamicTags())
+	}
 
 	conn.StaticTags |= staticTags
 	tags, tagChecksum := formatTags(conn, tagsSet, dynamicTags)
@@ -129,6 +133,8 @@ func FormatConnection(builder *model.ConnectionBuilder, conn network.ConnectionS
 		builder.AddTags(t)
 	}
 	builder.SetTagsChecksum(tagChecksum)
+
+	builder.SetSystemProbeConn(sysProbePid == conn.Pid)
 }
 
 // FormatCompilationTelemetry converts telemetry from its internal representation to a protobuf message
@@ -236,7 +242,7 @@ func formatIPTranslation(ct *network.IPTranslation, ipc ipCache) *model.IPTransl
 	}
 }
 
-func formatRouteIdx(v *network.Via, routes map[string]RouteIdx) int32 {
+func formatRouteIdx(v *network.Via, routes map[network.Via]RouteIdx) int32 {
 	if v == nil || routes == nil {
 		return -1
 	}
@@ -245,31 +251,30 @@ func formatRouteIdx(v *network.Via, routes map[string]RouteIdx) int32 {
 		return -1
 	}
 
-	k := routeKey(v)
-	if len(k) == 0 {
-		return -1
-	}
-
-	if idx, ok := routes[k]; ok {
+	if idx, ok := routes[*v]; ok {
 		return idx.Idx
 	}
 
-	routes[k] = RouteIdx{
-		Idx:   int32(len(routes)),
-		Route: model.Route{Subnet: &model.Subnet{Alias: v.Subnet.Alias}},
+	idx := RouteIdx{Idx: int32(len(routes))}
+	if v.Subnet.Alias != "" {
+		idx.Route.Subnet = &model.Subnet{
+			Alias: v.Subnet.Alias,
+		}
 	}
+	if v.Interface.HardwareAddr != "" {
+		idx.Route.Interface = &model.Interface{
+			HardwareAddr: v.Interface.HardwareAddr,
+		}
+	}
+	routes[*v] = idx
 
 	return int32(len(routes)) - 1
-}
-
-func routeKey(v *network.Via) string {
-	return v.Subnet.Alias
 }
 
 func formatTags(c network.ConnectionStats, tagsSet *network.TagsSet, connDynamicTags map[string]struct{}) ([]uint32, uint32) {
 	var checksum uint32
 
-	staticTags := network.GetStaticTags(c.StaticTags)
+	staticTags := tls.GetStaticTags(c.StaticTags)
 	tagsIdx := make([]uint32, 0, len(staticTags)+len(connDynamicTags)+len(c.Tags))
 
 	for _, tag := range staticTags {

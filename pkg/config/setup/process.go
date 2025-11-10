@@ -106,7 +106,7 @@ func procBindEnv(config pkgconfigmodel.Setup, key string) {
 	processConfigKey := "DD_" + strings.ReplaceAll(strings.ToUpper(key), ".", "_")
 	processAgentKey := strings.Replace(processConfigKey, "PROCESS_CONFIG", "PROCESS_AGENT", 1)
 
-	config.BindEnv(key, processConfigKey, processAgentKey)
+	config.BindEnv(key, processConfigKey, processAgentKey) //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 }
 
 func setupProcesses(config pkgconfigmodel.Setup) {
@@ -119,7 +119,7 @@ func setupProcesses(config pkgconfigmodel.Setup) {
 	// This allows for the process check to run in the core agent but is for linux only
 	procBindEnvAndSetDefault(config, "process_config.run_in_core_agent.enabled", runtime.GOOS == "linux")
 
-	config.BindEnv("process_config.process_dd_url",
+	config.BindEnv("process_config.process_dd_url", //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 		"DD_PROCESS_CONFIG_PROCESS_DD_URL",
 		"DD_PROCESS_AGENT_PROCESS_DD_URL",
 		"DD_PROCESS_AGENT_URL",
@@ -139,7 +139,7 @@ func setupProcesses(config pkgconfigmodel.Setup) {
 	procBindEnv(config, "process_config.intervals.container")
 	procBindEnv(config, "process_config.intervals.container_realtime")
 	procBindEnvAndSetDefault(config, "process_config.dd_agent_bin", DefaultDDAgentBin)
-	config.BindEnv("process_config.custom_sensitive_words",
+	config.BindEnv("process_config.custom_sensitive_words", //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 		"DD_CUSTOM_SENSITIVE_WORDS",
 		"DD_PROCESS_CONFIG_CUSTOM_SENSITIVE_WORDS",
 		"DD_PROCESS_AGENT_CUSTOM_SENSITIVE_WORDS")
@@ -156,11 +156,11 @@ func setupProcesses(config pkgconfigmodel.Setup) {
 
 		return strings.Split(val, ",")
 	})
-	config.BindEnv("process_config.scrub_args",
+	config.BindEnv("process_config.scrub_args", //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 		"DD_SCRUB_ARGS",
 		"DD_PROCESS_CONFIG_SCRUB_ARGS",
 		"DD_PROCESS_AGENT_SCRUB_ARGS")
-	config.BindEnv("process_config.strip_proc_arguments",
+	config.BindEnv("process_config.strip_proc_arguments", //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 		"DD_STRIP_PROCESS_ARGS",
 		"DD_PROCESS_CONFIG_STRIP_PROC_ARGUMENTS",
 		"DD_PROCESS_AGENT_STRIP_PROC_ARGUMENTS")

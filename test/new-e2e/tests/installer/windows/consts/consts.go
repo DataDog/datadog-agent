@@ -32,11 +32,22 @@ const (
 	// NamedPipe is the name of the named pipe used by the Datadog Installer
 	NamedPipe string = `\\.\pipe\dd_installer`
 
-	// baseConfigPath is the base path for the Installer configuration
-	baseConfigPath = "C:/ProgramData/Datadog/Installer"
+	// BaseConfigPath is the base path for the Installer configuration
+	BaseConfigPath = "C:/ProgramData/Datadog/Installer"
 
 	// PipelineOCIRegistry is the OCI registry that pipelines submit packages to
+	// Use special domain instead of cloudfront to avoid NAT gateway costs
+	// Can't use s3 domain directly because bucket name contains a dot
 	PipelineOCIRegistry = "installtesting.datad0g.com.internal.dda-testing.com"
+
+	// BetaS3OCIRegistry is the OCI registry that rc/beta packages are submitted to
+	// Use special domain instead of cloudfront to avoid NAT gateway costs
+	// Can't use s3 domain directly because bucket name contains a dot
+	BetaS3OCIRegistry = "install.datad0g.com.internal.dda-testing.com"
+
+	// StableS3OCIRegistry is the OCI registry that stable packages are submitted to
+	// Use s3 domain instead of cloudfront to avoid NAT gateway costs
+	StableS3OCIRegistry = "dd-agent.s3.amazonaws.com"
 )
 
 var (
@@ -46,18 +57,18 @@ var (
 	// InstallerConfigPaths are the paths that the Datadog Installer uses to store its working files.
 	// They are normally created by the install script / bootstrap.
 	InstallerConfigPaths = []string{
-		path.Join(baseConfigPath, "packages"),
-		path.Join(baseConfigPath, "configs"),
-		path.Join(baseConfigPath, "tmp"),
+		path.Join(BaseConfigPath, "packages"),
+		path.Join(BaseConfigPath, "configs"),
+		path.Join(BaseConfigPath, "tmp"),
 	}
 )
 
 // GetExperimentDirFor is the path to the experiment symbolic link on disk
 func GetExperimentDirFor(packageName string) string {
-	return fmt.Sprintf("%s\\packages\\%s\\experiment", baseConfigPath, packageName)
+	return fmt.Sprintf("%s\\packages\\%s\\experiment", BaseConfigPath, packageName)
 }
 
 // GetStableDirFor is the path to the stable symbolic link on disk
 func GetStableDirFor(packageName string) string {
-	return fmt.Sprintf("%s\\packages\\%s\\stable", baseConfigPath, packageName)
+	return fmt.Sprintf("%s\\packages\\%s\\stable", BaseConfigPath, packageName)
 }

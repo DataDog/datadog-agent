@@ -72,8 +72,8 @@ func (f *BTFHubConstantFetcher) AppendSizeofRequest(id, _ string) {
 	f.requests = append(f.requests, id)
 }
 
-// AppendOffsetofRequest appends an offset request
-func (f *BTFHubConstantFetcher) AppendOffsetofRequest(id, _ string, _ ...string) {
+// AppendOffsetofRequestWithFallbacks appends an offset request
+func (f *BTFHubConstantFetcher) AppendOffsetofRequestWithFallbacks(id string, _ ...TypeFieldPair) {
 	f.requests = append(f.requests, id)
 }
 

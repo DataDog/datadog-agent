@@ -18,6 +18,7 @@ type InterfaceConfig struct {
 	InSpeed    uint64   `mapstructure:"in_speed" yaml:"in_speed" json:"in_speed"`          // inbound speed override in bps
 	OutSpeed   uint64   `mapstructure:"out_speed" yaml:"out_speed" json:"out_speed"`       // outbound speed override in bps
 	Tags       []string `mapstructure:"tags" yaml:"tags" json:"tags"`                      // interface tags
+	Disabled   bool     `mapstructure:"disabled" yaml:"disabled" json:"disabled"`          // disables monitoring
 }
 
 // PingConfig encapsulates the configuration for ping

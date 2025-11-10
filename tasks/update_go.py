@@ -21,13 +21,11 @@ GO_VERSION_FILE = "./.go-version"
 # - is_bugfix is True if the version in the match is a bugfix version, False if it's a minor
 GO_VERSION_REFERENCES: list[tuple[str, str, str, bool]] = [
     (GO_VERSION_FILE, "", "", True),  # the version is the only content of the file
-    ("./tools/gdb/Dockerfile", "https://go.dev/dl/go", ".linux-amd64.tar.gz", True),
+    ("./tools/gdb/Dockerfile", "https://go.dev/dl/go", ".linux-", True),
     ("./test/fakeintake/Dockerfile", "FROM golang:", "-alpine", True),
     ("./tasks/unit_tests/modules_tests.py", 'Go": "', '",', False),
     ("./devenv/scripts/Install-DevEnv.ps1", '$go_version = "', '"', True),
-    ("./docs/dev/agent_dev_env.md", "[install Golang](https://golang.org/doc/install) version `", "`", True),
     ("./tasks/go.py", '"go version go', ' linux/amd64"', True),
-    ("./README.md", "[Go](https://golang.org/doc/install) ", ".", False),
     ("./test/fakeintake/docs/README.md", "[Golang ", "]", False),
     ("./cmd/process-agent/README.md", "`go >= ", "`", False),
     ("./pkg/logs/launchers/windowsevent/README.md", "install go ", "+,", False),
@@ -82,7 +80,7 @@ def update_go(
 
     if image_tag:
         try:
-            update_gitlab_config(".gitlab-ci.yml", image_tag, test=test)
+            update_gitlab_config(".gitlab-ci.yml", image_tag, test=test, windows=True)
         except RuntimeError as e:
             if warn:
                 print(color_message(f"WARNING: {str(e)}", "orange"))

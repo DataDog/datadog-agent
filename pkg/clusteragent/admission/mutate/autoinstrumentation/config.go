@@ -15,6 +15,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/utils/ptr"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	mutatecommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
@@ -36,6 +37,9 @@ type Config struct {
 
 	// containerRegistry is the container registry to use for the autoinstrumentation logic
 	containerRegistry string
+
+	// mutateUnlabelled is used to control if we require workloads to have a label when using Local Lib Injection.
+	mutateUnlabelled bool
 
 	// precomputed containerMutators for the security and profiling products
 	securityClientLibraryMutator  containerMutator
@@ -65,10 +69,12 @@ type Config struct {
 	// for the init containers.
 	defaultResourceRequirements initResourceRequirementConfiguration
 
-	// version is the version of the autoinstrumentation logic to use.
-	// We don't expose this option to the user, and [[instrumentationV1]]
-	// is deprecated and slated for removal.
-	version version
+	// podMetaAsTags is the unified configuration from [[configUtils.MetadataAsTags]]
+	// filtered to pod annotations and pod labels.
+	//
+	// This is used for picking a default service name for a given pod,
+	// see [[serviceNameMutator]].
+	podMetaAsTags podMetaAsTags
 }
 
 var excludedContainerNames = map[string]bool{
@@ -87,11 +93,6 @@ func NewConfig(datadogConfig config.Component) (*Config, error) {
 		return nil, err
 	}
 
-	version, err := instrumentationVersion(instrumentationConfig.Version)
-	if err != nil {
-		return nil, fmt.Errorf("invalid version for key apm_config.instrumentation.version: %w", err)
-	}
-
 	initResources, err := initDefaultResources(datadogConfig)
 	if err != nil {
 		return nil, err
@@ -108,35 +109,22 @@ func NewConfig(datadogConfig config.Component) (*Config, error) {
 	}
 
 	containerRegistry := mutatecommon.ContainerRegistry(datadogConfig, "admission_controller.auto_instrumentation.container_registry")
+	mutateUnlabelled := datadogConfig.GetBool("admission_controller.mutate_unlabelled")
+
 	return &Config{
 		Webhook:                       NewWebhookConfig(datadogConfig),
 		LanguageDetection:             NewLanguageDetectionConfig(datadogConfig),
 		Instrumentation:               instrumentationConfig,
 		containerRegistry:             containerRegistry,
+		mutateUnlabelled:              mutateUnlabelled,
 		initResources:                 initResources,
 		initSecurityContext:           initSecurityContext,
 		defaultResourceRequirements:   defaultResourceRequirements,
 		securityClientLibraryMutator:  securityClientLibraryConfigMutators(datadogConfig),
 		profilingClientLibraryMutator: profilingClientLibraryConfigMutators(datadogConfig),
 		containerFilter:               excludedContainerNamesContainerFilter,
-		version:                       version,
+		podMetaAsTags:                 getPodMetaAsTags(datadogConfig),
 	}, nil
-}
-
-// WebhookConfig use to store options from the config.Component for the autoinstrumentation webhook
-type WebhookConfig struct {
-	// IsEnabled is the flag to enable the autoinstrumentation webhook.
-	IsEnabled bool
-	// Endpoint is the endpoint to use for the autoinstrumentation webhook.
-	Endpoint string
-}
-
-// NewWebhookConfig retrieves the configuration for the autoinstrumentation webhook from the datadog config
-func NewWebhookConfig(datadogConfig config.Component) *WebhookConfig {
-	return &WebhookConfig{
-		IsEnabled: datadogConfig.GetBool("admission_controller.auto_instrumentation.enabled"),
-		Endpoint:  datadogConfig.GetString("admission_controller.auto_instrumentation.endpoint"),
-	}
 }
 
 // LanguageDetectionConfig is a struct to store the configuration for the language detection. It can be populated using
@@ -181,9 +169,6 @@ type InstrumentationConfig struct {
 	// the version of the library to inject. If empty, the auto instrumentation will inject all libraries. Full config
 	// key: apm_config.instrumentation.lib_versions
 	LibVersions map[string]string `mapstructure:"lib_versions" json:"lib_versions"`
-	// Version is the version of the autoinstrumentation logic to use. We don't expose this option to the user, and V1
-	// is deprecated and slated for removal. Full config key: apm_config.instrumentation.version
-	Version string `mapstructure:"version" json:"version"`
 	// InjectorImageTag is the tag of the image to use for the auto instrumentation injector library. Full config key:
 	// apm_config.instrumentation.injector_image_tag
 	InjectorImageTag string `mapstructure:"injector_image_tag" json:"injector_image_tag"`
@@ -396,7 +381,7 @@ func getPinnedLibraries(libVersions map[string]string, registry string, checkDef
 			continue
 		}
 
-		info := l.libInfo("", l.libImageName(registry, version))
+		info := l.libInfoWithResolver("", registry, version)
 		log.Infof("Library version %s is specified for language %s, going to use %s", version, lang, info.image)
 		libs = append(libs, info)
 
@@ -437,17 +422,29 @@ func initDefaultResources(datadogConfig config.Component) (initResourceRequireme
 	return conf, nil
 }
 
-func parseInitSecurityContext(datadogConfig config.Component) (*corev1.SecurityContext, error) {
-	securityContext := corev1.SecurityContext{}
-	confKey := "admission_controller.auto_instrumentation.init_security_context"
+var defaultRestrictedSecurityContext = &corev1.SecurityContext{
+	AllowPrivilegeEscalation: ptr.To(false),
+	RunAsNonRoot:             ptr.To(true),
+	SeccompProfile:           &corev1.SeccompProfile{Type: corev1.SeccompProfileTypeRuntimeDefault},
+	Capabilities: &corev1.Capabilities{
+		Drop: []corev1.Capability{
+			"ALL",
+		},
+	},
+}
 
+func parseInitSecurityContext(datadogConfig config.Component) (*corev1.SecurityContext, error) {
+	confKey := "admission_controller.auto_instrumentation.init_security_context"
 	if datadogConfig.IsSet(confKey) {
 		confValue := datadogConfig.GetString(confKey)
+		var securityContext corev1.SecurityContext
 		err := json.Unmarshal([]byte(confValue), &securityContext)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get init security context from configuration, %s=`%s`: %v", confKey, confValue, err)
 		}
+
+		return &securityContext, nil
 	}
 
-	return &securityContext, nil
+	return nil, nil
 }

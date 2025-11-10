@@ -6,8 +6,9 @@
 package telemetryimpl
 
 import (
-	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/prometheus/client_golang/prometheus"
+
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 )
 
 // Gauge implementation using Prometheus.
@@ -33,6 +34,11 @@ func (g *promGauge) Dec(tagsValue ...string) {
 // Delete deletes the value for the Gauge with the given tags.
 func (g *promGauge) Delete(tagsValue ...string) {
 	g.pg.DeleteLabelValues(tagsValue...)
+}
+
+// DeletePartialMatch deletes the values for the Gauges that match the subset of given tags
+func (g *promGauge) DeletePartialMatch(tagsValue map[string]string) {
+	g.pg.DeletePartialMatch(tagsValue)
 }
 
 // Add adds the value to the Gauge value.

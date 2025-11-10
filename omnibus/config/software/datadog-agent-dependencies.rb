@@ -9,17 +9,17 @@ if linux_target?
 end
 if fips_mode?
   dependency 'openssl-fips-provider'
+else
+  dependency 'secret-generic-connector' unless heroku_target?
 end
+
+dependency "dd-compile-policy" if linux_target? and !heroku_target?
 
 # Bundled cacerts file (is this a good idea?)
 dependency 'cacerts'
 
 # External agents
 dependency 'jmxfetch'
-
-if linux_target?
-  dependency 'sds'
-end
 
 # Used for memory profiling with the `status py` agent subcommand
 dependency 'pympler'
@@ -30,8 +30,6 @@ dependency 'libpcap' if linux_target? and !heroku_target? # system-probe depende
 
 # Include traps db file in snmp.d/traps_db/
 dependency 'snmp-traps'
-
-dependency 'secret-generic-connector'
 
 dependency 'datadog-agent-integrations-py3'
 

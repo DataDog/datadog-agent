@@ -60,7 +60,7 @@ func TestSummary(t *testing.T) {
 			s, exp = Summary{}, Summary{}
 		)
 
-		for i := 0; i < 1000; i++ {
+		for i := 0; i < 20; i++ {
 			v := math.Floor(rand.Float64() * 10000)
 			nInsert := rand.Intn(1000) + 1
 

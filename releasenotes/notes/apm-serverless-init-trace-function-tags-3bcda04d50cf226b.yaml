@@ -1,0 +1,9 @@
+---
+features:
+  - |
+    Adding a TracerPayloadModifier to the Trace Agent.
+enhancements:
+  - |
+    The serverless-init build uses the new TracerPayloadModifier to add
+    Function Tags to the `_dd.tags.function` tag of the Tracer Payload to
+    support serverless trace tagging. 

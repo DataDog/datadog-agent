@@ -3,7 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package mock offers a mock for the logger.
+//go:build test
+
 package mock
 
 import (
@@ -35,20 +36,19 @@ func (tbw *tbWriter) Write(p []byte) (n int, err error) {
 // New returns a new mock for the log Component
 func New(t testing.TB) log.Component {
 	// Build a logger that only logs to t.Log(..)
-	iface, err := pkglog.LoggerFromWriterWithMinLevelAndFormat(&tbWriter{t}, pkglog.TraceLvl,
-		"%Date(2006-01-02 15:04:05 MST) | %LEVEL | (%ShortFilePath:%Line in %FuncShort) | %ExtraTextContext%Msg%n")
+	iface, err := pkglog.LoggerFromWriterWithMinLevelAndFullFormat(&tbWriter{t}, pkglog.TraceLvl)
 	if err != nil {
 		t.Fatal(err.Error())
 	}
 
 	t.Cleanup(func() {
 		// stop using the logger to avoid a race condition
-		pkglog.ChangeLogLevel(pkglog.Default(), "debug")
+		pkglog.ChangeLogLevel(pkglog.Default(), pkglog.DebugLvl)
 		iface.Flush()
 	})
 
 	// install the logger into pkg/util/log
-	pkglog.ChangeLogLevel(iface, "debug")
+	pkglog.ChangeLogLevel(iface, pkglog.DebugLvl)
 
 	return pkglog.NewWrapper(2)
 }

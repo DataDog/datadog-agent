@@ -106,10 +106,12 @@ func (le *LeaderEngine) createLeaderTokenIfNotExists() error {
 					Namespace: le.LeaderNamespace,
 				},
 			}, metav1.CreateOptions{})
-			if err != nil && !errors.IsConflict(err) {
+			if err != nil && !errors.IsConflict(err) && !errors.IsAlreadyExists(err) {
 				return err
 			}
 		}
+
+		return nil
 	}
 	_, err := le.coreClient.ConfigMaps(le.LeaderNamespace).Get(context.TODO(), le.LeaseName, metav1.GetOptions{})
 	if err != nil {
@@ -125,11 +127,11 @@ func (le *LeaderEngine) createLeaderTokenIfNotExists() error {
 				Name: le.LeaseName,
 			},
 		}, metav1.CreateOptions{})
-		if err != nil && !errors.IsConflict(err) {
+		if err != nil && !errors.IsConflict(err) && !errors.IsAlreadyExists(err) {
 			return err
 		}
 	}
-	return err
+	return nil
 }
 
 // newElection creates an election.

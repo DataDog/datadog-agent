@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
+	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace/idx"
 )
 
 const (
@@ -42,6 +43,12 @@ func GetVersionDataFromContainerTags(cTags []string) (gitCommitSha, imageTag str
 // GetGitCommitShaFromTrace returns the first "git_commit_sha" tag found in trace t.
 func GetGitCommitShaFromTrace(root *trace.Span, t *trace.TraceChunk) string {
 	return searchTraceForField(root, t, gitCommitShaField)
+}
+
+// GetGitCommitShaFromTraceV1 returns the "git_commit_sha" tag found in a trace chunk.
+func GetGitCommitShaFromTraceV1(chunk *idx.InternalTraceChunk) string {
+	sha, _ := chunk.GetAttributeAsString(gitCommitShaField)
+	return sha
 }
 
 // GetAppVersionFromTrace returns the first "version" tag found in trace t.

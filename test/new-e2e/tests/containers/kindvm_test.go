@@ -31,6 +31,7 @@ func TestKindSuite(t *testing.T) {
 		awskubernetes.WithAgentOptions(
 			kubernetesagentparams.WithDualShipping(),
 		),
+		awskubernetes.WithDeployArgoRollout(),
 	)))
 }
 

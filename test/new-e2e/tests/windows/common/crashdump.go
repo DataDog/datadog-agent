@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
+	"github.com/cenkalti/backoff/v4"
 )
 
 const (
@@ -162,4 +163,101 @@ func DownloadAllWERDumpsFunc(host *components.RemoteHost, dumpFolder string, out
 	}
 
 	return collectedDumps, retErr
+}
+
+// DownloadSystemCrashDump downloads a system crash dump from a remote host.
+func DownloadSystemCrashDump(host *components.RemoteHost, systemCrashDumpFile string, outputFile string) (string, error) {
+	if exists, _ := host.FileExists(systemCrashDumpFile); !exists {
+		return "", nil
+	}
+
+	// We cannot directly download the system crash dump file since it is under a protected directory.
+	// The dump needs to be copied to a temporary location first.
+	// Go's os.MkdirTemp is not suitable because it does not yield
+	// a proper local path for Powershell (e.g. /tmp/2173892461/SystemCrash.DMP)
+
+	tmpDir, err := host.GetTmpFolder()
+	if err != nil {
+		return "", fmt.Errorf("failed to get TMP folder: %w", err)
+	}
+
+	outName := filepath.Base(outputFile)
+	tmpPath := host.JoinPath(tmpDir, outName)
+
+	_, err = host.Execute(fmt.Sprintf("Copy-Item -Path \"%s\" -Destination \"%s\"", systemCrashDumpFile, tmpPath))
+	if err != nil {
+		return "", fmt.Errorf("error copying system crash dump file %s to %s: %w", systemCrashDumpFile, tmpPath, err)
+	}
+
+	// The framework may timeout trying to download the dump.
+	err = host.GetFile(tmpPath, outputFile)
+
+	if err != nil {
+		return "", fmt.Errorf("error getting system crash dump file %s: %w", tmpPath, err)
+	}
+
+	return outputFile, nil
+}
+
+// EnableDriverVerifier enables standard verifier checks on the specified kernel drivers. Requires a reboot.
+func EnableDriverVerifier(host *components.RemoteHost, kernelDrivers []string) (string, error) {
+	var driverList string
+
+	for _, driverName := range kernelDrivers {
+		if !strings.HasSuffix(driverName, ".sys") {
+			driverList += fmt.Sprintf("%s.sys ", driverName)
+		} else {
+			driverList += fmt.Sprintf("%s ", driverName)
+		}
+	}
+
+	fmt.Println("Enabling driver verifier for: ", driverList)
+
+	// Driver verifier returns an error code of 2.
+	out, err := host.Execute(fmt.Sprintf("verifier /standard /driver %s", driverList))
+	out = strings.TrimSpace(out)
+
+	return out, err
+}
+
+// RebootAndWait reboots the host and waits for it to boot
+func RebootAndWait(host *components.RemoteHost, b backoff.BackOff) error {
+	return waitForRebootFunc(host, b, func() error {
+		_, err := host.Execute("Restart-Computer -Force")
+		return err
+	})
+}
+
+// WaitForRebootFunc waits for the host to reboot
+func waitForRebootFunc(host *components.RemoteHost, b backoff.BackOff, rebootFunc func() error) error {
+	// get last boot time
+	out, err := host.Execute("(Get-CimInstance Win32_OperatingSystem).LastBootUpTime")
+	if err != nil {
+		return fmt.Errorf("failed to get last boot time: %w", err)
+	}
+	lastBootTime := strings.TrimSpace(out)
+	fmt.Println("last boot time:", lastBootTime)
+
+	// run the reboot function
+	err = rebootFunc()
+	if err != nil {
+		return fmt.Errorf("failed to reboot: %w", err)
+	}
+
+	return backoff.Retry(func() error {
+		err := host.Reconnect()
+		if err != nil {
+			return err
+		}
+		out, err = host.Execute("(Get-CimInstance Win32_OperatingSystem).LastBootUpTime")
+		if err != nil {
+			return err
+		}
+		bootTime := strings.TrimSpace(out)
+		fmt.Println("current boot time:", bootTime)
+		if bootTime == lastBootTime {
+			return fmt.Errorf("boot time has not changed")
+		}
+		return nil
+	}, b)
 }

@@ -6,9 +6,8 @@
 package usm
 
 import (
-	"strings"
-
 	"slices"
+	"strings"
 )
 
 const (
@@ -29,9 +28,14 @@ func (p phpDetector) detect(args []string) (ServiceMetadata, bool) {
 	if index := slices.IndexFunc(args, func(arg string) bool { return strings.Contains(arg, "datadog.service=") }); index != -1 {
 		split := strings.Split(args[index], "=")
 		if len(split) == 2 {
-			metadata.DDService = split[1]
+			serviceName := split[1]
+			if serviceName != "" {
+				metadata.SetNames(serviceName, CommandLine)
+				return metadata, true
+			}
 		}
 	}
+
 	prevArgIsFlag := false
 	for _, arg := range args {
 		hasFlagPrefix := strings.HasPrefix(arg, "-")

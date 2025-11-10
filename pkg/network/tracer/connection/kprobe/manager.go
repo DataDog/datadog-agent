@@ -12,11 +12,13 @@ import (
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
+	ssluprobes "github.com/DataDog/datadog-agent/pkg/network/tracer/connection/ssl-uprobes"
 	"github.com/DataDog/datadog-agent/pkg/util/slices"
 )
 
 var mainProbes = []probes.ProbeFuncName{
-	probes.NetDevQueue,
+	probes.NetDevQueueTracepoint,
+	probes.DevQueueXmitNitKprobe, // kprobe fallback for net_dev_queue on kernels < 4.15
 	probes.ProtocolClassifierEntrySocketFilter,
 	probes.ProtocolClassifierTLSClientSocketFilter,
 	probes.ProtocolClassifierTLSServerSocketFilter,
@@ -85,6 +87,10 @@ func initManager(mgr *ddebpf.Manager, runtimeTracer bool) error {
 		{Name: probes.TCPRecvMsgArgsMap},
 		{Name: probes.ClassificationProgsMap},
 		{Name: probes.TCPCloseProgsMap},
+		{Name: probes.SSLCertsStatemArgsMap},
+		{Name: probes.SSLCertsI2DX509ArgsMap},
+		{Name: probes.SSLHandshakeStateMap},
+		{Name: probes.SSLCertInfoMap},
 	}
 
 	var funcNameToProbe = func(funcName probes.ProbeFuncName) *manager.Probe {
@@ -96,13 +102,28 @@ func initManager(mgr *ddebpf.Manager, runtimeTracer bool) error {
 		}
 	}
 
+	var funcNameToSSLProbe = func(funcName probes.ProbeFuncName) *manager.Probe {
+		return &manager.Probe{
+			ProbeIdentificationPair: ssluprobes.IDPairFromFuncName(funcName),
+		}
+	}
+
 	mgr.Probes = append(mgr.Probes, slices.Map(mainProbes, funcNameToProbe)...)
+
+	mgr.Probes = append(mgr.Probes, slices.Map(ssluprobes.OpenSSLUProbes, funcNameToSSLProbe)...)
+	mgr.Probes = append(mgr.Probes, ssluprobes.GetSchedExitProbeSSL())
+
 	mgr.Probes = append(mgr.Probes, slices.Map(batchProbes, funcNameToProbe)...)
 	mgr.Probes = append(mgr.Probes, slices.Map([]probes.ProbeFuncName{
 		probes.SKBFreeDatagramLocked,
 		probes.UnderscoredSKBFreeDatagramLocked,
 		probes.SKBConsumeUDP,
 	}, funcNameToProbe)...)
+
+	// add Probe for net_dev_queue attached via raw tracepoint
+	mgr.Probes = append(mgr.Probes,
+		&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: probes.NetDevQueueRawTracepoint, UID: probeUID}, TracepointName: "net_dev_queue", TracepointCategory: "net"},
+	)
 
 	if !runtimeTracer {
 		// the runtime compiled tracer has no need for separate probes targeting specific kernel versions, since it can

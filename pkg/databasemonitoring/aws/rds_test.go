@@ -28,10 +28,42 @@ func TestGetRdsInstancesFromTags(t *testing.T) {
 		expectedErr       error
 	}{
 		{
-			name:            "no filter tags supplied",
-			configureClient: func(_ *MockrdsService) {},
-			tags:            []string{},
-			expectedErr:     errors.New("at least one tag filter is required"),
+			name: "not tag filter returns all results from API",
+			configureClient: func(k *MockrdsService) {
+				k.EXPECT().DescribeDBInstances(gomock.Any(), &rds.DescribeDBInstancesInput{
+					Filters: []types.Filter{
+						{
+							Name:   aws.String("engine"),
+							Values: []string{mysqlEngine, postgresEngine, auroraMysqlEngine, auroraPostgresqlEngine},
+						},
+					},
+				}).Return(&rds.DescribeDBInstancesOutput{
+					DBInstances: []types.DBInstance{
+						{
+							Endpoint: &types.Endpoint{
+								Address: aws.String("test-endpoint"),
+								Port:    aws.Int32(5432),
+							},
+							DBInstanceIdentifier:             aws.String("test-instance"),
+							IAMDatabaseAuthenticationEnabled: aws.Bool(true),
+							AvailabilityZone:                 aws.String("us-east-1a"),
+							DBInstanceStatus:                 aws.String("available"),
+							Engine:                           aws.String("postgres"),
+							TagList:                          []types.Tag{{Key: aws.String("test"), Value: aws.String("tag")}},
+						},
+					},
+				}, nil).Times(1)
+			},
+			tags: []string{},
+			expectedInstances: []Instance{{
+				ID:         "test-instance",
+				Endpoint:   "test-endpoint",
+				Port:       5432,
+				IamEnabled: true,
+				Engine:     "postgres",
+				DbmEnabled: false,
+				DbName:     "postgres",
+			}},
 		},
 		{
 			name: "single tag filter returns error from API",

@@ -8,6 +8,7 @@
 package collectors
 
 import (
+	"github.com/benbjohnson/clock"
 	"k8s.io/apiextensions-apiserver/pkg/client/informers/externalversions"
 	vpai "k8s.io/autoscaler/vertical-pod-autoscaler/pkg/client/informers/externalversions"
 	"k8s.io/client-go/dynamic/dynamicinformer"
@@ -72,6 +73,8 @@ func NewK8sProcessorContext(rcfg *CollectorRunConfig, metadata *CollectorMetadat
 			APIVersion:          metadata.Version,
 			CollectorTags:       metadata.CollectorTags(),
 			TerminatedResources: rcfg.TerminatedResources,
+			AgentVersion:        rcfg.AgentVersion,
+			Clock:               clock.New(),
 		},
 		APIClient:         rcfg.APIClient,
 		LabelsAsTags:      metadata.LabelsAsTags,

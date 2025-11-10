@@ -20,8 +20,7 @@ import (
 	"github.com/skydive-project/go-debouncer"
 	"go.uber.org/atomic"
 
-	"github.com/DataDog/datadog-agent/pkg/api/security"
-	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/client"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
@@ -53,7 +52,7 @@ type RCPolicyProvider struct {
 var _ rules.PolicyProvider = (*RCPolicyProvider)(nil)
 
 // NewRCPolicyProvider returns a new Remote Config based policy provider
-func NewRCPolicyProvider(dumpPolicies bool, setEnforcementCallback func(bool)) (*RCPolicyProvider, error) {
+func NewRCPolicyProvider(dumpPolicies bool, setEnforcementCallback func(bool), ipc ipc.Component) (*RCPolicyProvider, error) {
 	agentVersion, err := utils.GetAgentSemverVersion()
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse agent version: %w", err)
@@ -65,8 +64,8 @@ func NewRCPolicyProvider(dumpPolicies bool, setEnforcementCallback func(bool)) (
 	}
 
 	c, err := client.NewGRPCClient(ipcAddress, pkgconfigsetup.GetIPCPort(),
-		func() (string, error) { return security.FetchAuthToken(pkgconfigsetup.Datadog()) },
-		apiutil.GetTLSClientConfig, // using helper command from pkg/api/util because there is no access to components
+		ipc.GetAuthToken(),
+		ipc.GetTLSClientConfig(),
 		client.WithAgent(agentName, agentVersion.String()),
 		client.WithProducts(state.ProductCWSDD, state.ProductCWSCustom),
 		client.WithPollInterval(securityAgentRCPollInterval),

@@ -23,6 +23,7 @@ import (
 	"k8s.io/client-go/kubernetes/fake"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	providerTypes "github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/types"
 	acTelemetry "github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
@@ -387,50 +388,50 @@ func TestGetConfigErrors_KubeServices(t *testing.T) {
 
 	tests := []struct {
 		name                        string
-		currentErrors               map[string]ErrorMsgSet
+		currentErrors               map[string]providerTypes.ErrorMsgSet
 		collectedServices           []runtime.Object
 		expectedNumCollectedConfigs int
-		expectedErrorsAfterCollect  map[string]ErrorMsgSet
+		expectedErrorsAfterCollect  map[string]providerTypes.ErrorMsgSet
 	}{
 		{
 			name:          "case without errors",
-			currentErrors: map[string]ErrorMsgSet{},
+			currentErrors: map[string]providerTypes.ErrorMsgSet{},
 			collectedServices: []runtime.Object{
 				&serviceWithoutErrors,
 			},
 			expectedNumCollectedConfigs: 1,
-			expectedErrorsAfterCollect:  map[string]ErrorMsgSet{},
+			expectedErrorsAfterCollect:  map[string]providerTypes.ErrorMsgSet{},
 		},
 		{
 			name: "service that has been deleted and had errors",
-			currentErrors: map[string]ErrorMsgSet{
+			currentErrors: map[string]providerTypes.ErrorMsgSet{
 				"kube_service://default/deletedService": {"error1": struct{}{}},
 			},
 			collectedServices: []runtime.Object{
 				&serviceWithoutErrors,
 			},
 			expectedNumCollectedConfigs: 1,
-			expectedErrorsAfterCollect:  map[string]ErrorMsgSet{},
+			expectedErrorsAfterCollect:  map[string]providerTypes.ErrorMsgSet{},
 		},
 		{
 			name: "service with error that has been fixed",
-			currentErrors: map[string]ErrorMsgSet{
+			currentErrors: map[string]providerTypes.ErrorMsgSet{
 				"kube_service://default/withoutErrors": {"error1": struct{}{}},
 			},
 			collectedServices: []runtime.Object{
 				&serviceWithoutErrors,
 			},
 			expectedNumCollectedConfigs: 1,
-			expectedErrorsAfterCollect:  map[string]ErrorMsgSet{},
+			expectedErrorsAfterCollect:  map[string]providerTypes.ErrorMsgSet{},
 		},
 		{
 			name:          "service that did not have an error but now does",
-			currentErrors: map[string]ErrorMsgSet{},
+			currentErrors: map[string]providerTypes.ErrorMsgSet{},
 			collectedServices: []runtime.Object{
 				&serviceWithErrors,
 			},
 			expectedNumCollectedConfigs: 0,
-			expectedErrorsAfterCollect: map[string]ErrorMsgSet{
+			expectedErrorsAfterCollect: map[string]providerTypes.ErrorMsgSet{
 				"kube_service://default/withErrors": {
 					"could not extract checks config: in instances: failed to unmarshal JSON: invalid character '\"' after object key": struct{}{},
 				},
@@ -438,7 +439,7 @@ func TestGetConfigErrors_KubeServices(t *testing.T) {
 		},
 		{
 			name: "service that had an error and still does",
-			currentErrors: map[string]ErrorMsgSet{
+			currentErrors: map[string]providerTypes.ErrorMsgSet{
 				"kube_service://default/withErrors": {
 					"could not extract checks config: in instances: failed to unmarshal JSON: invalid character '\"' after object key": struct{}{},
 				},
@@ -447,7 +448,7 @@ func TestGetConfigErrors_KubeServices(t *testing.T) {
 				&serviceWithErrors,
 			},
 			expectedNumCollectedConfigs: 0,
-			expectedErrorsAfterCollect: map[string]ErrorMsgSet{
+			expectedErrorsAfterCollect: map[string]providerTypes.ErrorMsgSet{
 				"kube_service://default/withErrors": {
 					"could not extract checks config: in instances: failed to unmarshal JSON: invalid character '\"' after object key": struct{}{},
 				},
@@ -455,10 +456,10 @@ func TestGetConfigErrors_KubeServices(t *testing.T) {
 		},
 		{
 			name:                        "nothing collected",
-			currentErrors:               map[string]ErrorMsgSet{},
+			currentErrors:               map[string]providerTypes.ErrorMsgSet{},
 			collectedServices:           []runtime.Object{},
 			expectedNumCollectedConfigs: 0,
-			expectedErrorsAfterCollect:  map[string]ErrorMsgSet{},
+			expectedErrorsAfterCollect:  map[string]providerTypes.ErrorMsgSet{},
 		},
 	}
 

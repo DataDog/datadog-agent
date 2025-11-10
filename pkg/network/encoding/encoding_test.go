@@ -15,11 +15,10 @@ import (
 	"sort"
 	"testing"
 
+	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/golang/protobuf/proto"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	model "github.com/DataDog/agent-payload/v5/process"
 
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -46,9 +45,10 @@ func getBlobWriter(t *testing.T, assert *assert.Assertions, in *network.Connecti
 	marshaler := marshal.GetMarshaler(marshalerType)
 	assert.Equal(marshalerType, marshaler.ContentType())
 	blobWriter := bytes.NewBuffer(nil)
-	connectionsModeler := marshal.NewConnectionsModeler(in)
+	connectionsModeler, err := marshal.NewConnectionsModeler(in)
+	require.NoError(t, err)
 	defer connectionsModeler.Close()
-	err := marshaler.Marshal(in, blobWriter, connectionsModeler)
+	err = marshaler.Marshal(in, blobWriter, connectionsModeler)
 	require.NoError(t, err)
 
 	return blobWriter
@@ -145,7 +145,7 @@ func getExpectedConnections(encodedWithQueryType bool, httpOutBlob []byte) *mode
 			NpmEnabled: false,
 			UsmEnabled: false,
 		},
-		Tags: network.GetStaticTags(tagOpenSSL | tagTLS),
+		Tags: tls.GetStaticTags(tagOpenSSL | tagTLS),
 	}
 	// fixup Protocol stack as on windows or macos
 	// we don't have tags mechanism inserting TLS protocol on protocol stack
@@ -378,9 +378,10 @@ func TestSerialization(t *testing.T) {
 		assert.Equal("application/json", marshaler.ContentType())
 
 		blobWriter := bytes.NewBuffer(nil)
-		connectionsModeler := marshal.NewConnectionsModeler(in)
+		connectionsModeler, err := marshal.NewConnectionsModeler(in)
+		require.NoError(t, err)
 		defer connectionsModeler.Close()
-		err := marshaler.Marshal(in, blobWriter, connectionsModeler)
+		err = marshaler.Marshal(in, blobWriter, connectionsModeler)
 		require.NoError(t, err)
 
 		unmarshaler := unmarshal.GetUnmarshaler("")
@@ -410,9 +411,10 @@ func TestSerialization(t *testing.T) {
 		assert.Equal("application/json", marshaler.ContentType())
 
 		blobWriter := bytes.NewBuffer(nil)
-		connectionsModeler := marshal.NewConnectionsModeler(in)
+		connectionsModeler, err := marshal.NewConnectionsModeler(in)
+		require.NoError(t, err)
 		defer connectionsModeler.Close()
-		err := marshaler.Marshal(in, blobWriter, connectionsModeler)
+		err = marshaler.Marshal(in, blobWriter, connectionsModeler)
 		require.NoError(t, err)
 
 		unmarshaler := unmarshal.GetUnmarshaler("application/json")
@@ -595,7 +597,7 @@ func TestHTTPSerializationWithLocalhostTraffic(t *testing.T) {
 func assertConnsEqual(t *testing.T, expected, actual *model.Connections) {
 	require.Equal(t, len(expected.Conns), len(actual.Conns), "expected both model.Connections to have the same number of connections")
 
-	for i := 0; i < len(actual.Conns); i++ {
+	for i := range actual.Conns {
 		expectedRawHTTP := expected.Conns[i].HttpAggregations
 		actualRawHTTP := actual.Conns[i].HttpAggregations
 

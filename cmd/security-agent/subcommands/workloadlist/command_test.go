@@ -12,7 +12,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/stretchr/testify/assert"
-	"go.uber.org/fx"
 )
 
 func TestWorkloadListCommand(t *testing.T) {
@@ -32,13 +31,10 @@ func TestWorkloadURL(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, expected, got)
 
-	cfg = fxutil.Test[config.Component](t, fx.Options(
-		config.MockModule(),
-		fx.Replace(config.MockParams{Overrides: map[string]interface{}{
-			"security_agent.cmd_port": 1234,
-			"cmd_host":                "127.0.0.1",
-		}}),
-	))
+	cfg = config.NewMockWithOverrides(t, map[string]interface{}{
+		"security_agent.cmd_port": 1234,
+		"cmd_host":                "127.0.0.1",
+	})
 
 	expected = "https://127.0.0.1:1234/agent/workload-list"
 	got, err = workloadURL(cfg, false)

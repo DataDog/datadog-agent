@@ -7,8 +7,8 @@ package listeners
 
 import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
-	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -126,7 +126,7 @@ func (s *EnvironmentService) IsReady() bool {
 }
 
 // HasFilter is not supported
-func (s *EnvironmentService) HasFilter(_ containers.FilterType) bool {
+func (s *EnvironmentService) HasFilter(_ workloadfilter.Scope) bool {
 	return false
 }
 
@@ -137,4 +137,9 @@ func (s *EnvironmentService) GetExtraConfig(_ string) (string, error) {
 
 // FilterTemplates does nothing.
 func (s *EnvironmentService) FilterTemplates(_ map[string]integration.Config) {
+}
+
+// GetImageName does nothing
+func (s *EnvironmentService) GetImageName() string {
+	return ""
 }

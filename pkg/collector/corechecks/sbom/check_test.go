@@ -10,13 +10,16 @@ package sbom
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
+	workloadfilterfxmock "github.com/DataDog/datadog-agent/comp/core/workloadfilter/fx-mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
+	workloadmetainit "github.com/DataDog/datadog-agent/comp/core/workloadmeta/init"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
@@ -111,11 +114,12 @@ host_heartbeat_validity_seconds: 1000000
 func TestFactory(t *testing.T) {
 	cfg := config.NewMock(t)
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
+	mockFilterStore := workloadfilterfxmock.SetupMockFilter(t)
 	mockStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		core.MockBundle(),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
-	checkFactory := Factory(mockStore, cfg, fakeTagger)
+	checkFactory := Factory(mockStore, mockFilterStore, cfg, fakeTagger)
 	assert.NotNil(t, checkFactory)
 
 	check, ok := checkFactory.Get()
@@ -158,23 +162,24 @@ func TestConfigure(t *testing.T) {
 	defer scanner2.SetGlobalScanner(scanner)
 
 	app := fxutil.Test[workloadmetaAndConfig](t, fx.Options(
-		fx.Replace(config.MockParams{
-			Overrides: map[string]interface{}{
+		fx.Provide(func() log.Component { return logmock.New(t) }),
+		fx.Provide(func() config.Component {
+			return config.NewMockWithOverrides(t, map[string]interface{}{
 				"sbom.enabled":      true,
 				"sbom.host.enabled": true,
-			},
+			})
 		}),
-		core.MockBundle(),
 		workloadmetafxmock.MockModule(workloadmeta.Params{
 			AgentType:  workloadmeta.NodeAgent,
-			InitHelper: common.GetWorkloadmetaInit(),
+			InitHelper: workloadmetainit.GetWorkloadmetaInit(),
 		}),
 	))
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
+	mockFilterStore := workloadfilterfxmock.SetupMockFilter(t)
 	cfg := app.Cfg
 	mockStore := app.Store
 
-	checkFactory := Factory(mockStore, cfg, fakeTagger)
+	checkFactory := Factory(mockStore, mockFilterStore, cfg, fakeTagger)
 	assert.NotNil(t, checkFactory)
 
 	check, ok := checkFactory.Get()

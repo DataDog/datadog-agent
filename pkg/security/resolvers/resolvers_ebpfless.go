@@ -30,12 +30,12 @@ type EBPFLessResolvers struct {
 
 // NewEBPFLessResolvers creates a new instance of EBPFLessResolvers
 func NewEBPFLessResolvers(config *config.Config, statsdClient statsd.ClientInterface, scrubber *procutil.DataScrubber, opts Opts) (*EBPFLessResolvers, error) {
-	cgroupsResolver, err := cgroup.NewResolver(statsdClient)
+	cgroupsResolver, err := cgroup.NewResolver(statsdClient, nil)
 	if err != nil {
 		return nil, err
 	}
 
-	tagsResolver := tags.NewResolver(opts.Tagger, cgroupsResolver)
+	tagsResolver := tags.NewResolver(opts.Tagger, cgroupsResolver, nil)
 	processOpts := process.NewResolverOpts()
 	processOpts.WithEnvsValue(config.Probe.EnvsWithValue)
 

@@ -9,13 +9,14 @@ package checkconfig
 import (
 	"context"
 	"fmt"
-	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
 	"hash/fnv"
 	"net"
 	"sort"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
 
 	"gopkg.in/yaml.v2"
 
@@ -84,12 +85,13 @@ type DeviceDigest string
 // InitConfig is used to deserialize integration init config
 type InitConfig struct {
 	Profiles              profile.ProfileConfigMap          `yaml:"profiles"`
-	UseRCProfiles         bool                              `yaml:"use_remote_config_profiles"`
+	UseRCProfiles         Boolean                           `yaml:"use_remote_config_profiles"`
 	GlobalMetrics         []profiledefinition.MetricsConfig `yaml:"global_metrics"`
 	OidBatchSize          Number                            `yaml:"oid_batch_size"`
 	BulkMaxRepetitions    Number                            `yaml:"bulk_max_repetitions"`
 	CollectDeviceMetadata Boolean                           `yaml:"collect_device_metadata"`
 	CollectTopology       Boolean                           `yaml:"collect_topology"`
+	CollectVPN            Boolean                           `yaml:"collect_vpn"`
 	UseDeviceIDAsHostname Boolean                           `yaml:"use_device_id_as_hostname"`
 	MinCollectionInterval int                               `yaml:"min_collection_interval"`
 	Namespace             string                            `yaml:"namespace"`
@@ -118,9 +120,11 @@ type InstanceConfig struct {
 	UseGlobalMetrics      bool                                `yaml:"use_global_metrics"`
 	CollectDeviceMetadata *Boolean                            `yaml:"collect_device_metadata"`
 	CollectTopology       *Boolean                            `yaml:"collect_topology"`
+	CollectVPN            *Boolean                            `yaml:"collect_vpn"`
 	UseDeviceIDAsHostname *Boolean                            `yaml:"use_device_id_as_hostname"`
 	PingConfig            snmpintegration.PackedPingConfig    `yaml:"ping"`
 	Loader                string                              `yaml:"loader"`
+	UseRCProfiles         *Boolean                            `yaml:"use_remote_config_profiles"`
 
 	// ExtraTags is a workaround to pass tags from snmp listener to snmp integration via AD template
 	// (see cmd/agent/dist/conf.d/snmp.d/auto_conf.yaml) that only works with strings.
@@ -183,6 +187,7 @@ type CheckConfig struct {
 	InstanceTags          []string
 	CollectDeviceMetadata bool
 	CollectTopology       bool
+	CollectVPN            bool
 	UseDeviceIDAsHostname bool
 	DeviceID              string
 	DeviceIDTags          []string
@@ -221,13 +226,11 @@ func (c *CheckConfig) GetStaticTags() []string {
 		tags = append(tags, deviceIDTagKey+":"+c.DeviceID)
 	}
 
-	if c.UseDeviceIDAsHostname {
-		hname, err := hostname.Get(context.TODO())
-		if err != nil {
-			log.Warnf("Error getting the hostname: %v", err)
-		} else {
-			tags = append(tags, "agent_host:"+hname)
-		}
+	hname, err := hostname.Get(context.TODO())
+	if err != nil {
+		log.Warnf("Error getting the hostname: %v", err)
+	} else {
+		tags = append(tags, "agent_host:"+hname)
 	}
 	return tags
 }
@@ -322,6 +325,12 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 		c.CollectTopology = bool(*instance.CollectTopology)
 	} else {
 		c.CollectTopology = bool(initConfig.CollectTopology)
+	}
+
+	if instance.CollectVPN != nil {
+		c.CollectVPN = bool(*instance.CollectVPN)
+	} else {
+		c.CollectVPN = bool(initConfig.CollectVPN)
 	}
 
 	if instance.UseDeviceIDAsHostname != nil {
@@ -435,7 +444,14 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 		return nil, err
 	}
 
-	if initConfig.UseRCProfiles {
+	var useRCProfiles bool
+	if instance.UseRCProfiles != nil {
+		useRCProfiles = bool(*instance.UseRCProfiles)
+	} else {
+		useRCProfiles = bool(initConfig.UseRCProfiles)
+	}
+
+	if useRCProfiles {
 		if rcClient == nil {
 			return nil, fmt.Errorf("rc client not initialized, cannot use rc profiles")
 		}
@@ -617,6 +633,7 @@ func (c *CheckConfig) Copy() *CheckConfig {
 	newConfig.InstanceTags = netutils.CopyStrings(c.InstanceTags)
 	newConfig.CollectDeviceMetadata = c.CollectDeviceMetadata
 	newConfig.CollectTopology = c.CollectTopology
+	newConfig.CollectVPN = c.CollectVPN
 	newConfig.UseDeviceIDAsHostname = c.UseDeviceIDAsHostname
 	newConfig.DeviceID = c.DeviceID
 

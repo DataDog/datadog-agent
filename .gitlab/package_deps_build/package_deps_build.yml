@@ -8,12 +8,12 @@
     - !reference [.except_mergequeue]
     - when: on_success
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/btf-gen$CI_IMAGE_BTF_GEN_SUFFIX:$CI_IMAGE_BTF_GEN
-  tags: ["arch:amd64"]
+  tags: ["arch:amd64", "specific:true"]
   script:
     - cd $CI_PROJECT_DIR
     - export BTFS_ETAG=$(aws s3api head-object --region us-east-1 --bucket dd-agent-omnibus --key btfs/$BTFHUB_ARCHIVE_BRANCH/btfs-$ARCH.tar --query ETag --output text | tr -d \")
     - export OUTPUTS_HASH=$(sha256sum sysprobe-build-outputs.tar.xz.sum | cut -d' ' -f1)
-    - export MIN_BTFS_FILENAME=minimized-btfs-$BTFS_ETAG-$OUTPUTS_HASH.tar.xz
+    - export MIN_BTFS_FILENAME=minimized-btfs-v2-$BTFS_ETAG-$OUTPUTS_HASH.tar.xz
     - |
       # if running all builds, or this is a release branch, skip the cache check
       if [[ "$RUN_ALL_BUILDS" != "true" && ! $CI_COMMIT_BRANCH =~ /^[0-9]+\.[0-9]+\.x$/ ]]; then
@@ -29,7 +29,7 @@
     - tar -xf sysprobe-build-outputs.tar.xz
     - dda inv -- -e system-probe.generate-minimized-btfs --source-dir "$CI_PROJECT_DIR/btfs-$ARCH" --output-dir "$CI_PROJECT_DIR/minimized-btfs" --bpf-programs "$CI_PROJECT_DIR/pkg/ebpf/bytecode/build/${ARCH}/co-re"
     - cd minimized-btfs
-    - tar -cJf $CI_PROJECT_DIR/minimized-btfs.tar.xz *
+    - tar --mtime=@0 -cJf $CI_PROJECT_DIR/minimized-btfs.tar.xz *
     - $S3_CP_CMD $CI_PROJECT_DIR/minimized-btfs.tar.xz $S3_PROJECT_ARTIFACTS_URI/btfs/$MIN_BTFS_FILENAME
   variables:
     KUBERNETES_MEMORY_REQUEST: "64Gi"

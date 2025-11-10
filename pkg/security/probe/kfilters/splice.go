@@ -16,15 +16,6 @@ import (
 
 var spliceCapabilities = rules.FieldCapabilities{
 	{
-		Field:       "splice.file.path",
-		TypeBitmask: eval.ScalarValueType | eval.PatternValueType,
-		ValidateFnc: validateBasenameFilter,
-	},
-	{
-		Field:       "splice.file.name",
-		TypeBitmask: eval.ScalarValueType,
-	},
-	{
 		Field:       "splice.pipe_entry_flag",
 		TypeBitmask: eval.ScalarValueType | eval.BitmaskValueType,
 	},
@@ -34,7 +25,7 @@ var spliceCapabilities = rules.FieldCapabilities{
 	},
 }
 
-func spliceKFiltersGetter(approvers rules.Approvers) (ActiveKFilters, []eval.Field, error) {
+func spliceKFiltersGetter(approvers rules.Approvers) (KFilters, []eval.Field, error) {
 	kfilters, fieldHandled, err := getBasenameKFilters(model.SpliceEventType, "file", approvers)
 	if err != nil {
 		return nil, nil, err
@@ -58,5 +49,5 @@ func spliceKFiltersGetter(approvers rules.Approvers) (ActiveKFilters, []eval.Fie
 			fieldHandled = append(fieldHandled, field)
 		}
 	}
-	return newActiveKFilters(kfilters...), fieldHandled, nil
+	return newKFilters(kfilters...), fieldHandled, nil
 }

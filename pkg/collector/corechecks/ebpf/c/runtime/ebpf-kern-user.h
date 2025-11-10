@@ -3,6 +3,8 @@
 
 #include "ktypes.h"
 
+#define EBPF_CHECK_KPROBE_MISSES_CMD 0x70C14
+
 typedef struct {
     __u32 map_id;
     __u32 cpu;

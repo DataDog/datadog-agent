@@ -1,0 +1,35 @@
+extensions:
+  ddprofiling/default:
+  hpflare/default:
+receivers:
+  otlp:
+    protocols:
+      grpc:
+      http:
+  hostprofiler:
+processors:
+# infraattributes/default is automatically removed when the Agent Core is not available  
+  infraattributes/default:
+    cardinality: 2 # HighCardinality
+  cumulativetodelta: {}
+
+exporters:
+  debug: {}
+  otlphttp:
+    metrics_endpoint: https://otlp.datadoghq.com/v1/metrics
+    profiles_endpoint: https://intake.profile.datadoghq.com/v1development/profiles
+    headers:
+      dd-api-key: ${env:DD_API_KEY}
+service:
+  extensions: [hpflare/default]
+  pipelines:
+    profiles:
+      receivers: [hostprofiler]
+      # infraattributes/default is automatically removed when the Agent Core is not available  
+      processors: [infraattributes/default]
+      exporters: [otlphttp, debug]   
+    metrics:
+      receivers: [otlp]
+      # infraattributes/default is automatically removed when the Agent Core is not available  
+      processors: [cumulativetodelta, infraattributes/default]
+      exporters: [otlphttp]

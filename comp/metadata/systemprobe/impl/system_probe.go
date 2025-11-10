@@ -9,7 +9,6 @@ package systemprobeimpl
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"time"
 
@@ -51,13 +50,6 @@ type Payload struct {
 func (p *Payload) MarshalJSON() ([]byte, error) {
 	type PayloadAlias Payload
 	return json.Marshal((*PayloadAlias)(p))
-}
-
-// SplitPayload implements marshaler.AbstractMarshaler#SplitPayload.
-//
-// In this case, the payload can't be split any further.
-func (p *Payload) SplitPayload(_ int) ([]marshaler.AbstractMarshaler, error) {
-	return nil, fmt.Errorf("could not split system-probe process payload any more, payload is too big for intake")
 }
 
 type systemprobe struct {
@@ -132,7 +124,7 @@ func (sb *systemprobe) getConfigLayers() map[string]interface{} {
 		return metadata
 	}
 
-	rawLayers, err := fetchSystemProbeConfigBySource(sysprobeConf)
+	rawLayers, err := fetchSystemProbeConfigBySource(sysprobeConf, nil) // It's ok to pass nil here because the IPCClient is not used by SystemProbe API
 	if err != nil {
 		sb.log.Debugf("error fetching system-probe config layers: %s", err)
 		return metadata
@@ -166,7 +158,7 @@ func (sb *systemprobe) getConfigLayers() map[string]interface{} {
 		}
 	}
 
-	if str, err := fetchSystemProbeConfig(sysprobeConf); err == nil {
+	if str, err := fetchSystemProbeConfig(sysprobeConf, nil); err == nil {
 		metadata["full_configuration"] = str
 	} else {
 		sb.log.Debugf("error fetching system-probe config: %s", err)

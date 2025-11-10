@@ -8,121 +8,35 @@
 package autoinstrumentation
 
 import (
-	"errors"
 	"fmt"
 	"strconv"
-	"strings"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/client-go/dynamic"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/tags"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/metrics"
 	mutatecommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// NamespaceMutator is an autoinstrumentation mutator that mutates pods based on the enabled namespaces.
-type NamespaceMutator struct {
-	config          *Config
-	filter          mutatecommon.MutationFilter
-	wmeta           workloadmeta.Component
-	pinnedLibraries pinnedLibraries
-	core            *mutatorCore
-}
-
-// NewNamespaceMutator creates a new injector interface for the auto-instrumentation injector.
-func NewNamespaceMutator(config *Config, wmeta workloadmeta.Component) (*NamespaceMutator, error) {
-	filter, err := NewFilter(config)
-	if err != nil {
-		return nil, err
-	}
-
-	pinnedLibraries := getPinnedLibraries(config.Instrumentation.LibVersions, config.containerRegistry, true)
-	return &NamespaceMutator{
-		config:          config,
-		filter:          filter,
-		wmeta:           wmeta,
-		pinnedLibraries: pinnedLibraries,
-		core:            newMutatorCore(config, wmeta, filter),
-	}, nil
-}
-
-// MutatePod implements the common.Mutator interface for the auto-instrumentation injector. It injects all of the
-// required tracer libraries into the pod template.
-func (m *NamespaceMutator) MutatePod(pod *corev1.Pod, ns string, _ dynamic.Interface) (bool, error) {
-	log.Debugf("Mutating pod in namespace mutator %q", mutatecommon.PodString(pod))
-
-	if pod == nil {
-		return false, errors.New(metrics.InvalidInput)
-	}
-	if pod.Namespace == "" {
-		pod.Namespace = ns
-	}
-
-	if !m.isPodEligible(pod) {
-		return false, nil
-	}
-
-	for _, lang := range supportedLanguages {
-		if containsInitContainer(pod, initContainerName(lang)) {
-			// The admission can be re-run for the same pod
-			// Fast return if we injected the library already
-			log.Debugf("Init container %q already exists in pod %q", initContainerName(lang), mutatecommon.PodString(pod))
-			return false, nil
-		}
-	}
-
-	extractedLibInfo := m.extractLibInfo(pod)
-	if len(extractedLibInfo.libs) == 0 {
-		return false, nil
-	}
-
-	if err := m.core.mutatePodContainers(pod, m.config.securityClientLibraryMutator); err != nil {
-		return false, fmt.Errorf("error mutating pod for security client: %w", err)
-	}
-
-	if err := m.core.mutatePodContainers(pod, m.config.profilingClientLibraryMutator); err != nil {
-		return false, fmt.Errorf("error mutating pod for profiling client: %w", err)
-	}
-
-	if err := m.core.injectTracers(pod, extractedLibInfo); err != nil {
-		log.Errorf("failed to inject auto instrumentation configurations: %v", err)
-		return false, errors.New(metrics.ConfigInjectionError)
-	}
-
-	return true, nil
-}
-
-// ShouldMutatePod implements the common.MutationFilter interface for the auto-instrumentation injector.
-func (m *NamespaceMutator) ShouldMutatePod(pod *corev1.Pod) bool {
-	if !m.config.Instrumentation.Enabled {
-		return false
-	}
-	return m.filter.ShouldMutatePod(pod)
-}
-
-// IsNamespaceEligible implements the common.MutationFilter interface for the auto-instrumentation injector.
-func (m *NamespaceMutator) IsNamespaceEligible(ns string) bool {
-	if !m.config.Instrumentation.Enabled {
-		return false
-	}
-	return m.filter.IsNamespaceEligible(ns)
-}
-
 type mutatorCore struct {
-	config *Config
-	wmeta  workloadmeta.Component
-	filter mutatecommon.MutationFilter
+	config        *Config
+	wmeta         workloadmeta.Component
+	filter        mutatecommon.MutationFilter
+	imageResolver ImageResolver
 }
 
-func newMutatorCore(config *Config, wmeta workloadmeta.Component, filter mutatecommon.MutationFilter) *mutatorCore {
+func newMutatorCore(config *Config, wmeta workloadmeta.Component, filter mutatecommon.MutationFilter, imageResolver ImageResolver) *mutatorCore {
 	return &mutatorCore{
-		config: config,
-		wmeta:  wmeta,
-		filter: filter,
+		config:        config,
+		wmeta:         wmeta,
+		filter:        filter,
+		imageResolver: imageResolver,
 	}
 }
 
@@ -151,13 +65,13 @@ func (m *mutatorCore) injectTracers(pod *corev1.Pod, config extractedPodLibInfo)
 		injectionType  = config.source.injectionType()
 		autoDetected   = config.source.isFromLanguageDetection()
 
-		serviceNameMutator = m.serviceNameMutator(pod)
+		ustEnvVarMutator = m.ustEnvVarMutator(pod)
 
 		// initContainerMutators are resource and security constraints
 		// to all the init containers the init containers that we create.
 		initContainerMutators = append(
-			m.newInitContainerMutators(requirements),
-			serviceNameMutator,
+			m.newInitContainerMutators(requirements, pod.Namespace),
+			ustEnvVarMutator,
 		)
 		injectorOptions = libRequirementOptions{
 			containerFilter:       m.config.containerFilter,
@@ -166,8 +80,8 @@ func (m *mutatorCore) injectTracers(pod *corev1.Pod, config extractedPodLibInfo)
 
 		injector          = m.newInjector(pod, startTime, injectorOptions)
 		containerMutators = containerMutators{
-			config.languageDetection.containerMutator(m.config.version),
-			serviceNameMutator,
+			config.languageDetection.containerMutator(),
+			ustEnvVarMutator,
 		}
 	)
 
@@ -178,7 +92,7 @@ func (m *mutatorCore) injectTracers(pod *corev1.Pod, config extractedPodLibInfo)
 		return err
 	}
 
-	if err := injector.podMutator(m.config.version).mutatePod(pod); err != nil {
+	if err := injector.podMutator().mutatePod(pod); err != nil {
 		// setting the language tag to `injector` because this injection is not related to a specific supported language
 		metrics.LibInjectionErrors.Inc("injector", strconv.FormatBool(autoDetected), injectionType)
 		lastError = err
@@ -192,12 +106,12 @@ func (m *mutatorCore) injectTracers(pod *corev1.Pod, config extractedPodLibInfo)
 			metrics.LibInjectionAttempts.Inc(langStr, strconv.FormatBool(injected), strconv.FormatBool(autoDetected), injectionType)
 		}()
 
-		if err := lib.podMutator(m.config.version, libRequirementOptions{
+		if err := lib.podMutator(libRequirementOptions{
 			containerFilter:       m.config.containerFilter,
 			containerMutators:     containerMutators,
 			initContainerMutators: initContainerMutators,
 			podMutators:           []podMutator{configInjector.podMutator(lib.lang)},
-		}).mutatePod(pod); err != nil {
+		}, m.imageResolver).mutatePod(pod); err != nil {
 			metrics.LibInjectionErrors.Inc(langStr, strconv.FormatBool(autoDetected), injectionType)
 			lastError = err
 			continue
@@ -239,33 +153,75 @@ func (m *mutatorCore) injectTracers(pod *corev1.Pod, config extractedPodLibInfo)
 // We want to get rid of the behavior when we are triggering the fallback _and_
 // it applies: https://datadoghq.atlassian.net/browse/INPLAT-458
 func (m *mutatorCore) serviceNameMutator(pod *corev1.Pod) containerMutator {
+	return newServiceNameMutator(pod, m.config.podMetaAsTags)
+}
+
+// ustEnvVarMutator will attempt to find a ust env var to inject into the pods containers if SSI is enabled.
+//
+// This is used to inject the version and env tags into the pods containers.
+//
+// The service tag/name is handled separately in the serviceNameMutator for legacy reasons.
+func (m *mutatorCore) ustEnvVarMutator(pod *corev1.Pod) containerMutator {
+	var mutators containerMutators
 	if !m.filter.IsNamespaceEligible(pod.Namespace) {
-		return &serviceNameMutator{noop: true}
+		return mutators
 	}
 
-	return newServiceNameMutator(pod)
+	for tag, envVarName := range map[string]string{
+		tags.Version: kubernetes.VersionTagEnvVar,
+		tags.Env:     kubernetes.EnvTagEnvVar,
+	} {
+		if mutator := ustEnvVarMutatorForPodMeta(pod, m.config.podMetaAsTags, tag, envVarName); mutator != nil {
+			mutators = append(mutators, mutator)
+		}
+	}
+
+	if mutator := m.serviceNameMutator(pod); mutator != nil {
+		mutators = append(mutators, mutator)
+	}
+
+	return mutators
 }
 
 // newInitContainerMutators constructs container mutators for behavior
 // that is common and passed to the init containers we create.
 //
 // At this point in time it is: resource requirements and security contexts.
-func (m *mutatorCore) newInitContainerMutators(requirements corev1.ResourceRequirements) containerMutators {
-	return containerMutators{
-		containerResourceRequirements{requirements},
-		containerSecurityContext{m.config.initSecurityContext},
+func (m *mutatorCore) newInitContainerMutators(
+	requirements corev1.ResourceRequirements,
+	nsName string,
+) containerMutators {
+	securityContext := m.config.initSecurityContext
+	if securityContext == nil {
+		nsLabels, err := getNamespaceLabels(m.wmeta, nsName)
+		if err != nil {
+			log.Warnf("error getting labels for namespace=%s: %s", nsName, err)
+		} else if val, ok := nsLabels["pod-security.kubernetes.io/enforce"]; ok && val == "restricted" {
+			// https://datadoghq.atlassian.net/browse/INPLAT-492
+			securityContext = defaultRestrictedSecurityContext
+		}
 	}
+
+	mutators := []containerMutator{
+		containerResourceRequirements{requirements},
+	}
+
+	if securityContext != nil {
+		mutators = append(mutators, containerSecurityContext{securityContext})
+	}
+
+	return mutators
 }
 
 // newInjector creates an injector instance for this pod.
 func (m *mutatorCore) newInjector(pod *corev1.Pod, startTime time.Time, lopts libRequirementOptions) *injector {
 	opts := []injectorOption{
 		injectorWithLibRequirementOptions(lopts),
-		injectorWithImageTag(m.config.Instrumentation.InjectorImageTag),
+		injectorWithImageTag(m.config.Instrumentation.InjectorImageTag, m.imageResolver),
 	}
 
 	for _, e := range []annotationExtractor[injectorOption]{
-		injectorVersionAnnotationExtractor,
+		injectorVersionAnnotationExtractorFunc(m.imageResolver),
 		injectorImageAnnotationExtractor,
 		injectorDebugAnnotationExtractor,
 	} {
@@ -282,60 +238,6 @@ func (m *mutatorCore) newInjector(pod *corev1.Pod, startTime time.Time, lopts li
 	return newInjector(startTime, m.config.containerRegistry, opts...)
 }
 
-// isPodEligible checks whether we are allowed to inject in this pod.
-func (m *NamespaceMutator) isPodEligible(pod *corev1.Pod) bool {
-	return m.filter.ShouldMutatePod(pod)
-}
-
-// extractLibInfo metadata about what library information we should be
-// injecting into the pod and where it came from.
-func (m *NamespaceMutator) extractLibInfo(pod *corev1.Pod) extractedPodLibInfo {
-	extracted := m.core.initExtractedLibInfo(pod)
-
-	libs := extractLibrariesFromAnnotations(pod, m.config.containerRegistry)
-	if len(libs) > 0 {
-		return extracted.withLibs(libs)
-	}
-
-	// if the user has pinned libraries for their configuration,
-	// we prefer to use these and not override their behavior.
-	//
-	// N.B. this is empty if auto-instrumentation is disabled.
-	if !m.pinnedLibraries.areSetToDefaults && len(m.pinnedLibraries.libs) > 0 {
-		return extracted.withLibs(m.pinnedLibraries.libs)
-	}
-
-	// if the language_detection injection is enabled
-	// (and we have things to filter to) we use that!
-	if e, usingLanguageDetection := extracted.useLanguageDetectionLibs(); usingLanguageDetection {
-		return e
-	}
-
-	if len(m.pinnedLibraries.libs) > 0 {
-		return extracted.withLibs(m.pinnedLibraries.libs)
-	}
-
-	if extracted.source.isSingleStep() {
-		return extracted.withLibs(getAllLatestDefaultLibraries(m.config.containerRegistry))
-	}
-
-	// Get libraries to inject for Remote Instrumentation
-	// Inject all if "admission.datadoghq.com/all-lib.version" exists
-	// without any other language-specific annotations.
-	// This annotation is typically expected to be set via remote-config
-	// for batch instrumentation without language detection.
-	injectAllAnnotation := strings.ToLower(fmt.Sprintf(libVersionAnnotationKeyFormat, "all"))
-	if version, found := pod.Annotations[injectAllAnnotation]; found {
-		if version != "latest" {
-			log.Warnf("Ignoring version %q. To inject all libs, the only supported version is latest for now", version)
-		}
-
-		return extracted.withLibs(getAllLatestDefaultLibraries(m.config.containerRegistry))
-	}
-
-	return extractedPodLibInfo{}
-}
-
 func extractLibrariesFromAnnotations(pod *corev1.Pod, containerRegistry string) []libInfo {
 	var (
 		libList        []libInfo
@@ -350,7 +252,6 @@ func extractLibrariesFromAnnotations(pod *corev1.Pod, containerRegistry string) 
 			}
 		}
 	)
-
 	for _, l := range supportedLanguages {
 		extractLibInfo(l.customLibAnnotationExtractor())
 		extractLibInfo(l.libVersionAnnotationExtractor(containerRegistry))
@@ -462,4 +363,14 @@ func profilingClientLibraryConfigMutators(datadogConfig config.Component) contai
 	}
 
 	return mutators
+}
+
+func getNamespaceLabels(wmeta workloadmeta.Component, name string) (map[string]string, error) {
+	id := util.GenerateKubeMetadataEntityID("", "namespaces", "", name)
+	ns, err := wmeta.GetKubernetesMetadata(id)
+	if err != nil {
+		return nil, fmt.Errorf("error getting namespace metadata for ns=%s: %w", name, err)
+	}
+
+	return ns.EntityMeta.Labels, nil
 }

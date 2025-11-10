@@ -69,6 +69,11 @@ func (m mock) GetFullConfig(...string) http.HandlerFunc {
 	return func(http.ResponseWriter, *http.Request) {}
 }
 
+// GetFullConfigWithoutDefaults returns the full config without defaults
+func (m mock) GetFullConfigWithoutDefaults(...string) http.HandlerFunc {
+	return func(http.ResponseWriter, *http.Request) {}
+}
+
 // GetFullConfigBySource returns the full config by sources
 func (m mock) GetFullConfigBySource() http.HandlerFunc {
 	return func(http.ResponseWriter, *http.Request) {}

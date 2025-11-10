@@ -40,7 +40,9 @@ if ("$env:WITH_JMX" -ne "false") {
 }
 
 New-Item -ItemType directory -Path 'C:/ProgramData/Datadog'
-Move-Item "C:/Program Files/Datadog/Datadog Agent/EXAMPLECONFSLOCATION" "C:/ProgramData/Datadog/conf.d"
+Move-Item "C:/Program Files/Datadog/Datadog Agent/etc/datadog-agent/conf.d" "C:/ProgramData/Datadog/conf.d"
+# This folder only contains config artifacts, we've copied what we need so we can remove the rest.
+rm -r -fo "C:/Program Files/Datadog/Datadog Agent/etc/"
 
 $services = [ordered]@{
   "datadogagent" = "C:\Program Files\Datadog\Datadog Agent\bin\agent.exe",@()
@@ -55,7 +57,7 @@ foreach ($s in $services.Keys) {
 # Since OpenSSL 3.4, the install paths can be retrieved from the registry instead of being hardcoded at build time.
 # https://github.com/openssl/openssl/blob/master/NOTES-WINDOWS.md#installation-directories
 # TODO: How best to configure the OpenSSL version?
-$opensslVersion = "3.4"
+$opensslVersion = "3.5"
 if ($env:WITH_FIPS -eq "true") {
   $opensslctx = "datadog-fips-agent"
 } else {
@@ -90,3 +92,15 @@ install_method:
   tool_version: docker-win-$env:INSTALL_INFO
   installer_version: docker-win-$env:INSTALL_INFO
 "@ > C:/ProgramData/Datadog/install_info
+
+# After this script is executed sometimes the WMI database is approximately 25 MB
+# bigger than otherwise which leads to a failing static quality gate.
+# This is a workaround to clean up the WMI database and reduce the image size.
+# It is ignored for non-core base images.
+try {
+    wevtutil cl 'Microsoft-Windows-WMI-Activity/Operational' -ErrorAction SilentlyContinue
+    wevtutil cl 'Microsoft-Windows-WMI-Activity/Trace' -ErrorAction SilentlyContinue
+    winmgmt /salvagerepository | Out-Null
+} catch {
+    # Silently continue if WMI cleanup fails
+}

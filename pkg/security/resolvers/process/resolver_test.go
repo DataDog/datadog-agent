@@ -25,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/container"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/path"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/usergroup"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/util/ktime"
 )
@@ -96,6 +97,8 @@ func newFakeForkEvent(ppid, pid int, inode uint64, resolver *EBPFResolver) *mode
 	e.ProcessCacheEntry.PPid = uint32(ppid)
 	e.ProcessCacheEntry.Pid = uint32(pid)
 	e.ProcessCacheEntry.FileEvent.Inode = inode
+	e.ProcessCacheEntry.CGroup.CGroupID = "FakeCgroupID"
+	e.ProcessCacheEntry.CGroup.CGroupFile.Inode = 4242
 	return e
 }
 
@@ -109,6 +112,8 @@ func newFakeExecEvent(ppid, pid int, inode uint64, resolver *EBPFResolver) *mode
 	e.ProcessCacheEntry.PPid = uint32(ppid)
 	e.ProcessCacheEntry.Pid = uint32(pid)
 	e.ProcessCacheEntry.FileEvent.Inode = inode
+	e.ProcessCacheEntry.CGroup.CGroupID = "FakeCgroupID"
+	e.ProcessCacheEntry.CGroup.CGroupFile.Inode = 4242
 	return e
 }
 
@@ -122,7 +127,7 @@ func newResolver() (*EBPFResolver, error) {
 		return nil, err
 	}
 
-	cgroupsResolver, err := cgroup.NewResolver(nil)
+	cgroupsResolver, err := cgroup.NewResolver(nil, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -829,7 +834,7 @@ func TestIsExecExecSnapshot(t *testing.T) {
 	child3 := newFakeExecEvent(3, 4, 769, resolver)
 
 	// X(pid:3)
-	resolver.insertEntry(parent.ProcessCacheEntry, model.ProcessCacheEntryFromSnapshot)
+	resolver.insertEntry(parent.ProcessCacheEntry, model.ProcessCacheEntryFromSnapshot, true)
 	assert.Equal(t, parent.ProcessCacheEntry, resolver.entryCache[parent.ProcessCacheEntry.Pid])
 	assert.Equal(t, 1, len(resolver.entryCache))
 
@@ -837,7 +842,7 @@ func TestIsExecExecSnapshot(t *testing.T) {
 	//    |
 	// X(pid:4)
 	resolver.setAncestor(child.ProcessCacheEntry)
-	resolver.insertEntry(child.ProcessCacheEntry, model.ProcessCacheEntryFromSnapshot)
+	resolver.insertEntry(child.ProcessCacheEntry, model.ProcessCacheEntryFromSnapshot, true)
 	assert.Equal(t, child.ProcessCacheEntry, resolver.entryCache[child.ProcessCacheEntry.Pid])
 	assert.Equal(t, 2, len(resolver.entryCache))
 	assert.Equal(t, parent.ProcessCacheEntry, child.ProcessCacheEntry.Ancestor)
@@ -863,4 +868,31 @@ func TestIsExecExecSnapshot(t *testing.T) {
 
 	assert.True(t, child3.ProcessCacheEntry.IsExecExec)
 	assert.True(t, child3.ProcessCacheEntry.IsExec)
+}
+
+func TestCGroupContext(t *testing.T) {
+	resolver, err := newResolver()
+	if err != nil {
+		t.Fatal()
+	}
+
+	t.Run("unknown-container-runtime", func(t *testing.T) {
+		node := newFakeForkEvent(0, 3, 123, resolver)
+		resolver.insertEntry(node.ProcessCacheEntry, model.ProcessCacheEntryFromEvent, true)
+
+		const (
+			containerID = containerutils.ContainerID("09d3f62464b8761e9106350bacc609deb0dc639403888bdf2112033cb30e1bf6")
+			cgroupID    = containerutils.CGroupID("/kubepods/besteffort/pod8bbdd97b-f902-4e16-8235-4ac18307cef6/" + string(containerID))
+		)
+
+		resolver.UpdateProcessCGroupContext(node.ProcessCacheEntry.Pid, &model.CGroupContext{
+			CGroupID: cgroupID,
+			CGroupFile: model.PathKey{
+				Inode: 4242,
+			},
+		}, nil)
+
+		assert.Equal(t, cgroupID, node.ProcessCacheEntry.CGroup.CGroupID)
+		assert.Equal(t, containerID, node.ProcessCacheEntry.ContainerContext.ContainerID)
+	})
 }

@@ -51,7 +51,7 @@ agents:
 }
 
 var otlpIngestParams = utils.IAParams{
-	InfraAttributes: false,
+	InfraAttributes: true,
 }
 
 func (s *otlpIngestTestSuite) SetupSuite() {

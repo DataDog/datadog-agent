@@ -8,11 +8,11 @@ package common
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"io"
 	"os"
 	"os/exec"
+	"runtime"
 	"strings"
 	"time"
 
@@ -31,11 +31,6 @@ const (
 	configDir              = "/etc/datadog-agent"
 )
 
-var (
-	// ErrNoAPIKey is returned when no API key is provided.
-	ErrNoAPIKey = errors.New("no API key provided")
-)
-
 // Setup allows setup scripts to define packages and configurations to install.
 type Setup struct {
 	configDir string
@@ -43,13 +38,15 @@ type Setup struct {
 	start     time.Time
 	flavor    string
 
-	Out                     *Output
-	Env                     *env.Env
-	Ctx                     context.Context
-	Span                    *telemetry.Span
-	Packages                Packages
-	Config                  config.Config
-	DdAgentAdditionalGroups []string
+	Out                       *Output
+	Env                       *env.Env
+	Ctx                       context.Context
+	Span                      *telemetry.Span
+	Packages                  Packages
+	Config                    config.Config
+	DdAgentAdditionalGroups   []string
+	DelayedAgentRestartConfig config.DelayedAgentRestartConfig
+	NoConfig                  bool
 }
 
 // NewSetup creates a new Setup structure with some default values.
@@ -60,16 +57,15 @@ Running the %s installation script (https://github.com/DataDog/datadog-agent/tre
 	start := time.Now()
 	output := &Output{tty: logOutput}
 	output.WriteString(fmt.Sprintf(header, version.AgentVersion, flavor, version.Commit, flavorPath, start.Format(time.RFC3339)))
-	if env.APIKey == "" {
-		return nil, ErrNoAPIKey
-	}
 	installer, err := installer.NewInstaller(env)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create installer: %w", err)
 	}
 	var proxyNoProxy []string
 	if os.Getenv("DD_PROXY_NO_PROXY") != "" {
-		proxyNoProxy = strings.Split(os.Getenv("DD_PROXY_NO_PROXY"), ",")
+		proxyNoProxy = strings.FieldsFunc(os.Getenv("DD_PROXY_NO_PROXY"), func(r rune) bool {
+			return r == ',' || r == ' '
+		}) // comma and space-separated list, consistent with viper and documentation
 	}
 	span, ctx := telemetry.StartSpanFromContext(ctx, fmt.Sprintf("setup.%s", flavor))
 	s := &Setup{
@@ -91,7 +87,8 @@ Running the %s installation script (https://github.com/DataDog/datadog-agent/tre
 					HTTPS:   os.Getenv("DD_PROXY_HTTPS"),
 					NoProxy: proxyNoProxy,
 				},
-				Env: os.Getenv("DD_ENV"),
+				Env:                os.Getenv("DD_ENV"),
+				InfrastructureMode: os.Getenv("DD_INFRASTRUCTURE_MODE"),
 			},
 			IntegrationConfigs: make(map[string]config.IntegrationConfig),
 		},
@@ -104,24 +101,37 @@ Running the %s installation script (https://github.com/DataDog/datadog-agent/tre
 
 // Run installs the packages and writes the configurations
 func (s *Setup) Run() (err error) {
+	// TODO: go idiom is to get ctx from parameter not a struct
+	//       s.Ctx is tied to s.Span, many files would need to be refactored
+	ctx := s.Ctx
+
 	defer func() { s.Span.Finish(err) }()
-	s.Out.WriteString("Applying configurations...\n")
-	err = config.WriteConfigs(s.Config, s.configDir)
-	if err != nil {
-		return fmt.Errorf("failed to write configuration: %w", err)
-	}
+
 	packages := resolvePackages(s.Env, s.Packages)
 	s.Out.WriteString("The following packages will be installed:\n")
 	for _, p := range packages {
 		s.Out.WriteString(fmt.Sprintf("  - %s / %s\n", p.name, p.version))
 	}
-	// TODO(WINA-1431): This is being overwritten by the MSI on Windows
-	err = installinfo.WriteInstallInfo(fmt.Sprintf("install-script-%s", s.flavor))
+	s.Out.WriteString("Stopping Datadog Agent services...\n")
+	err = s.stopServices(ctx, packages)
+	if err != nil {
+		return fmt.Errorf("failed to stop services: %w", err)
+	}
+	s.Out.WriteString("Applying configurations...\n")
+	// ensure config root is created with correct permissions
+	err = paths.EnsureInstallerDataDir()
+	if err != nil {
+		return fmt.Errorf("could not create config directory: %w", err)
+	}
+	if !s.NoConfig {
+		err = config.WriteConfigs(s.Config, s.configDir)
+		if err != nil {
+			return fmt.Errorf("failed to write configuration: %w", err)
+		}
+	}
+	err = installinfo.WriteInstallInfo(ctx, fmt.Sprintf("install-script-%s", s.flavor))
 	if err != nil {
 		return fmt.Errorf("failed to write install info: %w", err)
-	}
-	if err = s.preInstallPackages(); err != nil {
-		return fmt.Errorf("failed during pre-package installation: %w", err)
 	}
 	for _, p := range packages {
 		url := oci.PackageURL(s.Env, p.name, p.version)
@@ -130,9 +140,20 @@ func (s *Setup) Run() (err error) {
 			return fmt.Errorf("failed to install package %s: %w", url, err)
 		}
 	}
-	err = s.restartServices(packages)
+	if err = s.postInstallPackages(); err != nil {
+		return fmt.Errorf("failed during post-package installation: %w", err)
+	}
+	if s.Packages.copyInstallerSSI {
+		if err := copyInstallerSSI(); err != nil {
+			return err
+		}
+	}
+	err = s.restartServices(ctx, packages)
 	if err != nil {
 		return fmt.Errorf("failed to restart services: %w", err)
+	}
+	if s.DelayedAgentRestartConfig.Scheduled {
+		ScheduleDelayedAgentRestart(s, s.DelayedAgentRestartConfig.Delay, s.DelayedAgentRestartConfig.LogFile)
 	}
 	s.Out.WriteString(fmt.Sprintf("Successfully ran the %s install script in %s!\n", s.flavor, time.Since(s.start).Round(time.Second)))
 	return nil
@@ -146,7 +167,12 @@ func (s *Setup) installPackage(name string, url string) (err error) {
 	span.SetTopLevel()
 
 	s.Out.WriteString(fmt.Sprintf("Installing %s...\n", name))
-	err = s.installer.Install(ctx, url, nil)
+	if runtime.GOOS == "windows" && name == DatadogAgentPackage {
+		// TODO(WINA-2018): Add support for skipping the installation of the core Agent if it is already installed
+		err = s.installer.ForceInstall(ctx, url, nil)
+	} else {
+		err = s.installer.Install(ctx, url, nil)
+	}
 	if err != nil {
 		return err
 	}
@@ -175,4 +201,13 @@ var ExecuteCommandWithTimeout = func(s *Setup, command string, args ...string) (
 		return nil, err
 	}
 	return output, nil
+}
+
+// ScheduleDelayedAgentRestart schedules an agent restart after the specified delay
+func ScheduleDelayedAgentRestart(s *Setup, delay time.Duration, logFile string) {
+	s.Out.WriteString(fmt.Sprintf("Scheduling agent restart in %v for GPU monitoring\n", delay))
+	cmd := exec.Command("nohup", "bash", "-c", fmt.Sprintf("echo \"[$(date -u +%%Y-%%m-%%dT%%H:%%M:%%SZ)] Waiting %v...\" >> %[2]s.log && sleep %d && echo \"[$(date -u +%%Y-%%m-%%dT%%H:%%M:%%SZ)] Restarting agent...\" >> %[2]s.log && systemctl restart datadog-agent >> %[2]s.log 2>&1", delay, logFile, int(delay.Seconds())))
+	if err := cmd.Start(); err != nil {
+		s.Out.WriteString(fmt.Sprintf("Failed to schedule restart: %v\n", err))
+	}
 }

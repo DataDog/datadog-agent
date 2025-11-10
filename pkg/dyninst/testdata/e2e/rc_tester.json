@@ -1,0 +1,710 @@
+[
+  {
+    "service": "rc_tester",
+    "ddsource": "dd_debugger",
+    "logger": {
+      "name": "",
+      "method": "main.LookAtTheRequest",
+      "version": 0,
+      "thread_id": "[goid]",
+      "thread_name": ""
+    },
+    "debugger": {
+      "snapshot": {
+        "id": "[id]",
+        "timestamp": "[ts]",
+        "language": "go",
+        "stack": "[stack]",
+        "probe": {
+          "id": "look_at_the_request",
+          "location": {
+            "method": "main.LookAtTheRequest"
+          }
+        },
+        "captures": {
+          "entry": {
+            "arguments": {
+              "path": {
+                "type": "string",
+                "value": "/0"
+              }
+            }
+          }
+        }
+      }
+    },
+    "timestamp": "[ts]",
+    "duration": "[duration]"
+  },
+  {
+    "service": "rc_tester",
+    "ddsource": "dd_debugger",
+    "logger": {
+      "name": "",
+      "method": "main.HandleHTTP",
+      "version": 0,
+      "thread_id": "[goid]",
+      "thread_name": ""
+    },
+    "debugger": {
+      "snapshot": {
+        "id": "[id]",
+        "timestamp": "[ts]",
+        "language": "go",
+        "stack": "[stack]",
+        "probe": {
+          "id": "http_handler",
+          "location": {
+            "method": "main.HandleHTTP"
+          }
+        },
+        "captures": {
+          "entry": {
+            "arguments": {
+              "w": {
+                "type": "net/http.ResponseWriter",
+                "fields": {
+                  "data": {
+                    "type": "struct { github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.monitoredResponseWriter = github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.monitoredResponseWriter·1; net/http.Flusher; net/http.CloseNotifier; net/http.Hijacker }",
+                    "fields": {
+                      "monitoredResponseWriter": {
+                        "type": "github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.monitoredResponseWriter·1",
+                        "fields": {
+                          "data": {
+                            "type": "*github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.responseWriter",
+                            "notCapturedReason": "depth"
+                          }
+                        }
+                      },
+                      "Flusher": {
+                        "type": "net/http.Flusher",
+                        "fields": {
+                          "data": {
+                            "type": "*net/http.response",
+                            "notCapturedReason": "depth"
+                          }
+                        }
+                      },
+                      "CloseNotifier": {
+                        "type": "net/http.CloseNotifier",
+                        "fields": {
+                          "data": {
+                            "type": "*net/http.response",
+                            "notCapturedReason": "depth"
+                          }
+                        }
+                      },
+                      "Hijacker": {
+                        "type": "net/http.Hijacker",
+                        "fields": {
+                          "data": {
+                            "type": "*net/http.response",
+                            "notCapturedReason": "depth"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              },
+              "r": {
+                "type": "*net/http.Request",
+                "address": "[addr]",
+                "fields": {
+                  "Method": {
+                    "type": "string",
+                    "value": "GET"
+                  },
+                  "URL": {
+                    "type": "*net/url.URL",
+                    "notCapturedReason": "depth"
+                  },
+                  "Proto": {
+                    "type": "string",
+                    "value": "HTTP/1.1"
+                  },
+                  "ProtoMajor": {
+                    "type": "int",
+                    "value": "1"
+                  },
+                  "ProtoMinor": {
+                    "type": "int",
+                    "value": "1"
+                  },
+                  "Header": {
+                    "type": "net/http.Header",
+                    "notCapturedReason": "depth"
+                  },
+                  "Body": {
+                    "type": "io.ReadCloser",
+                    "fields": {
+                      "data": {
+                        "type": "http.noBody",
+                        "notCapturedReason": "missing type information"
+                      }
+                    }
+                  },
+                  "GetBody": {
+                    "type": "func() (io.ReadCloser, error)",
+                    "notCapturedReason": "unimplemented"
+                  },
+                  "ContentLength": {
+                    "type": "int64",
+                    "value": "0"
+                  },
+                  "TransferEncoding": {
+                    "type": "[]string",
+                    "isNull": true
+                  },
+                  "Close": {
+                    "type": "bool",
+                    "value": "false"
+                  },
+                  "Host": {
+                    "type": "string",
+                    "value": "[host network address]"
+                  },
+                  "Form": {
+                    "type": "net/url.Values",
+                    "isNull": true
+                  },
+                  "PostForm": {
+                    "type": "net/url.Values",
+                    "isNull": true
+                  },
+                  "MultipartForm": {
+                    "type": "*mime/multipart.Form",
+                    "isNull": true
+                  },
+                  "Trailer": {
+                    "type": "net/http.Header",
+                    "isNull": true
+                  },
+                  "RemoteAddr": {
+                    "type": "string",
+                    "value": "[remote network address]"
+                  },
+                  "RequestURI": {
+                    "type": "string",
+                    "value": "/0"
+                  },
+                  "TLS": {
+                    "type": "*crypto/tls.ConnectionState",
+                    "isNull": true
+                  },
+                  "Cancel": {
+                    "type": "\u003c-chan struct {}",
+                    "notCapturedReason": "unimplemented"
+                  },
+                  "Response": {
+                    "type": "*net/http.Response",
+                    "isNull": true
+                  },
+                  "Pattern": {
+                    "type": "string",
+                    "value": "/"
+                  },
+                  "ctx": {
+                    "type": "context.Context",
+                    "fields": {
+                      "data": {
+                        "type": "*context.valueCtx",
+                        "notCapturedReason": "missing type information"
+                      }
+                    }
+                  },
+                  "pat": {
+                    "type": "*net/http.pattern",
+                    "notCapturedReason": "depth"
+                  },
+                  "matches": {
+                    "type": "[]string",
+                    "isNull": true
+                  },
+                  "otherValues": {
+                    "type": "map[string]string",
+                    "isNull": true
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "timestamp": "[ts]",
+    "duration": "[duration]"
+  },
+  {
+    "service": "rc_tester",
+    "ddsource": "dd_debugger",
+    "logger": {
+      "name": "",
+      "method": "main.LookAtTheRequest",
+      "version": 0,
+      "thread_id": "[goid]",
+      "thread_name": ""
+    },
+    "debugger": {
+      "snapshot": {
+        "id": "[id]",
+        "timestamp": "[ts]",
+        "language": "go",
+        "stack": "[stack]",
+        "probe": {
+          "id": "look_at_the_request",
+          "location": {
+            "method": "main.LookAtTheRequest"
+          }
+        },
+        "captures": {
+          "entry": {
+            "arguments": {
+              "path": {
+                "type": "string",
+                "value": "/1"
+              }
+            }
+          }
+        }
+      }
+    },
+    "timestamp": "[ts]",
+    "duration": "[duration]"
+  },
+  {
+    "service": "rc_tester",
+    "ddsource": "dd_debugger",
+    "logger": {
+      "name": "",
+      "method": "main.HandleHTTP",
+      "version": 0,
+      "thread_id": "[goid]",
+      "thread_name": ""
+    },
+    "debugger": {
+      "snapshot": {
+        "id": "[id]",
+        "timestamp": "[ts]",
+        "language": "go",
+        "stack": "[stack]",
+        "probe": {
+          "id": "http_handler",
+          "location": {
+            "method": "main.HandleHTTP"
+          }
+        },
+        "captures": {
+          "entry": {
+            "arguments": {
+              "w": {
+                "type": "net/http.ResponseWriter",
+                "fields": {
+                  "data": {
+                    "type": "struct { github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.monitoredResponseWriter = github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.monitoredResponseWriter·1; net/http.Flusher; net/http.CloseNotifier; net/http.Hijacker }",
+                    "fields": {
+                      "monitoredResponseWriter": {
+                        "type": "github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.monitoredResponseWriter·1",
+                        "fields": {
+                          "data": {
+                            "type": "*github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.responseWriter",
+                            "notCapturedReason": "depth"
+                          }
+                        }
+                      },
+                      "Flusher": {
+                        "type": "net/http.Flusher",
+                        "fields": {
+                          "data": {
+                            "type": "*net/http.response",
+                            "notCapturedReason": "depth"
+                          }
+                        }
+                      },
+                      "CloseNotifier": {
+                        "type": "net/http.CloseNotifier",
+                        "fields": {
+                          "data": {
+                            "type": "*net/http.response",
+                            "notCapturedReason": "depth"
+                          }
+                        }
+                      },
+                      "Hijacker": {
+                        "type": "net/http.Hijacker",
+                        "fields": {
+                          "data": {
+                            "type": "*net/http.response",
+                            "notCapturedReason": "depth"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              },
+              "r": {
+                "type": "*net/http.Request",
+                "address": "[addr]",
+                "fields": {
+                  "Method": {
+                    "type": "string",
+                    "value": "GET"
+                  },
+                  "URL": {
+                    "type": "*net/url.URL",
+                    "notCapturedReason": "depth"
+                  },
+                  "Proto": {
+                    "type": "string",
+                    "value": "HTTP/1.1"
+                  },
+                  "ProtoMajor": {
+                    "type": "int",
+                    "value": "1"
+                  },
+                  "ProtoMinor": {
+                    "type": "int",
+                    "value": "1"
+                  },
+                  "Header": {
+                    "type": "net/http.Header",
+                    "notCapturedReason": "depth"
+                  },
+                  "Body": {
+                    "type": "io.ReadCloser",
+                    "fields": {
+                      "data": {
+                        "type": "http.noBody",
+                        "notCapturedReason": "missing type information"
+                      }
+                    }
+                  },
+                  "GetBody": {
+                    "type": "func() (io.ReadCloser, error)",
+                    "notCapturedReason": "unimplemented"
+                  },
+                  "ContentLength": {
+                    "type": "int64",
+                    "value": "0"
+                  },
+                  "TransferEncoding": {
+                    "type": "[]string",
+                    "isNull": true
+                  },
+                  "Close": {
+                    "type": "bool",
+                    "value": "false"
+                  },
+                  "Host": {
+                    "type": "string",
+                    "value": "[host network address]"
+                  },
+                  "Form": {
+                    "type": "net/url.Values",
+                    "isNull": true
+                  },
+                  "PostForm": {
+                    "type": "net/url.Values",
+                    "isNull": true
+                  },
+                  "MultipartForm": {
+                    "type": "*mime/multipart.Form",
+                    "isNull": true
+                  },
+                  "Trailer": {
+                    "type": "net/http.Header",
+                    "isNull": true
+                  },
+                  "RemoteAddr": {
+                    "type": "string",
+                    "value": "[remote network address]"
+                  },
+                  "RequestURI": {
+                    "type": "string",
+                    "value": "/1"
+                  },
+                  "TLS": {
+                    "type": "*crypto/tls.ConnectionState",
+                    "isNull": true
+                  },
+                  "Cancel": {
+                    "type": "\u003c-chan struct {}",
+                    "notCapturedReason": "unimplemented"
+                  },
+                  "Response": {
+                    "type": "*net/http.Response",
+                    "isNull": true
+                  },
+                  "Pattern": {
+                    "type": "string",
+                    "value": "/"
+                  },
+                  "ctx": {
+                    "type": "context.Context",
+                    "fields": {
+                      "data": {
+                        "type": "*context.valueCtx",
+                        "notCapturedReason": "missing type information"
+                      }
+                    }
+                  },
+                  "pat": {
+                    "type": "*net/http.pattern",
+                    "notCapturedReason": "depth"
+                  },
+                  "matches": {
+                    "type": "[]string",
+                    "isNull": true
+                  },
+                  "otherValues": {
+                    "type": "map[string]string",
+                    "isNull": true
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "timestamp": "[ts]",
+    "duration": "[duration]"
+  },
+  {
+    "service": "rc_tester",
+    "ddsource": "dd_debugger",
+    "logger": {
+      "name": "",
+      "method": "main.LookAtTheRequest",
+      "version": 0,
+      "thread_id": "[goid]",
+      "thread_name": ""
+    },
+    "debugger": {
+      "snapshot": {
+        "id": "[id]",
+        "timestamp": "[ts]",
+        "language": "go",
+        "stack": "[stack]",
+        "probe": {
+          "id": "look_at_the_request",
+          "location": {
+            "method": "main.LookAtTheRequest"
+          }
+        },
+        "captures": {
+          "entry": {
+            "arguments": {
+              "path": {
+                "type": "string",
+                "value": "/2"
+              }
+            }
+          }
+        }
+      }
+    },
+    "timestamp": "[ts]",
+    "duration": "[duration]"
+  },
+  {
+    "service": "rc_tester",
+    "ddsource": "dd_debugger",
+    "logger": {
+      "name": "",
+      "method": "main.HandleHTTP",
+      "version": 0,
+      "thread_id": "[goid]",
+      "thread_name": ""
+    },
+    "debugger": {
+      "snapshot": {
+        "id": "[id]",
+        "timestamp": "[ts]",
+        "language": "go",
+        "stack": "[stack]",
+        "probe": {
+          "id": "http_handler",
+          "location": {
+            "method": "main.HandleHTTP"
+          }
+        },
+        "captures": {
+          "entry": {
+            "arguments": {
+              "w": {
+                "type": "net/http.ResponseWriter",
+                "fields": {
+                  "data": {
+                    "type": "struct { github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.monitoredResponseWriter = github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.monitoredResponseWriter·1; net/http.Flusher; net/http.CloseNotifier; net/http.Hijacker }",
+                    "fields": {
+                      "monitoredResponseWriter": {
+                        "type": "github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.monitoredResponseWriter·1",
+                        "fields": {
+                          "data": {
+                            "type": "*github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.responseWriter",
+                            "notCapturedReason": "depth"
+                          }
+                        }
+                      },
+                      "Flusher": {
+                        "type": "net/http.Flusher",
+                        "fields": {
+                          "data": {
+                            "type": "*net/http.response",
+                            "notCapturedReason": "depth"
+                          }
+                        }
+                      },
+                      "CloseNotifier": {
+                        "type": "net/http.CloseNotifier",
+                        "fields": {
+                          "data": {
+                            "type": "*net/http.response",
+                            "notCapturedReason": "depth"
+                          }
+                        }
+                      },
+                      "Hijacker": {
+                        "type": "net/http.Hijacker",
+                        "fields": {
+                          "data": {
+                            "type": "*net/http.response",
+                            "notCapturedReason": "depth"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              },
+              "r": {
+                "type": "*net/http.Request",
+                "address": "[addr]",
+                "fields": {
+                  "Method": {
+                    "type": "string",
+                    "value": "GET"
+                  },
+                  "URL": {
+                    "type": "*net/url.URL",
+                    "notCapturedReason": "depth"
+                  },
+                  "Proto": {
+                    "type": "string",
+                    "value": "HTTP/1.1"
+                  },
+                  "ProtoMajor": {
+                    "type": "int",
+                    "value": "1"
+                  },
+                  "ProtoMinor": {
+                    "type": "int",
+                    "value": "1"
+                  },
+                  "Header": {
+                    "type": "net/http.Header",
+                    "notCapturedReason": "depth"
+                  },
+                  "Body": {
+                    "type": "io.ReadCloser",
+                    "fields": {
+                      "data": {
+                        "type": "http.noBody",
+                        "notCapturedReason": "missing type information"
+                      }
+                    }
+                  },
+                  "GetBody": {
+                    "type": "func() (io.ReadCloser, error)",
+                    "notCapturedReason": "unimplemented"
+                  },
+                  "ContentLength": {
+                    "type": "int64",
+                    "value": "0"
+                  },
+                  "TransferEncoding": {
+                    "type": "[]string",
+                    "isNull": true
+                  },
+                  "Close": {
+                    "type": "bool",
+                    "value": "false"
+                  },
+                  "Host": {
+                    "type": "string",
+                    "value": "[host network address]"
+                  },
+                  "Form": {
+                    "type": "net/url.Values",
+                    "isNull": true
+                  },
+                  "PostForm": {
+                    "type": "net/url.Values",
+                    "isNull": true
+                  },
+                  "MultipartForm": {
+                    "type": "*mime/multipart.Form",
+                    "isNull": true
+                  },
+                  "Trailer": {
+                    "type": "net/http.Header",
+                    "isNull": true
+                  },
+                  "RemoteAddr": {
+                    "type": "string",
+                    "value": "[remote network address]"
+                  },
+                  "RequestURI": {
+                    "type": "string",
+                    "value": "/2"
+                  },
+                  "TLS": {
+                    "type": "*crypto/tls.ConnectionState",
+                    "isNull": true
+                  },
+                  "Cancel": {
+                    "type": "\u003c-chan struct {}",
+                    "notCapturedReason": "unimplemented"
+                  },
+                  "Response": {
+                    "type": "*net/http.Response",
+                    "isNull": true
+                  },
+                  "Pattern": {
+                    "type": "string",
+                    "value": "/"
+                  },
+                  "ctx": {
+                    "type": "context.Context",
+                    "fields": {
+                      "data": {
+                        "type": "*context.valueCtx",
+                        "notCapturedReason": "missing type information"
+                      }
+                    }
+                  },
+                  "pat": {
+                    "type": "*net/http.pattern",
+                    "notCapturedReason": "depth"
+                  },
+                  "matches": {
+                    "type": "[]string",
+                    "isNull": true
+                  },
+                  "otherValues": {
+                    "type": "map[string]string",
+                    "isNull": true
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "timestamp": "[ts]",
+    "duration": "[duration]"
+  }
+]

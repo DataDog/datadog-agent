@@ -15,8 +15,8 @@ import (
 )
 
 type serverMock struct {
-	isRunning bool
-	blocklist []string
+	isRunning  bool
+	filterlist []string
 }
 
 // MockProvides is the mock component output
@@ -60,8 +60,8 @@ func (s *serverMock) UDPLocalAddr() string {
 	return ""
 }
 
-func (s *serverMock) SetBlocklist(v []string, _ bool) {
-	s.blocklist = v
+func (s *serverMock) SetFilterList(v []string, _ bool) {
+	s.filterlist = v
 }
 
 // ServerlessFlush is a noop mocked function

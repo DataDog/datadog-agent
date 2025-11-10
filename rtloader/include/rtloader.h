@@ -35,7 +35,9 @@ public:
     RtLoader(cb_memory_tracker_t memtrack_cb);
 
     //! Destructor.
+    // clang-format off
     virtual ~RtLoader(){};
+    // clang-format on
 
     // Public API
     //! Pure virtual init member.
@@ -542,13 +544,5 @@ typedef RtLoader *(create_t)(const char *python_home, const char *python_exe, cb
   \param A RtLoader object pointer to the instance that should be destroyed.
 */
 typedef void(destroy_t)(RtLoader *);
-
-#ifndef _WIN32
-/*! core_trigger_t function pointer
-  \brief function pointer to the core triggering routine.
-  \param An integer corresponding to the signal number that triggered the dump.
-*/
-typedef void (*core_trigger_t)(int);
-#endif
 
 #endif

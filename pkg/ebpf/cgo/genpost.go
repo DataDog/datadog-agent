@@ -56,6 +56,7 @@ func processFile(rdr io.Reader, out io.Writer) error {
 		"Topic_name",
 		"Trigger_comm",
 		"Victim_comm",
+		"Devices",
 	}
 
 	// Convert []int8 to []byte in multiple generated fields from the kernel, to simplify
@@ -129,9 +130,6 @@ func writeTests(rdr io.Reader, dstFile string, packageName string) error {
 	if err := scanner.Err(); err != nil {
 		return err
 	}
-	if len(typeNames) == 0 {
-		return nil
-	}
 
 	dst, err := os.Create(dstFile)
 	if err != nil {
@@ -140,9 +138,11 @@ func writeTests(rdr io.Reader, dstFile string, packageName string) error {
 	defer dst.Close()
 	fmt.Fprintf(dst, testHeaderTemplate, packageName)
 
-	fmt.Fprint(dst, testImportTemplate)
-	for _, typeName := range typeNames {
-		fmt.Fprintf(dst, testTemplate, typeName)
+	if len(typeNames) > 0 {
+		fmt.Fprint(dst, testImportTemplate)
+		for _, typeName := range typeNames {
+			fmt.Fprintf(dst, testTemplate, typeName)
+		}
 	}
 	return nil
 }

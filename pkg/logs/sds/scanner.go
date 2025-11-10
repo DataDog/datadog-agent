@@ -5,7 +5,7 @@
 
 //go:build sds
 
-//nolint:revive
+// Package sds provides sensitive data scanning functionality for logs
 package sds
 
 import (
@@ -21,6 +21,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+// Currently the SDS scanner is not directly utilized by the agent. The last usage of this logic was in the logs-agent,
+// which was removed in the 7.69.0 release. Associated PR: https://github.com/DataDog/datadog-agent/pull/36657
+// This file is kept for future reference, in case we need to use the SDS scanner in another part of the agent.
 
 const ScannedTag = "sds_agent:true"
 

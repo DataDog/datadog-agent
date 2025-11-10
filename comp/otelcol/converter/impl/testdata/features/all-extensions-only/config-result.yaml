@@ -1,0 +1,23 @@
+extensions:
+  ddflare/dd-autoconfigured:
+  health_check/dd-autoconfigured:
+  pprof/dd-autoconfigured:
+  zpages/dd-autoconfigured:
+    endpoint: "localhost:55679"
+
+service:
+  extensions:
+    - pprof/dd-autoconfigured
+    - zpages/dd-autoconfigured
+    - health_check/dd-autoconfigured
+    - ddflare/dd-autoconfigured
+  pipelines:
+    traces:
+      receivers: [otlp]
+      exporters: [datadog/connector, datadog]
+    metrics:
+      receivers: [otlp, datadog/connector]
+      exporters: [datadog]
+    logs:
+      receivers: [otlp]
+      exporters: [datadog]

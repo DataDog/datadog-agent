@@ -12,6 +12,7 @@ import (
 	"os"
 	"runtime"
 
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 )
@@ -20,16 +21,18 @@ import (
 type RuleFilterEvent struct {
 	kv  *kernel.Version
 	cfg RuleFilterEventConfig
+	ipc ipc.Component
 }
 
 // RuleFilterModel defines a filter model
 type RuleFilterModel struct {
 	kv  *kernel.Version
 	cfg RuleFilterEventConfig
+	ipc ipc.Component
 }
 
 // NewRuleFilterModel returns a new rule filter model
-func NewRuleFilterModel(cfg RuleFilterEventConfig) (*RuleFilterModel, error) {
+func NewRuleFilterModel(cfg RuleFilterEventConfig, ipc ipc.Component) (*RuleFilterModel, error) {
 	kv, err := kernel.NewKernelVersion()
 	if err != nil {
 		return nil, err
@@ -37,6 +40,7 @@ func NewRuleFilterModel(cfg RuleFilterEventConfig) (*RuleFilterModel, error) {
 	return &RuleFilterModel{
 		kv:  kv,
 		cfg: cfg,
+		ipc: ipc,
 	}, nil
 }
 
@@ -53,6 +57,7 @@ func (m *RuleFilterModel) NewEvent() eval.Event {
 	return &RuleFilterEvent{
 		kv:  m.kv,
 		cfg: m.cfg,
+		ipc: m.ipc,
 	}
 }
 
@@ -199,7 +204,7 @@ func (m *RuleFilterModel) GetEvaluator(field eval.Field, _ eval.RegisterID, _ in
 		}, nil
 	case "hostname":
 		return &eval.StringEvaluator{
-			Value: getHostname(),
+			Value: getHostname(m.ipc),
 			Field: field,
 		}, nil
 	case "kernel.core.enabled":
@@ -278,7 +283,7 @@ func (e *RuleFilterEvent) GetFieldValue(field eval.Field) (interface{}, error) {
 	case "origin":
 		return e.cfg.Origin, nil
 	case "hostname":
-		return getHostname(), nil
+		return getHostname(e.ipc), nil
 	case "kernel.core.enabled":
 		return e.cfg.COREEnabled && e.kv.SupportCORE(), nil
 	}

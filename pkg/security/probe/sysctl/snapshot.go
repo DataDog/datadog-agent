@@ -22,8 +22,6 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/shirou/gopsutil/v4/cpu"
-
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
@@ -233,17 +231,12 @@ func (s *Snapshot) snapshotSys(ignoredBaseNames []string) error {
 
 // snapshotCPUFlags fetches the current CPU flags and adds them to the snapshot
 func (s *Snapshot) snapshotCPUFlags() error {
-	// no need for host proc path here, the cpuinfo file is always exposed
-	info, err := cpu.Info()
+	flags, err := parseCPUFlags()
 	if err != nil {
-		return err
+		return fmt.Errorf("error parsing CPU features/flags: %w", err)
 	}
-	if len(info) == 0 {
-		return nil
-	}
-
-	s.CPUFlags = info[0].Flags
-	slices.Sort(s.CPUFlags)
+	slices.Sort(flags)
+	s.CPUFlags = flags
 	return nil
 }
 

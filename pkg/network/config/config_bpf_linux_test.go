@@ -13,6 +13,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor"
 	emconfig "github.com/DataDog/datadog-agent/pkg/eventmonitor/config"
@@ -31,8 +32,10 @@ func TestEventStreamEnabledForSupportedKernelsLinux(t *testing.T) {
 		secconfig, err := secconfig.NewConfig()
 		require.NoError(t, err)
 
+		ipcComp := ipcmock.New(t)
+
 		opts := eventmonitor.Opts{}
-		evm, err := eventmonitor.NewEventMonitor(emconfig, secconfig, opts)
+		evm, err := eventmonitor.NewEventMonitor(emconfig, secconfig, ipcComp, opts)
 		require.NoError(t, err)
 		require.NoError(t, evm.Init())
 	} else {

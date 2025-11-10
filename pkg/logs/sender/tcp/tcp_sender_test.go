@@ -96,7 +96,7 @@ func TestTCPDestinationFactory(t *testing.T) {
 			)
 
 			// Test 1: Verify first call creates destinations
-			destinations1 := factory()
+			destinations1 := factory("test")
 			assert.NotNil(t, destinations1)
 
 			// Verify destination quantities
@@ -121,7 +121,7 @@ func TestTCPDestinationFactory(t *testing.T) {
 			}
 
 			// Test 2: Verify second call creates new destination instances
-			destinations2 := factory()
+			destinations2 := factory("test")
 			assert.NotNil(t, destinations2)
 			assert.NotSame(t, destinations1, destinations2,
 				"Factory should create new destinations instance")

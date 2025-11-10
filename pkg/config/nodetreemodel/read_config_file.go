@@ -10,7 +10,6 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"reflect"
 	"strings"
 
 	"gopkg.in/yaml.v2"
@@ -31,14 +30,19 @@ func (c *ntmConfig) findConfigFile() {
 	}
 }
 
-// ReadInConfig wraps Viper for concurrent access
+// ReadInConfig resets the file tree and reads the configuration from the file system.
 func (c *ntmConfig) ReadInConfig() error {
 	if !c.isReady() && !c.allowDynamicSchema.Load() {
 		return log.Errorf("attempt to ReadInConfig before config is constructed")
 	}
 
+	c.maybeRebuild()
+
 	c.Lock()
 	defer c.Unlock()
+
+	// Reset the file tree like Viper does, so previous config is cleared
+	c.file = newInnerNode(nil)
 
 	c.findConfigFile()
 	err := c.readInConfig(c.configFile)
@@ -55,14 +59,19 @@ func (c *ntmConfig) ReadInConfig() error {
 	return c.mergeAllLayers()
 }
 
-// ReadConfig wraps Viper for concurrent access
+// ReadConfig resets the file tree and reads the configuration from the provided reader.
 func (c *ntmConfig) ReadConfig(in io.Reader) error {
 	if !c.isReady() && !c.allowDynamicSchema.Load() {
 		return log.Errorf("attempt to ReadConfig before config is constructed")
 	}
 
+	c.maybeRebuild()
+
 	c.Lock()
 	defer c.Unlock()
+
+	// Reset the file tree like Viper does, so previous config is cleared
+	c.file = newInnerNode(nil)
 
 	content, err := io.ReadAll(in)
 	if err != nil {
@@ -77,7 +86,7 @@ func (c *ntmConfig) ReadConfig(in io.Reader) error {
 func (c *ntmConfig) readInConfig(filePath string) error {
 	content, err := os.ReadFile(filePath)
 	if err != nil {
-		return model.ConfigFileNotFoundError{Err: err}
+		return model.NewConfigFileNotFoundError(err) // nolint: forbidigo // constructing proper error
 	}
 	return c.readConfigurationContent(c.file, model.SourceFile, content)
 }
@@ -95,29 +104,19 @@ func (c *ntmConfig) readConfigurationContent(target InnerNode, source model.Sour
 	return nil
 }
 
-// toMapStringInterface convert any type of map into a map[string]interface{}
-func toMapStringInterface(data any, path string) (map[string]interface{}, error) {
-	if res, ok := data.(map[string]interface{}); ok {
-		return res, nil
+// buildNestedMap converts keys with dots into a nested structure
+// for example:
+//
+//	buildNestedMap(["a", "b", "c"], 123) => {"a": {"b": {"c": 123}}}
+func buildNestedMap(keyParts []string, bottomValue interface{}) map[string]interface{} {
+	res := map[string]interface{}{}
+	nextKey := keyParts[0]
+	if len(keyParts) == 1 {
+		res[nextKey] = bottomValue
+	} else {
+		res[nextKey] = buildNestedMap(keyParts[1:], bottomValue)
 	}
-
-	v := reflect.ValueOf(data)
-	switch v.Kind() {
-	case reflect.Map:
-		convert := map[string]interface{}{}
-		iter := v.MapRange()
-		for iter.Next() {
-			key := iter.Key()
-			switch k := key.Interface().(type) {
-			case string:
-				convert[k] = iter.Value().Interface()
-			default:
-				convert[fmt.Sprintf("%v", key.Interface())] = iter.Value().Interface()
-			}
-		}
-		return convert, nil
-	}
-	return nil, fmt.Errorf("invalid type from configuration for key '%s'", path)
+	return res
 }
 
 // loadYamlInto traverses input data parsed from YAML, checking if each node is defined by the schema.
@@ -125,6 +124,13 @@ func toMapStringInterface(data any, path string) (map[string]interface{}, error)
 func loadYamlInto(dest InnerNode, source model.Source, inData map[string]interface{}, atPath string, schema InnerNode, allowDynamicSchema bool) []error {
 	warnings := []error{}
 	for key, value := range inData {
+		// If the key contains a dot, it represents a nested key
+		if strings.Contains(key, ".") {
+			parts := strings.Split(key, ".")
+			key = parts[0]
+			value = buildNestedMap(parts[1:], value)
+		}
+
 		key = strings.ToLower(key)
 		currPath := joinKey(atPath, key)
 
@@ -132,13 +138,15 @@ func loadYamlInto(dest InnerNode, source model.Source, inData map[string]interfa
 		schemaChild, err := schema.GetChild(key)
 		if err != nil {
 			warnings = append(warnings, fmt.Errorf("unknown key from YAML: %s", currPath))
-			if !allowDynamicSchema {
+
+			// if the key is not defined in the schema, we can still add it to the destination
+			if value == nil || isScalar(value) || isSlice(value) {
+				dest.InsertChildNode(key, newLeafNode(value, source))
 				continue
-			} else if isScalar(value) || isSlice(value) {
-				schemaChild = newLeafNode(value, model.SourceSchema)
-			} else {
-				schemaChild = newInnerNode(make(map[string]Node))
 			}
+
+			// fallback to inner node if it's not a scalar or nil
+			schemaChild = newInnerNode(make(map[string]Node))
 		}
 
 		// if the node in the schema is a leaf, then we create a new leaf in dest
@@ -156,9 +164,13 @@ func loadYamlInto(dest InnerNode, source model.Source, inData map[string]interfa
 		// by now we know schemaNode is an InnerNode
 		schemaInner, _ := schemaChild.(InnerNode)
 
-		childValue, err := toMapStringInterface(value, currPath)
+		childValue, err := ToMapStringInterface(value, currPath)
 		if err != nil {
 			warnings = append(warnings, err)
+			// Insert child node here as a leaf. It has the wrong type, but this maintains better
+			// compatibility with how viper works.
+			dest.InsertChildNode(key, newLeafNode(value, source))
+			continue
 		}
 
 		if !dest.HasChild(key) {

@@ -12,6 +12,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
+	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -58,7 +59,7 @@ func TestToKubernetesServiceChecks(t *testing.T) {
 				{
 					Name:                  "check",
 					Instances:             []integration.Data{integration.Data("foo: bar")},
-					AdvancedADIdentifiers: []integration.AdvancedADIdentifier{{KubeEndpoints: kubeNsName("svc-ns", "svc-name")}},
+					AdvancedADIdentifiers: []integration.AdvancedADIdentifier{{KubeEndpoints: kubeEndpointIdentifier("svc-ns", "svc-name", "")}},
 				},
 			},
 			want: []integration.Config{},
@@ -71,7 +72,7 @@ func TestToKubernetesServiceChecks(t *testing.T) {
 					Instances: []integration.Data{integration.Data("foo: bar")},
 					AdvancedADIdentifiers: []integration.AdvancedADIdentifier{{
 						KubeService:   kubeNsName("svc-ns", "svc-name"),
-						KubeEndpoints: kubeNsName("svc-ns", "svc-name"),
+						KubeEndpoints: kubeEndpointIdentifier("svc-ns", "svc-name", ""),
 					}},
 				},
 			},
@@ -83,6 +84,27 @@ func TestToKubernetesServiceChecks(t *testing.T) {
 					Provider:              names.KubeServicesFile,
 					AdvancedADIdentifiers: nil,
 					ClusterCheck:          true,
+				},
+			},
+		},
+		{
+			name: "cel selector only",
+			configs: []integration.Config{
+				{
+					Name:        "check",
+					Instances:   []integration.Data{integration.Data("foo: bar")},
+					CELSelector: workloadfilter.Rules{KubeServices: []string{`v`}},
+				},
+			},
+			want: []integration.Config{
+				{
+					Name:                  "check",
+					Instances:             []integration.Data{integration.Data("foo: bar")},
+					ADIdentifiers:         []string{},
+					Provider:              names.KubeServicesFile,
+					AdvancedADIdentifiers: nil,
+					ClusterCheck:          true,
+					CELSelector:           workloadfilter.Rules{KubeServices: []string{`v`}},
 				},
 			},
 		},

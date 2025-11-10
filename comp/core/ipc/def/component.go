@@ -12,6 +12,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"time"
 )
 
 // team: agent-runtimes
@@ -30,8 +31,14 @@ type Component interface {
 	GetClient() HTTPClient
 }
 
+// RequestParams is a struct that contains the parameters for a request
+type RequestParams struct {
+	*http.Request
+	Timeout time.Duration
+}
+
 // RequestOption allows to specify custom behavior for requests
-type RequestOption func(req *http.Request) *http.Request
+type RequestOption func(req *RequestParams)
 
 // HTTPClient is a HTTP client that abstracts communications between Agent processes.
 // It handles TLS configuration and authentication token management for inter-process communication.

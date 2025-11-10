@@ -10,7 +10,12 @@ def directory_has_packages_without_owner(owners, folder="pkg"):
     error = False
 
     for x in os.listdir(folder):
-        path = os.path.join("/" + folder, x)
+        # Use forward slash concatenation instead of os.path.join to ensure consistent
+        # path separators for CODEOWNERS comparison. CODEOWNERS files always use forward
+        # slashes regardless of platform, so we need to generate paths with forward slashes
+        # to match against the CODEOWNERS rules. os.path.join would use backslashes on
+        # Windows, causing the comparison to fail.
+        path = "/" + folder + "/" + x
         if all(owner[1].rstrip('/') != path for owner in owners.paths):
             if not error:
                 print(
@@ -69,7 +74,9 @@ def _get_static_root(pattern):
     for elem in pattern.split("/"):
         if '*' in elem:
             return result
-        result = os.path.join(result, elem)
+        # Don't use cross-platfom path.join since CODEOWNERS expect forward slashes
+        # regardless of platforms
+        result = result + "/" + elem
     return result
 
 
@@ -87,14 +94,18 @@ def _is_pattern_in_fs(path, pattern):
         return True
     elif os.path.isdir(path):
         for root, _, files in os.walk(path):
-            # Check if root is matching the the pattern, without "./" at the begining
-            if pattern.match(root[2:]):
+            # Check if root is matching the pattern, without "./" at the begining
+            # On Windows, os.walk() and os.path.join() return paths with backslashes, but the regex pattern
+            # from the codeowners library expects forward slashes (like '/internal/tools/**/go.sum')
+            normalized_root = root[2:].replace('\\', '/')
+            if pattern.match(normalized_root):
                 return True
             for name in files:
                 # file_path is the relative path from the root of the repo, without "./" at the begining
                 file_path = os.path.join(root, name)[2:]
+                normalized_file_path = file_path.replace('\\', '/')
 
                 # Check if the file path matches any of the regex patterns
-                if pattern.match(file_path):
+                if pattern.match(normalized_file_path):
                     return True
     return False

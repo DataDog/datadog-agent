@@ -61,6 +61,7 @@ func (h *StatefulSetHandlers) BuildMessageBody(ctx processors.ProcessorContext, 
 		GroupSize:    int32(groupSize),
 		StatefulSets: models,
 		Tags:         util.ImmutableTagsJoin(pctx.Cfg.ExtraTags, pctx.GetCollectorTags()),
+		AgentVersion: ctx.GetAgentVersion(),
 	}
 }
 

@@ -14,11 +14,40 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 )
+
+var (
+	datadogInstalledIntegrationsPattern = regexp.MustCompile(`embedded/lib/python[^/]+/site-packages/datadog_.*`)
+)
+
+// executePythonScript executes a Python script with the given arguments
+func executePythonScript(ctx context.Context, installPath, scriptName string, args ...string) error {
+	pythonPath := filepath.Join(installPath, "embedded/bin/python")
+	scriptPath := filepath.Join(installPath, "python-scripts", scriptName)
+
+	if _, err := os.Stat(pythonPath); err != nil {
+		return fmt.Errorf("python not found at %s: %w", pythonPath, err)
+	}
+	if err := os.RemoveAll(filepath.Join(installPath, "python-scripts/__pycache__")); err != nil {
+		return fmt.Errorf("failed to remove __pycache__ at %s: %w", filepath.Join(installPath, "python-scripts/__pycache__"), err)
+	}
+
+	pythonCmd := append([]string{"-B", scriptPath}, args...)
+	cmd := exec.CommandContext(ctx, pythonPath, pythonCmd...)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("failed to run %s: %w", scriptName, err)
+	}
+
+	return nil
+}
 
 // SaveCustomIntegrations saves custom integrations from the previous installation
 // Today it calls pre.py to persist the custom integrations; though we should probably
@@ -37,15 +66,7 @@ func SaveCustomIntegrations(ctx context.Context, installPath string) (err error)
 		storagePath = paths.RootTmpDir
 	}
 
-	if _, err := os.Stat(filepath.Join(installPath, "embedded/bin/python")); err == nil {
-		cmd := exec.CommandContext(ctx, filepath.Join(installPath, "embedded/bin/python"), filepath.Join(installPath, "python-scripts/pre.py"), installPath, storagePath)
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-		if err := cmd.Run(); err != nil {
-			return fmt.Errorf("failed to run integration persistence in pre.py: %w", err)
-		}
-	}
-	return nil
+	return executePythonScript(ctx, installPath, "pre.py", installPath, storagePath)
 }
 
 // RestoreCustomIntegrations restores custom integrations from the previous installation
@@ -65,15 +86,23 @@ func RestoreCustomIntegrations(ctx context.Context, installPath string) (err err
 		storagePath = paths.RootTmpDir
 	}
 
-	if _, err := os.Stat(filepath.Join(installPath, "embedded/bin/python")); err == nil {
-		cmd := exec.CommandContext(ctx, filepath.Join(installPath, "embedded/bin/python"), filepath.Join(installPath, "python-scripts/post.py"), installPath, storagePath)
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-		if err := cmd.Run(); err != nil {
-			return fmt.Errorf("failed to run integration persistence in post.py: %w", err)
+	return executePythonScript(ctx, installPath, "post.py", installPath, storagePath)
+}
+
+// getAllIntegrations retrieves all integration paths installed by the package
+// It walks through the installPath and collects paths that match the './embedded/lib/python*/site-packages/datadog_*' pattern.
+func getAllIntegrations(installPath string) ([]string, error) {
+	allIntegrations := make([]string, 0)
+	err := filepath.Walk(installPath, func(path string, _ os.FileInfo, err error) error {
+		if err != nil {
+			return err
 		}
-	}
-	return nil
+		if datadogInstalledIntegrationsPattern.MatchString(path) {
+			allIntegrations = append(allIntegrations, path) // Absolute path
+		}
+		return nil
+	})
+	return allIntegrations, err
 }
 
 // RemoveCustomIntegrations removes custom integrations that are not installed by the package
@@ -95,7 +124,7 @@ func RemoveCustomIntegrations(ctx context.Context, installPath string) (err erro
 	fmt.Println("Removing integrations installed with the 'agent integration' command")
 
 	// Use an in-memory map to store all integration paths
-	allIntegrations, err := filepath.Glob(filepath.Join(installPath, "embedded/lib/python*/site-packages/datadog_*"))
+	allIntegrations, err := getAllIntegrations(installPath)
 	if err != nil {
 		return err
 	}
@@ -110,6 +139,10 @@ func RemoveCustomIntegrations(ctx context.Context, installPath string) (err erro
 	installedByPkgSet := make(map[string]struct{})
 	for _, line := range strings.Split(string(installedByPkg), "\n") {
 		if line != "" {
+			// Make sure the path is absolute so we can compare apples to apples
+			if !filepath.IsAbs(line) && !strings.HasPrefix(line, "#") {
+				line = filepath.Join(installPath, line)
+			}
 			installedByPkgSet[line] = struct{}{}
 		}
 	}
@@ -117,7 +150,7 @@ func RemoveCustomIntegrations(ctx context.Context, installPath string) (err erro
 	// Remove paths that are in allIntegrations but not in installedByPkgSet
 	for _, path := range allIntegrations {
 		if _, exists := installedByPkgSet[path]; !exists {
-			// Remove the directory if it was not installed by the package.
+			// Remove if it was not installed by the package.
 			if err := os.RemoveAll(path); err != nil {
 				return err
 			}

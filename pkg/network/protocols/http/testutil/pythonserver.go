@@ -11,19 +11,29 @@ package testutil
 import (
 	"context"
 	"fmt"
+	"io"
 	"net"
 	"os"
 	"os/exec"
+	"path"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+	globalutils "github.com/DataDog/datadog-agent/pkg/util/testutil"
+	dockerutils "github.com/DataDog/datadog-agent/pkg/util/testutil/docker"
 )
 
 const (
+	// Certificate paths for container environment
+	containerCertPath = "/v/cert.pem.0"
+	containerKeyPath  = "/v/server.key"
+
 	pythonSSLServerFormat = `import http.server, ssl, sys
 
 YES = ('true', '1', 't', 'y', 'yes')
@@ -51,6 +61,7 @@ if len(sys.argv) >= 2 and sys.argv[1].lower() in YES:
     context.load_cert_chain(certfile='%s', keyfile='%s')
     httpd.socket = context.wrap_socket(httpd.socket, server_side=True)
 try:
+    print(f"Server running at https://{server_address[0]}:{server_address[1]}/")
     httpd.serve_forever()
 finally:
     httpd.shutdown()
@@ -64,12 +75,19 @@ func HTTPPythonServer(t *testing.T, addr string, options Options) *exec.Cmd {
 
 	curDir, _ := CurDir()
 	crtPath := filepath.Join(curDir, "testdata/cert.pem.0")
+	if options.CertPath != "" {
+		crtPath = options.CertPath
+	}
 	keyPath := filepath.Join(curDir, "testdata/server.key")
+	if options.KeyPath != "" {
+		keyPath = options.KeyPath
+	}
 	pythonSSLServer := fmt.Sprintf(pythonSSLServerFormat, host, port, crtPath, keyPath)
 	scriptFile, err := writeTempFile("python_openssl_script", pythonSSLServer)
 	require.NoError(t, err)
 
 	cmd := exec.Command("python3", scriptFile.Name(), strconv.FormatBool(options.EnableTLS))
+
 	go require.NoError(t, cmd.Start())
 
 	// Waiting for the server to be ready
@@ -119,4 +137,71 @@ func rawConnect(ctx context.Context, t *testing.T, host, port string) {
 			}
 		}
 	}
+}
+
+func copyFile(src, dst string) error {
+	source, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer source.Close()
+
+	destination, err := os.Create(dst)
+	if err != nil {
+		return err
+	}
+	defer destination.Close()
+
+	_, err = io.Copy(destination, source)
+	return err
+}
+
+func linkFile(t *testing.T, src, dst string) error {
+	t.Helper()
+	_ = os.Remove(dst)
+	if err := copyFile(src, dst); err != nil {
+		return err
+	}
+	t.Cleanup(func() { os.Remove(dst) })
+	return nil
+}
+
+// HTTPPythonServerContainer launches an HTTPs server written in Python inside a container.
+func HTTPPythonServerContainer(t *testing.T, serverPort string) error {
+	t.Helper()
+	dir, _ := CurDir()
+
+	// Create Python script using existing format - reference original certificate files directly
+	pythonSSLServer := fmt.Sprintf(pythonSSLServerFormat, "0.0.0.0", "4141", containerCertPath, containerKeyPath)
+	scriptFile, err := writeTempFile("python_container_script", pythonSSLServer)
+	require.NoError(t, err)
+
+	// Copy script to testdata directory so it can be mounted
+	if err := linkFile(t, scriptFile.Name(), dir+"/testdata/server.py"); err != nil {
+		return err
+	}
+
+	env := []string{
+		"ADDR=0.0.0.0",
+		"PORT=" + serverPort,
+		"CERTS_DIR=/v/certs",
+		"TESTDIR=" + dir + "/testdata",
+	}
+
+	scanner, err := globalutils.NewScanner(regexp.MustCompile("Server running at https.*"), globalutils.NoPattern)
+	require.NoError(t, err, "failed to create pattern scanner")
+
+	dockerCfg := dockerutils.NewComposeConfig(
+		dockerutils.NewBaseConfig(
+			"python-server",
+			scanner,
+			dockerutils.WithEnv(env),
+		),
+		path.Join(dir, "testdata", "docker-compose.yml"))
+	return dockerutils.Run(t, dockerCfg)
+}
+
+// GetPythonDockerPID returns the PID of the python docker container.
+func GetPythonDockerPID() (int64, error) {
+	return dockerutils.GetMainPID("python-python-1")
 }

@@ -7,6 +7,7 @@ package status
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -27,4 +28,39 @@ func TestMkHuman(t *testing.T) {
 	assert.Equal(t, "1", mkHuman(1))
 	assert.Equal(t, "1", mkHuman("1"))
 	assert.Equal(t, "1.5", mkHuman(float32(1.5)))
+}
+
+func TestParseUnixTime(t *testing.T) {
+	cases := []struct {
+		value          any
+		expectedOutput time.Time
+	}{
+		{int64(1756201396), time.Unix(1756201396, 0)},
+		{int64(1756199835000000000), time.Unix(0, 1756199835000000000)}, // nanoseconds
+		{float64(1756201396.123), time.Unix(1756201396, 0)},
+		{"2025-08-26T11:43:16.000000+02:00", time.Unix(1756201396, 0)},
+	}
+
+	for _, tc := range cases {
+		output, err := parseUnixTime(tc.value)
+		if assert.NoError(t, err) {
+			assert.WithinDuration(t, tc.expectedOutput, output, 0)
+		}
+	}
+}
+
+func TestParseUnixTimeError(t *testing.T) {
+	cases := []struct {
+		value            any
+		expectedErrorMsg string
+	}{
+		{false, "invalid time parameter bool"},
+		{"Tue Aug 26 11:43:16 CEST 2025", "error while parsing time: Tue Aug 26 11:43:16 CEST 2025"},
+	}
+
+	for _, tc := range cases {
+		output, err := parseUnixTime(tc.value)
+		assert.EqualError(t, err, tc.expectedErrorMsg)
+		assert.Zero(t, output)
+	}
 }

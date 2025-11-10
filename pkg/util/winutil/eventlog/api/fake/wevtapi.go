@@ -14,7 +14,10 @@ import (
 	"bytes"
 	"encoding/hex"
 	"fmt"
+	"regexp"
 	"sort"
+	"strconv"
+	"strings"
 	"text/template" //nolint:depguard
 
 	"golang.org/x/sys/windows"
@@ -103,6 +106,69 @@ func (api *API) EvtSubscribe(
 	return sub.handle, nil
 }
 
+// EvtQuery fake
+// https://learn.microsoft.com/en-us/windows/win32/api/winevt/nf-winevt-evtquery
+func (api *API) EvtQuery(
+	Session evtapi.EventSessionHandle,
+	Path string,
+	Query string,
+	Flags uint) (evtapi.EventResultSetHandle, error) {
+
+	// For the fake implementation, we'll reuse the subscription logic
+	// but return immediately instead of setting up event notification
+	if Query != "" && Query != "*" && !strings.HasPrefix(Query, "<QueryList>") {
+		return evtapi.EventResultSetHandle(0), fmt.Errorf("Fake API does not support query syntax")
+	}
+
+	if Session != evtapi.EventSessionHandle(0) {
+		return evtapi.EventResultSetHandle(0), fmt.Errorf("Fake API does not support remote sessions")
+	}
+
+	// For multi-channel queries (XML QueryList), just use the first channel for now
+	channelPath := Path
+	if strings.HasPrefix(Query, "<QueryList>") {
+		// Extract first channel from QueryList - simple implementation
+		start := strings.Index(Query, `Path="`)
+		if start == -1 {
+			start = strings.Index(Query, `Path='`)
+		}
+		if start != -1 {
+			start += 6 // len(`Path="`)
+			end := strings.IndexAny(Query[start:], `"'`)
+			if end != -1 {
+				channelPath = Query[start : start+end]
+			}
+		}
+	}
+
+	// ensure channel exists
+	evtlog, err := api.getEventLog(channelPath)
+	if err != nil {
+		return evtapi.EventResultSetHandle(0), err
+	}
+	evtlog.mu.Lock()
+	defer evtlog.mu.Unlock()
+
+	// create a subscription-like object for query results
+	sub := newSubscription(channelPath, Query)
+
+	// Position at the end for reverse queries, beginning for forward
+	if Flags&evtapi.EvtQueryReverseDirection != 0 {
+		// Start from the end
+		sub.nextEvent = uint(len(evtlog.events))
+		sub.isReverse = true
+	} else {
+		// Start from the beginning
+		sub.nextEvent = 0
+		sub.isReverse = false
+	}
+
+	// add to subscriptions map
+	api.addSubscription(sub)
+
+	return evtapi.EventResultSetHandle(sub.handle), nil
+}
+
 // EvtNext fake
 // https://learn.microsoft.com/en-us/windows/win32/api/winevt/nf-winevt-evtnext
 func (api *API) EvtNext(
@@ -129,6 +195,38 @@ func (api *API) EvtNext(
 	if len(eventLog.events) == 0 {
 		return nil, windows.ERROR_NO_MORE_ITEMS
 	}
+
+	// Handle reverse queries differently
+	if sub.isReverse {
+		// For reverse queries, we go backwards from nextEvent
+		if sub.nextEvent == 0 {
+			return nil, windows.ERROR_NO_MORE_ITEMS
+		}
+
+		// Calculate start position for this batch
+		start := int(sub.nextEvent) - int(EventsSize)
+		if start < 0 {
+			start = 0
+		}
+		end := int(sub.nextEvent)
+
+		// Get events in reverse order
+		events := eventLog.events[start:end]
+		eventHandles := make([]evtapi.EventRecordHandle, 0, len(events))
+
+		// Add events in reverse order (newest first)
+		for i := len(events) - 1; i >= 0; i-- {
+			api.addEventRecord(events[i])
+			eventHandles = append(eventHandles, events[i].handle)
+		}
+
+		// Update position
+		sub.nextEvent = uint(start)
+
+		return eventHandles, nil
+	}
+
+	// Forward query logic (existing)
 	// if we are at end
 	if sub.nextEvent >= uint(len(eventLog.events)) {
 		return nil, windows.ERROR_NO_MORE_ITEMS
@@ -153,6 +251,12 @@ func (api *API) EvtNext(
 // EvtClose fake
 // https://learn.microsoft.com/en-us/windows/win32/api/winevt/nf-winevt-evtclose
 func (api *API) EvtClose(h windows.Handle) {
+	// is handle a bookmark?
+	bookmark, err := api.getBookmarkByHandle(evtapi.EventBookmarkHandle(h))
+	if err == nil {
+		delete(api.bookmarkHandles, bookmark.handle)
+		return
+	}
 	// is handle an event?
 	event, err := api.getEventRecordByHandle(evtapi.EventRecordHandle(h))
 	if err == nil {
@@ -230,8 +334,25 @@ func (api *API) EvtRenderEventXml(Fragment evtapi.EventRecordHandle) ([]uint16, 
 // EvtRenderBookmark is a fake of EvtRender with EvtRenderEventBookmark
 // not implemented.
 // https://learn.microsoft.com/en-us/windows/win32/api/winevt/nf-winevt-evtrender
-func (api *API) EvtRenderBookmark(_ evtapi.EventBookmarkHandle) ([]uint16, error) {
-	return nil, fmt.Errorf("not implemented")
+func (api *API) EvtRenderBookmark(b evtapi.EventBookmarkHandle) ([]uint16, error) {
+	bookmark, err := api.getBookmarkByHandle(b)
+	if err != nil {
+		return nil, err
+	}
+	if bookmark.eventRecordID == 0 {
+		xml := "<BookmarkList>\r\n</BookmarkList>"
+		res, err := windows.UTF16FromString(xml)
+		if err != nil {
+			return nil, err
+		}
+		return res, nil
+	}
+	xml := fmt.Sprintf("<BookmarkList><Bookmark RecordId=\"%d\" /></BookmarkList>", bookmark.eventRecordID)
+	res, err := windows.UTF16FromString(xml)
+	if err != nil {
+		return nil, err
+	}
+	return res, nil
 }
 
 // RegisterEventSource fake
@@ -309,11 +430,29 @@ func (api *API) EvtClearLog(ChannelPath string) error {
 
 // EvtCreateBookmark fake
 // https://learn.microsoft.com/en-us/windows/win32/api/winevt/nf-winevt-evtcreatebookmark
-func (api *API) EvtCreateBookmark(_ string) (evtapi.EventBookmarkHandle, error) {
+func (api *API) EvtCreateBookmark(xml string) (evtapi.EventBookmarkHandle, error) {
 	var b bookmark
 
-	// TODO: parse Xml to get record ID
+	if xml == "" || xml == "<BookmarkList>\r\n</BookmarkList>" {
+		// create an empty bookmark
+		b.eventRecordID = 0
+		api.addBookmark(&b)
+		return evtapi.EventBookmarkHandle(b.handle), nil
+	}
 
+	// parse Xml to get record ID using regex
+	// Example: ...<Bookmark RecordId='123' />...
+	re := regexp.MustCompile(`RecordId="(\d+)"`)
+	match := re.FindStringSubmatch(xml)
+	if len(match) != 2 {
+		return evtapi.EventBookmarkHandle(0), fmt.Errorf("invalid bookmark XML")
+	}
+	recordID := match[1]
+	recordIDUint, err := strconv.ParseUint(recordID, 10, 64)
+	if err != nil {
+		return evtapi.EventBookmarkHandle(0), fmt.Errorf("invalid bookmark XML")
+	}
+	b.eventRecordID = uint(recordIDUint)
 	api.addBookmark(&b)
 
 	return evtapi.EventBookmarkHandle(b.handle), nil

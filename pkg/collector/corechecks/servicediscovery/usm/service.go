@@ -32,11 +32,7 @@ type DetectorContextMap map[int]interface{}
 
 // DetectorContextMap keys enum
 const (
-	// NodePackageJSONPath The path to the Node service's package.json
-	NodePackageJSONPath = iota
-	// ServiceSubFS The SubdirFS instance package.json path is valid in.
-	ServiceSubFS = iota
-	// The pointer to the Process instance of the service
+	// ServiceProc is the pointer to the Process instance of the service
 	ServiceProc = iota
 )
 
@@ -50,11 +46,9 @@ const (
 
 // ServiceMetadata holds information about a service.
 type ServiceMetadata struct {
-	Name              string
-	Source            ServiceNameSource
-	AdditionalNames   []string
-	DDService         string
-	DDServiceInjected bool
+	Name            string
+	Source          ServiceNameSource
+	AdditionalNames []string
 	// for future usage: we can detect also the type, vendor, frameworks, etc
 }
 
@@ -293,16 +287,8 @@ var executableDetectors = map[string]detectorCreatorFn{
 	"gunicorn": newGunicornDetector,
 	"puma":     newRailsDetector,
 	"sudo":     newSimpleDetector,
-}
-
-func serviceNameInjected(envs envs.Variables) bool {
-	if env, ok := envs.Get("DD_INJECTION_ENABLED"); ok {
-		values := strings.Split(env, ",")
-		if slices.Contains(values, "service_name") {
-			return true
-		}
-	}
-	return false
+	"beam.smp": newErlangDetector,
+	"beam":     newErlangDetector,
 }
 
 // ExtractServiceMetadata attempts to detect ServiceMetadata from the given process.
@@ -314,11 +300,6 @@ func ExtractServiceMetadata(lang language.Language, ctx DetectionContext) (metad
 
 	// We always return a service name from here on
 	success = true
-
-	if value, ok := chooseServiceNameFromEnvs(ctx.Envs); ok {
-		metadata.DDService = value
-		metadata.DDServiceInjected = serviceNameInjected(ctx.Envs)
-	}
 
 	exe := cmd[0]
 	// check if all args are packed into the first argument
@@ -347,13 +328,6 @@ func ExtractServiceMetadata(lang language.Language, ctx DetectionContext) (metad
 
 	if ok {
 		langMeta, ok := detectorProvider(ctx).detect(cmd[1:])
-
-		// The detector could return a DD Service name (eg. Java, from the
-		// dd.service property), but still fail to generate a service name (ok =
-		// false) so check this first.
-		if langMeta.DDService != "" {
-			metadata.DDService = langMeta.DDService
-		}
 
 		if ok {
 			metadata.Name = langMeta.Name
@@ -431,24 +405,6 @@ func normalizeExeName(exe string) string {
 		}
 	}
 	return exe
-}
-
-// chooseServiceNameFromEnvs extracts the service name from usual tracer env variables (DD_SERVICE, DD_TAGS).
-// returns the service name, true if found, otherwise "", false
-func chooseServiceNameFromEnvs(envs envs.Variables) (string, bool) {
-	if val, ok := envs.Get("DD_SERVICE"); ok {
-		return val, true
-	}
-	if val, ok := envs.Get("DD_TAGS"); ok && strings.Contains(val, "service:") {
-		parts := strings.Split(val, ",")
-		for _, p := range parts {
-			if strings.HasPrefix(p, "service:") {
-				return strings.TrimPrefix(p, "service:"), true
-			}
-		}
-	}
-
-	return "", false
 }
 
 func (simpleDetector) detect(args []string) (ServiceMetadata, bool) {

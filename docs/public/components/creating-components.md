@@ -53,7 +53,7 @@ This file hierarchy aims to solve a few problems:
 
 ## Bootstrapping components
 
-You can use the [command](../setup.md#tooling) `inv components.new-component comp/<COMPONENT_NAME>` to generate a scaffold for your new component.
+You can use the [command](../setup/required.md#tooling) `dda inv components.new-component comp/<COMPONENT_NAME>` to generate a scaffold for your new component.
 
 Every public variable, function, struct, and interface of your component **must** be documented. Refer to the [Documentation](#documentation) section below for details.
 

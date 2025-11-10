@@ -7,16 +7,15 @@
 package jmxloggerimpl
 
 import (
+	"context"
 	"fmt"
 
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/agent/jmxlogger"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	pkglogsetup "github.com/DataDog/datadog-agent/pkg/util/log/setup"
 )
 
@@ -30,57 +29,86 @@ func Module(params Params) fxutil.Module {
 
 type dependencies struct {
 	fx.In
+	Lc     fx.Lifecycle
 	Config config.Component
 	Params Params
 }
 
-type logger struct{}
+type jmxLoggerInterface interface {
+	Info(v ...interface{})
+	Error(v ...interface{}) error
+	Flush()
+	Close()
+}
+
+type logger struct {
+	inner jmxLoggerInterface
+}
 
 func newJMXLogger(deps dependencies) (jmxlogger.Component, error) {
 	config := deps.Config
-	if deps.Params.disabled {
-		return logger{}, nil
-	}
+	var inner jmxLoggerInterface
+	var err error
+
 	if deps.Params.fromCLI {
-		err := pkglogsetup.SetupJMXLogger(deps.Params.logFile, "", false, true, false, pkgconfigsetup.Datadog())
+		inner, err = pkglogsetup.BuildJMXLogger(deps.Params.logFile, "", false, true, false, config)
 		if err != nil {
-			err = fmt.Errorf("Unable to set up JMX logger: %v", err)
+			return logger{}, fmt.Errorf("Unable to set up JMX logger: %v", err)
 		}
-		return logger{}, err
+	} else {
+		syslogURI := pkglogsetup.GetSyslogURI(config)
+		jmxLogFile := config.GetString("jmx_log_file")
+		if jmxLogFile == "" {
+			jmxLogFile = defaultpaths.JmxLogFile
+		}
+
+		if config.GetBool("disable_file_logging") {
+			// this will prevent any logging on file
+			jmxLogFile = ""
+		}
+
+		inner, err = pkglogsetup.BuildJMXLogger(
+			jmxLogFile,
+			syslogURI,
+			config.GetBool("syslog_rfc"),
+			config.GetBool("log_to_console"),
+			config.GetBool("log_format_json"),
+			config,
+		)
+
+		if err != nil {
+			return logger{}, fmt.Errorf("Error while setting up logging, exiting: %v", err)
+		}
 	}
 
-	// Setup logger
-	syslogURI := pkglogsetup.GetSyslogURI(pkgconfigsetup.Datadog())
-	jmxLogFile := config.GetString("jmx_log_file")
-	if jmxLogFile == "" {
-		jmxLogFile = defaultpaths.JmxLogFile
+	jmxLogger := logger{
+		inner: inner,
 	}
 
-	if config.GetBool("disable_file_logging") {
-		// this will prevent any logging on file
-		jmxLogFile = ""
-	}
+	deps.Lc.Append(fx.Hook{
+		OnStop: func(_ context.Context) error {
+			jmxLogger.Flush()
+			jmxLogger.close()
+			return nil
+		},
+	})
 
-	// Setup JMX logger
-	jmxLoggerSetupErr := pkglogsetup.SetupJMXLogger(
-		jmxLogFile,
-		syslogURI,
-		config.GetBool("syslog_rfc"),
-		config.GetBool("log_to_console"),
-		config.GetBool("log_format_json"),
-		pkgconfigsetup.Datadog(),
-	)
-
-	if jmxLoggerSetupErr != nil {
-		jmxLoggerSetupErr = fmt.Errorf("Error while setting up logging, exiting: %v", jmxLoggerSetupErr)
-	}
-	return logger{}, jmxLoggerSetupErr
+	return jmxLogger, nil
 }
 
 func (j logger) JMXInfo(v ...interface{}) {
-	log.JMXInfo(v...)
+	j.inner.Info(v...)
 }
 
 func (j logger) JMXError(v ...interface{}) error {
-	return log.JMXError(v...)
+	return j.inner.Error(v...)
+}
+
+func (j logger) Flush() {
+	j.inner.Flush()
+}
+
+// close is use in to ensure we release any resource associated with the JMXLogger
+func (j logger) close() {
+	j.inner.Close()
 }

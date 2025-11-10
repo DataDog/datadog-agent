@@ -11,10 +11,29 @@ import (
 	"fmt"
 	"net/http"
 	"slices"
+	"sort"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/obfuscate"
 	"github.com/DataDog/datadog-agent/pkg/trace/stats"
 )
+
+const (
+	containerTagsHashHeader = "Datadog-Container-Tags-Hash"
+)
+
+// serviceOriginTags is a set of tags that can be used in the backend to uniquely identify a service.
+var serviceOriginTags = map[string]struct{}{
+	"kube_job":            {},
+	"kube_replica_set":    {},
+	"kube_container_name": {},
+	"kube_namespace":      {},
+	"kube_app_name":       {},
+	"kube_app_managed_by": {},
+	"service":             {},
+	"short_image":         {},
+	"kube_cluster_name":   {},
+}
 
 // makeInfoHandler returns a new handler for handling the discovery endpoint.
 func (r *HTTPReceiver) makeInfoHandler() (hash string, handler http.HandlerFunc) {
@@ -125,7 +144,26 @@ func (r *HTTPReceiver) makeInfoHandler() (hash string, handler http.HandlerFunc)
 		panic(fmt.Errorf("Error making /info handler: %v", err))
 	}
 	h := sha256.Sum256(txt)
-	return fmt.Sprintf("%x", h), func(w http.ResponseWriter, _ *http.Request) {
+	return fmt.Sprintf("%x", h), func(w http.ResponseWriter, req *http.Request) {
+		containerID := r.containerIDProvider.GetContainerID(req.Context(), req.Header)
+		if containerTags, err := r.conf.ContainerTags(containerID); err == nil {
+			hash := computeContainerTagsHash(containerTags)
+			w.Header().Add(containerTagsHashHeader, hash)
+		}
 		fmt.Fprintf(w, "%s", txt)
 	}
+}
+
+func computeContainerTagsHash(tags []string) string {
+	filtered := make([]string, 0, len(tags))
+	for _, tag := range tags {
+		if strings.Contains(tag, ":") {
+			kv := strings.SplitN(tag, ":", 2)
+			if _, ok := serviceOriginTags[kv[0]]; ok {
+				filtered = append(filtered, tag)
+			}
+		}
+	}
+	sort.Strings(filtered)
+	return fmt.Sprintf("%x", sha256.Sum256([]byte(strings.Join(filtered, ","))))
 }

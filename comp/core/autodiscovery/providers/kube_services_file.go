@@ -12,6 +12,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/types"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
@@ -22,7 +23,7 @@ type KubeServiceFileConfigProvider struct {
 }
 
 // NewKubeServiceFileConfigProvider returns a new KubeServiceFileConfigProvider
-func NewKubeServiceFileConfigProvider(*pkgconfigsetup.ConfigurationProviders, *telemetry.Store) (ConfigProvider, error) {
+func NewKubeServiceFileConfigProvider(*pkgconfigsetup.ConfigurationProviders, *telemetry.Store) (types.ConfigProvider, error) {
 	return &KubeServiceFileConfigProvider{}, nil
 }
 
@@ -48,8 +49,8 @@ func (c *KubeServiceFileConfigProvider) String() string {
 }
 
 // GetConfigErrors is not implemented for the KubeServiceFileConfigProvider.
-func (c *KubeServiceFileConfigProvider) GetConfigErrors() map[string]ErrorMsgSet {
-	return make(map[string]ErrorMsgSet)
+func (c *KubeServiceFileConfigProvider) GetConfigErrors() map[string]types.ErrorMsgSet {
+	return make(map[string]types.ErrorMsgSet)
 }
 
 // toKubernetesServiceChecks generates integration configs to target
@@ -57,12 +58,8 @@ func (c *KubeServiceFileConfigProvider) GetConfigErrors() map[string]ErrorMsgSet
 func toKubernetesServiceChecks(configs []integration.Config) []integration.Config {
 	k8sServiceChecks := []integration.Config{}
 	for i, config := range configs {
-		if len(config.AdvancedADIdentifiers) > 0 {
-			adIdentifiers := toServiceADIdentifiers(config.AdvancedADIdentifiers)
-			if len(adIdentifiers) == 0 {
-				continue
-			}
-
+		adIdentifiers := toServiceADIdentifiers(config.AdvancedADIdentifiers)
+		if len(adIdentifiers) > 0 || len(config.CELSelector.KubeServices) > 0 {
 			configs[i].ADIdentifiers = adIdentifiers
 			configs[i].AdvancedADIdentifiers = nil
 			configs[i].Provider = names.KubeServicesFile
@@ -71,7 +68,6 @@ func toKubernetesServiceChecks(configs []integration.Config) []integration.Confi
 			k8sServiceChecks = append(k8sServiceChecks, configs[i])
 		}
 	}
-
 	return k8sServiceChecks
 }
 

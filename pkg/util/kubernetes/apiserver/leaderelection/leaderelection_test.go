@@ -485,6 +485,9 @@ func (g *dummyGauge) Sub(_ float64, _ ...string) {}
 // Delete does nothing
 func (g *dummyGauge) Delete(_ ...string) {}
 
+// DeletePartialMatch does nothing
+func (g *dummyGauge) DeletePartialMatch(_ map[string]string) {}
+
 // WithValues does nothing
 func (g *dummyGauge) WithValues(_ ...string) telemetryComponent.SimpleGauge { return nil }
 

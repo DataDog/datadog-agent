@@ -37,6 +37,7 @@ type Meta struct {
 	ClusterName               string   `json:"cluster-name,omitempty"`
 	LegacyResolutionHostname  string   `json:"legacy-resolution-hostname,omitempty"`
 	HostnameResolutionVersion int      `json:"hostname-resolution-version,omitempty"`
+	CanonicalCloudResourceID  string   `json:"ccrid,omitempty"`
 }
 
 // GetMetaFromCache returns the metadata information about the host from the cache and returns it, if the cache is
@@ -65,15 +66,22 @@ func getMeta(ctx context.Context, conf model.Reader, hostnameComp hostnameinterf
 		agentHostname = hostnameData.Hostname
 	}
 
+	ccrid := ""
+	hostAliases, cloudname := cloudproviders.GetHostAliases(ctx)
+	if conf.GetBool("collect_ccrid") {
+		ccrid = cloudproviders.GetHostCCRID(ctx, cloudname)
+	}
+
 	m := &Meta{
 		SocketHostname:            osHostname,
 		Timezones:                 []string{tzname},
 		SocketFqdn:                netutil.Fqdn(osHostname),
 		EC2Hostname:               ec2Hostname,
-		HostAliases:               cloudproviders.GetHostAliases(ctx),
+		HostAliases:               hostAliases,
 		InstanceID:                instanceID,
 		AgentHostname:             agentHostname,
 		HostnameResolutionVersion: 1,
+		CanonicalCloudResourceID:  ccrid,
 	}
 
 	legacyResolutionHostnameData, _ := hostname.GetWithLegacyResolutionProvider(ctx)

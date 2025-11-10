@@ -191,6 +191,7 @@ github.com/dgraph-io/badger:
  - "Copyright 2020 Dgraph Labs, Inc. and Contributors"
  - "Copyright 2021 Dgraph Labs, Inc. and Contributors"
 github.com/mostynb/go-grpc-compression: "Copyright 2023 Mostyn Bramley-Moore."
+github.com/minio/sha256-simd: ["Copyright 2016 Minio, Inc.", "Copyright 2018 Kristofer Peterson"]
 github.com/stormcat24/protodep: "Copyright Akinori Yamada"
 go4.org/mem: "Copyright 2020 The Go4 AUTHORS"
 
@@ -356,6 +357,7 @@ github.com/google/shlex: Copyright 2012 Google Inc. All Rights Reserved.
 github.com/facebook/time/*: Copyright (c) Facebook, Inc. and its affiliates.
 github.com/grobie/gomemcache/memcache: Copyright 2011 Google Inc.
 github.com/lightstep/go-expohisto/*: Copyright The OpenTelemetry Authors
+github.com/envoyproxy/gateway/*: Copyright Envoy Gateway Authors
 github.com/envoyproxy/go-control-plane/*: Copyright 2020 Envoyproxy Authors
 github.com/envoyproxy/protoc-gen-validate/validate:  Copyright 2020 Envoyproxy Authors
 github.com/cncf/xds: Copyright 2020 Envoyproxy Authors
@@ -403,3 +405,5 @@ github.com/bhmj/xpression: Copyright 2021-2022 Michael Gurov (github.com/bhmj)
 github.com/bboreham/go-loser: bboreham <bjboreham@gmail.com>
 cel.dev/expr: TristonianJones <tswadell@google.com>
 github.com/google/go-tpm: Copyright (c) 2014, Google LLC All rights reserved.
+
+istio.io/*: Copyright Istio Authors

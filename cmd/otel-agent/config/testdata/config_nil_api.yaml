@@ -5,13 +5,10 @@ receivers:
       http:
 exporters:
   datadog:
-    api:
+    api: null
 processors:
-  batch:
-    timeout: 10s
 service:
   pipelines:
     traces:
       receivers: [otlp]
-      processors: [batch]
       exporters: [datadog]

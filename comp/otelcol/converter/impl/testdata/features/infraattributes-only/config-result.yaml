@@ -1,0 +1,18 @@
+
+processors:
+  infraattributes/dd-autoconfigured:
+
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [infraattributes/dd-autoconfigured]
+      exporters: [datadog/connector, datadog]
+    metrics:
+      receivers: [otlp, datadog/connector]
+      processors: [infraattributes/dd-autoconfigured]
+      exporters: [datadog]
+    logs:
+      receivers: [otlp]
+      processors: [infraattributes/dd-autoconfigured]
+      exporters: [datadog]

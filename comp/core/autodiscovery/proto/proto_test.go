@@ -38,9 +38,12 @@ func TestProtobufConfigFromAutodiscoveryConfig(t *testing.T) {
 							Name:      "service1",
 							Namespace: "namespace1",
 						},
-						KubeEndpoints: integration.KubeNamespacedName{
-							Name:      "endpoint1",
-							Namespace: "namespace1",
+						KubeEndpoints: integration.KubeEndpointsIdentifier{
+							KubeNamespacedName: integration.KubeNamespacedName{
+								Name:      "endpoint1",
+								Namespace: "namespace1",
+							},
+							Resolve: "auto",
 						},
 					},
 				},
@@ -70,9 +73,12 @@ func TestProtobufConfigFromAutodiscoveryConfig(t *testing.T) {
 							Name:      "service1",
 							Namespace: "namespace1",
 						},
-						KubeEndpoints: &core.KubeNamespacedName{
-							Name:      "endpoint1",
-							Namespace: "namespace1",
+						KubeEndpoints: &core.KubeEndpointsIdentifier{
+							KubeNamespacedName: &core.KubeNamespacedName{
+								Name:      "endpoint1",
+								Namespace: "namespace1",
+							},
+							Resolve: "auto",
 						},
 					},
 				},
@@ -176,9 +182,12 @@ func TestAutodiscoveryConfigFromProtobufConfig(t *testing.T) {
 							Name:      "service1",
 							Namespace: "namespace1",
 						},
-						KubeEndpoints: &core.KubeNamespacedName{
-							Name:      "endpoint1",
-							Namespace: "namespace1",
+						KubeEndpoints: &core.KubeEndpointsIdentifier{
+							KubeNamespacedName: &core.KubeNamespacedName{
+								Name:      "endpoint1",
+								Namespace: "namespace1",
+							},
+							Resolve: "auto",
 						},
 					},
 				},
@@ -208,9 +217,12 @@ func TestAutodiscoveryConfigFromProtobufConfig(t *testing.T) {
 							Name:      "service1",
 							Namespace: "namespace1",
 						},
-						KubeEndpoints: integration.KubeNamespacedName{
-							Name:      "endpoint1",
-							Namespace: "namespace1",
+						KubeEndpoints: integration.KubeEndpointsIdentifier{
+							KubeNamespacedName: integration.KubeNamespacedName{
+								Name:      "endpoint1",
+								Namespace: "namespace1",
+							},
+							Resolve: "auto",
 						},
 					},
 				},

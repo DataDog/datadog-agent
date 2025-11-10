@@ -9,6 +9,8 @@ package packets
 import (
 	"sync"
 	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const messageSeparator = byte('\n')
@@ -23,6 +25,7 @@ type Assembler struct {
 	sharedPacketPoolManager *PoolManager[Packet]
 	flushTimer              *time.Ticker
 	closeChannel            chan struct{}
+	doneChannel             chan struct{}
 	packetSourceType        SourceType
 	sync.Mutex
 }
@@ -38,6 +41,7 @@ func NewAssembler(flushTimer time.Duration, packetsBuffer *Buffer, sharedPacketP
 		flushTimer:              time.NewTicker(flushTimer),
 		packetSourceType:        packetSourceType,
 		closeChannel:            make(chan struct{}),
+		doneChannel:             make(chan struct{}),
 	}
 	go packetAssembler.flushLoop()
 	return packetAssembler
@@ -51,6 +55,10 @@ func (p *Assembler) flushLoop() {
 			p.flush()
 			p.Unlock()
 		case <-p.closeChannel:
+			p.Lock()
+			p.flush()
+			p.Unlock()
+			close(p.doneChannel)
 			return
 		}
 	}
@@ -87,7 +95,11 @@ func (p *Assembler) flush() {
 
 // Close closes the packet assembler
 func (p *Assembler) Close() {
-	p.Lock()
 	close(p.closeChannel)
-	p.Unlock()
+
+	select {
+	case <-p.doneChannel:
+	case <-time.After(time.Second):
+		log.Debug("Timeout flushing the dogstatsd assembler on stop")
+	}
 }

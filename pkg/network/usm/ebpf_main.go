@@ -489,7 +489,11 @@ func (e *ebpfProgram) init(buf bytecode.AssetReader, options manager.Options) er
 				log.Debugf("map %s is shared between enabled and disabled protocols", m.Name)
 				continue
 			}
-			options.ExcludedMaps = append(options.ExcludedMaps, m.Name)
+			// Unused maps still need to have a non-zero size
+			options.MapSpecEditors[m.Name] = manager.MapSpecEditor{
+				MaxEntries: uint32(1),
+				EditorFlag: manager.EditMaxEntries,
+			}
 
 			log.Debugf("disabled map: %v", m.Name)
 		}
@@ -646,6 +650,12 @@ func (e *ebpfProgram) initProtocols(c *config.Config) error {
 		if protocol != nil {
 			spec.Instance = protocol
 			e.enabledProtocols = append(e.enabledProtocols, spec)
+
+			// Check if protocol provides additional modifiers (like EventHandlers)
+			if mp, ok := protocol.(protocols.ModifierProvider); ok {
+				modifiers := mp.Modifiers()
+				e.Manager.EnabledModifiers = append(e.Manager.EnabledModifiers, modifiers...)
+			}
 
 			log.Infof("%v monitoring enabled", protocol.Name())
 		} else {

@@ -121,6 +121,11 @@ func (w *Webhook) Resources() map[string][]string {
 	return w.resources
 }
 
+// Timeout returns the timeout for the webhook
+func (w *Webhook) Timeout() int32 {
+	return 0
+}
+
 // Operations returns the operations on the resources specified for which
 // the webhook should be invoked
 func (w *Webhook) Operations() []admissionregistrationv1.OperationType {
@@ -130,7 +135,9 @@ func (w *Webhook) Operations() []admissionregistrationv1.OperationType {
 // LabelSelectors returns the label selectors that specify when the webhook
 // should be invoked
 func (w *Webhook) LabelSelectors(useNamespaceSelector bool) (namespaceSelector *metav1.LabelSelector, objectSelector *metav1.LabelSelector) {
-	return common.DefaultLabelSelectors(useNamespaceSelector)
+	return common.DefaultLabelSelectors(useNamespaceSelector, common.LabelSelectorsConfig{
+		ExcludeNamespaces: mutatecommon.DefaultDisabledNamespaces(),
+	})
 }
 
 // MatchConditions returns the Match Conditions used for fine-grained

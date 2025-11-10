@@ -1,12 +1,15 @@
 import os
 import re
 import shutil
+import sys
 
 from invoke import task
 from invoke.exceptions import Exit
 
 from tasks.build_tags import get_default_build_tags
+from tasks.libs.common.go import go_build
 from tasks.libs.common.utils import REPO_PATH, bin_name, get_version_ldflags
+from tasks.windows_resources import build_messagetable, build_rc, versioninfo_vars
 
 BIN_NAME = "otel-agent"
 CFG_NAME = "otel-config.yaml"
@@ -50,12 +53,35 @@ def build(ctx, byoc=False):
 
     env = {"GO111MODULE": "on"}
     build_tags = get_default_build_tags(build="otel-agent")
-    ldflags = get_version_ldflags(ctx, major_version='7')
+    ldflags = get_version_ldflags(ctx)
     ldflags += f' -X github.com/DataDog/datadog-agent/cmd/otel-agent/command.BYOC={byoc}'
+    if os.environ.get("DELVE"):
+        gcflags = "all=-N -l"
+    else:
+        gcflags = ""
 
-    cmd = f"go build -mod=readonly -tags=\"{' '.join(build_tags)}\" -ldflags=\"{ldflags}\" -o {BIN_PATH} {REPO_PATH}/cmd/otel-agent"
+    # generate windows resources
+    if sys.platform == 'win32':
+        build_messagetable(ctx)
+        vars = versioninfo_vars(ctx)
+        build_rc(
+            ctx,
+            "cmd/otel-agent/windows_resources/otel-agent.rc",
+            vars=vars,
+            out="cmd/otel-agent/rsrc.syso",
+        )
 
-    ctx.run(cmd, env=env)
+    go_build(
+        ctx,
+        f"{REPO_PATH}/cmd/otel-agent",
+        mod="readonly",
+        build_tags=build_tags,
+        ldflags=ldflags,
+        gcflags=gcflags,
+        bin_path=BIN_PATH,
+        check_deadcode=os.getenv("DEPLOY_AGENT") == "true",
+        env=env,
+    )
 
     dist_folder = os.path.join(BIN_DIR, "dist")
     if os.path.exists(dist_folder):

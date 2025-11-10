@@ -323,7 +323,38 @@ func TestProfileProxyHandler(t *testing.T) {
 		}))
 		conf := newTestReceiverConfig()
 		conf.ProfilingProxy = config.ProfilingProxyConfig{DDURL: srv.URL}
-		conf.AzureContainerAppTags = ",subscription_id:123,resource_group:test-rg,resource_id:456,aca.subscription.id:123,aca.resource.group:test-rg,aca.resource.id:456,aca.replica.name:test-replica"
+		conf.AzureServerlessTags = ",subscription_id:123,resource_group:test-rg,resource_id:456,aca.subscription.id:123,aca.resource.group:test-rg,aca.resource.id:456,aca.replica.name:test-replica"
+		req, err := http.NewRequest("POST", "/some/path", nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		receiver := newTestReceiverFromConfig(conf)
+		receiver.profileProxyHandler().ServeHTTP(httptest.NewRecorder(), req)
+		if !called {
+			t.Fatal("request not proxied")
+		}
+	})
+
+	t.Run("azure_app_services", func(t *testing.T) {
+		var called bool
+		srv := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, req *http.Request) {
+			v := req.Header.Get("X-Datadog-Additional-Tags")
+			tags := strings.Split(v, ",")
+			m := make(map[string]string)
+			for _, tag := range tags {
+				kv := strings.Split(tag, ":")
+				m[kv[0]] = kv[1]
+			}
+			for _, tag := range []string{"aas.subscription.id", "aas.resource.group", "aas.resource.id"} {
+				if _, ok := m[tag]; !ok {
+					t.Fatalf("invalid X-Datadog-Additional-Tags header, should contain '%s': %q", tag, v)
+				}
+			}
+			called = true
+		}))
+		conf := newTestReceiverConfig()
+		conf.ProfilingProxy = config.ProfilingProxyConfig{DDURL: srv.URL}
+		conf.AzureServerlessTags = ",aas.subscription.id:123,aas.resource.group:test-rg,aas.resource.id:456"
 		req, err := http.NewRequest("POST", "/some/path", nil)
 		if err != nil {
 			t.Fatal(err)

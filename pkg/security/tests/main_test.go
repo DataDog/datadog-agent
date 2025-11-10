@@ -10,15 +10,20 @@ package tests
 
 import (
 	"flag"
+	"fmt"
 	"os"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+var GitAncestorOnMain = "main"
+
 // TestMain is the entry points for functional tests
 func TestMain(m *testing.M) {
 	flag.Parse()
+
+	fmt.Printf("Using git ref %s as common ancestor between HEAD and main branch\n", GitAncestorOnMain)
 
 	preTestsHook()
 	retCode := m.Run()

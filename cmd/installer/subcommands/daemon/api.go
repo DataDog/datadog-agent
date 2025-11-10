@@ -18,7 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	"github.com/DataDog/datadog-agent/comp/core/secrets"
+	secretsfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	"github.com/DataDog/datadog-agent/comp/updater/localapiclient"
 	"github.com/DataDog/datadog-agent/comp/updater/localapiclient/localapiclientimpl"
@@ -30,6 +30,7 @@ type cliParams struct {
 	pkg     string
 	version string
 	catalog string
+	configs string
 }
 
 func apiCommands(global *command.GlobalParams) []*cobra.Command {
@@ -45,6 +46,20 @@ func apiCommands(global *command.GlobalParams) []*cobra.Command {
 			})
 		},
 	}
+
+	setConfigCatalogCmd := &cobra.Command{
+		Hidden: true,
+		Use:    "set-config-catalog configs",
+		Short:  "Internal command to set the config catalog to use",
+		Args:   cobra.ExactArgs(1),
+		RunE: func(_ *cobra.Command, args []string) error {
+			return experimentFxWrapper(setConfigCatalog, &cliParams{
+				GlobalParams: *global,
+				configs:      args[0],
+			})
+		},
+	}
+
 	installCmd := &cobra.Command{
 		Use:     "install package version",
 		Aliases: []string{"install"},
@@ -155,6 +170,7 @@ func apiCommands(global *command.GlobalParams) []*cobra.Command {
 	}
 	return []*cobra.Command{
 		setCatalogCmd,
+		setConfigCatalogCmd,
 		startExperimentCmd,
 		stopExperimentCmd,
 		promoteExperimentCmd,
@@ -171,11 +187,11 @@ func experimentFxWrapper(f interface{}, params *cliParams) error {
 	return fxutil.OneShot(f,
 		fx.Supply(core.BundleParams{
 			ConfigParams:         config.NewAgentParams(params.ConfFilePath),
-			SecretParams:         secrets.NewEnabledParams(),
 			SysprobeConfigParams: sysprobeconfigimpl.NewParams(),
 			LogParams:            log.ForOneShot("INSTALLER", "off", true),
 		}),
 		core.Bundle(),
+		secretsfx.Module(),
 		fx.Supply(params),
 		localapiclientimpl.Module(),
 	)
@@ -185,6 +201,15 @@ func catalog(params *cliParams, client localapiclient.Component) error {
 	err := client.SetCatalog(params.catalog)
 	if err != nil {
 		fmt.Println("Error setting catalog:", err)
+		return err
+	}
+	return nil
+}
+
+func setConfigCatalog(params *cliParams, client localapiclient.Component) error {
+	err := client.SetConfigCatalog(params.configs)
+	if err != nil {
+		fmt.Println("Error setting config catalog:", err)
 		return err
 	}
 	return nil

@@ -19,4 +19,16 @@ const (
 	ProbeKindSpan
 	// ProbeKindMetric is a probe that updates a metric.
 	ProbeKindMetric
+	// ProbeKindSnapshot is a probe that emits a snapshot.
+	//
+	// Internally in rcjson these are log probes with capture_snapshot set to
+	// true.
+	ProbeKindSnapshot
+
+	maxProbeKind uint8 = iota
 )
+
+// IsValid returns true if the probe kind is valid.
+func (k ProbeKind) IsValid() bool {
+	return k > 0 && uint8(k) < maxProbeKind
+}

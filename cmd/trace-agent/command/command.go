@@ -12,6 +12,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/trace-agent/subcommands"
 	"github.com/DataDog/datadog-agent/cmd/trace-agent/subcommands/config"
 	"github.com/DataDog/datadog-agent/cmd/trace-agent/subcommands/controlsvc"
+	"github.com/DataDog/datadog-agent/cmd/trace-agent/subcommands/coverage"
 	"github.com/DataDog/datadog-agent/cmd/trace-agent/subcommands/info"
 	"github.com/DataDog/datadog-agent/cmd/trace-agent/subcommands/run"
 	"github.com/DataDog/datadog-agent/pkg/cli/subcommands/version"
@@ -59,6 +60,8 @@ func makeCommands(globalParams *subcommands.GlobalParams) *cobra.Command {
 	for _, cmd := range commands {
 		traceAgentCmd.AddCommand(cmd)
 	}
+
+	coverage.SetupCoverageCommand(globalConfGetter, &traceAgentCmd)
 
 	traceAgentCmd.PersistentFlags().StringVarP(&globalParams.ConfPath, "config", "c", defaultConfigPath, "path to directory containing datadog.yaml")
 	traceAgentCmd.PersistentFlags().StringVarP(&globalParams.FleetPoliciesDirPath, "fleetcfgpath", "", "", "path to the directory containing fleet policies")

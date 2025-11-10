@@ -24,6 +24,10 @@ const (
 	ErrPackageNotFound InstallerErrorCode = 3
 	// ErrFilesystemIssue is the code for a filesystem issue (e.g. permission issue).
 	ErrFilesystemIssue InstallerErrorCode = 4
+	// ErrConfigNotFound is the code for a config not found.
+	ErrConfigNotFound InstallerErrorCode = 5
+	// ErrPasswordNotProvided is the code for a password not provided.
+	ErrPasswordNotProvided InstallerErrorCode = 6
 )
 
 // InstallerError is an error type used by the installer.

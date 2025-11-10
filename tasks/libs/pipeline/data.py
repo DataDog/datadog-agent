@@ -9,11 +9,11 @@ from tasks.libs.common.utils import Color, color_message
 from tasks.libs.types.types import FailedJobReason, FailedJobs, FailedJobType
 
 
-def get_failed_jobs(pipeline: ProjectPipeline) -> FailedJobs:
+def get_failed_jobs(pipeline: ProjectPipeline, repo_name: str) -> FailedJobs:
     """
     Retrieves the list of failed jobs for a given pipeline id in a given project.
     """
-    repo = get_gitlab_repo(pipeline.project_id)
+    repo = get_gitlab_repo(repo_name)
     jobs = pipeline.jobs.list(per_page=100, all=True)
     bridges = pipeline.bridges.list(per_page=100, all=True)
     # Add bridge jobs to the list of jobs, as they can fail the pipeline

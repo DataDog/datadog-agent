@@ -15,6 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 var (
@@ -41,6 +42,7 @@ type worker struct {
 	senderDoneChan chan *sync.WaitGroup
 	flushWg        *sync.WaitGroup
 	sink           Sink
+	workerID       string
 
 	pipelineMonitor metrics.PipelineMonitor
 	utilization     metrics.UtilizationMonitor
@@ -50,10 +52,11 @@ func newWorker(
 	config pkgconfigmodel.Reader,
 	inputChan chan *message.Payload,
 	sink Sink,
-	destinations *client.Destinations,
+	destinationFactory DestinationFactory,
 	bufferSize int,
 	serverlessMeta ServerlessMeta,
 	pipelineMonitor metrics.PipelineMonitor,
+	workerID string,
 ) *worker {
 	var senderDoneChan chan *sync.WaitGroup
 	var flushWg *sync.WaitGroup
@@ -66,16 +69,17 @@ func newWorker(
 		config:         config,
 		inputChan:      inputChan,
 		sink:           sink,
-		destinations:   destinations,
+		destinations:   destinationFactory(workerID),
 		bufferSize:     bufferSize,
 		senderDoneChan: senderDoneChan,
 		flushWg:        flushWg,
 		done:           make(chan struct{}),
 		finished:       make(chan struct{}),
+		workerID:       workerID,
 
 		// Telemetry
 		pipelineMonitor: pipelineMonitor,
-		utilization:     pipelineMonitor.MakeUtilizationMonitor("sender"),
+		utilization:     pipelineMonitor.MakeUtilizationMonitor(metrics.WorkerTlmName, workerID),
 	}
 }
 
@@ -106,6 +110,8 @@ func (s *worker) run() {
 	for continueLoop {
 		select {
 		case payload := <-s.inputChan:
+			s.pipelineMonitor.ReportComponentEgress(payload, metrics.SenderTlmName, metrics.SenderTlmInstanceID)
+			s.pipelineMonitor.ReportComponentIngress(payload, metrics.WorkerTlmName, s.workerID)
 			s.utilization.Start()
 			var startInUse = time.Now()
 			senderDoneWg := &sync.WaitGroup{}
@@ -113,9 +119,16 @@ func (s *worker) run() {
 			sent := false
 			for !sent {
 				for _, destSender := range reliableDestinations {
+					// Drop non-MRF payloads to MRF destinations
+					if destSender.destination.IsMRF() && !payload.IsMRF() {
+						log.Debugf("Dropping non-MRF payload to MRF destination: %s", destSender.destination.Target())
+						sent = true
+						continue
+					}
+
 					if destSender.Send(payload) {
 						if destSender.destination.Metadata().ReportingEnabled {
-							s.pipelineMonitor.ReportComponentIngress(payload, destSender.destination.Metadata().MonitorTag())
+							s.pipelineMonitor.ReportComponentIngress(payload, destSender.destination.Metadata().MonitorTag(), s.workerID)
 						}
 						sent = true
 						if s.senderDoneChan != nil {
@@ -134,6 +147,12 @@ func (s *worker) run() {
 			}
 
 			for i, destSender := range reliableDestinations {
+				// Drop non-MRF payloads to MRF destinations
+				if destSender.destination.IsMRF() && !payload.IsMRF() {
+					log.Debugf("Dropping non-MRF payload to MRF destination: %s", destSender.destination.Target())
+					sent = true
+					continue
+				}
 				// If an endpoint is stuck in the previous step, try to buffer the payloads if we have room to mitigate
 				// loss on intermittent failures.
 				if !destSender.lastSendSucceeded {
@@ -146,6 +165,12 @@ func (s *worker) run() {
 
 			// Attempt to send to unreliable destinations
 			for i, destSender := range unreliableDestinations {
+				// Drop non-MRF payloads to MRF destinations
+				if destSender.destination.IsMRF() && !payload.IsMRF() {
+					log.Debugf("Dropping non-MRF payload to MRF destination: %s", destSender.destination.Target())
+					sent = true
+					continue
+				}
 				if !destSender.NonBlockingSend(payload) {
 					tlmPayloadsDropped.Inc("false", strconv.Itoa(i))
 					tlmMessagesDropped.Add(float64(payload.Count()), "false", strconv.Itoa(i))
@@ -166,7 +191,7 @@ func (s *worker) run() {
 				// Decrement the wait group when this payload has been sent
 				s.flushWg.Done()
 			}
-			s.pipelineMonitor.ReportComponentEgress(payload, "sender")
+			s.pipelineMonitor.ReportComponentEgress(payload, metrics.WorkerTlmName, s.workerID)
 		case <-s.done:
 			continueLoop = false
 		}
@@ -188,8 +213,9 @@ func noopDestinationsSink(bufferSize int) chan *message.Payload {
 	sink := make(chan *message.Payload, bufferSize)
 	go func() {
 		// drain channel, stop when channel is closed
-		//nolint:revive // TODO(AML) Fix revive linter
-		for range sink {
+		for msg := range sink {
+			// Consume messages from channel until closed
+			_ = msg
 		}
 	}()
 	return sink

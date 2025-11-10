@@ -176,7 +176,7 @@ func CheckLogsExpected(t *testing.T, fakeIntake *components.FakeIntake, service,
 					seenTags[tag] = struct{}{} // Mark the tag as seen
 				}
 				for _, expectedTag := range expectedTags {
-					assert.Contains(t, log.Tags, expectedTag)
+					assert.Contains(c, log.Tags, expectedTag)
 				}
 			}
 		}
