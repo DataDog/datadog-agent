@@ -505,6 +505,8 @@ type dictionaryBuilder struct {
 	tagsIndex  map[tagsKey]int64
 	tagsBuffer []int64
 
+	tagsStringBuf []string
+
 	resourcesLastID int64
 	resourcesIndex  map[any]int64
 
@@ -560,7 +562,13 @@ func (db *dictionaryBuilder) appendTagsSlice(tags []string) {
 
 func (db *dictionaryBuilder) internTags1(prefixID int64, tags []string) int64 {
 	var hash1, hash2 uint64 = uint64(prefixID), 0
-	for _, s := range tags {
+
+	defer func() { db.tagsStringBuf = db.tagsStringBuf[:0] }()
+
+	db.tagsStringBuf = append(db.tagsStringBuf, tags...)
+	slices.Sort(db.tagsStringBuf)
+
+	for _, s := range db.tagsStringBuf {
 		hash1, hash2 = murmur3.SeedStringSum128(hash1, hash2, s)
 	}
 
@@ -573,7 +581,7 @@ func (db *dictionaryBuilder) internTags1(prefixID int64, tags []string) int64 {
 	if prefixID > 0 {
 		db.tagsBuffer = append(db.tagsBuffer, -prefixID)
 	}
-	db.appendTagsSlice(tags)
+	db.appendTagsSlice(db.tagsStringBuf)
 	slices.Sort(db.tagsBuffer)
 	deltaEncode(db.tagsBuffer)
 
