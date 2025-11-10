@@ -341,16 +341,6 @@ func TestRenderFormat(t *testing.T) {
 	assert.Equal(t, "hello world 42", result)
 }
 
-func TestMsgArgs(t *testing.T) {
-	msg := newMsgArgs("hello", " ", "world")
-	assert.Equal(t, "hello world", msg.String())
-}
-
-func TestMsgFormat(t *testing.T) {
-	msg := newMsgFormat("test %s %d", "value", 123)
-	assert.Equal(t, "test value 123", msg.String())
-}
-
 // Test that complex types are properly formatted
 func TestWrapperComplexTypes(t *testing.T) {
 	handler := newMockHandler()

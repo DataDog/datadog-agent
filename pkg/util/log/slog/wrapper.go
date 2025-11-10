@@ -46,9 +46,17 @@ func newWrapperWithCloseAndFlush(handler slog.Handler, flush func(), close func(
 	}
 }
 
-func (w *Wrapper) handleLazy(level types.LogLevel, message fmt.Stringer) {
+func (w *Wrapper) handleArgs(level types.LogLevel, v ...interface{}) {
 	if w.handler.Enabled(context.Background(), types.ToSlogLevel(level)) {
-		w.handle(level, message.String())
+		// rendering is only done if the level is enabled
+		w.handle(level, renderArgs(v...))
+	}
+}
+
+func (w *Wrapper) handleFormat(level types.LogLevel, format string, params ...interface{}) {
+	if w.handler.Enabled(context.Background(), types.ToSlogLevel(level)) {
+		// rendering is only done if the level is enabled
+		w.handle(level, renderFormat(format, params...))
 	}
 }
 
@@ -81,73 +89,48 @@ func (w *Wrapper) handle(level types.LogLevel, message string) {
 	}
 }
 
-type msgArgs struct {
-	args []interface{}
-}
-
 func renderArgs(v ...interface{}) string {
 	return fmt.Sprint(v...)
-}
-
-func (m *msgArgs) String() string {
-	return renderArgs(m.args...)
-}
-
-type msgFormat struct {
-	format string
-	args   []interface{}
 }
 
 func renderFormat(format string, params ...interface{}) string {
 	return fmt.Sprintf(format, params...)
 }
 
-func (m *msgFormat) String() string {
-	return renderFormat(m.format, m.args...)
-}
-
-func newMsgArgs(v ...interface{}) fmt.Stringer {
-	return &msgArgs{args: v}
-}
-
-func newMsgFormat(format string, v ...interface{}) fmt.Stringer {
-	return &msgFormat{format: format, args: v}
-}
-
 // Trace formats message using the default formats for its operands
 // and writes to log with level = Trace
 func (w *Wrapper) Trace(v ...interface{}) {
-	w.handleLazy(types.TraceLvl, newMsgArgs(v...))
+	w.handleArgs(types.TraceLvl, v...)
 }
 
 // Tracef formats message according to format specifier
 // and writes to log with level = Trace.
 func (w *Wrapper) Tracef(format string, params ...interface{}) {
-	w.handleLazy(types.TraceLvl, newMsgFormat(format, params...))
+	w.handleFormat(types.TraceLvl, format, params...)
 }
 
 // Debug formats message using the default formats for its operands
 // and writes to log with level = Debug
 func (w *Wrapper) Debug(v ...interface{}) {
-	w.handleLazy(types.DebugLvl, newMsgArgs(v...))
+	w.handleArgs(types.DebugLvl, v...)
 }
 
 // Debugf formats message according to format specifier
 // and writes to log with level = Debug.
 func (w *Wrapper) Debugf(format string, params ...interface{}) {
-	w.handleLazy(types.DebugLvl, newMsgFormat(format, params...))
+	w.handleFormat(types.DebugLvl, format, params...)
 }
 
 // Info formats message using the default formats for its operands
 // and writes to log with level = Info
 func (w *Wrapper) Info(v ...interface{}) {
-	w.handleLazy(types.InfoLvl, newMsgArgs(v...))
+	w.handleArgs(types.InfoLvl, v...)
 }
 
 // Infof formats message according to format specifier
 // and writes to log with level = Info.
 func (w *Wrapper) Infof(format string, params ...interface{}) {
-	w.handleLazy(types.InfoLvl, newMsgFormat(format, params...))
+	w.handleFormat(types.InfoLvl, format, params...)
 }
 
 // Warn formats message using the default formats for its operands
