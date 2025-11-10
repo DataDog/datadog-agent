@@ -332,13 +332,13 @@ func NewMultiDomainResolver(domain string, apiKeys []utils.APIKeys) (DomainResol
 }
 
 // Resolve returns the destiation for a given request endpoint
-func (r *domainResolver) Resolve(endpoint transaction.Endpoint) (string, DestinationType) {
+func (r *domainResolver) Resolve(endpoint transaction.Endpoint) string {
 	if r.overrides != nil {
 		if d, ok := r.overrides[endpoint.Name]; ok {
-			return d.domain, d.dType
+			return d.domain
 		}
 	}
-	return r.domain, r.destinationType
+	return r.domain
 }
 
 // GetAlternateDomains returns a slice with all alternate domain
