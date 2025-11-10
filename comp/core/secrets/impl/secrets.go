@@ -626,6 +626,7 @@ func (r *secretResolver) Refresh(bypassRateLimit bool) (string, error) {
 	if !bypassRateLimit {
 		// check if api key refresh on 403 is enabled
 		if r.apiKeyFailureRefreshInterval == 0 {
+			log.Debugf("Secret refresh skipped")
 			return "", nil
 		}
 
@@ -634,6 +635,7 @@ func (r *secretResolver) Refresh(bypassRateLimit bool) (string, error) {
 		defer r.throttledRefreshMutex.Unlock()
 		// throttle if last refresh was less than apiKeyFailureRefreshInterval ago
 		if time.Since(r.lastThrottledRefresh) < r.apiKeyFailureRefreshInterval {
+			log.Debugf("Secret refresh skipped")
 			return "", nil
 		}
 		r.lastThrottledRefresh = time.Now()
@@ -668,6 +670,9 @@ func (r *secretResolver) Refresh(bypassRateLimit bool) (string, error) {
 		secretResponse, err = r.fetchSecret(newHandles)
 	}
 	if err != nil {
+		if !bypassRateLimit {
+			log.Debugf("Secret refresh after invalid API key failed: %v", err)
+		}
 		return "", err
 	}
 
@@ -692,7 +697,13 @@ func (r *secretResolver) Refresh(bypassRateLimit bool) (string, error) {
 	if err = t.Execute(b, refreshResult); err != nil {
 		return "", err
 	}
-	return b.String(), auditRecordErr
+	result := b.String()
+
+	if !bypassRateLimit && result != "" {
+		log.Infof("Secret refresh after invalid API key completed")
+	}
+
+	return result, auditRecordErr
 }
 
 type auditRecord struct {

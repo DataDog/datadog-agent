@@ -436,7 +436,7 @@ func (t *HTTPTransaction) internalProcess(ctx context.Context, config config.Com
 		// Trigger throttled secret refresh based on secret_refresh_on_api_key_failure_interval on API key error
 		go func() {
 			if _, err := secrets.Refresh(false); err != nil {
-				log.Debugf("Secret refresh after 403 failed: %v", err)
+				log.Debugf("error while refreshing secrets: %s", err)
 			}
 		}()
 
