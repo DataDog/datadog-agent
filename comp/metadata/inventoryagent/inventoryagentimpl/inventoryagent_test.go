@@ -173,6 +173,7 @@ func TestInitData(t *testing.T) {
 		"ec2_prefer_imdsv2":                           true,
 		"process_config.container_collection.enabled": true,
 		"remote_configuration.enabled":                true,
+		"remote_updates":                              true,
 		"process_config.process_collection.enabled":   true,
 		"container_image.enabled":                     true,
 		"sbom.enabled":                                true,
@@ -208,6 +209,7 @@ func TestInitData(t *testing.T) {
 		"feature_imdsv2_enabled":                     true,
 		"feature_processes_container_enabled":        true,
 		"feature_remote_configuration_enabled":       true,
+		"feature_remote_updates_enabled":             true,
 		"feature_process_enabled":                    true,
 		"feature_container_images_enabled":           true,
 
@@ -771,28 +773,4 @@ func TestGetProvidedConfigurationOnly(t *testing.T) {
 	sort.Strings(expected)
 
 	assert.Equal(t, expected, keys)
-}
-
-func TestGetDiagnosticsDisabled(t *testing.T) {
-	ia := getTestInventoryPayload(t, map[string]any{
-		"inventories_diagnostics_enabled": false,
-	}, nil)
-	ia.Set("diagnostics", "test")
-
-	payload := ia.getPayload().(*Payload)
-
-	// No configuration should be in the payload
-	assert.NotContains(t, payload.Metadata, "diagnostics")
-}
-
-func TestGetDiagnosticsEnabled(t *testing.T) {
-	ia := getTestInventoryPayload(t, map[string]any{
-		"inventories_diagnostics_enabled": true,
-	}, nil)
-	ia.Set("diagnostics", "test")
-
-	payload := ia.getPayload().(*Payload)
-
-	// No configuration should be in the payload
-	assert.Contains(t, payload.Metadata, "diagnostics")
 }

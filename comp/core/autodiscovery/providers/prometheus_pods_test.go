@@ -34,7 +34,7 @@ func TestStream(t *testing.T) {
 	testContainerName := "container-name"
 
 	wmeta := newMockWorkloadMeta(t)
-	providerInterface, err := NewPrometheusPodsConfigProvider(nil, wmeta, nil, nil)
+	providerInterface, err := NewPrometheusPodsConfigProvider(nil, wmeta, nil, nil, nil)
 	require.NoError(t, err)
 
 	provider, ok := providerInterface.(*PrometheusPodsConfigProvider)
@@ -140,7 +140,7 @@ func TestStream_NoAnnotations(t *testing.T) {
 	testContainerName := "container-name"
 
 	wmeta := newMockWorkloadMeta(t)
-	providerInterface, err := NewPrometheusPodsConfigProvider(nil, wmeta, nil, nil)
+	providerInterface, err := NewPrometheusPodsConfigProvider(nil, wmeta, nil, nil, nil)
 	require.NoError(t, err)
 
 	provider, ok := providerInterface.(*PrometheusPodsConfigProvider)
@@ -259,7 +259,7 @@ func TestGetConfigErrors(t *testing.T) {
 			wantErrs: true,
 		},
 		{
-			name: "pod with port annotation but no matching container",
+			name: "pod with port annotation but no matching container should not generate errors",
 			events: []workloadmeta.Event{
 				{
 					Type: workloadmeta.EventTypeSet,
@@ -302,7 +302,7 @@ func TestGetConfigErrors(t *testing.T) {
 					},
 				},
 			},
-			wantErrs: true,
+			wantErrs: false,
 		},
 		{
 			name: "valid pod should not generate errors",
@@ -383,7 +383,7 @@ func TestGetConfigErrors(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			wmeta := newMockWorkloadMeta(t)
-			providerInterface, err := NewPrometheusPodsConfigProvider(nil, wmeta, nil, nil)
+			providerInterface, err := NewPrometheusPodsConfigProvider(nil, wmeta, nil, nil, nil)
 			require.NoError(t, err)
 
 			provider, ok := providerInterface.(*PrometheusPodsConfigProvider)

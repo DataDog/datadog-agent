@@ -49,16 +49,18 @@ func New(t func() *testing.T, remote *components.RemoteHost, os e2eos.Descriptor
 	for _, opt := range opts {
 		opt(t, host)
 	}
-	host.uploadFixtures()
-	host.setSystemdVersion()
-	if _, err := host.remote.Execute("command -v dpkg-query"); err == nil {
-		host.pkgManager = "apt"
-	} else if _, err := host.remote.Execute("command -v zypper"); err == nil {
-		host.pkgManager = "zypper"
-	} else if _, err := host.remote.Execute("command -v yum"); err == nil {
-		host.pkgManager = "yum"
-	} else {
-		t().Fatal("no package manager found")
+	if os.Family() == e2eos.LinuxFamily {
+		host.uploadFixtures()
+		host.setSystemdVersion()
+		if _, err := host.remote.Execute("command -v dpkg-query"); err == nil {
+			host.pkgManager = "apt"
+		} else if _, err := host.remote.Execute("command -v zypper"); err == nil {
+			host.pkgManager = "zypper"
+		} else if _, err := host.remote.Execute("command -v yum"); err == nil {
+			host.pkgManager = "yum"
+		} else {
+			t().Fatal("no package manager found")
+		}
 	}
 	return host
 }

@@ -670,6 +670,9 @@ func (suite *k8sSuite) TestNginx() {
 	suite.testLog(&testLogArgs{
 		Filter: testLogFilterArgs{
 			Service: "apps-nginx-server",
+			Tags: []string{
+				`^kube_namespace:workload-nginx$`,
+			},
 		},
 		Expect: testLogExpectArgs{
 			Tags: &[]string{
@@ -804,6 +807,30 @@ func (suite *k8sSuite) TestRedis() {
 	// Check HPA is properly scaling up and down
 	// This indirectly tests the cluster-agent external metrics server
 	suite.testHPA("workload-redis", "redis")
+}
+
+func (suite *k8sSuite) TestArgoRollout() {
+	// Check that kube_argo_rollout tag is added to metric
+	suite.testMetric(&testMetricArgs{
+		Filter: testMetricFilterArgs{
+			Name: "container.cpu.system",
+			Tags: []string{
+				`^kube_namespace:workload-argo-rollout-nginx$`,
+			},
+		},
+		Expect: testMetricExpectArgs{
+			Tags: &[]string{
+				`^container_id:`,
+				`^container_name:nginx$`,
+				`^display_container_name:nginx`,
+				`^kube_container_name:nginx$`,
+				`^kube_deployment:nginx-rollout$`,
+				`^kube_argo_rollout:nginx-rollout$`,
+				`^kube_namespace:workload-argo-rollout-nginx$`,
+			},
+			AcceptUnexpectedTags: true,
+		},
+	})
 }
 
 func (suite *k8sSuite) TestCPU() {
@@ -1323,6 +1350,47 @@ func (suite *k8sSuite) testAdmissionControllerPod(namespace string, name string,
 			}, volumeMounts["datadog-auto-instrumentation"])
 		}
 	}
+}
+
+func (suite *k8sSuite) TestAdmissionControllerExcludesSystemNamespaces() {
+	ctx := context.Background()
+
+	suite.Run("webhooks should not mutate pods in kube-system namespace", func() {
+		// Get a pod from kube-system namespace
+		pods, err := suite.Env().KubernetesCluster.Client().CoreV1().Pods("kube-system").List(ctx, metav1.ListOptions{})
+		suite.Require().NoError(err)
+		suite.Require().NotEmpty(pods.Items, "No pods found in kube-system namespace")
+
+		// Verify the pod does NOT have admission controller mutations
+		suite.Run("should not have config env injected", func() {
+			for _, pod := range pods.Items {
+				env := make(map[string]string)
+				for _, container := range pod.Spec.Containers {
+					for _, envVar := range container.Env {
+						env[envVar.Name] = envVar.Value
+					}
+				}
+
+				// These env vars should NOT be present in kube-system pods
+				suite.NotContainsf(env, "DD_AGENT_HOST", "DD_AGENT_HOST should not be injected in kube-system resource %v", pod.Name)
+				suite.NotContainsf(env, "DD_ENTITY_ID", "DD_ENTITY_ID should not be injected in kube-system resource %v", pod.Name)
+				suite.NotContainsf(env, "DD_DOGSTATSD_URL", "DD_DOGSTATSD_URL should not be injected in kube-system resource %v", pod.Name)
+				suite.NotContainsf(env, "DD_TRACE_AGENT_URL", "DD_TRACE_AGENT_URL should not be injected in kube-system resource %v", pod.Name)
+			}
+		})
+
+		suite.Run("should not have datadog volumes mounted", func() {
+			for _, pod := range pods.Items {
+				volumeNames := make(map[string]bool)
+				for _, volume := range pod.Spec.Volumes {
+					volumeNames[volume.Name] = true
+				}
+
+				suite.NotContainsf(volumeNames, "datadog", "datadog volume should not be mounted in kube-system resource %v", pod.Name)
+				suite.NotContainsf(volumeNames, "datadog-auto-instrumentation", "APM library volume should not be mounted in kube-system resource %v", pod.Name)
+			}
+		})
+	})
 }
 
 func (suite *k8sSuite) TestContainerImage() {

@@ -38,6 +38,9 @@ type Config struct {
 	// containerRegistry is the container registry to use for the autoinstrumentation logic
 	containerRegistry string
 
+	// mutateUnlabelled is used to control if we require workloads to have a label when using Local Lib Injection.
+	mutateUnlabelled bool
+
 	// precomputed containerMutators for the security and profiling products
 	securityClientLibraryMutator  containerMutator
 	profilingClientLibraryMutator containerMutator
@@ -106,11 +109,14 @@ func NewConfig(datadogConfig config.Component) (*Config, error) {
 	}
 
 	containerRegistry := mutatecommon.ContainerRegistry(datadogConfig, "admission_controller.auto_instrumentation.container_registry")
+	mutateUnlabelled := datadogConfig.GetBool("admission_controller.mutate_unlabelled")
+
 	return &Config{
 		Webhook:                       NewWebhookConfig(datadogConfig),
 		LanguageDetection:             NewLanguageDetectionConfig(datadogConfig),
 		Instrumentation:               instrumentationConfig,
 		containerRegistry:             containerRegistry,
+		mutateUnlabelled:              mutateUnlabelled,
 		initResources:                 initResources,
 		initSecurityContext:           initSecurityContext,
 		defaultResourceRequirements:   defaultResourceRequirements,
@@ -119,22 +125,6 @@ func NewConfig(datadogConfig config.Component) (*Config, error) {
 		containerFilter:               excludedContainerNamesContainerFilter,
 		podMetaAsTags:                 getPodMetaAsTags(datadogConfig),
 	}, nil
-}
-
-// WebhookConfig use to store options from the config.Component for the autoinstrumentation webhook
-type WebhookConfig struct {
-	// IsEnabled is the flag to enable the autoinstrumentation webhook.
-	IsEnabled bool
-	// Endpoint is the endpoint to use for the autoinstrumentation webhook.
-	Endpoint string
-}
-
-// NewWebhookConfig retrieves the configuration for the autoinstrumentation webhook from the datadog config
-func NewWebhookConfig(datadogConfig config.Component) *WebhookConfig {
-	return &WebhookConfig{
-		IsEnabled: datadogConfig.GetBool("admission_controller.auto_instrumentation.enabled"),
-		Endpoint:  datadogConfig.GetString("admission_controller.auto_instrumentation.endpoint"),
-	}
 }
 
 // LanguageDetectionConfig is a struct to store the configuration for the language detection. It can be populated using

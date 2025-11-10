@@ -58,6 +58,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	commonsettings "github.com/DataDog/datadog-agent/pkg/config/settings"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	ddruntime "github.com/DataDog/datadog-agent/pkg/runtime"
 	"github.com/DataDog/datadog-agent/pkg/security/agent"
 	"github.com/DataDog/datadog-agent/pkg/security/utils/hostnameutils"
@@ -110,7 +111,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					return startstop.NewSerialStopper()
 				}),
 				fx.Provide(func(config config.Component, statsd statsd.Component) (ddgostatsd.ClientInterface, error) {
-					return statsd.CreateForHostPort(pkgconfigsetup.GetBindHost(config), config.GetInt("dogstatsd_port"))
+					return statsd.CreateForHostPort(configutils.GetBindHost(config), config.GetInt("dogstatsd_port"))
 				}),
 				fx.Provide(func(stopper startstop.Stopper, log log.Component, config config.Component, statsdClient ddgostatsd.ClientInterface, compression logscompression.Component, ipc ipc.Component) (status.InformationProvider, *agent.RuntimeSecurityAgent, error) {
 					hostnameDetected, err := hostnameutils.GetHostnameWithContextAndFallback(context.TODO(), ipc)

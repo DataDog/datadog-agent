@@ -24,6 +24,8 @@ type suiteParams struct {
 
 	skipDeleteOnFailure bool
 
+	disableCoverage bool
+
 	provisioners provisioners.ProvisionerMap
 }
 
@@ -77,4 +79,12 @@ func WithUntypedPulumiProvisioner(runFunc pulumi.RunFunc, configMap runner.Confi
 // WithPulumiProvisioner adds a typed Pulumi provisioner to the suite
 func WithPulumiProvisioner[Env any](runFunc provisioners.PulumiEnvRunFunc[Env], configMap runner.ConfigMap) SuiteOption {
 	return WithProvisioner(provisioners.NewTypedPulumiProvisioner("", runFunc, configMap))
+}
+
+// WithSkipCoverage skips the coverage of the environment.
+// It is called by the test suite if needed. When the test suite it not compatibale with built-in coverage computation
+func WithSkipCoverage() SuiteOption {
+	return func(options *suiteParams) {
+		options.disableCoverage = true
+	}
 }

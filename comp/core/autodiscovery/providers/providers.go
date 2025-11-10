@@ -13,6 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/types"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -24,7 +25,7 @@ func RegisterProvider(name string,
 	providerCatalog map[string]types.ConfigProviderFactory) {
 	RegisterProviderWithComponents(
 		name,
-		func(providerConfig *pkgconfigsetup.ConfigurationProviders, _ workloadmeta.Component, _ tagger.Component, telemetryStore *telemetry.Store) (types.ConfigProvider, error) {
+		func(providerConfig *pkgconfigsetup.ConfigurationProviders, _ workloadmeta.Component, _ tagger.Component, _ workloadfilter.Component, telemetryStore *telemetry.Store) (types.ConfigProvider, error) {
 			return factory(providerConfig, telemetryStore)
 		},
 		providerCatalog,

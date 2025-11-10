@@ -81,7 +81,7 @@ func newProcess(ps *ProcessSerializer) model.Process {
 		p.ExitTime = ps.ExitTime.GetInnerTime()
 	}
 	if ps.Container != nil {
-		p.ContainerID = containerutils.ContainerID(ps.Container.ID)
+		p.ContainerContext.ContainerID = containerutils.ContainerID(ps.Container.ID)
 	}
 
 	// TODO: credentials
@@ -103,9 +103,8 @@ func UnmarshalEvent(raw []byte) (*model.Event, error) {
 	process := newProcess(rawEvent.ProcessContextSerializer.ProcessSerializer)
 	event := model.Event{
 		BaseEvent: model.BaseEvent{
-			Type:             uint32(model.ExecEventType),
-			FieldHandlers:    &model.FakeFieldHandlers{},
-			ContainerContext: &model.ContainerContext{},
+			Type:          uint32(model.ExecEventType),
+			FieldHandlers: &model.FakeFieldHandlers{},
 			ProcessContext: &model.ProcessContext{
 				Process:  process,
 				Parent:   &parent,

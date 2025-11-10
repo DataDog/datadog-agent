@@ -149,6 +149,7 @@ struct syscall_cache_t {
         struct {
             u32 is_thread;
             u32 is_kthread;
+            u32 parent_pid;
         } fork;
 
         struct {
@@ -272,10 +273,14 @@ struct syscall_cache_t {
         } setsockopt;
         struct {
             int option;
-            int name_size_to_send;
+            u32 name_size_to_send;
             u32 name_truncated;
             char name[MAX_PRCTL_NAME_LEN];
         } prctl;
+
+        struct {
+            char suffix[TRACER_MEMFD_SUFFIX_LEN];
+        } tracer_memfd_create;
     };
 };
 

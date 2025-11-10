@@ -555,6 +555,9 @@ type AgentConfig struct {
 
 	// EnableV1TraceEndpoint enables the V1 trace endpoint, it is hidden by default
 	EnableV1TraceEndpoint bool
+
+	// SendAllInternalStats enables all internal stats to be published, otherwise some less-frequently-used stats will be omitted when zero to save costs
+	SendAllInternalStats bool
 }
 
 // RemoteClient client is used to APM Sampling Updates from a remote source.
@@ -661,7 +664,12 @@ func computeGlobalTags() map[string]string {
 	if inAzureAppServices() {
 		return traceutil.GetAppServicesTags()
 	}
-	return make(map[string]string)
+
+	tags := make(map[string]string)
+	if inECSManagedInstancesSidecar() {
+		tags["origin"] = "ecs_managed_instances"
+	}
+	return tags
 }
 
 // ErrContainerTagsFuncNotDefined is returned when the containerTags function is not defined.
@@ -765,4 +773,8 @@ func inAzureAppServices() bool {
 	_, existsLinux := os.LookupEnv("WEBSITE_STACK")
 	_, existsWin := os.LookupEnv("WEBSITE_APPSERVICEAPPLOGS_TRACE_ENABLED")
 	return existsLinux || existsWin
+}
+
+func inECSManagedInstancesSidecar() bool {
+	return os.Getenv("DD_ECS_DEPLOYMENT_MODE") == "sidecar" && os.Getenv("AWS_EXECUTION_ENV") == "AWS_ECS_MANAGED_INSTANCES"
 }

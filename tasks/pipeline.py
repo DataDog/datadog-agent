@@ -708,11 +708,14 @@ def trigger_external(ctx, owner_branch_name: str, no_verify=False):
         f"git branch -d '{owner}/{branch}'",
     ]
 
+    # Get the correct fork name
+    gh = GithubAPI()
+    fork_name = gh.get_fork_name(owner)
     # Commands to push the branch
     commands = (
         [
             # Fetch
-            f"git remote add {owner} git@github.com:{owner}/datadog-agent.git",
+            f"git remote add {owner} git@github.com:{owner}/{fork_name}.git",
             f"git fetch '{owner}' '{branch}'",
             # Create branch
             f"git checkout '{owner}/{branch}'",  # This first checkout puts us in a detached head state, thus the second checkout below

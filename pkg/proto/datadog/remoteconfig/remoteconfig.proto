@@ -178,6 +178,57 @@ message TargetFileMeta {
   repeated TargetFileHash hashes = 3;
 }
 
+// ConfigSubscriptionProducts is used to targets specific products for tracking
+// with a ConfigSubscriptionRequest.
+enum ConfigSubscriptionProducts {
+  INVALID = 0;
+
+  // LIVE_DEBUGGING corresponds to the LIVE_DEBUGING and LIVE_DEBUGGING_SYMBOLDB
+  // products.
+  LIVE_DEBUGGING = 1;
+}
+
+// ConfigSubscriptionRequest is used to manage the state of the stream created
+// using CreateConfigSubscription.
+message ConfigSubscriptionRequest {
+
+  enum Action {
+    INVALID = 0;
+    TRACK = 1;
+    UNTRACK = 2;
+  }
+
+
+  // RuntimeID of the client to track or untrack.
+  string runtime_id = 1;
+
+  // Action indicates the action to take for the client with the given
+  // runtime_id.
+  Action action = 2;
+
+  // If action is TRACK, products indicates the set of products for which the
+  // client is interested in receiving updates.
+  ConfigSubscriptionProducts products = 3;
+}
+
+// ConfigSubscriptionResponse is streamed from CreateConfigSubscription with
+// updates for matching clients and products.
+message ConfigSubscriptionResponse {
+
+  // Client is the client that was tracked or untracked.
+  Client client = 1;
+
+  // Matched configs are all configs that were matched for the client given
+  // the subscription request.
+  //
+  // If a previously reported config is no longer matched, it will not be
+  // included in the response.
+  repeated string matched_configs = 2;
+
+  // Target files are the target files that needs to be sent to the client.
+  repeated File target_files = 3;
+}
+
 message ClientGetConfigsRequest {
   Client client = 1;
   repeated TargetFileMeta cached_target_files = 2;
@@ -208,6 +259,23 @@ message GetStateConfigResponse {
   map<string, FileMetaState> director_state = 2;
   map<string, string> target_filenames = 3;
   repeated Client active_clients = 4;
+  repeated ConfigSubscriptionState config_subscription_states = 5;
+}
+
+// ConfigSubscriptionState describes the state of a config subscription.
+message ConfigSubscriptionState {
+  message TrackedClient {
+    string runtime_id = 1;
+    bool seen_any = 2;
+    ConfigSubscriptionProducts products = 3;
+  }
+
+  // SubscriptionID is a process-unique identifier for the subscription.
+  uint64 subscription_id = 1;
+
+  // TrackedClients is the list of clients that are currently tracked by the
+  // subscription.
+  repeated TrackedClient tracked_clients = 2;
 }
 
 message ResetStateConfigResponse {}

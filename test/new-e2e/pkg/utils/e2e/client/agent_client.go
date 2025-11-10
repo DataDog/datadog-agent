@@ -43,9 +43,9 @@ func NewHostAgentClient(context common.Context, hostOutput remote.HostOutput, wa
 
 	if params.ShouldWaitForReady {
 		if err := waitForReadyTimeout(commandRunner, agentReadyTimeout); err != nil {
-			commandRunner.isReady = true
 			return nil, err
 		}
+		commandRunner.isReady = true
 	}
 
 	return commandRunner, nil

@@ -116,7 +116,5 @@ func (s *testAgentInstallSuite) uninstallAgentWithMSI() {
 
 	// Assert
 	s.Require().NoErrorf(err, "failed to uninstall the Datadog Agent package")
-	s.Require().Host(s.Env().RemoteHost).
-		DirExists(consts.GetStableDirFor(consts.AgentPackage),
-			"the package directory should still exist after manually uninstalling the Agent with the MSI")
+	// we default to purge everything, so we don't need to check for the package directory
 }

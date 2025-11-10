@@ -18,6 +18,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	windowssvc "github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/service/windows"
+	windowsuser "github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/user/windows"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
@@ -199,9 +200,13 @@ func ensureDDOTService() error {
 				return errU
 			}
 		}
+		// Ensure service runs under the same account as the core Agent
+		if err := configureDDOTServiceCredentials(s); err != nil {
+			return err
+		}
 		return nil
 	}
-	// TODO(WINA-1619): Change service user to ddagentuser
+
 	s, err = m.CreateService(otelServiceName, bin, mgr.Config{
 		DisplayName:      "Datadog Distribution of OpenTelemetry Collector",
 		Description:      "Datadog OpenTelemetry Collector",
@@ -212,6 +217,51 @@ func ensureDDOTService() error {
 		return err
 	}
 	defer s.Close()
+	// Align credentials to ddagentuser (or equivalent) like other Agent services
+	if err := configureDDOTServiceCredentials(s); err != nil {
+		return err
+	}
+	return nil
+}
+
+// configureDDOTServiceCredentials updates the service credentials to match the core Agent service user.
+// For LocalSystem/LocalService/NetworkService the password is empty string.
+// For other accounts, the password is retrieved from LSA; if absent, a NULL password is used.
+func configureDDOTServiceCredentials(s *mgr.Service) error {
+	coreUser, err := winutil.GetServiceUser(coreAgentService)
+	if err != nil || coreUser == "" {
+		return fmt.Errorf("DDOT: could not determine core Agent service user: %w", err)
+	}
+
+	noChange := uint32(windows.SERVICE_NO_CHANGE)
+	acctPtr := windows.StringToUTF16Ptr(coreUser)
+	var pwdPtr *uint16
+
+	// Prefer SID-based detection for well-known accounts (locale-independent).
+	// If we cannot resolve the SID, fail installation as the environment is not in a stable state.
+	sid, errSID := winutil.GetServiceUserSID(coreAgentService)
+	if errSID != nil {
+		return fmt.Errorf("DDOT: could not resolve SID for service user %q: %w", coreUser, errSID)
+	}
+	if windowsuser.IsSupportedWellKnownAccount(sid) {
+		pwdPtr = windows.StringToUTF16Ptr("")
+	} else {
+		// Retrieve password from LSA; if not present, use NULL (covers gMSA and accounts without password)
+		pass, errLSA := windowsuser.GetAgentUserPasswordFromLSA()
+		if errLSA != nil && !errors.Is(errLSA, windowsuser.ErrPrivateDataNotFound) {
+			return fmt.Errorf("failed to read agent user password from LSA: %w", errLSA)
+		}
+		if pass != "" {
+			pwdPtr = windows.StringToUTF16Ptr(pass)
+		} else {
+			pwdPtr = nil
+		}
+	}
+
+	if err := windows.ChangeServiceConfig(s.Handle, noChange, noChange, noChange, nil, nil, nil, nil, acctPtr, pwdPtr, nil); err != nil {
+		log.Warnf("DDOT: failed to set credentials for %q to %q: %v", otelServiceName, coreUser, err)
+		return nil
+	}
 	return nil
 }
 

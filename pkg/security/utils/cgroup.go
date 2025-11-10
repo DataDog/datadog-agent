@@ -101,7 +101,7 @@ func parseProcControlGroupsData(data []byte, validateCgroupEntry func(string, st
 		data = data[nextStart:]
 	}
 
-	// return the lastest error
+	// return the latest error
 	return err
 }
 
@@ -246,6 +246,11 @@ func (cfs *CGroupFS) FindCGroupContext(tgid, pid uint32) (containerutils.Contain
 				cgroupPath = filepath.Join(mountpoint, ctrlDirectory, path)
 			}
 
+			if mountpoint == cgroupPath { // should not happen
+				seclog.Errorf("failed to compute cgroup path with path:%s, mountpoint:%s, rootCGroupPath:%s, ctrlDirectory:%s", path, mountpoint, cfs.rootCGroupPath, ctrlDirectory)
+				continue
+			}
+
 			if exists, err = checkPidExists(cgroupPath, pid); err == nil && exists {
 				cgroupID := containerutils.CGroupID(cfs.removeMountPointFromCGroupPath(cgroupPath))
 				if cgroupID == "" {
@@ -301,7 +306,7 @@ func checkPidExists(sysFScGroupPath string, expectedPid uint32) (bool, error) {
 	}
 	scanner := bufio.NewScanner(bytes.NewReader(data))
 	for scanner.Scan() {
-		if pid, err := strconv.Atoi(strings.TrimSpace(scanner.Text())); err == nil && uint32(pid) == expectedPid {
+		if pid, err := strconv.ParseUint(strings.TrimSpace(scanner.Text()), 10, 32); err == nil && uint32(pid) == expectedPid {
 			return true, nil
 		}
 	}
@@ -328,7 +333,7 @@ func (cfs *CGroupFS) GetCgroupPids(cgroupName string) ([]uint32, error) {
 		scanner := bufio.NewScanner(bytes.NewReader(data))
 		res := []uint32{}
 		for scanner.Scan() {
-			if pid, err := strconv.Atoi(strings.TrimSpace(scanner.Text())); err == nil {
+			if pid, err := strconv.ParseUint(strings.TrimSpace(scanner.Text()), 10, 32); err == nil {
 				res = append(res, uint32(pid))
 			}
 		}
@@ -393,7 +398,7 @@ func (cfs *CGroupFS) detectCurrentCgroupPath(currentPid, currentNSPid uint32) {
 				if err == nil {
 					scanner := bufio.NewScanner(bytes.NewReader(data))
 					for scanner.Scan() {
-						if pid, err := strconv.Atoi(strings.TrimSpace(scanner.Text())); err == nil && uint32(pid) == currentNSPid {
+						if pid, err := strconv.ParseUint(strings.TrimSpace(scanner.Text()), 10, 32); err == nil && uint32(pid) == currentNSPid {
 							cgroupPath = filepath.Dir(path)
 							return fs.SkipAll
 						}

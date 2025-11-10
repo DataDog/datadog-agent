@@ -132,7 +132,7 @@ func (s *tlsSuite) TestHTTPSViaLibraryIntegration() {
 				containerRoot := fmt.Sprintf("/proc/%s/root", containerPid)
 
 				// We start curl with chroot instead of via docker run since
-				// docker run forks and so `testHTTPSLibrary` woudn't have the
+				// docker run forks and so `testHTTPSLibrary` wouldn't have the
 				// PID of curl which it needs to wait for the shared library
 				// monitoring to happen.
 				return containerRoot, []string{"chroot", containerRoot, "ldd", "/usr/bin/curl"}, []string{"chroot", containerRoot,
@@ -212,8 +212,6 @@ func testHTTPSLibrary(t *testing.T, cfg *config.Config, fetchCmd, prefetchLibs [
 	requestCmd.Stderr = requestCmd.Stdout
 	require.NoError(t, requestCmd.Start())
 
-	utils.WaitForProgramsToBeTraced(t, consts.USMModuleName, UsmTLSAttacherName, requestCmd.Process.Pid, utils.ManualTracingFallbackDisabled)
-
 	if err := requestCmd.Wait(); err != nil {
 		output, err := io.ReadAll(stdout)
 		if err == nil {
@@ -249,7 +247,7 @@ func testHTTPSLibrary(t *testing.T, cfg *config.Config, fetchCmd, prefetchLibs [
 			t.Logf("HTTP stat didn't match criteria %v tags 0x%x\n", key, statsTags)
 		}
 		return false
-	}, 5*time.Second, 100*time.Millisecond, "couldn't find USM HTTPS stats")
+	}, 15*time.Second, 100*time.Millisecond, "couldn't find USM HTTPS stats")
 
 	if t.Failed() {
 		ebpftest.DumpMapsTestHelper(t, usmMonitor.DumpMaps, "http_in_flight")

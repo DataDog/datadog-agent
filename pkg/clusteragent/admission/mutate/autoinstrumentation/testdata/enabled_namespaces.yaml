@@ -3,7 +3,7 @@ apm_config:
   instrumentation:
     enabled: true
     enabled_namespaces:
-      - "default"
+      - "application"
     lib_versions:
-      python: "default"
+      python: "v3"
     injector_image_tag: "foo"

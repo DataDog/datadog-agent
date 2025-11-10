@@ -61,3 +61,13 @@ func TestSetAasInstanceTailingPath(t *testing.T) {
 	t.Setenv("DD_AAS_INSTANCE_LOG_FILE_DESCRIPTOR", "_custominfix")
 	assert.Equal(t, "/home/LogFiles/*testInstance*_custominfix.log", setAasInstanceTailingPath())
 }
+
+func TestCreateFileTailingSourceUsesEndMode(t *testing.T) {
+	t.Setenv("DD_SERVERLESS_LOG_PATH", "/tmp/test.log")
+
+	src := createFileTailingSource("test-source", []string{"tag1"}, "appservice")
+
+	assert.NotNil(t, src)
+	assert.Equal(t, "end", src.Config.TailingMode)
+	assert.Equal(t, "/tmp/test.log", src.Config.Path)
+}

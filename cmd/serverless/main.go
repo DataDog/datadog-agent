@@ -402,7 +402,7 @@ func loadConfig(secretComp secrets.Component) {
 	ddcfg := pkgconfigsetup.GlobalConfigBuilder()
 	ddcfg.SetConfigFile(datadogConfigPath)
 	// Load datadog.yaml file into the config, so that metricAgent can pick these configurations
-	if _, err := pkgconfigsetup.LoadWithSecret(ddcfg, secretComp, nil); err != nil {
+	if err := pkgconfigsetup.LoadDatadog(ddcfg, secretComp, nil); err != nil {
 		log.Errorf("Error happened when loading configuration from datadog.yaml for metric agent: %s", err)
 	}
 }
@@ -422,7 +422,7 @@ func setupLogger() {
 	logLevel := "error"
 	if userLogLevel := os.Getenv(logLevelEnvVar); len(userLogLevel) > 0 {
 		if seelogLogLevel, err := log.ValidateLogLevel(userLogLevel); err == nil {
-			logLevel = seelogLogLevel
+			logLevel = seelogLogLevel.String()
 		} else {
 			log.Errorf("Invalid log level '%s', using default log level '%s'", userLogLevel, logLevel)
 		}

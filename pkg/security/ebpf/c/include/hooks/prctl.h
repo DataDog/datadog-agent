@@ -43,9 +43,9 @@ int __attribute__((always_inline)) sys_prctl_ret(void *ctx, int retval) {
         .syscall.retval = retval,
         .event.flags = syscall->async,
         .option = syscall->prctl.option,
-        .name_truncated = syscall->prctl.name_truncated,        
+        .name_truncated = syscall->prctl.name_truncated,
     };
-    bpf_probe_read(&event.name, MAX_PRCTL_NAME_LEN, &syscall->prctl.name);
+    bpf_probe_read_str(&event.name, MAX_PRCTL_NAME_LEN, &syscall->prctl.name);
     event.sent_size = (syscall->prctl.name_size_to_send >= MAX_PRCTL_NAME_LEN)
         ? MAX_PRCTL_NAME_LEN
         : syscall->prctl.name_size_to_send;

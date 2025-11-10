@@ -17,7 +17,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
-	"github.com/DataDog/datadog-agent/pkg/dyninst/procmon"
+	procinfo "github.com/DataDog/datadog-agent/pkg/dyninst/process"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/rcjson"
 )
 
@@ -189,17 +189,19 @@ func (ye *yamlEvent) UnmarshalYAML(node *yaml.Node) error {
 			}
 
 			updated = append(updated, ProcessUpdate{
-				ProcessID: ProcessID{PID: int32(proc.ProcessID.PID)},
-				Executable: Executable{
-					Path: proc.Executable.Path,
-					Key: procmon.FileKey{
-						FileHandle: procmon.FileHandle{
-							Dev: proc.Executable.Key.FileHandle.Dev,
-							Ino: proc.Executable.Key.FileHandle.Ino,
-						},
-						LastModified: syscall.Timespec{
-							Sec:  proc.Executable.Key.FileCookie.Sec,
-							Nsec: proc.Executable.Key.FileCookie.Nsec,
+				Info: procinfo.Info{
+					ProcessID: ProcessID{PID: int32(proc.ProcessID.PID)},
+					Executable: Executable{
+						Path: proc.Executable.Path,
+						Key: procinfo.FileKey{
+							FileHandle: procinfo.FileHandle{
+								Dev: proc.Executable.Key.FileHandle.Dev,
+								Ino: proc.Executable.Key.FileHandle.Ino,
+							},
+							LastModified: syscall.Timespec{
+								Sec:  proc.Executable.Key.FileCookie.Sec,
+								Nsec: proc.Executable.Key.FileCookie.Nsec,
+							},
 						},
 					},
 				},

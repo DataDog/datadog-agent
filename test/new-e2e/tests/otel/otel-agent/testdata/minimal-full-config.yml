@@ -32,7 +32,6 @@ exporters:
     logs:
       batch_wait: 5
       compression_level: 6
-      dump_payloads: false
       use_compression: true
     max_idle_conns: 100
     metrics:
@@ -58,6 +57,10 @@ exporters:
       randomization_factor: 0.5
     sending_queue:
       batch:
+        flush_timeout: 200ms
+        max_size: 0
+        min_size: 8192
+        sizer: {}
       block_on_overflow: false
       enabled: true
       num_consumers: 10
@@ -115,12 +118,6 @@ extensions:
     tls: null
     write_timeout: 0s
 processors:
-  batch:
-    metadata_cardinality_limit: 1000
-    metadata_keys: []
-    send_batch_max_size: 0
-    send_batch_size: 8192
-    timeout: 200ms
   infraattributes/dd-autoconfigured:
     allow_hostname_override: false
     cardinality: 0
@@ -144,6 +141,8 @@ processors:
       include: null
       metric: []
       regexp: null
+    profiles:
+      profile: []
     spans:
       exclude: null
       include: null
@@ -153,7 +152,7 @@ processors:
 receivers:
   otlp:
     protocols:
-      grpc: 
+      grpc:
         endpoint: 0.0.0.0:4317
         keepalive:
           enforcement_policy: {}
@@ -164,6 +163,7 @@ receivers:
         cors: null
         endpoint: 0.0.0.0:4318
         idle_timeout: 0s
+        keep_alives_enabled: true
         logs_url_path: /v1/logs
         metrics_url_path: /v1/metrics
         read_header_timeout: 0s
@@ -172,7 +172,7 @@ receivers:
         traces_url_path: /v1/traces
         write_timeout: 0s
   prometheus/dd-autoconfigured:
-    api_server: 
+    api_server:
       enabled: false
       server_config:
         cors: null
@@ -234,7 +234,6 @@ service:
       exporters:
         - datadog
       processors:
-        - batch
         - infraattributes/dd-autoconfigured
       receivers:
         - otlp
@@ -242,7 +241,6 @@ service:
       exporters:
         - datadog
       processors:
-        - batch
         - infraattributes/dd-autoconfigured
       receivers:
         - otlp
@@ -258,7 +256,6 @@ service:
       exporters:
         - datadog/connector
       processors:
-        - batch
         - infraattributes/dd-autoconfigured
       receivers:
         - otlp
@@ -266,7 +263,6 @@ service:
       exporters:
         - datadog
       processors:
-        - batch
         - infraattributes/dd-autoconfigured
       receivers:
         - otlp

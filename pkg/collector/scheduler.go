@@ -26,6 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/collector/loaders"
+	"github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
@@ -76,6 +77,7 @@ func InitCheckScheduler(collector option.Option[collector.Component], senderMana
 		checkScheduler.addLoader(loader)
 		log.Debugf("Added %s to Check Scheduler", loader)
 	}
+
 	return checkScheduler
 }
 
@@ -84,6 +86,11 @@ func (s *CheckScheduler) Schedule(configs []integration.Config) {
 	if coll, ok := s.collector.Get(); ok {
 		checks := s.GetChecksFromConfigs(configs, true)
 		for _, c := range checks {
+			// Check if this check is allowed in infra basic mode
+			if !IsCheckAllowed(c.String(), setup.Datadog()) {
+				log.Warnf("Check %s is not allowed in infrastructure mode %q, skipping", c.String(), setup.Datadog().GetString("infrastructure_mode"))
+				continue
+			}
 			_, err := coll.RunCheck(c)
 			if err != nil {
 				log.Errorf("Unable to run Check %s: %v", c, err)

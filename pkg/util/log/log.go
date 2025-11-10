@@ -78,11 +78,11 @@ func setupCommonLogger(i LoggerInterface, level string) *DatadogLogger {
 		inner: i,
 	}
 
-	lvl, ok := LogLevelFromString(level)
-	if !ok {
+	lvl, err := ValidateLogLevel(level)
+	if err != nil {
 		lvl = InfoLvl
 	}
-	l.level = LogLevel(lvl)
+	l.level = lvl
 
 	// We're not going to call DatadogLogger directly, but using the
 	// exported functions, that will give us two frames in the stack
@@ -117,7 +117,7 @@ func (sw *DatadogLogger) scrub(s string) string {
 // ChangeLogLevel changes the current log level, valid levels are trace, debug,
 // info, warn, error, critical and off, it requires a new seelog logger because
 // an existing one cannot be updated
-func ChangeLogLevel(li LoggerInterface, level string) error {
+func ChangeLogLevel(li LoggerInterface, level LogLevel) error {
 	if err := logger.changeLogLevel(level); err != nil {
 		return err
 	}
@@ -132,7 +132,7 @@ func ChangeLogLevel(li LoggerInterface, level string) error {
 
 	// need to return something, just set to Info (expected default)
 }
-func (sw *loggerPointer) changeLogLevel(level string) error {
+func (sw *loggerPointer) changeLogLevel(level LogLevel) error {
 	l := sw.Load()
 	if l == nil {
 		return errors.New("cannot change loglevel: logger not initialized")
@@ -145,11 +145,7 @@ func (sw *loggerPointer) changeLogLevel(level string) error {
 		return errors.New("cannot change loglevel: logger is initialized however logger.inner is nil")
 	}
 
-	lvl, ok := LogLevelFromString(strings.ToLower(level))
-	if !ok {
-		return errors.New("bad log level")
-	}
-	l.level = LogLevel(lvl)
+	l.level = level
 	return nil
 }
 
@@ -193,16 +189,17 @@ func (sw *DatadogLogger) shouldLog(level LogLevel) bool {
 // ValidateLogLevel validates the given log level and returns the corresponding Seelog log level.
 // If the log level is "warning", it is converted to "warn" to handle a common gotcha when used with agent5.
 // If the log level is not recognized, an error is returned.
-func ValidateLogLevel(logLevel string) (string, error) {
+func ValidateLogLevel(logLevel string) (LogLevel, error) {
 	seelogLogLevel := strings.ToLower(logLevel)
 	if seelogLogLevel == "warning" { // Common gotcha when used to agent5
 		seelogLogLevel = "warn"
 	}
 
-	if _, found := LogLevelFromString(seelogLogLevel); !found {
-		return "", fmt.Errorf("unknown log level: %s", seelogLogLevel)
+	lvl, found := logLevelFromString(seelogLogLevel)
+	if !found {
+		return Off, fmt.Errorf("unknown log level: %s", seelogLogLevel)
 	}
-	return seelogLogLevel, nil
+	return lvl, nil
 }
 
 /*

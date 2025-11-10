@@ -23,18 +23,18 @@ type RegexProgram struct {
 var _ FilterProgram = &RegexProgram{}
 
 // Evaluate evaluates the filter program for a Result (Included, Excluded, or Unknown)
-func (p *RegexProgram) Evaluate(entity workloadfilter.Filterable) (workloadfilter.Result, []error) {
+func (p *RegexProgram) Evaluate(entity workloadfilter.Filterable) workloadfilter.Result {
 	if p.ExcludeRegex == nil {
-		return workloadfilter.Unknown, nil
+		return workloadfilter.Unknown
 	}
 
 	field := p.ExtractField(entity)
 	for _, r := range p.ExcludeRegex {
 		if r.MatchString(field) {
-			return workloadfilter.Excluded, nil
+			return workloadfilter.Excluded
 		}
 	}
-	return workloadfilter.Unknown, nil
+	return workloadfilter.Unknown
 }
 
 // GetInitializationErrors returns any errors that occurred during the creation/initialization of the program

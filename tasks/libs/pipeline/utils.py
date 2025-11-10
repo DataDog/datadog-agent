@@ -24,7 +24,7 @@ def get_pipeline_id(
     gh = GithubAPI()
     pr = gh.get_pr(int(pull_request_id))
     if base:
-        res = ctx.run(f"git merge-base {pr.base.ref} {pr.head.ref}", hide=True)
+        res = ctx.run(f"git merge-base origin/{pr.base.ref} origin/{pr.head.ref}")
         assert res
         base_ref = res.stdout.strip()
         return get_pipeline_id_from_ref(repo, base_ref)

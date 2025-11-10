@@ -62,6 +62,7 @@ var bpfMapNames = []string{
 	"is_discarded_by",
 	"is_new_kthread",
 	"kill_list",
+	"memfd_tracking",
 	"mmap_flags_appr",
 	"mmap_protection",
 	"mount_ref",

@@ -682,7 +682,7 @@ func TestProcessLikePayloadResponseTimeout(t *testing.T) {
 }
 
 // Whilst high priority transactions are processed by the worker first,  because the transactions
-// are sent in a separate go func, the actual order the get sent will depend on the go scheduler.
+// are sent in a separate go func, the actual order they get sent will depend on the go scheduler.
 // This test ensures that we still on average send high priority transactions before low priority.
 func TestHighPriorityTransactionTendency(t *testing.T) {
 	var receivedRequests = make(map[string]struct{})
@@ -734,7 +734,7 @@ func TestHighPriorityTransactionTendency(t *testing.T) {
 			assert.Nil(t, f.SubmitHostMetadata(transaction.NewBytesPayloadsWithoutMetaData([]*[]byte{&data}), headers))
 		} else {
 			data := []byte(fmt.Sprintf("low priority %d", i))
-			assert.Nil(t, f.SubmitMetadata(transaction.NewBytesPayloadsWithoutMetaData([]*[]byte{&data}), headers))
+			assert.Nil(t, f.SubmitAgentChecksMetadata(transaction.NewBytesPayloadsWithoutMetaData([]*[]byte{&data}), headers))
 		}
 
 		// Wait so that GetCreatedAt returns a different value for each HTTPTransaction
@@ -755,7 +755,7 @@ func TestHighPriorityTransactionTendency(t *testing.T) {
 	}
 
 	// Ensure the average position of the high priorities is less than the average position of the lows.
-	assert.Greater(t, lowPosition/50, highPosition/50)
+	assert.Greater(t, lowPosition, highPosition)
 }
 
 func TestHighPriorityTransaction(t *testing.T) {

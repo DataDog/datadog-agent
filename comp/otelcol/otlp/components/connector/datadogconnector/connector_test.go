@@ -14,7 +14,7 @@ import (
 	otlpmetrics "github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/metrics"
 
 	"github.com/google/go-cmp/cmp"
-	pkgdatadog "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog"
+	ddfg "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog/featuregates"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/component"
@@ -416,7 +416,7 @@ func TestObfuscate(t *testing.T) {
 	cfg := NewFactory().CreateDefaultConfig().(*Config)
 	cfg.Traces.BucketInterval = time.Second
 
-	prevVal := pkgdatadog.ReceiveResourceSpansV2FeatureGate.IsEnabled()
+	prevVal := ddfg.ReceiveResourceSpansV2FeatureGate.IsEnabled()
 	require.NoError(t, featuregate.GlobalRegistry().Set("datadog.EnableReceiveResourceSpansV2", true))
 	defer func() {
 		require.NoError(t, featuregate.GlobalRegistry().Set("datadog.EnableReceiveResourceSpansV2", prevVal))

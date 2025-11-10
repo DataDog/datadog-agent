@@ -873,7 +873,7 @@ func Test_fetchValues_errors(t *testing.T) {
 func Test_fetchColumnOids_alreadyProcessed(t *testing.T) {
 	var b bytes.Buffer
 	w := bufio.NewWriter(&b)
-	l, err := log.LoggerFromWriterWithMinLevelAndFormat(w, log.DebugLvl, "[%LEVEL] %FuncShort: %Msg")
+	l, err := log.LoggerFromWriterWithMinLevelAndLvlFuncMsgFormat(w, log.DebugLvl)
 	require.NoError(t, err)
 	log.SetupLogger(l, "debug")
 

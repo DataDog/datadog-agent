@@ -26,6 +26,7 @@ import (
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	jmxStatus "github.com/DataDog/datadog-agent/pkg/status/jmx"
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
@@ -229,7 +230,7 @@ func (j *JMXFetch) Start(manage bool) error {
 				log.Warnf("DogStatsD status is unknown, falling back to UDP. JMXFetch may not be able to report metrics.")
 			}
 
-			bindHost := pkgconfigsetup.GetBindHost(pkgconfigsetup.Datadog())
+			bindHost := configutils.GetBindHost(pkgconfigsetup.Datadog())
 			if bindHost == "" || bindHost == "0.0.0.0" {
 				bindHost = "localhost"
 			}

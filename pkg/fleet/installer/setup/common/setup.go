@@ -12,6 +12,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"runtime"
 	"strings"
 	"time"
 
@@ -86,7 +87,8 @@ Running the %s installation script (https://github.com/DataDog/datadog-agent/tre
 					HTTPS:   os.Getenv("DD_PROXY_HTTPS"),
 					NoProxy: proxyNoProxy,
 				},
-				Env: os.Getenv("DD_ENV"),
+				Env:                os.Getenv("DD_ENV"),
+				InfrastructureMode: os.Getenv("DD_INFRASTRUCTURE_MODE"),
 			},
 			IntegrationConfigs: make(map[string]config.IntegrationConfig),
 		},
@@ -165,7 +167,12 @@ func (s *Setup) installPackage(name string, url string) (err error) {
 	span.SetTopLevel()
 
 	s.Out.WriteString(fmt.Sprintf("Installing %s...\n", name))
-	err = s.installer.Install(ctx, url, nil)
+	if runtime.GOOS == "windows" && name == DatadogAgentPackage {
+		// TODO(WINA-2018): Add support for skipping the installation of the core Agent if it is already installed
+		err = s.installer.ForceInstall(ctx, url, nil)
+	} else {
+		err = s.installer.Install(ctx, url, nil)
+	}
 	if err != nil {
 		return err
 	}

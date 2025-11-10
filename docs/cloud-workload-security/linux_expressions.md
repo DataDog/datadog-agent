@@ -180,13 +180,6 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 
 | Property | Definition |
 | -------- | ------------- |
-| [`cgroup.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
-| [`cgroup.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
-| [`cgroup.id`](#common-cgroupcontext-id-doc) | ID of the cgroup |
-| [`cgroup.version`](#common-cgroupcontext-version-doc) | [Experimental] Version of the cgroup API |
-| [`container.created_at`](#container-created_at-doc) | Timestamp of the creation of the container |
-| [`container.id`](#container-id-doc) | ID of the container |
-| [`container.tags`](#container-tags-doc) | Tags of the container |
 | [`event.async`](#event-async-doc) | True if the syscall was asynchronous |
 | [`event.hostname`](#event-hostname-doc) | Hostname associated with the event |
 | [`event.origin`](#event-origin-doc) | Origin of the event |
@@ -211,7 +204,9 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | [`process.ancestors.cgroup.id`](#common-cgroupcontext-id-doc) | ID of the cgroup |
 | [`process.ancestors.cgroup.version`](#common-cgroupcontext-version-doc) | [Experimental] Version of the cgroup API |
 | [`process.ancestors.comm`](#common-process-comm-doc) | Comm attribute of the process |
-| [`process.ancestors.container.id`](#common-process-container-id-doc) | Container ID |
+| [`process.ancestors.container.created_at`](#common-containercontext-created_at-doc) | Timestamp of the creation of the container |
+| [`process.ancestors.container.id`](#common-containercontext-id-doc) | ID of the container |
+| [`process.ancestors.container.tags`](#common-containercontext-tags-doc) | Tags of the container |
 | [`process.ancestors.created_at`](#common-process-created_at-doc) | Timestamp of the creation of the process |
 | [`process.ancestors.egid`](#common-credentials-egid-doc) | Effective GID of the process |
 | [`process.ancestors.egroup`](#common-credentials-egroup-doc) | Effective group of the process |
@@ -311,7 +306,9 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | [`process.cgroup.id`](#common-cgroupcontext-id-doc) | ID of the cgroup |
 | [`process.cgroup.version`](#common-cgroupcontext-version-doc) | [Experimental] Version of the cgroup API |
 | [`process.comm`](#common-process-comm-doc) | Comm attribute of the process |
-| [`process.container.id`](#common-process-container-id-doc) | Container ID |
+| [`process.container.created_at`](#common-containercontext-created_at-doc) | Timestamp of the creation of the container |
+| [`process.container.id`](#common-containercontext-id-doc) | ID of the container |
+| [`process.container.tags`](#common-containercontext-tags-doc) | Tags of the container |
 | [`process.created_at`](#common-process-created_at-doc) | Timestamp of the creation of the process |
 | [`process.egid`](#common-credentials-egid-doc) | Effective GID of the process |
 | [`process.egroup`](#common-credentials-egroup-doc) | Effective group of the process |
@@ -399,7 +396,9 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | [`process.parent.cgroup.id`](#common-cgroupcontext-id-doc) | ID of the cgroup |
 | [`process.parent.cgroup.version`](#common-cgroupcontext-version-doc) | [Experimental] Version of the cgroup API |
 | [`process.parent.comm`](#common-process-comm-doc) | Comm attribute of the process |
-| [`process.parent.container.id`](#common-process-container-id-doc) | Container ID |
+| [`process.parent.container.created_at`](#common-containercontext-created_at-doc) | Timestamp of the creation of the container |
+| [`process.parent.container.id`](#common-containercontext-id-doc) | ID of the container |
+| [`process.parent.container.tags`](#common-containercontext-tags-doc) | Tags of the container |
 | [`process.parent.created_at`](#common-process-created_at-doc) | Timestamp of the creation of the process |
 | [`process.parent.egid`](#common-credentials-egid-doc) | Effective GID of the process |
 | [`process.parent.egroup`](#common-credentials-egroup-doc) | Effective group of the process |
@@ -773,7 +772,9 @@ A process was executed (does not trigger on fork syscalls).
 | [`exec.cgroup.id`](#common-cgroupcontext-id-doc) | ID of the cgroup |
 | [`exec.cgroup.version`](#common-cgroupcontext-version-doc) | [Experimental] Version of the cgroup API |
 | [`exec.comm`](#common-process-comm-doc) | Comm attribute of the process |
-| [`exec.container.id`](#common-process-container-id-doc) | Container ID |
+| [`exec.container.created_at`](#common-containercontext-created_at-doc) | Timestamp of the creation of the container |
+| [`exec.container.id`](#common-containercontext-id-doc) | ID of the container |
+| [`exec.container.tags`](#common-containercontext-tags-doc) | Tags of the container |
 | [`exec.created_at`](#common-process-created_at-doc) | Timestamp of the creation of the process |
 | [`exec.egid`](#common-credentials-egid-doc) | Effective GID of the process |
 | [`exec.egroup`](#common-credentials-egroup-doc) | Effective group of the process |
@@ -890,7 +891,9 @@ A process was terminated
 | [`exit.cgroup.version`](#common-cgroupcontext-version-doc) | [Experimental] Version of the cgroup API |
 | [`exit.code`](#exit-code-doc) | Exit code of the process or number of the signal that caused the process to terminate |
 | [`exit.comm`](#common-process-comm-doc) | Comm attribute of the process |
-| [`exit.container.id`](#common-process-container-id-doc) | Container ID |
+| [`exit.container.created_at`](#common-containercontext-created_at-doc) | Timestamp of the creation of the container |
+| [`exit.container.id`](#common-containercontext-id-doc) | ID of the container |
+| [`exit.container.tags`](#common-containercontext-tags-doc) | Tags of the container |
 | [`exit.created_at`](#common-process-created_at-doc) | Timestamp of the creation of the process |
 | [`exit.egid`](#common-credentials-egid-doc) | Effective GID of the process |
 | [`exit.egroup`](#common-credentials-egroup-doc) | Effective group of the process |
@@ -1339,7 +1342,9 @@ A ptrace command was executed
 | [`ptrace.tracee.ancestors.cgroup.id`](#common-cgroupcontext-id-doc) | ID of the cgroup |
 | [`ptrace.tracee.ancestors.cgroup.version`](#common-cgroupcontext-version-doc) | [Experimental] Version of the cgroup API |
 | [`ptrace.tracee.ancestors.comm`](#common-process-comm-doc) | Comm attribute of the process |
-| [`ptrace.tracee.ancestors.container.id`](#common-process-container-id-doc) | Container ID |
+| [`ptrace.tracee.ancestors.container.created_at`](#common-containercontext-created_at-doc) | Timestamp of the creation of the container |
+| [`ptrace.tracee.ancestors.container.id`](#common-containercontext-id-doc) | ID of the container |
+| [`ptrace.tracee.ancestors.container.tags`](#common-containercontext-tags-doc) | Tags of the container |
 | [`ptrace.tracee.ancestors.created_at`](#common-process-created_at-doc) | Timestamp of the creation of the process |
 | [`ptrace.tracee.ancestors.egid`](#common-credentials-egid-doc) | Effective GID of the process |
 | [`ptrace.tracee.ancestors.egroup`](#common-credentials-egroup-doc) | Effective group of the process |
@@ -1439,7 +1444,9 @@ A ptrace command was executed
 | [`ptrace.tracee.cgroup.id`](#common-cgroupcontext-id-doc) | ID of the cgroup |
 | [`ptrace.tracee.cgroup.version`](#common-cgroupcontext-version-doc) | [Experimental] Version of the cgroup API |
 | [`ptrace.tracee.comm`](#common-process-comm-doc) | Comm attribute of the process |
-| [`ptrace.tracee.container.id`](#common-process-container-id-doc) | Container ID |
+| [`ptrace.tracee.container.created_at`](#common-containercontext-created_at-doc) | Timestamp of the creation of the container |
+| [`ptrace.tracee.container.id`](#common-containercontext-id-doc) | ID of the container |
+| [`ptrace.tracee.container.tags`](#common-containercontext-tags-doc) | Tags of the container |
 | [`ptrace.tracee.created_at`](#common-process-created_at-doc) | Timestamp of the creation of the process |
 | [`ptrace.tracee.egid`](#common-credentials-egid-doc) | Effective GID of the process |
 | [`ptrace.tracee.egroup`](#common-credentials-egroup-doc) | Effective group of the process |
@@ -1527,7 +1534,9 @@ A ptrace command was executed
 | [`ptrace.tracee.parent.cgroup.id`](#common-cgroupcontext-id-doc) | ID of the cgroup |
 | [`ptrace.tracee.parent.cgroup.version`](#common-cgroupcontext-version-doc) | [Experimental] Version of the cgroup API |
 | [`ptrace.tracee.parent.comm`](#common-process-comm-doc) | Comm attribute of the process |
-| [`ptrace.tracee.parent.container.id`](#common-process-container-id-doc) | Container ID |
+| [`ptrace.tracee.parent.container.created_at`](#common-containercontext-created_at-doc) | Timestamp of the creation of the container |
+| [`ptrace.tracee.parent.container.id`](#common-containercontext-id-doc) | ID of the container |
+| [`ptrace.tracee.parent.container.tags`](#common-containercontext-tags-doc) | Tags of the container |
 | [`ptrace.tracee.parent.created_at`](#common-process-created_at-doc) | Timestamp of the creation of the process |
 | [`ptrace.tracee.parent.egid`](#common-credentials-egid-doc) | Effective GID of the process |
 | [`ptrace.tracee.parent.egroup`](#common-credentials-egroup-doc) | Effective group of the process |
@@ -1809,7 +1818,9 @@ A setrlimit command was executed
 | [`setrlimit.target.ancestors.cgroup.id`](#common-cgroupcontext-id-doc) | ID of the cgroup |
 | [`setrlimit.target.ancestors.cgroup.version`](#common-cgroupcontext-version-doc) | [Experimental] Version of the cgroup API |
 | [`setrlimit.target.ancestors.comm`](#common-process-comm-doc) | Comm attribute of the process |
-| [`setrlimit.target.ancestors.container.id`](#common-process-container-id-doc) | Container ID |
+| [`setrlimit.target.ancestors.container.created_at`](#common-containercontext-created_at-doc) | Timestamp of the creation of the container |
+| [`setrlimit.target.ancestors.container.id`](#common-containercontext-id-doc) | ID of the container |
+| [`setrlimit.target.ancestors.container.tags`](#common-containercontext-tags-doc) | Tags of the container |
 | [`setrlimit.target.ancestors.created_at`](#common-process-created_at-doc) | Timestamp of the creation of the process |
 | [`setrlimit.target.ancestors.egid`](#common-credentials-egid-doc) | Effective GID of the process |
 | [`setrlimit.target.ancestors.egroup`](#common-credentials-egroup-doc) | Effective group of the process |
@@ -1909,7 +1920,9 @@ A setrlimit command was executed
 | [`setrlimit.target.cgroup.id`](#common-cgroupcontext-id-doc) | ID of the cgroup |
 | [`setrlimit.target.cgroup.version`](#common-cgroupcontext-version-doc) | [Experimental] Version of the cgroup API |
 | [`setrlimit.target.comm`](#common-process-comm-doc) | Comm attribute of the process |
-| [`setrlimit.target.container.id`](#common-process-container-id-doc) | Container ID |
+| [`setrlimit.target.container.created_at`](#common-containercontext-created_at-doc) | Timestamp of the creation of the container |
+| [`setrlimit.target.container.id`](#common-containercontext-id-doc) | ID of the container |
+| [`setrlimit.target.container.tags`](#common-containercontext-tags-doc) | Tags of the container |
 | [`setrlimit.target.created_at`](#common-process-created_at-doc) | Timestamp of the creation of the process |
 | [`setrlimit.target.egid`](#common-credentials-egid-doc) | Effective GID of the process |
 | [`setrlimit.target.egroup`](#common-credentials-egroup-doc) | Effective group of the process |
@@ -1997,7 +2010,9 @@ A setrlimit command was executed
 | [`setrlimit.target.parent.cgroup.id`](#common-cgroupcontext-id-doc) | ID of the cgroup |
 | [`setrlimit.target.parent.cgroup.version`](#common-cgroupcontext-version-doc) | [Experimental] Version of the cgroup API |
 | [`setrlimit.target.parent.comm`](#common-process-comm-doc) | Comm attribute of the process |
-| [`setrlimit.target.parent.container.id`](#common-process-container-id-doc) | Container ID |
+| [`setrlimit.target.parent.container.created_at`](#common-containercontext-created_at-doc) | Timestamp of the creation of the container |
+| [`setrlimit.target.parent.container.id`](#common-containercontext-id-doc) | ID of the container |
+| [`setrlimit.target.parent.container.tags`](#common-containercontext-tags-doc) | Tags of the container |
 | [`setrlimit.target.parent.created_at`](#common-process-created_at-doc) | Timestamp of the creation of the process |
 | [`setrlimit.target.parent.egid`](#common-credentials-egid-doc) | Effective GID of the process |
 | [`setrlimit.target.parent.egroup`](#common-credentials-egroup-doc) | Effective group of the process |
@@ -2184,7 +2199,9 @@ A signal was sent
 | [`signal.target.ancestors.cgroup.id`](#common-cgroupcontext-id-doc) | ID of the cgroup |
 | [`signal.target.ancestors.cgroup.version`](#common-cgroupcontext-version-doc) | [Experimental] Version of the cgroup API |
 | [`signal.target.ancestors.comm`](#common-process-comm-doc) | Comm attribute of the process |
-| [`signal.target.ancestors.container.id`](#common-process-container-id-doc) | Container ID |
+| [`signal.target.ancestors.container.created_at`](#common-containercontext-created_at-doc) | Timestamp of the creation of the container |
+| [`signal.target.ancestors.container.id`](#common-containercontext-id-doc) | ID of the container |
+| [`signal.target.ancestors.container.tags`](#common-containercontext-tags-doc) | Tags of the container |
 | [`signal.target.ancestors.created_at`](#common-process-created_at-doc) | Timestamp of the creation of the process |
 | [`signal.target.ancestors.egid`](#common-credentials-egid-doc) | Effective GID of the process |
 | [`signal.target.ancestors.egroup`](#common-credentials-egroup-doc) | Effective group of the process |
@@ -2284,7 +2301,9 @@ A signal was sent
 | [`signal.target.cgroup.id`](#common-cgroupcontext-id-doc) | ID of the cgroup |
 | [`signal.target.cgroup.version`](#common-cgroupcontext-version-doc) | [Experimental] Version of the cgroup API |
 | [`signal.target.comm`](#common-process-comm-doc) | Comm attribute of the process |
-| [`signal.target.container.id`](#common-process-container-id-doc) | Container ID |
+| [`signal.target.container.created_at`](#common-containercontext-created_at-doc) | Timestamp of the creation of the container |
+| [`signal.target.container.id`](#common-containercontext-id-doc) | ID of the container |
+| [`signal.target.container.tags`](#common-containercontext-tags-doc) | Tags of the container |
 | [`signal.target.created_at`](#common-process-created_at-doc) | Timestamp of the creation of the process |
 | [`signal.target.egid`](#common-credentials-egid-doc) | Effective GID of the process |
 | [`signal.target.egroup`](#common-credentials-egroup-doc) | Effective group of the process |
@@ -2372,7 +2391,9 @@ A signal was sent
 | [`signal.target.parent.cgroup.id`](#common-cgroupcontext-id-doc) | ID of the cgroup |
 | [`signal.target.parent.cgroup.version`](#common-cgroupcontext-version-doc) | [Experimental] Version of the cgroup API |
 | [`signal.target.parent.comm`](#common-process-comm-doc) | Comm attribute of the process |
-| [`signal.target.parent.container.id`](#common-process-container-id-doc) | Container ID |
+| [`signal.target.parent.container.created_at`](#common-containercontext-created_at-doc) | Timestamp of the creation of the container |
+| [`signal.target.parent.container.id`](#common-containercontext-id-doc) | ID of the container |
+| [`signal.target.parent.container.tags`](#common-containercontext-tags-doc) | Tags of the container |
 | [`signal.target.parent.created_at`](#common-process-created_at-doc) | Timestamp of the creation of the process |
 | [`signal.target.parent.egid`](#common-credentials-egid-doc) | Effective GID of the process |
 | [`signal.target.parent.egroup`](#common-credentials-egroup-doc) | Effective group of the process |
@@ -2781,13 +2802,13 @@ Definition: Comm attribute of the process
 `exec` `exit` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `setrlimit.target` `setrlimit.target.ancestors` `setrlimit.target.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
 
 
-### `*.container.id` {#common-process-container-id-doc}
-Type: string
+### `*.created_at` {#common-containercontext-created_at-doc}
+Type: int
 
-Definition: Container ID
+Definition: Timestamp of the creation of the container
 
-`*.container.id` has 14 possible prefixes:
-`exec` `exit` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `setrlimit.target` `setrlimit.target.ancestors` `setrlimit.target.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
+`*.created_at` has 14 possible prefixes:
+`exec.container` `exit.container` `process.ancestors.container` `process.container` `process.parent.container` `ptrace.tracee.ancestors.container` `ptrace.tracee.container` `ptrace.tracee.parent.container` `setrlimit.target.ancestors.container` `setrlimit.target.container` `setrlimit.target.parent.container` `signal.target.ancestors.container` `signal.target.container` `signal.target.parent.container`
 
 
 ### `*.created_at` {#common-process-created_at-doc}
@@ -2993,8 +3014,17 @@ Type: string
 
 Definition: ID of the cgroup
 
-`*.id` has 15 possible prefixes:
-`cgroup` `exec.cgroup` `exit.cgroup` `process.ancestors.cgroup` `process.cgroup` `process.parent.cgroup` `ptrace.tracee.ancestors.cgroup` `ptrace.tracee.cgroup` `ptrace.tracee.parent.cgroup` `setrlimit.target.ancestors.cgroup` `setrlimit.target.cgroup` `setrlimit.target.parent.cgroup` `signal.target.ancestors.cgroup` `signal.target.cgroup` `signal.target.parent.cgroup`
+`*.id` has 14 possible prefixes:
+`exec.cgroup` `exit.cgroup` `process.ancestors.cgroup` `process.cgroup` `process.parent.cgroup` `ptrace.tracee.ancestors.cgroup` `ptrace.tracee.cgroup` `ptrace.tracee.parent.cgroup` `setrlimit.target.ancestors.cgroup` `setrlimit.target.cgroup` `setrlimit.target.parent.cgroup` `signal.target.ancestors.cgroup` `signal.target.cgroup` `signal.target.parent.cgroup`
+
+
+### `*.id` {#common-containercontext-id-doc}
+Type: string
+
+Definition: ID of the container
+
+`*.id` has 14 possible prefixes:
+`exec.container` `exit.container` `process.ancestors.container` `process.container` `process.parent.container` `ptrace.tracee.ancestors.container` `ptrace.tracee.container` `ptrace.tracee.parent.container` `setrlimit.target.ancestors.container` `setrlimit.target.container` `setrlimit.target.parent.container` `signal.target.ancestors.container` `signal.target.container` `signal.target.parent.container`
 
 
 ### `*.id` {#common-usersessioncontext-id-doc}
@@ -3029,8 +3059,8 @@ Type: int
 
 Definition: Inode of the file
 
-`*.inode` has 61 possible prefixes:
-`cgroup.file` `cgroup_write.file` `chdir.file` `chmod.file` `chown.file` `exec.cgroup.file` `exec.file` `exec.interpreter.file` `exit.cgroup.file` `exit.file` `exit.interpreter.file` `link.file` `link.file.destination` `load_module.file` `mkdir.file` `mmap.file` `open.file` `process.ancestors.cgroup.file` `process.ancestors.file` `process.ancestors.interpreter.file` `process.cgroup.file` `process.file` `process.interpreter.file` `process.parent.cgroup.file` `process.parent.file` `process.parent.interpreter.file` `ptrace.tracee.ancestors.cgroup.file` `ptrace.tracee.ancestors.file` `ptrace.tracee.ancestors.interpreter.file` `ptrace.tracee.cgroup.file` `ptrace.tracee.file` `ptrace.tracee.interpreter.file` `ptrace.tracee.parent.cgroup.file` `ptrace.tracee.parent.file` `ptrace.tracee.parent.interpreter.file` `removexattr.file` `rename.file` `rename.file.destination` `rmdir.file` `setrlimit.target.ancestors.cgroup.file` `setrlimit.target.ancestors.file` `setrlimit.target.ancestors.interpreter.file` `setrlimit.target.cgroup.file` `setrlimit.target.file` `setrlimit.target.interpreter.file` `setrlimit.target.parent.cgroup.file` `setrlimit.target.parent.file` `setrlimit.target.parent.interpreter.file` `setxattr.file` `signal.target.ancestors.cgroup.file` `signal.target.ancestors.file` `signal.target.ancestors.interpreter.file` `signal.target.cgroup.file` `signal.target.file` `signal.target.interpreter.file` `signal.target.parent.cgroup.file` `signal.target.parent.file` `signal.target.parent.interpreter.file` `splice.file` `unlink.file` `utimes.file`
+`*.inode` has 60 possible prefixes:
+`cgroup_write.file` `chdir.file` `chmod.file` `chown.file` `exec.cgroup.file` `exec.file` `exec.interpreter.file` `exit.cgroup.file` `exit.file` `exit.interpreter.file` `link.file` `link.file.destination` `load_module.file` `mkdir.file` `mmap.file` `open.file` `process.ancestors.cgroup.file` `process.ancestors.file` `process.ancestors.interpreter.file` `process.cgroup.file` `process.file` `process.interpreter.file` `process.parent.cgroup.file` `process.parent.file` `process.parent.interpreter.file` `ptrace.tracee.ancestors.cgroup.file` `ptrace.tracee.ancestors.file` `ptrace.tracee.ancestors.interpreter.file` `ptrace.tracee.cgroup.file` `ptrace.tracee.file` `ptrace.tracee.interpreter.file` `ptrace.tracee.parent.cgroup.file` `ptrace.tracee.parent.file` `ptrace.tracee.parent.interpreter.file` `removexattr.file` `rename.file` `rename.file.destination` `rmdir.file` `setrlimit.target.ancestors.cgroup.file` `setrlimit.target.ancestors.file` `setrlimit.target.ancestors.interpreter.file` `setrlimit.target.cgroup.file` `setrlimit.target.file` `setrlimit.target.interpreter.file` `setrlimit.target.parent.cgroup.file` `setrlimit.target.parent.file` `setrlimit.target.parent.interpreter.file` `setxattr.file` `signal.target.ancestors.cgroup.file` `signal.target.ancestors.file` `signal.target.ancestors.interpreter.file` `signal.target.cgroup.file` `signal.target.file` `signal.target.interpreter.file` `signal.target.parent.cgroup.file` `signal.target.parent.file` `signal.target.parent.interpreter.file` `splice.file` `unlink.file` `utimes.file`
 
 
 ### `*.ip` {#common-ipportcontext-ip-doc}
@@ -3173,8 +3203,8 @@ Type: int
 
 Definition: Mount ID of the file
 
-`*.mount_id` has 61 possible prefixes:
-`cgroup.file` `cgroup_write.file` `chdir.file` `chmod.file` `chown.file` `exec.cgroup.file` `exec.file` `exec.interpreter.file` `exit.cgroup.file` `exit.file` `exit.interpreter.file` `link.file` `link.file.destination` `load_module.file` `mkdir.file` `mmap.file` `open.file` `process.ancestors.cgroup.file` `process.ancestors.file` `process.ancestors.interpreter.file` `process.cgroup.file` `process.file` `process.interpreter.file` `process.parent.cgroup.file` `process.parent.file` `process.parent.interpreter.file` `ptrace.tracee.ancestors.cgroup.file` `ptrace.tracee.ancestors.file` `ptrace.tracee.ancestors.interpreter.file` `ptrace.tracee.cgroup.file` `ptrace.tracee.file` `ptrace.tracee.interpreter.file` `ptrace.tracee.parent.cgroup.file` `ptrace.tracee.parent.file` `ptrace.tracee.parent.interpreter.file` `removexattr.file` `rename.file` `rename.file.destination` `rmdir.file` `setrlimit.target.ancestors.cgroup.file` `setrlimit.target.ancestors.file` `setrlimit.target.ancestors.interpreter.file` `setrlimit.target.cgroup.file` `setrlimit.target.file` `setrlimit.target.interpreter.file` `setrlimit.target.parent.cgroup.file` `setrlimit.target.parent.file` `setrlimit.target.parent.interpreter.file` `setxattr.file` `signal.target.ancestors.cgroup.file` `signal.target.ancestors.file` `signal.target.ancestors.interpreter.file` `signal.target.cgroup.file` `signal.target.file` `signal.target.interpreter.file` `signal.target.parent.cgroup.file` `signal.target.parent.file` `signal.target.parent.interpreter.file` `splice.file` `unlink.file` `utimes.file`
+`*.mount_id` has 60 possible prefixes:
+`cgroup_write.file` `chdir.file` `chmod.file` `chown.file` `exec.cgroup.file` `exec.file` `exec.interpreter.file` `exit.cgroup.file` `exit.file` `exit.interpreter.file` `link.file` `link.file.destination` `load_module.file` `mkdir.file` `mmap.file` `open.file` `process.ancestors.cgroup.file` `process.ancestors.file` `process.ancestors.interpreter.file` `process.cgroup.file` `process.file` `process.interpreter.file` `process.parent.cgroup.file` `process.parent.file` `process.parent.interpreter.file` `ptrace.tracee.ancestors.cgroup.file` `ptrace.tracee.ancestors.file` `ptrace.tracee.ancestors.interpreter.file` `ptrace.tracee.cgroup.file` `ptrace.tracee.file` `ptrace.tracee.interpreter.file` `ptrace.tracee.parent.cgroup.file` `ptrace.tracee.parent.file` `ptrace.tracee.parent.interpreter.file` `removexattr.file` `rename.file` `rename.file.destination` `rmdir.file` `setrlimit.target.ancestors.cgroup.file` `setrlimit.target.ancestors.file` `setrlimit.target.ancestors.interpreter.file` `setrlimit.target.cgroup.file` `setrlimit.target.file` `setrlimit.target.interpreter.file` `setrlimit.target.parent.cgroup.file` `setrlimit.target.parent.file` `setrlimit.target.parent.interpreter.file` `setxattr.file` `signal.target.ancestors.cgroup.file` `signal.target.ancestors.file` `signal.target.ancestors.interpreter.file` `signal.target.cgroup.file` `signal.target.file` `signal.target.interpreter.file` `signal.target.parent.cgroup.file` `signal.target.parent.file` `signal.target.parent.interpreter.file` `splice.file` `unlink.file` `utimes.file`
 
 
 ### `*.mount_visible` {#common-fileevent-mount_visible-doc}
@@ -3383,6 +3413,15 @@ Definition: Size in bytes of the network packet
 `network` `packet`
 
 
+### `*.tags` {#common-containercontext-tags-doc}
+Type: string
+
+Definition: Tags of the container
+
+`*.tags` has 14 possible prefixes:
+`exec.container` `exit.container` `process.ancestors.container` `process.container` `process.parent.container` `ptrace.tracee.ancestors.container` `ptrace.tracee.container` `ptrace.tracee.parent.container` `setrlimit.target.ancestors.container` `setrlimit.target.container` `setrlimit.target.parent.container` `signal.target.ancestors.container` `signal.target.container` `signal.target.parent.container`
+
+
 ### `*.tid` {#common-pidcontext-tid-doc}
 Type: int
 
@@ -3463,8 +3502,8 @@ Type: int
 
 Definition: [Experimental] Version of the cgroup API
 
-`*.version` has 15 possible prefixes:
-`cgroup` `exec.cgroup` `exit.cgroup` `process.ancestors.cgroup` `process.cgroup` `process.parent.cgroup` `ptrace.tracee.ancestors.cgroup` `ptrace.tracee.cgroup` `ptrace.tracee.parent.cgroup` `setrlimit.target.ancestors.cgroup` `setrlimit.target.cgroup` `setrlimit.target.parent.cgroup` `signal.target.ancestors.cgroup` `signal.target.cgroup` `signal.target.parent.cgroup`
+`*.version` has 14 possible prefixes:
+`exec.cgroup` `exit.cgroup` `process.ancestors.cgroup` `process.cgroup` `process.parent.cgroup` `ptrace.tracee.ancestors.cgroup` `ptrace.tracee.cgroup` `ptrace.tracee.parent.cgroup` `setrlimit.target.ancestors.cgroup` `setrlimit.target.cgroup` `setrlimit.target.parent.cgroup` `signal.target.ancestors.cgroup` `signal.target.cgroup` `signal.target.parent.cgroup`
 
 
 ### `accept.addr.family` {#accept-addr-family-doc}
@@ -3721,27 +3760,6 @@ Definition: Address hostname (if available)
 Type: int
 
 Definition: Socket Protocol
-
-
-
-### `container.created_at` {#container-created_at-doc}
-Type: int
-
-Definition: Timestamp of the creation of the container
-
-
-
-### `container.id` {#container-id-doc}
-Type: string
-
-Definition: ID of the container
-
-
-
-### `container.tags` {#container-tags-doc}
-Type: string
-
-Definition: Tags of the container
 
 
 

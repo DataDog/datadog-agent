@@ -11,6 +11,7 @@ import (
 	"fmt"
 
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
 
 	"github.com/DataDog/datadog-agent/pkg/util/ecs/common"
@@ -29,7 +30,7 @@ func V1() (*v1.Client, error) {
 // V2 returns a client for the ECS metadata API v2 that uses the default
 // endpoint address.
 func V2() (*v2.Client, error) {
-	if !pkgconfigsetup.IsCloudProviderEnabled(common.CloudProviderName, pkgconfigsetup.Datadog()) {
+	if !configutils.IsCloudProviderEnabled(common.CloudProviderName, pkgconfigsetup.Datadog()) {
 		return nil, fmt.Errorf("cloud Provider %s is disabled by configuration", common.CloudProviderName)
 	}
 
@@ -40,5 +41,12 @@ func V2() (*v2.Client, error) {
 // the endpoint address from the task the executable is running in. Returns an
 // error if it was not possible to detect the endpoint address.
 func V3orV4FromCurrentTask() (*v3or4.Client, error) {
+	return nil, docker.ErrDockerNotCompiled
+}
+
+// V4FromCurrentTask returns a client for the ECS metadata API v4 by detecting
+// the endpoint address from the task the executable is running in. Returns an
+// error if it was not possible to detect the endpoint address.
+func V4FromCurrentTask() (*v3or4.Client, error) {
 	return nil, docker.ErrDockerNotCompiled
 }

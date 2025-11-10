@@ -10,14 +10,18 @@ package otlp
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/confmap"
 	"go.opentelemetry.io/collector/otelcol"
 
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
+	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/logsagentexporter"
+	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/serializerexporter"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/internal/configutils"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/testutil"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
@@ -108,9 +112,6 @@ func TestNewMap(t *testing.T) {
 					},
 				},
 				"processors": map[string]any{
-					"batch": map[string]any{
-						"timeout": "10s",
-					},
 					"infraattributes": nil,
 				},
 				"exporters": map[string]any{
@@ -134,6 +135,9 @@ func TestNewMap(t *testing.T) {
 								"send_count_sum_metrics": true,
 							},
 						},
+						"sending_queue": map[string]any{
+							"batch": nil,
+						},
 					},
 				},
 				"service": map[string]any{
@@ -146,7 +150,7 @@ func TestNewMap(t *testing.T) {
 						},
 						"metrics": map[string]any{
 							"receivers":  []any{"otlp"},
-							"processors": []any{"batch", "infraattributes"},
+							"processors": []any{"infraattributes"},
 							"exporters":  []any{"serializer"},
 						},
 					},
@@ -184,9 +188,6 @@ func TestNewMap(t *testing.T) {
 					},
 				},
 				"processors": map[string]any{
-					"batch": map[string]any{
-						"timeout": "10s",
-					},
 					"infraattributes": nil,
 				},
 				"exporters": map[string]any{
@@ -210,6 +211,9 @@ func TestNewMap(t *testing.T) {
 								"send_count_sum_metrics": true,
 							},
 						},
+						"sending_queue": map[string]any{
+							"batch": nil,
+						},
 					},
 				},
 				"service": map[string]any{
@@ -222,7 +226,7 @@ func TestNewMap(t *testing.T) {
 						},
 						"metrics": map[string]any{
 							"receivers":  []any{"otlp"},
-							"processors": []any{"batch", "infraattributes"},
+							"processors": []any{"infraattributes"},
 							"exporters":  []any{"serializer"},
 						},
 					},
@@ -309,9 +313,6 @@ func TestNewMap(t *testing.T) {
 					},
 				},
 				"processors": map[string]any{
-					"batch": map[string]any{
-						"timeout": "10s",
-					},
 					"infraattributes": nil,
 				},
 				"exporters": map[string]any{
@@ -325,6 +326,9 @@ func TestNewMap(t *testing.T) {
 								"send_count_sum_metrics": true,
 							},
 						},
+						"sending_queue": map[string]any{
+							"batch": nil,
+						},
 					},
 				},
 				"service": map[string]any{
@@ -332,7 +336,7 @@ func TestNewMap(t *testing.T) {
 					"pipelines": map[string]any{
 						"metrics": map[string]any{
 							"receivers":  []any{"otlp"},
-							"processors": []any{"batch", "infraattributes"},
+							"processors": []any{"infraattributes"},
 							"exporters":  []any{"serializer"},
 						},
 					},
@@ -418,9 +422,6 @@ func TestNewMap(t *testing.T) {
 					},
 				},
 				"processors": map[string]any{
-					"batch": map[string]any{
-						"timeout": "10s",
-					},
 					"infraattributes": nil,
 				},
 				"exporters": map[string]any{
@@ -433,6 +434,9 @@ func TestNewMap(t *testing.T) {
 								"send_count_sum_metrics": true,
 							},
 						},
+						"sending_queue": map[string]any{
+							"batch": nil,
+						},
 					},
 					"debug": map[string]any{
 						"verbosity": "detailed",
@@ -443,7 +447,7 @@ func TestNewMap(t *testing.T) {
 					"pipelines": map[string]any{
 						"metrics": map[string]any{
 							"receivers":  []any{"otlp"},
-							"processors": []any{"batch", "infraattributes"},
+							"processors": []any{"infraattributes"},
 							"exporters":  []any{"serializer", "debug"},
 						},
 					},
@@ -480,9 +484,6 @@ func TestNewMap(t *testing.T) {
 					},
 				},
 				"processors": map[string]any{
-					"batch": map[string]any{
-						"timeout": "10s",
-					},
 					"infraattributes": nil,
 				},
 				"exporters": map[string]any{
@@ -505,6 +506,9 @@ func TestNewMap(t *testing.T) {
 								"send_count_sum_metrics": true,
 							},
 						},
+						"sending_queue": map[string]any{
+							"batch": nil,
+						},
 					},
 					"debug": map[string]any{
 						"verbosity": "basic",
@@ -520,7 +524,7 @@ func TestNewMap(t *testing.T) {
 						},
 						"metrics": map[string]any{
 							"receivers":  []any{"otlp"},
-							"processors": []any{"batch", "infraattributes"},
+							"processors": []any{"infraattributes"},
 							"exporters":  []any{"serializer", "debug"},
 						},
 					},
@@ -550,9 +554,6 @@ func TestNewMap(t *testing.T) {
 				},
 				"processors": map[string]any{
 					"infraattributes": any(nil),
-					"batch": map[string]any{
-						"timeout": "10s",
-					},
 				},
 				"exporters": map[string]any{
 					"otlp": map[string]any{
@@ -565,7 +566,11 @@ func TestNewMap(t *testing.T) {
 							"enabled": false,
 						},
 					},
-					"logsagent": any(nil),
+					"logsagent": map[string]any{
+						"sending_queue": map[string]any{
+							"batch": nil,
+						},
+					},
 				},
 				"service": map[string]any{
 					"telemetry": map[string]any{"metrics": map[string]any{"level": "none"}},
@@ -577,7 +582,7 @@ func TestNewMap(t *testing.T) {
 						},
 						"logs": map[string]any{
 							"receivers":  []any{"otlp"},
-							"processors": []any{"infraattributes", "batch"},
+							"processors": []any{"infraattributes"},
 							"exporters":  []any{"logsagent"},
 						},
 					},
@@ -617,9 +622,6 @@ func TestNewMap(t *testing.T) {
 				},
 				"processors": map[string]any{
 					"infraattributes": any(nil),
-					"batch": map[string]any{
-						"timeout": "10s",
-					},
 				},
 				"exporters": map[string]any{
 					"otlp": map[string]any{
@@ -642,8 +644,15 @@ func TestNewMap(t *testing.T) {
 								"send_count_sum_metrics": true,
 							},
 						},
+						"sending_queue": map[string]any{
+							"batch": nil,
+						},
 					},
-					"logsagent": any(nil),
+					"logsagent": map[string]any{
+						"sending_queue": map[string]any{
+							"batch": nil,
+						},
+					},
 				},
 				"service": map[string]any{
 					"telemetry": map[string]any{"metrics": map[string]any{"level": "none"}},
@@ -655,12 +664,12 @@ func TestNewMap(t *testing.T) {
 						},
 						"metrics": map[string]any{
 							"receivers":  []any{"otlp"},
-							"processors": []any{"batch", "infraattributes"},
+							"processors": []any{"infraattributes"},
 							"exporters":  []any{"serializer"},
 						},
 						"logs": map[string]any{
 							"receivers":  []any{"otlp"},
-							"processors": []any{"infraattributes", "batch"},
+							"processors": []any{"infraattributes"},
 							"exporters":  []any{"logsagent"},
 						},
 					},
@@ -700,9 +709,6 @@ func TestNewMap(t *testing.T) {
 				},
 				"processors": map[string]any{
 					"infraattributes": any(nil),
-					"batch": map[string]any{
-						"timeout": "10s",
-					},
 				},
 				"exporters": map[string]any{
 					"otlp": map[string]any{
@@ -725,8 +731,15 @@ func TestNewMap(t *testing.T) {
 								"send_count_sum_metrics": true,
 							},
 						},
+						"sending_queue": map[string]any{
+							"batch": nil,
+						},
 					},
-					"logsagent": any(nil),
+					"logsagent": map[string]any{
+						"sending_queue": map[string]any{
+							"batch": nil,
+						},
+					},
 				},
 				"service": map[string]any{
 					"telemetry": map[string]any{"metrics": map[string]any{"level": "none"}},
@@ -738,12 +751,12 @@ func TestNewMap(t *testing.T) {
 						},
 						"metrics": map[string]any{
 							"receivers":  []any{"otlp"},
-							"processors": []any{"batch", "infraattributes"},
+							"processors": []any{"infraattributes"},
 							"exporters":  []any{"serializer"},
 						},
 						"logs": map[string]any{
 							"receivers":  []any{"otlp"},
-							"processors": []any{"infraattributes", "batch"},
+							"processors": []any{"infraattributes"},
 							"exporters":  []any{"logsagent"},
 						},
 					},
@@ -776,9 +789,6 @@ func TestNewMap(t *testing.T) {
 				},
 				"processors": map[string]any{
 					"infraattributes": any(nil),
-					"batch": map[string]any{
-						"timeout": "10s",
-					},
 				},
 				"exporters": map[string]any{
 					"otlp": map[string]any{
@@ -791,7 +801,11 @@ func TestNewMap(t *testing.T) {
 							"enabled": false,
 						},
 					},
-					"logsagent": any(nil),
+					"logsagent": map[string]any{
+						"sending_queue": map[string]any{
+							"batch": nil,
+						},
+					},
 				},
 				"service": map[string]any{
 					"telemetry": map[string]any{"metrics": map[string]any{"level": "none"}},
@@ -803,7 +817,7 @@ func TestNewMap(t *testing.T) {
 						},
 						"logs": map[string]any{
 							"receivers":  []any{"otlp"},
-							"processors": []any{"infraattributes", "batch"},
+							"processors": []any{"infraattributes"},
 							"exporters":  []any{"logsagent"},
 						},
 					},
@@ -842,9 +856,6 @@ func TestNewMap(t *testing.T) {
 				},
 				"processors": map[string]any{
 					"infraattributes": any(nil),
-					"batch": map[string]any{
-						"timeout": "10s",
-					},
 				},
 				"exporters": map[string]any{
 					"serializer": map[string]any{
@@ -857,20 +868,27 @@ func TestNewMap(t *testing.T) {
 								"send_count_sum_metrics": true,
 							},
 						},
+						"sending_queue": map[string]any{
+							"batch": nil,
+						},
 					},
-					"logsagent": any(nil),
+					"logsagent": map[string]any{
+						"sending_queue": map[string]any{
+							"batch": nil,
+						},
+					},
 				},
 				"service": map[string]any{
 					"telemetry": map[string]any{"metrics": map[string]any{"level": "none"}},
 					"pipelines": map[string]any{
 						"metrics": map[string]any{
 							"receivers":  []any{"otlp"},
-							"processors": []any{"batch", "infraattributes"},
+							"processors": []any{"infraattributes"},
 							"exporters":  []any{"serializer"},
 						},
 						"logs": map[string]any{
 							"receivers":  []any{"otlp"},
-							"processors": []any{"infraattributes", "batch"},
+							"processors": []any{"infraattributes"},
 							"exporters":  []any{"logsagent"},
 						},
 					},
@@ -900,9 +918,6 @@ func TestNewMap(t *testing.T) {
 				},
 				"processors": map[string]any{
 					"infraattributes": any(nil),
-					"batch": map[string]any{
-						"timeout": "10s",
-					},
 				},
 				"exporters": map[string]any{
 					"otlp": map[string]any{
@@ -918,7 +933,11 @@ func TestNewMap(t *testing.T) {
 					"debug": map[string]any{
 						"verbosity": "normal",
 					},
-					"logsagent": any(nil),
+					"logsagent": map[string]any{
+						"sending_queue": map[string]any{
+							"batch": nil,
+						},
+					},
 				},
 				"service": map[string]any{
 					"telemetry": map[string]any{"metrics": map[string]any{"level": "none"}},
@@ -930,7 +949,7 @@ func TestNewMap(t *testing.T) {
 						},
 						"logs": map[string]any{
 							"receivers":  []any{"otlp"},
-							"processors": []any{"infraattributes", "batch"},
+							"processors": []any{"infraattributes"},
 							"exporters":  []any{"logsagent", "debug"},
 						},
 					},
@@ -968,9 +987,6 @@ func TestNewMap(t *testing.T) {
 				},
 				"processors": map[string]any{
 					"infraattributes": any(nil),
-					"batch": map[string]any{
-						"timeout": "10s",
-					},
 				},
 				"exporters": map[string]any{
 					"serializer": map[string]any{
@@ -982,23 +998,30 @@ func TestNewMap(t *testing.T) {
 								"send_count_sum_metrics": true,
 							},
 						},
+						"sending_queue": map[string]any{
+							"batch": nil,
+						},
 					},
 					"debug": map[string]any{
 						"verbosity": "detailed",
 					},
-					"logsagent": any(nil),
+					"logsagent": map[string]any{
+						"sending_queue": map[string]any{
+							"batch": nil,
+						},
+					},
 				},
 				"service": map[string]any{
 					"telemetry": map[string]any{"metrics": map[string]any{"level": "none"}},
 					"pipelines": map[string]any{
 						"metrics": map[string]any{
 							"receivers":  []any{"otlp"},
-							"processors": []any{"batch", "infraattributes"},
+							"processors": []any{"infraattributes"},
 							"exporters":  []any{"serializer", "debug"},
 						},
 						"logs": map[string]any{
 							"receivers":  []any{"otlp"},
-							"processors": []any{"infraattributes", "batch"},
+							"processors": []any{"infraattributes"},
 							"exporters":  []any{"logsagent", "debug"},
 						},
 					},
@@ -1037,9 +1060,6 @@ func TestNewMap(t *testing.T) {
 				},
 				"processors": map[string]any{
 					"infraattributes": any(nil),
-					"batch": map[string]any{
-						"timeout": "10s",
-					},
 				},
 				"exporters": map[string]any{
 					"otlp": map[string]any{
@@ -1061,11 +1081,18 @@ func TestNewMap(t *testing.T) {
 								"send_count_sum_metrics": true,
 							},
 						},
+						"sending_queue": map[string]any{
+							"batch": nil,
+						},
 					},
 					"debug": map[string]any{
 						"verbosity": "basic",
 					},
-					"logsagent": any(nil),
+					"logsagent": map[string]any{
+						"sending_queue": map[string]any{
+							"batch": nil,
+						},
+					},
 				},
 				"service": map[string]any{
 					"telemetry": map[string]any{"metrics": map[string]any{"level": "none"}},
@@ -1077,12 +1104,12 @@ func TestNewMap(t *testing.T) {
 						},
 						"metrics": map[string]any{
 							"receivers":  []any{"otlp"},
-							"processors": []any{"batch", "infraattributes"},
+							"processors": []any{"infraattributes"},
 							"exporters":  []any{"serializer", "debug"},
 						},
 						"logs": map[string]any{
 							"receivers":  []any{"otlp"},
-							"processors": []any{"infraattributes", "batch"},
+							"processors": []any{"infraattributes"},
 							"exporters":  []any{"logsagent", "debug"},
 						},
 					},
@@ -1137,6 +1164,24 @@ func TestUnmarshal(t *testing.T) {
 	components, err := getComponents(serializermock.NewMetricSerializer(t), make(chan *message.Message), fakeTagger, hostnameimpl.NewHostnameService(), nil)
 	require.NoError(t, err)
 
-	_, err = provider.Get(context.Background(), components)
+	svccfg, err := provider.Get(context.Background(), components)
 	require.NoError(t, err)
+
+	scfgRaw := svccfg.Exporters[component.MustNewID(serializerexporter.TypeStr)]
+	require.NotNil(t, scfgRaw)
+	scfg, ok := scfgRaw.(*serializerexporter.ExporterConfig)
+	require.True(t, ok, "failed to cast serializerexporter.ExporterConfig")
+	sBatchCfg := scfg.QueueBatchConfig.Batch.Get()
+	assert.Equal(t, 200*time.Millisecond, sBatchCfg.FlushTimeout)
+	assert.Equal(t, int64(8192), sBatchCfg.MinSize)
+	assert.Equal(t, int64(0), sBatchCfg.MaxSize)
+
+	lcfgRaw := svccfg.Exporters[component.MustNewID(logsagentexporter.TypeStr)]
+	require.NotNil(t, lcfgRaw)
+	lcfg, ok := lcfgRaw.(*logsagentexporter.Config)
+	require.True(t, ok, "failed to cast logsagentexporter.Config")
+	lBatchCfg := lcfg.QueueSettings.Batch.Get()
+	assert.Equal(t, 200*time.Millisecond, lBatchCfg.FlushTimeout)
+	assert.Equal(t, int64(8192), lBatchCfg.MinSize)
+	assert.Equal(t, int64(0), lBatchCfg.MaxSize)
 }

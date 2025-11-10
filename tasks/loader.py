@@ -31,4 +31,5 @@ def build(
         env=env,
         bin_path=BIN_PATH,
         mod=go_mod,
+        check_deadcode=os.getenv("DEPLOY_AGENT") == "true",
     )

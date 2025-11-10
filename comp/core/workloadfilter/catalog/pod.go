@@ -12,14 +12,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/workloadfilter/program"
 )
 
-// LegacyPodProgram creates a program for filtering legacy pods.
-func LegacyPodProgram(filterConfig *FilterConfig, loggger log.Component) program.FilterProgram {
-	programName := "LegacyPodProgram"
-	includeList := append(filterConfig.ContainerInclude, filterConfig.ContainerIncludeMetrics...)
-	excludeList := append(filterConfig.ContainerExclude, filterConfig.ContainerExcludeMetrics...)
-	return createFromOldFilters(programName, includeList, excludeList, workloadfilter.PodType, loggger)
-}
-
 // PodCELMetricsProgram creates a program for filtering pods metrics via CEL rules
 func PodCELMetricsProgram(filterConfig *FilterConfig, logger log.Component) program.FilterProgram {
 	programName := "PodCELMetricsProgram"

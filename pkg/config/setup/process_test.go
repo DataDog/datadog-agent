@@ -138,11 +138,6 @@ func TestProcessDefaultConfig(t *testing.T) {
 			key:          "process_config.intervals.connections",
 			defaultValue: nil,
 		},
-		// TODO: process_config.process_collection.use_wlm is a temporary configuration for refactoring purposes
-		{
-			key:          "process_config.process_collection.use_wlm",
-			defaultValue: runtime.GOOS == "linux",
-		},
 	} {
 		t.Run(tc.key+" default", func(t *testing.T) {
 			assert.Equal(t, tc.defaultValue, cfg.Get(tc.key))
@@ -459,13 +454,6 @@ func TestEnvVarOverride(t *testing.T) {
 			value:    "10",
 			expected: "10",
 		},
-		// TODO: process_config.process_collection.use_wlm is a temporary configuration for refactoring purposes
-		{
-			key:      "process_config.process_collection.use_wlm",
-			env:      "DD_PROCESS_CONFIG_PROCESS_COLLECTION_USE_WLM",
-			value:    "false",
-			expected: false,
-		},
 	} {
 		t.Run(tc.env, func(t *testing.T) {
 			// internal configuration rely on a syncOnce so we have to reset if after each call
@@ -556,6 +544,7 @@ func TestEnvVarCustomSensitiveWords(t *testing.T) {
 func TestProcBindEnvAndSetDefault(t *testing.T) {
 	cfg := newTestConf(t)
 	procBindEnvAndSetDefault(cfg, "process_config.foo.bar", "asdf")
+	cfg.BuildSchema()
 
 	envs := map[string]struct{}{}
 	for _, env := range cfg.GetEnvVars() {

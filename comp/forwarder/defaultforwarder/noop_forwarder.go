@@ -96,11 +96,11 @@ func (f NoopForwarder) SubmitConnectionChecks(_ transaction.BytesPayloads, _ htt
 }
 
 // SubmitOrchestratorChecks does nothing.
-func (f NoopForwarder) SubmitOrchestratorChecks(_ transaction.BytesPayloads, _ http.Header, _ int) (chan Response, error) {
-	return nil, nil
+func (f NoopForwarder) SubmitOrchestratorChecks(_ transaction.BytesPayloads, _ http.Header, _ int) error {
+	return nil
 }
 
 // SubmitOrchestratorManifests does nothing.
-func (f NoopForwarder) SubmitOrchestratorManifests(_ transaction.BytesPayloads, _ http.Header) (chan Response, error) {
-	return nil, nil
+func (f NoopForwarder) SubmitOrchestratorManifests(_ transaction.BytesPayloads, _ http.Header) error {
+	return nil
 }

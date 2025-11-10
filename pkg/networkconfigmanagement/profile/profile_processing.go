@@ -26,9 +26,9 @@ type ProcessingRules struct {
 
 // MetadataRule represents the rules for parsing metadata from a network device's command
 type MetadataRule struct {
-	Type   MetadataType `json:"type" yaml:"type"`
-	Regex  string       `json:"regex" yaml:"regex"`
-	Format string       `json:"format" yaml:"format"`
+	Type   MetadataType   `json:"type" yaml:"type"`
+	Regex  *regexp.Regexp `json:"regex" yaml:"regex"`
+	Format string         `json:"format" yaml:"format"`
 }
 
 // MetadataType represents enums for "types" of things than can be typically extracted for NCM
@@ -43,14 +43,14 @@ const (
 
 // ValidationRule represents patterns that should be expected from valid output from a command
 type ValidationRule struct {
-	Type    string `json:"type" yaml:"type"`
-	Pattern string `json:"pattern" yaml:"pattern"`
+	Type    string         `json:"type" yaml:"type"`
+	Pattern *regexp.Regexp `json:"pattern" yaml:"pattern"`
 }
 
 // RedactionRule represents rules for patterns that warrant removal to protect sensitive data or irrelevant information
 type RedactionRule struct {
-	Regex       string `json:"regex" yaml:"regex"`
-	Replacement string `json:"replacement" yaml:"replacement"`
+	Regex       *regexp.Regexp `json:"regex" yaml:"regex"`
+	Replacement string         `json:"replacement" yaml:"replacement"`
 }
 
 // ExtractedMetadata is a means to hold metadata to be emitted as metrics or sent as part of the payload
@@ -61,6 +61,9 @@ type ExtractedMetadata struct {
 
 // ProcessCommandOutput is for applying redactions, validating, and extracting metadata from a configuration pulled from a device
 func (p *NCMProfile) ProcessCommandOutput(ct CommandType, output []byte) ([]byte, *ExtractedMetadata, error) {
+	if err := p.ValidateOutput(ct, output); err != nil {
+		return []byte{}, nil, err
+	}
 	redactedOutput, err := p.applyRedactions(ct, output)
 	if err != nil {
 		return []byte{}, nil, err
@@ -69,10 +72,6 @@ func (p *NCMProfile) ProcessCommandOutput(ct CommandType, output []byte) ([]byte
 	if err != nil {
 		return []byte{}, nil, err
 	}
-	if err = p.ValidateOutput(ct, output); err != nil {
-		return []byte{}, nil, err
-	}
-
 	return redactedOutput, metadata, nil
 }
 
@@ -89,8 +88,7 @@ func (p *NCMProfile) extractMetadata(ct CommandType, output []byte) (*ExtractedM
 	for _, rule := range metadataParsingRules {
 		switch rule.Type {
 		case Timestamp:
-			re := regexp.MustCompile(rule.Regex)
-			match := re.FindSubmatch(output)
+			match := rule.Regex.FindSubmatch(output)
 			if match == nil || len(match) < 2 {
 				log.Warnf("could not parse timestamp for profile %s", p.Name)
 				continue
@@ -103,9 +101,8 @@ func (p *NCMProfile) extractMetadata(ct CommandType, output []byte) (*ExtractedM
 			}
 			result.Timestamp = timestamp.Unix()
 		case ConfigSize:
-			re := regexp.MustCompile(rule.Regex)
-			matches := re.FindSubmatch(output)
-			sizeIndex := re.SubexpIndex("Size")
+			matches := rule.Regex.FindSubmatch(output)
+			sizeIndex := rule.Regex.SubexpIndex("Size")
 			if sizeIndex == -1 || matches == nil {
 				log.Warnf("could not parse config size for profile %s", p.Name)
 				continue
@@ -129,8 +126,7 @@ func (p *NCMProfile) ValidateOutput(ct CommandType, output []byte) error {
 	}
 	validationRules := commandInfo.ProcessingRules.ValidationRules
 	for _, rule := range validationRules {
-		re := regexp.MustCompile(rule.Pattern)
-		if !re.Match(output) {
+		if !rule.Pattern.Match(output) {
 			return fmt.Errorf("invalid output (due to rule requiring: %s) for command type %s in profile %s", rule.Pattern, ct, p.Name)
 		}
 	}
@@ -142,17 +138,42 @@ func (p *NCMProfile) applyRedactions(ct CommandType, output []byte) ([]byte, err
 	if !ok {
 		return []byte{}, fmt.Errorf("no metadata found for command type %s in profile %s", ct, p.Name)
 	}
-	redactionRules := commandInfo.ProcessingRules.RedactionRules
-	for _, rule := range redactionRules {
-		replacer := scrubber.Replacer{
-			Regex: regexp.MustCompile(rule.Regex),
-			Repl:  []byte(fmt.Sprintf(`$1 %s`, rule.Replacement)),
-		}
-		p.Scrubber.AddReplacer(scrubber.SingleLine, replacer)
-	}
-	scrubbedOutput, err := p.Scrubber.ScrubBytes(output)
+	scrubbedOutput, err := commandInfo.scrub(output)
 	if err != nil {
 		return []byte{}, err
 	}
 	return scrubbedOutput, nil
+}
+
+func (c Commands) scrub(output []byte) ([]byte, error) {
+	// check if the scrubber exists
+	if c.Scrubber != nil {
+		return c.Scrubber.ScrubBytes(output)
+	}
+	if len(c.ProcessingRules.RedactionRules) > 0 {
+		log.Warnf("no rules for redacting found for command %s, skipping redaction", c.CommandType)
+	}
+	return output, nil
+}
+
+func (p *NCMProfile) initializeScrubbers() {
+	for _, command := range p.Commands {
+		command.initializeScrubber()
+	}
+}
+
+func (c *Commands) initializeScrubber() {
+	rules := c.ProcessingRules
+
+	if len(rules.RedactionRules) > 0 {
+		// initialize scrubber for command
+		c.Scrubber = scrubber.New()
+	}
+	for i := range rules.RedactionRules {
+		replacer := scrubber.Replacer{
+			Regex: rules.RedactionRules[i].Regex,
+			Repl:  []byte(rules.RedactionRules[i].Replacement),
+		}
+		c.Scrubber.AddReplacer(scrubber.SingleLine, replacer)
+	}
 }

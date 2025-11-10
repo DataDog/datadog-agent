@@ -7,11 +7,8 @@ exporters:
   datadog:
     api: [] # should be a map rather than a list
 processors:
-  batch:
-    timeout: 10s
 service:
   pipelines:
     traces:
       receivers: [otlp]
-      processors: [batch]
       exporters: [datadog]

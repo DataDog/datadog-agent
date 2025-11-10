@@ -5,7 +5,7 @@
 
 //go:build linux_bpf
 
-// Package util contains common helpers used in the creation of the closed connection event handler
+// Package util contains common helpers used for kernel network tracing
 package util
 
 import (

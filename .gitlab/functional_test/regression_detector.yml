@@ -45,6 +45,9 @@ single_machine_performance-regression_detector-merge_base_check:
     - aws configure set aws_access_key_id "$SMP_BOT_ID" --profile ${AWS_NAMED_PROFILE}
     - aws configure set aws_secret_access_key "$SMP_BOT_KEY" --profile ${AWS_NAMED_PROFILE}
     - aws configure set region us-west-2 --profile ${AWS_NAMED_PROFILE}
+    # `datadog-ci` relies on `DATADOG_API_KEY` so we get that here.
+    - DATADOG_API_KEY="$("$CI_PROJECT_DIR"/tools/ci/fetch_secret.sh "$AGENT_API_KEY_ORG2" token)" || exit $?; export DATADOG_API_KEY
+
     # Check if image exists for the baseline SHA
     - echo "Checking if image exists for commit ${BASELINE_SHA}..."
     - |

@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"io"
 	"math/big"
+	"strings"
 	"sync"
 	"time"
 
@@ -63,6 +64,10 @@ func (s *syntheticsTestScheduler) flushLoop(ctx context.Context) {
 
 // flush enqueues tests whose nextRun is due.
 func (s *syntheticsTestScheduler) flush(flushTime time.Time) {
+	if !s.running {
+		return
+	}
+
 	s.state.mu.Lock()
 	defer s.state.mu.Unlock()
 	var testsToRun []*runningTestState
@@ -74,13 +79,14 @@ func (s *syntheticsTestScheduler) flush(flushTime time.Time) {
 	}
 
 	for _, rt := range testsToRun {
+		if !s.running {
+			return
+		}
 		s.log.Debugf("enqueuing test %s", rt.cfg.PublicID)
 		s.syntheticsTestProcessingChan <- SyntheticsTestCtx{
 			nextRun: flushTime,
 			cfg:     rt.cfg,
 		}
-
-		rt.lastRun = rt.nextRun
 		rt.nextRun = rt.nextRun.Add(time.Duration(rt.cfg.Interval) * time.Second)
 	}
 }
@@ -92,7 +98,11 @@ func (s *syntheticsTestScheduler) runWorker(ctx context.Context, workerID int) {
 		case <-ctx.Done():
 			s.log.Debugf("worker %d stopping", workerID)
 			return
-		case syntheticsTestCtx := <-s.syntheticsTestProcessingChan:
+		case syntheticsTestCtx, ok := <-s.syntheticsTestProcessingChan:
+			if !ok {
+				s.log.Debugf("worker %d stopping: processing channel closed", workerID)
+				return
+			}
 			tracerouteCfg, err := toNetpathConfig(syntheticsTestCtx.cfg)
 			if err != nil {
 				s.log.Debugf("[worker%d] error interpreting test config: %s", workerID, err)
@@ -135,6 +145,7 @@ func (s *syntheticsTestScheduler) runWorker(ctx context.Context, workerID int) {
 				Latency:              result.E2eProbe.RTT,
 				Hops:                 result.Traceroute.HopCount,
 			})
+
 			status, err := s.sendResult(wResult)
 			if err != nil {
 				s.log.Debugf("[worker%d] error sending result: %s", workerID, err)
@@ -258,20 +269,60 @@ func (s *syntheticsTestScheduler) sendSyntheticsTestResult(w *workerResult) (str
 func runTraceroute(ctx context.Context, cfg config.Config, telemetry telemetry.Component) (payload.NetworkPath, error) {
 	tr, err := traceroute.New(cfg, telemetry)
 	if err != nil {
-		return payload.NetworkPath{}, fmt.Errorf("new traceroute error: %s", err)
+		return payload.NetworkPath{}, fmt.Errorf("new traceroute error: %w", err)
 	}
 	path, err := tr.Run(ctx)
 	if err != nil {
-		return payload.NetworkPath{}, fmt.Errorf("run traceroute error: %s", err)
+		return payload.NetworkPath{}, fmt.Errorf("run traceroute error: %w", err)
 	}
 	return path, nil
+}
+
+// configRequestToResultRequest converts a ConfigRequest to a ResultRequest.
+func configRequestToResultRequest(req common.ConfigRequest) (common.ResultRequest, error) {
+	switch r := req.(type) {
+	case common.UDPConfigRequest:
+		return common.ResultRequest{
+			Host:              r.Host,
+			Port:              r.Port,
+			SourceService:     r.SourceService,
+			MaxTTL:            r.MaxTTL,
+			Timeout:           r.Timeout,
+			TracerouteQueries: r.TracerouteCount,
+			E2eQueries:        r.ProbeCount,
+		}, nil
+	case common.TCPConfigRequest:
+		return common.ResultRequest{
+			Host:               r.Host,
+			Port:               r.Port,
+			DestinationService: r.DestinationService,
+			SourceService:      r.SourceService,
+			MaxTTL:             r.MaxTTL,
+			Timeout:            r.Timeout,
+			TracerouteQueries:  r.TracerouteCount,
+			E2eQueries:         r.ProbeCount,
+			TCPMethod:          r.TCPMethod,
+		}, nil
+	case common.ICMPConfigRequest:
+		return common.ResultRequest{
+			Host:               r.Host,
+			DestinationService: r.DestinationService,
+			SourceService:      r.SourceService,
+			MaxTTL:             r.MaxTTL,
+			Timeout:            r.Timeout,
+			TracerouteQueries:  r.TracerouteCount,
+			E2eQueries:         r.ProbeCount,
+		}, nil
+	default:
+		return common.ResultRequest{}, fmt.Errorf("unknown config request: %q", r)
+	}
 }
 
 // networkPathToTestResult converts a workerResult into the public TestResult structure.
 func (s *syntheticsTestScheduler) networkPathToTestResult(w *workerResult) (*common.TestResult, error) {
 	t := common.Test{
 		ID:      w.testCfg.cfg.PublicID,
-		SubType: string(w.testCfg.cfg.Config.Request.GetSubType()),
+		SubType: strings.ToLower(string(w.testCfg.cfg.Config.Request.GetSubType())),
 		Type:    w.testCfg.cfg.Type,
 		Version: w.testCfg.cfg.Version,
 	}
@@ -289,6 +340,10 @@ func (s *syntheticsTestScheduler) networkPathToTestResult(w *workerResult) (*com
 	w.tracerouteResult.Origin = "synthetics"
 	w.tracerouteResult.Timestamp = w.finishedAt.UnixMilli()
 
+	cfgRequest, err := configRequestToResultRequest(w.testCfg.cfg.Config.Request)
+	if err != nil {
+		return nil, err
+	}
 	result := common.Result{
 		ID:              testResultID,
 		InitialID:       testResultID,
@@ -297,11 +352,9 @@ func (s *syntheticsTestScheduler) networkPathToTestResult(w *workerResult) (*com
 		TestTriggeredAt: w.triggeredAt.UnixMilli(),
 		Duration:        w.duration.Milliseconds(),
 		Assertions:      w.assertionResult,
-		Request: common.Request{
-			Host:    w.tracerouteCfg.DestHostname,
-			Port:    int(w.tracerouteCfg.DestPort),
-			MaxTTL:  int(w.tracerouteCfg.MaxTTL),
-			Timeout: int(w.tracerouteCfg.Timeout.Milliseconds()),
+		Config: common.Config{
+			Assertions: w.testCfg.cfg.Config.Assertions,
+			Request:    cfgRequest,
 		},
 		Netstats: common.NetStats{
 			PacketsSent:          w.tracerouteResult.E2eProbe.PacketsSent,
@@ -367,7 +420,7 @@ func (s *syntheticsTestScheduler) setResultStatus(w *workerResult, result *commo
 
 func hasAssertionOn100PacketLoss(assertionResults []common.AssertionResult) bool {
 	for _, assertion := range assertionResults {
-		if assertion.Type == common.AssertionTypePacketLoss && assertion.Operator == common.OperatorIs && assertion.Expected == "100" {
+		if assertion.Type == common.AssertionTypePacketLoss && assertion.Operator == common.OperatorIs && assertion.Expected == "1" {
 			return true
 		}
 	}

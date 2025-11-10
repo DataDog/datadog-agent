@@ -33,6 +33,7 @@ func TestEKSSuite(t *testing.T) {
 		awskubernetes.WithDeployDogstatsd(),
 		awskubernetes.WithDeployTestWorkload(),
 		awskubernetes.WithAgentOptions(kubernetesagentparams.WithDualShipping()),
+		awskubernetes.WithDeployArgoRollout(),
 	)))
 }
 

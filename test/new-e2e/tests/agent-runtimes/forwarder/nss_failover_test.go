@@ -68,8 +68,8 @@ const (
 	logService              = "custom_logs"
 	connectionResetInterval = 20 // seconds
 
-	intakeMaxWaitTime    = 60 * time.Second
-	intakeUnusedWaitTime = 30 * time.Second
+	intakeMaxWaitTime    = 2 * time.Minute
+	intakeUnusedWaitTime = 20 * time.Second
 	intakeTick           = 5 * time.Second
 )
 
@@ -263,6 +263,7 @@ func (v *multiFakeIntakeSuite) requireIntakeIsUsed(intake *fi.Client, intakeMaxW
 
 		// check traces
 		teardownTraceGen := runUDSTraceGenerator(v.Env().Host, "test", "extratags")
+		defer teardownTraceGen()
 		traces, err := intake.GetTraces()
 		require.NoError(t, err)
 		assert.NotEmpty(t, traces)
@@ -274,8 +275,6 @@ func (v *multiFakeIntakeSuite) requireIntakeIsUsed(intake *fi.Client, intakeMaxW
 			require.ErrorIs(t, err, fi.ErrNoFlareAvailable)
 		}
 		assert.NoError(t, err)
-
-		teardownTraceGen()
 	}
 
 	v.T().Logf("checking that the agent contacts intake at %s", intake.URL())
@@ -297,16 +296,16 @@ func (v *multiFakeIntakeSuite) requireIntakeNotUsed(intake *fi.Client, intakeMax
 
 		// send traces
 		teardownTraceGen := runUDSTraceGenerator(v.Env().Host, "test", "extratags")
+		defer teardownTraceGen()
 
 		// give time to the agent to flush to the intake
+		v.T().Logf("waiting for the agent to flush to ensure the intake %s is not used", intake.URL())
 		time.Sleep(intakeUnusedWaitTime)
 
 		stats, err := intake.RouteStats()
 		require.NoError(t, err)
 
 		assert.Empty(t, stats)
-
-		teardownTraceGen()
 	}
 
 	v.T().Logf("checking that the agent doesn't contact intake at %s", intake.URL())

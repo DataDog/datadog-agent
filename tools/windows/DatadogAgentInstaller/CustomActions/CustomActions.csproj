@@ -96,7 +96,6 @@
     <Compile Include="ServiceCustomAction.cs" />
     <Compile Include="PatchInstallerCustomAction.cs" />
     <Compile Include="SetupInstallerCustomAction.cs" />
-    <Compile Include="UpdateInstallSourceCustomAction.cs" />
     <Compile Include="PythonDistributionCustomAction.cs" />
     <Compile Include="Extensions\SessionExtensions.cs" />
     <Compile Include="Interfaces\ISession.cs" />

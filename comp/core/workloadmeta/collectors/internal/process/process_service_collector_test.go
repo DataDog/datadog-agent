@@ -268,14 +268,13 @@ func TestServiceStoreLifetimeProcessCollectionDisabled(t *testing.T) {
 			cfg := config.NewMock(t)
 			cfg.SetWithoutSource("process_config.process_collection.enabled", false)
 			cfg.SetWithoutSource("language_detection.enabled", false)
-			cfg.SetWithoutSource("process_config.process_collection.use_wlm", true)
 
 			c := setUpCollectorTest(t, cfg, sysConfigOverrides, nil)
 			defer c.cleanup()
 			ctx := t.Context()
 
 			socketPath, _ := startTestServer(t, tc.httpResponse, tc.shouldError)
-			c.collector.sysProbeClient = sysprobeclient.Get(socketPath)
+			c.collector.sysProbeClient = sysprobeclient.GetCheckClient(sysprobeclient.WithSocketPath(socketPath))
 
 			for _, pid := range tc.ignoredPids {
 				c.collector.ignoredPids.Add(pid)
@@ -464,7 +463,6 @@ func TestServiceStoreLifetime(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			cfg := config.NewMock(t)
 			cfg.SetWithoutSource("process_config.process_collection.enabled", true)
-			cfg.SetWithoutSource("process_config.process_collection.use_wlm", true)
 			cfg.SetWithoutSource("language_detection.enabled", true)
 			// setting process collection interval to the same as the service collection interval
 			// because it makes the test simpler until the service collection interval is configurable
@@ -477,7 +475,7 @@ func TestServiceStoreLifetime(t *testing.T) {
 
 			// Create test server & override collector client
 			socketPath, _ := startTestServer(t, tc.httpResponse, tc.shouldError)
-			c.collector.sysProbeClient = sysprobeclient.Get(socketPath)
+			c.collector.sysProbeClient = sysprobeclient.GetCheckClient(sysprobeclient.WithSocketPath(socketPath))
 
 			// Add ignored PIDs to the collector
 			for _, pid := range tc.ignoredPids {
@@ -567,7 +565,6 @@ func TestProcessDeathRemovesServiceData(t *testing.T) {
 
 	cfg := config.NewMock(t)
 	cfg.SetWithoutSource("process_config.process_collection.enabled", true)
-	cfg.SetWithoutSource("process_config.process_collection.use_wlm", true)
 	cfg.SetWithoutSource("language_detection.enabled", true)
 	// setting process collection interval to the same as the service collection interval
 	// because it makes the test simpler until the service collection interval is configurable
@@ -590,7 +587,7 @@ func TestProcessDeathRemovesServiceData(t *testing.T) {
 	c.collector.pidHeartbeats[pidFreshService] = baseTime
 
 	socketPath, _ := startTestServer(t, &model.ServicesResponse{}, false)
-	c.collector.sysProbeClient = sysprobeclient.Get(socketPath)
+	c.collector.sysProbeClient = sysprobeclient.GetCheckClient(sysprobeclient.WithSocketPath(socketPath))
 	c.mockClock.Set(baseTime)
 
 	c.collector.store = c.mockStore
@@ -630,6 +627,13 @@ func startTestServer(t *testing.T, response *model.ServicesResponse, shouldError
 	t.Helper()
 
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Handle CheckClient's startup check
+		if r.URL.Path == "/debug/stats" {
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte("{}"))
+			return
+		}
+
 		if r.URL.Path != "/discovery/services" {
 			w.WriteHeader(http.StatusNotFound)
 			return
@@ -694,12 +698,10 @@ func makeModelService(pid int32, name string) model.Service {
 				ServiceName:    name + "-service",
 			},
 		},
-		DDService:          "dd-model-" + name,
 		TCPPorts:           []uint16{3000, 4000},
 		APMInstrumentation: true,
 		Language:           "python",
 		Type:               "database",
-		CommandLine:        []string{"python", "-m", "myservice"},
 		LogFiles:           []string{"/var/log/" + name + ".log"},
 		UST: model.UST{
 			Service: "dd-model-" + name,

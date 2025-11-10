@@ -287,9 +287,6 @@ issues:
     - path: comp/core/workloadmeta/collectors/internal/process/process_collector.go
       linters:
         - pkgconfigusage
-    - path: comp/core/workloadmeta/collectors/internal/processlanguage/process_collector.go
-      linters:
-        - pkgconfigusage
     - path: comp/core/workloadmeta/collectors/internal/remote/generic.go
       linters:
         - pkgconfigusage
@@ -365,7 +362,7 @@ issues:
     - path: comp/otelcol/otlp/config.go
       linters:
         - pkgconfigusage
-    - path: comp/otelcol/otlp/configcheck/configcheck.go
+    - path: comp/otelcol/otlp/configcheck/configcheck_common.go
       linters:
         - pkgconfigusage
     - path: comp/otelcol/otlp/configcheck/configcheck_test.go

@@ -4,7 +4,7 @@ go 1.24.0
 
 require (
 	github.com/DataDog/datadog-go/v5 v5.8.1
-	github.com/DataDog/go-sqllexer v0.1.8
+	github.com/DataDog/go-sqllexer v0.1.9
 	github.com/outcaste-io/ristretto v0.2.3
 	github.com/stretchr/testify v1.11.1
 	go.uber.org/atomic v1.11.0
@@ -154,7 +154,6 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/telemetry => ../../pkg/telemetry
 	github.com/DataDog/datadog-agent/pkg/template => ../../pkg/template
 	github.com/DataDog/datadog-agent/pkg/trace => ../../pkg/trace
-	github.com/DataDog/datadog-agent/pkg/trace/stats/oteltest => ../../pkg/trace/stats/oteltest
 	github.com/DataDog/datadog-agent/pkg/util/backoff => ../../pkg/util/backoff
 	github.com/DataDog/datadog-agent/pkg/util/buf => ../../pkg/util/buf
 	github.com/DataDog/datadog-agent/pkg/util/cache => ../../pkg/util/cache

@@ -302,6 +302,24 @@ var (
 	// MetricCGroupResolverActiveHostWorkloads is the name of the metric used to report the count of active cgroups not corresponding to a container kept in memory
 	// Tags: -
 	MetricCGroupResolverActiveHostWorkloads = newRuntimeMetric(".cgroup_resolver.active_non_containers")
+	// MetricCGroupResolverAddedCgroups is the name of the metric used to report the number of added cgroups
+	// Tags: -
+	MetricCGroupResolverAddedCgroups = newRuntimeMetric(".cgroup_resolver.added_cgroups")
+	// MetricCGroupResolverDeletedCgroups is the name of the metric used to report the number of deleted cgroups
+	// Tags: -
+	MetricCGroupResolverDeletedCgroups = newRuntimeMetric(".cgroup_resolver.deleted_cgroups")
+	// MetricCGroupResolverFallbackSucceed is the name of the metric used to report the number of succeed fallbacks
+	// Tags: -
+	MetricCGroupResolverFallbackSucceed = newRuntimeMetric(".cgroup_resolver.fallback_succeed")
+	// MetricCGroupResolverFallbackFailed is the name of the metric used to report the number of failed fallbacks
+	// Tags: -
+	MetricCGroupResolverFallbackFailed = newRuntimeMetric(".cgroup_resolver.fallback_failed")
+	// MetricCGroupResolverAddPIDCgroupPresent is the name of the metric used to report the number of calls of ADDPid() with an cgroup context
+	// Tags: -
+	MetricCGroupResolverAddPIDCgroupPresent = newRuntimeMetric(".cgroup_resolver.addpid_cgroup_present")
+	// MetricCGroupResolverAddPIDCgroupAbsent is the name of the metric used to report the number of calls of ADDPid() with no cgroup context
+	// Tags: -
+	MetricCGroupResolverAddPIDCgroupAbsent = newRuntimeMetric(".cgroup_resolver.addpid_cgroup_absent")
 
 	// Security Profile metrics
 
