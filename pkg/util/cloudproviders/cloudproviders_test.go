@@ -154,12 +154,12 @@ func TestCloudProviderInstanceType(t *testing.T) {
 	assert.Equal(t, "t3.medium", instanceType)
 	clearDetectors()
 
-	// Case 3: unknown provider — should call all detectors sequentially
+	// Case 3: unknown provider
 	instanceType = GetInstanceType(context.TODO(), "kubelet")
 	assert.Equal(t, "", instanceType)
 	clearDetectors()
 
-	// Case 4: empty detected cloud — should fast fail
+	// Case 4: empty detected cloud — should fail fast
 	instanceType = GetInstanceType(context.TODO(), "")
 	assert.False(t, detector1Called, "instance type callback for 'detector1' should not be called")
 	assert.False(t, detector2Called, "instance type callback for 'detector2' should not be called")
