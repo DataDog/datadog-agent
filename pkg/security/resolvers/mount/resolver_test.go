@@ -447,7 +447,7 @@ func TestMountResolver(t *testing.T) {
 					mr.insert(&evt.mount.Mount, pid, false)
 				}
 				if evt.umount != nil {
-					mount, _, _, err := mr.ResolveMount(evt.umount.MountID, pid, "")
+					mount, _, _, err := mr.ResolveMount(evt.umount.MountID, pid)
 					if err != nil {
 						t.Fatal(err)
 					}
@@ -459,7 +459,7 @@ func TestMountResolver(t *testing.T) {
 			}
 
 			for _, testC := range tt.args.cases {
-				p, _, _, err := mr.ResolveMountPath(testC.mountID, pid, "")
+				p, _, _, err := mr.ResolveMountPath(testC.mountID, pid)
 				if err != nil {
 					if testC.expectedError != nil {
 						assert.Equal(t, testC.expectedError.Error(), err.Error())
