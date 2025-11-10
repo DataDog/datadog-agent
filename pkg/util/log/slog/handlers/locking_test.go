@@ -76,7 +76,9 @@ func TestLockingHandler_ErrorPropagation(t *testing.T) {
 }
 
 func TestLockingHandler_ConcurrentAccess(t *testing.T) {
-	mock := &blockingHandler{}
+	mock := &blockingHandler{
+		signal: make(chan struct{}),
+	}
 	handler := NewLocking(mock)
 
 	ctx := context.Background()
