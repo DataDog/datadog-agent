@@ -28,7 +28,6 @@ require (
 	github.com/DataDog/datadog-agent/pkg/config/nodetreemodel v0.70.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/setup v0.70.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/structure v0.70.0 // indirect
-	github.com/DataDog/datadog-agent/pkg/config/teeconfig v0.70.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/utils v0.70.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/viperconfig v0.70.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/fips v0.70.0 // indirect
