@@ -36,9 +36,9 @@ func TestStoreReplicaSet(t *testing.T) {
 	tracker.StoreReplicaSet(rs, deploymentName, deploymentUID)
 
 	// Test that the ReplicaSet was stored by accessing internal fields (for testing only)
-	tracker.mutex.RLock()
+	tracker.deploymentMutex.RLock()
 	rsInfo, exists := tracker.replicaSetMap[namespace+"/"+rsName]
-	tracker.mutex.RUnlock()
+	tracker.deploymentMutex.RUnlock()
 
 	require.True(t, exists, "ReplicaSet should be stored")
 	assert.Equal(t, rsName, rsInfo.Name)
@@ -63,9 +63,9 @@ func TestStoreDeployment(t *testing.T) {
 	tracker := NewRolloutTracker()
 	tracker.StoreDeployment(deployment)
 
-	tracker.mutex.RLock()
+	tracker.deploymentMutex.RLock()
 	stored, exists := tracker.deploymentMap["default/test-deployment"]
-	tracker.mutex.RUnlock()
+	tracker.deploymentMutex.RUnlock()
 
 	require.True(t, exists, "Deployment should be stored")
 	assert.Equal(t, deployment.Name, stored.Name)
@@ -92,10 +92,10 @@ func TestGetDeploymentRolloutDurationFromMaps(t *testing.T) {
 		},
 	}
 
-	tracker.mutex.Lock()
+	tracker.deploymentMutex.Lock()
 	tracker.deploymentMap[deploymentKey] = deployment
 	tracker.deploymentStartTime[deploymentKey] = rolloutStartTime
-	tracker.mutex.Unlock()
+	tracker.deploymentMutex.Unlock()
 
 	// Test getting duration - should return duration from deployment rollout start time
 	duration := tracker.GetRolloutDuration(namespace, deploymentName)
@@ -130,10 +130,10 @@ func TestGetDeploymentRolloutDurationFromMaps_DifferentDeployments(t *testing.T)
 		},
 	}
 
-	tracker.mutex.Lock()
+	tracker.deploymentMutex.Lock()
 	tracker.deploymentMap[key1] = deployment1
 	tracker.deploymentStartTime[key1] = rolloutStartTime
-	tracker.mutex.Unlock()
+	tracker.deploymentMutex.Unlock()
 
 	// Query for deployment-2 should return 0
 	duration := tracker.GetRolloutDuration(namespace, deploymentName2)
@@ -158,7 +158,7 @@ func TestCleanupCompletedDeployment(t *testing.T) {
 	}
 
 	// Add deployment and ReplicaSets
-	tracker.mutex.Lock()
+	tracker.deploymentMutex.Lock()
 	tracker.deploymentMap[namespace+"/"+deploymentName] = deployment
 
 	tracker.replicaSetMap[namespace+"/rs1"] = &ReplicaSetInfo{
@@ -182,24 +182,24 @@ func TestCleanupCompletedDeployment(t *testing.T) {
 		OwnerName: "other-deployment",
 		OwnerUID:  "dep-456",
 	}
-	tracker.mutex.Unlock()
+	tracker.deploymentMutex.Unlock()
 
 	// Verify initial state
-	tracker.mutex.RLock()
+	tracker.deploymentMutex.RLock()
 	assert.Equal(t, 1, len(tracker.deploymentMap))
 	assert.Equal(t, 3, len(tracker.replicaSetMap))
-	tracker.mutex.RUnlock()
+	tracker.deploymentMutex.RUnlock()
 
 	// Cleanup
 	tracker.CleanupDeployment(deployment.Namespace, deployment.Name)
 
 	// Verify cleanup
-	tracker.mutex.RLock()
+	tracker.deploymentMutex.RLock()
 	_, deploymentExists := tracker.deploymentMap[namespace+"/"+deploymentName]
 	_, rs1Exists := tracker.replicaSetMap[namespace+"/rs1"]
 	_, rs2Exists := tracker.replicaSetMap[namespace+"/rs2"]
 	_, otherRsExists := tracker.replicaSetMap[namespace+"/other-rs"]
-	tracker.mutex.RUnlock()
+	tracker.deploymentMutex.RUnlock()
 
 	assert.False(t, deploymentExists, "Deployment should be removed")
 	assert.False(t, rs1Exists, "Associated ReplicaSet should be removed")
@@ -214,7 +214,7 @@ func TestCleanupDeletedDeployment(t *testing.T) {
 	deploymentName := "test-deployment"
 
 	// Add deployment and ReplicaSets
-	tracker.mutex.Lock()
+	tracker.deploymentMutex.Lock()
 	tracker.deploymentMap[namespace+"/"+deploymentName] = &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{Name: deploymentName, Namespace: namespace},
 	}
@@ -237,18 +237,18 @@ func TestCleanupDeletedDeployment(t *testing.T) {
 		Namespace: namespace,
 		OwnerName: "other-deployment",
 	}
-	tracker.mutex.Unlock()
+	tracker.deploymentMutex.Unlock()
 
 	// Cleanup by name
 	tracker.CleanupDeployment(namespace, deploymentName)
 
 	// Verify cleanup
-	tracker.mutex.RLock()
+	tracker.deploymentMutex.RLock()
 	_, deploymentExists := tracker.deploymentMap[namespace+"/"+deploymentName]
 	_, rs1Exists := tracker.replicaSetMap[namespace+"/rs1"]
 	_, rs2Exists := tracker.replicaSetMap[namespace+"/rs2"]
 	_, otherRsExists := tracker.replicaSetMap[namespace+"/other-rs"]
-	tracker.mutex.RUnlock()
+	tracker.deploymentMutex.RUnlock()
 
 	assert.False(t, deploymentExists, "Deployment should be removed")
 	assert.False(t, rs1Exists, "Associated ReplicaSet should be removed")
@@ -263,10 +263,10 @@ func TestCleanupDeletedDeployment_NonExistent(t *testing.T) {
 	tracker.CleanupDeployment("default", "non-existent")
 
 	// Maps should remain empty
-	tracker.mutex.RLock()
+	tracker.deploymentMutex.RLock()
 	assert.Equal(t, 0, len(tracker.deploymentMap))
 	assert.Equal(t, 0, len(tracker.replicaSetMap))
-	tracker.mutex.RUnlock()
+	tracker.deploymentMutex.RUnlock()
 }
 
 func TestStoreDeployment_GenerationBasedRolloutDetection(t *testing.T) {
@@ -287,9 +287,9 @@ func TestStoreDeployment_GenerationBasedRolloutDetection(t *testing.T) {
 
 	tracker.StoreDeployment(deployment1)
 
-	tracker.mutex.RLock()
+	tracker.deploymentMutex.RLock()
 	firstStartTime := tracker.deploymentStartTime[key]
-	tracker.mutex.RUnlock()
+	tracker.deploymentMutex.RUnlock()
 
 	// Wait a bit to ensure time difference
 	time.Sleep(10 * time.Millisecond)
@@ -305,9 +305,9 @@ func TestStoreDeployment_GenerationBasedRolloutDetection(t *testing.T) {
 
 	tracker.StoreDeployment(deployment2)
 
-	tracker.mutex.RLock()
+	tracker.deploymentMutex.RLock()
 	secondStartTime := tracker.deploymentStartTime[key]
-	tracker.mutex.RUnlock()
+	tracker.deploymentMutex.RUnlock()
 
 	// Second rollout should have a newer start time
 	assert.True(t, secondStartTime.After(firstStartTime), "New rollout should have updated start time")
@@ -323,9 +323,9 @@ func TestStoreDeployment_GenerationBasedRolloutDetection(t *testing.T) {
 
 	tracker.StoreDeployment(deployment2Again)
 
-	tracker.mutex.RLock()
+	tracker.deploymentMutex.RLock()
 	thirdStartTime := tracker.deploymentStartTime[key]
-	tracker.mutex.RUnlock()
+	tracker.deploymentMutex.RUnlock()
 
 	// Same generation should NOT update start time
 	assert.Equal(t, secondStartTime, thirdStartTime, "Same generation should not update start time")
@@ -352,9 +352,9 @@ func TestStoreControllerRevision(t *testing.T) {
 	tracker.StoreControllerRevision(cr, statefulSetName, statefulSetUID)
 
 	// Test that the ControllerRevision was stored by accessing internal fields (for testing only)
-	tracker.mutex.RLock()
+	tracker.statefulSetMutex.RLock()
 	crInfo, exists := tracker.controllerRevisionMap[namespace+"/"+crName]
-	tracker.mutex.RUnlock()
+	tracker.statefulSetMutex.RUnlock()
 
 	require.True(t, exists, "ControllerRevision should be stored")
 	assert.Equal(t, crName, crInfo.Name)
@@ -381,9 +381,9 @@ func TestStoreStatefulSet(t *testing.T) {
 
 	tracker.StoreStatefulSet(statefulSet)
 
-	tracker.mutex.RLock()
+	tracker.statefulSetMutex.RLock()
 	stored, exists := tracker.statefulSetMap["default/test-statefulset"]
-	tracker.mutex.RUnlock()
+	tracker.statefulSetMutex.RUnlock()
 
 	require.True(t, exists, "StatefulSet should be stored")
 	assert.Equal(t, statefulSet.Name, stored.Name)
@@ -410,10 +410,10 @@ func TestGetStatefulSetRolloutDurationFromMaps(t *testing.T) {
 		},
 	}
 
-	tracker.mutex.Lock()
+	tracker.statefulSetMutex.Lock()
 	tracker.statefulSetMap[statefulSetKey] = statefulSet
 	tracker.statefulSetStartTime[statefulSetKey] = rolloutStartTime
-	tracker.mutex.Unlock()
+	tracker.statefulSetMutex.Unlock()
 
 	// Test getting duration - should return duration from StatefulSet rollout start time
 	duration := tracker.GetStatefulSetRolloutDuration(namespace, statefulSetName)
@@ -458,11 +458,11 @@ func TestGetStatefulSetRolloutDurationFromMaps_WithControllerRevision(t *testing
 		CreationTime: crStartTime,
 	}
 
-	tracker.mutex.Lock()
+	tracker.statefulSetMutex.Lock()
 	tracker.statefulSetMap[statefulSetKey] = statefulSet
 	tracker.statefulSetStartTime[statefulSetKey] = rolloutStartTime
 	tracker.controllerRevisionMap[namespace+"/test-cr-rev2"] = crInfo
-	tracker.mutex.Unlock()
+	tracker.statefulSetMutex.Unlock()
 
 	// Test getting duration - should use ControllerRevision time, not StatefulSet start time
 	duration := tracker.GetStatefulSetRolloutDuration(namespace, statefulSetName)
@@ -485,7 +485,7 @@ func TestCleanupStatefulSet(t *testing.T) {
 	}
 
 	// Add StatefulSet and ControllerRevisions
-	tracker.mutex.Lock()
+	tracker.statefulSetMutex.Lock()
 	tracker.statefulSetMap[namespace+"/"+statefulSetName] = statefulSet
 
 	tracker.controllerRevisionMap[namespace+"/cr1"] = &ControllerRevisionInfo{
@@ -509,24 +509,24 @@ func TestCleanupStatefulSet(t *testing.T) {
 		OwnerName: "other-statefulset",
 		OwnerUID:  "sts-456",
 	}
-	tracker.mutex.Unlock()
+	tracker.statefulSetMutex.Unlock()
 
 	// Verify initial state
-	tracker.mutex.RLock()
+	tracker.statefulSetMutex.RLock()
 	assert.Equal(t, 1, len(tracker.statefulSetMap))
 	assert.Equal(t, 3, len(tracker.controllerRevisionMap))
-	tracker.mutex.RUnlock()
+	tracker.statefulSetMutex.RUnlock()
 
 	// Cleanup
 	tracker.CleanupStatefulSet(statefulSet.Namespace, statefulSet.Name)
 
 	// Verify cleanup
-	tracker.mutex.RLock()
+	tracker.statefulSetMutex.RLock()
 	_, statefulSetExists := tracker.statefulSetMap[namespace+"/"+statefulSetName]
 	_, cr1Exists := tracker.controllerRevisionMap[namespace+"/cr1"]
 	_, cr2Exists := tracker.controllerRevisionMap[namespace+"/cr2"]
 	_, otherCrExists := tracker.controllerRevisionMap[namespace+"/other-cr"]
-	tracker.mutex.RUnlock()
+	tracker.statefulSetMutex.RUnlock()
 
 	assert.False(t, statefulSetExists, "StatefulSet should be removed")
 	assert.False(t, cr1Exists, "Associated ControllerRevision should be removed")
@@ -541,25 +541,25 @@ func TestCleanupControllerRevision(t *testing.T) {
 	crName := "test-cr"
 
 	// Add ControllerRevision
-	tracker.mutex.Lock()
+	tracker.statefulSetMutex.Lock()
 	tracker.controllerRevisionMap[namespace+"/"+crName] = &ControllerRevisionInfo{
 		Name:      crName,
 		Namespace: namespace,
 	}
-	tracker.mutex.Unlock()
+	tracker.statefulSetMutex.Unlock()
 
 	// Verify initial state
-	tracker.mutex.RLock()
+	tracker.statefulSetMutex.RLock()
 	assert.Equal(t, 1, len(tracker.controllerRevisionMap))
-	tracker.mutex.RUnlock()
+	tracker.statefulSetMutex.RUnlock()
 
 	// Cleanup
 	tracker.CleanupControllerRevision(namespace, crName)
 
 	// Verify cleanup
-	tracker.mutex.RLock()
+	tracker.statefulSetMutex.RLock()
 	_, exists := tracker.controllerRevisionMap[namespace+"/"+crName]
-	tracker.mutex.RUnlock()
+	tracker.statefulSetMutex.RUnlock()
 
 	assert.False(t, exists, "ControllerRevision should be removed")
 }
@@ -582,9 +582,9 @@ func TestStoreStatefulSet_GenerationBasedRolloutDetection(t *testing.T) {
 
 	tracker.StoreStatefulSet(statefulSet1)
 
-	tracker.mutex.RLock()
+	tracker.statefulSetMutex.RLock()
 	firstStartTime := tracker.statefulSetStartTime[key]
-	tracker.mutex.RUnlock()
+	tracker.statefulSetMutex.RUnlock()
 
 	// Wait a bit to ensure time difference
 	time.Sleep(10 * time.Millisecond)
@@ -600,9 +600,9 @@ func TestStoreStatefulSet_GenerationBasedRolloutDetection(t *testing.T) {
 
 	tracker.StoreStatefulSet(statefulSet2)
 
-	tracker.mutex.RLock()
+	tracker.statefulSetMutex.RLock()
 	secondStartTime := tracker.statefulSetStartTime[key]
-	tracker.mutex.RUnlock()
+	tracker.statefulSetMutex.RUnlock()
 
 	// Second rollout should have a newer start time
 	assert.True(t, secondStartTime.After(firstStartTime), "New rollout should have updated start time")
@@ -618,9 +618,9 @@ func TestStoreStatefulSet_GenerationBasedRolloutDetection(t *testing.T) {
 
 	tracker.StoreStatefulSet(statefulSet2Again)
 
-	tracker.mutex.RLock()
+	tracker.statefulSetMutex.RLock()
 	thirdStartTime := tracker.statefulSetStartTime[key]
-	tracker.mutex.RUnlock()
+	tracker.statefulSetMutex.RUnlock()
 
 	// Same generation should NOT update start time
 	assert.Equal(t, secondStartTime, thirdStartTime, "Same generation should not update start time")
@@ -699,6 +699,376 @@ func TestHasStatefulSetRolloutCondition(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			result := tracker.HasStatefulSetRolloutCondition(test.statefulSet)
+			assert.Equal(t, test.expectedResult, result, test.description)
+		})
+	}
+}
+
+func TestStoreDaemonSetControllerRevision(t *testing.T) {
+	tracker := NewRolloutTracker()
+
+	daemonSetName := "test-daemonset"
+	daemonSetUID := "ds-123"
+	namespace := "default"
+	crName := "test-ds-revision-1"
+
+	cr := &appsv1.ControllerRevision{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:              crName,
+			Namespace:         namespace,
+			CreationTimestamp: metav1.Time{Time: time.Now().Add(-5 * time.Minute)},
+		},
+		Revision: 1,
+	}
+
+	tracker.StoreDaemonSetControllerRevision(cr, daemonSetName, daemonSetUID)
+
+	// Test that the ControllerRevision was stored by accessing internal fields (for testing only)
+	tracker.daemonSetMutex.RLock()
+	crInfo, exists := tracker.daemonSetControllerRevisionMap[namespace+"/"+crName]
+	tracker.daemonSetMutex.RUnlock()
+
+	require.True(t, exists, "ControllerRevision should be stored")
+	assert.Equal(t, crName, crInfo.Name)
+	assert.Equal(t, namespace, crInfo.Namespace)
+	assert.Equal(t, daemonSetName, crInfo.OwnerName)
+	assert.Equal(t, daemonSetUID, crInfo.OwnerUID)
+	assert.Equal(t, int64(1), crInfo.Revision)
+	assert.Equal(t, cr.CreationTimestamp.Time, crInfo.CreationTime)
+}
+
+func TestStoreDaemonSet(t *testing.T) {
+	tracker := NewRolloutTracker()
+
+	daemonSet := &appsv1.DaemonSet{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-daemonset",
+			Namespace: "default",
+			UID:       types.UID("ds-123"),
+		},
+		Spec: appsv1.DaemonSetSpec{},
+	}
+
+	tracker.StoreDaemonSet(daemonSet)
+
+	tracker.daemonSetMutex.RLock()
+	stored, exists := tracker.daemonSetMap["default/test-daemonset"]
+	tracker.daemonSetMutex.RUnlock()
+
+	require.True(t, exists, "DaemonSet should be stored")
+	assert.Equal(t, daemonSet.Name, stored.Name)
+	assert.Equal(t, daemonSet.Namespace, stored.Namespace)
+	assert.Equal(t, daemonSet.UID, stored.UID)
+
+	// Verify it's a deep copy (different memory address)
+	assert.NotSame(t, daemonSet, stored, "Should be a deep copy")
+}
+
+func TestGetDaemonSetRolloutDurationFromMaps(t *testing.T) {
+	tracker := NewRolloutTracker()
+
+	namespace := "default"
+	daemonSetName := "test-daemonset"
+	daemonSetKey := namespace + "/" + daemonSetName
+
+	// Add StatefulSet with rollout start time
+	rolloutStartTime := time.Now().Add(-2 * time.Minute)
+	daemonSet := &appsv1.DaemonSet{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      daemonSetName,
+			Namespace: namespace,
+		},
+	}
+
+	tracker.daemonSetMutex.Lock()
+	tracker.daemonSetMap[daemonSetKey] = daemonSet
+	tracker.daemonSetStartTime[daemonSetKey] = rolloutStartTime
+	tracker.daemonSetMutex.Unlock()
+
+	// Test getting duration - should return duration from StatefulSet rollout start time
+	duration := tracker.GetDaemonSetRolloutDuration(namespace, daemonSetName)
+
+	expectedDuration := time.Since(rolloutStartTime).Seconds()
+	// Allow for small timing differences in test
+	assert.InDelta(t, expectedDuration, duration, 1.0, "Duration should be based on StatefulSet rollout start time")
+	assert.Greater(t, duration, 0.0, "Duration should be positive")
+}
+
+func TestGetDaemonSetRolloutDurationFromMaps_NoDaemonSet(t *testing.T) {
+	tracker := NewRolloutTracker()
+
+	duration := tracker.GetDaemonSetRolloutDuration("default", "nonexistent-daemonset")
+	assert.Equal(t, 0.0, duration, "Should return 0 when no DaemonSet found")
+}
+
+func TestGetDaemonSetRolloutDurationFromMaps_WithControllerRevision(t *testing.T) {
+	tracker := NewRolloutTracker()
+
+	namespace := "default"
+	daemonSetName := "test-daemonset"
+	daemonSetKey := namespace + "/" + daemonSetName
+
+	// Add DaemonSet with rollout start time
+	rolloutStartTime := time.Now().Add(-5 * time.Minute)
+	daemonSet := &appsv1.DaemonSet{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      daemonSetName,
+			Namespace: namespace,
+		},
+	}
+
+	// Add ControllerRevision that should be used instead of DaemonSet start time
+	crStartTime := time.Now().Add(-3 * time.Minute)
+	crInfo := &ControllerRevisionInfo{
+		Name:         "test-cr-rev2",
+		Namespace:    namespace,
+		OwnerName:    daemonSetName,
+		OwnerUID:     "ds-123",
+		Revision:     2,
+		CreationTime: crStartTime,
+	}
+
+	tracker.daemonSetMutex.Lock()
+	tracker.daemonSetMap[daemonSetKey] = daemonSet
+	tracker.daemonSetStartTime[daemonSetKey] = rolloutStartTime
+	tracker.daemonSetControllerRevisionMap[namespace+"/test-cr-rev2"] = crInfo
+	tracker.daemonSetMutex.Unlock()
+
+	// Test getting duration - should use ControllerRevision time, not DaemonSet start time
+	duration := tracker.GetDaemonSetRolloutDuration(namespace, daemonSetName)
+
+	expectedDuration := time.Since(crStartTime).Seconds()
+	assert.InDelta(t, expectedDuration, duration, 1.0, "Duration should be based on newest ControllerRevision time")
+}
+
+func TestCleanupDaemonSet(t *testing.T) {
+	tracker := NewRolloutTracker()
+
+	namespace := "default"
+	daemonSetName := "test-daemonset"
+
+	daemonSet := &appsv1.DaemonSet{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      daemonSetName,
+			Namespace: namespace,
+		},
+	}
+
+	// Add StatefulSet and ControllerRevisions
+	tracker.daemonSetMutex.Lock()
+	tracker.daemonSetMap[namespace+"/"+daemonSetName] = daemonSet
+
+	tracker.daemonSetControllerRevisionMap[namespace+"/cr1"] = &ControllerRevisionInfo{
+		Name:      "cr1",
+		Namespace: namespace,
+		OwnerName: daemonSetName,
+		OwnerUID:  "ds-123",
+	}
+
+	tracker.daemonSetControllerRevisionMap[namespace+"/cr2"] = &ControllerRevisionInfo{
+		Name:      "cr2",
+		Namespace: namespace,
+		OwnerName: daemonSetName,
+		OwnerUID:  "ds-123",
+	}
+
+	// Add unrelated ControllerRevision that should not be cleaned up
+	tracker.daemonSetControllerRevisionMap[namespace+"/other-cr"] = &ControllerRevisionInfo{
+		Name:      "other-cr",
+		Namespace: namespace,
+		OwnerName: "other-daemonset",
+		OwnerUID:  "ds-456",
+	}
+	tracker.daemonSetMutex.Unlock()
+
+	// Verify initial state
+	tracker.daemonSetMutex.RLock()
+	assert.Equal(t, 1, len(tracker.daemonSetMap))
+	assert.Equal(t, 3, len(tracker.daemonSetControllerRevisionMap))
+	tracker.daemonSetMutex.RUnlock()
+
+	// Cleanup
+	tracker.CleanupDaemonSet(daemonSet.Namespace, daemonSet.Name)
+
+	// Verify cleanup
+	tracker.daemonSetMutex.RLock()
+	_, daemonSetExists := tracker.daemonSetMap[namespace+"/"+daemonSetName]
+	_, cr1Exists := tracker.controllerRevisionMap[namespace+"/cr1"]
+	_, cr2Exists := tracker.daemonSetControllerRevisionMap[namespace+"/cr2"]
+	_, otherCrExists := tracker.daemonSetControllerRevisionMap[namespace+"/other-cr"]
+	tracker.daemonSetMutex.RUnlock()
+
+	assert.False(t, daemonSetExists, "DaemonSet should be removed")
+	assert.False(t, cr1Exists, "Associated ControllerRevision should be removed")
+	assert.False(t, cr2Exists, "Associated ControllerRevision should be removed")
+	assert.True(t, otherCrExists, "Unrelated ControllerRevision should remain")
+}
+
+func TestCleanupDaemonSetControllerRevision(t *testing.T) {
+	tracker := NewRolloutTracker()
+
+	namespace := "default"
+	crName := "test-cr"
+
+	// Add ControllerRevision
+	tracker.daemonSetMutex.Lock()
+	tracker.daemonSetControllerRevisionMap[namespace+"/"+crName] = &ControllerRevisionInfo{
+		Name:      crName,
+		Namespace: namespace,
+	}
+	tracker.daemonSetMutex.Unlock()
+
+	// Verify initial state
+	tracker.daemonSetMutex.RLock()
+	assert.Equal(t, 1, len(tracker.daemonSetControllerRevisionMap))
+	tracker.daemonSetMutex.RUnlock()
+
+	// Cleanup
+	tracker.CleanupDaemonSetControllerRevision(namespace, crName)
+
+	// Verify cleanup
+	tracker.daemonSetMutex.RLock()
+	_, exists := tracker.daemonSetControllerRevisionMap[namespace+"/"+crName]
+	tracker.daemonSetMutex.RUnlock()
+
+	assert.False(t, exists, "ControllerRevision should be removed")
+}
+
+func TestStoreDaemonSet_GenerationBasedRolloutDetection(t *testing.T) {
+	tracker := NewRolloutTracker()
+
+	namespace := "default"
+	daemonSetName := "test-daemonset"
+	key := namespace + "/" + daemonSetName
+
+	// Store first DaemonSet (generation 1)
+	daemonSet1 := &appsv1.DaemonSet{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:       daemonSetName,
+			Namespace:  namespace,
+			Generation: 1,
+		},
+	}
+
+	tracker.StoreDaemonSet(daemonSet1)
+
+	tracker.daemonSetMutex.RLock()
+	firstStartTime := tracker.daemonSetStartTime[key]
+	tracker.daemonSetMutex.RUnlock()
+
+	// Wait a bit to ensure time difference
+	time.Sleep(10 * time.Millisecond)
+
+	// Store same DaemonSet with higher generation (new rollout)
+	daemonSet2 := &appsv1.DaemonSet{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:       daemonSetName,
+			Namespace:  namespace,
+			Generation: 2, // New generation
+		},
+	}
+
+	tracker.StoreDaemonSet(daemonSet2)
+
+	tracker.daemonSetMutex.RLock()
+	secondStartTime := tracker.daemonSetStartTime[key]
+	tracker.daemonSetMutex.RUnlock()
+
+	// Second rollout should have a newer start time
+	assert.True(t, secondStartTime.After(firstStartTime), "New rollout should have updated start time")
+
+	// Store same DaemonSet again with same generation (no rollout change)
+	daemonSet2Again := &appsv1.DaemonSet{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:       daemonSetName,
+			Namespace:  namespace,
+			Generation: 2, // Same generation
+		},
+	}
+
+	tracker.StoreDaemonSet(daemonSet2Again)
+
+	tracker.daemonSetMutex.RLock()
+	thirdStartTime := tracker.daemonSetStartTime[key]
+	tracker.daemonSetMutex.RUnlock()
+
+	// Same generation should NOT update start time
+	assert.Equal(t, secondStartTime, thirdStartTime, "Same generation should not update start time")
+}
+
+func TestHasDaemonSetRolloutCondition(t *testing.T) {
+	tracker := NewRolloutTracker()
+
+	tests := []struct {
+		name           string
+		daemonSet      *appsv1.DaemonSet
+		expectedResult bool
+		description    string
+	}{
+		{
+			name: "no_desired_pods",
+			daemonSet: &appsv1.DaemonSet{
+				Status: appsv1.DaemonSetStatus{
+					DesiredNumberScheduled: 0,
+				},
+			},
+			expectedResult: false,
+			description:    "Should not detect rollout when no desired pods",
+		},
+		{
+			name: "updated_number_scheduled_less_than_desired",
+			daemonSet: &appsv1.DaemonSet{
+				Spec: appsv1.DaemonSetSpec{},
+				Status: appsv1.DaemonSetStatus{
+					DesiredNumberScheduled: 3,
+					UpdatedNumberScheduled: 2, // Less than desired
+				},
+			},
+			expectedResult: true,
+			description:    "Should detect rollout when updated number scheduled is less than desired",
+		},
+		{
+			name: "rollout_complete",
+			daemonSet: &appsv1.DaemonSet{
+				Spec: appsv1.DaemonSetSpec{},
+				Status: appsv1.DaemonSetStatus{
+					DesiredNumberScheduled: 3,
+					NumberAvailable:        3,
+					UpdatedNumberScheduled: 3,
+				},
+			},
+			expectedResult: false,
+			description:    "Should not detect rollout when all conditions are satisfied",
+		},
+		{
+			name: "number_available_less_than_desired",
+			daemonSet: &appsv1.DaemonSet{
+				Spec: appsv1.DaemonSetSpec{},
+				Status: appsv1.DaemonSetStatus{
+					DesiredNumberScheduled: 3,
+					NumberAvailable:        2,
+				},
+			},
+			expectedResult: true,
+			description:    "Should detect rollout when number available is less than desired",
+		},
+		{
+			name: "number_unavailable_greater_than_zero",
+			daemonSet: &appsv1.DaemonSet{
+				Spec: appsv1.DaemonSetSpec{},
+				Status: appsv1.DaemonSetStatus{
+					DesiredNumberScheduled: 3,
+					NumberUnavailable:      1,
+				},
+			},
+			expectedResult: true,
+			description:    "Should detect rollout when number unavailable is greater than zero",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			result := tracker.HasDaemonSetRolloutCondition(test.daemonSet)
 			assert.Equal(t, test.expectedResult, result, test.description)
 		})
 	}

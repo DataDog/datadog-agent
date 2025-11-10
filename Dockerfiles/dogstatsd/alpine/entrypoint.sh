@@ -18,6 +18,4 @@ fi
 
 ##### Starting up dogstatsd #####
 
-chmod +x /dogstatsd
-sync	# Fix for 'Text file busy' error
 exec "$@"

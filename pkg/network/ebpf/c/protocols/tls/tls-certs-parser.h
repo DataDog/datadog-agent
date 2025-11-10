@@ -2,13 +2,10 @@
 #define __TLS_CERTS_PARSER_H
 
 
-
 #include "tls-certs-types.h"
-
-
 #ifndef TEST_BUILD_NO_EBPF
 
-#include "map-defs.h"
+#include "ktypes.h"
 
 // there are enough places where log_bail is called that enabling it causes verifier trouble
 #define log_bail()
@@ -31,6 +28,7 @@ static __always_inline long bpf_probe_read_user(void *dst, __u32 size, const voi
 }
 
 #endif
+
 
 typedef struct {
     __u8 *buf;
@@ -81,39 +79,54 @@ static __always_inline bool data_read_impl(void *target, data_t *data, __u32 siz
 
 
 static __always_inline __s32 read_elem_size(data_t *data) {
-    __u8 meta_size = 0;
-    if (data_read(&meta_size, data, 1)) {
+    // no need to consider sizes larger than 3 bytes, plus 1 byte for meta size
+    __u8 size_buf[4] = {0};
+
+    __u32 size_cap = data_size(*data);
+    if (size_cap > sizeof(size_buf)) {
+        size_cap = sizeof(size_buf);
+    }
+    if (data_peek(&size_buf, data, size_cap)) {
         log_bail();
         return -1;
     }
+    data->buf++;
 
+    __u8 meta_size = size_buf[0];
     if (meta_size < 128) {
         return meta_size;
     }
 
     // size >= 128 means we use "long form" length encoding
     meta_size -= 128;
-    // no need to consider anything larger than 3 bytes
-    const int MAX_BYTES = 3;
-    if (meta_size > MAX_BYTES) {
+    __u8 actual_size = meta_size + 1;
+    if (actual_size > size_cap) {
         log_bail();
         return -1;
     }
 
+    // this is a hand unrolled big endian decoding because the compiler couldn't figure out how
     __s32 retval = 0;
-    for (int i = 0; i < MAX_BYTES; i++) {
-        if (i >= meta_size) {
+    __u8 *cursor = &size_buf[1];
+    switch (meta_size) {
+        case 3:
+            retval <<= 8;
+            retval += *cursor++;
+            // passthrough
+        case 2:
+            retval <<= 8;
+            retval += *cursor++;
+            // passthrough
+        case 1:
+            retval <<= 8;
+            retval += *cursor++;
             break;
-        }
-        retval <<= 8;
-
-        __u8 digit = 0;
-        if (data_read(&digit, data, 1)) {
+        default:
             log_bail();
             return -1;
-        }
-        retval += digit;
     }
+    data->buf += meta_size;
+
     return retval;
 }
 
@@ -208,20 +221,20 @@ static __always_inline bool parse_cert_serial(data_t *data, cert_t *cert) {
     return false;
 }
 
-static __always_inline bool parse_cert_date(data_t *data, __u8 (*dst)[UTC_TIME_LEN]) {
+static __always_inline bool parse_cert_date(data_t *data, __u8 (*dst)[UTC_ZONELESS_LEN]) {
     data_t utc_data = expect_der_elem(data, UTC_DATE_TYPE);
     if (!utc_data.buf) {
         log_bail();
         return true;
     }
 
-    if (data_size(utc_data) != UTC_ZULU_LEN) {
+    if (data_size(utc_data) != UTC_ZONE_LEN) {
         log_bail();
         return true;
     }
 
     // read all of it except for the Z at the end
-    if (data_read(dst, &utc_data, UTC_TIME_LEN)) {
+    if (data_read(dst, &utc_data, UTC_ZONELESS_LEN)) {
         log_bail();
         return true;
     }
@@ -285,6 +298,41 @@ static __always_inline bool parse_key_usage(data_t *data, cert_t *cert) {
     return false;
 }
 
+static __always_inline bool parse_domain(data_t *data, cert_t *cert) {
+    __u8 next_type = 0;
+    if (data_peek(&next_type, data, 1)) {
+        log_bail();
+        return true;
+    }
+
+    data_t name = expect_der_elem(data, next_type);
+    if (!name.buf) {
+        log_bail();
+        return true;
+    }
+
+    // this is context specific and thus not applicable elsewhere
+    const __u8 DNS_NAME_TYPE = 0x82;
+    if (next_type != DNS_NAME_TYPE) {
+        return false;
+    }
+
+    __u8 domain_len = DOMAIN_LEN;
+    __u32 size = data_size(name);
+    if (size < DOMAIN_LEN) {
+        domain_len = size;
+    }
+
+    cert->domain.len = domain_len;
+    if (data_read(&cert->domain.data, &name, domain_len)) {
+        log_bail();
+        return true;
+    }
+
+    return false;
+}
+
+
 
 static __always_inline bool parse_alternative_names(data_t *data, cert_t *cert) {
     data_t alt_name_seq = expect_der_elem(data, SEQ_TYPE);
@@ -293,43 +341,19 @@ static __always_inline bool parse_alternative_names(data_t *data, cert_t *cert) 
         return true;
     }
 
-    for (int i = 0; i < 16; i++) {
+    for (int i = 0; i < 8; i++) {
         if (is_data_consumed(alt_name_seq)) {
             break;
         }
 
-        __u8 next_type = 0;
-        if (data_peek(&next_type, &alt_name_seq, 1)) {
+        if (parse_domain(&alt_name_seq, cert)) {
             log_bail();
             return true;
         }
-
-        data_t name = expect_der_elem(&alt_name_seq, next_type);
-        if (!name.buf) {
-            log_bail();
-            return true;
+        // if we found a domain, stop searching
+        if (cert->domain.len) {
+            break;
         }
-
-        // this is context specific and thus not applicable elsewhere
-        const __u8 DNS_NAME_TYPE = 0x82;
-        if (next_type != DNS_NAME_TYPE) {
-            continue;
-        }
-
-        __u8 domain_len = DOMAIN_LEN;
-        __u32 size = data_size(name);
-        if (size < DOMAIN_LEN) {
-            domain_len = size;
-        }
-
-        cert->domain.len = domain_len;
-        if (data_read(&cert->domain.data, &name, domain_len)) {
-            log_bail();
-            return true;
-        }
-
-        // we found a domain, break out
-        break;
     }
 
     return false;
@@ -337,6 +361,59 @@ static __always_inline bool parse_alternative_names(data_t *data, cert_t *cert) 
 
 #define SUBJECT_ALT_NAME_ID "\x55\x1D\x11"
 #define KEY_USAGE_ID "\x55\x1D\x0F"
+
+static __always_inline bool parse_single_extension(data_t *data, data_t *key_usage_value, data_t *alt_name_value) {
+    data_t single_ext_seq = expect_der_elem(data, SEQ_TYPE);
+    if (!single_ext_seq.buf) {
+        log_bail();
+        return true;
+    }
+
+    data_t obj_id = expect_der_elem(&single_ext_seq, OBJECT_ID_TYPE);
+    if (!obj_id.buf) {
+        log_bail();
+        return true;
+    }
+
+    __u8 next_type = 0;
+    if (data_peek(&next_type, &single_ext_seq, 1)) {
+        log_bail();
+        return true;
+    }
+    if (next_type == BOOL_TYPE) {
+        // if they added the "critical" boolean, skip
+        if (!expect_der_elem(&single_ext_seq, BOOL_TYPE).buf) {
+            log_bail();
+            return true;
+        }
+    }
+
+    data_t extension_value = expect_der_elem(&single_ext_seq, OCTET_STR_TYPE);
+    if (!extension_value.buf) {
+        log_bail();
+        return true;
+    }
+
+    // the IDs we care about are all length 3
+    if (data_size(obj_id) != 3) {
+        return false;
+    }
+
+    char obj_id_buf[3] = {0};
+    if (data_read(&obj_id_buf, &obj_id, 3)) {
+        log_bail();
+        return true;
+    }
+
+    if (!bpf_memcmp(KEY_USAGE_ID, obj_id_buf, 3)) {
+        *key_usage_value = extension_value;
+    } else if (!bpf_memcmp(SUBJECT_ALT_NAME_ID, obj_id_buf, 3)) {
+        *alt_name_value = extension_value;
+    }
+
+    return false;
+}
+
 
 static __always_inline bool parse_cert_extensions(data_t *data, cert_t *cert) {
     data_t extensions = expect_der_elem(data, CONTEXT_SPECIFIC_TYPE | 3);
@@ -354,58 +431,17 @@ static __always_inline bool parse_cert_extensions(data_t *data, cert_t *cert) {
 
     data_t key_usage_value = {0};
     data_t alt_name_value = {0};
-    for (int i = 0; i < 32; i++) {
+
+    for (int i = 0; i < 24; i++) {
         if (is_data_consumed(extensions_seq)) {
             break;
         }
-        data_t single_ext_seq = expect_der_elem(&extensions_seq, SEQ_TYPE);
-        if (!single_ext_seq.buf) {
+        if (parse_single_extension(&extensions_seq, &key_usage_value, &alt_name_value)) {
             log_bail();
             return true;
-        }
-
-        data_t obj_id = expect_der_elem(&single_ext_seq, OBJECT_ID_TYPE);
-        if (!obj_id.buf) {
-            log_bail();
-            return true;
-        }
-
-        __u8 next_type = 0;
-        if (data_peek(&next_type, &single_ext_seq, 1)) {
-            log_bail();
-            return true;
-        }
-        if (next_type == BOOL_TYPE) {
-            // if they added the "critical" boolean, skip
-            if (!expect_der_elem(&single_ext_seq, BOOL_TYPE).buf) {
-                log_bail();
-                return true;
-            }
-        }
-
-        data_t extension_value = expect_der_elem(&single_ext_seq, OCTET_STR_TYPE);
-        if (!extension_value.buf) {
-            log_bail();
-            return true;
-        }
-
-        // the IDs we care about are all length 3
-        if (data_size(obj_id) != 3) {
-            continue;
-        }
-
-        char obj_id_buf[3] = {0};
-        if (data_read(&obj_id_buf, &obj_id, 3)) {
-            log_bail();
-            return true;
-        }
-
-        if (!bpf_memcmp(KEY_USAGE_ID, obj_id_buf, 3)) {
-            key_usage_value = extension_value;
-        } else if (!bpf_memcmp(SUBJECT_ALT_NAME_ID, obj_id_buf, 3)) {
-            alt_name_value = extension_value;
         }
     }
+
 
     if (!is_data_consumed(extensions_seq)) {
         log_bail();

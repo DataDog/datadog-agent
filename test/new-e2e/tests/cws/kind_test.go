@@ -107,7 +107,7 @@ func (s *kindSuite) Test00RulesetLoadedDefaultFile() {
 
 func (s *kindSuite) Test01RulesetLoadedDefaultRC() {
 	assert.EventuallyWithT(s.T(), func(c *assert.CollectT) {
-		testRulesetLoaded(c, s, "remote-config", "default.policy")
+		testRulesetLoaded(c, s, "remote-config", "threat-detection.policy")
 	}, 1*time.Minute, 5*time.Second)
 }
 
