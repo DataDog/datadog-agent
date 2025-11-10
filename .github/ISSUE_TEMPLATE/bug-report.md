@@ -1,27 +1,49 @@
 ---
-name: Bug Report
-about: Identify a bug in the Agent codebase
+name: Bug Report (Low Priority)
+description: "Create a public Bug Report. Note that these may not be addressed as quickly as the helpdesk and that looking up account information will be difficult"
 title: "[BUG] "
-labels: team/triage
-assignees: ''
+labels: bug,pending
+body:
+  - type: input
+    attributes:
+      label: Agent version
+      description: "Version(s) of the agent affected by this bug"
+      placeholder: 7.y.z
+    validations:
+      required: true
 
----
+  - type: textarea
+    attributes:
+      label: Bug Report
+      description: Please add a clear and concise description of the bug here. What happened and what you expected.
+    validations:
+      required: true
 
-<!--
-If you have identified a specific bug in the Agent codebase, please describe it here. If the
-issue requires further debugging or investigation, that will be best accomplished via support. Please please contact Datadog [support](http://docs.datadoghq.com/help/) and send them a [flare](https://docs.datadoghq.com/agent/troubleshooting/#send-a-flare) demonstrating the issue.
--->
+  - type: textarea
+    attributes:
+      label: Reproduction Steps
+      description: Please add anything here to help us reproduce the problem
+    validations:
+      required: false
 
-**Agent Environment**
-<!-- please include `agent version` and any other useful output (`agent status`, relevant agent logs, etc.) -->
+  - type: textarea
+    attributes:
+      label: Agent configuration
+      description: Please add any useful information about the agent environment like the result of `agent status` or relevant agent logs.
+    validations:
+      required: false
 
-**Describe what happened:**
+  - type: input
+    attributes:
+      label: Operating System
+      description: "Provide your operating system and version (e.g. `uname -a`)"
+      placeholder: Darwin Kernel Version 23.6.0
+    validations:
+      required: false
 
-
-**Describe what you expected:**
-
-
-**Steps to reproduce the issue:**
-
-
-**Additional environment details (Operating System, Cloud provider, etc):**
+  - type: input
+    attributes:
+      label: Other environment details
+      description: "Provide additional environment information like cloud provider, etc"
+    validations:
+      required: false
