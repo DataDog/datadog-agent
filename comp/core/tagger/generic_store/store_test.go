@@ -13,7 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 )
 
-func TestCompositeObjectStoreGetSet(t *testing.T) {
+func TestCompositeObjectStore_GetSet(t *testing.T) {
 	store := NewCompositeObjectStore[any]()
 
 	id := types.NewEntityID(types.ContainerID, "id")
@@ -39,7 +39,7 @@ func TestCompositeObjectStoreGetSet(t *testing.T) {
 	assert.Falsef(t, found, "item should not be found in store")
 }
 
-func TestCompositeObjectStoreSize(t *testing.T) {
+func TestCompositeObjectStore_Size(t *testing.T) {
 	store := NewCompositeObjectStore[any]()
 
 	// store should be empty
@@ -59,7 +59,7 @@ func TestCompositeObjectStoreSize(t *testing.T) {
 	assert.Equalf(t, 0, store.Size(), "store should be empty")
 }
 
-func TestCompositeObjectStoreListObjects(t *testing.T) {
+func TestCompositeObjectStore_ListObjects(t *testing.T) {
 	store := NewCompositeObjectStore[any]()
 
 	// build some filter
@@ -91,7 +91,7 @@ func TestCompositeObjectStoreListObjects(t *testing.T) {
 	assert.ElementsMatch(t, expectedListing, list)
 }
 
-func TestCompositeObjectStoreForEach(t *testing.T) {
+func TestCompositeObjectStore_ForEach(t *testing.T) {
 	store := NewCompositeObjectStore[any]()
 
 	// add some items
