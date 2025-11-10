@@ -75,7 +75,7 @@ type Tailer struct {
 	outputChan chan *message.Message
 
 	// decoder handles decoding the raw bytes read from the file into log messages.
-	decoder *decoder.Decoder
+	decoder decoder.Decoder
 
 	// sleepDuration is the time between polls of the underlying file.
 	sleepDuration time.Duration
@@ -137,7 +137,7 @@ type TailerOptions struct {
 	OutputChan      chan *message.Message    // Required
 	File            *File                    // Required
 	SleepDuration   time.Duration            // Required
-	Decoder         *decoder.Decoder         // Required
+	Decoder         decoder.Decoder          // Required
 	Info            *status.InfoRegistry     // Required
 	Rotated         bool                     // Optional
 	TagAdder        tag.EntityTagAdder       // Required
@@ -223,7 +223,7 @@ func (t *Tailer) NewRotatedTailer(
 	file *File,
 	outputChan chan *message.Message,
 	capacityMonitor *metrics.CapacityMonitor,
-	decoder *decoder.Decoder,
+	decoder decoder.Decoder,
 	info *status.InfoRegistry,
 	tagAdder tag.EntityTagAdder,
 	fingerprint *logstypes.Fingerprint,
@@ -379,7 +379,7 @@ func (t *Tailer) forwardMessages() {
 		t.isFinished.Store(true)
 		close(t.done)
 	}()
-	for output := range t.decoder.OutputChan {
+	for output := range t.decoder.OutputChan() {
 		offset := t.decodedOffset.Load() + int64(output.RawDataLen)
 		// Track post-framer log line sizes
 		metrics.TlmLogLineSizes.Observe(float64(output.RawDataLen))

@@ -3,20 +3,20 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-// Package healthimpl provides a wrapper around the health package to allow for easier registration of health checks
-package healthimpl
+// Package kubehealthimpl provides a wrapper around the health package to allow for easier registration of health checks
+package kubehealthimpl
 
 import (
-	healthdef "github.com/DataDog/datadog-agent/comp/logs/health/def"
+	kubehealthdef "github.com/DataDog/datadog-agent/comp/logs/kubehealth/def"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 )
 
-// Provides contains the auditor component
+// Provides contains the kubehealth component
 type Provides struct {
-	Comp healthdef.Component
+	Comp kubehealthdef.Component
 }
 
-// RegistrarImpl is an implementation of LogsHealthRegistrar
+// RegistrarImpl is an implementation of KubeHealthRegistrar
 type RegistrarImpl struct{}
 
 // NewRegistrar creates a new Registrar
