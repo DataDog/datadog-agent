@@ -40,6 +40,7 @@ docker_image_build_otel:
     - |
       docker build \
       --build-arg AGENT_VERSION=$CI_COMMIT_REF_NAME \
+      --build-arg AGENT_GIT_REF=$CI_COMMIT_REF_NAME \
       --build-arg AGENT_DOCKER_REPO=datadog/agent-dev \
       --build-arg AGENT_DOCKER_TAG=nightly-full-main-jmx \
       --build-arg DDA_VERSION=$DDA_VERSION \
@@ -94,7 +95,8 @@ ddot_byoc_package_build_test_rpm:
       docker build \
         --target artifact \
         --output type=local,dest=./ \
-        --build-arg AGENT_VERSION=$CI_COMMIT_REF_NAME \
+        --build-arg AGENT_VERSION=$AGENT_VERSION \
+        --build-arg AGENT_GIT_REF=$CI_COMMIT_REF_NAME \
         --build-arg AGENT_DOCKER_REPO=datadog/agent-dev \
         --build-arg AGENT_DOCKER_TAG=$AGENT_VERSION \
         --build-arg PACKAGE_TYPE=rpm \
@@ -127,7 +129,8 @@ ddot_byoc_package_build_test_deb:
       docker build \
         --target artifact \
         --output type=local,dest=./ \
-        --build-arg AGENT_VERSION=$CI_COMMIT_REF_NAME \
+        --build-arg AGENT_VERSION=$AGENT_VERSION \
+        --build-arg AGENT_GIT_REF=$CI_COMMIT_REF_NAME \
         --build-arg AGENT_DOCKER_REPO=datadog/agent-dev \
         --build-arg AGENT_DOCKER_TAG=$AGENT_VERSION \
         --build-arg PACKAGE_TYPE=deb \
@@ -166,7 +169,8 @@ ddot_byoc_binary_build_test_ubuntu2004:
       docker build \
         --target artifact \
         --output type=local,dest=./ \
-        --build-arg AGENT_VERSION=$CI_COMMIT_REF_NAME \
+        --build-arg AGENT_VERSION=$AGENT_VERSION \
+        --build-arg AGENT_GIT_REF=$CI_COMMIT_REF_NAME \
         --build-arg AGENT_DOCKER_REPO=datadog/agent-dev \
         --build-arg AGENT_DOCKER_TAG=$AGENT_VERSION \
         --build-arg UBUNTU_VERSION=20.04 \
