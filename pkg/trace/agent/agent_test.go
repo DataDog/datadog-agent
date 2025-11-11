@@ -2588,7 +2588,7 @@ func TestSampleManualUserDropNoAnalyticsEvents(t *testing.T) {
 func TestPartialSamplingFree(t *testing.T) {
 	cfg := &config.AgentConfig{RareSamplerEnabled: false, BucketInterval: 10 * time.Second}
 	dynConf := sampler.NewDynamicConfig()
-	in := make(chan *api.Payload, 1000)
+	inV1 := make(chan *api.PayloadV1, 1000)
 	statsd := &statsd.NoOpClient{}
 	agnt := &Agent{
 		Concentrator:      &mockConcentrator{},
@@ -2604,7 +2604,7 @@ func TestPartialSamplingFree(t *testing.T) {
 		conf:              cfg,
 		Timing:            &timing.NoopReporter{},
 	}
-	agnt.Receiver = api.NewHTTPReceiver(cfg, dynConf, in, nil, agnt, telemetry.NewNoopCollector(), statsd, &timing.NoopReporter{})
+	agnt.Receiver = api.NewHTTPReceiver(cfg, dynConf, inV1, agnt, telemetry.NewNoopCollector(), statsd, &timing.NoopReporter{})
 	now := time.Now()
 	smallKeptSpan := &pb.Span{
 		TraceID:  1,

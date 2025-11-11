@@ -61,9 +61,8 @@ func (noopStatsProcessor) ProcessStats(_ context.Context, _ *pb.ClientStatsPaylo
 func newTestReceiverFromConfig(conf *config.AgentConfig) *HTTPReceiver {
 	dynConf := sampler.NewDynamicConfig()
 
-	rawTraceChan := make(chan *Payload, 5000)
 	rawTraceChanV1 := make(chan *PayloadV1, 5000)
-	receiver := NewHTTPReceiver(conf, dynConf, rawTraceChan, rawTraceChanV1, noopStatsProcessor{}, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{})
+	receiver := NewHTTPReceiver(conf, dynConf, rawTraceChanV1, noopStatsProcessor{}, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{})
 
 	return receiver
 }
@@ -97,9 +96,8 @@ func TestServerShutdown(t *testing.T) {
 	conf.ReceiverSocket = t.TempDir() + "/somesock.sock"
 	dynConf := sampler.NewDynamicConfig()
 
-	rawTraceChan := make(chan *Payload)
 	rawTraceChanV1 := make(chan *PayloadV1)
-	receiver := NewHTTPReceiver(conf, dynConf, rawTraceChan, rawTraceChanV1, noopStatsProcessor{}, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{})
+	receiver := NewHTTPReceiver(conf, dynConf, rawTraceChanV1, noopStatsProcessor{}, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{})
 
 	receiver.Start()
 
@@ -1125,8 +1123,8 @@ func TestHandleTraces(t *testing.T) {
 		conf.Decoders = 1
 		dynConf := sampler.NewDynamicConfig()
 
-		rawTraceChan := make(chan *Payload)
-		receiver := NewHTTPReceiver(conf, dynConf, rawTraceChan, nil, noopStatsProcessor{}, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{})
+		rawTraceChanV1 := make(chan *PayloadV1)
+		receiver := NewHTTPReceiver(conf, dynConf, rawTraceChanV1, noopStatsProcessor{}, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{})
 		receiver.recvsem = make(chan struct{}) //overwrite recvsem to ALWAYS block and ensure we look overwhelmed
 		// response recorder
 		handler := receiver.handleWithVersion(v04, receiver.handleTraces)
@@ -1352,7 +1350,7 @@ func BenchmarkWatchdog(b *testing.B) {
 	now := time.Now()
 	conf := newTestReceiverConfig()
 	conf.Endpoints[0].APIKey = "apikey_2"
-	r := NewHTTPReceiver(conf, nil, nil, nil, nil, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{})
+	r := NewHTTPReceiver(conf, nil, nil, nil, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{})
 
 	b.ResetTimer()
 	b.ReportAllocs()

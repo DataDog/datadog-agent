@@ -128,7 +128,6 @@ type HTTPReceiver struct {
 func NewHTTPReceiver(
 	conf *config.AgentConfig,
 	dynConf *sampler.DynamicConfig,
-	out chan *Payload,
 	outV1 chan *PayloadV1,
 	statsProcessor StatsProcessor,
 	telemetryCollector telemetry.TelemetryCollector,
