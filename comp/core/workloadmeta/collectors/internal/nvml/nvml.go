@@ -38,7 +38,7 @@ type collector struct {
 	catalog                            workloadmeta.AgentType
 	store                              workloadmeta.Component
 	seenUUIDs                          map[string]struct{}
-	seenPIDs                           map[int][]string // PID -> GPU UUIDs
+	seenPIDsToGPUs                     map[int][]string // PID -> GPU UUIDs
 	reportedDriverNotLoaded            bool
 	integrateWithWorkloadmetaProcesses bool
 }
@@ -154,11 +154,11 @@ func (c *collector) fillProcesses(gpuDeviceInfo *workloadmeta.GPU, device ddnvml
 // newCollector creates a new collector with the default values, useful for testing.
 func newCollector(store workloadmeta.Component, config config.Component) *collector {
 	collector := &collector{
-		id:        collectorID,
-		catalog:   workloadmeta.NodeAgent,
-		seenUUIDs: map[string]struct{}{},
-		seenPIDs:  make(map[int][]string),
-		store:     store,
+		id:             collectorID,
+		catalog:        workloadmeta.NodeAgent,
+		seenUUIDs:      map[string]struct{}{},
+		seenPIDsToGPUs: make(map[int][]string),
+		store:          store,
 	}
 
 	if config != nil {
@@ -232,7 +232,7 @@ func (c *collector) Pull(_ context.Context) error {
 
 	// add/update current devices
 	currentUUIDs := map[string]struct{}{}
-	currentPIDs := make(map[int][]string) // PID -> GPU UUIDs
+	pidToGPUs := make(map[int][]string) // PID -> GPU UUIDs
 	var events []workloadmeta.CollectorEvent
 	for _, dev := range allDevices {
 		gpu, err := c.getGPUDeviceInfo(dev)
@@ -251,7 +251,7 @@ func (c *collector) Pull(_ context.Context) error {
 
 		if c.integrateWithWorkloadmetaProcesses {
 			for _, pid := range gpu.ActivePIDs {
-				currentPIDs[pid] = append(currentPIDs[pid], uuid)
+				pidToGPUs[pid] = append(pidToGPUs[pid], uuid)
 			}
 		}
 	}
@@ -277,7 +277,7 @@ func (c *collector) Pull(_ context.Context) error {
 	c.seenUUIDs = currentUUIDs
 
 	if c.integrateWithWorkloadmetaProcesses {
-		events = append(events, c.createProcessEvents(currentPIDs)...)
+		events = append(events, c.createProcessEvents(pidToGPUs)...)
 	}
 
 	c.store.Notify(events)
@@ -285,11 +285,11 @@ func (c *collector) Pull(_ context.Context) error {
 	return nil
 }
 
-func (c *collector) createProcessEvents(currentPIDs map[int][]string) []workloadmeta.CollectorEvent {
-	events := make([]workloadmeta.CollectorEvent, 0, len(currentPIDs))
+func (c *collector) createProcessEvents(pidToGPUs map[int][]string) []workloadmeta.CollectorEvent {
+	events := make([]workloadmeta.CollectorEvent, 0, len(pidToGPUs))
 
 	// Create events for active processes
-	for pid, uuids := range currentPIDs {
+	for pid, uuids := range pidToGPUs {
 		var gpuEntityIDs []workloadmeta.EntityID
 		for _, uuid := range uuids {
 			gpuEntityIDs = append(gpuEntityIDs, workloadmeta.EntityID{
@@ -314,8 +314,8 @@ func (c *collector) createProcessEvents(currentPIDs map[int][]string) []workload
 
 	// Remove inactive processes. Because we use SourceNVML for the Process entities, workloadmeta
 	// will not remove the process if it has been added by another source.
-	for pid := range c.seenPIDs {
-		if _, stillActive := currentPIDs[pid]; stillActive {
+	for pid := range c.seenPIDsToGPUs {
+		if _, stillActive := pidToGPUs[pid]; stillActive {
 			continue
 		}
 
@@ -331,7 +331,7 @@ func (c *collector) createProcessEvents(currentPIDs map[int][]string) []workload
 		})
 	}
 
-	c.seenPIDs = currentPIDs
+	c.seenPIDsToGPUs = pidToGPUs
 
 	return events
 }

@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger/common"
 	k8smetadata "github.com/DataDog/datadog-agent/comp/core/tagger/k8s_metadata"
@@ -117,6 +118,8 @@ var (
 	highCardOrchestratorLabels = map[string]string{
 		"io.rancher.container.name": tags.RancherContainer,
 	}
+
+	logLimiter = log.NewLogLimit(20, 10*time.Minute)
 )
 
 func (c *WorkloadMetaCollector) processEvents(evBundle workloadmeta.EventBundle) {
@@ -302,7 +305,9 @@ func (c *WorkloadMetaCollector) handleProcess(ev workloadmeta.Event) []*types.Ta
 	for _, gpuEntityID := range process.GPUs {
 		gpu, err := c.store.GetGPU(gpuEntityID.ID)
 		if err != nil {
-			log.Debugf("cannot get GPU entity for process %s: %s", process.EntityID.ID, err)
+			if logLimiter.ShouldLog() {
+				log.Debugf("cannot get GPU entity for process %s: %s", process.EntityID.ID, err)
+			}
 			continue
 		}
 
