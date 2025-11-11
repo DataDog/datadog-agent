@@ -15,7 +15,6 @@ import (
 	"strconv"
 
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-	"github.com/DataDog/datadog-agent/pkg/dyninst/actuator"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/loader"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/module/tombstone"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/object"
@@ -56,19 +55,6 @@ type Config struct {
 		ProcessSubscriberOverride func(ProcessSubscriber) ProcessSubscriber
 		TombstoneSleepKnobs       tombstone.WaitTestingKnobs
 	}
-}
-
-// erasedActuator is an erased type for an Actuator.
-type erasedActuator[A Actuator[AT], AT ActuatorTenant] struct {
-	a A
-}
-
-func (e *erasedActuator[A, AT]) NewTenant(name string, rt actuator.Runtime) ActuatorTenant {
-	return e.a.NewTenant(name, rt)
-}
-
-func (e *erasedActuator[A, AT]) Shutdown() error {
-	return e.a.Shutdown()
 }
 
 // NewConfig creates a new Config object.
