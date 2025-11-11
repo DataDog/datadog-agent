@@ -266,7 +266,7 @@ type BufferedAggregator struct {
 
 	tlmContainerTagsEnabled     bool                                         // Whether we should call the tagger to tag agent telemetry metrics
 	agentTags                   func(types.TagCardinality) ([]string, error) // This function gets the agent tags from the tagger (defined as a struct field to ease testing)
-	globalTags                  func(types.TagCardinality) ([]string, error) // This function gets global tags from the tagger when host tags are not available
+	globalTags                  func() ([]string, error)                     // This function gets global tags from the tagger when host tags are not available
 	tagger                      tagger.Component
 	flushAndSerializeInParallel FlushAndSerializeInParallel
 }
@@ -853,7 +853,7 @@ func (agg *BufferedAggregator) tags(withVersion bool) []string {
 	var tags []string
 
 	var err error
-	tags, err = agg.globalTags(types.ChecksConfigCardinality)
+	tags, err = agg.globalTags()
 	if err != nil {
 		log.Debugf("Couldn't get Global tags: %v", err)
 	}

@@ -565,7 +565,7 @@ func TestTags(t *testing.T) {
 		hostname                string
 		tlmContainerTagsEnabled bool
 		agentTags               func(types.TagCardinality) ([]string, error)
-		globalTags              func(types.TagCardinality) ([]string, error)
+		globalTags              func() ([]string, error)
 		withVersion             bool
 		haAgentEnabled          bool
 		configID                string
@@ -576,7 +576,7 @@ func TestTags(t *testing.T) {
 			hostname:                "hostname",
 			tlmContainerTagsEnabled: false,
 			agentTags:               func(types.TagCardinality) ([]string, error) { return nil, errors.New("disabled") },
-			globalTags:              func(types.TagCardinality) ([]string, error) { return nil, errors.New("disabled") },
+			globalTags:              func() ([]string, error) { return nil, errors.New("disabled") },
 			withVersion:             true,
 			want:                    versionTags(),
 		},
@@ -585,7 +585,7 @@ func TestTags(t *testing.T) {
 			hostname:                "hostname",
 			tlmContainerTagsEnabled: false,
 			agentTags:               func(types.TagCardinality) ([]string, error) { return nil, errors.New("disabled") },
-			globalTags:              func(types.TagCardinality) ([]string, error) { return nil, errors.New("disabled") },
+			globalTags:              func() ([]string, error) { return nil, errors.New("disabled") },
 			withVersion:             false,
 			want:                    []string{},
 		},
@@ -594,7 +594,7 @@ func TestTags(t *testing.T) {
 			hostname:                "hostname",
 			tlmContainerTagsEnabled: true,
 			agentTags:               func(types.TagCardinality) ([]string, error) { return []string{"container_name:agent"}, nil },
-			globalTags:              func(types.TagCardinality) ([]string, error) { return nil, errors.New("disabled") },
+			globalTags:              func() ([]string, error) { return nil, errors.New("disabled") },
 			withVersion:             true,
 			want:                    append(versionTags(), "container_name:agent"),
 		},
@@ -603,7 +603,7 @@ func TestTags(t *testing.T) {
 			hostname:                "hostname",
 			tlmContainerTagsEnabled: true,
 			agentTags:               func(types.TagCardinality) ([]string, error) { return []string{"container_name:agent"}, nil },
-			globalTags:              func(types.TagCardinality) ([]string, error) { return nil, errors.New("disabled") },
+			globalTags:              func() ([]string, error) { return nil, errors.New("disabled") },
 			withVersion:             false,
 			want:                    []string{"container_name:agent"},
 		},
@@ -612,7 +612,7 @@ func TestTags(t *testing.T) {
 			hostname:                "hostname",
 			tlmContainerTagsEnabled: true,
 			agentTags:               func(types.TagCardinality) ([]string, error) { return nil, errors.New("no tags") },
-			globalTags:              func(types.TagCardinality) ([]string, error) { return nil, errors.New("disabled") },
+			globalTags:              func() ([]string, error) { return nil, errors.New("disabled") },
 			withVersion:             true,
 			want:                    versionTags(),
 		},
@@ -621,7 +621,7 @@ func TestTags(t *testing.T) {
 			hostname:                "",
 			tlmContainerTagsEnabled: true,
 			agentTags:               func(types.TagCardinality) ([]string, error) { return []string{"container_name:agent"}, nil },
-			globalTags:              func(types.TagCardinality) ([]string, error) { return []string{"kube_cluster_name:foo"}, nil },
+			globalTags:              func() ([]string, error) { return []string{"kube_cluster_name:foo"}, nil },
 			withVersion:             true,
 			want:                    append(versionTags(), "container_name:agent", "kube_cluster_name:foo"),
 		},
@@ -630,7 +630,7 @@ func TestTags(t *testing.T) {
 			hostname:                "hostname",
 			tlmContainerTagsEnabled: true,
 			agentTags:               func(types.TagCardinality) ([]string, error) { return []string{"container_name:agent"}, nil },
-			globalTags:              func(types.TagCardinality) ([]string, error) { return []string{"kube_cluster_name:foo"}, nil },
+			globalTags:              func() ([]string, error) { return []string{"kube_cluster_name:foo"}, nil },
 			withVersion:             true,
 			want:                    append(versionTags(), "container_name:agent", "kube_cluster_name:foo"),
 		},

@@ -16,7 +16,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/tags"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	cctypes "github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -56,7 +55,7 @@ func newDispatcher(tagger tagger.Component) *dispatcher {
 	// Attach the cluster agent's global tags to all dispatched checks
 	// as defined in the tagger's workloadmeta collector
 	var err error
-	d.extraTags, err = tagger.GlobalTags(types.LowCardinality)
+	d.extraTags, err = tagger.GlobalTags()
 	if err != nil {
 		log.Warnf("Cannot get global tags from the tagger: %v", err)
 	} else {

@@ -637,8 +637,8 @@ func (t *TestTaggerClient) Tag(entityID types.EntityID, _ types.TagCardinality) 
 }
 
 // GlobalTags mocks taggerimpl.GlobalTags functionality for purpose of testing, removing dependency on Taggerimpl
-func (t *TestTaggerClient) GlobalTags(_ types.TagCardinality) ([]string, error) {
-	return t.TagMap[types.NewEntityID("internal", "global-entity-id").String()], nil
+func (t *TestTaggerClient) GlobalTags() ([]string, error) {
+	return t.TagMap[types.GetGlobalEntityID().String()], nil
 }
 
 // GenerateContainerIDFromOriginInfo mocks taggerimpl.GenerateContainerIDFromOriginInfo functionality

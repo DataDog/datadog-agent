@@ -81,7 +81,7 @@ func (p infraTagsProcessor) ProcessTags(
 			}
 		}
 	}
-	globalTags, err := p.tagger.GlobalTags(cardinality)
+	globalTags, err := p.tagger.GlobalTags()
 	if err != nil {
 		logger.Error("Cannot get global tags", zap.Error(err))
 	}

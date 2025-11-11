@@ -189,7 +189,7 @@ func TestInfraAttributesTraceProcessor(t *testing.T) {
 			tc := testutil.NewTestTaggerClient()
 			tc.TagMap["container_id://test"] = []string{"container:id"}
 			tc.TagMap["deployment://namespace/deployment"] = []string{"deployment:name"}
-			tc.TagMap[types.NewEntityID("internal", "global-entity-id").String()] = []string{"global:tag"}
+			tc.TagMap[types.GetGlobalEntityID().String()] = []string{"global:tag"}
 			tc.ContainerIDMap["pid:12345"] = "test"
 			tc.ContainerIDMap["inode:12345"] = "test"
 			tc.ContainerIDMap["pod:01234567-89ab-cdef-0123-456789abcdef,name:mycontainer,init:true"] = "test"

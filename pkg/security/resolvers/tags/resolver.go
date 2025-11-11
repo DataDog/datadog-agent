@@ -29,7 +29,7 @@ const (
 // Tagger defines a Tagger for the Tags Resolver
 type Tagger interface {
 	Tag(entity types.EntityID, cardinality types.TagCardinality) ([]string, error)
-	GlobalTags(cardinality types.TagCardinality) ([]string, error)
+	GlobalTags() ([]string, error)
 }
 
 // Resolver represents a cache resolver

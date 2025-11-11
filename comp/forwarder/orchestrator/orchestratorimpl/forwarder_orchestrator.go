@@ -16,7 +16,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/resolver"
 	"github.com/DataDog/datadog-agent/comp/forwarder/orchestrator"
@@ -44,7 +43,7 @@ func newOrchestratorForwarder(log log.Component, config config.Component, tagger
 			forwarder := option.None[defaultforwarder.Forwarder]()
 			return &forwarder
 		}
-		globalTags, err := tagger.GlobalTags(types.LowCardinality)
+		globalTags, err := tagger.GlobalTags()
 		if err != nil {
 			log.Debugf("Error getting global tags for orchestrator config: %s", err)
 		}

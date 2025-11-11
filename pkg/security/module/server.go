@@ -25,7 +25,6 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	compression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
 	"github.com/DataDog/datadog-agent/pkg/security/common"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
@@ -734,7 +733,7 @@ func (a *APIServer) getGlobalTags() []string {
 		return nil
 	}
 
-	globalTags, err := tagger.GlobalTags(types.OrchestratorCardinality)
+	globalTags, err := tagger.GlobalTags()
 	if err != nil {
 		seclog.Errorf("failed to get global tags: %v", err)
 		return nil

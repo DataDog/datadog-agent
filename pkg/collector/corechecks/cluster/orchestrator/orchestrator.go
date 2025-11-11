@@ -28,7 +28,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	configcomp "github.com/DataDog/datadog-agent/comp/core/config"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
@@ -154,7 +153,7 @@ func (o *OrchestratorCheck) Configure(senderManager sender.SenderManager, integr
 	}
 
 	// Retrieves tags from the tagger (applicable when scheduled on DCA)
-	taggerExtraTags, err := o.tagger.GlobalTags(types.LowCardinality)
+	taggerExtraTags, err := o.tagger.GlobalTags()
 	if err != nil {
 		return fmt.Errorf("could not get global tags from tagger: %w", err)
 	}

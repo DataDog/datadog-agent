@@ -43,7 +43,7 @@ func (fr *FakeTagger) Tag(entity types.EntityID, _ types.TagCardinality) ([]stri
 }
 
 // GlobalTags returns the global tags
-func (fr *FakeTagger) GlobalTags(_ types.TagCardinality) ([]string, error) {
+func (fr *FakeTagger) GlobalTags() ([]string, error) {
 	return nil, nil
 }
 
@@ -63,7 +63,7 @@ func (fmr *FakeMonoTagger) Tag(entity types.EntityID, _ types.TagCardinality) ([
 }
 
 // GlobalTags returns the global tags
-func (fmr *FakeMonoTagger) GlobalTags(_ types.TagCardinality) ([]string, error) {
+func (fmr *FakeMonoTagger) GlobalTags() ([]string, error) {
 	return nil, nil
 }
 
@@ -130,7 +130,7 @@ func (fmr *FakeManualTagger) Tag(entity types.EntityID, _ types.TagCardinality) 
 }
 
 // GlobalTags returns the global tags
-func (fmr *FakeManualTagger) GlobalTags(_ types.TagCardinality) ([]string, error) {
+func (fmr *FakeManualTagger) GlobalTags() ([]string, error) {
 	return nil, nil
 }
 

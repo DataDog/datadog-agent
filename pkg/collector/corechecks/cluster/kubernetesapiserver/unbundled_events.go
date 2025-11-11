@@ -13,7 +13,6 @@ import (
 	v1 "k8s.io/api/core/v1"
 
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -163,7 +162,7 @@ func (c *unbundledTransformer) getTagsFromTagger(tagsAcc tagset.TagsAccumulator)
 		return
 	}
 
-	globalTags, err := c.taggerInstance.GlobalTags(types.HighCardinality)
+	globalTags, err := c.taggerInstance.GlobalTags()
 	if err != nil {
 		log.Debugf("error getting global tags: %s", err)
 	}
