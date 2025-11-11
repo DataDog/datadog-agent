@@ -27,6 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/process/forwarders"
 	"github.com/DataDog/datadog-agent/comp/process/forwarders/forwardersimpl"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	"github.com/DataDog/datadog-agent/pkg/process/util/api/headers"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -77,7 +78,7 @@ func TestNewCollectorQueueSize(t *testing.T) {
 			deps := getSubmitterDeps(t, tc.configOverrides, nil)
 			c, err := NewSubmitter(deps.Config, deps.Log, deps.Forwarders, deps.Statsd, testHostName, deps.SysProbeConfig)
 			assert.NoError(t, err)
-			assert.Equal(t, tc.expectedQueueSize, c.processResults.MaxSize())
+			assert.Equal(t, tc.expectedQueueSize, c.resultsQueue[checks.ProcessCheckName].MaxSize())
 		})
 	}
 }
@@ -126,7 +127,7 @@ func TestNewCollectorRTQueueSize(t *testing.T) {
 			deps := getSubmitterDeps(t, tc.configOverrides, nil)
 			c, err := NewSubmitter(deps.Config, deps.Log, deps.Forwarders, deps.Statsd, testHostName, deps.SysProbeConfig)
 			assert.NoError(t, err)
-			assert.Equal(t, tc.expectedQueueSize, c.rtProcessResults.MaxSize())
+			assert.Equal(t, tc.expectedQueueSize, c.resultsQueue[checks.RTProcessCheckName].MaxSize())
 		})
 	}
 }
@@ -175,8 +176,8 @@ func TestNewCollectorProcessQueueBytes(t *testing.T) {
 			deps := getSubmitterDeps(t, tc.configOverrides, nil)
 			s, err := NewSubmitter(deps.Config, deps.Log, deps.Forwarders, deps.Statsd, testHostName, deps.SysProbeConfig)
 			assert.NoError(t, err)
-			assert.Equal(t, int64(tc.expectedQueueSize), s.processResults.MaxWeight())
-			assert.Equal(t, int64(tc.expectedQueueSize), s.rtProcessResults.MaxWeight())
+			assert.Equal(t, int64(tc.expectedQueueSize), s.resultsQueue[checks.ProcessCheckName].MaxWeight())
+			assert.Equal(t, int64(tc.expectedQueueSize), s.resultsQueue[checks.RTProcessCheckName].MaxWeight())
 			assert.Equal(t, tc.expectedQueueSize, s.forwarderRetryMaxQueueBytes)
 		})
 	}
