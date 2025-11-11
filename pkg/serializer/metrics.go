@@ -81,7 +81,7 @@ func (s *Serializer) buildPipelines(kind metricsKind) metrics.PipelineSet {
 			if mrfFilter != nil {
 				conf := metrics.PipelineConfig{
 					Filter: mrfFilter,
-					V3:  useV3,
+					V3:     useV3,
 				}
 				pipelines.Add(conf, dest)
 			}
@@ -89,7 +89,7 @@ func (s *Serializer) buildPipelines(kind metricsKind) metrics.PipelineSet {
 		default:
 			conf := metrics.PipelineConfig{
 				Filter: metrics.AllowAllFilter{},
-				V3:  useV3,
+				V3:     useV3,
 			}
 			pipelines.Add(conf, dest)
 		}

@@ -281,9 +281,9 @@ func TestPipelinesWithV3AndAdditionalEndpoints(t *testing.T) {
 	config.SetWithoutSource("dd_url", "http://example.test")
 	config.SetWithoutSource("api_key", "test_key")
 	config.SetWithoutSource("additional_endpoints", map[string][]string{
-		"http://example.test": []string{"alt_key"},
+		"http://example.test": {"alt_key"},
 		// ensure protocol version setting works even when domain is rewritten by the forwarder
-		"http://app.us5.datadoghq.com": []string{"test_key"},
+		"http://app.us5.datadoghq.com": {"test_key"},
 	})
 	config.SetWithoutSource(
 		"serializer_experimental_use_v3_api.series.endpoints",
@@ -316,7 +316,6 @@ func TestPipelinesWithV3AndAdditionalEndpoints(t *testing.T) {
 	}
 }
 
-
 func TestPipelinesWithAdditionalEndpointsV3(t *testing.T) {
 	logger := logmock.New(t)
 	config := configmock.New(t)
@@ -324,9 +323,9 @@ func TestPipelinesWithAdditionalEndpointsV3(t *testing.T) {
 	config.SetWithoutSource("dd_url", "http://example.test")
 	config.SetWithoutSource("api_key", "test_key")
 	config.SetWithoutSource("additional_endpoints", map[string][]string{
-		"http://example.test": []string{"alt_key"},
+		"http://example.test": {"alt_key"},
 		// ensure protocol version setting works even when domain is rewritten by the forwarder
-		"http://app.us5.datadoghq.com": []string{"test_key"},
+		"http://app.us5.datadoghq.com": {"test_key"},
 	})
 	config.SetWithoutSource(
 		"serializer_experimental_use_v3_api.series.endpoints",

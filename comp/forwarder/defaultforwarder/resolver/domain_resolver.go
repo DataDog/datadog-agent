@@ -47,7 +47,7 @@ type DomainResolver = *domainResolver
 // SingleDomainResolver will always return the same host
 type domainResolver struct {
 	// configName is the url as it was configured by the user.
-	configName      string
+	configName string
 	// domain is the url base to be used for network requests, it is modified by the forwarder.
 	domain          string
 	apiKeys         []utils.APIKeys
