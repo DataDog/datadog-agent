@@ -312,7 +312,7 @@ func (c *CheckBase) CronShouldRun(t time.Time) bool {
 	log.Warnf("[CronShouldRun] t %s", t)
 	log.Warnf("[CronShouldRun] cronNext %s", c.cronNext)
 	if c.cronNext.IsZero() {
-		c.cronNext = t
+		c.cronNext = c.cronSchedule.Next(t)
 	}
 	if c.cronNext.Before(t) || c.cronNext.Equal(t) {
 		log.Warnf("[CronShouldRun] cronNext2 %s", c.cronNext)

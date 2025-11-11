@@ -203,6 +203,7 @@ func (jq *jobQueue) process(s *Scheduler) bool {
 			}
 			// HERE?
 			if !check.CronShouldRun(t) {
+				// TODO: TEST ME
 				continue
 			}
 
