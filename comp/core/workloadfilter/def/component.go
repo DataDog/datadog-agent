@@ -43,5 +43,5 @@ type Component interface {
 	GetContainerSBOMFilters() FilterBundle
 
 	// GetFilterConfigString retrieves a string representation of the raw filter configuration
-	GetFilterConfigString() string
+	GetFilterConfigString() (string, error)
 }

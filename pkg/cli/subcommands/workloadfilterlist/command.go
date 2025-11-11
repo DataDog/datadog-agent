@@ -9,7 +9,6 @@ package workloadfilterlist
 import (
 	"encoding/json"
 	"fmt"
-	"strings"
 
 	"go.uber.org/fx"
 
@@ -119,31 +118,22 @@ func workloadFilterList(_ log.Component, filterComponent workloadfilter.Componen
 	fmt.Fprintln(color.Output)
 	fmt.Fprintf(color.Output, "    %s\n", color.HiCyanString("-------- Raw Filter Configuration --------"))
 
-	configString := filterComponent.GetFilterConfigString()
-	if configString == "" {
-		fmt.Fprintf(color.Output, "      -> No filters configured\n")
+	configString, err := filterComponent.GetFilterConfigString()
+	if err != nil {
+		fmt.Fprintf(color.Output, "      %s\n", color.HiRedString("-> No filters configured"))
+		fmt.Fprintf(color.Output, "         %s %s\n", color.HiRedString("raw config:"), color.RedString(configString))
 		fmt.Fprintln(color.Output, color.HiCyanString("    ---------------------------------------------"))
 		return nil
 	}
-	var filterConfig map[string]string
+	var filterConfig map[string]any
 	if err := json.Unmarshal([]byte(configString), &filterConfig); err != nil {
 		return fmt.Errorf("failed to unmarshal filter configuration: %w", err)
 	}
 
 	for key, value := range filterConfig {
-		display := strings.TrimSpace(value)
-		switch display {
-		case "", "[]", "map[]":
+		display := fmt.Sprintf("%v", value)
+		if display == "" || display == "[]" || display == "map[]" || display == "<nil>" {
 			display = color.HiYellowString("not configured")
-		default:
-			parts := strings.Split(display, ",")
-			trimmed := make([]string, 0)
-			for i := range parts {
-				if parts[i] != "" {
-					trimmed = append(trimmed, parts[i])
-				}
-			}
-			display = strings.Join(trimmed, ", ")
 		}
 		fmt.Fprintf(color.Output, "      %-28s %s\n", key+":", display)
 	}
