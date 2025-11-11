@@ -18,7 +18,7 @@ func GetIPCAddress(config pkgconfigmodel.Reader) (string, error) {
 	var key string
 	// ipc_address is deprecated in favor of cmd_host, but we still need to support it
 	// if it is set, use it, otherwise use cmd_host
-	if config.IsConfigured("ipc_address") {
+	if config.IsSet("ipc_address") {
 		log.Warn("ipc_address is deprecated, use cmd_host instead")
 		key = "ipc_address"
 	} else {
