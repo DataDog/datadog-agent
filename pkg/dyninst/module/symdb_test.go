@@ -26,7 +26,7 @@ import (
 type shortBackoffPolicy struct{}
 
 func (p *shortBackoffPolicy) GetBackoffDuration(_ int) time.Duration {
-	return 100 * time.Millisecond
+	return 10 * time.Millisecond
 }
 
 func (p *shortBackoffPolicy) IncError(numErrors int) int {
@@ -321,7 +321,7 @@ func TestSymdbManagerRespectsPersistentCache(t *testing.T) {
 
 			// For failed uploads, use a short backoff policy so the retry happens quickly.
 			if tt.expectDeferred {
-				managerOpts = append(managerOpts, withBackoffPolicy(&shortBackoffPolicy{}))
+				managerOpts = append(managerOpts, withBackoffPolicy(&shortBackoffPolicy{}), withDontAccountForElapsedTime())
 			}
 
 			uploadCh := make(chan struct{}, 1)

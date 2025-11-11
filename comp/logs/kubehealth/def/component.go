@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-// Package health provides a dependency-injectible health object for kubernetes liveness checks
-package health
+// Package kubehealth provides a dependency-injectible health object for kubernetes liveness checks
+package kubehealth
 
 import "github.com/DataDog/datadog-agent/pkg/status/health"
 

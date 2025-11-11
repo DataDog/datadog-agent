@@ -68,12 +68,15 @@ func putBuffer(buffer *bytes.Buffer) {
 	bufferPool.Put(buffer)
 }
 
-func copyRequestBody(buf *bytes.Buffer, req *http.Request) (written int64, err error) {
-	reserveBodySize(buf, req)
+func (r *HTTPReceiver) copyRequestBody(buf *bytes.Buffer, req *http.Request) (written int64, err error) {
+	err = r.reserveBodySize(buf, req)
+	if err != nil {
+		return 0, err
+	}
 	return io.Copy(buf, req.Body)
 }
 
-func reserveBodySize(buf *bytes.Buffer, req *http.Request) {
+func (r *HTTPReceiver) reserveBodySize(buf *bytes.Buffer, req *http.Request) error {
 	var err error
 	bufferSize := 0
 	if contentSize := req.Header.Get("Content-Length"); contentSize != "" {
@@ -81,11 +84,16 @@ func reserveBodySize(buf *bytes.Buffer, req *http.Request) {
 		if err != nil {
 			log.Debugf("could not parse Content-Length header value as integer: %v", err)
 		}
+		if int64(bufferSize) > r.conf.MaxRequestBytes {
+			// We use this error to identify that the request body size exceeds the maximum allowed size so the metrics are the same as for the limited reader.
+			return apiutil.ErrLimitedReaderLimitReached
+		}
 	}
 	if bufferSize == 0 {
 		bufferSize = defaultReceiverBufferSize
 	}
 	buf.Grow(bufferSize)
+	return nil
 }
 
 // HTTPReceiver is a collector that uses HTTP protocol and just holds
@@ -492,7 +500,7 @@ func (r *HTTPReceiver) tagStats(v Version, httpHeader http.Header, service strin
 // - tp is the decoded payload
 // - ranHook reports whether the decoder was able to run the pb.MetaHook
 // - err is the first error encountered
-func decodeTracerPayload(v Version, req *http.Request, cIDProvider IDProvider, lang, langVersion, tracerVersion string) (tp *pb.TracerPayload, err error) {
+func (r *HTTPReceiver) decodeTracerPayload(v Version, req *http.Request, cIDProvider IDProvider, lang, langVersion, tracerVersion string) (tp *pb.TracerPayload, err error) {
 	switch v {
 	case v01:
 		var spans []*pb.Span
@@ -509,7 +517,7 @@ func decodeTracerPayload(v Version, req *http.Request, cIDProvider IDProvider, l
 	case v05:
 		buf := getBuffer()
 		defer putBuffer(buf)
-		if _, err = copyRequestBody(buf, req); err != nil {
+		if _, err = r.copyRequestBody(buf, req); err != nil {
 			return nil, err
 		}
 		var traces pb.Traces
@@ -526,7 +534,7 @@ func decodeTracerPayload(v Version, req *http.Request, cIDProvider IDProvider, l
 	case V07:
 		buf := getBuffer()
 		defer putBuffer(buf)
-		if _, err = copyRequestBody(buf, req); err != nil {
+		if _, err = r.copyRequestBody(buf, req); err != nil {
 			return nil, err
 		}
 		var tracerPayload pb.TracerPayload
@@ -534,7 +542,7 @@ func decodeTracerPayload(v Version, req *http.Request, cIDProvider IDProvider, l
 		return &tracerPayload, err
 	default:
 		var traces pb.Traces
-		if err = decodeRequest(req, &traces); err != nil {
+		if err = r.decodeRequest(req, &traces); err != nil {
 			return nil, err
 		}
 		return &pb.TracerPayload{
@@ -547,10 +555,10 @@ func decodeTracerPayload(v Version, req *http.Request, cIDProvider IDProvider, l
 	}
 }
 
-func decodeTracerPayloadV1(req *http.Request, cIDProvider IDProvider, conf *config.AgentConfig) (tp *idx.InternalTracerPayload, err error) {
+func (r *HTTPReceiver) decodeTracerPayloadV1(req *http.Request, cIDProvider IDProvider, conf *config.AgentConfig) (tp *idx.InternalTracerPayload, err error) {
 	buf := getBuffer()
 	defer putBuffer(buf)
-	if _, err = copyRequestBody(buf, req); err != nil {
+	if _, err = r.copyRequestBody(buf, req); err != nil {
 		return nil, err
 	}
 	var tracerPayload idx.InternalTracerPayload
@@ -669,7 +677,7 @@ func (r *HTTPReceiver) handleTracesV1(w http.ResponseWriter, req *http.Request) 
 	}
 
 	start := time.Now()
-	tp, err := decodeTracerPayloadV1(req, r.containerIDProvider, r.conf)
+	tp, err := r.decodeTracerPayloadV1(req, r.containerIDProvider, r.conf)
 	ts := r.tagStats(V10, req.Header, firstService(tp))
 	defer func(err error) {
 		tags := append(ts.AsTags(), fmt.Sprintf("success:%v", err == nil))
@@ -772,7 +780,7 @@ func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.
 	}
 
 	start := time.Now()
-	tp, err := decodeTracerPayload(v, req, r.containerIDProvider, req.Header.Get(header.Lang), req.Header.Get(header.LangVersion), req.Header.Get(header.TracerVersion))
+	tp, err := r.decodeTracerPayload(v, req, r.containerIDProvider, req.Header.Get(header.Lang), req.Header.Get(header.LangVersion), req.Header.Get(header.TracerVersion))
 	ts := r.tagStats(v, req.Header, firstService(tp))
 	defer func(err error) {
 		tags := append(ts.AsTags(), fmt.Sprintf("success:%v", err == nil))
@@ -1010,12 +1018,12 @@ func (r *HTTPReceiver) Languages() string {
 // It handles only v02, v03, v04 requests.
 // - ranHook reports whether the decoder was able to run the pb.MetaHook
 // - err is the first error encountered
-func decodeRequest(req *http.Request, dest *pb.Traces) error {
+func (r *HTTPReceiver) decodeRequest(req *http.Request, dest *pb.Traces) error {
 	switch mediaType := getMediaType(req); mediaType {
 	case "application/msgpack":
 		buf := getBuffer()
 		defer putBuffer(buf)
-		_, err := copyRequestBody(buf, req)
+		_, err := r.copyRequestBody(buf, req)
 		if err != nil {
 			return err
 		}
@@ -1032,7 +1040,7 @@ func decodeRequest(req *http.Request, dest *pb.Traces) error {
 		if err1 := json.NewDecoder(req.Body).Decode(&dest); err1 != nil {
 			buf := getBuffer()
 			defer putBuffer(buf)
-			_, err2 := copyRequestBody(buf, req)
+			_, err2 := r.copyRequestBody(buf, req)
 			if err2 != nil {
 				return err2
 			}

@@ -3,17 +3,17 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-// Package mock provides a mock implementation of the LogsHealthRegistrar
+// Package mock provides a mock implementation of the KubeHealthRegistrar
 package mock
 
 import (
 	"go.uber.org/fx"
 
-	healthdef "github.com/DataDog/datadog-agent/comp/logs/health/def"
+	kubehealthdef "github.com/DataDog/datadog-agent/comp/logs/kubehealth/def"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 )
 
-// Registrar is a mock implementation of LogsHealthRegistrar
+// Registrar is a mock implementation of KubeHealthRegistrar
 type Registrar struct {
 	registeredChecks map[string]int
 }
@@ -22,7 +22,7 @@ type Registrar struct {
 type Provides struct {
 	fx.Out
 
-	Comp healthdef.Component
+	Comp kubehealthdef.Component
 }
 
 // NewProvides provides a new MockRegistrar
