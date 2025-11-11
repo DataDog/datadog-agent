@@ -72,6 +72,13 @@ class WiFiIPCServer {
             }
         }
 
+        // Set umask to create socket with 0o660 permissions atomically
+        let oldUmask = umask(0o117)
+        defer {
+            // Restore original umask after bind
+            umask(oldUmask)
+        }
+
         let bindResult = withUnsafePointer(to: &addr) { ptr in
             ptr.withMemoryRebound(to: sockaddr.self, capacity: 1) { sockaddrPtr in
                 Darwin.bind(socketFileDescriptor, sockaddrPtr, socklen_t(MemoryLayout<sockaddr_un>.size))
@@ -84,8 +91,11 @@ class WiFiIPCServer {
                          userInfo: [NSLocalizedDescriptionKey: "Failed to bind socket: \(String(cString: strerror(errno)))"])
         }
 
-        // Set socket permissions (rw-rw----)
-        chmod(socketPath, 0o660)
+        // Verify permissions (optional logging)
+        if let attrs = try? FileManager.default.attributesOfItem(atPath: socketPath),
+           let posixPerms = attrs[.posixPermissions] as? NSNumber {
+            NSLog("[WiFiIPCServer] Socket created with permissions: \(String(format: "%o", posixPerms.uint16Value))")
+        }
 
         // Listen for connections
         guard listen(socketFileDescriptor, 5) >= 0 else {
