@@ -7,6 +7,13 @@ bazel_dep(name = "bazel_skylib", version = "1.8.1")
 bazel_dep(name = "rules_license", version = "1.0.0")
 bazel_dep(name = "rules_pkg", version = "1.1.0")
 
+# Temporary until a future rules_pkg release
+git_override(
+    module_name = "rules_pkg",
+    commit = "4eed5466fb7062e196c4fa01495e1dfe0cf5c850",
+    remote = "https://github.com/bazelbuild/rules_pkg",
+)
+
 #########################
 ## Prebuilt binaries   ##
 #########################
