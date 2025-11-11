@@ -121,44 +121,34 @@ func setConfigSecurityProducts(s *common.Setup) {
 	}
 
 	if complianceConfigEnabledOk && strings.ToLower(complianceConfigEnabled) != "false" {
-		s.Config.SecurityAgentYAML.ComplianceConfig.Enabled = true
+		s.Config.SecurityAgentYAML.ComplianceConfig.Enabled = config.BoolToPtr(true)
 	}
 	if runtimeSecurityConfigEnabledOk && strings.ToLower(runtimeSecurityConfigEnabled) != "false" {
-		s.Config.SecurityAgentYAML.RuntimeSecurityConfig.Enabled = true
-		s.Config.SystemProbeYAML.RuntimeSecurityConfig.Enabled = true
+		s.Config.SecurityAgentYAML.RuntimeSecurityConfig.Enabled = config.BoolToPtr(true)
+		s.Config.SystemProbeYAML.RuntimeSecurityConfig.Enabled = config.BoolToPtr(true)
 	}
 	if sbomContainerImageEnabledOk && strings.ToLower(sbomContainerImageEnabled) != "false" {
-		s.Config.DatadogYAML.SBOM.Enabled = true
-		s.Config.DatadogYAML.SBOM.ContainerImage.Enabled = true
-		s.Config.SecurityAgentYAML.RuntimeSecurityConfig.SBOM.Enabled = true
-		s.Config.SecurityAgentYAML.RuntimeSecurityConfig.SBOM.ContainerImage.Enabled = true
-		s.Config.SystemProbeYAML.RuntimeSecurityConfig.SBOM.Enabled = true
-		s.Config.SystemProbeYAML.RuntimeSecurityConfig.SBOM.ContainerImage.Enabled = true
+		s.Config.DatadogYAML.SBOM.Enabled = config.BoolToPtr(true)
+		s.Config.DatadogYAML.SBOM.ContainerImage.Enabled = config.BoolToPtr(true)
+		s.Config.SecurityAgentYAML.RuntimeSecurityConfig.SBOM.Enabled = config.BoolToPtr(true)
+		s.Config.SecurityAgentYAML.RuntimeSecurityConfig.SBOM.ContainerImage.Enabled = config.BoolToPtr(true)
+		s.Config.SystemProbeYAML.RuntimeSecurityConfig.SBOM.Enabled = config.BoolToPtr(true)
+		s.Config.SystemProbeYAML.RuntimeSecurityConfig.SBOM.ContainerImage.Enabled = config.BoolToPtr(true)
 	}
 	if sbomHostEnabledOk && strings.ToLower(sbomHostEnabled) != "false" {
-		s.Config.DatadogYAML.SBOM.Enabled = true
-		s.Config.DatadogYAML.SBOM.Host.Enabled = true
-		s.Config.SecurityAgentYAML.RuntimeSecurityConfig.SBOM.Enabled = true
-		s.Config.SecurityAgentYAML.RuntimeSecurityConfig.SBOM.Host.Enabled = true
-		s.Config.SystemProbeYAML.RuntimeSecurityConfig.SBOM.Enabled = true
-		s.Config.SystemProbeYAML.RuntimeSecurityConfig.SBOM.Host.Enabled = true
+		s.Config.DatadogYAML.SBOM.Enabled = config.BoolToPtr(true)
+		s.Config.DatadogYAML.SBOM.Host.Enabled = config.BoolToPtr(true)
+		s.Config.SecurityAgentYAML.RuntimeSecurityConfig.SBOM.Enabled = config.BoolToPtr(true)
+		s.Config.SecurityAgentYAML.RuntimeSecurityConfig.SBOM.Host.Enabled = config.BoolToPtr(true)
+		s.Config.SystemProbeYAML.RuntimeSecurityConfig.SBOM.Enabled = config.BoolToPtr(true)
+		s.Config.SystemProbeYAML.RuntimeSecurityConfig.SBOM.Host.Enabled = config.BoolToPtr(true)
 	}
 }
 
 // setConfigInstallerDaemon sets the daemon in the configuration
 func setConfigInstallerDaemon(s *common.Setup) {
-	if runtime.GOOS == "windows" {
-		// on windows this needs to default to false
-		// as setup is the entry point for FIPS installations as well
-		s.Config.DatadogYAML.RemoteUpdates = false
-		if val, ok := os.LookupEnv("DD_REMOTE_UPDATES"); ok && strings.ToLower(val) == "true" {
-			s.Config.DatadogYAML.RemoteUpdates = true
-		}
-	} else {
-		s.Config.DatadogYAML.RemoteUpdates = true
-		if val, ok := os.LookupEnv("DD_REMOTE_UPDATES"); ok && strings.ToLower(val) == "false" {
-			s.Config.DatadogYAML.RemoteUpdates = false
-		}
+	if val, ok := os.LookupEnv("DD_REMOTE_UPDATES"); ok {
+		s.Config.DatadogYAML.RemoteUpdates = config.BoolToPtr(strings.ToLower(val) == "true")
 	}
 }
 
