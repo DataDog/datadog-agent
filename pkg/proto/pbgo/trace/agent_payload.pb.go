@@ -46,8 +46,10 @@ type AgentPayload struct {
 	// idxTracerPayloads specifies list of the payloads received from tracers.
 	// @gotags: msg:"-"
 	IdxTracerPayloads []*idx.TracerPayload `protobuf:"bytes,11,rep,name=idxTracerPayloads,proto3" json:"idxTracerPayloads,omitempty" msg:"-"`
-	unknownFields     protoimpl.UnknownFields
-	sizeCache         protoimpl.SizeCache
+	// APMMode specifies whether using "full" or other APM modes, it is "full" by default
+	APMMode       string `protobuf:"bytes,12,opt,name=APMMode,proto3" json:"APMMode,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *AgentPayload) Reset() {
@@ -143,11 +145,18 @@ func (x *AgentPayload) GetIdxTracerPayloads() []*idx.TracerPayload {
 	return nil
 }
 
+func (x *AgentPayload) GetAPMMode() string {
+	if x != nil {
+		return x.APMMode
+	}
+	return ""
+}
+
 var File_datadog_trace_agent_payload_proto protoreflect.FileDescriptor
 
 const file_datadog_trace_agent_payload_proto_rawDesc = "" +
 	"\n" +
-	"!datadog/trace/agent_payload.proto\x12\rdatadog.trace\x1a\"datadog/trace/tracer_payload.proto\x1a&datadog/trace/idx/tracer_payload.proto\"\xd4\x03\n" +
+	"!datadog/trace/agent_payload.proto\x12\rdatadog.trace\x1a\"datadog/trace/tracer_payload.proto\x1a&datadog/trace/idx/tracer_payload.proto\"\xee\x03\n" +
 	"\fAgentPayload\x12\x1a\n" +
 	"\bhostName\x18\x01 \x01(\tR\bhostName\x12\x10\n" +
 	"\x03env\x18\x02 \x01(\tR\x03env\x12D\n" +
@@ -158,7 +167,8 @@ const file_datadog_trace_agent_payload_proto_rawDesc = "" +
 	"\berrorTPS\x18\t \x01(\x01R\berrorTPS\x12.\n" +
 	"\x12rareSamplerEnabled\x18\n" +
 	" \x01(\bR\x12rareSamplerEnabled\x12N\n" +
-	"\x11idxTracerPayloads\x18\v \x03(\v2 .datadog.trace.idx.TracerPayloadR\x11idxTracerPayloads\x1a7\n" +
+	"\x11idxTracerPayloads\x18\v \x03(\v2 .datadog.trace.idx.TracerPayloadR\x11idxTracerPayloads\x12\x18\n" +
+	"\aAPMMode\x18\f \x01(\tR\aAPMMode\x1a7\n" +
 	"\tTagsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01B\x16Z\x14pkg/proto/pbgo/traceb\x06proto3"

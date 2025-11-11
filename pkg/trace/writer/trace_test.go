@@ -387,6 +387,62 @@ func TestTraceWriterAgentPayload(t *testing.T) {
 	})
 }
 
+func TestTraceWriterAPMMode(t *testing.T) {
+	testCases := []struct {
+		name        string
+		configValue string
+		expected    string
+	}{
+		{
+			name:        "default",
+			configValue: "full",
+			expected:    "full",
+		},
+		{
+			name:        "end_user_device",
+			configValue: "end_user_device",
+			expected:    "end_user_device",
+		},
+		{
+			name:        "case_preserved", // should it be?
+			configValue: "End_User_Device",
+			expected:    "End_User_Device",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			srv := newTestServer()
+			defer srv.Close()
+			cfg := &config.AgentConfig{
+				Hostname:   testHostname,
+				DefaultEnv: testEnv,
+				Endpoints: []*config.Endpoint{{
+					APIKey: "123",
+					Host:   srv.URL,
+				}},
+				TraceWriter:         &config.WriterConfig{ConnectionLimit: 200, QueueSize: 40},
+				SynchronousFlushing: true,
+				APMMode:             tc.configValue,
+			}
+
+			tw := NewTraceWriter(cfg, mockSampler, mockSampler, mockSampler, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{}, gzip.NewComponent())
+			defer tw.Stop()
+
+			// Send a span and force flush
+			tw.WriteChunks(randomSampledSpans(20, 8))
+			err := tw.FlushSync()
+			assert.Nil(t, err)
+
+			// Verify the AgentPayload has the correct APMMode
+			require.Len(t, srv.payloads, 1)
+			ap, err := deserializePayload(*srv.payloads[0], tw.compressor)
+			assert.Nil(t, err)
+			assert.Equal(t, tc.expected, ap.APMMode)
+		})
+	}
+}
+
 func TestTraceWriterUpdateAPIKey(t *testing.T) {
 	assert := assert.New(t)
 	srv := newTestServer()

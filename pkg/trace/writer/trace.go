@@ -83,6 +83,7 @@ type TraceWriter struct {
 	timing     timing.Reporter
 	mu         sync.Mutex
 	compressor compression.Component
+	apmMode    string
 }
 
 // NewTraceWriter returns a new TraceWriter. It is created for the given agent configuration and
@@ -114,6 +115,7 @@ func NewTraceWriter(
 		statsd:             statsd,
 		timing:             timing,
 		compressor:         compressor,
+		apmMode:            cfg.APMMode,
 	}
 	climit := cfg.TraceWriter.ConnectionLimit
 	if climit == 0 {
@@ -271,6 +273,7 @@ func (w *TraceWriter) flushPayloads(payloads []*pb.TracerPayload) {
 		TargetTPS:          w.prioritySampler.GetTargetTPS(),
 		ErrorTPS:           w.errorsSampler.GetTargetTPS(),
 		RareSamplerEnabled: w.rareSampler.IsEnabled(),
+		APMMode:            w.apmMode,
 		TracerPayloads:     payloads,
 	}
 	log.Debugf("Reported agent rates: target_tps=%v errors_tps=%v rare_sampling=%v", p.TargetTPS, p.ErrorTPS, p.RareSamplerEnabled)

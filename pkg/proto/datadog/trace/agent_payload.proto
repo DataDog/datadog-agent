@@ -29,4 +29,6 @@ message AgentPayload {
         // idxTracerPayloads specifies list of the payloads received from tracers.
         // @gotags: msg:"-"
         repeated idx.TracerPayload idxTracerPayloads = 11;
+        // APMMode specifies whether using "full" or other APM modes, it is "full" by default
+        string APMMode = 12;
 }
