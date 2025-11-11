@@ -25,6 +25,7 @@ import (
 	"google.golang.org/grpc/metadata"
 
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
@@ -586,7 +587,7 @@ func (t *remoteTagger) startTaggerStream(maxElapsed time.Duration) error {
 
 			t.stream, err = t.client.TaggerStreamEntities(t.streamCtx, &pb.StreamTagsRequest{
 				Cardinality: pb.TagCardinality(t.filter.GetCardinality()),
-				StreamingID: uuid.New().String(),
+				StreamingID: fmt.Sprintf("%s:%s", flavor.GetFlavor(), uuid.New().String()),
 				Prefixes:    prefixes,
 			})
 

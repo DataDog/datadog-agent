@@ -1,0 +1,126 @@
+[
+  {
+    "service": "sample",
+    "ddsource": "dd_debugger",
+    "logger": {
+      "name": "",
+      "method": "main.testReturnsManyFloats",
+      "version": 0,
+      "thread_id": "[goid]",
+      "thread_name": ""
+    },
+    "debugger": {
+      "snapshot": {
+        "id": "[id]",
+        "timestamp": "[ts]",
+        "language": "go",
+        "stack": [
+          {
+            "function": "main.testReturnsManyFloats",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/returns.go",
+            "lineNumber": 132
+          },
+          {
+            "function": "main.executeReturns",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/returns.go",
+            "lineNumber": 399
+          },
+          {
+            "function": "main.main",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
+            "lineNumber": 50
+          },
+          {
+            "function": "runtime.main",
+            "fileName": "runtime/proc.go",
+            "lineNumber": "[lineNumber]"
+          },
+          {
+            "function": "runtime.goexit",
+            "fileName": "runtime/asm_[arch].s",
+            "lineNumber": "[lineNumber]"
+          }
+        ],
+        "probe": {
+          "id": "testReturnsManyFloats",
+          "location": {
+            "method": "main.testReturnsManyFloats"
+          }
+        },
+        "captures": {
+          "return": {
+            "locals": {
+              "~r0": {
+                "type": "float64",
+                "notCapturedReason": "unavailable"
+              },
+              "~r1": {
+                "type": "float64",
+                "notCapturedReason": "unavailable"
+              },
+              "~r2": {
+                "type": "float64",
+                "notCapturedReason": "unavailable"
+              },
+              "~r3": {
+                "type": "float64",
+                "notCapturedReason": "unavailable"
+              },
+              "~r4": {
+                "type": "float64",
+                "notCapturedReason": "unavailable"
+              },
+              "~r5": {
+                "type": "float64",
+                "notCapturedReason": "unavailable"
+              },
+              "~r6": {
+                "type": "float64",
+                "notCapturedReason": "unavailable"
+              },
+              "~r7": {
+                "type": "float64",
+                "notCapturedReason": "unavailable"
+              },
+              "~r8": {
+                "type": "float64",
+                "notCapturedReason": "unavailable"
+              },
+              "~r9": {
+                "type": "float64",
+                "notCapturedReason": "unavailable"
+              },
+              "~r10": {
+                "type": "float64",
+                "notCapturedReason": "unavailable"
+              },
+              "~r11": {
+                "type": "float64",
+                "notCapturedReason": "unavailable"
+              },
+              "~r12": {
+                "type": "float64",
+                "notCapturedReason": "unavailable"
+              },
+              "~r13": {
+                "type": "float64",
+                "notCapturedReason": "unavailable"
+              },
+              "~r14": {
+                "type": "float64",
+                "notCapturedReason": "unavailable"
+              },
+              "onlyOnAmd64_16": "[onlyOnAmd64]",
+              "bothArmAndAmd64": {
+                "type": "float64",
+                "value": "17"
+              }
+            }
+          }
+        }
+      }
+    },
+    "timestamp": "[ts]",
+    "duration": "[duration]"
+  }
+]

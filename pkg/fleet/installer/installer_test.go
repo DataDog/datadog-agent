@@ -48,8 +48,8 @@ func newTestPackageManager(t *testing.T, s *fixtures.Server, rootPath string) *t
 	hooks := &testHooks{}
 	userConfigsDir := t.TempDir()
 	config := &config.Directories{
-		StablePath:     filepath.Join(userConfigsDir, "stable"),
-		ExperimentPath: filepath.Join(userConfigsDir, "experiment"),
+		StablePath:     userConfigsDir,
+		ExperimentPath: t.TempDir(),
 	}
 	return &testPackageManager{
 		installerImpl: installerImpl{
@@ -238,7 +238,6 @@ func TestInstallExperiment(t *testing.T) {
 		assert.Equal(t, fixtures.FixtureSimpleV2.Version, state.Experiment)
 		fixtures.AssertEqualFS(t, s.PackageFS(fixtures.FixtureSimpleV1), r.StableFS())
 		fixtures.AssertEqualFS(t, s.PackageFS(fixtures.FixtureSimpleV2), r.ExperimentFS())
-		fixtures.AssertEqualFS(t, s.ConfigFS(fixtures.FixtureSimpleV2), installer.ConfigFS(fixtures.FixtureSimpleV2))
 	})
 }
 
@@ -266,7 +265,6 @@ func TestInstallPromoteExperiment(t *testing.T) {
 		assert.Equal(t, fixtures.FixtureSimpleV2.Version, state.Stable)
 		assert.False(t, state.HasExperiment())
 		fixtures.AssertEqualFS(t, s.PackageFS(fixtures.FixtureSimpleV2), r.StableFS())
-		fixtures.AssertEqualFS(t, s.ConfigFS(fixtures.FixtureSimpleV2), installer.ConfigFS(fixtures.FixtureSimpleV2))
 	})
 }
 
@@ -294,8 +292,6 @@ func TestUninstallExperiment(t *testing.T) {
 		assert.Equal(t, fixtures.FixtureSimpleV1.Version, state.Stable)
 		assert.False(t, state.HasExperiment())
 		fixtures.AssertEqualFS(t, s.PackageFS(fixtures.FixtureSimpleV1), r.StableFS())
-		// we do not rollback configuration examples to their previous versions currently
-		fixtures.AssertEqualFS(t, s.ConfigFS(fixtures.FixtureSimpleV2), installer.ConfigFS(fixtures.FixtureSimpleV2))
 	})
 }
 

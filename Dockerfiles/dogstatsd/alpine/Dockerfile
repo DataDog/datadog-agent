@@ -24,7 +24,7 @@ COPY install_info /etc/datadog-agent/install_info
 
 FROM release-base
 
-COPY --from=artifacts static/dogstatsd.$TARGETARCH /dogstatsd
+COPY --chmod=755 --from=artifacts static/dogstatsd.$TARGETARCH /dogstatsd
 
 ARG DD_GIT_REPOSITORY_URL
 ARG DD_GIT_COMMIT_SHA

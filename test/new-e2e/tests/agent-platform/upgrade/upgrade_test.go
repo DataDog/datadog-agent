@@ -5,15 +5,12 @@
 package upgrade
 
 import (
-	"encoding/json"
 	"flag"
 	"fmt"
 	"os"
-	"strings"
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
@@ -25,15 +22,14 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/install/installparams"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/platforms"
 
+	e2eos "github.com/DataDog/test-infra-definitions/components/os"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
 
 	"github.com/stretchr/testify/require"
 )
 
 var (
-	osVersion        = flag.String("osversion", "", "os version to test")
-	platform         = flag.String("platform", "", "platform to test")
-	architecture     = flag.String("arch", "", "architecture to test (x86_64, arm64))")
+	osDescriptors    = flag.String("osdescriptors", "", "platform/arch/os version (debian/x86_64/11)")
 	flavorName       = flag.String("flavor", "datadog-agent", "package flavor to install")
 	srcAgentVersion  = flag.String("src-agent-version", "5", "start agent version")
 	destAgentVersion = flag.String("dest-agent-version", "7", "destination agent version to upgrade to")
@@ -41,45 +37,44 @@ var (
 
 type upgradeSuite struct {
 	e2e.BaseSuite[environments.Host]
-	srcVersion  string
-	destVersion string
+	osDesc         e2eos.Descriptor
+	srcVersion     string
+	destVersion    string
+	testingKeysURL string
 }
 
 func TestUpgradeScript(t *testing.T) {
-	platformJSON := map[string]map[string]map[string]string{}
-
-	err := json.Unmarshal(platforms.Content, &platformJSON)
-	require.NoErrorf(t, err, "failed to umarshall platform file: %v", err)
-
-	osVersions := strings.Split(*osVersion, ",")
-	t.Log("Parsed platform json file: ", platformJSON)
+	osDescriptors, err := platforms.ParseOSDescriptors(*osDescriptors)
+	if err != nil {
+		t.Fatalf("failed to parse os descriptors: %v", err)
+	}
+	if len(osDescriptors) == 0 {
+		t.Fatal("expecting some value to be passed for --osdescriptors on test invocation, got none")
+	}
 
 	vmOpts := []ec2.VMOption{}
 	if instanceType, ok := os.LookupEnv("E2E_OVERRIDE_INSTANCE_TYPE"); ok {
 		vmOpts = append(vmOpts, ec2.WithInstanceType(instanceType))
 	}
 
-	for _, osVers := range osVersions {
-		osVers := osVers
-		if platformJSON[*platform][*architecture][osVers] == "" {
-			// Fail if the image is not defined instead of silently running with default Ubuntu AMI
-			t.Fatalf("No image found for %s %s %s", *platform, *architecture, osVers)
-		}
+	for _, osDesc := range osDescriptors {
+		osDesc := osDesc
 
-		t.Run(fmt.Sprintf("test upgrade on %s %s", osVers, *architecture), func(tt *testing.T) {
-			flake.Mark(tt)
+		t.Run(fmt.Sprintf("test upgrade on %s", platforms.PrettifyOsDescriptor(osDesc)), func(tt *testing.T) {
 			tt.Parallel()
-			tt.Logf("Testing %s", osVers)
+			tt.Logf("Testing %s", platforms.PrettifyOsDescriptor(osDesc))
 
-			osDesc := platforms.BuildOSDescriptor(*platform, *architecture, osVers)
-			vmOpts = append(vmOpts, ec2.WithAMI(platformJSON[*platform][*architecture][osVers], osDesc, osDesc.Architecture))
+			vmOpts = append(vmOpts, ec2.WithOS(osDesc))
+
+			suite := &upgradeSuite{srcVersion: *srcAgentVersion, destVersion: *destAgentVersion, osDesc: osDesc}
+			suite.testingKeysURL = "apttesting.datad0g.com/test-keys"
 
 			e2e.Run(tt,
-				&upgradeSuite{srcVersion: *srcAgentVersion, destVersion: *destAgentVersion},
+				suite,
 				e2e.WithProvisioner(awshost.ProvisionerNoAgentNoFakeIntake(
 					awshost.WithEC2InstanceOptions(vmOpts...),
 				)),
-				e2e.WithStackName(fmt.Sprintf("upgrade-from-%s-to-%s-test-%s-%v-%s", *srcAgentVersion, *destAgentVersion, *flavorName, osVers, *architecture)),
+				e2e.WithStackName(fmt.Sprintf("upgrade-from-%s-to-%s-test-%s-%s", *srcAgentVersion, *destAgentVersion, *flavorName, platforms.PrettifyOsDescriptor(osDesc))),
 			)
 		})
 	}
@@ -100,7 +95,17 @@ func (is *upgradeSuite) TestUpgrade() {
 }
 
 func (is *upgradeSuite) SetupAgentStartVersion(VMclient *common.TestClient) {
-	install.Unix(is.T(), VMclient, installparams.WithArch(*architecture), installparams.WithFlavor(*flavorName), installparams.WithMajorVersion(is.srcVersion), installparams.WithAPIKey(os.Getenv("DATADOG_AGENT_API_KEY")), installparams.WithPipelineID(""))
+	installOptions := []installparams.Option{
+		installparams.WithArch(string(is.osDesc.Architecture)),
+		installparams.WithFlavor(*flavorName),
+		installparams.WithMajorVersion(is.srcVersion),
+		installparams.WithAPIKey(os.Getenv("DATADOG_AGENT_API_KEY")),
+		installparams.WithPipelineID(""),
+	}
+	if is.testingKeysURL != "" {
+		installOptions = append(installOptions, installparams.WithTestingKeysURL(is.testingKeysURL))
+	}
+	install.Unix(is.T(), VMclient, installOptions...)
 	var err error
 	if is.srcVersion == "5" {
 		_, err = VMclient.Host.Execute("sudo /etc/init.d/datadog-agent stop")
@@ -111,7 +116,17 @@ func (is *upgradeSuite) SetupAgentStartVersion(VMclient *common.TestClient) {
 }
 
 func (is *upgradeSuite) UpgradeAgentVersion(VMclient *common.TestClient) {
-	install.Unix(is.T(), VMclient, installparams.WithArch(*architecture), installparams.WithFlavor(*flavorName), installparams.WithMajorVersion(is.destVersion), installparams.WithUpgrade(true))
+	installOptions := []installparams.Option{
+		installparams.WithArch(string(is.osDesc.Architecture)),
+		installparams.WithFlavor(*flavorName),
+		installparams.WithMajorVersion(is.destVersion),
+		installparams.WithUpgrade(true),
+	}
+
+	if is.testingKeysURL != "" {
+		installOptions = append(installOptions, installparams.WithTestingKeysURL(is.testingKeysURL))
+	}
+	install.Unix(is.T(), VMclient, installOptions...)
 	_, err := VMclient.SvcManager.Restart("datadog-agent")
 	require.NoError(is.T(), err)
 }

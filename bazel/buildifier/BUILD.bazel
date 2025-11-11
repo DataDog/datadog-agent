@@ -1,12 +1,17 @@
-load("@buildifier_prebuilt//:rules.bzl", "buildifier", "buildifier_test")
+load("@com_github_bazelbuild_buildtools//buildifier:def.bzl", "buildifier", "buildifier_test")
 
 exclude_patterns = [
-    "./.bazelbsp/**",
-    "./.cache/**",
+    "./.*",  # all "hidden" directories at the root of the workspace: ./.bazelbsp, ./.cache, ./.git, etc.
+    # Exclude folders that include copies of upstream code we need to import.
+    # Our intent is usually to upstream our changes over time, so keeping the
+    # style as the upstream has it makes merging it back easier.
+    "./third_party/*",
+    "./deps/*/overlay/*",
 ]
 
 buildifier(
     name = "buildifier",
+    buildifier = "@multitool//tools/buildifier",
     exclude_patterns = exclude_patterns,
     lint_mode = "fix",
     mode = "fix",
@@ -19,6 +24,7 @@ buildifier(
 # - requires additional arguments: `no_sandbox` and `workspace`
 buildifier_test(
     name = "test",
+    buildifier = "@multitool//tools/buildifier",
     exclude_patterns = exclude_patterns,
     lint_mode = "warn",
     lint_warnings = ["-module-docstring"],

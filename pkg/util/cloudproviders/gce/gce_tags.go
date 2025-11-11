@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -51,7 +52,7 @@ func getCachedTags(err error) ([]string, error) {
 // GetTags gets the tags from the GCE api
 func GetTags(ctx context.Context) ([]string, error) {
 
-	if !pkgconfigsetup.IsCloudProviderEnabled(CloudProviderName, pkgconfigsetup.Datadog()) {
+	if !configutils.IsCloudProviderEnabled(CloudProviderName, pkgconfigsetup.Datadog()) {
 		return nil, fmt.Errorf("cloud provider is disabled by configuration")
 	}
 
@@ -98,10 +99,6 @@ func GetTags(ctx context.Context) ([]string, error) {
 				tags = append(tags, fmt.Sprintf("%s:%s", k, v))
 			}
 		}
-	}
-
-	if providerKind := pkgconfigsetup.Datadog().GetString("provider_kind"); providerKind != "" {
-		tags = append(tags, fmt.Sprintf("provider_kind:%s", providerKind))
 	}
 
 	// save tags to the cache in case we exceed quotas later

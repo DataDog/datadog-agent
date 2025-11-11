@@ -28,14 +28,9 @@ func (s PidSet) Remove(pid int32) {
 
 // Discovery represents the core service discovery functionality.
 type Discovery struct {
-	Config  *DiscoveryConfig
-	Network NetworkCollector
+	Config *DiscoveryConfig
 }
 
 // Close cleans up resources used by the Discovery instance.
 func (c *Discovery) Close() {
-	if c.Network != nil {
-		c.Network.Close()
-		c.Network = nil
-	}
 }

@@ -39,6 +39,7 @@ import (
 type dummyClusterAgent struct {
 	nodeLabels      map[string]map[string]string
 	nodeAnnotations map[string]map[string]string
+	nodeUIDs        map[string]string
 	responses       map[string][]string
 	responsesByNode apiv1.MetadataResponse
 	rawResponses    map[string]string
@@ -66,6 +67,10 @@ func newDummyClusterAgent(conf model.Config) (*dummyClusterAgent, error) {
 				"annotation1": "value",
 				"annotation2": "value2",
 			},
+		},
+		nodeUIDs: map[string]string{
+			"node/node1": "uid-00001",
+			"node/node2": "uid-00002",
 		},
 		responses: map[string][]string{
 			"pod/node1/foo/pod-00001": {"kube_service:svc1"},
@@ -231,6 +236,19 @@ func (d *dummyClusterAgent) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				labels, found := d.nodeAnnotations[key]
 				if found {
 					b, err := json.Marshal(labels)
+					if err != nil {
+						w.WriteHeader(http.StatusInternalServerError)
+						return
+					}
+					w.Write(b)
+					return
+				}
+			case "uid":
+				key := fmt.Sprintf("node/%s", nodeName)
+				uid, found := d.nodeUIDs[key]
+				if found {
+					uidResp := map[string]string{"uid": uid}
+					b, err := json.Marshal(uidResp)
 					if err != nil {
 						w.WriteHeader(http.StatusInternalServerError)
 						return
@@ -459,6 +477,50 @@ func (suite *clusterAgentSuite) TestGetKubernetesNodeAnnotations() {
 			for key, val := range testCase.expected {
 				assert.Contains(t, annotations[key], val)
 			}
+		})
+	}
+}
+
+func (suite *clusterAgentSuite) TestGetNodeUID() {
+	dca, err := newDummyClusterAgent(suite.config)
+	require.Nil(suite.T(), err, fmt.Sprintf("%v", err))
+
+	ts, p, err := dca.StartTLS()
+	require.Nil(suite.T(), err, fmt.Sprintf("%v", err))
+	defer ts.Close()
+
+	suite.config.SetWithoutSource("cluster_agent.url", fmt.Sprintf("https://127.0.0.1:%d", p))
+
+	// IPC component is responsible for initializing TLS configurations globally
+	ipcmock.New(suite.T())
+
+	ca, err := GetClusterAgentClient()
+	require.Nil(suite.T(), err, fmt.Sprintf("%v", err))
+
+	testSuite := []struct {
+		nodeName string
+		expected string
+		errors   error
+	}{
+		{
+			nodeName: "node1",
+			expected: "uid-00001",
+		},
+		{
+			nodeName: "node2",
+			expected: "uid-00002",
+		},
+		{
+			nodeName: "fake",
+			expected: "",
+			errors:   errors.NewRemoteServiceError(fmt.Sprintf("https://127.0.0.1:%d/api/v1/uid/node/fake", p), "404 Not Found"),
+		},
+	}
+	for _, testCase := range testSuite {
+		suite.T().Run("", func(t *testing.T) {
+			uid, err := ca.GetNodeUID(testCase.nodeName)
+			require.Equal(t, err, testCase.errors)
+			require.Equal(t, testCase.expected, uid)
 		})
 	}
 }

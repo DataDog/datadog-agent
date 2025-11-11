@@ -6,7 +6,7 @@
       "name": "",
       "method": "main.testInlinedPrint",
       "version": 0,
-      "thread_id": 0,
+      "thread_id": "[goid]",
       "thread_name": ""
     },
     "debugger": {
@@ -73,7 +73,7 @@
       "name": "",
       "method": "main.testInlinedPrint",
       "version": 0,
-      "thread_id": 0,
+      "thread_id": "[goid]",
       "thread_name": ""
     },
     "debugger": {
@@ -145,7 +145,7 @@
       "name": "",
       "method": "main.testInlinedPrint",
       "version": 0,
-      "thread_id": 0,
+      "thread_id": "[goid]",
       "thread_name": ""
     },
     "debugger": {
@@ -217,7 +217,7 @@
       "name": "",
       "method": "main.testInlinedPrint",
       "version": 0,
-      "thread_id": 0,
+      "thread_id": "[goid]",
       "thread_name": ""
     },
     "debugger": {
@@ -294,7 +294,7 @@
       "name": "",
       "method": "main.testInlinedPrint",
       "version": 0,
-      "thread_id": 0,
+      "thread_id": "[goid]",
       "thread_name": ""
     },
     "debugger": {
@@ -306,7 +306,7 @@
           {
             "function": "main.testInlinedPrint",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/inlined.go",
-            "lineNumber": 13
+            "lineNumber": 15
           },
           {
             "function": "main.forceOutOfLine",
@@ -352,6 +352,7 @@
         }
       }
     },
-    "timestamp": "[ts]"
+    "timestamp": "[ts]",
+    "duration": "[duration]"
   }
 ]

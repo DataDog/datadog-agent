@@ -6,7 +6,7 @@
       "name": "",
       "method": "main.testFrameless",
       "version": 0,
-      "thread_id": 0,
+      "thread_id": "[goid]",
       "thread_name": ""
     },
     "debugger": {
@@ -18,7 +18,7 @@
           {
             "function": "main.testFrameless",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/inlined.go",
-            "lineNumber": 79
+            "lineNumber": 80
           },
           {
             "function": "main.executeInlined",
@@ -55,10 +55,19 @@
                 "value": "10"
               }
             }
+          },
+          "return": {
+            "locals": {
+              "~r0": {
+                "type": "int",
+                "value": "100"
+              }
+            }
           }
         }
       }
     },
-    "timestamp": "[ts]"
+    "timestamp": "[ts]",
+    "duration": "[duration]"
   }
 ]

@@ -6,6 +6,7 @@
 package environments
 
 import (
+	"errors"
 	"fmt"
 	"path/filepath"
 	"regexp"
@@ -56,13 +57,108 @@ func (e *DockerHost) Diagnose(outputDir string) (string, error) {
 	return strings.Join(diagnoses, "\n"), nil
 }
 
+// Coverage generates a coverage report for the Docker agent
+func (e *DockerHost) Coverage(outputDir string) (string, error) {
+	if e.Docker == nil {
+		return "Docker component is not initialized, skipping coverage", nil
+	}
+	if e.Agent == nil {
+		return "Agent component is not initialized, skipping coverage", nil
+	}
+
+	outStr := []string{"===== Coverage ====="}
+	outStr = append(outStr, "==== Docker Agent ====")
+
+	result, err := e.generateAndDownloadCoverageForContainer(outputDir)
+	if err != nil {
+		return "", fmt.Errorf("failed to generate and download coverage for container: %w", err)
+	}
+	outStr = append(outStr, result)
+
+	return strings.Join(outStr, "\n"), err
+}
+
+// getAgentCoverageCommands returns the coverage commands for each agent component
+func (e *DockerHost) getAgentCoverageCommands() []CoverageTargetSpec {
+	return []CoverageTargetSpec{
+		{
+			AgentName:       "agent",
+			CoverageCommand: []string{"agent", "coverage", "generate"},
+			Required:        true,
+		},
+		{
+			AgentName:       "trace-agent",
+			CoverageCommand: []string{"trace-agent", "coverage", "generate", "-c", "/etc/datadog-agent/datadog.yaml"},
+			Required:        false,
+		},
+		{
+			AgentName:       "process-agent",
+			CoverageCommand: []string{"process-agent", "coverage", "generate"},
+			Required:        false,
+		},
+		{
+			AgentName:       "security-agent",
+			CoverageCommand: []string{"security-agent", "coverage", "generate"},
+			Required:        false,
+		},
+		{
+			AgentName:       "system-probe",
+			CoverageCommand: []string{"system-probe", "coverage", "generate"},
+			Required:        false,
+		},
+	}
+}
+
+func (e *DockerHost) generateAndDownloadCoverageForContainer(outputDir string) (string, error) {
+	commandCoverages := e.getAgentCoverageCommands()
+	outStr := []string{}
+	errs := []error{}
+	for _, target := range commandCoverages {
+		outStr = append(outStr, fmt.Sprintf("Component %s:\n", target.AgentName))
+
+		// Execute coverage command in the Docker container
+		stdout, err := e.Docker.Client.ExecuteCommandWithErr(e.Agent.ContainerName, target.CoverageCommand...)
+		if err != nil {
+			outStr, errs = updateErrorOutput(target, outStr, errs, err.Error())
+			continue
+		}
+
+		// find coverage folder in command output
+		re := regexp.MustCompile(`(?m)Coverage written to (.+)$`)
+		matches := re.FindStringSubmatch(stdout)
+		if len(matches) < 2 {
+			outStr, errs = updateErrorOutput(target, outStr, errs, fmt.Sprintf("output does not contain the path to the coverage folder, output: %s", stdout))
+			continue
+		}
+
+		coveragePath := matches[1]
+
+		// Create local destination directory
+		localCoverageDir := filepath.Join(outputDir, "coverage")
+
+		// Download the coverage folder from the Docker container
+		err = e.Docker.Client.DownloadFile(e.Agent.ContainerName, coveragePath, localCoverageDir)
+		if err != nil {
+			outStr, errs = updateErrorOutput(target, outStr, errs, err.Error())
+			continue
+		}
+
+		outStr = append(outStr, fmt.Sprintf("Downloaded coverage folder: %s to %s", coveragePath, localCoverageDir))
+	}
+
+	if len(errs) > 0 {
+		return strings.Join(outStr, "\n"), errors.Join(errs...)
+	}
+	return strings.Join(outStr, "\n"), nil
+}
+
 func (e *DockerHost) generateAndDownloadAgentFlare(outputDir string) (string, error) {
 	if e.Agent == nil || e.Docker == nil {
 		return "", fmt.Errorf("Agent or Docker component is not initialized, cannot generate flare")
 	}
-	// generate a local flare
+	// generate a flare, it will fallback to local flare generation if the running agent cannot be reached
 	// discard error, flare command might return error if there is no intake, but the archive is still generated
-	flareCommandOutput, err := e.Agent.Client.FlareWithError(agentclient.WithArgs([]string{"--email", "e2e-tests@datadog-agent", "--send", "--local"}))
+	flareCommandOutput, err := e.Agent.Client.FlareWithError(agentclient.WithArgs([]string{"--email", "e2e-tests@datadog-agent", "--send"}))
 
 	lines := []string{flareCommandOutput}
 	if err != nil {

@@ -37,11 +37,11 @@ build do
         end
 
         if linux_target? || osx_target?
-            delete "#{install_dir}/embedded/bin/pip"  # copy of pip3.12
-            delete "#{install_dir}/embedded/bin/pip3"  # copy of pip3.12
+            delete "#{install_dir}/embedded/bin/pip"  # copy of pip3.13
+            delete "#{install_dir}/embedded/bin/pip3"  # copy of pip3.13
             block 'create relative symlinks within embedded Python distribution' do
               Dir.chdir "#{install_dir}/embedded/bin" do
-                File.symlink 'pip3.12', 'pip3'
+                File.symlink 'pip3.13', 'pip3'
                 File.symlink 'pip3', 'pip'
                 File.symlink 'python3', 'python'
               end
@@ -209,6 +209,21 @@ build do
                     ) | xargs -0 -n10 -P#{workers} #{codesign} #{hardened_runtime}--force --timestamp --deep -s '#{code_signing_identity}'
                 SH
             end
+
+            # Check that all binaries are compatible with the minimum macOS version we support
+            # https://docs.datadoghq.com/agent/supported_platforms/?tab=macos
+            allow_list = [
+              "libddwaf\\.dylib",
+              "secret-generic-connector",
+            ]
+            command_on_repo_root "./omnibus/scripts/check_macos_version.sh",
+                                 live_stream: Omnibus.logger.live_stream(:info),
+                                 env: {
+                                   ARCH: arm_target? ? "arm64" : "x86_64",
+                                   MIN_ACCEPTABLE_VERSION: "11.0",
+                                   INSTALL_DIR: install_dir,
+                                   ALLOW_PATTERN: "(#{allow_list.join('|')})",
+                                 }
         end
     end
 end

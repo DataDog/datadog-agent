@@ -103,6 +103,8 @@ var (
 	Kernel6_10 = kernel.VersionCode(6, 10, 0)
 	// Kernel6_11 is the KernelVersion representation of kernel version 6.11
 	Kernel6_11 = kernel.VersionCode(6, 11, 0)
+	// Kernel6_14 is the KernelVersion representation of kernel version 6.14
+	Kernel6_14 = kernel.VersionCode(6, 14, 0)
 )
 
 // Version defines a kernel version helper
@@ -318,9 +320,10 @@ func (k *Version) IsInRangeCloseOpen(begin kernel.Version, end kernel.Version) b
 	return k.Code != 0 && begin <= k.Code && k.Code < end
 }
 
-// HasNoPreallocMapsInPerfEvent returns true if the kernel supports using non-preallocated maps in perf_event programs
+// HasSafeBPFMemoryAllocations returns true if the kernel supports using non-preallocated maps in perf_event programs
+// and considers using non-preallocated maps in tracing programs as safe
 // See https://github.com/torvalds/linux/commit/274052a2b0ab9f380ce22b19ff80a99b99ecb198
-func (k *Version) HasNoPreallocMapsInPerfEvent() bool {
+func (k *Version) HasSafeBPFMemoryAllocations() bool {
 	return k.Code >= Kernel6_1
 }
 

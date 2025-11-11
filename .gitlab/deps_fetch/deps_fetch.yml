@@ -4,21 +4,21 @@
 # to reuse them in further jobs that need them.
 
 .retrieve_linux_go_deps:
-  - mkdir -p $GOPATH/pkg/mod/cache && tar xJf modcache.tar.xz -C $GOPATH/pkg/mod/cache || exit 101
+  - mkdir -p $GOPATH/pkg/mod/cache && tar xJf modcache.tar.xz -C $GOPATH/pkg/mod/cache
   - rm -f modcache.tar.xz
 
 .retrieve_linux_go_tools_deps:
-  - mkdir -p $GOPATH/pkg/mod/cache && tar xJf modcache_tools.tar.xz -C $GOPATH/pkg/mod/cache || exit 101
+  - mkdir -p $GOPATH/pkg/mod/cache && tar xJf modcache_tools.tar.xz -C $GOPATH/pkg/mod/cache
   - rm -f modcache_tools.tar.xz
 
 .retrieve_linux_go_e2e_deps:
-  - mkdir -p $GOPATH/pkg/mod/cache && tar xJf modcache_e2e.tar.xz -C $GOPATH/pkg/mod/cache || exit 101
+  - mkdir -p $GOPATH/pkg/mod/cache && tar xJf modcache_e2e.tar.xz -C $GOPATH/pkg/mod/cache
   - rm -f modcache_e2e.tar.xz
 
 .cache:
   stage: deps_fetch
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
-  tags: ["arch:amd64"]
+  tags: ["arch:amd64", "specific:true"]
   needs: ["setup_agent_version"]
   variables:
     KUBERNETES_CPU_REQUEST: 16
@@ -109,7 +109,7 @@ go_e2e_deps:
 
 fetch_openjdk:
   needs: []
-  tags: ["arch:amd64"]
+  tags: ["arch:amd64", "specific:true"]
   rules:
     - !reference [.manual]
   stage: deps_fetch

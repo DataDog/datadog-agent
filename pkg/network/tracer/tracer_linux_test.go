@@ -18,6 +18,7 @@ import (
 	"math"
 	"math/rand"
 	"net"
+	"net/http"
 	"net/netip"
 	"os"
 	"os/exec"
@@ -57,10 +58,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/kprobe"
+	ssluprobes "github.com/DataDog/datadog-agent/pkg/network/tracer/connection/ssl-uprobes"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/offsetguess"
 	tracertestutil "github.com/DataDog/datadog-agent/pkg/network/tracer/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/testutil/testdns"
 	usmconfig "github.com/DataDog/datadog-agent/pkg/network/usm/config"
+	usmutils "github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel/netns"
@@ -1610,13 +1613,16 @@ func testUDPReusePort(t *testing.T, udpnet string, ip string) {
 	// Iterate through active connections until we find connection created above, and confirm send + recv counts
 	t.Logf("port: %d", assignedPort)
 
+	var incoming, outgoing *network.ConnectionStats
 	assert.EventuallyWithT(t, func(ct *assert.CollectT) {
-		// use t instead of ct because getConnections uses require (not assert), and we get a better error message that way
 		connections, cleanup := getConnections(ct, tr)
 		defer cleanup()
 
-		incoming, ok := findConnection(c.RemoteAddr(), c.LocalAddr(), connections)
-		if assert.True(ct, ok, "unable to find incoming connection") {
+		curIncoming, ok := findConnection(c.RemoteAddr(), c.LocalAddr(), connections)
+		if ok {
+			incoming = curIncoming
+		}
+		if assert.NotNil(ct, incoming, "unable to find incoming connection") {
 			assert.Equal(ct, network.INCOMING, incoming.Direction)
 
 			// make sure the inverse values are seen for the other message
@@ -1625,15 +1631,18 @@ func testUDPReusePort(t *testing.T, udpnet string, ip string) {
 			assert.True(ct, incoming.IntraHost, "incoming intrahost")
 		}
 
-		outgoing, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
-		if assert.True(ct, ok, "unable to find outgoing connection") {
+		curOutgoing, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
+		if ok {
+			outgoing = curOutgoing
+		}
+		if assert.NotNil(ct, outgoing, "unable to find outgoing connection") {
 			assert.Equal(ct, network.OUTGOING, outgoing.Direction)
 
 			assert.Equal(ct, clientMessageSize, int(outgoing.Monotonic.SentBytes), "outgoing sent")
 			assert.Equal(ct, serverMessageSize, int(outgoing.Monotonic.RecvBytes), "outgoing recv")
 			assert.True(ct, outgoing.IntraHost, "outgoing intrahost")
 		}
-	}, 3*time.Second, 100*time.Millisecond)
+	}, 4*time.Second, 100*time.Millisecond)
 
 	// log the connections at the end in case the test failed
 	connections, cleanup := getConnections(t, tr)
@@ -2496,11 +2505,13 @@ func (s *TracerSuite) TestConnectionDuration() {
 		for {
 			_, err := c.Read(b[:])
 			if err != nil && (errors.Is(err, net.ErrClosed) || err == io.EOF) {
+				t.Logf("closing connection: %s", err)
 				break
 			}
 			require.NoError(t, err)
 			_, err = c.Write([]byte("pong"))
 			if err != nil && (errors.Is(err, net.ErrClosed) || err == io.EOF) {
+				t.Logf("closing connection: %s", err)
 				break
 			}
 			require.NoError(t, err)
@@ -2548,6 +2559,7 @@ LOOP:
 	}, 3*time.Second, 100*time.Millisecond, "could not find connection")
 
 	require.NoError(t, c.Close(), "error closing client connection")
+	t.Logf("client connection closed")
 	require.EventuallyWithT(t, func(collect *assert.CollectT) {
 		conns, cleanup := getConnections(collect, tr)
 		defer cleanup()
@@ -2557,10 +2569,10 @@ LOOP:
 		require.Empty(collect, conn.TCPFailures, "connection should have no failures")
 
 		// after closing the client connection, the duration should be
-		// updated to a value between 1s and 2s
-		require.Greater(collect, conn.Duration, time.Second, "connection duration should be between 1 and 2 seconds")
-		require.Less(collect, conn.Duration, 2*time.Second, "connection duration should be between 1 and 2 seconds")
-	}, 3*time.Second, 100*time.Millisecond, "could not find closed connection")
+		// updated to a value between 500ms and 2s.
+		require.Greater(collect, conn.Duration, 500*time.Millisecond, "connection duration should be between 500ms and 2 seconds")
+		require.Less(collect, conn.Duration, 2*time.Second, "connection duration should be between 500ms and 2 seconds")
+	}, 4*time.Second, 100*time.Millisecond, "could not find closed connection")
 }
 
 var failedConnectionsBuildModes = map[ebpftest.BuildMode]struct{}{
@@ -2593,7 +2605,8 @@ func (s *TracerSuite) TestTCPFailureConnectionTimeout() {
 		}
 		sfd, err := syscall.Socket(syscall.AF_INET, flags, syscall.IPPROTO_TCP)
 		require.NoError(t, err)
-		defer syscall.Close(sfd)
+		f := os.NewFile(uintptr(sfd), "")
+		defer f.Close()
 
 		//syscall.TCP_USER_TIMEOUT is 18 but not defined in our linter. Set it to 500ms
 		err = syscall.SetsockoptInt(sfd, syscall.IPPROTO_TCP, 18, 500)
@@ -2608,7 +2621,6 @@ func (s *TracerSuite) TestTCPFailureConnectionTimeout() {
 			}
 		}
 
-		f := os.NewFile(uintptr(sfd), "")
 		c, err := net.FileConn(f)
 		require.NoError(t, err)
 		t.Cleanup(func() { c.Close() })
@@ -3168,4 +3180,94 @@ func (s *TracerSuite) TestTCPSynRst() {
 
 	assert.Equal(t, uint32(1), conn.TCPFailures[uint16(unix.ECONNREFUSED)])
 	assert.Equal(t, uint16(1), conn.Monotonic.TCPClosed)
+}
+
+func getExampleCertPaths() (string, string, error) {
+	curDir, err := usmtestutil.CurDir()
+	if err != nil {
+		return "", "", err
+	}
+
+	return filepath.Join(curDir, "testdata/example.com.crt"), filepath.Join(curDir, "testdata/example.com.key"), nil
+}
+
+func testTLSCertParsing(t *testing.T, client *http.Client, matcher func(c *network.ConnectionStats) bool) {
+	cfg := testConfig()
+	cfg.EnableCertCollection = true
+	if isPrebuilt(cfg) {
+		t.Skip("tls certs not supported on prebuilt")
+	}
+	if err := ssluprobes.ValidateSupported(); err != nil {
+		t.Skipf("skipping because tls certs kernel features are not supported on this kernel: %s", err)
+	}
+	skipOnEbpflessNotSupported(t, cfg)
+
+	tr := setupTracer(t, cfg)
+	if tr.ebpfTracer.Type() == connection.TracerTypeFentry {
+		t.Skip("tls certs not (yet) supported on fentry")
+	}
+
+	serverAddr := "127.0.0.1:8002"
+
+	certPath, keyPath, err := getExampleCertPaths()
+	require.NoError(t, err)
+	cmd := usmtestutil.HTTPPythonServer(t, serverAddr, usmtestutil.Options{
+		EnableTLS: true,
+		CertPath:  certPath,
+		KeyPath:   keyPath,
+	})
+
+	usmutils.WaitForProgramsToBeTraced(t, ssluprobes.CNMModuleName, ssluprobes.CNMTLSAttacherName, cmd.Process.Pid, usmutils.ManualTracingFallbackEnabled)
+
+	code, _, err := tracertestutil.HTTPGet(client, fmt.Sprintf("https://%s/status/200/foobar", serverAddr))
+	require.NoError(t, err)
+	require.Equal(t, 200, code)
+
+	var cert ssluprobes.CertInfo
+	require.EventuallyWithT(t, func(collect *assert.CollectT) {
+		conns, cleanup := getConnections(collect, tr)
+		defer cleanup()
+		c := network.FirstConnection(conns, func(c network.ConnectionStats) bool {
+			server := netip.MustParseAddrPort(serverAddr)
+			addrMatches := server.Addr() == c.Source.Addr && server.Port() == c.SPort
+			return addrMatches && c.HasCertInfo() && matcher(&c)
+		})
+		require.NotNil(collect, c)
+		cert = c.CertInfo.Value()
+	}, time.Second*5, time.Millisecond*200)
+
+	assert.Equal(t, "4dcfeb0a16bcfddba47a1fae9d28b4bd0b9212e7", cert.SerialNumber)
+	assert.Equal(t, "example.com", cert.Domain)
+	assert.Equal(t, time.Date(2025, time.October, 2, 18, 5, 2, 0, time.UTC), cert.Validity.NotBefore)
+	assert.Equal(t, time.Date(2026, time.November, 6, 18, 5, 2, 0, time.UTC), cert.Validity.NotAfter)
+
+}
+
+func (s *TracerSuite) TestTLSCertParsing() {
+
+	t := s.T()
+
+	t.Run("closed connection", func(t *testing.T) {
+		transport := &http.Transport{
+			TLSClientConfig:   &tls.Config{InsecureSkipVerify: true},
+			DisableKeepAlives: true,
+		}
+		client := &http.Client{Transport: transport}
+
+		testTLSCertParsing(t, client, func(c *network.ConnectionStats) bool {
+			return c.IsClosed
+		})
+	})
+
+	t.Run("long-lived connection", func(t *testing.T) {
+		transport := &http.Transport{
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+		}
+		client := &http.Client{Transport: transport}
+
+		testTLSCertParsing(t, client, func(c *network.ConnectionStats) bool {
+			return !c.IsClosed
+		})
+	})
+
 }

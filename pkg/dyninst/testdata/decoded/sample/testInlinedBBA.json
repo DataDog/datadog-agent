@@ -6,7 +6,7 @@
       "name": "",
       "method": "main.testInlinedBBA",
       "version": 0,
-      "thread_id": 0,
+      "thread_id": "[goid]",
       "thread_name": ""
     },
     "debugger": {
@@ -18,7 +18,7 @@
           {
             "function": "main.testInlinedBBA",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/inlined.go",
-            "lineNumber": 44
+            "lineNumber": 46
           },
           {
             "function": "main.testInlinedBB",
@@ -69,6 +69,7 @@
         }
       }
     },
-    "timestamp": "[ts]"
+    "timestamp": "[ts]",
+    "duration": "[duration]"
   }
 ]

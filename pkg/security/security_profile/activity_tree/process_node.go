@@ -550,3 +550,110 @@ func (pn *ProcessNode) EvictImageTag(imageTag string, DNSNames *utils.StringKeys
 	pn.Children = newChildren
 	return false
 }
+
+// EvictUnusedNodes evicts all child nodes that haven't been touched since the given timestamp
+// and returns the total number of process nodes evicted, a node is only evicted if all its children are evictable.
+func (pn *ProcessNode) EvictUnusedNodes(before time.Time, filepathsInProcessCache map[ImageProcessKey]bool, profileImageName, profileImageTag string) int {
+	totalEvicted := 0
+
+	key := ImageProcessKey{
+		ImageName: profileImageName,
+		ImageTag:  profileImageTag,
+	}
+
+	// First, recursively evict unused nodes from children
+	for i := len(pn.Children) - 1; i >= 0; i-- {
+		child := pn.Children[i]
+		evicted := child.EvictUnusedNodes(before, filepathsInProcessCache, profileImageName, profileImageTag)
+		totalEvicted += evicted
+
+		// If the child process node itself has no image tags left after eviction, remove it entirely
+		if len(child.Seen) == 0 {
+			pn.Children = append(pn.Children[:i], pn.Children[i+1:]...)
+			totalEvicted++
+		}
+	}
+
+	// Try a fallback if the node is in the process cache
+	// Check if this specific image/tag/filepath combination exists in the cache
+	// The filepath might not be sufficient to uniquely identify the node, but it's a good enough approximation for now
+	// Edge case: foo->bar->foo, if the second foo is no longer in the process cache, it will still be refreshed because of the first foo
+	key.Filepath = pn.Process.FileEvent.PathnameStr
+
+	if filepathsInProcessCache[key] {
+		// check if the node was supposed to be removed, then update the last seen to now
+		if pn.Seen[key.ImageTag] != nil && pn.Seen[key.ImageTag].LastSeen.Before(before) {
+			pn.NodeBase.AppendImageTag(key.ImageTag, time.Now())
+		}
+	}
+
+	_ = pn.NodeBase.EvictBeforeTimestamp(before)
+
+	// If the process node itself can be evicted
+	if len(pn.Children) == 0 && len(pn.Seen) == 0 {
+		return totalEvicted
+		// No need to evict the activity nodes, since this process node will be removed entirely
+
+	}
+
+	// Evict unused syscall nodes
+	for i := len(pn.Syscalls) - 1; i >= 0; i-- {
+		syscallNode := pn.Syscalls[i]
+		if syscallNode.NodeBase.EvictBeforeTimestamp(before) > 0 {
+			if len(syscallNode.Seen) == 0 {
+				pn.Syscalls = append(pn.Syscalls[:i], pn.Syscalls[i+1:]...)
+			}
+		}
+	}
+
+	// Evict unused file nodes
+	for path, fileNode := range pn.Files {
+		if fileNode.NodeBase.EvictBeforeTimestamp(before) > 0 {
+			if len(fileNode.Seen) == 0 {
+				delete(pn.Files, path)
+			}
+		}
+	}
+
+	// Evict unused DNS nodes
+	for name, dnsNode := range pn.DNSNames {
+		if dnsNode.NodeBase.EvictBeforeTimestamp(before) > 0 {
+			if len(dnsNode.Seen) == 0 {
+				delete(pn.DNSNames, name)
+			}
+		}
+	}
+
+	// Evict unused IMDS nodes
+	for event, imdsNode := range pn.IMDSEvents {
+		if imdsNode.NodeBase.EvictBeforeTimestamp(before) > 0 {
+			if len(imdsNode.Seen) == 0 {
+				delete(pn.IMDSEvents, event)
+			}
+		}
+	}
+
+	// Note: NetworkDeviceNode doesn't embed NodeBase so we skip eviction for network devices
+
+	// Evict unused socket nodes
+	for i := len(pn.Sockets) - 1; i >= 0; i-- {
+		socketNode := pn.Sockets[i]
+		if socketNode.NodeBase.EvictBeforeTimestamp(before) > 0 {
+			if len(socketNode.Seen) == 0 {
+				pn.Sockets = append(pn.Sockets[:i], pn.Sockets[i+1:]...)
+			}
+		}
+	}
+
+	// Evict unused capability nodes
+	for i := len(pn.Capabilities) - 1; i >= 0; i-- {
+		capabilityNode := pn.Capabilities[i]
+		if capabilityNode.NodeBase.EvictBeforeTimestamp(before) > 0 {
+			if len(capabilityNode.Seen) == 0 {
+				pn.Capabilities = append(pn.Capabilities[:i], pn.Capabilities[i+1:]...)
+			}
+		}
+	}
+
+	return totalEvicted
+}

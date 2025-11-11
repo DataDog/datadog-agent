@@ -18,6 +18,7 @@ import (
 	"k8s.io/client-go/dynamic"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/metrics"
 	mutatecommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -39,6 +40,8 @@ type TargetMutator struct {
 	securityClientLibraryMutator  containerMutator
 	profilingClientLibraryMutator containerMutator
 	containerRegistry             string
+	mutateUnlabelled              bool
+	defaultLibVersions            []libInfo
 }
 
 // NewTargetMutator creates a new mutator for target based workload selection. We convert the targets to a more
@@ -56,70 +59,89 @@ func NewTargetMutator(config *Config, wmeta workloadmeta.Component, imageResolve
 		disabledNamespacesMap[ns] = true
 	}
 
-	// Convert the targets to internal format.
-	internalTargets := make([]targetInternal, len(config.Instrumentation.Targets))
-	for i, t := range config.Instrumentation.Targets {
-		// Convert the pod selector to a label selector.
-		podSelector := labels.Everything()
-		var err error
-		if t.PodSelector != nil {
-			podSelector, err = t.PodSelector.AsLabelSelector()
-			if err != nil {
-				return nil, fmt.Errorf("could not convert selector to label selector: %w", err)
+	// Fetch the default lib versions to use if there are no user defined versions.
+	defaultLibVersions := getAllLatestDefaultLibraries(config.containerRegistry)
+
+	// If there are no targets, we should fall back to enabledNamespace/libVersions. If those are also not defined, the
+	// expected behavior is to inject all pods into all namespaces.
+	var internalTargets []targetInternal
+	if config.Instrumentation.Enabled {
+		targets := config.Instrumentation.Targets
+		if len(targets) == 0 {
+			targets = append(targets, createDefaultTarget(config.Instrumentation.EnabledNamespaces, config.Instrumentation.LibVersions))
+		}
+
+		// Convert the targets to internal format.
+		internalTargets = make([]targetInternal, len(targets))
+		for i, t := range targets {
+			// Convert the pod selector to a label selector.
+			podSelector := labels.Everything()
+			var err error
+			if t.PodSelector != nil {
+				podSelector, err = t.PodSelector.AsLabelSelector()
+				if err != nil {
+					return nil, fmt.Errorf("could not convert selector to label selector: %w", err)
+				}
 			}
-		}
 
-		// Determine if we should use the namespace selector or if we should use enabledNamespaces.
-		useNamespaceSelector := t.NamespaceSelector != nil && len(t.NamespaceSelector.MatchLabels)+len(t.NamespaceSelector.MatchExpressions) > 0
+			// Determine if we should use the namespace selector or if we should use enabledNamespaces.
+			useNamespaceSelector := t.NamespaceSelector != nil && len(t.NamespaceSelector.MatchLabels)+len(t.NamespaceSelector.MatchExpressions) > 0
 
-		// Convert the namespace selector to a label selector.
-		namespaceSelector := labels.Everything()
-		if useNamespaceSelector && t.NamespaceSelector != nil {
-			namespaceSelector, err = t.NamespaceSelector.AsLabelSelector()
-			if err != nil {
-				return nil, fmt.Errorf("could not convert selector to label selector: %w", err)
+			// Convert the namespace selector to a label selector.
+			namespaceSelector := labels.Everything()
+			if useNamespaceSelector && t.NamespaceSelector != nil {
+				namespaceSelector, err = t.NamespaceSelector.AsLabelSelector()
+				if err != nil {
+					return nil, fmt.Errorf("could not convert selector to label selector: %w", err)
+				}
 			}
-		}
 
-		// Create a map of enabled namespaces for quick lookups.
-		var enabledNamespaces map[string]bool
-		if !useNamespaceSelector && t.NamespaceSelector != nil {
-			enabledNamespaces = make(map[string]bool, len(t.NamespaceSelector.MatchNames))
-			for _, ns := range t.NamespaceSelector.MatchNames {
-				enabledNamespaces[ns] = true
+			// Create a map of enabled namespaces for quick lookups.
+			var enabledNamespaces map[string]bool
+			if !useNamespaceSelector && t.NamespaceSelector != nil {
+				enabledNamespaces = make(map[string]bool, len(t.NamespaceSelector.MatchNames))
+				for _, ns := range t.NamespaceSelector.MatchNames {
+					enabledNamespaces[ns] = true
+				}
 			}
-		}
 
-		// Get the library versions to inject. If no versions are specified, we inject all libraries.
-		var libVersions []libInfo
-		if len(t.TracerVersions) == 0 {
-			libVersions = getAllLatestDefaultLibraries(config.containerRegistry, imageResolver)
-		} else {
-			libVersions = getPinnedLibraries(t.TracerVersions, config.containerRegistry, false, imageResolver).libs
-		}
-
-		// Convert the tracer configs to env vars. We check that the env var names start with the DD_ prefix to avoid
-		// this from being used as a generic env var injector. If there is a product requirement to allow arbitrary env
-		// vars in the future, we could relax this requirement.
-		envVars := make([]corev1.EnvVar, len(t.TracerConfigs))
-		for i, tc := range t.TracerConfigs {
-			if !strings.HasPrefix(tc.Name, "DD_") {
-				return nil, fmt.Errorf("tracer config %q does not start with DD_", tc.Name)
+			// We build the libVersions based on if they are specified in `tracerVersions` else ask the higher-level configuration from `libVersions`
+			// and/or defer to language detection.
+			var libVersions []libInfo
+			usesDefaultLibs := false
+			if len(t.TracerVersions) == 0 {
+				libVersions = defaultLibVersions
+				usesDefaultLibs = true
+			} else {
+				pinnedLibraries := getPinnedLibraries(t.TracerVersions, config.containerRegistry, true)
+				usesDefaultLibs = pinnedLibraries.areSetToDefaults
+				libVersions = pinnedLibraries.libs
 			}
-			envVars[i] = tc.AsEnvVar()
-		}
 
-		// Store the target in the internal format.
-		internalTargets[i] = targetInternal{
-			name:                 t.Name,
-			podSelector:          podSelector,
-			useNamespaceSelector: useNamespaceSelector,
-			nameSpaceSelector:    namespaceSelector,
-			wmeta:                wmeta,
-			enabledNamespaces:    enabledNamespaces,
-			libVersions:          libVersions,
-			envVars:              envVars,
-			json:                 createJSON(t),
+			// Convert the tracer configs to env vars. We check that the env var names start with the DD_ prefix to avoid
+			// this from being used as a generic env var injector. If there is a product requirement to allow arbitrary env
+			// vars in the future, we could relax this requirement.
+			envVars := make([]corev1.EnvVar, len(t.TracerConfigs))
+			for i, tc := range t.TracerConfigs {
+				if !strings.HasPrefix(tc.Name, "DD_") {
+					return nil, fmt.Errorf("tracer config %q does not start with DD_", tc.Name)
+				}
+				envVars[i] = tc.AsEnvVar()
+			}
+
+			// Store the target in the internal format.
+			internalTargets[i] = targetInternal{
+				name:                 t.Name,
+				podSelector:          podSelector,
+				useNamespaceSelector: useNamespaceSelector,
+				nameSpaceSelector:    namespaceSelector,
+				wmeta:                wmeta,
+				enabledNamespaces:    enabledNamespaces,
+				libVersions:          libVersions,
+				envVars:              envVars,
+				json:                 createJSON(t),
+				usesDefaultLibs:      usesDefaultLibs,
+			}
 		}
 	}
 
@@ -130,6 +152,8 @@ func NewTargetMutator(config *Config, wmeta workloadmeta.Component, imageResolve
 		securityClientLibraryMutator:  config.securityClientLibraryMutator,
 		profilingClientLibraryMutator: config.profilingClientLibraryMutator,
 		containerRegistry:             config.containerRegistry,
+		mutateUnlabelled:              config.mutateUnlabelled,
+		defaultLibVersions:            defaultLibVersions,
 	}
 
 	// Create the core mutator. This is a bit gross.
@@ -142,12 +166,6 @@ func NewTargetMutator(config *Config, wmeta workloadmeta.Component, imageResolve
 
 // MutatePod mutates the pod if it matches the target based workload selection or has the appropriate annotations.
 func (m *TargetMutator) MutatePod(pod *corev1.Pod, ns string, _ dynamic.Interface) (bool, error) {
-	// Return if the mutator is disabled.
-	if !m.enabled {
-		log.Debug("Target mutator is disabled, not mutating")
-		return false, nil
-	}
-
 	log.Debugf("Mutating pod in target mutator %q", mutatecommon.PodString(pod))
 
 	// Sanitize input.
@@ -163,6 +181,8 @@ func (m *TargetMutator) MutatePod(pod *corev1.Pod, ns string, _ dynamic.Interfac
 		return false, nil
 	}
 
+	log.Debugf("Mutating pod in target mutator %q", mutatecommon.PodString(pod))
+
 	// The admission can be re-run for the same pod. Fast return if we injected the library already.
 	for _, lang := range supportedLanguages {
 		if containsInitContainer(pod, initContainerName(lang)) {
@@ -177,6 +197,14 @@ func (m *TargetMutator) MutatePod(pod *corev1.Pod, ns string, _ dynamic.Interfac
 		return false, nil
 	}
 	extracted := m.core.initExtractedLibInfo(pod).withLibs(target.libVersions)
+
+	// If the user did not specify versions, this target is eligible for language detection.
+	if target.usesDefaultLibs {
+		extractedLanguageDetection, usingLanguageDetection := extracted.useLanguageDetectionLibs()
+		if usingLanguageDetection {
+			extracted = extractedLanguageDetection
+		}
+	}
 
 	// Add the configuration for the security client library.
 	if err := m.core.mutatePodContainers(pod, m.securityClientLibraryMutator); err != nil {
@@ -200,6 +228,15 @@ func (m *TargetMutator) MutatePod(pod *corev1.Pod, ns string, _ dynamic.Interfac
 		return false, fmt.Errorf("error injecting libraries: %w", err)
 	}
 
+	// Only add annotations/env vars if there is a target json to set. This would be blank for local lib injection.
+	if target.json != "" {
+		m.addTargetJSONInfo(pod, target)
+	}
+
+	return true, nil
+}
+
+func (m *TargetMutator) addTargetJSONInfo(pod *corev1.Pod, target *targetInternal) {
 	// Inject the target json. The is added so that the injector can make use of the target information.
 	_ = m.core.mutatePodContainers(pod, envVarMutator(corev1.EnvVar{
 		Name:  AppliedTargetEnvVar,
@@ -208,17 +245,18 @@ func (m *TargetMutator) MutatePod(pod *corev1.Pod, ns string, _ dynamic.Interfac
 
 	// Add the annotations to the pod.
 	mutatecommon.AddAnnotation(pod, AppliedTargetAnnotation, target.json)
-
-	return true, nil
 }
 
 // ShouldMutatePod determines if a pod would be mutated by the target mutator. It is used by other webhook mutators as
 // a filter.
 func (m *TargetMutator) ShouldMutatePod(pod *corev1.Pod) bool {
-	// Return if the mutator is disabled.
-	if !m.enabled {
+	// We need to explicitly check for the label being set to false, which opts out of mutation.
+	enabledLabelVal, enabledLabelExists := getEnabledLabel(pod)
+	if enabledLabelExists && !enabledLabelVal {
 		return false
 	}
+
+	// At this point, we should only mutate if a target matches.
 	return m.getTarget(pod) != nil
 }
 
@@ -263,37 +301,55 @@ type targetInternal struct {
 	envVars              []corev1.EnvVar
 	wmeta                workloadmeta.Component
 	json                 string
+	usesDefaultLibs      bool
 }
 
 // getTarget determines which target to use for a given a pod, which includes the set of tracing libraries to inject.
 func (m *TargetMutator) getTarget(pod *corev1.Pod) *targetInternal {
-	// If the pod has explicit tracer libraries defined as annotations, they take precedence.
-	target := m.getTargetFromAnnotation(pod)
-	if target != nil {
+	if target := m.getTargetFromAnnotation(pod); target != nil {
 		return target
 	}
 
-	// If there are no annotations, check if the pod matches any of the targets.
 	return m.getMatchingTarget(pod)
 }
 
-// getTargetFromAnnotation determines which tracing libraries to use given a pod's annotations. It returns the list of
-// tracing libraries to inject.
+// getTargetFromAnnotation determines which tracing libraries to use given
 func (m *TargetMutator) getTargetFromAnnotation(pod *corev1.Pod) *targetInternal {
-	libVersions := extractLibrariesFromAnnotations(pod, m.containerRegistry, m.core.imageResolver)
-	if len(libVersions) == 0 {
+	// The enabled label existing takes precedence...
+	enabledLabelVal, enabledLabelExists := getEnabledLabel(pod)
+	if enabledLabelExists && !enabledLabelVal {
 		return nil
 	}
 
-	log.Debugf("Pod %q has explicit libraries defined as annotations", mutatecommon.PodString(pod))
-
-	return &targetInternal{
-		libVersions: libVersions,
+	if !enabledLabelVal && !m.mutateUnlabelled {
+		return nil
 	}
+
+	// If local lib is enabled, then we should prefer the user defined libs.
+	extractedLibraries := extractLibrariesFromAnnotations(pod, m.containerRegistry)
+	if len(extractedLibraries) > 0 {
+		return &targetInternal{
+			libVersions: extractedLibraries,
+		}
+	}
+
+	injectAllAnnotation := strings.ToLower(fmt.Sprintf(libVersionAnnotationKeyFormat, "all"))
+	if _, found := pod.Annotations[injectAllAnnotation]; found {
+		return &targetInternal{
+			libVersions: m.defaultLibVersions,
+		}
+	}
+
+	return nil
 }
 
 // getMatchingTarget filters a pod based on the targets. It returns the target to inject.
 func (m *TargetMutator) getMatchingTarget(pod *corev1.Pod) *targetInternal {
+	// If instrumentation is disabled, we don't need to check the targets.
+	if !m.enabled {
+		return nil
+	}
+
 	// If the namespace is disabled, we don't need to check the targets.
 	if _, ok := m.disabledNamespaces[pod.Namespace]; ok {
 		return nil
@@ -353,6 +409,31 @@ func (t targetInternal) matchesPodSelector(podLabels map[string]string) bool {
 	return t.podSelector.Matches(labels.Set(podLabels))
 }
 
+// createDefaultTarget is used when there are no targets. If a user configures enabledNamespaces and libVersions, which
+// are mutually exclusive with a list of targets, then we need to translate those configuration options into a target.
+// Additionally, if there are no targets and enabledNamespaces/libVersions are not set, the expected behavior is that
+// we would inject all SDKs to all pods. This target encompasses both of those cases.
+func createDefaultTarget(namespaces []string, pinnedLibVersions map[string]string) Target {
+	// Create a default target.
+	target := Target{
+		Name: "default",
+	}
+
+	// If there are pinned versions, set them.
+	if len(pinnedLibVersions) > 0 {
+		target.TracerVersions = pinnedLibVersions
+	}
+
+	// Add a namespace selector if a list of namespaces is configured.
+	if len(namespaces) > 0 {
+		target.NamespaceSelector = &NamespaceSelector{
+			MatchNames: namespaces,
+		}
+	}
+
+	return target
+}
+
 // createJSON creates a json string of the target used to apply as an annotation.
 func createJSON(t Target) string {
 	data, err := json.Marshal(t)
@@ -361,4 +442,19 @@ func createJSON(t Target) string {
 		return fmt.Sprintf("error marshalling target %q: %v", t.Name, err)
 	}
 	return string(data)
+}
+
+// getEnabledLable is a helper function to convert the found value from a string
+// to a boolean.
+func getEnabledLabel(pod *corev1.Pod) (bool, bool) {
+	val, found := pod.GetLabels()[common.EnabledLabelKey]
+	if !found {
+		return false, found
+	}
+
+	if val == "true" {
+		return true, found
+	}
+
+	return false, found
 }

@@ -55,3 +55,15 @@ func IsUnsupported(err error) bool {
 		(errors.Is(nvmlErr.NvmlErrorCode, nvml.ERROR_NOT_SUPPORTED) ||
 			errors.Is(nvmlErr.NvmlErrorCode, nvml.ERROR_FUNCTION_NOT_FOUND))
 }
+
+// IsTimeout checks if an error indicates that no event arrived in specified timeout or that an interrupt arrived
+func IsTimeout(err error) bool {
+	var nvmlErr *NvmlAPIError
+	return err != nil && errors.As(err, &nvmlErr) && errors.Is(nvmlErr.NvmlErrorCode, nvml.ERROR_TIMEOUT)
+}
+
+// IsDriverNotLoaded checks if an error indicates that the driver is not loaded
+func IsDriverNotLoaded(err error) bool {
+	var nvmlErr *NvmlAPIError
+	return err != nil && errors.As(err, &nvmlErr) && errors.Is(nvmlErr.NvmlErrorCode, nvml.ERROR_DRIVER_NOT_LOADED)
+}

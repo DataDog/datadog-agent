@@ -1,0 +1,24 @@
+---
+upgrade:
+  - |
+    The PowerShell install script ``Install-Datadog.ps1`` now executes a different
+    ``datadog-installer-x86_64.exe`` subcommand.
+
+    If you always download a fresh ``Install-Datadog.ps1``, then no changes are needed.
+
+    If you have a cached or modified copy of ``Install-Datadog.ps1``, then you must merge
+    the latest changes, or migrate to use the executable setup instead. See the features section for more information.
+
+    ``Install-Datadog.ps1`` is now a light wrapper for downloading and executing ``datadog-installer-86_64.exe``. The rest of
+    the setup responsibility has been moved into the executable.
+features:
+  - |
+    The ``datadog-installer-x86_64.exe`` executable can now be used in place of the ``Install-Datadog.ps1`` PowerShell
+    script. The executable is versioned and will only install that version. For example, to install Agent 7.72.0,
+    download and run ``https://install.datadoghq.com/datadog-installer-7.72.0-1-x86_64.exe``. For more information, refer
+    to the [in-app install instructions](https://app.datadoghq.com/fleet/install-agent/latest?platform=windows).
+
+    To install the latest stable Agent version, download and run ``https://install.datadoghq.com/datadog-installer-x86_64.exe``.
+    This executable file is also versioned and will only install one version. It is updated with each release.
+
+    To check the version, run ``.\datadog-installer-x86_64.exe version``.

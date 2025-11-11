@@ -36,13 +36,10 @@ func TestSNMPListener(t *testing.T) {
 			},
 		},
 	}
-	listenerConfig := map[string]interface{}{
-		"configs": []interface{}{snmpConfig},
-		"workers": 1,
-	}
 
 	mockConfig := configmock.New(t)
-	mockConfig.SetWithoutSource("network_devices.autodiscovery", listenerConfig)
+	mockConfig.SetWithoutSource("network_devices.autodiscovery.configs", []interface{}{snmpConfig})
+	mockConfig.SetWithoutSource("network_devices.autodiscovery.workers", 1)
 
 	worker = func(_ *SNMPListener, jobs <-chan snmpJob) {
 		for {
@@ -87,13 +84,9 @@ func TestSNMPListenerSubnets(t *testing.T) {
 		configs = append(configs, snmpConfig)
 	}
 
-	listenerConfig := map[string]interface{}{
-		"configs": configs,
-		"workers": 10,
-	}
-
 	mockConfig := configmock.New(t)
-	mockConfig.SetWithoutSource("network_devices.autodiscovery", listenerConfig)
+	mockConfig.SetWithoutSource("network_devices.autodiscovery.configs", configs)
+	mockConfig.SetWithoutSource("network_devices.autodiscovery.workers", 10)
 
 	worker = func(_ *SNMPListener, jobs <-chan snmpJob) {
 		for {
@@ -139,13 +132,9 @@ func TestSNMPListenerIgnoredAdresses(t *testing.T) {
 		"ignored_ip_addresses": map[string]bool{"192.168.0.0": true},
 	}
 
-	listenerConfig := map[string]interface{}{
-		"configs": []interface{}{snmpConfig},
-		"workers": 1,
-	}
-
 	mockConfig := configmock.New(t)
-	mockConfig.SetWithoutSource("network_devices.autodiscovery", listenerConfig)
+	mockConfig.SetWithoutSource("network_devices.autodiscovery.configs", []interface{}{snmpConfig})
+	mockConfig.SetWithoutSource("network_devices.autodiscovery.workers", 1)
 
 	worker = func(_ *SNMPListener, jobs <-chan snmpJob) {
 		for {
@@ -203,6 +192,7 @@ func TestExtraConfig(t *testing.T) {
 			Timeout:  &sixPtr,
 			Count:    &threePtr,
 		},
+		UseRemoteConfigProfiles: true,
 	}
 
 	svc := SNMPService{
@@ -303,6 +293,10 @@ func TestExtraConfig(t *testing.T) {
 	info, err = svc.GetExtraConfig("ping")
 	assert.Equal(t, nil, err)
 	assert.Equal(t, `{"linux":{"use_raw_socket":true},"enabled":true,"interval":5,"timeout":6,"count":3}`, info)
+
+	info, err = svc.GetExtraConfig("use_remote_config_profiles")
+	assert.Equal(t, nil, err)
+	assert.Equal(t, "true", info)
 
 	svc = SNMPService{
 		adIdentifier: "snmp",
@@ -476,17 +470,15 @@ func TestCache(t *testing.T) {
 			_, ipNet, err := net.ParseCIDR("192.168.0.0/24")
 			assert.NoError(t, err)
 
-			listenerConfig := map[string]interface{}{
-				"configs": []interface{}{
-					map[string]interface{}{
-						"network":   ipNet.String(),
-						"port":      1161,
-						"community": "public",
-					},
+			listenerConfigs := []interface{}{
+				map[string]interface{}{
+					"network":   ipNet.String(),
+					"port":      1161,
+					"community": "public",
 				},
 			}
 
-			mockConfig.SetWithoutSource("network_devices.autodiscovery", listenerConfig)
+			mockConfig.SetWithoutSource("network_devices.autodiscovery.configs", listenerConfigs)
 
 			listener, err := NewSNMPListener(ServiceListernerDeps{})
 			assert.NoError(t, err)
@@ -536,12 +528,8 @@ func TestSubnetIndex(t *testing.T) {
 		configs = append(configs, snmpConfig)
 	}
 
-	listenerConfig := map[string]interface{}{
-		"configs": configs,
-	}
-
 	mockConfig := configmock.New(t)
-	mockConfig.SetWithoutSource("network_devices.autodiscovery", listenerConfig)
+	mockConfig.SetWithoutSource("network_devices.autodiscovery.configs", configs)
 
 	listener, err := NewSNMPListener(ServiceListernerDeps{})
 	assert.NoError(t, err)
@@ -645,19 +633,17 @@ func TestMigrateCache(t *testing.T) {
 					},
 				},
 			}
-			mockListenerConfig := map[string]interface{}{
-				"configs": []interface{}{
-					map[string]interface{}{
-						"network":         mockSnmpConfig.Network,
-						"port":            mockSnmpConfig.Port,
-						"loader":          mockSnmpConfig.Loader,
-						"community":       mockSnmpConfig.Community,
-						"authentications": mockSnmpConfig.Authentications,
-					},
+			mockListenerConfigs := []interface{}{
+				map[string]interface{}{
+					"network":         mockSnmpConfig.Network,
+					"port":            mockSnmpConfig.Port,
+					"loader":          mockSnmpConfig.Loader,
+					"community":       mockSnmpConfig.Community,
+					"authentications": mockSnmpConfig.Authentications,
 				},
-				"workers": 1,
 			}
-			mockConfig.SetWithoutSource("network_devices.autodiscovery", mockListenerConfig)
+			mockConfig.SetWithoutSource("network_devices.autodiscovery.configs", mockListenerConfigs)
+			mockConfig.SetWithoutSource("network_devices.autodiscovery.workers", 1)
 
 			listenerConfig, err := snmp.NewListenerConfig()
 			assert.NoError(t, err)

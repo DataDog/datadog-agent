@@ -1,0 +1,111 @@
+load("@bazel_skylib//rules:expand_template.bzl", "expand_template")
+load("@rules_cc//cc:defs.bzl", "cc_library")
+load("@rules_license//rules:license.bzl", "license")
+load("@rules_pkg//pkg:install.bzl", "pkg_install")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_files")
+
+license(
+    name = "license",
+    license_kinds = ["@rules_license//licenses/spdx:LGPL-2.1"],
+    license_text = "LICENSE",
+    visibility = ["//visibility:public"],
+)
+
+VERSION = "3.5"
+
+genrule(
+    name = "cil_lexer_src",
+    srcs = ["cil/src/cil_lexer.l"],
+    outs = ["cil_lexer.c"],
+    cmd = "M4=$(M4) $(FLEX) --outfile=$@ $<",
+    toolchains = [
+        "@rules_flex//flex:current_flex_toolchain",
+        "@rules_m4//m4:current_m4_toolchain",
+    ],
+)
+
+cc_library(
+    name = "libsepol",
+    srcs = glob(["src/*.c", "src/*.h", "cil/src/*.c", "cil/src/*.h"]) + [":cil_lexer_src"],
+    hdrs = glob(["include/sepol/**/*.h", "cil/include/cil/*.h"]),
+    local_defines = [
+        "_GNU_SOURCE",
+        # If we drop support for glibcs older than 2.28 we can provide this:
+        # "-DHAVE_REALLOCARRAY",
+    ],
+    copts = [
+        "-O2",
+        "-fPIC",
+        "-fno-semantic-interposition",
+    ],
+    includes = [
+        "include/",
+        "cil/include",
+        "include/sepol/",
+        "cil/src",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+cc_shared_library(
+    name = "sepol",
+    deps = [
+        ":libsepol",
+    ],
+    additional_linker_inputs = [
+        "src/libsepol.map.in",
+    ],
+    user_link_flags = [
+        "-Wl,-soname=libsepol.so",
+        "-Wl,--version-script=$(location src/libsepol.map.in)",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+expand_template(
+    name = "libsepol_pc",
+    out = "libsepol.pc",
+    substitutions = {
+        # Prepare the .pc file for our own substitution later
+        "@prefix@": "##PREFIX##",
+        # and make other values depend on the prefix declared in the .pc file
+        "@libdir@": "${prefix}/lib",
+        "@includedir@": "${prefix}/include",
+        "@VERSION@": VERSION,
+    },
+    template = ":src/libsepol.pc.in",
+)
+
+pkg_files(
+    name = "lib_files",
+    srcs = [":sepol"],
+    prefix = "lib",
+)
+
+pkg_files(
+    name = "hdr_files",
+    srcs = glob(["include/sepol/*.h", "cil/include/cil/*.h"]),
+    prefix = "include/sepol",
+)
+
+pkg_files(
+    name = "policy_hdr_files",
+    srcs = glob(["include/sepol/policydb/*.h"]),
+    prefix = "include/sepol/policydb",
+)
+
+pkg_files(
+    name = "pc_file",
+    srcs = [":libsepol_pc"],
+    prefix = "lib/pkgconfig",
+)
+
+pkg_install(
+    name = "install",
+    srcs = [
+        ":hdr_files",
+        ":policy_hdr_files",
+        ":lib_files",
+        ":pc_file",
+    ],
+)

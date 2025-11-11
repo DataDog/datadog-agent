@@ -15,6 +15,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strconv"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/uprobes"
@@ -61,7 +62,7 @@ var GPUMonitoring = &module.Factory{
 		c := gpuconfig.New()
 
 		if c.ConfigureCgroupPerms {
-			configureCgroupPermissions()
+			configureCgroupPermissions(c.CgroupReapplyDelay)
 		}
 
 		probeDeps := gpu.ProbeDependencies{
@@ -212,12 +213,12 @@ func getAgentPID(procRoot string) (uint32, error) {
 // configureCgroupPermissions configures the cgroup permissions to access NVIDIA
 // devices for the system-probe and agent processes, as the NVIDIA device plugin
 // sets them in a way that can be overwritten by SystemD cgroups.
-func configureCgroupPermissions() {
+func configureCgroupPermissions(reapplyDelay time.Duration) {
 	root := hostRoot()
 
 	sysprobePID := uint32(os.Getpid())
 	log.Infof("Configuring cgroup permissions for system-probe process with PID %d", sysprobePID)
-	if err := gpu.ConfigureDeviceCgroups(sysprobePID, root); err != nil {
+	if err := gpu.ConfigureDeviceCgroups(sysprobePID, root, reapplyDelay); err != nil {
 		log.Warnf("Failed to configure cgroup permissions for system-probe process: %v. gpu-monitoring module might not work properly", err)
 	}
 
@@ -229,7 +230,7 @@ func configureCgroupPermissions() {
 	}
 
 	log.Infof("Configuring cgroup permissions for agent process with PID %d", agentPID)
-	if err := gpu.ConfigureDeviceCgroups(agentPID, root); err != nil {
+	if err := gpu.ConfigureDeviceCgroups(agentPID, root, reapplyDelay); err != nil {
 		log.Warnf("Failed to configure cgroup permissions for agent process: %v. gpu-monitoring module might not work properly", err)
 	}
 }

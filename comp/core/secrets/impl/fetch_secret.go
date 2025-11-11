@@ -49,7 +49,7 @@ func (r *secretResolver) execCommand(inputPayload string) ([]byte, error) {
 	defer done()
 
 	if !r.embeddedBackendPermissiveRights {
-		if err := checkRights(cmd.Path, r.commandAllowGroupExec); err != nil {
+		if err := checkRightsFunc(cmd.Path, r.commandAllowGroupExec); err != nil {
 			return nil, err
 		}
 	}
@@ -102,6 +102,59 @@ func (r *secretResolver) execCommand(inputPayload string) ([]byte, error) {
 
 	r.tlmSecretBackendElapsed.Add(float64(elapsed.Milliseconds()), r.backendCommand, "0")
 	return stdout.buf.Bytes(), nil
+}
+
+func (r *secretResolver) fetchSecretBackendVersion() (string, error) {
+	// hook used only for tests
+	if r.versionHookFunc != nil {
+		return r.versionHookFunc()
+	}
+
+	// Only get version when secret_backend_type is used
+	if r.backendType == "" {
+		return "", fmt.Errorf("version only supported when secret_backend_type is configured")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(),
+		min(time.Duration(r.backendTimeout)*time.Second, 1*time.Second))
+	defer cancel()
+
+	// Execute with --version argument
+	cmd, done, err := commandContext(ctx, r.backendCommand, "--version")
+	if err != nil {
+		return "", err
+	}
+	defer done()
+
+	if !r.embeddedBackendPermissiveRights {
+		if err := checkRights(cmd.Path, r.commandAllowGroupExec); err != nil {
+			return "", err
+		}
+	}
+
+	stdout := limitBuffer{
+		buf: &bytes.Buffer{},
+		max: r.responseMaxSize,
+	}
+	stderr := limitBuffer{
+		buf: &bytes.Buffer{},
+		max: r.responseMaxSize,
+	}
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	log.Debugf("calling secret_backend_command --version")
+	err = cmd.Run()
+
+	if err != nil {
+		log.Debugf("secret_backend_command --version stderr: %s", stderr.buf.String())
+		if ctx.Err() == context.DeadlineExceeded {
+			return "", fmt.Errorf("version command timeout")
+		}
+		return "", fmt.Errorf("version command failed: %w", err)
+	}
+
+	return strings.TrimSpace(stdout.buf.String()), nil
 }
 
 // fetchSecret receives a list of secrets name to fetch, exec a custom

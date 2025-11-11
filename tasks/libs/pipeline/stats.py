@@ -75,7 +75,7 @@ def get_failed_jobs_stats(project_name, pipeline_id):
     # }
     job_failure_stats = Counter()
 
-    failed_jobs = get_failed_jobs(get_pipeline(project_name, pipeline_id))
+    failed_jobs = get_failed_jobs(get_pipeline(project_name, pipeline_id), project_name)
 
     # This stores the reason why a pipeline ultimately failed.
     # The goal is to have a statistic of the number of pipelines that fail

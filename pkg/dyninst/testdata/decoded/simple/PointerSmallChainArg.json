@@ -6,7 +6,7 @@
       "name": "",
       "method": "main.PointerSmallChainArg",
       "version": 0,
-      "thread_id": 0,
+      "thread_id": "[goid]",
       "thread_name": ""
     },
     "debugger": {
@@ -18,7 +18,7 @@
           {
             "function": "main.PointerSmallChainArg",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go",
-            "lineNumber": 115
+            "lineNumber": 117
           },
           {
             "function": "main.main",

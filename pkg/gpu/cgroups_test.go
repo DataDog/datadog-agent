@@ -29,6 +29,17 @@ import (
 	"github.com/cilium/ebpf/link"
 )
 
+func isCgroupfsReadonly() bool {
+	sysfsPath := filepath.Join("/sys/fs/cgroup", "test")
+	err := os.MkdirAll(sysfsPath, 0755)
+	if err != nil {
+		return true
+	}
+	defer os.RemoveAll(sysfsPath)
+
+	return false
+}
+
 func TestInsertDeviceAllowLine(t *testing.T) {
 	tests := []struct {
 		name          string
@@ -271,6 +282,10 @@ func TestDetachAllDeviceCgroupPrograms(t *testing.T) {
 		t.Skip("Test requires cgroupv2")
 	}
 
+	if isCgroupfsReadonly() {
+		t.Skip("Test requires a writable cgroupfs")
+	}
+
 	// We will be testing by reading /dev/null, so we need to make sure it's accessible
 	// before we start the test
 	devnull, err := os.Open("/dev/null")
@@ -354,6 +369,10 @@ func TestConfigureCgroupV1DeviceAllow(t *testing.T) {
 		t.Skip("Test requires cgroupv1")
 	}
 
+	if isCgroupfsReadonly() {
+		t.Skip("Test requires a writable cgroupfs")
+	}
+
 	// We will be testing by reading /dev/null, so we need to make sure it's accessible
 	// before we start the test
 	devnull, err := os.Open("/dev/null")
@@ -399,6 +418,10 @@ func TestConfigureCgroupV1DeviceAllow(t *testing.T) {
 func TestGetAbsoluteCgroupForProcess(t *testing.T) {
 	if os.Geteuid() != 0 {
 		t.Skip("Test requires root privileges")
+	}
+
+	if isCgroupfsReadonly() {
+		t.Skip("Test requires a writable cgroupfs")
 	}
 
 	currentCgroup, err := getAbsoluteCgroupForProcess("", "/", uint32(os.Getpid()), uint32(os.Getpid()), containerdcgroups.Mode())

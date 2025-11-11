@@ -4,9 +4,46 @@
     "ddsource": "dd_debugger",
     "logger": {
       "name": "",
+      "method": "main.LookAtTheRequest",
+      "version": 0,
+      "thread_id": "[goid]",
+      "thread_name": ""
+    },
+    "debugger": {
+      "snapshot": {
+        "id": "[id]",
+        "timestamp": "[ts]",
+        "language": "go",
+        "stack": "[stack]",
+        "probe": {
+          "id": "look_at_the_request",
+          "location": {
+            "method": "main.LookAtTheRequest"
+          }
+        },
+        "captures": {
+          "entry": {
+            "arguments": {
+              "path": {
+                "type": "string",
+                "value": "/0"
+              }
+            }
+          }
+        }
+      }
+    },
+    "timestamp": "[ts]",
+    "duration": "[duration]"
+  },
+  {
+    "service": "rc_tester",
+    "ddsource": "dd_debugger",
+    "logger": {
+      "name": "",
       "method": "main.HandleHTTP",
       "version": 0,
-      "thread_id": 0,
+      "thread_id": "[goid]",
       "thread_name": ""
     },
     "debugger": {
@@ -195,7 +232,8 @@
         }
       }
     },
-    "timestamp": "[ts]"
+    "timestamp": "[ts]",
+    "duration": "[duration]"
   },
   {
     "service": "rc_tester",
@@ -204,7 +242,7 @@
       "name": "",
       "method": "main.LookAtTheRequest",
       "version": 0,
-      "thread_id": 0,
+      "thread_id": "[goid]",
       "thread_name": ""
     },
     "debugger": {
@@ -224,14 +262,15 @@
             "arguments": {
               "path": {
                 "type": "string",
-                "value": "/0"
+                "value": "/1"
               }
             }
           }
         }
       }
     },
-    "timestamp": "[ts]"
+    "timestamp": "[ts]",
+    "duration": "[duration]"
   },
   {
     "service": "rc_tester",
@@ -240,7 +279,7 @@
       "name": "",
       "method": "main.HandleHTTP",
       "version": 0,
-      "thread_id": 0,
+      "thread_id": "[goid]",
       "thread_name": ""
     },
     "debugger": {
@@ -429,7 +468,8 @@
         }
       }
     },
-    "timestamp": "[ts]"
+    "timestamp": "[ts]",
+    "duration": "[duration]"
   },
   {
     "service": "rc_tester",
@@ -438,7 +478,7 @@
       "name": "",
       "method": "main.LookAtTheRequest",
       "version": 0,
-      "thread_id": 0,
+      "thread_id": "[goid]",
       "thread_name": ""
     },
     "debugger": {
@@ -458,14 +498,15 @@
             "arguments": {
               "path": {
                 "type": "string",
-                "value": "/1"
+                "value": "/2"
               }
             }
           }
         }
       }
     },
-    "timestamp": "[ts]"
+    "timestamp": "[ts]",
+    "duration": "[duration]"
   },
   {
     "service": "rc_tester",
@@ -474,7 +515,7 @@
       "name": "",
       "method": "main.HandleHTTP",
       "version": 0,
-      "thread_id": 0,
+      "thread_id": "[goid]",
       "thread_name": ""
     },
     "debugger": {
@@ -663,42 +704,7 @@
         }
       }
     },
-    "timestamp": "[ts]"
-  },
-  {
-    "service": "rc_tester",
-    "ddsource": "dd_debugger",
-    "logger": {
-      "name": "",
-      "method": "main.LookAtTheRequest",
-      "version": 0,
-      "thread_id": 0,
-      "thread_name": ""
-    },
-    "debugger": {
-      "snapshot": {
-        "id": "[id]",
-        "timestamp": "[ts]",
-        "language": "go",
-        "stack": "[stack]",
-        "probe": {
-          "id": "look_at_the_request",
-          "location": {
-            "method": "main.LookAtTheRequest"
-          }
-        },
-        "captures": {
-          "entry": {
-            "arguments": {
-              "path": {
-                "type": "string",
-                "value": "/2"
-              }
-            }
-          }
-        }
-      }
-    },
-    "timestamp": "[ts]"
+    "timestamp": "[ts]",
+    "duration": "[duration]"
   }
 ]

@@ -11,7 +11,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
 	"testing"
 	"time"
 
@@ -20,16 +19,13 @@ import (
 	v1 "k8s.io/cri-api/pkg/apis/runtime/v1"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
 
 func TestPull(t *testing.T) {
-
-	const envVarName = "DD_CONTAINER_IMAGE_ENABLED"
-	originalValue := os.Getenv(envVarName)
-	defer os.Setenv(envVarName, originalValue)
-
-	os.Setenv(envVarName, "false")
+	config := configmock.New(t)
+	config.SetWithoutSource("container_image.enabled", false)
 
 	createTime := time.Now().Add(-10 * time.Minute).UnixNano()
 	startTime := time.Now().Add(-5 * time.Minute).UnixNano()
@@ -70,6 +66,7 @@ func TestPull(t *testing.T) {
 						FinishedAt: finishTime,
 						Image:      &v1.ImageSpec{Image: "myrepo/myimage:latest"},
 						ImageRef:   "myrepo/myimage@sha256:123abc",
+						ImageId:    "my_image_id",
 						Resources: &v1.ContainerResources{
 							Linux: &v1.LinuxContainerResources{
 								CpuQuota:           50000,
@@ -103,9 +100,9 @@ func TestPull(t *testing.T) {
 							Name:       "myrepo/myimage",
 							ShortName:  "myimage",
 							RawName:    "myrepo/myimage:latest",
-							ID:         "sha256:123abc",
+							ID:         "my_image_id",
 							Tag:        "latest",
-							RepoDigest: "myrepo/myimage@sha256:123abc",
+							RepoDigest: "sha256:123abc",
 						},
 						Resources: workloadmeta.ContainerResources{
 							CPULimit:    pointer.Ptr(0.5),
@@ -291,6 +288,7 @@ func TestPull(t *testing.T) {
 						FinishedAt: finishTime,
 						Image:      &v1.ImageSpec{Image: "myrepo/myimage:latest"},
 						ImageRef:   "myrepo/myimage@sha256:123abc",
+						ImageId:    "my_image_id",
 						Resources: &v1.ContainerResources{
 							Linux: &v1.LinuxContainerResources{
 								CpuQuota:           0,
@@ -315,9 +313,9 @@ func TestPull(t *testing.T) {
 							Name:       "myrepo/myimage",
 							ShortName:  "myimage",
 							RawName:    "myrepo/myimage:latest",
-							ID:         "sha256:123abc",
+							ID:         "my_image_id",
 							Tag:        "latest",
-							RepoDigest: "myrepo/myimage@sha256:123abc",
+							RepoDigest: "sha256:123abc",
 						},
 						Resources: workloadmeta.ContainerResources{
 							CPULimit:    nil, // No CPU limit
@@ -527,11 +525,8 @@ func TestGenerateImageEventFromContainer(t *testing.T) {
 }
 
 func TestOptimizedImageCollection(t *testing.T) {
-	const envVarName = "DD_CONTAINER_IMAGE_ENABLED"
-	originalValue := os.Getenv(envVarName)
-	defer os.Setenv(envVarName, originalValue)
-
-	os.Setenv(envVarName, "true")
+	config := configmock.New(t)
+	config.SetWithoutSource("container_image.enabled", true)
 
 	tests := []struct {
 		name                     string
@@ -666,12 +661,9 @@ func TestOptimizedImageCollection(t *testing.T) {
 }
 
 func TestPullWithImageCollectionEnabled(t *testing.T) {
-	const envVarName = "DD_CONTAINER_IMAGE_ENABLED"
-	originalValue := os.Getenv(envVarName)
-	defer os.Setenv(envVarName, originalValue)
-
+	config := configmock.New(t)
 	// Enable image collection to test the optimized image collection path
-	os.Setenv(envVarName, "true")
+	config.SetWithoutSource("container_image.enabled", true)
 
 	createTime := time.Now().Add(-10 * time.Minute).UnixNano()
 	startTime := time.Now().Add(-5 * time.Minute).UnixNano()

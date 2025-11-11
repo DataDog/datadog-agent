@@ -1,0 +1,155 @@
+[
+  {
+    "service": "sample",
+    "ddsource": "dd_debugger",
+    "logger": {
+      "name": "",
+      "method": "main.testLargeArgAndReturn",
+      "version": 0,
+      "thread_id": "[goid]",
+      "thread_name": ""
+    },
+    "debugger": {
+      "snapshot": {
+        "id": "[id]",
+        "timestamp": "[ts]",
+        "language": "go",
+        "stack": [
+          {
+            "function": "main.testLargeArgAndReturn",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/returns.go",
+            "lineNumber": 274
+          },
+          {
+            "function": "main.executeReturns",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/returns.go",
+            "lineNumber": 418
+          },
+          {
+            "function": "main.main",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
+            "lineNumber": 50
+          },
+          {
+            "function": "runtime.main",
+            "fileName": "runtime/proc.go",
+            "lineNumber": "[lineNumber]"
+          },
+          {
+            "function": "runtime.goexit",
+            "fileName": "runtime/asm_[arch].s",
+            "lineNumber": "[lineNumber]"
+          }
+        ],
+        "probe": {
+          "id": "testLargeArgAndReturn",
+          "location": {
+            "method": "main.testLargeArgAndReturn"
+          }
+        },
+        "captures": {
+          "entry": {
+            "arguments": {
+              "arg": {
+                "type": "main.largeStruct",
+                "fields": {
+                  "a": {
+                    "type": "int",
+                    "value": "1"
+                  },
+                  "b": {
+                    "type": "int",
+                    "value": "2"
+                  },
+                  "c": {
+                    "type": "int",
+                    "value": "3"
+                  },
+                  "d": {
+                    "type": "int",
+                    "value": "4"
+                  },
+                  "e": {
+                    "type": "int",
+                    "value": "5"
+                  },
+                  "f": {
+                    "type": "int",
+                    "value": "6"
+                  },
+                  "g": {
+                    "type": "int",
+                    "value": "7"
+                  },
+                  "h": {
+                    "type": "int",
+                    "value": "8"
+                  },
+                  "i": {
+                    "type": "int",
+                    "value": "9"
+                  },
+                  "j": {
+                    "type": "int",
+                    "value": "10"
+                  }
+                }
+              }
+            }
+          },
+          "return": {
+            "locals": {
+              "~r0": {
+                "type": "main.largeStruct",
+                "fields": {
+                  "a": {
+                    "type": "int",
+                    "value": "10"
+                  },
+                  "b": {
+                    "type": "int",
+                    "value": "20"
+                  },
+                  "c": {
+                    "type": "int",
+                    "value": "30"
+                  },
+                  "d": {
+                    "type": "int",
+                    "value": "40"
+                  },
+                  "e": {
+                    "type": "int",
+                    "value": "50"
+                  },
+                  "f": {
+                    "type": "int",
+                    "value": "60"
+                  },
+                  "g": {
+                    "type": "int",
+                    "value": "70"
+                  },
+                  "h": {
+                    "type": "int",
+                    "value": "80"
+                  },
+                  "i": {
+                    "type": "int",
+                    "value": "9"
+                  },
+                  "j": {
+                    "type": "int",
+                    "value": "10"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "timestamp": "[ts]",
+    "duration": "[duration]"
+  }
+]

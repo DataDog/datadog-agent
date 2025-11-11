@@ -307,7 +307,8 @@ def pr_commenter(
     _,
     title: str,
     body: str = '',
-    pr_id: int | None = None,
+    body_file: str = '',
+    pr_id: int = 0,
     verbose: bool = True,
     delete: bool = False,
     force_delete: bool = False,
@@ -329,6 +330,15 @@ def pr_commenter(
 
     from tasks.libs.ciproviders.github_api import GithubAPI
 
+    assert not body_file or not body, "Use either body or body_file, not both"
+
+    if body_file:
+        with open(body_file) as f:
+            body = f.read()
+
+    if force_delete:
+        delete = True
+
     if not body and not delete:
         return
 
@@ -336,7 +346,7 @@ def pr_commenter(
 
     github = GithubAPI()
 
-    if pr_id is None:
+    if pr_id == 0:
         branch = os.environ["CI_COMMIT_BRANCH"]
         prs = list(github.get_pr_for_branch(branch))
         if len(prs) == 0 and not fail_on_pr_missing:
@@ -619,7 +629,7 @@ def check_permissions(
         gh = GithubAPI()
         root = gh.get_team(name)
         depth = None
-        admins = root.get_members(role='maintainer')
+        admins = list(root.get_members(role='maintainer'))
     else:
         gh = GithubAPI(f"datadog/{name}")
         root = gh._repository

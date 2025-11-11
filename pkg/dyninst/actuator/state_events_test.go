@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
+	procinfo "github.com/DataDog/datadog-agent/pkg/dyninst/process"
 )
 
 func TestEventStringer(t *testing.T) {
@@ -23,7 +24,7 @@ func TestEventStringer(t *testing.T) {
 	}{
 		{
 			ev: eventProcessesUpdated{
-				updated: []ProcessUpdate{{ProcessID: ProcessID{PID: 1}}},
+				updated: []ProcessUpdate{{Info: procinfo.Info{ProcessID: ProcessID{PID: 1}}}},
 				removed: []ProcessID{{PID: 2}},
 			},
 			wantStr: "eventProcessesUpdated{updated: 1, removed: 1}",
@@ -44,8 +45,10 @@ func TestEventStringer(t *testing.T) {
 		{
 			ev: eventProgramAttached{
 				program: &attachedProgram{
-					ir:     &ir.Program{ID: 1},
-					procID: ProcessID{PID: 100},
+					loadedProgram: &loadedProgram{
+						programID: ir.ProgramID(1),
+					},
+					processID: ProcessID{PID: 100},
 				},
 			},
 			wantStr: "eventProgramAttached{programID: 1, processID: {PID:100}}",

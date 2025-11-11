@@ -16,7 +16,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
-	filter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
+	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	"github.com/DataDog/datadog-agent/pkg/databasemonitoring/aurora"
 	"github.com/DataDog/datadog-agent/pkg/databasemonitoring/aws"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -236,7 +236,7 @@ func (d *DBMAuroraService) GetCheckNames(context.Context) []string {
 }
 
 // HasFilter returns false on DBMAuroraService
-func (d *DBMAuroraService) HasFilter(filter.Scope) bool {
+func (d *DBMAuroraService) HasFilter(workloadfilter.Scope) bool {
 	return false
 }
 
@@ -259,5 +259,10 @@ func (d *DBMAuroraService) GetExtraConfig(key string) (string, error) {
 }
 
 // FilterTemplates does nothing.
-func (d *DBMAuroraService) FilterTemplates(map[string]integration.Config) {
+func (d *DBMAuroraService) FilterTemplates(_ map[string]integration.Config) {
+}
+
+// GetImageName does nothing
+func (d *DBMAuroraService) GetImageName() string {
+	return ""
 }

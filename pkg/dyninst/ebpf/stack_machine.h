@@ -12,13 +12,14 @@
 #include "queue.h"
 #include "chased_pointers_trie.h"
 
+const int32_t defaultCollectionSizeBytesLimit = 512;
+
 DEFINE_BINARY_SEARCH(
-  lookup_type_info,
-  type_t,
-  type_id,
-  type_ids,
-  num_types
-);
+    lookup_type_info,
+    type_t,
+    type_id,
+    type_ids,
+    num_types);
 
 static bool get_type_info(type_t t, const type_info_t** info_out) {
   uint32_t idx = lookup_type_info_by_type_id(t);
@@ -30,23 +31,22 @@ static bool get_type_info(type_t t, const type_info_t** info_out) {
 }
 
 DEFINE_BINARY_SEARCH(
-  lookup_type_id,
-  uint32_t,
-  go_runtime_type,
-  go_runtime_types,
-  num_go_runtime_types
-);
+    lookup_type_id,
+    uint32_t,
+    go_runtime_type,
+    go_runtime_types,
+    num_go_runtime_types);
 
 static type_t lookup_go_interface(uint32_t go_runtime_type) {
   if (go_runtime_type == 0) {
     return 0;
   }
   uint32_t idx = lookup_type_id_by_go_runtime_type(go_runtime_type);
-  uint32_t *got = bpf_map_lookup_elem(&go_runtime_types, &idx);
+  uint32_t* got = bpf_map_lookup_elem(&go_runtime_types, &idx);
   if (!got || *got != go_runtime_type) {
     return 0;
   }
-  uint32_t *type_id = bpf_map_lookup_elem(&go_runtime_type_ids, &idx);
+  uint32_t* type_id = bpf_map_lookup_elem(&go_runtime_type_ids, &idx);
   if (!type_id) {
     return 0;
   }
@@ -54,21 +54,21 @@ static type_t lookup_go_interface(uint32_t go_runtime_type) {
 }
 
 static bool chased_pointers_trie_push(chased_pointers_trie_t* chased, target_ptr_t ptr,
-                                 type_t type) {
+                                      type_t type) {
   switch (chased_pointers_trie_insert(chased, ptr, type)) {
-    case CHASED_POINTERS_TRIE_SUCCESS:
-      return true;
-    case CHASED_POINTERS_TRIE_EXISTS:
-      break;
-    case CHASED_POINTERS_TRIE_FULL:
-      LOG(3, "chased_pointers_push: full %lld %d\n", ptr, type);
-      break;
-    case CHASED_POINTERS_TRIE_NULL:
-      LOG(1, "chased_pointers_push: null %lld %d\n", ptr, type);
-      break;
-    case CHASED_POINTERS_TRIE_ERROR:
-      LOG(1, "chased_pointers_push: error %lld %d\n", ptr, type);
-      break;
+  case CHASED_POINTERS_TRIE_SUCCESS:
+    return true;
+  case CHASED_POINTERS_TRIE_EXISTS:
+    break;
+  case CHASED_POINTERS_TRIE_FULL:
+    LOG(3, "chased_pointers_push: full %lld %d\n", ptr, type);
+    break;
+  case CHASED_POINTERS_TRIE_NULL:
+    LOG(1, "chased_pointers_push: null %lld %d\n", ptr, type);
+    break;
+  case CHASED_POINTERS_TRIE_ERROR:
+    LOG(1, "chased_pointers_push: error %lld %d\n", ptr, type);
+    break;
   }
   return false;
 }
@@ -165,7 +165,7 @@ sm_read_program_uint16(stack_machine_t* sm) {
     LOG(1, "enqueue: failed to load code\n");
     return 0;
   }
-  if (sm->pc >= stack_machine_code_len-1) {
+  if (sm->pc >= stack_machine_code_len - 1) {
     LOG(1, "enqueue: code read out of bounds %d+1 >= %d\n", sm->pc, stack_machine_code_len);
     return 0;
   }
@@ -182,7 +182,7 @@ sm_read_program_uint32(stack_machine_t* sm) {
     LOG(1, "enqueue: failed to load code\n");
     return 0;
   }
-  if (sm->pc >= stack_machine_code_len-3) {
+  if (sm->pc >= stack_machine_code_len - 3) {
     LOG(1, "enqueue: code read out of bounds %d+3 >= %d\n", sm->pc, stack_machine_code_len);
     return 0;
   }
@@ -248,7 +248,35 @@ sm_chase_pointer(global_ctx_t* ctx, pointers_queue_item_t item) {
   if (info->byte_len == 0) {
     return true;
   }
-  sm->offset = scratch_buf_serialize(ctx->buf, &item.di, info->byte_len);
+  uint32_t byte_len = info->byte_len;
+  switch (info->dynamic_size_class) {
+  case DYNAMIC_SIZE_CLASS_STATIC:
+    break;
+  case DYNAMIC_SIZE_CLASS_SLICE:
+    if (sm->collection_size_limit == -1) {
+      byte_len = defaultCollectionSizeBytesLimit;
+    } else {
+      // In this case the info stores byte len of a single element.
+      byte_len = sm->collection_size_limit * info->byte_len;
+    }
+    break;
+  case DYNAMIC_SIZE_CLASS_STRING:
+    if (sm->string_size_limit == -1) {
+      byte_len = defaultCollectionSizeBytesLimit;
+    } else {
+      byte_len = sm->string_size_limit;
+    }
+    break;
+  case DYNAMIC_SIZE_CLASS_HASHMAP:
+    if (sm->collection_size_limit == -1) {
+      byte_len = defaultCollectionSizeBytesLimit * 4;
+    } else {
+      // In this case the info stores byte len of a single element.
+      byte_len = sm->collection_size_limit * info->byte_len * 4;
+    }
+    break;
+  }
+  sm->offset = scratch_buf_serialize(ctx->buf, &item.di, byte_len);
   if (!sm->offset) {
     LOG(3, "chase: failed to serialize type %d", item.di.type);
     return true;
@@ -312,19 +340,19 @@ sm_record_pointer(global_ctx_t* ctx, type_t type, target_ptr_t addr,
     return false;
   }
   *item = (pointers_queue_item_t){
-    .di = {
-      .type = type,
-      .length = maybe_len,
-      .address = addr,
-    },
-    .ttl = sm->pointer_chasing_ttl - (decrease_ttl ? 1 : 0),
+      .di = {
+          .type = type,
+          .length = maybe_len,
+          .address = addr,
+      },
+      .ttl = sm->pointer_chasing_ttl - (decrease_ttl ? 1 : 0),
   };
   return true;
 }
 
 static inline __attribute__((always_inline)) bool
 sm_record_go_interface_impl(global_ctx_t* global_ctx, uint64_t go_runtime_type,
-                         target_ptr_t addr) {
+                            target_ptr_t addr) {
   // Resolve implementation type.
   if (go_runtime_type == (uint64_t)(-1)) {
     // TODO: Maybe this should not short-circuit the rest of execution.
@@ -360,10 +388,6 @@ struct {
   __type(value, moduledata_t);
 } moduledata_buf SEC(".maps");
 
-// These constants are filled in by the loader.
-volatile const uint64_t VARIABLE_runtime_dot_firstmoduledata = 0;
-volatile const uint32_t OFFSET_runtime_dot_moduledata__types = 0;
-
 // Translate a pointer to a type (i.e. a pointer pointing to type information
 // inside moduledata) like that found inside an empty interface to an offset
 // into moduledata. We commonly represent runtime type information as such an
@@ -396,7 +420,7 @@ go_runtime_type_from_ptr(target_ptr_t type_ptr) {
     return type_ptr - typebounds->types;
   }
   LOG(1, "go_runtime_type_from_ptr: type_ptr %llx not in typebounds %llx-%llx",
-    type_ptr, typebounds->types, typebounds->etypes);
+      type_ptr, typebounds->types, typebounds->etypes);
   return -1;
 }
 
@@ -434,7 +458,6 @@ sm_resolve_go_empty_interface(global_ctx_t* ctx, resolved_go_interface_t* res) {
   res->go_runtime_type = go_runtime_type_from_ptr(type_addr);
   return true;
 }
-
 
 // Resolves address and implementation type of a non-empty interface.
 static inline __attribute__((always_inline)) bool
@@ -668,7 +691,6 @@ static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
     scratch_buf_set_len(buf, sm->expr_results_end_offset);
   } break;
 
-
   case SM_OP_EXPR_DEREFERENCE_CFA: {
     int32_t cfa_offset = sm_read_program_uint32(sm);
     uint32_t data_len = sm_read_program_uint32(sm);
@@ -695,23 +717,57 @@ static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
       switch (regnum) {
       // We need to switch over the regnum, as DWARF_REGISTER macro for amd64 requires
       // paramter to be a literal number.
-      case 0: *(volatile uint64_t*)(&sm->value_0) = regs->DWARF_REGISTER(0); break;
-      case 1: *(volatile uint64_t*)(&sm->value_0) = regs->DWARF_REGISTER(1); break;
-      case 2: *(volatile uint64_t*)(&sm->value_0) = regs->DWARF_REGISTER(2); break;
-      case 3: *(volatile uint64_t*)(&sm->value_0) = regs->DWARF_REGISTER(3); break;
-      case 4: *(volatile uint64_t*)(&sm->value_0) = regs->DWARF_REGISTER(4); break;
-      case 5: *(volatile uint64_t*)(&sm->value_0) = regs->DWARF_REGISTER(5); break;
-      case 6: *(volatile uint64_t*)(&sm->value_0) = regs->DWARF_REGISTER(6); break;
-      case 7: *(volatile uint64_t*)(&sm->value_0) = regs->DWARF_REGISTER(7); break;
-      case 8: *(volatile uint64_t*)(&sm->value_0) = regs->DWARF_REGISTER(8); break;
-      case 9: *(volatile uint64_t*)(&sm->value_0) = regs->DWARF_REGISTER(9); break;
-      case 10: *(volatile uint64_t*)(&sm->value_0) = regs->DWARF_REGISTER(10); break;
-      case 11: *(volatile uint64_t*)(&sm->value_0) = regs->DWARF_REGISTER(11); break;
-      case 12: *(volatile uint64_t*)(&sm->value_0) = regs->DWARF_REGISTER(12); break;
-      case 13: *(volatile uint64_t*)(&sm->value_0) = regs->DWARF_REGISTER(13); break;
-      case 14: *(volatile uint64_t*)(&sm->value_0) = regs->DWARF_REGISTER(14); break;
-      case 15: *(volatile uint64_t*)(&sm->value_0) = regs->DWARF_REGISTER(15); break;
-      default: LOG(2, "unknown register: %d", regnum); return 1;
+      case 0:
+        *(volatile uint64_t*)(&sm->value_0) = regs->DWARF_REGISTER(0);
+        break;
+      case 1:
+        *(volatile uint64_t*)(&sm->value_0) = regs->DWARF_REGISTER(1);
+        break;
+      case 2:
+        *(volatile uint64_t*)(&sm->value_0) = regs->DWARF_REGISTER(2);
+        break;
+      case 3:
+        *(volatile uint64_t*)(&sm->value_0) = regs->DWARF_REGISTER(3);
+        break;
+      case 4:
+        *(volatile uint64_t*)(&sm->value_0) = regs->DWARF_REGISTER(4);
+        break;
+      case 5:
+        *(volatile uint64_t*)(&sm->value_0) = regs->DWARF_REGISTER(5);
+        break;
+      case 6:
+        *(volatile uint64_t*)(&sm->value_0) = regs->DWARF_REGISTER(6);
+        break;
+      case 7:
+        *(volatile uint64_t*)(&sm->value_0) = regs->DWARF_REGISTER(7);
+        break;
+      case 8:
+        *(volatile uint64_t*)(&sm->value_0) = regs->DWARF_REGISTER(8);
+        break;
+      case 9:
+        *(volatile uint64_t*)(&sm->value_0) = regs->DWARF_REGISTER(9);
+        break;
+      case 10:
+        *(volatile uint64_t*)(&sm->value_0) = regs->DWARF_REGISTER(10);
+        break;
+      case 11:
+        *(volatile uint64_t*)(&sm->value_0) = regs->DWARF_REGISTER(11);
+        break;
+      case 12:
+        *(volatile uint64_t*)(&sm->value_0) = regs->DWARF_REGISTER(12);
+        break;
+      case 13:
+        *(volatile uint64_t*)(&sm->value_0) = regs->DWARF_REGISTER(13);
+        break;
+      case 14:
+        *(volatile uint64_t*)(&sm->value_0) = regs->DWARF_REGISTER(14);
+        break;
+      case 15:
+        *(volatile uint64_t*)(&sm->value_0) = regs->DWARF_REGISTER(15);
+        break;
+      default:
+        LOG(2, "unknown register: %d", regnum);
+        return 1;
       }
     }
     switch (byte_size) {
@@ -747,30 +803,30 @@ static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
     LOG(5, "recorded scratch@0x%llx < [register expr]", sm->offset);
   } break;
 
-  // case SM_OP_EXPR_DEREFERENCE_PTR: {
-  //   uint32_t bias = sm_read_program_uint32(sm);
-  //   uint32_t byte_len = sm_read_program_uint32(sm);
-  //   buf_offset_t value_offset = sm->offset;
-  //   if (!scratch_buf_bounds_check(&value_offset, sizeof(target_ptr_t))) {
-  //     return 1;
-  //   }
-  //   data_item_header_t di = {
-  //       .type = 0,
-  //       .length = byte_len,
-  //       .address = *(target_ptr_t*)&((*buf)[value_offset]) + bias};
-  //   if (di.address == 0) {
-  //     sm->offset = 0;
-  //   } else {
-  //     sm->offset = scratch_buf_serialize(buf, &di, byte_len);
-  //   }
-  //   if (!sm->offset) {
-  //     // Abort expression evaluation by returning early.
-  //     scratch_buf_set_len(buf, sm->expr_results_end_offset);
-  //     if (!sm_return(sm)) {
-  //       return 1;
-  //     }
-  //   }
-  // } break;
+    // case SM_OP_EXPR_DEREFERENCE_PTR: {
+    //   uint32_t bias = sm_read_program_uint32(sm);
+    //   uint32_t byte_len = sm_read_program_uint32(sm);
+    //   buf_offset_t value_offset = sm->offset;
+    //   if (!scratch_buf_bounds_check(&value_offset, sizeof(target_ptr_t))) {
+    //     return 1;
+    //   }
+    //   data_item_header_t di = {
+    //       .type = 0,
+    //       .length = byte_len,
+    //       .address = *(target_ptr_t*)&((*buf)[value_offset]) + bias};
+    //   if (di.address == 0) {
+    //     sm->offset = 0;
+    //   } else {
+    //     sm->offset = scratch_buf_serialize(buf, &di, byte_len);
+    //   }
+    //   if (!sm->offset) {
+    //     // Abort expression evaluation by returning early.
+    //     scratch_buf_set_len(buf, sm->expr_results_end_offset);
+    //     if (!sm_return(sm)) {
+    //       return 1;
+    //     }
+    //   }
+    // } break;
 
   case SM_OP_PROCESS_POINTER: {
     type_t elem_type = (type_t)sm_read_program_uint32(sm);
@@ -828,7 +884,7 @@ static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
     uint32_t buffer_advancement = sm_read_program_uint32(sm);
     sm->offset += buffer_advancement;
     LOG(4, "offset after increment: %d", sm->offset);
-    uint32_t sp = *(volatile uint32_t *)&sm->data_stack_pointer;
+    uint32_t sp = *(volatile uint32_t*)&sm->data_stack_pointer;
     uint32_t stack_idx = sp - 1;
     if (stack_idx >= ENQUEUE_STACK_DEPTH) {
       if (stack_idx + 1 == 0) {
@@ -865,20 +921,20 @@ static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
     LOG(4, "enqueue: string len @%llx !%lld (offset: %d)", addr, len, sm->offset);
   } break;
 
-  // case SM_OP_PREPARE_POINTEE_DATA: {
-  //   LOG(4, "prepare pointee data %u %u %llx", sm->di_0.type,
-  //       sm->di_0.length, sm->di_0.address);
-  //   sm->buf_offset_0 = scratch_buf_reserve(buf, &sm->di_0);
-  //   if (!sm->buf_offset_0) {
-  //     LOG(1, "enqueue: failed to serialize pointee data root");
-  //     return 1;
-  //   }
-  //   sm->expr_type = POINTER;
-  //   sm->expr_results_offset = sm->buf_offset_0;
-  //   sm->root_addr = sm->di_0.address;
-  //   sm->offset = sm->buf_offset_0;
-  //   zero_data(buf, sm->offset, sm->di_0.length);
-  // } break;
+    // case SM_OP_PREPARE_POINTEE_DATA: {
+    //   LOG(4, "prepare pointee data %u %u %llx", sm->di_0.type,
+    //       sm->di_0.length, sm->di_0.address);
+    //   sm->buf_offset_0 = scratch_buf_reserve(buf, &sm->di_0);
+    //   if (!sm->buf_offset_0) {
+    //     LOG(1, "enqueue: failed to serialize pointee data root");
+    //     return 1;
+    //   }
+    //   sm->expr_type = POINTER;
+    //   sm->expr_results_offset = sm->buf_offset_0;
+    //   sm->root_addr = sm->di_0.address;
+    //   sm->offset = sm->buf_offset_0;
+    //   zero_data(buf, sm->offset, sm->di_0.length);
+    // } break;
 
   case SM_OP_CHASE_POINTERS: {
     pointers_queue_item_t* item = pointers_queue_pop_front(&sm->pointers_queue);
@@ -1008,7 +1064,7 @@ static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
     type_t group_type = (type_t)sm_read_program_uint32(sm);
     sm->buf_offset_0 = sm->offset + sm_read_program_uint8(sm);
     sm->buf_offset_1 = sm->offset + sm_read_program_uint8(sm);
-    LOG(4, "offset: %d", sm->buf_offset_1-sm->offset);
+    LOG(4, "offset: %d", sm->buf_offset_1 - sm->offset);
 
     if (!scratch_buf_bounds_check(&sm->buf_offset_0, sizeof(target_ptr_t))) {
       return 1;
@@ -1025,7 +1081,7 @@ static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
         LOG(3, "enqueue: failed swiss map record (full)");
       }
     } else {
-      if (!sm_record_pointer(ctx, group_type, dir_ptr,  /*decrease_ttl=*/false, ENQUEUE_LEN_SENTINEL)) {
+      if (!sm_record_pointer(ctx, group_type, dir_ptr, /*decrease_ttl=*/false, ENQUEUE_LEN_SENTINEL)) {
         LOG(3, "enqueue: failed swiss map record (inline)");
       }
     }
@@ -1037,7 +1093,7 @@ static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
 
     sm->buf_offset_0 = sm->offset + sm_read_program_uint8(sm);
 
-    LOG(5, "Offset diff: %d", sm->buf_offset_0-sm->offset);
+    LOG(5, "Offset diff: %d", sm->buf_offset_0 - sm->offset);
     if (!scratch_buf_bounds_check(&sm->buf_offset_0, sizeof(target_ptr_t))) {
       return 1;
     }
@@ -1055,146 +1111,148 @@ static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
     }
   } break;
 
-  // case SM_OP_ENQUEUE_GO_SUBROUTINE: {
-  //   if (!scratch_buf_bounds_check(&sm->offset, sizeof(target_ptr_t))) {
-  //     return 1;
-  //   }
-  //   uint32_t orig_buf_len = scratch_buf_len(buf);
-  //   // First serialize as "unknown subroutine" that just captures the entry pc.
-  //   target_ptr_t addr = *(target_ptr_t*)&((*buf)[sm->offset]);
-  //   if (addr == 0) {
-  //     break;
-  //   }
-  //   sm->di_0.type = unresolved_go_subroutine_type;
-  //   sm->di_0.length = 8;
-  //   sm->di_0.address = addr;
-  //   sm->buf_offset_0 = scratch_buf_serialize(buf, &sm->di_0, 8);
-  //   if (!sm->buf_offset_0) {
-  //     LOG(3, "enqueue: failed to serialize subroutine");
-  //     break;
-  //   }
-  //   if (!scratch_buf_bounds_check(&sm->buf_offset_0, sizeof(uint64_t))) {
-  //     return 1;
-  //   }
-  //   uint64_t entry_pc = *(uint64_t*)&((*buf)[sm->buf_offset_0]);
-  //   type_t type = lookup_go_subroutine(entry_pc);
-  //   if (type != TYPE_NONE) {
-  //     // We know the actual subroutine type. Drop the previously serialized
-  //     // message.
-  //     scratch_buf_set_len(buf, orig_buf_len);
-  //     if (!sm_record_pointer(ctx, type, addr, ENQUEUE_LEN_SENTINEL)) {
-  //       LOG(3, "enqueue: failed subroutine record");
-  //     }
-  //   }
-  // } break;
+    // case SM_OP_ENQUEUE_GO_SUBROUTINE: {
+    //   if (!scratch_buf_bounds_check(&sm->offset, sizeof(target_ptr_t))) {
+    //     return 1;
+    //   }
+    //   uint32_t orig_buf_len = scratch_buf_len(buf);
+    //   // First serialize as "unknown subroutine" that just captures the entry pc.
+    //   target_ptr_t addr = *(target_ptr_t*)&((*buf)[sm->offset]);
+    //   if (addr == 0) {
+    //     break;
+    //   }
+    //   sm->di_0.type = unresolved_go_subroutine_type;
+    //   sm->di_0.length = 8;
+    //   sm->di_0.address = addr;
+    //   sm->buf_offset_0 = scratch_buf_serialize(buf, &sm->di_0, 8);
+    //   if (!sm->buf_offset_0) {
+    //     LOG(3, "enqueue: failed to serialize subroutine");
+    //     break;
+    //   }
+    //   if (!scratch_buf_bounds_check(&sm->buf_offset_0, sizeof(uint64_t))) {
+    //     return 1;
+    //   }
+    //   uint64_t entry_pc = *(uint64_t*)&((*buf)[sm->buf_offset_0]);
+    //   type_t type = lookup_go_subroutine(entry_pc);
+    //   if (type != TYPE_NONE) {
+    //     // We know the actual subroutine type. Drop the previously serialized
+    //     // message.
+    //     scratch_buf_set_len(buf, orig_buf_len);
+    //     if (!sm_record_pointer(ctx, type, addr, ENQUEUE_LEN_SENTINEL)) {
+    //       LOG(3, "enqueue: failed subroutine record");
+    //     }
+    //   }
+    // } break;
 
-  // case SM_OP_PREPARE_GO_CONTEXT: {
-  //   uint32_t data_len = sm_read_program_uint32(sm);
-  //   type_t typ = (type_t)sm_read_program_uint32(sm);
-  //   uint8_t capture_count = sm_read_program_uint8(sm);
-  //   sm->buf_offset_0 = sm->offset;
-  //   if (!scratch_buf_bounds_check(&sm->buf_offset_0,
-  //                                 sizeof(target_ptr_t) +
-  //                                     OFFSET_runtime_dot_iface__data)) {
-  //     return false;
-  //   }
-  //   // Synthetic type expects the address of the synthetic go context structure
-  //   // to be the same as the address for the original context interface
-  //   // implementation.
-  //   sm->di_0.type = typ;
-  //   sm->di_0.length = data_len;
-  //   sm->di_0.address = *(target_ptr_t*)&(
-  //       (*buf)[sm->buf_offset_0 + OFFSET_runtime_dot_iface__data]);
-  //   if (sm->di_0.address == 0 ||
-  //       !sm_memoize_pointer(ctx, (type_t)sm->di_0.type, sm->di_0.address)) {
-  //     // Already processed, bail out.
-  //     sm->pc += 2;
-  //     break;
-  //   }
-  //   // Prepare for traversal.
-  //   sm->go_context_offset =
-  //       scratch_buf_serialize(ctx->buf, &sm->di_0, data_len);
-  //   if (!sm->go_context_offset) {
-  //     LOG(3, "enqueue: failed to serialize go context interface");
-  //     // Bail out.
-  //     sm->pc += 2;
-  //     break;
-  //   }
-  //   sm->go_context_capture_bitmask = (1ULL << capture_count) - 1;
-  //   zero_data(buf, sm->go_context_offset, data_len);
-  //   if (!sm_data_stack_push(sm, scratch_buf_len(buf))) {
-  //     return 1;
-  //   }
-  // } break;
+    // case SM_OP_PREPARE_GO_CONTEXT: {
+    //   uint32_t data_len = sm_read_program_uint32(sm);
+    //   type_t typ = (type_t)sm_read_program_uint32(sm);
+    //   uint8_t capture_count = sm_read_program_uint8(sm);
+    //   sm->buf_offset_0 = sm->offset;
+    //   if (!scratch_buf_bounds_check(&sm->buf_offset_0,
+    //                                 sizeof(target_ptr_t) +
+    //                                     OFFSET_runtime_dot_iface__data)) {
+    //     return false;
+    //   }
+    //   // Synthetic type expects the address of the synthetic go context structure
+    //   // to be the same as the address for the original context interface
+    //   // implementation.
+    //   sm->di_0.type = typ;
+    //   sm->di_0.length = data_len;
+    //   sm->di_0.address = *(target_ptr_t*)&(
+    //       (*buf)[sm->buf_offset_0 + OFFSET_runtime_dot_iface__data]);
+    //   if (sm->di_0.address == 0 ||
+    //       !sm_memoize_pointer(ctx, (type_t)sm->di_0.type, sm->di_0.address)) {
+    //     // Already processed, bail out.
+    //     sm->pc += 2;
+    //     break;
+    //   }
+    //   // Prepare for traversal.
+    //   sm->go_context_offset =
+    //       scratch_buf_serialize(ctx->buf, &sm->di_0, data_len);
+    //   if (!sm->go_context_offset) {
+    //     LOG(3, "enqueue: failed to serialize go context interface");
+    //     // Bail out.
+    //     sm->pc += 2;
+    //     break;
+    //   }
+    //   sm->go_context_capture_bitmask = (1ULL << capture_count) - 1;
+    //   zero_data(buf, sm->go_context_offset, data_len);
+    //   if (!sm_data_stack_push(sm, scratch_buf_len(buf))) {
+    //     return 1;
+    //   }
+    // } break;
 
-  // case SM_OP_TRAVERSE_GO_CONTEXT: {
-  //   if (sm->go_context_capture_bitmask == 0) {
-  //     // All valute types have been captured.
-  //     break;
-  //   }
-  //   resolved_go_interface_t r;
-  //   if (!sm_resolve_go_interface(ctx, &r)) {
-  //     return 1;
-  //   }
-  //   if (r.go_runtime_type == 0) {
-  //     LOG(1, "go context runtime type is nil");
-  //     break;
-  //   }
-  //   if (r.go_runtime_type == (uint64_t)-1) {
-  //     LOG(1, "go context runtime type is unknown");
-  //     break;
-  //   }
-  //   type_t context_type = lookup_go_interface(r.go_runtime_type);
-  //   if (context_type == TYPE_NONE) {
-  //     LOG(1, "go context runtime type not found %lld", r.go_runtime_type);
-  //     break;
-  //   }
-  //   const type_info_t* context_info;
-  //   if (!get_type_info(context_type, &context_info)) {
-  //     LOG(1, "go context implementation type info not found %d", context_type);
-  //     break;
-  //   }
-  //   if (context_info->byte_len == 0) {
-  //     break;
-  //   }
-  //   sm->di_0.type = context_type;
-  //   sm->di_0.length = ENQUEUE_LEN_SENTINEL;
-  //   sm->di_0.address = r.addr;
-  //   sm->offset =
-  //       scratch_buf_serialize(ctx->buf, &sm->di_0, context_info->byte_len);
-  //   if (!sm->offset) {
-  //     LOG(3, "enqueue: failed to serialize go context impl");
-  //     break;
-  //   }
-  //   if (!sm_resolve_go_context_value(
-  //           ctx, context_info->go_context_impl.key_offset,
-  //           context_info->go_context_impl.value_offset)) {
-  //     return 1;
-  //   }
-  //   if (context_info->go_context_impl.context_offset == -1) {
-  //     // We reached the bottom context.
-  //     break;
-  //   }
-  //   sm->offset += context_info->go_context_impl.context_offset;
-  //   // Loop.
-  //   sm->pc--;
-  // } break;
+    // case SM_OP_TRAVERSE_GO_CONTEXT: {
+    //   if (sm->go_context_capture_bitmask == 0) {
+    //     // All valute types have been captured.
+    //     break;
+    //   }
+    //   resolved_go_interface_t r;
+    //   if (!sm_resolve_go_interface(ctx, &r)) {
+    //     return 1;
+    //   }
+    //   if (r.go_runtime_type == 0) {
+    //     LOG(1, "go context runtime type is nil");
+    //     break;
+    //   }
+    //   if (r.go_runtime_type == (uint64_t)-1) {
+    //     LOG(1, "go context runtime type is unknown");
+    //     break;
+    //   }
+    //   type_t context_type = lookup_go_interface(r.go_runtime_type);
+    //   if (context_type == TYPE_NONE) {
+    //     LOG(1, "go context runtime type not found %lld", r.go_runtime_type);
+    //     break;
+    //   }
+    //   const type_info_t* context_info;
+    //   if (!get_type_info(context_type, &context_info)) {
+    //     LOG(1, "go context implementation type info not found %d", context_type);
+    //     break;
+    //   }
+    //   if (context_info->byte_len == 0) {
+    //     break;
+    //   }
+    //   sm->di_0.type = context_type;
+    //   sm->di_0.length = ENQUEUE_LEN_SENTINEL;
+    //   sm->di_0.address = r.addr;
+    //   sm->offset =
+    //       scratch_buf_serialize(ctx->buf, &sm->di_0, context_info->byte_len);
+    //   if (!sm->offset) {
+    //     LOG(3, "enqueue: failed to serialize go context impl");
+    //     break;
+    //   }
+    //   if (!sm_resolve_go_context_value(
+    //           ctx, context_info->go_context_impl.key_offset,
+    //           context_info->go_context_impl.value_offset)) {
+    //     return 1;
+    //   }
+    //   if (context_info->go_context_impl.context_offset == -1) {
+    //     // We reached the bottom context.
+    //     break;
+    //   }
+    //   sm->offset += context_info->go_context_impl.context_offset;
+    //   // Loop.
+    //   sm->pc--;
+    // } break;
 
-  // case SM_OP_CONCLUDE_GO_CONTEXT: {
-  //   uint32_t stack_top = sm->data_stack_pointer - 1;
-  //   if (stack_top >= ENQUEUE_STACK_DEPTH) {
-  //     LOG(2, "enqueue: stack out of bounds %d", stack_top);
-  //     return 1;
-  //   }
-  //   scratch_buf_set_len(buf, sm->data_stack[stack_top]);
-  //   if (!sm_data_stack_pop(sm)) {
-  //     return 1;
-  //   }
-  //   sm->go_context_offset = 0;
-  //   sm->go_context_capture_bitmask = 0;
-  // } break;
+    // case SM_OP_CONCLUDE_GO_CONTEXT: {
+    //   uint32_t stack_top = sm->data_stack_pointer - 1;
+    //   if (stack_top >= ENQUEUE_STACK_DEPTH) {
+    //     LOG(2, "enqueue: stack out of bounds %d", stack_top);
+    //     return 1;
+    //   }
+    //   scratch_buf_set_len(buf, sm->data_stack[stack_top]);
+    //   if (!sm_data_stack_pop(sm)) {
+    //     return 1;
+    //   }
+    //   sm->go_context_offset = 0;
+    //   sm->go_context_capture_bitmask = 0;
+    // } break;
 
-  default: LOG(1, "enqueue: @0x%x unknown instruction %d\n", sm->pc-1, op); return 1;
+  default:
+    LOG(1, "enqueue: @0x%x unknown instruction %d\n", sm->pc - 1, op);
+    return 1;
   }
 
   return 0;

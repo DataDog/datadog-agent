@@ -1,0 +1,137 @@
+load("@@//bazel/rules:so_symlink.bzl", "so_symlink")
+load("@bazel_skylib//rules:expand_template.bzl", "expand_template")
+load("@rules_cc//cc:defs.bzl", "cc_library")
+load("@rules_pkg//pkg:install.bzl", "pkg_install")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_files")
+
+_VERSION = "2.39.2"
+
+expand_template(
+    name = "blkid_h",
+    out = "blkid.h",
+    template = "libblkid/src/blkid.h.in",
+    substitutions = {
+        "@LIBBLKID_DATE@": "REDACTED",
+        "@LIBBLKID_VERSION@": _VERSION,
+    },
+)
+
+cc_library(
+    name = "libcommon",
+    srcs = [
+        "lib/blkdev.c",
+        "lib/buffer.c",
+        "lib/caputils.c",
+        "lib/canonicalize.c",
+        "lib/color-names.c",
+        "lib/cpuset.c",
+        "lib/crc32.c",
+        "lib/crc32c.c",
+        "lib/crc64.c",
+        "lib/c_strtod.c",
+        "lib/encode.c",
+        "lib/env.c",
+        "lib/fileutils.c",
+        "lib/idcache.c",
+        "lib/jsonwrt.c",
+        "lib/linux_version.c",
+        "lib/loopdev.c",
+        "lib/mangle.c",
+        "lib/match.c",
+        "lib/mbsalign.c",
+        "lib/mbsedit.c",
+        "lib/md5.c",
+        "lib/path.c",
+        "lib/procfs.c",
+        "lib/pwdutils.c",
+        "lib/randutils.c",
+        "lib/sha1.c",
+        "lib/sha256.c",
+        "lib/signames.c",
+        "lib/strutils.c",
+        "lib/strv.c",
+        "lib/sysfs.c",
+        "lib/timeutils.c",
+        "lib/ttyutils.c",
+        "lib/xxhash.c",
+    ] + ["generated/config.h"],
+    hdrs = glob(["include/*.h"]),
+    includes = [
+        "include",
+    ],
+    visibility = ["//visibility:private"],
+    copts = [
+        "-include generated/config.h",
+    ],
+    local_defines = [
+        "_GNU_SOURCE",
+    ],
+)
+
+cc_library(
+    name = "libblkid",
+    srcs = glob([
+        "libblkid/src/**/*.c",
+        "libblkid/src/**/*.h",
+    ]) + ["generated/config.h"],
+    hdrs = [":blkid_h"],
+    deps = [":libcommon"],
+    includes = [
+        "libblkid/src",
+        "include",
+        "generated",
+    ],
+    copts = [
+        "-include generated/config.h",
+    ],
+    local_defines = [
+        "_GNU_SOURCE",
+    ],
+)
+
+cc_shared_library(
+    name = "blkid",
+    deps = [":libblkid"],
+)
+
+expand_template(
+    name = "gen_blkid_pkgconfig",
+    out = "blkid.pc",
+    substitutions = {
+        # Prepare the .pc file for our own substitution later
+        "@prefix@": "##PREFIX##",
+        "@exec_prefix@": "${prefix}",
+        "@libdir@": "${prefix}/lib",
+        "@includedir@": "${prefix}/include",
+        "@LIBBLKID_VERSION@": _VERSION,
+    },
+    template = "libblkid/blkid.pc.in",
+)
+
+so_symlink(
+    name = "libblkid_libfiles",
+    src = ":blkid",
+    libname = "libblkid",
+    version = "1.1.0",
+)
+
+pkg_files(
+    name = "blkid_hdr_files",
+    srcs = [":blkid_h"],
+    prefix = "include/blkid",
+)
+
+pkg_files(
+    name = "blkid_pc_file",
+    srcs = [":gen_blkid_pkgconfig"],
+    prefix = "lib/pkgconfig",
+)
+
+pkg_install(
+    name = "blkid_install",
+    srcs = [
+        ":blkid_hdr_files",
+        ":libblkid_libfiles",
+        ":blkid_pc_file",
+    ],
+)

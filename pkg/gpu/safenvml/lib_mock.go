@@ -35,6 +35,14 @@ func WithMockNVML(tb testing.TB, lib nvml.Interface) {
 	WithPartialMockNVML(tb, lib, allSymbols)
 }
 
+func resetSingleton() {
+	singleton.mu.Lock()
+	defer singleton.mu.Unlock()
+
+	singleton.lib = nil
+	singleton.capabilities = nil
+}
+
 // WithPartialMockNVML sets the singleton SafeNVML library for testing purposes.
 // This is useful to test the NVML library without having to initialize it
 // manually. It automatically restores the original NVML library on test cleanup
@@ -45,11 +53,17 @@ func WithPartialMockNVML(tb testing.TB, lib nvml.Interface, capabilities map[str
 	singleton.lib = lib
 	singleton.capabilities = capabilities
 
-	tb.Cleanup(func() {
-		singleton.mu.Lock()
-		defer singleton.mu.Unlock()
+	tb.Cleanup(resetSingleton)
+}
 
-		singleton.lib = nil
-		singleton.capabilities = nil
+// WithMockNvmlNewFunc overrides the function to create a new NVML library instance.
+// It can be used to test the NVML library without having to initialize it
+// manually. It automatically restores the original function on test cleanup
+func WithMockNvmlNewFunc(tb testing.TB, f func(opts ...nvml.LibraryOption) nvml.Interface) {
+	oldNvmlNewFunc := nvmlNewFunc
+	nvmlNewFunc = f
+	tb.Cleanup(func() {
+		nvmlNewFunc = oldNvmlNewFunc
+		resetSingleton()
 	})
 }

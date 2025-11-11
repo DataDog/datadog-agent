@@ -1,0 +1,62 @@
+diff --git a/buildifier/runner.bat.template b/buildifier/runner.bat.template
+index 13ca3fa..3c8882f 100644
+--- a/buildifier/runner.bat.template
++++ b/buildifier/runner.bat.template
+@@ -11,9 +11,28 @@ set stripped_args=%stripped_args:'=%
+ rem Get the absolute path to the buildifier executable
+-for /f "tokens=2" %%i in ('findstr /r "\<buildifier\.exe\>" MANIFEST') do (set buildifier_abs_path=%%i)
++if exist MANIFEST (
++    set manifest_file=MANIFEST
++) else if exist "%RUNFILES_MANIFEST_FILE%" (
++    set "manifest_file=%RUNFILES_MANIFEST_FILE:/=\%"
++) else (
++    >&2 echo Error: manifest file not found
++    exit /b 1
++)
++for /f "tokens=2" %%i in ('findstr /r "\<buildifier\.exe\>" "%manifest_file%"') do (set buildifier_abs_path=%%i)
+ 
+ powershell ^
+-function Buildify($Root)^
++function Should-Exclude($Path)^
+ {^
+-    $Folder = (New-Object -Com Scripting.FileSystemObject).GetFolder($Root);^
+-    $Files = $Folder.Files ^| Where-Object {^
++    $relPath = '.' + $Path.Substring('%BUILD_WORKSPACE_DIRECTORY%'.Length);^
++    foreach ($pattern in @(@@EXCLUDE_PATTERNS@@))^
++    {^
++        if ($relPath -clike $pattern)^
++        {^
++            return $true;^
++        };^
++    };^
++    return $false;^
++};^
++$Files = Get-ChildItem -LiteralPath '%BUILD_WORKSPACE_DIRECTORY:/=\%' -Recurse -File -ErrorAction SilentlyContinue ^|^
++    Where-Object {^
++        (^
+         $_.Name -eq 'BUILD.bazel' `^
+@@ -30,16 +49,10 @@ function Buildify($Root)^
+         -or $_.Name -clike 'WORKSPACE.*.oss'^
++        ) -and -not (Should-Exclude $_.FullName)^
+     };^
+-    foreach ($File in $Files)^
+-    {^
+-        ^& '%buildifier_abs_path%' %stripped_args% $File.Path;^
+-    };^
+-    foreach ($SubFolder in $Folder.Subfolders)^
+-    {^
+-        $CurrentItem = Get-Item $SubFolder.Path -ErrorAction SilentlyContinue;^
+-        if ($CurrentItem -and !$CurrentItem.Attributes.ToString().Contains('ReparsePoint'))^
+-        {^
+-            Buildify($SubFolder.Path);^
+-        };^
+-    };^
+-};^
+-Buildify('%BUILD_WORKSPACE_DIRECTORY%');
++$i = 0;^
++while ($i -lt $Files.Count)^
++{^
++    $Batch = $Files[$i..($i + 99)];^
++    ^& '%buildifier_abs_path%' %stripped_args% $Batch.FullName;^
++    $i += $Batch.Count;^
++};

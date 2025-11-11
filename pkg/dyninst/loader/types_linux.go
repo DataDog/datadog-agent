@@ -10,15 +10,23 @@ import (
 )
 
 type typeInfo struct {
-	Byte_len   uint32
-	Enqueue_pc uint32
+	Dynamic_size_class uint32
+	Byte_len           uint32
+	Enqueue_pc         uint32
+	X__padding         uint32
 }
 type probeParams struct {
 	Throttler_idx         uint32
 	Stack_machine_pc      uint32
 	Pointer_chasing_limit uint32
+	Collection_size_limit uint32
+	String_size_limit     uint32
+	Probe_id              uint32
 	Frameless             bool
-	Pad_cgo_0             [3]byte
+	Has_associated_return bool
+	Kind                  int8
+	Top_pc_offset         int8
+	X__padding            [4]int8
 }
 type throttlerParams struct {
 	Ns     uint64

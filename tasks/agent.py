@@ -14,7 +14,10 @@ import tempfile
 from invoke import task
 from invoke.exceptions import Exit
 
-from tasks.build_tags import filter_incompatible_tags, get_build_tags, get_default_build_tags
+from tasks.build_tags import (
+    compute_build_tags_for_flavor,
+    get_default_build_tags,
+)
 from tasks.cluster_agent import CONTAINER_PLATFORM_MAPPING
 from tasks.devcontainer import run_on_devcontainer
 from tasks.flavor import AgentFlavor
@@ -78,6 +81,7 @@ AGENT_CORECHECKS = [
     "jetson",
     "telemetry",
     "orchestrator_pod",
+    "orchestrator_kubelet_config",
     "orchestrator_ecs",
     "cisco_sdwan",
     "network_path",
@@ -85,6 +89,7 @@ AGENT_CORECHECKS = [
     "wlan",
     "discovery",
     "versa",
+    "network_config_management",
 ]
 
 WINDOWS_CORECHECKS = [
@@ -132,7 +137,6 @@ def build(
     embedded_path=None,
     rtloader_root=None,
     python_home_3=None,
-    major_version='7',
     exclude_rtloader=False,
     include_sds=False,
     go_mod="readonly",
@@ -166,7 +170,6 @@ def build(
         embedded_path=embedded_path,
         rtloader_root=rtloader_root,
         python_home_3=python_home_3,
-        major_version=major_version,
     )
 
     bundled_agents = ["agent"]
@@ -178,7 +181,7 @@ def build(
         # Do not call build_rc when cross-compiling on Linux as the intend is more
         # to streamline the development process that producing a working executable / installer
         if sys.platform == 'win32':
-            vars = versioninfo_vars(ctx, major_version=major_version)
+            vars = versioninfo_vars(ctx)
             build_rc(
                 ctx,
                 "cmd/agent/windows_resources/agent.rc",
@@ -198,14 +201,13 @@ def build(
 
         for build in bundled_agents:
             all_tags.add("bundle_" + build.replace("-", "_"))
-            include_tags = (
-                get_default_build_tags(build=build, flavor=flavor)
-                if build_include is None
-                else filter_incompatible_tags(build_include.split(","))
+            build_tags = compute_build_tags_for_flavor(
+                build=build,
+                flavor=flavor,
+                build_include=build_include,
+                build_exclude=build_exclude,
+                include_sds=include_sds,
             )
-
-            exclude_tags = [] if build_exclude is None else build_exclude.split(",")
-            build_tags = get_build_tags(include_tags, exclude_tags)
 
             all_tags |= set(build_tags)
         build_tags = list(all_tags)
@@ -215,9 +217,6 @@ def build(
 
     if not agent_bin:
         agent_bin = os.path.join(BIN_PATH, bin_name("agent"))
-
-    if include_sds:
-        build_tags.append("sds")
 
     flavor_cmd = "iot-agent" if flavor.is_iot() else "agent"
     with gitlab_section("Build agent", collapsed=True):
@@ -232,6 +231,7 @@ def build(
             gcflags=gcflags,
             ldflags=ldflags,
             build_tags=build_tags,
+            check_deadcode=os.getenv("DEPLOY_AGENT") == "true",
             coverage=os.getenv("E2E_COVERAGE_PIPELINE") == "true",
         )
 
@@ -452,6 +452,7 @@ def hacky_dev_image_build(
     process_agent=False,
     trace_agent=False,
     system_probe=False,
+    security_agent=False,
     push=False,
     race=False,
     signed_pull=False,
@@ -504,11 +505,18 @@ def hacky_dev_image_build(
         )
 
     copy_extra_agents = ""
+    if security_agent:
+        from tasks.security_agent import build as security_agent_build
+
+        security_agent_build(ctx, [""])
+        copy_extra_agents += "COPY bin/security-agent/security-agent /opt/datadog-agent/embedded/bin/security-agent\n"
+
     if process_agent:
         from tasks.process_agent import build as process_agent_build
 
         process_agent_build(ctx)
         copy_extra_agents += "COPY bin/process-agent/process-agent /opt/datadog-agent/embedded/bin/process-agent\n"
+
     if trace_agent:
         from tasks.trace_agent import build as trace_agent_build
 
@@ -537,6 +545,7 @@ RUN apt-get update && \
     apt-get install -y patchelf
 
 COPY bin/agent/agent                            /opt/datadog-agent/bin/agent/agent
+COPY bin/agent/dist/conf.d                      /etc/datadog-agent/conf.d
 COPY dev/lib/libdatadog-agent-rtloader.so.0.1.0 /opt/datadog-agent/embedded/lib/libdatadog-agent-rtloader.so.0.1.0
 COPY dev/lib/libdatadog-agent-three.so          /opt/datadog-agent/embedded/lib/libdatadog-agent-three.so
 
@@ -570,6 +579,7 @@ COPY --from=src /usr/src/datadog-agent {os.getcwd()}
 COPY --from=bin /opt/datadog-agent/bin/agent/agent                                 /opt/datadog-agent/bin/agent/agent
 COPY --from=bin /opt/datadog-agent/embedded/lib/libdatadog-agent-rtloader.so.0.1.0 /opt/datadog-agent/embedded/lib/libdatadog-agent-rtloader.so.0.1.0
 COPY --from=bin /opt/datadog-agent/embedded/lib/libdatadog-agent-three.so          /opt/datadog-agent/embedded/lib/libdatadog-agent-three.so
+COPY --from=bin /etc/datadog-agent/conf.d /etc/datadog-agent/conf.d
 {copy_extra_agents}
 RUN agent          completion bash > /usr/share/bash-completion/completions/agent
 RUN process-agent  completion bash > /usr/share/bash-completion/completions/process-agent
@@ -622,7 +632,16 @@ def check_supports_python_version(check_dir, python):
         if 'requires-python' not in project_metadata:
             return True
 
-        specifier = SpecifierSet(project_metadata['requires-python'])
+        requires_python = project_metadata['requires-python']
+        # Handle malformed requires-python values (e.g., just ">=" without version)
+        if not requires_python or requires_python.strip() in ['>=', '>', '<=', '<', '==', '!=', '~=', '===']:
+            return True
+
+        try:
+            specifier = SpecifierSet(requires_python)
+        except Exception:
+            # If the specifier is malformed, assume it supports the Python version
+            return True
         # It might be e.g. `>=3.8` which would not immediatelly contain `3`
         for minor_version in range(100):
             if specifier.contains(f'{python}.{minor_version}'):
@@ -710,7 +729,6 @@ def version(
     url_safe=False,
     omnibus_format=False,
     git_sha_length=7,
-    major_version='7',
     cache_version=False,
     pipeline_id=None,
     include_git=True,
@@ -736,7 +754,6 @@ def version(
         include_git=include_git,
         url_safe=url_safe,
         git_sha_length=git_sha_length,
-        major_version=major_version,
         include_pipeline_id=True,
         pipeline_id=pipeline_id,
         include_pre=include_pre,

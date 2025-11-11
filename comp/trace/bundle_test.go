@@ -20,6 +20,7 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
+	secretsmock "github.com/DataDog/datadog-agent/comp/core/secrets/mock"
 	taggerfx "github.com/DataDog/datadog-agent/comp/core/tagger/fx"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -29,6 +30,7 @@ import (
 	traceagentimpl "github.com/DataDog/datadog-agent/comp/trace/agent/impl"
 	zstdfx "github.com/DataDog/datadog-agent/comp/trace/compression/fx-zstd"
 	"github.com/DataDog/datadog-agent/comp/trace/config"
+	payloadmodifierfx "github.com/DataDog/datadog-agent/comp/trace/payload-modifier/fx"
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -46,7 +48,9 @@ func TestBundleDependencies(t *testing.T) {
 		zstdfx.Module(),
 		taggerfx.Module(),
 		fx.Supply(&traceagentimpl.Params{}),
+		payloadmodifierfx.NilModule(),
 		fx.Provide(func() ipc.Component { return ipcmock.New(t) }),
+		fx.Provide(func() secrets.Component { return secretsmock.New(t) }),
 	)
 }
 
@@ -65,7 +69,7 @@ func TestMockBundleDependencies(t *testing.T) {
 		fx.Provide(func() context.Context { return context.TODO() }), // fx.Supply(ctx) fails with a missing type error.
 		fx.Supply(core.BundleParams{}),
 		fx.Provide(func() coreconfig.Component { return coreconfig.NewMock(t) }),
-		fxutil.ProvideNoneOptional[secrets.Component](),
+		fx.Provide(func() secrets.Component { return secretsmock.New(t) }),
 		telemetryimpl.MockModule(),
 		fx.Provide(func() log.Component { return logmock.New(t) }),
 		workloadmetafx.Module(workloadmeta.NewParams()),
@@ -74,6 +78,7 @@ func TestMockBundleDependencies(t *testing.T) {
 		statsd.MockModule(),
 		zstdfx.Module(),
 		fx.Supply(&traceagentimpl.Params{}),
+		payloadmodifierfx.NilModule(),
 		fx.Invoke(func(_ traceagent.Component) {}),
 		MockBundle(),
 		taggerfx.Module(),

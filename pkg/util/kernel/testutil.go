@@ -30,18 +30,41 @@ func WithFakeProcFS(tb testing.TB, procRoot string) {
 	})
 }
 
+// FakeProcFSOption is a function that modifies a fake proc filesystem
+type FakeProcFSOption func(tb testing.TB, procRoot string)
+
+// WithRealUptime links the host uptime to the fake procfs uptime
+func WithRealUptime() func(testing.TB, string) {
+	return func(tb testing.TB, procRoot string) {
+		createSymlink(tb, "/proc/uptime", filepath.Join(procRoot, "uptime"))
+	}
+}
+
+// WithRealStat links the host stat to the fake procfs stat
+func WithRealStat() func(testing.TB, string) {
+	return func(tb testing.TB, procRoot string) {
+		createSymlink(tb, "/proc/stat", filepath.Join(procRoot, "stat"))
+	}
+}
+
 // CreateFakeProcFS creates a fake /proc filesystem with the given entries
-func CreateFakeProcFS(t *testing.T, entries []FakeProcFSEntry) string {
+func CreateFakeProcFS(t *testing.T, entries []FakeProcFSEntry, options ...FakeProcFSOption) string {
 	procRoot := t.TempDir()
 
 	for _, entry := range entries {
 		baseDir := filepath.Join(procRoot, strconv.Itoa(int(entry.Pid)))
+		mainTaskDir := filepath.Join(baseDir, "task", strconv.Itoa(int(entry.Pid)))
 
 		createFile(t, filepath.Join(baseDir, "cmdline"), entry.Cmdline)
 		createFile(t, filepath.Join(baseDir, "comm"), entry.Command)
 		createFile(t, filepath.Join(baseDir, "maps"), entry.Maps)
 		createSymlink(t, entry.Exe, filepath.Join(baseDir, "exe"))
 		createFile(t, filepath.Join(baseDir, "environ"), entry.getEnvironContents())
+		createFile(t, filepath.Join(mainTaskDir, "status"), entry.getMainTaskStatusContent())
+	}
+
+	for _, option := range options {
+		option(t, procRoot)
 	}
 
 	return procRoot
@@ -50,6 +73,7 @@ func CreateFakeProcFS(t *testing.T, entries []FakeProcFSEntry) string {
 // FakeProcFSEntry represents a fake /proc filesystem entry for testing purposes.
 type FakeProcFSEntry struct {
 	Pid     uint32
+	NsPid   uint32
 	Cmdline string
 	Command string
 	Exe     string
@@ -71,18 +95,28 @@ func (f *FakeProcFSEntry) getEnvironContents() string {
 	return strings.Join(formattedEnvVars, "\x00") + "\x00"
 }
 
-func createFile(t *testing.T, path, data string) {
-	dir := filepath.Dir(path)
-	require.NoError(t, os.MkdirAll(dir, 0775))
-	require.NoError(t, os.WriteFile(path, []byte(data), 0775))
+// getMainTaskStatusContent returns the formatted contents of the /proc/<pid>/task/<pid>/status file for the entry.
+func (f *FakeProcFSEntry) getMainTaskStatusContent() string {
+	nspid := f.NsPid
+	if nspid == 0 {
+		nspid = f.Pid
+	}
+	// note: just populate pid and nspid for now
+	return fmt.Sprintf("Pid: %d\nNSpid: %d\n", f.Pid, nspid)
 }
 
-func createSymlink(t *testing.T, target, link string) {
+func createFile(tb testing.TB, path, data string) {
+	dir := filepath.Dir(path)
+	require.NoError(tb, os.MkdirAll(dir, 0775))
+	require.NoError(tb, os.WriteFile(path, []byte(data), 0775))
+}
+
+func createSymlink(tb testing.TB, target, link string) {
 	if target == "" {
 		return
 	}
 
 	dir := filepath.Dir(link)
-	require.NoError(t, os.MkdirAll(dir, 0775))
-	require.NoError(t, os.Symlink(target, link))
+	require.NoError(tb, os.MkdirAll(dir, 0775))
+	require.NoError(tb, os.Symlink(target, link))
 }

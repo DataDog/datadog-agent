@@ -1,9 +1,8 @@
 name "python3"
 
-default_version "3.12.11"
+default_version "3.13.7"
 
 unless windows?
-  dependency "libxcrypt"
   dependency "libffi"
   dependency "zlib"
   dependency "bzip2"
@@ -14,7 +13,7 @@ end
 dependency "openssl3"
 
 source :url => "https://python.org/ftp/python/#{version}/Python-#{version}.tgz",
-       :sha256 => "7b8d59af8216044d2313de8120bfc2cc00a9bd2e542f15795e1d616c51faf3d6"
+       :sha256 => "6c9d80839cfa20024f34d9a6dd31ae2a9cd97ff5e980e969209746037a5153b2"
 
 relative_path "Python-#{version}"
 
@@ -56,11 +55,11 @@ build do
     # Don't forward CC and CXX to python extensions Makefile, it's quite unlikely that any non default
     # compiler we use would end up being available in the system/docker image used by customers
     if linux_target? && env["CC"]
-      command "sed -i \"s/^CC=[[:space:]]*${CC}/CC=gcc/\" #{install_dir}/embedded/lib/python#{major}.#{minor}/config-3.12-*-linux-gnu/Makefile", :env => env
+      command "sed -i \"s/^CC=[[:space:]]*${CC}/CC=gcc/\" #{install_dir}/embedded/lib/python#{major}.#{minor}/config-#{major}.#{minor}-*-linux-gnu/Makefile", :env => env
       command "sed -i \"s/${CC}/gcc/g\" #{install_dir}/embedded/lib/python#{major}.#{minor}/_sysconfigdata__linux_*-linux-gnu.py", :env => env
     end
     if linux_target? && env["CXX"]
-      command "sed -i \"s/^CXX=[[:space:]]*${CXX}/CC=g++/\" #{install_dir}/embedded/lib/python#{major}.#{minor}/config-3.12-*-linux-gnu/Makefile", :env => env
+      command "sed -i \"s/^CXX=[[:space:]]*${CXX}/CC=g++/\" #{install_dir}/embedded/lib/python#{major}.#{minor}/config-#{major}.#{minor}-*-linux-gnu/Makefile", :env => env
       command "sed -i \"s/${CXX}/g++/g\" #{install_dir}/embedded/lib/python#{major}.#{minor}/_sysconfigdata__linux_*-linux-gnu.py", :env => env
     end
     delete "#{install_dir}/embedded/lib/python#{major}.#{minor}/test"
@@ -69,9 +68,6 @@ build do
     end
   else
     dependency "vc_redist_14"
-
-    # Apply CVE-2025-6965 patch to upgrade SQLite to 3.50.4
-    patch source: "CVE-2025-6965-sqlite-3.50.4.patch"
 
     ###############################
     # Setup openssl dependency... #

@@ -18,6 +18,7 @@ type Client interface {
 	Set(key string, value string) (bool, error)
 	List() (map[string]settings.RuntimeSettingResponse, error)
 	FullConfig() (string, error)
+	FullConfigWithoutDefaults() (string, error)
 	FullConfigBySource() (string, error)
 }
 

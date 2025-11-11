@@ -1,0 +1,5 @@
+---
+enhancements:
+  - |
+    Enhanced Windows BSOD reports to include bugcheck arguments.
+    Updated internal filter that drops irrelevant BSOD reports to look for a Datadog driver in any frames of the callstack instead of only the first frame.

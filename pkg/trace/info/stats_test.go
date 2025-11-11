@@ -246,7 +246,7 @@ func TestReceiverStats(t *testing.T) {
 	})
 
 	t.Run("update", func(t *testing.T) {
-		stats := NewReceiverStats()
+		stats := NewReceiverStats(false)
 		newstats := testStats()
 		stats.Acc(newstats)
 		assert.EqualValues(t, stats, newstats)
@@ -266,6 +266,41 @@ func TestReceiverStats(t *testing.T) {
 		assert.Equal(t, "[WARN] [lang:go lang_version:1.12 lang_vendor:gov interpreter:gcc tracer_version:1.33 endpoint_version:v0.4 service:service] -> traces_dropped(decoding_error:1, empty_trace:3, foreign_span:6, msgp_short_bytes:9, payload_too_large:2, span_id_zero:5, timeout:7, trace_id_zero:4, unexpected_eof:8), spans_malformed(base_service_invalid:10, base_service_truncate:9, duplicate_span_id:1, invalid_duration:15, invalid_http_status_code:16, invalid_start_date:14, peer_service_invalid:8, peer_service_truncate:7, resource_empty:12, service_empty:2, service_invalid:4, service_truncate:3, span_name_empty:5, span_name_invalid:11, span_name_truncate:6, type_truncate:13). Enable debug logging for more details.",
 			logs[1])
 
+		assertStatsAreReset(t, rs)
+	})
+}
+
+func TestReceiverStatsZeroValueStatsNotPublished(t *testing.T) {
+	statsclient := &teststatsd.Client{}
+	tags := Tags{
+		Lang:            "go",
+		LangVersion:     "1.12",
+		LangVendor:      "gov",
+		Interpreter:     "gcc",
+		TracerVersion:   "1.33",
+		EndpointVersion: "v0.4",
+		Service:         "service",
+	}
+	testStats := func() *ReceiverStats {
+		stats := NewStats()
+		stats.TracesReceived.Store(1)
+		stats.TracesFiltered.Store(8)
+		return &ReceiverStats{
+			Stats: map[Tags]*TagStats{
+				tags: {
+					Tags:  tags,
+					Stats: stats,
+				},
+			},
+			SendAllStats: false,
+		}
+	}
+
+	t.Run("PublishAndReset", func(t *testing.T) {
+		rs := testStats()
+		rs.PublishAndReset(statsclient)
+		// Non-zero stats for some fields aren't published so only 9 here
+		assert.EqualValues(t, 9, len(statsclient.CountCalls))
 		assertStatsAreReset(t, rs)
 	})
 }

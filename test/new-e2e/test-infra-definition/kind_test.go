@@ -33,7 +33,9 @@ func TestMyKindSuite(t *testing.T) {
 			awskubernetes.WithWorkloadApp(func(e config.Env, kubeProvider *kubernetes.Provider) (*compkube.Workload, error) {
 				return nginx.K8sAppDefinition(e, kubeProvider, "nginx", "", false, nil)
 			}),
-		)))
+		)),
+		e2e.WithSkipCoverage(),
+	)
 }
 
 func (v *myKindSuite) TestClusterAgentInstalled() {

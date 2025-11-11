@@ -16,6 +16,7 @@ import (
 	"strconv"
 	"unsafe"
 
+	"github.com/dustin/go-humanize"
 	"github.com/go-json-experiment/json/jsontext"
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/gotype"
@@ -31,10 +32,54 @@ import (
 type decoderType interface {
 	irType() ir.Type
 	encodeValueFields(
-		d *Decoder,
+		c *encodingContext,
 		enc *jsontext.Encoder,
 		data []byte,
 	) error
+}
+
+type encodingContext struct {
+	typesByID            map[ir.TypeID]decoderType
+	typesByGoRuntimeType map[uint32]ir.TypeID
+	currentlyEncoding    map[typeAndAddr]struct{}
+	dataItems            map[typeAndAddr]output.DataItem
+	typeResolver         TypeNameResolver
+}
+
+// ResolveTypeName implements encodingContext.
+func (e *encodingContext) ResolveTypeName(typeID gotype.TypeID) (string, error) {
+	return e.typeResolver.ResolveTypeName(typeID)
+}
+
+// getPtr implements encodingContext.
+func (e *encodingContext) getPtr(addr uint64, typeID ir.TypeID) (output.DataItem, bool) {
+	di, ok := e.dataItems[typeAndAddr{addr: addr, irType: uint32(typeID)}]
+	return di, ok
+}
+
+// getType implements encodingContext.
+func (e *encodingContext) getType(typeID ir.TypeID) (decoderType, bool) {
+	t, ok := e.typesByID[typeID]
+	return t, ok
+}
+
+// getTypeIDByGoRuntimeType implements encodingContext.
+func (e *encodingContext) getTypeIDByGoRuntimeType(runtimeType uint32) (ir.TypeID, bool) {
+	typeID, ok := e.typesByGoRuntimeType[runtimeType]
+	return typeID, ok
+}
+
+// recordPointer implements encodingContext.
+func (e *encodingContext) recordPointer(addr uint64, typeID ir.TypeID) (release func(), ok bool) {
+	key := typeAndAddr{addr: addr, irType: uint32(typeID)}
+	_, ok = e.currentlyEncoding[typeAndAddr{addr: addr, irType: uint32(typeID)}]
+	if ok {
+		return nil, false
+	}
+	e.currentlyEncoding[typeAndAddr{addr: addr, irType: uint32(typeID)}] = struct{}{}
+	return func() {
+		delete(e.currentlyEncoding, key)
+	}, true
 }
 
 // Type equivalent definitions
@@ -366,7 +411,7 @@ func newDecoderType(
 
 func (b *baseType) irType() ir.Type { return (*ir.BaseType)(b) }
 func (b *baseType) encodeValueFields(
-	_ *Decoder,
+	_ *encodingContext,
 	enc *jsontext.Encoder,
 	data []byte,
 ) error {
@@ -471,7 +516,7 @@ func (b *baseType) encodeValueFields(
 
 func (e *eventRootType) irType() ir.Type { return (*ir.EventRootType)(e) }
 func (e *eventRootType) encodeValueFields(
-	_ *Decoder,
+	_ *encodingContext,
 	enc *jsontext.Encoder,
 	_ []byte,
 ) error {
@@ -483,17 +528,17 @@ func (e *eventRootType) encodeValueFields(
 
 func (m *goMapType) irType() ir.Type { return (*ir.GoMapType)(m) }
 func (m *goMapType) encodeValueFields(
-	d *Decoder,
+	c *encodingContext,
 	enc *jsontext.Encoder,
 	data []byte,
 ) error {
 	const encodeAddress = false
-	return encodePointer(data, encodeAddress, m.HeaderType.GetID(), enc, d)
+	return encodePointer(c, data, encodeAddress, m.HeaderType.GetID(), enc)
 }
 
 func (h *goHMapHeaderType) irType() ir.Type { return h.GoHMapHeaderType }
 func (h *goHMapHeaderType) encodeValueFields(
-	d *Decoder,
+	c *encodingContext,
 	enc *jsontext.Encoder,
 	data []byte,
 ) error {
@@ -514,12 +559,16 @@ func (h *goHMapHeaderType) encodeValueFields(
 		return err
 	}
 	encodeBuckets := func(dataItem output.DataItem) (encodedItems int, err error) {
-		data := dataItem.Data()
+		data, ok := dataItem.Data()
+		if !ok {
+			// Should we tell the user about this fault?
+			return 0, nil
+		}
 		numBuckets := len(data) / int(h.bucketByteSize)
 		for i := range numBuckets {
 			bucketOffset := uint32(i) * h.bucketByteSize
 			bucketData := data[bucketOffset : bucketOffset+h.bucketByteSize]
-			bucketItems, err := encodeHMapBucket(d, enc, h, bucketData)
+			bucketItems, err := encodeHMapBucket(c, enc, h, bucketData)
 			if err != nil {
 				return 0, fmt.Errorf("error encoding bucket: %w", err)
 			}
@@ -533,10 +582,7 @@ func (h *goHMapHeaderType) encodeValueFields(
 		if addr == 0 {
 			continue
 		}
-		item, ok := d.dataItems[typeAndAddr{
-			irType: uint32(h.bucketsTypeID),
-			addr:   addr,
-		}]
+		item, ok := c.getPtr(addr, h.bucketsTypeID)
 		if !ok {
 			continue
 		}
@@ -561,7 +607,7 @@ func (h *goHMapHeaderType) encodeValueFields(
 }
 
 func encodeHMapBucket(
-	d *Decoder,
+	c *encodingContext,
 	enc *jsontext.Encoder,
 	h *goHMapHeaderType,
 	bucketData []byte,
@@ -601,11 +647,15 @@ func encodeHMapBucket(
 			return encodedItems, err
 		}
 		keyData := bucketData[keyOffset : keyOffset+h.keyTypeSize]
-		if err := d.encodeValue(enc, h.keyTypeID, keyData, h.keyTypeName); err != nil {
+		if err := encodeValue(
+			c, enc, h.keyTypeID, keyData, h.keyTypeName,
+		); err != nil {
 			return encodedItems, err
 		}
 		valueData := bucketData[valueOffset : valueOffset+h.valueTypeSize]
-		if err := d.encodeValue(enc, h.valueTypeID, valueData, h.valueTypeName); err != nil {
+		if err := encodeValue(
+			c, enc, h.valueTypeID, valueData, h.valueTypeName,
+		); err != nil {
 			return encodedItems, err
 		}
 		if err := writeTokens(enc, jsontext.EndArray); err != nil {
@@ -614,12 +664,13 @@ func encodeHMapBucket(
 	}
 	overflowAddr := binary.NativeEndian.Uint64(bucketData[h.overflowOffset : h.overflowOffset+8])
 	if overflowAddr != 0 {
-		overflowDataItem, ok := d.dataItems[typeAndAddr{
-			irType: uint32(h.bucketTypeID),
-			addr:   overflowAddr,
-		}]
+		overflowDataItem, ok := c.getPtr(overflowAddr, h.bucketTypeID)
+		var overflowData []byte
 		if ok {
-			overflowItems, err := encodeHMapBucket(d, enc, h, overflowDataItem.Data())
+			overflowData, ok = overflowDataItem.Data()
+		}
+		if ok {
+			overflowItems, err := encodeHMapBucket(c, enc, h, overflowData)
 			if err != nil {
 				return encodedItems, err
 			}
@@ -631,14 +682,14 @@ func encodeHMapBucket(
 
 func (b *goHMapBucketType) irType() ir.Type { return (*ir.GoHMapBucketType)(b) }
 func (*goHMapBucketType) encodeValueFields(
-	*Decoder, *jsontext.Encoder, []byte,
+	*encodingContext, *jsontext.Encoder, []byte,
 ) error {
 	return fmt.Errorf("hmap bucket type is never directly encoded")
 }
 
 func (s *goSwissMapHeaderType) irType() ir.Type { return s.GoSwissMapHeaderType }
 func (s *goSwissMapHeaderType) encodeValueFields(
-	d *Decoder,
+	c *encodingContext,
 	enc *jsontext.Encoder,
 	data []byte,
 ) error {
@@ -651,33 +702,37 @@ func (s *goSwissMapHeaderType) encodeValueFields(
 	}
 	dirLen := int64(binary.NativeEndian.Uint64(data[s.dirLenOffset : s.dirLenOffset+uint32(s.dirLenSize)]))
 	dirPtr := binary.NativeEndian.Uint64(data[s.dirPtrOffset : s.dirPtrOffset+uint32(s.dirPtrSize)])
-	if err := writeTokens(
-		enc, jsontext.String("entries"), jsontext.BeginArray,
-	); err != nil {
-		return err
-	}
 	if dirLen == 0 {
 		// This is a 'small' swiss map where there's only one group.
 		// We can collect the data item for the group directly.
-		groupDataItem, ok := d.dataItems[typeAndAddr{
-			irType: uint32(s.groupTypeID),
-			addr:   dirPtr,
-		}]
+		groupDataItem, ok := c.getPtr(dirPtr, s.groupTypeID)
 		if !ok {
 			return writeTokens(enc,
-				jsontext.EndArray,
 				tokenNotCapturedReason,
 				tokenNotCapturedReasonDepth,
 			)
 		}
-		totalElementsEncoded, err := s.encodeSwissMapGroup(d, enc, groupDataItem.Data())
+		groupData, ok := groupDataItem.Data()
+		if !ok {
+			// The attempt to dereference the group data item failed. This can
+			// happen due to paging.
+			return writeTokens(enc,
+				tokenNotCapturedReason,
+				tokenNotCapturedReasonUnavailable,
+			)
+		}
+		if err := writeTokens(
+			enc, jsontext.String("entries"), jsontext.BeginArray,
+		); err != nil {
+			return err
+		}
+		totalElementsEncoded, err := s.encodeSwissMapGroup(c, enc, groupData)
 		if err != nil {
 			return err
 		}
 		if used > int64(totalElementsEncoded) {
-			if err := writeTokens(enc,
-				tokenNotCapturedReason,
-				tokenNotCapturedReasonPruned,
+			if err := writeTokens(
+				enc, tokenNotCapturedReason, tokenNotCapturedReasonPruned,
 			); err != nil {
 				return err
 			}
@@ -685,29 +740,28 @@ func (s *goSwissMapHeaderType) encodeValueFields(
 	} else {
 		// This is a 'large' swiss map where there are multiple groups of data/control words
 		// We need to collect the data items for the table pointers first.
-		tablePtrSliceDataItemPtr, ok := d.dataItems[typeAndAddr{
-			irType: uint32(s.TablePtrSliceType.GetID()),
-			addr:   dirPtr,
-		}]
+		tablePtrSliceDataItem, ok := c.getPtr(dirPtr, s.TablePtrSliceType.GetID())
 		if !ok {
 			return writeTokens(enc,
-				jsontext.EndArray,
 				tokenNotCapturedReason,
 				tokenNotCapturedReasonDepth,
 			)
 		}
-		tablePtrSliceDataItem, ok := d.dataItems[typeAndAddr{
-			irType: tablePtrSliceDataItemPtr.Header().Type,
-			addr:   tablePtrSliceDataItemPtr.Header().Address,
-		}]
+		tablePtrSliceData, ok := tablePtrSliceDataItem.Data()
 		if !ok {
 			return writeTokens(enc,
-				jsontext.EndArray,
 				tokenNotCapturedReason,
-				tokenNotCapturedReasonDepth,
+				tokenNotCapturedReasonUnavailable,
 			)
 		}
-		totalElementsEncoded, err := s.encodeSwissMapTables(d, enc, tablePtrSliceDataItem)
+		if err := writeTokens(
+			enc, jsontext.String("entries"), jsontext.BeginArray,
+		); err != nil {
+			return err
+		}
+		totalElementsEncoded, err := s.encodeSwissMapTables(
+			c, enc, tablePtrSliceData,
+		)
 		if err != nil {
 			return err
 		}
@@ -724,7 +778,7 @@ func (s *goSwissMapHeaderType) encodeValueFields(
 
 func (s *goSwissMapGroupsType) irType() ir.Type { return (*ir.GoSwissMapGroupsType)(s) }
 func (s *goSwissMapGroupsType) encodeValueFields(
-	_ *Decoder,
+	_ *encodingContext,
 	enc *jsontext.Encoder,
 	_ []byte,
 ) error {
@@ -736,7 +790,7 @@ func (s *goSwissMapGroupsType) encodeValueFields(
 
 func (v *voidPointerType) irType() ir.Type { return (*ir.VoidPointerType)(v) }
 func (v *voidPointerType) encodeValueFields(
-	_ *Decoder,
+	_ *encodingContext,
 	enc *jsontext.Encoder,
 	data []byte,
 ) error {
@@ -751,7 +805,7 @@ func (v *voidPointerType) encodeValueFields(
 
 func (p *pointerType) irType() ir.Type { return (*ir.PointerType)(p) }
 func (p *pointerType) encodeValueFields(
-	d *Decoder,
+	c *encodingContext,
 	enc *jsontext.Encoder,
 	data []byte,
 ) error {
@@ -763,15 +817,15 @@ func (p *pointerType) encodeValueFields(
 	// find a go kind.
 	goKind, ok := p.Pointee.GetGoKind()
 	writeAddress := ok && goKind != reflect.Pointer
-	return encodePointer(data, writeAddress, p.Pointee.GetID(), enc, d)
+	return encodePointer(c, data, writeAddress, p.Pointee.GetID(), enc)
 }
 
 func encodePointer(
+	c *encodingContext,
 	data []byte,
 	writeAddress bool,
 	pointee ir.TypeID,
 	enc *jsontext.Encoder,
-	d *Decoder,
 ) error {
 	if len(data) < 8 {
 		return errors.New("passed data not long enough for pointer: need 8 bytes")
@@ -791,7 +845,7 @@ func encodePointer(
 		return nil
 	}
 
-	pointeeDecoderType, ok := d.decoderTypes[pointee]
+	pointeeType, ok := c.getType(pointee)
 	if !ok {
 		return fmt.Errorf("no decoder type found for pointee type (ID: %d)", pointee)
 	}
@@ -802,8 +856,9 @@ func encodePointer(
 		pointedValue   output.DataItem
 		dataItemExists bool
 	)
-	if pointeeDecoderType.irType().GetByteSize() > 0 {
-		pointedValue, dataItemExists = d.dataItems[pointeeKey]
+	isZeroSized := pointeeType.irType().GetByteSize() == 0
+	if !isZeroSized {
+		pointedValue, dataItemExists = c.getPtr(addr, pointee)
 	} else {
 		dataItemExists = true
 	}
@@ -822,14 +877,18 @@ func encodePointer(
 		}
 	}
 
-	if _, alreadyEncoding := d.currentlyEncoding[pointeeKey]; !alreadyEncoding && dataItemExists {
-		d.currentlyEncoding[pointeeKey] = struct{}{}
-		defer delete(d.currentlyEncoding, pointeeKey)
-		if err := pointeeDecoderType.encodeValueFields(
-			d,
-			enc,
-			pointedValue.Data(),
-		); err != nil {
+	if release, ok := c.recordPointer(addr, pointee); ok {
+		defer release()
+		var pointedData []byte
+		if !isZeroSized {
+			if pointedData, ok = pointedValue.Data(); !ok {
+				return writeTokens(enc,
+					tokenNotCapturedReason,
+					tokenNotCapturedReasonUnavailable,
+				)
+			}
+		}
+		if err := pointeeType.encodeValueFields(c, enc, pointedData); err != nil {
 			return fmt.Errorf("could not encode referenced value: %w", err)
 		}
 	} else {
@@ -844,7 +903,7 @@ func encodePointer(
 
 func (s *structureType) irType() ir.Type { return (*ir.StructureType)(s) }
 func (s *structureType) encodeValueFields(
-	d *Decoder,
+	c *encodingContext,
 	enc *jsontext.Encoder,
 	data []byte,
 ) error {
@@ -859,13 +918,15 @@ func (s *structureType) encodeValueFields(
 		}
 		fieldEnd := field.Offset + field.Type.GetByteSize()
 		if fieldEnd > uint32(len(data)) {
-			return fmt.Errorf("field %s extends beyond data bounds: need %d bytes, have %d", field.Name, fieldEnd, len(data))
+			return fmt.Errorf(
+				"field %s extends beyond data bounds: need %d bytes, have %d",
+				field.Name, fieldEnd, len(data),
+			)
 		}
 
-		if err := d.encodeValue(enc,
-			field.Type.GetID(),
-			data[field.Offset:field.Offset+field.Type.GetByteSize()],
-			field.Type.GetName(),
+		fieldData := data[field.Offset : field.Offset+field.Type.GetByteSize()]
+		if err := encodeValue(
+			c, enc, field.Type.GetID(), fieldData, field.Type.GetName(),
 		); err != nil {
 			return err
 		}
@@ -875,7 +936,7 @@ func (s *structureType) encodeValueFields(
 
 func (a *arrayType) irType() ir.Type { return (*ir.ArrayType)(a) }
 func (a *arrayType) encodeValueFields(
-	d *Decoder,
+	c *encodingContext,
 	enc *jsontext.Encoder,
 	data []byte,
 ) error {
@@ -891,6 +952,8 @@ func (a *arrayType) encodeValueFields(
 	}
 
 	var notCaptured = false
+	elementID := a.Element.GetID()
+	elementName := a.Element.GetName()
 	for i := range numElements {
 		offset := i * elementSize
 		endIdx := offset + elementSize
@@ -898,11 +961,8 @@ func (a *arrayType) encodeValueFields(
 			notCaptured = true
 			break
 		}
-		elementData := data[offset:endIdx]
-		if err := d.encodeValue(enc,
-			a.Element.GetID(),
-			elementData,
-			a.Element.GetName(),
+		if err := encodeValue(
+			c, enc, elementID, data[offset:endIdx], elementName,
 		); err != nil {
 			return err
 		}
@@ -921,10 +981,8 @@ func (a *arrayType) encodeValueFields(
 
 func (s *goSliceHeaderType) irType() ir.Type { return (*ir.GoSliceHeaderType)(s) }
 func (s *goSliceHeaderType) encodeValueFields(
-	d *Decoder,
-	enc *jsontext.Encoder,
-	data []byte) error {
-
+	c *encodingContext, enc *jsontext.Encoder, data []byte,
+) error {
 	if len(data) < int(s.ByteSize) {
 		return writeTokens(enc,
 			tokenNotCapturedReason,
@@ -959,36 +1017,50 @@ func (s *goSliceHeaderType) encodeValueFields(
 	}
 
 	elementSize := int(s.Data.Element.GetByteSize())
-	taa := typeAndAddr{
-		addr:   address,
-		irType: uint32(s.Data.GetID()),
-	}
-	sliceDataItem, ok := d.dataItems[taa]
-	if !ok {
-		return writeTokens(enc,
-			tokenNotCapturedReason,
-			tokenNotCapturedReasonPruned,
-		)
+	var sliceData []byte
+	var sliceLength int
+	if elementSize > 0 {
+		sliceDataItem, ok := c.getPtr(address, s.Data.GetID())
+		if !ok {
+			return writeTokens(enc,
+				tokenNotCapturedReason,
+				tokenNotCapturedReasonPruned,
+			)
+		}
+		sliceData, ok = sliceDataItem.Data()
+		if !ok {
+			return writeTokens(enc,
+				tokenNotCapturedReason,
+				tokenNotCapturedReasonUnavailable,
+			)
+		}
+		sliceLength = int(len(sliceData)) / elementSize
+	} else {
+		sliceLength = int(length)
 	}
 	if err := writeTokens(enc,
 		jsontext.String("elements"),
 		jsontext.BeginArray); err != nil {
 		return err
 	}
-	sliceLength := int(sliceDataItem.Header().Length) / elementSize
-	sliceData := sliceDataItem.Data()
-	var notCaptured = false
+	elementByteSize := int(s.Data.Element.GetByteSize())
+	elementName := s.Data.Element.GetName()
+	elementID := s.Data.Element.GetID()
 	for i := range int(sliceLength) {
-		elementData := sliceData[i*int(s.Data.Element.GetByteSize()) : (i+1)*int(s.Data.Element.GetByteSize())]
-		if err := d.encodeValue(enc,
-			s.Data.Element.GetID(),
-			elementData,
-			s.Data.Element.GetName(),
+		var elementData []byte
+		if elementSize > 0 {
+			elementData = sliceData[i*elementByteSize : (i+1)*elementByteSize]
+		}
+		if err := encodeValue(
+			c, enc, elementID, elementData, elementName,
 		); err != nil {
-			notCaptured = true
-			break
+			return fmt.Errorf(
+				"could not encode %s slice element of %s: %w",
+				humanize.Ordinal(i+1), elementName, err,
+			)
 		}
 	}
+
 	if err := writeTokens(enc, jsontext.EndArray); err != nil {
 		return err
 	}
@@ -997,18 +1069,13 @@ func (s *goSliceHeaderType) encodeValueFields(
 			tokenNotCapturedReason,
 			tokenNotCapturedReasonCollectionSize,
 		)
-	} else if notCaptured {
-		return writeTokens(enc,
-			tokenNotCapturedReason,
-			tokenNotCapturedReasonPruned,
-		)
 	}
 	return nil
 }
 
 func (s *goSliceDataType) irType() ir.Type { return (*ir.GoSliceDataType)(s) }
 func (s *goSliceDataType) encodeValueFields(
-	_ *Decoder,
+	_ *encodingContext,
 	enc *jsontext.Encoder,
 	_ []byte,
 ) error {
@@ -1020,7 +1087,7 @@ func (s *goSliceDataType) encodeValueFields(
 
 func (s *goStringHeaderType) irType() ir.Type { return s.GoStringHeaderType }
 func (s *goStringHeaderType) encodeValueFields(
-	d *Decoder,
+	c *encodingContext,
 	enc *jsontext.Encoder,
 	data []byte,
 ) error {
@@ -1031,40 +1098,46 @@ func (s *goStringHeaderType) encodeValueFields(
 			tokenNotCapturedReasonLength,
 		)
 	}
+	strLen := binary.NativeEndian.Uint64(data[s.lenFieldOffset : s.lenFieldOffset+uint32(s.lenFieldSize)])
 	address := binary.NativeEndian.Uint64(data[s.strFieldOffset : s.strFieldOffset+uint32(s.strFieldSize)])
-	if address == 0 {
+	if address == 0 || strLen == 0 {
 		return writeTokens(enc,
 			jsontext.String("value"),
 			jsontext.String(""),
 		)
 	}
-	stringValue, ok := d.dataItems[typeAndAddr{
-		irType: uint32(s.Data.GetID()),
-		addr:   address,
-	}]
+	stringValue, ok := c.getPtr(address, s.Data.GetID())
 	if !ok {
 		return writeTokens(enc,
+			jsontext.String("size"),
+			jsontext.String(strconv.FormatInt(int64(strLen), 10)),
 			tokenNotCapturedReason,
 			tokenNotCapturedReasonDepth,
 		)
 	}
-	stringData := stringValue.Data()
+	stringData, ok := stringValue.Data()
+	if !ok {
+		// The string data was corrupted, report it as unavailable.
+		return writeTokens(enc,
+			jsontext.String("size"),
+			jsontext.String(strconv.FormatInt(int64(strLen), 10)),
+			tokenNotCapturedReason,
+			tokenNotCapturedReasonUnavailable,
+		)
+	}
 	length := stringValue.Header().Length
-	realLength := binary.NativeEndian.Uint64(data[s.lenFieldOffset : s.lenFieldOffset+uint32(s.lenFieldSize)])
-	if realLength > uint64(length) {
+	if strLen > uint64(length) {
 		// We captured partial data for the string, report truncation
 		if err := writeTokens(enc,
 			jsontext.String("size"),
-			jsontext.String(strconv.FormatInt(int64(realLength), 10)),
+			jsontext.String(strconv.FormatInt(int64(strLen), 10)),
 			tokenTruncated,
 			jsontext.Bool(true),
 		); err != nil {
 			return err
 		}
 	}
-	if err := writeTokens(enc,
-		jsontext.String("value"),
-	); err != nil {
+	if err := writeTokens(enc, jsontext.String("value")); err != nil {
 		return err
 	}
 	str := unsafe.String(unsafe.SliceData(stringData), int(length))
@@ -1073,7 +1146,7 @@ func (s *goStringHeaderType) encodeValueFields(
 
 func (s *goStringDataType) irType() ir.Type { return (*ir.GoStringDataType)(s) }
 func (s *goStringDataType) encodeValueFields(
-	_ *Decoder,
+	_ *encodingContext,
 	enc *jsontext.Encoder,
 	_ []byte,
 ) error {
@@ -1085,7 +1158,7 @@ func (s *goStringDataType) encodeValueFields(
 
 func (c *goChannelType) irType() ir.Type { return (*ir.GoChannelType)(c) }
 func (c *goChannelType) encodeValueFields(
-	_ *Decoder,
+	_ *encodingContext,
 	enc *jsontext.Encoder,
 	_ []byte,
 ) error {
@@ -1100,24 +1173,24 @@ const goInterfaceDataOffset = 0x08
 
 func (e *goEmptyInterfaceType) irType() ir.Type { return (*ir.GoEmptyInterfaceType)(e) }
 func (e *goEmptyInterfaceType) encodeValueFields(
-	d *Decoder,
+	c *encodingContext,
 	enc *jsontext.Encoder,
 	data []byte,
 ) error {
-	return encodeInterface(d, enc, data)
+	return encodeInterface(c, enc, data)
 }
 
 func (i *goInterfaceType) irType() ir.Type { return (*ir.GoInterfaceType)(i) }
 func (i *goInterfaceType) encodeValueFields(
-	d *Decoder,
+	c *encodingContext,
 	enc *jsontext.Encoder,
 	data []byte,
 ) error {
-	return encodeInterface(d, enc, data)
+	return encodeInterface(c, enc, data)
 }
 
 func encodeInterface(
-	d *Decoder,
+	c *encodingContext,
 	enc *jsontext.Encoder,
 	data []byte,
 ) error {
@@ -1134,7 +1207,8 @@ func encodeInterface(
 		return err
 	}
 
-	runtimeType := binary.NativeEndian.Uint64(data[goRuntimeTypeOffset : goRuntimeTypeOffset+8])
+	runtimeTypeData := data[goRuntimeTypeOffset : goRuntimeTypeOffset+8]
+	runtimeType := binary.NativeEndian.Uint64(runtimeTypeData)
 	if runtimeType == 0 {
 		return writeTokens(enc,
 			jsontext.String("isNull"),
@@ -1144,9 +1218,9 @@ func encodeInterface(
 		)
 	}
 
-	typeID, ok := d.typesByGoRuntimeType[uint32(runtimeType)]
+	typeID, ok := c.getTypeIDByGoRuntimeType(uint32(runtimeType))
 	if !ok {
-		name, err := d.typeNameResolver.ResolveTypeName(gotype.TypeID(runtimeType))
+		name, err := c.ResolveTypeName(gotype.TypeID(runtimeType))
 		if err != nil {
 			name = fmt.Sprintf("UnknownType(0x%x): %v", runtimeType, err)
 		}
@@ -1163,26 +1237,27 @@ func encodeInterface(
 		return nil
 	}
 	// We know the concrete type; include it even for dynamic interfaces.
-	t, ok := d.program.Types[typeID]
+	t, ok := c.getType(typeID)
 	if !ok {
 		return fmt.Errorf("no type found for type ID: %d", typeID)
 	}
+	tt := t.irType()
 	if err := writeTokens(
-		enc, jsontext.String("type"), jsontext.String(t.GetName()),
+		enc, jsontext.String("type"), jsontext.String(tt.GetName()),
 	); err != nil {
 		return err
 	}
 	ptrData := data[goInterfaceDataOffset : goInterfaceDataOffset+8]
 	var err error
-	if pt, ok := t.(*ir.PointerType); ok {
-		err = (*pointerType)(pt).encodeValueFields(d, enc, ptrData)
+	if pt, ok := tt.(*ir.PointerType); ok {
+		err = (*pointerType)(pt).encodeValueFields(c, enc, ptrData)
 	} else {
-		switch t := t.(type) {
+		switch t := tt.(type) {
 		// Reference types need to be indirected appropriately
 		case *ir.GoMapType /* *ir.GoChannelType, *ir.GoSubroutineType */ :
 			typeID = t.HeaderType.GetID()
 		}
-		err = encodePointer(ptrData, false, typeID, enc, d)
+		err = encodePointer(c, ptrData, false, typeID, enc)
 	}
 	if err != nil {
 		return err
@@ -1192,7 +1267,7 @@ func encodeInterface(
 
 func (s *goSubroutineType) irType() ir.Type { return (*ir.GoSubroutineType)(s) }
 func (s *goSubroutineType) encodeValueFields(
-	_ *Decoder,
+	_ *encodingContext,
 	enc *jsontext.Encoder,
 	_ []byte,
 ) error {
@@ -1204,7 +1279,7 @@ func (s *goSubroutineType) encodeValueFields(
 
 func (u *unresolvedPointeeType) irType() ir.Type { return (*ir.UnresolvedPointeeType)(u) }
 func (u *unresolvedPointeeType) encodeValueFields(
-	_ *Decoder,
+	_ *encodingContext,
 	enc *jsontext.Encoder,
 	_ []byte,
 ) error {

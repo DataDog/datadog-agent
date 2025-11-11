@@ -1305,7 +1305,7 @@ func testOTLPHostname(enableReceiveResourceSpansV2 bool, t *testing.T) {
 		if tt.span != "" {
 			rattr["_dd.hostname"] = tt.span
 		}
-		src := rcv.ReceiveResourceSpans(context.Background(), testutil.NewOTLPTracesRequest([]testutil.OTLPResourceSpan{
+		src, _ := rcv.ReceiveResourceSpans(context.Background(), testutil.NewOTLPTracesRequest([]testutil.OTLPResourceSpan{
 			{
 				LibName:    "a",
 				LibVersion: "1.2",

@@ -141,7 +141,7 @@ func TestTestServer(t *testing.T) {
 
 		assert.Equal(6, ts.Total())
 		assert.Equal(2, ts.Accepted())
-		assert.Equal(2, ts.Failed())
-		assert.Equal(2, ts.Retried())
+		assert.Equal(0, ts.Failed())
+		assert.Equal(4, ts.Retried())
 	})
 }

@@ -436,15 +436,15 @@ func TestMountResolver(t *testing.T) {
 		pid uint32 = 1
 	)
 
-	cr, _ := cgroup.NewResolver(nil)
+	cr, _ := cgroup.NewResolver(nil, nil)
 
 	// Create mount resolver
-	mr, _ := NewResolver(nil, cr, ResolverOpts{})
+	mr, _ := NewResolver(nil, cr, nil, ResolverOpts{})
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			for _, evt := range tt.args.events {
 				if evt.mount != nil {
-					mr.insert(&evt.mount.Mount, pid)
+					mr.insert(&evt.mount.Mount, pid, false)
 				}
 				if evt.umount != nil {
 					mount, _, _, err := mr.ResolveMount(evt.umount.MountID, 0, pid, "")
@@ -504,8 +504,8 @@ func TestMountGetParentPath(t *testing.T) {
 	}
 
 	// Create mount resolver
-	cr, _ := cgroup.NewResolver(nil)
-	mr, _ := NewResolver(nil, cr, ResolverOpts{})
+	cr, _ := cgroup.NewResolver(nil, nil)
+	mr, _ := NewResolver(nil, cr, nil, ResolverOpts{})
 	for _, m := range mounts {
 		mr.mounts.Add(m.MountID, m)
 	}
@@ -545,8 +545,8 @@ func TestMountLoop(t *testing.T) {
 	}
 
 	// Create mount resolver
-	cr, _ := cgroup.NewResolver(nil)
-	mr, _ := NewResolver(nil, cr, ResolverOpts{})
+	cr, _ := cgroup.NewResolver(nil, nil)
+	mr, _ := NewResolver(nil, cr, nil, ResolverOpts{})
 	for _, m := range mounts {
 		mr.mounts.Add(m.MountID, m)
 	}
@@ -558,8 +558,8 @@ func TestMountLoop(t *testing.T) {
 
 func BenchmarkGetParentPath(b *testing.B) {
 	// Create mount resolver
-	cr, _ := cgroup.NewResolver(nil)
-	mr, _ := NewResolver(nil, cr, ResolverOpts{})
+	cr, _ := cgroup.NewResolver(nil, nil)
+	mr, _ := NewResolver(nil, cr, nil, ResolverOpts{})
 
 	mr.mounts.Add(1, &model.Mount{
 		MountID:       1,

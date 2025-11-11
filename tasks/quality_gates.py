@@ -16,7 +16,12 @@ from tasks.libs.common.color import color_message
 from tasks.libs.common.git import create_tree, get_common_ancestor, get_current_branch, is_a_release_branch
 from tasks.libs.common.utils import running_in_ci
 from tasks.libs.package.size import InfraError
-from tasks.static_quality_gates.experimental_gates import measure_package_local as _measure_package_local
+from tasks.static_quality_gates.experimental_gates import (
+    measure_image_local as _measure_image_local,
+)
+from tasks.static_quality_gates.experimental_gates import (
+    measure_package_local as _measure_package_local,
+)
 from tasks.static_quality_gates.gates import (
     GateMetricHandler,
     QualityGateFactory,
@@ -312,7 +317,7 @@ def update_quality_gates_threshold(ctx, metric_handler, github):
             yaml.dump(file_content, f)
         ctx.run(f"git add {GATE_CONFIG_PATH}")
         print("Creating signed commits using Github API")
-        tree = create_tree(ctx, f"origin/{current_branch.name}")
+        tree = create_tree(ctx, current_branch.name)
         github.commit_and_push_signed(branch_name, commit_message, tree)
     else:
         print("Creating commits using your local git configuration, please make sure to sign them")
@@ -424,8 +429,6 @@ def measure_package_local(
     config_path="test/static/static_quality_gates.yml",
     output_path=None,
     build_job_name="local_test",
-    max_files=20000,
-    no_checksums=False,
     debug=False,
 ):
     """
@@ -440,8 +443,6 @@ def measure_package_local(
         config_path: Path to quality gates configuration (default: test/static/static_quality_gates.yml)
         output_path: Path to save the measurement report (default: {gate_name}_report.yml)
         build_job_name: Simulated build job name (default: local_test)
-        max_files: Maximum number of files to process in inventory (default: 10000)
-        no_checksums: Skip checksum generation for faster processing (default: false)
         debug: Enable debug logging for troubleshooting (default: false)
 
     Example:
@@ -454,7 +455,46 @@ def measure_package_local(
         config_path=config_path,
         output_path=output_path,
         build_job_name=build_job_name,
-        max_files=max_files,
-        no_checksums=no_checksums,
+        debug=debug,
+    )
+
+
+@task
+def measure_image_local(
+    ctx,
+    image_ref,
+    gate_name,
+    config_path="test/static/static_quality_gates.yml",
+    output_path=None,
+    build_job_name="local_test",
+    include_layer_analysis=True,
+    debug=False,
+):
+    """
+    Run the in-place Docker image measurer locally for testing and development.
+
+    This task allows you to test the Docker image measurement functionality on local images
+    without requiring a full CI environment.
+
+    Args:
+        image_ref: Docker image reference (tag, digest, or image ID)
+        gate_name: Quality gate name from the configuration file
+        config_path: Path to quality gates configuration (default: test/static/static_quality_gates.yml)
+        output_path: Path to save the measurement report (default: {gate_name}_image_report.yml)
+        build_job_name: Simulated build job name (default: local_test)
+        include_layer_analysis: Whether to analyze individual layers (default: true)
+        debug: Enable debug logging for troubleshooting (default: false)
+
+    Example:
+        dda inv quality-gates.measure-image-local --image-ref nginx:latest --gate-name static_quality_gate_docker_agent_amd64
+    """
+    return _measure_image_local(
+        ctx=ctx,
+        image_ref=image_ref,
+        gate_name=gate_name,
+        config_path=config_path,
+        output_path=output_path,
+        build_job_name=build_job_name,
+        include_layer_analysis=include_layer_analysis,
         debug=debug,
     )

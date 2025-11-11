@@ -200,6 +200,15 @@ type testInstallAltDirSuite struct {
 	baseAgentMSISuite
 }
 
+func (s *testInstallAltDirSuite) BeforeTest(suiteName, testName string) {
+	// Remove users write permission from drive root, so install dir does not inherit writable permissions
+	// Must be run before BaseSuite.BeforeTest takes the permission snapshot
+	_, err := s.Env().RemoteHost.Execute(`icacls.exe C:/ /remove Users ; icacls.exe C:/ /grant Users:"(OI)(CI)(RX)"`)
+	s.Require().NoError(err)
+
+	s.baseAgentMSISuite.BeforeTest(suiteName, testName)
+}
+
 func (s *testInstallAltDirSuite) TestInstallAltDir() {
 	vm := s.Env().RemoteHost
 
@@ -351,6 +360,8 @@ func (s *testInstallOptsSuite) TestInstallOpts() {
 		windowsAgent.WithLogsDdURL("https://logs.someurl.datadoghq.com"),
 		windowsAgent.WithProcessDdURL("https://process.someurl.datadoghq.com"),
 		windowsAgent.WithTraceDdURL("https://trace.someurl.datadoghq.com"),
+		windowsAgent.WithRemoteUpdates("true"),
+		windowsAgent.WithInfrastructureMode("basic"),
 	}
 
 	_ = s.installAgentPackage(vm, s.AgentPackage, installOpts...)
@@ -400,6 +411,12 @@ func (s *testInstallOptsSuite) TestInstallOpts() {
 		assert.Contains(s.T(), apmConf, "apm_dd_url")
 		assert.Equal(s.T(), "https://trace.someurl.datadoghq.com", apmConf["apm_dd_url"], "apm_dd_url should match")
 	}
+
+	assert.Contains(s.T(), confYaml, "remote_updates")
+	assert.Equal(s.T(), true, confYaml["remote_updates"], "remote_updates should match")
+
+	assert.Contains(s.T(), confYaml, "infrastructure_mode")
+	assert.Equal(s.T(), "basic", confYaml["infrastructure_mode"], "infrastructure_mode should match")
 
 	// check that agent is listening on the new bound port
 	var boundPort boundport.BoundPort

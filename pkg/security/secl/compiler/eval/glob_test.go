@@ -259,6 +259,18 @@ func TestGlobMatches(t *testing.T) {
 	if glob, _ := NewGlob("/sys/**/abs/cgr*", false, false); glob.Matches("/sys/fs/test/cgroup") {
 		t.Error("shouldn't match the filename")
 	}
+
+	if glob, _ := NewGlob("*/tmp/*", false, false); glob.Matches("/") {
+		t.Error("shouldn't match the filename")
+	}
+
+	if glob, _ := NewGlob("*", false, false); !glob.Matches("/") {
+		t.Error("should match the filename")
+	}
+
+	if glob, _ := NewGlob("*/*", false, false); glob.Matches("/") {
+		t.Error("shouldn't match the filename")
+	}
 }
 
 func FuzzGlob(f *testing.F) {

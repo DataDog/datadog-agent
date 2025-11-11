@@ -15,8 +15,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/DataDog/datadog-go/v5/statsd"
+
+	"github.com/DataDog/datadog-agent/pkg/trace/log"
 )
 
 // measuringTransport is a transport that emits count and timing metrics
@@ -56,6 +57,7 @@ type forwardingTransport struct {
 	rt      http.RoundTripper
 	targets []*url.URL
 	keys    []string
+	logger  *log.ThrottledLogger
 }
 
 // newForwardingTransport creates a new forwardingTransport, wrapping another
@@ -80,12 +82,12 @@ func newForwardingTransport(
 			apiKeys = append(apiKeys, strings.TrimSpace(key))
 		}
 	}
-	return &forwardingTransport{rt, targets, apiKeys}
+	return &forwardingTransport{rt, targets, apiKeys, log.NewThrottled(10, 10*time.Second)}
 }
 
 // RoundTrip makes an HTTP round trip forwarding one request to multiple
 // additional endpoints.
-func (m *forwardingTransport) RoundTrip(req *http.Request) (rres *http.Response, rerr error) {
+func (m *forwardingTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	setTarget := func(r *http.Request, u *url.URL, apiKey string) {
 		q := r.URL.Query()
 		u.RawQuery = q.Encode()
@@ -98,42 +100,50 @@ func (m *forwardingTransport) RoundTrip(req *http.Request) (rres *http.Response,
 		return m.rt.RoundTrip(req)
 	}
 
-	slurp, err := io.ReadAll(req.Body)
-	if err != nil {
-		return nil, err
+	var body []byte
+	if req.Body != nil {
+		slurp, err := io.ReadAll(req.Body)
+		if err != nil {
+			return nil, err
+		}
+		body = slurp
 	}
 
-	var wg sync.WaitGroup
-	wg.Add(len(m.targets))
-	for i, u := range m.targets {
-		go func(i int, u *url.URL) {
-			defer wg.Done()
-			newreq := req.Clone(req.Context())
-			newreq.Body = io.NopCloser(bytes.NewReader(slurp))
-			setTarget(newreq, u, m.keys[i])
-			if i == 0 {
-				// Given the way we construct the list of targets the main endpoint
-				// will be the first one called, we return its response and error.
-				// Ignoring bodyclose lint here because of a bug in the linter:
-				// https://github.com/timakin/bodyclose/issues/30.
-				rres, rerr = m.rt.RoundTrip(newreq) //nolint:bodyclose
-				rres.Body.Close()
-				return
-			}
-			resp, err := m.rt.RoundTrip(newreq)
-			if err == nil {
-				// we discard responses for all subsequent requests
-				io.Copy(io.Discard, resp.Body) //nolint:errcheck
-			} else {
-				log.Error(err)
-			}
+	roundTripAdditional := func(req *http.Request) {
+		resp, err := m.rt.RoundTrip(req)
+		if err == nil {
+			// we discard responses for all subsequent requests
+			io.Copy(io.Discard, resp.Body) //nolint:errcheck
+		} else {
+			m.logger.Error("error forwarding request to %s: %v", req.URL, err)
+		}
+		if resp != nil && resp.Body != nil {
 			resp.Body.Close()
-
-		}(i, u)
+		}
 	}
+	var wg sync.WaitGroup
+	for i, u := range m.targets {
+		if i == 0 {
+			continue
+		}
+		newreq := req.Clone(req.Context())
+		if body != nil {
+			newreq.Body = io.NopCloser(bytes.NewReader(body))
+		}
+		setTarget(newreq, u, m.keys[i])
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			roundTripAdditional(newreq)
+		}()
+	}
+	setTarget(req, m.targets[0], m.keys[0])
+	if body != nil {
+		req.Body = io.NopCloser(bytes.NewReader(body))
+	}
+	res, err := m.rt.RoundTrip(req)
 	wg.Wait()
-
-	return rres, rerr
+	return res, err
 }
 
 // newMeasuringForwardingTransport creates a forwardingTransport wrapped in a measuringTransport.

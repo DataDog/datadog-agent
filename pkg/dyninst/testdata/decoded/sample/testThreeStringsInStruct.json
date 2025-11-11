@@ -6,7 +6,7 @@
       "name": "",
       "method": "main.testThreeStringsInStruct",
       "version": 0,
-      "thread_id": 0,
+      "thread_id": "[goid]",
       "thread_name": ""
     },
     "debugger": {
@@ -23,7 +23,7 @@
           {
             "function": "main.executeStringFuncs",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/strings.go",
-            "lineNumber": 56
+            "lineNumber": 57
           },
           {
             "function": "main.main",
@@ -72,6 +72,7 @@
         }
       }
     },
-    "timestamp": "[ts]"
+    "timestamp": "[ts]",
+    "duration": "[duration]"
   }
 ]

@@ -120,12 +120,13 @@ func TestInitData(t *testing.T) {
 		"runtime_security_config.activity_dump.enabled":        true,
 		"runtime_security_config.remote_configuration.enabled": true,
 		"network_config.enabled":                               true,
+		"traceroute.enabled":                                   true,
 		"service_monitoring_config.enable_http_monitoring":     true,
 		"service_monitoring_config.tls.native.enabled":         true,
 		"service_monitoring_config.enabled":                    true,
-		"service_monitoring_config.enable_http2_monitoring":    true,
-		"service_monitoring_config.enable_kafka_monitoring":    true,
-		"service_monitoring_config.enable_postgres_monitoring": true,
+		"service_monitoring_config.http2.enabled":              true,
+		"service_monitoring_config.kafka.enabled":              true,
+		"service_monitoring_config.postgres.enabled":           true,
 		"service_monitoring_config.redis.enabled":              true,
 		"service_monitoring_config.tls.istio.enabled":          true,
 		"service_monitoring_config.tls.go.enabled":             true,
@@ -162,6 +163,7 @@ func TestInitData(t *testing.T) {
 		"proxy.https":                      "https://name:sekrit@proxy.example.com/",
 		"site":                             "test",
 		"eks_fargate":                      true,
+		"synthetics.collector.enabled":     true,
 
 		"fips.enabled":                                true,
 		"logs_enabled":                                true,
@@ -171,6 +173,7 @@ func TestInitData(t *testing.T) {
 		"ec2_prefer_imdsv2":                           true,
 		"process_config.container_collection.enabled": true,
 		"remote_configuration.enabled":                true,
+		"remote_updates":                              true,
 		"process_config.process_collection.enabled":   true,
 		"container_image.enabled":                     true,
 		"sbom.enabled":                                true,
@@ -206,6 +209,7 @@ func TestInitData(t *testing.T) {
 		"feature_imdsv2_enabled":                     true,
 		"feature_processes_container_enabled":        true,
 		"feature_remote_configuration_enabled":       true,
+		"feature_remote_updates_enabled":             true,
 		"feature_process_enabled":                    true,
 		"feature_container_images_enabled":           true,
 
@@ -219,6 +223,8 @@ func TestInitData(t *testing.T) {
 		"feature_networks_enabled":                     true,
 		"feature_networks_http_enabled":                true,
 		"feature_networks_https_enabled":               true,
+		"feature_traceroute_enabled":                   true,
+		"feature_synthetics_collector_enabled":         true,
 		"feature_usm_enabled":                          true,
 		"feature_usm_kafka_enabled":                    true,
 		"feature_usm_postgres_enabled":                 true,
@@ -497,6 +503,7 @@ func TestFetchSystemProbeAgent(t *testing.T) {
 	assert.False(t, ia.data["feature_networks_enabled"].(bool))
 	assert.True(t, ia.data["feature_networks_http_enabled"].(bool))
 	assert.True(t, ia.data["feature_networks_https_enabled"].(bool))
+	assert.False(t, ia.data["feature_traceroute_enabled"].(bool))
 	assert.False(t, ia.data["feature_usm_enabled"].(bool))
 	assert.False(t, ia.data["feature_usm_kafka_enabled"].(bool))
 	assert.False(t, ia.data["feature_usm_postgres_enabled"].(bool))
@@ -554,6 +561,7 @@ func TestFetchSystemProbeAgent(t *testing.T) {
 	assert.False(t, ia.data["feature_networks_enabled"].(bool))
 	assert.False(t, ia.data["feature_networks_http_enabled"].(bool))
 	assert.False(t, ia.data["feature_networks_https_enabled"].(bool))
+	assert.False(t, ia.data["feature_traceroute_enabled"].(bool))
 	assert.False(t, ia.data["feature_usm_enabled"].(bool))
 	assert.False(t, ia.data["feature_usm_kafka_enabled"].(bool))
 	assert.False(t, ia.data["feature_usm_postgres_enabled"].(bool))
@@ -604,8 +612,12 @@ network_config:
   enable_gateway_lookup: true
   enable_root_netns: true
 
+traceroute:
+  enabled: true
+
 service_monitoring_config:
-  enable_http_monitoring: true
+  http:
+    enabled: true
   tls:
     native:
       enabled: true
@@ -616,11 +628,14 @@ service_monitoring_config:
     go:
       enabled: true
   enabled: true
-  enable_kafka_monitoring: true
-  enable_postgres_monitoring: true
+  kafka:
+    enabled: true
+  postgres:
+    enabled: true
   redis:
     enabled: true
-  enable_http2_monitoring: true
+  http2:
+    enabled: true
   enable_http_stats_by_status_code: true
 
 discovery:
@@ -657,6 +672,7 @@ gpu_monitoring:
 	assert.True(t, ia.data["feature_networks_enabled"].(bool))
 	assert.True(t, ia.data["feature_networks_http_enabled"].(bool))
 	assert.True(t, ia.data["feature_networks_https_enabled"].(bool))
+	assert.True(t, ia.data["feature_traceroute_enabled"].(bool))
 	assert.True(t, ia.data["feature_usm_enabled"].(bool))
 	assert.True(t, ia.data["feature_usm_kafka_enabled"].(bool))
 	assert.True(t, ia.data["feature_usm_postgres_enabled"].(bool))
@@ -757,28 +773,4 @@ func TestGetProvidedConfigurationOnly(t *testing.T) {
 	sort.Strings(expected)
 
 	assert.Equal(t, expected, keys)
-}
-
-func TestGetDiagnosticsDisabled(t *testing.T) {
-	ia := getTestInventoryPayload(t, map[string]any{
-		"inventories_diagnostics_enabled": false,
-	}, nil)
-	ia.Set("diagnostics", "test")
-
-	payload := ia.getPayload().(*Payload)
-
-	// No configuration should be in the payload
-	assert.NotContains(t, payload.Metadata, "diagnostics")
-}
-
-func TestGetDiagnosticsEnabled(t *testing.T) {
-	ia := getTestInventoryPayload(t, map[string]any{
-		"inventories_diagnostics_enabled": true,
-	}, nil)
-	ia.Set("diagnostics", "test")
-
-	payload := ia.getPayload().(*Payload)
-
-	// No configuration should be in the payload
-	assert.Contains(t, payload.Metadata, "diagnostics")
 }

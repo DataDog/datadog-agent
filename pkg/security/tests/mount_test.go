@@ -64,14 +64,12 @@ func TestMount(t *testing.T) {
 	var mntID uint32
 	t.Run("mount", func(t *testing.T) {
 		err = test.GetProbeEvent(func() error {
-			// Test mount
 			if err := syscall.Mount(mntPath, dstMntPath, "bind", syscall.MS_BIND, ""); err != nil {
 				return fmt.Errorf("could not create bind mount: %w", err)
 			}
 			return nil
 		}, func(event *model.Event) bool {
 			mntID = event.Mount.MountID
-
 			if !assert.Equal(t, "mount", event.GetType(), "wrong event type") {
 				return true
 			}
@@ -432,7 +430,7 @@ func TestMountEvent(t *testing.T) {
 		},
 		{
 			ID:         "test_mount_in_container_root",
-			Expression: `mount.mountpoint.path == "/host_root" && mount.source.path == "/" && mount.fs_type != "overlay" && container.id != ""`,
+			Expression: `mount.mountpoint.path == "/host_root" && mount.source.path == "/" && mount.fs_type != "overlay" && process.container.id != ""`,
 		},
 	}
 
@@ -544,7 +542,7 @@ func TestMountEvent(t *testing.T) {
 			assertFieldEqual(t, event, "mount.mountpoint.path", "/host_root")
 			assertFieldEqual(t, event, "mount.source.path", "/")
 			assertFieldNotEqual(t, event, "mount.fs_type", "overlay")
-			assertFieldNotEmpty(t, event, "container.id", "container id shouldn't be empty")
+			assertFieldNotEmpty(t, event, "process.container.id", "container id shouldn't be empty")
 
 			test.validateMountSchema(t, event)
 			validateSyscallContext(t, event, "$.syscall.mount.path")

@@ -18,7 +18,6 @@ exporters:
     logs:
       batch_wait: 5
       compression_level: 6
-      dump_payloads: false
       endpoint: https://http-intake.logs.datadoghq.com
       use_compression: true
     max_idle_conns: 100
@@ -107,19 +106,13 @@ processors:
   infraattributes/dd-autoconfigured:
     allow_hostname_override: false
     cardinality: 0
-    logs:
-      log: []
-    metrics:
-      metric: []
-    traces:
-      span: []
 receivers:
   otlp:
     protocols:
       grpc: null
       http: null
   prometheus:
-    api_server: 
+    api_server:
       enabled: false
       server_config:
         cors: null

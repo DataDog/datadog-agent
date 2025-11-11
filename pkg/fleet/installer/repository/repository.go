@@ -17,6 +17,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/symlink"
@@ -419,6 +420,7 @@ func (r *repositoryFiles) cleanup(ctx context.Context) error {
 	}
 
 	// remove left-over packages
+	pkgName := filepath.Base(r.rootPath)
 	files, err := os.ReadDir(r.rootPath)
 	if err != nil {
 		return fmt.Errorf("could not read root directory: %w", err)
@@ -436,7 +438,6 @@ func (r *repositoryFiles) cleanup(ctx context.Context) error {
 		}
 
 		pkgRepositoryPath := filepath.Join(r.rootPath, file.Name())
-		pkgName := filepath.Base(r.rootPath)
 
 		if pkgHook, hasHook := r.preRemoveHooks[pkgName]; hasHook {
 			canDelete, err := pkgHook(ctx, pkgRepositoryPath)
@@ -462,7 +463,34 @@ func (r *repositoryFiles) cleanup(ctx context.Context) error {
 		}
 	}
 
+	// special case for the agent package
+	// remove the agent deb/rpm directory if it exists and we have upgraded to an OCI-based agent
+	if pkgName == "datadog-agent" && runtime.GOOS == "linux" {
+		err := removeDebRpmAgentDirectory(r.rootPath)
+		if err != nil {
+			log.Errorf("could not remove agent directory: %v", err)
+		}
+	}
 	return nil
+}
+
+func removeDebRpmAgentDirectory(rootPath string) error {
+	stableLinkPath := filepath.Join(rootPath, stableVersionLink)
+	_, err := os.Stat(stableLinkPath)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	stablePath, err := filepath.EvalSymlinks(stableLinkPath)
+	if err != nil {
+		return err
+	}
+	if !strings.HasPrefix(stablePath, "/opt/datadog-packages/datadog-agent") {
+		return nil
+	}
+	return os.RemoveAll("/opt/datadog-agent")
 }
 
 type link struct {

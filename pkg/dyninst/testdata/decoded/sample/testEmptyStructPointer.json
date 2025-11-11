@@ -6,7 +6,7 @@
       "name": "",
       "method": "main.testEmptyStructPointer",
       "version": 0,
-      "thread_id": 0,
+      "thread_id": "[goid]",
       "thread_name": ""
     },
     "debugger": {
@@ -18,12 +18,12 @@
           {
             "function": "main.testEmptyStructPointer",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/structs.go",
-            "lineNumber": 100
+            "lineNumber": 128
           },
           {
             "function": "main.executeStructFuncs",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/structs.go",
-            "lineNumber": 163
+            "lineNumber": 191
           },
           {
             "function": "main.main",

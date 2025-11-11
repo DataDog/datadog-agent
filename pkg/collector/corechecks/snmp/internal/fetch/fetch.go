@@ -3,12 +3,13 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//nolint:revive // TODO(NDM) Fix revive linter
+// Package fetch contains functions to fetch data from network devices using SNMP
 package fetch
 
 import (
 	"fmt"
 	"strconv"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -35,21 +36,25 @@ func (c columnFetchStrategy) String() string {
 }
 
 // Fetch oid values from device
-func Fetch(sess session.Session, scalarOIDs, columnOIDs []string, batchSize int,
+func Fetch(sess session.Session, scalarOIDs, columnOIDs []string, batchSizeOptimizers *OidBatchSizeOptimizers,
 	bulkMaxRepetitions uint32) (*valuestore.ResultValueStore, error) {
+	now := time.Now()
+
+	batchSizeOptimizers.refreshIfOutdated(now)
+
 	// fetch scalar values
-	scalarResults, err := fetchScalarOidsWithBatching(sess, scalarOIDs, batchSize)
+	scalarResults, err := fetchScalarOidsWithBatching(sess, scalarOIDs, batchSizeOptimizers.snmpGetOptimizer)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch scalar oids with batching: %v", err)
 	}
 
-	columnResults, err := fetchColumnOidsWithBatching(sess, columnOIDs, batchSize,
+	columnResults, err := fetchColumnOidsWithBatching(sess, columnOIDs, batchSizeOptimizers.snmpGetBulkOptimizer,
 		bulkMaxRepetitions, useGetBulk)
 	if err != nil {
 		log.Debugf("failed to fetch oids with GetBulk batching: %v", err)
 
-		columnResults, err = fetchColumnOidsWithBatching(sess, columnOIDs, batchSize, bulkMaxRepetitions,
-			useGetNext)
+		columnResults, err = fetchColumnOidsWithBatching(sess, columnOIDs, batchSizeOptimizers.snmpGetNextOptimizer,
+			bulkMaxRepetitions, useGetNext)
 		if err != nil {
 			return nil, fmt.Errorf("failed to fetch oids with GetNext batching: %v", err)
 		}

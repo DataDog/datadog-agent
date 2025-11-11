@@ -31,19 +31,20 @@ const (
 
 // ListenerConfig holds global configuration for SNMP discovery
 type ListenerConfig struct {
-	Workers               int                        `mapstructure:"workers"`
-	DiscoveryInterval     int                        `mapstructure:"discovery_interval"`
-	AllowedFailures       int                        `mapstructure:"discovery_allowed_failures"`
-	Loader                string                     `mapstructure:"loader"`
-	CollectDeviceMetadata bool                       `mapstructure:"collect_device_metadata"`
-	CollectTopology       bool                       `mapstructure:"collect_topology"`
-	CollectVPN            bool                       `mapstructure:"collect_vpn"`
-	MinCollectionInterval uint                       `mapstructure:"min_collection_interval"`
-	Namespace             string                     `mapstructure:"namespace"`
-	UseDeviceISAsHostname bool                       `mapstructure:"use_device_id_as_hostname"`
-	Configs               []Config                   `mapstructure:"configs"`
-	PingConfig            snmpintegration.PingConfig `mapstructure:"ping"`
-	Deduplicate           bool                       `mapstructure:"use_deduplication"`
+	Workers                 int                        `mapstructure:"workers"`
+	DiscoveryInterval       int                        `mapstructure:"discovery_interval"`
+	AllowedFailures         int                        `mapstructure:"discovery_allowed_failures"`
+	Loader                  string                     `mapstructure:"loader"`
+	CollectDeviceMetadata   bool                       `mapstructure:"collect_device_metadata"`
+	CollectTopology         bool                       `mapstructure:"collect_topology"`
+	CollectVPN              bool                       `mapstructure:"collect_vpn"`
+	MinCollectionInterval   uint                       `mapstructure:"min_collection_interval"`
+	Namespace               string                     `mapstructure:"namespace"`
+	UseDeviceISAsHostname   bool                       `mapstructure:"use_device_id_as_hostname"`
+	Configs                 []Config                   `mapstructure:"configs"`
+	PingConfig              snmpintegration.PingConfig `mapstructure:"ping"`
+	Deduplicate             bool                       `mapstructure:"use_deduplication"`
+	UseRemoteConfigProfiles bool                       `mapstructure:"use_remote_config_profiles"`
 
 	// legacy
 	AllowedFailuresLegacy int `mapstructure:"allowed_failures"`
@@ -84,7 +85,8 @@ type Config struct {
 	// InterfaceConfigs is a map of IP to a list of snmpintegration.InterfaceConfig
 	InterfaceConfigs map[string][]snmpintegration.InterfaceConfig `mapstructure:"interface_configs"`
 
-	PingConfig snmpintegration.PingConfig `mapstructure:"ping"`
+	PingConfig              snmpintegration.PingConfig `mapstructure:"ping"`
+	UseRemoteConfigProfiles bool
 
 	// Legacy
 	NetworkLegacy      string `mapstructure:"network"`
@@ -229,6 +231,7 @@ func NewListenerConfig() (ListenerConfig, error) {
 				config.Authentications[authIndex].Retries = defaultRetries
 			}
 		}
+		config.UseRemoteConfigProfiles = snmpConfig.UseRemoteConfigProfiles
 	}
 	return snmpConfig, nil
 }

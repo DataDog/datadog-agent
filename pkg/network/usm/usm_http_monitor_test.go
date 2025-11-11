@@ -24,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/events"
 	usmhttp "github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 	gotlsutils "github.com/DataDog/datadog-agent/pkg/network/protocols/tls/gotls/testutil"
@@ -295,4 +296,99 @@ func TestGoTLSMapCleanup(t *testing.T) {
 			assert.Zero(collect, count, "map %s should be empty after proxy exit", m.String())
 		}
 	}, 5*time.Second, 100*time.Millisecond, "maps should be empty after proxy exit")
+}
+
+func (s *usmHTTPSuite) TestDirectConsumerFunctionality() {
+	t := s.T()
+
+	// Skip test if kernel version doesn't support direct consumer
+	if !events.SupportsDirectConsumer() {
+		t.Skip("Direct consumer requires kernel >= 5.8.0")
+	}
+
+	for name, isIPv6 := range map[string]bool{"IPv4": false, "IPv6": true} {
+		t.Run(name, func(t *testing.T) {
+			s.testDirectConsumerFunctionality(t, isIPv6)
+		})
+	}
+}
+
+func (s *usmHTTPSuite) testDirectConsumerFunctionality(t *testing.T, isIPv6 bool) {
+	// Create configuration with direct consumer enabled
+	cfg := s.getCfg()
+	cfg.HTTPUseDirectConsumer = true
+
+	srvDoneFn := testutil.HTTPServer(t, getServerAddress(isIPv6), testutil.Options{
+		EnableTLS:       s.isTLS,
+		EnableKeepAlive: true,
+	})
+	t.Cleanup(srvDoneFn)
+
+	// Start the proxy server
+	proxyProcess, cancel := proxy.NewExternalUnixTransparentProxyServer(t, unixPath, getServerAddress(isIPv6), s.isTLS, isIPv6)
+	t.Cleanup(cancel)
+	require.NoError(t, proxy.WaitForConnectionReady(unixPath))
+
+	monitor := setupUSMTLSMonitor(t, cfg, useExistingConsumer)
+	if s.isTLS {
+		utils.WaitForProgramsToBeTraced(t, consts.USMModuleName, GoTLSAttacherName, proxyProcess.Process.Pid, utils.ManualTracingFallbackEnabled)
+	}
+
+	t.Cleanup(func() { cleanProtocolMaps(t, "http", monitor.ebpfProgram.Manager.Manager) })
+
+	// Make HTTP requests
+	clients := getHTTPUnixClientArray(2, unixPath)
+	for i := 0; i < 5; i++ {
+		client := clients[getClientsIndex(i, len(clients))]
+		req, err := client.Get(s.getSchemeURL(getServerAddress(isIPv6) + "/200/direct_consumer_test"))
+		require.NoError(t, err, "could not make request")
+		_ = req.Body.Close()
+	}
+
+	for _, client := range clients {
+		client.CloseIdleConnections()
+	}
+
+	// Verify HTTP stats are captured via direct consumer
+	expectedEndpoints := map[usmhttp.Key]int{
+		{
+			Path:   usmhttp.Path{Content: usmhttp.Interner.GetString("/200/direct_consumer_test")},
+			Method: usmhttp.MethodGet,
+		}: 5,
+	}
+
+	res := make(map[usmhttp.Key]int)
+	assert.EventuallyWithT(t, func(collect *assert.CollectT) {
+		for key, stat := range getHTTPLikeProtocolStats(t, monitor, protocols.HTTP) {
+			if key.DstPort == httpSrvPort || key.SrcPort == httpSrvPort {
+				count := stat.Data[200].Count
+				newKey := usmhttp.Key{
+					Path:   usmhttp.Path{Content: key.Path.Content},
+					Method: key.Method,
+				}
+				if _, ok := res[newKey]; !ok {
+					res[newKey] = count
+				} else {
+					res[newKey] += count
+				}
+			}
+		}
+
+		require.Equal(collect, len(expectedEndpoints), len(res), "expected endpoints count mismatch")
+
+		for key, count := range res {
+			value, ok := expectedEndpoints[key]
+			require.True(collect, ok, "expected endpoint mismatch")
+			require.Equal(collect, value, count, "expected endpoint count mismatch")
+		}
+	}, time.Second*5, time.Millisecond*100, "HTTP stats should be captured via direct consumer")
+
+	if t.Failed() {
+		for key := range expectedEndpoints {
+			if _, ok := res[key]; !ok {
+				t.Logf("key: %v was not found in res", key.Path.Content.Get())
+			}
+		}
+		ebpftest.DumpMapsTestHelper(t, monitor.DumpMaps, "http_in_flight")
+	}
 }

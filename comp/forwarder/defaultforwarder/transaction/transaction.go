@@ -206,8 +206,6 @@ const (
 	SecondaryOnly
 	// LocalOnly indicates the transaction should be sent to the local endpoint (cluster-agent) only
 	LocalOnly
-	// PreaggrOnly indicates the transaction should be sent to the pre-aggregation endpoint only
-	PreaggrOnly
 )
 
 func (d Destination) String() string {
@@ -220,8 +218,6 @@ func (d Destination) String() string {
 		return "SecondaryOnly"
 	case LocalOnly:
 		return "LocalOnly"
-	case PreaggrOnly:
-		return "PreaggrOnly"
 	default:
 		return "Unknown"
 	}
@@ -454,15 +450,17 @@ func (t *HTTPTransaction) internalProcess(ctx context.Context, config config.Com
 
 	loggingFrequency := config.GetInt64("logging_frequency")
 
-	if transactionsSuccess.Value() == 1 {
-		log.Infof("Successfully posted payload to %q (%s), the agent will only log transaction success every %d transactions", logURL, resp.Status, loggingFrequency)
-		log.Tracef("Url: %q, response status %s, content length %d, payload: %q", logURL, resp.Status, resp.ContentLength, truncateBodyForLog(body))
-		return resp.StatusCode, body, nil
-	}
-	if transactionsSuccess.Value()%loggingFrequency == 0 {
-		log.Infof("Successfully posted payload to %q (%s)", logURL, resp.Status)
-		log.Tracef("Url: %q, response status %s, content length %d, payload: %q", logURL, resp.Status, resp.ContentLength, truncateBodyForLog(body))
-		return resp.StatusCode, body, nil
+	if loggingFrequency > 0 {
+		if transactionsSuccess.Value() == 1 {
+			log.Infof("Successfully posted payload to %q (%s), the agent will only log transaction success every %d transactions", logURL, resp.Status, loggingFrequency)
+			log.Tracef("Url: %q, response status %s, content length %d, payload: %q", logURL, resp.Status, resp.ContentLength, truncateBodyForLog(body))
+			return resp.StatusCode, body, nil
+		}
+		if transactionsSuccess.Value()%loggingFrequency == 0 {
+			log.Infof("Successfully posted payload to %q (%s)", logURL, resp.Status)
+			log.Tracef("Url: %q, response status %s, content length %d, payload: %q", logURL, resp.Status, resp.ContentLength, truncateBodyForLog(body))
+			return resp.StatusCode, body, nil
+		}
 	}
 	log.Tracef("Successfully posted payload to %q (%s): %q", logURL, resp.Status, truncateBodyForLog(body))
 	return resp.StatusCode, body, nil

@@ -38,6 +38,7 @@ type Program struct {
 	Types            []ir.Type
 	Throttlers       []Throttler
 	GoModuledataInfo ir.GoModuledataInfo
+	CommonTypes      ir.CommonTypes
 }
 
 type generator struct {
@@ -73,14 +74,16 @@ func GenerateProgram(program *ir.Program) (Program, error) {
 		return Program{}, err
 	}
 	throttlers := make([]Throttler, 0, len(program.Probes))
-	for _, probe := range program.Probes {
+	for idx, probe := range program.Probes {
 		for _, event := range probe.Events {
 			for _, injectionPoint := range event.InjectionPoints {
 				err := g.addEventHandler(
 					injectionPoint,
 					len(throttlers),
-					probe.GetCaptureConfig().GetMaxReferenceDepth(),
+					probe.GetCaptureConfig(),
+					uint32(idx),
 					event.Type,
+					event.Kind,
 				)
 				if err != nil {
 					return Program{}, err
@@ -142,6 +145,7 @@ func GenerateProgram(program *ir.Program) (Program, error) {
 		Types:            types,
 		Throttlers:       throttlers,
 		GoModuledataInfo: program.GoModuledataInfo,
+		CommonTypes:      program.CommonTypes,
 	}, nil
 }
 
@@ -151,14 +155,22 @@ func GenerateProgram(program *ir.Program) (Program, error) {
 func (g *generator) addEventHandler(
 	injectionPoint ir.InjectionPoint,
 	throttlerIdx int,
-	pointerChasingLimit uint32,
+	captureConfig ir.CaptureConfig,
+	probeID uint32,
 	rootType *ir.EventRootType,
+	eventKind ir.EventKind,
 ) error {
 	id := ProcessEvent{
 		InjectionPC:         injectionPoint.PC,
 		ThrottlerIdx:        throttlerIdx,
-		PointerChasingLimit: pointerChasingLimit,
+		PointerChasingLimit: captureConfig.GetMaxReferenceDepth(),
+		CollectionSizeLimit: captureConfig.GetMaxCollectionSize(),
+		StringSizeLimit:     captureConfig.GetMaxLength(),
 		Frameless:           injectionPoint.Frameless,
+		HasAssociatedReturn: injectionPoint.HasAssociatedReturn,
+		TopPCOffset:         injectionPoint.TopPCOffset,
+		ProbeID:             probeID,
+		EventKind:           eventKind,
 		EventRootType:       rootType,
 	}
 	ops := make([]Op, 0, 2+len(rootType.Expressions))
@@ -618,6 +630,11 @@ func (g *generator) EncodeLocationOp(pc uint64, op *ir.LocationOp, ops []Op) ([]
 		// in different registers and/or stack (represented with multiple loclist pieces) are not padded.
 		// Consecutive pieces of data stored in the same loclist piece are padded (this only happens when
 		// the location is a stack, Go never packs multiple data pieces into same register).
+
+		if op.Variable.Type.GetByteSize() == 0 {
+			// Nothing needs to be read.
+			return ops, nil
+		}
 		layoutPieces, err := g.typeMemoryLayout(op.Variable.Type)
 		if err != nil {
 			return nil, err
@@ -629,7 +646,7 @@ func (g *generator) EncodeLocationOp(pc uint64, op *ir.LocationOp, ops []Op) ([]
 		}
 		for _, piece := range loclist.Pieces {
 			if layoutIdx >= len(layoutPieces) {
-				return nil, fmt.Errorf("mismatch between loclist pieces and type memory layout")
+				return nil, fmt.Errorf("mismatch between loclist pieces and type memory layout for %s : %s", op.Variable.Name, op.Variable.Type.GetName())
 			}
 			paddedOffset := layoutPieces[layoutIdx].PaddedOffset
 			nextLayoutIdx := layoutIdx

@@ -15,32 +15,21 @@
 #
 
 name "zstd"
-default_version "1.5.5"
+default_version "1.5.6"
 
 license "BSD"
 license_file "LICENSE"
 skip_transitive_dependency_licensing true
 
-dependency "libarchive"
-
-version("1.5.5") { source sha256: "9c4396cc829cfae319a6e2615202e82aad41372073482fce286fac78646d3ee4" }
+version("1.5.6") { source sha256: "8c29e06cf42aacc1eafc4077ae2ec6c6fcb96a626157e0593d5e82a34fd403c1" }
 
 source url: "https://github.com/facebook/zstd/releases/download/v#{version}/zstd-#{version}.tar.gz"
 
 relative_path "zstd-#{version}"
 
 build do
-  env = with_standard_compiler_flags(with_embedded_path)
-
-  cmake_build_dir = "#{project_dir}/build/cmake/builddir"
-
-  command "mkdir #{cmake_build_dir}", env: env
-
-  cmake_options = [
-    "-DZSTD_BUILD_PROGRAMS=OFF",
-    "-DZSTD_BUILD_STATIC=OFF",
-    "-DZSTD_BUILD_SHARED=ON",
-  ]
-
-  cmake(*cmake_options, env: env, cwd: cmake_build_dir, prefix: "#{install_dir}/embedded")
+  command_on_repo_root "bazelisk run -- @zstd//:install --destdir='#{install_dir}/embedded'"
+  command_on_repo_root "bazelisk run -- //bazel/rules:replace_prefix --prefix '#{install_dir}/embedded'" \
+    " #{install_dir}/embedded/lib/pkgconfig/libzstd.pc" \
+    " #{install_dir}/embedded/lib/libzstd.so"
 end

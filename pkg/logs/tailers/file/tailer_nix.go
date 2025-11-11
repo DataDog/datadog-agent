@@ -12,7 +12,6 @@ import (
 	"path/filepath"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder"
-	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -28,13 +27,18 @@ func (t *Tailer) setup(offset int64, whence int) error {
 	t.tags = t.buildTailerTags()
 
 	log.Info("Opening", t.file.Path, "for tailer key", t.file.GetScanKey())
-	f, err := filesystem.OpenShared(fullpath)
+
+	f, err := t.fileOpener.OpenLogFile(fullpath)
 	if err != nil {
 		return err
 	}
-
 	t.osFile = f
 	ret, _ := f.Seek(offset, whence)
+	if info, statErr := f.Stat(); statErr == nil {
+		t.cachedFileSize.Store(info.Size())
+	} else {
+		t.cachedFileSize.Store(0)
+	}
 	t.lastReadOffset.Store(ret)
 	t.decodedOffset.Store(ret)
 
@@ -57,6 +61,6 @@ func (t *Tailer) read() (int, error) {
 	}
 	t.lastReadOffset.Add(int64(n))
 	msg := decoder.NewInput(inBuf[:n])
-	t.decoder.InputChan <- msg
+	t.decoder.InputChan() <- msg
 	return n, nil
 }

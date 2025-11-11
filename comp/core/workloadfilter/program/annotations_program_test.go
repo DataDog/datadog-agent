@@ -42,7 +42,6 @@ func TestAnnotationsProgram_Evaluate(t *testing.T) {
 		annotations    map[string]string
 		excludePrefix  string
 		expectedResult filterdef.Result
-		expectedErrors int
 	}{
 		{
 			name:           "No annotations - should return Unknown",
@@ -50,7 +49,6 @@ func TestAnnotationsProgram_Evaluate(t *testing.T) {
 			annotations:    map[string]string{},
 			excludePrefix:  "",
 			expectedResult: filterdef.Unknown,
-			expectedErrors: 0,
 		},
 		{
 			name:       "Global exclude annotation set to true - should be Excluded",
@@ -60,7 +58,6 @@ func TestAnnotationsProgram_Evaluate(t *testing.T) {
 			},
 			excludePrefix:  "",
 			expectedResult: filterdef.Excluded,
-			expectedErrors: 0,
 		},
 		{
 			name:       "Global exclude annotation set to false - should return Unknown",
@@ -70,7 +67,6 @@ func TestAnnotationsProgram_Evaluate(t *testing.T) {
 			},
 			excludePrefix:  "",
 			expectedResult: filterdef.Unknown,
-			expectedErrors: 0,
 		},
 		{
 			name:       "Global exclude annotation set to 1 - should be Excluded",
@@ -80,7 +76,6 @@ func TestAnnotationsProgram_Evaluate(t *testing.T) {
 			},
 			excludePrefix:  "",
 			expectedResult: filterdef.Excluded,
-			expectedErrors: 0,
 		},
 		{
 			name:       "Container-specific exclude annotation set to true - should be Excluded",
@@ -90,7 +85,6 @@ func TestAnnotationsProgram_Evaluate(t *testing.T) {
 			},
 			excludePrefix:  "",
 			expectedResult: filterdef.Excluded,
-			expectedErrors: 0,
 		},
 		{
 			name:       "Container-specific exclude annotation set to false - should return Unknown",
@@ -100,7 +94,6 @@ func TestAnnotationsProgram_Evaluate(t *testing.T) {
 			},
 			excludePrefix:  "",
 			expectedResult: filterdef.Unknown,
-			expectedErrors: 0,
 		},
 		{
 			name:       "Logs exclude prefix - global logs exclude",
@@ -110,7 +103,6 @@ func TestAnnotationsProgram_Evaluate(t *testing.T) {
 			},
 			excludePrefix:  "logs_",
 			expectedResult: filterdef.Excluded,
-			expectedErrors: 0,
 		},
 		{
 			name:       "Wrong prefix should not trigger exclusion",
@@ -120,7 +112,6 @@ func TestAnnotationsProgram_Evaluate(t *testing.T) {
 			},
 			excludePrefix:  "metrics_", // looking for metrics_ but have logs_
 			expectedResult: filterdef.Unknown,
-			expectedErrors: 0,
 		},
 	}
 
@@ -139,11 +130,10 @@ func TestAnnotationsProgram_Evaluate(t *testing.T) {
 			}
 
 			// Evaluate the program
-			result, errors := program.Evaluate(entity)
+			result := program.Evaluate(entity)
 
 			// Assert results
 			assert.Equal(t, tt.expectedResult, result, "Expected result does not match")
-			assert.Len(t, errors, tt.expectedErrors, "Expected number of errors does not match")
 		})
 	}
 }

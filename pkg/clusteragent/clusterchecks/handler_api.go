@@ -44,13 +44,13 @@ func (h *Handler) RejectOrForwardLeaderQuery(rw http.ResponseWriter, req *http.R
 }
 
 // GetState returns the state of the dispatching, for the clusterchecks cmd
-func (h *Handler) GetState() (types.StateResponse, error) {
+func (h *Handler) GetState(scrub bool) (types.StateResponse, error) {
 	h.m.RLock()
 	defer h.m.RUnlock()
 
 	switch h.state {
 	case leader:
-		return h.dispatcher.getState()
+		return h.dispatcher.getState(scrub)
 	case follower:
 		return types.StateResponse{NotRunning: "currently follower"}, nil
 	default:
@@ -77,6 +77,11 @@ func (h *Handler) PostStatus(identifier, clientIP string, status types.NodeStatu
 	return response
 }
 
+// IsAdvancedDispatchingEnabled returns whether advanced dispatching is currently enabled
+func (h *Handler) IsAdvancedDispatchingEnabled() bool {
+	return h.dispatcher.advancedDispatching.Load()
+}
+
 // GetEndpointsConfigs returns endpoints configurations dispatched to a given node
 func (h *Handler) GetEndpointsConfigs(nodeName string) (types.ConfigResponse, error) {
 	configs, err := h.dispatcher.getEndpointsConfigs(nodeName)
@@ -99,7 +104,7 @@ func (h *Handler) GetAllEndpointsCheckConfigs() (types.ConfigResponse, error) {
 
 // RebalanceClusterChecks triggers an attempt to rebalance cluster checks
 func (h *Handler) RebalanceClusterChecks(force bool) ([]types.RebalanceResponse, error) {
-	if !h.dispatcher.advancedDispatching {
+	if !h.dispatcher.advancedDispatching.Load() {
 		return nil, fmt.Errorf("no checks to rebalance: advanced dispatching is not enabled")
 	}
 

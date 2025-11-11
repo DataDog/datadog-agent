@@ -24,7 +24,7 @@ rc_kubernetes_deploy:
       artifacts: false
       optional: true
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
-  tags: ["arch:amd64"]
+  tags: ["arch:amd64", "specific:true"]
   # TODO: @agent-delivery to update this job when concuctor changes are properly verified
   allow_failure: true
   variables:
@@ -33,7 +33,6 @@ rc_kubernetes_deploy:
     EXPLICIT_WORKFLOWS: "//workflows:deploy_rc.agents_rc"
     AGENT_IMAGE_TAG: $CI_COMMIT_REF_NAME
   script:
-    - GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $GITLAB_TOKEN write_api) || exit $?; export GITLAB_TOKEN
     - "dda inv pipeline.trigger-child-pipeline --project-name DataDog/k8s-datadog-agent-ops --git-ref main
       --variable OPTION_AUTOMATIC_ROLLOUT
       --variable EXPLICIT_WORKFLOWS

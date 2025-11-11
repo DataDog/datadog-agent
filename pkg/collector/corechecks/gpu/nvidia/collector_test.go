@@ -28,7 +28,7 @@ func TestCollectorsStillInitIfOneFails(t *testing.T) {
 
 	// On the first call, this function returns correctly. On the second it fails.
 	// We need this as we cannot rely on the order of the subsystems in the map.
-	factory := func(_ ddnvml.Device) (Collector, error) {
+	factory := func(_ ddnvml.Device, _ *CollectorDependencies) (Collector, error) {
 		if !factorySucceeded {
 			factorySucceeded = true
 			return succeedCollector, nil
@@ -38,10 +38,11 @@ func TestCollectorsStillInitIfOneFails(t *testing.T) {
 
 	nvmlMock := testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled())
 	ddnvml.WithMockNVML(t, nvmlMock)
-	deviceCache, err := ddnvml.NewDeviceCache()
+	deviceCache := ddnvml.NewDeviceCache()
+	devices, err := deviceCache.AllPhysicalDevices()
 	require.NoError(t, err)
-	deps := &CollectorDependencies{DeviceCache: deviceCache}
-	collectors, err := buildCollectors(deps, map[CollectorName]subsystemBuilder{"ok": factory, "fail": factory}, nil)
+	deps := &CollectorDependencies{NsPidCache: &NsPidCache{}}
+	collectors, err := buildCollectors(devices, deps, map[CollectorName]subsystemBuilder{"ok": factory, "fail": factory})
 	require.NotNil(t, collectors)
 	require.NoError(t, err)
 }
@@ -125,8 +126,7 @@ func TestGetDeviceTagsMapping(t *testing.T) {
 			ddnvml.WithMockNVML(t, nvmlMock)
 
 			// Execute
-			deviceCache, err := ddnvml.NewDeviceCache()
-			require.NoError(t, err)
+			deviceCache := ddnvml.NewDeviceCache()
 			tagsMapping := GetDeviceTagsMapping(deviceCache, fakeTagger)
 
 			// Assert
@@ -141,10 +141,14 @@ func TestAllCollectorsWork(t *testing.T) {
 
 	nvmlMock := testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled(), testutil.WithMockAllFunctions())
 	ddnvml.WithMockNVML(t, nvmlMock)
-	deviceCache, err := ddnvml.NewDeviceCache()
+	deviceCache := ddnvml.NewDeviceCache()
+	eventsGatherer := NewDeviceEventsGatherer()
+	require.NoError(t, eventsGatherer.Start())
+	t.Cleanup(func() { require.NoError(t, eventsGatherer.Stop()) })
+	devices, err := deviceCache.AllPhysicalDevices()
 	require.NoError(t, err)
-	deps := &CollectorDependencies{DeviceCache: deviceCache}
-	collectors, err := BuildCollectors(deps, nil)
+	deps := &CollectorDependencies{DeviceEventsGatherer: eventsGatherer, NsPidCache: &NsPidCache{}}
+	collectors, err := BuildCollectors(devices, deps)
 	require.NoError(t, err)
 	require.NotNil(t, collectors)
 
@@ -153,7 +157,9 @@ func TestAllCollectorsWork(t *testing.T) {
 	for _, collector := range collectors {
 		result, err := collector.Collect()
 		require.NoError(t, err, "collector %s failed to collect", collector.Name())
-		require.NotEmpty(t, result, "collector %s returned empty result", collector.Name())
+		if collector.Name() != deviceEvents {
+			require.NotEmpty(t, result, "collector %s returned empty result", collector.Name())
+		}
 		seenCollectors[collector.Name()] = struct{}{}
 	}
 

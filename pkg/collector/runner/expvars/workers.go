@@ -12,11 +12,12 @@ import (
 )
 
 const (
-	// Top-level key for this expvar
+	// workersExpvarKey - Top-level key for this expvar
 	workersExpvarKey = "Workers"
-
-	countExpvarKey     = "Count"
+	// instancesExpvarKey - Nested key for the instances expvar
 	instancesExpvarKey = "Instances"
+
+	countExpvarKey = "Count"
 )
 
 var (
@@ -89,4 +90,22 @@ func GetWorkerCount() int {
 	}
 
 	return int(count.(*expvar.Int).Value())
+}
+
+// GetWorkers returns the workers expvar Map from the runner
+func GetWorkers() *expvar.Map {
+	runner := GetRunner()
+	if runner == nil {
+		return nil
+	}
+	return runner.Get(workersExpvarKey).(*expvar.Map)
+}
+
+// GetWorkerInstances returns the worker instances expvar Map
+func GetWorkerInstances() *expvar.Map {
+	workers := GetWorkers()
+	if workers == nil {
+		return nil
+	}
+	return workers.Get(instancesExpvarKey).(*expvar.Map)
 }

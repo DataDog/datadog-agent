@@ -17,6 +17,7 @@ import (
 
 const (
 	tagRedisRawCommand  = transform.TagRedisRawCommand
+	tagValkeyRawCommand = transform.TagValkeyRawCommand
 	tagMemcachedCommand = transform.TagMemcachedCommand
 	tagMongoDBQuery     = transform.TagMongoDBQuery
 	tagElasticBody      = transform.TagElasticBody
@@ -30,29 +31,137 @@ const (
 	textNonParsable = transform.TextNonParsable
 )
 
-func (a *Agent) obfuscateSpan(span *pb.Span) {
-	o := a.lazyInitObfuscator()
+// obfuscateSpan is an interface that exposes all the methods needed to obfuscate a span.
+type obfuscateSpan interface {
+	GetAttributeAsString(key string) (string, bool)
+	SetStringAttribute(key string, value string)
+	Type() string
+	Resource() string
+	SetResource(resource string)
+	Service() string
+	// MapAttributesAsStrings applies a function to all string attributes of the span, if the function returns a non-empty string, the attribute is set to the new value
+	MapAttributesAsStrings(func(k, v string) string)
+}
 
-	for _, spanEvent := range span.SpanEvents {
-		a.obfuscateSpanEvent(spanEvent)
+type obfuscateSpanV0 struct {
+	span *pb.Span
+}
+
+func (o *obfuscateSpanV0) GetAttributeAsString(key string) (string, bool) {
+	v, ok := o.span.Meta[key]
+	return v, ok
+}
+
+func (o *obfuscateSpanV0) SetStringAttribute(key string, value string) {
+	if o.span.Meta == nil {
+		o.span.Meta = make(map[string]string)
 	}
+	o.span.Meta[key] = value
+}
 
-	if a.conf.Obfuscation != nil && a.conf.Obfuscation.CreditCards.Enabled {
-		for k, v := range span.Meta {
-			newV := o.ObfuscateCreditCardNumber(k, v)
-			if v != newV {
-				log.Debugf("obfuscating possible credit card under key %s from service %s", k, span.Service)
-				span.Meta[k] = newV
-			}
+func (o *obfuscateSpanV0) Type() string {
+	return o.span.Type
+}
+
+func (o *obfuscateSpanV0) Resource() string {
+	return o.span.Resource
+}
+
+func (o *obfuscateSpanV0) SetResource(resource string) {
+	o.span.Resource = resource
+}
+
+func (o *obfuscateSpanV0) Service() string {
+	return o.span.Service
+}
+
+func (o *obfuscateSpanV0) MapAttributesAsStrings(f func(k, v string) string) {
+	for k, v := range o.span.Meta {
+		newV := f(k, v)
+		if newV != "" && newV != v {
+			o.span.Meta[k] = newV
 		}
 	}
+}
 
-	switch span.Type {
+// ObfuscateSQLSpan obfuscates a SQL span
+func ObfuscateSQLSpan(o *obfuscate.Obfuscator, span *pb.Span) (*obfuscate.ObfuscatedQuery, error) {
+	return obfuscateSQLSpan(o, &obfuscateSpanV0{span: span})
+}
+
+func obfuscateSQLSpan(o *obfuscate.Obfuscator, span obfuscateSpan) (*obfuscate.ObfuscatedQuery, error) {
+	if span.Resource() == "" {
+		return nil, nil
+	}
+	dbms, _ := span.GetAttributeAsString(tagDBMS)
+	oq, err := o.ObfuscateSQLStringForDBMS(span.Resource(), dbms)
+	if err != nil {
+		// we have an error, discard the SQL to avoid polluting user resources.
+		span.SetResource(textNonParsable)
+		span.SetStringAttribute(tagSQLQuery, textNonParsable)
+		return nil, err
+	}
+	span.SetResource(oq.Query)
+	if len(oq.Metadata.TablesCSV) > 0 {
+		span.SetStringAttribute("sql.tables", oq.Metadata.TablesCSV)
+	}
+	span.SetStringAttribute(tagSQLQuery, oq.Query)
+	return oq, nil
+}
+
+// ObfuscateRedisSpan obfuscates a Redis span
+func ObfuscateRedisSpan(o *obfuscate.Obfuscator, span *pb.Span, removeAllArgs bool) {
+	obfuscateRedisSpan(o, &obfuscateSpanV0{span: span}, removeAllArgs)
+}
+
+func obfuscateRedisSpan(o *obfuscate.Obfuscator, span obfuscateSpan, removeAllArgs bool) {
+	v, ok := span.GetAttributeAsString(tagRedisRawCommand)
+	if !ok || v == "" {
+		return
+	}
+	if removeAllArgs {
+		span.SetStringAttribute(tagRedisRawCommand, o.RemoveAllRedisArgs(v))
+		return
+	}
+	span.SetStringAttribute(tagRedisRawCommand, o.ObfuscateRedisString(v))
+}
+
+// ObfuscateValkeySpan obfuscates a Valkey span
+func ObfuscateValkeySpan(o *obfuscate.Obfuscator, span *pb.Span, removeAllArgs bool) {
+	obfuscateValkeySpan(o, &obfuscateSpanV0{span: span}, removeAllArgs)
+}
+
+func obfuscateValkeySpan(o *obfuscate.Obfuscator, span obfuscateSpan, removeAllArgs bool) {
+	v, ok := span.GetAttributeAsString(tagValkeyRawCommand)
+	if !ok || v == "" {
+		return
+	}
+	if removeAllArgs {
+		span.SetStringAttribute(tagValkeyRawCommand, o.RemoveAllRedisArgs(v))
+		return
+	}
+	span.SetStringAttribute(tagValkeyRawCommand, o.ObfuscateRedisString(v))
+}
+
+func (a *Agent) obfuscateSpanInternal(span obfuscateSpan) {
+	o := a.lazyInitObfuscator()
+	if a.conf.Obfuscation != nil && a.conf.Obfuscation.CreditCards.Enabled {
+		span.MapAttributesAsStrings(func(k, v string) string {
+			newV := o.ObfuscateCreditCardNumber(k, v)
+			if newV != v {
+				log.Debugf("obfuscating possible credit card under key %s from service %s", k, span.Service())
+				return newV
+			}
+			return v
+		})
+	}
+
+	switch span.Type() {
 	case "sql", "cassandra":
-		if span.Resource == "" {
+		if span.Resource() == "" {
 			return
 		}
-		oq, err := transform.ObfuscateSQLSpan(o, span)
+		oq, err := obfuscateSQLSpan(o, span)
 		if err != nil {
 			// we have an error, discard the SQL to avoid polluting user resources.
 			log.Debugf("Error parsing SQL query: %v. Resource: %q", err, span.Resource)
@@ -65,49 +174,61 @@ func (a *Agent) obfuscateSpan(span *pb.Span) {
 	case "redis", "valkey":
 		// if a span is redis/valkey type, it should be quantized regardless of obfuscation setting.
 		// valkey is a folk of redis, so we can use the same logic for both.
-		span.Resource = o.QuantizeRedisString(span.Resource)
-		if span.Type == "redis" && a.conf.Obfuscation.Redis.Enabled {
-			transform.ObfuscateRedisSpan(o, span, a.conf.Obfuscation.Redis.RemoveAllArgs)
+		span.SetResource(o.QuantizeRedisString(span.Resource()))
+		if span.Type() == "redis" && a.conf.Obfuscation.Redis.Enabled {
+			obfuscateRedisSpan(o, span, a.conf.Obfuscation.Redis.RemoveAllArgs)
 		}
-		if span.Type == "valkey" && a.conf.Obfuscation.Valkey.Enabled {
-			transform.ObfuscateValkeySpan(o, span, a.conf.Obfuscation.Valkey.RemoveAllArgs)
+		if span.Type() == "valkey" && a.conf.Obfuscation.Valkey.Enabled {
+			obfuscateValkeySpan(o, span, a.conf.Obfuscation.Valkey.RemoveAllArgs)
 		}
 	case "memcached":
 		if !a.conf.Obfuscation.Memcached.Enabled {
 			return
 		}
-		if span.Meta == nil || span.Meta[tagMemcachedCommand] == "" {
+		v, ok := span.GetAttributeAsString(tagMemcachedCommand)
+		if !ok || v == "" {
 			return
 		}
-		span.Meta[tagMemcachedCommand] = o.ObfuscateMemcachedString(span.Meta[tagMemcachedCommand])
+		span.SetStringAttribute(tagMemcachedCommand, o.ObfuscateMemcachedString(v))
 	case "web", "http":
-		if span.Meta == nil || span.Meta[tagHTTPURL] == "" {
+		v, ok := span.GetAttributeAsString(tagHTTPURL)
+		if !ok || v == "" {
 			return
 		}
-		span.Meta[tagHTTPURL] = o.ObfuscateURLString(span.Meta[tagHTTPURL])
+		span.SetStringAttribute(tagHTTPURL, o.ObfuscateURLString(v))
 	case "mongodb":
 		if !a.conf.Obfuscation.Mongo.Enabled {
 			return
 		}
-		if span.Meta == nil || span.Meta[tagMongoDBQuery] == "" {
+		v, ok := span.GetAttributeAsString(tagMongoDBQuery)
+		if !ok || v == "" {
 			return
 		}
-		span.Meta[tagMongoDBQuery] = o.ObfuscateMongoDBString(span.Meta[tagMongoDBQuery])
+		span.SetStringAttribute(tagMongoDBQuery, o.ObfuscateMongoDBString(v))
 	case "elasticsearch", "opensearch":
-		if span.Meta == nil {
-			return
-		}
 		if a.conf.Obfuscation.ES.Enabled {
-			if span.Meta[tagElasticBody] != "" {
-				span.Meta[tagElasticBody] = o.ObfuscateElasticSearchString(span.Meta[tagElasticBody])
+			v, ok := span.GetAttributeAsString(tagElasticBody)
+			if !ok || v == "" {
+				return
 			}
+			span.SetStringAttribute(tagElasticBody, o.ObfuscateElasticSearchString(v))
 		}
 		if a.conf.Obfuscation.OpenSearch.Enabled {
-			if span.Meta[tagOpenSearchBody] != "" {
-				span.Meta[tagOpenSearchBody] = o.ObfuscateOpenSearchString(span.Meta[tagOpenSearchBody])
+			v, ok := span.GetAttributeAsString(tagOpenSearchBody)
+			if !ok || v == "" {
+				return
 			}
+			span.SetStringAttribute(tagOpenSearchBody, o.ObfuscateOpenSearchString(v))
 		}
 	}
+}
+
+func (a *Agent) obfuscateSpan(span *pb.Span) {
+	a.lazyInitObfuscator()
+	for _, spanEvent := range span.SpanEvents {
+		a.obfuscateSpanEvent(spanEvent)
+	}
+	a.obfuscateSpanInternal(&obfuscateSpanV0{span: span})
 }
 
 // obfuscateSpanEvent uses the pre-configured agent obfuscator to do limited obfuscation of span events

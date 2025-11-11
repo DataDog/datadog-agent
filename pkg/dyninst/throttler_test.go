@@ -20,6 +20,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/dyninsttest"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/irgen"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/testprogs"
 )
 
@@ -48,7 +49,9 @@ func enforcesBudget(t *testing.T, busyloopPath string) {
 
 	// Load the binary and generate the IR.
 	t.Logf("loading binary")
-	obj, irp := dyninsttest.GenerateIr(t, tempDir, busyloopPath, "busyloop")
+	obj, irp := dyninsttest.GenerateIr(
+		t, tempDir, busyloopPath, "busyloop", irgen.WithSkipReturnEvents(true),
+	)
 
 	// Adjust throttling parameters.
 	// Practically infinite period, with specific event count.
@@ -80,7 +83,7 @@ func enforcesBudget(t *testing.T, busyloopPath string) {
 	defer cleanup()
 	defer func() {
 		sampleProc.Process.Kill()
-		sampleProc.Process.Wait()
+		sampleProc.Wait()
 	}()
 	sampleStdin.Write([]byte("\n"))
 
@@ -107,7 +110,9 @@ func refreshesBudget(t *testing.T, busyloopPath string) {
 
 	// Load the binary and generate the IR.
 	t.Logf("loading binary")
-	obj, irp := dyninsttest.GenerateIr(t, tempDir, busyloopPath, "busyloop")
+	obj, irp := dyninsttest.GenerateIr(
+		t, tempDir, busyloopPath, "busyloop", irgen.WithSkipReturnEvents(true),
+	)
 
 	// Adjust throttling parameters.
 	// Small period, and budget.
@@ -135,7 +140,7 @@ func refreshesBudget(t *testing.T, busyloopPath string) {
 	defer cleanup()
 	defer func() {
 		sampleProc.Process.Kill()
-		sampleProc.Process.Wait()
+		sampleProc.Wait()
 	}()
 	sampleStdin.Write([]byte("\n"))
 

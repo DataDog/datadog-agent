@@ -11,6 +11,7 @@ from invoke.context import Context
 from tasks.kernel_matrix_testing.config import ConfigManager
 from tasks.kernel_matrix_testing.kmt_os import get_kmt_os
 from tasks.kernel_matrix_testing.tool import Exit, error, info
+from tasks.kernel_matrix_testing.vars import AWS_ACCOUNT
 
 if TYPE_CHECKING:
     from tasks.kernel_matrix_testing.types import KMTArchNameOrLocal, PathOrStr, SSHKey, StackOutput
@@ -352,8 +353,6 @@ def ensure_key_in_agent(ctx: Context, key: SSHKey):
 
 def ensure_key_in_ec2(ctx: Context, key: SSHKey):
     info(f"[+] Checking that key {key} is in AWS...")
-    res = ctx.run(
-        f"aws-vault exec sso-sandbox-account-admin -- aws ec2 describe-key-pairs --key-names {key['aws_key_name']}"
-    )
+    res = ctx.run(f"aws-vault exec {AWS_ACCOUNT} -- aws ec2 describe-key-pairs --key-names {key['aws_key_name']}")
     if res is None or not res.ok:
         raise Exit(f"Couldn't retrieve {key} from AWS EC2")

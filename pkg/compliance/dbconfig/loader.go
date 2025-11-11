@@ -11,6 +11,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"fmt"
 	"io"
 	"maps"
 	"os"
@@ -147,7 +148,11 @@ func LoadMongoDBConfig(ctx context.Context, hostroot string, proc *process.Proce
 	var result DBConfig
 	result.ProcessUser, _ = proc.UsernameWithContext(ctx)
 	result.ProcessName, _ = proc.NameWithContext(ctx)
-
+	if result.ProcessUser == "" {
+		if uids, _ := proc.UidsWithContext(ctx); len(uids) > 0 {
+			result.ProcessUser = fmt.Sprintf("uid:%d", uids[0]) // RUID
+		}
+	}
 	cmdline, _ := proc.CmdlineSlice()
 	for i, arg := range cmdline {
 		if arg == "--config" && i+1 < len(cmdline) {

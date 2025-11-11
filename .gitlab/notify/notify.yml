@@ -4,7 +4,6 @@
 
 .notify_setup:
   - SLACK_DATADOG_AGENT_BOT_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $SLACK_AGENT token) || exit $?; export SLACK_DATADOG_AGENT_BOT_TOKEN
-  - GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $GITLAB_TOKEN read_api) || exit $?; export GITLAB_TOKEN
   - DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_API_KEY_ORG2 token) || exit $?; export DD_API_KEY
   - dda self dep sync -f legacy-tasks -f legacy-notifications
 
@@ -44,7 +43,7 @@ notify:
 send_pipeline_stats:
   extends: .notify-job
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
-  tags: ["arch:amd64"]
+  tags: ["arch:amd64", "specific:true"]
   when: always
   dependencies: []
   script:
@@ -55,7 +54,7 @@ notify_gitlab_ci_changes:
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   extends: .notify-job
   needs: [compute_gitlab_ci_config]
-  tags: ["arch:amd64"]
+  tags: ["arch:amd64", "specific:true"]
   rules:
     - !reference [.except_mergequeue]
     - changes:
@@ -72,7 +71,7 @@ notify_gitlab_ci_changes:
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   extends: .notify-job
   dependencies: []
-  tags: ["arch:amd64"]
+  tags: ["arch:amd64", "specific:true"]
   resource_group: notification
   timeout: 15 minutes # Added to prevent a stuck job blocking the resource_group defined above
 

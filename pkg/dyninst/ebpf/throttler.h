@@ -25,9 +25,9 @@ static bool should_throttle(uint32_t throttler_idx, uint64_t start_ns) {
     // Check if we are within budget. First do only a memory read, to avoid
     // contention on a most executed (and thus throttled) probes.
     if (throttler->budget > 0) {
-        if (__sync_fetch_and_sub(&throttler->budget, 1) > 0) {
-            return false;
-        }
+      if (__sync_fetch_and_sub(&throttler->budget, 1) > 0) {
+        return false;
+      }
     }
     // We are out of budget, check if throttling period passed and budget
     // could be refreshed.
@@ -36,7 +36,7 @@ static bool should_throttle(uint32_t throttler_idx, uint64_t start_ns) {
       return true;
     }
     if (throttler->last_probe_run_ns > 0 && start_ns - throttler->last_probe_run_ns < params->period_ns) {
-        return true;
+      return true;
     }
     // Try to refresh the budget. We need to make sure we do it only once
     // per the throttling period. We make an assumption that ns measurement
@@ -44,11 +44,11 @@ static bool should_throttle(uint32_t throttler_idx, uint64_t start_ns) {
     int64_t budget = params->budget;
     uint64_t local_last_probe_run_ns = throttler->last_probe_run_ns;
     if (__sync_val_compare_and_swap(&throttler->last_probe_run_ns, local_last_probe_run_ns, start_ns) == local_last_probe_run_ns) {
-        // Note that any probe that reads the budget between the preceeding last_probe_run_ns update and following budget refresh
-        // will be rejected. In practise this results in immaterial over-throttling - it requires probing a hot function, in
-        // which case we will throttle affected call, and instead probe some future call.
-        throttler->budget = budget - 1;
-        return false;
+      // Note that any probe that reads the budget between the preceeding last_probe_run_ns update and following budget refresh
+      // will be rejected. In practise this results in immaterial over-throttling - it requires probing a hot function, in
+      // which case we will throttle affected call, and instead probe some future call.
+      throttler->budget = budget - 1;
+      return false;
     }
     // We failed to refresh the budget, maybe try again.
   }

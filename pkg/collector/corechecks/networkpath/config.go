@@ -32,6 +32,8 @@ type InitConfig struct {
 	MinCollectionInterval int64 `yaml:"min_collection_interval"`
 	TimeoutMs             int64 `yaml:"timeout"`
 	MaxTTL                uint8 `yaml:"max_ttl"`
+	TracerouteQueries     int   `yaml:"traceroute_queries"`
+	E2eQueries            int   `yaml:"e2e_queries"`
 }
 
 // InstanceConfig is used to deserialize integration instance config
@@ -44,6 +46,8 @@ type InstanceConfig struct {
 	TCPMethod string `yaml:"tcp_method"`
 	// TCPSynParisTracerouteMode makes TCP SYN traceroute act like paris traceroute (fixed packet ID, randomized seq)
 	TCPSynParisTracerouteMode bool `yaml:"tcp_syn_paris_traceroute_mode"`
+	// DisableWindowsDriver disables the use of Windows driver for traceroute
+	DisableWindowsDriver bool `yaml:"disable_windows_driver"`
 
 	SourceService      string `yaml:"source_service"`
 	DestinationService string `yaml:"destination_service"`
@@ -53,6 +57,9 @@ type InstanceConfig struct {
 	TimeoutMs int64 `yaml:"timeout"`
 
 	MinCollectionInterval int `yaml:"min_collection_interval"`
+
+	TracerouteQueries int `yaml:"traceroute_queries"`
+	E2eQueries        int `yaml:"e2e_queries"`
 
 	Tags []string `yaml:"tags"`
 }
@@ -69,10 +76,14 @@ type CheckConfig struct {
 	TCPMethod          payload.TCPMethod
 	// TCPSynParisTracerouteMode makes TCP SYN traceroute act like paris traceroute (fixed packet ID, randomized seq)
 	TCPSynParisTracerouteMode bool
-	Timeout                   time.Duration
-	MinCollectionInterval     time.Duration
-	Tags                      []string
-	Namespace                 string
+	// DisableWindowsDriver disables the use of Windows driver for traceroute
+	DisableWindowsDriver  bool
+	Timeout               time.Duration
+	MinCollectionInterval time.Duration
+	TracerouteQueries     int
+	E2eQueries            int
+	Tags                  []string
+	Namespace             string
 }
 
 // NewCheckConfig builds a new check config
@@ -90,6 +101,11 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 		return nil, fmt.Errorf("invalid instance config: %s", err)
 	}
 
+	// hostname validation is done by the datadog-traceroute library but an empty hostname results in querying system-probe with an invalid URL
+	if instance.DestHostname == "" {
+		return nil, fmt.Errorf("invalid instance config, hostname must be provided")
+	}
+
 	c := &CheckConfig{}
 
 	c.DestHostname = instance.DestHostname
@@ -99,6 +115,7 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 	c.Protocol = payload.Protocol(strings.ToUpper(instance.Protocol))
 	c.TCPMethod = payload.MakeTCPMethod(instance.TCPMethod)
 	c.TCPSynParisTracerouteMode = instance.TCPSynParisTracerouteMode
+	c.DisableWindowsDriver = instance.DisableWindowsDriver
 
 	c.MinCollectionInterval = firstNonZero(
 		time.Duration(instance.MinCollectionInterval)*time.Second,
@@ -122,6 +139,18 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 		instance.MaxTTL,
 		initConfig.MaxTTL,
 		setup.DefaultNetworkPathMaxTTL,
+	)
+
+	c.TracerouteQueries = firstNonZero(
+		instance.TracerouteQueries,
+		initConfig.TracerouteQueries,
+		setup.DefaultNetworkPathStaticPathTracerouteQueries,
+	)
+
+	c.E2eQueries = firstNonZero(
+		instance.E2eQueries,
+		initConfig.E2eQueries,
+		setup.DefaultNetworkPathStaticPathE2eQueries,
 	)
 
 	c.Tags = instance.Tags

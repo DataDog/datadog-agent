@@ -394,7 +394,7 @@ func (at *ActivityTree) insertEvent(event *model.Event, dryRun bool, insertMissi
 	// the count of processed events is the count of events that matched the activity dump selector = the events for
 	// which we successfully found a process activity node
 	at.Stats.counts[event.GetEventType()].processedCount.Inc()
-
+	node.AppendImageTag(imageTag, event.ResolveEventTime())
 	// insert the event based on its type
 	switch event.GetEventType() {
 	case model.ExecEventType:
@@ -957,4 +957,38 @@ func (at *ActivityTree) ExtractSyscalls(arch string) []string {
 		}
 	})
 	return syscalls
+}
+
+// ImageProcessKey represents a unique key for process cache entries by image name, tag, and filepath
+type ImageProcessKey struct {
+	ImageName string
+	ImageTag  string
+	Filepath  string
+}
+
+// EvictUnusedNodes evicts all nodes that haven't been touched since the given timestamp
+// and returns the total number of nodes evicted
+func (at *ActivityTree) EvictUnusedNodes(before time.Time, filepathsInProcessCache map[ImageProcessKey]bool, profileImageName, profileImageTag string) int {
+	totalEvicted := 0
+
+	// Iterate through all process nodes and evict unused nodes
+	for i := len(at.ProcessNodes) - 1; i >= 0; i-- {
+		node := at.ProcessNodes[i]
+		if node == nil {
+			continue
+		}
+
+		// Evict unused nodes
+		evicted := node.EvictUnusedNodes(before, filepathsInProcessCache, profileImageName, profileImageTag)
+		totalEvicted += evicted
+
+		// If the process node itself has no image tags left after eviction, remove it entirely
+		if len(node.Seen) == 0 {
+			// Remove the node
+			at.ProcessNodes = append(at.ProcessNodes[:i], at.ProcessNodes[i+1:]...)
+			totalEvicted++
+		}
+	}
+
+	return totalEvicted
 }

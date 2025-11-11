@@ -1,0 +1,8 @@
+{
+  "type": "unsupported",
+  "operation": "isEmpty",
+  "argument": {
+    "ref": "empty_str"
+  },
+  "error": ""
+}
