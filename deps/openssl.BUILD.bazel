@@ -18,8 +18,8 @@ configure_make(
         "//conditions:default": "",
     }),
     configure_in_place = select({
-       "@platforms//os:windows": True,
-       "//conditions:default": False, 
+        "@platforms//os:windows": True,
+        "//conditions:default": False,
     }),
     configure_command = select({
         "@platforms//os:linux": "config",
@@ -80,7 +80,7 @@ configure_make(
     out_binaries = select({
         "@platforms//os:windows": [
             "libssl-3-x64.dll",
-            "libcrypto-3-x64.dll", 
+            "libcrypto-3-x64.dll",
         ],
         "//conditions:default": [],
     }),
