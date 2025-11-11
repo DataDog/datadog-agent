@@ -259,6 +259,11 @@ func (c *APMCheck) IsHASupported() bool {
 	return false
 }
 
+// CronShouldRun returns true if check should run based on cron schedule
+func (c *APMCheck) CronShouldRun(t time.Time) bool {
+	return false
+}
+
 // Factory creates a new check factory
 func Factory() option.Option[func() check.Check] {
 	return option.New(newCheck)

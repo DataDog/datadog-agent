@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/robfig/cron/v3"
 	yaml "gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
@@ -51,6 +52,8 @@ type CheckBase struct {
 	telemetry      bool
 	initConfig     string
 	instanceConfig string
+	cronSchedule   cron.Schedule
+	cronNext       time.Time
 }
 
 // NewCheckBase returns a check base struct with a given check name
@@ -148,6 +151,14 @@ func (c *CheckBase) CommonConfigure(senderManager sender.SenderManager, initConf
 				return err
 			}
 			s.SetNoIndex(commonOptions.NoIndex)
+		}
+		// Set configured service for this check, overriding the one possibly defined globally
+		if len(commonOptions.CronSchedule) > 0 {
+			cronSchedule, err := cron.ParseStandard(commonOptions.CronSchedule)
+			if err != nil {
+				return err
+			}
+			c.cronSchedule = cronSchedule
 		}
 
 		c.source = source
@@ -289,5 +300,14 @@ func (c *CheckBase) GetDiagnoses() ([]diagnose.Diagnosis, error) {
 
 // IsHASupported returns if the check is compatible with High Availability
 func (c *CheckBase) IsHASupported() bool {
+	return false
+}
+
+func (c *CheckBase) CronShouldRun(now time.Time) bool {
+	if c.cronNext.Before(now) {
+		// TODO: Need to skip many scheduled if the backlog is too big?
+		c.cronNext = c.cronSchedule.Next(time.Now())
+		return true
+	}
 	return false
 }

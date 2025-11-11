@@ -20,23 +20,25 @@ import (
 
 // Mock Check implementation used for testing
 type mockCheck struct {
-	cfgSource   string
-	loaderName  string
-	id          checkid.ID
-	stringVal   string
-	version     string
-	interval    time.Duration
-	haSupported bool
+	cfgSource     string
+	loaderName    string
+	id            checkid.ID
+	stringVal     string
+	version       string
+	interval      time.Duration
+	haSupported   bool
+	cronShouldRun bool
 }
 
 // Mock Check interface implementation
-func (mc *mockCheck) ConfigSource() string    { return mc.cfgSource }
-func (mc *mockCheck) Loader() string          { return mc.loaderName }
-func (mc *mockCheck) ID() checkid.ID          { return mc.id }
-func (mc *mockCheck) String() string          { return mc.stringVal }
-func (mc *mockCheck) Version() string         { return mc.version }
-func (mc *mockCheck) Interval() time.Duration { return mc.interval }
-func (mc *mockCheck) IsHASupported() bool     { return mc.haSupported }
+func (mc *mockCheck) ConfigSource() string         { return mc.cfgSource }
+func (mc *mockCheck) Loader() string               { return mc.loaderName }
+func (mc *mockCheck) ID() checkid.ID               { return mc.id }
+func (mc *mockCheck) String() string               { return mc.stringVal }
+func (mc *mockCheck) Version() string              { return mc.version }
+func (mc *mockCheck) Interval() time.Duration      { return mc.interval }
+func (mc *mockCheck) IsHASupported() bool          { return mc.haSupported }
+func (mc *mockCheck) CronShouldRun(time.Time) bool { return mc.cronShouldRun }
 
 func newMockCheck() StatsCheck {
 	return &mockCheck{

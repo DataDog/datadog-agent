@@ -56,6 +56,8 @@ type Check interface {
 	GetDiagnoses() ([]diagnose.Diagnosis, error)
 	// IsHASupported returns if the check is compatible with High Availability
 	IsHASupported() bool
+	// CronShouldRun returns true if check should run based on cron schedule
+	CronShouldRun(time.Time) bool
 }
 
 // Info is an interface to pull information from types capable to run checks. This is a subsection from the Check

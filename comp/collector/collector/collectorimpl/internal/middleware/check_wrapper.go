@@ -160,3 +160,8 @@ func (c *CheckWrapper) GetDiagnoses() ([]diagnose.Diagnosis, error) {
 func (c *CheckWrapper) IsHASupported() bool {
 	return c.inner.IsHASupported()
 }
+
+// CronShouldRun implements Check#CronShouldRun
+func (c *CheckWrapper) CronShouldRun(t time.Time) bool {
+	return c.inner.CronShouldRun(t)
+}
