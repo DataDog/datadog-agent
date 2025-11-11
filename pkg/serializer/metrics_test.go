@@ -34,6 +34,7 @@ func TestBuildPipelines(t *testing.T) {
 	s := NewSerializer(f, nil, compressor, config, logger, "")
 
 	pipelines := s.buildPipelines(metricsKindSeries)
+	require.Len(t, pipelines, 1)
 
 	for conf, ctx := range pipelines {
 		require.Len(t, ctx.Destinations, 1)
