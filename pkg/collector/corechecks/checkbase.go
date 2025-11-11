@@ -10,7 +10,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/robfig/cron/v3"
 	yaml "gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
@@ -52,8 +51,6 @@ type CheckBase struct {
 	telemetry      bool
 	initConfig     string
 	instanceConfig string
-	cronSchedule   cron.Schedule
-	cronNext       time.Time
 }
 
 // NewCheckBase returns a check base struct with a given check name
@@ -151,14 +148,6 @@ func (c *CheckBase) CommonConfigure(senderManager sender.SenderManager, initConf
 				return err
 			}
 			s.SetNoIndex(commonOptions.NoIndex)
-		}
-		// Set configured service for this check, overriding the one possibly defined globally
-		if len(commonOptions.CronSchedule) > 0 {
-			cronSchedule, err := cron.ParseStandard(commonOptions.CronSchedule)
-			if err != nil {
-				return err
-			}
-			c.cronSchedule = cronSchedule
 		}
 
 		c.source = source
@@ -303,23 +292,8 @@ func (c *CheckBase) IsHASupported() bool {
 	return false
 }
 
+// CronShouldRun returns true if check should run based on cron schedule
 func (c *CheckBase) CronShouldRun(t time.Time) bool {
-	// TODO: move to check wrapper?
-	if c.cronSchedule == nil {
-		return true
-	}
-
-	log.Warnf("[CronShouldRun] t %s", t)
-	log.Warnf("[CronShouldRun] cronNext %s", c.cronNext)
-	if c.cronNext.IsZero() {
-		c.cronNext = c.cronSchedule.Next(t)
-	}
-	if c.cronNext.Before(t) || c.cronNext.Equal(t) {
-		log.Warnf("[CronShouldRun] cronNext2 %s", c.cronNext)
-		// TODO: Need to skip many scheduled if the backlog is too big?
-		c.cronNext = c.cronSchedule.Next(c.cronNext)
-		log.Warnf("[CronShouldRun] cronNext3 %s", c.cronNext)
-		return true
-	}
+	// NOT USED, overwritten by CheckWrapper.CronShouldRun
 	return false
 }

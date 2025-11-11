@@ -414,8 +414,9 @@ func (c *PythonCheck) IsHASupported() bool {
 	return c.haSupported
 }
 
+// CronShouldRun returns true if check should run based on cron schedule
 func (c *PythonCheck) CronShouldRun(now time.Time) bool {
-	// TODO: Implement me. Should be done in check wrapper?
+	// NOT USED, overwritten by CheckWrapper.CronShouldRun
 	return true
 }
 
