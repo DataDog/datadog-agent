@@ -13,12 +13,18 @@ configure_make(
     args = [
         "-j 16",
     ],
+    configure_prefix = select({
+        "@platforms//os:windows": "perl",
+        "//conditions:default": "",
+    }),
+    configure_in_place = select({
+       "@platforms//os:windows": True,
+       "//conditions:default": False, 
+    }),
     configure_command = select({
         "@platforms//os:linux": "config",
         "@platforms//os:macos": "Configure",
-        # Windows build isn't guaranteed to work.
-        # This is a preliminary structure.
-        "@platforms//os:windows": "perl.exe ./Configure",
+        "@platforms//os:windows": "Configure",
     }),
     configure_options = select({
         "@//:macos_arm64": [
@@ -27,8 +33,12 @@ configure_make(
         "@//:macos_x86_64": [
             "darwin64-x86_64-cc",
         ],
+        "@platforms//os:windows": [
+            "mingw64",
+        ],
         "//conditions:default": [],
     }) + [
+        "no-docs",
         "no-idea",
         "no-mdc2",
         "no-rc5",
@@ -60,6 +70,17 @@ configure_make(
             "libssl.3.dylib",
             "libcrypto.dylib",
             "libcrypto.3.dylib",
+        ],
+        "//conditions:default": [],
+    }),
+    # For whatever reason rules_foreign_cc does not respect
+    # out_dll_dir parameter and tries to find Windows DLLs in
+    # lib instead of bin. Technically, those are binaries,
+    # hence, we can treat them as such.
+    out_binaries = select({
+        "@platforms//os:windows": [
+            "libssl-3-x64.dll",
+            "libcrypto-3-x64.dll", 
         ],
         "//conditions:default": [],
     }),

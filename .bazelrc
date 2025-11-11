@@ -20,8 +20,8 @@ common:macos --strategy=sandboxed
 # Windows config -------------------------------------------------------------------------------------------------------
 common:windows --strategy=standalone # Valid values are: [dynamic_worker, standalone, dynamic, remote, worker, local]
 # For whatever reason if convenience symlinks are present, the build fails on Windows.
-# Disabling them for now.
-common:windows --noexperimental_convenience_symlinks
+# Disabling them for now.  Use wrapper that sets PATH correctly for MSYS2 bash
+common:windows --noexperimental_convenience_symlinks --shell_executable=bazel/toolchains/mingw/bash_wrapper.cmd
 
 # Remote cache config --------------------------------------------------------------------------------------------------
 # datadog-agent virtually isolates caching instance from its parent (which is remote-caching).

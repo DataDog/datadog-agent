@@ -57,6 +57,8 @@ def _impl(ctx):
                 flag_groups = [
                     flag_group(
                         flags = [
+                            "-no-canonical-prefixes",
+                            "-fno-canonical-system-headers",
                             "-Wno-builtin-macro-redefined",
                             "-D__DATE__=\"redacted\"",
                             "-D__TIMESTAMP__=\"redacted\"",
@@ -78,7 +80,13 @@ def _impl(ctx):
                     ACTION_NAMES.cpp_link_static_library,
                 ],
                 env_entries = [
-                    env_entry("PATH", "{}/bin".format(ctx.attr.MINGW_PATH)),
+                    # Use Windows-style semicolons for native tools (gcc, ar, etc.)
+                    # The bash wrapper will convert this to colons for shell scripts.
+                    # The former is needed for gcc to resolve native tools like ar, gcc, etc.
+                    # The latter is needed for bash to resolve MSYS2 tools like bash, git, etc.
+                    # Bash is used by rules_foreign_cc, powershell by rules_cc rules, so we need to
+                    # ensure that we have all necessary tools in PATH for both Windows and MSYS2.
+                    env_entry("PATH", "{}/bin;C:/tools/msys64/usr/bin".format(ctx.attr.MINGW_PATH)),
                 ],
             ),
         ],
