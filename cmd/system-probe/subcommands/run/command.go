@@ -87,6 +87,8 @@ type cliParams struct {
 
 const configSyncTimeout = 10 * time.Second
 
+var systemProbeRunningGauge telemetry.Gauge
+
 // Commands returns a slice of subcommands for the 'system-probe' command.
 func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	cliParams := &cliParams{
@@ -352,6 +354,10 @@ func startSystemProbe(log log.Component, telemetry telemetry.Component, sysprobe
 
 	log.Infof("starting system-probe v%v", version.AgentVersion)
 
+	// Create and set system_probe.running metric to indicate system-probe is running
+	systemProbeRunningGauge = telemetry.NewGauge("system_probe", "running", []string{}, "Whether the system-probe is running")
+	systemProbeRunningGauge.Set(1)
+
 	logUserAndGroupID(log)
 	// Exit if system probe is disabled
 	if cfg.ExternalSystemProbe || !cfg.Enabled {
@@ -410,6 +416,11 @@ func startSystemProbe(log log.Component, telemetry telemetry.Component, sysprobe
 
 // stopSystemProbe Tears down the system-probe process
 func stopSystemProbe() {
+	// Set system_probe.running metric to 0 to indicate system-probe is stopping
+	if systemProbeRunningGauge != nil {
+		systemProbeRunningGauge.Set(0)
+	}
+
 	module.Close()
 	if common.ExpvarServer != nil {
 		if err := common.ExpvarServer.Shutdown(context.Background()); err != nil {
