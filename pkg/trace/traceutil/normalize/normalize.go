@@ -12,8 +12,6 @@ import (
 	"sync"
 	"unicode"
 	"unicode/utf8"
-
-	"github.com/DataDog/datadog-agent/pkg/trace/log"
 )
 
 const (
@@ -404,15 +402,4 @@ func isValidASCIIStartChar(c byte) bool {
 
 func isValidASCIITagChar(c byte) bool {
 	return isValidASCIIStartChar(c) || ('0' <= c && c <= '9') || c == '.' || c == '/' || c == '-'
-}
-
-// APMMode normalizes the APM mode to a valid value for the TracerPayload (full, end_user_device or unset).
-func APMMode(apmMode string) string {
-	switch strings.ToLower(apmMode) {
-	case "full", "end_user_device", "":
-		return apmMode
-	}
-	// If the APM mode is invalid, return "full" as default.
-	log.Warnf("invalid value for '_dd.apm.mode span tag': '%s' (defaulting to 'full')", apmMode)
-	return "full"
 }

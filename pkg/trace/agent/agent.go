@@ -11,6 +11,7 @@ import (
 	"reflect"
 	"runtime"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -693,9 +694,23 @@ func (a *Agent) setPayloadAttributes(p *api.Payload, root *pb.Span, chunk *pb.Tr
 		p.TracerPayload.AppVersion = version.GetAppVersionFromTrace(root, chunk)
 	}
 	if p.TracerPayload.APMMode == "" {
-		if mode := normalize.APMMode(root.Meta[tagAPMMode]); mode != "" {
+		if mode, ok := root.Meta[tagAPMMode]; ok {
+			warnIfInvalidAPMModeSpanTag(mode)
 			p.TracerPayload.APMMode = mode
 		}
+	}
+}
+
+// warnIfInvalidAPMModeSpanTag logs a warning when apmMode is empty or an unknown value. We keep empty and unknown values in order to still see them on the spans in the Datadog UI (to aid troubleshooting).
+func warnIfInvalidAPMModeSpanTag(apmMode string) {
+	normalized := strings.ToLower(apmMode)
+	if normalized == "full" || normalized == "end_user_device" {
+		return // Valid
+	}
+	if apmMode == "" {
+		log.Warnf("empty value for '_dd.apm.mode' span tag")
+	} else {
+		log.Warnf("invalid value for '_dd.apm.mode' span tag: '%s'", apmMode)
 	}
 }
 

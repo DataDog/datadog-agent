@@ -163,8 +163,10 @@ func normalizeAPMMode(mode string) string {
 	case "full", "end_user_device":
 		return mode
 	case "":
+		// If DD_APM_MODE is not set, we default to "full"
 		return "full"
 	}
+	// If DD_APM_MODE is set to an invalid value, warn about it and default to "full"
 	log.Warnf("invalid value for 'DD_APM_MODE': '%s' (defaulting to 'full')", mode)
 	return "full"
 }

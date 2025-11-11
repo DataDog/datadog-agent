@@ -658,12 +658,36 @@ func TestProcess(t *testing.T) {
 			assert.Equal(t, "end_user_device", tp.APMMode)
 		})
 
+		t.Run("case insensitive", func(t *testing.T) {
+			cfg := config.New()
+			cfg.Endpoints[0].APIKey = "test"
+			ctx, cancel := context.WithCancel(context.Background())
+			agnt := NewTestAgent(ctx, cfg, telemetry.NewNoopCollector())
+			defer cancel()
+
+			tp := testutil.TracerPayloadWithChunk(testutil.RandomTraceChunk(1, 1))
+			tp.Chunks[0].Spans[0].Meta["_dd.apm.mode"] = "End_User_Device"
+			agnt.Process(&api.Payload{
+				TracerPayload: tp,
+				Source:        agnt.Receiver.Stats.GetTagStats(info.Tags{}),
+			})
+
+			payloads := agnt.TraceWriter.(*mockTraceWriter).payloads
+			assert.NotEmpty(t, payloads, "no payloads were written")
+			tp = payloads[0].TracerPayload
+			assert.Equal(t, "End_User_Device", tp.APMMode)
+		})
+
 		t.Run("empty string", func(t *testing.T) {
 			cfg := config.New()
 			cfg.Endpoints[0].APIKey = "test"
 			ctx, cancel := context.WithCancel(context.Background())
 			agnt := NewTestAgent(ctx, cfg, telemetry.NewNoopCollector())
 			defer cancel()
+
+			var b bytes.Buffer
+			oldLogger := log.SetLogger(log.NewBufferLogger(&b))
+			defer func() { log.SetLogger(oldLogger) }()
 
 			tp := testutil.TracerPayloadWithChunk(testutil.RandomTraceChunk(1, 1))
 			tp.Chunks[0].Spans[0].Meta["_dd.apm.mode"] = ""
@@ -675,7 +699,8 @@ func TestProcess(t *testing.T) {
 			payloads := agnt.TraceWriter.(*mockTraceWriter).payloads
 			assert.NotEmpty(t, payloads, "no payloads were written")
 			tp = payloads[0].TracerPayload
-			assert.Equal(t, "full", tp.APMMode)
+			assert.Equal(t, "", tp.APMMode)
+			assert.Contains(t, b.String(), "[WARN] empty value for '_dd.apm.mode' span tag")
 		})
 
 		t.Run("invalid value", func(t *testing.T) {
@@ -685,8 +710,33 @@ func TestProcess(t *testing.T) {
 			agnt := NewTestAgent(ctx, cfg, telemetry.NewNoopCollector())
 			defer cancel()
 
+			var b bytes.Buffer
+			oldLogger := log.SetLogger(log.NewBufferLogger(&b))
+			defer func() { log.SetLogger(oldLogger) }()
+
 			tp := testutil.TracerPayloadWithChunk(testutil.RandomTraceChunk(1, 1))
 			tp.Chunks[0].Spans[0].Meta["_dd.apm.mode"] = "invalid"
+			agnt.Process(&api.Payload{
+				TracerPayload: tp,
+				Source:        agnt.Receiver.Stats.GetTagStats(info.Tags{}),
+			})
+
+			payloads := agnt.TraceWriter.(*mockTraceWriter).payloads
+			assert.NotEmpty(t, payloads, "no payloads were written")
+			tp = payloads[0].TracerPayload
+			assert.Equal(t, "invalid", tp.APMMode)
+			assert.Contains(t, b.String(), "[WARN] invalid value for '_dd.apm.mode' span tag: 'invalid'")
+		})
+
+		t.Run("tag not present", func(t *testing.T) {
+			cfg := config.New()
+			cfg.Endpoints[0].APIKey = "test"
+			ctx, cancel := context.WithCancel(context.Background())
+			agnt := NewTestAgent(ctx, cfg, telemetry.NewNoopCollector())
+			defer cancel()
+
+			tp := testutil.TracerPayloadWithChunk(testutil.RandomTraceChunk(1, 1))
+			// Do not set _dd.apm.mode in Meta
 			agnt.Process(&api.Payload{
 				TracerPayload: tp,
 				Source:        agnt.Receiver.Stats.GetTagStats(info.Tags{}),
