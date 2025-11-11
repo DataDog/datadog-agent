@@ -6,7 +6,12 @@
 package serializer
 
 import (
+	"fmt"
+	"slices"
+
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/endpoints"
+	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/resolver"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
 	"github.com/DataDog/datadog-agent/pkg/serializer/internal/metrics"
 )
@@ -18,9 +23,29 @@ const (
 	metricsKindSketches
 )
 
-func metricsEndpointFor(kind metricsKind) transaction.Endpoint {
+func (k metricsKind) String() string {
+	switch k {
+	case metricsKindSeries:
+		return "series"
+	case metricsKindSketches:
+		return "sketches"
+	default:
+		panic("invalid metricsKind value")
+	}
+}
+
+func metricsUseV3(resolver resolver.DomainResolver, config config.Component, kind metricsKind) bool {
+	return slices.Contains(
+		config.GetStringSlice(fmt.Sprintf("serializer_experimental_use_v3_api.%s.endpoints", kind)),
+		resolver.GetConfigName())
+}
+
+func metricsEndpointFor(kind metricsKind, useV3 bool) transaction.Endpoint {
 	switch kind {
 	case metricsKindSeries:
+		if useV3 {
+			return endpoints.V3SeriesEndpoint
+		}
 		return endpoints.SeriesEndpoint
 	case metricsKindSketches:
 		return endpoints.SketchSeriesEndpoint
@@ -36,9 +61,11 @@ func (s *Serializer) buildPipelines(kind metricsKind) metrics.PipelineSet {
 	autoscalingFilter := s.getAutoscalingFailoverMetrics()
 
 	for _, resolver := range s.Forwarder.GetDomainResolvers() {
+		useV3 := metricsUseV3(resolver, s.config, kind)
+
 		dest := metrics.PipelineDestination{
 			Resolver: resolver,
-			Endpoint: metricsEndpointFor(kind),
+			Endpoint: metricsEndpointFor(kind, useV3),
 		}
 
 		switch {
@@ -54,6 +81,7 @@ func (s *Serializer) buildPipelines(kind metricsKind) metrics.PipelineSet {
 			if mrfFilter != nil {
 				conf := metrics.PipelineConfig{
 					Filter: mrfFilter,
+					V3:  useV3,
 				}
 				pipelines.Add(conf, dest)
 			}
@@ -61,6 +89,7 @@ func (s *Serializer) buildPipelines(kind metricsKind) metrics.PipelineSet {
 		default:
 			conf := metrics.PipelineConfig{
 				Filter: metrics.AllowAllFilter{},
+				V3:  useV3,
 			}
 			pipelines.Add(conf, dest)
 		}
