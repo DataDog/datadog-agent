@@ -259,8 +259,11 @@ func newServerCompat(cfg model.ReaderWriter, log log.Component, hostname hostnam
 
 	extraTags := cfg.GetStringSlice("dogstatsd_tags")
 
-	// if the server is running in a context where static global tags are required,
-	// add those to extraTags.
+	// if the server is running in a context where static tags are required,
+	// add those to extraTags. To keep in line with legacy behavior, we add
+	// the global tags at the LowCardinality level which only contain the
+	// static tags defined in the agent configuration. This does not include
+	// global tags that are dynamically loaded from external sources like TaskARN.
 	staticTags, err := tagger.GlobalTags(taggertypes.LowCardinality)
 	if err == nil {
 		extraTags = append(extraTags, staticTags...)
