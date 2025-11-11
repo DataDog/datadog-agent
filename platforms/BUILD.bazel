@@ -5,7 +5,7 @@ package(default_visibility = ["//visibility:public"])
 constraint_setting(name = "crypto")
 
 constraint_value(
-    name = "fip",
+    name = "fips",
     constraint_setting = ":crypto",
 )
 
