@@ -19,7 +19,6 @@ import (
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/stats"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
-	"github.com/robfig/cron/v3"
 )
 
 // CheckWrapper cleans up the check sender after a check was
@@ -33,9 +32,7 @@ type CheckWrapper struct {
 	// done is true when the check was cancelled and must not run.
 	done bool
 	// Locked while check is running.
-	runM         sync.Mutex
-	cronSchedule cron.Schedule
-	cronNext     time.Time
+	runM sync.Mutex
 }
 
 // NewCheckWrapper returns a wrapped check.
