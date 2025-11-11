@@ -423,8 +423,8 @@ func (t *remoteTagger) AgentTags(_ types.TagCardinality) ([]string, error) {
 	return nil, nil
 }
 
-func (t *remoteTagger) GlobalTags(cardinality types.TagCardinality) ([]string, error) {
-	return t.Tag(types.GetGlobalEntityID(), cardinality)
+func (t *remoteTagger) GlobalTags() ([]string, error) {
+	return t.Tag(types.GetGlobalEntityID(), types.LowCardinality)
 }
 
 // EnrichTags enriches the tags with the global tags.

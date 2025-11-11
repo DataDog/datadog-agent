@@ -233,6 +233,6 @@ type TaggerClient interface {
 	// Tag is an interface function that queries taggerclient singleton
 	Tag(entity EntityID, cardinality TagCardinality) ([]string, error)
 	// GlobalTags is an interface function that queries taggerclient singleton
-	GlobalTags(cardinality TagCardinality) ([]string, error)
+	GlobalTags() ([]string, error)
 	GenerateContainerIDFromOriginInfo(originInfo origindetection.OriginInfo) (string, error)
 }

@@ -27,6 +27,6 @@ type Component interface {
 	Subscribe(subscriptionID string, filter *types.Filter) (types.Subscription, error)
 	GetEntityHash(entityID types.EntityID, cardinality types.TagCardinality) string
 	AgentTags(cardinality types.TagCardinality) ([]string, error)
-	GlobalTags(cardinality types.TagCardinality) ([]string, error)
+	GlobalTags() ([]string, error)
 	EnrichTags(tb tagset.TagsAccumulator, originInfo taggertypes.OriginInfo)
 }

@@ -476,9 +476,9 @@ func TestGlobalTags(t *testing.T) {
 	fakeTagger.SetTags(types.NewEntityID(types.ContainerID, "bar"), "fooSource", []string{"container-low"}, []string{"container-orch"}, []string{"container-high"}, nil)
 	fakeTagger.SetGlobalTags([]string{"global-low"}, []string{"global-orch"}, []string{"global-high"}, nil)
 
-	globalTags, err := fakeTagger.GlobalTags(types.OrchestratorCardinality)
+	globalTags, err := fakeTagger.GlobalTags()
 	assert.Nil(t, err)
-	assert.Equal(t, []string{"global-low", "global-orch"}, globalTags)
+	assert.Equal(t, []string{"global-low"}, globalTags)
 
 	tb := tagset.NewHashingTagsAccumulator()
 	fakeTagger.EnrichTags(tb, taggertypes.OriginInfo{ContainerIDFromSocket: "container_id://bar", Cardinality: "orchestrator"})

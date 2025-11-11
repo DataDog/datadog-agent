@@ -150,8 +150,8 @@ func (f *fakeTagger) AgentTags(cardinality types.TagCardinality) ([]string, erro
 }
 
 // GlobalTags calls tagger.GlobalTags().
-func (f *fakeTagger) GlobalTags(cardinality types.TagCardinality) ([]string, error) {
-	return f.tagger.GlobalTags(cardinality)
+func (f *fakeTagger) GlobalTags() ([]string, error) {
+	return f.tagger.GlobalTags()
 }
 
 // EnrichTags calls tagger.EnrichTags().

@@ -61,7 +61,7 @@ func (n *noopTagger) AgentTags(types.TagCardinality) ([]string, error) {
 	return nil, nil
 }
 
-func (n *noopTagger) GlobalTags(types.TagCardinality) ([]string, error) {
+func (n *noopTagger) GlobalTags() ([]string, error) {
 	return nil, nil
 }
 

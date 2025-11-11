@@ -340,8 +340,8 @@ func (t *localTagger) AgentTags(cardinality types.TagCardinality) ([]string, err
 
 // GlobalTags queries global tags that should apply to all data coming from the
 // agent.
-func (t *localTagger) GlobalTags(cardinality types.TagCardinality) ([]string, error) {
-	return t.Tag(types.GetGlobalEntityID(), cardinality)
+func (t *localTagger) GlobalTags() ([]string, error) {
+	return t.Tag(types.GetGlobalEntityID(), types.LowCardinality)
 }
 
 // globalTagBuilder queries global tags that should apply to all data coming
