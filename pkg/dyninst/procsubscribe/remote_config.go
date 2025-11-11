@@ -398,11 +398,21 @@ func (s *Subscriber) runConnectedStream(
 	return <-errCh
 }
 
+type parsedRemoteConfigUpdate struct {
+	probes        map[string]ir.ProbeDefinition
+	haveSymdbFile bool
+	symdbEnabled  bool
+}
+
 func parseRemoteConfigFiles(
 	runtimeID string,
 	files []*pbgo.File,
-) (probes map[string]ir.ProbeDefinition, symdbEnabled bool) {
-	probes = make(map[string]ir.ProbeDefinition, len(files))
+) parsedRemoteConfigUpdate {
+	r := parsedRemoteConfigUpdate{
+		probes:        make(map[string]ir.ProbeDefinition, len(files)),
+		haveSymdbFile: false,
+		symdbEnabled:  false,
+	}
 
 	for _, file := range files {
 		path := file.GetPath()
@@ -431,7 +441,7 @@ func parseRemoteConfigFiles(
 				)
 				continue
 			}
-			probes[path] = probe
+			r.probes[path] = probe
 			if log.ShouldLog(log.TraceLvl) {
 				log.Tracef(
 					"process subscriber: runtime %s parsed probe %s version=%d",
@@ -439,9 +449,10 @@ func parseRemoteConfigFiles(
 				)
 			}
 		case data.ProductLiveDebuggingSymbolDB:
+			r.haveSymdbFile = true
 			raw := file.GetRaw()
 			if len(raw) == 0 {
-				symdbEnabled = false
+				r.symdbEnabled = false
 				continue
 			}
 			var payload struct {
@@ -454,11 +465,11 @@ func parseRemoteConfigFiles(
 				)
 				continue
 			}
-			symdbEnabled = payload.UploadSymbols
+			r.symdbEnabled = payload.UploadSymbols
 		}
 	}
 
-	return probes, symdbEnabled
+	return r
 }
 
 func gitInfoFromTags(tags []string) *process.GitInfo {
