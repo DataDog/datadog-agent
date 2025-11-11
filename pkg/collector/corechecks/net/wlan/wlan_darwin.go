@@ -10,6 +10,7 @@ package wlan
 
 import (
 	"bufio"
+	"context"
 	"encoding/json"
 	"fmt"
 	"net"
@@ -21,6 +22,7 @@ import (
 	"syscall"
 	"time"
 
+	checkpkg "github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -67,14 +69,19 @@ func GetWiFiInfo() (wifiInfo, error) {
 			return wifiInfo{}, fmt.Errorf("GUI IPC unavailable and failed to launch: %w", err)
 		}
 
-		// Wait for GUI to start and create socket
-		log.Info("Waiting for GUI to start...")
-		time.Sleep(3 * time.Second)
+		log.Info("Waiting for GUI to start, retrying connection...")
 
-		// Retry connection
-		info, err = fetchWiFiFromGUI(socketPath, 2*time.Second)
-		if err != nil {
-			return wifiInfo{}, fmt.Errorf("GUI IPC unavailable after launch attempt: %w", err)
+		// Retry connection with exponential backoff (20 retries over 10 seconds)
+		retryErr := checkpkg.Retry(500*time.Millisecond, 20, func() error {
+			info, err = fetchWiFiFromGUI(socketPath, 2*time.Second)
+			if err != nil {
+				return checkpkg.RetryableError{Err: err}
+			}
+			return nil
+		}, "GUI WiFi socket connection")
+
+		if retryErr != nil {
+			return wifiInfo{}, fmt.Errorf("GUI IPC unavailable after launch attempt: %w", retryErr)
 		}
 	}
 
@@ -161,17 +168,23 @@ func fetchWiFiFromGUI(socketPath string, timeout time.Duration) (wifiInfo, error
 		return wifiInfo{}, fmt.Errorf("socket validation failed: %w", err)
 	}
 
-	// Connect to Unix socket with timeout
-	conn, err := net.DialTimeout("unix", socketPath, timeout)
+	// Create context with overall timeout for the entire operation
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+
+	// Use Dialer with context for connection
+	var d net.Dialer
+	conn, err := d.DialContext(ctx, "unix", socketPath)
 	if err != nil {
 		return wifiInfo{}, fmt.Errorf("failed to connect to GUI socket %s: %w", socketPath, err)
 	}
 	defer conn.Close()
 
-	// Set read/write deadlines
-	deadline := time.Now().Add(timeout)
-	if err := conn.SetDeadline(deadline); err != nil {
-		return wifiInfo{}, fmt.Errorf("failed to set deadline: %w", err)
+	// Set deadline based on context deadline
+	if deadline, ok := ctx.Deadline(); ok {
+		if err := conn.SetDeadline(deadline); err != nil {
+			return wifiInfo{}, fmt.Errorf("failed to set deadline: %w", err)
+		}
 	}
 
 	// Send request
