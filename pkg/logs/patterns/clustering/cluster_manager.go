@@ -10,6 +10,7 @@ package clustering
 import (
 	"crypto/rand"
 	"encoding/binary"
+	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/patterns/token"
@@ -29,63 +30,94 @@ const (
 
 // ClusterManager manages the clustering of TokenLists using hash-based bucketing.
 type ClusterManager struct {
-	hashBuckets     map[uint64][]*Cluster
-	totalTokenLists int
-	totalClusters   int
+	mu          sync.RWMutex
+	hashBuckets map[uint64][]*Cluster
 }
 
 // NewClusterManager creates a new ClusterManager.
 func NewClusterManager() *ClusterManager {
 	return &ClusterManager{
-		hashBuckets:     make(map[uint64][]*Cluster),
-		totalTokenLists: 0,
-		totalClusters:   0,
+		hashBuckets: make(map[uint64][]*Cluster),
 	}
 }
 
 // Add processes a TokenList and adds it to the appropriate cluster.
-// Returns the cluster and a PatternChangeType indicating what changed.
-func (cm *ClusterManager) Add(tokenList *token.TokenList) (*Cluster, PatternChangeType) {
+// Returns the pattern that was created/updated and a PatternChangeType indicating what changed.
+func (cm *ClusterManager) Add(tokenList *token.TokenList) (*Pattern, PatternChangeType) {
 	if tokenList == nil || tokenList.IsEmpty() {
 		return nil, PatternNoChange
 	}
 
+	cm.mu.Lock()
+	defer cm.mu.Unlock()
+
+	// Create new signature and hash it
 	signature := token.NewSignature(tokenList)
 	hash := signature.Hash
 
+	// Get hash bucket
 	clusters := cm.hashBuckets[hash]
 
+	// Look for existing cluster with matching signature
 	for _, cluster := range clusters {
 		if cluster.Signature.Equals(signature) {
-			// Check if pattern will be updated
-			// If cluster already has a pattern and we're adding more token lists,
-			// the pattern might gain new wildcards
-			willUpdate := cluster.Size() > 1 && cluster.Pattern != nil
+			// Track the state before adding
+			hadPatterns := len(cluster.Patterns) > 0
+			oldPatternCount := len(cluster.Patterns)
 
-			cluster.Add(tokenList)
-			cm.totalTokenLists++
-
-			if willUpdate {
-				return cluster, PatternUpdated
+			// Track if patterns had wildcards before
+			hadWildcards := false
+			if hadPatterns {
+				for _, p := range cluster.Patterns {
+					if p.hasWildcards() {
+						hadWildcards = true
+						break
+					}
+				}
 			}
-			return cluster, PatternNoChange
+
+			// Add to appropriate pattern within the cluster
+			pattern := cluster.AddTokenListToPatterns(tokenList)
+
+			// Determine if this created a new pattern or updated an existing one
+			if pattern != nil {
+				newPatternCount := len(cluster.Patterns)
+				if newPatternCount > oldPatternCount {
+					// New pattern was created within the cluster (multi-pattern scenario)
+					return pattern, PatternNew
+				}
+
+				// Check if wildcards were added to an existing pattern
+				if hadPatterns && pattern.hasWildcards() && !hadWildcards {
+					// Pattern gained wildcards
+					return pattern, PatternUpdated
+				}
+
+				// If pattern already had wildcards and got more, it's also an update
+				if hadPatterns && hadWildcards && pattern.size() > 2 {
+					// Pattern structure may have changed (more wildcards)
+					return pattern, PatternUpdated
+				}
+			}
+			return pattern, PatternNoChange
 		}
 	}
 
 	// Creating a new cluster means a new pattern
 	newCluster := NewCluster(signature, tokenList)
-	newCluster.SetPatternID(generatePatternID())
+	// Add the token list to create the first pattern
+	pattern := newCluster.AddTokenListToPatterns(tokenList)
 	cm.hashBuckets[hash] = append(clusters, newCluster)
 
-	cm.totalTokenLists++
-	cm.totalClusters++
-
-	return newCluster, PatternNew
+	return pattern, PatternNew
 }
 
 // GetCluster retrieves the cluster with the given signature.
 func (cm *ClusterManager) GetCluster(signature token.Signature) *Cluster {
 	hash := signature.Hash
+
+	cm.mu.RLock()
+	defer cm.mu.RUnlock()
 
 	clusters, exists := cm.hashBuckets[hash]
 	if !exists {
@@ -101,108 +133,32 @@ func (cm *ClusterManager) GetCluster(signature token.Signature) *Cluster {
 	return nil
 }
 
-// GetClustersWithPatterns returns all clusters that have patterns defined.
-// This is useful for re-sending pattern state after stream rotation.
-func (cm *ClusterManager) GetClustersWithPatterns() []*Cluster {
-	var clustersWithPatterns []*Cluster
+// GetAllPatterns returns all patterns across all clusters.
+// This is useful for re-sending pattern state after stream hard rotation or shutdown.
+// Patterns are returned in no particular order since we are resending all patterns.
+// Quite expensive for now, might need to be optimized later.
+func (cm *ClusterManager) GetAllPatterns() []*Pattern {
+	var allPatterns []*Pattern
 
+	cm.mu.RLock()
+	defer cm.mu.RUnlock()
+
+	// Iterate through all clusters in all hash buckets
 	for _, clusters := range cm.hashBuckets {
 		for _, cluster := range clusters {
-			// Only include clusters with actual patterns
-			if cluster.Pattern != nil {
-				clustersWithPatterns = append(clustersWithPatterns, cluster)
-			}
+			// Collect all patterns from this cluster
+			allPatterns = append(allPatterns, cluster.Patterns...)
 		}
 	}
 
-	return clustersWithPatterns
+	return allPatterns
 }
 
-// Clear removes all clusters and resets statistics.
+// Clear removes all clusters.
 func (cm *ClusterManager) Clear() {
+	cm.mu.Lock()
+	defer cm.mu.Unlock()
 	cm.hashBuckets = make(map[uint64][]*Cluster)
-	cm.totalTokenLists = 0
-	cm.totalClusters = 0
-}
-
-// GetAllClusters returns all clusters in the manager.
-func (cm *ClusterManager) GetAllClusters() []*Cluster {
-	var allClusters []*Cluster
-
-	for _, clusters := range cm.hashBuckets {
-		allClusters = append(allClusters, clusters...)
-	}
-
-	return allClusters
-}
-
-// GetClustersByLength returns clusters by length.
-func (cm *ClusterManager) GetClustersByLength(length int) []*Cluster {
-	var result []*Cluster
-
-	for _, clusters := range cm.hashBuckets {
-		for _, cluster := range clusters {
-			if cluster.Signature.Length == length {
-				result = append(result, cluster)
-			}
-		}
-	}
-
-	return result
-}
-
-// GetClustersByHash returns clusters by hash.
-func (cm *ClusterManager) GetClustersByHash(hash uint64) []*Cluster {
-	if clusters, exists := cm.hashBuckets[hash]; exists {
-		result := make([]*Cluster, len(clusters))
-		copy(result, clusters)
-		return result
-	}
-
-	return []*Cluster{}
-}
-
-// Stats returns statistics about the clustering.
-type ClusterStats struct {
-	TotalTokenLists    int
-	TotalClusters      int
-	HashBuckets        int
-	AverageClusterSize float64
-}
-
-// GetStats returns current clustering statistics.
-func (cm *ClusterManager) GetStats() ClusterStats {
-	avgSize := 0.0
-	if cm.totalClusters > 0 {
-		avgSize = float64(cm.totalTokenLists) / float64(cm.totalClusters)
-	}
-
-	return ClusterStats{
-		TotalTokenLists:    cm.totalTokenLists,
-		TotalClusters:      cm.totalClusters,
-		HashBuckets:        len(cm.hashBuckets),
-		AverageClusterSize: avgSize,
-	}
-}
-
-// GetLargestClusters returns the N largest clusters.
-func (cm *ClusterManager) GetLargestClusters(n int) []*Cluster {
-	allClusters := cm.GetAllClusters()
-
-	// Simple bubble sort for small N
-	for i := 0; i < len(allClusters)-1; i++ {
-		for j := 0; j < len(allClusters)-i-1; j++ {
-			if allClusters[j].Size() < allClusters[j+1].Size() {
-				allClusters[j], allClusters[j+1] = allClusters[j+1], allClusters[j]
-			}
-		}
-	}
-
-	if n > len(allClusters) {
-		n = len(allClusters)
-	}
-
-	return allClusters[:n]
 }
 
 // generatePatternID generates a unique pattern ID

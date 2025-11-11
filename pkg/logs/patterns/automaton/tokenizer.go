@@ -200,10 +200,9 @@ func (t *Tokenizer) handleWhitespaceState(char rune) bool {
 }
 
 // handleSpecialState processes special characters
-func (t *Tokenizer) handleSpecialState(char rune) bool {
-	// Treat each special char as separate token
-	t.addToBuffer(char)
-	t.pos++
+func (t *Tokenizer) handleSpecialState(_ rune) bool {
+	// The special character is already in buffer from handleStartState
+	// Just create the token and reset state
 	t.createSpecialToken()
 	t.setState(StateStart)
 	return true
@@ -212,7 +211,7 @@ func (t *Tokenizer) handleSpecialState(char rune) bool {
 // classifyToken attempts to classify a single token's type using trie and terminal rules.
 func (t *Tokenizer) classifyToken(value string) (token.TokenType, error) {
 	if len(value) == 0 {
-		return token.TokenUnknown, fmt.Errorf("cannot classify empty srting token value")
+		return token.TokenUnknown, fmt.Errorf("cannot classify empty string token value")
 	}
 	return globalTrie.Match(value), nil
 }
@@ -295,7 +294,8 @@ func (t *Tokenizer) createNumericToken() {
 }
 
 func (t *Tokenizer) createWhitespaceToken() {
-	value := t.bufferToString()
+	// Normalize all whitespace (tabs, spaces, newlines, multiple spaces) to single space
+	value := " "
 	// Whitespace never becomes wildcard
 	tok := token.NewToken(token.TokenWhitespace, value, token.NotWildcard)
 	t.tokens = append(t.tokens, tok)

@@ -30,8 +30,16 @@ func NewSignature(tl *TokenList) Signature {
 	}
 
 	position := positionSignature(tl)
-	hash := computeHash(position)
 
+	// Include first word token value in signature if it exists
+	// This prevents messages with different first words but similar signature from being in the same cluster
+	// eg: I love burger vs You love burger
+	if len(tl.Tokens) > 0 && tl.Tokens[0].Type == TokenWord {
+		firstWordValue := tl.Tokens[0].Value
+		position = firstWordValue + position
+	}
+
+	hash := computeHash(position)
 	return Signature{
 		Position: position,
 		Length:   len(tl.Tokens),

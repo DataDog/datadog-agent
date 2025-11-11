@@ -16,334 +16,263 @@ import (
 )
 
 // Cluster represents a group of TokenLists with identical signatures.
+// A cluster may contain multiple patterns if token lists with the same signature cannot be merged since structural Fidelity is Valuable.
+// Examples:
+// "Status: OK"     → HTTP response format
+// "Status; OK"     → CSV-like format
+// "Status OK"      → Plain text format
+// These are different log formats, even if semantically similar → we need to keep them separate.
 type Cluster struct {
-	Signature   token.Signature
-	TokenLists  []*token.TokenList
-	Pattern     *token.TokenList
-	WildcardMap map[int]bool
-	PatternID   uint64
+	Signature token.Signature
+	Patterns  []*Pattern // Multiple patterns per cluster
 
-	// Timestamp tracking for stateful encoding
-	CreatedAt  time.Time // When pattern was first created
-	UpdatedAt  time.Time // When pattern was last modified
-	LastSentAt time.Time // When we last sent this pattern to gRPC
+	// Timestamp tracking for the cluster itself
+	CreatedAt time.Time // When cluster was first created
+	UpdatedAt time.Time // When cluster was last modified (any pattern changed)
 }
 
 // NewCluster creates a new cluster.
 func NewCluster(signature token.Signature, tokenList *token.TokenList) *Cluster {
 	now := time.Now()
 	return &Cluster{
-		Signature:   signature,
-		TokenLists:  []*token.TokenList{tokenList},
-		Pattern:     nil,
-		WildcardMap: make(map[int]bool),
-		PatternID:   0, // Will be assigned when pattern is generated
-		CreatedAt:   now,
-		UpdatedAt:   now,
-		LastSentAt:  time.Time{}, // Zero time - never sent
+		Signature: signature,
+		Patterns:  nil, // Will be generated when needed
+		CreatedAt: now,
+		UpdatedAt: now,
 	}
 }
 
-// Add adds a TokenList to this cluster if it has a matching signature.
-func (c *Cluster) Add(tokenList *token.TokenList) bool {
-	signature := token.NewSignature(tokenList)
+// =============================================================================
+// Core Clustering Logic
+// =============================================================================
 
-	if !c.Signature.Equals(signature) {
-		return false
+// AddTokenListToPatterns adds a TokenList to the appropriate pattern in the cluster.
+// If no matching pattern exists, creates a new one.
+func (c *Cluster) AddTokenListToPatterns(tokenList *token.TokenList) *Pattern {
+	// Ensure patterns are generated
+	if len(c.Patterns) == 0 {
+		// No patterns yet, create first one
+		patternID := generatePatternID()
+		pattern := newPattern(tokenList, patternID)
+
+		c.Patterns = []*Pattern{pattern}
+		// Update the cluster's new pattern at timestamp
+		c.UpdatedAt = time.Now()
+		return pattern
 	}
 
-	c.TokenLists = append(c.TokenLists, tokenList)
+	// Try to find a matching pattern
+	for _, p := range c.Patterns {
+		// Check if this TokenList can merge with this pattern's sample
+		if p.Sample != nil && merging.CanMergeTokenLists(tokenList, p.Sample) {
+			// Merge into existing pattern (same PatternID is preserved)
+			p.LogCount++
+			p.UpdatedAt = time.Now()
+			c.UpdatedAt = time.Now()
 
-	c.Pattern = nil
-	c.WildcardMap = make(map[int]bool)
-	c.UpdatedAt = time.Now() // Pattern will change when regenerated z
-
-	return true
-}
-
-// Size returns the number of TokenLists in this cluster.
-func (c *Cluster) Size() int {
-	return len(c.TokenLists)
-}
-
-// GeneratePattern analyzes all TokenLists in the cluster to identify wildcard positions.
-// Uses intelligent mergeability logic to determine which positions can be wildcarded.
-// If the cluster contains heterogeneous TokenLists that can't merge, uses the largest
-// mergeable group for pattern generation.
-func (c *Cluster) GeneratePattern() *token.TokenList {
-	if c.Pattern != nil {
-		return c.Pattern
-	}
-
-	if len(c.TokenLists) == 0 {
-		return nil
-	}
-
-	if len(c.TokenLists) == 1 {
-		c.Pattern = c.TokenLists[0]
-		return c.Pattern
-	}
-
-	// Check if cluster is heterogeneous - contains unmergeable sub-groups
-	groups := merging.FindMergeableGroups(c.TokenLists)
-
-	// If we have multiple groups, the cluster is heterogeneous
-	// Use the largest group for pattern generation
-	var primaryGroup []*token.TokenList
-	if len(groups) > 1 {
-		// Find the largest group
-		maxSize := 0
-		for _, group := range groups {
-			if len(group) > maxSize {
-				maxSize = len(group)
-				primaryGroup = group
-			}
+			// Incrementally merge the new token list into the pattern template
+			c.regeneratePattern(p, tokenList)
+			return p // Return existing pattern with updated template
 		}
-		// TODO: Need to handle semantic mergeability of different patterns in the group
-	} else {
-		primaryGroup = groups[0]
 	}
 
-	// Now generate pattern from the primary group using merging logic
-	template := primaryGroup[0]
-	if template.Length() == 0 {
-		return nil
+	// No matching pattern found, create a new one
+	patternID := generatePatternID()
+	pattern := newPattern(tokenList, patternID)
+	c.Patterns = append(c.Patterns, pattern)
+	c.UpdatedAt = time.Now()
+	return pattern
+}
+
+// regeneratePattern incrementally merges a new token list into the pattern.
+func (c *Cluster) regeneratePattern(p *Pattern, newTokenList *token.TokenList) {
+	if p.Template == nil {
+		return
 	}
 
-	// Start with the template
-	pattern := template
-
-	// Progressively merge with each TokenList in the group
-	for i := 1; i < len(primaryGroup); i++ {
-		merged := merging.MergeTokenLists(pattern, primaryGroup[i])
-		if merged != nil {
-			pattern = merged
-		}
-		// If merge fails (shouldn't happen since FindMergeableGroups verified it), keep current pattern
+	// Incremental merge: merge new log with existing template
+	merged := merging.MergeTokenLists(p.Template, newTokenList)
+	if merged == nil {
+		// Merge failed (shouldn't happen since CanMergeTokenLists passed), keep current template
+		return
 	}
 
-	// Build wildcard map and handle special path patterns
-	c.WildcardMap = make(map[int]bool)
-	patternTokens := make([]token.Token, pattern.Length())
+	p.Template = merged
+	p.Positions = make([]int, 0, merged.Length())
 
-	for i := 0; i < pattern.Length(); i++ {
-		tok := pattern.Tokens[i]
-
+	// Build wildcard positions list
+	for i := 0; i < merged.Length(); i++ {
+		tok := merged.Tokens[i]
 		if tok.Wildcard == token.IsWildcard {
-			c.WildcardMap[i] = true
+			p.Positions = append(p.Positions, i)
 
 			// Special handling for path wildcards
-			if tok.Type == token.TokenAbsolutePath && len(primaryGroup) > 0 {
-				firstPath := primaryGroup[0].Tokens[i].Value
-				tok.Value = getPathPattern(firstPath)
+			if tok.Type == token.TokenAbsolutePath && p.Sample != nil && i < p.Sample.Length() {
+				firstPath := p.Sample.Tokens[i].Value
+				merged.Tokens[i].Value = getPathPattern(firstPath)
 			}
 		}
-
-		patternTokens[i] = tok
 	}
 
-	c.Pattern = token.NewTokenListWithTokens(patternTokens)
-	return c.Pattern
+	p.UpdatedAt = time.Now()
 }
 
-// GetWildcardPositions returns wildcard token positions (indices in token array).
-func (c *Cluster) GetWildcardPositions() []int {
-	if c.Pattern == nil {
-		c.GeneratePattern()
-	}
+// =============================================================================
+// Pattern Access Methods
+// =============================================================================
 
-	var positions []int
-	for pos := range c.WildcardMap {
-		positions = append(positions, pos)
-	}
-
-	return positions
-}
-
-// GetWildcardCharPositions returns character positions where wildcards appear in the pattern string.
-// This is used for stateful encoding where the intake needs to know where to insert dynamic values.
-func (c *Cluster) GetWildcardCharPositions() []int {
-	if c.Pattern == nil {
-		c.GeneratePattern()
-	}
-
-	var charPositions []int
-	currentPos := 0
-
-	for _, tok := range c.Pattern.Tokens {
-		// Clean the token value for proper length calculation
-		cleaned := sanitizeForTemplate(tok.Value)
-
-		if tok.Wildcard == token.IsWildcard {
-			// Record the current character position for this wildcard
-			charPositions = append(charPositions, currentPos)
-			// Wildcard is represented as "*" (1 character)
-			currentPos += 1
-		} else if cleaned != "" {
-			// Add the length of the cleaned token value
-			currentPos += len(cleaned)
-		}
-	}
-
-	return charPositions
-}
-
-// HasWildcards returns true if this cluster contains wildcard positions.
-func (c *Cluster) HasWildcards() bool {
-	if c.Pattern == nil {
-		c.GeneratePattern()
-	}
-
-	return len(c.WildcardMap) > 0
-}
-
-// GetWildcardValues extracts the actual values from the most recent token list that correspond to wildcard positions
-func (c *Cluster) GetWildcardValues() []string {
-	if c.Pattern == nil {
-		c.GeneratePattern()
-	}
-
-	// Get the most recent token list
-	if len(c.TokenLists) == 0 {
+// FindMatchingPattern finds the Pattern that matches the given TokenList.
+// Returns the matching Pattern, or nil if no match found.
+func (c *Cluster) FindMatchingPattern(tokenList *token.TokenList) *Pattern {
+	// Ensure patterns are generated
+	if len(c.Patterns) == 0 {
 		return nil
 	}
-	lastTokenList := c.TokenLists[len(c.TokenLists)-1]
 
-	// Extract values at wildcard positions
-	var values []string
-	for i, tok := range c.Pattern.Tokens {
-		if tok.Wildcard == token.IsWildcard {
-			if i < len(lastTokenList.Tokens) {
-				values = append(values, lastTokenList.Tokens[i].Value)
-			}
+	// Try to find a Pattern where the TokenList can merge
+	for _, p := range c.Patterns {
+		// Check if this TokenList can merge with the pattern's sample
+		if p.Sample != nil && merging.CanMergeTokenLists(tokenList, p.Sample) {
+			return p
 		}
 	}
 
-	return values
+	// Fallback: return most common pattern (largest group)
+	return c.GetMostCommonPattern()
 }
 
-// ExtractWildcardValues extracts the wildcard values from a specific TokenList
-func (c *Cluster) ExtractWildcardValues(tokenList *token.TokenList) []string {
-	if c.Pattern == nil {
-		c.GeneratePattern()
-	}
-
-	if len(c.WildcardMap) == 0 {
-		return []string{}
-	}
-
-	var wildcardValues []string
-	for i := 0; i < tokenList.Length(); i++ {
-		if c.WildcardMap[i] {
-			wildcardValues = append(wildcardValues, tokenList.Tokens[i].Value)
-		}
-	}
-
-	return wildcardValues
-}
-
-// GetPatternString returns a string representation of the pattern
+// GetPatternString returns a string representation of the most common pattern.
+// For backward compatibility.
 func (c *Cluster) GetPatternString() string {
-	if c.Pattern == nil {
-		c.GeneratePattern()
-	}
-
-	if c.Pattern == nil {
+	primary := c.GetMostCommonPattern()
+	if primary == nil {
 		return ""
 	}
-
-	var parts []string
-	for _, tok := range c.Pattern.Tokens {
-		// Use "*" for wildcard positions, actual value otherwise
-		if tok.Wildcard == token.IsWildcard {
-			parts = append(parts, "*")
-		} else {
-			// Only use printable ASCII/UTF-8 characters in the template
-			cleaned := sanitizeForTemplate(tok.Value)
-			if cleaned != "" {
-				parts = append(parts, cleaned)
-			}
-		}
-	}
-	return strings.Join(parts, "")
+	return primary.getPatternString()
 }
 
-// sanitizeForTemplate removes non-printable characters from template strings
-func sanitizeForTemplate(s string) string {
-	runes := []rune(s)
-	result := make([]rune, 0, len(runes))
-	for _, r := range runes {
-		// Keep only printable characters (space and above, excluding DEL)
-		if r >= ' ' && r != 0x7F && r < 0xFFFD {
-			result = append(result, r)
+// GetMostCommonPattern returns the pattern with the highest log count in this cluster.
+// When a cluster contains multiple patterns (due to structural differences like special characters),
+// this returns the most frequently occurring pattern, which is typically the most representative.
+func (c *Cluster) GetMostCommonPattern() *Pattern {
+	if len(c.Patterns) == 0 {
+		return nil
+	}
+
+	mostCommonIdx := 0
+	maxLogCount := c.Patterns[0].LogCount
+	for idx, p := range c.Patterns {
+		if p.LogCount > maxLogCount {
+			maxLogCount = p.LogCount
+			mostCommonIdx = idx
 		}
 	}
-	return string(result)
+	return c.Patterns[mostCommonIdx]
 }
 
-// GetPatternID returns the pattern ID for this cluster
+// GetAllPatterns returns all Patterns in this cluster.
+func (c *Cluster) GetAllPatterns() []*Pattern {
+	return c.Patterns
+}
+
+// GetPatternID returns the pattern ID for the most common pattern.
+// For backward compatibility.
 func (c *Cluster) GetPatternID() uint64 {
-	return c.PatternID
+	primary := c.GetMostCommonPattern()
+	if primary == nil {
+		return 0
+	}
+	return primary.PatternID
 }
 
-// SetPatternID sets the pattern ID for this cluster
-func (c *Cluster) SetPatternID(id uint64) {
-	c.PatternID = id
+// =============================================================================
+// Wildcard Methods
+// =============================================================================
+
+// HasWildcards returns true if any pattern in this cluster contains wildcard positions.
+func (c *Cluster) HasWildcards() bool {
+	for _, p := range c.Patterns {
+		if p.hasWildcards() {
+			return true
+		}
+	}
+	return false
 }
 
-// MarkAsSent updates the LastSentAt timestamp to indicate this pattern was sent to gRPC
+// GetWildcardPositions returns wildcard token positions for the most common pattern.
+// For backward compatibility.
+func (c *Cluster) GetWildcardPositions() []int {
+	primary := c.GetMostCommonPattern()
+	if primary == nil {
+		return nil
+	}
+	return primary.getWildcardPositions()
+}
+
+// GetWildcardCharPositions returns character positions where wildcards appear in the most common pattern string.
+// For backward compatibility.
+func (c *Cluster) GetWildcardCharPositions() []int {
+	primary := c.GetMostCommonPattern()
+	if primary == nil {
+		return nil
+	}
+	return primary.getWildcardCharPositions()
+}
+
+// GetWildcardValues extracts the actual values from the most recent token list in the most common pattern.
+// For backward compatibility.
+func (c *Cluster) GetWildcardValues() []string {
+	primary := c.GetMostCommonPattern()
+	if primary == nil {
+		return nil
+	}
+	return primary.getWildcardValues()
+}
+
+// ExtractWildcardValues extracts the wildcard values from a specific TokenList.
+// Uses the matching Pattern to determine wildcard positions.
+func (c *Cluster) ExtractWildcardValues(tokenList *token.TokenList) []string {
+	// Find the matching pattern for this TokenList
+	p := c.FindMatchingPattern(tokenList)
+	if p == nil {
+		return []string{}
+	}
+	return p.extractWildcardValues(tokenList)
+}
+
+// =============================================================================
+// State Management & Metadata
+// =============================================================================
+
+// Size returns the total number of TokenLists across all patterns in this cluster.
+func (c *Cluster) Size() int {
+	total := 0
+	for _, p := range c.Patterns {
+		total += p.size()
+	}
+	return total
+}
+
+// MarkAsSent updates the LastSentAt timestamp for all patterns.
 func (c *Cluster) MarkAsSent() {
-	c.LastSentAt = time.Now()
+	for _, p := range c.Patterns {
+		p.markAsSent()
+	}
 }
 
-// NeedsSending returns true if this pattern has never been sent or has been updated since last sent
+// NeedsSending returns true if any pattern has never been sent or has been updated since last sent.
 func (c *Cluster) NeedsSending() bool {
-	return c.LastSentAt.IsZero() || c.UpdatedAt.After(c.LastSentAt)
-}
-
-// IsNewPattern returns true if this pattern has never been sent
-func (c *Cluster) IsNewPattern() bool {
-	return c.LastSentAt.IsZero()
-}
-
-// WasUpdatedSinceLastSent returns true if pattern was updated since last sent
-func (c *Cluster) WasUpdatedSinceLastSent() bool {
-	return !c.LastSentAt.IsZero() && c.UpdatedAt.After(c.LastSentAt)
-}
-
-// MergeTokensIfFits attempts to merge this cluster with another cluster.
-// This is used for batch consolidation where clusters with the same signature
-// might be further consolidated based on semantic mergeability.
-func (c *Cluster) MergeTokensIfFits(other *Cluster) bool {
-	// Check if clusters have the same structure
-	if c.Signature.Position != other.Signature.Position || c.Signature.Length != other.Signature.Length {
-		return false
+	for _, p := range c.Patterns {
+		if p.needsSending() {
+			return true
+		}
 	}
-
-	// Check if tokens can be merged at each position
-	if len(c.TokenLists) == 0 || len(other.TokenLists) == 0 {
-		return false
-	}
-
-	// Use the first TokenList from each cluster for comparison
-	tokenList1 := c.TokenLists[0]
-	tokenList2 := other.TokenLists[0]
-
-	// Delegate to merging package for semantic mergeability check
-	if !merging.CanMergeTokenLists(tokenList1, tokenList2) {
-		return false
-	}
-
-	// Merge is possible - add other cluster's TokenLists to this cluster
-	c.TokenLists = append(c.TokenLists, other.TokenLists...)
-
-	// Invalidate pattern cache since cluster has changed
-	c.Pattern = nil
-	c.WildcardMap = make(map[int]bool)
-	c.UpdatedAt = time.Now()
-
-	return true
+	return false
 }
+
+// =============================================================================
+// Helper Functions
+// =============================================================================
 
 // getPathPattern converts a path to hierarchical wildcard pattern
 func getPathPattern(path string) string {

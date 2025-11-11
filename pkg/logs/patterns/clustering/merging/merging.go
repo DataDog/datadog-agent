@@ -14,14 +14,10 @@ import (
 
 // shouldProtectPosition determines if a the token is the first word token and should be wildcarded.
 func shouldProtectPosition(position int, tokenType token.TokenType) bool {
-	if position == 0 && tokenType == token.TokenWord {
-		return true
-	}
-
-	return false
+	return position == 0 && tokenType == token.TokenWord
 }
 
-// CanMergeTokenLists checks if two TokenLists can be merged into a unified pattern.
+// CanMergeTokenLists checks if incoming log (tl2) can merge with existing pattern's sample (tl1).
 // Returns true only if all token positions are either identical or mergeable according
 // to their comparison results and protection rules.
 func CanMergeTokenLists(tl1, tl2 *token.TokenList) bool {
@@ -45,7 +41,7 @@ func CanMergeTokenLists(tl1, tl2 *token.TokenList) bool {
 			continue
 		}
 
-		// For wildcard result, check protection rules
+		// For wildcard result, check first word protection rule
 		if result == token.Wildcard && shouldProtectPosition(i, tok1.Type) {
 			return false
 		}
@@ -88,55 +84,4 @@ func MergeTokenLists(tl1, tl2 *token.TokenList) *token.TokenList {
 	}
 
 	return merged
-}
-
-// FindMergeableGroups analyzes a list of TokenLists and groups them by mergeability.
-// This is used to detect heterogeneous clusters that should be split into multiple patterns.
-// Returns a list of groups where each group contains mutually mergeable TokenLists.
-func FindMergeableGroups(tokenLists []*token.TokenList) [][]*token.TokenList {
-	if len(tokenLists) == 0 {
-		return nil
-	}
-
-	if len(tokenLists) == 1 {
-		return [][]*token.TokenList{tokenLists}
-	}
-
-	var groups [][]*token.TokenList
-	processed := make(map[int]bool)
-
-	for i := 0; i < len(tokenLists); i++ {
-		if processed[i] {
-			continue
-		}
-
-		// Start a new group with this TokenList
-		group := []*token.TokenList{tokenLists[i]}
-		processed[i] = true
-
-		// Find all TokenLists that can merge with this one
-		for j := i + 1; j < len(tokenLists); j++ {
-			if processed[j] {
-				continue
-			}
-
-			// Check if this TokenList can merge with all members of the current group
-			canMergeWithGroup := true
-			for _, groupMember := range group {
-				if !CanMergeTokenLists(tokenLists[j], groupMember) {
-					canMergeWithGroup = false
-					break
-				}
-			}
-
-			if canMergeWithGroup {
-				group = append(group, tokenLists[j])
-				processed[j] = true
-			}
-		}
-
-		groups = append(groups, group)
-	}
-
-	return groups
 }

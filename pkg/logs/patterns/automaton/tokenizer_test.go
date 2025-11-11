@@ -297,9 +297,10 @@ func TestComplexLogScenarios(t *testing.T) {
 			expected: []token.TokenType{
 				token.TokenWord,       // Price
 				token.TokenWhitespace, // space
-				token.TokenWord,       // @ (with trailing space)
-				token.TokenWord,       // $1
-				token.TokenNumeric,    // 0
+				token.TokenWord,       // @
+				token.TokenWhitespace, // space
+				token.TokenWord,       // $
+				token.TokenNumeric,    // 10
 				token.TokenWhitespace, // space
 				token.TokenWord,       // each
 			},
@@ -316,7 +317,8 @@ func TestComplexLogScenarios(t *testing.T) {
 				token.TokenWhitespace, // space
 				token.TokenNumeric,    // 2
 				token.TokenWhitespace, // space
-				token.TokenWord,       // = (with trailing space)
+				token.TokenWord,       // =
+				token.TokenWhitespace, // space
 				token.TokenNumeric,    // 5
 			},
 		},
@@ -324,9 +326,10 @@ func TestComplexLogScenarios(t *testing.T) {
 			name:  "False Positive - Phone number is not Date",
 			input: "Phone: 123-456-7890",
 			expected: []token.TokenType{
-				token.TokenWord,    // Phone
-				token.TokenWord,    // : (with trailing space)
-				token.TokenNumeric, // 123-456-7890 stays numeric, not date
+				token.TokenWord,       // Phone
+				token.TokenWord,       // :
+				token.TokenWhitespace, // space
+				token.TokenNumeric,    // 123-456-7890 stays numeric, not date
 			},
 		},
 	}
@@ -346,6 +349,103 @@ func TestComplexLogScenarios(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestWhitespaceNormalization tests that all whitespace types are normalized to single space
+func TestWhitespaceNormalization(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name:     "Single space",
+			input:    "Error: message",
+			expected: " ",
+		},
+		{
+			name:     "Tab character",
+			input:    "Error:\tmessage",
+			expected: " ",
+		},
+		{
+			name:     "Multiple spaces",
+			input:    "Error:  message",
+			expected: " ",
+		},
+		{
+			name:     "Multiple tabs",
+			input:    "Error:\t\tmessage",
+			expected: " ",
+		},
+		{
+			name:     "Mixed tabs and spaces",
+			input:    "Error: \t message",
+			expected: " ",
+		},
+		{
+			name:     "Newline",
+			input:    "Error:\nmessage",
+			expected: " ",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			tokenList := TokenizeString(test.input)
+
+			// Find whitespace token
+			var whitespaceToken *token.Token
+			for i := range tokenList.Tokens {
+				if tokenList.Tokens[i].Type == token.TokenWhitespace {
+					whitespaceToken = &tokenList.Tokens[i]
+					break
+				}
+			}
+
+			assert.NotNil(t, whitespaceToken, "Expected to find whitespace token")
+
+			if whitespaceToken != nil {
+				assert.Equal(t, test.expected, whitespaceToken.Value,
+					"Whitespace should be normalized to single space")
+				assert.Equal(t, token.NotWildcard, whitespaceToken.Wildcard,
+					"Whitespace should be NotWildcard")
+			}
+		})
+	}
+}
+
+// TestWhitespaceNormalization_Signature tests if whitespace normalization would allows logs with different whitespace to merge into the same pattern
+func TestWhitespaceNormalization_Signature(t *testing.T) {
+	// These logs differ only in whitespace - they should tokenize identically
+	log1 := "Error: connection failed"  // single space
+	log2 := "Error:\tconnection failed" // tab
+	log3 := "Error:  connection failed" // double space
+
+	tl1 := TokenizeString(log1)
+	tl2 := TokenizeString(log2)
+	tl3 := TokenizeString(log3)
+
+	// All should have same token count
+	assert.Equal(t, tl1.Length(), tl2.Length(), "Token counts should match")
+	assert.Equal(t, tl1.Length(), tl3.Length(), "Token counts should match")
+
+	// All whitespace tokens should be normalized to single space
+	for i := 0; i < tl1.Length(); i++ {
+		if tl1.Tokens[i].Type == token.TokenWhitespace {
+			assert.Equal(t, " ", tl1.Tokens[i].Value, "Whitespace in log1 should be normalized")
+			assert.Equal(t, " ", tl2.Tokens[i].Value, "Whitespace in log2 should be normalized")
+			assert.Equal(t, " ", tl3.Tokens[i].Value, "Whitespace in log3 should be normalized")
+		}
+	}
+
+	// Signatures should be identical
+	sig1 := token.NewSignature(tl1)
+	sig2 := token.NewSignature(tl2)
+	sig3 := token.NewSignature(tl3)
+
+	assert.True(t, sig1.Equals(sig2), "Signatures should be equal after normalization")
+	assert.True(t, sig1.Equals(sig3), "Signatures should be equal after normalization")
 }
 
 // ===============================

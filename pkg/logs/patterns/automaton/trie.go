@@ -32,7 +32,7 @@ var globalRuleManager *RuleManager
 var globalTrie *Trie
 
 // init initializes the global trie and rule manager
-// todo: componentilize this eventually
+// todo: componentize this eventually
 func init() {
 	globalTrie = NewTrie()
 	globalRuleManager = NewRuleManager()

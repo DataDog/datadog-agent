@@ -43,40 +43,52 @@ func TestNewSignature(t *testing.T) {
 }
 
 func TestSignature_Equals(t *testing.T) {
+	// Test 1: Same structure, SAME first word, different other values → EQUAL signatures
 	tokens1 := []Token{
 		{Type: TokenWord, Value: "hello"},
 		{Type: TokenWhitespace, Value: " "},
 		{Type: TokenWord, Value: "world"},
 	}
 	tokens2 := []Token{
-		{Type: TokenWord, Value: "goodbye"},
+		{Type: TokenWord, Value: "hello"}, // Same first word!
+		{Type: TokenWhitespace, Value: " "},
+		{Type: TokenWord, Value: "universe"}, // Different second word
+	}
+	tl1 := NewTokenListWithTokens(tokens1)
+	tl2 := NewTokenListWithTokens(tokens2)
+	sig1 := NewSignature(tl1)
+	sig2 := NewSignature(tl2)
+
+	if !sig1.Equals(sig2) {
+		t.Error("TokenLists with same first word and structure should have equal signatures")
+	}
+
+	// Test 2: Same structure, DIFFERENT first word → DIFFERENT signatures
+	tokens3 := []Token{
+		{Type: TokenWord, Value: "goodbye"}, // Different first word
 		{Type: TokenWhitespace, Value: " "},
 		{Type: TokenWord, Value: "world"},
 	}
-	tokens3 := []Token{
+	tl3 := NewTokenListWithTokens(tokens3)
+	sig3 := NewSignature(tl3)
+
+	if sig1.Equals(sig3) {
+		t.Error("TokenLists with different first word should NOT have equal signatures")
+	}
+
+	// Test 3: Different structure (different types) → DIFFERENT signatures
+	tokens4 := []Token{
 		{Type: TokenWord, Value: "hello"},
 		{Type: TokenNumeric, Value: "123"}, // Different type
 	}
+	tl4 := NewTokenListWithTokens(tokens4)
+	sig4 := NewSignature(tl4)
 
-	tl1 := NewTokenListWithTokens(tokens1)
-	tl2 := NewTokenListWithTokens(tokens2)
-	tl3 := NewTokenListWithTokens(tokens3)
-
-	sig1 := NewSignature(tl1)
-	sig2 := NewSignature(tl2)
-	sig3 := NewSignature(tl3)
-
-	// Same structure, different values - should be equal
-	if !sig1.Equals(sig2) {
-		t.Error("TokenLists with same structure should have equal signatures")
-	}
-
-	// Different structure - should not be equal
-	if sig1.Equals(sig3) {
+	if sig1.Equals(sig4) {
 		t.Error("TokenLists with different structure should not have equal signatures")
 	}
 
-	// Test signature equality with itself
+	// Test 4: Signature equality with itself
 	if !sig1.Equals(sig1) {
 		t.Error("Signature should equal itself")
 	}

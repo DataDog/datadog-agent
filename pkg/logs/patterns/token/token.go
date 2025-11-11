@@ -41,7 +41,7 @@ const (
 	TokenDate          // TokenDate is the date token type
 )
 
-// WildcardStatus describes a token's relationship to wildcards
+// WildcardStatus describes a token's potential to become a wildcard
 type WildcardStatus int
 
 const (
@@ -95,14 +95,14 @@ func (t *Token) String() string {
 	return fmt.Sprintf("%s(%s)", t.Type, t.Value)
 }
 
-// Compare checks if two tokens can merge and returns the result
+// Compare checks if two tokens can merge
 func (t *Token) Compare(t2 *Token) MergeResult {
 	// Different types cannot merge
 	if t.Type != t2.Type {
 		return Conflict
 	}
 
-	// Identical value
+	// Same type same value - check this first before type-specific logic
 	if t.Value == t2.Value {
 		return Identical
 	}
@@ -112,7 +112,6 @@ func (t *Token) Compare(t2 *Token) MergeResult {
 		return Identical
 	}
 
-	// Different values - check if they can merge into wildcard
 	// Whitespace never wildcards (structural)
 	if t.Type == TokenWhitespace {
 		return Conflict

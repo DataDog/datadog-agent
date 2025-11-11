@@ -8,20 +8,15 @@ package clustering
 import (
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/DataDog/datadog-agent/pkg/logs/patterns/token"
 )
 
 func TestClusterManager_NewClusterManager(t *testing.T) {
 	cm := NewClusterManager()
 
-	if cm == nil {
-		t.Fatal("ClusterManager should not be nil")
-	}
-
-	stats := cm.GetStats()
-	if stats.TotalTokenLists != 0 || stats.TotalClusters != 0 || stats.HashBuckets != 0 {
-		t.Error("New ClusterManager should have zero stats")
-	}
+	assert.NotNil(t, cm, "ClusterManager should not be nil")
 }
 
 func TestClusterManager_Add_NewCluster(t *testing.T) {
@@ -29,31 +24,17 @@ func TestClusterManager_Add_NewCluster(t *testing.T) {
 
 	// Create TokenList
 	tokens := []token.Token{
-		{Value: "GET", Type: token.TokenHttpMethod},
+		{Value: "GET", Type: token.TokenHTTPMethod},
 		{Value: " ", Type: token.TokenWhitespace},
 		{Value: "/api", Type: token.TokenAbsolutePath},
 	}
 	tokenList := token.NewTokenListWithTokens(tokens)
 
-	cluster, changeType := cm.Add(tokenList)
+	pattern, changeType := cm.Add(tokenList)
 
-	if cluster == nil {
-		t.Fatal("Should return a cluster")
-	}
-
-	if cluster.Size() != 1 {
-		t.Errorf("Cluster should have size 1, got %d", cluster.Size())
-	}
-
-	if changeType != PatternNew {
-		t.Errorf("Expected PatternNew for first add, got %v", changeType)
-	}
-
-	stats := cm.GetStats()
-	if stats.TotalTokenLists != 1 || stats.TotalClusters != 1 {
-		t.Errorf("Expected 1 TokenList and 1 cluster, got %d TokenLists and %d clusters",
-			stats.TotalTokenLists, stats.TotalClusters)
-	}
+	assert.NotNil(t, pattern, "Should return a pattern")
+	assert.Equal(t, 1, pattern.LogCount, "Pattern should have log count 1")
+	assert.Equal(t, PatternNew, changeType, "Expected PatternNew for first add")
 }
 
 func TestClusterManager_Add_ExistingCluster(t *testing.T) {
@@ -61,12 +42,12 @@ func TestClusterManager_Add_ExistingCluster(t *testing.T) {
 
 	// Create two TokenLists with same signature
 	tokens1 := []token.Token{
-		{Value: "GET", Type: token.TokenHttpMethod},
+		{Value: "GET", Type: token.TokenHTTPMethod},
 		{Value: " ", Type: token.TokenWhitespace},
 		{Value: "/api", Type: token.TokenAbsolutePath},
 	}
 	tokens2 := []token.Token{
-		{Value: "POST", Type: token.TokenHttpMethod}, // Different value, same type
+		{Value: "POST", Type: token.TokenHTTPMethod}, // Different value, same type
 		{Value: " ", Type: token.TokenWhitespace},
 		{Value: "/users", Type: token.TokenAbsolutePath}, // Different value, same type
 	}
@@ -74,31 +55,16 @@ func TestClusterManager_Add_ExistingCluster(t *testing.T) {
 	tokenList1 := token.NewTokenListWithTokens(tokens1)
 	tokenList2 := token.NewTokenListWithTokens(tokens2)
 
-	cluster1, changeType1 := cm.Add(tokenList1)
-	cluster2, changeType2 := cm.Add(tokenList2)
+	pattern1, changeType1 := cm.Add(tokenList1)
+	pattern2, changeType2 := cm.Add(tokenList2)
 
-	// Should be the same cluster
-	if cluster1 != cluster2 {
-		t.Error("TokenLists with same signature should go to same cluster")
-	}
+	// Should be the same pattern (same cluster, merged together)
+	assert.Equal(t, pattern1.PatternID, pattern2.PatternID, "TokenLists with same signature should merge into same pattern")
+	assert.Equal(t, 2, pattern2.LogCount, "Pattern should have log count 2")
+	assert.Equal(t, PatternNew, changeType1, "Expected PatternNew for first add")
 
-	if cluster1.Size() != 2 {
-		t.Errorf("Cluster should have size 2, got %d", cluster1.Size())
-	}
-
-	if changeType1 != PatternNew {
-		t.Errorf("Expected PatternNew for first add, got %v", changeType1)
-	}
-
-	if changeType2 != PatternNoChange {
-		t.Errorf("Expected PatternNoChange for second add to same cluster, got %v", changeType2)
-	}
-
-	stats := cm.GetStats()
-	if stats.TotalTokenLists != 2 || stats.TotalClusters != 1 {
-		t.Errorf("Expected 2 TokenLists and 1 cluster, got %d TokenLists and %d clusters",
-			stats.TotalTokenLists, stats.TotalClusters)
-	}
+	// With eager pattern generation, adding the second token list creates wildcards (pattern update)
+	assert.Equal(t, PatternUpdated, changeType2, "Expected PatternUpdated for second add (creates wildcards)")
 }
 
 func TestClusterManager_Add_DifferentSignatures(t *testing.T) {
@@ -106,7 +72,7 @@ func TestClusterManager_Add_DifferentSignatures(t *testing.T) {
 
 	// Create TokenLists with different signatures
 	tokens1 := []token.Token{
-		{Value: "GET", Type: token.TokenHttpMethod},
+		{Value: "GET", Type: token.TokenHTTPMethod},
 		{Value: " ", Type: token.TokenWhitespace},
 		{Value: "/api", Type: token.TokenAbsolutePath},
 	}
@@ -119,19 +85,11 @@ func TestClusterManager_Add_DifferentSignatures(t *testing.T) {
 	tokenList1 := token.NewTokenListWithTokens(tokens1)
 	tokenList2 := token.NewTokenListWithTokens(tokens2)
 
-	cluster1, _ := cm.Add(tokenList1)
-	cluster2, _ := cm.Add(tokenList2)
+	pattern1, _ := cm.Add(tokenList1)
+	pattern2, _ := cm.Add(tokenList2)
 
-	// Should be different clusters
-	if cluster1 == cluster2 {
-		t.Error("TokenLists with different signatures should go to different clusters")
-	}
-
-	stats := cm.GetStats()
-	if stats.TotalTokenLists != 2 || stats.TotalClusters != 2 {
-		t.Errorf("Expected 2 TokenLists and 2 clusters, got %d TokenLists and %d clusters",
-			stats.TotalTokenLists, stats.TotalClusters)
-	}
+	// Should be different patterns (different clusters)
+	assert.NotEqual(t, pattern1.PatternID, pattern2.PatternID, "TokenLists with different signatures should create different patterns")
 }
 
 func TestClusterManager_GetCluster(t *testing.T) {
@@ -139,21 +97,21 @@ func TestClusterManager_GetCluster(t *testing.T) {
 
 	// Create and add TokenList
 	tokens := []token.Token{
-		{Value: "GET", Type: token.TokenHttpMethod},
+		{Value: "GET", Type: token.TokenHTTPMethod},
 		{Value: " ", Type: token.TokenWhitespace},
 		{Value: "/api", Type: token.TokenAbsolutePath},
 	}
 	tokenList := token.NewTokenListWithTokens(tokens)
 	signature := token.NewSignature(tokenList)
 
-	addedCluster, _ := cm.Add(tokenList)
+	addedPattern, _ := cm.Add(tokenList)
 
 	// Retrieve cluster by signature
 	retrievedCluster := cm.GetCluster(signature)
 
-	if retrievedCluster != addedCluster {
-		t.Error("Retrieved cluster should be the same as added cluster")
-	}
+	assert.NotNil(t, retrievedCluster, "Should retrieve cluster by signature")
+	assert.Equal(t, 1, len(retrievedCluster.Patterns), "Cluster should have 1 pattern")
+	assert.Equal(t, addedPattern.PatternID, retrievedCluster.Patterns[0].PatternID, "Pattern IDs should match")
 
 	// Try to get non-existent cluster
 	differentTokens := []token.Token{
@@ -165,158 +123,7 @@ func TestClusterManager_GetCluster(t *testing.T) {
 	differentSignature := token.NewSignature(differentTokenList)
 
 	nonExistentCluster := cm.GetCluster(differentSignature)
-	if nonExistentCluster != nil {
-		t.Error("Should return nil for non-existent cluster")
-	}
-}
-
-func TestClusterManager_GetAllClusters(t *testing.T) {
-	cm := NewClusterManager()
-
-	// Add multiple clusters
-	tokens1 := []token.Token{
-		{Value: "GET", Type: token.TokenHttpMethod},
-		{Value: " ", Type: token.TokenWhitespace},
-		{Value: "/api", Type: token.TokenAbsolutePath},
-	}
-	tokens2 := []token.Token{
-		{Value: "ERROR", Type: token.TokenSeverityLevel},
-		{Value: " ", Type: token.TokenWhitespace},
-		{Value: "failed", Type: token.TokenWord},
-	}
-	tokens3 := []token.Token{
-		{Value: "192.168.1.1", Type: token.TokenIPv4},
-		{Value: " ", Type: token.TokenWhitespace},
-		{Value: "connected", Type: token.TokenWord},
-	}
-
-	tokenList1 := token.NewTokenListWithTokens(tokens1)
-	tokenList2 := token.NewTokenListWithTokens(tokens2)
-	tokenList3 := token.NewTokenListWithTokens(tokens3)
-
-	cm.Add(tokenList1)
-	cm.Add(tokenList2)
-	cm.Add(tokenList3)
-
-	allClusters := cm.GetAllClusters()
-
-	if len(allClusters) != 3 {
-		t.Errorf("Expected 3 clusters, got %d", len(allClusters))
-	}
-}
-
-func TestClusterManager_GetClustersByLength(t *testing.T) {
-	cm := NewClusterManager()
-
-	// Add TokenLists of different lengths with different signatures
-	tokens1 := []token.Token{
-		{Value: "GET", Type: token.TokenHttpMethod},
-		{Value: " ", Type: token.TokenWhitespace},
-	} // Length 2
-
-	tokens2 := []token.Token{
-		{Value: "ERROR", Type: token.TokenSeverityLevel},
-		{Value: " ", Type: token.TokenWhitespace},
-		{Value: "failed", Type: token.TokenWord},
-	} // Length 3
-
-	tokens3 := []token.Token{
-		{Value: "192.168.1.1", Type: token.TokenIPv4},
-		{Value: " ", Type: token.TokenWhitespace},
-	} // Length 2 (different signature than tokens1)
-
-	tokenList1 := token.NewTokenListWithTokens(tokens1)
-	tokenList2 := token.NewTokenListWithTokens(tokens2)
-	tokenList3 := token.NewTokenListWithTokens(tokens3)
-
-	cm.Add(tokenList1)
-	cm.Add(tokenList2)
-	cm.Add(tokenList3)
-
-	// Get clusters of length 2 - should have 2 different clusters
-	length2Clusters := cm.GetClustersByLength(2)
-	if len(length2Clusters) != 2 {
-		t.Errorf("Expected 2 clusters of length 2, got %d", len(length2Clusters))
-	}
-
-	// Get clusters of length 3
-	length3Clusters := cm.GetClustersByLength(3)
-	if len(length3Clusters) != 1 {
-		t.Errorf("Expected 1 cluster of length 3, got %d", len(length3Clusters))
-	}
-
-	// Get clusters of non-existent length
-	length5Clusters := cm.GetClustersByLength(5)
-	if len(length5Clusters) != 0 {
-		t.Errorf("Expected 0 clusters of length 5, got %d", len(length5Clusters))
-	}
-}
-
-func TestClusterManager_GetLargestClusters(t *testing.T) {
-	cm := NewClusterManager()
-
-	// Create clusters of different sizes
-	// Cluster 1: size 3
-	tokens1 := []token.Token{
-		{Value: "GET", Type: token.TokenHttpMethod},
-		{Value: " ", Type: token.TokenWhitespace},
-		{Value: "/api", Type: token.TokenAbsolutePath},
-	}
-	tokenList1a := token.NewTokenListWithTokens(tokens1)
-	tokenList1b := token.NewTokenListWithTokens([]token.Token{
-		{Value: "POST", Type: token.TokenHttpMethod},
-		{Value: " ", Type: token.TokenWhitespace},
-		{Value: "/users", Type: token.TokenAbsolutePath},
-	})
-	tokenList1c := token.NewTokenListWithTokens([]token.Token{
-		{Value: "PUT", Type: token.TokenHttpMethod},
-		{Value: " ", Type: token.TokenWhitespace},
-		{Value: "/items", Type: token.TokenAbsolutePath},
-	})
-
-	// Cluster 2: size 1
-	tokens2 := []token.Token{
-		{Value: "ERROR", Type: token.TokenSeverityLevel},
-		{Value: " ", Type: token.TokenWhitespace},
-		{Value: "failed", Type: token.TokenWord},
-	}
-	tokenList2 := token.NewTokenListWithTokens(tokens2)
-
-	// Cluster 3: size 2
-	tokens3 := []token.Token{
-		{Value: "192.168.1.1", Type: token.TokenIPv4},
-		{Value: " ", Type: token.TokenWhitespace},
-		{Value: "connected", Type: token.TokenWord},
-	}
-	tokenList3a := token.NewTokenListWithTokens(tokens3)
-	tokenList3b := token.NewTokenListWithTokens([]token.Token{
-		{Value: "10.0.0.1", Type: token.TokenIPv4},
-		{Value: " ", Type: token.TokenWhitespace},
-		{Value: "disconnected", Type: token.TokenWord},
-	})
-
-	cm.Add(tokenList1a)
-	cm.Add(tokenList1b)
-	cm.Add(tokenList1c)
-	cm.Add(tokenList2)
-	cm.Add(tokenList3a)
-	cm.Add(tokenList3b)
-
-	// Get top 2 largest clusters
-	largest := cm.GetLargestClusters(2)
-
-	if len(largest) != 2 {
-		t.Errorf("Expected 2 largest clusters, got %d", len(largest))
-	}
-
-	// Should be ordered by size (largest first)
-	if largest[0].Size() != 3 {
-		t.Errorf("Largest cluster should have size 3, got %d", largest[0].Size())
-	}
-
-	if largest[1].Size() != 2 {
-		t.Errorf("Second largest cluster should have size 2, got %d", largest[1].Size())
-	}
+	assert.Nil(t, nonExistentCluster, "Should return nil for non-existent cluster")
 }
 
 func TestClusterManager_Clear(t *testing.T) {
@@ -324,80 +131,70 @@ func TestClusterManager_Clear(t *testing.T) {
 
 	// Add some data
 	tokens := []token.Token{
-		{Value: "GET", Type: token.TokenHttpMethod},
+		{Value: "GET", Type: token.TokenHTTPMethod},
 		{Value: " ", Type: token.TokenWhitespace},
 		{Value: "/api", Type: token.TokenAbsolutePath},
 	}
 	tokenList := token.NewTokenListWithTokens(tokens)
+	signature := token.NewSignature(tokenList)
+
 	cm.Add(tokenList)
 
 	// Verify data exists
-	stats := cm.GetStats()
-	if stats.TotalTokenLists == 0 || stats.TotalClusters == 0 {
-		t.Error("Should have data before clear")
-	}
+	assert.NotNil(t, cm.GetCluster(signature), "Should have cluster before clear")
 
 	// Clear
 	cm.Clear()
 
 	// Verify data is gone
-	stats = cm.GetStats()
-	if stats.TotalTokenLists != 0 || stats.TotalClusters != 0 || stats.HashBuckets != 0 {
-		t.Error("Should have no data after clear")
-	}
-
-	allClusters := cm.GetAllClusters()
-	if len(allClusters) != 0 {
-		t.Error("Should have no clusters after clear")
-	}
+	assert.Nil(t, cm.GetCluster(signature), "Should have no cluster after clear")
 }
 
-func TestClusterManager_Stats(t *testing.T) {
+func TestClusterManager_GetAllPatterns(t *testing.T) {
 	cm := NewClusterManager()
 
-	// Add TokenLists to create clusters of different sizes
+	// Initially empty
+	patterns := cm.GetAllPatterns()
+	assert.Equal(t, 0, len(patterns), "Should have no patterns initially")
+
+	// Add pattern 1 (signature 1)
 	tokens1 := []token.Token{
-		{Value: "GET", Type: token.TokenHttpMethod},
+		{Value: "GET", Type: token.TokenHTTPMethod},
 		{Value: " ", Type: token.TokenWhitespace},
 		{Value: "/api", Type: token.TokenAbsolutePath},
 	}
+	pattern1, _ := cm.Add(token.NewTokenListWithTokens(tokens1))
+
+	// Add pattern 2 (same signature, should merge into pattern 1)
 	tokens2 := []token.Token{
-		{Value: "POST", Type: token.TokenHttpMethod},
+		{Value: "POST", Type: token.TokenHTTPMethod},
 		{Value: " ", Type: token.TokenWhitespace},
 		{Value: "/users", Type: token.TokenAbsolutePath},
 	}
+	pattern2, _ := cm.Add(token.NewTokenListWithTokens(tokens2))
+
+	// Add pattern 3 (different signature)
 	tokens3 := []token.Token{
 		{Value: "ERROR", Type: token.TokenSeverityLevel},
 		{Value: " ", Type: token.TokenWhitespace},
 		{Value: "failed", Type: token.TokenWord},
 	}
+	pattern3, _ := cm.Add(token.NewTokenListWithTokens(tokens3))
 
-	tokenList1 := token.NewTokenListWithTokens(tokens1)
-	tokenList2 := token.NewTokenListWithTokens(tokens2)
-	tokenList3 := token.NewTokenListWithTokens(tokens3)
+	// Get all patterns
+	allPatterns := cm.GetAllPatterns()
 
-	cm.Add(tokenList1)
-	cm.Add(tokenList2) // Same cluster as tokenList1
-	cm.Add(tokenList3) // Different cluster
+	// Should have 2 patterns: pattern1 (merged with pattern2) and pattern3
+	assert.Equal(t, 2, len(allPatterns), "Should have 2 patterns total")
 
-	stats := cm.GetStats()
-
-	if stats.TotalTokenLists != 3 {
-		t.Errorf("Expected 3 total TokenLists, got %d", stats.TotalTokenLists)
+	// Verify we have both pattern IDs
+	patternIDs := make(map[uint64]bool)
+	for _, p := range allPatterns {
+		patternIDs[p.PatternID] = true
 	}
-
-	if stats.TotalClusters != 2 {
-		t.Errorf("Expected 2 total clusters, got %d", stats.TotalClusters)
-	}
-
-	expectedAvg := 3.0 / 2.0 // 3 TokenLists / 2 clusters
-	if stats.AverageClusterSize != expectedAvg {
-		t.Errorf("Expected average cluster size %.2f, got %.2f", expectedAvg, stats.AverageClusterSize)
-	}
-
-	if stats.HashBuckets == 0 {
-		t.Error("Should have at least one hash bucket")
-	}
+	assert.True(t, patternIDs[pattern1.PatternID], "Should include pattern 1")
+	assert.True(t, patternIDs[pattern3.PatternID], "Should include pattern 3")
+	assert.Equal(t, pattern1.PatternID, pattern2.PatternID, "Pattern 1 and 2 should be the same (merged)")
 }
 
 func TestClusterManager_PatternChangeType(t *testing.T) {
@@ -405,22 +202,22 @@ func TestClusterManager_PatternChangeType(t *testing.T) {
 
 	// Create token lists with same signature (HTTP method, space, path)
 	tokens1 := []token.Token{
-		{Value: "GET", Type: token.TokenHttpMethod},
+		{Value: "GET", Type: token.TokenHTTPMethod},
 		{Value: " ", Type: token.TokenWhitespace},
 		{Value: "/api/users", Type: token.TokenAbsolutePath},
 	}
 	tokens2 := []token.Token{
-		{Value: "POST", Type: token.TokenHttpMethod},
+		{Value: "POST", Type: token.TokenHTTPMethod},
 		{Value: " ", Type: token.TokenWhitespace},
 		{Value: "/api/orders", Type: token.TokenAbsolutePath},
 	}
 	tokens3 := []token.Token{
-		{Value: "PUT", Type: token.TokenHttpMethod},
+		{Value: "PUT", Type: token.TokenHTTPMethod},
 		{Value: " ", Type: token.TokenWhitespace},
 		{Value: "/api/items", Type: token.TokenAbsolutePath},
 	}
 	tokens4 := []token.Token{
-		{Value: "DELETE", Type: token.TokenHttpMethod},
+		{Value: "DELETE", Type: token.TokenHTTPMethod},
 		{Value: " ", Type: token.TokenWhitespace},
 		{Value: "/api/products", Type: token.TokenAbsolutePath},
 	}
@@ -431,59 +228,32 @@ func TestClusterManager_PatternChangeType(t *testing.T) {
 	tokenList4 := token.NewTokenListWithTokens(tokens4)
 
 	// First add - should create a new pattern
-	cluster1, changeType1 := cm.Add(tokenList1)
-	if changeType1 != PatternNew {
-		t.Errorf("Expected PatternNew for first add, got %v", changeType1)
-	}
-	t.Logf("✅ Add #1: PatternNew (created cluster with PatternID=%d)", cluster1.GetPatternID())
+	pattern1, changeType1 := cm.Add(tokenList1)
+	assert.Equal(t, PatternNew, changeType1, "Expected PatternNew for first add")
+	t.Logf("✅ Add #1: PatternNew (created pattern with PatternID=%d)", pattern1.PatternID)
 
-	// Second add - same signature, but pattern not yet generated, so no change
-	cluster2, changeType2 := cm.Add(tokenList2)
-	if changeType2 != PatternNoChange {
-		t.Errorf("Expected PatternNoChange for second add, got %v", changeType2)
-	}
-	if cluster1 != cluster2 {
-		t.Error("Should return same cluster for same signature")
-	}
-	t.Logf("✅ Add #2: PatternNoChange (added to existing cluster, size=%d)", cluster2.Size())
+	// Second add - same signature, adding to existing pattern creates wildcards (pattern update)
+	pattern2, changeType2 := cm.Add(tokenList2)
+	assert.Equal(t, PatternUpdated, changeType2, "Expected PatternUpdated for second add (creates wildcards)")
+	assert.Equal(t, pattern1.PatternID, pattern2.PatternID, "Should return same pattern for same signature")
+	t.Logf("✅ Add #2: PatternUpdated (wildcards created, logCount=%d)", pattern2.LogCount)
+	t.Logf("   Pattern after 2 logs: '%s'", pattern2.getPatternString())
 
-	// Generate pattern to set up for PatternUpdated
-	pattern := cluster2.GeneratePattern()
-	if pattern == nil {
-		t.Fatal("Pattern should be generated")
-	}
-	t.Logf("   Pattern after 2 logs: '%s'", cluster2.GetPatternString())
-
-	// Third add - pattern exists, so it will be updated
-	cluster3, changeType3 := cm.Add(tokenList3)
-	if changeType3 != PatternUpdated {
-		t.Errorf("Expected PatternUpdated for third add (pattern exists), got %v", changeType3)
-	}
-	if cluster1 != cluster3 {
-		t.Error("Should return same cluster for same signature")
-	}
-	t.Logf("✅ Add #3: PatternUpdated (pattern will change, size=%d)", cluster3.Size())
-
-	// Regenerate pattern to see the change
-	newPattern := cluster3.GeneratePattern()
-	if newPattern == nil {
-		t.Fatal("Pattern should be regenerated")
-	}
-	t.Logf("   Pattern after 3 logs: '%s'", cluster3.GetPatternString())
+	// Third add - pattern exists and will gain more wildcards
+	pattern3, changeType3 := cm.Add(tokenList3)
+	assert.Equal(t, PatternUpdated, changeType3, "Expected PatternUpdated for third add")
+	assert.Equal(t, pattern1.PatternID, pattern3.PatternID, "Should return same pattern for same signature")
+	t.Logf("✅ Add #3: PatternUpdated (pattern updated, logCount=%d)", pattern3.LogCount)
+	t.Logf("   Pattern after 3 logs: '%s'", pattern3.getPatternString())
 
 	// Fourth add - pattern exists, so updated again
-	cluster4, changeType4 := cm.Add(tokenList4)
-	if changeType4 != PatternUpdated {
-		t.Errorf("Expected PatternUpdated for fourth add (pattern exists), got %v", changeType4)
-	}
-	t.Logf("✅ Add #4: PatternUpdated (pattern will change, size=%d)", cluster4.Size())
+	pattern4, changeType4 := cm.Add(tokenList4)
+	assert.Equal(t, PatternUpdated, changeType4, "Expected PatternUpdated for fourth add (pattern exists)")
+	t.Logf("✅ Add #4: PatternUpdated (pattern will change, logCount=%d)", pattern4.LogCount)
 
-	// Final pattern
-	cluster4.GeneratePattern()
-	t.Logf("   Final pattern after 4 logs: '%s'", cluster4.GetPatternString())
+	// Final pattern (eagerly generated by Add)
+	t.Logf("   Final pattern after 4 logs: '%s'", pattern4.getPatternString())
 
-	// Verify all returned the same cluster
-	if cluster1.Size() != 4 {
-		t.Errorf("Expected cluster size 4, got %d", cluster1.Size())
-	}
+	// Verify all returned the same pattern
+	assert.Equal(t, 4, pattern4.LogCount, "Expected pattern log count 4")
 }
