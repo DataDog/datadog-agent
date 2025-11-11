@@ -226,8 +226,8 @@ func GetHostCCRID(ctx context.Context, detectedCloud string) string {
 type cloudProviderInstanceTypeDetector func(context.Context) (string, error)
 
 var hostInstanceTypeDetectors = map[string]cloudProviderInstanceTypeDetector{
-	ec2.CloudProviderName: ec2.GetInstanceType,
-	gce.CloudProviderName: gce.GetInstanceType,
+	ec2.CloudProviderName:    ec2.GetInstanceType,
+	gce.CloudProviderName:    gce.GetInstanceType,
 	oracle.CloudProviderName: oracle.GetInstanceType,
 }
 
