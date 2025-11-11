@@ -14,10 +14,10 @@ require (
 	github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/azsecrets v1.4.0
 	github.com/aws/aws-sdk-go-v2 v1.39.6
 	github.com/aws/aws-sdk-go-v2/config v1.31.17
-	github.com/aws/aws-sdk-go-v2/credentials v1.18.21
+	github.com/aws/aws-sdk-go-v2/credentials v1.18.22
 	github.com/aws/aws-sdk-go-v2/service/secretsmanager v1.39.11
 	github.com/aws/aws-sdk-go-v2/service/ssm v1.67.0
-	github.com/aws/aws-sdk-go-v2/service/sts v1.39.1
+	github.com/aws/aws-sdk-go-v2/service/sts v1.40.0
 	github.com/frapposelli/wwhrd v0.4.0
 	github.com/go-enry/go-license-detector/v4 v4.3.1
 	github.com/goware/modvendor v0.5.0
