@@ -259,8 +259,9 @@ func newServerCompat(cfg model.ReaderWriter, log log.Component, hostname hostnam
 
 	extraTags := cfg.GetStringSlice("dogstatsd_tags")
 
-	// if the server is running in a context where static global tags are required,
-	// add those to extraTags.
+	// if the server is running in a context where static tags are required,
+	// add those to extraTags. By definition of being static, the Tagger stores
+	// global tags at the LowCardinality level.
 	staticTags, err := tagger.GlobalTags(taggertypes.LowCardinality)
 	if err == nil {
 		extraTags = append(extraTags, staticTags...)
