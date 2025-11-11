@@ -303,10 +303,22 @@ func (c *CheckBase) IsHASupported() bool {
 	return false
 }
 
-func (c *CheckBase) CronShouldRun(now time.Time) bool {
-	if c.cronNext.Before(now) {
+func (c *CheckBase) CronShouldRun(t time.Time) bool {
+	// TODO: move to check wrapper?
+	if c.cronSchedule == nil {
+		return true
+	}
+
+	log.Warnf("[CronShouldRun] t %s", t)
+	log.Warnf("[CronShouldRun] cronNext %s", c.cronNext)
+	if c.cronNext.IsZero() {
+		c.cronNext = t
+	}
+	if c.cronNext.Before(t) || c.cronNext.Equal(t) {
+		log.Warnf("[CronShouldRun] cronNext2 %s", c.cronNext)
 		// TODO: Need to skip many scheduled if the backlog is too big?
-		c.cronNext = c.cronSchedule.Next(time.Now())
+		c.cronNext = c.cronSchedule.Next(c.cronNext)
+		log.Warnf("[CronShouldRun] cronNext3 %s", c.cronNext)
 		return true
 	}
 	return false

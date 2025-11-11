@@ -414,6 +414,11 @@ func (c *PythonCheck) IsHASupported() bool {
 	return c.haSupported
 }
 
+func (c *PythonCheck) CronShouldRun(now time.Time) bool {
+	// TODO: Implement me. Should be done in check wrapper?
+	return true
+}
+
 // pythonCheckFinalizer is a finalizer that decreases the reference count on the PyObject refs owned
 // by the PythonCheck.
 func pythonCheckFinalizer(c *PythonCheck) {
