@@ -18,10 +18,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/stats"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/robfig/cron/v3"
-	"gopkg.in/yaml.v2"
 )
 
 // CheckWrapper cleans up the check sender after a check was
@@ -96,36 +94,6 @@ func (c *CheckWrapper) Configure(senderManager sender.SenderManager, integration
 	if c.senderManager == nil {
 		c.senderManager = senderManager
 	}
-	log.Warn("[Configure] start")
-
-	handleConf := func(conf integration.Data, c *CheckWrapper) error {
-		commonOptions := integration.CommonInstanceConfig{}
-
-		log.Warnf("[Configure] conf: %s", string(conf))
-		err := yaml.Unmarshal(conf, &commonOptions)
-		if err != nil {
-			log.Errorf("invalid configuration section for check %s: %s", string(c.ID()), err)
-			return err
-		}
-
-		// Set configured service for this check, overriding the one possibly defined globally
-		if len(commonOptions.CronSchedule) > 0 {
-			cronSchedule, err := cron.ParseStandard(commonOptions.CronSchedule)
-			if err != nil {
-				return err
-			}
-			c.cronSchedule = cronSchedule
-		}
-
-		return nil
-	}
-	if err := handleConf(initConfig, c); err != nil {
-		return err
-	}
-	if err := handleConf(config, c); err != nil {
-		return err
-	}
-
 	return c.inner.Configure(c.senderManager, integrationConfigDigest, config, initConfig, source)
 }
 
@@ -198,23 +166,5 @@ func (c *CheckWrapper) IsHASupported() bool {
 
 // CronShouldRun returns true if check should run based on cron schedule
 func (c *CheckWrapper) CronShouldRun(t time.Time) bool {
-	// TODO: move to check wrapper?
-	if c.cronSchedule == nil {
-		log.Warn("[CronShouldRun] cronSchedule not defined")
-		return true
-	}
-	log.Warnf("[CronShouldRun] t %s", t)
-	log.Warnf("[CronShouldRun] cronNext %s", c.cronNext)
-	if c.cronNext.IsZero() {
-		c.cronNext = c.cronSchedule.Next(t)
-	}
-
-	if c.cronNext.Before(t) || c.cronNext.Equal(t) {
-		log.Warnf("[CronShouldRun] cronNext2 %s", c.cronNext)
-		// TODO: Need to skip many scheduled if the backlog is too big?
-		c.cronNext = c.cronSchedule.Next(c.cronNext)
-		log.Warnf("[CronShouldRun] cronNext3 %s", c.cronNext)
-		return true
-	}
-	return false
+	return c.inner.CronShouldRun(t)
 }
