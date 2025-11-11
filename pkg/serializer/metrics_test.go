@@ -45,6 +45,37 @@ func TestBuildPipelines(t *testing.T) {
 	}
 }
 
+func TestBuildPipelinesWithAdditionalEndpoints(t *testing.T) {
+	logger := logmock.New(t)
+	config := configmock.New(t)
+
+	config.SetWithoutSource("dd_url", "http://example.test")
+	config.SetWithoutSource("api_key", "test_key")
+	config.SetWithoutSource("additional_endpoints", map[string][]string{
+		"http://example.test": {"another_key"},
+		"http://another.test": {"test_key"},
+	})
+
+	f, err := defaultforwarder.NewTestForwarder(defaultforwarder.Params{}, config, logger)
+	require.NoError(t, err)
+	compressor := metricscompressionimpl.NewCompressorReq(metricscompressionimpl.Requires{Cfg: config}).Comp
+	s := NewSerializer(f, nil, compressor, config, logger, "")
+
+	pipelines := s.buildPipelines(metricsKindSeries)
+	require.Len(t, pipelines, 1)
+
+	for conf, ctx := range pipelines {
+		assert.Equal(t, metrics.AllowAllFilter{}, conf.Filter)
+		require.Len(t, ctx.Destinations, 2)
+		urls := []string{}
+		for _, dest := range ctx.Destinations {
+			assert.Equal(t, endpoints.SeriesEndpoint, dest.Endpoint)
+			urls = append(urls, dest.Resolver.GetBaseDomain())
+		}
+		assert.ElementsMatch(t, []string{"http://example.test", "http://another.test"}, urls)
+	}
+}
+
 func TestBuildPipelinesWithAutoscalingFailover(t *testing.T) {
 	logger := logmock.New(t)
 	config := configmock.New(t)
