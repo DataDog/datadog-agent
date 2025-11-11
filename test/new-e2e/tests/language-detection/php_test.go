@@ -28,5 +28,5 @@ func (s *languageDetectionSuite) TestPHPDetectionCoreAgent() {
 
 func (s *languageDetectionSuite) startPHP() string {
 	s.Env().RemoteHost.MustExecute("echo -e '<?php sleep(60);' > prog.php")
-	return s.Env().RemoteHost.MustExecute("nohup php prog.php >myscript.log 2>&1 </dev/null & echo $!")
+	return s.Env().RemoteHost.MustExecute("nohup php prog.php >myscript.log 2>&1 </dev/null & echo -n $!")
 }

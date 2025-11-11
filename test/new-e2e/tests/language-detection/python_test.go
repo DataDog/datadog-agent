@@ -46,5 +46,5 @@ func (s *languageDetectionSuite) TestPythonDetectionProcessAgentNoCheck() {
 
 func (s *languageDetectionSuite) startPython() string {
 	s.Env().RemoteHost.MustExecute("echo -e 'import time\ntime.sleep(60)' > prog.py")
-	return s.Env().RemoteHost.MustExecute("nohup python3 prog.py >myscript.log 2>&1 </dev/null & echo $!")
+	return s.Env().RemoteHost.MustExecute("nohup python3 prog.py >myscript.log 2>&1 </dev/null & echo -n $!")
 }
