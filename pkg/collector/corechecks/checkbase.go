@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check/defaults"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/stats"
+	"github.com/DataDog/datadog-agent/pkg/collector/cronschedule"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -51,6 +52,7 @@ type CheckBase struct {
 	telemetry      bool
 	initConfig     string
 	instanceConfig string
+	cronSchedule   *cronschedule.CronSchedule
 }
 
 // NewCheckBase returns a check base struct with a given check name
@@ -148,6 +150,14 @@ func (c *CheckBase) CommonConfigure(senderManager sender.SenderManager, initConf
 				return err
 			}
 			s.SetNoIndex(commonOptions.NoIndex)
+		}
+		// Set configured service for this check, overriding the one possibly defined globally
+		if len(commonOptions.CronSchedule) > 0 {
+			cronSchedule, err := cronschedule.NewCronSchedule(commonOptions.CronSchedule)
+			if err != nil {
+				return err
+			}
+			c.cronSchedule = cronSchedule
 		}
 
 		c.source = source
@@ -292,8 +302,10 @@ func (c *CheckBase) IsHASupported() bool {
 	return false
 }
 
-// CronShouldRun returns true if check should run based on cron schedule
 func (c *CheckBase) CronShouldRun(t time.Time) bool {
-	// NOT USED, overwritten by CheckWrapper.CronShouldRun
-	return false
+	// TODO: TEST ME
+	if c.cronSchedule == nil {
+		return true
+	}
+	return c.cronSchedule.ShouldRun(t)
 }
