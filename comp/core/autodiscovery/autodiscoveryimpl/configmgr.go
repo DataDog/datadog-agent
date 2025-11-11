@@ -198,7 +198,7 @@ func (cm *reconcilingConfigManager) processNewConfig(config integration.Config) 
 
 	// Execute the steps outlined in the comment on reconcilingConfigManager:
 	//
-	//  1. update orctiveConfigs / activeServices
+	//  1. update activeConfigs / activeServices
 	cm.activeConfigs[digest] = config
 
 	var changes integration.ConfigChanges
@@ -211,7 +211,6 @@ func (cm *reconcilingConfigManager) processNewConfig(config integration.Config) 
 				matchingServices[svcID] = struct{}{}
 			}
 		}
-
 		//  3. update serviceResolutions, generating changes
 		for svcID := range matchingServices {
 			changes.Merge(cm.reconcileService(svcID))
@@ -356,6 +355,8 @@ func (cm *reconcilingConfigManager) reconcileService(svcID string) integration.C
 	// allow the service to filter those templates, unless we are removing
 	// the service, in which case no resolutions are expected.
 	if svc != nil {
+		// Warning: this must be called with the configs stored in cm.activeConfigs
+		// which contain the compiled matchingProgram for the config template.
 		svc.FilterTemplates(expectedResolutions)
 	}
 

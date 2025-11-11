@@ -67,13 +67,13 @@ ALL_TAGS = {
     "zlib",
     "zstd",
     "cel",
+    "cws_instrumentation_injector_only",  # used for building cws-instrumentation with only the injector code
 }
 
 ### Tag inclusion lists
 
 # AGENT_TAGS lists the tags needed when building the agent.
 AGENT_TAGS = {
-    "bundle_installer",
     "consul",
     "containerd",
     "no_dynamic_plugins",
@@ -127,6 +127,10 @@ AGENT_HEROKU_TAGS = AGENT_TAGS.difference(
         "systemd",
         "trivy",
         "cel",
+    }
+).union(
+    {
+        "bundle_installer",
     }
 )
 
@@ -254,7 +258,9 @@ CWS_INSTRUMENTATION_TAGS = {"netgo", "osusergo"}
 
 OTEL_AGENT_TAGS = {"otlp", "zlib", "zstd"}
 
-LOADER_TAGS = {"otlp"}
+LOADER_TAGS = set()
+
+FULL_HOST_PROFILER_TAGS = set()
 
 # AGENT_TEST_TAGS lists the tags that have to be added to run tests
 AGENT_TEST_TAGS = AGENT_TAGS.union({"clusterchecks"})
@@ -301,6 +307,7 @@ build_tags = {
         "sbomgen": SBOMGEN_TAGS,
         "otel-agent": OTEL_AGENT_TAGS,
         "loader": LOADER_TAGS,
+        "full-host-profiler": FULL_HOST_PROFILER_TAGS,
         # Test setups
         "test": AGENT_TEST_TAGS.union(UNIT_TEST_TAGS).difference(UNIT_TEST_EXCLUDE_TAGS),
         "lint": AGENT_TEST_TAGS.union(PROCESS_AGENT_TAGS).union(UNIT_TEST_TAGS).difference(UNIT_TEST_EXCLUDE_TAGS),
@@ -522,12 +529,3 @@ def compute_config_build_tags(targets="all", build_include=None, build_exclude=N
     build_exclude = [] if build_exclude is None else build_exclude.split(",")
     use_tags = get_build_tags(build_include, build_exclude)
     return use_tags
-
-
-def add_fips_tags(tags: list[str], fips_mode: bool) -> list[str]:
-    is_windows_build = sys.platform == 'win32' or os.getenv("GOOS") == "windows"
-    if fips_mode:
-        tags.append("goexperiment.systemcrypto")
-    if fips_mode and not is_windows_build:
-        tags.append("requirefips")
-    return tags

@@ -512,7 +512,13 @@ func TestUsageMetric_DDOT(t *testing.T) {
 			"runtime",
 			"datadog_agent_ddot_metrics",
 			[]string{"version", "command", "host", "task_arn"},
-			"Usage metric of OTLP metrics in OTLP ingestion",
+			"Usage metric of OTLP metrics in DDOT",
+		),
+		DDOTGWUsage: telemetryComp.NewGauge(
+			"runtime",
+			"datadog_agent_ddot_gateway_usage",
+			[]string{"version", "command", "host", "task_arn"},
+			"Usage metric for GW deployments with DDOT",
 		),
 	}
 	f := NewFactoryForOTelAgent(rec, func(context.Context) (string, error) {
@@ -544,7 +550,73 @@ func TestUsageMetric_DDOT(t *testing.T) {
 	require.NoError(t, exp.ConsumeMetrics(ctx, md))
 	require.NoError(t, exp.Shutdown(ctx))
 
+	// DDOT usage metric should be 1
 	usageMetric, err := telemetryComp.GetGaugeMetric("runtime", "datadog_agent_ddot_metrics")
+	require.NoError(t, err)
+	require.Len(t, usageMetric, 1)
+	assert.Equal(t, map[string]string{"host": "test-host", "command": "otelcol", "version": "latest", "task_arn": ""}, usageMetric[0].Tags())
+	assert.Equal(t, 1.0, usageMetric[0].Value())
+
+	// GW usage metric should be zero
+	usageMetric, err = telemetryComp.GetGaugeMetric("runtime", "datadog_agent_ddot_gateway_usage")
+	require.NoError(t, err)
+	require.Len(t, usageMetric, 1)
+	assert.Equal(t, map[string]string{"host": "test-host", "command": "otelcol", "version": "latest", "task_arn": ""}, usageMetric[0].Tags())
+	assert.Equal(t, float64(0), usageMetric[0].Value())
+
+	_, err = telemetryComp.GetGaugeMetric("runtime", "datadog_agent_otlp_ingest_metrics")
+	assert.ErrorContains(t, err, "runtime__datadog_agent_otlp_ingest_metrics not found")
+}
+
+func TestUsageMetric_GW(t *testing.T) {
+	rec := &metricRecorder{}
+	ctx := context.Background()
+	telemetryComp := fxutil.Test[telemetry.Mock](t, telemetryimpl.MockModule())
+	store := TelemetryStore{
+		DDOTGWUsage: telemetryComp.NewGauge(
+			"runtime",
+			"datadog_agent_ddot_gateway_usage",
+			[]string{"version", "command", "host", "task_arn"},
+			"Usage metric for GW deployments with DDOT",
+		),
+	}
+	gwUsage := otel.NewGatewayUsage()
+	f := NewFactoryForOTelAgent(rec, func(context.Context) (string, error) {
+		return "agent-host", nil
+	}, nil, gwUsage, store, nil)
+
+	// Force gw usage attribute to detect GW; two different host attributes will trigger that.
+	attr := gwUsage.GetHostFromAttributesHandler()
+	attr.OnHost("foo")
+	attr.OnHost("bar")
+
+	cfg := f.CreateDefaultConfig().(*ExporterConfig)
+	exp, err := f.CreateMetrics(
+		ctx,
+		exportertest.NewNopSettings(component.MustNewType("datadog")),
+		cfg,
+	)
+	require.NoError(t, err)
+	require.NoError(t, exp.Start(ctx, componenttest.NewNopHost()))
+
+	md := pmetric.NewMetrics()
+	rms := md.ResourceMetrics()
+	rm := rms.AppendEmpty()
+	rm.Resource().Attributes().PutStr("datadog.host.name", "test-host")
+	ilms := rm.ScopeMetrics()
+	ilm := ilms.AppendEmpty()
+	metricsArray := ilm.Metrics()
+	met := metricsArray.AppendEmpty()
+	met.SetName("test-metric")
+	met.SetEmptySum()
+	met.Sum().SetAggregationTemporality(pmetric.AggregationTemporalityDelta)
+	dp := met.Sum().DataPoints().AppendEmpty()
+	dp.SetIntValue(100)
+
+	require.NoError(t, exp.ConsumeMetrics(ctx, md))
+	require.NoError(t, exp.Shutdown(ctx))
+
+	usageMetric, err := telemetryComp.GetGaugeMetric("runtime", "datadog_agent_ddot_gateway_usage")
 	require.NoError(t, err)
 	require.Len(t, usageMetric, 1)
 	assert.Equal(t, map[string]string{"host": "test-host", "command": "otelcol", "version": "latest", "task_arn": ""}, usageMetric[0].Tags())

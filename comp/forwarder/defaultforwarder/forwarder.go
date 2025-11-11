@@ -36,12 +36,6 @@ type provides struct {
 }
 
 func newForwarder(dep dependencies) (provides, error) {
-	if dep.Params.useNoopForwarder {
-		return provides{
-			Comp: NoopForwarder{},
-		}, nil
-	}
-
 	options, err := createOptions(dep.Params, dep.Config, dep.Log)
 	if err != nil {
 		return provides{}, err

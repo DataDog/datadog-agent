@@ -139,7 +139,7 @@ func (m *Manager) getOverweightDumps() []*dump.ActivityDump {
 		if dumpSize >= int64(m.config.RuntimeSecurity.ActivityDumpMaxDumpSize()) {
 			toDelete = append([]int{i}, toDelete...)
 			dumps = append(dumps, ad)
-			m.ignoreFromSnapshot[ad.Profile.Metadata.CGroupContext.CGroupFile] = true
+			m.ignoreFromSnapshot[ad.Profile.Metadata.CGroupContext.CGroupFile.Inode] = true
 		}
 	}
 	for _, i := range toDelete {
@@ -182,6 +182,6 @@ func (m *Manager) triggerLoadController() {
 		}
 
 		// remove container ID from the map of ignored container IDs for the snapshot
-		delete(m.ignoreFromSnapshot, ad.Profile.Metadata.CGroupContext.CGroupFile)
+		delete(m.ignoreFromSnapshot, ad.Profile.Metadata.CGroupContext.CGroupFile.Inode)
 	}
 }

@@ -80,9 +80,9 @@ var testCases = []testCase{
 					SnapshotsPerSecond: 1.0,
 				},
 				Template: "Hello {name}",
-				Segments: []json.RawMessage{
-					json.RawMessage(`{"str": "Hello "}`),
-					json.RawMessage(`{"dsl": "name", "json": {"ref": "name"}}`),
+				Segments: SegmentList{
+					StringSegment("Hello "),
+					JSONSegment{JSON: json.RawMessage(`{"ref": "name"}`), DSL: "name"},
 				},
 			},
 		},
@@ -136,9 +136,9 @@ var testCases = []testCase{
 					SnapshotsPerSecond: 1.0,
 				},
 				Template: "Hello {name}",
-				Segments: []json.RawMessage{
-					json.RawMessage(`{"str": "Hello "}`),
-					json.RawMessage(`{"dsl": "name", "json": {"ref": "name"}}`),
+				Segments: SegmentList{
+					StringSegment("Hello "),
+					JSONSegment{JSON: json.RawMessage(`{"ref": "name"}`), DSL: "name"},
 				},
 			},
 		},
@@ -193,9 +193,9 @@ var testCases = []testCase{
 					SnapshotsPerSecond: 1.0,
 				},
 				Template: "Hello {name}",
-				Segments: []json.RawMessage{
-					json.RawMessage(`{"str": "Hello "}`),
-					json.RawMessage(`{"dsl": "name", "json": {"ref": "name"}}`),
+				Segments: SegmentList{
+					StringSegment("Hello "),
+					JSONSegment{JSON: json.RawMessage(`{"ref": "name"}`), DSL: "name"},
 				},
 			},
 		},

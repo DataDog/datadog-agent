@@ -122,7 +122,8 @@ const (
 	ContainerRuntimeGarden     ContainerRuntime = "garden"
 	// ECS Fargate can be considered as a runtime in the sense that we don't
 	// know the actual runtime but we need to identify it's Fargate
-	ContainerRuntimeECSFargate ContainerRuntime = "ecsfargate"
+	ContainerRuntimeECSFargate          ContainerRuntime = "ecsfargate"
+	ContainerRuntimeECSManagedInstances ContainerRuntime = "ecsmanagedinstances"
 )
 
 // ContainerRuntimeFlavor is the container runtime with respect to the OCI spect
@@ -162,8 +163,9 @@ type ECSLaunchType string
 
 // Defined ECSLaunchTypes
 const (
-	ECSLaunchTypeEC2     ECSLaunchType = "ec2"
-	ECSLaunchTypeFargate ECSLaunchType = "fargate"
+	ECSLaunchTypeEC2              ECSLaunchType = "ec2"
+	ECSLaunchTypeFargate          ECSLaunchType = "fargate"
+	ECSLaunchTypeManagedInstances ECSLaunchType = "managed_instances"
 )
 
 // AgentType defines the workloadmeta agent type
@@ -213,6 +215,9 @@ const (
 	KubeletID = "kubelet-id"
 	// KubeletName is used to name the workloadmeta kubelet entity
 	KubeletName = "kubelet"
+	// KubeletMetricsID is the ID of the workloadmeta KindKubeletMetrics entity.
+	// There can only be one per node.
+	KubeletMetricsID = "kubelet-metrics"
 )
 
 // Entity represents a single unit of work being done that is of interest to
@@ -1242,6 +1247,8 @@ type Kubelet struct {
 	EntityID
 	EntityMeta
 	ConfigDocument KubeletConfigDocument
+	RawConfig      []byte
+	NodeName       string
 }
 
 // GetID implements Entity#GetID

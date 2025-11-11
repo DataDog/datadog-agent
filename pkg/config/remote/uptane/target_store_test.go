@@ -14,10 +14,10 @@ import (
 )
 
 func TestTargetStore(t *testing.T) {
-	db := newTransactionalStore(getTestDB(t))
-	defer db.commit()
+	ts := getTestTransactionalStore(t)
+	defer ts.commit()
 
-	store := newTargetStore(db)
+	store := newTargetStore(ts)
 
 	target1 := &pbgo.File{
 		Path: "2/APM_SAMPLING/target1",

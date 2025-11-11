@@ -10,28 +10,28 @@ package snmpscanimpl
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
-	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
 	"github.com/DataDog/datadog-agent/comp/core"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
-	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
-	"go.uber.org/fx"
-
+	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
+	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
+	logscomp "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+
 	"github.com/gosnmp/gosnmp"
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/fx"
 )
 
 type deps struct {
 	fx.In
-	Demultiplexer demultiplexer.Mock
+	EventPlatform eventplatform.Component
 }
 
 func TestSnmpScanComp(t *testing.T) {
-	testDeps := fxutil.Test[deps](t, demultiplexerimpl.MockModule(), defaultforwarder.MockModule(), core.MockBundle())
+	testDeps := fxutil.Test[deps](t, eventplatformimpl.MockModule(), logscomp.MockModule(), core.MockBundle())
 	deps := Requires{
 		Logger:        logmock.New(t),
-		Demultiplexer: testDeps.Demultiplexer,
+		EventPlatform: testDeps.EventPlatform,
 	}
 	snmpScanner, err := NewComponent(deps)
 	assert.NoError(t, err)
@@ -40,9 +40,9 @@ func TestSnmpScanComp(t *testing.T) {
 	snmpConnection.LocalAddr = "127.0.0.1"
 	snmpConnection.Port = 0
 
-	err = snmpScanner.Comp.RunDeviceScan(snmpConnection, "default", "127.0.0.1")
+	err = snmpScanner.Comp.RunSnmpWalk(snmpConnection, "1.0")
 	assert.ErrorContains(t, err, "&GoSNMP.Conn is missing. Provide a connection or use Connect()")
 
-	err = snmpScanner.Comp.RunDeviceScan(snmpConnection, "default", "127.0.0.1")
+	err = snmpScanner.Comp.RunSnmpWalk(snmpConnection, "1.0")
 	assert.ErrorContains(t, err, "&GoSNMP.Conn is missing. Provide a connection or use Connect()")
 }

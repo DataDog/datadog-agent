@@ -7,7 +7,8 @@
 package snmpscanimpl
 
 import (
-	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
+	"errors"
+
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -24,7 +25,7 @@ type Requires struct {
 	compdef.In
 	Logger        log.Component
 	Config        config.Component
-	Demultiplexer demultiplexer.Component
+	EventPlatform eventplatform.Component
 	Client        ipc.HTTPClient
 }
 
@@ -36,9 +37,9 @@ type Provides struct {
 
 // NewComponent creates a new snmpscan component
 func NewComponent(reqs Requires) (Provides, error) {
-	forwarder, err := reqs.Demultiplexer.GetEventPlatformForwarder()
-	if err != nil {
-		return Provides{}, err
+	forwarder, ok := reqs.EventPlatform.Get()
+	if !ok {
+		return Provides{}, errors.New("event platform forwarder not initialized")
 	}
 	scanner := snmpScannerImpl{
 		log:         reqs.Logger,
@@ -80,6 +81,7 @@ func (s snmpScannerImpl) startDeviceScan(task rcclienttypes.AgentTaskConfig) err
 	if err != nil {
 		return err
 	}
-	return s.ScanDeviceAndSendData(instance, ns, metadata.RCTriggeredScan)
-
+	return s.ScanDeviceAndSendData(instance, ns, snmpscan.ScanParams{
+		ScanType: metadata.RCTriggeredScan,
+	})
 }

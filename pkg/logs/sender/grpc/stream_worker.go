@@ -6,68 +6,89 @@
 package grpc
 
 import (
-	"bytes"
 	"context"
-	"encoding/gob"
 	"errors"
-	"fmt"
 	"io"
-	"sync"
 	"time"
 
+	"github.com/benbjohnson/clock"
+	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/connectivity"
 	"google.golang.org/grpc/status"
 
-	"go.uber.org/atomic"
-
+	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
-	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	"github.com/DataDog/datadog-agent/pkg/logs/sender"
+	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/statefulpb"
+	"github.com/DataDog/datadog-agent/pkg/util/backoff"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // TODO For PoC Stage 1
-// - handle unrecoverable errors - auth/perm, protocol, stream-level gRPC status
-// - check snapshot's generationID, only act on the current generation
-// - implementback-off from stream creation on successive failures
-// - handle createNewStream failures
+// - implement snapshot state transmission
+// - better handle unrecoverable errors - auth/perm, protocol, stream-level gRPC status
 // - telemetries (send/recv, failure, rotations)
 
 // TODO for PoC Stage 2
-// - implement backpressure
+// - implement more graceful shutdown, the current version we could lose some acks
+// - currently, s.currentStream.stream.Send(batch) can still block, especially
+//   if we have a lot of buffered payloads to re-send after a stream rotation,
+//   especially if we are flow controlled. This will block the supervisor loop
+// 	 and potentially backpressure the input channel
+// - implement proper "stream/ordered" backpressure
 
-// RotationType represents the type of stream rotation
-type RotationType int
+// TODO for production
+// - implement stream neotiation (state size, etc), able to downgrade to HTTP transport
+// - Testing plan
 
 const (
-	RotationTypeNone RotationType = iota
-	RotationTypeHard
-	RotationTypeGraceful
+	// Various constants - may become configurable
+	batchAckChanBuffer = 10
+	maxInflight        = 10000
+	connectionTimeout  = 10 * time.Second
+	drainTimeout       = 5 * time.Second
 )
 
-// StreamRotateSignal represents a signal to upstream about stream rotation
-type StreamRotateSignal struct {
-	Type         RotationType
-	GenerationID uint64
+// streamState represents the current state of the stream worker
+//
+//go:generate stringer -type=streamState
+type streamState int
+
+const (
+	// disconnected is the initial state or stream creation failure backoff state
+	disconnected streamState = iota
+	// connecting is the state while waiting for asyncCreateNewStream to complete or fail
+	connecting
+	// active is the normal operating state with a valid stream
+	active
+	// draining waits for all acks to arrive before rotating to a new stream
+	draining
+)
+
+// streamInfo holds all stream-related information
+type streamInfo struct {
+	stream statefulpb.StatefulLogsService_LogsStreamClient
+	ctx    context.Context
+	cancel context.CancelFunc
 }
 
-// ReceiverSignal represents a signal from receiver to supervisor
-type ReceiverSignal struct {
-	GenerationID uint64
-	Error        error
+// streamCreationResult represents the result of async stream creation
+type streamCreationResult struct {
+	info *streamInfo
+	err  error
 }
 
-// StreamInfo holds all stream-related information
-type StreamInfo struct {
-	Stream StatefulLogsService_LogsStreamClient
-	Ctx    context.Context
-	Cancel context.CancelFunc
+// batchAck wraps a batch acknowledgment with stream identity to prevent stale signals
+type batchAck struct {
+	stream *streamInfo
+	status *statefulpb.BatchStatus
 }
 
-// StreamWorker manages a single gRPC bidirectional stream with Master-Slave threading model
-// Architecture: One supervisor/sender goroutine + one persistent receiver goroutine per worker
-type StreamWorker struct {
+// streamWorker manages a single gRPC bidirectional stream with Master-Slave threading model
+// Architecture: One supervisor/sender goroutine + one receiver goroutine per worker
+type streamWorker struct {
 	// Configuration
 	workerID            string
 	destinationsContext *client.DestinationsContext
@@ -78,92 +99,116 @@ type StreamWorker struct {
 	sink       sender.Sink           // For getting auditor channel
 
 	// gRPC connection management (shared with other streams)
-	client StatefulLogsServiceClient
+	conn   *grpc.ClientConn
+	client statefulpb.StatefulLogsServiceClient
 
 	// Stream management
-	currentStream  *StreamInfo
-	generationID   uint64
-	recvFailureCh  chan ReceiverSignal // Signal receiver failure with generationID
+	currentStream  *streamInfo
+	streamState    streamState
+	recvFailureCh  chan *streamInfo          // Signal receiver failure with stream identity
+	batchAckCh     chan *batchAck            // Signal batch acknowledgments with stream identity
+	streamReadyCh  chan streamCreationResult // Signal when async stream creation completes
 	streamLifetime time.Duration
-	batchIDCounter *atomic.Uint32 // Shared across all workers for global uniqueness
+	streamTimer    *clock.Timer // Timer for stream lifetime, trigger soft rotation
+	drainTimer     *clock.Timer // In case of unacked payloads, drain/wait before soft rotation
+	backoffTimer   *clock.Timer // In case of stream creation failure, backoff before retrying
 
-	// Rotation management
-	inRotation    bool
-	rotationType  RotationType
-	drainedStream *StreamInfo // Old stream being drained after graceful rotation
+	// Inflight tracking - tracks sent (awaiting ack) and buffered (not sent) payloads
+	inflight *inflightTracker
 
-	// Upstream signaling
-	signalStreamRotate chan StreamRotateSignal
-
-	// Auditor acknowledgment tracking
-	pendingPayloads   map[uint32]*message.Payload // batchID -> payload
-	pendingPayloadsMu sync.Mutex                  // Protects pendingPayloads map
-
-	// Poor man's snapshot: cache pattern payloads for re-sending after rotation
-	patternCache   []*message.Payload // Recently sent pattern define/update payloads
-	patternCacheMu sync.Mutex         // Protects patternCache
+	// Retry backoff
+	backoffPolicy backoff.Policy
+	nbErrors      int
 
 	// Control
 	stopChan chan struct{}
 	done     chan struct{}
+	clock    clock.Clock
 }
 
-// NewStreamWorker creates a new gRPC stream worker
-func NewStreamWorker(
+// newStreamWorker creates a new gRPC stream worker
+func newStreamWorker(
 	workerID string,
+	inputChan chan *message.Payload,
 	destinationsCtx *client.DestinationsContext,
-	client StatefulLogsServiceClient,
+	conn *grpc.ClientConn,
+	client statefulpb.StatefulLogsServiceClient,
 	sink sender.Sink,
+	endpoint config.Endpoint,
 	streamLifetime time.Duration,
-	batchIDCounter *atomic.Uint32,
-) *StreamWorker {
-	worker := &StreamWorker{
+) *streamWorker {
+	return newStreamWorkerWithClock(workerID, inputChan, destinationsCtx, conn, client, sink,
+		endpoint, streamLifetime, clock.New(), nil)
+}
+
+// newStreamWorkerWithClock creates a new gRPC stream worker with injectable clock for testing
+func newStreamWorkerWithClock(
+	workerID string,
+	inputChan chan *message.Payload,
+	destinationsCtx *client.DestinationsContext,
+	conn *grpc.ClientConn,
+	client statefulpb.StatefulLogsServiceClient,
+	sink sender.Sink,
+	endpoint config.Endpoint,
+	streamLifetime time.Duration,
+	clock clock.Clock,
+	inflightTracker *inflightTracker,
+) *streamWorker {
+	backoffPolicy := backoff.NewExpBackoffPolicy(
+		endpoint.BackoffFactor,
+		endpoint.BackoffBase,
+		endpoint.BackoffMax,
+		endpoint.RecoveryInterval,
+		endpoint.RecoveryReset,
+	)
+
+	// Use provided inflightTracker (testing) or create default one
+	if inflightTracker == nil {
+		inflightTracker = newInflightTracker(maxInflight)
+	}
+
+	worker := &streamWorker{
 		workerID:            workerID,
 		destinationsContext: destinationsCtx,
-		inputChan:           make(chan *message.Payload, 100), // Buffered input
-		outputChan:          nil,                              // Will be set in Start()
-		sink:                sink,                             // For getting auditor channel
+		inputChan:           inputChan,
+		outputChan:          nil,
+		sink:                sink,
+		conn:                conn,
 		client:              client,
-		recvFailureCh:       make(chan ReceiverSignal), // Unbuffered receiver failure signal
-		streamLifetime:      streamLifetime,            // Stream recreation interval
-		batchIDCounter:      batchIDCounter,            // Shared counter for globally unique batch IDs
-		inRotation:          false,
-		rotationType:        RotationTypeNone,
-		signalStreamRotate:  make(chan StreamRotateSignal, 1),  // Size-1 buffer for drop-old semantics
-		pendingPayloads:     make(map[uint32]*message.Payload), // Initialize batch tracking map
-		patternCache:        make([]*message.Payload, 0, 100),  // Cache for pattern payloads
+		streamState:         disconnected,
+		recvFailureCh:       make(chan *streamInfo),
+		batchAckCh:          make(chan *batchAck, batchAckChanBuffer),
+		streamReadyCh:       make(chan streamCreationResult),
+		streamLifetime:      streamLifetime,
+		inflight:            inflightTracker,
+		backoffPolicy:       backoffPolicy,
+		nbErrors:            0,
 		stopChan:            make(chan struct{}),
 		done:                make(chan struct{}),
+		clock:               clock,
+		streamTimer:         createStoppedTimer(clock, 0),
+		backoffTimer:        createStoppedTimer(clock, 0),
+		drainTimer:          createStoppedTimer(clock, 0),
 	}
 
 	return worker
 }
 
-// Start begins the supervisor goroutine
-func (s *StreamWorker) Start() {
-	log.Infof("🚀 ========== Starting gRPC stream worker %s ==========", s.workerID)
+// start begins the supervisor goroutine & creates a new stream asynchronously
+func (s *streamWorker) start() {
+	log.Infof("Starting gRPC stream worker %s", s.workerID)
 	s.outputChan = s.sink.Channel()
-	log.Infof("🔌 Worker %s: outputChan configured: %v", s.workerID, s.outputChan != nil)
-
-	// Create initial stream
-	log.Infof("🔧 Worker %s: Creating initial gRPC stream...", s.workerID)
-	if stream, err := s.createNewStream(); err == nil {
-		s.currentStream = stream
-		log.Infof("✅ Worker %s: Created initial stream (generation %d)", s.workerID, s.generationID)
-		log.Infof("🔄 Worker %s: Starting receiverLoop goroutine (generation %d)", s.workerID, s.generationID)
-		go s.receiverLoop(stream, s.generationID)
-	} else {
-		log.Errorf("❌ Worker %s: Failed to create initial stream: %v", s.workerID, err)
-	}
 
 	// Start supervisor/sender goroutine (master)
-	log.Infof("👷 Worker %s: Starting supervisorLoop goroutine", s.workerID)
 	go s.supervisorLoop()
-	log.Infof("🚀 Worker %s: Start() complete", s.workerID)
+
+	s.asyncCreateNewStream()
+
+	log.Infof("Worker %s: Started", s.workerID)
 }
 
-// Stop gracefully shuts down the stream
-func (s *StreamWorker) Stop() {
+// stop shuts down the stream worker
+func (s *streamWorker) stop() {
 	log.Infof("Stopping gRPC stream worker %s", s.workerID)
 	close(s.stopChan)
 	<-s.done
@@ -171,271 +216,427 @@ func (s *StreamWorker) Stop() {
 }
 
 // supervisorLoop is the master goroutine that handles sending and stream lifecycle
-func (s *StreamWorker) supervisorLoop() {
+func (s *streamWorker) supervisorLoop() {
 	defer close(s.done)
 
-	streamTimer := time.NewTimer(s.streamLifetime)
-	defer streamTimer.Stop()
+	// supervisor loop starts without a stream, but asyncCreateNewStream is called
+	// right after in streamWorker's start(), so we are in connecting state right away
+	s.streamState = connecting
 
 	for {
+		// Conditional inputChan - only enabled when inflight tracker has space
+		// This backpressures to upstream when at capacity
+		var inputChan <-chan *message.Payload
+		if s.inflight.hasSpace() {
+			inputChan = s.inputChan // Enable reading
+		} else {
+			inputChan = nil // Disable reading
+		}
+
 		select {
-		case payload := <-s.inputChan:
-			if s.inRotation && s.rotationType == RotationTypeHard {
-				// In hard rotation state
-				if payload.IsSnapshot {
-					// Received full state snapshot from upstream, ready to
-					// start using the new stream now, with the snapshot as
-					// the first message
-					s.finishHardRotate(streamTimer)
-				} else {
-					// These are the messages that's written into channel
-					// buffer but encoded with previous state, we can't send them
-					// as-is into the new stream. Dropping them and rely on
-					// upstream to re-encode and resend them
-					continue
-				}
-			} else if s.inRotation && s.rotationType == RotationTypeGraceful {
-				// In graceful rotation state
-				if payload.IsSnapshot {
-					// Received full state snapshot from upstream, ready to
-					// switch to the new stream
-					s.finishGracefulRotate(streamTimer)
-				}
-				// If payload is not a snapshot, we continously send them to
-				// the old stream.
-			}
+		case payload := <-inputChan:
+			// Fires in any state (gated only by inflight capacity), payload is always
+			// added to the inflight tracker. But we only proceed to send if we are
+			// in the active state with a valid stream
+			s.inflight.append(payload)
+			s.sendPayloads()
 
-			// Send payload
-			if err := s.sendPayload(payload); err != nil {
-				// Send failed, hard rotate stream
-				log.Warnf("Worker %s: Send failed, initiating hard rotation: %v", s.workerID, err)
-				s.beginHardRotate()
-			}
+		case ack := <-s.batchAckCh:
+			// Fires in any state
+			s.handleBatchAck(ack)
 
-		case signal := <-s.recvFailureCh:
-			if signal.GenerationID != s.generationID {
-				// Signal from old stream generation, we must have rotated.
-				// - In case of hard rotation, this is timing thing, old receiver is reporting
-				//   the same transport failure as previously detected by the supervisor. since
-				//   we have hard rotated, we can ignore the signal.
-				// - In case of graceful rotation, this is the drained stream reporting the failure.
-				//   since we've already switched to functioning new stream, we will ignore the signal.
-				//   If there really were acks that we missed because drained stream died, we rely on
-				//   the upstream to detect and resend them
-				log.Infof("Worker %s: Ignoring signal from old generation %d (current: %d)",
-					s.workerID, signal.GenerationID, s.generationID)
-				continue
-			}
+		case failedStream := <-s.recvFailureCh:
+			// Fires in active/draining/connecting states
+			s.handleRecvFailure(failedStream)
 
-			// Receiver reported failure, hard rotate stream
-			log.Warnf("Worker %s: Receiver reported failure, initiating hard rotation: %v", s.workerID, signal.Error)
-			s.beginHardRotate()
+		case result := <-s.streamReadyCh:
+			// Fires only in connecting state
+			s.handleStreamReady(result)
 
-		case <-streamTimer.C:
-			// Life time expired, graceful rotate stream
-			if !s.inRotation {
-				log.Infof("⏰ ========== Worker %s: STREAM LIFETIME EXPIRED - GRACEFUL ROTATION ==========", s.workerID)
-				s.beginGracefulRotate()
-			}
+		case <-s.streamTimer.C:
+			// Fires only in active state (except rare timing race, it's in connecting)
+			s.handleStreamTimeout()
+
+		case <-s.drainTimer.C:
+			// Fires in draining state or (rarely) in connecting/active state
+			// If in non-draining state, it means acks arrival at the same time
+			// as the drain timer expiration, so we will skip the signal
+			s.handleDrainTimeout()
+
+		case <-s.backoffTimer.C:
+			// Fires only in disconnected state
+			s.handleBackoffTimeout()
 
 		case <-s.stopChan:
-			// Graceful shutdown
-			if s.currentStream != nil {
-				s.closeStream(s.currentStream)
-			}
-			s.closeStream(s.drainedStream)
+			// Fires in any state
+			s.handleShutdown()
 			return
 		}
 	}
 }
 
-// sendStreamRotateSignal sends a rotation signal to upstream with size-1 drop-old semantics
-// This ensures the supervisor never blocks and the upstream always gets the latest signal
-func (s *StreamWorker) sendStreamRotateSignal(rt RotationType) {
-	v := StreamRotateSignal{
-		Type:         rt,
-		GenerationID: s.generationID,
+// sendPayloads attempts to send all buffered payloads when in Active state
+// the same function is used to send new payload in normal operation, and
+// to send (or resend) buffered payloads after a stream rotation
+func (s *streamWorker) sendPayloads() {
+	if s.streamState != active {
+		return
 	}
-	select {
-	case s.signalStreamRotate <- v:
-		return // queued immediately
-	default:
-		// drop one old value if present
-		select {
-		case <-s.signalStreamRotate:
-			// dropped old
-		default:
-			// nothing to drop (likely consumer grabbed it); try send again
+
+	// Send all buffered payloads in order
+	for {
+		payload := s.inflight.nextToSend()
+		if payload == nil {
+			// No more buffered payloads to send
+			break
 		}
-		s.signalStreamRotate <- v
+
+		batchID := s.inflight.nextBatchID()
+		batch := createBatch(payload.Encoded, batchID)
+
+		// TODO Send call can block, by TCP/HTTP2 flow controls
+		if err := s.currentStream.stream.Send(batch); err != nil {
+			log.Warnf("Worker %s: Send failed, initiating stream rotation: %v", s.workerID, err)
+			s.beginStreamRotation()
+			return // stop sending, payloads remain buffered for next rotation
+		}
+
+		// Successfully sent, mark as sent in the inflight tracker
+		s.inflight.markSent()
 	}
 }
 
-// beginHardRotate immediately closes and recreates the stream
-func (s *StreamWorker) beginHardRotate() {
-	log.Infof("Worker %s: Beginning hard rotation (generation %d)", s.workerID, s.generationID)
+// sendSnapshot sends the snapshot state as batch 0 on a new stream
+// Returns true if successful, initiates stream rotation and returns false if failed
+func (s *streamWorker) sendSnapshot() bool {
+	serialized := s.inflight.getSnapshot()
 
-	// Signal "hard rotate" to upstream
-	s.sendStreamRotateSignal(RotationTypeHard)
+	// Snapshot is empty means no state
+	if serialized == nil {
+		return true
+	}
 
-	// Close current stream
+	// Create batch with batchID 0 (reserved for snapshot)
+	batch := createBatch(serialized, 0)
+
+	// Send snapshot
+	if err := s.currentStream.stream.Send(batch); err != nil {
+		log.Warnf("Worker %s: Failed to send snapshot: %v, initiating stream rotation", s.workerID, err)
+		s.beginStreamRotation()
+		return false
+	}
+
+	log.Infof("Worker %s: Sent snapshot (%d bytes)", s.workerID, len(serialized))
+	return true
+}
+
+// handleBatchAck processes a BatchStatus acknowledgment from the server
+func (s *streamWorker) handleBatchAck(ack *batchAck) {
+	// Ignore stale acks from old streams
+	if ack.stream != s.currentStream {
+		return
+	}
+
+	receivedBatchID := uint32(ack.status.BatchId)
+
+	// Handle snapshot/state ack (batch 0) - no payload to pop
+	if receivedBatchID == 0 {
+		return
+	}
+
+	// The two errors below should never happen if Intake is implemented
+	// correctly, but we are being defensive.
+
+	// Verify we have "sent payloads" awaiting ack
+	if !s.inflight.hasUnacked() {
+		log.Errorf("Worker %s: Received ack for batch %d but no sent payloads in inflight tracker, "+
+			"irrecoverable error - initiating stream rotation", s.workerID, receivedBatchID)
+		s.beginStreamRotation()
+		return
+	}
+
+	// Verify batchID matches expected sequence
+	expectedBatchID := s.inflight.getHeadBatchID()
+	if receivedBatchID != expectedBatchID {
+		log.Errorf("Worker %s: BatchID mismatch! Expected %d, received %d. "+
+			"ut-of-order or duplicate ack, irrecoverable error - initiating stream rotation",
+			s.workerID, expectedBatchID, receivedBatchID)
+		s.beginStreamRotation()
+		return
+	}
+
+	// Pop the acknowledged payload and send to auditor
+	payload := s.inflight.pop()
+	if s.outputChan != nil {
+		select {
+		case s.outputChan <- payload:
+			// Successfully sent to auditor
+		default:
+			log.Warnf("Worker %s: Auditor channel full, dropping ack for batch %d", s.workerID, receivedBatchID)
+		}
+	}
+
+	// If in Draining state and all acks received, transition to Connecting
+	if s.streamState == draining && !s.inflight.hasUnacked() {
+		log.Infof("Worker %s: All acks received in draining state, proceeding with rotation", s.workerID)
+		s.drainTimer.Stop()
+		s.beginStreamRotation()
+	}
+}
+
+// handleRecvFailure processes receiver failure signals
+func (s *streamWorker) handleRecvFailure(failedStream *streamInfo) {
+	// Ignore if: stale signal OR not in active/draining state
+	if failedStream != s.currentStream || (s.streamState != active && s.streamState != draining) {
+		return
+	}
+
+	log.Infof("Worker %s: Receiver reported failure (state: %v), initiating stream rotation", s.workerID, s.streamState)
+	s.beginStreamRotation()
+}
+
+// handleStreamReady processes async stream creation results
+func (s *streamWorker) handleStreamReady(result streamCreationResult) {
+	if s.streamState != connecting {
+		return
+	}
+
+	if result.err != nil {
+		s.nbErrors = s.backoffPolicy.IncError(s.nbErrors)
+		s.handleStreamCreationFailure(result.err)
+	} else {
+		s.nbErrors = s.backoffPolicy.DecError(s.nbErrors)
+		s.finishStreamRotation(result.info)
+	}
+}
+
+// handleStreamTimeout processes stream lifetime expiration
+func (s *streamWorker) handleStreamTimeout() {
+	if s.streamState != active {
+		return
+	}
+
+	if s.inflight.hasUnacked() {
+		log.Infof("Worker %s: Stream lifetime expired with %d unacked payloads, entering Draining state",
+			s.workerID, s.inflight.sentCount())
+		s.streamState = draining
+		s.drainTimer.Reset(drainTimeout)
+	} else {
+		log.Infof("Worker %s: Stream lifetime expired with no unacked payloads, rotating immediately",
+			s.workerID)
+		s.beginStreamRotation()
+	}
+}
+
+// handleDrainTimeout handles drain timer expiration
+func (s *streamWorker) handleDrainTimeout() {
+	if s.streamState != draining {
+		return
+	}
+
+	log.Warnf("Worker %s: Drain timer expired in draining state, proceeding with rotation (may lose some acks)",
+		s.workerID)
+	s.beginStreamRotation()
+}
+
+// handleBackoffTimeout processes backoff timer expiration and retries stream creation
+func (s *streamWorker) handleBackoffTimeout() {
+	if s.streamState != disconnected {
+		return
+	}
+
+	log.Infof("Worker %s: Backoff timer expired, retrying stream creation (error count: %d)", s.workerID, s.nbErrors)
+	s.streamState = connecting
+	s.asyncCreateNewStream()
+}
+
+// handleShutdown performs graceful shutdown cleanup
+func (s *streamWorker) handleShutdown() {
+	log.Infof("Worker %s: Shutting down", s.workerID)
+	s.streamTimer.Stop()
+	s.backoffTimer.Stop()
+	s.drainTimer.Stop()
+	s.closeStream(s.currentStream)
+}
+
+// beginStreamRotation initiates stream rotation
+// Closes current stream and starts async creation of a new stream
+func (s *streamWorker) beginStreamRotation() {
+	log.Infof("Worker %s: Beginning stream rotation (state: %v → connecting)", s.workerID, s.streamState)
+
 	s.closeStream(s.currentStream)
 	s.currentStream = nil
+	s.streamTimer.Stop()
+	s.drainTimer.Stop()
+	s.backoffTimer.Stop()
 
-	// Create new stream
-	if streamInfo, err := s.createNewStream(); err == nil {
-		s.currentStream = streamInfo
-		// Start new receiver goroutine with new stream
-		go s.receiverLoop(streamInfo, s.generationID)
+	s.streamState = connecting
+	s.asyncCreateNewStream()
+}
+
+// finishStreamRotation completes stream rotation (Connecting → Active transition)
+// Activates the newly created stream and starts the receiver
+// Transmits the snapshot state first, then (if any) the buffered payloads
+func (s *streamWorker) finishStreamRotation(streamInfo *streamInfo) {
+	log.Infof("Worker %s: Finishing stream rotation (state: connecting → active)", s.workerID)
+
+	s.currentStream = streamInfo
+	s.streamState = active
+
+	go s.receiverLoop(streamInfo)
+
+	s.streamTimer.Reset(s.streamLifetime)
+
+	// Convert all the unacked items to buffered items by resetting inflight tracker
+	// because we need to resent them.
+	s.inflight.resetOnRotation()
+
+	log.Infof("Worker %s: Stream rotation complete, now active", s.workerID)
+
+	// Send snapshot state first (batch 0)
+	if !s.sendSnapshot() {
+		return
+	}
+
+	// Then send the remaining buffered payloads (batch 1, 2, ...)
+	if s.inflight.hasUnSent() {
+		s.sendPayloads()
+	}
+}
+
+// handleStreamCreationFailure processes stream creation failures with exponential backoff
+func (s *streamWorker) handleStreamCreationFailure(err error) {
+	backoffDuration := s.backoffPolicy.GetBackoffDuration(s.nbErrors)
+
+	log.Warnf("Worker %s: Stream creation failed: %v. Backing off for %v (error count: %d)",
+		s.workerID, err, backoffDuration, s.nbErrors)
+
+	s.streamState = disconnected
+
+	if backoffDuration > 0 {
+		s.backoffTimer.Reset(backoffDuration)
 	} else {
-		log.Errorf("Worker %s: Failed to create new stream during hard rotation: %v", s.workerID, err)
+		// it shouldn't happen, but be defensive
+		// retry immediately by transitioning directly to connecting
+		log.Infof("Worker %s: Zero backoff duration, retrying immediately", s.workerID)
+		s.streamState = connecting
+		s.asyncCreateNewStream()
+	}
+}
+
+// asyncCreateNewStream creates a new gRPC stream asynchronously
+// Signals completion (success or failure) via streamReadyCh
+func (s *streamWorker) asyncCreateNewStream() {
+	go func() {
+		log.Infof("Worker %s: Starting async stream creation", s.workerID)
+
+		var result streamCreationResult
+
+		// Ensure the connection is ready, can block up to connectionTimeout
+		err := s.ensureConnectionReady()
+		if err != nil {
+			log.Errorf("Worker %s: Async stream creation failed (connection failure) %v", s.workerID, err)
+			result = streamCreationResult{info: nil, err: err}
+		} else {
+			// Create per-stream context derived from destinations context
+			streamCtx, streamCancel := context.WithCancel(s.destinationsContext.Context())
+
+			// Create the stream, shouldn't block at this point.
+			stream, err := s.client.LogsStream(streamCtx)
+
+			if err != nil {
+				streamCancel()
+				log.Errorf("Worker %s: Async stream creation failed (post-connection): %v", s.workerID, err)
+				result = streamCreationResult{info: nil, err: err}
+			} else {
+				log.Infof("Worker %s: Async stream creation succeeded", s.workerID)
+				result = streamCreationResult{
+					info: &streamInfo{
+						stream: stream,
+						ctx:    streamCtx,
+						cancel: streamCancel,
+					},
+					err: nil,
+				}
+			}
+		}
+
+		// Signal result to supervisor (blocks until received or stopped)
+		select {
+		case s.streamReadyCh <- result:
+		case <-s.stopChan:
+			// Worker stopped before supervisor could receive result
+			// We own cleanup since supervisor never got the stream
+			if result.info != nil {
+				s.closeStream(result.info)
+			}
+		}
+	}()
+}
+
+func (s *streamWorker) ensureConnectionReady() error {
+	// Skip connection check if conn is nil (for testing with mock clients)
+	if s.conn == nil {
+		return nil
 	}
 
-	// Set rotation state
-	s.inRotation = true
-	s.rotationType = RotationTypeHard
-}
+	connCtx, cancel := context.WithTimeout(s.destinationsContext.Context(), connectionTimeout)
+	defer cancel()
 
-// finishHardRotate completes the hard rotation process
-func (s *StreamWorker) finishHardRotate(streamTimer *time.Timer) {
-	log.Infof("Worker %s: Hard rotation finished, resuming normal operation", s.workerID)
-	s.inRotation = false
-	s.rotationType = RotationTypeNone
-	// Reset timer after successful rotation
-	streamTimer.Reset(s.streamLifetime)
-}
+	// Nudge dialing if idle; doesn't block
+	s.conn.Connect()
 
-// beginGracefulRotate starts graceful rotation by signaling upstream
-func (s *StreamWorker) beginGracefulRotate() {
-	log.Infof("🔄 Worker %s: BEGIN GRACEFUL ROTATION (generation %d)", s.workerID, s.generationID)
-
-	// Signal "graceful rotate" to upstream
-	s.sendStreamRotateSignal(RotationTypeGraceful)
-	log.Infof("📡 Worker %s: Sent graceful rotation signal to upstream", s.workerID)
-
-	// Set rotation state
-	s.inRotation = true
-	s.rotationType = RotationTypeGraceful
-	log.Infof("🔄 Worker %s: In graceful rotation mode, waiting for snapshot...", s.workerID)
-}
-
-// finishGracefulRotate completes graceful rotation by switching to new stream
-func (s *StreamWorker) finishGracefulRotate(streamTimer *time.Timer) {
-	log.Infof("Worker %s: Finishing graceful rotation", s.workerID)
-
-	// Move current stream to drained
-	s.drainedStream = s.currentStream
-	s.currentStream = nil
-
-	// Create new stream
-	if streamInfo, err := s.createNewStream(); err == nil {
-		s.currentStream = streamInfo
-		log.Infof("Worker %s: Graceful rotation completed, new stream created (generation %d)", s.workerID, s.generationID)
-		// Start new receiver goroutine with new stream
-		go s.receiverLoop(streamInfo, s.generationID)
-	} else {
-		log.Errorf("Worker %s: Failed to create new stream during graceful rotation: %v", s.workerID, err)
+	for {
+		state := s.conn.GetState()
+		switch state {
+		case connectivity.Ready:
+			return nil
+		case connectivity.Shutdown:
+			return errors.New("gRPC conn is shutdown")
+		}
+		// Wait for state change or timeout/cancel.
+		if !s.conn.WaitForStateChange(connCtx, state) {
+			// context done (timeout or cancellation)
+			return connCtx.Err()
+		}
 	}
-
-	// Start drain timer (10 seconds) - automatically closes drained stream when it expires
-	drainedStreamToClose := s.drainedStream
-	time.AfterFunc(10*time.Second, func() {
-		log.Infof("Worker %s: Closing drained stream after 10 second grace period", s.workerID)
-		s.closeStream(drainedStreamToClose)
-	})
-
-	// Reset rotation state
-	s.inRotation = false
-	s.rotationType = RotationTypeNone
-
-	// Reset timer after successful rotation
-	streamTimer.Reset(s.streamLifetime)
-}
-
-// createNewStream creates a new gRPC stream and returns StreamInfo
-func (s *StreamWorker) createNewStream() (*StreamInfo, error) {
-	// Increment generation for new stream
-	s.generationID++
-	log.Infof("Worker %s: Creating new stream (generation %d)", s.workerID, s.generationID)
-
-	// Create per-stream context derived from destinations context
-	ctx, cancel := context.WithCancel(s.destinationsContext.Context())
-
-	// Create the stream (headers are added automatically via PerRPCCredentials)
-	stream, err := s.client.LogsStream(ctx)
-	if err != nil {
-		cancel() // Clean up context on error
-		log.Errorf("Worker %s: Failed to create gRPC stream (generation %d): %v", s.workerID, s.generationID, err)
-		return nil, fmt.Errorf("failed to create stream: %w", err)
-	}
-
-	log.Infof("Worker %s: Successfully created gRPC stream (generation %d)", s.workerID, s.generationID)
-	return &StreamInfo{
-		Stream: stream,
-		Ctx:    ctx,
-		Cancel: cancel,
-	}, nil
 }
 
 // closeStream safely closes a stream and cancels its context
-func (s *StreamWorker) closeStream(streamInfo *StreamInfo) {
+func (s *streamWorker) closeStream(streamInfo *streamInfo) {
 	if streamInfo != nil {
-		streamInfo.Stream.CloseSend()
-		streamInfo.Cancel()
+		if err := streamInfo.stream.CloseSend(); err != nil {
+			log.Debugf("Worker %s: Error closing stream send: %v", s.workerID, err)
+		}
+		streamInfo.cancel()
 	}
-}
-
-// sendPayload sends a payload through the current stream
-func (s *StreamWorker) sendPayload(payload *message.Payload) error {
-	if s.currentStream == nil {
-		return fmt.Errorf("no active stream")
-	}
-
-	batch := s.payloadToBatch(payload)
-
-	// Send the batch (headers were sent at stream creation time)
-	if err := s.currentStream.Stream.Send(batch); err != nil {
-		return fmt.Errorf("failed to send batch: %w", err)
-	}
-
-	// Track payload by batch ID for auditor acknowledgment when we receive BatchStatus
-	s.pendingPayloadsMu.Lock()
-	s.pendingPayloads[batch.BatchId] = payload
-	// Removed debug log to reduce noise
-	s.pendingPayloadsMu.Unlock()
-
-	return nil
 }
 
 // receiverLoop runs in the receiver goroutine to process server responses for a specific stream
-// This goroutine exits when the stream fails and signals the supervisor
-func (s *StreamWorker) receiverLoop(streamInfo *StreamInfo, generationID uint64) {
-	stream := streamInfo.Stream
-	log.Infof("🔄 Worker %s: receiverLoop STARTED (generation %d)", s.workerID, generationID)
-	recvCount := 0
+// The receiver is stateless - it only forwards acks/errors to the supervisor
+// This goroutine exits when the stream fails (after signaling the supervisor)
+func (s *streamWorker) receiverLoop(streamInfo *streamInfo) {
+	stream := streamInfo.stream
 	for {
 		msg, err := stream.Recv()
 		if err == nil {
-			// Normal message (e.g., BatchStatus)
-			recvCount++
-			if recvCount%100 == 1 {
-				log.Infof("✅ Worker %s: Received %d BatchStatus messages so far (latest: batch_id=%d)", s.workerID, recvCount, msg.BatchId)
-			}
-			s.handleBatchStatus(msg)
+			// Normal message (batch acknowledgment) - forward to supervisor
+			s.signalBatchAck(streamInfo, msg)
 			continue
 		}
 
 		// Clean inbound close (server OK in trailers): policy = signal receiver failure
 		if errors.Is(err, io.EOF) {
-			log.Warnf("Worker %s: Stream closed by server (generation %d)", s.workerID, generationID)
-			s.signalRecvFailure(generationID, err)
-			return // Exit this receiver goroutine
+			log.Warnf("Worker %s: Stream closed by server", s.workerID)
+			s.signalRecvFailure(streamInfo)
+			return
 		}
 
 		// Local cancel/deadline (supervisor rotated, worker shutdown): just exit
-		if errors.Is(streamInfo.Ctx.Err(), context.Canceled) || errors.Is(streamInfo.Ctx.Err(), context.DeadlineExceeded) {
-			log.Infof("Worker %s: Stream context cancelled, receiver exiting (generation %d)", s.workerID, generationID)
-			return // Exit this receiver goroutine
+		ctxErr := streamInfo.ctx.Err()
+		if errors.Is(ctxErr, context.Canceled) || errors.Is(ctxErr, context.DeadlineExceeded) {
+			log.Infof("Worker %s: Stream context cancelled, receiver exiting", s.workerID)
+			return
 		}
 
 		// Stream-level gRPC status (non-OK): RPC is over → signal receiver failure or block terminal
@@ -443,247 +644,68 @@ func (s *StreamWorker) receiverLoop(streamInfo *StreamInfo, generationID uint64)
 			switch st.Code() {
 			case codes.Unauthenticated, codes.PermissionDenied:
 				// Terminal until fixed; do not signal receiver failure here
-				s.handleIrrecoverableError("auth/perm: " + st.Message())
-				return // Exit this receiver goroutine
+				s.handleIrrecoverableError("auth/perm: "+st.Message(), streamInfo)
+				return
 			case codes.InvalidArgument, codes.FailedPrecondition, codes.OutOfRange, codes.Unimplemented:
 				// Terminal protocol/semantic issue; do not signal receiver failure
-				s.handleIrrecoverableError("protocol: " + st.Message())
-				return // Exit this receiver goroutine
+				s.handleIrrecoverableError("protocol: "+st.Message(), streamInfo)
+				return
 			default:
 				// All other non-OK statuses: signal receiver failure
-				s.signalRecvFailure(generationID, err)
-				return // Exit this receiver goroutine
+				log.Warnf("Worker %s: gRPC error (code %v): %v", s.workerID, st.Code(), err)
+				s.signalRecvFailure(streamInfo)
+				return
 			}
 		}
 
 		// Transport error without status (RST/GOAWAY/TLS, socket close): signal receiver failure
-		log.Warnf("Worker %s: Transport error (generation %d): %v", s.workerID, generationID, err)
-		s.signalRecvFailure(generationID, err)
-		return // Exit this receiver goroutine
+		log.Warnf("Worker %s: Transport error: %v", s.workerID, err)
+		s.signalRecvFailure(streamInfo)
+		return
 	}
 }
 
 // signalRecvFailure signals the supervisor to rotate the stream
-func (s *StreamWorker) signalRecvFailure(generationID uint64, err error) {
-	// Always signal with generation ID - supervisor will decide whether to act
-	signal := ReceiverSignal{
-		GenerationID: generationID,
-		Error:        err,
-	}
-
+func (s *streamWorker) signalRecvFailure(streamInfo *streamInfo) {
 	// This signaling is blocking by design, it's okey to block the receiver,
 	// since the only way we get here is through an irrecoverable error.
-	// The stopChan is used to unblock the receiver when the worker is shutting down.
 	select {
-	case s.recvFailureCh <- signal:
+	case s.recvFailureCh <- streamInfo:
 	case <-s.stopChan:
 	}
 }
 
-// handleIrrecoverableError blocks the receiver when encountering terminal errors
-func (s *StreamWorker) handleIrrecoverableError(reason string) {
-	// TODO: Implement proper blocking logic with exponential backoff and cancellable sleep
-}
-
-// handleBatchStatus processes a normal BatchStatus response
-func (s *StreamWorker) handleBatchStatus(response *BatchStatus) {
-	batchID := uint32(response.BatchId)
-
-	// Debug: Print the full server response
-	log.Debugf("🔵 Worker %s: SERVER RESPONSE: batch_id=%d, status=%v (enum=%d), full_response=%+v",
-		s.workerID, response.BatchId, response.Status, int32(response.Status), response)
-
-	// Find the specific payload for this batch ID
-	s.pendingPayloadsMu.Lock()
-	payload, exists := s.pendingPayloads[batchID]
-	if exists {
-		delete(s.pendingPayloads, batchID) // Clean up immediately while holding lock
-	} else {
-		log.Warnf("❌ Worker %s: Payload for batch_id=%d NOT FOUND in pendingPayloads (total pending: %d)", s.workerID, batchID, len(s.pendingPayloads))
-	}
-	s.pendingPayloadsMu.Unlock()
-
-	if exists {
-		if response.Status == BatchStatus_OK {
-			// Update metrics for successful send
-			metrics.LogsSent.Add(int64(payload.Count()))
-			metrics.TlmLogsSent.Add(float64(payload.Count()))
-
-			// Handle acknowledgments - send successful payloads to auditor
-			if s.outputChan != nil {
-				select {
-				case s.outputChan <- payload:
-					// Success - no log to reduce noise
-				default:
-					log.Warnf("Worker %s: Auditor channel full, dropping ack for batch %d", s.workerID, batchID)
-				}
-			} else {
-				log.Warnf("❌ Worker %s: outputChan is nil, cannot send ack for batch_id=%d", s.workerID, batchID)
-			}
-		} else {
-			log.Warnf("Worker %s: Received non-OK status for batch %d: %v", s.workerID, batchID, response.Status)
-		}
+// signalBatchAck forwards a batch acknowledgment to the supervisor
+// If the worker is stopped, returns without delivering (shutdown is in progress anyway)
+func (s *streamWorker) signalBatchAck(streamInfo *streamInfo, msg *statefulpb.BatchStatus) {
+	select {
+	case s.batchAckCh <- &batchAck{stream: streamInfo, status: msg}:
+	case <-s.stopChan:
 	}
 }
 
-// payloadToBatch converts a message payload to a StatefulBatch
-func (s *StreamWorker) payloadToBatch(payload *message.Payload) *StatefulBatch {
-	batchID := s.batchIDCounter.Inc()
+// handleIrrecoverableError are errors that shouldn't be retried, and ideally
+// should be block the ingestion, until the error is resolved.
+func (s *streamWorker) handleIrrecoverableError(_ string, streamInfo *streamInfo) {
+	// Currently this is treated as stream error, which will trigger a stream rotation
+	// and retry of the same payload, which loops on. this IS NOT the desired behavior.
+	// TODO: Implement proper handling of irrecoverable errors, by blocking the ingestion
+	s.signalRecvFailure(streamInfo)
+}
 
-	batch := &StatefulBatch{
+// createBatch creates a StatefulBatch from serialized data and batch ID
+func createBatch(data []byte, batchID uint32) *statefulpb.StatefulBatch {
+	return &statefulpb.StatefulBatch{
 		BatchId: batchID,
-		Data:    make([]*Datum, 0, payload.Count()),
+		Data:    data,
 	}
-
-	// Check payload type by looking at metadata tags
-	payloadType := ""
-	for _, meta := range payload.MessageMetas {
-		for _, tag := range meta.ProcessingTags {
-			if tag == "data_type:pattern_define" || tag == "data_type:pattern_update" || tag == "data_type:log_with_pattern" {
-				payloadType = tag
-				break
-			}
-		}
-		if payloadType != "" {
-			break
-		}
-	}
-
-	switch payloadType {
-	case "data_type:pattern_define", "data_type:pattern_update":
-		// Handle pattern change (define or update)
-		datum, err := s.decodePatternDatum(payload)
-		if err != nil {
-			log.Errorf("Worker %s: Failed to decode pattern: %v", s.workerID, err)
-		} else if datum != nil {
-			batch.Data = append(batch.Data, datum)
-			if payloadType == "data_type:pattern_define" {
-				log.Infof("📤 Worker %s: Sending PatternDefine (ID=%d, template='%s')",
-					s.workerID, datum.GetPatternDefine().PatternId, datum.GetPatternDefine().Template)
-			} else {
-				log.Infof("📤 Worker %s: Sending PatternUpdate (ID=%d, template='%s')",
-					s.workerID, datum.GetPatternUpdate().PatternId, datum.GetPatternUpdate().NewTemplate)
-			}
-		}
-
-	case "data_type:log_with_pattern":
-		// Handle log with pattern reference + wildcard values
-		datum, err := s.decodeLogDatum(payload)
-		if err != nil {
-			log.Errorf("Worker %s: Failed to decode log: %v", s.workerID, err)
-		} else if datum != nil {
-			batch.Data = append(batch.Data, datum)
-			log.Debugf("📤 Worker %s: Sending Log with pattern_id=%d, %d wildcard values",
-				s.workerID, datum.GetLogs().GetStructured().PatternId, len(datum.GetLogs().GetStructured().DynamicValues))
-		}
-
-	default:
-		// Handle regular log payload (no pattern)
-		datum := &Datum{
-			Data: &Datum_Logs{
-				Logs: &Log{
-					Content: &Log_Raw{
-						Raw: string(payload.Encoded), // Send compressed data as-is
-					},
-				},
-			},
-		}
-		batch.Data = append(batch.Data, datum)
-	}
-
-	return batch
 }
 
-// PatternData matches the structure from dumb_strategy (sender package)
-// We define it here to avoid import cycles
-type PatternData struct {
-	PatternID  uint64
-	Template   string
-	ParamCount uint32
-	PosList    []uint32
-	IsUpdate   bool
-}
-
-// LogData matches the structure from dumb_strategy (sender package)
-type LogData struct {
-	PatternID      uint64
-	WildcardValues []string
-	Timestamp      uint64
-}
-
-// decodePatternDatum decodes a pattern payload from gob format to protobuf (PatternDefine or PatternUpdate)
-func (s *StreamWorker) decodePatternDatum(payload *message.Payload) (*Datum, error) {
-	// Decode gob-encoded PatternData
-	var patternData PatternData
-	decoder := gob.NewDecoder(bytes.NewReader(payload.Encoded))
-
-	if err := decoder.Decode(&patternData); err != nil {
-		return nil, fmt.Errorf("failed to decode pattern data: %w", err)
+// createStoppedTimer creates a timer that is stopped and has its channel drained
+func createStoppedTimer(clk clock.Clock, d time.Duration) *clock.Timer {
+	t := clk.Timer(d)
+	if !t.Stop() {
+		<-t.C
 	}
-
-	// Convert to protobuf PatternDefine or PatternUpdate
-	if patternData.IsUpdate {
-		patternUpdate := &PatternUpdate{
-			PatternId:   patternData.PatternID,
-			NewTemplate: patternData.Template,
-			ParamCount:  patternData.ParamCount,
-			PosList:     patternData.PosList,
-		}
-		return &Datum{
-			Data: &Datum_PatternUpdate{
-				PatternUpdate: patternUpdate,
-			},
-		}, nil
-	}
-
-	patternDefine := &PatternDefine{
-		PatternId:  patternData.PatternID,
-		Template:   patternData.Template,
-		ParamCount: patternData.ParamCount,
-		PosList:    patternData.PosList,
-	}
-	return &Datum{
-		Data: &Datum_PatternDefine{
-			PatternDefine: patternDefine,
-		},
-	}, nil
-}
-
-// decodeLogDatum decodes a log payload from gob format to protobuf Log with StructuredLog
-func (s *StreamWorker) decodeLogDatum(payload *message.Payload) (*Datum, error) {
-	// Decode gob-encoded LogData
-	var logData LogData
-	decoder := gob.NewDecoder(bytes.NewReader(payload.Encoded))
-
-	if err := decoder.Decode(&logData); err != nil {
-		return nil, fmt.Errorf("failed to decode log data: %w", err)
-	}
-
-	// Convert wildcard values to DynamicValue protobuf
-	dynamicValues := make([]*DynamicValue, len(logData.WildcardValues))
-	for i, val := range logData.WildcardValues {
-		dynamicValues[i] = &DynamicValue{
-			Value: &DynamicValue_StringValue{
-				StringValue: val,
-			},
-		}
-	}
-
-	// Create StructuredLog
-	structuredLog := &StructuredLog{
-		PatternId:     logData.PatternID,
-		DynamicValues: dynamicValues,
-	}
-
-	// Wrap in Log and Datum
-	return &Datum{
-		Data: &Datum_Logs{
-			Logs: &Log{
-				Timestamp: logData.Timestamp,
-				Content: &Log_Structured{
-					Structured: structuredLog,
-				},
-			},
-		},
-	}, nil
+	return t
 }
