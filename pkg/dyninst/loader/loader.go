@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"strings"
+	"time"
 	"unsafe"
 
 	"github.com/cilium/ebpf"

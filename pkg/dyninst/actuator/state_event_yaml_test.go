@@ -12,10 +12,12 @@ import (
 	"fmt"
 	"strings"
 	"syscall"
+	"time"
 
 	"gopkg.in/yaml.v3"
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/loader"
 	procinfo "github.com/DataDog/datadog-agent/pkg/dyninst/process"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/rcjson"
 )
@@ -122,6 +124,9 @@ func (ye yamlEvent) MarshalYAML() (rv any, err error) {
 			"program_id": int(ev.programID),
 		})
 
+	case eventHeartbeatCheck:
+		return encodeNodeTag("!heartbeat-check", map[string]any{})
+
 	case eventShutdown:
 		return encodeNodeTag("!shutdown", map[string]any{})
 
@@ -224,6 +229,7 @@ func (ye *yamlEvent) UnmarshalYAML(node *yaml.Node) error {
 			programID: ir.ProgramID(eventData.ProgramID),
 			loaded: &loadedProgram{
 				programID: ir.ProgramID(eventData.ProgramID),
+				loaded:    &fakeLoadedProgram{},
 			},
 		}
 
@@ -251,6 +257,7 @@ func (ye *yamlEvent) UnmarshalYAML(node *yaml.Node) error {
 			program: &attachedProgram{
 				loadedProgram: &loadedProgram{
 					programID: ir.ProgramID(eventData.ProgramID),
+					loaded:    &fakeLoadedProgram{},
 				},
 				processID: ProcessID{PID: int32(eventData.ProcessID)},
 			},
@@ -294,6 +301,9 @@ func (ye *yamlEvent) UnmarshalYAML(node *yaml.Node) error {
 			programID: ir.ProgramID(eventData.ProgramID),
 		}
 
+	case "heartbeat-check":
+		ye.event = eventHeartbeatCheck{}
+
 	case "shutdown":
 		ye.event = eventShutdown{}
 
@@ -303,3 +313,23 @@ func (ye *yamlEvent) UnmarshalYAML(node *yaml.Node) error {
 
 	return nil
 }
+
+type fakeLoadedProgram struct{}
+
+func (*fakeLoadedProgram) Attach(ProcessID, Executable) (AttachedProgram, error) {
+	return nil, nil
+}
+
+func (p *fakeLoadedProgram) RuntimeStats() loader.RuntimeStats {
+	return loader.RuntimeStats{
+		HitCnt:       1000,
+		ThrottledCnt: 999,
+		CPU:          1e3 * time.Second,
+	}
+}
+
+func (*fakeLoadedProgram) Close() error {
+	return nil
+}
+
+var _ LoadedProgram = (*fakeLoadedProgram)(nil)

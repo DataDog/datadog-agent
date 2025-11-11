@@ -122,3 +122,11 @@ type eventGetMetrics struct {
 func (e eventGetMetrics) String() string {
 	return "eventGetMetrics{}"
 }
+
+type eventHeartbeatCheck struct {
+	baseEvent
+}
+
+func (e eventHeartbeatCheck) String() string {
+	return "eventHeartbeatCheck{}"
+}

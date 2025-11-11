@@ -538,7 +538,12 @@ func TestProbeIssueReporting(t *testing.T) {
 func TestNoSuccessfulProbes(t *testing.T) {
 	processUpdate := createTestProcessConfig()
 	fakeDeps := newFakeTestingDependencies(t)
-	a := actuator.NewActuator()
+	a := actuator.NewActuator(actuator.CircuitBreakerConfig{
+		Interval:          1 * time.Second,
+		PerProbeCPULimit:  0.1,
+		AllProbesCPULimit: 0.5,
+		InterruptOverhead: 5 * time.Microsecond,
+	})
 	t.Cleanup(func() { require.NoError(t, a.Shutdown()) })
 	deps := fakeDeps.toDeps()
 	deps.IRGenerator = irgen.NewGenerator()
@@ -624,7 +629,7 @@ func (f *fakeAttacher) Attach(
 
 type fakeAttachedProgram struct{}
 
-func (fakeAttachedProgram) Detach() error { return nil }
+func (fakeAttachedProgram) Detach(_ error) error { return nil }
 
 type fakeIRGenerator struct {
 	program *ir.Program
