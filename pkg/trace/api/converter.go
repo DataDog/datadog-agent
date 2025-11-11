@@ -30,6 +30,7 @@ func ConvertToIdx(payload *pb.TracerPayload) *idx.InternalTracerPayload {
 	payloadHostname := ""
 	payloadAppVersion := ""
 	payloadGitCommitSha := ""
+	payloadDecisionMaker := ""
 	for chunkIndex, chunk := range payload.Chunks {
 		if chunk == nil || len(chunk.Spans) == 0 {
 			continue
@@ -116,6 +117,9 @@ func ConvertToIdx(payload *pb.TracerPayload) *idx.InternalTracerPayload {
 				// Take the first git commit sha found in any chunk and set it as the git commit sha for the tracer payload
 				payloadGitCommitSha = spanGitCommitSha
 			}
+			if spanDecisionMaker, ok := span.Meta["_dd.p.dm"]; ok && payloadDecisionMaker == "" {
+				payloadDecisionMaker = spanDecisionMaker
+			}
 			version := span.Meta["version"]
 			component := span.Meta["component"]
 			kindStr := span.Meta["kind"]
@@ -155,13 +159,16 @@ func ConvertToIdx(payload *pb.TracerPayload) *idx.InternalTracerPayload {
 			idxSpans[spanIndex] = idx.NewInternalSpan(stringTable, protoSpan)
 		}
 		var samplingMechanism uint64
-		decisionMaker := chunk.Tags["_dd.p.dm"]
-		if decisionMaker != "" {
-			decisionMaker, _ = strings.CutPrefix(decisionMaker, "-")
+		if payloadDecisionMaker == "" {
+			// If we didn't see one in any spans try to fall back to a value at the chunk level
+			payloadDecisionMaker = chunk.Tags["_dd.p.dm"]
+		}
+		if payloadDecisionMaker != "" {
+			payloadDecisionMaker, _ = strings.CutPrefix(payloadDecisionMaker, "-")
 			var err error
-			samplingMechanism, err = strconv.ParseUint(decisionMaker, 10, 32)
+			samplingMechanism, err = strconv.ParseUint(payloadDecisionMaker, 10, 32)
 			if err != nil {
-				log.Warnf("Found invalid sampling mechanism %s: %v, Decision maker will be ignored", decisionMaker, err)
+				log.Warnf("Found invalid sampling mechanism %s: %v, Decision maker will be ignored", payloadDecisionMaker, err)
 			}
 		}
 		if chunkPriority == int32(sampler.PriorityNone) && chunk.Priority != int32(sampler.PriorityNone) {

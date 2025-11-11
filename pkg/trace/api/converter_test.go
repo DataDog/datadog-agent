@@ -143,7 +143,7 @@ func TestConvertToIdx_KindFieldMatchesOTELSpec(t *testing.T) {
 	}
 }
 
-// Test that promoted fields (env, version, component) are moved out of meta
+// Test that promoted fields (env, version, component) are moved to their fields instead of attributes
 func TestConvertToIdx_PromotedFields(t *testing.T) {
 	payload := &pb.TracerPayload{
 		Chunks: []*pb.TraceChunk{
@@ -295,4 +295,57 @@ func TestConvertToIdx_ComponentFieldPromoted(t *testing.T) {
 	span := result.Chunks[0].Spans[0]
 
 	assert.Equal(t, "redis", span.Component())
+}
+
+// Test that _dd.p.dm field is correctly converted to sampling mechanism
+func TestConvertToIdx_DecisionMakerFieldSetsSamplingMechanism(t *testing.T) {
+	tests := []struct {
+		name                      string
+		decisionMaker             string
+		expectedSamplingMechanism uint32
+	}{
+		{
+			name:                      "decision maker with value 8",
+			decisionMaker:             "8",
+			expectedSamplingMechanism: 8,
+		},
+		{
+			name:                      "decision maker with negative prefix",
+			decisionMaker:             "-4",
+			expectedSamplingMechanism: 4,
+		},
+		{
+			name:                      "decision maker with value 0",
+			decisionMaker:             "0",
+			expectedSamplingMechanism: 0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			payload := &pb.TracerPayload{
+				Chunks: []*pb.TraceChunk{
+					{
+						Spans: []*pb.Span{
+							{
+								Service:  "test-service",
+								Name:     "test-span",
+								Resource: "test-resource",
+								TraceID:  123,
+								SpanID:   456,
+								Meta: map[string]string{
+									"_dd.p.dm": tt.decisionMaker,
+								},
+							},
+						},
+					},
+				},
+			}
+
+			result := ConvertToIdx(payload)
+
+			require.Len(t, result.Chunks, 1)
+			assert.Equal(t, tt.expectedSamplingMechanism, result.Chunks[0].SamplingMechanism())
+		})
+	}
 }
