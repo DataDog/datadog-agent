@@ -89,3 +89,29 @@ var ccridFetcher = cachedfetch.Fetcher{
 func GetHostCCRID(ctx context.Context) (string, error) {
 	return ccridFetcher.FetchString(ctx)
 }
+
+var instanceTypeFetcher = cachedfetch.Fetcher{
+	Name: "Oracle Instance Type",
+	Attempt: func(ctx context.Context) (interface{}, error) {
+		if !configutils.IsCloudProviderEnabled(CloudProviderName, pkgconfigsetup.Datadog()) {
+			return "", fmt.Errorf("Oracle cloud provider is disabled by configuration")
+		}
+
+		endpoint := metadataURL + "/opc/v2/instance/shape"
+		res, err := httputils.Get(ctx, endpoint, map[string]string{"Authorization": "Bearer Oracle"}, timeout, pkgconfigsetup.Datadog())
+		if err != nil {
+			return "", fmt.Errorf("unable to retrieve instance shape from Oracle: %s", err)
+		}
+
+		if res == "" {
+			return "", fmt.Errorf("Oracle '%s' returned empty shape", endpoint)
+		}
+
+		return res, nil
+	},
+}
+
+// GetInstanceType returns the instance shape / type of the current Oracle Cloud instance
+func GetInstanceType(ctx context.Context) (string, error) {
+	return instanceTypeFetcher.FetchString(ctx)
+}

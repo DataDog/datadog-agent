@@ -228,6 +228,7 @@ type cloudProviderInstanceTypeDetector func(context.Context) (string, error)
 var hostInstanceTypeDetectors = map[string]cloudProviderInstanceTypeDetector{
 	ec2.CloudProviderName: ec2.GetInstanceType,
 	gce.CloudProviderName: gce.GetInstanceType,
+	oracle.CloudProviderName: oracle.GetInstanceType,
 }
 
 // GetInstanceType returns the instance type from the first cloud provider that works.
