@@ -12,7 +12,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
-	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
+	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/servernoop"
 )
 
 // InitRunner is a stub for builds that do not include jmx

@@ -56,12 +56,12 @@ func (s *server) IsRunning() bool {
 }
 
 // ServerlessFlush flushes all the data to the aggregator to them send it to the Datadog intake.
-func (s *server) ServerlessFlush(time.Duration) {
+func (s *server) ServerlessFlush(_ time.Duration) {
 	// no-op
 }
 
 // SetExtraTags sets extra tags. All metrics sent to the DogstatsD will be tagged with them.
-func (s *server) SetExtraTags(tags []string) {
+func (s *server) SetExtraTags(_tags []string) {
 	// no-op
 }
 
@@ -71,6 +71,6 @@ func (s *server) UDPLocalAddr() string {
 }
 
 // SetFilterList sets the filterlist to apply when parsing metrics from the DogStatsD listener.
-func (s *server) SetFilterList([]string, bool) {
+func (s *server) SetFilterList(_ []string, _ bool) {
 	// no-op
 }

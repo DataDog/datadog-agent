@@ -20,8 +20,8 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd"
-	server "github.com/DataDog/datadog-agent/comp/dogstatsd/servernoop"
 	serverdebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
+	server "github.com/DataDog/datadog-agent/comp/dogstatsd/servernoop"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 
 	"github.com/DataDog/datadog-agent/pkg/config/model"
