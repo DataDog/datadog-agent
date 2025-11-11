@@ -123,6 +123,11 @@
           {
             "regex": "(?m)^(.*server-key(?: \\d)?) \\S+",
             "replacement": "$1 <secret hidden>"
+          },
+          {
+            "regex": "(?s)banner (exec|incoming|login) \\^C.*?\\^C\\s*",
+            "replacement" : "",
+            "multiline": true
           }
         ]
       }
@@ -250,6 +255,11 @@
           {
             "regex": "(?m)^(.*server-key(?: \\d)?) \\S+",
             "replacement": "$1 <secret hidden>"
+          },
+          {
+            "regex": "(?s)banner (exec|incoming|login) \\^C.*?\\^C\\s*",
+            "replacement" : "",
+            "multiline": true
           }
         ]
       }

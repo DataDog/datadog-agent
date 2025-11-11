@@ -104,12 +104,6 @@ ip ftp password 0 clear-ftp-pass
 ip http server
 ip http authentication local
 !
-banner login ^C
-*****************************************************
-*  Authorized access only.                          *
-*  Credentials required.                            *
-*****************************************************
-^C
 !
 ! ---- Certificates/keys (commonly present; OK to exist as test data) --
 crypto pki trustpoint TP-LAB
