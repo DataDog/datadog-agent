@@ -35,7 +35,7 @@ func (s *spanModifier) ModifySpan(chunk *idx.InternalTraceChunk, span *idx.Inter
 		if s.lambdaSpanChan != nil && span.Name() == "aws.lambda" {
 			s.lambdaSpanChan <- &LambdaSpan{
 				TraceID: chunk.TraceID[:],
-				Span:    span,
+				Span:    span.Clone(), // To protect against concurrent access to the span
 			}
 		}
 	}

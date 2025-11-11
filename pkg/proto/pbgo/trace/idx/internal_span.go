@@ -552,6 +552,48 @@ func (s *Span) ShallowCopy() *Span {
 	}
 }
 
+// Clone creates a deep copy of the span so it can be used and modified independently of the original span
+func (s *Span) Clone() *Span {
+	// Deep copy the attributes map
+	newAttributes := make(map[uint32]*AnyValue, len(s.Attributes))
+	maps.Copy(newAttributes, s.Attributes)
+
+	// Deep copy the links slice
+	newLinks := make([]*SpanLink, len(s.Links))
+	copy(newLinks, s.Links)
+
+	// Deep copy the events slice
+	newEvents := make([]*SpanEvent, len(s.Events))
+	copy(newEvents, s.Events)
+
+	return &Span{
+		ServiceRef:   s.ServiceRef,
+		NameRef:      s.NameRef,
+		ResourceRef:  s.ResourceRef,
+		SpanID:       s.SpanID,
+		ParentID:     s.ParentID,
+		Start:        s.Start,
+		Duration:     s.Duration,
+		Error:        s.Error,
+		Attributes:   newAttributes,
+		TypeRef:      s.TypeRef,
+		Links:        newLinks,
+		Events:       newEvents,
+		EnvRef:       s.EnvRef,
+		VersionRef:   s.VersionRef,
+		ComponentRef: s.ComponentRef,
+		Kind:         s.Kind,
+	}
+}
+
+// Clone creates a deep copy of the span and string table so it can be used and modified independently of the original span
+func (s *InternalSpan) Clone() *InternalSpan {
+	return &InternalSpan{
+		Strings: s.Strings.Clone(),
+		span:    s.span.Clone(),
+	}
+}
+
 // DebugString returns a human readable string representation of the span
 func (s *InternalSpan) DebugString() string {
 	str := "Span {"

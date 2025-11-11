@@ -506,3 +506,143 @@ func TestInternalSpan_MapStringAttributes_KeyAndValueTransformation(t *testing.T
 	_, found = span.GetAttributeAsString("request.id")
 	assert.False(t, found)
 }
+
+func TestInternalSpan_Clone(t *testing.T) {
+	// Create an original span with all fields populated
+	stringTable := NewStringTable()
+	originalSpan := &InternalSpan{
+		Strings: stringTable,
+		span: &Span{
+			ServiceRef:  stringTable.Add("test-service"),
+			NameRef:     stringTable.Add("test-operation"),
+			ResourceRef: stringTable.Add("test-resource"),
+			SpanID:      12345,
+			ParentID:    67890,
+			Start:       1000000,
+			Duration:    5000,
+			Error:       true,
+			Attributes: map[uint32]*AnyValue{
+				stringTable.Add("http.method"): {Value: &AnyValue_StringValueRef{StringValueRef: stringTable.Add("GET")}},
+				stringTable.Add("http.status"): {Value: &AnyValue_IntValue{IntValue: 200}},
+			},
+			TypeRef: stringTable.Add("web"),
+			Links: []*SpanLink{
+				{
+					TraceID:       []byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16},
+					SpanID:        111,
+					TracestateRef: stringTable.Add("tracestate"),
+					Attributes: map[uint32]*AnyValue{
+						stringTable.Add("link.attr"): {Value: &AnyValue_StringValueRef{StringValueRef: stringTable.Add("link-value")}},
+					},
+				},
+			},
+			Events: []*SpanEvent{
+				{
+					NameRef: stringTable.Add("event-name"),
+					Time:    2000000,
+					Attributes: map[uint32]*AnyValue{
+						stringTable.Add("event.attr"): {Value: &AnyValue_StringValueRef{StringValueRef: stringTable.Add("event-value")}},
+					},
+				},
+			},
+			EnvRef:       stringTable.Add("production"),
+			VersionRef:   stringTable.Add("1.0.0"),
+			ComponentRef: stringTable.Add("http-client"),
+			Kind:         SpanKind_SPAN_KIND_CLIENT,
+		},
+	}
+
+	// Clone the span
+	clonedSpan := originalSpan.Clone()
+
+	// Verify all fields are copied correctly
+	assert.Equal(t, originalSpan.Service(), clonedSpan.Service())
+	assert.Equal(t, originalSpan.Name(), clonedSpan.Name())
+	assert.Equal(t, originalSpan.Resource(), clonedSpan.Resource())
+	assert.Equal(t, originalSpan.SpanID(), clonedSpan.SpanID())
+	assert.Equal(t, originalSpan.ParentID(), clonedSpan.ParentID())
+	assert.Equal(t, originalSpan.Start(), clonedSpan.Start())
+	assert.Equal(t, originalSpan.Duration(), clonedSpan.Duration())
+	assert.Equal(t, originalSpan.Error(), clonedSpan.Error())
+	assert.Equal(t, originalSpan.Type(), clonedSpan.Type())
+	assert.Equal(t, originalSpan.Env(), clonedSpan.Env())
+	assert.Equal(t, originalSpan.Version(), clonedSpan.Version())
+	assert.Equal(t, originalSpan.Component(), clonedSpan.Component())
+	assert.Equal(t, originalSpan.Kind(), clonedSpan.Kind())
+
+	// Verify attributes are copied
+	httpMethod, found := clonedSpan.GetAttributeAsString("http.method")
+	assert.True(t, found)
+	assert.Equal(t, "GET", httpMethod)
+	httpStatus, found := clonedSpan.GetAttributeAsFloat64("http.status")
+	assert.True(t, found)
+	assert.Equal(t, float64(200), httpStatus)
+
+	// Verify the Attributes map is independent (deep copy)
+	// Modify the cloned span's attributes and verify original is unaffected
+	clonedSpan.SetStringAttribute("new.attribute", "new-value")
+	_, found = originalSpan.GetAttributeAsString("new.attribute")
+	assert.False(t, found, "Original span should not have the new attribute")
+
+	// Verify the string tables are independent
+	assert.NotSame(t, originalSpan.Strings, clonedSpan.Strings)
+
+	// Verify Links slice is copied (length preserved)
+	assert.Equal(t, len(originalSpan.span.Links), len(clonedSpan.span.Links))
+
+	// Verify Events slice is copied (length preserved)
+	assert.Equal(t, len(originalSpan.span.Events), len(clonedSpan.span.Events))
+}
+
+func TestInternalSpan_CloneConcurrentSafe(t *testing.T) {
+	// Create an original span
+	stringTable := NewStringTable()
+	originalSpan := &InternalSpan{
+		Strings: stringTable,
+		span: &Span{
+			ServiceRef:  stringTable.Add("test-service"),
+			NameRef:     stringTable.Add("test-operation"),
+			ResourceRef: stringTable.Add("test-resource"),
+			SpanID:      12345,
+			Attributes: map[uint32]*AnyValue{
+				stringTable.Add("attr1"): {Value: &AnyValue_StringValueRef{StringValueRef: stringTable.Add("value1")}},
+			},
+		},
+	}
+
+	// Clone the span
+	clonedSpan := originalSpan.Clone()
+
+	// Concurrently modify both spans
+	wg := &sync.WaitGroup{}
+	wg.Add(2)
+
+	// Goroutine 1: Modify original span
+	go func() {
+		defer wg.Done()
+		for i := 0; i < 100; i++ {
+			originalSpan.SetStringAttribute("original.attr", "original-value")
+			_, found := originalSpan.GetAttributeAsString("original.attr")
+			assert.True(t, found)
+		}
+	}()
+
+	// Goroutine 2: Modify cloned span
+	go func() {
+		defer wg.Done()
+		for i := 0; i < 100; i++ {
+			clonedSpan.SetStringAttribute("cloned.attr", "cloned-value")
+			_, found := clonedSpan.GetAttributeAsString("cloned.attr")
+			assert.True(t, found)
+		}
+	}()
+
+	wg.Wait()
+
+	// Verify that the spans don't have each other's attributes
+	_, found := originalSpan.GetAttributeAsString("cloned.attr")
+	assert.False(t, found, "Original span should not have cloned span's attribute")
+
+	_, found = clonedSpan.GetAttributeAsString("original.attr")
+	assert.False(t, found, "Cloned span should not have original span's attribute")
+}
