@@ -121,6 +121,11 @@ func backupOrRestoreDirectory(ctx context.Context, sourcePath, targetPath string
 	if os.IsNotExist(err) {
 		return nil
 	}
+	// Ensure target directory exists before trying to write to it
+	err = os.MkdirAll(targetPath, 0755)
+	if err != nil {
+		return fmt.Errorf("error creating target directory: %w", err)
+	}
 	deploymentID, err := os.ReadFile(filepath.Join(sourcePath, deploymentIDFile))
 	if err != nil && !os.IsNotExist(err) {
 		return fmt.Errorf("error reading deployment ID file: %w", err)

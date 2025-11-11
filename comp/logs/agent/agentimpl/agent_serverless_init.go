@@ -22,7 +22,9 @@ import (
 	filelauncher "github.com/DataDog/datadog-agent/pkg/logs/launchers/file"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/schedulers"
+	"github.com/DataDog/datadog-agent/pkg/logs/tailers/file"
 	"github.com/DataDog/datadog-agent/pkg/logs/types"
+	"github.com/DataDog/datadog-agent/pkg/logs/util/opener"
 	"github.com/DataDog/datadog-agent/pkg/serverless/streamlogs"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
@@ -65,6 +67,8 @@ func (a *logAgent) SetupPipeline(
 	fileValidatePodContainer := a.config.GetBool("logs_config.validate_pod_container_id")
 	fileScanPeriod := time.Duration(a.config.GetFloat64("logs_config.file_scan_period") * float64(time.Second))
 	fileWildcardSelectionMode := a.config.GetString("logs_config.file_wildcard_selection_mode")
+	fileOpener := opener.NewFileOpener()
+	fingerprinter := file.NewFingerprinter(fingerprintConfig, fileOpener)
 	lnchrs.AddLauncher(filelauncher.NewLauncher(
 		fileLimits,
 		filelauncher.DefaultSleepDuration,
@@ -73,7 +77,9 @@ func (a *logAgent) SetupPipeline(
 		fileWildcardSelectionMode,
 		a.flarecontroller,
 		a.tagger,
-		fingerprintConfig))
+		fileOpener,
+		fingerprinter,
+	))
 	a.schedulers = schedulers.NewSchedulers(a.sources, a.services)
 	a.destinationsCtx = destinationsCtx
 	a.pipelineProvider = pipelineProvider
