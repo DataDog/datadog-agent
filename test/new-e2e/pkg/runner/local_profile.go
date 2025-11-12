@@ -16,6 +16,9 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner/parameters"
 )
 
+// NonFatalError is a non-fatal error that can be returned by the local profile
+type NonFatalError error
+
 var defaultLocalEnvironments = map[string]string{
 	"aws": "agent-sandbox",
 	"az":  "agent-sandbox",
@@ -139,7 +142,7 @@ func (p localProfile) CreateOutputSubDir(subdirectory string) (string, error) {
 	}
 	err = os.Symlink(outputDir, latestLink)
 	if err != nil {
-		return "", err
+		return "", NonFatalError(err)
 	}
 	return outputDir, nil
 }
