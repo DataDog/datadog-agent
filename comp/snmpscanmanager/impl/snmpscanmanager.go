@@ -10,6 +10,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"math/rand"
 	"sync"
 	"time"
 
@@ -31,7 +32,8 @@ const (
 	snmpCallInterval   = time.Second / snmpCallsPerSecond
 
 	scanSchedulerCheckInterval = 10 * time.Minute
-	scanRefreshInterval        = 182 * 24 * time.Hour // 6 months
+	scanRefreshInterval        = 182 * 24 * time.Hour   // 6 months
+	scanRefreshJitter          = 2 * 7 * 24 * time.Hour // 2 weeks
 
 	cacheKey = "snmp_scanned_devices"
 )
@@ -303,9 +305,10 @@ func (m *snmpScanManagerImpl) scanSchedulerWorker() {
 }
 
 func (m *snmpScanManagerImpl) scheduleScanRefresh(req snmpscanmanager.ScanRequest, lastScanTs time.Time) {
+	refreshJitter := time.Duration(rand.Int63n(int64(2*scanRefreshJitter))) - scanRefreshJitter
 	m.scanScheduler.QueueScanTask(scanTask{
 		req:        req,
-		nextScanTs: lastScanTs.Add(scanRefreshInterval),
+		nextScanTs: lastScanTs.Add(scanRefreshInterval).Add(refreshJitter),
 	})
 }
 
