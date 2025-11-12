@@ -99,8 +99,8 @@ go_e2e_deps:
   extends: .cache
   before_script:
     - dd-octo-sts version
-    - dd-octo-sts debug --scope DataDog/dd-octo-sts-sandbox --policy .github/chainguard/self.gitlab.read.sts.yaml
-    - dd-octo-sts token --scope DataDog/dd-octo-sts-sandbox --policy .github/chainguard/self.gitlab.read.sts.yaml > token.txt
+    - dd-octo-sts debug --scope DataDog/datadog-agent --policy self.gitlab.deps-fetch
+    - export GITHUB_TOKEN=$(dd-octo-sts token --scope DataDog/datadog-agent --policy self.gitlab.deps-fetch)
   script:
     - |
       if [ ! -f modcache_e2e.tar.xz ]; then
