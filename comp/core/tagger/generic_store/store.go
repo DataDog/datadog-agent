@@ -9,22 +9,22 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 )
 
-// CompositeObjectStore is a generic store that can store objects indexed by keys.
-type CompositeObjectStore[T any] struct {
+// ObjectStore is a generic store that can store objects indexed by keys.
+type ObjectStore[T any] struct {
 	data map[types.EntityIDPrefix]map[string]T
 	size int
 }
 
-// NewCompositeObjectStore creates a new CompositeObjectStore.
-func NewCompositeObjectStore[T any]() *CompositeObjectStore[T] {
-	return &CompositeObjectStore[T]{
+// NewObjectStore creates a new ObjectStore.
+func NewObjectStore[T any]() *ObjectStore[T] {
+	return &ObjectStore[T]{
 		data: make(map[types.EntityIDPrefix]map[string]T),
 		size: 0,
 	}
 }
 
 // Get returns the object with the specified entity ID if it exists in the store.
-func (os *CompositeObjectStore[T]) Get(entityID types.EntityID) (object T, found bool) {
+func (os *ObjectStore[T]) Get(entityID types.EntityID) (object T, found bool) {
 	submap, found := os.data[entityID.GetPrefix()]
 	if !found {
 		return
@@ -35,7 +35,7 @@ func (os *CompositeObjectStore[T]) Get(entityID types.EntityID) (object T, found
 }
 
 // Set stores the provided object under the specified entity ID.
-func (os *CompositeObjectStore[T]) Set(entityID types.EntityID, object T) {
+func (os *ObjectStore[T]) Set(entityID types.EntityID, object T) {
 	prefix := entityID.GetPrefix()
 	id := entityID.GetID()
 	if submap, found := os.data[prefix]; found {
@@ -50,7 +50,7 @@ func (os *CompositeObjectStore[T]) Set(entityID types.EntityID, object T) {
 }
 
 // Unset removes the object associated with the specified entity ID.
-func (os *CompositeObjectStore[T]) Unset(entityID types.EntityID) {
+func (os *ObjectStore[T]) Unset(entityID types.EntityID) {
 	prefix := entityID.GetPrefix()
 	id := entityID.GetID()
 	// TODO: prune
@@ -63,12 +63,12 @@ func (os *CompositeObjectStore[T]) Unset(entityID types.EntityID) {
 }
 
 // Size returns the total number of objects in the store.
-func (os *CompositeObjectStore[T]) Size() int {
+func (os *ObjectStore[T]) Size() int {
 	return os.size
 }
 
 // ListObjects returns every object in the store matching the provided filter.
-func (os *CompositeObjectStore[T]) ListObjects(filter *types.Filter) []T {
+func (os *ObjectStore[T]) ListObjects(filter *types.Filter) []T {
 	objects := make([]T, 0, os.Size())
 
 	for prefix := range filter.GetPrefixes() {
@@ -82,7 +82,7 @@ func (os *CompositeObjectStore[T]) ListObjects(filter *types.Filter) []T {
 }
 
 // ForEach applies the provided function to each object in the store matching the filter.
-func (os *CompositeObjectStore[T]) ForEach(filter *types.Filter, apply types.ApplyFunc[T]) {
+func (os *ObjectStore[T]) ForEach(filter *types.Filter, apply types.ApplyFunc[T]) {
 	for prefix := range filter.GetPrefixes() {
 		idToObjects := os.data[prefix]
 		for id, object := range idToObjects {
