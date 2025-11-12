@@ -229,6 +229,7 @@ var hostInstanceTypeDetectors = map[string]cloudProviderInstanceTypeDetector{
 	ec2.CloudProviderName:    ec2.GetInstanceType,
 	gce.CloudProviderName:    gce.GetInstanceType,
 	oracle.CloudProviderName: oracle.GetInstanceType,
+	azure.CloudProviderName:  azure.GetInstanceType,
 }
 
 // GetInstanceType returns the instance type from the first cloud provider that works.
