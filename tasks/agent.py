@@ -542,7 +542,8 @@ RUN find /usr/src/datadog-agent -type d -empty -print0 | xargs -0 rmdir
 FROM ubuntu:latest AS bin
 
 ENV DEBIAN_FRONTEND=noninteractive
-RUN apt-get update && \
+RUN apt-get clean && \
+    apt-get -o Acquire::Retries=4 update && \
     apt-get install -y patchelf
 
 COPY bin/agent/agent                            /opt/datadog-agent/bin/agent/agent
@@ -560,7 +561,8 @@ RUN go install github.com/go-delve/delve/cmd/dlv@latest
 
 FROM {base_image} AS bash_completion
 
-RUN apt-get update && \
+RUN apt-get clean && \
+    apt-get -o Acquire::Retries=4 update && \
     apt-get install -y gawk
 
 RUN awk -i inplace '!/^#/ {{uncomment=0}} uncomment {{gsub(/^#/, "")}} /# enable bash completion/ {{uncomment=1}} {{print}}' /etc/bash.bashrc
@@ -568,7 +570,8 @@ RUN awk -i inplace '!/^#/ {{uncomment=0}} uncomment {{gsub(/^#/, "")}} /# enable
 FROM {base_image}
 
 ENV DEBIAN_FRONTEND=noninteractive
-RUN apt-get update && \
+RUN apt-get clean && \
+    apt-get -o Acquire::Retries=4 update && \
     apt-get install -y bash-completion less vim tshark && \
     apt-get clean
 
