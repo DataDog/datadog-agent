@@ -14,8 +14,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/cluster/model"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -28,10 +28,7 @@ import (
 	karpenterv1 "sigs.k8s.io/karpenter/pkg/apis/v1"
 )
 
-type store = autoscaling.Store[minNodePool]
-
-const datadogCreatedLabelKey = "datadoghq.com/datadog-cluster-autoscaler.created"
-const datadogModifiedLabelKey = "datadoghq.com/datadog-cluster-autoscaler.modified"
+type store = autoscaling.Store[model.NodePoolInternal]
 
 var (
 	nodePoolGVR = schema.GroupVersionResource{Group: "karpenter.sh", Version: "v1", Resource: "nodepools"}
@@ -50,6 +47,7 @@ type Controller struct {
 	eventRecorder record.EventRecorder
 	rcClient      RcClient
 	store         *store
+	storeUpdated  *bool
 	localSender   sender.Sender
 }
 
@@ -63,9 +61,9 @@ func NewController(
 	dynamicInformer dynamicinformer.DynamicSharedInformerFactory,
 	isLeaderFunc func() bool,
 	store *store,
+	storeUpdated *bool,
 	localSender sender.Sender,
 ) (*Controller, error) {
-
 	c := &Controller{
 		clusterID:     clusterID,
 		clock:         clock,
@@ -95,34 +93,34 @@ func NewController(
 	// })
 
 	c.store = store
+	c.storeUpdated = storeUpdated
 
 	return c, nil
 }
 
 // PreStart is called before the controller starts
 func (c *Controller) PreStart(ctx context.Context) {
-	startLocalTelemetry(ctx, c.localSender, []string{"kube_cluster_id:" + c.clusterID})
+	autoscaling.StartLocalTelemetry(ctx, c.localSender, "cluster", []string{"orch_cluster_id:" + c.clusterID})
 }
 
 // Process implements the Processor interface (so required to be public)
 // this processes what's in the workqueue, comes from the store or cluster
 func (c *Controller) Process(ctx context.Context, _, ns, name string) autoscaling.ProcessResult {
-	// Follower should not process workqueue items
-	if !c.IsLeader() {
+	if !c.IsLeader() || !*c.storeUpdated {
 		return autoscaling.ProcessResult{}
 	}
 
 	// Try to get NodePool from cluster
-	np := &karpenterv1.NodePool{}
+	nodePool := &karpenterv1.NodePool{}
 	npUnstr, err := c.Lister.Get(name)
 	if err == nil {
-		err = autoscaling.FromUnstructured(npUnstr, np)
+		err = autoscaling.FromUnstructured(npUnstr, nodePool)
 	}
 
 	switch {
 	case apierrors.IsNotFound(err):
 		// Ignore not found error as it will be created later
-		np = nil
+		nodePool = nil
 	case err != nil:
 		log.Errorf("Unable to retrieve NodePool: %w", err)
 		return autoscaling.Requeue
@@ -131,27 +129,35 @@ func (c *Controller) Process(ctx context.Context, _, ns, name string) autoscalin
 		return autoscaling.Requeue
 	}
 
+	return c.syncNodePool(ctx, name, nodePool)
+}
+
+func (c *Controller) syncNodePool(ctx context.Context, name string, nodePool *karpenterv1.NodePool) autoscaling.ProcessResult {
 	// TODO create duplicate NodePools with greater weight, rather than updating user NodePools
-	mnp, foundInStore := c.store.LockRead(name, true)
+	npi, foundInStore := c.store.LockRead(name, true) // CELENE how do we ensure store is up to date before we run this?
+	defer c.store.Unlock(name)
 
 	if foundInStore {
-		if np == nil {
+		if nodePool == nil {
 			// Present in store but not found in cluster; create it
-			if err = c.createNodePool(ctx, mnp); err != nil {
+			if err := c.createNodePool(ctx, npi); err != nil {
 				log.Errorf("Error creating NodePool: %v", err)
+				return autoscaling.Requeue
 			}
 		} else {
 			// Present in store and found in cluster; update it
 			// TODO check if hash of spec from remote config matches current object before updating
-			if err = c.patchNodePool(ctx, np, mnp); err != nil {
+			if err := c.patchNodePool(ctx, nodePool, npi); err != nil {
 				log.Errorf("Error updating NodePool: %v", err)
+				return autoscaling.Requeue
 			}
 		}
 	} else {
-		if isCreatedByDatadog(np.GetLabels()) {
+		if isCreatedByDatadog(nodePool.GetLabels()) {
 			// Not present in store, and the cluster NodePool is fully managed, then delete the NodePool
-			if err = c.deleteNodePool(ctx, name); err != nil {
+			if err := c.deleteNodePool(ctx, name); err != nil {
 				log.Errorf("Error deleting NodePool: %v", err)
+				return autoscaling.Requeue
 			}
 		} else {
 			// Not present in store and the cluster NodePool is not fully managed, do nothing
@@ -159,13 +165,11 @@ func (c *Controller) Process(ctx context.Context, _, ns, name string) autoscalin
 		}
 	}
 
-	c.store.Unlock(name)
-
 	return autoscaling.ProcessResult{}
 }
 
-func (c *Controller) createNodePool(ctx context.Context, mnp minNodePool) error {
-	log.Infof("Creating NodePool: %s", mnp.name)
+func (c *Controller) createNodePool(ctx context.Context, npi model.NodePoolInternal) error {
+	log.Infof("Creating NodePool: %s", npi.Name())
 
 	// Get NodeClass. If there's none or more than one, then we should not create the NodePool
 	ncList, err := c.Client.Resource(nodeClassGVR).List(ctx, metav1.ListOptions{})
@@ -182,31 +186,7 @@ func (c *Controller) createNodePool(ctx context.Context, mnp minNodePool) error 
 	}
 
 	u := ncList.Items[0]
-
-	jsonBytes, err := json.Marshal(u.Object)
-	if err != nil {
-		return fmt.Errorf("unable to marshal unstructured object: %v\n", err)
-	}
-
-	var nc minNodeClass
-	err = json.Unmarshal(jsonBytes, &nc)
-	if err != nil {
-		return fmt.Errorf("unable to unmarshal into minNodeClass: %v\n", err)
-	}
-
-	nodeClassName := nc.Metadata.Name
-
-	npObj := &karpenterv1.NodePool{
-		TypeMeta: metav1.TypeMeta{
-			Kind:       "NodePool",
-			APIVersion: "karpenter.sh/v1",
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name:   mnp.name,
-			Labels: map[string]string{datadogCreatedLabelKey: "true"},
-		},
-		Spec: buildNodePoolSpec(mnp, nodeClassName),
-	}
+	npObj := model.ConvertToKarpenterNodePool(npi, u.GetName())
 
 	npUnstr, err := autoscaling.ToUnstructured(npObj)
 	if err != nil {
@@ -215,25 +195,31 @@ func (c *Controller) createNodePool(ctx context.Context, mnp minNodePool) error 
 
 	_, err = c.Client.Resource(nodePoolGVR).Create(ctx, npUnstr, metav1.CreateOptions{})
 	if err != nil {
-		return fmt.Errorf("unable to create NodePool: %s, err: %v", mnp.name, err)
+		return fmt.Errorf("unable to create NodePool: %s, err: %v", npi.Name(), err)
 	}
 
 	return nil
 }
 
-func (c *Controller) patchNodePool(ctx context.Context, np *karpenterv1.NodePool, mnp minNodePool) error {
-	log.Infof("Patching NodePool: %s", mnp.name)
+func (c *Controller) patchNodePool(ctx context.Context, knp *karpenterv1.NodePool, npi model.NodePoolInternal) error {
+	log.Infof("Patching NodePool: %s", npi.Name())
 
-	patchData := buildNodePoolPatch(np, mnp)
+	// CELENE if keeping this patch, then only pass in requirements
+	// CELENE do we need to ever update the taints, or is it assumed those are correct?
+	// I don't think we can assume it for every case of inferred domains... unless the taints are part of the name?
+
+	// CELENE probably makes sense to add a "ConvertToPatch" method to model and move this all there
+	// patchData := buildNodePoolPatch(knp, npi)
+	patchData := model.BuildNodePoolPatch(knp, npi)
 	patchBytes, err := json.Marshal(patchData)
 	if err != nil {
-		return fmt.Errorf("error marshaling patch data: %s, err: %v", mnp.name, err)
+		return fmt.Errorf("error marshaling patch data: %s, err: %v", npi.Name(), err)
 	}
 
-	// TODO: If NodePool is not considered a custom resource in the future, use StrategicMergePatchType
-	_, err = c.Client.Resource(nodePoolGVR).Patch(ctx, mnp.name, types.MergePatchType, patchBytes, metav1.PatchOptions{})
+	// TODO: If NodePool is not considered a custom resource in the future, use StrategicMergePatchType and simplify patch object
+	_, err = c.Client.Resource(nodePoolGVR).Patch(ctx, npi.Name(), types.MergePatchType, patchBytes, metav1.PatchOptions{})
 	if err != nil {
-		return fmt.Errorf("unable to update NodePool: %s, err: %v", mnp.name, err)
+		return fmt.Errorf("unable to update NodePool: %s, err: %v", npi.Name(), err)
 	}
 
 	return nil
@@ -250,93 +236,8 @@ func (c *Controller) deleteNodePool(ctx context.Context, name string) error {
 	return nil
 }
 
-// buildNodePoolSpec is used for creating new NodePools
-func buildNodePoolSpec(mnp minNodePool, nodeClassName string) karpenterv1.NodePoolSpec {
-
-	// Convert domain labels into requirements
-	reqs := []karpenterv1.NodeSelectorRequirementWithMinValues{}
-	for k, v := range mnp.labels {
-		reqs = append(reqs, karpenterv1.NodeSelectorRequirementWithMinValues{
-			NodeSelectorRequirement: corev1.NodeSelectorRequirement{
-				Key:      k,
-				Operator: corev1.NodeSelectorOpIn,
-				Values:   []string{v},
-			},
-		})
-	}
-
-	// Convert instance types into a requirement
-	reqs = append(reqs, karpenterv1.NodeSelectorRequirementWithMinValues{
-		NodeSelectorRequirement: corev1.NodeSelectorRequirement{
-			Key:      corev1.LabelInstanceTypeStable,
-			Operator: corev1.NodeSelectorOpIn,
-			Values:   mnp.recommendedInstanceTypes,
-		},
-	})
-
-	return karpenterv1.NodePoolSpec{
-		Template: karpenterv1.NodeClaimTemplate{
-			Spec: karpenterv1.NodeClaimTemplateSpec{
-				// Include taints
-				Taints:       mnp.taints,
-				Requirements: reqs,
-				NodeClassRef: &karpenterv1.NodeClassReference{
-					// Only support EC2NodeClass for now
-					Kind:  "EC2NodeClass",
-					Name:  nodeClassName,
-					Group: "karpenter.k8s.aws",
-				},
-			},
-		},
-	}
-}
-
-// buildNodePoolPatch is used to construct JSON patch
-func buildNodePoolPatch(np *karpenterv1.NodePool, mnp minNodePool) map[string]interface{} {
-
-	// Build requirements patch, only updating values for the instance types
-	updatedRequirements := []map[string]interface{}{}
-	instanceTypeLabelExists := false
-	for _, r := range np.Spec.Template.Spec.Requirements {
-		if r.Key == corev1.LabelInstanceTypeStable {
-			instanceTypeLabelExists = true
-			r.Operator = "In"
-			r.Values = mnp.recommendedInstanceTypes
-		}
-
-		updatedRequirements = append(updatedRequirements, map[string]interface{}{
-			"key":      r.Key,
-			"operator": string(r.Operator),
-			"values":   r.Values,
-		})
-	}
-
-	if !instanceTypeLabelExists {
-		updatedRequirements = append(updatedRequirements, map[string]interface{}{
-			"key":      corev1.LabelInstanceTypeStable,
-			"operator": "In",
-			"values":   mnp.recommendedInstanceTypes,
-		})
-	}
-
-	return map[string]interface{}{
-		"metadata": map[string]interface{}{
-			"labels": map[string]interface{}{
-				datadogModifiedLabelKey: "true",
-			},
-		},
-		"spec": map[string]interface{}{
-			"template": map[string]interface{}{
-				"spec": map[string]interface{}{
-					"requirements": updatedRequirements,
-				},
-			},
-		},
-	}
-}
-
 func isCreatedByDatadog(labels map[string]string) bool {
-	if _, ok := labels[datadogCreatedLabelKey]; ok {
+	if _, ok := labels[model.DatadogCreatedLabelKey]; ok {
 		return true
 	}
 	return false

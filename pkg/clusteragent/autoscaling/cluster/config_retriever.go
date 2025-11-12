@@ -9,6 +9,7 @@ package cluster
 
 import (
 	"context"
+	"time"
 
 	"k8s.io/utils/clock"
 
@@ -17,7 +18,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-const configRetrieverStoreID string = "cacr"
+const (
+	configRetrieverStoreID string = "cacr"
+	// reconcileInterval      time.Duration = 5 * time.Minute // CELENE should we make this less often?
+)
 
 // RcClient is a subinterface of rcclient.Component to allow mocking
 type RcClient interface {
@@ -33,23 +37,37 @@ type ConfigRetriever struct {
 }
 
 // NewConfigRetriever creates a new ConfigRetriever
-func NewConfigRetriever(ctx context.Context, clock clock.WithTicker, store *store, isLeader func() bool, rcClient RcClient) (*ConfigRetriever, error) {
+func NewConfigRetriever(ctx context.Context, clock clock.WithTicker, store *store, storeUpdated *bool, isLeader func() bool, rcClient RcClient) (*ConfigRetriever, error) {
 	cr := &ConfigRetriever{
 		isLeader: isLeader,
 		clock:    clock,
 
-		valuesProcessor: newAutoscalingValuesProcessor(store),
+		valuesProcessor: newAutoscalingValuesProcessor(store, storeUpdated),
 	}
 
 	// Subscribe to remote config updates
 	rcClient.SubscribeIgnoreExpiration(data.ProductClusterAutoscalingValues, cr.autoscalingValuesCallback)
+
+	// Add a regular reconcile
+	// go func() {
+	// 	ticker := cr.clock.NewTicker(reconcileInterval)
+	// 	defer ticker.Stop()
+
+	// 	for {
+	// 		select {
+	// 		case <-ctx.Done():
+	// 			return
+	// 		case <-ticker.C():
+	// 			cr.valuesProcessor.reconcile(cr.isLeader())
+	// 		}
+	// 	}
+	// }()
 
 	log.Infof("Created new cluster scaling config retriever")
 	return cr, nil
 }
 
 func (cr *ConfigRetriever) autoscalingValuesCallback(updates map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) {
-
 	cr.valuesProcessor.preProcess()
 	for configKey, rawConfig := range updates {
 		log.Debugf("Processing config key: %s, product: %s, id: %s, name: %s, version: %d, leader: %v", configKey, rawConfig.Metadata.Product, rawConfig.Metadata.ID, rawConfig.Metadata.Name, rawConfig.Metadata.Version, cr.isLeader())

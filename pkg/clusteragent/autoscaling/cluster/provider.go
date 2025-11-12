@@ -13,6 +13,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/cluster/model"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/kubernetes/scheme"
@@ -39,11 +40,12 @@ func StartClusterAutoscaling(
 	eventBroadcaster.StartRecordingToSink(&v1core.EventSinkImpl{Interface: apiCl.Cl.CoreV1().Events("")})
 	eventRecorder := eventBroadcaster.NewRecorder(scheme.Scheme, corev1.EventSource{Component: "datadog-cluster-autoscaler"})
 
-	store := autoscaling.NewStore[minNodePool]()
+	store := autoscaling.NewStore[model.NodePoolInternal]()
+	f := false
+	storeUpdated := &f
 
 	clock := clock.RealClock{}
-
-	_, err := NewConfigRetriever(ctx, clock, store, isLeaderFunc, rcClient)
+	_, err := NewConfigRetriever(ctx, clock, store, storeUpdated, isLeaderFunc, rcClient)
 	if err != nil {
 		return fmt.Errorf("unable to start cluster autoscaling config retriever: %w", err)
 	}
@@ -54,14 +56,13 @@ func StartClusterAutoscaling(
 		return fmt.Errorf("unable to start local telemetry for cluster autoscaling: %w", err)
 	}
 
-	controller, err := NewController(clock, clusterID, eventRecorder, rcClient, apiCl.DynamicInformerCl, apiCl.DynamicInformerFactory, isLeaderFunc, store, sender)
+	controller, err := NewController(clock, clusterID, eventRecorder, rcClient, apiCl.DynamicInformerCl, apiCl.DynamicInformerFactory, isLeaderFunc, store, storeUpdated, sender)
 	if err != nil {
 		return fmt.Errorf("unable to start cluster autoscaling controller: %w", err)
 	}
 
 	// Start informers & controllers
 	apiCl.DynamicInformerFactory.Start(ctx.Done())
-	apiCl.InformerFactory.Start(ctx.Done())
 
 	go controller.Run(ctx)
 
