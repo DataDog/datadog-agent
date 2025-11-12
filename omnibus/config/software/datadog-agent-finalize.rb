@@ -209,6 +209,48 @@ build do
                     ) | xargs -0 -n10 -P#{workers} #{codesign} #{hardened_runtime}--force --timestamp --deep -s '#{code_signing_identity}'
                 SH
             end
+
+            # Check that all binaries are compatible with the minimum macOS version we support
+            # https://docs.datadoghq.com/agent/supported_platforms/?tab=macos
+            arch = arm_target? ? "arm64" : "x86_64"
+            command <<~SH, cwd: Dir.pwd
+set -euo pipefail
+
+satisfies_min_version() {
+    local min_acceptable_version="11.0"
+    local arch="#{arch}"
+
+    local vtool_output="$(vtool -arch "${arch}" -show-build "$1")"
+    local cmd=$(echo "$vtool_output" | awk '/cmd / {print $2}')
+
+    case $cmd in
+        "LC_VERSION_MIN_MACOSX")
+            local min_version=$(echo "$vtool_output" | awk '/version / {print $2}')
+            ;;
+        "LC_BUILD_VERSION")
+            local min_version=$(echo "$vtool_output" | awk '/minos / {print $2}')
+            ;;
+    esac
+
+    if [ -z "$min_version" ]; then
+        echo "ERROR: failed to detect minimum version of $1" >&2
+        echo "vtool output: $(vtool -show-build "$1")"
+        return 1
+    fi
+    local highest_version=$(printf '%s\n%s\n' "$min_version" "$min_acceptable_version" | sort -V | tail -1)
+    if [[ "$highest_version" != "$min_acceptable_version" ]]; then
+        echo "ERROR: minimum version for $1 (${min_version}) is higher than the minimimum acceptable (${min_acceptable_version})" >&2
+        return 1
+    fi
+}
+
+export -f satisfies_min_version
+
+find #{install_dir} -type f -print0 |
+    xargs -0 -n1000 -P9 file -n --mime-type |
+    awk -F: '/[^)]:[[:space:]]*application\\/x-mach-binary/ { printf "%s%c", $1, 0 }' |
+    xargs -0 -n1 -P9 -I {} bash -c 'satisfies_min_version "$@"' _ {}
+            SH
         end
     end
 end
