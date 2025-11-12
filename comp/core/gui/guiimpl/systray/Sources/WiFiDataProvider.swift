@@ -37,32 +37,32 @@ struct WiFiData: Codable {
 
 /// WiFiDataProvider handles CoreLocation permissions and WiFi data collection
 class WiFiDataProvider: NSObject, CLLocationManagerDelegate {
+    // Note: LaunchAgent-launched apps cannot trigger location permission prompts
+    // on macOS (prompts are auto-denied by the system). Permission must be granted
+    // manually via System Settings -> Privacy & Security -> Location Services.
+    // The installer guides users through this via osascript dialog during installation.
     private let locationManager: CLLocationManager
-    private var permissionRequestInProgress = false
 
     override init() {
         self.locationManager = CLLocationManager()
         super.init()
+        // Keep delegate to monitor permission status changes
         self.locationManager.delegate = self
         
+        let status = getAuthorizationStatus()
         NSLog("[WiFiDataProvider] Initialized with authorization status: \(authorizationStatusString())")
+        
+        // Log messages if permission not granted
+        if status != .authorizedAlways {
+            NSLog("[WiFiDataProvider] Location permission not granted - SSID/BSSID will be unavailable")
+            NSLog("[WiFiDataProvider] To enable: System Settings → Privacy & Security → Location Services → Datadog Agent")
+        }
     }
 
     /// Get current WiFi information for the system
     func getWiFiInfo() -> WiFiData {
-        // Check current authorization status and request permission if needed
+        // Check current authorization status (read-only, no prompt attempt)
         let authStatus = getAuthorizationStatus()
-
-        // Request permission if not yet determined
-        // With LSUIElement=false and .accessory activation policy, this will show the prompt
-        if authStatus == .notDetermined && !permissionRequestInProgress {
-            NSLog("[WiFiDataProvider] Requesting location permission...")
-            permissionRequestInProgress = true
-            if #available(macOS 10.15, *) {
-                locationManager.requestAlwaysAuthorization()
-            }
-        }
-
         let isAuthorized = (authStatus == .authorizedAlways)
 
         // Get WiFi interface (this works regardless of location permission)
@@ -127,10 +127,10 @@ class WiFiDataProvider: NSObject, CLLocationManagerDelegate {
     }
 
     // CLLocationManagerDelegate
-    // locationManagerDidChangeAuthorization: This is a delegate callback method from Apple's CLLocationManagerDelegate
-    // protocol. It's automatically invoked by the system whenever the location authorization status changes.
+    // locationManagerDidChangeAuthorization: Monitors location authorization status changes.
+    // Note: This is triggered when the user manually changes permission in System Settings,
+    // not from programmatic permission requests (which don't work for LaunchAgent apps).
     func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
-        permissionRequestInProgress = false
         let status = getAuthorizationStatus()
         NSLog("[WiFiDataProvider] Location authorization changed to: \(authorizationStatusString())")
 
