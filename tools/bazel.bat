@@ -37,7 +37,6 @@ for %%v in (BAZEL_DISK_CACHE BAZEL_OUTPUT_USER_ROOT BAZEL_REPO_CONTENTS_CACHE RU
   :: Path separators: `bazel` is fine with both `/` and `\\` but fails with `\`, so the simplest is to favor `/`
   set "%%v=!%%v:\=/!"
 )
-:: TODO(regis, if later needed): set "BAZEL_SH=C:/tools/msys64/usr/bin/bash.exe"
 set "ext_repo_contents_cache=!RUNNER_TEMP_PROJECT_DIR!/bazel-repo-contents-cache"
 
 :: Externalize `--repo_contents_cache` to the job's sibling temporary directory created alongside $CI_PROJECT_DIR
