@@ -134,7 +134,7 @@ func (c *Controller) Process(ctx context.Context, _, ns, name string) autoscalin
 
 func (c *Controller) syncNodePool(ctx context.Context, name string, nodePool *karpenterv1.NodePool) autoscaling.ProcessResult {
 	// TODO create duplicate NodePools with greater weight, rather than updating user NodePools
-	npi, foundInStore := c.store.LockRead(name, true) // CELENE how do we ensure store is up to date before we run this?
+	npi, foundInStore := c.store.LockRead(name, true)
 	defer c.store.Unlock(name)
 
 	if foundInStore {
@@ -204,12 +204,6 @@ func (c *Controller) createNodePool(ctx context.Context, npi model.NodePoolInter
 func (c *Controller) patchNodePool(ctx context.Context, knp *karpenterv1.NodePool, npi model.NodePoolInternal) error {
 	log.Infof("Patching NodePool: %s", npi.Name())
 
-	// CELENE if keeping this patch, then only pass in requirements
-	// CELENE do we need to ever update the taints, or is it assumed those are correct?
-	// I don't think we can assume it for every case of inferred domains... unless the taints are part of the name?
-
-	// CELENE probably makes sense to add a "ConvertToPatch" method to model and move this all there
-	// patchData := buildNodePoolPatch(knp, npi)
 	patchData := model.BuildNodePoolPatch(knp, npi)
 	patchBytes, err := json.Marshal(patchData)
 	if err != nil {

@@ -46,7 +46,6 @@ func NewNodePoolInternal(v *kubeAutoscaling.ClusterAutoscalingValues) NodePoolIn
 }
 
 func ConvertToKarpenterNodePool(n NodePoolInternal, nodeClassName string) *karpenterv1.NodePool {
-	// TODO
 	return &karpenterv1.NodePool{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "NodePool",

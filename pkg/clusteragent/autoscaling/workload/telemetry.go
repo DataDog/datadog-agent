@@ -8,8 +8,6 @@
 package workload
 
 import (
-	"time"
-
 	corev1 "k8s.io/api/core/v1"
 
 	datadoghqcommon "github.com/DataDog/datadog-operator/api/datadoghq/common"

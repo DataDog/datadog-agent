@@ -9,7 +9,6 @@ package cluster
 
 import (
 	"context"
-	"time"
 
 	"k8s.io/utils/clock"
 
@@ -20,7 +19,6 @@ import (
 
 const (
 	configRetrieverStoreID string = "cacr"
-	// reconcileInterval      time.Duration = 5 * time.Minute // CELENE should we make this less often?
 )
 
 // RcClient is a subinterface of rcclient.Component to allow mocking
@@ -47,21 +45,6 @@ func NewConfigRetriever(ctx context.Context, clock clock.WithTicker, store *stor
 
 	// Subscribe to remote config updates
 	rcClient.SubscribeIgnoreExpiration(data.ProductClusterAutoscalingValues, cr.autoscalingValuesCallback)
-
-	// Add a regular reconcile
-	// go func() {
-	// 	ticker := cr.clock.NewTicker(reconcileInterval)
-	// 	defer ticker.Stop()
-
-	// 	for {
-	// 		select {
-	// 		case <-ctx.Done():
-	// 			return
-	// 		case <-ticker.C():
-	// 			cr.valuesProcessor.reconcile(cr.isLeader())
-	// 		}
-	// 	}
-	// }()
 
 	log.Infof("Created new cluster scaling config retriever")
 	return cr, nil
