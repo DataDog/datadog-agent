@@ -29,7 +29,7 @@ if not defined CI_PROJECT_DIR (
 )
 
 :: In CI: first, verify directory environment variables are set and normalize their paths
-for %%v in (BAZEL_DISK_CACHE BAZEL_OUTPUT_USER_ROOT BAZEL_REPO_CONTENTS_CACHE RUNNER_TEMP_PROJECT_DIR VSTUDIO_ROOT) do (
+for %%v in (BAZEL_DISK_CACHE BAZEL_OUTPUT_USER_ROOT BAZEL_REPO_CONTENTS_CACHE RUNNER_TEMP_PROJECT_DIR) do (
   if not defined %%v (
     >&2 echo %~nx0: %%v: unbound variable
     exit /b 2
@@ -38,7 +38,6 @@ for %%v in (BAZEL_DISK_CACHE BAZEL_OUTPUT_USER_ROOT BAZEL_REPO_CONTENTS_CACHE RU
   set "%%v=!%%v:\=/!"
 )
 :: TODO(regis, if later needed): set "BAZEL_SH=C:/tools/msys64/usr/bin/bash.exe"
-set "BAZEL_VS=!VSTUDIO_ROOT!"
 set "ext_repo_contents_cache=!RUNNER_TEMP_PROJECT_DIR!/bazel-repo-contents-cache"
 
 :: Externalize `--repo_contents_cache` to the job's sibling temporary directory created alongside $CI_PROJECT_DIR
