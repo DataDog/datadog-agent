@@ -48,4 +48,6 @@ message TracerPayload {
 	map<uint32, AnyValue> attributes = 10;
 	// chunks specifies list of containing trace chunks.
 	repeated TraceChunk chunks = 11;
+	// APMMode specifies whether using "full" or "end_user_device" APM mode. It is unset — and therefore ignored — by default.
+	string APMMode = 12;
 }
