@@ -165,7 +165,6 @@ docker_build_agent7:
   variables:
     IMG_REGISTRIES: smp
     IMG_SOURCES: ${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-full-amd64
-    IMG_DESTINATIONS: 08450328-agent:${CI_COMMIT_SHA}-7-full-amd64
 
 single_machine_performance-full-amd64-a7:
   extends: .single_machine_performance-full-amd64-a7
