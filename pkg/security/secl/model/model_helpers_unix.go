@@ -260,7 +260,6 @@ type MountSource = uint32
 const (
 	MountSourceUnknown  MountSource = iota // MountSourceUnknown mount resolved from unknown source
 	MountSourceMountID                     // MountSourceMountID mount resolved with the mount id
-	MountSourceDevice                      // MountSourceDevice mount resolved with the device
 	MountSourceSnapshot                    // MountSourceSnapshot mount resolved from the snapshot
 )
 
@@ -268,7 +267,6 @@ const (
 var MountSources = [...]string{
 	"unknown",
 	"mount_id",
-	"device",
 	"snapshot",
 }
 
