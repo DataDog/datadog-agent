@@ -41,7 +41,6 @@ var (
 		"DD_INSTALLER",
 		"DD_AGENT_FLAVOR",
 		"DD_UPGRADE",
-		"DD_INSTALL_ONLY",
 		"DD_FIPS_MODE",
 	}
 
@@ -68,6 +67,7 @@ var (
 		"DD_HOSTNAME",
 		"DD_PROXY_HTTP",
 		"DD_PROXY_HTTPS",
+		"DD_INSTALL_ONLY",
 		"DD_PROXY_NO_PROXY",
 		"DD_INFRASTRUCTURE_MODE",
 	}
@@ -185,6 +185,9 @@ func installAgentPackage(s *common.Setup) {
 	// Agent install
 	if _, ok := os.LookupEnv("DD_NO_AGENT_INSTALL"); !ok {
 		s.Packages.Install(common.DatadogAgentPackage, agentVersion())
+	}
+	if _, ok := os.LookupEnv("DD_INSTALL_ONLY"); ok {
+		s.Env.InstallOnly = true
 	}
 }
 
