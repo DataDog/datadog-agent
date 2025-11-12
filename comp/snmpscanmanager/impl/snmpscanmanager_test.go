@@ -465,7 +465,8 @@ func TestCacheIsLoaded(t *testing.T) {
     },
     {
         "device_ip":"127.0.0.2",
-        "scan_status":"failed"
+        "scan_status":"failed",
+        "scan_end_ts":"2025-11-04T13:21:20.365221+01:00"
     }
 ]`,
 			buildExpectedDeviceScans: func() deviceScansByIP {
@@ -481,6 +482,7 @@ func TestCacheIsLoaded(t *testing.T) {
 					"127.0.0.2": {
 						DeviceIP:   "127.0.0.2",
 						ScanStatus: failedStatus,
+						ScanEndTs:  &scanEndTs,
 					},
 				}
 			},
