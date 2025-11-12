@@ -55,10 +55,9 @@ configure_make(
         # Hence, excluding last DEFAULT_CONFIG entry.
         "@platforms//os:windows": [
             "mingw64",
+            "no-asm",
             "no-zlib",
             "no-uplink",
-            "-DAES_ASM",
-            "-D__x86_64__",
         ] + DEFAULT_CONFIG[:-1],
         "//conditions:default": [],
     }),
@@ -105,11 +104,5 @@ configure_make(
         ],
         "@platforms//os:windows": [],
     }),
-    targets = select({
-        "@platforms//os:windows": [
-            "depend",
-            "",
-        ],
-        "//conditions:default": ["", "install"],
-    }),
+    targets = ["depend", "", "install_sw", "install_ssldirs"],
 )
