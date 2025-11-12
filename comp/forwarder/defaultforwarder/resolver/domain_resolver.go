@@ -325,6 +325,7 @@ func NewMultiDomainResolver(domain string, apiKeys []utils.APIKeys) (DomainResol
 	deduped := utils.DedupAPIKeys(apiKeys)
 
 	return &domainResolver{
+		configName:          domain,
 		domain:              domain,
 		apiKeys:             apiKeys,
 		keyVersion:          0,
@@ -381,6 +382,7 @@ func NewDomainResolverWithMetricToVector(mainEndpoint string, apiKeys []utils.AP
 // For example, the internal cluster-agent endpoint
 func NewLocalDomainResolver(domain string, authToken string) DomainResolver {
 	return &domainResolver{
+		configName:      domain,
 		domain:          domain,
 		authToken:       authToken,
 		destinationType: Local,
