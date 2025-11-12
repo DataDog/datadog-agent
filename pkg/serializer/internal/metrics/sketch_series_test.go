@@ -24,7 +24,7 @@ import (
 )
 
 func testPipelines() PipelineSet {
-	return PipelineSet{{AllowAllFilter{}}: {}}
+	return PipelineSet{{AllowAllFilter{}, false}: {}}
 }
 
 func check(t *testing.T, in metrics.SketchPoint, pb gogen.SketchPayload_Sketch_Dogsketch) {

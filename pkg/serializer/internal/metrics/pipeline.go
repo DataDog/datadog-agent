@@ -67,6 +67,7 @@ func (mf MapFilter) ToList() []string {
 // This type must be comparable.
 type PipelineConfig struct {
 	Filter Filter
+	V3     bool
 }
 
 // PipelineDestination describes how to deliver a payload to the intake.

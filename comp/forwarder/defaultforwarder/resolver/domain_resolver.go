@@ -46,6 +46,9 @@ type DomainResolver = *domainResolver
 
 // SingleDomainResolver will always return the same host
 type domainResolver struct {
+	// configName is the url as it was configured by the user.
+	configName string
+	// domain is the url base to be used for network requests, it is modified by the forwarder.
 	domain          string
 	apiKeys         []utils.APIKeys
 	keyVersion      int
@@ -164,6 +167,7 @@ func NewSingleDomainResolver2(descriptor utils.EndpointDescriptor) (DomainResolv
 	deduped := utils.DedupAPIKeys(descriptor.APIKeySet)
 
 	return &domainResolver{
+		configName:     descriptor.BaseURL,
 		domain:         descriptor.BaseURL,
 		apiKeys:        descriptor.APIKeySet,
 		keyVersion:     0,
@@ -423,4 +427,9 @@ func (r *domainResolver) GetAuthorizers() (res []authHeader) {
 		}
 	}
 	return
+}
+
+// GetConfigName returns the base url as it was originally written in the config.
+func (r *domainResolver) GetConfigName() string {
+	return r.configName
 }
