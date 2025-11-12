@@ -16,22 +16,26 @@ set LIBFFI_DIR=%cd%\%LIBFFI_DIR%\\
 set OPENSSL_DIR=%cd%\%OPENSSL_DIR%\\
 set TCLTK_DIR=%cd%\%TCLTK_DIR%\\
 
+:: Properties pointing at external dependencies directories are taken from PCbuild/python.props
+:: Note that the build.bat script only accepts 9 extra arguments that can be passed through to MSBuild,
+:: so we write the arguments to a .rsp file that will be added to msbuild calls instead to not have to worry
+:: about that
+set response_file=%sourcedir%\PCbuild\msbuild.rsp
+echo "" > %response_file%
+echo "/p:bz2Dir=%BZ2_DIR%" >> %response_file%
+echo "/p:mpdecimalDir=%MPDECIMAL_DIR%" >> %response_file%
+echo "/p:sqlite3Dir=%SQLITE3_DIR%" >> %response_file%
+echo "/p:lzmaDir=%XZ_DIR%" >> %response_file%
+echo "/p:zlibDir=%ZLIB_DIR%" >> %response_file%
+echo "/p:libffiDir=%LIBFFI_DIR%" >> %response_file%
+echo "/p:opensslOutDir=%OPENSSL_DIR%" >> %response_file%
+echo "/p:tcltkdir=%TCLTK_DIR%" >> %response_file%
+echo "/p:TclVersion=%TCL_VERSION%" >> %response_file%
+
 :: -e flag would normally also fetch external dependencies, but we have a patch inhibiting that;
 :: the flag is still needed because otherwise modules depending on some of those external dependencies
 :: won't be built.
-:: Properties pointing at external dependencies directories are taken from PCbuild/python.props
-:: Note that the build.bat script only accepts 9 extra arguments that can be passed through to MSBuild,
-:: if we ever go over that limit, we'd neet to find a different mechanism to set these.
-call %sourcedir%\PCbuild\build.bat -e^
-  "/p:bz2Dir=%BZ2_DIR%"^
-  "/p:mpdecimalDir=%MPDECIMAL_DIR%"^
-  "/p:sqlite3Dir=%SQLITE3_DIR%"^
-  "/p:lzmaDir=%XZ_DIR%"^
-  "/p:zlibDir=%ZLIB_DIR%"^
-  "/p:libffiDir=%LIBFFI_DIR%"^
-  "/p:opensslOutDir=%OPENSSL_DIR%"^
-  "/p:tcltkdir=%TCLTK_DIR%"^
-  "/p:TclVersion=%TCL_VERSION%"
+call %sourcedir%\PCbuild\build.bat -e
 
 if ERRORLEVEL 1 exit /b %ERRORLEVEL%
 
@@ -43,6 +47,8 @@ if ERRORLEVEL 1 exit /b %ERRORLEVEL%
 :: --include-stable - adds python3.dll
 set build_outdir=%sourcedir%\PCbuild\amd64
 %build_outdir%\python.exe %sourcedir%PC\layout\main.py --build %build_outdir% --precompile --copy %destdir% --include-dev --include-venv --include-stable -vv
+
+if ERRORLEVEL 1 exit /b %ERRORLEVEL%
 
 :: Bootstrap pip
 %destdir%\python.exe -m ensurepip
