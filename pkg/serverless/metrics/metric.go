@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package metrics provides the serverless metric agent for collecting and forwarding metrics.
 package metrics
 
 import (
