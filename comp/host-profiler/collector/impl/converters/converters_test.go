@@ -91,6 +91,23 @@ service:
 	})
 }
 
+func TestConverterHPFlare(t *testing.T) {
+	yaml := fmt.Sprintf(`
+extensions:
+  %s: {}
+service:
+  extensions: [%s]
+`, hpflareName(), hpflareName())
+
+	conf := readFromYamlFile(t, yaml)
+	require.Equal(t, conf, map[string]any{
+		"extensions": map[string]any{},
+		"service": map[string]any{
+			"extensions": []any{},
+		},
+	})
+}
+
 func TestConverterInfraAttributesName(t *testing.T) {
 	config := getDefaultConfig(t)
 	require.Equal(t, 6, strings.Count(config, infraAttributesName()))
