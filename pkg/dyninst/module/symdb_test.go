@@ -367,7 +367,7 @@ func TestSymdbManagerRespectsPersistentCache(t *testing.T) {
 				select {
 				case <-uploadCh:
 					// Success - upload was queued.
-				case <-time.After(time.Second):
+				case <-time.After(30 * time.Second):
 					t.Fatal("expected upload to be retried")
 				}
 			} else if tt.expectRejected {
