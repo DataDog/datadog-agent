@@ -7,6 +7,17 @@ filegroup(
     srcs = glob(["**"]),
 )
 
+DEFAULT_CONFIG = [
+    "no-docs",
+    "no-idea",
+    "no-mdc2",
+    "no-rc5",
+    "shared",
+    "no-ssl3",
+    "no-gost",
+    "zlib",
+]
+
 configure_make(
     name = "openssl",
     # TODO(team:agent-build): Find a better way to utilize more than 1 core
@@ -29,26 +40,15 @@ configure_make(
     configure_options = select({
         "@//:macos_arm64": [
             "darwin64-arm64-cc",
-        ],
+        ] + DEFAULT_CONFIG,
         "@//:macos_x86_64": [
             "darwin64-x86_64-cc",
-        ],
+        ] + DEFAULT_CONFIG,
         "@platforms//os:windows": [
             "mingw64",
-        ],
+        ] + DEFAULT_CONFIG[:-1],
         "//conditions:default": [],
-    }) + [
-        "no-docs",
-        "no-idea",
-        "no-mdc2",
-        "no-rc5",
-        "shared",
-        "no-ssl3",
-        "no-gost",
-        # Probably not needed if bazel can copy the file wherever it is
-        "--libdir=lib",
-        "zlib",
-    ],
+    }),
     env = select({
         "@platforms//os:macos": {
             # For some reason AR is set to libtool on macos
@@ -84,9 +84,12 @@ configure_make(
         ],
         "//conditions:default": [],
     }),
-    deps = [
-        "@bzip2//:bz2",
-        "@xz//:liblzma",
-        "@zlib",
-    ],
+    deps = select({
+        "//conditions:default": [
+            "@bzip2//:bz2",
+            "@xz//:liblzma",
+            "@zlib",
+        ],
+        "@platforms//os:windows": [],
+    }),
 )

@@ -44,6 +44,17 @@ http_archive(
 # Defines a "rules_foreign_cc" target to build openssl
 bazel_dep(name = "rules_foreign_cc", version = "0.15.0")
 
+register_toolchains(
+    "@rules_foreign_cc//toolchains:preinstalled_cmake_toolchain",
+    "@rules_foreign_cc//toolchains:preinstalled_make_toolchain",
+    "@rules_foreign_cc//toolchains:preinstalled_ninja_toolchain",
+    "@rules_foreign_cc//toolchains:preinstalled_meson_toolchain",
+    "@rules_foreign_cc//toolchains:preinstalled_autoconf_toolchain",
+    "@rules_foreign_cc//toolchains:preinstalled_automake_toolchain",
+    "@rules_foreign_cc//toolchains:preinstalled_m4_toolchain",
+    "@rules_foreign_cc//toolchains:preinstalled_pkgconfig_toolchain",
+)
+
 http_archive(
     name = "openssl",
     build_file = "//deps:openssl.BUILD.bazel",

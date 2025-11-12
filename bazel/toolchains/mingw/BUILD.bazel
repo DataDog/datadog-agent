@@ -4,7 +4,7 @@ load("//bazel/toolchains/mingw:toolchain.bzl", "mingw_cc_toolchain_config")
 mingw_cc_toolchain_config(
     name = "mingw-cc-toolchain-config",
     GCC_VERSION = "14.2.0",
-    MINGW_PATH = "C:/tools/msys64/mingw64",
+    MINGW_PATH = "/C/tools/msys64/mingw64",
 )
 
 filegroup(

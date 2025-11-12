@@ -86,7 +86,7 @@ def _impl(ctx):
                     # The latter is needed for bash to resolve MSYS2 tools like bash, git, etc.
                     # Bash is used by rules_foreign_cc, powershell by rules_cc rules, so we need to
                     # ensure that we have all necessary tools in PATH for both Windows and MSYS2.
-                    env_entry("PATH", "{}/bin;C:/tools/msys64/usr/bin".format(ctx.attr.MINGW_PATH)),
+                    env_entry("PATH", "/C/tools/msys64/usr/bin;{}/bin".format(ctx.attr.MINGW_PATH)),
                 ],
             ),
         ],
