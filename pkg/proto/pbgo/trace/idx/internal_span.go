@@ -31,15 +31,15 @@ func NewStringTable() *StringTable {
 	}
 }
 
-// StringTableFromArray creates a new string table from an array of already de-duplicated strings
+// StringTableFromArray creates a new string table from an array of already de-duplicated strings, the first string must always be the empty string
 func StringTableFromArray(strings []string) *StringTable {
 	st := &StringTable{
 		strings: make([]string, len(strings)),
 		lookup:  make(map[string]uint32, len(strings)),
 	}
 	for i, str := range strings {
-		st.strings[i+1] = str
-		st.lookup[str] = uint32(i + 1)
+		st.strings[i] = str
+		st.lookup[str] = uint32(i)
 	}
 	return st
 }
@@ -181,8 +181,8 @@ func (tp *InternalTracerPayload) RemoveUnusedStrings() {
 func FromProto(tp *TracerPayload) *InternalTracerPayload {
 	strings := StringTableFromArray(tp.Strings)
 	chunks := make([]*InternalTraceChunk, len(tp.Chunks))
-	for _, chunk := range tp.Chunks {
-		chunks = append(chunks, fromProtoChunk(strings, chunk))
+	for i, chunk := range tp.Chunks {
+		chunks[i] = fromProtoChunk(strings, chunk)
 	}
 	return &InternalTracerPayload{
 		Strings:            strings,
@@ -202,8 +202,8 @@ func FromProto(tp *TracerPayload) *InternalTracerPayload {
 // fromProtoChunk creates an InternalTraceChunk from a proto TraceChunk
 func fromProtoChunk(strings *StringTable, chunk *TraceChunk) *InternalTraceChunk {
 	spans := make([]*InternalSpan, len(chunk.Spans))
-	for _, span := range chunk.Spans {
-		spans = append(spans, fromProtoSpan(strings, span))
+	for i, span := range chunk.Spans {
+		spans[i] = fromProtoSpan(strings, span)
 	}
 	return &InternalTraceChunk{
 		Strings:           strings,

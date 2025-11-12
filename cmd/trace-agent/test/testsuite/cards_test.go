@@ -15,6 +15,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/trace-agent/test"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
+	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace/idx"
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
 	"github.com/DataDog/datadog-agent/pkg/trace/testutil"
 )
@@ -104,13 +105,17 @@ apm_config:
 			}
 			defer r.KillAgent()
 
-			payload, traces := generatePayload(tt.version, "4166 6766 6766 6746")
+			payload, _ := generatePayload(tt.version, "4166 6766 6766 6746")
 			if err := r.PostMsgpack("/"+string(tt.version)+"/traces", payload); err != nil {
 				t.Fatal(err)
 			}
 			waitForTrace(t, &r, func(v *pb.AgentPayload) {
-				payloadsEqual(t, traces, v)
-				assert.Equal(t, tt.out, v.TracerPayloads[0].Chunks[0].Spans[0].Meta["credit_card_number"])
+				tp := idx.FromProto(v.IdxTracerPayloads[0])
+				assert.Len(t, tp.Chunks, 1)
+				assert.Len(t, tp.Chunks[0].Spans, 1)
+				cardNumber, ok := tp.Chunks[0].Spans[0].GetAttributeAsString("credit_card_number")
+				assert.True(t, ok)
+				assert.Equal(t, tt.out, cardNumber)
 			})
 		})
 	}
