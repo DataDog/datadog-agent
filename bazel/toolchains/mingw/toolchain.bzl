@@ -80,12 +80,9 @@ def _impl(ctx):
                     ACTION_NAMES.cpp_link_static_library,
                 ],
                 env_entries = [
-                    # Use Windows-style semicolons for native tools (gcc, ar, etc.)
-                    # The bash wrapper will convert this to colons for shell scripts.
-                    # The former is needed for gcc to resolve native tools like ar, gcc, etc.
-                    # The latter is needed for bash to resolve MSYS2 tools like bash, git, etc.
-                    # Bash is used by rules_foreign_cc, powershell by rules_cc rules, so we need to
-                    # ensure that we have all necessary tools in PATH for both Windows and MSYS2.
+                    # Use Windows-style paths that are guaranteed to work with both Windows and MSYS2.
+                    # Delimiter is semicolon which will be converted to colon by rules_foreign_cc
+                    # to run external build systems in MSYS2 bash instead of powershell.
                     env_entry("PATH", "/C/tools/msys64/usr/bin;{}/bin".format(ctx.attr.MINGW_PATH)),
                 ],
             ),
