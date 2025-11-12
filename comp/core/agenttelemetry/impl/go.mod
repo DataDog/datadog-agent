@@ -51,7 +51,6 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/executable v0.70.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.70.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/log v0.70.0 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/log/setup v0.70.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/option v0.70.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.70.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/system v0.70.0 // indirect
@@ -240,7 +239,6 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/telemetry => ../../../../pkg/telemetry
 	github.com/DataDog/datadog-agent/pkg/template => ../../../../pkg/template
 	github.com/DataDog/datadog-agent/pkg/trace => ../../../../pkg/trace
-	github.com/DataDog/datadog-agent/pkg/trace/stats/oteltest => ../../../../pkg/trace/stats/oteltest
 	github.com/DataDog/datadog-agent/pkg/util/backoff => ../../../../pkg/util/backoff
 	github.com/DataDog/datadog-agent/pkg/util/buf => ../../../../pkg/util/buf
 	github.com/DataDog/datadog-agent/pkg/util/cache => ../../../../pkg/util/cache

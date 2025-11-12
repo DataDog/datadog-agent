@@ -17,13 +17,19 @@ import (
 	metricscompression "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/impl"
 	"github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
-	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/util/compression"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func testPipelines() []Pipeline {
+	return []Pipeline{{
+		FilterFunc:  func(_ Filterable) bool { return true },
+		Destination: transaction.PrimaryOnly,
+	}}
+}
 
 func check(t *testing.T, in metrics.SketchPoint, pb gogen.SketchPayload_Sketch_Dogsketch) {
 	t.Helper()
@@ -57,8 +63,9 @@ func TestSketchSeriesMarshalSplitCompressEmpty(t *testing.T) {
 			mockConfig.SetWithoutSource("serializer_compressor_kind", tc.kind)
 			sl := SketchSeriesList{SketchesSource: metrics.NewSketchesSourceTest()}
 
+			pipelines := testPipelines()
 			compressor := metricscompression.NewCompressorReq(metricscompression.Requires{Cfg: mockConfig}).Comp
-			payloads, err := sl.MarshalSplitCompress(marshaler.NewBufferContext(), mockConfig, compressor, logger)
+			payloads, err := sl.MarshalSplitCompressPipelines(mockConfig, compressor, pipelines, logger)
 
 			assert.Nil(t, err)
 
@@ -99,10 +106,10 @@ func TestSketchSeriesMarshalSplitCompressItemTooBigIsDropped(t *testing.T) {
 				Interval: 0,
 			})
 
+			pipelines := testPipelines()
 			serializer := SketchSeriesList{SketchesSource: sl}
-
 			compressor := metricscompression.NewCompressorReq(metricscompression.Requires{Cfg: mockConfig}).Comp
-			payloads, err := serializer.MarshalSplitCompress(marshaler.NewBufferContext(), mockConfig, compressor, logger)
+			payloads, err := serializer.MarshalSplitCompressPipelines(mockConfig, compressor, pipelines, logger)
 
 			assert.Nil(t, err)
 
@@ -140,12 +147,12 @@ func TestSketchSeriesMarshalSplitCompress(t *testing.T) {
 			for i := 0; i < 2; i++ {
 				sl.Append(Makeseries(i))
 			}
-
 			sl.Reset()
-			serializer2 := SketchSeriesList{SketchesSource: sl}
 
+			pipelines := testPipelines()
+			serializer2 := SketchSeriesList{SketchesSource: sl}
 			compressor := metricscompression.NewCompressorReq(metricscompression.Requires{Cfg: mockConfig}).Comp
-			payloads, err := serializer2.MarshalSplitCompress(marshaler.NewBufferContext(), mockConfig, compressor, logger)
+			payloads, err := serializer2.MarshalSplitCompressPipelines(mockConfig, compressor, pipelines, logger)
 			require.NoError(t, err)
 
 			firstPayload := payloads[0]
@@ -203,10 +210,10 @@ func TestSketchSeriesMarshalSplitCompressSplit(t *testing.T) {
 				expectedPointCount += i + 5
 			}
 
+			pipelines := testPipelines()
 			serializer := SketchSeriesList{SketchesSource: sl}
-
 			compressor := metricscompression.NewCompressorReq(metricscompression.Requires{Cfg: mockConfig}).Comp
-			payloads, err := serializer.MarshalSplitCompress(marshaler.NewBufferContext(), mockConfig, compressor, logger)
+			payloads, err := serializer.MarshalSplitCompressPipelines(mockConfig, compressor, pipelines, logger)
 			assert.Nil(t, err)
 
 			recoveredSketches := []gogen.SketchPayload{}

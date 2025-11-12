@@ -85,7 +85,7 @@ func Diagnose(diagCfg diagnose.Config, log log.Component) []diagnose.Diagnosis {
 	}
 
 	var diagnoses []diagnose.Diagnosis
-	domainResolvers, err := resolver.NewSingleDomainResolvers(keysPerDomain)
+	domainResolvers, err := resolver.NewSingleDomainResolvers2(keysPerDomain)
 	if err != nil {
 		return []diagnose.Diagnosis{
 			{

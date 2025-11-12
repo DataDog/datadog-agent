@@ -301,7 +301,6 @@ func (c *WorkloadMetaCollector) handleProcess(ev workloadmeta.Event) []*types.Ta
 		}
 	}
 
-	// Add GPU tags if the process has a GPU reference
 	for _, gpuEntityID := range process.GPUs {
 		gpu, err := c.store.GetGPU(gpuEntityID.ID)
 		if err != nil {
@@ -312,6 +311,10 @@ func (c *WorkloadMetaCollector) handleProcess(ev workloadmeta.Event) []*types.Ta
 		}
 
 		c.extractGPUTags(gpu, tagList)
+	}
+
+	for _, tracerMeta := range process.Service.TracerMetadata {
+		parseProcessTags(tagList, tracerMeta.ProcessTags)
 	}
 
 	low, orch, high, standard := tagList.Compute()
