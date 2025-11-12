@@ -252,6 +252,18 @@ func getConfiguredProfilingRequestTimeoutDuration(conf *config.AgentConfig) time
 	return timeout
 }
 
+func computeReceiverReadTimeout(conf *config.AgentConfig) time.Duration {
+	// This timeout is only used for the library to agent connection.
+	// This implies a 5 second default within the same network.
+	// For consistency, we will use the profiling timeout if it is longer.
+	readTimeout := getConfiguredRequestTimeoutDuration(conf)
+	profilingTimeout := getConfiguredProfilingRequestTimeoutDuration(conf)
+	if profilingTimeout > readTimeout {
+		return profilingTimeout
+	}
+	return readTimeout
+}
+
 // Start starts doing the HTTP server and is ready to receive traces
 func (r *HTTPReceiver) Start() {
 	r.telemetryForwarder.start()
@@ -269,9 +281,11 @@ func (r *HTTPReceiver) Start() {
 	}
 
 	httpLogger := log.NewThrottled(5, 10*time.Second) // limit to 5 messages every 10 seconds
+	readTimeout := computeReceiverReadTimeout(r.conf)
+
 	r.server = &http.Server{
 		// Note: We don't set WriteTimeout since we want to have different timeouts per-handler
-		ReadTimeout: getConfiguredRequestTimeoutDuration(r.conf),
+		ReadTimeout: readTimeout,
 		ErrorLog:    stdlog.New(httpLogger, "http.Server: ", 0),
 		Handler:     r.buildMux(),
 		ConnContext: connContext,

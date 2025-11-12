@@ -78,6 +78,79 @@ func newTestReceiverConfig() *config.AgentConfig {
 	return conf
 }
 
+func TestComputeReceiverReadTimeout(t *testing.T) {
+	tests := []struct {
+		name             string
+		receiverTimeout  int
+		profilingTimeout int
+		expected         time.Duration
+	}{
+		{
+			name:     "defaults",
+			expected: 5 * time.Second,
+		},
+		{
+			name:             "profiling override only",
+			profilingTimeout: 30,
+			expected:         30 * time.Second,
+		},
+		{
+			name:            "receiver override only",
+			receiverTimeout: 12,
+			expected:        12 * time.Second,
+		},
+		{
+			name:             "profiling longer",
+			receiverTimeout:  10,
+			profilingTimeout: 45,
+			expected:         45 * time.Second,
+		},
+		{
+			name:             "receiver longer",
+			receiverTimeout:  25,
+			profilingTimeout: 10,
+			expected:         25 * time.Second,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			conf := config.New()
+			conf.ReceiverTimeout = tt.receiverTimeout
+			conf.ProfilingProxy.ReceiverTimeout = tt.profilingTimeout
+
+			got := computeReceiverReadTimeout(conf)
+			require.Equal(t, tt.expected, got)
+		})
+	}
+}
+
+func TestHTTPReceiverUsesProfilingReadTimeout(t *testing.T) {
+	conf := newTestReceiverConfig()
+	conf.ReceiverTimeout = 5
+	conf.ProfilingProxy.ReceiverTimeout = 30
+
+	// ensure we use an available port for the receiver
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	port := ln.Addr().(*net.TCPAddr).Port
+	require.NoError(t, ln.Close())
+	conf.ReceiverPort = port
+
+	receiver := newTestReceiverFromConfig(conf)
+
+	go receiver.Start()
+	t.Cleanup(func() {
+		_ = receiver.Stop()
+	})
+
+	require.Eventually(t, func() bool {
+		return receiver.server != nil
+	}, time.Second, 10*time.Millisecond)
+
+	require.Equal(t, 30*time.Second, receiver.server.ReadTimeout)
+}
+
 func TestMain(m *testing.M) {
 	// We're about to os.Exit, no need to revert this value to original
 	killProcess = func(format string, args ...interface{}) {
