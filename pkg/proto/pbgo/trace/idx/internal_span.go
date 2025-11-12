@@ -177,6 +177,54 @@ func (tp *InternalTracerPayload) RemoveUnusedStrings() {
 	}
 }
 
+// FromProto creates an InternalTracerPayload from a proto TracerPayload
+func FromProto(tp *TracerPayload) *InternalTracerPayload {
+	strings := StringTableFromArray(tp.Strings)
+	chunks := make([]*InternalTraceChunk, len(tp.Chunks))
+	for _, chunk := range tp.Chunks {
+		chunks = append(chunks, fromProtoChunk(strings, chunk))
+	}
+	return &InternalTracerPayload{
+		Strings:            strings,
+		containerIDRef:     tp.ContainerIDRef,
+		languageNameRef:    tp.LanguageNameRef,
+		languageVersionRef: tp.LanguageVersionRef,
+		tracerVersionRef:   tp.TracerVersionRef,
+		runtimeIDRef:       tp.RuntimeIDRef,
+		envRef:             tp.EnvRef,
+		hostnameRef:        tp.HostnameRef,
+		appVersionRef:      tp.AppVersionRef,
+		Attributes:         tp.Attributes,
+		Chunks:             chunks,
+	}
+}
+
+// fromProtoChunk creates an InternalTraceChunk from a proto TraceChunk
+func fromProtoChunk(strings *StringTable, chunk *TraceChunk) *InternalTraceChunk {
+	spans := make([]*InternalSpan, len(chunk.Spans))
+	for _, span := range chunk.Spans {
+		spans = append(spans, fromProtoSpan(strings, span))
+	}
+	return &InternalTraceChunk{
+		Strings:           strings,
+		Priority:          chunk.Priority,
+		originRef:         chunk.OriginRef,
+		Attributes:        chunk.Attributes,
+		DroppedTrace:      chunk.DroppedTrace,
+		TraceID:           chunk.TraceID,
+		samplingMechanism: chunk.SamplingMechanism,
+		Spans:             spans,
+	}
+}
+
+// fromProtoSpan creates an InternalSpan from a proto Span
+func fromProtoSpan(strings *StringTable, span *Span) *InternalSpan {
+	return &InternalSpan{
+		Strings: strings,
+		span:    span,
+	}
+}
+
 // ToProto converts an InternalTracerPayload to a proto TracerPayload
 // This returns the structure _AS IS_, so even strings that are no longer referenced
 // may be included in the resulting proto. To ensure that only used strings are included,
