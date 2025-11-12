@@ -25,7 +25,7 @@ configure_make(
         # Build on Windows fails with high parallelism
         # most probably due to race condition.
         "@platforms//os:windows": [
-            "-j 4",
+            "-j 1",
         ],
         "//conditions:default": [
             "-j 16",
