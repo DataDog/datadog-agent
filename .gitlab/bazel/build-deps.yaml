@@ -16,11 +16,14 @@ bazel:build-deps:linux-arm64:
     - bazel build //deps/...
 
 bazel:build-deps:macos-amd64:
+  parallel: 50
   extends: [ .bazel:build-deps, .bazel:runner:macos-amd64 ]
   script:
+    - rm -fr $XDG_CACHE_HOME
     - bazel build //deps/...
 
 bazel:build-deps:macos-arm64:
+  #parallel: 50
   extends: [ .bazel:build-deps, .bazel:runner:macos-arm64 ]
   script:
     - bazel build //deps/...
