@@ -122,6 +122,7 @@ func (a *Agent) installWindowsInstallScript(params *installParams) error {
 		if err != nil {
 			return err
 		}
+		env["DD_SITE"] = "datad0g.com"
 		env["DD_INSTALLER_URL"] = artifactURL
 		env["DD_INSTALLER_DEFAULT_PKG_VERSION_DATADOG_AGENT"] = fmt.Sprintf("pipeline-%s", os.Getenv("E2E_PIPELINE_ID"))
 		env["DD_INSTALLER_REGISTRY_URL_AGENT_PACKAGE"] = "installtesting.datad0g.com.internal.dda-testing.com"
