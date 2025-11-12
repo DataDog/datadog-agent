@@ -725,7 +725,7 @@ func TestFlushEnqueuesDueTests(t *testing.T) {
 	}
 
 	// Flush at 'now'
-	scheduler.flush(now)
+	scheduler.flush(context.Background(), now)
 
 	select {
 	case ctx := <-scheduler.syntheticsTestProcessingChan:
