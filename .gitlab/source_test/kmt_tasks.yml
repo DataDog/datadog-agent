@@ -7,6 +7,10 @@
   rules:
     - !reference [.on_invoke_tasks_changes]
     - !reference [.except_mergequeue]
+    - changes:
+        paths:
+          - .gitlab/source_test/kmt_tasks.yml
+        compare_to: $COMPARE_TO_BRANCH
   script:
     - git config --global url."https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ddbuild.io/DataDog/".insteadOf "git@github.com:"
     # Avoid rate limits when running kmt.init (pulumi queries the Github API to get the releases of plugins)
