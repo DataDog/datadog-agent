@@ -7,7 +7,8 @@ load("@rules_pkg//pkg:mappings.bzl", "pkg_files")
 load("@@//bazel/rules:so_symlink.bzl", "so_symlink")
 load("@bazel_skylib//rules:copy_file.bzl", "copy_file")
 
-load("@@//deps:python3/modules.bzl", "PYTHON_MODULES", "PYTHON_CORE_MODULES_SRCS")
+load("@@//deps:python3/modules.bzl", "PYTHON_MODULES", "PYTHON_CORE_MODULES_SRCS", "PYTHON_FROZEN_MODULES")
+load("@@//deps:python3/freeze.bzl", "python_freeze")
 
 _VERSION = "3.13.7"
 
@@ -529,12 +530,11 @@ filegroup(
     ]),
 )
 
-genrule(
+python_freeze(
     name = "frozen_getpath_h",
-    srcs = ["Modules/getpath.py"],
-    tools = [":freeze_module"],
-    outs = ["Python/frozen_modules/getpath.h"],
-    cmd = "$(location :freeze_module) getpath $(location Modules/getpath.py) $@"
+    input = "Modules/getpath.py",
+    module = "getpath",
+    output = "Python/frozen_modules/getpath.h",
 )
 
 cc_library(
@@ -683,6 +683,7 @@ cc_binary(
     ] + [":module_" + m for m in PYTHON_MODULES.keys()],
     local_defines = COMMON_DEFINES + PY_CORE_DEFINES,
     includes = _COMMON_INCLUDE_DIRS,
+    visibility = ["@@//deps:__subpackages__"],
 )
 
 filegroup(
@@ -762,3 +763,64 @@ cc_binary(
         )
     for name, info in PYTHON_MODULES.items()
 ]
+
+[
+    python_freeze(
+        name = "frozen_" + name,
+        input = info['src'],
+        module = name,
+        output = info['output'],
+    )
+    for name, info in PYTHON_FROZEN_MODULES.items()
+]
+
+cc_library(
+    name = "frozen_o",
+    srcs = [
+        "Python/frozen.c",
+        ":python_headers",
+        ":bootstrap_headers",
+    ] + [":frozen_" + name for name in PYTHON_FROZEN_MODULES.keys()],
+    includes = _COMMON_INCLUDE_DIRS,
+    copts = COMMON_COPTS,
+    local_defines = COMMON_DEFINES + PY_CORE_DEFINES,
+)
+
+cc_library(
+    name = "libpython",
+    srcs = [
+        ":library_srcs_omit_frozen",
+        ":modules_getpath",
+        ":frozen_o",
+        ":python_headers",
+        ":modules_headers",
+    ],
+    includes = _COMMON_INCLUDE_DIRS,
+    copts = COMMON_COPTS,
+    local_defines = COMMON_DEFINES + PY_CORE_DEFINES,
+    deps = [
+        ":mimalloc",
+    ]
+)
+
+cc_binary(
+    name = "python",
+    srcs = [
+        "Programs/python.c",
+        ":dynload_shlib",
+        ":libpython",
+        ":modules_getpath",
+        ":frozen_o",
+    ],
+    data = glob(["Lib/**/*.py"]),
+    includes = _COMMON_INCLUDE_DIRS,
+    copts = COMMON_COPTS,
+    local_defines = COMMON_DEFINES + PY_CORE_DEFINES,
+    deps = [
+        ":mimalloc",
+    ],
+    linkopts = select({
+        "@platforms//os:linux": ["-lutil"],
+    }),
+
+)
