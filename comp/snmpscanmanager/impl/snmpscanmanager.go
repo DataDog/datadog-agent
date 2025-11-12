@@ -64,6 +64,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 		httpClient:  reqs.HTTPClient,
 
 		snmpConfigProvider: newSnmpConfigProvider(),
+		scanScheduler:      newScanScheduler(),
 
 		scanQueue:   make(chan snmpscanmanager.ScanRequest, scanQueueSize),
 		deviceScans: make(deviceScansByIP),
@@ -290,18 +291,23 @@ func (m *snmpScanManagerImpl) scanSchedulerWorker() {
 	timeTicker := time.NewTicker(scanSchedulerCheckInterval)
 	defer timeTicker.Stop()
 
+	m.queueDueScans()
+
 	for {
 		select {
 		case <-m.ctx.Done():
 			return
 		case <-timeTicker.C:
-			// Queue due scans
-			now := time.Now()
-			scanReqs := m.scanScheduler.PopDueScans(now)
-			for _, scanReq := range scanReqs {
-				m.queueScanRequest(scanReq)
-			}
+			m.queueDueScans()
 		}
+	}
+}
+
+func (m *snmpScanManagerImpl) queueDueScans() {
+	now := time.Now()
+	scanReqs := m.scanScheduler.PopDueScans(now)
+	for _, scanReq := range scanReqs {
+		m.queueScanRequest(scanReq)
 	}
 }
 
