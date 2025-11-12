@@ -17,12 +17,16 @@ import (
 	"github.com/DataDog/agent-payload/v5/cyclonedx_v1_4"
 	"github.com/DataDog/agent-payload/v5/sbom"
 	"github.com/DataDog/test-infra-definitions/components/datadog/apps"
+	"github.com/DataDog/test-infra-definitions/components/datadog/kubernetesagentparams"
+	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
+	awsfakeintake "github.com/DataDog/test-infra-definitions/scenarios/aws/fakeintake"
 	"gopkg.in/zorkian/go-datadog-api.v2"
 
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 	fakeintake "github.com/DataDog/datadog-agent/test/fakeintake/client"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
+	awskubernetes "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/kubernetes"
 
 	"github.com/fatih/color"
 	"github.com/samber/lo"
@@ -1463,129 +1467,191 @@ func (suite *k8sSuite) TestContainerImage() {
 	}, 2*time.Minute, 10*time.Second, "Failed finding the container image payload")
 }
 
+// ...existing code...
 func (suite *k8sSuite) TestSBOM() {
-	sendEvent := func(alertType, text string) {
-		if _, err := suite.DatadogClient().PostEvent(&datadog.Event{
-			Title: pointer.Ptr(suite.T().Name()),
-			Text: pointer.Ptr(fmt.Sprintf(`%%%%%%
+	modes := [][]string{
+		{
+			"default",
+			`
+clusterAgent:
+    envDict:
+        DD_CSI_ENABLED: "true"
+`,
+		},
+		{
+			"mount",
+			`---
+clusterAgent:
+    envDict:
+        DD_CSI_ENABLED: "true"
+datadog:
+    sbom:
+        containerImage:
+            uncompressedLayersSupport: true
+`,
+		},
+		{
+			"overlayfs",
+			`---
+clusterAgent:
+    envDict:
+        DD_CSI_ENABLED: "true"
+datadog:
+    sbom:
+        containerImage:
+		    uncompressedLayersSupport: true
+            overlayfsDirectScan: true
+`,
+		},
+	}
+
+	for _, mode := range modes {
+		m := mode[0]
+		helmValues := mode[1]
+
+		suite.Run("sbom_mode="+m, func() {
+			sendEvent := func(alertType, text string) {
+				if _, err := suite.DatadogClient().PostEvent(&datadog.Event{
+					Title: pointer.Ptr(suite.T().Name()),
+					Text: pointer.Ptr(fmt.Sprintf(`%%%%%%
 `+"```"+`
 %s
 `+"```"+`
  %%%%%%`, text)),
-			AlertType: &alertType,
-			Tags: []string{
-				"app:agent-new-e2e-tests-containers",
-				"cluster_name:" + suite.clusterName,
-				"sbom:ghcr.io/datadog/apps-nginx-server",
-				"test:" + suite.T().Name(),
-			},
-		}); err != nil {
-			suite.T().Logf("Failed to post event: %s", err)
-		}
+					AlertType: &alertType,
+					Tags: []string{
+						"app:agent-new-e2e-tests-containers",
+						"cluster_name:" + suite.clusterName,
+						"sbom:ghcr.io/datadog/apps-nginx-server",
+						"sbom_mode:" + m,
+						"test:" + suite.T().Name(),
+					},
+				}); err != nil {
+					suite.T().Logf("Failed to post event: %s", err)
+				}
+			}
+
+			defer func() {
+				if suite.T().Failed() {
+					sendEvent("error", "Failed finding the `ghcr.io/datadog/apps-nginx-server` SBOM payload with proper tags")
+				} else {
+					sendEvent("success", "All good!")
+				}
+			}()
+
+			provisioner := awskubernetes.KindProvisioner(
+				awskubernetes.WithEC2VMOptions(
+					ec2.WithInstanceType("t3.xlarge"),
+				),
+				awskubernetes.WithFakeIntakeOptions(awsfakeintake.WithMemory(2048)),
+				awskubernetes.WithDeployDogstatsd(),
+				awskubernetes.WithDeployTestWorkload(),
+				awskubernetes.WithAgentOptions(
+					kubernetesagentparams.WithDualShipping(),
+					kubernetesagentparams.WithHelmValues(helmValues),
+				),
+			)
+			suite.UpdateEnv(provisioner)
+
+			suite.EventuallyWithTf(func(collect *assert.CollectT) {
+				c := &myCollectT{
+					CollectT: collect,
+					errors:   []error{},
+				}
+				// To enforce the use of myCollectT instead
+				collect = nil //nolint:ineffassign
+
+				defer func() {
+					if len(c.errors) == 0 {
+						sendEvent("success", "All good!")
+					} else {
+						sendEvent("warning", errors.Join(c.errors...).Error())
+					}
+				}()
+
+				sbomIDs, err := suite.Fakeintake.GetSBOMIDs()
+				// Can be replaced by require.NoErrorf(…) once https://github.com/testify/pull/1481 is merged
+				if !assert.NoErrorf(c, err, "Failed to query fake intake") {
+					return
+				}
+
+				sbomIDs = lo.Filter(sbomIDs, func(id string, _ int) bool {
+					return strings.HasPrefix(id, "ghcr.io/datadog/apps-nginx-server")
+				})
+
+				// Can be replaced by require.NoEmptyf(…) once https://github.com/stretchr/testify/pull/1481 is merged
+				if !assert.NotEmptyf(c, sbomIDs, "No SBOM for ghcr.io/datadog/apps-nginx-server yet") {
+					return
+				}
+
+				images := lo.FlatMap(sbomIDs, func(id string, _ int) []*aggregator.SBOMPayload {
+					images, err := suite.Fakeintake.FilterSBOMs(id)
+					assert.NoErrorf(c, err, "Failed to query fake intake")
+					return images
+				})
+
+				// Can be replaced by require.NoEmptyf(…) once https://github.com/stretchr/testify/pull/1481 is merged
+				if !assert.NotEmptyf(c, images, "No SBOM payload yet") {
+					return
+				}
+
+				images = lo.Filter(images, func(image *aggregator.SBOMPayload, _ int) bool {
+					return image.Status == sbom.SBOMStatus_SUCCESS
+				})
+
+				// Can be replaced by require.NoEmptyf(…) once https://github.com/stretchr/testify/pull/1481 is merged
+				if !assert.NotEmptyf(c, images, "No successful SBOM yet") {
+					return
+				}
+
+				images = lo.Filter(images, func(image *aggregator.SBOMPayload, _ int) bool {
+					cyclonedx := image.GetCyclonedx()
+					return cyclonedx != nil &&
+						cyclonedx.Metadata != nil &&
+						cyclonedx.Metadata.Component != nil
+				})
+
+				// Can be replaced by require.NoEmptyf(…) once https://github.com/stretchr/testify/pull/1481 is merged
+				if !assert.NotEmptyf(c, images, "No SBOM with complete CycloneDX") {
+					return
+				}
+
+				for _, image := range images {
+					cyclonedx := image.GetCyclonedx()
+					if !assert.NotNil(c, cyclonedx.Metadata.Component.Properties) {
+						continue
+					}
+
+					expectedTags := []*regexp.Regexp{
+						regexp.MustCompile(`^architecture:(amd|arm)64$`),
+						regexp.MustCompile(`^git\.commit\.sha:[[:xdigit:]]{40}$`),
+						regexp.MustCompile(`^git\.repository_url:https://github\.com/DataDog/test-infra-definitions$`),
+						regexp.MustCompile(`^image_id:ghcr\.io/datadog/apps-nginx-server@sha256:`),
+						regexp.MustCompile(`^image_name:ghcr\.io/datadog/apps-nginx-server$`),
+						regexp.MustCompile(`^image_tag:` + regexp.QuoteMeta(apps.Version) + `$`),
+						regexp.MustCompile(`^os_name:linux$`),
+						regexp.MustCompile(`^short_image:apps-nginx-server$`),
+					}
+					err = assertTags(image.GetTags(), expectedTags, []*regexp.Regexp{}, false)
+					assert.NoErrorf(c, err, "Tags mismatch")
+
+					properties := lo.Associate(image.GetCyclonedx().Metadata.Component.Properties, func(property *cyclonedx_v1_4.Property) (string, string) {
+						return property.Name, *property.Value
+					})
+
+					if assert.Contains(c, properties, "aquasecurity:trivy:RepoTag") {
+						assert.Equal(c, "ghcr.io/datadog/apps-nginx-server:"+apps.Version, properties["aquasecurity:trivy:RepoTag"])
+					}
+
+					if assert.Contains(c, properties, "aquasecurity:trivy:RepoDigest") {
+						assert.Contains(c, properties["aquasecurity:trivy:RepoDigest"], "ghcr.io/datadog/apps-nginx-server@sha256:")
+					}
+
+					assert.Greater(c, len(cyclonedx.Components), 1, "Less than 2 components in CycloneDX SBOM")
+				}
+			}, 2*time.Minute, 10*time.Second, "Failed finding the container image payload")
+		})
 	}
-
-	defer func() {
-		if suite.T().Failed() {
-			sendEvent("error", "Failed finding the `ghcr.io/datadog/apps-nginx-server` SBOM payload with proper tags")
-		} else {
-			sendEvent("success", "All good!")
-		}
-	}()
-
-	suite.EventuallyWithTf(func(collect *assert.CollectT) {
-		c := &myCollectT{
-			CollectT: collect,
-			errors:   []error{},
-		}
-		// To enforce the use of myCollectT instead
-		collect = nil //nolint:ineffassign
-
-		defer func() {
-			if len(c.errors) == 0 {
-				sendEvent("success", "All good!")
-			} else {
-				sendEvent("warning", errors.Join(c.errors...).Error())
-			}
-		}()
-
-		sbomIDs, err := suite.Fakeintake.GetSBOMIDs()
-		// Can be replaced by require.NoErrorf(…) once https://github.com/stretchr/testify/pull/1481 is merged
-		if !assert.NoErrorf(c, err, "Failed to query fake intake") {
-			return
-		}
-
-		sbomIDs = lo.Filter(sbomIDs, func(id string, _ int) bool {
-			return strings.HasPrefix(id, "ghcr.io/datadog/apps-nginx-server")
-		})
-
-		// Can be replaced by require.NoEmptyf(…) once https://github.com/stretchr/testify/pull/1481 is merged
-		if !assert.NotEmptyf(c, sbomIDs, "No SBOM for ghcr.io/datadog/apps-nginx-server yet") {
-			return
-		}
-
-		images := lo.FlatMap(sbomIDs, func(id string, _ int) []*aggregator.SBOMPayload {
-			images, err := suite.Fakeintake.FilterSBOMs(id)
-			assert.NoErrorf(c, err, "Failed to query fake intake")
-			return images
-		})
-
-		// Can be replaced by require.NoEmptyf(…) once https://github.com/stretchr/testify/pull/1481 is merged
-		if !assert.NotEmptyf(c, images, "No SBOM payload yet") {
-			return
-		}
-
-		images = lo.Filter(images, func(image *aggregator.SBOMPayload, _ int) bool {
-			return image.Status == sbom.SBOMStatus_SUCCESS
-		})
-
-		// Can be replaced by require.NoEmptyf(…) once https://github.com/stretchr/testify/pull/1481 is merged
-		if !assert.NotEmptyf(c, images, "No successful SBOM yet") {
-			return
-		}
-
-		images = lo.Filter(images, func(image *aggregator.SBOMPayload, _ int) bool {
-			cyclonedx := image.GetCyclonedx()
-			return cyclonedx != nil &&
-				cyclonedx.Metadata != nil &&
-				cyclonedx.Metadata.Component != nil
-		})
-
-		// Can be replaced by require.NoEmptyf(…) once https://github.com/stretchr/testify/pull/1481 is merged
-		if !assert.NotEmptyf(c, images, "No SBOM with complete CycloneDX") {
-			return
-		}
-
-		for _, image := range images {
-			if !assert.NotNil(c, image.GetCyclonedx().Metadata.Component.Properties) {
-				continue
-			}
-
-			expectedTags := []*regexp.Regexp{
-				regexp.MustCompile(`^architecture:(amd|arm)64$`),
-				regexp.MustCompile(`^git\.commit\.sha:[[:xdigit:]]{40}$`),
-				regexp.MustCompile(`^git\.repository_url:https://github\.com/DataDog/test-infra-definitions$`),
-				regexp.MustCompile(`^image_id:ghcr\.io/datadog/apps-nginx-server@sha256:`),
-				regexp.MustCompile(`^image_name:ghcr\.io/datadog/apps-nginx-server$`),
-				regexp.MustCompile(`^image_tag:` + regexp.QuoteMeta(apps.Version) + `$`),
-				regexp.MustCompile(`^os_name:linux$`),
-				regexp.MustCompile(`^short_image:apps-nginx-server$`),
-			}
-			err = assertTags(image.GetTags(), expectedTags, []*regexp.Regexp{}, false)
-			assert.NoErrorf(c, err, "Tags mismatch")
-
-			properties := lo.Associate(image.GetCyclonedx().Metadata.Component.Properties, func(property *cyclonedx_v1_4.Property) (string, string) {
-				return property.Name, *property.Value
-			})
-
-			if assert.Contains(c, properties, "aquasecurity:trivy:RepoTag") {
-				assert.Equal(c, "ghcr.io/datadog/apps-nginx-server:"+apps.Version, properties["aquasecurity:trivy:RepoTag"])
-			}
-
-			if assert.Contains(c, properties, "aquasecurity:trivy:RepoDigest") {
-				assert.Contains(c, properties["aquasecurity:trivy:RepoDigest"], "ghcr.io/datadog/apps-nginx-server@sha256:")
-			}
-		}
-	}, 2*time.Minute, 10*time.Second, "Failed finding the container image payload")
 }
 
 func (suite *k8sSuite) TestContainerLifecycleEvents() {
