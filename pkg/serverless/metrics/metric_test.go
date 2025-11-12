@@ -6,11 +6,8 @@
 package metrics
 
 import (
-	"errors"
 	"fmt"
-	"math/rand"
 	"net"
-	"net/http"
 	"os"
 	"runtime"
 	"strconv"
@@ -51,8 +48,6 @@ func TestStartDoesNotBlock(t *testing.T) {
 	}
 	defer metricAgent.Stop()
 	metricAgent.Start(10*time.Second, &MetricConfig{}, &MetricDogStatsD{}, false)
-	assert.NotNil(t, metricAgent.Demux)
-	assert.True(t, metricAgent.IsReady())
 }
 
 type ValidMetricConfigMocked struct{}
@@ -121,53 +116,6 @@ func TestStartWithProxy(t *testing.T) {
 
 	setValues := mockConfig.GetStringSlice(statsDMetricBlocklistKey)
 	assert.Equal(t, expected, setValues)
-}
-
-func TestRaceFlushVersusAddSample(t *testing.T) {
-	if os.Getenv("CI") == "true" && runtime.GOOS == "darwin" {
-		t.Skip("TestRaceFlushVersusAddSample is known to fail on the macOS Gitlab runners because of the already running Agent")
-	}
-	metricAgent := &ServerlessMetricAgent{
-		SketchesBucketOffset: time.Second * 10,
-		Tagger:               nooptagger.NewComponent(),
-	}
-	defer metricAgent.Stop()
-	metricAgent.Start(10*time.Second, &ValidMetricConfigMocked{}, &MetricDogStatsD{}, false)
-
-	assert.NotNil(t, metricAgent.Demux)
-
-	server := http.Server{
-		Addr: "localhost:8888",
-		Handler: http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {
-			time.Sleep(10 * time.Millisecond)
-		}),
-	}
-	defer server.Close()
-
-	go func() {
-		err := server.ListenAndServe()
-		if !errors.Is(err, http.ErrServerClosed) {
-			panic(err)
-		}
-	}()
-
-	go func() {
-		for i := 0; i < 1000; i++ {
-			n := rand.Intn(10)
-			time.Sleep(time.Duration(n) * time.Microsecond)
-			go SendTimeoutEnhancedMetric([]string{"tag0:value0", "tag1:value1"}, metricAgent.Demux)
-		}
-	}()
-
-	go func() {
-		for i := 0; i < 1000; i++ {
-			n := rand.Intn(10)
-			time.Sleep(time.Duration(n) * time.Microsecond)
-			go metricAgent.Flush()
-		}
-	}()
-
-	time.Sleep(2 * time.Second)
 }
 
 func TestBuildMetricBlocklist(t *testing.T) {

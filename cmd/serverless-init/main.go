@@ -52,7 +52,6 @@ import (
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/serverless/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serverless/otlp"
-	"github.com/DataDog/datadog-agent/pkg/serverless/random"
 	serverlessTag "github.com/DataDog/datadog-agent/pkg/serverless/tags"
 	"github.com/DataDog/datadog-agent/pkg/serverless/trace"
 	tracelog "github.com/DataDog/datadog-agent/pkg/trace/log"
@@ -186,7 +185,6 @@ func setupTraceAgent(tags map[string]string, functionTags string, tagger tagger.
 	traceAgent := trace.StartServerlessTraceAgent(trace.StartServerlessTraceAgentArgs{
 		Enabled:             pkgconfigsetup.Datadog().GetBool("apm_config.enabled"),
 		LoadConfig:          &trace.LoadConfig{Path: datadogConfigPath, Tagger: tagger},
-		ColdStartSpanID:     random.Random.Uint64(),
 		AzureServerlessTags: azureTags.String(),
 		FunctionTags:        functionTags,
 	})
