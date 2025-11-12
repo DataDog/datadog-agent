@@ -870,6 +870,7 @@ func TestHighPriorityTransaction(t *testing.T) {
 
 func TestCreateTransactionsWithLocal(t *testing.T) {
 	log := logmock.New(t)
+	secrets := secretsmock.New(t)
 	mockConfig := mock.New(t)
 	mockConfig.SetWithoutSource("api_key", "test_key")
 	mockConfig.SetWithoutSource("dd_url", "https://example.test")
@@ -878,7 +879,7 @@ func TestCreateTransactionsWithLocal(t *testing.T) {
 	mockConfig.SetWithoutSource("cluster_agent.url", "https://cluster.agent.svc")
 	mockConfig.SetWithoutSource("cluster_agent.auth_token", "01234567890123456789012345678901")
 
-	opts, err := createOptions(NewParams(), mockConfig, log)
+	opts, err := createOptions(NewParams(), mockConfig, log, secrets)
 	require.NoError(t, err)
 	f := NewDefaultForwarder(mockConfig, log, opts)
 
