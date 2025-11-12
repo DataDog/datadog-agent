@@ -12,6 +12,7 @@ import (
 	"errors"
 	"maps"
 	"slices"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -30,9 +31,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dyninst/module"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/object"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/output"
-	"github.com/DataDog/datadog-agent/pkg/dyninst/procmon"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/process"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/rcjson"
-	"github.com/DataDog/datadog-agent/pkg/dyninst/rcscrape"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/symbol"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/testprogs"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/uploader"
@@ -44,18 +44,22 @@ import (
 func TestHappyPathEndToEnd(t *testing.T) {
 	deps := newFakeTestingDependencies(t)
 	deps.irGenerator.program = createTestProgram()
-	processUpdate := createTestProcessUpdate()
-	deps.scraper.updates = []rcscrape.ProcessUpdate{processUpdate}
-	m := module.NewUnstartedModule(deps.toDeps())
-	m.CheckForUpdates()
+	processUpdate := createTestProcessConfig()
+	tombstoneFilePath := "" // don't use tombstone files
+	_ = module.NewUnstartedModule(deps.toDeps(), tombstoneFilePath)
+	deps.sendUpdates(processUpdate)
 
-	require.Len(t, deps.actuator.tenant.updates, 1)
-	actualUpdate := deps.actuator.tenant.updates[0]
-	require.Len(t, actualUpdate.Processes, 1)
-	assert.Equal(t, processUpdate.ProcessID, actualUpdate.Processes[0].ProcessID)
-	assert.Equal(t, processUpdate.Executable, actualUpdate.Processes[0].Executable)
-	assert.Len(t, actualUpdate.Processes[0].Probes, 2)
+	// Verify updates were sent to the actuator
+	deps.actuator.mu.Lock()
+	require.Len(t, deps.actuator.updates, 1)
+	update := deps.actuator.updates[0]
+	require.Len(t, update.Processes, 1)
+	assert.Equal(t, processUpdate.ProcessID, update.Processes[0].ProcessID)
+	require.Len(t, update.Processes[0].Probes, 2)
+	deps.actuator.mu.Unlock()
 
+	// Note: Updates are now handled internally by the actuator, so we verify
+	// through diagnostics instead of checking actuator updates directly.
 	require.Len(t, deps.diagUploader.messages, 2)
 	for _, msg := range deps.diagUploader.messages {
 		assert.Equal(t, uploader.StatusReceived, msg.Debugger.Diagnostic.Status)
@@ -80,13 +84,13 @@ func TestProgramLifecycleFlow(t *testing.T) {
 	deps := newFakeTestingDependencies(t)
 	deps.decoderFactory.decoder = decoder
 	deps.irGenerator.program = program
-	processUpdate := createTestProcessUpdate()
-	processUpdate.Container = procmon.ContainerInfo{ContainerID: "container-123", EntityID: "entity-123"}
-	processUpdate.GitInfo = procmon.GitInfo{CommitSha: "commit-123", RepositoryURL: "https://github.com/test/test"}
+	processUpdate := createTestProcessConfig()
+	processUpdate.Container = process.ContainerInfo{ContainerID: "container-123", EntityID: "entity-123"}
+	processUpdate.GitInfo = process.GitInfo{CommitSha: "commit-123", RepositoryURL: "https://github.com/test/test"}
 	procID := processUpdate.ProcessID
 
-	deps.scraper.updates = []rcscrape.ProcessUpdate{processUpdate}
-	m := module.NewUnstartedModule(deps.toDeps())
+	tombstoneFilePath := "" // don't use tombstone files
+	_ = module.NewUnstartedModule(deps.toDeps(), tombstoneFilePath)
 
 	collectVersions := func(status uploader.Status) map[string]int {
 		return collectDiagnosticVersions(deps.diagUploader, status)
@@ -95,12 +99,12 @@ func TestProgramLifecycleFlow(t *testing.T) {
 	collectInstalled := func() map[string]int { return collectVersions(uploader.StatusInstalled) }
 	collectEmitting := func() map[string]int { return collectVersions(uploader.StatusEmitting) }
 
-	m.CheckForUpdates()
+	deps.sendUpdates(processUpdate)
 
 	initialProbeVersions := map[string]int{"probe-1": 1, "probe-2": 1}
 	require.Equal(t, initialProbeVersions, collectReceived())
 
-	loaded, err := deps.actuator.tenant.rt.Load(
+	loaded, err := deps.actuator.runtime.Load(
 		program.ID, processUpdate.Executable, procID, processUpdate.Probes,
 	)
 	require.NoError(t, err)
@@ -135,8 +139,7 @@ func TestProgramLifecycleFlow(t *testing.T) {
 
 	// Update first probe version and ensure diagnostics/log metadata follow.
 	processUpdate.Probes[0].(*rcjson.LogProbe).Version++
-	deps.scraper.updates = []rcscrape.ProcessUpdate{processUpdate}
-	m.CheckForUpdates()
+	deps.sendUpdates(processUpdate)
 	updatedProbeVersions := map[string]int{"probe-1": 2, "probe-2": 1}
 	require.Equal(t, updatedProbeVersions, collectReceived())
 	require.Equal(t, initialProbeVersions, collectInstalled())
@@ -145,10 +148,10 @@ func TestProgramLifecycleFlow(t *testing.T) {
 
 	program.Probes[0].ProbeDefinition = processUpdate.Probes[0]
 	program.ID++
-	update := deps.actuator.tenant.updates[len(deps.actuator.tenant.updates)-1]
+	update := deps.actuator.updates[len(deps.actuator.updates)-1]
 	require.Len(t, update.Processes, 1)
 	process := update.Processes[0]
-	loaded2, err := deps.actuator.tenant.rt.Load(
+	loaded2, err := deps.actuator.runtime.Load(
 		program.ID, process.Executable, process.ProcessID, process.Probes,
 	)
 	require.NoError(t, err)
@@ -165,6 +168,11 @@ func TestProgramLifecycleFlow(t *testing.T) {
 	require.NoError(t, sink2.HandleEvent(makeFakeEvent(header, []byte("event"))))
 	require.Equal(t, map[string]int{"probe-1": 2}, collectEmitting())
 
+	// Send the same update and make sure no new diagnostic is sent. This
+	// exercises a bug in the previous implementation of the diagnostic tracker.
+	numDiagnostics := len(deps.diagUploader.messages)
+	deps.sendUpdates(processUpdate)
+	require.Equal(t, numDiagnostics, len(deps.diagUploader.messages))
 	require.NoError(t, loaded2.Close())
 }
 
@@ -174,13 +182,12 @@ func TestIRGenerationFailure(t *testing.T) {
 	irErr := errors.New("IR generation failed")
 	deps := newFakeTestingDependencies(t)
 	deps.irGenerator.err = irErr
-	processUpdate := createTestProcessUpdate()
-	deps.scraper.updates = []rcscrape.ProcessUpdate{processUpdate}
-	m := module.NewUnstartedModule(deps.toDeps())
+	processUpdate := createTestProcessConfig()
+	tombstoneFilePath := "" // don't use tombstone files
+	_ = module.NewUnstartedModule(deps.toDeps(), tombstoneFilePath)
+	deps.sendUpdates(processUpdate)
 
-	m.CheckForUpdates()
-
-	_, err := deps.actuator.tenant.rt.Load(
+	_, err := deps.actuator.runtime.Load(
 		ir.ProgramID(42),
 		processUpdate.Executable,
 		processUpdate.ProcessID,
@@ -203,15 +210,15 @@ func TestIRGenerationFailure(t *testing.T) {
 // reported as error diagnostics for all probes in the program.
 func TestAttachmentFailure(t *testing.T) {
 	deps := newFakeTestingDependencies(t)
-	processUpdate := createTestProcessUpdate()
-	deps.scraper.updates = []rcscrape.ProcessUpdate{processUpdate}
+	processUpdate := createTestProcessConfig()
 	deps.irGenerator.program = createTestProgram()
 	deps.attacher.err = errors.New("attachment failed")
-	m := module.NewUnstartedModule(deps.toDeps())
+	tombstoneFilePath := "" // don't use tombstone files
+	_ = module.NewUnstartedModule(deps.toDeps(), tombstoneFilePath)
 
-	m.CheckForUpdates()
+	deps.sendUpdates(processUpdate)
 
-	loaded, err := deps.actuator.tenant.rt.Load(
+	loaded, err := deps.actuator.runtime.Load(
 		ir.ProgramID(42),
 		processUpdate.Executable,
 		processUpdate.ProcessID,
@@ -236,15 +243,15 @@ func TestAttachmentFailure(t *testing.T) {
 // reported as error diagnostics for all probes in the program.
 func TestLoadingFailure(t *testing.T) {
 	deps := newFakeTestingDependencies(t)
-	processUpdate := createTestProcessUpdate()
-	deps.scraper.updates = []rcscrape.ProcessUpdate{processUpdate}
+	processUpdate := createTestProcessConfig()
 	deps.irGenerator.program = createTestProgram()
 	deps.kernelLoader.err = errors.New("loading failed")
-	m := module.NewUnstartedModule(deps.toDeps())
+	tombstoneFilePath := "" // don't use tombstone files
+	_ = module.NewUnstartedModule(deps.toDeps(), tombstoneFilePath)
 
-	m.CheckForUpdates()
+	deps.sendUpdates(processUpdate)
 
-	_, err := deps.actuator.tenant.rt.Load(
+	_, err := deps.actuator.runtime.Load(
 		ir.ProgramID(42),
 		processUpdate.Executable,
 		processUpdate.ProcessID,
@@ -267,15 +274,15 @@ func TestLoadingFailure(t *testing.T) {
 // failures are properly handled and reported during program loading.
 func TestDecoderCreationFailure(t *testing.T) {
 	deps := newFakeTestingDependencies(t)
-	processUpdate := createTestProcessUpdate()
-	deps.scraper.updates = []rcscrape.ProcessUpdate{processUpdate}
+	processUpdate := createTestProcessConfig()
 	deps.decoderFactory.err = errors.New("decoder creation failed")
 	deps.irGenerator.program = createTestProgram()
-	m := module.NewUnstartedModule(deps.toDeps())
+	tombstoneFilePath := "" // don't use tombstone files
+	_ = module.NewUnstartedModule(deps.toDeps(), tombstoneFilePath)
 
-	m.CheckForUpdates()
+	deps.sendUpdates(processUpdate)
 
-	_, err := deps.actuator.tenant.rt.Load(
+	_, err := deps.actuator.runtime.Load(
 		ir.ProgramID(42), processUpdate.Executable, processUpdate.ProcessID, processUpdate.Probes,
 	)
 	require.Error(t, err)
@@ -296,15 +303,15 @@ func TestDecoderCreationFailure(t *testing.T) {
 func TestEventDecodingSuccess(t *testing.T) {
 	deps := newFakeTestingDependencies(t)
 	decoder := &fakeDecoder{output: `{"test":"data"}`}
-	processUpdate := createTestProcessUpdate()
-	deps.scraper.updates = []rcscrape.ProcessUpdate{processUpdate}
+	processUpdate := createTestProcessConfig()
 	deps.decoderFactory.decoder = decoder
 	deps.irGenerator.program = createTestProgram()
-	m := module.NewUnstartedModule(deps.toDeps())
+	tombstoneFilePath := "" // don't use tombstone files
+	_ = module.NewUnstartedModule(deps.toDeps(), tombstoneFilePath)
 
-	m.CheckForUpdates()
+	deps.sendUpdates(processUpdate)
 
-	loaded, err := deps.actuator.tenant.rt.Load(
+	loaded, err := deps.actuator.runtime.Load(
 		ir.ProgramID(42), processUpdate.Executable, processUpdate.ProcessID, processUpdate.Probes,
 	)
 	require.NoError(t, err)
@@ -333,15 +340,15 @@ func TestEventDecodingSuccess(t *testing.T) {
 func TestEventDecodingFailure(t *testing.T) {
 	deps := newFakeTestingDependencies(t)
 	decoder := &fakeDecoder{probe: createTestProbe("probe-1"), err: errors.New("decode failed")}
-	processUpdate := createTestProcessUpdate()
-	deps.scraper.updates = []rcscrape.ProcessUpdate{processUpdate}
+	processUpdate := createTestProcessConfig()
 	deps.decoderFactory.decoder = decoder
 	deps.irGenerator.program = createTestProgram()
-	m := module.NewUnstartedModule(deps.toDeps())
+	tombstoneFilePath := "" // don't use tombstone files
+	_ = module.NewUnstartedModule(deps.toDeps(), tombstoneFilePath)
 
-	m.CheckForUpdates()
+	deps.sendUpdates(processUpdate)
 
-	loaded, err := deps.actuator.tenant.rt.Load(
+	loaded, err := deps.actuator.runtime.Load(
 		ir.ProgramID(42), processUpdate.Executable, processUpdate.ProcessID, processUpdate.Probes,
 	)
 	require.NoError(t, err)
@@ -365,22 +372,22 @@ func TestEventDecodingFailure(t *testing.T) {
 
 func TestDecoderErrorHandling(t *testing.T) {
 	deps := newFakeTestingDependencies(t)
-	processUpdate := createTestProcessUpdate()
-	deps.scraper.updates = []rcscrape.ProcessUpdate{processUpdate}
+	processUpdate := createTestProcessConfig()
 
 	decoder := &fakeDecoder{output: `{"test":"data"}`}
 	factory := &failOnceDecoderFactory{inner: &fakeDecoderFactory{decoder: decoder}}
 	deps.irGenerator.program = createTestProgram()
 	td := deps.toDeps()
 	td.DecoderFactory = factory
-	m := module.NewUnstartedModule(td)
+	tombstoneFilePath := "" // don't use tombstone files
+	_ = module.NewUnstartedModule(td, tombstoneFilePath)
 
-	m.CheckForUpdates()
+	deps.sendUpdates(processUpdate)
 	received := collectDiagnosticVersions(deps.diagUploader, uploader.StatusReceived)
 	require.Equal(t, map[string]int{"probe-1": 1, "probe-2": 1}, received)
 
 	program := createTestProgram()
-	loaded, err := deps.actuator.tenant.rt.Load(
+	loaded, err := deps.actuator.runtime.Load(
 		program.ID, processUpdate.Executable, processUpdate.ProcessID, processUpdate.Probes,
 	)
 	require.NoError(t, err)
@@ -412,29 +419,28 @@ func TestDecoderErrorHandling(t *testing.T) {
 // updating the internal state and notifying the actuator.
 func TestProcessRemoval(t *testing.T) {
 	deps := newFakeTestingDependencies(t)
-	processUpdate := createTestProcessUpdate()
-	removals := []procmon.ProcessID{processUpdate.ProcessID}
-	deps.scraper.updates = []rcscrape.ProcessUpdate{processUpdate}
+	processUpdate := createTestProcessConfig()
+	removals := []process.ID{processUpdate.ProcessID}
 	td := deps.toDeps()
 	td.IRGenerator = irgen.NewGenerator()
-	m := module.NewUnstartedModule(td)
+	tombstoneFilePath := "" // don't use tombstone files
+	_ = module.NewUnstartedModule(td, tombstoneFilePath)
 
-	m.CheckForUpdates()
-	require.Len(t, deps.actuator.tenant.updates, 1)
+	deps.sendUpdates(processUpdate)
+	require.Len(t, deps.actuator.updates, 1)
 
-	m.HandleRemovals(removals)
+	deps.sendRemovals(removals...)
 
-	require.Len(t, deps.actuator.tenant.updates, 2)
-	require.Equal(t, deps.actuator.tenant.updates[0], actuator.ProcessesUpdate{
+	require.Len(t, deps.actuator.updates, 2)
+	require.Equal(t, deps.actuator.updates[0], actuator.ProcessesUpdate{
 		Processes: []actuator.ProcessUpdate{
 			{
-				ProcessID:  processUpdate.ProcessID,
-				Executable: processUpdate.Executable,
-				Probes:     processUpdate.Probes,
+				Info:   processUpdate.Info,
+				Probes: processUpdate.Probes,
 			},
 		},
 	})
-	require.Equal(t, deps.actuator.tenant.updates[1], actuator.ProcessesUpdate{
+	require.Equal(t, deps.actuator.updates[1], actuator.ProcessesUpdate{
 		Removals: removals,
 	})
 }
@@ -444,25 +450,25 @@ func TestProcessRemoval(t *testing.T) {
 // all processes.
 func TestMultipleProcesses(t *testing.T) {
 	deps := newFakeTestingDependencies(t)
-	processUpdate1 := createTestProcessUpdate()
-	processUpdate1.ProcessID = procmon.ProcessID{PID: 12345}
+	processUpdate1 := createTestProcessConfig()
+	processUpdate1.ProcessID = process.ID{PID: 12345}
 	processUpdate1.Service = "service-1"
 	processUpdate1.RuntimeID = "runtime-1"
 
-	processUpdate2 := createTestProcessUpdate()
-	processUpdate2.ProcessID = procmon.ProcessID{PID: 67890}
+	processUpdate2 := createTestProcessConfig()
+	processUpdate2.ProcessID = process.ID{PID: 67890}
 	processUpdate2.Service = "service-2"
 	processUpdate2.RuntimeID = "runtime-2"
 
-	deps.scraper.updates = []rcscrape.ProcessUpdate{processUpdate1, processUpdate2}
 	td := deps.toDeps()
 	td.IRGenerator = irgen.NewGenerator()
-	m := module.NewUnstartedModule(td)
+	tombstoneFilePath := "" // don't use tombstone files
+	_ = module.NewUnstartedModule(td, tombstoneFilePath)
 
-	m.CheckForUpdates()
+	deps.sendUpdates(processUpdate1, processUpdate2)
 
-	require.Len(t, deps.actuator.tenant.updates, 1)
-	actualUpdate := deps.actuator.tenant.updates[0]
+	require.Len(t, deps.actuator.updates, 1)
+	actualUpdate := deps.actuator.updates[0]
 	require.Len(t, actualUpdate.Processes, 2)
 
 	assert.Len(t, deps.diagUploader.messages, 4)
@@ -476,7 +482,7 @@ func TestMultipleProcesses(t *testing.T) {
 func TestProbeIssueReporting(t *testing.T) {
 	deps := newFakeTestingDependencies(t)
 	decoder := &fakeDecoder{}
-	processUpdate := createTestProcessUpdate()
+	processUpdate := createTestProcessConfig()
 	program := &ir.Program{
 		ID: ir.ProgramID(42),
 		Probes: []*ir.Probe{
@@ -493,14 +499,14 @@ func TestProbeIssueReporting(t *testing.T) {
 		},
 	}
 
-	deps.scraper.updates = []rcscrape.ProcessUpdate{processUpdate}
 	deps.decoderFactory.decoder = decoder
 	deps.irGenerator.program = program
-	m := module.NewUnstartedModule(deps.toDeps())
+	tombstoneFilePath := "" // don't use tombstone files
+	_ = module.NewUnstartedModule(deps.toDeps(), tombstoneFilePath)
 
-	m.CheckForUpdates()
+	deps.sendUpdates(processUpdate)
 
-	loaded, err := deps.actuator.tenant.rt.Load(
+	loaded, err := deps.actuator.runtime.Load(
 		program.ID, processUpdate.Executable, processUpdate.ProcessID, processUpdate.Probes,
 	)
 	require.NoError(t, err)
@@ -530,20 +536,20 @@ func TestProbeIssueReporting(t *testing.T) {
 // TestNoSuccessfulProbes verifies that probe issues in a program are properly
 // reported as error diagnostics during the program loading phase.
 func TestNoSuccessfulProbes(t *testing.T) {
-	processUpdate := createTestProcessUpdate()
+	processUpdate := createTestProcessConfig()
 	fakeDeps := newFakeTestingDependencies(t)
 	a := actuator.NewActuator()
 	t.Cleanup(func() { require.NoError(t, a.Shutdown()) })
 	deps := fakeDeps.toDeps()
 	deps.IRGenerator = irgen.NewGenerator()
-	deps.Actuator = module.EraseActuator(a)
+	deps.Actuator = a
 	bin := testprogs.MustGetBinary(t, "simple", testprogs.MustGetCommonConfigs(t)[0])
-	processUpdate.Executable = procmon.Executable{Path: bin}
-	fakeDeps.scraper.updates = []rcscrape.ProcessUpdate{processUpdate}
+	processUpdate.Executable = process.Executable{Path: bin}
 
-	m := module.NewUnstartedModule(deps)
+	tombstoneFilePath := "" // don't use tombstone files
+	_ = module.NewUnstartedModule(deps, tombstoneFilePath)
 
-	m.CheckForUpdates()
+	fakeDeps.sendUpdates(processUpdate)
 
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		errorCount := 0
@@ -572,48 +578,12 @@ func (f *fakeDispatcher) UnregisterSink(progID ir.ProgramID) {
 
 func (f *fakeDispatcher) Shutdown() error { return nil }
 
-type fakeScraper struct {
-	updates []rcscrape.ProcessUpdate
+type fakeProcessSubscriber func(process.ProcessesUpdate)
+
+func (f *fakeProcessSubscriber) Subscribe(cb func(process.ProcessesUpdate)) {
+	*f = cb
 }
-
-func (f *fakeScraper) GetUpdates() []rcscrape.ProcessUpdate {
-	return f.updates
-}
-
-func (f *fakeScraper) AsProcMonHandler() procmon.Handler {
-	return fakeScraperHandler{}
-}
-
-type fakeScraperHandler struct{}
-
-func (fakeScraperHandler) HandleUpdate(procmon.ProcessesUpdate) {}
-
-type fakeActuatorTenant struct {
-	name    string
-	rt      actuator.Runtime
-	updates []actuator.ProcessesUpdate
-}
-
-func (f *fakeActuatorTenant) HandleUpdate(update actuator.ProcessesUpdate) {
-	f.updates = append(f.updates, update)
-}
-
-type fakeActuator struct {
-	t      *testing.T
-	tenant *fakeActuatorTenant
-}
-
-func (f *fakeActuator) Shutdown() error {
-	return nil
-}
-
-func (f *fakeActuator) NewTenant(
-	name string, rt actuator.Runtime,
-) module.ActuatorTenant {
-	assert.Nil(f.t, f.tenant)
-	f.tenant = &fakeActuatorTenant{name: name, rt: rt}
-	return f.tenant
-}
+func (f *fakeProcessSubscriber) Start() {}
 
 type fakeProgramCompiler struct {
 	err error
@@ -682,7 +652,7 @@ type fakeDecoderFactory struct {
 }
 
 func (f *fakeDecoderFactory) NewDecoder(
-	_ *ir.Program, _ procmon.Executable,
+	_ *ir.Program, _ process.Executable,
 ) (module.Decoder, error) {
 	return f.decoder, f.err
 }
@@ -694,7 +664,7 @@ type failOnceDecoderFactory struct {
 
 func (f *failOnceDecoderFactory) NewDecoder(
 	program *ir.Program,
-	executable procmon.Executable,
+	executable process.Executable,
 ) (module.Decoder, error) {
 	dec, err := f.inner.NewDecoder(program, executable)
 	if err != nil {
@@ -793,36 +763,49 @@ func (f *fakeLogsUploader) Close() {
 	f.closed = true
 }
 
-type fakeActuatorAdapter struct {
-	inner *fakeActuator
+type fakeActuator struct {
+	runtime actuator.Runtime
+	updates []actuator.ProcessesUpdate
+	mu      sync.Mutex
 }
 
-func (a fakeActuatorAdapter) Shutdown() error { return a.inner.Shutdown() }
+func (f *fakeActuator) HandleUpdate(update actuator.ProcessesUpdate) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.updates = append(f.updates, update)
+}
 
-func (a fakeActuatorAdapter) NewTenant(
-	name string, rt actuator.Runtime,
-) module.ActuatorTenant {
-	return a.inner.NewTenant(name, rt)
+func (f *fakeActuator) Shutdown() error {
+	return nil
+}
+
+func (f *fakeActuator) Stats() map[string]any {
+	return nil
+}
+
+func (f *fakeActuator) SetRuntime(runtime actuator.Runtime) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.runtime = runtime
 }
 
 type fakeTestingDependencies struct {
-	actuator        *fakeActuator
-	scraper         *fakeScraper
-	dispatcher      *fakeDispatcher
-	diagUploader    *fakeDiagnosticsUploader
-	logsFactory     *fakeLogsUploaderFactory
-	programCompiler *fakeProgramCompiler
-	kernelLoader    *fakeKernelLoader
-	attacher        *fakeAttacher
-	decoderFactory  *fakeDecoderFactory
-	irGenerator     *fakeIRGenerator
-	objectLoader    object.Loader
+	actuator          *fakeActuator
+	dispatcher        *fakeDispatcher
+	diagUploader      *fakeDiagnosticsUploader
+	logsFactory       *fakeLogsUploaderFactory
+	programCompiler   *fakeProgramCompiler
+	kernelLoader      *fakeKernelLoader
+	attacher          *fakeAttacher
+	decoderFactory    *fakeDecoderFactory
+	irGenerator       *fakeIRGenerator
+	objectLoader      object.Loader
+	processesCallback func(process.ProcessesUpdate)
 }
 
-func newFakeTestingDependencies(t *testing.T) *fakeTestingDependencies {
+func newFakeTestingDependencies(_ *testing.T) *fakeTestingDependencies {
 	return &fakeTestingDependencies{
-		actuator:        &fakeActuator{t: t},
-		scraper:         &fakeScraper{},
+		actuator:        &fakeActuator{},
 		dispatcher:      &fakeDispatcher{sinks: make(map[ir.ProgramID]dispatcher.Sink)},
 		diagUploader:    &fakeDiagnosticsUploader{},
 		logsFactory:     &fakeLogsUploaderFactory{},
@@ -837,8 +820,7 @@ func newFakeTestingDependencies(t *testing.T) *fakeTestingDependencies {
 
 func (d *fakeTestingDependencies) toDeps() module.Dependencies {
 	return module.Dependencies{
-		Actuator:            fakeActuatorAdapter{inner: d.actuator},
-		Scraper:             d.scraper,
+		Actuator:            d.actuator,
 		Dispatcher:          d.dispatcher,
 		DecoderFactory:      d.decoderFactory,
 		IRGenerator:         d.irGenerator,
@@ -847,7 +829,16 @@ func (d *fakeTestingDependencies) toDeps() module.Dependencies {
 		Attacher:            d.attacher,
 		LogsFactory:         d.logsFactory,
 		DiagnosticsUploader: d.diagUploader,
+		ProcessSubscriber:   (*fakeProcessSubscriber)(&d.processesCallback),
 	}
+}
+
+func (d *fakeTestingDependencies) sendUpdates(updates ...process.Config) {
+	d.processesCallback(process.ProcessesUpdate{Updates: updates})
+}
+
+func (d *fakeTestingDependencies) sendRemovals(removals ...process.ID) {
+	d.processesCallback(process.ProcessesUpdate{Removals: removals})
 }
 
 func collectDiagnosticVersions(
@@ -877,11 +868,11 @@ func createTestProbe(id string) ir.ProbeDefinition {
 	}
 }
 
-func createTestProcessUpdate() rcscrape.ProcessUpdate {
-	return rcscrape.ProcessUpdate{
-		ProcessUpdate: procmon.ProcessUpdate{
-			ProcessID:  procmon.ProcessID{PID: 12345},
-			Executable: procmon.Executable{Path: "/usr/bin/test"},
+func createTestProcessConfig() process.Config {
+	return process.Config{
+		Info: process.Info{
+			ProcessID:  process.ID{PID: 12345},
+			Executable: process.Executable{Path: "/usr/bin/test"},
 			Service:    "test-service",
 		},
 		Probes: []ir.ProbeDefinition{

@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/util/fargate"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -294,9 +295,6 @@ func (c *WorkloadMetaCollector) handleProcess(ev workloadmeta.Event) []*types.Ta
 	}
 
 	for _, tracerMeta := range process.Service.TracerMetadata {
-		tagList.AddStandard(tags.Service, tracerMeta.ServiceName)
-		tagList.AddStandard(tags.Env, tracerMeta.ServiceEnv)
-		tagList.AddStandard(tags.Version, tracerMeta.ServiceVersion)
 		parseProcessTags(tagList, tracerMeta.ProcessTags)
 	}
 
@@ -572,7 +570,11 @@ func (c *WorkloadMetaCollector) handleECSTask(ev workloadmeta.Event) []*types.Ta
 		})
 	}
 
-	if task.LaunchType == workloadmeta.ECSLaunchTypeFargate {
+	// For Fargate and Managed Instances in sidecar mode, add task-level tags to global entity
+	// These deployments don't report a hostname (task is the unit of identity)
+	// IsFargateInstance() returns true for both ECS Fargate and managed instances in sidecar mode
+	if task.LaunchType == workloadmeta.ECSLaunchTypeFargate ||
+		(task.LaunchType == workloadmeta.ECSLaunchTypeManagedInstances && fargate.IsFargateInstance()) {
 		low, orch, high, standard := taskTags.Compute()
 		tagInfos = append(tagInfos, &types.TagInfo{
 			Source:               taskSource,
@@ -587,8 +589,10 @@ func (c *WorkloadMetaCollector) handleECSTask(ev workloadmeta.Event) []*types.Ta
 	// Global tags only updated when a valid ClusterName is provided
 	// There exist edge cases in the metadata API returning a task without cluster info
 	if task.ClusterName != "" {
-		// add global cluster tags to EC2
-		if task.LaunchType == workloadmeta.ECSLaunchTypeEC2 {
+		// Add global cluster tags for EC2 and Managed Instances in daemon mode
+		// In daemon mode, the hostname is the EC2 instance, so we only add cluster tags (not task-specific tags)
+		if task.LaunchType == workloadmeta.ECSLaunchTypeEC2 ||
+			(task.LaunchType == workloadmeta.ECSLaunchTypeManagedInstances && !fargate.IsFargateInstance()) {
 			tagInfos = append(tagInfos, &types.TagInfo{
 				Source:               taskSource,
 				EntityID:             types.GetGlobalEntityID(),

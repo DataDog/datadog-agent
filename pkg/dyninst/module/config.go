@@ -15,8 +15,8 @@ import (
 	"strconv"
 
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-	"github.com/DataDog/datadog-agent/pkg/dyninst/actuator"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/loader"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/module/tombstone"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/object"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	sysconfig "github.com/DataDog/datadog-agent/pkg/system-probe/config"
@@ -31,6 +31,13 @@ type Config struct {
 	DiagsUploaderURL   string
 	SymDBUploadEnabled bool
 	SymDBUploaderURL   string
+	// ProbeTombstoneFilePath is the path to the tombstone file used to detect
+	// if we crashed while loading programs. Empty means don't use tombstone
+	// file.
+	ProbeTombstoneFilePath string
+	// The directory for the persistent cache tracking SymDB uploads. If empty,
+	// no cache will be used.
+	SymDBCacheDir string
 
 	// DiskCacheEnabled enables the disk cache for debug info.  If this is
 	// false, no disk cache will be used and the debug info will be stored in
@@ -43,23 +50,11 @@ type Config struct {
 	ProcessSyncDisabled bool
 
 	TestingKnobs struct {
-		LoaderOptions       []loader.Option
-		ScraperOverride     func(Scraper) Scraper
-		IRGeneratorOverride func(IRGenerator) IRGenerator
+		LoaderOptions             []loader.Option
+		IRGeneratorOverride       func(IRGenerator) IRGenerator
+		ProcessSubscriberOverride func(ProcessSubscriber) ProcessSubscriber
+		TombstoneSleepKnobs       tombstone.WaitTestingKnobs
 	}
-}
-
-// erasedActuator is an erased type for an Actuator.
-type erasedActuator[A Actuator[AT], AT ActuatorTenant] struct {
-	a A
-}
-
-func (e *erasedActuator[A, AT]) NewTenant(name string, rt actuator.Runtime) ActuatorTenant {
-	return e.a.NewTenant(name, rt)
-}
-
-func (e *erasedActuator[A, AT]) Shutdown() error {
-	return e.a.Shutdown()
 }
 
 // NewConfig creates a new Config object.
@@ -71,13 +66,15 @@ func NewConfig(_ *sysconfigtypes.Config) (*Config, error) {
 	}
 
 	c := &Config{
-		Config:             *ebpf.NewConfig(),
-		LogUploaderURL:     withPath(traceAgentURL, logUploaderPath),
-		DiagsUploaderURL:   withPath(traceAgentURL, diagsUploaderPath),
-		SymDBUploadEnabled: pkgconfigsetup.SystemProbe().GetBool("dynamic_instrumentation.symdb_upload_enabled"),
-		SymDBUploaderURL:   withPath(traceAgentURL, symdbUploaderPath),
-		DiskCacheEnabled:   cacheEnabled,
-		DiskCacheConfig:    cacheConfig,
+		Config:                 *ebpf.NewConfig(),
+		LogUploaderURL:         withPath(traceAgentURL, logUploaderPath),
+		DiagsUploaderURL:       withPath(traceAgentURL, diagsUploaderPath),
+		SymDBUploadEnabled:     pkgconfigsetup.SystemProbe().GetBool("dynamic_instrumentation.symdb_upload_enabled"),
+		SymDBUploaderURL:       withPath(traceAgentURL, symdbUploaderPath),
+		SymDBCacheDir:          "/tmp/datadog-agent/system-probe/dynamic-instrumentation/symdb-uploads",
+		ProbeTombstoneFilePath: "/tmp/datadog-agent/system-probe/dynamic-instrumentation/debugger-probes-tombstone.json",
+		DiskCacheEnabled:       cacheEnabled,
+		DiskCacheConfig:        cacheConfig,
 	}
 	return c, nil
 }

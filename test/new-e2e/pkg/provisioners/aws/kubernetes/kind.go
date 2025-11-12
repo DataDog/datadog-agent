@@ -90,6 +90,32 @@ func KindRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, params *Prov
 		return err
 	}
 
+	var fakeIntake *fakeintakeComp.Fakeintake
+	if params.fakeintakeOptions != nil {
+		fakeintakeOpts := []fakeintake.Option{fakeintake.WithLoadBalancer()}
+		params.fakeintakeOptions = append(fakeintakeOpts, params.fakeintakeOptions...)
+		fakeIntake, err = fakeintake.NewECSFargateInstance(awsEnv, params.name, params.fakeintakeOptions...)
+		if err != nil {
+			return err
+		}
+		err = fakeIntake.Export(ctx, &env.FakeIntake.FakeintakeOutput)
+		if err != nil {
+			return err
+		}
+
+		if params.agentOptions != nil {
+			newOpts := []kubernetesagentparams.Option{kubernetesagentparams.WithFakeintake(fakeIntake)}
+			params.agentOptions = append(newOpts, params.agentOptions...)
+		}
+		if params.operatorDDAOptions != nil {
+			newDdaOpts := []agentwithoperatorparams.Option{agentwithoperatorparams.WithFakeIntake(fakeIntake)}
+			params.operatorDDAOptions = append(newDdaOpts, params.operatorDDAOptions...)
+		}
+		params.vmOptions = append(params.vmOptions, ec2.WithPulumiResourceOptions(utils.PulumiDependsOn(fakeIntake)))
+	} else {
+		env.FakeIntake = nil
+	}
+
 	host, err := ec2.NewVM(awsEnv, params.name, params.vmOptions...)
 	if err != nil {
 		return err
@@ -149,35 +175,11 @@ func KindRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, params *Prov
 		if err != nil {
 			return err
 		}
-		argoHelm, err := argorollouts.NewHelmInstallation(&awsEnv, argoParams, pulumi.Provider(kubeProvider))
+		argoHelm, err := argorollouts.NewHelmInstallation(&awsEnv, argoParams, kubeProvider)
 		if err != nil {
 			return err
 		}
 		dependsOnArgoRollout = utils.PulumiDependsOn(argoHelm)
-	}
-	var fakeIntake *fakeintakeComp.Fakeintake
-	if params.fakeintakeOptions != nil {
-		fakeintakeOpts := []fakeintake.Option{fakeintake.WithLoadBalancer()}
-		params.fakeintakeOptions = append(fakeintakeOpts, params.fakeintakeOptions...)
-		fakeIntake, err = fakeintake.NewECSFargateInstance(awsEnv, params.name, params.fakeintakeOptions...)
-		if err != nil {
-			return err
-		}
-		err = fakeIntake.Export(ctx, &env.FakeIntake.FakeintakeOutput)
-		if err != nil {
-			return err
-		}
-
-		if params.agentOptions != nil {
-			newOpts := []kubernetesagentparams.Option{kubernetesagentparams.WithFakeintake(fakeIntake)}
-			params.agentOptions = append(newOpts, params.agentOptions...)
-		}
-		if params.operatorDDAOptions != nil {
-			newDdaOpts := []agentwithoperatorparams.Option{agentwithoperatorparams.WithFakeIntake(fakeIntake)}
-			params.operatorDDAOptions = append(newDdaOpts, params.operatorDDAOptions...)
-		}
-	} else {
-		env.FakeIntake = nil
 	}
 
 	var dependsOnDDAgent pulumi.ResourceOption
