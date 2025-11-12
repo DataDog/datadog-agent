@@ -8,6 +8,7 @@ package config
 import (
 	"encoding/json"
 	"fmt"
+	"log"
 
 	yaml "gopkg.in/yaml.v3"
 
@@ -25,6 +26,7 @@ func ParseJSON(data []byte) ([]*LogsConfig, error) {
 	log.Debugf("Parsing JSON logs config: %s", string(data))
 	err := json.Unmarshal(data, &configs)
 	if err != nil {
+		log.Debugf("JSON logs config received (as bytes): %x", data)
 		return nil, fmt.Errorf("could not parse JSON logs config: %v", err)
 	}
 	for _, cfg := range configs {
