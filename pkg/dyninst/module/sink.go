@@ -116,6 +116,12 @@ func (s *sink) HandleEvent(msg dispatcher.Message) error {
 			stackByteDepth: evHeader.Stack_byte_depth,
 			probeID:        evHeader.Probe_id,
 		}, msg) {
+			// Record stack PCs for later use when the return event arrives.
+			// This works around a bug where the return event may need the PCs
+			// but doesn't have them.
+			if stackPCs, err := msgEvent.StackPCs(); err == nil {
+				s.decoder.ReportStackPCs(evHeader.Stack_hash, stackPCs)
+			}
 			msg = dispatcher.Message{} // prevent release
 			return nil
 		}

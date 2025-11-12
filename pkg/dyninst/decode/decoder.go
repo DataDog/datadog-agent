@@ -84,6 +84,14 @@ type Decoder struct {
 	line            lineCaptureData
 }
 
+// ReportStackPCs reports the program counters of the stack trace for a
+// given stack hash.
+func (d *Decoder) ReportStackPCs(stackHash uint64, stackPCs []uint64) {
+	if len(stackPCs) > 0 {
+		d.stackPCs[stackHash] = stackPCs
+	}
+}
+
 // NewDecoder creates a new Decoder for the given program.
 func NewDecoder(
 	program *ir.Program,
