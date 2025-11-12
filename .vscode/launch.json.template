@@ -94,7 +94,8 @@
             "skaffoldConfig": "${workspaceFolder}/skaffold.yaml",
             "watch": false,
             "cleanUp": true,
-            "portForward": true
+            "portForward": true,
+            "autoStop": false
         }
     ]
 }
