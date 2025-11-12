@@ -502,12 +502,15 @@ func (d *AgentDemultiplexer) GetEventPlatformForwarder() (eventplatform.Forwarde
 	return d.aggregator.GetEventPlatformForwarder()
 }
 
-// SetTimeSamplersFilterList triggers a reconfiguration of the filter list
+// SetSamplersFilterList triggers a reconfiguration of the filter list
 // applied in the time samplers.
-func (d *AgentDemultiplexer) SetTimeSamplersFilterList(filterList *utilstrings.Matcher) {
+func (d *AgentDemultiplexer) SetSamplersFilterList(filterList *utilstrings.Matcher, histoFilterList *utilstrings.Matcher) {
+
 	for _, worker := range d.statsd.workers {
-		worker.filterListChan <- filterList
+		worker.filterListChan <- histoFilterList
 	}
+
+	d.aggregator.filterListChan <- filterList
 }
 
 // SendSamplesWithoutAggregation buffers a bunch of metrics with timestamp. This data will be directly

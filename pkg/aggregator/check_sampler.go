@@ -17,6 +17,7 @@ import (
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	utilstrings "github.com/DataDog/datadog-agent/pkg/util/strings"
 )
 
 const checksSourceTypeName = "System"
@@ -141,7 +142,8 @@ func (cs *CheckSampler) addBucket(bucket *metrics.HistogramBucket) {
 	cs.sketchMap.insertInterp(int64(bucket.Timestamp), contextKey, bucket.LowerBound, bucket.UpperBound, uint(bucket.Value))
 }
 
-func (cs *CheckSampler) commitSeries(timestamp float64) {
+func (cs *CheckSampler) commitSeries(timestamp float64, filterList *utilstrings.Matcher) {
+
 	series, errors := cs.metrics.Flush(timestamp)
 	for ckey, err := range errors {
 		context, ok := cs.contextResolver.get(ckey)
@@ -158,7 +160,14 @@ func (cs *CheckSampler) commitSeries(timestamp float64) {
 			log.Errorf("Ignoring all metrics on context key '%v': inconsistent context resolver state: the context is not tracked", serie.ContextKey)
 			continue
 		}
-		serie.Name = context.Name + serie.NameSuffix
+
+		name := context.Name + serie.NameSuffix
+		// Filter the metrics
+		if filterList != nil && filterList.Test(name) {
+			tlmDogstatsdFilteredMetrics.Inc()
+			continue
+		}
+		serie.Name = name
 		serie.Tags = context.Tags()
 		serie.Host = context.Host
 		serie.NoIndex = context.noIndex
@@ -169,7 +178,7 @@ func (cs *CheckSampler) commitSeries(timestamp float64) {
 	}
 }
 
-func (cs *CheckSampler) commitSketches(timestamp float64) {
+func (cs *CheckSampler) commitSketches(timestamp float64, filterList *utilstrings.Matcher) {
 	pointsByCtx := make(map[ckey.ContextKey][]metrics.SketchPoint)
 
 	cs.sketchMap.flushBefore(int64(timestamp), func(ck ckey.ContextKey, p metrics.SketchPoint) {
@@ -179,13 +188,19 @@ func (cs *CheckSampler) commitSketches(timestamp float64) {
 		pointsByCtx[ck] = append(pointsByCtx[ck], p)
 	})
 	for ck, points := range pointsByCtx {
-		cs.sketches = append(cs.sketches, cs.newSketchSeries(ck, points))
+		series := cs.newSketchSeries(ck, points)
+		// Filter the metrics
+		if filterList != nil && filterList.Test(series.Name) {
+			tlmDogstatsdFilteredMetrics.Inc()
+			continue
+		}
+		cs.sketches = append(cs.sketches, series)
 	}
 }
 
-func (cs *CheckSampler) commit(timestamp float64) {
-	cs.commitSeries(timestamp)
-	cs.commitSketches(timestamp)
+func (cs *CheckSampler) commit(timestamp float64, filterList *utilstrings.Matcher) {
+	cs.commitSeries(timestamp, filterList)
+	cs.commitSketches(timestamp, filterList)
 
 	cs.metrics.RemoveExpired(timestamp)
 

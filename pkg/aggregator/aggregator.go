@@ -33,6 +33,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/sort"
+	utilstrings "github.com/DataDog/datadog-agent/pkg/util/strings"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -269,6 +270,10 @@ type BufferedAggregator struct {
 	globalTags                  func(types.TagCardinality) ([]string, error) // This function gets global tags from the tagger when host tags are not available
 	tagger                      tagger.Component
 	flushAndSerializeInParallel FlushAndSerializeInParallel
+
+	// use this chan to trigger a filterList reconfiguration
+	filterListChan  chan *utilstrings.Matcher
+	flushFilterList *utilstrings.Matcher
 }
 
 // FlushAndSerializeInParallel contains options for flushing metrics and serializing in parallel.
@@ -346,6 +351,8 @@ func NewBufferedAggregator(s serializer.MetricSerializer, eventPlatformForwarder
 		globalTags:                  tagger.GlobalTags,
 		tagger:                      tagger,
 		flushAndSerializeInParallel: NewFlushAndSerializeInParallel(pkgconfigsetup.Datadog()),
+
+		filterListChan: make(chan *utilstrings.Matcher),
 	}
 
 	return aggregator
@@ -443,7 +450,7 @@ func (agg *BufferedAggregator) handleSenderSample(ss senderMetricSample) {
 
 	if checkSampler, ok := agg.checkSamplers[ss.id]; ok {
 		if ss.commit {
-			checkSampler.commit(timeNowNano())
+			checkSampler.commit(timeNowNano(), agg.flushFilterList)
 		} else {
 			ss.metricSample.Tags = sort.UniqInPlace(ss.metricSample.Tags)
 			checkSampler.addSample(ss.metricSample)
@@ -785,6 +792,9 @@ func (agg *BufferedAggregator) run() {
 			agg.tagsStore.Shrink()
 
 			aggregatorEventPlatformErrorLogged = false
+
+		case matcher := <-agg.filterListChan:
+			agg.flushFilterList = matcher
 		case <-agg.health.C:
 		case checkItem := <-agg.checkItems:
 			checkItem.handle(agg)
