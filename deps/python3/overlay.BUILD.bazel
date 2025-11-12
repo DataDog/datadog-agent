@@ -233,9 +233,10 @@ filegroup(
     ] + PYTHON_CORE_MODULES_SRCS,
 )
 
-filegroup(
-    name = "mimalloc_headers",
+cc_library(
+    name = "mimalloc",
     srcs = [
+        "Objects/obmalloc.c",
         "Include/internal/pycore_mimalloc.h",
         "Include/internal/mimalloc/mimalloc.h",
         "Include/internal/mimalloc/mimalloc/atomic.h",
@@ -243,14 +244,6 @@ filegroup(
         "Include/internal/mimalloc/mimalloc/prim.h",
         "Include/internal/mimalloc/mimalloc/track.h",
         "Include/internal/mimalloc/mimalloc/types.h",
-    ]
-)
-
-cc_library(
-    name = "mimalloc",
-    srcs = [
-        "Objects/obmalloc.c",
-        ":mimalloc_headers",
         ":python_headers",
     ],
     textual_hdrs = [
@@ -292,27 +285,10 @@ filegroup(
 cc_library(
     name = "mpdec",
     hdrs = [":mpdec_headers"],
-    # srcs = glob(["Modules/_decimal/libmpdec/*.c"], exclude=[
-    #     "Modules/_decimal/libmpdec/bench*.c",
-    #     "Modules/_decimal/libmpdec/mpsignal.c"
-    # ]) + [":python_headers"],
-    srcs = [
-        "Modules/_decimal/libmpdec/basearith.c",
-        "Modules/_decimal/libmpdec/constants.c",
-        "Modules/_decimal/libmpdec/context.c",
-        "Modules/_decimal/libmpdec/convolute.c",
-        "Modules/_decimal/libmpdec/crt.c",
-        "Modules/_decimal/libmpdec/difradix2.c",
-        "Modules/_decimal/libmpdec/fnt.c",
-        "Modules/_decimal/libmpdec/fourstep.c",
-        "Modules/_decimal/libmpdec/io.c",
-        "Modules/_decimal/libmpdec/mpalloc.c",
-        "Modules/_decimal/libmpdec/mpdecimal.c",
-        "Modules/_decimal/libmpdec/numbertheory.c",
-        "Modules/_decimal/libmpdec/sixstep.c",
-        "Modules/_decimal/libmpdec/transpose.c",
-        ":python_headers",
-    ],
+    srcs = glob(["Modules/_decimal/libmpdec/*.c"], exclude=[
+        "Modules/_decimal/libmpdec/bench*.c",
+        "Modules/_decimal/libmpdec/mpsignal.c"
+    ]) + [":python_headers"],
     includes = ["Modules/_decimal/libmpdec"],
     # These defines must be propagated to the dependents
     defines = [
@@ -335,14 +311,16 @@ filegroup(
     ])
 )
 
+# Used from the modules list in modules.bzl
 filegroup(
     name = "libexpat_textual_hdrs",
-    srcs = glob([
+    srcs = [
         "Modules/expat/xmltok_impl.c",
         "Modules/expat/xmltok_ns.c",
-    ])
+    ]
 )
 
+# Used from the modules list in modules.bzl
 filegroup(
     name = "blake2_hdrs",
     srcs = glob([
@@ -395,69 +373,6 @@ filegroup(
 )
 
 filegroup(
-    name = "bytestr_headers",
-    srcs = [
-        "Objects/stringlib/count.h",
-        "Objects/stringlib/ctype.h",
-        "Objects/stringlib/fastsearch.h",
-        "Objects/stringlib/find.h",
-        "Objects/stringlib/join.h",
-        "Objects/stringlib/partition.h",
-        "Objects/stringlib/split.h",
-        "Objects/stringlib/stringdefs.h",
-        "Objects/stringlib/transmogrify.h",
-    ],
-)
-
-filegroup(
-    name = "unicode_headers",
-    srcs = [
-        "Objects/stringlib/asciilib.h",
-        "Objects/stringlib/codecs.h",
-        "Objects/stringlib/count.h",
-        "Objects/stringlib/fastsearch.h",
-        "Objects/stringlib/find.h",
-        "Objects/stringlib/find_max_char.h",
-        "Objects/stringlib/localeutil.h",
-        "Objects/stringlib/partition.h",
-        "Objects/stringlib/replace.h",
-        "Objects/stringlib/split.h",
-        "Objects/stringlib/ucs1lib.h",
-        "Objects/stringlib/ucs2lib.h",
-        "Objects/stringlib/ucs4lib.h",
-        "Objects/stringlib/undef.h",
-        "Objects/stringlib/unicode_format.h",
-    ],
-)
-
-filegroup(
-    name = "stringlib_other_headers",
-    srcs = [
-        "Objects/stringlib/eq.h",
-    ]
-)
-
-filegroup(
-    name = "stringlib_clinic_headers",
-    srcs = glob(["Objects/stringlib/clinic/*.h"]),
-)
-
-filegroup(
-    name = "objects_clinic_headers",
-    srcs = glob(["Objects/clinic/*.h"]),
-)
-
-filegroup(
-    name = "python_clinic_headers",
-    srcs = glob(["Python/clinic/*.h"]),
-)
-
-filegroup(
-    name = "modules_clinic_headers",
-    srcs = glob(["Modules/clinic/*.h"]),
-)
-
-filegroup(
     name = "expat_headers",
     srcs = glob(["Modules/expat/*.h"]),
 )
@@ -473,19 +388,18 @@ filegroup(
         "Include/*.h",
         "Include/cpython/*.h",
         "Include/internal/*.h",
+        "Objects/stringlib/**/*.h",
+        "Objects/clinic/*.h",
         "Python/*.h",
+        "Python/clinic/*.h",
+        "Modules/clinic/*.h",
     ]) + [
         ":copy_pyconfig",
         ":pegen_headers",
         ":tokenizer_headers",
         ":parser_headers",
-        ":bytestr_headers",
-        ":unicode_headers",
-        ":objects_clinic_headers",
         ":stringlib_clinic_headers",
         ":stringlib_other_headers",
-        ":python_clinic_headers",
-        ":modules_clinic_headers",
     ]
 )
 
@@ -648,5 +562,4 @@ cc_binary(
     linkopts = select({
         "@platforms//os:linux": ["-lutil"],
     }),
-
 )
