@@ -51,11 +51,20 @@ type Provides struct {
 
 // NewComponent creates a new snmpscanmanager component
 func NewComponent(reqs Requires) (Provides, error) {
+	ctx, cancelFunc := context.WithCancel(context.Background())
 	scanManager := &snmpScanManagerImpl{
 		log:         reqs.Logger,
 		scanner:     reqs.Scanner,
 		agentConfig: reqs.Config,
 		httpClient:  reqs.HTTPClient,
+
+		snmpConfigProvider: newSnmpConfigProvider(),
+
+		scanQueue:   make(chan snmpscanmanager.ScanRequest, scanQueueSize),
+		deviceScans: make(deviceScansByIP),
+
+		ctx:        ctx,
+		cancelFunc: cancelFunc,
 	}
 
 	reqs.Lifecycle.Append(compdef.Hook{
@@ -92,13 +101,7 @@ type snmpScanManagerImpl struct {
 }
 
 func (m *snmpScanManagerImpl) start() {
-	m.snmpConfigProvider = newSnmpConfigProvider()
-
-	m.scanQueue = make(chan snmpscanmanager.ScanRequest, scanQueueSize)
-	m.deviceScans = make(deviceScansByIP)
 	m.loadCache()
-
-	m.ctx, m.cancelFunc = context.WithCancel(context.Background())
 
 	for i := 0; i < scanWorkers; i++ {
 		m.wg.Add(1)

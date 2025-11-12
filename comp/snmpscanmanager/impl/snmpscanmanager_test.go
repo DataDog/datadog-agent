@@ -204,14 +204,14 @@ func TestRequestScan(t *testing.T) {
 			provides, err := NewComponent(reqs)
 			assert.NoError(t, err)
 
-			err = mockLifecycle.Start(context.Background())
-			assert.NoError(t, err)
-
 			scanManager, ok := provides.Comp.(*snmpScanManagerImpl)
 			assert.True(t, ok)
 
 			mockConfigProvider := tt.buildMockConfigProvider()
 			scanManager.snmpConfigProvider = mockConfigProvider
+
+			err = mockLifecycle.Start(context.Background())
+			assert.NoError(t, err)
 
 			for _, req := range tt.scanReqs {
 				provides.Comp.RequestScan(req)
@@ -397,14 +397,15 @@ func TestProcessScanRequest(t *testing.T) {
 			provides, err := NewComponent(reqs)
 			assert.NoError(t, err)
 
-			err = mockLifecycle.Start(context.Background())
-			assert.NoError(t, err)
-
 			scanManager, ok := provides.Comp.(*snmpScanManagerImpl)
 			assert.True(t, ok)
 
 			mockConfigProvider := tt.buildMockConfigProvider()
 			scanManager.snmpConfigProvider = mockConfigProvider
+
+			err = mockLifecycle.Start(context.Background())
+			assert.NoError(t, err)
+
 			scanErr := scanManager.processScanRequest(tt.scanRequest)
 
 			err = mockLifecycle.Stop(context.Background())
