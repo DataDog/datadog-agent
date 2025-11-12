@@ -143,6 +143,8 @@ func newFilter(cfg config.Component, logger logcomp.Component, telemetry coretel
 	filter.registerFactory(workloadfilter.ContainerType, int(workloadfilter.LegacyContainerACExclude), legacyACExcludePrgFactory)
 	filter.registerFactory(workloadfilter.ContainerType, int(workloadfilter.LegacyContainerGlobal), legacyGlobalPrgFactory)
 	filter.registerFactory(workloadfilter.ContainerType, int(workloadfilter.LegacyContainerSBOM), catalog.LegacyContainerSBOMProgram)
+	filter.registerFactory(workloadfilter.ContainerType, int(workloadfilter.LegacyContainerRuntimeSecurity), catalog.LegacyContainerRuntimeSecurityProgram)
+	filter.registerFactory(workloadfilter.ContainerType, int(workloadfilter.LegacyContainerCompliance), catalog.LegacyContainerComplianceProgram)
 
 	filter.registerFactory(workloadfilter.ContainerType, int(workloadfilter.ContainerADAnnotations), genericADProgramFactory)
 	filter.registerFactory(workloadfilter.ContainerType, int(workloadfilter.ContainerADAnnotationsMetrics), genericADMetricsProgramFactory)
@@ -246,6 +248,14 @@ func (f *workloadfilterStore) GetEndpointFilters(endpointFilters [][]workloadfil
 
 func (f *workloadfilterStore) GetProcessFilters(processFilters [][]workloadfilter.ProcessFilter) workloadfilter.FilterBundle {
 	return getFilterBundle(f, workloadfilter.ProcessType, processFilters)
+}
+
+func (f *workloadfilterStore) GetContainerRuntimeSecurityFilters() workloadfilter.FilterBundle {
+	return f.GetContainerFilters(f.selection.containerRuntimeSecurity)
+}
+
+func (f *workloadfilterStore) GetContainerComplianceFilters() workloadfilter.FilterBundle {
+	return f.GetContainerFilters(f.selection.containerCompliance)
 }
 
 // getFilterBundle constructs a filter bundle for a given resource type and filters.

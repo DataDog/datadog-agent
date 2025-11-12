@@ -41,4 +41,9 @@ type Component interface {
 
 	// GetContainerSBOMFilters retrieves the container SBOM FilterBundle
 	GetContainerSBOMFilters() FilterBundle
+
+	// GetContainerRuntimeSecurityFilters retrieves the container RuntimeSecurity FilterBundle
+	GetContainerRuntimeSecurityFilters() FilterBundle
+	// GetContainerComplianceFilters retrieves the container Compliance FilterBundle
+	GetContainerComplianceFilters() FilterBundle
 }

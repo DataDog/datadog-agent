@@ -247,6 +247,8 @@ const (
 	LegacyContainerACInclude
 	LegacyContainerACExclude
 	LegacyContainerSBOM
+	LegacyContainerCompliance
+	LegacyContainerRuntimeSecurity
 	ContainerADAnnotationsMetrics
 	ContainerADAnnotationsLogs
 	ContainerADAnnotations

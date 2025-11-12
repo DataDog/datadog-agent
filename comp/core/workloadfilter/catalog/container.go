@@ -45,3 +45,15 @@ func ContainerCELGlobalProgram(filterConfig *FilterConfig, logger log.Component)
 	rule := filterConfig.GetCELRulesForProduct(workloadfilter.ProductGlobal, workloadfilter.ContainerType)
 	return createCELExcludeProgram(programName, rule, workloadfilter.ContainerType, logger)
 }
+
+// LegacyContainerRuntimeSecurityProgram creates a program for filtering containers for runtime security
+func LegacyContainerRuntimeSecurityProgram(filterConfig *FilterConfig, logger log.Component) program.FilterProgram {
+	programName := "ContainerRuntimeSecurityProgram"
+	return createLegacyContainerProgram(programName, filterConfig.ContainerRuntimeSecurityInclude, filterConfig.ContainerRuntimeSecurityExclude, logger)
+}
+
+// LegacyContainerComplianceProgram creates a program for filtering containers for compliance
+func LegacyContainerComplianceProgram(filterConfig *FilterConfig, logger log.Component) program.FilterProgram {
+	programName := "ContainerComplianceProgram"
+	return createLegacyContainerProgram(programName, filterConfig.ContainerComplianceInclude, filterConfig.ContainerComplianceExclude, logger)
+}
