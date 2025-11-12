@@ -131,13 +131,13 @@ single_machine_performance-regression_detector-merge_base_check:
         exit $exit_code
       }
     - |
-      SMP_BOT_ID=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $SMP_ACCOUNT bot_login) || {
+      SMP_BOT_ID=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $SMP_ACCOUNT $BOT_LOGIN) || {
         exit_code=$?
         datadog-ci tag --level job --tags smp_failure_mode:"setup-secrets"
         exit $exit_code
       }
     - |
-      SMP_BOT_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $SMP_ACCOUNT bot_token) || {
+      SMP_BOT_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $SMP_ACCOUNT $BOT_TOKEN) || {
         exit_code=$?
         datadog-ci tag --level job --tags smp_failure_mode:"setup-secrets"
         exit $exit_code
@@ -321,6 +321,8 @@ single-machine-performance-regression_detector:
     SMP_TEAM_NAME: agent
     SMP_API_URL: api_url
     SMP_VERSION: v0.24.1
+    BOT_LOGIN: bot_login
+    BOT_TOKEN: bot_token
 
 
 single-machine-performance-metal-runners-regression_detector:
@@ -333,6 +335,8 @@ single-machine-performance-metal-runners-regression_detector:
     SMP_TEAM_NAME: metal-runners
     SMP_API_URL: metal-runners_api_url
     SMP_VERSION: dev-pr3629-bea43153
+    BOT_LOGIN: bot_login_metal-runners
+    BOT_TOKEN: bot_token_metal-runners
 
 # Shamelessly adapted from golang_deps_commenter job config in
 # golang_deps_diff.yml at commit 01da274032e510d617161cf4e264a53292f44e55.
