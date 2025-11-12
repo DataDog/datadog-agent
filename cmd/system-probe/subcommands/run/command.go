@@ -87,6 +87,8 @@ type cliParams struct {
 
 const configSyncTimeout = 10 * time.Second
 
+var systemProbeModuleRunningGauge telemetry.Gauge
+
 // Commands returns a slice of subcommands for the 'system-probe' command.
 func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	cliParams := &cliParams{
@@ -352,6 +354,9 @@ func startSystemProbe(log log.Component, telemetry telemetry.Component, sysprobe
 
 	log.Infof("starting system-probe v%v", version.AgentVersion)
 
+	// Create module.running gauge metric to track which modules are running
+	systemProbeModuleRunningGauge = telemetry.NewGauge("system_probe", "module_running", []string{"module"}, "Gauge tracking running system-probe modules")
+
 	logUserAndGroupID(log)
 	// Exit if system probe is disabled
 	if cfg.ExternalSystemProbe || !cfg.Enabled {
@@ -402,6 +407,9 @@ func startSystemProbe(log log.Component, telemetry telemetry.Component, sysprobe
 		}()
 	}
 
+	// Set the callback for module gauge before starting modules
+	module.SetModuleGaugeCallback(SetModuleRunningGauge)
+
 	if err = api.StartServer(cfg, settings, telemetry, rcclient, deps); err != nil {
 		return log.Criticalf("error while starting api server, exiting: %v", err)
 	}
@@ -448,6 +456,13 @@ func setupInternalProfiling(settings settings.Component, cfg model.Reader, confi
 
 func isValidPort(port int) bool {
 	return port > 0 && port < 65536
+}
+
+// SetModuleRunningGauge sets the module.running gauge to 1 for the given module
+func SetModuleRunningGauge(moduleName string) {
+	if systemProbeModuleRunningGauge != nil {
+		systemProbeModuleRunningGauge.Set(1, moduleName)
+	}
 }
 
 func logUserAndGroupID(log log.Component) {
