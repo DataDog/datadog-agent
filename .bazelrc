@@ -14,6 +14,8 @@ common:linux --strategy=sandboxed
 
 # macOS config ---------------------------------------------------------------------------------------------------------
 common:macos --features=-macos_default_link_flags # https://github.com/bazelbuild/bazel/issues/23312
+common:macos --linkopt=-nodefaultlibs # Prevent automatic libc++ linking for pure C shared libraries
+#common:macos --linkopt=-lSystem
 common:macos --macos_minimum_os=11.0 # Keep in sync with https://docs.datadoghq.com/agent/supported_platforms/?tab=macos
 common:macos --strategy=sandboxed
 
