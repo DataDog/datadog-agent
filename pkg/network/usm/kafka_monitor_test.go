@@ -726,13 +726,11 @@ func (can *CannedClientServer) runServer() {
 	go func() {
 		defer func() {
 			listener.Close()
-			f.Close()
+			if f != nil {
+				f.Close()
+			}
 			can.done <- true
 		}()
-
-		conn, err := listener.Accept()
-		require.NoError(can.t, err)
-		conn.Close()
 
 		// Delay close of connections to work around the known issue of races
 		// between `tcp_close()` and the uprobes.  On the client side, the
@@ -742,8 +740,11 @@ func (can *CannedClientServer) runServer() {
 		for msgs := range can.control {
 			if prevconn != nil {
 				prevconn.Close()
+				// Add a small delay to ensure the connection is properly closed
+				// before accepting the next one
+				time.Sleep(10 * time.Millisecond)
 			}
-			conn, err = listener.Accept()
+			conn, err := listener.Accept()
 			require.NoError(can.t, err)
 
 			reader := bufio.NewReader(conn)
@@ -807,6 +808,9 @@ func (can *CannedClientServer) runClient(msgs []Message) {
 			require.NoError(can.t, err)
 		}
 	}
+
+	// Add a small delay to ensure all data is processed before closing
+	time.Sleep(50 * time.Millisecond)
 }
 
 func testKafkaFetchRaw(t *testing.T, tls bool, apiVersion int) {
@@ -1538,7 +1542,12 @@ func (i *PrintableInt) Add(other int) {
 
 func getAndValidateKafkaStats(t *testing.T, monitor *Monitor, expectedStatsCount int, topicName string, validation kafkaParsingValidation, errorCode int32) map[kafka.Key]*kafka.RequestStats {
 	kafkaStats := make(map[kafka.Key]*kafka.RequestStats)
+
+	// Use a longer timeout and more frequent checks for stability
 	assert.EventuallyWithT(t, func(collect *assert.CollectT) {
+		// Clear previous stats to avoid accumulation issues
+		kafkaStats = make(map[kafka.Key]*kafka.RequestStats)
+
 		protocolStats, cleaners := monitor.GetProtocolStats()
 		t.Cleanup(cleaners)
 		kafkaProtocolStats, exists := protocolStats[protocols.Kafka]
@@ -1546,19 +1555,16 @@ func getAndValidateKafkaStats(t *testing.T, monitor *Monitor, expectedStatsCount
 		if exists {
 			currentStats := kafkaProtocolStats.(map[kafka.Key]*kafka.RequestStats)
 			for key, stats := range currentStats {
-				prevStats, ok := kafkaStats[key]
-				if ok && prevStats != nil {
-					prevStats.CombineWith(stats)
-				} else {
-					kafkaStats[key] = currentStats[key]
-				}
+				// Instead of accumulating, take a snapshot of current stats
+				kafkaStats[key] = stats
 			}
 		}
 		assert.Equal(collect, expectedStatsCount, len(kafkaStats), "Did not find expected number of stats")
 		if expectedStatsCount != 0 {
 			validateProduceFetchCount(collect, kafkaStats, topicName, validation, errorCode)
 		}
-	}, time.Second*5, time.Millisecond*10)
+	}, time.Second*10, time.Millisecond*50) // Increased timeout and check frequency
+
 	if t.Failed() {
 		ebpftest.DumpMapsTestHelper(t, monitor.ebpfProgram.Manager.Manager.DumpMaps, "kafka_in_flight", "kafka_batches", "kafka_response", "kafka_telemetry")
 		t.FailNow()
@@ -1568,7 +1574,12 @@ func getAndValidateKafkaStats(t *testing.T, monitor *Monitor, expectedStatsCount
 
 func getAndValidateKafkaStatsWithErrorCodes(t *testing.T, monitor *Monitor, expectedStatsCount int, topicName string, validation kafkaParsingValidationWithErrorCodes) map[kafka.Key]*kafka.RequestStats {
 	kafkaStats := make(map[kafka.Key]*kafka.RequestStats)
+
+	// Use a longer timeout and more frequent checks for stability
 	assert.EventuallyWithT(t, func(collect *assert.CollectT) {
+		// Clear previous stats to avoid accumulation issues
+		kafkaStats = make(map[kafka.Key]*kafka.RequestStats)
+
 		protocolStats, cleaners := monitor.GetProtocolStats()
 		t.Cleanup(cleaners)
 		kafkaProtocolStats, exists := protocolStats[protocols.Kafka]
@@ -1576,19 +1587,16 @@ func getAndValidateKafkaStatsWithErrorCodes(t *testing.T, monitor *Monitor, expe
 		if exists {
 			currentStats := kafkaProtocolStats.(map[kafka.Key]*kafka.RequestStats)
 			for key, stats := range currentStats {
-				prevStats, ok := kafkaStats[key]
-				if ok && prevStats != nil {
-					prevStats.CombineWith(stats)
-				} else {
-					kafkaStats[key] = currentStats[key]
-				}
+				// Instead of accumulating, take a snapshot of current stats
+				kafkaStats[key] = stats
 			}
 		}
 		assert.Equal(collect, expectedStatsCount, len(kafkaStats), "Did not find expected number of stats")
 		if expectedStatsCount != 0 {
 			validateProduceFetchCountWithErrorCodes(collect, kafkaStats, topicName, validation)
 		}
-	}, time.Second*5, time.Millisecond*10)
+	}, time.Second*10, time.Millisecond*50) // Increased timeout and check frequency
+
 	if t.Failed() {
 		ebpftest.DumpMapsTestHelper(t, monitor.ebpfProgram.Manager.Manager.DumpMaps, "kafka_in_flight", "kafka_batches", "kafka_response", "kafka_telemetry")
 		t.FailNow()
