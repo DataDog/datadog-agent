@@ -59,8 +59,6 @@
 /.github/*_TEMPLATE.md                               @DataDog/agent-devx
 /.github/chainguard/**                               @DataDog/agent-devx
 /.github/dependabot.yaml                             @DataDog/agent-devx
-/.github/workflows/serverless-benchmarks.yml         @DataDog/serverless @Datadog/serverless-aws
-/.github/workflows/serverless-binary-size.yml        @DataDog/serverless @Datadog/serverless-aws
 /.github/workflows/serverless-integration.yml        @DataDog/serverless @Datadog/serverless-aws
 /.github/workflows/cws-btfhub-sync.yml               @DataDog/agent-security
 /.github/workflows/gohai.yml                         @DataDog/agent-configuration
@@ -246,7 +244,6 @@
 /cmd/loader/                            @DataDog/agent-runtimes @DataDog/agent-apm
 /cmd/otel-agent/                        @DataDog/opentelemetry-agent
 /cmd/process-agent/                     @DataDog/container-experiences
-/cmd/serverless/                        @DataDog/serverless @Datadog/serverless-aws
 /cmd/serverless-init/                   @DataDog/serverless
 /cmd/sbomgen/                           @DataDog/agent-security
 /cmd/system-probe/                      @DataDog/ebpf-platform
@@ -420,7 +417,6 @@
 /pkg/serializer/                        @DataDog/agent-metric-pipelines
 /pkg/serializer/internal/metrics/origin_mapping.go  @DataDog/agent-metric-pipelines @DataDog/agent-integrations
 /pkg/serverless/                        @DataDog/serverless @Datadog/serverless-aws
-/pkg/serverless/appsec/                 @DataDog/asm-go
 /pkg/status/                            @DataDog/agent-configuration
 /pkg/status/health                      @DataDog/agent-runtimes
 /pkg/status/collector                   @DataDog/agent-runtimes
