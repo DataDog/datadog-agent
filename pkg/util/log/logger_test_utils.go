@@ -13,6 +13,11 @@ import (
 	"github.com/cihub/seelog"
 )
 
+// Default returns a default logger
+func Default() LoggerInterface {
+	return seelog.Default
+}
+
 // loggerFromWriterWithMinLevelAndFormat creates a new logger from a writer, a minimum log level and a format.
 func loggerFromWriterWithMinLevelAndFormat(output io.Writer, minLevel LogLevel, format string) (LoggerInterface, error) {
 	return seelog.LoggerFromWriterWithMinLevelAndFormat(output, seelog.LogLevel(minLevel), format)

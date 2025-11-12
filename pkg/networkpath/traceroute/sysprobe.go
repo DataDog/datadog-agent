@@ -42,16 +42,14 @@ func getTraceroute(client *http.Client, clientID string, host string, port uint1
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode == http.StatusBadRequest {
+	if resp.StatusCode == http.StatusNotFound {
+		return nil, fmt.Errorf("traceroute request failed: url: %s, status code: %d, please check that the traceroute module is enabled in the system-probe.yaml config file", req.URL, resp.StatusCode)
+	} else if resp.StatusCode != http.StatusOK {
 		body, err := sysprobeclient.ReadAllResponseBody(resp)
 		if err != nil {
 			return nil, fmt.Errorf("traceroute request failed: url: %s, status code: %d", req.URL, resp.StatusCode)
 		}
 		return nil, fmt.Errorf("traceroute request failed: url: %s, status code: %d, error: %s", req.URL, resp.StatusCode, string(body))
-	} else if resp.StatusCode == http.StatusNotFound {
-		return nil, fmt.Errorf("traceroute request failed: url: %s, status code: %d, please check that the traceroute module is enabled in the system-probe.yaml config file", req.URL, resp.StatusCode)
-	} else if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("traceroute request failed: url: %s, status code: %d", req.URL, resp.StatusCode)
 	}
 
 	body, err := sysprobeclient.ReadAllResponseBody(resp)

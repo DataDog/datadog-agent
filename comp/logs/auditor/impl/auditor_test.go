@@ -18,7 +18,7 @@ import (
 	configmock "github.com/DataDog/datadog-agent/comp/core/config"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
-	healthmock "github.com/DataDog/datadog-agent/comp/logs/health/mock"
+	kubehealthmock "github.com/DataDog/datadog-agent/comp/logs/kubehealth/mock"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/logs/types"
 )
@@ -41,13 +41,13 @@ func (suite *AuditorTestSuite) SetupTest() {
 
 	configComponent := configmock.NewMock(suite.T())
 	logComponent := logmock.New(suite.T())
-	healthRegistrar := healthmock.NewMockRegistrar()
+	kubeHealthRegistrar := kubehealthmock.NewMockRegistrar()
 	configComponent.SetWithoutSource("logs_config.run_path", suite.testRunPathDir)
 
 	deps := Dependencies{
-		Config: configComponent,
-		Log:    logComponent,
-		Health: healthRegistrar,
+		Config:     configComponent,
+		Log:        logComponent,
+		KubeHealth: kubeHealthRegistrar,
 	}
 
 	suite.a = newAuditor(deps)

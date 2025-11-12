@@ -17,6 +17,7 @@ filegroup(
         "@zlib//:z",
     ] + select({
         "@platforms//os:linux": [
+            "@acl",
             "@attr",
             "@gcrypt",
             "@gpg-error",

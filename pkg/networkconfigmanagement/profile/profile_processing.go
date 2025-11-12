@@ -51,6 +51,7 @@ type ValidationRule struct {
 type RedactionRule struct {
 	Regex       *regexp.Regexp `json:"regex" yaml:"regex"`
 	Replacement string         `json:"replacement" yaml:"replacement"`
+	Multiline   bool           `json:"multiline" yaml:"multiline"`
 }
 
 // ExtractedMetadata is a means to hold metadata to be emitted as metrics or sent as part of the payload
@@ -174,6 +175,10 @@ func (c *Commands) initializeScrubber() {
 			Regex: rules.RedactionRules[i].Regex,
 			Repl:  []byte(rules.RedactionRules[i].Replacement),
 		}
-		c.Scrubber.AddReplacer(scrubber.SingleLine, replacer)
+		mode := scrubber.SingleLine
+		if rules.RedactionRules[i].Multiline {
+			mode = scrubber.MultiLine
+		}
+		c.Scrubber.AddReplacer(mode, replacer)
 	}
 }

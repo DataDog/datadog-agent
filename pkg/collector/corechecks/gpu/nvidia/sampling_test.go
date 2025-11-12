@@ -273,9 +273,9 @@ func TestProcessUtilizationTimestampUpdate(t *testing.T) {
 			bc := collector.(*baseCollector)
 			bc.lastTimestamps["process_utilization"] = tt.initialTimestamp
 
-			timeBefore := uint64(time.Now().Unix())
+			timeBefore := uint64(time.Now().UnixMicro())
 			_, err = collector.Collect()
-			timeAfter := uint64(time.Now().Unix())
+			timeAfter := uint64(time.Now().UnixMicro())
 
 			// Timestamp should be updated to current time regardless of API success/failure
 			newTimestamp := bc.lastTimestamps["process_utilization"]

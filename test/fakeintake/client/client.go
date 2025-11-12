@@ -84,6 +84,7 @@ const (
 	ndmEndpoint                  = "/api/v2/ndm"
 	ndmflowEndpoint              = "/api/v2/ndmflow"
 	netpathEndpoint              = "/api/v2/netpath"
+	ncmEndpoint                  = "/api/v2/ndmconfig"
 	apmTelemetryEndpoint         = "/api/v2/apmtelemetry"
 )
 
@@ -144,6 +145,7 @@ type Client struct {
 	ndmAggregator                  aggregator.NDMAggregator
 	ndmflowAggregator              aggregator.NDMFlowAggregator
 	netpathAggregator              aggregator.NetpathAggregator
+	ncmAggregator                  aggregator.NCMAggregator
 	hostAggregator                 aggregator.HostAggregator
 }
 
@@ -175,6 +177,7 @@ func NewClient(fakeIntakeURL string, opts ...Option) *Client {
 		ndmAggregator:                  aggregator.NewNDMAggregator(),
 		ndmflowAggregator:              aggregator.NewNDMFlowAggregator(),
 		netpathAggregator:              aggregator.NewNetpathAggregator(),
+		ncmAggregator:                  aggregator.NewNCMAggregator(),
 		hostAggregator:                 aggregator.NewHostAggregator(),
 	}
 	for _, opt := range opts {
@@ -332,6 +335,14 @@ func (c *Client) getNetpathEvents() error {
 		return err
 	}
 	return c.netpathAggregator.UnmarshallPayloads(payloads)
+}
+
+func (c *Client) getNCMEvents() error {
+	payloads, err := c.getFakePayloads(ncmEndpoint)
+	if err != nil {
+		return err
+	}
+	return c.ncmAggregator.UnmarshallPayloads(payloads)
 }
 
 func (c *Client) getHostInfos() error {
@@ -1071,6 +1082,19 @@ func (c *Client) GetLatestNetpathEvents() ([]*aggregator.Netpath, error) {
 		}
 	}
 	return netpaths, nil
+}
+
+// GetNCMPayloads fetches fakeintake on `/api/v2/ndmconfig` endpoint and returns all received NCM payloads
+func (c *Client) GetNCMPayloads() ([]*aggregator.NCMPayload, error) {
+	err := c.getNCMEvents()
+	if err != nil {
+		return nil, err
+	}
+	var ncmPayloads []*aggregator.NCMPayload
+	for _, name := range c.ncmAggregator.GetNames() {
+		ncmPayloads = append(ncmPayloads, c.ncmAggregator.GetPayloadsByName(name)...)
+	}
+	return ncmPayloads, nil
 }
 
 // GetLatestHostInfos returns the latest host information received by the fake intake

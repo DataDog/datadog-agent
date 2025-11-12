@@ -15,7 +15,6 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
 
@@ -61,16 +60,8 @@ func (s *languageDetectionSuite) SetupSuite() {
 	s.installPHP()
 }
 
-func (s *languageDetectionSuite) checkDetectedLanguage(command string, language string, source string) {
-	var pid string
-	require.Eventually(s.T(),
-		func() bool {
-			pid = s.getPidForCommand(command)
-			return len(pid) > 0
-		},
-		60*time.Second, 100*time.Millisecond,
-		fmt.Sprintf("pid not found for command %s", command),
-	)
+func (s *languageDetectionSuite) checkDetectedLanguage(pid string, language string, source string) {
+	s.Env().RemoteHost.MustExecute(fmt.Sprintf("kill -0 %s", pid)) // check PID refers to an existing, signalable process
 
 	var actualLanguage string
 	var err error
@@ -85,17 +76,6 @@ func (s *languageDetectionSuite) checkDetectedLanguage(command string, language 
 	)
 
 	s.Env().RemoteHost.MustExecute(fmt.Sprintf("kill -SIGTERM %s", pid))
-}
-
-func (s *languageDetectionSuite) getPidForCommand(command string) string {
-	pid, err := s.Env().RemoteHost.Execute(fmt.Sprintf("ps -C %s -o pid=", command))
-	if err != nil {
-		return ""
-	}
-	pid = strings.TrimSpace(pid)
-	// special handling in case multiple commands match
-	pids := strings.Split(pid, "\n")
-	return pids[0]
 }
 
 func (s *languageDetectionSuite) getLanguageForPid(pid string, source string) (string, error) {
