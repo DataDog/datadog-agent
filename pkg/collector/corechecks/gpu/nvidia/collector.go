@@ -16,6 +16,7 @@ import (
 	"errors"
 
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/gpu/config/consts"
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
@@ -98,6 +99,8 @@ type CollectorDependencies struct {
 	NsPidCache *NsPidCache
 	// Telemetry is the telemetry component to use for collecting metrics
 	Telemetry *CollectorTelemetry
+	// Workloadmeta is used for getting auxialiary metadata about containers and GPUs
+	Workloadmeta workloadmeta.Component
 }
 
 // BuildCollectors returns a set of collectors that can be used to collect metrics from NVML.
