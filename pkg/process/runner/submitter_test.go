@@ -24,6 +24,8 @@ import (
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
+	connectionsforwarder "github.com/DataDog/datadog-agent/comp/forwarder/connectionsforwarder/def"
+	connectionsforwardermock "github.com/DataDog/datadog-agent/comp/forwarder/connectionsforwarder/mock"
 	"github.com/DataDog/datadog-agent/comp/process/forwarders"
 	"github.com/DataDog/datadog-agent/comp/process/forwarders/forwardersimpl"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -483,6 +485,7 @@ func getSubmitterDeps(t *testing.T, configOverrides map[string]interface{}, sysp
 		fx.Provide(func() config.Component { return config.NewMockWithOverrides(t, configOverrides) }),
 		sysprobeconfigimpl.MockModule(),
 		fx.Replace(sysprobeconfigimpl.MockParams{Overrides: sysprobeconfigOverrides}),
+		fx.Provide(func() connectionsforwarder.Component { return connectionsforwardermock.Mock(t) }),
 		forwardersimpl.MockModule(),
 		fx.Provide(func() log.Component {
 			return logmock.New(t)
@@ -499,6 +502,7 @@ func getSubmitterDepsWithConfig(t *testing.T, configObj config.Component) submit
 			return configObj
 		}),
 		sysprobeconfigimpl.MockModule(),
+		fx.Provide(func() connectionsforwarder.Component { return connectionsforwardermock.Mock(t) }),
 		forwardersimpl.MockModule(),
 		fx.Provide(func() log.Component {
 			return logmock.New(t)
