@@ -16,6 +16,8 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/google/gopacket"
+	"github.com/google/gopacket/layers"
 	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/security/events"
@@ -1210,6 +1212,12 @@ func newRawPacketEventSerializer(rp *model.RawPacketEvent, e *model.Event) *RawP
 	if e.GetEventType() == model.RawPacketActionEventType {
 		rps.Dropped = new(bool)
 		*rps.Dropped = true
+	}
+
+	packet := gopacket.NewPacket(rp.Data, layers.LayerTypeEthernet, gopacket.DecodeOptions{NoCopy: true, Lazy: true, DecodeStreamsAsDatagrams: true})
+
+	for _, layer := range packet.Layers() {
+		rps.Layers = append(rps.Layers, &LayerSerializer{Type: layer.LayerType().String(), Layer: layer})
 	}
 
 	return rps
