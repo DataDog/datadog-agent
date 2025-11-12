@@ -196,7 +196,8 @@ RUN go install github.com/go-delve/delve/cmd/dlv@latest
 FROM {base_image}
 
 ENV DEBIAN_FRONTEND=noninteractive
-RUN apt-get update && \
+RUN apt-get clean && \
+    apt-get -o Acquire::Retries=4 update && \
     apt-get install -y bash-completion less vim tshark && \
     apt-get clean
 

@@ -638,7 +638,7 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 		IMDSIPv4: parseIMDSIPv4(),
 
 		// event
-		EventGRPCServer: pkgconfigsetup.SystemProbe().GetString("runtime_security_config.event_gprc_server"),
+		EventGRPCServer: pkgconfigsetup.SystemProbe().GetString("runtime_security_config.event_grpc_server"),
 
 		// direct sender
 		SendPayloadsFromSystemProbe: pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.direct_send_from_system_probe"),

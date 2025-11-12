@@ -35,7 +35,7 @@ func initCWSSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	cfg.BindEnvAndSetDefault("runtime_security_config.remote_configuration.enabled", true)
 	cfg.BindEnvAndSetDefault("runtime_security_config.remote_configuration.dump_policies", false)
 	cfg.BindEnvAndSetDefault("runtime_security_config.direct_send_from_system_probe", false)
-	cfg.BindEnvAndSetDefault("runtime_security_config.event_gprc_server", "")
+	cfg.BindEnvAndSetDefault("runtime_security_config.event_grpc_server", "")
 	cfg.BindEnvAndSetDefault("runtime_security_config.use_secruntime_track", true)
 	cfg.BindEnvAndSetDefault("runtime_security_config.compliance_module.enabled", false)
 	cfg.BindEnvAndSetDefault("runtime_security_config.on_demand.enabled", true)

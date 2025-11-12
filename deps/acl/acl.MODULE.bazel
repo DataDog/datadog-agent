@@ -1,4 +1,4 @@
-# This file is generated do not hand edit.
+# This file is generated. Do not hand edit.
 
 http_archive = use_repo_rule("//third_party/bazel/tools/build_defs/repo:http.bzl", "http_archive")
 

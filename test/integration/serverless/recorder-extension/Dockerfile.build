@@ -27,8 +27,9 @@ RUN --mount=type=cache,target=/go/pkg/mod \
 
 # zip the extension
 FROM ubuntu:latest as compresser
-RUN apt-get update
-RUN apt-get install -y zip binutils
+RUN apt-get clean && \
+    apt-get -o Acquire::Retries=4 update && \
+    apt-get install -y zip binutils
 RUN mkdir /extensions
 WORKDIR /extensions
 COPY --from=builder /tmp/dd/recorder-extension/recorder-extension /extensions/recorder-extension
