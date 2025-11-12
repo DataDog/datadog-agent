@@ -626,7 +626,7 @@ func TestFullYamlConfig(t *testing.T) {
 		InstallTime: 1699623821,
 	}, cfg.InstallSignature)
 
-	assert.Equal(t, "end_user_device", cfg.APMMode)
+	assert.Equal(t, "edge", cfg.APMMode)
 }
 
 func TestFileLoggingDisabled(t *testing.T) {
@@ -1755,13 +1755,13 @@ func TestLoadEnv(t *testing.T) {
 
 	env = "DD_APM_MODE"
 	t.Run(env, func(t *testing.T) {
-		t.Setenv(env, "end_user_device")
+		t.Setenv(env, "edge")
 
 		c := buildConfigComponentFromYAML(t, true, "./testdata/full.yaml")
 		cfg := c.Object()
 
 		assert.NotNil(t, cfg)
-		assert.Equal(t, "end_user_device", cfg.APMMode)
+		assert.Equal(t, "edge", cfg.APMMode)
 	})
 
 }
@@ -2349,9 +2349,9 @@ func TestNormalizeAPMMode(t *testing.T) {
 			expected: "full",
 		},
 		{
-			name:     "valid_end_user_device",
-			envValue: "end_user_device",
-			expected: "end_user_device",
+			name:     "valid_edge",
+			envValue: "edge",
+			expected: "edge",
 		},
 		{
 			name:     "empty_defaults_to_full",
@@ -2366,8 +2366,8 @@ func TestNormalizeAPMMode(t *testing.T) {
 		// TODO: Should we be normalizing capitilization at this stage?
 		{
 			name:     "case_insensitive",
-			envValue: "End_User_Device",
-			expected: "End_User_Device",
+			envValue: "Edge",
+			expected: "Edge",
 		},
 	}
 

@@ -46,7 +46,7 @@ type AgentPayload struct {
 	// idxTracerPayloads specifies list of the payloads received from tracers.
 	// @gotags: msg:"-"
 	IdxTracerPayloads []*idx.TracerPayload `protobuf:"bytes,11,rep,name=idxTracerPayloads,proto3" json:"idxTracerPayloads,omitempty" msg:"-"`
-	// APMMode specifies whether using "full" or other APM modes, it is "full" by default
+	// APMMode specifies whether using "full" or "edge" APM mode. It is "full" by default.
 	APMMode       string `protobuf:"bytes,12,opt,name=APMMode,proto3" json:"APMMode,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache

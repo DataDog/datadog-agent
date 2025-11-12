@@ -141,7 +141,7 @@ type TracerPayload struct {
 	// version specifies `version` tag that set with the tracer.
 	// @gotags: json:"app_version" msg:"app_version"
 	AppVersion string `protobuf:"bytes,10,opt,name=appVersion,proto3" json:"app_version" msg:"app_version"`
-	// APMMode specifies whether using "full" or "end_user_device" APM mode. It is unset — and therefore ignored — by default.
+	// APMMode specifies whether using "full" or "edge" APM mode. It is unset — and therefore ignored — by default.
 	// @gotags: json:"apm_mode" msg:"apm_mode"
 	APMMode       string `protobuf:"bytes,11,opt,name=APMMode,proto3" json:"apm_mode" msg:"apm_mode"`
 	unknownFields protoimpl.UnknownFields

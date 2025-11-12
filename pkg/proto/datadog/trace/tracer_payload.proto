@@ -57,7 +57,7 @@ message TracerPayload {
 	// version specifies `version` tag that set with the tracer.
 	// @gotags: json:"app_version" msg:"app_version"
 	string appVersion = 10;
-	// APMMode specifies whether using "full" or "end_user_device" APM mode. It is unset — and therefore ignored — by default.
+	// APMMode specifies whether using "full" or "edge" APM mode. It is unset — and therefore ignored — by default.
 	// @gotags: json:"apm_mode" msg:"apm_mode"
 	string APMMode = 11;
 }

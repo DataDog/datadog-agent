@@ -559,7 +559,7 @@ type AgentConfig struct {
 	// SendAllInternalStats enables all internal stats to be published, otherwise some less-frequently-used stats will be omitted when zero to save costs
 	SendAllInternalStats bool
 
-	// APMMode specifies whether using "full" or "end_user_device" APM mode, it is "full" by default
+	// APMMode specifies whether using "full" or "edge" APM mode. It is "full" by default.
 	APMMode string
 }
 

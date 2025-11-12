@@ -399,14 +399,14 @@ func TestTraceWriterAPMMode(t *testing.T) {
 			expected:    "full",
 		},
 		{
-			name:        "end_user_device",
-			configValue: "end_user_device",
-			expected:    "end_user_device",
+			name:        "edge",
+			configValue: "edge",
+			expected:    "edge",
 		},
 		{
 			name:        "case_preserved", // should it be?
-			configValue: "End_User_Device",
-			expected:    "End_User_Device",
+			configValue: "Edge",
+			expected:    "Edge",
 		},
 	}
 

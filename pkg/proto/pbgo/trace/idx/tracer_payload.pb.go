@@ -146,7 +146,7 @@ type TracerPayload struct {
 	Attributes map[uint32]*AnyValue `protobuf:"bytes,10,rep,name=attributes,proto3" json:"attributes,omitempty" protobuf_key:"varint,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
 	// chunks specifies list of containing trace chunks.
 	Chunks []*TraceChunk `protobuf:"bytes,11,rep,name=chunks,proto3" json:"chunks,omitempty"`
-	// APMMode specifies whether using "full" or "end_user_device" APM mode. It is unset — and therefore ignored — by default.
+	// APMMode specifies whether using "full" or "edge" APM mode. It is unset — and therefore ignored — by default.
 	APMMode       string `protobuf:"bytes,12,opt,name=APMMode,proto3" json:"APMMode,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache

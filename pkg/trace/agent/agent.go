@@ -61,7 +61,7 @@ const (
 	// tagDecisionMaker specifies the sampling decision maker
 	tagDecisionMaker = "_dd.p.dm"
 
-	// tagAPMMode specifies whether running APM in "full" or "end_user_device" mode
+	// tagAPMMode specifies whether running APM in "full" or "edge" mode
 	tagAPMMode = "_dd.apm.mode"
 )
 
@@ -704,7 +704,7 @@ func (a *Agent) setPayloadAttributes(p *api.Payload, root *pb.Span, chunk *pb.Tr
 // warnIfInvalidAPMModeSpanTag logs a warning when apmMode is empty or an unknown value. We keep empty and unknown values in order to still see them on the spans in the Datadog UI (to aid troubleshooting).
 func warnIfInvalidAPMModeSpanTag(apmMode string) {
 	normalized := strings.ToLower(apmMode)
-	if normalized == "full" || normalized == "end_user_device" {
+	if normalized == "full" || normalized == "edge" {
 		return // Valid
 	}
 	if apmMode == "" {

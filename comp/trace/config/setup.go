@@ -158,10 +158,10 @@ func appendEndpoints(endpoints []*config.Endpoint, cfgKey string) []*config.Endp
 	return endpoints
 }
 
-// normalizeAPMMode normalizes the APM mode to a valid value for the DD_APM_MODE config (full or end_user_device. Invalid values are logged and default to "full".
+// normalizeAPMMode normalizes the APM mode to a valid value for the DD_APM_MODE config (full or edge. Invalid values are logged and default to "full".
 func normalizeAPMMode(mode string) string {
 	switch strings.ToLower(mode) {
-	case "full", "end_user_device":
+	case "full", "edge":
 		return mode
 	case "":
 		// If DD_APM_MODE is not set, we default to "full"
