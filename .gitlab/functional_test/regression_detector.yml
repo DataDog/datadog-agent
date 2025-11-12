@@ -79,6 +79,8 @@ single_machine_performance-regression_detector-merge_base_check:
   needs:
     - job: single_machine_performance-regression_detector-merge_base_check
       artifacts: true
+    - job: single_machine_performance-full-amd64-a7
+      artifacts: false
   artifacts:
     expire_in: 1 weeks
     paths:
@@ -311,9 +313,6 @@ single-machine-performance-regression_detector:
     - !reference [.except_coverage_pipeline] # Coverage pipeline creates a duplicate, specialized artifact that is not useful to run through SMP on every PR
     - !reference [.on_dev_branches]
     - when: on_success
-  needs:
-    - job: single_machine_performance-full-amd64-a7
-      artifacts: false
   variables:
     SMP_TEAM_NAME: agent
     SMP_API_URL: api_url
@@ -328,9 +327,6 @@ single-machine-performance-metal-runners-regression_detector:
     - !reference [.except_coverage_pipeline] # Coverage pipeline creates a duplicate, specialized artifact that is not useful to run through SMP on every PR
     - !reference [.manual]
     - when: on_success
-  needs:
-    - job: single_machine_performance-metal-runners-full-amd64-a7
-      artifacts: false
   variables:
     SMP_TEAM_NAME: metal-runners
     SMP_API_URL: metal-runners_api_url
