@@ -20,6 +20,7 @@
     - !reference [.retrieve_linux_go_tools_deps]
     - rm -f $OMNIBUS_PACKAGE_DIR/*-dbg-*.tar.xz
     - ls -l $OMNIBUS_PACKAGE_DIR
+    - export PATH="$PATH:$(go env GOPATH)/bin"
     - dda self dep sync -f legacy-tasks
     - OUTPUT_DIR="/tmp/oci_output"
     - mkdir -p ${OUTPUT_DIR}
@@ -108,6 +109,7 @@
           echo "Unknown WIN_SOURCE_TYPE: ${WIN_SOURCE_TYPE}"; exit 1
           ;;
       esac
+    - export PATH="$PATH:$(go env GOPATH)/bin"
     - datadog-package create --version "${PACKAGE_VERSION}" --package "${OCI_PRODUCT}" --os windows --arch amd64 --archive --archive-path "${PIPE_DIR}/${OCI_PRODUCT}-${PACKAGE_VERSION}-windows-amd64.oci.tar" ${EXTRA_FLAGS} "${SRC_DIR}/"
     - ls -l "${PIPE_DIR}"
   artifacts:
