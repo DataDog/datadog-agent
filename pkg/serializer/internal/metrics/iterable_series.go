@@ -120,7 +120,7 @@ func (series *IterableSeries) MarshalSplitCompressPipelines(config config.Compon
 	pbs := make([]serieWriter, 0, len(pipelines))
 	var sw serieWriter
 	for pipelineConfig, pipelineContext := range pipelines {
-		if pipelineConfig.V3 {
+		if !pipelineConfig.V3 {
 			bufferContext := marshaler.NewBufferContext()
 			pb, err := series.NewPayloadsBuilder(bufferContext, config, strategy, pipelineConfig, pipelineContext)
 			if err != nil {
