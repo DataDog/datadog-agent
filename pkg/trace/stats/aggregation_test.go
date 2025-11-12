@@ -240,26 +240,26 @@ func TestNewAggregation(t *testing.T) {
 }
 
 func TestSpanDerivedPrimaryTags(t *testing.T) {
-	spanDerivedPrimaryTagsHash := tagsFnvHash([]string{"aws.s3.bucket:my-bucket", "http.url:/api/v1/users"})
+	spanDerivedPrimaryTagsHash := tagsFnvHash([]string{"customer_tier:premium", "datacenter:us-east-1"})
 	sc := &SpanConcentrator{}
 
 	span := &pb.Span{
-		Service:  "test-service",
-		Name:     "test.op",
-		Resource: "GET /api/v1/users",
+		Service:  "checkout-service",
+		Name:     "checkout.process",
+		Resource: "POST /checkout/process",
 		Type:     "web",
 		Meta: map[string]string{
-			"aws.s3.bucket": "my-bucket",
-			"http.url":      "/api/v1/users",
-			"other.tag":     "ignored",
+			"customer_tier": "premium",
+			"datacenter":    "us-east-1",
+			"request_id":    "ignored",
 		},
 	}
 	traceutil.SetMeasured(span, true)
 
-	spanDerivedPrimaryTags := []string{"aws.s3.bucket", "http.url"}
+	spanDerivedPrimaryTags := []string{"datacenter", "customer_tier"}
 	statSpan, ok := sc.NewStatSpanFromPB(span, nil, spanDerivedPrimaryTags)
 	assert.True(t, ok)
-	assert.Equal(t, []string{"aws.s3.bucket:my-bucket", "http.url:/api/v1/users"}, statSpan.matchingSpanDerivedPrimaryTags)
+	assert.Equal(t, []string{"datacenter:us-east-1", "customer_tier:premium"}, statSpan.matchingSpanDerivedPrimaryTags)
 
 	agg := NewAggregationFromSpan(statSpan, "", PayloadAggregationKey{})
 	assert.Equal(t, spanDerivedPrimaryTagsHash, agg.SpanDerivedPrimaryTagsHash)

@@ -77,14 +77,14 @@ func TestSpanDerivedPrimaryTags(t *testing.T) {
 
 	t.Run("configured", func(t *testing.T) {
 		cfg := New()
-		cfg.SpanDerivedPrimaryTags = []string{"aws.s3.bucket", "http.url"}
-		assert.Equal(t, []string{"aws.s3.bucket", "http.url"}, cfg.ConfiguredSpanDerivedPrimaryTags())
+		cfg.SpanDerivedPrimaryTags = []string{"datacenter", "customer_tier", "availability_zone"}
+		assert.Equal(t, []string{"availability_zone", "customer_tier", "datacenter"}, cfg.ConfiguredSpanDerivedPrimaryTags())
 	})
 
 	t.Run("dedup", func(t *testing.T) {
 		cfg := New()
-		cfg.SpanDerivedPrimaryTags = []string{"tag1", "tag2", "tag1"}
-		assert.Equal(t, []string{"tag1", "tag2"}, cfg.ConfiguredSpanDerivedPrimaryTags())
+		cfg.SpanDerivedPrimaryTags = []string{"datacenter", "customer_tier", "datacenter"}
+		assert.Equal(t, []string{"customer_tier", "datacenter"}, cfg.ConfiguredSpanDerivedPrimaryTags())
 	})
 }
 
