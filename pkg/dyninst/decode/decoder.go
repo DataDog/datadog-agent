@@ -272,6 +272,36 @@ func (s *snapshotMessage) init(
 		}
 		s.Duration = uint64(returnHeader.Ktime_ns - header.Ktime_ns)
 		s.Debugger.Snapshot.Captures.Return = &decoder._return
+	} else {
+		// Check if we expected a return event but didn't get one.
+		pairingExpectation := output.EventPairingExpectation(
+			header.Event_pairing_expectation,
+		)
+		var reason string
+		switch pairingExpectation {
+		case output.EventPairingExpectationReturnPairingExpected:
+			reason = "return event not received"
+		case output.EventPairingExpectationBufferFull:
+			reason = "userspace buffer capacity exceeded"
+		case output.EventPairingExpectationCallMapFull:
+			reason = "call map capacity exceeded"
+		case output.EventPairingExpectationCallCountExceeded:
+			reason = "maximum call count exceeded"
+		}
+		// The choice to use @duration here is somewhat arbitrary; we want to
+		// choose something that definitely can't collide with a real variable
+		// and is evocative of the thing that is missing. Indeed we know in this
+		// situation we will never @duration, so it seems like a good choice.
+		const missingReturnReasonExpression = "@duration"
+		if reason != "" {
+			s.Debugger.EvaluationErrors = append(
+				s.Debugger.EvaluationErrors,
+				evaluationError{
+					Expression: missingReturnReasonExpression,
+					Message:    fmt.Sprintf("no return value available: %s", reason),
+				},
+			)
+		}
 	}
 
 	s.Debugger.Snapshot.Timestamp = int(decoder.approximateBootTime.Add(
