@@ -43,11 +43,3 @@ func SetLogsTags(tags []string) {
 		logsScheduler.SetLogsTags(tags)
 	}
 }
-
-//nolint:revive // TODO(SERV) Fix revive linter
-func GetLogsTags() []string {
-	if logsScheduler != nil {
-		return logsScheduler.GetLogsTags()
-	}
-	return nil
-}

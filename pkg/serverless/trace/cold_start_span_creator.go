@@ -12,7 +12,6 @@ import (
 	"time"
 
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
-	serverlessLog "github.com/DataDog/datadog-agent/pkg/serverless/logs"
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -39,7 +38,6 @@ type ColdStartSpanCreator struct {
 	TraceAgent            ServerlessTraceAgent
 	createSpan            sync.Once
 	LambdaSpanChan        <-chan *pb.Span
-	LambdaInitMetricChan  <-chan *serverlessLog.LambdaInitMetric
 	syncSpanDurationMutex sync.Mutex
 	ColdStartSpanId       uint64
 	lambdaSpan            *pb.Span
@@ -56,8 +54,6 @@ func (c *ColdStartSpanCreator) Run() {
 			select {
 			case traceAgentSpan := <-c.LambdaSpanChan:
 				c.handleLambdaSpan(traceAgentSpan)
-			case initMetric := <-c.LambdaInitMetricChan:
-				c.handleInitMetric(initMetric)
 
 			case <-c.StopChan:
 				log.Debugf("[ColdStartCreator] - shutting down")
@@ -81,19 +77,6 @@ func (c *ColdStartSpanCreator) handleLambdaSpan(traceAgentSpan *pb.Span) {
 	defer c.syncSpanDurationMutex.Unlock()
 
 	c.lambdaSpan = traceAgentSpan
-	c.createIfReady()
-}
-
-func (c *ColdStartSpanCreator) handleInitMetric(initMetric *serverlessLog.LambdaInitMetric) {
-	c.syncSpanDurationMutex.Lock()
-	defer c.syncSpanDurationMutex.Unlock()
-	// Duration and start time come as two separate logs, so we expect this method to be called twice
-	if initMetric.InitDurationTelemetry != 0 {
-		c.initDuration = initMetric.InitDurationTelemetry
-	}
-	if !initMetric.InitStartTime.IsZero() {
-		c.initStartTime = initMetric.InitStartTime
-	}
 	c.createIfReady()
 }
 
