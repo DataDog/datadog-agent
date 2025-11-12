@@ -14,11 +14,17 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/types"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
 	defaultMinAge    = 30 * time.Second
 	defaultArraySize = 5
+)
+
+var (
+	// DetailedLogging bla bla bla
+	DetailedLogging bool
 )
 
 // incompleteBuffer is responsible for buffering incomplete transactions
@@ -82,6 +88,10 @@ func (b *incompleteBuffer) Add(tx Transaction) {
 		SrcPort:   connTuple.SrcPort,
 	}
 
+	if DetailedLogging {
+		log.Errorf("HTTP Telemetry: Adding transaction to incomplete buffer: %v", tx)
+	}
+
 	parts, ok := b.data[key]
 	if !ok {
 		if len(b.data) >= b.maxEntries {
@@ -138,6 +148,9 @@ func (b *incompleteBuffer) Flush() []Transaction {
 			request := parts.requests[i]
 			response := parts.responses[j]
 			if request.RequestStarted() > response.ResponseLastSeen() {
+				if DetailedLogging {
+					log.Errorf("HTTP Telemetry: dropping response: %#v; because of request: %#v", response, request)
+				}
 				b.telemetry.joiner.responsesDropped.Add(1)
 				j++
 				continue
