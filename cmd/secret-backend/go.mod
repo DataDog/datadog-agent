@@ -3,9 +3,9 @@ module github.com/DataDog/datadog-agent/cmd/secret-backend
 go 1.25.3
 
 replace (
-	github.com/DataDog/datadog-secret-backend/backend => ./backend
-	github.com/DataDog/datadog-secret-backend/backend/aws => ./backend/aws
-	github.com/DataDog/datadog-secret-backend/backend/aws/secretsmanager => ./backend/aws/secretsmanager
+	github.com/DataDog/datadog-agent/cmd/secret-backend/backend => ./backend
+	github.com/DataDog/datadog-agent/cmd/secret-backend/backend/aws => ./backend/aws
+	github.com/DataDog/datadog-agent/cmd/secret-backend/backend/aws/secretsmanager => ./backend/aws/secretsmanager
 	github.com/hashicorp/vault/api/auth/aws => github.com/DataDog/vault/api/auth/aws v0.0.0-20250716193101-44fb30472101
 )
 
