@@ -16,6 +16,7 @@ import (
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
 )
@@ -36,6 +37,7 @@ type FactoryDependencies struct {
 	fx.In
 
 	WMeta       workloadmeta.Component
+	FilterStore workloadfilter.Component
 	Tagger      tagger.Component
 	Telemetry   telemetry.Component
 	Compression logscompression.Component
