@@ -36,7 +36,7 @@ func (s snmpScannerImpl) ScanDeviceAndSendData(connParams *snmpparse.SNMPConfig,
 		Namespace:        namespace,
 	}
 	if err = s.sendPayload(inProgressStatusPayload); err != nil {
-		return fmt.Errorf("unable to send in progress status: %v", err)
+		return fmt.Errorf("unable to send in progress status: %w", err)
 	}
 	if err = snmp.Connect(); err != nil {
 		// Send an error status if we can't connect to the agent
@@ -50,7 +50,7 @@ func (s snmpScannerImpl) ScanDeviceAndSendData(connParams *snmpparse.SNMPConfig,
 			Namespace:        namespace,
 		}
 		if sendErr := s.sendPayload(errorStatusPayload); sendErr != nil {
-			return fmt.Errorf("unable to send error status: %v", sendErr)
+			return fmt.Errorf("unable to send error status: %w", sendErr)
 		}
 		return fmt.Errorf("unable to connect to SNMP agent on %s:%d: %w", snmp.LocalAddr, snmp.Port, err)
 	}
@@ -67,9 +67,9 @@ func (s snmpScannerImpl) ScanDeviceAndSendData(connParams *snmpparse.SNMPConfig,
 			Namespace:        namespace,
 		}
 		if sendErr := s.sendPayload(errorStatusPayload); sendErr != nil {
-			return fmt.Errorf("unable to send error status: %v", sendErr)
+			return fmt.Errorf("unable to send error status: %w", sendErr)
 		}
-		return fmt.Errorf("unable to perform device scan: %v", err)
+		return fmt.Errorf("unable to perform device scan: %w", err)
 	}
 	// Send a completed status if the scan was successful
 	completedStatusPayload := metadata.NetworkDevicesMetadata{
@@ -82,7 +82,7 @@ func (s snmpScannerImpl) ScanDeviceAndSendData(connParams *snmpparse.SNMPConfig,
 		Namespace:        namespace,
 	}
 	if err = s.sendPayload(completedStatusPayload); err != nil {
-		return fmt.Errorf("unable to send completed status: %v", err)
+		return fmt.Errorf("unable to send completed status: %w", err)
 	}
 	return nil
 }

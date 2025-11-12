@@ -291,9 +291,10 @@ func scanDevice(connParams *snmpparse.SNMPConfig, args argsType, snmpScanner snm
 		ScanType: metadata.ManualScan,
 	})
 	if err != nil {
-		fmt.Printf("Unable to perform device scan for device %s : %e", deviceID, err)
+		fmt.Printf("Unable to perform device scan for device %s : %v\n", deviceID, err)
+	} else {
+		fmt.Printf("Completed scan successfully for device: %s\n", deviceID)
 	}
-	fmt.Printf("Completed scan successfully for device: %s\n", deviceID)
 	return err
 }
 
