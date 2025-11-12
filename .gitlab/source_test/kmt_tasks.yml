@@ -8,7 +8,7 @@
   #   - !reference [.on_invoke_tasks_changes]
   #   - !reference [.except_mergequeue]
   script:
-    - token="$(i auth.gitlab --repo test-infra-definitions)"
+    - token="$(dda inv auth.gitlab --repo test-infra-definitions)"
     - git config --global url."https://gitlab-ci-token:${token}@gitlab.ddbuild.io/DataDog/".insteadOf "git@github.com:"
     # Avoid rate limits when running kmt.init (pulumi queries the Github API to get the releases of plugins)
     - export GITHUB_TOKEN=$(dda inv github.get-token-from-app)
