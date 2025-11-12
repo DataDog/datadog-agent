@@ -97,6 +97,28 @@ func (r *HTTPReceiver) makeInfoHandler() (hash string, handler http.HandlerFunc)
 		}
 	}
 
+	// reject_tags, reject_tags_regex, and ignore_resources
+	var rejectTags []string
+	for _, tag := range r.conf.RejectTags {
+		if tag.V != "" {
+			rejectTags = append(rejectTags, fmt.Sprintf("%s:%s", tag.K, tag.V))
+		} else {
+			rejectTags = append(rejectTags, tag.K)
+		}
+	}
+	var rejectTagsRegex []string
+	for _, tag := range r.conf.RejectTagsRegex {
+		if tag.V != nil {
+			rejectTagsRegex = append(rejectTagsRegex, fmt.Sprintf("%s:%s", tag.K, tag.V.String()))
+		} else {
+			rejectTagsRegex = append(rejectTagsRegex, tag.K)
+		}
+	}
+	var ignoreResources []string
+	if patterns, ok := r.conf.Ignore["resource"]; ok {
+		ignoreResources = patterns
+	}
+
 	txt, err := json.MarshalIndent(struct {
 		Version                string        `json:"version"`
 		GitCommit              string        `json:"git_commit"`
@@ -111,6 +133,9 @@ func (r *HTTPReceiver) makeInfoHandler() (hash string, handler http.HandlerFunc)
 		PeerTags               []string      `json:"peer_tags"`
 		SpanKindsStatsComputed []string      `json:"span_kinds_stats_computed"`
 		ObfuscationVersion     int           `json:"obfuscation_version"`
+		RejectTags             []string      `json:"reject_tags,omitempty"`
+		RejectTagsRegex        []string      `json:"reject_tags_regex,omitempty"`
+		IgnoreResources        []string      `json:"ignore_resources,omitempty"`
 	}{
 		Version:                r.conf.AgentVersion,
 		GitCommit:              r.conf.GitCommit,
@@ -123,6 +148,9 @@ func (r *HTTPReceiver) makeInfoHandler() (hash string, handler http.HandlerFunc)
 		EvpProxyAllowedHeaders: EvpProxyAllowedHeaders,
 		SpanKindsStatsComputed: spanKindsStatsComputed,
 		ObfuscationVersion:     obfuscate.Version,
+		RejectTags:             rejectTags,
+		RejectTagsRegex:        rejectTagsRegex,
+		IgnoreResources:        ignoreResources,
 		Config: reducedConfig{
 			DefaultEnv:             r.conf.DefaultEnv,
 			TargetTPS:              r.conf.TargetTPS,
