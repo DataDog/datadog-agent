@@ -424,7 +424,7 @@ const (
 	RootExpressionKindLocal
 	// RootExpressionKindTemplateSegment means that this expression is part of a
 	// template segment.
-	// RootExpressionKindTemplateSegment
+	RootExpressionKindTemplateSegment
 )
 
 func (k RootExpressionKind) String() string {
@@ -433,6 +433,8 @@ func (k RootExpressionKind) String() string {
 		return "argument"
 	case RootExpressionKindLocal:
 		return "local"
+	case RootExpressionKindTemplateSegment:
+		return "template_segment"
 	default:
 		return fmt.Sprintf("RootExpressionKind(%d)", k)
 	}
