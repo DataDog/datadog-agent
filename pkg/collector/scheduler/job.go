@@ -201,6 +201,11 @@ func (jq *jobQueue) process(s *Scheduler) bool {
 			if !s.IsCheckScheduled(check.ID()) {
 				continue
 			}
+			// HERE?
+			if !check.CronShouldRun(t) {
+				// TODO: TEST ME
+				continue
+			}
 
 			select {
 			// blocking, we'll be here as long as it takes

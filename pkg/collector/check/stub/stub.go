@@ -75,3 +75,8 @@ func (c *StubCheck) GetDiagnoses() ([]diagnose.Diagnosis, error) { return nil, n
 
 // IsHASupported returns false
 func (c *StubCheck) IsHASupported() bool { return false }
+
+// CronShouldRun returns true if check should run based on cron schedule
+func (c *StubCheck) CronShouldRun(t time.Time) bool {
+	return false
+}
