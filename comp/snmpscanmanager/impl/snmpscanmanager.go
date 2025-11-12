@@ -251,6 +251,13 @@ func (m *snmpScanManagerImpl) loadCache() {
 	}
 
 	for _, scan := range deviceScans {
+		if scan.ScanEndTs == nil {
+			m.log.Warnf("Unexpected nil timestamp found in a device scan while loading the cache")
+
+			now := time.Now()
+			scan.ScanEndTs = &now
+		}
+
 		m.deviceScans[scan.DeviceIP] = scan
 
 		if scan.isSuccess() {
