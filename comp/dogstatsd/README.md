@@ -5,7 +5,7 @@ UDP or UDS. Every package has to follow the Dogstatsd format:
 http://docs.datadoghq.com/guides/dogstatsd/.
 
 Metrics will be sent to the aggregator just like regular metrics from checks.
-This mean that aggregator and forwarder configuration will also inpact
+This mean that aggregator and forwarder configuration will also impact
 Dogstatsd.
 
 Usage example:
@@ -27,7 +27,7 @@ Details on existing Dogstatsd internals tuning fields are available in `docs/dog
 
 ### [Experimental] Dogstatsd protocol 1.1
 
-This feature is experimental for now and could change or be remove in futur release.
+This feature is experimental for now and could change or be removed in future releases.
 
 Starting with agent 7.25.0/6.25.0 Dogstatsd datagram can contain multiple values using the `:` delimiter.
 

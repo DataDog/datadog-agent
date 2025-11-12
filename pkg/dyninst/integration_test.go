@@ -26,7 +26,6 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"syscall"
 	"testing"
 	"time"
 
@@ -38,7 +37,6 @@ import (
 
 	"github.com/DataDog/ebpf-manager/tracefs"
 
-	"github.com/DataDog/datadog-agent/pkg/dyninst/actuator"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/compiler"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/dyninsttest"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
@@ -49,6 +47,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dyninst/procsubscribe"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/testprogs"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/uploader"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
 //go:embed testdata/decoded
@@ -171,18 +170,8 @@ func testDyninst(
 		_ = sampleProc.Wait()
 	}()
 
-	stat, err := os.Stat(servicePath)
+	exe, err := process.ResolveExecutable(kernel.ProcFSRoot(), int32(sampleProc.Process.Pid))
 	require.NoError(t, err)
-	fileInfo := stat.Sys().(*syscall.Stat_t)
-	exe := actuator.Executable{
-		Path: servicePath,
-		Key: process.FileKey{
-			FileHandle: process.FileHandle{
-				Dev: uint64(fileInfo.Dev),
-				Ino: fileInfo.Ino,
-			},
-		},
-	}
 	const runtimeID = "foo"
 	sendUpdate(process.ProcessesUpdate{
 		Updates: []process.Config{
