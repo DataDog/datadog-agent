@@ -40,6 +40,7 @@ func testBasicTraces(c *assert.CollectT, service string, intake *components.Fake
 	}
 	tp := trace.TracerPayloads[0]
 	assert.Equal(c, "go", tp.LanguageName)
+	assert.Equal(c, "full", tp.APMMode)
 	if !assert.NotEmpty(c, tp.Chunks) {
 		return
 	}
@@ -432,4 +433,15 @@ func hasPoisonPill(t *testing.T, intake *components.FakeIntake) bool {
 	assert.NoError(t, err)
 	t.Logf("Got %d traces", len(traces))
 	return hasTraceForResource(traces, "poison_pill")
+}
+
+func testAPMMode(c *assert.CollectT, intake *components.FakeIntake, expectedAPMMode string) {
+	traces, err := intake.Client().GetTraces()
+	assert.NoError(c, err)
+	if !assert.NotEmpty(c, traces) {
+		return
+	}
+	for _, p := range traces {
+		assert.Equal(c, expectedAPMMode, p.APMMode)
+	}
 }

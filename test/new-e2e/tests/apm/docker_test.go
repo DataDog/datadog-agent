@@ -257,3 +257,13 @@ func (s *DockerFakeintakeSuite) TestProbabilitySampler() {
 		tracesSampledByProbabilitySampler(s.T(), c, s.Env().FakeIntake)
 	}, 2*time.Minute, 10*time.Second, "Failed to find traces sampled by the probability sampler")
 }
+
+func (s *DockerFakeintakeSuite) TestAPMMode() {
+	s.Run("default", func() {
+		s.EventuallyWithT(func(c *assert.CollectT) {
+			testAPMMode(c, s.Env().FakeIntake, "full")
+		}, 2*time.Minute, 10*time.Second)
+	})
+}
+
+// TODO: TestAPMMode with DD_APM_MODE env var configured
