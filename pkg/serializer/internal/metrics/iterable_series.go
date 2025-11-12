@@ -105,21 +105,34 @@ func describeItem(serie *metrics.Serie) string {
 	return fmt.Sprintf("name %q, %d points", serie.Name, len(serie.Points))
 }
 
+type serieWriter interface {
+	writeSerie(serie *metrics.Serie) error
+	startPayload() error
+	finishPayload() error
+	transactionPayloads() []*transaction.BytesPayload
+}
+
 // MarshalSplitCompressPipelines uses the stream compressor to marshal and
 // compress series payloads, allowing multiple variants to be generated in a
 // single pass over the input data. If a compressed payload is larger than the
 // max, a new payload will be generated. This method returns a slice of
 // compressed protobuf marshaled MetricPayload objects.
 func (series *IterableSeries) MarshalSplitCompressPipelines(config config.Component, strategy compression.Component, pipelines PipelineSet) error {
-	pbs := make([]*PayloadsBuilder, 0, len(pipelines))
+	pbs := make([]serieWriter, 0, len(pipelines))
 
 	for pipelineConfig, pipelineContext := range pipelines {
-		bufferContext := marshaler.NewBufferContext()
-		pb, err := series.NewPayloadsBuilder(bufferContext, config, strategy, pipelineConfig, pipelineContext)
+		var pb serieWriter
+		var error error
+		if pipelineConfig.V3 {
+			bufferContext := marshaler.NewBufferContext()
+			pb, err = series.NewPayloadsBuilder(bufferContext, config, strategy, pipelineConfig, pipelineContext)
+		} else {
+			pb, err = series.newPayloadsBuilderV3(config, strategy, pipelineConfig, pipelineContext)
+		}
 		if err != nil {
 			return err
 		}
-		pbs = append(pbs, &pb)
+		pbs = append(pbs, pb)
 
 		err = pb.startPayload()
 		if err != nil {
@@ -463,6 +476,10 @@ func (pb *PayloadsBuilder) finishPayload() error {
 	}
 
 	return nil
+}
+
+func (pb *PayloadsBuilder) transactionPayloads() []*transaction.BytesPayload {
+	return pb.payloads
 }
 
 func encodeSerie(serie *metrics.Serie, stream *jsoniter.Stream) {
