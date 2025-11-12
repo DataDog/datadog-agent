@@ -294,9 +294,6 @@ func (c *WorkloadMetaCollector) handleProcess(ev workloadmeta.Event) []*types.Ta
 		}
 
 		for _, tracerMeta := range process.Service.TracerMetadata {
-			tagList.AddStandard(tags.Service, tracerMeta.ServiceName)
-			tagList.AddStandard(tags.Env, tracerMeta.ServiceEnv)
-			tagList.AddStandard(tags.Version, tracerMeta.ServiceVersion)
 			parseProcessTags(tagList, tracerMeta.ProcessTags)
 		}
 	}
@@ -311,10 +308,6 @@ func (c *WorkloadMetaCollector) handleProcess(ev workloadmeta.Event) []*types.Ta
 		}
 
 		c.extractGPUTags(gpu, tagList)
-	}
-
-	for _, tracerMeta := range process.Service.TracerMetadata {
-		parseProcessTags(tagList, tracerMeta.ProcessTags)
 	}
 
 	low, orch, high, standard := tagList.Compute()
