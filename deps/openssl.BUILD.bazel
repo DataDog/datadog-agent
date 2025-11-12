@@ -57,6 +57,8 @@ configure_make(
             "mingw64",
             "no-zlib",
             "no-uplink",
+            "-DAES_ASM",
+            "-D__x86_64__",
         ] + DEFAULT_CONFIG[:-1],
         "//conditions:default": [],
     }),
