@@ -6,6 +6,7 @@
 package gosnmplib
 
 import (
+	"fmt"
 	"strconv"
 	"strings"
 	"time"
@@ -90,14 +91,33 @@ RequestLoop:
 					continue
 				}
 			}
-			// Report our pdu
-			oid, err = walkFn(pdu)
+			// Report our pdu and get the next oid
+			nextOID, err := walkFn(pdu)
 			if err != nil {
 				return err
 			}
-			if oid == "" {
-				oid = pdu.Name
+			// If walkFn doesn't provide a next OID, use the next one reported
+			// by the server
+			if nextOID == "" {
+				nextOID = pdu.Name
 			}
+			// Verify that the new OID is after the one we just processed - if
+			// this is not true, then either walkFn is buggy or the device in
+			// question is not responding correctly. Either way we need to stop
+			// or we'll end up in an infinite loop.
+			next, err := OIDToInts(nextOID)
+			if err != nil {
+				return err
+			}
+			this, err := OIDToInts(oid)
+			if err != nil {
+				return err
+			}
+			if !CmpOIDs(next, this).IsAfter() {
+				session.Logger.Printf("Error: OID not increasing (%v to %v)", oid, nextOID)
+				return fmt.Errorf("OID is not increasing: %v", nextOID)
+			}
+			oid = nextOID
 		}
 	}
 	session.Logger.Printf("ConditionalWalk completed in %d requests", requests)
