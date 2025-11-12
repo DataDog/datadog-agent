@@ -6,7 +6,7 @@ generator:
         load_profile:
           constant: 3 MiB
         concurrent_logs: 1
-        maximum_bytes_per_log: 100 MiB
+        maximum_bytes_per_log: 200 MiB
         total_rotations: 5
         max_depth: 0
         variant: "apache_common"
