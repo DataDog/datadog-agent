@@ -31,7 +31,27 @@ import (
 type cliParams struct {
 	*command.GlobalParams
 
-	verbose bool
+	// args are the positional command-line arguments
+	args []string
+
+	verbose    bool
+	json       bool
+	prettyJSON bool
+}
+
+type instance struct {
+	ID     string `json:"id"`
+	Config string `json:"config"`
+}
+
+type jsonConfig struct {
+	Name         string     `json:"check_name"`
+	Provider     string     `json:"provider"`
+	Source       string     `json:"source"`
+	Instances    []instance `json:"instances"`
+	InitConfig   string     `json:"init_config"`
+	MetricConfig string     `json:"metric_config"`
+	Logs         string     `json:"logs"`
 }
 
 // Commands returns a slice of subcommands for the 'agent' command.
@@ -41,11 +61,13 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	}
 
 	configCheckCommand := &cobra.Command{
-		Use:     "configcheck",
+		Use:     "configcheck [check]",
 		Aliases: []string{"checkconfig"},
 		Short:   "Print all configurations loaded & resolved of a running agent",
 		Long:    ``,
-		RunE: func(_ *cobra.Command, _ []string) error {
+		RunE: func(_ *cobra.Command, args []string) error {
+			cliParams.args = args
+
 			return fxutil.OneShot(run,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
@@ -58,11 +80,21 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		},
 	}
 	configCheckCommand.Flags().BoolVarP(&cliParams.verbose, "verbose", "v", false, "print additional debug info")
+	configCheckCommand.Flags().BoolVarP(&cliParams.json, "json", "j", false, "print out raw json")
+	configCheckCommand.Flags().BoolVarP(&cliParams.prettyJSON, "pretty-json", "p", false, "pretty print json")
 
 	return []*cobra.Command{configCheckCommand}
 }
 
-func run(cliParams *cliParams, _ log.Component, client ipc.HTTPClient) error {
+func run(cliParams *cliParams, log log.Component, client ipc.HTTPClient) error {
+	if len(cliParams.args) < 1 {
+		return fullConfigCmd(cliParams, log, client)
+	}
+
+	return singleCheckCmd(cliParams, log, client)
+}
+
+func fullConfigCmd(cliParams *cliParams, _ log.Component, client ipc.HTTPClient) error {
 	endpoint, err := client.NewIPCEndpoint("/agent/config-check")
 	if err != nil {
 		return err
@@ -81,8 +113,123 @@ func run(cliParams *cliParams, _ log.Component, client ipc.HTTPClient) error {
 
 	var b bytes.Buffer
 	color.Output = &b
-	flare.PrintConfigCheck(color.Output, cr, cliParams.verbose)
+
+	if cliParams.json || cliParams.prettyJSON {
+		jsonConfigs := make([]jsonConfig, len(cr.Configs))
+
+		// gather and filter every check config
+		for i, config := range cr.Configs {
+			jsonConfigs[i] = convertCheckConfigToJSON(config.Config, config.InstanceIDs)
+		}
+
+		var jsonConfigsBytes []byte
+
+		if cliParams.prettyJSON {
+			jsonConfigsBytes, err = json.MarshalIndent(jsonConfigs, "", "  ")
+		} else {
+			jsonConfigsBytes, err = json.Marshal(jsonConfigs)
+		}
+		if err != nil {
+			return err
+		}
+
+		fmt.Fprintln(color.Output, string(jsonConfigsBytes))
+
+	} else {
+		flare.PrintConfigCheck(color.Output, cr, cliParams.verbose)
+	}
 
 	fmt.Println(b.String())
 	return nil
+}
+
+func singleCheckCmd(cliParams *cliParams, _ log.Component, client ipc.HTTPClient) error {
+	if len(cliParams.args) > 1 {
+		return fmt.Errorf("only one check must be specified")
+	}
+
+	endpoint, err := client.NewIPCEndpoint("/agent/config-check")
+	if err != nil {
+		return err
+	}
+
+	res, err := endpoint.DoGet()
+	if err != nil {
+		return fmt.Errorf("the agent ran into an error while checking config: %v", err)
+	}
+
+	cr := integration.ConfigCheckResponse{}
+	err = json.Unmarshal(res, &cr)
+	if err != nil {
+		return fmt.Errorf("unable to parse configcheck: %v", err)
+	}
+
+	// search through the configs for a check with the same name
+	for _, configResponse := range cr.Configs {
+		if cliParams.args[0] == configResponse.Config.Name {
+			var b bytes.Buffer
+			color.Output = &b
+
+			if cliParams.prettyJSON {
+				// pretty json print
+				config, err := json.MarshalIndent(convertCheckConfigToJSON(configResponse.Config, configResponse.InstanceIDs), "", "  ")
+				if err != nil {
+					return err
+				}
+
+				fmt.Fprintln(color.Output, string(config))
+			} else if cliParams.json {
+				// raw json print
+				config, err := json.Marshal(convertCheckConfigToJSON(configResponse.Config, configResponse.InstanceIDs))
+				if err != nil {
+					return err
+				}
+
+				fmt.Fprintln(color.Output, string(config))
+			} else {
+				// flare format print
+				flare.PrintConfigWithInstanceIDs(color.Output, configResponse.Config, configResponse.InstanceIDs, "")
+			}
+
+			fmt.Println(b.String())
+			return nil
+		}
+	}
+
+	// return an error if the name wasn't found in the checks list
+	return fmt.Errorf("no check named %q was found", cliParams.args[0])
+}
+
+func convertCheckConfigToJSON(c integration.Config, instanceIDs []string) jsonConfig {
+	jsonConfig := jsonConfig{}
+
+	jsonConfig.Name = c.Name
+
+	if c.Provider != "" {
+		jsonConfig.Provider = c.Provider
+	} else {
+		jsonConfig.Provider = "Unknown provider"
+	}
+
+	if c.Source != "" {
+		jsonConfig.Source = c.Source
+	} else {
+		jsonConfig.Source = "Unknown configuration source"
+	}
+
+	jsonConfig.Instances = make([]instance, len(c.Instances))
+	for idx, content := range c.Instances {
+		inst := instance{
+			ID:     instanceIDs[idx],
+			Config: string(content),
+		}
+
+		jsonConfig.Instances[idx] = inst
+	}
+
+	jsonConfig.InitConfig = string(c.InitConfig)
+	jsonConfig.MetricConfig = string(c.MetricConfig)
+	jsonConfig.Logs = string(c.LogsConfig)
+
+	return jsonConfig
 }
